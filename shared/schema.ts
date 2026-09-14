@@ -545,6 +545,31 @@ export const prazoEventSnapshots = pgTable("prazo_event_snapshots", {
 ]);
 
 // Notifications table
+// PEDIDOS DE PEÇA DO ATENDIMENTO (dono, 14/09): o Atendimento pede, quem monta
+// a lista (Solicitação) atende criando a peça — ou recusa com motivo. Regras e
+// rótulos em shared/pedidos-de-peca.ts.
+export const pedidosDePeca = pgTable("pedidos_de_peca", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  eventId: varchar("event_id").notNull().references(() => events.id, { onDelete: "cascade" }),
+  sponsorId: varchar("sponsor_id").references(() => sponsors.id, { onDelete: "set null" }),
+  quantidade: integer("quantidade").notNull(),
+  observacao: text("observacao").notNull(),
+  referencias: text("referencias").array().notNull().default(sql`ARRAY[]::text[]`),
+  status: text("status").notNull().default("aberto"), // aberto | atendido | recusado | cancelado
+  pedidoPor: text("pedido_por"),
+  pedidoPorId: varchar("pedido_por_id"),
+  itemId: varchar("item_id").references(() => items.id, { onDelete: "set null" }),
+  resolvidoPor: text("resolvido_por"),
+  resolvidoPorId: varchar("resolvido_por_id"),
+  resolvidoEm: timestamp("resolvido_em"),
+  motivoRecusa: text("motivo_recusa"),
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
+  updatedAt: timestamp("updated_at").notNull().default(sql`now()`),
+}, (table) => [
+  index("IDX_pedidos_de_peca_event_status").on(table.eventId, table.status),
+  index("IDX_pedidos_de_peca_status").on(table.status),
+]);
+
 export const notifications = pgTable("notifications", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   type: text("type").notNull(), // eventCreated, itemAdded, arteApproved, deadlineAlert, eventCompleted

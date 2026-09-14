@@ -73,6 +73,22 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/auth-context";
 import { MARCOS_DO_EVENTO, OFFSET_PADRAO_DO_MARCO } from "@shared/prazo-dates";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { Inbox } from "lucide-react";
+
+/** Selo de pedidos do Atendimento em aberto (dono, 14/09) — cartão e linha. */
+function SeloDePedidos({ n, eventId }: { n: number; eventId: string }) {
+  if (n <= 0) return null;
+  return (
+    <span
+      data-testid={`selo-pedidos-${eventId}`}
+      title={`${n} ${n === 1 ? "pedido de peça do Atendimento esperando" : "pedidos de peça do Atendimento esperando"} a lista`}
+      style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 800, color: '#92400e', backgroundColor: '#fffbeb', border: '1px solid #fde68a', borderRadius: 999, padding: '2px 8px', whiteSpace: 'nowrap', flexShrink: 0 }}
+    >
+      <Inbox style={{ width: 11, height: 11 }} aria-hidden="true" />
+      {n} {n === 1 ? 'pedido' : 'pedidos'}
+    </span>
+  );
+}
 
 type PriorityLevel = 'baixa' | 'media' | 'alta' | 'urgente' | 'sem_prioridade';
 // VOCABULÁRIO DOS QUATRO ESTADOS — duas palavras, dois significados, sem
@@ -394,12 +410,13 @@ const TH_LISTA: React.CSSProperties = {
  * continua a um clique.
  */
 function EventRow({
-  event, sponsorCount, currentYear, isMobile,
+  event, sponsorCount, currentYear, isMobile, pedidosAbertos = 0,
   canEdit, canDelete, canDuplicate, canSetPriority, canClose,
   onEdit, onDelete, onDuplicate, onSetPriority, onClose, onReopen,
 }: {
   event: any;
   sponsorCount: number;
+  pedidosAbertos?: number;
   currentYear: number;
   isMobile: boolean;
   canEdit: boolean;
@@ -484,6 +501,7 @@ function EventRow({
             {sponsorCount} patroc.
           </span>
         )}
+        <SeloDePedidos n={pedidosAbertos} eventId={event.id} />
       </span>
 
       {/* Saída */}
@@ -681,6 +699,7 @@ function EventCardActions({
 function EventCard({
   event,
   cardSponsors,
+  pedidosAbertos = 0,
   isMobile,
   currentYear,
   canEdit,
@@ -697,6 +716,7 @@ function EventCard({
 }: {
   event: any;
   cardSponsors: Sponsor[];
+  pedidosAbertos?: number;
   isMobile: boolean;
   currentYear: number;
   canEdit: boolean;
@@ -866,6 +886,11 @@ function EventCard({
         <h3 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: FS.title, fontWeight: '700', color: T.dark, lineHeight: 1.25, margin: 0 }}>
           {event.name}
         </h3>
+        {pedidosAbertos > 0 && (
+          <div style={{ marginTop: -8 }}>
+            <SeloDePedidos n={pedidosAbertos} eventId={event.id} />
+          </div>
+        )}
 
         {cardSponsors.length > 0 && (
           <SponsorChips sponsors={cardSponsors} max={3} variant="colored" size="xs" />
@@ -1203,6 +1228,15 @@ export default function Eventos() {
   const [openPrazoKey, setOpenPrazoKey] = useState<string | null>(null);
 
   const currentYear = useMemo(() => new Date().getFullYear(), []);
+
+  // PEDIDOS DO ATENDIMENTO (dono, 14/09): quantos pedidos de peça cada evento
+  // tem esperando a lista.
+  const { data: pedidosAbertos = [] } = useQuery<Array<{ eventId: string }>>({ queryKey: ["/api/pedidos-de-peca?status=aberto"] });
+  const pedidosPorEvento = useMemo(() => {
+    const porEvento = new Map<string, number>();
+    for (const p of pedidosAbertos) porEvento.set(p.eventId, (porEvento.get(p.eventId) ?? 0) + 1);
+    return porEvento;
+  }, [pedidosAbertos]);
 
   const { data: events = [], isLoading, isError, refetch } = useQuery<any[]>({
     queryKey: ["/api/events"],
@@ -3355,6 +3389,7 @@ export default function Eventos() {
                     key={event.id}
                     event={event}
                     sponsorCount={cardSponsors.length}
+                    pedidosAbertos={pedidosPorEvento.get(event.id) ?? 0}
                     currentYear={currentYear}
                     isMobile={isMobile}
                     canEdit={canEdit}
@@ -3385,6 +3420,7 @@ export default function Eventos() {
                   key={event.id}
                   event={event}
                   cardSponsors={cardSponsors}
+                  pedidosAbertos={pedidosPorEvento.get(event.id) ?? 0}
                   isMobile={isMobile}
                   currentYear={currentYear}
                   canEdit={canEdit}

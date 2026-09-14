@@ -42,11 +42,12 @@ describe("tabela ↔ código, sem sobras de nenhum lado", () => {
     expect(fantasmas).toEqual([]);
   });
 
-  it("são as 82 — o número que o diagnóstico mediu; mudou, atualize os dois", () => {
-    // 82 = as 78 do diagnóstico + o descancelar do admin (01/09) + iniciar impressão (14/09)
-    //    + reservar e liberar peça do estoque (14/09).
-    expect(REGUA_DE_PAPEIS.length).toBe(82);
-    expect(doCodigo.length).toBe(82);
+  it("são as 86 — o número que o diagnóstico mediu; mudou, atualize os dois", () => {
+    // 86 = as 78 do diagnóstico + o descancelar do admin (01/09) + iniciar impressão (14/09)
+    //    + reservar e liberar peça do estoque (14/09)
+    //    + pedir, atender, recusar e cancelar pedido de peça (14/09).
+    expect(REGUA_DE_PAPEIS.length).toBe(86);
+    expect(doCodigo.length).toBe(86);
   });
 });
 

@@ -335,6 +335,13 @@ export function useWebSocket() {
             }
             break;
 
+          case 'pedidos_de_peca':
+            // Pedidos de peça do Atendimento (14/09): a aba do Atendimento,
+            // o selo de Eventos e o painel do evento leem chaves com filtro
+            // na URL — invalida todas pelo prefixo.
+            queryClient.invalidateQueries({ predicate: (q) => String(q.queryKey[0] ?? '').startsWith('/api/pedidos-de-peca') });
+            break;
+
           case 'notification_created':
           case 'notification_read':
             invalidateCoalesced('/api/notifications');

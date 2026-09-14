@@ -9,6 +9,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Plus, ArrowLeft, Calendar, Truck, AlertCircle, List, Package, Package2, Pencil, Trash2, Check, Building2, Loader2, User, History, Lock, Unlock, Paperclip, ExternalLink, X, RotateCcw, Recycle, Upload, Copy, ChevronDown, CheckCircle2, AlertTriangle, FileSpreadsheet, FileText, Tags, BookOpen, Search, Warehouse } from "lucide-react";
 import { EstoqueSemelhantesDialog } from "@/components/estoque-semelhantes-dialog";
+import { PedidosDoEvento } from "@/components/pedidos-do-evento";
+import { invalidarPedidos } from "@/components/pedidos-de-peca-atendimento";
+import type { PedidoDePeca } from "@shared/pedidos-de-peca";
 import { Fragment, useState, useEffect, useMemo, useRef } from "react";
 import type { Sponsor, Item, Event as EventRecord } from "@shared/schema";
 import {
@@ -1036,6 +1039,41 @@ export default function EventDetail() {
     enabled: !!eventId && canEditLists,
   });
   const [estoqueDaPeca, setEstoqueDaPeca] = useState<{ id: string; eventId: string } | null>(null);
+
+  // PEDIDO DO ATENDIMENTO sendo atendido (dono, 14/09): "Criar peça" abre o
+  // formulário simples já preenchido; ao salvar, a peça fica ligada ao pedido
+  // e o servidor leva para ela o patrocinador e as referências.
+  const [pedidoEmAtendimento, setPedidoEmAtendimento] = useState<PedidoDePeca | null>(null);
+  const podeAtenderPedidos = hasPermission("admin") || user?.role === "solicitacao";
+  const atenderPedidoMutation = useMutation({
+    mutationFn: async ({ pedidoId, itemId }: { pedidoId: string; itemId: string }) =>
+      (await apiRequest("PATCH", `/api/pedidos-de-peca/${pedidoId}/atender`, { itemId })).json(),
+    onSuccess: () => {
+      invalidarPedidos();
+      queryClient.invalidateQueries({ queryKey: ["/api/items", eventId] });
+      toast({ title: "Pedido atendido", description: "A peça ficou ligada ao pedido e o Atendimento foi avisado." });
+    },
+    onError: (error: Error) => toast({
+      title: "A peça foi criada, mas o pedido não foi marcado como atendido",
+      description: `${error.message} — use "Já criei a peça" no pedido.`,
+      variant: "destructive",
+    }),
+  });
+  const criarPecaDoPedido = (pedido: PedidoDePeca) => {
+    setEditingItem(null);
+    setBulkMode(false);
+    setCustomMaterial(false);
+    setCustomFinish(false);
+    setLocalRefPreview("");
+    setFormData({
+      ...EMPTY_ITEM_FORM,
+      quantity: pedido.quantidade,
+      observations: pedido.observacao,
+      referenceUrl: pedido.referencias?.[0] ?? "",
+    });
+    setPedidoEmAtendimento(pedido);
+    setOpen(true);
+  };
   const seloDoEstoque = (item: any) => {
     const est = estoqueResumo[item.id];
     if (!est) return null;
@@ -1241,9 +1279,13 @@ export default function EventDetail() {
       
       return createdItem;
     },
-    onSuccess: () => {
+    onSuccess: (createdItem: any) => {
       queryClient.invalidateQueries({ queryKey: ["/api/items", eventId] });
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+      if (pedidoEmAtendimento && createdItem?.id) {
+        atenderPedidoMutation.mutate({ pedidoId: pedidoEmAtendimento.id, itemId: createdItem.id });
+      }
+      setPedidoEmAtendimento(null);
       setOpen(false);
       setFormData({ ...EMPTY_ITEM_FORM });
       toast({
@@ -1574,6 +1616,7 @@ export default function EventDetail() {
   };
 
   const handleCloseDialog = () => {
+    setPedidoEmAtendimento(null);
     setLocalRefPreview("");
     setEditingItem(null);
     setBulkMode(true);
@@ -2094,7 +2137,7 @@ export default function EventDetail() {
                   icon={bulkMode && !editingItem ? List : Plus}
                   tint="#c2410c"
                   title={bulkMode && !editingItem ? "Entrada Rápida" : "Adicionar Peça"}
-                  subtitle={bulkMode && !editingItem ? "Modo Lote — entrada rápida de peças" : (event.name || "Nova peça de produção")}
+                  subtitle={bulkMode && !editingItem ? "Modo Lote — entrada rápida de peças" : (pedidoEmAtendimento ? `Atendendo pedido do Atendimento — ${pedidoEmAtendimento.quantidade} un. para ${pedidoEmAtendimento.sponsorName ?? "patrocinador"}` : (event.name || "Nova peça de produção"))}
                   onClose={bulkMode && !editingItem
                     ? () => { if (window.confirm("Descartar linhas não salvas?")) handleCloseDialog(); }
                     : handleCloseDialog}
@@ -2418,6 +2461,15 @@ export default function EventDetail() {
           );
         })()}
       </div>
+
+      {/* Pedidos de peça do Atendimento (dono, 14/09) — some quando não há. */}
+      <PedidosDoEvento
+        eventId={eventId!}
+        pecas={items}
+        podeAtender={podeAtenderPedidos && canEditLists}
+        eventoFinalizado={eventoFinalizado}
+        onCriarPeca={criarPecaDoPedido}
+      />
 
       {/* Card de Peças em Rascunho — visual Titanium (antes era Card shadcn
           tracejado + Badge, destoando do resto da página). Os rascunhos vivem

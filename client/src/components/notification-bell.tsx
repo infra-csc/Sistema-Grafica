@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { Bell, Package, CheckCircle, AlertTriangle, Truck, FileText, ClipboardCheck, CalendarClock, PlusCircle, MinusCircle, ChevronRight } from "lucide-react";
+import { Bell, Package, CheckCircle, AlertTriangle, Truck, FileText, ClipboardCheck, CalendarClock, PlusCircle, MinusCircle, ChevronRight, Inbox } from "lucide-react";
 
 export interface Notification {
   id: string;
@@ -104,6 +104,25 @@ const TYPE_CONFIG: Record<string, TypeConfig> = {
     border: "#f59e0b",
     bgIcon: "#fef3c7", iconColor: "#92400e",
     label: "Quantidade",
+  },
+  // PEDIDOS DE PEÇA DO ATENDIMENTO (14/09).
+  pedidoDePeca: {
+    Icon: Inbox,
+    border: "#f59e0b",
+    bgIcon: "#fffbeb", iconColor: "#92400e",
+    label: "Pedido de peça",
+  },
+  pedidoAtendido: {
+    Icon: CheckCircle,
+    border: "#22c55e",
+    bgIcon: "#dcfce7", iconColor: "#15803d",
+    label: "Pedido atendido",
+  },
+  pedidoRecusado: {
+    Icon: MinusCircle,
+    border: "#ef4444",
+    bgIcon: "#fef2f2", iconColor: "#b91c1c",
+    label: "Pedido recusado",
   },
 };
 

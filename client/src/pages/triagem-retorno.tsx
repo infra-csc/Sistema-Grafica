@@ -11,6 +11,8 @@ import {
 } from "lucide-react";
 import { TriagemModal } from "@/components/triagem-modal";
 import { MapaGalpao, LOCAIS_DO_GALPAO } from "@/components/mapa-galpao";
+import { EventosDaTriagem, SEM_EVENTO } from "@/components/triagem/eventos-da-triagem";
+import { QuadroDaTriagem } from "@/components/triagem/quadro-da-triagem";
 import { diaEMes } from "@shared/estoque";
 import { SponsorChips } from "@/components/sponsor-chips";
 import { useAuth } from "@/contexts/auth-context";
@@ -249,6 +251,11 @@ export default function TriagemRetorno() {
   // Linha cujo mapa do galpão está aberto.
   const [mapaPara, setMapaPara] = useState<string | null>(null);
   const [localDoLote, setLocalDoLote] = useState("");
+  // ENTRADA POR EVENTO (dono, 14/09): a triagem abre na lista de eventos que
+  // voltaram; escolhido o evento, o quadro de arrastar. A tabela segue como
+  // vista completa (e é onde se divide uma peça ×N por condição).
+  const [vista, setVista] = useState<"eventos" | "quadro" | "tabela">("eventos");
+  const [eventoDoQuadro, setEventoDoQuadro] = useState<string | null>(null);
 
   const { data: awaitingAssets = [], isLoading, isError, refetch } = useQuery<EnrichedAsset[]>({
     queryKey: ["/api/inventory/awaiting-triage"],
@@ -564,6 +571,41 @@ export default function TriagemRetorno() {
 
   const allSelected = pendingAssets.length > 0 && pendingAssets.every(a => getEntry(a.id).selected);
 
+  const moldura: React.CSSProperties = { padding: isMobile ? "14px 16px" : "32px 36px", background: "#f8fafc", height: "100%", overflowY: "auto" };
+
+  if (vista === "eventos") {
+    return (
+      <div style={moldura}>
+        <EventosDaTriagem
+          ativos={awaitingAssets}
+          reservaPorAtivo={reservaPorAtivo}
+          isLoading={isLoading}
+          isError={isError}
+          onTentarDeNovo={() => refetch()}
+          onAbrir={(id) => { setEventoDoQuadro(id); setVista("quadro"); }}
+          onTabela={() => { setFilterEvent([]); setVista("tabela"); }}
+        />
+      </div>
+    );
+  }
+
+  if (vista === "quadro" && eventoDoQuadro) {
+    const doEvento = awaitingAssets.filter((a) => (a.eventId ?? SEM_EVENTO) === eventoDoQuadro);
+    return (
+      <div style={moldura}>
+        <QuadroDaTriagem
+          key={eventoDoQuadro}
+          evento={{ id: eventoDoQuadro, nome: doEvento[0]?.eventName ?? "Sem evento", data: doEvento[0]?.eventDate ?? null }}
+          ativos={doEvento}
+          reservaPorAtivo={reservaPorAtivo}
+          onVoltar={() => setVista("eventos")}
+          onTabela={() => { setFilterEvent(eventoDoQuadro !== SEM_EVENTO ? [eventoDoQuadro] : []); setVista("tabela"); }}
+          onConcluido={() => setVista("eventos")}
+        />
+      </div>
+    );
+  }
+
   const TH: React.CSSProperties = {
     padding: "14px 20px", fontSize: 10, fontWeight: 800, letterSpacing: "0.14em",
     textTransform: "uppercase", color: "#fff", fontFamily: "Space Grotesk, sans-serif",
@@ -579,6 +621,11 @@ export default function TriagemRetorno() {
       paddingBottom: selectedIds.length > 0 ? 130 : undefined,
       background: "#f8fafc", height: "100%", overflowY: "auto", display: "flex", flexDirection: "column", gap: isMobile ? 16 : 28,
     }}>
+
+      <button type="button" data-testid="button-voltar-eventos-triagem" onClick={() => setVista("eventos")}
+        style={{ alignSelf: "flex-start", display: "inline-flex", alignItems: "center", gap: 6, minHeight: isMobile ? 44 : undefined, background: "none", border: "none", padding: 0, fontSize: 13, fontWeight: 700, color: "#475569", cursor: "pointer" }}>
+        ← Eventos da triagem
+      </button>
 
       {/* ── Header ── */}
       <div style={{ display: "flex", alignItems: isMobile ? "flex-start" : "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>

@@ -17,6 +17,7 @@ import { apiRequest, queryClient, getCurrentUserName } from "@/lib/queryClient";
 import { convertGCSUrlToLocalPath } from "@/lib/artePdfExport";
 import { useToast } from "@/hooks/use-toast";
 import { ObjectUploader } from "@/components/ObjectUploader";
+import { TubosDialog } from "@/components/tubos-dialog";
 import { ItemDetailsDialog } from "@/components/item-details-dialog";
 import { useIsMobile } from "@/hooks/use-mobile";
 import {
@@ -29,7 +30,7 @@ import { diasNaFase, tomDaIdade } from "@/lib/idade-na-fase";
 import { useAuth } from "@/contexts/auth-context";
 import { ModalHeader, modalSurface, HIDE_NATIVE_CLOSE } from "@/components/modal-shell";
 import { GalpaoFila, type GalpaoDados } from "@/components/galpao-fila";
-import { EM_REVISAO, MAQUINAS_DE_IMPRESSAO } from "@shared/fluxo-peca";
+import { EM_REVISAO, MAQUINAS_DE_IMPRESSAO, podeIrParaTubo } from "@shared/fluxo-peca";
 // Aritmética de saldo: fonte única em lib/saldo.ts. Estes onze cálculos
 // (quanto falta produzir, conferir, entregar, reaproveitar; quanto de m²
 // realmente vai para a impressora) viviam duplicados como consts locais no
@@ -914,6 +915,21 @@ export default function Grafica() {
     onError: (error: Error) => toast({ title: "Não foi possível devolver", description: error.message, variant: "destructive" }),
   });
 
+  // TUBOS (dono, 14/09): na conferência a peça já pode ir para um tubo, e
+  // cada evento abre o painel de tubos para agrupar e entregar por tubo.
+  const [tuboDaConferencia, setTuboDaConferencia] = useState<string>("");
+  const [tubosDoEvento, setTubosDoEvento] = useState<{ id: string; name: string } | null>(null);
+  const { data: todosOsTubos = [] } = useQuery<Array<{ id: string; numero: number; eventId: string; entregueEm: string | null }>>({
+    queryKey: ["/api/tubos"],
+    refetchInterval: 60_000,
+  });
+  const numeroDoTubo = useMemo(() => new Map(todosOsTubos.map((t) => [t.id, t.numero])), [todosOsTubos]);
+  const eventoDaConferencia = modalType === "conference" ? selectedItem?.eventId : undefined;
+  const { data: tubosDaConferencia } = useQuery<any>({
+    queryKey: [`/api/events/${eventoDaConferencia}/tubos`],
+    enabled: !!eventoDaConferencia,
+  });
+
   const conferMutation = useMutation({
     mutationFn: async ({ itemId, conferencePhotoUrl, qty, notes }: { itemId: string; conferencePhotoUrl: string; qty: number; notes?: string }) =>
       await apiRequest("POST", `/api/items/${itemId}/confer`, { conferencePhotoUrl, qty, notes }),
@@ -1448,6 +1464,9 @@ export default function Grafica() {
     // deixava fotos órfãs na galeria.
     const itemId = selectedItem.id;
     const photosToAttach = photos;
+    const eventoDaPeca = selectedItem.eventId;
+    const tuboAntes = selectedItem.tuboId ?? "";
+    const tuboEscolhido = tuboDaConferencia;
     try {
       await conferMutation.mutateAsync({ itemId, conferencePhotoUrl: photosToAttach[0], qty: conferQty, notes: modalNotes });
     } catch {
@@ -1461,6 +1480,25 @@ export default function Grafica() {
     ));
     if (results.some(r => r.status === "rejected")) {
       toast({ title: "Conferência registrada", description: "Parte das fotos não pôde ser anexada.", variant: "destructive" });
+    }
+    // O TUBO (dono, 14/09): conferida, a peça vai para o tubo escolhido. Falhar
+    // aqui NÃO desfaz a conferência — só avisa, e dá para agrupar no painel.
+    if (tuboEscolhido !== tuboAntes) {
+      try {
+        if (tuboEscolhido === "novo") {
+          const r = await apiRequest("POST", `/api/events/${eventoDaPeca}/tubos`, { itemIds: [itemId] });
+          const t = await r.json().catch(() => null);
+          toast({ title: t?.numero ? `Foi para o Tubo ${t.numero}` : "Foi para um tubo novo" });
+        } else if (tuboEscolhido) {
+          await apiRequest("PATCH", `/api/tubos/${tuboEscolhido}/itens`, { adicionar: [itemId] });
+        } else if (tuboAntes) {
+          await apiRequest("PATCH", `/api/tubos/${tuboAntes}/itens`, { remover: [itemId] });
+        }
+      } catch (e: any) {
+        toast({ title: "Conferida, mas não entrou no tubo", description: apiErrorMessage(e), variant: "destructive" });
+      }
+      queryClient.invalidateQueries({ queryKey: ["/api/tubos"] });
+      queryClient.invalidateQueries({ queryKey: [`/api/events/${eventoDaPeca}/tubos`] });
     }
     queryClient.invalidateQueries({ queryKey: ["/api/items/approved"] });
     queryClient.invalidateQueries({ queryKey: ["/api/items"] });
@@ -1549,6 +1587,7 @@ export default function Grafica() {
     setModalType("conference");
     setPhotos([]); setModalNotes("");
     setConferQty(remainingConfer(item)); // padrão: o que falta conferir
+    setTuboDaConferencia(item.tuboId ?? "");
   };
 
   const openDeliveryModal = (item: any) => {
@@ -1620,6 +1659,19 @@ export default function Grafica() {
     const m = new Map<string, number>();
     for (const i of filteredItems as any[]) {
       if (!(conferredOf(i) > 0 || isConferred(i) || isDelivered(i))) continue;
+      const id = String(i.eventId ?? "");
+      if (!id) continue;
+      m.set(id, (m.get(id) ?? 0) + 1);
+    }
+    return m;
+  }, [filteredItems]);
+
+  // TUBOS (dono, 14/09): peças que já saíram da impressão ou estão num tubo —
+  // o cabeçalho do evento ganha o botão "Tubos" quando há alguma.
+  const tubaveisPorEvento = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const i of filteredItems as any[]) {
+      if (!(podeIrParaTubo(i.status) || i.tuboId)) continue;
       const id = String(i.eventId ?? "");
       if (!id) continue;
       m.set(id, (m.get(id) ?? 0) + 1);
@@ -2590,6 +2642,18 @@ export default function Grafica() {
                           Etiquetas ({etiquetaveisPorEvento.get(String(item.eventId))})
                         </Link>
                       )}
+                      {(tubaveisPorEvento.get(String(item.eventId)) ?? 0) > 0 && (
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); setTubosDoEvento({ id: String(item.eventId), name: item.event?.name ?? "Evento" }); }}
+                          data-testid={`button-tubos-mobile-${item.eventId}`}
+                          title="Agrupar as peças em tubos e entregar por tubo"
+                          style={{ display: "inline-flex", alignItems: "center", gap: 5, alignSelf: "flex-start", minHeight: 30, padding: "3px 10px", borderRadius: 999, background: "rgba(255,255,255,0.12)", border: "1px solid rgba(255,255,255,0.2)", color: "#fff", fontSize: 10.5, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.05em", cursor: "pointer" }}
+                        >
+                          <Package style={{ width: 11, height: 11 }} />
+                          Tubos
+                        </button>
+                      )}
                       {item.event && <DeadlineChip event={item.event} />}
                     </div>
                   )}
@@ -3076,6 +3140,18 @@ export default function Grafica() {
                                     Etiquetas ({etiquetaveisPorEvento.get(String(item.eventId))})
                                   </Link>
                                 )}
+                                {(tubaveisPorEvento.get(String(item.eventId)) ?? 0) > 0 && (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => { e.stopPropagation(); setTubosDoEvento({ id: String(item.eventId), name: item.event?.name ?? "Evento" }); }}
+                                    data-testid={`button-tubos-${item.eventId}`}
+                                    title="Agrupar as peças em tubos e entregar por tubo"
+                                    style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "4px 10px", borderRadius: 999, background: "rgba(255,255,255,0.12)", border: "1px solid rgba(255,255,255,0.2)", color: "#fff", fontSize: 10.5, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.05em", whiteSpace: "nowrap", cursor: "pointer" }}
+                                  >
+                                    <Package style={{ width: 11, height: 11 }} />
+                                    Tubos
+                                  </button>
+                                )}
                               </div>
                             )}
                           </div>
@@ -3133,6 +3209,12 @@ export default function Grafica() {
                         >
                           {idBase}{idSuffix && <span style={{ color: CO.suffix }}>{idSuffix}</span>}
                         </button>
+                        {item.tuboId && numeroDoTubo.has(item.tuboId) && (
+                          <span data-testid={`chip-tubo-${item.id}`} title="Tubo em que a peça vai para a entrega"
+                            style={{ display: "inline-block", marginLeft: 6, padding: "1px 6px", borderRadius: 999, fontSize: 10, fontWeight: 800, color: "#9a3412", background: "#fff7ed", border: "1px solid #fed7aa", verticalAlign: "middle", whiteSpace: "nowrap" }}>
+                            Tubo {numeroDoTubo.get(item.tuboId)}
+                          </span>
+                        )}
                       </td>
                       {/* Descrição — com a arte ao lado: a Gráfica identifica a
                           peça pelo desenho, não pelo texto, e antes era preciso
@@ -4450,6 +4532,32 @@ export default function Grafica() {
                 )}
                 <PhotoPicker photos={photos} onAdd={addPhoto} onRemove={removePhoto} onError={onPhotoError} hint="· obrigatória, pode anexar várias" />
 
+                {/* O TUBO (dono, 14/09): na conferência muitas peças vão no mesmo
+                    tubo. Escolher aqui evita abrir o painel de tubos peça por
+                    peça; é opcional — dá para agrupar depois. */}
+                <div role="radiogroup" aria-label="Tubo da peça" data-testid="seletor-tubo">
+                  <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#746e69", marginBottom: 8 }}>
+                    Tubo <span style={{ textTransform: "none", letterSpacing: 0, fontWeight: 400 }}>· opcional, dá para agrupar depois</span>
+                  </div>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                    {[
+                      { valor: "", rotulo: "Sem tubo" },
+                      ...((tubosDaConferencia?.tubos ?? []) as any[]).filter((t) => !t.entregueEm).map((t) => ({ valor: t.id, rotulo: `Tubo ${t.numero} · ${t.pecas.length}` })),
+                      { valor: "novo", rotulo: "+ Tubo novo" },
+                    ].map(({ valor, rotulo }) => {
+                      const ativo = tuboDaConferencia === valor;
+                      return (
+                        <button key={valor || "sem-tubo"} type="button" role="radio" aria-checked={ativo}
+                          onClick={() => setTuboDaConferencia(valor)}
+                          data-testid={`tubo-opcao-${valor || "sem"}`}
+                          style={{ height: 36, padding: "0 12px", borderRadius: 999, cursor: "pointer", fontSize: 12.5, fontWeight: 700, whiteSpace: "nowrap", backgroundColor: ativo ? TI.text : "#ffffff", color: ativo ? "#ffffff" : TI.text, border: `1px solid ${ativo ? TI.text : TI.border}` }}>
+                          {rotulo}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
                 {renderNotesField("Ex.: cor puxando para o escuro, ilhós faltando…")}
                 <div style={modalActionsStyle}>
                   <button type="button" onClick={() => { setSelectedItem(null); setModalType(null); }}
@@ -4483,6 +4591,8 @@ export default function Grafica() {
       {/* Devolver para a Revisão — o motivo é obrigatório pela mesma régua das
           outras devoluções: quem recebe a peça de volta precisa saber o que
           refazer, senão é ida e volta garantida. */}
+      <TubosDialog evento={tubosDoEvento} onClose={() => setTubosDoEvento(null)} />
+
       {galpao && (
         <GalpaoFila
           mode={galpao}

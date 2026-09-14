@@ -103,6 +103,7 @@ const Atendimento = lazyPage(() => import("@/pages/atendimento"));
 const Solicitacao = lazyPage(() => import("@/pages/solicitacao"));
 const Grafica = lazyPage(() => import("@/pages/grafica"));
 const GraficaMaquinas = lazyPage(() => import("@/pages/grafica-maquinas"));
+const EtiquetaTubo = lazyPage(() => import("@/pages/etiqueta-tubo"));
 const Modelos = lazyPage(() => import("@/pages/modelos"));
 const Calendario = lazyPage(() => import("@/pages/calendario"));
 const Historico = lazyPage(() => import("@/pages/historico"));
@@ -200,6 +201,7 @@ const ROUTE_LABELS: Record<string, string> = {
 function getRouteLabel(location: string): string {
   if (ROUTE_LABELS[location]) return ROUTE_LABELS[location];
   if (location.startsWith("/eventos/")) return "Detalhe do Evento";
+  if (location.startsWith("/grafica/tubos/")) return "Etiqueta do tubo";
   // Rota desconhecida cai no NotFound — a aba dizia só "NORTE" e não contava
   // que a página não existe.
   return "Página não encontrada";
@@ -332,6 +334,9 @@ function Router() {
       </Route>
       <Route path="/solicitacao">
         {() => <RoleProtectedRoute component={Solicitacao} allowedRoles={ROLES_SOLICITACAO} />}
+      </Route>
+      <Route path="/grafica/tubos/:id/etiqueta">
+        {() => <RoleProtectedRoute component={EtiquetaTubo} allowedRoles={ROLES_GRAFICA} />}
       </Route>
       <Route path="/grafica/maquinas">
         {() => <RoleProtectedRoute component={GraficaMaquinas} allowedRoles={ROLES_GRAFICA} />}

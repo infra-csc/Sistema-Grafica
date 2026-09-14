@@ -136,3 +136,17 @@ export const ehMaquinaValida = (m: unknown): m is string =>
 
 export const rotuloDaMaquina = (m: string | null | undefined): string =>
   m ? `Máquina ${m}` : "máquina não informada";
+
+/**
+ * TUBOS (dono, 14/09: "na hora da conferência muitas peças vão no mesmo tubo;
+ * nesta fase precisamos agrupar, e na entrega entregar por tubos").
+ *
+ * A peça pode ir para um tubo quando SAIU DA IMPRESSÃO — em acabamento /
+ * conferência (produced) ou já conferida — e ainda não foi entregue. Antes
+ * disso não há material para embalar. A lista mora aqui porque a tela
+ * precisa saber o mesmo que o servidor recusa.
+ */
+export const PODE_IR_PARA_TUBO: readonly string[] = ["produced", "produzido", "conferred", "conferido"];
+
+export const podeIrParaTubo = (status: string | null | undefined): boolean =>
+  !!status && PODE_IR_PARA_TUBO.includes(status);

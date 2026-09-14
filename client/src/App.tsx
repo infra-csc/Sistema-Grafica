@@ -179,7 +179,7 @@ const ROUTE_LABELS: Record<string, string> = {
   "/vincular-patrocinadores": "Vincular Patrocinadores",
   "/atendimento": "Atendimento",
   "/solicitacao": "Revisão",
-  "/pedidos-de-peca": "Pedidos de peças",
+  "/pedidos-de-peca": "Solicitação de peças",
   "/grafica": "Gráfica",
   "/grafica/maquinas": "Máquinas da Gráfica",
   "/modelos": "Modelos",

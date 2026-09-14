@@ -92,7 +92,7 @@ export function CartaoDoPedido({ pedido, agora, selo, acoes = [], mostrarEvento 
       <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
         <div style={{ flex: "1 1 auto", minWidth: 0, display: "flex", flexDirection: "column", gap: 6 }}>
           {onAbrir ? (
-            <button type="button" onClick={onAbrir} aria-label={`Ver detalhes do pedido de ${patrocinador}`} data-testid={`abrir-pedido-${pedido.id}`}
+            <button type="button" onClick={onAbrir} aria-label={`Ver detalhes da solicitação de ${patrocinador}`} data-testid={`abrir-pedido-${pedido.id}`}
               style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0, padding: 0, border: "none", background: "none", cursor: "pointer", textAlign: "left", minHeight: isMobile ? 44 : undefined }}>
               {titulo}
             </button>
@@ -114,16 +114,16 @@ export function CartaoDoPedido({ pedido, agora, selo, acoes = [], mostrarEvento 
           <AndamentoDoPedido pedido={pedido} />
           {pedido.status === "recusado" && (
             <p style={{ margin: 0, fontSize: FS.body, color: "#991b1b" }}>
-              Recusado em {diaEMes(pedido.resolvidoEm)}{pedido.resolvidoPor ? ` por ${pedido.resolvidoPor}` : ""}: {pedido.motivoRecusa}
+              Recusada em {diaEMes(pedido.resolvidoEm)}{pedido.resolvidoPor ? ` por ${pedido.resolvidoPor}` : ""}: {pedido.motivoRecusa}
             </p>
           )}
           {pedido.status === "cancelado" && (
             <p style={{ margin: 0, fontSize: FS.body, color: "#57534e" }}>
-              Cancelado em {diaEMes(pedido.resolvidoEm)}{pedido.resolvidoPor ? ` por ${pedido.resolvidoPor}` : ""}{pedido.motivoCancelamento ? `: ${pedido.motivoCancelamento}` : ""}
+              Cancelada em {diaEMes(pedido.resolvidoEm)}{pedido.resolvidoPor ? ` por ${pedido.resolvidoPor}` : ""}{pedido.motivoCancelamento ? `: ${pedido.motivoCancelamento}` : ""}
             </p>
           )}
           <span style={{ fontSize: FS.small, color: "#57534e" }}>
-            Pedido por {pedido.pedidoPor ?? "—"} · entrou em {quandoFoi(pedido.createdAt)}
+            Solicitada por {pedido.pedidoPor ?? "—"} · entrou em {quandoFoi(pedido.createdAt)}
             {pedido.editadoEm ? ` · editado${pedido.editadoPor ? ` por ${pedido.editadoPor}` : ""} em ${quandoFoi(pedido.editadoEm)}` : ""}
           </span>
         </div>

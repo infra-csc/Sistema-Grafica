@@ -52,7 +52,7 @@ export function mensagemDaApi(e: unknown): string {
 
 export function EstadoDoPedido({ status }: { status: StatusDoPedido }) {
   const tom = TOM_DO_PEDIDO[status] ?? TOM_DO_PEDIDO.cancelado;
-  const rotulos: Record<StatusDoPedido, string> = { aberto: "Aberto", atendido: "Atendido", recusado: "Recusado", cancelado: "Cancelado" };
+  const rotulos: Record<StatusDoPedido, string> = { aberto: "Aberta", atendido: "Atendida", recusado: "Recusada", cancelado: "Cancelada" };
   return (
     <span style={{ flexShrink: 0, fontSize: FS.small, fontWeight: 800, color: tom.cor, background: tom.fundo, border: `1px solid ${tom.borda}`, borderRadius: R.pill, padding: "2px 9px", whiteSpace: "nowrap" }}>
       {rotulos[status] ?? status}
@@ -100,7 +100,7 @@ export function IdadeDoPedido({ pedido, agora }: { pedido: PedidoDePeca; agora: 
       <span style={{ fontSize: FS.body, fontWeight: idade.nivel === "normal" ? 600 : 700, color: cor, whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}>
         {idade.texto}
       </span>
-      {idade.nivel === "parado" && <span style={{ fontSize: FS.micro, fontWeight: 700, color: "#b91c1c", whiteSpace: "nowrap" }}>pedido parado</span>}
+      {idade.nivel === "parado" && <span style={{ fontSize: FS.micro, fontWeight: 700, color: "#b91c1c", whiteSpace: "nowrap" }}>solicitação parada</span>}
     </span>
   );
 }
@@ -170,7 +170,7 @@ export function AndamentoDoPedido({ pedido }: { pedido: PedidoDePeca }) {
   return (
     <div data-testid={`andamento-pedido-${pedido.id}`} style={{ display: "flex", flexDirection: "column", gap: 6 }}>
       <p style={{ margin: 0, fontSize: FS.body, color: "#065f46", lineHeight: 1.5 }}>
-        Atendido em {diaEMes(pedido.resolvidoEm)}{pedido.resolvidoPor ? ` por ${pedido.resolvidoPor}` : ""}
+        Atendida em {diaEMes(pedido.resolvidoEm)}{pedido.resolvidoPor ? ` por ${pedido.resolvidoPor}` : ""}
         {pecas.length === 0
           ? " · a peça foi removida da lista"
           : ` · ${pecas.length} ${pecas.length === 1 ? "peça" : "peças"}`}

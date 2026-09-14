@@ -47,8 +47,8 @@ function Campo({ rotulo, children }: { rotulo: string; children: React.ReactNode
 
 /** A frase do registro, sem o prefixo técnico repetido. */
 const fraseDoRegistro = (r: RegistroDeAuditoria) => {
-  if (r.action === "created") return "Pedido criado";
-  return r.details?.trim() || "Pedido atualizado";
+  if (r.action === "created") return "Solicitação criada";
+  return r.details?.trim() || "Solicitação atualizada";
 };
 
 const saidaDoCaminhao = (d: string | null | undefined) => {
@@ -80,13 +80,16 @@ export function DetalheDoPedido({ pedido, agora, selo, acoes, onFechar }: {
 
   if (!p) return null;
   const medida = p.largura && p.altura ? `${Number(p.largura).toLocaleString("pt-BR")} × ${Number(p.altura).toLocaleString("pt-BR")} m` : null;
-  const criadas = unidadesCriadas(p.pecas);
+  // Servidor antigo (sem reiniciar) ou cache velho podem mandar sem estas listas.
+  const pecas = p.pecas ?? [];
+  const referencias = p.referencias ?? [];
+  const criadas = unidadesCriadas(pecas);
   const alvo = isMobile ? 44 : 38;
 
   return (
     <Dialog open={!!pedido} onOpenChange={(aberto) => { if (!aberto) onFechar(); }}>
       <DialogContent data-testid="detalhe-do-pedido" className={HIDE_NATIVE_CLOSE} style={modalSurface(1000)}>
-        <DialogTitle className="sr-only">Pedido de peça — {p.sponsorName ?? "sem patrocinador"}</DialogTitle>
+        <DialogTitle className="sr-only">Solicitação de peça — {p.sponsorName ?? "sem patrocinador"}</DialogTitle>
         <DialogDescription className="sr-only">{p.eventName ?? "Evento"}</DialogDescription>
         <ModalHeader
           icon={Inbox}
@@ -106,7 +109,7 @@ export function DetalheDoPedido({ pedido, agora, selo, acoes, onFechar }: {
               <Campo rotulo="Estado"><EstadoDoPedido status={p.status} /></Campo>
               <Campo rotulo="Quantidade">
                 {quantidadeDoPedido(p.quantidade)}
-                {p.pecas.length > 0 && criadas !== p.quantidade && (
+                {pecas.length > 0 && criadas !== p.quantidade && (
                   <span style={{ display: "block", fontSize: FS.small, color: "#92400e", fontWeight: 700 }}>criadas {criadas} un.</span>
                 )}
               </Campo>
@@ -120,7 +123,7 @@ export function DetalheDoPedido({ pedido, agora, selo, acoes, onFechar }: {
               </Campo>
               <Campo rotulo="Tipo de peça">{p.tipoDePeca ?? "—"}</Campo>
               <Campo rotulo="Medida da área visual">{medida ?? "—"}</Campo>
-              <Campo rotulo="Pedido por">{p.pedidoPor ?? "—"}<span style={{ display: "block", fontSize: FS.small, color: "#57534e", fontWeight: 500 }}>{quandoFoi(p.createdAt)}</span></Campo>
+              <Campo rotulo="Solicitada por">{p.pedidoPor ?? "—"}<span style={{ display: "block", fontSize: FS.small, color: "#57534e", fontWeight: 500 }}>{quandoFoi(p.createdAt)}</span></Campo>
               {p.editadoEm && (
                 <Campo rotulo="Última edição">{p.editadoPor ?? "—"}<span style={{ display: "block", fontSize: FS.small, color: "#57534e", fontWeight: 500 }}>{quandoFoi(p.editadoEm)}</span></Campo>
               )}
@@ -133,16 +136,16 @@ export function DetalheDoPedido({ pedido, agora, selo, acoes, onFechar }: {
               </p>
             </section>
 
-            {(p.referencias ?? []).length > 0 && (
+            {referencias.length > 0 && (
               <section>
-                <h3 style={TITULO_DA_SECAO}>Referências ({p.referencias.length})</h3>
-                <ReferenciasDoPedido urls={p.referencias} tamanho={isMobile ? 84 : 108} legenda />
+                <h3 style={TITULO_DA_SECAO}>Referências ({referencias.length})</h3>
+                <ReferenciasDoPedido urls={referencias} tamanho={isMobile ? 84 : 108} legenda />
               </section>
             )}
 
             {p.status === "atendido" && (
               <section>
-                <h3 style={TITULO_DA_SECAO}>Peças que saíram do pedido</h3>
+                <h3 style={TITULO_DA_SECAO}>Peças que saíram da solicitação</h3>
                 <AndamentoDoPedido pedido={p} />
               </section>
             )}

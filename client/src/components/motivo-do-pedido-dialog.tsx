@@ -22,9 +22,9 @@ import { useIsMobile } from "@/hooks/use-mobile";
 export type AcaoComMotivo = "cancelar" | "recusar" | "reabrir";
 
 const ACOES: Record<AcaoComMotivo, { titulo: string; confirmar: string; cor: string; icone: LucideIcon }> = {
-  cancelar: { titulo: "Cancelar pedido", confirmar: "Cancelar pedido", cor: "#b91c1c", icone: XCircle },
-  recusar:  { titulo: "Recusar pedido",  confirmar: "Recusar pedido",  cor: "#b91c1c", icone: XCircle },
-  reabrir:  { titulo: "Reabrir pedido",  confirmar: "Reabrir pedido",  cor: "#1c1917", icone: RotateCcw },
+  cancelar: { titulo: "Cancelar solicitação", confirmar: "Cancelar solicitação", cor: "#b91c1c", icone: XCircle },
+  recusar:  { titulo: "Recusar solicitação",  confirmar: "Recusar solicitação",  cor: "#b91c1c", icone: XCircle },
+  reabrir:  { titulo: "Reabrir solicitação",  confirmar: "Reabrir solicitação",  cor: "#1c1917", icone: RotateCcw },
 };
 
 export function MotivoDoPedidoDialog({ pedido, acao, aviso, pendente, onConfirmar, onFechar }: {
@@ -52,7 +52,7 @@ export function MotivoDoPedidoDialog({ pedido, acao, aviso, pendente, onConfirma
   const travado = falta > 0 || pendente;
   const alvo = isMobile ? 44 : 40;
   const observacao = p ? textoDaObservacao(p.observacao) : "";
-  const subtitulo = p ? `${quantidadeDoPedido(p.quantidade)} · ${p.sponsorName ?? "sem patrocinador"} · ${p.eventName ?? "evento"}${p.pedidoPor ? ` · pedido por ${p.pedidoPor}` : ""}` : "";
+  const subtitulo = p ? `${quantidadeDoPedido(p.quantidade)} · ${p.sponsorName ?? "sem patrocinador"} · ${p.eventName ?? "evento"}${p.pedidoPor ? ` · solicitada por ${p.pedidoPor}` : ""}` : "";
 
   return (
     <Dialog open={!!pedido} onOpenChange={(aberto) => { if (!aberto && !pendente) onFechar(); }}>

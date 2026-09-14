@@ -110,37 +110,37 @@ const TYPE_CONFIG: Record<string, TypeConfig> = {
     Icon: Inbox,
     border: "#f59e0b",
     bgIcon: "#fffbeb", iconColor: "#92400e",
-    label: "Pedido de peça",
+    label: "Solicitação de peça",
   },
   pedidoAtendido: {
     Icon: CheckCircle,
     border: "#22c55e",
     bgIcon: "#dcfce7", iconColor: "#15803d",
-    label: "Pedido atendido",
+    label: "Solicitação atendida",
   },
   pedidoRecusado: {
     Icon: MinusCircle,
     border: "#ef4444",
     bgIcon: "#fef2f2", iconColor: "#b91c1c",
-    label: "Pedido recusado",
+    label: "Solicitação recusada",
   },
   pedidoCancelado: {
     Icon: MinusCircle,
     border: "#a8a29e",
     bgIcon: "#f5f5f4", iconColor: "#57534e",
-    label: "Pedido cancelado",
+    label: "Solicitação cancelada",
   },
   pedidoEditado: {
     Icon: Inbox,
     border: "#f59e0b",
     bgIcon: "#fffbeb", iconColor: "#92400e",
-    label: "Pedido editado",
+    label: "Solicitação editada",
   },
   pedidoReaberto: {
     Icon: Inbox,
     border: "#f59e0b",
     bgIcon: "#fffbeb", iconColor: "#92400e",
-    label: "Pedido reaberto",
+    label: "Solicitação reaberta",
   },
 };
 

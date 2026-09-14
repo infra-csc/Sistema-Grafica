@@ -552,7 +552,7 @@ export const pedidosDePeca = pgTable("pedidos_de_peca", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   eventId: varchar("event_id").notNull().references(() => events.id, { onDelete: "cascade" }),
   sponsorId: varchar("sponsor_id").references(() => sponsors.id, { onDelete: "set null" }),
-  quantidade: integer("quantidade").notNull(),
+  quantidade: integer("quantidade"), // vazia = o solicitante não definiu (pedido válido)
   observacao: text("observacao").notNull(),
   referencias: text("referencias").array().notNull().default(sql`ARRAY[]::text[]`),
   status: text("status").notNull().default("aberto"), // aberto | atendido | recusado | cancelado
@@ -563,6 +563,7 @@ export const pedidosDePeca = pgTable("pedidos_de_peca", {
   resolvidoPorId: varchar("resolvido_por_id"),
   resolvidoEm: timestamp("resolvido_em"),
   motivoRecusa: text("motivo_recusa"),
+  motivoCancelamento: text("motivo_cancelamento"),
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
   updatedAt: timestamp("updated_at").notNull().default(sql`now()`),
 }, (table) => [

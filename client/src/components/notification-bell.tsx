@@ -124,6 +124,12 @@ const TYPE_CONFIG: Record<string, TypeConfig> = {
     bgIcon: "#fef2f2", iconColor: "#b91c1c",
     label: "Pedido recusado",
   },
+  pedidoCancelado: {
+    Icon: MinusCircle,
+    border: "#a8a29e",
+    bgIcon: "#f5f5f4", iconColor: "#57534e",
+    label: "Pedido cancelado",
+  },
 };
 
 const DEFAULT_CONFIG: TypeConfig = {

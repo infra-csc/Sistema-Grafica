@@ -11,7 +11,7 @@ import { Plus, ArrowLeft, Calendar, Truck, AlertCircle, List, Package, Package2,
 import { EstoqueSemelhantesDialog } from "@/components/estoque-semelhantes-dialog";
 import { PedidosDoEvento } from "@/components/pedidos-do-evento";
 import { invalidarPedidos } from "@/components/pedidos-de-peca-atendimento";
-import type { PedidoDePeca } from "@shared/pedidos-de-peca";
+import { textoDaObservacao, type PedidoDePeca } from "@shared/pedidos-de-peca";
 import { Fragment, useState, useEffect, useMemo, useRef } from "react";
 import type { Sponsor, Item, Event as EventRecord } from "@shared/schema";
 import {
@@ -1067,8 +1067,10 @@ export default function EventDetail() {
     setLocalRefPreview("");
     setFormData({
       ...EMPTY_ITEM_FORM,
-      quantity: pedido.quantidade,
-      observations: pedido.observacao,
+      // Pedido sem quantidade é válido: o formulário abre no padrão e quem
+      // monta a lista decide.
+      quantity: pedido.quantidade ?? EMPTY_ITEM_FORM.quantity,
+      observations: textoDaObservacao(pedido.observacao),
       referenceUrl: pedido.referencias?.[0] ?? "",
     });
     setPedidoEmAtendimento(pedido);
@@ -2137,7 +2139,7 @@ export default function EventDetail() {
                   icon={bulkMode && !editingItem ? List : Plus}
                   tint="#c2410c"
                   title={bulkMode && !editingItem ? "Entrada Rápida" : "Adicionar Peça"}
-                  subtitle={bulkMode && !editingItem ? "Modo Lote — entrada rápida de peças" : (pedidoEmAtendimento ? `Atendendo pedido do Atendimento — ${pedidoEmAtendimento.quantidade} un. para ${pedidoEmAtendimento.sponsorName ?? "patrocinador"}` : (event.name || "Nova peça de produção"))}
+                  subtitle={bulkMode && !editingItem ? "Modo Lote — entrada rápida de peças" : (pedidoEmAtendimento ? `Atendendo pedido do Atendimento — ${pedidoEmAtendimento.quantidade == null ? "sem quantidade" : `${pedidoEmAtendimento.quantidade} un.`} para ${pedidoEmAtendimento.sponsorName ?? "patrocinador"}` : (event.name || "Nova peça de produção"))}
                   onClose={bulkMode && !editingItem
                     ? () => { if (window.confirm("Descartar linhas não salvas?")) handleCloseDialog(); }
                     : handleCloseDialog}
@@ -2467,7 +2469,8 @@ export default function EventDetail() {
         eventId={eventId!}
         pecas={items}
         podeAtender={podeAtenderPedidos && canEditLists}
-        eventoFinalizado={eventoFinalizado}
+        motivoEventoFim={motivoEventoFim}
+        saidaDoCaminhao={event?.truckDepartureDate ?? null}
         onCriarPeca={criarPecaDoPedido}
       />
 

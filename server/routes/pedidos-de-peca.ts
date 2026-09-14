@@ -4,6 +4,7 @@
 //
 // Quem pede: Atendimento e admin. Quem resolve (atende ou recusa): Solicitação
 // e admin. Cancelar: quem fez o pedido (ou admin), enquanto está aberto.
+// Recusar e cancelar exigem motivo com MIN_MOTIVO_DO_PEDIDO caracteres.
 //
 // Resolver usa UPDATE condicional (`status = 'aberto'`): duas pessoas
 // atendendo o mesmo pedido no mesmo segundo — a segunda recebe 409, e o
@@ -19,7 +20,14 @@ import { and, desc, eq, inArray } from "drizzle-orm";
 import { db } from "../db";
 import { storage } from "../storage";
 import { pedidosDePeca, events, sponsors, eventSponsors, items as itemsTable } from "@shared/schema";
-import { MAX_REFERENCIAS_DO_PEDIDO, ROTULO_DO_PEDIDO, STATUS_DO_PEDIDO, type StatusDoPedido } from "@shared/pedidos-de-peca";
+import {
+  MAX_REFERENCIAS_DO_PEDIDO,
+  MIN_MOTIVO_DO_PEDIDO,
+  ROTULO_DO_PEDIDO,
+  STATUS_DO_PEDIDO,
+  quantidadeDoPedido,
+  type StatusDoPedido,
+} from "@shared/pedidos-de-peca";
 import { requireAuth, requireRole, broadcast, createAuditLog, resolveActor } from "./shared";
 import { motivoEventoDaPeca, erroEventoFechado } from "./eventoFinalizado";
 
@@ -32,10 +40,13 @@ const PECA_SEM_FLUXO = new Set(["draft", "requested"]);
 const novoPedidoSchema = z.object({
   eventId: z.string().min(1, "Escolha o evento"),
   sponsorId: z.string().min(1, "Escolha o patrocinador"),
-  quantidade: z.number().int().min(1, "A quantidade mínima é 1").max(100000),
+  // Vazia é pedido válido: o solicitante nem sempre sabe quantas.
+  quantidade: z.number().int().min(1, "A quantidade mínima é 1").max(100000).nullable().optional(),
   observacao: z.string().trim().min(3, "Descreva o que precisa").max(2000),
   referencias: z.array(z.string().min(1)).max(MAX_REFERENCIAS_DO_PEDIDO, `No máximo ${MAX_REFERENCIAS_DO_PEDIDO} referências`).default([]),
 });
+
+const lerMotivo = (body: any): string => (typeof body?.motivo === "string" ? body.motivo.trim() : "");
 
 const quemAgiu = (req: any) => resolveActor({ userName: req.userName, userId: req.userId ?? null });
 
@@ -107,18 +118,19 @@ export function registerPedidosDePecaRoutes(app: Express): void {
       const [pedido] = await db.insert(pedidosDePeca).values({
         eventId: evento.id,
         sponsorId: patrocinador.id,
-        quantidade: dados.quantidade,
+        quantidade: dados.quantidade ?? null,
         observacao: dados.observacao,
         referencias: dados.referencias,
         pedidoPor: quem.userName,
         pedidoPorId: quem.userId,
       }).returning();
 
+      const qtd = quantidadeDoPedido(pedido.quantidade);
       await createAuditLog(req, "created", "pedido_de_peca", pedido.id,
-        `Pedido do Atendimento: ${dados.quantidade} un. para ${patrocinador.name} — ${evento.name}. ${dados.observacao}`);
+        `Pedido do Atendimento: ${qtd} para ${patrocinador.name} — ${evento.name}. ${dados.observacao}`);
       await notificar({
         type: "pedidoDePeca",
-        message: `Pedido do Atendimento: ${dados.quantidade} un. para ${patrocinador.name} — Evento: ${evento.name}`,
+        message: `Pedido do Atendimento: ${qtd} para ${patrocinador.name} — Evento: ${evento.name}`,
         eventId: evento.id,
         targetRoles: ["solicitacao", "admin"],
       });
@@ -189,8 +201,10 @@ export function registerPedidosDePecaRoutes(app: Express): void {
 
   app.patch("/api/pedidos-de-peca/:id/recusar", requireResolverPedido, async (req, res) => {
     try {
-      const motivo = typeof req.body?.motivo === "string" ? req.body.motivo.trim() : "";
-      if (motivo.length < 3) return res.status(400).json({ error: "Diga ao Atendimento por que o pedido foi recusado." });
+      const motivo = lerMotivo(req.body);
+      if (motivo.length < MIN_MOTIVO_DO_PEDIDO) {
+        return res.status(400).json({ error: `Diga ao Atendimento por que o pedido foi recusado (mínimo ${MIN_MOTIVO_DO_PEDIDO} caracteres).` });
+      }
       const [pedido] = await db.select().from(pedidosDePeca).where(eq(pedidosDePeca.id, req.params.id));
       if (!pedido) return res.status(404).json({ error: "Pedido não encontrado" });
 
@@ -205,7 +219,7 @@ export function registerPedidosDePecaRoutes(app: Express): void {
       await createAuditLog(req, "updated", "pedido_de_peca", pedido.id, `Pedido recusado: ${motivo}`);
       await notificar({
         type: "pedidoRecusado",
-        message: `Pedido recusado (${pedido.quantidade} un. — ${evento?.name ?? "—"}): ${motivo}`,
+        message: `Pedido recusado (${quantidadeDoPedido(pedido.quantidade)} — ${evento?.name ?? "—"}): ${motivo}`,
         eventId: pedido.eventId,
         targetRoles: ["atendimento", "admin"],
       });
@@ -219,6 +233,10 @@ export function registerPedidosDePecaRoutes(app: Express): void {
 
   app.patch("/api/pedidos-de-peca/:id/cancelar", requirePedirPeca, async (req, res) => {
     try {
+      const motivo = lerMotivo(req.body);
+      if (motivo.length < MIN_MOTIVO_DO_PEDIDO) {
+        return res.status(400).json({ error: `Diga por que o pedido está sendo cancelado (mínimo ${MIN_MOTIVO_DO_PEDIDO} caracteres).` });
+      }
       const [pedido] = await db.select().from(pedidosDePeca).where(eq(pedidosDePeca.id, req.params.id));
       if (!pedido) return res.status(404).json({ error: "Pedido não encontrado" });
       if ((req as any).userRole !== "admin" && pedido.pedidoPorId && pedido.pedidoPorId !== (req as any).userId) {
@@ -226,11 +244,20 @@ export function registerPedidosDePecaRoutes(app: Express): void {
       }
       const quem = quemAgiu(req);
       const [cancelado] = await db.update(pedidosDePeca)
-        .set({ status: "cancelado", resolvidoPor: quem.userName, resolvidoPorId: quem.userId, resolvidoEm: new Date(), updatedAt: new Date() })
+        .set({ status: "cancelado", motivoCancelamento: motivo, resolvidoPor: quem.userName, resolvidoPorId: quem.userId, resolvidoEm: new Date(), updatedAt: new Date() })
         .where(and(eq(pedidosDePeca.id, pedido.id), eq(pedidosDePeca.status, "aberto")))
         .returning();
       if (!cancelado) return res.status(409).json({ error: "Este pedido não está mais aberto — já foi resolvido." });
-      await createAuditLog(req, "updated", "pedido_de_peca", pedido.id, "Pedido cancelado por quem pediu");
+
+      const evento = await storage.getEvent(pedido.eventId);
+      await createAuditLog(req, "updated", "pedido_de_peca", pedido.id, `Pedido cancelado por quem pediu: ${motivo}`);
+      // Quem monta a lista pode já estar trabalhando nele.
+      await notificar({
+        type: "pedidoCancelado",
+        message: `Pedido cancelado pelo Atendimento (${quantidadeDoPedido(pedido.quantidade)} — ${evento?.name ?? "—"}): ${motivo}`,
+        eventId: pedido.eventId,
+        targetRoles: ["solicitacao", "admin"],
+      });
       broadcast({ type: "pedidos_de_peca", eventId: pedido.eventId });
       res.json(cancelado);
     } catch (error) {

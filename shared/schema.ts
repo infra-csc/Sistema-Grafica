@@ -279,6 +279,9 @@ export const items = pgTable("items", {
   // várias peças; cada peça atende no máximo um pedido. Só o servidor grava
   // (rota de pedidos) — fora do schema público de criação/edição.
   pedidoDePecaId: varchar("pedido_de_peca_id").references((): any => pedidosDePeca.id, { onDelete: "set null" }),
+  // E de qual PEÇA da solicitação (a solicitação tem várias, cada uma com
+  // status próprio). Só o servidor grava.
+  pedidoDePecaLinhaId: varchar("pedido_de_peca_linha_id").references((): any => linhasDoPedidoDePeca.id, { onDelete: "set null" }),
   deliveredAt: timestamp("delivered_at"), // Timestamp quando foi entregue
   // QUANDO a etiqueta desta peça saiu na impressora pela última vez (25/08).
   // A tela de Etiquetas abre com as já impressas desmarcadas — sem isso, a
@@ -493,12 +496,19 @@ export const prazoEventSnapshots = pgTable("prazo_event_snapshots", {
 // PEDIDOS DE PEÇA DO ATENDIMENTO (dono, 14/09): o Atendimento pede, quem monta
 // a lista (Solicitação) atende criando a peça — ou recusa com motivo. Regras e
 // rótulos em shared/pedidos-de-peca.ts.
+//
+// UMA SOLICITAÇÃO, VÁRIAS PEÇAS (dono, 14/09): esta tabela é a SOLICITAÇÃO
+// (quem pediu, quando, status calculado); cada peça solicitada — com evento,
+// patrocinadores e status próprios — mora em pedidos_de_peca_linhas. As
+// colunas de peça daqui (evento, quantidade, observação…) são do formato
+// antigo, de uma peça só: ficam para a conversão automática e não são mais
+// gravadas.
 export const pedidosDePeca = pgTable("pedidos_de_peca", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  eventId: varchar("event_id").notNull().references(() => events.id, { onDelete: "cascade" }),
+  eventId: varchar("event_id").references(() => events.id, { onDelete: "cascade" }),
   sponsorId: varchar("sponsor_id").references(() => sponsors.id, { onDelete: "set null" }),
-  quantidade: integer("quantidade").notNull(),
-  observacao: text("observacao").notNull(),
+  quantidade: integer("quantidade"),
+  observacao: text("observacao"),
   referencias: text("referencias").array().notNull().default(sql`ARRAY[]::text[]`),
   status: text("status").notNull().default("aberto"), // aberto | atendido | recusado | cancelado
   // Para quando a peça é necessária — nasce com a saída do caminhão do evento.
@@ -532,6 +542,42 @@ export const pedidosDePeca = pgTable("pedidos_de_peca", {
 }, (table) => [
   index("IDX_pedidos_de_peca_event_status").on(table.eventId, table.status),
   index("IDX_pedidos_de_peca_status").on(table.status),
+]);
+
+/** Cada peça de uma solicitação — o próprio evento, patrocinadores (nenhum,
+ *  um ou vários) e o próprio ciclo aberto → atendido | recusado | cancelado. */
+export const linhasDoPedidoDePeca = pgTable("pedidos_de_peca_linhas", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  pedidoId: varchar("pedido_id").notNull().references(() => pedidosDePeca.id, { onDelete: "cascade" }),
+  ordem: integer("ordem").notNull().default(0),
+  eventId: varchar("event_id").notNull().references(() => events.id, { onDelete: "cascade" }),
+  sponsorIds: text("sponsor_ids").array().notNull().default(sql`ARRAY[]::text[]`),
+  quantidade: integer("quantidade").notNull(),
+  observacao: text("observacao").notNull(),
+  referencias: text("referencias").array().notNull().default(sql`ARRAY[]::text[]`),
+  status: text("status").notNull().default("aberto"), // aberto | atendido | recusado | cancelado
+  precisaAte: timestamp("precisa_ate"),
+  tipoDePeca: text("tipo_de_peca"),
+  largura: decimal("largura", { precision: 10, scale: 2 }),
+  altura: decimal("altura", { precision: 10, scale: 2 }),
+  resolvidoPor: text("resolvido_por"),
+  resolvidoPorId: varchar("resolvido_por_id"),
+  resolvidoEm: timestamp("resolvido_em"),
+  motivoRecusa: text("motivo_recusa"),
+  motivoCancelamento: text("motivo_cancelamento"),
+  ajusteStatus: text("ajuste_status"),
+  ajusteTexto: text("ajuste_texto"),
+  ajustePedidoPor: text("ajuste_pedido_por"),
+  ajustePedidoPorId: varchar("ajuste_pedido_por_id"),
+  ajustePedidoEm: timestamp("ajuste_pedido_em"),
+  ajusteRespondidoPor: text("ajuste_respondido_por"),
+  ajusteRespondidoEm: timestamp("ajuste_respondido_em"),
+  ajusteResposta: text("ajuste_resposta"),
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
+  updatedAt: timestamp("updated_at").notNull().default(sql`now()`),
+}, (table) => [
+  index("IDX_pedidos_de_peca_linhas_pedido").on(table.pedidoId),
+  index("IDX_pedidos_de_peca_linhas_event_status").on(table.eventId, table.status),
 ]);
 
 export const notifications = pgTable("notifications", {
@@ -849,6 +895,7 @@ export const publicInsertItemSchema = insertItemSchema.omit({
   // O vínculo com o pedido do Atendimento só nasce pela rota de pedidos, que
   // confere papel, evento e se a peça já atende outro pedido.
   pedidoDePecaId: true,
+  pedidoDePecaLinhaId: true,
 });
 
 export const insertStandardItemSchema = createInsertSchema(standardItems).omit({

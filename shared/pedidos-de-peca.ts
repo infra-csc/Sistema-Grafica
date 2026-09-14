@@ -1,46 +1,50 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// PEDIDOS DE PEÇA DO ATENDIMENTO (dono, 14/09).
+// SOLICITAÇÃO DE PEÇAS DO ATENDIMENTO (dono, 14/09).
 //
 // "Uma tela onde o pessoal do Atendimento pode solicitar peças para a pessoa
 // que cria a lista colocar nos eventos." Decisões do dono:
-//   · o pedido nasce na aba do Atendimento: evento, patrocinador, quantidade,
-//     observação e referências (várias);
-//   · quem pede: Atendimento e admin; quem resolve: a Solicitação (e admin);
-//   · aparece na tela de Eventos, dentro do evento e numa caixa da Solicitação;
-//   · aviso por notificação no sistema — para QUEM PEDIU, não o departamento.
+//   · quem solicita: Atendimento e admin; quem resolve: a Solicitação (e admin);
+//   · cada pessoa do Atendimento vê só as SUAS solicitações;
+//   · UMA SOLICITAÇÃO, VÁRIAS PEÇAS: cada peça tem o próprio evento, nenhum,
+//     um ou vários patrocinadores, quantidade, o que precisa, referências e
+//     o PRÓPRIO status;
+//   · o status da solicitação é calculado pelas peças;
+//   · aviso por notificação no sistema — para QUEM SOLICITOU.
 //
-// Ciclo:
+// Ciclo de cada peça solicitada:
 //   aberto ──criar/ligar peça──▶ atendido (pode ganhar mais peças)
-//   aberto ──recusar (motivo)──▶ recusado
-//   aberto ──cancelar (motivo)─▶ cancelado   (só enquanto ninguém agiu)
-//   atendido / recusado / cancelado ──reabrir (motivo)──▶ aberto
-//   atendido ──pedir ajuste (texto)──▶ ajuste pendente ──aceitar | recusar (motivo)
+//   aberto ──recusar (motivo)──▶ recusado ──reabrir (motivo)──▶ aberto
+//   aberto ──cancelar (motivo)─▶ cancelado ──reabrir (motivo)─▶ aberto
+//   atendido ──pedir ajuste (texto)──▶ ajuste pendente ──aceitar | recusar
+//   atendido ──a peça ligada é excluída──▶ aberto (sozinho)
 //
-// O Atendimento NÃO edita (dono, 14/09): errou, cancela enquanto está aberta e
-// cria outra. Depois que a Solicitação agiu, só pede um ajuste — e quem monta
-// a lista decide se aceita.
-//
-// O PEDIDO É UMA SOLICITAÇÃO, NÃO UMA PEÇA: a peça só existe depois de
-// atendido, e o pedido acompanha a peça (e as demais) até a entrega.
+// O Atendimento NÃO edita: errou, cancela enquanto está aberta e cria outra.
+// Depois que a Solicitação agiu, só pede um ajuste — e quem monta a lista
+// decide se aceita.
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const STATUS_DO_PEDIDO = ["aberto", "atendido", "recusado", "cancelado"] as const;
 export type StatusDoPedido = (typeof STATUS_DO_PEDIDO)[number];
 
-export const ROTULO_DO_PEDIDO: Record<StatusDoPedido, string> = {
+/** Status da SOLICITAÇÃO: o das peças, mais "parcial" (umas atendidas, outras abertas). */
+export type StatusDaSolicitacao = StatusDoPedido | "parcial";
+
+export const ROTULO_DO_PEDIDO: Record<StatusDaSolicitacao, string> = {
   aberto: "Aberta",
+  parcial: "Parcial",
   atendido: "Atendida",
   recusado: "Recusada",
   cancelado: "Cancelada",
 };
 
 export const MAX_REFERENCIAS_DO_PEDIDO = 10;
+export const MAX_PECAS_POR_SOLICITACAO = 30;
 
 /** Cancelar, recusar e reabrir pedem uma frase de verdade: pedido negado sem
  *  explicação volta como o mesmo pedido na semana seguinte. */
 export const MIN_MOTIVO_DO_PEDIDO = 10;
 
-/** Ajuste pedido pelo Atendimento numa solicitação já atendida. */
+/** Ajuste pedido pelo Atendimento numa peça já atendida. */
 export const STATUS_DO_AJUSTE = ["pendente", "aceito", "recusado"] as const;
 export type StatusDoAjuste = (typeof STATUS_DO_AJUSTE)[number];
 
@@ -66,11 +70,14 @@ export interface PecaDoPedido {
   status: string;
 }
 
-/** O pedido como a API devolve (com nomes resolvidos e as peças que saíram). */
-export interface PedidoDePeca {
+/** Uma peça solicitada, como a API devolve (nomes resolvidos e peças criadas). */
+export interface LinhaDoPedido {
   id: string;
+  pedidoId: string;
+  ordem: number;
   eventId: string;
-  sponsorId: string | null;
+  sponsorIds: string[];
+  sponsors: Array<{ id: string; name: string }>;
   quantidade: number;
   observacao: string;
   referencias: string[];
@@ -79,9 +86,6 @@ export interface PedidoDePeca {
   tipoDePeca: string | null;
   largura: string | null;
   altura: string | null;
-  pedidoPor: string | null;
-  pedidoPorId: string | null;
-  itemId: string | null;
   resolvidoPor: string | null;
   resolvidoEm: string | null;
   motivoRecusa: string | null;
@@ -94,14 +98,21 @@ export interface PedidoDePeca {
   ajusteRespondidoPor: string | null;
   ajusteRespondidoEm: string | null;
   ajusteResposta: string | null;
-  editadoPor: string | null;
-  editadoEm: string | null;
   createdAt: string;
   eventName: string | null;
   eventStart: string | null;
   eventSaida: string | null;
-  sponsorName: string | null;
   pecas: PecaDoPedido[];
+}
+
+/** A solicitação: quem pediu, quando, e as peças. */
+export interface PedidoDePeca {
+  id: string;
+  status: StatusDaSolicitacao;
+  pedidoPor: string | null;
+  pedidoPorId: string | null;
+  createdAt: string;
+  linhas: LinhaDoPedido[];
 }
 
 export const ehChaveDePedidos = (chave: unknown): boolean =>
@@ -122,6 +133,45 @@ export const quantidadeDoPedido = (q: number | null | undefined): string => `${q
 /** Unidades já criadas nas peças que saíram do pedido. */
 export const unidadesCriadas = (pecas: PecaDoPedido[] | null | undefined): number =>
   (pecas ?? []).filter((p) => p.status !== "cancelled").reduce((s, p) => s + (p.quantity || 0), 0);
+
+// ─── Solicitação × peças ─────────────────────────────────────────────────────
+
+/**
+ * O status da solicitação sai das peças:
+ *   · alguma aberta → "aberto" (ou "parcial", se outra já foi atendida);
+ *   · nenhuma aberta → "atendido" se alguma foi; senão "recusado" se alguma
+ *     foi recusada; senão "cancelado".
+ */
+export function statusDaSolicitacao(linhas: Array<{ status: string }>): StatusDaSolicitacao {
+  const tem = (s: string) => linhas.some((l) => l.status === s);
+  if (tem("aberto")) return tem("atendido") ? "parcial" : "aberto";
+  if (tem("atendido")) return "atendido";
+  if (tem("recusado")) return "recusado";
+  return "cancelado";
+}
+
+/** Solicitação com alguma peça esperando a lista. */
+export const temPecaAberta = (p: { status: string }): boolean => p.status === "aberto" || p.status === "parcial";
+
+/** "Banner 3x1" ou, sem tipo, "Peça 2". */
+export const rotuloDaLinha = (l: { tipoDePeca: string | null; ordem: number }): string =>
+  l.tipoDePeca?.trim() || `Peça ${l.ordem + 1}`;
+
+export const patrocinadoresDaLinha = (l: { sponsors?: Array<{ name: string }> | null }): string => {
+  const nomes = (l.sponsors ?? []).map((s) => s.name);
+  return nomes.length === 0 ? "Sem patrocinador" : nomes.join(", ");
+};
+
+export const resumoDasLinhas = (linhas: Array<{ status: string }>): string => {
+  const partes: string[] = [];
+  const n = (s: string) => linhas.filter((l) => l.status === s).length;
+  const plural = (q: number, um: string, varios: string) => `${q} ${q === 1 ? um : varios}`;
+  if (n("aberto")) partes.push(plural(n("aberto"), "aberta", "abertas"));
+  if (n("atendido")) partes.push(plural(n("atendido"), "atendida", "atendidas"));
+  if (n("recusado")) partes.push(plural(n("recusado"), "recusada", "recusadas"));
+  if (n("cancelado")) partes.push(plural(n("cancelado"), "cancelada", "canceladas"));
+  return partes.join(" · ");
+};
 
 // ─── Tempo ───────────────────────────────────────────────────────────────────
 
@@ -151,8 +201,8 @@ export function idadeDoPedido(criadoEm: Date | string, agora: Date): { dias: num
   return { dias, texto, nivel };
 }
 
-/** Idade e prazo só são informação acionável enquanto o pedido espera. */
-export const pedidoEspera = (status: string): boolean => status === "aberto";
+/** Idade e prazo só são informação acionável enquanto algo espera. */
+export const pedidoEspera = (status: string): boolean => status === "aberto" || status === "parcial";
 
 /** "Precisa até" é uma DATA (sem hora): o dia gravado lido em UTC — a mesma
  *  convenção da saída do caminhão, que é gravada no horário de exibição. */
@@ -173,6 +223,12 @@ export function prazoDoPedido(precisaAte: Date | string | null | undefined, agor
   if (dias === 0) return { dias, texto: "precisa hoje", nivel: "perto" };
   if (dias === 1) return { dias, texto: "precisa amanhã", nivel: "perto" };
   return { dias, texto: `precisa até ${diaEMesDoPrazo(precisaAte)}`, nivel: dias <= 3 ? "perto" : "normal" };
+}
+
+/** O prazo mais próximo entre as peças abertas (para ordenar a lista). */
+export function prazoMaisProximo(linhas: Array<{ status: string; precisaAte: string | null }>): number {
+  const prazos = linhas.filter((l) => l.status === "aberto" && l.precisaAte).map((l) => new Date(l.precisaAte!).getTime());
+  return prazos.length ? Math.min(...prazos) : Infinity;
 }
 
 /** Pedido com prazo DEPOIS da saída do caminhão: a peça não embarca. */
@@ -253,10 +309,11 @@ export function etapaDaPeca(status: string | null | undefined): number | null {
 
 // ─── Reabrir ─────────────────────────────────────────────────────────────────
 
-/** Quem pode reabrir cada estado: o atendido e o recusado são desfeitos por
- *  quem resolve (Solicitação); o cancelado, por quem pede (Atendimento). */
+/** Quem pode reabrir cada estado: o recusado por quem resolve (Solicitação);
+ *  o cancelado por quem pede (Atendimento). O atendido não se desfaz na mão
+ *  (dono, 14/09) — volta a aberto sozinho se a peça ligada for excluída. */
 export function quemReabre(status: string): Array<"admin" | "solicitacao" | "atendimento"> {
-  if (status === "atendido" || status === "recusado") return ["admin", "solicitacao"];
+  if (status === "recusado") return ["admin", "solicitacao"];
   if (status === "cancelado") return ["admin", "atendimento"];
   return [];
 }

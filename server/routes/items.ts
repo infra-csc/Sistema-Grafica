@@ -1129,13 +1129,14 @@ export function registerItemRoutes(app: Express): void {
       broadcast({ type: "item_created", item });
       broadcast({ type: "notification_created", notification });
       
-      // PEDIDO DO ATENDIMENTO (14/09): "Criar peça" a partir de um pedido liga a
-      // peça ao pedido NA MESMA requisição. Antes eram duas chamadas do
-      // cliente, e uma falha na segunda deixava peça criada e pedido aberto.
-      const pedidoDePecaId = typeof req.body?.pedidoDePecaId === "string" ? req.body.pedidoDePecaId : "";
-      if (pedidoDePecaId) {
-        const { vincularPecaAoPedido } = await import("./pedidos-de-peca");
-        const vinculo = await vincularPecaAoPedido(req, pedidoDePecaId, item.id);
+      // SOLICITAÇÃO DO ATENDIMENTO (14/09): "Criar peça" a partir de uma peça
+      // solicitada liga a peça a ela NA MESMA requisição. Antes eram duas
+      // chamadas do cliente, e uma falha na segunda deixava peça criada e
+      // solicitação aberta.
+      const pedidoDePecaLinhaId = typeof req.body?.pedidoDePecaLinhaId === "string" ? req.body.pedidoDePecaLinhaId : "";
+      if (pedidoDePecaLinhaId) {
+        const { vincularPecaALinha } = await import("./pedidos-de-peca");
+        const vinculo = await vincularPecaALinha(req, pedidoDePecaLinhaId, item.id);
         return res.status(201).json({ ...item, vinculoDoPedido: vinculo.erro ? { ok: false, erro: vinculo.erro } : { ok: true } });
       }
       res.status(201).json(item);
@@ -1764,6 +1765,12 @@ export function registerItemRoutes(app: Express): void {
       const success = await storage.deleteItem(req.params.id);
       if (!success) {
         return res.status(404).json({ error: "Item not found" });
+      }
+      // Peça que atendia uma solicitação: se era a última, a peça solicitada
+      // volta para aberta sozinha (dono, 14/09 — sem "desfazer atendimento").
+      if ((item as any).pedidoDePecaLinhaId) {
+        const { aoExcluirPeca } = await import("./pedidos-de-peca");
+        await aoExcluirPeca(req, item as any);
       }
       
       // Create audit log

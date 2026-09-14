@@ -3,9 +3,10 @@
 //
 // "Deixa tudo aqui e tira do Atendimento: eles solicitam, e o usuário de
 // Solicitação verifica por aqui e pelos eventos." A Solicitação e o admin
-// veem todas; cada pessoa do Atendimento vê só as que ela criou. A Solicitação
-// cria a peça (abre o evento com o formulário preenchido), recusa ou desfaz.
-// Clicar numa solicitação abre o detalhe com o histórico.
+// veem todas; cada pessoa do Atendimento vê sempre só as que ela criou. Uma
+// solicitação tem várias peças, cada uma com status próprio. A Solicitação
+// cria a peça (abre o evento com o formulário preenchido) ou recusa. Clicar
+// numa solicitação abre o detalhe com o histórico.
 // ─────────────────────────────────────────────────────────────────────────────
 import { useAuth } from "@/contexts/auth-context";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -21,7 +22,7 @@ export default function PedidosDePecaPagina() {
   const explicacao = podeResolver && !podePedir
     ? "O que o Atendimento solicitou para entrar na lista. “Criar peça” abre o evento com o formulário preenchido — a peça sai ligada à solicitação e quem solicitou é avisado."
     : podePedir && !podeResolver
-      ? "Solicite a quem monta a lista as peças que faltam nos eventos e acompanhe as suas solicitações até a entrega. Errou? Cancele enquanto está aberta e crie outra; depois de atendida, peça um ajuste."
+      ? "Solicite a quem monta a lista as peças que faltam nos eventos — várias numa solicitação só — e acompanhe cada uma até a entrega. Errou? Cancele enquanto está aberta e crie outra; depois de atendida, peça um ajuste."
       : "As solicitações de peça do Atendimento: quem solicita acompanha aqui, quem monta a lista cria a peça a partir da solicitação.";
   return (
     <div style={{ padding: isMobile ? "16px" : "28px 32px", background: "#fafaf9", minHeight: "100%", boxSizing: "border-box" }}>
@@ -32,7 +33,7 @@ export default function PedidosDePecaPagina() {
           </h1>
           <p style={{ margin: "4px 0 0", fontSize: FS.body, color: "#57534e", maxWidth: 680, lineHeight: 1.5 }}>{explicacao}</p>
         </header>
-        <ListaDePedidos podePedir={podePedir} podeResolver={podeResolver} userId={user?.id ?? null} />
+        <ListaDePedidos podePedir={podePedir} podeResolver={podeResolver} />
       </div>
     </div>
   );

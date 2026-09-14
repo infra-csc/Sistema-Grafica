@@ -11,7 +11,7 @@ import { Plus, ArrowLeft, Calendar, Truck, AlertCircle, List, Package, Package2,
 import { EstoqueSemelhantesDialog } from "@/components/estoque-semelhantes-dialog";
 import { PedidosDoEvento } from "@/components/pedidos-do-evento";
 import { invalidarPedidos } from "@/components/pedidos/ui";
-import { textoDaObservacao, type PedidoDePeca } from "@shared/pedidos-de-peca";
+import { patrocinadoresDaLinha, textoDaObservacao, type LinhaDoPedido, type PedidoDePeca } from "@shared/pedidos-de-peca";
 import { Fragment, useState, useEffect, useMemo, useRef } from "react";
 import type { Sponsor, Item, Event as EventRecord } from "@shared/schema";
 import {
@@ -1040,12 +1040,13 @@ export default function EventDetail() {
   });
   const [estoqueDaPeca, setEstoqueDaPeca] = useState<{ id: string; eventId: string } | null>(null);
 
-  // PEDIDO DO ATENDIMENTO sendo atendido (dono, 14/09): "Criar peça" abre o
-  // formulário simples já preenchido; ao salvar, a peça fica ligada ao pedido
-  // e o servidor leva para ela o patrocinador e as referências.
-  const [pedidoEmAtendimento, setPedidoEmAtendimento] = useState<PedidoDePeca | null>(null);
+  // PEÇA SOLICITADA sendo atendida (dono, 14/09): "Criar peça" abre o
+  // formulário simples já preenchido com AQUELA peça da solicitação; ao salvar,
+  // a peça fica ligada a ela e o servidor leva os patrocinadores e as
+  // referências.
+  const [pedidoEmAtendimento, setPedidoEmAtendimento] = useState<{ pedido: PedidoDePeca; linha: LinhaDoPedido } | null>(null);
   const podeAtenderPedidos = hasPermission("admin") || user?.role === "solicitacao";
-  const criarPecaDoPedido = (pedido: PedidoDePeca) => {
+  const criarPecaDoPedido = (pedidoDaLinha: PedidoDePeca, pedido: LinhaDoPedido) => {
     setEditingItem(null);
     setBulkMode(false);
     setCustomMaterial(false);
@@ -1070,13 +1071,11 @@ export default function EventDetail() {
       } : {}),
       ...(pedido.largura ? { visualWidth: texto(pedido.largura) } : {}),
       ...(pedido.altura ? { visualHeight: texto(pedido.altura) } : {}),
-      // Pedido sem quantidade é válido: o formulário abre no padrão e quem
-      // monta a lista decide.
       quantity: pedido.quantidade ?? EMPTY_ITEM_FORM.quantity,
       observations: textoDaObservacao(pedido.observacao),
       referenceUrl: pedido.referencias?.[0] ?? "",
     });
-    setPedidoEmAtendimento(pedido);
+    setPedidoEmAtendimento({ pedido: pedidoDaLinha, linha: pedido });
     setOpen(true);
   };
   const seloDoEstoque = (item: any) => {
@@ -1278,7 +1277,7 @@ export default function EventDetail() {
         isReuse: data.isReuse || false,
         // Criada a partir de um pedido do Atendimento: o servidor liga a peça
         // ao pedido na mesma requisição.
-        ...(pedidoEmAtendimento ? { pedidoDePecaId: pedidoEmAtendimento.id } : {}),
+        ...(pedidoEmAtendimento ? { pedidoDePecaLinhaId: pedidoEmAtendimento.linha.id } : {}),
       };
 
       // Criar item
@@ -2156,7 +2155,7 @@ export default function EventDetail() {
                   icon={bulkMode && !editingItem ? List : Plus}
                   tint="#c2410c"
                   title={bulkMode && !editingItem ? "Entrada Rápida" : "Adicionar Peça"}
-                  subtitle={bulkMode && !editingItem ? "Modo Lote — entrada rápida de peças" : (pedidoEmAtendimento ? `Atendendo solicitação do Atendimento — ${pedidoEmAtendimento.quantidade == null ? "sem quantidade" : `${pedidoEmAtendimento.quantidade} un.`} para ${pedidoEmAtendimento.sponsorName ?? "patrocinador"}` : (event.name || "Nova peça de produção"))}
+                  subtitle={bulkMode && !editingItem ? "Modo Lote — entrada rápida de peças" : (pedidoEmAtendimento ? `Atendendo solicitação do Atendimento — ${pedidoEmAtendimento.linha.quantidade} un. · ${patrocinadoresDaLinha(pedidoEmAtendimento.linha)}` : (event.name || "Nova peça de produção"))}
                   onClose={bulkMode && !editingItem
                     ? () => { if (window.confirm("Descartar linhas não salvas?")) handleCloseDialog(); }
                     : handleCloseDialog}

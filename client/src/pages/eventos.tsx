@@ -74,7 +74,7 @@ import { useAuth } from "@/contexts/auth-context";
 import { MARCOS_DO_EVENTO, OFFSET_PADRAO_DO_MARCO } from "@shared/prazo-dates";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Inbox } from "lucide-react";
-import { idadeDoPedido, quantidadeDoPedido, type PedidoDePeca } from "@shared/pedidos-de-peca";
+import { idadeDoPedido, patrocinadoresDaLinha, quantidadeDoPedido, rotuloDaLinha, type PedidoDePeca } from "@shared/pedidos-de-peca";
 
 /** Selo de pedidos do Atendimento em aberto (dono, 14/09) — cartão e linha. */
 function SeloDePedidos({ n, eventId }: { n: number; eventId: string }) {
@@ -82,11 +82,11 @@ function SeloDePedidos({ n, eventId }: { n: number; eventId: string }) {
   return (
     <span
       data-testid={`selo-pedidos-${eventId}`}
-      title={`${n} ${n === 1 ? "solicitação de peça do Atendimento esperando" : "solicitações de peça do Atendimento esperando"} a lista`}
+      title={`${n} ${n === 1 ? "peça solicitada pelo Atendimento esperando" : "peças solicitadas pelo Atendimento esperando"} a lista`}
       style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 800, color: '#92400e', backgroundColor: '#fffbeb', border: '1px solid #fde68a', borderRadius: 999, padding: '2px 8px', whiteSpace: 'nowrap', flexShrink: 0 }}
     >
       <Inbox style={{ width: 11, height: 11 }} aria-hidden="true" />
-      {n} {n === 1 ? 'solicitação' : 'solicitações'}
+      {n} {n === 1 ? 'peça solicitada' : 'peças solicitadas'}
     </span>
   );
 }
@@ -1233,11 +1233,16 @@ export default function Eventos() {
   // PEDIDOS DO ATENDIMENTO (dono, 14/09): quantos pedidos de peça cada evento
   // tem esperando a lista.
   const { data: pedidosAbertos = [] } = useQuery<PedidoDePeca[]>({ queryKey: ["/api/pedidos-de-peca?status=aberto"] });
+  // Uma solicitação tem várias peças, de eventos diferentes: conta PEÇAS abertas.
+  const linhasAbertas = useMemo(
+    () => pedidosAbertos.flatMap((p) => (p.linhas ?? []).filter((l) => l.status === 'aberto').map((linha) => ({ pedido: p, linha }))),
+    [pedidosAbertos],
+  );
   const pedidosPorEvento = useMemo(() => {
     const porEvento = new Map<string, number>();
-    for (const p of pedidosAbertos) porEvento.set(p.eventId, (porEvento.get(p.eventId) ?? 0) + 1);
+    for (const { linha } of linhasAbertas) porEvento.set(linha.eventId, (porEvento.get(linha.eventId) ?? 0) + 1);
     return porEvento;
-  }, [pedidosAbertos]);
+  }, [linhasAbertas]);
 
   const { data: events = [], isLoading, isError, refetch } = useQuery<any[]>({
     queryKey: ["/api/events"],
@@ -2247,10 +2252,10 @@ export default function Eventos() {
             filtro, quantos pedidos esperam e quais são os mais antigos — com
             link direto para o painel de pedidos do evento. Some quando não há
             nenhum. */}
-        {(user?.role === 'solicitacao' || user?.role === 'admin') && pedidosAbertos.length > 0 && (() => {
+        {(user?.role === 'solicitacao' || user?.role === 'admin') && linhasAbertas.length > 0 && (() => {
           const agora = new Date();
-          const maisAntigos = [...pedidosAbertos].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
-          const n = pedidosAbertos.length;
+          const maisAntigos = [...linhasAbertas].sort((a, b) => new Date(a.pedido.createdAt).getTime() - new Date(b.pedido.createdAt).getTime());
+          const n = linhasAbertas.length;
           return (
             <div
               data-testid="faixa-pedidos-atendimento"
@@ -2260,21 +2265,21 @@ export default function Eventos() {
               <Inbox aria-hidden="true" style={{ width: 18, height: 18, color: '#b45309', flexShrink: 0, marginTop: 2 }} />
               <div style={{ flex: '1 1 320px', minWidth: 0 }}>
                 <div style={{ fontSize: FS.body + 1, fontWeight: 800, color: '#78350f' }}>
-                  {n} {n === 1 ? 'solicitação do Atendimento esperando a lista' : 'solicitações do Atendimento esperando a lista'}
+                  {n} {n === 1 ? 'peça solicitada pelo Atendimento esperando a lista' : 'peças solicitadas pelo Atendimento esperando a lista'}
                 </div>
                 <ul style={{ listStyle: 'none', margin: '6px 0 0', padding: 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
-                  {maisAntigos.slice(0, 3).map((p) => {
+                  {maisAntigos.slice(0, 3).map(({ pedido: p, linha: l }) => {
                     const idade = idadeDoPedido(p.createdAt, agora);
                     return (
-                      <li key={p.id} style={{ fontSize: FS.body, color: '#78350f', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <li key={l.id} style={{ fontSize: FS.body, color: '#78350f', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         <Link
-                          href={`/eventos/${p.eventId}?pedidos=1`}
-                          data-testid={`link-pedido-evento-${p.id}`}
+                          href={`/eventos/${l.eventId}?pedidos=1`}
+                          data-testid={`link-pedido-evento-${l.id}`}
                           style={{ fontWeight: 800, color: '#78350f', textDecoration: 'underline', textUnderlineOffset: 2 }}
                         >
-                          {p.eventName ?? 'Evento'}
+                          {l.eventName ?? 'Evento'}
                         </Link>
-                        {' · '}{p.sponsorName ?? 'sem patrocinador'} · {quantidadeDoPedido(p.quantidade)} ·{' '}
+                        {' · '}{rotuloDaLinha(l)} · {patrocinadoresDaLinha(l)} · {quantidadeDoPedido(l.quantidade)} ·{' '}
                         <span style={{ fontWeight: idade.nivel === 'normal' ? 600 : 800, color: idade.nivel === 'parado' ? '#b91c1c' : '#78350f' }}>{idade.texto}</span>
                       </li>
                     );

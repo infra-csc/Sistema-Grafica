@@ -2290,6 +2290,13 @@ export default function Eventos() {
               >
                 {foco === 'pedidos' ? 'Mostrar todos os eventos' : 'Ver só eventos com pedido'}
               </button>
+              <Link
+                href="/pedidos-de-peca"
+                data-testid="link-caixa-pedidos"
+                style={{ display: 'inline-flex', alignItems: 'center', height: isMobile ? 44 : 34, padding: '0 14px', borderRadius: R.md, border: '1px solid #fcd34d', backgroundColor: '#ffffff', color: '#78350f', fontSize: FS.body, fontWeight: 800, textDecoration: 'none', whiteSpace: 'nowrap' }}
+              >
+                Abrir a caixa de pedidos
+              </Link>
             </div>
           );
         })()}

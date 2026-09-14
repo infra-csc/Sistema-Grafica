@@ -1129,6 +1129,15 @@ export function registerItemRoutes(app: Express): void {
       broadcast({ type: "item_created", item });
       broadcast({ type: "notification_created", notification });
       
+      // PEDIDO DO ATENDIMENTO (14/09): "Criar peça" a partir de um pedido liga a
+      // peça ao pedido NA MESMA requisição. Antes eram duas chamadas do
+      // cliente, e uma falha na segunda deixava peça criada e pedido aberto.
+      const pedidoDePecaId = typeof req.body?.pedidoDePecaId === "string" ? req.body.pedidoDePecaId : "";
+      if (pedidoDePecaId) {
+        const { vincularPecaAoPedido } = await import("./pedidos-de-peca");
+        const vinculo = await vincularPecaAoPedido(req, pedidoDePecaId, item.id);
+        return res.status(201).json({ ...item, vinculoDoPedido: vinculo.erro ? { ok: false, erro: vinculo.erro } : { ok: true } });
+      }
       res.status(201).json(item);
     } catch (error: any) {
       res.status(400).json({ error: error.message });

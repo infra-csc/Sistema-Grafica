@@ -359,7 +359,7 @@ export interface IStorage {
   getUnreadNotifications(): Promise<Notification[]>;
   createNotification(notification: InsertNotification): Promise<Notification>;
   markNotificationAsRead(id: string): Promise<Notification | undefined>;
-  markAllNotificationsAsReadForRole(role: string | null): Promise<number>;
+  markAllNotificationsAsReadForRole(role: string | null, userId?: string | null): Promise<number>;
   
   // Production Updates
   getProductionUpdates(itemId: string): Promise<ProductionUpdate[]>;
@@ -1329,16 +1329,20 @@ export class DatabaseStorage implements IStorage {
   // notificação (até 50 em paralelo). role null (admin) marca todas as não
   // lidas; papel específico marca só as visíveis a ele (targetRoles nulo ou
   // vazio = visível para todos, compat retroativa). Retorna quantas marcou.
-  async markAllNotificationsAsReadForRole(role: string | null): Promise<number> {
+  async markAllNotificationsAsReadForRole(role: string | null, userId: string | null = null): Promise<number> {
+    // Notificação individual de OUTRA pessoa não é marcada — senão o "Marcar
+    // todas" de um colega apagava o "seu pedido foi atendido" de quem pediu.
+    const doUsuario = sql`(${notifications.targetUserId} IS NULL OR ${notifications.targetUserId} = ${userId})`;
     const marked = await db
       .update(notifications)
       .set({ isRead: true })
       .where(
         role === null
-          ? eq(notifications.isRead, false)
+          ? and(eq(notifications.isRead, false), doUsuario)
           : and(
               eq(notifications.isRead, false),
               sql`(${notifications.targetRoles} IS NULL OR cardinality(${notifications.targetRoles}) = 0 OR ${role} = ANY(${notifications.targetRoles}))`,
+              doUsuario,
             ),
       )
       .returning({ id: notifications.id });

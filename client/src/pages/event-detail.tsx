@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Plus, ArrowLeft, Calendar, Truck, AlertCircle, List, Package, Package2, Pencil, Trash2, Check, Building2, Loader2, User, History, Lock, Unlock, Paperclip, ExternalLink, X, RotateCcw, Recycle, Upload, Copy, ChevronDown, CheckCircle2, AlertTriangle, FileSpreadsheet, FileText, Tags, BookOpen, Search, Warehouse } from "lucide-react";
 import { EstoqueSemelhantesDialog } from "@/components/estoque-semelhantes-dialog";
 import { PedidosDoEvento } from "@/components/pedidos-do-evento";
-import { invalidarPedidos } from "@/components/pedidos-de-peca-atendimento";
+import { invalidarPedidos } from "@/components/pedidos/ui";
 import { textoDaObservacao, type PedidoDePeca } from "@shared/pedidos-de-peca";
 import { Fragment, useState, useEffect, useMemo, useRef } from "react";
 import type { Sponsor, Item, Event as EventRecord } from "@shared/schema";
@@ -1045,28 +1045,31 @@ export default function EventDetail() {
   // e o servidor leva para ela o patrocinador e as referências.
   const [pedidoEmAtendimento, setPedidoEmAtendimento] = useState<PedidoDePeca | null>(null);
   const podeAtenderPedidos = hasPermission("admin") || user?.role === "solicitacao";
-  const atenderPedidoMutation = useMutation({
-    mutationFn: async ({ pedidoId, itemId }: { pedidoId: string; itemId: string }) =>
-      (await apiRequest("PATCH", `/api/pedidos-de-peca/${pedidoId}/atender`, { itemId })).json(),
-    onSuccess: () => {
-      invalidarPedidos();
-      queryClient.invalidateQueries({ queryKey: ["/api/items", eventId] });
-      toast({ title: "Pedido atendido", description: "A peça ficou ligada ao pedido e o Atendimento foi avisado." });
-    },
-    onError: (error: Error) => toast({
-      title: "A peça foi criada, mas o pedido não foi marcado como atendido",
-      description: `${error.message} — use "Já criei a peça" no pedido.`,
-      variant: "destructive",
-    }),
-  });
   const criarPecaDoPedido = (pedido: PedidoDePeca) => {
     setEditingItem(null);
     setBulkMode(false);
     setCustomMaterial(false);
     setCustomFinish(false);
     setLocalRefPreview("");
+    // Tipo e medida, quando o solicitante informou: o tipo que casa com um
+    // modelo traz material, acabamento e arquivo do modelo, como na escolha
+    // manual; a medida do pedido vence a do modelo.
+    const modelo = pedido.tipoDePeca ? (standardItems as any[]).find((s) => s.name === pedido.tipoDePeca) : null;
+    const texto = (v: unknown) => (v == null || v === "" ? "" : String(Number(v)));
     setFormData({
       ...EMPTY_ITEM_FORM,
+      ...(pedido.tipoDePeca ? { type: pedido.tipoDePeca } : {}),
+      ...(modelo ? {
+        standardItemId: modelo.id,
+        material: modelo.material || "",
+        finish: modelo.finish || "",
+        fileWidth: texto(modelo.fileWidth),
+        fileHeight: texto(modelo.fileHeight),
+        visualWidth: texto(modelo.visualWidth),
+        visualHeight: texto(modelo.visualHeight),
+      } : {}),
+      ...(pedido.largura ? { visualWidth: texto(pedido.largura) } : {}),
+      ...(pedido.altura ? { visualHeight: texto(pedido.altura) } : {}),
       // Pedido sem quantidade é válido: o formulário abre no padrão e quem
       // monta a lista decide.
       quantity: pedido.quantidade ?? EMPTY_ITEM_FORM.quantity,
@@ -1273,6 +1276,9 @@ export default function EventDetail() {
         measurement: data.measurement || `${fileWidth} × ${fileHeight}`,
         skipApproval: data.skipApproval || false,
         isReuse: data.isReuse || false,
+        // Criada a partir de um pedido do Atendimento: o servidor liga a peça
+        // ao pedido na mesma requisição.
+        ...(pedidoEmAtendimento ? { pedidoDePecaId: pedidoEmAtendimento.id } : {}),
       };
 
       // Criar item
@@ -1284,16 +1290,27 @@ export default function EventDetail() {
     onSuccess: (createdItem: any) => {
       queryClient.invalidateQueries({ queryKey: ["/api/items", eventId] });
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
-      if (pedidoEmAtendimento && createdItem?.id) {
-        atenderPedidoMutation.mutate({ pedidoId: pedidoEmAtendimento.id, itemId: createdItem.id });
-      }
+      const vinculo = createdItem?.vinculoDoPedido as { ok: boolean; erro?: string } | undefined;
       setPedidoEmAtendimento(null);
       setOpen(false);
       setFormData({ ...EMPTY_ITEM_FORM });
-      toast({
-        title: "Peça adicionada",
-        description: "A peça foi adicionada ao evento",
-      });
+      if (vinculo) {
+        invalidarPedidos();
+        if (vinculo.ok) {
+          toast({ title: "Peça criada e ligada ao pedido", description: "Quem pediu foi avisado." });
+        } else {
+          toast({
+            title: "Peça criada, mas não ficou ligada ao pedido",
+            description: `${vinculo.erro ?? "Erro ao ligar"} — use “Já criei a peça” no pedido.`,
+            variant: "destructive",
+          });
+        }
+      } else {
+        toast({
+          title: "Peça adicionada",
+          description: "A peça foi adicionada ao evento",
+        });
+      }
     },
     onError: (error: Error) => {
       toast({
@@ -2143,7 +2160,9 @@ export default function EventDetail() {
                   onClose={bulkMode && !editingItem
                     ? () => { if (window.confirm("Descartar linhas não salvas?")) handleCloseDialog(); }
                     : handleCloseDialog}
-                  trailing={!editingItem ? (
+                  // Atendendo um pedido, a Entrada Rápida some: a peça criada em
+                  // lote não seria ligada ao pedido.
+                  trailing={!editingItem && !pedidoEmAtendimento ? (
                     <button
                       onClick={() => setBulkMode(!bulkMode)}
                       data-testid="button-toggle-mode"
@@ -2468,6 +2487,7 @@ export default function EventDetail() {
       <PedidosDoEvento
         eventId={eventId!}
         pecas={items}
+        podeVer={user?.role !== "grafica"}
         podeAtender={podeAtenderPedidos && canEditLists}
         motivoEventoFim={motivoEventoFim}
         saidaDoCaminhao={event?.truckDepartureDate ?? null}

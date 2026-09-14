@@ -251,7 +251,17 @@ export default function Atendimento() {
   const [dialogOpen, setDialogOpen] = useState(false);
 
   // Aba ativa: pendentes ou histórico
-  const [activeTab, setActiveTab] = useState<"pending" | "history" | "pedidos">("pending");
+  // ?aba=pedidos: a aba vive na URL — atualizar a página não perde o lugar e
+  // a notificação de pedido recusado/cancelado cai direto aqui.
+  const [activeTab, setActiveTab] = useState<"pending" | "history" | "pedidos">(
+    () => (new URLSearchParams(window.location.search).get("aba") === "pedidos" ? "pedidos" : "pending"),
+  );
+  useEffect(() => {
+    const p = new URLSearchParams(window.location.search);
+    if (activeTab === "pedidos") p.set("aba", "pedidos"); else p.delete("aba");
+    const qs = p.toString();
+    window.history.replaceState(null, "", qs ? `?${qs}` : window.location.pathname);
+  }, [activeTab]);
   // PEDIDOS DE PEÇA (dono, 14/09): a aba conta os pedidos que a lista ainda
   // não atendeu.
   const { data: pedidosAbertos = [] } = useQuery<Array<{ id: string }>>({ queryKey: ["/api/pedidos-de-peca?status=aberto"] });

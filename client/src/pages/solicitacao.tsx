@@ -1,6 +1,7 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { CheckCircle, AlertCircle, Copy, Eye, Search, X, FileImage, Maximize2, Trash2, Paperclip, Recycle, Check, Clock, ChevronLeft, ChevronRight, ChevronDown, MoreHorizontal, RotateCcw, Truck, Mail } from "lucide-react";
 import { FilterSelect } from "@/components/filter-select";
+import { SeloKit } from "@/components/kit/selo-kit";
 import { EventFilterDropdown } from "@/components/event-filter-dropdown";
 import { FilePreview, isWebUrl } from "@/components/file-preview";
 import { parseDateLocal, normalizarBusca } from "@/lib/utils";
@@ -1349,6 +1350,7 @@ export default function Solicitacao() {
                         style={{padding:"12px",cursor:"pointer",display:"flex",flexDirection:"column",gap:6}}>
                         <div style={{display:"flex",justifyContent:"flex-start",alignItems:"center",gap:6,flexWrap:"wrap",paddingRight:44}}>
                           <span style={{fontFamily:"monospace",fontWeight:700,color:"#c2410c",fontSize:13}}>{item.displayId}</span>
+                          <SeloKit peca={item} />
                           {/* EVENTO FINALIZADO — a peça voltou para a fila (ver
                               `pendingItems`), então tem de se declarar. Aqui
                               quase nada funciona: só excluir. */}
@@ -1627,6 +1629,7 @@ export default function Solicitacao() {
                                 >
                                   {item.displayId}
                                 </span>
+                                <SeloKit peca={item} style={{ flexShrink: 0 }} />
                                 <span style={{ fontSize: 13, fontWeight: 700, color: TI.text, flexShrink: 0, whiteSpace: "nowrap" }}>
                                   {item.type}
                                 </span>
@@ -1876,6 +1879,7 @@ export default function Solicitacao() {
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ display: "flex", alignItems: "baseline", gap: 8, minWidth: 0 }}>
                   <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 13, fontWeight: 700, color: "#fdba74", flexShrink: 0 }}>{selectedItem?.displayId}</span>
+                  {selectedItem && <SeloKit peca={selectedItem} style={{ flexShrink: 0, alignSelf: "center" }} />}
                   <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 17, fontWeight: 800, color: "#fff", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{selectedItem?.type}</span>
                   {selectedItem?.isReuse && (
                     <span style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", backgroundColor: "#dcfce7", color: "#166534", borderRadius: 999, padding: "3px 10px", flexShrink: 0 }}>

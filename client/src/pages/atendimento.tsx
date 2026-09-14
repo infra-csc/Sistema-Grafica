@@ -1,5 +1,6 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { diasNaFase, tomDaIdade } from "@/lib/idade-na-fase";
+import { SeloKit } from "@/components/kit/selo-kit";
 import { Button } from "@/components/ui/button";
 import { TextoComLinks } from "@/components/texto-com-links";
 import { SponsorChips } from "@/components/sponsor-chips";
@@ -2120,6 +2121,7 @@ export default function Atendimento() {
                               <span style={{ fontFamily: 'monospace', fontSize: 11, fontWeight: 700, color: '#9a3412', background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: 6, padding: '1px 6px', flexShrink: 0 }}>
                                 {item.displayId}
                               </span>
+                              <SeloKit peca={item} style={{ flexShrink: 0 }} />
                               <span style={{ fontSize: 13, fontWeight: 700, color: '#1c1917', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                 {item.type}
                               </span>
@@ -2686,6 +2688,7 @@ export default function Atendimento() {
                                 }}>
                                   {item.displayId}
                                 </span>
+                                <SeloKit peca={item} style={{ flexShrink: 0, alignSelf: 'center' }} />
                                 <h3 title={item.type} style={{ fontSize: 14, fontWeight: 700, color: '#1c1917', margin: 0, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                   {item.type}
                                 </h3>
@@ -3141,6 +3144,7 @@ export default function Atendimento() {
                             <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, flexWrap: 'wrap' }}>
                               <span style={{ fontSize: 15, fontWeight: 700, color: '#1c1917', lineHeight: 1.2 }}>{item.type}</span>
                               <span style={{ fontSize: 11, color: '#746e69', fontWeight: 500 }}>{item.displayId}</span>
+                              <SeloKit peca={item} />
                             </div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 3, flexWrap: 'wrap' }}>
                               <span style={{ fontSize: 11, color: '#746e69', fontWeight: 500 }}>{ev?.name || '—'}</span>
@@ -3575,6 +3579,7 @@ export default function Atendimento() {
                         }}>
                           {selectedItem.displayId}
                         </span>
+                        <SeloKit peca={selectedItem} style={{ flexShrink: 0 }} />
                       </h2>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 4 }}>
                         <span style={{ fontSize: 11, fontWeight: 700, color: '#746e69', textTransform: 'uppercase', letterSpacing: '0.08em' }}>

@@ -1,5 +1,6 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { StatusBadge } from "@/components/status-badge";
+import { SeloKit } from "@/components/kit/selo-kit";
 import { TextoComLinks } from "@/components/texto-com-links";
 import { SponsorChips } from "@/components/sponsor-chips";
 import { ComentarioDoBook, comentarioDoBookValido } from "@/components/comentario-do-book";
@@ -2298,6 +2299,7 @@ export default function Arte() {
           <span style={{ fontFamily: '"DM Mono", monospace', fontSize: 12, color: '#57534e', fontWeight: 600 }} data-testid={`text-display-id-${item.id}`}>
             {item.displayId}
           </span>
+          <SeloKit peca={item} />
           {tabId === "finalizados" && <StatusBadge status={item.status} />}
           {tabId === "criar-aprovacoes" && item.rejectedBySponsor && (
             <span style={{ fontSize: 11, fontWeight: 700, color: '#b91c1c', backgroundColor: '#fef2f2', border: '1px solid #fecaca', borderRadius: 6, padding: '2px 7px' }} data-testid={`badge-rejected-sponsor-${item.id}`}>
@@ -2457,6 +2459,7 @@ export default function Arte() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 6 }}>
         {/* #c2410c: o laranja da marca (#f97316) reprova AA como texto de 13px. */}
         <span style={{ fontFamily: 'monospace', fontWeight: 700, color: '#c2410c', fontSize: 13 }}>{item.displayId}</span>
+        <SeloKit peca={item} style={{ marginRight: 'auto' }} />
         <StatusBadge status={item.status} />
       </div>
       <div style={{ fontWeight: 700, fontSize: 13, color: '#1c1917' }}>{item.type}</div>
@@ -3382,6 +3385,7 @@ export default function Arte() {
                     </div>
                   </div>
                   <span style={{ fontFamily: '"Space Grotesk", sans-serif', fontSize: 11, fontWeight: 800, color: '#57534e', background: '#faf9f7', border: '1px solid #e7e5e4', borderRadius: 5, padding: '3px 7px', flexShrink: 0, fontVariantNumeric: 'tabular-nums' }}>{item.displayId}</span>
+                  <SeloKit peca={item} style={{ flexShrink: 0 }} />
                 </div>
 
                 {/* ── Contexto: de qual evento é a peça, e quando ela sai ──

@@ -1,5 +1,6 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useState, useMemo, useRef, Fragment, useEffect, useCallback } from "react";
+import { SeloKit } from "@/components/kit/selo-kit";
 import {
   Search, Calendar, Truck, Eye, Paperclip, Trash2, FileText, Printer, RotateCcw, Hourglass,
   Loader2, MessageSquare, ArrowUpRight, ChevronDown, ChevronUp, Copy, FileSpreadsheet,
@@ -2474,6 +2475,7 @@ export default function PainelGeral() {
                                         <button onClick={e => { e.stopPropagation(); if (!isDeleted) setSelectedItem(item); }} disabled={isDeleted} aria-label={`Ver detalhes da peça ${item.displayId}`} data-testid={`text-display-id-${item.id}`} style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontFamily: "monospace", fontWeight: 700, color: isDeleted ? "#b91c1c" : "#c2410c", fontSize: 13, flexShrink: 0, textDecoration: isDeleted ? "line-through" : "none" }}>
                                           {item.displayId}
                                         </button>
+                                        <SeloKit peca={item} style={{ flexShrink: 0 }} />
                                         <span style={{ fontSize: 11, fontWeight: 700, color: isDeleted ? "#746e69" : "#44403c", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0, textDecoration: isDeleted ? "line-through" : "none" }}>{item.type}</span>
                                         {item.isReuse && !isDeleted && (
                                           <span style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", backgroundColor: "#dcfce7", color: "#166534", borderRadius: 999, padding: "2px 7px", flexShrink: 0 }}>
@@ -2822,6 +2824,7 @@ export default function PainelGeral() {
                                       <button onClick={e => { e.stopPropagation(); if (!isDeleted) setSelectedItem(item); }} disabled={isDeleted} aria-label={`Ver detalhes da peça ${item.displayId}`} data-testid={`text-display-id-${item.id}`} style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontFamily: "monospace", fontWeight: 700, color: isDeleted ? "#b91c1c" : "#c2410c", fontSize: 13, textDecoration: isDeleted ? "line-through" : "none", textAlign: "left" }}>
                                         {item.displayId}
                                       </button>
+                                      <SeloKit peca={item} style={{ alignSelf: "flex-start" }} />
                                       {/* O TIPO só existia na linha de sub-header
                                           com colspan, que não é sticky: com 40
                                           "Banner" num evento, rolar deixava a

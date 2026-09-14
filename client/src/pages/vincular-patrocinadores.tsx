@@ -1,6 +1,7 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { parseDateLocal, toUTCDisplayDate, runInBatches } from "@/lib/utils";
 import { compareDisplayId } from "@/lib/displayId";
+import { SeloKit } from "@/components/kit/selo-kit";
 import { FilterSelect } from "@/components/filter-select";
 import { EventFilterDropdown } from "@/components/event-filter-dropdown";
 import { Card, CardContent } from "@/components/ui/card";
@@ -3672,6 +3673,7 @@ export default function VincularPatrocinadores() {
                         <span style={{ fontFamily: '"Space Grotesk", sans-serif', fontSize: 11, fontWeight: 700, color: '#c2410c', flexShrink: 0, background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: 6, padding: '1px 6px' }}>
                           {item.displayId}
                         </span>
+                        <SeloKit peca={item} style={{ flexShrink: 0 }} />
                         <span style={{ fontSize: 13, fontWeight: 700, color: '#1a1c1c', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
                           {item.type}
                         </span>

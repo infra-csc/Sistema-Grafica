@@ -124,8 +124,12 @@ describe("planilha do Kit e filtros (fase 2)", () => {
     expect(IMPORT).toContain("kit: lerCabecalhoDoKit(file.buffer)");
     // Nova remessa à mão também pode vir preenchida pelo template (14/09).
     const PAINEL_KIT = ler("client/src/components/kit/painel-do-kit.tsx");
-    expect(PAINEL_KIT).toContain('data-testid="button-preencher-remessa-planilha"');
+    // Tela só: planilha preenche a remessa E traz as peças; próximas remessas
+    // começam com os dados da última.
+    expect(PAINEL_KIT).toContain('data-testid="button-planilha-remessa-kit"');
     expect(PAINEL_KIT).toContain("fetch(`/api/events/${eventId}/preview-xlsx`");
+    expect(PAINEL_KIT).toContain("kitNovaRemessa: remessa,");
+    expect(PAINEL_KIT).toContain("solicitante: ultima?.solicitante || nomeDoUsuario,");
   });
 
   it("o usuário do Kit fica no recorte dele em todas as leituras", () => {
@@ -139,6 +143,23 @@ describe("planilha do Kit e filtros (fase 2)", () => {
     expect(ler("server/routes/notifications.ts")).toContain("const minhasDoKit = (req as any).session?.userKit === true");
     expect(ler("server/routes/photos.ts")).toContain("return res.json(fotos.filter((f: any) => minhas.has(f.itemId)));");
     expect(ler("server/services/xlsxExport.ts")).toContain("const doKit = (req as any).userKit === true;");
+  });
+});
+
+describe("selo KIT nas etapas (fase 3)", () => {
+  it("Arte, Atendimento, Revisão, Painel Geral, Gráfica e Vincular mostram o selo", () => {
+    for (const arquivo of [
+      "client/src/pages/arte.tsx",
+      "client/src/pages/atendimento.tsx",
+      "client/src/pages/solicitacao.tsx",
+      "client/src/pages/painel-geral.tsx",
+      "client/src/pages/grafica.tsx",
+      "client/src/pages/vincular-patrocinadores.tsx",
+    ]) {
+      const fonte = ler(arquivo);
+      expect(fonte, arquivo).toContain('import { SeloKit } from "@/components/kit/selo-kit";');
+      expect(fonte, arquivo).toContain("<SeloKit peca={");
+    }
   });
 });
 

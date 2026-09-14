@@ -94,6 +94,11 @@ const paraQuemPediu = (pedido: { pedidoPorId: string | null }) =>
     ? { targetRoles: ["atendimento", "admin"], targetUserId: pedido.pedidoPorId }
     : { targetRoles: ["atendimento", "admin"] };
 
+// Atendimento só enxerga e mexe nas solicitações que ele mesmo criou (dono,
+// 14/09). Solicitação, Arte e admin veem todas.
+const ehDeOutraPessoa = (req: any, pedido: { pedidoPorId: string | null }) =>
+  req.userRole === "atendimento" && pedido.pedidoPorId !== req.userId;
+
 async function patrocinadorDoEvento(eventId: string, sponsorId: string, eventName: string) {
   const patrocinador = await storage.getSponsor(sponsorId);
   if (!patrocinador) return { erro: "Patrocinador não encontrado", status: 404 };
@@ -154,12 +159,12 @@ async function listarPedidos(condicoes: any[], limite: number) {
  */
 export async function vincularPecaAoPedido(req: any, pedidoId: string, itemId: string): Promise<{ status: number; erro?: string; pedido?: any }> {
   if (!["admin", "solicitacao"].includes(req.userRole ?? "")) {
-    return { status: 403, erro: "Atender pedido é da Solicitação e do admin." };
+    return { status: 403, erro: "Atender solicitação de peça é do perfil Solicitação e do admin." };
   }
   const [pedido] = await db.select().from(pedidosDePeca).where(eq(pedidosDePeca.id, pedidoId));
-  if (!pedido) return { status: 404, erro: "Pedido não encontrado" };
+  if (!pedido) return { status: 404, erro: "Solicitação não encontrada" };
   if (pedido.status !== "aberto" && pedido.status !== "atendido") {
-    return { status: 409, erro: `Este pedido está ${rotulo(pedido.status)} — reabra antes de ligar uma peça.` };
+    return { status: 409, erro: `Esta solicitação está ${rotulo(pedido.status)} — reabra antes de ligar uma peça.` };
   }
   const peca = await storage.getItem(itemId);
   if (!peca || (peca as any).deletedAt) return { status: 404, erro: "Peça não encontrada" };
@@ -168,14 +173,14 @@ export async function vincularPecaAoPedido(req: any, pedidoId: string, itemId: s
   if (motivoFim) return { status: 409, erro: erroEventoFechado(motivoFim) };
   const jaLigada = (peca as any).pedidoDePecaId as string | null;
   if (jaLigada === pedido.id) return { status: 200, pedido };
-  if (jaLigada) return { status: 409, erro: `A peça ${peca.displayId} já atende outro pedido.` };
+  if (jaLigada) return { status: 409, erro: `A peça ${peca.displayId} já atende outra solicitação.` };
 
   // A peça primeiro, só se ainda estiver livre (duas pessoas ligando a mesma).
   const marcadas = await db.update(itemsTable)
     .set({ pedidoDePecaId: pedido.id, updatedAt: new Date() } as any)
     .where(and(eq(itemsTable.id, itemId), isNull(itemsTable.pedidoDePecaId)))
     .returning({ id: itemsTable.id });
-  if (marcadas.length === 0) return { status: 409, erro: `A peça ${peca.displayId} acabou de ser ligada a outro pedido.` };
+  if (marcadas.length === 0) return { status: 409, erro: `A peça ${peca.displayId} acabou de ser ligada a outra solicitação.` };
 
   const quem = quemAgiu(req);
   const primeiraPeca = pedido.status === "aberto";
@@ -191,7 +196,7 @@ export async function vincularPecaAoPedido(req: any, pedidoId: string, itemId: s
       const [agora] = await db.select().from(pedidosDePeca).where(eq(pedidosDePeca.id, pedido.id));
       if (agora?.status !== "atendido") {
         await db.update(itemsTable).set({ pedidoDePecaId: null, updatedAt: new Date() } as any).where(eq(itemsTable.id, itemId));
-        return { status: 409, erro: "Este pedido acabou de mudar de estado — atualize a tela." };
+        return { status: 409, erro: "Esta solicitação acabou de mudar de estado — atualize a tela." };
       }
       atualizado = agora;
     }
@@ -213,14 +218,14 @@ export async function vincularPecaAoPedido(req: any, pedidoId: string, itemId: s
 
   const evento = await storage.getEvent(pedido.eventId);
   await createAuditLog(req, "updated", "pedido_de_peca", pedido.id,
-    `${primeiraPeca ? "Pedido atendido" : "Mais uma peça para o pedido"}: ${peca.displayId} (${peca.type}, ${peca.quantity} un.)`);
+    `${primeiraPeca ? "Solicitação atendida" : "Mais uma peça para a solicitação"}: ${peca.displayId} (${peca.type}, ${peca.quantity} un.)`);
   await createAuditLog(req, "updated", "item", itemId,
-    `Peça ligada ao pedido do Atendimento (${pedido.pedidoPor ?? "—"}): ${pedido.observacao}`);
+    `Peça ligada à solicitação do Atendimento (${pedido.pedidoPor ?? "—"}): ${pedido.observacao}`);
   await notificar({
     type: "pedidoAtendido",
     message: primeiraPeca
-      ? `Seu pedido foi atendido: ${peca.displayId} ${peca.type} — Evento: ${evento?.name ?? "—"}`
-      : `Mais uma peça para o seu pedido: ${peca.displayId} ${peca.type} — Evento: ${evento?.name ?? "—"}`,
+      ? `Sua solicitação foi atendida: ${peca.displayId} ${peca.type} — Evento: ${evento?.name ?? "—"}`
+      : `Mais uma peça para a sua solicitação: ${peca.displayId} ${peca.type} — Evento: ${evento?.name ?? "—"}`,
     eventId: pedido.eventId,
     itemId,
     ...paraQuemPediu(pedido),
@@ -240,14 +245,16 @@ export function registerPedidosDePecaRoutes(app: Express): void {
         const lista = req.query.status.split(",").filter((s): s is StatusDoPedido => (STATUS_DO_PEDIDO as readonly string[]).includes(s));
         if (lista.length > 0) condicoes.push(inArray(pedidosDePeca.status, lista));
       }
-      if (req.query.meus === "1" && (req as any).userId) {
+      if ((req as any).userRole === "atendimento") {
+        condicoes.push(eq(pedidosDePeca.pedidoPorId, (req as any).userId ?? ""));
+      } else if (req.query.meus === "1" && (req as any).userId) {
         condicoes.push(eq(pedidosDePeca.pedidoPorId, (req as any).userId));
       }
       const limite = Math.max(1, Math.min(1000, parseInt(String(req.query.limite ?? "300"), 10) || 300));
       res.json(await listarPedidos(condicoes, limite));
     } catch (error) {
       console.error("[pedidos] erro ao listar:", error);
-      res.status(500).json({ error: "Erro ao listar pedidos de peça" });
+      res.status(500).json({ error: "Erro ao listar as solicitações de peça" });
     }
   });
 
@@ -280,10 +287,10 @@ export function registerPedidosDePecaRoutes(app: Express): void {
 
       const qtd = quantidadeDoPedido(pedido.quantidade);
       await createAuditLog(req, "created", "pedido_de_peca", pedido.id,
-        `Pedido do Atendimento: ${qtd} para ${checagem.patrocinador.name} — ${evento.name}. ${dados.observacao}`);
+        `Solicitação do Atendimento: ${qtd} para ${checagem.patrocinador.name} — ${evento.name}. ${dados.observacao}`);
       await notificar({
         type: "pedidoDePeca",
-        message: `Pedido do Atendimento: ${qtd} para ${checagem.patrocinador.name} — Evento: ${evento.name}`,
+        message: `Solicitação do Atendimento: ${qtd} para ${checagem.patrocinador.name} — Evento: ${evento.name}`,
         eventId: evento.id,
         targetRoles: ["solicitacao", "admin"],
       });
@@ -292,7 +299,7 @@ export function registerPedidosDePecaRoutes(app: Express): void {
     } catch (error) {
       if (error instanceof z.ZodError) return res.status(400).json({ error: error.errors?.[0]?.message || "Dados inválidos" });
       console.error("[pedidos] erro ao criar:", error);
-      res.status(500).json({ error: "Erro ao enviar o pedido" });
+      res.status(500).json({ error: "Erro ao enviar a solicitação" });
     }
   });
 
@@ -302,9 +309,9 @@ export function registerPedidosDePecaRoutes(app: Express): void {
     try {
       const dados = edicaoSchema.parse(req.body);
       const [pedido] = await db.select().from(pedidosDePeca).where(eq(pedidosDePeca.id, req.params.id));
-      if (!pedido) return res.status(404).json({ error: "Pedido não encontrado" });
+      if (!pedido || ehDeOutraPessoa(req, pedido)) return res.status(404).json({ error: "Solicitação não encontrada" });
       if (pedido.status !== "aberto") {
-        return res.status(409).json({ error: `Só dá para editar pedido aberto — este está ${rotulo(pedido.status)}.` });
+        return res.status(409).json({ error: `Só dá para editar solicitação aberta — esta está ${rotulo(pedido.status)}.` });
       }
       const evento = await storage.getEvent(pedido.eventId);
       if (!evento) return res.status(404).json({ error: "Evento não encontrado" });
@@ -353,19 +360,19 @@ export function registerPedidosDePecaRoutes(app: Express): void {
         .set({ ...mudancas, editadoPor: quem.userName, editadoEm: new Date(), updatedAt: new Date() })
         .where(and(eq(pedidosDePeca.id, pedido.id), eq(pedidosDePeca.status, "aberto")))
         .returning();
-      if (!editado) return res.status(409).json({ error: "Este pedido acabou de ser resolvido — atualize a tela." });
+      if (!editado) return res.status(409).json({ error: "Esta solicitação acabou de ser resolvida — atualize a tela." });
 
-      await createAuditLog(req, "updated", "pedido_de_peca", pedido.id, `Pedido editado: ${descricao.join("; ")}`);
+      await createAuditLog(req, "updated", "pedido_de_peca", pedido.id, `Solicitação editada: ${descricao.join("; ")}`);
       await notificar({
         type: "pedidoEditado",
-        message: `Pedido do Atendimento editado (${evento.name}): ${descricao.join("; ")}`,
+        message: `Solicitação do Atendimento editada (${evento.name}): ${descricao.join("; ")}`,
         eventId: pedido.eventId,
         targetRoles: ["solicitacao", "admin"],
       });
       if (pedido.pedidoPorId && pedido.pedidoPorId !== quem.userId) {
         await notificar({
           type: "pedidoEditado",
-          message: `${quem.userName} editou o seu pedido (${evento.name}): ${descricao.join("; ")}`,
+          message: `${quem.userName} editou a sua solicitação (${evento.name}): ${descricao.join("; ")}`,
           eventId: pedido.eventId,
           ...paraQuemPediu(pedido),
         });
@@ -375,20 +382,20 @@ export function registerPedidosDePecaRoutes(app: Express): void {
     } catch (error) {
       if (error instanceof z.ZodError) return res.status(400).json({ error: error.errors?.[0]?.message || "Dados inválidos" });
       console.error("[pedidos] erro ao editar:", error);
-      res.status(500).json({ error: "Erro ao editar o pedido" });
+      res.status(500).json({ error: "Erro ao editar a solicitação" });
     }
   });
 
   app.patch("/api/pedidos-de-peca/:id/atender", requireResolverPedido, async (req, res) => {
     try {
       const itemId = typeof req.body?.itemId === "string" ? req.body.itemId : "";
-      if (!itemId) return res.status(400).json({ error: "Escolha a peça que atende este pedido." });
+      if (!itemId) return res.status(400).json({ error: "Escolha a peça que atende esta solicitação." });
       const r = await vincularPecaAoPedido(req, req.params.id, itemId);
       if (r.erro) return res.status(r.status).json({ error: r.erro });
       res.json(r.pedido);
     } catch (error) {
       console.error("[pedidos] erro ao atender:", error);
-      res.status(500).json({ error: "Erro ao atender o pedido" });
+      res.status(500).json({ error: "Erro ao atender a solicitação" });
     }
   });
 
@@ -396,23 +403,23 @@ export function registerPedidosDePecaRoutes(app: Express): void {
     try {
       const motivo = lerMotivo(req.body);
       if (motivo.length < MIN_MOTIVO_DO_PEDIDO) {
-        return res.status(400).json({ error: `Diga ao Atendimento por que o pedido foi recusado (mínimo ${MIN_MOTIVO_DO_PEDIDO} caracteres).` });
+        return res.status(400).json({ error: `Diga ao Atendimento por que a solicitação foi recusada (mínimo ${MIN_MOTIVO_DO_PEDIDO} caracteres).` });
       }
       const [pedido] = await db.select().from(pedidosDePeca).where(eq(pedidosDePeca.id, req.params.id));
-      if (!pedido) return res.status(404).json({ error: "Pedido não encontrado" });
+      if (!pedido) return res.status(404).json({ error: "Solicitação não encontrada" });
 
       const quem = quemAgiu(req);
       const [recusado] = await db.update(pedidosDePeca)
         .set({ status: "recusado", motivoRecusa: motivo, resolvidoPor: quem.userName, resolvidoPorId: quem.userId, resolvidoEm: new Date(), updatedAt: new Date() })
         .where(and(eq(pedidosDePeca.id, pedido.id), eq(pedidosDePeca.status, "aberto")))
         .returning();
-      if (!recusado) return res.status(409).json({ error: "Este pedido não está mais aberto." });
+      if (!recusado) return res.status(409).json({ error: "Esta solicitação não está mais aberta." });
 
       const evento = await storage.getEvent(pedido.eventId);
-      await createAuditLog(req, "updated", "pedido_de_peca", pedido.id, `Pedido recusado: ${motivo}`);
+      await createAuditLog(req, "updated", "pedido_de_peca", pedido.id, `Solicitação recusada: ${motivo}`);
       await notificar({
         type: "pedidoRecusado",
-        message: `Seu pedido foi recusado (${quantidadeDoPedido(pedido.quantidade)} — ${evento?.name ?? "—"}): ${motivo}`,
+        message: `Sua solicitação foi recusada (${quantidadeDoPedido(pedido.quantidade)} — ${evento?.name ?? "—"}): ${motivo}`,
         eventId: pedido.eventId,
         ...paraQuemPediu(pedido),
       });
@@ -420,39 +427,39 @@ export function registerPedidosDePecaRoutes(app: Express): void {
       res.json(recusado);
     } catch (error) {
       console.error("[pedidos] erro ao recusar:", error);
-      res.status(500).json({ error: "Erro ao recusar o pedido" });
+      res.status(500).json({ error: "Erro ao recusar a solicitação" });
     }
   });
 
-  // Qualquer pessoa do Atendimento cancela (o colega de férias não prende o
-  // pedido); quem pediu é avisado quando não foi ele.
+  // Atendimento cancela só as próprias; o admin cancela qualquer uma, e aí
+  // quem pediu é avisado.
   app.patch("/api/pedidos-de-peca/:id/cancelar", requirePedirPeca, async (req, res) => {
     try {
       const motivo = lerMotivo(req.body);
       if (motivo.length < MIN_MOTIVO_DO_PEDIDO) {
-        return res.status(400).json({ error: `Diga por que o pedido está sendo cancelado (mínimo ${MIN_MOTIVO_DO_PEDIDO} caracteres).` });
+        return res.status(400).json({ error: `Diga por que a solicitação está sendo cancelada (mínimo ${MIN_MOTIVO_DO_PEDIDO} caracteres).` });
       }
       const [pedido] = await db.select().from(pedidosDePeca).where(eq(pedidosDePeca.id, req.params.id));
-      if (!pedido) return res.status(404).json({ error: "Pedido não encontrado" });
+      if (!pedido || ehDeOutraPessoa(req, pedido)) return res.status(404).json({ error: "Solicitação não encontrada" });
       const quem = quemAgiu(req);
       const [cancelado] = await db.update(pedidosDePeca)
         .set({ status: "cancelado", motivoCancelamento: motivo, resolvidoPor: quem.userName, resolvidoPorId: quem.userId, resolvidoEm: new Date(), updatedAt: new Date() })
         .where(and(eq(pedidosDePeca.id, pedido.id), eq(pedidosDePeca.status, "aberto")))
         .returning();
-      if (!cancelado) return res.status(409).json({ error: "Este pedido não está mais aberto — já foi resolvido." });
+      if (!cancelado) return res.status(409).json({ error: "Esta solicitação não está mais aberta — já foi resolvida." });
 
       const evento = await storage.getEvent(pedido.eventId);
-      await createAuditLog(req, "updated", "pedido_de_peca", pedido.id, `Pedido cancelado por ${quem.userName}: ${motivo}`);
+      await createAuditLog(req, "updated", "pedido_de_peca", pedido.id, `Solicitação cancelada por ${quem.userName}: ${motivo}`);
       await notificar({
         type: "pedidoCancelado",
-        message: `Pedido cancelado pelo Atendimento (${quantidadeDoPedido(pedido.quantidade)} — ${evento?.name ?? "—"}): ${motivo}`,
+        message: `Solicitação cancelada pelo Atendimento (${quantidadeDoPedido(pedido.quantidade)} — ${evento?.name ?? "—"}): ${motivo}`,
         eventId: pedido.eventId,
         targetRoles: ["solicitacao", "admin"],
       });
       if (pedido.pedidoPorId && pedido.pedidoPorId !== quem.userId) {
         await notificar({
           type: "pedidoCancelado",
-          message: `${quem.userName} cancelou o seu pedido (${evento?.name ?? "—"}): ${motivo}`,
+          message: `${quem.userName} cancelou a sua solicitação (${evento?.name ?? "—"}): ${motivo}`,
           eventId: pedido.eventId,
           ...paraQuemPediu(pedido),
         });
@@ -461,7 +468,7 @@ export function registerPedidosDePecaRoutes(app: Express): void {
       res.json(cancelado);
     } catch (error) {
       console.error("[pedidos] erro ao cancelar:", error);
-      res.status(500).json({ error: "Erro ao cancelar o pedido" });
+      res.status(500).json({ error: "Erro ao cancelar a solicitação" });
     }
   });
 
@@ -471,17 +478,17 @@ export function registerPedidosDePecaRoutes(app: Express): void {
     try {
       const motivo = lerMotivo(req.body);
       if (motivo.length < MIN_MOTIVO_DO_PEDIDO) {
-        return res.status(400).json({ error: `Diga por que o pedido está sendo reaberto (mínimo ${MIN_MOTIVO_DO_PEDIDO} caracteres).` });
+        return res.status(400).json({ error: `Diga por que a solicitação está sendo reaberta (mínimo ${MIN_MOTIVO_DO_PEDIDO} caracteres).` });
       }
       const [pedido] = await db.select().from(pedidosDePeca).where(eq(pedidosDePeca.id, req.params.id));
-      if (!pedido) return res.status(404).json({ error: "Pedido não encontrado" });
+      if (!pedido || ehDeOutraPessoa(req, pedido)) return res.status(404).json({ error: "Solicitação não encontrada" });
       const papeis = quemReabre(pedido.status);
-      if (papeis.length === 0) return res.status(409).json({ error: "Este pedido já está aberto." });
+      if (papeis.length === 0) return res.status(409).json({ error: "Esta solicitação já está aberta." });
       if (!papeis.includes((req as any).userRole)) {
         return res.status(403).json({
           error: pedido.status === "cancelado"
-            ? "Reabrir pedido cancelado é do Atendimento e do admin."
-            : "Reabrir pedido atendido ou recusado é da Solicitação e do admin.",
+            ? "Reabrir solicitação cancelada é do Atendimento e do admin."
+            : "Reabrir solicitação atendida ou recusada é do perfil Solicitação e do admin.",
         });
       }
       const motivoFim = await motivoEventoDaPeca({ eventId: pedido.eventId });
@@ -491,7 +498,7 @@ export function registerPedidosDePecaRoutes(app: Express): void {
         .set({ status: "aberto", itemId: null, resolvidoPor: null, resolvidoPorId: null, resolvidoEm: null, motivoRecusa: null, motivoCancelamento: null, updatedAt: new Date() })
         .where(and(eq(pedidosDePeca.id, pedido.id), eq(pedidosDePeca.status, pedido.status)))
         .returning();
-      if (!reaberto) return res.status(409).json({ error: "Este pedido acabou de mudar de estado — atualize a tela." });
+      if (!reaberto) return res.status(409).json({ error: "Esta solicitação acabou de mudar de estado — atualize a tela." });
       if (pedido.status === "atendido") {
         await db.update(itemsTable).set({ pedidoDePecaId: null, updatedAt: new Date() } as any).where(eq(itemsTable.pedidoDePecaId, pedido.id));
         broadcast({ type: "items_bulk_updated" });
@@ -499,18 +506,18 @@ export function registerPedidosDePecaRoutes(app: Express): void {
 
       const quem = quemAgiu(req);
       const evento = await storage.getEvent(pedido.eventId);
-      await createAuditLog(req, "updated", "pedido_de_peca", pedido.id, `Pedido reaberto (estava ${rotulo(pedido.status)}): ${motivo}`);
+      await createAuditLog(req, "updated", "pedido_de_peca", pedido.id, `Solicitação reaberta (estava ${rotulo(pedido.status)}): ${motivo}`);
       if (pedido.status === "cancelado") {
         await notificar({
           type: "pedidoReaberto",
-          message: `Pedido reaberto pelo Atendimento (${evento?.name ?? "—"}): ${motivo}`,
+          message: `Solicitação reaberta pelo Atendimento (${evento?.name ?? "—"}): ${motivo}`,
           eventId: pedido.eventId,
           targetRoles: ["solicitacao", "admin"],
         });
       } else {
         await notificar({
           type: "pedidoReaberto",
-          message: `${quem.userName} reabriu o seu pedido (${evento?.name ?? "—"}): ${motivo}`,
+          message: `${quem.userName} reabriu a sua solicitação (${evento?.name ?? "—"}): ${motivo}`,
           eventId: pedido.eventId,
           ...paraQuemPediu(pedido),
         });
@@ -519,7 +526,7 @@ export function registerPedidosDePecaRoutes(app: Express): void {
       res.json(reaberto);
     } catch (error) {
       console.error("[pedidos] erro ao reabrir:", error);
-      res.status(500).json({ error: "Erro ao reabrir o pedido" });
+      res.status(500).json({ error: "Erro ao reabrir a solicitação" });
     }
   });
 }

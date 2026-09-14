@@ -23,10 +23,10 @@ export const STATUS_DO_PEDIDO = ["aberto", "atendido", "recusado", "cancelado"] 
 export type StatusDoPedido = (typeof STATUS_DO_PEDIDO)[number];
 
 export const ROTULO_DO_PEDIDO: Record<StatusDoPedido, string> = {
-  aberto: "Aberto",
-  atendido: "Atendido",
-  recusado: "Recusado",
-  cancelado: "Cancelado",
+  aberto: "Aberta",
+  atendido: "Atendida",
+  recusado: "Recusada",
+  cancelado: "Cancelada",
 };
 
 export const MAX_REFERENCIAS_DO_PEDIDO = 10;

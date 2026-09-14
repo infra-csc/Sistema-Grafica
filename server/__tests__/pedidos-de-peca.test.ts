@@ -125,14 +125,14 @@ describe("o servidor", () => {
   });
 
   it("editar só aberto, com trilha do que mudou e aviso", () => {
-    expect(ROTAS).toContain("Só dá para editar pedido aberto");
-    expect(ROTAS).toContain("Pedido editado: ${descricao.join(\"; \")}");
+    expect(ROTAS).toContain("Só dá para editar solicitação aberta");
+    expect(ROTAS).toContain("Solicitação editada: ${descricao.join(\"; \")}");
     expect(ROTAS).toContain('type: "pedidoEditado",');
   });
 
   it("várias peças por pedido: a peça atende no máximo um, e o vínculo é condicional", () => {
     expect(SCHEMA).toContain('pedidoDePecaId: varchar("pedido_de_peca_id").references((): any => pedidosDePeca.id, { onDelete: "set null" }),');
-    expect(ROTAS).toContain("já atende outro pedido.");
+    expect(ROTAS).toContain("já atende outra solicitação.");
     expect(ROTAS).toContain(".where(and(eq(itemsTable.id, itemId), isNull(itemsTable.pedidoDePecaId)))");
     expect(ROTAS).toContain('if (pedido.status !== "aberto" && pedido.status !== "atendido") {');
   });
@@ -149,7 +149,7 @@ describe("o servidor", () => {
 
   it("reabrir desfaz atendimento soltando as peças, com motivo e papel de quem desfaz", () => {
     expect(ROTAS).toContain("await db.update(itemsTable).set({ pedidoDePecaId: null, updatedAt: new Date() } as any).where(eq(itemsTable.pedidoDePecaId, pedido.id));");
-    expect(ROTAS).toContain("Reabrir pedido cancelado é do Atendimento e do admin.");
+    expect(ROTAS).toContain("Reabrir solicitação cancelada é do Atendimento e do admin.");
   });
 
   it("avisos para QUEM PEDIU, e o sino e o 'marcar todas' respeitam o destinatário", () => {
@@ -184,6 +184,13 @@ describe("as telas", () => {
     expect(LISTA).toContain("href: `/eventos/${p.eventId}?pedidos=1&criar=${p.id}`");
     expect(LISTA).toContain("button-desfazer-pedido-");
     expect(LISTA).toContain('data-testid="filtro-pedidos-meus"');
+    // 14/09: quem criou só vê as suas — o chip "Só as minhas" é só do admin.
+    expect(LISTA).toContain("{podePedir && podeResolver && (\n            <button type=\"button\" aria-pressed={soMeus}");
+    const ROTAS_DONO = ler("server/routes/pedidos-de-peca.ts");
+    expect(ROTAS_DONO).toContain('req.userRole === "atendimento" && pedido.pedidoPorId !== req.userId;');
+    expect(ROTAS_DONO).toContain('if ((req as any).userRole === "atendimento") {\n        condicoes.push(eq(pedidosDePeca.pedidoPorId, (req as any).userId ?? ""));');
+    // editar, cancelar e reabrir: a de outra pessoa do Atendimento "não existe".
+    expect(ROTAS_DONO.split("if (!pedido || ehDeOutraPessoa(req, pedido)) return res.status(404)").length - 1).toBe(3);
     expect(LISTA).toContain('data-testid="input-busca-pedidos"');
     expect(LISTA).toContain('data-testid="button-mais-pedidos"');
   });
@@ -226,6 +233,10 @@ describe("as telas", () => {
     expect(DETALHE).toContain("queryKey: [`/api/audit-logs?entityType=pedido_de_peca&entityId=${p?.id ?? \"\"}&limit=100`],");
     expect(DETALHE).toContain('data-testid="historico-do-pedido"');
     expect(DETALHE).toContain("<AndamentoDoPedido pedido={p} />");
+    // 14/09: "Detalhes" quebrou no Replit (Cannot read 'length') com servidor sem `pecas`.
+    expect(DETALHE).toContain("const pecas = p.pecas ?? [];");
+    expect(DETALHE).not.toContain("p.pecas.length");
+    expect(DETALHE).not.toContain("p.referencias.length");
     expect(CARTAO).toContain("data-testid={`abrir-pedido-${pedido.id}`}");
     expect(LISTA).toContain("onAbrir={() => setDetalhe(p.id)}");
     expect(PAINEL).toContain("<DetalheDoPedido");

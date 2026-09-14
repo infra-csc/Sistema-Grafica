@@ -1297,11 +1297,11 @@ export default function EventDetail() {
       if (vinculo) {
         invalidarPedidos();
         if (vinculo.ok) {
-          toast({ title: "Peça criada e ligada ao pedido", description: "Quem pediu foi avisado." });
+          toast({ title: "Peça criada e ligada à solicitação", description: "Quem solicitou foi avisado." });
         } else {
           toast({
-            title: "Peça criada, mas não ficou ligada ao pedido",
-            description: `${vinculo.erro ?? "Erro ao ligar"} — use “Já criei a peça” no pedido.`,
+            title: "Peça criada, mas não ficou ligada à solicitação",
+            description: `${vinculo.erro ?? "Erro ao ligar"} — use “Já criei a peça” na solicitação.`,
             variant: "destructive",
           });
         }
@@ -2156,7 +2156,7 @@ export default function EventDetail() {
                   icon={bulkMode && !editingItem ? List : Plus}
                   tint="#c2410c"
                   title={bulkMode && !editingItem ? "Entrada Rápida" : "Adicionar Peça"}
-                  subtitle={bulkMode && !editingItem ? "Modo Lote — entrada rápida de peças" : (pedidoEmAtendimento ? `Atendendo pedido do Atendimento — ${pedidoEmAtendimento.quantidade == null ? "sem quantidade" : `${pedidoEmAtendimento.quantidade} un.`} para ${pedidoEmAtendimento.sponsorName ?? "patrocinador"}` : (event.name || "Nova peça de produção"))}
+                  subtitle={bulkMode && !editingItem ? "Modo Lote — entrada rápida de peças" : (pedidoEmAtendimento ? `Atendendo solicitação do Atendimento — ${pedidoEmAtendimento.quantidade == null ? "sem quantidade" : `${pedidoEmAtendimento.quantidade} un.`} para ${pedidoEmAtendimento.sponsorName ?? "patrocinador"}` : (event.name || "Nova peça de produção"))}
                   onClose={bulkMode && !editingItem
                     ? () => { if (window.confirm("Descartar linhas não salvas?")) handleCloseDialog(); }
                     : handleCloseDialog}

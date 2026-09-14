@@ -58,14 +58,14 @@ export function PedidosDoEvento({ eventId, pecas, podeVer, podeAtender, motivoEv
   const atender = useMutation({
     mutationFn: async ({ id, itemId }: { id: string; itemId: string }) =>
       (await apiRequest("PATCH", `/api/pedidos-de-peca/${id}/atender`, { itemId })).json(),
-    onSuccess: () => { toast({ title: "Peça ligada ao pedido", description: "Quem pediu foi avisado." }); setLigando(null); setPecaEscolhida(""); invalidarPedidos(); },
+    onSuccess: () => { toast({ title: "Peça ligada à solicitação", description: "Quem solicitou foi avisado." }); setLigando(null); setPecaEscolhida(""); invalidarPedidos(); },
     onError: (e) => toast({ title: "Não deu para ligar a peça", description: mensagemDaApi(e), variant: "destructive" }),
   });
 
   const acaoComMotivo = useMutation({
     mutationFn: async ({ pedido, acao, texto }: { pedido: PedidoDePeca; acao: AcaoComMotivo; texto: string }) =>
       (await apiRequest("PATCH", `/api/pedidos-de-peca/${pedido.id}/${acao}`, { motivo: texto })).json(),
-    onSuccess: (_d, v) => { toast({ title: v.acao === "recusar" ? "Pedido recusado" : "Pedido reaberto" }); setMotivo(null); invalidarPedidos(); },
+    onSuccess: (_d, v) => { toast({ title: v.acao === "recusar" ? "Solicitação recusada" : "Solicitação reaberta" }); setMotivo(null); invalidarPedidos(); },
     onError: (e) => toast({ title: "Não deu para concluir", description: mensagemDaApi(e), variant: "destructive" }),
   });
 
@@ -85,9 +85,9 @@ export function PedidosDoEvento({ eventId, pecas, podeVer, podeAtender, motivoEv
     window.history.replaceState(null, "", qs ? `?${qs}` : window.location.pathname);
     const p = pedidos.find((x) => x.id === alvoCriar);
     if (!p) return;
-    if (!podeAtender) { toast({ title: "Criar peça a partir do pedido é da Solicitação e do admin", variant: "destructive" }); return; }
+    if (!podeAtender) { toast({ title: "Criar peça a partir da solicitação é do perfil Solicitação e do admin", variant: "destructive" }); return; }
     if (bloqueio) { toast({ title: "Não dá para criar peça neste evento", description: bloqueio, variant: "destructive" }); return; }
-    if (p.status !== "aberto" && p.status !== "atendido") { toast({ title: "Este pedido não está aberto", description: "Reabra o pedido antes de criar a peça.", variant: "destructive" }); return; }
+    if (p.status !== "aberto" && p.status !== "atendido") { toast({ title: "Esta solicitação não está aberta", description: "Reabra a solicitação antes de criar a peça.", variant: "destructive" }); return; }
     onCriarPeca(p);
   }, [pedidos, podeAtender, bloqueio, onCriarPeca, toast]);
 
@@ -131,7 +131,7 @@ export function PedidosDoEvento({ eventId, pecas, podeVer, podeAtender, motivoEv
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
         <div style={{ flex: "1 1 280px", minWidth: 0 }}>
           <FilterSelect kind="field" fullWidth hideWhenEmpty={false}
-            label="Peça que atende o pedido" allLabel="Escolha a peça…" showAllLabelWhenEmpty
+            label="Peça que atende a solicitação" allLabel="Escolha a peça…" showAllLabelWhenEmpty
             value={pecaEscolhida} onChange={setPecaEscolhida} options={opcoesDePeca(p)}
             searchPlaceholder="Buscar por código, tipo ou descrição…" emptyText="Nenhuma peça livre."
             testId={`select-peca-pedido-${p.id}`}
@@ -139,12 +139,12 @@ export function PedidosDoEvento({ eventId, pecas, podeVer, podeAtender, motivoEv
         </div>
         <button type="button" disabled={!pecaEscolhida || atender.isPending} onClick={() => atender.mutate({ id: p.id, itemId: pecaEscolhida })}
           style={{ height: alvo, padding: "0 12px", borderRadius: R.md, border: "none", fontSize: 12.5, fontWeight: 800, background: pecaEscolhida ? "#047857" : "#e7e5e4", color: pecaEscolhida ? "#fff" : "#78716c", cursor: pecaEscolhida ? "pointer" : "not-allowed" }}>
-          {atender.isPending ? "Ligando…" : "Ligar ao pedido"}
+          {atender.isPending ? "Ligando…" : "Ligar à solicitação"}
         </button>
         <button type="button" onClick={() => setLigando(null)} style={{ height: alvo, padding: "0 10px", border: "none", background: "none", color: "#57534e", fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}>Voltar</button>
       </div>
       {jaAtendemOutros > 0 && (
-        <span style={{ fontSize: FS.small, color: "#57534e" }}>{jaAtendemOutros} {jaAtendemOutros === 1 ? "peça já atende outro pedido e não aparece" : "peças já atendem outros pedidos e não aparecem"} na lista.</span>
+        <span style={{ fontSize: FS.small, color: "#57534e" }}>{jaAtendemOutros} {jaAtendemOutros === 1 ? "peça já atende outra solicitação e não aparece" : "peças já atendem outras solicitações e não aparecem"} na lista.</span>
       )}
     </div>
   ) : null;
@@ -159,10 +159,10 @@ export function PedidosDoEvento({ eventId, pecas, podeVer, podeAtender, motivoEv
       <div style={{ padding: "16px 20px 10px", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
         <Inbox style={{ width: 16, height: 16, color: "#b45309", flexShrink: 0 }} aria-hidden="true" />
         <h2 id="titulo-pedidos-do-evento" style={{ margin: 0, fontSize: 13, fontWeight: 800, color: T.text, textTransform: "uppercase", letterSpacing: "0.04em" }}>
-          Pedidos do Atendimento
+          Solicitações de peças
         </h2>
         <span style={{ backgroundColor: qtdAbertos ? "#fffbeb" : "#f5f5f4", color: qtdAbertos ? "#92400e" : "#57534e", border: `1px solid ${qtdAbertos ? "#fde68a" : "#e7e5e4"}`, borderRadius: R.pill, padding: "2px 10px", fontSize: FS.small, fontWeight: 800 }}>
-          {qtdAbertos} {qtdAbertos === 1 ? "aberto" : "abertos"}
+          {qtdAbertos} {qtdAbertos === 1 ? "aberta" : "abertas"}
         </span>
         <SeloDoEventoChip selo={selo} pedidoId={eventId} />
         {!podeAtender && qtdAbertos > 0 && <span style={{ fontSize: FS.body, color: "#57534e" }}>Quem atende é a Solicitação.</span>}
@@ -183,7 +183,7 @@ export function PedidosDoEvento({ eventId, pecas, podeVer, podeAtender, motivoEv
           <button type="button" aria-expanded={verResolvidos} onClick={() => setVerResolvidos((v) => !v)} data-testid="button-ver-pedidos-resolvidos"
             style={{ border: "none", background: "none", padding: 0, minHeight: isMobile ? 44 : undefined, display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 800, color: "#57534e", cursor: "pointer" }}>
             <ChevronDown size={14} style={{ transform: verResolvidos ? "rotate(180deg)" : "none", transition: "transform 0.15s" }} />
-            {verResolvidos ? "Esconder" : "Ver"} {resolvidos.length} {resolvidos.length === 1 ? "pedido recusado ou cancelado" : "pedidos recusados ou cancelados"}
+            {verResolvidos ? "Esconder" : "Ver"} {resolvidos.length} {resolvidos.length === 1 ? "solicitação recusada ou cancelada" : "solicitações recusadas ou canceladas"}
           </button>
           {verResolvidos && (
             <ul style={{ margin: "8px -20px 0", padding: 0 }}>

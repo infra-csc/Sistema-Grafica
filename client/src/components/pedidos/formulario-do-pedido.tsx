@@ -142,7 +142,7 @@ export function FormularioDoPedido({ aberto, pedido, onFechar }: {
     const grandes = imagens.filter((a) => a.size > TAMANHO_MAXIMO).length;
     if (grandes) toast({ title: `${grandes} imagem(ns) acima de 10 MB ficaram de fora`, variant: "destructive" });
     const vagas = MAX_REFERENCIAS_DO_PEDIDO - form.referencias.length;
-    if (vagas <= 0) { toast({ title: `No máximo ${MAX_REFERENCIAS_DO_PEDIDO} referências por pedido`, variant: "destructive" }); return; }
+    if (vagas <= 0) { toast({ title: `No máximo ${MAX_REFERENCIAS_DO_PEDIDO} referências por solicitação`, variant: "destructive" }); return; }
     const aceitas = imagens.filter((a) => a.size <= TAMANHO_MAXIMO);
     if (aceitas.length > vagas) toast({ title: `Só cabem mais ${vagas} referência(s)`, description: "As demais imagens ficaram de fora." });
     void envio.uploadFiles(aceitas.slice(0, vagas));
@@ -181,11 +181,11 @@ export function FormularioDoPedido({ aberto, pedido, onFechar }: {
       return r.json();
     },
     onSuccess: () => {
-      toast({ title: editando ? "Pedido atualizado" : "Pedido enviado", description: "Quem monta a lista foi avisado." });
+      toast({ title: editando ? "Solicitação atualizada" : "Solicitação enviada", description: "Quem monta a lista foi avisado." });
       invalidarPedidos();
       onFechar();
     },
-    onError: (e) => toast({ title: editando ? "Não deu para salvar" : "Não deu para enviar o pedido", description: mensagemDaApi(e), variant: "destructive" }),
+    onError: (e) => toast({ title: editando ? "Não deu para salvar" : "Não deu para enviar a solicitação", description: mensagemDaApi(e), variant: "destructive" }),
   });
 
   const travado = !!faltando || salvar.isPending;
@@ -202,15 +202,15 @@ export function FormularioDoPedido({ aberto, pedido, onFechar }: {
           if (arquivos.some((a) => a.type.startsWith("image/"))) { e.preventDefault(); enviarImagens(arquivos); }
         }}
       >
-        <DialogTitle className="sr-only">{editando ? "Editar pedido" : "Pedir peça para a lista"}</DialogTitle>
+        <DialogTitle className="sr-only">{editando ? "Editar solicitação" : "Solicitar peça para a lista"}</DialogTitle>
         <DialogDescription className="sr-only">
-          {editando ? "Quem monta a lista é avisado do que mudou." : "Quem monta a lista recebe o pedido no evento e cria a peça."}
+          {editando ? "Quem monta a lista é avisado do que mudou." : "Quem monta a lista recebe a solicitação no evento e cria a peça."}
         </DialogDescription>
         <ModalHeader
           icon={Inbox}
           tint="#b45309"
-          title={editando ? "Editar pedido" : "Pedir peça para a lista"}
-          subtitle={editando ? "Quem monta a lista é avisado do que mudou." : "Quem monta a lista recebe o pedido no evento e cria a peça."}
+          title={editando ? "Editar solicitação" : "Solicitar peça para a lista"}
+          subtitle={editando ? "Quem monta a lista é avisado do que mudou." : "Quem monta a lista recebe a solicitação no evento e cria a peça."}
           onClose={fechar}
         />
 
@@ -339,7 +339,7 @@ export function FormularioDoPedido({ aberto, pedido, onFechar }: {
           </button>
           <button type="submit" form="form-pedido" data-testid="button-enviar-pedido" disabled={travado}
             style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8, height: 44, padding: "0 22px", borderRadius: R.md, border: "none", background: travado ? "#e7e5e4" : "#1c1917", color: travado ? "#78716c" : "#fff", fontSize: 14, fontWeight: 800, cursor: travado ? "not-allowed" : "pointer" }}>
-            <Send size={15} aria-hidden="true" /> {salvar.isPending ? "Salvando…" : editando ? "Salvar alterações" : "Enviar pedido"}
+            <Send size={15} aria-hidden="true" /> {salvar.isPending ? "Salvando…" : editando ? "Salvar alterações" : "Enviar solicitação"}
           </button>
         </div>
       </DialogContent>

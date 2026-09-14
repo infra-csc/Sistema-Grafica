@@ -82,11 +82,11 @@ function SeloDePedidos({ n, eventId }: { n: number; eventId: string }) {
   return (
     <span
       data-testid={`selo-pedidos-${eventId}`}
-      title={`${n} ${n === 1 ? "pedido de peça do Atendimento esperando" : "pedidos de peça do Atendimento esperando"} a lista`}
+      title={`${n} ${n === 1 ? "solicitação de peça do Atendimento esperando" : "solicitações de peça do Atendimento esperando"} a lista`}
       style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 800, color: '#92400e', backgroundColor: '#fffbeb', border: '1px solid #fde68a', borderRadius: 999, padding: '2px 8px', whiteSpace: 'nowrap', flexShrink: 0 }}
     >
       <Inbox style={{ width: 11, height: 11 }} aria-hidden="true" />
-      {n} {n === 1 ? 'pedido' : 'pedidos'}
+      {n} {n === 1 ? 'solicitação' : 'solicitações'}
     </span>
   );
 }
@@ -2114,7 +2114,7 @@ export default function Eventos() {
     if (next10DaysFilter) chips.push({ key: 'proximos', label: 'Próximos 10 dias', clear: () => setNext10DaysFilter(false) });
     if (foco === 'atrasado') chips.push({ key: 'foco', label: 'Marco atrasado', clear: () => setFoco("") });
     if (foco === 'sem_pecas') chips.push({ key: 'foco', label: 'Sem peças', clear: () => setFoco("") });
-    if (foco === 'pedidos') chips.push({ key: 'foco', label: 'Pedidos do Atendimento', clear: () => setFoco("") });
+    if (foco === 'pedidos') chips.push({ key: 'foco', label: 'Solicitações de peças', clear: () => setFoco("") });
     // O chip de "concluídos ocultos" saiu: os três alternadores de situação
     // JÁ mostram o que está dentro e o que está fora, com contagem. Um chip
     // que repete um controle visível ao lado é ruído — e este ainda oferecia
@@ -2193,7 +2193,7 @@ export default function Eventos() {
                 { key: 'atrasado', label: 'Marco atrasado', count: focoCounts.atrasado, tone: { text: '#b91c1c', bg: '#fef2f2', border: '#fecaca' }, active: foco === 'atrasado', toggle: () => setFoco(foco === 'atrasado' ? '' : 'atrasado') },
                 { key: 'sem_prioridade', label: 'Sem prioridade', count: focoCounts.semPrioridade, tone: { text: '#57534e', bg: T.low, border: '#e7e5e4' }, active: selectedPriorities.length === 1 && selectedPriorities[0] === 'sem_prioridade', toggle: () => setSelectedPriorities((prev) => (prev.length === 1 && prev[0] === 'sem_prioridade') ? [] : ['sem_prioridade']) },
                 { key: 'sem_pecas', label: 'Sem peças', count: focoCounts.semPecas, tone: { text: '#b45309', bg: '#fffbeb', border: '#fde68a' }, active: foco === 'sem_pecas', toggle: () => setFoco(foco === 'sem_pecas' ? '' : 'sem_pecas') },
-                { key: 'pedidos', label: 'Pedidos do Atendimento', count: focoCounts.pedidos, tone: { text: '#92400e', bg: '#fef3c7', border: '#fcd34d' }, active: foco === 'pedidos', toggle: () => setFoco(foco === 'pedidos' ? '' : 'pedidos') },
+                { key: 'pedidos', label: 'Solicitações de peças', count: focoCounts.pedidos, tone: { text: '#92400e', bg: '#fef3c7', border: '#fcd34d' }, active: foco === 'pedidos', toggle: () => setFoco(foco === 'pedidos' ? '' : 'pedidos') },
               ].map((chip) => (
                 <button
                   key={chip.key}
@@ -2260,7 +2260,7 @@ export default function Eventos() {
               <Inbox aria-hidden="true" style={{ width: 18, height: 18, color: '#b45309', flexShrink: 0, marginTop: 2 }} />
               <div style={{ flex: '1 1 320px', minWidth: 0 }}>
                 <div style={{ fontSize: FS.body + 1, fontWeight: 800, color: '#78350f' }}>
-                  {n} {n === 1 ? 'pedido do Atendimento esperando a lista' : 'pedidos do Atendimento esperando a lista'}
+                  {n} {n === 1 ? 'solicitação do Atendimento esperando a lista' : 'solicitações do Atendimento esperando a lista'}
                 </div>
                 <ul style={{ listStyle: 'none', margin: '6px 0 0', padding: 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
                   {maisAntigos.slice(0, 3).map((p) => {
@@ -2288,14 +2288,14 @@ export default function Eventos() {
                 onClick={() => setFoco(foco === 'pedidos' ? '' : 'pedidos')}
                 style={{ height: isMobile ? 44 : 34, padding: '0 14px', borderRadius: R.md, border: '1px solid #fcd34d', backgroundColor: foco === 'pedidos' ? '#78350f' : '#ffffff', color: foco === 'pedidos' ? '#ffffff' : '#78350f', fontSize: FS.body, fontWeight: 800, cursor: 'pointer', whiteSpace: 'nowrap' }}
               >
-                {foco === 'pedidos' ? 'Mostrar todos os eventos' : 'Ver só eventos com pedido'}
+                {foco === 'pedidos' ? 'Mostrar todos os eventos' : 'Ver só eventos com solicitação'}
               </button>
               <Link
                 href="/pedidos-de-peca"
                 data-testid="link-caixa-pedidos"
                 style={{ display: 'inline-flex', alignItems: 'center', height: isMobile ? 44 : 34, padding: '0 14px', borderRadius: R.md, border: '1px solid #fcd34d', backgroundColor: '#ffffff', color: '#78350f', fontSize: FS.body, fontWeight: 800, textDecoration: 'none', whiteSpace: 'nowrap' }}
               >
-                Abrir a caixa de pedidos
+                Abrir as solicitações de peças
               </Link>
             </div>
           );

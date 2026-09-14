@@ -3,7 +3,8 @@
 //
 // As AÇÕES seguem o papel de quem está vendo (a mesma régua do servidor):
 //   · quem pede (Atendimento, admin): novo pedido, editar, cancelar, reabrir o
-//     cancelado; filtro "só os meus";
+//     cancelado. O Atendimento só recebe as SUAS solicitações (o servidor
+//     filtra); o filtro "só as minhas" fica para o admin, que vê todas;
 //   · quem resolve (Solicitação, admin): criar peça direto do pedido, recusar,
 //     desfazer atendimento, reabrir o recusado.
 // O admin vê as duas pontas. Clicar no pedido abre o detalhe, com histórico.
@@ -42,11 +43,11 @@ type Ordem = "recentes" | "antigos" | "prazo";
 const PASSO = 300;
 
 export function avisoDaAcao(acao: AcaoComMotivo, pedido: PedidoDePeca): string {
-  if (acao === "recusar") return "Quem pediu é avisado com este motivo.";
-  if (acao === "cancelar") return "Quem monta a lista é avisado com este motivo — e quem pediu, se não foi você.";
-  if (pedido.status === "atendido") return "O pedido volta a aberto e as peças deixam de atender a ele (continuam na lista). Quem pediu é avisado.";
-  if (pedido.status === "recusado") return "O pedido volta a aberto e quem pediu é avisado.";
-  return "O pedido volta a aberto e quem monta a lista é avisado.";
+  if (acao === "recusar") return "Quem solicitou é avisado com este motivo.";
+  if (acao === "cancelar") return "Quem monta a lista é avisado com este motivo — e quem solicitou, se não foi você.";
+  if (pedido.status === "atendido") return "A solicitação volta a ficar aberta e as peças deixam de atendê-la (continuam na lista). Quem solicitou é avisado.";
+  if (pedido.status === "recusado") return "A solicitação volta a ficar aberta e quem solicitou é avisado.";
+  return "A solicitação volta a ficar aberta e quem monta a lista é avisado.";
 }
 
 const combina = (p: PedidoDePeca, termo: string) => {
@@ -93,7 +94,7 @@ export function ListaDePedidos({ podePedir, podeResolver, userId }: {
     mutationFn: async ({ pedido, acao, texto }: { pedido: PedidoDePeca; acao: AcaoComMotivo; texto: string }) =>
       (await apiRequest("PATCH", `/api/pedidos-de-peca/${pedido.id}/${acao}`, { motivo: texto })).json(),
     onSuccess: (_d, v) => {
-      toast({ title: v.acao === "cancelar" ? "Pedido cancelado" : v.acao === "recusar" ? "Pedido recusado" : "Pedido reaberto" });
+      toast({ title: v.acao === "cancelar" ? "Solicitação cancelada" : v.acao === "recusar" ? "Solicitação recusada" : "Solicitação reaberta" });
       setMotivo(null);
       invalidarPedidos();
     },
@@ -134,11 +135,11 @@ export function ListaDePedidos({ podePedir, podeResolver, userId }: {
   const base = pedidos.filter((p) => (!soMeus || p.pedidoPorId === userId) && (!eventoFiltro || p.eventId === eventoFiltro) && combina(p, termo));
   const contagem = (s: StatusDoPedido) => base.filter((p) => p.status === s).length;
   const FILTROS: Array<{ k: StatusDoPedido | "todos"; rotulo: string; n: number }> = [
-    { k: "aberto", rotulo: "Abertos", n: contagem("aberto") },
-    { k: "atendido", rotulo: "Atendidos", n: contagem("atendido") },
-    { k: "recusado", rotulo: "Recusados", n: contagem("recusado") },
-    { k: "cancelado", rotulo: "Cancelados", n: contagem("cancelado") },
-    { k: "todos", rotulo: "Todos", n: base.length },
+    { k: "aberto", rotulo: "Abertas", n: contagem("aberto") },
+    { k: "atendido", rotulo: "Atendidas", n: contagem("atendido") },
+    { k: "recusado", rotulo: "Recusadas", n: contagem("recusado") },
+    { k: "cancelado", rotulo: "Canceladas", n: contagem("cancelado") },
+    { k: "todos", rotulo: "Todas", n: base.length },
   ];
 
   const tempo = (d: string | null) => (d ? new Date(d).getTime() : Infinity);
@@ -180,8 +181,8 @@ export function ListaDePedidos({ podePedir, podeResolver, userId }: {
           <div style={{ position: "relative", flex: isMobile ? "1 1 100%" : "1 1 240px", minWidth: 0 }}>
             <Search size={14} aria-hidden="true" style={{ position: "absolute", left: 11, top: "50%", transform: "translateY(-50%)", color: "#57534e" }} />
             <input type="search" value={busca} onChange={(e) => setBusca(e.target.value)} data-testid="input-busca-pedidos"
-              aria-label="Buscar pedidos por evento, patrocinador, observação, quem pediu ou peça"
-              placeholder="Evento, patrocinador, observação, quem pediu…"
+              aria-label="Buscar solicitações por evento, patrocinador, observação, quem solicitou ou peça"
+              placeholder="Evento, patrocinador, observação, quem solicitou…"
               style={{ width: "100%", boxSizing: "border-box", height: alvo, padding: "0 12px 0 32px", borderRadius: R.md, border: "1px solid #e7e5e4", fontSize: FS.body, color: T.text, outline: "none" }} />
           </div>
           {opcoesDeEvento.length > 1 && (
@@ -196,13 +197,13 @@ export function ListaDePedidos({ podePedir, podeResolver, userId }: {
               style={{ height: alvo, borderRadius: R.md, border: "1px solid #e7e5e4", padding: "0 8px", fontSize: FS.body, background: "#fff", color: T.text }}>
               <option value="prazo">Prazo mais próximo</option>
               <option value="recentes">Mais recentes</option>
-              <option value="antigos">Mais antigos</option>
+              <option value="antigos">Mais antigas</option>
             </select>
           </label>
           {podePedir && (
             <button type="button" data-testid="button-novo-pedido" onClick={() => setFormulario({ aberto: true, pedido: null })}
               style={{ display: "inline-flex", alignItems: "center", gap: 6, height: isMobile ? 44 : 38, padding: "0 16px", borderRadius: R.md, border: "none", background: "#1c1917", color: "#fff", fontSize: FS.body, fontWeight: 800, cursor: "pointer", marginLeft: isMobile ? 0 : "auto" }}>
-              <Plus size={15} aria-hidden="true" /> Novo pedido
+              <Plus size={15} aria-hidden="true" /> Nova solicitação
             </button>
           )}
         </div>
@@ -215,9 +216,9 @@ export function ListaDePedidos({ podePedir, podeResolver, userId }: {
               </button>
             ))}
           </div>
-          {podePedir && (
+          {podePedir && podeResolver && (
             <button type="button" aria-pressed={soMeus} data-testid="filtro-pedidos-meus" onClick={() => setSoMeus((v) => !v)} style={{ ...CHIP(soMeus, false), marginLeft: isMobile ? 0 : "auto" }}>
-              Só os meus
+              Só as minhas
             </button>
           )}
         </div>
@@ -228,7 +229,7 @@ export function ListaDePedidos({ podePedir, podeResolver, userId }: {
           <AlertTriangle size={18} color="#b45309" aria-hidden="true" style={{ flexShrink: 0 }} />
           <div style={{ flex: "1 1 260px", minWidth: 0 }}>
             <div style={{ fontSize: 13, fontWeight: 700, color: "#78350f" }}>
-              {parados.length} {parados.length === 1 ? "pedido esperando" : "pedidos esperando"} há mais de {IDADE_DE_ATENCAO} dias
+              {parados.length} {parados.length === 1 ? "solicitação esperando" : "solicitações esperando"} há mais de {IDADE_DE_ATENCAO} dias
             </div>
             <div style={{ fontSize: 11, color: "#78350f", marginTop: 2, lineHeight: 1.45 }}>
               {parados.slice(0, 3).map((p) => `${p.pedidoPor ?? "—"} · ${p.eventName ?? "evento"} · ${idadeDoPedido(p.createdAt, agora).texto}`).join("; ")}
@@ -236,7 +237,7 @@ export function ListaDePedidos({ podePedir, podeResolver, userId }: {
           </div>
           <button type="button" data-testid="button-ver-mais-antigos" onClick={() => { setFiltro("aberto"); setOrdem("antigos"); }}
             style={{ height: alvo, padding: "0 12px", borderRadius: R.md, border: "1px solid #fcd34d", background: "#ffffff", color: "#78350f", fontSize: 12.5, fontWeight: 800, cursor: "pointer", whiteSpace: "nowrap" }}>
-            Ver os {parados.length} mais antigos
+            Ver as {parados.length} mais antigas
           </button>
         </div>
       )}
@@ -252,10 +253,10 @@ export function ListaDePedidos({ podePedir, podeResolver, userId }: {
         <div data-testid="pedidos-vazio" style={{ padding: "36px 16px", textAlign: "center", color: "#57534e" }}>
           <Inbox size={26} color="#78716c" aria-hidden="true" />
           <p style={{ margin: "8px 0 2px", fontSize: 14, fontWeight: 700, color: T.text }}>
-            {pedidos.length === 0 ? "Nenhum pedido ainda" : termo || eventoFiltro || soMeus ? "Nenhum pedido neste recorte" : filtro === "aberto" ? "Nenhum pedido esperando a lista" : `Nenhum pedido ${ROTULO_DO_PEDIDO[filtro as StatusDoPedido]?.toLowerCase() ?? ""}`}
+            {pedidos.length === 0 ? "Nenhuma solicitação ainda" : termo || eventoFiltro || soMeus ? "Nenhuma solicitação neste recorte" : filtro === "aberto" ? "Nenhuma solicitação esperando a lista" : `Nenhuma solicitação ${ROTULO_DO_PEDIDO[filtro as StatusDoPedido]?.toLowerCase() ?? ""}`}
           </p>
           {pedidos.length === 0 && podePedir && (
-            <p style={{ margin: 0, fontSize: FS.body }}>Use “Novo pedido” para pedir uma peça a quem monta a lista.</p>
+            <p style={{ margin: 0, fontSize: FS.body }}>Use “Nova solicitação” para pedir uma peça a quem monta a lista.</p>
           )}
         </div>
       ) : (
@@ -270,7 +271,7 @@ export function ListaDePedidos({ podePedir, podeResolver, userId }: {
         <div style={{ padding: 12, borderTop: "1px solid #f1f0ef", textAlign: "center" }}>
           <button type="button" data-testid="button-mais-pedidos" onClick={() => setLimite((l) => l + PASSO)}
             style={{ height: alvo, padding: "0 16px", borderRadius: R.md, border: "1px solid #e7e5e4", background: "#fff", color: T.text, fontSize: FS.body, fontWeight: 700, cursor: "pointer" }}>
-            Carregar pedidos mais antigos
+            Carregar solicitações mais antigas
           </button>
         </div>
       )}

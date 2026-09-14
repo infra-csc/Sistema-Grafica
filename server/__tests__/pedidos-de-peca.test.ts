@@ -214,7 +214,7 @@ describe("o servidor", () => {
   it("avisos para QUEM PEDIU, e o sino e o 'marcar todas' respeitam o destinatário", () => {
     expect(SCHEMA).toContain('targetUserId: varchar("target_user_id"),');
     expect(ROTAS).toContain("targetUserId: pedido.pedidoPorId");
-    expect(NOTIF).toContain("lista.filter((n) => !n.targetUserId || n.targetUserId === userId);");
+    expect(NOTIF).toContain("lista.filter((n) => (!n.targetUserId || n.targetUserId === userId)");
     expect(STORAGE).toContain("const doUsuario = sql`(${notifications.targetUserId} IS NULL OR ${notifications.targetUserId} = ${userId})`;");
   });
 

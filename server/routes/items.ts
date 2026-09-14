@@ -803,7 +803,7 @@ export function registerItemRoutes(app: Express): void {
       if (req.userRole !== "admin" && req.userRole !== "solicitacao") {
         return res.status(403).json({ error: "Sem permissão para ver peças excluídas" });
       }
-      const deletedItems = await storage.getDeletedItems();
+      const deletedItems = (await storage.getDeletedItems()).filter((i) => pecaVisivelPara(quemVe(req), i));
       const enriched = await enrichItemsWithEventsAndSponsors(deletedItems);
       res.json(enriched);
     } catch (error: any) {
@@ -880,7 +880,7 @@ export function registerItemRoutes(app: Express): void {
   // Get pending items with event and sponsors (for Arte module) - MUST come BEFORE /:eventId route
   app.get("/api/items/pending", requireAuth, async (req, res) => {
     try {
-      const pendingItems = await storage.getPendingItems();
+      const pendingItems = (await storage.getPendingItems()).filter((i) => pecaVisivelPara(quemVe(req), i));
       const itemsWithEventsAndSponsors = await enrichItemsWithEventsAndSponsors(pendingItems);
       res.json(itemsWithEventsAndSponsors);
     } catch (error: any) {
@@ -992,7 +992,7 @@ export function registerItemRoutes(app: Express): void {
   // Get approved items with event and sponsors (for Gráfica module) - MUST come BEFORE /:eventId route
   app.get("/api/items/approved", requireAuth, async (req, res) => {
     try {
-      const approvedItems = await storage.getApprovedItems();
+      const approvedItems = (await storage.getApprovedItems()).filter((i) => pecaVisivelPara(quemVe(req), i));
       const itemsWithEventsAndSponsors = await enrichItemsWithEventsAndSponsors(approvedItems);
       // BOOK COMPLETO fica de fora da fila da Gráfica: é o trâmite do
       // Atendimento, não uma peça imprimível (ver shared/fluxo-peca).
@@ -1183,6 +1183,11 @@ export function registerItemRoutes(app: Express): void {
       }
       if (!(await canCreateItemsFor(req, itemsData[0]?.eventId))) {
         return res.status(403).json({ error: "Sem permissão para criar itens neste evento" });
+      }
+      // Entrada Rápida cria peça da Arena: o usuário do Kit usa o formulário
+      // ou a importação, que pedem a remessa (14/09).
+      if (req.userKit) {
+        return res.status(403).json({ error: "A Entrada Rápida não cria peça do Kit — use o formulário ou a importação." });
       }
       // Mesma trava do POST unitário — sem ela o lote era o caminho aberto para
       // pendurar peça num evento encerrado.

@@ -74,6 +74,63 @@ export function rotuloDaRemessa(remessa: { versao: string; entregaMaterial?: str
   return `KIT ${remessa.versao}${dia ? ` · entrega ${dia}` : ""}`;
 }
 
+// ─── A planilha do Kit ───────────────────────────────────────────────────────
+//
+// O template do Kit traz, acima da tabela de peças, um cabeçalho de rótulo na
+// coluna A e valor na B: "Data Solicitação", "Solicitante", "Departamento",
+// "Versão do Pedido", "Data de Entrega do material:", "Data do Evento", "Data
+// Carrega caminhão", "Data Saída Caminhão". Na A1, o nome do evento. As datas
+// chegam como número de série do Excel (46279 = 14/09/2026).
+
+export interface CabecalhoDoKit {
+  evento: string | null;
+  versao: string | null;
+  solicitante: string | null;
+  departamento: string | null;
+  dataSolicitacao: string | null;
+  entregaMaterial: string | null;
+  dataEvento: string | null;
+  cargaCaminhao: string | null;
+  saidaCaminhao: string | null;
+}
+
+/** Data de célula da planilha → "AAAA-MM-DD" (série do Excel, dd/mm/aaaa ou ISO). */
+export function dataDaPlanilha(valor: string | null | undefined): string | null {
+  if (!valor) return null;
+  const t = String(valor).trim();
+  if (/^\d+(\.\d+)?$/.test(t)) {
+    const serie = Math.floor(Number(t));
+    if (serie < 20000 || serie > 80000) return null;
+    return new Date(Date.UTC(1899, 11, 30) + serie * 86_400_000).toISOString().slice(0, 10);
+  }
+  const br = t.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);
+  if (br) return `${br[3].length === 2 ? `20${br[3]}` : br[3]}-${br[2].padStart(2, "0")}-${br[1].padStart(2, "0")}`;
+  const iso = t.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return iso ? `${iso[1]}-${iso[2]}-${iso[3]}` : null;
+}
+
+const rotuloNormal = (s: string) =>
+  s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[:\s]+/g, " ").trim();
+
+/** Lê o cabeçalho do Kit dos pares (rótulo na A, valor na B). Null se não for do Kit. */
+export function cabecalhoDoKit(pares: Array<{ rotulo: string; valor: string }>, primeiraCelula?: string | null): CabecalhoDoKit | null {
+  const acha = (teste: (rotulo: string) => boolean) => pares.find((p) => teste(rotuloNormal(p.rotulo)))?.valor?.trim() || null;
+  const entregaMaterial = dataDaPlanilha(acha((r) => r.startsWith("data de entrega") || r.startsWith("entrega do material")));
+  const saidaCaminhao = dataDaPlanilha(acha((r) => r.includes("saida") && r.includes("caminhao")));
+  if (!entregaMaterial && !saidaCaminhao) return null;
+  return {
+    evento: primeiraCelula?.trim() || null,
+    versao: acha((r) => r.startsWith("versao")),
+    solicitante: acha((r) => r === "solicitante"),
+    departamento: acha((r) => r === "departamento"),
+    dataSolicitacao: dataDaPlanilha(acha((r) => r.startsWith("data solicitacao") || r.startsWith("data da solicitacao"))),
+    entregaMaterial,
+    dataEvento: dataDaPlanilha(acha((r) => r === "data do evento")),
+    cargaCaminhao: dataDaPlanilha(acha((r) => r.includes("carrega") || (r.includes("carga") && r.includes("caminhao")))),
+    saidaCaminhao,
+  };
+}
+
 /** Explicação completa do selo (title/tooltip). */
 export function detalheDaRemessa(remessa: Partial<RemessaDoKit> | null | undefined): string {
   if (!remessa) return "Peça do Kit";

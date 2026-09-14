@@ -989,6 +989,7 @@ export default function EventDetail() {
     setImportSearch,
     previewXlsxMutation,
     confirmImportMutation,
+    importKit,
   } = useEventImport({ eventId, eventSponsorsList, eventQuotaRules });
 
   // Estado e mutation de clonagem de itens entre eventos (extraído para @/hooks/use-event-import)
@@ -3730,7 +3731,12 @@ export default function EventDetail() {
         previewXlsxPending={previewXlsxMutation.isPending}
         onPreview={(file) => previewXlsxMutation.mutate({ file })}
         confirmImportPending={confirmImportMutation.isPending}
-        onConfirmImport={(items, fileName) => confirmImportMutation.mutate({ items, fileName })}
+        onConfirmImport={(items, fileName, destino) => confirmImportMutation.mutate({ items, fileName, destino })}
+        // Arena ou Kit (14/09): o modal antes de importar usa as remessas do
+        // evento e o cabeçalho da planilha do Kit, quando ela tem.
+        kitRemessas={remessasDoKit}
+        kitCabecalho={importKit}
+        somenteKit={!!user?.kit}
         // As peças que o evento JÁ tem — sem elas o diálogo não teria contra
         // o que medir a repetição, e reimportar a mesma planilha duplicava o
         // evento inteiro em silêncio.

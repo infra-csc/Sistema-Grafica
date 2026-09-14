@@ -90,6 +90,58 @@ describe("servidor do Kit", () => {
   });
 });
 
+describe("planilha do Kit e filtros (fase 2)", () => {
+  it("lê o cabeçalho do template (datas em série do Excel)", async () => {
+    const { cabecalhoDoKit, dataDaPlanilha } = await import("@shared/kit");
+    expect(dataDaPlanilha("46279")).toBe("2026-09-14");
+    expect(dataDaPlanilha("20/09/2026")).toBe("2026-09-20");
+    expect(dataDaPlanilha("texto")).toBeNull();
+    const c = cabecalhoDoKit([
+      { rotulo: "Data Solicitação", valor: "46268" },
+      { rotulo: "Solicitante", valor: "BRUNO FERREIRA" },
+      { rotulo: "Departamento", valor: "Kit" },
+      { rotulo: "Versão do Pedido", valor: "V1" },
+      { rotulo: "Data de Entrega do material: ", valor: "46279" },
+      { rotulo: "Data do Evento", valor: "46285" },
+      { rotulo: "Data Carrega caminhão", valor: "46280" },
+      { rotulo: "Data Saída Caminhão", valor: "46280" },
+    ], "MANGARATIBA");
+    expect(c).toEqual({
+      evento: "MANGARATIBA", versao: "V1", solicitante: "BRUNO FERREIRA", departamento: "Kit",
+      dataSolicitacao: "2026-09-03", entregaMaterial: "2026-09-14", dataEvento: "2026-09-20",
+      cargaCaminhao: "2026-09-15", saidaCaminhao: "2026-09-15",
+    });
+    expect(cabecalhoDoKit([{ rotulo: "item", valor: "qtde" }], null)).toBeNull();
+  });
+
+  it("importar: modal Arena ou Kit antes de importar; remessa nova nasce na importação", () => {
+    const DIALOGO = ler("client/src/components/import-xlsx-dialog.tsx");
+    const DESTINO = ler("client/src/components/kit/destino-da-importacao.tsx");
+    expect(DIALOGO).toContain("onClick={() => { if (importPreviewItems.length > 0) setEscolhendoDestino(true); }}");
+    expect(DESTINO).toContain('title="Estas peças são da Arena ou do Kit?"');
+    expect(DESTINO).toContain('bloqueio={somenteKit ? "Usuário do Kit importa só peças do Kit." : undefined}');
+    expect(IMPORT).toContain("const criada = await criarRemessa(req, dadosRemessa.data);");
+    expect(IMPORT).toContain("kit: lerCabecalhoDoKit(file.buffer)");
+    // Nova remessa à mão também pode vir preenchida pelo template (14/09).
+    const PAINEL_KIT = ler("client/src/components/kit/painel-do-kit.tsx");
+    expect(PAINEL_KIT).toContain('data-testid="button-preencher-remessa-planilha"');
+    expect(PAINEL_KIT).toContain("fetch(`/api/events/${eventId}/preview-xlsx`");
+  });
+
+  it("o usuário do Kit fica no recorte dele em todas as leituras", () => {
+    expect(ITEMS).toContain("const pendingItems = (await storage.getPendingItems()).filter((i) => pecaVisivelPara(quemVe(req), i));");
+    expect(ITEMS).toContain("const approvedItems = (await storage.getApprovedItems()).filter((i) => pecaVisivelPara(quemVe(req), i));");
+    expect(ITEMS).toContain("A Entrada Rápida não cria peça do Kit");
+    expect(ler("server/routes/prazos.ts")).toContain("(!doKit || (!!i.kitRemessaId && i.criadoPorId === (req as any).userId))");
+    expect(ler("server/routes/busca.ts")).toContain("!(req as any).userKit || (!!p.kitRemessaId && p.criadoPorId === (req as any).userId)");
+    expect(ler("server/routes/versoes.ts")).toContain("const dados = await doUsuario(req, await carregar());");
+    expect(ler("server/routes/audit-logs.ts")).toContain('logs = logs.filter((l: any) => l.userId === userId || (l.entityType === "item" && minhas.has(l.entityId)));');
+    expect(ler("server/routes/notifications.ts")).toContain("const minhasDoKit = (req as any).session?.userKit === true");
+    expect(ler("server/routes/photos.ts")).toContain("return res.json(fotos.filter((f: any) => minhas.has(f.itemId)));");
+    expect(ler("server/services/xlsxExport.ts")).toContain("const doKit = (req as any).userKit === true;");
+  });
+});
+
 describe("telas do Kit", () => {
   it("usuários: marca 'Usuário do Kit' só no perfil Solicitação", () => {
     expect(USUARIOS).toContain('{form.watch("role") === "solicitacao" && (');

@@ -251,7 +251,11 @@ export async function handleExportItemsXlsx(req: Request, res: Response) {
     const event = await storage.getEvent(req.params.id);
     if (!event) return res.status(404).json({ error: "Evento não encontrado" });
 
-    const items = (await withSponsorNames(await storage.getItemsByEvent(req.params.id))).sort(byDisplayId);
+    // Usuário do Kit (14/09): exporta só as peças do Kit que ele criou.
+    const doKit = (req as any).userKit === true;
+    const doEvento = (await storage.getItemsByEvent(req.params.id))
+      .filter((i) => !doKit || (!!i.kitRemessaId && i.criadoPorId === (req as any).userId));
+    const items = (await withSponsorNames(doEvento)).sort(byDisplayId);
 
     const parts = [
       `Data do evento: ${fmt(event.startDate)}`,
@@ -284,7 +288,8 @@ export async function handleExportSelectedItemsXlsx(req: Request, res: Response)
     // (e outra por patrocinador) estouraria o pool de conexões, então tudo é
     // carregado em bloco e cruzado em memória.
     const wanted = new Set(ids);
-    const raw = (await storage.getAllItems()).filter(i => wanted.has(i.id));
+    const raw = (await storage.getAllItems()).filter(i => wanted.has(i.id)
+      && (!(req as any).userKit || (!!i.kitRemessaId && i.criadoPorId === (req as any).userId)));
     if (!raw.length) return res.status(404).json({ error: "Nenhuma peça encontrada" });
 
     const eventNames = new Map<string, string>();

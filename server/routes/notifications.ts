@@ -17,8 +17,14 @@ export function registerNotificationRoutes(app: Express): void {
       const userId = (req as any).session?.userId ?? null;
       // Destinatário individual (14/09): o cache é por PERFIL; a notificação
       // de outra pessoa sai aqui, depois do cache, sem virar cache por usuário.
+      // Usuário do Kit (14/09): além disso, só o que é dele — aviso individual
+      // ou aviso sobre uma peça do Kit que ele criou.
+      const minhasDoKit = (req as any).session?.userKit === true
+        ? new Set((await storage.getAllItems()).filter((i) => !!i.kitRemessaId && i.criadoPorId === userId).map((i) => i.id))
+        : null;
       const doUsuario = (lista: any[]) =>
-        lista.filter((n) => !n.targetUserId || n.targetUserId === userId);
+        lista.filter((n) => (!n.targetUserId || n.targetUserId === userId)
+          && (!minhasDoKit || n.targetUserId === userId || (!!n.itemId && minhasDoKit.has(n.itemId))));
 
       const cached = notifCache.get(userRole);
       if (cached && cached.expiresAt > Date.now()) {

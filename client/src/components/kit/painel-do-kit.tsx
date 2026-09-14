@@ -7,7 +7,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { useEffect, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Package, Plus } from "lucide-react";
+import { FileSpreadsheet, Package, Plus } from "lucide-react";
 import { diaMesDoKit, type RemessaDoKit } from "@shared/kit";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { HIDE_NATIVE_CLOSE, ModalFooter, ModalHeader, modalSurface } from "@/components/modal-shell";
@@ -51,6 +51,40 @@ export function PainelDoKit({ eventId, pecas, podeCriar, usuarioDoKit, nomeDoUsu
       saidaCaminhao: "",
     });
   }, [aberto]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // PREENCHER PELO TEMPLATE (dono, 14/09): "esses dados podem ser preenchidos
+  // via template". Lê o cabeçalho da planilha do Kit (a mesma leitura da
+  // importação) e preenche os campos para conferir.
+  const [lendoPlanilha, setLendoPlanilha] = useState(false);
+  const preencherComPlanilha = async (arquivo: File | undefined) => {
+    if (!arquivo) return;
+    setLendoPlanilha(true);
+    try {
+      const corpo = new FormData();
+      corpo.append("file", arquivo);
+      const resposta = await fetch(`/api/events/${eventId}/preview-xlsx`, { method: "POST", body: corpo, credentials: "include" });
+      const dados = await resposta.json().catch(() => ({}));
+      if (!resposta.ok) throw new Error(dados?.error || "Não deu para ler a planilha");
+      const c = dados?.kit;
+      if (!c) {
+        toast({ title: "Esta planilha não tem o cabeçalho do Kit", description: "Procurei “Data de Entrega do material” e “Data Saída Caminhão” nas primeiras linhas.", variant: "destructive" });
+        return;
+      }
+      setForm((f) => ({
+        versao: c.versao || f.versao,
+        solicitante: c.solicitante || f.solicitante,
+        entregaMaterial: c.entregaMaterial || f.entregaMaterial,
+        dataEvento: c.dataEvento || f.dataEvento,
+        cargaCaminhao: c.cargaCaminhao || f.cargaCaminhao,
+        saidaCaminhao: c.saidaCaminhao || f.saidaCaminhao,
+      }));
+      toast({ title: "Datas preenchidas pela planilha", description: `Confira e crie a remessa. ${Array.isArray(dados.items) && dados.items.length ? `As ${dados.items.length} peças entram por “Importar Excel”.` : ""}` });
+    } catch (e: any) {
+      toast({ title: "Não deu para ler a planilha", description: e?.message, variant: "destructive" });
+    } finally {
+      setLendoPlanilha(false);
+    }
+  };
 
   const criar = useMutation({
     mutationFn: async () => (await apiRequest("POST", "/api/kit/remessas", {
@@ -119,6 +153,13 @@ export function PainelDoKit({ eventId, pecas, podeCriar, usuarioDoKit, nomeDoUsu
           <ModalHeader icon={Package} tint="#6d28d9" title="Nova remessa do Kit" subtitle="As datas do Kit valem só para as peças desta remessa — as da Arena não mudam." onClose={criar.isPending ? undefined : () => setAberto(false)} />
           <form id="form-remessa-kit" onSubmit={(e) => { e.preventDefault(); if (!faltando && !criar.isPending) criar.mutate(); }}
             style={{ padding: "16px 24px", display: "grid", gap: 12, gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", overflowY: "auto", flex: "1 1 auto", minHeight: 0 }}>
+            <label data-testid="button-preencher-remessa-planilha"
+              style={{ gridColumn: "1 / -1", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, height: 44, borderRadius: R.md, border: "1.5px dashed #a78bfa", background: "#faf5ff", color: "#5b21b6", fontSize: 13.5, fontWeight: 800, cursor: lendoPlanilha ? "wait" : "pointer" }}>
+              <FileSpreadsheet size={16} aria-hidden="true" />
+              {lendoPlanilha ? "Lendo a planilha…" : "Preencher com a planilha do Kit (.xlsx)"}
+              <input type="file" accept=".xlsx" hidden disabled={lendoPlanilha}
+                onChange={(e) => { void preencherComPlanilha(e.target.files?.[0]); e.target.value = ""; }} />
+            </label>
             <div>
               <label htmlFor="remessa-versao" style={ROTULO}>Versão</label>
               <input id="remessa-versao" data-testid="input-remessa-versao" value={form.versao} onChange={(e) => setForm((f) => ({ ...f, versao: e.target.value }))} style={CAMPO} />

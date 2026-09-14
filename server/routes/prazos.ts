@@ -73,7 +73,7 @@ export function registerPrazoRoutes(app: Express): void {
   // Leitura aberta a todo usuario autenticado (decisao do dono, 17/08): a
   // Gestao de Prazos passa a aparecer para todos. O POST de cobranca logo
   // abaixo CONTINUA sendo admin — quem nao e admin ve e nao mexe.
-  app.get("/api/prazos", requireAuth, async (_req, res) => {
+  app.get("/api/prazos", requireAuth, async (req, res) => {
     try {
       const today = todayBusinessMs();
       const todayStr = todayBusinessStr();
@@ -94,8 +94,10 @@ export function registerPrazoRoutes(app: Express): void {
       ]);
       const candidates = allEvents.filter((ev) => isPrazoCandidate(ev, today));
       // BOOK COMPLETO fica de fora: é o trâmite do Atendimento, não uma peça (ver shared/fluxo-peca).
+      // Usuário do Kit (14/09): só as peças do Kit que ele criou.
+      const doKit = (req as any).userKit === true;
       const candidateItems = (await storage.getItemsByEvents(candidates.map((ev) => ev.id)))
-        .filter((i) => !ehBookCompleto(i));
+        .filter((i) => !ehBookCompleto(i) && (!doKit || (!!i.kitRemessaId && i.criadoPorId === (req as any).userId)));
 
       const itemsByEvent = new Map<string, Item[]>();
       for (const it of candidateItems) {

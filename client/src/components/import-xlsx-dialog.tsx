@@ -1,4 +1,6 @@
-import { Fragment, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
+import type { CabecalhoDoKit, RemessaDoKit } from "@shared/kit";
+import { DestinoDaImportacaoDialog, type DestinoDaImportacao } from "@/components/kit/destino-da-importacao";
 import {
   Upload,
   List,
@@ -458,9 +460,14 @@ interface ImportXlsxDialogProps {
   previewXlsxPending: boolean;
   onPreview: (file: File) => void;
   confirmImportPending: boolean;
-  onConfirmImport: (items: any[], fileName: string) => void;
+  /** O destino (Arena ou Kit) é escolhido no modal que abre antes de importar. */
+  onConfirmImport: (items: any[], fileName: string, destino: DestinoDaImportacao) => void;
   /** As peças que o evento JÁ tem — é contra elas que a repetição é medida. */
   itensDoEvento?: { type?: string | null; description?: string | null }[];
+  /** KIT (14/09): remessas do evento, cabeçalho lido da planilha do Kit e se só Kit vale. */
+  kitRemessas?: RemessaDoKit[];
+  kitCabecalho?: CabecalhoDoKit | null;
+  somenteKit?: boolean;
 }
 
 // Extracted from event-detail.tsx: the "Importar Peças" split-panel dialog
@@ -484,9 +491,18 @@ export function ImportXlsxDialog({
   confirmImportPending,
   onConfirmImport,
   itensDoEvento = [],
+  kitRemessas = [],
+  kitCabecalho = null,
+  somenteKit = false,
 }: ImportXlsxDialogProps) {
   const { toast } = useToast();
   const isMobile = useIsMobile();
+
+  // ARENA OU KIT (14/09): "Importar N peças" abre o modal de destino; a
+  // importação só acontece depois da escolha. Fecha sozinho quando a
+  // importação dá certo (o preview é limpo pelo pai).
+  const [escolhendoDestino, setEscolhendoDestino] = useState(false);
+  useEffect(() => { if (!importPreviewItems) setEscolhendoDestino(false); }, [importPreviewItems]);
 
   // Confirmação de descarte no padrão visual da casa — o window.confirm
   // nativo destoava do produto (flagrado em produção).
@@ -818,7 +834,7 @@ export function ImportXlsxDialog({
               </button>
               <button
                 disabled={!importPreviewItems.length || confirmImportPending}
-                onClick={() => { if (importPreviewItems.length > 0) onConfirmImport(importPreviewItems, importFileName); }}
+                onClick={() => { if (importPreviewItems.length > 0) setEscolhendoDestino(true); }}
                 data-testid="button-confirm-import"
                 style={{ width: '100%', padding: '11px 0', backgroundColor: '#1c1917', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 800, fontSize: 13, cursor: 'pointer', fontFamily: "'Space Grotesk', sans-serif", display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
               >
@@ -988,6 +1004,19 @@ export function ImportXlsxDialog({
         )}
         </div>{/* wrapper flex row */}
       </DialogContent>
+
+      {/* Arena ou Kit — antes de importar (14/09) */}
+      <DestinoDaImportacaoDialog
+        aberto={escolhendoDestino && !!importPreviewItems}
+        quantidade={importPreviewItems?.length ?? 0}
+        arquivo={importFileName}
+        remessas={kitRemessas}
+        cabecalho={kitCabecalho}
+        somenteKit={somenteKit}
+        pendente={confirmImportPending}
+        onConfirmar={(destino) => { if (importPreviewItems?.length) onConfirmImport(importPreviewItems, importFileName, destino); }}
+        onFechar={() => setEscolhendoDestino(false)}
+      />
 
       {/* Confirmação de descarte da importação — padrão da casa */}
       <AlertDialog open={confirmDiscardOpen} onOpenChange={setConfirmDiscardOpen}>

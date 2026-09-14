@@ -175,6 +175,15 @@ export function invalidarCacheDeVersoes(): void {
   cache = null;
 }
 
+/** Usuário do Kit (14/09): o cache é de todos; o recorte dele sai aqui. */
+async function doUsuario(req: any, dados: DadosDeVersoes): Promise<DadosDeVersoes> {
+  if (!req.userKit) return dados;
+  const minhas = new Set((await storage.getAllItems())
+    .filter((i) => !!i.kitRemessaId && i.criadoPorId === req.userId)
+    .map((i) => i.id));
+  return { ...dados, itens: dados.itens.filter((p: any) => minhas.has(p.id)) };
+}
+
 async function carregar(): Promise<DadosDeVersoes> {
   if (cache && Date.now() - cache.calculadoEm < TTL_MS) return cache;
 
@@ -491,7 +500,7 @@ function filtrar(itens: PecaDeVersoes[], r: Recorte) {
 export function registerVersoesRoutes(app: Express): void {
   app.get("/api/versoes", requireAuth, async (req, res) => {
     try {
-      const dados = await carregar();
+      const dados = await doUsuario(req, await carregar());
       const r = lerRecorte(req.query);
       const pagina = Math.max(0, parseInt(String(req.query.pagina ?? "0"), 10) || 0);
       const tamanho = Math.min(120, Math.max(10, parseInt(String(req.query.tamanho ?? "40"), 10) || 40));
@@ -557,7 +566,7 @@ export function registerVersoesRoutes(app: Express): void {
   // patrocinador. Exporta TODAS as linhas do recorte, não a página à vista.
   app.get("/api/versoes/export.csv", requireAuth, async (req, res) => {
     try {
-      const dados = await carregar();
+      const dados = await doUsuario(req, await carregar());
       const recortadas = filtrar(dados.itens, lerRecorte(req.query));
       const linhas = [[
         "Evento", "Peça", "Tipo", "Descrição", "Versões", "Patrocinador", "Decisão",

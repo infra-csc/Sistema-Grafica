@@ -22,6 +22,7 @@ import { T, FS, R } from "@/lib/theme";
 import { MotivoDoPedidoDialog, type AcaoComMotivo } from "@/components/motivo-do-pedido-dialog";
 import { CartaoDoPedido, type AcaoDoCartao } from "@/components/pedidos/cartao-do-pedido";
 import { avisoDaAcao } from "@/components/pedidos/lista-de-pedidos";
+import { DetalheDoPedido } from "@/components/pedidos/detalhe-do-pedido";
 import { SeloDoEventoChip, invalidarPedidos, mensagemDaApi } from "@/components/pedidos/ui";
 
 export function PedidosDoEvento({ eventId, pecas, podeVer, podeAtender, motivoEventoFim, saidaDoCaminhao, onCriarPeca }: {
@@ -41,6 +42,7 @@ export function PedidosDoEvento({ eventId, pecas, podeVer, podeAtender, motivoEv
   const [pecaEscolhida, setPecaEscolhida] = useState("");
   const [motivo, setMotivo] = useState<{ pedido: PedidoDePeca; acao: AcaoComMotivo } | null>(null);
   const [verResolvidos, setVerResolvidos] = useState(false);
+  const [detalhe, setDetalhe] = useState<string | null>(null);
   const criarConsumido = useRef(false);
   const agora = new Date();
   const alvo = isMobile ? 44 : 36;
@@ -171,7 +173,7 @@ export function PedidosDoEvento({ eventId, pecas, podeVer, podeAtender, motivoEv
           {abertos
             .sort((a, b) => (a.status === "aberto" ? 0 : 1) - (b.status === "aberto" ? 0 : 1))
             .map((p) => (
-              <CartaoDoPedido key={p.id} pedido={p} agora={agora} selo={null} mostrarEvento={false} acoes={acoesDe(p)} extra={escolherPeca(p)} />
+              <CartaoDoPedido key={p.id} pedido={p} agora={agora} selo={null} mostrarEvento={false} acoes={acoesDe(p)} extra={escolherPeca(p)} onAbrir={() => setDetalhe(p.id)} />
             ))}
         </ul>
       )}
@@ -186,13 +188,20 @@ export function PedidosDoEvento({ eventId, pecas, podeVer, podeAtender, motivoEv
           {verResolvidos && (
             <ul style={{ margin: "8px -20px 0", padding: 0 }}>
               {resolvidos.map((p) => (
-                <CartaoDoPedido key={p.id} pedido={p} agora={agora} selo={null} mostrarEvento={false} acoes={acoesDe(p)} />
+                <CartaoDoPedido key={p.id} pedido={p} agora={agora} selo={null} mostrarEvento={false} acoes={acoesDe(p)} onAbrir={() => setDetalhe(p.id)} />
               ))}
             </ul>
           )}
         </div>
       )}
 
+      <DetalheDoPedido
+        pedido={detalhe ? pedidos.find((x) => x.id === detalhe) ?? null : null}
+        agora={agora}
+        selo={selo}
+        acoes={(() => { const d = detalhe ? pedidos.find((x) => x.id === detalhe) : null; return d ? acoesDe(d).filter((a) => a.chave !== "ligar") : []; })()}
+        onFechar={() => setDetalhe(null)}
+      />
       <MotivoDoPedidoDialog
         pedido={motivo?.pedido ?? null}
         acao={motivo?.acao ?? "recusar"}

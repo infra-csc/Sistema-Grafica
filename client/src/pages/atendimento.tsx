@@ -6,7 +6,6 @@ import { SponsorChips } from "@/components/sponsor-chips";
 import { FilterSelect } from "@/components/filter-select";
 import { EventFilterDropdown } from "@/components/event-filter-dropdown";
 import { ExportPdfDialog } from "@/components/export-pdf-dialog";
-import { PedidosDePecaAtendimento } from "@/components/pedidos-de-peca-atendimento";
 import { CheckCircle, AlertCircle, Eye, Search, X, XCircle, Clock, Loader2, ChevronDown, ChevronRight, Zap, FileText, Download, RotateCcw, Package, Paperclip, Plus, Pencil, Trash2, Truck, Cog, Send, Link2, Unlock, Upload, ImageIcon, ArrowRightLeft, Check, PlusCircle } from "lucide-react";
 import { parseDateLocal, toUTCDisplayDate, normalizarBusca } from "@/lib/utils";
 // Prazo desta tela = marco de APROVAÇÃO DE LAYOUT. Regra pura e única, testada
@@ -251,20 +250,8 @@ export default function Atendimento() {
   const [dialogOpen, setDialogOpen] = useState(false);
 
   // Aba ativa: pendentes ou histórico
-  // ?aba=pedidos: a aba vive na URL — atualizar a página não perde o lugar e
-  // a notificação de pedido recusado/cancelado cai direto aqui.
-  const [activeTab, setActiveTab] = useState<"pending" | "history" | "pedidos">(
-    () => (new URLSearchParams(window.location.search).get("aba") === "pedidos" ? "pedidos" : "pending"),
-  );
-  useEffect(() => {
-    const p = new URLSearchParams(window.location.search);
-    if (activeTab === "pedidos") p.set("aba", "pedidos"); else p.delete("aba");
-    const qs = p.toString();
-    window.history.replaceState(null, "", qs ? `?${qs}` : window.location.pathname);
-  }, [activeTab]);
-  // PEDIDOS DE PEÇA (dono, 14/09): a aba conta os pedidos que a lista ainda
-  // não atendeu.
-  const { data: pedidosAbertos = [] } = useQuery<Array<{ id: string }>>({ queryKey: ["/api/pedidos-de-peca?status=aberto"] });
+  // (Os pedidos de peça saíram daqui para a página própria, /pedidos-de-peca.)
+  const [activeTab, setActiveTab] = useState<"pending" | "history">("pending");
 
   // A ORDEM DA LISTA, DECLARADA E TROCÁVEL.
   //
@@ -1677,7 +1664,6 @@ export default function Atendimento() {
             // pedem ação, o placar diz de que TIPO é cada uma.
             { key: 'pending', label: 'Pendentes', count: actionableCount },
             { key: 'history', label: 'Histórico', count: null },
-            { key: 'pedidos', label: 'Pedidos de peças', count: pedidosAbertos.length },
           ] as const).map(tab => (
             <button
               key={tab.key}
@@ -2885,12 +2871,6 @@ export default function Atendimento() {
       </div>}
 
       {/* ─── ABA HISTÓRICO ──────────────────────────────────────── */}
-      {activeTab === "pedidos" && (
-        <div role="tabpanel" id="tabpanel-pedidos" aria-labelledby="tab-pedidos">
-          <PedidosDePecaAtendimento podePedir={canDecide} userId={user?.id ?? null} isAdmin={user?.role === "admin"} />
-        </div>
-      )}
-
       {activeTab === "history" && (() => {
         const evById = new Map((events as any[]).map((e: any) => [e.id, e]));
         const FL: React.CSSProperties = { fontSize: 11, fontWeight: 700, color: '#746e69', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 4 };

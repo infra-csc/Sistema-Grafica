@@ -167,10 +167,14 @@ describe("o servidor", () => {
 });
 
 describe("as telas", () => {
-  it("formulário em gaveta: novo e editar, e salvar trava com imagem subindo", () => {
-    expect(FORM).toContain('<SheetContent side="right" data-testid="formulario-pedido-de-peca"');
+  it("formulário em janela central de duas colunas (sem rolar no desktop), e salvar trava com imagem subindo", () => {
+    expect(FORM).toContain('data-testid="formulario-pedido-de-peca"');
+    expect(FORM).toContain("style={modalSurface(940)}");
+    expect(FORM).toContain('gridTemplateColumns: isMobile ? "minmax(0, 1fr)" : "minmax(0, 1fr) minmax(0, 1fr)"');
+    expect(FORM).toContain('placeholder="Escolha o evento"');
+    expect(FORM).not.toContain("SheetContent");
     expect(FORM).toContain(': envio.isUploading ? "Aguarde o envio das imagens"');
-    expect(FORM).toContain('data-testid="aviso-prazo-pedido"');
+    expect(FORM).toContain('testId="aviso-prazo-pedido"');
     expect(LISTA).toContain('data-testid="button-novo-pedido"');
   });
 
@@ -205,12 +209,25 @@ describe("as telas", () => {
     expect(EVENTO).toContain("...(pedidoEmAtendimento ? { pedidoDePecaId: pedidoEmAtendimento.id } : {}),");
   });
 
-  it("caixa da Solicitação, aba na URL e notificações levando ao lugar certo", () => {
-    expect(CAIXA).toContain('<ListaDePedidos modo="solicitacao"');
-    expect(APP).toContain('<Route path="/pedidos-de-peca">');
-    expect(MENU).toContain('url: "/pedidos-de-peca"');
-    expect(ATENDIMENTO).toContain('p.set("aba", "pedidos")');
-    expect(APP).toContain('"/atendimento?aba=pedidos"');
+  it("lugar único: a página serve quem pede e quem resolve, e saiu do Atendimento", () => {
+    expect(CAIXA).toContain("<ListaDePedidos podePedir={podePedir} podeResolver={podeResolver}");
+    expect(APP).toContain('const ROLES_PEDIDOS = ["atendimento", "solicitacao", "admin"];');
+    expect(APP).toContain("<RoleProtectedRoute component={PedidosDePeca} allowedRoles={ROLES_PEDIDOS} />");
+    expect(MENU).toContain('url: "/pedidos-de-peca",         icon: Inbox,          roles: ["atendimento", "solicitacao", "admin"]');
+    expect(ATENDIMENTO).not.toContain("PedidosDePecaAtendimento");
+    expect(ATENDIMENTO).not.toContain("/api/pedidos-de-peca");
+    expect(APP).toContain(': "/pedidos-de-peca");');
     expect(EVENTOS).toContain('data-testid="link-caixa-pedidos"');
+  });
+
+  it("detalhe do pedido: tudo sobre ele, com histórico e as mesmas ações", () => {
+    const DETALHE = ler("client/src/components/pedidos/detalhe-do-pedido.tsx");
+    expect(DETALHE).toContain('data-testid="detalhe-do-pedido"');
+    expect(DETALHE).toContain("queryKey: [`/api/audit-logs?entityType=pedido_de_peca&entityId=${p?.id ?? \"\"}&limit=100`],");
+    expect(DETALHE).toContain('data-testid="historico-do-pedido"');
+    expect(DETALHE).toContain("<AndamentoDoPedido pedido={p} />");
+    expect(CARTAO).toContain("data-testid={`abrir-pedido-${pedido.id}`}");
+    expect(LISTA).toContain("onAbrir={() => setDetalhe(p.id)}");
+    expect(PAINEL).toContain("<DetalheDoPedido");
   });
 });

@@ -111,7 +111,7 @@ describe("a tela obriga a escolha", () => {
   });
 
   it("nem registrar nem iniciar funcionam sem máquina", () => {
-    expect(GRAFICA).toContain("productionData.quantityProduced === 0 || !maquinaEscolhida}");
+    expect(GRAFICA).toContain("productionData.quantityProduced === producedOf(selectedItem) || !maquinaEscolhida}");
     expect(GRAFICA).toContain("disabled={startPrintingMutation.isPending || !maquinaEscolhida}");
     expect(GRAFICA).toContain('toast({ title: "Escolha a máquina"');
   });
@@ -123,6 +123,44 @@ describe("a tela obriga a escolha", () => {
 
   it("a fila mostra em que máquina a peça está", () => {
     expect(GRAFICA).toContain('`Máq. ${item.printMachine ?? "?"} · Registrar`');
+  });
+});
+
+describe("a impressão é registrada AOS POUCOS (dono, 14/09)", () => {
+  // "ele inicia a impressão, conforme o tempo registra quantos já finalizaram,
+  // e só vai para em acabamento / em conferência quando finaliza todos os itens
+  // impressos; o acabamento / conferência é antes da foto e dos detalhes da
+  // conferência; depois disso fica como conferido aguardando a entrega."
+
+  it("o modal abre com o que JÁ SAIU, não com o total — um toque distraído não conclui", () => {
+    expect(GRAFICA).toContain("setProductionData({ quantityProduced: producedOf(item) });");
+    expect(GRAFICA).not.toContain("setProductionData({ quantityProduced: tetoDeProducao(item) });");
+  });
+
+  it("lançar o mesmo número de antes não muda nada, então o botão fica apagado", () => {
+    expect(GRAFICA).toContain("productionData.quantityProduced === producedOf(selectedItem)");
+  });
+
+  it("o botão diz o destino: parcial registra, completo conclui", () => {
+    expect(GRAFICA).toContain('? "Concluir impressão" : `Registrar ${productionData.quantityProduced} de ${tetoDeProducao(selectedItem)}`');
+  });
+
+  it("o aviso depois de salvar diz para onde a peça foi", () => {
+    expect(GRAFICA).toContain('toast({ title: "Impressão concluída", description: "A peça foi para Acabamento / Conferência." });');
+    expect(GRAFICA).toContain('title: "Parcial registrada"');
+  });
+
+  it("o campo diz o que se lança: quantas já saíram da máquina", () => {
+    expect(GRAFICA).toContain("Quantas já saíram da máquina");
+  });
+
+  it("servidor: parcial fica Em Impressão; todas impressas vão para Acabamento / Conferência", () => {
+    expect(ITEMS).toContain('? "produced"\n          : "inProduction";');
+  });
+
+  it("servidor: a conferência exige foto e só vira Conferido quando confere tudo", () => {
+    expect(ITEMS).toContain("if (!conferencePhotoUrl && !current.conferencePhotoUrl)");
+    expect(ITEMS).toContain('...(isFull ? { status: "conferred" as const } : {}),');
   });
 });
 

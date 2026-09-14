@@ -14,7 +14,7 @@
 // ?pedidos=1 rola até aqui; ?criar=<peça solicitada> abre "Criar peça" direto
 // (é o caminho da página de solicitações).
 // ─────────────────────────────────────────────────────────────────────────────
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { ChevronDown, Inbox } from "lucide-react";
 import { ajustePendente, seloDoEventoDoPedido, type LinhaDoPedido, type PedidoDePeca } from "@shared/pedidos-de-peca";
@@ -50,10 +50,13 @@ export function PedidosDoEvento({ eventId, pecas, podeVer, podeAtender, motivoEv
   const agora = new Date();
   const toque = isMobile ? 44 : 36;
 
-  const { data: pedidos = [] } = useQuery<PedidoDePeca[]>({
+  const { data: pedidosCrus = [] } = useQuery<PedidoDePeca[]>({
     queryKey: [`/api/pedidos-de-peca?eventId=${eventId}`],
     enabled: !!eventId && podeVer,
   });
+  // Servidor antigo (sem reiniciar depois do Pull) manda solicitação sem as
+  // peças: fica de fora em vez de derrubar a tela.
+  const pedidos = useMemo(() => pedidosCrus.filter((p) => Array.isArray(p?.linhas)), [pedidosCrus]);
 
   const selo = seloDoEventoDoPedido({ motivoFim: motivoEventoFim, saida: saidaDoCaminhao }, agora);
   const bloqueio = selo?.bloqueiaAtender ? selo.explicacao : null;

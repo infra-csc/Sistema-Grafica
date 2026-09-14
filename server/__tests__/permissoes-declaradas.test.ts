@@ -48,8 +48,9 @@ describe("tabela ↔ código, sem sobras de nenhum lado", () => {
     //    + pedir, atender, recusar, cancelar, editar e reabrir pedido de peça (14/09).
     // (Branch de produção: sem o "iniciar impressão" da Gráfica, que segurou.)
     //    + pedir e responder ajuste de solicitação de peça (14/09).
-    expect(REGUA_DE_PAPEIS.length).toBe(89);
-    expect(doCodigo.length).toBe(89);
+    //    + criar remessa do Kit (14/09).
+    expect(REGUA_DE_PAPEIS.length).toBe(90);
+    expect(doCodigo.length).toBe(90);
   });
 });
 

@@ -21,71 +21,71 @@ import {
 import { T } from "@/lib/theme";
 import { useIsMobile } from "@/hooks/use-mobile";
 
-/**
- * O QUE CADA PERFIL CONCEDE.
- *
- * O formulário oferecia cinco perfis num menu e nada dizia o que cada um
- * podia fazer. Quem administra precisa saber que poderes está entregando — e
- * "Admin" entrega todos.
- *
- * CADA LINHA SAI DA RÉGUA DO SERVIDOR, não da memória do produto: das guardas
- * `requireRole`/`requireAdmin` e das checagens `req.userRole` em
- * server/routes/*.ts. A referência entre parênteses é a rota que sustenta a
- * linha — se a rota mudar de papel e a linha ficar, o bloco vira promessa
- * falsa, que é pior que bloco nenhum.
- *
- * Quatro linhas por perfil: as duas primeiras dizem o que ele faz, as duas
- * últimas o que ele NÃO faz. O "não faz" é metade do ponto — é o que responde
- * "posso dar este perfil para ela?" sem abrir o código.
- */
-const PERMISSOES: Record<string, { pode: boolean; texto: string }[]> = {
-  admin: [
-    // requireAdmin em /api/users; todas as guardas de papel incluem "admin".
-    { pode: true,  texto: "Cria, edita e exclui usuários, e define o perfil de cada um" },
-    { pode: true,  texto: "Faz tudo o que os outros quatro perfis fazem, em qualquer etapa" },
-    { pode: true,  texto: "Exclui eventos, encerra e reabre ciclos, restaura peças excluídas" },
-    { pode: true,  texto: "Dispara os avisos por e-mail e altera as regras de cota" },
-  ],
-  solicitacao: [
-    // POST /api/events · POST /api/events/:id/items/submit · PATCH .../approve
-    { pode: true,  texto: "Cria eventos e envia as peças do ciclo para a Arte" },
-    // .../creator-review · .../edit · .../cancel · .../return-to-arte
-    { pode: true,  texto: "Revisa, edita, devolve para a Arte e cancela peças" },
-    // sponsor-approvals/:id/approve exige "atendimento" ou "admin"
-    { pode: false, texto: "Não decide aprovação de patrocinador" },
-    // DELETE /api/events/:id e submit-final-file exigem outros papéis
-    { pode: false, texto: "Não exclui eventos nem anexa arte e arquivo final" },
-  ],
-  arte: [
-    // requireLinkingWrite (sponsors.ts) · PATCH .../submit-for-approval
-    { pode: true,  texto: "Vincula patrocinadores e envia peças para aprovação" },
-    // .../submit-final-file · .../update-thumb · POST /api/events/:id/book
-    { pode: true,  texto: "Anexa arte e arquivo final, e publica o book do evento" },
-    // sponsor-approvals/:id/approve exige "atendimento" ou "admin"
-    { pode: false, texto: "Não decide aprovação de patrocinador" },
-    // POST e DELETE /api/events/:id exigem solicitação/admin e admin
-    { pode: false, texto: "Não cria nem exclui eventos" },
-  ],
-  grafica: [
-    // PATCH .../start-production · PATCH .../return-to-review
-    { pode: true,  texto: "Inicia a produção e devolve peças para revisão" },
-    // POST /api/items/:id/photos · POST .../mark-reuse
-    { pode: true,  texto: "Anexa fotos de produção e entrega, e marca reaproveitamento" },
-    // submit-for-approval e submit-final-file exigem "arte" ou "admin"
-    { pode: false, texto: "Não envia peças para aprovação nem anexa a arte" },
-    { pode: false, texto: "Não cria eventos nem decide aprovação de patrocinador" },
-  ],
-  atendimento: [
-    // POST .../sponsor-approvals/:sponsorId/approve e /reject
-    { pode: true,  texto: "Aprova e reprova peças em nome do patrocinador" },
-    // .../sponsor-approvals/:sponsorId/revert · PUT /api/quota-rules/global
-    { pode: true,  texto: "Revoga uma decisão já tomada e ajusta as regras de cota" },
-    // submit-final-file exige "arte"; start-production exige "grafica"
-    { pode: false, texto: "Não anexa arte nem arquivo final, e não inicia produção" },
-    { pode: false, texto: "Não cria nem exclui eventos" },
-  ],
-};
-
+/**
+ * O QUE CADA PERFIL CONCEDE.
+ *
+ * O formulário oferecia cinco perfis num menu e nada dizia o que cada um
+ * podia fazer. Quem administra precisa saber que poderes está entregando — e
+ * "Admin" entrega todos.
+ *
+ * CADA LINHA SAI DA RÉGUA DO SERVIDOR, não da memória do produto: das guardas
+ * `requireRole`/`requireAdmin` e das checagens `req.userRole` em
+ * server/routes/*.ts. A referência entre parênteses é a rota que sustenta a
+ * linha — se a rota mudar de papel e a linha ficar, o bloco vira promessa
+ * falsa, que é pior que bloco nenhum.
+ *
+ * Quatro linhas por perfil: as duas primeiras dizem o que ele faz, as duas
+ * últimas o que ele NÃO faz. O "não faz" é metade do ponto — é o que responde
+ * "posso dar este perfil para ela?" sem abrir o código.
+ */
+const PERMISSOES: Record<string, { pode: boolean; texto: string }[]> = {
+  admin: [
+    // requireAdmin em /api/users; todas as guardas de papel incluem "admin".
+    { pode: true,  texto: "Cria, edita e exclui usuários, e define o perfil de cada um" },
+    { pode: true,  texto: "Faz tudo o que os outros quatro perfis fazem, em qualquer etapa" },
+    { pode: true,  texto: "Exclui eventos, encerra e reabre ciclos, restaura peças excluídas" },
+    { pode: true,  texto: "Dispara os avisos por e-mail e altera as regras de cota" },
+  ],
+  solicitacao: [
+    // POST /api/events · POST /api/events/:id/items/submit · PATCH .../approve
+    { pode: true,  texto: "Cria eventos e envia as peças do ciclo para a Arte" },
+    // .../creator-review · .../edit · .../cancel · .../return-to-arte
+    { pode: true,  texto: "Revisa, edita, devolve para a Arte e cancela peças" },
+    // sponsor-approvals/:id/approve exige "atendimento" ou "admin"
+    { pode: false, texto: "Não decide aprovação de patrocinador" },
+    // DELETE /api/events/:id e submit-final-file exigem outros papéis
+    { pode: false, texto: "Não exclui eventos nem anexa arte e arquivo final" },
+  ],
+  arte: [
+    // requireLinkingWrite (sponsors.ts) · PATCH .../submit-for-approval
+    { pode: true,  texto: "Vincula patrocinadores e envia peças para aprovação" },
+    // .../submit-final-file · .../update-thumb · POST /api/events/:id/book
+    { pode: true,  texto: "Anexa arte e arquivo final, e publica o book do evento" },
+    // sponsor-approvals/:id/approve exige "atendimento" ou "admin"
+    { pode: false, texto: "Não decide aprovação de patrocinador" },
+    // POST e DELETE /api/events/:id exigem solicitação/admin e admin
+    { pode: false, texto: "Não cria nem exclui eventos" },
+  ],
+  grafica: [
+    // PATCH .../start-production · PATCH .../return-to-review
+    { pode: true,  texto: "Inicia a produção e devolve peças para revisão" },
+    // POST /api/items/:id/photos · POST .../mark-reuse
+    { pode: true,  texto: "Anexa fotos de produção e entrega, e marca reaproveitamento" },
+    // submit-for-approval e submit-final-file exigem "arte" ou "admin"
+    { pode: false, texto: "Não envia peças para aprovação nem anexa a arte" },
+    { pode: false, texto: "Não cria eventos nem decide aprovação de patrocinador" },
+  ],
+  atendimento: [
+    // POST .../sponsor-approvals/:sponsorId/approve e /reject
+    { pode: true,  texto: "Aprova e reprova peças em nome do patrocinador" },
+    // .../sponsor-approvals/:sponsorId/revert · PUT /api/quota-rules/global
+    { pode: true,  texto: "Revoga uma decisão já tomada e ajusta as regras de cota" },
+    // submit-final-file exige "arte"; start-production exige "grafica"
+    { pode: false, texto: "Não anexa arte nem arquivo final, e não inicia produção" },
+    { pode: false, texto: "Não cria nem exclui eventos" },
+  ],
+};
+
 /* ── Role config ── */
 // Tons 700 nos textos dos badges: os 500/600 anteriores reprovavam o piso de
 // contraste 4.5:1 sobre os fundos pastéis.
@@ -105,12 +105,14 @@ const userSchema = z.object({
   name:  z.string().min(1, "Nome obrigatório"),
   email: z.string().email("Email inválido"),
   role:  z.enum(["admin", "solicitacao", "arte", "grafica", "atendimento"], { required_error: "Selecione um perfil" }),
+  // Usuário do Kit (14/09): só faz sentido no perfil Solicitação.
+  kit:   z.boolean(),
 });
 type UserForm = z.infer<typeof userSchema>;
 
 interface User {
   id: string; name: string; email: string; role: string;
-  mustChangePassword: boolean; createdAt: string;
+  mustChangePassword: boolean; createdAt: string; kit?: boolean;
 }
 
 function initials(name: string) {
@@ -155,7 +157,7 @@ export default function Usuarios() {
 
   const form = useForm<UserForm>({
     resolver: zodResolver(userSchema),
-    defaultValues: { name: "", email: "", role: "solicitacao" },
+    defaultValues: { name: "", email: "", role: "solicitacao", kit: false },
   });
   const createMutation = useMutation({
     mutationFn: async (data: UserForm) => {
@@ -198,13 +200,13 @@ export default function Usuarios() {
 
   const openCreate = () => {
     setEditingUser(null);
-    form.reset({ name: "", email: "", role: "solicitacao" });
+    form.reset({ name: "", email: "", role: "solicitacao", kit: false });
     setModalOpen(true);
   };
 
   const openEdit = (u: User) => {
     setEditingUser(u);
-    form.reset({ name: u.name, email: u.email, role: u.role as any });
+    form.reset({ name: u.name, email: u.email, role: u.role as any, kit: !!u.kit });
     setModalOpen(true);
   };
 
@@ -215,7 +217,7 @@ export default function Usuarios() {
     if (form.formState.isDirty && !window.confirm("Descartar as alterações deste formulário?")) return;
     setModalOpen(false);
     setEditingUser(null);
-    form.reset({ name: "", email: "", role: "solicitacao" });
+    form.reset({ name: "", email: "", role: "solicitacao", kit: false });
   };
 
   const onSubmit = (data: UserForm) => {
@@ -233,9 +235,11 @@ export default function Usuarios() {
       if (data.name !== editingUser.name) update.name = data.name;
       if (data.email !== editingUser.email) update.email = data.email;
       if (data.role !== editingUser.role) update.role = data.role;
+      const kit = data.role === "solicitacao" && data.kit;
+      if (kit !== !!editingUser.kit) update.kit = kit;
       updateMutation.mutate({ id: editingUser.id, update });
     } else {
-      createMutation.mutate(data);
+      createMutation.mutate({ ...data, kit: data.role === "solicitacao" && data.kit });
     }
   };
 
@@ -443,6 +447,15 @@ export default function Usuarios() {
                           }}>
                             {cfg.label}
                           </span>
+                          {user.kit && (
+                            <span data-testid={`badge-kit-${user.id}`} title="Usuário do Kit: só vê e cria peças do Kit, e só as dele" style={{
+                              marginLeft: 6, padding: "3px 8px", borderRadius: 999,
+                              backgroundColor: "#f5f3ff", color: "#6d28d9", border: "1px solid #ddd6fe",
+                              fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.06em",
+                            }}>
+                              Kit
+                            </span>
+                          )}
                         </td>
 
                         {/* Status */}
@@ -709,58 +722,77 @@ export default function Usuarios() {
                           triggerProps={{ id: "user-form-role", onBlur: field.onBlur }}
                           triggerStyle={{ ...tiInput, height: "auto", padding: "14px 16px", border: "none" }}
                         />
-                      </FormControl>
-                      <FormMessage />
-
-                      {/* O QUE ESTE PERFIL CONCEDE. Muda com a escolha, e o
-                          Admin tem tratamento próprio: é o único que não tem
-                          uma linha de "não faz", e quem está entregando esse
-                          perfil precisa ler isso antes de salvar. */}
-                      {(() => {
-                        const linhas = PERMISSOES[field.value] ?? [];
-                        if (linhas.length === 0) return null;
-                        const ehAdmin = field.value === "admin";
-                        return (
-                          <div data-testid="bloco-permissoes"
-                            style={{
-                              marginTop: 10, padding: "11px 13px", borderRadius: 6,
-                              backgroundColor: ehAdmin ? "#fef2f2" : "#fafaf9",
-                              border: `1px solid ${ehAdmin ? "#fecaca" : T.border}`,
-                            }}>
-                            {/* #b91c1c sobre #fef2f2 = 6,1:1 · #57534e sobre #fafaf9 = 7,1:1 */}
-                            <p style={{
-                              margin: "0 0 7px", fontSize: 10, fontWeight: 900,
-                              textTransform: "uppercase", letterSpacing: "0.14em",
-                              color: ehAdmin ? "#b91c1c" : "#57534e",
-                            }}>
-                              O que este perfil concede
-                            </p>
-                            <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 5 }}>
-                              {linhas.map((l) => (
-                                <li key={l.texto} style={{ display: "flex", gap: 7, alignItems: "flex-start" }}>
-                                  {/* #15803d = 4,8:1 e #b91c1c = 6,3:1 sobre #fafaf9 */}
-                                  {l.pode
-                                    ? <Check aria-hidden="true" style={{ width: 13, height: 13, color: "#15803d", flexShrink: 0, marginTop: 1 }} />
-                                    : <X aria-hidden="true" style={{ width: 13, height: 13, color: "#b91c1c", flexShrink: 0, marginTop: 1 }} />}
-                                  <span style={{ fontSize: 12, lineHeight: 1.4, color: "#44403c" }}>
-                                    <span className="sr-only">{l.pode ? "Pode: " : "Não pode: "}</span>
-                                    {l.texto}
-                                  </span>
-                                </li>
-                              ))}
-                            </ul>
-                            {ehAdmin && (
-                              <p style={{ margin: "8px 0 0", fontSize: 11, fontWeight: 700, color: "#b91c1c", lineHeight: 1.4 }}>
-                                Perfil sem restrição: pode excluir dados e conceder acesso a outras pessoas.
-                              </p>
-                            )}
-                          </div>
-                        );
-                      })()}
-                    </FormItem>
-                  )} />
-                </div>
-
+                      </FormControl>
+                      <FormMessage />
+
+                      {/* O QUE ESTE PERFIL CONCEDE. Muda com a escolha, e o
+                          Admin tem tratamento próprio: é o único que não tem
+                          uma linha de "não faz", e quem está entregando esse
+                          perfil precisa ler isso antes de salvar. */}
+                      {(() => {
+                        const linhas = PERMISSOES[field.value] ?? [];
+                        if (linhas.length === 0) return null;
+                        const ehAdmin = field.value === "admin";
+                        return (
+                          <div data-testid="bloco-permissoes"
+                            style={{
+                              marginTop: 10, padding: "11px 13px", borderRadius: 6,
+                              backgroundColor: ehAdmin ? "#fef2f2" : "#fafaf9",
+                              border: `1px solid ${ehAdmin ? "#fecaca" : T.border}`,
+                            }}>
+                            {/* #b91c1c sobre #fef2f2 = 6,1:1 · #57534e sobre #fafaf9 = 7,1:1 */}
+                            <p style={{
+                              margin: "0 0 7px", fontSize: 10, fontWeight: 900,
+                              textTransform: "uppercase", letterSpacing: "0.14em",
+                              color: ehAdmin ? "#b91c1c" : "#57534e",
+                            }}>
+                              O que este perfil concede
+                            </p>
+                            <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 5 }}>
+                              {linhas.map((l) => (
+                                <li key={l.texto} style={{ display: "flex", gap: 7, alignItems: "flex-start" }}>
+                                  {/* #15803d = 4,8:1 e #b91c1c = 6,3:1 sobre #fafaf9 */}
+                                  {l.pode
+                                    ? <Check aria-hidden="true" style={{ width: 13, height: 13, color: "#15803d", flexShrink: 0, marginTop: 1 }} />
+                                    : <X aria-hidden="true" style={{ width: 13, height: 13, color: "#b91c1c", flexShrink: 0, marginTop: 1 }} />}
+                                  <span style={{ fontSize: 12, lineHeight: 1.4, color: "#44403c" }}>
+                                    <span className="sr-only">{l.pode ? "Pode: " : "Não pode: "}</span>
+                                    {l.texto}
+                                  </span>
+                                </li>
+                              ))}
+                            </ul>
+                            {ehAdmin && (
+                              <p style={{ margin: "8px 0 0", fontSize: 11, fontWeight: 700, color: "#b91c1c", lineHeight: 1.4 }}>
+                                Perfil sem restrição: pode excluir dados e conceder acesso a outras pessoas.
+                              </p>
+                            )}
+                          </div>
+                        );
+                      })()}
+                    </FormItem>
+                  )} />
+                </div>
+
+                {/* USUÁRIO DO KIT (14/09): só no perfil Solicitação. */}
+                {form.watch("role") === "solicitacao" && (
+                  <FormField control={form.control} name="kit" render={({ field }) => (
+                    <FormItem>
+                      <label htmlFor="user-form-kit" style={{ display: "flex", gap: 10, alignItems: "flex-start", padding: "11px 13px", borderRadius: 6, border: `1px solid ${field.value ? "#ddd6fe" : T.border}`, backgroundColor: field.value ? "#f5f3ff" : "#fafaf9", cursor: "pointer" }}>
+                        <input id="user-form-kit" type="checkbox" data-testid="checkbox-user-kit"
+                          checked={field.value} onChange={(e) => field.onChange(e.target.checked)}
+                          style={{ width: 16, height: 16, marginTop: 2, accentColor: "#6d28d9", flexShrink: 0 }} />
+                        <span>
+                          <span style={{ display: "block", fontSize: 13, fontWeight: 800, color: T.text }}>Usuário do Kit</span>
+                          <span style={{ display: "block", fontSize: 12, color: "#57534e", lineHeight: 1.4, marginTop: 2 }}>
+                            Mesmas telas da Solicitação, mas só vê e cria peças do Kit — e só as que ele criou.
+                          </span>
+                        </span>
+                      </label>
+                    </FormItem>
+                  )} />
+                )}
+
                 {/* Buttons */}
                 <div style={{ display: "flex", gap: 10, paddingTop: 6 }}>
                   <button type="button" onClick={requestClose}

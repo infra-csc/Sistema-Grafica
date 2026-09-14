@@ -6,6 +6,8 @@ import { storage } from "../storage";
 import { insertItemSchema } from "@shared/schema";
 import { broadcast, createAuditLog, updateEventStatus } from "../routes/shared";
 import AdmZip from "adm-zip";
+import { carregarRemessa } from "./kitRemessas";
+import { remessaUtilizavelPor } from "@shared/kit";
 
 
   // ── A LEITURA DA PLANILHA, como função pura ──────────────────────────────
@@ -435,9 +437,23 @@ import AdmZip from "adm-zip";
       const event = await storage.getEvent(req.params.id);
       if (!event) return res.status(404).json({ error: "Evento não encontrado" });
 
-      const { items, fileName } = req.body as { items: any[]; fileName?: string };
+      const { items, fileName, kitRemessaId: kitCru } = req.body as { items: any[]; fileName?: string; kitRemessaId?: string };
       if (!items || !Array.isArray(items) || items.length === 0)
         return res.status(400).json({ error: "Nenhum item para importar" });
+
+      // KIT (14/09): importação para uma remessa do Kit; o usuário do Kit só
+      // importa para uma remessa dele.
+      const kitRemessaId = typeof kitCru === "string" && kitCru ? kitCru : null;
+      if ((req as any).userKit && !kitRemessaId) {
+        return res.status(400).json({ error: "Usuário do Kit importa só peças do Kit — escolha a remessa do Kit." });
+      }
+      if (kitRemessaId) {
+        const remessa = await carregarRemessa(kitRemessaId);
+        if (!remessa || remessa.eventId !== event.id) return res.status(400).json({ error: "Remessa do Kit inválida para este evento." });
+        if (!remessaUtilizavelPor({ kit: (req as any).userKit === true, userId: (req as any).userId }, remessa)) {
+          return res.status(403).json({ error: "Esta remessa do Kit é de outra pessoa." });
+        }
+      }
 
       const toCreate = items.map((item: any) => ({
         eventId: event.id,
@@ -458,6 +474,8 @@ import AdmZip from "adm-zip";
         measurement: item.measurement || "",
         observations: item.observations || "",
         status: "requested",
+        kitRemessaId,
+        criadoPorId: (req as any).userId ?? null,
       }));
 
       const validated = toCreate.map((item, i) => {

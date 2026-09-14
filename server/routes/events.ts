@@ -497,6 +497,36 @@ export function registerEventRoutes(app: Express): void {
   // Get all events with items count
   app.get("/api/events", requireAuth, async (req, res) => {
     try {
+      // USUÁRIO DO KIT (14/09): vê todos os eventos (precisa deles para criar
+      // as remessas), mas as peças embutidas — contagens e fases — são só as
+      // peças do Kit dele. Fora do cache compartilhado, que é o de todos.
+      if ((req as any).userKit) {
+        const userId = (req as any).userId ?? "";
+        const [eventosKit, pecasKit, vinculosKit] = await Promise.all([
+          storage.getAllEvents(),
+          storage.getAllItems(),
+          storage.getAllEventSponsors(),
+        ]);
+        const porEventoKit = new Map<string, any[]>();
+        for (const it of pecasKit) {
+          if (!it.kitRemessaId || it.criadoPorId !== userId) continue;
+          const arr = porEventoKit.get(it.eventId);
+          if (arr) arr.push(it); else porEventoKit.set(it.eventId, [it]);
+        }
+        const patrocinadoresKit = new Map<string, any[]>();
+        for (const es of vinculosKit) {
+          const arr = patrocinadoresKit.get(es.eventId);
+          if (arr) arr.push(es); else patrocinadoresKit.set(es.eventId, [es]);
+        }
+        const hojeKit = todayBusinessMs();
+        return res.json(eventosKit.map((event) => enrichEvent(
+          event as unknown as Record<string, any>,
+          porEventoKit.get(event.id) ?? [],
+          patrocinadoresKit.get(event.id) ?? [],
+          hojeKit,
+        )));
+      }
+
       const now = Date.now();
       if (eventsCache && eventsCache.expiresAt > now) {
         return res.json(eventsCache.data);
@@ -559,10 +589,15 @@ export function registerEventRoutes(app: Express): void {
         return res.status(404).json({ error: "Event not found" });
       }
 
-      const [eventItems, eventSponsors] = await Promise.all([
+      const [todasAsPecas, eventSponsors] = await Promise.all([
         storage.getItemsByEvent(event.id),
         storage.getEventSponsors(event.id),
       ]);
+      // Usuário do Kit: só as peças do Kit dele entram nas contagens (14/09).
+      const userIdKit = (req as any).userId;
+      const eventItems = (req as any).userKit
+        ? todasAsPecas.filter((i) => !!i.kitRemessaId && i.criadoPorId === userIdKit)
+        : todasAsPecas;
 
       res.json(
         enrichEvent(
@@ -1041,7 +1076,12 @@ export function registerEventRoutes(app: Express): void {
 
       // Buscar todos os itens em rascunho deste evento (draft = novo, requested = legado)
       const allItems = await storage.getItemsByEvent(eventId);
-      const draftItems = allItems.filter(item => item.status === 'draft' || item.status === 'requested');
+      // KIT (14/09): cada um envia a sua lista — o usuário do Kit só as peças
+      // do Kit dele; a Solicitação da Arena só as da Arena; o admin, tudo.
+      const doKit = (req as any).userKit === true;
+      const draftItems = allItems.filter(item =>
+        (item.status === 'draft' || item.status === 'requested') &&
+        (isAdmin || (doKit ? (!!item.kitRemessaId && item.criadoPorId === userId) : !item.kitRemessaId)));
 
       if (draftItems.length === 0) {
         return res.status(400).json({ error: "Nenhum item em rascunho para enviar" });

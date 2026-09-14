@@ -10,6 +10,9 @@ import { Button } from "@/components/ui/button";
 import { Plus, ArrowLeft, Calendar, Truck, AlertCircle, List, Package, Package2, Pencil, Trash2, Check, Building2, Loader2, User, History, Lock, Unlock, Paperclip, ExternalLink, X, RotateCcw, Recycle, Upload, Copy, ChevronDown, CheckCircle2, AlertTriangle, FileSpreadsheet, FileText, Tags, BookOpen, Search, Warehouse } from "lucide-react";
 import { EstoqueSemelhantesDialog } from "@/components/estoque-semelhantes-dialog";
 import { PedidosDoEvento } from "@/components/pedidos-do-evento";
+import { SeloKit } from "@/components/kit/selo-kit";
+import { PainelDoKit, chaveDasRemessas } from "@/components/kit/painel-do-kit";
+import { rotuloDaRemessa, type RemessaDoKit } from "@shared/kit";
 import { invalidarPedidos } from "@/components/pedidos/ui";
 import { patrocinadoresDaLinha, textoDaObservacao, type LinhaDoPedido, type PedidoDePeca } from "@shared/pedidos-de-peca";
 import { Fragment, useState, useEffect, useMemo, useRef } from "react";
@@ -155,6 +158,8 @@ const EMPTY_ITEM_FORM = {
   referenceUrl: "",
   // O modelo de que a peça nasce (id), ou "" quando o tipo foi digitado.
   standardItemId: "",
+  // KIT (14/09): a remessa do Kit a que a peça pertence; "" = Arena.
+  kitRemessaId: "",
 };
 
 type ItemFormData = typeof EMPTY_ITEM_FORM;
@@ -183,6 +188,10 @@ interface ItemFormProps {
   localRefPreview: string;
   setLocalRefPreview: (v: string) => void;
   getUploadUrl: () => Promise<{ method: "PUT"; url: string }>;
+  /** Remessas do Kit deste evento (criar: "Peça de" Arena ou KIT). */
+  remessasDoKit?: RemessaDoKit[];
+  /** Usuário do Kit: a remessa é obrigatória (não cria peça da Arena). */
+  kitObrigatorio?: boolean;
   /** Peça já em produção: sobe por complemento, desce até o piso físico. */
   quantityLocked?: boolean;
   /** Piso físico: já produzido+reuso / conferido / entregue — o que for maior. */
@@ -209,6 +218,7 @@ function ItemForm({
   localRefPreview, setLocalRefPreview, getUploadUrl,
   quantityLocked = false, quantityFloor = 0, quantityCeiling = Number.MAX_SAFE_INTEGER,
   onAumentarQuantidade, podePriorizar = false,
+  remessasDoKit = [], kitObrigatorio = false,
 }: ItemFormProps) {
   const isEdit = mode === "edit";
   // "Digitar novo tipo" só existe no criar — no editar o tipo já é texto livre.
@@ -221,6 +231,30 @@ function ItemForm({
   return (
     <form onSubmit={onSubmit} style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", minHeight: 0 }}>
       <div className="scrollbar-visible" style={{ flex: 1, overflowY: "auto", padding: "28px", display: "flex", flexDirection: "column", gap: 24 }}>
+
+        {/* KIT (14/09): a peça é da Arena ou de uma remessa do Kit (com as
+            datas do Kit). O usuário do Kit só cria peça do Kit. */}
+        {!isEdit && (kitObrigatorio || remessasDoKit.length > 0) && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            <label htmlFor="item-kit" style={FIELD_LABEL}>Peça de</label>
+            <select
+              id="item-kit"
+              required={kitObrigatorio}
+              value={formData.kitRemessaId}
+              onChange={(e) => setFormData({ ...formData, kitRemessaId: e.target.value })}
+              data-testid="select-item-kit"
+              style={{ ...FIELD_INPUT, cursor: "pointer", color: formData.kitRemessaId ? "#5b21b6" : FIELD_INPUT.color, fontWeight: formData.kitRemessaId ? 700 : 500 }}
+            >
+              {kitObrigatorio
+                ? <option value="">— escolha a remessa do Kit —</option>
+                : <option value="">Arena (lista do evento)</option>}
+              {remessasDoKit.map((r) => <option key={r.id} value={r.id}>{rotuloDaRemessa(r)}</option>)}
+            </select>
+            {kitObrigatorio && remessasDoKit.length === 0 && (
+              <span style={{ fontSize: 12, color: "#92400e" }}>Crie a remessa do Kit neste evento (painel Kit) antes de adicionar peças.</span>
+            )}
+          </div>
+        )}
 
         {/* Linha 1: Tipo (3fr) | Qtd. (1fr) | M2 Total (1fr) */}
         <div style={{ display: "grid", gridTemplateColumns: "3fr 1fr 1fr", gap: 16 }}>
@@ -793,6 +827,12 @@ export default function EventDetail() {
     refetchOnWindowFocus: false,
   });
 
+  // Remessas do Kit deste evento (14/09) — "Peça de" no formulário.
+  const { data: remessasDoKit = [] } = useQuery<RemessaDoKit[]>({
+    queryKey: [chaveDasRemessas(eventId ?? "")],
+    enabled: !!eventId,
+  });
+
   // Ordenar itens por displayId (grupo é tratado pelo groupMap; dentro de cada tipo, ordem pelo id)
   // Consome o deep-link ?item= assim que a query resolve (ver pendingDeepLinkItem).
   // Consumir também com lista VAZIA: antes o ?item= ficava preso na URL de um
@@ -1278,6 +1318,8 @@ export default function EventDetail() {
         // Criada a partir de um pedido do Atendimento: o servidor liga a peça
         // ao pedido na mesma requisição.
         ...(pedidoEmAtendimento ? { pedidoDePecaLinhaId: pedidoEmAtendimento.linha.id } : {}),
+        // Peça do Kit: o servidor confere a remessa (mesmo evento, dona certa).
+        ...(data.kitRemessaId ? { kitRemessaId: data.kitRemessaId } : {}),
       };
 
       // Criar item
@@ -1609,6 +1651,7 @@ export default function EventDetail() {
     setCustomFinish(false);
     setEditingItem(item);
     setFormData({
+      kitRemessaId: item.kitRemessaId || "",
       type: item.type || "",
       description: item.description || "",
       quantity: item.quantity || 1,
@@ -2161,7 +2204,7 @@ export default function EventDetail() {
                     : handleCloseDialog}
                   // Atendendo um pedido, a Entrada Rápida some: a peça criada em
                   // lote não seria ligada ao pedido.
-                  trailing={!editingItem && !pedidoEmAtendimento ? (
+                  trailing={!editingItem && !pedidoEmAtendimento && !user?.kit ? (
                     <button
                       onClick={() => setBulkMode(!bulkMode)}
                       data-testid="button-toggle-mode"
@@ -2208,6 +2251,8 @@ export default function EventDetail() {
                     isMobile={isMobile}
                     isAdmin={user?.role === 'admin'}
                     podePriorizar={user?.role === 'admin' || user?.role === 'solicitacao'}
+                    remessasDoKit={remessasDoKit}
+                    kitObrigatorio={!!user?.kit}
                     isPending={createItemMutation.isPending || updateItemMutation.isPending}
                     onSubmit={handleSubmit}
                     onCancel={handleCloseDialog}
@@ -2481,6 +2526,18 @@ export default function EventDetail() {
           );
         })()}
       </div>
+
+      {/* Kit (dono, 14/09): remessas com as datas do Kit. */}
+      <PainelDoKit
+        eventId={eventId!}
+        pecas={items}
+        podeCriar={(user?.role === 'admin' || user?.role === 'solicitacao') && canEditLists}
+        usuarioDoKit={!!user?.kit}
+        nomeDoUsuario={user?.name ?? ""}
+        dataDoEvento={(event as any)?.startDate ?? null}
+        saidaDoEvento={(event as any)?.truckDepartureDate ?? null}
+        eventoFinalizado={!!eventoFinalizado}
+      />
 
       {/* Pedidos de peça do Atendimento (dono, 14/09) — some quando não há. */}
       <PedidosDoEvento
@@ -2942,6 +2999,7 @@ export default function EventDetail() {
                             </button>
                             <StatusBadge status={item.status} />
                           </div>
+                          <SeloKit peca={item} style={{ marginBottom: 4, marginRight: 4 }} />
                           {item.isPriority && (
                             <div title="Peça prioritária — fura a fila da Arte" data-testid={`tag-prioritaria-card-${item.id}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, backgroundColor: '#fff1f2', border: '1px solid #fecdd3', color: '#be123c', borderRadius: 6, padding: '2px 7px', fontSize: 10, fontWeight: 800, letterSpacing: '0.06em', marginBottom: 4, marginRight: 4 }}>
                               <AlertTriangle style={{ width: 9, height: 9 }} /> PRIORITÁRIA
@@ -3071,6 +3129,7 @@ export default function EventDetail() {
                             >
                               {item.displayId}
                             </button>
+                            <SeloKit peca={item} style={{ marginLeft: 6 }} />
                             {item.isPriority && (
                               <span title="Peça prioritária — fura a fila da Arte" data-testid={`tag-prioritaria-${item.id}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 3, marginLeft: 6, fontSize: 10, fontWeight: 800, color: '#be123c', backgroundColor: '#fff1f2', border: '1px solid #fecdd3', borderRadius: 6, padding: '1px 6px', letterSpacing: '0.04em', verticalAlign: 'middle' }}>
                                 <AlertTriangle style={{ width: 9, height: 9 }} />

@@ -164,7 +164,7 @@ app.use((req: Request, res: Response, next: NextFunction) => {
 
 // ── Portal SSO ───────────────────────────────────────────────────────────────
 // One-time exchange tokens: { userId, userName, userRole, expires }
-const ssoTokens = new Map<string, { userId: string; userName: string; userRole: string; expires: number }>();
+const ssoTokens = new Map<string, { userId: string; userName: string; userRole: string; userKit: boolean; expires: number }>();
 setInterval(() => { const now = Date.now(); ssoTokens.forEach((v, k) => { if (v.expires < now) ssoTokens.delete(k); }); }, 30_000);
 
 // Step 1 — Portal redirects here with ?portal_sso=<JWT>&portal_return=<URL>
@@ -177,8 +177,8 @@ app.use(async (req: Request, res: Response, next: NextFunction) => {
     const payload = jwt.verify(token, SSO_SECRET, { issuer: "norte-portal" }) as { email?: string };
     if (!payload?.email) { log("[SSO] payload sem email"); return res.redirect("/login?error=sso_invalid_payload"); }
 
-    const { rows } = await pool.query<{ id: string; name: string; role: string }>(
-      "SELECT id, name, role FROM users WHERE email = $1 LIMIT 1",
+    const { rows } = await pool.query<{ id: string; name: string; role: string; kit: boolean | null }>(
+      "SELECT id, name, role, kit FROM users WHERE email = $1 LIMIT 1",
       [payload.email]
     );
     const user = rows[0];
@@ -186,7 +186,7 @@ app.use(async (req: Request, res: Response, next: NextFunction) => {
 
     // Create one-time exchange token (valid 60s)
     const exchangeToken = randomBytes(32).toString("hex");
-    ssoTokens.set(exchangeToken, { userId: user.id, userName: user.name, userRole: user.role, expires: Date.now() + 60_000 });
+    ssoTokens.set(exchangeToken, { userId: user.id, userName: user.name, userRole: user.role, userKit: user.kit === true, expires: Date.now() + 60_000 });
 
     log(`[SSO] exchange token gerado para: ${payload.email}`);
     return res.redirect(`/?sso_exchange=${exchangeToken}`);
@@ -225,6 +225,7 @@ app.post("/api/auth/sso-exchange", async (req: Request, res: Response) => {
   req.session.userId   = entry.userId;
   req.session.userName = entry.userName;
   req.session.userRole = entry.userRole;
+  req.session.userKit  = entry.userKit;
   // O carimbo de login — mesmo contrato do caminho por senha (routes/auth.ts):
   // fora do caminho crítico, login não falha por causa do registro.
   pool.query("UPDATE users SET last_login_at = now() WHERE id = $1", [entry.userId])

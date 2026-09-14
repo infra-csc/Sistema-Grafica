@@ -6,6 +6,8 @@ import { eq } from "drizzle-orm";
 import { db } from "../db";
 import { storage, assetPrefix, assetSeqOf, isDisplayIdConflictError } from "../storage";
 import type { Item } from "@shared/schema";
+import { pecaVisivelPara, remessaUtilizavelPor } from "@shared/kit";
+import { carregarRemessa, remessasPorIds } from "../services/kitRemessas";
 import { DEPOIS_DA_ARTE, EM_REVISAO, POS_APROVACAO, DISPENSAVEIS, DESTINO_DA_DISPENSA, ehBookCompleto } from "@shared/fluxo-peca";
 import {
   insertItemSchema,
@@ -332,6 +334,9 @@ function podeMudarQuantidade(req: { userRole?: string }): boolean {
   return req.userRole === "admin" || req.userRole === "solicitacao";
 }
 
+// KIT (14/09): quem está pedindo, na régua de shared/kit.ts.
+const quemVe = (req: any) => ({ kit: req.userKit === true, userId: req.userId ?? null });
+
 async function canCreateItemsFor(req: { userRole?: string; userId?: string }, eventId?: string): Promise<boolean> {
   if (req.userRole === "admin" || req.userRole === "solicitacao") return true;
   if (!eventId || !req.userId) return false;
@@ -409,8 +414,12 @@ async function enrichItemsWithEventsAndSponsors(list: any[]): Promise<any[]> {
     if (arr) arr.push(enrichedSponsor);
     else sponsorsByItem.set(is.itemId, [enrichedSponsor]);
   }
+  // A remessa do Kit (datas do Kit) vai junto: é o que o selo "KIT · entrega"
+  // mostra em todas as etapas.
+  const remessaPorId = await remessasPorIds(list.map((i) => i.kitRemessaId).filter(Boolean));
   const withEventsAndSponsors = list.map((item) => ({
     ...item,
+    kitRemessa: item.kitRemessaId ? remessaPorId.get(item.kitRemessaId) ?? null : null,
     event: eventById.get(item.eventId) ?? undefined,
     sponsors: sponsorsByItem.get(item.id) ?? [],
   }));
@@ -760,7 +769,8 @@ export function registerItemRoutes(app: Express): void {
         // no vão entre dois deltas. Duplicata é inofensiva — o merge é por id.
         const agora = new Date(Date.now() - 2000).toISOString();
         const mudadas = await storage.getItemsChangedSince(since);
-        const vivas = mudadas.filter((i) => !i.deletedAt);
+        // Usuário do Kit: o que ele não enxerga sai do cache dele como removido.
+        const vivas = mudadas.filter((i) => !i.deletedAt && pecaVisivelPara(quemVe(req), i));
         const itens = await enrichItemsWithEventsAndSponsors(vivas);
         const [eventos, patrocinadores] = await Promise.all([
           storage.getAllEvents(),
@@ -770,13 +780,13 @@ export function registerItemRoutes(app: Express): void {
           delta: true,
           agora,
           itens,
-          removidas: mudadas.filter((i) => i.deletedAt).map((i) => i.id),
+          removidas: mudadas.filter((i) => i.deletedAt || !pecaVisivelPara(quemVe(req), i)).map((i) => i.id),
           eventos,
           patrocinadores,
         });
       }
 
-      const allItems = await storage.getAllItems();
+      const allItems = (await storage.getAllItems()).filter((i) => pecaVisivelPara(quemVe(req), i));
       if (allItems.length > 5000) {
         console.warn(`[items] GET /api/items retornando ${allItems.length} itens — priorizar paginação`);
       }
@@ -1034,7 +1044,7 @@ export function registerItemRoutes(app: Express): void {
 
   app.get("/api/items/:eventId", requireAuth, async (req, res) => {
     try {
-      const items = await storage.getItemsByEvent(req.params.eventId);
+      const items = (await storage.getItemsByEvent(req.params.eventId)).filter((i) => pecaVisivelPara(quemVe(req), i));
       const itemsWithSponsors = await enrichItemsWithEventsAndSponsors(items);
       res.json(itemsWithSponsors);
     } catch (error: any) {
@@ -1056,6 +1066,23 @@ export function registerItemRoutes(app: Express): void {
       if (!(await canCreateItemsFor(req, validatedData.eventId))) {
         return res.status(403).json({ error: "Sem permissão para criar itens neste evento" });
       }
+      // PEÇA DO KIT (dono, 14/09): pertence a uma remessa do MESMO evento; o
+      // usuário do Kit só cria peça do Kit, numa remessa dele.
+      const kitRemessaId = typeof req.body?.kitRemessaId === "string" && req.body.kitRemessaId ? req.body.kitRemessaId : null;
+      if (req.userKit && !kitRemessaId) {
+        return res.status(400).json({ error: "Usuário do Kit cria só peça do Kit — escolha a remessa do Kit." });
+      }
+      if (kitRemessaId) {
+        const remessa = await carregarRemessa(kitRemessaId);
+        if (!remessa || remessa.eventId !== validatedData.eventId) {
+          return res.status(400).json({ error: "Remessa do Kit inválida para este evento." });
+        }
+        if (!remessaUtilizavelPor(quemVe(req), remessa)) {
+          return res.status(403).json({ error: "Esta remessa do Kit é de outra pessoa." });
+        }
+      }
+      (validatedData as any).kitRemessaId = kitRemessaId;
+      (validatedData as any).criadoPorId = req.userId ?? null;
       // Nascer PRIORITÁRIA é decisão de quem gerencia a lista (dono, 27/08) —
       // mesmo gate do PATCH. Criador de evento sem papel cria a peça normal.
       if (validatedData.isPriority && !["admin", "solicitacao"].includes(req.userRole ?? "")) {
@@ -1110,6 +1137,7 @@ export function registerItemRoutes(app: Express): void {
         item.id,
         `Item "${item.type}" criado - Qtd: ${item.quantity}, ${item.calculatedM2}m²`
         + (item.isPriority ? " — PRIORITÁRIA" : "")
+        + (item.kitRemessaId ? " — KIT" : "")
       );
 
       // Novo item adicionado - notifica Arte + Gráfica

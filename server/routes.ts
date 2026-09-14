@@ -30,6 +30,7 @@ import { registerBuscaRoutes } from "./routes/busca";
 import { registerRelatorioRoutes } from "./routes/relatorio";
 import { registerEstoqueReservasRoutes } from "./routes/estoque-reservas";
 import { registerPedidosDePecaRoutes } from "./routes/pedidos-de-peca";
+import { registerKitRoutes } from "./routes/kit";
 import { startRevisaoDigest } from "./services/revisaoDigest";
 import { startDeadlineAlerts } from "./services/deadlineAlerts";
 import { limparReservasAntigas } from "./services/reservaDeDisparo";
@@ -47,6 +48,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Sem fallback de papel: sessão sem role NÃO ganha privilégios de
       // solicitacao por default — gates comparam com string e falham fechado.
       req.userRole = req.session.userRole;
+      // Usuário do Kit (14/09): a marca vem do login; mudar a marca derruba as
+      // sessões da pessoa (PATCH /api/users/:id), como mudar o perfil.
+      req.userKit = req.session.userKit === true;
     } else {
       // Sem sessão: identidade NÃO pode vir do cliente. O header x-user-name
       // é controlado pelo navegador e era falsificável — a trilha de auditoria
@@ -68,6 +72,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   registerRelatorioRoutes(app);
   registerEstoqueReservasRoutes(app);
   registerPedidosDePecaRoutes(app);
+  registerKitRoutes(app);
   registerNotificationRoutes(app);
   registerCommentRoutes(app);
   registerPhotoRoutes(app);

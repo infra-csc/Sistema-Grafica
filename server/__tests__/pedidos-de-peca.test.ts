@@ -197,7 +197,7 @@ describe("o servidor", () => {
 
   it("a peça criada sai ligada na mesma requisição, e o cliente não forja o vínculo", () => {
     expect(ITEMS).toContain('const { vincularPecaALinha } = await import("./pedidos-de-peca");');
-    expect(SCHEMA).toContain("  pedidoDePecaLinhaId: true,\n});");
+    expect(SCHEMA).toContain("  pedidoDePecaLinhaId: true,\n");
   });
 
   it("sem desfazer: excluir a peça criada devolve a peça solicitada para aberta", () => {
@@ -266,7 +266,7 @@ describe("as telas", () => {
   it("no evento: só as peças deste evento, ?criar= abre o formulário, Entrada Rápida some ao atender", () => {
     expect(PAINEL).toContain("const doEvento = (p: PedidoDePeca) => p.linhas.filter((l) => l.eventId === eventId);");
     expect(PAINEL).toContain('const alvoCriar = params.get("criar");');
-    expect(EVENTO).toContain("trailing={!editingItem && !pedidoEmAtendimento ? (");
+    expect(EVENTO).toContain("trailing={!editingItem && !pedidoEmAtendimento && !user?.kit ? (");
     expect(EVENTO).toContain("...(pedidoEmAtendimento ? { pedidoDePecaLinhaId: pedidoEmAtendimento.linha.id } : {}),");
     expect(EVENTOS).toContain("for (const { linha } of linhasAbertas)");
   });

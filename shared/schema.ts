@@ -282,6 +282,12 @@ export const items = pgTable("items", {
   // E de qual PEÇA da solicitação (a solicitação tem várias, cada uma com
   // status próprio). Só o servidor grava.
   pedidoDePecaLinhaId: varchar("pedido_de_peca_linha_id").references((): any => linhasDoPedidoDePeca.id, { onDelete: "set null" }),
+  // PEÇA DO KIT (dono, 14/09): a remessa do Kit a que ela pertence (datas do
+  // Kit). Nula = peça da Arena.
+  kitRemessaId: varchar("kit_remessa_id").references((): any => kitRemessas.id, { onDelete: "set null" }),
+  // QUEM CRIOU a peça (id do usuário). Só o servidor grava. É o que deixa o
+  // usuário do Kit ver só as peças dele.
+  criadoPorId: varchar("criado_por_id"),
   deliveredAt: timestamp("delivered_at"), // Timestamp quando foi entregue
   // QUANDO a etiqueta desta peça saiu na impressora pela última vez (25/08).
   // A tela de Etiquetas abre com as já impressas desmarcadas — sem isso, a
@@ -580,6 +586,27 @@ export const linhasDoPedidoDePeca = pgTable("pedidos_de_peca_linhas", {
   index("IDX_pedidos_de_peca_linhas_event_status").on(table.eventId, table.status),
 ]);
 
+/** REMESSA DO KIT (dono, 14/09): as datas do Kit de um evento — cada planilha
+ *  (ou criação à mão) é uma remessa, cada versão uma remessa nova. */
+export const kitRemessas = pgTable("kit_remessas", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  eventId: varchar("event_id").notNull().references(() => events.id, { onDelete: "cascade" }),
+  versao: text("versao").notNull(),
+  solicitante: text("solicitante"),
+  departamento: text("departamento"),
+  dataSolicitacao: timestamp("data_solicitacao"),
+  entregaMaterial: timestamp("entrega_material").notNull(),
+  dataEvento: timestamp("data_evento"),
+  cargaCaminhao: timestamp("carga_caminhao"),
+  saidaCaminhao: timestamp("saida_caminhao"),
+  arquivo: text("arquivo"),
+  criadoPor: text("criado_por"),
+  criadoPorId: varchar("criado_por_id"),
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
+}, (table) => [
+  index("IDX_kit_remessas_event").on(table.eventId),
+]);
+
 export const notifications = pgTable("notifications", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   type: text("type").notNull(), // eventCreated, itemAdded, arteApproved, deadlineAlert, eventCompleted
@@ -618,6 +645,9 @@ export const users = pgTable("users", {
   email: text("email").notNull().unique(),
   passwordHash: text("password_hash").notNull(),
   role: text("role").notNull().default("solicitacao"), // admin, solicitacao, arte, grafica, atendimento
+  // USUÁRIO DO KIT (dono, 14/09): um usuário de Solicitação com esta marca tem
+  // as mesmas telas, mas só vê e cria peças do Kit — e só as que ele criou.
+  kit: boolean("kit").notNull().default(false),
   mustChangePassword: boolean("must_change_password").notNull().default(true),
   // QUANDO A PESSOA ENTROU PELA ÚLTIMA VEZ. Sem isto, a tela de usuários
   // lista quem TEM acesso e nunca diz quem USA: quem saiu da empresa há seis
@@ -896,6 +926,8 @@ export const publicInsertItemSchema = insertItemSchema.omit({
   // confere papel, evento e se a peça já atende outro pedido.
   pedidoDePecaId: true,
   pedidoDePecaLinhaId: true,
+  // Quem criou é o servidor que diz (a sessão), nunca o corpo da requisição.
+  criadoPorId: true,
 });
 
 export const insertStandardItemSchema = createInsertSchema(standardItems).omit({

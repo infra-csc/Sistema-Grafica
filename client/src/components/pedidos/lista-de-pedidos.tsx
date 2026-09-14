@@ -82,7 +82,10 @@ export function ListaDePedidos({ podePedir, podeResolver }: {
   const agora = new Date();
   const toque = isMobile ? 44 : 34;
 
-  const { data: pedidos = [], isLoading, isError, refetch } = useQuery<PedidoDePeca[]>({ queryKey: [`/api/pedidos-de-peca?limite=${limite}`] });
+  const { data: pedidosCrus = [], isLoading, isError, refetch } = useQuery<PedidoDePeca[]>({ queryKey: [`/api/pedidos-de-peca?limite=${limite}`] });
+  // Servidor antigo (sem reiniciar depois do Pull) manda solicitação sem as
+  // peças: fica de fora em vez de derrubar a tela.
+  const pedidos = useMemo(() => pedidosCrus.filter((p) => Array.isArray(p?.linhas)), [pedidosCrus]);
   const { data: eventos = [] } = useQuery<any[]>({ queryKey: ["/api/events"] });
 
   const hoje = todayBusinessMs();

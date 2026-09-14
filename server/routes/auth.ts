@@ -34,6 +34,8 @@ export function registerAuthRoutes(app: Express): void {
       // Create user (SSO-only: no password change required)
       const user = await storage.createUser({
         ...userData,
+        // Usuário do Kit só existe no perfil Solicitação (14/09).
+        kit: userData.role === "solicitacao" && userData.kit === true,
         passwordHash,
         mustChangePassword: false,
       });
@@ -79,6 +81,7 @@ export function registerAuthRoutes(app: Express): void {
       req.session.userId = user.id;
       req.session.userName = user.name;
       req.session.userRole = user.role;
+      req.session.userKit = user.kit === true;
 
       // O carimbo de login. Fora do caminho crítico de propósito: se o UPDATE
       // falhar, a pessoa ENTRA mesmo assim — o registro existe para a gestão
@@ -248,7 +251,8 @@ export function registerAuthRoutes(app: Express): void {
       // If the role changed, invalidate all active sessions for that user so
       // they get the new role on their next login. Session data stores userId
       // as a JSON string field inside the `sess` column.
-      if (validatedData.role !== undefined) {
+      // A marca de usuário do Kit muda o que a pessoa enxerga: mesma regra.
+      if (validatedData.role !== undefined || validatedData.kit !== undefined) {
         try {
           await pool.query(
             `DELETE FROM session WHERE (sess->>'userId') = $1`,
@@ -267,6 +271,7 @@ export function registerAuthRoutes(app: Express): void {
         'user',
         user.id,
         `Usuário "${user.name}" atualizado${validatedData.role ? ` (perfil: ${validatedData.role})` : ""}`
+        + (validatedData.kit !== undefined ? (validatedData.kit ? " — marcado como usuário do Kit" : " — deixou de ser usuário do Kit") : "")
       );
 
       // Don't send password hash to client

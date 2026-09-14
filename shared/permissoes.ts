@@ -66,6 +66,7 @@ export const REGUA_DE_PAPEIS: RegraDeRota[] = [
   { metodo: "POST", rota: "/api/items/:id/reservas", papeis: ["admin", "solicitacao"] },
   { metodo: "DELETE", rota: "/api/items/:id/reservas/:reservaId", papeis: ["admin", "solicitacao"] },
   { metodo: "POST", rota: "/api/pedidos-de-peca", papeis: ["admin", "atendimento"] },
+  { metodo: "POST", rota: "/api/kit/remessas", papeis: ["admin", "solicitacao"] },
   { metodo: "PATCH", rota: "/api/pedidos-de-peca/:id/cancelar", papeis: ["admin", "atendimento"] },
   { metodo: "PATCH", rota: "/api/pedidos-de-peca/linhas/:linhaId/atender", papeis: ["admin", "solicitacao"] },
   { metodo: "PATCH", rota: "/api/pedidos-de-peca/linhas/:linhaId/recusar", papeis: ["admin", "solicitacao"] },

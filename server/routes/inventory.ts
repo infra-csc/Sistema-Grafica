@@ -2,16 +2,18 @@
 // Extracted from server/routes.ts (INVENTORY ASSETS section).
 import type { Express } from "express";
 import { z } from "zod";
-import { eq, sql } from "drizzle-orm";
+import { eq, like } from "drizzle-orm";
 import { db } from "../db";
 import { storage } from "../storage";
 import { insertInventoryAssetSchema, inventoryAssets, auditLogs } from "@shared/schema";
 import { requireAuth, requireRole, broadcast, createAuditLog } from "./shared";
 
-// Escritas no acervo são restritas a admin — as telas /estoque e
-// /triagem-retorno já são admin-only no frontend. Leituras seguem abertas a
+// Escritas no acervo: Gráfica e admin (dono, 14/09 — quem recebe o material
+// na volta do caminhão faz a triagem e registra onde guardou). Excluir peça e
+// disparar saída/retorno à mão seguem só do admin. Leituras seguem abertas a
 // qualquer autenticado (várias telas consultam o acervo).
-const requireInventoryWrite = requireRole("admin");
+const requireInventoryWrite = requireRole("admin", "grafica");
+const requireInventoryAdmin = requireRole("admin");
 
 // EM_USO e AGUARDANDO_TRIAGEM são definidos exclusivamente pelo ciclo do
 // evento (dispatch/return/triage) — o CRUD genérico não pode gravá-los.
@@ -23,8 +25,20 @@ const cycleStatusError =
 const triageSchema = z.object({
   condition: z.enum(["PERFEITO", "AVARIA_LEVE", "SUCATA"]).optional(),
   notes: z.string().nullish(),
-  trackingStatus: z.enum(["NO_GALPAO", "DESCARTADO"]).optional(),
+  trackingStatus: z.enum(["NO_GALPAO", "EM_MANUTENCAO", "DESCARTADO"]).optional(),
+  location: z.string().max(120).nullish(),
 });
+
+// Destino da triagem (14/09): "Manutenção" virou situação própria. Antes ela
+// gravava NO_GALPAO + Avaria Leve, e a peça avariada seguia aparecendo como
+// disponível para reaproveitar.
+const destinoDaTriagem = (s?: string | null) =>
+  s === "DESCARTADO" ? "DESCARTADO" : s === "EM_MANUTENCAO" ? "EM_MANUTENCAO" : "NO_GALPAO";
+
+// Nenhuma das 5.008 peças do acervo tinha local em 14/09 — e "onde está a
+// peça" é a primeira pergunta de quem vai reaproveitar. Voltar ao galpão
+// exige dizer onde.
+const SEM_LOCAL = "Informe onde a peça foi guardada no galpão — sem o local, ninguém a encontra para reaproveitar.";
 
 // Validação de cada lote da triagem por quantidade.
 const triageSplitSchema = z.object({
@@ -33,11 +47,14 @@ const triageSplitSchema = z.object({
       z.object({
         qty: z.number().int().min(1),
         condition: z.enum(["PERFEITO", "AVARIA_LEVE", "SUCATA"]),
-        trackingStatus: z.enum(["NO_GALPAO", "DESCARTADO"]),
+        trackingStatus: z.enum(["NO_GALPAO", "EM_MANUTENCAO", "DESCARTADO"]),
         notes: z.string().nullish(),
+        location: z.string().max(120).nullish(),
       }),
     )
     .min(1),
+  // Local comum a todos os lotes (cada lote pode trazer o seu).
+  location: z.string().max(120).nullish(),
 });
 
 export function registerInventoryRoutes(app: Express): void {
@@ -153,7 +170,7 @@ export function registerInventoryRoutes(app: Express): void {
     }
   });
 
-  app.delete("/api/inventory/:id", requireInventoryWrite, async (req, res) => {
+  app.delete("/api/inventory/:id", requireInventoryAdmin, async (req, res) => {
     try {
       const success = await storage.deleteInventoryAsset(req.params.id);
       if (!success) return res.status(404).json({ error: "Peça não encontrada" });
@@ -166,18 +183,21 @@ export function registerInventoryRoutes(app: Express): void {
   // Triage endpoint: update condition + set back to NO_GALPAO (or DESCARTADO)
   app.patch("/api/inventory/:id/triage", requireInventoryWrite, async (req, res) => {
     try {
-      const { condition, notes, trackingStatus } = triageSchema.parse(req.body);
+      const { condition, notes, trackingStatus, location } = triageSchema.parse(req.body);
       const asset = await storage.getInventoryAsset(req.params.id);
       if (!asset) return res.status(404).json({ error: "Ativo não encontrado" });
-      const newStatus = trackingStatus === 'DESCARTADO' ? 'DESCARTADO' : 'NO_GALPAO';
+      const newStatus = destinoDaTriagem(trackingStatus);
+      const local = (location ?? "").trim() || asset.location || null;
+      if (newStatus === "NO_GALPAO" && !local) return res.status(400).json({ error: SEM_LOCAL });
       const updated = await storage.updateInventoryAsset(req.params.id, {
         condition: condition ?? asset.condition,
         notes: notes ?? asset.notes,
         trackingStatus: newStatus,
+        location: local,
       } as any);
       const triagedBy = (req as any).userName || 'Sistema';
       await createAuditLog(triagedBy, 'triagem', 'inventory_asset', req.params.id,
-        JSON.stringify({ destino: newStatus, condicao: condition ?? asset.condition }));
+        JSON.stringify({ destino: newStatus, condicao: condition ?? asset.condition, local }));
       broadcast({ type: 'inventory_triaged', assetId: req.params.id, trackingStatus: newStatus });
       res.json(updated);
     } catch (error) {
@@ -194,14 +214,20 @@ export function registerInventoryRoutes(app: Express): void {
       const asset = await storage.getInventoryAsset(req.params.id);
       if (!asset) return res.status(404).json({ error: "Ativo não encontrado" });
 
-      const { splits } = triageSplitSchema.parse(req.body);
+      const { splits, location } = triageSplitSchema.parse(req.body);
 
       const totalQty = splits.reduce((s, sp) => s + (sp.qty ?? 0), 0);
       if (totalQty !== (asset.quantity ?? 1))
         return res.status(400).json({ error: `Soma das quantidades (${totalQty}) não bate com o total do ativo (${asset.quantity})` });
 
+      const localDoLote = (sp: { location?: string | null }) =>
+        (sp.location ?? "").trim() || (location ?? "").trim() || asset.location || null;
+      if (splits.some((sp) => destinoDaTriagem(sp.trackingStatus) === "NO_GALPAO" && !localDoLote(sp))) {
+        return res.status(400).json({ error: SEM_LOCAL });
+      }
+
       const triagedBy = (req as any).userName || 'Sistema';
-      const firstStatus = splits[0].trackingStatus === 'DESCARTADO' ? 'DESCARTADO' : 'NO_GALPAO';
+      const firstStatus = destinoDaTriagem(splits[0].trackingStatus);
 
       // Atômico: redução do original + clones + auditoria na MESMA transação
       // (padrão de routes/items.ts). Antes, uma falha no meio dos clones
@@ -214,6 +240,7 @@ export function registerInventoryRoutes(app: Express): void {
             condition: splits[0].condition,
             notes: splits[0].notes ?? asset.notes,
             trackingStatus: firstStatus,
+            location: localDoLote(splits[0]),
             quantity: splits[0].qty,
             updatedAt: new Date(),
           })
@@ -227,29 +254,33 @@ export function registerInventoryRoutes(app: Express): void {
           details: JSON.stringify({ destino: firstStatus, condicao: splits[0].condition, lotes: splits.length }),
         });
 
-        // displayId dos clones: replica a geração #EST-NNNN do storage, com o
-        // MAX lido uma única vez dentro da transação (ids sequenciais). Uma
-        // colisão com escrita concorrente viola o unique e reverte a transação
-        // INTEIRA — o original permanece intacto e o cliente pode reenviar.
-        const [row] = await tx
-          .select({
-            maxNum: sql<number>`COALESCE(MAX(CAST(substring(${inventoryAssets.displayId} from '#EST-([0-9]+)') AS INTEGER)), 0)`,
-          })
-          .from(inventoryAssets);
-        let nextNum = Number(row?.maxNum ?? 0);
+        // displayId dos lotes: o código da peça dividida + "-L2", "-L3"… — o
+        // lote continua dizendo de que peça saiu. Antes virava "#EST-0063", um
+        // número solto fora do padrão #EST-<peça>-<seq> do resto do acervo.
+        // O maior -L já usado é lido dentro da transação: dividir a mesma peça
+        // de novo, meses depois, não repete código. Uma colisão com escrita
+        // concorrente viola o unique e reverte a transação INTEIRA.
+        const lotesAnteriores = await tx
+          .select({ displayId: inventoryAssets.displayId })
+          .from(inventoryAssets)
+          .where(like(inventoryAssets.displayId, `${asset.displayId}-L%`));
+        let ultimoLote = lotesAnteriores.reduce((max, r) => {
+          const m = r.displayId.match(/-L(\d+)$/);
+          return m ? Math.max(max, Number(m[1])) : max;
+        }, 1);
 
         for (let i = 1; i < splits.length; i++) {
           const sp = splits[i];
-          const spStatus = sp.trackingStatus === 'DESCARTADO' ? 'DESCARTADO' : 'NO_GALPAO';
-          nextNum += 1;
+          const spStatus = destinoDaTriagem(sp.trackingStatus);
+          ultimoLote += 1;
           const [clone] = await tx.insert(inventoryAssets).values({
-            displayId: `#EST-${String(nextNum).padStart(4, '0')}`,
+            displayId: `${asset.displayId}-L${ultimoLote}`,
             name: asset.name,
             condition: sp.condition,
             trackingStatus: spStatus,
             quantity: sp.qty,
             notes: sp.notes ?? null,
-            location: asset.location,
+            location: localDoLote(sp),
             franchiseTags: asset.franchiseTags,
             sponsorIds: asset.sponsorIds,
             approvalThumbUrl: asset.approvalThumbUrl,
@@ -280,7 +311,7 @@ export function registerInventoryRoutes(app: Express): void {
   });
 
   // Manual trigger: mark event assets EM_USO
-  app.post("/api/events/:id/dispatch-inventory", requireInventoryWrite, async (req, res) => {
+  app.post("/api/events/:id/dispatch-inventory", requireInventoryAdmin, async (req, res) => {
     try {
       const event = await storage.getEvent(req.params.id);
       if (!event) return res.status(404).json({ error: "Evento não encontrado" });
@@ -293,7 +324,7 @@ export function registerInventoryRoutes(app: Express): void {
   });
 
   // Manual trigger: mark event assets AGUARDANDO_TRIAGEM
-  app.post("/api/events/:id/return-inventory", requireInventoryWrite, async (req, res) => {
+  app.post("/api/events/:id/return-inventory", requireInventoryAdmin, async (req, res) => {
     try {
       const count = await storage.markAssetsAwaitingTriageForEvent(req.params.id);
       if (count > 0) {
@@ -322,7 +353,7 @@ export function registerInventoryRoutes(app: Express): void {
     }
   });
 
-  app.post("/api/events/:id/allocations", requireInventoryWrite, async (req, res) => {
+  app.post("/api/events/:id/allocations", requireInventoryAdmin, async (req, res) => {
     try {
       const { assetId } = req.body;
       if (!assetId || typeof assetId !== "string") return res.status(400).json({ error: "assetId é obrigatório" });
@@ -334,7 +365,7 @@ export function registerInventoryRoutes(app: Express): void {
     }
   });
 
-  app.delete("/api/allocations/:id", requireInventoryWrite, async (req, res) => {
+  app.delete("/api/allocations/:id", requireInventoryAdmin, async (req, res) => {
     try {
       const success = await storage.deallocateAsset(req.params.id);
       if (!success) return res.status(404).json({ error: "Alocação não encontrada" });

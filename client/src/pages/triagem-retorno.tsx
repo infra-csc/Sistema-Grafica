@@ -7,9 +7,11 @@ import { useToast } from "@/hooks/use-toast";
 import {
   ScanSearch, CheckCircle2, Package, Save,
   CalendarDays, X, Scissors, Sparkles, Trash2, Eye, Wrench,
-  ClipboardCheck, Users, Search,
+  ClipboardCheck, Users, Search, MapPin, Grid3X3, BookmarkCheck,
 } from "lucide-react";
 import { TriagemModal } from "@/components/triagem-modal";
+import { MapaGalpao, LOCAIS_DO_GALPAO } from "@/components/mapa-galpao";
+import { diaEMes } from "@shared/estoque";
 import { SponsorChips } from "@/components/sponsor-chips";
 import { useAuth } from "@/contexts/auth-context";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -26,7 +28,11 @@ const RESULT_META: Record<TriagemResult, { label: string; color: string; bg: str
 };
 
 interface SplitLine { qty: number; condition: Condition | null; result: TriagemResult; }
-interface TriagemEntry { splits: SplitLine[]; notes: string; selected: boolean; mode: "all" | "split"; }
+interface TriagemEntry { splits: SplitLine[]; notes: string; selected: boolean; mode: "all" | "split"; location: string; }
+
+/** Reserva vigente (GET /api/estoque/reservas-ativas) — a peça que tem
+ *  destino marcado vai para o topo da fila, com a data de saída. */
+type ReservaAtiva = { reservaId: string; assetId: string; itemDisplayId: string | null; eventName: string; saida: string | null };
 
 function makeSplits(totalQty: number): SplitLine[] {
   return [{ qty: totalQty, condition: "PERFEITO", result: "NO_GALPAO" }];
@@ -47,7 +53,7 @@ function ThumbCell({ url, size = 15 }: { url?: string | null; size?: number }) {
 }
 
 function makeEntry(totalQty: number): TriagemEntry {
-  return { splits: makeSplits(totalQty), notes: "", selected: false, mode: "all" };
+  return { splits: makeSplits(totalQty), notes: "", selected: false, mode: "all", location: "" };
 }
 
 // ─── Stat card (matches estoque layout) ───────────────────────────────────────
@@ -127,7 +133,7 @@ function ResultToggles({ result, onResult, disabled, grayscale }: {
         return (
           <button key={val} onClick={() => !disabled && onResult(val)}
             aria-pressed={active} disabled={disabled}
-            title={val === "MANUTENCAO" ? "Volta ao galpão como Avaria Leve para reparo" : undefined}
+            title={val === "MANUTENCAO" ? "Fica fora do estoque até o reparo terminar" : undefined}
             style={{
               display: "inline-flex", alignItems: "center", gap: 4,
               padding: "5px 10px", borderRadius: 6, border: "none",
@@ -240,11 +246,16 @@ export default function TriagemRetorno() {
   const [search, setSearch] = useState("");
   const [focusedId, setFocusedId] = useState<string | null>(null);
   const [selectedAsset, setSelectedAsset] = useState<EnrichedAsset | null>(null);
+  // Linha cujo mapa do galpão está aberto.
+  const [mapaPara, setMapaPara] = useState<string | null>(null);
+  const [localDoLote, setLocalDoLote] = useState("");
 
   const { data: awaitingAssets = [], isLoading, isError, refetch } = useQuery<EnrichedAsset[]>({
     queryKey: ["/api/inventory/awaiting-triage"],
   });
   const { data: allItems = [] } = useQuery<any[]>({ queryKey: ["/api/items"] });
+  const { data: reservasAtivas = [] } = useQuery<ReservaAtiva[]>({ queryKey: ["/api/estoque/reservas-ativas"] });
+  const reservaPorAtivo = useMemo(() => new Map(reservasAtivas.map(r => [r.assetId, r])), [reservasAtivas]);
 
   const locationOptions = useMemo(() => {
     const seen = new Set<string>();
@@ -353,21 +364,29 @@ export default function TriagemRetorno() {
     entry.splits.reduce((s, l) => s + l.qty, 0) === totalQty &&
     entry.splits.every(l => l.condition !== null);
 
-  // MANUTENCAO é um conceito de UI — no banco mapeia para NO_GALPAO (condição AVARIA_LEVE indica a necessidade de reparo)
-  const toDbStatus = (r: TriagemResult): string => r === "DESCARTADO" ? "DESCARTADO" : "NO_GALPAO";
+  // MANUTENCAO grava EM_MANUTENCAO (14/09): a peça sai do estoque disponível
+  // até o reparo terminar. Antes gravava NO_GALPAO e seguia oferecida.
+  const toDbStatus = (r: TriagemResult): string =>
+    r === "DESCARTADO" ? "DESCARTADO" : r === "MANUTENCAO" ? "EM_MANUTENCAO" : "NO_GALPAO";
+
+  // Local digitado nesta tela, ou o que a peça já tinha.
+  const localDe = (asset: EnrichedAsset): string =>
+    (entries[asset.id]?.location ?? "").trim() || asset.location || "";
+  const precisaDeLocal = (entry: TriagemEntry) => entry.splits.some(s => s.result === "NO_GALPAO");
 
   // Destino MANUTENCAO persiste a condição como AVARIA_LEVE — cumpre a
   // microcopy "Volta ao galpão como Avaria Leve para reparo" do toggle.
   const toDbCondition = (s: SplitLine): Condition | null =>
     s.result === "MANUTENCAO" ? "AVARIA_LEVE" : s.condition;
 
-  const doTriage = async (assetId: string, totalQty: number) => {
+  const doTriage = async (assetId: string, totalQty: number, local: string) => {
     const entry = getEntry(assetId, totalQty);
     if (entry.splits.length === 1) {
       await apiRequest("PATCH", `/api/inventory/${assetId}/triage`, {
         condition: toDbCondition(entry.splits[0]),
         notes: entry.notes,
         trackingStatus: toDbStatus(entry.splits[0].result),
+        location: local || null,
       });
     } else {
       await apiRequest("POST", `/api/inventory/${assetId}/triage-split`, {
@@ -376,6 +395,7 @@ export default function TriagemRetorno() {
           trackingStatus: toDbStatus(s.result),
           notes: entry.notes,
         })),
+        location: local || null,
       });
     }
     queryClient.invalidateQueries({ queryKey: ["/api/inventory"] });
@@ -393,10 +413,14 @@ export default function TriagemRetorno() {
       toast({ title: `A soma das quantidades deve ser ${totalQty}.`, variant: "destructive" });
       return;
     }
+    if (precisaDeLocal(entry) && !localDe(asset)) {
+      toast({ title: "Informe o local no galpão.", description: "Sem o local, ninguém encontra a peça para reaproveitar.", variant: "destructive" });
+      return;
+    }
     if (savedIds.has(asset.id)) return;
     setSavingIds(prev => new Set(Array.from(prev).concat(asset.id)));
     try {
-      await doTriage(asset.id, totalQty);
+      await doTriage(asset.id, totalQty, localDe(asset));
       setSavedIds(prev => new Set(Array.from(prev).concat(asset.id)));
       toast({ title: entry.splits.length > 1 ? `Triagem registrada em ${entry.splits.length} lotes.` : "Triagem registrada." });
     } catch {
@@ -418,8 +442,18 @@ export default function TriagemRetorno() {
       const mloc = filterLocation.length === 0 || filterLocation.includes(a.location ?? "");
       const msearch = !q || (a.name ?? "").toLowerCase().includes(q) || (a.displayId ?? "").toLowerCase().includes(q) || (a.location ?? "").toLowerCase().includes(q);
       return me && msp && mloc && msearch;
-    });
-  }, [awaitingAssets, savedIds, filterEvent, filterSponsor, filterLocation, search]);
+    })
+      // Reservadas primeiro, pela saída do caminhão mais próxima: é a peça
+      // que tem hora para estar triada e guardada.
+      .map((a, i) => ({ a, i, r: reservaPorAtivo.get(a.id) }))
+      .sort((x, y) => {
+        if (!!x.r !== !!y.r) return x.r ? -1 : 1;
+        const sx = x.r?.saida ? new Date(x.r.saida).getTime() : Infinity;
+        const sy = y.r?.saida ? new Date(y.r.saida).getTime() : Infinity;
+        return sx - sy || x.i - y.i;
+      })
+      .map(({ a }) => a);
+  }, [awaitingAssets, savedIds, filterEvent, filterSponsor, filterLocation, search, reservaPorAtivo]);
 
   // Filtros facetados: cada filtro lista só o que existe na triagem, aplicando
   // os OUTROS filtros ativos, com contagem por opção.
@@ -458,8 +492,36 @@ export default function TriagemRetorno() {
   // filtro não conta (nem no lote, nem no contador, nem nos presets).
   const selectedIds = pendingAssets.filter(a => entries[a.id]?.selected).map(a => a.id);
 
+  // Mesmo local para todas as selecionadas — a pilha que volta do caminhão
+  // costuma ir inteira para o mesmo corredor.
+  const applyBulkLocation = (local: string) => {
+    if (!local) return;
+    setEntries(prev => {
+      const next = { ...prev };
+      selectedIds.forEach(id => {
+        const a = awaitingAssets.find(x => x.id === id);
+        const e = next[id] ?? makeEntry(a?.quantity ?? 1);
+        next[id] = { ...e, location: local };
+      });
+      return next;
+    });
+    toast({ title: `Local aplicado a ${selectedIds.length} ${selectedIds.length === 1 ? "peça" : "peças"}.` });
+  };
+
   const handleBulk = async () => {
     if (selectedIds.length === 0 || savingIds.size > 0) return;
+    const semLocal = selectedIds.filter(id => {
+      const a = awaitingAssets.find(x => x.id === id);
+      return !!a && precisaDeLocal(getEntry(id, a.quantity ?? 1)) && !localDe(a);
+    });
+    if (semLocal.length > 0) {
+      toast({
+        title: `${semLocal.length} ${semLocal.length === 1 ? "peça está" : "peças estão"} sem local no galpão.`,
+        description: "Preencha o local na linha ou use “Local para as selecionadas”.",
+        variant: "destructive",
+      });
+      return;
+    }
     setSavingIds(new Set(selectedIds));
     const results = await Promise.allSettled(
       selectedIds.map(id => {
@@ -470,7 +532,7 @@ export default function TriagemRetorno() {
           // doTriage com qty=1 silencioso).
           return Promise.reject(new Error(`Ativo ${id} não está mais na fila de triagem.`));
         }
-        return doTriage(id, asset.quantity ?? 1);
+        return doTriage(id, asset.quantity ?? 1, localDe(asset));
       })
     );
     // Só marca como salvo (some da fila) o que realmente foi registrado. Os que
@@ -714,7 +776,7 @@ export default function TriagemRetorno() {
                     { label: "Evento", align: "left" },
                     { label: "Patrocinadores", align: "left" },
                     { label: "Condição · Destino", align: "left" },
-                    { label: "Observação", align: "left" },
+                    { label: "Local · Observação", align: "left" },
                     { label: "Ação", align: "right" },
                   ].map(h => (
                     <th key={h.label} style={{ ...TH, textAlign: h.align as "left" | "right" }}>
@@ -807,6 +869,17 @@ export default function TriagemRetorno() {
                                 fontSize: 10, fontWeight: 800, fontFamily: "DM Mono, monospace",
                               }}>×{qty}</span>
                             </div>
+                            {(() => {
+                              const reserva = reservaPorAtivo.get(asset.id);
+                              if (!reserva) return null;
+                              return (
+                                <span data-testid={`chip-reservada-${asset.id}`}
+                                  title={`Reservada para ${reserva.itemDisplayId ?? "uma peça"} do evento ${reserva.eventName}`}
+                                  style={{ display: "inline-flex", alignItems: "center", gap: 4, marginTop: 4, padding: "2px 7px", borderRadius: 6, background: "#eff6ff", color: "#1d4ed8", fontSize: 10, fontWeight: 800, fontFamily: "Space Grotesk, sans-serif" }}>
+                                  <BookmarkCheck size={10} /> Reservada · {reserva.eventName}{reserva.saida ? ` · saída ${diaEMes(reserva.saida)}` : ""}
+                                </span>
+                              );
+                            })()}
                           </div>
                         </div>
                       </td>
@@ -955,9 +1028,47 @@ export default function TriagemRetorno() {
                         )}
                       </td>
 
-                      {/* Observação */}
-                      <td style={{ padding: "12px 14px", verticalAlign: "middle", minWidth: 150 }}>
-                        {isSaved ? null : (
+                      {/* Local · Observação — o local é obrigatório para voltar
+                          ao galpão (dono, 14/09). */}
+                      <td style={{ padding: "12px 14px", verticalAlign: "middle", minWidth: 200 }}>
+                        {isSaved ? (
+                          localDe(asset) ? (
+                            <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, color: "#475569", fontWeight: 600 }}>
+                              <MapPin size={11} /> {localDe(asset)}
+                            </span>
+                          ) : null
+                        ) : (
+                          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                          {!entry.splits.every(s => s.result === "DESCARTADO") && (() => {
+                            const obrigatorio = precisaDeLocal(entry);
+                            const faltando = obrigatorio && !localDe(asset);
+                            return (
+                              <div style={{ display: "flex", gap: 4 }}>
+                                <input data-testid={`input-location-${asset.id}`}
+                                  type="text" list="locais-do-galpao"
+                                  aria-label={`Local no galpão de ${asset.name}`}
+                                  placeholder={obrigatorio ? "Local no galpão *" : "Local (opcional)"}
+                                  value={entry.location || asset.location || ""}
+                                  onChange={e => updateEntry(asset.id, { location: e.target.value }, qty)}
+                                  onClick={e => e.stopPropagation()}
+                                  onFocus={() => setFocusedId(asset.id)}
+                                  style={{
+                                    padding: "6px 10px", borderRadius: 6,
+                                    border: `1px solid ${faltando ? "#fca5a5" : "#e2e8f0"}`,
+                                    fontSize: 11, fontFamily: "Plus Jakarta Sans, sans-serif",
+                                    background: faltando ? "#fff7f7" : "#f8fafc", color: "#0f172a", outline: "none",
+                                    width: "100%", boxSizing: "border-box",
+                                  }}
+                                />
+                                <button type="button" title="Abrir mapa do galpão" aria-label="Abrir mapa do galpão"
+                                  data-testid={`button-mapa-${asset.id}`}
+                                  onClick={e => { e.stopPropagation(); setMapaPara(asset.id); }}
+                                  style={{ width: 30, flexShrink: 0, borderRadius: 6, border: "1px solid #e2e8f0", background: "#f8fafc", color: "#c2610c", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                                  <Grid3X3 size={13} />
+                                </button>
+                              </div>
+                            );
+                          })()}
                           <input data-testid={`input-notes-${asset.id}`}
                             type="text" placeholder="Adicionar nota..."
                             value={entry.notes}
@@ -972,6 +1083,7 @@ export default function TriagemRetorno() {
                               width: "100%", boxSizing: "border-box",
                             }}
                           />
+                          </div>
                         )}
                       </td>
 
@@ -1072,6 +1184,21 @@ export default function TriagemRetorno() {
                 <div style={{ width: 1, height: 24, background: "rgba(255,255,255,0.12)" }} />
               </>
             )}
+            {/* Local para as selecionadas */}
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <input data-testid="input-bulk-location" list="locais-do-galpao"
+                aria-label="Local no galpão para as peças selecionadas"
+                placeholder="Local para as selecionadas"
+                value={localDoLote}
+                onChange={e => setLocalDoLote(e.target.value)}
+                onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); applyBulkLocation(localDoLote.trim()); } }}
+                style={{ height: 30, width: isMobile ? 160 : 200, borderRadius: 9999, border: "1px solid rgba(255,255,255,0.18)", background: "rgba(255,255,255,0.08)", color: "#f1f5f9", padding: "0 12px", fontSize: 11, fontFamily: "Plus Jakarta Sans, sans-serif", outline: "none" }}
+              />
+              <button data-testid="button-bulk-apply-location" disabled={!localDoLote.trim()} onClick={() => applyBulkLocation(localDoLote.trim())}
+                style={{ display: "inline-flex", alignItems: "center", gap: 4, height: 30, padding: "0 11px", borderRadius: 9999, border: "1px solid rgba(255,255,255,0.18)", background: "transparent", color: localDoLote.trim() ? "#f1f5f9" : "#64748b", fontSize: 10, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif", cursor: localDoLote.trim() ? "pointer" : "not-allowed", whiteSpace: "nowrap" }}>
+                <MapPin size={11} /> Aplicar
+              </button>
+            </div>
             {/* Actions */}
             <div style={{ display: "flex", gap: 8 }}>
               <button data-testid="button-bulk-confirm" onClick={handleBulk}
@@ -1100,8 +1227,26 @@ export default function TriagemRetorno() {
         onUpdateCondition={(c) => { if (selectedAsset) smartUpdateSplit(selectedAsset.id, 0, c); }}
         onUpdateResult={(r) => { if (selectedAsset) updateSplit(selectedAsset.id, 0, { result: r }); }}
         onUpdateNotes={(notes) => { if (selectedAsset) updateEntry(selectedAsset.id, { notes }, selectedAsset.quantity ?? 1); }}
+        location={selectedAsset ? (entries[selectedAsset.id]?.location || selectedAsset.location || "") : ""}
+        onUpdateLocation={(location) => { if (selectedAsset) updateEntry(selectedAsset.id, { location }, selectedAsset.quantity ?? 1); }}
         onSaveAndClose={async () => { if (selectedAsset) { await handleSingle(selectedAsset); setSelectedAsset(null); } }}
       />
+
+      {/* Sugestões de local: o formato do mapa do galpão. */}
+      <datalist id="locais-do-galpao">
+        {LOCAIS_DO_GALPAO.map(l => <option key={l} value={l} />)}
+      </datalist>
+
+      {mapaPara && (
+        <MapaGalpao
+          value={(entries[mapaPara]?.location ?? "") || (awaitingAssets.find(a => a.id === mapaPara)?.location ?? "")}
+          onSelect={loc => {
+            const a = awaitingAssets.find(x => x.id === mapaPara);
+            updateEntry(mapaPara, { location: loc }, a?.quantity ?? 1);
+          }}
+          onClose={() => setMapaPara(null)}
+        />
+      )}
 
       {/* Iguala o trigger do EventFilterDropdown aos demais filtros (44px de
           altura e largura total) — componente compartilhado, sem prop de estilo. */}

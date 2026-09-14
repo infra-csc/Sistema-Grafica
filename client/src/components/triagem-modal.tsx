@@ -29,6 +29,9 @@ interface TriagemModalProps {
   onUpdateCondition: (c: Condition) => void;
   onUpdateResult: (r: TriagemResult) => void;
   onUpdateNotes: (notes: string) => void;
+  /** Onde a peça foi guardada — obrigatório quando volta ao galpão (14/09). */
+  location: string;
+  onUpdateLocation: (location: string) => void;
   onSaveAndClose: () => Promise<void>;
 }
 
@@ -36,13 +39,13 @@ const RESULT_META: Record<TriagemResult, {
   label: string; subLabel: string; color: string; bg: string; border: string; Icon: React.ElementType;
 }> = {
   NO_GALPAO:  { label: "Galpão Central", subLabel: "Retorna ao estoque",                            color: "#1e40af", bg: "#eff6ff", border: "#93c5fd", Icon: Warehouse },
-  MANUTENCAO: { label: "Manutenção",     subLabel: "Volta ao galpão como Avaria Leve para reparo",  color: "#92400e", bg: "#fffbeb", border: "#fcd34d", Icon: Wrench    },
+  MANUTENCAO: { label: "Manutenção",     subLabel: "Fica fora do estoque até o reparo terminar",    color: "#92400e", bg: "#fffbeb", border: "#fcd34d", Icon: Wrench    },
   DESCARTADO: { label: "Descartar",      subLabel: "Remover do inventário",                         color: "#991b1b", bg: "#fef2f2", border: "#fca5a5", Icon: Trash2    },
 };
 
 export function TriagemModal({
   asset, linkedItem, entry, open, isSaving, isSaved, user,
-  onOpenChange, onUpdateCondition, onUpdateResult, onUpdateNotes, onSaveAndClose,
+  onOpenChange, onUpdateCondition, onUpdateResult, onUpdateNotes, location, onUpdateLocation, onSaveAndClose,
 }: TriagemModalProps) {
   // Hooks SEMPRE antes do guard — chamá-los depois de um return condicional
   // viola as regras de hooks quando asset/entry alternam entre null e valor.
@@ -425,6 +428,35 @@ export function TriagemModal({
                       })}
                     </div>
                   </div>
+
+                  {/* Local — obrigatório para voltar ao galpão (dono, 14/09):
+                      sem ele ninguém encontra a peça para reaproveitar. */}
+                  {result !== "DESCARTADO" && (
+                    <div style={{ gridColumn: "1 / -1" }}>
+                      <label htmlFor="triagem-local" style={{
+                        display: "block", fontFamily: "Space Grotesk, sans-serif",
+                        fontWeight: 700, fontSize: 9, color: result === "NO_GALPAO" && !location.trim() ? "#b91c1c" : "#94a3b8",
+                        textTransform: "uppercase", letterSpacing: "0.14em", marginBottom: 8,
+                      }}>
+                        Local no galpão {result === "NO_GALPAO" ? "· obrigatório" : "· opcional"}
+                      </label>
+                      <input
+                        id="triagem-local"
+                        data-testid="input-triage-modal-location"
+                        list="locais-do-galpao"
+                        value={location}
+                        onChange={e => onUpdateLocation(e.target.value)}
+                        placeholder="Ex: Setor A - Corredor 3"
+                        style={{
+                          width: "100%", boxSizing: "border-box",
+                          padding: "10px 14px", borderRadius: 8,
+                          border: `1.5px solid ${result === "NO_GALPAO" && !location.trim() ? "#fca5a5" : "#e2e8f0"}`,
+                          background: "#f8fafc", fontFamily: "Plus Jakarta Sans, sans-serif", fontSize: 13,
+                          color: "#1e293b", outline: "none",
+                        }}
+                      />
+                    </div>
+                  )}
 
                   {/* Observação */}
                   <div style={{ gridColumn: "1 / -1" }}>

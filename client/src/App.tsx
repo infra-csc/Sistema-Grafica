@@ -215,6 +215,9 @@ const ROLES_VINCULAR = ["arte", "solicitacao", "atendimento", "admin"];
 const ROLES_ATENDIMENTO = ["atendimento", "arte", "admin"];
 const ROLES_SOLICITACAO = ["solicitacao", "admin"];
 const ROLES_GRAFICA = ["grafica", "solicitacao", "admin"];
+// Triagem e local no galpão são da Gráfica (dono, 14/09). O Estoque usa
+// ROLES_GRAFICA: a Solicitação consulta o que tem para reservar.
+const ROLES_TRIAGEM = ["grafica", "admin"];
 const ROLES_PATROCINADORES = ["solicitacao", "atendimento", "admin"];
 // Cotas voltou a ser só do admin (decisão do dono, 17/08).
 const ROLES_COTAS = ["admin"];
@@ -375,10 +378,10 @@ function Router() {
         {() => <RoleProtectedRoute component={ReparoMotivos} allowedRoles={ROLES_ADMIN} />}
       </Route>
       <Route path="/estoque">
-        {() => <RoleProtectedRoute component={Estoque} allowedRoles={ROLES_ADMIN} />}
+        {() => <RoleProtectedRoute component={Estoque} allowedRoles={ROLES_GRAFICA} />}
       </Route>
       <Route path="/triagem-retorno">
-        {() => <RoleProtectedRoute component={TriagemRetorno} allowedRoles={ROLES_ADMIN} />}
+        {() => <RoleProtectedRoute component={TriagemRetorno} allowedRoles={ROLES_TRIAGEM} />}
       </Route>
       <Route path="/configurar-cotas">
         {() => <RoleProtectedRoute component={ConfigurarCotas} allowedRoles={ROLES_COTAS} />}

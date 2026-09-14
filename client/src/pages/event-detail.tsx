@@ -7,7 +7,8 @@ import { PHASES, contarPorFase } from "@/lib/fases";
 import { MARCOS_DO_EVENTO } from "@shared/prazo-dates";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Plus, ArrowLeft, Calendar, Truck, AlertCircle, List, Package, Package2, Pencil, Trash2, Check, Building2, Loader2, User, History, Lock, Unlock, Paperclip, ExternalLink, X, RotateCcw, Recycle, Upload, Copy, ChevronDown, CheckCircle2, AlertTriangle, FileSpreadsheet, FileText, Tags, BookOpen, Search } from "lucide-react";
+import { Plus, ArrowLeft, Calendar, Truck, AlertCircle, List, Package, Package2, Pencil, Trash2, Check, Building2, Loader2, User, History, Lock, Unlock, Paperclip, ExternalLink, X, RotateCcw, Recycle, Upload, Copy, ChevronDown, CheckCircle2, AlertTriangle, FileSpreadsheet, FileText, Tags, BookOpen, Search, Warehouse } from "lucide-react";
+import { EstoqueSemelhantesDialog } from "@/components/estoque-semelhantes-dialog";
 import { Fragment, useState, useEffect, useMemo, useRef } from "react";
 import type { Sponsor, Item, Event as EventRecord } from "@shared/schema";
 import {
@@ -1025,6 +1026,44 @@ export default function EventDetail() {
   // Quem cria a lista (solicitação, admin ou criador do evento) sempre pode
   // editar uma peça, mesmo depois que ela entra em produção/entrega.
   const canEditLists = hasPermission("admin") || user?.role === "solicitacao" || !!(event && user && event.createdBy === user.id);
+
+  // BUSCAR NO ESTOQUE (dono, 14/09): cada peça mostra quantas iguais — mesmo
+  // tipo e medida — o estoque tem, e abre a busca. Reservar é da Solicitação
+  // e do admin (a mesma régua do servidor); o selo é de quem edita a lista.
+  const podeReservarEstoque = hasPermission("admin") || user?.role === "solicitacao";
+  const { data: estoqueResumo = {} } = useQuery<Record<string, { disponiveis: number; chegamATempo: number; faltaTriagem: number; reservadas: number }>>({
+    queryKey: [`/api/events/${eventId}/estoque-resumo`],
+    enabled: !!eventId && canEditLists,
+  });
+  const [estoqueDaPeca, setEstoqueDaPeca] = useState<{ id: string; eventId: string } | null>(null);
+  const seloDoEstoque = (item: any) => {
+    const est = estoqueResumo[item.id];
+    if (!est) return null;
+    const achadas = est.disponiveis + est.chegamATempo + est.faltaTriagem;
+    const tom = est.reservadas > 0
+      ? { fundo: "#ecfdf5", borda: "#a7f3d0", cor: "#065f46" }
+      : est.disponiveis > 0
+        ? { fundo: "#1c1917", borda: "#1c1917", cor: "#ffffff" }
+        : { fundo: "#eff6ff", borda: "#bfdbfe", cor: "#1d4ed8" };
+    const detalhe = [
+      est.disponiveis ? `${est.disponiveis} livre(s) no galpão` : null,
+      est.chegamATempo ? `${est.chegamATempo} em uso que volta(m) a tempo` : null,
+      est.faltaTriagem ? `${est.faltaTriagem} esperando triagem` : null,
+      est.reservadas ? `${est.reservadas} já reservada(s) para esta peça` : null,
+    ].filter(Boolean).join(" · ");
+    return (
+      <button
+        type="button"
+        data-testid={`badge-estoque-${item.id}`}
+        onClick={e => { e.stopPropagation(); setEstoqueDaPeca({ id: item.id, eventId: item.eventId }); }}
+        title={`Buscar no estoque — ${detalhe}`}
+        style={{ display: "inline-flex", alignItems: "center", gap: 4, backgroundColor: tom.fundo, border: `1px solid ${tom.borda}`, color: tom.cor, borderRadius: 6, padding: "2px 7px", fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4, marginRight: 4, cursor: "pointer" }}
+      >
+        <Warehouse style={{ width: 10, height: 10 }} />
+        {est.reservadas > 0 ? `Estoque: ${est.reservadas}/${item.quantity} reserv.` : `No estoque: ${achadas}`}
+      </button>
+    );
+  };
   // Mexer na QUANTIDADE de peça já produzida (complemento e redução até o piso)
   // é mais restrito que editar a lista: só solicitacao e admin, espelhando
   // podeMudarQuantidade em server/routes/items.ts. Quem criou o evento com
@@ -2851,6 +2890,9 @@ export default function EventDetail() {
                             {item.visualWidth && item.visualHeight && <span>{item.visualWidth}×{item.visualHeight}m</span>}
                             {item.material && <span>{item.material}</span>}
                           </div>
+                          {estoqueResumo[item.id] && (
+                            <div style={{ marginTop: 6 }}>{seloDoEstoque(item)}</div>
+                          )}
                           {canEditLists && (
                             <div style={{ display: 'flex', gap: 6, marginTop: 8 }} onClick={e => e.stopPropagation()}>
                               {/* handleEditItem (não setEditingItem cru): hidrata o
@@ -3051,6 +3093,7 @@ export default function EventDetail() {
                                 <Recycle style={{ width: 9, height: 9 }} /> Reaproveit.
                               </div>
                             )}
+                            {seloDoEstoque(item)}
                             {item.description ? (
                               <div style={{ fontWeight: '500', color: '#1a1c1c', fontSize: '13px' }}>{item.description}</div>
                             ) : (
@@ -3572,6 +3615,12 @@ export default function EventDetail() {
         setCloneSourceId={setCloneSourceId}
         isCloning={cloneItemsMutation.isPending}
         onConfirmClone={(itemIds) => { if (cloneSourceId) cloneItemsMutation.mutate({ sourceEventId: cloneSourceId, itemIds }); }}
+      />
+      {/* ── Dialog: Buscar no estoque ──────────────────────────────────────── */}
+      <EstoqueSemelhantesDialog
+        item={estoqueDaPeca}
+        podeReservar={podeReservarEstoque}
+        onClose={() => setEstoqueDaPeca(null)}
       />
 
     </div>

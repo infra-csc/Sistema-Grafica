@@ -9,11 +9,13 @@ import type { InventoryAsset, Sponsor, Event } from "@shared/schema";
 import {
   Archive, Search, Pencil, Trash2, CheckCircle2,
   XCircle, MapPin, Tag, X, Package, Warehouse, Truck, ScanSearch, Calendar, CalendarDays,
-  Grid3X3, Eye, Check, Layers, ClipboardCheck,
+  Grid3X3, Eye, Check, Layers, ClipboardCheck, Wrench, BookmarkCheck,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useAuth } from "@/contexts/auth-context";
+import { diaEMes, eventoJaAcabou } from "@shared/estoque";
 import { miniatura } from "@/lib/miniatura";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import {
@@ -22,6 +24,7 @@ import {
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { HIDE_NATIVE_CLOSE, FreezeWhileClosing } from "@/components/modal-shell";
 import { CONDITIONS, CONDITION_META, conditionMeta, type Condition } from "@/lib/inventory-meta";
+import { MapaGalpao } from "@/components/mapa-galpao";
 
 // ─── Status meta ─────────────────────────────────────────────────────────────
 // Tons 700/800 (#15803d, #9a3412): os 600 reprovavam contraste AA no texto
@@ -30,13 +33,19 @@ const STATUS_META: Record<string, { label: string; color: string; bg: string }> 
   NO_GALPAO:          { label: "No Galpão",   color: "#15803d", bg: "rgba(22,163,74,0.10)"  },
   EM_USO:             { label: "Em Uso",       color: "#9a3412", bg: "rgba(234,88,12,0.10)"  },
   AGUARDANDO_TRIAGEM: { label: "Ag. Triagem",  color: "#b45309", bg: "rgba(180,83,9,0.10)"   },
+  EM_MANUTENCAO:      { label: "Manutenção",   color: "#92400e", bg: "rgba(146,64,14,0.10)"  },
   DESCARTADO:         { label: "Descartado",   color: "#6b7280", bg: "rgba(107,114,128,0.10)"},
 };
-const ALL_STATUSES = ["NO_GALPAO", "EM_USO", "AGUARDANDO_TRIAGEM", "DESCARTADO"] as const;
+const ALL_STATUSES = ["NO_GALPAO", "EM_USO", "AGUARDANDO_TRIAGEM", "EM_MANUTENCAO", "DESCARTADO"] as const;
 type TrackingStatus = typeof ALL_STATUSES[number];
 // Status que o usuário pode definir manualmente. EM_USO e AGUARDANDO_TRIAGEM
 // são definidos pelo ciclo do evento (despacho/retorno) — nunca à mão.
-const MANUAL_STATUSES: TrackingStatus[] = ["NO_GALPAO", "DESCARTADO"];
+// EM_MANUTENCAO (14/09) é manual: terminado o reparo, a Gráfica devolve a
+// peça ao galpão por aqui.
+const MANUAL_STATUSES: TrackingStatus[] = ["NO_GALPAO", "EM_MANUTENCAO", "DESCARTADO"];
+
+/** Reserva vigente (GET /api/estoque/reservas-ativas). */
+type ReservaAtiva = { reservaId: string; assetId: string; itemDisplayId: string | null; eventName: string; saida: string | null };
 
 // ─── Stat card with watermark icon ───────────────────────────────────────────
 function StatCard({ label, value, Icon, color, subtext, subColor, onClick, active }: {
@@ -570,106 +579,6 @@ function AssetDetailModal({ asset, linkedItem, sponsors, onClose }: {
   );
 }
 
-// ─── Mapa do Galpão ───────────────────────────────────────────────────────────
-const SETORES = ["A", "B", "C", "D", "E", "F"];
-const CORREDORES = [1, 2, 3, 4, 5, 6, 7, 8];
-function MapaGalpao({ value, onSelect, onClose }: {
-  value: string; onSelect: (loc: string) => void; onClose: () => void;
-}) {
-  const [hov, setHov] = useState<string | null>(null);
-  return (
-    <Dialog open onOpenChange={open => { if (!open) onClose(); }}>
-      <DialogContent
-        className={`p-0 gap-0 border-0 ${HIDE_NATIVE_CLOSE}`}
-        style={{
-          // ALTURA: o mapa é fixo em 6 setores × 8 corredores — 6 linhas de 40px
-          // com 4 de respiro, mais cabeçalho, rodapé e a tarja da seleção. Medi
-          // 495px, e como aqui só havia `display: block` sem teto de altura, o
-          // Radix (que centra com `top: 50%` + translate) cortava 25px EM CIMA e
-          // 25 EMBAIXO numa janela de 445 — sumiam o título e o botão Confirmar
-          // ao mesmo tempo, com o `overflow: hidden` impedindo qualquer rolagem.
-          //
-          // A CONTA é `100vh − 48`: viewport menos 24px de respiro em cima e 24
-          // embaixo (simétrico, porque o modal é centrado). Cabeçalho e rodapé
-          // não rolam, então o navegador os mede sozinho e o corpo fica com o
-          // que sobrar via `flex: 1 1 auto; minHeight: 0`. Mesma regra do
-          // `modal-shell` e do modal da Gestão de Prazos.
-          display: "flex", flexDirection: "column", maxHeight: "calc(100vh - 48px)",
-          padding: 0, overflow: "hidden", borderRadius: 20,
-          width: "min(480px, calc(100vw - 32px))", maxWidth: "min(480px, calc(100vw - 32px))",
-          boxShadow: "0 25px 60px rgba(0,0,0,0.2)",
-        }}
-      >
-        <div style={{ padding: "16px 20px", borderBottom: "1px solid #f1f5f9", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <Grid3X3 size={18} color="#f97316" />
-            <div>
-              <DialogTitle asChild>
-                <p style={{ margin: 0, fontSize: 14, fontWeight: 800, fontFamily: "Space Grotesk, sans-serif", color: "#0f172a" }}>Mapa do Galpão</p>
-              </DialogTitle>
-              <DialogDescription asChild>
-                <p style={{ margin: 0, fontSize: 10, color: "#94a3b8", fontFamily: "Plus Jakarta Sans, sans-serif" }}>Clique para selecionar e confirme a localização</p>
-              </DialogDescription>
-            </div>
-          </div>
-          <button onClick={onClose} style={{ background: "#f1f5f9", border: "none", width: 30, height: 30, borderRadius: 8, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#64748b" }}>
-            <X size={14} />
-          </button>
-        </div>
-        {/* O mapa é o único scrollport: em telas baixas ele rola e o botão
-            Confirmar continua no lugar. */}
-        <div style={{ padding: 20, overflowY: "auto", flex: "1 1 auto", minHeight: 0 }}>
-          {/* Column headers */}
-          <div style={{ display: "grid", gridTemplateColumns: "28px repeat(8, 1fr)", gap: 4, marginBottom: 4 }}>
-            <div />
-            {CORREDORES.map(c => (
-              <div key={c} style={{ textAlign: "center", fontSize: 9, fontWeight: 700, color: "#94a3b8", fontFamily: "DM Mono, monospace" }}>C{c}</div>
-            ))}
-          </div>
-          {/* Grid */}
-          {SETORES.map(s => (
-            <div key={s} style={{ display: "grid", gridTemplateColumns: "28px repeat(8, 1fr)", gap: 4, marginBottom: 4 }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 800, color: "#64748b", fontFamily: "DM Mono, monospace" }}>{s}</div>
-              {CORREDORES.map(c => {
-                const loc = `Setor ${s} - Corredor ${c}`;
-                const isSelected = value === loc;
-                const isHov = hov === loc;
-                return (
-                  <button key={c} onClick={() => onSelect(loc)}
-                    onMouseEnter={() => setHov(loc)} onMouseLeave={() => setHov(null)}
-                    style={{
-                      height: 40, borderRadius: 8, border: "none",
-                      background: isSelected ? "#f97316" : isHov ? "#fff7ed" : "#f8fafc",
-                      color: isSelected ? "#fff" : isHov ? "#f97316" : "#64748b",
-                      fontSize: 9, fontWeight: 700, cursor: "pointer",
-                      fontFamily: "DM Mono, monospace",
-                      transition: "all 0.12s",
-                      outline: isSelected ? "2px solid rgba(249,115,22,0.4)" : "none",
-                      outlineOffset: 2,
-                    }}>
-                    {s}{c}
-                  </button>
-                );
-              })}
-            </div>
-          ))}
-          {value && (
-            <div style={{ marginTop: 12, padding: "8px 14px", borderRadius: 10, background: "#fff7ed", border: "1px solid #fed7aa", display: "flex", alignItems: "center", gap: 8 }}>
-              <MapPin size={13} color="#ea580c" />
-              <span style={{ fontSize: 12, fontWeight: 700, color: "#ea580c", fontFamily: "Space Grotesk, sans-serif" }}>{value}</span>
-            </div>
-          )}
-        </div>
-        <div style={{ padding: "12px 20px", borderTop: "1px solid #f1f5f9", display: "flex", justifyContent: "flex-end", flexShrink: 0 }}>
-          <button onClick={onClose} style={{ padding: "9px 20px", borderRadius: 10, border: "none", background: "#f97316", color: "#fff", fontSize: 13, cursor: "pointer", fontFamily: "Space Grotesk, sans-serif", fontWeight: 700 }}>
-            Confirmar
-          </button>
-        </div>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
 // ─── Asset Modal ──────────────────────────────────────────────────────────────
 function AssetModal({ asset, onClose, onSaved }: {
   asset: InventoryAsset | null; onClose: () => void; onSaved: () => void;
@@ -912,6 +821,14 @@ export default function Estoque() {
   const [quickEdit, setQuickEdit] = useState<{ assetId: string; field: "condition" } | null>(null);
   const [viewingAsset, setViewingAsset] = useState<InventoryAsset | null>(null);
 
+  // Quem mexe no acervo (dono, 14/09): Gráfica e admin editam; excluir segue
+  // só do admin; a Solicitação consulta o que tem para reservar.
+  const { user } = useAuth();
+  const podeEditar = user?.role === "grafica" || user?.role === "admin";
+  const podeExcluir = user?.role === "admin";
+  const { data: reservasAtivas = [] } = useQuery<ReservaAtiva[]>({ queryKey: ["/api/estoque/reservas-ativas"] });
+  const reservaPorAtivo = useMemo(() => new Map(reservasAtivas.map(r => [r.assetId, r])), [reservasAtivas]);
+
   const { data: assets = [], isLoading, isError, refetch } = useQuery<InventoryAsset[]>({ queryKey: ["/api/inventory"] });
   const { data: sponsors = [] } = useQuery<Sponsor[]>({ queryKey: ["/api/sponsors"] });
   const { data: allItems = [] } = useQuery<any[]>({ queryKey: ["/api/items"] });
@@ -926,13 +843,13 @@ export default function Estoque() {
   const assetEventMap = useMemo(() => {
     const itemMap = Object.fromEntries(allItems.map(i => [i.id, i]));
     const eventMap = Object.fromEntries(allEvents.map(e => [e.id, e]));
-    const map: Record<string, { id: string; name: string }> = {};
+    const map: Record<string, { id: string; name: string; startDate: Date | string | null }> = {};
     for (const asset of assets) {
       if (!asset.originalItemId) continue;
       const item = itemMap[asset.originalItemId];
       if (!item) continue;
       const event = eventMap[item.eventId];
-      if (event) map[asset.id] = { id: event.id, name: event.name };
+      if (event) map[asset.id] = { id: event.id, name: event.name, startDate: event.startDate ?? null };
     }
     return map;
   }, [assets, allItems, allEvents]);
@@ -1060,7 +977,7 @@ export default function Estoque() {
             </p>
           </div>
         </div>
-        <button data-testid="button-new-asset" onClick={() => setEditing(null)} style={{
+        {podeEditar && <button data-testid="button-new-asset" onClick={() => setEditing(null)} style={{
           display: "flex", alignItems: "center", gap: 6,
           padding: "12px 24px", borderRadius: 12, border: "none",
           background: "#c2610c", color: "#fff", fontSize: 13, cursor: "pointer",
@@ -1069,7 +986,7 @@ export default function Estoque() {
         }}>
           <span style={{ fontSize: 15, fontWeight: 900 }}>+</span>
           NOVO ATIVO
-        </button>
+        </button>}
       </div>
 
       {/* ── Stat cards ── */}
@@ -1078,7 +995,7 @@ export default function Estoque() {
           Em 375px cada coluna vale ~103px, e "Disponivel no deposito" nao cabe
           — as tres trilhas estouravam e a PAGINA inteira ganhava rolagem
           lateral. Com o minimo em 0 o texto quebra e a grade fica na largura. */}
-      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(3, minmax(0, 1fr))" : "repeat(5, minmax(0, 1fr))", gap: 16, marginBottom: 28 }}>
+      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(3, minmax(0, 1fr))" : "repeat(6, minmax(0, 1fr))", gap: 16, marginBottom: 28 }}>
         <StatCard
           label="Total Acervo" value={total} Icon={Package} color="#2563eb"
           subtext="Ativos cadastrados"
@@ -1103,6 +1020,12 @@ export default function Estoque() {
           subtext="Frota ativa"
           active={filterStatus.length === 1 && filterStatus[0] === "EM_USO"}
           onClick={() => setFilterStatus(filterStatus.length === 1 && filterStatus[0] === "EM_USO" ? [] : ["EM_USO"])}
+        />
+        <StatCard
+          label="Manutenção" value={byStatus("EM_MANUTENCAO")} Icon={Wrench} color="#92400e"
+          subtext="Fora do estoque até o reparo"
+          active={filterStatus.length === 1 && filterStatus[0] === "EM_MANUTENCAO"}
+          onClick={() => setFilterStatus(filterStatus.length === 1 && filterStatus[0] === "EM_MANUTENCAO" ? [] : ["EM_MANUTENCAO"])}
         />
         <StatCard
           label="Ag. Triagem" value={triageCount} Icon={ScanSearch} color="#b45309"
@@ -1410,6 +1333,8 @@ export default function Estoque() {
                         >
                           <PopoverTrigger asChild>
                             <button data-testid={`button-quick-condition-${asset.id}`}
+                              disabled={!podeEditar}
+                              title={podeEditar ? undefined : "Mudar a condição é da Gráfica e do admin"}
                               style={{
                                 padding: "3px 10px", borderRadius: 9999, border: "none",
                                 background: cm.bg, color: cm.color,
@@ -1450,6 +1375,31 @@ export default function Estoque() {
                             {sm.label}
                           </span>
                         </div>
+                        {/* "No galpão" não quer dizer livre (14/09): a peça pode
+                            estar reservada para outro evento, ou ter sido
+                            impressa para um evento que ainda não aconteceu. */}
+                        {(() => {
+                          const reserva = reservaPorAtivo.get(asset.id);
+                          const chip: React.CSSProperties = { display: "inline-flex", alignItems: "center", gap: 4, marginTop: 5, padding: "2px 7px", borderRadius: 6, fontSize: 10, fontWeight: 800, fontFamily: "Space Grotesk, sans-serif", whiteSpace: "nowrap", maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis" };
+                          if (reserva) {
+                            return (
+                              <div data-testid={`chip-reservada-${asset.id}`} title={`Reservada para ${reserva.itemDisplayId ?? "uma peça"} de ${reserva.eventName}`}
+                                style={{ ...chip, background: "#eff6ff", color: "#1d4ed8" }}>
+                                <BookmarkCheck size={10} /> Reservada · {reserva.eventName}{reserva.saida ? ` · saída ${diaEMes(reserva.saida)}` : ""}
+                              </div>
+                            );
+                          }
+                          const origem = assetEventMap[asset.id];
+                          if (asset.trackingStatus === "NO_GALPAO" && origem && !eventoJaAcabou(origem.startDate, new Date())) {
+                            return (
+                              <div data-testid={`chip-separada-${asset.id}`} title={`Impressa para ${origem.name}, que ainda não aconteceu`}
+                                style={{ ...chip, background: "#f5f5f4", color: "#57534e" }}>
+                                Separada · evento de origem
+                              </div>
+                            );
+                          }
+                          return null;
+                        })()}
                       </td>
 
                       {/* Actions — opacidade base 0.7 e revelação total por
@@ -1467,25 +1417,25 @@ export default function Estoque() {
                             <Eye size={14} />
                           </button>
 
-                          {/* Edit */}
-                          <button data-testid={`button-edit-asset-${asset.id}`}
+                          {/* Edit — Gráfica e admin */}
+                          {podeEditar && <button data-testid={`button-edit-asset-${asset.id}`}
                             title="Editar" aria-label="Editar"
                             onClick={e => { e.stopPropagation(); setEditing(asset); }}
                             onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = "#2563eb"; (e.currentTarget as HTMLButtonElement).style.background = "rgba(37,99,235,0.08)"; }}
                             onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = "#94a3b8"; (e.currentTarget as HTMLButtonElement).style.background = "transparent"; }}
                             style={{ padding: 7, borderRadius: 7, border: "none", background: "transparent", cursor: "pointer", color: "#94a3b8", display: "flex", alignItems: "center", transition: "color 0.15s, background 0.15s" }}>
                             <Pencil size={14} />
-                          </button>
+                          </button>}
 
-                          {/* Delete */}
-                          <button data-testid={`button-delete-asset-${asset.id}`}
+                          {/* Delete — só admin */}
+                          {podeExcluir && <button data-testid={`button-delete-asset-${asset.id}`}
                             title="Excluir" aria-label="Excluir"
                             onClick={e => { e.stopPropagation(); setDeleting(asset); }}
                             onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = "#ef4444"; (e.currentTarget as HTMLButtonElement).style.background = "rgba(239,68,68,0.08)"; }}
                             onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = "#94a3b8"; (e.currentTarget as HTMLButtonElement).style.background = "transparent"; }}
                             style={{ padding: 7, borderRadius: 7, border: "none", background: "transparent", cursor: "pointer", color: "#94a3b8", display: "flex", alignItems: "center", transition: "color 0.15s, background 0.15s" }}>
                             <Trash2 size={14} />
-                          </button>
+                          </button>}
                         </div>
                       </td>
                     </tr>

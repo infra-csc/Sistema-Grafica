@@ -53,7 +53,8 @@ import {
   itemArtVersions, eventBooks, type ItemArtVersion, type InsertItemArtVersion, type EventBook, type InsertEventBook,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, desc, asc, sql, or, lt, gte, ne, inArray, like, ilike, isNull } from "drizzle-orm";
+import { eq, and, desc, asc, sql, or, lt, gte, ne, inArray, notInArray, like, ilike, isNull } from "drizzle-orm";
+import { reservaEstaAtiva } from "@shared/estoque";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // VOCABULÁRIO DE displayId — lado SERVIDOR.
@@ -2089,6 +2090,21 @@ export class DatabaseStorage implements IStorage {
     return result.rowCount !== null && result.rowCount > 0;
   }
 
+  // Peça RESERVADA para outro evento (dono, 14/09) não obedece mais ao ciclo
+  // do evento de origem. Sem esta trava, o cron do evento antigo — que roda
+  // por 45 dias — via a peça "Em uso" no evento novo e a mandava para a
+  // triagem no meio dele, ou despachava junto uma peça que já tem outro
+  // destino. Devolve a condição pronta para somar no `and(...)`.
+  private async foraDeReservaDeOutroEvento(eventId: string) {
+    const agora = new Date();
+    const linhas = await db.select({ assetId: eventInventoryAllocations.assetId, inicio: events.startDate })
+      .from(eventInventoryAllocations)
+      .innerJoin(events, eq(events.id, eventInventoryAllocations.eventId))
+      .where(ne(eventInventoryAllocations.eventId, eventId));
+    const ids = Array.from(new Set(linhas.filter(l => reservaEstaAtiva(l.inicio, agora)).map(l => l.assetId)));
+    return ids.length > 0 ? [notInArray(inventoryAssets.id, ids)] : [];
+  }
+
   async markAssetsInUseForEvent(eventId: string, departureDate: Date): Promise<number> {
     // Find all items for this event
     const eventItems = await db.select({ id: items.id }).from(items)
@@ -2127,12 +2143,14 @@ export class DatabaseStorage implements IStorage {
 
     return await db.transaction(async (tx) => {
       let updated = 0;
+      const foraDeOutraReserva = await this.foraDeReservaDeOutroEvento(eventId);
       const r1 = await tx.update(inventoryAssets)
         .set({ trackingStatus: 'EM_USO', updatedAt: new Date() } as any)
         .where(and(
           inArray(inventoryAssets.originalItemId, itemIds),
           eq(inventoryAssets.trackingStatus, 'NO_GALPAO'),
-          jaSaiu
+          jaSaiu,
+          ...foraDeOutraReserva,
         ));
       updated += r1.rowCount ?? 0;
 
@@ -2166,11 +2184,13 @@ export class DatabaseStorage implements IStorage {
 
     return await db.transaction(async (tx) => {
       let updated = 0;
+      const foraDeOutraReserva = await this.foraDeReservaDeOutroEvento(eventId);
       const r1 = await tx.update(inventoryAssets)
         .set({ trackingStatus: 'AGUARDANDO_TRIAGEM', updatedAt: new Date() } as any)
         .where(and(
           inArray(inventoryAssets.originalItemId, itemIds),
-          eq(inventoryAssets.trackingStatus, 'EM_USO')
+          eq(inventoryAssets.trackingStatus, 'EM_USO'),
+          ...foraDeOutraReserva,
         ));
       updated += r1.rowCount ?? 0;
 

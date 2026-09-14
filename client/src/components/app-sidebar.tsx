@@ -64,10 +64,11 @@ const sponsorItems: MenuItem[] = [
   { title: "Configurar Cotas", url: "/configurar-cotas", icon: Settings2,  roles: ["admin"] },
 ];
 
-// Estoque: apenas admin
+// Estoque (dono, 14/09): a Gráfica faz a triagem e guarda as peças; a
+// Solicitação consulta o Estoque para reservar ao montar a lista.
 const stockItems: MenuItem[] = [
-  { title: "Triagem de Retorno", url: "/triagem-retorno", icon: ScanSearch, roles: ["admin"] },
-  { title: "Estoque",            url: "/estoque",          icon: Archive,    roles: ["admin"] },
+  { title: "Triagem de Retorno", url: "/triagem-retorno", icon: ScanSearch, roles: ["grafica", "admin"] },
+  { title: "Estoque",            url: "/estoque",          icon: Archive,    roles: ["grafica", "solicitacao", "admin"] },
 ];
 
 // Administração: apenas admin (filtrado via hasPermission no componente)

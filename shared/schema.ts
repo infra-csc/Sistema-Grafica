@@ -679,9 +679,16 @@ export const eventInventoryAllocations = pgTable("event_inventory_allocations", 
   eventId: varchar("event_id").notNull().references(() => events.id, { onDelete: "cascade" }),
   assetId: varchar("asset_id").notNull().references(() => inventoryAssets.id, { onDelete: "cascade" }),
   allocatedAt: timestamp("allocated_at").notNull().default(sql`now()`),
+  // RESERVA PARA UMA PEÇA (dono, 14/09): quem monta a lista busca no estoque
+  // e segura a peça física para a peça nova. NULL = alocação antiga, feita
+  // direto no evento (a rota existia sem tela e nunca foi usada).
+  itemId: varchar("item_id").references(() => items.id, { onDelete: "set null" }),
+  reservadoPor: text("reservado_por"),
+  reservadoPorId: varchar("reservado_por_id"),
 }, (table) => [
   index("IDX_event_inventory_allocations_event_id").on(table.eventId),
   index("IDX_event_inventory_allocations_asset_id").on(table.assetId),
+  index("IDX_event_inventory_allocations_item_id").on(table.itemId),
 ]);
 
 // Relations
@@ -982,7 +989,7 @@ export const insertInventoryAssetSchema = createInsertSchema(inventoryAssets).om
   sponsorIds: z.array(z.string()).default([]),
   quantity: z.number().min(1).default(1),
   autoAdded: z.boolean().default(false),
-  trackingStatus: z.enum(["NO_GALPAO", "EM_USO", "AGUARDANDO_TRIAGEM", "DESCARTADO"]).default("NO_GALPAO"),
+  trackingStatus: z.enum(["NO_GALPAO", "EM_USO", "AGUARDANDO_TRIAGEM", "EM_MANUTENCAO", "DESCARTADO"]).default("NO_GALPAO"),
 });
 
 export const insertEventInventoryAllocationSchema = createInsertSchema(eventInventoryAllocations).omit({

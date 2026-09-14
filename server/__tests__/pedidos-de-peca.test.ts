@@ -1,247 +1,216 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// PEDIDOS DE PEÇA DO ATENDIMENTO (dono, 14/09) + refino "nota 10".
+// PEDIDOS DE PEÇA DO ATENDIMENTO (dono, 14/09) — módulo "nota 10".
 //
-// As decisões do dono, e o que este arquivo pina de cada uma:
-//   · o pedido nasce numa aba do Atendimento: evento, patrocinador, quantidade
-//     (pode vir vazia), observação e referências (opcionais, mais de uma);
-//   · quem pede: Atendimento e admin; quem resolve: a Solicitação (e admin);
-//   · aparece na tela de Eventos e dentro do evento;
-//   · aviso por notificação no sistema, nos dois sentidos;
-//   · a lista diz a idade do pedido, os parados, se o evento aceita peça, o
-//     que falta e leva à peça gerada; cancelar e recusar pedem motivo num modal.
+// O que este arquivo pina, pela ordem da revisão do módulo:
+//   · segurança: referência só /objects/… ou https (nada de javascript:);
+//   · furos de fluxo: editar aberto, reabrir/desfazer com motivo, várias
+//     peças por pedido, a peça sai ligada ao pedido na MESMA requisição, a
+//     Entrada Rápida some ao atender, salvar trava com imagem subindo;
+//   · aviso para QUEM PEDIU (notificação individual);
+//   · prazo ("precisa até"), andamento da peça, pedida × criada;
+//   · caixa da Solicitação, aba na URL, notificações levando ao lugar certo.
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "fs";
 import path from "path";
 import {
   STATUS_DO_PEDIDO,
-  ROTULO_DO_PEDIDO,
-  MAX_REFERENCIAS_DO_PEDIDO,
   MIN_MOTIVO_DO_PEDIDO,
+  ehReferenciaValida,
   ehChaveDePedidos,
   idadeDoPedido,
-  lacunasDoPedido,
-  rotuloDasLacunas,
+  prazoDoPedido,
+  avisoDoPrazo,
+  etapaDaPeca,
+  quemReabre,
   seloDoEventoDoPedido,
   textoDaObservacao,
-  quantidadeDoPedido,
+  unidadesCriadas,
 } from "@shared/pedidos-de-peca";
 
 const RAIZ = path.resolve(__dirname, "../..");
 const ler = (rel: string) => readFileSync(path.resolve(RAIZ, rel), "utf8");
 const SCHEMA = ler("shared/schema.ts");
 const ROTAS = ler("server/routes/pedidos-de-peca.ts");
-const SERVIDOR = ler("server/routes.ts");
+const ITEMS = ler("server/routes/items.ts");
+const NOTIF = ler("server/routes/notifications.ts");
+const STORAGE = ler("server/storage.ts");
+const APP = ler("client/src/App.tsx");
+const MENU = ler("client/src/components/app-sidebar.tsx");
 const ATENDIMENTO = ler("client/src/pages/atendimento.tsx");
-const ABA = ler("client/src/components/pedidos-de-peca-atendimento.tsx");
-const EVENTOS = ler("client/src/pages/eventos.tsx");
 const EVENTO = ler("client/src/pages/event-detail.tsx");
+const EVENTOS = ler("client/src/pages/eventos.tsx");
+const LISTA = ler("client/src/components/pedidos/lista-de-pedidos.tsx");
+const FORM = ler("client/src/components/pedidos/formulario-do-pedido.tsx");
+const CARTAO = ler("client/src/components/pedidos/cartao-do-pedido.tsx");
+const UI = ler("client/src/components/pedidos/ui.tsx");
 const PAINEL = ler("client/src/components/pedidos-do-evento.tsx");
 const MODAL = ler("client/src/components/motivo-do-pedido-dialog.tsx");
+const CAIXA = ler("client/src/pages/pedidos-de-peca.tsx");
 
-describe("o pedido", () => {
-  it("tem ciclo aberto → atendido | recusado | cancelado, com rótulo para cada um", () => {
+describe("regras puras", () => {
+  it("ciclo aberto → atendido | recusado | cancelado, e só estados finais se reabrem", () => {
     expect([...STATUS_DO_PEDIDO]).toEqual(["aberto", "atendido", "recusado", "cancelado"]);
-    for (const s of STATUS_DO_PEDIDO) expect(ROTULO_DO_PEDIDO[s]).toBeTruthy();
+    expect(quemReabre("aberto")).toEqual([]);
+    expect(quemReabre("atendido")).toEqual(["admin", "solicitacao"]);
+    expect(quemReabre("recusado")).toEqual(["admin", "solicitacao"]);
+    expect(quemReabre("cancelado")).toEqual(["admin", "atendimento"]);
+    expect(MIN_MOTIVO_DO_PEDIDO).toBe(10);
   });
 
-  it("guarda evento, patrocinador, quantidade (opcional), observação, referências e os dois motivos", () => {
-    expect(SCHEMA).toContain('export const pedidosDePeca = pgTable("pedidos_de_peca", {');
-    expect(SCHEMA).toContain('quantidade: integer("quantidade"), // vazia = o solicitante não definiu (pedido válido)');
-    expect(SCHEMA).toContain('referencias: text("referencias").array().notNull().default(sql`ARRAY[]::text[]`),');
-    expect(SCHEMA).toContain('motivoCancelamento: text("motivo_cancelamento"),');
-    expect(MAX_REFERENCIAS_DO_PEDIDO).toBeGreaterThan(1);
+  it("referência só do próprio app ou https — nunca javascript:", () => {
+    expect(ehReferenciaValida("/objects/uploads/abc-123.png")).toBe(true);
+    expect(ehReferenciaValida("https://storage.googleapis.com/bucket/x.jpg")).toBe(true);
+    expect(ehReferenciaValida("javascript:alert(1)")).toBe(false);
+    expect(ehReferenciaValida("http://inseguro.com/x.png")).toBe(false);
+    expect(ehReferenciaValida("/objects/../../etc\" onerror=")).toBe(false);
+    expect(ehReferenciaValida(42)).toBe(false);
   });
 
-  it("pedido sem quantidade é válido e se diz assim", () => {
-    expect(quantidadeDoPedido(null)).toBe("sem quantidade");
-    expect(quantidadeDoPedido(3)).toBe("3 un.");
-  });
-
-  it("a observação é sempre texto — nunca [object Object]", () => {
-    expect(textoDaObservacao("dois banners")).toBe("dois banners");
-    expect(textoDaObservacao({ texto: "dois banners", autor: "Ana" })).toBe("dois banners");
-    expect(textoDaObservacao(null)).toBe("");
-  });
-
-  it("as chaves de consulta com filtro na URL são reconhecidas pelo prefixo", () => {
-    expect(ehChaveDePedidos("/api/pedidos-de-peca?status=aberto")).toBe(true);
-    expect(ehChaveDePedidos("/api/items")).toBe(false);
-  });
-});
-
-describe("idade do pedido", () => {
-  const agora = new Date("2026-09-14T15:00:00Z"); // 12h em São Paulo
-
-  it("hoje, ontem, há N dias — em dias de calendário de São Paulo", () => {
-    expect(idadeDoPedido("2026-09-14T11:00:00Z", agora).texto).toBe("hoje");
-    expect(idadeDoPedido("2026-09-13T20:00:00Z", agora).texto).toBe("ontem");
-    // 01:00Z do dia 14 ainda é dia 13 em São Paulo
-    expect(idadeDoPedido("2026-09-14T01:00:00Z", agora).texto).toBe("ontem");
-    expect(idadeDoPedido("2026-09-05T12:00:00Z", agora).texto).toBe("há 9 dias");
-  });
-
-  it("acima de 7 dias pede atenção; acima de 14, pedido parado", () => {
-    expect(idadeDoPedido("2026-09-07T12:00:00Z", agora).nivel).toBe("normal");
-    expect(idadeDoPedido("2026-09-06T12:00:00Z", agora).nivel).toBe("atencao");
-    expect(idadeDoPedido("2026-08-30T12:00:00Z", agora).nivel).toBe("parado");
-  });
-});
-
-describe("o que falta e se o evento aceita peça", () => {
-  it("lista as lacunas sem bloquear", () => {
-    expect(rotuloDasLacunas(lacunasDoPedido({ quantidade: null, sponsorId: "s", referencias: ["x"] }))).toBe("falta quantidade");
-    expect(rotuloDasLacunas(lacunasDoPedido({ quantidade: null, sponsorId: "s", referencias: [] }))).toBe("faltam 2 campos");
-    expect(rotuloDasLacunas(lacunasDoPedido({ quantidade: 2, sponsorId: "s", referencias: ["x"] }))).toBeNull();
-  });
-
-  it("evento encerrado ou realizado bloqueia atender; caminhão que já saiu só avisa", () => {
+  it("prazo: vencido, hoje, amanhã, perto e normal — e aviso quando passa da saída", () => {
     const agora = new Date("2026-09-14T15:00:00Z");
-    expect(seloDoEventoDoPedido({ motivoFim: "encerrado", saida: null }, agora)).toMatchObject({ texto: "evento encerrado", bloqueiaAtender: true });
-    expect(seloDoEventoDoPedido({ motivoFim: "realizado", saida: null }, agora)?.bloqueiaAtender).toBe(true);
-    const caminhao = seloDoEventoDoPedido({ motivoFim: null, saida: "2026-08-29T08:00:00Z" }, agora);
-    expect(caminhao).toMatchObject({ texto: "caminhão já saiu há 16 dias", bloqueiaAtender: false });
-    expect(seloDoEventoDoPedido({ motivoFim: null, saida: "2026-09-20T08:00:00Z" }, agora)).toBeNull();
+    expect(prazoDoPedido("2026-09-12T12:00:00Z", agora)).toMatchObject({ nivel: "vencido", texto: "prazo venceu há 2 dias" });
+    expect(prazoDoPedido("2026-09-14T12:00:00Z", agora)).toMatchObject({ nivel: "perto", texto: "precisa hoje" });
+    expect(prazoDoPedido("2026-09-15T12:00:00Z", agora)?.texto).toBe("precisa amanhã");
+    expect(prazoDoPedido("2026-09-16T12:00:00Z", agora)).toMatchObject({ nivel: "perto", texto: "precisa até 16/09" });
+    expect(prazoDoPedido("2026-09-30T12:00:00Z", agora)?.nivel).toBe("normal");
+    expect(prazoDoPedido(null, agora)).toBeNull();
+    expect(avisoDoPrazo("2026-09-21T12:00:00Z", "2026-09-20T08:00:00Z")).toContain("depois da saída do caminhão (20/09)");
+    expect(avisoDoPrazo("2026-09-20T12:00:00Z", "2026-09-20T08:00:00Z")).toBeNull();
+  });
+
+  it("andamento da peça em 5 etapas; cancelada fica de fora da conta", () => {
+    expect(etapaDaPeca("draft")).toBe(0);
+    expect(etapaDaPeca("awaiting_sponsor_approval")).toBe(1);
+    expect(etapaDaPeca("ready_for_production")).toBe(2);
+    expect(etapaDaPeca("inProduction")).toBe(2);
+    expect(etapaDaPeca("conferred")).toBe(3);
+    expect(etapaDaPeca("delivered")).toBe(4);
+    expect(etapaDaPeca("cancelled")).toBeNull();
+    expect(unidadesCriadas([
+      { id: "a", displayId: "#1", type: "x", quantity: 3, status: "draft" },
+      { id: "b", displayId: "#2", type: "x", quantity: 5, status: "cancelled" },
+    ])).toBe(3);
+  });
+
+  it("idade, selo do evento, observação como texto e chave de consulta", () => {
+    const agora = new Date("2026-09-14T15:00:00Z");
+    expect(idadeDoPedido("2026-08-30T12:00:00Z", agora).nivel).toBe("parado");
+    expect(seloDoEventoDoPedido({ motivoFim: "encerrado", saida: null }, agora)?.bloqueiaAtender).toBe(true);
+    expect(seloDoEventoDoPedido({ motivoFim: null, saida: "2026-08-29T08:00:00Z" }, agora)?.texto).toBe("caminhão já saiu há 16 dias");
+    expect(textoDaObservacao({ texto: "dois banners", autor: "Ana" })).toBe("dois banners");
+    expect(ehChaveDePedidos("/api/pedidos-de-peca?limite=300")).toBe(true);
   });
 });
 
 describe("o servidor", () => {
-  it("as rotas existem e estão registradas", () => {
+  it("papéis: ler (sem Gráfica), pedir/editar/cancelar, resolver e reabrir", () => {
+    expect(ROTAS).toContain('const requireLerPedidos = requireRole("admin", "solicitacao", "atendimento", "arte");');
+    expect(ROTAS).toContain('const requirePedirPeca = requireRole("admin", "atendimento");');
+    expect(ROTAS).toContain('const requireResolverPedido = requireRole("admin", "solicitacao");');
+    expect(ROTAS).toContain('const requireReabrirPedido = requireRole("admin", "atendimento", "solicitacao");');
     for (const rota of [
-      'app.get("/api/pedidos-de-peca", requireAuth',
+      'app.get("/api/pedidos-de-peca", requireLerPedidos',
       'app.post("/api/pedidos-de-peca", requirePedirPeca',
+      'app.patch("/api/pedidos-de-peca/:id", requirePedirPeca',
       'app.patch("/api/pedidos-de-peca/:id/atender", requireResolverPedido',
       'app.patch("/api/pedidos-de-peca/:id/recusar", requireResolverPedido',
       'app.patch("/api/pedidos-de-peca/:id/cancelar", requirePedirPeca',
+      'app.patch("/api/pedidos-de-peca/:id/reabrir", requireReabrirPedido',
     ]) expect(ROTAS).toContain(rota);
-    expect(SERVIDOR).toContain("registerPedidosDePecaRoutes(app);");
   });
 
-  it("pede o Atendimento; resolve a Solicitação; admin nos dois", () => {
-    expect(ROTAS).toContain('const requirePedirPeca = requireRole("admin", "atendimento");');
-    expect(ROTAS).toContain('const requireResolverPedido = requireRole("admin", "solicitacao");');
+  it("referências validadas no servidor (P0)", () => {
+    expect(ROTAS).toContain("z.string().refine(ehReferenciaValida,");
   });
 
-  it("quantidade obrigatória (mínimo 1); não aceita evento finalizado nem patrocinador de fora", () => {
-    expect(ROTAS).toContain('.int().min(1, "A quantidade mínima é 1").max(100000),');
-    expect(ROTAS).not.toContain(".nullable().optional(),");
-    expect(ABA).toContain("String(Math.max(1, parseInt(digitos, 10)))");
-    expect(ABA).not.toContain("(se souber)");
+  it("editar só aberto, com trilha do que mudou e aviso", () => {
+    expect(ROTAS).toContain("Só dá para editar pedido aberto");
+    expect(ROTAS).toContain("Pedido editado: ${descricao.join(\"; \")}");
+    expect(ROTAS).toContain('type: "pedidoEditado",');
   });
 
-  it("várias referências: escolher várias, arrastar ou colar — com contador e teto", () => {
-    expect(ABA).toContain("<ObjectUploader");
-    expect(ABA).toContain("multiple");
-    expect(ABA).toContain('data-testid="zona-referencias-pedido"');
-    expect(ABA).toContain("enviarImagens(Array.from(e.dataTransfer.files));");
-    expect(ABA).toContain("onPaste={(e) => {");
-    expect(ABA).toContain("{form.referencias.length} de {MAX_REFERENCIAS_DO_PEDIDO}");
-    expect(ROTAS).toContain("const motivo = await motivoEventoDaPeca({ eventId: evento.id });");
-    expect(ROTAS).toContain("não é patrocinador de ${evento.name}.");
+  it("várias peças por pedido: a peça atende no máximo um, e o vínculo é condicional", () => {
+    expect(SCHEMA).toContain('pedidoDePecaId: varchar("pedido_de_peca_id").references((): any => pedidosDePeca.id, { onDelete: "set null" }),');
+    expect(ROTAS).toContain("já atende outro pedido.");
+    expect(ROTAS).toContain(".where(and(eq(itemsTable.id, itemId), isNull(itemsTable.pedidoDePecaId)))");
+    expect(ROTAS).toContain('if (pedido.status !== "aberto" && pedido.status !== "atendido") {');
   });
 
-  it("resolver é condicional: dois atendendo ao mesmo tempo não ligam o pedido a duas peças", () => {
-    expect(ROTAS.split('eq(pedidosDePeca.status, "aberto")').length - 1).toBe(3);
-    expect(ROTAS).toContain("Este pedido acabou de ser resolvido por outra pessoa.");
+  it("atender barra evento finalizado no servidor, não só na tela", () => {
+    const vincular = ROTAS.slice(ROTAS.indexOf("export async function vincularPecaAoPedido"), ROTAS.indexOf("export function registerPedidosDePecaRoutes"));
+    expect(vincular).toContain("const motivoFim = await motivoEventoDaPeca({ eventId: pedido.eventId });");
   });
 
-  it("atender liga a uma peça DO MESMO evento e leva patrocinador e referências sem sobrescrever", () => {
-    expect(ROTAS).toContain("A peça escolhida é de outro evento.");
-    expect(ROTAS).toContain("if (jaTem.length === 0) {");
-    expect(ROTAS).toContain("((peca as any).referenceUrls ?? []).length === 0");
+  it("a peça criada a partir do pedido sai ligada na mesma requisição, e o cliente não forja o vínculo", () => {
+    expect(ITEMS).toContain('const { vincularPecaAoPedido } = await import("./pedidos-de-peca");');
+    expect(SCHEMA).toContain("  pedidoDePecaId: true,\n});");
   });
 
-  it("recusar e cancelar exigem motivo com o mínimo; cancelar é de quem pediu e grava o motivo", () => {
-    expect(MIN_MOTIVO_DO_PEDIDO).toBe(10);
-    expect(ROTAS.split("if (motivo.length < MIN_MOTIVO_DO_PEDIDO) {").length - 1).toBe(2);
-    expect(ROTAS).toContain("Só quem fez o pedido pode cancelá-lo.");
-    expect(ROTAS).toContain('status: "cancelado", motivoCancelamento: motivo,');
+  it("reabrir desfaz atendimento soltando as peças, com motivo e papel de quem desfaz", () => {
+    expect(ROTAS).toContain("await db.update(itemsTable).set({ pedidoDePecaId: null, updatedAt: new Date() } as any).where(eq(itemsTable.pedidoDePecaId, pedido.id));");
+    expect(ROTAS).toContain("Reabrir pedido cancelado é do Atendimento e do admin.");
   });
 
-  it("avisa pelo sino: pedido novo e cancelado para a lista; atendido e recusado para o Atendimento", () => {
-    for (const tipo of ['type: "pedidoDePeca",', 'type: "pedidoAtendido",', 'type: "pedidoRecusado",', 'type: "pedidoCancelado",']) {
-      expect(ROTAS).toContain(tipo);
-    }
+  it("avisos para QUEM PEDIU, e o sino e o 'marcar todas' respeitam o destinatário", () => {
+    expect(SCHEMA).toContain('targetUserId: varchar("target_user_id"),');
+    expect(ROTAS).toContain("targetUserId: pedido.pedidoPorId");
+    expect(NOTIF).toContain("lista.filter((n) => !n.targetUserId || n.targetUserId === userId);");
+    expect(STORAGE).toContain("const doUsuario = sql`(${notifications.targetUserId} IS NULL OR ${notifications.targetUserId} = ${userId})`;");
+  });
+
+  it("prazo nasce da saída do caminhão; tipo e medida opcionais", () => {
+    expect(ROTAS).toContain("precisaAte: dados.precisaAte ? paraData(dados.precisaAte) : (evento.truckDepartureDate ?? null),");
+    expect(SCHEMA).toContain('precisaAte: timestamp("precisa_ate"),');
+    expect(SCHEMA).toContain('tipoDePeca: text("tipo_de_peca"),');
   });
 });
 
 describe("as telas", () => {
-  it("o Atendimento pede numa aba própria", () => {
-    expect(ATENDIMENTO).toContain("{ key: 'pedidos', label: 'Pedidos de peças', count: pedidosAbertos.length },");
-    expect(ATENDIMENTO).toContain("<PedidosDePecaAtendimento podePedir={canDecide}");
-    expect(ABA).toContain('data-testid="form-pedido-de-peca"');
-    expect(ABA).toContain("<ObjectUploader");
+  it("formulário em gaveta: novo e editar, e salvar trava com imagem subindo", () => {
+    expect(FORM).toContain('<SheetContent side="right" data-testid="formulario-pedido-de-peca"');
+    expect(FORM).toContain(': envio.isUploading ? "Aguarde o envio das imagens"');
+    expect(FORM).toContain('data-testid="aviso-prazo-pedido"');
+    expect(LISTA).toContain('data-testid="button-novo-pedido"');
   });
 
-  it("1 · a idade aparece só em pedido que espera", () => {
-    expect(ABA).toContain("data-testid={`cell-idade-pedido-${pedido.id}`}");
-    expect(ABA).toContain("if (!pedidoEspera(pedido.status)) return null;");
-    expect(ABA).toContain('"pedido parado"'.slice(1, -1));
+  it("uma lista, dois modos: ações de quem pede e de quem resolve", () => {
+    expect(LISTA).toContain("button-editar-pedido-");
+    expect(LISTA).toContain("button-cancelar-pedido-");
+    expect(LISTA).toContain("href: `/eventos/${p.eventId}?pedidos=1&criar=${p.id}`");
+    expect(LISTA).toContain("button-desfazer-pedido-");
+    expect(LISTA).toContain('data-testid="filtro-pedidos-meus"');
+    expect(LISTA).toContain('data-testid="input-busca-pedidos"');
+    expect(LISTA).toContain('data-testid="button-mais-pedidos"');
   });
 
-  it("2 · a faixa dos parados nomeia os mais antigos e ordena por idade — sem versão verde", () => {
-    expect(ABA).toContain('data-testid="faixa-pedidos-parados"');
-    expect(ABA).toContain('data-testid="button-ver-mais-antigos"');
-    expect(ABA).toContain("{parados.length > 0 && (");
-    expect(ABA).toContain('onClick={() => { setFiltro("aberto"); setOrdem("antigos"); }}');
+  it("o cartão mostra prazo, andamento das peças e pedida × criada; sem selo de 'falta'", () => {
+    expect(CARTAO).toContain("<AndamentoDoPedido pedido={pedido} />");
+    expect(CARTAO).toContain("<PrazoDoPedido pedido={pedido} agora={agora} />");
+    expect(UI).toContain("data-testid={`divergencia-pedido-${pedido.id}`}");
+    expect(UI).toContain("data-testid={`link-peca-gerada-${p.id}`}");
+    expect(CARTAO).not.toContain("selo-falta");
   });
 
-  it("3 · o evento avisa se aceita peça; o botão de criar fica visível e desabilitado", () => {
-    expect(ABA).toContain("data-testid={`selo-evento-${pedidoId}`}");
-    expect(PAINEL).toContain("disabled={!!bloqueio} title={bloqueio ?? undefined}");
+  it("janela de motivo no padrão do app, para cancelar, recusar e reabrir", () => {
+    expect(MODAL).toContain("style={modalSurface(520)}");
+    expect(MODAL).toContain("<ModalHeader");
+    expect(MODAL).toContain('export type AcaoComMotivo = "cancelar" | "recusar" | "reabrir";');
   });
 
-  it("4 · o que falta se anuncia sem bloquear", () => {
-    expect(ABA).toContain("data-testid={`selo-falta-${pedido.id}`}");
-    expect(ABA).toContain("O solicitante não informou:");
+  it("no evento: busca na peça existente, ?criar= abre o formulário, Entrada Rápida some ao atender", () => {
+    expect(PAINEL).toContain('searchPlaceholder="Buscar por código, tipo ou descrição…"');
+    expect(PAINEL).toContain('const alvoCriar = params.get("criar");');
+    expect(EVENTO).toContain("trailing={!editingItem && !pedidoEmAtendimento ? (");
+    expect(EVENTO).toContain("...(pedidoEmAtendimento ? { pedidoDePecaId: pedidoEmAtendimento.id } : {}),");
   });
 
-  it("5 · o pedido atendido leva à peça", () => {
-    expect(ABA).toContain("data-testid={`link-peca-gerada-${pedido.id}`}");
-    expect(ABA).toContain("href={`/eventos/${pedido.eventId}?item=${pedido.itemId}`}");
-  });
-
-  it("6 · cancelar e recusar num modal só, com motivo e botão travado", () => {
-    expect(MODAL).toContain('data-testid="dialog-cancelar-pedido"');
-    expect(MODAL).toContain("disabled={falta > 0 || pendente}");
-    expect(ABA).toContain("<MotivoDoPedidoDialog");
-    expect(PAINEL).toContain("<MotivoDoPedidoDialog");
-    expect(PAINEL).not.toContain("input-motivo-recusa-");
-  });
-
-  it("defeitos: observação como texto entre aspas, patrocinador com elipse, chip zerado legível", () => {
-    expect(ABA).toContain("const texto = textoDaObservacao(valor);");
-    expect(ABA).toContain("“{texto}”");
-    expect(ABA).toContain('style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 13.5, fontWeight: 700, color: T.text }}');
-    expect(ABA).toContain('f.n === 0 ? "#78716c"');
-    expect(ABA).not.toContain("#a8a29e");
-  });
-
-  it("Eventos mostra o selo de pedidos no cartão e na linha", () => {
-    expect(EVENTOS).toContain("data-testid={`selo-pedidos-${eventId}`}");
-    expect(EVENTOS.split("pedidosAbertos={pedidosPorEvento.get(event.id) ?? 0}").length - 1).toBe(2);
-  });
-
-  it("dentro do evento: criar peça preenchida e ligada, ligar a peça existente, ou recusar", () => {
-    expect(EVENTO).toContain("<PedidosDoEvento");
-    expect(EVENTO).toContain("atenderPedidoMutation.mutate({ pedidoId: pedidoEmAtendimento.id, itemId: createdItem.id });");
-    expect(EVENTO).toContain("quantity: pedido.quantidade ?? EMPTY_ITEM_FORM.quantity,");
-    expect(PAINEL).toContain("data-testid={`button-criar-peca-pedido-${p.id}`}");
-    expect(PAINEL).toContain("data-testid={`button-ligar-peca-pedido-${p.id}`}");
-    expect(PAINEL).toContain("data-testid={`button-recusar-pedido-${p.id}`}");
-  });
-});
-
-describe("Eventos sinaliza os pedidos para quem monta a lista", () => {
-  it("atalho 'Pedidos do Atendimento' no topo, que filtra os eventos com pedido", () => {
-    expect(EVENTOS).toContain("{ key: 'pedidos', label: 'Pedidos do Atendimento', count: focoCounts.pedidos,");
-    expect(EVENTOS).toContain('if (foco === "pedidos") return (pedidosPorEvento.get(event.id) ?? 0) > 0;');
-  });
-
-  it("faixa para Solicitação e admin com os mais antigos e link direto ao painel do evento", () => {
-    expect(EVENTOS).toContain('data-testid="faixa-pedidos-atendimento"');
-    expect(EVENTOS).toContain("(user?.role === 'solicitacao' || user?.role === 'admin') && pedidosAbertos.length > 0");
-    expect(EVENTOS).toContain("href={`/eventos/${p.eventId}?pedidos=1`}");
-    expect(PAINEL).toContain('id="pedidos-do-atendimento"');
+  it("caixa da Solicitação, aba na URL e notificações levando ao lugar certo", () => {
+    expect(CAIXA).toContain('<ListaDePedidos modo="solicitacao"');
+    expect(APP).toContain('<Route path="/pedidos-de-peca">');
+    expect(MENU).toContain('url: "/pedidos-de-peca"');
+    expect(ATENDIMENTO).toContain('p.set("aba", "pedidos")');
+    expect(APP).toContain('"/atendimento?aba=pedidos"');
+    expect(EVENTOS).toContain('data-testid="link-caixa-pedidos"');
   });
 });

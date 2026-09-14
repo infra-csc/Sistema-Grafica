@@ -101,6 +101,7 @@ const BookGerador = lazyPage(() => import("@/pages/book-gerador"));
 const Arte = lazyPage(() => import("@/pages/arte"));
 const Atendimento = lazyPage(() => import("@/pages/atendimento"));
 const Solicitacao = lazyPage(() => import("@/pages/solicitacao"));
+const PedidosDePeca = lazyPage(() => import("@/pages/pedidos-de-peca"));
 const Grafica = lazyPage(() => import("@/pages/grafica"));
 const GraficaMaquinas = lazyPage(() => import("@/pages/grafica-maquinas"));
 const EtiquetaTubo = lazyPage(() => import("@/pages/etiqueta-tubo"));
@@ -178,6 +179,7 @@ const ROUTE_LABELS: Record<string, string> = {
   "/vincular-patrocinadores": "Vincular Patrocinadores",
   "/atendimento": "Atendimento",
   "/solicitacao": "Revisão",
+  "/pedidos-de-peca": "Pedidos de peças",
   "/grafica": "Gráfica",
   "/grafica/maquinas": "Máquinas da Gráfica",
   "/modelos": "Modelos",
@@ -337,6 +339,9 @@ function Router() {
       </Route>
       <Route path="/solicitacao">
         {() => <RoleProtectedRoute component={Solicitacao} allowedRoles={ROLES_SOLICITACAO} />}
+      </Route>
+      <Route path="/pedidos-de-peca">
+        {() => <RoleProtectedRoute component={PedidosDePeca} allowedRoles={ROLES_SOLICITACAO} />}
       </Route>
       <Route path="/grafica/tubos/:id/etiqueta">
         {() => <RoleProtectedRoute component={EtiquetaTubo} allowedRoles={ROLES_GRAFICA} />}
@@ -581,6 +586,17 @@ function AuthenticatedLayout() {
                 const ehComplemento = typeof n.type === "string" && n.type.startsWith("complement");
                 if (ehComplemento && user?.role === "grafica" && n.itemId) {
                   setLocation(`/grafica?item=${n.itemId}`);
+                  return;
+                }
+                // PEDIDOS DE PEÇA (14/09): cada aviso leva a quem precisa agir.
+                // Atendimento: a peça atendida abre a peça; o resto, a aba de
+                // pedidos. Solicitação/admin: o painel de pedidos do evento.
+                if (typeof n.type === "string" && n.type.startsWith("pedido")) {
+                  if (user?.role === "atendimento") {
+                    setLocation(n.type === "pedidoAtendido" && n.itemId ? `/eventos/${n.eventId}?item=${n.itemId}` : "/atendimento?aba=pedidos");
+                  } else {
+                    setLocation(`/eventos/${n.eventId}?pedidos=1`);
+                  }
                   return;
                 }
                 setLocation(`/eventos/${n.eventId}${n.itemId ? `?item=${n.itemId}` : ""}`);

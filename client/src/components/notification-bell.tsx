@@ -130,6 +130,18 @@ const TYPE_CONFIG: Record<string, TypeConfig> = {
     bgIcon: "#f5f5f4", iconColor: "#57534e",
     label: "Pedido cancelado",
   },
+  pedidoEditado: {
+    Icon: Inbox,
+    border: "#f59e0b",
+    bgIcon: "#fffbeb", iconColor: "#92400e",
+    label: "Pedido editado",
+  },
+  pedidoReaberto: {
+    Icon: Inbox,
+    border: "#f59e0b",
+    bgIcon: "#fffbeb", iconColor: "#92400e",
+    label: "Pedido reaberto",
+  },
 };
 
 const DEFAULT_CONFIG: TypeConfig = {

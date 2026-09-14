@@ -1,14 +1,13 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// MOTIVO DO PEDIDO — cancelar (quem pediu) e recusar (quem monta a lista).
+// MOTIVO DO PEDIDO — cancelar, recusar e reabrir.
 //
-// É a ação destrutiva dos pedidos, e merece uma decisão isolada: o pedido
-// identificado, o motivo obrigatório (MIN_MOTIVO_DO_PEDIDO caracteres), o
-// aviso de quem recebe a frase e o botão vermelho travado até o motivo
-// existir. Antes o recusar abria um campo DENTRO da linha, empurrando a lista.
-// Um componente só serve as duas telas — o formulário não se duplica.
+// Uma decisão isolada: o pedido identificado, a observação citada, o motivo
+// obrigatório (MIN_MOTIVO_DO_PEDIDO caracteres), quem recebe a frase e o botão
+// travado até o motivo existir. Casca padrão do app (modalSurface +
+// ModalHeader + ModalFooter). Um componente só serve as três ações.
 // ─────────────────────────────────────────────────────────────────────────────
 import { useRef, useState } from "react";
-import { BellRing, X } from "lucide-react";
+import { BellRing, RotateCcw, XCircle, type LucideIcon } from "lucide-react";
 import {
   MIN_MOTIVO_DO_PEDIDO,
   quantidadeDoPedido,
@@ -16,68 +15,53 @@ import {
   type PedidoDePeca,
 } from "@shared/pedidos-de-peca";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
-import { HIDE_NATIVE_CLOSE } from "@/components/modal-shell";
+import { HIDE_NATIVE_CLOSE, ModalFooter, ModalHeader, modalSurface } from "@/components/modal-shell";
 import { T, FS, R } from "@/lib/theme";
 import { useIsMobile } from "@/hooks/use-mobile";
 
-export function MotivoDoPedidoDialog({ pedido, titulo, aviso, rotuloConfirmar, pendente, onConfirmar, onFechar }: {
+export type AcaoComMotivo = "cancelar" | "recusar" | "reabrir";
+
+const ACOES: Record<AcaoComMotivo, { titulo: string; confirmar: string; cor: string; icone: LucideIcon }> = {
+  cancelar: { titulo: "Cancelar pedido", confirmar: "Cancelar pedido", cor: "#b91c1c", icone: XCircle },
+  recusar:  { titulo: "Recusar pedido",  confirmar: "Recusar pedido",  cor: "#b91c1c", icone: XCircle },
+  reabrir:  { titulo: "Reabrir pedido",  confirmar: "Reabrir pedido",  cor: "#1c1917", icone: RotateCcw },
+};
+
+export function MotivoDoPedidoDialog({ pedido, acao, aviso, pendente, onConfirmar, onFechar }: {
   pedido: PedidoDePeca | null;
-  titulo: string;
+  acao: AcaoComMotivo;
   /** Quem é avisado com o motivo — dito antes de confirmar. */
   aviso: string;
-  rotuloConfirmar: string;
   pendente: boolean;
   onConfirmar: (motivo: string) => void;
   onFechar: () => void;
 }) {
   const isMobile = useIsMobile();
   const [motivo, setMotivo] = useState("");
-  // Zera o motivo quando troca de pedido (inclusive ao reabrir o mesmo).
-  const [pedidoVisto, setPedidoVisto] = useState<string | null>(null);
-  if ((pedido?.id ?? null) !== pedidoVisto) {
-    setPedidoVisto(pedido?.id ?? null);
-    setMotivo("");
-  }
+  // Zera o motivo ao trocar de pedido ou de ação.
+  const chave = pedido ? `${pedido.id}:${acao}` : null;
+  const [vista, setVista] = useState<string | null>(null);
+  if (chave !== vista) { setVista(chave); setMotivo(""); }
   // Durante o fade de saída o pedido já é null: mantém o último na tela.
   const ultimo = useRef<PedidoDePeca | null>(pedido);
   if (pedido) ultimo.current = pedido;
   const p = pedido ?? ultimo.current;
 
+  const meta = ACOES[acao];
   const falta = Math.max(0, MIN_MOTIVO_DO_PEDIDO - motivo.trim().length);
-  const alvo = isMobile ? 44 : 38;
+  const travado = falta > 0 || pendente;
+  const alvo = isMobile ? 44 : 40;
   const observacao = p ? textoDaObservacao(p.observacao) : "";
+  const subtitulo = p ? `${quantidadeDoPedido(p.quantidade)} · ${p.sponsorName ?? "sem patrocinador"} · ${p.eventName ?? "evento"}${p.pedidoPor ? ` · pedido por ${p.pedidoPor}` : ""}` : "";
 
   return (
     <Dialog open={!!pedido} onOpenChange={(aberto) => { if (!aberto && !pendente) onFechar(); }}>
-      <DialogContent
-        data-testid="dialog-cancelar-pedido"
-        className={`p-0 gap-0 border-0 ${HIDE_NATIVE_CLOSE}`}
-        style={{
-          display: "flex", flexDirection: "column", padding: 0, overflow: "hidden",
-          width: "min(520px, calc(100vw - 24px))", maxWidth: "min(520px, calc(100vw - 24px))",
-          maxHeight: "calc(100vh - 48px)", borderRadius: R.xl, background: "#ffffff",
-          boxShadow: "0 25px 60px rgba(0,0,0,0.22)",
-        }}
-      >
-        <header style={{ display: "flex", alignItems: "flex-start", gap: 12, padding: "18px 20px 14px", borderBottom: "1px solid #e7e5e4" }}>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <DialogTitle asChild>
-              <h2 style={{ margin: 0, fontSize: FS.title, fontWeight: 800, color: T.text, fontFamily: "'Space Grotesk', sans-serif" }}>{titulo}</h2>
-            </DialogTitle>
-            <DialogDescription asChild>
-              <p style={{ margin: "4px 0 0", fontSize: FS.body, color: "#57534e", lineHeight: 1.45 }}>
-                {p ? `${quantidadeDoPedido(p.quantidade)} · ${p.sponsorName ?? "sem patrocinador"} · ${p.eventName ?? "evento"}` : ""}
-                {p?.pedidoPor ? ` · pedido por ${p.pedidoPor}` : ""}
-              </p>
-            </DialogDescription>
-          </div>
-          <button type="button" onClick={onFechar} disabled={pendente} aria-label="Fechar"
-            style={{ width: alvo, height: alvo, borderRadius: R.md, border: "none", background: "#f5f5f4", color: "#57534e", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-            <X size={15} />
-          </button>
-        </header>
+      <DialogContent data-testid="dialog-motivo-do-pedido" className={HIDE_NATIVE_CLOSE} style={modalSurface(520)}>
+        <DialogTitle className="sr-only">{meta.titulo}</DialogTitle>
+        <DialogDescription className="sr-only">{subtitulo}</DialogDescription>
+        <ModalHeader icon={meta.icone} variant="confirm" tint={meta.cor} title={meta.titulo} subtitle={subtitulo} onClose={pendente ? undefined : onFechar} />
 
-        <div style={{ padding: "16px 20px", display: "flex", flexDirection: "column", gap: 12, overflowY: "auto" }}>
+        <div style={{ padding: "16px 24px", display: "flex", flexDirection: "column", gap: 12, overflowY: "auto", flex: "1 1 auto", minHeight: 0 }}>
           {observacao && (
             <blockquote style={{ margin: 0, padding: "8px 12px", borderLeft: "3px solid #d6d3d1", background: "#fafaf9", borderRadius: R.sm, fontSize: FS.body, color: "#44403c", lineHeight: 1.5, whiteSpace: "pre-wrap", overflowWrap: "anywhere", display: "-webkit-box", WebkitLineClamp: 4, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
               “{observacao}”
@@ -94,10 +78,11 @@ export function MotivoDoPedidoDialog({ pedido, titulo, aviso, rotuloConfirmar, p
               rows={4}
               value={motivo}
               onChange={(e) => setMotivo(e.target.value)}
+              aria-describedby="motivo-do-pedido-contador"
               placeholder="Explique em uma frase — quem recebe precisa entender o porquê."
-              style={{ width: "100%", boxSizing: "border-box", borderRadius: R.md, border: `1px solid ${falta > 0 && motivo ? "#fde68a" : "#d6d3d1"}`, padding: "10px 12px", fontSize: 14, fontFamily: "inherit", lineHeight: 1.45, resize: "vertical", color: T.text }}
+              style={{ width: "100%", boxSizing: "border-box", borderRadius: R.md, border: `1px solid ${falta > 0 && motivo ? "#fcd34d" : "#d6d3d1"}`, padding: "10px 12px", fontSize: 14, fontFamily: "inherit", lineHeight: 1.45, resize: "vertical", color: T.text }}
             />
-            <p aria-live="polite" style={{ margin: "4px 0 0", fontSize: FS.small, color: falta > 0 ? "#92400e" : "#065f46" }}>
+            <p id="motivo-do-pedido-contador" aria-live="polite" style={{ margin: "4px 0 0", fontSize: FS.small, color: falta > 0 ? "#92400e" : "#065f46" }}>
               {falta > 0 ? `Faltam ${falta} ${falta === 1 ? "caractere" : "caracteres"}` : "Motivo pronto"}
             </p>
           </div>
@@ -107,18 +92,18 @@ export function MotivoDoPedidoDialog({ pedido, titulo, aviso, rotuloConfirmar, p
           </p>
         </div>
 
-        <footer style={{ display: "flex", justifyContent: "flex-end", gap: 8, padding: "12px 20px", borderTop: "1px solid #e7e5e4", background: "#fafaf9", flexWrap: "wrap" }}>
-          <button type="button" onClick={onFechar} disabled={pendente}
-            style={{ height: alvo, padding: "0 16px", borderRadius: R.md, border: "1px solid #d6d3d1", background: "#ffffff", color: T.text, fontSize: FS.body, fontWeight: 700, cursor: "pointer" }}>
-            Voltar
-          </button>
-          <button type="button" data-testid="button-confirmar-motivo" disabled={falta > 0 || pendente}
+        <ModalFooter>
+          <button type="button" data-testid="button-confirmar-motivo" disabled={travado}
             onClick={() => onConfirmar(motivo.trim())}
             title={falta > 0 ? `O motivo precisa de pelo menos ${MIN_MOTIVO_DO_PEDIDO} caracteres` : undefined}
-            style={{ height: alvo, padding: "0 16px", borderRadius: R.md, border: "none", background: falta > 0 || pendente ? "#e7e5e4" : "#b91c1c", color: falta > 0 || pendente ? "#78716c" : "#ffffff", fontSize: FS.body, fontWeight: 800, cursor: falta > 0 || pendente ? "not-allowed" : "pointer" }}>
-            {pendente ? "Salvando…" : rotuloConfirmar}
+            style={{ height: alvo + 4, borderRadius: R.md, border: "none", background: travado ? "#e7e5e4" : meta.cor, color: travado ? "#78716c" : "#ffffff", fontSize: 14, fontWeight: 800, cursor: travado ? "not-allowed" : "pointer" }}>
+            {pendente ? "Salvando…" : meta.confirmar}
           </button>
-        </footer>
+          <button type="button" onClick={onFechar} disabled={pendente}
+            style={{ height: alvo, borderRadius: R.md, border: "none", background: "transparent", color: "#57534e", fontSize: FS.body, fontWeight: 700, cursor: "pointer" }}>
+            Voltar
+          </button>
+        </ModalFooter>
       </DialogContent>
     </Dialog>
   );

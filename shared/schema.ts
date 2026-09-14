@@ -280,6 +280,10 @@ export const items = pgTable("items", {
   // esta coluna. Para essas a tela mostra COMPATIBILIDADE (mesmo tipo,
   // material e medidas), rotulada como tal — nunca como origem.
   standardItemId: varchar("standard_item_id").references((): any => standardItems.id, { onDelete: "set null" }),
+  // DE QUAL PEDIDO DO ATENDIMENTO a peça saiu (14/09). Um pedido pode virar
+  // várias peças; cada peça atende no máximo um pedido. Só o servidor grava
+  // (rota de pedidos) — fora do schema público de criação/edição.
+  pedidoDePecaId: varchar("pedido_de_peca_id").references((): any => pedidosDePeca.id, { onDelete: "set null" }),
   deliveredAt: timestamp("delivered_at"), // Timestamp quando foi entregue
   // QUANDO a etiqueta desta peça saiu na impressora pela última vez (25/08).
   // A tela de Etiquetas abre com as já impressas desmarcadas — sem isso, a
@@ -552,10 +556,18 @@ export const pedidosDePeca = pgTable("pedidos_de_peca", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   eventId: varchar("event_id").notNull().references(() => events.id, { onDelete: "cascade" }),
   sponsorId: varchar("sponsor_id").references(() => sponsors.id, { onDelete: "set null" }),
-  quantidade: integer("quantidade"), // vazia = o solicitante não definiu (pedido válido)
+  quantidade: integer("quantidade").notNull(),
   observacao: text("observacao").notNull(),
   referencias: text("referencias").array().notNull().default(sql`ARRAY[]::text[]`),
   status: text("status").notNull().default("aberto"), // aberto | atendido | recusado | cancelado
+  // Para quando a peça é necessária — nasce com a saída do caminhão do evento.
+  precisaAte: timestamp("precisa_ate"),
+  // Opcionais: pré-preenchem "Criar peça" quando o solicitante sabe.
+  tipoDePeca: text("tipo_de_peca"),
+  largura: decimal("largura", { precision: 10, scale: 2 }),
+  altura: decimal("altura", { precision: 10, scale: 2 }),
+  editadoPor: text("editado_por"),
+  editadoEm: timestamp("editado_em"),
   pedidoPor: text("pedido_por"),
   pedidoPorId: varchar("pedido_por_id"),
   itemId: varchar("item_id").references(() => items.id, { onDelete: "set null" }),
@@ -578,6 +590,9 @@ export const notifications = pgTable("notifications", {
   eventId: varchar("event_id").references(() => events.id, { onDelete: "cascade" }),
   itemId: varchar("item_id").references(() => items.id, { onDelete: "cascade" }),
   targetRoles: text("target_roles").array().notNull().default(sql`ARRAY['admin', 'solicitacao', 'arte', 'grafica', 'atendimento']::text[]`), // Perfis que devem receber
+  // Destinatário individual (14/09): "seu pedido foi atendido" é de quem pediu,
+  // não do departamento inteiro. NULL = vale para todo o perfil (como sempre).
+  targetUserId: varchar("target_user_id"),
   isRead: boolean("is_read").notNull().default(false),
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
 }, (table) => [
@@ -880,6 +895,9 @@ export const publicInsertItemSchema = insertItemSchema.omit({
   complementReason: true,
   complementRequestedBy: true,
   complementRequestedAt: true,
+  // O vínculo com o pedido do Atendimento só nasce pela rota de pedidos, que
+  // confere papel, evento e se a peça já atende outro pedido.
+  pedidoDePecaId: true,
 });
 
 export const insertStandardItemSchema = createInsertSchema(standardItems).omit({

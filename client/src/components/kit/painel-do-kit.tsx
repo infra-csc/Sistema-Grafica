@@ -11,7 +11,8 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { useEffect, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { FileSpreadsheet, Package, Plus, X } from "lucide-react";
+import { ChevronDown, FileSpreadsheet, Package, Plus, Trash2, X } from "lucide-react";
+import { StatusBadge } from "@/components/status-badge";
 import { diaMesDoKit, type RemessaDoKit } from "@shared/kit";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { HIDE_NATIVE_CLOSE, ModalHeader, modalSurface } from "@/components/modal-shell";
@@ -40,9 +41,11 @@ type PecaDaPlanilha = {
   _chave: string;
 };
 
-export function PainelDoKit({ eventId, pecas, podeCriar, usuarioDoKit, nomeDoUsuario, dataDoEvento, saidaDoEvento, eventoFinalizado }: {
+export function PainelDoKit({ eventId, pecas, podeCriar, usuarioDoKit, nomeDoUsuario, dataDoEvento, saidaDoEvento, eventoFinalizado, onAbrirPeca }: {
   eventId: string;
-  pecas: Array<{ kitRemessaId?: string | null; deletedAt?: unknown }>;
+  pecas: any[];
+  /** Abre o detalhe da peça (o mesmo da lista da Arena). */
+  onAbrirPeca?: (peca: any) => void;
   /** admin | solicitacao (inclui o usuário do Kit) — a régua do servidor. */
   podeCriar: boolean;
   usuarioDoKit: boolean;
@@ -59,6 +62,22 @@ export function PainelDoKit({ eventId, pecas, podeCriar, usuarioDoKit, nomeDoUsu
   const [form, setForm] = useState({ versao: "V1", solicitante: "", entregaMaterial: "", dataEvento: "", cargaCaminhao: "", saidaCaminhao: "" });
   const [planilha, setPlanilha] = useState<{ nome: string; pecas: PecaDaPlanilha[]; departamento: string | null; dataSolicitacao: string | null } | null>(null);
   const [lendoPlanilha, setLendoPlanilha] = useState(false);
+  // Detalhe das peças de cada remessa, com status (15/09: "igual o da Arena").
+  const [remessaAberta, setRemessaAberta] = useState<string | null>(null);
+  const [confirmandoExclusao, setConfirmandoExclusao] = useState<string | null>(null);
+
+  const excluir = useMutation({
+    mutationFn: async (id: string) => (await apiRequest("DELETE", `/api/kit/remessas/${id}`)).json(),
+    onSuccess: (r: any) => {
+      toast({ title: "Remessa do Kit excluída", description: r?.excluidas ? `${r.excluidas} ${r.excluidas === 1 ? "peça foi para" : "peças foram para"} Peças Excluídas.` : undefined });
+      setConfirmandoExclusao(null);
+      setRemessaAberta(null);
+      queryClient.invalidateQueries({ queryKey: [chaveDasRemessas(eventId)] });
+      queryClient.invalidateQueries({ queryKey: ["/api/items", eventId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+    },
+    onError: (e: any) => toast({ title: "Não deu para excluir a remessa", description: String(e?.message ?? "").replace(/^\d{3}:\s*/, "").replace(/^\{"error":"(.*)"\}$/, "$1"), variant: "destructive" }),
+  });
 
   // Cada abertura: a versão seguinte e os dados da ÚLTIMA remessa (quando há).
   useEffect(() => {
@@ -186,7 +205,12 @@ export function PainelDoKit({ eventId, pecas, podeCriar, usuarioDoKit, nomeDoUsu
           {remessas.map((r) => (
             <li key={r.id} data-testid={`remessa-kit-${r.id}`}
               style={{ display: "flex", flexDirection: "column", gap: 2, padding: "8px 12px", borderRadius: R.md, border: "1px solid #ddd6fe", background: "#faf5ff", minWidth: 200 }}>
-              <span style={{ fontSize: 13, fontWeight: 800, color: "#4c1d95" }}>KIT {r.versao} · {pecasDe(r.id)} {pecasDe(r.id) === 1 ? "peça" : "peças"}</span>
+              <button type="button" aria-expanded={remessaAberta === r.id} data-testid={`button-abrir-remessa-${r.id}`}
+                onClick={() => { setRemessaAberta((a) => (a === r.id ? null : r.id)); setConfirmandoExclusao(null); }}
+                style={{ display: "flex", alignItems: "center", gap: 6, padding: 0, border: "none", background: "none", cursor: "pointer", textAlign: "left", fontSize: 13, fontWeight: 800, color: "#4c1d95", minHeight: isMobile ? 44 : undefined }}>
+                KIT {r.versao} · {pecasDe(r.id)} {pecasDe(r.id) === 1 ? "peça" : "peças"}
+                <ChevronDown size={14} aria-hidden="true" style={{ transform: remessaAberta === r.id ? "rotate(180deg)" : "none", transition: "transform 0.15s" }} />
+              </button>
               <span style={{ fontSize: FS.small, color: "#44403c" }}>
                 Entrega do material <strong>{diaMesDoKit(r.entregaMaterial) ?? "—"}</strong>
                 {r.saidaCaminhao ? <> · saída do caminhão <strong>{diaMesDoKit(r.saidaCaminhao)}</strong></> : null}
@@ -197,6 +221,78 @@ export function PainelDoKit({ eventId, pecas, podeCriar, usuarioDoKit, nomeDoUsu
           ))}
         </ul>
       )}
+
+      {/* AS PEÇAS DA REMESSA ABERTA, com o status de cada uma — a mesma leitura
+          da lista da Arena. Clicar abre o detalhe da peça. */}
+      {(() => {
+        const r = remessas.find((x) => x.id === remessaAberta);
+        if (!r) return null;
+        const daRemessa = pecas
+          .filter((p) => p.kitRemessaId === r.id && !p.deletedAt)
+          .sort((a, b) => String(a.displayId ?? "").localeCompare(String(b.displayId ?? ""), "pt-BR", { numeric: true }));
+        return (
+          <div data-testid={`pecas-remessa-${r.id}`} style={{ border: "1px solid #ddd6fe", borderRadius: R.lg, overflow: "hidden" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", padding: "8px 12px", background: "#faf5ff", borderBottom: "1px solid #ede9fe" }}>
+              <span style={{ fontSize: FS.small, fontWeight: 800, color: "#4c1d95", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                Peças do KIT {r.versao} · entrega {diaMesDoKit(r.entregaMaterial) ?? "—"}
+              </span>
+              {podeCriar && (confirmandoExclusao === r.id ? (
+                <span style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                  <span style={{ fontSize: FS.body, color: "#991b1b", fontWeight: 700 }}>Excluir a KIT {r.versao} e as {daRemessa.length} peças?</span>
+                  <button type="button" data-testid={`button-confirmar-excluir-remessa-${r.id}`} disabled={excluir.isPending} onClick={() => excluir.mutate(r.id)}
+                    style={{ height: 32, padding: "0 12px", borderRadius: R.md, border: "none", background: "#b91c1c", color: "#fff", fontSize: 12.5, fontWeight: 800, cursor: "pointer" }}>
+                    {excluir.isPending ? "Excluindo…" : "Excluir"}
+                  </button>
+                  <button type="button" onClick={() => setConfirmandoExclusao(null)} disabled={excluir.isPending}
+                    style={{ height: 32, padding: "0 8px", border: "none", background: "none", color: "#57534e", fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}>
+                    Voltar
+                  </button>
+                </span>
+              ) : (
+                <button type="button" data-testid={`button-excluir-remessa-${r.id}`} onClick={() => setConfirmandoExclusao(r.id)}
+                  title="Excluir a remessa e as peças dela — só enquanto nenhuma peça foi enviada"
+                  style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 5, height: 32, padding: "0 10px", borderRadius: R.md, border: "1px solid #fecaca", background: "#fff", color: "#b91c1c", fontSize: 12.5, fontWeight: 800, cursor: "pointer" }}>
+                  <Trash2 size={13} aria-hidden="true" /> Excluir remessa
+                </button>
+              ))}
+            </div>
+            {daRemessa.length === 0 ? (
+              <p style={{ margin: 0, padding: "14px 12px", fontSize: FS.body, color: "#57534e" }}>Nenhuma peça nesta remessa ainda — adicione pelo formulário escolhendo “KIT {r.versao}”.</p>
+            ) : (
+              <div style={{ overflowX: "auto" }}>
+                <table style={{ width: "100%", minWidth: 560, borderCollapse: "collapse", fontSize: 13 }}>
+                  <thead>
+                    <tr>
+                      {["ID", "Peça", "Qtd", "Material · Acab.", "Status"].map((h) => (
+                        <th key={h} style={{ textAlign: "left", padding: "8px 12px", fontSize: 10.5, color: "#57534e", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.06em", borderBottom: "1px solid #f0efed" }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {daRemessa.map((p) => (
+                      <tr key={p.id} data-testid={`peca-remessa-${p.id}`} onClick={() => onAbrirPeca?.(p)}
+                        style={{ borderBottom: "1px solid #f5f4f2", cursor: onAbrirPeca ? "pointer" : "default" }}>
+                        <td style={{ padding: "8px 12px", whiteSpace: "nowrap" }}>
+                          <button type="button" onClick={(e) => { e.stopPropagation(); onAbrirPeca?.(p); }} aria-label={`Ver detalhes da peça ${p.displayId}`}
+                            style={{ padding: 0, border: "none", background: "none", fontFamily: "monospace", fontWeight: 700, color: "#c2410c", fontSize: 13, cursor: "pointer" }}>
+                            {p.displayId}
+                          </button>
+                        </td>
+                        <td style={{ padding: "8px 12px", color: T.text, fontWeight: 600 }}>
+                          {p.type}{p.description ? <span style={{ display: "block", fontWeight: 400, color: "#57534e", fontSize: 12 }}>{p.description}</span> : null}
+                        </td>
+                        <td style={{ padding: "8px 12px", fontVariantNumeric: "tabular-nums" }}>{p.quantity}</td>
+                        <td style={{ padding: "8px 12px", color: "#44403c" }}>{[p.material, p.finish].filter(Boolean).join(" · ")}</td>
+                        <td style={{ padding: "8px 12px" }}><StatusBadge status={p.status} /></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       <Dialog open={aberto} onOpenChange={(o) => { if (!o && !criar.isPending) setAberto(false); }}>
         <DialogContent data-testid="dialog-nova-remessa-kit" className={HIDE_NATIVE_CLOSE} style={modalSurface(nPecas > 0 ? 1100 : 600)}>

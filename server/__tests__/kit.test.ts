@@ -208,6 +208,39 @@ describe("prazos pelas datas do Kit (fase 4)", () => {
   });
 });
 
+describe("agrupar como Kit, selo compacto e datas do Kit no delta (15/09)", () => {
+  it("grupo da peça: remessa do Kit ou nada", async () => {
+    const { grupoDoKit } = await import("@shared/kit");
+    expect(grupoDoKit({ kitRemessaId: "r1", kitRemessa: { versao: "V1", entregaMaterial: "2026-09-14T12:00:00Z" } })).toBe("KIT V1 · entrega 14/09");
+    expect(grupoDoKit({ kitRemessaId: null })).toBeNull();
+  });
+
+  it("lista do evento, rascunhos e Vincular agrupam o Kit; delta mantém as datas do Kit; selo em duas linhas", () => {
+    expect(EVENTO).toContain("const g = grupoDoKit(item) ?? (groupOf(item.type) || '');");
+    const VINC = ler("client/src/pages/vincular-patrocinadores.tsx");
+    expect(VINC).toContain("const abreTipo = !anterior || secaoDaPeca(anterior) !== secaoDaPeca(item);");
+    expect(ler("client/src/lib/queryClient.ts")).toContain("eventoComDatasDoKit((evPorId.get(i.eventId) as any) ?? i.event, i.kitRemessa)");
+    expect(ler("client/src/components/kit/selo-kit.tsx")).toContain('flexDirection: "column"');
+  });
+});
+
+describe("remessa duplicada e detalhe das peças (15/09)", () => {
+  it("servidor: versão repetida barrada, aviso não derruba a importação, excluir remessa só antes de andar", () => {
+    const SERVICO = ler("server/services/kitRemessas.ts");
+    expect(SERVICO).toContain("Já existe a remessa KIT ${dados.versao} neste evento");
+    expect(SERVICO).toContain('const andaram = vivas.filter((p) => p.status !== "draft" && p.status !== "requested");');
+    expect(KIT).toContain('app.delete("/api/kit/remessas/:id", requireCriarRemessa');
+    expect(IMPORT).toContain("peças importadas, mas o aviso falhou");
+  });
+
+  it("painel do Kit: cada remessa abre as peças com status e abre o detalhe da peça", () => {
+    const PAINEL_KIT = ler("client/src/components/kit/painel-do-kit.tsx");
+    expect(PAINEL_KIT).toContain('<td style={{ padding: "8px 12px" }}><StatusBadge status={p.status} /></td>');
+    expect(PAINEL_KIT).toContain("data-testid={`button-excluir-remessa-${r.id}`}");
+    expect(EVENTO).toContain("onAbrirPeca={(peca) => setSelectedItemForDetails(peca)}");
+  });
+});
+
 describe("telas do Kit", () => {
   it("usuários: marca 'Usuário do Kit' só no perfil Solicitação", () => {
     expect(USUARIOS).toContain('{form.watch("role") === "solicitacao" && (');

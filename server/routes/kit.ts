@@ -15,7 +15,7 @@ import { and, desc, eq } from "drizzle-orm";
 import { db } from "../db";
 import { kitRemessas } from "@shared/schema";
 import { requireAuth, requireRole } from "./shared";
-import { criarRemessa, remessaSchema } from "../services/kitRemessas";
+import { criarRemessa, excluirRemessa, remessaSchema } from "../services/kitRemessas";
 
 const requireCriarRemessa = requireRole("admin", "solicitacao");
 
@@ -45,6 +45,18 @@ export function registerKitRoutes(app: Express): void {
       if (error instanceof z.ZodError) return res.status(400).json({ error: error.errors?.[0]?.message || "Dados inválidos" });
       console.error("[kit] erro ao criar remessa:", error);
       res.status(500).json({ error: "Erro ao criar a remessa do Kit" });
+    }
+  });
+
+  // Excluir a remessa com as peças (soft) — só enquanto nenhuma peça andou.
+  app.delete("/api/kit/remessas/:id", requireCriarRemessa, async (req, res) => {
+    try {
+      const r = await excluirRemessa(req, req.params.id);
+      if ("erro" in r) return res.status(r.status).json({ error: r.erro });
+      res.json({ ok: true, excluidas: r.excluidas });
+    } catch (error) {
+      console.error("[kit] erro ao excluir remessa:", error);
+      res.status(500).json({ error: "Erro ao excluir a remessa do Kit" });
     }
   });
 }

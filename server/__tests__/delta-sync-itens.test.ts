@@ -69,8 +69,10 @@ describe("o cliente", () => {
     const fn = QC.slice(QC.indexOf("function aplicarDelta("));
     expect(fn.slice(0, 900)).toContain("porId.delete(id)");
     expect(fn.slice(0, 900)).toContain("porId.set(item.id, item)");
-    expect(fn.slice(0, 900)).toContain("event: evPorId.get(i.eventId) ?? i.event,");
-    expect(fn.slice(0, 1200)).toContain("approvalStatus: s.approvalStatus ?? null");
+    // Peça do Kit (15/09) re-costura o evento com as datas da remessa; o resto, como sempre.
+    expect(fn.slice(0, 1300)).toContain(": evPorId.get(i.eventId) ?? i.event,");
+    expect(fn.slice(0, 1300)).toContain("eventoComDatasDoKit(");
+    expect(fn.slice(0, 1600)).toContain("approvalStatus: s.approvalStatus ?? null");
   });
 
   it("a âncora do próximo delta vem do SERVIDOR (agora / maior updated_at) — nunca do relógio do cliente", () => {

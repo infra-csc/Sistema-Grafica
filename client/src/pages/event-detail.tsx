@@ -12,7 +12,7 @@ import { EstoqueSemelhantesDialog } from "@/components/estoque-semelhantes-dialo
 import { PedidosDoEvento } from "@/components/pedidos-do-evento";
 import { SeloKit } from "@/components/kit/selo-kit";
 import { PainelDoKit, chaveDasRemessas } from "@/components/kit/painel-do-kit";
-import { rotuloDaRemessa, type RemessaDoKit } from "@shared/kit";
+import { grupoDoKit, rotuloDaRemessa, type RemessaDoKit } from "@shared/kit";
 import { invalidarPedidos } from "@/components/pedidos/ui";
 import { patrocinadoresDaLinha, textoDaObservacao, type LinhaDoPedido, type PedidoDePeca } from "@shared/pedidos-de-peca";
 import { Fragment, useState, useEffect, useMemo, useRef } from "react";
@@ -1757,12 +1757,16 @@ export default function EventDetail() {
   const { groupMap, sortedGroups } = useMemo(() => {
     const map: Record<string, Record<string, typeof visibleEventItems>> = {};
     visibleEventItems.forEach(item => {
-      const g = groupOf(item.type) || '';
+      // Peça do Kit (15/09): agrupada na remessa ("KIT V1 · entrega 14/09"),
+      // não misturada nos grupos da Arena.
+      const g = grupoDoKit(item) ?? (groupOf(item.type) || '');
       if (!map[g]) map[g] = {};
       if (!map[g][item.type]) map[g][item.type] = [];
       map[g][item.type].push(item);
     });
+    const ehKit = (g: string) => g.startsWith('KIT');
     const groups = Object.keys(map).sort((a, b) => {
+      if (ehKit(a) !== ehKit(b)) return ehKit(a) ? 1 : -1;
       if (a === '') return 1; if (b === '') return -1;
       return a.localeCompare(b, 'pt-BR');
     });
@@ -2537,6 +2541,7 @@ export default function EventDetail() {
         nomeDoUsuario={user?.name ?? ""}
         dataDoEvento={(event as any)?.startDate ?? null}
         saidaDoEvento={(event as any)?.truckDepartureDate ?? null}
+        onAbrirPeca={(peca) => setSelectedItemForDetails(peca)}
         eventoFinalizado={!!eventoFinalizado}
       />
 
@@ -2582,7 +2587,7 @@ export default function EventDetail() {
                 // Grupo Pai → Tipo → itens
                 const draftGroupMap: Record<string, Record<string, typeof draftItems>> = {};
                 visibleDrafts.forEach(item => {
-                  const g = groupOf(item.type) || '';
+                  const g = grupoDoKit(item) ?? (groupOf(item.type) || '');
                   if (!draftGroupMap[g]) draftGroupMap[g] = {};
                   if (!draftGroupMap[g][item.type]) draftGroupMap[g][item.type] = [];
                   draftGroupMap[g][item.type].push(item);
@@ -3425,15 +3430,15 @@ export default function EventDetail() {
               {/* ── Grupo Pai header ── */}
               {group && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px', marginTop: '8px' }}>
-                  <span style={{
-                    backgroundColor: '#dbeafe', color: '#1d4ed8',
+                  <span data-testid={group.startsWith('KIT') ? 'grupo-kit' : undefined} style={{
+                    backgroundColor: group.startsWith('KIT') ? '#f5f3ff' : '#dbeafe', color: group.startsWith('KIT') ? '#5b21b6' : '#1d4ed8',
                     fontSize: '11px', fontWeight: '900', letterSpacing: '0.12em',
                     textTransform: 'uppercase', padding: '4px 14px', borderRadius: '999px',
                     fontFamily: "'Space Grotesk', sans-serif", whiteSpace: 'nowrap',
                   }}>
                     {group}
                   </span>
-                  <div style={{ flex: 1, height: '1px', backgroundColor: '#bfdbfe' }} />
+                  <div style={{ flex: 1, height: '1px', backgroundColor: group.startsWith('KIT') ? '#ddd6fe' : '#bfdbfe' }} />
                 </div>
               )}
 

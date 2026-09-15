@@ -582,13 +582,20 @@ import { cabecalhoDoKit, remessaUtilizavelPor, type CabecalhoDoKit } from "@shar
           )
         ));
       }
-      const notification = await storage.createNotification({
-        type: "itemAdded",
-        message: `${created.length} itens importados via Excel — Evento: ${event.name}`,
-        eventId: event.id,
-        targetRoles: ["arte"], // só quem AGE agora: a Gráfica entra bem depois, quando liberam p/ produção
-      });
-      broadcast({ type: "notification_created", notification });
+      // O aviso não pode desfazer a importação (15/09): as peças já estão
+      // gravadas — erro aqui fazia a tela dizer "não deu" e a pessoa importar
+      // de novo, duplicando a remessa inteira.
+      try {
+        const notification = await storage.createNotification({
+          type: "itemAdded",
+          message: `${created.length} itens importados via Excel — Evento: ${event.name}`,
+          eventId: event.id,
+          targetRoles: ["arte"], // só quem AGE agora: a Gráfica entra bem depois, quando liberam p/ produção
+        });
+        broadcast({ type: "notification_created", notification });
+      } catch (erroDoAviso: any) {
+        console.error("[confirm-import] peças importadas, mas o aviso falhou:", erroDoAviso?.message);
+      }
       broadcast({ type: "items_bulk_created", items: created, eventId: event.id });
       await updateEventStatus(event.id);
 

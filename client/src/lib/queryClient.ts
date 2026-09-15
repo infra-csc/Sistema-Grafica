@@ -1,4 +1,5 @@
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
+import { eventoComDatasDoKit } from "@shared/kit";
 
 /**
  * Sessão expirada tem de levar para o login.
@@ -138,7 +139,11 @@ function aplicarDelta(anterior: any[], delta: any): any[] {
   for (const item of delta.itens ?? []) porId.set(item.id, item);
   return Array.from(porId.values()).map((i) => ({
     ...i,
-    event: evPorId.get(i.eventId) ?? i.event,
+    // Peça do Kit (15/09): o evento re-costurado precisa manter as datas da
+    // remessa — sem isto a Arte voltava a cobrar a peça do Kit pela Arena.
+    event: i.kitRemessaId && i.kitRemessa
+      ? eventoComDatasDoKit((evPorId.get(i.eventId) as any) ?? i.event, i.kitRemessa)
+      : evPorId.get(i.eventId) ?? i.event,
     sponsors: Array.isArray(i.sponsors)
       ? i.sponsors.map((s: any) => {
           const atual = spPorId.get(s.id);

@@ -2,6 +2,10 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { parseDateLocal, toUTCDisplayDate, runInBatches } from "@/lib/utils";
 import { compareDisplayId } from "@/lib/displayId";
 import { SeloKit } from "@/components/kit/selo-kit";
+import { grupoDoKit } from "@shared/kit";
+
+/** A seção da linha: a remessa do Kit ("KIT V1 · entrega 14/09") ou o tipo (15/09). */
+const secaoDaPeca = (p: any): string => grupoDoKit(p) ?? (p.type || '');
 import { FilterSelect } from "@/components/filter-select";
 import { EventFilterDropdown } from "@/components/event-filter-dropdown";
 import { Card, CardContent } from "@/components/ui/card";
@@ -1283,6 +1287,11 @@ export default function VincularPatrocinadores() {
    * "#0062-C1" virava 621 e desgrudava da peça original.
    */
   const ordenarParaLeitura = (lista: any[]) => [...lista].sort((a, b) => {
+    // Kit por último, cada remessa junta (15/09).
+    const ka = grupoDoKit(a) ?? '', kb = grupoDoKit(b) ?? '';
+    if (!!ka !== !!kb) return ka ? 1 : -1;
+    if (ka !== kb) return COLLATOR_PTBR.compare(ka, kb);
+    if (ka) return compareDisplayId(a.displayId, b.displayId);
     const ga = typeToGroup[a.type] || '', gb = typeToGroup[b.type] || '';
     if (ga !== gb) return COLLATOR_PTBR.compare(ga, gb);
     if (a.type !== b.type) return COLLATOR_PTBR.compare(a.type || '', b.type || '');
@@ -2799,13 +2808,13 @@ export default function VincularPatrocinadores() {
                         // Só agrupa porque `itens` chega ordenada por tipo
                         // (ordenarParaLeitura) — sem isso, este "abre ao
                         // mudar" repete o cabeçalho a cada linha.
-                        const abreTipo = !anterior || anterior.type !== item.type;
-                        const chaveTipo = `${chave}:${item.type}`;
+                        const abreTipo = !anterior || secaoDaPeca(anterior) !== secaoDaPeca(item);
+                        const chaveTipo = `${chave}:${secaoDaPeca(item)}`;
                         const tipoFechado = tiposColapsados.has(chaveTipo);
                         const linhas: React.ReactNode[] = [];
 
                         if (abreTipo) {
-                          const doTipo = itens.filter(i => i.type === item.type);
+                          const doTipo = itens.filter(i => secaoDaPeca(i) === secaoDaPeca(item));
                           const semPatrocinador = doTipo.filter(i => {
                             const s = itemUIStates[i.id] || 'PENDENTE';
                             return s === 'PENDENTE';
@@ -2877,8 +2886,8 @@ export default function VincularPatrocinadores() {
                                   }}
                                 >
                                   <ChevronDown aria-hidden="true" style={{ width: 13, height: 13, color: '#57534e', flexShrink: 0, transform: tipoFechado ? 'rotate(-90deg)' : 'none', transition: 'transform 0.15s' }} />
-                                  <span style={{ fontSize: 11, fontWeight: 800, color: '#44403c', textTransform: 'uppercase', letterSpacing: '0.06em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                    {item.type}
+                                  <span data-testid={item.kitRemessaId ? `secao-kit-${chaveTipo}` : undefined} style={{ fontSize: 11, fontWeight: 800, color: item.kitRemessaId ? '#5b21b6' : '#44403c', textTransform: 'uppercase', letterSpacing: '0.06em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                    {secaoDaPeca(item)}
                                   </span>
                                   <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 12, color: '#57534e', flexShrink: 0 }}>
                                     {doTipo.length}

@@ -240,8 +240,17 @@ async function verComo(role: string, kit = false): Promise<void> {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ role, kit }),
   });
-  if (r.ok) window.location.assign("/");
-  else window.alert((await r.json().catch(() => null))?.error ?? "Não deu para trocar o perfil.");
+  // Servidor antigo (git pull sem Stop/Run) não conhece a rota: o catch-all do
+  // app devolve a página HTML com 200 e parecia ter dado certo.
+  const json = (r.headers.get("content-type") || "").includes("application/json")
+    ? await r.json().catch(() => null)
+    : null;
+  if (r.ok && json && (json.role === role || (role === "admin" && json.papelReal == null))) {
+    window.location.assign("/");
+    return;
+  }
+  window.alert(json?.error
+    ?? "Não deu para trocar o perfil: o servidor ainda está na versão anterior. No Replit, pare e rode o app de novo (Stop/Run) e tente outra vez.");
 }
 
 // Atalho real do sidebar no Mac é ⌘B — o title dizia Ctrl+B para todo mundo.

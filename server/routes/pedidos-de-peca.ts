@@ -394,6 +394,24 @@ export function registerPedidosDePecaRoutes(app: Express): void {
     }
   });
 
+  // O número do menu (dono, 15/09): solicitações que esperam a Solicitação
+  // agir — alguma peça aberta ou um ajuste esperando resposta.
+  app.get("/api/pedidos-de-peca/pendentes", requireResolverPedido, async (_req, res) => {
+    try {
+      await converterFormatoAntigo();
+      const [{ total }] = await db.select({ total: sql<number>`count(distinct ${linhasDoPedidoDePeca.pedidoId})::int` })
+        .from(linhasDoPedidoDePeca)
+        .where(or(
+          eq(linhasDoPedidoDePeca.status, "aberto"),
+          and(eq(linhasDoPedidoDePeca.status, "atendido"), eq(linhasDoPedidoDePeca.ajusteStatus, "pendente")),
+        ));
+      res.json({ total: Number(total) || 0 });
+    } catch (error) {
+      console.error("[pedidos] erro ao contar pendentes:", error);
+      res.status(500).json({ error: "Erro ao contar as solicitações pendentes" });
+    }
+  });
+
   app.post("/api/pedidos-de-peca", requirePedirPeca, async (req, res) => {
     try {
       const dados = novaSolicitacaoSchema.parse(req.body);

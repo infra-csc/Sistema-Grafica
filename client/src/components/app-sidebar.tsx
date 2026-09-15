@@ -5,6 +5,7 @@ import {
   Timer, GitBranch, Bell, Inbox,
 } from "lucide-react";
 import { useId, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Link, useLocation } from "wouter";
 import { roleLabel, userInitials } from "@/lib/utils";
 import { useAuth, type UserRole } from "@/contexts/auth-context";
@@ -103,7 +104,7 @@ const sectionLabelStyle: React.CSSProperties = {
 };
 
 // ─── Single nav item ─────────────────────────────────────
-function NavItem({ item, isActive }: { item: MenuItem; isActive: boolean }) {
+function NavItem({ item, isActive, badge }: { item: MenuItem; isActive: boolean; badge?: number }) {
   const Icon = item.icon;
   const isMobile = useIsMobile();
 
@@ -180,6 +181,31 @@ function NavItem({ item, isActive }: { item: MenuItem; isActive: boolean }) {
           <span title={item.title} style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
             {item.title}
           </span>
+          {badge !== undefined && badge > 0 && (
+            <span
+              data-testid={`badge-${item.url.replace(/^\//, "")}`}
+              aria-label={`${badge} ${badge === 1 ? "solicitação esperando" : "solicitações esperando"} ação`}
+              title={`${badge} ${badge === 1 ? "solicitação esperando" : "solicitações esperando"} ação`}
+              style={{
+                marginLeft: "auto",
+                flexShrink: 0,
+                minWidth: 20,
+                height: 20,
+                padding: "0 6px",
+                borderRadius: 10,
+                backgroundColor: "#c2410c",
+                color: "#ffffff",
+                fontSize: 11,
+                fontWeight: 700,
+                lineHeight: "20px",
+                textAlign: "center",
+                fontVariantNumeric: "tabular-nums",
+                boxSizing: "border-box",
+              }}
+            >
+              {badge > 99 ? "99+" : badge}
+            </span>
+          )}
         </Link>
       </SidebarMenuButton>
     </SidebarMenuItem>
@@ -191,12 +217,15 @@ function NavGroup({
   label,
   items,
   isItemActive,
+  badges,
   first = false,
 }: {
   // null = grupo único visível para o papel; o rótulo vira ruído e some.
   label: string | null;
   items: MenuItem[];
   isItemActive: (url: string) => boolean;
+  /** Número ao lado do item, por url. */
+  badges?: Record<string, number | undefined>;
   first?: boolean;
 }) {
   // O rótulo visual da seção não nomeava a lista para leitores de tela —
@@ -216,7 +245,7 @@ function NavGroup({
       <SidebarGroupContent>
         <SidebarMenu style={{ gap: 1 }} aria-labelledby={label !== null ? labelId : undefined}>
           {items.map((item) => (
-            <NavItem key={item.title} item={item} isActive={isItemActive(item.url)} />
+            <NavItem key={item.title} item={item} isActive={isItemActive(item.url)} badge={badges?.[item.url]} />
           ))}
         </SidebarMenu>
       </SidebarGroupContent>
@@ -238,6 +267,16 @@ export function AppSidebar() {
   // muda no hover e a COR do polegar (.sidebar-scroll no index.css).
 
   const role = (user?.role || "") as UserRole;
+
+  // Solicitações esperando a Solicitação agir (dono, 15/09). A chave começa
+  // com /api/pedidos-de-peca, então o aviso do websocket já a atualiza.
+  const resolvePedidos = role === "solicitacao" || role === "admin";
+  const { data: pendentes } = useQuery<{ total: number }>({
+    queryKey: ["/api/pedidos-de-peca/pendentes"],
+    enabled: resolvePedidos,
+  });
+  const badges = { "/pedidos-de-peca": resolvePedidos ? pendentes?.total : undefined };
+
   const filterByRole = (items: MenuItem[]) =>
     items.filter((item) => (item.roles ? item.roles.includes(role) : true) && !(item.semKit && user?.kit));
 
@@ -324,6 +363,7 @@ export function AppSidebar() {
               label={singleGroup ? null : g.label}
               items={g.items}
               isItemActive={isItemActive}
+              badges={badges}
               first={i === 0}
             />
           ))}

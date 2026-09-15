@@ -41,7 +41,7 @@ import {
   isDelivered, isConferred, isProduced, isInProd,
   qtyOf, producedOf, conferredOf, deliveredOf, reusedOf, reusedTotalOf,
   m2ToProduce, remainingProduce, remainingConfer, remainingDeliver, remainingReuse,
-  canConfer, canDeliver,
+  canConfer as canConferBase, canDeliver as canDeliverBase,
   isComplement, complementsQtyOf, contractedTotalOf,
 } from "@/lib/saldo";
 // Leitura/ordenação do código da peça: fonte única em lib/displayId.ts, o mesmo
@@ -549,6 +549,12 @@ export default function Grafica() {
   // A entrega nunca teve gate de papel NESTE arquivo: quem a limita é
   // `canDeliver(item)`, que é saldo, não permissão. O servidor é que barra.
   const podeConferir = ["grafica", "solicitacao", "admin"].includes(user?.role ?? "");
+  // KIT (dono, 15/09): a Solicitação da Arena VÊ a peça do Kit na Gráfica, mas
+  // só como visualizadora — conferir e entregar a peça do Kit não é dela (o
+  // servidor também barra). O usuário do Kit só recebe as peças dele.
+  const soVisualizaKit = (item: any) => user?.role === "solicitacao" && !user?.kit && !!item?.kitRemessaId;
+  const canConfer = (item: any) => !soVisualizaKit(item) && canConferBase(item);
+  const canDeliver = (item: any) => !soVisualizaKit(item) && canDeliverBase(item);
   // MEXER NA QUANTIDADE (criar complemento e cancelar complemento) é outro
   // papel: admin | solicitacao, espelho de `podeMudarQuantidade` no servidor.
   // `canProduce` (grafica|admin) NÃO participa deste gate em ponto nenhum — a

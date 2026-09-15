@@ -180,7 +180,8 @@ describe("dá para saber o que falta sem abrir nada", () => {
 
   it("são quatro colunas, não sete", () => {
     expect(tela).toContain('{ label: "Peça", w: undefined }');
-    expect(tela).toContain('{ label: "Qtd · Dim · m²", w: 190 }');
+    // 15/09: layout fixo sem rolagem — a medida ganhou largura para não quebrar.
+    expect(tela).toContain('{ label: "Qtd · Dim · m²", w: 230 }');
     expect(tela).toContain('{ label: "Arquivo final", w: 140 }');
     expect(codigo).not.toContain('{ label: "Descrição da Peça"');
     expect(codigo).not.toContain('{ label: "Dim (LxA)"');

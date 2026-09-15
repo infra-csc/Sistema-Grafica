@@ -642,8 +642,11 @@ export default function Solicitacao() {
   // `item.event` vem CRU do storage: traz `status` ("closed") e `startDate`.
   const hojeBusinessMs = todayBusinessMs();
   const pendingItems = useMemo(
-    () => items.filter(item => item.status === REVIEW_STATUS),
-    [items],
+    // KIT (dono, 15/09): a Solicitação da Arena não revisa peça do Kit — ela
+    // nem aparece aqui. O usuário do Kit só recebe as do Kit; o admin vê tudo.
+    () => items.filter(item => item.status === REVIEW_STATUS
+      && !(user?.role === "solicitacao" && !user?.kit && item.kitRemessaId)),
+    [items, user?.role, user?.kit],
   );
 
   // Um selo por peça, calculado uma vez. `null` = evento em jogo, linha normal.
@@ -1387,7 +1390,10 @@ export default function Solicitacao() {
           </div>
         ) : (
           <div style={{ backgroundColor: "#fff", border: "1px solid #e7e5e4", borderRadius: 8, overflowX: "auto", boxShadow: "0 1px 4px rgba(0,0,0,0.05)" }}>
-            <table style={{ width: "100%", minWidth: 860, textAlign: "left", borderCollapse: "collapse" }}>
+            {/* SEM ROLAGEM (dono, 15/09): layout fixo — as colunas de dado têm
+                largura, a Peça fica com o resto e QUEBRA linha em vez de
+                alargar a tabela. */}
+            <table style={{ width: "100%", tableLayout: "fixed", textAlign: "left", borderCollapse: "collapse" }}>
               <thead>
                 <tr style={{ backgroundColor: "#fafaf9", borderBottom: "1px solid #e7e5e4" }}>
                   {/* Select all */}
@@ -1409,9 +1415,9 @@ export default function Solicitacao() {
                     // três jeitos. Juntas, cabem numa linha — e sobra largura
                     // para a coluna que faltava.
                     { label: "Peça", w: undefined },
-                    { label: "Qtd · Dim · m²", w: 190 },
+                    { label: "Qtd · Dim · m²", w: 230 },
                     { label: "Arquivo final", w: 140 },
-                    { label: "Ações", w: 120, right: true },
+                    { label: "Ações", w: 160, right: true },
                   ].map(col => (
                     <th
                       key={col.label}
@@ -1622,7 +1628,7 @@ export default function Solicitacao() {
                                 lêem-se como uma frase — e a largura que
                                 sobra vira a coluna que faltava. */}
                             <td style={{ padding: "12px 16px", minWidth: 0 }}>
-                              <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+                              <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: "4px 8px", minWidth: 0 }}>
                                 <span
                                   data-testid={`text-display-id-${item.id}`}
                                   style={{ fontFamily: "'DM Mono', monospace", fontSize: 12, fontWeight: 700, color: "#c2410c", flexShrink: 0, whiteSpace: "nowrap" }}
@@ -1630,7 +1636,7 @@ export default function Solicitacao() {
                                   {item.displayId}
                                 </span>
                                 <SeloKit peca={item} style={{ flexShrink: 0 }} />
-                                <span style={{ fontSize: 13, fontWeight: 700, color: TI.text, flexShrink: 0, whiteSpace: "nowrap" }}>
+                                <span style={{ fontSize: 13, fontWeight: 700, color: TI.text, minWidth: 0, overflowWrap: "anywhere" }}>
                                   {item.type}
                                 </span>
                                 {item.description && (

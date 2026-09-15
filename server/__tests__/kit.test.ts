@@ -227,6 +227,19 @@ describe("agrupar como Kit, selo compacto e datas do Kit no delta (15/09)", () =
   });
 });
 
+describe("Solicitação da Arena e o Kit (15/09)", () => {
+  it("Revisão sem Kit para a Solicitação da Arena e sem rolagem; Gráfica só visualiza; servidor barra a escrita", () => {
+    const REVISAO = ler("client/src/pages/solicitacao.tsx");
+    expect(REVISAO).toContain('&& !(user?.role === "solicitacao" && !user?.kit && item.kitRemessaId)),');
+    expect(REVISAO).toContain('<table style={{ width: "100%", tableLayout: "fixed", textAlign: "left", borderCollapse: "collapse" }}>');
+    const GRAFICA = ler("client/src/pages/grafica.tsx");
+    expect(GRAFICA).toContain('const soVisualizaKit = (item: any) => user?.role === "solicitacao" && !user?.kit && !!item?.kitRemessaId;');
+    expect(GRAFICA).toContain("const canConfer = (item: any) => !soVisualizaKit(item) && canConferBase(item);");
+    expect(ROUTES).toContain('if (req.userRole !== "solicitacao" || req.userKit || !["POST", "PATCH", "PUT", "DELETE"].includes(req.method)) return next();');
+    expect(ROUTES).toContain("Peça do Kit: a Solicitação da Arena só visualiza.");
+  });
+});
+
 describe("Arte: Kit em cima (15/09)", () => {
   it("peças do Kit ordenadas antes das da Arena, remessa junta, e cabeçalho com a entrega do material", () => {
     const ARTE = ler("client/src/pages/arte.tsx");

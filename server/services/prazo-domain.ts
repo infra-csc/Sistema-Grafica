@@ -578,7 +578,7 @@ export function eventosDoPrazo<E extends DomainEvent, I extends { kitRemessaId?:
       evento: {
         ...event,
         id: `${event.id}${SEPARADOR_KIT}${rid}`,
-        name: `${event.name} · KIT ${r.versao}`,
+        name: `${event.name} · KIT`,
         // Quando eles precisam da peça: a entrega do material (dono, 15/09).
         truckDepartureDate: r.entregaMaterial,
         startDate: r.dataEvento ?? event.startDate,

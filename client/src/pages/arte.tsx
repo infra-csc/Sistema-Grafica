@@ -1670,6 +1670,9 @@ export default function Arte() {
       // PEÇA PRIORITÁRIA fura a fila (dono, 27/08): vem antes de qualquer
       // régua — inclusive do prazo. É a peça que a Solicitação marcou para a
       // Arte atacar primeiro.
+      // KIT SEMPRE EM CIMA (dono, 15/09): as peças do Kit antes das da Arena.
+      const kit = Number(!!b.kitRemessaId) - Number(!!a.kitRemessaId);
+      if (kit !== 0) return kit;
       const prio = Number(!!b.isPriority) - Number(!!a.isPriority);
       if (prio !== 0) return prio;
       // Ordenar por PRAZO reordena os blocos inteiros (a lista é agrupada por
@@ -1681,6 +1684,9 @@ export default function Arte() {
       }
       const eA = a.event?.name || '', eB = b.event?.name || '';
       if (eA !== eB) return cmp.compare(eA, eB);
+      // Cada remessa do Kit junta, num bloco só.
+      const rA = a.kitRemessaId || '', rB = b.kitRemessaId || '';
+      if (rA !== rB) return cmp.compare(rA, rB);
       const gA = groupOf(a.type) || '', gB = groupOf(b.type) || '';
       if (gA !== gB) return cmp.compare(gA, gB);
       // compareDisplayId, não replace(/\D/g,''): o complemento "#0062-C1"
@@ -2645,7 +2651,7 @@ export default function Arte() {
     shownItems.forEach(item => {
       // KIT (14/09): as peças de uma remessa do Kit formam bloco próprio —
       // o cabeçalho mostra as datas e os marcos do Kit, não os da Arena.
-      const eventName = (item.event?.name || 'Sem Evento') + (item.kitRemessaId && item.event?.kitVersao ? ` · KIT ${item.event.kitVersao}` : '');
+      const eventName = (item.event?.name || 'Sem Evento') + (item.kitRemessaId ? ' · KIT' : '');
       const eventKey = item.eventId || eventName;
       const chave = item.kitRemessaId ? `${eventKey}#kit-${item.kitRemessaId}` : eventKey;
       const grupoNome = groupOf(item.type) || '';
@@ -2997,7 +3003,10 @@ export default function Arte() {
                       {!isMobile && bloco.eventObj?.truckDepartureDate && (
                         <span style={{ display: 'flex', alignItems: 'center', gap: 5, color: '#57534e', fontSize: 11, fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
                           <Truck style={{ width: 12, height: 12 }} />
-                          Saída: {toUTCDisplayDate(bloco.eventObj.truckDepartureDate).toLocaleDateString('pt-BR')} às {toUTCDisplayDate(bloco.eventObj.truckDepartureDate).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                          {/* Bloco do Kit: a data que manda é a entrega do material (15/09). */}
+                          {bloco.eventObj.datasDoKit
+                            ? <>Entrega do material: {new Date(bloco.eventObj.truckDepartureDate).toLocaleDateString('pt-BR', { timeZone: 'UTC' })}</>
+                            : <>Saída: {toUTCDisplayDate(bloco.eventObj.truckDepartureDate).toLocaleDateString('pt-BR')} às {toUTCDisplayDate(bloco.eventObj.truckDepartureDate).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</>}
                         </span>
                       )}
                       {/* Chips de prazo: fundo sólido claro com texto escuro —

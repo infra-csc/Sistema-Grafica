@@ -187,7 +187,7 @@ describe("prazos pelas datas do Kit (fase 4)", () => {
     expect(blocos[0].evento.id).toBe("e1");
     expect(blocos[0].itens.map((i) => i.id)).toEqual(["a"]);
     expect(blocos[1].evento.id).toBe("e1#kit-r1");
-    expect(blocos[1].evento.name).toBe("Mangaratiba · KIT V1");
+    expect(blocos[1].evento.name).toBe("Mangaratiba · KIT");
     expect(blocos[1].evento.truckDepartureDate).toBe("2026-09-14T12:00:00Z");
     // Só peças do Kit: não aparece uma linha "sem peças" da Arena.
     expect(eventosDoPrazo(evento, [{ id: "b", kitRemessaId: "r1" }], remessas)).toHaveLength(1);
@@ -211,7 +211,7 @@ describe("prazos pelas datas do Kit (fase 4)", () => {
 describe("agrupar como Kit, selo compacto e datas do Kit no delta (15/09)", () => {
   it("grupo da peça: remessa do Kit ou nada", async () => {
     const { grupoDoKit } = await import("@shared/kit");
-    expect(grupoDoKit({ kitRemessaId: "r1", kitRemessa: { versao: "V1", entregaMaterial: "2026-09-14T12:00:00Z" } })).toBe("KIT V1 · entrega 14/09");
+    expect(grupoDoKit({ kitRemessaId: "r1", kitRemessa: { versao: "V1", entregaMaterial: "2026-09-14T12:00:00Z" } })).toBe("KIT · entrega 14/09");
     expect(grupoDoKit({ kitRemessaId: null })).toBeNull();
   });
 
@@ -224,6 +224,17 @@ describe("agrupar como Kit, selo compacto e datas do Kit no delta (15/09)", () =
     const SELO = ler("client/src/components/kit/selo-kit.tsx");
     expect(SELO).toContain("KIT{entrega ? <span");
     expect(SELO).toContain("title={detalheDaRemessa(peca.kitRemessa)}");
+  });
+});
+
+describe("Arte: Kit em cima (15/09)", () => {
+  it("peças do Kit ordenadas antes das da Arena, remessa junta, e cabeçalho com a entrega do material", () => {
+    const ARTE = ler("client/src/pages/arte.tsx");
+    const kit = ARTE.indexOf("const kit = Number(!!b.kitRemessaId) - Number(!!a.kitRemessaId);");
+    expect(kit).toBeGreaterThan(-1);
+    expect(kit).toBeLessThan(ARTE.indexOf("const prio = Number(!!b.isPriority) - Number(!!a.isPriority);"));
+    expect(ARTE).toContain("const rA = a.kitRemessaId || '', rB = b.kitRemessaId || '';");
+    expect(ARTE).toContain("? <>Entrega do material: {new Date(bloco.eventObj.truckDepartureDate)");
   });
 });
 

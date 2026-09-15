@@ -116,7 +116,7 @@ export function startDeadlineAlerts(): void {
         const event = eventoPorId.get(remessa.eventId);
         if (!event || event.status === 'completed' || event.status === EVENT_CLOSED_STATUS) continue;
         const ancoraMs = new Date(ancoraDoKit(remessa)).getTime();
-        const nome = `${event.name} · KIT ${remessa.versao}`;
+        const nome = `${event.name} · KIT`;
         const oQue = "a entrega do material do Kit";
         const faltam = (ancoraMs - now.getTime()) / (1000 * 60 * 60);
         for (const janela of [48, 24, 12]) {

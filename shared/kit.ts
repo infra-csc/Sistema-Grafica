@@ -72,9 +72,9 @@ export function textoDoSeloKit(remessa: { entregaMaterial?: string | Date | null
  *  "KIT V1 · entrega 20/09" para a peça do Kit; null para a da Arena. */
 export function grupoDoKit(peca: { kitRemessaId?: string | null; kitRemessa?: { versao?: string | null; entregaMaterial?: string | Date | null } | null }): string | null {
   if (!peca.kitRemessaId) return null;
-  const versao = peca.kitRemessa?.versao;
+  // Sem a versão (15/09: "V1 não precisa, apenas que é Kit").
   const dia = diaMesDoKit(peca.kitRemessa?.entregaMaterial);
-  return `KIT${versao ? ` ${versao}` : ""}${dia ? ` · entrega ${dia}` : ""}`;
+  return `KIT${dia ? ` · entrega ${dia}` : ""}`;
 }
 
 /** "KIT V1 · entrega 20/09" — como a remessa aparece numa lista de escolha. */

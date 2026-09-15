@@ -41,11 +41,13 @@ type PecaDaPlanilha = {
   _chave: string;
 };
 
-export function PainelDoKit({ eventId, pecas, podeCriar, usuarioDoKit, nomeDoUsuario, dataDoEvento, saidaDoEvento, eventoFinalizado, onAbrirPeca }: {
+export function PainelDoKit({ eventId, pecas, podeCriar, usuarioDoKit, nomeDoUsuario, dataDoEvento, saidaDoEvento, eventoFinalizado, onAbrirPeca, onAdicionarPeca }: {
   eventId: string;
   pecas: any[];
   /** Abre o detalhe da peça (o mesmo da lista da Arena). */
   onAbrirPeca?: (peca: any) => void;
+  /** Inclusão individual (15/09): abre "Adicionar Peça" já na remessa. */
+  onAdicionarPeca?: (remessaId: string) => void;
   /** admin | solicitacao (inclui o usuário do Kit) — a régua do servidor. */
   podeCriar: boolean;
   usuarioDoKit: boolean;
@@ -236,6 +238,14 @@ export function PainelDoKit({ eventId, pecas, podeCriar, usuarioDoKit, nomeDoUsu
               <span style={{ fontSize: FS.small, fontWeight: 800, color: "#4c1d95", textTransform: "uppercase", letterSpacing: "0.06em" }}>
                 Peças do KIT {r.versao} · entrega {diaMesDoKit(r.entregaMaterial) ?? "—"}
               </span>
+              {podeCriar && onAdicionarPeca && confirmandoExclusao !== r.id && (
+                <button type="button" data-testid={`button-adicionar-peca-remessa-${r.id}`} disabled={eventoFinalizado}
+                  onClick={() => onAdicionarPeca(r.id)}
+                  title={eventoFinalizado ? "Evento finalizado — não recebe peças" : `Adicionar uma peça à KIT ${r.versao}`}
+                  style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 5, height: 32, padding: "0 12px", borderRadius: R.md, border: "none", background: eventoFinalizado ? "#e7e5e4" : "#6d28d9", color: eventoFinalizado ? "#78716c" : "#fff", fontSize: 12.5, fontWeight: 800, cursor: eventoFinalizado ? "not-allowed" : "pointer" }}>
+                  <Plus size={13} aria-hidden="true" /> Adicionar peça ao KIT {r.versao}
+                </button>
+              )}
               {podeCriar && (confirmandoExclusao === r.id ? (
                 <span style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                   <span style={{ fontSize: FS.body, color: "#991b1b", fontWeight: 700 }}>Excluir a KIT {r.versao} e as {daRemessa.length} peças?</span>
@@ -251,13 +261,13 @@ export function PainelDoKit({ eventId, pecas, podeCriar, usuarioDoKit, nomeDoUsu
               ) : (
                 <button type="button" data-testid={`button-excluir-remessa-${r.id}`} onClick={() => setConfirmandoExclusao(r.id)}
                   title="Excluir a remessa e as peças dela — só enquanto nenhuma peça foi enviada"
-                  style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 5, height: 32, padding: "0 10px", borderRadius: R.md, border: "1px solid #fecaca", background: "#fff", color: "#b91c1c", fontSize: 12.5, fontWeight: 800, cursor: "pointer" }}>
+                  style={{ marginLeft: onAdicionarPeca ? 0 : "auto", display: "inline-flex", alignItems: "center", gap: 5, height: 32, padding: "0 10px", borderRadius: R.md, border: "1px solid #fecaca", background: "#fff", color: "#b91c1c", fontSize: 12.5, fontWeight: 800, cursor: "pointer" }}>
                   <Trash2 size={13} aria-hidden="true" /> Excluir remessa
                 </button>
               ))}
             </div>
             {daRemessa.length === 0 ? (
-              <p style={{ margin: 0, padding: "14px 12px", fontSize: FS.body, color: "#57534e" }}>Nenhuma peça nesta remessa ainda — adicione pelo formulário escolhendo “KIT {r.versao}”.</p>
+              <p style={{ margin: 0, padding: "14px 12px", fontSize: FS.body, color: "#57534e" }}>Nenhuma peça nesta remessa ainda — use “Adicionar peça ao KIT {r.versao}”.</p>
             ) : (
               <div style={{ overflowX: "auto" }}>
                 <table style={{ width: "100%", minWidth: 560, borderCollapse: "collapse", fontSize: 13 }}>

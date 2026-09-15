@@ -224,6 +224,14 @@ describe("agrupar como Kit, selo compacto e datas do Kit no delta (15/09)", () =
   });
 });
 
+describe("inclusão individual do Kit (15/09)", () => {
+  it("cada remessa tem 'Adicionar peça' que abre o formulário já na remessa", () => {
+    const PAINEL_KIT = ler("client/src/components/kit/painel-do-kit.tsx");
+    expect(PAINEL_KIT).toContain("data-testid={`button-adicionar-peca-remessa-${r.id}`}");
+    expect(EVENTO).toContain("setFormData({ ...EMPTY_ITEM_FORM, kitRemessaId: remessaId });");
+  });
+});
+
 describe("remessa duplicada e detalhe das peças (15/09)", () => {
   it("servidor: versão repetida barrada, aviso não derruba a importação, excluir remessa só antes de andar", () => {
     const SERVICO = ler("server/services/kitRemessas.ts");

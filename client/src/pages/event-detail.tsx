@@ -2542,6 +2542,17 @@ export default function EventDetail() {
         dataDoEvento={(event as any)?.startDate ?? null}
         saidaDoEvento={(event as any)?.truckDepartureDate ?? null}
         onAbrirPeca={(peca) => setSelectedItemForDetails(peca)}
+        // Inclusão individual do Kit (15/09): o formulário de sempre, já na remessa.
+        onAdicionarPeca={(remessaId) => {
+          setEditingItem(null);
+          setBulkMode(false);
+          setCustomMaterial(false);
+          setCustomFinish(false);
+          setLocalRefPreview("");
+          setPedidoEmAtendimento(null);
+          setFormData({ ...EMPTY_ITEM_FORM, kitRemessaId: remessaId });
+          setOpen(true);
+        }}
         eventoFinalizado={!!eventoFinalizado}
       />
 

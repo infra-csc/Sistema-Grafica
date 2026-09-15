@@ -18,6 +18,7 @@ import { SponsorChips } from "@/components/sponsor-chips";
 import { useAuth } from "@/contexts/auth-context";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { CONDITION_META, type Condition, type ConditionMeta, type EnrichedAsset } from "@/lib/inventory-meta";
+import { FS } from "@/lib/theme";
 
 // Re-export para compatibilidade — a definição vive em @/lib/inventory-meta.
 export type { EnrichedAsset };
@@ -649,7 +650,7 @@ export default function TriagemRetorno() {
             <ClipboardCheck size={22} color="#fff" strokeWidth={2.2} />
           </div>
           <div>
-            <h1 style={{ margin: "0 0 3px", fontSize: 28, fontWeight: 900, fontFamily: "Space Grotesk, sans-serif", color: "#0f172a", letterSpacing: "-0.03em", lineHeight: 1 }}>
+            <h1 style={{ margin: "0 0 3px", fontSize: FS.h1, fontWeight: 700, fontFamily: "'Space Grotesk', sans-serif", color: "#1c1917", letterSpacing: "-0.03em", lineHeight: 1.1 }}>
               Triagem de Retorno
             </h1>
             <p style={{ margin: 0, fontSize: 10, fontWeight: 700, color: "#64748b", fontFamily: "Space Grotesk, sans-serif", textTransform: "uppercase", letterSpacing: "0.18em" }}>

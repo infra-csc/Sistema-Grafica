@@ -88,9 +88,11 @@ export function GalpaoFila({ mode, itens, onClose, onConfirmar }: Props) {
 
   // Saldo encolheu por baixo (conferência parcial do colega): a quantidade
   // escolhida nunca fica acima do que ainda falta.
+  // `idx` também: a peça seguinte pode ter o MESMO saldo vivo da anterior e,
+  // só com `saldoVivo`, o teto não rodava — a quantidade ficava a da foto.
   useEffect(() => {
     if (saldoVivo != null && saldoVivo > 0) setQty((q) => Math.min(q, saldoVivo));
-  }, [saldoVivo]);
+  }, [saldoVivo, idx]);
 
   if (!item) return null;
 
@@ -102,7 +104,7 @@ export function GalpaoFila({ mode, itens, onClose, onConfirmar }: Props) {
   const confirmar = async () => {
     if (!foto || enviando) return;
     if (jaRegistradaPorOutro) {
-      setErro("Esta peça já foi registrada por outra pessoa enquanto a fila estava aberta. Toque em Pular para seguir.");
+      setErro("Esta peça saiu da fila depois que ela abriu. Toque em Pular para seguir.");
       return;
     }
     setEnviando(true);
@@ -177,10 +179,14 @@ export function GalpaoFila({ mode, itens, onClose, onConfirmar }: Props) {
 
       {/* ── a peça ── */}
       <div style={{ flex: 1, overflowY: "auto", padding: "14px 14px 8px", display: "flex", flexDirection: "column", gap: 12 }}>
-        {jaRegistradaPorOutro && (
+        {/* Texto neutro: a peça sai da lista viva também quando é devolvida
+            para a Revisão ou muda de recorte — afirmar "outra pessoa conferiu"
+            seria mentira nesses casos. E some durante o PRÓPRIO envio: o eco
+            do WebSocket pode chegar antes da resposta HTTP. */}
+        {jaRegistradaPorOutro && !enviando && (
           <div role="status" data-testid="galpao-ja-registrada" style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 10, backgroundColor: "#fffbeb", border: "1px solid #fde68a", color: "#92400e", fontSize: 13, fontWeight: 600, lineHeight: 1.4 }}>
             <span style={{ flex: 1 }}>
-              Outra pessoa já {isConfer ? "conferiu" : "entregou"} esta peça depois que a fila abriu. Nada a fazer aqui.
+              Esta peça saiu da fila depois que ela abriu — já foi {isConfer ? "conferida" : "entregue"} ou mudou de etapa. Nada a fazer aqui.
             </span>
             <button type="button" onClick={() => avancar(feitas)}
               style={{ minHeight: 44, padding: "0 14px", borderRadius: 10, border: "none", backgroundColor: "#92400e", color: "#ffffff", fontSize: 13, fontWeight: 800, cursor: "pointer", whiteSpace: "nowrap" }}>

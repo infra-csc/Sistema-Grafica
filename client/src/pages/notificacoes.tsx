@@ -19,6 +19,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { Bell, Send, Loader2, X, Plus, CheckCircle2, AlertTriangle, MinusCircle } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { FS } from "@/lib/theme";
 
 interface Edicao {
   aviso: "gestao" | "revisao";
@@ -193,7 +194,7 @@ export default function Notificacoes() {
   return (
     <div style={{ backgroundColor: "#fafaf9", minHeight: "100%", padding: "18px 18px 64px" }}>
       <div style={{ maxWidth: 1060, margin: "0 auto" }}>
-        <h1 style={{ margin: "0 0 4px", fontFamily: "'Space Grotesk', sans-serif", fontSize: 20, fontWeight: 800, color: "#1c1917", display: "flex", alignItems: "center", gap: 8 }}>
+        <h1 style={{ margin: "0 0 4px", fontFamily: "'Space Grotesk', sans-serif", fontSize: FS.h1, fontWeight: 700, letterSpacing: "-0.03em", lineHeight: 1.1, color: "#1c1917", display: "flex", alignItems: "center", gap: 8 }}>
           <Bell style={{ width: 18, height: 18, color: "#c2410c" }} /> Notificações
         </h1>
         <p style={{ margin: "0 0 16px", fontSize: 13, color: "#57534e" }}>

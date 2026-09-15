@@ -36,7 +36,7 @@ import { ehBookCompleto } from "@shared/fluxo-peca";
 // chegou a usar dezenove; `P` é a mesma paleta que os selos de status já
 // consomem, e reescrever o hex dela numa tela cria uma cópia que não
 // acompanha a origem.
-import { R } from "@/lib/theme";
+import { R, FS } from "@/lib/theme";
 import { spDayMs } from "@shared/prazo-dates";
 import { useAuth } from "@/contexts/auth-context";
 // Regras puras (recortes de status, predicado de filtro, prazo por fase,
@@ -3637,8 +3637,8 @@ export default function Arte() {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
                   {/* 26/700/-0.03em: a mesma escala da Gestão de Prazos e do
                       Atendimento. Em -0.05em as letras do título se tocavam. */}
-                  <h1 style={{ fontSize: 26, fontWeight: 700, color: '#1a1c1c', letterSpacing: '-0.03em', margin: 0, fontFamily: '"Space Grotesk", sans-serif', lineHeight: 1.15 }}>
-                    Módulo Arte
+                  <h1 style={{ fontSize: FS.h1, fontWeight: 700, color: '#1a1c1c', letterSpacing: '-0.03em', margin: 0, fontFamily: "'Space Grotesk', sans-serif", lineHeight: 1.1 }}>
+                    Arte
                   </h1>
                   {(pendingCount + correcaoCount + needsFinalFileCount) > 0 ? (
                     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 10px', borderRadius: 999, backgroundColor: '#fff7ed', border: '1px solid #fed7aa', fontSize: 11, fontWeight: 700, color: '#c2410c' }}>

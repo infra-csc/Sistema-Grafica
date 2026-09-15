@@ -23,7 +23,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { FilterSelect } from "@/components/filter-select";
 import { T, FS, R } from "@/lib/theme";
-import { MotivoDoPedidoDialog, enviarAcaoComMotivo, tituloDoAviso, type AlvoDaAcao } from "@/components/motivo-do-pedido-dialog";
+import { MotivoDoPedidoDialog, descricaoDoAviso, enviarAcaoComMotivo, tituloDoAviso, type AlvoDaAcao } from "@/components/motivo-do-pedido-dialog";
 import { CartaoDoPedido, type AcaoDoCartao } from "@/components/pedidos/cartao-do-pedido";
 import { DetalheDoPedido } from "@/components/pedidos/detalhe-do-pedido";
 import { SeloDoEventoChip, invalidarPedidos, mensagemDaApi } from "@/components/pedidos/ui";
@@ -71,7 +71,9 @@ export function PedidosDoEvento({ eventId, pecas, podeVer, podeAtender, motivoEv
 
   const acaoComMotivo = useMutation({
     mutationFn: async ({ alvo: a, texto }: { alvo: AlvoDaAcao; texto: string }) => (await enviarAcaoComMotivo(a, texto)).json(),
-    onSuccess: (_d, v) => { toast({ title: tituloDoAviso(v.alvo) }); setAlvo(null); invalidarPedidos(); },
+    // Mesmo aviso de duas linhas da página de solicitações: o que aconteceu e
+    // quem ficou sabendo.
+    onSuccess: (_d, v) => { toast({ title: tituloDoAviso(v.alvo), description: descricaoDoAviso(v.alvo) }); setAlvo(null); invalidarPedidos(); },
     onError: (e) => toast({ title: "Não deu para concluir", description: mensagemDaApi(e), variant: "destructive" }),
   });
 
@@ -137,7 +139,9 @@ export function PedidosDoEvento({ eventId, pecas, podeVer, podeAtender, motivoEv
     if (l.status === "atendido") {
       return [
         ...(ajustePendente(l) ? [
-          { chave: "aceitar-ajuste", rotulo: "Aceitar ajuste", tom: "criar", bloqueio: aceitarAjuste.isPending ? "Salvando…" : null, onClick: () => aceitarAjuste.mutate(l), testId: `button-aceitar-ajuste-${l.id}` },
+          // `ocupado` e não `bloqueio`: salvando não é motivo de bloqueio — o
+          // rótulo diz o que acontece NESTA linha e as outras só travam.
+          { chave: "aceitar-ajuste", rotulo: aceitarAjuste.isPending && aceitarAjuste.variables?.id === l.id ? "Aceitando…" : "Aceitar ajuste", tom: "criar", ocupado: aceitarAjuste.isPending, onClick: () => aceitarAjuste.mutate(l), testId: `button-aceitar-ajuste-${l.id}` },
           { chave: "recusar-ajuste", rotulo: "Recusar ajuste", tom: "perigo", onClick: () => setAlvo({ pedido: p, linha: l, acao: "recusar-ajuste" }), testId: `button-recusar-ajuste-${l.id}` },
         ] as AcaoDoCartao[] : []),
         { chave: "outra", rotulo: "+ Outra peça", tom: "secundario", bloqueio, onClick: () => onCriarPeca(p, l), testId: `button-outra-peca-linha-${l.id}` },

@@ -44,6 +44,7 @@ import { ptBR } from "date-fns/locale";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useAuth } from "@/contexts/auth-context";
 import { Undo2, Play, Hourglass } from "lucide-react";
+import { FS } from "@/lib/theme";
 import { ModalHeader, ModalFooter, modalSurface, HIDE_NATIVE_CLOSE } from "@/components/modal-shell";
 
 interface SponsorApproval {
@@ -1497,9 +1498,9 @@ export default function Atendimento() {
             // 26/700, a mesma escala da Gestão de Prazos. O `clamp` com peso
             // 900 fazia o título mudar de tamanho conforme a largura da
             // janela e o deixava mais pesado que qualquer número da tela.
-            fontSize: 26, fontWeight: 700,
+            fontSize: FS.h1, fontWeight: 700,
             letterSpacing: '-0.03em', color: '#1c1917',
-            lineHeight: 1.15, marginBottom: 8,
+            lineHeight: 1.1, marginBottom: 8,
           }}>
             Aprovação do Patrocinador
           </h1>

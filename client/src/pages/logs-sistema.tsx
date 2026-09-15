@@ -4,7 +4,7 @@ import { FilterSelect } from "@/components/filter-select";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Search, ChevronLeft, ChevronRight, X, Download, Copy, Check } from "lucide-react";
-import { T } from "@/lib/theme";
+import { T, FS } from "@/lib/theme";
 import { useIsMobile } from "@/hooks/use-mobile";
 
 interface AuditLog {
@@ -230,7 +230,7 @@ export default function LogsSistema() {
       {/* ── Header ── */}
       <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 24, gap: 16, flexWrap: "wrap" }}>
         <div>
-          <h1 style={{ fontSize: 26, fontWeight: 900, color: T.text, margin: "0 0 6px", fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.04em", textTransform: "uppercase", lineHeight: 1 }}>
+          <h1 style={{ fontSize: FS.h1, fontWeight: 700, color: T.text, margin: "0 0 6px", fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.03em", lineHeight: 1.1 }}>
             Logs do Sistema
           </h1>
           <p style={{ fontSize: 15, color: T.second, margin: 0 }}>

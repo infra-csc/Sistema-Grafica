@@ -18,7 +18,7 @@ import {
   UserPlus, Pencil, Trash2, Search,
   ChevronLeft, ChevronRight, X, AlertTriangle, Check,
 } from "lucide-react";
-import { T } from "@/lib/theme";
+import { T, FS } from "@/lib/theme";
 import { useIsMobile } from "@/hooks/use-mobile";
 
 /**
@@ -284,8 +284,8 @@ export default function Usuarios() {
       {/* ── Header ── */}
       <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 28, gap: 16, flexWrap: "wrap" }}>
         <div>
-          <h1 style={{ fontSize: 26, fontWeight: 900, color: T.text, margin: "0 0 6px", fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.04em", textTransform: "uppercase", lineHeight: 1 }}>
-            Gerenciamento de Usuários
+          <h1 style={{ fontSize: FS.h1, fontWeight: 700, color: T.text, margin: "0 0 6px", fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.03em", lineHeight: 1.1 }}>
+            Usuários
           </h1>
           <p style={{ fontSize: 15, color: T.second, margin: 0 }}>
             Gerencie usuários, perfis e permissões de acesso ao sistema

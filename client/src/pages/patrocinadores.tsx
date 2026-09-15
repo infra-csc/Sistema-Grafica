@@ -11,7 +11,7 @@ import { z } from "zod";
 import { Form, FormControl, FormField, FormItem, FormMessage } from "@/components/ui/form";
 import { Pencil, Trash2, Search, X, AlertTriangle, Plus, Building2, ChevronLeft, ChevronRight } from "lucide-react";
 import type { Sponsor } from "@shared/schema";
-import { T } from "@/lib/theme";
+import { T, FS } from "@/lib/theme";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { FilterSelect, type FilterOption } from "@/components/filter-select";
 
@@ -276,8 +276,8 @@ export default function Patrocinadores() {
           <span style={{ fontSize: 10, fontWeight: 900, color: T.accentText, textTransform: "uppercase", letterSpacing: "0.2em", fontFamily: "'Space Grotesk', sans-serif" }}>
             Console de Gerenciamento
           </span>
-          <h1 style={{ fontSize: 26, fontWeight: 900, color: T.text, margin: "6px 0 0", fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.04em", lineHeight: 1 }}>
-            Gerenciamento de Patrocinadores
+          <h1 style={{ fontSize: FS.h1, fontWeight: 700, color: T.text, margin: "6px 0 0", fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.03em", lineHeight: 1.1 }}>
+            Patrocinadores
           </h1>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 24, flexWrap: "wrap" }}>

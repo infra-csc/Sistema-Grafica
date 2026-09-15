@@ -118,8 +118,8 @@ const GestaoPrazos = lazyPage(() => import("@/pages/gestao-prazos"));
 const ReparoMotivos = lazyPage(() => import("@/pages/reparo-motivos"));
 
 
-class ErrorBoundary extends Component<{ children: ReactNode; resetKey?: string }, { error: Error | null }> {
-  state = { error: null };
+class ErrorBoundary extends Component<{ children: ReactNode; resetKey?: string }, { error: Error | null; key?: string }> {
+  state: { error: Error | null; key?: string } = { error: null, key: this.props.resetKey };
   static getDerivedStateFromError(error: Error) { return { error }; }
   componentDidCatch(error: Error, info: { componentStack: string }) {
     console.error("[ErrorBoundary] CRASH:", error.message, error.stack, info.componentStack);
@@ -128,8 +128,11 @@ class ErrorBoundary extends Component<{ children: ReactNode; resetKey?: string }
   // recebe a rota como resetKey: quem bateu num defeito numa tela sai dele
   // clicando em qualquer item da sidebar — antes a tela quebrada ficava
   // presa até um F5, com o menu ao lado funcionando e sem efeito nenhum.
-  componentDidUpdate(prev: { resetKey?: string }) {
-    if (this.state.error && prev.resetKey !== this.props.resetKey) this.setState({ error: null });
+  // No render (e não em componentDidUpdate): lá, quando a tela NOVA quebrava,
+  // o update ainda via a rota anterior, limpava o erro e montava a tela
+  // quebrada duas vezes (requisições em dobro).
+  static getDerivedStateFromProps(props: { resetKey?: string }, state: { error: Error | null; key?: string }) {
+    return props.resetKey !== state.key ? { key: props.resetKey, error: null } : null;
   }
   render() {
     if (this.state.error) {
@@ -511,7 +514,6 @@ function AvisoDeConexao() {
       role="status"
       data-testid="aviso-conexao"
       style={{
-        position: "sticky", top: 0, zIndex: 41,
         display: "flex", alignItems: "center", justifyContent: "center", gap: 8, flexWrap: "wrap",
         padding: "7px 16px", backgroundColor: "#fffbeb", borderBottom: "1px solid #fde68a",
         color: "#78350f", fontSize: 12.5, fontWeight: 600, textAlign: "center",
@@ -858,10 +860,14 @@ function AuthenticatedLayout() {
             na casca em vez de crescer dentro dela (hoje a Arte). Nao muda o
             layout de ninguem: so da um ancestral posicionado a quem pedir. */}
         <SidebarInset id="conteudo" tabIndex={-1} className="flex-1 overflow-y-auto min-h-0" style={{ minWidth: 0, position: "relative", outline: "none" }}>
+          {/* Um só bloco grudado no topo: as duas faixas eram sticky em top:0
+              e, com a página rolada e o tempo real caído, a amarela cobria a
+              azul — justo a do botão "Voltar ao admin". Empilhadas, ambas ficam. */}
+          <div style={{ position: "sticky", top: 0, zIndex: 41 }}>
           <AvisoDeConexao />
           {user?.papelReal === "admin" && (
             <div role="status" data-testid="faixa-ver-como"
-              style={{ position: "sticky", top: 0, zIndex: 40, display: "flex", alignItems: "center", justifyContent: "center", gap: 12, flexWrap: "wrap", padding: "8px 16px", backgroundColor: "#1d4ed8", color: "#fff", fontSize: 13 }}>
+              style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 12, flexWrap: "wrap", padding: "8px 16px", backgroundColor: "#1d4ed8", color: "#fff", fontSize: 13 }}>
               <span>Você está vendo o sistema como <strong>{PERFIS_VER_COMO.find((p) => p.role === user?.role && !!p.kit === !!user?.kit)?.rotulo ?? roleLabel(user?.role)}</strong>.</span>
               <button type="button" data-testid="button-voltar-admin" onClick={() => { void verComo("admin"); }}
                 style={{ height: 30, padding: "0 12px", borderRadius: 999, border: "1px solid rgba(255,255,255,0.6)", background: "#fff", color: "#1d4ed8", fontSize: 12.5, fontWeight: 800, cursor: "pointer" }}>
@@ -869,6 +875,7 @@ function AuthenticatedLayout() {
               </button>
             </div>
           )}
+          </div>
           {/* Fronteira POR TELA: um defeito de render numa página não leva
               junto a sidebar e a topbar (a fronteira de fora pegava tudo), e
               trocar de rota limpa o erro. */}

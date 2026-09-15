@@ -68,6 +68,7 @@ import { avaliarProducao, tetoDeProducao, ehConflitoDeProducao } from "@/lib/gra
 // Selo "Atualizado há X" — o mesmo formatador da Gestão de Prazos e das
 // Análises, para as três telas dizerem a idade do dado com as mesmas palavras.
 import { fmtRelative } from "@/components/prazos/tokens";
+import { FS } from "@/lib/theme";
 // AUMENTAR QUANTIDADE nasce AQUI. Esta é a tela onde as peças em produção
 // vivem e onde o aumento precisa ser visto — o Detalhe do Evento ficou só com
 // a REDUÇÃO (campo Qtd. com piso físico) e aponta para cá. O gate é
@@ -908,7 +909,8 @@ export default function Grafica() {
     // "peça mudou enquanto você registrava", abaixo, fecha o modal se for o caso).
     onError: (error: Error) => {
       queryClient.invalidateQueries({ queryKey: ["/api/items/approved"] });
-      toast({ title: "Não foi possível registrar a entrega", description: `${apiErrorMessage(error)} A fila foi recarregada com o estado atual.`, variant: "destructive" });
+      // Sem internet a recarga não aconteceu: não prometer o que não houve.
+      toast({ title: "Não foi possível registrar a entrega", description: `${apiErrorMessage(error).replace(/[.\s]*$/, ".")}${navigator.onLine ? " A fila foi recarregada com o estado atual." : ""}`, variant: "destructive" });
     },
   });
 
@@ -956,7 +958,7 @@ export default function Grafica() {
     },
     onError: (error: Error) => {
       queryClient.invalidateQueries({ queryKey: ["/api/items/approved"] });
-      toast({ title: "Não foi possível registrar a conferência", description: `${apiErrorMessage(error)} A fila foi recarregada com o estado atual.`, variant: "destructive" });
+      toast({ title: "Não foi possível registrar a conferência", description: `${apiErrorMessage(error).replace(/[.\s]*$/, ".")}${navigator.onLine ? " A fila foi recarregada com o estado atual." : ""}`, variant: "destructive" });
     },
   });
 
@@ -1940,7 +1942,7 @@ export default function Grafica() {
       {/* ── Header ── */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: isMobile ? "center" : "flex-end", flexWrap: "wrap", gap: 8 }}>
         <div>
-          <h1 style={{ margin: 0, fontSize: isMobile ? 19 : 26, fontWeight: 900, fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.03em", textTransform: "uppercase", color: TI.text }} data-testid="title-grafica">
+          <h1 style={{ margin: 0, fontSize: isMobile ? 19 : FS.h1, fontWeight: 700, fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.03em", lineHeight: 1.1, color: TI.text }} data-testid="title-grafica">
             Gráfica
           </h1>
           {!isMobile && (
@@ -2030,7 +2032,7 @@ export default function Grafica() {
             </span>
           )}
           {!isMobile && stats.liberados > 0 && (
-            <span style={{ display: "inline-flex", alignItems: "center", gap: 6, backgroundColor: "#fff7ed", color: "#c2410c", border: "1px solid #fed7aa", borderRadius: 6, padding: "6px 12px", fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 6, backgroundColor: "#fff7ed", color: "#c2410c", border: "1px solid #fed7aa", borderRadius: 6, padding: "6px 12px", fontSize: 11, fontWeight: 800 }}>
               <span style={{ width: 6, height: 6, borderRadius: "50%", backgroundColor: "#f97316", display: "inline-block" }} />
               {stats.liberados} peça{stats.liberados !== 1 ? "s" : ""} aguardando produção
             </span>
@@ -2046,7 +2048,7 @@ export default function Grafica() {
                 display: 'inline-flex', alignItems: 'center', gap: 6,
                 backgroundColor: '#0e7490', color: '#fff',
                 border: 'none', borderRadius: 8, padding: '11px 16px',
-                fontSize: 13, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em',
+                fontSize: 13, fontWeight: 800,
                 cursor: 'pointer', boxShadow: '0 2px 8px rgba(14,116,144,0.3)',
               }}
             >
@@ -2063,12 +2065,12 @@ export default function Grafica() {
                 display: 'inline-flex', alignItems: 'center', gap: 6,
                 backgroundColor: '#0e7490', color: '#fff',
                 border: 'none', borderRadius: 8, padding: isMobile ? '11px 16px' : '8px 14px',
-                fontSize: isMobile ? 13 : 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em',
+                fontSize: isMobile ? 13 : 11, fontWeight: 800,
                 cursor: 'pointer', boxShadow: '0 2px 8px rgba(14,116,144,0.3)',
               }}
             >
               <CheckCircle style={{ width: isMobile ? 16 : 14, height: isMobile ? 16 : 14 }} />
-              {isMobile ? `Conferir em lote (${conferableInFilter.length})` : `Conferência em Lote (${conferableInFilter.length})`}
+              {isMobile ? `Conferir em lote (${conferableInFilter.length})` : `Conferência em lote (${conferableInFilter.length})`}
             </button>
           )}
           {bulkConferMode && (
@@ -2085,7 +2087,7 @@ export default function Grafica() {
                 display: 'inline-flex', alignItems: 'center', gap: 6,
                 backgroundColor: '#15803d', color: '#fff',
                 border: 'none', borderRadius: 8, padding: '11px 16px',
-                fontSize: 13, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em',
+                fontSize: 13, fontWeight: 800,
                 cursor: 'pointer', boxShadow: '0 2px 8px rgba(21,128,61,0.3)',
               }}
             >
@@ -2102,12 +2104,12 @@ export default function Grafica() {
                 // #c2410c (orange-700): branco sobre #f97316 dava ~2.8:1 (reprova AA)
                 backgroundColor: '#c2410c', color: '#fff',
                 border: 'none', borderRadius: 8, padding: isMobile ? '11px 16px' : '8px 14px',
-                fontSize: isMobile ? 13 : 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em',
+                fontSize: isMobile ? 13 : 11, fontWeight: 800,
                 cursor: 'pointer', boxShadow: '0 2px 8px rgba(194,65,12,0.35)',
               }}
             >
               <ListChecks style={{ width: isMobile ? 16 : 14, height: isMobile ? 16 : 14 }} />
-              {isMobile ? `Entregar em lote (${deliverableInFilter.length})` : `Entrega em Lote (${deliverableInFilter.length})`}
+              {isMobile ? `Entregar em lote (${deliverableInFilter.length})` : `Entrega em lote (${deliverableInFilter.length})`}
             </button>
           )}
           {bulkDeliveryMode && (
@@ -2126,7 +2128,7 @@ export default function Grafica() {
               display: "inline-flex", alignItems: "center", gap: 6,
               backgroundColor: TI.surface, color: TI.text,
               border: `1px solid ${TI.border}`, borderRadius: 6, padding: isMobile ? "10px 14px" : "7px 14px",
-              fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.06em",
+              fontSize: 11, fontWeight: 800,
               cursor: (isExporting || filteredItems.length === 0) ? "not-allowed" : "pointer",
               opacity: (isExporting || filteredItems.length === 0) ? 0.5 : 1,
             }}

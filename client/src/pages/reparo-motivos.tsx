@@ -3,7 +3,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { CheckCircle2, FilePenLine, Loader2, ShieldCheck, Wand2 } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { T } from "@/lib/theme";
+import { T, FS } from "@/lib/theme";
 
 type Reparo = {
   recordId: string;
@@ -83,7 +83,7 @@ export default function ReparoMotivos() {
           </div>
           <div>
             <p style={{ margin: "1px 0 5px", color: "#b91c1c", fontSize: 11, fontWeight: 800, letterSpacing: "0.1em", textTransform: "uppercase" }}>Administração</p>
-            <h1 style={{ margin: 0, color: T.text, fontSize: 26, letterSpacing: "-0.03em" }}>Correção de textos</h1>
+            <h1 style={{ margin: 0, color: T.text, fontFamily: "'Space Grotesk', sans-serif", fontSize: FS.h1, fontWeight: 700, letterSpacing: "-0.03em", lineHeight: 1.1 }}>Correção de textos</h1>
             <p style={{ margin: "7px 0 0", color: T.second, maxWidth: 680, fontSize: 13, lineHeight: 1.55 }}>
               Prévia das mensagens afetadas pelo erro que substituiu a letra “s” por espaços. Só correções revisadas são listadas.
             </p>

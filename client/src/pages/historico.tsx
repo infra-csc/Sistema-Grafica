@@ -14,6 +14,7 @@ import { ptBR } from "date-fns/locale";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { HIDE_NATIVE_CLOSE, modalSurface, ModalHeader, ModalFooter } from "@/components/modal-shell";
 import { buildTimeline, type TimelineEvent } from "@/lib/timeline";
+import { FS } from "@/lib/theme";
 
 /* ── Palette ── */
 const P = {
@@ -1577,9 +1578,9 @@ export default function Historico() {
       }}>
         <div style={{ minWidth: 0 }}>
           <h1 style={{
-            fontSize: 26, fontWeight: 900, color: P.text, margin: "0 0 6px",
-            letterSpacing: "-0.04em", textTransform: "uppercase",
-            fontFamily: "'Space Grotesk', sans-serif", lineHeight: 1,
+            fontSize: FS.h1, fontWeight: 700, color: P.text, margin: "0 0 6px",
+            letterSpacing: "-0.03em",
+            fontFamily: "'Space Grotesk', sans-serif", lineHeight: 1.1,
           }}>
             Histórico de Atividades
           </h1>

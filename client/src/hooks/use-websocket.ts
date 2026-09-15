@@ -421,7 +421,19 @@ export function useWebSocket() {
     unmountedRef.current = false;
     connect();
 
+    // A internet voltou: reconecta já, em vez de esperar o backoff (até 30s),
+    // durante o qual a faixa "Reconectando…" seguia na tela à toa.
+    const aoVoltarInternet = () => {
+      const estado = wsRef.current?.readyState;
+      if (estado === WebSocket.OPEN || estado === WebSocket.CONNECTING) return;
+      if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
+      reconnectAttemptsRef.current = 0;
+      connect();
+    };
+    window.addEventListener("online", aoVoltarInternet);
+
     return () => {
+      window.removeEventListener("online", aoVoltarInternet);
       unmountedRef.current = true;
       if (reconnectTimerRef.current) {
         clearTimeout(reconnectTimerRef.current);

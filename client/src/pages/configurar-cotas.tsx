@@ -4,7 +4,7 @@ import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Check, Save, Search, X } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { T, darkenToContrast } from "@/lib/theme";
+import { T, FS, darkenToContrast } from "@/lib/theme";
 
 /* ── Constants ── */
 // Pendência anotada: QUOTAS também existe em outras telas — mover para
@@ -215,7 +215,7 @@ export default function ConfigurarCotas() {
           <span style={{ fontSize: 10, fontWeight: 900, color: T.accentText, textTransform: "uppercase", letterSpacing: "0.2em", fontFamily: "'Space Grotesk', sans-serif" }}>
             Automação de Vinculação
           </span>
-          <h1 style={{ fontSize: 36, fontWeight: 900, color: T.text, margin: "6px 0 0", fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.03em", lineHeight: 1 }}>
+          <h1 style={{ fontSize: FS.h1, fontWeight: 700, color: T.text, margin: "6px 0 0", fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.03em", lineHeight: 1.1 }}>
             Configurar Cotas
           </h1>
           <p style={{ fontSize: 12, color: T.second, margin: "8px 0 0", maxWidth: 520 }}>

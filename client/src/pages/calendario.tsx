@@ -13,6 +13,7 @@ import {
 import { MARCOS_DO_EVENTO, OFFSET_PADRAO_DO_MARCO } from "@shared/prazo-dates";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useAuth } from "@/contexts/auth-context";
+import { FS } from "@/lib/theme";
 
 /* ── Palette ── */
 const P = {
@@ -389,9 +390,9 @@ export default function Calendario() {
           existem; se um dia existirem, voltam com conteúdo próprio. */}
       <div style={{ marginBottom: 28 }}>
         <h1 data-testid="title-calendario" style={{
-          fontSize: 26, fontWeight: 800, color: P.text, margin: 0,
-          textTransform: "uppercase", letterSpacing: "-0.03em",
-          fontFamily: "'Space Grotesk', sans-serif", lineHeight: 1,
+          fontSize: FS.h1, fontWeight: 700, color: P.text, margin: 0,
+          letterSpacing: "-0.03em",
+          fontFamily: "'Space Grotesk', sans-serif", lineHeight: 1.1,
         }}>
           Calendário de Eventos
         </h1>

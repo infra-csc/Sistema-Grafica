@@ -25,6 +25,7 @@ import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover
 import { HIDE_NATIVE_CLOSE, FreezeWhileClosing } from "@/components/modal-shell";
 import { CONDITIONS, CONDITION_META, conditionMeta, type Condition } from "@/lib/inventory-meta";
 import { MapaGalpao } from "@/components/mapa-galpao";
+import { FS } from "@/lib/theme";
 
 // ─── Status meta ─────────────────────────────────────────────────────────────
 // Tons 700/800 (#15803d, #9a3412): os 600 reprovavam contraste AA no texto
@@ -1005,7 +1006,7 @@ export default function Estoque() {
             <Archive size={22} color="#fff" strokeWidth={2.2} />
           </div>
           <div>
-            <h1 style={{ margin: "0 0 3px", fontSize: 28, fontWeight: 900, fontFamily: "Space Grotesk, sans-serif", color: "#0f172a", letterSpacing: "-0.03em", lineHeight: 1 }}>
+            <h1 style={{ margin: "0 0 3px", fontSize: FS.h1, fontWeight: 700, fontFamily: "'Space Grotesk', sans-serif", color: "#1c1917", letterSpacing: "-0.03em", lineHeight: 1.1 }}>
               Estoque
             </h1>
             <p style={{ margin: 0, fontSize: 10, fontWeight: 700, color: "#64748b", fontFamily: "Space Grotesk, sans-serif", textTransform: "uppercase", letterSpacing: "0.18em" }}>

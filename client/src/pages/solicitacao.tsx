@@ -34,6 +34,7 @@ import {
 import type { SeloPecaEventoFinalizado } from "@/lib/status";
 import { ModalHeader, modalSurface, HIDE_NATIVE_CLOSE, FreezeWhileClosing } from "@/components/modal-shell";
 import { AumentarQuantidadeDialog, parseApiError } from "@/components/aumentar-quantidade-dialog";
+import { FS } from "@/lib/theme";
 
 // Tons de texto desta paleta valem para superfícies CLARAS (bg/surface).
 // Sobre os painéis escuros (#0c0a09/#1c1917) use #a8a29e ou mais claro —
@@ -1034,8 +1035,8 @@ export default function Solicitacao() {
         <div style={{ maxWidth: 1200, margin: "0 auto", display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
           <div>
             <h1 style={{
-              margin: 0, fontSize: isMobile ? 20 : 24, fontWeight: 800, color: TI.text,
-              fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.02em",
+              margin: 0, fontSize: isMobile ? 20 : FS.h1, fontWeight: 700, color: TI.text,
+              fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.03em", lineHeight: 1.1,
             }}>
               Revisão
             </h1>

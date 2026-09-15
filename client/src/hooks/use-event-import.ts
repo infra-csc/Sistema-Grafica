@@ -96,7 +96,7 @@ export function useEventImport({ eventId, eventSponsorsList, eventQuotaRules }: 
       setImportSearch("");
     },
     onError: (error: any) => {
-      toast({ title: "Erro ao processar planilha", description: error.message, variant: "destructive" });
+      toast({ title: "Não foi possível ler a planilha", description: error.message, variant: "destructive" });
     },
   });
 
@@ -139,10 +139,13 @@ export function useEventImport({ eventId, eventSponsorsList, eventQuotaRules }: 
       setImportFile(null);
       setImportFileName("");
       setImportSearch("");
-      toast({ title: `${data.imported} peças importadas com sucesso`, description: "Os itens foram adicionados ao evento." });
+      toast({
+        title: `${data.imported} ${data.imported === 1 ? "peça importada" : "peças importadas"}`,
+        description: "Já estão na lista do evento.",
+      });
     },
     onError: (error: any) => {
-      toast({ title: "Erro na importação", description: error.message, variant: "destructive" });
+      toast({ title: "Não foi possível importar as peças", description: error.message, variant: "destructive" });
     },
   });
 
@@ -195,12 +198,12 @@ export function useEventClone({ eventId }: UseEventCloneParams) {
       setCloneDialogOpen(false);
       setCloneSourceId("");
       toast({
-        title: `${data.cloned} peças clonadas com sucesso`,
-        description: "Os itens foram copiados para este evento.",
+        title: `${data.cloned} ${data.cloned === 1 ? "peça clonada" : "peças clonadas"}`,
+        description: "Já estão na lista deste evento.",
       });
     },
     onError: (error: any) => {
-      toast({ title: "Erro ao clonar", description: error.message, variant: "destructive" });
+      toast({ title: "Não foi possível clonar as peças", description: error.message, variant: "destructive" });
     },
   });
 

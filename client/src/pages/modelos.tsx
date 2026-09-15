@@ -19,6 +19,7 @@ import { FreezeWhileClosing, HIDE_NATIVE_CLOSE } from "@/components/modal-shell"
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { FS } from "@/lib/theme";
 import { useIsMobile } from "@/hooks/use-mobile";
 
 // Mantém o rótulo e o visual desta tela, mas delega o comportamento ao filtro
@@ -599,8 +600,8 @@ export default function Modelos() {
       {/* ── Page Header ── */}
       <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 32, gap: 16, flexWrap: "wrap" }}>
         <div>
-          <h1 style={{ fontSize: 22, fontWeight: 700, color: "#1c1917", margin: 0, letterSpacing: "-0.02em", fontFamily: "'Space Grotesk', sans-serif" }}>
-            Modelos de Itens
+          <h1 style={{ fontSize: FS.h1, fontWeight: 700, color: "#1c1917", margin: 0, letterSpacing: "-0.03em", lineHeight: 1.1, fontFamily: "'Space Grotesk', sans-serif" }}>
+            Modelos
           </h1>
           <p style={{ fontSize: 13, color: "#746e69", margin: "4px 0 0" }}>
             Catálogo de modelos reutilizáveis de peças gráficas

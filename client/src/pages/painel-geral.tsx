@@ -54,6 +54,7 @@ import {
 } from "@/lib/painel-encerrados";
 import { formatFrescor } from "@/lib/painel-frescor";
 import { proximaTelaDoStatus } from "@/lib/painel-rotas";
+import { FS } from "@/lib/theme";
 import {
   visoesParaPapel, visaoEstaAtiva, chaveVisaoPadrao, type Visao,
 } from "@/lib/painel-visoes";
@@ -1414,11 +1415,11 @@ export default function PainelGeral() {
             data-testid="title-painel-geral"
             style={{
               fontFamily: "'Space Grotesk', sans-serif",
-              fontSize: useCards ? 20 : 29, fontWeight: 700, letterSpacing: "-0.055em",
-              textTransform: "uppercase", color: "#1c1917", margin: 0,
+              fontSize: useCards ? 20 : FS.h1, fontWeight: 700, letterSpacing: "-0.03em",
+              lineHeight: 1.1, color: "#1c1917", margin: 0,
             }}
           >
-            Painel de Status Geral
+            Painel Geral
           </h1>
           {/* Subtítulo honesto: a tela mostra peças em TODOS os status (não só
               "em produção") e o "tempo real" dependia de um socket que cai. O

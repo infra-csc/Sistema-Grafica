@@ -54,6 +54,7 @@ import {
   computePecasAtrasadas, contarPecasAtrasadas, filtrarPecasAtrasadas,
 } from "@/components/prazos/atrasadas";
 import { computeEventosPorEtapa, computeSectorSummary, eventoNaEtapa } from "@/components/prazos/gargalos";
+import { FS } from "@/lib/theme";
 
 /**
  * As três visões do MESMO conjunto filtrado.
@@ -1364,8 +1365,8 @@ export default function GestaoPrazos() {
               // 26 no desktop: o título dividia o corpo com o numeral do
               // placar (agora 34) e ficava menor que ele — a página parecia
               // começar no primeiro KPI.
-              margin: 0, fontSize: isMobile ? 20 : 26, fontWeight: 800, color: TI.title,
-              fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.03em",
+              margin: 0, fontSize: isMobile ? 20 : FS.h1, fontWeight: 700, color: TI.title,
+              fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.03em", lineHeight: 1.1,
             }}>
               Gestão de Prazos
             </h1>

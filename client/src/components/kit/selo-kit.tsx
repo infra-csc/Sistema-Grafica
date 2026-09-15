@@ -3,8 +3,9 @@
 // peça é do Kit, e o prazo de entrega". Um componente só, usado em toda linha
 // ou cartão de peça: some quando a peça é da Arena.
 //
-// COMPACTO (15/09): "KIT" em cima e "entrega 14/09" embaixo — numa linha só,
-// o selo era cortado nas colunas estreitas de ID (Arte, lista do evento).
+// UMA LINHA, CURTA (15/09): "KIT · 14/09". A versão longa ("KIT · entrega
+// 14/09") cortava nas colunas de ID, e a de duas linhas ficou pesada. O
+// detalhe completo (versão, entrega, caminhão) está no title.
 // ─────────────────────────────────────────────────────────────────────────────
 import { detalheDaRemessa, diaMesDoKit, type RemessaDoKit } from "@shared/kit";
 
@@ -18,16 +19,17 @@ export function SeloKit({ peca, style }: {
     <span
       data-testid={`selo-kit-${peca.id}`}
       title={detalheDaRemessa(peca.kitRemessa)}
+      aria-label={`Peça do Kit${entrega ? `, entrega ${entrega}` : ""}`}
       style={{
-        display: "inline-flex", flexDirection: "column", alignItems: "flex-start", gap: 0,
-        whiteSpace: "nowrap", lineHeight: 1.15, maxWidth: "100%",
-        color: "#5b21b6", backgroundColor: "#f5f3ff", border: "1px solid #ddd6fe",
-        borderRadius: 6, padding: "2px 6px", verticalAlign: "middle", flexShrink: 0,
+        display: "inline-flex", alignItems: "center", gap: 4, whiteSpace: "nowrap",
+        fontSize: 10, fontWeight: 800, lineHeight: 1.3, letterSpacing: "0.04em",
+        color: "#6d28d9", backgroundColor: "#f5f3ff", border: "1px solid #ddd6fe",
+        borderRadius: 999, padding: "1px 7px", verticalAlign: "middle", flexShrink: 0,
+        fontVariantNumeric: "tabular-nums",
         ...style,
       }}
     >
-      <span style={{ fontSize: 10, fontWeight: 900, letterSpacing: "0.08em" }}>KIT</span>
-      {entrega && <span style={{ fontSize: 9.5, fontWeight: 700 }}>entrega {entrega}</span>}
+      KIT{entrega ? <span style={{ fontWeight: 700, color: "#7c3aed" }}>· {entrega}</span> : null}
     </span>
   );
 }

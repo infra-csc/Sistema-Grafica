@@ -220,7 +220,10 @@ describe("agrupar como Kit, selo compacto e datas do Kit no delta (15/09)", () =
     const VINC = ler("client/src/pages/vincular-patrocinadores.tsx");
     expect(VINC).toContain("const abreTipo = !anterior || secaoDaPeca(anterior) !== secaoDaPeca(item);");
     expect(ler("client/src/lib/queryClient.ts")).toContain("eventoComDatasDoKit((evPorId.get(i.eventId) as any) ?? i.event, i.kitRemessa)");
-    expect(ler("client/src/components/kit/selo-kit.tsx")).toContain('flexDirection: "column"');
+    // Selo de uma linha, curto: "KIT · 14/09" (detalhe no title).
+    const SELO = ler("client/src/components/kit/selo-kit.tsx");
+    expect(SELO).toContain("KIT{entrega ? <span");
+    expect(SELO).toContain("title={detalheDaRemessa(peca.kitRemessa)}");
   });
 });
 

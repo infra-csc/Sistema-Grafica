@@ -406,9 +406,8 @@ const TH_LISTA: React.CSSProperties = {
  *
  * Mesmas cinco informações do cartão, na mesma ordem de leitura, sem os
  * blocos que só fazem sentido quando há espaço para eles (patrocinadores por
- * extenso, data de início, ações). As ações ficam de fora de propósito: numa
- * linha de 44px elas seriam três alvos de 24px grudados na borda, e o cartão
- * continua a um clique.
+ * extenso, data de início). As AÇÕES estão aqui, sim — ver o comentário de
+ * GRADE_LISTA: densidade não pode custar capacidade.
  */
 function EventRow({
   event, sponsorCount, currentYear, isMobile, pedidosAbertos = 0,
@@ -566,7 +565,7 @@ function EventRow({
           onClose={onClose}
           onReopen={onReopen}
           canEdit={canEdit}
-                  soPatrocinadores={soPatrocinadores}
+          soPatrocinadores={soPatrocinadores}
           canDelete={canDelete}
           canDuplicate={canDuplicate}
           // Mesma regra do cartão: prioridade não faz sentido no que já saiu
@@ -631,7 +630,10 @@ function EventCardActions({
   };
   return (
     <div
-      className={isMobile ? "focus-within:opacity-100" : "opacity-0 group-hover:opacity-100 focus-within:opacity-100"}
+      // `[@media(hover:none)]`: tablet e notebook de toque passam de 768px
+      // (então `isMobile` é falso) e NÃO têm hover — as ações ficavam
+      // invisíveis para sempre nesses aparelhos.
+      className={isMobile ? "focus-within:opacity-100" : "opacity-0 group-hover:opacity-100 focus-within:opacity-100 [@media(hover:none)]:opacity-100"}
       style={{ display: 'flex', gap: '6px', transition: 'opacity 0.2s', flexShrink: 0 }}
       onClick={(e) => { e.stopPropagation(); }}
     >
@@ -1043,7 +1045,7 @@ function EventCard({
           onClose={onClose}
           onReopen={onReopen}
           canEdit={canEdit}
-                  soPatrocinadores={soPatrocinadores}
+          soPatrocinadores={soPatrocinadores}
           canDelete={canDelete}
           canDuplicate={canDuplicate}
           // Prioridade não faz sentido no que já saiu de jogo — nem no
@@ -1420,7 +1422,9 @@ export default function Eventos() {
       if (failedSponsors.length > 0) parts.push(`não foi possível vincular: ${failedSponsors.join(", ")}`);
       toast({
         title: "Evento criado",
-        description: parts.length > 0 ? parts.join(" · ") : "O evento foi criado com sucesso.",
+        // Sem ressalvas, a descrição aponta o PASSO SEGUINTE (a ação ao lado
+        // leva até ele) — "criado com sucesso" só repetia o título.
+        description: parts.length > 0 ? parts.join(" · ") : `"${event.name}" está pronto para receber a lista de peças.`,
         // O passo seguinte à criação é SEMPRE montar a lista de imagens — sem
         // esta ação o usuário voltava para a grade e precisava caçar o card
         // recém-criado, que pode estar fora do filtro ativo.
@@ -1432,7 +1436,7 @@ export default function Eventos() {
       });
     },
     onError: (error: Error) => {
-      toast({ title: "Erro ao criar evento", description: error.message, variant: "destructive" });
+      toast({ title: "Não foi possível criar o evento", description: error.message, variant: "destructive" });
     },
   });
 
@@ -1490,19 +1494,22 @@ export default function Eventos() {
       }
       return { failedSponsors, soVinculos };
     },
-    onSuccess: ({ failedSponsors, soVinculos }) => {
+    onSuccess: ({ failedSponsors, soVinculos }, { fd }) => {
       queryClient.invalidateQueries({ queryKey: ["/api/events"] });
       handleCloseDialog();
+      // O NOME no toast: quem edita três eventos seguidos precisa saber qual
+      // acabou de salvar, e "atualizado com sucesso" servia para qualquer um.
+      const nomeSalvo = fd.name || editingEvent?.name || "o evento";
       toast({
         title: soVinculos ? "Patrocinadores atualizados" : "Evento atualizado",
         description: failedSponsors.length > 0
           ? `Não foi possível atualizar: ${failedSponsors.join(", ")}. Reabra o evento para revisar.`
-          : soVinculos ? "Os patrocinadores do evento foram salvos." : "O evento foi atualizado com sucesso.",
+          : soVinculos ? `Patrocinadores e cotas de "${nomeSalvo}" salvos.` : `"${nomeSalvo}" salvo.`,
         variant: failedSponsors.length > 0 ? "destructive" : undefined,
       });
     },
     onError: (error: Error) => {
-      toast({ title: "Erro ao atualizar evento", description: error.message, variant: "destructive" });
+      toast({ title: "Não foi possível salvar o evento", description: error.message, variant: "destructive" });
     },
   });
 
@@ -1523,11 +1530,11 @@ export default function Eventos() {
         title: "Evento excluído",
         description: removed > 0
           ? `${removed} ${removed === 1 ? 'peça removida' : 'peças removidas'} em cascata${delivered > 0 ? ` (${delivered} já ${delivered === 1 ? 'entregue' : 'entregues'})` : ''}.`
-          : "O evento foi excluído com sucesso.",
+          : "Não havia peças ligadas a ele.",
       });
     },
     onError: (error: Error) => {
-      toast({ title: "Erro ao excluir evento", description: error.message, variant: "destructive" });
+      toast({ title: "Não foi possível excluir o evento", description: error.message, variant: "destructive" });
     },
   });
 
@@ -1567,7 +1574,7 @@ export default function Eventos() {
       });
     },
     onError: (error: Error) => {
-      toast({ title: "Erro ao encerrar evento", description: error.message, variant: "destructive" });
+      toast({ title: "Não foi possível encerrar o evento", description: error.message, variant: "destructive" });
     },
   });
 
@@ -1593,7 +1600,7 @@ export default function Eventos() {
       });
     },
     onError: (error: Error) => {
-      toast({ title: "Erro ao reabrir evento", description: error.message, variant: "destructive" });
+      toast({ title: "Não foi possível reabrir o evento", description: error.message, variant: "destructive" });
     },
   });
 
@@ -1601,14 +1608,24 @@ export default function Eventos() {
     mutationFn: async ({ id, priority }: { id: string; priority: string }) => {
       return await apiRequest("PATCH", `/api/events/${id}/priority`, { priority });
     },
-    onSuccess: () => {
+    onSuccess: (_res, { priority }) => {
       queryClient.invalidateQueries({ queryKey: ["/api/events"] });
+      const nome = selectedEventForPriority?.name;
       setPriorityDialogOpen(false);
       setSelectedEventForPriority(null);
-      toast({ title: "Prioridade atualizada", description: "A prioridade do evento foi atualizada com sucesso." });
+      // Diz O QUE ficou e EM QUAL evento: com os atalhos 1–4 a pessoa organiza
+      // a semana em sequência, e o toast é a única confirmação do nível.
+      // Vazio = volta à regra automática (ver o diálogo).
+      const nivel = priority ? getPriorityMeta(priority)?.label ?? priority : "Automática";
+      toast({
+        title: priority ? `Prioridade: ${nivel}` : "Prioridade automática",
+        description: priority
+          ? `${nome ? `"${nome}" ` : ""}travado neste nível — a regra da saída do caminhão não mexe mais nele.`
+          : `${nome ? `"${nome}" ` : "O evento "}voltou a seguir a saída do caminhão.`,
+      });
     },
     onError: (error: Error) => {
-      toast({ title: "Erro ao atualizar prioridade", description: error.message, variant: "destructive" });
+      toast({ title: "Não foi possível mudar a prioridade", description: error.message, variant: "destructive" });
     },
   });
 
@@ -2248,6 +2265,8 @@ export default function Eventos() {
                   style={{
                     display: 'flex', alignItems: 'center', gap: '6px',
                     padding: '4px 11px', borderRadius: R.pill,
+                    // Alvo de dedo no celular; no desktop a pílula segue compacta.
+                    minHeight: isMobile ? 44 : undefined,
                     fontSize: FS.small, fontWeight: '700',
                     cursor: chip.count === 0 && !chip.active ? 'default' : 'pointer',
                     opacity: chip.count === 0 && !chip.active ? 0.45 : 1,
@@ -2276,7 +2295,7 @@ export default function Eventos() {
                 setPrazosExpanded(false);
                 setOpen(true);
               }}
-              style={{ flexShrink: 0, backgroundColor: T.accentText, color: '#ffffff', border: 'none', borderRadius: R.md, fontWeight: '700', fontSize: FS.body, padding: '0 18px', height: '34px', gap: '7px', boxShadow: '0 2px 8px rgba(249,115,22,0.28)', display: 'flex', alignItems: 'center' }}
+              style={{ flexShrink: 0, backgroundColor: T.accentText, color: '#ffffff', border: 'none', borderRadius: R.md, fontWeight: '700', fontSize: FS.body, padding: '0 18px', height: isMobile ? 44 : 34, gap: '7px', boxShadow: '0 2px 8px rgba(249,115,22,0.28)', display: 'flex', alignItems: 'center' }}
             >
               <Plus style={{ width: '14px', height: '14px' }} />
               Novo Evento
@@ -2348,6 +2367,16 @@ export default function Eventos() {
         <Dialog open={open} onOpenChange={(isOpen) => { if (!isOpen) requestCloseDialog(); else setOpen(true); }}>
           <DialogContent
             className={`${HIDE_NATIVE_CLOSE} p-0 gap-0`}
+            // O foco abre ONDE SE COMEÇA: no nome (criar, duplicar, editar) ou
+            // na busca de patrocinador (Atendimento). O padrão do Radix era o X
+            // do cabeçalho — "Novo Evento" custava um clique antes de digitar.
+            // Sem o alvo no DOM (patrocinadores ainda carregando), fica o padrão.
+            onOpenAutoFocus={(e) => {
+              const alvo = document.querySelector<HTMLElement>(
+                soPatrocinadoresNoModal ? '[data-testid="input-sponsor-search"]' : '#event-name',
+              );
+              if (alvo) { e.preventDefault(); alvo.focus(); }
+            }}
             style={{
               // A coluna flex e o teto de `100vh − 48` já vêm do `modalSurface`
               // (a conta está lá). O que sobra aqui é UMA troca de unidade:
@@ -2443,7 +2472,7 @@ export default function Eventos() {
                             data-testid={`form-priority-${opt.value || 'none'}`}
                             style={{
                               display: 'flex', alignItems: 'center', gap: '5px',
-                              height: 34, padding: '0 10px', borderRadius: R.md,
+                              height: isMobile ? 44 : 34, padding: '0 10px', borderRadius: R.md,
                               border: `1.5px solid ${active ? opt.dot : '#e7e5e4'}`,
                               backgroundColor: active ? opt.bg : '#ffffff',
                               color: active ? opt.text : '#57534e',
@@ -2463,12 +2492,15 @@ export default function Eventos() {
                 {/* Datas */}
                 <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '16px' }}>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    <label style={{ fontSize: FS.micro, fontWeight: '700', color: '#625d5b', textTransform: 'uppercase', letterSpacing: '0.12em' }}>
+                    {/* htmlFor → id do gatilho: sem o vínculo, o leitor de tela
+                        anunciava só "Selecionar data, botão", sem dizer QUAL. */}
+                    <label htmlFor="event-start-date" style={{ fontSize: FS.micro, fontWeight: '700', color: '#625d5b', textTransform: 'uppercase', letterSpacing: '0.12em' }}>
                       Data de Início
                     </label>
                     <Popover open={openStartDate} onOpenChange={setOpenStartDate}>
                       <PopoverTrigger asChild>
                         <button
+                          id="event-start-date"
                           type="button"
                           data-testid="input-start-date"
                           style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', height: 40, backgroundColor: openStartDate ? '#ffffff' : T.border, border: openStartDate ? '1px solid #f97316' : '1px solid transparent', borderRadius: R.md, padding: '0 12px', fontSize: FS.body, color: formData.startDate ? T.text : T.second, fontFamily: "'Plus Jakarta Sans', sans-serif", cursor: 'pointer', textAlign: 'left' as const, boxShadow: openStartDate ? '0 0 0 2px rgba(249,115,22,0.18)' : 'none', transition: 'all 0.15s' }}
@@ -2497,12 +2529,13 @@ export default function Eventos() {
                     </Popover>
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    <label style={{ fontSize: FS.micro, fontWeight: '700', color: '#625d5b', textTransform: 'uppercase', letterSpacing: '0.12em' }}>
+                    <label htmlFor="event-truck-date" style={{ fontSize: FS.micro, fontWeight: '700', color: '#625d5b', textTransform: 'uppercase', letterSpacing: '0.12em' }}>
                       Saída do Caminhão
                     </label>
                     <Popover open={openTruckDate} onOpenChange={setOpenTruckDate}>
                       <PopoverTrigger asChild>
                         <button
+                          id="event-truck-date"
                           type="button"
                           data-testid="input-truck-date"
                           style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', height: 40, backgroundColor: openTruckDate ? '#ffffff' : T.border, border: openTruckDate ? '1px solid #f97316' : '1px solid transparent', borderRadius: R.md, padding: '0 12px', fontSize: FS.body, color: formData.truckDepartureDate ? T.text : T.second, fontFamily: "'Plus Jakarta Sans', sans-serif", cursor: 'pointer', textAlign: 'left' as const, boxShadow: openTruckDate ? '0 0 0 2px rgba(249,115,22,0.18)' : 'none', transition: 'all 0.15s' }}
@@ -2595,7 +2628,7 @@ export default function Eventos() {
                       const s = formData.startDate;
                       const t = formData.truckDepartureDate?.substring(0, 10);
                       if (s && t && t >= s) {
-                        return <p style={{ margin: 0, fontSize: FS.small, color: '#dc2626', fontWeight: 600 }}>Deve ser pelo menos 1 dia antes do início do evento.</p>;
+                        return <p role="alert" style={{ margin: 0, fontSize: FS.small, color: '#b91c1c', fontWeight: 600 }}>Deve ser pelo menos 1 dia antes do início do evento.</p>;
                       }
                       return null;
                     })()}
@@ -3133,7 +3166,7 @@ export default function Eventos() {
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
             data-testid="input-search-events"
-            style={{ paddingLeft: '32px', paddingRight: '12px', height: '32px', width: isMobile ? '100%' : '230px', border: '1px solid #e7e5e4', borderRadius: R.pill, backgroundColor: '#ffffff', fontSize: FS.body, color: T.dark, fontFamily: 'inherit' }}
+            style={{ paddingLeft: '32px', paddingRight: '12px', height: isMobile ? 44 : 32, width: isMobile ? '100%' : '230px', border: '1px solid #e7e5e4', borderRadius: R.pill, backgroundColor: '#ffffff', fontSize: FS.body, color: T.dark, fontFamily: 'inherit' }}
             onFocus={e => { e.currentTarget.style.borderColor = '#fd761a'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(253,118,26,0.12)'; }}
             onBlur={e => { e.currentTarget.style.borderColor = '#e7e5e4'; e.currentTarget.style.boxShadow = 'none'; }}
           />
@@ -3240,9 +3273,10 @@ export default function Eventos() {
           })}
         </div>
         {hasActiveFilters && (
-          <button onClick={clearAllEventFilters} data-testid="button-clear-filters"
-            style={{ padding: '5px 10px', borderRadius: R.pill, fontSize: FS.small, cursor: 'pointer', border: 'none', backgroundColor: 'transparent', color: T.second }}>
-            Limpar
+          <button type="button" onClick={clearAllEventFilters} data-testid="button-clear-filters"
+            title="Limpar busca, prioridade, patrocinador, mês e atalhos (a situação fica)"
+            style={{ padding: '5px 10px', minHeight: isMobile ? 44 : 30, borderRadius: R.pill, fontSize: FS.small, fontWeight: 600, cursor: 'pointer', border: 'none', backgroundColor: 'transparent', color: T.accentText }}>
+            Limpar filtros
           </button>
         )}
 
@@ -3447,7 +3481,9 @@ export default function Eventos() {
             {activeFilterChips.map((chip) => (
               <button
                 key={chip.key}
+                type="button"
                 onClick={chip.clear}
+                aria-label={`Remover o filtro ${chip.label}`}
                 data-testid={`chip-remove-${chip.key}`}
                 style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '4px 10px', borderRadius: R.pill, fontSize: FS.small, fontWeight: '700', border: '1px solid #e7e5e4', backgroundColor: '#f5f5f4', color: '#44403c', cursor: 'pointer' }}
               >
@@ -3508,7 +3544,7 @@ export default function Eventos() {
                     currentYear={currentYear}
                     isMobile={isMobile}
                     canEdit={canEdit}
-                  soPatrocinadores={soPatrocinadores}
+                    soPatrocinadores={soPatrocinadores}
                     canDelete={canDelete}
                     canDuplicate={canCreate && !isMobile}
                     canSetPriority={canSetPriority}

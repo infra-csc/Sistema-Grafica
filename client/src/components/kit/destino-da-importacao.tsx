@@ -96,14 +96,19 @@ export function DestinoDaImportacaoDialog({ aberto, quantidade, arquivo, remessa
     });
   };
 
-  const Cartao = ({ valor, titulo, texto, icone: Icone, cor, bloqueio }: { valor: "arena" | "kit"; titulo: string; texto: string; icone: typeof Package; cor: string; bloqueio?: string }) => {
+  // FUNÇÃO, e não componente (`<Cartao />`). Declarado dentro do render, um
+  // componente é um TIPO novo a cada render: escolher "Kit" pelo teclado
+  // re-renderizava, o React desmontava o botão e o foco caía no <body> — a
+  // pessoa perdia o lugar no meio do formulário. Chamado como função, o botão
+  // é o mesmo elemento e o foco fica onde estava.
+  const cartao = ({ valor, titulo, texto, icone: Icone, cor, bloqueio }: { valor: "arena" | "kit"; titulo: string; texto: string; icone: typeof Package; cor: string; bloqueio?: string }) => {
     const ativo = tipo === valor;
     return (
-      <button type="button" role="radio" aria-checked={ativo} disabled={!!bloqueio} onClick={() => setTipo(valor)}
+      <button key={valor} type="button" role="radio" aria-checked={ativo} disabled={!!bloqueio} onClick={() => setTipo(valor)}
         data-testid={`destino-importacao-${valor}`} title={bloqueio}
         style={{ flex: "1 1 220px", textAlign: "left", display: "flex", gap: 10, alignItems: "flex-start", padding: "14px 14px", borderRadius: R.lg, cursor: bloqueio ? "not-allowed" : "pointer",
           border: `2px solid ${ativo ? cor : "#e7e5e4"}`, background: bloqueio ? "#f5f5f4" : ativo ? `${cor}0f` : "#fff", opacity: bloqueio ? 0.6 : 1 }}>
-        <Icone size={20} color={bloqueio ? "#a8a29e" : cor} aria-hidden="true" style={{ flexShrink: 0, marginTop: 1 }} />
+        <Icone size={20} color={bloqueio ? "#78716c" : cor} aria-hidden="true" style={{ flexShrink: 0, marginTop: 1 }} />
         <span>
           <span style={{ display: "block", fontSize: 15, fontWeight: 800, color: T.text }}>{titulo}</span>
           <span style={{ display: "block", fontSize: FS.body, color: "#57534e", marginTop: 2, lineHeight: 1.4 }}>{bloqueio ?? texto}</span>
@@ -121,9 +126,9 @@ export function DestinoDaImportacaoDialog({ aberto, quantidade, arquivo, remessa
 
         <div style={{ padding: isMobile ? 16 : "16px 24px", display: "flex", flexDirection: "column", gap: 14, overflowY: "auto", flex: "1 1 auto", minHeight: 0 }}>
           <div role="radiogroup" aria-label="Destino das peças" style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-            <Cartao valor="arena" titulo="Arena" texto="Lista do evento, com as datas da Arena." icone={Warehouse} cor="#c2410c"
-              bloqueio={somenteKit ? "Usuário do Kit importa só peças do Kit." : undefined} />
-            <Cartao valor="kit" titulo="Kit" texto="Remessa do Kit, com as datas do Kit (entrega do material e caminhão)." icone={Package} cor="#6d28d9" />
+            {cartao({ valor: "arena", titulo: "Arena", texto: "Lista do evento, com as datas da Arena.", icone: Warehouse, cor: "#c2410c",
+              bloqueio: somenteKit ? "Usuário do Kit importa só peças do Kit." : undefined })}
+            {cartao({ valor: "kit", titulo: "Kit", texto: "Remessa do Kit, com as datas do Kit (entrega do material e caminhão).", icone: Package, cor: "#6d28d9" })}
           </div>
 
           {cabecalho && (
@@ -138,7 +143,7 @@ export function DestinoDaImportacaoDialog({ aberto, quantidade, arquivo, remessa
                 <div role="radiogroup" aria-label="Remessa do Kit" style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                   {([["nova", "Nova remessa"], ["remessa", "Remessa que já existe"]] as const).map(([valor, rotulo]) => (
                     <button key={valor} type="button" role="radio" aria-checked={modoKit === valor} onClick={() => setModoKit(valor)} data-testid={`modo-kit-${valor}`}
-                      style={{ height: 34, padding: "0 12px", borderRadius: R.pill, border: `1px solid ${modoKit === valor ? "#6d28d9" : "#ddd6fe"}`, background: modoKit === valor ? "#6d28d9" : "#fff", color: modoKit === valor ? "#fff" : "#5b21b6", fontSize: 12.5, fontWeight: 800, cursor: "pointer" }}>
+                      style={{ height: isMobile ? 44 : 34, padding: "0 12px", borderRadius: R.pill, border: `1px solid ${modoKit === valor ? "#6d28d9" : "#ddd6fe"}`, background: modoKit === valor ? "#6d28d9" : "#fff", color: modoKit === valor ? "#fff" : "#5b21b6", fontSize: 12.5, fontWeight: 800, cursor: "pointer" }}>
                       {rotulo}
                     </button>
                   ))}

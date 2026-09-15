@@ -17,7 +17,8 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useRoute, Link, useLocation } from "wouter";
-import { ArrowLeft, ArrowDown, ArrowUp, BookOpen, Check, Download, Loader2 } from "lucide-react";
+import { ArrowLeft, ArrowDown, ArrowUp, BookOpen, Check, Download, Loader2, RefreshCw } from "lucide-react";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/auth-context";
@@ -42,7 +43,8 @@ export default function BookGerador() {
   const podePublicar = user?.role === "arte" || user?.role === "admin";
 
   const { data: event } = useQuery<any>({ queryKey: ["/api/events", eventId], enabled: !!eventId });
-  const { data: itens = [], isLoading } = useQuery<any[]>({ queryKey: ["/api/items", eventId], enabled: !!eventId });
+  const { data: itens = [], isLoading, isError, refetch } = useQuery<any[]>({ queryKey: ["/api/items", eventId], enabled: !!eventId });
+  const isMobile = useIsMobile();
 
   // Ajustes do usuário por grupo — a base deriva dos dados; isto guarda só o
   // que a pessoa mudou (rótulo, exclusão, ordem), então peça nova não some.
@@ -188,7 +190,29 @@ export default function BookGerador() {
     }
   };
 
-  if (isLoading) return <p style={{ padding: 40, fontSize: 14, color: "#78716c" }}>Carregando as peças…</p>;
+  if (isLoading) {
+    return (
+      <p role="status" style={{ padding: 40, margin: 0, fontSize: 14, color: "#78716c", display: "flex", alignItems: "center", gap: 8 }}>
+        <Loader2 className="animate-spin" aria-hidden="true" style={{ width: 16, height: 16 }} /> Carregando as peças…
+      </p>
+    );
+  }
+
+  // Falha de carga ANTES da montagem: sem este ramo a lista vinha vazia e a
+  // tela dizia "Nenhuma peça com arte neste evento" — um "não há o que fazer"
+  // mentiroso, quando o que houve foi a busca não voltar.
+  if (isError) {
+    return (
+      <div role="alert" style={{ maxWidth: 460, margin: "40px auto", padding: "28px 24px", textAlign: "center", backgroundColor: "#fff", border: "1px solid #e7e5e4", borderRadius: 12 }}>
+        <p style={{ margin: "0 0 6px", fontSize: 15, fontWeight: 700, color: "#1c1917" }}>Não foi possível carregar as peças do evento</p>
+        <p style={{ margin: "0 0 16px", fontSize: 13, color: "#78716c", lineHeight: 1.5 }}>Nada foi gerado nem publicado. Verifique a conexão e tente de novo.</p>
+        <button type="button" onClick={() => { void refetch(); }} data-testid="button-recarregar-book"
+          style={{ display: "inline-flex", alignItems: "center", gap: 7, height: 38, padding: "0 16px", borderRadius: 9, border: "none", backgroundColor: "#1c1917", color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+          <RefreshCw aria-hidden="true" style={{ width: 14, height: 14 }} /> Tentar novamente
+        </button>
+      </div>
+    );
+  }
 
   // Escala da prévia: cada página vira um cartão de ~340 px de largura.
   const ESC = 340 / BOOK.LARGURA;
@@ -246,10 +270,17 @@ export default function BookGerador() {
           </button>
         </div>
 
+        {/* Progresso anunciado: o rótulo do botão muda a cada arte, mas um
+            botão desabilitado não é relido pelo leitor de tela — a geração
+            leva minutos e parecia travada para quem não vê a tela. */}
+        <span role="status" aria-live="polite" style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0 0 0 0)", whiteSpace: "nowrap" }}>
+          {progresso ? `${progresso.etapa} ${progresso.feito} de ${progresso.total}` : ""}
+        </span>
+
         {resultado && (
-          <p data-testid="book-publicado" style={{ margin: "0 0 14px", padding: "10px 14px", borderRadius: 8, backgroundColor: "#f0fdf4", border: "1px solid #bbf7d0", color: "#15803d", fontSize: 13.5, fontWeight: 600 }}>
+          <p role="status" data-testid="book-publicado" style={{ margin: "0 0 14px", padding: "10px 14px", borderRadius: 8, backgroundColor: "#f0fdf4", border: "1px solid #bbf7d0", color: "#15803d", fontSize: 13.5, fontWeight: 600 }}>
             Book publicado.{" "}
-            <a href={resultado.url} target="_blank" rel="noreferrer" style={{ color: "#15803d" }}>Abrir o PDF</a>
+            <a href={resultado.url} target="_blank" rel="noopener noreferrer" style={{ color: "#15803d" }}>Abrir o PDF</a>
             {" · "}o aviso por e-mail continua sendo o botão do admin, como no book manual.
           </p>
         )}
@@ -288,7 +319,9 @@ export default function BookGerador() {
           </div>
         )}
 
-        <div style={{ display: "grid", gridTemplateColumns: "minmax(280px, 380px) 1fr", gap: 16, alignItems: "start" }}>
+        {/* Uma coluna no celular: `minmax(280px, 380px) 1fr` num viewport de
+            375px empurrava a prévia para fora da tela, com rolagem lateral. */}
+        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "minmax(0, 1fr)" : "minmax(280px, 380px) 1fr", gap: 16, alignItems: "start" }}>
 
           {/* ── Montagem: grupos com rótulo, ordem e inclusão ── */}
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -312,8 +345,8 @@ export default function BookGerador() {
                   style={{ flex: 1, minWidth: 0, height: 32, borderRadius: 7, border: "1px solid #e7e5e4", padding: "0 8px", fontSize: 13, fontWeight: 600, color: "#1c1917", backgroundColor: "#fafaf9" }}
                 />
                 <span style={{ fontSize: 11.5, color: "#78716c", whiteSpace: "nowrap" }}>{g.itens.length} arte{g.itens.length !== 1 ? "s" : ""}</span>
-                <button type="button" onClick={() => mover(g.key, -1)} disabled={idx === 0} aria-label="Subir grupo" style={{ width: 28, height: 28, borderRadius: 6, border: "1px solid #e7e5e4", background: "#fff", cursor: idx === 0 ? "not-allowed" : "pointer", color: idx === 0 ? "#d6d3d1" : "#44403c", display: "flex", alignItems: "center", justifyContent: "center" }}><ArrowUp style={{ width: 13, height: 13 }} /></button>
-                <button type="button" onClick={() => mover(g.key, 1)} disabled={idx === grupos.length - 1} aria-label="Descer grupo" style={{ width: 28, height: 28, borderRadius: 6, border: "1px solid #e7e5e4", background: "#fff", cursor: idx === grupos.length - 1 ? "not-allowed" : "pointer", color: idx === grupos.length - 1 ? "#d6d3d1" : "#44403c", display: "flex", alignItems: "center", justifyContent: "center" }}><ArrowDown style={{ width: 13, height: 13 }} /></button>
+                <button type="button" onClick={() => mover(g.key, -1)} disabled={idx === 0} aria-label={`Subir o grupo ${g.rotulo.trim() || g.key}`} style={{ width: isMobile ? 40 : 28, height: isMobile ? 40 : 28, borderRadius: 6, border: "1px solid #e7e5e4", background: "#fff", cursor: idx === 0 ? "not-allowed" : "pointer", color: idx === 0 ? "#d6d3d1" : "#44403c", display: "flex", alignItems: "center", justifyContent: "center" }}><ArrowUp style={{ width: 13, height: 13 }} /></button>
+                <button type="button" onClick={() => mover(g.key, 1)} disabled={idx === grupos.length - 1} aria-label={`Descer o grupo ${g.rotulo.trim() || g.key}`} style={{ width: isMobile ? 40 : 28, height: isMobile ? 40 : 28, borderRadius: 6, border: "1px solid #e7e5e4", background: "#fff", cursor: idx === grupos.length - 1 ? "not-allowed" : "pointer", color: idx === grupos.length - 1 ? "#d6d3d1" : "#44403c", display: "flex", alignItems: "center", justifyContent: "center" }}><ArrowDown style={{ width: 13, height: 13 }} /></button>
               </div>
             ))}
             {grupos.length === 0 && (

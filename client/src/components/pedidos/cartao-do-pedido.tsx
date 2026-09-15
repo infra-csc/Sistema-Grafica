@@ -7,6 +7,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import type { ReactNode } from "react";
 import { Link } from "wouter";
+import { Lock } from "lucide-react";
 import {
   patrocinadoresDaLinha,
   quantidadeDoPedido,
@@ -42,6 +43,8 @@ export type AcaoDoCartao = {
   href?: string;
   /** Motivo do bloqueio: o botão fica VISÍVEL e desabilitado, com o porquê. */
   bloqueio?: string | null;
+  /** Salvando esta ação agora: trava sem virar "motivo" (o rótulo diz o que acontece). */
+  ocupado?: boolean;
   testId: string;
 };
 
@@ -51,25 +54,55 @@ const TONS: Record<AcaoDoCartao["tom"], { fundo: string; cor: string; borda: str
   perigo:     { fundo: "#ffffff", cor: "#b91c1c", borda: "#fecaca" },
 };
 
-export function BotaoDoCartao({ acao, altura }: { acao: AcaoDoCartao; altura: number }) {
+/**
+ * Um bloqueio é MOTIVO quando explica algo; "Salvando…" é estado passageiro.
+ * Chamadores antigos (o painel do evento) ainda mandam o estado de salvamento
+ * como `bloqueio` — sem este filtro a frase "Salvando…" apareceria como razão.
+ */
+const ehMotivo = (texto: string | null | undefined): texto is string => !!texto && !/…$/.test(texto.trim());
+
+export function BotaoDoCartao({ acao, altura, descritoPor }: { acao: AcaoDoCartao; altura: number; descritoPor?: string }) {
   const tom = TONS[acao.tom];
-  const bloqueado = !!acao.bloqueio;
+  const bloqueado = !!acao.bloqueio || !!acao.ocupado;
   const estilo: React.CSSProperties = {
-    display: "inline-flex", alignItems: "center", justifyContent: "center", height: altura, padding: "0 12px",
+    display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 5, height: altura, padding: "0 12px",
     borderRadius: R.md, fontSize: 12.5, fontWeight: 800, whiteSpace: "nowrap", textDecoration: "none",
     border: `1px solid ${bloqueado ? "#e7e5e4" : tom.borda}`,
     background: bloqueado ? "#f5f5f4" : tom.fundo,
     color: bloqueado ? "#78716c" : tom.cor,
-    cursor: bloqueado ? "not-allowed" : "pointer",
+    cursor: acao.ocupado ? "wait" : bloqueado ? "not-allowed" : "pointer",
+    transition: "background-color 0.12s, border-color 0.12s",
   };
   if (acao.href && !bloqueado) {
     return <Link href={acao.href} data-testid={acao.testId} style={estilo}>{acao.rotulo}</Link>;
   }
+  // BLOQUEADO NÃO É `disabled`: botão desabilitado sai da ordem do Tab e não
+  // dispara o `title` no hover — quem usa teclado ou toque nunca descobria o
+  // porquê. Fica focável, anuncia "indisponível" e aponta para a frase visível.
+  const motivo = ehMotivo(acao.bloqueio) ? acao.bloqueio : null;
   return (
-    <button type="button" data-testid={acao.testId} disabled={bloqueado} title={acao.bloqueio ?? undefined}
-      aria-disabled={bloqueado} onClick={acao.onClick} style={estilo}>
+    <button type="button" data-testid={acao.testId} disabled={!!acao.ocupado} title={motivo ?? undefined}
+      aria-disabled={bloqueado} aria-busy={acao.ocupado || undefined}
+      aria-describedby={motivo && descritoPor ? descritoPor : undefined}
+      onClick={bloqueado ? undefined : acao.onClick} style={estilo}>
+      {motivo && <Lock size={12} aria-hidden="true" />}
       {acao.rotulo}
     </button>
+  );
+}
+
+/** O porquê dos botões travados, escrito — uma vez por motivo, sob as ações. */
+export function MotivosDoBloqueio({ acoes, id }: { acoes: AcaoDoCartao[]; id: string }) {
+  const motivos = Array.from(new Set(acoes.map((a) => a.bloqueio).filter(ehMotivo)));
+  if (motivos.length === 0) return null;
+  return (
+    <div id={id} data-testid={id} style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+      {motivos.map((m) => (
+        <p key={m} style={{ margin: 0, display: "flex", gap: 6, alignItems: "flex-start", fontSize: FS.small, color: "#57534e", lineHeight: 1.45 }}>
+          <Lock size={12} aria-hidden="true" style={{ flexShrink: 0, marginTop: 2 }} /> {m}
+        </p>
+      ))}
+    </div>
   );
 }
 
@@ -121,9 +154,10 @@ export function LinhaDoCartao({ linha, agora, selo, acoes = [], mostrarEvento = 
       )}
       {acoes.length > 0 && (
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          {acoes.map((a) => <BotaoDoCartao key={a.chave} acao={a} altura={isMobile ? 44 : 32} />)}
+          {acoes.map((a) => <BotaoDoCartao key={a.chave} acao={a} altura={isMobile ? 44 : 32} descritoPor={`bloqueio-linha-${linha.id}`} />)}
         </div>
       )}
+      <MotivosDoBloqueio acoes={acoes} id={`bloqueio-linha-${linha.id}`} />
       {extra}
     </li>
   );

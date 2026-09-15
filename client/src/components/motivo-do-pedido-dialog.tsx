@@ -46,6 +46,19 @@ export function tituloDoAviso(alvo: AlvoDaAcao): string {
   return "Ajuste recusado";
 }
 
+/** A segunda linha do aviso: o que aconteceu e quem ficou sabendo. Sem ela o
+ *  toast dizia só "Peça cancelada" — e a pergunta seguinte era sempre "e a
+ *  lista foi avisada?". */
+export function descricaoDoAviso(alvo: AlvoDaAcao): string {
+  const { acao, linha } = alvo;
+  if (acao === "ajuste") return "Quem monta a lista vai aceitar ou recusar — você é avisado da resposta.";
+  if (acao === "recusar-ajuste") return "Quem pediu o ajuste foi avisado com o motivo.";
+  if (acao === "recusar") return "Quem solicitou foi avisado com o motivo.";
+  if (acao === "cancelar") return "Quem monta a lista foi avisado com o motivo.";
+  if (linha?.status === "recusado") return "A peça voltou a ficar aberta e quem solicitou foi avisado.";
+  return "A peça voltou a ficar aberta e quem monta a lista foi avisado.";
+}
+
 /** Quem é avisado — dito antes de confirmar. */
 export function avisoDaAcao(alvo: AlvoDaAcao): string {
   const { acao, linha } = alvo;
@@ -123,12 +136,19 @@ export function MotivoDoPedidoDialog({ alvo, pendente, onConfirmar, onFechar }: 
               rows={4}
               value={motivo}
               onChange={(e) => setMotivo(e.target.value)}
+              // Ctrl/⌘+Enter confirma: Enter sozinho é quebra de linha num
+              // campo de várias linhas, e ir até o botão com o mouse é o
+              // clique a mais que quem já escreveu não precisa dar.
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && (e.ctrlKey || e.metaKey) && !travado) { e.preventDefault(); onConfirmar(motivo.trim()); }
+              }}
               aria-describedby="motivo-do-pedido-contador"
               placeholder={ehAjuste ? "Diga exatamente o que mudar na peça — quem monta a lista decide se aceita." : "Explique em uma frase — quem recebe precisa entender o porquê."}
               style={{ width: "100%", boxSizing: "border-box", borderRadius: R.md, border: `1px solid ${falta > 0 && motivo ? "#fcd34d" : "#d6d3d1"}`, padding: "10px 12px", fontSize: 14, fontFamily: "inherit", lineHeight: 1.45, resize: "vertical", color: T.text }}
             />
             <p id="motivo-do-pedido-contador" aria-live="polite" style={{ margin: "4px 0 0", fontSize: FS.small, color: falta > 0 ? "#92400e" : "#065f46" }}>
               {falta > 0 ? `Faltam ${falta} ${falta === 1 ? "caractere" : "caracteres"}` : ehAjuste ? "Texto pronto" : "Motivo pronto"}
+              {falta === 0 && !isMobile && <span style={{ color: "#57534e" }}> · Ctrl+Enter confirma</span>}
             </p>
           </div>
           <p style={{ margin: 0, display: "flex", gap: 8, alignItems: "flex-start", fontSize: FS.body, color: "#44403c", lineHeight: 1.45 }}>

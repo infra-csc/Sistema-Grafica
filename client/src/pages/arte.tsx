@@ -1846,7 +1846,9 @@ export default function Arte() {
   const handleSubmitForApproval = () => {
     if (bloqueadoPorPapel()) return;
     if (!selectedItem || !approvalThumbUrl) {
-      toast({ title: "Erro", description: "É necessário fazer upload do thumb de aprovação", variant: "destructive" });
+      // Título que diz O QUE falta: "Erro" sozinho soa como falha do sistema,
+      // quando é só um passo que ainda não foi dado.
+      toast({ title: "Falta o thumb de aprovação", description: "Suba o thumb (arraste, escolha ou cole com Ctrl+V) antes de enviar para aprovação.", variant: "destructive" });
       return;
     }
     submitForApprovalMutation.mutate({ itemId: selectedItem.id, approvalThumbUrl });
@@ -1856,7 +1858,7 @@ export default function Arte() {
   const handleSaveThumbDraft = () => {
     if (bloqueadoPorPapel()) return;
     if (!selectedItem || !approvalThumbUrl) {
-      toast({ title: "Erro", description: "Faça o upload do thumb antes de salvar", variant: "destructive" });
+      toast({ title: "Falta o thumb", description: "Suba o thumb antes de salvar o rascunho.", variant: "destructive" });
       return;
     }
     saveThumbDraftMutation.mutate({ itemId: selectedItem.id, approvalThumbUrl });
@@ -1866,7 +1868,7 @@ export default function Arte() {
   const handleSubmitFinalFile = () => {
     if (bloqueadoPorPapel()) return;
     if (!selectedItem || !finalFileUrl) {
-      toast({ title: "Erro", description: "É necessário informar o caminho do arquivo final", variant: "destructive" });
+      toast({ title: "Falta o arquivo final", description: "Informe o caminho do arquivo final antes de enviar.", variant: "destructive" });
       return;
     }
     const isUpdate = !!selectedItem.finalFileUrl; // já tinha arquivo → é atualização
@@ -1882,7 +1884,7 @@ export default function Arte() {
   const handleBulkSubmit = () => {
     if (bloqueadoPorPapel()) return;
     if (!sharedPdfUrl) {
-      toast({ title: "Erro", description: "É necessário fazer upload do PDF compartilhado", variant: "destructive" });
+      toast({ title: "Falta o PDF compartilhado", description: "Suba o PDF que vale para as peças selecionadas antes de enviar o lote.", variant: "destructive" });
       return;
     }
     // A seleção persiste entre abas: só peças aguardando envio aceitam
@@ -1895,7 +1897,7 @@ export default function Arte() {
       return;
     }
     if (foraDoLote > 0) {
-      toast({ title: `${foraDoLote} peça(s) fora do lote`, description: "Apenas as peças aguardando envio serão enviadas para aprovação." });
+      toast({ title: `${foraDoLote} ${foraDoLote === 1 ? 'peça ficou fora' : 'peças ficaram fora'} do lote`, description: `Só ${elegiveis.length === 1 ? 'a peça aguardando envio segue' : `as ${elegiveis.length} peças aguardando envio seguem`} para aprovação.` });
     }
     submitBulkForApprovalMutation.mutate({ itemIds: elegiveis, pdfUrl: sharedPdfUrl });
   };
@@ -4509,7 +4511,10 @@ export default function Arte() {
                       onMouseLeave={e => { if (!isPasteUploading && !isDragOverCorrecao) { (e.currentTarget as HTMLElement).style.backgroundColor = '#fafaf9'; (e.currentTarget as HTMLElement).style.borderColor = '#e2e0dd'; } }}
                       onDragOver={e => { e.preventDefault(); setIsDragOverCorrecao(true); }}
                       onDragEnter={e => { e.preventDefault(); setIsDragOverCorrecao(true); }}
-                      onDragLeave={e => { e.preventDefault(); setIsDragOverCorrecao(false); }}
+                      // Só apaga o destaque quando o arrasto SAI da zona: o dragleave
+                      // também dispara ao passar sobre o ícone e o texto de dentro,
+                      // e a borda piscava enquanto a pessoa mirava o arquivo.
+                      onDragLeave={e => { e.preventDefault(); if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setIsDragOverCorrecao(false); }}
                       onDrop={e => {
                         e.preventDefault();
                         setIsDragOverCorrecao(false);
@@ -4985,7 +4990,8 @@ export default function Arte() {
                     onMouseLeave={e => { if (!isPasteUploading && !isDragOver) (e.currentTarget as HTMLElement).style.background = 'rgba(250,245,255,0.5)'; }}
                     onDragOver={e => { e.preventDefault(); setIsDragOver(true); }}
                     onDragEnter={e => { e.preventDefault(); setIsDragOver(true); }}
-                    onDragLeave={e => { e.preventDefault(); setIsDragOver(false); }}
+                    // Mesmo cuidado da zona da Correção: ignora o dragleave dos filhos.
+                    onDragLeave={e => { e.preventDefault(); if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setIsDragOver(false); }}
                     onDrop={e => {
                       e.preventDefault();
                       setIsDragOver(false);
@@ -5014,7 +5020,9 @@ export default function Arte() {
                       <p style={{ fontSize: 14, fontWeight: 700, color: '#3b0764', margin: '0 0 4px' }}>
                         {isPasteUploading ? 'Enviando imagem...' : 'Upload do Thumb'}
                       </p>
-                      <p style={{ fontSize: 12, color: 'rgba(59,7,100,0.55)', margin: 0 }}>
+                      {/* Roxo sólido: o rgba 55% sobre o lilás da zona ficava abaixo de
+                          4,5:1 — e é esta linha que ensina os três jeitos de subir. */}
+                      <p style={{ fontSize: 12, color: '#6b21a8', margin: 0 }}>
                         {isPasteUploading ? 'Aguarde o upload concluir' : 'Arraste, selecione ou cole com Ctrl+V'}
                       </p>
                     </div>
@@ -5307,7 +5315,8 @@ export default function Arte() {
                 onMouseLeave={e => { if (!bookFileUrl && !isDragOverBook) { (e.currentTarget as HTMLLabelElement).style.borderColor = '#e2d9cf'; (e.currentTarget as HTMLLabelElement).style.background = 'linear-gradient(135deg,#fdfcfb,#f9f7f5)'; } }}
                 onDragOver={e => { e.preventDefault(); setIsDragOverBook(true); }}
                 onDragEnter={e => { e.preventDefault(); setIsDragOverBook(true); }}
-                onDragLeave={e => { e.preventDefault(); setIsDragOverBook(false); }}
+                // Ignora o dragleave dos filhos (ícone, textos) — o destaque piscava.
+                onDragLeave={e => { e.preventDefault(); if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setIsDragOverBook(false); }}
                 onDrop={e => {
                   e.preventDefault();
                   setIsDragOverBook(false);
@@ -5533,7 +5542,8 @@ export default function Arte() {
                   }}
                   onDragOver={e => { e.preventDefault(); setIsDragOverBulk(true); }}
                   onDragEnter={e => { e.preventDefault(); setIsDragOverBulk(true); }}
-                  onDragLeave={() => setIsDragOverBulk(false)}
+                  // Ignora o dragleave dos filhos — o verde piscava ao mirar o texto.
+                  onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setIsDragOverBulk(false); }}
                   onDrop={e => { e.preventDefault(); setIsDragOverBulk(false); if (e.dataTransfer.files.length) handleBulkThumbFilesAdded(e.dataTransfer.files); }}
                   onClick={() => { const inp = document.getElementById('bulk-thumb-input') as HTMLInputElement; inp?.click(); }}
                   onKeyDown={e => {

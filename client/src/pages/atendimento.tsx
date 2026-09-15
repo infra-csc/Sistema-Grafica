@@ -868,11 +868,16 @@ export default function Atendimento() {
       setBatchEventId("");
       setBatchRejectReason("");
       setBatchShowRejectForm(false);
+      // O número no aviso: "todas as selecionadas" não confirma QUANTAS
+      // decisões saíram — e é essa conta que a pessoa confere com o patrocinador.
+      const n = results.length;
       toast({
-        title: vars.action === "approve" ? "Peças aprovadas em lote" : "Peças reprovadas em lote",
+        title: vars.action === "approve"
+          ? `${n} ${n === 1 ? 'peça aprovada' : 'peças aprovadas'} em lote`
+          : `${n} ${n === 1 ? 'peça reprovada' : 'peças reprovadas'} em lote`,
         description: vars.action === "approve"
-          ? "Todas as peças selecionadas foram aprovadas para este patrocinador."
-          : "Todas as peças selecionadas foram devolvidas para a Arte.",
+          ? "As decisões deste patrocinador foram registradas."
+          : "As peças voltaram para a Arte com o motivo informado.",
       });
     },
     onError: (error: any) => {
@@ -1458,9 +1463,11 @@ export default function Atendimento() {
 
   if (itemsError) {
     return (
-      <div className="flex flex-col items-center justify-center h-full gap-3 text-center px-6">
-        <p className="text-base font-semibold text-red-700">Não foi possível carregar os itens</p>
-        <p className="text-sm text-muted-foreground">Verifique sua conexão e tente novamente.</p>
+      // role="alert": a troca da tela inteira por esta mensagem precisa ser
+      // anunciada — e o título diz QUE fila falhou, não "os itens".
+      <div role="alert" className="flex flex-col items-center justify-center h-full gap-3 text-center px-6">
+        <p className="text-base font-semibold text-red-700">Não foi possível carregar a fila de aprovação</p>
+        <p className="text-sm text-muted-foreground">Nenhuma decisão foi perdida. Verifique sua conexão e tente novamente.</p>
         <button onClick={() => refetchItems()} className="mt-1 rounded-md bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-800">
           Tentar novamente
         </button>
@@ -1655,7 +1662,18 @@ export default function Atendimento() {
             rodapé de 1px — o mesmo traço que a borda da faixa, e por isso
             fácil de perder. Padding só na horizontal: com 3px em cima e
             embaixo os botões cairiam para 30px, abaixo da régua de 36. */}
-        <div role="tablist" aria-label="Abas de aprovação" style={{
+        {/* Setas ←/→ com roving tabindex: o contrato ARIA de tablist, o mesmo
+            que a barra de fases da Arte já cumpre. Sem ele o Tab parava nas
+            duas abas, uma a uma, antes de chegar à busca. */}
+        <div role="tablist" aria-label="Abas de aprovação"
+          onKeyDown={e => {
+            if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+            e.preventDefault();
+            const prox = activeTab === 'pending' ? 'history' : 'pending';
+            setActiveTab(prox);
+            (e.currentTarget.querySelector(`#tab-${prox}`) as HTMLElement | null)?.focus();
+          }}
+          style={{
           display: 'inline-flex', gap: 2, borderRadius: 10,
           backgroundColor: '#f0efee', padding: '0 3px', boxSizing: 'border-box',
           height: isMobile ? 44 : 36, flexShrink: 0,
@@ -1673,6 +1691,7 @@ export default function Atendimento() {
               id={`tab-${tab.key}`}
               aria-selected={activeTab === tab.key}
               aria-controls={`tabpanel-${tab.key}`}
+              tabIndex={activeTab === tab.key ? 0 : -1}
               onClick={() => setActiveTab(tab.key)}
               style={{
                 padding: '0 14px', border: 'none', cursor: 'pointer', borderRadius: 8,
@@ -2299,22 +2318,39 @@ export default function Atendimento() {
           {/* Regua dos vazios da casa: icone 28, titulo 15/700, frase 13. Era
               48/18/15 — um vazio desenhado com mais peso visual que qualquer
               card de peca da lista cheia. */}
-          <CheckCircle aria-hidden="true" style={{ width: 28, height: 28, color: '#86efac', margin: '0 auto 12px' }} />
+          {/* Ícone por MOTIVO do vazio: o check verde dizia "tudo certo"
+              também quando eram os filtros escondendo a fila inteira. */}
+          {pendingItems.length > 0 && !atrasadosFilter
+            ? <Search aria-hidden="true" style={{ width: 28, height: 28, color: '#746e69', margin: '0 auto 12px' }} />
+            : <CheckCircle aria-hidden="true" style={{ width: 28, height: 28, color: '#15803d', margin: '0 auto 12px' }} />}
           <h3 style={{ fontSize: 15, fontWeight: 700, color: '#1c1917', margin: '0 0 6px' }}>
-            {/* Vazio por causa do recorte de atrasados tem texto próprio: com o
-                filtro ligado, "Nenhum item pendente" leria como "nada a fazer"
-                enquanto a fila inteira continua ali, dentro do prazo. */}
             {atrasadosFilter
               ? "Nada atrasado neste recorte"
-              : pendingItems.length === 0 ? "Nenhum item pendente" : "Nenhum resultado encontrado"}
+              : pendingItems.length === 0 ? "Nenhuma peça pendente" : "Nenhuma peça neste recorte"}
           </h3>
+          {/* Vazio por causa do recorte de atrasados tem texto próprio: com o
+              filtro ligado, "Nenhuma peça pendente" leria como "nada a fazer"
+              enquanto a fila inteira continua ali, dentro do prazo. E o vazio
+              por filtro diz QUANTAS peças ficaram de fora, em vez do genérico
+              "tente ajustar os filtros". */}
           <p style={{ color: '#746e69', fontSize: 13, lineHeight: 1.5, maxWidth: 520, margin: '0 auto' }} data-testid="empty-atendimento-motivo">
             {atrasadosFilter
               ? `A lista está vazia pelo FILTRO "Atrasados" — ${filteredItemsBase.length === 0 ? 'os demais filtros já não devolvem nenhuma peça' : `as ${filteredItemsBase.length} peças deste recorte estão todas dentro do prazo de Aprovação de Layout`}.`
               : pendingItems.length === 0
-              ? "Não há itens aguardando aprovação do patrocinador no momento."
-              : "Tente ajustar os filtros para ver mais resultados."}
+              ? "Nenhuma peça aguarda aprovação do patrocinador agora."
+              : `${pendingItems.length} ${pendingItems.length === 1 ? 'peça pendente ficou' : 'peças pendentes ficaram'} fora ${chipsAtivos.length === 1 ? 'do filtro ativo' : `dos ${chipsAtivos.length} filtros ativos`}.`}
           </p>
+          {/* O texto apontava para os filtros, mas o "Limpar" morava lá em
+              cima, na faixa das abas — a saída fica ao lado do problema. */}
+          {!atrasadosFilter && pendingItems.length > 0 && chipsAtivos.length > 0 && (
+            <button
+              onClick={limparFiltros}
+              data-testid="button-clear-filters-empty"
+              style={{ marginTop: 16, height: 40, padding: '0 18px', borderRadius: 8, border: '1px solid #e7e5e4', background: '#ffffff', color: '#1c1917', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}
+            >
+              Limpar {chipsAtivos.length === 1 ? 'o filtro' : `os ${chipsAtivos.length} filtros`}
+            </button>
+          )}
           {atrasadosFilter && (
             <button
               onClick={() => setAtrasadosFilter(false)}
@@ -4105,7 +4141,20 @@ export default function Atendimento() {
                                           }}
                                           onFocus={e => { e.currentTarget.style.borderColor = '#dc2626'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(220,38,38,0.08)'; }}
                                           onBlur={e => { e.currentTarget.style.borderColor = rejectionReason.trim() ? '#dc2626' : '#e7e5e4'; e.currentTarget.style.boxShadow = 'none'; }}
+                                          aria-label={`Motivo da reprovação de ${sponsor.name}`}
+                                          aria-required="true"
+                                          aria-describedby={motivoCurto(rejectionReason) ? `falta-motivo-${sponsor.id}` : undefined}
                                         />
+                                        {/* A régua de 10 caracteres só existia no `title` do botão
+                                            (hover, e só no desktop). Dizer quanto falta, à vista,
+                                            é o mesmo que o "Devolver" da Arte já faz. */}
+                                        {motivoCurto(rejectionReason) && (
+                                          <p id={`falta-motivo-${sponsor.id}`} style={{ margin: '5px 0 0', fontSize: 11.5, color: '#746e69' }}>
+                                            {rejectionReason.trim()
+                                              ? `Faltam ${Math.max(0, MOTIVO_MIN - rejectionReason.trim().replace(/\s+/g, " ").length)} caracteres — a Arte precisa saber o que refazer.`
+                                              : `Mínimo de ${MOTIVO_MIN} caracteres — a Arte precisa saber o que refazer.`}
+                                          </p>
+                                        )}
 
                                         {/* Botões */}
                                         <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
@@ -4129,16 +4178,20 @@ export default function Atendimento() {
                                             data-testid={`button-confirm-reject-${sponsor.id}`}
                                             style={{
                                               flex: 2, height: 36, borderRadius: 8, border: 'none',
-                                              backgroundColor: rejectionReason.trim() === "" ? '#e7e5e4' : '#dc2626',
-                                              color: rejectionReason.trim() === "" ? '#57534e' : '#fff',
+                                              // A aparência segue a MESMA régua do `disabled`
+                                              // (motivoCurto). Olhava só para "vazio": com 1 a 9
+                                              // caracteres o botão ficava vermelho, parecia pronto
+                                              // e não respondia ao clique.
+                                              backgroundColor: motivoCurto(rejectionReason) ? '#e7e5e4' : '#dc2626',
+                                              color: motivoCurto(rejectionReason) ? '#57534e' : '#fff',
                                               fontSize: 13, fontWeight: 800,
-                                              cursor: rejectionReason.trim() === "" ? 'not-allowed' : 'pointer',
+                                              cursor: motivoCurto(rejectionReason) ? 'not-allowed' : 'pointer',
                                               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
                                               transition: 'background-color 0.15s, box-shadow 0.15s',
-                                              boxShadow: rejectionReason.trim() ? '0 2px 8px rgba(220,38,38,0.25)' : 'none',
+                                              boxShadow: motivoCurto(rejectionReason) ? 'none' : '0 2px 8px rgba(220,38,38,0.25)',
                                             }}
-                                            onMouseEnter={e => { if (rejectionReason.trim()) e.currentTarget.style.backgroundColor = '#b91c1c'; }}
-                                            onMouseLeave={e => { if (rejectionReason.trim()) e.currentTarget.style.backgroundColor = '#dc2626'; }}
+                                            onMouseEnter={e => { if (!motivoCurto(rejectionReason)) e.currentTarget.style.backgroundColor = '#b91c1c'; }}
+                                            onMouseLeave={e => { if (!motivoCurto(rejectionReason)) e.currentTarget.style.backgroundColor = '#dc2626'; }}
                                           >
                                             {individualRejectMutation.isPending
                                               ? <><Loader2 style={{ width: 13, height: 13 }} className="animate-spin" />Registrando…</>

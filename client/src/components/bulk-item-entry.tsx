@@ -90,6 +90,12 @@ interface BulkItemEntryProps {
   isPending?: boolean;
   /** admin|solicitacao: mostra o botão de prioridade por linha (espelho do gate do servidor). */
   podePriorizar?: boolean;
+  /**
+   * Avisa o pai se a grade tem algo digitado. É o que deixa o X do modal
+   * perguntar "descartar?" SÓ quando há o que perder — antes perguntava
+   * sempre, até com a grade vazia.
+   */
+  onConteudoChange?: (temConteudo: boolean) => void;
 }
 
 /* ── Styles ─────────────────────────────────────────────────────────── */
@@ -170,7 +176,8 @@ function TipoSelect({ value, groupedOptions, onChange, rowIndex, onNavigateNext 
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           padding: '7px 10px', borderRadius: 6, fontSize: 13,
           fontWeight: sel ? 700 : 500,
-          color: sel ? '#f97316' : '#1c1917',
+          // #c2410c e não #f97316: o tipo escolhido é TEXTO (2,9:1 reprovava).
+          color: sel ? '#c2410c' : '#1c1917',
           backgroundColor: sel ? '#fff7ed' : 'transparent',
           cursor: 'pointer', fontFamily: "'Plus Jakarta Sans', sans-serif", gap: 6,
         }}
@@ -178,7 +185,7 @@ function TipoSelect({ value, groupedOptions, onChange, rowIndex, onNavigateNext 
         onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.backgroundColor = sel ? '#fff7ed' : ''; }}
       >
         <span style={{ flex: 1 }}>{opt}</span>
-        {sel && <Check size={10} color="#f97316" />}
+        {sel && <Check size={10} color="#c2410c" aria-hidden="true" />}
       </div>
     );
   }
@@ -202,11 +209,13 @@ function TipoSelect({ value, groupedOptions, onChange, rowIndex, onNavigateNext 
           onKeyDown={handleKeyDown}
           onMouseDown={() => { if (!open) { setSearch(""); setOpen(true); } }}
           placeholder={value || "Selecionar..."}
+          aria-label={`Tipo da peça, linha ${rowIndex + 1}`}
+          aria-expanded={open}
           data-nav-row={rowIndex}
           data-nav-field="0"
           style={{ ...fieldStyle, flex: 1, paddingRight: '24px', paddingLeft: '8px', textOverflow: 'ellipsis', cursor: 'pointer', borderRadius: '0 6px 6px 0', backgroundColor: open ? '#ebe9e7' : '#f3f4f3' }}
         />
-        <ChevronDown size={10} color="#a8a29e" style={{ position: 'absolute', right: 7, top: '50%', transform: open ? 'translateY(-50%) rotate(180deg)' : 'translateY(-50%)', transition: 'transform 0.15s', pointerEvents: 'none' }} />
+        <ChevronDown size={10} color="#78716c" aria-hidden="true" style={{ position: 'absolute', right: 7, top: '50%', transform: open ? 'translateY(-50%) rotate(180deg)' : 'translateY(-50%)', transition: 'transform 0.15s', pointerEvents: 'none' }} />
       </div>
 
       {open && (
@@ -464,12 +473,13 @@ function ExistingItemsPanel({ items, standardItems = [] }: ExistingItemsPanelPro
 
         {/* Quick search */}
         <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-          <Search size={11} color="#a8a29e" style={{ position: 'absolute', left: 7, pointerEvents: 'none' }} />
+          <Search size={11} color="#78716c" aria-hidden="true" style={{ position: 'absolute', left: 7, pointerEvents: 'none' }} />
           <input
             type="text"
             value={query}
             onChange={e => setQuery(e.target.value)}
             placeholder="Filtrar..."
+            aria-label="Filtrar as peças já lançadas"
             style={{
               fontSize: '11px', fontFamily: "'Plus Jakarta Sans', sans-serif",
               backgroundColor: '#ebe9e7', border: 'none',
@@ -481,6 +491,7 @@ function ExistingItemsPanel({ items, standardItems = [] }: ExistingItemsPanelPro
             <button
               type="button"
               onClick={() => setQuery("")}
+              aria-label="Limpar o filtro"
               style={{ position: 'absolute', right: 6, background: 'none', border: 'none', cursor: 'pointer', lineHeight: 0, padding: 0, color: '#746e69' }}
             >
               <X size={10} />
@@ -570,7 +581,7 @@ function isSameItem(
 /* ── Main Component ─────────────────────────────────────────────────── */
 export function BulkItemEntry({
   eventId, standardItems = [], sponsors = [], existingItems = [],
-  onSubmit, onCancel, isPending, savedTick = 0, podePriorizar = false,
+  onSubmit, onCancel, isPending, savedTick = 0, podePriorizar = false, onConteudoChange,
 }: BulkItemEntryProps) {
   const [rows, setRows] = useState<BulkItemRow[]>([createEmptyRow()]);
   const [replicateCounts, setReplicateCounts] = useState<Record<string, number>>({});
@@ -760,6 +771,13 @@ export function BulkItemEntry({
     setDuplicateConfirm({ valid, duplicates });
   }
 
+  // A MESMA régua de "tem conteúdo" do Cancelar e do X do modal (via pai):
+  // duas contas diferentes fariam um perguntar e o outro não.
+  const temConteudo = rows.some(r => r.type || r.description || r.material || r.finish || r.visualWidth || r.fileWidth);
+  const onConteudoChangeRef = useRef(onConteudoChange);
+  onConteudoChangeRef.current = onConteudoChange;
+  useEffect(() => { onConteudoChangeRef.current?.(temConteudo); }, [temConteudo]);
+
   const validCount = rows.filter(isRowComplete).length;
   /** Linhas com algo digitado mas ainda incompletas — não vão no envio. */
   const leftoverCount = rows.filter(r => !isRowComplete(r) && (r.type || r.description || r.material || r.finish)).length;
@@ -867,7 +885,7 @@ export function BulkItemEntry({
             }}>
               <p style={{
                 margin: 0, fontSize: '11px', fontWeight: '700', letterSpacing: '0.10em',
-                textTransform: 'uppercase', color: '#9D978F',
+                textTransform: 'uppercase', color: '#746e69',
                 fontFamily: "'Space Grotesk', sans-serif",
               }}>
                 Revisão do Lote
@@ -974,7 +992,7 @@ export function BulkItemEntry({
                                   }}>Dup</span>
                                 )}
                                 {isDup && dupMatch?.existingItem.displayId && (
-                                  <span style={{ fontSize: '11px', fontWeight: '700', color: '#D97A1E', fontFamily: "'Space Grotesk', sans-serif", flexShrink: 0 }}>
+                                  <span style={{ fontSize: '11px', fontWeight: '700', color: '#b45309', fontFamily: "'Space Grotesk', sans-serif", flexShrink: 0 }}>
                                     {dupMatch.existingItem.displayId}
                                   </span>
                                 )}
@@ -982,7 +1000,7 @@ export function BulkItemEntry({
                                   {item.type}
                                 </span>
                                 {item.description && (
-                                  <span style={{ fontSize: '11px', color: isDup ? '#b45309' : '#9D978F', fontFamily: "'Plus Jakarta Sans', sans-serif", overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                  <span style={{ fontSize: '11px', color: isDup ? '#b45309' : '#746e69', fontFamily: "'Plus Jakarta Sans', sans-serif", overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                     {item.description}
                                   </span>
                                 )}
@@ -1047,12 +1065,12 @@ export function BulkItemEntry({
                                 const isConflict = duplicateConfirm.duplicates.some(d => d.existingItem.id === item.id);
                                 return (
                                   <div key={item.id} style={{ backgroundColor: isConflict ? '#FEF9EC' : '#F7F6F3', borderBottom: '1px solid #E7E3DC', padding: '7px 12px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                    <span style={{ fontSize: '11px', fontWeight: '700', color: '#D97A1E', fontFamily: "'Space Grotesk', sans-serif", flexShrink: 0 }}>{item.displayId}</span>
+                                    <span style={{ fontSize: '11px', fontWeight: '700', color: '#b45309', fontFamily: "'Space Grotesk', sans-serif", flexShrink: 0 }}>{item.displayId}</span>
                                     <div style={{ flex: 1, minWidth: 0 }}>
                                       <span style={{ fontSize: '13px', fontWeight: isConflict ? '700' : '400', color: isConflict ? '#92400e' : '#6F6A63', fontFamily: "'Plus Jakarta Sans', sans-serif", display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.type}</span>
-                                      {item.description && <span style={{ fontSize: '11px', color: isConflict ? '#b45309' : '#9D978F', fontFamily: "'Plus Jakarta Sans', sans-serif", display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.description}</span>}
+                                      {item.description && <span style={{ fontSize: '11px', color: isConflict ? '#b45309' : '#746e69', fontFamily: "'Plus Jakarta Sans', sans-serif", display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.description}</span>}
                                     </div>
-                                    <span style={{ fontSize: '11px', fontWeight: isConflict ? '700' : '400', color: isConflict ? '#D97A1E' : '#9D978F', fontFamily: "'Plus Jakarta Sans', sans-serif", flexShrink: 0 }}>{item.quantity}x</span>
+                                    <span style={{ fontSize: '11px', fontWeight: isConflict ? '700' : '400', color: isConflict ? '#b45309' : '#746e69', fontFamily: "'Plus Jakarta Sans', sans-serif", flexShrink: 0 }}>{item.quantity}x</span>
                                     {isConflict && <span style={{ fontSize: '10px', fontWeight: '800', backgroundColor: '#fde68a', color: '#92400e', borderRadius: '6px', padding: '1px 5px', textTransform: 'uppercase', letterSpacing: '0.06em', flexShrink: 0, fontFamily: "'Space Grotesk', sans-serif" }}>Dup</span>}
                                   </div>
                                 );
@@ -1070,8 +1088,8 @@ export function BulkItemEntry({
               {duplicateConfirm.duplicates.length > 0 && (
                 <div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
-                    <div style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#D97A1E', flexShrink: 0 }} />
-                    <span style={{ fontSize: '10px', fontWeight: '700', letterSpacing: '0.10em', textTransform: 'uppercase', color: '#D97A1E', fontFamily: "'Space Grotesk', sans-serif" }}>
+                    <div style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#b45309', flexShrink: 0 }} />
+                    <span style={{ fontSize: '10px', fontWeight: '700', letterSpacing: '0.10em', textTransform: 'uppercase', color: '#b45309', fontFamily: "'Space Grotesk', sans-serif" }}>
                       Duplicatas detectadas — {duplicateConfirm.duplicates.length} {duplicateConfirm.duplicates.length === 1 ? 'conflito' : 'conflitos'}
                     </span>
                   </div>
@@ -1082,7 +1100,7 @@ export function BulkItemEntry({
                         borderRadius: '8px', padding: '10px 14px',
                         display: 'flex', alignItems: 'center', gap: '10px',
                       }}>
-                        <span style={{ fontSize: '11px', fontWeight: '700', color: '#D97A1E', fontFamily: "'Space Grotesk', sans-serif", flexShrink: 0 }}>
+                        <span style={{ fontSize: '11px', fontWeight: '700', color: '#b45309', fontFamily: "'Space Grotesk', sans-serif", flexShrink: 0 }}>
                           {dup.existingItem.displayId}
                         </span>
                         <div style={{ flex: 1, minWidth: 0 }}>
@@ -1117,7 +1135,7 @@ export function BulkItemEntry({
               borderRadius: '0 0 14px 14px',
               display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px',
             }}>
-              <p style={{ margin: 0, fontSize: '13px', color: '#9D978F', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+              <p style={{ margin: 0, fontSize: '13px', color: '#746e69', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
                 {duplicateConfirm.valid.length} {duplicateConfirm.valid.length === 1 ? 'peça nova' : 'peças novas'} ·{' '}
                 {existingItems.length} existentes no evento
               </p>
@@ -1185,7 +1203,9 @@ export function BulkItemEntry({
                     paddingBottom: '10px', paddingLeft: '5px', paddingRight: '5px',
                     fontSize: '10px', fontWeight: '800',
                     textTransform: 'uppercase', letterSpacing: '0.1em',
-                    color: col.orange ? '#f97316' : '#746e69',
+                    // O laranja marca as colunas de MEDIDA; em texto de 10px ele
+                    // precisa ser o escuro (#c2410c) para ser lido.
+                    color: col.orange ? '#c2410c' : '#746e69',
                     whiteSpace: 'nowrap', fontFamily: "'Space Grotesk', sans-serif",
                     width: col.w || undefined,
                   }}>
@@ -1220,6 +1240,7 @@ export function BulkItemEntry({
                       value={row.description}
                       onChange={e => updateRow(row.id, 'description', e.target.value)}
                       placeholder="Opcional"
+                      aria-label={`Descrição, linha ${ri + 1}`}
                       style={fieldStyle}
                       data-nav-row={ri} data-nav-field="1"
                       data-testid={`input-description-${ri}`}
@@ -1235,6 +1256,7 @@ export function BulkItemEntry({
                       onChange={e => updateRow(row.id, 'quantity', e.target.value)}
                       style={errStyle(row.quantity, { ...fieldStyle, textAlign: 'center' }, !!(row.type || row.material || row.finish || row.description))}
                       data-nav-row={ri} data-nav-field="2"
+                      aria-label={`Quantidade, linha ${ri + 1}`}
                       data-testid={`input-quantity-${ri}`}
                       {...navHandlers(ri, 2)}
                     />
@@ -1249,6 +1271,7 @@ export function BulkItemEntry({
                       placeholder="0.00"
                       style={errStyle(row.visualWidth, { ...fieldStyle, textAlign: 'center' }, !!(row.type || row.material || row.finish || row.description))}
                       data-nav-row={ri} data-nav-field="3"
+                      aria-label={`Largura visual em metros, linha ${ri + 1}`}
                       data-testid={`input-visual-width-${ri}`}
                       {...navHandlers(ri, 3)}
                     />
@@ -1263,6 +1286,7 @@ export function BulkItemEntry({
                       placeholder="0.00"
                       style={errStyle(row.visualHeight, { ...fieldStyle, textAlign: 'center' }, !!(row.type || row.material || row.finish || row.description))}
                       data-nav-row={ri} data-nav-field="4"
+                      aria-label={`Altura visual em metros, linha ${ri + 1}`}
                       data-testid={`input-visual-height-${ri}`}
                       {...navHandlers(ri, 4)}
                     />
@@ -1277,6 +1301,7 @@ export function BulkItemEntry({
                       placeholder="0.00"
                       style={errStyle(row.fileWidth, { ...fieldStyle, textAlign: 'center' }, !!(row.type || row.material || row.finish || row.description))}
                       data-nav-row={ri} data-nav-field="5"
+                      aria-label={`Largura do arquivo em metros, linha ${ri + 1}`}
                       data-testid={`input-file-width-${ri}`}
                       {...navHandlers(ri, 5)}
                     />
@@ -1291,6 +1316,7 @@ export function BulkItemEntry({
                       placeholder="0.00"
                       style={errStyle(row.fileHeight, { ...fieldStyle, textAlign: 'center' }, !!(row.type || row.material || row.finish || row.description))}
                       data-nav-row={ri} data-nav-field="6"
+                      aria-label={`Altura do arquivo em metros, linha ${ri + 1}`}
                       data-testid={`input-file-height-${ri}`}
                       {...navHandlers(ri, 6)}
                     />
@@ -1301,7 +1327,7 @@ export function BulkItemEntry({
                     <div style={{
                       backgroundColor: '#fff7ed', borderRadius: '6px',
                       padding: '5px 8px', fontSize: '13px', fontWeight: '800',
-                      color: row.calculatedM2 > 0 ? '#f97316' : '#fcd9b8',
+                      color: row.calculatedM2 > 0 ? '#c2410c' : '#78716c',
                       textAlign: 'center', fontFamily: 'monospace',
                     }}>
                       {row.calculatedM2 > 0 ? row.calculatedM2.toFixed(2) : '—'}
@@ -1349,6 +1375,7 @@ export function BulkItemEntry({
                       placeholder="..."
                       style={fieldStyle}
                       data-nav-row={ri} data-nav-field="9"
+                      aria-label={`Observações, linha ${ri + 1}`}
                       data-testid={`input-observations-${ri}`}
                       {...navHandlers(ri, 9)}
                     />
@@ -1363,6 +1390,7 @@ export function BulkItemEntry({
                         onChange={e => setReplicateCount(row.id, parseInt(e.target.value) || 1)}
                         onClick={e => (e.target as HTMLInputElement).select()}
                         title="Cópias"
+                        aria-label={`Quantas cópias da linha ${ri + 1} criar`}
                         data-testid={`input-replicate-count-${ri}`}
                         style={{
                           width: '28px', height: '26px',
@@ -1376,9 +1404,10 @@ export function BulkItemEntry({
                         type="button"
                         onClick={() => duplicateRow(row.id)}
                         title={`Replicar ${getReplicateCount(row.id)}x`}
-                        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '3px', borderRadius: '6px', color: '#c4bfbb', lineHeight: 0 }}
+                        aria-label={`Replicar a linha ${ri + 1} ${getReplicateCount(row.id)} ${getReplicateCount(row.id) === 1 ? 'vez' : 'vezes'}`}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '3px', borderRadius: '6px', color: '#78716c', lineHeight: 0 }}
                         onMouseEnter={e => (e.currentTarget.style.color = '#1a1c1c')}
-                        onMouseLeave={e => (e.currentTarget.style.color = '#c4bfbb')}
+                        onMouseLeave={e => (e.currentTarget.style.color = '#78716c')}
                         data-testid={`button-duplicate-${ri}`}
                       >
                         <Copy size={13} />
@@ -1387,9 +1416,11 @@ export function BulkItemEntry({
                         type="button"
                         onClick={() => setRows(prev => prev.map(r => r.id === row.id ? { ...r, isReuse: !r.isReuse } : r))}
                         title={row.isReuse ? "Reaproveitamento ativo — clique para desativar" : "Marcar como reaproveitamento"}
-                        style={{ background: row.isReuse ? '#dcfce7' : 'none', border: row.isReuse ? '1px solid #86efac' : 'none', cursor: 'pointer', padding: '3px 5px', borderRadius: '6px', color: row.isReuse ? '#15803d' : '#c4bfbb', lineHeight: 0, transition: 'all 0.12s' }}
+                        style={{ background: row.isReuse ? '#dcfce7' : 'none', border: row.isReuse ? '1px solid #86efac' : 'none', cursor: 'pointer', padding: '3px 5px', borderRadius: '6px', color: row.isReuse ? '#15803d' : '#78716c', lineHeight: 0, transition: 'all 0.12s' }}
                         onMouseEnter={e => { if (!row.isReuse) e.currentTarget.style.color = '#15803d'; }}
-                        onMouseLeave={e => { if (!row.isReuse) e.currentTarget.style.color = '#c4bfbb'; }}
+                        onMouseLeave={e => { if (!row.isReuse) e.currentTarget.style.color = '#78716c'; }}
+                        aria-label={`Reaproveitamento, linha ${ri + 1}`}
+                        aria-pressed={row.isReuse}
                         data-testid={`button-reuse-${ri}`}
                       >
                         <RotateCcw size={13} />
@@ -1403,9 +1434,11 @@ export function BulkItemEntry({
                           type="button"
                           onClick={() => setRows(prev => prev.map(r => r.id === row.id ? { ...r, isPriority: !r.isPriority } : r))}
                           title={row.isPriority ? "Prioridade ativa — a peça nasce furando a fila da Arte; clique para desativar" : "Marcar como prioritária (fura a fila da Arte)"}
-                          style={{ background: row.isPriority ? '#fff1f2' : 'none', border: row.isPriority ? '1px solid #fecdd3' : 'none', cursor: 'pointer', padding: '3px 5px', borderRadius: '6px', color: row.isPriority ? '#be123c' : '#c4bfbb', lineHeight: 0, transition: 'all 0.12s' }}
+                          style={{ background: row.isPriority ? '#fff1f2' : 'none', border: row.isPriority ? '1px solid #fecdd3' : 'none', cursor: 'pointer', padding: '3px 5px', borderRadius: '6px', color: row.isPriority ? '#be123c' : '#78716c', lineHeight: 0, transition: 'all 0.12s' }}
                           onMouseEnter={e => { if (!row.isPriority) e.currentTarget.style.color = '#be123c'; }}
-                          onMouseLeave={e => { if (!row.isPriority) e.currentTarget.style.color = '#c4bfbb'; }}
+                          onMouseLeave={e => { if (!row.isPriority) e.currentTarget.style.color = '#78716c'; }}
+                          aria-label={`Peça prioritária, linha ${ri + 1}`}
+                          aria-pressed={row.isPriority}
                           data-testid={`button-priority-${ri}`}
                         >
                           <AlertTriangle size={13} />
@@ -1414,10 +1447,13 @@ export function BulkItemEntry({
                       <button
                         type="button"
                         onClick={() => removeRow(row.id)}
-                        title="Remover"
-                        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '3px', borderRadius: '6px', color: '#ddd9d5', lineHeight: 0 }}
+                        // Sem linha única para tirar, o botão diz por que não age
+                        // em vez de engolir o clique em silêncio.
+                        title={rows.length === 1 ? "A grade precisa de pelo menos uma linha" : "Remover esta linha"}
+                        aria-label={`Remover a linha ${ri + 1}`}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '3px', borderRadius: '6px', color: '#78716c', lineHeight: 0 }}
                         onMouseEnter={e => (e.currentTarget.style.color = '#ef4444')}
-                        onMouseLeave={e => (e.currentTarget.style.color = '#ddd9d5')}
+                        onMouseLeave={e => (e.currentTarget.style.color = '#78716c')}
                         data-testid={`button-remove-${ri}`}
                       >
                         <Trash2 size={13} />
@@ -1444,7 +1480,7 @@ export function BulkItemEntry({
                 cursor: 'pointer', fontFamily: "'Space Grotesk', sans-serif",
                 transition: 'border-color 0.12s, color 0.12s',
               }}
-              onMouseEnter={e => { e.currentTarget.style.borderColor = '#f97316'; e.currentTarget.style.color = '#f97316'; }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = '#c2410c'; e.currentTarget.style.color = '#c2410c'; }}
               onMouseLeave={e => { e.currentTarget.style.borderColor = '#d6d3d1'; e.currentTarget.style.color = '#746e69'; }}
               data-testid="button-add-row"
             >
@@ -1466,10 +1502,13 @@ export function BulkItemEntry({
       }}>
         {/* Status chips */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+          {/* No lugar do selo "Cálculo Automático" (que não pedia nem
+              ensinava nada): o atalho que torna a grade rápida. Enter já
+              avançava de campo e criava a linha seguinte — só ninguém sabia. */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <div style={{ width: '7px', height: '7px', borderRadius: '999px', backgroundColor: '#f97316' }} />
+            <kbd style={{ fontSize: '10px', fontWeight: '700', color: '#44403c', backgroundColor: '#ffffff', border: '1px solid #d6d3d1', borderBottomWidth: 2, borderRadius: 4, padding: '0 5px', fontFamily: "'DM Mono', monospace" }}>Enter</kbd>
             <span style={{ fontSize: '10px', fontWeight: '700', color: '#746e69', textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: "'Space Grotesk', sans-serif" }}>
-              Cálculo Automático
+              próximo campo · nova linha no fim
             </span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -1488,8 +1527,7 @@ export function BulkItemEntry({
               // Grid com conteúdo digitado: confirmar antes de descartar — o
               // Esc e o clique-fora já são bloqueados; este era o único caminho
               // que jogava o trabalho fora sem perguntar.
-              const hasContent = rows.some(r => r.type || r.description || r.material || r.finish || r.visualWidth || r.fileWidth);
-              if (hasContent && !window.confirm("Descartar as peças digitadas neste lote?")) return;
+              if (temConteudo && !window.confirm("Descartar as peças digitadas neste lote?")) return;
               onCancel();
             }}
             style={{
@@ -1517,7 +1555,9 @@ export function BulkItemEntry({
               fontFamily: "'Space Grotesk', sans-serif",
               transition: 'background-color 0.12s',
             }}
-            onMouseEnter={e => { if (!isPending) (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#f97316'; }}
+            // Hover em #c2410c: branco sobre #f97316 dava 2,8:1 — o rótulo do
+            // botão principal sumia justo quando o mouse chegava nele.
+            onMouseEnter={e => { if (!isPending) (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#c2410c'; }}
             onMouseLeave={e => { if (!isPending) (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#1c1917'; }}
             data-testid="button-submit-bulk"
           >

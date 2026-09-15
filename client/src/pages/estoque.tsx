@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { FilterSelect } from "@/components/filter-select";
 import { EventFilterDropdown } from "@/components/event-filter-dropdown";
@@ -85,7 +85,7 @@ function StatCard({ label, value, Icon, color, subtext, subColor, onClick, activ
         <Icon size={32} color={color} style={{ opacity: 0.15 }} />
       </div>
       {/* Subtext */}
-      <p style={{ margin: 0, fontSize: 9, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif", textTransform: "uppercase", letterSpacing: "0.08em", color: subColor ?? "#94a3b8" }}>
+      <p style={{ margin: 0, fontSize: 9, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif", textTransform: "uppercase", letterSpacing: "0.08em", color: subColor ?? "#64748b" }}>
         {subtext}
       </p>
     </div>
@@ -106,7 +106,8 @@ function DeleteModal({ asset, onClose, onConfirm, isPending }: {
           boxShadow: "0 25px 60px rgba(0,0,0,0.2)",
         }}
       >
-        <div style={{ background: "#ef4444", padding: "16px 20px" }}>
+        {/* #b91c1c: branco sobre #ef4444 dava 3,8:1 no título em 13px. */}
+        <div style={{ background: "#b91c1c", padding: "16px 20px" }}>
           <AlertDialogTitle asChild>
             <p style={{ color: "#fff", fontWeight: 800, fontSize: 13, fontFamily: "Space Grotesk, sans-serif", margin: 0, letterSpacing: "0.05em", textTransform: "uppercase" }}>
               Atenção: Ação Irreversível
@@ -124,14 +125,14 @@ function DeleteModal({ asset, onClose, onConfirm, isPending }: {
           </p>
           <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
             <button onClick={onClose} disabled={isPending} data-testid="button-cancel-delete" style={{
-              padding: "9px 18px", borderRadius: 10, border: "1px solid #e2e8f0",
+              minHeight: 44, padding: "0 18px", borderRadius: 10, border: "1px solid #e2e8f0",
               background: "#f8fafc", color: "#1e293b", fontSize: 13,
               cursor: isPending ? "not-allowed" : "pointer", opacity: isPending ? 0.6 : 1,
               fontFamily: "Space Grotesk, sans-serif", fontWeight: 600,
             }}>Manter</button>
             <button onClick={onConfirm} disabled={isPending} data-testid="button-confirm-delete" style={{
-              padding: "9px 18px", borderRadius: 10, border: "none",
-              background: isPending ? "#fca5a5" : "#ef4444", color: "#fff", fontSize: 13,
+              minHeight: 44, padding: "0 18px", borderRadius: 10, border: "none",
+              background: isPending ? "#fca5a5" : "#b91c1c", color: "#fff", fontSize: 13,
               cursor: isPending ? "not-allowed" : "pointer",
               fontFamily: "Space Grotesk, sans-serif", fontWeight: 700,
             }}>{isPending ? "Excluindo..." : "Sim, Excluir"}</button>
@@ -230,7 +231,10 @@ function AssetDetailModal({ asset, linkedItem, sponsors, onClose }: {
 
           {/* Rastreabilidade */}
           <div style={{ flex: 1, minHeight: 0, overflowY: "auto" }}>
-            <div style={{ fontFamily: "Space Grotesk, sans-serif", fontWeight: 700, fontSize: 9, color: "#f97316", textTransform: "uppercase", letterSpacing: "0.16em", marginBottom: 18 }}>
+            {/* Regra da casa: #f97316 nunca como cor de texto. Na barra escura
+                a família laranja entra em #fdba74 (orange-300, ~10:1 sobre
+                #1c1917) — mesmo matiz, sem o hex proibido. */}
+            <div style={{ fontFamily: "Space Grotesk, sans-serif", fontWeight: 700, fontSize: 9, color: "#fdba74", textTransform: "uppercase", letterSpacing: "0.16em", marginBottom: 18 }}>
               Rastreabilidade
             </div>
             <div style={{ position: "relative", paddingLeft: 30 }}>
@@ -272,7 +276,7 @@ function AssetDetailModal({ asset, linkedItem, sponsors, onClose }: {
                   <div key={alloc.id} style={{ position: "relative", marginBottom: 28 }}>
                     {sidebarDot(isDone, isCurrent, <Truck size={10} color={isCurrent ? "#f97316" : "#9ca3af"} />)}
                     <div style={{ paddingTop: 3, paddingLeft: 8 }}>
-                      <div style={{ fontFamily: "Plus Jakarta Sans, sans-serif", fontWeight: isCurrent ? 700 : 600, fontSize: 12, color: isCurrent ? "#f97316" : "#d1d5db" }}>
+                      <div style={{ fontFamily: "Plus Jakarta Sans, sans-serif", fontWeight: isCurrent ? 700 : 600, fontSize: 12, color: isCurrent ? "#fdba74" : "#d1d5db" }}>
                         {alloc.event?.name ?? "Evento"}
                       </div>
                       <div style={{ fontFamily: "DM Mono, monospace", fontSize: 9, color: "rgba(255,255,255,0.3)", marginTop: 3, textTransform: "uppercase", letterSpacing: "0.06em" }}>
@@ -287,7 +291,7 @@ function AssetDetailModal({ asset, linkedItem, sponsors, onClose }: {
                   <div style={{ position: "relative", marginBottom: 28 }}>
                     {sidebarDot(!step2Active, step2Active, <Truck size={10} color={step2Active ? "#f97316" : "#9ca3af"} />)}
                     <div style={{ paddingTop: 3, paddingLeft: 8 }}>
-                      <div style={{ fontFamily: "Plus Jakarta Sans, sans-serif", fontWeight: step2Active ? 700 : 600, fontSize: 12, color: step2Active ? "#f97316" : "#d1d5db" }}>
+                      <div style={{ fontFamily: "Plus Jakarta Sans, sans-serif", fontWeight: step2Active ? 700 : 600, fontSize: 12, color: step2Active ? "#fdba74" : "#d1d5db" }}>
                         {eventName}
                       </div>
                       <div style={{ fontFamily: "DM Mono, monospace", fontSize: 9, color: "rgba(255,255,255,0.3)", marginTop: 3, textTransform: "uppercase", letterSpacing: "0.06em" }}>
@@ -302,7 +306,7 @@ function AssetDetailModal({ asset, linkedItem, sponsors, onClose }: {
               <div style={{ position: "relative", marginBottom: 28 }}>
                 {sidebarDot(step3Done, step3Active, <ClipboardCheck size={10} color={step3Active ? "#f97316" : "#9ca3af"} />)}
                 <div style={{ paddingTop: 3, paddingLeft: 8 }}>
-                  <div style={{ fontFamily: "Plus Jakarta Sans, sans-serif", fontWeight: step3Active ? 700 : 600, fontSize: 12, color: step3Active ? "#f97316" : step3Done ? "#d1d5db" : "#6b7280" }}>
+                  <div style={{ fontFamily: "Plus Jakarta Sans, sans-serif", fontWeight: step3Active ? 700 : 600, fontSize: 12, color: step3Active ? "#fdba74" : step3Done ? "#d1d5db" : "#9ca3af" }}>
                     Triagem de Retorno
                   </div>
                   <div style={{ fontFamily: "DM Mono, monospace", fontSize: 9, color: "rgba(255,255,255,0.3)", marginTop: 3, textTransform: "uppercase", letterSpacing: "0.06em" }}>
@@ -322,7 +326,7 @@ function AssetDetailModal({ asset, linkedItem, sponsors, onClose }: {
                   : <Warehouse size={10} color={step4Active ? "#f97316" : "#6b7280"} />
                 )}
                 <div style={{ paddingTop: 3, paddingLeft: 8 }}>
-                  <div style={{ fontFamily: "Plus Jakarta Sans, sans-serif", fontWeight: step4Active ? 700 : 600, fontSize: 12, color: step4Active ? "#f97316" : "#6b7280" }}>
+                  <div style={{ fontFamily: "Plus Jakarta Sans, sans-serif", fontWeight: step4Active ? 700 : 600, fontSize: 12, color: step4Active ? "#fdba74" : "#9ca3af" }}>
                     {ts === "DESCARTADO" ? "Descartado" : ts === "NO_GALPAO" ? "No Galpão" : "Destino Final"}
                   </div>
                   <div style={{ fontFamily: "DM Mono, monospace", fontSize: 9, color: "rgba(255,255,255,0.3)", marginTop: 3, textTransform: "uppercase", letterSpacing: "0.06em" }}>
@@ -394,7 +398,7 @@ function AssetDetailModal({ asset, linkedItem, sponsors, onClose }: {
               <span style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 14px", borderRadius: 6, background: sm.color, color: "#fff", fontFamily: "Space Grotesk, sans-serif", fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", whiteSpace: "nowrap" }}>
                 <Warehouse size={13} />{sm.label}
               </span>
-              <button onClick={onClose} data-testid="button-close-asset-detail"
+              <button onClick={onClose} data-testid="button-close-asset-detail" aria-label="Fechar detalhes do ativo"
                 style={{ background: "rgba(255,255,255,0.06)", border: "none", cursor: "pointer", color: "rgba(255,255,255,0.5)", padding: 8, borderRadius: 6, display: "flex", alignItems: "center", transition: "color 0.15s, background 0.15s" }}
                 onMouseEnter={e => { e.currentTarget.style.color = "#fff"; e.currentTarget.style.background = "rgba(255,255,255,0.12)"; }}
                 onMouseLeave={e => { e.currentTarget.style.color = "rgba(255,255,255,0.5)"; e.currentTarget.style.background = "rgba(255,255,255,0.06)"; }}>
@@ -414,21 +418,23 @@ function AssetDetailModal({ asset, linkedItem, sponsors, onClose }: {
                   <cm.Icon size={18} color={cm.color} />
                 </div>
                 <div>
-                  <div style={{ fontFamily: "Space Grotesk, sans-serif", fontWeight: 700, fontSize: 9, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.12em" }}>Condição</div>
+                  <div style={{ fontFamily: "Space Grotesk, sans-serif", fontWeight: 700, fontSize: 9, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.12em" }}>Condição</div>
                   <div style={{ fontFamily: "Space Grotesk, sans-serif", fontWeight: 800, fontSize: 14, color: cm.color, marginTop: 2 }}>{cm.label}</div>
                 </div>
               </div>
               {/* Notes read-only */}
               {asset.notes && (
                 <div style={{ flex: 2, background: "#fff", borderRadius: 10, padding: "16px 20px", border: "1px solid #e2e8f0" }}>
-                  <div style={{ fontFamily: "Space Grotesk, sans-serif", fontWeight: 700, fontSize: 9, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.12em", marginBottom: 6 }}>Observações</div>
+                  <div style={{ fontFamily: "Space Grotesk, sans-serif", fontWeight: 700, fontSize: 9, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.12em", marginBottom: 6 }}>Observações</div>
                   <div style={{ fontFamily: "Plus Jakarta Sans, sans-serif", fontSize: 12, color: "#374151", lineHeight: 1.5 }}>{asset.notes}</div>
                 </div>
               )}
             </div>
 
-            {/* Info grid — same layout as triagem-modal */}
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+            {/* Info grid — same layout as triagem-modal. Uma coluna no celular:
+                as duas lado a lado em 343px espremiam "PATROCINADORES" contra
+                o valor. */}
+            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 16 }}>
 
               {/* Evento e Histórico — light card */}
               <div style={{ background: "#f3f4f3", borderRadius: 10, overflow: "hidden" }}>
@@ -463,7 +469,7 @@ function AssetDetailModal({ asset, linkedItem, sponsors, onClose }: {
                           <div key={alloc.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "8px 0", borderBottom: i < allocations.length - 1 ? "1px solid rgba(0,0,0,0.06)" : "none" }}>
                             <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
                               <div style={{ width: 6, height: 6, borderRadius: "50%", background: isCurrent ? "#f97316" : "#9ca3af", flexShrink: 0 }} />
-                              <span style={{ fontFamily: "Plus Jakarta Sans, sans-serif", fontSize: 11, fontWeight: 600, color: isCurrent ? "#ea580c" : "#374151", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                              <span style={{ fontFamily: "Plus Jakarta Sans, sans-serif", fontSize: 11, fontWeight: 600, color: isCurrent ? "#c2410c" : "#374151", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                                 {evName}
                               </span>
                             </div>
@@ -607,8 +613,10 @@ function AssetModal({ asset, onClose, onSaved }: {
   const mutation = useMutation({
     mutationFn: (data: typeof form) =>
       isEdit ? apiRequest("PATCH", `/api/inventory/${asset!.id}`, data) : apiRequest("POST", "/api/inventory", data),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/inventory"] }); toast({ title: isEdit ? "Ativo atualizado." : "Ativo criado." }); onSaved(); },
-    onError: () => toast({ title: "Erro ao salvar.", variant: "destructive" }),
+    // Toast com o NOME do ativo e erro com o motivo do servidor — "Erro ao
+    // salvar." sem porquê não dizia se era campo, permissão ou conexão.
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/inventory"] }); toast({ title: isEdit ? "Ativo atualizado" : "Ativo cadastrado", description: form.name.trim() }); onSaved(); },
+    onError: (e: Error) => toast({ title: "Não foi possível salvar o ativo", description: e.message, variant: "destructive" }),
   });
 
   const INP: React.CSSProperties = {
@@ -641,7 +649,8 @@ function AssetModal({ asset, onClose, onSaved }: {
         <DialogDescription className="sr-only">
           Formulário de cadastro e edição de ativo do acervo.
         </DialogDescription>
-        <div style={{ background: "#f97316", padding: "20px 24px", display: "flex", alignItems: "center", gap: 16 }}>
+        {/* #c2410c: título branco sobre #f97316 dava 2,8:1 (reprova AA). */}
+        <div style={{ background: "#c2410c", padding: "20px 24px", display: "flex", alignItems: "center", gap: 16 }}>
           <div style={{ width: 48, height: 48, borderRadius: 12, background: "rgba(255,255,255,0.2)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
             <Archive size={22} color="#fff" />
           </div>
@@ -655,7 +664,7 @@ function AssetModal({ asset, onClose, onSaved }: {
               Norte Assets
             </p>
           </div>
-          <button onClick={onClose} data-testid="button-close-modal" style={{ background: "rgba(255,255,255,0.15)", border: "none", width: 32, height: 32, borderRadius: 8, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff" }}>
+          <button onClick={onClose} data-testid="button-close-modal" aria-label="Fechar" style={{ background: "rgba(255,255,255,0.15)", border: "none", width: 40, height: 40, borderRadius: 8, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff" }}>
             <X size={15} />
           </button>
         </div>
@@ -680,8 +689,8 @@ function AssetModal({ asset, onClose, onSaved }: {
                   onChange={e => setForm(f => ({ ...f, location: e.target.value }))}
                   placeholder="Ex: Setor A - Corredor 3" />
                 <button type="button" onClick={() => setShowMapa(true)}
-                  title="Abrir mapa do galpão"
-                  style={{ width: 40, height: 40, borderRadius: 10, border: "1px solid #e2e8f0", background: "#f8fafc", cursor: "pointer", color: "#f97316", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  title="Abrir mapa do galpão" aria-label="Abrir mapa do galpão"
+                  style={{ width: 40, height: 40, borderRadius: 10, border: "1px solid #e2e8f0", background: "#f8fafc", cursor: "pointer", color: "#c2410c", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                   <Grid3X3 size={15} />
                 </button>
               </div>
@@ -722,7 +731,7 @@ function AssetModal({ asset, onClose, onSaved }: {
                   <input id="asset-status" data-testid="select-asset-status" readOnly disabled
                     value={STATUS_META[form.trackingStatus]?.label ?? form.trackingStatus}
                     style={{ ...INP, color: "#64748b", cursor: "not-allowed" }} />
-                  <p style={{ margin: "5px 0 0", fontSize: 10, color: "#94a3b8", fontFamily: "Plus Jakarta Sans, sans-serif" }}>
+                  <p style={{ margin: "5px 0 0", fontSize: 10, color: "#64748b", fontFamily: "Plus Jakarta Sans, sans-serif" }}>
                     Status definido pelo ciclo do evento.
                   </p>
                 </div>
@@ -743,7 +752,7 @@ function AssetModal({ asset, onClose, onSaved }: {
           <div>
             <label id="asset-sponsors-label" style={LBL}>Patrocinadores</label>
             {allSponsors.length === 0 ? (
-              <p style={{ margin: 0, fontSize: 12, color: "#94a3b8", fontFamily: "Plus Jakarta Sans, sans-serif", fontStyle: "italic" }}>
+              <p style={{ margin: 0, fontSize: 12, color: "#64748b", fontFamily: "Plus Jakarta Sans, sans-serif", fontStyle: "italic" }}>
                 Nenhum patrocinador cadastrado no sistema.
               </p>
             ) : (
@@ -781,17 +790,19 @@ function AssetModal({ asset, onClose, onSaved }: {
           </div>
         </div>
         <div style={{ padding: "16px 24px", borderTop: "1px solid #f1f5f9", display: "flex", justifyContent: "flex-end", gap: 8 }}>
-          <button onClick={onClose} style={{ padding: "10px 20px", borderRadius: 10, border: "none", background: "#f1f5f9", color: "#475569", fontSize: 13, cursor: "pointer", fontFamily: "Space Grotesk, sans-serif", fontWeight: 700 }}>Cancelar</button>
+          <button onClick={onClose} style={{ minHeight: 44, padding: "0 20px", borderRadius: 10, border: "none", background: "#f1f5f9", color: "#475569", fontSize: 13, cursor: "pointer", fontFamily: "Space Grotesk, sans-serif", fontWeight: 700 }}>Cancelar</button>
           <button data-testid="button-save-asset" disabled={saveDisabled}
             onClick={() => mutation.mutate(form)} style={{
-              padding: "10px 24px", borderRadius: 10, border: "none",
-              background: saveDisabled ? "#e2e8f0" : "#f97316",
+              minHeight: 44, padding: "0 24px", borderRadius: 10, border: "none",
+              background: saveDisabled ? "#e2e8f0" : "#c2410c",
               color: saveDisabled ? "#64748b" : "#fff",
               fontSize: 13, cursor: saveDisabled ? "not-allowed" : "pointer",
               fontFamily: "Space Grotesk, sans-serif", fontWeight: 700,
-              boxShadow: saveDisabled ? "none" : "0 4px 14px rgba(249,115,22,0.35)",
+              boxShadow: saveDisabled ? "none" : "0 4px 14px rgba(194,65,12,0.30)",
             }}>
-            {mutation.isPending ? "Salvando..." : "+ SALVAR ATIVO"}
+            {/* "+ SALVAR ATIVO" também na edição, onde o "+" prometia criar
+                outro. O rótulo agora segue o modo do formulário. */}
+            {mutation.isPending ? "Salvando..." : isEdit ? "Salvar alterações" : "Cadastrar ativo"}
           </button>
         </div>
       </DialogContent>
@@ -806,13 +817,36 @@ export default function Estoque() {
   const isMobile = useIsMobile();
   const { toast } = useToast();
   const [, navigate] = useLocation();
-  const [search, setSearch] = useState("");
-  const [filterStatus, setFilterStatus] = useState<string[]>([]);
-  const [filterCondition, setFilterCondition] = useState<string[]>([]);
-  const [filterAutoAdded, setFilterAutoAdded] = useState("all");
-  const [filterEvent, setFilterEvent] = useState<string[]>([]);
-  const [filterSponsor, setFilterSponsor] = useState<string[]>([]);
-  const [filterFranchise, setFilterFranchise] = useState<string[]>([]);
+  // FILTROS NA URL (regra da casa): F5 não perde o recorte e dá para mandar o
+  // link de "descartados da franquia X". Lidos uma vez na montagem; escritos
+  // com replaceState (não polui o histórico) e o mesmo debounce de 200 ms das
+  // outras telas, para digitar na busca não gravar uma entrada por tecla.
+  // Só as chaves daqui são tocadas — qualquer outro parâmetro sobrevive.
+  const urlInicial = useMemo(() => new URLSearchParams(window.location.search), []);
+  const listaDaUrl = (k: string) => (urlInicial.get(k) ?? "").split(",").filter(Boolean);
+  const [search, setSearch] = useState(() => urlInicial.get("q") ?? "");
+  const [filterStatus, setFilterStatus] = useState<string[]>(() => listaDaUrl("status"));
+  const [filterCondition, setFilterCondition] = useState<string[]>(() => listaDaUrl("condicao"));
+  const [filterAutoAdded, setFilterAutoAdded] = useState(() => urlInicial.get("origem") ?? "all");
+  const [filterEvent, setFilterEvent] = useState<string[]>(() => listaDaUrl("evento"));
+  const [filterSponsor, setFilterSponsor] = useState<string[]>(() => listaDaUrl("patrocinador"));
+  const [filterFranchise, setFilterFranchise] = useState<string[]>(() => listaDaUrl("franquia"));
+  useEffect(() => {
+    const t = setTimeout(() => {
+      const p = new URLSearchParams(window.location.search);
+      const grava = (k: string, v: string) => { if (v) p.set(k, v); else p.delete(k); };
+      grava("q", search.trim());
+      grava("status", filterStatus.join(","));
+      grava("condicao", filterCondition.join(","));
+      grava("origem", filterAutoAdded === "all" ? "" : filterAutoAdded);
+      grava("evento", filterEvent.join(","));
+      grava("patrocinador", filterSponsor.join(","));
+      grava("franquia", filterFranchise.join(","));
+      const qs = p.toString();
+      window.history.replaceState(null, "", qs ? `?${qs}` : window.location.pathname);
+    }, 200);
+    return () => clearTimeout(t);
+  }, [search, filterStatus, filterCondition, filterAutoAdded, filterEvent, filterSponsor, filterFranchise]);
   const [editing, setEditing] = useState<InventoryAsset | null | false>(false);
   const [deleting, setDeleting] = useState<InventoryAsset | null>(null);
   // Fechamento por clique-fora/Escape do popover de condição agora é do
@@ -856,14 +890,16 @@ export default function Estoque() {
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => apiRequest("DELETE", `/api/inventory/${id}`),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/inventory"] }); toast({ title: "Ativo excluído." }); setDeleting(null); },
-    onError: () => toast({ title: "Erro ao excluir.", variant: "destructive" }),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/inventory"] }); toast({ title: "Ativo excluído", description: deleting ? `${deleting.displayId} — ${deleting.name}` : undefined }); setDeleting(null); },
+    onError: (e: Error) => toast({ title: "Não foi possível excluir", description: e.message, variant: "destructive" }),
   });
 
+  // O toast diz QUAL ativo mudou e para QUAL condição — "Item atualizado" era
+  // igual para qualquer linha da tabela.
   const patchMutation = useMutation({
-    mutationFn: ({ id, data }: { id: string; data: object }) => apiRequest("PATCH", `/api/inventory/${id}`, data),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/inventory"] }); setQuickEdit(null); toast({ title: "Item atualizado" }); },
-    onError: () => toast({ title: "Erro ao atualizar.", variant: "destructive" }),
+    mutationFn: ({ id, data }: { id: string; data: object; rotulo?: string }) => apiRequest("PATCH", `/api/inventory/${id}`, data),
+    onSuccess: (_r, vars) => { queryClient.invalidateQueries({ queryKey: ["/api/inventory"] }); setQuickEdit(null); toast({ title: "Condição atualizada", description: vars.rotulo }); },
+    onError: (e: Error) => toast({ title: "Não foi possível mudar a condição", description: e.message, variant: "destructive" }),
   });
 
   // Exclude AGUARDANDO_TRIAGEM — those belong to the triage screen only
@@ -972,7 +1008,7 @@ export default function Estoque() {
             <h1 style={{ margin: "0 0 3px", fontSize: 28, fontWeight: 900, fontFamily: "Space Grotesk, sans-serif", color: "#0f172a", letterSpacing: "-0.03em", lineHeight: 1 }}>
               Estoque
             </h1>
-            <p style={{ margin: 0, fontSize: 10, fontWeight: 700, color: "#94a3b8", fontFamily: "Space Grotesk, sans-serif", textTransform: "uppercase", letterSpacing: "0.18em" }}>
+            <p style={{ margin: 0, fontSize: 10, fontWeight: 700, color: "#64748b", fontFamily: "Space Grotesk, sans-serif", textTransform: "uppercase", letterSpacing: "0.18em" }}>
               Gestão de ativos físicos de produção gráfica
             </p>
           </div>
@@ -1005,7 +1041,7 @@ export default function Estoque() {
         <StatCard
           label="Descartados" value={byStatus("DESCARTADO")} Icon={XCircle} color="#6b7280"
           subtext={byStatus("DESCARTADO") > 0 ? "Ver na tabela →" : "Nenhum descartado"}
-          subColor={byStatus("DESCARTADO") > 0 ? "#6b7280" : "#94a3b8"}
+          subColor={byStatus("DESCARTADO") > 0 ? "#6b7280" : "#64748b"}
           active={filterStatus.length === 1 && filterStatus[0] === "DESCARTADO"}
           onClick={() => setFilterStatus(filterStatus.length === 1 && filterStatus[0] === "DESCARTADO" ? [] : ["DESCARTADO"])}
         />
@@ -1030,7 +1066,7 @@ export default function Estoque() {
         <StatCard
           label="Ag. Triagem" value={triageCount} Icon={ScanSearch} color="#b45309"
           subtext={triageCount > 0 ? "Ir para triagem ↗" : "Abrir triagem ↗"}
-          subColor={triageCount > 0 ? "#b45309" : "#94a3b8"}
+          subColor={triageCount > 0 ? "#b45309" : "#64748b"}
           onClick={() => navigate("/triagem-retorno")}
         />
       </div>
@@ -1138,7 +1174,7 @@ export default function Estoque() {
             <div style={{ display: "flex", flexDirection: "column", flex: "1 1 160px" }}>
               <label style={FL}>Buscar</label>
               <div style={{ position: "relative" }}>
-                <Search size={14} color="#94a3b8" style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }} />
+                <Search size={14} color="#64748b" style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }} />
                 <input data-testid="input-search-assets" style={{
                   width: "100%", paddingLeft: 34, paddingRight: 12, height: 44,
                   border: `1.5px solid ${search ? "#c2610c" : "#e2e8f0"}`, borderRadius: 8,
@@ -1148,7 +1184,10 @@ export default function Estoque() {
                 }}
                 onFocus={e => (e.target.style.borderColor = "#c2610c")}
                 onBlur={e => (e.target.style.borderColor = search ? "#c2610c" : "#e2e8f0")}
-                placeholder="Nome..." value={search} onChange={e => setSearch(e.target.value)} />
+                aria-label="Buscar ativos"
+                /* A busca sempre casou nome, ID, local e franquia — o
+                   placeholder "Nome..." escondia três quartos dela. */
+                placeholder="Nome, ID, local ou franquia..." value={search} onChange={e => setSearch(e.target.value)} />
               </div>
             </div>
 
@@ -1194,7 +1233,7 @@ export default function Estoque() {
         ) : isError ? (
           <div style={{ padding: 72, textAlign: "center" }}>
             <p style={{ fontSize: 15, fontWeight: 700, color: "#b91c1c", margin: "0 0 6px", fontFamily: "Space Grotesk, sans-serif" }}>Não foi possível carregar o estoque</p>
-            <p style={{ fontSize: 12, color: "#94a3b8", margin: "0 0 16px" }}>Verifique sua conexão e tente novamente.</p>
+            <p style={{ fontSize: 12, color: "#64748b", margin: "0 0 16px" }}>Verifique sua conexão e tente novamente.</p>
             <button onClick={() => refetch()} style={{ background: "#0f172a", color: "#fff", border: "none", borderRadius: 8, padding: "8px 18px", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>Tentar novamente</button>
           </div>
         ) : filtered.length === 0 ? (
@@ -1202,8 +1241,21 @@ export default function Estoque() {
             <div style={{ width: 56, height: 56, borderRadius: 16, background: "#f8fafc", border: "1px solid #e2e8f0", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 14px" }}>
               <Archive size={24} color="#cbd5e1" />
             </div>
-            <p style={{ fontSize: 15, fontWeight: 700, color: "#0f172a", margin: "0 0 6px", fontFamily: "Space Grotesk, sans-serif" }}>Nenhum ativo encontrado</p>
-            <p style={{ fontSize: 12, color: "#94a3b8", fontFamily: "Plus Jakarta Sans, sans-serif", margin: 0 }}>Ajuste os filtros ou adicione um novo ativo.</p>
+            {/* Vazio com saída: com filtro ativo, o botão que resolve fica
+                aqui, e não lá em cima na barra (que já rolou para fora). */}
+            <p style={{ fontSize: 15, fontWeight: 700, color: "#0f172a", margin: "0 0 6px", fontFamily: "Space Grotesk, sans-serif" }}>
+              {hasFilters ? "Nenhum ativo neste recorte" : "Nenhum ativo no acervo ainda"}
+            </p>
+            <p style={{ fontSize: 12, color: "#64748b", fontFamily: "Plus Jakarta Sans, sans-serif", margin: 0 }}>
+              {hasFilters ? "Os filtros atuais escondem todo o acervo." : podeEditar ? "Cadastre o primeiro ativo pelo botão Novo ativo." : "As peças entram aqui depois de produzidas e triadas."}
+            </p>
+            {hasFilters && (
+              <button type="button" data-testid="button-clear-filters-vazio"
+                onClick={() => { setSearch(""); setFilterStatus([]); setFilterCondition([]); setFilterAutoAdded("all"); setFilterEvent([]); setFilterSponsor([]); setFilterFranchise([]); }}
+                style={{ marginTop: 16, minHeight: 44, background: "#0f172a", color: "#fff", border: "none", borderRadius: 8, padding: "0 18px", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+                Limpar filtros
+              </button>
+            )}
           </div>
         ) : (
           <div style={{ overflowX: "auto" }}>
@@ -1264,7 +1316,7 @@ export default function Estoque() {
                                 display: "inline-flex", alignItems: "center", justifyContent: "center",
                                 padding: "1px 6px", borderRadius: 4,
                                 background: (asset.quantity ?? 1) > 1 ? "#c2610c" : "#f1f5f9",
-                                color: (asset.quantity ?? 1) > 1 ? "#fff" : "#94a3b8",
+                                color: (asset.quantity ?? 1) > 1 ? "#fff" : "#64748b",
                                 fontSize: 10, fontWeight: 800, fontFamily: "DM Mono, monospace", flexShrink: 0,
                               }}>×{asset.quantity ?? 1}</span>
                             </div>
@@ -1287,7 +1339,7 @@ export default function Estoque() {
                                   }}>{sp!.name}</span>
                                 ))}
                                 {assetSponsors.length > 2 && (
-                                  <span style={{ fontSize: 9, color: "#94a3b8", fontFamily: "DM Mono, monospace", alignSelf: "center" }}>+{assetSponsors.length - 2}</span>
+                                  <span style={{ fontSize: 9, color: "#64748b", fontFamily: "DM Mono, monospace", alignSelf: "center" }}>+{assetSponsors.length - 2}</span>
                                 )}
                               </div>
                             )}
@@ -1305,7 +1357,7 @@ export default function Estoque() {
                           ) : (
                             <span style={{ color: "#cbd5e1", fontSize: 12, display: "block" }}>—</span>
                           )}
-                          <span style={{ fontSize: 10, color: "#94a3b8", fontFamily: "Space Grotesk, sans-serif", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                          <span style={{ fontSize: 10, color: "#64748b", fontFamily: "Space Grotesk, sans-serif", textTransform: "uppercase", letterSpacing: "0.05em" }}>
                             {asset.autoAdded ? "Gráfica" : "Manual"}
                           </span>
                           {(asset.franchiseTags ?? []).length > 0 && (
@@ -1355,7 +1407,7 @@ export default function Estoque() {
                               const meta = CONDITION_META[c];
                               return (
                                 <button key={c} disabled={patchMutation.isPending}
-                                  onClick={e => { e.stopPropagation(); patchMutation.mutate({ id: asset.id, data: { condition: c } }); }}
+                                  onClick={e => { e.stopPropagation(); patchMutation.mutate({ id: asset.id, data: { condition: c }, rotulo: `${asset.displayId} → ${meta.label}` }); }}
                                   style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 10px", borderRadius: 7, border: "none", background: asset.condition === c ? meta.bg : "transparent", color: asset.condition === c ? meta.color : "#475569", fontSize: 11, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif", cursor: patchMutation.isPending ? "wait" : "pointer", opacity: patchMutation.isPending ? 0.55 : 1, textAlign: "left", letterSpacing: "0.04em", textTransform: "uppercase" }}>
                                   {asset.condition === c && <CheckCircle2 size={11} />}
                                   {meta.label}
@@ -1411,29 +1463,29 @@ export default function Estoque() {
                           <button data-testid={`button-view-asset-${asset.id}`}
                             title="Ver detalhes" aria-label={`Ver detalhes de ${asset.name}`}
                             onClick={e => { e.stopPropagation(); setViewingAsset(asset); }}
-                            onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = "#f97316"; (e.currentTarget as HTMLButtonElement).style.background = "rgba(249,115,22,0.08)"; }}
-                            onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = "#94a3b8"; (e.currentTarget as HTMLButtonElement).style.background = "transparent"; }}
-                            style={{ padding: 7, borderRadius: 7, border: "none", background: "transparent", cursor: "pointer", color: "#94a3b8", display: "flex", alignItems: "center", transition: "color 0.15s, background 0.15s" }}>
+                            onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = "#c2410c"; (e.currentTarget as HTMLButtonElement).style.background = "rgba(194,65,12,0.08)"; }}
+                            onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = "#64748b"; (e.currentTarget as HTMLButtonElement).style.background = "transparent"; }}
+                            style={{ padding: 7, borderRadius: 7, border: "none", background: "transparent", cursor: "pointer", color: "#64748b", display: "flex", alignItems: "center", transition: "color 0.15s, background 0.15s" }}>
                             <Eye size={14} />
                           </button>
 
                           {/* Edit — Gráfica e admin */}
                           {podeEditar && <button data-testid={`button-edit-asset-${asset.id}`}
-                            title="Editar" aria-label="Editar"
+                            title="Editar" aria-label={`Editar ${asset.name}`}
                             onClick={e => { e.stopPropagation(); setEditing(asset); }}
                             onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = "#2563eb"; (e.currentTarget as HTMLButtonElement).style.background = "rgba(37,99,235,0.08)"; }}
-                            onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = "#94a3b8"; (e.currentTarget as HTMLButtonElement).style.background = "transparent"; }}
-                            style={{ padding: 7, borderRadius: 7, border: "none", background: "transparent", cursor: "pointer", color: "#94a3b8", display: "flex", alignItems: "center", transition: "color 0.15s, background 0.15s" }}>
+                            onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = "#64748b"; (e.currentTarget as HTMLButtonElement).style.background = "transparent"; }}
+                            style={{ padding: 7, borderRadius: 7, border: "none", background: "transparent", cursor: "pointer", color: "#64748b", display: "flex", alignItems: "center", transition: "color 0.15s, background 0.15s" }}>
                             <Pencil size={14} />
                           </button>}
 
                           {/* Delete — só admin */}
                           {podeExcluir && <button data-testid={`button-delete-asset-${asset.id}`}
-                            title="Excluir" aria-label="Excluir"
+                            title="Excluir" aria-label={`Excluir ${asset.name}`}
                             onClick={e => { e.stopPropagation(); setDeleting(asset); }}
                             onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = "#ef4444"; (e.currentTarget as HTMLButtonElement).style.background = "rgba(239,68,68,0.08)"; }}
-                            onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = "#94a3b8"; (e.currentTarget as HTMLButtonElement).style.background = "transparent"; }}
-                            style={{ padding: 7, borderRadius: 7, border: "none", background: "transparent", cursor: "pointer", color: "#94a3b8", display: "flex", alignItems: "center", transition: "color 0.15s, background 0.15s" }}>
+                            onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = "#64748b"; (e.currentTarget as HTMLButtonElement).style.background = "transparent"; }}
+                            style={{ padding: 7, borderRadius: 7, border: "none", background: "transparent", cursor: "pointer", color: "#64748b", display: "flex", alignItems: "center", transition: "color 0.15s, background 0.15s" }}>
                             <Trash2 size={14} />
                           </button>}
                         </div>
@@ -1452,7 +1504,7 @@ export default function Estoque() {
                 const baseline = acervoAssets.filter(a => filterStatus.length > 0 || a.trackingStatus !== "DESCARTADO").length;
                 const ocultos = Math.max(0, baseline - filtered.length);
                 return (
-                  <p style={{ margin: 0, fontSize: 10, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif", textTransform: "uppercase", letterSpacing: "0.15em", color: "#94a3b8" }}>
+                  <p style={{ margin: 0, fontSize: 10, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif", textTransform: "uppercase", letterSpacing: "0.15em", color: "#64748b" }}>
                     Exibindo <span style={{ color: "#0f172a" }}>{filtered.length}</span> {filtered.length === 1 ? "registro" : "registros"}
                     {ocultos > 0 && <span> ({ocultos} {ocultos === 1 ? "oculto" : "ocultos"} pelos filtros)</span>}
                   </p>

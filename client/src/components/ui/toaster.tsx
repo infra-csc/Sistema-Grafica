@@ -1,11 +1,11 @@
-import { cloneElement, isValidElement, useEffect, useState } from "react"
+import { cloneElement, isValidElement, useEffect, useRef, useState } from "react"
 import { useToast } from "@/hooks/use-toast"
-import { CheckCircle2, AlertCircle, Info, X } from "lucide-react"
+import { CheckCircle2, AlertCircle, X } from "lucide-react"
 import { R, T } from "@/lib/theme"
 
 // A AÇÃO DE VOLTA — 36px, e não os 32 do shadcn.
 //
-// A régua da casa é 36 no ponteiro. Um toast vive 4,2 segundos: o alvo da
+// A régua da casa é 36 no ponteiro. Um toast vive poucos segundos: o alvo da
 // única ação de recuperação da tela é justamente onde não cabe economizar
 // pixel. O botão de fechar ao lado também subiu de 24 pelo mesmo motivo.
 //
@@ -18,6 +18,17 @@ const ESTILO_ACAO: React.CSSProperties = {
   fontSize: 12, fontWeight: 700, color: "#1c1917",
   cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0,
 }
+
+// QUANTO TEMPO O AVISO FICA.
+//
+// Eram 4,2s para tudo. Sucesso cabe nisso — é confirmação, o olho só precisa
+// passar. ERRO não: ele costuma trazer a instrução do servidor ("recarregue a
+// página", "a peça já foi conferida por Fulano"), duas linhas que a pessoa
+// ainda estava lendo quando o toast sumia. E toast com AÇÃO ("Desfazer") é
+// uma oferta: cortá-la cedo é tirar o caminho de volta.
+const DURACAO_OK = 4200
+const DURACAO_ERRO = 8000
+const DURACAO_COM_ACAO = 7000
 
 type ToastItem = {
   id: string
@@ -39,14 +50,39 @@ function NorteToast({ toast, onDismiss }: { toast: ToastItem; onDismiss: () => v
   const [visible, setVisible] = useState(false)
   const [leaving, setLeaving] = useState(false)
   const isError = toast.variant === "destructive"
+  const acao = isValidElement<{ style?: React.CSSProperties }>(toast.action) ? toast.action : null
+  const duracao = isError ? DURACAO_ERRO : acao ? DURACAO_COM_ACAO : DURACAO_OK
+
+  // PAUSA SOB O PONTEIRO/FOCO. O relógio vive em refs (não em estado) de
+  // propósito: este Toaster é montado junto dos testes de "modal congelado",
+  // que contam renders — pausar não pode custar um render por hover.
+  const restante = useRef(duracao)
+  const inicio = useRef(0)
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const barra = useRef<HTMLDivElement>(null)
+
+  function armar() {
+    if (timer.current) clearTimeout(timer.current)
+    inicio.current = Date.now()
+    timer.current = setTimeout(() => dismiss(), restante.current)
+    if (barra.current) barra.current.style.animationPlayState = "running"
+  }
+  function pausar() {
+    if (!timer.current) return
+    clearTimeout(timer.current)
+    timer.current = null
+    restante.current = Math.max(600, restante.current - (Date.now() - inicio.current))
+    if (barra.current) barra.current.style.animationPlayState = "paused"
+  }
 
   useEffect(() => {
     const show = setTimeout(() => setVisible(true), 10)
-    const hide = setTimeout(() => dismiss(), 4200)
-    return () => { clearTimeout(show); clearTimeout(hide) }
+    armar()
+    return () => { clearTimeout(show); if (timer.current) clearTimeout(timer.current) }
   }, [])
 
   function dismiss() {
+    if (timer.current) { clearTimeout(timer.current); timer.current = null }
     setLeaving(true)
     setTimeout(onDismiss, 320)
   }
@@ -56,40 +92,56 @@ function NorteToast({ toast, onDismiss }: { toast: ToastItem; onDismiss: () => v
   // comum e o onClick continua funcionando. O que ele traz de errado é a
   // roupa do shadcn (h-8, text-sm, rounded-md), então clonamos aplicando
   // `style`, que vence classe utilitária sem precisar de !important.
-  const acao = isValidElement<{ style?: React.CSSProperties }>(toast.action) ? toast.action : null
 
-  const accent = isError ? "#dc2626" : "#16a34a"
+  // #b91c1c e #15803d: o acento também pinta o ÍCONE, que é o sinal de
+  // "deu certo/deu errado" — #dc2626/#16a34a ficavam abaixo de 4,5:1 no
+  // fundo claro do ladrilho.
+  const accent = isError ? "#b91c1c" : "#15803d"
   const iconBg  = isError ? "#fef2f2" : "#f0fdf4"
   const Icon    = isError ? AlertCircle : CheckCircle2
 
   return (
     <div
+      // Leitor de tela: o Toaster da casa substituiu o do Radix e, junto, a
+      // região viva que anunciava o aviso. Erro interrompe (alert); sucesso
+      // espera a vez (status).
+      role={isError ? "alert" : "status"}
+      aria-live={isError ? "assertive" : "polite"}
+      aria-atomic="true"
+      data-testid={isError ? "toast-erro" : "toast"}
       onClick={dismiss}
+      onMouseEnter={pausar}
+      onMouseLeave={armar}
+      onFocusCapture={pausar}
+      onBlurCapture={armar}
       style={{
         display: "flex",
         alignItems: "flex-start",
         gap: 12,
         width: 360,
         maxWidth: "calc(100vw - 32px)",
+        boxSizing: "border-box",
         backgroundColor: "#ffffff",
-        borderRadius: 14,
+        borderRadius: 12,
         padding: "14px 16px",
-        boxShadow: "0 4px 24px rgba(0,0,0,0.10), 0 1px 4px rgba(0,0,0,0.06)",
-        border: "1px solid #f0efec",
+        // Uma sombra só, e mais curta: o toast flutua, mas não precisa de
+        // halo duplo para parecer que flutua.
+        boxShadow: "0 8px 24px rgba(28,25,23,0.12)",
+        border: "1px solid #e7e5e4",
         cursor: "pointer",
         position: "relative",
         overflow: "hidden",
-        transition: "opacity 0.28s ease, transform 0.28s cubic-bezier(0.34,1.2,0.64,1)",
+        transition: "opacity 0.24s ease, transform 0.24s cubic-bezier(0.2,0.8,0.2,1)",
         opacity: visible && !leaving ? 1 : 0,
-        transform: visible && !leaving ? "translateY(0) scale(1)" : "translateY(16px) scale(0.97)",
+        transform: visible && !leaving ? "translateY(0)" : "translateY(12px)",
       }}
     >
       {/* Left accent bar */}
-      <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 4, borderRadius: "14px 0 0 14px", backgroundColor: accent }} />
+      <div aria-hidden="true" style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 3, backgroundColor: accent }} />
 
       {/* Icon */}
-      <div style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: iconBg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginLeft: 4 }}>
-        <Icon style={{ width: 18, height: 18, color: accent }} />
+      <div aria-hidden="true" style={{ width: 32, height: 32, borderRadius: 9, backgroundColor: iconBg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginLeft: 2 }}>
+        <Icon style={{ width: 17, height: 17, color: accent }} />
       </div>
 
       {/* Text */}
@@ -100,7 +152,9 @@ function NorteToast({ toast, onDismiss }: { toast: ToastItem; onDismiss: () => v
           </div>
         )}
         {toast.description && (
-          <div style={{ fontSize: 12, color: "#746e69", lineHeight: 1.45, maxHeight: 80, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 4, WebkitBoxOrient: "vertical" }}>
+          // #57534e (e não #746e69): a descrição do erro é a instrução, não
+          // um metadado — merece o tom de leitura.
+          <div style={{ fontSize: 12, color: "#57534e", lineHeight: 1.45, maxHeight: 88, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 5, WebkitBoxOrient: "vertical" }}>
             {toast.description}
           </div>
         )}
@@ -124,6 +178,7 @@ function NorteToast({ toast, onDismiss }: { toast: ToastItem; onDismiss: () => v
 
       {/* Close */}
       <button
+        type="button"
         aria-label="Fechar aviso"
         onClick={e => { e.stopPropagation(); dismiss() }}
         // 36x36: eram 24, que passa no mínimo AA da WCAG 2.5.8 mas fica
@@ -133,18 +188,25 @@ function NorteToast({ toast, onDismiss }: { toast: ToastItem; onDismiss: () => v
         onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#f5f4f0"; (e.currentTarget as HTMLButtonElement).style.color = "#57534e" }}
         onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent"; (e.currentTarget as HTMLButtonElement).style.color = "#746e69" }}
       >
-        <X style={{ width: 13, height: 13 }} />
+        <X aria-hidden="true" style={{ width: 13, height: 13 }} />
       </button>
 
-      {/* Progress bar */}
-      <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 2, backgroundColor: "#f0efec" }}>
-        <div style={{
-          height: "100%",
-          backgroundColor: accent,
-          width: visible && !leaving ? "0%" : "100%",
-          transition: visible && !leaving ? "width 4.2s linear" : "none",
-          opacity: 0.5,
-        }} />
+      {/* Barra de tempo — ANIMAÇÃO (não transição) para poder pausar junto
+          com o relógio via animation-play-state, sem render. Com
+          prefers-reduced-motion a regra global zera a duração: a barra some
+          de uma vez, e o toast continua respeitando o tempo. */}
+      <div aria-hidden="true" style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 2, backgroundColor: "#f0efec" }}>
+        <div
+          ref={barra}
+          style={{
+            height: "100%",
+            width: "100%",
+            transformOrigin: "left center",
+            backgroundColor: accent,
+            opacity: 0.45,
+            animation: `norte-toast-tempo ${duracao}ms linear forwards`,
+          }}
+        />
       </div>
     </div>
   )
@@ -163,17 +225,22 @@ export function Toaster() {
   if (items.length === 0) return null
 
   return (
-    <div style={{
-      position: "fixed",
-      bottom: 20,
-      right: 20,
-      zIndex: 99999,
-      display: "flex",
-      flexDirection: "column",
-      gap: 10,
-      alignItems: "flex-end",
-      pointerEvents: "none",
-    }}>
+    <div
+      // Região nomeada: quem navega por landmarks encontra os avisos.
+      role="region"
+      aria-label="Avisos"
+      style={{
+        position: "fixed",
+        bottom: 20,
+        right: 20,
+        zIndex: 99999,
+        display: "flex",
+        flexDirection: "column",
+        gap: 10,
+        alignItems: "flex-end",
+        pointerEvents: "none",
+      }}
+    >
       {items.map(toast => (
         <div key={toast.id} style={{ pointerEvents: "auto" }}>
           <NorteToast toast={toast} onDismiss={() => dismiss(toast.id)} />

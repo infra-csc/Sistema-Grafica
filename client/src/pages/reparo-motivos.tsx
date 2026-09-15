@@ -17,6 +17,9 @@ type Reparo = {
 type Previa = { reparos: Reparo[]; total: number };
 type Resultado = { totalEncontrado: number; aplicados: number; ignoradosPorMudanca: number };
 
+/** "1 registro" / "3 registros" — o "registro(s)" lia como formulário de repartição. */
+const plural = (n: number, um: string, varios: string) => `${n} ${n === 1 ? um : varios}`;
+
 function nomeDaOrigem(reparo: Reparo) {
   if (reparo.origem === "aprovacao_patrocinador") return "Motivo de patrocinador";
   return reparo.campo === "observations" ? "Observações da peça" : "Motivo da peça";
@@ -47,9 +50,14 @@ export default function ReparoMotivos() {
     onSuccess: async (resultado) => {
       await queryClient.invalidateQueries({ queryKey: ["/api/admin/reparo-motivos-sem-s"] });
       await queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+      // O servidor já devolvia quantos ficaram de fora por terem sido editados
+      // no meio do caminho — e o toast escondia. É exatamente a garantia que o
+      // aviso azul promete; o resultado precisa confirmá-la.
+      const preservados = resultado.ignoradosPorMudanca ?? 0;
       toast({
         title: "Textos corrigidos",
-        description: `${resultado.aplicados} registro(s) atualizado(s).`,
+        description: `${plural(resultado.aplicados, "registro atualizado", "registros atualizados")}.`
+          + (preservados > 0 ? ` ${plural(preservados, "foi preservado", "foram preservados")} porque mudou durante a aplicação.` : ""),
       });
     },
     onError: (error: Error) => {
@@ -84,13 +92,15 @@ export default function ReparoMotivos() {
       </header>
 
       {isLoading ? (
-        <section style={{ padding: "52px 24px", border: `1px solid ${T.border}`, borderRadius: 14, textAlign: "center", color: T.second, background: T.surface }}>
-          <Loader2 size={21} style={{ animation: "spin 1s linear infinite", verticalAlign: "middle", marginRight: 8 }} />
+        <section role="status" style={{ padding: "52px 24px", border: `1px solid ${T.border}`, borderRadius: 14, textAlign: "center", color: T.second, background: T.surface }}>
+          {/* motion-safe: com "reduzir movimento" o ícone fica parado. */}
+          <Loader2 size={21} className="motion-safe:animate-spin" style={{ verticalAlign: "middle", marginRight: 8 }} />
           Carregando prévia das correções…
         </section>
       ) : isError ? (
-        <section style={{ padding: "32px 24px", border: "1px solid #fecaca", borderRadius: 14, background: "#fff8f8" }}>
+        <section role="alert" style={{ padding: "32px 24px", border: "1px solid #fecaca", borderRadius: 14, background: "#fff8f8" }}>
           <strong style={{ color: "#991b1b" }}>Não foi possível carregar a prévia.</strong>
+          <p style={{ margin: "6px 0 0", color: T.second, fontSize: 13 }}>Nenhum texto foi alterado. Verifique a conexão e tente de novo.</p>
           <button onClick={() => refetch()} style={{ display: "block", marginTop: 14, border: 0, borderRadius: 7, background: "#b91c1c", color: "white", padding: "9px 14px", fontWeight: 700, cursor: "pointer" }}>Tentar novamente</button>
         </section>
       ) : (
@@ -100,10 +110,10 @@ export default function ReparoMotivos() {
               {data?.total ? <FilePenLine color="#c2410c" size={22} /> : <CheckCircle2 color="#15803d" size={22} />}
               <div>
                 <strong style={{ display: "block", color: data?.total ? "#9a3412" : "#166534", fontSize: 15 }}>
-                  {data?.total ? `${data.total} registro(s) prontos para correção` : "Nenhuma correção pendente"}
+                  {data?.total ? `${plural(data.total, "registro pronto", "registros prontos")} para correção` : "Nenhuma correção pendente"}
                 </strong>
                 <span style={{ color: T.second, fontSize: 12 }}>
-                  {data?.total ? `${grupos.length} texto(s) distinto(s) revisado(s), agrupados abaixo.` : "As mensagens revisadas já foram atualizadas."}
+                  {data?.total ? `${plural(grupos.length, "texto distinto revisado", "textos distintos revisados")}, agrupados abaixo.` : "As mensagens revisadas já foram atualizadas."}
                 </span>
               </div>
             </div>
@@ -111,6 +121,7 @@ export default function ReparoMotivos() {
               <button
                 onClick={confirmarAplicacao}
                 disabled={aplicarMutation.isPending}
+                aria-busy={aplicarMutation.isPending}
                 style={{ border: 0, borderRadius: 8, background: "#b91c1c", color: "white", padding: "10px 15px", fontSize: 12, fontWeight: 800, cursor: aplicarMutation.isPending ? "wait" : "pointer", opacity: aplicarMutation.isPending ? 0.72 : 1 }}
               >
                 {aplicarMutation.isPending ? "Aplicando…" : `Aplicar ${data.total} correções`}
@@ -129,7 +140,7 @@ export default function ReparoMotivos() {
                 <div style={{ padding: "12px 16px", background: "#fafaf9", borderBottom: `1px solid ${T.border}`, display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
                   <div>
                     <span style={{ color: "#9a3412", fontSize: 10, fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase" }}>{nomeDaOrigem(exemplo)}</span>
-                    <strong style={{ display: "block", marginTop: 2, color: T.text, fontSize: 13 }}>{displayIds.length} registro(s)</strong>
+                    <strong style={{ display: "block", marginTop: 2, color: T.text, fontSize: 13 }}>{plural(displayIds.length, "registro", "registros")}</strong>
                   </div>
                   <span style={{ color: T.second, fontSize: 11, maxWidth: "100%", overflowWrap: "anywhere" }}>{displayIds.join(", ")}</span>
                 </div>

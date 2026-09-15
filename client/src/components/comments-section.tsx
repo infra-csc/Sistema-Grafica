@@ -113,6 +113,15 @@ export function CommentsSection({ itemId, itemType }: CommentsSectionProps) {
               onChange={(e) => setNewComment(e.target.value)}
               className="flex-1"
               rows={2}
+              aria-label="Novo comentário"
+              // Ctrl/⌘+Enter envia: quem escreve não precisa largar o teclado
+              // para achar o botão. Enter sozinho segue quebrando linha.
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+                  e.preventDefault();
+                  e.currentTarget.form?.requestSubmit();
+                }
+              }}
               data-testid="textarea-comment"
             />
             <Button
@@ -120,9 +129,11 @@ export function CommentsSection({ itemId, itemType }: CommentsSectionProps) {
               disabled={createMutation.isPending || !newComment.trim() || !currentUser}
               size="icon"
               className="shrink-0"
+              aria-label="Enviar comentário"
+              title="Enviar (Ctrl+Enter)"
               data-testid="button-send-comment"
             >
-              <Send className="h-4 w-4" />
+              <Send className="h-4 w-4" aria-hidden="true" />
             </Button>
           </div>
         </form>
@@ -163,7 +174,11 @@ export function CommentsSection({ itemId, itemType }: CommentsSectionProps) {
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-7 w-7 shrink-0"
+                    // 36px: a lixeira de 28 ficava colada no nome do autor —
+                    // alvo pequeno justamente na ação irreversível.
+                    className="h-9 w-9 shrink-0"
+                    aria-label="Excluir comentário"
+                    title="Excluir comentário"
                     onClick={() => {
                       // Exclusão é permanente e a lixeira aceita 1 clique — sem
                       // esta confirmação era a ação irreversível mais fácil da tela.
@@ -173,7 +188,7 @@ export function CommentsSection({ itemId, itemType }: CommentsSectionProps) {
                     disabled={deleteMutation.isPending}
                     data-testid={`button-delete-comment-${comment.id}`}
                   >
-                    <Trash2 className="h-3 w-3 text-destructive" />
+                    <Trash2 className="h-3.5 w-3.5 text-destructive" aria-hidden="true" />
                   </Button>
                 </div>
                 <p className="text-sm whitespace-pre-wrap pl-6" data-testid={`text-comment-content-${comment.id}`}>

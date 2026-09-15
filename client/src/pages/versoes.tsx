@@ -412,12 +412,20 @@ export default function Versoes() {
                   ? "Ninguém aprovou uma versão diferente da atual, não há decisão parada há mais de uma semana e nenhuma peça tem arte indeterminada. É o que se espera."
                   : "Ajuste os filtros para encontrar a peça."}
               </p>
-              {foco === "atencao" && (
+              {foco === "atencao" ? (
                 <button onClick={() => trocarFoco("todas")} data-testid="button-ver-todas"
                   style={{ fontSize: FS.body, fontWeight: 700, color: "#fff", background: T.dark, border: "none", borderRadius: R.md, padding: "9px 20px", cursor: "pointer" }}>
                   Ver todas as peças
                 </button>
-              )}
+              ) : filtrosAtivos > 0 ? (
+                // O texto mandava "ajustar os filtros" e a saída estava lá em
+                // cima, no fim da barra — o próximo passo fica onde o olho já
+                // está. É o mesmo `limpar` do botão da barra.
+                <button onClick={limpar} data-testid="button-limpar-versoes-vazio"
+                  style={{ fontSize: FS.body, fontWeight: 700, color: "#fff", background: T.dark, border: "none", borderRadius: R.md, padding: "9px 20px", cursor: "pointer" }}>
+                  Limpar filtros
+                </button>
+              ) : null}
             </div>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 18, opacity: isFetching ? 0.65 : 1, transition: "opacity 0.15s" }}>

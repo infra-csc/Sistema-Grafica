@@ -56,11 +56,28 @@ export function GalpaoFila({ mode, itens, onClose, onConfirmar }: Props) {
   const [enviando, setEnviando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
   const [feitas, setFeitas] = useState(0);
+  // Confirmação entre uma peça e a próxima. A fila avança sozinha, e sem este
+  // aviso a tela simplesmente TROCAVA de peça: quem está com o material na mão
+  // não sabia se o toque registrou ou se a tela pulou. Some em 2,4 s.
+  const [registrouAgora, setRegistrouAgora] = useState<string | null>(null);
+  useEffect(() => {
+    if (!registrouAgora) return;
+    const t = setTimeout(() => setRegistrouAgora(null), 2400);
+    return () => clearTimeout(t);
+  }, [registrouAgora]);
   // A fila é a foto do momento de abertura: confirmar muda o status da peça e
   // uma lista viva a REMOVERIA sob o dedo, pulando a seguinte sem aviso.
   const filaRef = useRef<any[]>(itens);
   const fila = filaRef.current;
   const item = fila[idx];
+
+  // …mas a VERDADE da peça vem da lista viva. Esta é a tela em que duas
+  // pessoas trabalham a mesma fila: se o colega da bancada conferiu/entregou a
+  // peça depois que a fila abriu, ela sai de `itens` (WebSocket/polling). A
+  // ordem continua sendo a da foto; o saldo e o "já foi feita" são os de agora.
+  const vivo = item ? itens.find((i) => i.id === item.id) : undefined;
+  const jaRegistradaPorOutro = !!item && !vivo;
+  const saldoVivo = item && isConfer ? remainingConfer(vivo ?? item) : null;
 
   // Cada peça nova zera o que é DA peça (foto, erro) e repõe o saldo dela.
   useEffect(() => {
@@ -68,6 +85,12 @@ export function GalpaoFila({ mode, itens, onClose, onConfirmar }: Props) {
     setErro(null);
     if (item && isConfer) setQty(remainingConfer(item));
   }, [idx, item, isConfer]);
+
+  // Saldo encolheu por baixo (conferência parcial do colega): a quantidade
+  // escolhida nunca fica acima do que ainda falta.
+  useEffect(() => {
+    if (saldoVivo != null && saldoVivo > 0) setQty((q) => Math.min(q, saldoVivo));
+  }, [saldoVivo]);
 
   if (!item) return null;
 
@@ -78,6 +101,10 @@ export function GalpaoFila({ mode, itens, onClose, onConfirmar }: Props) {
 
   const confirmar = async () => {
     if (!foto || enviando) return;
+    if (jaRegistradaPorOutro) {
+      setErro("Esta peça já foi registrada por outra pessoa enquanto a fila estava aberta. Toque em Pular para seguir.");
+      return;
+    }
     setEnviando(true);
     setErro(null);
     try {
@@ -89,6 +116,7 @@ export function GalpaoFila({ mode, itens, onClose, onConfirmar }: Props) {
       // fechamento da última peça levaria a contagem velha para o resumo.
       const totalFeitas = feitas + 1;
       setFeitas(totalFeitas);
+      setRegistrouAgora(isConfer ? `${item.displayId} conferida · ${qty} un.` : `${item.displayId} entregue`);
       avancar(totalFeitas);
     } catch (e: any) {
       // O erro fica NA tela, colado no botão — toast por cima de quem está
@@ -99,7 +127,7 @@ export function GalpaoFila({ mode, itens, onClose, onConfirmar }: Props) {
     }
   };
 
-  const saldo = isConfer ? remainingConfer(item) : null;
+  const saldo = saldoVivo;
   const arte = item.approvalThumbUrl || item.finalPreviewUrl || null;
 
   return (
@@ -122,6 +150,11 @@ export function GalpaoFila({ mode, itens, onClose, onConfirmar }: Props) {
         <span data-testid="galpao-progresso" style={{ fontSize: 13, fontWeight: 700, color: "#44403c", fontVariantNumeric: "tabular-nums" }}>
           {idx + 1} de {fila.length}
         </span>
+        {feitas > 0 && (
+          <span style={{ fontSize: 12, fontWeight: 600, color: "#57534e", fontVariantNumeric: "tabular-nums" }}>
+            · {feitas} registrada{feitas !== 1 ? "s" : ""}
+          </span>
+        )}
         <span style={{ flex: 1 }} />
         <button type="button" onClick={() => onClose(feitas)} aria-label="Sair da fila" data-testid="galpao-sair"
           style={{ width: 44, height: 44, display: "flex", alignItems: "center", justifyContent: "center", border: "none", background: "transparent", cursor: "pointer", color: "#78716c" }}>
@@ -129,8 +162,32 @@ export function GalpaoFila({ mode, itens, onClose, onConfirmar }: Props) {
         </button>
       </div>
 
+      {/* Faixa do "registrou" — região viva sempre montada (o leitor de tela
+          só anuncia mudança dentro de uma região que já existia). A entrada
+          desliza só para quem não pediu movimento reduzido. */}
+      <style>{`@media (prefers-reduced-motion: no-preference) { .galpao-registrou { animation: galpao-registrou-in 180ms ease-out; } } @keyframes galpao-registrou-in { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }`}</style>
+      <div aria-live="polite" data-testid="galpao-registrou">
+        {registrouAgora && (
+          <div className="galpao-registrou" style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 14px", backgroundColor: "#f0fdf4", borderBottom: "1px solid #bbf7d0", color: "#15803d", fontSize: 13, fontWeight: 700 }}>
+            <Check aria-hidden="true" style={{ width: 16, height: 16 }} />
+            {registrouAgora}{fila[idx] ? " — próxima peça" : ""}
+          </div>
+        )}
+      </div>
+
       {/* ── a peça ── */}
       <div style={{ flex: 1, overflowY: "auto", padding: "14px 14px 8px", display: "flex", flexDirection: "column", gap: 12 }}>
+        {jaRegistradaPorOutro && (
+          <div role="status" data-testid="galpao-ja-registrada" style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 10, backgroundColor: "#fffbeb", border: "1px solid #fde68a", color: "#92400e", fontSize: 13, fontWeight: 600, lineHeight: 1.4 }}>
+            <span style={{ flex: 1 }}>
+              Outra pessoa já {isConfer ? "conferiu" : "entregou"} esta peça depois que a fila abriu. Nada a fazer aqui.
+            </span>
+            <button type="button" onClick={() => avancar(feitas)}
+              style={{ minHeight: 44, padding: "0 14px", borderRadius: 10, border: "none", backgroundColor: "#92400e", color: "#ffffff", fontSize: 13, fontWeight: 800, cursor: "pointer", whiteSpace: "nowrap" }}>
+              Pular
+            </button>
+          </div>
+        )}
         <div>
           <p style={{ margin: 0, fontFamily: "'Space Grotesk', sans-serif", fontSize: 26, fontWeight: 900, letterSpacing: "-0.02em", color: "#1c1917" }} data-testid="galpao-codigo">
             {item.displayId} <span style={{ fontWeight: 700, fontSize: 18, color: "#44403c" }}>· {item.type}</span>
@@ -189,10 +246,14 @@ export function GalpaoFila({ mode, itens, onClose, onConfirmar }: Props) {
         {foto ? (
           <div style={{ position: "relative", alignSelf: "flex-start" }}>
             <img loading="lazy" decoding="async" src={miniatura(foto)} alt="Foto registrada" style={{ height: 96, borderRadius: 10, border: `2px solid ${tinta}` }} />
+            {/* Alvo de 44px (área invisível) em volta do X visível de 32 — o
+                botão colado na miniatura era menor que a ponta do dedo. */}
             <button type="button" aria-label="Tirar outra foto" data-testid="galpao-refazer-foto"
               onClick={() => setFoto(null)}
-              style={{ position: "absolute", top: -8, right: -8, width: 32, height: 32, borderRadius: "50%", border: "none", backgroundColor: "#1c1917", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
-              <X style={{ width: 14, height: 14 }} />
+              style={{ position: "absolute", top: -14, right: -14, width: 44, height: 44, borderRadius: "50%", border: "none", background: "transparent", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", padding: 0 }}>
+              <span style={{ width: 32, height: 32, borderRadius: "50%", backgroundColor: "#1c1917", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <X style={{ width: 14, height: 14 }} />
+              </span>
             </button>
           </div>
         ) : (
@@ -237,13 +298,14 @@ export function GalpaoFila({ mode, itens, onClose, onConfirmar }: Props) {
           title={!foto ? "A foto é obrigatória — é o registro da conferência/entrega." : undefined}
           style={{
             flex: 1, height: 56, borderRadius: 12, border: "none",
-            backgroundColor: !foto || enviando ? "#e7e5e4" : tinta,
-            color: !foto || enviando ? "#57534e" : "#ffffff",
+            backgroundColor: !foto || enviando || jaRegistradaPorOutro ? "#e7e5e4" : tinta,
+            color: !foto || enviando || jaRegistradaPorOutro ? "#57534e" : "#ffffff",
             fontSize: 16, fontWeight: 800, fontFamily: "'Space Grotesk', sans-serif",
-            letterSpacing: "-0.01em", cursor: !foto || enviando ? "not-allowed" : "pointer",
+            letterSpacing: "-0.01em", cursor: !foto || enviando || jaRegistradaPorOutro ? "not-allowed" : "pointer",
             display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8,
           }}>
           {enviando ? "Registrando…"
+            : jaRegistradaPorOutro ? "Já registrada"
             : !foto ? "Falta a foto"
             : isConfer ? `Conferir ${qty} un.`
             : "Confirmar entrega"}

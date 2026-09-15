@@ -32,7 +32,9 @@ interface TriagemModalProps {
   /** Onde a peça foi guardada — obrigatório quando volta ao galpão (14/09). */
   location: string;
   onUpdateLocation: (location: string) => void;
-  onSaveAndClose: () => Promise<void>;
+  /** Devolve `false` quando a gravação NÃO aconteceu (validação ou erro) —
+   *  aí o modal fica aberto, com o toast explicando o que falta. */
+  onSaveAndClose: () => Promise<boolean | void>;
 }
 
 const RESULT_META: Record<TriagemResult, {
@@ -66,9 +68,12 @@ export function TriagemModal({
     thumbUrl.startsWith('/objects/')
   );
 
+  // Fechava SEMPRE — inclusive quando o salvar recusava por falta de local:
+  // o toast "Informe o local no galpão" aparecia com o modal já sumindo, e a
+  // pessoa perdia exatamente o campo que precisava preencher.
   async function handleSave() {
-    await onSaveAndClose();
-    onOpenChange(false);
+    const ok = await onSaveAndClose();
+    if (ok !== false) onOpenChange(false);
   }
 
   return (
@@ -309,6 +314,7 @@ export function TriagemModal({
             </div>
             <button
               onClick={() => onOpenChange(false)}
+              aria-label="Fechar triagem"
               style={{
                 marginLeft: 12, flexShrink: 0,
                 background: "rgba(255,255,255,0.06)", border: "none",
@@ -348,13 +354,15 @@ export function TriagemModal({
                 borderRadius: 10, padding: "28px 24px 24px",
                 boxShadow: "0 4px 24px rgba(157,67,0,0.08)",
               }}>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
+                {/* Uma coluna no celular: lado a lado, os três botões de cada
+                    grupo ficavam com ~50px e o rótulo quebrava letra a letra. */}
+                <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 24 }}>
 
                   {/* Condição */}
                   <div>
                     <label style={{
                       display: "block", fontFamily: "Space Grotesk, sans-serif",
-                      fontWeight: 700, fontSize: 9, color: "#94a3b8",
+                      fontWeight: 700, fontSize: 9, color: "#64748b",
                       textTransform: "uppercase", letterSpacing: "0.14em", marginBottom: 10,
                     }}>
                       Condição do Item
@@ -367,6 +375,7 @@ export function TriagemModal({
                           <button
                             key={c}
                             onClick={() => onUpdateCondition(c)}
+                            aria-pressed={active}
                             style={{
                               flex: 1, display: "flex", flexDirection: "column",
                               alignItems: "center", justifyContent: "center", gap: 6,
@@ -376,7 +385,7 @@ export function TriagemModal({
                               cursor: "pointer", transition: "all 0.15s",
                             }}
                           >
-                            <m.Icon size={18} color={active ? m.color : "#94a3b8"} />
+                            <m.Icon size={18} color={active ? m.color : "#64748b"} />
                             <span style={{
                               fontFamily: "Space Grotesk, sans-serif", fontWeight: 700,
                               fontSize: 10, color: active ? m.color : "#64748b",
@@ -393,7 +402,7 @@ export function TriagemModal({
                   <div>
                     <label style={{
                       display: "block", fontFamily: "Space Grotesk, sans-serif",
-                      fontWeight: 700, fontSize: 9, color: "#94a3b8",
+                      fontWeight: 700, fontSize: 9, color: "#64748b",
                       textTransform: "uppercase", letterSpacing: "0.14em", marginBottom: 10,
                     }}>
                       Destino do Fluxo
@@ -407,6 +416,7 @@ export function TriagemModal({
                             key={r}
                             onClick={() => onUpdateResult(r)}
                             title={m.subLabel}
+                            aria-pressed={active}
                             style={{
                               flex: 1, display: "flex", alignItems: "center",
                               justifyContent: "center", gap: 8, padding: "12px 10px",
@@ -416,7 +426,7 @@ export function TriagemModal({
                               cursor: "pointer", transition: "all 0.15s",
                             }}
                           >
-                            <m.Icon size={16} color={active ? m.color : "#94a3b8"} />
+                            <m.Icon size={16} color={active ? m.color : "#64748b"} />
                             <span style={{
                               fontFamily: "Space Grotesk, sans-serif", fontWeight: 700,
                               fontSize: 11, color: active ? m.color : "#64748b",
@@ -435,7 +445,7 @@ export function TriagemModal({
                     <div style={{ gridColumn: "1 / -1" }}>
                       <label htmlFor="triagem-local" style={{
                         display: "block", fontFamily: "Space Grotesk, sans-serif",
-                        fontWeight: 700, fontSize: 9, color: result === "NO_GALPAO" && !location.trim() ? "#b91c1c" : "#94a3b8",
+                        fontWeight: 700, fontSize: 9, color: result === "NO_GALPAO" && !location.trim() ? "#b91c1c" : "#64748b",
                         textTransform: "uppercase", letterSpacing: "0.14em", marginBottom: 8,
                       }}>
                         Local no galpão {result === "NO_GALPAO" ? "· obrigatório" : "· opcional"}
@@ -460,14 +470,15 @@ export function TriagemModal({
 
                   {/* Observação */}
                   <div style={{ gridColumn: "1 / -1" }}>
-                    <label style={{
+                    <label htmlFor="triagem-observacao" style={{
                       display: "block", fontFamily: "Space Grotesk, sans-serif",
-                      fontWeight: 700, fontSize: 9, color: "#94a3b8",
+                      fontWeight: 700, fontSize: 9, color: "#64748b",
                       textTransform: "uppercase", letterSpacing: "0.14em", marginBottom: 8,
                     }}>
                       Observação da Triagem
                     </label>
                     <textarea
+                      id="triagem-observacao"
                       value={notes}
                       onChange={e => onUpdateNotes(e.target.value)}
                       placeholder="Ex: Riscos superficiais na base, necessita polimento..."
@@ -506,8 +517,9 @@ export function TriagemModal({
                     style={{
                       display: "flex", alignItems: "center", gap: 8,
                       padding: "10px 28px", borderRadius: 8, border: "none",
+                      minHeight: 44,
                       background: isSaved ? "#f1f5f9" : "#9d4300",
-                      color: isSaved ? "#94a3b8" : "#fff",
+                      color: isSaved ? "#64748b" : "#fff",
                       fontFamily: "Space Grotesk, sans-serif", fontWeight: 700,
                       fontSize: 12, textTransform: "uppercase", letterSpacing: "0.08em",
                       cursor: isSaved ? "default" : "pointer",
@@ -684,7 +696,9 @@ export function TriagemModal({
               onMouseEnter={e => (e.currentTarget.style.color = "#111827")}
               onMouseLeave={e => (e.currentTarget.style.color = "#6b7280")}
             >
-              Cancelar Operação
+              {/* "Cancelar Operação" prometia desfazer — mas o que foi marcado
+                  aqui continua na linha da tabela (nada é descartado). */}
+              Fechar
             </button>
           </footer>
         </div>

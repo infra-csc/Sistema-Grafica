@@ -115,11 +115,20 @@ export default function LogsSistema() {
   const total = data?.total ?? logs.length;
   const isTruncated = total > logs.length;
 
+  // Falha de cópia (HTTP sem clipboard, permissão negada) era silêncio total:
+  // o ícone não mudava e a pessoa colava o que estava antes na área de
+  // transferência. Agora a falha também se mostra, no mesmo lugar do acerto.
+  const [copyFailedId, setCopyFailedId] = useState<string | null>(null);
   const copyEntityId = (logId: string, entityId: string) => {
-    navigator.clipboard?.writeText(entityId).then(() => {
+    const falhou = () => {
+      setCopyFailedId(logId);
+      window.setTimeout(() => setCopyFailedId(current => (current === logId ? null : current)), 2500);
+    };
+    if (!navigator.clipboard) { falhou(); return; }
+    navigator.clipboard.writeText(entityId).then(() => {
       setCopiedId(logId);
       window.setTimeout(() => setCopiedId(current => (current === logId ? null : current)), 1500);
-    });
+    }, falhou);
   };
 
   /* ── Derived filter options ── */
@@ -231,13 +240,15 @@ export default function LogsSistema() {
         <button
           onClick={handleExport}
           disabled={filtered.length === 0}
+          title={filtered.length === 0 ? "Nada para exportar no recorte atual" : `Baixar os ${filtered.length} registros do recorte atual`}
           data-testid="button-export-logs"
           style={{ display: "flex", alignItems: "center", gap: 7, padding: "9px 18px", backgroundColor: T.surface, color: filtered.length === 0 ? T.muted : T.second, border: `1px solid ${T.border}`, borderRadius: 6, cursor: filtered.length === 0 ? "not-allowed" : "pointer", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", opacity: filtered.length === 0 ? 0.6 : 1 }}
           onMouseEnter={e => { if (filtered.length > 0) e.currentTarget.style.backgroundColor = T.low; }}
           onMouseLeave={e => { e.currentTarget.style.backgroundColor = T.surface; }}
         >
           <Download style={{ width: 13, height: 13 }} />
-          Exportar
+          {/* O formato no rótulo: "Exportar" sozinho não dizia o que baixa. */}
+          Exportar CSV
         </button>
       </div>
 
@@ -270,6 +281,8 @@ export default function LogsSistema() {
             value={search}
             onChange={e => { setSearch(e.target.value); setPage(1); }}
             placeholder="Buscar por usuário, ação ou entidade..."
+            aria-label="Buscar nos logs por usuário, descrição ou entidade"
+            type="search"
             data-testid="input-search-logs"
             style={tiInput}
             onFocus={e => { e.currentTarget.style.backgroundColor = "#fff"; e.currentTarget.style.boxShadow = "0 0 0 2px rgba(249,115,22,0.2)"; }}
@@ -321,8 +334,18 @@ export default function LogsSistema() {
       {/* ── Table ── */}
       <section style={{ backgroundColor: T.surface, border: `1px solid ${T.border}`, borderRadius: 12, overflow: "hidden" }}>
         {isLoading ? (
-          <div style={{ padding: "64px 0", textAlign: "center", fontSize: 13, color: T.second }}>
-            Carregando logs...
+          // Esqueleto na silhueta da linha (data · avatar+nome · selo ·
+          // descrição): a trilha chega no lugar em que vai ficar.
+          <div role="status" aria-label="Carregando logs" style={{ padding: "6px 0" }}>
+            {Array.from({ length: 8 }, (_, i) => (
+              <div key={i} className="motion-safe:animate-pulse" style={{ display: "flex", alignItems: "center", gap: 18, padding: "15px 18px", borderBottom: `1px solid ${T.low}` }}>
+                <div style={{ width: 72, height: 22, borderRadius: 4, backgroundColor: T.low, flexShrink: 0 }} />
+                <div style={{ width: 30, height: 30, borderRadius: "50%", backgroundColor: T.low, flexShrink: 0 }} />
+                <div style={{ width: 110, height: 12, borderRadius: 4, backgroundColor: T.low, flexShrink: 0 }} />
+                <div style={{ width: 70, height: 18, borderRadius: 999, backgroundColor: T.low, flexShrink: 0 }} />
+                <div style={{ flex: 1, maxWidth: 320, height: 12, borderRadius: 4, backgroundColor: T.low }} />
+              </div>
+            ))}
           </div>
         ) : isError ? (
           <div style={{ padding: "64px 24px", textAlign: "center" }}>
@@ -434,31 +457,44 @@ export default function LogsSistema() {
 
                         {/* Descrição */}
                         <td style={{ padding: "13px 18px", fontSize: 13, color: T.second, maxWidth: 380 }}>
-                          <span style={{ display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
+                          {/* O corte em 2 linhas não tinha volta: numa trilha
+                              de investigação, o fim da frase é justamente o
+                              detalhe. O title devolve o texto inteiro. */}
+                          <span title={description} style={{ display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
                             {description}
                           </span>
                         </td>
 
                         {/* Entidade */}
                         <td style={{ padding: "13px 18px" }}>
-                          <div style={{ fontSize: 11, fontWeight: 700, color: T.second, textTransform: "capitalize" }}>
+                          {/* Sem `capitalize`: os rótulos já vêm grafados, e ele
+                              transformava "Patrocinador do evento" em
+                              "Patrocinador Do Evento". */}
+                          <div style={{ fontSize: 11, fontWeight: 700, color: T.second }}>
                             {ENTITY_LABELS[log.entityType] ?? log.entityType}
                           </div>
                           <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 1 }}>
                             <span title={log.entityId} style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, color: T.second }}>
                               {log.entityId.slice(0, 8)}…
                             </span>
+                            {/* Alvo de 21px (era 15) e o resultado dito em voz
+                                alta: aria-live anuncia "Copiado" ou a falha. */}
                             <button
                               onClick={() => copyEntityId(log.id, log.entityId)}
                               aria-label={`Copiar ID completo ${log.entityId}`}
-                              title="Copiar ID completo"
-                              style={{ background: "none", border: "none", cursor: "pointer", padding: 2, display: "flex", color: copiedId === log.id ? "#15803d" : T.second }}
+                              title={copyFailedId === log.id ? "Não foi possível copiar — selecione o ID manualmente" : "Copiar ID completo"}
+                              style={{ background: "none", border: "none", cursor: "pointer", padding: 5, margin: -3, borderRadius: 4, display: "flex", color: copiedId === log.id ? "#15803d" : copyFailedId === log.id ? "#b91c1c" : T.second }}
                             >
                               {copiedId === log.id
                                 ? <Check style={{ width: 11, height: 11 }} />
-                                : <Copy style={{ width: 11, height: 11 }} />
+                                : copyFailedId === log.id
+                                  ? <X style={{ width: 11, height: 11 }} />
+                                  : <Copy style={{ width: 11, height: 11 }} />
                               }
                             </button>
+                            <span className="sr-only" aria-live="polite">
+                              {copiedId === log.id ? "ID copiado" : copyFailedId === log.id ? "Não foi possível copiar o ID" : ""}
+                            </span>
                           </div>
                         </td>
                       </tr>
@@ -474,6 +510,8 @@ export default function LogsSistema() {
                 Exibindo {Math.min((safePage - 1) * PAGE_SIZE + 1, filtered.length)}–{Math.min(safePage * PAGE_SIZE, filtered.length)} de{" "}
                 <span style={{ fontFamily: "'DM Mono', monospace", fontWeight: 700, color: T.second }}>{filtered.length}</span> registros
               </p>
+              {/* Uma página só: setas mortas e um "1" solitário eram ruído. */}
+              {totalPages > 1 && (
               <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
                 <button
                   onClick={() => setPage(Math.max(1, safePage - 1))}
@@ -513,6 +551,7 @@ export default function LogsSistema() {
                   <ChevronRight style={{ width: 16, height: 16 }} />
                 </button>
               </div>
+              )}
             </div>
           </>
         )}

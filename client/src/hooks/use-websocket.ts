@@ -31,6 +31,28 @@ export function onPrazosInvalidated(fn: () => void): () => void {
 // notificação não está na lista.
 let auditInvalidateTimer: ReturnType<typeof setTimeout> | null = null;
 
+// ── SINAL DE CONEXÃO (UX, 15/09) ─────────────────────────────────────────────
+// O socket caía (servidor reiniciando, Wi-Fi do galpão) e a tela seguia
+// desenhando o cache como se estivesse ao vivo: o operador olhava uma fila
+// parada achando que ninguém tinha mexido. Este sinal só INFORMA — a casca
+// (App.tsx) decide mostrar o aviso depois de alguns segundos fora, para uma
+// reconexão rápida não piscar faixa nenhuma. Nada de dado muda por aqui.
+let conectadoAgora = true;
+const conexaoListeners = new Set<(conectado: boolean) => void>();
+
+/** Assina mudanças de conexão do tempo real. Devolve o cancelador. */
+export function onConexaoTempoReal(fn: (conectado: boolean) => void): () => void {
+  conexaoListeners.add(fn);
+  fn(conectadoAgora);
+  return () => { conexaoListeners.delete(fn); };
+}
+
+function avisarConexao(conectado: boolean) {
+  if (conectadoAgora === conectado) return;
+  conectadoAgora = conectado;
+  conexaoListeners.forEach((fn) => fn(conectado));
+}
+
 export function useWebSocket() {
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -72,6 +94,7 @@ export function useWebSocket() {
     ws.onopen = () => {
       console.log('WebSocket connected');
       reconnectAttemptsRef.current = 0;
+      avisarConexao(true);
       // Reconectar significa que houve um buraco: enquanto o socket esteve
       // fora, toda mutação de outro usuário passou sem invalidar nada. Sem
       // esta linha o painel do diretor servia o agregado de antes da queda —
@@ -180,9 +203,10 @@ export function useWebSocket() {
             // staleTime Infinity) só via peças novas no F5. O prefixo
             // '/api/items' já alcança ['/api/items', eventId].
             invalidateCoalesced('/api/items');
+            // Sem o tipo no payload a frase virava "Item undefined adicionado".
             toast({
-              title: 'Novo item adicionado',
-              description: `Item ${data.item?.type} adicionado`,
+              title: 'Nova peça adicionada',
+              description: data.item?.type ? `Peça ${data.item.type} entrou na lista.` : undefined,
             });
             break;
 
@@ -233,7 +257,9 @@ export function useWebSocket() {
             invalidateCoalesced('/api/items/pending');
             toast({
               title: 'Peças adicionadas',
-              description: `${data.items?.length || 0} peças adicionadas ao evento`,
+              description: (data.items?.length || 0) === 1
+                ? '1 peça adicionada ao evento'
+                : `${data.items?.length || 0} peças adicionadas ao evento`,
             });
             break;
 
@@ -250,7 +276,9 @@ export function useWebSocket() {
             invalidateCoalesced('/api/items');
             toast({
               title: 'Peças enviadas para vinculação',
-              description: `${data.count || 0} peças aguardando vinculação de patrocinadores`,
+              description: (data.count || 0) === 1
+                ? '1 peça aguardando vinculação de patrocinadores'
+                : `${data.count || 0} peças aguardando vinculação de patrocinadores`,
             });
             break;
 
@@ -261,7 +289,7 @@ export function useWebSocket() {
             invalidateCoalesced('/api/events');
             toast({
               title: 'Peça liberada',
-              description: `${data.item?.type} aprovada para produção`,
+              description: data.item?.type ? `Peça ${data.item.type} aprovada para produção` : 'Aprovada para produção',
             });
             break;
 
@@ -272,15 +300,19 @@ export function useWebSocket() {
             invalidateCoalesced('/api/events');
             toast({
               title: data.type === 'production_started' ? 'Produção iniciada' : 'Produção atualizada',
-              description: `Item ${data.item?.type} atualizado`,
+              description: data.item?.type ? `Peça ${data.item.type} atualizada` : undefined,
             });
             break;
 
           case 'deadline_alert':
             invalidateCoalesced('/api/events');
             toast({
-              title: '⚠️ Alerta de Prazo',
-              description: `Faltam ${data.hoursRemaining}h para saída - ${data.event?.name}`,
+              // Sem emoji: o toast de erro já traz ícone e cor de alerta, e o
+              // emoji renderizava diferente em cada sistema operacional.
+              title: 'Prazo perto do fim',
+              description: data.event?.name
+                ? `Faltam ${data.hoursRemaining}h para a saída · ${data.event.name}`
+                : `Faltam ${data.hoursRemaining}h para a saída`,
               variant: 'destructive',
             });
             break;
@@ -368,6 +400,7 @@ export function useWebSocket() {
     ws.onclose = () => {
       console.log('WebSocket disconnected');
       if (unmountedRef.current) return;
+      avisarConexao(false);
 
       // Exponential backoff: 1s, 2s, 4s, 8s, 16s, capped at 30s. Resets to 0
       // as soon as a connection is successfully (re)established in onopen.

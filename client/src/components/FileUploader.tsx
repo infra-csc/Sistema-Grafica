@@ -70,6 +70,9 @@ export function FileUploader({
         variant={buttonVariant}
         type="button"
         disabled={isUploading || disabled}
+        // aria-busy: o rótulo troca para "Enviando..." mas o botão fica
+        // desabilitado — sem isto o leitor de tela só anuncia "indisponível".
+        aria-busy={isUploading || undefined}
         data-testid="button-upload-file"
       >
         {isUploading ? (

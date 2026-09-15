@@ -1371,6 +1371,10 @@ export default function PainelGeral() {
 
   // Hoje à meia-noite — uma vez por render, não uma por grupo de evento.
   const hojeMs = (() => { const t = new Date(); t.setHours(0, 0, 0, 0); return t.getTime(); })();
+  // "Agora" UMA vez por render, pelo mesmo motivo do `hojeMs`: o chip de peças
+  // paradas chamava Date.now() dentro de cada grupo, e dois cabeçalhos do
+  // mesmo render podiam medir a idade contra instantes diferentes.
+  const agoraMs = Date.now();
 
   return (
     <div
@@ -1469,7 +1473,7 @@ export default function PainelGeral() {
                 <button role="menuitem" onClick={() => { setExportMenuOpen(false); setShowExportPDFModal(true); }} data-testid="button-export-pdf-painel" style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "9px 8px", background: "none", border: "none", borderRadius: 6, cursor: "pointer", fontSize: 13, fontWeight: 600, color: "#1c1917", textAlign: "left" }}>
                   <Printer style={{ width: 14, height: 14, color: "#746e69" }} /> Exportar PDF
                 </button>
-                <button role="menuitem" onClick={exportarXlsx} disabled={isExportingXlsx || itensParaExportar.length === 0} data-testid="button-export-xlsx-painel" style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "9px 8px", background: "none", border: "none", borderRadius: 6, cursor: itensParaExportar.length === 0 ? "not-allowed" : "pointer", fontSize: 13, fontWeight: 600, color: itensParaExportar.length === 0 ? "#a8a29e" : "#1c1917", textAlign: "left" }}>
+                <button role="menuitem" onClick={exportarXlsx} disabled={isExportingXlsx || itensParaExportar.length === 0} data-testid="button-export-xlsx-painel" style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "9px 8px", background: "none", border: "none", borderRadius: 6, cursor: itensParaExportar.length === 0 ? "not-allowed" : "pointer", fontSize: 13, fontWeight: 600, color: itensParaExportar.length === 0 ? "#746e69" : "#1c1917", textAlign: "left" }}>
                   <FileSpreadsheet style={{ width: 14, height: 14, color: "#746e69" }} /> Exportar Excel
                 </button>
               </div>
@@ -1599,10 +1603,6 @@ export default function PainelGeral() {
         const soma = segmentos.reduce((t, seg) => t + seg.n, 0) || 1;
         const maior = segmentos.reduce((a, b) => (b.n > a.n ? b : a), segmentos[0]);
 
-        // MEDIA DE IDADE DA MAIOR FILA. So sobre as pecas que TEM carimbo: a
-        // media de um conjunto com buracos e uma media do que se sabe, nao do
-        // que se supoe. Sem nenhuma carimbada, nao ha frase — melhor calar do
-        // que dizer "parada ha 0 dias".
         // A MEDIA DA MAIOR FILA. So sobre as pecas que TEM carimbo: a media de
         // um conjunto com buracos e a media do que se SABE, nao do que se supoe.
         // Sem nenhuma carimbada nao ha frase — melhor calar do que dizer
@@ -2352,7 +2352,7 @@ export default function PainelGeral() {
                             de parede. */}
                         {(() => {
                           const paradas = (gd.items as any[])
-                            .map(i => ({ i, d: diasNoEstado(i, Date.now()) }))
+                            .map(i => ({ i, d: diasNoEstado(i, agoraMs) }))
                             .filter((x): x is { i: any; d: number } => x.d !== null && x.d > LIMITE_PARADA);
                           if (paradas.length === 0) return null;
                           const pior = paradas.reduce((a, b) => (b.d > a.d ? b : a));
@@ -2757,7 +2757,8 @@ export default function PainelGeral() {
                                       }}>
                                         {group}
                                       </span>
-                                      <span aria-hidden="true" style={{ color: "#a8a29e", fontSize: 11 }}>/</span>
+                                      {/* #746e69: é glifo de texto, e a casa proíbe #a8a29e como cor de texto (2,52:1). */}
+                                      <span aria-hidden="true" style={{ color: "#746e69", fontSize: 11 }}>/</span>
                                     </>
                                   )}
                                   <span style={{

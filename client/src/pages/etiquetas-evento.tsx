@@ -187,7 +187,7 @@ export default function EtiquetasEvento() {
     window.print();
   };
 
-  if (isLoading) return <p style={{ padding: 40, fontSize: 14, color: "#78716c" }}>Montando as etiquetas…</p>;
+  if (isLoading) return <p role="status" style={{ padding: 40, fontSize: 14, color: "#78716c" }}>Montando as etiquetas…</p>;
 
   // Falha de rede NÃO pode virar "evento sem peças" — mentiria justamente
   // para quem está com a impressora esperando.
@@ -377,7 +377,9 @@ export default function EtiquetasEvento() {
                 <span aria-hidden="true" style={{
                   width: 16, height: 16, flexShrink: 0, borderRadius: 4,
                   display: "inline-flex", alignItems: "center", justifyContent: "center",
-                  border: `1.5px solid ${marcada ? "#c2410c" : "#a8a29e"}`,
+                  // #78716c: a borda da caixa desmarcada é o único sinal de
+                  // que ali há um controle — #a8a29e ficava abaixo dos 3:1.
+                  border: `1.5px solid ${marcada ? "#c2410c" : "#78716c"}`,
                   backgroundColor: marcada ? "#c2410c" : "#fff",
                 }}>
                   {marcada && <Check style={{ width: 11, height: 11, color: "#fff", strokeWidth: 3.5 }} />}

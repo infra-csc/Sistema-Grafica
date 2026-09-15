@@ -15,13 +15,13 @@ import {
 import { AppSidebar } from "@/components/app-sidebar";
 import { NotificationBell, type Notification } from "@/components/notification-bell";
 import { BuscaGlobal, abrirBuscaGlobal } from "@/components/busca-global";
-import { Search } from "lucide-react";
+import { Search, WifiOff, RefreshCw } from "lucide-react";
 import { AuthProvider, useAuth } from "@/contexts/auth-context";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { roleLabel, userInitials } from "@/lib/utils";
-import { useToast } from "@/hooks/use-toast";
+import { useToast, toast as toastGlobal } from "@/hooks/use-toast";
 import { useLogout } from "@/hooks/use-logout";
-import { useWebSocket } from "@/hooks/use-websocket";
+import { useWebSocket, onConexaoTempoReal } from "@/hooks/use-websocket";
 import { useEffect, useState, Component, lazy, Suspense, type ReactNode, type ComponentType } from "react";
 
 /**
@@ -118,11 +118,18 @@ const GestaoPrazos = lazyPage(() => import("@/pages/gestao-prazos"));
 const ReparoMotivos = lazyPage(() => import("@/pages/reparo-motivos"));
 
 
-class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
+class ErrorBoundary extends Component<{ children: ReactNode; resetKey?: string }, { error: Error | null }> {
   state = { error: null };
   static getDerivedStateFromError(error: Error) { return { error }; }
   componentDidCatch(error: Error, info: { componentStack: string }) {
     console.error("[ErrorBoundary] CRASH:", error.message, error.stack, info.componentStack);
+  }
+  // Mudou de rota, some o erro. A fronteira de dentro (em volta do Router)
+  // recebe a rota como resetKey: quem bateu num defeito numa tela sai dele
+  // clicando em qualquer item da sidebar — antes a tela quebrada ficava
+  // presa até um F5, com o menu ao lado funcionando e sem efeito nenhum.
+  componentDidUpdate(prev: { resetKey?: string }) {
+    if (this.state.error && prev.resetKey !== this.props.resetKey) this.setState({ error: null });
   }
   render() {
     if (this.state.error) {
@@ -145,13 +152,33 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | 
           </div>
         );
       }
+      // Defeito de verdade. Era um stack trace vermelho em monospace na cara
+      // do usuário — parecia que o sistema inteiro tinha caído. Agora a tela
+      // fala a língua de quem usa, oferece as duas saídas que resolvem (tentar
+      // de novo / recarregar) e guarda o detalhe técnico recolhido, para quem
+      // for mandar o print ao suporte.
       return (
-        <div style={{ padding: '2rem', fontFamily: 'monospace' }}>
-          <h2 style={{ color: '#ef4444' }}>Erro de renderização</h2>
-          <pre style={{ whiteSpace: 'pre-wrap', color: '#ef4444', fontSize: 12 }}>{err.message}{"\n"}{err.stack}</pre>
-          <button onClick={() => this.setState({ error: null })} style={{ marginTop: '1rem', padding: '0.5rem 1rem', cursor: 'pointer' }}>
-            Tentar novamente
-          </button>
+        <div role="alert" data-testid="tela-erro-render" style={{ minHeight: '60vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '2rem 16px' }}>
+          <div style={{ maxWidth: 460, width: '100%', textAlign: 'center' }}>
+            <h2 style={{ margin: '0 0 8px', fontSize: 18, fontWeight: 800, color: '#1c1917' }}>Esta tela encontrou um problema</h2>
+            <p style={{ margin: '0 0 18px', fontSize: 13.5, lineHeight: 1.6, color: '#57534e' }}>
+              Nada do que já estava salvo foi perdido. Tente abrir de novo; se continuar, recarregue a página ou use o menu para ir a outra tela.
+            </p>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'wrap' }}>
+              <button type="button" onClick={() => this.setState({ error: null })} style={{ background: '#1c1917', color: '#fff', border: 'none', borderRadius: 8, padding: '10px 20px', fontSize: 13, fontWeight: 700, cursor: 'pointer', minHeight: 40 }}>
+                Tentar novamente
+              </button>
+              <button type="button" onClick={() => window.location.reload()} style={{ background: '#fff', color: '#1c1917', border: '1px solid #d6d3d1', borderRadius: 8, padding: '10px 20px', fontSize: 13, fontWeight: 700, cursor: 'pointer', minHeight: 40 }}>
+                Recarregar a página
+              </button>
+            </div>
+            <details style={{ marginTop: 20, textAlign: 'left' }}>
+              <summary style={{ cursor: 'pointer', fontSize: 12, fontWeight: 600, color: '#746e69' }}>Detalhes técnicos (para o suporte)</summary>
+              <pre style={{ marginTop: 8, whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontSize: 11, lineHeight: 1.5, color: '#57534e', background: '#fafaf9', border: '1px solid #e7e5e4', borderRadius: 8, padding: 12, maxHeight: 220, overflow: 'auto' }}>
+                {err.message}{"\n"}{err.stack}
+              </pre>
+            </details>
+          </div>
         </div>
       );
     }
@@ -161,10 +188,17 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | 
 
 // Um único loader de página inteira: o mesmo bloco vivia copiado em
 // ProtectedRoute, RoleProtectedRoute e AppContent.
+// A marca no lugar do "Carregando..." solto: é a primeira coisa que se vê a
+// cada F5, e texto cinza no meio do vazio tinha cara de página quebrada.
 function FullPageLoader() {
   return (
-    <div className="flex items-center justify-center h-dvh">
-      <div className="text-muted-foreground">Carregando...</div>
+    <div role="status" aria-live="polite" className="flex items-center justify-center h-dvh" style={{ backgroundColor: "#fafaf9" }}>
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 14 }}>
+        <span aria-hidden="true" className="animate-pulse" style={{ fontFamily: "'Outfit', sans-serif", fontSize: 18, fontWeight: 800, letterSpacing: "-0.05em", color: "#1c1917" }}>
+          NORTE
+        </span>
+        <span style={{ fontSize: 12, color: "#746e69" }}>Carregando…</span>
+      </div>
     </div>
   );
 }
@@ -252,8 +286,14 @@ async function verComo(role: string, kit = false): Promise<void> {
     window.location.assign("/");
     return;
   }
-  window.alert(json?.error
-    ?? "Não deu para trocar o perfil: o servidor ainda está na versão anterior. No Replit, pare e rode o app de novo (Stop/Run) e tente outra vez.");
+  // Toast e não window.alert: o alerta nativo congelava a aba e tinha a cara
+  // do navegador, não do sistema.
+  toastGlobal({
+    variant: "destructive",
+    title: "Não deu para trocar o perfil",
+    description: json?.error
+      ?? "O servidor ainda está na versão anterior. No Replit, pare e rode o app de novo (Stop/Run) e tente outra vez.",
+  });
 }
 
 // Atalho real do sidebar no Mac é ⌘B — o title dizia Ctrl+B para todo mundo.
@@ -319,10 +359,14 @@ function RoleProtectedRoute({
     return null;
   }
 
+  // Aparece por um instante, enquanto o guard acima redireciona. "Acesso
+  // negado" soava como bronca; a frase diz o que é e para onde se vai.
   if (!allowedRoles.includes(user?.role || '')) {
     return (
-      <div className="flex items-center justify-center h-dvh">
-        <div className="text-muted-foreground">Acesso negado</div>
+      <div role="status" style={{ minHeight: "50vh", display: "flex", alignItems: "center", justifyContent: "center", padding: 24, textAlign: "center" }}>
+        <p style={{ margin: 0, fontSize: 13.5, color: "#57534e" }}>
+          Esta tela não faz parte do seu perfil. Levando você ao Painel Geral…
+        </p>
       </div>
     );
   }
@@ -428,6 +472,59 @@ function Router() {
   );
 }
 
+/**
+ * AVISO DE CONEXÃO — só aparece quando há algo errado, e some sozinho.
+ *
+ * Dois sinais, um lugar: sem internet (o navegador sabe na hora) e tempo real
+ * fora do ar (o WebSocket caiu e ainda não voltou). O segundo espera 8s antes
+ * de aparecer: reinício rápido do servidor reconecta em 1-2s, e piscar uma
+ * faixa amarela a cada deploy ensinaria a ignorá-la. Informativo apenas —
+ * nenhum dado, trava ou botão muda por causa dele.
+ */
+function AvisoDeConexao() {
+  const [online, setOnline] = useState(() => (typeof navigator === "undefined" ? true : navigator.onLine));
+  const [tempoRealFora, setTempoRealFora] = useState(false);
+
+  useEffect(() => {
+    const on = () => setOnline(true);
+    const off = () => setOnline(false);
+    window.addEventListener("online", on);
+    window.addEventListener("offline", off);
+    return () => { window.removeEventListener("online", on); window.removeEventListener("offline", off); };
+  }, []);
+
+  useEffect(() => {
+    let espera: ReturnType<typeof setTimeout> | null = null;
+    const cancelar = onConexaoTempoReal((conectado) => {
+      if (espera) { clearTimeout(espera); espera = null; }
+      if (conectado) setTempoRealFora(false);
+      else espera = setTimeout(() => setTempoRealFora(true), 8000);
+    });
+    return () => { cancelar(); if (espera) clearTimeout(espera); };
+  }, []);
+
+  if (online && !tempoRealFora) return null;
+  const semInternet = !online;
+  const Icone = semInternet ? WifiOff : RefreshCw;
+  return (
+    <div
+      role="status"
+      data-testid="aviso-conexao"
+      style={{
+        position: "sticky", top: 0, zIndex: 41,
+        display: "flex", alignItems: "center", justifyContent: "center", gap: 8, flexWrap: "wrap",
+        padding: "7px 16px", backgroundColor: "#fffbeb", borderBottom: "1px solid #fde68a",
+        color: "#78350f", fontSize: 12.5, fontWeight: 600, textAlign: "center",
+      }}
+    >
+      <Icone aria-hidden="true" className={semInternet ? undefined : "animate-spin"} style={{ width: 14, height: 14, flexShrink: 0, animationDuration: "2s" }} />
+      {semInternet
+        ? "Sem internet. O que você fizer agora pode não chegar ao servidor."
+        : "Reconectando ao tempo real… As telas podem estar desatualizadas até voltar."}
+    </div>
+  );
+}
+
 function AuthenticatedLayout() {
   useWebSocket();
 
@@ -515,12 +612,36 @@ function AuthenticatedLayout() {
     if (!ligar()) raf = requestAnimationFrame(() => { ligar(); });
     return () => { if (raf) cancelAnimationFrame(raf); obs?.disconnect(); };
   }, [location]);
+  // A aba conta as não lidas: quem trabalha com o NORTE numa aba de fundo
+  // (planilha na frente) via o aviso só quando voltava por outro motivo.
+  const naoLidas = notifications.filter((n) => !n.isRead).length;
   useEffect(() => {
-    document.title = pageLabel ? `NORTE — ${pageLabel}` : "NORTE";
-  }, [pageLabel]);
+    const base = pageLabel ? `NORTE — ${pageLabel}` : "NORTE";
+    document.title = naoLidas > 0 ? `(${naoLidas > 99 ? "99+" : naoLidas}) ${base}` : base;
+  }, [pageLabel, naoLidas]);
+
+  // TROCOU DE TELA, VOLTA AO TOPO. Quem rola é o <main> da casca, não a
+  // janela — e o wouter não mexe nele. Clicar numa peça no fim da lista de
+  // Eventos abria o Detalhe do Evento já rolado lá embaixo, com o cabeçalho
+  // fora de vista. `location` do wouter não inclui a query string: filtro na
+  // URL (?status=…) NÃO rola a tela para cima.
+  useEffect(() => {
+    document.getElementById("conteudo")?.scrollTo({ top: 0 });
+  }, [location]);
 
   return (
     <div className="flex h-dvh w-full">
+      <a href="#conteudo" className="pular-para-conteudo" onClick={(e) => {
+        // Âncora com foco explícito: só o hash rola, mas não leva o foco do
+        // teclado — o próximo Tab voltaria para a sidebar.
+        e.preventDefault();
+        document.getElementById("conteudo")?.focus();
+      }}>
+        Pular para o conteúdo
+      </a>
+      {/* Anúncio de troca de tela para leitor de tela: numa SPA a página
+          muda sem recarregar, e nada dizia que o destino tinha chegado. */}
+      <span className="sr-only" aria-live="polite" aria-atomic="true">{pageLabel}</span>
       <AppSidebar />
       {/* Paleta Ctrl+K — montada uma vez, para toda tela autenticada. */}
       <BuscaGlobal />
@@ -530,7 +651,9 @@ function AuthenticatedLayout() {
       <div className="flex flex-col flex-1 min-w-0">
         <header
           role="banner"
-          className="sticky top-0 z-50 w-full"
+          // px-3 no celular: os 24px de cada lado comiam 48 dos 375 de uma
+          // barra que precisa caber gatilho, título, busca, sino e conta.
+          className="sticky top-0 z-50 w-full px-6 max-md:px-3"
           style={{
             height: 64,
             backgroundColor: "rgba(249,249,248,0.85)",
@@ -542,7 +665,6 @@ function AuthenticatedLayout() {
             borderBottom: "1px solid #e7e5e4",
             display: "flex", alignItems: "center",
             justifyContent: "space-between",
-            padding: "0 24px",
           }}
         >
           {/* Left: trigger + título da rota. flex:1 + minWidth:0 deixam o
@@ -638,11 +760,16 @@ function AuthenticatedLayout() {
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button
+                  type="button"
                   data-testid="button-user-menu"
                   aria-label={user?.name ? `Menu do usuário — ${user.name}` : "Menu do usuário"}
+                  // Altura pela classe: a mesma régua dos vizinhos (36 no
+                  // ponteiro, 44 no toque). No inline ela ficava em 36 também
+                  // no celular — o único controle da barra abaixo do alvo.
+                  className="h-9 max-md:h-11 max-md:!pl-[9px]"
                   style={{
                     display: "flex", alignItems: "center", gap: 8,
-                    height: 36, padding: "0 5px 0 12px",
+                    padding: "0 5px 0 12px",
                     backgroundColor: "#ffffff", border: "1px solid #e7e5e4",
                     borderRadius: 999,
                     cursor: "pointer", flexShrink: 0,
@@ -730,7 +857,8 @@ function AuthenticatedLayout() {
         {/* `position: relative` e o bloco de contencao das telas que se fixam
             na casca em vez de crescer dentro dela (hoje a Arte). Nao muda o
             layout de ninguem: so da um ancestral posicionado a quem pedir. */}
-        <SidebarInset className="flex-1 overflow-y-auto min-h-0" style={{ minWidth: 0, position: "relative" }}>
+        <SidebarInset id="conteudo" tabIndex={-1} className="flex-1 overflow-y-auto min-h-0" style={{ minWidth: 0, position: "relative", outline: "none" }}>
+          <AvisoDeConexao />
           {user?.papelReal === "admin" && (
             <div role="status" data-testid="faixa-ver-como"
               style={{ position: "sticky", top: 0, zIndex: 40, display: "flex", alignItems: "center", justifyContent: "center", gap: 12, flexWrap: "wrap", padding: "8px 16px", backgroundColor: "#1d4ed8", color: "#fff", fontSize: 13 }}>
@@ -741,7 +869,12 @@ function AuthenticatedLayout() {
               </button>
             </div>
           )}
-          <Router />
+          {/* Fronteira POR TELA: um defeito de render numa página não leva
+              junto a sidebar e a topbar (a fronteira de fora pegava tudo), e
+              trocar de rota limpa o erro. */}
+          <ErrorBoundary resetKey={location}>
+            <Router />
+          </ErrorBoundary>
         </SidebarInset>
       </div>
     </div>

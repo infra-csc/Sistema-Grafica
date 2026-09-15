@@ -10,7 +10,7 @@ import { FilterSelect } from "@/components/filter-select";
 import { EventFilterDropdown } from "@/components/event-filter-dropdown";
 import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -787,8 +787,8 @@ export default function VincularPatrocinadores() {
       queryClient.invalidateQueries({ queryKey: ["/api/audit-logs"] });
       setSponsorDialogOpen(false);
       toast({
-        title: "✅ Patrocinadores atualizados!",
-        description: "Os patrocinadores foram vinculados ao evento",
+        title: "Patrocinadores do evento atualizados",
+        description: "Só eles aparecem como opção nas peças deste evento.",
       });
     },
     onError: (error: Error) => {
@@ -885,14 +885,14 @@ export default function VincularPatrocinadores() {
       queryClient.invalidateQueries({ queryKey: ["/api/audit-logs"] });
       if (failed.length === 0) {
         toast({
-          title: "Vinculação salva!",
-          description: `${savedIds.length} item${savedIds.length !== 1 ? 's' : ''} pronto${savedIds.length !== 1 ? 's' : ''} para enviar.`,
+          title: "Vinculação salva",
+          description: `Vínculo salvo em ${savedIds.length} ${savedIds.length === 1 ? 'peça' : 'peças'}.`,
         });
       } else {
         console.error("[vincular] falhas ao salvar:", failed);
         toast({
           title: `${savedIds.length} salvo${savedIds.length !== 1 ? 's' : ''}, ${failed.length} com erro`,
-          description: `${failed[0].message}. Os itens com erro continuam pendentes — tente salvar de novo.`,
+          description: `${failed[0].message}. As peças com erro continuam como rascunho — tente salvar de novo.`,
           variant: "destructive",
         });
       }
@@ -944,14 +944,14 @@ export default function VincularPatrocinadores() {
         });
       } else if (data.errors && data.errors.length > 0) {
         toast({
-          title: `${data.sent} item${data.sent !== 1 ? 's' : ''} enviado${data.sent !== 1 ? 's' : ''} para Arte`,
+          title: `${data.sent} ${data.sent === 1 ? 'peça enviada' : 'peças enviadas'} para a Arte`,
           description: `Alguns itens tiveram erros: ${data.errors.join(', ')}`,
           variant: "destructive",
         });
       } else {
         toast({
-          title: "Enviado para Arte!",
-          description: `${data.sent} item${data.sent !== 1 ? 's' : ''} enviado${data.sent !== 1 ? 's' : ''} com sucesso.`,
+          title: data.sent === 1 ? "Peça enviada para a Arte" : "Peças enviadas para a Arte",
+          description: data.sent === 1 ? "Ela já está na fila da Arte." : `As ${data.sent} já estão na fila da Arte.`,
         });
       }
 
@@ -1400,6 +1400,10 @@ export default function VincularPatrocinadores() {
     const editavel = getItemEditability(item);
     const estado = optimisticSentIds.has(item.id) ? 'ENVIADO' : (itemUIStates[item.id] || 'PENDENTE');
     const selecionada = selectedItemIds.has(item.id);
+    // Qual linha está gravando AGORA: o "Salvar" dela diz "Salvando…"; as
+    // outras só travam. Antes todas apagavam juntas sem dizer qual foi.
+    const salvandoEsta = saveLinkingMutation.isPending
+      && (saveLinkingMutation.variables ?? []).some((p: SavePayload) => p.itemId === item.id);
     // Peça JÁ ENVIADA passou a ser selecionável (25/08): não para reescrever o
     // vínculo — isso continua travado —, mas para ACRESCENTAR um patrocinador
     // que apareceu depois do envio (caso Ministério na Primavera RJ). A barra
@@ -1453,7 +1457,7 @@ export default function VincularPatrocinadores() {
             checked={selecionada}
             onCheckedChange={() => podeSelecionar && toggleItemSelection(item.id)}
             disabled={!podeSelecionar}
-            title={estado === 'PRONTO' ? 'Remova os patrocinadores antes de aplicar em lote' : estado === 'ENVIADO' ? 'Peça já enviada' : undefined}
+            title={estado === 'PRONTO' ? 'Peça pronta para envio — ajuste os patrocinadores direto nos chips da linha' : estado === 'ENVIADO' ? 'Peça já enviada à Arte' : undefined}
             aria-label={`Selecionar ${item.displayId}`}
             data-testid={`checkbox-item-${item.id}`}
           />
@@ -1740,11 +1744,12 @@ export default function VincularPatrocinadores() {
                   saveLinkingMutation.mutate([{ itemId: item.id, sponsorIds: ch?.sponsorIds ?? [], skipApproval: ch?.skipApproval ?? false }]);
                 }}
                 disabled={saveLinkingMutation.isPending}
+                aria-busy={salvandoEsta || undefined}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 5, height: ALVO, padding: '0 12px', borderRadius: R.sm, backgroundColor: '#fff7ed', border: '1px solid #fed7aa', color: '#9a3412', font: 'inherit', fontSize: 12, fontWeight: 700, cursor: saveLinkingMutation.isPending ? 'wait' : 'pointer' }}
                 data-testid={`button-save-item-${item.id}`}
-                style={{ display: 'inline-flex', alignItems: 'center', gap: 5, height: ALVO, padding: '0 12px', borderRadius: R.sm, backgroundColor: '#fff7ed', border: '1px solid #fed7aa', color: '#9a3412', font: 'inherit', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
               >
                 <Save aria-hidden="true" style={{ width: 12, height: 12 }} />
-                Salvar
+                {salvandoEsta ? 'Salvando…' : 'Salvar'}
               </button>
             )}
             {estado === 'PRONTO' && editavel && (
@@ -1965,6 +1970,14 @@ export default function VincularPatrocinadores() {
             Assim que a Solicitação cadastrar peças em um evento futuro, elas
             aparecem aqui para receber os patrocinadores.
           </p>
+          {/* O aviso das peças retiradas também aqui: era justamente no vazio
+              total que ele fazia falta — a tela dizia "nada para vincular" a
+              quem teve o trabalho retirado por evento finalizado. */}
+          {avisoOcultas && (
+            <p role="status" data-testid="aviso-eventos-encerrados-vazio" style={{ fontSize: 13, color: '#44403c', lineHeight: 1.6, margin: '14px 0 0', padding: '10px 14px', background: '#fafaf9', border: '1px solid #ebe8e4', borderRadius: R.md, textAlign: 'left' }}>
+              <strong>{avisoOcultas.destaque}</strong>{' '}{avisoOcultas.texto}
+            </p>
+          )}
         </div>
       </div>
     );
@@ -2068,7 +2081,7 @@ export default function VincularPatrocinadores() {
               <>
                 {autoLinkPreview.length === 0 && (
                   <div style={{ textAlign: 'center', color: '#746e69', fontSize: 13, padding: '32px 0' }}>
-                    Nenhum item elegível para auto-vínculo neste evento.<br />
+                    Nenhuma peça elegível para auto-vínculo neste evento.<br />
                     <span style={{ fontSize: 11, marginTop: 6, display: 'block' }}>Verifique se os patrocinadores têm cota definida e se há regras configuradas para este evento.</span>
                   </div>
                 )}
@@ -2086,7 +2099,7 @@ export default function VincularPatrocinadores() {
                               {entry.quota}
                             </span>
                             <span style={{ fontSize: 13, fontWeight: 700, color: '#1c1917' }}>{entry.sponsorName}</span>
-                            <span style={{ marginLeft: 'auto', fontSize: 11, color: '#746e69' }}>{entry.items.length} item{entry.items.length !== 1 ? 's' : ''}</span>
+                            <span style={{ marginLeft: 'auto', fontSize: 11, color: '#746e69' }}>{entry.items.length} {entry.items.length === 1 ? 'peça' : 'peças'}</span>
                           </div>
                           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
                             {entry.items.map((it: any) => (
@@ -2112,7 +2125,7 @@ export default function VincularPatrocinadores() {
             <button
               onClick={() => { setAutoLinkOpen(false); setAutoLinkPreview(null); }}
               disabled={autoLinkConfirming}
-              style={{ padding: '9px 20px', backgroundColor: '#f5f5f4', color: autoLinkConfirming ? '#a8a29e' : '#1c1917', fontWeight: 600, fontSize: 13, borderRadius: 6, border: 'none', cursor: autoLinkConfirming ? 'not-allowed' : 'pointer' }}
+              style={{ padding: '9px 20px', backgroundColor: '#f5f5f4', color: autoLinkConfirming ? '#78716c' : '#1c1917', fontWeight: 600, fontSize: 13, borderRadius: 6, border: 'none', cursor: autoLinkConfirming ? 'not-allowed' : 'pointer' }}
               data-testid="button-auto-link-cancel"
             >
               Cancelar
@@ -2521,8 +2534,11 @@ export default function VincularPatrocinadores() {
           .filter(id => optimisticSentIds.has(id) || (itemUIStates[id] || 'PENDENTE') === 'ENVIADO').length;
         const naVinculacao = idsSelecionados.length - enviadasSelecionadas;
         return (
-        <div style={{ position: 'fixed', bottom: 32, left: '50%', transform: 'translateX(-50%)', width: '100%', maxWidth: 640, padding: '0 24px', zIndex: 50 }}>
-          <div style={{ backgroundColor: '#1c1917', color: '#ffffff', padding: '14px 20px', borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between', boxShadow: '0 16px 48px rgba(0,0,0,0.25)', border: '1px solid rgba(255,255,255,0.08)' }}>
+        // NO CELULAR A BARRA QUEBRA LINHA. Com "Salvar", "Acrescentar" e
+        // "Aplicar" lado a lado ela passava dos 390px e cortava o último botão
+        // — justamente o da ação principal.
+        <div style={{ position: 'fixed', bottom: isMobile ? 12 : 32, left: '50%', transform: 'translateX(-50%)', width: '100%', maxWidth: 720, padding: isMobile ? '0 12px' : '0 24px', zIndex: 50, boxSizing: 'border-box' }}>
+          <div style={{ backgroundColor: '#1c1917', color: '#ffffff', padding: isMobile ? '12px 14px' : '14px 20px', borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, boxShadow: '0 16px 48px rgba(0,0,0,0.25)', border: '1px solid rgba(255,255,255,0.08)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
               <div style={{ width: 40, height: 40, backgroundColor: '#c2410c', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, fontWeight: 700, fontFamily: 'Space Grotesk, sans-serif', color: '#ffffff', flexShrink: 0 }}>
                 {selectedItemIds.size}
@@ -2544,7 +2560,7 @@ export default function VincularPatrocinadores() {
                 )}
               </div>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginLeft: 'auto' }}>
               <button
                 onClick={() => setSelectedItemIds(new Set())}
                 data-testid="button-clear-selection"
@@ -2601,12 +2617,12 @@ export default function VincularPatrocinadores() {
                   onClick={handleOpenBulkApplyDialog}
                   data-testid="button-apply-bulk-sponsors"
                   title={enviadasSelecionadas > 0 ? `Reescreve os patrocinadores das ${naVinculacao} que ainda estão na vinculação` : undefined}
-                  style={{ backgroundColor: '#c2410c', color: '#ffffff', border: 'none', borderRadius: 8, padding: '8px 18px', fontWeight: 700, fontSize: 13, textTransform: 'uppercase', letterSpacing: '-0.01em', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}
+                  style={{ backgroundColor: '#c2410c', color: '#ffffff', border: 'none', borderRadius: 8, padding: '8px 18px', fontWeight: 700, fontSize: 13, letterSpacing: '-0.01em', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}
                   onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#9a3412')}
                   onMouseLeave={e => (e.currentTarget.style.backgroundColor = '#c2410c')}
                 >
                   <Users style={{ width: 14, height: 14 }} />
-                  Aplicar{enviadasSelecionadas > 0 ? ` em ${naVinculacao}` : ' Patrocinadores'}
+                  Aplicar{enviadasSelecionadas > 0 ? ` em ${naVinculacao}` : ' patrocinadores'}
                 </button>
               )}
             </div>
@@ -2704,16 +2720,17 @@ export default function VincularPatrocinadores() {
                       {sponsor ? sponsor.name : event.name}
                     </h2>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 5, flexWrap: 'wrap' }}>
-                      {/* Barra de vinculação. #a8a29e sobre o gradiente escuro
-                          dá 6,3 — no claro ele é decorativo, aqui passa. */}
+                      {/* Barra de vinculação. #d6d3d1 sobre o gradiente escuro
+                          (~11:1): #a8a29e passaria aqui, mas a casa não usa
+                          esse tom como texto em lugar nenhum. */}
                       <span aria-hidden="true" style={{ width: 84, height: 5, backgroundColor: 'rgba(255,255,255,0.16)', borderRadius: 999, overflow: 'hidden', display: 'inline-block', flexShrink: 0 }}>
                         <span style={{ display: 'block', height: '100%', width: `${pct}%`, backgroundColor: pct === 100 ? '#4ade80' : '#fdba74', transition: 'width 0.4s ease' }} />
                       </span>
-                      <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 12, color: pct === 100 ? '#4ade80' : '#a8a29e', whiteSpace: 'nowrap' }}>
+                      <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 12, color: pct === 100 ? '#4ade80' : '#d6d3d1', whiteSpace: 'nowrap' }}>
                         {vinculadas}/{total} {sponsor ? 'com esta marca' : 'vinculadas'}
                       </span>
                       {!sponsor && event.startDate && (
-                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, color: '#a8a29e', whiteSpace: 'nowrap' }}>
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, color: '#d6d3d1', whiteSpace: 'nowrap' }}>
                           <Truck aria-hidden="true" style={{ width: 12, height: 12 }} />
                           {event.truckDepartureDate
                             ? format(toUTCDisplayDate(event.truckDepartureDate), "dd/MM 'às' HH:mm", { locale: ptBR })
@@ -2721,7 +2738,7 @@ export default function VincularPatrocinadores() {
                         </span>
                       )}
                       {sponsor && (
-                        <span style={{ fontSize: 12, color: '#a8a29e', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 240 }}>
+                        <span style={{ fontSize: 12, color: '#d6d3d1', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 240 }}>
                           {event.name}
                         </span>
                       )}
@@ -2940,7 +2957,7 @@ export default function VincularPatrocinadores() {
               {temFiltroAtivo
                 ? 'Ajuste a busca ou os filtros acima para ver as peças.'
                 : agrupamento === 'patrocinador'
-                  ? 'Use "Patrocinadores do evento" para definir quem participa de cada evento — depois eles aparecem agrupados aqui.'
+                  ? 'Nenhum evento desta fila tem patrocinador definido. Agrupe por evento e use o botão de patrocinadores no cabeçalho de cada um.'
                   : 'Toda peça em fila já foi vinculada e enviada à Arte.'}
             </p>
             {temFiltroAtivo && (
@@ -2951,6 +2968,16 @@ export default function VincularPatrocinadores() {
                 style={{ height: 36, padding: '0 16px', backgroundColor: '#f5f5f4', color: '#1c1917', font: 'inherit', fontWeight: 700, fontSize: 13, borderRadius: R.md, border: '1px solid #e7e5e4', cursor: 'pointer' }}
               >
                 Limpar filtros
+              </button>
+            )}
+            {!temFiltroAtivo && agrupamento === 'patrocinador' && (
+              <button
+                type="button"
+                onClick={() => setAgrupamento('evento')}
+                data-testid="button-agrupar-por-evento-vazio"
+                style={{ height: 36, padding: '0 16px', backgroundColor: '#f5f5f4', color: '#1c1917', font: 'inherit', fontWeight: 700, fontSize: 13, borderRadius: R.md, border: '1px solid #e7e5e4', cursor: 'pointer' }}
+              >
+                Agrupar por evento
               </button>
             )}
           </div>
@@ -3270,7 +3297,7 @@ export default function VincularPatrocinadores() {
                 <div style={{ marginTop: 16, padding: '10px 14px', backgroundColor: '#fff7ed', borderRadius: R.md, display: 'flex', gap: 10, alignItems: 'flex-start', border: '1px solid #fed7aa' }}>
                   <Info style={{ width: 14, height: 14, color: '#c2410c', flexShrink: 0, marginTop: 1 }} />
                   <p style={{ fontSize: 11, lineHeight: 1.5, color: '#7c2d12', fontWeight: 500, margin: 0 }}>
-                    {exemptCount} item{exemptCount !== 1 ? 's' : ''} isento{exemptCount !== 1 ? 's' : ''} de contrato não receberá{exemptCount !== 1 ? 'ão' : ''} as marcas selecionadas.
+                    {exemptCount} {exemptCount === 1 ? 'peça marcada' : 'peças marcadas'} como sem patrocinador não {exemptCount === 1 ? 'receberá' : 'receberão'} as marcas selecionadas.
                   </p>
                 </div>
               );
@@ -3313,7 +3340,8 @@ export default function VincularPatrocinadores() {
                 backgroundColor: '#ffffff',
                 border: bulkSkipApproval ? '2px solid #f97316' : '2px dashed #dadad9',
                 borderRadius: 8, cursor: 'pointer',
-                opacity: bulkSkipApproval ? 1 : 0.65,
+                // Sem opacity no desligado: 0,65 derrubava o rótulo abaixo de
+                // AA. A borda tracejada já diz "opção, não marca".
                 transition: 'all 0.15s',
               }}
               data-testid="bulk-option-sem-patrocinador"
@@ -3327,7 +3355,7 @@ export default function VincularPatrocinadores() {
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <X style={{ width: 15, height: 15, color: '#625d5b', flexShrink: 0 }} />
-                <span style={{ fontSize: 13, fontWeight: 600, color: '#1a1c1c' }}>Sem Patrocinador</span>
+                <span style={{ fontSize: 13, fontWeight: 600, color: '#1a1c1c' }}>Sem patrocinador</span>
               </div>
               {bulkSkipApproval ? (
                 <CheckCircle2 style={{ width: 17, height: 17, color: '#c2410c', flexShrink: 0 }} />
@@ -3469,7 +3497,7 @@ export default function VincularPatrocinadores() {
             <button
               onClick={handleApplyBulkSponsors}
               disabled={bulkSelectedSponsors.length === 0 && !bulkSkipApproval}
-              title={bulkSelectedSponsors.length === 0 && !bulkSkipApproval ? "Selecione pelo menos um patrocinador ou marque 'Sem Patrocinador'" : undefined}
+              title={bulkSelectedSponsors.length === 0 && !bulkSkipApproval ? "Selecione pelo menos um patrocinador ou marque 'Sem patrocinador'" : undefined}
               data-testid="button-confirm-bulk-apply"
               style={{
                 padding: '9px 20px',
@@ -3482,7 +3510,7 @@ export default function VincularPatrocinadores() {
               onMouseEnter={e => { if (!(bulkSelectedSponsors.length === 0 && !bulkSkipApproval)) e.currentTarget.style.backgroundColor = '#9a3412'; }}
               onMouseLeave={e => { if (!(bulkSelectedSponsors.length === 0 && !bulkSkipApproval)) e.currentTarget.style.backgroundColor = '#c2410c'; }}
             >
-              Aplicar em Lote
+              Aplicar em lote
             </button>
           </div>
         </DialogContent>
@@ -3500,14 +3528,23 @@ export default function VincularPatrocinadores() {
       {/* RESULTADO DO LOTE (UX 27/08): mais de 3 recusas não cabem num toast —
           aqui a lista inteira, peça a peça, com o motivo do servidor. */}
       <Dialog open={!!resultadoDoLote} onOpenChange={(open) => { if (!open) setResultadoDoLote(null); }}>
-        <DialogContent style={{ maxWidth: 560 }}>
-          <DialogHeader>
-            <DialogTitle>{resultadoDoLote?.titulo}</DialogTitle>
-          </DialogHeader>
-          <p style={{ margin: '0 0 10px', fontSize: 13, color: '#57534e' }}>
-            Nenhuma dessas peças foi alterada — cada linha diz o porquê, para dar o próximo passo sem adivinhar.
-          </p>
-          <div style={{ maxHeight: 320, overflowY: 'auto', border: '1px solid #e7e5e4', borderRadius: 10 }}>
+        {/* Casca padrão (modalSurface + ModalHeader + ModalFooter), como todo
+            modal da tela: era o único com o Dialog cru, X nativo e sem saída
+            clara além do X. */}
+        <DialogContent className={HIDE_NATIVE_CLOSE} style={modalSurface(560)}>
+          <FreezeWhileClosing open={!!resultadoDoLote}>
+          <DialogTitle className="sr-only">{resultadoDoLote?.titulo ?? 'Peças recusadas'}</DialogTitle>
+          <DialogDescription className="sr-only">As peças que não receberam o patrocinador, cada uma com o motivo</DialogDescription>
+          <ModalHeader
+            variant="confirm"
+            icon={AlertTriangle}
+            tint="#b45309"
+            title={resultadoDoLote?.titulo ?? 'Peças recusadas'}
+            subtitle="Nenhuma dessas peças foi alterada — cada linha diz o porquê."
+            onClose={() => setResultadoDoLote(null)}
+          />
+          <div style={{ padding: '14px 24px', overflowY: 'auto', flex: '1 1 auto', minHeight: 0 }}>
+          <div style={{ border: '1px solid #e7e5e4', borderRadius: 10 }}>
             {(resultadoDoLote?.recusadas ?? []).map((rec, i) => (
               <div key={i} style={{ display: 'flex', gap: 10, padding: '9px 12px', borderBottom: '1px solid #f5f4f2', fontSize: 12.5 }}>
                 <span style={{ fontFamily: "'DM Mono', monospace", fontWeight: 700, color: '#c2410c', whiteSpace: 'nowrap' }}>{rec.displayId}</span>
@@ -3515,6 +3552,18 @@ export default function VincularPatrocinadores() {
               </div>
             ))}
           </div>
+          </div>
+          <ModalFooter>
+            <button
+              type="button"
+              onClick={() => setResultadoDoLote(null)}
+              data-testid="button-fechar-resultado-lote"
+              style={{ width: '100%', height: 44, borderRadius: R.md, border: 'none', backgroundColor: '#1c1917', color: '#ffffff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
+            >
+              Entendi
+            </button>
+          </ModalFooter>
+          </FreezeWhileClosing>
         </DialogContent>
       </Dialog>
 
@@ -3528,8 +3577,8 @@ export default function VincularPatrocinadores() {
               modal se esvazia durante toda a animação de saída, com três
               invalidações renderizando a página por cima. */}
           <FreezeWhileClosing open={!!sendConfirmModal}>
-          <DialogTitle className="sr-only">Confirmar Envio para Arte</DialogTitle>
-          <DialogDescription className="sr-only">Revise os itens e os patrocinadores antes de enviar para a Arte</DialogDescription>
+          <DialogTitle className="sr-only">Confirmar envio para a Arte</DialogTitle>
+          <DialogDescription className="sr-only">Revise as peças e os patrocinadores antes de enviar para a Arte</DialogDescription>
 
           {/* ── Hero Header ── */}
           <div style={{ background: 'linear-gradient(135deg, #1c1917 0%, #292524 100%)', padding: '28px 32px 24px', position: 'relative', overflow: 'hidden', flexShrink: 0 }}>
@@ -3564,7 +3613,7 @@ export default function VincularPatrocinadores() {
                   Enviar para Arte
                 </h2>
                 <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.55)', marginTop: 6, lineHeight: 1.4 }}>
-                  Os itens serão encaminhados à equipe de Arte para aprovação e finalização.
+                  Confira os patrocinadores de cada peça — depois do envio o vínculo só se acrescenta, não se troca.
                 </p>
               </div>
               {/* Count pill. marginRight abre espaço para o X do canto
@@ -3574,7 +3623,7 @@ export default function VincularPatrocinadores() {
                   {sendConfirmModal?.items.length ?? 0}
                 </span>
                 <span style={{ fontSize: 11, fontWeight: 600, color: 'rgba(255,255,255,0.6)', textTransform: 'uppercase', letterSpacing: '0.06em', marginTop: 2 }}>
-                  {(sendConfirmModal?.items.length ?? 0) === 1 ? 'item' : 'itens'}
+                  {(sendConfirmModal?.items.length ?? 0) === 1 ? 'peça' : 'peças'}
                 </span>
               </div>
             </div>
@@ -3780,7 +3829,7 @@ export default function VincularPatrocinadores() {
                 <Send style={{ width: 15, height: 15 }} />
                 {(isSending || sendToArteMutation.isPending)
                   ? (progressoEnvio && progressoEnvio.total > 0 ? `Sincronizando ${progressoEnvio.feito}/${progressoEnvio.total}…` : 'Enviando…')
-                  : `Confirmar Envio${sendConfirmModal && sendConfirmModal.items.length > 0 ? ` (${sendConfirmModal.items.length})` : ''}`}
+                  : `Enviar ${sendConfirmModal?.items.length ?? 0} para a Arte`}
               </button>
             </div>
           </div>
@@ -3798,8 +3847,8 @@ export default function VincularPatrocinadores() {
             tint="#c2410c"
             title="Confirmar salvamento"
             subtitle={saveConfirmModal?.items.length === 1
-              ? 'O item abaixo terá sua vinculação salva.'
-              : `${saveConfirmModal?.items.length} itens terão suas vinculações salvas.`}
+              ? 'A peça abaixo terá o vínculo salvo.'
+              : `${saveConfirmModal?.items.length} peças terão os vínculos salvos.`}
             onClose={saveLinkingMutation.isPending ? undefined : () => setSaveConfirmModal(null)}
           />
           <DialogDescription className="sr-only">Revise os itens antes de salvar a vinculação</DialogDescription>

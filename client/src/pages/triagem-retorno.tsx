@@ -43,7 +43,7 @@ function makeSplits(totalQty: number): SplitLine[] {
 // ─── ThumbCell — fallback quando a imagem falha ou URL está vazia ─────────────
 function ThumbCell({ url, size = 15 }: { url?: string | null; size?: number }) {
   const [failed, setFailed] = useState(false);
-  if (!url || failed) return <Package size={size} color="#94a3b8" />;
+  if (!url || failed) return <Package size={size} color="#64748b" />;
   return (
     <img
       src={url}
@@ -72,7 +72,7 @@ function StatCard({ label, value, color, Icon }: {
       boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
       display: "flex", flexDirection: "column", gap: 8,
     }}>
-      <span style={{ fontSize: 10, fontWeight: 700, color: "#94a3b8", fontFamily: "Space Grotesk, sans-serif", textTransform: "uppercase", letterSpacing: "0.18em" }}>
+      <span style={{ fontSize: 10, fontWeight: 700, color: "#64748b", fontFamily: "Space Grotesk, sans-serif", textTransform: "uppercase", letterSpacing: "0.18em" }}>
         {label}
       </span>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
@@ -181,7 +181,7 @@ function LabeledTriageToggles({
   disabled?: boolean; grayscale?: boolean;
 }) {
   const labelStyle: React.CSSProperties = {
-    fontSize: 9, fontWeight: 700, color: "#94a3b8",
+    fontSize: 9, fontWeight: 700, color: "#64748b",
     fontFamily: "Space Grotesk, sans-serif", textTransform: "uppercase",
     letterSpacing: "0.1em", minWidth: 62, flexShrink: 0,
   };
@@ -409,29 +409,37 @@ export default function TriagemRetorno() {
     queryClient.invalidateQueries({ queryKey: ["/api/inventory/awaiting-triage"] });
   };
 
-  const handleSingle = useCallback(async (asset: EnrichedAsset) => {
+  // Devolve se a triagem ficou gravada — o modal só fecha quando é `true`
+  // (antes fechava por cima do toast de validação e levava o campo embora).
+  const handleSingle = useCallback(async (asset: EnrichedAsset): Promise<boolean> => {
     const totalQty = asset.quantity ?? 1;
     const entry = getEntry(asset.id, totalQty);
     if (entry.splits.some(l => l.condition === null)) {
       toast({ title: "Selecione a condição antes de salvar.", variant: "destructive" });
-      return;
+      return false;
     }
     if (!isSplitValid(entry, totalQty)) {
       toast({ title: `A soma das quantidades deve ser ${totalQty}.`, variant: "destructive" });
-      return;
+      return false;
     }
     if (precisaDeLocal(entry) && !localDe(asset)) {
       toast({ title: "Informe o local no galpão.", description: "Sem o local, ninguém encontra a peça para reaproveitar.", variant: "destructive" });
-      return;
+      return false;
     }
-    if (savedIds.has(asset.id)) return;
+    if (savedIds.has(asset.id)) return true;
     setSavingIds(prev => new Set(Array.from(prev).concat(asset.id)));
     try {
       await doTriage(asset.id, totalQty, localDe(asset));
       setSavedIds(prev => new Set(Array.from(prev).concat(asset.id)));
-      toast({ title: entry.splits.length > 1 ? `Triagem registrada em ${entry.splits.length} lotes.` : "Triagem registrada." });
-    } catch {
-      toast({ title: "Erro ao registrar triagem.", variant: "destructive" });
+      // O toast nomeia a peça e o destino: triando dezenas seguidas, "Triagem
+      // registrada." não dizia QUAL linha acabou de sair da fila.
+      const destino = entry.splits.length > 1 ? `${entry.splits.length} lotes`
+        : RESULT_META[entry.splits[0].result].label;
+      toast({ title: `${asset.displayId} triada · ${destino}`, description: entry.splits.length === 1 && entry.splits[0].result === "NO_GALPAO" && localDe(asset) ? `Guardada em ${localDe(asset)}.` : undefined });
+      return true;
+    } catch (e: any) {
+      toast({ title: `Não foi possível triar ${asset.displayId}`, description: e?.message || "Tente de novo.", variant: "destructive" });
+      return false;
     } finally {
       setSavingIds(prev => { const s = new Set(Array.from(prev)); s.delete(asset.id); return s; });
     }
@@ -554,7 +562,14 @@ export default function TriagemRetorno() {
       okIds.forEach(id => { if (next[id]) next[id] = { ...next[id], selected: false }; });
       return next;
     });
-    toast({ title: failed > 0 ? `${okIds.length} registrada(s), ${failed} com erro.` : `${okIds.length} triagem(ns) registradas.`, variant: failed > 0 ? "destructive" : "default" });
+    // Com erro, o toast traz o motivo da primeira recusa — "com erro" sem porquê
+    // deixava a pessoa reenviando o lote às cegas.
+    const primeiraFalha = results.find((r): r is PromiseRejectedResult => r.status === "rejected");
+    toast({
+      title: failed > 0 ? `${okIds.length} triada${okIds.length !== 1 ? "s" : ""}, ${failed} com erro` : `${okIds.length} peça${okIds.length !== 1 ? "s" : ""} triada${okIds.length !== 1 ? "s" : ""}`,
+      description: failed > 0 ? `${primeiraFalha?.reason?.message ?? "Erro ao gravar"}. As que falharam continuam selecionadas.` : undefined,
+      variant: failed > 0 ? "destructive" : "default",
+    });
     refetch();
   };
 
@@ -637,7 +652,7 @@ export default function TriagemRetorno() {
             <h1 style={{ margin: "0 0 3px", fontSize: 28, fontWeight: 900, fontFamily: "Space Grotesk, sans-serif", color: "#0f172a", letterSpacing: "-0.03em", lineHeight: 1 }}>
               Triagem de Retorno
             </h1>
-            <p style={{ margin: 0, fontSize: 10, fontWeight: 700, color: "#94a3b8", fontFamily: "Space Grotesk, sans-serif", textTransform: "uppercase", letterSpacing: "0.18em" }}>
+            <p style={{ margin: 0, fontSize: 10, fontWeight: 700, color: "#64748b", fontFamily: "Space Grotesk, sans-serif", textTransform: "uppercase", letterSpacing: "0.18em" }}>
               Logística reversa · avaliação de condição e destino
             </p>
           </div>
@@ -648,7 +663,7 @@ export default function TriagemRetorno() {
             display: "flex", alignItems: "center", gap: 6,
             padding: "12px 24px", borderRadius: 12, border: "none", flexShrink: 0,
             background: (selectedIds.length === 0 || savingIds.size > 0) ? "#e2e8f0" : "#c2610c",
-            color: (selectedIds.length === 0 || savingIds.size > 0) ? "#94a3b8" : "#fff", fontSize: 13,
+            color: (selectedIds.length === 0 || savingIds.size > 0) ? "#64748b" : "#fff", fontSize: 13,
             cursor: (selectedIds.length === 0 || savingIds.size > 0) ? "not-allowed" : "pointer",
             fontFamily: "Space Grotesk, sans-serif", fontWeight: 800, letterSpacing: "0.06em",
             boxShadow: (selectedIds.length === 0 || savingIds.size > 0) ? "none" : "0 8px 24px rgba(194,97,12,0.35)",
@@ -670,7 +685,7 @@ export default function TriagemRetorno() {
       {/* ── Filter bar ── */}
       {(() => {
         const FL: React.CSSProperties = {
-          fontSize: 11, fontWeight: 500, color: "#94a3b8",
+          fontSize: 11, fontWeight: 500, color: "#64748b",
           fontFamily: "Plus Jakarta Sans, sans-serif", marginBottom: 6, display: "block",
         };
         const SEL = (active: boolean): React.CSSProperties => ({
@@ -732,7 +747,7 @@ export default function TriagemRetorno() {
             <div style={{ display: "flex", flexDirection: "column", flex: "1 1 150px" }}>
               <label style={FL}>Buscar</label>
               <div style={{ position: "relative" }}>
-                <Search size={14} color="#94a3b8" style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }} />
+                <Search size={14} color="#64748b" style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }} />
                 <input
                   data-testid="input-triage-search"
                   style={{
@@ -796,16 +811,44 @@ export default function TriagemRetorno() {
       ) : isError ? (
         <div style={{ background: "#fff", borderRadius: 16, border: "1px solid #fecaca", padding: 60, textAlign: "center" }}>
           <p style={{ fontSize: 15, fontWeight: 700, color: "#b91c1c", margin: "0 0 6px", fontFamily: "Space Grotesk, sans-serif" }}>Não foi possível carregar os materiais</p>
-          <p style={{ color: "#94a3b8", fontSize: 12, margin: "0 0 16px" }}>Verifique sua conexão e tente novamente.</p>
+          <p style={{ color: "#64748b", fontSize: 12, margin: "0 0 16px" }}>Verifique sua conexão e tente novamente.</p>
           <button onClick={() => refetch()} style={{ background: "#0f172a", color: "#fff", border: "none", borderRadius: 8, padding: "8px 18px", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>Tentar novamente</button>
         </div>
       ) : pendingAssets.length === 0 && savedIds.size === 0 ? (
+        /* Dois vazios diferentes: a fila vazia de verdade, ou o RECORTE vazio.
+           Antes os dois diziam "Nenhum material aguardando triagem" — com um
+           filtro esquecido a pessoa concluía que não havia trabalho. */
         <div style={{ background: "#fff", borderRadius: 16, border: "1px solid #e2e8f0", padding: 60, textAlign: "center" }}>
           <div style={{ width: 56, height: 56, borderRadius: 16, background: "#f8fafc", border: "1px solid #e2e8f0", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 14px" }}>
-            <ScanSearch size={24} color="#cbd5e1" />
+            <ScanSearch size={24} color="#64748b" />
           </div>
-          <p style={{ fontSize: 15, fontWeight: 700, color: "#0f172a", margin: "0 0 6px", fontFamily: "Space Grotesk, sans-serif" }}>Nenhum material aguardando triagem</p>
-          <p style={{ color: "#94a3b8", fontSize: 12, fontFamily: "Plus Jakarta Sans, sans-serif", margin: 0 }}>Os materiais são movidos automaticamente para triagem após o evento.</p>
+          <p style={{ fontSize: 15, fontWeight: 700, color: "#0f172a", margin: "0 0 6px", fontFamily: "Space Grotesk, sans-serif" }}>
+            {hasFilters && awaitingAssets.length > 0 ? "Nenhuma peça neste recorte" : "Nenhum material aguardando triagem"}
+          </p>
+          <p style={{ color: "#64748b", fontSize: 12, fontFamily: "Plus Jakarta Sans, sans-serif", margin: 0 }}>
+            {hasFilters && awaitingAssets.length > 0
+              ? `${awaitingAssets.length} ${awaitingAssets.length === 1 ? "peça espera" : "peças esperam"} triagem fora dos filtros atuais.`
+              : "Os materiais são movidos automaticamente para triagem após o evento."}
+          </p>
+          {hasFilters && awaitingAssets.length > 0 && (
+            <button type="button" onClick={() => { setFilterEvent([]); setFilterSponsor([]); setFilterLocation([]); setSearch(""); }}
+              style={{ marginTop: 16, minHeight: 44, background: "#0f172a", color: "#fff", border: "none", borderRadius: 8, padding: "0 18px", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+              Limpar filtros
+            </button>
+          )}
+        </div>
+      ) : pendingAssets.length === 0 ? (
+        /* Tudo o que estava no recorte foi triado nesta sessão: a tabela só
+           teria linhas cinzas "Salvo" — o fechamento merece ser dito. */
+        <div data-testid="triagem-concluida-no-recorte" style={{ background: "#fff", borderRadius: 16, border: "1px solid #bbf7d0", padding: 48, textAlign: "center" }}>
+          <CheckCircle2 size={28} color="#15803d" />
+          <p style={{ fontSize: 15, fontWeight: 700, color: "#0f172a", margin: "10px 0 6px", fontFamily: "Space Grotesk, sans-serif" }}>
+            {savedIds.size} {savedIds.size === 1 ? "peça triada" : "peças triadas"} nesta sessão — nada pendente {hasFilters ? "neste recorte" : "na fila"}
+          </p>
+          <button type="button" onClick={() => setVista("eventos")}
+            style={{ marginTop: 10, minHeight: 44, background: "#0f172a", color: "#fff", border: "none", borderRadius: 8, padding: "0 18px", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+            Voltar aos eventos da triagem
+          </button>
         </div>
       ) : (
         <div style={{ background: "#fff", borderRadius: 16, border: "1px solid #e2e8f0", overflow: "hidden", boxShadow: "0 4px 16px rgba(0,0,0,0.05)" }}>
@@ -912,7 +955,7 @@ export default function TriagemRetorno() {
                                 display: "inline-flex", alignItems: "center", justifyContent: "center",
                                 height: 18, borderRadius: 5, padding: "0 5px",
                                 background: qty > 1 ? "#0f172a" : "#f1f5f9",
-                                color: qty > 1 ? "#fff" : "#94a3b8",
+                                color: qty > 1 ? "#fff" : "#64748b",
                                 fontSize: 10, fontWeight: 800, fontFamily: "DM Mono, monospace",
                               }}>×{qty}</span>
                             </div>
@@ -962,13 +1005,13 @@ export default function TriagemRetorno() {
                               )}
                               <span style={{ color: "#cbd5e1", fontSize: 10 }}>•</span>
                               <span style={{
-                                fontSize: 10, fontWeight: 700, color: "#94a3b8",
+                                fontSize: 10, fontWeight: 700, color: "#64748b",
                                 fontFamily: "Space Grotesk, sans-serif",
                                 textTransform: "uppercase", letterSpacing: "0.06em",
                               }}>{asset.location ?? "—"}</span>
                             </div>
                           </div>
-                        ) : <span style={{ fontSize: 11, color: "#94a3b8", fontStyle: "italic", fontFamily: "Plus Jakarta Sans, sans-serif" }}>—</span>}
+                        ) : <span style={{ fontSize: 11, color: "#64748b", fontStyle: "italic", fontFamily: "Plus Jakarta Sans, sans-serif" }}>—</span>}
                       </td>
 
                       {/* Patrocinadores */}
@@ -1007,7 +1050,7 @@ export default function TriagemRetorno() {
                                 Aplicar a todas
                               </button>
                               <button data-testid={`button-mode-split-${asset.id}`} onClick={() => setMode(asset.id, "split", qty)}
-                                style={{ display: "inline-flex", alignItems: "center", gap: 3, padding: "3px 9px", borderRadius: 6, fontSize: 10, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif", letterSpacing: "0.04em", textTransform: "uppercase", cursor: "pointer", border: entry.mode === "split" ? "2px solid #f97316" : "1px solid #e2e8f0", background: entry.mode === "split" ? "#fff7ed" : "#f8fafc", color: entry.mode === "split" ? "#ea580c" : "#64748b", transition: "all 0.12s" }}>
+                                style={{ display: "inline-flex", alignItems: "center", gap: 3, padding: "3px 9px", borderRadius: 6, fontSize: 10, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif", letterSpacing: "0.04em", textTransform: "uppercase", cursor: "pointer", border: entry.mode === "split" ? "2px solid #c2410c" : "1px solid #e2e8f0", background: entry.mode === "split" ? "#fff7ed" : "#f8fafc", color: entry.mode === "split" ? "#c2410c" : "#64748b", transition: "all 0.12s" }}>
                                 <Scissors size={9} /> Dividir por condição
                               </button>
                             </div>
@@ -1039,15 +1082,22 @@ export default function TriagemRetorno() {
                                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "5px 8px", borderBottom: "1px solid #f1f5f9", background: "#f8fafc" }}>
                                       <span style={{ fontSize: 9, fontWeight: 700, color: "#64748b", fontFamily: "Space Grotesk, sans-serif", textTransform: "uppercase", letterSpacing: "0.08em" }}>Lote {si + 1}</span>
                                       <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                                        {/* 28px e rótulo falado: os 20px de antes eram menores
+                                            que o cursor de toque, e "−" sozinho não diz nada ao
+                                            leitor de tela. Desabilitado em #cbd5e1 (sai o
+                                            #a8a29e, proibido como cor de texto). */}
                                         <button data-testid={`button-split-minus-${asset.id}-${si}`} onClick={() => stepSplit(asset.id, si, -1, qty)} disabled={split.qty <= 1}
-                                          style={{ width: 20, height: 20, borderRadius: 5, border: "1px solid #e2e8f0", background: "#fff", cursor: split.qty <= 1 ? "not-allowed" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, lineHeight: 1, color: split.qty <= 1 ? "#a8a29e" : "#0f172a", fontWeight: 700, padding: 0 }}>−</button>
+                                          aria-label={`Uma unidade a menos no lote ${si + 1}`}
+                                          style={{ width: 28, height: 28, borderRadius: 6, border: "1px solid #e2e8f0", background: "#fff", cursor: split.qty <= 1 ? "not-allowed" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15, lineHeight: 1, color: split.qty <= 1 ? "#cbd5e1" : "#0f172a", fontWeight: 700, padding: 0 }}>−</button>
                                         <span style={{ minWidth: 28, textAlign: "center", fontSize: 12, fontWeight: 800, fontFamily: "DM Mono, monospace", color: splitValid ? "#0f172a" : "#dc2626" }}>{split.qty}</span>
                                         <button data-testid={`button-split-plus-${asset.id}-${si}`} onClick={() => stepSplit(asset.id, si, +1, qty)} disabled={splitSum >= qty}
-                                          style={{ width: 20, height: 20, borderRadius: 5, border: "1px solid #e2e8f0", background: "#fff", cursor: splitSum >= qty ? "not-allowed" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, lineHeight: 1, color: splitSum >= qty ? "#a8a29e" : "#0f172a", fontWeight: 700, padding: 0 }}>+</button>
+                                          aria-label={`Uma unidade a mais no lote ${si + 1}`}
+                                          style={{ width: 28, height: 28, borderRadius: 6, border: "1px solid #e2e8f0", background: "#fff", cursor: splitSum >= qty ? "not-allowed" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15, lineHeight: 1, color: splitSum >= qty ? "#cbd5e1" : "#0f172a", fontWeight: 700, padding: 0 }}>+</button>
                                       </div>
                                       {entry.splits.length >= 2 && (
                                         <button data-testid={`button-remove-split-${asset.id}-${si}`} onClick={() => removeSplit(asset.id, si)}
-                                          style={{ border: "none", background: "none", cursor: "pointer", color: "#94a3b8", padding: 0, display: "flex", alignItems: "center" }}>
+                                          aria-label={`Remover o lote ${si + 1}`} title="Remover este lote"
+                                          style={{ width: 28, height: 28, border: "none", background: "none", cursor: "pointer", color: "#64748b", padding: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
                                           <X size={12} />
                                         </button>
                                       )}
@@ -1138,13 +1188,17 @@ export default function TriagemRetorno() {
                       <td style={{ padding: "12px 14px", verticalAlign: "middle", textAlign: "right" }}>
                         <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 6 }}>
                           {/* Botão detalhe / triagem modal */}
+                          {/* #c2410c no hover (regra da casa: #f97316 nunca como
+                              cor de texto/ícone sobre claro) e #64748b em
+                              repouso — o #94a3b8 dava 2,6:1 num ícone de ação. */}
                           <button
                             data-testid={`button-view-item-${asset.id}`}
                             onClick={e => { e.stopPropagation(); setSelectedAsset(asset); }}
                             title="Abrir triagem"
-                            onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = "#f97316"; (e.currentTarget as HTMLButtonElement).style.background = "rgba(249,115,22,0.08)"; }}
-                            onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = "#94a3b8"; (e.currentTarget as HTMLButtonElement).style.background = "transparent"; }}
-                            style={{ padding: 7, borderRadius: 7, border: "none", background: "transparent", cursor: "pointer", color: "#94a3b8", display: "flex", alignItems: "center", transition: "color 0.15s, background 0.15s" }}>
+                            aria-label={`Abrir a triagem de ${asset.displayId}`}
+                            onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = "#c2410c"; (e.currentTarget as HTMLButtonElement).style.background = "rgba(194,65,12,0.08)"; }}
+                            onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = "#64748b"; (e.currentTarget as HTMLButtonElement).style.background = "transparent"; }}
+                            style={{ padding: 7, borderRadius: 7, border: "none", background: "transparent", cursor: "pointer", color: "#64748b", display: "flex", alignItems: "center", transition: "color 0.15s, background 0.15s" }}>
                             <Eye size={14} />
                           </button>
                         {isSaved ? (
@@ -1159,14 +1213,15 @@ export default function TriagemRetorno() {
                             style={{
                               display: "inline-flex", alignItems: "center", gap: 6,
                               padding: "7px 14px", borderRadius: 8, border: "none",
-                              background: isSaving || !splitValid ? "#e2e8f0" : "#f97316",
+                              // #c2410c: branco sobre #f97316 dava 2,8:1 (reprova AA).
+                              background: isSaving || !splitValid ? "#e2e8f0" : "#c2410c",
                               color: isSaving || !splitValid ? "#64748b" : "#fff",
                               fontSize: 12, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif",
                               cursor: isSaving || !splitValid ? "not-allowed" : "pointer",
-                              boxShadow: !isSaving && splitValid ? "0 2px 8px rgba(249,115,22,0.35)" : "none",
+                              boxShadow: !isSaving && splitValid ? "0 2px 8px rgba(194,65,12,0.30)" : "none",
                               transition: "all 0.15s", whiteSpace: "nowrap",
                             }}>
-                            {isSaving ? "..." : <><Save size={13} /> Salvar</>}
+                            {isSaving ? "Salvando…" : <><Save size={13} /> Salvar</>}
                           </button>
                         )}
                         </div>
@@ -1202,7 +1257,7 @@ export default function TriagemRetorno() {
           }}>
             {/* Count badge */}
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <div style={{ width: 28, height: 28, borderRadius: "50%", background: "#f97316", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 12, fontWeight: 800, fontFamily: "Space Grotesk, sans-serif" }}>
+              <div style={{ width: 28, height: 28, borderRadius: "50%", background: "#c2410c", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 12, fontWeight: 800, fontFamily: "Space Grotesk, sans-serif" }}>
                 {selectedIds.length}
               </div>
               <span style={{ fontSize: 12, fontWeight: 700, color: "#f1f5f9", fontFamily: "Space Grotesk, sans-serif", whiteSpace: "nowrap" }}>
@@ -1253,9 +1308,11 @@ export default function TriagemRetorno() {
                 style={{ display: "flex", alignItems: "center", gap: 5, padding: "7px 16px", borderRadius: 9999, border: "none", background: savingIds.size > 0 ? "#64748b" : "#15803d", color: "#fff", fontSize: 11, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif", cursor: savingIds.size > 0 ? "not-allowed" : "pointer", whiteSpace: "nowrap", boxShadow: "0 2px 8px rgba(21,128,61,0.3)" }}>
                 <CheckCircle2 size={13} /> {savingIds.size > 0 ? "Registrando…" : "Confirmar Triagem"}
               </button>
+              {/* "Cancelar" soava como desfazer a triagem; o botão só
+                  desmarca as linhas (o que foi preenchido nelas fica). */}
               <button data-testid="button-bulk-cancel" onClick={() => Object.keys(entries).forEach(id => updateEntry(id, { selected: false }))}
-                style={{ display: "flex", alignItems: "center", gap: 5, padding: "7px 12px", borderRadius: 9999, border: "1px solid rgba(255,255,255,0.12)", background: "transparent", color: "#94a3b8", fontSize: 11, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif", cursor: "pointer", whiteSpace: "nowrap" }}>
-                <X size={12} /> Cancelar
+                style={{ display: "flex", alignItems: "center", gap: 5, padding: "7px 12px", borderRadius: 9999, border: "1px solid rgba(255,255,255,0.18)", background: "transparent", color: "#cbd5e1", fontSize: 11, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif", cursor: "pointer", whiteSpace: "nowrap" }}>
+                <X size={12} /> Limpar seleção
               </button>
             </div>
           </div>
@@ -1276,7 +1333,12 @@ export default function TriagemRetorno() {
         onUpdateNotes={(notes) => { if (selectedAsset) updateEntry(selectedAsset.id, { notes }, selectedAsset.quantity ?? 1); }}
         location={selectedAsset ? (entries[selectedAsset.id]?.location || selectedAsset.location || "") : ""}
         onUpdateLocation={(location) => { if (selectedAsset) updateEntry(selectedAsset.id, { location }, selectedAsset.quantity ?? 1); }}
-        onSaveAndClose={async () => { if (selectedAsset) { await handleSingle(selectedAsset); setSelectedAsset(null); } }}
+        onSaveAndClose={async () => {
+          if (!selectedAsset) return false;
+          const ok = await handleSingle(selectedAsset);
+          if (ok) setSelectedAsset(null);
+          return ok;
+        }}
       />
 
       {/* Sugestões de local: o formato do mapa do galpão. */}

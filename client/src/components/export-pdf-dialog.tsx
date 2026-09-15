@@ -396,7 +396,7 @@ export function ExportPdfDialog({ open, onOpenChange, items, title = "Peças" }:
                   "que recorte eu quero"; nenhum responde "cadê a peça #3524",
                   que é a pergunta de quem já sabe o que procura. */}
               <div style={{ position: "relative", flex: "1 1 190px", minWidth: 150 }}>
-                <Search style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", width: 13, height: 13, color: "#a8a29e", pointerEvents: "none" }} />
+                <Search aria-hidden="true" style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", width: 13, height: 13, color: "#78716c", pointerEvents: "none" }} />
                 <input
                   value={busca}
                   onChange={e => setBusca(e.target.value)}
@@ -660,7 +660,10 @@ export function ExportPdfDialog({ open, onOpenChange, items, title = "Peças" }:
                     <div key={idx}>
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4, gap: 8 }}>
                         <span style={{ fontSize: 10, color: "#78716c", fontFamily: "monospace", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{legenda}</span>
-                        <span style={{ fontSize: 10, color: "#a8a29e", fontFamily: "monospace", flexShrink: 0, fontVariantNumeric: "tabular-nums" }}>{idx + 1}</span>
+                        {/* #78716c: número de página e códigos da miniatura são
+                            texto que se confere contra o PDF — o #a8a29e de
+                            antes (2,5:1, em 8–10px) não se lia. */}
+                        <span style={{ fontSize: 10, color: "#78716c", fontFamily: "monospace", flexShrink: 0, fontVariantNumeric: "tabular-nums" }}>{idx + 1}</span>
                       </div>
                       <div style={{
                         backgroundColor: "#fff", border: "1px solid #e7e5e4", borderRadius: 6, padding: 8,
@@ -670,17 +673,17 @@ export function ExportPdfDialog({ open, onOpenChange, items, title = "Peças" }:
                       }}>
                         {pg.tipo === "capa" && (
                           <div style={{ backgroundColor: "#fafaf9", borderRadius: 3, display: "flex", alignItems: "center", justifyContent: "center", padding: 4 }}>
-                            <span style={{ fontSize: 8, fontFamily: "monospace", textTransform: "uppercase", color: "#a8a29e", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{pg.rotulo}</span>
+                            <span style={{ fontSize: 8, fontFamily: "monospace", textTransform: "uppercase", color: "#78716c", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{pg.rotulo}</span>
                           </div>
                         )}
                         {pg.tipo === "combinada" && pg.itens.map((it: any) => (
                           <div key={it.id} style={{ backgroundColor: "#f3f4f3", borderRadius: 3, display: "flex", alignItems: "center", justifyContent: "center", padding: 2 }}>
-                            <span style={{ fontSize: 8, fontFamily: "monospace", textTransform: "uppercase", color: "#a8a29e" }}>{it.displayId}</span>
+                            <span style={{ fontSize: 8, fontFamily: "monospace", textTransform: "uppercase", color: "#78716c" }}>{it.displayId}</span>
                           </div>
                         ))}
                         {pg.tipo === "unica" && (
                           <div style={{ backgroundColor: "#f3f4f3", borderRadius: 3, display: "flex", alignItems: "center", justifyContent: "center", padding: 4 }}>
-                            <span style={{ fontSize: 8, fontFamily: "monospace", textTransform: "uppercase", color: "#a8a29e" }}>{pg.item.displayId}</span>
+                            <span style={{ fontSize: 8, fontFamily: "monospace", textTransform: "uppercase", color: "#78716c" }}>{pg.item.displayId}</span>
                           </div>
                         )}
                       </div>

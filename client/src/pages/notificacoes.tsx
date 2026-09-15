@@ -80,11 +80,11 @@ const rotuloDia = (dia: string) => `${dia.slice(8, 10)}/${dia.slice(5, 7)}`;
 
 export default function Notificacoes() {
   const { toast } = useToast();
-  const { data, isLoading } = useQuery<Retrato>({ queryKey: ["/api/admin/notificacoes"] });
+  const { data, isLoading, isError, refetch } = useQuery<Retrato>({ queryKey: ["/api/admin/notificacoes"] });
   // SAÚDE DOS DADOS (08/09): as contradições que nenhuma tela vê sozinha —
   // foi um par proibido (peça isenta E aguardando patrocinador) que escondeu
   // 12 peças por 11 dias. Roda ao abrir a tela; falha aqui não derruba o resto.
-  const { data: saude, isLoading: saudeCarregando, isError: saudeFalhou } =
+  const { data: saude, isLoading: saudeCarregando, isError: saudeFalhou, refetch: reconferirSaude, isFetching: saudeReconferindo } =
     useQuery<RetratoDaSaude>({ queryKey: ["/api/admin/consistencia"] });
   const [novoEmail, setNovoEmail] = useState<Record<string, string>>({});
 
@@ -98,7 +98,7 @@ export default function Notificacoes() {
       setNovoEmail((p) => ({ ...p, [v.canal]: "" }));
       toast({ title: "Destinatário adicionado", description: v.email });
     },
-    onError: (e: any) => toast({ title: "Não deu para adicionar", description: e.message, variant: "destructive" }),
+    onError: (e: any) => toast({ title: "Não foi possível adicionar o destinatário", description: e.message, variant: "destructive" }),
   });
 
   const remover = useMutation({
@@ -107,7 +107,7 @@ export default function Notificacoes() {
       invalidar();
       toast({ title: "Destinatário removido", description: r?.removido?.email });
     },
-    onError: (e: any) => toast({ title: "Não deu para remover", description: e.message, variant: "destructive" }),
+    onError: (e: any) => toast({ title: "Não foi possível remover o destinatário", description: e.message, variant: "destructive" }),
   });
 
   const disparar = useMutation({
@@ -124,8 +124,24 @@ export default function Notificacoes() {
     onError: (e: any) => toast({ title: "Falha no disparo", description: e.message, variant: "destructive" }),
   });
 
+  // FALHA: antes `isLoading || !data` cobria também o erro, e a tela ficava
+  // para sempre em "Carregando…" — justamente a tela aberta quando "ninguém
+  // recebeu o e-mail". Agora o erro se anuncia e oferece a nova tentativa.
+  if (isError && !data) {
+    return (
+      <div role="alert" style={{ margin: 40, maxWidth: 520, padding: "16px 18px", borderRadius: 10, background: "#fef2f2", border: "1px solid #fecaca" }}>
+        <p style={{ margin: "0 0 4px", fontSize: 14, fontWeight: 800, color: "#b91c1c" }}>Não foi possível carregar o retrato dos avisos</p>
+        <p style={{ margin: "0 0 12px", fontSize: 13, color: "#57534e" }}>Verifique a conexão e tente de novo. Nada foi alterado.</p>
+        <button type="button" onClick={() => refetch()}
+          style={{ height: 32, padding: "0 14px", borderRadius: 8, border: "none", background: "#1c1917", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+          Tentar novamente
+        </button>
+      </div>
+    );
+  }
+
   if (isLoading || !data) {
-    return <p style={{ padding: 40, fontSize: 14, color: "#78716c" }}>Carregando o retrato dos avisos…</p>;
+    return <p role="status" style={{ padding: 40, fontSize: 14, color: "#78716c" }}>Carregando o retrato dos avisos…</p>;
   }
 
   const { chaves, canais, edicoes, agora, horarios } = data;
@@ -151,7 +167,8 @@ export default function Notificacoes() {
   const celula = (aviso: "gestao" | "revisao", dia: string, hora: number) => {
     const e = edicaoDe(aviso, dia, hora, false);
     const jaPassou = dia < agora.dia || (dia === agora.dia && hora <= agora.hora);
-    let texto = "—", bg = "transparent", cor = "#a8a29e", title = "Horário ainda não chegou";
+    // #78716c, não #a8a29e: o traço é texto e o cinza claro reprovava contraste.
+    let texto = "—", bg = "transparent", cor = "#78716c", title = "Horário ainda não chegou";
     if (e) {
       if (e.status === "enviado") { texto = "Enviado"; bg = "#f0fdf4"; cor = "#15803d"; }
       else if (e.status === "vazio") { texto = "Fila vazia"; bg = "#fafaf9"; cor = "#78716c"; }
@@ -228,7 +245,7 @@ export default function Notificacoes() {
                         </span>
                       ))}
                 </div>
-                <p style={{ margin: 0, fontSize: 10.5, color: "#a8a29e" }}>
+                <p style={{ margin: 0, fontSize: 10.5, color: "#78716c" }}>
                   {usandoPadrao
                     ? "Lista padrão do sistema. Ao adicionar o primeiro e-mail, ela é copiada para cá e vira editável."
                     : "Lista editável — é ela que vale, no lugar da padrão."}
@@ -246,6 +263,7 @@ export default function Notificacoes() {
                     value={novoEmail[c.canal] ?? ""}
                     onChange={(e) => setNovoEmail((p) => ({ ...p, [c.canal]: e.target.value }))}
                     placeholder="nome.sobrenome@nortemkt.com"
+                    aria-label={`E-mail para adicionar em ${c.titulo}`}
                     data-testid={`input-destinatario-${c.canal}`}
                     style={{ flex: 1, minWidth: 0, height: 32, padding: "0 10px", borderRadius: 8, border: "1px solid #e7e5e4", fontSize: 12.5, color: "#1c1917", background: "#fff" }}
                   />
@@ -266,16 +284,29 @@ export default function Notificacoes() {
             O que saiu — últimos {DIAS_NA_GRADE} dias
           </p>
           <span style={{ flex: 1 }} />
-          {(["gestao", "revisao"] as const).map((aviso) => (
-            <button key={aviso} type="button"
-              onClick={() => disparar.mutate(aviso)}
-              disabled={disparar.isPending}
-              data-testid={`disparar-${aviso}`}
-              style={{ display: "inline-flex", alignItems: "center", gap: 6, height: 32, padding: "0 12px", borderRadius: 8, border: "1px solid #e7e5e4", background: "#fff", color: "#1c1917", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
-              {disparar.isPending ? <Loader2 className="animate-spin" style={{ width: 12, height: 12 }} /> : <Send style={{ width: 12, height: 12 }} />}
-              {aviso === "gestao" ? "Mandar acompanhamento agora" : "Mandar aviso da revisão agora"}
-            </button>
-          ))}
+          {(["gestao", "revisao"] as const).map((aviso) => {
+            // O giro só no botão clicado: antes os DOIS giravam, e não dava
+            // para saber qual aviso estava saindo.
+            const esteSaindo = disparar.isPending && disparar.variables === aviso;
+            const nome = aviso === "gestao" ? "o acompanhamento" : "o aviso da revisão";
+            const quantos = canais.find((c) => c.canal === aviso)?.emUso.length;
+            return (
+              <button key={aviso} type="button"
+                // CONFIRMAÇÃO: é um e-mail real para a lista inteira, sem
+                // desfazer — e o botão fica a um clique de "Adicionar".
+                onClick={() => {
+                  const para = quantos ? ` para ${quantos} ${quantos === 1 ? "destinatário" : "destinatários"}` : "";
+                  if (window.confirm(`Mandar ${nome} agora${para}?\n\nO e-mail sai na hora e não pode ser recolhido.`)) disparar.mutate(aviso);
+                }}
+                disabled={disparar.isPending}
+                aria-busy={esteSaindo}
+                data-testid={`disparar-${aviso}`}
+                style={{ display: "inline-flex", alignItems: "center", gap: 6, height: 32, padding: "0 12px", borderRadius: 8, border: "1px solid #e7e5e4", background: "#fff", color: "#1c1917", fontSize: 12, fontWeight: 700, cursor: disparar.isPending ? "wait" : "pointer", opacity: disparar.isPending && !esteSaindo ? 0.55 : 1 }}>
+                {esteSaindo ? <Loader2 className="motion-safe:animate-spin" style={{ width: 12, height: 12 }} /> : <Send style={{ width: 12, height: 12 }} />}
+                {esteSaindo ? "Enviando…" : aviso === "gestao" ? "Mandar acompanhamento agora" : "Mandar aviso da revisão agora"}
+              </button>
+            );
+          })}
         </div>
         <div style={{ borderRadius: 10, background: "#fff", border: "1px solid #e7e5e4", overflowX: "auto" }}>
           <table data-testid="grade-de-envios" style={{ width: "100%", borderCollapse: "collapse", minWidth: 760 }}>
@@ -315,7 +346,7 @@ export default function Notificacoes() {
             </tbody>
           </table>
         </div>
-        <p style={{ margin: "8px 0 0", fontSize: 11, color: "#a8a29e", display: "flex", alignItems: "center", gap: 5 }}>
+        <p style={{ margin: "8px 0 0", fontSize: 11, color: "#78716c", display: "flex", alignItems: "center", gap: 5 }}>
           <MinusCircle style={{ width: 11, height: 11 }} />
           "Não rodou" antes de 27/08 pode ser só a versão antiga, que não registrava edição de fila vazia — desde 27/08, toda edição deixa rastro.
         </p>
@@ -338,8 +369,16 @@ export default function Notificacoes() {
         )}
 
         {saudeFalhou && (
-          <div data-testid="saude-falhou" style={{ padding: "12px 14px", borderRadius: 10, background: "#fef2f2", border: "1px solid #fecaca", fontSize: 13, color: "#b91c1c" }}>
-            Não foi possível conferir agora — recarregue a página (F5). Enquanto isso, estas verificações estão sem vigilância.
+          <div data-testid="saude-falhou" role="alert" style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", padding: "12px 14px", borderRadius: 10, background: "#fef2f2", border: "1px solid #fecaca", fontSize: 13, color: "#b91c1c" }}>
+            <span style={{ flex: "1 1 260px" }}>
+              Não foi possível conferir agora. Enquanto isso, estas verificações estão sem vigilância.
+            </span>
+            {/* Nova tentativa aqui mesmo: "recarregue a página (F5)" jogava fora
+                a tela inteira para refazer uma consulta só. */}
+            <button type="button" onClick={() => reconferirSaude()} disabled={saudeReconferindo}
+              style={{ height: 30, padding: "0 12px", borderRadius: 8, border: "1px solid #fecaca", background: "#fff", color: "#b91c1c", fontSize: 12, fontWeight: 700, cursor: saudeReconferindo ? "wait" : "pointer" }}>
+              {saudeReconferindo ? "Conferindo…" : "Conferir de novo"}
+            </button>
           </div>
         )}
 

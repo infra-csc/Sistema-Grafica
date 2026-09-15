@@ -119,7 +119,9 @@ describe("planilha do Kit e filtros (fase 2)", () => {
     const DESTINO = ler("client/src/components/kit/destino-da-importacao.tsx");
     expect(DIALOGO).toContain("onClick={() => { if (importPreviewItems.length > 0) setEscolhendoDestino(true); }}");
     expect(DESTINO).toContain('title="Estas peças são da Arena ou do Kit?"');
-    expect(DESTINO).toContain('bloqueio={somenteKit ? "Usuário do Kit importa só peças do Kit." : undefined}');
+    // O cartão virou função (não remonta e não perde o foco); a regra — o
+    // usuário do Kit não escolhe Arena — é a mesma.
+    expect(DESTINO).toContain('bloqueio: somenteKit ? "Usuário do Kit importa só peças do Kit." : undefined');
     expect(IMPORT).toContain("const criada = await criarRemessa(req, dadosRemessa.data);");
     expect(IMPORT).toContain("kit: lerCabecalhoDoKit(file.buffer)");
     // Nova remessa à mão também pode vir preenchida pelo template (14/09).
@@ -248,7 +250,7 @@ describe("fechamento (15/09): Gráfica sem ações do Kit para a Arena e Revisã
     const REVISAO = ler("client/src/pages/solicitacao.tsx");
     expect(REVISAO).toContain("const key = item.kitRemessaId ? `${item.eventId}#kit-${item.kitRemessaId}` : (item.eventId || \"__none__\");");
     expect(REVISAO).toContain("if (kitA !== kitB) return kitA ? -1 : 1;");
-    expect(REVISAO).toContain('{event.datasDoKit ? "Entrega do material" : "Caminhao"}');
+    expect(REVISAO).toContain('{event.datasDoKit ? "Entrega do material" : "Caminhão"}');
   });
 });
 

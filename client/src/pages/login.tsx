@@ -42,6 +42,16 @@ export default function Login() {
   // Erro de credencial também fica inline (role="alert"): o toast some sozinho
   // e quem digitou errado ficava sem pista do que aconteceu.
   const [loginError, setLoginError] = useState<string | null>(null);
+  // Caps Lock ligado é a causa nº 1 de "senha inválida" que não é senha
+  // inválida — avisar ANTES do envio poupa a tentativa e a frustração.
+  const [capsLock, setCapsLock] = useState(false);
+  const hubUrl = import.meta.env.VITE_HUB_URL as string | undefined;
+
+  // Abriu o acesso de administrador, o cursor já está no e-mail: o clique
+  // no "abrir" é a intenção de digitar.
+  useEffect(() => {
+    if (showAdminForm) document.getElementById("email")?.focus();
+  }, [showAdminForm]);
 
   const [ssoError] = useState(() => {
     const code = new URLSearchParams(search).get("error") ?? "";
@@ -82,13 +92,10 @@ export default function Login() {
       toast({ title: "Login realizado com sucesso", description: `Bem-vindo, ${user.name}!` });
       setTimeout(() => setLocation("/"), 100);
     },
+    // Só inline. O toast repetia a mesma frase no canto da tela, longe do
+    // formulário — dois avisos do mesmo erro, um deles sumindo sozinho.
     onError: (error: any) => {
-      setLoginError(error.message || "Email ou senha inválidos");
-      toast({
-        variant: "destructive",
-        title: "Erro ao fazer login",
-        description: error.message || "Email ou senha inválidos",
-      });
+      setLoginError(error.message || "E-mail ou senha inválidos");
     },
   });
 
@@ -114,6 +121,9 @@ export default function Login() {
           .login-main { flex-direction: column !important; height: auto !important; min-height: 100vh !important; overflow: auto !important; }
           .login-brand-col { display: none !important; }
           .login-form-col { width: 100% !important; padding: 40px 24px !important; }
+          /* O selo absoluto no canto caía POR CIMA do formulário aberto em
+             telas baixas. Empilhado, ele desce para o fim do fluxo. */
+          .login-seal { position: static !important; margin-top: 32px; }
         }
       `}</style>
 
@@ -278,6 +288,19 @@ export default function Login() {
               <p style={{ margin: 0, fontSize: 13, color: "#746e69", lineHeight: 1.5 }}>
                 O acesso ao sistema é feito exclusivamente pelo portal NORTE. Use sua conta Microsoft corporativa para entrar.
               </p>
+              {/* O card mandava ir ao portal e não levava até ele. Só aparece
+                  quando o endereço do portal está configurado — o mesmo
+                  VITE_HUB_URL para onde o "Sair" já devolve. */}
+              {hubUrl && (
+                <a
+                  href={hubUrl}
+                  data-testid="link-portal-norte"
+                  style={{ display: "inline-flex", alignItems: "center", gap: 6, marginTop: 12, minHeight: 36, padding: "0 14px", borderRadius: 8, backgroundColor: "#1c1917", color: "#ffffff", fontSize: 13, fontWeight: 700, textDecoration: "none" }}
+                >
+                  Ir para o portal NORTE
+                  <ArrowRight aria-hidden="true" style={{ width: 14, height: 14 }} />
+                </a>
+              )}
             </div>
           </div>
 
@@ -338,6 +361,8 @@ export default function Login() {
                   autoComplete="username"
                   placeholder="nome@norte.com.br"
                   {...form.register("email")}
+                  aria-invalid={form.formState.errors.email ? true : undefined}
+                  aria-describedby={form.formState.errors.email ? "email-erro" : undefined}
                   data-testid="input-email"
                   style={{
                     width: "100%", height: 48,
@@ -357,8 +382,10 @@ export default function Login() {
                     e.currentTarget.style.boxShadow = "none";
                   }}
                 />
+                {/* #b91c1c: #dc2626 sobre o #f5f5f4 do formulário ficava abaixo
+                    de 4,5:1 num texto de 12px. */}
                 {form.formState.errors.email && (
-                  <p style={{ color: "#dc2626", fontSize: 12, margin: 0 }}>{form.formState.errors.email.message}</p>
+                  <p id="email-erro" style={{ color: "#b91c1c", fontSize: 12, margin: 0 }}>{form.formState.errors.email.message}</p>
                 )}
               </div>
 
@@ -376,6 +403,10 @@ export default function Login() {
                     autoComplete="current-password"
                     placeholder="••••••••••••"
                     {...form.register("password")}
+                    aria-invalid={form.formState.errors.password ? true : undefined}
+                    aria-describedby={[form.formState.errors.password ? "senha-erro" : "", capsLock ? "senha-caps" : ""].filter(Boolean).join(" ") || undefined}
+                    onKeyUp={(e) => setCapsLock(e.getModifierState("CapsLock"))}
+                    onKeyDown={(e) => setCapsLock(e.getModifierState("CapsLock"))}
                     data-testid="input-password"
                     style={{
                       width: "100%", height: 48,
@@ -400,13 +431,19 @@ export default function Login() {
                     onClick={() => setShowPassword(v => !v)}
                     title={showPassword ? "Ocultar senha" : "Mostrar senha"}
                     aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"}
-                    style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "#746e69", padding: 6, display: "flex", alignItems: "center" }}
+                    // 36x36: o alvo era o ícone de 18px com 6 de folga.
+                    style={{ position: "absolute", right: 6, top: "50%", transform: "translateY(-50%)", width: 36, height: 36, borderRadius: 6, background: "none", border: "none", cursor: "pointer", color: "#746e69", padding: 0, display: "flex", alignItems: "center", justifyContent: "center" }}
                   >
-                    {showPassword ? <EyeOff style={{ width: 18, height: 18 }} /> : <Eye style={{ width: 18, height: 18 }} />}
+                    {showPassword ? <EyeOff aria-hidden="true" style={{ width: 18, height: 18 }} /> : <Eye aria-hidden="true" style={{ width: 18, height: 18 }} />}
                   </button>
                 </div>
+                {capsLock && (
+                  <p id="senha-caps" role="status" style={{ color: "#92400e", fontSize: 12, margin: 0, fontWeight: 600 }}>
+                    Caps Lock está ligado.
+                  </p>
+                )}
                 {form.formState.errors.password && (
-                  <p style={{ color: "#dc2626", fontSize: 12, margin: 0 }}>{form.formState.errors.password.message}</p>
+                  <p id="senha-erro" style={{ color: "#b91c1c", fontSize: 12, margin: 0 }}>{form.formState.errors.password.message}</p>
                 )}
               </div>
 
@@ -458,15 +495,18 @@ export default function Login() {
         </div>
 
         {/* Security seal */}
-        <footer style={{
+        {/* "SSL 256-bit" era jargão de selo de template — promessa técnica
+            que ninguém confere e que não é deste sistema garantir. Fica o
+            fato que importa a quem digita a senha. */}
+        <footer className="login-seal" style={{
           position: "absolute", bottom: 48, right: 48,
           display: "flex", alignItems: "center", gap: 6,
         }}>
-          <Lock style={{ width: 13, height: 13, color: "#746e69" }} />
+          <Lock aria-hidden="true" style={{ width: 13, height: 13, color: "#746e69" }} />
           <span style={{
             fontSize: 10, fontWeight: 700,
             textTransform: "uppercase", letterSpacing: "0.1em", color: "#746e69",
-          }}>Conexão Segura SSL 256-bit</span>
+          }}>Conexão segura</span>
         </footer>
       </section>
     </main>

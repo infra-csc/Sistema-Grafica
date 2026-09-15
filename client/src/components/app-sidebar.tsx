@@ -4,7 +4,7 @@ import {
   Link2, LogOut, Loader2, ScrollText, Archive, ScanSearch, Compass, Settings2, Camera, Wand2,
   Timer, GitBranch, Bell, Inbox,
 } from "lucide-react";
-import { useId, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useLocation } from "wouter";
 import { roleLabel, userInitials } from "@/lib/utils";
@@ -24,6 +24,7 @@ import {
   SidebarMenuButton,
   SidebarFooter,
   SidebarRail,
+  useSidebar,
 } from "@/components/ui/sidebar";
 
 type MenuItem = {
@@ -261,6 +262,13 @@ export function AppSidebar() {
   // Mesmo fluxo do menu do avatar (App.tsx) — hook compartilhado.
   const logoutMutation = useLogout();
   const isMobileCasca = useIsMobile();
+
+  // NO CELULAR O MENU FECHA AO ESCOLHER. A sidebar vira um Sheet por cima da
+  // tela; tocar num item trocava a página POR BAIXO dele e o menu continuava
+  // aberto, cobrindo justamente o destino. Eram dois toques para cada
+  // navegação, e o segundo (fechar) não tinha nada a ver com a intenção.
+  const { setOpenMobile } = useSidebar();
+  useEffect(() => { setOpenMobile(false); }, [location, setOpenMobile]);
 
   // 19 itens nao cabem numa tela de 768: a lista rola, e a barra fica sempre
   // com a mesma largura para nada se mover quando o ponteiro entra — o que

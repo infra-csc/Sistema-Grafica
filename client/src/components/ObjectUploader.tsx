@@ -91,6 +91,9 @@ export function ObjectUploader({
         variant={buttonVariant}
         type="button"
         disabled={isUploading}
+        // Mesmo motivo do FileUploader: desabilitado durante o envio precisa
+        // dizer que está OCUPADO, não só indisponível.
+        aria-busy={isUploading || undefined}
         data-testid="button-upload-photo"
       >
         {isUploading ? (

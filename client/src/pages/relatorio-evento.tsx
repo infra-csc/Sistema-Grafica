@@ -52,12 +52,14 @@ export default function RelatorioEvento() {
   });
 
   if (isLoading) {
-    return <p style={{ padding: 40, fontSize: 14, color: "#78716c" }}>Montando o relatório…</p>;
+    // role="status": quem usa leitor de tela ouve que a página está montando,
+    // em vez de silêncio até o documento aparecer.
+    return <p role="status" style={{ padding: 40, fontSize: 14, color: "#78716c" }}>Montando o relatório…</p>;
   }
   if (isError || !r) {
     return (
       <div style={{ padding: 40 }}>
-        <p style={{ fontSize: 14, color: "#b91c1c" }}>Não foi possível montar o relatório.</p>
+        <p role="alert" style={{ fontSize: 14, color: "#b91c1c" }}>Não foi possível montar o relatório.</p>
         <button onClick={() => refetch()} style={{ marginTop: 10, height: 36, padding: "0 14px", borderRadius: 8, border: "1px solid #e7e5e4", background: "#fff", cursor: "pointer", font: "inherit", fontSize: 13 }}>Tentar de novo</button>
       </div>
     );
@@ -140,7 +142,10 @@ export default function RelatorioEvento() {
                       <td style={{ padding: "6px 8px", borderBottom: "1px solid #f0efee", color: tom.cor, fontWeight: 700 }}>
                         {tom.texto}{s.state === "overdue" && s.diffDays != null ? ` há ${Math.abs(s.diffDays)}d` : ""}
                       </td>
-                      <td style={{ padding: "6px 8px", borderBottom: "1px solid #f0efee", textAlign: "right", fontVariantNumeric: "tabular-nums", color: s.pendingCount > 0 ? "#1c1917" : "#a8a29e", fontWeight: s.pendingCount > 0 ? 700 : 400 }}>{s.pendingCount}</td>
+                      {/* Zero fica em #78716c (4,8:1), e não no #a8a29e de antes:
+                          o peso 400 contra 700 já rebaixa o zero — clarear
+                          além disso some com ele na impressão a laser. */}
+                      <td style={{ padding: "6px 8px", borderBottom: "1px solid #f0efee", textAlign: "right", fontVariantNumeric: "tabular-nums", color: s.pendingCount > 0 ? "#1c1917" : "#78716c", fontWeight: s.pendingCount > 0 ? 700 : 400 }}>{s.pendingCount}</td>
                     </tr>
                   );
                 })}
@@ -195,8 +200,8 @@ export default function RelatorioEvento() {
                 {r.aprovacoes.map((a) => (
                   <tr key={a.nome}>
                     <td style={{ padding: "6px 8px", borderBottom: "1px solid #f0efee", fontWeight: 600, color: "#1c1917" }}>{a.nome}</td>
-                    <td style={{ padding: "6px 8px", borderBottom: "1px solid #f0efee", textAlign: "right", fontVariantNumeric: "tabular-nums", color: a.comPatrocinador ? "#b45309" : "#a8a29e", fontWeight: a.comPatrocinador ? 700 : 400 }}>{a.comPatrocinador}</td>
-                    <td style={{ padding: "6px 8px", borderBottom: "1px solid #f0efee", textAlign: "right", fontVariantNumeric: "tabular-nums", color: a.comArte ? "#44403c" : "#a8a29e" }}>{a.comArte}</td>
+                    <td style={{ padding: "6px 8px", borderBottom: "1px solid #f0efee", textAlign: "right", fontVariantNumeric: "tabular-nums", color: a.comPatrocinador ? "#b45309" : "#78716c", fontWeight: a.comPatrocinador ? 700 : 400 }}>{a.comPatrocinador}</td>
+                    <td style={{ padding: "6px 8px", borderBottom: "1px solid #f0efee", textAlign: "right", fontVariantNumeric: "tabular-nums", color: a.comArte ? "#44403c" : "#78716c" }}>{a.comArte}</td>
                   </tr>
                 ))}
               </tbody>

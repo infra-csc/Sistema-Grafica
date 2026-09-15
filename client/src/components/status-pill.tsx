@@ -15,8 +15,10 @@ interface StatusPillProps {
 export function StatusPill({ status, size = "md", showDot = true }: StatusPillProps) {
   const cfg = getStatusMeta(status);
   const sm = size === "sm";
+  // A pílula só mostra o rótulo CURTO; o title devolve o nome inteiro do
+  // status a quem precisa confirmar ("Aguard." de quê?).
   return (
-    <span style={{
+    <span title={cfg.label} style={{
       display: "inline-flex", alignItems: "center", gap: showDot ? 6 : 0,
       padding: "3px 10px",
       backgroundColor: cfg.bg,
@@ -28,7 +30,7 @@ export function StatusPill({ status, size = "md", showDot = true }: StatusPillPr
       ...(sm ? { textTransform: "uppercase" as const, letterSpacing: "0.05em" } : {}),
       whiteSpace: "nowrap",
     }}>
-      {showDot && <span style={{ width: 6, height: 6, borderRadius: "50%", backgroundColor: cfg.dot, flexShrink: 0 }} />}
+      {showDot && <span aria-hidden="true" style={{ width: 6, height: 6, borderRadius: "50%", backgroundColor: cfg.dot, flexShrink: 0 }} />}
       {cfg.short}
     </span>
   );

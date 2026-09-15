@@ -265,18 +265,20 @@ export default function Modelos() {
   const createCatalogOptionMutation = useMutation({
     mutationFn: async ({ kind, value }: { kind: string; value: string }) =>
       await apiRequest("POST", "/api/catalog-options", { kind, value }),
-    onSuccess: () => {
+    // Títulos de erro dizem O QUE falhou: um "Erro" solto, no modal de
+    // categorias com três abas, não dizia nem em qual delas.
+    onSuccess: (_r, vars) => {
       queryClient.invalidateQueries({ queryKey: ["/api/catalog-options"] });
-      toast({ title: "Adicionado", description: "Opção cadastrada com sucesso" });
+      toast({ title: "Opção adicionada", description: `"${vars.value}" já aparece nos formulários de modelo.` });
     },
-    onError: (error: Error) => toast({ title: "Erro", description: error.message, variant: "destructive" }),
+    onError: (error: Error) => toast({ title: "Não foi possível adicionar a opção", description: error.message, variant: "destructive" }),
   });
 
   const deleteCatalogOptionMutation = useMutation({
     mutationFn: async ({ kind, value }: { kind: string; value: string }) =>
       await apiRequest("DELETE", "/api/catalog-options", { kind, value }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/catalog-options"] }),
-    onError: (error: Error) => toast({ title: "Erro", description: error.message, variant: "destructive" }),
+    onError: (error: Error) => toast({ title: "Não foi possível remover a opção do catálogo", description: error.message, variant: "destructive" }),
   });
 
   const [newCatValue, setNewCatValue] = useState("");
@@ -292,7 +294,7 @@ export default function Modelos() {
       toast({ title: "Grupo renomeado", description: `"${vars.oldName}" → "${vars.newName}"` });
     },
     onError: (error: Error) => {
-      toast({ title: "Erro", description: error.message, variant: "destructive" });
+      toast({ title: "Não foi possível renomear o grupo", description: error.message, variant: "destructive" });
     },
   });
 
@@ -309,7 +311,7 @@ export default function Modelos() {
       setMgDeleteGroupConfirm(null);
     },
     onError: (error: Error) => {
-      toast({ title: "Erro", description: error.message, variant: "destructive" });
+      toast({ title: "Não foi possível remover o grupo", description: error.message, variant: "destructive" });
     },
   });
 
@@ -324,7 +326,7 @@ export default function Modelos() {
       toast({ title: "Acabamento renomeado", description: `"${vars.oldName}" → "${vars.newName}"` });
     },
     onError: (error: Error) => {
-      toast({ title: "Erro", description: error.message, variant: "destructive" });
+      toast({ title: "Não foi possível renomear o acabamento", description: error.message, variant: "destructive" });
     },
   });
 
@@ -338,7 +340,7 @@ export default function Modelos() {
       // Toast de sucesso com o chamador, após o encadeado (ver deleteGroupMutation).
     },
     onError: (error: Error) => {
-      toast({ title: "Erro", description: error.message, variant: "destructive" });
+      toast({ title: "Não foi possível remover o acabamento", description: error.message, variant: "destructive" });
     },
   });
 
@@ -353,7 +355,7 @@ export default function Modelos() {
       toast({ title: "Material renomeado", description: `"${vars.oldName}" → "${vars.newName}"` });
     },
     onError: (error: Error) => {
-      toast({ title: "Erro", description: error.message, variant: "destructive" });
+      toast({ title: "Não foi possível renomear o material", description: error.message, variant: "destructive" });
     },
   });
 
@@ -367,7 +369,7 @@ export default function Modelos() {
       // Toast de sucesso com o chamador, após o encadeado (ver deleteGroupMutation).
     },
     onError: (error: Error) => {
-      toast({ title: "Erro", description: error.message, variant: "destructive" });
+      toast({ title: "Não foi possível remover o material", description: error.message, variant: "destructive" });
     },
   });
 
@@ -386,11 +388,13 @@ export default function Modelos() {
       setDuplicando(false); setArqTocado(false); setCienteDoCorte(false);
       toast({
         title: editingItem ? "Modelo atualizado" : "Modelo criado",
-        description: editingItem ? "O modelo foi atualizado com sucesso" : "O modelo foi criado com sucesso",
+        description: `"${formData.name}" ${editingItem ? "foi atualizado" : "já está no catálogo"}.`,
       });
     },
     onError: (error: Error) => {
-      toast({ title: "Erro", description: error.message, variant: "destructive" });
+      // O modal continua aberto com tudo o que foi digitado — o título diz
+      // que nada se perdeu e que dá para tentar de novo dali mesmo.
+      toast({ title: editingItem ? "Não foi possível salvar o modelo" : "Não foi possível criar o modelo", description: error.message, variant: "destructive" });
     },
   });
 
@@ -398,8 +402,9 @@ export default function Modelos() {
     mutationFn: async (id: string) => await apiRequest("DELETE", `/api/standard-items/${id}`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/standard-items"] });
+      const nome = deleteConfirm?.name;
       setDeleteConfirm(null);
-      toast({ title: "Modelo excluído", description: "O modelo foi excluído com sucesso" });
+      toast({ title: "Modelo excluído", description: nome ? `"${nome}" saiu do catálogo.` : undefined });
     },
     onError: (error: Error) => {
       toast({ title: "Erro ao excluir modelo", description: error.message, variant: "destructive" });
@@ -494,6 +499,28 @@ export default function Modelos() {
     setArqTocado(false); setCienteDoCorte(false);
   };
 
+  // GUARDA DE DESCARTE — o mesmo contrato de Usuários e Patrocinadores. Este é
+  // o formulário mais longo dos cadastros (até 11 campos), e um Esc ou clique
+  // fora do modal jogava tudo fora sem perguntar. A "foto" do formulário é
+  // tirada ao abrir (criar, editar ou duplicar); só pergunta se algo mudou.
+  const formInicialRef = useRef(JSON.stringify(EMPTY_FORM));
+  useEffect(() => {
+    if (open) formInicialRef.current = JSON.stringify(formData);
+    // Só na ABERTURA: a foto é o ponto de partida, não o estado corrente.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+  const requestCloseDialog = () => {
+    if (JSON.stringify(formData) !== formInicialRef.current && !window.confirm("Descartar as alterações deste modelo?")) return;
+    handleCloseDialog();
+  };
+
+  // Uma porta só para "Novo Modelo": o botão do vazio abria o modal SEM zerar
+  // o formulário e podia herdar o rascunho de uma edição anterior.
+  const openCreate = () => {
+    setEditingItem(null); setFormData({ ...EMPTY_FORM }); setDuplicando(false);
+    setArqTocado(false); setCienteDoCorte(false); setOpen(true);
+  };
+
   // Opções de catálogo cadastradas avulsas (material/acabamento/grupo)
   const catMats = catalogOptions.filter(o => o.kind === "material").map(o => o.value);
   const catFinishes = catalogOptions.filter(o => o.kind === "finish").map(o => o.value);
@@ -580,11 +607,15 @@ export default function Modelos() {
           </p>
         </div>
 
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        {/* flexWrap: no celular a busca ocupa 100% e empurrava "Gerenciar" e
+            "Novo Modelo" para fora da tela. */}
+        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", width: isMobile ? "100%" : undefined }}>
           {/* Search */}
-          <div style={{ position: "relative" }}>
-            <Search style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", width: 16, height: 16, color: "#f97316" }} />
+          <div style={{ position: "relative", flex: isMobile ? "1 1 100%" : undefined }}>
+            <Search aria-hidden="true" style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", width: 16, height: 16, color: "#c2410c" }} />
             <input
+              type="search"
+              aria-label="Buscar modelos por nome, tipo ou grupo"
               placeholder="Buscar modelos..."
               value={searchTerm}
               onChange={(e) => { setSearchTerm(e.target.value); setPage(1); }}
@@ -608,7 +639,7 @@ export default function Modelos() {
           {/* New Model Button */}
           <button
             data-testid="button-new-model"
-            onClick={() => { setEditingItem(null); setFormData({ ...EMPTY_FORM }); setDuplicando(false); setArqTocado(false); setCienteDoCorte(false); setOpen(true); }}
+            onClick={openCreate}
             style={{ display: "flex", alignItems: "center", gap: 6, backgroundColor: "#1c1917", color: "#ffffff", border: "none", borderRadius: 12, padding: "0 18px", height: 40, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "'Space Grotesk', sans-serif" }}
             onMouseEnter={e => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = "#000000")}
             onMouseLeave={e => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = "#1c1917")}
@@ -665,8 +696,11 @@ export default function Modelos() {
 
       {/* ── Table Card ── */}
       {isLoading ? (
-        <div style={{ display: "flex", justifyContent: "center", padding: "64px 0" }}>
-          <div style={{ width: 32, height: 32, border: "3px solid #e7e5e4", borderTopColor: "#f97316", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
+        <div role="status" aria-label="Carregando modelos" style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, padding: "64px 0" }}>
+          {/* motion-safe: com "reduzir movimento" o anel fica parado e o texto
+              abaixo carrega sozinho a informação. */}
+          <div className="motion-safe:animate-spin" style={{ width: 32, height: 32, border: "3px solid #e7e5e4", borderTopColor: "#f97316", borderRadius: "50%" }} />
+          <span style={{ fontSize: 13, color: "#746e69" }}>Carregando modelos…</span>
         </div>
       ) : isError ? (
         <div style={{ backgroundColor: "#ffffff", borderRadius: 12, padding: "64px 32px", textAlign: "center", boxShadow: "0 4px 20px rgba(0,0,0,0.04)" }}>
@@ -683,7 +717,7 @@ export default function Modelos() {
           <Layers style={{ width: 40, height: 40, color: "#d4d0cc", margin: "0 auto 14px" }} />
           <p style={{ fontSize: 15, fontWeight: 600, color: "#1c1917", margin: "0 0 6px" }}>Nenhum modelo criado</p>
           <p style={{ fontSize: 13, color: "#746e69", margin: "0 0 20px" }}>Crie modelos para reutilizar configurações de itens</p>
-          <button onClick={() => setOpen(true)}
+          <button onClick={openCreate}
             style={{ backgroundColor: "#1c1917", color: "#ffffff", border: "none", borderRadius: 12, padding: "9px 20px", fontSize: 13, fontWeight: 600, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6 }}>
             <Plus style={{ width: 14, height: 14 }} /> Criar Primeiro Modelo
           </button>
@@ -700,17 +734,14 @@ export default function Modelos() {
               <div>
                 <span style={{ fontSize: 13, fontWeight: 700, color: "#1c1917", display: "block" }}>
                   {filteredItems.length} modelo{filteredItems.length !== 1 ? "s" : ""}
-                  {searchTerm && <span style={{ color: "#746e69", fontWeight: 400 }}> — filtrado de {standardItems.length}</span>}
+                  {/* "filtrado de" valia só para a busca: com um filtro de
+                      Grupo ativo, "3 modelos · Total no Catálogo" lia como se
+                      o catálogo inteiro tivesse 3. */}
+                  {(searchTerm || activeFilters > 0) && <span style={{ color: "#746e69", fontWeight: 400 }}> — filtrado de {standardItems.length}</span>}
                 </span>
-                <span style={{ fontSize: 10, fontWeight: 700, color: "#746e69", textTransform: "uppercase", letterSpacing: "0.08em" }}>Total no Catálogo</span>
+                <span style={{ fontSize: 10, fontWeight: 700, color: "#746e69", textTransform: "uppercase", letterSpacing: "0.08em" }}>{searchTerm || activeFilters > 0 ? "Recorte atual" : "Total no Catálogo"}</span>
               </div>
             </div>
-            {filteredItems.length === 0 && searchTerm && (
-              <button onClick={() => setSearchTerm("")}
-                style={{ fontSize: 13, color: "#746e69", background: "none", border: "1px solid #e7e5e4", borderRadius: 6, padding: "5px 12px", cursor: "pointer" }}>
-                Limpar busca
-              </button>
-            )}
           </div>
 
           {filteredItems.length === 0 ? (
@@ -724,13 +755,14 @@ export default function Modelos() {
                   ? "Tente buscar com outro termo"
                   : "Nenhum modelo encontrado com os filtros atuais"}
               </p>
-              {activeFilters > 0 && (
-                <button
-                  onClick={() => { setFilterGroup(""); setFilterType(""); setFilterMaterial(""); setFilterFinish(""); }}
-                  style={{ fontSize: 13, fontWeight: 600, color: "#746e69", background: "none", border: "1px solid #e7e5e4", borderRadius: 8, padding: "6px 14px", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 5 }}>
-                  <X style={{ width: 11, height: 11 }} /> Limpar filtros
-                </button>
-              )}
+              {/* Uma saída só: antes havia "Limpar busca" lá no topo do card e
+                  "Limpar filtros" aqui, cada um desfazendo metade do recorte —
+                  e nenhum voltava a paginação para a página 1. */}
+              <button
+                onClick={() => { setSearchTerm(""); setFilterGroup(""); setFilterType(""); setFilterMaterial(""); setFilterFinish(""); setPage(1); }}
+                style={{ fontSize: 13, fontWeight: 600, color: "#57534e", background: "none", border: "1px solid #d6d3d1", borderRadius: 8, padding: "6px 14px", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 5 }}>
+                <X style={{ width: 11, height: 11 }} /> {searchTerm && activeFilters > 0 ? "Limpar busca e filtros" : searchTerm ? "Limpar busca" : "Limpar filtros"}
+              </button>
             </div>
           ) : (
             <div className="scrollbar-visible" style={{ overflowX: "auto" }}>
@@ -942,7 +974,7 @@ export default function Modelos() {
       )}
 
       {/* ── Modal Criar / Editar ── */}
-      <Dialog open={open} onOpenChange={open => { if (!open) handleCloseDialog(); }}>
+      <Dialog open={open} onOpenChange={open => { if (!open) requestCloseDialog(); }}>
         <DialogContent style={{ padding: 0, gap: 0, maxWidth: 640, borderRadius: 16, overflow: "hidden", backgroundColor: "#ffffff", display: "flex", flexDirection: "column", maxHeight: "90vh" }}>
           {/* POR QUE congelar aqui: este é o modal com MAIS primitivas do Radix
               do app — 4 Popover + 4 Command (com CommandInput/List/Empty/Group
@@ -1316,7 +1348,12 @@ export default function Modelos() {
 
               {/* Material */}
               <div>
-                <label htmlFor="model-material" style={labelStyle}>Material Base</label>
+                {/* "(opcional)" como em Tipo e Grupo: os quatro campos vão
+                    nulos quando vazios, e só dois deles diziam isso. */}
+                <label htmlFor="model-material" style={labelStyle}>
+                  Material Base{" "}
+                  <span style={{ fontWeight: 400, color: "#746e69", textTransform: "none", letterSpacing: 0 }}>(opcional)</span>
+                </label>
                 <Popover open={materialPopoverOpen} onOpenChange={open => { setMaterialPopoverOpen(open); if (!open) setCustomMaterialInput(""); }}>
                   <PopoverTrigger asChild>
                     <button type="button" id="model-material" data-testid="input-model-material"
@@ -1371,8 +1408,9 @@ export default function Modelos() {
                           <CommandGroup heading="Novo">
                             <CommandItem value={`__new__${customMaterialInput}`}
                               onSelect={() => { setFormData({ ...formData, material: customMaterialInput }); setCustomMaterialInput(""); setMaterialPopoverOpen(false); }}>
-                              <Plus style={{ width: 14, height: 14, marginRight: 8, color: "#ea580c" }} />
-                              <span style={{ fontSize: 13, color: "#ea580c", fontWeight: 600 }}>Criar "{customMaterialInput}"</span>
+                              {/* #c2410c: o #ea580c anterior dava 3,6:1 no texto. */}
+                              <Plus style={{ width: 14, height: 14, marginRight: 8, color: "#c2410c" }} />
+                              <span style={{ fontSize: 13, color: "#c2410c", fontWeight: 600 }}>Criar "{customMaterialInput}"</span>
                             </CommandItem>
                           </CommandGroup>
                         )}
@@ -1391,7 +1429,10 @@ export default function Modelos() {
 
               {/* Acabamento */}
               <div>
-                <label htmlFor="model-finish" style={labelStyle}>Acabamento</label>
+                <label htmlFor="model-finish" style={labelStyle}>
+                  Acabamento{" "}
+                  <span style={{ fontWeight: 400, color: "#746e69", textTransform: "none", letterSpacing: 0 }}>(opcional)</span>
+                </label>
                 <Popover open={finishPopoverOpen} onOpenChange={open => { setFinishPopoverOpen(open); if (!open) setCustomFinishInput(""); }}>
                   <PopoverTrigger asChild>
                     <button type="button" id="model-finish" data-testid="input-model-finish"
@@ -1468,7 +1509,7 @@ export default function Modelos() {
 
             {/* Footer */}
             <div style={{ padding: "20px 32px", backgroundColor: "rgba(243,244,243,0.5)", borderTop: "1px solid #f5f4f0", display: "flex", justifyContent: "flex-end", gap: 10 }}>
-              <button type="button" onClick={handleCloseDialog}
+              <button type="button" onClick={requestCloseDialog}
                 style={{ padding: "10px 20px", backgroundColor: "transparent", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 700, color: "#746e69", cursor: "pointer" }}
                 onMouseEnter={e => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = "#e7e5e4")}
                 onMouseLeave={e => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent")}
@@ -1514,6 +1555,7 @@ export default function Modelos() {
                   <p style={{ margin: "4px 0 0", fontSize: 13, color: "#746e69" }}>Renomeie ou remova categorias dos modelos em lote</p>
                 </div>
                 <button onClick={() => { setManageOpen(false); setMgEditingGroup(null); setMgEditingFinish(null); setMgEditingMaterial(null); setMgDeleteGroupConfirm(null); setMgDeleteFinishConfirm(null); setMgDeleteMaterialConfirm(null); }}
+                  aria-label="Fechar gerenciamento de categorias"
                   style={{ width: 34, height: 34, borderRadius: 12, border: "1px solid #e7e5e4", background: "#fafaf9", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#746e69", flexShrink: 0, marginTop: 2 }}>
                   <X style={{ width: 15, height: 15 }} />
                 </button>
@@ -1527,13 +1569,13 @@ export default function Modelos() {
                   { key: "finish",   label: "Acabamento", color: "#065f46", bg: "#d1fae5", count: allFinishes.length },
                 ];
                 return (
-                  <div style={{ display: "flex", gap: 4, borderBottom: "1px solid #f0efec" }}>
+                  <div role="tablist" aria-label="Tipo de categoria" style={{ display: "flex", gap: 4, borderBottom: "1px solid #f0efec" }}>
                     {/* Aba inativa em #746e69 (não #a8a29e): é texto acionável,
                         precisa do piso 4.5:1 — o cinza decorativo reprovava.
                         newCatValue zera na troca: o rascunho digitado numa aba
                         não pode virar cadastro acidental em outra. */}
                     {tabs.map(t => (
-                      <button key={t.key} onClick={() => { setManageTab(t.key); setNewCatValue(""); setMgEditingGroup(null); setMgEditingFinish(null); setMgEditingMaterial(null); setMgDeleteGroupConfirm(null); setMgDeleteFinishConfirm(null); setMgDeleteMaterialConfirm(null); }}
+                      <button key={t.key} role="tab" aria-selected={manageTab === t.key} onClick={() => { setManageTab(t.key); setNewCatValue(""); setMgEditingGroup(null); setMgEditingFinish(null); setMgEditingMaterial(null); setMgDeleteGroupConfirm(null); setMgDeleteFinishConfirm(null); setMgDeleteMaterialConfirm(null); }}
                         style={{ display: "flex", alignItems: "center", gap: 7, padding: "10px 16px", border: "none", borderRadius: "8px 8px 0 0", cursor: "pointer", fontSize: 13, fontWeight: manageTab === t.key ? 700 : 500, transition: "all 0.15s",
                           backgroundColor: manageTab === t.key ? "#ffffff" : "transparent",
                           color: manageTab === t.key ? t.color : "#746e69",
@@ -1670,6 +1712,18 @@ export default function Modelos() {
               Tem certeza que deseja excluir o modelo <strong style={{ color: "#1c1917" }}>{deleteConfirm?.name}</strong>?
               <br /><br />Esta ação não pode ser desfeita.
             </AlertDialogDescription>
+            {/* O IMPACTO, que a coluna Uso já sabia: a pergunta "posso
+                excluir?" é respondida aqui, não num tooltip da tabela. */}
+            {deleteConfirm && (() => {
+              const exato = deleteConfirm.uso?.exato ?? 0;
+              return (
+                <p data-testid="delete-model-impacto" style={{ margin: "4px 0 0", padding: "9px 12px", borderRadius: 8, fontSize: 12, lineHeight: 1.5, backgroundColor: "#f5f4f0", border: "1px solid #e7e5e4", color: "#57534e" }}>
+                  {exato > 0
+                    ? `${exato} ${exato === 1 ? "peça foi criada" : "peças foram criadas"} a partir dele — ${exato === 1 ? "ela continua" : "elas continuam"} como estão.`
+                    : "Nenhuma peça foi criada a partir dele."}
+                </p>
+              );
+            })()}
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel style={{ borderColor: "#e7e5e4", color: "#44403c" }}>Cancelar</AlertDialogCancel>
@@ -1680,7 +1734,7 @@ export default function Modelos() {
               data-testid="button-confirm-delete-model"
             >
               <Trash2 style={{ width: 14, height: 14, marginRight: 6 }} />
-              Excluir
+              Excluir modelo
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

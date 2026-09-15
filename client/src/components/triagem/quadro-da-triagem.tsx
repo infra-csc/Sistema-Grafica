@@ -46,7 +46,9 @@ export function corpoDaTriagem(destino: Exclude<DestinoDaTriagem, "triar">, cond
 
 const ehImagem = (u?: string | null) => !!u && (/\.(png|jpe?g|gif|webp)/i.test(u) || u.startsWith("/objects/"));
 
-function CartaoDaPeca({ ativo, reserva, selecionada, fantasma, podeArrastar, noGalpao, condicao, onCondicao, onAlternar, onArrastar, onSoltar }: {
+function CartaoDaPeca({ ativo, reserva, selecionada, fantasma, podeArrastar, noGalpao, condicao, onCondicao, onAlternar, onArrastar, onSoltar, alvo = 28 }: {
+  /** Altura dos botões Perfeito/Avaria leve — 44 no celular (toque). */
+  alvo?: number;
   ativo: EnrichedAsset;
   reserva: ReservaDaTriagem | undefined;
   selecionada: boolean;
@@ -108,7 +110,7 @@ function CartaoDaPeca({ ativo, reserva, selecionada, fantasma, podeArrastar, noG
             return (
               <button key={valor} type="button" role="radio" aria-checked={ativa} data-testid={`condicao-${valor}-${ativo.id}`}
                 onClick={() => onCondicao(valor)}
-                style={{ flex: 1, height: 28, borderRadius: 7, fontSize: 11, fontWeight: 800, cursor: "pointer", border: `1px solid ${ativa ? (valor === "PERFEITO" ? "#15803d" : "#b45309") : "#e2e8f0"}`, background: ativa ? (valor === "PERFEITO" ? "#f0fdf4" : "#fffbeb") : "#fff", color: ativa ? (valor === "PERFEITO" ? "#15803d" : "#b45309") : "#475569" }}>
+                style={{ flex: 1, height: alvo, borderRadius: 7, fontSize: 11, fontWeight: 800, cursor: "pointer", border: `1px solid ${ativa ? (valor === "PERFEITO" ? "#15803d" : "#b45309") : "#e2e8f0"}`, background: ativa ? (valor === "PERFEITO" ? "#f0fdf4" : "#fffbeb") : "#fff", color: ativa ? (valor === "PERFEITO" ? "#15803d" : "#b45309") : "#475569" }}>
                 {rotulo}
               </button>
             );
@@ -194,13 +196,20 @@ export function QuadroDaTriagem({ evento, ativos, reservaPorAtivo, onVoltar, onT
 
   const alvo = isMobile ? 44 : 38;
 
-  const Coluna = ({ destino }: { destino: DestinoDaTriagem }) => {
+  // FUNÇÃO DE RENDER, não componente. Era `const Coluna = (...) => <section>`
+  // usado como <Coluna/>: um componente declarado DENTRO do render ganha
+  // identidade nova a cada render, o React desmonta e remonta a coluna inteira
+  // — e o campo "Local no galpão" perdia o foco a CADA tecla (digitar
+  // "Setor A" exigia seis toques no campo). Chamada como função, a árvore é a
+  // mesma entre renders e o input continua focado.
+  const coluna = (destino: DestinoDaTriagem) => {
     const meta = COLUNAS[destino];
     const pecas = naColuna(destino);
     const destacada = sobre === destino && !!arrastando;
     const campoDeLocal = destino === "galpao" || destino === "manutencao" ? destino : null;
     return (
       <section
+        key={destino}
         aria-label={meta.titulo}
         data-testid={`coluna-triagem-${destino}`}
         onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; if (sobre !== destino) setSobre(destino); }}
@@ -240,10 +249,10 @@ export function QuadroDaTriagem({ evento, ativos, reservaPorAtivo, onVoltar, onT
               placeholder={destino === "galpao" ? "Local no galpão *" : "Local (opcional)"}
               value={local[campoDeLocal]}
               onChange={(e) => setLocal((l) => ({ ...l, [campoDeLocal]: e.target.value }))}
-              style={{ flex: 1, minWidth: 0, height: 34, padding: "0 10px", borderRadius: 8, fontSize: 12, outline: "none", border: `1px solid ${destino === "galpao" && faltaLocal ? "#fca5a5" : "#e2e8f0"}`, background: destino === "galpao" && faltaLocal ? "#fff7f7" : "#fff" }}
+              style={{ flex: 1, minWidth: 0, height: alvo, padding: "0 10px", borderRadius: 8, fontSize: 12, outline: "none", border: `1px solid ${destino === "galpao" && faltaLocal ? "#fca5a5" : "#e2e8f0"}`, background: destino === "galpao" && faltaLocal ? "#fff7f7" : "#fff" }}
             />
             <button type="button" aria-label="Abrir mapa do galpão" title="Abrir mapa do galpão" onClick={() => setMapaDe(campoDeLocal)}
-              style={{ width: 34, height: 34, borderRadius: 8, border: "1px solid #e2e8f0", background: "#fff", color: "#c2610c", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+              style={{ width: alvo, height: alvo, borderRadius: 8, border: "1px solid #e2e8f0", background: "#fff", color: "#c2610c", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
               <Grid3X3 size={14} />
             </button>
           </div>
@@ -263,6 +272,7 @@ export function QuadroDaTriagem({ evento, ativos, reservaPorAtivo, onVoltar, onT
               fantasma={!!arrastando?.includes(a.id)}
               podeArrastar={!isMobile}
               noGalpao={destino === "galpao"}
+              alvo={isMobile ? 44 : 30}
               condicao={condicoes[a.id] ?? "PERFEITO"}
               onCondicao={(c) => setCondicoes((prev) => ({ ...prev, [a.id]: c }))}
               onAlternar={() => alternar(a.id)}
@@ -314,8 +324,8 @@ export function QuadroDaTriagem({ evento, ativos, reservaPorAtivo, onVoltar, onT
       )}
 
       <div style={{ display: "grid", gap: 12, alignItems: "start", gridTemplateColumns: isMobile ? "minmax(0, 1fr)" : "minmax(0, 1.25fr) repeat(3, minmax(0, 1fr))" }}>
-        <Coluna destino="triar" />
-        {DESTINOS.map((d) => <Coluna key={d} destino={d} />)}
+        {coluna("triar")}
+        {DESTINOS.map((d) => coluna(d))}
       </div>
 
       {selecionadas.size > 0 && (

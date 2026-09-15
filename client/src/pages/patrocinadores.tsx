@@ -110,12 +110,13 @@ export default function Patrocinadores() {
       const res = await apiRequest("POST", "/api/sponsors", data);
       return res.json();
     },
-    onSuccess: () => {
+    // Nome no toast: com o modal já fechado, é a confirmação de QUAL cadastro saiu.
+    onSuccess: (_r, vars) => {
       queryClient.invalidateQueries({ queryKey: ["/api/sponsors"] });
       setModalOpen(false); form.reset();
-      toast({ title: "Patrocinador criado com sucesso" });
+      toast({ title: "Patrocinador cadastrado", description: `${vars.name} já pode ser vinculado aos eventos.` });
     },
-    onError: (e: Error) => toast({ variant: "destructive", title: "Erro ao criar patrocinador", description: e.message }),
+    onError: (e: Error) => toast({ variant: "destructive", title: "Não foi possível cadastrar o patrocinador", description: e.message }),
   });
 
   const updateMutation = useMutation({
@@ -123,12 +124,12 @@ export default function Patrocinadores() {
       const res = await apiRequest("PATCH", `/api/sponsors/${data.id}`, data.update);
       return res.json();
     },
-    onSuccess: () => {
+    onSuccess: (_r, vars) => {
       queryClient.invalidateQueries({ queryKey: ["/api/sponsors"] });
       setModalOpen(false); setEditingSponsor(null); form.reset();
-      toast({ title: "Patrocinador atualizado com sucesso" });
+      toast({ title: "Alterações salvas", description: vars.update.name ? `Cadastro de ${vars.update.name} atualizado.` : undefined });
     },
-    onError: (e: Error) => toast({ variant: "destructive", title: "Erro ao atualizar", description: e.message }),
+    onError: (e: Error) => toast({ variant: "destructive", title: "Não foi possível salvar as alterações", description: e.message }),
   });
 
   const deleteMutation = useMutation({
@@ -138,10 +139,11 @@ export default function Patrocinadores() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/sponsors"] });
+      const nome = deletingSponsor?.name;
       setDeletingSponsor(null);
-      toast({ title: "Patrocinador excluído com sucesso" });
+      toast({ title: "Patrocinador excluído", description: nome ? `${nome} saiu do cadastro.` : undefined });
     },
-    onError: (e: Error) => toast({ variant: "destructive", title: "Erro ao excluir", description: e.message }),
+    onError: (e: Error) => toast({ variant: "destructive", title: "Não foi possível excluir o patrocinador", description: e.message }),
   });
 
   const openCreate = () => {
@@ -280,7 +282,7 @@ export default function Patrocinadores() {
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 24, flexWrap: "wrap" }}>
           <div style={{ textAlign: "right" }}>
-            <p style={{ fontSize: 10, fontWeight: 900, color: T.second, textTransform: "uppercase", letterSpacing: "0.16em", margin: "0 0 4px" }}>Total Parceiros</p>
+            <p style={{ fontSize: 10, fontWeight: 900, color: T.second, textTransform: "uppercase", letterSpacing: "0.16em", margin: "0 0 4px" }}>Patrocinadores</p>
             <p style={{ fontSize: 26, fontWeight: 900, color: T.text, margin: 0, fontFamily: "'Space Grotesk', sans-serif" }}>{sponsors.length}</p>
           </div>
           <div style={{ width: 1, height: 44, backgroundColor: T.border }} />
@@ -326,6 +328,8 @@ export default function Patrocinadores() {
               value={search}
               onChange={e => { setSearch(e.target.value); setPage(1); }}
               placeholder="Filtrar por nome, empresa, e-mail ou executivo..."
+              aria-label="Filtrar patrocinadores por nome, empresa, e-mail ou executivo"
+              type="search"
               data-testid="input-search-sponsors"
               style={{ ...tiInput, paddingLeft: 36, paddingTop: 10, paddingBottom: 10 }}
               onFocus={e => { e.currentTarget.style.backgroundColor = "#fff"; e.currentTarget.style.boxShadow = `0 0 0 2px rgba(249,115,22,0.2)`; }}
@@ -387,7 +391,18 @@ export default function Patrocinadores() {
 
         {/* Table */}
         {isLoading ? (
-          <div style={{ padding: "72px 0", textAlign: "center", fontSize: 13, color: T.second }}>Carregando patrocinadores...</div>
+          // Esqueleto com a silhueta da linha (bolinha de cor + nome + colunas):
+          // a tabela chega no lugar em que vai ficar. Pulso só com motion-safe.
+          <div role="status" aria-label="Carregando patrocinadores" style={{ padding: "8px 0" }}>
+            {Array.from({ length: 6 }, (_, i) => (
+              <div key={i} className="motion-safe:animate-pulse" style={{ display: "flex", alignItems: "center", gap: 10, padding: "18px 20px", borderBottom: `1px solid ${T.low}` }}>
+                <div style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: T.border }} />
+                <div style={{ width: 180, height: 12, borderRadius: 4, backgroundColor: T.low }} />
+                <div style={{ width: 120, height: 12, borderRadius: 4, backgroundColor: T.low, marginLeft: 40 }} />
+                <div style={{ width: 90, height: 12, borderRadius: 4, backgroundColor: T.low, marginLeft: 40 }} />
+              </div>
+            ))}
+          </div>
         ) : sponsorsError ? (
           <div style={{ padding: "72px 24px", textAlign: "center" }}>
             <AlertTriangle style={{ width: 40, height: 40, color: "#b45309", margin: "0 auto 12px" }} />
@@ -410,9 +425,27 @@ export default function Patrocinadores() {
             <p style={{ fontSize: 15, fontWeight: 700, color: T.second, margin: "0 0 6px" }}>
               {search || execFilter !== "all" ? "Nenhum patrocinador encontrado" : "Nenhum patrocinador cadastrado"}
             </p>
-            <p style={{ fontSize: 13, color: T.second, margin: 0 }}>
-              {search || execFilter !== "all" ? "Tente buscar por outro termo ou limpe os filtros" : "Clique em \"Novo Patrocinador\" para começar"}
+            <p style={{ fontSize: 13, color: T.second, margin: "0 0 16px" }}>
+              {search || execFilter !== "all" ? "Tente buscar por outro termo ou limpe os filtros" : "Cadastre o primeiro para vinculá-lo aos eventos"}
             </p>
+            {/* O estado vazio dizia o que fazer mas não oferecia o botão — o
+                próximo passo ficava lá no topo da página. Mesmo padrão do vazio
+                de Usuários: a ação mora onde o olho já está. */}
+            {search || execFilter !== "all" ? (
+              <button
+                onClick={() => { setSearch(""); setExecFilter("all"); setPage(1); }}
+                style={{ padding: "8px 16px", backgroundColor: T.surface, border: `1px solid ${T.bdark}`, borderRadius: 6, cursor: "pointer", fontSize: 11, fontWeight: 700, color: T.text, textTransform: "uppercase", letterSpacing: "0.06em" }}
+              >
+                Limpar filtros
+              </button>
+            ) : (
+              <button
+                onClick={openCreate}
+                style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "9px 18px", backgroundColor: T.dark, color: "#fff", border: "none", borderRadius: 8, cursor: "pointer", fontSize: 11, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.1em" }}
+              >
+                <Plus style={{ width: 13, height: 13 }} /> Novo Patrocinador
+              </button>
+            )}
           </div>
         ) : (
           <div style={{ overflowX: "auto" }}>
@@ -464,7 +497,10 @@ export default function Patrocinadores() {
                       data-testid={`sponsor-item-${sponsor.id}`}
                       onMouseEnter={() => setHoveredRow(sponsor.id)}
                       onMouseLeave={() => setHoveredRow(null)}
-                      tabIndex={0} aria-label={`Editar ${sponsor.name}`} onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); openEdit(sponsor); } }} onClick={() => openEdit(sponsor)}
+                      // `target === currentTarget`: o Enter num botão DENTRO da
+                      // linha (a lixeira, o link de uso) subia até aqui e abria
+                      // a edição por cima da confirmação de exclusão.
+                      tabIndex={0} aria-label={`Editar ${sponsor.name}`} onKeyDown={e => { if (e.key === "Enter" && e.target === e.currentTarget) { e.preventDefault(); openEdit(sponsor); } }} onClick={() => openEdit(sponsor)}
                       title="Clique para editar"
                       style={{ borderBottom: i < paginated.length - 1 ? `1px solid ${T.low}` : "none", backgroundColor: isHover ? "rgba(249,115,22,0.03)" : "transparent", transition: "background 0.1s", cursor: "pointer" }}
                     >
@@ -589,12 +625,16 @@ export default function Patrocinadores() {
                         onFocus={() => setHoveredRow(sponsor.id)}
                         onBlur={() => setHoveredRow(current => (current === sponsor.id ? null : current))}
                       >
-                        <div style={{ display: "flex", justifyContent: "flex-end", gap: 4, opacity: isHover ? 1 : 0, transition: "opacity 0.15s" }}>
+                        {/* Opacidade 0 fora do hover escondia as ações de quem
+                            não tem mouse: no celular não existe hover, e a
+                            lixeira era um alvo invisível. Agora ficam discretas
+                            (0.45) e acendem no hover/foco; no celular, inteiras. */}
+                        <div style={{ display: "flex", justifyContent: "flex-end", gap: 4, opacity: isHover || isMobile ? 1 : 0.45, transition: "opacity 0.15s" }}>
                           <button
                             data-testid={`button-edit-${sponsor.id}`}
-                            tabIndex={0} aria-label={`Editar ${sponsor.name}`} onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); openEdit(sponsor); } }} onClick={() => openEdit(sponsor)}
+                            aria-label={`Editar ${sponsor.name}`} onClick={() => openEdit(sponsor)}
                             style={{ padding: 8, backgroundColor: "transparent", border: "none", borderRadius: 6, cursor: "pointer", color: T.second, display: "flex", alignItems: "center", transition: "all 0.12s" }}
-                            onMouseEnter={e => { e.currentTarget.style.backgroundColor = T.low; e.currentTarget.style.color = T.accent; }}
+                            onMouseEnter={e => { e.currentTarget.style.backgroundColor = T.low; e.currentTarget.style.color = T.accentText; }}
                             onMouseLeave={e => { e.currentTarget.style.backgroundColor = "transparent"; e.currentTarget.style.color = T.second; }}
                           >
                             <Pencil style={{ width: 15, height: 15 }} />
@@ -629,16 +669,20 @@ export default function Patrocinadores() {
             </span>
             <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
               <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={safePage === 1}
+                aria-label="Página anterior"
                 style={{ width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center", border: `1px solid ${T.border}`, backgroundColor: T.surface, borderRadius: 6, cursor: safePage === 1 ? "not-allowed" : "pointer", color: safePage === 1 ? T.muted : T.second, transition: "all 0.1s" }}>
                 <ChevronLeft style={{ width: 14, height: 14 }} />
               </button>
               {Array.from({ length: totalPages }, (_, i) => i + 1).map(p => (
                 <button key={p} onClick={() => setPage(p)}
+                  aria-label={`Página ${p}`}
+                  aria-current={p === safePage ? "page" : undefined}
                   style={{ width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center", border: `1px solid ${p === safePage ? T.dark : T.border}`, backgroundColor: p === safePage ? T.dark : T.surface, borderRadius: 6, cursor: "pointer", fontSize: 11, fontWeight: 700, color: p === safePage ? "#fff" : T.second, transition: "all 0.1s" }}>
                   {p}
                 </button>
               ))}
               <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={safePage === totalPages}
+                aria-label="Próxima página"
                 style={{ width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center", border: `1px solid ${T.border}`, backgroundColor: T.surface, borderRadius: 6, cursor: safePage === totalPages ? "not-allowed" : "pointer", color: safePage === totalPages ? T.muted : T.second, transition: "all 0.1s" }}>
                 <ChevronRight style={{ width: 14, height: 14 }} />
               </button>
@@ -684,6 +728,9 @@ export default function Patrocinadores() {
           // engorda o cabeçalho e nenhum número fixo acertaria os dois casos.
           // É a mesma regra do modal da Gestão de Prazos e do `modal-shell`.
           style={{ maxWidth: 640, width: "96vw", borderRadius: 12, overflow: "hidden", display: "flex", flexDirection: "column", maxHeight: "calc(100vh - 48px)" }}
+          // FOCO INICIAL no Nome: o Radix focava o X do cabeçalho (primeiro
+          // focável), e quem abria o cadastro tinha de dar Tab para digitar.
+          onOpenAutoFocus={e => { e.preventDefault(); document.getElementById("sponsor-name")?.focus(); }}
         >
           {/* POR QUE congelar aqui: salvar fecha o modal, invalida /api/sponsors,
               chama form.reset() e toasta no MESMO commit. São 11 primitivas do
@@ -710,7 +757,7 @@ export default function Patrocinadores() {
                   {editingSponsor ? "Editar Patrocinador" : "Cadastro de Patrocinador"}
                 </h2>
                 <p style={{ fontSize: 10, color: T.second, margin: 0, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.14em" }}>
-                  {editingSponsor ? "Atualize os detalhes da parceria" : "Insira os detalhes da nova parceria"}
+                  {editingSponsor ? `Editando ${editingSponsor.name}` : "Nome, executivo e cor — o resto vem dos eventos"}
                 </p>
               </div>
               <button onClick={requestClose}
@@ -933,7 +980,9 @@ export default function Patrocinadores() {
 
 
           <div data-testid="dialog-confirm-delete" style={{ backgroundColor: T.surface, width: "100%", maxWidth: 440, borderRadius: 12, overflow: "hidden", boxShadow: "0 32px 80px -16px rgba(0,0,0,0.35)", display: "flex", flexDirection: "column", flex: "1 1 auto", minHeight: 0 }}>
-            <div style={{ backgroundColor: "#ef4444", padding: "14px 24px", display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
+            {/* #b91c1c: branco de 10px sobre o #ef4444 anterior dava 3,8:1 e
+                reprovava o piso de 4,5:1 — justamente no aviso de irreversível. */}
+            <div style={{ backgroundColor: "#b91c1c", padding: "14px 24px", display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
               <AlertTriangle style={{ width: 18, height: 18, color: "#fff", flexShrink: 0 }} />
               <span style={{ fontSize: 10, fontWeight: 900, color: "#fff", textTransform: "uppercase", letterSpacing: "0.14em", fontFamily: "'Space Grotesk', sans-serif" }}>
                 Atenção: Ação Irreversível
@@ -950,10 +999,23 @@ export default function Patrocinadores() {
                 Você está prestes a excluir o patrocinador{" "}
                 <strong style={{ color: T.text }}>{deletingSponsor.name}</strong>. Esta ação removerá todos os vínculos com eventos ativos. Deseja continuar?
               </p>
+              {/* O QUE SE PERDE, em número: a tabela já sabia (uso por evento),
+                  e a confirmação pedia a decisão sem mostrar o tamanho dela. */}
+              {(() => {
+                const u = usage[deletingSponsor.id];
+                const semUso = !u || u.events === 0;
+                return (
+                  <p data-testid="delete-sponsor-impacto" style={{ margin: "12px 0 0", padding: "9px 12px", borderRadius: 6, fontSize: 12, fontWeight: 600, lineHeight: 1.5, backgroundColor: semUso ? T.low : "#fef2f2", color: semUso ? "#57534e" : "#b91c1c", border: `1px solid ${semUso ? T.border : "#fecaca"}` }}>
+                    {semUso
+                      ? "Nunca foi vinculado a um evento."
+                      : `Vinculado a ${u.events} ${u.events === 1 ? "evento" : "eventos"}${u.items > 0 ? ` e ${u.items} ${u.items === 1 ? "peça" : "peças"}` : ""}.`}
+                  </p>
+                );
+              })()}
             </div>
             <div style={{ padding: "14px 28px 24px", display: "flex", justifyContent: "flex-end", gap: 20, flexShrink: 0 }}>
               <button data-testid="button-cancel-delete" onClick={() => setDeletingSponsor(null)}
-                style={{ padding: "8px 0", background: "none", border: "none", cursor: "pointer", fontSize: 10, fontWeight: 900, color: T.second, textTransform: "uppercase", letterSpacing: "0.12em", fontFamily: "'Space Grotesk', sans-serif" }}>
+                style={{ padding: "8px 14px", background: "none", border: `1px solid ${T.border}`, borderRadius: 6, cursor: "pointer", fontSize: 10, fontWeight: 900, color: T.second, textTransform: "uppercase", letterSpacing: "0.12em", fontFamily: "'Space Grotesk', sans-serif" }}>
                 Manter
               </button>
               <button data-testid="button-confirm-delete"

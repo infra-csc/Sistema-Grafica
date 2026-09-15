@@ -1800,7 +1800,10 @@ export default function Historico() {
 
         {/* Rows */}
         {isLoading ? (
-          <div data-testid="skeleton-historico">
+          // aria-busy + rótulo: sem eles o leitor de tela entrava num bloco
+          // mudo de retângulos cinza e não sabia se a lista estava vazia ou
+          // chegando — a mesma receita dos skeletons do Painel e de Registros.
+          <div data-testid="skeleton-historico" aria-busy="true" aria-label="Carregando histórico">
             {Array.from({ length: 8 }).map((_, i) => (
               <div key={i} style={{
                 display: isCompact ? "flex" : "grid",

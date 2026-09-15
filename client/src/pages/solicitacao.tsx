@@ -220,6 +220,17 @@ export default function Solicitacao() {
   // que é, e o botão de enviar ficava desabilitado sem explicar por quê.
   const motivoCurto = (t: string) => t.trim().replace(/\s+/g, " ").length < MOTIVO_MIN;
   const avisoMotivoCurto = `Explique o motivo em pelo menos ${MOTIVO_MIN} caracteres — a Arte precisa saber o que corrigir.`;
+  // O botão travado dizia o porquê só no `title` — que não aparece em botão
+  // desabilitado nem no toque. A conta fica à vista enquanto se digita, com a
+  // mesma régua de `motivoCurto`.
+  const contadorDoMotivo = (t: string) => {
+    const falta = Math.max(0, MOTIVO_MIN - t.trim().replace(/\s+/g, " ").length);
+    return (
+      <p aria-live="polite" style={{ margin: "4px 0 0", fontSize: 12, lineHeight: 1.4, color: falta > 0 ? "#92400e" : "#047857" }}>
+        {falta > 0 ? `Faltam ${falta} ${falta === 1 ? "caractere" : "caracteres"} — a Arte precisa saber o que corrigir.` : "Motivo pronto."}
+      </p>
+    );
+  };
   const { data: itensDoServidor = [], isLoading: itemsLoading, isError: itemsError, refetch: refetchItems } = useQuery<any[]>({ queryKey: ["/api/items"] });
   // BOOK COMPLETO fica de fora: é o trâmite do Atendimento, não uma peça (ver shared/fluxo-peca).
   const items = useMemo(() => (itensDoServidor as any[]).filter((i: any) => !ehBookCompleto(i)), [itensDoServidor]);
@@ -228,7 +239,7 @@ export default function Solicitacao() {
   // servidor. A chave em duas partes ("/api/audit-logs" + querystring) mantém
   // o prefixo casando com as invalidateQueries(["/api/audit-logs"]) das
   // mutations (o queryFn junta as partes com "/").
-  const { data: itemAuditLogs = [] } = useQuery<any[]>({
+  const { data: itemAuditLogs = [], isLoading: historicoCarregando } = useQuery<any[]>({
     queryKey: ["/api/audit-logs", `?entityId=${selectedItem?.id}&limit=8`],
     enabled: modalOpen && !!selectedItem?.id,
   });
@@ -337,7 +348,7 @@ export default function Solicitacao() {
       setSelectedItem((prev: any) => prev ? { ...prev, observations: cardObservations } : prev);
       toast({ title: "Observação salva" });
     },
-    onError: (error: any) => toast({ title: "Erro ao salvar observação", description: error.message, variant: "destructive" }),
+    onError: (error: any) => toast({ title: "Erro ao salvar observação", description: parseApiError(error).message, variant: "destructive" }),
   });
 
   const creatorReviewMutation = useMutation({
@@ -353,7 +364,7 @@ export default function Solicitacao() {
       if (!marcarAvanco()) { setModalOpen(false); setSelectedItem(null); }
       toast({ title: "Peça liberada para produção!", description: "Pronto para produção — a Arte foi notificada." });
     },
-    onError: (error: any) => toast({ title: "Erro ao liberar peça", description: error.message, variant: "destructive" }),
+    onError: (error: any) => toast({ title: "Erro ao liberar peça", description: parseApiError(error).message, variant: "destructive" }),
   });
 
   const bulkReleaseMutation = useMutation({
@@ -393,7 +404,7 @@ export default function Solicitacao() {
         toast({ title: "Peças liberadas", description: `${released} peça(s) liberada(s) para produção.` });
       }
     },
-    onError: (error: any) => toast({ title: "Erro ao liberar peças", description: error.message, variant: "destructive" }),
+    onError: (error: any) => toast({ title: "Erro ao liberar peças", description: parseApiError(error).message, variant: "destructive" }),
   });
 
   const returnToArteMutation = useMutation({
@@ -402,14 +413,21 @@ export default function Solicitacao() {
       // SPA, que responde 200 com HTML. A tela dava "devolvida com sucesso" e o
       // servidor nunca recebia nada — a peça continuava na fila de revisão.
       await apiRequest("PATCH", `/api/items/${payload.itemId}/return-to-arte`, { notes: payload.notes, destino: payload.destino }),
-    onSuccess: () => {
+    onSuccess: (_res, payload) => {
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
       queryClient.invalidateQueries({ queryKey: ["/api/audit-logs"] });
       setReturnConfirmOpen(false); setReturnObservations("");
       if (!marcarAvanco()) { setModalOpen(false); setSelectedItem(null); }
-      toast({ title: "Peça devolvida para Arte", description: "A peça foi devolvida com observações." });
+      // O aviso diz PARA ONDE ela foi — a escolha que acabou de ser feita, e
+      // a única que muda o que acontece com a aprovação do patrocinador.
+      toast({
+        title: "Peça devolvida para a Arte",
+        description: payload.destino === "arte"
+          ? "Voltou para o começo da Arte — o patrocinador terá de aprovar de novo."
+          : "Voltou para a Finalização — a aprovação do patrocinador continua valendo.",
+      });
     },
-    onError: (error: any) => toast({ title: "Erro ao devolver peça", description: error.message, variant: "destructive" }),
+    onError: (error: any) => toast({ title: "Erro ao devolver peça", description: parseApiError(error).message, variant: "destructive" }),
   });
 
   const bulkReturnMutation = useMutation({
@@ -436,10 +454,10 @@ export default function Solicitacao() {
       if (failed > 0) {
         toast({ title: "Devolução parcial", description: `${ok} devolvida(s), ${failed} com erro.`, variant: "destructive" });
       } else {
-        toast({ title: "Peças devolvidas", description: `${ok} peça(s) devolvida(s) para a Arte.` });
+        toast({ title: "Peças devolvidas", description: `${ok} peça(s) devolvida(s) para ${destinoDevolucao === "arte" ? "o começo da Arte" : "a Finalização"}.` });
       }
     },
-    onError: (error: any) => toast({ title: "Erro ao devolver peças", description: error.message, variant: "destructive" }),
+    onError: (error: any) => toast({ title: "Erro ao devolver peças", description: parseApiError(error).message, variant: "destructive" }),
   });
 
   const bulkReuseMutation = useMutation({
@@ -493,7 +511,7 @@ export default function Solicitacao() {
         });
       }
     },
-    onError: (error: any) => toast({ title: "Erro ao reaproveitar peças", description: error.message, variant: "destructive" }),
+    onError: (error: any) => toast({ title: "Erro ao reaproveitar peças", description: parseApiError(error).message, variant: "destructive" }),
   });
 
   const deleteItemMutation = useMutation({
@@ -504,7 +522,7 @@ export default function Solicitacao() {
       setDeleteConfirmItemId(null);
       toast({ title: "Peça excluída", description: "A peça foi removida com sucesso." });
     },
-    onError: (error: any) => toast({ title: "Erro ao excluir", description: error.message, variant: "destructive" }),
+    onError: (error: any) => toast({ title: "Erro ao excluir", description: parseApiError(error).message, variant: "destructive" }),
   });
 
   // Diálogo de reaproveitamento (total ou parcial)
@@ -595,7 +613,7 @@ export default function Solicitacao() {
           : "A peça voltará ao fluxo normal.",
       });
     },
-    onError: (error: any) => toast({ title: "Erro ao salvar", description: error.message, variant: "destructive" }),
+    onError: (error: any) => toast({ title: "Erro ao salvar", description: parseApiError(error).message, variant: "destructive" }),
   });
 
   // Reaproveitamento parcial: define reuseQty e avança via creator-review
@@ -615,7 +633,7 @@ export default function Solicitacao() {
         description: "As unidades reaproveitadas foram registradas. O restante segue para produção.",
       });
     },
-    onError: (error: any) => toast({ title: "Erro ao salvar", description: error.message, variant: "destructive" }),
+    onError: (error: any) => toast({ title: "Erro ao salvar", description: parseApiError(error).message, variant: "destructive" }),
   });
 
   // ── Evento FINALIZADO CONTINUA NESTA FILA ─────────────────────────────────
@@ -987,8 +1005,8 @@ export default function Solicitacao() {
   if (itemsError || eventsError) {
     return (
       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", gap: 12, textAlign: "center", padding: "0 24px" }}>
-        <p style={{ fontSize: 15, fontWeight: 700, color: "#b91c1c", margin: 0 }}>
-          {itemsError ? "Não foi possível carregar os itens" : "Não foi possível carregar os eventos"}
+        <p role="alert" style={{ fontSize: 15, fontWeight: 700, color: "#b91c1c", margin: 0 }}>
+          {itemsError ? "Não foi possível carregar as peças" : "Não foi possível carregar os eventos"}
         </p>
         <p style={{ fontSize: 13, color: TI.secondary, margin: 0 }}>Verifique sua conexão e tente novamente.</p>
         <button onClick={() => { refetchItems(); refetchEvents(); }} style={{ marginTop: 4, background: TI.text, color: "#fff", border: "none", borderRadius: 8, padding: "8px 18px", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>Tentar novamente</button>
@@ -1092,8 +1110,10 @@ export default function Solicitacao() {
             <Search style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", width: 14, height: 14, color: TI.muted, pointerEvents: "none" }} />
             <input
               ref={searchRef}
-              placeholder="Filtrar por ID ou descrição..."
-              aria-label="Filtrar por ID ou descrição"
+              // A busca já casava tipo e evento também — o placeholder só
+              // prometia ID e descrição, e ninguém tentava o nome do evento.
+              placeholder="ID, tipo, descrição ou evento   /"
+              aria-label="Buscar peça por ID, tipo, descrição ou evento"
               aria-keyshortcuts="/"
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
@@ -1145,7 +1165,7 @@ export default function Solicitacao() {
                 type="button"
                 onClick={chip.alterna}
                 aria-pressed={chip.ligado}
-                title={chip.ligado ? `Remover o filtro ${chip.rotulo}` : `Ver so ${chip.rotulo.toLowerCase()}`}
+                title={chip.ligado ? `Remover o filtro ${chip.rotulo}` : `Ver só ${chip.rotulo.toLowerCase()}`}
                 data-testid={chip.testid}
                 style={{
                   display: "inline-flex", alignItems: "center", gap: 7,
@@ -1277,7 +1297,7 @@ export default function Solicitacao() {
                 style={{
                   height: alturaControle, padding: "0 14px", borderRadius: 8,
                   border: `1px solid ${TI.border}`, backgroundColor: TI.surface,
-                  color: selecaoLote.vivas.length === 0 ? "#a8a29e" : "#44403c",
+                  color: selecaoLote.vivas.length === 0 ? "#78716c" : "#44403c",
                   fontSize: 13, fontWeight: 700, whiteSpace: "nowrap",
                   cursor: selecaoLote.vivas.length === 0 || bulkReturnMutation.isPending ? "not-allowed" : "pointer",
                 }}>
@@ -1301,7 +1321,7 @@ export default function Solicitacao() {
                     height: alturaControle, padding: "0 14px", borderRadius: 8,
                     border: `1px solid ${selecaoLote.vivas.length === 0 ? TI.border : "#86efac"}`,
                     backgroundColor: selecaoLote.vivas.length === 0 ? TI.surface : "#f0fdf4",
-                    color: selecaoLote.vivas.length === 0 ? "#a8a29e" : "#15803d",
+                    color: selecaoLote.vivas.length === 0 ? "#78716c" : "#15803d",
                     fontSize: 13, fontWeight: 700, whiteSpace: "nowrap",
                     cursor: selecaoLote.vivas.length === 0 || bulkReuseMutation.isPending ? "not-allowed" : "pointer",
                   }}>
@@ -1318,14 +1338,29 @@ export default function Solicitacao() {
       {/* ── 3 & 4. HIGH-DENSITY TABLE ──────────────────────────────────── */}
       <section style={{ padding: isMobile ? "12px 12px" : "32px", maxWidth: 1200, margin: "0 auto", paddingBottom: isMobile ? 20 : 80 }}>
         {filteredItems.length === 0 ? (
-          <div style={{ backgroundColor: "#fff", border: "1px solid #e7e5e4", borderRadius: 8, textAlign: "center", padding: "80px 24px" }}>
-            <CheckCircle style={{ width: 48, height: 48, color: "#d1cfce", margin: "0 auto 16px" }} />
-            <p style={{ fontSize: 15, fontWeight: 700, color: TI.secondary, margin: "0 0 8px" }}>
-              {pendingItems.length === 0 ? "Tudo revisado!" : "Nenhum resultado encontrado"}
+          /* DOIS VAZIOS DIFERENTES. "Tudo revisado" é conquista (verde, texto
+             escuro); "nada neste recorte" é filtro demais — e precisa da saída
+             ali mesmo, sem subir até a barra para achar o "Limpar filtros". */
+          <div style={{ backgroundColor: "#fff", border: "1px solid #e7e5e4", borderRadius: 8, textAlign: "center", padding: isMobile ? "48px 20px" : "80px 24px" }}>
+            <CheckCircle aria-hidden="true" style={{ width: 48, height: 48, color: pendingItems.length === 0 ? "#15803d" : "#d1cfce", margin: "0 auto 16px" }} />
+            <p style={{ fontSize: 15, fontWeight: 700, color: TI.text, margin: "0 0 8px" }}>
+              {pendingItems.length === 0 ? "Tudo revisado!" : "Nenhuma peça neste recorte"}
             </p>
-            <p style={{ fontSize: 13, color: TI.secondary, margin: 0 }}>
-              {pendingItems.length === 0 ? "Não há itens aguardando sua revisão no momento." : "Tente ajustar os filtros."}
+            <p style={{ fontSize: 13, color: "#57534e", margin: 0 }}>
+              {pendingItems.length === 0
+                ? "Não há peças aguardando revisão no momento."
+                : `${pendingItems.length} ${pendingItems.length === 1 ? "peça aguardando revisão ficou" : "peças aguardando revisão ficaram"} fora da busca e dos filtros.`}
             </p>
+            {pendingItems.length > 0 && (
+              <button
+                type="button"
+                onClick={() => { setSearchTerm(""); setEventFilter([]); setItemTypeFilter([]); setSoSemArquivo(false); setSoEventoFinalizado(false); }}
+                data-testid="button-clear-filters-empty"
+                style={{ marginTop: 16, height: alturaControle, padding: "0 16px", borderRadius: 8, border: "1px solid #e7e5e4", backgroundColor: "#fff", color: TI.text, fontSize: 13, fontWeight: 700, cursor: "pointer" }}
+              >
+                Limpar filtros
+              </button>
+            )}
           </div>
         ) : isMobile ? (
           <div>
@@ -1394,8 +1429,20 @@ export default function Solicitacao() {
                           </div>
                           <span style={{fontSize:10,fontWeight:700,color:"#746e69",whiteSpace:"nowrap"}}>{item.quantity}×</span>
                         </div>
+                        {/* O ARQUIVO FINAL também no celular. No desktop ele tem
+                            coluna própria (decide se a peça é revisável); no
+                            cartão só se descobria abrindo a ficha. */}
                         <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}}>
-                          {item.sponsors?.map((s:any)=><span key={s.id} style={{fontSize:10,padding:"2px 6px",borderRadius:6,backgroundColor:"#f5f5f4",color:"#746e69",fontWeight:600}}>{s.name}</span>)}
+                          {item.finalFileUrl ? (
+                            <span data-testid={`chip-arquivo-mobile-${item.id}`} style={{display:"inline-flex",alignItems:"center",gap:4,fontSize:11,fontWeight:700,padding:"2px 8px",borderRadius:999,backgroundColor:"#f0fdf4",border:"1px solid #bbf7d0",color:"#166534"}}>
+                              <Check aria-hidden="true" style={{width:10,height:10}} /> Arquivo recebido
+                            </span>
+                          ) : (
+                            <span data-testid={`chip-arquivo-mobile-${item.id}`} style={{display:"inline-flex",alignItems:"center",gap:4,fontSize:11,fontWeight:700,padding:"2px 8px",borderRadius:999,backgroundColor:"#fff7ed",border:"1px solid #fed7aa",color:"#9a3412"}}>
+                              <Clock aria-hidden="true" style={{width:10,height:10}} /> Aguardando arquivo
+                            </span>
+                          )}
+                          {item.sponsors?.map((s:any)=><span key={s.id} style={{fontSize:11,padding:"2px 6px",borderRadius:6,backgroundColor:"#f5f5f4",color:"#57534e",fontWeight:600}}>{s.name}</span>)}
                         </div>
                       </div>
                     </div>
@@ -1535,18 +1582,18 @@ export default function Solicitacao() {
                                   const dia = new Date(saida); dia.setHours(0,0,0,0);
                                   const dias = Math.ceil((dia.getTime() - hoje.getTime()) / 86400000);
                                   const cor = dias <= 7 ? "#fca5a5" : dias <= 30 ? "#fdba74" : "rgba(255,255,255,0.7)";
-                                  const quando = dias < 0 ? `ha ${-dias}d`
+                                  const quando = dias < 0 ? `há ${-dias}d`
                                     : dias === 0 ? "hoje"
-                                    : dias === 1 ? "amanha"
+                                    : dias === 1 ? "amanhã"
                                     : `${dias}d`;
                                   return (
                                     <span
                                       data-testid={`chip-caminhao-${eventId}`}
-                                      title={`Saida do caminhao em ${saida.toLocaleDateString("pt-BR", { timeZone: 'UTC' })} as ${saida.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", timeZone: 'UTC' })}`}
+                                      title={`Saída do caminhão em ${saida.toLocaleDateString("pt-BR", { timeZone: 'UTC' })} às ${saida.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", timeZone: 'UTC' })}`}
                                       style={{ display: "inline-flex", alignItems: "center", gap: 5, flexShrink: 0, backgroundColor: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.2)", borderRadius: 999, padding: "3px 9px", fontSize: 10, fontWeight: 700, color: cor, letterSpacing: "0.04em", whiteSpace: "nowrap", textTransform: "none" }}
                                     >
                                       <Truck aria-hidden="true" style={{ width: 11, height: 11 }} />
-                                      {event.datasDoKit ? "Entrega do material" : "Caminhao"} {saida.toLocaleDateString("pt-BR", { day: "2-digit", month: "short", timeZone: 'UTC' }).toUpperCase().replace(".", "")}
+                                      {event.datasDoKit ? "Entrega do material" : "Caminhão"} {saida.toLocaleDateString("pt-BR", { day: "2-digit", month: "short", timeZone: 'UTC' }).toUpperCase().replace(".", "")}
                                       {!event.datasDoKit && <>{" · "}{saida.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", timeZone: 'UTC' })}</>}
                                       {" · "}{quando}
                                     </span>
@@ -1746,7 +1793,9 @@ export default function Solicitacao() {
                                     padding: "6px 16px", cursor: "pointer",
                                     transition: "background-color 0.15s",
                                   }}
-                                  onMouseEnter={e => (e.currentTarget.style.backgroundColor = "#ea580c")}
+                                  // #c2410c e não #ea580c no hover: branco sobre
+                                  // #ea580c dá 3,6:1 — o rótulo sumia justo ao apontar.
+                                  onMouseEnter={e => (e.currentTarget.style.backgroundColor = "#c2410c")}
                                   onMouseLeave={e => (e.currentTarget.style.backgroundColor = "#1c1917")}
                                 >
                                   Revisar
@@ -1804,6 +1853,7 @@ export default function Solicitacao() {
                                     onClick={() => setDeleteConfirmItemId(item.id)}
                                     data-testid={`button-delete-${item.id}`}
                                     title="Excluir peça"
+                                    aria-label={`Excluir a peça ${item.displayId}`}
                                     style={{
                                       background: "none", border: "none", cursor: "pointer",
                                       color: "#746e69", padding: 6,
@@ -1842,7 +1892,7 @@ export default function Solicitacao() {
                   espelha o 409 de lote inteiro do servidor. Duas versoes da
                   mesma acao com contas diferentes e pior que nenhuma. */}
               <span style={{ fontSize: 10, fontWeight: 700, color: TI.secondary, textTransform: "uppercase", letterSpacing: "0.06em" }}>
-                Mostrando {filteredItems.length} de {pendingItems.length} {pendingItems.length !== 1 ? "itens pendentes" : "item pendente"}
+                Mostrando {filteredItems.length} de {pendingItems.length} {pendingItems.length !== 1 ? "peças aguardando revisão" : "peça aguardando revisão"}
               </span>
             </div>
           </div>
@@ -1915,11 +1965,14 @@ export default function Solicitacao() {
                 {(() => {
                   const ev: any = events.find((e: any) => e.id === selectedItem?.eventId);
                   if (!ev) return null;
+                  // A saída é gravada no "horário de exibição" (UTC = relógio de
+                  // São Paulo), como lê o chip do cabeçalho do evento na tabela.
+                  // Sem timeZone "UTC" a ficha mostrava a hora 3h antes da lista.
                   const saida = ev.truckDepartureDate ? new Date(ev.truckDepartureDate) : null;
                   return (
-                    <p style={{ margin: "2px 0 0", fontSize: 11, color: "rgba(255,255,255,0.55)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                    <p style={{ margin: "2px 0 0", fontSize: 11, color: "rgba(255,255,255,0.72)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                       {ev.name}
-                      {saida && " · caminhão " + saida.toLocaleDateString("pt-BR", { day: "2-digit", month: "short" }).replace(".", "").replace(" de ", " ") + " · " + saida.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+                      {saida && " · caminhão " + saida.toLocaleDateString("pt-BR", { day: "2-digit", month: "short", timeZone: "UTC" }).replace(".", "").replace(" de ", " ") + " · " + saida.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", timeZone: "UTC" })}
                     </p>
                   );
                 })()}
@@ -2120,13 +2173,15 @@ export default function Solicitacao() {
                       disabled={updateQuantityMutation.isPending}
                       style={{ padding: "6px 10px", fontSize: 10, fontWeight: 800, backgroundColor: "#c2410c", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", textTransform: "uppercase" }}
                       data-testid="button-confirm-quantity"
+                      aria-label="Salvar a quantidade"
                     >
-                      {updateQuantityMutation.isPending ? "..." : "OK"}
+                      {updateQuantityMutation.isPending ? "…" : "OK"}
                     </button>
                     <button
                       onClick={() => { setQuantityValue(selectedItem.quantity ?? 1); setEditingQuantity(false); }}
                       style={{ padding: "6px 8px", fontSize: 10, fontWeight: 800, backgroundColor: "#f3f4f3", color: "#746e69", border: "none", borderRadius: 6, cursor: "pointer" }}
                       data-testid="button-cancel-quantity"
+                      aria-label="Cancelar a edição da quantidade"
                     >
                       ✕
                     </button>
@@ -2354,7 +2409,9 @@ export default function Solicitacao() {
                   <h3 style={{ fontSize: 10, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.18em", color: TI.secondary, paddingBottom: 8, borderBottom: "1px solid #f0efee", margin: "0 0 14px" }}>
                     HISTÓRICO
                   </h3>
-                  {itemAuditLogs.length === 0 ? (
+                  {historicoCarregando ? (
+                    <p role="status" style={{ fontSize: 13, color: "#57534e", margin: 0 }}>Carregando o histórico…</p>
+                  ) : itemAuditLogs.length === 0 ? (
                     <p style={{ fontSize: 13, color: TI.secondary, margin: 0 }}>Sem histórico disponível.</p>
                   ) : (
                     <div style={{ position: "relative", paddingLeft: 24 }}>
@@ -2429,9 +2486,9 @@ export default function Solicitacao() {
               inteira some antes do diálogo terminar de sair. */}
           <FreezeWhileClosing open={releaseConfirmOpen}>
           <AlertDialogHeader>
-            <AlertDialogTitle>Liberar para Produção</AlertDialogTitle>
+            <AlertDialogTitle>Liberar para produção</AlertDialogTitle>
             <AlertDialogDescription>
-              {selectedItem && <span><strong>{selectedItem.displayId}</strong> — {selectedItem.type} será liberado para produção.</span>}
+              {selectedItem && <span><strong>{selectedItem.displayId}</strong> — {selectedItem.type} será liberada para produção.</span>}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -2460,18 +2517,20 @@ export default function Solicitacao() {
           <AlertDialogHeader>
             <AlertDialogTitle>Devolver para Arte</AlertDialogTitle>
             <AlertDialogDescription>
-              {selectedItem && <span><strong>{selectedItem.displayId}</strong> será devolvido à equipe de Arte.</span>}
+              {selectedItem && <span><strong>{selectedItem.displayId}</strong> será devolvida à Arte.</span>}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <div style={{ padding: 0 }}>
             {seletorDestino}
             <textarea
               placeholder="Descreva as alterações necessárias..."
+              aria-label="Motivo da devolução para a Arte"
               value={returnObservations}
               onChange={e => setReturnObservations(e.target.value)}
               data-testid="textarea-return-quick"
               className="w-full min-h-20 p-2 border rounded-md bg-background text-foreground resize-none text-sm"
             />
+            {contadorDoMotivo(returnObservations)}
           </div>
           <AlertDialogFooter>
             <AlertDialogCancel data-testid="button-return-cancel" onClick={() => { setReturnObservations(""); }}>Cancelar</AlertDialogCancel>
@@ -2498,9 +2557,9 @@ export default function Solicitacao() {
               virava "Liberar 0 itens" enquanto a caixa saía de cena. */}
           <FreezeWhileClosing open={bulkReleaseConfirmOpen}>
           <AlertDialogHeader>
-            <AlertDialogTitle>Liberar {selecaoLote.vivas.length} iten{selecaoLote.vivas.length !== 1 ? "s" : ""}</AlertDialogTitle>
+            <AlertDialogTitle>Liberar {selecaoLote.vivas.length} {selecaoLote.vivas.length === 1 ? "peça" : "peças"}</AlertDialogTitle>
             <AlertDialogDescription>
-              Deseja liberar {selecaoLote.vivas.length} {selecaoLote.vivas.length === 1 ? "item" : "itens"} para produção?
+              Deseja liberar {selecaoLote.vivas.length} {selecaoLote.vivas.length === 1 ? "peça" : "peças"} para produção?
               {selecaoLote.finalizadas > 0 && (
                 <span data-testid="aviso-bulk-release-finalizadas" style={{ display: "block", marginTop: 8 }}>
                   {avisoLoteFinalizadas()}
@@ -2518,7 +2577,7 @@ export default function Solicitacao() {
             >
               {bulkReleaseMutation.isPending
                 ? "Liberando..."
-                : selecaoLote.finalizadas > 0 ? `Liberar as ${selecaoLote.vivas.length}` : "Liberar Todos"}
+                : selecaoLote.finalizadas > 0 ? `Liberar as ${selecaoLote.vivas.length}` : "Liberar todas"}
             </AlertDialogAction>
           </AlertDialogFooter>
           </FreezeWhileClosing>
@@ -2534,9 +2593,9 @@ export default function Solicitacao() {
               commit — dois campos visíveis apagando durante o fade. */}
           <FreezeWhileClosing open={bulkReturnConfirmOpen}>
           <AlertDialogHeader>
-            <AlertDialogTitle>Devolver {selecaoLote.vivas.length} iten{selecaoLote.vivas.length !== 1 ? "s" : ""} para Arte</AlertDialogTitle>
+            <AlertDialogTitle>Devolver {selecaoLote.vivas.length} {selecaoLote.vivas.length === 1 ? "peça" : "peças"} para a Arte</AlertDialogTitle>
             <AlertDialogDescription>
-              Deseja devolver {selecaoLote.vivas.length} {selecaoLote.vivas.length === 1 ? "item" : "itens"} para a Arte?
+              Deseja devolver {selecaoLote.vivas.length} {selecaoLote.vivas.length === 1 ? "peça" : "peças"} para a Arte?
               {selecaoLote.finalizadas > 0 && (
                 <span data-testid="aviso-bulk-return-finalizadas" style={{ display: "block", marginTop: 8 }}>
                   {avisoLoteFinalizadas()}
@@ -2548,14 +2607,16 @@ export default function Solicitacao() {
             {seletorDestino}
             <textarea
               placeholder="Descreva o motivo da devolução..."
+              aria-label="Motivo da devolução das peças para a Arte"
               value={bulkReturnObservations}
               onChange={e => setBulkReturnObservations(e.target.value)}
               data-testid="textarea-bulk-return"
               className="w-full min-h-20 p-2 border rounded-md bg-background text-foreground resize-none text-sm"
             />
+            {contadorDoMotivo(bulkReturnObservations)}
           </div>
           <AlertDialogFooter>
-            <AlertDialogCancel data-testid="button-bulk-return-cancel">Manter Itens</AlertDialogCancel>
+            <AlertDialogCancel data-testid="button-bulk-return-cancel">Cancelar</AlertDialogCancel>
             <AlertDialogAction
               onClick={(e) => {
                 e.preventDefault(); // a mutation controla o fechamento (mantém aberto em erro)
@@ -2581,7 +2642,7 @@ export default function Solicitacao() {
               `selectedItemIds` (que conta o título) e fecha no mesmo commit. */}
           <FreezeWhileClosing open={bulkReuseConfirmOpen}>
           <AlertDialogHeader>
-            <AlertDialogTitle>Reaproveitar {selecaoLote.vivas.length} iten{selecaoLote.vivas.length !== 1 ? "s" : ""}</AlertDialogTitle>
+            <AlertDialogTitle>Reaproveitar {selecaoLote.vivas.length} {selecaoLote.vivas.length === 1 ? "peça" : "peças"}</AlertDialogTitle>
             <AlertDialogDescription>
               {selecaoLote.vivas.length === 1 ? "A peça será marcada" : "As peças serão marcadas"} como reaproveitamento <strong>total</strong> e enviadas direto à Gráfica como produzidas — sem nova impressão. Para reaproveitar só parte das unidades de uma peça, use o ícone ♻ na linha dela.
               {selecaoLote.finalizadas > 0 && (
@@ -2604,7 +2665,7 @@ export default function Solicitacao() {
             >
               {bulkReuseMutation.isPending
                 ? "Reaproveitando..."
-                : selecaoLote.finalizadas > 0 ? `Reaproveitar as ${selecaoLote.vivas.length}` : "Reaproveitar Todas"}
+                : selecaoLote.finalizadas > 0 ? `Reaproveitar as ${selecaoLote.vivas.length}` : "Reaproveitar todas"}
             </AlertDialogAction>
           </AlertDialogFooter>
           </FreezeWhileClosing>
@@ -2755,7 +2816,7 @@ export default function Solicitacao() {
               className="bg-destructive text-destructive-foreground"
               data-testid="button-delete-confirm"
             >
-              {deleteItemMutation.isPending ? "Excluindo..." : "Excluir Peça"}
+              {deleteItemMutation.isPending ? "Excluindo..." : "Excluir peça"}
             </AlertDialogAction>
           </AlertDialogFooter>
           </FreezeWhileClosing>

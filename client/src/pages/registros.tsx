@@ -577,11 +577,20 @@ export default function Registros() {
             <p style={{ fontSize: FS.strong, fontWeight: 600, color: T.text, margin: "0 0 4px" }}>
               {photos.length === 0 ? "Nenhum registro ainda" : "Nenhum registro com esses filtros"}
             </p>
-            <p style={{ fontSize: FS.small, margin: 0 }}>
+            <p style={{ fontSize: FS.small, margin: photos.length === 0 ? 0 : "0 0 16px" }}>
               {photos.length === 0
                 ? "As fotos aparecem aqui conforme a Gráfica confere e entrega as peças."
                 : "Ajuste os filtros para ver outros registros."}
             </p>
+            {/* O próximo passo onde o olho já está: a saída ficava só na barra
+                de filtros, fora da vista de quem rolou até aqui. Mesmo
+                `clearAll` do "Limpar tudo" da barra. */}
+            {photos.length > 0 && (
+              <button type="button" onClick={() => { clearAll(); setVisible(PAGE_SIZE); }} data-testid="button-clear-filters-vazio"
+                style={{ fontSize: FS.body, fontWeight: 700, color: "#fff", background: T.dark, border: "none", borderRadius: R.md, padding: "9px 20px", minHeight: isMobile ? 44 : undefined, cursor: "pointer" }}>
+                Limpar filtros
+              </button>
+            )}
           </div>
         ) : (
           <>

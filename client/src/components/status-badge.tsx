@@ -33,14 +33,20 @@ export function StatusBadge({ status, className, short }: StatusBadgeProps) {
       }}
       className={cn(className)}
       data-testid={`badge-${status}`}
+      // O rótulo curto ("Aguard.") some a informação no celular: o title
+      // devolve o nome completo a quem passa o ponteiro ou segura o dedo.
+      title={config.label}
     >
-      <Icon style={{ width: "11px", height: "11px", flexShrink: 0 }} />
+      <Icon aria-hidden="true" style={{ width: "11px", height: "11px", flexShrink: 0 }} />
       {short ? (
-        <span title={config.label}>{config.short}</span>
+        <span>{config.short}</span>
       ) : (
         <>
           <span className="hidden md:inline">{config.label}</span>
-          <span className="md:hidden">{config.short}</span>
+          {/* aria-hidden na versão curta + sr-only com o nome inteiro: o
+              leitor de tela ouvia a abreviação. */}
+          <span className="md:hidden" aria-hidden="true">{config.short}</span>
+          <span className="sr-only md:hidden">{config.label}</span>
         </>
       )}
     </div>

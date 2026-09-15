@@ -164,10 +164,12 @@ export default function Usuarios() {
       const res = await apiRequest("POST", "/api/auth/register", data);
       return res.json();
     },
-    onSuccess: () => {
+    // O nome no toast confirma QUEM foi criado — com o modal já fechado, um
+    // "criado com sucesso" genérico não deixa conferir se o e-mail estava certo.
+    onSuccess: (_r, vars) => {
       queryClient.invalidateQueries({ queryKey: ["/api/users"] });
       setModalOpen(false); form.reset();
-      toast({ title: "Usuário criado com sucesso", description: "O usuário já pode acessar o sistema via Microsoft" });
+      toast({ title: `${vars.name} foi criado`, description: `Já pode entrar no sistema com a conta Microsoft ${vars.email}.` });
     },
     onError: (e: Error) => toast({ variant: "destructive", title: "Erro ao criar usuário", description: e.message }),
   });
@@ -180,9 +182,9 @@ export default function Usuarios() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/users"] });
       setModalOpen(false); setEditingUser(null); form.reset();
-      toast({ title: "Usuário atualizado com sucesso" });
+      toast({ title: "Alterações salvas", description: editingUser ? `Cadastro de ${editingUser.name} atualizado.` : undefined });
     },
-    onError: (e: Error) => toast({ variant: "destructive", title: "Erro ao atualizar", description: e.message }),
+    onError: (e: Error) => toast({ variant: "destructive", title: "Não foi possível salvar as alterações", description: e.message }),
   });
 
   const deleteMutation = useMutation({
@@ -192,10 +194,11 @@ export default function Usuarios() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/users"] });
+      const nome = deletingUser?.name;
       setDeletingUser(null);
-      toast({ title: "Usuário excluído com sucesso" });
+      toast({ title: "Usuário excluído", description: nome ? `${nome} não tem mais acesso ao sistema.` : undefined });
     },
-    onError: (e: Error) => toast({ variant: "destructive", title: "Erro ao excluir", description: e.message }),
+    onError: (e: Error) => toast({ variant: "destructive", title: "Não foi possível excluir o usuário", description: e.message }),
   });
 
   const openCreate = () => {
@@ -312,6 +315,10 @@ export default function Usuarios() {
           <button
             key={role}
             onClick={() => { setRoleFilter(roleFilter === role ? "all" : role); setPage(1); }}
+            // O chip é um alternador: aria-pressed diz ao leitor de tela o que
+            // hoje só a cor dizia (qual perfil está filtrando a tabela).
+            aria-pressed={roleFilter === role}
+            title={roleFilter === role ? "Mostrar todos os perfis" : `Mostrar só ${cfg.label}`}
             style={{
               padding: "5px 14px", borderRadius: 999,
               backgroundColor: roleFilter === role ? cfg.bg : T.low,
@@ -331,12 +338,16 @@ export default function Usuarios() {
       </div>
 
       {/* ── Search bar ── */}
-      <div style={{ display: "flex", gap: 10, marginBottom: 16, alignItems: "center" }}>
-        <div style={{ position: "relative", flex: 1, maxWidth: 360 }}>
+      {/* flexWrap: em 375px a busca, o menu de Perfil, o Limpar e a contagem
+          não cabem numa linha — sem quebra, a barra estourava para o lado. */}
+      <div style={{ display: "flex", gap: 10, marginBottom: 16, alignItems: "center", flexWrap: "wrap" }}>
+        <div style={{ position: "relative", flex: isMobile ? "1 1 100%" : 1, maxWidth: isMobile ? "none" : 360 }}>
           <Search style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", width: 14, height: 14, color: T.muted }} />
           <input
             value={search} onChange={e => { setSearch(e.target.value); setPage(1); }}
             placeholder="Buscar por nome ou email..."
+            aria-label="Buscar usuário por nome ou e-mail"
+            type="search"
             data-testid="input-search-users"
             style={{ ...tiInput, paddingLeft: 34, paddingTop: 9, paddingBottom: 9, width: "100%" }}
             onFocus={e => { e.currentTarget.style.backgroundColor = "#fff"; e.currentTarget.style.boxShadow = "0 0 0 2px rgba(249,115,22,0.2)"; }}
@@ -366,7 +377,19 @@ export default function Usuarios() {
       {/* ── Table ── */}
       <section style={{ backgroundColor: T.surface, border: `1px solid ${T.border}`, borderRadius: 12, overflow: "hidden", marginBottom: 20 }}>
         {isLoading ? (
-          <div style={{ padding: "56px 0", textAlign: "center", fontSize: 13, color: T.second }}>Carregando usuários...</div>
+          // Esqueleto com a silhueta das linhas (avatar + nome + perfil): a
+          // tabela "chega" no lugar em que vai ficar, em vez de um texto que
+          // some e empurra tudo. O pulso só roda com motion-safe.
+          <div role="status" aria-label="Carregando usuários" style={{ padding: "8px 0" }}>
+            {Array.from({ length: 5 }, (_, i) => (
+              <div key={i} className="motion-safe:animate-pulse" style={{ display: "flex", alignItems: "center", gap: 10, padding: "14px 20px", borderBottom: `1px solid ${T.low}` }}>
+                <div style={{ width: 32, height: 32, borderRadius: "50%", backgroundColor: T.low }} />
+                <div style={{ width: 160, height: 12, borderRadius: 4, backgroundColor: T.low }} />
+                <div style={{ width: 200, height: 12, borderRadius: 4, backgroundColor: T.low, marginLeft: 24 }} />
+                <div style={{ width: 70, height: 18, borderRadius: 999, backgroundColor: T.low, marginLeft: 24 }} />
+              </div>
+            ))}
+          </div>
         ) : isError ? (
           <div style={{ padding: "56px 24px", textAlign: "center" }}>
             <p style={{ fontSize: 13, fontWeight: 700, color: T.text, margin: "0 0 4px" }}>Não foi possível carregar os usuários</p>
@@ -432,6 +455,12 @@ export default function Usuarios() {
                               {init}
                             </div>
                             <span style={{ fontSize: 13, fontWeight: 700, color: T.text }}>{user.name}</span>
+                            {/* A própria linha não tem lixeira (o servidor
+                                bloqueia a auto-exclusão); sem o "você", a
+                                ausência do botão parecia defeito. */}
+                            {me?.id === user.id && (
+                              <span style={{ fontSize: 10, fontWeight: 700, color: T.second, backgroundColor: T.low, borderRadius: 999, padding: "2px 8px" }}>você</span>
+                            )}
                           </div>
                         </td>
 
@@ -521,6 +550,9 @@ export default function Usuarios() {
               <p style={{ fontSize: 11, color: T.second, fontWeight: 500, margin: 0 }}>
                 Exibindo {Math.min((safePage - 1) * PAGE_SIZE + 1, filtered.length)}–{Math.min(safePage * PAGE_SIZE, filtered.length)} de {filtered.length} usuário{filtered.length !== 1 ? "s" : ""}
               </p>
+              {/* Uma página só: as setas desabilitadas e o "1" solitário eram
+                  controle sem função. A contagem à esquerda continua. */}
+              {totalPages > 1 && (
               <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
                 <button onClick={() => setPage(Math.max(1, safePage - 1))} disabled={safePage === 1}
                   aria-label="Página anterior"
@@ -546,6 +578,7 @@ export default function Usuarios() {
                   <ChevronRight style={{ width: 16, height: 16 }} />
                 </button>
               </div>
+              )}
             </div>
           </>
         )}
@@ -565,8 +598,11 @@ export default function Usuarios() {
             <h3 style={{ fontSize: 22, fontWeight: 900, color: "#fff", margin: "0 0 8px", fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.04em", textTransform: "uppercase", lineHeight: 1 }}>
               Controle de Acessos
             </h3>
-            <p style={{ fontSize: 13, color: "rgba(255,255,255,0.72)", margin: 0, maxWidth: 340 }}>
-              Monitore a atividade e o status de segurança dos usuários da plataforma em tempo real.
+            {/* O texto antigo prometia "atividade e status de segurança em tempo
+                real" — o sistema não grava login (ver logs-sistema.tsx). O card
+                agora diz o que o botão entrega de fato: a trilha de operações. */}
+            <p style={{ fontSize: 13, color: "rgba(255,255,255,0.72)", margin: 0, maxWidth: 380 }}>
+              Consulte quem criou, alterou, aprovou ou excluiu cada registro na trilha de operações do sistema.
             </p>
           </div>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 24 }}>
@@ -625,6 +661,10 @@ export default function Usuarios() {
           // sai simétrico. Cada FormMessage de validação soma ~20px e piora a
           // conta. Com o teto, o excedente vira rolagem no corpo.
           style={{ maxWidth: 520, width: "96vw", borderRadius: 12, overflow: "hidden", boxShadow: "0 24px 64px -12px rgba(0,0,0,0.3)", display: "flex", flexDirection: "column", maxHeight: "calc(100vh - 48px)" }}
+          // FOCO INICIAL no Nome: o Radix foca o primeiro focável, que aqui é o
+          // X do cabeçalho — quem abriu "Novo Usuário" tinha de dar Tab antes
+          // de digitar (e um Enter distraído fechava o modal).
+          onOpenAutoFocus={e => { e.preventDefault(); document.getElementById("user-form-name")?.focus(); }}
         >
           {/* POR QUE congelar aqui: criar/atualizar fecha o modal, invalida
               /api/users, chama form.reset() e toasta no mesmo commit. O
@@ -646,7 +686,7 @@ export default function Usuarios() {
                   {editingUser ? "Editar Usuário" : "Novo Usuário"}
                 </h2>
                 <p style={{ fontSize: 11, color: T.second, margin: 0 }}>
-                  {editingUser ? "Edite as informações do perfil abaixo" : "Preencha as informações do perfil abaixo"}
+                  {editingUser ? `Editando ${editingUser.email}` : "O acesso é pela conta Microsoft do e-mail informado"}
                 </p>
               </div>
               <button onClick={requestClose}
@@ -839,22 +879,30 @@ export default function Usuarios() {
               </div>
               <div style={{ flex: 1 }}>
                 <h4 style={{ fontSize: 15, fontWeight: 800, color: T.text, margin: "0 0 6px", fontFamily: "'Space Grotesk', sans-serif" }}>Excluir Usuário?</h4>
-                <p style={{ fontSize: 13, color: T.second, margin: "0 0 20px", lineHeight: 1.5 }}>
+                <p style={{ fontSize: 13, color: T.second, margin: "0 0 8px", lineHeight: 1.5 }}>
                   Tem certeza que deseja excluir <strong style={{ color: T.text }}>{deletingUser.name}</strong>? Esta ação não pode ser desfeita e o usuário perderá acesso imediato.
                 </p>
-                <div style={{ display: "flex", gap: 16, alignItems: "center" }}>
+                <p style={{ fontSize: 12, color: T.second, margin: "0 0 20px", fontFamily: "'DM Mono', monospace", overflowWrap: "anywhere" }}>
+                  {deletingUser.email} · {(ROLE_CFG[deletingUser.role] ?? ROLE_CFG.solicitacao).label}
+                </p>
+                {/* Os dois botões eram links de 10px, com a exclusão em
+                    vermelho À ESQUERDA — o lugar em que o olho procura o
+                    "voltar". Agora: recuar é o secundário, excluir é o botão
+                    cheio à direita, mesmo desenho da exclusão de patrocinador. */}
+                <div style={{ display: "flex", gap: 10, alignItems: "center", justifyContent: "flex-end", flexWrap: "wrap" }}>
+                  <button
+                    data-testid="button-cancel-delete"
+                    onClick={() => setDeletingUser(null)}
+                    style={{ padding: "9px 16px", fontSize: 11, fontWeight: 800, color: T.text, background: T.surface, border: `1px solid ${T.border}`, borderRadius: 6, cursor: "pointer", textTransform: "uppercase", letterSpacing: "0.08em" }}>
+                    Manter
+                  </button>
                   <button
                     data-testid="button-confirm-delete"
                     onClick={() => deleteMutation.mutate(deletingUser.id)}
                     disabled={deleteMutation.isPending}
-                    style={{ fontSize: 10, fontWeight: 900, color: "#dc2626", background: "none", border: "none", cursor: "pointer", textTransform: "uppercase", letterSpacing: "0.12em" }}>
-                    {deleteMutation.isPending ? "Excluindo..." : "Confirmar Exclusão"}
-                  </button>
-                  <button
-                    data-testid="button-cancel-delete"
-                    onClick={() => setDeletingUser(null)}
-                    style={{ fontSize: 10, fontWeight: 900, color: T.second, background: "none", border: "none", cursor: "pointer", textTransform: "uppercase", letterSpacing: "0.12em" }}>
-                    Manter
+                    aria-busy={deleteMutation.isPending}
+                    style={{ padding: "9px 16px", fontSize: 11, fontWeight: 800, color: "#fff", backgroundColor: "#b91c1c", border: "none", borderRadius: 6, cursor: deleteMutation.isPending ? "wait" : "pointer", textTransform: "uppercase", letterSpacing: "0.08em", opacity: deleteMutation.isPending ? 0.7 : 1 }}>
+                    {deleteMutation.isPending ? "Excluindo..." : "Sim, excluir"}
                   </button>
                 </div>
               </div>

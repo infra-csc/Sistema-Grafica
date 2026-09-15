@@ -123,11 +123,14 @@ export default function ConfigurarCotas() {
     onSuccess: (_, vars) => {
       queryClient.invalidateQueries({ queryKey: ["/api/quota-rules/global"] });
       setDirty(prev => { const n = new Set(prev); n.delete(vars.quota); return n; });
-      toast({ title: `Regras para ${vars.quota} salvas` });
     },
-    // O erro é tratado por chamada: toast individual no saveQuota, resumo
-    // agregado no saveAll — um onError global duplicaria os avisos.
+    // Erro E sucesso são avisados por chamada: toast individual no saveQuota,
+    // resumo agregado no saveAll. O toast de sucesso morava aqui e disparava
+    // uma vez POR COTA no "Salvar Tudo" — seis toasts empilhados, com a chave
+    // crua ("MINISTERIO") em vez do rótulo.
   });
+
+  const rotuloDaCota = (key: string) => QUOTAS.find(q => q.key === key)?.label ?? key;
 
   const toggleCell = (quota: string, type: string) => {
     setMatrix(prev => {
@@ -160,9 +163,13 @@ export default function ConfigurarCotas() {
   };
 
   const saveQuota = (quota: string) => {
+    const n = matrix[quota]?.size ?? 0;
     saveMutation.mutate(
       { quota, itemTypes: Array.from(matrix[quota] ?? []) },
-      { onError: (e: any) => toast({ variant: "destructive", title: "Erro ao salvar", description: e.message }) },
+      {
+        onSuccess: () => toast({ title: `Cota ${rotuloDaCota(quota)} salva`, description: `${n} grupo${n !== 1 ? "s" : ""} de peça no Auto-vincular.` }),
+        onError: (e: any) => toast({ variant: "destructive", title: `Não foi possível salvar a cota ${rotuloDaCota(quota)}`, description: e.message }),
+      },
     );
   };
 
@@ -185,10 +192,19 @@ export default function ConfigurarCotas() {
         title: `Salvas ${pending.length - failed.length} de ${pending.length} cotas`,
         description: `Falharam: ${labels}. As pendentes continuam marcadas — tente salvar de novo.`,
       });
+    } else if (pending.length > 0) {
+      toast({ title: pending.length === 1 ? "Cota salva" : `${pending.length} cotas salvas`, description: pending.map(rotuloDaCota).join(", ") });
     }
   };
 
-  const COLS = `200px repeat(${QUOTAS.length}, 1fr)`;
+  // LARGURA MÍNIMA por coluna: com `1fr` puro, em 375px as seis cotas
+  // espremiam-se em ~30px cada e o rótulo "Ministério" quebrava letra a letra.
+  // Com piso, a matriz passa a rolar na horizontal dentro do card — que já é o
+  // scrollport das duas direções, com a coluna de grupo grudada à esquerda.
+  const COL_GRUPO = isMobile ? 132 : 200;
+  const COL_COTA = isMobile ? 88 : 100;
+  const COLS = `${COL_GRUPO}px repeat(${QUOTAS.length}, minmax(${COL_COTA}px, 1fr))`;
+  const GRID_MIN = COL_GRUPO + QUOTAS.length * COL_COTA;
 
   return (
     <div style={{ backgroundColor: T.bg, height: "100%", overflowY: "auto", padding: isMobile ? "14px 16px 60px" : "32px 36px 80px" }}>
@@ -210,11 +226,12 @@ export default function ConfigurarCotas() {
           <button
             onClick={saveAll}
             disabled={saveMutation.isPending}
+            aria-busy={saveMutation.isPending}
             data-testid="save-all-button"
-            style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 20px", backgroundColor: T.dark, color: "#fff", border: "none", borderRadius: 8, cursor: "pointer", fontSize: 11, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.12em", flexShrink: 0, opacity: saveMutation.isPending ? 0.7 : 1 }}
+            style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 20px", backgroundColor: T.dark, color: "#fff", border: "none", borderRadius: 8, cursor: saveMutation.isPending ? "wait" : "pointer", fontSize: 11, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.12em", flexShrink: 0, opacity: saveMutation.isPending ? 0.7 : 1 }}
           >
             <Save style={{ width: 13, height: 13 }} />
-            Salvar Tudo ({dirty.size})
+            {saveMutation.isPending ? "Salvando…" : `Salvar Tudo (${dirty.size})`}
           </button>
         )}
       </div>
@@ -228,7 +245,7 @@ export default function ConfigurarCotas() {
         {/* ── Sticky header ── */}
         <div style={{
           position: "sticky", top: 0, zIndex: 10,
-          display: "grid", gridTemplateColumns: COLS,
+          display: "grid", gridTemplateColumns: COLS, minWidth: GRID_MIN,
           borderBottom: `2px solid ${T.border}`,
           backgroundColor: T.surface,
           boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
@@ -246,11 +263,12 @@ export default function ConfigurarCotas() {
                   value={search}
                   onChange={e => setSearch(e.target.value)}
                   placeholder="Filtrar grupos..."
+                  aria-label="Filtrar grupos de peça"
                   data-testid="input-search-groups"
                   style={{ width: "100%", padding: "5px 24px 5px 24px", fontSize: 11, border: `1px solid ${T.border}`, borderRadius: 6, background: T.low, color: T.text, outline: "none", boxSizing: "border-box" }}
                 />
                 {search && (
-                  <button onClick={() => setSearch("")} style={{ position: "absolute", right: 6, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", padding: 0, display: "flex" }}>
+                  <button onClick={() => setSearch("")} aria-label="Limpar filtro de grupos" style={{ position: "absolute", right: 6, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", padding: 0, display: "flex" }}>
                     <X style={{ width: 11, height: 11, color: T.muted }} />
                   </button>
                 )}
@@ -291,6 +309,14 @@ export default function ConfigurarCotas() {
                   }}>
                     {count} grupo{count !== 1 ? "s" : ""}
                   </div>
+                  {/* O fundo colorido era o ÚNICO sinal de coluna com alteração
+                      pendente — e a própria coluna já usa essa cor quando a
+                      célula está marcada. O rótulo tira a ambiguidade. */}
+                  {isDirtyQ && (
+                    <div style={{ marginTop: 3, fontSize: 9, fontWeight: 800, color: "#c2410c", textTransform: "uppercase", letterSpacing: "0.08em" }}>
+                      não salvo
+                    </div>
+                  )}
                 </div>
 
                 {/* Actions row */}
@@ -368,7 +394,7 @@ export default function ConfigurarCotas() {
               <div
                 key={group}
                 style={{
-                  display: "grid", gridTemplateColumns: COLS,
+                  display: "grid", gridTemplateColumns: COLS, minWidth: GRID_MIN,
                   borderBottom: idx < filteredGroups.length - 1 ? `1px solid ${T.border}` : "none",
                   backgroundColor: isEven ? T.surface : STRIPE,
                 }}

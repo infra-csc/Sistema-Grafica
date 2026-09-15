@@ -194,7 +194,9 @@ export function PainelDoKit({ eventId, pecas, podeCriar, usuarioDoKit, nomeDoUsu
         {podeCriar && (
           <button type="button" data-testid="button-nova-remessa-kit" disabled={eventoFinalizado} onClick={() => setAberto(true)}
             title={eventoFinalizado ? "Evento finalizado — não recebe peças" : undefined}
-            style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 6, height: isMobile ? 44 : 34, padding: "0 14px", borderRadius: R.md, border: "1px solid #ddd6fe", background: eventoFinalizado ? "#f5f5f4" : "#f5f3ff", color: eventoFinalizado ? "#a8a29e" : "#5b21b6", fontSize: 12.5, fontWeight: 800, cursor: eventoFinalizado ? "not-allowed" : "pointer" }}>
+            // Desabilitado em #78716c, não #a8a29e: o rótulo continua sendo
+            // TEXTO lido (2,5:1 reprovava), só perde a cor de ação.
+            style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 6, height: isMobile ? 44 : 34, padding: "0 14px", borderRadius: R.md, border: "1px solid #ddd6fe", background: eventoFinalizado ? "#f5f5f4" : "#f5f3ff", color: eventoFinalizado ? "#78716c" : "#5b21b6", fontSize: 12.5, fontWeight: 800, cursor: eventoFinalizado ? "not-allowed" : "pointer" }}>
             <Plus size={14} aria-hidden="true" /> Nova remessa do Kit
           </button>
         )}
@@ -242,26 +244,33 @@ export function PainelDoKit({ eventId, pecas, podeCriar, usuarioDoKit, nomeDoUsu
                 <button type="button" data-testid={`button-adicionar-peca-remessa-${r.id}`} disabled={eventoFinalizado}
                   onClick={() => onAdicionarPeca(r.id)}
                   title={eventoFinalizado ? "Evento finalizado — não recebe peças" : `Adicionar uma peça à KIT ${r.versao}`}
-                  style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 5, height: 32, padding: "0 12px", borderRadius: R.md, border: "none", background: eventoFinalizado ? "#e7e5e4" : "#6d28d9", color: eventoFinalizado ? "#78716c" : "#fff", fontSize: 12.5, fontWeight: 800, cursor: eventoFinalizado ? "not-allowed" : "pointer" }}>
+                  style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 5, height: isMobile ? 44 : 32, padding: "0 12px", borderRadius: R.md, border: "none", background: eventoFinalizado ? "#e7e5e4" : "#6d28d9", color: eventoFinalizado ? "#78716c" : "#fff", fontSize: 12.5, fontWeight: 800, cursor: eventoFinalizado ? "not-allowed" : "pointer" }}>
                   <Plus size={13} aria-hidden="true" /> Adicionar peça ao KIT {r.versao}
                 </button>
               )}
               {podeCriar && (confirmandoExclusao === r.id ? (
                 <span style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                  <span style={{ fontSize: FS.body, color: "#991b1b", fontWeight: 700 }}>Excluir a KIT {r.versao} e as {daRemessa.length} peças?</span>
+                  {/* A frase diz o tamanho real do estrago — "e as 1 peças" e
+                      "e as 0 peças" liam como erro de digitação justo na hora
+                      de confirmar uma exclusão. */}
+                  <span role="alert" style={{ fontSize: FS.body, color: "#991b1b", fontWeight: 700 }}>
+                    {daRemessa.length === 0
+                      ? `Excluir a KIT ${r.versao}? Ela não tem peças.`
+                      : `Excluir a KIT ${r.versao} e ${daRemessa.length === 1 ? "a peça dela" : `as ${daRemessa.length} peças dela`}?`}
+                  </span>
                   <button type="button" data-testid={`button-confirmar-excluir-remessa-${r.id}`} disabled={excluir.isPending} onClick={() => excluir.mutate(r.id)}
-                    style={{ height: 32, padding: "0 12px", borderRadius: R.md, border: "none", background: "#b91c1c", color: "#fff", fontSize: 12.5, fontWeight: 800, cursor: "pointer" }}>
+                    style={{ height: isMobile ? 44 : 32, padding: "0 12px", borderRadius: R.md, border: "none", background: "#b91c1c", color: "#fff", fontSize: 12.5, fontWeight: 800, cursor: excluir.isPending ? "wait" : "pointer" }}>
                     {excluir.isPending ? "Excluindo…" : "Excluir"}
                   </button>
                   <button type="button" onClick={() => setConfirmandoExclusao(null)} disabled={excluir.isPending}
-                    style={{ height: 32, padding: "0 8px", border: "none", background: "none", color: "#57534e", fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}>
+                    style={{ height: isMobile ? 44 : 32, padding: "0 8px", border: "none", background: "none", color: "#57534e", fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}>
                     Voltar
                   </button>
                 </span>
               ) : (
                 <button type="button" data-testid={`button-excluir-remessa-${r.id}`} onClick={() => setConfirmandoExclusao(r.id)}
                   title="Excluir a remessa e as peças dela — só enquanto nenhuma peça foi enviada"
-                  style={{ marginLeft: onAdicionarPeca ? 0 : "auto", display: "inline-flex", alignItems: "center", gap: 5, height: 32, padding: "0 10px", borderRadius: R.md, border: "1px solid #fecaca", background: "#fff", color: "#b91c1c", fontSize: 12.5, fontWeight: 800, cursor: "pointer" }}>
+                  style={{ marginLeft: onAdicionarPeca ? 0 : "auto", display: "inline-flex", alignItems: "center", gap: 5, height: isMobile ? 44 : 32, padding: "0 10px", borderRadius: R.md, border: "1px solid #fecaca", background: "#fff", color: "#b91c1c", fontSize: 12.5, fontWeight: 800, cursor: "pointer" }}>
                   <Trash2 size={13} aria-hidden="true" /> Excluir remessa
                 </button>
               ))}
@@ -315,7 +324,11 @@ export function PainelDoKit({ eventId, pecas, podeCriar, usuarioDoKit, nomeDoUsu
           <div style={{ flex: "1 1 auto", minHeight: 0, overflowY: "auto", padding: isMobile ? 16 : "16px 24px", display: "grid", gap: 16,
             gridTemplateColumns: !isMobile && nPecas > 0 ? "minmax(0, 360px) minmax(0, 1fr)" : "minmax(0, 1fr)", alignItems: "start" }}>
             <div style={{ display: "flex", flexDirection: "column", gap: 12, minWidth: 0 }}>
+              {/* O input era `hidden`: invisível E fora da ordem de Tab — sem
+                  mouse não havia como enviar a planilha. `sr-only` mantém o
+                  campo focável, e o anel no rótulo mostra onde o foco está. */}
               <label data-testid="button-planilha-remessa-kit"
+                className="focus-within:ring-2 focus-within:ring-violet-600 focus-within:ring-offset-2"
                 style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, padding: "12px 10px", borderRadius: R.md, border: `1.5px dashed ${planilha ? "#16a34a" : "#a78bfa"}`, background: planilha ? "#f0fdf4" : "#faf5ff", color: planilha ? "#166534" : "#5b21b6", cursor: lendoPlanilha ? "wait" : "pointer", textAlign: "center" }}>
                 <span style={{ display: "inline-flex", alignItems: "center", gap: 8, fontSize: 13.5, fontWeight: 800 }}>
                   <FileSpreadsheet size={16} aria-hidden="true" />
@@ -324,7 +337,8 @@ export function PainelDoKit({ eventId, pecas, podeCriar, usuarioDoKit, nomeDoUsu
                 <span style={{ fontSize: FS.small, color: "#57534e" }}>
                   {planilha ? `${nPecas} ${nPecas === 1 ? "peça" : "peças"} · clique para trocar` : "Preenche as datas e traz as peças. Opcional."}
                 </span>
-                <input type="file" accept=".xlsx" hidden disabled={lendoPlanilha}
+                <input type="file" accept=".xlsx" className="sr-only" disabled={lendoPlanilha}
+                  aria-label="Enviar a planilha do Kit (.xlsx)"
                   onChange={(e) => { void lerPlanilha(e.target.files?.[0]); e.target.value = ""; }} />
               </label>
               <div style={{ display: "grid", gap: 10, gridTemplateColumns: "1fr 1fr" }}>
@@ -360,8 +374,8 @@ export function PainelDoKit({ eventId, pecas, podeCriar, usuarioDoKit, nomeDoUsu
                           <td style={{ padding: "7px 10px", fontVariantNumeric: "tabular-nums", color: "#44403c" }}>{p.fileWidth && p.fileHeight ? `${p.fileWidth} × ${p.fileHeight}` : "—"}</td>
                           <td style={{ padding: "7px 10px", fontVariantNumeric: "tabular-nums", fontWeight: 700 }}>{Number(p.calculatedM2 || 0).toFixed(2)}</td>
                           <td style={{ padding: "4px 6px" }}>
-                            <button type="button" aria-label={`Tirar ${p.description || p.type}`} onClick={() => tirarPeca(i)}
-                              style={{ width: 28, height: 28, borderRadius: R.md, border: "none", background: "transparent", color: "#a8a29e", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                            <button type="button" aria-label={`Tirar ${p.description || p.type} da remessa`} title="Tirar esta peça da remessa" onClick={() => tirarPeca(i)}
+                              style={{ width: isMobile ? 44 : 28, height: isMobile ? 44 : 28, borderRadius: R.md, border: "none", background: "transparent", color: "#78716c", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
                               <X size={14} aria-hidden="true" />
                             </button>
                           </td>
@@ -381,7 +395,7 @@ export function PainelDoKit({ eventId, pecas, podeCriar, usuarioDoKit, nomeDoUsu
               Cancelar
             </button>
             <button type="button" data-testid="button-criar-remessa-kit" disabled={!!faltando || criar.isPending} onClick={() => criar.mutate()}
-              style={{ height: 44, padding: "0 22px", borderRadius: R.md, border: "none", background: faltando || criar.isPending ? "#e7e5e4" : "#6d28d9", color: faltando || criar.isPending ? "#78716c" : "#fff", fontSize: 14, fontWeight: 800, cursor: faltando ? "not-allowed" : "pointer" }}>
+              style={{ height: 44, padding: "0 22px", borderRadius: R.md, border: "none", background: faltando || criar.isPending ? "#e7e5e4" : "#6d28d9", color: faltando || criar.isPending ? "#78716c" : "#fff", fontSize: 14, fontWeight: 800, cursor: criar.isPending ? "wait" : faltando ? "not-allowed" : "pointer" }}>
               {criar.isPending ? "Criando…" : nPecas > 0 ? `Criar remessa e importar ${nPecas} ${nPecas === 1 ? "peça" : "peças"}` : "Criar remessa"}
             </button>
           </div>

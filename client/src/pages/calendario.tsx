@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { parseDateLocal, toUTCDisplayDate } from "@/lib/utils";
 import { getPriorityMeta, getStatusMeta, isEventoEncerrado } from "@/lib/status";
-import { ChevronLeft, ChevronRight, AlertTriangle, Calendar, Truck, Search, BarChart2, Flag } from "lucide-react";
+import { ChevronLeft, ChevronRight, AlertTriangle, Calendar, Truck, Search, BarChart2, Flag, X } from "lucide-react";
 import { useState, useMemo, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 import {
@@ -395,8 +395,11 @@ export default function Calendario() {
         }}>
           Calendário de Eventos
         </h1>
+        {/* O subtítulo repetia o mês (que o cabeçalho da grade já mostra em
+            26px) atrás de um jargão. Agora ensina a ler a tela: de onde os
+            prazos saem e o que o clique faz. */}
         <p style={{ fontSize: 13, color: P.secondary, margin: "6px 0 0", fontWeight: 500 }}>
-          Gestão tática e logística — {MONTH_NAMES[month]} {year}
+          Início, saída do caminhão e prazos de cada evento — clique numa marcação para abrir o evento.
         </p>
       </div>
 
@@ -404,13 +407,19 @@ export default function Calendario() {
           role="alert": leitor de tela anuncia a urgência ao chegar na tela.
           O antigo "Ver Detalhes" abria só o dia do PRIMEIRO urgente; agora
           cada urgente é um botão que leva direto ao seu evento. */}
+      {/* <section> com rótulo, e não role="alert": o tick de 1 min reescreve
+          as contagens daqui, e uma região de alerta RE-ANUNCIA a cada mudança
+          — o leitor de tela interrompia a pessoa a cada minuto com a mesma
+          faixa. A seção continua achável pela navegação por regiões.
+          `border` ANTES de `borderLeft`: na ordem inversa o shorthand zerava a
+          barra de 6px e a faixa mais urgente da tela perdia o acento. */}
       {urgentEvents.length > 0 && (
-        <div role="alert" style={{
+        <section aria-label="Saídas do caminhão nas próximas 48 horas" data-testid="faixa-urgentes" style={{
           marginBottom: 20,
           backgroundColor: "#fef2f2",
+          border: "1px solid #fca5a5",
           borderLeft: "6px solid #dc2626",
           borderRadius: 12,
-          border: "1px solid #fca5a5",
           padding: "14px 20px",
         }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
@@ -446,7 +455,7 @@ export default function Calendario() {
               );
             })}
           </div>
-        </div>
+        </section>
       )}
 
       {/* ── Main Calendar Card ── */}
@@ -475,11 +484,22 @@ export default function Calendario() {
             {/* Search */}
             <div style={{ position: "relative" }}>
               <Search style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", width: 14, height: 14, color: P.muted }} />
+              {/* Esc limpa e o X aparece com texto: sem nenhum dos dois, apagar
+                  a busca era segurar Backspace — e a grade filtrada sem saída
+                  visível parece um mês vazio. */}
               <input placeholder="Filtrar evento..."
                 aria-label="Filtrar eventos do calendário"
                 ref={searchRef}
                 value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
-                style={{ paddingLeft: 32, paddingRight: 12, height: isMobile ? 44 : 36, width: isMobile ? 160 : 200, backgroundColor: "#eeeeed", border: "none", borderRadius: 8, fontSize: 13, color: P.text }} />
+                onKeyDown={e => { if (e.key === "Escape" && searchTerm) { e.preventDefault(); setSearchTerm(""); } }}
+                style={{ paddingLeft: 32, paddingRight: searchTerm ? 34 : 12, height: isMobile ? 44 : 36, width: isMobile ? 160 : 200, backgroundColor: "#eeeeed", border: "none", borderRadius: 8, fontSize: 13, color: P.text }} />
+              {searchTerm && (
+                <button type="button" onClick={() => { setSearchTerm(""); searchRef.current?.focus(); }}
+                  aria-label="Limpar filtro de evento" title="Limpar (Esc)" data-testid="button-limpar-busca-calendario"
+                  style={{ position: "absolute", right: 2, top: "50%", transform: "translateY(-50%)", width: isMobile ? 40 : 30, height: isMobile ? 40 : 30, display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: "none", borderRadius: 6, color: P.secondary, cursor: "pointer" }}>
+                  <X aria-hidden="true" style={{ width: 14, height: 14 }} />
+                </button>
+              )}
             </div>
             {/* Alvo de toque: 44px no celular, como os demais controles de navegação. */}
             <button onClick={() => setCurrentDate(new Date())} data-testid="button-today"
@@ -530,8 +550,25 @@ export default function Calendario() {
         </div>
 
         {isLoading ? (
-          <div style={{ display: "flex", justifyContent: "center", padding: 64 }}>
-            <div style={{ width: 32, height: 32, border: "3px solid #e7e5e4", borderTopColor: P.accent, borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
+          // Skeleton com a silhueta da escala em vigor, no lugar do spinner
+          // central: o spinner deixava um vão branco e a grade "pulava" ao
+          // chegar. aria-busy + rótulo dizem ao leitor de tela que é carga, não
+          // mês vazio. `animate-pulse` já respeita prefers-reduced-motion
+          // (regra global do index.css).
+          <div aria-busy="true" aria-label="Carregando calendário" data-testid="skeleton-calendario"
+            style={escala === "semana"
+              ? { display: "flex", flexDirection: "column" }
+              : { display: "grid", gridTemplateColumns: "repeat(7, minmax(0, 1fr))" }}>
+            {Array.from({ length: escala === "semana" ? 7 : 35 }).map((_, i) => (
+              <div key={i} style={escala === "semana"
+                ? { display: "flex", gap: 14, alignItems: "center", padding: "14px", borderBottom: "1px solid #f5f4f2", minHeight: 56 }
+                : { height: isMobile ? 62 : 90, padding: 8, borderRight: i % 7 !== 6 ? "1px solid #eeeeed" : undefined, borderBottom: "1px solid #eeeeed" }}>
+                <div className="animate-pulse" style={{ width: escala === "semana" ? 48 : 18, height: escala === "semana" ? 28 : 12, borderRadius: 4, backgroundColor: P.low }} />
+                {(escala === "semana" || i % 3 === 0) && (
+                  <div className="animate-pulse" style={{ width: escala === "semana" ? "45%" : "80%", height: 10, borderRadius: 4, backgroundColor: "#eeeeed", marginTop: escala === "semana" ? 0 : 8 }} />
+                )}
+              </div>
+            ))}
           </div>
         ) : isError ? (
           <div role="alert" style={{ padding: "56px 24px", textAlign: "center" }}>
@@ -732,7 +769,10 @@ export default function Calendario() {
                   {...(hasAny ? {
                     role: "button" as const,
                     tabIndex: 0,
-                    "aria-label": `Dia ${day} — ver eventos`,
+                    // Com a contagem: "ver eventos" em toda célula não dizia ao
+                    // leitor de tela ONDE vale a pena parar — quem enxerga vê as
+                    // pílulas e o "+N mais"; quem ouve só tinha o número do dia.
+                    "aria-label": `Dia ${day} — ${allCellItems.length} ${allCellItems.length === 1 ? "marcação" : "marcações"}, ver detalhes`,
                     onKeyDown: (e: React.KeyboardEvent) => {
                       // Enter/Espaço numa pill INTERNA borbulha até aqui: sem o
                       // guard, ativar a pill abria também o dialog do dia por
@@ -928,11 +968,14 @@ export default function Calendario() {
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
               <Truck style={{ width: 12, height: 12, color: P.muted }} />
-              <span style={{ fontSize: 11, color: P.secondary }}>Saída Logística</span>
+              {/* Vocabulário da tela inteira ("saída do caminhão"), e a bandeira
+                  é de TODO prazo — "Prazo de Layout" ensinava errado a ler as
+                  outras cinco marcações tracejadas. */}
+              <span style={{ fontSize: 11, color: P.secondary }}>Saída do caminhão</span>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
               <Flag style={{ width: 12, height: 12, color: P.muted }} />
-              <span style={{ fontSize: 11, color: P.secondary }}>Prazo de Layout</span>
+              <span style={{ fontSize: 11, color: P.secondary }}>Prazo</span>
             </div>
           </div>
         </div>

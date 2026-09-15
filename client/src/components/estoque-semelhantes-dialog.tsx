@@ -118,7 +118,7 @@ function Miniatura({ url, tamanho = 56 }: { url: string | null; tamanho?: number
     <div style={{ width: tamanho, height: tamanho, borderRadius: 8, overflow: "hidden", background: "#f5f5f4", border: "1px solid #e7e5e4", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
       {ehImagem(url) && !falhou
         ? <img src={miniatura(url!)} alt="" loading="lazy" decoding="async" onError={() => setFalhou(true)} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-        : <Package size={Math.round(tamanho / 3)} color="#a8a29e" aria-hidden="true" />}
+        : <Package size={Math.round(tamanho / 3)} color="#78716c" aria-hidden="true" />}
     </div>
   );
 }
@@ -155,7 +155,8 @@ function LoteLinha({ lote, indice, nomeDe, maximo, quantidade, onQuantidade, onR
             {ROTULO_DA_RELACAO[lote.relacao]}{patrocinadores ? `: ${patrocinadores}` : ""}
           </Chip>
           <Chip cor={cond.color} fundo={cond.bg}>{cond.label}</Chip>
-          <Chip cor={lote.local ? "#44403c" : "#a8a29e"} fundo="#f5f5f4">
+          {/* "Sem local" em #78716c: #a8a29e é proibido como cor de texto (2,3:1). */}
+          <Chip cor={lote.local ? "#44403c" : "#78716c"} fundo="#f5f5f4">
             <MapPin size={10} aria-hidden="true" /> {lote.local ?? "Sem local"}
           </Chip>
           <Chip cor={tom.cor} fundo={tom.fundo}>{situacao}</Chip>
@@ -173,20 +174,22 @@ function LoteLinha({ lote, indice, nomeDe, maximo, quantidade, onQuantidade, onR
         </span>
         {podeAgir && maximo > 0 && (
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <div style={{ display: "inline-flex", alignItems: "center", border: "1px solid #d6d3d1", borderRadius: 8, overflow: "hidden", height: 32 }}>
+            {/* Stepper e Reservar com 40px: a busca também abre no celular
+                (Detalhe do Evento), e 30px ficavam abaixo da ponta do dedo. */}
+            <div style={{ display: "inline-flex", alignItems: "center", border: "1px solid #d6d3d1", borderRadius: 8, overflow: "hidden", height: 40 }}>
               <button type="button" aria-label="Uma a menos" disabled={quantidade <= 1} onClick={() => onQuantidade(quantidade - 1)}
-                style={{ width: 30, height: "100%", border: "none", background: "#fafaf9", cursor: quantidade <= 1 ? "not-allowed" : "pointer", color: "#44403c", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                style={{ width: 38, height: "100%", border: "none", background: "#fafaf9", cursor: quantidade <= 1 ? "not-allowed" : "pointer", color: "#44403c", display: "flex", alignItems: "center", justifyContent: "center" }}>
                 <Minus size={13} />
               </button>
               <span aria-live="polite" style={{ minWidth: 28, textAlign: "center", fontSize: 13, fontWeight: 800, fontVariantNumeric: "tabular-nums" }}>{quantidade}</span>
               <button type="button" aria-label="Uma a mais" disabled={quantidade >= maximo} onClick={() => onQuantidade(quantidade + 1)}
-                style={{ width: 30, height: "100%", border: "none", background: "#fafaf9", cursor: quantidade >= maximo ? "not-allowed" : "pointer", color: "#44403c", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                style={{ width: 38, height: "100%", border: "none", background: "#fafaf9", cursor: quantidade >= maximo ? "not-allowed" : "pointer", color: "#44403c", display: "flex", alignItems: "center", justifyContent: "center" }}>
                 <Plus size={13} />
               </button>
             </div>
             <button type="button" data-testid={`button-reservar-lote-${indice}`} disabled={reservando} onClick={onReservar}
-              style={{ height: 32, padding: "0 14px", borderRadius: 8, border: "none", background: "#1c1917", color: "#fff", fontWeight: 800, fontSize: 12, cursor: reservando ? "wait" : "pointer", opacity: reservando ? 0.6 : 1, whiteSpace: "nowrap" }}>
-              Reservar {quantidade}
+              style={{ height: 40, padding: "0 16px", borderRadius: 8, border: "none", background: "#1c1917", color: "#fff", fontWeight: 800, fontSize: 12.5, cursor: reservando ? "wait" : "pointer", opacity: reservando ? 0.6 : 1, whiteSpace: "nowrap" }}>
+              {reservando ? "Reservando…" : `Reservar ${quantidade}`}
             </button>
           </div>
         )}
@@ -276,7 +279,7 @@ export function EstoqueSemelhantesDialog({ item, podeReservar, onClose }: {
             </DialogDescription>
           </div>
           <button type="button" onClick={fechar} aria-label="Fechar"
-            style={{ width: 32, height: 32, borderRadius: 8, border: "none", background: "#f5f5f4", color: "#57534e", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+            style={{ width: 40, height: 40, borderRadius: 8, border: "none", background: "#f5f5f4", color: "#57534e", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
             <X size={15} />
           </button>
         </header>
@@ -336,8 +339,8 @@ export function EstoqueSemelhantesDialog({ item, podeReservar, onClose }: {
                   {r.podeLiberar ? (
                     podeReservar && (
                       <button type="button" data-testid={`button-liberar-${r.reservaId}`} disabled={liberar.isPending} onClick={() => liberar.mutate(r.reservaId)}
-                        style={{ height: 30, padding: "0 12px", borderRadius: 8, border: "1px solid #a7f3d0", background: "#fff", color: "#065f46", fontSize: 12, fontWeight: 800, cursor: liberar.isPending ? "wait" : "pointer" }}>
-                        Liberar
+                        style={{ height: 40, padding: "0 14px", borderRadius: 8, border: "1px solid #a7f3d0", background: "#fff", color: "#065f46", fontSize: 12, fontWeight: 800, cursor: liberar.isPending ? "wait" : "pointer" }}>
+                        {liberar.isPending && liberar.variables === r.reservaId ? "Liberando…" : "Liberar"}
                       </button>
                     )
                   ) : (
@@ -389,7 +392,7 @@ export function EstoqueSemelhantesDialog({ item, podeReservar, onClose }: {
 
           {data && !data.semMedida && reservaveis === 0 && (
             <div style={{ textAlign: "center", padding: "22px 12px", color: "#57534e" }}>
-              <Package size={26} color="#a8a29e" aria-hidden="true" />
+              <Package size={26} color="#78716c" aria-hidden="true" />
               <p style={{ margin: "8px 0 2px", fontSize: 14, fontWeight: 800, color: "#1c1917" }}>Nada para usar no estoque</p>
               <p style={{ margin: 0, fontSize: 12.5 }}>
                 {indisponiveis.length > 0

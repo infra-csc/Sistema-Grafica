@@ -42,17 +42,19 @@ export function MapaGalpao({ value, onSelect, onClose }: {
       >
         <div style={{ padding: "16px 20px", borderBottom: "1px solid #f1f5f9", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <Grid3X3 size={18} color="#f97316" />
+            <Grid3X3 size={18} color="#c2410c" />
             <div>
               <DialogTitle asChild>
                 <p style={{ margin: 0, fontSize: 14, fontWeight: 800, fontFamily: "Space Grotesk, sans-serif", color: "#0f172a" }}>Mapa do Galpão</p>
               </DialogTitle>
+              {/* #64748b (4,76:1): o #94a3b8 anterior reprovava AA nos 11px.
+                  "Toque" antes de "clique": o mapa é usado no tablet do galpão. */}
               <DialogDescription asChild>
-                <p style={{ margin: 0, fontSize: 10, color: "#94a3b8", fontFamily: "Plus Jakarta Sans, sans-serif" }}>Clique para selecionar e confirme a localização</p>
+                <p style={{ margin: 0, fontSize: 11, color: "#64748b", fontFamily: "Plus Jakarta Sans, sans-serif" }}>Toque no setor e corredor, depois confirme</p>
               </DialogDescription>
             </div>
           </div>
-          <button onClick={onClose} aria-label="Fechar mapa" style={{ background: "#f1f5f9", border: "none", width: 30, height: 30, borderRadius: 8, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#64748b" }}>
+          <button onClick={onClose} aria-label="Fechar mapa" style={{ background: "#f1f5f9", border: "none", width: 36, height: 36, borderRadius: 8, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#64748b" }}>
             <X size={14} />
           </button>
         </div>
@@ -62,7 +64,7 @@ export function MapaGalpao({ value, onSelect, onClose }: {
           <div style={{ display: "grid", gridTemplateColumns: "28px repeat(8, 1fr)", gap: 4, marginBottom: 4 }}>
             <div />
             {CORREDORES.map(c => (
-              <div key={c} style={{ textAlign: "center", fontSize: 9, fontWeight: 700, color: "#94a3b8", fontFamily: "DM Mono, monospace" }}>C{c}</div>
+              <div key={c} style={{ textAlign: "center", fontSize: 9, fontWeight: 700, color: "#64748b", fontFamily: "DM Mono, monospace" }}>C{c}</div>
             ))}
           </div>
           {SETORES.map(s => (
@@ -75,15 +77,19 @@ export function MapaGalpao({ value, onSelect, onClose }: {
                 return (
                   <button key={c} onClick={() => onSelect(loc)} aria-label={loc} aria-pressed={isSelected}
                     onMouseEnter={() => setHov(loc)} onMouseLeave={() => setHov(null)}
+                    /* Regra da casa: #f97316 nunca como texto. O selecionado era
+                       branco sobre #f97316 (2,8:1) e o hover pintava o próprio
+                       texto de #f97316 — os dois viram #c2410c (5,18:1). O anel
+                       de foco deixa de ser suprimido: sem ele o mapa não era
+                       navegável por teclado. */
                     style={{
                       height: 40, borderRadius: 8, border: "none",
-                      background: isSelected ? "#f97316" : isHov ? "#fff7ed" : "#f8fafc",
-                      color: isSelected ? "#fff" : isHov ? "#f97316" : "#64748b",
-                      fontSize: 9, fontWeight: 700, cursor: "pointer",
+                      background: isSelected ? "#c2410c" : isHov ? "#fff7ed" : "#f8fafc",
+                      color: isSelected ? "#fff" : isHov ? "#c2410c" : "#475569",
+                      fontSize: 10, fontWeight: 700, cursor: "pointer",
                       fontFamily: "DM Mono, monospace",
-                      transition: "all 0.12s",
-                      outline: isSelected ? "2px solid rgba(249,115,22,0.4)" : "none",
-                      outlineOffset: 2,
+                      transition: "background-color 0.12s, color 0.12s",
+                      boxShadow: isSelected ? "0 0 0 2px #ffffff, 0 0 0 4px rgba(194,65,12,0.45)" : "none",
                     }}>
                     {s}{c}
                   </button>
@@ -93,14 +99,16 @@ export function MapaGalpao({ value, onSelect, onClose }: {
           ))}
           {value && (
             <div style={{ marginTop: 12, padding: "8px 14px", borderRadius: 10, background: "#fff7ed", border: "1px solid #fed7aa", display: "flex", alignItems: "center", gap: 8 }}>
-              <MapPin size={13} color="#ea580c" />
-              <span style={{ fontSize: 12, fontWeight: 700, color: "#ea580c", fontFamily: "Space Grotesk, sans-serif" }}>{value}</span>
+              <MapPin size={13} color="#c2410c" />
+              <span role="status" style={{ fontSize: 12, fontWeight: 700, color: "#c2410c", fontFamily: "Space Grotesk, sans-serif" }}>{value}</span>
             </div>
           )}
         </div>
         <div style={{ padding: "12px 20px", borderTop: "1px solid #f1f5f9", display: "flex", justifyContent: "flex-end", flexShrink: 0 }}>
-          <button onClick={onClose} style={{ padding: "9px 20px", borderRadius: 10, border: "none", background: "#f97316", color: "#fff", fontSize: 13, cursor: "pointer", fontFamily: "Space Grotesk, sans-serif", fontWeight: 700 }}>
-            Confirmar
+          {/* #c2410c: branco sobre #f97316 dava 2,8:1. 44px: é o botão que o
+              operador procura com o dedo depois de escolher a célula. */}
+          <button onClick={onClose} style={{ minHeight: 44, padding: "0 22px", borderRadius: 10, border: "none", background: "#c2410c", color: "#fff", fontSize: 13, cursor: "pointer", fontFamily: "Space Grotesk, sans-serif", fontWeight: 700 }}>
+            {value ? "Confirmar local" : "Fechar"}
           </button>
         </div>
       </DialogContent>

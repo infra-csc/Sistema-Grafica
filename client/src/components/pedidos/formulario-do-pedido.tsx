@@ -12,7 +12,7 @@
 //
 // Não há edição: o Atendimento, se errou, cancela e cria outra.
 // ─────────────────────────────────────────────────────────────────────────────
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { AlertTriangle, Copy, ImagePlus, Inbox, Plus, Send, Trash2, X } from "lucide-react";
 import type { Sponsor } from "@shared/schema";
@@ -347,6 +347,23 @@ export function FormularioDoPedido({ aberto, onFechar }: { aberto: boolean; onFe
   });
   const remover = (chave: string) => setPecas((lista) => (lista.length > 1 ? lista.filter((p) => p.chave !== chave) : lista));
 
+  // A PEÇA NOVA VEM ATÉ QUEM CLICOU. "Adicionar outra peça" e "Duplicar"
+  // criavam o bloco fora de vista, no pé de uma janela que rola — a pessoa
+  // clicava e não via nada acontecer. Agora a janela leva até o bloco novo e o
+  // cursor já está em "O que precisa" (evento e prazo vêm da peça anterior).
+  const chavesAnteriores = useRef<string[]>([]);
+  useEffect(() => {
+    const antes = new Set(chavesAnteriores.current);
+    chavesAnteriores.current = pecas.map((p) => p.chave);
+    if (antes.size === 0 || pecas.length <= antes.size) return;
+    const nova = pecas.find((p) => !antes.has(p.chave));
+    const campo = nova ? document.getElementById(`${nova.chave}-observacao`) : null;
+    if (!campo) return;
+    const semMovimento = typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    campo.closest("fieldset")?.scrollIntoView({ behavior: semMovimento ? "auto" : "smooth", block: "start" });
+    campo.focus({ preventScroll: true });
+  }, [pecas]);
+
   const primeiraFalta = pecas.map((p, i) => ({ i, falta: faltaNaPeca(p) })).find((x) => x.falta);
   const faltando = primeiraFalta ? `Peça ${primeiraFalta.i + 1}: ${primeiraFalta.falta}` : null;
   const eventosDistintos = new Set(pecas.map((p) => p.eventId).filter(Boolean)).size;
@@ -369,7 +386,10 @@ export function FormularioDoPedido({ aberto, onFechar }: { aberto: boolean; onFe
       return (await apiRequest("POST", "/api/pedidos-de-peca", corpo)).json();
     },
     onSuccess: () => {
-      toast({ title: "Solicitação enviada", description: "Quem monta a lista foi avisado." });
+      toast({
+        title: "Solicitação enviada",
+        description: `${pecas.length} ${pecas.length === 1 ? "peça" : "peças"} · quem monta a lista foi avisado. Acompanhe cada uma nesta lista.`,
+      });
       invalidarPedidos();
       onFechar();
     },

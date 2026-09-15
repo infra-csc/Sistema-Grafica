@@ -167,13 +167,16 @@ export function DeliveryPhotoGallery({ itemId }: DeliveryPhotoGalleryProps) {
                   alt="Foto de entrega"
                   className="w-full h-full object-cover"
                 />
-                <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                {/* focus-within: as ações só apareciam no hover — quem navega
+                    por teclado tabulava para botões invisíveis. */}
+                <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 motion-safe:transition-opacity flex items-center justify-center gap-2">
                   <Dialog>
                     <DialogTrigger asChild>
                       <Button
                         size="icon"
                         variant="secondary"
                         onClick={() => setSelectedImage(photo.photoUrl)}
+                        aria-label="Ampliar foto"
                         data-testid={`button-zoom-photo-${photo.id}`}
                       >
                         <ZoomIn className="h-4 w-4" />
@@ -204,6 +207,7 @@ export function DeliveryPhotoGallery({ itemId }: DeliveryPhotoGalleryProps) {
                     size="icon"
                     variant="destructive"
                     onClick={() => deleteMutation.mutate(photo.id)}
+                    aria-label="Excluir foto"
                     disabled={deleteMutation.isPending}
                     data-testid={`button-delete-photo-${photo.id}`}
                   >

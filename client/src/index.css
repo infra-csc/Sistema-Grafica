@@ -799,6 +799,45 @@
   background: #e7e5e4;
   border-radius: 2px;
 }
+/* ── Microinterações da casca ───────────────────────────────────────────────
+   Duas, e só duas. A barra de tempo do toast (encolhe da esquerda para a
+   direita; pausa sob o ponteiro via animation-play-state) e a entrada das
+   superfícies flutuantes da casca (busca global, sino): 140ms de fade com 4px
+   de subida — o suficiente para o olho saber de onde a coisa veio, curto
+   demais para parecer que o sistema está "fazendo charme". Ambas caem na
+   regra de prefers-reduced-motion no fim deste arquivo. */
+@keyframes norte-toast-tempo {
+  from { transform: scaleX(1); }
+  to   { transform: scaleX(0); }
+}
+@keyframes norte-surge {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.norte-surge {
+  animation: norte-surge 140ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+/* Link "Pular para o conteúdo": invisível até receber foco pelo teclado. Quem
+   navega por Tab atravessava a sidebar inteira (até 23 itens) em TODA tela
+   antes de chegar ao primeiro controle da página. */
+.pular-para-conteudo {
+  position: absolute;
+  left: 12px;
+  top: -60px;
+  z-index: 300;
+  padding: 10px 16px;
+  border-radius: 9px;
+  background: #1c1917;
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 700;
+  text-decoration: none;
+}
+.pular-para-conteudo:focus {
+  top: 12px;
+}
+
 @keyframes thumb-saved-pop {
   0%   { transform: scale(0.97); opacity: 0.7; }
   60%  { transform: scale(1.02); opacity: 1; }

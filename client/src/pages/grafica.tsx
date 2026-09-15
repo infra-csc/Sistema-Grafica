@@ -167,6 +167,14 @@ const rowBg = (item: any, isSelected: boolean, hover: boolean, isNovo = false) =
   return hover ? "#fafaf9" : "#ffffff";
 };
 
+/** Motivo legível da primeira recusa de um lote (allSettled) — ou null. */
+const motivoDaPrimeiraFalha = (resultados: PromiseSettledResult<unknown>[]): string | null => {
+  const r = resultados.find((x): x is PromiseRejectedResult => x.status === "rejected");
+  if (!r) return null;
+  const txt = apiErrorMessage(r.reason).trim().replace(/[.\s]+$/, "");
+  return txt || null;
+};
+
 /** Mensagem legível de um erro da API (apiRequest devolve o corpo cru). */
 const apiErrorMessage = (error: any) => {
   const raw = String(error?.message ?? "");
@@ -254,6 +262,14 @@ function PhotoPicker({ photos, onAdd, onRemove, onError, label = "Fotos", hint, 
     <div>
       <label style={{ display: "block", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#746e69", marginBottom: 10 }}>
         {label} {hint && <span style={{ color: "#746e69", textTransform: "none", letterSpacing: 0, fontWeight: 400 }}>{hint}</span>}
+        {/* Contador vivo: depois de voltar da câmera, a pessoa precisa saber de
+            relance que a foto ENTROU — a miniatura pode estar fora da dobra. */}
+        {photos.length > 0 && (
+          <span role="status" style={{ marginLeft: 6, display: "inline-flex", alignItems: "center", gap: 3, color: "#15803d", textTransform: "none", letterSpacing: 0, fontWeight: 800 }}>
+            <Check aria-hidden="true" style={{ width: 11, height: 11 }} />
+            {photos.length} anexada{photos.length !== 1 ? "s" : ""}
+          </span>
+        )}
       </label>
 
       <div style={{ display: "flex", gap: 10 }}>
@@ -504,7 +520,7 @@ function BulkActionDialog({
               onMouseLeave={e => { if (canSubmit && !isSubmitting) e.currentTarget.style.background = confirmBg; }}
             >
               {isSubmitting
-                ? "Salvando..."
+                ? <><Loader2 aria-hidden="true" className="animate-spin" style={{ width: 15, height: 15 }} />Registrando {count} peça{count !== 1 ? "s" : ""}…</>
                 : <><HeaderIcon style={{ width: 15, height: 15 }} />{isConfer ? "Confirmar Conferência" : "Confirmar Entrega"} ({count})</>
               }
             </button>
@@ -835,14 +851,20 @@ export default function Grafica() {
   const ctxFiltros = useMemo(() => ({ groupOf, hojeUTC: hojeEmUTC(new Date(agora)) }), [groupOf, agora]);
 
   const startProductionMutation = useMutation({
-    mutationFn: async ({ itemId, data }: { itemId: string; data: any }) =>
+    mutationFn: async ({ itemId, data }: { itemId: string; data: any; displayId?: string }) =>
       await apiRequest("PATCH", `/api/items/${itemId}/start-production`, data),
-    onSuccess: () => {
+    onSuccess: (_r, vars) => {
       queryClient.invalidateQueries({ queryKey: ["/api/items/approved"] });
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
       setSelectedItem(null); setModalType(null);
       setProductionData({ quantityProduced: 0 });
-      toast({ title: "Produção iniciada", description: "A produção foi registrada com sucesso" });
+      // O campo é ABSOLUTO: o toast repete o TOTAL gravado, para quem digitou
+      // "o que fez hoje" perceber na hora que substituiu o valor anterior.
+      const total = Number(vars.data?.quantityProduced);
+      toast({
+        title: `Produção registrada${vars.displayId ? ` · ${vars.displayId}` : ""}`,
+        description: Number.isFinite(total) && total > 0 ? `Total produzido agora: ${total} un.` : "A produção foi registrada.",
+      });
     },
     onError: (error: Error) => {
       // O 409 do lock otimista não é "erro do sistema": é outra pessoa tendo
@@ -859,18 +881,35 @@ export default function Grafica() {
     },
   });
 
+  // FEEDBACK QUE NOMEIA A PEÇA. "O item foi marcado como entregue com sucesso"
+  // não diz QUAL item — e o operador em pé no galpão registra dezenas seguidas.
+  // O toast agora repete o código, a quantidade e quem recebeu: é a confirmação
+  // de que o toque caiu na peça certa. `displayId` viaja nas variáveis só para
+  // o texto; a mutationFn continua mandando exatamente o mesmo corpo.
   const markDeliveredMutation = useMutation({
-    mutationFn: async ({ itemId, data }: { itemId: string; data: any }) =>
+    mutationFn: async ({ itemId, data }: { itemId: string; data: any; displayId?: string }) =>
       await apiRequest("PATCH", `/api/items/${itemId}/deliver`, data),
-    onSuccess: () => {
+    onSuccess: (_r, vars) => {
       queryClient.invalidateQueries({ queryKey: ["/api/items/approved"] });
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
       setSelectedItem(null); setModalType(null);
       setDeliveryData({ receivedBy: "" });
       setPhotos([]);
-      toast({ title: "Entrega confirmada", description: "O item foi marcado como entregue com sucesso" });
+      const qtd = Number(vars.data?.qty) || 0;
+      const quem = String(vars.data?.receivedBy ?? "").trim();
+      toast({
+        title: `Entrega registrada${vars.displayId ? ` · ${vars.displayId}` : ""}`,
+        description: `${qtd > 0 ? `${qtd} un. entregue${qtd !== 1 ? "s" : ""}` : "Entrega gravada"}${quem ? ` — recebido por ${quem}` : ""}.`,
+      });
     },
-    onError: (error: Error) => toast({ title: "Erro ao confirmar entrega", description: error.message, variant: "destructive" }),
+    // DUAS PESSOAS NA MESMA FILA: a causa mais comum de recusa aqui é o colega
+    // já ter entregado a peça pelo celular. Recarregar a fila no erro faz a
+    // tela parar de mostrar um saldo que não existe mais (o efeito
+    // "peça mudou enquanto você registrava", abaixo, fecha o modal se for o caso).
+    onError: (error: Error) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/items/approved"] });
+      toast({ title: "Não foi possível registrar a entrega", description: `${apiErrorMessage(error)} A fila foi recarregada com o estado atual.`, variant: "destructive" });
+    },
   });
 
   // DEVOLVER PARA A REVISÃO.
@@ -892,20 +931,33 @@ export default function Grafica() {
       setDevolverMotivo("");
       toast({ title: "Devolvida para a Revisão", description: "A peça saiu da fila da Gráfica e o motivo foi registrado." });
     },
-    onError: (error: Error) => toast({ title: "Não foi possível devolver", description: error.message, variant: "destructive" }),
+    // Recusa típica: a peça já entrou em produção por outra pessoa. A fila
+    // recarrega para o botão Devolver sumir de onde ele não vale mais.
+    onError: (error: Error) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/items/approved"] });
+      toast({ title: "Não foi possível devolver", description: apiErrorMessage(error), variant: "destructive" });
+    },
   });
 
+  // Mesmo desenho da entrega: o toast nomeia a peça e a quantidade, e o erro
+  // recarrega a fila (o colega pode ter conferido a mesma peça no celular).
   const conferMutation = useMutation({
-    mutationFn: async ({ itemId, conferencePhotoUrl, qty, notes }: { itemId: string; conferencePhotoUrl: string; qty: number; notes?: string }) =>
+    mutationFn: async ({ itemId, conferencePhotoUrl, qty, notes }: { itemId: string; conferencePhotoUrl: string; qty: number; notes?: string; displayId?: string }) =>
       await apiRequest("POST", `/api/items/${itemId}/confer`, { conferencePhotoUrl, qty, notes }),
-    onSuccess: () => {
+    onSuccess: (_r, vars) => {
       queryClient.invalidateQueries({ queryKey: ["/api/items/approved"] });
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
       setSelectedItem(null); setModalType(null);
       setPhotos([]);
-      toast({ title: "Conferido", description: "A peça foi conferida e está pronta para entrega." });
+      toast({
+        title: `Conferência registrada${vars.displayId ? ` · ${vars.displayId}` : ""}`,
+        description: `${vars.qty} un. conferida${vars.qty !== 1 ? "s" : ""} — pronta${vars.qty !== 1 ? "s" : ""} para entrega. As etiquetas ficam no cabeçalho do evento.`,
+      });
     },
-    onError: (error: Error) => toast({ title: "Erro ao conferir", description: error.message, variant: "destructive" }),
+    onError: (error: Error) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/items/approved"] });
+      toast({ title: "Não foi possível registrar a conferência", description: `${apiErrorMessage(error)} A fila foi recarregada com o estado atual.`, variant: "destructive" });
+    },
   });
 
   const markReuseMutation = useMutation({
@@ -979,6 +1031,39 @@ export default function Grafica() {
       toast({ title: "Não foi possível cancelar", description: apiErrorMessage(error), variant: "destructive" });
     },
   });
+
+  // ── A PEÇA MUDOU ENQUANTO O MODAL ESTAVA ABERTO ────────────────────────────
+  // A Gráfica é a tela em que duas pessoas trabalham a mesma fila. O modal de
+  // conferir/entregar guardava a peça do momento em que abriu: se o colega
+  // conferisse ou entregasse pelo celular (WebSocket/polling trazem o dado
+  // novo), o modal seguia dizendo "A conferir: 5" e o clique virava erro.
+  // Agora o modal acompanha a fila: saldo novo atualiza os números na hora; se
+  // não resta nada a fazer, fecha e diz por quê. Produção fica de fora DE
+  // PROPÓSITO: o valor que o operador leu é a base do lock otimista
+  // (expectedProduced) — trocar a peça por baixo dele anularia a proteção.
+  // Enquanto a própria mutação está em voo não mexe: o eco do WebSocket da
+  // ação dele mesmo chega antes da resposta e seria lido como "outra pessoa".
+  useEffect(() => {
+    if (!selectedItem || (modalType !== "conference" && modalType !== "delivery")) return;
+    if (conferMutation.isPending || markDeliveredMutation.isPending) return;
+    const fresca = (items as any[]).find((i: any) => i.id === selectedItem.id);
+    if (fresca === selectedItem) return;
+    const aindaDa = !!fresca && (modalType === "conference" ? canConfer(fresca) : canDeliver(fresca));
+    if (!aindaDa) {
+      setSelectedItem(null); setModalType(null); setPhotos([]);
+      toast({
+        title: `${selectedItem.displayId} mudou enquanto você registrava`,
+        description: modalType === "conference"
+          ? "Outra pessoa já conferiu esta peça — não resta nada a conferir. A fila está atualizada."
+          : "Outra pessoa já registrou esta entrega — não resta nada a entregar. A fila está atualizada.",
+      });
+      return;
+    }
+    setSelectedItem(fresca);
+    if (modalType === "conference") setConferQty(q => Math.max(1, Math.min(q, remainingConfer(fresca))));
+    else setDeliverQty(q => Math.max(1, Math.min(q, remainingDeliver(fresca))));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [items, conferMutation.isPending, markDeliveredMutation.isPending]);
 
   // Filtros facetados: cada dropdown lista só o que existe no recorte atual,
   // aplicando os OUTROS filtros ativos (com contagem por opção) — o
@@ -1371,7 +1456,7 @@ export default function Grafica() {
       return;
     }
     if (av.precisaConfirmar && !window.confirm(av.confirmacao)) return;
-    startProductionMutation.mutate({ itemId: selectedItem.id, data: av.payload });
+    startProductionMutation.mutate({ itemId: selectedItem.id, data: av.payload, displayId: selectedItem.displayId });
   };
 
   const handleSubmitDelivery = async (e: React.FormEvent) => {
@@ -1393,7 +1478,7 @@ export default function Grafica() {
     try {
       // A primeira foto vai na própria entrega como photoUrl — é o campo que
       // vira deliveryPhotoUrl e aparece como comprovante na timeline da peça.
-      await markDeliveredMutation.mutateAsync({ itemId, data: { ...deliveryData, photoUrl: photosToAttach[0] || null, qty: deliverQty, notes: modalNotes } });
+      await markDeliveredMutation.mutateAsync({ itemId, displayId: selectedItem.displayId, data: { ...deliveryData, photoUrl: photosToAttach[0] || null, qty: deliverQty, notes: modalNotes } });
     } catch {
       return; // o onError da mutation já mostrou o toast
     }
@@ -1426,7 +1511,7 @@ export default function Grafica() {
     const itemId = selectedItem.id;
     const photosToAttach = photos;
     try {
-      await conferMutation.mutateAsync({ itemId, conferencePhotoUrl: photosToAttach[0], qty: conferQty, notes: modalNotes });
+      await conferMutation.mutateAsync({ itemId, displayId: selectedItem.displayId, conferencePhotoUrl: photosToAttach[0], qty: conferQty, notes: modalNotes });
     } catch {
       return; // o onError da mutation já mostrou o toast
     }
@@ -1703,9 +1788,13 @@ export default function Grafica() {
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
 
       if (failed > 0) {
+        // O MOTIVO da recusa entra no toast (o primeiro, que costuma ser o de
+        // todas): "falhou" sem porquê deixava o operador reenviando às cegas —
+        // e a causa mais comum é o colega ter conferido a mesma peça antes.
+        const motivo = motivoDaPrimeiraFalha(confer);
         toast({
-          title: "Conferência parcial",
-          description: `${okIds.length} de ${ids.length} conferida(s). ${failed} falhou(aram) e continua(m) na lista.`,
+          title: `${okIds.length} de ${ids.length} conferida${ids.length !== 1 ? "s" : ""}`,
+          description: `${failed} não ${failed !== 1 ? "passaram" : "passou"}${motivo ? ` — ${motivo}` : ""}. ${failed !== 1 ? "Continuam selecionadas" : "Continua selecionada"} para tentar de novo.`,
           variant: "destructive",
         });
       } else if (photoFailed > 0) {
@@ -1715,7 +1804,10 @@ export default function Grafica() {
           variant: "destructive",
         });
       } else {
-        toast({ title: `${okIds.length} peça(s) conferida(s)`, description: "Prontas para entrega." });
+        toast({
+          title: `${okIds.length} peça${okIds.length !== 1 ? "s" : ""} conferida${okIds.length !== 1 ? "s" : ""}`,
+          description: "Prontas para entrega. As etiquetas ficam no cabeçalho do evento.",
+        });
       }
 
       setBulkConferOpen(false);
@@ -1798,9 +1890,10 @@ export default function Grafica() {
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
 
       if (failed > 0) {
+        const motivo = motivoDaPrimeiraFalha(delivery);
         toast({
-          title: "Entrega parcial",
-          description: `${deliveredIds.length} de ${ids.length} entregue(s). ${failed} falhou(aram) e continua(m) na lista.`,
+          title: `${deliveredIds.length} de ${ids.length} entregue${ids.length !== 1 ? "s" : ""}`,
+          description: `${failed} não ${failed !== 1 ? "passaram" : "passou"}${motivo ? ` — ${motivo}` : ""}. ${failed !== 1 ? "Continuam selecionadas" : "Continua selecionada"} para tentar de novo.`,
           variant: "destructive",
         });
       } else if (photoFailed > 0) {
@@ -1810,7 +1903,11 @@ export default function Grafica() {
           variant: "destructive",
         });
       } else {
-        toast({ title: `${deliveredIds.length} peça(s) entregue(s)`, description: `Recebido por: ${bulkReceivedBy}` });
+        // Sem nome digitado o texto era "Recebido por: " pendurado no vazio.
+        toast({
+          title: `${deliveredIds.length} peça${deliveredIds.length !== 1 ? "s" : ""} entregue${deliveredIds.length !== 1 ? "s" : ""}`,
+          description: bulkReceivedBy.trim() ? `Recebido por ${bulkReceivedBy.trim()}.` : "Entrega registrada com o comprovante em foto.",
+        });
       }
 
       setBulkDeliveryOpen(false);
@@ -1848,7 +1945,9 @@ export default function Grafica() {
           </h1>
           {!isMobile && (
             <p style={{ margin: "4px 0 0", fontSize: 13, color: TI.secondary }}>
-              Gestão de ativos gráficos em tempo real
+              {/* Era "Gestão de ativos gráficos em tempo real" — slogan, não
+                  orientação. A linha agora diz o que se faz aqui e em que ordem. */}
+              Produzir, conferir e entregar as peças liberadas — a fila segue a saída do caminhão
             </p>
           )}
         </div>
@@ -3387,6 +3486,7 @@ export default function Grafica() {
                           <button
                             onClick={() => setViewDetailsItem(item)}
                             title="Ver detalhes"
+                            aria-label={`Ver detalhes de ${item.displayId}`}
                             data-testid={`button-view-${item.id}`}
                             style={{ background: "none", border: "none", cursor: "pointer", color: TI.secondary, padding: 4, borderRadius: 6, display: "flex", alignItems: "center", transition: "color 0.15s" }}
                             onMouseEnter={e => ((e.currentTarget as HTMLButtonElement).style.color = TI.text)}
@@ -3509,6 +3609,7 @@ export default function Grafica() {
                                 <button
                                   onClick={() => setReuseConfirmItemId(null)}
                                   title="Cancelar"
+                                  aria-label="Cancelar reaproveitamento"
                                   style={{ background: "none", border: `1px solid ${TI.border}`, borderRadius: 6, height: 26, padding: "0 6px", fontSize: 10, fontWeight: 700, color: "#78716c", cursor: "pointer" }}
                                 >
                                   <X style={{ width: 10, height: 10 }} />
@@ -3580,6 +3681,7 @@ export default function Grafica() {
                                 <button
                                   onClick={() => setCorrectReuseItemId(null)}
                                   title="Cancelar"
+                                  aria-label="Cancelar correção do reaproveitamento"
                                   style={{ background: "none", border: `1px solid ${TI.border}`, borderRadius: 6, height: 26, padding: "0 6px", fontSize: 10, fontWeight: 700, color: "#78716c", cursor: "pointer" }}
                                 >
                                   <X style={{ width: 10, height: 10 }} />
@@ -3889,9 +3991,12 @@ export default function Grafica() {
               ? setBulkSelectedIds(new Set())
               : setBulkSelectedIds(new Set(bulkEligibleList.map((i: any) => i.id)))
             }
-            style={{ padding: '8px 12px', borderRadius: 8, background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.85)', fontSize: 13, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}
+            // "Sel. 12" era abreviação de planilha; o botão agora diz a ação por
+            // extenso e tem alvo de dedo (44px) no celular.
+            aria-label={allDeliverableSelected ? 'Desmarcar todas as peças' : `Selecionar todas as ${bulkEligibleList.length} peças elegíveis`}
+            style={{ minHeight: isMobile ? 44 : 36, padding: '0 12px', borderRadius: 8, background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.85)', fontSize: 13, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}
           >
-            {allDeliverableSelected ? 'Desmarcar' : `Sel. ${bulkEligibleList.length}`}
+            {allDeliverableSelected ? 'Desmarcar' : `Todas (${bulkEligibleList.length})`}
           </button>
 
           {/* Contador — aria-live anuncia a contagem a cada seleção */}
@@ -3925,6 +4030,8 @@ export default function Grafica() {
           {/* Cancelar modo */}
           <button
             onClick={() => { setBulkDeliveryMode(false); setBulkConferMode(false); setBulkSelectedIds(new Set()); }}
+            aria-label="Sair do modo lote"
+            title="Sair do modo lote (Esc)"
             style={{ width: isMobile ? 44 : 36, height: isMobile ? 44 : 36, borderRadius: 8, background: 'rgba(255,255,255,0.1)', border: 'none', color: 'rgba(255,255,255,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}
           >
             <X style={{ width: 16, height: 16 }} />
@@ -4340,17 +4447,30 @@ export default function Grafica() {
                   >
                     Cancelar
                   </button>
+                  {/* Mesmo idioma da conferência logo abaixo: sem foto o botão
+                      fica cinza e a frase diz o que falta. Antes a entrega
+                      aceitava o toque e SÓ DEPOIS respondia com um toast de
+                      erro — duas telas vizinhas ensinando regras diferentes
+                      para a mesma exigência (a validação em
+                      handleSubmitDelivery continua lá, como rede). */}
                   <button
                     type="submit"
-                    disabled={markDeliveredMutation.isPending}
+                    disabled={markDeliveredMutation.isPending || !photos.length}
                     data-testid="button-confirm-delivery"
-                    style={{ flex: 2, padding: "12px 0", backgroundColor: "#15803d", border: "none", color: "#ffffff", fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 13, textTransform: "uppercase", letterSpacing: "-0.01em", cursor: markDeliveredMutation.isPending ? "not-allowed" : "pointer", borderRadius: 8, opacity: markDeliveredMutation.isPending ? 0.7 : 1, transition: "background-color 0.15s" }}
-                    onMouseEnter={e => { if (!markDeliveredMutation.isPending) (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#166534"; }}
-                    onMouseLeave={e => { if (!markDeliveredMutation.isPending) (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#15803d"; }}
+                    aria-describedby={!photos.length ? "aviso-foto-entrega" : undefined}
+                    style={{ flex: 2, minHeight: 44, padding: "12px 0", backgroundColor: !photos.length ? "#e7e5e4" : "#15803d", border: "none", color: !photos.length ? "#78716c" : "#ffffff", fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 13, textTransform: "uppercase", letterSpacing: "-0.01em", cursor: markDeliveredMutation.isPending || !photos.length ? "not-allowed" : "pointer", borderRadius: 8, opacity: markDeliveredMutation.isPending ? 0.7 : 1, transition: "background-color 0.15s", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}
+                    onMouseEnter={e => { if (!markDeliveredMutation.isPending && photos.length) (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#166534"; }}
+                    onMouseLeave={e => { if (!markDeliveredMutation.isPending && photos.length) (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#15803d"; }}
                   >
+                    {markDeliveredMutation.isPending && <Loader2 aria-hidden="true" className="animate-spin" style={{ width: 14, height: 14 }} />}
                     {markDeliveredMutation.isPending ? "Salvando..." : "Confirmar Entrega"}
                   </button>
                 </div>
+                {!photos.length && (
+                  <p id="aviso-foto-entrega" style={{ margin: "-8px 0 0", fontSize: 11, color: "#746e69", textAlign: "center" }}>
+                    Anexe ao menos uma foto — ela é o comprovante da entrega.
+                  </p>
+                )}
               </form>
             )}
 
@@ -4385,7 +4505,8 @@ export default function Grafica() {
                   <button type="submit" disabled={conferMutation.isPending || !photos.length}
                     data-testid="button-confirm-conference"
                     aria-describedby={!photos.length ? "aviso-foto-conferencia" : undefined}
-                    style={{ flex: 2, padding: "12px 0", backgroundColor: (!photos.length) ? "#e7e5e4" : "#0e7490", border: "none", color: (!photos.length) ? "#78716c" : "#ffffff", fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 13, textTransform: "uppercase", cursor: (conferMutation.isPending || !photos.length) ? "not-allowed" : "pointer", borderRadius: 8, opacity: conferMutation.isPending ? 0.7 : 1 }}>
+                    style={{ flex: 2, minHeight: 44, padding: "12px 0", backgroundColor: (!photos.length) ? "#e7e5e4" : "#0e7490", border: "none", color: (!photos.length) ? "#78716c" : "#ffffff", fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 13, textTransform: "uppercase", cursor: (conferMutation.isPending || !photos.length) ? "not-allowed" : "pointer", borderRadius: 8, opacity: conferMutation.isPending ? 0.7 : 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+                    {conferMutation.isPending && <Loader2 aria-hidden="true" className="animate-spin" style={{ width: 14, height: 14 }} />}
                     {conferMutation.isPending ? "Salvando..." : "Confirmar Conferência"}
                   </button>
                 </div>
@@ -4454,7 +4575,7 @@ export default function Grafica() {
           <div style={{ padding: "12px 24px", borderTop: "1px solid #f1f0ef", backgroundColor: "#fafaf9", display: "flex", gap: 8, justifyContent: "flex-end" }}>
             <button
               onClick={() => { setDevolverItem(null); setDevolverMotivo(""); }}
-              style={{ height: 36, padding: "0 14px", borderRadius: 9, border: "1px solid #e7e5e4", backgroundColor: "#ffffff", color: "#57534e", fontSize: 13, fontWeight: 600, cursor: "pointer" }}
+              style={{ height: isMobile ? 44 : 36, padding: "0 14px", borderRadius: 9, border: "1px solid #e7e5e4", backgroundColor: "#ffffff", color: "#57534e", fontSize: 13, fontWeight: 600, cursor: "pointer" }}
             >
               Cancelar
             </button>
@@ -4465,7 +4586,7 @@ export default function Grafica() {
               // Contorno vermelho, não preenchido: devolver tira o trabalho da
               // mão de alguém, e botão vermelho cheio convida ao clique reflexo.
               style={{
-                height: 36, padding: "0 16px", borderRadius: 9,
+                height: isMobile ? 44 : 36, padding: "0 16px", borderRadius: 9,
                 border: "1.5px solid #b91c1c", backgroundColor: "#ffffff", color: "#b91c1c",
                 fontSize: 13, fontWeight: 700,
                 cursor: devolverMutation.isPending ? "default" : "pointer",

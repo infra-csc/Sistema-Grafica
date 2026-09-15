@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { Bell, Package, CheckCircle, AlertTriangle, Truck, FileText, ClipboardCheck, CalendarClock, PlusCircle, MinusCircle, ChevronRight, Inbox } from "lucide-react";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 export interface Notification {
   id: string;
@@ -175,15 +176,17 @@ const DEFAULT_CONFIG: TypeConfig = {
 // O fundo creme de "não lida" saiu: ver o comentário no item da lista.
 
 // ── Timestamp helper ──────────────────────────────────────────────────────────
+// DIA DE CALENDÁRIO, não 24h corridas. Com a conta por milissegundos, um
+// aviso das 23h lido às 8h do dia seguinte aparecia só como "23:00" — e
+// parecia ser de hoje à noite, ainda por vir.
 function fmtTime(raw: Date | string): string {
   const d = new Date(raw);
   const now = new Date();
-  const diffMs = now.getTime() - d.getTime();
-  const diffDays = Math.floor(diffMs / 86400000);
-  if (diffDays === 0) {
-    return `${d.getHours().toString().padStart(2, "0")}:${d.getMinutes().toString().padStart(2, "0")}`;
-  }
-  if (diffDays === 1) return "Ontem";
+  const inicioDoDia = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const diffDays = Math.round((inicioDoDia(now) - inicioDoDia(d)) / 86400000);
+  const hora = `${d.getHours().toString().padStart(2, "0")}:${d.getMinutes().toString().padStart(2, "0")}`;
+  if (diffDays <= 0) return hora;
+  if (diffDays === 1) return `Ontem, ${hora}`;
   const day = d.getDate().toString().padStart(2, "0");
   const month = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"][d.getMonth()];
   return `${day} ${month}`;
@@ -228,6 +231,7 @@ export function NotificationBell({
   const pendingFocusAfterMarkAll = useRef(false);
   const unread = notifications.filter((n) => !n.isRead);
   const unreadCount = unread.length;
+  const isMobile = useIsMobile();
 
   // Fechamentos programáticos devolvem o foco ao sino — sem isto o foco do
   // teclado morria no body quando o popover sumia.
@@ -315,27 +319,31 @@ export function NotificationBell({
         aria-haspopup="dialog"
         aria-controls={open ? "notification-popover" : undefined}
         onClick={() => setOpen((p) => !p)}
+        type="button"
+        // A MESMA PEÇA DOS VIZINHOS. O App descreve a barra como "uma
+        // gramática só" (gatilho, busca, sino e conta com 36 no ponteiro, 44
+        // no toque, contorno de 1px e raio 9) — mas o sino ficara de fora:
+        // fantasma de 44 sem borda, raio 6. Na barra eram dois botões
+        // contornados e um solto entre eles. flexShrink: 0 segue impedindo a
+        // topbar de 375px de esmagá-lo.
+        className="h-9 w-9 max-md:h-11 max-md:w-11"
         style={{
           position: "relative",
-          // 36px ficava abaixo do alvo mínimo de toque (44px). flexShrink: 0
-          // impede a topbar de 375px de esmagar o sino abaixo disso.
-          width: 44,
-          height: 44,
           flexShrink: 0,
           padding: 0,
-          borderRadius: 6,
-          border: "none",
-          background: open ? "rgba(28,25,23,0.06)" : "transparent",
+          borderRadius: 9,
+          border: "1px solid #e7e5e4",
+          background: open ? "#f5f5f4" : "#ffffff",
           cursor: "pointer",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
           transition: "background 0.15s",
         }}
-        onMouseEnter={(e) => { if (!open) (e.currentTarget as HTMLButtonElement).style.background = "rgba(28,25,23,0.05)"; }}
-        onMouseLeave={(e) => { if (!open) (e.currentTarget as HTMLButtonElement).style.background = "transparent"; }}
+        onMouseEnter={(e) => { if (!open) (e.currentTarget as HTMLButtonElement).style.background = "#fafaf9"; }}
+        onMouseLeave={(e) => { if (!open) (e.currentTarget as HTMLButtonElement).style.background = "#ffffff"; }}
       >
-        <Bell style={{ width: 20, height: 20, color: "#57534e" }} />
+        <Bell aria-hidden="true" style={{ width: 17, height: 17, color: "#57534e" }} />
         {unreadCount > 0 && (
           <span
             data-testid="badge-notification-count"
@@ -385,13 +393,18 @@ export function NotificationBell({
           // Recebe o foco ao abrir (dialog): antes o foco ficava no sino e o
           // teclado tinha de atravessar o resto da topbar para chegar aqui.
           tabIndex={-1}
+          className="norte-surge"
           style={{
             outline: "none",
-            /* right -8 + 100vw-96px: o cálculo antigo (100vw-32px) ignorava o
-               deslocamento do sino em relação à borda e cortava ~38px à
-               esquerda em telas de 375px. */
-            position: "absolute", top: "calc(100% + 12px)", right: -8,
-            width: "min(376px, calc(100vw - 96px))", backgroundColor: "#ffffff",
+            /* DESKTOP: ancorado ao sino (right -8), com teto de 376px.
+               CELULAR: fixo, 12px de cada lado, logo abaixo da topbar de 64.
+               A âncora no sino dava `100vw - 96px` = 279px num aparelho de
+               375 — mensagens de duas linhas viravam quatro, e sobravam 96px
+               de tela sem uso. */
+            ...(isMobile
+              ? { position: "fixed" as const, top: 72, left: 12, right: 12, width: "auto" }
+              : { position: "absolute" as const, top: "calc(100% + 12px)", right: -8, width: "min(376px, calc(100vw - 96px))" }),
+            backgroundColor: "#ffffff",
             borderRadius: 12,
             boxShadow: "0 32px 64px -16px rgba(28,25,23,0.18)",
             border: "1px solid #f3f4f3",
@@ -452,7 +465,9 @@ export function NotificationBell({
           </div>
 
           {/* List */}
-          <div style={{ maxHeight: 400, overflowY: "auto", overflowX: "hidden" }}>
+          {/* Teto relativo à tela: 400 fixos passavam da dobra num celular
+              deitado, e o rodapé "Ver todas" ficava fora de alcance. */}
+          <div style={{ maxHeight: "min(400px, calc(100dvh - 220px))", overflowY: "auto", overflowX: "hidden", overscrollBehavior: "contain" }}>
             {isLoading ? (
               <SkeletonRows />
             ) : isError ? (
@@ -513,12 +528,17 @@ export function NotificationBell({
                       <span style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: destaque ? "#c2410c" : "#78716c", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                         {texto}
                       </span>
-                      <span style={{ fontSize: 10, fontWeight: 700, color: "#a8a29e" }}>{itens.length}</span>
+                      {/* #78716c: #a8a29e é proibido como texto (2,5:1). */}
+                      <span style={{ fontSize: 10, fontWeight: 700, color: "#78716c" }}>{itens.length}</span>
                       {naoLidas.length > 0 && (
                         <button
                           type="button"
+                          aria-label={`Marcar como lidas as ${naoLidas.length} de ${texto}`}
                           onClick={(e) => { e.stopPropagation(); naoLidas.forEach((x) => onMarkAsRead(x.id)); }}
-                          style={{ marginLeft: "auto", border: "none", background: "none", padding: "2px 4px", fontSize: 10, fontWeight: 700, color: "#c2410c", cursor: "pointer", whiteSpace: "nowrap" }}
+                          // 28 de altura: era um alvo de texto de 10px com 2px
+                          // de folga — o toque caía na notificação de baixo e
+                          // navegava em vez de marcar.
+                          style={{ border: "none", background: "none", minHeight: 28, padding: "0 8px", margin: "-4px -8px -4px auto", borderRadius: 6, fontSize: 10.5, fontWeight: 700, color: "#c2410c", cursor: "pointer", whiteSpace: "nowrap" }}
                         >
                           marcar lidas
                         </button>
@@ -573,7 +593,7 @@ export function NotificationBell({
                       width: 30, height: 30, borderRadius: 9,
                       display: "flex", alignItems: "center", justifyContent: "center",
                     }}>
-                      <Icon style={{ width: 16, height: 16, color: cfg.iconColor } as React.CSSProperties} />
+                      <Icon aria-hidden="true" style={{ width: 16, height: 16, color: cfg.iconColor } as React.CSSProperties} />
                     </div>
 
                     {/* Text */}
@@ -587,7 +607,7 @@ export function NotificationBell({
                       }}>
                         {n.message}
                       </p>
-                      <p style={{
+                      <p title={new Date(n.createdAt).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })} style={{
                         // 11px: é a hora e a categoria, não um micro-rótulo.
                         fontSize: 11, fontWeight: 500,
                         fontVariantNumeric: "tabular-nums",
@@ -603,7 +623,7 @@ export function NotificationBell({
                     {/* Unread dot — laranja da marca; o azul antigo se confundia
                         com a categoria Estoque (#3b82f6). */}
                     {!n.isRead && (
-                      <div style={{
+                      <div aria-hidden="true" style={{
                         position: "absolute", right: 14, top: "50%",
                         transform: "translateY(-50%)",
                         width: 7, height: 7, borderRadius: "50%",

@@ -194,7 +194,7 @@ export function ModalHeader({
             boxShadow: dark ? "0 0 0 1px rgba(255,255,255,0.12) inset" : "none",
           }}
         >
-          <Icon style={{ width: dark ? 18 : 16, height: dark ? 18 : 16, color: dark ? "#fff" : tint }} />
+          <Icon aria-hidden="true" style={{ width: dark ? 18 : 16, height: dark ? 18 : 16, color: dark ? "#fff" : tint }} />
         </div>
       )}
 
@@ -228,9 +228,16 @@ export function ModalHeader({
 
       {onClose && (
         <button
+          // type="button": sem ele, um ModalHeader dentro de <form> ENVIAVA
+          // o formulário ao clicar no X — fechar virava salvar.
+          type="button"
           onClick={onClose}
           aria-label="Fechar"
+          title="Fechar (Esc)"
+          onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = dark ? "rgba(255,255,255,0.16)" : "#e7e5e4"; }}
+          onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = dark ? "rgba(255,255,255,0.08)" : "#f5f5f4"; }}
           style={{
+            transition: "background-color 0.12s ease",
             width: dark ? 40 : 34, height: dark ? 40 : 34, borderRadius: R.pill, flexShrink: 0,
             display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer",
             backgroundColor: dark ? "rgba(255,255,255,0.08)" : "#f5f5f4",
@@ -238,7 +245,7 @@ export function ModalHeader({
             color: dark ? "rgba(255,255,255,0.7)" : "#57534e",
           }}
         >
-          <X style={{ width: 16, height: 16 }} />
+          <X aria-hidden="true" style={{ width: 16, height: 16 }} />
         </button>
       )}
     </div>

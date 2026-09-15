@@ -72,6 +72,28 @@ export function getCurrentUserName(): string {
   return 'Sistema';
 }
 
+/**
+ * QUEDA DE REDE FALA PORTUGUÊS.
+ *
+ * Quando o fetch nem chega ao servidor (Wi-Fi caiu, servidor reiniciando no
+ * Replit), o navegador rejeita com `TypeError: Failed to fetch` — e era essa
+ * frase, em inglês, que aparecia no toast de "Erro ao salvar". O usuário não
+ * sabia o que tinha acontecido. A mensagem nova diz o que houve e o que fazer
+ * — sem prometer "nada foi salvo": a conexão pode cair DEPOIS de o pedido
+ * chegar. Abort segue intacto: quem cancelou não quer toast nenhum.
+ */
+export const MENSAGEM_SEM_CONEXAO = "Não foi possível falar com o servidor. Verifique a internet e tente de novo.";
+
+async function fetchComRede(input: string, init?: RequestInit): Promise<Response> {
+  try {
+    return await fetch(input, init);
+  } catch (erro) {
+    if (erro instanceof DOMException && erro.name === "AbortError") throw erro;
+    if (erro instanceof TypeError) throw new Error(MENSAGEM_SEM_CONEXAO);
+    throw erro;
+  }
+}
+
 export async function apiRequest(
   method: string,
   url: string,
@@ -89,7 +111,7 @@ export async function apiRequest(
     headers["Content-Type"] = "application/json";
   }
 
-  const res = await fetch(url, {
+  const res = await fetchComRede(url, {
     method,
     headers,
     body: isFormData ? (data as FormData) : data ? JSON.stringify(data) : undefined,
@@ -155,7 +177,7 @@ function aplicarDelta(anterior: any[], delta: any): any[] {
 
 async function fetchItensComDelta(headers: Record<string, string>): Promise<any[]> {
   const url = itensSync ? `/api/items?since=${encodeURIComponent(itensSync.since)}` : "/api/items";
-  const res = await fetch(url, { credentials: "include", headers });
+  const res = await fetchComRede(url, { credentials: "include", headers });
   if ((res.headers.get("content-type") || "").includes("text/html")) {
     throw new Error("O sistema acabou de ser atualizado — recarregue a página (F5) e tente de novo. Se continuar, avise o administrador.");
   }
@@ -188,7 +210,7 @@ export const getQueryFn: <T>(options: {
     if (url === "/api/items") {
       return (await fetchItensComDelta({ "x-user-name": getCurrentUserName() })) as any;
     }
-    const res = await fetch(url, {
+    const res = await fetchComRede(url, {
       credentials: "include",
       headers: {
         "x-user-name": getCurrentUserName(),

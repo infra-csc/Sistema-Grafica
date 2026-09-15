@@ -24,7 +24,7 @@ import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/compone
 import { HIDE_NATIVE_CLOSE, ModalHeader, modalSurface } from "@/components/modal-shell";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { T, FS, R } from "@/lib/theme";
-import { BotaoDoCartao, type AcaoDoCartao } from "@/components/pedidos/cartao-do-pedido";
+import { BotaoDoCartao, MotivosDoBloqueio, type AcaoDoCartao } from "@/components/pedidos/cartao-do-pedido";
 import {
   AjusteDaLinha,
   AndamentoDaLinha,
@@ -91,12 +91,15 @@ function PecaDoDetalhe({ linha, numero, agora, selo, acoes }: { linha: LinhaDoPe
         </Campo>
         <Campo rotulo="Medida da área visual">{medida ?? "—"}</Campo>
       </dl>
-      <div>
-        <h4 style={TITULO_DA_SECAO}>O que precisa</h4>
-        <p style={{ margin: 0, padding: "10px 12px", borderLeft: "3px solid #d6d3d1", background: "#fafaf9", borderRadius: R.sm, fontSize: 14, color: "#44403c", lineHeight: 1.55, whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>
-          “{textoDaObservacao(linha.observacao)}”
-        </p>
-      </div>
+      {/* Sem texto não há o que citar — aspas vazias pareciam dado perdido. */}
+      {textoDaObservacao(linha.observacao) && (
+        <div>
+          <h4 style={TITULO_DA_SECAO}>O que precisa</h4>
+          <p style={{ margin: 0, padding: "10px 12px", borderLeft: "3px solid #d6d3d1", background: "#fafaf9", borderRadius: R.sm, fontSize: 14, color: "#44403c", lineHeight: 1.55, whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>
+            “{textoDaObservacao(linha.observacao)}”
+          </p>
+        </div>
+      )}
       {referencias.length > 0 && (
         <div>
           <h4 style={TITULO_DA_SECAO}>Referências ({referencias.length})</h4>
@@ -113,9 +116,10 @@ function PecaDoDetalhe({ linha, numero, agora, selo, acoes }: { linha: LinhaDoPe
       )}
       {acoes.length > 0 && (
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          {acoes.map((a) => <BotaoDoCartao key={a.chave} acao={a} altura={isMobile ? 44 : 36} />)}
+          {acoes.map((a) => <BotaoDoCartao key={a.chave} acao={a} altura={isMobile ? 44 : 36} descritoPor={`bloqueio-detalhe-${linha.id}`} />)}
         </div>
       )}
+      <MotivosDoBloqueio acoes={acoes} id={`bloqueio-detalhe-${linha.id}`} />
     </section>
   );
 }
@@ -178,9 +182,9 @@ export function DetalheDoPedido({ pedido, agora, seloDe, acoesDaLinha, acoes = [
           <section data-testid="historico-do-pedido" aria-labelledby="titulo-historico-pedido" style={{ minWidth: 0 }}>
             <h3 id="titulo-historico-pedido" style={TITULO_DA_SECAO}>Histórico</h3>
             {isLoading ? (
-              <p style={{ margin: 0, fontSize: FS.body, color: "#57534e" }}>Carregando o histórico…</p>
+              <p role="status" style={{ margin: 0, fontSize: FS.body, color: "#57534e" }}>Carregando o histórico…</p>
             ) : isError ? (
-              <p style={{ margin: 0, fontSize: FS.body, color: "#b91c1c" }}>Não foi possível carregar o histórico.</p>
+              <p role="alert" style={{ margin: 0, fontSize: FS.body, color: "#b91c1c" }}>Não foi possível carregar o histórico. Feche e abra a solicitação para tentar de novo.</p>
             ) : historico.length === 0 ? (
               <p style={{ margin: 0, fontSize: FS.body, color: "#57534e" }}>Nenhum registro ainda.</p>
             ) : (

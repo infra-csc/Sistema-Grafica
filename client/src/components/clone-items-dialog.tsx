@@ -187,7 +187,9 @@ export function CloneItemsDialog({
                   type="button"
                   onClick={alternarTodas}
                   data-testid="button-alternar-todas"
-                  style={{ border: 'none', background: 'transparent', fontSize: 12, fontWeight: 700, color: '#4f46e5', cursor: 'pointer', padding: 0 }}
+                  // minHeight 32 + respiro lateral: era um alvo do tamanho do
+                  // texto (16px) colado na borda da lista.
+                  style={{ border: 'none', background: 'transparent', fontSize: 12, fontWeight: 700, color: '#4f46e5', cursor: 'pointer', padding: '0 6px', minHeight: 32, borderRadius: 6 }}
                 >
                   {visiveisMarcadas === visiveis.length ? "Desmarcar todas" : "Marcar todas"}
                 </button>
@@ -195,11 +197,12 @@ export function CloneItemsDialog({
 
               {pecasDaOrigem.length > 8 && (
                 <div style={{ position: 'relative', marginBottom: 8 }}>
-                  <Search style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', width: 13, height: 13, color: '#a8a29e' }} />
+                  <Search aria-hidden="true" style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', width: 13, height: 13, color: '#78716c', pointerEvents: 'none' }} />
                   <input
                     value={busca}
                     onChange={(e) => setBusca(e.target.value)}
                     placeholder="Buscar peça…"
+                    aria-label="Buscar entre as peças do evento de origem"
                     data-testid="input-busca-pecas-clone"
                     style={{ width: '100%', padding: '7px 10px 7px 30px', borderRadius: 8, border: '1.5px solid #e7e5e4', fontSize: 13, outline: 'none' }}
                   />
@@ -222,10 +225,14 @@ export function CloneItemsDialog({
                       onChange={() => alternarUma(i.id)}
                       style={{ width: 15, height: 15, accentColor: '#4f46e5', flexShrink: 0, cursor: 'pointer' }}
                     />
-                    <span style={{ fontSize: 13, color: escolhidas.has(i.id) ? '#1a1c1c' : '#a8a29e', lineHeight: 1.4, minWidth: 0 }}>
+                    {/* Desmarcada fica mais QUIETA, não ilegível: o #a8a29e /
+                        #c4beb8 de antes (2,5:1 e 1,8:1) escondia justamente a
+                        peça que a pessoa pode querer remarcar. A diferença
+                        agora é o peso e o fundo da linha, e o checkbox. */}
+                    <span style={{ fontSize: 13, color: escolhidas.has(i.id) ? '#1a1c1c' : '#746e69', fontWeight: escolhidas.has(i.id) ? 500 : 400, lineHeight: 1.4, minWidth: 0 }}>
                       {i.displayId != null && <strong style={{ fontVariantNumeric: 'tabular-nums' }}>#{i.displayId}</strong>}{i.displayId != null ? " " : ""}{i.type}
-                      {i.description ? <span style={{ color: escolhidas.has(i.id) ? '#746e69' : '#c4beb8' }}> · {i.description}</span> : null}
-                      <span style={{ color: escolhidas.has(i.id) ? '#746e69' : '#c4beb8', whiteSpace: 'nowrap' }}> · {i.quantity} un.</span>
+                      {i.description ? <span style={{ color: '#746e69' }}> · {i.description}</span> : null}
+                      <span style={{ color: '#746e69', whiteSpace: 'nowrap' }}> · {i.quantity} un.</span>
                     </span>
                   </label>
                 ))}

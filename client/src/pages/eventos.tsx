@@ -412,7 +412,7 @@ const TH_LISTA: React.CSSProperties = {
  */
 function EventRow({
   event, sponsorCount, currentYear, isMobile, pedidosAbertos = 0,
-  canEdit, canDelete, canDuplicate, canSetPriority, canClose,
+  canEdit, canDelete, canDuplicate, canSetPriority, canClose, soPatrocinadores = false,
   onEdit, onDelete, onDuplicate, onSetPriority, onClose, onReopen,
 }: {
   event: any;
@@ -421,6 +421,7 @@ function EventRow({
   currentYear: number;
   isMobile: boolean;
   canEdit: boolean;
+  soPatrocinadores?: boolean;
   canDelete: boolean;
   canDuplicate: boolean;
   canSetPriority: boolean;
@@ -565,6 +566,7 @@ function EventRow({
           onClose={onClose}
           onReopen={onReopen}
           canEdit={canEdit}
+                  soPatrocinadores={soPatrocinadores}
           canDelete={canDelete}
           canDuplicate={canDuplicate}
           // Mesma regra do cartão: prioridade não faz sentido no que já saiu
@@ -588,6 +590,7 @@ function EventCardActions({
   onClose,
   onReopen,
   canEdit,
+  soPatrocinadores = false,
   canDelete,
   canDuplicate,
   canSetPriority,
@@ -604,6 +607,8 @@ function EventCardActions({
   onClose: (event: any, e: React.MouseEvent) => void;
   onReopen: (event: any, e: React.MouseEvent) => void;
   canEdit: boolean;
+  /** Sem editar o evento: o lápis vira "Vincular patrocinadores". */
+  soPatrocinadores?: boolean;
   canDelete: boolean;
   canDuplicate: boolean;
   canSetPriority: boolean;
@@ -651,11 +656,17 @@ function EventCardActions({
           <Copy style={{ width: '13px', height: '13px' }} />
         </button>
       )}
-      {canEdit && (
+      {canEdit ? (
         <button onClick={(e) => onEdit(event, e)} data-testid={`button-edit-event-${event.id}`}
           title="Editar evento" aria-label={`Editar evento ${event.name}`}
           style={{ ...btnBase, backgroundColor: '#f9f9f8', color: '#78716c' }}>
           <Pencil style={{ width: '13px', height: '13px' }} />
+        </button>
+      ) : soPatrocinadores && (
+        <button onClick={(e) => onEdit(event, e)} data-testid={`button-sponsors-event-${event.id}`}
+          title="Vincular patrocinadores" aria-label={`Vincular patrocinadores ao evento ${event.name}`}
+          style={{ ...btnBase, backgroundColor: '#f9f9f8', color: '#78716c' }}>
+          <Building2 style={{ width: '13px', height: '13px' }} />
         </button>
       )}
       {/* Encerrar / Reabrir — o mesmo lugar no card, porque são a mesma
@@ -704,6 +715,7 @@ function EventCard({
   isMobile,
   currentYear,
   canEdit,
+  soPatrocinadores = false,
   canDelete,
   canDuplicate,
   canSetPriority,
@@ -721,6 +733,7 @@ function EventCard({
   isMobile: boolean;
   currentYear: number;
   canEdit: boolean;
+  soPatrocinadores?: boolean;
   canDelete: boolean;
   canDuplicate: boolean;
   canSetPriority: boolean;
@@ -766,7 +779,7 @@ function EventCard({
   const msTone = MILESTONE_TONE[ms?.state ?? 'upcoming'];
 
   // Espaço reservado na primeira linha para as ações sobrepostas.
-  const actionCount = (canSetPriority ? 1 : 0) + (canDuplicate ? 1 : 0) + (canEdit ? 1 : 0)
+  const actionCount = (canSetPriority ? 1 : 0) + (canDuplicate ? 1 : 0) + (canEdit || soPatrocinadores ? 1 : 0)
     + (canClose ? 1 : 0) + (canDelete ? 1 : 0);
   const btnSize = isMobile ? 44 : 32;
   const actionsWidth = actionCount > 0 ? actionCount * btnSize + (actionCount - 1) * 6 + 10 : 0;
@@ -1030,6 +1043,7 @@ function EventCard({
           onClose={onClose}
           onReopen={onReopen}
           canEdit={canEdit}
+                  soPatrocinadores={soPatrocinadores}
           canDelete={canDelete}
           canDuplicate={canDuplicate}
           // Prioridade não faz sentido no que já saiu de jogo — nem no
@@ -1052,6 +1066,10 @@ export default function Eventos() {
   // diferentes onde a regra é a mesma.
   const role = user?.role;
   const canEdit = role === 'admin' || role === 'solicitacao';        // PATCH /api/events/:id
+  // O Atendimento vincula patrocinadores (dono, 15/09) sem editar o evento:
+  // abre a mesma janela só com os patrocinadores e as cotas. As rotas de
+  // vínculo já aceitavam o perfil; o PATCH do evento continua fora.
+  const soPatrocinadores = !canEdit && role === 'atendimento';
   const canDelete = role === 'admin';                                 // DELETE /api/events/:id
   // Encerrar/reabrir é da mesma classe da exclusão (admin), e não da edição:
   // não muda um dado do evento, tira trabalho do campo de visão de OUTRAS
@@ -1267,6 +1285,8 @@ export default function Eventos() {
 
   const modalMode: 'create' | 'edit' | 'duplicate' =
     editingEvent ? 'edit' : duplicateSource ? 'duplicate' : 'create';
+  // A janela aberta pelo Atendimento: só patrocinadores e cotas.
+  const soPatrocinadoresNoModal = modalMode === 'edit' && soPatrocinadores;
 
   // ── Snapshot do formulário ────────────────────────────────────────────────
   // `formDirty` comparado contra um SNAPSHOT em vez de "está em modo edição".
@@ -1417,16 +1437,17 @@ export default function Eventos() {
   });
 
   const updateEventMutation = useMutation({
-    mutationFn: async ({ id, fd }: { id: string; fd: typeof formData }) => {
+    mutationFn: async ({ id, fd, soPatrocinadores: soVinculos = false }: { id: string; fd: typeof formData; soPatrocinadores?: boolean }) => {
       const failedSponsors: string[] = [];
       try {
-        await apiRequest("PATCH", `/api/events/${id}`, eventPayload(fd));
+        // Só patrocinadores (Atendimento): o evento em si não é gravado.
+        if (!soVinculos) await apiRequest("PATCH", `/api/events/${id}`, eventPayload(fd));
 
         // Prioridade tem rota própria (gate e audit log próprios) e é a única
         // que aceita "" para REMOVER — insertEventSchema rejeitaria a string
         // vazia com 400.
         const originalPriority = editingEvent?.priority || "";
-        if ((fd.priority || "") !== originalPriority) {
+        if (!soVinculos && (fd.priority || "") !== originalPriority) {
           await apiRequest("PATCH", `/api/events/${id}/priority`, { priority: fd.priority || "" });
         }
 
@@ -1467,16 +1488,16 @@ export default function Eventos() {
       } catch (error: any) {
         throw new Error(error?.message || "Erro ao atualizar evento e patrocinadores");
       }
-      return { failedSponsors };
+      return { failedSponsors, soVinculos };
     },
-    onSuccess: ({ failedSponsors }) => {
+    onSuccess: ({ failedSponsors, soVinculos }) => {
       queryClient.invalidateQueries({ queryKey: ["/api/events"] });
       handleCloseDialog();
       toast({
-        title: "Evento atualizado",
+        title: soVinculos ? "Patrocinadores atualizados" : "Evento atualizado",
         description: failedSponsors.length > 0
           ? `Não foi possível atualizar: ${failedSponsors.join(", ")}. Reabra o evento para revisar.`
-          : "O evento foi atualizado com sucesso.",
+          : soVinculos ? "Os patrocinadores do evento foram salvos." : "O evento foi atualizado com sucesso.",
         variant: failedSponsors.length > 0 ? "destructive" : undefined,
       });
     },
@@ -1602,6 +1623,23 @@ export default function Eventos() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Só patrocinadores: as datas e os prazos nem aparecem, então não se
+    // validam. Continua a trava de não salvar antes de os vínculos carregarem.
+    if (soPatrocinadoresNoModal && editingEvent) {
+      if (sponsorsLoading || sponsorsError) {
+        toast({
+          title: sponsorsLoading ? "Aguarde o carregamento" : "Não foi possível carregar os patrocinadores",
+          description: sponsorsLoading
+            ? "Os patrocinadores do evento ainda estão carregando."
+            : "Reabra a janela — salvar agora poderia remover os patrocinadores vinculados.",
+          variant: "destructive",
+        });
+        return;
+      }
+      updateEventMutation.mutate({ id: editingEvent.id, fd: formData, soPatrocinadores: true });
+      return;
+    }
     if (!formData.startDate || !formData.truckDepartureDate) {
       toast({ title: "Datas obrigatórias", description: "Preencha a data de início e a saída do caminhão.", variant: "destructive" });
       return;
@@ -2332,7 +2370,7 @@ export default function Eventos() {
                 saída. */}
             <FreezeWhileClosing open={open}>
             <DialogTitle className="sr-only">
-              {modalMode === 'edit' ? 'Editar evento' : modalMode === 'duplicate' ? 'Duplicar evento' : 'Novo evento'}
+              {soPatrocinadoresNoModal ? 'Vincular patrocinadores' : modalMode === 'edit' ? 'Editar evento' : modalMode === 'duplicate' ? 'Duplicar evento' : 'Novo evento'}
             </DialogTitle>
             <DialogDescription className="sr-only">
               Nome, prioridade, datas, prazos dos 5 marcos e patrocinadores do evento.
@@ -2341,9 +2379,11 @@ export default function Eventos() {
               icon={CalendarPlus}
               variant="work"
               tint="#c2410c"
-              title={modalMode === 'edit' ? 'Editar Evento' : modalMode === 'duplicate' ? 'Duplicar Evento' : 'Novo Evento'}
+              title={soPatrocinadoresNoModal ? 'Vincular Patrocinadores' : modalMode === 'edit' ? 'Editar Evento' : modalMode === 'duplicate' ? 'Duplicar Evento' : 'Novo Evento'}
               subtitle={
-                modalMode === 'edit'
+                soPatrocinadoresNoModal
+                  ? `Patrocinadores e cotas de "${editingEvent?.name}".`
+                  : modalMode === 'edit'
                   ? 'Atualize as informações do evento.'
                   : modalMode === 'duplicate'
                     ? `Cópia de "${duplicateSource?.name}" — prazos, patrocinadores e cotas já vieram junto.`
@@ -2355,6 +2395,8 @@ export default function Eventos() {
             <form onSubmit={handleSubmit} style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
               <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px', overflowY: 'auto', flex: 1, minHeight: 0 }}>
 
+                {/* Só patrocinadores: nome, datas e prazos ficam de fora. */}
+                {!soPatrocinadoresNoModal && (<>
                 {/* Nome + Prioridade */}
                 <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'minmax(240px, 1fr) auto', gap: '16px', alignItems: 'end' }}>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', minWidth: 0 }}>
@@ -2726,6 +2768,8 @@ export default function Eventos() {
                   )}
                 </div>
 
+                </>)}
+
                 {/* Patrocinadores */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   <label style={{ fontSize: FS.micro, fontWeight: '700', color: '#625d5b', textTransform: 'uppercase', letterSpacing: '0.12em', display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -3019,7 +3063,7 @@ export default function Eventos() {
                     onMouseLeave={e => { e.currentTarget.style.backgroundColor = T.dark; }}
                   >
                     {modalMode === 'edit'
-                      ? (updateEventMutation.isPending ? "Salvando..." : "Salvar Alterações")
+                      ? (updateEventMutation.isPending ? "Salvando..." : soPatrocinadoresNoModal ? "Salvar patrocinadores" : "Salvar Alterações")
                       : modalMode === 'duplicate'
                         ? (createEventMutation.isPending ? "Duplicando..." : "Criar Cópia")
                         : (createEventMutation.isPending ? "Criando..." : "Salvar Evento")
@@ -3464,6 +3508,7 @@ export default function Eventos() {
                     currentYear={currentYear}
                     isMobile={isMobile}
                     canEdit={canEdit}
+                  soPatrocinadores={soPatrocinadores}
                     canDelete={canDelete}
                     canDuplicate={canCreate && !isMobile}
                     canSetPriority={canSetPriority}
@@ -3495,6 +3540,7 @@ export default function Eventos() {
                   isMobile={isMobile}
                   currentYear={currentYear}
                   canEdit={canEdit}
+                  soPatrocinadores={soPatrocinadores}
                   canDelete={canDelete}
                   canDuplicate={canCreate && !isMobile}
                   canSetPriority={canSetPriority}

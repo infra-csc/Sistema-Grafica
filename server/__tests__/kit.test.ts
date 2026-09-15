@@ -240,6 +240,29 @@ describe("Solicitação da Arena e o Kit (15/09)", () => {
   });
 });
 
+describe("fechamento (15/09): Gráfica sem ações do Kit para a Arena e Revisão com bloco do Kit", () => {
+  it("Gráfica esconde aumentar, reaproveitar e cancelar complemento; Revisão agrupa o Kit em cima com a entrega", () => {
+    const GRAFICA = ler("client/src/pages/grafica.tsx");
+    expect(GRAFICA).toContain("const mostraAumentar = !bulkOn && !emRevisao && !soVisualizaKit(item) && podeAumentarQuantidade(item, podeMexerQtd);");
+    expect(GRAFICA).toContain("{!bulkOn && !emRevisao && !soVisualizaKit(item) && !isDelivered(item)");
+    const REVISAO = ler("client/src/pages/solicitacao.tsx");
+    expect(REVISAO).toContain("const key = item.kitRemessaId ? `${item.eventId}#kit-${item.kitRemessaId}` : (item.eventId || \"__none__\");");
+    expect(REVISAO).toContain("if (kitA !== kitB) return kitA ? -1 : 1;");
+    expect(REVISAO).toContain('{event.datasDoKit ? "Entrega do material" : "Caminhao"}');
+  });
+});
+
+describe("Ver como outro perfil (15/09)", () => {
+  it("só o admin troca o perfil da sessão, /me devolve o perfil em uso e o menu tem a faixa de volta", () => {
+    expect(AUTH).toContain('app.post("/api/auth/ver-como", requireAuth');
+    expect(AUTH).toContain('const papelReal = req.session.papelReal ?? req.session.userRole;');
+    expect(AUTH).toContain('? { role: req.session.userRole, kit: req.session.userKit === true, papelReal: req.session.papelReal }');
+    const APP = ler("client/src/App.tsx");
+    expect(APP).toContain('data-testid="faixa-ver-como"');
+    expect(APP).toContain('{ chave: "solicitacao-kit", role: "solicitacao", kit: true, rotulo: "Solicitação · Kit" },');
+  });
+});
+
 describe("Arte: Kit em cima (15/09)", () => {
   it("peças do Kit ordenadas antes das da Arena, remessa junta, e cabeçalho com a entrega do material", () => {
     const ARTE = ler("client/src/pages/arte.tsx");

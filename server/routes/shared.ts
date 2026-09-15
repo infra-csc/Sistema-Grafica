@@ -27,6 +27,8 @@ declare module "express-session" {
     userName?: string;
     userRole?: string;
     userKit?: boolean;
+    /** VER COMO (15/09): o perfil real ("admin") enquanto o admin navega como outro perfil. */
+    papelReal?: string;
   }
 }
 

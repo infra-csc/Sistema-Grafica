@@ -222,6 +222,28 @@ const ROLES_PATROCINADORES = ["solicitacao", "atendimento", "admin"];
 // Cotas voltou a ser só do admin (decisão do dono, 17/08).
 const ROLES_COTAS = ["admin"];
 
+/** VER COMO (15/09): os perfis que o admin pode experimentar. */
+const PERFIS_VER_COMO: Array<{ chave: string; role: string; kit?: boolean; rotulo: string }> = [
+  { chave: "admin", role: "admin", rotulo: "Administrador" },
+  { chave: "solicitacao", role: "solicitacao", rotulo: "Solicitação" },
+  { chave: "solicitacao-kit", role: "solicitacao", kit: true, rotulo: "Solicitação · Kit" },
+  { chave: "arte", role: "arte", rotulo: "Arte" },
+  { chave: "atendimento", role: "atendimento", rotulo: "Atendimento" },
+  { chave: "grafica", role: "grafica", rotulo: "Gráfica" },
+];
+
+/** Troca o perfil da sessão e recarrega do início (caches de outro perfil não servem). */
+async function verComo(role: string, kit = false): Promise<void> {
+  const r = await fetch("/api/auth/ver-como", {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ role, kit }),
+  });
+  if (r.ok) window.location.assign("/");
+  else window.alert((await r.json().catch(() => null))?.error ?? "Não deu para trocar o perfil.");
+}
+
 // Atalho real do sidebar no Mac é ⌘B — o title dizia Ctrl+B para todo mundo.
 const IS_MAC = typeof navigator !== "undefined" && /mac/i.test(navigator.platform);
 
@@ -650,6 +672,25 @@ function AuthenticatedLayout() {
                   </p>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
+                {/* VER COMO (dono, 15/09): o admin navega como outro perfil
+                    para conferir o que cada um vê. */}
+                {(user?.role === "admin" || user?.papelReal === "admin") && (
+                  <>
+                    <DropdownMenuLabel style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: "#746e69" }}>
+                      Ver o sistema como
+                    </DropdownMenuLabel>
+                    {PERFIS_VER_COMO.map((p) => {
+                      const atual = (user?.role ?? "") === p.role && !!user?.kit === !!p.kit;
+                      return (
+                        <DropdownMenuItem key={p.chave} data-testid={`menu-ver-como-${p.chave}`} disabled={atual}
+                          onSelect={() => { void verComo(p.role, !!p.kit); }}>
+                          {p.rotulo}{atual ? " · atual" : ""}
+                        </DropdownMenuItem>
+                      );
+                    })}
+                    <DropdownMenuSeparator />
+                  </>
+                )}
                 <DropdownMenuItem
                   data-testid="menu-item-change-password"
                   onSelect={() => setLocation("/change-password")}
@@ -673,6 +714,16 @@ function AuthenticatedLayout() {
             na casca em vez de crescer dentro dela (hoje a Arte). Nao muda o
             layout de ninguem: so da um ancestral posicionado a quem pedir. */}
         <SidebarInset className="flex-1 overflow-y-auto min-h-0" style={{ minWidth: 0, position: "relative" }}>
+          {user?.papelReal === "admin" && (
+            <div role="status" data-testid="faixa-ver-como"
+              style={{ position: "sticky", top: 0, zIndex: 40, display: "flex", alignItems: "center", justifyContent: "center", gap: 12, flexWrap: "wrap", padding: "8px 16px", backgroundColor: "#1d4ed8", color: "#fff", fontSize: 13 }}>
+              <span>Você está vendo o sistema como <strong>{PERFIS_VER_COMO.find((p) => p.role === user?.role && !!p.kit === !!user?.kit)?.rotulo ?? roleLabel(user?.role)}</strong>.</span>
+              <button type="button" data-testid="button-voltar-admin" onClick={() => { void verComo("admin"); }}
+                style={{ height: 30, padding: "0 12px", borderRadius: 999, border: "1px solid rgba(255,255,255,0.6)", background: "#fff", color: "#1d4ed8", fontSize: 12.5, fontWeight: 800, cursor: "pointer" }}>
+                Voltar ao admin
+              </button>
+            </div>
+          )}
           <Router />
         </SidebarInset>
       </div>

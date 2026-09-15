@@ -797,14 +797,22 @@ export default function Solicitacao() {
       return ga.localeCompare(gb) || (a.type || '').localeCompare(b.type || '');
     });
     sorted.forEach(item => {
-      const key = item.eventId || "__none__";
+      // KIT (15/09): as peças de uma remessa formam bloco próprio, com as
+      // datas do Kit no cabeçalho (ver getEventInfo).
+      const key = item.kitRemessaId ? `${item.eventId}#kit-${item.kitRemessaId}` : (item.eventId || "__none__");
       if (!map.has(key)) map.set(key, []);
       map.get(key)!.push(item);
     });
     // Grupos na ordem da urgência real: saída do caminhão ascendente (quem
     // sai primeiro aparece primeiro), sem data por último, nome desempata.
-    const byId = new Map(events.map((e: any) => [e.id, e]));
+    // O Kit vem sempre em cima.
+    const byId = new Map<string, any>(events.map((e: any) => [e.id, e]));
+    for (const [key, lista] of Array.from(map.entries())) {
+      if (key.includes("#kit-") && lista[0]?.event) byId.set(key, lista[0].event);
+    }
     const entries = Array.from(map.entries()).sort(([idA], [idB]) => {
+      const kitA = idA.includes("#kit-"), kitB = idB.includes("#kit-");
+      if (kitA !== kitB) return kitA ? -1 : 1;
       const ea: any = byId.get(idA), eb: any = byId.get(idB);
       const ta = ea?.truckDepartureDate ? new Date(ea.truckDepartureDate).getTime() : Infinity;
       const tb = eb?.truckDepartureDate ? new Date(eb.truckDepartureDate).getTime() : Infinity;
@@ -865,7 +873,15 @@ export default function Solicitacao() {
     ? (selosPorItem.get(selectedItem.id) ?? seloPecaEventoFinalizado(selectedItem.event, hojeBusinessMs))
     : null;
 
-  const getEventInfo = (eventId: string) => events.find(e => e.id === eventId);
+  // Bloco do Kit ("<evento>#kit-<remessa>"): o evento da peça já vem com as
+  // datas do Kit (servidor); o nome ganha "· KIT".
+  const getEventInfo = (eventId: string): any => {
+    if (eventId.includes("#kit-")) {
+      const peca: any = filteredItems.find((i: any) => `${i.eventId}#kit-${i.kitRemessaId}` === eventId);
+      return peca?.event ? { ...peca.event, name: `${peca.event.name} · KIT` } : undefined;
+    }
+    return events.find(e => e.id === eventId);
+  };
 
   const toggleItem = (id: string) => setSelectedItemIds(prev => {
     const s = new Set(prev);
@@ -1530,8 +1546,8 @@ export default function Solicitacao() {
                                       style={{ display: "inline-flex", alignItems: "center", gap: 5, flexShrink: 0, backgroundColor: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.2)", borderRadius: 999, padding: "3px 9px", fontSize: 10, fontWeight: 700, color: cor, letterSpacing: "0.04em", whiteSpace: "nowrap", textTransform: "none" }}
                                     >
                                       <Truck aria-hidden="true" style={{ width: 11, height: 11 }} />
-                                      Caminhao {saida.toLocaleDateString("pt-BR", { day: "2-digit", month: "short", timeZone: 'UTC' }).toUpperCase().replace(".", "")}
-                                      {" · "}{saida.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", timeZone: 'UTC' })}
+                                      {event.datasDoKit ? "Entrega do material" : "Caminhao"} {saida.toLocaleDateString("pt-BR", { day: "2-digit", month: "short", timeZone: 'UTC' }).toUpperCase().replace(".", "")}
+                                      {!event.datasDoKit && <>{" · "}{saida.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", timeZone: 'UTC' })}</>}
                                       {" · "}{quando}
                                     </span>
                                   );

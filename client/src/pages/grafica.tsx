@@ -2511,9 +2511,9 @@ export default function Grafica() {
               // o que muda o pedido — papel admin|solicitacao).
               // !emRevisao em TODAS: em Revisão a Gráfica só OLHA (regra do
               // dono, 25/08) — a peça é trabalho chegando, não chegou.
-              const mostraAumentar = !bulkOn && !emRevisao && podeAumentarQuantidade(item, podeMexerQtd);
+              const mostraAumentar = !bulkOn && !emRevisao && !soVisualizaKit(item) && podeAumentarQuantidade(item, podeMexerQtd);
               const podeProduzirAqui = !emRevisao && canProduce && coAberto && !isProduced(item) && !isConferred(item) && !item.isReuse && remainingProduce(item) > 0;
-              const podeCancelarCompl = podeMexerQtd && ehComplemento && complementUntouched(item);
+              const podeCancelarCompl = podeMexerQtd && !soVisualizaKit(item) && ehComplemento && complementUntouched(item);
               // Evento finalizado: o botão continua na tela, DESABILITADO com o
               // motivo — sumir devolveria o buraco que esconder a peça criava
               // (nada explica por que aquela linha não faz o que as vizinhas
@@ -2984,7 +2984,7 @@ export default function Grafica() {
                 const isNovo = item.id === novoComplementoId;
                 // O gatilho de AUMENTAR. Some em qualquer modo de lote: o
                 // complemento exige quantidade e justificativa POR PEÇA.
-                const mostraAumentar = !bulkOn && !emRevisao && podeAumentarQuantidade(item, podeMexerQtd);
+                const mostraAumentar = !bulkOn && !emRevisao && !soVisualizaKit(item) && podeAumentarQuantidade(item, podeMexerQtd);
                 // Evento finalizado: selo na linha e botões barrados
                 // desabilitados. Ver o comentário de `items`, no topo.
                 const selo = seloDoItem(item);
@@ -3407,7 +3407,7 @@ export default function Grafica() {
                               conferido ou entregue: uma única unidade já é
                               material no galpão. Confirmação em dois passos, no
                               mesmo idioma dos botões de reaproveitamento. */}
-                          {!bulkOn && podeMexerQtd && ehComplemento && complementUntouched(item) && (
+                          {!bulkOn && podeMexerQtd && !soVisualizaKit(item) && ehComplemento && complementUntouched(item) && (
                             cancelComplementId === item.id ? (
                               <div style={{ display: "flex", alignItems: "center", gap: 4 }} onClick={e => e.stopPropagation()}>
                                 <span style={{ fontSize: 11, fontWeight: 700, color: "#b91c1c", whiteSpace: "nowrap" }}>Cancelar {item.displayId}?</span>
@@ -3479,7 +3479,7 @@ export default function Grafica() {
                               (POST /api/items/:id/mark-reuse é barrado): marcar
                               reaproveitamento é decidir o que entra na fila de
                               produção, ou seja, faz o trabalho andar. */}
-                          {!bulkOn && !emRevisao && !isDelivered(item) && !isConferred(item) && (!isProduced(item) ? tetoReaproveitar(item) > 0 : podeMexerQtd && qtyOf(item) > 0) && (
+                          {!bulkOn && !emRevisao && !soVisualizaKit(item) && !isDelivered(item) && !isConferred(item) && (!isProduced(item) ? tetoReaproveitar(item) > 0 : podeMexerQtd && qtyOf(item) > 0) && (
                             reuseConfirmItemId === item.id ? (
                               <div style={{ display: "flex", alignItems: "center", gap: 4 }} onClick={e => e.stopPropagation()}>
                                 <input
@@ -3542,7 +3542,7 @@ export default function Grafica() {
                               produzir, com a peça em "Pronto p/ Produção". O
                               admin corrige em qualquer etapa anterior à
                               conferência; para a Gráfica segue como estava. */}
-                          {!bulkOn && !emRevisao && (isProduced(item) || isAdmin) && reusedTotalOf(item) > 0
+                          {!bulkOn && !emRevisao && !soVisualizaKit(item) && (isProduced(item) || isAdmin) && reusedTotalOf(item) > 0
                             && conferredOf(item) === 0 && deliveredOf(item) === 0 && (
                             correctReuseItemId === item.id ? (
                               <div style={{ display: "flex", alignItems: "center", gap: 4 }} onClick={e => e.stopPropagation()}>

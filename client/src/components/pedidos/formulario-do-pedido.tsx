@@ -190,7 +190,7 @@ function BlocoDaPeca({ peca, numero, total, eventos, opcoesDeEvento, patrocinado
               searchPlaceholder="Buscar evento..." emptyText="Nenhum evento em andamento."
               testId={`select-pedido-evento-${numero}`} triggerProps={{ id: id("evento") }}
               triggerStyle={GATILHO} />
-            {caminhaoSaiu && <Aviso>O caminhão deste evento já saiu — a peça não embarca nele.</Aviso>}
+            {caminhaoSaiu && <Aviso>Atenção: o caminhão deste evento já saiu.</Aviso>}
           </div>
 
           <div>

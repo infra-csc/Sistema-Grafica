@@ -231,11 +231,12 @@ export function prazoMaisProximo(linhas: Array<{ status: string; precisaAte: str
   return prazos.length ? Math.min(...prazos) : Infinity;
 }
 
-/** Pedido com prazo DEPOIS da saída do caminhão: a peça não embarca. */
+/** Pedido com prazo DEPOIS da saída do caminhão: só um aviso — a peça entra
+ *  no evento normalmente (dono, 15/09). */
 export function avisoDoPrazo(precisaAte: Date | string | null | undefined, saida: Date | string | null | undefined): string | null {
   if (!precisaAte || !saida) return null;
   if (diaDoPrazo(precisaAte) > diaDoPrazo(saida)) {
-    return `O prazo é depois da saída do caminhão (${diaEMesDoPrazo(saida)}) — a peça não embarca neste evento.`;
+    return `Atenção: o prazo é depois da saída do caminhão (${diaEMesDoPrazo(saida)}).`;
   }
   return null;
 }
@@ -286,7 +287,7 @@ export function seloDoEventoDoPedido(
       tipo: "caminhao",
       texto: dias === 0 ? "caminhão já saiu hoje" : dias === 1 ? "caminhão já saiu há 1 dia" : `caminhão já saiu há ${dias} dias`,
       bloqueiaAtender: false,
-      explicacao: "Dá para criar a peça, mas ela não embarca no caminhão deste evento.",
+      explicacao: "O caminhão deste evento já saiu — a peça entra no evento normalmente.",
     };
   }
   return null;

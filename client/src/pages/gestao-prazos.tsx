@@ -944,7 +944,7 @@ export default function GestaoPrazos() {
             ev={ev}
             expanded={expandedId === ev.id}
             onToggle={() => setExpandedId(expandedId === ev.id ? null : ev.id)}
-            cobranca={cobrancaEvento(ev.id)}
+            cobranca={cobrancaEvento(ev.eventId ?? ev.id)}
             today={today}
           />
         ))}
@@ -982,7 +982,7 @@ export default function GestaoPrazos() {
                 <QuadroCard
                   ev={ev}
                   stage={ev.stages[i]}
-                  cobranca={cobrancaEvento(ev.id)}
+                  cobranca={cobrancaEvento(ev.eventId ?? ev.id)}
                   onOpen={() => setDetailId(ev.id)}
                   onFocusCard={() => { focoCardRef.current = ev.id; }}
                   realce={movidos.has(ev.id)}
@@ -1113,7 +1113,7 @@ export default function GestaoPrazos() {
           // grupo da etapa e só então clicar. O link é de EVENTO + ETAPA (é o
           // grão da linha, que fala de um evento inteiro) e leva o recorte
           // junto — ver o contrato em components/prazos/tokens.ts.
-          const urlSetorAqui = setor ? urlSetorDoEvento(etapaKey, ev.id, { atrasada: true }) : null;
+          const urlSetorAqui = setor ? urlSetorDoEvento(etapaKey, ev.eventId ?? ev.id, { atrasada: true }) : null;
           return (
             <div key={ev.id} style={{
               display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap",
@@ -1192,8 +1192,8 @@ export default function GestaoPrazos() {
                     o modal — dois cliques a mais bem no momento do combinado. */}
                 <CobradoControl
                   targetType="event"
-                  targetId={ev.id}
-                  cobranca={cobrancaEvento(ev.id)}
+                  targetId={ev.eventId ?? ev.id}
+                  cobranca={cobrancaEvento(ev.eventId ?? ev.id)}
                   today={today}
                   variant="secondary"
                   showForm
@@ -1958,7 +1958,7 @@ export default function GestaoPrazos() {
 
                   <EventDrilldown
                     ev={modalEv}
-                    cobranca={cobrancaEvento(modalEv.id)}
+                    cobranca={cobrancaEvento(modalEv.eventId ?? modalEv.id)}
                     today={today}
                     showCobranca={false}
                   />
@@ -1976,8 +1976,8 @@ export default function GestaoPrazos() {
                     <div style={{ maxWidth: 640 }}>
                       <CobradoControl
                         targetType="event"
-                        targetId={modalEv.id}
-                        cobranca={cobrancaEvento(modalEv.id)}
+                        targetId={modalEv.eventId ?? modalEv.id}
+                        cobranca={cobrancaEvento(modalEv.eventId ?? modalEv.id)}
                         today={today}
                         variant="primary"
                         layout="bloco"
@@ -1993,7 +1993,7 @@ export default function GestaoPrazos() {
                         link era blocado a 100% da largura e clicar no vazio à
                         direita navegava para fora do modal sem aviso. */}
                     <Link
-                      href={`/eventos/${modalEv.id}`}
+                      href={`/eventos/${modalEv.eventId ?? modalEv.id}`}
                       style={{ fontSize: 12, fontWeight: 600, color: TI.secondary, textDecoration: "none" }}
                     >
                       Abrir o evento completo →

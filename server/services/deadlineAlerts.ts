@@ -4,6 +4,9 @@
 import { storage } from "../storage";
 import { broadcast, EVENT_CLOSED_STATUS } from "../routes/shared";
 import { reservarDisparo } from "./reservaDeDisparo";
+import { db } from "../db";
+import { kitRemessas } from "@shared/schema";
+import { ancoraDoKit } from "@shared/kit";
 
 // Deduplication: track alert keys already sent in this process lifetime.
 // Key format: "<eventId>-departure-<hours>h" or "<eventId>-<label>-<hours>h"
@@ -99,6 +102,56 @@ export function startDeadlineAlerts(): void {
                 targetRoles: roles,
               });
               broadcast({ type: "prazo_alert", event, label, hoursRemaining: hours });
+              broadcast({ type: "notification_created", notification });
+            }
+          }
+        }
+      }
+      // ── KIT (14/09): as mesmas janelas, pelas datas de cada remessa do Kit ──
+      // A âncora é a saída do caminhão do Kit (ou a entrega do material); os
+      // offsets de etapa são os do evento, como na Arena.
+      const eventoPorId = new Map(allEvents.map((e) => [e.id, e]));
+      const remessas = await db.select().from(kitRemessas);
+      for (const remessa of remessas) {
+        const event = eventoPorId.get(remessa.eventId);
+        if (!event || event.status === 'completed' || event.status === EVENT_CLOSED_STATUS) continue;
+        const ancoraMs = new Date(ancoraDoKit(remessa)).getTime();
+        const nome = `${event.name} · KIT ${remessa.versao}`;
+        const oQue = "a entrega do material do Kit";
+        const faltam = (ancoraMs - now.getTime()) / (1000 * 60 * 60);
+        for (const janela of [48, 24, 12]) {
+          if (faltam <= janela && faltam > janela - 0.5 && await podeAlertar(`${remessa.id}-kit-saida-${janela}h`)) {
+            const notification = await storage.createNotification({
+              type: "deadlineAlert",
+              message: `ALERTA: Faltam ${janela}h para ${oQue} - ${nome}`,
+              eventId: event.id,
+              targetRoles: ["arte", "grafica", "solicitacao"],
+            });
+            broadcast({ type: "notification_created", notification });
+          }
+        }
+        const etapasDoKit: Array<{ field: keyof typeof event; label: string; roles: Array<"solicitacao" | "admin" | "arte" | "grafica" | "atendimento"> }> = [
+          { field: "deadlineListaImagens",    label: "Lista de Imagens",    roles: ["solicitacao", "admin"] },
+          { field: "deadlineEntregaLayouts",  label: "Entrega de Layouts",  roles: ["arte", "admin"] },
+          { field: "deadlineAprovacaoLayout", label: "Aprovação de Layout", roles: ["atendimento", "arte", "admin"] },
+          { field: "deadlineRevisaoLista",    label: "Revisão de Lista",    roles: ["solicitacao", "admin"] },
+          { field: "deadlineProducaoGrafica", label: "Produção Gráfica",    roles: ["grafica", "admin"] },
+        ];
+        for (const { field, label, roles } of etapasDoKit) {
+          const offsetDays = event[field] as number | null;
+          if (offsetDays == null) continue;
+          const prazo = new Date(ancoraMs + offsetDays * 24 * 60 * 60 * 1000);
+          prazo.setHours(23, 59, 59, 0);
+          const horas = (prazo.getTime() - now.getTime()) / (1000 * 60 * 60);
+          if (((horas <= 48 && horas > 47.5) || (horas <= 24 && horas > 23.5))) {
+            const h = Math.round(horas);
+            if (await podeAlertar(`${remessa.id}-kit-${label}-${h}h`)) {
+              const notification = await storage.createNotification({
+                type: "prazoAlert",
+                message: `Prazo "${label}" em ${h}h — ${nome}`,
+                eventId: event.id,
+                targetRoles: roles,
+              });
               broadcast({ type: "notification_created", notification });
             }
           }

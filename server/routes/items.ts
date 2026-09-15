@@ -6,7 +6,7 @@ import { eq } from "drizzle-orm";
 import { db } from "../db";
 import { storage, assetPrefix, assetSeqOf, isDisplayIdConflictError } from "../storage";
 import type { Item } from "@shared/schema";
-import { pecaVisivelPara, remessaUtilizavelPor } from "@shared/kit";
+import { eventoComDatasDoKit, pecaVisivelPara, remessaUtilizavelPor } from "@shared/kit";
 import { carregarRemessa, remessasPorIds } from "../services/kitRemessas";
 import { DEPOIS_DA_ARTE, EM_REVISAO, POS_APROVACAO, DISPENSAVEIS, DESTINO_DA_DISPENSA, ehBookCompleto } from "@shared/fluxo-peca";
 import {
@@ -420,7 +420,9 @@ async function enrichItemsWithEventsAndSponsors(list: any[]): Promise<any[]> {
   const withEventsAndSponsors = list.map((item) => ({
     ...item,
     kitRemessa: item.kitRemessaId ? remessaPorId.get(item.kitRemessaId) ?? null : null,
-    event: eventById.get(item.eventId) ?? undefined,
+    // Peça do Kit: o evento vem com as datas da remessa (dono, 14/09: "tem
+    // que ser pela data deles") — Arte, Gráfica e Painel cobram por elas.
+    event: eventoComDatasDoKit(eventById.get(item.eventId), item.kitRemessaId ? remessaPorId.get(item.kitRemessaId) : null),
     sponsors: sponsorsByItem.get(item.id) ?? [],
   }));
 

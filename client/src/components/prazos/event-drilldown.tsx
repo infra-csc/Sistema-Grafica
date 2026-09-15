@@ -251,7 +251,7 @@ export function EventDrilldown({ ev, cobranca, today, showCobranca = true }: {
     // cobrança. O diretor lia "Nenhuma peça cadastrada", ligava para o
     // responsável, cobrava de verdade, e não tinha onde marcar.
     <div className="gp-no-print" style={{ display: "flex", justifyContent: "flex-end" }}>
-      <CobradoControl targetType="event" targetId={ev.id} cobranca={cobranca} today={today} />
+      <CobradoControl targetType="event" targetId={ev.eventId ?? ev.id} cobranca={cobranca} today={today} />
     </div>
   ) : null;
 
@@ -261,7 +261,7 @@ export function EventDrilldown({ ev, cobranca, today, showCobranca = true }: {
         {blocoCobranca}
         <p style={{ margin: 0, fontSize: 13, color: TI.secondary }}>
           Nenhuma peça cadastrada ainda —{" "}
-          <Link href={`/eventos/${ev.id}`} style={{ color: TI.accentText, fontWeight: 600 }}>
+          <Link href={`/eventos/${ev.eventId ?? ev.id}`} style={{ color: TI.accentText, fontWeight: 600 }}>
             cadastre as peças no evento
           </Link>{" "}
           para o funil começar a contar.
@@ -301,13 +301,13 @@ export function EventDrilldown({ ev, cobranca, today, showCobranca = true }: {
         // informação para ser específico, e antes ela era jogada fora.
         const sectorUrl = sorted.length === 1
           ? urlSetorDaPeca(stage.key, {
-              eventId: ev.id,
+              eventId: ev.eventId ?? ev.id,
               itemId: sorted[0].id,
               displayId: sorted[0].displayId,
               status: sorted[0].status,
               atrasada: stage.state === "overdue",
             })
-          : urlSetorDoEvento(stage.key, ev.id, { atrasada: stage.state === "overdue" });
+          : urlSetorDoEvento(stage.key, ev.eventId ?? ev.id, { atrasada: stage.state === "overdue" });
         const isAprovacao = stage.key === "aprovacao";
         return (
           <div key={stage.key}>
@@ -380,7 +380,7 @@ export function EventDrilldown({ ev, cobranca, today, showCobranca = true }: {
             {emCartoes ? (
               <ul style={{ display: "flex", flexDirection: "column", gap: 6, margin: 0, padding: 0 }}>
                 {shown.map((it) => (
-                  <PecaCartao key={it.id} eventId={ev.id} it={it} isAprovacao={isAprovacao} />
+                  <PecaCartao key={it.id} eventId={ev.eventId ?? ev.id} it={it} isAprovacao={isAprovacao} />
                 ))}
               </ul>
             ) : (
@@ -415,7 +415,7 @@ export function EventDrilldown({ ev, cobranca, today, showCobranca = true }: {
                             alarga a coluna — invade a vizinha. */}
                         <td style={{ padding: "6px 10px" }}>
                           <Link
-                            href={urlPecaNoEvento(ev.id, it.id)}
+                            href={urlPecaNoEvento(ev.eventId ?? ev.id, it.id)}
                             title={`Abrir ${it.displayId} no evento`}
                             /* 24px, e não os 36 do resto — e a diferença é
                                deliberada.
@@ -521,7 +521,7 @@ export function EventDrilldown({ ev, cobranca, today, showCobranca = true }: {
                 {/* A saída para o evento continua, agora como o que ela é: o
                     caminho para EDITAR as peças, não para vê-las. */}
                 <Link
-                  href={`/eventos/${ev.id}`}
+                  href={`/eventos/${ev.eventId ?? ev.id}`}
                   style={{ fontSize: 11, fontWeight: 600, color: TI.secondary, textDecoration: "none" }}
                 >
                   Abrir no evento →

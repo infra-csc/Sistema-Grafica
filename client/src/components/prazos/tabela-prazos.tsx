@@ -100,7 +100,7 @@ export function TabelaPrazos({
                       {/* minWidth 0 no flex item: sem ele o ellipsis nunca
                           dispara e um nome gigante alarga a coluna toda. */}
                       <Link
-                        href={`/eventos/${ev.id}`}
+                        href={`/eventos/${ev.eventId ?? ev.id}`}
                         data-testid={`link-evento-${ev.id}`}
                         title={ev.name}
                         style={{
@@ -188,7 +188,7 @@ export function TabelaPrazos({
                     {/* colSpan derivado: era o último espelho local do
                         número de etapas (nome + saída + etapas + entregues + ação). */}
                     <td id={`drill-${ev.id}`} colSpan={stageMeta.length + 4} style={{ padding: "4px 18px 12px" }}>
-                      <EventDrilldown ev={ev} cobranca={cobrancaDe(ev.id)} today={today} />
+                      <EventDrilldown ev={ev} cobranca={cobrancaDe(ev.eventId ?? ev.id)} today={today} />
                     </td>
                   </tr>
                 )}

@@ -940,7 +940,8 @@ export default function Atendimento() {
       if (!(itemSponsorsMap[item.id]?.length > 0) && !loadingSponsors) return false;
       // O recorte de atrasados também é faceta: sem ele aqui, o dropdown
       // ofereceria "Evento X · 12" e a lista devolveria 2.
-      if (atrasadosFilter && !isEventoAtrasadoNaAprovacao(eventoPorId.get(item.eventId), hoje)) return false;
+      // Peça do Kit (14/09): o atraso conta pelas datas da remessa dela.
+      if (atrasadosFilter && !isEventoAtrasadoNaAprovacao(item.kitRemessaId && item.event ? item.event : eventoPorId.get(item.eventId), hoje)) return false;
       if (exclude !== 'event' && eventFilter.length > 0 && !eventFilter.includes(item.eventId)) return false;
       if (exclude !== 'type' && itemTypeFilter.length > 0 && !itemTypeFilter.includes(item.type)) return false;
       if (exclude !== 'sponsor' && sponsorFilter.length > 0 && !itemSponsorsMap[item.id]?.some(s => sponsorFilter.includes(s.id))) return false;

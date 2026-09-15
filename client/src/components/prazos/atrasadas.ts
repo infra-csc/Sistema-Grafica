@@ -118,7 +118,7 @@ export function computePecasAtrasadas(events: PrazoEvent[]): PecaAtrasada[] {
           status: item.status,
           atrasada: true,
         }),
-        urlPeca: urlPecaNoEvento(ev.id, item.id),
+        urlPeca: urlPecaNoEvento(ev.eventId ?? ev.id, item.id),
       });
     }
   }

@@ -2640,15 +2640,18 @@ export default function Arte() {
     // o cabeçalho de 9 colunas inteiro: um evento com 6 tipos reimprimia
     // "ID · QTD · PEÇA · …" seis vezes, e para leitor de tela cada uma era
     // anunciada como uma tabela nova.
-    type Bloco = { key: string; eventName: string; eventKey: string; eventObj: any; grupos: { nome: string; items: any[] }[] };
+    type Bloco = { key: string; chave: string; eventName: string; eventKey: string; eventObj: any; grupos: { nome: string; items: any[] }[] };
     const blocos: Bloco[] = [];
     shownItems.forEach(item => {
-      const eventName = item.event?.name || 'Sem Evento';
+      // KIT (14/09): as peças de uma remessa do Kit formam bloco próprio —
+      // o cabeçalho mostra as datas e os marcos do Kit, não os da Arena.
+      const eventName = (item.event?.name || 'Sem Evento') + (item.kitRemessaId && item.event?.kitVersao ? ` · KIT ${item.event.kitVersao}` : '');
       const eventKey = item.eventId || eventName;
+      const chave = item.kitRemessaId ? `${eventKey}#kit-${item.kitRemessaId}` : eventKey;
       const grupoNome = groupOf(item.type) || '';
       let bloco = blocos[blocos.length - 1];
-      if (!bloco || bloco.eventKey !== eventKey) {
-        bloco = { key: `${eventKey}-${blocos.length}`, eventName, eventKey, eventObj: item.event, grupos: [] };
+      if (!bloco || bloco.chave !== chave) {
+        bloco = { key: `${chave}-${blocos.length}`, chave, eventName, eventKey, eventObj: item.event, grupos: [] };
         blocos.push(bloco);
       }
       let grupo = bloco.grupos[bloco.grupos.length - 1];

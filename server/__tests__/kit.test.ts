@@ -163,6 +163,51 @@ describe("selo KIT nas etapas (fase 3)", () => {
   });
 });
 
+describe("prazos pelas datas do Kit (fase 4)", () => {
+  it("a peça do Kit enxerga o evento com as datas da remessa", async () => {
+    const { eventoComDatasDoKit, ancoraDoKit } = await import("@shared/kit");
+    const evento = { id: "e1", name: "Mangaratiba", startDate: "2026-09-20T12:00:00Z", truckDepartureDate: "2026-09-18T08:00:00Z", deadlineProducaoGrafica: -1 };
+    const remessa = { versao: "V1", entregaMaterial: "2026-09-14T12:00:00Z", saidaCaminhao: "2026-09-15T12:00:00Z", dataEvento: null };
+    const doKit = eventoComDatasDoKit(evento, remessa)!;
+    // 15/09: o prazo é quando eles precisam da peça — a entrega do material.
+    expect(doKit.truckDepartureDate).toBe("2026-09-14T12:00:00Z");
+    expect(doKit.startDate).toBe("2026-09-20T12:00:00Z");
+    expect(doKit.deadlineProducaoGrafica).toBe(-1);
+    expect((doKit as any).saidaDaArena).toBe("2026-09-18T08:00:00Z");
+    expect(eventoComDatasDoKit(evento, null)).toBe(evento);
+    expect(ancoraDoKit({ entregaMaterial: "2026-09-14T12:00:00Z" })).toBe("2026-09-14T12:00:00Z");
+  });
+
+  it("Gestão de Prazos: cada remessa do Kit vira linha própria, com link para o evento real", async () => {
+    const { eventosDoPrazo, comKit, idDoEventoReal } = await import("../services/prazo-domain");
+    const evento = { id: "e1", name: "Mangaratiba", status: "created", startDate: "2026-09-20T12:00:00Z", truckDepartureDate: "2026-09-18T08:00:00Z" };
+    const remessas = new Map([["r1", { id: "r1", versao: "V1", entregaMaterial: "2026-09-14T12:00:00Z", saidaCaminhao: "2026-09-15T12:00:00Z", dataEvento: null }]]);
+    const blocos = eventosDoPrazo(evento, [{ id: "a", kitRemessaId: null }, { id: "b", kitRemessaId: "r1" }], remessas);
+    expect(blocos).toHaveLength(2);
+    expect(blocos[0].evento.id).toBe("e1");
+    expect(blocos[0].itens.map((i) => i.id)).toEqual(["a"]);
+    expect(blocos[1].evento.id).toBe("e1#kit-r1");
+    expect(blocos[1].evento.name).toBe("Mangaratiba · KIT V1");
+    expect(blocos[1].evento.truckDepartureDate).toBe("2026-09-14T12:00:00Z");
+    // Só peças do Kit: não aparece uma linha "sem peças" da Arena.
+    expect(eventosDoPrazo(evento, [{ id: "b", kitRemessaId: "r1" }], remessas)).toHaveLength(1);
+    expect(idDoEventoReal("e1#kit-r1")).toBe("e1");
+    expect(comKit({ id: "e1#kit-r1" } as any, remessas.get("r1")!)).toMatchObject({ eventId: "e1", kit: { remessaId: "r1", versao: "V1" } });
+  });
+
+  it("ligações: peças enriquecidas, rota e fecho diário, Arte, Atendimento, alertas e links", () => {
+    expect(ITEMS).toContain("event: eventoComDatasDoKit(eventById.get(item.eventId), item.kitRemessaId ? remessaPorId.get(item.kitRemessaId) : null),");
+    expect(ler("server/routes/prazos.ts")).toContain(".flatMap((event) => eventosDoPrazo(event, itemsByEvent.get(event.id) ?? [], remessaPorId))");
+    const SNAP = ler("server/services/prazoSnapshots.ts");
+    expect(SNAP).toContain(".flatMap((ev) => eventosDoPrazo(ev, itemsByEvent.get(ev.id) ?? [], remessaPorId))");
+    expect(SNAP).toContain("const eventId = idDoEventoReal(ev.id);");
+    expect(ler("client/src/pages/arte.tsx")).toContain("const chave = item.kitRemessaId ? `${eventKey}#kit-${item.kitRemessaId}` : eventKey;");
+    expect(ler("client/src/pages/atendimento.tsx")).toContain("isEventoAtrasadoNaAprovacao(item.kitRemessaId && item.event ? item.event : eventoPorId.get(item.eventId), hoje)");
+    expect(ler("server/services/deadlineAlerts.ts")).toContain("const ancoraMs = new Date(ancoraDoKit(remessa)).getTime();");
+    expect(ler("client/src/components/prazos/event-drilldown.tsx")).toContain("targetId={ev.eventId ?? ev.id}");
+  });
+});
+
 describe("telas do Kit", () => {
   it("usuários: marca 'Usuário do Kit' só no perfil Solicitação", () => {
     expect(USUARIOS).toContain('{form.watch("role") === "solicitacao" && (');

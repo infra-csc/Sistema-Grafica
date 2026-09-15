@@ -531,6 +531,71 @@ export function buildEventPrazo(
   };
 }
 
+// ─── Kit: cada remessa com os próprios prazos (dono, 14/09) ──────────────────
+//
+// "Tem que ser pela data deles." As peças do Kit moram no mesmo evento, mas o
+// funil delas conta da saída do caminhão do KIT (ou da entrega do material).
+// Cada remessa vira uma linha própria da Gestão de Prazos ("Evento · KIT V1"),
+// com id `<evento>#kit-<remessa>` e `eventId` apontando para o evento real (os
+// links e a cobrança usam o real).
+
+export interface RemessaDoPrazo {
+  id: string;
+  versao: string;
+  entregaMaterial: Date | string;
+  saidaCaminhao?: Date | string | null;
+  dataEvento?: Date | string | null;
+}
+
+const SEPARADOR_KIT = "#kit-";
+
+/** O id do evento real por trás de uma linha (a do Kit ou a própria). */
+export const idDoEventoReal = (id: string): string => id.split(SEPARADOR_KIT)[0];
+
+/** Separa as peças do evento: Arena (datas do evento) e uma linha por remessa do Kit. */
+export function eventosDoPrazo<E extends DomainEvent, I extends { kitRemessaId?: string | null }>(
+  event: E,
+  items: I[],
+  remessaPorId: Map<string, RemessaDoPrazo>,
+): Array<{ evento: E; itens: I[]; kit: RemessaDoPrazo | null }> {
+  const daArena: I[] = [];
+  const porRemessa = new Map<string, I[]>();
+  for (const it of items) {
+    const rid = it.kitRemessaId;
+    if (rid && remessaPorId.has(rid)) {
+      const lista = porRemessa.get(rid);
+      if (lista) lista.push(it); else porRemessa.set(rid, [it]);
+    } else {
+      daArena.push(it);
+    }
+  }
+  const blocos: Array<{ evento: E; itens: I[]; kit: RemessaDoPrazo | null }> = [];
+  // Evento só com peças do Kit não vira uma linha "sem peças" da Arena.
+  if (daArena.length > 0 || porRemessa.size === 0) blocos.push({ evento: event, itens: daArena, kit: null });
+  for (const [rid, itens] of Array.from(porRemessa.entries())) {
+    const r = remessaPorId.get(rid)!;
+    blocos.push({
+      evento: {
+        ...event,
+        id: `${event.id}${SEPARADOR_KIT}${rid}`,
+        name: `${event.name} · KIT ${r.versao}`,
+        // Quando eles precisam da peça: a entrega do material (dono, 15/09).
+        truckDepartureDate: r.entregaMaterial,
+        startDate: r.dataEvento ?? event.startDate,
+      },
+      itens,
+      kit: r,
+    });
+  }
+  return blocos;
+}
+
+/** Carimba no `PrazoEvent` o evento real e a remessa (quando é linha do Kit). */
+export function comKit(prazo: PrazoEvent | null, kit: RemessaDoPrazo | null): PrazoEvent | null {
+  if (!prazo) return null;
+  return { ...prazo, eventId: idDoEventoReal(prazo.id), kit: kit ? { remessaId: kit.id, versao: kit.versao } : null };
+}
+
 /**
  * Placar, derivado INTEIRAMENTE de `categoria`.
  *

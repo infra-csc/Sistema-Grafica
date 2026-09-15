@@ -110,7 +110,12 @@ export type PrazoCategoria = "semPecas" | "dataInvalida" | "atrasado" | "emDia";
 // ─── Evento ──────────────────────────────────────────────────────────────────
 
 export interface PrazoEvent {
+  /** Id da LINHA. Na linha do Kit é `<evento>#kit-<remessa>` — links usam `eventId`. */
   id: string;
+  /** O evento real (Kit, 14/09). Ausente em payload antigo: vale o `id`. */
+  eventId?: string;
+  /** Linha de uma remessa do Kit, com os prazos pelas datas dela. */
+  kit?: { remessaId: string; versao: string } | null;
   name: string;
   priority: string | null;
   /** ISO 8601 (o cliente formata com timeZone UTC, convenção de toda a UI). */

@@ -74,6 +74,35 @@ export function rotuloDaRemessa(remessa: { versao: string; entregaMaterial?: str
   return `KIT ${remessa.versao}${dia ? ` · entrega ${dia}` : ""}`;
 }
 
+// ─── Prazos pelas datas do Kit (dono, 14/09: "tem que ser pela data deles") ──
+
+/** A âncora dos prazos da peça do Kit: QUANDO ELES PRECISAM DA PEÇA — a data de
+ *  entrega do material (dono, 15/09: "o prazo não é a data do caminhão, e sim
+ *  quando eles precisam do item"). Faz o papel da saída do caminhão na Arena. */
+export const ancoraDoKit = (remessa: { entregaMaterial: string | Date }): string | Date =>
+  remessa.entregaMaterial;
+
+/**
+ * O evento como a PEÇA DO KIT o enxerga: as mesmas regras e offsets do evento,
+ * com as datas da remessa no lugar das da Arena. Toda tela que calcula prazo a
+ * partir de `item.event` (Arte, Gráfica, Painel) passa a cobrar a peça do Kit
+ * pela data dela sem mudar a conta. Sem remessa, devolve o evento como está.
+ */
+export function eventoComDatasDoKit<E extends Record<string, any>>(
+  evento: E | undefined,
+  remessa: { versao: string; saidaCaminhao?: string | Date | null; entregaMaterial: string | Date; dataEvento?: string | Date | null } | null | undefined,
+): E | undefined {
+  if (!evento || !remessa) return evento;
+  return {
+    ...evento,
+    truckDepartureDate: ancoraDoKit(remessa),
+    startDate: remessa.dataEvento ?? evento.startDate,
+    datasDoKit: true,
+    kitVersao: remessa.versao,
+    saidaDaArena: evento.truckDepartureDate,
+  };
+}
+
 // ─── A planilha do Kit ───────────────────────────────────────────────────────
 //
 // O template do Kit traz, acima da tabela de peças, um cabeçalho de rótulo na

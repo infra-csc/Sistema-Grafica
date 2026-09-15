@@ -68,6 +68,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Uma trava só para toda escrita em peça (/api/items/:id/…, e lotes com
   // `itemIds`): quem é da Solicitação e NÃO é usuário do Kit não age sobre
   // peça do Kit — nem conferir, entregar, revisar, editar ou excluir.
+  // Modelos não é do usuário do Kit (dono, 15/09): leitura segue (o formulário
+  // de peça usa o catálogo), escrita no catálogo não.
+  app.use((req, res, next) => {
+    if (req.userKit && req.path.startsWith("/api/standard-items") && ["POST", "PATCH", "PUT", "DELETE"].includes(req.method)) {
+      return res.status(403).json({ error: "Modelos não é do usuário do Kit." });
+    }
+    next();
+  });
+
   app.use(async (req, res, next) => {
     try {
       if (req.userRole !== "solicitacao" || req.userKit || !["POST", "PATCH", "PUT", "DELETE"].includes(req.method)) return next();

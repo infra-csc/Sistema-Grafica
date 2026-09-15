@@ -30,6 +30,8 @@ type MenuItem = {
   url: string;
   icon: React.ElementType;
   roles?: UserRole[];
+  /** Some para o usuário do Kit (15/09: Modelos não é do Kit). */
+  semKit?: boolean;
 };
 
 // roles: undefined = todos os perfis autenticados
@@ -44,7 +46,7 @@ const productionItems: MenuItem[] = [
   // Solicitação resolve — aqui e pelos eventos.
   { title: "Solicitação de peças",    url: "/pedidos-de-peca",         icon: Inbox,          roles: ["atendimento", "solicitacao", "admin"] },
   { title: "Gráfica",                 url: "/grafica",                 icon: Printer,        roles: ["grafica", "solicitacao", "admin"] },
-  { title: "Modelos",                 url: "/modelos",                 icon: Layers,         roles: ["solicitacao", "admin"] },
+  { title: "Modelos",                 url: "/modelos",                 icon: Layers,         roles: ["solicitacao", "admin"], semKit: true },
   { title: "Calendário",              url: "/calendario",              icon: Calendar },
   { title: "Histórico",               url: "/historico",               icon: Activity },
   // Qual versão cada patrocinador aprovou, e os books baixáveis — pedido do
@@ -70,8 +72,9 @@ const sponsorItems: MenuItem[] = [
 // Estoque (dono, 14/09): a Gráfica faz a triagem e guarda as peças; a
 // Solicitação consulta o Estoque para reservar ao montar a lista.
 const stockItems: MenuItem[] = [
-  { title: "Triagem de Retorno", url: "/triagem-retorno", icon: ScanSearch, roles: ["grafica", "admin"] },
-  { title: "Estoque",            url: "/estoque",          icon: Archive,    roles: ["grafica", "solicitacao", "admin"] },
+  { title: "Triagem de Retorno", url: "/triagem-retorno", icon: ScanSearch, roles: ["admin"] },
+  // 15/09: Estoque é só do admin.
+  { title: "Estoque",            url: "/estoque",          icon: Archive,    roles: ["admin"] },
 ];
 
 // Administração: apenas admin (filtrado via hasPermission no componente)
@@ -236,7 +239,7 @@ export function AppSidebar() {
 
   const role = (user?.role || "") as UserRole;
   const filterByRole = (items: MenuItem[]) =>
-    items.filter((item) => (item.roles ? item.roles.includes(role) : true));
+    items.filter((item) => (item.roles ? item.roles.includes(role) : true) && !(item.semKit && user?.kit));
 
   // Ativo também nas sub-rotas: em /eventos/:id o item "Eventos" acendia
   // apagado (match exato), e a navegação perdia o contexto de onde se está.

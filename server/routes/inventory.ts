@@ -12,7 +12,8 @@ import { requireAuth, requireRole, broadcast, createAuditLog } from "./shared";
 // na volta do caminhão faz a triagem e registra onde guardou). Excluir peça e
 // disparar saída/retorno à mão seguem só do admin. Leituras seguem abertas a
 // qualquer autenticado (várias telas consultam o acervo).
-const requireInventoryWrite = requireRole("admin", "grafica");
+// 15/09: Estoque e Triagem de Retorno são só do admin.
+const requireInventoryWrite = requireRole("admin");
 const requireInventoryAdmin = requireRole("admin");
 
 // EM_USO e AGUARDANDO_TRIAGEM são definidos exclusivamente pelo ciclo do

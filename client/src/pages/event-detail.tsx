@@ -1074,10 +1074,11 @@ export default function EventDetail() {
   // BUSCAR NO ESTOQUE (dono, 14/09): cada peça mostra quantas iguais — mesmo
   // tipo e medida — o estoque tem, e abre a busca. Reservar é da Solicitação
   // e do admin (a mesma régua do servidor); o selo é de quem edita a lista.
-  const podeReservarEstoque = hasPermission("admin") || user?.role === "solicitacao";
+  // 15/09: Estoque é só do admin — sem o resumo, o selo e a busca somem para os outros.
+  const podeReservarEstoque = user?.role === "admin";
   const { data: estoqueResumo = {} } = useQuery<Record<string, { disponiveis: number; chegamATempo: number; faltaTriagem: number; reservadas: number }>>({
     queryKey: [`/api/events/${eventId}/estoque-resumo`],
-    enabled: !!eventId && canEditLists,
+    enabled: !!eventId && user?.role === "admin",
   });
   const [estoqueDaPeca, setEstoqueDaPeca] = useState<{ id: string; eventId: string } | null>(null);
 

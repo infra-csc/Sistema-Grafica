@@ -215,12 +215,15 @@ const ROLES_SOLICITACAO = ["solicitacao", "admin"];
 const ROLES_GRAFICA = ["grafica", "solicitacao", "admin"];
 // Triagem e local no galpão são da Gráfica (dono, 14/09). O Estoque usa
 // ROLES_GRAFICA: a Solicitação consulta o que tem para reservar.
-const ROLES_TRIAGEM = ["grafica", "admin"];
+// 15/09: Triagem de Retorno é só do admin (como o Estoque).
+const ROLES_TRIAGEM = ["admin"];
 // Pedidos de peça: o Atendimento pede, a Solicitação resolve (dono, 14/09).
 const ROLES_PEDIDOS = ["atendimento", "solicitacao", "admin"];
 const ROLES_PATROCINADORES = ["solicitacao", "atendimento", "admin"];
 // Cotas voltou a ser só do admin (decisão do dono, 17/08).
 const ROLES_COTAS = ["admin"];
+// Estoque é só do admin (dono, 15/09). A Triagem continua da Gráfica.
+const ROLES_ESTOQUE = ["admin"];
 
 /** VER COMO (15/09): os perfis que o admin pode experimentar. */
 const PERFIS_VER_COMO: Array<{ chave: string; role: string; kit?: boolean; rotulo: string }> = [
@@ -284,11 +287,16 @@ function ProtectedRoute({ component: Component }: { component: React.ComponentTy
 function RoleProtectedRoute({
   component: Component,
   allowedRoles,
+  semKit = false,
 }: {
   component: React.ComponentType;
   allowedRoles: string[];
+  /** A tela não é do usuário do Kit (15/09: Modelos). */
+  semKit?: boolean;
 }) {
-  const { isAuthenticated, isLoading, user } = useAuth();
+  const { isAuthenticated, isLoading, user: usuario } = useAuth();
+  // Usuário do Kit numa tela que não é dele conta como perfil sem acesso.
+  const user = usuario && semKit && usuario.kit ? { ...usuario, role: "__kit__" as any } : usuario;
   const [location, setLocation] = useLocation();
 
   // replace: mesmo racional do ProtectedRoute — redirect de guard não empilha
@@ -376,7 +384,7 @@ function Router() {
         {() => <RoleProtectedRoute component={Grafica} allowedRoles={ROLES_GRAFICA} />}
       </Route>
       <Route path="/modelos">
-        {() => <RoleProtectedRoute component={Modelos} allowedRoles={ROLES_SOLICITACAO} />}
+        {() => <RoleProtectedRoute component={Modelos} allowedRoles={ROLES_SOLICITACAO} semKit />}
       </Route>
       <Route path="/calendario">
         {() => <ProtectedRoute component={Calendario} />}
@@ -406,7 +414,7 @@ function Router() {
         {() => <RoleProtectedRoute component={ReparoMotivos} allowedRoles={ROLES_ADMIN} />}
       </Route>
       <Route path="/estoque">
-        {() => <RoleProtectedRoute component={Estoque} allowedRoles={ROLES_GRAFICA} />}
+        {() => <RoleProtectedRoute component={Estoque} allowedRoles={ROLES_ESTOQUE} />}
       </Route>
       <Route path="/triagem-retorno">
         {() => <RoleProtectedRoute component={TriagemRetorno} allowedRoles={ROLES_TRIAGEM} />}

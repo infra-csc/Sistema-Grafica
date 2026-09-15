@@ -252,6 +252,19 @@ describe("fechamento (15/09): Gráfica sem ações do Kit para a Arena e Revisã
   });
 });
 
+describe("Estoque e Triagem só do admin; Modelos fora do Kit (15/09)", () => {
+  it("rotas, menu e servidor", () => {
+    const APP = ler("client/src/App.tsx");
+    const MENU = ler("client/src/components/app-sidebar.tsx");
+    expect(APP).toContain("<RoleProtectedRoute component={Modelos} allowedRoles={ROLES_SOLICITACAO} semKit />");
+    expect(MENU).toContain("&& !(item.semKit && user?.kit)");
+    expect(ROUTES).toContain('if (req.userKit && req.path.startsWith("/api/standard-items")');
+    expect(ler("server/routes/inventory.ts")).toContain('const requireInventoryWrite = requireRole("admin");');
+    expect(ler("server/routes/estoque-reservas.ts")).toContain('const requireReservaDeEstoque = requireRole("admin");');
+    expect(EVENTO).toContain('const podeReservarEstoque = user?.role === "admin";');
+  });
+});
+
 describe("Ver como outro perfil (15/09)", () => {
   it("só o admin troca o perfil da sessão, /me devolve o perfil em uso e o menu tem a faixa de volta", () => {
     expect(AUTH).toContain('app.post("/api/auth/ver-como", requireAuth');

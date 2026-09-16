@@ -8,7 +8,7 @@ import {
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { HIDE_NATIVE_CLOSE } from "@/components/modal-shell";
+import { HIDE_NATIVE_CLOSE, modalSurface } from "@/components/modal-shell";
 import { CONDITIONS, CONDITION_META, type Condition, type EnrichedAsset } from "@/lib/inventory-meta";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -43,6 +43,13 @@ const RESULT_META: Record<TriagemResult, {
   NO_GALPAO:  { label: "Galpão Central", subLabel: "Retorna ao estoque",                            color: "#1e40af", bg: "#eff6ff", border: "#93c5fd", Icon: Warehouse },
   MANUTENCAO: { label: "Manutenção",     subLabel: "Fica fora do estoque até o reparo terminar",    color: "#92400e", bg: "#fffbeb", border: "#fcd34d", Icon: Wrench    },
   DESCARTADO: { label: "Descartar",      subLabel: "Remover do inventário",                         color: "#991b1b", bg: "#fef2f2", border: "#fca5a5", Icon: Trash2    },
+};
+
+// Rótulo de grupo/campo do painel. Era 9px em CAIXA ALTA com 0.14em — o
+// menor texto do modal justamente no que diz o que preencher.
+const ROTULO: React.CSSProperties = {
+  display: "block", fontFamily: "Space Grotesk, sans-serif",
+  fontWeight: 600, fontSize: 12, color: "#57534e", marginBottom: 10,
 };
 
 export function TriagemModal({
@@ -81,11 +88,12 @@ export function TriagemModal({
       <DialogContent
         className={`p-0 gap-0 border-0 ${HIDE_NATIVE_CLOSE}`}
         style={{
-          maxWidth: 1040, width: "calc(100vw - 48px)",
-          maxHeight: "90vh", borderRadius: 12,
-          boxShadow: "0 32px 64px -12px rgba(0,0,0,0.45)",
+          // Casca da casa (teto em dvh: a barra recolhível do navegador do
+          // celular cobria o Salvar com o 90vh de antes; e `maxWidth: 1040`
+          // sem min() encostava nas bordas de um tablet).
+          ...modalSurface(1040),
           // Mobile empilha sidebar e conteúdo (padrão do AssetDetailModal).
-          display: "flex", flexDirection: isMobile ? "column" : "row",
+          flexDirection: isMobile ? "column" : "row",
           overflow: isMobile ? "auto" : "hidden",
         }}
       >
@@ -97,27 +105,36 @@ export function TriagemModal({
         {/* ══════════════════════════════════════════
             LEFT SIDEBAR — Dark
         ══════════════════════════════════════════ */}
+        {/* No celular a linha do tempo vai para DEPOIS (order): antes ela
+            vinha primeiro e a Classificação Obrigatória — o motivo de abrir o
+            modal — só aparecia depois de uma tela inteira de rolagem. */}
         <aside style={{
           width: isMobile ? "100%" : 264, flexShrink: 0, background: "#111827",
           display: "flex", flexDirection: "column",
-          borderRadius: isMobile ? "12px 12px 0 0" : "12px 0 0 12px",
+          order: isMobile ? 2 : 0,
+          paddingBottom: isMobile ? 16 : 0,
+          overflowY: isMobile ? "visible" : "auto",
         }}>
-          {/* Logo */}
-          <div style={{ padding: "24px 24px 20px", borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
-            <div style={{
-              fontFamily: "Space Grotesk, sans-serif", fontWeight: 900,
-              fontSize: 22, color: "#f9f9f8", letterSpacing: "-0.05em", lineHeight: 1,
-            }}>
-              NORTE
+          {/* Logo — só no desktop; no celular é uma faixa sem informação. */}
+          {!isMobile && (
+            <div style={{ padding: "24px 24px 20px", borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
+              <div style={{
+                fontFamily: "Space Grotesk, sans-serif", fontWeight: 900,
+                fontSize: 22, color: "#f9f9f8", letterSpacing: "-0.05em", lineHeight: 1,
+              }}>
+                NORTE
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Rastreabilidade */}
-          <div style={{ padding: "24px 24px 0", flex: 1 }}>
+          <div style={{ padding: isMobile ? "20px 16px 0" : "24px 24px 0", flex: 1 }}>
+            {/* Cinzas da barra escura em #9ca3af: o #6b7280 dava 3,7:1 sobre
+                #111827 em texto de 9–10px (reprova AA). */}
             <div style={{
               fontFamily: "Space Grotesk, sans-serif", fontWeight: 700,
-              fontSize: 9, color: "#6b7280", textTransform: "uppercase",
-              letterSpacing: "0.16em", marginBottom: 20,
+              fontSize: 10, color: "#9ca3af", textTransform: "uppercase",
+              letterSpacing: "0.08em", marginBottom: 20,
             }}>
               Rastreabilidade
             </div>
@@ -144,7 +161,7 @@ export function TriagemModal({
                   <div style={{ fontFamily: "Plus Jakarta Sans, sans-serif", fontWeight: 600, fontSize: 12, color: "#e5e7eb" }}>
                     {linkedItem?.type ? `Produção · ${linkedItem.type}` : "Produção Gráfica"}
                   </div>
-                  <div style={{ fontFamily: "DM Mono, monospace", fontSize: 9, color: "#6b7280", marginTop: 3, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                  <div style={{ fontFamily: "DM Mono, monospace", fontSize: 10, color: "#9ca3af", marginTop: 3, letterSpacing: "0.02em" }}>
                     Auto-cadastrado · {asset.autoAdded ? "Gráfica" : "Manual"}
                   </div>
                 </div>
@@ -164,7 +181,7 @@ export function TriagemModal({
                   <div style={{ fontFamily: "Plus Jakarta Sans, sans-serif", fontWeight: 600, fontSize: 12, color: "#e5e7eb" }}>
                     Saída do Estoque
                   </div>
-                  <div style={{ fontFamily: "DM Mono, monospace", fontSize: 9, color: "#6b7280", marginTop: 3, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                  <div style={{ fontFamily: "DM Mono, monospace", fontSize: 10, color: "#9ca3af", marginTop: 3, letterSpacing: "0.02em" }}>
                     {asset.eventDate
                       ? format(new Date(asset.eventDate), "dd MMM yyyy · HH:mm", { locale: ptBR })
                       : "Data não registrada"}
@@ -186,7 +203,7 @@ export function TriagemModal({
                   <div style={{ fontFamily: "Plus Jakarta Sans, sans-serif", fontWeight: 600, fontSize: 12, color: "#e5e7eb" }}>
                     {asset.eventName || "Em Uso no Evento"}
                   </div>
-                  <div style={{ fontFamily: "DM Mono, monospace", fontSize: 9, color: "#6b7280", marginTop: 3, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                  <div style={{ fontFamily: "DM Mono, monospace", fontSize: 10, color: "#9ca3af", marginTop: 3, letterSpacing: "0.02em" }}>
                     {asset.eventDate ? format(new Date(asset.eventDate), "dd MMM yyyy", { locale: ptBR }) : "—"} · Concluído
                   </div>
                 </div>
@@ -208,7 +225,7 @@ export function TriagemModal({
                   <div style={{ fontFamily: "Plus Jakarta Sans, sans-serif", fontWeight: 700, fontSize: 12, color: "#c2410c" }}>
                     Aguardando Triagem
                   </div>
-                  <div style={{ fontFamily: "DM Mono, monospace", fontSize: 9, color: "#6b7280", marginTop: 3, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                  <div style={{ fontFamily: "DM Mono, monospace", fontSize: 10, color: "#9ca3af", marginTop: 3, letterSpacing: "0.02em" }}>
                     Agora · Em análise
                   </div>
                 </div>
@@ -225,10 +242,10 @@ export function TriagemModal({
                   <Warehouse size={11} color="#6b7280" />
                 </div>
                 <div style={{ paddingTop: 3, paddingLeft: 8 }}>
-                  <div style={{ fontFamily: "Plus Jakarta Sans, sans-serif", fontWeight: 600, fontSize: 12, color: "#4b5563" }}>
+                  <div style={{ fontFamily: "Plus Jakarta Sans, sans-serif", fontWeight: 600, fontSize: 12, color: "#9ca3af" }}>
                     Destino Final
                   </div>
-                  <div style={{ fontFamily: "DM Mono, monospace", fontSize: 9, color: "#4b5563", marginTop: 3, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                  <div style={{ fontFamily: "DM Mono, monospace", fontSize: 10, color: "#9ca3af", marginTop: 3, letterSpacing: "0.02em" }}>
                     Aguardando decisão
                   </div>
                 </div>
@@ -240,8 +257,8 @@ export function TriagemModal({
               <div style={{ marginTop: 32, paddingTop: 24, borderTop: "1px solid rgba(255,255,255,0.07)" }}>
                 <div style={{
                   fontFamily: "Space Grotesk, sans-serif", fontWeight: 700,
-                  fontSize: 9, color: "#6b7280", textTransform: "uppercase",
-                  letterSpacing: "0.16em", marginBottom: 12,
+                  fontSize: 10, color: "#9ca3af", textTransform: "uppercase",
+                  letterSpacing: "0.08em", marginBottom: 12,
                 }}>
                   Patrocinadores
                 </div>
@@ -255,7 +272,7 @@ export function TriagemModal({
                       <Tag size={8} color="#6b7280" />
                       <span style={{
                         fontFamily: "Space Grotesk, sans-serif", fontWeight: 700,
-                        fontSize: 9, color: "#d1d5db", textTransform: "uppercase",
+                        fontSize: 11, color: "#d1d5db",
                         letterSpacing: "0.06em",
                       }}>
                         {s.name}
@@ -274,57 +291,61 @@ export function TriagemModal({
         ══════════════════════════════════════════ */}
         <div style={{
           flex: 1, display: "flex", flexDirection: "column",
-          minWidth: 0,
-          maxHeight: isMobile ? undefined : "90vh",
+          minWidth: 0, minHeight: 0,
+          maxHeight: isMobile ? undefined : "calc(100vh - 48px)",
           overflow: isMobile ? "visible" : "hidden",
-          borderRadius: isMobile ? "0 0 12px 12px" : "0 12px 12px 0",
+          order: isMobile ? 1 : 0,
         }}>
           {/* ── Sticky Header ── */}
           <header style={{
-            background: "#030712", padding: "20px 28px",
+            background: "#030712", padding: isMobile ? "14px 12px 14px 16px" : "20px 28px",
             display: "flex", alignItems: "flex-start", justifyContent: "space-between",
             flexShrink: 0, position: "sticky", top: 0, zIndex: 10,
           }}>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8, flexWrap: "wrap" }}>
                 <span style={{
                   background: "#f97316", color: "#0c0a09",
-                  fontFamily: "Space Grotesk, sans-serif", fontWeight: 900,
-                  fontSize: 9, letterSpacing: "-0.02em",
-                  padding: "3px 8px", borderRadius: 4,
+                  fontFamily: "DM Mono, monospace", fontWeight: 700,
+                  fontSize: 11,
+                  padding: "2px 8px", borderRadius: 4,
                 }}>
                   {asset.displayId}
                 </span>
                 <span style={{
-                  fontFamily: "DM Mono, monospace", fontSize: 10, color: "#6b7280",
+                  fontFamily: "DM Mono, monospace", fontSize: 11, color: "#9ca3af",
                 }}>
                   Qtd: {qty} un.
                   {asset.location ? ` · ${asset.location}` : ""}
                 </span>
               </div>
+              {/* No celular o nome quebra linha em vez de cortar: é a única
+                  confirmação de QUAL peça está sendo triada. */}
               <h1 style={{
                 margin: 0, color: "#f9fafb",
-                fontFamily: "Space Grotesk, sans-serif", fontWeight: 800,
-                fontSize: 26, letterSpacing: "-0.05em", lineHeight: 1.1,
-                overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-                maxWidth: "calc(100% - 20px)",
+                fontFamily: "Space Grotesk, sans-serif", fontWeight: 700,
+                fontSize: isMobile ? 20 : 26, letterSpacing: "-0.03em", lineHeight: 1.15,
+                ...(isMobile
+                  ? { overflowWrap: "anywhere" as const }
+                  : { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const, maxWidth: "calc(100% - 20px)" }),
               }}>
                 {asset.name}
               </h1>
             </div>
+            {/* rgba .72: o .45 anterior dava ~3:1 no ícone de fechar. */}
             <button
               onClick={() => onOpenChange(false)}
               aria-label="Fechar triagem"
               style={{
                 marginLeft: 12, flexShrink: 0,
-                background: "rgba(255,255,255,0.06)", border: "none",
-                cursor: "pointer", color: "rgba(255,255,255,0.45)",
-                padding: 8, borderRadius: 6,
-                display: "flex", alignItems: "center",
+                background: "rgba(255,255,255,0.08)", border: "none",
+                cursor: "pointer", color: "rgba(255,255,255,0.72)",
+                width: isMobile ? 44 : 40, height: isMobile ? 44 : 40, borderRadius: 8,
+                display: "flex", alignItems: "center", justifyContent: "center",
                 transition: "color 0.15s, background 0.15s",
               }}
-              onMouseEnter={e => { e.currentTarget.style.color = "#fff"; e.currentTarget.style.background = "rgba(255,255,255,0.12)"; }}
-              onMouseLeave={e => { e.currentTarget.style.color = "rgba(255,255,255,0.45)"; e.currentTarget.style.background = "rgba(255,255,255,0.06)"; }}
+              onMouseEnter={e => { e.currentTarget.style.color = "#fff"; e.currentTarget.style.background = "rgba(255,255,255,0.14)"; }}
+              onMouseLeave={e => { e.currentTarget.style.color = "rgba(255,255,255,0.72)"; e.currentTarget.style.background = "rgba(255,255,255,0.08)"; }}
             >
               <X size={20} />
             </button>
@@ -332,41 +353,39 @@ export function TriagemModal({
 
           {/* ── Scrollable Body ── */}
           <div style={{
-            flex: 1, overflowY: "auto", background: "#f9f9f8",
-            display: "flex", flexDirection: "column", gap: 28,
-            padding: "28px 28px 0 28px",
+            flex: "1 1 auto", minHeight: 0, overflowY: isMobile ? "visible" : "auto", background: "#f9f9f8",
+            display: "flex", flexDirection: "column", gap: isMobile ? 20 : 28,
+            padding: isMobile ? "24px 16px 0" : "28px 28px 0 28px",
           }}>
 
             {/* ── Painel de Classificação Obrigatória ── */}
             <section style={{ position: "relative" }}>
               {/* Floating label */}
-              <div style={{
-                position: "absolute", top: -10, left: 20, zIndex: 2,
+              <div aria-hidden="true" style={{
+                position: "absolute", top: -10, left: isMobile ? 14 : 20, zIndex: 2,
                 background: "#9d4300", color: "#fff",
                 fontFamily: "Space Grotesk, sans-serif", fontWeight: 700,
-                fontSize: 9, textTransform: "uppercase", letterSpacing: "0.18em",
+                fontSize: 10, textTransform: "uppercase", letterSpacing: "0.08em",
                 padding: "3px 10px", borderRadius: 4,
               }}>
                 Classificação Obrigatória
               </div>
               <div style={{
                 background: "#fff", border: "2px solid #9d4300",
-                borderRadius: 10, padding: "28px 24px 24px",
+                borderRadius: 10, padding: isMobile ? "24px 14px 16px" : "28px 24px 24px",
                 boxShadow: "0 4px 24px rgba(157,67,0,0.08)",
               }}>
                 {/* Uma coluna no celular: lado a lado, os três botões de cada
                     grupo ficavam com ~50px e o rótulo quebrava letra a letra. */}
-                <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 24 }}>
+                <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: isMobile ? 20 : 24 }}>
 
-                  {/* Condição */}
-                  <div>
-                    <label style={{
-                      display: "block", fontFamily: "Space Grotesk, sans-serif",
-                      fontWeight: 700, fontSize: 9, color: "#64748b",
-                      textTransform: "uppercase", letterSpacing: "0.14em", marginBottom: 10,
-                    }}>
-                      Condição do Item
-                    </label>
+                  {/* Condição — rótulo como título do grupo (role="group" +
+                      aria-labelledby): era um <label> sem campo associado, e o
+                      leitor de tela anunciava três botões soltos. */}
+                  <div role="group" aria-labelledby="triagem-rotulo-condicao">
+                    <div id="triagem-rotulo-condicao" style={ROTULO}>
+                      Condição do item
+                    </div>
                     <div style={{ display: "flex", gap: 8 }}>
                       {CONDITIONS.map(c => {
                         const m = CONDITION_META[c];
@@ -377,18 +396,18 @@ export function TriagemModal({
                             onClick={() => onUpdateCondition(c)}
                             aria-pressed={active}
                             style={{
-                              flex: 1, display: "flex", flexDirection: "column",
+                              flex: 1, minWidth: 0, display: "flex", flexDirection: "column",
                               alignItems: "center", justifyContent: "center", gap: 6,
-                              padding: "12px 6px", borderRadius: 8,
+                              minHeight: 64, padding: "10px 6px", borderRadius: 8,
                               border: active ? `2px solid ${m.border}` : "1.5px solid #e2e8f0",
                               background: active ? m.activeBg : "#f8fafc",
-                              cursor: "pointer", transition: "all 0.15s",
+                              cursor: "pointer", transition: "background-color 0.15s, border-color 0.15s",
                             }}
                           >
-                            <m.Icon size={18} color={active ? m.color : "#64748b"} />
+                            <m.Icon size={18} color={active ? m.color : "#64748b"} aria-hidden="true" />
                             <span style={{
                               fontFamily: "Space Grotesk, sans-serif", fontWeight: 700,
-                              fontSize: 10, color: active ? m.color : "#64748b",
+                              fontSize: 12, color: active ? m.color : "#475569", textAlign: "center",
                             }}>
                               {m.label}
                             </span>
@@ -398,15 +417,13 @@ export function TriagemModal({
                     </div>
                   </div>
 
-                  {/* Destino */}
-                  <div>
-                    <label style={{
-                      display: "block", fontFamily: "Space Grotesk, sans-serif",
-                      fontWeight: 700, fontSize: 9, color: "#64748b",
-                      textTransform: "uppercase", letterSpacing: "0.14em", marginBottom: 10,
-                    }}>
-                      Destino do Fluxo
-                    </label>
+                  {/* Destino — no celular ícone em cima do rótulo (como a
+                      Condição): lado a lado, "Galpão Central" não cabia em
+                      ~95px e o texto vazava do botão. */}
+                  <div role="group" aria-labelledby="triagem-rotulo-destino">
+                    <div id="triagem-rotulo-destino" style={ROTULO}>
+                      Destino do fluxo
+                    </div>
                     <div style={{ display: "flex", gap: 8 }}>
                       {(["NO_GALPAO", "MANUTENCAO", "DESCARTADO"] as TriagemResult[]).map(r => {
                         const m = RESULT_META[r];
@@ -418,18 +435,20 @@ export function TriagemModal({
                             title={m.subLabel}
                             aria-pressed={active}
                             style={{
-                              flex: 1, display: "flex", alignItems: "center",
-                              justifyContent: "center", gap: 8, padding: "12px 10px",
+                              flex: 1, minWidth: 0, display: "flex", alignItems: "center",
+                              flexDirection: isMobile ? "column" : "row",
+                              justifyContent: "center", gap: isMobile ? 6 : 8,
+                              minHeight: isMobile ? 64 : 48, padding: isMobile ? "10px 6px" : "10px 10px",
                               borderRadius: 8,
                               border: active ? `2px solid ${m.border}` : "1.5px solid #e2e8f0",
                               background: active ? m.bg : "#f8fafc",
-                              cursor: "pointer", transition: "all 0.15s",
+                              cursor: "pointer", transition: "background-color 0.15s, border-color 0.15s",
                             }}
                           >
-                            <m.Icon size={16} color={active ? m.color : "#64748b"} />
+                            <m.Icon size={16} color={active ? m.color : "#64748b"} aria-hidden="true" />
                             <span style={{
                               fontFamily: "Space Grotesk, sans-serif", fontWeight: 700,
-                              fontSize: 11, color: active ? m.color : "#64748b",
+                              fontSize: 12, color: active ? m.color : "#475569", textAlign: "center",
                             }}>
                               {m.label}
                             </span>
@@ -437,6 +456,11 @@ export function TriagemModal({
                         );
                       })}
                     </div>
+                    {/* O que o destino escolhido FAZ — antes só no title
+                        (hover), que não existe no toque. */}
+                    <p style={{ margin: "8px 0 0", fontSize: 12, color: "#64748b", lineHeight: 1.4 }}>
+                      {RESULT_META[result].subLabel}.
+                    </p>
                   </div>
 
                   {/* Local — obrigatório para voltar ao galpão (dono, 14/09):
@@ -444,12 +468,14 @@ export function TriagemModal({
                   {result !== "DESCARTADO" && (
                     <div style={{ gridColumn: "1 / -1" }}>
                       <label htmlFor="triagem-local" style={{
-                        display: "block", fontFamily: "Space Grotesk, sans-serif",
-                        fontWeight: 700, fontSize: 9, color: result === "NO_GALPAO" && !location.trim() ? "#b91c1c" : "#64748b",
-                        textTransform: "uppercase", letterSpacing: "0.14em", marginBottom: 8,
+                        ...ROTULO,
+                        color: result === "NO_GALPAO" && !location.trim() ? "#b91c1c" : ROTULO.color,
+                        marginBottom: 8,
                       }}>
                         Local no galpão {result === "NO_GALPAO" ? "· obrigatório" : "· opcional"}
                       </label>
+                      {/* Sem `outline: none`: o inline anulava o anel de foco
+                          global. 16px no celular (o Safari dá zoom abaixo). */}
                       <input
                         id="triagem-local"
                         data-testid="input-triage-modal-location"
@@ -457,12 +483,13 @@ export function TriagemModal({
                         value={location}
                         onChange={e => onUpdateLocation(e.target.value)}
                         placeholder="Ex: Setor A - Corredor 3"
+                        aria-invalid={result === "NO_GALPAO" && !location.trim() ? true : undefined}
                         style={{
                           width: "100%", boxSizing: "border-box",
-                          padding: "10px 14px", borderRadius: 8,
+                          minHeight: 44, padding: "0 14px", borderRadius: 8,
                           border: `1.5px solid ${result === "NO_GALPAO" && !location.trim() ? "#fca5a5" : "#e2e8f0"}`,
-                          background: "#f8fafc", fontFamily: "Plus Jakarta Sans, sans-serif", fontSize: 13,
-                          color: "#1e293b", outline: "none",
+                          background: "#f8fafc", fontFamily: "Plus Jakarta Sans, sans-serif", fontSize: isMobile ? 16 : 13,
+                          color: "#1e293b",
                         }}
                       />
                     </div>
@@ -470,13 +497,11 @@ export function TriagemModal({
 
                   {/* Observação */}
                   <div style={{ gridColumn: "1 / -1" }}>
-                    <label htmlFor="triagem-observacao" style={{
-                      display: "block", fontFamily: "Space Grotesk, sans-serif",
-                      fontWeight: 700, fontSize: 9, color: "#64748b",
-                      textTransform: "uppercase", letterSpacing: "0.14em", marginBottom: 8,
-                    }}>
-                      Observação da Triagem
+                    <label htmlFor="triagem-observacao" style={{ ...ROTULO, marginBottom: 8 }}>
+                      Observação da triagem
                     </label>
+                    {/* Borda de foco em #c2410c: o #f97316 dava 2,8:1 contra o
+                        branco — abaixo dos 3:1 de componente de interface. */}
                     <textarea
                       id="triagem-observacao"
                       value={notes}
@@ -486,11 +511,11 @@ export function TriagemModal({
                         width: "100%", boxSizing: "border-box",
                         padding: "12px 14px", borderRadius: 8,
                         border: "1.5px solid #e2e8f0", background: "#f8fafc",
-                        fontFamily: "Plus Jakarta Sans, sans-serif", fontSize: 13,
+                        fontFamily: "Plus Jakarta Sans, sans-serif", fontSize: isMobile ? 16 : 13,
                         color: "#1e293b", resize: "vertical", minHeight: 72,
-                        outline: "none", lineHeight: 1.5,
+                        lineHeight: 1.5, transition: "border-color 0.15s, background-color 0.15s",
                       }}
-                      onFocus={e => { e.currentTarget.style.borderColor = "#f97316"; e.currentTarget.style.background = "#fff"; }}
+                      onFocus={e => { e.currentTarget.style.borderColor = "#c2410c"; e.currentTarget.style.background = "#fff"; }}
                       onBlur={e => { e.currentTarget.style.borderColor = "#e2e8f0"; e.currentTarget.style.background = "#f8fafc"; }}
                     />
                   </div>
@@ -500,12 +525,12 @@ export function TriagemModal({
                 <div style={{
                   marginTop: 20, paddingTop: 20,
                   borderTop: "1px solid #f1f5f9",
-                  display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 12,
+                  display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 12, flexWrap: "wrap",
                 }}>
                   {isSaved && (
-                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                      <CheckCircle2 size={14} color="#16a34a" />
-                      <span style={{ fontFamily: "Space Grotesk, sans-serif", fontWeight: 700, fontSize: 11, color: "#16a34a" }}>
+                    <div role="status" style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      <CheckCircle2 size={15} color="#15803d" aria-hidden="true" />
+                      <span style={{ fontFamily: "Space Grotesk, sans-serif", fontWeight: 700, fontSize: 13, color: "#15803d" }}>
                         Triagem salva
                       </span>
                     </div>
@@ -515,27 +540,27 @@ export function TriagemModal({
                     disabled={isSaving || isSaved}
                     data-testid="button-triage-modal-save"
                     style={{
-                      display: "flex", alignItems: "center", gap: 8,
-                      padding: "10px 28px", borderRadius: 8, border: "none",
-                      minHeight: 44,
+                      display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                      padding: "0 28px", borderRadius: 8, border: "none",
+                      minHeight: 44, width: isMobile ? "100%" : undefined,
                       background: isSaved ? "#f1f5f9" : "#9d4300",
                       color: isSaved ? "#64748b" : "#fff",
                       fontFamily: "Space Grotesk, sans-serif", fontWeight: 700,
-                      fontSize: 12, textTransform: "uppercase", letterSpacing: "0.08em",
+                      fontSize: 14,
                       cursor: isSaved ? "default" : "pointer",
-                      boxShadow: isSaved ? "none" : "0 4px 16px rgba(157,67,0,0.28)",
-                      transition: "all 0.15s",
+                      boxShadow: isSaved ? "none" : "0 4px 14px rgba(157,67,0,0.24)",
+                      transition: "background-color 0.15s, box-shadow 0.15s, opacity 0.15s",
                       opacity: isSaving ? 0.6 : 1,
                     }}
                   >
-                    {isSaving ? "Salvando..." : isSaved ? "Salvo" : "Salvar e Fechar"}
+                    {isSaving ? "Salvando..." : isSaved ? "Salvo" : "Salvar e fechar"}
                   </button>
                 </div>
               </div>
             </section>
 
             {/* ── Read-only grid (Evento + Specs) ── */}
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 16 }}>
 
               {/* Evento e Datas */}
               <div style={{ background: "#f3f4f3", borderRadius: 10, padding: "20px 22px" }}>
@@ -555,7 +580,7 @@ export function TriagemModal({
                     { label: "Localização", value: asset.location || "—" },
                   ].map(({ label, value }) => (
                     <div key={label} style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
-                      <span style={{ fontFamily: "Plus Jakarta Sans, sans-serif", fontSize: 11, color: "#9ca3af" }}>{label}</span>
+                      <span style={{ fontFamily: "Plus Jakarta Sans, sans-serif", fontSize: 11, color: "#746e69" }}>{label}</span>
                       <span style={{ fontFamily: "Plus Jakarta Sans, sans-serif", fontWeight: 700, fontSize: 11, color: "#1f2937", textAlign: "right" }}>{value}</span>
                     </div>
                   ))}
@@ -596,7 +621,7 @@ export function TriagemModal({
                       gap: 8, padding: "9px 0",
                       borderBottom: i < arr.length - 1 ? "1px solid rgba(255,255,255,0.06)" : "none",
                     }}>
-                      <span style={{ fontFamily: "DM Mono, monospace", fontSize: 9, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.1em", flexShrink: 0 }}>{label}</span>
+                      <span style={{ fontFamily: "DM Mono, monospace", fontSize: 10, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.06em", flexShrink: 0 }}>{label}</span>
                       <span style={{ fontFamily: "DM Mono, monospace", fontWeight: 500, fontSize: 10, color: "#e5e7eb", textAlign: "right" }}>{value}</span>
                     </div>
                   ))}
@@ -621,10 +646,11 @@ export function TriagemModal({
                 )}
                 <div style={{
                   position: "absolute", inset: 0,
-                  background: "linear-gradient(to top, rgba(3,7,18,0.75) 0%, transparent 55%)",
-                  display: "flex", alignItems: "flex-end", padding: "20px 24px",
+                  background: "linear-gradient(to top, rgba(3,7,18,0.8) 0%, transparent 60%)",
+                  display: "flex", alignItems: "flex-end", flexWrap: "wrap", gap: 10,
+                  padding: isMobile ? "12px 14px" : "20px 24px",
                 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
                     <div style={{
                       width: 36, height: 36, borderRadius: "50%",
                       background: "rgba(3,7,18,0.7)", border: "2px solid #f97316",
@@ -636,7 +662,7 @@ export function TriagemModal({
                       <div style={{ fontFamily: "Space Grotesk, sans-serif", fontWeight: 700, fontSize: 12, color: "#f9fafb" }}>
                         Foto de Referência para Triagem
                       </div>
-                      <div style={{ fontFamily: "DM Mono, monospace", fontSize: 9, color: "#9ca3af", marginTop: 2 }}>
+                      <div style={{ fontFamily: "DM Mono, monospace", fontSize: 10, color: "#d1d5db", marginTop: 2 }}>
                         Arte aprovada · Montagem original
                       </div>
                     </div>
@@ -647,13 +673,14 @@ export function TriagemModal({
                     rel="noopener noreferrer"
                     style={{
                       marginLeft: "auto",
+                      display: "inline-flex", alignItems: "center", minHeight: isMobile ? 44 : 32,
                       fontFamily: "Space Grotesk, sans-serif", fontWeight: 700,
-                      // #c2410c sobre a tarja (rgba(249,115,22,.12) no branco
-                      // = #feeee3) dá 4,58:1 ✓. O laranja puro dava 2,60:1 —
-                      // pior ainda que no branco, porque a tarja é do mesmo tom.
-                      fontSize: 10, color: "#c2410c", textDecoration: "none",
-                      background: "rgba(249,115,22,0.12)", border: "1px solid rgba(249,115,22,0.3)",
-                      padding: "5px 12px", borderRadius: 6,
+                      // O link fica no pé da imagem, sobre o degradê ESCURO — o
+                      // #c2410c de antes dava ~3:1 ali (a conta de 4,58 era
+                      // contra branco). #fdba74 (laranja 300) passa de 8:1.
+                      fontSize: 12, color: "#fdba74", textDecoration: "none",
+                      background: "rgba(3,7,18,0.55)", border: "1px solid rgba(253,186,116,0.45)",
+                      padding: "0 12px", borderRadius: 6,
                     }}
                   >
                     Abrir original ↗
@@ -666,41 +693,43 @@ export function TriagemModal({
             <div style={{ height: 8 }} />
           </div>
 
-          {/* ── Footer ── */}
-          <footer style={{
+          {/* ── Footer ── No celular some: o ID já está no selo do cabeçalho
+              e, com a linha do tempo DEPOIS do conteúdo, o Fechar ficaria no
+              meio da rolagem (o X do cabeçalho fixo cobre o fechar). */}
+          {!isMobile && <footer style={{
             flexShrink: 0,
             background: "#f3f4f3", borderTop: "1px solid #e2e8f0",
-            padding: "14px 28px",
+            padding: "12px 28px",
             display: "flex", alignItems: "center", justifyContent: "space-between",
           }}>
             <div style={{ display: "flex", alignItems: "center", gap: 24 }}>
               {user && (
                 <div style={{ lineHeight: 1.3 }}>
-                  <div style={{ fontFamily: "Space Grotesk, sans-serif", fontWeight: 700, fontSize: 9, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.12em" }}>Operador Atual</div>
+                  <div style={{ fontFamily: "Space Grotesk, sans-serif", fontWeight: 700, fontSize: 10, color: "#746e69", textTransform: "uppercase", letterSpacing: "0.06em" }}>Operador Atual</div>
                   <div style={{ fontFamily: "Plus Jakarta Sans, sans-serif", fontSize: 12, color: "#374151", fontWeight: 600, marginTop: 1 }}>{user.name || user.username}</div>
                 </div>
               )}
               <div style={{ lineHeight: 1.3, borderLeft: "1px solid #d1d5db", paddingLeft: 24 }}>
-                <div style={{ fontFamily: "Space Grotesk, sans-serif", fontWeight: 700, fontSize: 9, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.12em" }}>ID do Item</div>
+                <div style={{ fontFamily: "Space Grotesk, sans-serif", fontWeight: 700, fontSize: 10, color: "#746e69", textTransform: "uppercase", letterSpacing: "0.06em" }}>ID do Item</div>
                 <div style={{ fontFamily: "DM Mono, monospace", fontSize: 12, color: "#374151", fontWeight: 500, marginTop: 1 }}>{asset.displayId}</div>
               </div>
             </div>
             <button
               onClick={() => onOpenChange(false)}
               style={{
+                minHeight: 40, padding: "0 16px", borderRadius: 8,
                 background: "none", border: "none", cursor: "pointer",
                 fontFamily: "Space Grotesk, sans-serif", fontWeight: 700,
-                fontSize: 11, color: "#6b7280", textTransform: "uppercase",
-                letterSpacing: "0.1em", transition: "color 0.15s",
+                fontSize: 13, color: "#57534e", transition: "color 0.15s, background-color 0.15s",
               }}
-              onMouseEnter={e => (e.currentTarget.style.color = "#111827")}
-              onMouseLeave={e => (e.currentTarget.style.color = "#6b7280")}
+              onMouseEnter={e => { e.currentTarget.style.color = "#111827"; e.currentTarget.style.background = "#e7e5e4"; }}
+              onMouseLeave={e => { e.currentTarget.style.color = "#57534e"; e.currentTarget.style.background = "none"; }}
             >
               {/* "Cancelar Operação" prometia desfazer — mas o que foi marcado
                   aqui continua na linha da tabela (nada é descartado). */}
               Fechar
             </button>
-          </footer>
+          </footer>}
         </div>
       </DialogContent>
     </Dialog>

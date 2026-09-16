@@ -285,6 +285,20 @@ export const RISCO_TITLE =
  */
 export const SCROLLPORT_MAX_H = "calc(100vh - 330px)";
 
+/**
+ * Rolagem programática que respeita "reduzir movimento".
+ *
+ * A regra global do index.css zera `scroll-behavior` em CSS, mas NÃO alcança
+ * `window.scrollTo({ behavior: "smooth" })`: a opção passada no JS vence a
+ * propriedade da folha de estilo. Os três gestos da tela que rolam por código
+ * (foco de etapa, foco de dia e "+N eventos abaixo") deslizavam a página
+ * inteira justamente para quem pediu ao sistema operacional para não deslizar.
+ */
+export function rolagem(): ScrollBehavior {
+  if (typeof window === "undefined" || typeof window.matchMedia !== "function") return "smooth";
+  return window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth";
+}
+
 // ─── Réguas e formatação ─────────────────────────────────────────────────────
 //
 // VOCABULÁRIO DA TELA (a convenção, escrita para não voltar a divergir).

@@ -84,8 +84,10 @@ export function ComentarioDoBook({
                 aria-pressed={usado}
                 data-testid={`chip-comentario-${nome}`}
                 title={`Começa a linha "${nome}: " no comentário`}
+                // 32px de alvo (eram 26): os chips são o atalho mais usado da
+                // caixa, e em 26px ficavam abaixo do mínimo confortável ao toque.
                 style={{
-                  height: 26, padding: "0 10px", borderRadius: 999, cursor: "pointer",
+                  minHeight: 32, padding: "0 12px", borderRadius: 999, cursor: "pointer",
                   border: usado ? "1px solid #fdba74" : "1px solid #e7e5e4",
                   background: usado ? "#fff7ed" : "#fafaf9",
                   color: usado ? "#c2410c" : "#57534e",
@@ -129,6 +131,14 @@ export function ComentarioDoBook({
           {valor.trim().length > 0
             ? `Faltam ${faltam} ${faltam === 1 ? "caractere" : "caracteres"} para poder republicar.`
             : <>Este evento já tem book publicado — escreva o que mudou (mín. {COMENTARIO_MINIMO} caracteres) para poder republicar.</>}
+        </p>
+      )}
+      {/* O OUTRO LADO DA RÉGUA. O aviso vermelho sumia ao atingir o mínimo e
+          nada tomava o lugar: a pessoa não sabia se o campo tinha "passado".
+          Uma linha verde curta confirma — e lembra para onde o texto vai. */}
+      {republicacao && !invalido && (
+        <p role="status" data-testid="comentario-pronto" style={{ margin: "4px 0 0", fontSize: 11.5, color: "#15803d", fontWeight: 600 }}>
+          Pronto — este texto vai no e-mail da republicação.
         </p>
       )}
     </div>

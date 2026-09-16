@@ -110,14 +110,22 @@ export function MotivoDoPedidoDialog({ alvo, pendente, onConfirmar, onFechar }: 
   const subtitulo = !a ? "" : a.linha
     ? `${quantidadeDoPedido(a.linha.quantidade)} · ${rotuloDaLinha(a.linha)} · ${patrocinadoresDaLinha(a.linha)} · ${a.linha.eventName ?? "evento"}`
     : `${a.pedido.linhas.length} ${a.pedido.linhas.length === 1 ? "peça" : "peças"}${a.pedido.pedidoPor ? ` · solicitada por ${a.pedido.pedidoPor}` : ""}`;
+  // Mesma guarda de descarte do formulário da solicitação (e de Usuários,
+  // Patrocinadores, Modelos): Esc, clique fora, X e Voltar só perguntam se já
+  // há texto — o motivo é obrigatório e um Esc acidental o apagava calado.
+  const sair = () => {
+    if (pendente) return;
+    if (motivo.trim() && !window.confirm(ehAjuste ? "Descartar o ajuste escrito?" : "Descartar o motivo escrito?")) return;
+    onFechar();
+  };
   const citacao = a?.linha ? textoDaObservacao(a.linha.observacao) : a ? a.pedido.linhas.map((l) => `${rotuloDaLinha(l)} (${quantidadeDoPedido(l.quantidade)})`).join(" · ") : "";
 
   return (
-    <Dialog open={!!alvo} onOpenChange={(aberto) => { if (!aberto && !pendente) onFechar(); }}>
+    <Dialog open={!!alvo} onOpenChange={(aberto) => { if (!aberto) sair(); }}>
       <DialogContent data-testid="dialog-motivo-do-pedido" className={HIDE_NATIVE_CLOSE} style={modalSurface(520)}>
         <DialogTitle className="sr-only">{titulo}</DialogTitle>
         <DialogDescription className="sr-only">{subtitulo}</DialogDescription>
-        <ModalHeader icon={meta.icone} variant="confirm" tint={meta.cor} title={titulo} subtitle={subtitulo} onClose={pendente ? undefined : onFechar} />
+        <ModalHeader icon={meta.icone} variant="confirm" tint={meta.cor} title={titulo} subtitle={subtitulo} onClose={pendente ? undefined : sair} />
 
         <div style={{ padding: "16px 24px", display: "flex", flexDirection: "column", gap: 12, overflowY: "auto", flex: "1 1 auto", minHeight: 0 }}>
           {citacao && (
@@ -146,7 +154,11 @@ export function MotivoDoPedidoDialog({ alvo, pendente, onConfirmar, onFechar }: 
               placeholder={ehAjuste ? "Diga exatamente o que mudar na peça — quem monta a lista decide se aceita." : "Explique em uma frase — quem recebe precisa entender o porquê."}
               style={{ width: "100%", boxSizing: "border-box", borderRadius: R.md, border: `1px solid ${falta > 0 && motivo ? "#fcd34d" : "#d6d3d1"}`, padding: "10px 12px", fontSize: 14, fontFamily: "inherit", lineHeight: 1.45, resize: "vertical", color: T.text }}
             />
-            <p id="motivo-do-pedido-contador" aria-live="polite" style={{ margin: "4px 0 0", fontSize: FS.small, color: falta > 0 ? "#92400e" : "#065f46" }}>
+            {/* O contador visível NÃO é região viva: anunciava "faltam 9",
+                "faltam 8"… a cada tecla. Ele segue ligado ao campo pelo
+                aria-describedby; quem ouve só é avisado quando fica pronto. */}
+            <span className="sr-only" aria-live="polite">{falta === 0 ? (ehAjuste ? "Texto pronto para enviar." : "Motivo pronto para confirmar.") : ""}</span>
+            <p id="motivo-do-pedido-contador" style={{ margin: "4px 0 0", fontSize: FS.small, color: falta > 0 ? "#92400e" : "#065f46" }}>
               {falta > 0 ? `Faltam ${falta} ${falta === 1 ? "caractere" : "caracteres"}` : ehAjuste ? "Texto pronto" : "Motivo pronto"}
               {falta === 0 && !isMobile && <span style={{ color: "#57534e" }}> · Ctrl+Enter confirma</span>}
             </p>
@@ -164,8 +176,8 @@ export function MotivoDoPedidoDialog({ alvo, pendente, onConfirmar, onFechar }: 
             style={{ height: alvoDoToque + 4, borderRadius: R.md, border: "none", background: travado ? "#e7e5e4" : meta.cor, color: travado ? "#78716c" : "#ffffff", fontSize: 14, fontWeight: 800, cursor: travado ? "not-allowed" : "pointer" }}>
             {pendente ? "Salvando…" : meta.confirmar(inteira)}
           </button>
-          <button type="button" onClick={onFechar} disabled={pendente}
-            style={{ height: alvoDoToque, borderRadius: R.md, border: "none", background: "transparent", color: "#57534e", fontSize: FS.body, fontWeight: 700, cursor: "pointer" }}>
+          <button type="button" onClick={sair} disabled={pendente}
+            style={{ height: alvoDoToque, borderRadius: R.md, border: "none", background: "transparent", color: "#57534e", fontSize: FS.body, fontWeight: 700, cursor: pendente ? "not-allowed" : "pointer" }}>
             Voltar
           </button>
         </ModalFooter>

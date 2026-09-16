@@ -23,7 +23,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { useState, useMemo, useEffect, Fragment, useRef } from "react";
+import { useState, useMemo, useEffect, Fragment, useRef, useCallback } from "react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useAuth } from "@/contexts/auth-context";
 import { ehBookCompleto } from "@shared/fluxo-peca";
@@ -212,6 +212,37 @@ export default function Solicitacao() {
 
   /** Altura dos controles: 44 no toque, 36 no ponteiro. */
   const alturaControle = isMobile ? 44 : 36;
+
+  // ── TABELA OU CARTÕES: decide a LARGURA DA LISTA, não a da janela ──
+  // `isMobile` lê a janela. Num tablet de 768–1024 com a barra lateral aberta
+  // sobram 512–768px para a lista, e a tabela de layout fixo precisa de ~920:
+  // checkbox 96 (48 + 24 de cada lado) + Qtd·Dim·m² 262 + Arquivo 172 + Ações
+  // 192 = 722, mais ~200 para a Peça ler alguma coisa. Com menos que isso a
+  // Peça colapsava e a tabela ganhava rolagem horizontal — justo o que o dono
+  // pediu para não existir (15/09). Os 980 são esses ~920 + o padding de 32 da
+  // seção de cada lado. Abaixo deles a lista usa os cartões que o celular já
+  // tinha, sem nada novo.
+  // Callback ref, e não `useElementSize`: a seção só monta DEPOIS do
+  // carregamento (há retornos antecipados acima dela), e o efeito de montagem
+  // daquele hook rodaria com a ref ainda vazia e nunca mais observaria.
+  const [larguraLista, setLarguraLista] = useState(0);
+  const observadorLista = useRef<ResizeObserver | null>(null);
+  const listaRef = useCallback((el: HTMLElement | null) => {
+    observadorLista.current?.disconnect();
+    observadorLista.current = null;
+    if (!el) return;
+    const medir = () => {
+      const w = el.getBoundingClientRect().width;
+      // Ignora sub-pixel: barra de rolagem aparecendo não re-renderiza a tela.
+      setLarguraLista(prev => (Math.abs(prev - w) < 1 ? prev : w));
+    };
+    medir();
+    if (typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(medir);
+    ro.observe(el);
+    observadorLista.current = ro;
+  }, []);
+  const listaEmCartoes = isMobile || (larguraLista > 0 && larguraLista < 980);
   // A tela ja exigia motivo NAO VAZIO; o servidor agora exige 10 caracteres em
   // TODAS as portas de devolucao (lerMotivoDevolucao, routes/items.ts). Uma
   // regua so, nos dois lados: senao o botao habilita e a requisicao volta 400.
@@ -1119,10 +1150,10 @@ export default function Solicitacao() {
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
               data-testid="input-search"
-              style={{ width: "100%", paddingLeft: 34, paddingRight: searchTerm ? 32 : 12, paddingTop: 9, paddingBottom: 9, backgroundColor: "#f3f4f3", border: "none", borderRadius: 8, fontSize: 13, color: TI.text, boxSizing: "border-box" }}
+              style={{ width: "100%", height: alturaControle, paddingLeft: 34, paddingRight: searchTerm ? 40 : 12, backgroundColor: "#f3f4f3", border: "none", borderRadius: 8, fontSize: isMobile ? 16 : 13, color: TI.text, boxSizing: "border-box" }}
             />
             {searchTerm && (
-              <button onClick={() => setSearchTerm("")} aria-label="Limpar busca" style={{ position: "absolute", right: 0, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: TI.muted, padding: 8, display: "flex" }}>
+              <button type="button" onClick={() => { setSearchTerm(""); searchRef.current?.focus(); }} aria-label="Limpar busca" style={{ position: "absolute", right: 2, top: "50%", transform: "translateY(-50%)", width: isMobile ? 40 : 30, height: isMobile ? 40 : 30, background: "none", border: "none", borderRadius: 6, cursor: "pointer", color: TI.secondary, display: "flex", alignItems: "center", justifyContent: "center" }}>
                 <X style={{ width: 13, height: 13 }} />
               </button>
             )}
@@ -1170,7 +1201,7 @@ export default function Solicitacao() {
                 data-testid={chip.testid}
                 style={{
                   display: "inline-flex", alignItems: "center", gap: 7,
-                  height: 32, padding: "0 12px", borderRadius: 999,
+                  height: alturaControle, padding: "0 12px", borderRadius: 999,
                   border: `1px solid ${chip.ligado ? "#1c1917" : "#e7e5e4"}`,
                   backgroundColor: chip.ligado ? "#1c1917" : "#fff",
                   color: chip.ligado ? "#fff" : "#44403c",
@@ -1188,7 +1219,7 @@ export default function Solicitacao() {
             <button
               onClick={() => { setSearchTerm(""); setEventFilter([]); setItemTypeFilter([]); setSoSemArquivo(false); setSoEventoFinalizado(false); }}
               data-testid="button-clear-filters"
-              style={{ fontSize: 11, fontWeight: 700, color: TI.secondary, textTransform: "uppercase", letterSpacing: "0.08em", background: "none", border: "none", cursor: "pointer", padding: "0 8px" }}>
+              style={{ height: alturaControle, fontSize: 13, fontWeight: 600, color: TI.secondary, textDecoration: "underline", textUnderlineOffset: 3, background: "none", border: "none", cursor: "pointer", padding: "0 8px" }}>
               Limpar filtros
             </button>
           )}
@@ -1337,7 +1368,7 @@ export default function Solicitacao() {
       </section>
 
       {/* ── 3 & 4. HIGH-DENSITY TABLE ──────────────────────────────────── */}
-      <section style={{ padding: isMobile ? "12px 12px" : "32px", maxWidth: 1200, margin: "0 auto", paddingBottom: isMobile ? 20 : 80 }}>
+      <section ref={listaRef} style={{ padding: isMobile ? "12px 12px" : listaEmCartoes ? "20px" : "32px", maxWidth: 1200, margin: "0 auto", paddingBottom: isMobile ? 20 : 80 }}>
         {filteredItems.length === 0 ? (
           /* DOIS VAZIOS DIFERENTES. "Tudo revisado" é conquista (verde, texto
              escuro); "nada neste recorte" é filtro demais — e precisa da saída
@@ -1363,7 +1394,7 @@ export default function Solicitacao() {
               </button>
             )}
           </div>
-        ) : isMobile ? (
+        ) : listaEmCartoes ? (
           <div>
             {Array.from(itemsByEvent.entries()).map(([eventKey, eventItems]) => {
               const evInfo = getEventInfo(eventKey);
@@ -1400,6 +1431,10 @@ export default function Solicitacao() {
                         role="button"
                         tabIndex={0}
                         aria-label={`Revisar peça ${item.displayId}`}
+                        // Mesmo testid do botão da tabela: é a mesma ação, e só um
+                        // dos dois layouts existe por vez (a escolha agora depende
+                        // da largura medida, então o teste não sabe qual virá).
+                        data-testid={`button-review-${item.id}`}
                         onKeyDown={e => { if (e.target !== e.currentTarget) return; if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openModal(item); } }}
                         onClick={() => openModal(item)}
                         style={{padding:"12px",cursor:"pointer",display:"flex",flexDirection:"column",gap:6}}>
@@ -1446,6 +1481,29 @@ export default function Solicitacao() {
                           {item.sponsors?.map((s:any)=><span key={s.id} style={{fontSize:11,padding:"2px 6px",borderRadius:6,backgroundColor:"#f5f5f4",color:"#57534e",fontWeight:600}}>{s.name}</span>)}
                         </div>
                       </div>
+                      {/* EXCLUIR PEÇA — a lixeira da tabela, que não existe na
+                          ficha. Desde que os cartões valem abaixo de 980px de
+                          lista (e não só no celular), o admin no notebook
+                          estreito perdia a ação. Mesmo gate de papel da tabela
+                          (o DELETE trava "solicitacao" nesse status) e mesmo
+                          diálogo de confirmação. Fica FORA do alvo role="button"
+                          da revisão: interativo aninhado em botão é estrutura
+                          inválida. Mesmo testid da tabela, pelo mesmo motivo do
+                          `button-review-`: os dois layouts nunca coexistem. */}
+                      {user?.role === "admin" && (
+                        <div style={{display:"flex",justifyContent:"flex-end",padding:"0 4px 4px",marginTop:-4}}>
+                          <button
+                            onClick={() => setDeleteConfirmItemId(item.id)}
+                            data-testid={`button-delete-${item.id}`}
+                            title="Excluir peça"
+                            aria-label={`Excluir a peça ${item.displayId}`}
+                            style={{minHeight:44,padding:"0 12px",background:"none",border:"none",borderRadius:8,cursor:"pointer",color:"#b91c1c",fontSize:12,fontWeight:700,display:"inline-flex",alignItems:"center",gap:6}}
+                          >
+                            <Trash2 aria-hidden="true" style={{width:14,height:14}} />
+                            Excluir
+                          </button>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -1789,9 +1847,11 @@ export default function Solicitacao() {
                                   style={{
                                     backgroundColor: "#1c1917", color: "#fff",
                                     border: "none", borderRadius: 6,
-                                    fontSize: 10, fontWeight: 900,
-                                    textTransform: "uppercase", letterSpacing: "0.08em",
-                                    padding: "6px 16px", cursor: "pointer",
+                                    // 12px sem caixa alta: o 10px/900 em
+                                    // maiúsculas espaçadas repetido em cada uma
+                                    // das 74 linhas gritava mais que a peça.
+                                    fontSize: 12, fontWeight: 700,
+                                    height: 32, padding: "0 14px", cursor: "pointer",
                                     transition: "background-color 0.15s",
                                   }}
                                   // #c2410c e não #ea580c no hover: branco sobre
@@ -1940,10 +2000,18 @@ export default function Solicitacao() {
               quatro têm flexShrink: 0 — numa janela de 540px de altura, a
               comparação e os dois botões estão visíveis sem rolar, porque as
               faixas fixas somam ~340px e o resto é da comparação. */}
-          <div style={{ height: "100%", display: "flex", flexDirection: "column", overflow: "hidden" }}>
+          {/* NO CELULAR O MIOLO ROLA INTEIRO. As faixas fixas somam mais que a
+              tela: cabeçalho ~70 + comparação 200 (piso) + metadados ~50 +
+              decisão (34vh + 26vh + folgas) ≈ 860px num aparelho de 844, cujo
+              modal tem 94dvh ≈ 793. Com overflow hidden o excesso era CORTADO
+              em silêncio — o fim do histórico, e com o motivo da devolução no
+              topo, o rodapé da decisão. Rolando, nada some; o cabeçalho gruda
+              (sticky) para a fila e o X continuarem à mão. No desktop fica
+              como estava: a conta das faixas foi feita para caber. */}
+          <div style={{ height: "100%", display: "flex", flexDirection: "column", overflow: "hidden", ...(isMobile ? { overflowY: "auto" as const } : {}) }}>
 
             {/* ── 1 · CABEÇALHO ── */}
-            <div style={{ flexShrink: 0, background: "linear-gradient(135deg, #1c1917, #2d2926)", padding: isMobile ? "12px 14px" : "14px 20px", display: "flex", alignItems: "center", gap: 14 }}>
+            <div style={{ flexShrink: 0, background: "linear-gradient(135deg, #1c1917, #2d2926)", padding: isMobile ? "12px 14px" : "14px 20px", display: "flex", alignItems: "center", gap: isMobile ? 10 : 14, ...(isMobile ? { position: "sticky" as const, top: 0, zIndex: 2 } : {}) }}>
               {!isMobile && (
                 <div aria-hidden="true" style={{ width: 40, height: 40, borderRadius: 10, backgroundColor: "rgba(249,115,22,0.14)", border: "1px solid rgba(249,115,22,0.35)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                   <Eye style={{ width: 18, height: 18, color: "#fdba74" }} />
@@ -1993,7 +2061,7 @@ export default function Solicitacao() {
                     title="Peça anterior (←)"
                     aria-label="Peça anterior"
                     data-testid="button-modal-prev"
-                    style={{ width: 30, height: 30, borderRadius: 8, border: "1px solid rgba(255,255,255,0.22)", background: "transparent", color: temAnterior ? "#fff" : "rgba(255,255,255,0.35)", cursor: temAnterior ? "pointer" : "not-allowed", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}
+                    style={{ width: isMobile ? 40 : 32, height: isMobile ? 40 : 32, borderRadius: 8, border: "1px solid rgba(255,255,255,0.22)", background: "transparent", color: temAnterior ? "#fff" : "rgba(255,255,255,0.35)", cursor: temAnterior ? "pointer" : "not-allowed", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}
                   >
                     <ChevronLeft style={{ width: 15, height: 15 }} />
                   </button>
@@ -2011,7 +2079,7 @@ export default function Solicitacao() {
                     title="Próxima peça (→)"
                     aria-label="Próxima peça"
                     data-testid="button-modal-next"
-                    style={{ width: 30, height: 30, borderRadius: 8, border: "1px solid rgba(255,255,255,0.22)", background: "transparent", color: temProxima ? "#fff" : "rgba(255,255,255,0.35)", cursor: temProxima ? "pointer" : "not-allowed", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}
+                    style={{ width: isMobile ? 40 : 32, height: isMobile ? 40 : 32, borderRadius: 8, border: "1px solid rgba(255,255,255,0.22)", background: "transparent", color: temProxima ? "#fff" : "rgba(255,255,255,0.35)", cursor: temProxima ? "pointer" : "not-allowed", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}
                   >
                     <ChevronRight style={{ width: 15, height: 15 }} />
                   </button>
@@ -2021,11 +2089,38 @@ export default function Solicitacao() {
                 type="button"
                 onClick={() => setModalOpen(false)}
                 aria-label="Fechar"
-                style={{ width: 36, height: 36, borderRadius: 8, border: "none", background: "rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.8)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", padding: 0, flexShrink: 0 }}
+                style={{ width: isMobile ? 44 : 36, height: isMobile ? 44 : 36, borderRadius: 8, border: "none", background: "rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.8)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", padding: 0, flexShrink: 0 }}
               >
                 <X style={{ width: 17, height: 17 }} />
               </button>
             </div>
+
+            {/* ── 1b · POR QUE ELA VOLTOU ──
+                `rejectionReason` já chega em cada peça do /api/items (é coluna
+                da própria peça, gravada por TODA porta de devolução) — nenhuma
+                consulta nova. Ela NUNCA é zerada: quando a peça segue para
+                aprovação o servidor limpa só o motivo das linhas de
+                itemSponsorApprovals, não o da peça. Por isso o rótulo diz
+                "última devolução" — é histórico, não pendência: uma peça
+                devolvida uma vez carrega o motivo daquela vez para sempre.
+                Quem revisa uma peça que já foi devolvida precisa conferir
+                justamente se aquilo foi corrigido, e o motivo só existia na
+                trilha, que mostra 8 eventos em texto de auditoria lá embaixo.
+                Faixa fixa (flexShrink 0) e cortada em duas linhas: a
+                comparação continua sendo a faixa que flexiona. */}
+            {selectedItem?.rejectionReason && String(selectedItem.rejectionReason).trim() && (
+              <div
+                data-testid="motivo-ultima-devolucao"
+                title={String(selectedItem.rejectionReason).trim()}
+                style={{ flexShrink: 0, display: "flex", alignItems: "flex-start", gap: 10, padding: isMobile ? "10px 14px" : "10px 20px", backgroundColor: "#fff7ed", borderBottom: "1px solid #fed7aa" }}
+              >
+                <RotateCcw aria-hidden="true" style={{ width: 15, height: 15, color: "#c2410c", flexShrink: 0, marginTop: 2 }} />
+                <p style={{ margin: 0, minWidth: 0, fontSize: 13, lineHeight: 1.45, color: "#7c2d12", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", overflowWrap: "anywhere" }}>
+                  <strong style={{ fontWeight: 700 }}>Motivo da última devolução: </strong>
+                  {String(selectedItem.rejectionReason).trim()}
+                </p>
+              </div>
+            )}
 
             {/* ── 2 · COMPARAÇÃO — a única faixa que flexiona ──
                 Os dois arquivos lado a lado na LARGURA INTEIRA do modal: é a
@@ -2169,10 +2264,12 @@ export default function Solicitacao() {
                       data-testid="input-quantity-edit"
                       autoFocus
                     />
+                    {/* OK e ✕ com alvo de 40 no celular: eram ~22px de altura,
+                        colados um no outro — errar o dedo descartava a edição. */}
                     <button
                       onClick={() => updateQuantityMutation.mutate({ itemId: selectedItem.id, quantity: quantityValue })}
                       disabled={updateQuantityMutation.isPending}
-                      style={{ padding: "6px 10px", fontSize: 10, fontWeight: 800, backgroundColor: "#c2410c", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", textTransform: "uppercase" }}
+                      style={{ minWidth: isMobile ? 44 : 32, height: isMobile ? 40 : 28, padding: "0 10px", fontSize: 12, fontWeight: 700, backgroundColor: "#c2410c", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer" }}
                       data-testid="button-confirm-quantity"
                       aria-label="Salvar a quantidade"
                     >
@@ -2180,7 +2277,7 @@ export default function Solicitacao() {
                     </button>
                     <button
                       onClick={() => { setQuantityValue(selectedItem.quantity ?? 1); setEditingQuantity(false); }}
-                      style={{ padding: "6px 8px", fontSize: 10, fontWeight: 800, backgroundColor: "#f3f4f3", color: "#746e69", border: "none", borderRadius: 6, cursor: "pointer" }}
+                      style={{ minWidth: isMobile ? 40 : 28, height: isMobile ? 40 : 28, padding: 0, fontSize: 12, fontWeight: 700, backgroundColor: "#f3f4f3", color: "#57534e", border: "none", borderRadius: 6, cursor: "pointer" }}
                       data-testid="button-cancel-quantity"
                       aria-label="Cancelar a edição da quantidade"
                     >
@@ -2207,7 +2304,7 @@ export default function Solicitacao() {
                       .then(() => toast({ title: "Caminho copiado", description: "Cole no Explorer para abrir o arquivo." }))
                       .catch(() => toast({ title: "Não foi possível copiar", description: "Selecione o caminho e copie manualmente.", variant: "destructive" }));
                   }}
-                  style={{ flexShrink: 0, display: "flex", alignItems: "center", gap: 6, marginLeft: 14, padding: "8px 12px", borderRadius: 6, border: "1px solid #e7e5e4", backgroundColor: "#fff", color: "#57534e", cursor: "pointer", fontSize: 11, fontWeight: 700, whiteSpace: "nowrap" }}
+                  style={{ flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, marginLeft: 14, minWidth: isMobile ? 44 : undefined, minHeight: isMobile ? 44 : undefined, padding: "8px 12px", borderRadius: 6, border: "1px solid #e7e5e4", backgroundColor: "#fff", color: "#57534e", cursor: "pointer", fontSize: 11, fontWeight: 700, whiteSpace: "nowrap" }}
                 >
                   <Copy style={{ width: 13, height: 13 }} />
                   {!isMobile && "Copiar caminho da rede"}
@@ -2393,8 +2490,8 @@ export default function Solicitacao() {
               <div className="review-modal-scroll" style={{ flex: "1 1 0", minWidth: 0, minHeight: 0, maxHeight: isMobile ? "26vh" : "32vh", overflowY: "auto", display: "flex", flexDirection: "column", gap: 14 }}>
                 {(selectedItem?.sponsors?.length ?? 0) > 0 && (
                   <div>
-                    <h3 style={{ fontSize: 10, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.18em", color: TI.secondary, paddingBottom: 8, borderBottom: "1px solid #f0efee", margin: "0 0 10px" }}>
-                      PATROCINADORES DA PEÇA
+                    <h3 style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: TI.secondary, paddingBottom: 8, borderBottom: "1px solid #f0efee", margin: "0 0 10px" }}>
+                      Patrocinadores da peça
                     </h3>
                     <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                       {selectedItem.sponsors.map((s: any) => (
@@ -2407,8 +2504,8 @@ export default function Solicitacao() {
                 )}
 
                 <div>
-                  <h3 style={{ fontSize: 10, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.18em", color: TI.secondary, paddingBottom: 8, borderBottom: "1px solid #f0efee", margin: "0 0 14px" }}>
-                    HISTÓRICO
+                  <h3 style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: TI.secondary, paddingBottom: 8, borderBottom: "1px solid #f0efee", margin: "0 0 14px" }}>
+                    Histórico
                   </h3>
                   {historicoCarregando ? (
                     <p role="status" style={{ fontSize: 13, color: "#57534e", margin: 0 }}>Carregando o histórico…</p>

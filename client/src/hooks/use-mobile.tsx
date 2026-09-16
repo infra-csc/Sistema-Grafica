@@ -63,7 +63,13 @@ export function useElementSize<T extends HTMLElement>() {
   const ref = React.useRef<T | null>(null)
   const [size, setSize] = React.useState({ width: 0, height: 0 })
 
-  React.useEffect(() => {
+  // useLAYOUTEffect, e não useEffect: a semente (getBoundingClientRect, lá
+  // embaixo) roda depois do commit e ANTES da pintura, e o setState dentro dele
+  // re-renderiza de forma síncrona — o navegador nunca pinta o estado "largura
+  // 0". Com useEffect a primeira pintura saía no fallback (tabela) e trocava
+  // para cards no quadro seguinte: a Gráfica, a Solicitação e a Triagem
+  // piscavam no tablet a cada entrada na tela.
+  React.useLayoutEffect(() => {
     const el = ref.current
     if (!el || typeof ResizeObserver === "undefined") return
     const apply = (w: number, h: number) =>

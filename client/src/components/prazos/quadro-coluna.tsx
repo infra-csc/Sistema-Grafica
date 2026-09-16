@@ -28,7 +28,7 @@
 // andam de verdade.
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { PrazoEvent } from "@shared/prazos-contract";
-import { pecasTexto, R, SCROLLPORT_MAX_H, STAGE_SECTOR, STAGE_SHORT, TI } from "./tokens";
+import { pecasTexto, R, rolagem, SCROLLPORT_MAX_H, STAGE_SECTOR, STAGE_SHORT, TI } from "./tokens";
 
 interface QuadroColunaProps {
   stageKey: string;
@@ -171,7 +171,7 @@ export function QuadroColuna({ stageKey, label, stageIdx, eventos, temFiltro, re
             type="button"
             onClick={() => {
               const el = scrollRef.current;
-              if (el) el.scrollBy({ top: el.clientHeight - 60, behavior: "smooth" });
+              if (el) el.scrollBy({ top: el.clientHeight - 60, behavior: rolagem() });
             }}
             style={{
               width: "100%", padding: "6px 0", borderRadius: R.md,

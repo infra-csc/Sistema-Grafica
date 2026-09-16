@@ -6,7 +6,7 @@ import { SponsorChips } from "@/components/sponsor-chips";
 import { ComentarioDoBook, comentarioDoBookValido } from "@/components/comentario-do-book";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { CheckCircle, AlertCircle, AlertTriangle, Eye, Calendar, Truck, Check, ChevronsUpDown, Search, Upload, FileImage, Clock, Package, Send, FolderOpen, FileText, FileCheck, RotateCcw, X, Star, ArrowRight, Paperclip, Ban, FastForward, Printer, ChevronDown, CheckSquare, Palette, ExternalLink, RefreshCw, MoreHorizontal, Lock, WifiOff, Zap, Hourglass } from "lucide-react";
+import { CheckCircle, AlertCircle, AlertTriangle, Eye, Calendar, Truck, Check, ChevronsUpDown, Search, Upload, FileImage, Clock, Package, Send, FolderOpen, FileText, FileCheck, RotateCcw, X, ArrowRight, Paperclip, Ban, FastForward, Printer, ChevronDown, CheckSquare, Palette, ExternalLink, RefreshCw, MoreHorizontal, Lock, WifiOff, Zap, Hourglass } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -370,6 +370,19 @@ function semaforoPrazo(diff: number): { bg: string; border: string; text: string
   return { bg: '#f5f5f4', border: '#e7e5e4', text: '#57534e' };
 }
 
+/**
+ * Tecla de atalho desenhada como tecla. Os atalhos desta tela (Ctrl+V para
+ * colar o thumb) existiam escritos no meio de frases de rodapé, e quem não lê
+ * o rodapé inteiro nunca os descobria. Contraste: #44403c sobre #fafaf9 ≈ 9,9:1.
+ */
+const KBD: React.CSSProperties = {
+  display: 'inline-block', minWidth: 18, padding: '0 5px', margin: '0 1px',
+  borderRadius: 4, border: '1px solid #d6d3d1', borderBottomWidth: 2,
+  background: '#fafaf9', color: '#44403c',
+  fontFamily: '"DM Mono", ui-monospace, monospace', fontSize: 10.5, fontWeight: 600,
+  lineHeight: '16px', textAlign: 'center',
+};
+
 /** Item do menu "⋯" — mesma altura de alvo de toque dos botões da linha. */
 function menuItemStyle(color: string): React.CSSProperties {
   return {
@@ -593,6 +606,12 @@ export default function Arte() {
   const hoje = dateBounds.today;
 
   const isMobile = useIsMobile();
+  // FILTROS RECOLHIDOS NO CELULAR. O cabeçalho é fixo (`flexShrink: 0`) e,
+  // aberto por inteiro em 390px, as duas faixas de filtro (sete gatilhos e
+  // quatro segmentados de 44px) somavam mais de uma tela: a lista ficava com
+  // uma fresta de rolagem. A busca e a fase continuam sempre à vista; o resto
+  // abre num toque, e o recorte ativo segue escrito nos chips.
+  const [filtrosAbertosMobile, setFiltrosAbertosMobile] = useState(false);
   const [dispenseItem, setDispenseItem] = useState<any>(null);
   const [dispenseReason, setDispenseReason] = useState<string>("");
   // Devolver ao solicitante: a peça volta para RASCUNHO e quem a criou decide
@@ -763,20 +782,38 @@ export default function Arte() {
     mutationFn: async ({ itemId, approvalThumbUrl }: { itemId: string; approvalThumbUrl: string }) => {
       return await apiRequest("PATCH", `/api/items/${itemId}/submit-for-approval`, { approvalThumbUrl });
     },
-    onSuccess: () => {
+    onSuccess: (_res, variables) => {
       // Esta tela lê ["/api/items"] e ["/api/items/resubmission-needed"] — sem
       // invalidá-las, a peça continuava na tabela com o status velho até o
       // WebSocket chegar (ou pra sempre, se ele não estivesse conectado).
       // "/api/items/pending" é para outras telas (ex.: Atendimento).
+      // O rótulo sai ANTES da invalidação: depois dela a peça já pode ter
+      // saído da lista local.
+      const peca = itemPorId.get(variables.itemId);
+      const id = peca?.displayId;
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
       queryClient.invalidateQueries({ queryKey: ["/api/items/resubmission-needed"] });
       queryClient.invalidateQueries({ queryKey: ["/api/items/pending"] });
       setSelectedItemId(null);
       setApprovalThumbUrl("");
       setApprovalThumbPreview("");
+      // Peça SEM aprovação de patrocinador (skipApproval) não vai para
+      // "Aguardando patrocinador" — segue para a revisão final (é o que o
+      // `title` do botão "Enviar direto" já promete). O toast não pode
+      // contradizer o botão.
+      if (peca?.skipApproval) {
+        toast({
+          title: id ? `${id} enviada` : "Peça enviada",
+          description: "Sem aprovação de patrocinador — segue direto para a revisão final.",
+        });
+        return;
+      }
+      // Diz QUAL peça e PARA ONDE ela foi. "A peça foi enviada" repetia o
+      // título, e no envio de um clique pela linha a pessoa não via qual
+      // linha tinha sumido da fila.
       toast({
-        title: "Peça enviada para aprovação",
-        description: "A peça foi enviada para aprovação do patrocinador",
+        title: id ? `${id} enviada para aprovação` : "Peça enviada para aprovação",
+        description: "Saiu desta fila e agora está em Aguardando patrocinador.",
       });
     },
     onError: (error: Error) => {
@@ -827,9 +864,10 @@ export default function Arte() {
       setShowBulkDialog(false);
       setSelectedItemIds(new Set());
       setSharedPdfUrl("");
+      const n = variables.itemIds.length;
       toast({
-        title: "Peças enviadas para aprovação",
-        description: `${variables.itemIds.length} peças foram enviadas com o mesmo PDF`,
+        title: `${n} ${n === 1 ? "peça enviada" : "peças enviadas"} para aprovação`,
+        description: `Com o mesmo PDF — ${n === 1 ? "ela saiu" : "elas saíram"} desta fila e ${n === 1 ? "está" : "estão"} em Aguardando patrocinador.`,
       });
     },
     onError: (error: Error) => {
@@ -856,14 +894,16 @@ export default function Arte() {
         ? await apiRequest("PATCH", `/api/items/${itemId}/update-final-file`, { finalFileUrl, finalPreviewUrl, finalFileName })
         : await apiRequest("PATCH", `/api/items/${itemId}/submit-final-file`, { finalFileUrl, finalPreviewUrl, finalFileName });
     },
-    onSuccess: () => {
+    onSuccess: (_res, variables) => {
+      const id = itemPorId.get(variables.itemId)?.displayId;
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
       setSelectedItemId(null);
       resetFinalFileState(); // limpa url, nome e a flag de "sujo" de uma vez
-      toast({
-        title: "Arquivo final enviado",
-        description: "O arquivo final foi enviado para revisão da solicitação",
-      });
+      // Atualizar e enviar pela primeira vez são fatos diferentes: só o envio
+      // tira a peça de "Finalizar arte". O toast antigo dizia o mesmo nos dois.
+      toast(variables.isUpdate
+        ? { title: id ? `Arquivo final de ${id} atualizado` : "Arquivo final atualizado", description: "O caminho anterior ficou guardado no histórico da peça." }
+        : { title: id ? `Arquivo final de ${id} enviado` : "Arquivo final enviado", description: "Segue para a revisão de quem solicitou a peça." });
     },
     onError: (error: Error) => {
       toast({
@@ -909,15 +949,16 @@ export default function Arte() {
     mutationFn: async ({ itemId, newThumbUrl }: { itemId: string; newThumbUrl: string }) => {
       return await apiRequest("POST", `/api/items/${itemId}/sponsor-approvals/resubmit`, { newThumbUrl });
     },
-    onSuccess: () => {
+    onSuccess: (_res, variables) => {
+      const id = correcaoItem?.id === variables.itemId ? correcaoItem?.displayId : itemPorId.get(variables.itemId)?.displayId;
       queryClient.invalidateQueries({ queryKey: ["/api/items/resubmission-needed"] });
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
       setCorrecaoItem(null);
       setCorrecaoThumbUrl("");
       setCorrecaoFileName("");
       toast({
-        title: "Nova arte enviada",
-        description: "O Atendimento foi notificado para revisar",
+        title: id ? `Nova arte de ${id} enviada` : "Nova arte enviada",
+        description: "O Atendimento foi avisado para decidir a nova versão.",
       });
     },
     onError: (error: Error) => {
@@ -944,7 +985,8 @@ export default function Arte() {
     mutationFn: async ({ itemId, approvalThumbUrl }: { itemId: string; approvalThumbUrl: string }) => {
       return await apiRequest("PATCH", `/api/items/${itemId}/submit-for-approval`, { approvalThumbUrl });
     },
-    onSuccess: () => {
+    onSuccess: (_res, variables) => {
+      const id = correcaoItem?.id === variables.itemId ? correcaoItem?.displayId : itemPorId.get(variables.itemId)?.displayId;
       queryClient.invalidateQueries({ queryKey: ["/api/items/resubmission-needed"] });
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
       queryClient.invalidateQueries({ queryKey: ["/api/items/pending"] });
@@ -952,8 +994,8 @@ export default function Arte() {
       setCorrecaoThumbUrl("");
       setCorrecaoFileName("");
       toast({
-        title: "Nova arte enviada",
-        description: "A peça voltou para a aprovação dos patrocinadores",
+        title: id ? `Nova arte de ${id} enviada` : "Nova arte enviada",
+        description: "A peça voltou para a aprovação dos patrocinadores.",
       });
     },
     onError: (error: Error) => {
@@ -1008,6 +1050,9 @@ export default function Arte() {
   const uploadFileDirect = useCallback(async (
     file: File,
     onComplete: (localPath: string) => void,
+    // Quem pintou uma prévia otimista antes de o arquivo subir precisa
+    // desfazê-la quando ele NÃO sobe — ver `desfazerEnvioDoThumb`.
+    onFail?: () => void,
   ) => {
     setIsPasteUploading(true);
     try {
@@ -1022,13 +1067,54 @@ export default function Arte() {
       const { url: objectUrl } = await res.json() as { url: string };
       const localPath = convertGCSUrlToLocalPath(objectUrl);
       onComplete(localPath);
-      toast({ title: "Imagem colada!", description: "Upload via Ctrl+V concluído." });
+      // Esta função serve o COLAR e também o ARRASTAR (Aprovação e Correção):
+      // "Imagem colada! Upload via Ctrl+V" aparecia para quem tinha arrastado
+      // um arquivo. O nome do arquivo é o que confirma que subiu o certo.
+      toast({ title: "Arquivo carregado", description: file.name && file.name !== "image.png" ? file.name : "Imagem colada da área de transferência." });
     } catch (e: any) {
-      toast({ title: "Erro ao colar imagem", description: e.message, variant: "destructive" });
+      toast({ title: "Não foi possível subir a imagem", description: e.message, variant: "destructive" });
+      onFail?.();
     } finally {
       setIsPasteUploading(false);
     }
   }, [toast]);
+
+  // ── Envio do thumb de aprovação: prévia otimista com volta ──
+  // A miniatura aparece no instante da escolha (leitura local em data: URL) e
+  // troca a zona vazia pelo bloco da miniatura. Se o envio FALHA ou é
+  // cancelado, sem desfazer isso a tela ficava presa: prévia local, nenhuma
+  // URL, "Subindo o thumb…" girando para sempre e a zona vazia — com o
+  // "Escolher arquivo" — desmontada, sem caminho para tentar de novo.
+  // Por isso o "subindo" é um ESTADO EXPLÍCITO (e não "há prévia mas não há
+  // URL"), e a falha devolve a prévia ao último thumb que de fato subiu.
+  // Refs porque o colar roda num handler de `paste` registrado por efeito: o
+  // valor lido ali tem de ser o de agora, não o do render que o registrou.
+  const [thumbEnviando, setThumbEnviando] = useState(false);
+  const thumbEnviandoRef = useRef(false);
+  const approvalThumbUrlRef = useRef("");
+  approvalThumbUrlRef.current = approvalThumbUrl;
+  const iniciarEnvioDoThumb = (file: File) => {
+    thumbEnviandoRef.current = true;
+    setThumbEnviando(true);
+    const reader = new FileReader();
+    // Só pinta se o envio ainda está no ar: a leitura local pode terminar
+    // DEPOIS de uma falha rápida (e religaria a prévia órfã) ou depois do
+    // sucesso (e trocaria a URL real pelo data:).
+    reader.onload = (ev) => { if (thumbEnviandoRef.current) setApprovalThumbPreview(ev.target?.result as string); };
+    reader.readAsDataURL(file);
+  };
+  const concluirEnvioDoThumb = (localPath: string) => {
+    thumbEnviandoRef.current = false;
+    setThumbEnviando(false);
+    setApprovalThumbUrl(localPath);
+    setApprovalThumbPreview(localPath);
+  };
+  const desfazerEnvioDoThumb = () => {
+    thumbEnviandoRef.current = false;
+    setThumbEnviando(false);
+    // Vazio quando ainda não havia thumb: a zona vazia volta, com o botão.
+    setApprovalThumbPreview(approvalThumbUrlRef.current);
+  };
 
   // Ctrl+V: colar thumb no modal de aprovação (selectedItem). Só quando a peça
   // aceita thumb — a zona de upload do modal aparece apenas em
@@ -1044,13 +1130,14 @@ export default function Arte() {
       const file = imageItem.getAsFile();
       if (!file) return;
       e.preventDefault();
-      const reader = new FileReader();
-      reader.onload = (ev) => setApprovalThumbPreview(ev.target?.result as string);
-      reader.readAsDataURL(file);
+      iniciarEnvioDoThumb(file);
       uploadFileDirect(file, (localPath) => {
-        setApprovalThumbUrl(localPath);
-        setApprovalThumbPreview(localPath);
-      });
+        concluirEnvioDoThumb(localPath);
+        // Colou, subiu: o próximo gesto é enviar (ver focarEnvioParaAprovacao).
+        // Chamado dentro do handler, e não listado nas deps: a função é
+        // declarada mais abaixo no componente e é estável (useCallback []).
+        focarEnvioParaAprovacao();
+      }, desfazerEnvioDoThumb);
     };
     window.addEventListener("paste", handler);
     return () => window.removeEventListener("paste", handler);
@@ -1232,7 +1319,9 @@ export default function Arte() {
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
       setShowBookModal(false);
       const a = data?.aviso;
-      const quantas = `${bookSelectedIds.size} peça(s) vinculada(s) ao book.`;
+      // Plural de verdade: "1 peça(s) vinculada(s)" obriga a ler a regra da
+      // flexão em vez do número.
+      const quantas = `${bookSelectedIds.size} ${bookSelectedIds.size === 1 ? "peça vinculada" : "peças vinculadas"} ao book.`;
       if (a?.status === "sent") {
         toast({ title: "Book salvo e avisado", description: `${quantas} Aviso enviado para ${(a.para ?? []).join(", ")}.` });
       } else if (a?.status === "failed") {
@@ -1330,7 +1419,7 @@ export default function Arte() {
     if (!toProcess.length) return;
     setBulkThumbRunning(true);
     setBulkThumbProgress({ feitos: 0, total: toProcess.length });
-    let enviados = 0, salvos = 0, reenviados = 0;
+    let enviados = 0, salvos = 0, reenviados = 0, falhas = 0;
 
     const processar = async (entry: BulkThumbEntry) => {
       setBulkThumbEntries(prev => prev.map(e => e.id === entry.id ? { ...e, status: 'uploading' } : e));
@@ -1363,6 +1452,7 @@ export default function Arte() {
         }
         setBulkThumbEntries(prev => prev.map(e => e.id === entry.id ? { ...e, status: 'done' } : e));
       } catch (err: any) {
+        falhas++;
         setBulkThumbEntries(prev => prev.map(e => e.id === entry.id ? { ...e, status: 'error', errorMsg: mensagemDeErro(err) } : e));
       } finally {
         setBulkThumbProgress(p => ({ ...p, feitos: p.feitos + 1 }));
@@ -1379,12 +1469,18 @@ export default function Arte() {
     queryClient.invalidateQueries({ queryKey: ["/api/items"] });
     queryClient.invalidateQueries({ queryKey: ["/api/items/pending"] });
     queryClient.invalidateQueries({ queryKey: ["/api/items/resubmission-needed"] });
+    const p = (n: number, um: string, varios: string) => `${n} ${n === 1 ? um : varios}`;
     const partes = [
-      enviados ? `${enviados} enviado(s) para aprovação` : "",
-      reenviados ? `${reenviados} reenviado(s) para nova aprovação (correção)` : "",
-      salvos ? `${salvos} thumb(s) salvo(s)` : "",
+      enviados ? p(enviados, "enviado para aprovação", "enviados para aprovação") : "",
+      reenviados ? p(reenviados, "reenviado da Correção", "reenviados da Correção") : "",
+      salvos ? p(salvos, "thumb salvo como rascunho", "thumbs salvos como rascunho") : "",
     ].filter(Boolean).join(" · ");
-    toast({ title: "Envio em lote concluído", description: partes || "Nada a processar" });
+    // As FALHAS entram no toast. Ele dizia "concluído" mesmo com cards em
+    // erro lá embaixo da lista, fora da vista — e quem fechava o modal
+    // confiando no aviso perdia as imagens que não subiram.
+    toast(falhas > 0
+      ? { title: `${p(falhas, "imagem não subiu", "imagens não subiram")}`, description: `${partes ? `${partes}. ` : ""}As que falharam ficam na lista com o motivo; para reenviar, remova e adicione a imagem de novo.`, variant: "destructive" }
+      : { title: "Envio em lote concluído", description: partes || "Nada a processar" });
   }, [bulkThumbEntries, uploadFileRaw, allItems, correcaoItems, podeEditar, mensagemDeErro, toast]);
 
   const handleBulkThumbUpload = useCallback(() => runBulkThumb(true), [runBulkThumb]);
@@ -1835,11 +1931,41 @@ export default function Arte() {
     setFinalDirty(false);
   };
 
+  /**
+   * Leva o foco ao "Enviar para aprovação" quando o thumb acaba de subir.
+   * O upload troca a zona vazia pelo bloco com a miniatura (outro nó), então o
+   * foco — que estava no botão de escolher arquivo — caía no <body>, e quem
+   * usa teclado precisava voltar tabulando desde o topo do modal. Dois quadros:
+   * um para o React montar o bloco novo, outro para o botão existir no DOM.
+   *
+   * SÓ PUXA O FOCO DE QUEM NÃO ESTÁ USANDO. O upload leva segundos, e nesse
+   * meio-tempo a pessoa pode ter ido digitar noutro campo do modal: roubar o
+   * foco dali para "Enviar" fazia o próximo Enter mandar a peça para aprovação
+   * sem querer. Move só se o foco caiu no <body> (o botão de escolher sumiu),
+   * no PRÓPRIO contêiner do diálogo (o FocusScope do Radix devolve para lá o
+   * foco de um nó removido — é o mesmo "caiu", um nível acima) ou ainda está
+   * dentro da zona do thumb.
+   */
+  const zonaDoThumbRef = useRef<HTMLElement | null>(null);
+  const focarEnvioParaAprovacao = useCallback(() => {
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      const ativo = document.activeElement;
+      const livre = !ativo || ativo === document.body
+        || ativo.matches('[role="dialog"], [role="alertdialog"]')
+        || !!zonaDoThumbRef.current?.contains(ativo);
+      if (!livre) return;
+      (document.querySelector('[data-testid="button-submit-approval-header"]') as HTMLButtonElement | null)?.focus();
+    }));
+  }, []);
+
   // Última barreira do gate de papel: a UI já esconde as ações, mas um handler
   // exposto não pode contar só com isso.
   const bloqueadoPorPapel = () => {
     if (podeEditar) return false;
-    toast({ title: "Modo consulta", description: "Só a equipe de Arte pode alterar peças nesta tela.", variant: "destructive" });
+    // Tom NEUTRO, não vermelho: é aviso de permissão, não falha. O vermelho
+    // dizia "algo quebrou" a quem só está consultando a fila — e a faixa
+    // "Modo consulta" do topo já é cinza pelo mesmo motivo.
+    toast({ title: "Modo consulta", description: "Só a equipe de Arte pode alterar peças nesta tela." });
     return true;
   };
 
@@ -2173,10 +2299,12 @@ export default function Arte() {
           // reticências em vez de empurrar o menu "⋯" para outra linha.
           width: largura, minWidth: 0, flexShrink: 1,
           height: isMobile ? 44 : 36, padding: '0 11px', borderRadius: 9,
-          backgroundColor: travado ? '#d6d3d1' : acao.bg,
-          color: '#ffffff', border: 'none',
+          // Travado: cinza da casa com rótulo #57534e (6:1). Era #d6d3d1 com
+          // letra BRANCA a 85% — ~1,4:1 —, e é nesse estado que o botão diz
+          // "Enviando…", a única confirmação de que o clique pegou.
+          backgroundColor: travado ? '#e7e5e4' : acao.bg,
+          color: travado ? '#57534e' : '#ffffff', border: 'none',
           cursor: travado ? 'not-allowed' : 'pointer',
-          opacity: travado ? 0.85 : 1,
           fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap',
           display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
           overflow: 'hidden', textOverflow: 'ellipsis',
@@ -2186,7 +2314,7 @@ export default function Arte() {
         onMouseLeave={e => { e.currentTarget.style.filter = 'brightness(1)'; }}
       >
         {enviando
-          ? <><span style={{ width: 12, height: 12, borderRadius: '50%', border: '2px solid rgba(255,255,255,0.4)', borderTopColor: '#fff', animation: 'spin 0.8s linear infinite', flexShrink: 0 }} />Enviando…</>
+          ? <><span style={{ width: 12, height: 12, borderRadius: '50%', border: '2px solid #d6d3d1', borderTopColor: '#57534e', animation: 'spin 0.8s linear infinite', flexShrink: 0 }} />Enviando…</>
           : acao.label}
       </button>
     );
@@ -2270,6 +2398,33 @@ export default function Arte() {
     </>
   );
 
+  /**
+   * Selos de estado da fila "Aguardando envio": reprovada pelo patrocinador ou
+   * thumb salvo como rascunho. Função única para a LINHA e o CARD do celular —
+   * o card não mostrava nenhum dos dois, e no celular uma peça que voltou
+   * reprovada era idêntica a uma que nunca saiu.
+   *
+   * Caixa baixa e sem a abreviação em versalete ("REPROV.", "RASCUNHO"): na
+   * coluna de 84px o versalete de 11px pedia mais largura do que havia e era
+   * cortado; e dois selos gritando em maiúsculas competiam com o botão da
+   * linha. O sentido completo fica no `title`.
+   */
+  const renderSelosDaFila = (item: any, tabId: string) => (
+    <>
+      {tabId === "criar-aprovacoes" && item.rejectedBySponsor && (
+        <span title="Reprovada pelo patrocinador — voltou para a Arte refazer" style={{ fontSize: 11, fontWeight: 700, color: '#b91c1c', backgroundColor: '#fef2f2', border: '1px solid #fecaca', borderRadius: 6, padding: '1px 5px', whiteSpace: 'nowrap' }} data-testid={`badge-rejected-sponsor-${item.id}`}>
+          Reprovada
+        </span>
+      )}
+      {/* Thumb salvo mas ainda NÃO enviado para aprovação (rascunho) */}
+      {tabId === "criar-aprovacoes" && item.approvalThumbUrl && !item.rejectedBySponsor && (
+        <span title="Thumb salvo como rascunho, ainda não enviado para aprovação" style={{ fontSize: 11, fontWeight: 700, color: '#6d28d9', backgroundColor: '#f5f3ff', border: '1px solid #ddd6fe', borderRadius: 6, padding: '1px 5px', whiteSpace: 'nowrap' }} data-testid={`badge-thumb-draft-${item.id}`}>
+          Rascunho
+        </span>
+      )}
+    </>
+  );
+
   const renderRow = (item: any, tabId: string, comSelecao: boolean, hoje: Date) => (
     <tr
       key={item.id}
@@ -2309,17 +2464,7 @@ export default function Arte() {
           </span>
           <SeloKit peca={item} />
           {tabId === "finalizados" && <StatusBadge status={item.status} />}
-          {tabId === "criar-aprovacoes" && item.rejectedBySponsor && (
-            <span style={{ fontSize: 11, fontWeight: 700, color: '#b91c1c', backgroundColor: '#fef2f2', border: '1px solid #fecaca', borderRadius: 6, padding: '2px 7px' }} data-testid={`badge-rejected-sponsor-${item.id}`}>
-              REPROV.
-            </span>
-          )}
-          {/* Thumb salvo mas ainda NÃO enviado para aprovação (rascunho) */}
-          {tabId === "criar-aprovacoes" && item.approvalThumbUrl && !item.rejectedBySponsor && (
-            <span style={{ fontSize: 11, fontWeight: 700, color: '#7c3aed', backgroundColor: '#f5f3ff', border: '1px solid #ddd6fe', borderRadius: 6, padding: '2px 7px' }} data-testid={`badge-thumb-draft-${item.id}`}>
-              RASCUNHO
-            </span>
-          )}
+          {renderSelosDaFila(item, tabId)}
         </div>
       </td>
       {/* Qtd — formatQuantity: `String(q || '—').padStart(2,'0')` transformava
@@ -2464,11 +2609,17 @@ export default function Arte() {
       style={{ backgroundColor: '#fff', border: '1px solid #e7e5e4', borderRadius: 8, padding: 12, cursor: 'pointer' }}
       onClick={() => handleViewDetails(item)}
       onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleViewDetails(item); } }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-        {/* #c2410c: o laranja da marca (#f97316) reprova AA como texto de 13px. */}
-        <span style={{ fontFamily: 'monospace', fontWeight: 700, color: '#c2410c', fontSize: 13 }}>{item.displayId}</span>
-        <SeloKit peca={item} style={{ marginRight: 'auto' }} />
-        <StatusBadge status={item.status} />
+      {/* O cabeçalho do card fala a MESMA língua da linha da tabela: ID em
+          cinza (o laranja no código de toda peça gastava a cor de atenção num
+          dado que não pede atenção), selo de status só em Finalizados — nas
+          outras fases o seletor de fase logo acima já diz onde a peça está, e
+          o selo repetia isso em cada card —, e os selos de reprovada/rascunho
+          que a linha tinha e o card não. */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 6 }}>
+        <span style={{ fontFamily: '"DM Mono", monospace', fontWeight: 600, color: '#57534e', fontSize: 12 }}>{item.displayId}</span>
+        <SeloKit peca={item} />
+        {renderSelosDaFila(item, tabId)}
+        {tabId === "finalizados" && <span style={{ marginLeft: 'auto' }}><StatusBadge status={item.status} /></span>}
       </div>
       <div style={{ fontWeight: 700, fontSize: 13, color: '#1c1917' }}>{item.type}</div>
       {item.description && <div style={{ fontSize: 12, color: '#57534e', marginTop: 2 }}>{item.description}</div>}
@@ -2849,7 +3000,7 @@ export default function Arte() {
                       onMouseLeave={e => { e.currentTarget.style.background = ligado ? '#1c1917' : 'transparent'; }}
                     >
                       <span style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 5 }}>
-                        <span aria-hidden style={{ fontFamily: "'DM Mono', monospace", fontSize: 10.5, fontWeight: 700, color: ligado ? 'rgba(255,255,255,0.5)' : '#a8a29e', minWidth: 16 }}>{rank}º</span>
+                        <span aria-hidden style={{ fontFamily: "'DM Mono', monospace", fontSize: 10.5, fontWeight: 700, color: ligado ? 'rgba(255,255,255,0.72)' : '#78716c', minWidth: 16 }}>{rank}º</span>
                         <span style={{ fontSize: 12.5, fontWeight: 700, color: ligado ? '#ffffff' : '#1c1917', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0, flex: 1 }}>{t.nome}</span>
                         <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 12.5, fontWeight: 800, color: ligado ? '#ffffff' : p.texto, whiteSpace: 'nowrap' }}>{t.pecas}</span>
                         <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, fontWeight: 700, color: ligado ? 'rgba(255,255,255,0.8)' : p.sub, whiteSpace: 'nowrap', minWidth: 38, textAlign: 'right' }}>
@@ -2906,10 +3057,14 @@ export default function Arte() {
                 key={ev.id || ev.name}
                 onClick={() => { if (ev.id) setEventFilter([ev.id]); }}
                 title={ev.id ? `Filtrar por ${ev.name}` : ev.name}
-                style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 8px 5px 11px', borderRadius: 999, border: '1px solid #fdba74', backgroundColor: '#fff7ed', color: '#c2410c', fontSize: 12, fontWeight: 600, cursor: ev.id ? 'pointer' : 'default', whiteSpace: 'nowrap' }}
+                // NEUTRO. Oito pílulas laranja, cada uma com um selo laranja
+                // CHEIO, eram a maior mancha de cor da tela — num atalho de
+                // navegação. O laranja fica para o que pede atenção (prazo,
+                // aba ativa, recorte ligado); aqui o número já faz o ranking.
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 6, minHeight: isMobile ? 36 : 28, padding: '0 6px 0 11px', borderRadius: 999, border: '1px solid #e7e5e4', backgroundColor: '#ffffff', color: '#1c1917', fontSize: 12, fontWeight: 600, cursor: ev.id ? 'pointer' : 'default', whiteSpace: 'nowrap' }}
               >
                 {ev.name}
-                <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minWidth: 20, height: 18, padding: '0 6px', borderRadius: 999, backgroundColor: '#c2410c', color: '#ffffff', fontSize: 11, fontWeight: 800 }}>
+                <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minWidth: 20, height: 18, padding: '0 6px', borderRadius: 999, backgroundColor: '#f5f5f4', color: '#44403c', fontSize: 11, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
                   {ev.count}
                 </span>
               </button>
@@ -2984,8 +3139,12 @@ export default function Arte() {
                     display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap',
                   }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
-                      <Star aria-hidden="true" style={{ width: 14, height: 14, color: '#c2410c', fill: '#c2410c', flexShrink: 0 }} />
-                      <span title={bloco.eventName} style={{ color: '#1a1c1c', fontFamily: '"Space Grotesk", sans-serif', fontWeight: 700, fontSize: 15, letterSpacing: '-0.03em', textTransform: 'uppercase', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {/* A ESTRELA LARANJA CHEIA SAIU, e a caixa alta do nome
+                          também. Uma estrela preenchida na cor de atenção antes
+                          de CADA bloco não distinguia evento nenhum — todos a
+                          tinham —, e o nome em versalete gritava mais alto que o
+                          prazo ao lado, que é o dado que decide a ordem. */}
+                      <span title={bloco.eventName} style={{ color: '#1a1c1c', fontFamily: '"Space Grotesk", sans-serif', fontWeight: 700, fontSize: 15, letterSpacing: '-0.02em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {bloco.eventName}
                       </span>
                       {/* Quanto daquele evento já está resolvido NESTA fase. */}
@@ -3035,8 +3194,10 @@ export default function Arte() {
                           </span>
                         );
                       })}
-                      <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f5f5f4', border: '1px solid #e7e5e4', borderRadius: 999, padding: '2px 9px', fontSize: 11, fontWeight: 700, color: '#57534e', textTransform: 'uppercase', letterSpacing: '0.06em', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>
-                        {evTotal} {evTotal === 1 ? 'Item' : 'Itens'}
+                      {/* "peças", não "ITENS": a tela inteira fala em peça, e o
+                          contador era a única palavra em versalete da faixa. */}
+                      <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 600, color: '#57534e', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>
+                        {evTotal} {evTotal === 1 ? 'peça' : 'peças'}
                       </span>
                     </div>
                   </div>
@@ -3324,7 +3485,9 @@ export default function Arte() {
                     {sp.name}
                     {/* A contagem vive no controle: o recorte diz QUANTOS são
                         antes de ser clicado, como as abas e os dropdowns. */}
-                    <span style={{ fontSize: 11, fontWeight: 700, color: isActive ? '#991b1b' : '#a8a29e', fontVariantNumeric: 'tabular-nums' }}>
+                    {/* #746e69 e não #a8a29e: é número que se lê (quantas
+                        correções cada marca pediu), e #a8a29e não passa AA. */}
+                    <span style={{ fontSize: 11, fontWeight: 700, color: isActive ? '#991b1b' : '#746e69', fontVariantNumeric: 'tabular-nums' }}>
                       {sp.id === 'all'
                         ? baseItems.length
                         : baseItems.filter((i: any) => (i.awaitingArteApprovals || []).some((a: any) => a.sponsorId === sp.id)).length}
@@ -3368,11 +3531,12 @@ export default function Arte() {
                     em branco ou vermelho translúcido: `rgba(252,165,165,0.6)`
                     no grupo e `rgba(255,255,255,0.2)` no chevron, que é como se
                     apaga texto sem admitir que ele ficou ilegível. */}
+                {/* O selo "RECUSADO" em versalete vermelho saiu do começo da
+                    faixa: TODO card desta aba é uma recusa (o título da aba já
+                    diz), então ele não distinguia um card do outro — só
+                    empurrava o nome da peça para a direita. Quem recusou e o
+                    motivo continuam no corpo, que é o que se vem ler. */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '12px 16px', borderBottom: '1px solid #f0eeeb', flexWrap: isMobile ? 'wrap' : 'nowrap' }}>
-                  <span style={{ fontSize: 10, fontWeight: 700, color: '#ba1a1a', background: '#fff1f1', border: '1px solid #fecaca', borderRadius: 5, padding: '3px 7px', letterSpacing: '0.06em', textTransform: 'uppercase', flexShrink: 0 }}>
-                    Recusado
-                  </span>
-                  <span aria-hidden="true" style={{ width: 1, height: 13, background: '#e7e5e4', flexShrink: 0 }} />
                   <div style={{ flex: 1, minWidth: 0 }}>
                     {/* QUEM ENCOLHE PRIMEIRO — a ordem estava invertida.
 
@@ -3550,16 +3714,18 @@ export default function Arte() {
                       // Chapado, sem sombra e sem `transform` no clique: eram
                       // três efeitos (gradiente, sombra colorida, escala) num
                       // botão que se repete em cada card da grade.
-                      background: '#ba1a1a',
+                      // TINTA, não vermelho: é a mesma regra dos botões da linha
+                      // ("Enviar", "Finalizar") e do CTA do próprio modal que
+                      // este botão abre. Vermelho é a cor do PROBLEMA (a recusa);
+                      // a ação que resolve não veste a cor do problema.
+                      background: '#1c1917',
                       color: '#ffffff', border: 'none',
                       borderRadius: 8, minHeight: 44, height: 44, padding: '0 18px',
-                      fontWeight: 700, fontSize: 12, cursor: 'pointer',
-                      fontFamily: '"Space Grotesk", sans-serif',
-                      letterSpacing: '-0.01em',
+                      fontWeight: 700, fontSize: 13, cursor: 'pointer',
                       transition: 'background-color 0.15s',
                     }}
-                    onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#9f1717'; }}
-                    onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#ba1a1a'; }}
+                    onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#44403c'; }}
+                    onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#1c1917'; }}
                   >
                     <Send style={{ width: 13, height: 13 }} />
                     Enviar nova arte
@@ -3577,10 +3743,13 @@ export default function Arte() {
                         border: '1px solid #e7e5e4', background: '#ffffff',
                         whiteSpace: 'nowrap',
                       }}
-                      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = '#44403c'; (e.currentTarget as HTMLElement).style.borderColor = '#c7c3be'; }}
-                      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = '#57534e'; (e.currentTarget as HTMLElement).style.borderColor = '#ebe8e3'; }}
+                      // O mouseleave devolvia OUTRA cor e OUTRA borda que as do
+                      // estado inicial: depois do primeiro hover o botão ficava
+                      // diferente dos vizinhos que ninguém tinha tocado.
+                      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = '#c7c3be'; }}
+                      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = '#e7e5e4'; }}
                     >
-                      <Eye style={{ width: 12, height: 12 }} />
+                      <Eye aria-hidden="true" style={{ width: 12, height: 12 }} />
                       Ver versão
                     </a>
                   )}
@@ -3620,8 +3789,13 @@ export default function Arte() {
         <div style={{ padding: isMobile ? '12px 12px 0' : '20px 32px 0', maxWidth: 1600, margin: '0 auto' }}>
 
           {/* ── Identity + actions ── */}
-          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, marginBottom: 18 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+          {/* NO CELULAR a identidade e as ações EMPILHAM. Lado a lado, o bloco
+              de ações tinha `flexShrink: 0` com quatro botões numa linha só —
+              em 390px ele passava da largura, e como a tela é `overflow:
+              hidden` o excesso era CORTADO, não rolável: "Envio de thumbs em
+              lote" e "PDF compartilhado" simplesmente não existiam. */}
+          <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', alignItems: isMobile ? 'stretch' : 'flex-start', justifyContent: 'space-between', gap: isMobile ? 10 : 16, marginBottom: isMobile ? 12 : 18 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14, minWidth: 0 }}>
               {/* LADRILHO CHAPADO, 40px.
 
                   Era um quadrado de 48 com gradiente laranja, anel de 1px e
@@ -3658,14 +3832,14 @@ export default function Arte() {
             </div>
             {/* flexWrap: no mobile os botões quebram linha em vez de estourar a
                 largura do header. */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-              {/* divider */}
-              <div style={{ width: 1, height: 20, background: '#e7e5e4', margin: '0 2px' }} />
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: isMobile ? 1 : 0, flexWrap: 'wrap', justifyContent: isMobile ? 'flex-start' : 'flex-end' }}>
+              {/* O divisor vertical que abria esta fileira saiu: ele separava
+                  os botões de NADA — à esquerda dele não havia controle. */}
               {/* Exportar é LEITURA — continua disponível em modo consulta. */}
               <button
                 onClick={handleClickExportButton}
                 data-testid="button-export-pdf"
-                style={{ display: 'flex', alignItems: 'center', gap: 6, height: 36, padding: '0 14px', borderRadius: 8, border: '1px solid #e7e5e4', background: '#ffffff', color: '#44403c', fontSize: 13, fontWeight: 600, cursor: 'pointer', transition: 'border-color 0.12s' }}
+                style={{ display: 'flex', alignItems: 'center', gap: 6, height: isMobile ? 44 : 36, padding: '0 14px', borderRadius: 8, border: '1px solid #e7e5e4', background: '#ffffff', color: '#44403c', fontSize: 13, fontWeight: 600, cursor: 'pointer', transition: 'border-color 0.12s', whiteSpace: 'nowrap' }}
               >
                 <Printer style={{ width: 12, height: 12, color: '#57534e' }} />
                 {selectedItemIds.size > 0 ? `Exportar ${selectedItemIds.size} selecionadas` : 'Exportar PDF'}
@@ -3675,18 +3849,22 @@ export default function Arte() {
                   onClick={openBookModal}
                   data-testid="button-upload-book"
                   title="Subir o PDF do book (layout pronto) e escolher as peças"
-                  style={{ display: 'flex', alignItems: 'center', gap: 6, height: 36, padding: '0 14px', borderRadius: 8, border: '1px solid #e7e5e4', background: '#ffffff', color: '#44403c', fontSize: 13, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap', transition: 'border-color 0.12s' }}
+                  style={{ display: 'flex', alignItems: 'center', gap: 6, height: isMobile ? 44 : 36, padding: '0 14px', borderRadius: 8, border: '1px solid #e7e5e4', background: '#ffffff', color: '#44403c', fontSize: 13, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap', transition: 'border-color 0.12s' }}
                 >
-                  <FileText style={{ width: 12, height: 12, color: '#7c3aed' }} />
+                  {/* Ícones da fileira em cinza, não roxo/verde/azul: três cores
+                      de destaque em três botões secundários vizinhos não
+                      diziam nada além de "somos botões diferentes" — o rótulo
+                      já diz. A cor da tela fica para estado e prazo. */}
+                  <FileText aria-hidden="true" style={{ width: 12, height: 12, color: '#57534e' }} />
                   Subir book
                 </button>
               )}
               {podeEditar && activeTab === "criar-aprovacoes" && (
                 <label
                   data-testid="button-open-bulk-thumb"
-                  style={{ height: 36, padding: '0 14px', borderRadius: 8, border: '1px solid #e7e5e4', background: '#ffffff', color: '#44403c', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap', transition: 'border-color 0.12s' }}
+                  style={{ height: isMobile ? 44 : 36, padding: '0 14px', borderRadius: 8, border: '1px solid #e7e5e4', background: '#ffffff', color: '#44403c', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap', transition: 'border-color 0.12s' }}
                 >
-                  <FileImage style={{ width: 12, height: 12, color: '#16a34a' }} />
+                  <FileImage aria-hidden="true" style={{ width: 12, height: 12, color: '#57534e' }} />
                   Envio de thumbs em lote
                   {/* sr-only e não display:none — um input display:none não entra
                       na ordem de foco, e nem <label> nem <div> são focáveis por
@@ -3704,9 +3882,9 @@ export default function Arte() {
                   title={selectedItemIds.size > 0
                     ? `Vincular um PDF a ${selectedItemIds.size} peça(s) selecionada(s)`
                     : 'Selecione ao menos uma peça para vincular um PDF compartilhado'}
-                  style={{ display: 'flex', alignItems: 'center', gap: 6, height: 36, padding: '0 14px', borderRadius: 8, border: '1px solid #e7e5e4', background: '#ffffff', color: selectedItemIds.size > 0 ? '#44403c' : '#78716c', fontSize: 13, fontWeight: 600, cursor: selectedItemIds.size > 0 ? 'pointer' : 'not-allowed', transition: 'border-color 0.12s', opacity: selectedItemIds.size > 0 ? 1 : 0.75 }}
+                  style={{ display: 'flex', alignItems: 'center', gap: 6, height: isMobile ? 44 : 36, padding: '0 14px', borderRadius: 8, border: '1px solid #e7e5e4', background: '#ffffff', color: selectedItemIds.size > 0 ? '#44403c' : '#78716c', fontSize: 13, fontWeight: 600, cursor: selectedItemIds.size > 0 ? 'pointer' : 'not-allowed', transition: 'border-color 0.12s', opacity: selectedItemIds.size > 0 ? 1 : 0.75, whiteSpace: 'nowrap' }}
                 >
-                  <Upload style={{ width: 12, height: 12, color: selectedItemIds.size > 0 ? '#2563eb' : '#78716c' }} />
+                  <Upload aria-hidden="true" style={{ width: 12, height: 12, color: '#57534e' }} />
                   {selectedItemIds.size > 0 ? `PDF compartilhado (${selectedItemIds.size})` : 'PDF compartilhado'}
                 </button>
               )}
@@ -3739,10 +3917,29 @@ export default function Arte() {
                 placeholder="Buscar por ID, peça, descrição ou evento..."
                 aria-label="Buscar por ID, peça, descrição ou evento"
                 data-testid="input-search-filter"
-                style={{ width: '100%', height: 36, paddingLeft: 30, paddingRight: 10, borderRadius: 8, border: searchFilter ? '1px solid #f97316' : '1px solid #e7e5e4', backgroundColor: '#ffffff', color: '#1c1917', fontSize: 13, boxSizing: 'border-box' }}
+                style={{ width: '100%', height: isMobile ? 44 : 36, paddingLeft: 30, paddingRight: 10, borderRadius: 8, border: searchFilter ? '1px solid #f97316' : '1px solid #e7e5e4', backgroundColor: '#ffffff', color: '#1c1917', fontSize: 13, boxSizing: 'border-box' }}
               />
             </div>
 
+            {isMobile && (() => {
+              // Conta o que está ESCONDIDO atrás do botão — a busca fica à vista.
+              const n = activeChips.filter(c => c.kind !== 'search').length;
+              return (
+                <button
+                  type="button"
+                  onClick={() => setFiltrosAbertosMobile(v => !v)}
+                  aria-expanded={filtrosAbertosMobile}
+                  aria-controls="arte-filtros-mobile"
+                  data-testid="button-toggle-filtros-mobile"
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 44, padding: '0 14px', borderRadius: 8, border: `1px solid ${n > 0 ? '#fdba74' : '#e7e5e4'}`, background: n > 0 ? '#fff7ed' : '#ffffff', color: n > 0 ? '#9a3412' : '#44403c', fontSize: 13, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}
+                >
+                  Filtros{n > 0 ? ` · ${n}` : ''}
+                  <ChevronDown aria-hidden="true" style={{ width: 14, height: 14, transform: filtrosAbertosMobile ? 'rotate(180deg)' : undefined, transition: 'transform 0.15s' }} />
+                </button>
+              );
+            })()}
+
+            {(!isMobile || filtrosAbertosMobile) && (<>
             <EventFilterDropdown
               values={eventFilter}
               onValuesChange={setEventFilter}
@@ -3816,6 +4013,7 @@ export default function Arte() {
               testId="button-next-10-days-filter"
               title="Só peças de evento cujo caminhão sai nos próximos 10 dias"
             />
+            </>)}
           </div>
 
           {/* ── Filter Row 2 ── */}
@@ -3833,7 +4031,8 @@ export default function Arte() {
               opção aparecia. E a ordenação é o job 6: mesma peça, paleta
               GRAFITE, prefixo "Ordenar:" e sem × — quem bate o olho lê "os
               laranjas recortam, o cinza reordena" sem ler uma palavra. */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, flexWrap: 'wrap', borderTop: '1px solid #f0efee', paddingTop: 8 }}>
+          {(!isMobile || filtrosAbertosMobile) && (
+          <div id="arte-filtros-mobile" style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, flexWrap: 'wrap', borderTop: '1px solid #f0efee', paddingTop: 8 }}>
             <span style={{ fontSize: 11, fontWeight: 700, color: '#57534e', textTransform: 'uppercase', letterSpacing: '0.06em', marginRight: 2 }}>Mostrar:</span>
 
             {/* SEGMENTADOS, e nao menus: decisao do dono (17/08) depois de ver
@@ -3944,20 +4143,25 @@ export default function Arte() {
               />
             </div>
           </div>
+          )}
 
           {/* ── Active chips ── */}
           {activeChips.length > 0 && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8, flexWrap: 'wrap' }}>
               <span style={{ fontSize: 11, fontWeight: 700, color: '#57534e', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Ativos:</span>
               {activeChips.map(chip => (
-                <span key={`${chip.kind}-${chip.id ?? ''}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 9px', borderRadius: 999, background: '#fff7ed', border: '1px solid #fed7aa', fontSize: 11, fontWeight: 600, color: '#c2410c' }}>
+                <span key={`${chip.kind}-${chip.id ?? ''}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 2, padding: '0 2px 0 9px', minHeight: 24, borderRadius: 999, background: '#fff7ed', border: '1px solid #fed7aa', fontSize: 11, fontWeight: 600, color: '#c2410c' }}>
                   {chip.label}
-                  <button onClick={() => removeChipFilter(chip)} aria-label={`Remover filtro ${chip.label}`} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#c2410c', display: 'inline-flex', alignItems: 'center', padding: 0 }}>
-                    <X style={{ width: 9, height: 9 }} />
+                  {/* O × era um ícone de 9px SEM área de toque: o alvo real
+                      tinha 9×9px. 22px de caixa (dentro do chip de 24) passa
+                      o mínimo de 24 do WCAG 2.5.8 somado à borda, sem engordar
+                      a linha de chips. */}
+                  <button onClick={() => removeChipFilter(chip)} aria-label={`Remover filtro ${chip.label}`} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#c2410c', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 22, height: 22, borderRadius: 999, padding: 0 }}>
+                    <X aria-hidden="true" style={{ width: 10, height: 10 }} />
                   </button>
                 </span>
               ))}
-              <button onClick={clearAllFilters} data-testid="button-clear-filters" style={{ fontSize: 11, fontWeight: 600, color: '#57534e', background: 'none', border: '1px solid #e7e5e4', borderRadius: 999, cursor: 'pointer', padding: '3px 10px' }}>
+              <button onClick={clearAllFilters} data-testid="button-clear-filters" style={{ fontSize: 11, fontWeight: 600, color: '#57534e', background: 'none', border: '1px solid #e7e5e4', borderRadius: 999, cursor: 'pointer', padding: '0 10px', minHeight: 24 }}>
                 Limpar tudo
               </button>
               {/* A legenda solta "Contagens de toda a fila da Arte" morreu com
@@ -4165,10 +4369,12 @@ export default function Arte() {
           {/* ModalHeader compartilhado: o X feito à mão aqui tinha 20px, abaixo
               do alvo mínimo de toque, num diálogo que libera peça para produção.
               A casca dá 34px, o mesmo tamanho dos outros modais da tela. */}
+          {/* Tinta do ícone em âmbar, a mesma da tarja do corpo (dono, 09/09):
+              o ladrilho vermelho contradizia o "não é bloqueio" do diálogo. */}
           <ModalHeader
             icon={FastForward}
             variant="confirm"
-            tint="#dc2626"
+            tint={P.amber.text}
             title="Direto para finalização"
             subtitle="A peça pula a aprovação do Atendimento e vai para a finalização"
             onClose={() => { setDispenseItem(null); setDispenseReason(""); }}
@@ -4211,7 +4417,9 @@ export default function Arte() {
           <ModalFooter>
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', alignItems: 'center' }}>
               {/* Raio 9 não existe em `R` (6/8/12/16/999) — era valor sem fonte. */}
-              <button onClick={() => { setDispenseItem(null); setDispenseReason(""); }} style={{ height: 36, padding: '0 14px', borderRadius: R.md, backgroundColor: '#ffffff', border: '1px solid #e7e5e4', color: '#57534e', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+              {/* 40px, a altura dos dois botões do diálogo vizinho (devolver):
+                  dois diálogos irmãos, uma régua de rodapé. */}
+              <button onClick={() => { setDispenseItem(null); setDispenseReason(""); }} style={{ height: 40, padding: '0 16px', borderRadius: R.md, backgroundColor: '#ffffff', border: '1px solid #e7e5e4', color: '#57534e', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
                 Cancelar
               </button>
               <button
@@ -4225,7 +4433,7 @@ export default function Arte() {
                 // convida ao clique reflexo justamente onde não há volta. O
                 // contorno mantém o vermelho como AVISO e obriga a ler antes.
                 // Mesmo tratamento de "Reprovar" no Atendimento.
-                style={{ height: 36, padding: '0 16px', borderRadius: R.md, backgroundColor: '#ffffff', border: `1.5px solid ${P.amber.text}`, color: P.amber.text, fontSize: 13, fontWeight: 700, cursor: dispenseMutation.isPending ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, opacity: dispenseMutation.isPending ? 0.7 : 1 }}
+                style={{ height: 40, padding: '0 16px', borderRadius: R.md, backgroundColor: '#ffffff', border: `1.5px solid ${P.amber.text}`, color: P.amber.text, fontSize: 13, fontWeight: 700, cursor: dispenseMutation.isPending ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, opacity: dispenseMutation.isPending ? 0.7 : 1 }}
               >
                 {dispenseMutation.isPending ? (
                   <>
@@ -4372,7 +4580,7 @@ export default function Arte() {
               que o modal está exibindo. Sem congelar, o modal fica vazio
               durante toda a animação de saída. */}
           <FreezeWhileClosing open={!!correcaoItem}>
-          <DialogTitle className="sr-only">Enviar Nova Arte</DialogTitle>
+          <DialogTitle className="sr-only">Enviar nova arte</DialogTitle>
           <DialogDescription className="sr-only">Reenvio de arte para patrocinadores</DialogDescription>
 
           {/* ── Cabeçalho claro ──
@@ -4382,43 +4590,26 @@ export default function Arte() {
               translúcido: 0,55 na linha da peça, 0,72 no evento. É como se
               apaga texto sem admitir que ele ficou ilegível — num modal cuja
               função é a pessoa LER o que o patrocinador recusou. */}
-          <div style={{ flexShrink: 0, background: '#ffffff', borderBottom: '1px solid #f0eeeb', borderRadius: '16px 16px 0 0', padding: '20px 24px 18px', position: 'relative' }}>
-            <button
-              onClick={() => fecharCorrecaoModal()}
-              style={{ position: 'absolute', top: 14, right: 14, width: 36, height: 36, borderRadius: 9, background: '#ffffff', border: '1px solid #e7e5e4', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: 'border-color 0.15s', zIndex: 2 }}
-              onMouseEnter={e => (e.currentTarget.style.borderColor = '#c7c3be')}
-              onMouseLeave={e => (e.currentTarget.style.borderColor = '#e7e5e4')}
-              aria-label="Fechar"
-            >
-              <X style={{ width: 15, height: 15, color: '#78716c' }} />
-            </button>
-            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, position: 'relative' }}>
-              <div style={{ width: 38, height: 38, borderRadius: 10, background: '#fff1f1', border: '1px solid #fecaca', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                <AlertTriangle aria-hidden="true" style={{ width: 18, height: 18, color: '#ba1a1a' }} />
-              </div>
-              <div style={{ flex: 1, minWidth: 0, paddingRight: 44 }}>
-                <div style={{ fontSize: 11, fontWeight: 700, color: '#ba1a1a', letterSpacing: '0.07em', textTransform: 'uppercase', marginBottom: 3 }}>Ação Necessária</div>
-                <h2 style={{ fontSize: 19, fontWeight: 700, letterSpacing: '-0.03em', fontFamily: '"Space Grotesk", sans-serif', color: '#1c1917', margin: 0, lineHeight: 1.2 }}>
-                  Enviar Nova Arte
-                </h2>
-                {correcaoItem && (
-                  <div style={{ marginTop: 5, display: 'flex', flexDirection: 'column', gap: 2 }}>
-                    <div style={{ fontSize: 12, color: '#57534e', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>
-                      {correcaoItem.displayId && <span style={{ fontFamily: '"Space Grotesk", sans-serif', fontWeight: 700, color: '#78716c', marginRight: 6 }}>{correcaoItem.displayId}</span>}
-                      <span style={{ fontWeight: 600 }}>{correcaoItem.type}</span>
-                      {correcaoItem.description && correcaoItem.description !== correcaoItem.type && <span> · {correcaoItem.description}</span>}
-                    </div>
-                    {correcaoItem.event?.name && (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: '#78716c', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, opacity: 0.7 }}><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-                        <span>{correcaoItem.event.name}</span>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
+          {/* CASCA DA CASA (ModalHeader `confirm`), no lugar do cabeçalho feito
+              à mão. Ele tinha um terceiro desenho de "fechar" (quadrado de 36
+              com borda, posicionado por `absolute`), título em caixa de título
+              ("Enviar Nova Arte") e um sobretítulo vermelho em versalete —
+              "AÇÃO NECESSÁRIA" — que só repetia, gritando, o que o botão que
+              abriu o modal já tinha dito. A peça e o evento continuam na linha
+              de apoio, que é onde se confere "é a peça certa?". */}
+          <ModalHeader
+            variant="confirm"
+            icon={RotateCcw}
+            tint="#b91c1c"
+            title="Enviar nova arte"
+            subtitle={correcaoItem
+              ? [
+                  [correcaoItem.displayId, correcaoItem.type, correcaoItem.description !== correcaoItem.type ? correcaoItem.description : null].filter(Boolean).join(' · '),
+                  correcaoItem.event?.name,
+                ].filter(Boolean).join(' — ')
+              : undefined}
+            onClose={() => fecharCorrecaoModal()}
+          />
 
           {/* ── Body ──
               `flexShrink: 0` nos três blocos: aqui quem rola é o PRÓPRIO
@@ -4436,8 +4627,12 @@ export default function Arte() {
                       {/* Sponsor bar */}
                       <div style={{ backgroundColor: '#fff8f8', padding: '7px 14px', display: 'flex', alignItems: 'center', gap: 7, borderBottom: '1px solid #f7e6e6' }}>
                         {approval.sponsor?.color && <span style={{ width: 7, height: 7, borderRadius: '50%', backgroundColor: approval.sponsor.color, flexShrink: 0 }} />}
-                        <span style={{ fontSize: 11, fontWeight: 700, color: '#991b1b', textTransform: 'uppercase', letterSpacing: '0.06em', flex: 1 }}>{approval.sponsor?.name || 'Patrocinador'}</span>
-                        <span style={{ fontSize: 11, fontWeight: 700, color: '#ba1a1a', background: '#fff1f1', border: '1px solid #fecaca', borderRadius: 6, padding: '2px 7px', letterSpacing: '0.04em' }}>RECUSADO</span>
+                        {/* Nome em caixa normal e "recusou" como verbo: eram DUAS
+                            peças em versalete vermelho na mesma faixa (a marca e
+                            um selo "RECUSADO"), e o painel logo abaixo já diz
+                            "reprovou" em caixa baixa — mesma notícia, duas vozes. */}
+                        <span style={{ fontSize: 12, fontWeight: 700, color: '#991b1b', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{approval.sponsor?.name || 'Patrocinador'}</span>
+                        <span style={{ fontSize: 11, fontWeight: 600, color: '#991b1b', whiteSpace: 'nowrap' }}>recusou</span>
                       </div>
                       {/* Reason */}
                       {/* Corpo BRANCO e sem itálico: é o texto que a pessoa
@@ -4471,7 +4666,7 @@ export default function Arte() {
                 {/* Upload zone */}
                 <div style={{ marginBottom: 18 }}>
                   <label style={{ display: 'block', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#57534e', marginBottom: 8 }}>
-                    Nova Versão
+                    Nova versão
                   </label>
                   {correcaoThumbUrl ? (
                     /* Uploaded state — compact pill row */
@@ -4555,8 +4750,10 @@ export default function Arte() {
                           escolha um arquivo
                         </FileUploader>
                       )}
+                      {/* O atalho que JÁ existe, desenhado como tecla: escrito no
+                          meio da frase ele passava por texto de rodapé. */}
                       <p style={{ fontSize: 11, color: '#57534e', margin: '3px 0 0' }}>
-                        {isPasteUploading ? 'Aguarde...' : 'PDF, PNG, SVG · ou Ctrl+V para colar'}
+                        {isPasteUploading ? 'Aguarde…' : <>PDF, PNG, SVG · ou cole com <kbd style={KBD}>Ctrl</kbd>+<kbd style={KBD}>V</kbd></>}
                       </p>
                     </div>
                   )}
@@ -4672,12 +4869,12 @@ export default function Arte() {
               data-testid="button-submit-correcao"
               style={{
                 width: '100%', height: 48, borderRadius: 10, border: 'none',
-                // Vermelho é a cor do problema (a recusa), não da solução. Enviar
-                // a arte corrigida é a ação construtiva do modal e usa o laranja
-                // de ação do app — o mesmo dos outros botões primários da tela.
-                // Desabilitado em rosa claro com texto branco dava ~2:1; agora usa
-                // o cinza padrão, legível.
-                background: travado ? '#e7e5e4' : '#ea580c',
+                // Vermelho é a cor do problema (a recusa), não da solução.
+                // TINTA, e não o laranja #ea580c de antes: branco sobre #ea580c
+                // mede 3,6:1 e reprovava AA em 15px; e os outros primários da
+                // tela (Enviar, Finalizar, Enviar para aprovação) já são tinta.
+                // Desabilitado em cinza padrão, legível.
+                background: travado ? '#e7e5e4' : '#1c1917',
                 color: travado ? '#57534e' : '#ffffff',
                 fontWeight: 700, fontSize: 15,
                 fontFamily: '"Space Grotesk", sans-serif', letterSpacing: '-0.02em',
@@ -4685,13 +4882,17 @@ export default function Arte() {
                 transition: 'background-color 0.15s',
                 display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8
               }}
-              onMouseEnter={e => { if (!travado) e.currentTarget.style.backgroundColor = '#c2410c'; }}
-              onMouseLeave={e => { if (!travado) e.currentTarget.style.backgroundColor = '#ea580c'; }}
+              onMouseEnter={e => { if (!travado) e.currentTarget.style.backgroundColor = '#44403c'; }}
+              onMouseLeave={e => { if (!travado) e.currentTarget.style.backgroundColor = '#1c1917'; }}
             >
+              {/* O rótulo diz a QUEM vai: "Confirmar Re-envio" não dizia o quê
+                  nem para quem, e a conta já está feita no painel acima. */}
               {enviando ? (
-                <><div style={{ width: 15, height: 15, borderRadius: '50%', border: '2px solid rgba(255,255,255,0.4)', borderTopColor: '#fff', animation: 'spin 0.8s linear infinite' }} />Enviando...</>
+                <><div style={{ width: 15, height: 15, borderRadius: '50%', border: '2px solid #d6d3d1', borderTopColor: '#57534e', animation: 'spin 0.8s linear infinite' }} />Enviando…</>
               ) : (
-                <><Send style={{ width: 15, height: 15 }} />Confirmar Re-envio</>
+                <><Send aria-hidden="true" style={{ width: 15, height: 15 }} />{devolvidaInteira || correcaoDestinatarios.length === 0
+                  ? 'Enviar nova arte'
+                  : `Enviar nova arte a ${correcaoDestinatarios.length} ${correcaoDestinatarios.length === 1 ? 'patrocinador' : 'patrocinadores'}`}</>
               )}
             </button>
             {/* O BOTÃO TRAVADO PASSA A DIZER O QUE FALTA.
@@ -4723,20 +4924,26 @@ export default function Arte() {
         topActions={selectedItem && podeEditar && (['sponsor_approved', 'awaiting_creator_review'].includes(selectedItem.status) || (selectedItem.finalFileUrl && FINALIZADOS_STATUSES.includes(selectedItem.status))) ? (
           <section style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             {/* Section header */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <h3 style={{ fontFamily: '"Space Grotesk", sans-serif', fontWeight: 700, fontSize: 18, letterSpacing: '-0.02em', textTransform: 'uppercase', color: '#1c1917', margin: 0 }}>
-                {['sponsor_approved', 'awaiting_creator_review'].includes(selectedItem.status) ? 'Finalização de Layout' : 'Substituir Arquivo Final'}
+            {/* Título em caixa normal e o selo virou texto de apoio. O selo
+                dizia "CORREÇÃO" na substituição do arquivo final — a mesma
+                palavra da aba Correção, que é OUTRA coisa (arte recusada pelo
+                patrocinador). Quem lia achava que a peça tinha voltado. */}
+            <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+              <h3 style={{ fontFamily: '"Space Grotesk", sans-serif', fontWeight: 700, fontSize: 18, letterSpacing: '-0.02em', color: '#1c1917', margin: 0 }}>
+                {['sponsor_approved', 'awaiting_creator_review'].includes(selectedItem.status) ? 'Finalização de layout' : 'Substituir arquivo final'}
               </h3>
-              <span style={{ fontSize: 11, backgroundColor: ['sponsor_approved', 'awaiting_creator_review'].includes(selectedItem.status) ? '#dcfce7' : '#fef9c3', color: ['sponsor_approved', 'awaiting_creator_review'].includes(selectedItem.status) ? '#15803d' : '#a16207', padding: '2px 9px', borderRadius: 6, fontWeight: 700 }}>
-                {['sponsor_approved', 'awaiting_creator_review'].includes(selectedItem.status) ? 'FASE FINAL' : 'CORREÇÃO'}
+              <span style={{ fontSize: 12, color: '#746e69', fontWeight: 600 }}>
+                {['sponsor_approved', 'awaiting_creator_review'].includes(selectedItem.status) ? 'arte aprovada — falta o arquivo final' : 'a peça já tem arquivo final'}
               </span>
             </div>
 
-            {/* Glass-green container */}
+            {/* Superfície branca com hairline, sem o "vidro" verde com blur e
+                borda de 2px: verde nesta tela é o ESTADO aprovado, e o bloco
+                inteiro vestido dele competia com o botão de enviar. */}
             <div style={{
-              background: 'rgba(240,253,244,0.5)', backdropFilter: 'blur(8px)',
-              border: '2px solid #bbf7d0', borderRadius: 12, padding: 20,
-              display: 'flex', flexDirection: 'column', gap: 20
+              background: '#ffffff',
+              border: '1px solid #e7e5e4', borderRadius: 12, padding: isMobile ? 16 : 20,
+              display: 'flex', flexDirection: 'column', gap: 16
             }}>
               {/* Thumb aprovado preview */}
               {selectedItem.approvalThumbUrl && (() => {
@@ -4744,19 +4951,21 @@ export default function Arte() {
                 const isImage = /\.(png|jpg|jpeg|gif|webp)$/i.test(url) || selectedItem.approvalThumbUrl.startsWith('/objects/');
                 const isPdf = !isImage;
                 return (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 12, background: 'rgba(255,255,255,0.6)', borderRadius: 8, border: '1px solid #bbf7d0' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 12, background: '#fafaf9', borderRadius: 8, border: '1px solid #f0efee', flexWrap: 'wrap' }}>
                     <div style={{ width: 40, height: 40, borderRadius: 6, backgroundColor: '#fef2f2', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                       {isPdf
                         ? <FileText style={{ width: 20, height: 20, color: '#ef4444' }} />
                         : <img loading="lazy" decoding="async" src={selectedItem.approvalThumbUrl} alt="Thumb" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 6 }} />
                       }
                     </div>
-                    <div style={{ flex: 1, overflow: 'hidden' }}>
-                      <p style={{ fontSize: 12, fontWeight: 700, color: '#14532d', margin: '0 0 2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textTransform: 'uppercase' }}>
-                        {selectedItem.approvalThumbUrl.split('/').pop() || 'THUMB_APROVADO'}
+                    <div style={{ flex: 1, minWidth: 0, overflow: 'hidden' }}>
+                      {/* "Thumb aprovado" é o que o bloco É; o nome do arquivo
+                          (um hash, em versalete) vai para o `title`. */}
+                      <p title={selectedItem.approvalThumbUrl.split('/').pop() || undefined} style={{ fontSize: 13, fontWeight: 700, color: '#1c1917', margin: '0 0 2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        Thumb aprovado
                       </p>
-                      <a href={selectedItem.approvalThumbUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 11, color: '#15803d', textDecoration: 'underline' }}>
-                        Clique para visualizar
+                      <a href={selectedItem.approvalThumbUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: '#44403c', textDecoration: 'underline', textUnderlineOffset: 2 }}>
+                        Abrir em nova aba
                       </a>
                     </div>
 
@@ -4770,7 +4979,7 @@ export default function Arte() {
                       accept="image/*,application/pdf"
                       data-testid="uploader-update-thumb"
                       buttonVariant="ghost"
-                      buttonClassName="h-auto py-1 px-2 text-[10px] font-bold uppercase tracking-wider text-green-800 underline decoration-2 underline-offset-2 hover:bg-transparent shrink-0"
+                      buttonClassName="h-9 px-3 text-[12px] font-semibold text-stone-800 bg-white border border-stone-300 rounded-lg hover:bg-stone-50 shrink-0"
                     >
                       {updateThumbMutation.isPending ? 'Enviando…' : 'Trocar thumb'}
                     </FileUploader>
@@ -4781,7 +4990,7 @@ export default function Arte() {
               {/* Thumb anterior — gravado quando a Arte troca o thumb aprovado */}
               {selectedItem.previousApprovalThumbUrl && (
                 <div style={{ backgroundColor: '#fffbeb', border: '1px solid #fbbf24', borderRadius: 8, padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 4 }}>
-                  <span style={{ fontSize: 11, fontWeight: 700, color: '#92400e', textTransform: 'uppercase', letterSpacing: '0.07em' }}>⚠ Thumb substituído — versão anterior guardada</span>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: '#92400e' }}>Thumb substituído — a versão anterior ficou guardada</span>
                   <a href={selectedItem.previousApprovalThumbUrl} target="_blank" rel="noopener noreferrer"
                     style={{ fontSize: 11, fontFamily: "'DM Mono', monospace", color: '#57534e', wordBreak: 'break-all', textDecoration: 'underline' }}>
                     {selectedItem.previousApprovalThumbUrl.split('/').pop() || selectedItem.previousApprovalThumbUrl}
@@ -4792,7 +5001,7 @@ export default function Arte() {
               {/* Arquivo anterior — exibido quando Arte substitui o arquivo enviado */}
               {selectedItem.previousFinalFileUrl && (
                 <div style={{ backgroundColor: '#fffbeb', border: '1px solid #fbbf24', borderRadius: 8, padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 4 }}>
-                  <span style={{ fontSize: 11, fontWeight: 700, color: '#92400e', textTransform: 'uppercase', letterSpacing: '0.07em' }}>⚠ Substituindo — arquivo anterior gravado</span>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: '#92400e' }}>Arquivo final substituído — o anterior ficou gravado</span>
                   <span style={{ fontSize: 11, fontFamily: "'DM Mono', monospace", color: '#57534e', wordBreak: 'break-all' }}>
                     {selectedItem.previousFinalFileName || selectedItem.previousFinalFileUrl}
                   </span>
@@ -4801,18 +5010,21 @@ export default function Arte() {
 
               {/* Caminho do arquivo final (rede) */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                <label style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'rgba(20,83,45,0.6)', paddingLeft: 4 }}>
-                  Caminho do Arquivo Final
+                {/* htmlFor: o rótulo era um <label> solto (sem vínculo com o
+                    campo) em verde a 60% — o leitor de tela anunciava "campo de
+                    edição" sem nome, e o texto não passava AA. */}
+                <label htmlFor="finalFilePath" style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#57534e', paddingLeft: 2 }}>
+                  Caminho do arquivo final
                 </label>
                 <div style={{ position: 'relative' }}>
-                  <FolderOpen style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', width: 16, height: 16, color: '#16a34a' }} />
+                  <FolderOpen aria-hidden="true" style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', width: 16, height: 16, color: '#57534e' }} />
                   <Input
                     id="finalFilePath"
                     placeholder="Cole o caminho do ARQUIVO (com nome e extensão)…"
                     value={finalFileUrl}
                     onChange={(e) => { setFinalFileUrl(e.target.value); setFinalDirty(true); }}
                     data-testid="input-final-file-path"
-                    style={{ paddingLeft: 36, paddingRight: 16, paddingTop: 12, paddingBottom: 12, background: '#ffffff', border: 'none', boxShadow: '0 0 0 1px #bbf7d0', borderRadius: 8, fontSize: 12, fontWeight: 500 }}
+                    style={{ paddingLeft: 36, paddingRight: 16, height: 44, background: '#ffffff', border: 'none', boxShadow: '0 0 0 1px #d6d3d1', borderRadius: 8, fontSize: 13, fontWeight: 500 }}
                   />
                 </div>
                 {finalFileUrl.trim() && (
@@ -4837,21 +5049,27 @@ export default function Arte() {
                 disabled={submitFinalFileMutation.isPending || !finalFileUrl || (!!selectedItem.finalFileUrl && !finalDirty)}
                 data-testid="button-submit-final"
                 style={{
-                  width: '100%', padding: '14px 0', borderRadius: 8, border: 'none',
-                  // #c2410c: 2,7:1 era o contraste do laranja #fd761a com o texto
-                  // branco; este passa AA (4,5:1+) mantendo a família da marca.
-                  backgroundColor: (submitFinalFileMutation.isPending || !finalFileUrl || (!!selectedItem.finalFileUrl && !finalDirty)) ? '#fcd9b7' : '#c2410c',
-                  color: '#ffffff', fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900,
-                  fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.15em',
+                  width: '100%', minHeight: 44, padding: '0 16px', borderRadius: 9, border: 'none',
+                  // TINTA, como os outros primários da Arte. E o desabilitado
+                  // deixa de ser pêssego com letra BRANCA (#fcd9b7 × branco ≈
+                  // 1,5:1 — o rótulo sumia justamente no estado em que o botão
+                  // passa a maior parte do tempo) e passa ao cinza da casa.
+                  // Sem versalete espaçado a 0,15em em peso 900: gritava mais
+                  // que o título do modal.
+                  backgroundColor: (submitFinalFileMutation.isPending || !finalFileUrl || (!!selectedItem.finalFileUrl && !finalDirty)) ? '#e7e5e4' : '#1c1917',
+                  color: (submitFinalFileMutation.isPending || !finalFileUrl || (!!selectedItem.finalFileUrl && !finalDirty)) ? '#57534e' : '#ffffff',
+                  fontFamily: '"Space Grotesk", sans-serif', fontWeight: 700,
+                  fontSize: 14,
                   cursor: (submitFinalFileMutation.isPending || !finalFileUrl || (!!selectedItem.finalFileUrl && !finalDirty)) ? 'not-allowed' : 'pointer',
                   display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                  boxShadow: '0 4px 16px rgba(194,65,12,0.2)', transition: 'background-color 0.15s, transform 0.1s'
+                  transition: 'background-color 0.15s'
                 }}
-                onMouseEnter={e => { if (submitFinalFileMutation.isPending || !finalFileUrl || (!!selectedItem.finalFileUrl && !finalDirty)) return; e.currentTarget.style.backgroundColor = '#9a3412'; }}
-                onMouseLeave={e => { if (submitFinalFileMutation.isPending || !finalFileUrl || (!!selectedItem.finalFileUrl && !finalDirty)) return; e.currentTarget.style.backgroundColor = '#c2410c'; }}
+                title={!finalFileUrl ? 'Cole o caminho do arquivo final para liberar' : (!!selectedItem.finalFileUrl && !finalDirty) ? 'Troque o caminho para atualizar o arquivo' : undefined}
+                onMouseEnter={e => { if (submitFinalFileMutation.isPending || !finalFileUrl || (!!selectedItem.finalFileUrl && !finalDirty)) return; e.currentTarget.style.backgroundColor = '#44403c'; }}
+                onMouseLeave={e => { if (submitFinalFileMutation.isPending || !finalFileUrl || (!!selectedItem.finalFileUrl && !finalDirty)) return; e.currentTarget.style.backgroundColor = '#1c1917'; }}
               >
-                {submitFinalFileMutation.isPending ? 'Enviando...' : (selectedItem.finalFileUrl ? 'Atualizar arquivo' : 'Enviar para Revisão')}
-                {!submitFinalFileMutation.isPending && <ArrowRight style={{ width: 16, height: 16 }} />}
+                {submitFinalFileMutation.isPending ? 'Enviando…' : (selectedItem.finalFileUrl ? 'Atualizar arquivo final' : 'Enviar para revisão')}
+                {!submitFinalFileMutation.isPending && <ArrowRight aria-hidden="true" style={{ width: 16, height: 16 }} />}
               </button>
             </div>
           </section>
@@ -4859,23 +5077,30 @@ export default function Arte() {
         customActions={selectedItem && podeEditar && (
           <div>
             {selectedItem.status === 'awaiting_submission' && (
-              <section style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <section ref={zonaDoThumbRef} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                 {/* Section header */}
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <h3 style={{ fontFamily: '"Space Grotesk", sans-serif', fontWeight: 700, fontSize: 18, letterSpacing: '-0.02em', textTransform: 'uppercase', color: '#1c1917', margin: 0 }}>
-                    Thumb de Aprovação
+                {/* Título em caixa normal e "obrigatório" como texto de apoio,
+                    não selo vermelho em versalete: era o elemento mais alarmante
+                    do modal para dizer uma regra que o botão travado e o toast
+                    já explicam. Vermelho fica para o que deu errado. */}
+                <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+                  <h3 style={{ fontFamily: '"Space Grotesk", sans-serif', fontWeight: 700, fontSize: 18, letterSpacing: '-0.02em', color: '#1c1917', margin: 0 }}>
+                    Thumb de aprovação
                   </h3>
-                  <span title="Obrigatório para enviar à aprovação" style={{ fontSize: 11, backgroundColor: 'rgba(220,38,38,0.08)', color: '#b91c1c', padding: '2px 9px', borderRadius: 6, fontWeight: 700, letterSpacing: '0.03em' }}>
-                    OBRIGATÓRIO
+                  <span style={{ fontSize: 12, color: '#746e69', fontWeight: 600 }}>
+                    obrigatório para enviar
                   </span>
                 </div>
 
                 {approvalThumbPreview && approvalThumbPreview.trim() !== "" ? (
                   /* State A2: thumb uploaded */
-                  <div style={{ background: 'rgba(250,245,255,0.5)', backdropFilter: 'blur(8px)', border: '1px solid #ddd6fe', borderRadius: 12, padding: 16, display: 'flex', flexDirection: 'column', gap: 16 }}>
-                    {/* Thumbnail row */}
+                  <div style={{ background: '#ffffff', border: '1px solid #e7e5e4', borderRadius: 12, padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
+                    {/* Superfície BRANCA com hairline, no lugar do "vidro" lilás
+                        com blur: o desfoque não tinha nada atrás para desfocar
+                        (o fundo do modal é liso) e o lilás fazia o bloco de
+                        decisão parecer um aviso. */}
                     <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
-                      <div style={{ width: 96, height: 64, borderRadius: 8, overflow: 'hidden', border: '1px solid #ddd6fe', boxShadow: '0 1px 4px rgba(0,0,0,0.08)', flexShrink: 0, backgroundColor: '#e5e7eb' }}>
+                      <div style={{ width: 96, height: 64, borderRadius: 8, overflow: 'hidden', border: '1px solid #e7e5e4', flexShrink: 0, backgroundColor: '#f5f5f4' }}>
                         <img loading="lazy" decoding="async" 
                           src={approvalThumbPreview}
                           alt="Preview do Thumb"
@@ -4883,111 +5108,136 @@ export default function Arte() {
                           onError={(e) => { e.currentTarget.style.display = 'none'; }}
                         />
                       </div>
-                      <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', flex: 1, gap: 4 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                          <span style={{ backgroundColor: '#dcfce7', color: '#15803d', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', padding: '2px 8px', borderRadius: 6, lineHeight: 1 }}>
-                            Carregado
-                          </span>
-                          <span style={{ fontSize: 11, color: 'rgba(59,7,100,0.6)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 120 }}>
-                            {approvalThumbPreview.split('/').pop() || 'thumb_upload'}
-                          </span>
+                      <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', flex: 1, gap: 4, minWidth: 0 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+                          {/* Estado em texto + ícone, sem selo verde em versalete.
+                              O nome do arquivo em #57534e, e não no roxo a 60%:
+                              é o que se confere ("subi o certo?") e o roxo
+                              translúcido não passava AA. Enquanto o preview é
+                              um data: URL (upload em curso), não há nome útil. */}
+                          {/* A miniatura aparece NO INSTANTE da escolha (leitura
+                              local), antes de o arquivo terminar de subir. O
+                              "Carregado" verde mentia nesse intervalo, e o
+                              "Enviar" clicado ali respondia "Falta o thumb".
+                              O giro depende de um envio EM CURSO (thumbEnviando),
+                              não de "falta a URL": falha e cancelamento desfazem
+                              a prévia em vez de deixar o indicador girando. */}
+                          {(thumbEnviando || isPasteUploading) ? (
+                            <span role="status" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 600, color: '#57534e', flexShrink: 0 }}>
+                              <span aria-hidden="true" style={{ width: 11, height: 11, borderRadius: '50%', border: '2px solid #e7e5e4', borderTopColor: '#57534e', animation: 'spin 0.8s linear infinite' }} />
+                              Subindo o thumb…
+                            </span>
+                          ) : approvalThumbUrl ? (
+                            <>
+                              <CheckCircle aria-hidden="true" style={{ width: 13, height: 13, color: '#15803d', flexShrink: 0 }} />
+                              <span style={{ fontSize: 12, fontWeight: 600, color: '#15803d', flexShrink: 0 }}>Thumb carregado</span>
+                            </>
+                          ) : null}
+                          {!approvalThumbPreview.startsWith('data:') && (
+                            <span title={approvalThumbPreview.split('/').pop() || undefined} style={{ fontSize: 11, color: '#57534e', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>
+                              {approvalThumbPreview.split('/').pop()}
+                            </span>
+                          )}
                         </div>
                         <FileUploader
                           onGetUploadParameters={getUploadUrl}
                           onComplete={(result) => {
-                            const localPath = convertGCSUrlToLocalPath(result.url);
-                            setApprovalThumbUrl(localPath);
-                            setApprovalThumbPreview(localPath);
-                            toast({ title: "Upload concluído", description: "Thumb atualizado" });
+                            concluirEnvioDoThumb(convertGCSUrlToLocalPath(result.url));
+                            toast({ title: "Thumb trocado", description: "Confira a miniatura e envie para aprovação." });
+                            focarEnvioParaAprovacao();
                           }}
-                          onError={(error) => { toast({ title: "Erro no upload", description: error.message, variant: "destructive" }); }}
-                          onFileSelect={(file) => {
-                            const reader = new FileReader();
-                            reader.onload = (e) => { setApprovalThumbPreview(e.target?.result as string); };
-                            reader.readAsDataURL(file);
-                          }}
+                          onError={(error) => { desfazerEnvioDoThumb(); toast({ title: "Erro no upload", description: `${error.message} — o thumb anterior continua valendo.`, variant: "destructive" }); }}
+                          onCancel={desfazerEnvioDoThumb}
+                          onFileSelect={iniciarEnvioDoThumb}
+                          disabled={thumbEnviando || isPasteUploading}
                           accept="image/*"
                           buttonVariant="ghost"
-                          buttonClassName="h-auto p-0 text-[11px] font-bold text-purple-600 underline hover:text-purple-800 hover:bg-transparent"
+                          buttonClassName="h-auto p-0 self-start text-[12px] font-semibold text-stone-700 underline underline-offset-2 hover:text-stone-900 hover:bg-transparent"
                         >
-                          Alterar Thumb
+                          Trocar thumb
                         </FileUploader>
                       </div>
                     </div>
 
-                    {/* Salvar thumb sem enviar (rascunho) */}
+                    {/* A AÇÃO PRINCIPAL VEM PRIMEIRO, E EM TINTA.
+
+                        Eram dois botões de largura inteira empilhados com
+                        "Salvar thumb (sem enviar)" EM CIMA e o envio embaixo,
+                        num roxo com sombra colorida — o olho chegava primeiro no
+                        secundário. Agora enviar é o botão cheio, em tinta, como
+                        o "Enviar" da linha da tabela (é a mesma ação), e o
+                        rascunho fica logo abaixo, com contorno. O foco vem para
+                        cá quando o upload termina: Enter envia. */}
+                    <button
+                      onClick={handleSubmitForApproval}
+                      disabled={submitForApprovalMutation.isPending || isPasteUploading || thumbEnviando || !approvalThumbUrl}
+                      data-testid="button-submit-approval-header"
+                      style={{
+                        width: '100%', minHeight: 44, padding: '0 16px', borderRadius: 9, border: 'none',
+                        backgroundColor: (submitForApprovalMutation.isPending || isPasteUploading || thumbEnviando || !approvalThumbUrl) ? '#e7e5e4' : '#1c1917',
+                        color: (submitForApprovalMutation.isPending || isPasteUploading || thumbEnviando || !approvalThumbUrl) ? '#57534e' : '#ffffff',
+                        fontFamily: '"Space Grotesk", sans-serif', fontWeight: 700,
+                        fontSize: 14,
+                        cursor: (submitForApprovalMutation.isPending || isPasteUploading || thumbEnviando || !approvalThumbUrl) ? 'not-allowed' : 'pointer',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                        transition: 'background-color 0.15s',
+                      }}
+                      onMouseEnter={e => { if (submitForApprovalMutation.isPending || isPasteUploading || thumbEnviando || !approvalThumbUrl) return; e.currentTarget.style.backgroundColor = '#44403c'; }}
+                      onMouseLeave={e => { if (submitForApprovalMutation.isPending || isPasteUploading || thumbEnviando || !approvalThumbUrl) return; e.currentTarget.style.backgroundColor = '#1c1917'; }}
+                    >
+                      {submitForApprovalMutation.isPending
+                        ? <><span aria-hidden="true" style={{ width: 13, height: 13, borderRadius: '50%', border: '2px solid #d6d3d1', borderTopColor: '#57534e', animation: 'spin 0.8s linear infinite' }} />Enviando…</>
+                        : <><Send aria-hidden="true" style={{ width: 14, height: 14 }} />Enviar para aprovação</>}
+                    </button>
+
+                    {/* Rascunho: secundário de verdade. Salvo, vira uma LINHA de
+                        confirmação — era uma caixa verde do tamanho do botão
+                        principal, que parecia ser a próxima ação. */}
                     {savedApprovalThumbUrl && savedApprovalThumbUrl === approvalThumbUrl ? (
-                      <div
+                      <p
                         data-testid="thumb-saved-confirmation"
+                        role="status"
                         style={{
-                          width: '100%', padding: '12px 0', borderRadius: 8,
-                          border: thumbJustSaved ? '1px solid #86efac' : '1px solid #bbf7d0',
-                          background: thumbJustSaved ? '#dcfce7' : '#f0fdf4',
-                          color: '#15803d', fontFamily: '"Space Grotesk", sans-serif', fontWeight: 700,
-                          fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                          marginBottom: 8,
-                          transition: 'background 0.4s ease, border-color 0.4s ease',
+                          margin: 0, minHeight: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                          color: '#15803d', fontSize: 13, fontWeight: 600, textAlign: 'center',
                           animation: thumbJustSaved ? 'thumb-saved-pop 0.25s ease' : 'none',
                         }}
                       >
-                        <CheckCircle style={{ width: 15, height: 15 }} />
-                        {thumbJustSaved ? '✓ Thumb salvo como rascunho' : 'Thumb salvo como rascunho'}
-                      </div>
+                        <CheckCircle aria-hidden="true" style={{ width: 14, height: 14, flexShrink: 0 }} />
+                        Salvo como rascunho — dá para enviar depois pela linha da peça
+                      </p>
                     ) : (
                       <button
                         onClick={handleSaveThumbDraft}
                         disabled={saveThumbDraftMutation.isPending || submitForApprovalMutation.isPending}
                         data-testid="button-save-thumb-draft"
                         style={{
-                          width: '100%', padding: '12px 0', borderRadius: 8,
-                          border: '1.5px solid #ddd6fe', background: '#ffffff',
-                          color: '#7c3aed', fontFamily: '"Space Grotesk", sans-serif', fontWeight: 700,
-                          fontSize: 13,
+                          width: '100%', minHeight: 40, padding: '0 16px', borderRadius: 9,
+                          border: '1px solid #e7e5e4', background: '#ffffff',
+                          color: '#44403c', fontWeight: 600, fontSize: 13,
                           cursor: (saveThumbDraftMutation.isPending || submitForApprovalMutation.isPending) ? 'not-allowed' : 'pointer',
+                          opacity: (saveThumbDraftMutation.isPending || submitForApprovalMutation.isPending) ? 0.6 : 1,
                           display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                          marginBottom: 8, transition: 'background 0.15s'
+                          transition: 'background 0.15s'
                         }}
-                        onMouseEnter={e => { if (saveThumbDraftMutation.isPending || submitForApprovalMutation.isPending) return; e.currentTarget.style.background = '#faf5ff'; }}
+                        onMouseEnter={e => { if (saveThumbDraftMutation.isPending || submitForApprovalMutation.isPending) return; e.currentTarget.style.background = '#fafaf9'; }}
                         onMouseLeave={e => { e.currentTarget.style.background = '#ffffff'; }}
                       >
-                        <FileImage style={{ width: 14, height: 14 }} />
-                        {saveThumbDraftMutation.isPending ? 'Salvando...' : 'Salvar thumb (sem enviar)'}
+                        <FileImage aria-hidden="true" style={{ width: 14, height: 14 }} />
+                        {saveThumbDraftMutation.isPending ? 'Salvando…' : 'Salvar como rascunho, sem enviar'}
                       </button>
                     )}
-
-                    {/* Enviar para Aprovação */}
-                    <button
-                      onClick={handleSubmitForApproval}
-                      disabled={submitForApprovalMutation.isPending}
-                      data-testid="button-submit-approval-header"
-                      style={{
-                        width: '100%', padding: '14px 0', borderRadius: 8, border: 'none',
-                        backgroundColor: submitForApprovalMutation.isPending ? '#c4b5fd' : '#7c3aed',
-                        color: '#ffffff', fontFamily: '"Space Grotesk", sans-serif', fontWeight: 700,
-                        fontSize: 13,
-                        cursor: submitForApprovalMutation.isPending ? 'not-allowed' : 'pointer',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                        boxShadow: '0 4px 16px rgba(124,58,237,0.2)', transition: 'filter 0.15s, transform 0.1s'
-                      }}
-                      onMouseEnter={e => { if (submitForApprovalMutation.isPending) return; e.currentTarget.style.filter = 'brightness(0.88)'; }}
-                      onMouseLeave={e => { e.currentTarget.style.filter = 'brightness(1)'; }}
-                      onMouseDown={e => { e.currentTarget.style.transform = 'scale(0.98)'; }}
-                      onMouseUp={e => { e.currentTarget.style.transform = 'scale(1)'; }}
-                    >
-                      <Send style={{ width: 14, height: 14 }} />
-                      {submitForApprovalMutation.isPending ? 'Enviando...' : 'Enviar para Aprovação'}
-                    </button>
                   </div>
                 ) : (
                   /* State A1: empty upload zone */
                   <div style={{
-                    background: (isPasteUploading || isDragOver) ? 'rgba(237,233,254,0.8)' : 'rgba(250,245,255,0.5)', backdropFilter: 'blur(8px)',
-                    border: (isPasteUploading || isDragOver) ? '2px dashed #7c3aed' : '1px dashed #ddd6fe', borderRadius: 12, padding: '24px 32px',
+                    background: (isPasteUploading || isDragOver) ? '#f5f5f4' : '#fafaf9',
+                    border: (isPasteUploading || isDragOver) ? '1.5px dashed #57534e' : '1.5px dashed #d6d3d1', borderRadius: 12, padding: isMobile ? '20px 16px' : '24px 32px',
                     display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-                    textAlign: 'center', gap: 10, cursor: 'pointer', transition: 'background 0.15s'
+                    textAlign: 'center', gap: 10, transition: 'background 0.15s, border-color 0.15s'
                   }}
-                    onMouseEnter={e => { if (!isPasteUploading && !isDragOver) (e.currentTarget as HTMLElement).style.background = 'rgba(237,233,254,0.5)'; }}
-                    onMouseLeave={e => { if (!isPasteUploading && !isDragOver) (e.currentTarget as HTMLElement).style.background = 'rgba(250,245,255,0.5)'; }}
+                    onMouseEnter={e => { if (!isPasteUploading && !isDragOver) (e.currentTarget as HTMLElement).style.background = '#f5f5f4'; }}
+                    onMouseLeave={e => { if (!isPasteUploading && !isDragOver) (e.currentTarget as HTMLElement).style.background = '#fafaf9'; }}
                     onDragOver={e => { e.preventDefault(); setIsDragOver(true); }}
                     onDragEnter={e => { e.preventDefault(); setIsDragOver(true); }}
                     // Mesmo cuidado da zona da Correção: ignora o dragleave dos filhos.
@@ -5000,59 +5250,52 @@ export default function Arte() {
                         toast({ title: "Arquivo inválido", description: "Apenas imagens são aceitas", variant: "destructive" });
                         return;
                       }
-                      const reader = new FileReader();
-                      reader.onload = (ev) => setApprovalThumbPreview(ev.target?.result as string);
-                      reader.readAsDataURL(file);
+                      iniciarEnvioDoThumb(file);
                       uploadFileDirect(file, (localPath) => {
-                        setApprovalThumbUrl(localPath);
-                        setApprovalThumbPreview(localPath);
-                        toast({ title: "Thumb carregado", description: "Agora clique em Salvar (rascunho) ou Enviar para Aprovação." });
-                      });
+                        concluirEnvioDoThumb(localPath);
+                        focarEnvioParaAprovacao();
+                      }, desfazerEnvioDoThumb);
                     }}
                   >
-                    <div style={{ width: 48, height: 48, borderRadius: '50%', backgroundColor: '#ede9fe', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    {/* ZONA NEUTRA. Era lilás com desfoque, ícone roxo, título
+                        roxo-escuro e botão roxo: quatro tons de uma cor que, no
+                        resto da tela, só marca "rascunho". A zona de upload
+                        segue a mesma pele da zona da Correção — tracejado claro
+                        que escurece ao arrastar. */}
+                    <div style={{ width: 44, height: 44, borderRadius: '50%', backgroundColor: '#ffffff', border: '1px solid #e7e5e4', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                       {isPasteUploading
-                        ? <div style={{ width: 22, height: 22, borderRadius: '50%', border: '3px solid #ddd6fe', borderTopColor: '#7c3aed', animation: 'spin 0.8s linear infinite' }} />
-                        : <FileImage style={{ width: 24, height: 24, color: '#7c3aed' }} />
+                        ? <div style={{ width: 20, height: 20, borderRadius: '50%', border: '2.5px solid #e7e5e4', borderTopColor: '#1c1917', animation: 'spin 0.8s linear infinite' }} />
+                        : <Upload aria-hidden="true" style={{ width: 20, height: 20, color: '#44403c' }} />
                       }
                     </div>
                     <div>
-                      <p style={{ fontSize: 14, fontWeight: 700, color: '#3b0764', margin: '0 0 4px' }}>
-                        {isPasteUploading ? 'Enviando imagem...' : 'Upload do Thumb'}
+                      <p style={{ fontSize: 14, fontWeight: 700, color: '#1c1917', margin: '0 0 4px' }}>
+                        {isPasteUploading ? 'Subindo a imagem…' : 'Suba o thumb para enviar'}
                       </p>
-                      {/* Roxo sólido: o rgba 55% sobre o lilás da zona ficava abaixo de
-                          4,5:1 — e é esta linha que ensina os três jeitos de subir. */}
-                      <p style={{ fontSize: 12, color: '#6b21a8', margin: 0 }}>
-                        {isPasteUploading ? 'Aguarde o upload concluir' : 'Arraste, selecione ou cole com Ctrl+V'}
+                      <p style={{ fontSize: 12, color: '#57534e', margin: 0 }}>
+                        {isPasteUploading ? 'Aguarde o upload concluir' : <>Arraste aqui, escolha o arquivo ou cole com <kbd style={KBD}>Ctrl</kbd>+<kbd style={KBD}>V</kbd></>}
                       </p>
                     </div>
                     {!isPasteUploading && (
                       <FileUploader
                         onGetUploadParameters={getUploadUrl}
                         onComplete={(result) => {
-                          const localPath = convertGCSUrlToLocalPath(result.url);
-                          setApprovalThumbUrl(localPath);
-                          setApprovalThumbPreview(localPath);
-                          toast({ title: "Thumb carregado", description: "Agora clique em Salvar (rascunho) ou Enviar para Aprovação." });
+                          concluirEnvioDoThumb(convertGCSUrlToLocalPath(result.url));
+                          toast({ title: "Thumb carregado", description: "Confira a miniatura e envie para aprovação." });
+                          focarEnvioParaAprovacao();
                         }}
-                        onError={(error) => { toast({ title: "Erro no upload", description: error.message, variant: "destructive" }); }}
-                        onFileSelect={(file) => {
-                          const reader = new FileReader();
-                          reader.onload = (e) => { setApprovalThumbPreview(e.target?.result as string); };
-                          reader.readAsDataURL(file);
-                        }}
+                        onError={(error) => { desfazerEnvioDoThumb(); toast({ title: "Erro no upload", description: `${error.message} — o thumb não subiu; escolha o arquivo de novo.`, variant: "destructive" }); }}
+                        onCancel={desfazerEnvioDoThumb}
+                        onFileSelect={iniciarEnvioDoThumb}
                         accept="image/*"
                         buttonVariant="ghost"
-                        buttonClassName="mt-2 text-[12px] font-bold bg-purple-600 text-white px-5 py-2 rounded-lg hover:bg-purple-700 hover:text-white transition-all"
+                        buttonClassName="mt-1 h-10 text-[13px] font-semibold bg-white text-stone-900 border border-stone-300 px-5 rounded-lg hover:bg-stone-50 hover:text-stone-900"
                       >
-                        Fazer upload do thumb
+                        Escolher arquivo
                       </FileUploader>
                     )}
-                    {!isPasteUploading && (
-                      <p style={{ fontSize: 11, color: '#6d28d9', margin: '-2px 0 0', fontWeight: 600 }}>
-                        ou Ctrl+V para colar direto
-                      </p>
-                    )}
+                    {/* A linha "ou Ctrl+V para colar direto" saiu: repetia, em
+                        roxo, o atalho que a frase logo acima já ensina. */}
                   </div>
                 )}
               </section>
@@ -5098,8 +5341,11 @@ export default function Arte() {
             <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: isMobile ? 20 : 32 }}>
               {/* Left: items list */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                <h3 style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: '#9d4300', margin: 0 }}>
-                  Itens Selecionados ({String(selectedItemIds.size).padStart(2, '0')})
+                {/* Rótulo cinza como os dos outros modais (era marrom-laranja
+                    #9d4300, uma sexta cor de rótulo na tela) e sem o zero à
+                    esquerda: "(05)" é notação de painel de máquina, não conta. */}
+                <h3 style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#57534e', margin: 0 }}>
+                  {selectedItemIds.size} {selectedItemIds.size === 1 ? 'peça selecionada' : 'peças selecionadas'}
                 </h3>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 280, overflowY: 'auto' }}>
                   {Array.from(selectedItemIds).map((itemId, idx) => {
@@ -5109,8 +5355,9 @@ export default function Arte() {
                     return (
                       <div key={itemId} style={{
                         display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px',
-                        backgroundColor: '#f0efee', borderRadius: 8,
-                        borderLeft: isFirst ? '2px solid #9d4300' : '2px solid transparent'
+                        // Sem o filete laranja na PRIMEIRA linha: ele destacava
+                        // uma peça que não tem nada de diferente das outras.
+                        backgroundColor: '#fafaf9', border: '1px solid #f0efee', borderRadius: 8,
                       }}>
                         <div style={{ width: 40, height: 40, backgroundColor: '#d6d3d1', borderRadius: 6, flexShrink: 0, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                           {item.approvalThumbUrl ? (
@@ -5135,53 +5382,56 @@ export default function Arte() {
 
               {/* Right: upload zone */}
               <div style={{ display: 'flex', flexDirection: 'column' }}>
-                <h3 style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: '#9d4300', margin: '0 0 16px' }}>
-                  Arquivo Principal
+                <h3 style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#57534e', margin: '0 0 16px' }}>
+                  PDF compartilhado
                 </h3>
                 <div style={{
                   flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-                  backgroundColor: '#f0efee', borderRadius: 12, border: '2px dashed rgba(157,67,0,0.3)',
-                  padding: 24, textAlign: 'center', transition: 'border-color 0.15s', minHeight: 200
+                  backgroundColor: '#fafaf9', borderRadius: 12, border: '1.5px dashed #d6d3d1',
+                  padding: 24, textAlign: 'center', transition: 'border-color 0.15s', minHeight: isMobile ? 160 : 200
                 }}
-                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = 'rgba(157,67,0,0.6)'; }}
-                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = 'rgba(157,67,0,0.3)'; }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = '#a8a29e'; }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = '#d6d3d1'; }}
                 >
                   {sharedPdfUrl ? (
                     <>
-                      <div style={{ width: 56, height: 56, backgroundColor: '#ffffff', borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 8px rgba(0,0,0,0.1)', marginBottom: 12 }}>
-                        <FileText style={{ width: 28, height: 28, color: '#dc2626' }} />
+                      <div style={{ width: 48, height: 48, backgroundColor: '#ffffff', border: '1px solid #e7e5e4', borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}>
+                        <CheckCircle aria-hidden="true" style={{ width: 22, height: 22, color: '#15803d' }} />
                       </div>
-                      <p style={{ fontSize: 13, fontWeight: 700, fontFamily: '"Space Grotesk", sans-serif', color: '#1c1917', margin: '0 0 4px' }}>PDF Carregado</p>
-                      <a href={sharedPdfUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 11, color: '#9d4300', textDecoration: 'underline', display: 'block', marginBottom: 12 }}>
-                        Visualizar arquivo
+                      <p style={{ fontSize: 13, fontWeight: 700, color: '#1c1917', margin: '0 0 4px' }}>PDF carregado</p>
+                      <a href={sharedPdfUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: '#44403c', textDecoration: 'underline', textUnderlineOffset: 2, display: 'block', marginBottom: 12 }}>
+                        Conferir o PDF
                       </a>
+                      {/* Botões em caixa normal e 36px: eram pílulas de 32px em
+                          versalete de 10px com espaçamento largo — o menor texto
+                          do modal justamente na única ação da coluna. */}
                       <FileUploader
                         onGetUploadParameters={getUploadUrl}
-                        onComplete={(result) => { setSharedPdfUrl(convertGCSUrlToLocalPath(result.url)); toast({ title: "Upload concluído", description: "PDF compartilhado enviado com sucesso" }); }}
+                        onComplete={(result) => { setSharedPdfUrl(convertGCSUrlToLocalPath(result.url)); toast({ title: "PDF trocado", description: "O novo PDF vale para todas as peças selecionadas." }); }}
                         onError={(error) => { toast({ title: "Erro no upload", description: error.message, variant: "destructive" }); }}
                         accept=".pdf,application/pdf"
                         buttonVariant="ghost"
-                        buttonClassName="h-8 text-xs font-bold uppercase tracking-wider bg-stone-900 text-white rounded-full px-4 hover:bg-stone-700 hover:text-white"
+                        buttonClassName="h-9 text-[13px] font-semibold bg-white text-stone-900 border border-stone-300 rounded-lg px-4 hover:bg-stone-50 hover:text-stone-900"
                       >
-                        Alterar PDF
+                        Trocar PDF
                       </FileUploader>
                     </>
                   ) : (
                     <>
-                      <div style={{ width: 64, height: 64, backgroundColor: '#ffffff', borderRadius: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', marginBottom: 14, transition: 'transform 0.2s' }}>
-                        <FileText style={{ width: 30, height: 30, color: '#9d4300' }} />
+                      <div style={{ width: 48, height: 48, backgroundColor: '#ffffff', border: '1px solid #e7e5e4', borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}>
+                        <FileText aria-hidden="true" style={{ width: 22, height: 22, color: '#44403c' }} />
                       </div>
-                      <p style={{ fontSize: 13, fontWeight: 700, fontFamily: '"Space Grotesk", sans-serif', color: '#1c1917', margin: '0 0 4px' }}>Upload PDF</p>
-                      <p style={{ fontSize: 11, color: '#57534e', margin: '0 0 14px', padding: '0 8px' }}>Este arquivo será aplicado a todos os itens à esquerda.</p>
+                      <p style={{ fontSize: 13, fontWeight: 700, color: '#1c1917', margin: '0 0 4px' }}>Suba o PDF</p>
+                      <p style={{ fontSize: 12, color: '#57534e', margin: '0 0 14px', padding: '0 8px' }}>Ele vale para todas as peças {isMobile ? 'acima' : 'à esquerda'}.</p>
                       <FileUploader
                         onGetUploadParameters={getUploadUrl}
-                        onComplete={(result) => { setSharedPdfUrl(convertGCSUrlToLocalPath(result.url)); toast({ title: "Upload concluído", description: "PDF compartilhado enviado com sucesso" }); }}
+                        onComplete={(result) => { setSharedPdfUrl(convertGCSUrlToLocalPath(result.url)); toast({ title: "PDF carregado", description: "Confira as peças e envie o lote." }); }}
                         onError={(error) => { toast({ title: "Erro no upload", description: error.message, variant: "destructive" }); }}
                         accept=".pdf,application/pdf"
                         buttonVariant="ghost"
-                        buttonClassName="h-8 text-[10px] font-bold uppercase tracking-wider bg-stone-900 text-white rounded-full px-4 hover:bg-stone-700 hover:text-white"
+                        buttonClassName="h-10 text-[13px] font-semibold bg-stone-900 text-white rounded-lg px-4 hover:bg-stone-700 hover:text-white"
                       >
-                        Selecionar Arquivo
+                        Escolher PDF
                       </FileUploader>
                     </>
                   )}
@@ -5192,9 +5442,11 @@ export default function Arte() {
           </div>
           <ModalFooter>
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', alignItems: 'center' }}>
+              {/* Cancelar com contorno, como nos modais de dispensa e devolução:
+                  transparente e sem borda ele lia como legenda, não como saída. */}
               <button
                 onClick={() => { setShowBulkDialog(false); setSharedPdfUrl(""); }}
-                style={{ height: 40, padding: '0 16px', borderRadius: 8, border: 'none', background: 'transparent', color: '#57534e', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
+                style={{ height: 40, padding: '0 16px', borderRadius: 8, border: '1px solid #e7e5e4', background: '#ffffff', color: '#57534e', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
               >
                 Cancelar
               </button>
@@ -5202,10 +5454,11 @@ export default function Arte() {
                 disabled={submitBulkForApprovalMutation.isPending || !sharedPdfUrl}
                 onClick={handleBulkSubmit}
                 data-testid="button-submit-bulk-pdf"
+                title={!sharedPdfUrl ? 'Suba o PDF para liberar o envio' : undefined}
                 style={{
                   height: 40, padding: '0 20px', borderRadius: 8, border: 'none',
-                  // #c2410c no lugar do #f97316 (2,8:1 com texto branco); AA.
-                  backgroundColor: (submitBulkForApprovalMutation.isPending || !sharedPdfUrl) ? '#e7e5e4' : '#c2410c',
+                  // Tinta, como os demais primários da Arte (era #c2410c).
+                  backgroundColor: (submitBulkForApprovalMutation.isPending || !sharedPdfUrl) ? '#e7e5e4' : '#1c1917',
                   color: (submitBulkForApprovalMutation.isPending || !sharedPdfUrl) ? '#57534e' : '#ffffff',
                   fontWeight: 700, fontSize: 13,
                   cursor: (submitBulkForApprovalMutation.isPending || !sharedPdfUrl) ? 'not-allowed' : 'pointer',
@@ -5213,11 +5466,16 @@ export default function Arte() {
                   transition: 'background-color 0.15s',
                 }}
               >
+                {/* Spinner em cinza: durante o envio o fundo é o cinza do
+                    desabilitado, e o spinner branco de antes sumia nele. O
+                    rótulo diz QUANTAS vão — as mesmas que o envio aceita
+                    (só aguardando envio; ver handleBulkSubmit). */}
                 {submitBulkForApprovalMutation.isPending ? (
-                  <><div style={{ width: 14, height: 14, borderRadius: '50%', border: '2px solid rgba(255,255,255,0.4)', borderTopColor: '#fff', animation: 'spin 0.8s linear infinite' }} />Enviando…</>
-                ) : (
-                  <>Enviar lote <Send style={{ width: 14, height: 14 }} /></>
-                )}
+                  <><div aria-hidden="true" style={{ width: 14, height: 14, borderRadius: '50%', border: '2px solid #d6d3d1', borderTopColor: '#57534e', animation: 'spin 0.8s linear infinite' }} />Enviando…</>
+                ) : (() => {
+                  const n = Array.from(selectedItemIds).filter(id => itemPorId.get(id)?.status === 'awaiting_submission').length;
+                  return <><Send aria-hidden="true" style={{ width: 14, height: 14 }} />{n > 0 ? `Enviar ${n} ${n === 1 ? 'peça' : 'peças'}` : 'Enviar lote'}</>;
+                })()}
               </button>
             </div>
           </ModalFooter>
@@ -5279,20 +5537,23 @@ export default function Arte() {
             {existingBookUrl && !bookFileUrl && (
               <div>
                 <label style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#57534e', display: 'block', marginBottom: 6 }}>Book atual</label>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', borderRadius: 12, border: '1.5px solid #fed7aa', background: '#fff7ed' }}>
-                  <div style={{ width: 32, height: 32, borderRadius: 8, background: 'linear-gradient(135deg,#f97316,#ea580c)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: '0 3px 8px rgba(249,115,22,0.25)' }}>
-                    <FileText style={{ width: 14, height: 14, color: '#fff' }} />
+                {/* Neutro e chapado: o book atual é CONTEXTO (o que existe hoje),
+                    não alerta — o ladrilho em gradiente laranja com sombra era o
+                    objeto mais saturado do modal, acima do próprio upload. */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', borderRadius: 12, border: '1px solid #e7e5e4', background: '#ffffff', flexWrap: 'wrap' }}>
+                  <div style={{ width: 32, height: 32, borderRadius: 8, background: '#f5f5f4', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <FileText aria-hidden="true" style={{ width: 14, height: 14, color: '#44403c' }} />
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <p style={{ fontSize: 12, fontWeight: 700, color: '#c2410c', margin: 0 }}>Book já enviado</p>
-                    <p style={{ fontSize: 11, color: '#57534e', margin: '1px 0 0' }}>Envie um novo PDF abaixo para substituí-lo</p>
+                    <p style={{ fontSize: 13, fontWeight: 700, color: '#1c1917', margin: 0 }}>Este evento já tem book</p>
+                    <p style={{ fontSize: 12, color: '#57534e', margin: '1px 0 0' }}>O PDF que você subir abaixo substitui o atual</p>
                   </div>
                   <a
                     href={existingBookUrl} target="_blank" rel="noopener noreferrer"
                     onClick={e => e.stopPropagation()}
-                    style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 700, color: '#c2410c', textDecoration: 'none', background: '#fff', border: '1px solid #fed7aa', borderRadius: 6, padding: '5px 10px', flexShrink: 0, whiteSpace: 'nowrap' }}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 4, minHeight: 32, fontSize: 12, fontWeight: 600, color: '#1c1917', textDecoration: 'none', background: '#fff', border: '1px solid #d6d3d1', borderRadius: 8, padding: '0 10px', flexShrink: 0, whiteSpace: 'nowrap' }}
                   >
-                    <ExternalLink style={{ width: 11, height: 11 }} /> Ver book
+                    <ExternalLink aria-hidden="true" style={{ width: 12, height: 12 }} /> Ver book atual
                   </a>
                 </div>
               </div>
@@ -5307,12 +5568,12 @@ export default function Arte() {
                   clique funcionava — mesmo padrão dos outros dropzones da tela. */}
               <label style={{
                 display: 'flex', alignItems: 'center', gap: 14, padding: '16px 18px', borderRadius: 12,
-                border: `2px dashed ${(bookFileUrl || isDragOverBook) ? '#f97316' : '#e2d9cf'}`,
-                background: (bookFileUrl || isDragOverBook) ? '#fff7ed' : 'linear-gradient(135deg,#fdfcfb,#f9f7f5)',
+                border: `1.5px dashed ${isDragOverBook ? '#57534e' : bookFileUrl ? '#86efac' : '#d6d3d1'}`,
+                background: isDragOverBook ? '#f5f5f4' : '#ffffff',
                 cursor: 'pointer', transition: 'all 0.15s',
               }}
-                onMouseEnter={e => { if (!bookFileUrl && !isDragOverBook) { (e.currentTarget as HTMLLabelElement).style.borderColor = '#f97316'; (e.currentTarget as HTMLLabelElement).style.background = '#fff7ed'; } }}
-                onMouseLeave={e => { if (!bookFileUrl && !isDragOverBook) { (e.currentTarget as HTMLLabelElement).style.borderColor = '#e2d9cf'; (e.currentTarget as HTMLLabelElement).style.background = 'linear-gradient(135deg,#fdfcfb,#f9f7f5)'; } }}
+                onMouseEnter={e => { if (!bookFileUrl && !isDragOverBook) { (e.currentTarget as HTMLLabelElement).style.borderColor = '#a8a29e'; (e.currentTarget as HTMLLabelElement).style.background = '#fafaf9'; } }}
+                onMouseLeave={e => { if (!bookFileUrl && !isDragOverBook) { (e.currentTarget as HTMLLabelElement).style.borderColor = '#d6d3d1'; (e.currentTarget as HTMLLabelElement).style.background = '#ffffff'; } }}
                 onDragOver={e => { e.preventDefault(); setIsDragOverBook(true); }}
                 onDragEnter={e => { e.preventDefault(); setIsDragOverBook(true); }}
                 // Ignora o dragleave dos filhos (ícone, textos) — o destaque piscava.
@@ -5324,28 +5585,31 @@ export default function Arte() {
                   void handleBookFile(e.dataTransfer.files?.[0]); // valida .pdf lá dentro
                 }}
               >
-                <div style={{ width: 40, height: 40, borderRadius: 12, background: bookFileUrl ? 'linear-gradient(135deg,#f97316,#ea580c)' : 'linear-gradient(135deg,#fff0e6,#ffe4cc)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 0.15s', boxShadow: bookFileUrl ? '0 4px 10px rgba(249,115,22,0.28)' : 'none' }}>
+                {/* Ladrilho chapado: dois gradientes laranja com sombra colorida
+                    para um ícone de 18px. Carregado, o sinal é o VERDE do
+                    "pronto" (o mesmo das outras zonas de upload), não laranja. */}
+                <div style={{ width: 40, height: 40, borderRadius: 12, background: bookFileUrl ? '#f0fdf4' : '#ffffff', border: `1px solid ${bookFileUrl ? '#bbf7d0' : '#e7e5e4'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 0.15s' }}>
                   {bookUploading
-                    ? <div style={{ width: 14, height: 14, borderRadius: '50%', border: '2px solid rgba(249,115,22,0.3)', borderTopColor: '#f97316', animation: 'spin 0.8s linear infinite' }} />
+                    ? <div style={{ width: 14, height: 14, borderRadius: '50%', border: '2px solid #e7e5e4', borderTopColor: '#1c1917', animation: 'spin 0.8s linear infinite' }} />
                     : bookFileUrl
-                      ? <FileText style={{ width: 18, height: 18, color: '#fff' }} />
+                      ? <CheckCircle aria-hidden="true" style={{ width: 18, height: 18, color: '#15803d' }} />
                       : existingBookUrl
-                        ? <RefreshCw style={{ width: 16, height: 16, color: '#ea580c' }} />
-                        : <FileText style={{ width: 18, height: 18, color: '#ea580c' }} />
+                        ? <RefreshCw aria-hidden="true" style={{ width: 16, height: 16, color: '#44403c' }} />
+                        : <Upload aria-hidden="true" style={{ width: 18, height: 18, color: '#44403c' }} />
                   }
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <p style={{ fontSize: 13, fontWeight: 700, color: bookFileUrl ? '#c2410c' : '#1c1917', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {bookUploading ? 'Enviando arquivo…' : bookFileName || (existingBookUrl ? 'Escolher novo PDF…' : 'Arrastar ou clicar para adicionar PDF')}
+                  <p style={{ fontSize: 13, fontWeight: 700, color: '#1c1917', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {bookUploading ? 'Enviando arquivo…' : bookFileName || (existingBookUrl ? 'Escolher o novo PDF…' : 'Arraste o PDF aqui ou clique para escolher')}
                   </p>
                   {!bookFileUrl && !bookUploading && (
-                    <p style={{ fontSize: 11, color: '#57534e', margin: '2px 0 0' }}>Somente arquivos .PDF · Qualquer tamanho</p>
+                    <p style={{ fontSize: 12, color: '#57534e', margin: '2px 0 0' }}>Só arquivos .pdf, de qualquer tamanho</p>
                   )}
                   {bookFileUrl && (
-                    <p style={{ fontSize: 11, color: '#c2410c', margin: '2px 0 0', fontWeight: 600 }}>✓ Arquivo carregado — pronto para salvar</p>
+                    <p style={{ fontSize: 12, color: '#15803d', margin: '2px 0 0', fontWeight: 600 }}>Carregado — marque as peças e salve</p>
                   )}
                 </div>
-                {bookFileUrl && <span style={{ fontSize: 11, fontWeight: 700, color: '#c2410c', flexShrink: 0, padding: '4px 10px', border: '1px solid #fed7aa', borderRadius: 6, background: '#fff' }}>Trocar</span>}
+                {bookFileUrl && <span aria-hidden="true" style={{ fontSize: 12, fontWeight: 600, color: '#1c1917', flexShrink: 0, padding: '5px 10px', border: '1px solid #d6d3d1', borderRadius: 8, background: '#fff' }}>Trocar</span>}
                 <input type="file" accept="application/pdf,.pdf" className="sr-only"
                   onChange={e => { handleBookFile(e.target.files?.[0]); e.target.value = ''; }} />
               </label>
@@ -5364,14 +5628,16 @@ export default function Arte() {
                 </div>
                 {bookEventPieces.length > 0 && (
                   <div style={{ display: 'flex', gap: 2, alignItems: 'center' }}>
-                    <button onClick={() => setBookSelectedIds(new Set(bookEventPieces.map((i: any) => i.id)))}
-                      style={{ background: 'none', border: 'none', padding: '3px 8px', fontSize: 11, fontWeight: 700, color: '#c2410c', cursor: 'pointer', borderRadius: 6, transition: 'color 0.1s', textDecoration: 'underline', textDecorationColor: 'transparent', textUnderlineOffset: '2px' }}
+                    {/* minHeight 32: com padding de 3px os dois atalhos tinham
+                        ~20px de alvo, abaixo do mínimo de 24. */}
+                    <button type="button" onClick={() => setBookSelectedIds(new Set(bookEventPieces.map((i: any) => i.id)))}
+                      style={{ background: 'none', border: 'none', minHeight: 32, padding: '0 8px', fontSize: 12, fontWeight: 700, color: '#c2410c', cursor: 'pointer', borderRadius: 6, transition: 'color 0.1s', textDecoration: 'underline', textDecorationColor: 'transparent', textUnderlineOffset: '2px' }}
                       onMouseEnter={e => { e.currentTarget.style.textDecorationColor = '#c2410c'; }}
                       onMouseLeave={e => { e.currentTarget.style.textDecorationColor = 'transparent'; }}
                     >Todas</button>
                     <span style={{ color: '#d4d4d0', userSelect: 'none' }}>·</span>
-                    <button onClick={() => setBookSelectedIds(new Set())}
-                      style={{ background: 'none', border: 'none', padding: '3px 8px', fontSize: 11, fontWeight: 700, color: '#57534e', cursor: 'pointer', borderRadius: 6, transition: 'color 0.1s', textDecoration: 'underline', textDecorationColor: 'transparent', textUnderlineOffset: '2px' }}
+                    <button type="button" onClick={() => setBookSelectedIds(new Set())}
+                      style={{ background: 'none', border: 'none', minHeight: 32, padding: '0 8px', fontSize: 12, fontWeight: 700, color: '#57534e', cursor: 'pointer', borderRadius: 6, transition: 'color 0.1s', textDecoration: 'underline', textDecorationColor: 'transparent', textUnderlineOffset: '2px' }}
                       onMouseEnter={e => { e.currentTarget.style.textDecorationColor = '#a8a29e'; }}
                       onMouseLeave={e => { e.currentTarget.style.textDecorationColor = 'transparent'; }}
                     >Nenhuma</button>
@@ -5417,7 +5683,7 @@ export default function Arte() {
                         )}
                       </span>
                       {item.bookUrl && (
-                        <span title="Já tem book" style={{ marginLeft: 'auto', flexShrink: 0, fontSize: 11, fontWeight: 700, color: '#92400e', background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: 6, padding: '2px 8px', letterSpacing: '0.04em' }}>BOOK</span>
+                        <span title="Esta peça já está no book atual" style={{ marginLeft: 'auto', flexShrink: 0, fontSize: 11, fontWeight: 600, color: '#57534e', background: '#f5f5f4', border: '1px solid #e7e5e4', borderRadius: 6, padding: '2px 8px', whiteSpace: 'nowrap' }}>no book atual</span>
                       )}
                     </div>
                   );
@@ -5436,8 +5702,9 @@ export default function Arte() {
 
           <ModalFooter>
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', alignItems: 'center' }}>
+            {/* Cancelar com contorno: mesma gramática dos outros rodapés da Arte. */}
             <button onClick={() => setShowBookModal(false)}
-              style={{ height: 40, padding: '0 16px', borderRadius: 8, background: 'transparent', border: 'none', color: '#57534e', fontSize: 13, fontWeight: 600, cursor: 'pointer', transition: 'color 0.12s' }}
+              style={{ height: 40, padding: '0 16px', borderRadius: 8, background: '#ffffff', border: '1px solid #e7e5e4', color: '#57534e', fontSize: 13, fontWeight: 600, cursor: 'pointer', transition: 'color 0.12s' }}
               onMouseEnter={e => { e.currentTarget.style.color = '#1c1917'; }}
               onMouseLeave={e => { e.currentTarget.style.color = '#57534e'; }}
             >Cancelar</button>
@@ -5447,18 +5714,20 @@ export default function Arte() {
               disabled={!bookFileUrl || bookSelectedIds.size === 0 || bookComentarioFalta || saveBookMutation.isPending}
               title={!bookFileUrl ? 'Adicione o arquivo PDF antes de salvar' : bookSelectedIds.size === 0 ? 'Selecione ao menos uma peça' : bookComentarioFalta ? 'Este evento já tem book — escreva o que mudou nesta versão' : undefined}
               style={{
-                height: 38, padding: '0 20px', borderRadius: 8, border: 'none',
-                background: (!bookFileUrl || bookSelectedIds.size === 0 || bookComentarioFalta || saveBookMutation.isPending) ? '#e7e5e4' : 'linear-gradient(135deg,#1c1917,#292524)',
+                // Tinta chapada, 40px — a altura do Cancelar ao lado (eram 38 e
+                // 40 no mesmo rodapé) e sem gradiente/sombra, como os outros
+                // primários da tela.
+                height: 40, padding: '0 20px', borderRadius: 8, border: 'none',
+                background: (!bookFileUrl || bookSelectedIds.size === 0 || bookComentarioFalta || saveBookMutation.isPending) ? '#e7e5e4' : '#1c1917',
                 color: (!bookFileUrl || bookSelectedIds.size === 0 || bookComentarioFalta || saveBookMutation.isPending) ? '#57534e' : '#fff',
                 fontSize: 13, fontWeight: 700, cursor: (!bookFileUrl || bookSelectedIds.size === 0 || bookComentarioFalta) ? 'not-allowed' : 'pointer',
                 display: 'flex', alignItems: 'center', gap: 7, transition: 'filter 0.12s',
-                boxShadow: (!bookFileUrl || bookSelectedIds.size === 0 || bookComentarioFalta) ? 'none' : '0 2px 8px rgba(28,25,23,0.2)',
               }}
               onMouseEnter={e => { if (bookFileUrl && bookSelectedIds.size > 0 && !bookComentarioFalta) e.currentTarget.style.filter = 'brightness(1.15)'; }}
               onMouseLeave={e => { e.currentTarget.style.filter = 'brightness(1)'; }}
             >
               {saveBookMutation.isPending
-                ? <><div style={{ width: 13, height: 13, borderRadius: '50%', border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', animation: 'spin 0.8s linear infinite' }} />Salvando…</>
+                ? <><div aria-hidden="true" style={{ width: 13, height: 13, borderRadius: '50%', border: '2px solid #d6d3d1', borderTopColor: '#57534e', animation: 'spin 0.8s linear infinite' }} />Salvando…</>
                 : existingBookUrl
                   ? <><RefreshCw style={{ width: 13, height: 13 }} />{`Atualizar book — ${bookSelectedIds.size} peça${bookSelectedIds.size !== 1 ? 's' : ''}`}</>
                   : <><FileText style={{ width: 13, height: 13 }} />{`Salvar book — ${bookSelectedIds.size} peça${bookSelectedIds.size !== 1 ? 's' : ''}`}</>
@@ -5552,14 +5821,16 @@ export default function Arte() {
                     (document.getElementById('bulk-thumb-input') as HTMLInputElement | null)?.click();
                   }}
                 >
+                  {/* Chapado e neutro, como as outras zonas de upload da tela:
+                      o gradiente laranja com sombra colorida só ganhava do
+                      conteúdo. Ao arrastar, o verde continua dizendo "solte". */}
                   <div style={{
-                    width: 44, height: 44, borderRadius: 8,
-                    background: isDragOverBulk ? 'linear-gradient(135deg,#16a34a,#15803d)' : 'linear-gradient(135deg,#f97316,#ea580c)',
+                    width: 44, height: 44, borderRadius: 10,
+                    background: isDragOverBulk ? '#15803d' : '#1c1917',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    boxShadow: isDragOverBulk ? '0 4px 12px rgba(22,163,74,0.3)' : '0 4px 12px rgba(249,115,22,0.3)',
-                    transition: 'all 0.15s',
+                    transition: 'background-color 0.15s',
                   }}>
-                    <Upload style={{ width: 20, height: 20, color: '#fff' }} />
+                    <Upload aria-hidden="true" style={{ width: 20, height: 20, color: '#fff' }} />
                   </div>
                   <div style={{ textAlign: 'center' }}>
                     <p style={{ fontSize: 12, fontWeight: 700, color: isDragOverBulk ? '#15803d' : '#1c1917', margin: '0 0 2px' }}>
@@ -5592,7 +5863,7 @@ export default function Arte() {
                   { label: 'Vinculados',  count: bulkThumbEntries.filter(e => e.matchedItemId && e.status === 'pending').length,  dot: '#16a34a', color: '#15803d', bg: '#f0fdf4', border: '#bbf7d0' },
                   { label: 'Sem vínculo', count: bulkThumbEntries.filter(e => !e.matchedItemId && e.status === 'pending').length, dot: '#f59e0b', color: '#92400e', bg: '#fffbeb', border: '#fde68a' },
                   { label: 'Concluídos',  count: bulkThumbEntries.filter(e => e.status === 'done').length,                        dot: '#7c3aed', color: '#7c3aed', bg: '#f5f3ff', border: '#ddd6fe' },
-                  { label: 'Erro',        count: bulkThumbEntries.filter(e => e.status === 'error').length,                       dot: '#dc2626', color: '#dc2626', bg: '#fef2f2', border: '#fecaca' },
+                  { label: 'Erro',        count: bulkThumbEntries.filter(e => e.status === 'error').length,                       dot: '#dc2626', color: '#b91c1c', bg: '#fef2f2', border: '#fecaca' },
                 ].filter(s => s.count > 0);
                 if (rows.length === 0) return null;
                 return (
@@ -5629,13 +5900,16 @@ export default function Arte() {
               {bulkThumbEntries.length === 0 ? (
                 /* ── Empty state ── */
                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 14 }}>
-                  <div style={{ width: 72, height: 72, borderRadius: 16, background: 'linear-gradient(135deg,#f97316,#ea580c)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 8px 24px rgba(249,115,22,0.25)', opacity: 0.4 }}>
-                    <Upload style={{ width: 30, height: 30, color: '#fff' }} />
+                  {/* Ladrilho neutro: o gradiente laranja com sombra a 40% de
+                      opacidade era um objeto "apagado" de propósito, e parecia
+                      um botão desabilitado. */}
+                  <div style={{ width: 56, height: 56, borderRadius: 14, background: '#ffffff', border: '1px solid #e7e5e4', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <Upload aria-hidden="true" style={{ width: 24, height: 24, color: '#746e69' }} />
                   </div>
                   <div style={{ textAlign: 'center' }}>
                     <p style={{ fontSize: 15, fontWeight: 700, color: '#57534e', margin: '0 0 6px' }}>Nenhuma imagem adicionada</p>
                     <p style={{ fontSize: 12, color: '#57534e', margin: 0, maxWidth: 240, lineHeight: 1.6 }}>
-                      Arraste para a área ao lado ou clique para selecionar
+                      Arraste para a área {isMobile ? 'acima' : 'ao lado'} ou toque nela para escolher
                     </p>
                   </div>
                   <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
@@ -5648,26 +5922,14 @@ export default function Arte() {
                 <>
                   {/* ── Panel header ── */}
                   <div style={{ padding: '11px 18px', borderBottom: '1px solid #ebe8e3', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0, backgroundColor: '#ffffff' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <span style={{ fontSize: 13, fontWeight: 800, color: '#1c1917', fontFamily: '"Space Grotesk", sans-serif' }}>
-                        {bulkThumbEntries.length} {bulkThumbEntries.length === 1 ? 'arquivo' : 'arquivos'}
-                      </span>
-                      {(() => {
-                        const linked = bulkThumbEntries.filter(e => e.matchedItemId && e.status === 'pending').length;
-                        const unlinked = bulkThumbEntries.filter(e => !e.matchedItemId && e.status === 'pending').length;
-                        const done = bulkThumbEntries.filter(e => e.status === 'done').length;
-                        const err = bulkThumbEntries.filter(e => e.status === 'error').length;
-                        return (
-                          <>
-                            {linked > 0 && <span style={{ padding: '2px 8px', borderRadius: 999, backgroundColor: '#dcfce7', color: '#15803d', fontSize: 11, fontWeight: 700, border: '1px solid #bbf7d0' }}>{linked} vinculado{linked !== 1 ? 's' : ''}</span>}
-                            {unlinked > 0 && <span style={{ padding: '2px 8px', borderRadius: 999, backgroundColor: '#fff7ed', color: '#c2410c', fontSize: 11, fontWeight: 700, border: '1px solid #fed7aa' }}>{unlinked} sem vínculo</span>}
-                            {done > 0 && <span style={{ padding: '2px 8px', borderRadius: 999, backgroundColor: '#f5f3ff', color: '#7c3aed', fontSize: 11, fontWeight: 700, border: '1px solid #ddd6fe' }}>{done} enviado{done !== 1 ? 's' : ''}</span>}
-                            {err > 0 && <span style={{ padding: '2px 8px', borderRadius: 999, backgroundColor: '#fef2f2', color: '#b91c1c', fontSize: 11, fontWeight: 700, border: '1px solid #fecaca' }}>{err} erro{err !== 1 ? 's' : ''}</span>}
-                          </>
-                        );
-                      })()}
-                    </div>
-                    <span style={{ fontSize: 11, color: '#57534e', fontWeight: 600 }}>Confirme o vínculo de cada imagem</span>
+                    {/* As quatro pílulas coloridas de contagem saíram daqui: o
+                        "Resumo" do painel ao lado mostra os MESMOS quatro números,
+                        com as mesmas cores — duas faixas de selos dizendo a mesma
+                        coisa a 200px uma da outra. */}
+                    <span style={{ fontSize: 13, fontWeight: 800, color: '#1c1917', fontFamily: '"Space Grotesk", sans-serif' }}>
+                      {bulkThumbEntries.length} {bulkThumbEntries.length === 1 ? 'arquivo' : 'arquivos'}
+                    </span>
+                    <span style={{ fontSize: 12, color: '#57534e', fontWeight: 600 }}>Confira o vínculo de cada imagem</span>
                   </div>
 
                   {/* ── Lista de cards (horizontal) ── */}
@@ -5795,7 +6057,9 @@ export default function Arte() {
                                 <button
                                   onClick={() => setBulkThumbEntries(prev => prev.map(en => en.id === entry.id ? { ...en, matchedItemId: null, ambiguous: false } : en))}
                                   title="Trocar vínculo"
-                                  style={{ flexShrink: 0, background: '#ffffff', border: '1px solid #bfdbfe', borderRadius: 6, padding: '4px 8px', cursor: 'pointer', color: '#1d4ed8', fontSize: 11, fontWeight: 700, transition: 'all 0.12s' }}
+                                  aria-label={`Trocar a peça vinculada a ${entry.file.name}`}
+                                  // 32px de alvo: com padding de 4px o botão tinha ~22.
+                                  style={{ flexShrink: 0, minHeight: 32, background: '#ffffff', border: '1px solid #bfdbfe', borderRadius: 6, padding: '0 10px', cursor: 'pointer', color: '#1d4ed8', fontSize: 12, fontWeight: 700, transition: 'all 0.12s' }}
                                   onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#eff6ff'; }}
                                   onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#ffffff'; }}
                                 >Trocar</button>
@@ -5924,8 +6188,12 @@ export default function Arte() {
               : 0;
             return (
               <div style={{
-                borderTop: '1px solid #ebe8e3', padding: '12px 24px',
+                borderTop: '1px solid #ebe8e3', padding: isMobile ? '12px 16px' : '12px 24px',
                 display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
+                // Quebra no celular: a fileira da direita (Cancelar + dois botões
+                // com a contagem no rótulo) pedia ~480px e, sem quebra, o
+                // "Enviar N thumbs" saía pela borda do modal em 390px.
+                flexWrap: isMobile ? 'wrap' : 'nowrap',
                 backgroundColor: '#ffffff', borderRadius: '0 0 16px 16px', flexShrink: 0,
                 position: 'relative',
               }}>
@@ -5969,34 +6237,37 @@ export default function Arte() {
                 </div>
 
                 {/* Direita: Cancelar → Salvar rascunho → Enviar */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  {/* Ghost — Cancelar */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: isMobile ? 'wrap' : 'nowrap', justifyContent: 'flex-end', width: isMobile ? '100%' : undefined }}>
+                  {/* Cancelar com contorno, como nos outros rodapés da Arte. */}
                   <button
                     onClick={() => closeBulkThumbModal()}
                     aria-disabled={bulkThumbRunning}
-                    style={{ height: 38, padding: '0 16px', borderRadius: 6, background: 'transparent', border: 'none', color: '#57534e', cursor: bulkThumbRunning ? 'not-allowed' : 'pointer', fontSize: 13, fontWeight: 600, transition: 'color 0.12s', opacity: bulkThumbRunning ? 0.4 : 1 }}
+                    style={{ height: isMobile ? 44 : 40, padding: '0 16px', borderRadius: 8, background: '#ffffff', border: '1px solid #e7e5e4', color: '#57534e', cursor: bulkThumbRunning ? 'not-allowed' : 'pointer', fontSize: 13, fontWeight: 600, transition: 'color 0.12s', opacity: bulkThumbRunning ? 0.5 : 1 }}
                     onMouseEnter={e => { e.currentTarget.style.color = '#1c1917'; }}
                     onMouseLeave={e => { e.currentTarget.style.color = '#57534e'; }}
                   >Cancelar</button>
 
-                  {/* Outline — Salvar como rascunho (secundário) */}
+                  {/* Contorno NEUTRO — Salvar como rascunho (secundário). Era
+                      roxo, e disputava com o primário ao lado. */}
                   <button
                     onClick={handleBulkThumbSaveDraft}
                     disabled={isDisabled}
                     data-testid="button-bulk-thumb-save-draft"
                     title="Salva o thumb na peça sem enviá-la para aprovação. A peça continua como rascunho na fila de Arte."
                     style={{
-                      height: 36, padding: '0 16px', borderRadius: 6,
+                      height: isMobile ? 44 : 40, padding: '0 16px', borderRadius: 8,
                       backgroundColor: '#ffffff',
-                      border: `1.5px solid ${isDisabled ? '#e7e5e4' : '#ddd6fe'}`,
-                      color: isDisabled ? '#746e69' : '#7c3aed',
-                      fontSize: 12, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6,
+                      border: '1px solid #d6d3d1',
+                      color: isDisabled ? '#746e69' : '#44403c',
+                      opacity: isDisabled ? 0.7 : 1,
+                      fontSize: 13, fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                      flex: isMobile ? '1 1 auto' : undefined,
                       cursor: isDisabled ? 'not-allowed' : 'pointer', transition: 'all 0.15s',
                     }}
-                    onMouseEnter={e => { if (!isDisabled) e.currentTarget.style.backgroundColor = '#faf5ff'; }}
+                    onMouseEnter={e => { if (!isDisabled) e.currentTarget.style.backgroundColor = '#fafaf9'; }}
                     onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#ffffff'; }}
                   >
-                    <FileImage style={{ width: 12, height: 12 }} />
+                    <FileImage aria-hidden="true" style={{ width: 13, height: 13 }} />
                     {/* Sem nada vinculado o botão dizia "Salvar 0 thumbs": o zero
                         não informa, só ocupa espaço. O rótulo limpo já basta,
                         porque o botão está desabilitado de qualquer forma. */}
@@ -6011,23 +6282,24 @@ export default function Arte() {
                     disabled={isDisabled}
                     data-testid="button-bulk-thumb-confirm"
                     style={{
-                      height: 40, padding: '0 20px', borderRadius: 8,
-                      // Verde #15803d sólido: o gradiente partia de #16a34a,
-                      // que com texto branco fica abaixo de AA.
-                      background: isDisabled ? '#e7e5e4' : '#15803d',
+                      height: isMobile ? 44 : 40, padding: '0 20px', borderRadius: 8,
+                      // TINTA, como os outros primários da Arte: verde nesta
+                      // tela é o ESTADO "enviado" dos cards logo acima, e o
+                      // botão que ainda vai enviar vestia a cor do resultado.
+                      background: isDisabled ? '#e7e5e4' : '#1c1917',
                       border: 'none',
-                      color: isDisabled ? '#746e69' : '#ffffff',
-                      fontSize: 13, fontWeight: 800, display: 'flex', alignItems: 'center', gap: 7,
+                      color: isDisabled ? '#57534e' : '#ffffff',
+                      fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
+                      flex: isMobile ? '1 1 auto' : undefined,
                       cursor: isDisabled ? 'not-allowed' : 'pointer',
-                      boxShadow: isDisabled ? 'none' : '0 4px 12px rgba(21,128,61,0.28)',
-                      transition: 'all 0.15s', letterSpacing: '-0.01em',
+                      transition: 'background-color 0.15s',
                     }}
-                    onMouseEnter={e => { if (!isDisabled) e.currentTarget.style.filter = 'brightness(1.08)'; }}
-                    onMouseLeave={e => { e.currentTarget.style.filter = 'brightness(1)'; }}
+                    onMouseEnter={e => { if (!isDisabled) e.currentTarget.style.backgroundColor = '#44403c'; }}
+                    onMouseLeave={e => { if (!isDisabled) e.currentTarget.style.backgroundColor = '#1c1917'; }}
                   >
                     {bulkThumbRunning
-                      ? <><div style={{ width: 14, height: 14, borderRadius: '50%', border: '2px solid rgba(255,255,255,0.4)', borderTopColor: '#fff', animation: 'spin 0.8s linear infinite' }} />Enviando...</>
-                      : <><Send style={{ width: 14, height: 14 }} />{readyCount > 0 ? `Enviar ${readyCount} ${readyCount === 1 ? 'thumb' : 'thumbs'}` : 'Enviar thumbs'}</>
+                      ? <><div aria-hidden="true" style={{ width: 14, height: 14, borderRadius: '50%', border: '2px solid #d6d3d1', borderTopColor: '#57534e', animation: 'spin 0.8s linear infinite' }} />Enviando…</>
+                      : <><Send aria-hidden="true" style={{ width: 14, height: 14 }} />{readyCount > 0 ? `Enviar ${readyCount} ${readyCount === 1 ? 'thumb' : 'thumbs'}` : 'Enviar thumbs'}</>
                     }
                   </button>
                 </div>

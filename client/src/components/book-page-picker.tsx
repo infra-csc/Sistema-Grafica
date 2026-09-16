@@ -19,10 +19,10 @@
 // As duas bibliotecas entram por import dinâmico: são pesadas e só fazem
 // sentido quando este modal abre, então não pesam no bundle das telas.
 import { useState, useEffect, useRef, useCallback } from "react";
-import { X, Download, BookOpen, Loader2, AlertCircle, FileText, Scissors, Hash, Check } from "lucide-react";
+import { X, Download, BookOpen, Loader2, AlertCircle, FileText, Scissors, Hash, Check, RefreshCw } from "lucide-react";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { FilterSelect } from "@/components/filter-select";
-import { HIDE_NATIVE_CLOSE } from "@/components/modal-shell";
+import { HIDE_NATIVE_CLOSE, ModalHeader, modalSurface } from "@/components/modal-shell";
 import { convertGCSUrlToLocalPath } from "@/lib/artePdfExport";
 import { toast } from "@/hooks/use-toast";
 
@@ -94,6 +94,9 @@ export function BookPagePicker({ open, onOpenChange, books, fileName = "book" }:
   // páginas levar — é ACHÁ-LAS na grade, rolando e conferindo miniatura por
   // miniatura. Quem tem o book aberto do lado já sabe que quer "1-4, 9".
   const [intervalo, setIntervalo] = useState("");
+  // "Tentar de novo" no erro de abertura: entra nas dependências do efeito que
+  // abre o PDF, então incrementar refaz a carga sem fechar o modal.
+  const [tentativa, setTentativa] = useState(0);
 
   // O ArrayBuffer fica guardado para o recorte não precisar baixar de novo — o
   // download deste book leva ~3s.
@@ -143,7 +146,7 @@ export function BookPagePicker({ open, onOpenChange, books, fileName = "book" }:
     })();
 
     return () => { genRef.current++; };
-  }, [open, bookUrl]);
+  }, [open, bookUrl, tentativa]);
 
   const pump = useCallback(async () => {
     if (busyRef.current) return;
@@ -215,7 +218,9 @@ export function BookPagePicker({ open, onOpenChange, books, fileName = "book" }:
       // Revogar na hora cancela o download em alguns navegadores.
       setTimeout(() => URL.revokeObjectURL(url), 30_000);
 
-      toast({ title: "Páginas extraídas", description: `${indexes.length} página(s) do book baixadas.` });
+      // Diz o NOME do arquivo: é por ele que a pessoa procura na pasta de
+      // downloads, e "N página(s) baixadas" não dizia onde nem como.
+      toast({ title: indexes.length === 1 ? "Página extraída" : `${indexes.length} páginas extraídas`, description: `Salvo como "${safeName} — ${indexes.length} pág.pdf".` });
       onOpenChange(false);
     } catch (e: any) {
       toast({ title: "Não foi possível extrair", description: e?.message || "Erro ao recortar o book.", variant: "destructive" });
@@ -263,36 +268,31 @@ export function BookPagePicker({ open, onOpenChange, books, fileName = "book" }:
         // A CONTA certa é `100vh − 48` (24px de respiro em cima e 24 embaixo,
         // simétrico porque o Radix centra) com coluna flex — cabeçalho, barra e
         // rodapé não encolhem e a grade fica com o que sobrar.
-        style={{ width: "min(1040px, 94vw)", borderRadius: 16, overflow: "hidden", border: "none", boxShadow: "0 32px 64px -16px rgba(0,0,0,0.28), 0 0 0 1px rgba(0,0,0,0.05)", maxHeight: "calc(100vh - 48px)", display: "flex", flexDirection: "column" }}>
+        // A CASCA DA CASA (`modalSurface`): mesmo raio, sombra, teto de altura
+        // e — o que faltava aqui — a largura que respeita 8px de margem no
+        // celular (era `94vw`, sem teto em px menores).
+        style={modalSurface(1040)}>
         <DialogTitle className="sr-only">Extrair páginas do book</DialogTitle>
         <DialogDescription className="sr-only">Escolha as páginas do book e baixe um PDF apenas com elas</DialogDescription>
 
-        {/* ══ Cabeçalho ═══════════════════════════════════════════════════ */}
-        <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "22px 32px", background: "linear-gradient(135deg, #1c1917 0%, #2d2926 100%)", borderBottom: "1px solid rgba(255,255,255,0.06)", flexShrink: 0 }}>
-          <div style={{ width: 40, height: 40, borderRadius: 10, backgroundColor: "#6d28d9", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, boxShadow: "0 0 0 1px rgba(255,255,255,0.12) inset" }}>
-            <Scissors style={{ width: 18, height: 18, color: "#fff" }} />
-          </div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            {/* "Recortar" e não "Escolher páginas": o verbo diz o que sai do
-                outro lado. E o subtítulo responde à dúvida que segura o clique
-                — se o recorte perde qualidade em relação ao original. */}
-            <h2 style={{ fontSize: 20, fontWeight: 800, letterSpacing: "-0.03em", color: "#fff", margin: 0, lineHeight: 1.2 }}>
-              Recortar o book
-            </h2>
-            <p style={{ fontSize: 13, color: "rgba(255,255,255,0.72)", margin: "3px 0 0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-              {activeBook ? `${activeBook.label} · ` : ""}{numPages} {numPages === 1 ? "página" : "páginas"} · o recorte sai na qualidade do original
-            </p>
-          </div>
-          <button
-            onClick={() => onOpenChange(false)}
-            aria-label="Fechar"
-            style={{ width: 40, height: 40, borderRadius: "50%", backgroundColor: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.7)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-            <X style={{ width: 16, height: 16 }} />
-          </button>
-        </div>
+        {/* ══ Cabeçalho ═══════════════════════════════════════════════════
+            ModalHeader `work`, no lugar da cópia feita à mão do mesmo desenho
+            (gradiente, ladrilho, X redondo). "Recortar" e não "Escolher
+            páginas": o verbo diz o que sai do outro lado; e o subtítulo
+            responde à dúvida que segura o clique — se o recorte perde
+            qualidade em relação ao original. */}
+        <ModalHeader
+          icon={Scissors}
+          tint="#6d28d9"
+          title="Recortar o book"
+          subtitle={`${activeBook ? `${activeBook.label} · ` : ""}${numPages} ${numPages === 1 ? "página" : "páginas"} · o recorte sai na qualidade do original`}
+          onClose={() => onOpenChange(false)}
+        />
 
-        {/* ══ Barra de controle ═══════════════════════════════════════════ */}
-        <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "12px 32px", borderBottom: "1px solid #ebe8e4", backgroundColor: "#fafaf9", flexWrap: "wrap", flexShrink: 0 }}>
+        {/* ══ Barra de controle ═══════════════════════════════════════════
+            Padding lateral por `clamp`: 32px fixos comiam 64 dos 374 úteis
+            num celular de 390 e empurravam os atalhos para três linhas. */}
+        <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px clamp(16px, 4vw, 32px)", borderBottom: "1px solid #ebe8e4", backgroundColor: "#fafaf9", flexWrap: "wrap", flexShrink: 0 }}>
           {/* kind="field": escolhe QUAL book está sendo folheado — preenche o
               escopo da tela, não recorta uma lista (vocabulário em
               components/filter-select.tsx). A contagem de peças, que antes era
@@ -328,44 +328,46 @@ export function BookPagePicker({ open, onOpenChange, books, fileName = "book" }:
                 onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); marcarPorNumero(); } }}
                 placeholder="1-4, 9, 12"
                 aria-label="Marcar páginas por número, aceita intervalos separados por vírgula"
+                aria-keyshortcuts="Enter"
+                title="Enter marca as páginas digitadas"
                 data-testid="input-book-intervalo"
                 disabled={numPages === 0}
-                style={{ width: 116, height: 34, boxSizing: "border-box", padding: "0 8px 0 24px", borderRadius: 8, border: "1px solid #e4e0db", backgroundColor: "#fff", fontSize: 12, fontFamily: "monospace", color: "#1c1917", outlineOffset: 2 }}
+                style={{ width: 116, height: 36, boxSizing: "border-box", padding: "0 8px 0 24px", borderRadius: 8, border: "1px solid #d6d3d1", backgroundColor: "#fff", fontSize: 13, fontFamily: "monospace", color: "#1c1917", outlineOffset: 2 }}
               />
             </div>
+            {/* 36px, a altura do campo ao lado — eram 24, um botão menor que
+                a caixa de texto que ele confirma. */}
             <button
               onClick={marcarPorNumero}
               disabled={numPages === 0 || !intervalo.trim()}
               data-testid="button-book-marcar-intervalo"
-              style={{ height: 24, padding: "0 10px", borderRadius: 6, backgroundColor: "#f5f3ff", border: "1px solid #ddd6fe", color: numPages === 0 || !intervalo.trim() ? "#c4c0ba" : "#5b21b6", fontSize: 11, fontWeight: 700, cursor: numPages === 0 || !intervalo.trim() ? "default" : "pointer" }}>
+              style={{ height: 36, padding: "0 12px", borderRadius: 8, backgroundColor: "#f5f3ff", border: "1px solid #ddd6fe", color: "#5b21b6", opacity: numPages === 0 || !intervalo.trim() ? 0.5 : 1, fontSize: 12, fontWeight: 700, cursor: numPages === 0 || !intervalo.trim() ? "not-allowed" : "pointer" }}>
               Marcar
             </button>
           </div>
 
-          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <button
-              onClick={() => setPicked(new Set(pages))}
-              disabled={numPages === 0 || picked.size === numPages}
-              style={{ background: "none", border: "none", padding: 0, fontSize: 12, fontWeight: 700, color: numPages === 0 || picked.size === numPages ? "#c4c0ba" : "#6d28d9", cursor: numPages === 0 || picked.size === numPages ? "default" : "pointer" }}>
-              Todas
-            </button>
-            <span style={{ color: "#e4e0db" }}>·</span>
-            {/* INVERTER é novo: recortar "tudo menos a capa e as duas últimas"
-                era clicar 19 vezes num book de 22 páginas. */}
-            <button
-              onClick={() => setPicked(new Set(pages.filter((n: number) => !picked.has(n))))}
-              disabled={numPages === 0}
-              data-testid="button-book-inverter"
-              style={{ background: "none", border: "none", padding: 0, fontSize: 12, fontWeight: 700, color: numPages === 0 ? "#c4c0ba" : "#6d28d9", cursor: numPages === 0 ? "default" : "pointer" }}>
-              Inverter
-            </button>
-            <span style={{ color: "#e4e0db" }}>·</span>
-            <button
-              onClick={() => setPicked(new Set())}
-              disabled={picked.size === 0}
-              style={{ background: "none", border: "none", padding: 0, fontSize: 12, fontWeight: 700, color: picked.size === 0 ? "#c4c0ba" : "#6d28d9", cursor: picked.size === 0 ? "default" : "pointer" }}>
-              Limpar
-            </button>
+          {/* Os três atalhos tinham padding 0 — alvo do tamanho do texto
+              (~16px de altura) — e, desabilitados, letra #c4c0ba. Agora 36px
+              de alvo e desabilitado por opacidade sobre a cor real, como o
+              resto da casa. */}
+          <div role="group" aria-label="Seleção rápida" style={{ display: "flex", alignItems: "center", gap: 2 }}>
+            {([
+              { rotulo: "Todas", acao: () => setPicked(new Set(pages)), off: numPages === 0 || picked.size === numPages, testId: undefined },
+              // INVERTER: recortar "tudo menos a capa e as duas últimas" era
+              // clicar 19 vezes num book de 22 páginas.
+              { rotulo: "Inverter", acao: () => setPicked(new Set(pages.filter((n: number) => !picked.has(n)))), off: numPages === 0, testId: "button-book-inverter" },
+              { rotulo: "Limpar", acao: () => setPicked(new Set()), off: picked.size === 0, testId: undefined },
+            ]).map(b => (
+              <button
+                key={b.rotulo}
+                type="button"
+                onClick={b.acao}
+                disabled={b.off}
+                data-testid={b.testId}
+                style={{ height: 36, padding: "0 8px", borderRadius: 8, background: "none", border: "none", fontSize: 12, fontWeight: 700, color: "#6d28d9", opacity: b.off ? 0.45 : 1, cursor: b.off ? "not-allowed" : "pointer" }}>
+                {b.rotulo}
+              </button>
+            ))}
           </div>
 
           {numPages > 0 && renderedCount < numPages && (
@@ -383,25 +385,35 @@ export function BookPagePicker({ open, onOpenChange, books, fileName = "book" }:
             porque quem limita agora é o teto do Content. `flex: 0 1 auto` +
             `minHeight: 0` derruba o piso automático do item flex e deixa a
             grade encolher abaixo dos 520 numa janela baixa. */}
-        <div style={{ maxHeight: 520, overflowY: "auto", padding: 32, backgroundColor: "#fff", flex: "0 1 auto", minHeight: 0 }}>
+        <div style={{ maxHeight: 520, overflowY: "auto", padding: "clamp(16px, 4vw, 32px)", backgroundColor: "#fff", flex: "0 1 auto", minHeight: 0 }}>
           {error && (
-            <div style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: 16, borderRadius: 10, backgroundColor: "#fef2f2", border: "1px solid #fecaca" }}>
-              <AlertCircle style={{ width: 16, height: 16, color: "#b91c1c", flexShrink: 0, marginTop: 1 }} />
-              <div>
+            <div role="alert" style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: 16, borderRadius: 10, backgroundColor: "#fef2f2", border: "1px solid #fecaca" }}>
+              <AlertCircle aria-hidden="true" style={{ width: 16, height: 16, color: "#b91c1c", flexShrink: 0, marginTop: 1 }} />
+              <div style={{ flex: 1, minWidth: 0 }}>
                 <p style={{ fontSize: 13, fontWeight: 700, color: "#991b1b", margin: "0 0 4px" }}>Não foi possível abrir o book</p>
-                <p style={{ fontSize: 12, color: "#b91c1c", margin: 0, lineHeight: 1.5 }}>{error}</p>
+                <p style={{ fontSize: 12, color: "#991b1b", margin: 0, lineHeight: 1.5 }}>{error}</p>
+                {/* A saída ao lado do problema. Sem ela, a única forma de tentar
+                    de novo era fechar o modal e reabrir pela exportação. */}
+                <button
+                  type="button"
+                  onClick={() => setTentativa(t => t + 1)}
+                  style={{ marginTop: 10, display: "inline-flex", alignItems: "center", gap: 6, height: 36, padding: "0 14px", borderRadius: 8, border: "1px solid #fecaca", backgroundColor: "#fff", color: "#991b1b", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+                  <RefreshCw aria-hidden="true" style={{ width: 13, height: 13 }} /> Tentar de novo
+                </button>
               </div>
             </div>
           )}
 
           {opening && !error && (
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12, padding: "80px 0" }}>
-              <Loader2 style={{ width: 26, height: 26, color: "#6d28d9" }} className="animate-spin" />
+            <div role="status" style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12, padding: "80px 0" }}>
+              <Loader2 aria-hidden="true" style={{ width: 26, height: 26, color: "#6d28d9" }} className="animate-spin" />
               <p style={{ fontSize: 13, color: "#57534e", margin: 0 }}>Abrindo o book…</p>
             </div>
           )}
 
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(190px, 1fr))", gap: 16 }}>
+          {/* `min(150px, 100%)`: com 190px fixos o celular ficava com UMA
+              miniatura por linha — 22 páginas viravam 22 telas de rolagem. */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(150px, 100%), 1fr))", gap: "clamp(10px, 2vw, 16px)" }}>
             {pages.map(i => (
               <PageTile
                 key={i}
@@ -423,7 +435,7 @@ export function BookPagePicker({ open, onOpenChange, books, fileName = "book" }:
             volta procurando as bordas roxas. Com as páginas escritas aqui, a
             seleção fica verificável sem sair do lugar — e cada pílula desmarca
             no × para corrigir um engano sem caçar a miniatura. */}
-        <div style={{ display: "flex", alignItems: "center", gap: 16, padding: "14px 32px", borderTop: "1px solid #ebe8e4", backgroundColor: "#fff", flexShrink: 0, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px clamp(16px, 4vw, 32px)", borderTop: "1px solid #ebe8e4", backgroundColor: "#fff", flexShrink: 0, flexWrap: "wrap" }}>
           <div style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
             {marcadas.length === 0 ? (
               <span style={{ fontSize: 12, color: "#746e69" }}>Marque as páginas que precisa, ou digite os números acima.</span>
@@ -433,11 +445,13 @@ export function BookPagePicker({ open, onOpenChange, books, fileName = "book" }:
                 {marcadas.slice(0, 8).map(n => (
                   <span key={n} style={{ display: "inline-flex", alignItems: "center", gap: 4, backgroundColor: "#f5f3ff", border: "1px solid #ddd6fe", borderRadius: 999, padding: "2px 4px 2px 9px", fontSize: 11, fontWeight: 700, fontFamily: "monospace", color: "#5b21b6" }}>
                     {n}
+                    {/* 22px de alvo dentro da pílula (eram 16): o × é o jeito
+                        de corrigir um engano sem caçar a miniatura. */}
                     <button
                       onClick={() => setPicked(prev => { const x = new Set(prev); x.delete(n); return x; })}
                       aria-label={`Desmarcar a página ${n}`}
-                      style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 16, height: 16, borderRadius: 999, border: "none", background: "none", color: "#6d28d9", cursor: "pointer", fontSize: 12, lineHeight: 1, padding: 0 }}>
-                      ×
+                      style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 22, height: 22, borderRadius: 999, border: "none", background: "none", color: "#6d28d9", cursor: "pointer", fontSize: 13, lineHeight: 1, padding: 0 }}>
+                      <X aria-hidden="true" style={{ width: 11, height: 11 }} />
                     </button>
                   </span>
                 ))}
@@ -448,9 +462,11 @@ export function BookPagePicker({ open, onOpenChange, books, fileName = "book" }:
             )}
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+            {/* Cancelar com contorno e os dois botões na MESMA altura (eram 40 e
+                46): a gramática dos rodapés da Arte e do Atendimento. */}
             <button
               onClick={() => onOpenChange(false)}
-              style={{ height: 40, padding: "0 14px", borderRadius: 8, background: "none", border: "none", color: "#746e69", cursor: "pointer", fontSize: 12, fontWeight: 600 }}>
+              style={{ height: 40, padding: "0 14px", borderRadius: 8, background: "#fff", border: "1px solid #e7e5e4", color: "#57534e", cursor: "pointer", fontSize: 13, fontWeight: 600 }}>
               Cancelar
             </button>
             <button
@@ -458,7 +474,7 @@ export function BookPagePicker({ open, onOpenChange, books, fileName = "book" }:
               disabled={picked.size === 0 || extracting}
               data-testid="button-extract-book-pages"
               style={{
-                height: 46, padding: "0 18px", borderRadius: 10, border: "none",
+                height: 40, padding: "0 18px", borderRadius: 8, border: "none",
                 backgroundColor: picked.size === 0 || extracting ? "#e7e5e4" : "#6d28d9",
                 color: picked.size === 0 || extracting ? "#57534e" : "#fff",
                 cursor: picked.size === 0 || extracting ? "not-allowed" : "pointer",

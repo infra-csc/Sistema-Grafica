@@ -138,7 +138,7 @@ export function DetalheDoPedido({ pedido, agora, seloDe, acoesDaLinha, acoes = [
   if (pedido) ultimo.current = pedido;
   const p = pedido ?? ultimo.current;
 
-  const { data: registros = [], isLoading, isError } = useQuery<RegistroDeAuditoria[]>({
+  const { data: registros = [], isLoading, isError, refetch, isFetching } = useQuery<RegistroDeAuditoria[]>({
     queryKey: [`/api/audit-logs?entityType=pedido_de_peca&entityId=${p?.id ?? ""}&limit=100`],
     enabled: !!pedido,
   });
@@ -172,7 +172,7 @@ export function DetalheDoPedido({ pedido, agora, seloDe, acoesDaLinha, acoes = [
           <div style={{ display: "flex", flexDirection: "column", gap: 14, minWidth: 0 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
               <EstadoDoPedido status={p.status} />
-              {acoes.length > 0 && fechandoAntes(acoes).map((a) => <BotaoDoCartao key={a.chave} acao={a} altura={isMobile ? 44 : 34} />)}
+              {acoes.length > 0 && fechandoAntes(acoes).map((a) => <BotaoDoCartao key={a.chave} acao={a} altura={isMobile ? 44 : 36} />)}
             </div>
             {linhas.map((l, i) => (
               <PecaDoDetalhe key={l.id} linha={l} numero={i + 1} agora={agora} selo={seloDe(l)} acoes={fechandoAntes(acoesDaLinha(l))} />
@@ -181,10 +181,19 @@ export function DetalheDoPedido({ pedido, agora, seloDe, acoesDaLinha, acoes = [
 
           <section data-testid="historico-do-pedido" aria-labelledby="titulo-historico-pedido" style={{ minWidth: 0 }}>
             <h3 id="titulo-historico-pedido" style={TITULO_DA_SECAO}>Histórico</h3>
+            {/* Falha no histórico tem botão de tentar de novo: a frase antiga
+                ("feche e abra a solicitação") mandava perder o lugar para
+                refazer o que um clique faz. */}
             {isLoading ? (
               <p role="status" style={{ margin: 0, fontSize: FS.body, color: "#57534e" }}>Carregando o histórico…</p>
             ) : isError ? (
-              <p role="alert" style={{ margin: 0, fontSize: FS.body, color: "#b91c1c" }}>Não foi possível carregar o histórico. Feche e abra a solicitação para tentar de novo.</p>
+              <p role="alert" style={{ margin: 0, fontSize: FS.body, color: "#b91c1c", lineHeight: 1.45 }}>
+                Não foi possível carregar o histórico.{" "}
+                <button type="button" onClick={() => refetch()} disabled={isFetching} data-testid="button-recarregar-historico"
+                  style={{ border: "none", background: "none", padding: "0 4px", minHeight: isMobile ? 44 : 36, fontSize: FS.body, fontWeight: 800, textDecoration: "underline", color: T.text, cursor: isFetching ? "wait" : "pointer" }}>
+                  {isFetching ? "Tentando…" : "Tentar de novo"}
+                </button>
+              </p>
             ) : historico.length === 0 ? (
               <p style={{ margin: 0, fontSize: FS.body, color: "#57534e" }}>Nenhum registro ainda.</p>
             ) : (

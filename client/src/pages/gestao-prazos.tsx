@@ -36,7 +36,7 @@ import type {
 import {
   addDaysStr, apiErrorMessage, currentStageIdx, diasTexto, eventHasOverdue,
   fmtDayMonth, fmtDiaSemana, fmtRelative, fmtSaida, normalize, pecasTexto, saidaChip,
-  weekdayOfDay, LEGENDA_TRILHA, R, SHADOW,
+  rolagem, weekdayOfDay, LEGENDA_TRILHA, R, SHADOW,
   STAGE_HEADERS, STAGE_SECTOR, STAGE_SHORT, TI, urlSetorDoEvento,
 } from "@/components/prazos/tokens";
 import { StageCell } from "@/components/prazos/stage-cell";
@@ -728,6 +728,14 @@ export default function GestaoPrazos() {
   // ── Blocos de estado ──────────────────────────────────────────────────────
   let body: React.ReactNode;
 
+  // Alvo dos botões e links dos ESTADOS (erro, vazio, dado antigo) e do rodapé
+  // do modal. Eram `padding: 9px` soltos — ~36px no desktop e os mesmos 36 no
+  // dedo — e "Tentar de novo"/"Abrir o evento completo" nem isso (~18px de
+  // texto puro). São justamente as saídas de quem travou: recebem a régua da
+  // casa, 36 no ponteiro e 44 no toque. `minHeight` em vez de mais padding, e
+  // o desenho do desktop não muda.
+  const alvoEstado = isMobile ? 44 : 36;
+
   if (isLoading) {
     // Skeleton RAMIFICADO por visão: o antigo desenhava uma faixa de 120px
     // onde hoje há um botão de ~44px e linhas empilhadas onde o padrão é um
@@ -809,7 +817,8 @@ export default function GestaoPrazos() {
           href="/"
           data-testid="link-voltar-painel"
           style={{
-            display: "inline-flex", padding: "9px 18px", borderRadius: R.md,
+            display: "inline-flex", alignItems: "center", minHeight: alvoEstado,
+            padding: "0 18px", borderRadius: R.md,
             backgroundColor: TI.ink, color: "#ffffff",
             fontSize: 13, fontWeight: 700, textDecoration: "none",
           }}
@@ -834,8 +843,8 @@ export default function GestaoPrazos() {
           onClick={() => refetch()}
           data-testid="button-retry-prazos"
           style={{
-            display: "inline-flex", alignItems: "center", gap: 8,
-            padding: "9px 18px", borderRadius: R.md, border: "none",
+            display: "inline-flex", alignItems: "center", gap: 8, minHeight: alvoEstado,
+            padding: "0 18px", borderRadius: R.md, border: "none",
             backgroundColor: TI.ink, color: "#ffffff",
             fontSize: 13, fontWeight: 700, cursor: "pointer",
           }}
@@ -861,7 +870,8 @@ export default function GestaoPrazos() {
         <Link
           href="/eventos"
           style={{
-            display: "inline-flex", padding: "9px 18px", borderRadius: R.md,
+            display: "inline-flex", alignItems: "center", minHeight: alvoEstado,
+            padding: "0 18px", borderRadius: R.md,
             backgroundColor: TI.ink, color: "#ffffff",
             fontSize: 13, fontWeight: 700, textDecoration: "none",
           }}
@@ -926,7 +936,7 @@ export default function GestaoPrazos() {
           onClick={clearFilters}
           data-testid="button-limpar-filtros"
           style={{
-            padding: "9px 18px", borderRadius: R.md, border: `1px solid ${TI.border}`,
+            minHeight: alvoEstado, padding: "0 18px", borderRadius: R.md, border: `1px solid ${TI.border}`,
             backgroundColor: TI.card, color: TI.title,
             fontSize: 13, fontWeight: 700, cursor: "pointer",
           }}
@@ -1450,7 +1460,7 @@ export default function GestaoPrazos() {
             <button
               type="button"
               onClick={() => refetch()}
-              style={{ background: "none", border: "none", padding: 0, fontSize: 13, fontWeight: 700, color: TI.accentText, cursor: "pointer", textDecoration: "underline" }}
+              style={{ display: "inline-flex", alignItems: "center", minHeight: alvoEstado, background: "none", border: "none", padding: 0, fontSize: 13, fontWeight: 700, color: TI.accentText, cursor: "pointer", textDecoration: "underline" }}
             >
               Tentar de novo
             </button>
@@ -1995,7 +2005,7 @@ export default function GestaoPrazos() {
                         direita navegava para fora do modal sem aviso. */}
                     <Link
                       href={`/eventos/${modalEv.eventId ?? modalEv.id}`}
-                      style={{ fontSize: 12, fontWeight: 600, color: TI.secondary, textDecoration: "none" }}
+                      style={{ display: "inline-flex", alignItems: "center", minHeight: alvoEstado, fontSize: 12, fontWeight: 600, color: TI.secondary, textDecoration: "none" }}
                     >
                       Abrir o evento completo →
                     </Link>
@@ -2030,10 +2040,10 @@ export default function GestaoPrazos() {
               setSoInvalidos(false); setBusca(""); setPrioridade("all"); setDiaFoco("");
               setEventoFiltro("all");
               setEtapaFoco(k);
-              window.scrollTo({ top: 0, behavior: "smooth" });
+              window.scrollTo({ top: 0, behavior: rolagem() });
             }}
             diaFoco={diaFoco}
-            onDiaFoco={(d) => { setDiaFoco(d); window.scrollTo({ top: 0, behavior: "smooth" }); }}
+            onDiaFoco={(d) => { setDiaFoco(d); window.scrollTo({ top: 0, behavior: rolagem() }); }}
           />
         )}
       </div>

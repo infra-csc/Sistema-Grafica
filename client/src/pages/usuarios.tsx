@@ -1,5 +1,5 @@
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { FreezeWhileClosing } from "@/components/modal-shell";
+import { FreezeWhileClosing, HIDE_NATIVE_CLOSE, ModalFooter, ModalHeader, modalSurface } from "@/components/modal-shell";
 import { useState } from "react";
 import { useLocation } from "wouter";
 import { FilterSelect } from "@/components/filter-select";
@@ -16,10 +16,11 @@ import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import {
   UserPlus, Pencil, Trash2, Search,
-  ChevronLeft, ChevronRight, X, AlertTriangle, Check,
+  ChevronLeft, ChevronRight, X, Check,
 } from "lucide-react";
-import { T, FS } from "@/lib/theme";
+import { T, FS, R } from "@/lib/theme";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useFiltrosNaUrl, paginaValida } from "@/hooks/use-filtros-na-url";
 
 /**
  * O QUE CADA PERFIL CONCEDE.
@@ -124,19 +125,74 @@ const PAGE_SIZE = 10;
 /* ── Titanium Input ── */
 const tiInput: React.CSSProperties = {
   width: "100%", padding: "11px 14px",
-  backgroundColor: "#f0efee", border: "none", borderRadius: 6,
+  backgroundColor: "#f0efee", border: "none", borderRadius: R.md,
   fontSize: 13, color: T.text,
-  transition: "all 0.2s",
+  transition: "background-color 0.15s ease, box-shadow 0.15s ease",
 };
 
 /* ── Filter select ── */
 const filterSel: React.CSSProperties = {
-  padding: "8px 12px", backgroundColor: T.surface,
-  border: `1px solid ${T.border}`, borderRadius: 6,
-  fontSize: 11, fontWeight: 700, color: T.second,
+  height: 40, padding: "0 12px", backgroundColor: T.surface,
+  border: `1px solid ${T.border}`, borderRadius: R.md,
+  fontSize: 12, fontWeight: 700, color: T.second,
   cursor: "pointer",
   appearance: "none", WebkitAppearance: "none",
 };
+
+/* ── Desenho comum das telas de cadastro ──
+   Usuários, Patrocinadores, Modelos e Logs repetem estes controles com as
+   MESMAS medidas (40px de alvo, raio 8, rótulo 12/800 em caixa alta). Antes
+   cada tela tinha o seu: Modelos salvava em laranja com raio 12, Usuários
+   escrevia 13px, Patrocinadores 11px — trocar de cadastro parecia trocar de
+   produto. Copiado (e não importado) porque cada tela é dona do próprio
+   arquivo; se mudar aqui, mude nas outras três. */
+const BTN_PRIMARIO: React.CSSProperties = {
+  display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8,
+  height: 40, padding: "0 18px", backgroundColor: T.dark, color: "#fff",
+  border: "none", borderRadius: R.md, cursor: "pointer",
+  fontSize: 12, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em",
+  whiteSpace: "nowrap", transition: "background-color 0.15s ease",
+};
+const BTN_LIMPAR: React.CSSProperties = {
+  display: "inline-flex", alignItems: "center", gap: 6, height: 36, padding: "0 12px",
+  backgroundColor: "#fef2f2", border: "1px solid #fecaca", borderRadius: R.md, cursor: "pointer",
+  fontSize: 11, fontWeight: 800, color: "#b91c1c", textTransform: "uppercase", letterSpacing: "0.06em", whiteSpace: "nowrap",
+};
+
+/**
+ * PAGINAÇÃO — janela de até 5 páginas em volta da atual, alvos de 32px (44 no
+ * celular) e a página atual cheia em escuro. Some com uma página só: setas
+ * mortas e um "1" solitário eram controle sem função.
+ */
+function Paginacao({ pagina, totalPaginas, onIr, toque }: { pagina: number; totalPaginas: number; onIr: (p: number) => void; toque: number }) {
+  if (totalPaginas <= 1) return null;
+  const inicio = Math.max(1, Math.min(pagina - 2, totalPaginas - 4));
+  const paginas = Array.from({ length: Math.min(5, totalPaginas) }, (_, i) => inicio + i);
+  const base: React.CSSProperties = {
+    minWidth: toque, height: toque, padding: "0 6px", display: "inline-flex", alignItems: "center", justifyContent: "center",
+    borderRadius: R.md, border: `1px solid ${T.border}`, backgroundColor: T.surface, color: T.second,
+    fontSize: 12, fontWeight: 700, cursor: "pointer", transition: "background-color 0.12s ease, border-color 0.12s ease",
+  };
+  const seta = (desligada: boolean): React.CSSProperties => ({ ...base, opacity: desligada ? 0.4 : 1, cursor: desligada ? "not-allowed" : "pointer" });
+  return (
+    <nav aria-label="Paginação" style={{ display: "flex", alignItems: "center", gap: 4 }}>
+      <button type="button" onClick={() => onIr(pagina - 1)} disabled={pagina === 1} aria-label="Página anterior" style={seta(pagina === 1)}>
+        <ChevronLeft aria-hidden="true" style={{ width: 14, height: 14 }} />
+      </button>
+      {paginas.map(p => (
+        <button key={p} type="button" onClick={() => onIr(p)} aria-label={`Página ${p}`} aria-current={p === pagina ? "page" : undefined}
+          style={p === pagina ? { ...base, backgroundColor: T.dark, borderColor: T.dark, color: "#fff" } : base}>
+          {p}
+        </button>
+      ))}
+      <button type="button" onClick={() => onIr(pagina + 1)} disabled={pagina === totalPaginas} aria-label="Próxima página" style={seta(pagina === totalPaginas)}>
+        <ChevronRight aria-hidden="true" style={{ width: 14, height: 14 }} />
+      </button>
+    </nav>
+  );
+}
+
+const PERFIS_VALIDOS = Object.keys(ROLE_CFG);
 
 export default function Usuarios() {
   const isMobile = useIsMobile();
@@ -144,9 +200,19 @@ export default function Usuarios() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [deletingUser, setDeletingUser] = useState<User | null>(null);
-  const [search, setSearch] = useState("");
-  const [roleFilter, setRoleFilter] = useState("all");
-  const [page, setPage] = useState(1);
+  // RECORTE NA URL (regra da casa): F5, voltar e o link mandado a um colega
+  // devolvem a mesma busca, o mesmo perfil e a mesma página. Mudar busca ou
+  // perfil volta para a página 1 no MESMO update — como já era.
+  const { valores: filtros, definir, atualizar, limpar } = useFiltrosNaUrl(
+    { busca: "", perfil: "all", pagina: 1 },
+    { aceita: { perfil: v => v === "all" || PERFIS_VALIDOS.includes(v), pagina: paginaValida } },
+  );
+  const search = filtros.busca;
+  const roleFilter = filtros.perfil;
+  const page = filtros.pagina;
+  const setPage = (p: number) => definir("pagina", p);
+  const limparFiltros = () => limpar();
+  const toque = isMobile ? 44 : 32;
   const { toast } = useToast();
 
   const { data: users = [], isLoading, isError, refetch } = useQuery<User[]>({ queryKey: ["/api/users"] });
@@ -279,48 +345,42 @@ export default function Usuarios() {
     .filter(o => o.count > 0);
 
   return (
-    <div style={{ backgroundColor: T.bg, height: "100%", overflowY: "auto", padding: isMobile ? "14px 16px 48px" : "28px 32px 64px" }}>
+    <div style={{ backgroundColor: T.bg, height: "100%", overflowY: "auto", padding: isMobile ? "16px 16px 48px" : "28px 32px 64px" }}>
 
       {/* ── Header ── */}
-      <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 28, gap: 16, flexWrap: "wrap" }}>
+      <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 24, gap: 16, flexWrap: "wrap" }}>
         <div>
           <h1 style={{ fontSize: FS.h1, fontWeight: 700, color: T.text, margin: "0 0 6px", fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.03em", lineHeight: 1.1 }}>
             Usuários
           </h1>
-          <p style={{ fontSize: 15, color: T.second, margin: 0 }}>
+          <p style={{ fontSize: FS.body, color: T.second, margin: 0, lineHeight: 1.5, maxWidth: 640 }}>
             Gerencie usuários, perfis e permissões de acesso ao sistema
           </p>
         </div>
         <button
           data-testid="button-new-user"
           onClick={openCreate}
-          style={{
-            display: "flex", alignItems: "center", gap: 8,
-            padding: "11px 22px", backgroundColor: T.dark, color: "#fff",
-            border: "none", borderRadius: 6, cursor: "pointer",
-            fontSize: 13, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em",
-            transition: "background 0.15s", whiteSpace: "nowrap",
-          }}
+          style={{ ...BTN_PRIMARIO, width: isMobile ? "100%" : undefined }}
           onMouseEnter={e => (e.currentTarget.style.backgroundColor = "#292524")}
           onMouseLeave={e => (e.currentTarget.style.backgroundColor = T.dark)}
         >
-          <UserPlus style={{ width: 15, height: 15 }} />
+          <UserPlus aria-hidden="true" style={{ width: 15, height: 15 }} />
           Novo Usuário
         </button>
       </div>
 
       {/* ── Role chips summary ── */}
-      <div style={{ display: "flex", gap: 8, marginBottom: 20, flexWrap: "wrap" }}>
+      <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap", alignItems: "center" }}>
         {Object.entries(ROLE_CFG).map(([role, cfg]) => (
           <button
             key={role}
-            onClick={() => { setRoleFilter(roleFilter === role ? "all" : role); setPage(1); }}
+            onClick={() => atualizar({ perfil: roleFilter === role ? "all" : role, pagina: 1 })}
             // O chip é um alternador: aria-pressed diz ao leitor de tela o que
             // hoje só a cor dizia (qual perfil está filtrando a tabela).
             aria-pressed={roleFilter === role}
             title={roleFilter === role ? "Mostrar todos os perfis" : `Mostrar só ${cfg.label}`}
             style={{
-              padding: "5px 14px", borderRadius: 999,
+              minHeight: isMobile ? 36 : 28, padding: "0 14px", borderRadius: 999,
               backgroundColor: roleFilter === role ? cfg.bg : T.low,
               border: `1px solid ${roleFilter === role ? cfg.color + "40" : T.border}`,
               color: roleFilter === role ? cfg.color : T.second,
@@ -342,14 +402,14 @@ export default function Usuarios() {
           não cabem numa linha — sem quebra, a barra estourava para o lado. */}
       <div style={{ display: "flex", gap: 10, marginBottom: 16, alignItems: "center", flexWrap: "wrap" }}>
         <div style={{ position: "relative", flex: isMobile ? "1 1 100%" : 1, maxWidth: isMobile ? "none" : 360 }}>
-          <Search style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", width: 14, height: 14, color: T.muted }} />
+          <Search aria-hidden="true" style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", width: 14, height: 14, color: T.muted }} />
           <input
-            value={search} onChange={e => { setSearch(e.target.value); setPage(1); }}
-            placeholder="Buscar por nome ou email..."
+            value={search} onChange={e => atualizar({ busca: e.target.value, pagina: 1 })}
+            placeholder="Buscar por nome ou e-mail..."
             aria-label="Buscar usuário por nome ou e-mail"
             type="search"
             data-testid="input-search-users"
-            style={{ ...tiInput, paddingLeft: 34, paddingTop: 9, paddingBottom: 9, width: "100%" }}
+            style={{ ...tiInput, height: 40, padding: "0 12px 0 36px", borderRadius: R.md, width: "100%" }}
             onFocus={e => { e.currentTarget.style.backgroundColor = "#fff"; e.currentTarget.style.boxShadow = "0 0 0 2px rgba(249,115,22,0.2)"; }}
             onBlur={e => { e.currentTarget.style.backgroundColor = "#f0efee"; e.currentTarget.style.boxShadow = "none"; }}
           />
@@ -357,16 +417,17 @@ export default function Usuarios() {
         <FilterSelect
           label="Perfil" allLabel="Todos os perfis"
           value={roleFilter}
-          onChange={v => { setRoleFilter(v); setPage(1); }}
+          onChange={v => atualizar({ perfil: v, pagina: 1 })}
           options={roleFilterOptions}
           searchPlaceholder="Buscar perfil..." emptyText="Nenhum perfil encontrado."
           hideWhenEmpty={false} testId="select-role-filter"
           triggerStyle={filterSel}
         />
         {(search || roleFilter !== "all") && (
-          <button onClick={() => { setSearch(""); setRoleFilter("all"); setPage(1); }}
-            style={{ display: "flex", alignItems: "center", gap: 5, padding: "7px 12px", backgroundColor: "#fef2f2", border: "1px solid #fecaca", borderRadius: 6, cursor: "pointer", fontSize: 10, fontWeight: 800, color: "#b91c1c", textTransform: "uppercase" }}>
-            <X style={{ width: 10, height: 10 }} /> Limpar
+          // N = quantos filtros o botão desfaz — o mesmo "Limpar (N)" de
+          // Patrocinadores, Logs e Modelos.
+          <button type="button" onClick={limparFiltros} style={BTN_LIMPAR}>
+            <X aria-hidden="true" style={{ width: 11, height: 11 }} /> Limpar ({(search ? 1 : 0) + (roleFilter !== "all" ? 1 : 0)})
           </button>
         )}
         <span style={{ marginLeft: "auto", fontSize: 11, color: T.second, fontWeight: 600 }}>
@@ -395,8 +456,9 @@ export default function Usuarios() {
             <p style={{ fontSize: 13, fontWeight: 700, color: T.text, margin: "0 0 4px" }}>Não foi possível carregar os usuários</p>
             <p style={{ fontSize: 12, color: T.second, margin: "0 0 16px" }}>Verifique sua conexão e tente novamente.</p>
             <button
+              type="button"
               onClick={() => refetch()}
-              style={{ padding: "8px 18px", backgroundColor: T.dark, color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em" }}
+              style={{ ...BTN_PRIMARIO, height: 36, fontSize: 11 }}
             >
               Tentar novamente
             </button>
@@ -409,8 +471,9 @@ export default function Usuarios() {
               <>
                 <p style={{ fontSize: 13, color: T.second, margin: "0 0 14px" }}>Nenhum usuário corresponde à busca e aos filtros aplicados.</p>
                 <button
-                  onClick={() => { setSearch(""); setRoleFilter("all"); setPage(1); }}
-                  style={{ padding: "8px 16px", backgroundColor: T.surface, border: `1px solid ${T.bdark}`, borderRadius: 6, cursor: "pointer", fontSize: 11, fontWeight: 700, color: T.text, textTransform: "uppercase", letterSpacing: "0.06em" }}
+                  type="button"
+                  onClick={limparFiltros}
+                  style={{ ...BTN_PRIMARIO, height: 36, backgroundColor: T.surface, color: T.text, border: `1px solid ${T.bdark}`, fontSize: 11 }}
                 >
                   Limpar filtros
                 </button>
@@ -518,7 +581,7 @@ export default function Usuarios() {
                               data-testid={`button-edit-${user.id}`}
                               onClick={() => openEdit(user)}
                               aria-label={`Editar usuário ${user.name}`}
-                              style={{ padding: 7, color: T.second, backgroundColor: "transparent", border: "none", borderRadius: 6, cursor: "pointer", display: "flex", alignItems: "center", transition: "all 0.12s" }}
+                              style={{ width: toque, height: toque, color: T.second, backgroundColor: "transparent", border: "none", borderRadius: R.md, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", transition: "background-color 0.12s ease, color 0.12s ease" }}
                               onMouseEnter={e => { e.currentTarget.style.backgroundColor = T.low; e.currentTarget.style.color = T.text; }}
                               onMouseLeave={e => { e.currentTarget.style.backgroundColor = "transparent"; e.currentTarget.style.color = T.second; }}
                             >
@@ -529,7 +592,7 @@ export default function Usuarios() {
                                 data-testid={`button-delete-${user.id}`}
                                 onClick={() => setDeletingUser(user)}
                                 aria-label={`Excluir usuário ${user.name}`}
-                                style={{ padding: 7, color: T.second, backgroundColor: "transparent", border: "none", borderRadius: 6, cursor: "pointer", display: "flex", alignItems: "center", transition: "all 0.12s" }}
+                                style={{ width: toque, height: toque, color: T.second, backgroundColor: "transparent", border: "none", borderRadius: R.md, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", transition: "background-color 0.12s ease, color 0.12s ease" }}
                                 onMouseEnter={e => { e.currentTarget.style.backgroundColor = "#fef2f2"; e.currentTarget.style.color = "#b91c1c"; }}
                                 onMouseLeave={e => { e.currentTarget.style.backgroundColor = "transparent"; e.currentTarget.style.color = T.second; }}
                               >
@@ -546,39 +609,11 @@ export default function Usuarios() {
             </div>
 
             {/* Pagination footer */}
-            <div style={{ padding: "12px 20px", borderTop: `1px solid ${T.border}`, display: "flex", alignItems: "center", justifyContent: "space-between", backgroundColor: "rgba(243,244,243,0.5)" }}>
-              <p style={{ fontSize: 11, color: T.second, fontWeight: 500, margin: 0 }}>
+            <div style={{ padding: "10px 20px", borderTop: `1px solid ${T.border}`, display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10, backgroundColor: T.low }}>
+              <p style={{ fontSize: 11, color: T.second, fontWeight: 600, margin: 0 }}>
                 Exibindo {Math.min((safePage - 1) * PAGE_SIZE + 1, filtered.length)}–{Math.min(safePage * PAGE_SIZE, filtered.length)} de {filtered.length} usuário{filtered.length !== 1 ? "s" : ""}
               </p>
-              {/* Uma página só: as setas desabilitadas e o "1" solitário eram
-                  controle sem função. A contagem à esquerda continua. */}
-              {totalPages > 1 && (
-              <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                <button onClick={() => setPage(Math.max(1, safePage - 1))} disabled={safePage === 1}
-                  aria-label="Página anterior"
-                  style={{ padding: 4, color: safePage === 1 ? T.muted : T.second, background: "none", border: "none", cursor: safePage === 1 ? "not-allowed" : "pointer", opacity: safePage === 1 ? 0.35 : 1 }}>
-                  <ChevronLeft style={{ width: 16, height: 16 }} />
-                </button>
-                {Array.from({ length: totalPages }, (_, i) => i + 1).slice(Math.max(0, safePage - 3), Math.min(totalPages, safePage + 2)).map(p => (
-                  <button key={p} onClick={() => setPage(p)}
-                    aria-label={`Página ${p}`}
-                    aria-current={p === safePage ? "page" : undefined}
-                    style={{
-                      width: 28, height: 28, borderRadius: 6, border: p === safePage ? `1px solid ${T.border}` : "1px solid transparent",
-                      backgroundColor: p === safePage ? T.surface : "transparent",
-                      fontSize: 11, fontWeight: p === safePage ? 900 : 600,
-                      color: p === safePage ? T.text : T.second, cursor: "pointer",
-                    }}>
-                    {p}
-                  </button>
-                ))}
-                <button onClick={() => setPage(Math.min(totalPages, safePage + 1))} disabled={safePage === totalPages}
-                  aria-label="Próxima página"
-                  style={{ padding: 4, color: safePage === totalPages ? T.muted : T.second, background: "none", border: "none", cursor: safePage === totalPages ? "not-allowed" : "pointer", opacity: safePage === totalPages ? 0.35 : 1 }}>
-                  <ChevronRight style={{ width: 16, height: 16 }} />
-                </button>
-              </div>
-              )}
+              <Paginacao pagina={safePage} totalPaginas={totalPages} onIr={setPage} toque={toque} />
             </div>
           </>
         )}
@@ -624,9 +659,12 @@ export default function Usuarios() {
             <button
               onClick={() => navigate("/logs-sistema")}
               data-testid="button-ver-logs"
-              style={{ padding: "9px 20px", backgroundColor: T.accentText, color: "#fff", border: "none", borderRadius: 6, fontSize: 10, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.12em", cursor: "pointer", transition: "opacity 0.15s" }}
-              onMouseEnter={e => (e.currentTarget.style.opacity = "0.85")}
-              onMouseLeave={e => (e.currentTarget.style.opacity = "1")}
+              // Botão CLARO sobre o card escuro: é o primário da casa invertido.
+              // O laranja cheio que estava aqui era o único botão laranja das
+              // telas de cadastro.
+              style={{ ...BTN_PRIMARIO, height: 36, backgroundColor: "#fff", color: T.dark, fontSize: 11 }}
+              onMouseEnter={e => (e.currentTarget.style.backgroundColor = "#e7e5e4")}
+              onMouseLeave={e => (e.currentTarget.style.backgroundColor = "#fff")}
             >
               Ver Logs
             </button>
@@ -650,17 +688,15 @@ export default function Usuarios() {
         }}
       >
         <DialogContent
-          className="p-0 gap-0 border-none"
-          // ALTURA: teto de `100vh − 48` (24px de respiro em cima e 24 embaixo;
-          // o desconto é simétrico porque o Radix centra o Content) e coluna
-          // flex, a mesma regra do `modal-shell` e da Gestão de Prazos.
-          // Medi 367px no desktop e 453px em 375 de largura, onde os campos
-          // Email e Perfil empilham. Em 1080, 745 e 445 de altura no desktop
-          // este modal nunca cortou; ele cortava só na combinação 375×445, e
-          // por pouco — 4px de cada lado, porque o Radix centra e o excedente
-          // sai simétrico. Cada FormMessage de validação soma ~20px e piora a
-          // conta. Com o teto, o excedente vira rolagem no corpo.
-          style={{ maxWidth: 520, width: "96vw", borderRadius: 12, overflow: "hidden", boxShadow: "0 24px 64px -12px rgba(0,0,0,0.3)", display: "flex", flexDirection: "column", maxHeight: "calc(100vh - 48px)" }}
+          // HIDE_NATIVE_CLOSE: o X agora é o do ModalHeader, que passa pelo
+          // `requestClose` (e pelo aviso de descarte).
+          className={`p-0 gap-0 border-none ${HIDE_NATIVE_CLOSE}`}
+          // ALTURA: `modalSurface` traz o teto de `100vh − 48` e a coluna flex
+          // (conta por extenso em components/modal-shell.tsx). Medi 367px no
+          // desktop e 453px em 375 de largura, onde os campos Email e Perfil
+          // empilham; cada FormMessage de validação soma ~20px. Com o teto, o
+          // excedente vira rolagem no corpo, e cabeçalho e rodapé ficam à vista.
+          style={modalSurface(520)}
           // FOCO INICIAL no Nome: o Radix foca o primeiro focável, que aqui é o
           // X do cabeçalho — quem abriu "Novo Usuário" tinha de dar Tab antes
           // de digitar (e um Enter distraído fechava o modal).
@@ -679,32 +715,24 @@ export default function Usuarios() {
           {/* Coluna flex: o teto do Content só chega ao formulário se cada elo
               entre os dois for flex e puder encolher (`minHeight: 0`). */}
           <div style={{ display: "flex", flexDirection: "column", flex: "1 1 auto", minHeight: 0 }}>
-            {/* Modal header */}
-            <div style={{ backgroundColor: T.low, padding: "20px 28px", borderBottom: `1px solid ${T.border}`, display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexShrink: 0 }}>
-              <div>
-                <h2 style={{ fontSize: 22, fontWeight: 900, color: T.text, margin: "0 0 3px", fontFamily: "'Space Grotesk', sans-serif", textTransform: "uppercase", letterSpacing: "-0.03em" }}>
-                  {editingUser ? "Editar Usuário" : "Novo Usuário"}
-                </h2>
-                <p style={{ fontSize: 11, color: T.second, margin: 0 }}>
-                  {editingUser ? `Editando ${editingUser.email}` : "O acesso é pela conta Microsoft do e-mail informado"}
-                </p>
-              </div>
-              <button onClick={requestClose}
-                aria-label="Fechar formulário"
-                style={{ padding: 6, color: T.second, background: "none", border: "none", cursor: "pointer", borderRadius: 6, display: "flex", alignItems: "center" }}
-                onMouseEnter={e => (e.currentTarget.style.backgroundColor = T.border)}
-                onMouseLeave={e => (e.currentTarget.style.backgroundColor = "transparent")}>
-                <X style={{ width: 18, height: 18 }} />
-              </button>
-            </div>
+            {/* Cabeçalho da casa (variante `work`): o mesmo dos formulários de
+                Patrocinadores e Modelos. Antes cada um dos três desenhava o
+                seu — cinza em caixa alta aqui, branco 26px lá, 18px no outro. */}
+            <ModalHeader
+              icon={editingUser ? Pencil : UserPlus}
+              tint={T.accentText}
+              title={editingUser ? "Editar usuário" : "Novo usuário"}
+              subtitle={editingUser ? `Editando ${editingUser.email}` : "O acesso é pela conta Microsoft do e-mail informado"}
+              onClose={requestClose}
+            />
 
             {/* Modal form */}
             <Form {...form}>
               {/* `Form` é o FormProvider e não desenha nada, então este <form> é
                   o item flex logo abaixo do cabeçalho — e é o scrollport único
-                  do modal. Os botões moram dentro dele (precisam do submit) e
-                  rolam junto; num formulário de três campos isso não incomoda. */}
-              <form onSubmit={form.handleSubmit(onSubmit)} style={{ padding: "24px 28px", display: "flex", flexDirection: "column", gap: 18, overflowY: "auto", flex: "1 1 auto", minHeight: 0 }}>
+                  do modal. Os botões moram no ModalFooter, FORA da rolagem, e
+                  chegam ao submit pelo atributo `form`. */}
+              <form id="user-form" onSubmit={form.handleSubmit(onSubmit)} style={{ padding: isMobile ? "20px 18px" : "24px 28px", display: "flex", flexDirection: "column", gap: 18, overflowY: "auto", flex: "1 1 auto", minHeight: 0 }}>
 
                 {/* Nome */}
                 <FormField control={form.control} name="name" render={({ field }) => (
@@ -833,22 +861,27 @@ export default function Usuarios() {
                   )} />
                 )}
 
-                {/* Buttons */}
-                <div style={{ display: "flex", gap: 10, paddingTop: 6 }}>
-                  <button type="button" onClick={requestClose}
-                    data-testid="button-cancel"
-                    style={{ flex: 1, padding: "11px 0", border: `1px solid ${T.border}`, backgroundColor: "transparent", borderRadius: 6, fontSize: 11, fontWeight: 700, color: T.second, textTransform: "uppercase", letterSpacing: "0.1em", cursor: "pointer" }}>
-                    Cancelar
-                  </button>
-                  <button type="submit"
-                    data-testid="button-save-user"
-                    disabled={createMutation.isPending || updateMutation.isPending}
-                    style={{ flex: 1, padding: "11px 0", backgroundColor: T.dark, color: "#fff", border: "none", borderRadius: 6, fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", cursor: "pointer", opacity: createMutation.isPending || updateMutation.isPending ? 0.6 : 1 }}>
-                    {createMutation.isPending || updateMutation.isPending ? "Salvando..." : editingUser ? "Salvar Alterações" : "Criar Usuário"}
-                  </button>
-                </div>
               </form>
             </Form>
+
+            {/* Rodapé da casa: primário cheio, recuar discreto abaixo — o
+                mesmo par de Patrocinadores, Modelos e das confirmações. */}
+            <ModalFooter>
+              <button type="submit" form="user-form"
+                data-testid="button-save-user"
+                disabled={createMutation.isPending || updateMutation.isPending}
+                aria-busy={createMutation.isPending || updateMutation.isPending}
+                style={{ height: toque + 4, borderRadius: R.md, border: "none", backgroundColor: T.dark, color: "#fff", fontSize: 14, fontWeight: 800, cursor: createMutation.isPending || updateMutation.isPending ? "wait" : "pointer", opacity: createMutation.isPending || updateMutation.isPending ? 0.7 : 1, transition: "background-color 0.15s ease" }}
+                onMouseEnter={e => (e.currentTarget.style.backgroundColor = "#292524")}
+                onMouseLeave={e => (e.currentTarget.style.backgroundColor = T.dark)}>
+                {createMutation.isPending || updateMutation.isPending ? "Salvando…" : editingUser ? "Salvar alterações" : "Criar usuário"}
+              </button>
+              <button type="button" onClick={requestClose}
+                data-testid="button-cancel"
+                style={{ height: toque, borderRadius: R.md, border: "none", backgroundColor: "transparent", color: "#57534e", fontSize: FS.body, fontWeight: 700, cursor: "pointer" }}>
+                Cancelar
+              </button>
+            </ModalFooter>
           </div>
           </FreezeWhileClosing>
         </DialogContent>
@@ -862,8 +895,11 @@ export default function Usuarios() {
           importa duas vezes — é onde a pessoa mais precisa poder recuar. */}
       <Dialog open={!!deletingUser} onOpenChange={o => { if (!o) setDeletingUser(null); }}>
         <DialogContent
-          className="p-0 gap-0 border-none"
-          style={{ maxWidth: 420, width: "96vw", borderRadius: 12, overflow: "hidden", boxShadow: "0 24px 64px -12px rgba(0,0,0,0.3)", borderLeft: "4px solid #b91c1c" }}
+          className={`p-0 gap-0 border-none ${HIDE_NATIVE_CLOSE}`}
+          style={modalSurface(440)}
+          // Foco inicial no "Manter": numa exclusão, o Enter distraído recua
+          // em vez de apagar alguém.
+          onOpenAutoFocus={e => { e.preventDefault(); document.querySelector<HTMLButtonElement>('[data-testid="button-cancel-delete"]')?.focus(); }}
         >
           {/* POR QUE congelar aqui: quem fecha é `setDeletingUser(null)` no
               onSuccess, e é o mesmo estado que abre o corpo
@@ -873,40 +909,50 @@ export default function Usuarios() {
           <DialogTitle className="sr-only">Excluir usuário</DialogTitle>
           <DialogDescription className="sr-only">Confirme a exclusão do usuário</DialogDescription>
           {deletingUser && (
-            <div style={{ padding: "24px 28px", display: "flex", gap: 14, alignItems: "flex-start" }}>
-              <div style={{ width: 40, height: 40, borderRadius: "50%", backgroundColor: "#fef2f2", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                <AlertTriangle style={{ width: 18, height: 18, color: "#ef4444" }} />
-              </div>
-              <div style={{ flex: 1 }}>
-                <h4 style={{ fontSize: 15, fontWeight: 800, color: T.text, margin: "0 0 6px", fontFamily: "'Space Grotesk', sans-serif" }}>Excluir Usuário?</h4>
-                <p style={{ fontSize: 13, color: T.second, margin: "0 0 8px", lineHeight: 1.5 }}>
-                  Tem certeza que deseja excluir <strong style={{ color: T.text }}>{deletingUser.name}</strong>? Esta ação não pode ser desfeita e o usuário perderá acesso imediato.
+            <>
+              {/* Confirmação da casa (variante `confirm`, cabeçalho claro): a
+                  MESMA casca das exclusões de Patrocinadores e Modelos — antes
+                  eram três desenhos (faixa vermelha, borda à esquerda e o
+                  AlertDialog genérico). */}
+              <ModalHeader
+                icon={Trash2}
+                variant="confirm"
+                tint="#b91c1c"
+                title={`Excluir ${deletingUser.name}?`}
+                subtitle="Esta ação não pode ser desfeita."
+                onClose={() => setDeletingUser(null)}
+              />
+              <div style={{ padding: "16px 24px", overflowY: "auto", flex: "1 1 auto", minHeight: 0, display: "flex", flexDirection: "column", gap: 10 }}>
+                <p style={{ fontSize: FS.body, color: "#44403c", margin: 0, lineHeight: 1.5 }}>
+                  <strong style={{ color: T.text }}>{deletingUser.name}</strong> perde o acesso ao sistema imediatamente.
                 </p>
-                <p style={{ fontSize: 12, color: T.second, margin: "0 0 20px", fontFamily: "'DM Mono', monospace", overflowWrap: "anywhere" }}>
+                <p style={{ fontSize: 12, color: T.second, margin: 0, padding: "9px 12px", borderRadius: R.sm, backgroundColor: T.low, border: `1px solid ${T.border}`, fontFamily: "'DM Mono', monospace", overflowWrap: "anywhere" }}>
                   {deletingUser.email} · {(ROLE_CFG[deletingUser.role] ?? ROLE_CFG.solicitacao).label}
                 </p>
-                {/* Os dois botões eram links de 10px, com a exclusão em
-                    vermelho À ESQUERDA — o lugar em que o olho procura o
-                    "voltar". Agora: recuar é o secundário, excluir é o botão
-                    cheio à direita, mesmo desenho da exclusão de patrocinador. */}
-                <div style={{ display: "flex", gap: 10, alignItems: "center", justifyContent: "flex-end", flexWrap: "wrap" }}>
-                  <button
-                    data-testid="button-cancel-delete"
-                    onClick={() => setDeletingUser(null)}
-                    style={{ padding: "9px 16px", fontSize: 11, fontWeight: 800, color: T.text, background: T.surface, border: `1px solid ${T.border}`, borderRadius: 6, cursor: "pointer", textTransform: "uppercase", letterSpacing: "0.08em" }}>
-                    Manter
-                  </button>
-                  <button
-                    data-testid="button-confirm-delete"
-                    onClick={() => deleteMutation.mutate(deletingUser.id)}
-                    disabled={deleteMutation.isPending}
-                    aria-busy={deleteMutation.isPending}
-                    style={{ padding: "9px 16px", fontSize: 11, fontWeight: 800, color: "#fff", backgroundColor: "#b91c1c", border: "none", borderRadius: 6, cursor: deleteMutation.isPending ? "wait" : "pointer", textTransform: "uppercase", letterSpacing: "0.08em", opacity: deleteMutation.isPending ? 0.7 : 1 }}>
-                    {deleteMutation.isPending ? "Excluindo..." : "Sim, excluir"}
-                  </button>
-                </div>
               </div>
-            </div>
+              {/* Excluir é o cheio (vermelho); recuar é o discreto abaixo —
+                  o par de botões de toda confirmação da casa. */}
+              <ModalFooter>
+                <button
+                  type="button"
+                  data-testid="button-confirm-delete"
+                  onClick={() => deleteMutation.mutate(deletingUser.id)}
+                  disabled={deleteMutation.isPending}
+                  aria-busy={deleteMutation.isPending}
+                  style={{ height: toque + 4, borderRadius: R.md, border: "none", backgroundColor: "#b91c1c", color: "#fff", fontSize: 14, fontWeight: 800, cursor: deleteMutation.isPending ? "wait" : "pointer", opacity: deleteMutation.isPending ? 0.7 : 1, transition: "background-color 0.15s ease" }}
+                  onMouseEnter={e => (e.currentTarget.style.backgroundColor = "#991b1b")}
+                  onMouseLeave={e => (e.currentTarget.style.backgroundColor = "#b91c1c")}>
+                  {deleteMutation.isPending ? "Excluindo…" : "Sim, excluir"}
+                </button>
+                <button
+                  type="button"
+                  data-testid="button-cancel-delete"
+                  onClick={() => setDeletingUser(null)}
+                  style={{ height: toque, borderRadius: R.md, border: "none", backgroundColor: "transparent", color: "#57534e", fontSize: FS.body, fontWeight: 700, cursor: "pointer" }}>
+                  Manter
+                </button>
+              </ModalFooter>
+            </>
           )}
           </FreezeWhileClosing>
         </DialogContent>

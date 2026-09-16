@@ -2,29 +2,23 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { Plus, Layers, Search, Check, ChevronsUpDown, Pencil, Trash2, Ruler, X, Settings, ChevronLeft, ChevronRight, AlertTriangle, Copy } from "lucide-react";
 import { FilterSelect } from "@/components/filter-select";
 import { useState, useEffect, useRef } from "react";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { FreezeWhileClosing, HIDE_NATIVE_CLOSE } from "@/components/modal-shell";
+import { FreezeWhileClosing, HIDE_NATIVE_CLOSE, ModalFooter, ModalHeader, modalSurface } from "@/components/modal-shell";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
-import { FS } from "@/lib/theme";
+import { FS, R, T } from "@/lib/theme";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useFiltrosNaUrl, paginaValida } from "@/hooks/use-filtros-na-url";
 
-// Mantém o rótulo e o visual desta tela, mas delega o comportamento ao filtro
-// padrão do app (busca, ordem alfabética, contagem). Aqui o "sem filtro" é ""
-// em vez de "all", então traduzimos nas duas pontas.
+// Delega o comportamento ao filtro padrão do app (busca, ordem alfabética,
+// contagem). Aqui o "sem filtro" é "" em vez de "all", então traduzimos nas
+// duas pontas. O rótulo em caixa alta que ficava EM CIMA de cada filtro saiu:
+// era a única barra de filtros do app com rótulo externo, e o próprio gatilho
+// já diz a dimensão ("Grupo", "Tipo"…) enquanto está vazio — igual a Usuários
+// e Logs.
 function SearchableSelect({
   label, placeholder, value, options, onChange, testId, counts,
 }: {
@@ -33,27 +27,73 @@ function SearchableSelect({
   counts?: Record<string, number>;
 }) {
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-      <span style={{ fontSize: 10, fontWeight: 700, color: "#746e69", textTransform: "uppercase", letterSpacing: "0.1em" }}>{label}</span>
-      <FilterSelect
-        label={label}
-        allLabel={placeholder}
-        showAllLabelWhenEmpty
-        hideWhenEmpty={false}
-        value={value === "" ? "all" : value}
-        onChange={v => onChange(v === "all" ? "" : v)}
-        options={options.map(o => ({ value: o, label: o, count: counts?.[o] }))}
-        searchPlaceholder={`Buscar ${label.toLowerCase()}...`}
-        emptyText="Nenhuma opção"
-        panelWidth={220}
-        testId={testId}
-        triggerStyle={{
-          height: 36, minWidth: 160, fontSize: 13,
-          backgroundColor: "#ffffff", border: "1px solid #d6d3d1",
-          justifyContent: "space-between",
-        }}
-      />
-    </div>
+    <FilterSelect
+      label={label}
+      allLabel={placeholder}
+      hideWhenEmpty={false}
+      value={value === "" ? "all" : value}
+      onChange={v => onChange(v === "all" ? "" : v)}
+      options={options.map(o => ({ value: o, label: o, count: counts?.[o] }))}
+      searchPlaceholder={`Buscar ${label.toLowerCase()}...`}
+      emptyText="Nenhuma opção"
+      panelWidth={220}
+      testId={testId}
+      triggerStyle={{
+        height: 40, padding: "0 12px", fontSize: 12, fontWeight: 700, color: T.second,
+        backgroundColor: T.surface, border: `1px solid ${T.border}`, borderRadius: R.md,
+      }}
+    />
+  );
+}
+
+/* ── Desenho comum das telas de cadastro ──
+   Usuários, Patrocinadores, Modelos e Logs repetem estes controles com as
+   MESMAS medidas (40px de alvo, raio 8, rótulo 12/800 em caixa alta). Esta
+   tela era a que mais destoava: raio 12, botão de salvar LARANJA e busca no
+   cabeçalho. Copiado (e não importado) porque cada tela é dona do próprio
+   arquivo; se mudar aqui, mude nas outras três. */
+const BTN_PRIMARIO: React.CSSProperties = {
+  display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8,
+  height: 40, padding: "0 18px", backgroundColor: T.dark, color: "#fff",
+  border: "none", borderRadius: R.md, cursor: "pointer",
+  fontSize: 12, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em",
+  whiteSpace: "nowrap", transition: "background-color 0.15s ease",
+};
+const BTN_LIMPAR: React.CSSProperties = {
+  display: "inline-flex", alignItems: "center", gap: 6, height: 36, padding: "0 12px",
+  backgroundColor: "#fef2f2", border: "1px solid #fecaca", borderRadius: R.md, cursor: "pointer",
+  fontSize: 11, fontWeight: 800, color: "#b91c1c", textTransform: "uppercase", letterSpacing: "0.06em", whiteSpace: "nowrap",
+};
+
+/**
+ * PAGINAÇÃO — janela de até 5 páginas em volta da atual, alvos de 32px (44 no
+ * celular) e a página atual cheia em escuro. Some com uma página só.
+ */
+function Paginacao({ pagina, totalPaginas, onIr, toque }: { pagina: number; totalPaginas: number; onIr: (p: number) => void; toque: number }) {
+  if (totalPaginas <= 1) return null;
+  const inicio = Math.max(1, Math.min(pagina - 2, totalPaginas - 4));
+  const paginas = Array.from({ length: Math.min(5, totalPaginas) }, (_, i) => inicio + i);
+  const base: React.CSSProperties = {
+    minWidth: toque, height: toque, padding: "0 6px", display: "inline-flex", alignItems: "center", justifyContent: "center",
+    borderRadius: R.md, border: `1px solid ${T.border}`, backgroundColor: T.surface, color: T.second,
+    fontSize: 12, fontWeight: 700, cursor: "pointer", transition: "background-color 0.12s ease, border-color 0.12s ease",
+  };
+  const seta = (desligada: boolean): React.CSSProperties => ({ ...base, opacity: desligada ? 0.4 : 1, cursor: desligada ? "not-allowed" : "pointer" });
+  return (
+    <nav aria-label="Paginação" style={{ display: "flex", alignItems: "center", gap: 4 }}>
+      <button type="button" onClick={() => onIr(pagina - 1)} disabled={pagina === 1} aria-label="Página anterior" style={seta(pagina === 1)}>
+        <ChevronLeft aria-hidden="true" style={{ width: 14, height: 14 }} />
+      </button>
+      {paginas.map(p => (
+        <button key={p} type="button" onClick={() => onIr(p)} aria-label={`Página ${p}`} aria-current={p === pagina ? "page" : undefined}
+          style={p === pagina ? { ...base, backgroundColor: T.dark, borderColor: T.dark, color: "#fff" } : base}>
+          {p}
+        </button>
+      ))}
+      <button type="button" onClick={() => onIr(pagina + 1)} disabled={pagina === totalPaginas} aria-label="Próxima página" style={seta(pagina === totalPaginas)}>
+        <ChevronRight aria-hidden="true" style={{ width: 14, height: 14 }} />
+      </button>
+    </nav>
   );
 }
 
@@ -208,12 +248,25 @@ function CatRow({ name, count, accentColor, accentBg,
 export default function Modelos() {
   const isMobile = useIsMobile();
   const [open, setOpen] = useState(false);
-  const [page, setPage] = useState(1);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [filterGroup, setFilterGroup] = useState("");
-  const [filterType, setFilterType] = useState("");
-  const [filterMaterial, setFilterMaterial] = useState("");
-  const [filterFinish, setFilterFinish] = useState("");
+  // RECORTE NA URL (regra da casa): busca, os quatro filtros e a página
+  // sobrevivem ao F5 e ao link mandado a quem vai cadastrar a peça. Filtro
+  // novo volta à página 1 no mesmo update, como já era. Renomear/remover uma
+  // categoria no "Gerenciar" continua acompanhando o filtro ativo.
+  const { valores: filtros, definir, atualizar, limpar } = useFiltrosNaUrl(
+    { busca: "", grupo: "", tipo: "", material: "", acabamento: "", pagina: 1 },
+    { aceita: { pagina: paginaValida } },
+  );
+  const searchTerm = filtros.busca;
+  const filterGroup = filtros.grupo;
+  const filterType = filtros.tipo;
+  const filterMaterial = filtros.material;
+  const filterFinish = filtros.acabamento;
+  const page = filtros.pagina;
+  const setPage = (p: number) => definir("pagina", p);
+  const setFilterGroup = (v: string) => definir("grupo", v);
+  const setFilterMaterial = (v: string) => definir("material", v);
+  const setFilterFinish = (v: string) => definir("acabamento", v);
+  const toque = isMobile ? 44 : 32;
   const [typePopoverOpen, setTypePopoverOpen] = useState(false);
   const [materialPopoverOpen, setMaterialPopoverOpen] = useState(false);
   const [finishPopoverOpen, setFinishPopoverOpen] = useState(false);
@@ -581,7 +634,8 @@ export default function Modelos() {
   /* ── shared field style ── */
   const fieldStyle: React.CSSProperties = {
     width: "100%", padding: "11px 14px", backgroundColor: "#f0efee",
-    border: "none", borderRadius: 12, fontSize: 13, color: "#1c1917",
+    // Raio 8 (R.md), o dos campos de Usuários e Patrocinadores — era 12.
+    border: "none", borderRadius: R.md, fontSize: 13, color: "#1c1917",
     fontFamily: "'Plus Jakarta Sans', sans-serif",
   };
   const labelStyle: React.CSSProperties = {
@@ -590,7 +644,7 @@ export default function Modelos() {
   };
 
   return (
-    <div className="modelos-page" style={{ backgroundColor: "#fafaf9", height: "100%", overflowY: "auto", padding: isMobile ? "12px 14px 16px" : "24px 28px 20px" }}>
+    <div className="modelos-page" style={{ backgroundColor: T.bg, height: "100%", overflowY: "auto", padding: isMobile ? "16px 16px 48px" : "28px 32px 64px" }}>
       {/* Placeholder nativo dos inputs: o cinza padrão do navegador reprova
           contraste sobre #f0efee — #78716c passa em todas as superfícies. */}
       <style>{`
@@ -598,42 +652,28 @@ export default function Modelos() {
       `}</style>
 
       {/* ── Page Header ── */}
-      <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 32, gap: 16, flexWrap: "wrap" }}>
+      <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 24, gap: 16, flexWrap: "wrap" }}>
         <div>
-          <h1 style={{ fontSize: FS.h1, fontWeight: 700, color: "#1c1917", margin: 0, letterSpacing: "-0.03em", lineHeight: 1.1, fontFamily: "'Space Grotesk', sans-serif" }}>
+          <h1 style={{ fontSize: FS.h1, fontWeight: 700, color: T.text, margin: "0 0 6px", letterSpacing: "-0.03em", lineHeight: 1.1, fontFamily: "'Space Grotesk', sans-serif" }}>
             Modelos
           </h1>
-          <p style={{ fontSize: 13, color: "#746e69", margin: "4px 0 0" }}>
+          <p style={{ fontSize: FS.body, color: T.second, margin: 0, lineHeight: 1.5, maxWidth: 640 }}>
             Catálogo de modelos reutilizáveis de peças gráficas
           </p>
         </div>
 
-        {/* flexWrap: no celular a busca ocupa 100% e empurrava "Gerenciar" e
-            "Novo Modelo" para fora da tela. */}
+        {/* flexWrap: no celular os dois botões dividem a linha em vez de
+            empurrar um deles para fora da tela. */}
         <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", width: isMobile ? "100%" : undefined }}>
-          {/* Search */}
-          <div style={{ position: "relative", flex: isMobile ? "1 1 100%" : undefined }}>
-            <Search aria-hidden="true" style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", width: 16, height: 16, color: "#c2410c" }} />
-            <input
-              type="search"
-              aria-label="Buscar modelos por nome, tipo ou grupo"
-              placeholder="Buscar modelos..."
-              value={searchTerm}
-              onChange={(e) => { setSearchTerm(e.target.value); setPage(1); }}
-              data-testid="input-search-models"
-              style={{ paddingLeft: 38, paddingRight: 14, height: 40, width: isMobile ? "100%" : 280, backgroundColor: "#e8e8e7", border: "none", borderRadius: 12, fontSize: 13, color: "#1c1917" }}
-            />
-          </div>
-
-          {/* Manage Categories Button */}
+          {/* Manage Categories Button — secundário (contorno) */}
           <button
             data-testid="button-manage-categories"
             onClick={() => setManageOpen(true)}
-            style={{ display: "flex", alignItems: "center", gap: 6, backgroundColor: "transparent", color: "#57534e", border: "1.5px solid #d6d3d1", borderRadius: 12, padding: "0 16px", height: 40, fontSize: 13, fontWeight: 600, cursor: "pointer" }}
-            onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#f5f4f0"; }}
-            onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent"; }}
+            style={{ ...BTN_PRIMARIO, flex: isMobile ? "1 1 0" : undefined, backgroundColor: T.surface, color: T.text, border: `1px solid ${T.bdark}` }}
+            onMouseEnter={e => { e.currentTarget.style.backgroundColor = T.low; }}
+            onMouseLeave={e => { e.currentTarget.style.backgroundColor = T.surface; }}
           >
-            <Settings style={{ width: 15, height: 15 }} />
+            <Settings aria-hidden="true" style={{ width: 15, height: 15 }} />
             Gerenciar
           </button>
 
@@ -641,41 +681,59 @@ export default function Modelos() {
           <button
             data-testid="button-new-model"
             onClick={openCreate}
-            style={{ display: "flex", alignItems: "center", gap: 6, backgroundColor: "#1c1917", color: "#ffffff", border: "none", borderRadius: 12, padding: "0 18px", height: 40, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "'Space Grotesk', sans-serif" }}
-            onMouseEnter={e => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = "#000000")}
-            onMouseLeave={e => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = "#1c1917")}
+            style={{ ...BTN_PRIMARIO, flex: isMobile ? "1 1 0" : undefined }}
+            onMouseEnter={e => (e.currentTarget.style.backgroundColor = "#292524")}
+            onMouseLeave={e => (e.currentTarget.style.backgroundColor = T.dark)}
           >
-            <Plus style={{ width: 16, height: 16 }} />
+            <Plus aria-hidden="true" style={{ width: 15, height: 15 }} />
             Novo Modelo
           </button>
         </div>
       </div>
 
       {/* ── Filter Bar ── */}
+      {/* A busca desceu do cabeçalho para cá: em Usuários, Patrocinadores e
+          Logs ela abre a barra de filtros, e é onde o olho a procura. */}
       {!isLoading && standardItems.length > 0 && (
-        <div style={{ marginBottom: 16, display: "flex", alignItems: "flex-end", gap: 12, flexWrap: "wrap" }}>
+        <div style={{ marginBottom: 16, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+          <div style={{ position: "relative", flex: isMobile ? "1 1 100%" : "0 1 320px" }}>
+            <Search aria-hidden="true" style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", width: 14, height: 14, color: T.muted }} />
+            <input
+              type="search"
+              aria-label="Buscar modelos por nome, tipo ou grupo"
+              placeholder="Buscar por nome, tipo ou grupo..."
+              value={searchTerm}
+              onChange={(e) => atualizar({ busca: e.target.value, pagina: 1 })}
+              data-testid="input-search-models"
+              style={{ width: "100%", height: 40, padding: "0 12px 0 36px", backgroundColor: "#f0efee", border: "none", borderRadius: R.md, fontSize: 13, color: T.text, transition: "background-color 0.15s ease, box-shadow 0.15s ease" }}
+              onFocus={e => { e.currentTarget.style.backgroundColor = "#fff"; e.currentTarget.style.boxShadow = "0 0 0 2px rgba(249,115,22,0.2)"; }}
+              onBlur={e => { e.currentTarget.style.backgroundColor = "#f0efee"; e.currentTarget.style.boxShadow = "none"; }}
+            />
+          </div>
 
           {allGroups.length > 0 && (
-            <SearchableSelect label="Grupo" placeholder="Todos os grupos" value={filterGroup} options={allGroups} counts={groupCounts} onChange={v => { setFilterGroup(v); setPage(1); }} testId="filter-group-select" />
+            <SearchableSelect label="Grupo" placeholder="Todos os grupos" value={filterGroup} options={allGroups} counts={groupCounts} onChange={v => atualizar({ grupo: v, pagina: 1 })} testId="filter-group-select" />
           )}
           {allTypes.length > 0 && (
-            <SearchableSelect label="Tipo" placeholder="Todos os tipos" value={filterType} options={allTypes} counts={typeCounts} onChange={v => { setFilterType(v); setPage(1); }} testId="filter-type-select" />
+            <SearchableSelect label="Tipo" placeholder="Todos os tipos" value={filterType} options={allTypes} counts={typeCounts} onChange={v => atualizar({ tipo: v, pagina: 1 })} testId="filter-type-select" />
           )}
           {allMats.length > 0 && (
-            <SearchableSelect label="Material" placeholder="Todos os materiais" value={filterMaterial} options={allMats} counts={materialCounts} onChange={v => { setFilterMaterial(v); setPage(1); }} testId="filter-material-select" />
+            <SearchableSelect label="Material" placeholder="Todos os materiais" value={filterMaterial} options={allMats} counts={materialCounts} onChange={v => atualizar({ material: v, pagina: 1 })} testId="filter-material-select" />
           )}
           {allFinishes.length > 0 && (
-            <SearchableSelect label="Acabamento" placeholder="Todos os acabamentos" value={filterFinish} options={allFinishes} counts={finishCounts} onChange={v => { setFilterFinish(v); setPage(1); }} testId="filter-finish-select" />
+            <SearchableSelect label="Acabamento" placeholder="Todos os acabamentos" value={filterFinish} options={allFinishes} counts={finishCounts} onChange={v => atualizar({ acabamento: v, pagina: 1 })} testId="filter-finish-select" />
           )}
 
-          {/* Limpar filtros */}
-          {activeFilters > 0 && (
+          {/* Limpar — o mesmo "Limpar (N)" das outras telas, e agora conta e
+              desfaz a busca também (antes a busca ficava para trás). */}
+          {(activeFilters > 0 || searchTerm) && (
             <button
-              onClick={() => { setFilterGroup(""); setFilterType(""); setFilterMaterial(""); setFilterFinish(""); setPage(1); }}
-              style={{ height: 36, paddingLeft: 12, paddingRight: 12, fontSize: 13, fontWeight: 600, color: "#746e69", background: "none", border: "1px solid #e7e5e4", borderRadius: 8, cursor: "pointer", display: "flex", alignItems: "center", gap: 4, alignSelf: "flex-end" }}
+              type="button"
+              onClick={() => limpar()}
+              style={BTN_LIMPAR}
             >
-              <X style={{ width: 11, height: 11 }} />
-              Limpar ({activeFilters})
+              <X aria-hidden="true" style={{ width: 11, height: 11 }} />
+              Limpar ({activeFilters + (searchTerm ? 1 : 0)})
             </button>
           )}
         </div>
@@ -697,40 +755,46 @@ export default function Modelos() {
 
       {/* ── Table Card ── */}
       {isLoading ? (
-        <div role="status" aria-label="Carregando modelos" style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, padding: "64px 0" }}>
-          {/* motion-safe: com "reduzir movimento" o anel fica parado e o texto
-              abaixo carrega sozinho a informação. */}
-          <div className="motion-safe:animate-spin" style={{ width: 32, height: 32, border: "3px solid #e7e5e4", borderTopColor: "#f97316", borderRadius: "50%" }} />
-          <span style={{ fontSize: 13, color: "#746e69" }}>Carregando modelos…</span>
+        // Esqueleto na silhueta da linha (nome · selos · medidas), como em
+        // Usuários, Patrocinadores e Logs — o anel girando era o único
+        // carregamento diferente entre as telas de cadastro.
+        <div role="status" aria-label="Carregando modelos" style={{ backgroundColor: T.surface, border: `1px solid ${T.border}`, borderRadius: 12, overflow: "hidden", padding: "8px 0" }}>
+          {Array.from({ length: 6 }, (_, i) => (
+            <div key={i} className="motion-safe:animate-pulse" style={{ display: "flex", alignItems: "center", gap: 24, padding: "20px 24px", borderBottom: `1px solid ${T.low}` }}>
+              <div style={{ width: 180, height: 12, borderRadius: 4, backgroundColor: T.low }} />
+              <div style={{ width: 70, height: 18, borderRadius: 999, backgroundColor: T.low }} />
+              <div style={{ width: 70, height: 18, borderRadius: 999, backgroundColor: T.low }} />
+              <div style={{ width: 110, height: 12, borderRadius: 4, backgroundColor: T.low }} />
+            </div>
+          ))}
         </div>
       ) : isError ? (
-        <div style={{ backgroundColor: "#ffffff", borderRadius: 12, padding: "64px 32px", textAlign: "center", boxShadow: "0 4px 20px rgba(0,0,0,0.04)" }}>
-          <AlertTriangle style={{ width: 40, height: 40, color: "#b45309", margin: "0 auto 14px" }} />
-          <p style={{ fontSize: 15, fontWeight: 600, color: "#1c1917", margin: "0 0 6px" }}>Não foi possível carregar os modelos</p>
-          <p style={{ fontSize: 13, color: "#746e69", margin: "0 0 20px" }}>Verifique sua conexão e tente novamente</p>
-          <button onClick={() => refetch()}
-            style={{ backgroundColor: "#1c1917", color: "#ffffff", border: "none", borderRadius: 12, padding: "9px 20px", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
+        <div style={{ backgroundColor: T.surface, border: `1px solid ${T.border}`, borderRadius: 12, padding: "56px 24px", textAlign: "center" }}>
+          <p style={{ fontSize: 13, fontWeight: 700, color: T.text, margin: "0 0 4px" }}>Não foi possível carregar os modelos</p>
+          <p style={{ fontSize: 12, color: T.second, margin: "0 0 16px" }}>Verifique sua conexão e tente novamente.</p>
+          <button type="button" onClick={() => refetch()}
+            style={{ ...BTN_PRIMARIO, height: 36, fontSize: 11 }}>
             Tentar novamente
           </button>
         </div>
       ) : standardItems.length === 0 ? (
-        <div style={{ backgroundColor: "#ffffff", borderRadius: 12, padding: "64px 32px", textAlign: "center", boxShadow: "0 4px 20px rgba(0,0,0,0.04)" }}>
-          <Layers style={{ width: 40, height: 40, color: "#d4d0cc", margin: "0 auto 14px" }} />
-          <p style={{ fontSize: 15, fontWeight: 600, color: "#1c1917", margin: "0 0 6px" }}>Nenhum modelo criado</p>
-          <p style={{ fontSize: 13, color: "#746e69", margin: "0 0 20px" }}>Crie modelos para reutilizar configurações de itens</p>
-          <button onClick={openCreate}
-            style={{ backgroundColor: "#1c1917", color: "#ffffff", border: "none", borderRadius: 12, padding: "9px 20px", fontSize: 13, fontWeight: 600, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6 }}>
-            <Plus style={{ width: 14, height: 14 }} /> Criar Primeiro Modelo
+        <div style={{ backgroundColor: T.surface, border: `1px solid ${T.border}`, borderRadius: 12, padding: "56px 24px", textAlign: "center" }}>
+          <Layers aria-hidden="true" style={{ width: 40, height: 40, color: T.muted, margin: "0 auto 12px" }} />
+          <p style={{ fontSize: 15, fontWeight: 700, color: T.text, margin: "0 0 6px" }}>Nenhum modelo criado</p>
+          <p style={{ fontSize: 13, color: T.second, margin: "0 0 16px" }}>Crie modelos para reutilizar configurações de itens</p>
+          <button type="button" onClick={openCreate}
+            style={{ ...BTN_PRIMARIO, height: 36, fontSize: 11 }}>
+            <Plus aria-hidden="true" style={{ width: 13, height: 13 }} /> Criar Primeiro Modelo
           </button>
         </div>
       ) : (
-        <div style={{ backgroundColor: "#ffffff", borderRadius: 12, boxShadow: "0 4px 20px rgba(0,0,0,0.04)" }}>
+        <div style={{ backgroundColor: T.surface, border: `1px solid ${T.border}`, borderRadius: 12, overflow: "hidden" }}>
 
           {/* Tool strip */}
-          <div style={{ padding: "16px 24px", display: "flex", alignItems: "center", justifyContent: "space-between", backgroundColor: "rgba(243,244,243,0.4)", borderBottom: "1px solid #e7e5e4" }}>
+          <div style={{ padding: isMobile ? "12px 16px" : "14px 24px", display: "flex", alignItems: "center", justifyContent: "space-between", backgroundColor: T.surface, borderBottom: `1px solid ${T.border}` }}>
             <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-              <div style={{ width: 40, height: 40, borderRadius: 8, backgroundColor: "#fff7ed", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                <Layers style={{ width: 20, height: 20, color: "#f97316" }} />
+              <div aria-hidden="true" style={{ width: 36, height: 36, borderRadius: R.md, backgroundColor: "#fff7ed", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                <Layers style={{ width: 18, height: 18, color: "#f97316" }} />
               </div>
               <div>
                 <span style={{ fontSize: 13, fontWeight: 700, color: "#1c1917", display: "block" }}>
@@ -747,8 +811,8 @@ export default function Modelos() {
 
           {filteredItems.length === 0 ? (
             <div style={{ padding: "48px 24px", textAlign: "center" }}>
-              <Search style={{ width: 32, height: 32, color: "#d4d0cc", margin: "0 auto 12px" }} />
-              <p style={{ fontSize: 15, fontWeight: 600, color: "#1c1917", margin: "0 0 4px" }}>Nenhum modelo encontrado</p>
+              <Search aria-hidden="true" style={{ width: 32, height: 32, color: T.muted, margin: "0 auto 12px" }} />
+              <p style={{ fontSize: 15, fontWeight: 700, color: T.text, margin: "0 0 4px" }}>Nenhum modelo encontrado</p>
               <p style={{ fontSize: 13, color: "#746e69", margin: "0 0 16px" }}>
                 {searchTerm && activeFilters > 0
                   ? "Nenhum modelo corresponde à busca e aos filtros atuais"
@@ -760,22 +824,23 @@ export default function Modelos() {
                   "Limpar filtros" aqui, cada um desfazendo metade do recorte —
                   e nenhum voltava a paginação para a página 1. */}
               <button
-                onClick={() => { setSearchTerm(""); setFilterGroup(""); setFilterType(""); setFilterMaterial(""); setFilterFinish(""); setPage(1); }}
-                style={{ fontSize: 13, fontWeight: 600, color: "#57534e", background: "none", border: "1px solid #d6d3d1", borderRadius: 8, padding: "6px 14px", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 5 }}>
-                <X style={{ width: 11, height: 11 }} /> {searchTerm && activeFilters > 0 ? "Limpar busca e filtros" : searchTerm ? "Limpar busca" : "Limpar filtros"}
+                type="button"
+                onClick={() => limpar()}
+                style={{ ...BTN_PRIMARIO, height: 36, backgroundColor: T.surface, color: T.text, border: `1px solid ${T.bdark}`, fontSize: 11 }}>
+                <X aria-hidden="true" style={{ width: 11, height: 11 }} /> {searchTerm && activeFilters > 0 ? "Limpar busca e filtros" : searchTerm ? "Limpar busca" : "Limpar filtros"}
               </button>
             </div>
           ) : (
             <div className="scrollbar-visible" style={{ overflowX: "auto" }}>
               <table style={{ width: "100%", borderCollapse: "collapse" }}>
                 <thead>
-                  <tr style={{ backgroundColor: "rgba(243,244,243,0.5)", borderBottom: "1px solid #e7e5e4" }}>
+                  <tr style={{ backgroundColor: T.low, borderBottom: `1px solid ${T.border}` }}>
                     {["Nome", "Grupo", "Tipo", "Medidas", "Uso", "Material", "Acabamento", "Ações"].map(col => (
                       <th key={col} scope="col" style={{
-                        padding: "14px 24px",
+                        padding: "12px 24px",
                         textAlign: col === "Ações" ? "right" : "left",
-                        fontSize: 10, fontWeight: 700, color: "#746e69",
-                        textTransform: "uppercase", letterSpacing: "0.1em", whiteSpace: "nowrap",
+                        fontSize: 10, fontWeight: 900, color: T.second,
+                        textTransform: "uppercase", letterSpacing: "0.16em", whiteSpace: "nowrap",
                       }}>
                         {col}
                       </th>
@@ -914,6 +979,7 @@ export default function Modelos() {
                               testId={`button-edit-model-${item.id}`}
                               title="Editar modelo"
                               ariaLabel={`Editar modelo ${item.name}`}
+                              tamanho={toque}
                             />
                             <HoverIconBtn
                               icon={<Copy style={{ width: 16, height: 16 }} />}
@@ -922,6 +988,7 @@ export default function Modelos() {
                               testId={`button-duplicate-model-${item.id}`}
                               title="Duplicar modelo"
                               ariaLabel={`Duplicar modelo ${item.name}`}
+                              tamanho={toque}
                             />
                             <HoverIconBtn
                               icon={<Trash2 style={{ width: 16, height: 16 }} />}
@@ -930,6 +997,7 @@ export default function Modelos() {
                               testId={`button-delete-model-${item.id}`}
                               title="Excluir modelo"
                               ariaLabel={`Excluir modelo ${item.name}`}
+                              tamanho={toque}
                             />
                           </div>
                         </td>
@@ -943,32 +1011,11 @@ export default function Modelos() {
 
           {/* Paginação */}
           {filteredItems.length > PAGE_SIZE && (
-            <div style={{ padding: "12px 24px", borderTop: "1px solid #e7e5e4", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
-              <span style={{ fontSize: 11, color: "#746e69", fontWeight: 600 }}>
+            <div style={{ padding: "10px 24px", borderTop: `1px solid ${T.border}`, backgroundColor: T.low, display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
+              <span style={{ fontSize: 11, color: T.second, fontWeight: 600 }}>
                 Exibindo {(safePage - 1) * PAGE_SIZE + 1}–{Math.min(safePage * PAGE_SIZE, filteredItems.length)} de {filteredItems.length} modelos
               </span>
-              <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={safePage === 1}
-                  aria-label="Página anterior"
-                  style={{ width: 30, height: 30, display: "flex", alignItems: "center", justifyContent: "center", border: "1px solid #e7e5e4", backgroundColor: "#fff", borderRadius: 8, cursor: safePage === 1 ? "not-allowed" : "pointer", color: safePage === 1 ? "#a8a29e" : "#57534e" }}>
-                  <ChevronLeft style={{ width: 14, height: 14 }} />
-                </button>
-                {Array.from({ length: totalPages }, (_, i) => i + 1)
-                  .slice(Math.max(0, safePage - 3), Math.min(totalPages, safePage + 2))
-                  .map(p => (
-                    <button key={p} onClick={() => setPage(p)}
-                      aria-label={`Página ${p}`}
-                      aria-current={p === safePage ? "page" : undefined}
-                      style={{ width: 30, height: 30, borderRadius: 8, border: p === safePage ? "1px solid #1c1917" : "1px solid #e7e5e4", backgroundColor: p === safePage ? "#1c1917" : "#fff", fontSize: 11, fontWeight: 700, color: p === safePage ? "#fff" : "#57534e", cursor: "pointer" }}>
-                      {p}
-                    </button>
-                  ))}
-                <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={safePage === totalPages}
-                  aria-label="Próxima página"
-                  style={{ width: 30, height: 30, display: "flex", alignItems: "center", justifyContent: "center", border: "1px solid #e7e5e4", backgroundColor: "#fff", borderRadius: 8, cursor: safePage === totalPages ? "not-allowed" : "pointer", color: safePage === totalPages ? "#a8a29e" : "#57534e" }}>
-                  <ChevronRight style={{ width: 14, height: 14 }} />
-                </button>
-              </div>
+              <Paginacao pagina={safePage} totalPaginas={totalPages} onIr={setPage} toque={toque} />
             </div>
           )}
         </div>
@@ -976,7 +1023,10 @@ export default function Modelos() {
 
       {/* ── Modal Criar / Editar ── */}
       <Dialog open={open} onOpenChange={open => { if (!open) requestCloseDialog(); }}>
-        <DialogContent style={{ padding: 0, gap: 0, maxWidth: 640, borderRadius: 16, overflow: "hidden", backgroundColor: "#ffffff", display: "flex", flexDirection: "column", maxHeight: "90vh" }}>
+        {/* Casca da casa (`modalSurface` + ModalHeader + ModalFooter), a mesma
+            dos cadastros de Usuários e Patrocinadores. Antes: teto de 90vh,
+            raio próprio, sem X desenhado e salvar em laranja. */}
+        <DialogContent className={`p-0 gap-0 border-none ${HIDE_NATIVE_CLOSE}`} style={modalSurface(640)}>
           {/* POR QUE congelar aqui: este é o modal com MAIS primitivas do Radix
               do app — 4 Popover + 4 Command (com CommandInput/List/Empty/Group
               e uma CommandItem por opção do catálogo), além do título e da
@@ -991,21 +1041,18 @@ export default function Modelos() {
           <DialogTitle className="sr-only">{editingItem ? "Editar modelo de item" : "Novo modelo de item"}</DialogTitle>
           <DialogDescription className="sr-only">Definição técnica do modelo: nome, tipo, grupo, medidas, material e acabamento</DialogDescription>
 
-          {/* Header */}
-          <div style={{ padding: "24px 32px", display: "flex", alignItems: "flex-start", justifyContent: "space-between", borderBottom: "1px solid #f5f4f0", flexShrink: 0 }}>
-            <div>
-              <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: "#1c1917", fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.02em" }}>
-                {editingItem ? "Editar Modelo de Item" : "Novo Modelo de Item"}
-              </h3>
-              <p style={{ margin: "5px 0 0", fontSize: 10, fontWeight: 700, color: "#746e69", textTransform: "uppercase", letterSpacing: "0.1em" }}>
-                Definição Técnica do Template
-              </p>
-            </div>
-          </div>
+          {/* Header — o X passa pelo `requestCloseDialog` (guarda de descarte). */}
+          <ModalHeader
+            icon={editingItem ? Pencil : duplicando ? Copy : Layers}
+            tint={T.accentText}
+            title={editingItem ? "Editar modelo de item" : duplicando ? "Duplicar modelo de item" : "Novo modelo de item"}
+            subtitle="Definição Técnica do Template"
+            onClose={requestCloseDialog}
+          />
 
           {/* Body */}
-          <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
-            <div style={{ padding: isMobile ? "20px 18px" : "28px 32px", display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 20, overflowY: "auto", flex: 1 }}>
+          <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", flex: "1 1 auto", minHeight: 0 }}>
+            <div style={{ padding: isMobile ? "20px 18px" : "24px 28px", display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 20, overflowY: "auto", flex: "1 1 auto", minHeight: 0 }}>
 
               {/* Nome */}
               <div>
@@ -1508,26 +1555,26 @@ export default function Modelos() {
 
             </div>
 
-            {/* Footer */}
-            <div style={{ padding: "20px 32px", backgroundColor: "rgba(243,244,243,0.5)", borderTop: "1px solid #f5f4f0", display: "flex", justifyContent: "flex-end", gap: 10 }}>
+            {/* Footer — primário ESCURO, como o de todo cadastro. O laranja
+                cheio daqui era o único botão de salvar laranja do app. */}
+            <ModalFooter>
+              <button type="submit" disabled={createStandardItemMutation.isPending}
+                aria-busy={createStandardItemMutation.isPending}
+                data-testid="button-submit-model"
+                style={{ height: toque + 4, borderRadius: R.md, border: "none", backgroundColor: T.dark, color: "#fff", fontSize: 14, fontWeight: 800, cursor: createStandardItemMutation.isPending ? "wait" : "pointer", opacity: createStandardItemMutation.isPending ? 0.7 : 1, transition: "background-color 0.15s ease" }}
+                onMouseEnter={e => { if (!createStandardItemMutation.isPending) e.currentTarget.style.backgroundColor = "#292524"; }}
+                onMouseLeave={e => { e.currentTarget.style.backgroundColor = T.dark; }}
+              >
+                {createStandardItemMutation.isPending
+                  ? (editingItem ? "Atualizando…" : "Criando…")
+                  : (editingItem ? "Salvar alterações" : "Salvar modelo")}
+              </button>
               <button type="button" onClick={requestCloseDialog}
-                style={{ padding: "10px 20px", backgroundColor: "transparent", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 700, color: "#746e69", cursor: "pointer" }}
-                onMouseEnter={e => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = "#e7e5e4")}
-                onMouseLeave={e => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent")}
+                style={{ height: toque, borderRadius: R.md, border: "none", backgroundColor: "transparent", color: "#57534e", fontSize: FS.body, fontWeight: 700, cursor: "pointer" }}
               >
                 Cancelar
               </button>
-              <button type="submit" disabled={createStandardItemMutation.isPending}
-                data-testid="button-submit-model"
-                style={{ padding: "10px 28px", backgroundColor: "#c2410c", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 700, color: "#ffffff", cursor: createStandardItemMutation.isPending ? "not-allowed" : "pointer", opacity: createStandardItemMutation.isPending ? 0.7 : 1, transition: "background-color 0.15s" }}
-                onMouseEnter={e => { if (!createStandardItemMutation.isPending) (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#9a3412"; }}
-                onMouseLeave={e => { if (!createStandardItemMutation.isPending) (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#c2410c"; }}
-              >
-                {createStandardItemMutation.isPending
-                  ? (editingItem ? "Atualizando..." : "Criando...")
-                  : (editingItem ? "Salvar Alterações" : "Salvar Modelo")}
-              </button>
-            </div>
+            </ModalFooter>
           </form>
           </FreezeWhileClosing>
         </DialogContent>
@@ -1540,27 +1587,24 @@ export default function Modelos() {
             DialogContent base já renderiza um X no canto — ficavam DOIS botões
             de fechar sobrepostos, e o de cima fechava sem limpar nada. Mesmo
             defeito que o cadastro de patrocinador tinha. */}
-        <DialogContent className={`p-0 gap-0 border-none ${HIDE_NATIVE_CLOSE}`} style={{ maxWidth: 580, width: "96vw", borderRadius: 16, overflow: "hidden" }}>
+        <DialogContent className={`p-0 gap-0 border-none ${HIDE_NATIVE_CLOSE}`} style={modalSurface(580)}>
           <DialogTitle className="sr-only">Gerenciar categorias</DialogTitle>
           <DialogDescription className="sr-only">Grupos, materiais e acabamentos usados nos modelos</DialogDescription>
 
 
           {manageOpen && (
-          <div style={{ display: "flex", flexDirection: "column", maxHeight: "85vh", overflow: "hidden" }}>
+          <div style={{ display: "flex", flexDirection: "column", flex: "1 1 auto", minHeight: 0, overflow: "hidden" }}>
 
-            {/* Header */}
-            <div style={{ padding: "24px 28px 0" }}>
-              <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 20 }}>
-                <div>
-                  <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: "#1c1917", letterSpacing: "-0.03em" }}>Gerenciar Categorias</h2>
-                  <p style={{ margin: "4px 0 0", fontSize: 13, color: "#746e69" }}>Renomeie ou remova categorias dos modelos em lote</p>
-                </div>
-                <button onClick={() => { setManageOpen(false); setMgEditingGroup(null); setMgEditingFinish(null); setMgEditingMaterial(null); setMgDeleteGroupConfirm(null); setMgDeleteFinishConfirm(null); setMgDeleteMaterialConfirm(null); }}
-                  aria-label="Fechar gerenciamento de categorias"
-                  style={{ width: 34, height: 34, borderRadius: 12, border: "1px solid #e7e5e4", background: "#fafaf9", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#746e69", flexShrink: 0, marginTop: 2 }}>
-                  <X style={{ width: 15, height: 15 }} />
-                </button>
-              </div>
+            {/* Header — cabeçalho da casa, o mesmo do formulário de modelo. O X
+                também limpa os seis estados de edição pendentes. */}
+            <ModalHeader
+              icon={Settings}
+              tint={T.accentText}
+              title="Gerenciar categorias"
+              subtitle="Renomeie ou remova categorias dos modelos em lote"
+              onClose={() => { setManageOpen(false); setMgEditingGroup(null); setMgEditingFinish(null); setMgEditingMaterial(null); setMgDeleteGroupConfirm(null); setMgDeleteFinishConfirm(null); setMgDeleteMaterialConfirm(null); }}
+            />
+            <div style={{ padding: isMobile ? "12px 16px 0" : "16px 28px 0", flexShrink: 0, overflowX: "auto" }}>
 
               {/* Tabs */}
               {(() => {
@@ -1595,7 +1639,7 @@ export default function Modelos() {
             </div>
 
             {/* Body — scrollable list */}
-            <div style={{ overflowY: "auto", padding: "16px 28px 24px", flex: 1 }}>
+            <div style={{ overflowY: "auto", padding: isMobile ? "12px 16px 20px" : "16px 28px 24px", flex: "1 1 auto", minHeight: 0 }}>
               {(() => {
                 const tabCfg = {
                   group:    { items: allGroups,   color: "#0369a1", bg: "#e0f2fe", empty: "Nenhum grupo cadastrado." },
@@ -1628,13 +1672,15 @@ export default function Modelos() {
                         onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); submitNew(); } }}
                         placeholder={`Adicionar ${addLabel}...`}
                         data-testid="input-new-catalog-option"
-                        style={{ flex: 1, padding: "9px 12px", borderRadius: 8, border: "1px solid #e7e5e4", backgroundColor: "#faf9f8", fontSize: 13, color: "#1c1917" }}
+                        aria-label={`Nome do novo ${addLabel}`}
+                        style={{ flex: 1, minWidth: 0, height: 40, padding: "0 12px", borderRadius: 8, border: "1px solid #e7e5e4", backgroundColor: "#faf9f8", fontSize: 13, color: "#1c1917" }}
                       />
-                      {/* Desabilitado: texto #a8a29e sobre o cinza claro — o
-                          branco de antes praticamente desaparecia no fundo. */}
+                      {/* Desabilitado: texto #746e69 sobre o cinza claro — o
+                          branco de antes sumia no fundo, e o #a8a29e que o
+                          substituiu é cinza decorativo, proibido como texto. */}
                       <button type="button" onClick={submitNew} disabled={createCatalogOptionMutation.isPending || !newCatValue.trim()}
                         data-testid="button-add-catalog-option"
-                        style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "0 14px", borderRadius: 8, border: "none", cursor: newCatValue.trim() ? "pointer" : "not-allowed", backgroundColor: newCatValue.trim() ? tabCfg.color : "#e7e5e4", color: newCatValue.trim() ? "#fff" : "#a8a29e", fontSize: 13, fontWeight: 700, whiteSpace: "nowrap" }}>
+                        style={{ display: "inline-flex", alignItems: "center", gap: 5, height: 40, padding: "0 14px", borderRadius: 8, border: "none", cursor: newCatValue.trim() ? "pointer" : "not-allowed", backgroundColor: newCatValue.trim() ? tabCfg.color : "#e7e5e4", color: newCatValue.trim() ? "#fff" : "#746e69", fontSize: 13, fontWeight: 700, whiteSpace: "nowrap", transition: "background-color 0.15s ease" }}>
                         <Plus style={{ width: 14, height: 14 }} /> Adicionar
                       </button>
                     </div>
@@ -1705,60 +1751,102 @@ export default function Modelos() {
       </Dialog>
 
       {/* ── Delete Confirm ── */}
-      <AlertDialog open={!!deleteConfirm} onOpenChange={open => !open && setDeleteConfirm(null)}>
-        <AlertDialogContent style={{ backgroundColor: "#ffffff", borderRadius: 12 }}>
-          <AlertDialogHeader>
-            <AlertDialogTitle style={{ color: "#1c1917", fontWeight: 700 }}>Confirmar Exclusão</AlertDialogTitle>
-            <AlertDialogDescription style={{ color: "#746e69" }}>
-              Tem certeza que deseja excluir o modelo <strong style={{ color: "#1c1917" }}>{deleteConfirm?.name}</strong>?
-              <br /><br />Esta ação não pode ser desfeita.
-            </AlertDialogDescription>
-            {/* O IMPACTO, que a coluna Uso já sabia: a pergunta "posso
-                excluir?" é respondida aqui, não num tooltip da tabela. */}
-            {deleteConfirm && (() => {
-              const exato = deleteConfirm.uso?.exato ?? 0;
-              return (
-                <p data-testid="delete-model-impacto" style={{ margin: "4px 0 0", padding: "9px 12px", borderRadius: 8, fontSize: 12, lineHeight: 1.5, backgroundColor: "#f5f4f0", border: "1px solid #e7e5e4", color: "#57534e" }}>
-                  {exato > 0
-                    ? `${exato} ${exato === 1 ? "peça foi criada" : "peças foram criadas"} a partir dele — ${exato === 1 ? "ela continua" : "elas continuam"} como estão.`
-                    : "Nenhuma peça foi criada a partir dele."}
-                </p>
-              );
-            })()}
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel style={{ borderColor: "#e7e5e4", color: "#44403c" }}>Cancelar</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => deleteConfirm && deleteStandardItemMutation.mutate(deleteConfirm.id)}
-              disabled={deleteStandardItemMutation.isPending}
-              style={{ backgroundColor: "#dc2626", color: "#ffffff", border: "none" }}
-              data-testid="button-confirm-delete-model"
-            >
-              <Trash2 style={{ width: 14, height: 14, marginRight: 6 }} />
-              Excluir modelo
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {/* Confirmação da casa (variante `confirm`): a MESMA casca das exclusões
+          de Usuários e Patrocinadores. Era o AlertDialog genérico do shadcn,
+          com o vermelho #dc2626 e o "Cancelar" à esquerda — um terceiro
+          desenho de "tem certeza?" entre três telas vizinhas. Uma diferença de
+          comportamento também saiu: o AlertDialogAction fechava o diálogo NO
+          CLIQUE, antes de a exclusão responder; agora ele fica aberto com
+          "Excluindo…" e fecha no sucesso (quem fecha é o onSuccess, que já
+          zerava `deleteConfirm`). */}
+      <Dialog open={!!deleteConfirm} onOpenChange={o => { if (!o) setDeleteConfirm(null); }}>
+        <DialogContent
+          className={`p-0 gap-0 border-none ${HIDE_NATIVE_CLOSE}`}
+          style={modalSurface(440)}
+          // Foco inicial no "Manter": o Enter distraído recua, não exclui.
+          onOpenAutoFocus={e => { e.preventDefault(); document.querySelector<HTMLButtonElement>('[data-testid="button-cancel-delete-model"]')?.focus(); }}
+        >
+          {/* Congelado enquanto sai: o onSuccess zera `deleteConfirm`, que é o
+              mesmo estado que desenha o corpo — sem congelar, o nome some no
+              primeiro frame do fade. */}
+          <FreezeWhileClosing open={!!deleteConfirm}>
+          <DialogTitle className="sr-only">Excluir modelo</DialogTitle>
+          <DialogDescription className="sr-only">Confirme a exclusão do modelo</DialogDescription>
+          {deleteConfirm && (
+            <>
+              <ModalHeader
+                icon={Trash2}
+                variant="confirm"
+                tint="#b91c1c"
+                title={`Excluir ${deleteConfirm.name}?`}
+                subtitle="Esta ação não pode ser desfeita."
+                onClose={() => setDeleteConfirm(null)}
+              />
+              <div style={{ padding: "16px 24px", overflowY: "auto", flex: "1 1 auto", minHeight: 0 }}>
+                {/* O IMPACTO, que a coluna Uso já sabia: a pergunta "posso
+                    excluir?" é respondida aqui, não num tooltip da tabela. */}
+                {(() => {
+                  const exato = deleteConfirm.uso?.exato ?? 0;
+                  return (
+                    <p data-testid="delete-model-impacto" style={{ margin: 0, padding: "9px 12px", borderRadius: R.sm, fontSize: 12, lineHeight: 1.5, backgroundColor: "#f5f4f0", border: "1px solid #e7e5e4", color: "#57534e" }}>
+                      {exato > 0
+                        ? `${exato} ${exato === 1 ? "peça foi criada" : "peças foram criadas"} a partir dele — ${exato === 1 ? "ela continua" : "elas continuam"} como estão.`
+                        : "Nenhuma peça foi criada a partir dele."}
+                    </p>
+                  );
+                })()}
+              </div>
+              <ModalFooter>
+                <button
+                  type="button"
+                  onClick={() => deleteStandardItemMutation.mutate(deleteConfirm.id)}
+                  disabled={deleteStandardItemMutation.isPending}
+                  aria-busy={deleteStandardItemMutation.isPending}
+                  data-testid="button-confirm-delete-model"
+                  style={{ height: toque + 4, borderRadius: R.md, border: "none", backgroundColor: "#b91c1c", color: "#fff", fontSize: 14, fontWeight: 800, cursor: deleteStandardItemMutation.isPending ? "wait" : "pointer", opacity: deleteStandardItemMutation.isPending ? 0.7 : 1, transition: "background-color 0.15s ease" }}
+                  onMouseEnter={e => (e.currentTarget.style.backgroundColor = "#991b1b")}
+                  onMouseLeave={e => (e.currentTarget.style.backgroundColor = "#b91c1c")}
+                >
+                  {deleteStandardItemMutation.isPending ? "Excluindo…" : "Sim, excluir"}
+                </button>
+                <button
+                  type="button"
+                  data-testid="button-cancel-delete-model"
+                  onClick={() => setDeleteConfirm(null)}
+                  style={{ height: toque, borderRadius: R.md, border: "none", backgroundColor: "transparent", color: "#57534e", fontSize: FS.body, fontWeight: 700, cursor: "pointer" }}
+                >
+                  Manter
+                </button>
+              </ModalFooter>
+            </>
+          )}
+          </FreezeWhileClosing>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
 
 /* ── Icon button with hover color ── */
-function HoverIconBtn({ icon, hoverBg, hoverColor, onClick, testId, title, ariaLabel }: {
+function HoverIconBtn({ icon, hoverBg, hoverColor, onClick, testId, title, ariaLabel, tamanho = 32 }: {
   icon: React.ReactNode; hoverBg: string; hoverColor: string;
   onClick: () => void; testId: string; title: string; ariaLabel?: string;
+  /** 32 no desktop, 44 no celular — o alvo de toque das outras tabelas. */
+  tamanho?: number;
 }) {
   const [hovered, setHovered] = useState(false);
   return (
-    <button onClick={onClick} data-testid={testId} title={title} aria-label={ariaLabel ?? title}
+    <button type="button" onClick={onClick} data-testid={testId} title={title} aria-label={ariaLabel ?? title}
+      // Foco de teclado acende o mesmo realce do hover: antes só o mouse
+      // mostrava qual ação estava sob o cursor.
       onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}
+      onFocus={() => setHovered(true)} onBlur={() => setHovered(false)}
       style={{
         display: "inline-flex", alignItems: "center", justifyContent: "center",
-        width: 32, height: 32, borderRadius: 8, border: "none", cursor: "pointer",
+        width: tamanho, height: tamanho, borderRadius: 8, border: "none", cursor: "pointer",
         backgroundColor: hovered ? hoverBg : "transparent",
         color: hovered ? hoverColor : "#746e69",
-        transition: "all 0.15s",
+        transition: "background-color 0.15s ease, color 0.15s ease",
       }}
     >
       {icon}

@@ -9,7 +9,7 @@
 // "Nas próximas remessas, se tiver, já vem os dados": a remessa nova abre com
 // o solicitante e as datas da última, e a versão seguinte.
 // ─────────────────────────────────────────────────────────────────────────────
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { ChevronDown, FileSpreadsheet, Package, Plus, Trash2, X } from "lucide-react";
 import { StatusBadge } from "@/components/status-badge";
@@ -67,6 +67,13 @@ export function PainelDoKit({ eventId, pecas, podeCriar, usuarioDoKit, nomeDoUsu
   // Detalhe das peças de cada remessa, com status (15/09: "igual o da Arena").
   const [remessaAberta, setRemessaAberta] = useState<string | null>(null);
   const [confirmandoExclusao, setConfirmandoExclusao] = useState<string | null>(null);
+  // DESCARTE COM PERGUNTA — só quando há o que perder. O modal abre já
+  // preenchido com os dados da última remessa; fechar isso sem mexer não custa
+  // nada, e perguntar ali seria um clique a mais. Perder uma planilha lida (ou
+  // datas digitadas à mão) custa refazer tudo: é aí que se pergunta.
+  const [confirmandoDescarte, setConfirmandoDescarte] = useState(false);
+  const formInicialRef = useRef<string>("");
+  const continuarRef = useRef<HTMLButtonElement | null>(null);
 
   const excluir = useMutation({
     mutationFn: async (id: string) => (await apiRequest("DELETE", `/api/kit/remessas/${id}`)).json(),
@@ -86,15 +93,26 @@ export function PainelDoKit({ eventId, pecas, podeCriar, usuarioDoKit, nomeDoUsu
     if (!aberto) return;
     const ultima = remessas[0];
     setPlanilha(null);
-    setForm({
+    setConfirmandoDescarte(false);
+    const inicial = {
       versao: proximaVersao(remessas),
       solicitante: ultima?.solicitante || nomeDoUsuario,
       entregaMaterial: dataDoCampo(ultima?.entregaMaterial),
       dataEvento: dataDoCampo(ultima?.dataEvento) || dataDoCampo(dataDoEvento),
       cargaCaminhao: dataDoCampo(ultima?.cargaCaminhao),
       saidaCaminhao: dataDoCampo(ultima?.saidaCaminhao),
-    });
+    };
+    // A foto do formulário como abriu: é contra ela que "mexeu?" é medido.
+    formInicialRef.current = JSON.stringify(inicial);
+    setForm(inicial);
   }, [aberto]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // O foco vai para "Continuar editando" quando a pergunta aparece: o botão
+  // que tinha o foco (Cancelar) acabou de sair da tela, e um Enter distraído
+  // tem de cair na opção que NÃO perde nada. Esc de novo também volta.
+  useEffect(() => {
+    if (confirmandoDescarte) continuarRef.current?.focus();
+  }, [confirmandoDescarte]);
 
   const lerPlanilha = async (arquivo: File | undefined) => {
     if (!arquivo) return;
@@ -173,6 +191,14 @@ export function PainelDoKit({ eventId, pecas, podeCriar, usuarioDoKit, nomeDoUsu
   const faltando = !form.versao.trim() ? "Informe a versão" : !form.entregaMaterial ? "Informe a data de entrega do material" : lendoPlanilha ? "Aguarde a leitura da planilha" : null;
   const nPecas = planilha?.pecas.length ?? 0;
   const tirarPeca = (i: number) => setPlanilha((p) => (p ? { ...p, pecas: p.pecas.filter((_, j) => j !== i) } : p));
+  const temAlgoAPerder = !!planilha || JSON.stringify(form) !== formInicialRef.current;
+  // Toda saída que não é "Criar" passa por aqui: X, Cancelar, Esc e clique fora.
+  const pedirParaFechar = () => {
+    if (criar.isPending) return;
+    if (confirmandoDescarte) { setConfirmandoDescarte(false); return; }
+    if (temAlgoAPerder) { setConfirmandoDescarte(true); return; }
+    setAberto(false);
+  };
 
   const campo = (id: string, rotulo: string, chave: keyof typeof form, tipo: "text" | "date" = "text") => (
     <div>
@@ -313,13 +339,13 @@ export function PainelDoKit({ eventId, pecas, podeCriar, usuarioDoKit, nomeDoUsu
         );
       })()}
 
-      <Dialog open={aberto} onOpenChange={(o) => { if (!o && !criar.isPending) setAberto(false); }}>
+      <Dialog open={aberto} onOpenChange={(o) => { if (!o) pedirParaFechar(); }}>
         <DialogContent data-testid="dialog-nova-remessa-kit" className={HIDE_NATIVE_CLOSE} style={modalSurface(nPecas > 0 ? 1100 : 600)}>
           <DialogTitle className="sr-only">Nova remessa do Kit</DialogTitle>
           <DialogDescription className="sr-only">Planilha do Kit, datas da remessa e peças numa tela só.</DialogDescription>
           <ModalHeader icon={Package} tint="#6d28d9" title="Nova remessa do Kit"
             subtitle={remessas.length > 0 ? `Começa com os dados da ${remessas[0].versao} — a planilha, se tiver, substitui.` : "Envie a planilha do Kit: as datas e as peças entram juntas."}
-            onClose={criar.isPending ? undefined : () => setAberto(false)} />
+            onClose={criar.isPending ? undefined : pedirParaFechar} />
 
           <div style={{ flex: "1 1 auto", minHeight: 0, overflowY: "auto", padding: isMobile ? 16 : "16px 24px", display: "grid", gap: 16,
             gridTemplateColumns: !isMobile && nPecas > 0 ? "minmax(0, 360px) minmax(0, 1fr)" : "minmax(0, 1fr)", alignItems: "start" }}>
@@ -388,9 +414,29 @@ export function PainelDoKit({ eventId, pecas, podeCriar, usuarioDoKit, nomeDoUsu
             )}
           </div>
 
+          {confirmandoDescarte ? (
+            // A pergunta mora NO rodapé, no lugar dos botões — o mesmo padrão
+            // da exclusão de remessa neste painel. Um segundo modal por cima
+            // deste esconderia justamente o que a pessoa está decidindo perder.
+            <div data-testid="confirmar-descarte-remessa-kit" style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 12, flexWrap: "wrap", padding: isMobile ? "12px 16px" : "14px 24px", borderTop: "1px solid #fecaca", background: "#fef2f2", flexShrink: 0 }}>
+              <span role="alert" style={{ fontSize: FS.body, color: "#991b1b", fontWeight: 700, marginRight: "auto" }}>
+                {planilha
+                  ? `Descartar a planilha lida${nPecas > 0 ? ` (${nPecas} ${nPecas === 1 ? "peça" : "peças"})` : ""} e os dados da remessa?`
+                  : "Descartar os dados da remessa que você preencheu?"}
+              </span>
+              <button type="button" ref={continuarRef} onClick={() => setConfirmandoDescarte(false)}
+                style={{ height: 44, padding: "0 18px", borderRadius: R.md, border: "1px solid #e7e5e4", background: "#fff", color: "#44403c", fontSize: 14, fontWeight: 700, cursor: "pointer" }}>
+                Continuar editando
+              </button>
+              <button type="button" data-testid="button-descartar-remessa-kit" onClick={() => { setConfirmandoDescarte(false); setAberto(false); }}
+                style={{ height: 44, padding: "0 18px", borderRadius: R.md, border: "none", background: "#b91c1c", color: "#fff", fontSize: 14, fontWeight: 800, cursor: "pointer" }}>
+                Descartar
+              </button>
+            </div>
+          ) : (
           <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 12, flexWrap: "wrap", padding: isMobile ? "12px 16px" : "14px 24px", borderTop: "1px solid #ebe8e4", flexShrink: 0 }}>
             {faltando && <span aria-live="polite" style={{ fontSize: FS.body, color: "#92400e", marginRight: "auto" }}>{faltando}.</span>}
-            <button type="button" onClick={() => setAberto(false)} disabled={criar.isPending}
+            <button type="button" onClick={pedirParaFechar} disabled={criar.isPending}
               style={{ height: 44, padding: "0 18px", borderRadius: R.md, border: "1px solid #e7e5e4", background: "#fff", color: "#44403c", fontSize: 14, fontWeight: 700, cursor: "pointer" }}>
               Cancelar
             </button>
@@ -399,6 +445,7 @@ export function PainelDoKit({ eventId, pecas, podeCriar, usuarioDoKit, nomeDoUsu
               {criar.isPending ? "Criando…" : nPecas > 0 ? `Criar remessa e importar ${nPecas} ${nPecas === 1 ? "peça" : "peças"}` : "Criar remessa"}
             </button>
           </div>
+          )}
         </DialogContent>
       </Dialog>
     </section>

@@ -58,6 +58,31 @@ describe("a folha de filtros do celular", () => {
   });
 });
 
+describe("o card não perde ação da tabela", () => {
+  // Desde a rodada 3 de UX o card vale também para o tablet (conteúdo < 820px):
+  // nessa faixa ele é o ÚNICO layout. Cada ação da coluna de Ações tem de
+  // existir no card com o MESMO gate — escrito igual, para não divergir.
+  it("produzir, reaproveitar, corrigir reaproveitamento e devolver usam o gate literal da tabela", () => {
+    const pares: [string, string][] = [
+      ["const podeProduzirPeca = !emRevisao && canProduce && !isDelivered(item) && !isProduced(item) && !isConferred(item) && !item.isReuse;",
+       "{!bulkOn && !emRevisao && canProduce && !isDelivered(item) && !isProduced(item) && !isConferred(item) && !item.isReuse && ("],
+      ["const podeReaproveitarPeca = !emRevisao && !soVisualizaKit(item) && !isDelivered(item) && !isConferred(item) && (!isProduced(item) ? tetoReaproveitar(item) > 0 : podeMexerQtd && qtyOf(item) > 0);",
+       "{!bulkOn && !emRevisao && !soVisualizaKit(item) && !isDelivered(item) && !isConferred(item) && (!isProduced(item) ? tetoReaproveitar(item) > 0 : podeMexerQtd && qtyOf(item) > 0) && ("],
+      ["const podeCorrigirReaprov = !emRevisao && !soVisualizaKit(item) && (isProduced(item) || isAdmin) && reusedTotalOf(item) > 0",
+       "{!bulkOn && !emRevisao && !soVisualizaKit(item) && (isProduced(item) || isAdmin) && reusedTotalOf(item) > 0"],
+      ["const podeDevolverPeca = canProduce && podeDevolverParaRevisao(item);",
+       "{!bulkOn && canProduce && podeDevolverParaRevisao(item) && ("],
+    ];
+    for (const [card, tabela] of pares) {
+      expect(G, card).toContain(card);
+      expect(G, tabela).toContain(tabela);
+    }
+    for (const t of ["button-production-card-", "button-reuse-card-", "button-correct-reuse-card-", "button-devolver-revisao-card-"]) {
+      expect(G, t).toContain(t);
+    }
+  });
+});
+
 describe("as armadilhas de viewport", () => {
   it("a barra do lote reserva o recorte seguro do aparelho", () => {
     expect(G).toContain("padding: '12px 16px calc(12px + env(safe-area-inset-bottom))'");

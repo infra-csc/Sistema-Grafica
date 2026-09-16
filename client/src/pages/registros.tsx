@@ -397,6 +397,18 @@ export default function Registros() {
            depois da primeira pintura). */
         .reg-cartao { content-visibility: auto; contain-intrinsic-size: auto 430px; }
         @media (max-width: 767px) { .reg-cartao { contain-intrinsic-size: auto 560px; } }
+        /* O cartão sobe 2px no hover. Em tela de toque o "hover" gruda depois
+           do toque e o cartão fica levantado; com movimento reduzido pedido
+           pelo sistema, o salto de 2px continua sendo movimento (a regra
+           global só zera a DURAÇÃO da transição, não o deslocamento). */
+        @media (hover: none), (prefers-reduced-motion: reduce) { .reg-cartao { transform: none !important; } }
+        /* Hover dos botões de apoio. As classes do Tailwind (hover:bg-…) não
+           tinham efeito nenhum: o fundo vem inline, e estilo inline vence
+           classe. O !important aqui é o que faz o hover existir. */
+        .reg-hover-claro { transition: background-color 0.15s; }
+        .reg-hover-claro:hover:not(:disabled) { background-color: rgba(28,25,23,0.04) !important; }
+        .reg-hover-escuro { transition: background-color 0.15s; }
+        .reg-hover-escuro:hover:not(:disabled) { background-color: rgba(255,255,255,0.25) !important; }
       `}</style>
       {/* ── Cabeçalho ── */}
       <div style={{ flexShrink: 0, backgroundColor: "#ffffff", borderBottom: `1px solid ${T.border}`, padding: isMobile ? "14px 16px 0" : "20px 32px 0" }}>
@@ -533,8 +545,8 @@ export default function Registros() {
             />
             </>)}
             {hasFilters && !isMobile && (
-              <button onClick={clearAll} data-testid="button-clear-filters" className="hover:bg-black/[0.03]"
-                style={{ display: "inline-flex", alignItems: "center", minHeight: isMobile ? 44 : 34, fontSize: FS.small, fontWeight: 600, color: T.second, background: "none", border: `1px solid ${T.border}`, borderRadius: R.pill, cursor: "pointer", padding: "0 14px", transition: "background-color 0.15s" }}>
+              <button onClick={clearAll} data-testid="button-clear-filters" className="reg-hover-claro"
+                style={{ display: "inline-flex", alignItems: "center", minHeight: isMobile ? 44 : 34, fontSize: FS.small, fontWeight: 600, color: T.second, background: "none", border: `1px solid ${T.border}`, borderRadius: R.pill, cursor: "pointer", padding: "0 14px" }}>
                 Limpar tudo
               </button>
             )}
@@ -567,7 +579,7 @@ export default function Registros() {
             <h3 style={{ color: "#b91c1c", fontSize: 16, fontWeight: 700, marginBottom: 6 }}>Não foi possível carregar os registros</h3>
             <p style={{ color: T.second, fontSize: FS.body, marginBottom: 20 }}>Verifique sua conexão e tente novamente.</p>
             <button onClick={() => refetch()} data-testid="button-retry-registros"
-              style={{ fontSize: FS.body, fontWeight: 700, color: "#fff", background: T.dark, border: "none", borderRadius: R.md, padding: "9px 20px", cursor: "pointer" }}>
+              style={{ fontSize: FS.body, fontWeight: 700, color: "#fff", background: T.dark, border: "none", borderRadius: R.md, padding: "9px 20px", minHeight: isMobile ? 44 : undefined, cursor: "pointer" }}>
               Tentar novamente
             </button>
           </div>
@@ -618,11 +630,15 @@ export default function Registros() {
 
                     Gradiente em vez de fundo chapado com borda: uma borda dura
                     corta a foto que passa por baixo dela na rolagem; o
-                    gradiente entrega o texto legível e some. */}
+                    gradiente entrega o texto legível e some.
+
+                    No celular o padding do contêiner é 16, não 24: com o
+                    mesmo -24 o rótulo subia 8px além da borda e colava no
+                    topo, com a primeira linha de texto meio cortada. */}
                 <div
                   data-testid={`group-day-${grupo.rotulo}`}
                   style={{
-                    position: "sticky", top: -24, zIndex: 2,
+                    position: "sticky", top: -24 + (isMobile ? 8 : 0), zIndex: 2,
                     display: "flex", alignItems: "center", gap: 10,
                     padding: "10px 0 12px",
                     background: "linear-gradient(#f9f9f8 78%, rgba(249,249,248,0))",
@@ -814,7 +830,11 @@ export default function Registros() {
                               <KoIcone style={{ width: 14, height: 14, color: ko.color }} />
                             </span>
                             <span style={{ minWidth: 0, flex: 1 }}>
-                              <span style={{ display: "block", fontSize: FS.micro, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: ko.color }}>
+                              {/* Frase em caixa normal: é um convite ("Ver a
+                                  entrega"), não um rótulo de categoria — em
+                                  caixa alta de 10px ele gritava mais que o
+                                  próprio nome da peça logo acima. */}
+                              <span style={{ display: "block", fontSize: FS.small, fontWeight: 700, color: ko.color }}>
                                 {ehConferencia ? "Ver a entrega" : "Ver a conferência"}
                               </span>
                               <span style={{ display: "block", fontFamily: "'DM Mono', monospace", fontSize: 11, color: "#57534e" }}>
@@ -842,8 +862,8 @@ export default function Registros() {
 
             {visible < filtered.length && (
               <div style={{ display: "flex", justifyContent: "center", marginTop: 20 }}>
-                <button onClick={() => setVisible(v => v + PAGE_SIZE)} data-testid="button-load-more" className="hover:bg-black/[0.03]"
-                  style={{ padding: "10px 20px", borderRadius: R.md, border: `1px solid ${T.border}`, backgroundColor: T.surface, fontSize: FS.small, fontWeight: 700, color: T.text, cursor: "pointer", transition: "background-color 0.15s" }}>
+                <button onClick={() => setVisible(v => v + PAGE_SIZE)} data-testid="button-load-more" className="reg-hover-claro"
+                  style={{ padding: "10px 20px", minHeight: isMobile ? 44 : undefined, width: isMobile ? "100%" : undefined, borderRadius: R.md, border: `1px solid ${T.border}`, backgroundColor: T.surface, fontSize: FS.small, fontWeight: 700, color: T.text, cursor: "pointer" }}>
                   Carregar mais ({filtered.length - visible} restantes)
                 </button>
               </div>
@@ -904,7 +924,7 @@ export default function Registros() {
               { titulo: "Período", opcoes: periodOptions, marcadas: period === "Todos" ? [] : [period], alterna: (v: string) => setPeriod(period === v ? "Todos" : (v as Period)), cor: () => "#78716c" },
             ] as const).map(grupo => (
               <div key={grupo.titulo} style={{ padding: "8px 0" }}>
-                <p style={{ fontSize: FS.micro, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "#7a6154", margin: "0 16px 4px" }}>
+                <p style={{ fontSize: FS.micro, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: T.second, margin: "0 16px 4px" }}>
                   {grupo.titulo}
                 </p>
                 {grupo.opcoes.map((o: any) => {
@@ -1082,7 +1102,7 @@ export default function Registros() {
                                   onError={e => { (e.currentTarget as HTMLImageElement).style.visibility = "hidden"; }}
                                 />
                                 <span style={{ textAlign: "left" }}>
-                                  <span style={{ display: "block", fontSize: FS.micro, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                                  <span style={{ display: "block", fontSize: FS.small, fontWeight: 700 }}>
                                     {kf.label}
                                   </span>
                                   <span style={{ display: "block", fontFamily: "'DM Mono', monospace", fontSize: 11, color: "rgba(255,255,255,0.75)" }}>
@@ -1102,19 +1122,38 @@ export default function Registros() {
                   <span style={{ fontSize: FS.small, color: "rgba(255,255,255,0.8)", whiteSpace: "nowrap", marginRight: 4 }}>
                     {zoomIdx! + 1} / {filtered.length}
                   </span>
-                  <button onClick={() => baixar(zoom)} disabled={baixando} className="hover:bg-white/25"
+                  {/* NO CELULAR AS SETAS SOBRE A FOTO SOMEM (cobririam a
+                      peça numa tela de 390px) e o teclado não existe: sem
+                      estes dois botões, percorrer o acervo exigia fechar o
+                      zoom e tocar no cartão seguinte. Mesmo stepZoom das
+                      setas do desktop. */}
+                  {isMobile && (
+                    <>
+                      <button type="button" onClick={() => stepZoom(-1)} disabled={zoomIdx === 0} aria-label="Registro anterior"
+                        className="reg-hover-escuro"
+                        style={{ width: 44, height: 44, borderRadius: R.md, border: "none", backgroundColor: "rgba(255,255,255,0.15)", color: "#ffffff", cursor: zoomIdx === 0 ? "default" : "pointer", opacity: zoomIdx === 0 ? 0.4 : 1, display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}>
+                        <ChevronLeft aria-hidden="true" style={{ width: 20, height: 20 }} />
+                      </button>
+                      <button type="button" onClick={() => stepZoom(1)} disabled={zoomIdx === filtered.length - 1} aria-label="Próximo registro"
+                        className="reg-hover-escuro"
+                        style={{ width: 44, height: 44, borderRadius: R.md, border: "none", backgroundColor: "rgba(255,255,255,0.15)", color: "#ffffff", cursor: zoomIdx === filtered.length - 1 ? "default" : "pointer", opacity: zoomIdx === filtered.length - 1 ? 0.4 : 1, display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}>
+                        <ChevronRight aria-hidden="true" style={{ width: 20, height: 20 }} />
+                      </button>
+                    </>
+                  )}
+                  <button onClick={() => baixar(zoom)} disabled={baixando} className="reg-hover-escuro"
                     data-testid="button-zoom-download"
-                    style={{ display: "flex", alignItems: "center", gap: 6, minHeight: controlHeight, padding: "0 14px", borderRadius: R.md, border: "none", backgroundColor: "rgba(255,255,255,0.15)", color: "#ffffff", fontSize: FS.small, fontWeight: 700, cursor: baixando ? "wait" : "pointer", transition: "background-color 0.15s" }}>
+                    style={{ display: "flex", alignItems: "center", gap: 6, minHeight: controlHeight, padding: "0 14px", borderRadius: R.md, border: "none", backgroundColor: "rgba(255,255,255,0.15)", color: "#ffffff", fontSize: FS.small, fontWeight: 700, cursor: baixando ? "wait" : "pointer" }}>
                     {baixando
                       ? <><Loader2 className="animate-spin" style={{ width: 13, height: 13 }} /> Baixando…</>
                       : <><Download style={{ width: 13, height: 13 }} /> Baixar</>}
                   </button>
-                  <a href={srcOf(zoom)} target="_blank" rel="noopener noreferrer" className="hover:bg-white/25"
-                    style={{ display: "flex", alignItems: "center", gap: 6, minHeight: controlHeight, padding: "0 14px", borderRadius: R.md, backgroundColor: "rgba(255,255,255,0.15)", color: "#ffffff", fontSize: FS.small, fontWeight: 700, textDecoration: "none", transition: "background-color 0.15s" }}>
+                  <a href={srcOf(zoom)} target="_blank" rel="noopener noreferrer" className="reg-hover-escuro"
+                    style={{ display: "flex", alignItems: "center", gap: 6, minHeight: controlHeight, padding: "0 14px", borderRadius: R.md, backgroundColor: "rgba(255,255,255,0.15)", color: "#ffffff", fontSize: FS.small, fontWeight: 700, textDecoration: "none" }}>
                     <ExternalLink style={{ width: 13, height: 13 }} /> Original
                   </a>
-                  <button onClick={() => setZoomIdx(null)} className="hover:bg-white/25" aria-label="Fechar"
-                    style={{ display: "flex", alignItems: "center", gap: 6, minHeight: controlHeight, padding: "0 14px", borderRadius: R.md, border: "none", backgroundColor: "rgba(255,255,255,0.15)", color: "#ffffff", fontSize: FS.small, fontWeight: 700, cursor: "pointer", transition: "background-color 0.15s" }}>
+                  <button onClick={() => setZoomIdx(null)} className="reg-hover-escuro" aria-label="Fechar"
+                    style={{ display: "flex", alignItems: "center", gap: 6, minHeight: controlHeight, padding: "0 14px", borderRadius: R.md, border: "none", backgroundColor: "rgba(255,255,255,0.15)", color: "#ffffff", fontSize: FS.small, fontWeight: 700, cursor: "pointer" }}>
                     <X style={{ width: 13, height: 13 }} /> Fechar
                   </button>
                 </div>

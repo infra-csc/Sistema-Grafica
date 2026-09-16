@@ -367,7 +367,10 @@ export function EventDrilldown({ ev, cobranca, today, showCobranca = true }: {
                 title={sorted.length === 1
                   ? `${sector?.sector ?? stage.label} — já no recorte da peça ${sorted[0].displayId}`
                   : `${sector?.sector ?? stage.label} — já no recorte das peças deste evento nesta etapa`}
-                style={{ fontSize: 12, fontWeight: 600, color: TI.secondary, textDecoration: "none" }}
+                // Mesmo alvo do gatilho ao lado: os dois dividem a linha, e o
+                // gatilho já tinha 36/44 enquanto o link — a saída para quem
+                // resolve — ficava nos ~18px do próprio texto.
+                style={{ display: "inline-flex", alignItems: "center", minHeight: isMobile ? 44 : 36, fontSize: 12, fontWeight: 600, color: TI.secondary, textDecoration: "none" }}
                 data-testid={`link-setor-${ev.id}-${stage.key}`}
               >
                 Resolver em {sector?.sector ?? stage.label} →
@@ -500,7 +503,8 @@ export function EventDrilldown({ ev, cobranca, today, showCobranca = true }: {
                   data-testid={`ver-todas-${ev.id}-${stage.key}`}
                   style={{
                     display: "inline-flex", alignItems: "center", gap: 5,
-                    minHeight: 30, padding: "0 10px", borderRadius: R.sm,
+                    // 30 era o único controle do drill abaixo da régua (36/44).
+                    minHeight: isMobile ? 44 : 36, padding: "0 10px", borderRadius: R.sm,
                     border: `1px solid ${TI.border}`, backgroundColor: TI.card,
                     font: "inherit", fontSize: 11, fontWeight: 700, color: TI.strong,
                     cursor: "pointer",
@@ -522,7 +526,7 @@ export function EventDrilldown({ ev, cobranca, today, showCobranca = true }: {
                     caminho para EDITAR as peças, não para vê-las. */}
                 <Link
                   href={`/eventos/${ev.eventId ?? ev.id}`}
-                  style={{ fontSize: 11, fontWeight: 600, color: TI.secondary, textDecoration: "none" }}
+                  style={{ display: "inline-flex", alignItems: "center", minHeight: isMobile ? 44 : 36, fontSize: 11, fontWeight: 600, color: TI.secondary, textDecoration: "none" }}
                 >
                   Abrir no evento →
                 </Link>

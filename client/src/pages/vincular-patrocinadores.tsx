@@ -14,6 +14,7 @@ import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/compone
 import { Input } from "@/components/ui/input";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { ToastAction } from "@/components/ui/toast";
 import { useState, useEffect, useMemo, useRef } from "react";
 import { Package, Check, Calendar, Truck, AlertTriangle, CheckCircle2, X, Building2, Plus, PlusCircle, Search, Users, ClipboardList, Save, Send, ChevronDown, Info, Lock, Paperclip, ExternalLink, RotateCcw, Zap, EyeOff, Recycle } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -1725,9 +1726,34 @@ export default function VincularPatrocinadores() {
               <button
                 type="button"
                 onClick={() => {
+                  // DESFAZER NO PRÓPRIO TOAST. Descartar apagava na hora, sem
+                  // aviso e sem volta, um rascunho que pode ter levado vários
+                  // cliques (seis marcas numa peça) — e o botão fica colado no
+                  // "Salvar". Guarda-se o rascunho EXATO (vínculos e a marca
+                  // "sem patrocinador") antes de apagar; desfazer só devolve
+                  // esse estado local. Nada vai ao servidor: continua rascunho
+                  // e passa pelo mesmo "Salvar" de sempre.
                   const originais = originalSponsorsMap[item.id] || [];
+                  const rascunho = pendingChanges[item.id];
+                  const vinculosDoRascunho = itemSponsorsMap[item.id];
                   setPendingChanges(prev => { const n = { ...prev }; delete n[item.id]; return n; });
                   setItemSponsorsMap(prev => ({ ...prev, [item.id]: originais }));
+                  if (!rascunho) return;
+                  toast({
+                    title: "Alterações descartadas",
+                    description: `${item.displayId ?? "Peça"} voltou ao que está salvo.`,
+                    action: (
+                      <ToastAction
+                        altText={`Desfazer o descarte e recuperar o rascunho de ${item.displayId ?? "peça"}`}
+                        onClick={() => {
+                          setPendingChanges(prev => ({ ...prev, [item.id]: rascunho }));
+                          setItemSponsorsMap(prev => ({ ...prev, [item.id]: vinculosDoRascunho ?? rascunho.sponsorIds }));
+                        }}
+                      >
+                        Desfazer
+                      </ToastAction>
+                    ),
+                  });
                 }}
                 title="Descartar as alterações e voltar ao que está salvo"
                 data-testid={`button-discard-item-${item.id}`}
@@ -1990,7 +2016,7 @@ export default function VincularPatrocinadores() {
 
 
   return (
-    <div className="container mx-auto p-4 max-w-6xl pb-24" style={{ height: "100%", overflowY: "auto" }}>
+    <div className="container mx-auto p-4 max-w-6xl pb-24" style={{ height: "100%", overflowY: "auto", paddingBottom: selectedItemIds.size > 0 ? (isMobile ? 260 : 150) : undefined }}>
 
       {/* ── Preview de Referência Visual ── */}
       <Dialog open={!!previewRefUrl} onOpenChange={open => !open && setPreviewRefUrl(null)}>
@@ -2187,13 +2213,11 @@ export default function VincularPatrocinadores() {
       {/* ── Page Header ── */}
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-6">
         <div>
-          {/* Breadcrumb */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-            <span style={{ display: 'inline-block', padding: '3px 10px', backgroundColor: '#c2410c', color: '#fff', fontSize: 11, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', borderRadius: 6 }}>
-              Fluxo de Verificação
-            </span>
-            <span style={{ fontSize: 11, color: '#746e69', fontWeight: 500 }}>•</span>
-            <span style={{ fontSize: 11, color: '#746e69', fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Vincular Patrocinadores</span>
+          {/* Eyebrow numa linha, no mesmo desenho do Atendimento. Era um selo
+              laranja cheio ("Fluxo de Verificação") + ponto + o nome da tela
+              em maiúsculas — que o título logo abaixo repete por extenso. */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 10, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#c2410c' }}>
+            Fluxo de Verificação
           </div>
           <h1 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: FS.h1, fontWeight: 700, letterSpacing: '-0.03em', lineHeight: 1.1, color: '#1a1c1c', marginBottom: 6 }}>
             Vincular Patrocinadores
@@ -2429,7 +2453,7 @@ export default function VincularPatrocinadores() {
         marginBottom: 16,
       }}>
         {/* Busca */}
-        <div style={{ position: 'relative', flex: '1 1 220px', maxWidth: 320, minWidth: 180 }}>
+        <div style={{ position: 'relative', flex: '1 1 220px', maxWidth: isMobile ? 'none' : 320, minWidth: 180 }}>
           <Search aria-hidden="true" style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', width: 15, height: 15, color: '#78716c', pointerEvents: 'none' }} />
           <input
             ref={searchInputRef}
@@ -2439,9 +2463,13 @@ export default function VincularPatrocinadores() {
             aria-label="Buscar por peça, descrição ou evento"
             data-testid="input-search-events"
             style={{
-              width: '100%', height: 36, padding: '0 30px 0 34px',
+              // 44 e fonte 16 no celular: alvo de toque da casa, e abaixo de
+              // 16px o Safari do iPhone dá zoom na página ao focar a busca.
+              // Sem `outline: none` inline: ele vencia o :focus-visible global
+              // e quem chegava por teclado (Tab ou "/") não via o anel.
+              width: '100%', height: isMobile ? 44 : 36, padding: isMobile ? '0 44px 0 34px' : '0 30px 0 34px',
               borderRadius: R.md, border: '1px solid #e7e5e4', backgroundColor: '#ffffff',
-              font: 'inherit', fontSize: 13, color: '#1c1917', outline: 'none',
+              font: 'inherit', fontSize: isMobile ? 16 : 13, color: '#1c1917',
             }}
           />
           {searchQuery && (
@@ -2449,7 +2477,7 @@ export default function VincularPatrocinadores() {
               type="button"
               onClick={() => { setSearchQuery(''); searchInputRef.current?.focus(); }}
               aria-label="Limpar a busca"
-              style={{ position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)', width: 24, height: 24, borderRadius: 999, border: 'none', background: 'none', color: '#78716c', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+              style={{ position: 'absolute', right: isMobile ? 0 : 6, top: '50%', transform: 'translateY(-50%)', width: isMobile ? 44 : 24, height: isMobile ? 44 : 24, borderRadius: 999, border: 'none', background: 'none', color: '#78716c', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
             >
               <X style={{ width: 13, height: 13 }} />
             </button>
@@ -2564,9 +2592,9 @@ export default function VincularPatrocinadores() {
               <button
                 onClick={() => setSelectedItemIds(new Set())}
                 data-testid="button-clear-selection"
-                style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.6)', textTransform: 'uppercase', letterSpacing: '0.04em' }}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', minHeight: isMobile ? 44 : 32, padding: '0 8px', font: 'inherit', fontSize: 13, fontWeight: 600, color: 'rgba(255,255,255,0.72)', transition: 'color 0.12s ease' }}
                 onMouseEnter={e => (e.currentTarget.style.color = '#ffffff')}
-                onMouseLeave={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.6)')}
+                onMouseLeave={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.72)')}
               >
                 Limpar
               </button>

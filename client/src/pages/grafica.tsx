@@ -19,7 +19,7 @@ import { convertGCSUrlToLocalPath } from "@/lib/artePdfExport";
 import { useToast } from "@/hooks/use-toast";
 import { ObjectUploader } from "@/components/ObjectUploader";
 import { ItemDetailsDialog } from "@/components/item-details-dialog";
-import { useIsMobile } from "@/hooks/use-mobile";
+import { useIsMobile, useElementSize, densityFromWidth } from "@/hooks/use-mobile";
 import {
   getStatusMeta, getStatusLabel, getPriorityMeta,
   seloPecaEventoFinalizado, motivoAcaoBloqueada, todayBusinessMs,
@@ -92,10 +92,11 @@ const TI = {
   secondary: "#78716c",
 };
 
-// Número de colunas da tabela desktop. Estava escrito "10" em quatro lugares
-// (cabeçalho de grupo, de evento, de tipo e linha de observação); qualquer
-// coluna nova quebrava o alinhamento em silêncio numa delas.
-const COLS = 10;
+// Número de colunas da tabela: NÃO é mais constante. Estava escrito "10" em
+// quatro lugares (cabeçalho de grupo, de evento, de tipo e linha de
+// observação) e virou `COLS`; agora sai do comprimento da lista `colunas`
+// dentro do componente, porque a tabela compacta (notebook com a sidebar
+// aberta) funde Material e m² em outras células. Uma fonte só para o colSpan.
 
 // ─────────────────────────────────────────────────────────────────────────────
 // COMPLEMENTO — aumento de quantidade DEPOIS que a peça entrou em produção.
@@ -492,8 +493,11 @@ function BulkActionDialog({
             </div>
           </div>
 
-          {/* Footer */}
-          <div style={{ display: "flex", gap: 10 }}>
+          {/* Rodapé GRUDADO no fim do corpo rolável: com várias fotos e a lista
+              de peças, o Confirmar ficava abaixo da dobra no celular e era
+              preciso rolar para achá-lo depois de tirar a foto — o mesmo
+              conserto que os modais individuais já tinham (modalActionsStyle). */}
+          <div style={{ display: "flex", gap: 10, position: "sticky", bottom: -20, margin: "0 -24px -20px", padding: "12px 24px calc(12px + env(safe-area-inset-bottom))", background: "#fafaf9", borderTop: "1px solid #e7e5e4" }}>
             <button
               type="button"
               onClick={onClose}
@@ -522,7 +526,7 @@ function BulkActionDialog({
             >
               {isSubmitting
                 ? <><Loader2 aria-hidden="true" className="animate-spin" style={{ width: 15, height: 15 }} />Registrando {count} peça{count !== 1 ? "s" : ""}…</>
-                : <><HeaderIcon style={{ width: 15, height: 15 }} />{isConfer ? "Confirmar Conferência" : "Confirmar Entrega"} ({count})</>
+                : <><HeaderIcon style={{ width: 15, height: 15 }} />{isConfer ? "Confirmar conferência" : "Confirmar entrega"} ({count})</>
               }
             </button>
           </div>
@@ -657,6 +661,47 @@ export default function Grafica() {
   const [bulkConferPhotos, setBulkConferPhotos] = useState<string[]>([]);
   const addBulkConferPhoto = (url: string) => setBulkConferPhotos(prev => [...prev, convertGCSUrlToLocalPath(url)]);
   const isMobile = useIsMobile();
+  // DENSIDADE PELA LARGURA DO CONTEÚDO, não da janela (mesma régua do Painel
+  // Geral). O tablet do galpão em pé (768–1024px) com a sidebar aberta deixa
+  // 500–700px de conteúdo — e `isMobile` respondia "desktop": caía na tabela
+  // de dez colunas com rolagem lateral, o pior formato possível para quem
+  // trabalha com a peça na mão. Abaixo de 820px de conteúdo a fila vira cards;
+  // entre 820 e 1180 a tabela funde colunas secundárias. O padding de 24px de
+  // cada lado sai da conta porque a medida é da caixa da raiz.
+  const { ref: raizRef, width: larguraRaiz } = useElementSize<HTMLDivElement>();
+  const densidade = larguraRaiz === 0 ? (isMobile ? "cards" : "full") : densityFromWidth(larguraRaiz - (isMobile ? 24 : 48));
+  const usaCards = isMobile || densidade === "cards";
+  const compacto = !usaCards && densidade === "compact";
+  // Colunas da tabela. Eram dez, com REAPROV. e PROD como colunas próprias
+  // quase sempre "—": viraram linhas pequenas DENTRO da célula de Qtd, onde a
+  // pergunta "quanto desta peça já andou?" nasce. Na densidade compacta,
+  // Material desce para baixo da descrição e o m² para baixo das medidas — a
+  // informação fica, a rolagem lateral some. `direita` = coluna numérica.
+  const colunas: { rotulo: string; direita?: boolean }[] = [
+    { rotulo: "ID" },
+    { rotulo: "Peça" },
+    { rotulo: "Qtd", direita: true },
+    { rotulo: "Medidas (ARQ / VIS)" },
+    ...(compacto ? [] : [{ rotulo: "m² a produzir", direita: true }, { rotulo: "Material" }]),
+    { rotulo: "Status" },
+    { rotulo: "" },
+  ];
+  const nColunas = colunas.length;
+  /** m² a produzir de uma linha — a coluna cheia e a versão compacta leem daqui. */
+  const m2DaLinha = (item: any): React.ReactNode => {
+    const total = Number(item.calculatedM2) || 0;
+    if (!total) return "—";
+    const toPrint = m2ToProduce(item);
+    if (reusedTotalOf(item) === 0) return total.toFixed(2);
+    return (
+      <span title={`Total da peça: ${total.toFixed(2)} m² · reaproveitado não é impresso`}>
+        <span style={{ color: toPrint === 0 ? "#047857" : TI.text }}>{toPrint.toFixed(2)}</span>
+        <span style={{ display: "block", fontSize: 10, fontWeight: 400, color: TI.secondary, textDecoration: "line-through" }}>
+          {total.toFixed(2)}
+        </span>
+      </span>
+    );
+  };
 
   /**
    * MODO GALPÃO (celular): conferir/entregar em fila, uma peça por vez.
@@ -1546,10 +1591,11 @@ export default function Grafica() {
 
   const renderNotesField = (placeholder: string) => (
     <div>
-      <label style={{ display: "block", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#746e69", marginBottom: 8 }}>
+      <label htmlFor="input-observacao-modal" style={{ display: "block", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#746e69", marginBottom: 8 }}>
         Observação <span style={{ color: "#746e69", textTransform: "none", letterSpacing: 0, fontWeight: 400 }}>(opcional)</span>
       </label>
       <textarea
+        id="input-observacao-modal"
         value={modalNotes}
         onChange={e => setModalNotes(e.target.value)}
         placeholder={placeholder}
@@ -1936,301 +1982,279 @@ export default function Grafica() {
     }
   };
 
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: isMobile ? 12 : 24, padding: isMobile ? "12px 12px" : 24, paddingBottom: bulkOn ? 'calc(88px + env(safe-area-inset-bottom))' : isMobile ? 12 : 24, backgroundColor: TI.bg, height: "100%", overflowY: "auto" }}>
+  // ── Botões do topo ────────────────────────────────────────────────────────
+  // UMA ação primária por contexto. No celular a primária é a FILA (uma foto
+  // por peça, dois toques) — sólida, na cor da etapa. O lote e o Excel são
+  // secundários: contorno neutro com o ícone na cor da etapa, sem sombra. No
+  // desktop não há primária no topo: o trabalho primário mora na LINHA (um
+  // botão sólido por peça), e os lotes são modos, não o gesto do dia inteiro.
+  // Antes eram até quatro botões cheios com sombra colorida disputando o olho
+  // com o selo e três chips na mesma linha — que quebrava em duas.
+  const botaoSecundario: React.CSSProperties = {
+    display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6,
+    minHeight: isMobile ? 44 : 36, padding: isMobile ? "0 10px" : "0 12px",
+    backgroundColor: TI.surface, color: TI.text,
+    border: `1px solid #d6d3d1`, borderRadius: 8,
+    fontSize: 12, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap",
+    transition: "background-color 0.15s, border-color 0.15s",
+  };
+  const hoverSecundario = {
+    onMouseEnter: (e: React.MouseEvent<HTMLButtonElement>) => { if (!e.currentTarget.disabled) e.currentTarget.style.backgroundColor = "#f5f5f4"; },
+    onMouseLeave: (e: React.MouseEvent<HTMLButtonElement>) => { e.currentTarget.style.backgroundColor = TI.surface; },
+  };
+  const exportDesabilitado = isExporting || filteredItems.length === 0;
 
-      {/* ── Header ── */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: isMobile ? "center" : "flex-end", flexWrap: "wrap", gap: 8 }}>
-        <div>
-          <h1 style={{ margin: 0, fontSize: isMobile ? 19 : FS.h1, fontWeight: 700, fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.03em", lineHeight: 1.1, color: TI.text }} data-testid="title-grafica">
-            Gráfica
-          </h1>
+  return (
+    <div ref={raizRef} style={{ display: "flex", flexDirection: "column", gap: isMobile ? 12 : 16, padding: isMobile ? "12px 12px" : 24, paddingBottom: bulkOn ? 'calc(88px + env(safe-area-inset-bottom))' : isMobile ? 12 : 24, backgroundColor: TI.bg, height: "100%", overflowY: "auto" }}>
+
+      {/* ── Cabeçalho ──
+          Título + uma linha de contexto à esquerda (o que se faz aqui e de
+          quando é o dado), ações à direita. O selo de frescor saiu da fileira
+          de botões: é METADADO do conteúdo, e ao lado dos botões competia com
+          eles pelo mesmo peso visual. Os chips de complemento e de evento
+          finalizado desceram para a barra de resumo da lista — são fatos do
+          RECORTE, e ficam colados na lista que descrevem. O chip "N aguardando
+          produção" saiu: repetia o número de "Liberados" logo abaixo. */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", flexWrap: "wrap", gap: isMobile ? 10 : 12 }}>
+        <div style={{ minWidth: 0, flex: isMobile ? "1 1 100%" : "1 1 320px" }}>
+          <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 8 }}>
+            <h1 style={{ margin: 0, fontSize: isMobile ? 20 : FS.h1, fontWeight: 700, fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.03em", lineHeight: 1.1, color: TI.text }} data-testid="title-grafica">
+              Gráfica
+            </h1>
+            {/* Selo de frescor — sem botão "Atualizar" (regra do dono): a tela se
+                atualiza sozinha (WebSocket + polling + refetch no foco) e este
+                selo é a promessa de veracidade. O spinner ao lado é o único
+                sinal de que uma recarga está em curso. No celular ele fica na
+                linha do título, à direita, para não custar uma linha inteira. */}
+            {isMobile && !isLoading && !isError && (
+              <span
+                data-testid="selo-atualizado"
+                title={new Date(dataUpdatedAt).toLocaleString("pt-BR")}
+                style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11, color: TI.secondary, whiteSpace: "nowrap" }}
+              >
+                {isFetching && <RotateCcw aria-hidden="true" className="animate-spin" style={{ width: 11, height: 11 }} />}
+                Atualizado {fmtRelative(new Date(dataUpdatedAt).toISOString(), agora)}
+              </span>
+            )}
+          </div>
           {!isMobile && (
-            <p style={{ margin: "4px 0 0", fontSize: 13, color: TI.secondary }}>
+            <p style={{ margin: "4px 0 0", fontSize: 13, color: TI.secondary, display: "flex", flexWrap: "wrap", alignItems: "center", gap: "2px 8px" }}>
               {/* Era "Gestão de ativos gráficos em tempo real" — slogan, não
                   orientação. A linha agora diz o que se faz aqui e em que ordem. */}
-              Produzir, conferir e entregar as peças liberadas — a fila segue a saída do caminhão
+              <span>Produzir, conferir e entregar as peças liberadas — a fila segue a saída do caminhão</span>
+              {!isLoading && !isError && (
+                <span
+                  data-testid="selo-atualizado"
+                  title={new Date(dataUpdatedAt).toLocaleString("pt-BR")}
+                  style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11, color: TI.secondary, whiteSpace: "nowrap" }}
+                >
+                  <span aria-hidden="true" style={{ color: "#d6d3d1" }}>·</span>
+                  {isFetching && <RotateCcw aria-hidden="true" className="animate-spin" style={{ width: 11, height: 11 }} />}
+                  Atualizado {fmtRelative(new Date(dataUpdatedAt).toISOString(), agora)}
+                </span>
+              )}
             </p>
           )}
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-          {/* Chip de complementos — clicável e visível TAMBÉM no celular (o
-              chip de "aguardando produção" ao lado é !isMobile; este é
-              importante demais para sumir justamente na tela de quem está no
-              galpão). É o atalho para a fila de aumentos sem tirar a peça do
-              bloco do evento a que ela pertence. */}
-          {/* Selo de frescor — sem botão "Atualizar" (regra do dono): a tela se
-              atualiza sozinha (WebSocket + polling de 60s + refetch no foco) e
-              este selo é a promessa de veracidade. O spinner ao lado é o único
-              sinal de que uma recarga está em curso. Sem isto, uma aba aberta o
-              dia inteiro nunca dizia de quando são os números que mostra. */}
-          {!isLoading && !isError && (
-            <span
-              data-testid="selo-atualizado"
-              title={new Date(dataUpdatedAt).toLocaleString("pt-BR")}
-              style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11, color: "#78716c", whiteSpace: "nowrap" }}
-            >
-              {isFetching && <RotateCcw aria-hidden="true" className="animate-spin" style={{ width: 11, height: 11 }} />}
-              Atualizado {fmtRelative(new Date(dataUpdatedAt).toISOString(), agora)}
-            </span>
-          )}
-          {(complementosAbertos.length > 0 || filtros.complementos) && (
+
+        {/* Some inteira no modo lote: a barra fixa de baixo passa a ser o
+            único lugar de ação, e o selo "modo lote ativo" que ficava aqui
+            virou o rótulo da própria barra (é onde o olho já está). */}
+        {!bulkOn && (
+          <div style={{ display: "flex", alignItems: "center", gap: isMobile ? 6 : 8, flexWrap: "wrap", width: isMobile ? "100%" : undefined }}>
+            {/* CONFERIR / ENTREGAR EM FILA — o caminho do celular, e por isso a
+                primária dele: sólidas, lado a lado, meia largura cada. O lote
+                continua sendo o da bancada (uma foto para várias peças); a fila
+                é uma foto POR peça, que é o registro que a conferência pede. */}
+            {isMobile && (podeConferir && conferableInFilter.length > 0 || deliverableInFilter.length > 0) && (
+              <div style={{ display: "flex", gap: 6, width: "100%" }}>
+                {isMobile && podeConferir && conferableInFilter.length > 0 && !bulkOn && (
+                  <button
+                    onClick={() => setGalpao("confer")}
+                    data-testid="button-fila-conferir"
+                    aria-label={`Conferir em fila, uma peça por vez com foto — ${conferableInFilter.length} peças`}
+                    style={{
+                      flex: 1, minWidth: 0, minHeight: 48,
+                      display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                      backgroundColor: '#0e7490', color: '#fff',
+                      border: 'none', borderRadius: 10, padding: '0 10px',
+                      fontSize: 14, fontWeight: 800, cursor: 'pointer', whiteSpace: 'nowrap',
+                    }}
+                  >
+                    <Camera aria-hidden="true" style={{ width: 16, height: 16, flexShrink: 0 }} />
+                    Conferir <span style={{ fontVariantNumeric: 'tabular-nums', opacity: 0.85 }}>({conferableInFilter.length})</span>
+                  </button>
+                )}
+                {isMobile && deliverableInFilter.length > 0 && !bulkOn && (
+                  <button
+                    onClick={() => setGalpao("deliver")}
+                    data-testid="button-fila-entregar"
+                    aria-label={`Entregar em fila, uma peça por vez com foto — ${deliverableInFilter.length} peças`}
+                    style={{
+                      flex: 1, minWidth: 0, minHeight: 48,
+                      display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                      backgroundColor: '#15803d', color: '#fff',
+                      border: 'none', borderRadius: 10, padding: '0 10px',
+                      fontSize: 14, fontWeight: 800, cursor: 'pointer', whiteSpace: 'nowrap',
+                    }}
+                  >
+                    <Truck aria-hidden="true" style={{ width: 16, height: 16, flexShrink: 0 }} />
+                    Entregar <span style={{ fontVariantNumeric: 'tabular-nums', opacity: 0.85 }}>({deliverableInFilter.length})</span>
+                  </button>
+                )}
+              </div>
+            )}
+            {/* Conferência em lote — só para quem pode conferir (gate do servidor).
+                Secundária: contorno neutro, ícone ciano (a cor da etapa). */}
+            {podeConferir && conferableInFilter.length > 0 && !bulkOn && (
+              <button
+                onClick={() => { setBulkConferMode(true); setBulkSelectedIds(new Set()); }}
+                data-testid="button-bulk-confer"
+                title="Selecionar várias peças e registrar a conferência com uma foto só"
+                style={{ ...botaoSecundario, flex: isMobile ? "1 1 0" : undefined }}
+                {...hoverSecundario}
+              >
+                <ListChecks aria-hidden="true" style={{ width: 15, height: 15, color: "#0e7490", flexShrink: 0 }} />
+                Conferir em lote
+                {/* No celular a contagem já está na fila logo acima — repetir
+                    empurrava os três botões para duas linhas em 390px. */}
+                {!isMobile && <span style={{ color: TI.secondary, fontVariantNumeric: "tabular-nums" }}>{conferableInFilter.length}</span>}
+              </button>
+            )}
+            {/* Entrega em lote — ícone no laranja-texto (#c2410c), o mesmo do
+                botão Entregar da linha. */}
+            {deliverableInFilter.length > 0 && !bulkOn && (
+              <button
+                onClick={() => { setBulkDeliveryMode(true); setBulkSelectedIds(new Set()); }}
+                title="Selecionar várias peças e registrar a entrega com uma foto só"
+                style={{ ...botaoSecundario, flex: isMobile ? "1 1 0" : undefined }}
+                {...hoverSecundario}
+              >
+                <ListChecks aria-hidden="true" style={{ width: 15, height: 15, color: "#c2410c", flexShrink: 0 }} />
+                Entregar em lote
+                {!isMobile && <span style={{ color: TI.secondary, fontVariantNumeric: "tabular-nums" }}>{deliverableInFilter.length}</span>}
+              </button>
+            )}
+            {/* Exportar Excel — é só um download, funciona igualmente no
+                celular; ali vira só o ícone (o rótulo vai no aria-label). */}
             <button
-              onClick={() => patchFiltros({ complementos: !filtros.complementos })}
-              aria-pressed={filtros.complementos}
-              data-testid="chip-complementos"
-              title={filtros.complementos
-                ? "Mostrando só complementos — toque para ver a lista inteira"
-                : "Mostrar só as peças complementares (aumentos de quantidade pedidos após a produção)"}
+              onClick={handleExportXlsx}
+              disabled={exportDesabilitado}
+              data-testid="button-export-xlsx"
+              aria-label={isMobile ? (filteredItems.length ? `Exportar ${filteredItems.length} peça(s) em Excel` : "Nada para exportar") : undefined}
+              title={filteredItems.length ? `Exportar ${filteredItems.length} peça(s) em Excel` : "Nada para exportar"}
               style={{
-                display: "inline-flex", alignItems: "center", gap: 6,
-                backgroundColor: filtros.complementos ? CO.hoverBg : CO.bg,
-                color: CO.text,
-                border: `1px solid ${filtros.complementos ? CO.stripe : CO.border}`,
-                borderRadius: 999, padding: isMobile ? "7px 12px" : "5px 11px",
-                fontSize: 11, fontWeight: 700, cursor: "pointer",
-                whiteSpace: "nowrap", transition: "background-color 0.15s",
+                ...botaoSecundario,
+                ...(isMobile ? { width: 44, padding: 0, flex: "0 0 44px" } : null),
+                color: exportDesabilitado ? "#78716c" : TI.text,
+                cursor: exportDesabilitado ? "not-allowed" : "pointer",
               }}
+              {...hoverSecundario}
             >
-              <span style={{ width: 6, height: 6, borderRadius: "50%", backgroundColor: CO.stripe, display: "inline-block", flexShrink: 0 }} />
-              {complementoChipLabel}
+              {isExporting
+                ? <Loader2 aria-hidden="true" className="animate-spin" style={{ width: 15, height: 15, flexShrink: 0 }} />
+                : <FileSpreadsheet aria-hidden="true" style={{ width: 15, height: 15, color: exportDesabilitado ? "#78716c" : "#15803d", flexShrink: 0 }} />}
+              {!isMobile && (isExporting ? "Gerando…" : "Exportar Excel")}
             </button>
-          )}
-{/* O recorte de reaproveitamento mora no menu de Status (25/08). */}
-          {/* Quanto do recorte é evento que já acabou. NÃO é botão: não há o
-              que alternar — a regra do dono é que estas peças aparecem, e um
-              chip que as escondesse desfaria a decisão num clique. É o
-              contrapeso da regra dos contadores (ver `stats`): os números
-              seguem a lista, e este chip diz quanto da lista é trabalho morto
-              que só aceita conferência e entrega.
-              #44403c sobre #f5f5f4 → 9,42:1 nos 11px. */}
-          {finalizadasNoRecorte.total > 0 && (
-            <span
-              data-testid="chip-evento-finalizado"
-              title={
-                [
-                  finalizadasNoRecorte.encerrado > 0
-                    ? `${finalizadasNoRecorte.encerrado} em evento encerrado por um administrador (reabrir o evento traz o trabalho de volta)`
-                    : null,
-                  finalizadasNoRecorte.realizado > 0
-                    ? `${finalizadasNoRecorte.realizado} em evento cuja data já passou (não há volta)`
-                    : null,
-                ].filter(Boolean).join(" e ")
-                + ". Elas continuam na fila porque conferir e registrar entrega seguem liberados;"
-                + " produzir, reaproveitar e aumentar quantidade estão bloqueados nelas."
-              }
-              style={{
-                display: "inline-flex", alignItems: "center", gap: 6,
-                backgroundColor: "#f5f5f4", color: "#44403c",
-                border: `1px solid ${TI.border}`,
-                borderRadius: 999, padding: isMobile ? "7px 12px" : "5px 11px",
-                fontSize: 11, fontWeight: 700, whiteSpace: "nowrap",
-              }}
-            >
-              <span aria-hidden="true" style={{ width: 6, height: 6, borderRadius: "50%", backgroundColor: "#78716c", display: "inline-block", flexShrink: 0 }} />
-              {finalizadasNoRecorte.total} de evento finalizado
-            </span>
-          )}
-          {!isMobile && stats.liberados > 0 && (
-            <span style={{ display: "inline-flex", alignItems: "center", gap: 6, backgroundColor: "#fff7ed", color: "#c2410c", border: "1px solid #fed7aa", borderRadius: 6, padding: "6px 12px", fontSize: 11, fontWeight: 800 }}>
-              <span style={{ width: 6, height: 6, borderRadius: "50%", backgroundColor: "#f97316", display: "inline-block" }} />
-              {stats.liberados} peça{stats.liberados !== 1 ? "s" : ""} aguardando produção
-            </span>
-          )}
-          {/* CONFERIR EM FILA — o caminho do celular. O lote continua sendo
-              o da bancada (uma foto para várias peças); a fila é uma foto POR
-              peça, que é o registro que a conferência de material pede. */}
-          {isMobile && podeConferir && conferableInFilter.length > 0 && !bulkOn && (
-            <button
-              onClick={() => setGalpao("confer")}
-              data-testid="button-fila-conferir"
-              style={{
-                display: 'inline-flex', alignItems: 'center', gap: 6,
-                backgroundColor: '#0e7490', color: '#fff',
-                border: 'none', borderRadius: 8, padding: '11px 16px',
-                fontSize: 13, fontWeight: 800,
-                cursor: 'pointer', boxShadow: '0 2px 8px rgba(14,116,144,0.3)',
-              }}
-            >
-              <Camera style={{ width: 16, height: 16 }} />
-              Conferir em fila ({conferableInFilter.length})
-            </button>
-          )}
-          {/* Botão Conferência em Lote — só para quem pode conferir (gate do servidor) */}
-          {podeConferir && conferableInFilter.length > 0 && !bulkOn && (
-            <button
-              onClick={() => { setBulkConferMode(true); setBulkSelectedIds(new Set()); }}
-              data-testid="button-bulk-confer"
-              style={{
-                display: 'inline-flex', alignItems: 'center', gap: 6,
-                backgroundColor: '#0e7490', color: '#fff',
-                border: 'none', borderRadius: 8, padding: isMobile ? '11px 16px' : '8px 14px',
-                fontSize: isMobile ? 13 : 11, fontWeight: 800,
-                cursor: 'pointer', boxShadow: '0 2px 8px rgba(14,116,144,0.3)',
-              }}
-            >
-              <CheckCircle style={{ width: isMobile ? 16 : 14, height: isMobile ? 16 : 14 }} />
-              {isMobile ? `Conferir em lote (${conferableInFilter.length})` : `Conferência em lote (${conferableInFilter.length})`}
-            </button>
-          )}
-          {bulkConferMode && (
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#ecfeff', color: '#0e7490', border: '1.5px solid #a5f3fc', borderRadius: 8, padding: '7px 12px', fontSize: 11, fontWeight: 800 }}>
-              <CheckCircle style={{ width: 13, height: 13 }} />
-              {isMobile ? 'Lote ativo' : 'Modo conferência em lote ativo'}
-            </span>
-          )}
-          {isMobile && deliverableInFilter.length > 0 && !bulkOn && (
-            <button
-              onClick={() => setGalpao("deliver")}
-              data-testid="button-fila-entregar"
-              style={{
-                display: 'inline-flex', alignItems: 'center', gap: 6,
-                backgroundColor: '#15803d', color: '#fff',
-                border: 'none', borderRadius: 8, padding: '11px 16px',
-                fontSize: 13, fontWeight: 800,
-                cursor: 'pointer', boxShadow: '0 2px 8px rgba(21,128,61,0.3)',
-              }}
-            >
-              <Camera style={{ width: 16, height: 16 }} />
-              Entregar em fila ({deliverableInFilter.length})
-            </button>
-          )}
-          {/* Botão Entrega em Lote */}
-          {deliverableInFilter.length > 0 && !bulkOn && (
-            <button
-              onClick={() => { setBulkDeliveryMode(true); setBulkSelectedIds(new Set()); }}
-              style={{
-                display: 'inline-flex', alignItems: 'center', gap: 6,
-                // #c2410c (orange-700): branco sobre #f97316 dava ~2.8:1 (reprova AA)
-                backgroundColor: '#c2410c', color: '#fff',
-                border: 'none', borderRadius: 8, padding: isMobile ? '11px 16px' : '8px 14px',
-                fontSize: isMobile ? 13 : 11, fontWeight: 800,
-                cursor: 'pointer', boxShadow: '0 2px 8px rgba(194,65,12,0.35)',
-              }}
-            >
-              <ListChecks style={{ width: isMobile ? 16 : 14, height: isMobile ? 16 : 14 }} />
-              {isMobile ? `Entregar em lote (${deliverableInFilter.length})` : `Entrega em lote (${deliverableInFilter.length})`}
-            </button>
-          )}
-          {bulkDeliveryMode && (
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#fff7ed', color: '#c2410c', border: '1.5px solid #fed7aa', borderRadius: 8, padding: '7px 12px', fontSize: 11, fontWeight: 800 }}>
-              <ListChecks style={{ width: 13, height: 13 }} />
-              {isMobile ? 'Lote ativo' : 'Modo entrega em lote ativo'}
-            </span>
-          )}
-          {/* Exportar Excel — é só um download, funciona igualmente no celular */}
-          <button
-            onClick={handleExportXlsx}
-            disabled={isExporting || filteredItems.length === 0}
-            data-testid="button-export-xlsx"
-            title={filteredItems.length ? `Exportar ${filteredItems.length} peça(s) em Excel` : "Nada para exportar"}
-            style={{
-              display: "inline-flex", alignItems: "center", gap: 6,
-              backgroundColor: TI.surface, color: TI.text,
-              border: `1px solid ${TI.border}`, borderRadius: 6, padding: isMobile ? "10px 14px" : "7px 14px",
-              fontSize: 11, fontWeight: 800,
-              cursor: (isExporting || filteredItems.length === 0) ? "not-allowed" : "pointer",
-              opacity: (isExporting || filteredItems.length === 0) ? 0.5 : 1,
-            }}
-          >
-            <FileSpreadsheet style={{ width: 13, height: 13 }} />
-            {isExporting ? "Gerando…" : `Exportar Excel${filteredItems.length ? ` (${filteredItems.length})` : ""}`}
-          </button>
-        </div>
+          </div>
+        )}
       </div>
 
-      {/* ── KPI Strip ──
-          São SEIS cards (cinco status + Total) e o grid do desktop tinha CINCO
-          colunas: o Total caía sozinho numa segunda linha ocupando 1/5 da
-          largura, ~80% de área morta logo abaixo do bloco de maior peso visual
-          da tela — e deixava de se ler como parte da série, embora seja o botão
-          que limpa o filtro de status. `auto-fit` fecha a linha em qualquer
-          largura e degrada 6→4→3→2 sem nunca deixar órfão. */}
-      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(3, 1fr)" : "repeat(auto-fit, minmax(150px, 1fr))", gap: isMobile ? 6 : 12 }}>
-        {[
-          // O KPI Liberados agrega dois status; ele seleciona os DOIS valores
-          // no filtro (o filtro em si é estrito — ver matchesFilters).
-          // "Em Revisão" vem ANTES de Liberados porque é o degrau anterior
-          // do fluxo: é o trabalho CHEGANDO — visível, sem ação da Gráfica.
-          { label: "Em Revisão",   value: stats.revisao,    sub: "Chegando",         testId: "stat-revisao",    filterVals: ["awaiting_final_review"] },
-          { label: "Liberados",    value: stats.liberados,  sub: "Aguard. produção", testId: "stat-approved",   filterVals: ["ready_for_production", "approved"] },
-          { label: "Em Produção",  value: stats.emProducao, sub: "Ativo",            testId: "stat-production", filterVals: ["inProduction"] },
-          { label: "Produzidos",   value: stats.produzidos, sub: "Ag. conferência",  testId: "stat-produced",   filterVals: ["produced"] },
-          { label: "Conferidos",   value: stats.conferidos, sub: "Ag. entrega",      testId: "stat-conferred",  filterVals: ["conferred"] },
-          { label: "Entregues",    value: stats.entregues,  sub: "Concluído",        testId: "stat-delivered",  filterVals: ["delivered"] },
-        ].map(kpi => {
-          const isActive = kpi.filterVals.every(v => filtros.status.includes(v)) && filtros.status.length === kpi.filterVals.length;
-          // Cores derivadas do MESMO mapa dos pills (lib/status): dot para a
-          // borda, text (tom 700, AA) para o número e para o fundo ativo.
-          // Antes cada card tinha hex próprio — "Entregues" saía com borda azul
-          // e número verde enquanto o pill era emerald; e o fundo ativo laranja
-          // (#f97316) reprovava contraste com o texto branco.
-          const m = getStatusMeta(kpi.filterVals[0]);
-          return (
-            /* Os KPIs são o filtro principal desta tela: clicar num deles é
-               como se filtra por status. Eram <div> com onClick, então quem
-               navega por teclado não conseguia filtrar de jeito nenhum.
-               aria-pressed comunica qual está ativo — que hoje só a cor diz. */
-            <div
-              key={kpi.label}
-              role="button"
-              tabIndex={0}
-              aria-pressed={isActive}
-              aria-label={`Filtrar por ${kpi.label}`}
-              onClick={() => patchFiltros({ status: isActive ? [] : kpi.filterVals })}
-              onKeyDown={e => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault();
-                  patchFiltros({ status: isActive ? [] : kpi.filterVals });
-                }
-              }}
-              data-testid={kpi.testId}
+      {/* ── Faixa de etapas ──
+          Eram SEIS cartões de 32px, cada um com uma borda de cor diferente
+          (roxo, verde, laranja, rosa, teal, verde) e mais um cartão PRETO — sete
+          cores gritando antes da primeira peça, e nenhuma delas dizia o que
+          fazer. Agora é UMA barra de abas: o número é resumo discreto, a cor
+          fica só na bolinha (o mesmo mapa dos pills de lib/status), e o estado
+          ativo é um só (fundo escuro) para todas. Continua sendo o filtro
+          principal de status: cada aba é um <button> com aria-pressed — antes
+          eram <div role="button">.
+
+          "Todas" vem PRIMEIRO: é a aba que desfaz o filtro, e no fim da fila
+          (onde morava o cartão preto) ela se lia como mais uma etapa.
+          Os números seguem a lista (regra do dono) — ver `stats`. */}
+      <div
+        role="group"
+        aria-label="Filtrar a fila por etapa"
+        style={{
+          display: "grid",
+          gridTemplateColumns: isMobile ? "repeat(4, minmax(0, 1fr))" : "repeat(auto-fit, minmax(112px, 1fr))",
+          gap: 4, padding: 4,
+          backgroundColor: TI.surface, border: `1px solid ${TI.border}`, borderRadius: 12,
+        }}
+      >
+        {(() => {
+          // Uma aba — a mesma forma para "Todas" e para as seis etapas.
+          const aba = (p: { chave: string; rotulo: string; valor: number; dica: string; ativa: boolean; dot?: string; testId: string; ariaLabel: string; onClick: () => void }) => (
+            <button
+              key={p.chave}
+              type="button"
+              aria-pressed={p.ativa}
+              aria-label={p.ariaLabel}
+              title={p.dica}
+              onClick={p.onClick}
+              data-testid={p.testId}
               style={{
-                backgroundColor: isActive ? m.text : TI.surface,
-                borderLeft: `4px solid ${m.dot}`,
-                borderRadius: 8,
-                padding: isMobile ? "10px 10px" : "16px 18px",
-                // Anel do estado ativo em boxShadow — o outline fica livre para
-                // o anel de foco do navegador ("2px solid transparent" quando
-                // inativo suprimia o foco de quem navega por teclado).
-                boxShadow: isActive ? `0 4px 16px ${m.dot}33, 0 0 0 2px ${m.dot}` : "0 1px 4px rgba(0,0,0,0.06)",
-                cursor: "pointer",
-                transition: "all 0.15s",
+                display: "flex", flexDirection: "column", alignItems: "flex-start", justifyContent: "center", gap: 3,
+                minWidth: 0, minHeight: isMobile ? 52 : 56, padding: isMobile ? "6px 8px" : "8px 12px",
+                borderRadius: 9, border: "none", textAlign: "left", cursor: "pointer",
+                backgroundColor: p.ativa ? TI.text : "transparent",
+                transition: "background-color 0.15s",
               }}
-              onMouseEnter={e => { if (!isActive) (e.currentTarget as HTMLDivElement).style.backgroundColor = `${m.dot}0f`; }}
-              onMouseLeave={e => { if (!isActive) (e.currentTarget as HTMLDivElement).style.backgroundColor = TI.surface; }}
+              onMouseEnter={e => { if (!p.ativa) e.currentTarget.style.backgroundColor = "#f5f5f4"; }}
+              onMouseLeave={e => { if (!p.ativa) e.currentTarget.style.backgroundColor = "transparent"; }}
             >
-              <div style={{ fontSize: 10, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.06em", color: isActive ? "rgba(255,255,255,0.75)" : TI.secondary, marginBottom: isMobile ? 3 : 6, fontFamily: "'Space Grotesk', sans-serif", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{kpi.label}</div>
-              <div style={{ fontSize: isMobile ? 22 : 32, fontWeight: 900, letterSpacing: "-0.03em", fontFamily: "'Space Grotesk', sans-serif", color: isActive ? "#ffffff" : m.text, lineHeight: 1 }}>{kpi.value}</div>
-              {!isMobile && <div style={{ fontSize: 11, color: isActive ? "rgba(255,255,255,0.7)" : TI.secondary, marginTop: 4 }}>{isActive ? "Clique para limpar" : kpi.sub}</div>}
-            </div>
+              <span style={{ display: "flex", alignItems: "center", gap: 5, maxWidth: "100%", fontSize: 11, fontWeight: 600, color: p.ativa ? "rgba(255,255,255,0.8)" : "#57534e", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                {p.dot && <span aria-hidden="true" style={{ width: 7, height: 7, borderRadius: "50%", backgroundColor: p.dot, flexShrink: 0 }} />}
+                {p.rotulo}
+              </span>
+              {/* Zero em cinza: a etapa vazia recua e a que tem trabalho salta,
+                  sem cor nenhuma. #78716c (4,8:1) — nunca #a8a29e como texto.
+                  Carregando mostra "—": o "0" em todas as abas por meio segundo
+                  dizia "fila vazia" antes de a fila chegar. */}
+              <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: isMobile ? 18 : 22, fontWeight: 700, lineHeight: 1.05, letterSpacing: "-0.02em", fontVariantNumeric: "tabular-nums", color: p.ativa ? "#ffffff" : (isLoading || p.valor === 0) ? "#78716c" : TI.text }}>
+                {isLoading ? "—" : p.valor}
+              </span>
+            </button>
           );
-        })}
-        {/* Total — dark card, clica para resetar */}
-        <div
-          role="button"
-          tabIndex={0}
-          aria-pressed={filtros.status.length === 0}
-          aria-label="Mostrar todos os status"
-          onClick={() => patchFiltros({ status: [] })}
-          onKeyDown={e => {
-            if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); patchFiltros({ status: [] }); }
-          }}
-          data-testid="stat-total"
-          style={{
-            backgroundColor: TI.text, borderLeft: `4px solid ${TI.accent}`, borderRadius: 8,
-            padding: isMobile ? "10px 10px" : "16px 18px",
-            // Estado ativo em boxShadow, outline livre para o foco (ver KPIs).
-            boxShadow: filtros.status.length === 0 ? `0 4px 16px rgba(0,0,0,0.14), 0 0 0 2px ${TI.accent}` : "0 4px 16px rgba(0,0,0,0.14)",
-            cursor: "pointer", transition: "opacity 0.15s",
-          }}
-          onMouseEnter={e => ((e.currentTarget as HTMLDivElement).style.opacity = "0.85")}
-          onMouseLeave={e => ((e.currentTarget as HTMLDivElement).style.opacity = "1")}
-        >
-          <div style={{ fontSize: 10, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.06em", color: "rgba(255,255,255,0.72)", marginBottom: isMobile ? 3 : 6, fontFamily: "'Space Grotesk', sans-serif" }}>Total</div>
-          <div style={{ fontSize: isMobile ? 22 : 32, fontWeight: 900, letterSpacing: "-0.03em", fontFamily: "'Space Grotesk', sans-serif", color: "#ffffff", lineHeight: 1 }}>{stats.total}</div>
-          {!isMobile && <div style={{ fontSize: 11, color: "rgba(255,255,255,0.72)", marginTop: 4 }}>{filtros.status.length === 0 ? "Todos selecionados" : "Ver todos"}</div>}
-        </div>
+          const todasAtiva = filtros.status.length === 0;
+          return (
+            <>
+              {aba({
+                chave: "total", rotulo: "Todas", valor: stats.total, testId: "stat-total",
+                ativa: todasAtiva, dica: todasAtiva ? "Mostrando todas as etapas" : "Ver todas as etapas",
+                ariaLabel: `Mostrar todos os status — ${stats.total} peças`,
+                onClick: () => patchFiltros({ status: [] }),
+              })}
+              {[
+                // O KPI Liberados agrega dois status; ele seleciona os DOIS valores
+                // no filtro (o filtro em si é estrito — ver matchesFilters).
+                // "Em Revisão" vem ANTES de Liberados porque é o degrau anterior
+                // do fluxo: é o trabalho CHEGANDO — visível, sem ação da Gráfica.
+                { label: "Em Revisão",   value: stats.revisao,    sub: "Chegando",         testId: "stat-revisao",    filterVals: ["awaiting_final_review"] },
+                { label: "Liberados",    value: stats.liberados,  sub: "Aguard. produção", testId: "stat-approved",   filterVals: ["ready_for_production", "approved"] },
+                { label: "Em Produção",  value: stats.emProducao, sub: "Ativo",            testId: "stat-production", filterVals: ["inProduction"] },
+                { label: "Produzidos",   value: stats.produzidos, sub: "Ag. conferência",  testId: "stat-produced",   filterVals: ["produced"] },
+                { label: "Conferidos",   value: stats.conferidos, sub: "Ag. entrega",      testId: "stat-conferred",  filterVals: ["conferred"] },
+                { label: "Entregues",    value: stats.entregues,  sub: "Concluído",        testId: "stat-delivered",  filterVals: ["delivered"] },
+              ].map(kpi => {
+                const isActive = kpi.filterVals.every(v => filtros.status.includes(v)) && filtros.status.length === kpi.filterVals.length;
+                // A bolinha usa o `dot` do MESMO mapa dos pills (lib/status):
+                // a cor identifica a etapa na tabela e aqui do mesmo jeito.
+                const m = getStatusMeta(kpi.filterVals[0]);
+                return aba({
+                  chave: kpi.testId,
+                  // No celular a aba tem ~80px: "Em Produção" virava reticência.
+                  rotulo: isMobile ? kpi.label.replace(/^Em /, "") : kpi.label,
+                  valor: kpi.value, testId: kpi.testId, dot: m.dot, ativa: isActive,
+                  dica: isActive ? `${kpi.sub} — clique para ver todas` : kpi.sub,
+                  ariaLabel: `Filtrar por ${kpi.label} — ${kpi.value} peças`,
+                  onClick: () => patchFiltros({ status: isActive ? [] : kpi.filterVals }),
+                });
+              })}
+            </>
+          );
+        })()}
       </div>
 
       {/* ── Filters Bar ───────────────────────────────────────────────────────
@@ -2245,7 +2269,12 @@ export default function Grafica() {
           esconde o rodapé atrás da barra do navegador). Nada some: mesmo
           vocabulário, mesmos testids, mesma URL. */}
       {(() => {
-        const trigger: React.CSSProperties = { backgroundColor: "#e8e8e7", border: "none", borderRadius: 6, fontSize: 13, color: TI.text };
+        // O gatilho usa a pele PADRÃO do FilterSelect. O override antigo
+        // (fundo #e8e8e7, sem borda, cor fixa) vinha DEPOIS do estilo calculado
+        // e apagava o tint de "filtro ativo": com Grupo escolhido o campo ficava
+        // idêntico a um vazio — e o de Evento, que nunca recebeu o override,
+        // era o único branco da fileira.
+        const trigger: React.CSSProperties = {};
         const SELECTS_PRINCIPAIS = [
           // O reaproveitamento mora DENTRO do menu de Status (pedido do dono,
           // 25/08 — o chip solto ficava longe de onde se filtra). "reuso" é um
@@ -2291,20 +2320,24 @@ export default function Grafica() {
             triggerStyle={trigger}
           />
         ));
+        // 280px de base: o placeholder cabia em 168px úteis e saía cortado
+        // ("…ou eve"). No tablet (lista em cards) a busca ocupa a linha
+        // inteira — senão "Mais filtros" quebrava sozinho para a linha de
+        // baixo, o mesmo defeito que esta barra tinha no notebook.
         const campoBusca = (
-          <div style={{ position: "relative", flex: "1", minWidth: isMobile ? 0 : 200 }}>
+          <div style={{ position: "relative", flex: isMobile ? "1" : usaCards ? "1 1 100%" : "1 1 280px", minWidth: isMobile ? 0 : usaCards ? 0 : 280 }}>
             {/* #78716c em vez de TI.muted (#a8a29e): 2,06:1 sobre o fundo
                 #e8e8e7 do input reprovava o mínimo de 3:1 de elemento não
                 textual. E a borda de 1px devolve ao campo a cara de campo. */}
             <Search style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", width: 14, height: 14, color: "#78716c" }} />
             <input
               type="text"
-              placeholder="Buscar por ID, descrição ou evento..."
+              placeholder="Buscar por ID, descrição ou evento"
               aria-label="Buscar peças"
               value={buscaInput}
               onChange={e => setBuscaInput(e.target.value)}
               data-testid="input-search-filter"
-              style={{ width: "100%", paddingLeft: 32, paddingRight: 12, paddingTop: isMobile ? 11 : 8, paddingBottom: isMobile ? 11 : 8, backgroundColor: "#e8e8e7", border: "1px solid #d6d3d1", borderRadius: 6, fontSize: 13, color: TI.text, boxSizing: "border-box" }}
+              style={{ width: "100%", height: isMobile ? 44 : 36, paddingLeft: 32, paddingRight: 12, backgroundColor: "#ffffff", border: "1px solid #d6d3d1", borderRadius: 8, fontSize: isMobile ? 16 : 13, color: TI.text, boxSizing: "border-box" }}
               onFocus={e => { e.currentTarget.style.borderColor = "#c2410c"; e.currentTarget.style.boxShadow = "0 0 0 3px rgba(194,65,12,0.18)"; }}
               onBlur={e => { e.currentTarget.style.borderColor = "#d6d3d1"; e.currentTarget.style.boxShadow = "none"; }}
             />
@@ -2320,52 +2353,81 @@ export default function Grafica() {
             title="Só peças de evento cujo caminhão sai nos próximos 10 dias"
           />
         );
+        // "N filtros ativos · Limpar": a contagem é TEXTO (o que está valendo) e
+        // o botão é só o verbo. Antes era um pill vermelho "Limpar tudo (3)" —
+        // vermelho é cor de perigo, e limpar filtro não destrói nada.
         const botaoLimpar = haFiltro && (
-          <button
-            type="button"
-            onClick={limparFiltros}
-            data-testid="button-limpar-filtros"
-            title={`Limpar: ${descricaoFiltros.join(" · ")}`}
-            style={{
-              display: "inline-flex", alignItems: "center", gap: 5,
-              background: "#fff", color: "#b91c1c", border: "1px solid #fecaca",
-              borderRadius: 999, padding: isMobile ? "10px 14px" : "7px 12px",
-              fontSize: 11, fontWeight: 800, cursor: "pointer", whiteSpace: "nowrap",
-            }}
-          >
-            <X aria-hidden="true" style={{ width: 12, height: 12 }} />
-            Limpar tudo ({nFiltros})
-          </button>
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 4, marginLeft: isMobile ? 0 : "auto", fontSize: 12, color: TI.secondary, whiteSpace: "nowrap" }}>
+            {!isMobile && (
+              <span data-testid="texto-filtros-ativos" title={descricaoFiltros.join(" · ")}>
+                <strong style={{ color: TI.text, fontVariantNumeric: "tabular-nums" }}>{nFiltros}</strong> filtro{nFiltros !== 1 ? "s" : ""} ativo{nFiltros !== 1 ? "s" : ""}
+                <span aria-hidden="true"> ·</span>
+              </span>
+            )}
+            <button
+              type="button"
+              onClick={limparFiltros}
+              data-testid="button-limpar-filtros"
+              aria-label={`Limpar ${nFiltros} filtro${nFiltros !== 1 ? "s" : ""}: ${descricaoFiltros.join(" · ")}`}
+              title={`Limpar: ${descricaoFiltros.join(" · ")}`}
+              style={{
+                display: "inline-flex", alignItems: "center", gap: 4,
+                minHeight: isMobile ? 44 : 32, padding: isMobile ? "0 14px" : "0 8px",
+                background: isMobile ? "#ffffff" : "transparent", color: TI.text,
+                border: isMobile ? `1px solid ${TI.border}` : "none", borderRadius: 8,
+                fontSize: isMobile ? 13 : 12, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap",
+                textDecoration: isMobile ? "none" : "underline", textUnderlineOffset: 3,
+              }}
+            >
+              {isMobile && <X aria-hidden="true" style={{ width: 13, height: 13 }} />}
+              Limpar
+            </button>
+          </span>
         );
 
+        // Quantos filtros AVANÇADOS estão valendo — o botão que os abre diz o
+        // número, senão um recorte por Material fica invisível com a gaveta fechada.
+        const nAvancados = [filtros.tipo, filtros.material, filtros.acabamento].filter(v => v.length > 0).length;
+        // DUAS LINHAS DE PROPÓSITO, não por quebra: antes era uma fileira só
+        // que estourava e deixava "Filtros" sozinho na segunda linha, com o
+        // placeholder da busca cortado. Linha 1 = achar (busca + atalhos);
+        // linha 2 = recortar (os selects) com o resumo "N filtros ativos ·
+        // Limpar" encostado à direita, onde a pessoa termina de filtrar.
         if (!isMobile) return (
-          <div style={{ backgroundColor: "#f3f4f3", borderRadius: 12, padding: "12px 14px", display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8 }}>
-            {campoBusca}
-            <EventFilterDropdown
-              values={filtros.evento}
-              onValuesChange={v => patchFiltros({ evento: v })}
-              options={eventFilterOptions}
-            />
-            {selects(false)}
-            <div style={{ borderLeft: `1px solid ${TI.border}`, paddingLeft: 12, marginLeft: 4 }}>
+          <div style={{ backgroundColor: "#f3f4f3", borderRadius: 12, padding: "10px 12px", display: "flex", flexDirection: "column", gap: 8 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+              {campoBusca}
               {pillProximos}
+              <button
+                type="button"
+                onClick={() => setShowAdvancedFilters(v => !v)}
+                data-testid="button-toggle-advanced-filters"
+                aria-expanded={showAdvancedFilters}
+                style={{ display: "inline-flex", alignItems: "center", gap: 6, height: 36, backgroundColor: showAdvancedFilters ? TI.text : "transparent", color: showAdvancedFilters ? "#ffffff" : "#57534e", border: `1px solid ${showAdvancedFilters ? TI.text : "#d6d3d1"}`, borderRadius: 999, padding: "0 12px", fontSize: 12, fontWeight: 600, cursor: "pointer", transition: "background-color 0.15s, color 0.15s", whiteSpace: "nowrap" }}
+              >
+                <Filter aria-hidden="true" style={{ width: 13, height: 13 }} />
+                Mais filtros
+                {nAvancados > 0 && (
+                  <span style={{ fontSize: 11, fontWeight: 700, padding: "1px 7px", borderRadius: 99, backgroundColor: showAdvancedFilters ? "rgba(255,255,255,0.2)" : "#e7e5e4", color: showAdvancedFilters ? "#ffffff" : "#57534e", fontVariantNumeric: "tabular-nums" }}>{nAvancados}</span>
+                )}
+                <ChevronDown aria-hidden="true" style={{ width: 12, height: 12, transform: showAdvancedFilters ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }} />
+              </button>
             </div>
-            <button
-              onClick={() => setShowAdvancedFilters(v => !v)}
-              data-testid="button-toggle-advanced-filters"
-              style={{ display: "flex", alignItems: "center", gap: 5, backgroundColor: showAdvancedFilters ? TI.text : "transparent", color: showAdvancedFilters ? "#ffffff" : TI.secondary, border: `1px solid ${showAdvancedFilters ? TI.text : TI.border}`, borderRadius: 6, padding: "7px 12px", fontSize: 13, fontWeight: 600, cursor: "pointer", transition: "all 0.15s" }}
-            >
-              <Filter style={{ width: 13, height: 13 }} />
-              Filtros
-              <ChevronDown style={{ width: 12, height: 12, transform: showAdvancedFilters ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }} />
-            </button>
-            {botaoLimpar}
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+              <EventFilterDropdown
+                values={filtros.evento}
+                onValuesChange={v => patchFiltros({ evento: v })}
+                options={eventFilterOptions}
+              />
+              {selects(false)}
+              {botaoLimpar}
+            </div>
             {showAdvancedFilters && (
-              <div style={{ width: "100%", display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8, borderTop: `1px solid ${TI.border}`, paddingTop: 10, marginTop: 2 }}>
+              <div style={{ width: "100%", display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8, borderTop: `1px solid ${TI.border}`, paddingTop: 10 }}>
                 {avancados(true)}
                 {(filtros.tipo.length > 0 || filtros.material.length > 0 || filtros.acabamento.length > 0) && (
                   <div style={{ gridColumn: "1 / -1" }}>
-                    <button onClick={() => patchFiltros({ tipo: [], material: [], acabamento: [] })} data-testid="button-reset-advanced-filters" style={{ background: "none", border: "none", cursor: "pointer", fontSize: 13, color: "#dc2626", fontWeight: 600 }}>
+                    <button onClick={() => patchFiltros({ tipo: [], material: [], acabamento: [] })} data-testid="button-reset-advanced-filters" style={{ background: "none", border: "none", cursor: "pointer", fontSize: 13, color: "#b91c1c", fontWeight: 600 }}>
                       Limpar filtros avançados
                     </button>
                   </div>
@@ -2449,7 +2511,7 @@ export default function Grafica() {
                   </p>
                   {avancados(true)}
                   {(filtros.tipo.length > 0 || filtros.material.length > 0 || filtros.acabamento.length > 0) && (
-                    <button onClick={() => patchFiltros({ tipo: [], material: [], acabamento: [] })} data-testid="button-reset-advanced-filters" style={{ background: "none", border: "none", cursor: "pointer", fontSize: 13, color: "#dc2626", fontWeight: 600, alignSelf: "flex-start", padding: "8px 0" }}>
+                    <button onClick={() => patchFiltros({ tipo: [], material: [], acabamento: [] })} data-testid="button-reset-advanced-filters" style={{ background: "none", border: "none", cursor: "pointer", fontSize: 13, color: "#b91c1c", fontWeight: 600, alignSelf: "flex-start", padding: "8px 0" }}>
                       Limpar filtros avançados
                     </button>
                   )}
@@ -2482,6 +2544,169 @@ export default function Grafica() {
 
       {/* ── Tabela Principal ── */}
       <div style={{ backgroundColor: TI.surface, border: `1px solid ${TI.border}`, borderRadius: 12 }}>
+        {/* ── Resumo do recorte ──
+            Era o RODAPÉ da tabela: com 200 peças, "quantas são, quanto m² falta
+            e que há entregues escondidas" ficava a metros de rolagem de quem
+            precisa decidir o dia. Subiu para a borda de cima da lista, junto dos
+            dois chips que descrevem o recorte (e que antes disputavam espaço com
+            os botões do cabeçalho). Mesmo texto, mesmas contas, mesmos testids. */}
+        {!isLoading && !isError && (filteredItems.length > 0 || complementosAbertos.length > 0 || filtros.complementos || finalizadasNoRecorte.total > 0) && (
+          <div
+            data-testid="resumo-da-lista"
+            style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "6px 12px", padding: isMobile ? "10px 12px" : "10px 16px", borderBottom: `1px solid ${TI.border}`, fontSize: isMobile ? 12 : 13, color: TI.secondary, lineHeight: 1.5 }}
+          >
+            <div style={{ minWidth: 0, flex: "1 1 320px" }}>
+              <span aria-live="polite"><strong style={{ color: TI.text, fontVariantNumeric: "tabular-nums" }}>{filteredItems.length}</strong> peça{filteredItems.length !== 1 ? "s" : ""}</span>
+              {/* O complemento é +1 linha na contagem (é peça de verdade, com
+                  produção própria). Dizer quantas são evita a pergunta "por que
+                  agora são 43 se o evento tem 42?". */}
+              {(() => {
+                const n = (filteredItems as any[]).filter((i: any) => isComplement(i)).length;
+                return n > 0 ? <span style={{ color: CO.text }}> ({n} complemento{n !== 1 ? "s" : ""})</span> : null;
+              })()}
+              {" · "}
+              <strong style={{ color: TI.text }}>{Array.from(new Set(filteredItems.map((i: any) => i.eventId).filter(Boolean))).length}</strong> evento{Array.from(new Set(filteredItems.map((i: any) => i.eventId).filter(Boolean))).length !== 1 ? "s" : ""}
+              {(() => {
+                // O total que importa para a Gráfica é o que AINDA vai ser
+                // impresso: peça entregue já saiu da fila e não entra na soma
+                // (nem na economia — senão o entregue viraria "economia" falsa).
+                const pending = filteredItems.filter((i: any) => !isDelivered(i));
+                const totalM2 = pending.reduce((s: number, i: any) => s + (Number(i.calculatedM2) || 0), 0);
+                const printM2 = pending.reduce((s: number, i: any) => s + m2ToProduce(i), 0);
+                const reusedUn = pending.reduce((s: number, i: any) => s + reusedTotalOf(i), 0);
+                if (!totalM2) return null;
+                return (
+                  <>
+                    {" · "}<strong style={{ color: TI.text }}>{printM2.toFixed(2)} m²</strong> a produzir
+                    {reusedUn > 0 && (
+                      /* #047857 (emerald-700, 5,48:1) no lugar de #059669: 3,77:1
+                         reprova AA em 13px. Fonte: P.emerald.text de lib/status. */
+                      <span style={{ color: "#047857" }}>
+                        {" "}(economia de {(totalM2 - printM2).toFixed(2)} m² · {reusedUn} un. reaproveitada{reusedUn !== 1 ? "s" : ""})
+                      </span>
+                    )}
+                  </>
+                );
+              })()}
+              {/* O espelho da regra acima: mostrar dado sem dizer POR QUE ele
+                  apareceu também confunde. Escolher um evento revela as entregues
+                  DELE (lib/grafica-filtros: a faceta de evento é oferecida porque
+                  o clique revela), e a fila de quem filtra por evento passa a ter
+                  linhas já terminadas. Uma frase basta — quem quiser só o que
+                  falta tem as abas de etapa logo acima. */}
+              {(() => {
+                // Conta na LISTA, não no statsPool: com um status escolhido junto
+                // (evento + "Em produção") não há entregue nenhuma na tela, e a
+                // frase seria falsa — o defeito que esta tela mais teme é número
+                // que não bate com a lista logo acima.
+                if (filtros.evento.length === 0 || filtros.entregues) return null;
+                const n = (filteredItems as any[]).filter((i: any) => isDelivered(i)).length;
+                if (n === 0) return null;
+                return (
+                  <span data-testid="nota-entregues-do-evento">
+                    {" · "}inclui {n} entregue{n !== 1 ? "s" : ""} do evento escolhido
+                  </span>
+                );
+              })()}
+              {/* Esconder dado sem dizer que está escondido é pior que o problema:
+                  o chip de reversão é parte da feature, não um extra. */}
+              {entreguesOcultas > 0 && (
+                <>
+                  {" · "}
+                  <button
+                    type="button"
+                    onClick={() => patchFiltros({ entregues: true })}
+                    data-testid="chip-entregues-ocultas"
+                    title="A tela abre na fila do que falta fazer. Clique para trazer o histórico de entregas de volta."
+                    style={{ background: "none", border: "none", padding: 0, fontSize: "inherit", fontWeight: 700, color: "#0e7490", textDecoration: "underline", textUnderlineOffset: 3, cursor: "pointer", minHeight: isMobile ? 32 : undefined }}
+                  >
+                    {entreguesOcultas} entregue{entreguesOcultas !== 1 ? "s" : ""} oculta{entreguesOcultas !== 1 ? "s" : ""} · mostrar
+                  </button>
+                </>
+              )}
+              {filtros.entregues && (
+                <>
+                  {" · "}
+                  <button
+                    type="button"
+                    onClick={() => patchFiltros({ entregues: false })}
+                    data-testid="chip-ocultar-entregues"
+                    style={{ background: "none", border: "none", padding: 0, fontSize: "inherit", fontWeight: 700, color: "#0e7490", textDecoration: "underline", textUnderlineOffset: 3, cursor: "pointer", minHeight: isMobile ? 32 : undefined }}
+                  >
+                    ocultar entregues
+                  </button>
+                </>
+              )}
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+              {/* Chip de complementos — clicável e visível TAMBÉM no celular:
+                  importante demais para sumir justamente na tela de quem está no
+                  galpão. É o atalho para a fila de aumentos sem tirar a peça do
+                  bloco do evento a que ela pertence. */}
+              {(complementosAbertos.length > 0 || filtros.complementos) && (
+                <button
+                  type="button"
+                  onClick={() => patchFiltros({ complementos: !filtros.complementos })}
+                  aria-pressed={filtros.complementos}
+                  data-testid="chip-complementos"
+                  title={filtros.complementos
+                    ? "Mostrando só complementos — toque para ver a lista inteira"
+                    : "Mostrar só as peças complementares (aumentos de quantidade pedidos após a produção)"}
+                  style={{
+                    display: "inline-flex", alignItems: "center", gap: 6,
+                    minHeight: isMobile ? 36 : 28,
+                    backgroundColor: filtros.complementos ? CO.hoverBg : CO.bg,
+                    color: CO.text,
+                    border: `1px solid ${filtros.complementos ? CO.stripe : CO.border}`,
+                    borderRadius: 999, padding: "0 11px",
+                    fontSize: 11, fontWeight: 700, cursor: "pointer",
+                    whiteSpace: "nowrap", transition: "background-color 0.15s",
+                  }}
+                >
+                  {filtros.complementos
+                    ? <Check aria-hidden="true" style={{ width: 12, height: 12, flexShrink: 0 }} />
+                    : <span aria-hidden="true" style={{ width: 6, height: 6, borderRadius: "50%", backgroundColor: CO.stripe, display: "inline-block", flexShrink: 0 }} />}
+                  {complementoChipLabel}
+                </button>
+              )}
+              {/* Quanto do recorte é evento que já acabou. NÃO é botão: não há o
+                  que alternar — a regra do dono é que estas peças aparecem, e um
+                  chip que as escondesse desfaria a decisão num clique. É o
+                  contrapeso da regra dos contadores (ver `stats`): os números
+                  seguem a lista, e este chip diz quanto da lista é trabalho morto
+                  que só aceita conferência e entrega.
+                  #44403c sobre #f5f5f4 → 9,42:1 nos 11px. */}
+              {finalizadasNoRecorte.total > 0 && (
+                <span
+                  data-testid="chip-evento-finalizado"
+                  title={
+                    [
+                      finalizadasNoRecorte.encerrado > 0
+                        ? `${finalizadasNoRecorte.encerrado} em evento encerrado por um administrador (reabrir o evento traz o trabalho de volta)`
+                        : null,
+                      finalizadasNoRecorte.realizado > 0
+                        ? `${finalizadasNoRecorte.realizado} em evento cuja data já passou (não há volta)`
+                        : null,
+                    ].filter(Boolean).join(" e ")
+                    + ". Elas continuam na fila porque conferir e registrar entrega seguem liberados;"
+                    + " produzir, reaproveitar e aumentar quantidade estão bloqueados nelas."
+                  }
+                  style={{
+                    display: "inline-flex", alignItems: "center", gap: 6,
+                    minHeight: isMobile ? 36 : 28,
+                    backgroundColor: "#f5f5f4", color: "#44403c",
+                    border: `1px solid ${TI.border}`,
+                    borderRadius: 999, padding: "0 11px",
+                    fontSize: 11, fontWeight: 700, whiteSpace: "nowrap",
+                  }}
+                >
+                  <span aria-hidden="true" style={{ width: 6, height: 6, borderRadius: "50%", backgroundColor: "#78716c", display: "inline-block", flexShrink: 0 }} />
+                  {finalizadasNoRecorte.total} de evento finalizado
+                </span>
+              )}
+            </div>
+          </div>
+        )}
         {/* Rede de segurança do recorte. A peça-filha pode nascer FORA dos
             filtros do operador (status, busca, grupo, percurso, evento, chip de
             complementos): aí a rolagem falharia em silêncio, o pior desfecho
@@ -2520,7 +2745,10 @@ export default function Grafica() {
              altura e a fila chegava EMPURRANDO a tela. */
           <EsqueletoDeFila linhas={8} />
         ) : isError ? (
-          <div style={{ textAlign: "center", padding: "48px 24px" }}>
+          /* role="alert": a fila falhou em silêncio para quem usa leitor de
+             tela. O ícone e o botão de 44px seguem o vazio logo abaixo. */
+          <div role="alert" style={{ textAlign: "center", padding: "48px 24px" }}>
+            <AlertCircle aria-hidden="true" style={{ width: 36, height: 36, margin: "0 auto 12px", color: "#b91c1c" }} />
             <div style={{ fontSize: 15, fontWeight: 700, color: "#b91c1c", marginBottom: 4 }}>
               {migracaoPendente ? "Atualização do banco pendente" : "Não foi possível carregar as peças"}
             </div>
@@ -2529,7 +2757,15 @@ export default function Grafica() {
                 ? "Falta rodar a atualização do banco (npm run db:push) para o recurso de aumento de quantidade. Fale com o administrador."
                 : "Verifique sua conexão e tente novamente."}
             </div>
-            <button onClick={() => refetch()} style={{ background: TI.text, color: "#fff", border: "none", borderRadius: 8, padding: "8px 18px", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>Tentar novamente</button>
+            <button
+              type="button"
+              onClick={() => refetch()}
+              disabled={isFetching}
+              style={{ display: "inline-flex", alignItems: "center", gap: 6, minHeight: 44, background: TI.text, color: "#fff", border: "none", borderRadius: 8, padding: "0 20px", fontSize: 13, fontWeight: 700, cursor: isFetching ? "wait" : "pointer", opacity: isFetching ? 0.75 : 1 }}
+            >
+              {isFetching && <Loader2 aria-hidden="true" className="animate-spin" style={{ width: 14, height: 14 }} />}
+              {isFetching ? "Tentando…" : "Tentar novamente"}
+            </button>
           </div>
         ) : filteredItems.length === 0 ? (
           /* Três motivos diferentes, três respostas diferentes: recorte
@@ -2548,8 +2784,8 @@ export default function Grafica() {
              lib/grafica-filtros). Aqui ele se paga com o aviso e o atalho: o
              botão de mostrar vira o principal, porque é o que a pessoa procura. */
           <div style={{ textAlign: "center", padding: "48px 24px", color: TI.secondary }}>
-            <Package style={{ width: 40, height: 40, margin: "0 auto 12px", color: TI.secondary }} />
-            <div style={{ fontSize: 15, fontWeight: 700, color: TI.secondary, marginBottom: 4 }}>
+            <Package aria-hidden="true" style={{ width: 40, height: 40, margin: "0 auto 12px", color: TI.secondary }} />
+            <div style={{ fontSize: 15, fontWeight: 700, color: TI.text, marginBottom: 4 }}>
               {haFiltro && entreguesOcultas > 0 ? "Neste recorte, já foi tudo entregue"
                 : haFiltro ? "Nenhuma peça encontrada"
                 : entreguesOcultas > 0 ? "Tudo entregue por aqui"
@@ -2588,8 +2824,8 @@ export default function Grafica() {
               )}
             </div>
           </div>
-        ) : isMobile ? (
-          /* ── View mobile: cards ── */
+        ) : usaCards ? (
+          /* ── Cards: celular E tablet (conteúdo < 820px, ver `densidade`) ── */
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4, padding: '8px 8px' }}>
             {(linhasVisiveis as any[]).map((item: any, index: number) => {
               const prev = index > 0 ? (linhasVisiveis as any[])[index - 1] : null;
@@ -2621,7 +2857,21 @@ export default function Grafica() {
               // fazem). Espelha as rotas: produzir e aumentar quantidade são
               // 409; conferir, entregar e cancelar complemento passam.
               const selo = seloDoItem(item);
-              const temGrupoFluxo = podeProduzirAqui || canDeliverItem || (podeConferir && canConferItem) || isDelivered(item);
+              // AS AÇÕES DA TABELA, NO CARD. Desde que o card passou a valer
+              // também para o tablet (conteúdo < 820px), ele virou o ÚNICO
+              // layout dessa faixa — e sem estes quatro, Produzir/Continuar da
+              // peça comum, Reaproveitar, Ajustar e Corrigir reaproveitamento e
+              // Devolver para a Revisão ficavam inalcançáveis ali (a ficha de
+              // detalhe não os tem). As condições são CÓPIA LITERAL dos gates da
+              // coluna de Ações da tabela, lá embaixo: se mudar um, mude o
+              // outro — `grafica-mobile.test.ts` confere que as duas batem.
+              // O `!bulkOn` já vem do trilho, que só existe fora do lote.
+              const podeProduzirPeca = !emRevisao && canProduce && !isDelivered(item) && !isProduced(item) && !isConferred(item) && !item.isReuse;
+              const podeReaproveitarPeca = !emRevisao && !soVisualizaKit(item) && !isDelivered(item) && !isConferred(item) && (!isProduced(item) ? tetoReaproveitar(item) > 0 : podeMexerQtd && qtyOf(item) > 0);
+              const podeCorrigirReaprov = !emRevisao && !soVisualizaKit(item) && (isProduced(item) || isAdmin) && reusedTotalOf(item) > 0
+                && conferredOf(item) === 0 && deliveredOf(item) === 0;
+              const podeDevolverPeca = canProduce && podeDevolverParaRevisao(item);
+              const temGrupoFluxo = podeProduzirAqui || podeProduzirPeca || podeReaproveitarPeca || podeCorrigirReaprov || podeDevolverPeca || canDeliverItem || (podeConferir && canConferItem) || isDelivered(item);
               const temGrupoContrato = mostraAumentar || podeCancelarCompl;
 
               return (
@@ -2894,131 +3144,279 @@ export default function Grafica() {
                           <AlertCircle style={{ width: 10, height: 10, flexShrink: 0 }} />{item.observations}
                         </div>
                       )}
+
+                      {/* AÇÕES — faixa no PÉ do card, não mais um trilho de 116px à
+                          direita. O trilho roubava um terço da largura em 390px e
+                          espremia tipo e descrição em reticências justamente na
+                          tela de quem confere com a peça na mão; no pé, cada botão
+                          ganha largura de dedo (≥ 112px, 44 de altura) e o texto da
+                          peça respira. Some em QUALQUER modo de lote (antes só
+                          !bulkDeliveryMode: na conferência em lote os botões
+                          continuavam aparecendo e disputando o toque). */}
+                      {!bulkOn && (temGrupoFluxo || temGrupoContrato) && (
+                        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'stretch', gap: 6, marginTop: 8 }}>
+                          {/* PRODUZIR — o celular só tinha Entregar e Conferir.
+                              Num complemento isso é o pior buraco possível: a
+                              Gráfica em campo vê o alerta laranja e não tem o que
+                              fazer com ele. Este é o "Produzir N" do complemento
+                              aberto; a peça comum usa o Produzir/Continuar logo
+                              abaixo. Mesmo gate de papel do desktop, que o
+                              servidor também valida. */}
+                          {podeProduzirAqui && (
+                            <button
+                              onClick={e => { e.stopPropagation(); if (!selo) openProductionModal(item); }}
+                              disabled={!!selo}
+                              title={selo ? motivoAcaoBloqueada(selo.motivo, "produzir") : undefined}
+                              data-testid={`button-production-mobile-${item.id}`}
+                              /* Desabilitado: #78716c sobre #f5f5f4 → 4,84:1 nos
+                                 13px/800 (o cinza claro do padrão do navegador
+                                 reprovaria AA). */
+                              style={{ flex: '1 1 112px', minHeight: 44, padding: '0 12px', borderRadius: 8, background: selo ? '#f5f5f4' : CO.solidBg, border: selo ? `1px solid ${TI.border}` : 'none', color: selo ? '#78716c' : '#fff', fontSize: 13, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, cursor: selo ? 'not-allowed' : 'pointer', whiteSpace: 'nowrap' }}
+                            >
+                              <Play aria-hidden="true" style={{ width: 13, height: 13 }} />
+                              Produzir {remainingProduce(item)}
+                            </button>
+                          )}
+                          {/* PRODUZIR / CONTINUAR da peça comum — o mesmo botão
+                              da tabela (mesmo gate, mesmo modal, mesmo bloqueio
+                              de evento finalizado). O complemento aberto já tem
+                              o "Produzir N" logo acima; não repete. */}
+                          {podeProduzirPeca && !podeProduzirAqui && (
+                            <button
+                              onClick={e => { e.stopPropagation(); if (!selo) openProductionModal(item); }}
+                              disabled={!!selo}
+                              title={selo
+                                ? motivoAcaoBloqueada(selo.motivo, "produzir")
+                                : isInProd(item) ? "Continuar Produção" : "Iniciar Produção"}
+                              data-testid={`button-production-card-${item.id}`}
+                              style={{ flex: '1 1 112px', minHeight: 44, padding: '0 12px', borderRadius: 8, background: selo ? '#f5f5f4' : TI.text, border: selo ? `1px solid ${TI.border}` : 'none', color: selo ? '#78716c' : '#fff', fontSize: 13, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, cursor: selo ? 'not-allowed' : 'pointer', whiteSpace: 'nowrap' }}
+                            >
+                              <Play aria-hidden="true" style={{ width: 13, height: 13 }} />
+                              {isInProd(item) ? 'Continuar' : 'Produzir'}
+                            </button>
+                          )}
+                          {/* REAPROVEITAR / AJUSTAR — mesma edição em linha da
+                              tabela (mesmo estado, mesma mutação), só que com
+                              alvos de 44px e ocupando a largura do card: o
+                              campo numérico ao lado de outros botões é onde o
+                              dedo erra. */}
+                          {podeReaproveitarPeca && (
+                            reuseConfirmItemId === item.id ? (
+                              <div style={{ flex: '1 1 100%', display: 'flex', alignItems: 'center', gap: 6 }} onClick={e => e.stopPropagation()}>
+                                <span style={{ fontSize: 12, fontWeight: 700, color: '#047857', whiteSpace: 'nowrap' }}>
+                                  {isProduced(item) ? 'Reaprov. total:' : 'Reaproveitar:'}
+                                </span>
+                                <input
+                                  type="number"
+                                  inputMode="numeric"
+                                  min={isProduced(item) ? 0 : 1}
+                                  max={isProduced(item) ? qtyOf(item) : tetoReaproveitar(item)}
+                                  value={reuseQty}
+                                  onChange={e => setReuseQty(Math.max(isProduced(item) ? 0 : 1, Math.min(isProduced(item) ? qtyOf(item) : tetoReaproveitar(item), parseInt(e.target.value) || 0)))}
+                                  aria-label={isProduced(item) ? `Total reaproveitado de ${item.displayId}` : `Quantas unidades de ${item.displayId} reaproveitar`}
+                                  data-testid={`input-reuse-qty-card-${item.id}`}
+                                  style={{ width: 64, minHeight: 44, padding: '0 6px', borderRadius: 8, border: `1px solid ${TI.border}`, fontSize: 14, fontWeight: 700, color: TI.text, textAlign: 'center' }}
+                                />
+                                <span style={{ fontSize: 12, color: TI.secondary, whiteSpace: 'nowrap' }}>de {isProduced(item) ? qtyOf(item) : tetoReaproveitar(item)}</span>
+                                <button
+                                  onClick={() => markReuseMutation.mutate(isProduced(item)
+                                    ? { itemId: item.id, reuseTotal: reuseQty }
+                                    : { itemId: item.id, qty: reuseQty })}
+                                  disabled={markReuseMutation.isPending}
+                                  data-testid={`button-reuse-confirm-card-${item.id}`}
+                                  style={{ flex: '1 1 auto', minHeight: 44, padding: '0 14px', borderRadius: 8, background: '#047857', border: 'none', color: '#fff', fontSize: 13, fontWeight: 800, cursor: markReuseMutation.isPending ? 'not-allowed' : 'pointer', opacity: markReuseMutation.isPending ? 0.6 : 1, whiteSpace: 'nowrap' }}
+                                >
+                                  Confirmar
+                                </button>
+                                <button
+                                  onClick={() => setReuseConfirmItemId(null)}
+                                  aria-label="Cancelar reaproveitamento"
+                                  style={{ width: 44, minHeight: 44, padding: 0, borderRadius: 8, background: 'transparent', border: `1px solid ${TI.border}`, color: '#57534e', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}
+                                >
+                                  <X aria-hidden="true" style={{ width: 14, height: 14 }} />
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                onClick={e => { e.stopPropagation(); if (selo) return; setReuseConfirmItemId(item.id); setReuseQty(isProduced(item) ? reusedTotalOf(item) : tetoReaproveitar(item)); }}
+                                disabled={!!selo}
+                                title={selo
+                                  ? motivoAcaoBloqueada(selo.motivo, "marcar reaproveitamento")
+                                  : isProduced(item)
+                                    ? `Ajustar reaproveitamento (0 a ${qtyOf(item)}) — converte entre produzidas e reaproveitadas, nas duas direções`
+                                    : `Reaproveitar (pula produção) — até ${remainingReuse(item)} un.`}
+                                data-testid={`button-reuse-card-${item.id}`}
+                                style={{ flex: '1 1 112px', minHeight: 44, padding: '0 12px', borderRadius: 8, background: selo ? '#f5f5f4' : '#ecfdf5', border: `1px solid ${selo ? TI.border : '#a7f3d0'}`, color: selo ? '#78716c' : '#047857', fontSize: 13, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, cursor: selo ? 'not-allowed' : 'pointer', whiteSpace: 'nowrap' }}
+                              >
+                                <RotateCcw aria-hidden="true" style={{ width: 13, height: 13 }} />
+                                {isProduced(item) ? 'Ajustar reaprov.' : 'Reaproveitar'}
+                              </button>
+                            )
+                          )}
+                          {/* CORRIGIR REAPROVEITAMENTO — idem, espelho da tabela. */}
+                          {podeCorrigirReaprov && (
+                            correctReuseItemId === item.id ? (
+                              <div style={{ flex: '1 1 100%', display: 'flex', alignItems: 'center', gap: 6 }} onClick={e => e.stopPropagation()}>
+                                <span style={{ fontSize: 12, fontWeight: 700, color: '#b45309', whiteSpace: 'nowrap' }}>Reaprov.:</span>
+                                <input
+                                  type="number"
+                                  inputMode="numeric"
+                                  min={0}
+                                  max={isAdmin ? qtyOf(item) : qtyOf(item) - 1}
+                                  value={correctReuseQty}
+                                  autoFocus
+                                  onFocus={e => e.currentTarget.select()}
+                                  onChange={e => setCorrectReuseQty(Math.max(0, Math.min(isAdmin ? qtyOf(item) : qtyOf(item) - 1, parseInt(e.target.value) || 0)))}
+                                  aria-label="Quantidade reaproveitada corrigida"
+                                  data-testid={`input-correct-reuse-card-${item.id}`}
+                                  style={{ width: 64, minHeight: 44, padding: '0 6px', borderRadius: 8, border: '1px solid #fbbf24', fontSize: 14, fontWeight: 700, color: TI.text, textAlign: 'center' }}
+                                />
+                                <span style={{ fontSize: 12, color: TI.secondary, whiteSpace: 'nowrap' }}>de {qtyOf(item)}</span>
+                                <button
+                                  onClick={() => correctReuseMutation.mutate({ itemId: item.id, correctedReuseQty: correctReuseQty })}
+                                  disabled={correctReuseMutation.isPending}
+                                  data-testid={`button-correct-reuse-confirm-card-${item.id}`}
+                                  style={{ flex: '1 1 auto', minHeight: 44, padding: '0 14px', borderRadius: 8, background: '#b45309', border: 'none', color: '#fff', fontSize: 13, fontWeight: 800, cursor: correctReuseMutation.isPending ? 'not-allowed' : 'pointer', opacity: correctReuseMutation.isPending ? 0.6 : 1, whiteSpace: 'nowrap' }}
+                                >
+                                  Confirmar
+                                </button>
+                                <button
+                                  onClick={() => setCorrectReuseItemId(null)}
+                                  aria-label="Cancelar correção do reaproveitamento"
+                                  style={{ width: 44, minHeight: 44, padding: 0, borderRadius: 8, background: 'transparent', border: `1px solid ${TI.border}`, color: '#57534e', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}
+                                >
+                                  <X aria-hidden="true" style={{ width: 14, height: 14 }} />
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                onClick={e => { e.stopPropagation(); if (selo) return; setCorrectReuseItemId(item.id); setCorrectReuseQty(reusedTotalOf(item)); }}
+                                disabled={!!selo}
+                                title={selo
+                                  ? motivoAcaoBloqueada(selo.motivo, "corrigir o reaproveitamento")
+                                  : "Corrigir a quantidade reaproveitada desta peça"}
+                                data-testid={`button-correct-reuse-card-${item.id}`}
+                                style={{ flex: '1 1 112px', minHeight: 44, padding: '0 12px', borderRadius: 8, background: selo ? '#f5f5f4' : '#fff7ed', border: `1px solid ${selo ? TI.border : '#fed7aa'}`, color: selo ? '#78716c' : '#b45309', fontSize: 13, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, cursor: selo ? 'not-allowed' : 'pointer', whiteSpace: 'nowrap' }}
+                              >
+                                <RotateCcw aria-hidden="true" style={{ width: 13, height: 13 }} />
+                                Corrigir reaprov.
+                              </button>
+                            )
+                          )}
+                          {/* DEVOLVER PARA A REVISÃO — contorno, saída de exceção.
+                              No card cabe o rótulo (não há coluna sticky
+                              roubando largura, que era o motivo do só-ícone na
+                              tabela). Sem bloqueio de evento finalizado, como lá. */}
+                          {podeDevolverPeca && (
+                            <button
+                              onClick={e => { e.stopPropagation(); setDevolverItem(item); setDevolverMotivo(""); }}
+                              title="Devolver para a Revisão — a peça sai da fila da Gráfica"
+                              aria-label={`Devolver ${item.displayId} para a Revisão`}
+                              data-testid={`button-devolver-revisao-card-${item.id}`}
+                              style={{ flex: '1 1 112px', minHeight: 44, padding: '0 12px', borderRadius: 8, background: '#fff', border: '1px solid #fca5a5', color: '#b91c1c', fontSize: 13, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, cursor: 'pointer', whiteSpace: 'nowrap' }}
+                            >
+                              <Undo2 aria-hidden="true" style={{ width: 13, height: 13 }} />
+                              Devolver
+                            </button>
+                          )}
+                          {podeConferir && canConferItem && (
+                            <button
+                              onClick={e => { e.stopPropagation(); openConferenceModal(item); }}
+                              /* #0e7490 (5,36:1) — o mesmo ciano do desktop, do
+                                 lote e do modal. #0891b2 com branco 13px/800 dá
+                                 3,68:1 e reprova AA, e a tela tinha DOIS cianos
+                                 diferentes para a mesma ação. */
+                              style={{ flex: '1 1 112px', minHeight: 44, padding: '0 12px', borderRadius: 8, background: '#0e7490', border: 'none', color: '#fff', fontSize: 13, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, cursor: 'pointer', whiteSpace: 'nowrap' }}
+                            >
+                              <CheckCircle aria-hidden="true" style={{ width: 13, height: 13 }} />
+                              Conferir
+                            </button>
+                          )}
+                          {canDeliverItem && (
+                            <button
+                              onClick={e => { e.stopPropagation(); openDeliveryModal(item); }}
+                              style={{ flex: '1 1 112px', minHeight: 44, padding: '0 12px', borderRadius: 8, background: '#c2410c', border: 'none', color: '#fff', fontSize: 13, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, cursor: 'pointer', whiteSpace: 'nowrap' }}
+                            >
+                              <Truck aria-hidden="true" style={{ width: 13, height: 13 }} />
+                              {deliveredOf(item) > 0 ? `Entregar ${remainingDeliver(item)}` : 'Entregar'}
+                            </button>
+                          )}
+                          {isDelivered(item) && (
+                            <span style={{ flex: '1 1 auto', minHeight: 32, fontSize: 13, color: '#15803d', display: 'flex', alignItems: 'center', gap: 4, fontWeight: 700 }}>
+                              <Check aria-hidden="true" style={{ width: 13, height: 13 }} /> Entregue
+                            </span>
+                          )}
+
+                          {/* Divisor entre FLUXO e CONTRATO. Só existe quando há
+                              botão dos dois lados — para a Solicitação o grupo de
+                              fluxo costuma estar vazio e "Aumentar" fica sozinho
+                              no trilho inteiro, com salência máxima e sem truque. */}
+                          {temGrupoFluxo && temGrupoContrato && (
+                            <div aria-hidden="true" style={{ width: 1, alignSelf: 'stretch', background: '#e7e5e4', margin: '2px 2px' }} />
+                          )}
+
+                          {/* AUMENTAR — o gatilho primário do celular. Tintado (não
+                              sólido): não é etapa do fluxo de produção, é mudança
+                              de contrato. Papel admin|solicitacao. */}
+                          {mostraAumentar && (
+                            <button
+                              onClick={e => { e.stopPropagation(); if (!selo) abrirComplemento(item); }}
+                              disabled={!!selo}
+                              aria-label={`Aumentar a quantidade de ${item.displayId} — cria uma peça complementar`}
+                              data-testid={`button-aumentar-quantidade-mobile-${item.id}`}
+                              /* POST /api/items/:id/complement passa pela guarda:
+                                 criar peça complementar é trabalho novo. */
+                              title={selo ? motivoAcaoBloqueada(selo.motivo, "aumentar a quantidade") : "Aumentar quantidade"}
+                              style={{
+                                width: 44, minHeight: 44, padding: 0, borderRadius: 8,
+                                background: selo ? '#f5f5f4' : CO.bg,
+                                border: `1.5px solid ${selo ? TI.border : CO.border}`,
+                                color: selo ? '#78716c' : CO.text,
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                cursor: selo ? 'not-allowed' : 'pointer', flexShrink: 0,
+                              }}
+                              onPointerDown={e => { if (selo) return; const b = e.currentTarget as HTMLButtonElement; b.style.background = CO.hoverBg; b.style.color = CO.suffix; }}
+                              onPointerUp={e => { if (selo) return; const b = e.currentTarget as HTMLButtonElement; b.style.background = CO.bg; b.style.color = CO.text; }}
+                              onPointerLeave={e => { if (selo) return; const b = e.currentTarget as HTMLButtonElement; b.style.background = CO.bg; b.style.color = CO.text; }}
+                            >
+                              {/* Só o ícone (decisão do dono). O aria-label acima
+                                  carrega o significado para quem usa leitor de
+                                  tela, e o alvo continua com 44px de toque. */}
+                              <PlusCircle aria-hidden="true" style={{ width: 18, height: 18 }} />
+                            </button>
+                          )}
+                          {/* Cancelar complemento criado por engano — dois toques
+                              (o segundo confirma), nunca destrutivo de primeira.
+                              Alvo de 44px: os 36 de antes reprovavam a régua da
+                              casa justo num botão destrutivo. */}
+                          {podeCancelarCompl && (
+                            <button
+                              onClick={e => {
+                                e.stopPropagation();
+                                if (cancelComplementId === item.id) cancelComplementMutation.mutate({ itemId: item.id, displayId: item.displayId });
+                                else setCancelComplementId(item.id);
+                              }}
+                              disabled={cancelComplementMutation.isPending}
+                              title={`Cancelar ${item.displayId} — só enquanto nada foi produzido`}
+                              data-testid={`button-cancel-complement-mobile-${item.id}`}
+                              style={{
+                                flex: '1 1 112px', minHeight: 44, padding: '0 12px', borderRadius: 8,
+                                background: cancelComplementId === item.id ? '#b91c1c' : 'transparent',
+                                border: `1px solid ${cancelComplementId === item.id ? '#b91c1c' : TI.border}`,
+                                color: cancelComplementId === item.id ? '#fff' : '#b91c1c',
+                                fontSize: 11, fontWeight: 700,
+                                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
+                                cursor: cancelComplementMutation.isPending ? 'not-allowed' : 'pointer',
+                                opacity: cancelComplementMutation.isPending ? 0.6 : 1, whiteSpace: 'nowrap',
+                              }}
+                            >
+                              <Trash2 aria-hidden="true" style={{ width: 12, height: 12 }} />
+                              {cancelComplementMutation.isPending ? 'Cancelando…' : cancelComplementId === item.id ? 'Confirmar?' : 'Cancelar'}
+                            </button>
+                          )}
+                        </div>
+                      )}
                     </div>
-
-                    {/* Right: action buttons — some em QUALQUER modo de lote
-                        (antes só !bulkDeliveryMode: na conferência em lote os
-                        botões continuavam aparecendo e disputando o toque). */}
-                    {!bulkOn && (
-                      <div style={{ flexShrink: 0, minWidth: 116, padding: '10px 10px', display: 'flex', flexDirection: 'column', gap: 5, justifyContent: 'center' }}>
-                        {/* PRODUZIR — o celular só tinha Entregar e Conferir.
-                            Num complemento isso é o pior buraco possível: a
-                            Gráfica em campo vê o alerta laranja e não tem o que
-                            fazer com ele. Aparece só nos complementos (o resto
-                            da fila segue como estava) e com o mesmo gate de
-                            papel do desktop, que o servidor também valida. */}
-                        {podeProduzirAqui && (
-                          <button
-                            onClick={e => { e.stopPropagation(); if (!selo) openProductionModal(item); }}
-                            disabled={!!selo}
-                            title={selo ? motivoAcaoBloqueada(selo.motivo, "produzir") : undefined}
-                            data-testid={`button-production-mobile-${item.id}`}
-                            /* Desabilitado: #78716c sobre #f5f5f4 → 4,84:1 nos
-                               13px/800 (o cinza claro do padrão do navegador
-                               reprovaria AA). */
-                            style={{ width: '100%', minHeight: 44, padding: '0 12px', borderRadius: 8, background: selo ? '#f5f5f4' : CO.solidBg, border: selo ? `1px solid ${TI.border}` : 'none', color: selo ? '#78716c' : '#fff', fontSize: 13, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, cursor: selo ? 'not-allowed' : 'pointer', whiteSpace: 'nowrap' }}
-                          >
-                            <Play aria-hidden="true" style={{ width: 13, height: 13 }} />
-                            Produzir {remainingProduce(item)}
-                          </button>
-                        )}
-                        {podeConferir && canConferItem && (
-                          <button
-                            onClick={e => { e.stopPropagation(); openConferenceModal(item); }}
-                            /* #0e7490 (5,36:1) — o mesmo ciano do desktop, do
-                               lote e do modal. #0891b2 com branco 13px/800 dá
-                               3,68:1 e reprova AA, e a tela tinha DOIS cianos
-                               diferentes para a mesma ação. */
-                            style={{ width: '100%', minHeight: 44, padding: '0 12px', borderRadius: 8, background: '#0e7490', border: 'none', color: '#fff', fontSize: 13, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, cursor: 'pointer', whiteSpace: 'nowrap' }}
-                          >
-                            <CheckCircle aria-hidden="true" style={{ width: 13, height: 13 }} />
-                            Conferir
-                          </button>
-                        )}
-                        {canDeliverItem && (
-                          <button
-                            onClick={e => { e.stopPropagation(); openDeliveryModal(item); }}
-                            style={{ width: '100%', minHeight: 44, padding: '0 12px', borderRadius: 8, background: '#c2410c', border: 'none', color: '#fff', fontSize: 13, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, cursor: 'pointer', whiteSpace: 'nowrap' }}
-                          >
-                            <Truck aria-hidden="true" style={{ width: 13, height: 13 }} />
-                            {deliveredOf(item) > 0 ? `Entregar ${remainingDeliver(item)}` : 'Entregar'}
-                          </button>
-                        )}
-                        {isDelivered(item) && (
-                          <span style={{ width: '100%', fontSize: 13, color: '#15803d', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, fontWeight: 700, padding: '4px 8px' }}>
-                            <Check aria-hidden="true" style={{ width: 13, height: 13 }} /> Entregue
-                          </span>
-                        )}
-
-                        {/* Divisor entre FLUXO e CONTRATO. Só existe quando há
-                            botão dos dois lados — para a Solicitação o grupo de
-                            fluxo costuma estar vazio e "Aumentar" fica sozinho
-                            no trilho inteiro, com salência máxima e sem truque. */}
-                        {temGrupoFluxo && temGrupoContrato && (
-                          <div aria-hidden="true" style={{ height: 1, background: '#e7e5e4', margin: '4px 0', width: '100%' }} />
-                        )}
-
-                        {/* AUMENTAR — o gatilho primário do celular. Tintado (não
-                            sólido): não é etapa do fluxo de produção, é mudança
-                            de contrato. Papel admin|solicitacao. */}
-                        {mostraAumentar && (
-                          <button
-                            onClick={e => { e.stopPropagation(); if (!selo) abrirComplemento(item); }}
-                            disabled={!!selo}
-                            aria-label={`Aumentar a quantidade de ${item.displayId} — cria uma peça complementar`}
-                            data-testid={`button-aumentar-quantidade-mobile-${item.id}`}
-                            /* POST /api/items/:id/complement passa pela guarda:
-                               criar peça complementar é trabalho novo. */
-                            title={selo ? motivoAcaoBloqueada(selo.motivo, "aumentar a quantidade") : "Aumentar quantidade"}
-                            style={{
-                              width: 44, minHeight: 44, padding: 0, borderRadius: 8,
-                              background: selo ? '#f5f5f4' : CO.bg,
-                              border: `1.5px solid ${selo ? TI.border : CO.border}`,
-                              color: selo ? '#78716c' : CO.text,
-                              display: 'flex', alignItems: 'center', justifyContent: 'center',
-                              cursor: selo ? 'not-allowed' : 'pointer', flexShrink: 0,
-                            }}
-                            onPointerDown={e => { if (selo) return; const b = e.currentTarget as HTMLButtonElement; b.style.background = CO.hoverBg; b.style.color = CO.suffix; }}
-                            onPointerUp={e => { if (selo) return; const b = e.currentTarget as HTMLButtonElement; b.style.background = CO.bg; b.style.color = CO.text; }}
-                            onPointerLeave={e => { if (selo) return; const b = e.currentTarget as HTMLButtonElement; b.style.background = CO.bg; b.style.color = CO.text; }}
-                          >
-                            {/* Só o ícone (decisão do dono). O aria-label acima
-                                carrega o significado para quem usa leitor de
-                                tela, e o alvo continua com 44px de toque. */}
-                            <PlusCircle aria-hidden="true" style={{ width: 18, height: 18 }} />
-                          </button>
-                        )}
-                        {/* Cancelar complemento criado por engano — dois toques
-                            (o segundo confirma), nunca destrutivo de primeira.
-                            Alvo de 44px: os 36 de antes reprovavam a régua da
-                            casa justo num botão destrutivo. */}
-                        {podeCancelarCompl && (
-                          <button
-                            onClick={e => {
-                              e.stopPropagation();
-                              if (cancelComplementId === item.id) cancelComplementMutation.mutate({ itemId: item.id, displayId: item.displayId });
-                              else setCancelComplementId(item.id);
-                            }}
-                            disabled={cancelComplementMutation.isPending}
-                            title={`Cancelar ${item.displayId} — só enquanto nada foi produzido`}
-                            data-testid={`button-cancel-complement-mobile-${item.id}`}
-                            style={{
-                              width: '100%', minHeight: 44, padding: '0 12px', borderRadius: 8,
-                              background: cancelComplementId === item.id ? '#b91c1c' : 'transparent',
-                              border: `1px solid ${cancelComplementId === item.id ? '#b91c1c' : TI.border}`,
-                              color: cancelComplementId === item.id ? '#fff' : '#b91c1c',
-                              fontSize: 11, fontWeight: 700,
-                              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
-                              cursor: cancelComplementMutation.isPending ? 'not-allowed' : 'pointer',
-                              opacity: cancelComplementMutation.isPending ? 0.6 : 1, whiteSpace: 'nowrap',
-                            }}
-                          >
-                            <Trash2 aria-hidden="true" style={{ width: 12, height: 12 }} />
-                            {cancelComplementMutation.isPending ? 'Cancelando…' : cancelComplementId === item.id ? 'Confirmar?' : 'Cancelar'}
-                          </button>
-                        )}
-                      </div>
-                    )}
                   </div>
                   {/* Renderização incremental: o bloco deste evento tem mais
                       peças do que o teto. O botão fica DENTRO do bloco, com o
@@ -3042,21 +3440,25 @@ export default function Grafica() {
           <div style={{ overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
-              <tr style={{ backgroundColor: TI.text }}>
-                {["ID", "Descrição", "QTD", "REAPROV.", "PROD", "Medidas (ARQ / VIS)", "M² a produzir", "Material", "Status", ""].map(col => (
+              {/* Cabeçalho CLARO: a tabela tinha três faixas escuras seguidas
+                  (thead preto, cabeçalho de evento marrom, linha de tipo) e o
+                  olho não sabia qual delas era o agrupamento. O escuro fica só
+                  com o EVENTO — é ele que manda na ordem do galpão. */}
+              <tr style={{ backgroundColor: "#fafaf9", borderBottom: `1px solid ${TI.border}` }}>
+                {colunas.map(({ rotulo: col, direita }) => (
                   /* A coluna de AÇÕES é `sticky right`: são 10 colunas e num
                      notebook 1366 (menos a sidebar fixa de 16rem sobram ~1110px)
                      ela ficava fora da vista. O usuário recorrente faz o mesmo
                      gesto o dia inteiro — achar a linha e clicar no botão —, e
                      rolar para a direita e voltar a cada peça triplica o custo e
                      ainda perde a linha no caminho. */
-                  <th key={col} style={{
-                    padding: "13px 16px", textAlign: col === "" ? "right" : "left",
-                    fontSize: 10, fontWeight: 900, color: "rgba(255,255,255,0.72)",
+                  <th key={col || "acoes"} scope="col" style={{
+                    padding: "10px 16px", textAlign: col === "" || direita ? "right" : "left",
+                    fontSize: 10, fontWeight: 700, color: "#57534e",
                     textTransform: "uppercase", letterSpacing: "0.08em", whiteSpace: "nowrap",
-                    ...(col === "" ? { position: "sticky" as const, right: 0, zIndex: 2, backgroundColor: TI.text } : {}),
+                    ...(col === "" ? { position: "sticky" as const, right: 0, zIndex: 2, backgroundColor: "#fafaf9" } : {}),
                   }}>
-                    {col}
+                    {col === "" ? <span className="sr-only">Ações</span> : col}
                   </th>
                 ))}
               </tr>
@@ -3097,17 +3499,19 @@ export default function Grafica() {
                       const groupName = typeToGroup[item.type] || '';
                       const prevGroupName = prev ? (typeToGroup[(prev as any).type] || '') : '';
                       const showGroupHeader = !showEvHeader && groupName !== '' && groupName !== prevGroupName;
+                      // Grupo em NEUTRO: era azul (#dbeafe/#1d4ed8) — a única
+                      // faixa azul da tela, sem significado nenhum de status.
                       return showGroupHeader ? (
-                        <tr style={{ backgroundColor: '#dbeafe' }}>
-                          <td colSpan={COLS} style={{ padding: '5px 16px' }}>
-                            <span style={{ fontSize: 10, fontWeight: 800, color: '#1d4ed8', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{groupName}</span>
+                        <tr style={{ backgroundColor: '#ffffff', borderTop: `1px solid ${TI.border}` }}>
+                          <td colSpan={nColunas} style={{ padding: '7px 16px 5px' }}>
+                            <span style={{ fontSize: 10, fontWeight: 800, color: '#57534e', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{groupName}</span>
                           </td>
                         </tr>
                       ) : null;
                     })()}
                     {showEvHeader && (
                       <tr style={{ backgroundColor: "#292524" }}>
-                        <td colSpan={COLS} style={{ padding: "10px 16px" }}>
+                        <td colSpan={nColunas} style={{ padding: "10px 16px" }}>
                           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
                             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                               <Package style={{ width: 16, height: 16, color: TI.accent }} />
@@ -3150,7 +3554,7 @@ export default function Grafica() {
                     {/* Cabeçalho de Tipo */}
                     {showTypeHeader && (
                       <tr style={{ backgroundColor: "#f4f3f0" }}>
-                        <td colSpan={COLS} style={{ padding: "6px 16px" }}>
+                        <td colSpan={nColunas} style={{ padding: "6px 16px" }}>
                           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                             <div style={{ width: 3, height: 14, backgroundColor: TI.accent, borderRadius: 999, flexShrink: 0 }} />
                             <span style={{ fontSize: 11, fontWeight: 700, color: TI.text }}>{item.type}</span>
@@ -3307,8 +3711,18 @@ export default function Grafica() {
                         ) : (
                           <div style={{ fontSize: 13, color: TI.secondary }}>—</div>
                         )}
-                        {item.observations && (
-                          <div style={{ fontSize: 11, color: TI.secondary, fontStyle: "italic", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", marginTop: 2 }}>{item.observations}</div>
+                        {/* A observação em itálico que morava aqui saiu: a linha
+                            âmbar logo abaixo da peça já mostra o texto INTEIRO.
+                            Eram duas cópias da mesma frase, uma cortada. */}
+                        {/* Compacta: Material e acabamento descem para cá — são
+                            o que a impressora pede, então não podem sumir. */}
+                        {/* `material || finish`: peça só com acabamento perdia
+                            o acabamento inteiro, porque a linha dependia do
+                            material. Junta só o que existe, sem "·" órfão. */}
+                        {compacto && (item.material || item.finish) && (
+                          <div style={{ fontSize: 11, color: TI.secondary, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                            {[item.material, item.finish].filter(Boolean).join(" · ")}
+                          </div>
                         )}
                         {item.referenceUrl && (
                           <a href={item.referenceUrl} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} title="Ver referência do solicitante" style={{ display: "inline-flex", alignItems: "center", gap: 3, marginTop: 3, fontSize: 10, fontWeight: 700, color: "#c2410c", textDecoration: "none", backgroundColor: "#fff7ed", border: "1px solid #fed7aa", borderRadius: 6, padding: "1px 5px" }} data-testid={`link-reference-grafica-${item.id}`}>
@@ -3341,10 +3755,26 @@ export default function Grafica() {
                           Detalhe do Evento. A célula vira uma pilha:
                           número → chip +N → botão. Nada de hover-reveal: o
                           botão é persistente em 100% das linhas elegíveis.
-                          Padding 10px em vez de 16 para o botão caber. */}
-                      <td style={{ padding: "13px 10px", textAlign: "center", whiteSpace: "nowrap", fontSize: 13, fontWeight: 700, color: TI.text }}>
-                        <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+                          Padding 12px em vez de 16 para o botão caber; número à
+                          DIREITA com algarismos tabulares (coluna numérica). */}
+                      <td style={{ padding: "13px 12px", textAlign: "right", whiteSpace: "nowrap", fontSize: 14, fontWeight: 700, color: TI.text, fontVariantNumeric: "tabular-nums" }}>
+                        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end" }}>
                           <div>{item.quantity}</div>
+                          {/* PRODUZIDAS e REAPROVEITADAS — eram duas colunas
+                              inteiras (PROD, REAPROV.), "—" em quase todas as
+                              linhas. Agora só aparecem quando existem, pequenas,
+                              logo abaixo do número de que são parte. Mesmas
+                              contas e mesmas cores de antes. */}
+                          {item.quantityProduced > 0 && (
+                            <div title={`${item.quantityProduced} de ${qtyOf(item)} un. produzidas`} style={{ fontSize: 11, fontWeight: 600, color: "#c2410c", marginTop: 1 }}>
+                              prod. {item.quantityProduced}
+                            </div>
+                          )}
+                          {reusedTotalOf(item) > 0 && (
+                            <div title={item.isReuse ? "Peça inteira reaproveitada" : `${reusedTotalOf(item)} de ${qtyOf(item)} un. reaproveitadas`} style={{ fontSize: 11, fontWeight: 600, color: "#047857", marginTop: 1 }}>
+                              reap. {reusedTotalOf(item)}{reusedTotalOf(item) < qtyOf(item) && <span style={{ color: TI.secondary, fontWeight: 400 }}>/{qtyOf(item)}</span>}
+                            </div>
+                          )}
                           {complQty > 0 && (
                             <div
                               data-testid={`chip-qtd-complemento-${item.id}`}
@@ -3384,21 +3814,6 @@ export default function Grafica() {
                           )}
                         </div>
                       </td>
-                      {/* Reaproveitado */}
-                      <td style={{ padding: "13px 16px", textAlign: "center", fontSize: 13, fontWeight: 700, color: reusedTotalOf(item) > 0 ? "#047857" : TI.secondary }}>
-                        {reusedTotalOf(item) > 0 ? (
-                          <span title={item.isReuse ? "Peça inteira reaproveitada" : `${reusedTotalOf(item)} de ${qtyOf(item)} un. reaproveitadas`}>
-                            {reusedTotalOf(item)}
-                            {reusedTotalOf(item) < qtyOf(item) && (
-                              <span style={{ color: TI.secondary, fontWeight: 400 }}>/{qtyOf(item)}</span>
-                            )}
-                          </span>
-                        ) : "—"}
-                      </td>
-                      {/* Prod */}
-                      <td style={{ padding: "13px 16px", textAlign: "center", fontSize: 13, fontWeight: 700, color: item.quantityProduced > 0 ? "#c2410c" : TI.secondary }}>
-                        {item.quantityProduced || "—"}
-                      </td>
                       {/* ── MEDIDAS: o ARQ vem primeiro e escuro ──
 
                           Esta coluna mostrava o VISUAL em cima, escuro, e o
@@ -3429,29 +3844,30 @@ export default function Grafica() {
                         ) : (
                           <span style={{ fontSize: 13, color: TI.secondary }}>—</span>
                         )}
+                        {/* Compacta: o m² a produzir desce para baixo das medidas
+                            (é conta delas), com a mesma regra da coluna cheia. */}
+                        {compacto && Number(item.calculatedM2) > 0 && (
+                          <div style={{ marginTop: 3, fontSize: 12, fontWeight: 700, color: TI.text, fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>
+                            {m2DaLinha(item)} <span style={{ fontSize: 10, fontWeight: 600, color: TI.secondary }}>m²</span>
+                          </div>
+                        )}
                       </td>
-                      {/* m² a produzir — o reaproveitado não vai para a impressora */}
-                      <td style={{ padding: "13px 16px", textAlign: "center", fontSize: 13, fontWeight: 700, color: TI.text, fontFamily: "monospace" }}>
-                        {(() => {
-                          const total = Number(item.calculatedM2) || 0;
-                          if (!total) return "—";
-                          const toPrint = m2ToProduce(item);
-                          if (reusedTotalOf(item) === 0) return total.toFixed(2);
-                          return (
-                            <span title={`Total da peça: ${total.toFixed(2)} m² · reaproveitado não é impresso`}>
-                              <span style={{ color: toPrint === 0 ? "#047857" : TI.text }}>{toPrint.toFixed(2)}</span>
-                              <span style={{ display: "block", fontSize: 10, fontWeight: 400, color: TI.secondary, textDecoration: "line-through" }}>
-                                {total.toFixed(2)}
-                              </span>
-                            </span>
-                          );
-                        })()}
-                      </td>
-                      {/* Material */}
-                      <td style={{ padding: "13px 16px" }}>
-                        <div style={{ fontSize: 13, color: TI.text }}>{item.material}</div>
-                        {item.finish && <div style={{ fontSize: 11, color: TI.secondary, marginTop: 2 }}>{item.finish}</div>}
-                      </td>
+                      {!compacto && (
+                        <>
+                          {/* m² a produzir — o reaproveitado não vai para a
+                              impressora. À direita e com algarismos tabulares:
+                              é coluna para somar de olho, casa decimal embaixo
+                              de casa decimal. */}
+                          <td style={{ padding: "13px 16px", textAlign: "right", fontSize: 13, fontWeight: 700, color: TI.text, fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>
+                            {m2DaLinha(item)}
+                          </td>
+                          {/* Material — secundário: 12px e acabamento apagado. */}
+                          <td style={{ padding: "13px 16px" }}>
+                            <div style={{ fontSize: 12, color: TI.text }}>{item.material}</div>
+                            {item.finish && <div style={{ fontSize: 11, color: TI.secondary, marginTop: 2 }}>{item.finish}</div>}
+                          </td>
+                        </>
+                      )}
                       {/* Status + IDADE NA FASE (UX 27/08): a mesma régua
                           7/14 dias da Arte — a Gráfica via a MESMA peça sem
                           saber há quanto tempo ela estava parada ali. */}
@@ -3490,7 +3906,7 @@ export default function Grafica() {
                             title="Ver detalhes"
                             aria-label={`Ver detalhes de ${item.displayId}`}
                             data-testid={`button-view-${item.id}`}
-                            style={{ background: "none", border: "none", cursor: "pointer", color: TI.secondary, padding: 4, borderRadius: 6, display: "flex", alignItems: "center", transition: "color 0.15s" }}
+                            style={{ background: "none", border: "none", cursor: "pointer", color: TI.secondary, width: 32, height: 32, padding: 0, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", transition: "color 0.15s" }}
                             onMouseEnter={e => ((e.currentTarget as HTMLButtonElement).style.color = TI.text)}
                             onMouseLeave={e => ((e.currentTarget as HTMLButtonElement).style.color = TI.secondary)}
                           >
@@ -3562,11 +3978,13 @@ export default function Grafica() {
                               data-testid={`button-production-${item.id}`}
                               /* Desabilitado: #78716c sobre #f5f5f4 → 4,84:1
                                  nos 11px/700. */
-                              style={{ backgroundColor: selo ? "#f5f5f4" : TI.text, color: selo ? "#78716c" : "#ffffff", border: selo ? `1px solid ${TI.border}` : "none", borderRadius: 6, height: 30, padding: "0 12px", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em", cursor: selo ? "not-allowed" : "pointer", display: "flex", alignItems: "center", gap: 4, transition: "background-color 0.15s" }}
-                              onMouseEnter={e => { if (!selo) (e.currentTarget as HTMLButtonElement).style.backgroundColor = TI.accent; }}
+                              style={{ backgroundColor: selo ? "#f5f5f4" : TI.text, color: selo ? "#78716c" : "#ffffff", border: selo ? `1px solid ${TI.border}` : "none", borderRadius: 8, height: 32, padding: "0 12px", fontSize: 12, fontWeight: 700, cursor: selo ? "not-allowed" : "pointer", display: "flex", alignItems: "center", gap: 5, whiteSpace: "nowrap", transition: "background-color 0.15s" }}
+                              /* Hover era TI.accent (#f97316): branco sobre ele dá
+                                 2,8:1 — o botão ficava ilegível justo sob o mouse. */
+                              onMouseEnter={e => { if (!selo) (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#44403c"; }}
                               onMouseLeave={e => { if (!selo) (e.currentTarget as HTMLButtonElement).style.backgroundColor = TI.text; }}
                             >
-                              <Play style={{ width: 11, height: 11 }} />
+                              <Play aria-hidden="true" style={{ width: 13, height: 13 }} />
                               {isInProd(item) ? "Continuar" : "Produzir"}
                             </button>
                           )}
@@ -3628,7 +4046,7 @@ export default function Grafica() {
                                     ? `Ajustar reaproveitamento (0 a ${qtyOf(item)}) — converte entre produzidas e reaproveitadas, nas duas direções`
                                     : `Reaproveitar (pula produção) — até ${remainingReuse(item)} un.`}
                                 data-testid={`button-reuse-${item.id}`}
-                                style={{ background: "none", border: "none", cursor: selo ? "not-allowed" : "pointer", color: selo ? "#78716c" : "#059669", padding: 4, borderRadius: 6, display: "flex", alignItems: "center", transition: "color 0.15s" }}
+                                style={{ background: "none", border: "none", cursor: selo ? "not-allowed" : "pointer", color: selo ? "#78716c" : "#059669", width: 32, height: 32, padding: 0, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", transition: "color 0.15s" }}
                                 onMouseEnter={e => { if (!selo) (e.currentTarget as HTMLButtonElement).style.color = "#065f46"; }}
                                 onMouseLeave={e => { if (!selo) (e.currentTarget as HTMLButtonElement).style.color = "#059669"; }}
                               >
@@ -3739,7 +4157,7 @@ export default function Grafica() {
                               style={{
                                 backgroundColor: "#ffffff", color: "#b91c1c",
                                 border: "1px solid #fca5a5", borderRadius: 6,
-                                width: 30, height: 30, padding: 0, flexShrink: 0,
+                                width: 32, height: 32, padding: 0, flexShrink: 0,
                                 cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
                               }}
                             >
@@ -3759,15 +4177,15 @@ export default function Grafica() {
                               data-testid={`button-confer-${item.id}`}
                               style={{
                                 backgroundColor: "#0e7490", color: "#ffffff",
-                                border: "none", borderRadius: 6, height: 30, padding: "0 12px",
-                                fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em",
+                                border: "none", borderRadius: 8, height: 32, padding: "0 12px",
+                                fontSize: 12, fontWeight: 700, whiteSpace: "nowrap",
                                 cursor: "pointer", display: "flex", alignItems: "center", gap: 4,
                                 transition: "background-color 0.15s",
                               }}
                               onMouseEnter={e => (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#155e75"}
                               onMouseLeave={e => (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#0e7490"}
                             >
-                              <CheckCircle style={{ width: 11, height: 11 }} />
+                              <CheckCircle aria-hidden="true" style={{ width: 13, height: 13 }} />
                               {conferredOf(item) > 0 ? `Conferir ${remainingConfer(item)}` : "Conferir"}
                             </button>
                           )}
@@ -3800,15 +4218,15 @@ export default function Grafica() {
                               style={{
                                 // #c2410c: branco sobre #f97316 dava ~2.8:1 (reprova AA)
                                 backgroundColor: "#c2410c", color: "#ffffff",
-                                border: "none", borderRadius: 6, height: 30, padding: "0 12px",
-                                fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em",
+                                border: "none", borderRadius: 8, height: 32, padding: "0 12px",
+                                fontSize: 12, fontWeight: 700, whiteSpace: "nowrap",
                                 cursor: "pointer", display: "flex", alignItems: "center", gap: 4,
                                 transition: "background-color 0.15s",
                               }}
                               onMouseEnter={e => (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#9a3412"}
                               onMouseLeave={e => (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#c2410c"}
                             >
-                              <Truck style={{ width: 11, height: 11 }} />
+                              <Truck aria-hidden="true" style={{ width: 13, height: 13 }} />
                               {deliveredOf(item) > 0 ? `Entregar ${remainingDeliver(item)}` : "Entregar"}
                             </button>
                           )}
@@ -3832,7 +4250,7 @@ export default function Grafica() {
                         o resto do realce quando o lote é entregue. */}
                     {coAberto && item.complementReason && (
                       <tr style={{ backgroundColor: CO.bg, borderBottom: `1px solid ${CO.border}` }}>
-                        <td colSpan={COLS} style={{ padding: "5px 16px 7px 34px" }}>
+                        <td colSpan={nColunas} style={{ padding: "5px 16px 7px 34px" }}>
                           <div style={{ display: "flex", gap: 6, alignItems: "flex-start" }}>
                             <PlusCircle style={{ width: 12, height: 12, color: CO.text, marginTop: 1, flexShrink: 0 }} />
                             <span style={{ fontSize: 11, color: CO.textStrong, lineHeight: 1.4 }} data-testid={`text-motivo-complemento-${item.id}`}>
@@ -3849,7 +4267,7 @@ export default function Grafica() {
                     {/* Linha de observação */}
                     {item.observations && (
                       <tr style={{ backgroundColor: "#fffbeb", borderBottom: "1px solid #fde68a" }}>
-                        <td colSpan={COLS} style={{ padding: "8px 16px" }}>
+                        <td colSpan={nColunas} style={{ padding: "8px 16px" }}>
                           <div style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
                             <AlertCircle style={{ width: 14, height: 14, color: "#d97706", marginTop: 1, flexShrink: 0 }} />
                             <span style={{ fontSize: 13, color: "#92400e" }}>
@@ -3863,7 +4281,7 @@ export default function Grafica() {
                     {/* Renderização incremental: fim do teto deste evento. */}
                     {corte && (
                       <tr style={{ backgroundColor: "#fafaf9", borderBottom: `1px solid ${TI.border}` }}>
-                        <td colSpan={COLS} style={{ padding: "8px 16px", textAlign: "center" }}>
+                        <td colSpan={nColunas} style={{ padding: "8px 16px", textAlign: "center" }}>
                           <button
                             type="button"
                             onClick={e => { e.stopPropagation(); expandirGrupo(corte.chave); }}
@@ -3883,92 +4301,6 @@ export default function Grafica() {
           </div>
         )}
 
-        {/* Rodapé da tabela */}
-        {filteredItems.length > 0 && (
-          <div style={{ borderTop: `1px solid ${TI.border}`, padding: "10px 16px", backgroundColor: "#fafaf9", fontSize: 13, color: TI.secondary }}>
-            Exibindo <strong style={{ color: TI.text }}>{filteredItems.length}</strong> peça{filteredItems.length !== 1 ? "s" : ""}
-            {/* O complemento é +1 linha na contagem (é peça de verdade, com
-                produção própria). Dizer quantas são evita a pergunta "por que
-                agora são 43 se o evento tem 42?". */}
-            {(() => {
-              const n = (filteredItems as any[]).filter((i: any) => isComplement(i)).length;
-              return n > 0 ? <span style={{ color: CO.text }}> ({n} complemento{n !== 1 ? "s" : ""})</span> : null;
-            })()}
-            {" · "}
-            <strong style={{ color: TI.text }}>{Array.from(new Set(filteredItems.map((i: any) => i.eventId).filter(Boolean))).length}</strong> evento{Array.from(new Set(filteredItems.map((i: any) => i.eventId).filter(Boolean))).length !== 1 ? "s" : ""}
-            {(() => {
-              // O total que importa para a Gráfica é o que AINDA vai ser
-              // impresso: peça entregue já saiu da fila e não entra na soma
-              // (nem na economia — senão o entregue viraria "economia" falsa).
-              const pending = filteredItems.filter((i: any) => !isDelivered(i));
-              const totalM2 = pending.reduce((s: number, i: any) => s + (Number(i.calculatedM2) || 0), 0);
-              const printM2 = pending.reduce((s: number, i: any) => s + m2ToProduce(i), 0);
-              const reusedUn = pending.reduce((s: number, i: any) => s + reusedTotalOf(i), 0);
-              if (!totalM2) return null;
-              return (
-                <>
-                  {" · "}<strong style={{ color: TI.text }}>{printM2.toFixed(2)} m²</strong> a produzir
-                  {reusedUn > 0 && (
-                    /* #047857 (emerald-700, 5,48:1) no lugar de #059669: 3,77:1
-                       reprova AA em 13px. Fonte: P.emerald.text de lib/status. */
-                    <span style={{ color: "#047857" }}>
-                      {" "}(economia de {(totalM2 - printM2).toFixed(2)} m² · {reusedUn} un. reaproveitada{reusedUn !== 1 ? "s" : ""})
-                    </span>
-                  )}
-                </>
-              );
-            })()}
-            {/* O espelho da regra acima: mostrar dado sem dizer POR QUE ele
-                apareceu também confunde. Escolher um evento revela as entregues
-                DELE (lib/grafica-filtros: a faceta de evento é oferecida porque
-                o clique revela), e a fila de quem filtra por evento passa a ter
-                linhas já terminadas. Uma frase basta — quem quiser só o que
-                falta tem os cards de status logo acima. */}
-            {(() => {
-              // Conta na LISTA, não no statsPool: com um status escolhido junto
-              // (evento + "Em produção") não há entregue nenhuma na tela, e a
-              // frase seria falsa — o defeito que esta tela mais teme é número
-              // que não bate com a lista logo acima.
-              if (filtros.evento.length === 0 || filtros.entregues) return null;
-              const n = (filteredItems as any[]).filter((i: any) => isDelivered(i)).length;
-              if (n === 0) return null;
-              return (
-                <span data-testid="nota-entregues-do-evento">
-                  {" · "}inclui {n} entregue{n !== 1 ? "s" : ""} do evento escolhido
-                </span>
-              );
-            })()}
-            {/* Esconder dado sem dizer que está escondido é pior que o problema:
-                o chip de reversão é parte da feature, não um extra. */}
-            {entreguesOcultas > 0 && (
-              <>
-                {" · "}
-                <button
-                  type="button"
-                  onClick={() => patchFiltros({ entregues: true })}
-                  data-testid="chip-entregues-ocultas"
-                  title="A tela abre na fila do que falta fazer. Clique para trazer o histórico de entregas de volta."
-                  style={{ background: "none", border: "none", padding: 0, fontSize: 13, fontWeight: 700, color: "#0e7490", textDecoration: "underline", cursor: "pointer" }}
-                >
-                  {entreguesOcultas} entregue{entreguesOcultas !== 1 ? "s" : ""} oculta{entreguesOcultas !== 1 ? "s" : ""} · mostrar
-                </button>
-              </>
-            )}
-            {filtros.entregues && (
-              <>
-                {" · "}
-                <button
-                  type="button"
-                  onClick={() => patchFiltros({ entregues: false })}
-                  data-testid="chip-ocultar-entregues"
-                  style={{ background: "none", border: "none", padding: 0, fontSize: 13, fontWeight: 700, color: "#0e7490", textDecoration: "underline", cursor: "pointer" }}
-                >
-                  ocultar entregues
-                </button>
-              </>
-            )}
-          </div>
-        )}
       </div>
 
       {/* ── Barra flutuante dos modos em lote (entrega OU conferência) ── */}
@@ -4001,11 +4333,26 @@ export default function Grafica() {
             {allDeliverableSelected ? 'Desmarcar' : `Todas (${bulkEligibleList.length})`}
           </button>
 
-          {/* Contador — aria-live anuncia a contagem a cada seleção */}
-          <span aria-live="polite" style={{ flex: 1, color: bulkSelectedIds.size > 0 ? '#fff' : 'rgba(255,255,255,0.72)', fontSize: 13, fontWeight: 700, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {bulkSelectedIds.size > 0
-              ? `${bulkSelectedIds.size} peça${bulkSelectedIds.size !== 1 ? 's' : ''} selecionada${bulkSelectedIds.size !== 1 ? 's' : ''}`
-              : 'Toque nas peças para selecionar'}
+          {/* Modo + contador. O MODO morava num selo do cabeçalho ("Modo
+              conferência em lote ativo"), lá em cima, longe da barra onde a
+              pessoa age — e sumido da vista assim que rolava a lista. Agora é o
+              rótulo da própria barra, na cor da etapa (bolinha, não texto).
+              aria-live só no contador: anuncia a contagem a cada seleção. */}
+          <span style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 1 }}>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'rgba(255,255,255,0.72)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              <span aria-hidden="true" style={{ width: 7, height: 7, borderRadius: '50%', flexShrink: 0, backgroundColor: bulkConferMode ? '#22d3ee' : '#fb923c' }} />
+              {/* No celular sobram ~70px para este bloco: vai só o nome da etapa. */}
+              {bulkConferMode ? (isMobile ? 'Conferência' : 'Conferência em lote') : (isMobile ? 'Entrega' : 'Entrega em lote')}
+            </span>
+            <span aria-live="polite" style={{ color: bulkSelectedIds.size > 0 ? '#fff' : 'rgba(255,255,255,0.72)', fontSize: 13, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>
+              {bulkSelectedIds.size > 0
+                ? (isMobile
+                  ? `${bulkSelectedIds.size} de ${bulkEligibleList.length}`
+                  : `${bulkSelectedIds.size} peça${bulkSelectedIds.size !== 1 ? 's' : ''} selecionada${bulkSelectedIds.size !== 1 ? 's' : ''}`)
+                : isMobile ? 'Toque nas peças'
+                : (usaCards ? 'Toque nas peças para selecionar' : 'Clique nas linhas para selecionar')}
+              {isMobile && bulkSelectedIds.size > 0 && <span className="sr-only"> peças selecionadas</span>}
+            </span>
           </span>
 
           {/* Confirmar — aria-disabled (não disabled) para poder receber o foco
@@ -4015,9 +4362,10 @@ export default function Grafica() {
             onClick={() => { if (bulkSelectedIds.size > 0) (bulkConferMode ? setBulkConferOpen(true) : setBulkDeliveryOpen(true)); }}
             aria-disabled={bulkSelectedIds.size === 0}
             style={{
-              padding: '12px 18px', borderRadius: 12, border: 'none', flexShrink: 0,
+              minHeight: 44, padding: '0 18px', borderRadius: 12, border: 'none', flexShrink: 0,
               background: bulkSelectedIds.size === 0 ? 'rgba(255,255,255,0.15)' : bulkConferMode ? '#0e7490' : '#c2410c',
-              color: bulkSelectedIds.size === 0 ? 'rgba(255,255,255,0.35)' : '#fff',
+              // 0.35 de branco sumia no preto; 0.6 ainda lê "inativo" e se lê.
+              color: bulkSelectedIds.size === 0 ? 'rgba(255,255,255,0.6)' : '#fff',
               fontSize: 13, fontWeight: 800, fontFamily: "'Space Grotesk', sans-serif",
               cursor: bulkSelectedIds.size === 0 ? 'not-allowed' : 'pointer',
               display: 'flex', alignItems: 'center', gap: 7,
@@ -4034,7 +4382,7 @@ export default function Grafica() {
             onClick={() => { setBulkDeliveryMode(false); setBulkConferMode(false); setBulkSelectedIds(new Set()); }}
             aria-label="Sair do modo lote"
             title="Sair do modo lote (Esc)"
-            style={{ width: isMobile ? 44 : 36, height: isMobile ? 44 : 36, borderRadius: 8, background: 'rgba(255,255,255,0.1)', border: 'none', color: 'rgba(255,255,255,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}
+            style={{ width: isMobile ? 44 : 36, height: isMobile ? 44 : 36, borderRadius: 8, background: 'rgba(255,255,255,0.1)', border: 'none', color: 'rgba(255,255,255,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}
           >
             <X style={{ width: 16, height: 16 }} />
           </button>
@@ -4345,6 +4693,7 @@ export default function Grafica() {
                     <input
                       id="input-quantity-produced"
                       type="number"
+                      inputMode="numeric"
                       min={1}
                       max={tetoDeProducao(selectedItem)}
                       value={productionData.quantityProduced}
@@ -4359,7 +4708,7 @@ export default function Grafica() {
                       type="button"
                       onClick={() => setProductionData({ quantityProduced: tetoDeProducao(selectedItem) })}
                       data-testid="button-set-total"
-                      style={{ backgroundColor: "#e7e5e4", border: "none", borderRadius: 8, padding: "0 20px", fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.04em", color: "#57534e", cursor: "pointer", whiteSpace: "nowrap", transition: "background-color 0.15s" }}
+                      style={{ backgroundColor: "#e7e5e4", border: "none", borderRadius: 8, padding: "0 20px", minHeight: 44, fontWeight: 700, fontSize: 13, color: "#44403c", cursor: "pointer", whiteSpace: "nowrap", transition: "background-color 0.15s" }}
                       onMouseEnter={e => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = "#d6d3d1")}
                       onMouseLeave={e => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = "#e7e5e4")}
                     >
@@ -4373,7 +4722,7 @@ export default function Grafica() {
                   <button
                     type="button"
                     onClick={() => { setSelectedItem(null); setModalType(null); }}
-                    style={{ flex: 1, padding: "12px 0", backgroundColor: "transparent", border: "none", color: "#746e69", fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.1em", cursor: "pointer", borderRadius: 8, transition: "background-color 0.15s" }}
+                    style={{ flex: 1, minHeight: 44, padding: "0 12px", backgroundColor: "transparent", border: "1px solid #e7e5e4", color: "#57534e", fontWeight: 700, fontSize: 13, cursor: "pointer", borderRadius: 8, transition: "background-color 0.15s" }}
                     onMouseEnter={e => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = "#f4f3f0")}
                     onMouseLeave={e => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent")}
                   >
@@ -4383,11 +4732,12 @@ export default function Grafica() {
                     type="submit"
                     disabled={startProductionMutation.isPending || productionData.quantityProduced === 0}
                     data-testid="button-confirm-production"
-                    style={{ flex: 2, padding: "12px 0", backgroundColor: TI.text, border: "none", color: "#ffffff", fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 13, textTransform: "uppercase", letterSpacing: "-0.01em", cursor: startProductionMutation.isPending || productionData.quantityProduced === 0 ? "not-allowed" : "pointer", borderRadius: 8, opacity: startProductionMutation.isPending || productionData.quantityProduced === 0 ? 0.6 : 1, transition: "background-color 0.15s" }}
+                    style={{ flex: 2, minHeight: 44, padding: "0 12px", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, backgroundColor: TI.text, border: "none", color: "#ffffff", fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 14, cursor: startProductionMutation.isPending || productionData.quantityProduced === 0 ? "not-allowed" : "pointer", borderRadius: 8, opacity: startProductionMutation.isPending || productionData.quantityProduced === 0 ? 0.6 : 1, transition: "background-color 0.15s" }}
                     onMouseEnter={e => { if (!startProductionMutation.isPending && productionData.quantityProduced > 0) (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#000000"; }}
                     onMouseLeave={e => { if (!startProductionMutation.isPending) (e.currentTarget as HTMLButtonElement).style.backgroundColor = TI.text; }}
                   >
-                    {startProductionMutation.isPending ? "Salvando..." : "Confirmar Produção"}
+                    {startProductionMutation.isPending && <Loader2 aria-hidden="true" className="animate-spin" style={{ width: 14, height: 14 }} />}
+                    {startProductionMutation.isPending ? "Salvando…" : "Confirmar produção"}
                   </button>
                 </div>
               </form>
@@ -4399,12 +4749,13 @@ export default function Grafica() {
 
                 {/* Responsável */}
                 <div>
-                  <label style={{ display: "block", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#746e69", marginBottom: 10 }}>
+                  <label htmlFor="input-recebido-por" style={{ display: "block", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#746e69", marginBottom: 10 }}>
                     Responsável pelo Recebimento
                   </label>
                   {/* Campo livre: quem recebe muda a cada entrega, e a lista de
                       nomes anteriores mais atrapalhava do que ajudava. */}
                   <input
+                    id="input-recebido-por"
                     type="text"
                     value={deliveryData.receivedBy}
                     onChange={e => setDeliveryData({ ...deliveryData, receivedBy: e.target.value })}
@@ -4418,10 +4769,10 @@ export default function Grafica() {
                 {/* Quantidade a entregar (entrega parcial) — só exibe se restar mais de 1 */}
                 {remainingDeliver(selectedItem) > 1 && (
                   <div>
-                    <label style={{ display: "block", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#746e69", marginBottom: 8 }}>
+                    <label htmlFor="input-qtd-entregar" style={{ display: "block", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#746e69", marginBottom: 8 }}>
                       Quantidade a entregar agora <span style={{ color: "#746e69", textTransform: "none", letterSpacing: 0, fontWeight: 400 }}>· já entregue {deliveredOf(selectedItem)}/{qtyOf(selectedItem)}, disponível {remainingDeliver(selectedItem)}</span>
                     </label>
-                    <input type="number" min={1} max={remainingDeliver(selectedItem)} value={deliverQty}
+                    <input id="input-qtd-entregar" type="number" inputMode="numeric" min={1} max={remainingDeliver(selectedItem)} value={deliverQty}
                       onChange={e => setDeliverQty(Math.max(1, Math.min(remainingDeliver(selectedItem), parseInt(e.target.value) || 1)))}
                       style={{ width: "100%", padding: "10px 14px", backgroundColor: "#e8e8e7", border: "1px solid transparent", borderRadius: 8, fontSize: 15, fontWeight: 700, color: TI.text }} />
                   </div>
@@ -4443,7 +4794,7 @@ export default function Grafica() {
                   <button
                     type="button"
                     onClick={() => { setSelectedItem(null); setModalType(null); }}
-                    style={{ flex: 1, padding: "12px 0", backgroundColor: "transparent", border: "none", color: "#746e69", fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.1em", cursor: "pointer", borderRadius: 8, transition: "background-color 0.15s" }}
+                    style={{ flex: 1, minHeight: 44, padding: "0 12px", backgroundColor: "transparent", border: "1px solid #e7e5e4", color: "#57534e", fontWeight: 700, fontSize: 13, cursor: "pointer", borderRadius: 8, transition: "background-color 0.15s" }}
                     onMouseEnter={e => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = "#f4f3f0")}
                     onMouseLeave={e => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent")}
                   >
@@ -4460,12 +4811,12 @@ export default function Grafica() {
                     disabled={markDeliveredMutation.isPending || !photos.length}
                     data-testid="button-confirm-delivery"
                     aria-describedby={!photos.length ? "aviso-foto-entrega" : undefined}
-                    style={{ flex: 2, minHeight: 44, padding: "12px 0", backgroundColor: !photos.length ? "#e7e5e4" : "#15803d", border: "none", color: !photos.length ? "#78716c" : "#ffffff", fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 13, textTransform: "uppercase", letterSpacing: "-0.01em", cursor: markDeliveredMutation.isPending || !photos.length ? "not-allowed" : "pointer", borderRadius: 8, opacity: markDeliveredMutation.isPending ? 0.7 : 1, transition: "background-color 0.15s", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}
+                    style={{ flex: 2, minHeight: 44, padding: "12px 0", backgroundColor: !photos.length ? "#e7e5e4" : "#15803d", border: "none", color: !photos.length ? "#78716c" : "#ffffff", fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 14, cursor: markDeliveredMutation.isPending || !photos.length ? "not-allowed" : "pointer", borderRadius: 8, opacity: markDeliveredMutation.isPending ? 0.7 : 1, transition: "background-color 0.15s", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}
                     onMouseEnter={e => { if (!markDeliveredMutation.isPending && photos.length) (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#166534"; }}
                     onMouseLeave={e => { if (!markDeliveredMutation.isPending && photos.length) (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#15803d"; }}
                   >
                     {markDeliveredMutation.isPending && <Loader2 aria-hidden="true" className="animate-spin" style={{ width: 14, height: 14 }} />}
-                    {markDeliveredMutation.isPending ? "Salvando..." : "Confirmar Entrega"}
+                    {markDeliveredMutation.isPending ? "Salvando…" : "Confirmar entrega"}
                   </button>
                 </div>
                 {!photos.length && (
@@ -4483,10 +4834,10 @@ export default function Grafica() {
                 </p>
                 {remainingConfer(selectedItem) > 1 && (
                   <div>
-                    <label style={{ display: "block", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#746e69", marginBottom: 8 }}>
+                    <label htmlFor="input-qtd-conferir" style={{ display: "block", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#746e69", marginBottom: 8 }}>
                       Quantidade a conferir agora <span style={{ color: "#746e69", textTransform: "none", letterSpacing: 0, fontWeight: 400 }}>· já conferido {conferredOf(selectedItem)}/{qtyOf(selectedItem)}, faltam {remainingConfer(selectedItem)}</span>
                     </label>
-                    <input type="number" min={1} max={remainingConfer(selectedItem)} value={conferQty}
+                    <input id="input-qtd-conferir" type="number" inputMode="numeric" min={1} max={remainingConfer(selectedItem)} value={conferQty}
                       onChange={e => setConferQty(Math.max(1, Math.min(remainingConfer(selectedItem), parseInt(e.target.value) || 1)))}
                       style={{ width: "100%", padding: "10px 14px", backgroundColor: "#e8e8e7", border: "1px solid transparent", borderRadius: 8, fontSize: 15, fontWeight: 700, color: TI.text }} />
                   </div>
@@ -4496,7 +4847,7 @@ export default function Grafica() {
                 {renderNotesField("Ex.: cor puxando para o escuro, ilhós faltando…")}
                 <div style={modalActionsStyle}>
                   <button type="button" onClick={() => { setSelectedItem(null); setModalType(null); }}
-                    style={{ flex: 1, padding: "12px 0", backgroundColor: "transparent", border: "none", color: "#746e69", fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.1em", cursor: "pointer", borderRadius: 8 }}>
+                    style={{ flex: 1, minHeight: 44, padding: "0 12px", backgroundColor: "transparent", border: "1px solid #e7e5e4", color: "#57534e", fontWeight: 700, fontSize: 13, cursor: "pointer", borderRadius: 8 }}>
                     Cancelar
                   </button>
                   {/* Desabilitado era #a5f3fc com texto branco: 1,25:1, um
@@ -4507,9 +4858,9 @@ export default function Grafica() {
                   <button type="submit" disabled={conferMutation.isPending || !photos.length}
                     data-testid="button-confirm-conference"
                     aria-describedby={!photos.length ? "aviso-foto-conferencia" : undefined}
-                    style={{ flex: 2, minHeight: 44, padding: "12px 0", backgroundColor: (!photos.length) ? "#e7e5e4" : "#0e7490", border: "none", color: (!photos.length) ? "#78716c" : "#ffffff", fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 13, textTransform: "uppercase", cursor: (conferMutation.isPending || !photos.length) ? "not-allowed" : "pointer", borderRadius: 8, opacity: conferMutation.isPending ? 0.7 : 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+                    style={{ flex: 2, minHeight: 44, padding: "12px 0", backgroundColor: (!photos.length) ? "#e7e5e4" : "#0e7490", border: "none", color: (!photos.length) ? "#78716c" : "#ffffff", fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 14, cursor: (conferMutation.isPending || !photos.length) ? "not-allowed" : "pointer", borderRadius: 8, opacity: conferMutation.isPending ? 0.7 : 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
                     {conferMutation.isPending && <Loader2 aria-hidden="true" className="animate-spin" style={{ width: 14, height: 14 }} />}
-                    {conferMutation.isPending ? "Salvando..." : "Confirmar Conferência"}
+                    {conferMutation.isPending ? "Salvando…" : "Confirmar conferência"}
                   </button>
                 </div>
                 {!photos.length && (

@@ -24,7 +24,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "wouter";
 import { CheckCircle2, Search } from "lucide-react";
-import { CONTENT_CARDS_MAX, useElementSize } from "@/hooks/use-mobile";
+import { CONTENT_CARDS_MAX, useElementSize, useIsMobile } from "@/hooks/use-mobile";
 import { getStatusLabel, getStatusShort } from "@/lib/status";
 import { FilterChip } from "./filter-chip";
 import { PrioridadeChip, PrioridadePonto, temChipDePrioridade } from "./prioridade";
@@ -145,7 +145,7 @@ function NotaMarco({ p }: { p: PecaAtrasada }) {
 }
 
 /** O elo evento→peça: abre a peça dentro do evento, como o drill já faz. */
-function LinkPeca({ p }: { p: PecaAtrasada }) {
+function LinkPeca({ p, alvo }: { p: PecaAtrasada; alvo?: number }) {
   return (
     <Link
       href={p.urlPeca}
@@ -155,6 +155,10 @@ function LinkPeca({ p }: { p: PecaAtrasada }) {
         display: "block", fontSize: 12, fontWeight: 700,
         color: TI.accentText, textDecoration: "none",
         overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+        // `lineHeight` e não flex + minHeight: o link precisa continuar bloco
+        // para a reticência funcionar. Só o cartão passa `alvo` — na tabela a
+        // densidade é o ponto (ver a nota de 24px no drill).
+        ...(alvo ? { lineHeight: `${alvo}px` } : null),
       }}
     >
       {p.item.displayId}
@@ -224,6 +228,12 @@ function CartaoPeca({ p, onAbrirEvento }: {
   p: PecaAtrasada;
   onAbrirEvento: (id: string) => void;
 }) {
+  // O cartão é a forma do CELULAR, e os dois alvos do topo dele eram texto
+  // puro: o código da peça e o nome do evento tinham ~16px de altura cada, a
+  // 4px um do outro — abaixo até do piso AA de 24px. O nome do evento
+  // (que abre o modal, o gesto principal) sobe para a régua de toque; o código
+  // fica em 32, acima do piso AA de 24, para o cartão não dobrar de altura.
+  const isMobile = useIsMobile();
   return (
     <li style={{
       listStyle: "none", border: `1px solid ${TI.border}`, borderRadius: R.md,
@@ -231,7 +241,7 @@ function CartaoPeca({ p, onAbrirEvento }: {
     }}>
       <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 8 }}>
         <span style={{ minWidth: 0 }}>
-          <LinkPeca p={p} />
+          <LinkPeca p={p} alvo={32} />
         </span>
         <span style={{ fontSize: 13, fontWeight: 800, color: TI.red, whiteSpace: "nowrap" }}>
           {p.diasAtraso}d de atraso
@@ -243,7 +253,7 @@ function CartaoPeca({ p, onAbrirEvento }: {
         aria-haspopup="dialog"
         style={{
           display: "flex", alignItems: "center", gap: 6, background: "none", border: "none",
-          padding: 0, marginTop: 4, cursor: "pointer", maxWidth: "100%",
+          padding: 0, cursor: "pointer", maxWidth: "100%", minHeight: isMobile ? 44 : 36,
           fontSize: 12, fontWeight: 800, color: TI.title, textAlign: "left",
           fontFamily: "'Space Grotesk', sans-serif", textTransform: "uppercase",
         }}
@@ -318,6 +328,11 @@ export function PecasAtrasadas({
   const emCartoes = width > 0 && width < TABELA_MIN;
   const comEtapa = width === 0 || width >= ETAPA_MIN;
 
+  // "Limpar filtros" e "Mostrar mais" eram `padding: 9px` — 36px também no
+  // dedo. Mesma régua dos estados da página: 36 no ponteiro, 44 no toque.
+  const isMobile = useIsMobile();
+  const alvoAcao = isMobile ? 44 : 36;
+
   const [mostrar, setMostrar] = useState(PAGINA);
   useEffect(() => { setMostrar(PAGINA); }, [filtroKey]);
 
@@ -366,7 +381,7 @@ export function PecasAtrasadas({
           onClick={onLimparFiltros}
           data-testid="button-limpar-filtros-pecas"
           style={{
-            padding: "9px 18px", borderRadius: R.md, border: `1px solid ${TI.border}`,
+            minHeight: alvoAcao, padding: "0 18px", borderRadius: R.md, border: `1px solid ${TI.border}`,
             backgroundColor: TI.card, color: TI.title,
             fontSize: 13, fontWeight: 700, cursor: "pointer",
           }}
@@ -596,7 +611,7 @@ export function PecasAtrasadas({
             onClick={() => setMostrar((n) => n + PAGINA)}
             data-testid="button-mais-pecas-atrasadas"
             style={{
-              padding: "9px 18px", borderRadius: R.md, border: `1px solid ${TI.border}`,
+              minHeight: alvoAcao, padding: "0 18px", borderRadius: R.md, border: `1px solid ${TI.border}`,
               backgroundColor: TI.card, color: TI.title,
               fontSize: 13, fontWeight: 700, cursor: "pointer",
             }}

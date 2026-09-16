@@ -16,10 +16,11 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Bell, Send, Loader2, X, Plus, CheckCircle2, AlertTriangle, MinusCircle } from "lucide-react";
+import { Send, Loader2, X, Plus, CheckCircle2, AlertTriangle, MinusCircle } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { FS } from "@/lib/theme";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { FS, R, T } from "@/lib/theme";
 
 interface Edicao {
   aviso: "gestao" | "revisao";
@@ -81,6 +82,7 @@ const rotuloDia = (dia: string) => `${dia.slice(8, 10)}/${dia.slice(5, 7)}`;
 
 export default function Notificacoes() {
   const { toast } = useToast();
+  const isMobile = useIsMobile();
   const { data, isLoading, isError, refetch } = useQuery<Retrato>({ queryKey: ["/api/admin/notificacoes"] });
   // SAÚDE DOS DADOS (08/09): as contradições que nenhuma tela vê sozinha —
   // foi um par proibido (peça isenta E aguardando patrocinador) que escondeu
@@ -125,24 +127,56 @@ export default function Notificacoes() {
     onError: (e: any) => toast({ title: "Falha no disparo", description: e.message, variant: "destructive" }),
   });
 
+  // CASCA DA PÁGINA — a mesma das outras telas de administração (fundo,
+  // rolagem própria, respiro e cabeçalho). Carregando e erro agora moram DENTRO
+  // dela: antes os dois devolviam um parágrafo solto no canto, sem título, e a
+  // tela "piscava" de um layout para outro quando o retrato chegava.
+  const casca = (conteudo: React.ReactNode) => (
+    <div style={{ backgroundColor: T.bg, height: "100%", overflowY: "auto", padding: isMobile ? "16px 16px 48px" : "28px 32px 64px" }}>
+      <div style={{ maxWidth: 1060 }}>
+        <div style={{ marginBottom: 24 }}>
+          <h1 style={{ margin: "0 0 6px", fontFamily: "'Space Grotesk', sans-serif", fontSize: FS.h1, fontWeight: 700, letterSpacing: "-0.03em", lineHeight: 1.1, color: T.text }}>
+            Notificações
+          </h1>
+          <p style={{ margin: 0, fontSize: FS.body, color: T.second, lineHeight: 1.5, maxWidth: 640 }}>
+            O que o sistema manda por e-mail, para quem, e o que saiu (ou não) em cada edição.
+          </p>
+        </div>
+        {conteudo}
+      </div>
+    </div>
+  );
+
   // FALHA: antes `isLoading || !data` cobria também o erro, e a tela ficava
   // para sempre em "Carregando…" — justamente a tela aberta quando "ninguém
   // recebeu o e-mail". Agora o erro se anuncia e oferece a nova tentativa.
   if (isError && !data) {
-    return (
-      <div role="alert" style={{ margin: 40, maxWidth: 520, padding: "16px 18px", borderRadius: 10, background: "#fef2f2", border: "1px solid #fecaca" }}>
-        <p style={{ margin: "0 0 4px", fontSize: 14, fontWeight: 800, color: "#b91c1c" }}>Não foi possível carregar o retrato dos avisos</p>
-        <p style={{ margin: "0 0 12px", fontSize: 13, color: "#57534e" }}>Verifique a conexão e tente de novo. Nada foi alterado.</p>
+    return casca(
+      <div role="alert" style={{ padding: "56px 24px", textAlign: "center", borderRadius: 12, background: T.surface, border: `1px solid ${T.border}` }}>
+        <p style={{ margin: "0 0 4px", fontSize: 13, fontWeight: 700, color: T.text }}>Não foi possível carregar o retrato dos avisos</p>
+        <p style={{ margin: "0 0 16px", fontSize: 12, color: T.second }}>Verifique a conexão e tente de novo. Nada foi alterado.</p>
         <button type="button" onClick={() => refetch()}
-          style={{ height: 32, padding: "0 14px", borderRadius: 8, border: "none", background: "#1c1917", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+          style={{ display: "inline-flex", alignItems: "center", height: 36, padding: "0 18px", borderRadius: R.md, border: "none", background: T.dark, color: "#fff", fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", cursor: "pointer" }}>
           Tentar novamente
         </button>
-      </div>
+      </div>,
     );
   }
 
   if (isLoading || !data) {
-    return <p role="status" style={{ padding: 40, fontSize: 14, color: "#78716c" }}>Carregando o retrato dos avisos…</p>;
+    // Esqueleto na silhueta dos três blocos (chaves, três listas, grade).
+    // Pulso só com motion-safe.
+    return casca(
+      <div role="status" aria-label="Carregando o retrato dos avisos" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+        <div className="motion-safe:animate-pulse" style={{ height: 54, borderRadius: 10, background: T.surface, border: `1px solid ${T.border}` }} />
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(300px, 100%), 1fr))", gap: 12 }}>
+          {[0, 1, 2].map((i) => (
+            <div key={i} className="motion-safe:animate-pulse" style={{ height: 150, borderRadius: 10, background: T.surface, border: `1px solid ${T.border}` }} />
+          ))}
+        </div>
+        <div className="motion-safe:animate-pulse" style={{ height: 260, borderRadius: 10, background: T.surface, border: `1px solid ${T.border}` }} />
+      </div>,
+    );
   }
 
   const { chaves, canais, edicoes, agora, horarios } = data;
@@ -153,14 +187,17 @@ export default function Notificacoes() {
   const manuaisDoDia = (dia: string) => edicoes.filter((e) => e.dia === dia && e.manual);
 
   const chip = (ok: boolean, rotuloOk: string, rotuloRuim: string, neutroSeFalse = false) => (
+    // Quebra linha em vez de `nowrap` + altura fixa: "Acompanhamento DESLIGADO
+    // (GESTAO_DIGEST_ENABLED=false)" passa de 370px e, no celular, empurrava
+    // a página inteira para o lado.
     <span style={{
-      display: "inline-flex", alignItems: "center", gap: 6, height: 28, padding: "0 12px", borderRadius: 999,
-      fontSize: 12, fontWeight: 700, whiteSpace: "nowrap",
+      display: "inline-flex", alignItems: "center", gap: 6, minHeight: 28, padding: "4px 12px", borderRadius: 999,
+      fontSize: 12, fontWeight: 700, lineHeight: 1.35, overflowWrap: "anywhere", maxWidth: "100%", boxSizing: "border-box",
       background: ok ? "#f0fdf4" : neutroSeFalse ? "#fafaf9" : "#fef2f2",
       border: `1px solid ${ok ? "#bbf7d0" : neutroSeFalse ? "#e7e5e4" : "#fecaca"}`,
       color: ok ? "#15803d" : neutroSeFalse ? "#57534e" : "#b91c1c",
     }}>
-      {ok ? <CheckCircle2 style={{ width: 13, height: 13 }} /> : <AlertTriangle style={{ width: 13, height: 13 }} />}
+      {ok ? <CheckCircle2 aria-hidden="true" style={{ width: 13, height: 13, flexShrink: 0 }} /> : <AlertTriangle aria-hidden="true" style={{ width: 13, height: 13, flexShrink: 0 }} />}
       {ok ? rotuloOk : rotuloRuim}
     </span>
   );
@@ -191,16 +228,13 @@ export default function Notificacoes() {
     );
   };
 
-  return (
-    <div style={{ backgroundColor: "#fafaf9", minHeight: "100%", padding: "18px 18px 64px" }}>
-      <div style={{ maxWidth: 1060, margin: "0 auto" }}>
-        <h1 style={{ margin: "0 0 4px", fontFamily: "'Space Grotesk', sans-serif", fontSize: FS.h1, fontWeight: 700, letterSpacing: "-0.03em", lineHeight: 1.1, color: "#1c1917", display: "flex", alignItems: "center", gap: 8 }}>
-          <Bell style={{ width: 18, height: 18, color: "#c2410c" }} /> Notificações
-        </h1>
-        <p style={{ margin: "0 0 16px", fontSize: 13, color: "#57534e" }}>
-          O que o sistema manda por e-mail, para quem, e o que saiu (ou não) em cada edição.
-        </p>
+  // Títulos de seção num degrau só (15/800), em vez de dois rótulos 11px em
+  // caixa alta e um h2 de 15 para o terceiro bloco.
+  const tituloDeSecao: React.CSSProperties = { margin: 0, fontFamily: "'Space Grotesk', sans-serif", fontSize: 15, fontWeight: 800, color: T.text };
+  const toque = isMobile ? 44 : 36;
 
+  return casca(
+      <>
         {/* ── 1 · As chaves ── */}
         <div data-testid="chaves-dos-avisos" style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", padding: "12px 14px", borderRadius: 10, background: "#fff", border: "1px solid #e7e5e4", marginBottom: 16 }}>
           {data.servidorNoArDesde && (
@@ -217,8 +251,10 @@ export default function Notificacoes() {
         </div>
 
         {/* ── 2 · Quem recebe ── */}
-        <p style={{ margin: "0 0 8px", fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: "#57534e" }}>Quem recebe</p>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 12, marginBottom: 20 }}>
+        <h2 style={{ ...tituloDeSecao, marginBottom: 10 }}>Quem recebe</h2>
+        {/* `min(300px, 100%)`: com 300px fixos, uma coluna mais estreita que
+            isso (celular de 320) passava da tela. */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(300px, 100%), 1fr))", gap: 12, marginBottom: 28 }}>
           {canais.map((c) => {
             const usandoPadrao = c.personalizados.length === 0;
             return (
@@ -230,18 +266,22 @@ export default function Notificacoes() {
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
                   {usandoPadrao
                     ? c.padrao.map((email) => (
-                        <span key={email} title="Lista padrão do sistema — adicione alguém para a lista virar editável" style={{ display: "inline-flex", alignItems: "center", height: 25, padding: "0 9px", borderRadius: 999, background: "#fafaf9", border: "1px dashed #d6d3d1", color: "#57534e", fontSize: 11.5, fontWeight: 600 }}>
+                        <span key={email} title="Lista padrão do sistema — adicione alguém para a lista virar editável" style={{ display: "inline-flex", alignItems: "center", minHeight: 28, padding: "0 10px", borderRadius: 999, background: "#fafaf9", border: "1px dashed #d6d3d1", color: "#57534e", fontSize: 12, fontWeight: 600, maxWidth: "100%", overflowWrap: "anywhere" }}>
                           {email}
                         </span>
                       ))
                     : c.personalizados.map((p) => (
-                        <span key={p.id} style={{ display: "inline-flex", alignItems: "center", gap: 5, height: 25, padding: "0 4px 0 9px", borderRadius: 999, background: "#fff7ed", border: "1px solid #fed7aa", color: "#9a3412", fontSize: 11.5, fontWeight: 600 }}>
+                        <span key={p.id} style={{ display: "inline-flex", alignItems: "center", gap: 4, minHeight: 28, padding: "0 2px 0 10px", borderRadius: 999, background: "#fff7ed", border: "1px solid #fed7aa", color: "#9a3412", fontSize: 12, fontWeight: 600, maxWidth: "100%", overflowWrap: "anywhere" }}>
                           {p.email}
+                          {/* Alvo de 24px (44 no celular; era 17) e realce no
+                              hover — o X é a única ação destrutiva da lista. */}
                           <button type="button" onClick={() => remover.mutate(p.id)} disabled={remover.isPending}
                             title={`Remover ${p.email} deste aviso`} aria-label={`Remover ${p.email}`}
                             data-testid={`remover-${p.id}`}
-                            style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 17, height: 17, borderRadius: 999, border: "none", background: "transparent", color: "#c2410c", cursor: "pointer", padding: 0 }}>
-                            <X style={{ width: 11, height: 11 }} />
+                            onMouseEnter={(e) => { e.currentTarget.style.background = "#fed7aa"; }}
+                            onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+                            style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: isMobile ? 44 : 24, height: isMobile ? 44 : 24, margin: isMobile ? "-8px -8px -8px 0" : 0, flexShrink: 0, borderRadius: 999, border: "none", background: "transparent", color: "#9a3412", cursor: remover.isPending ? "wait" : "pointer", padding: 0, transition: "background-color 0.12s ease" }}>
+                            <X aria-hidden="true" style={{ width: 12, height: 12 }} />
                           </button>
                         </span>
                       ))}
@@ -266,13 +306,24 @@ export default function Notificacoes() {
                     placeholder="nome.sobrenome@nortemkt.com"
                     aria-label={`E-mail para adicionar em ${c.titulo}`}
                     data-testid={`input-destinatario-${c.canal}`}
-                    style={{ flex: 1, minWidth: 0, height: 32, padding: "0 10px", borderRadius: 8, border: "1px solid #e7e5e4", fontSize: 12.5, color: "#1c1917", background: "#fff" }}
+                    style={{ flex: 1, minWidth: 0, height: toque, padding: "0 10px", borderRadius: R.md, border: `1px solid ${T.bdark}`, fontSize: 13, color: T.text, background: "#fff" }}
                   />
-                  <button type="submit" disabled={adicionar.isPending || !(novoEmail[c.canal] ?? "").trim()}
-                    data-testid={`adicionar-destinatario-${c.canal}`}
-                    style={{ display: "inline-flex", alignItems: "center", gap: 5, height: 32, padding: "0 11px", borderRadius: 8, border: "none", background: "#1c1917", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
-                    <Plus style={{ width: 12, height: 12 }} /> Adicionar
-                  </button>
+                  {/* Desligado PARECE desligado: antes ficava igual ao ligado e
+                      o clique num campo vazio não dava retorno nenhum. */}
+                  {(() => {
+                    const desligado = adicionar.isPending || !(novoEmail[c.canal] ?? "").trim();
+                    return (
+                      <button type="submit" disabled={desligado}
+                        aria-busy={adicionar.isPending && adicionar.variables?.canal === c.canal}
+                        data-testid={`adicionar-destinatario-${c.canal}`}
+                        style={{ display: "inline-flex", alignItems: "center", gap: 6, height: toque, padding: "0 14px", borderRadius: R.md, border: "none", background: T.dark, color: "#fff", fontSize: 12, fontWeight: 800, cursor: desligado ? "not-allowed" : "pointer", opacity: desligado ? 0.5 : 1, whiteSpace: "nowrap", transition: "opacity 0.15s ease" }}>
+                        {adicionar.isPending && adicionar.variables?.canal === c.canal
+                          ? <Loader2 aria-hidden="true" className="motion-safe:animate-spin" style={{ width: 13, height: 13 }} />
+                          : <Plus aria-hidden="true" style={{ width: 13, height: 13 }} />}
+                        Adicionar
+                      </button>
+                    );
+                  })()}
                 </form>
               </div>
             );
@@ -280,10 +331,10 @@ export default function Notificacoes() {
         </div>
 
         {/* ── 3 · O que saiu ── */}
-        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 8 }}>
-          <p style={{ margin: 0, fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: "#57534e" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
+          <h2 style={tituloDeSecao}>
             O que saiu — últimos {DIAS_NA_GRADE} dias
-          </p>
+          </h2>
           <span style={{ flex: 1 }} />
           {(["gestao", "revisao"] as const).map((aviso) => {
             // O giro só no botão clicado: antes os DOIS giravam, e não dava
@@ -302,8 +353,10 @@ export default function Notificacoes() {
                 disabled={disparar.isPending}
                 aria-busy={esteSaindo}
                 data-testid={`disparar-${aviso}`}
-                style={{ display: "inline-flex", alignItems: "center", gap: 6, height: 32, padding: "0 12px", borderRadius: 8, border: "1px solid #e7e5e4", background: "#fff", color: "#1c1917", fontSize: 12, fontWeight: 700, cursor: disparar.isPending ? "wait" : "pointer", opacity: disparar.isPending && !esteSaindo ? 0.55 : 1 }}>
-                {esteSaindo ? <Loader2 className="motion-safe:animate-spin" style={{ width: 12, height: 12 }} /> : <Send style={{ width: 12, height: 12 }} />}
+                onMouseEnter={(e) => { if (!disparar.isPending) e.currentTarget.style.background = T.low; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = "#fff"; }}
+                style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, height: toque, padding: "0 14px", borderRadius: R.md, border: `1px solid ${T.bdark}`, background: "#fff", color: T.text, fontSize: 12, fontWeight: 700, cursor: disparar.isPending ? "wait" : "pointer", opacity: disparar.isPending && !esteSaindo ? 0.55 : 1, flex: isMobile ? "1 1 100%" : undefined, transition: "background-color 0.15s ease" }}>
+                {esteSaindo ? <Loader2 aria-hidden="true" className="motion-safe:animate-spin" style={{ width: 13, height: 13 }} /> : <Send aria-hidden="true" style={{ width: 13, height: 13 }} />}
                 {esteSaindo ? "Enviando…" : aviso === "gestao" ? "Mandar acompanhamento agora" : "Mandar aviso da revisão agora"}
               </button>
             );
@@ -335,7 +388,7 @@ export default function Notificacoes() {
                   {horarios.map((h) => celula("revisao", dia, h))}
                   <td style={{ padding: "7px 12px", borderLeft: "1px solid #f5f4f2", whiteSpace: "nowrap" }}>
                     {manuaisDoDia(dia).length === 0
-                      ? <span style={{ color: "#d6d3d1", fontSize: 11.5 }}>—</span>
+                      ? <span style={{ color: "#78716c", fontSize: 11.5 }}>—</span>
                       : manuaisDoDia(dia).map((e, i) => (
                           <span key={i} title={e.desfecho} style={{ display: "inline-flex", alignItems: "center", gap: 4, marginRight: 4, padding: "2px 7px", borderRadius: 6, fontSize: 10.5, fontWeight: 700, background: e.status === "enviado" ? "#f0fdf4" : "#fef2f2", color: e.status === "enviado" ? "#15803d" : "#b91c1c", border: "1px solid #e7e5e4" }}>
                             {e.aviso === "gestao" ? "Acomp." : "Revisão"} {e.hora}h
@@ -348,7 +401,7 @@ export default function Notificacoes() {
           </table>
         </div>
         <p style={{ margin: "8px 0 0", fontSize: 11, color: "#78716c", display: "flex", alignItems: "center", gap: 5 }}>
-          <MinusCircle style={{ width: 11, height: 11 }} />
+          <MinusCircle aria-hidden="true" style={{ width: 11, height: 11, flexShrink: 0 }} />
           "Não rodou" antes de 27/08 pode ser só a versão antiga, que não registrava edição de fila vazia — desde 27/08, toda edição deixa rastro.
         </p>
 
@@ -358,7 +411,7 @@ export default function Notificacoes() {
             dias fora da fila do Atendimento enquanto a Gestão de Prazos as
             cobrava. Aqui é o lugar que CRUZA: pergunta pelo que o produto
             afirma ser impossível, e mostra se algum caso existe. */}
-        <h2 style={{ margin: "28px 0 4px", fontFamily: "'Space Grotesk', sans-serif", fontSize: 15, fontWeight: 800, color: "#1c1917" }}>
+        <h2 style={{ ...tituloDeSecao, margin: "28px 0 4px" }}>
           Saúde dos dados
         </h2>
         <p style={{ margin: "0 0 10px", fontSize: 12.5, color: "#57534e" }}>
@@ -366,7 +419,10 @@ export default function Notificacoes() {
         </p>
 
         {saudeCarregando && (
-          <p style={{ fontSize: 13, color: "#78716c" }}>Conferindo…</p>
+          <p role="status" style={{ display: "flex", alignItems: "center", gap: 8, margin: 0, padding: "12px 14px", borderRadius: 10, background: T.surface, border: `1px solid ${T.border}`, fontSize: 13, color: "#57534e" }}>
+            <Loader2 aria-hidden="true" className="motion-safe:animate-spin" style={{ width: 14, height: 14 }} />
+            Conferindo…
+          </p>
         )}
 
         {saudeFalhou && (
@@ -377,7 +433,7 @@ export default function Notificacoes() {
             {/* Nova tentativa aqui mesmo: "recarregue a página (F5)" jogava fora
                 a tela inteira para refazer uma consulta só. */}
             <button type="button" onClick={() => reconferirSaude()} disabled={saudeReconferindo}
-              style={{ height: 30, padding: "0 12px", borderRadius: 8, border: "1px solid #fecaca", background: "#fff", color: "#b91c1c", fontSize: 12, fontWeight: 700, cursor: saudeReconferindo ? "wait" : "pointer" }}>
+              style={{ height: toque, padding: "0 14px", borderRadius: R.md, border: "1px solid #fecaca", background: "#fff", color: "#b91c1c", fontSize: 12, fontWeight: 700, cursor: saudeReconferindo ? "wait" : "pointer", flex: isMobile ? "1 1 100%" : undefined }}>
               {saudeReconferindo ? "Conferindo…" : "Conferir de novo"}
             </button>
           </div>
@@ -420,7 +476,6 @@ export default function Notificacoes() {
             })}
           </div>
         )}
-      </div>
-    </div>
+      </>,
   );
 }

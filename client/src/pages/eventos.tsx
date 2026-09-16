@@ -68,6 +68,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { ToastAction } from "@/components/ui/toast";
+import { EncerrarEventoDialog } from "@/components/encerrar-evento-dialog";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/auth-context";
@@ -975,9 +976,14 @@ function EventCard({
                 Nenhuma peça criada
                 {ms ? ` — lista ${milestoneDueText(ms)}` : ''}
               </span>
-              <span style={{ fontSize: FS.small, fontWeight: '700', color: T.accentText }}>
-                Criar lista de imagens →
-              </span>
+              {/* O convite só para quem monta a lista: para os outros perfis
+                  "Criar lista de imagens →" prometia um gesto que o detalhe
+                  não oferece a eles. */}
+              {canEdit && (
+                <span style={{ fontSize: FS.small, fontWeight: '700', color: T.accentText }}>
+                  Criar lista de imagens →
+                </span>
+              )}
             </div>
           ) : (
             <div>
@@ -988,16 +994,20 @@ function EventCard({
                     : `${stats.deliveredCount} de ${stats.activeItemCount} ${stats.activeItemCount === 1 ? 'peça' : 'peças'}`}
                   {stats.inProductionCount > 0 ? ` · ${stats.inProductionCount} em produção` : ''}
                 </span>
+                {/* O ESTADO JÁ ESTÁ NO SELO do topo do cartão ("Encerrado
+                    manualmente", "Concluído"): repeti-lo aqui era a mesma
+                    palavra duas vezes no mesmo cartão. O rodapé fica com o que
+                    o selo não diz — quantas peças ficaram em aberto. */}
                 {isClosed ? (
                   // O número de peças abertas continua VISÍVEL num evento
                   // encerrado: encerrar tira o evento das filas, não apaga o
                   // que ficou para trás.
-                  <span style={{ fontSize: FS.small, fontWeight: '800', color: '#44403c', whiteSpace: 'nowrap' }}>
-                    {stats.openCount > 0 ? `Encerrado · ${stats.openCount} em aberto` : 'Encerrado'}
-                  </span>
-                ) : isDone ? (
-                  <span style={{ fontSize: FS.small, fontWeight: '800', color: '#047857', whiteSpace: 'nowrap' }}>Concluído</span>
-                ) : isRealizado ? (
+                  stats.openCount > 0 ? (
+                    <span style={{ fontSize: FS.small, fontWeight: '800', color: '#44403c', whiteSpace: 'nowrap' }}>
+                      {stats.openCount} em aberto
+                    </span>
+                  ) : null
+                ) : isDone ? null : isRealizado ? (
                   <span style={{ fontSize: FS.small, fontWeight: '800', color: '#b45309', whiteSpace: 'nowrap' }}>
                     {realizadoVazio ? 'Nada criado' : `${stats.openCount} em aberto`}
                   </span>
@@ -3356,7 +3366,9 @@ export default function Eventos() {
           não apontando para um controle.
       ══════════════════════════════════════════════════════════════════ */}
       {!isLoading && !isError && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 16 }}>
+        // Sem marginBottom próprio: o `gap` da coluna já separa da lista, e os
+        // dois somados abriam um vão maior que o da barra de filtros acima.
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
           <span style={{ fontSize: FS.small, color: T.second, flexShrink: 0 }}>Ordem</span>
           <div
             role="radiogroup"
@@ -3699,132 +3711,33 @@ export default function Eventos() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* ── ENCERRAR ──
-          A confirmação diz o NÚMERO real de peças em aberto e quantas estão em
-          produção. "Ainda há peças pendentes" não faz ninguém parar; "12 peças
-          pendentes, sendo 3 em produção" faz. E diz o que encerrar FAZ e o que
-          NÃO faz — nenhuma peça muda de status, nada é apagado. */}
-      <AlertDialog open={!!closingEventId} onOpenChange={(v) => { if (!v && !closeEventMutation.isPending) setClosingEventId(null); }}>
-        {/* ALTURA — a conta.
-              Medido no pior caso (evento com peças pendentes e em produção):
-              32 de padding + título 24 + tarja âmbar ~90 + o parágrafo do que
-              encerrar faz e não faz ~130 + rodapé 86 = ~400px, contra 397
-              disponíveis numa janela de 445 — CORTAVA por pouco, e por igual
-              nos dois lados.
-              O teto é `100vh − 48`: a viewport menos 24px de respiro em cima e
-              24 embaixo, simétrico porque o Radix centra o Content com
-              `top: 50%` + translate. A rede de segurança de ui/alert-dialog.tsx
-              NÃO alcança este diálogo: ele traz `overflow: hidden` inline, e
-              inline vence classe — sem a coluna flex e sem um scrollport o teto
-              só trocaria o corte simétrico por um corte embaixo. Por isso o
-              corpo vira o único item que rola e o rodapé leva `flexShrink: 0`. */}
-          <AlertDialogContent style={{ maxWidth: "460px", backgroundColor: "#ffffff", borderRadius: R.xl, padding: 0, border: "none", boxShadow: SHADOW.lg, overflow: "hidden", maxHeight: "calc(100vh - 48px)", display: "flex", flexDirection: "column" }}>
-          <div style={{ padding: "32px 32px 8px 32px", overflowY: "auto", flex: "1 1 auto", minHeight: 0 }}>
-            <AlertDialogTitle style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: FS.title, fontWeight: "700", letterSpacing: "-0.02em", color: T.dark, margin: 0 }}>
-              Encerrar evento
-            </AlertDialogTitle>
-
-            {closingStats && closingStats.openCount > 0 && (
-              <div style={{ marginTop: "20px", padding: "16px", backgroundColor: "#fffbeb", borderLeft: "4px solid #f59e0b", borderRadius: `0 ${R.md}px ${R.md}px 0`, display: "flex", alignItems: "flex-start", gap: "12px" }}>
-                <AlertTriangle style={{ width: "18px", height: "18px", color: "#b45309", flexShrink: 0, marginTop: "1px" }} />
-                <p style={{ fontSize: FS.body, fontWeight: "600", color: "#783200", margin: 0, lineHeight: 1.6 }}>
-                  Este evento tem{" "}
-                  <strong>{closingStats.openCount} {closingStats.openCount === 1 ? 'peça pendente' : 'peças pendentes'}</strong>
-                  {closingStats.inProductionCount > 0
-                    ? <>, {closingStats.inProductionCount === 1 ? 'sendo 1 em produção' : `sendo ${closingStats.inProductionCount} em produção`}</>
-                    : null}
-                  . Elas <strong>não são canceladas nem entregues</strong> — continuam na lista do evento, mas param de ser cobradas na Gestão de Prazos e saem das filas de trabalho.
-                </p>
-              </div>
-            )}
-
-            <AlertDialogDescription style={{ fontSize: FS.strong, color: T.second, lineHeight: 1.6, marginTop: "16px" }}>
-              Encerrar{" "}
-              <strong style={{ color: T.text, fontWeight: "600" }}>"{closingEvent?.name || "este evento"}"</strong>
-              {closingStats && closingStats.openCount === 0
-                ? closingStats.activeItemCount > 0
-                  ? <> — todas as {closingStats.activeItemCount} peças já estão entregues.</>
-                  : <> — este evento não tem nenhuma peça.</>
-                : '.'}
-              {" "}Ele sai da Gestão de Prazos e das filas de trabalho, e segue visível no histórico, na consulta e no filtro "Concluídos". A ação fica registrada com seu nome e horário, e pode ser desfeita em <strong style={{ color: T.text, fontWeight: 600 }}>Reabrir evento</strong>.
-            </AlertDialogDescription>
-          </div>
-
-          <AlertDialogFooter style={{ padding: "16px 32px 32px 32px", display: "flex", flexDirection: "row", justifyContent: "flex-end", gap: "10px", flexShrink: 0 }}>
-            <AlertDialogCancel
-              disabled={closeEventMutation.isPending}
-              style={{ padding: "9px 24px", backgroundColor: "transparent", border: "1px solid #e0c0b1", borderRadius: R.sm, fontSize: FS.body, fontWeight: "700", color: "#625d5b", cursor: "pointer", textTransform: "uppercase", letterSpacing: "0.04em", fontFamily: "'Plus Jakarta Sans', sans-serif" }}
-            >
-              Cancelar
-            </AlertDialogCancel>
-            <AlertDialogAction
-              onClick={(e) => {
-                // preventDefault: sem ele o diálogo fecha antes de a mutação
-                // responder e o toast com a contagem real se perde.
-                e.preventDefault();
-                if (closingEventId) closeEventMutation.mutate(closingEventId);
-              }}
-              disabled={closeEventMutation.isPending}
-              data-testid="button-confirm-close-event"
-              style={{ padding: "9px 24px", backgroundColor: "#57534e", border: "none", borderRadius: R.sm, fontSize: FS.body, fontWeight: "700", color: "#ffffff", cursor: closeEventMutation.isPending ? "wait" : "pointer", opacity: closeEventMutation.isPending ? 0.5 : 1, textTransform: "uppercase", letterSpacing: "0.04em", fontFamily: "'Plus Jakarta Sans', sans-serif", display: "flex", alignItems: "center", gap: "8px" }}
-            >
-              <Lock style={{ width: "14px", height: "14px" }} />
-              {closeEventMutation.isPending ? "Encerrando..." : "Encerrar"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      {/* ── REABRIR ── */}
-      <AlertDialog open={!!reopeningEventId} onOpenChange={(v) => { if (!v && !reopenEventMutation.isPending) setReopeningEventId(null); }}>
-        {/* ALTURA — a conta.
-              Medido: 32 de padding + título 24 + texto de três linhas ~72 +
-              rodapé 86 = ~300px. NÃO cortava; o teto é preventivo, e a parte
-              elástica é o nome do evento no texto.
-              O teto é `100vh − 48`: a viewport menos 24px de respiro em cima e
-              24 embaixo, simétrico porque o Radix centra o Content com
-              `top: 50%` + translate. A rede de segurança de ui/alert-dialog.tsx
-              NÃO alcança este diálogo: ele traz `overflow: hidden` inline, e
-              inline vence classe — sem a coluna flex e sem um scrollport o teto
-              só trocaria o corte simétrico por um corte embaixo. Por isso o
-              corpo vira o único item que rola e o rodapé leva `flexShrink: 0`. */}
-          <AlertDialogContent style={{ maxWidth: "440px", backgroundColor: "#ffffff", borderRadius: R.xl, padding: 0, border: "none", boxShadow: SHADOW.lg, overflow: "hidden", maxHeight: "calc(100vh - 48px)", display: "flex", flexDirection: "column" }}>
-          <div style={{ padding: "32px 32px 8px 32px", overflowY: "auto", flex: "1 1 auto", minHeight: 0 }}>
-            <AlertDialogTitle style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: FS.title, fontWeight: "700", letterSpacing: "-0.02em", color: T.dark, margin: 0 }}>
-              Reabrir evento
-            </AlertDialogTitle>
-            <AlertDialogDescription style={{ fontSize: FS.strong, color: T.second, lineHeight: 1.6, marginTop: "16px" }}>
-              <strong style={{ color: T.text, fontWeight: "600" }}>"{reopeningEvent?.name || "Este evento"}"</strong>{" "}
-              volta para a Gestão de Prazos e para as filas de trabalho
-              {reopeningStats && reopeningStats.openCount > 0
-                ? <> com <strong style={{ color: T.text, fontWeight: 600 }}>{reopeningStats.openCount} {reopeningStats.openCount === 1 ? 'peça em aberto' : 'peças em aberto'}</strong>{reopeningStats.inProductionCount > 0 ? ` (${reopeningStats.inProductionCount} em produção)` : ''}</>
-                : null}
-              . A partir daí os prazos voltam a ser cobrados normalmente. A reabertura fica registrada com seu nome e horário.
-            </AlertDialogDescription>
-          </div>
-
-          <AlertDialogFooter style={{ padding: "16px 32px 32px 32px", display: "flex", flexDirection: "row", justifyContent: "flex-end", gap: "10px", flexShrink: 0 }}>
-            <AlertDialogCancel
-              disabled={reopenEventMutation.isPending}
-              style={{ padding: "9px 24px", backgroundColor: "transparent", border: "1px solid #e0c0b1", borderRadius: R.sm, fontSize: FS.body, fontWeight: "700", color: "#625d5b", cursor: "pointer", textTransform: "uppercase", letterSpacing: "0.04em", fontFamily: "'Plus Jakarta Sans', sans-serif" }}
-            >
-              Cancelar
-            </AlertDialogCancel>
-            <AlertDialogAction
-              onClick={(e) => {
-                e.preventDefault();
-                if (reopeningEventId) reopenEventMutation.mutate(reopeningEventId);
-              }}
-              disabled={reopenEventMutation.isPending}
-              data-testid="button-confirm-reopen-event"
-              style={{ padding: "9px 24px", backgroundColor: "#15803d", border: "none", borderRadius: R.sm, fontSize: FS.body, fontWeight: "700", color: "#ffffff", cursor: reopenEventMutation.isPending ? "wait" : "pointer", opacity: reopenEventMutation.isPending ? 0.5 : 1, textTransform: "uppercase", letterSpacing: "0.04em", fontFamily: "'Plus Jakarta Sans', sans-serif", display: "flex", alignItems: "center", gap: "8px" }}
-            >
-              <Unlock style={{ width: "14px", height: "14px" }} />
-              {reopenEventMutation.isPending ? "Reabrindo..." : "Reabrir"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {/* ── ENCERRAR / REABRIR ──
+          A confirmação é UM componente, o mesmo do detalhe do evento
+          (components/encerrar-evento-dialog.tsx): a mesma decisão diz a mesma
+          frase nas duas telas. A mutação, as invalidações e o toast com
+          "Mostrar" continuam aqui. */}
+      <EncerrarEventoDialog
+        modo="encerrar"
+        open={!!closingEventId}
+        onFechar={() => setClosingEventId(null)}
+        onConfirmar={() => { if (closingEventId) closeEventMutation.mutate(closingEventId); }}
+        pendente={closeEventMutation.isPending}
+        nomeDoEvento={closingEvent?.name}
+        abertas={closingStats ? closingStats.openCount : null}
+        emProducao={closingStats?.inProductionCount ?? null}
+        ativas={closingStats?.activeItemCount ?? null}
+      />
+      <EncerrarEventoDialog
+        modo="reabrir"
+        open={!!reopeningEventId}
+        onFechar={() => setReopeningEventId(null)}
+        onConfirmar={() => { if (reopeningEventId) reopenEventMutation.mutate(reopeningEventId); }}
+        pendente={reopenEventMutation.isPending}
+        nomeDoEvento={reopeningEvent?.name}
+        abertas={reopeningStats ? reopeningStats.openCount : null}
+        emProducao={reopeningStats?.inProductionCount ?? null}
+        ativas={reopeningStats?.activeItemCount ?? null}
+      />
 
       {/* ── PRIORIDADE ── */}
       <Dialog open={priorityDialogOpen} onOpenChange={setPriorityDialogOpen}>

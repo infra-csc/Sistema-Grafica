@@ -306,7 +306,9 @@ function Vazio({ porFiltro, real, aoLimpar }: { porFiltro: boolean; real: string
       {porFiltro ? (
         <button
           onClick={aoLimpar}
-          style={{ fontSize: FS.small, color: ACCENT_TEXT, background: "none", border: "none", padding: 0, cursor: "pointer", textDecoration: "underline", fontWeight: 700 }}
+          // Alvo de 44: era texto puro (~18px) e é a ÚNICA saída de um bloco que
+          // o filtro esvaziou. Sem fundo nem borda, a altura extra não desenha nada.
+          style={{ display: "inline-flex", alignItems: "center", minHeight: 44, fontSize: FS.small, color: ACCENT_TEXT, background: "none", border: "none", padding: 0, cursor: "pointer", textDecoration: "underline", fontWeight: 700 }}
         >
           Limpar os filtros e ver tudo
         </button>
@@ -926,7 +928,8 @@ export default function DashboardAnalises() {
         title={filtrosAtivos > 0 ? "Remover todos os filtros" : "Não há filtro aplicado"}
         style={{
           display: "inline-flex", alignItems: "center", gap: 5,
-          height: isMobile ? 34 : 28, padding: "0 10px", borderRadius: 7,
+          // 44 no toque (era 34): é o desfazer da faixa inteira no celular.
+          height: isMobile ? 44 : 28, padding: "0 10px", borderRadius: 7,
           marginLeft: isMobile ? "auto" : 0,
           backgroundColor: filtrosAtivos > 0 ? "#fef2f2" : "transparent",
           border: `1px solid ${filtrosAtivos > 0 ? "#fecaca" : T.bdark}`,
@@ -966,7 +969,11 @@ export default function DashboardAnalises() {
   // provoca um salto no primeiro paint.
   if (isLoading) {
     return (
-      <div style={{ backgroundColor: T.bg, height: "100%", overflowY: "auto", padding: PADDING_PAGINA(isMobile) }} aria-busy="true" aria-label="Carregando análises">
+      <div style={{ backgroundColor: T.bg, height: "100%", overflowY: "auto", padding: PADDING_PAGINA(isMobile) }} role="status" aria-busy="true">
+        {/* Texto de verdade, não `aria-label`: num <div> sem papel o rótulo não
+            era lido, e a carga passava em silêncio para o leitor de tela. Mesma
+            solução do esqueleto da Gestão de Prazos. */}
+        <span className="sr-only">Carregando análises…</span>
         <div className="animate-pulse" style={{ width: 240, height: 24, borderRadius: 4, backgroundColor: "#e7e5e4", marginBottom: 10 }} />
         <div className="animate-pulse" style={{ width: 420, maxWidth: "90%", height: 12, borderRadius: 4, backgroundColor: T.low, marginBottom: SP.bloco }} />
         {/* A silhueta acompanha a faixa nova: uma linha de gatilhos, não o card
@@ -1014,7 +1021,7 @@ export default function DashboardAnalises() {
             onClick={exportarCsv}
             data-testid="button-export-analises"
             title="Baixar os números desta tela em CSV, com os filtros aplicados"
-            style={{ display: "flex", alignItems: "center", gap: 7, height: 34, padding: "0 14px", background: T.surface, border: `1px solid ${T.bdark}`, borderRadius: R.md, cursor: "pointer", fontSize: 11, fontWeight: 800, color: T.text, textTransform: "uppercase", letterSpacing: "0.08em" }}
+            style={{ display: "flex", alignItems: "center", gap: 7, height: isMobile ? 44 : 36, padding: "0 14px", background: T.surface, border: `1px solid ${T.bdark}`, borderRadius: R.md, cursor: "pointer", fontSize: 11, fontWeight: 800, color: T.text, textTransform: "uppercase", letterSpacing: "0.08em" }}
           >
             <Download aria-hidden="true" style={{ width: 14, height: 14 }} /> Exportar CSV
           </button>
@@ -1355,7 +1362,9 @@ export default function DashboardAnalises() {
                   aria-pressed={dim === d.value}
                   data-testid={`dim-${d.value}`}
                   style={{
-                    padding: "7px 13px", border: "none", cursor: "pointer",
+                    // ~28px de altura: no toque sobe para 44 (a régua da casa); no desktop
+                    // o segmentado fica como estava.
+                    padding: "7px 13px", border: "none", cursor: "pointer", minHeight: isMobile ? 44 : undefined,
                     backgroundColor: dim === d.value ? T.dark : T.surface,
                     color: dim === d.value ? "#fff" : T.second,
                     fontSize: 10, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.1em",

@@ -7,7 +7,7 @@ import { PHASES, contarPorFase } from "@/lib/fases";
 import { MARCOS_DO_EVENTO } from "@shared/prazo-dates";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Plus, ArrowLeft, Calendar, Truck, AlertCircle, List, Package, Package2, Pencil, Trash2, Check, Building2, Loader2, User, History, Lock, Unlock, Paperclip, ExternalLink, X, RotateCcw, Recycle, Upload, Copy, ChevronDown, CheckCircle2, AlertTriangle, FileSpreadsheet, FileText, Tags, BookOpen, Search, Warehouse } from "lucide-react";
+import { Plus, ArrowLeft, Calendar, Truck, AlertCircle, List, Package, Package2, Pencil, Trash2, Check, Building2, Loader2, User, History, Lock, Unlock, Paperclip, ExternalLink, X, RotateCcw, Recycle, Upload, Copy, ChevronDown, CheckCircle2, AlertTriangle, FileSpreadsheet, FileText, Tags, BookOpen, Search, Warehouse, MoreHorizontal } from "lucide-react";
 import { EstoqueSemelhantesDialog } from "@/components/estoque-semelhantes-dialog";
 import { PedidosDoEvento } from "@/components/pedidos-do-evento";
 import { SeloKit } from "@/components/kit/selo-kit";
@@ -34,6 +34,14 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -50,6 +58,7 @@ import { ptBR } from "date-fns/locale";
 import { ItemDetailsDialog } from "@/components/item-details-dialog";
 import { ImportXlsxDialog, ImportPreviewRow } from "@/components/import-xlsx-dialog";
 import { CloneItemsDialog } from "@/components/clone-items-dialog";
+import { EncerrarEventoDialog } from "@/components/encerrar-evento-dialog";
 import { useEventImport, useEventClone } from "@/hooks/use-event-import";
 import { useEventReference } from "@/hooks/use-event-reference";
 import { refsDaPeca } from "@/lib/refs-da-peca";
@@ -1211,6 +1220,9 @@ export default function EventDetail() {
 
   const [closeDialogOpen, setCloseDialogOpen] = useState(false);
   const [reopenDialogOpen, setReopenDialogOpen] = useState(false);
+  // Ação escolhida no menu "Mais" que abre um diálogo — executada só quando o
+  // menu termina de fechar (ver onCloseAutoFocus no cabeçalho).
+  const acaoAposMenuRef = useRef<(() => void) | null>(null);
 
   const closeEventMutation = useMutation({
     mutationFn: async () => {
@@ -1705,6 +1717,18 @@ export default function EventDetail() {
     setOpen(false);
   };
 
+  // Abre a entrada de peças (modo lote). O MESMO gesto do botão do cabeçalho
+  // e do estado vazio — antes eram duas cópias inline do mesmo reset.
+  const abrirEntradaDePecas = () => {
+    setEditingItem(null);
+    setBulkMode(true);
+    // O form simples compartilha os selects com sentinela do editar — volta
+    // Material/Acabamento ao modo lista.
+    setCustomMaterial(false);
+    setCustomFinish(false);
+    setOpen(true);
+  };
+
   // Fechamento único do modal de edição (X, Cancelar e ESC/clique-fora):
   // antes o onOpenChange cru deixava editingItem/localRefPreview para trás.
   const handleCloseEditDialog = () => {
@@ -1897,10 +1921,10 @@ export default function EventDetail() {
       {isEventClosed && (
         <div
           data-testid="banner-event-closed"
-          style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: '14px 18px', marginBottom: 22, backgroundColor: '#f5f5f4', border: '1px solid #d6d3d1', borderLeft: '4px solid #78716c', borderRadius: 10 }}
+          style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-start', gap: 12, padding: '14px 18px', marginBottom: 22, backgroundColor: '#f5f5f4', border: '1px solid #d6d3d1', borderLeft: '4px solid #78716c', borderRadius: 10 }}
         >
           <Lock className="h-4 w-4" style={{ color: '#57534e', flexShrink: 0, marginTop: 2 }} />
-          <div>
+          <div style={{ flex: '1 1 260px', minWidth: 0 }}>
             <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: '#292524' }}>
               Evento encerrado
               {closureLog?.userName ? ` por ${closureLog.userName}` : ''}
@@ -1910,9 +1934,22 @@ export default function EventDetail() {
               {openWork.abertas > 0
                 ? `${openWork.abertas} ${openWork.abertas === 1 ? 'peça continua' : 'peças continuam'} em aberto${openWork.emProducao > 0 ? ` (${openWork.emProducao} em produção)` : ''} e ${openWork.abertas === 1 ? 'segue listada' : 'seguem listadas'} abaixo — mas o evento não é mais cobrado na Gestão de Prazos nem aparece nas filas de trabalho.`
                 : 'Não é mais cobrado na Gestão de Prazos nem aparece nas filas de trabalho.'}
-              {canCloseEvent ? ' Use "Reabrir Evento" para voltar atrás.' : ''}
             </p>
           </div>
+          {/* A faixa dizia 'Use "Reabrir Evento"' e o botão morava longe, no
+              cabeçalho. Agora a saída fica onde o aviso está — o menu "Mais"
+              continua com o mesmo item, para quem já procura lá. */}
+          {canCloseEvent && (
+            <button
+              type="button"
+              data-testid="button-reopen-event-faixa"
+              onClick={() => setReopenDialogOpen(true)}
+              style={{ alignSelf: 'center', display: 'inline-flex', alignItems: 'center', gap: 6, height: isMobile ? 44 : 36, padding: '0 14px', borderRadius: 8, border: '1px solid #bbf7d0', backgroundColor: '#ffffff', color: '#15803d', fontSize: 13, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}
+            >
+              <Unlock className="h-4 w-4" aria-hidden="true" />
+              Reabrir evento
+            </button>
+          )}
         </div>
       )}
 
@@ -1941,15 +1978,26 @@ export default function EventDetail() {
 
       {/* Header principal */}
       <div style={{ marginBottom: '40px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '28px', gap: '24px', flexWrap: 'wrap' }}>
-          <div>
-            <p style={{ color: '#6F6A63', fontSize: '11px', fontWeight: '500', letterSpacing: '0.08em', textTransform: 'uppercase', margin: '0 0 8px 0' }}>
+        {/* flex-start: o bloco do título cresce (frase, barra, chips) e as
+            ações ficam na altura do NOME, não boiando no meio da coluna. O
+            título ocupa o que sobrar (flex 1) e as ações quebram para baixo
+            quando não cabem. */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: isMobile ? 20 : 28, gap: isMobile ? 16 : 24, flexWrap: 'wrap' }}>
+          <div style={{ flex: '1 1 420px', minWidth: 0 }}>
+            {/* Metadado, não título: sem caixa alta, que o fazia disputar a
+                primeira leitura com o nome do evento. */}
+            <p style={{ color: '#6F6A63', fontSize: 12, fontWeight: 500, margin: '0 0 6px 0' }}>
               Criado em {new Date(event.createdAt).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })}
             </p>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+              {/* Título no padrão de página (Space Grotesk 26/700, sem caixa
+                  alta). O nome do evento é entidade, mas o cartão da lista já o
+                  mostra como foi digitado — em CAIXA ALTA aqui, o mesmo evento
+                  parecia outro ao abrir. overflowWrap: nome longo sem espaço
+                  não estoura 390px. */}
               <h1
                 data-testid="title-event-name"
-                style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 26, fontWeight: 800, letterSpacing: '-0.04em', textTransform: 'uppercase', color: '#1F1D1A', lineHeight: 1.05, margin: 0 }}
+                style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 26, fontWeight: 700, letterSpacing: '-0.03em', color: '#1F1D1A', lineHeight: 1.15, margin: 0, overflowWrap: 'anywhere' }}
               >
                 {event.name}
               </h1>
@@ -1994,7 +2042,7 @@ export default function EventDetail() {
                     pós-produção é uma peça a mais na contagem. Dizer quantas
                     são complemento evita a pergunta "por que 43 se a lista tinha
                     42?" — o número está certo, e agora explica a si mesmo. */}
-                <span style={{ fontSize: 12, fontWeight: 700, color: '#6F6A63', backgroundColor: '#ffffff', border: '1px solid #E7E3DC', borderRadius: 999, padding: '4px 12px', whiteSpace: 'nowrap' }}>
+                <span style={{ fontSize: 12, fontWeight: 700, color: '#6F6A63', backgroundColor: '#ffffff', border: '1px solid #E7E3DC', borderRadius: 999, padding: '4px 12px', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums', display: 'inline-flex', alignItems: 'center', minHeight: isMobile ? 44 : undefined }}>
                   {items.length} {items.length === 1 ? 'peça' : 'peças'}
                   {complementCount > 0 && ` (${complementCount} ${complementCount === 1 ? 'complemento' : 'complementos'})`}
                   {' · '}{totalM2.toFixed(2)} m²
@@ -2016,6 +2064,8 @@ export default function EventDetail() {
                         backgroundColor: m.bg, border: `1px solid ${active ? m.text : m.border}`,
                         boxShadow: active ? `inset 0 0 0 1px ${m.text}` : 'none',
                         borderRadius: 999, padding: '4px 12px', cursor: 'pointer',
+                        // Alvo de dedo no celular (44px); no ponteiro a pílula segue compacta.
+                        minHeight: isMobile ? 44 : undefined, fontVariantNumeric: 'tabular-nums',
                         whiteSpace: 'nowrap', transition: 'border-color 0.15s, box-shadow 0.15s',
                       }}
                     >
@@ -2027,155 +2077,216 @@ export default function EventDetail() {
               </div>
             )}
           </div>
-          <div className="flex gap-2 flex-wrap items-center">
-            {/* Importar Excel — só quem edita a lista */}
-            {canEditLists && (
-            <button
-              onClick={() => setImportDialogOpen(true)}
-              data-testid="button-import-xlsx"
-              disabled={eventoFinalizado}
-              title={eventoFinalizado ? avisoEventoFim : undefined}
-              style={{ backgroundColor: '#ffffff', color: eventoFinalizado ? '#78716c' : '#1a1c1c', padding: '11px 18px', borderRadius: '8px', fontWeight: '700', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '7px', border: '1.5px solid #e7e5e4', cursor: eventoFinalizado ? 'not-allowed' : 'pointer', transition: 'background-color 0.15s, border-color 0.15s', letterSpacing: '0.01em', whiteSpace: 'nowrap', flexShrink: 0, fontFamily: "'Space Grotesk', sans-serif" }}
-              onMouseEnter={e => { if (eventoFinalizado) return; e.currentTarget.style.backgroundColor = '#f5f5f4'; e.currentTarget.style.borderColor = '#d4d0cc'; }}
-              onMouseLeave={e => { if (eventoFinalizado) return; e.currentTarget.style.backgroundColor = '#ffffff'; e.currentTarget.style.borderColor = '#e7e5e4'; }}
-            >
-              <Upload className="h-4 w-4" style={{ color: eventoFinalizado ? '#d6d3d1' : '#22c55e' }} />
-              Importar Excel
-            </button>
-            )}
+          {/* ── AÇÕES DO CABEÇALHO: HIERARQUIA ──
+              Eram oito botões brancos com o mesmo peso, e o que monta a lista
+              ("Adicionar peça") era só mais um na fila. Agora:
+                · PRIMÁRIA — Adicionar peça: é o trabalho desta tela.
+                · SECUNDÁRIA visível — Importar Excel: o outro jeito frequente
+                  de montar a lista (no celular vai para o menu: planilha é
+                  gesto de computador).
+                · MENU "Mais" — o que é leitura/saída (book, etiquetas,
+                  relatório, Excel), o clonar (raro) e Encerrar/Reabrir (admin,
+                  raro e de peso). Nada sumiu: cada item leva o MESMO testid,
+                  a MESMA condição de perfil e o MESMO bloqueio de evento
+                  finalizado do botão que substituiu. */}
+          <div data-testid="acoes-do-evento" style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', width: isMobile ? '100%' : undefined }}>
+            {(() => {
+              // Botão secundário do cabeçalho — um estilo só, em vez de oito
+              // cópias do mesmo objeto inline. 40px no ponteiro, 44 no toque.
+              const secundario = (travado = false): React.CSSProperties => ({
+                backgroundColor: '#ffffff', color: travado ? '#78716c' : '#1a1c1c',
+                height: isMobile ? 44 : 40, padding: '0 16px', borderRadius: 8,
+                fontWeight: 700, fontSize: 13, display: 'inline-flex', alignItems: 'center', gap: 7,
+                border: '1px solid #e7e5e4', cursor: travado ? 'not-allowed' : 'pointer',
+                transition: 'background-color 0.15s, border-color 0.15s', whiteSpace: 'nowrap', flexShrink: 0,
+                fontFamily: "'Space Grotesk', sans-serif",
+              });
+              const hoverSecundario = {
+                onMouseEnter: (e: React.MouseEvent<HTMLButtonElement>) => { if (e.currentTarget.disabled) return; e.currentTarget.style.backgroundColor = '#f5f5f4'; e.currentTarget.style.borderColor = '#d6d3d1'; },
+                onMouseLeave: (e: React.MouseEvent<HTMLButtonElement>) => { e.currentTarget.style.backgroundColor = '#ffffff'; e.currentTarget.style.borderColor = '#e7e5e4'; },
+              };
+              // Item do menu: 44px no celular, 36 no ponteiro. O foco padrão do
+              // menu pinta #f97316 com texto branco (2,8:1, reprova AA) — aqui o
+              // realce é pedra clara com texto escuro.
+              const itemDoMenu = "min-h-[44px] md:min-h-[36px] cursor-pointer gap-2.5 px-2.5 text-[13px] font-semibold text-stone-800 focus:bg-stone-100 focus:text-stone-900";
+              const rotuloDoGrupo: React.CSSProperties = { fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#746e69', padding: '8px 10px 4px' };
+              // Diálogo aberto a partir do menu: a abertura espera o menu
+              // TERMINAR de fechar (onCloseAutoFocus). Abrindo no mesmo clique,
+              // o menu devolve o foco ao gatilho por cima do diálogo e as duas
+              // travas de ponteiro do Radix disputam o <body>. Esperando, o foco
+              // volta ao "Mais" quando o diálogo fecha — onde a pessoa estava.
+              const depoisDoMenu = (acao: () => void) => () => { acaoAposMenuRef.current = acao; };
 
-            {/* Clonar Evento — só quem edita a lista */}
-            {canEditLists && (
-            <button
-              onClick={() => setCloneDialogOpen(true)}
-              data-testid="button-clone-event"
-              disabled={eventoFinalizado}
-              title={eventoFinalizado ? avisoEventoFim : undefined}
-              style={{ backgroundColor: '#ffffff', color: eventoFinalizado ? '#78716c' : '#1a1c1c', padding: '11px 18px', borderRadius: '8px', fontWeight: '700', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '7px', border: '1.5px solid #e7e5e4', cursor: eventoFinalizado ? 'not-allowed' : 'pointer', transition: 'background-color 0.15s, border-color 0.15s', letterSpacing: '0.01em', whiteSpace: 'nowrap', flexShrink: 0, fontFamily: "'Space Grotesk', sans-serif" }}
-              onMouseEnter={e => { if (eventoFinalizado) return; e.currentTarget.style.backgroundColor = '#f5f5f4'; e.currentTarget.style.borderColor = '#d4d0cc'; }}
-              onMouseLeave={e => { if (eventoFinalizado) return; e.currentTarget.style.backgroundColor = '#ffffff'; e.currentTarget.style.borderColor = '#e7e5e4'; }}
-            >
-              <Copy className="h-4 w-4" style={{ color: eventoFinalizado ? '#d6d3d1' : '#6366f1' }} />
-              {/* "Clonar Evento" prometia duplicar o EVENTO; o botão copia
-                  PEÇAS de outro evento para este (é o título do diálogo). */}
-              Clonar peças
-            </button>
-            )}
+              const menuMais = (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      type="button"
+                      data-testid="button-mais-acoes-evento"
+                      aria-label="Mais ações do evento"
+                      style={secundario()}
+                      {...hoverSecundario}
+                    >
+                      <MoreHorizontal className="h-4 w-4" aria-hidden="true" style={{ color: '#57534e' }} />
+                      Mais
+                      <ChevronDown className="h-3.5 w-3.5" aria-hidden="true" style={{ color: '#746e69' }} />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent
+                    align="end"
+                    style={{ minWidth: 248, padding: 6, borderRadius: 10 }}
+                    onCloseAutoFocus={() => {
+                      const acao = acaoAposMenuRef.current;
+                      acaoAposMenuRef.current = null;
+                      acao?.();
+                    }}
+                  >
+                    {canEditLists && (
+                      <>
+                        {/* Item travado não recebe foco nem mostra `title`: o
+                            porquê vai no rótulo do grupo, onde se lê. */}
+                        <DropdownMenuLabel style={rotuloDoGrupo}>
+                          {eventoFinalizado ? 'Montar a lista · evento finalizado' : 'Montar a lista'}
+                        </DropdownMenuLabel>
+                        {isMobile && (
+                          <DropdownMenuItem
+                            data-testid="button-import-xlsx"
+                            disabled={eventoFinalizado}
+                            onSelect={depoisDoMenu(() => setImportDialogOpen(true))}
+                            className={itemDoMenu}
+                          >
+                            <Upload aria-hidden="true" style={{ color: '#15803d' }} />
+                            Importar Excel
+                          </DropdownMenuItem>
+                        )}
+                        {/* "Clonar Evento" prometia duplicar o EVENTO; a ação
+                            copia PEÇAS de outro evento para este. */}
+                        <DropdownMenuItem
+                          data-testid="button-clone-event"
+                          disabled={eventoFinalizado}
+                          onSelect={depoisDoMenu(() => setCloneDialogOpen(true))}
+                          className={itemDoMenu}
+                        >
+                          <Copy aria-hidden="true" style={{ color: '#4f46e5' }} />
+                          Clonar peças de outro evento
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                      </>
+                    )}
+                    <DropdownMenuLabel style={rotuloDoGrupo}>Gerar e exportar</DropdownMenuLabel>
+                    {/* Gerar book — monta o PDF no padrão do exemplar manual.
+                        Montar/prever é para todos; publicar é arte/admin (a
+                        página e o servidor validam). */}
+                    <DropdownMenuItem data-testid="button-gerar-book" onSelect={() => setLocation(`/eventos/${eventId}/gerar-book`)} className={itemDoMenu}>
+                      <BookOpen aria-hidden="true" style={{ color: '#7e22ce' }} />
+                      Gerar book
+                    </DropdownMenuItem>
+                    {/* Etiquetas — para colar no material depois da conferência. */}
+                    <DropdownMenuItem data-testid="button-etiquetas-evento" onSelect={() => setLocation(`/eventos/${eventId}/etiquetas`)} className={itemDoMenu}>
+                      <Tags aria-hidden="true" style={{ color: '#c2410c' }} />
+                      Etiquetas
+                    </DropdownMenuItem>
+                    {/* Relatório — o status report de uma página (funil,
+                        atrasos, aprovações, fotos); imprime/PDF pelo navegador. */}
+                    <DropdownMenuItem data-testid="button-relatorio-evento" onSelect={() => setLocation(`/eventos/${eventId}/relatorio`)} className={itemDoMenu}>
+                      <FileText aria-hidden="true" style={{ color: '#c2410c' }} />
+                      Relatório do evento
+                    </DropdownMenuItem>
+                    {/* Exportar Excel — leitura, todos os perfis. */}
+                    <DropdownMenuItem
+                      data-testid="button-export-xlsx"
+                      onSelect={() => {
+                        // Feedback imediato: o download demora alguns segundos e nada
+                        // sinaliza que algo começou.
+                        toast({ title: "Gerando Excel...", description: "O download começa em instantes." });
+                        // Âncora com download: não abre aba, não passa pelo bloqueador
+                        // de popup. (window.open com 'noopener' retorna null POR
+                        // ESPECIFICAÇÃO mesmo quando funciona — a guarda antiga
+                        // toastava "bloqueado" em todo download bem-sucedido.)
+                        const a = document.createElement('a');
+                        a.href = `/api/events/${eventId}/export-items`;
+                        a.download = '';
+                        document.body.appendChild(a);
+                        a.click();
+                        a.remove();
+                      }}
+                      className={itemDoMenu}
+                    >
+                      <FileSpreadsheet aria-hidden="true" style={{ color: '#15803d' }} />
+                      Exportar Excel
+                    </DropdownMenuItem>
+                    {/* Encerrar / Reabrir — só admin (mesmo gate do servidor).
+                        No fim do menu e separado: é decisão sobre o EVENTO, não
+                        uma saída. O rótulo troca conforme o estado, porque é a
+                        mesma decisão nas duas direções. */}
+                    {canCloseEvent && (
+                      <>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          data-testid={isEventClosed ? "button-reopen-event" : "button-close-event"}
+                          onSelect={depoisDoMenu(() => (isEventClosed ? setReopenDialogOpen(true) : setCloseDialogOpen(true)))}
+                          className={itemDoMenu}
+                        >
+                          {isEventClosed
+                            ? <Unlock aria-hidden="true" style={{ color: '#15803d' }} />
+                            : <Lock aria-hidden="true" style={{ color: '#57534e' }} />}
+                          {isEventClosed ? 'Reabrir evento' : 'Encerrar evento'}
+                        </DropdownMenuItem>
+                      </>
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              );
 
-            {/* Encerrar / Reabrir — só admin (mesmo gate do servidor). Fica
-                junto das demais ações de evento; o rótulo troca conforme o
-                estado, porque é a mesma decisão nas duas direções. */}
-            {canCloseEvent && (
-              <button
-                onClick={() => (isEventClosed ? setReopenDialogOpen(true) : setCloseDialogOpen(true))}
-                data-testid={isEventClosed ? "button-reopen-event" : "button-close-event"}
-                style={{ backgroundColor: '#ffffff', color: '#1a1c1c', padding: '11px 18px', borderRadius: '8px', fontWeight: '700', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '7px', border: '1.5px solid #e7e5e4', cursor: 'pointer', transition: 'background-color 0.15s, border-color 0.15s', letterSpacing: '0.01em', whiteSpace: 'nowrap', flexShrink: 0, fontFamily: "'Space Grotesk', sans-serif" }}
-                onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#f5f5f4'; e.currentTarget.style.borderColor = '#d4d0cc'; }}
-                onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#ffffff'; e.currentTarget.style.borderColor = '#e7e5e4'; }}
-              >
-                {isEventClosed
-                  ? <Unlock className="h-4 w-4" style={{ color: '#15803d' }} />
-                  : <Lock className="h-4 w-4" style={{ color: '#78716c' }} />}
-                {isEventClosed ? 'Reabrir Evento' : 'Encerrar Evento'}
-              </button>
-            )}
+              return (
+                <>
+                  {!isMobile && menuMais}
 
-            {/* Gerar book — monta o PDF no padrão do exemplar manual e
-                publica pelo fluxo existente. Montar/prever é para todos;
-                publicar é arte/admin (a página e o servidor validam). */}
-            <button
-              onClick={() => setLocation(`/eventos/${eventId}/gerar-book`)}
-              data-testid="button-gerar-book"
-              style={{ backgroundColor: '#ffffff', color: '#1a1c1c', padding: '11px 18px', borderRadius: '8px', fontWeight: '700', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '7px', border: '1.5px solid #e7e5e4', cursor: 'pointer', transition: 'background-color 0.15s, border-color 0.15s', letterSpacing: '0.01em', whiteSpace: 'nowrap', flexShrink: 0, fontFamily: "'Space Grotesk', sans-serif" }}
-              onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#f5f5f4'; e.currentTarget.style.borderColor = '#d4d0cc'; }}
-              onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#ffffff'; e.currentTarget.style.borderColor = '#e7e5e4'; }}
-            >
-              <BookOpen className="h-4 w-4" style={{ color: '#7e22ce' }} />
-              Gerar book
-            </button>
+                  {/* Importar Excel — só quem edita a lista; visível fora do celular. */}
+                  {canEditLists && !isMobile && (
+                    <button
+                      type="button"
+                      onClick={() => setImportDialogOpen(true)}
+                      data-testid="button-import-xlsx"
+                      disabled={eventoFinalizado}
+                      title={eventoFinalizado ? avisoEventoFim : undefined}
+                      style={secundario(eventoFinalizado)}
+                      {...hoverSecundario}
+                    >
+                      <Upload className="h-4 w-4" aria-hidden="true" style={{ color: eventoFinalizado ? '#a8a29e' : '#15803d' }} />
+                      Importar Excel
+                    </button>
+                  )}
 
-            {/* Etiquetas — para colar no material depois da conferência
-                (modelo do dono, 24/08). Leitura, todos os perfis. */}
-            <button
-              onClick={() => setLocation(`/eventos/${eventId}/etiquetas`)}
-              data-testid="button-etiquetas-evento"
-              style={{ backgroundColor: '#ffffff', color: '#1a1c1c', padding: '11px 18px', borderRadius: '8px', fontWeight: '700', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '7px', border: '1.5px solid #e7e5e4', cursor: 'pointer', transition: 'background-color 0.15s, border-color 0.15s', letterSpacing: '0.01em', whiteSpace: 'nowrap', flexShrink: 0, fontFamily: "'Space Grotesk', sans-serif" }}
-              onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#f5f5f4'; e.currentTarget.style.borderColor = '#d4d0cc'; }}
-              onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#ffffff'; e.currentTarget.style.borderColor = '#e7e5e4'; }}
-            >
-              <Tags className="h-4 w-4" style={{ color: '#c2410c' }} />
-              Etiquetas
-            </button>
+                  {canEditLists && (
+                    <button
+                      type="button"
+                      onClick={abrirEntradaDePecas}
+                      data-testid="button-add-item"
+                      disabled={eventoFinalizado}
+                      title={eventoFinalizado ? avisoEventoFim : undefined}
+                      // No celular a primária ocupa a linha (flex 1) e o "Mais"
+                      // fica ao lado: um polegar, uma ação óbvia.
+                      style={{ backgroundColor: eventoFinalizado ? '#e7e5e4' : '#b45309', color: eventoFinalizado ? '#57534e' : '#ffffff', height: isMobile ? 44 : 40, padding: '0 20px', borderRadius: 8, fontWeight: 700, fontSize: 13, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 7, border: 'none', cursor: eventoFinalizado ? 'not-allowed' : 'pointer', transition: 'background-color 0.18s, box-shadow 0.18s, transform 0.1s', letterSpacing: '0.01em', whiteSpace: 'nowrap', flex: isMobile ? '1 1 auto' : '0 0 auto', boxShadow: eventoFinalizado ? 'none' : '0 1px 3px rgba(180,83,9,0.25)', fontFamily: "'Space Grotesk', sans-serif" }}
+                      onMouseEnter={e => { if (eventoFinalizado) return; e.currentTarget.style.backgroundColor = '#9a3412'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(180,83,9,0.30)'; }}
+                      onMouseLeave={e => { if (eventoFinalizado) return; e.currentTarget.style.backgroundColor = '#b45309'; e.currentTarget.style.boxShadow = '0 1px 3px rgba(180,83,9,0.25)'; }}
+                      onMouseDown={e => { if (eventoFinalizado) return; e.currentTarget.style.transform = 'scale(0.97)'; }}
+                      onMouseUp={e => { if (eventoFinalizado) return; e.currentTarget.style.transform = 'scale(1)'; }}
+                    >
+                      <Plus className="h-4 w-4" aria-hidden="true" />
+                      Adicionar peça
+                    </button>
+                  )}
 
-            {/* Relatório do evento — leitura, todos os perfis. O status
-                report de uma página (funil, atrasos, aprovações, fotos) que
-                era montado à mão com prints; imprime/PDF pelo navegador. */}
-            <button
-              onClick={() => setLocation(`/eventos/${eventId}/relatorio`)}
-              data-testid="button-relatorio-evento"
-              style={{ backgroundColor: '#ffffff', color: '#1a1c1c', padding: '11px 18px', borderRadius: '8px', fontWeight: '700', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '7px', border: '1.5px solid #e7e5e4', cursor: 'pointer', transition: 'background-color 0.15s, border-color 0.15s', letterSpacing: '0.01em', whiteSpace: 'nowrap', flexShrink: 0, fontFamily: "'Space Grotesk', sans-serif" }}
-              onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#f5f5f4'; e.currentTarget.style.borderColor = '#d4d0cc'; }}
-              onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#ffffff'; e.currentTarget.style.borderColor = '#e7e5e4'; }}
-            >
-              <FileText className="h-4 w-4" style={{ color: '#c2410c' }} />
-              Relatório
-            </button>
+                  {isMobile && menuMais}
+                </>
+              );
+            })()}
 
-            {/* Exportar Excel — leitura, disponível para todos os perfis */}
-            <button
-              onClick={() => {
-                // Feedback imediato: o download demora alguns segundos e nada
-                // sinaliza que algo começou.
-                toast({ title: "Gerando Excel...", description: "O download começa em instantes." });
-                // Âncora com download: não abre aba, não passa pelo bloqueador
-                // de popup. (window.open com 'noopener' retorna null POR
-                // ESPECIFICAÇÃO mesmo quando funciona — a guarda antiga
-                // toastava "bloqueado" em todo download bem-sucedido.)
-                const a = document.createElement('a');
-                a.href = `/api/events/${eventId}/export-items`;
-                a.download = '';
-                document.body.appendChild(a);
-                a.click();
-                a.remove();
-              }}
-              data-testid="button-export-xlsx"
-              style={{ backgroundColor: '#ffffff', color: '#1a1c1c', padding: '11px 18px', borderRadius: '8px', fontWeight: '700', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '7px', border: '1.5px solid #e7e5e4', cursor: 'pointer', transition: 'background-color 0.15s, border-color 0.15s', letterSpacing: '0.01em', whiteSpace: 'nowrap', flexShrink: 0, fontFamily: "'Space Grotesk', sans-serif" }}
-              onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#f5f5f4'; e.currentTarget.style.borderColor = '#d4d0cc'; }}
-              onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#ffffff'; e.currentTarget.style.borderColor = '#e7e5e4'; }}
-            >
-              <FileSpreadsheet className="h-4 w-4" style={{ color: '#16a34a' }} />
-              Exportar Excel
-            </button>
-
-            {canEditLists && (
-            <button
-              onClick={() => {
-                setEditingItem(null);
-                setBulkMode(true);
-                // O form simples compartilha os selects com sentinela do
-                // editar — volta Material/Acabamento ao modo lista.
-                setCustomMaterial(false);
-                setCustomFinish(false);
-                setOpen(true);
-              }}
-              data-testid="button-add-item"
-              disabled={eventoFinalizado}
-              title={eventoFinalizado ? avisoEventoFim : undefined}
-              style={{ backgroundColor: eventoFinalizado ? '#e7e5e4' : '#b45309', color: eventoFinalizado ? '#57534e' : '#ffffff', padding: '11px 24px', borderRadius: '8px', fontWeight: '700', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '7px', border: 'none', cursor: eventoFinalizado ? 'not-allowed' : 'pointer', transition: 'background-color 0.18s, box-shadow 0.18s, transform 0.1s', letterSpacing: '0.03em', whiteSpace: 'nowrap', flexShrink: 0, boxShadow: eventoFinalizado ? 'none' : '0 1px 3px rgba(217,122,30,0.25)', fontFamily: "'Space Grotesk', sans-serif" }}
-              onMouseEnter={e => { if (eventoFinalizado) return; e.currentTarget.style.backgroundColor = '#9a3412'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(217,122,30,0.35)'; }}
-              onMouseLeave={e => { if (eventoFinalizado) return; e.currentTarget.style.backgroundColor = '#b45309'; e.currentTarget.style.boxShadow = '0 1px 3px rgba(217,122,30,0.25)'; }}
-              onMouseDown={e => { if (eventoFinalizado) return; e.currentTarget.style.transform = 'scale(0.97)'; }}
-              onMouseUp={e => { if (eventoFinalizado) return; e.currentTarget.style.transform = 'scale(1)'; }}
-            >
-              <Plus className="h-4 w-4" />
-              Adicionar Peça
-            </button>
-            )}
-
-            {/* A explicação fica ao lado dos botões travados: sem ela, três
-                botões cinzas em sequência lêem como bug de permissão. */}
+            {/* A explicação fica ao lado dos botões travados: sem ela, botões
+                cinzas em sequência leem como bug de permissão. */}
             {canEditLists && eventoFinalizado && (
-              <span data-testid="aviso-evento-finalizado" style={{ fontSize: 12, color: '#746e69', alignSelf: 'center', maxWidth: 260, lineHeight: 1.4 }}>
+              <span data-testid="aviso-evento-finalizado" style={{ fontSize: 12, color: '#746e69', alignSelf: 'center', maxWidth: isMobile ? '100%' : 260, lineHeight: 1.4 }}>
                 {avisoEventoFim}
               </span>
             )}
@@ -2354,6 +2465,21 @@ export default function EventDetail() {
           const cardHover = (el: HTMLDivElement, on: boolean) => {
             el.style.boxShadow = on ? '0 6px 20px rgba(0,0,0,0.08)' : '0 1px 4px rgba(0,0,0,0.05)';
           };
+          // DENSIDADE NO CELULAR: os dois cartões tinham 210px de largura
+          // mínima e empilhavam — ~200px de altura antes da timeline, que já
+          // repete as datas, e a lista de peças ia parar na terceira tela.
+          // Lado a lado (metade da linha cada), sem o ladrilho do ícone e com
+          // a data a 18px, a agenda cabe numa faixa só. No desktop, igual.
+          const cartaoLogistica: React.CSSProperties = {
+            flex: isMobile ? '1 1 0' : '0 0 auto', minWidth: isMobile ? 0 : 210,
+            backgroundColor: TI.card, border: `1px solid ${TI.border}`, borderRadius: '12px',
+            padding: isMobile ? '12px 14px' : '20px 24px', display: 'flex', alignItems: 'center', gap: isMobile ? 0 : 18,
+            boxShadow: '0 1px 4px rgba(0,0,0,0.05)', transition: 'box-shadow 0.2s',
+          };
+          const ladrilhoLogistica: React.CSSProperties = {
+            width: 50, height: 50, borderRadius: 12, display: isMobile ? 'none' : 'flex',
+            alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+          };
 
           return (
             <div style={{ marginTop: '8px' }}>
@@ -2371,21 +2497,21 @@ export default function EventDetail() {
 
                 {/* Card: SAÍDA DO CAMINHÃO */}
                 <div
-                  style={{ flex: '0 0 auto', minWidth: '210px', backgroundColor: TI.card, border: `1px solid ${TI.border}`, borderRadius: '12px', padding: '20px 24px', display: 'flex', alignItems: 'center', gap: '18px', boxShadow: '0 1px 4px rgba(0,0,0,0.05)', transition: 'box-shadow 0.2s' }}
+                  style={cartaoLogistica}
                   onMouseEnter={e => cardHover(e.currentTarget, true)}
                   onMouseLeave={e => cardHover(e.currentTarget, false)}
                 >
-                  <div style={{ width: '50px', height: '50px', borderRadius: '12px', backgroundColor: '#FEF3E7', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <div aria-hidden="true" style={{ ...ladrilhoLogistica, backgroundColor: '#FEF3E7' }}>
                     <Truck size={22} color={TI.accent} />
                   </div>
                   <div>
-                    <div style={{ fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.14em', color: TI.label, marginBottom: '7px', fontFamily: "'Space Grotesk', sans-serif" }}>
+                    <div style={{ fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: isMobile ? '0.06em' : '0.14em', color: TI.label, marginBottom: '7px', fontFamily: "'Space Grotesk', sans-serif" }}>
                       Saída do Caminhão
                     </div>
-                    <div style={{ fontSize: '22px', fontWeight: '800', color: TI.title, fontFamily: "'Manrope', sans-serif", lineHeight: 1.1, letterSpacing: '-0.03em' }}>
+                    <div style={{ fontSize: isMobile ? 18 : 22, fontWeight: '800', color: TI.title, fontFamily: "'Manrope', sans-serif", lineHeight: 1.1, letterSpacing: '-0.03em', fontVariantNumeric: 'tabular-nums' }}>
                       {depLabel}
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '6px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px 8px', marginTop: '6px', flexWrap: 'wrap' }}>
                       <span style={{ fontSize: '13px', fontWeight: '500', color: TI.secondary, fontFamily: "'Plus Jakarta Sans', sans-serif", letterSpacing: '0.01em' }}>{depTime}</span>
                       <span style={{ width: '3px', height: '3px', borderRadius: '50%', backgroundColor: TI.line, display: 'inline-block', flexShrink: 0 }} />
                       <span style={{ fontSize: '13px', fontWeight: '600', color: countdownColor, letterSpacing: '0.01em' }}>
@@ -2397,18 +2523,18 @@ export default function EventDetail() {
 
                 {/* Card: INÍCIO DA MONTAGEM */}
                 <div
-                  style={{ flex: '0 0 auto', minWidth: '210px', backgroundColor: TI.card, border: `1px solid ${TI.border}`, borderRadius: '12px', padding: '20px 24px', display: 'flex', alignItems: 'center', gap: '18px', boxShadow: '0 1px 4px rgba(0,0,0,0.05)', transition: 'box-shadow 0.2s' }}
+                  style={cartaoLogistica}
                   onMouseEnter={e => cardHover(e.currentTarget, true)}
                   onMouseLeave={e => cardHover(e.currentTarget, false)}
                 >
-                  <div style={{ width: '50px', height: '50px', borderRadius: '12px', backgroundColor: '#EEF2F7', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <div aria-hidden="true" style={{ ...ladrilhoLogistica, backgroundColor: '#EEF2F7' }}>
                     <Calendar size={22} color="#7A93AC" />
                   </div>
                   <div>
-                    <div style={{ fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.14em', color: TI.label, marginBottom: '7px', fontFamily: "'Space Grotesk', sans-serif" }}>
+                    <div style={{ fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: isMobile ? '0.06em' : '0.14em', color: TI.label, marginBottom: '7px', fontFamily: "'Space Grotesk', sans-serif" }}>
                       Dia do Evento
                     </div>
-                    <div style={{ fontSize: '22px', fontWeight: '800', color: TI.title, fontFamily: "'Manrope', sans-serif", lineHeight: 1.1, letterSpacing: '-0.03em' }}>
+                    <div style={{ fontSize: isMobile ? 18 : 22, fontWeight: '800', color: TI.title, fontFamily: "'Manrope', sans-serif", lineHeight: 1.1, letterSpacing: '-0.03em', fontVariantNumeric: 'tabular-nums' }}>
                       {startLabel}
                     </div>
                     <div style={{ marginTop: '6px' }}>
@@ -2419,8 +2545,16 @@ export default function EventDetail() {
               </div>
 
               {/* ── Timeline de Prazos ── */}
-              <div style={{ backgroundColor: TI.card, border: `1px solid ${TI.border}`, borderRadius: '12px', padding: '22px 28px', boxShadow: '0 1px 4px rgba(0,0,0,0.05)' }}>
-                <div style={{ overflowX: 'auto', paddingBottom: '4px' }}>
+              <div style={{ backgroundColor: TI.card, border: `1px solid ${TI.border}`, borderRadius: '12px', padding: isMobile ? '16px 8px 12px' : '22px 28px', boxShadow: '0 1px 4px rgba(0,0,0,0.05)' }}>
+                {/* No celular os seis marcos passam da largura e rolam de lado
+                    aqui dentro: região rolável precisa ser alcançável pelo
+                    teclado (setas), senão os marcos da direita ficam fora. */}
+                <div
+                  role={isMobile ? 'region' : undefined}
+                  aria-label={isMobile ? 'Marcos de prazo do evento' : undefined}
+                  tabIndex={isMobile ? 0 : undefined}
+                  style={{ overflowX: 'auto', paddingBottom: '4px' }}
+                >
                   <div style={{ position: 'relative', display: 'flex', minWidth: '480px' }}>
 
                     {/* Track base */}
@@ -2921,8 +3055,8 @@ export default function EventDetail() {
       {/* Indicador de atualização — fora do bloco da lista: também aparece
           quando o evento está vazio ou só tem rascunhos. */}
       {isFetching && !loadingItems && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#746e69', fontSize: '13px', marginBottom: '16px' }}>
-          <Loader2 className="h-3 w-3 animate-spin" />
+        <div role="status" style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#746e69', fontSize: '13px', marginBottom: '16px' }}>
+          <Loader2 aria-hidden="true" className="h-3 w-3 animate-spin" />
           <span>Atualizando...</span>
         </div>
       )}
@@ -2946,30 +3080,44 @@ export default function EventDetail() {
           <div style={{ textAlign: 'center', padding: '64px 0' }}>
             <Package aria-hidden="true" className="h-12 w-12 mx-auto mb-4" style={{ color: '#78716c' }} />
             <h3 style={{ fontSize: '18px', fontWeight: '600', color: '#1c1917', marginBottom: '8px' }}>Nenhuma peça na lista ainda</h3>
-            {/* Os quatro caminhos, nomeados: quem abre um evento vazio pela
-                primeira vez não sabia que planilha e clonagem existiam — os
-                botões moram lá no cabeçalho. */}
-            <p style={{ color: '#746e69', marginBottom: '16px', fontSize: '15px', maxWidth: 460, marginLeft: 'auto', marginRight: 'auto', lineHeight: 1.5 }}>
+            {/* OS TRÊS CAMINHOS, CLICÁVEIS. O texto antigo mandava procurar
+                "Importar Excel" e "Clonar peças" no topo — e o clonar agora
+                mora no menu "Mais". No estado vazio a pergunta é "como começo",
+                então os três gestos ficam aqui mesmo, com os MESMOS handlers e
+                o MESMO bloqueio de evento finalizado dos botões do cabeçalho. */}
+            <p style={{ color: '#746e69', marginBottom: '18px', fontSize: '15px', maxWidth: 460, marginLeft: 'auto', marginRight: 'auto', lineHeight: 1.5 }}>
               {canEditLists
-                ? 'Adicione peça por peça ou em lote aqui, ou use "Importar Excel" e "Clonar peças" no topo da página.'
+                ? (eventoFinalizado ? avisoEventoFim : 'Adicione peça por peça ou em lote, importe a planilha, ou copie as peças de outro evento.')
                 : 'Quando a lista for montada, as peças aparecem aqui.'}
             </p>
             {canEditLists ? (
-              <button
-                onClick={() => {
-                  setEditingItem(null);
-                  setBulkMode(true);
-                  // Mesmo reset do botão do header: os selects com sentinela
-                  // voltam ao modo lista.
-                  setCustomMaterial(false);
-                  setCustomFinish(false);
-                  setOpen(true);
-                }}
-                style={{ backgroundColor: '#1c1917', color: '#fff', padding: '10px 20px', borderRadius: '6px', fontWeight: '700', fontSize: '15px', border: 'none', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '8px' }}
-              >
-                <Plus className="h-4 w-4" />
-                Adicionar peças
-              </button>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
+                {([
+                  { chave: 'adicionar', rotulo: 'Adicionar peças', Icone: Plus, acao: abrirEntradaDePecas, primaria: true },
+                  { chave: 'importar', rotulo: 'Importar Excel', Icone: Upload, acao: () => setImportDialogOpen(true), primaria: false },
+                  { chave: 'clonar', rotulo: 'Clonar de outro evento', Icone: Copy, acao: () => setCloneDialogOpen(true), primaria: false },
+                ] as const).map(({ chave, rotulo, Icone, acao, primaria }) => (
+                  <button
+                    key={chave}
+                    type="button"
+                    data-testid={`button-vazio-${chave}`}
+                    onClick={acao}
+                    disabled={eventoFinalizado}
+                    title={eventoFinalizado ? avisoEventoFim : undefined}
+                    style={{
+                      height: 44, padding: '0 18px', borderRadius: 8, fontWeight: 700, fontSize: 14,
+                      display: 'inline-flex', alignItems: 'center', gap: 8,
+                      cursor: eventoFinalizado ? 'not-allowed' : 'pointer',
+                      ...(primaria
+                        ? { backgroundColor: eventoFinalizado ? '#e7e5e4' : '#b45309', color: eventoFinalizado ? '#57534e' : '#ffffff', border: 'none' }
+                        : { backgroundColor: '#ffffff', color: eventoFinalizado ? '#78716c' : '#1c1917', border: '1px solid #e7e5e4' }),
+                    }}
+                  >
+                    <Icone className="h-4 w-4" aria-hidden="true" />
+                    {rotulo}
+                  </button>
+                ))}
+              </div>
             ) : (
               <p style={{ fontSize: 12, color: '#746e69', margin: 0 }}>
                 Somente leitura — seu perfil não edita a lista deste evento
@@ -2990,7 +3138,7 @@ export default function EventDetail() {
                 value={itemSearch}
                 onChange={e => setItemSearch(e.target.value)}
                 data-testid="input-search-event-items"
-                style={{ width: '100%', height: 34, paddingLeft: 32, paddingRight: 12, border: '1px solid #e7e5e4', borderRadius: 999, backgroundColor: '#ffffff', fontSize: 13, color: '#1c1917', fontFamily: 'inherit' }}
+                style={{ width: '100%', height: isMobile ? 44 : 34, paddingLeft: 32, paddingRight: 12, border: '1px solid #e7e5e4', borderRadius: 999, backgroundColor: '#ffffff', fontSize: isMobile ? 16 : 13, color: '#1c1917', fontFamily: 'inherit' }}
               />
             </div>
             {/* AGRUPAR POR TIPO OU POR STATUS. Por tipo é como a produção lê;
@@ -3006,7 +3154,16 @@ export default function EventDetail() {
                     role="radio"
                     aria-checked={ativo}
                     data-testid={`toggle-agrupar-${valor}`}
+                    tabIndex={ativo ? 0 : -1}
                     onClick={() => setAgrupar(valor)}
+                    // Radio de verdade: setas trocam, e só o marcado entra no Tab.
+                    onKeyDown={(e) => {
+                      if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight' && e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
+                      e.preventDefault();
+                      const outro = valor === 'tipo' ? 'status' : 'tipo';
+                      setAgrupar(outro);
+                      (e.currentTarget.parentElement?.querySelector(`[data-testid="toggle-agrupar-${outro}"]`) as HTMLElement | null)?.focus();
+                    }}
                     style={{ height: isMobile ? 44 : 28, padding: '0 14px', borderRadius: 6, border: 'none', fontSize: 12, fontWeight: 700, color: ativo ? '#1c1917' : '#57534e', backgroundColor: ativo ? '#ffffff' : 'transparent', boxShadow: ativo ? '0 1px 3px rgba(0,0,0,0.10)' : 'none', cursor: 'pointer', fontFamily: 'inherit' }}
                   >
                     {rotulo}
@@ -3022,7 +3179,7 @@ export default function EventDetail() {
                 type="button"
                 onClick={() => { setItemSearch(""); setStatusFilter([]); setMarcoFiltro(null); }}
                 data-testid="button-limpar-filtros-pecas"
-                style={{ marginLeft: 'auto', background: 'none', border: 'none', padding: 0, fontSize: 12, fontWeight: 700, color: '#c2410c', cursor: 'pointer' }}
+                style={{ marginLeft: 'auto', background: 'none', border: 'none', padding: isMobile ? '0 4px' : 0, minHeight: isMobile ? 44 : undefined, fontSize: 12, fontWeight: 700, color: '#c2410c', cursor: 'pointer', fontVariantNumeric: 'tabular-nums' }}
               >
                 Limpar filtros ({searchedItems.length} de {mainItems.length})
               </button>
@@ -3159,7 +3316,9 @@ export default function EventDetail() {
                               fontSize: '11px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.08em',
                               // #a8a29e em 11px reprova AA (2,5:1 sobre #f9f9f8).
                               color: '#746e69', whiteSpace: 'nowrap',
-                              textAlign: col === 'Ações' ? 'right' : 'left',
+                              // Números à direita (Qtd, M²): as casas alinham e a
+                              // coluna se lê de cima a baixo sem caçar dígito.
+                              textAlign: col === 'Ações' || col === 'Qtd' || col === 'M²' ? 'right' : 'left',
                               width,
                               backgroundColor: '#fafaf9',
                             }}>
@@ -3310,11 +3469,14 @@ export default function EventDetail() {
                             )}
                           </td>
                           {/* Qtd — sem padStart: "05" parecia código, não quantidade. */}
-                          <td style={{ padding: '14px 14px', fontSize: '13px', color: '#1a1c1c' }}>
+                          <td style={{ padding: '14px 14px', fontSize: '13px', color: '#1a1c1c', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
                             {item.quantity}
                           </td>
                           {/* Dimensões */}
-                          <td style={{ padding: '14px 14px', fontSize: '13px', color: '#746e69', fontStyle: 'italic' }}>
+                          {/* Coluna SECUNDÁRIA: cinza de apoio e 12px, sem o
+                              itálico (que em número só atrapalha a leitura);
+                              dígitos tabulares para as medidas alinharem. */}
+                          <td style={{ padding: '14px 14px', fontSize: '12px', color: '#746e69', fontVariantNumeric: 'tabular-nums' }}>
                             {(item.visualWidth && item.visualHeight) ? (
                               <>
                                 {item.visualWidth} × {item.visualHeight}m
@@ -3323,13 +3485,13 @@ export default function EventDetail() {
                             ) : '—'}
                           </td>
                           {/* M² */}
-                          <td style={{ padding: '14px 14px', fontSize: '13px', fontWeight: '800', color: '#1a1c1c' }}>
+                          <td style={{ padding: '14px 14px', fontSize: '13px', fontWeight: 700, color: '#1a1c1c', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
                             {parseFloat(item.calculatedM2 || '0').toFixed(2)}
                           </td>
                           {/* Patrocinador */}
                           {/* Antes era "—" hardcoded: o vínculo existia no dado
                               (enrich do /api/items/:eventId) e nunca aparecia. */}
-                          <td style={{ padding: '14px 14px', fontSize: '13px', color: '#1a1c1c' }}>
+                          <td style={{ padding: '14px 14px', fontSize: '12px', color: '#57534e', overflowWrap: 'anywhere' }}>
                             {(item.sponsors && item.sponsors.length > 0)
                               ? item.sponsors.map((s: any) => s.name).join(", ")
                               : <span style={{ color: '#746e69' }}>—</span>}
@@ -3511,7 +3673,10 @@ export default function EventDetail() {
               <section key={type} style={{ marginBottom: group ? '32px' : '48px' }}>
                 {/* Cabeçalho do tipo */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '16px' }}>
-                  <h2 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: group ? '16px' : '22px', fontWeight: '700', letterSpacing: '-0.03em', color: '#1a1c1c', margin: 0, textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
+                  {/* 18px (degrau de seção), não 22: em caixa alta, 22 competia
+                      com o nome do evento (26) pela primeira leitura. Nome de
+                      tipo longo quebra em vez de empurrar a contagem para fora. */}
+                  <h2 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: group ? '15px' : '18px', fontWeight: '700', letterSpacing: '-0.02em', color: '#1a1c1c', margin: 0, textTransform: 'uppercase', minWidth: 0, overflowWrap: 'anywhere' }}>
                     {type}
                   </h2>
                   <div style={{ flex: 1, height: '2px', backgroundColor: '#f0efee' }} />
@@ -3591,97 +3756,32 @@ export default function EventDetail() {
         }}
       />
 
-      {/* ── ENCERRAR EVENTO ──
-          A confirmação diz o NÚMERO real ("12 peças pendentes, sendo 3 em
-          produção") e o que a ação FAZ e NÃO FAZ. Nenhuma peça muda de status:
-          é por isso que reabrir devolve o evento exatamente como estava. */}
-      <AlertDialog open={closeDialogOpen} onOpenChange={(o) => { if (!o && !closeEventMutation.isPending) setCloseDialogOpen(false); }}>
-        <AlertDialogContent style={{ width: "96vw", maxWidth: 460, backgroundColor: "#ffffff", borderRadius: "16px", padding: "32px", border: "none", boxShadow: "0 20px 60px rgba(0,0,0,0.15)" }}>
-          <AlertDialogHeader style={{ padding: 0, marginBottom: "20px" }}>
-            <AlertDialogTitle style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: "18px", fontWeight: 900, letterSpacing: "-0.03em", color: "#1a1c1c" }}>
-              Encerrar evento
-            </AlertDialogTitle>
-            <AlertDialogDescription style={{ fontSize: "15px", color: "#746e69", lineHeight: 1.6, marginTop: "6px" }}>
-              <span style={{ display: "block", fontWeight: 700, color: "#1a1c1c", marginBottom: 8 }}>
-                {event.name}
-              </span>
-              {openWork.abertas > 0 ? (
-                <span style={{ display: 'block', marginBottom: 8 }}>
-                  Este evento tem <strong style={{ color: '#1a1c1c' }}>{openWork.abertas} {openWork.abertas === 1 ? 'peça pendente' : 'peças pendentes'}</strong>
-                  {openWork.emProducao > 0 ? `, sendo ${openWork.emProducao} em produção` : ''}
-                  . Elas não são canceladas nem entregues — continuam nesta lista, mas param de ser cobradas na Gestão de Prazos e saem das filas de trabalho.
-                </span>
-              ) : (
-                <span style={{ display: 'block', marginBottom: 8 }}>
-                  {openWork.ativas > 0
-                    ? `Todas as ${openWork.ativas} peças já estão entregues.`
-                    : 'Este evento não tem nenhuma peça.'}
-                </span>
-              )}
-              <span style={{ display: 'block' }}>
-                O evento segue visível no histórico e na consulta. A ação fica registrada com seu nome e horário, e pode ser desfeita em "Reabrir Evento".
-              </span>
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter style={{ padding: 0, display: "flex", flexDirection: "row", justifyContent: "flex-end", gap: "10px" }}>
-            <AlertDialogCancel
-              disabled={closeEventMutation.isPending}
-              style={{ padding: "10px 20px", backgroundColor: "#ffffff", border: "1.5px solid #e7e5e4", borderRadius: "8px", fontSize: "13px", fontWeight: 700, color: "#57534e", cursor: "pointer" }}
-            >
-              Cancelar
-            </AlertDialogCancel>
-            <AlertDialogAction
-              // preventDefault: o AlertDialogAction fecha o diálogo no clique;
-              // sem isto o toast com a contagem real se perde.
-              onClick={(e) => { e.preventDefault(); closeEventMutation.mutate(); }}
-              disabled={closeEventMutation.isPending}
-              data-testid="button-confirm-close-event"
-              style={{ padding: "10px 20px", backgroundColor: "#57534e", border: "none", borderRadius: "8px", fontSize: "13px", fontWeight: 700, color: "#ffffff", cursor: closeEventMutation.isPending ? "wait" : "pointer", opacity: closeEventMutation.isPending ? 0.5 : 1, display: "flex", alignItems: "center", gap: 7 }}
-            >
-              <Lock className="h-4 w-4" />
-              {closeEventMutation.isPending ? "Encerrando..." : "Encerrar"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      {/* ── REABRIR EVENTO ── */}
-      <AlertDialog open={reopenDialogOpen} onOpenChange={(o) => { if (!o && !reopenEventMutation.isPending) setReopenDialogOpen(false); }}>
-        <AlertDialogContent style={{ width: "96vw", maxWidth: 440, backgroundColor: "#ffffff", borderRadius: "16px", padding: "32px", border: "none", boxShadow: "0 20px 60px rgba(0,0,0,0.15)" }}>
-          <AlertDialogHeader style={{ padding: 0, marginBottom: "20px" }}>
-            <AlertDialogTitle style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: "18px", fontWeight: 900, letterSpacing: "-0.03em", color: "#1a1c1c" }}>
-              Reabrir evento
-            </AlertDialogTitle>
-            <AlertDialogDescription style={{ fontSize: "15px", color: "#746e69", lineHeight: 1.6, marginTop: "6px" }}>
-              <span style={{ display: "block", fontWeight: 700, color: "#1a1c1c", marginBottom: 8 }}>
-                {event.name}
-              </span>
-              Volta para a Gestão de Prazos e para as filas de trabalho
-              {openWork.abertas > 0
-                ? ` com ${openWork.abertas} ${openWork.abertas === 1 ? 'peça em aberto' : 'peças em aberto'}${openWork.emProducao > 0 ? ` (${openWork.emProducao} em produção)` : ''}`
-                : ''}
-              . Os prazos passam a ser cobrados de novo. A reabertura fica registrada com seu nome e horário.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter style={{ padding: 0, display: "flex", flexDirection: "row", justifyContent: "flex-end", gap: "10px" }}>
-            <AlertDialogCancel
-              disabled={reopenEventMutation.isPending}
-              style={{ padding: "10px 20px", backgroundColor: "#ffffff", border: "1.5px solid #e7e5e4", borderRadius: "8px", fontSize: "13px", fontWeight: 700, color: "#57534e", cursor: "pointer" }}
-            >
-              Cancelar
-            </AlertDialogCancel>
-            <AlertDialogAction
-              onClick={(e) => { e.preventDefault(); reopenEventMutation.mutate(); }}
-              disabled={reopenEventMutation.isPending}
-              data-testid="button-confirm-reopen-event"
-              style={{ padding: "10px 20px", backgroundColor: "#15803d", border: "none", borderRadius: "8px", fontSize: "13px", fontWeight: 700, color: "#ffffff", cursor: reopenEventMutation.isPending ? "wait" : "pointer", opacity: reopenEventMutation.isPending ? 0.5 : 1, display: "flex", alignItems: "center", gap: 7 }}
-            >
-              <Unlock className="h-4 w-4" />
-              {reopenEventMutation.isPending ? "Reabrindo..." : "Reabrir"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {/* ── ENCERRAR / REABRIR ──
+          A confirmação é o MESMO componente da lista de Eventos
+          (components/encerrar-evento-dialog.tsx). A mutação, as invalidações
+          e o toast continuam aqui; os números vêm de openWork. */}
+      <EncerrarEventoDialog
+        modo="encerrar"
+        open={closeDialogOpen}
+        onFechar={() => setCloseDialogOpen(false)}
+        onConfirmar={() => closeEventMutation.mutate()}
+        pendente={closeEventMutation.isPending}
+        nomeDoEvento={event.name}
+        abertas={openWork.abertas}
+        emProducao={openWork.emProducao}
+        ativas={openWork.ativas}
+      />
+      <EncerrarEventoDialog
+        modo="reabrir"
+        open={reopenDialogOpen}
+        onFechar={() => setReopenDialogOpen(false)}
+        onConfirmar={() => reopenEventMutation.mutate()}
+        pendente={reopenEventMutation.isPending}
+        nomeDoEvento={event.name}
+        abertas={openWork.abertas}
+        emProducao={openWork.emProducao}
+        ativas={openWork.ativas}
+      />
 
       <AlertDialog open={!!deletingItem} onOpenChange={(o) => { if (!o) setDeletingItem(null); }}>
         <AlertDialogContent style={{ width: "96vw", maxWidth: 400, backgroundColor: "#ffffff", borderRadius: "16px", padding: "32px", border: "none", boxShadow: "0 20px 60px rgba(0,0,0,0.15)" }}>

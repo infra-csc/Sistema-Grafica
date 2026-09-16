@@ -26,7 +26,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { useEffect, useRef, useState } from "react";
 import { miniatura } from "@/lib/miniatura";
-import { Camera, Check, ChevronRight, ImagePlus, Truck, X } from "lucide-react";
+import { Camera, Check, ChevronRight, ImagePlus, Loader2, Truck, X } from "lucide-react";
 import { ObjectUploader } from "@/components/ObjectUploader";
 import { remainingConfer } from "@/lib/saldo";
 
@@ -56,6 +56,33 @@ export function GalpaoFila({ mode, itens, onClose, onConfirmar }: Props) {
   const [enviando, setEnviando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
   const [feitas, setFeitas] = useState(0);
+  // Espelhos em ref para o atalho de teclado (Esc) ler o valor ATUAL sem
+  // reassinar o listener a cada foto ou envio.
+  const feitasRef = useRef(0);
+  feitasRef.current = feitas;
+  const enviandoRef = useRef(false);
+  enviandoRef.current = enviando;
+  const caixaRef = useRef<HTMLDivElement>(null);
+  // FOCO E ESC. A fila é um diálogo em tela cheia (aria-modal), mas o foco
+  // ficava no botão da lista que a abriu, ATRÁS dela — Tab andava pela tela
+  // escondida. Ao abrir, o foco entra na fila; ao sair, volta para quem abriu.
+  // Esc sai (com o resumo do que já foi feito), exceto durante um envio: sair
+  // no meio do POST deixaria a contagem do toast sem a última peça.
+  useEffect(() => {
+    const anterior = document.activeElement as HTMLElement | null;
+    caixaRef.current?.focus();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape" || enviandoRef.current) return;
+      e.preventDefault();
+      onClose(feitasRef.current);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      anterior?.focus?.();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   // Confirmação entre uma peça e a próxima. A fila avança sozinha, e sem este
   // aviso a tela simplesmente TROCAVA de peça: quem está com o material na mão
   // não sabia se o toque registrou ou se a tela pulou. Some em 2,4 s.
@@ -134,13 +161,15 @@ export function GalpaoFila({ mode, itens, onClose, onConfirmar }: Props) {
 
   return (
     <div
+      ref={caixaRef}
+      tabIndex={-1}
       role="dialog"
       aria-modal="true"
       aria-label={isConfer ? "Conferência em fila" : "Entrega em fila"}
       data-testid="galpao-fila"
       style={{
         position: "fixed", inset: 0, zIndex: 180, backgroundColor: "#fafaf9",
-        display: "flex", flexDirection: "column",
+        display: "flex", flexDirection: "column", outline: "none",
       }}
     >
       {/* ── topo: progresso + sair ── */}
@@ -162,6 +191,21 @@ export function GalpaoFila({ mode, itens, onClose, onConfirmar }: Props) {
           style={{ width: 44, height: 44, display: "flex", alignItems: "center", justifyContent: "center", border: "none", background: "transparent", cursor: "pointer", color: "#78716c" }}>
           <X style={{ width: 20, height: 20 }} />
         </button>
+      </div>
+
+      {/* PROGRESSO VISÍVEL — "7 de 40" em texto pequeno não se lê de relance com
+          a peça na mão; a barra se lê. Avança ao CONFIRMAR ou PULAR (é a posição
+          na fila, não o total registrado, que já tem o próprio contador). A
+          transição some sozinha com prefers-reduced-motion (regra global). */}
+      <div
+        role="progressbar"
+        aria-label="Posição na fila"
+        aria-valuemin={1}
+        aria-valuemax={fila.length}
+        aria-valuenow={idx + 1}
+        style={{ height: 4, backgroundColor: "#e7e5e4", flexShrink: 0 }}
+      >
+        <div style={{ height: "100%", width: `${((idx + 1) / fila.length) * 100}%`, backgroundColor: tinta, transition: "width 0.25s ease-out" }} />
       </div>
 
       {/* Faixa do "registrou" — região viva sempre montada (o leitor de tela
@@ -228,11 +272,11 @@ export function GalpaoFila({ mode, itens, onClose, onConfirmar }: Props) {
             </span>
             <button type="button" aria-label="Uma a menos" data-testid="galpao-qty-menos"
               onClick={() => setQty((q) => Math.max(1, q - 1))} disabled={qty <= 1}
-              style={{ width: 52, height: 52, borderRadius: 10, border: "1px solid #d6d3d1", backgroundColor: "#fff", fontSize: 22, fontWeight: 700, color: qty <= 1 ? "#d6d3d1" : "#1c1917", cursor: "pointer" }}>−</button>
+              style={{ width: 52, height: 52, borderRadius: 10, border: "1px solid #d6d3d1", backgroundColor: "#fff", fontSize: 22, fontWeight: 700, color: qty <= 1 ? "#d6d3d1" : "#1c1917", cursor: qty <= 1 ? "not-allowed" : "pointer" }}>−</button>
             <span data-testid="galpao-qty" style={{ minWidth: 44, textAlign: "center", fontFamily: "'Space Grotesk', sans-serif", fontSize: 26, fontWeight: 900, color: "#1c1917", fontVariantNumeric: "tabular-nums" }}>{qty}</span>
             <button type="button" aria-label="Uma a mais" data-testid="galpao-qty-mais"
               onClick={() => setQty((q) => Math.min(saldo ?? q, q + 1))} disabled={saldo != null && qty >= saldo}
-              style={{ width: 52, height: 52, borderRadius: 10, border: "1px solid #d6d3d1", backgroundColor: "#fff", fontSize: 22, fontWeight: 700, color: saldo != null && qty >= saldo ? "#d6d3d1" : "#1c1917", cursor: "pointer" }}>+</button>
+              style={{ width: 52, height: 52, borderRadius: 10, border: "1px solid #d6d3d1", backgroundColor: "#fff", fontSize: 22, fontWeight: 700, color: saldo != null && qty >= saldo ? "#d6d3d1" : "#1c1917", cursor: saldo != null && qty >= saldo ? "not-allowed" : "pointer" }}>+</button>
           </div>
         )}
 
@@ -270,7 +314,7 @@ export function GalpaoFila({ mode, itens, onClose, onConfirmar }: Props) {
                 onError={(e) => setErro(e.message)}>
                 <div data-testid="galpao-camera" style={{ width: "100%", padding: "22px 0", backgroundColor: tinta, borderRadius: 12, display: "flex", flexDirection: "column", alignItems: "center", gap: 6, cursor: "pointer" }}>
                   <Camera style={{ width: 28, height: 28, color: "#ffffff" }} />
-                  <span style={{ fontSize: 13, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.06em", color: "#ffffff" }}>Tirar foto</span>
+                  <span style={{ fontSize: 15, fontWeight: 800, color: "#ffffff" }}>Tirar foto</span>
                 </div>
               </ObjectUploader>
             </div>
@@ -280,7 +324,7 @@ export function GalpaoFila({ mode, itens, onClose, onConfirmar }: Props) {
                 onError={(e) => setErro(e.message)}>
                 <div style={{ width: "100%", padding: "22px 0", backgroundColor: "#f4f3f0", borderRadius: 12, border: "2px dashed #d6d3d1", display: "flex", flexDirection: "column", alignItems: "center", gap: 6, cursor: "pointer" }}>
                   <ImagePlus style={{ width: 22, height: 22, color: "#78716c" }} />
-                  <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: "#78716c" }}>Galeria</span>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: "#57534e" }}>Galeria</span>
                 </div>
               </ObjectUploader>
             </div>
@@ -310,6 +354,7 @@ export function GalpaoFila({ mode, itens, onClose, onConfirmar }: Props) {
             letterSpacing: "-0.01em", cursor: !foto || enviando || jaRegistradaPorOutro ? "not-allowed" : "pointer",
             display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8,
           }}>
+          {enviando && <Loader2 aria-hidden="true" className="animate-spin" style={{ width: 18, height: 18 }} />}
           {enviando ? "Registrando…"
             : jaRegistradaPorOutro ? "Já registrada"
             : !foto ? "Falta a foto"

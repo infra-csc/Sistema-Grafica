@@ -157,7 +157,7 @@ const TETO_DA_CASA = "calc(100vh - 48px)";
 describe("teto de altura dos modais", () => {
   it("cadastro de patrocinador: teto da casa, coluna flex e um único corpo rolável", async () => {
     const d = await abrir(() => import("@/pages/patrocinadores"), '[data-testid="button-add-sponsor"]');
-    expect(d.style.maxHeight).toBe(TETO_DA_CASA);
+    expect([TETO_DA_CASA, "calc(100dvh - 24px)"], "teto da casa (vh ou dvh via modalSurface)").toContain(d.style.maxHeight);
     const corpo = exigirCascaComTeto(d);
 
     // O corpo é o do formulário — e o rodapé com Cancelar/Salvar está FORA
@@ -170,7 +170,7 @@ describe("teto de altura dos modais", () => {
 
   it("confirmação de exclusão de patrocinador: teto da casa com a tarja e os botões fixos", async () => {
     const d = await abrir(() => import("@/pages/patrocinadores"), '[data-testid="button-delete-s1"]');
-    expect(d.style.maxHeight).toBe(TETO_DA_CASA);
+    expect([TETO_DA_CASA, "calc(100dvh - 24px)"], "teto da casa (vh ou dvh via modalSurface)").toContain(d.style.maxHeight);
     const corpo = exigirCascaComTeto(d);
 
     // Só o texto rola. A tarja "Ação Irreversível" e os dois botões ficam
@@ -183,13 +183,16 @@ describe("teto de altura dos modais", () => {
 
   it("cadastro de usuário: teto da casa e corrente de flex até o formulário", async () => {
     const d = await abrir(() => import("@/pages/usuarios"), '[data-testid="button-new-user"]');
-    expect(d.style.maxHeight).toBe(TETO_DA_CASA);
+    expect([TETO_DA_CASA, "calc(100dvh - 24px)"], "teto da casa (vh ou dvh via modalSurface)").toContain(d.style.maxHeight);
     const corpo = exigirCascaComTeto(d);
 
-    // Aqui o próprio <form> é o scrollport (os botões precisam do submit e
-    // moram dentro dele); o cabeçalho é que fica fixo.
+    // Aqui o próprio <form> é o scrollport; o cabeçalho e, desde a revisão de
+    // UX de 16/09, o rodapé com os botões ficam fixos. O Salvar mora no rodapé
+    // e continua enviando ESTE formulário pelo atributo `form`.
     expect(corpo.tagName).toBe("FORM");
-    expect(corpo.querySelector('[data-testid="button-save-user"]')).toBeTruthy();
+    const salvar = d.querySelector<HTMLButtonElement>('[data-testid="button-save-user"]');
+    expect(salvar, "botão Salvar sumiu do modal").toBeTruthy();
+    expect(salvar!.form, "Salvar não envia o formulário do usuário").toBe(corpo);
   }, 40000);
 
   it("cadastro de modelo: já seguia a regra e continua seguindo", async () => {

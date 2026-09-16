@@ -4,7 +4,7 @@ import { SeloKit } from "@/components/kit/selo-kit";
 import {
   Search, Calendar, Truck, Eye, Paperclip, Trash2, FileText, Printer, RotateCcw, Hourglass,
   Loader2, MessageSquare, ArrowUpRight, ChevronDown, ChevronUp, Copy, FileSpreadsheet,
-  SlidersHorizontal, Link2, Check, Lock, Pin, AlertTriangle,
+  SlidersHorizontal, Link2, Check, Lock, Pin, AlertTriangle, CheckCircle2, XCircle,
 } from "lucide-react";
 import { Link } from "wouter";
 import { EventFilterDropdown } from "@/components/event-filter-dropdown";
@@ -111,10 +111,14 @@ const EVENT_HEADER_H = 62;
 const ROW_CAP = 50;
 const GROUP_CAP = 5;
 
+// O nome do evento sai da caixa-alta forçada: é CONTEÚDO (o nome que a pessoa
+// digitou), e caixa-alta em 15px peso 800 repetida em cada grupo fazia a lista
+// inteira gritar no mesmo volume. Quem cadastrou em maiúsculas continua vendo
+// em maiúsculas — a tela só parou de impor.
 const EVENT_TITLE_STYLE: React.CSSProperties = {
   fontFamily: "'Space Grotesk', sans-serif",
-  fontWeight: 800, fontSize: 15,
-  textTransform: "uppercase", letterSpacing: "0.01em",
+  fontWeight: 700, fontSize: 15,
+  letterSpacing: "-0.01em",
   color: "#1c1917", margin: 0, lineHeight: 1,
   whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
 };
@@ -139,6 +143,45 @@ const ZONA_ENTRADA: GroupKey[] = ["requested", "awaiting_linking"];
 const ZONA_APROVACAO: GroupKey[] = ["awaiting_submission", "awaiting_approval", "awaiting_finalization", "awaiting_final_review"];
 const ZONA_PRODUCAO: GroupKey[] = ["ready_for_production", "approved", "inProduction", "produced", "conferred", "delivered"];
 
+// ─── Tom NEUTRO por zona, para as barras de distribuição ────────────────────
+// As barras pintavam cada etapa com a cor do seu status: até 13 matizes numa
+// faixa de 14px, logo abaixo dos chips vermelho e âmbar de atenção — a cor que
+// SIGNIFICA alguma coisa (atraso, reprovação) competia com cor que só
+// identifica. Nenhuma etapa do fluxo é, por si, um risco.
+//
+// O tom agora diz AVANÇO: quanto mais escuro, mais perto da entrega. Três
+// degraus da escala stone, os mesmos tokens do resto da tela. A identidade de
+// cada etapa continua onde ela é lida — no nome do card, no title e no
+// aria-label do segmento, e na pílula de status de cada linha.
+const TOM_ZONA_ENTRADA = "#d6d3d1";
+const TOM_ZONA_APROVACAO = "#a8a29e";
+const TOM_ZONA_PRODUCAO = "#57534e";
+function tomDaZona(k: GroupKey): string {
+  if (ZONA_ENTRADA.includes(k)) return TOM_ZONA_ENTRADA;
+  if (ZONA_APROVACAO.includes(k)) return TOM_ZONA_APROVACAO;
+  if (ZONA_PRODUCAO.includes(k)) return TOM_ZONA_PRODUCAO;
+  return "#e7e5e4"; // canceladas: fora do avanço
+}
+
+/** Número com separador de milhar pt-BR: "2.099", não "2099". */
+const fmtN = (n: number) => n.toLocaleString("pt-BR");
+
+// ─── O selo da linha da peça — UMA receita ──────────────────────────────────
+// A célula de ID chegava a ter quatro selos com quatro famílias de cor (verde
+// "REAPROVEIT.", azul "REF. VISUAL", roxo "BOOK", cinza de observação) e todos
+// em caixa-alta 10px peso 800: a coluna gritava mais que o status ao lado, que
+// é a informação que a pessoa foi buscar. Nenhum deles é risco nem atraso.
+// Agora: caixa normal, 11px, fundo stone — o que diferencia um do outro é a
+// palavra e o ícone. Só o selo de evento finalizado sobrepõe as cores (as
+// dele, de lib/painel-encerrados), porque ele muda a leitura da linha inteira.
+// #57534e sobre #f5f5f4 = 6,99:1 AA.
+const SELO_CALMO: React.CSSProperties = {
+  display: "inline-flex", alignItems: "center", width: "fit-content",
+  fontSize: 11, fontWeight: 600, lineHeight: 1.35, whiteSpace: "nowrap",
+  color: "#57534e", backgroundColor: "#f5f5f4", border: "1px solid #e7e5e4",
+  borderRadius: 6, padding: "1px 6px",
+};
+
 // ─── CSS da tela ────────────────────────────────────────────────────────────
 // O hover das linhas era feito com onMouseEnter/onMouseLeave mutando
 // `el.style` — dois handlers recriados a cada render em até 2000 linhas. Em
@@ -159,8 +202,24 @@ const PG_CSS = `
 .pg-event-link:focus-visible { outline: 2px solid #c2410c; outline-offset: 2px; }
 .pg-goto { opacity: 0; transition: opacity .15s; flex-shrink: 0; }
 .pg-event-link:hover .pg-goto, .pg-event-link:focus-visible .pg-goto { opacity: 1; }
-.pg-rail { display: flex; gap: 10px; overflow-x: auto; scroll-snap-type: x mandatory; padding-bottom: 4px; -webkit-overflow-scrolling: touch; }
-.pg-rail > * { scroll-snap-align: start; flex: 0 0 150px; }
+/* CARD DE RESUMO — hover, foco e esmaecido em CSS.
+   Eram handlers de mouse mutando style (translateY e opacity) — e o teclado
+   não recebia nada disso: o card zerado continuava apagado com foco nele.
+   Aqui :focus-visible ganha o mesmo tratamento do hover, de graça. O
+   deslocamento é de 1px: o card é resumo, não botão de chamada, e movimento
+   grande em 13 cards lado a lado vira tremedeira. A regra global de
+   prefers-reduced-motion (index.css) zera as transições. */
+.pg-card { transition: border-color .15s, box-shadow .15s, transform .15s, opacity .15s, background-color .15s; }
+.pg-card[data-zero="1"] { opacity: .72; }
+.pg-card:hover, .pg-card:focus-visible { opacity: 1; }
+.pg-card[aria-pressed="false"]:hover { transform: translateY(-1px); border-color: #d6d3d1; box-shadow: 0 3px 10px rgba(28,25,23,.07); }
+/* Segmento da barra: o pai tem overflow hidden (raio da pílula), então o anel
+   global de foco, que fica 2px PARA FORA, seria cortado. Anel para dentro. */
+.pg-seg:focus-visible { outline: 2px solid #1c1917; outline-offset: -2px; border-radius: 0; }
+.pg-seg:hover { filter: brightness(.92); }
+.pg-chip { transition: background-color .15s, border-color .15s, box-shadow .15s; }
+.pg-chip[aria-pressed="false"]:hover { box-shadow: 0 2px 8px rgba(28,25,23,.08); }
+.pg-anexo:hover { color: #c2410c !important; border-color: #fed7aa !important; background-color: #fff7ed !important; }
 .pg-sortable { cursor: pointer; user-select: none; }
 /* ALVO DA CAIXA DE SELEÇÃO.
 
@@ -186,16 +245,30 @@ const PG_CSS = `
 // cada render e os 13 cards remontavam (perdendo até a transição CSS) a cada
 // tecla digitada na busca. Recebe tudo por props.
 //
-// `dark` existe para o card Total: ele era 33 linhas escritas à mão, sem
-// transição, sem hover e sem o par undim/redim — ao lado de 12 cards que
-// reagem ao mouse, o único que serve de "limpar status" parecia quebrado.
+// O CARD É RESUMO, NÃO ALARME (rodada 3). Cada card tinha ponto colorido,
+// borda esquerda na cor do status e número pintado quando ativo — treze cores
+// competindo com as duas que de fato pedem ação (reprovada, caminhão
+// atrasado), que moram na faixa de atenção acima. Agora o card é neutro: o
+// que diferencia um do outro é o NOME, escrito por extenso em caixa normal
+// (o rótulo em 10px caixa-alta era o texto mais difícil de ler da tela, e é
+// justamente o que diz o que o número conta).
+//
+// Estado FILTRADO usa a mesma gramática das visões salvas da barra de filtros
+// (borda #c2410c, fundo #fff7ed): na tela inteira, "este recorte está ligado"
+// tem uma aparência só.
+//
+// `dark` é o card Total. O nome ficou (o data-testid e os testes dependem
+// dele), mas o card preto com selo "BASELINE" saiu: era o elemento mais
+// pesado da primeira dobra, falava jargão e estava SEMPRE "ativo" — o estado
+// padrão da tela pintado como destaque. Agora ele é o card de fundo cinza que
+// fecha a conta e só chama atenção quando há um filtro de status para desfazer.
 function StatusCard({
-  label, value, dot, color, filterKey, sub, subActionLabel, onSubAction,
-  isActive, onToggle, dark, badge, title, carregando, pct,
+  label, value, filterKey, sub, subActionLabel, onSubAction,
+  isActive, onToggle, dark, title, carregando, pct,
 }: {
-  label: string; value: number; dot: string; color: string;
+  label: string; value: number;
   filterKey: string; sub?: string; subActionLabel?: string; onSubAction?: () => void;
-  isActive: boolean; onToggle: () => void; dark?: boolean; badge?: string; title?: string;
+  isActive: boolean; onToggle: () => void; dark?: boolean; title?: string;
   /** Enquanto os dados nao chegaram, o card nao sabe o numero — e nao deve chutar zero. */
   carregando?: boolean;
   /** Fatia do total. O absoluto responde "quantas peças"; o percentual
@@ -203,11 +276,13 @@ function StatusCard({
   pct?: number;
 }) {
   // Cards zerados são informação de baixo valor no escaneamento ("onde está
-  // o gargalo?") — ficam esmaecidos, mas continuam clicáveis/filtráveis.
-  const isZero = value === 0 && !isActive && !dark;
-  const undim = (el: HTMLDivElement) => { if (isZero) el.style.opacity = "1"; };
-  const redim = (el: HTMLDivElement) => { if (isZero) el.style.opacity = "0.75"; };
+  // o gargalo?") — ficam esmaecidos (CSS, .pg-card[data-zero]), mas continuam
+  // clicáveis/filtráveis e voltam ao tom cheio no hover E no foco de teclado.
+  const isZero = value === 0 && !isActive && !dark && !carregando;
   const plural = value === 1 ? "peça" : "peças";
+  const valorTexto = fmtN(value);
+  // O Total só tem o que dizer quando há filtro de status para desfazer.
+  const badgeTexto = dark ? (isActive ? null : "Ver todas") : (isActive ? "Filtrando" : null);
   // Os cartões são o filtro por status desta tela. Como div com onClick,
   // filtrar era exclusivamente com mouse — e só a cor dizia qual estava
   // ativo, coisa que aria-pressed comunica a quem não a vê.
@@ -230,73 +305,56 @@ function StatusCard({
         }
       }}
       data-testid={dark ? "stat-total" : `stat-card-${filterKey}`}
+      className="pg-card"
+      data-zero={isZero ? "1" : "0"}
       style={{
         position: "relative", overflow: "hidden",
-        background: dark
-          ? "linear-gradient(145deg, #292522, #1c1917)"
-          : isActive ? `linear-gradient(135deg, ${color}18 0%, #ffffff 72%)` : "#ffffff",
-        border: `1px solid ${dark ? (isActive ? "#f97316" : "#3b3531") : (isActive ? color : "#e7e5e4")}`,
-        ...(dark
-          ? { borderBottom: "3px solid #f97316" }
-          : { borderLeft: `4px solid ${isActive ? color : `${dot}90`}` }),
-        borderRadius: 12,
-        padding: dark ? "14px 15px" : "14px 15px 13px 14px", minHeight: 102,
-        display: "flex", flexDirection: "column", justifyContent: "space-between",
+        // #f5f5f4 no Total: separa "a conta inteira" das parcelas sem cor nova.
+        background: isActive && !dark ? "#fff7ed" : dark ? "#f5f5f4" : "#ffffff",
+        border: `1px solid ${isActive && !dark ? "#c2410c" : "#e7e5e4"}`,
+        borderRadius: 10,
+        padding: "11px 12px 10px 13px", minHeight: 84,
+        display: "flex", flexDirection: "column", justifyContent: "space-between", gap: 6,
         cursor: "pointer",
-        boxShadow: dark
-          ? (isActive ? "0 0 0 2px rgba(249,115,22,.22), 0 5px 12px rgba(28,25,23,.16)" : "0 2px 5px rgba(28,25,23,.12)")
-          : (isActive ? `0 0 0 2px ${color}30, 0 5px 12px ${color}18` : "0 1px 2px rgba(28,25,23,.04)"),
-        transform: isActive ? "translateY(1px)" : "none",
-        opacity: isZero ? 0.75 : 1,
-        transition: "border-color 0.15s, box-shadow 0.15s, transform 0.15s, opacity 0.15s",
+        boxShadow: isActive && !dark ? "0 0 0 1px #c2410c" : "0 1px 2px rgba(28,25,23,.04)",
       }}
-      onMouseEnter={(e) => {
-        if (!isActive) (e.currentTarget as HTMLDivElement).style.transform = "translateY(-2px)";
-        undim(e.currentTarget as HTMLDivElement);
-      }}
-      onMouseLeave={(e) => {
-        if (!isActive) (e.currentTarget as HTMLDivElement).style.transform = "none";
-        redim(e.currentTarget as HTMLDivElement);
-      }}
-      onFocus={(e) => undim(e.currentTarget as HTMLDivElement)}
-      onBlur={(e) => redim(e.currentTarget as HTMLDivElement)}
     >
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        {dark ? (
-          /* rgba .7 (era .45): em traço de 2px sobre o gradiente escuro o tom
-             anterior lia como riscado. A régua da casa pede 0.7 mínimo aqui. */
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.7)" strokeWidth="2" aria-hidden="true"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" /></svg>
-        ) : (
-          <div style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: dot, boxShadow: `0 0 0 4px ${dot}18` }} />
-        )}
-        {isActive && (
-          <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.08em", color: dark ? "#f97316" : color, textTransform: "uppercase" }}>
-            {badge ?? "Filtrado"}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 6 }}>
+        {/* Rótulo de CONTEÚDO em caixa normal, 12px. Quebra em duas linhas
+            se precisar ("Aguardando Revisão Final" no celular) em vez de
+            abreviar para "Ag. Revisão" — abreviação é mais um código a
+            decorar. #57534e sobre #ffffff = 7,63:1; sobre #f5f5f4 = 6,99:1. */}
+        <p style={{ margin: 0, fontSize: 12, fontWeight: 600, color: "#57534e", lineHeight: 1.3, minWidth: 0 }}>{label}</p>
+        {badgeTexto && (
+          /* #c2410c sobre #fff7ed = 4,88:1 AA nos 11px peso 700. */
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 2, flexShrink: 0, fontSize: 11, fontWeight: 700, color: "#c2410c", lineHeight: 1.3, whiteSpace: "nowrap" }}>
+            {!dark && <Check aria-hidden="true" style={{ width: 11, height: 11 }} />}
+            {badgeTexto}
           </span>
         )}
       </div>
       <div>
-        {/* #f97316 como cor do NÚMERO no card escuro dá 6,3:1 sobre #1c1917 —
-            exceção legítima à régua da casa, que foi escrita para fundo claro. */}
-        {/* ZERO É UMA AFIRMAÇÃO, e durante a carga a tela não tem como
-            fazê-la. Com 3.187 peças a caminho, os cards exibiam "0" e o
-            TOTAL anunciava "0 TOTAL" com selo BASELINE enquanto o skeleton
-            rodava logo abaixo — a manchete da tela dizia que não havia nada.
-            Um travessão diz a verdade: ainda não sei. */}
-        <p style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 26, fontWeight: 700, color: dark ? "#f97316" : (isActive ? color : "#1c1917"), lineHeight: 1, margin: 0, letterSpacing: "-.05em" }}>{carregando ? "—" : value}</p>
-        <p style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: dark ? "rgba(255,255,255,0.75)" : "#746e69", marginTop: 4, lineHeight: 1.2 }}>{label}</p>
-        {/* A HIERARQUIA VEM DO PESO, NÃO DO CONTRASTE.
-            A primeira tentativa usou um cinza mais claro (#8c8580) para o
-            percentual ficar subordinado — e ele dá 3,63:1 em 10px, reprova
-            AA. Enfraquecer contraste para criar hierarquia é trocar um
-            problema de design por um de acesso.
-            Mesmo cinza do rótulo (5,03:1), subordinado por peso (600 contra
-            800) e por não ser caixa-alta. */}
-        {!carregando && pct !== undefined && value > 0 && (
-          <p style={{ fontSize: 10, fontWeight: 600, color: dark ? "rgba(255,255,255,0.7)" : "#746e69", marginTop: 2, lineHeight: 1.2 }}>
-            {pct < 1 ? "<1" : Math.round(pct)}% do total
-          </p>
-        )}
+        <div style={{ display: "flex", alignItems: "baseline", gap: 6, flexWrap: "wrap" }}>
+          {/* ZERO É UMA AFIRMAÇÃO, e durante a carga a tela não tem como
+              fazê-la. Com 3.187 peças a caminho, os cards exibiam "0" e o
+              TOTAL anunciava "0 TOTAL" com selo BASELINE enquanto o skeleton
+              rodava logo abaixo — a manchete da tela dizia que não havia nada.
+              Um travessão diz a verdade: ainda não sei. */}
+          <p style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 24, fontWeight: 700, color: "#1c1917", lineHeight: 1, margin: 0, letterSpacing: "-0.03em", fontVariantNumeric: "tabular-nums" }}>{carregando ? "—" : valorTexto}</p>
+          {/* A HIERARQUIA VEM DO PESO, NÃO DO CONTRASTE.
+              A primeira tentativa usou um cinza mais claro (#8c8580) para o
+              percentual ficar subordinado — e ele dá 3,63:1 em 10px, reprova
+              AA. Enfraquecer contraste para criar hierarquia é trocar um
+              problema de design por um de acesso.
+              Mesmo cinza de apoio (5,03:1), subordinado por tamanho e peso.
+              "do total" saiu da frase: repetido em treze cards era a mesma
+              ressalva dita treze vezes ao lado de um número que já a implica. */}
+          {!carregando && pct !== undefined && value > 0 && (
+            <span style={{ fontSize: 11, fontWeight: 600, color: "#746e69", lineHeight: 1 }}>
+              {pct < 1 ? "<1" : Math.round(pct)}%
+            </span>
+          )}
+        </div>
         {sub && (
           onSubAction ? (
             /* O subtexto era um beco sem saída: dizia "inclui 7 rascunhos" e
@@ -308,22 +366,18 @@ function StatusCard({
               onKeyDown={(e) => e.stopPropagation()}
               title={subActionLabel}
               style={{
-                /* 9px era o menor texto da tela INTEIRA — e num elemento
-                   CLICÁVEL, que é onde tamanho pequeno custa mais caro: além
-                   de ler mal, dava um alvo de ~11px de altura. Vai a 10px (o
-                   piso que o resto da tela já usa) e ganha 3px de padding em
-                   cima e embaixo: o alvo passa a ~22px sem deslocar nada,
-                   porque o fundo é transparente. */
-                background: "none", border: "none", padding: "3px 0", marginTop: 0,
-                fontSize: 10, fontWeight: 700, lineHeight: 1.2, cursor: "pointer",
-                color: dark ? "rgba(255,255,255,0.75)" : "#746e69",
+                /* 11px com 3px de padding em cima e embaixo: o alvo passa a
+                   ~20px sem deslocar nada, porque o fundo é transparente. */
+                background: "none", border: "none", padding: "3px 0", marginTop: 2,
+                fontSize: 11, fontWeight: 600, lineHeight: 1.2, cursor: "pointer",
+                color: "#746e69",
                 textDecoration: "underline", textUnderlineOffset: 2, textAlign: "left",
               }}
             >
               {sub}
             </button>
           ) : (
-            <p style={{ fontSize: 10, fontWeight: 600, color: dark ? "rgba(255,255,255,0.75)" : "#746e69", marginTop: 2, lineHeight: 1.2 }}>{sub}</p>
+            <p style={{ fontSize: 11, fontWeight: 600, color: "#746e69", margin: "4px 0 0", lineHeight: 1.2 }}>{sub}</p>
           )
         )}
       </div>
@@ -400,13 +454,15 @@ function tomDaIdade(dias: number): { cor: string; peso: number } {
 /** "há 1 dia" / "há 12 dias" / "hoje". */
 const idadePorExtenso = (d: number) => (d === 0 ? "hoje" : d === 1 ? "há 1 dia" : `há ${d} dias`);
 
-// gargalo" na unidade de decisão real — o evento — sem nenhum clique. As cores
-// saem de lib/status.ts (mesmas dos dots e pills), então nada de novo vocabulário.
+// gargalo" na unidade de decisão real — o evento — sem nenhum clique. Os NOMES
+// saem de lib/status.ts; o tom é o da zona (tomDaZona), o mesmo da barra do
+// fluxo no topo: escuro = perto da entrega. Um evento "quase todo escuro" está
+// adiantado sem ninguém precisar decorar treze cores.
 function EventStatusBar({ items, width }: { items: Array<{ status?: string | null }>; width: number }) {
   const segments = useMemo(() => {
     const stats = computeStats(items);
     return GROUP_KEYS
-      .map(k => ({ key: k, n: stats.byGroup[k], meta: getStatusMeta(STATUS_GROUPS[k][0]) }))
+      .map(k => ({ key: k, n: stats.byGroup[k], meta: getStatusMeta(STATUS_GROUPS[k][0]), tom: tomDaZona(k) }))
       .filter(s => s.n > 0);
   }, [items]);
 
@@ -421,8 +477,8 @@ function EventStatusBar({ items, width }: { items: Array<{ status?: string | nul
       role="img"
       style={{ display: "flex", width, height: 6, borderRadius: 999, overflow: "hidden", backgroundColor: "#f0efee", flexShrink: 0 }}
     >
-      {segments.map(s => (
-        <div key={s.key} style={{ width: `${(s.n / total) * 100}%`, backgroundColor: s.meta.dot }} />
+      {segments.map((s, i) => (
+        <div key={s.key} style={{ width: `${(s.n / total) * 100}%`, backgroundColor: s.tom, borderRight: i < segments.length - 1 ? "1px solid #ffffff" : "none" }} />
       ))}
     </div>
   );
@@ -1114,6 +1170,18 @@ export default function PainelGeral() {
     setStatusFilter(prev => prev.includes(filterKey) ? prev.filter(s => s !== filterKey) : [...prev, filterKey]);
   const toggleFoco = (key: string) =>
     setFocoFilter(prev => prev.includes(key) ? prev.filter(f => f !== key) : [...prev, key]);
+  // DO ALERTA À LISTA, sem rolar à mão. No celular, entre o chip de atenção e
+  // a primeira peça ficam a barra, os cards e os filtros — tocar em "3 peças
+  // reprovadas" filtrava uma lista que estava duas telas abaixo, e nada na
+  // tela visível mudava: parecia que o toque não tinha feito nada. Só ao
+  // LIGAR o foco e só no layout de cards; no desktop a barra de filtros é
+  // sticky e o contador muda à vista. Sem animação para quem pediu menos
+  // movimento (a regra global do CSS não alcança o scroll disparado por JS).
+  const levarALista = () => {
+    if (!useCards) return;
+    const semMovimento = typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    requestAnimationFrame(() => toolbarRef.current?.scrollIntoView({ block: "start", behavior: semMovimento ? "auto" : "smooth" }));
+  };
 
   const inputStyle: React.CSSProperties = {
     width: "100%", height: 36,
@@ -1340,14 +1408,15 @@ export default function PainelGeral() {
     return (
       <StatusCard
         key={key}
-        // label completo no desktop: o contrato de StatusMeta diz que `short` é
-        // para mobile/espaços apertados. Com 200px por card, "Ag. Vinculação"
-        // no card e "Status: Aguardando Vinculação" no chip logo abaixo davam
-        // dois nomes à mesma peça na mesma tela.
-        label={useCards ? m.short : m.label}
+        // label COMPLETO também no celular. O `short` ("Ag. Vinculação")
+        // existia porque o trilho horizontal dava 150px por card; na grade de
+        // duas colunas o nome inteiro cabe quebrando em duas linhas, e o chip
+        // de filtro logo abaixo diz "Aguardando Vinculação" — um nome só para
+        // a mesma etapa na mesma tela.
+        label={m.label}
         value={stats.byGroup[key]} carregando={isLoading}
         pct={stats.total > 0 ? ((stats.byGroup[key] ?? 0) / stats.total) * 100 : undefined}
-        dot={m.dot} color={m.text} filterKey={key}
+        filterKey={key}
         isActive={statusFilter.includes(key)}
         onToggle={() => toggleStatusCard(key)}
         sub={key === "requested" && stats.drafts > 0 ? `inclui ${stats.drafts} rascunho${stats.drafts > 1 ? "s" : ""}` : undefined}
@@ -1361,7 +1430,7 @@ export default function PainelGeral() {
   const totalCard = (
     <StatusCard
       label="Total" value={stats.total} carregando={isLoading}
-      dot="#f97316" color="#f97316" filterKey="total" dark badge="BASELINE"
+      filterKey="total" dark
       isActive={statusFilter.length === 0}
       onToggle={() => setStatusFilter([])}
       sub={canceladas > 0 ? `inclui ${canceladas} cancelada${canceladas > 1 ? "s" : ""}` : undefined}
@@ -1486,7 +1555,35 @@ export default function PainelGeral() {
       {/* ── Precisa de atenção ────────────────────────────────────────────────
           Os 13 estados têm o mesmo peso visual, mas a operação não é simétrica:
           reprovação de patrocinador e caminhão que já saiu com peça pendente
-          valem mais que as outras dez juntas. Só aparece quando há o que dizer. */}
+          valem mais que as outras dez juntas.
+
+          A FAIXA RESPONDE SEMPRE (rodada 3). Ela só aparecia quando havia
+          alerta — e o silêncio era ambíguo: "não há nada" e "ainda não
+          carregou" tinham a mesma cara, e a pergunta do primeiro minuto de
+          todo perfil ("o que precisa de mim agora?") ficava sem resposta
+          explícita justamente no dia bom. Agora são três estados:
+            · carregando → uma silhueta do tamanho do chip (sem layout shift,
+              e sem afirmar "nada" antes de saber);
+            · sem alerta → uma frase calma com o recorte a que ela se refere;
+            · com alerta → os chips, num cartão, antes de qualquer número. */}
+      {isLoading ? (
+        <div aria-hidden="true" className="animate-pulse" style={{ width: useCards ? "100%" : 320, height: 38, borderRadius: 999, backgroundColor: "#f0efee" }} />
+      ) : (!isError || atencao.reprovadas > 0 || atencao.atrasadas > 0 || chipOcultasDados) && (
+      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      {!isError && atencao.reprovadas === 0 && atencao.atrasadas === 0 && (
+        <p data-testid="texto-atencao-em-dia" style={{ display: "flex", alignItems: "flex-start", gap: 8, margin: 0, fontSize: 13, lineHeight: 1.45, color: "#57534e" }}>
+          {/* Verde só aqui, e só no ícone: é o único "está tudo certo" da
+              tela. #15803d sobre #fafaf9 = 4,80:1. */}
+          <CheckCircle2 aria-hidden="true" style={{ width: 16, height: 16, color: "#15803d", flexShrink: 0, marginTop: 1 }} />
+          <span>
+            <strong style={{ color: "#1c1917", fontWeight: 700 }}>Nada pede atenção agora.</strong>
+            {" "}Nenhuma peça reprovada pelo patrocinador nem em evento com caminhão atrasado
+            {/* Os números desta faixa seguem o recorte; com filtro ligado, a
+                frase não pode soar como verdade do sistema inteiro. */}
+            {hasActiveFilters ? " neste recorte." : "."}
+          </span>
+        </p>
+      )}
       {(atencao.reprovadas > 0 || atencao.atrasadas > 0 || chipOcultasDados) && (() => {
         /* O RÓTULO DIZ O QUE A FAIXA REALMENTE CARREGA.
 
@@ -1502,29 +1599,56 @@ export default function PainelGeral() {
            — inclusive quando ela estiver certa. */
         const temAlerta = atencao.reprovadas > 0 || atencao.atrasadas > 0;
         const rotulo = temAlerta ? "Precisa de atenção" : "Fora da lista";
+        // No celular cada chip ocupa a linha inteira e pode quebrar o texto:
+        // "147 peças ocultas · evento encerrado ou já realizado · mostrar" não
+        // cabe em 366px, e com altura fixa o texto vazava do chip.
+        const chipBase: React.CSSProperties = {
+          display: "flex", alignItems: "center", gap: 8, minHeight: 38, padding: "7px 14px",
+          borderRadius: useCards ? 10 : 999, cursor: "pointer", fontSize: 13, fontWeight: 600, lineHeight: 1.3,
+          textAlign: "left", width: useCards ? "100%" : undefined,
+        };
         return (
-        <section aria-label={rotulo} style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center" }}>
-          <span style={{ fontSize: 10, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.12em", color: "#746e69" }}>{rotulo}</span>
+        <section aria-label={rotulo} style={{
+            display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center",
+            // O cartão só existe quando há ALERTA: é o que faz a faixa ser a
+            // primeira coisa lida sem precisar de cor extra. "Fora da lista"
+            // sozinho continua sendo uma nota de rodapé, sem moldura.
+            ...(temAlerta ? { backgroundColor: "#ffffff", border: "1px solid #e7e5e4", borderRadius: 12, padding: useCards ? 12 : "10px 12px 10px 16px", boxShadow: "0 1px 3px rgba(28,25,23,0.05)" } : null),
+          }}
+        >
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 6, marginRight: 6, fontSize: 13, fontWeight: 700, color: temAlerta ? "#1c1917" : "#57534e", width: useCards ? "100%" : undefined }}>
+            {temAlerta && <AlertTriangle aria-hidden="true" style={{ width: 15, height: 15, color: "#b91c1c", flexShrink: 0 }} />}
+            {rotulo}</span>
           {atencao.reprovadas > 0 && (
             <button
-              onClick={() => toggleFoco("reprovadas")}
+              onClick={() => { if (!focoFilter.includes("reprovadas")) levarALista(); toggleFoco("reprovadas"); }}
               aria-pressed={focoFilter.includes("reprovadas")}
               data-testid="chip-atencao-reprovadas"
-              style={{ display: "flex", alignItems: "center", gap: 8, height: 38, padding: "0 14px", borderRadius: 999, cursor: "pointer", fontSize: 13, fontWeight: 700, backgroundColor: focoFilter.includes("reprovadas") ? "#b91c1c" : "#fef2f2", color: focoFilter.includes("reprovadas") ? "#fff" : "#b91c1c", border: `1px solid ${focoFilter.includes("reprovadas") ? "#b91c1c" : "#fecaca"}` }}
+              className="pg-chip"
+              /* #b91c1c sobre #fef2f2 = 5,91:1 AA; marcado, branco sobre o vermelho = 6,47:1. */
+              style={{ ...chipBase, backgroundColor: focoFilter.includes("reprovadas") ? "#b91c1c" : "#fef2f2", color: focoFilter.includes("reprovadas") ? "#fff" : "#b91c1c", border: `1px solid ${focoFilter.includes("reprovadas") ? "#b91c1c" : "#fecaca"}` }}
             >
-              <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 900 }}>{atencao.reprovadas}</span>
-              {atencao.reprovadas === 1 ? "peça reprovada pelo patrocinador" : "peças reprovadas pelo patrocinador"}
+              <XCircle aria-hidden="true" style={{ width: 15, height: 15, flexShrink: 0 }} />
+              <span>
+                <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 800 }}>{fmtN(atencao.reprovadas)}</span>
+                {" "}{atencao.reprovadas === 1 ? "peça reprovada pelo patrocinador" : "peças reprovadas pelo patrocinador"}
+              </span>
             </button>
           )}
           {atencao.atrasadas > 0 && (
             <button
-              onClick={() => toggleFoco("atrasadas")}
+              onClick={() => { if (!focoFilter.includes("atrasadas")) levarALista(); toggleFoco("atrasadas"); }}
               aria-pressed={focoFilter.includes("atrasadas")}
               data-testid="chip-atencao-atrasadas"
-              style={{ display: "flex", alignItems: "center", gap: 8, height: 38, padding: "0 14px", borderRadius: 999, cursor: "pointer", fontSize: 13, fontWeight: 700, backgroundColor: focoFilter.includes("atrasadas") ? "#b45309" : "#fffbeb", color: focoFilter.includes("atrasadas") ? "#fff" : "#b45309", border: `1px solid ${focoFilter.includes("atrasadas") ? "#b45309" : "#fde68a"}` }}
+              className="pg-chip"
+              /* #b45309 sobre #fffbeb = 4,84:1 AA nos 13px. */
+              style={{ ...chipBase, backgroundColor: focoFilter.includes("atrasadas") ? "#b45309" : "#fffbeb", color: focoFilter.includes("atrasadas") ? "#fff" : "#b45309", border: `1px solid ${focoFilter.includes("atrasadas") ? "#b45309" : "#fde68a"}` }}
             >
-              <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 900 }}>{atencao.atrasadas}</span>
-              {atencao.atrasadas === 1 ? "peça em evento com caminhão atrasado" : "peças em evento com caminhão atrasado"}
+              <Truck aria-hidden="true" style={{ width: 15, height: 15, flexShrink: 0 }} />
+              <span>
+                <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 800 }}>{fmtN(atencao.atrasadas)}</span>
+                {" "}{atencao.atrasadas === 1 ? "peça em evento com caminhão atrasado" : "peças em evento com caminhão atrasado"}
+              </span>
             </button>
           )}
           {/* ── Peças de evento fora de jogo ────────────────────────────────
@@ -1554,22 +1678,26 @@ export default function PainelGeral() {
               title={chipOcultasDados.title}
               aria-label={chipOcultasDados.srLabel}
               data-testid="chip-atencao-ocultas"
+              className="pg-chip"
               /* Contrastes: #44403c sobre #f5f5f4 = 9,42:1; no estado marcado,
                  #ffffff sobre #57534e = 7,63:1. Ambos AA com folga em 13px. */
-              style={{ display: "flex", alignItems: "center", gap: 8, height: 38, padding: "0 14px", borderRadius: 999, cursor: "pointer", fontSize: 13, fontWeight: 700, backgroundColor: mostrarFinalizados ? "#57534e" : "#f5f5f4", color: mostrarFinalizados ? "#fff" : "#44403c", border: `1px solid ${mostrarFinalizados ? "#57534e" : "#e7e5e4"}` }}
+              style={{ ...chipBase, backgroundColor: mostrarFinalizados ? "#57534e" : "#f5f5f4", color: mostrarFinalizados ? "#fff" : "#44403c", border: `1px solid ${mostrarFinalizados ? "#57534e" : "#e7e5e4"}` }}
             >
-              <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 900 }}>{chipOcultasDados.total}</span>
-              {chipOcultasDados.texto}
-              {/* Separador só de ritmo — o nome acessível do botão vem inteiro
-                  do aria-label, então esta pontuação não é lida duas vezes. */}
-              <span aria-hidden="true" style={{ opacity: 0.55 }}>·</span>
-              <span style={{ textDecoration: "underline", fontWeight: 800 }}>{chipOcultasDados.acao}</span>
+              <span>
+                <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 800 }}>{fmtN(chipOcultasDados.total)}</span>
+                {" "}{chipOcultasDados.texto}
+                {/* Separador só de ritmo — o nome acessível do botão vem inteiro
+                    do aria-label, então esta pontuação não é lida duas vezes. */}
+                <span aria-hidden="true" style={{ opacity: 0.55 }}> · </span>
+                <span style={{ textDecoration: "underline", textUnderlineOffset: 2, fontWeight: 700 }}>{chipOcultasDados.acao}</span>
+              </span>
             </button>
           )}
         </section>
         );
       })()}
-
+      </div>
+      )}
 
       {/* ── O FLUXO INTEIRO NUMA BARRA ─────────────────────────────────────
 
@@ -1594,13 +1722,16 @@ export default function PainelGeral() {
         const zonas = [
           { nome: "Entrada", chaves: ZONA_ENTRADA },
           { nome: "Aprovação", chaves: ZONA_APROVACAO },
-          { nome: "Produção & Entrega", chaves: ZONA_PRODUCAO },
+          { nome: "Produção e entrega", chaves: ZONA_PRODUCAO },
         ];
         const segmentos = zonas.flatMap(z =>
           z.chaves
             .map(k => ({ k, zona: z.nome, n: stats.byGroup[k] ?? 0, meta: getStatusMeta(STATUS_GROUPS[k][0]) }))
             .filter(seg => seg.n > 0),
         );
+        // Só canceladas (ou só status fora do mapa): não há fluxo para
+        // distribuir, e `maior` abaixo seria undefined — a tela quebrava.
+        if (segmentos.length === 0) return null;
         const soma = segmentos.reduce((t, seg) => t + seg.n, 0) || 1;
         const maior = segmentos.reduce((a, b) => (b.n > a.n ? b : a), segmentos[0]);
 
@@ -1623,16 +1754,18 @@ export default function PainelGeral() {
         const mediaDaMaior = idadeDoSegmento(maior.k);
         return (
           <section aria-label="Distribuição das peças pelo fluxo" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+            <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
+              {/* A única legenda em caixa-alta que sobrou no topo: ela nomeia a
+                  SEÇÃO, não um dado — e é curta o bastante para ler de relance. */}
               <span style={{ fontSize: 10, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.12em", color: "#746e69" }}>
-                Onde estão as {stats.total} peças
+                Onde estão as {fmtN(stats.total)} peças
               </span>
               {/* O maior segmento dito por extenso: a barra mostra a forma, a
                   frase nomeia o gargalo para quem chega sem contexto — e para
                   quem lê por leitor de tela, que não enxerga proporção. */}
-              <span style={{ fontSize: 12, fontWeight: 700, color: "#57534e" }}>
-                Maior fila: <strong style={{ color: "#1c1917" }}>{maior.meta.label}</strong>
-                {" "}· {Math.round((maior.n / soma) * 100)}% ({maior.n})
+              <span style={{ fontSize: 12, fontWeight: 500, color: "#57534e", lineHeight: 1.4 }}>
+                Maior fila: <strong style={{ color: "#1c1917", fontWeight: 700 }}>{maior.meta.label}</strong>
+                {" "}· {Math.round((maior.n / soma) * 100)}% ({fmtN(maior.n)})
                 {/* A frase dizia o quanto a fila PESA; passa a dizer tambem se
                     ela esta andando. E a diferenca entre vazao normal e
                     travamento — a pergunta inteira de quem procura gargalo. */}
@@ -1646,7 +1779,7 @@ export default function PainelGeral() {
                 })()}
               </span>
             </div>
-            <div style={{ display: "flex", height: 14, borderRadius: 999, overflow: "hidden", background: "#f5f5f4", border: "1px solid #e7e5e4" }}>
+            <div style={{ display: "flex", height: 12, borderRadius: 999, overflow: "hidden", background: "#f5f5f4", border: "1px solid #e7e5e4" }}>
               {segmentos.map((seg, i) => {
                 const pct = (seg.n / soma) * 100;
                 // O VAO ENTRE ZONAS. A barra tem ate 13 segmentos sem rotulo e
@@ -1654,6 +1787,10 @@ export default function PainelGeral() {
                 // se reconheciam. Uma borda de 2px na cor do fundo separa sem
                 // mexer nas larguras proporcionais — a soma continua 100%.
                 const fechaZona = i < segmentos.length - 1 && segmentos[i + 1].zona !== seg.zona;
+                // Dentro da MESMA zona os segmentos têm o mesmo tom (ver
+                // tomDaZona): um fio claro de 1px os separa, senão cinco etapas
+                // de Produção virariam um bloco só.
+                const mesmaZonaAntes = i > 0 && segmentos[i - 1].zona === seg.zona;
                 const ativo = statusFilter.includes(seg.k);
                 return (
                   <button
@@ -1661,9 +1798,10 @@ export default function PainelGeral() {
                     onClick={() => toggleStatusCard(seg.k)}
                     aria-pressed={ativo}
                     data-testid={`fluxo-seg-${seg.k}`}
-                    title={`${seg.zona} · ${seg.meta.label}: ${seg.n} ${seg.n === 1 ? "peça" : "peças"} (${Math.round(pct)}%)`
+                    title={`${seg.zona} · ${seg.meta.label}: ${fmtN(seg.n)} ${seg.n === 1 ? "peça" : "peças"} (${Math.round(pct)}%)`
                       + (idadeDoSegmento(seg.k) !== null ? ` · parada ${idadePorExtenso(idadeDoSegmento(seg.k)!)} em média` : "")}
                     aria-label={`${seg.meta.label}, ${seg.n} ${seg.n === 1 ? "peça" : "peças"}, ${Math.round(pct)} por cento. Filtrar.`}
+                    className="pg-seg"
                     style={{
                       width: `${pct}%`, minWidth: 3, height: "100%", padding: 0, cursor: "pointer",
                       border: "none",
@@ -1671,13 +1809,13 @@ export default function PainelGeral() {
                       // nao mexer nas larguras proporcionais — a soma continua
                       // 100%.
                       borderRight: fechaZona ? "2px solid #fafaf9" : "none",
-                      background: seg.meta.dot,
-                      // O ativo se separa por brilho e por um anel interno —
-                      // não só por cor, que aqui já está ocupada dizendo QUAL
-                      // status o segmento é.
+                      borderLeft: mesmaZonaAntes ? "1px solid rgba(255,255,255,0.75)" : "none",
+                      // Filtrado = o laranja de "recorte ligado" da tela inteira
+                      // (visões salvas, cards). O anel escuro é o segundo canal,
+                      // para quem não distingue a cor.
+                      background: ativo ? "#c2410c" : tomDaZona(seg.k),
                       boxShadow: ativo ? "inset 0 0 0 2px #1c1917" : "none",
-                      filter: ativo ? "none" : "saturate(0.92)",
-                      transition: "filter .15s, box-shadow .15s",
+                      transition: "background-color .15s, box-shadow .15s, filter .15s",
                     }}
                   />
                 );
@@ -1706,11 +1844,12 @@ export default function PainelGeral() {
                       data-testid={`zona-tick-${z.nome}`}
                       style={{ width: `${pct}%`, borderLeft: "1px solid #ddd8d1", paddingLeft: 7, overflow: "hidden" }}
                     >
-                      <p style={{ margin: 0, fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: "#7a6154", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                      <p style={{ margin: 0, fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: "#746e69", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                        <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: 2, backgroundColor: tomDaZona(z.chaves[0]), marginRight: 6, verticalAlign: "0" }} />
                         {z.nome}
                       </p>
                       <p style={{ margin: 0, fontSize: 11, color: "#57534e", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                        {Math.round(pct)}% · {n}
+                        {Math.round(pct)}% · {fmtN(n)}
                       </p>
                     </div>
                   );
@@ -1724,20 +1863,27 @@ export default function PainelGeral() {
       {/* ── Status cards — agrupados nas 3 fases do fluxo ─────────────────
           12 cards iguais obrigavam o usuário a escanear um a um para achar o
           gargalo. As zonas (Entrada → Aprovação → Produção) contam a história
-          do fluxo e a largura dos cards por zona cria ritmo visual. ── */}
-      <section style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          do fluxo e a largura dos cards por zona cria ritmo visual.
+
+          Some quando a carga FALHOU sem dado nenhum: os cards mostrariam "0"
+          em tudo ao lado do aviso "Não foi possível carregar as peças" — o
+          mesmo zero falso que o travessão resolve na carga, agora no erro. ── */}
+      {!(isError && itensDoServidor.length === 0) && (
+      <section aria-label="Peças por etapa" style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: -8 }}>
         {useCards ? (
-          /* Mobile: 5 linhas de cards (~600px) antes da primeira peça significavam
-             rolar 1,4 tela num aparelho de 667px. Vira um trilho horizontal de
-             uma linha com só os cards que têm valor — quem chega no celular vem
-             com uma pergunta específica, não para escanear 13 KPIs. */
+          /* CELULAR: GRADE DE DUAS COLUNAS, não trilho horizontal.
+             O trilho escondia a maior parte dos cards fora da tela, sem
+             nenhuma pista de que havia mais à direita, e cortava o último
+             card ao meio em 390px. Duas colunas mostram tudo o que tem peça
+             de uma vez, com o nome inteiro legível; os zerados continuam
+             atrás do "Mostrar todos os status". */
           <>
-            <div className="pg-rail">
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 8 }}>
               {totalCard}
               {kpiCards.filter(c => kpiVisivelPorChave(c.key)).map(c => renderStatusCard(c.key))}
               {stats.outros > 0 && (
                 <StatusCard
-                  label="Outros" value={stats.outros} dot="#78716c" color="#44403c" filterKey="outros"
+                  label="Outros" value={stats.outros} filterKey="outros"
                   isActive={false} onToggle={() => setShowAllKpis(true)}
                   sub="fora do fluxo"
                   title={`Status fora do mapa do painel: ${stats.outrosStatus.join(", ")}`}
@@ -1761,42 +1907,43 @@ export default function PainelGeral() {
              não deve crescer para preencher espaço, deve terminar e deixar o
              resto vazio. */
           <div style={{ display: "flex", flexWrap: "wrap", alignItems: "flex-start", gap: 18 }}>
-            {/* As colunas de cada zona saem do que SOBROU depois do corte dos
-                zerados. Com `repeat(3,1fr)` fixo, esconder um card deixava um
-                buraco do tamanho dele — o alívio viraria desalinhamento. */}
-            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              <span style={{ fontSize: 10, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.12em", color: "#746e69", paddingLeft: 2 }}>Entrada</span>
-              <div style={{ display: "grid", gridTemplateColumns: `repeat(${1 + entradaVisivel.length}, ${LARG_CARD})`, gap: 10 }}>
-                {totalCard}
-                {entradaVisivel.map(renderStatusCard)}
-              </div>
-            </div>
-
-            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              <span style={{ fontSize: 10, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.12em", color: "#746e69", paddingLeft: 2 }}>Aprovação</span>
-              <div style={{ display: "grid", gridTemplateColumns: `repeat(${Math.max(1, aprovacaoVisivel.length)}, ${LARG_CARD})`, gap: 10 }}>
-                {aprovacaoVisivel.map(renderStatusCard)}
-              </div>
-            </div>
-
-            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              <span style={{ fontSize: 10, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.12em", color: "#746e69", paddingLeft: 2 }}>Produção &amp; Entrega</span>
-              <div style={{ display: "grid", gridTemplateColumns: `repeat(${Math.max(1, producaoVisivel.length + (stats.outros > 0 ? 1 : 0))}, ${LARG_CARD})`, gap: 10 }}>
-                {producaoVisivel.map(renderStatusCard)}
-                {/* Card "Outros": qualquer status fora do mapa aparece aqui, com
-                    o valor cru no title. É o que faz a soma dos cards fechar
-                    SEMPRE com o Total — antes esses itens somavam no Total e em
-                    card nenhum, sem aviso. */}
-                {stats.outros > 0 && (
-                  <StatusCard
-                    label="Outros" value={stats.outros} dot="#78716c" color="#44403c" filterKey="outros"
-                    isActive={false} onToggle={() => { /* sem filtro: é anomalia de dado, não etapa do fluxo */ }}
-                    sub="status fora do fluxo"
-                    title={`Status fora do mapa do painel: ${stats.outrosStatus.join(", ")}`}
-                  />
-                )}
-              </div>
-            </div>
+            {/* O NOME DA ZONA É LEGENDA DA BARRA ACIMA: o quadradinho tem o
+                mesmo tom que a zona tem lá, e é isso que liga as duas leituras
+                sem repetir cor de status. Caixa normal, 12px: era a terceira
+                faixa de caixa-alta 10px empilhada no topo da tela. */}
+            {([
+              { nome: "Entrada", tom: TOM_ZONA_ENTRADA, chaves: entradaVisivel, total: true, outros: false },
+              { nome: "Aprovação", tom: TOM_ZONA_APROVACAO, chaves: aprovacaoVisivel, total: false, outros: false },
+              { nome: "Produção e entrega", tom: TOM_ZONA_PRODUCAO, chaves: producaoVisivel, total: false, outros: true },
+            ]).map(z => {
+              const outrosAqui = z.outros && stats.outros > 0;
+              const colunas = (z.total ? 1 : 0) + z.chaves.length + (outrosAqui ? 1 : 0);
+              if (colunas === 0) return null;
+              return (
+                <div key={z.nome} style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 600, color: "#57534e", paddingLeft: 2 }}>
+                    <span aria-hidden="true" style={{ width: 8, height: 8, borderRadius: 2, backgroundColor: z.tom, flexShrink: 0 }} />
+                    {z.nome}
+                  </span>
+                  <div style={{ display: "grid", gridTemplateColumns: `repeat(${colunas}, ${LARG_CARD})`, gap: 8 }}>
+                    {z.total && totalCard}
+                    {z.chaves.map(renderStatusCard)}
+                    {/* Card "Outros": qualquer status fora do mapa aparece aqui, com
+                        o valor cru no title. É o que faz a soma dos cards fechar
+                        SEMPRE com o Total — antes esses itens somavam no Total e em
+                        card nenhum, sem aviso. */}
+                    {outrosAqui && (
+                      <StatusCard
+                        label="Outros" value={stats.outros} filterKey="outros"
+                        isActive={false} onToggle={() => { /* sem filtro: é anomalia de dado, não etapa do fluxo */ }}
+                        sub="status fora do fluxo"
+                        title={`Status fora do mapa do painel: ${stats.outrosStatus.join(", ")}`}
+                      />
+                    )}
+                  </div>
+                </div>
+              );
+            })}
 
             {/* O caminho de volta para os escondidos. Discreto de proposito:
                 e uma porta, nao um alarme — e so aparece quando ha o que
@@ -1821,6 +1968,7 @@ export default function PainelGeral() {
           </div>
         )}
       </section>
+      )}
 
       {/* ── Filter toolbar ──
           Sticky no desktop: com 15 eventos abertos, refinar um filtro obrigava
@@ -2326,7 +2474,7 @@ export default function PainelGeral() {
                           <span
                             title={selo.hint}
                             data-testid={`selo-evento-${eventKey}`}
-                            style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: selo.text, backgroundColor: selo.bg, border: `1px solid ${selo.border}`, borderRadius: 999, padding: "2px 8px", whiteSpace: "nowrap", flexShrink: 0 }}
+                            style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 600, lineHeight: 1.3, color: selo.text, backgroundColor: selo.bg, border: `1px solid ${selo.border}`, borderRadius: 999, padding: "1px 8px", whiteSpace: "nowrap", flexShrink: 0 }}
                           >
                             <span style={{ width: 6, height: 6, borderRadius: "50%", backgroundColor: selo.dot, flexShrink: 0 }} aria-hidden="true" />
                             {isCompact || useCards ? selo.short : selo.label}
@@ -2336,7 +2484,7 @@ export default function PainelGeral() {
                           <span
                             title={deadline.srLabel}
                             data-testid={`chip-prazo-${eventKey}`}
-                            style={{ fontSize: 10, fontWeight: 800, color: deadline.color, textTransform: "uppercase", letterSpacing: "0.06em", whiteSpace: "nowrap", flexShrink: 0 }}
+                            style={{ fontSize: 12, fontWeight: deadline.tone === "neutral" ? 500 : 700, color: deadline.color, whiteSpace: "nowrap", flexShrink: 0 }}
                           >
                             {deadline.text}
                           </span>
@@ -2362,15 +2510,15 @@ export default function PainelGeral() {
                             <span
                               data-testid={`chip-paradas-${eventKey}`}
                               title={`${paradas.length} ${paradas.length === 1 ? "peça parada" : "peças paradas"} há mais de ${LIMITE_PARADA} dias. A mais antiga: ${pior.i.displayId} em ${getStatusMeta(pior.i.status).label}, ${idadePorExtenso(pior.d)}.`}
-                              style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 10, fontWeight: 800, color: tom.cor, textTransform: "uppercase", letterSpacing: "0.06em", whiteSpace: "nowrap", flexShrink: 0 }}
+                              style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 12, fontWeight: tom.peso, color: tom.cor, whiteSpace: "nowrap", flexShrink: 0 }}
                             >
                               <Hourglass aria-hidden="true" style={{ width: 11, height: 11 }} />
-                              {paradas.length} {paradas.length === 1 ? "parada" : "paradas"} +{LIMITE_PARADA}d
+                              {paradas.length} {paradas.length === 1 ? "parada" : "paradas"} {isCompact ? `+${LIMITE_PARADA} dias` : `há mais de ${LIMITE_PARADA} dias`}
                             </span>
                           );
                         })()}
                         {firstItem?.event?.truckDepartureDate && (
-                          <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 10, fontWeight: 600, color: "#746e69", whiteSpace: "nowrap", flexShrink: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>
+                          <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, fontWeight: 500, color: "#746e69", whiteSpace: "nowrap", flexShrink: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>
                             <Truck style={{ width: 11, height: 11, flexShrink: 0 }} />
                             Saída: {format(toUTCDisplayDate(firstItem.event.truckDepartureDate), "dd MMM yyyy 'às' HH:mm", { locale: ptBR })}
                           </span>
@@ -2378,7 +2526,7 @@ export default function PainelGeral() {
                         {/* "Início" é o metadado menos acionável; some primeiro
                             em container estreito (continua na ficha do evento). */}
                         {firstItem?.event?.startDate && !isCompact && (
-                          <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 10, fontWeight: 600, color: "#746e69", whiteSpace: "nowrap", flexShrink: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>
+                          <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, fontWeight: 500, color: "#746e69", whiteSpace: "nowrap", flexShrink: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>
                             <Calendar style={{ width: 11, height: 11, flexShrink: 0 }} />
                             Início: {format(parseDateLocal(firstItem.event.startDate), "dd MMM yyyy", { locale: ptBR })}
                           </span>
@@ -2388,16 +2536,12 @@ export default function PainelGeral() {
                   </div>
                   <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
                     {!useCards && <EventStatusBar items={gd.items} width={120} />}
-                    {/* Contador é informação neutra — stone, não laranja: o
-                        laranja da marca fica reservado para ação/urgência. */}
-                    <span style={{
-                      padding: "4px 11px", borderRadius: 999,
-                      backgroundColor: "#f5f5f4", color: "#57534e",
-                      border: "1px solid #e7e5e4",
-                      fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em",
-                      whiteSpace: "nowrap",
-                    }}>
-                      {gd.items.length} {gd.items.length === 1 ? "peça" : "peças"}
+                    {/* Contador é informação neutra — texto simples, sem
+                        pílula nem caixa-alta: ao lado do chip de prazo e do
+                        selo, uma terceira cápsula só disputava o olho com os
+                        dois que pedem ação. #57534e sobre #ffffff = 7,63:1. */}
+                    <span style={{ fontSize: 12, fontWeight: 600, color: "#57534e", whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}>
+                      {fmtN(gd.items.length)} {gd.items.length === 1 ? "peça" : "peças"}
                     </span>
                   </div>
                 </div>
@@ -2429,21 +2573,21 @@ export default function PainelGeral() {
                       let cardIdx = 0;
                       return sortedGroups.map(group => (
                         <Fragment key={group || '__nogroup'}>
-                          {group && (
-                            <div style={{ padding: "6px 4px 4px", marginTop: 6, borderLeft: "3px solid #3b82f6", paddingLeft: 8, backgroundColor: "#e7f0fb", borderRadius: "6px 6px 0 0", overflow: "hidden" }}>
-                              <span style={{ fontSize: 10, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.12em", color: "#1d4ed8", fontFamily: "'Space Grotesk', sans-serif", display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                                {group}
-                              </span>
-                            </div>
-                          )}
+                          {/* A FAIXA AZUL DO GRUPO PAI SAIU TAMBÉM DAQUI. No
+                              desktop ela já tinha virado prefixo da linha de
+                              tipo; o celular ficou com a versão antiga — azul,
+                              caixa-alta 10px, uma família de cor que não se
+                              repete em lugar nenhum. Agora as duas larguras
+                              dizem "Grupo / Tipo  N" do mesmo jeito. */}
                           {Object.entries(groupMap[group]).map(([type, typeItems]) => (
                             <Fragment key={type}>
                               {/* Type sub-header */}
-                              <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 4px 4px", borderTop: "2px solid #e7e5e4", marginTop: group ? 0 : 6, overflow: "hidden" }}>
-                                <span style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: "#44403c", fontFamily: "'Space Grotesk', sans-serif", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0, flex: 1 }}>
+                              <div style={{ display: "flex", alignItems: "baseline", gap: 6, padding: "10px 4px 6px", marginTop: 4, overflow: "hidden" }}>
+                                <span style={{ fontSize: 13, fontWeight: 700, color: "#44403c", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0, flex: 1 }}>
+                                  {group && <span style={{ fontWeight: 500, color: "#746e69" }}>{group} / </span>}
                                   {type}
                                 </span>
-                                <span style={{ fontSize: 10, fontWeight: 800, color: "#57534e", backgroundColor: "#e7e5e4", borderRadius: 999, padding: "2px 8px", textTransform: "uppercase", letterSpacing: "0.06em", flexShrink: 0 }}>
+                                <span style={{ fontSize: 12, fontWeight: 600, color: "#746e69", flexShrink: 0, fontVariantNumeric: "tabular-nums" }}>
                                   {typeItems.length}
                                 </span>
                               </div>
@@ -2479,8 +2623,8 @@ export default function PainelGeral() {
                                         <SeloKit peca={item} style={{ flexShrink: 0 }} />
                                         <span style={{ fontSize: 11, fontWeight: 700, color: isDeleted ? "#746e69" : "#44403c", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0, textDecoration: isDeleted ? "line-through" : "none" }}>{item.type}</span>
                                         {item.isReuse && !isDeleted && (
-                                          <span style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", backgroundColor: "#dcfce7", color: "#166534", borderRadius: 999, padding: "2px 7px", flexShrink: 0 }}>
-                                            Reaproveit.
+                                          <span style={{ ...SELO_CALMO, flexShrink: 0 }}>
+                                            Reaproveitada
                                           </span>
                                         )}
                                       </div>
@@ -2503,7 +2647,7 @@ export default function PainelGeral() {
                                           <span
                                             title={selo.hintPeca}
                                             data-testid={`selo-peca-${item.id}`}
-                                            style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: selo.text, backgroundColor: selo.bg, border: `1px solid ${selo.border}`, borderRadius: 999, padding: "2px 7px", whiteSpace: "nowrap" }}
+                                            style={{ ...SELO_CALMO, color: selo.text, backgroundColor: selo.bg, border: `1px solid ${selo.border}` }}
                                           >
                                             {selo.labelPeca}
                                           </span>
@@ -2750,34 +2894,19 @@ export default function PainelGeral() {
                                           custo visual nenhum.
                                           O pai vem em peso e cor MENORES que o
                                           tipo: ele é contexto, o tipo é o rótulo. */}
-                                      <span style={{
-                                        fontSize: 11, fontWeight: 600,
-                                        textTransform: "uppercase", letterSpacing: "0.08em",
-                                        color: "#746e69",
-                                        fontFamily: "'Space Grotesk', sans-serif",
-                                      }}>
+                                      <span style={{ fontSize: 12, fontWeight: 500, color: "#746e69" }}>
                                         {group}
                                       </span>
                                       {/* #746e69: é glifo de texto, e a casa proíbe #a8a29e como cor de texto (2,52:1). */}
-                                      <span aria-hidden="true" style={{ color: "#746e69", fontSize: 11 }}>/</span>
+                                      <span aria-hidden="true" style={{ color: "#746e69", fontSize: 12 }}>/</span>
                                     </>
                                   )}
-                                  <span style={{
-                                    fontSize: 11, fontWeight: 800,
-                                    textTransform: "uppercase", letterSpacing: "0.08em",
-                                    color: "#44403c",
-                                    fontFamily: "'Space Grotesk', sans-serif",
-                                  }}>
+                                  <span style={{ fontSize: 13, fontWeight: 700, color: "#44403c" }}>
                                     {type}
                                   </span>
-                                  <span style={{
-                                    fontSize: 10, fontWeight: 800,
-                                    color: "#57534e",
-                                    backgroundColor: "#e7e5e4",
-                                    borderRadius: 999,
-                                    padding: "2px 8px",
-                                    textTransform: "uppercase", letterSpacing: "0.06em",
-                                  }}>
+                                  {/* A contagem deixou de ser pílula: número
+                                      simples, #746e69 sobre #f5f5f4 = 4,61:1. */}
+                                  <span style={{ fontSize: 12, fontWeight: 600, color: "#746e69", fontVariantNumeric: "tabular-nums" }}>
                                     {typeItems.length}
                                   </span>
                                 </div>
@@ -2871,7 +3000,7 @@ export default function PainelGeral() {
                                         <span
                                           title={selo.hintPeca}
                                           data-testid={`selo-peca-${item.id}`}
-                                          style={{ display: "inline-block", fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: selo.text, backgroundColor: selo.bg, border: `1px solid ${selo.border}`, borderRadius: 999, padding: "2px 7px", width: "fit-content", whiteSpace: "nowrap" }}
+                                          style={{ ...SELO_CALMO, color: selo.text, backgroundColor: selo.bg, border: `1px solid ${selo.border}` }}
                                         >
                                           {selo.labelPeca}
                                         </span>
@@ -2889,19 +3018,19 @@ export default function PainelGeral() {
                                         </span>
                                       )}
                                       {!isDeleted && item.isReuse && (
-                                        <span style={{ display: "inline-block", fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", backgroundColor: "#dcfce7", color: "#166534", borderRadius: 999, padding: "2px 7px", width: "fit-content" }}>
-                                          Reaproveit.
+                                        <span style={SELO_CALMO}>
+                                          Reaproveitada
                                         </span>
                                       )}
                                       {!isDeleted && item.referenceUrl && (
-                                        <a href={item.referenceUrl} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} title="Ver referência visual do solicitante" style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 10, fontWeight: 700, color: "#2563eb", textDecoration: "none", backgroundColor: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 6, padding: "2px 6px", width: "fit-content" }} data-testid={`link-reference-painel-${item.id}`}>
-                                          <Paperclip style={{ width: 9, height: 9 }} />
+                                        <a href={item.referenceUrl} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} title="Ver referência visual do solicitante" className="pg-anexo" style={{ ...SELO_CALMO, gap: 4, textDecoration: "none" }} data-testid={`link-reference-painel-${item.id}`}>
+                                          <Paperclip aria-hidden="true" style={{ width: 11, height: 11 }} />
                                           Ref. visual
                                         </a>
                                       )}
                                       {!isDeleted && item.bookUrl && (
-                                        <a href={item.bookUrl} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} title="Abrir book de aprovação (PDF) enviado pela Arte" style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 10, fontWeight: 700, color: "#6d28d9", textDecoration: "none", backgroundColor: "#f5f3ff", border: "1px solid #ddd6fe", borderRadius: 6, padding: "2px 6px", width: "fit-content" }} data-testid={`link-book-painel-${item.id}`}>
-                                          <FileText style={{ width: 9, height: 9 }} />
+                                        <a href={item.bookUrl} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} title="Abrir book de aprovação (PDF) enviado pela Arte" className="pg-anexo" style={{ ...SELO_CALMO, gap: 4, textDecoration: "none" }} data-testid={`link-book-painel-${item.id}`}>
+                                          <FileText aria-hidden="true" style={{ width: 11, height: 11 }} />
                                           Book
                                         </a>
                                       )}
@@ -2928,9 +3057,9 @@ export default function PainelGeral() {
                                            virou ícone com rótulo. */
                                         <span
                                           title={item.observations}
-                                          style={{ display: "inline-flex", alignItems: "center", gap: 4, flexShrink: 1, minWidth: 0, maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: "#57534e", backgroundColor: "#f0ede9", border: "1px solid #e2ddd8", borderRadius: 6, padding: "2px 6px" }}
+                                          style={{ ...SELO_CALMO, flexShrink: 1, minWidth: 0, maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", gap: 4, fontWeight: 500 }}
                                         >
-                                          <MessageSquare style={{ width: 9, height: 9, flexShrink: 0 }} aria-label="Observação" />
+                                          <MessageSquare style={{ width: 11, height: 11, flexShrink: 0 }} aria-label="Observação" />
                                           <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{item.observations}</span>
                                         </span>
                                       )}

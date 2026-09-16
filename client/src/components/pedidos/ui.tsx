@@ -80,9 +80,13 @@ export function ReferenciasDoPedido({ urls, tamanho = 44, onRemover, legenda = f
               <img src={miniatura(url)} alt={`Referência ${i + 1}`} loading="lazy" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
             </a>
             {onRemover && (
+              // ALVO DE 36, DESENHO DE 22. O × tinha 24px de área de clique
+              // sobre uma miniatura de 48 — no celular, errar o × abria a
+              // imagem em outra aba. O botão cresceu transparente; o círculo
+              // escuro visível continua do mesmo tamanho.
               <button type="button" onClick={() => onRemover(i)} aria-label={`Remover referência ${i + 1}`}
-                style={{ position: "absolute", top: -8, right: -8, width: 24, height: 24, borderRadius: R.pill, border: "2px solid #fff", background: "#1c1917", color: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, lineHeight: 1 }}>
-                ×
+                style={{ position: "absolute", top: -14, right: -14, zIndex: 1, width: 36, height: 36, borderRadius: R.pill, border: "none", background: "transparent", padding: 0, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <span aria-hidden="true" style={{ width: 22, height: 22, borderRadius: R.pill, border: "2px solid #fff", background: "#1c1917", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, lineHeight: 1, boxSizing: "border-box" }}>×</span>
               </button>
             )}
           </div>

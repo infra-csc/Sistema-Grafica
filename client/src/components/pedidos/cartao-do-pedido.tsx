@@ -154,7 +154,9 @@ export function LinhaDoCartao({ linha, agora, selo, acoes = [], mostrarEvento = 
       )}
       {acoes.length > 0 && (
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          {acoes.map((a) => <BotaoDoCartao key={a.chave} acao={a} altura={isMobile ? 44 : 32} descritoPor={`bloqueio-linha-${linha.id}`} />)}
+          {/* 36 e não 32: a régua da casa no ponteiro. Uma altura só para as
+              ações da peça, da solicitação e do detalhe — eram 32, 34 e 36. */}
+          {acoes.map((a) => <BotaoDoCartao key={a.chave} acao={a} altura={isMobile ? 44 : 36} descritoPor={`bloqueio-linha-${linha.id}`} />)}
         </div>
       )}
       <MotivosDoBloqueio acoes={acoes} id={`bloqueio-linha-${linha.id}`} />
@@ -218,7 +220,7 @@ export function CartaoDoPedido({ pedido, linhas, agora, seloDe, acoesDaLinha, ac
       </ul>
       {todasAsAcoes.length > 0 && (
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          {todasAsAcoes.map((a) => <BotaoDoCartao key={a.chave} acao={a} altura={isMobile ? 44 : 34} />)}
+          {todasAsAcoes.map((a) => <BotaoDoCartao key={a.chave} acao={a} altura={isMobile ? 44 : 36} />)}
         </div>
       )}
     </li>

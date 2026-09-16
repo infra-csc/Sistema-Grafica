@@ -46,7 +46,27 @@ type ToastItem = {
   action?: React.ReactNode
 }
 
-function NorteToast({ toast, onDismiss }: { toast: ToastItem; onDismiss: () => void }) {
+/** O texto legível de um ReactNode (string, número, fragmentos, elementos). */
+function textoDe(no: React.ReactNode): string {
+  if (no == null || typeof no === "boolean") return ""
+  if (typeof no === "string" || typeof no === "number") return String(no)
+  if (Array.isArray(no)) return no.map(textoDe).join("")
+  if (isValidElement<{ children?: React.ReactNode }>(no)) return textoDe(no.props.children)
+  return ""
+}
+
+/** A frase que o leitor de tela ouve: título, descrição e, se houver, a saída (F8). */
+function fraseDoAviso(t: ToastItem): string {
+  const partes = [textoDe(t.title), textoDe(t.description)].map(s => s.trim()).filter(Boolean)
+  if (isValidElement<{ altText?: string; children?: React.ReactNode }>(t.action)) {
+    const rotulo = t.action.props.altText || textoDe(t.action.props.children)
+    if (rotulo) partes.push(`Ação disponível: ${rotulo}. F8 leva até o aviso.`)
+  }
+  return partes.map(p => (/[.!?…:]$/.test(p) ? p : `${p}.`)).join(" ")
+}
+
+function NorteToast({ toast, onDismiss, devolverFoco }: { toast: ToastItem; onDismiss: () => void; devolverFoco: () => void }) {
+  const cartao = useRef<HTMLDivElement>(null)
   const [visible, setVisible] = useState(false)
   const [leaving, setLeaving] = useState(false)
   const isError = toast.variant === "destructive"
@@ -83,6 +103,9 @@ function NorteToast({ toast, onDismiss }: { toast: ToastItem; onDismiss: () => v
 
   function dismiss() {
     if (timer.current) { clearTimeout(timer.current); timer.current = null }
+    // Quem chegou pelo teclado (F8) e acionou "Desfazer" ou fechou não pode
+    // ficar com o foco no <body> quando o cartão sumir: volta para onde estava.
+    if (cartao.current?.contains(document.activeElement)) devolverFoco()
     setLeaving(true)
     setTimeout(onDismiss, 320)
   }
@@ -102,12 +125,12 @@ function NorteToast({ toast, onDismiss }: { toast: ToastItem; onDismiss: () => v
 
   return (
     <div
-      // Leitor de tela: o Toaster da casa substituiu o do Radix e, junto, a
-      // região viva que anunciava o aviso. Erro interrompe (alert); sucesso
-      // espera a vez (status).
-      role={isError ? "alert" : "status"}
-      aria-live={isError ? "assertive" : "polite"}
-      aria-atomic="true"
+      ref={cartao}
+      // O ANÚNCIO não mora mais aqui, e sim nas regiões vivas fixas do
+      // <Toaster> (ver o `anuncio` lá embaixo). Um role="status" que já NASCE com
+      // o texto é justamente o caso que os leitores de tela costumam ignorar —
+      // a região precisa existir antes do conteúdo mudar. Com a pilha de três,
+      // manter o role aqui também faria cada aviso ser lido duas vezes.
       data-testid={isError ? "toast-erro" : "toast"}
       onClick={dismiss}
       onMouseEnter={pausar}
@@ -169,6 +192,7 @@ function NorteToast({ toast, onDismiss }: { toast: ToastItem; onDismiss: () => v
           lado" não conte como aceitar a ação. */}
       {acao && (
         <div
+          data-acao-do-aviso=""
           onClick={e => { e.stopPropagation(); dismiss() }}
           style={{ display: "flex", alignItems: "center", alignSelf: "center", flexShrink: 0 }}
         >
@@ -215,37 +239,97 @@ function NorteToast({ toast, onDismiss }: { toast: ToastItem; onDismiss: () => v
 export function Toaster() {
   const { toasts, dismiss } = useToast()
   const [items, setItems] = useState<ToastItem[]>([])
+  const [anuncio, setAnuncio] = useState<{ id: string; texto: string; urgente: boolean } | null>(null)
+  const anunciado = useRef<string | null>(null)
+  const regiao = useRef<HTMLDivElement>(null)
+  const focoAnterior = useRef<HTMLElement | null>(null)
 
   useEffect(() => {
     const open = toasts.filter(t => t.open !== false)
     // Normalize variant: the hook type allows null but ToastItem only allows undefined.
-    setItems(open.map(t => ({ ...t, variant: t.variant ?? undefined })))
+    const normalizados = open.map(t => ({ ...t, variant: t.variant ?? undefined }))
+    setItems(normalizados)
+    // Só o aviso NOVO é anunciado (o topo da pilha); fechar um não reanuncia
+    // os que ficaram.
+    const novo = normalizados[0]
+    if (novo && novo.id !== anunciado.current) {
+      anunciado.current = novo.id
+      setAnuncio({ id: novo.id, texto: fraseDoAviso(novo), urgente: novo.variant === "destructive" })
+    }
   }, [toasts])
 
-  if (items.length === 0) return null
+  // F8 LEVA ATÉ O AVISO — o atalho que o Toaster do Radix tinha e que se
+  // perdeu quando o da casa o substituiu. Sem ele, quem usa teclado ouvia
+  // "Desfazer disponível" e não tinha como chegar lá: o cartão fica no fim do
+  // DOM, depois da página inteira. Foca a ação do aviso mais novo (ou o
+  // fechar), o que também PAUSA o relógio dele.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "F8" || e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) return
+      // A AÇÃO primeiro, mesmo que um aviso sem ação tenha chegado depois:
+      // é ela que precisa de caminho pelo teclado. Sem ação, o fechar.
+      const alvo = regiao.current?.querySelector<HTMLElement>("[data-acao-do-aviso] button, [data-acao-do-aviso] a")
+        ?? regiao.current?.querySelector<HTMLElement>("button[aria-label='Fechar aviso']")
+      if (!alvo) return
+      e.preventDefault()
+      if (!regiao.current?.contains(document.activeElement)) {
+        focoAnterior.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
+      }
+      alvo.focus()
+    }
+    window.addEventListener("keydown", onKey)
+    return () => window.removeEventListener("keydown", onKey)
+  }, [])
 
+  const devolverFoco = () => {
+    const destino = focoAnterior.current
+    focoAnterior.current = null
+    if (destino && document.contains(destino)) destino.focus()
+  }
+
+  // Regiões vivas FIXAS, montadas desde o início: é a condição para o leitor
+  // de tela anunciar o que entra nelas. Erro interrompe (assertive); o resto
+  // espera a vez (polite). A `key` troca o nó a cada aviso, então o mesmo
+  // texto repetido também é lido.
   return (
-    <div
-      // Região nomeada: quem navega por landmarks encontra os avisos.
-      role="region"
-      aria-label="Avisos"
-      style={{
-        position: "fixed",
-        bottom: 20,
-        right: 20,
-        zIndex: 99999,
-        display: "flex",
-        flexDirection: "column",
-        gap: 10,
-        alignItems: "flex-end",
-        pointerEvents: "none",
-      }}
-    >
-      {items.map(toast => (
-        <div key={toast.id} style={{ pointerEvents: "auto" }}>
-          <NorteToast toast={toast} onDismiss={() => dismiss(toast.id)} />
+    <>
+      <div className="sr-only" aria-live="polite" aria-atomic="true" data-testid="anuncio-dos-avisos">
+        {anuncio && !anuncio.urgente && <p key={anuncio.id}>{anuncio.texto}</p>}
+      </div>
+      <div className="sr-only" aria-live="assertive" aria-atomic="true">
+        {anuncio && anuncio.urgente && <p key={anuncio.id}>{anuncio.texto}</p>}
+      </div>
+      {items.length > 0 && (
+        <div
+          ref={regiao}
+          // Região nomeada: quem navega por landmarks encontra os avisos.
+          role="region"
+          aria-label="Avisos (F8)"
+          style={{
+            position: "fixed",
+            // 16 e não 20: a 390px o cartão (360, limitado a 100vw − 32)
+            // encostava a 12px da borda esquerda. E a área segura do iPhone
+            // não pode esconder a ação embaixo da barra de gestos.
+            bottom: "calc(16px + env(safe-area-inset-bottom, 0px))",
+            right: 16,
+            zIndex: 99999,
+            display: "flex",
+            // PILHA DE ATÉ TRÊS (ver TOAST_LIMIT). O mais novo entra EM CIMA
+            // e os de baixo não se mexem: quem já levava o ponteiro até o
+            // "Desfazer" não vê o alvo fugir quando chega outro aviso.
+            flexDirection: "column",
+            gap: 8,
+            alignItems: "flex-end",
+            pointerEvents: "none",
+          }}
+        >
+          {items.map(toast => (
+            <div key={toast.id} style={{ pointerEvents: "auto" }}>
+              <NorteToast toast={toast} onDismiss={() => dismiss(toast.id)} devolverFoco={devolverFoco} />
+            </div>
+          ))}
         </div>
-      ))}
-    </div>
+      )}
+    </>
   )
 }

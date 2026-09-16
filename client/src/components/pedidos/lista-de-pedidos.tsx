@@ -105,7 +105,9 @@ export function ListaDePedidos({ podePedir, podeResolver }: {
   const [alvo, setAlvo] = useState<AlvoDaAcao | null>(null);
   const [detalhe, setDetalhe] = useState<string | null>(null);
   const agora = new Date();
-  const toque = isMobile ? 44 : 34;
+  // 36 no ponteiro, 44 no toque — a régua da casa. Eram 34: a faixa inteira
+  // (busca, seletores, chips) ficava 2px abaixo do mínimo.
+  const toque = isMobile ? 44 : 36;
 
   // URL espelhando o recorte com 300ms de atraso: sem o debounce cada tecla da
   // busca escreveria um replaceState. `replaceState` e não `pushState` —
@@ -134,7 +136,13 @@ export function ListaDePedidos({ podePedir, podeResolver }: {
     return () => window.removeEventListener("popstate", onPop);
   }, [ordemPadrao]);
 
-  const { data: pedidosCrus = [], isLoading, isError, refetch } = useQuery<PedidoDePeca[]>({ queryKey: [`/api/pedidos-de-peca?limite=${limite}`] });
+  // `placeholderData` mantém a lista atual enquanto a página maior chega: o
+  // limite faz parte da chave, então "Carregar mais antigas" trocava a lista
+  // inteira pelo esqueleto e jogava a rolagem de volta ao topo.
+  const { data: pedidosCrus = [], isLoading, isError, isPlaceholderData, refetch } = useQuery<PedidoDePeca[]>({
+    queryKey: [`/api/pedidos-de-peca?limite=${limite}`],
+    placeholderData: (anterior) => anterior,
+  });
   // Servidor antigo (sem reiniciar depois do Pull) manda solicitação sem as
   // peças: fica de fora em vez de derrubar a tela.
   const pedidos = useMemo(() => pedidosCrus.filter((p) => Array.isArray(p?.linhas)), [pedidosCrus]);
@@ -289,7 +297,7 @@ export function ListaDePedidos({ podePedir, podeResolver }: {
               onKeyDown={(e) => { if (e.key === "Escape" && busca) { e.preventDefault(); setBusca(""); } }}
               aria-label="Buscar solicitações por evento, patrocinador, observação, quem solicitou ou peça"
               placeholder="Evento, patrocinador, observação, quem solicitou…"
-              style={{ width: "100%", boxSizing: "border-box", height: toque, padding: "0 34px 0 32px", borderRadius: R.md, border: "1px solid #e7e5e4", fontSize: FS.body, color: T.text, outline: "none" }} />
+              style={{ width: "100%", boxSizing: "border-box", height: toque, padding: "0 34px 0 32px", borderRadius: R.md, border: "1px solid #e7e5e4", fontSize: FS.body, color: T.text }} />
             {busca && (
               <button type="button" onClick={() => setBusca("")} aria-label="Limpar a busca" data-testid="button-limpar-busca-pedidos"
                 style={{ position: "absolute", right: 4, top: "50%", transform: "translateY(-50%)", width: toque - 8, height: toque - 8, borderRadius: R.pill, border: "none", background: "none", color: "#57534e", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -311,7 +319,7 @@ export function ListaDePedidos({ podePedir, podeResolver }: {
             triggerStyle={{ height: toque }} />
           {podePedir && (
             <button type="button" data-testid="button-novo-pedido" onClick={() => setNovaAberta(true)}
-              style={{ display: "inline-flex", alignItems: "center", gap: 6, height: isMobile ? 44 : 38, padding: "0 16px", borderRadius: R.md, border: "none", background: "#1c1917", color: "#fff", fontSize: FS.body, fontWeight: 800, cursor: "pointer", marginLeft: isMobile ? 0 : "auto" }}>
+              style={{ display: "inline-flex", alignItems: "center", gap: 6, height: toque, padding: "0 16px", borderRadius: R.md, border: "none", background: "#1c1917", color: "#fff", fontSize: FS.body, fontWeight: 800, cursor: "pointer", marginLeft: isMobile ? 0 : "auto" }}>
               <Plus size={15} aria-hidden="true" /> Nova solicitação
             </button>
           )}
@@ -348,9 +356,19 @@ export function ListaDePedidos({ podePedir, podeResolver }: {
         </div>
       )}
 
+      {/* Falha ao ATUALIZAR não é falha ao carregar: o React Query mantém a
+          última lista, e trocá-la inteira por uma frase de erro (como era)
+          escondia justamente o que a pessoa estava lendo. */}
+      {isError && pedidos.length > 0 && (
+        <p role="alert" data-testid="aviso-pedidos-desatualizados" style={{ margin: 0, padding: "8px 16px", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", fontSize: FS.body, color: "#991b1b", background: "#fef2f2", borderBottom: "1px solid #fecaca" }}>
+          Não foi possível atualizar — a lista abaixo pode estar desatualizada.
+          <button type="button" onClick={() => refetch()} style={{ border: "none", background: "none", padding: "0 4px", fontSize: FS.body, fontWeight: 800, textDecoration: "underline", cursor: "pointer", color: T.text, minHeight: toque }}>Tentar de novo</button>
+        </p>
+      )}
+
       {isLoading ? (
         <ListaCarregando />
-      ) : isError ? (
+      ) : isError && pedidos.length === 0 ? (
         <p role="alert" style={{ margin: 0, padding: 20, fontSize: FS.body, color: "#b91c1c" }}>
           Não foi possível carregar as solicitações. Verifique a conexão.{" "}
           <button type="button" onClick={() => refetch()} style={{ border: "none", background: "none", fontWeight: 800, textDecoration: "underline", cursor: "pointer", color: T.text, minHeight: toque }}>Tentar de novo</button>
@@ -382,11 +400,12 @@ export function ListaDePedidos({ podePedir, podeResolver }: {
         </ul>
       )}
 
-      {pedidos.length >= limite && (
+      {(pedidos.length >= limite || isPlaceholderData) && (
         <div style={{ padding: 12, borderTop: "1px solid #f1f0ef", textAlign: "center" }}>
           <button type="button" data-testid="button-mais-pedidos" onClick={() => setLimite((l) => l + PASSO)}
-            style={{ height: toque, padding: "0 16px", borderRadius: R.md, border: "1px solid #e7e5e4", background: "#fff", color: T.text, fontSize: FS.body, fontWeight: 700, cursor: "pointer" }}>
-            Carregar solicitações mais antigas
+            disabled={isPlaceholderData} aria-busy={isPlaceholderData || undefined}
+            style={{ height: toque, padding: "0 16px", borderRadius: R.md, border: "1px solid #e7e5e4", background: "#fff", color: T.text, fontSize: FS.body, fontWeight: 700, cursor: isPlaceholderData ? "wait" : "pointer" }}>
+            {isPlaceholderData ? "Carregando as mais antigas…" : "Carregar solicitações mais antigas"}
           </button>
         </div>
       )}

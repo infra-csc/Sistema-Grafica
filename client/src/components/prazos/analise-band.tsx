@@ -232,7 +232,10 @@ export function AnaliseBand({
                         title={s.url
                           ? `Abrir ${s.sector} já na fase de ${s.stageLabel}`
                           : "Peças desta etapa nascem no evento — abrir a lista de eventos"}
-                        style={{ display: "inline-block", marginTop: 6, fontSize: 11, fontWeight: 600, color: TI.secondary, textDecoration: "none" }}
+                        // `inline-flex` + minHeight: com `inline-block` o
+                        // alvo era a altura do texto de 11px (~16px), logo
+                        // abaixo de um botão que já tinha 36/44.
+                        style={{ display: "inline-flex", alignItems: "center", minHeight: alturaToggle, marginTop: 2, fontSize: 11, fontWeight: 600, color: TI.secondary, textDecoration: "none" }}
                       >
                         Abrir {s.url ? s.sector : "Eventos"} →
                       </Link>
@@ -459,7 +462,7 @@ export function AnaliseBand({
                     onClick={() => setVerTodosSponsors((v) => !v)}
                     className="gp-no-print"
                     style={{
-                      display: "block", width: "100%", padding: "10px 0",
+                      display: "block", width: "100%", padding: "10px 0", minHeight: alturaToggle,
                       background: "none", border: "none", borderTop: `1px solid ${TI.rule}`,
                       fontSize: 12, fontWeight: 600, color: TI.secondary, cursor: "pointer",
                     }}
@@ -499,6 +502,12 @@ export function AnaliseBand({
                       aria-pressed={ativo}
                       data-testid={`dia-${d.dia}`}
                       title={`${d.total} prazo${d.total !== 1 ? "s" : ""} vencendo em ${fmtDayMonth(d.dia)}`}
+                      // Sem isto o nome acessível era o texto cru da coluna —
+                      // "3 18/09" — e o `title` não é lido de forma confiável.
+                      // O nome é FIXO de propósito: o estado ligado/desligado
+                      // já sai do `aria-pressed`, e um rótulo que muda junto
+                      // faria o leitor anunciar a mesma coisa duas vezes.
+                      aria-label={`Filtrar por ${fmtDayMonth(d.dia)}: ${d.total} prazo${d.total !== 1 ? "s" : ""} vencendo`}
                       style={{
                         flex: "1 1 44px", minWidth: 44, display: "flex", flexDirection: "column",
                         alignItems: "center", justifyContent: "flex-end", gap: 4,

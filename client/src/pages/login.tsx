@@ -218,7 +218,11 @@ export default function Login() {
               fontFamily: "'Space Grotesk', sans-serif",
               fontSize: 36, fontWeight: 700, color: "#1c1917",
               letterSpacing: "-0.04em", margin: "0 0 8px 0",
-            }}>Bem-vindo de volta</h3>
+            }}>
+              {/* "Bem-vindo de volta" pressupunha visita anterior — a primeira
+                  tela de quem nunca entrou dizia que ele já tinha estado aqui. */}
+              Entrar no NORTE
+            </h3>
             <p style={{ color: "#746e69", fontWeight: 500, fontSize: 14, margin: 0 }}>
               Acesse o sistema pelo portal NORTE.
             </p>
@@ -286,7 +290,12 @@ export default function Login() {
                 Login via Microsoft
               </p>
               <p style={{ margin: 0, fontSize: 13, color: "#746e69", lineHeight: 1.5 }}>
-                O acesso ao sistema é feito exclusivamente pelo portal NORTE. Use sua conta Microsoft corporativa para entrar.
+                O acesso ao sistema é feito pelo portal NORTE. Use sua conta Microsoft corporativa para entrar.
+              </p>
+              {/* O caso que travava o primeiro uso: o e-mail não cadastrado
+                  só descobria isso DEPOIS de ir ao portal e voltar com erro. */}
+              <p style={{ margin: "8px 0 0", fontSize: 12, color: "#57534e", lineHeight: 1.5 }}>
+                Ainda sem acesso? Peça ao administrador do sistema para cadastrar o seu e-mail.
               </p>
               {/* O card mandava ir ao portal e não levava até ele. Só aparece
                   quando o endereço do portal está configurado — o mesmo
@@ -323,7 +332,11 @@ export default function Login() {
               fontFamily: "inherit",
             }}
           >
-            <span>Acesso de administrador</span>
+            {/* O formulário aceita QUALQUER usuário com senha (POST
+                /api/auth/login não olha perfil). "Acesso de administrador"
+                fazia quem tem senha cadastrada sem ser admin achar que ali não
+                era para ele — e não havia outro lugar para usá-la. */}
+            <span>Entrar com e-mail e senha</span>
             {showAdminForm
               ? <ChevronUp style={{ width: 15, height: 15 }} />
               : <ChevronDown style={{ width: 15, height: 15 }} />
@@ -344,8 +357,14 @@ export default function Login() {
                 border: "1px solid #e7e5e4",
               }}
             >
-              <p style={{ margin: 0, fontSize: 12, color: "#746e69" }}>
-                Acesso por e-mail e senha.
+              {/* SEM PROMETER SENHA. A tela Usuários não define senha (o
+                  cadastro via POST /api/auth/register grava um hash aleatório
+                  quando não recebe senha — conta só-SSO), e o "pede senha nova
+                  no primeiro acesso" também não vale: o boot do servidor zera
+                  must_change_password de todos (server/index.ts). A frase
+                  antiga mandava gente esperar uma senha que ninguém entrega. */}
+              <p style={{ margin: 0, fontSize: 12, color: "#57534e", lineHeight: 1.5 }}>
+                Só para contas que já têm senha cadastrada. A equipe entra pelo portal NORTE, com a conta Microsoft — o cadastro de usuários não cria senha.
               </p>
 
               {/* Email */}

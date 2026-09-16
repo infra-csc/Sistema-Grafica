@@ -25,7 +25,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { Search, CalendarDays, FileText, CornerDownLeft, Loader2 } from "lucide-react";
-import { getStatusLabel } from "@/lib/status";
+import { getStatusLabel, guiaDoStatus } from "@/lib/status";
 
 interface PecaEncontrada {
   id: string; displayId: string; type: string; description: string | null;
@@ -204,7 +204,7 @@ export function BuscaGlobal() {
             value={termo}
             onChange={(e) => setTermo(e.target.value)}
             onKeyDown={onInputKey}
-            placeholder="Código da peça (#2993), descrição ou evento…"
+            placeholder="Código (#2993), tipo, descrição ou evento…"
             aria-label="Buscar peça ou evento"
             role="combobox"
             aria-expanded={linhas.length > 0}
@@ -234,10 +234,23 @@ export function BuscaGlobal() {
         </div>
 
         <div ref={listaRef} id="busca-global-resultados" role="listbox" aria-label="Resultados" style={{ overflowY: "auto", overscrollBehavior: "contain", padding: linhas.length ? 8 : 0 }}>
+          {/* O QUE DÁ PARA BUSCAR, E O QUE ACONTECE AO ESCOLHER. A dica antiga
+              só dizia o mínimo de caracteres — quem abria a paleta pela
+              primeira vez não sabia se "Banner" ou o nome do patrocinador
+              achariam alguma coisa (o primeiro acha; o segundo não: /api/busca
+              olha código, tipo e descrição da peça e o nome do evento). */}
           {t.length < 2 && (
-            <p style={MENSAGEM}>
-              Digite ao menos 2 caracteres. Dica: o código funciona com ou sem o “#”.
-            </p>
+            <div style={{ ...MENSAGEM, display: "flex", flexDirection: "column", gap: 6 }}>
+              <p style={{ margin: 0, color: "#44403c", fontWeight: 600 }}>
+                Busque por código da peça, tipo, descrição ou nome do evento.
+              </p>
+              <p style={{ margin: 0 }}>
+                Ex.: <strong style={{ color: "#44403c" }}>#2993</strong>, <strong style={{ color: "#44403c" }}>Banner</strong> ou o nome do evento. Digite ao menos 2 caracteres — o código funciona com ou sem o “#”.
+              </p>
+              <p style={{ margin: 0 }}>
+                A peça abre na ficha dela, dentro do evento; o evento abre a página dele.
+              </p>
+            </div>
           )}
           {t.length >= 2 && buscando && linhas.length === 0 && (
             <p role="status" style={MENSAGEM}>Buscando “{t}”…</p>
@@ -274,7 +287,9 @@ export function BuscaGlobal() {
                   {p.displayId} · {p.type}{p.description ? ` — ${p.description}` : ""}
                 </span>
                 <span style={{ display: "block", fontSize: 11.5, color: "#746e69", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                  {p.eventName ?? "Sem evento"} · {getStatusLabel(p.status)}
+                  {/* "de quem é a vez" junto da etapa: quem busca uma peça citada
+                      no WhatsApp quase sempre quer saber com quem ela está. */}
+                  {p.eventName ?? "Sem evento"} · {getStatusLabel(p.status)}{guiaDoStatus(p.status) ? ` (${guiaDoStatus(p.status)!.vez})` : ""}
                 </span>
               </span>
               {ativo === i && <CornerDownLeft aria-hidden="true" style={{ width: 13, height: 13, color: "#a8a29e", flexShrink: 0 }} />}

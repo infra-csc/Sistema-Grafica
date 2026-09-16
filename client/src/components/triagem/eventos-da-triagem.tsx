@@ -113,6 +113,14 @@ export function EventosDaTriagem({ ativos, reservaPorAtivo, isLoading, isError, 
                 ? "Nada esperando triagem."
                 : `${eventos.length} ${eventos.length === 1 ? "evento voltou" : "eventos voltaram"} · ${totalPecas} ${totalPecas === 1 ? "peça esperando" : "peças esperando"} — escolha um para começar`}
             </p>
+            {/* O QUE É TRIAR, para quem abre a tela pela primeira vez: a
+                palavra sozinha não dizia o que se decide nem que dá para
+                rearrumar antes de gravar. */}
+            {!isLoading && totalPecas > 0 && (
+              <p data-testid="dica-o-que-e-triar" style={{ margin: "4px 0 0", fontSize: 12.5, color: "#64748b", lineHeight: 1.45 }}>
+                Triar = decidir, peça por peça, se volta ao <strong style={{ color: "#1e40af" }}>Galpão</strong> (com o local), vai para <strong style={{ color: "#92400e" }}>Manutenção</strong> ou é <strong style={{ color: "#991b1b" }}>descartada</strong>. Nada é gravado até salvar.
+              </p>
+            )}
           </div>
         </div>
         {totalPecas > 0 && (

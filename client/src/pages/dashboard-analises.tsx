@@ -1005,13 +1005,21 @@ export default function DashboardAnalises() {
           </h1>
           <p style={{ fontSize: FS.small, color: T.second, margin: `${SP.intra}px 0 0`, maxWidth: 680, lineHeight: 1.5 }}>
             O passado e o futuro da operação: desempenho dos <strong style={{ fontWeight: 700 }}>ciclos já encerrados</strong> e a
-            carga que ainda vai vencer. O que está em andamento hoje fica no Painel Geral e na Gestão de Prazos.
+            carga que ainda vai vencer. O que está em andamento hoje fica no{" "}
+            {/* Os dois nomes eram texto morto: a frase apontava o destino e
+                obrigava a pessoa a achá-lo no menu. Viram links, com a mesma
+                navegação SPA do resto da tela (setLocation). */}
+            <a href="/" onClick={(e) => { e.preventDefault(); setLocation("/"); }} data-testid="link-analises-painel"
+              style={{ color: ACCENT_TEXT, fontWeight: 700, textDecoration: "underline", textUnderlineOffset: 2 }}>Painel Geral</a>
+            {" "}e na{" "}
+            <a href="/prazos" onClick={(e) => { e.preventDefault(); setLocation("/prazos"); }} data-testid="link-analises-prazos"
+              style={{ color: ACCENT_TEXT, fontWeight: 700, textDecoration: "underline", textUnderlineOffset: 2 }}>Gestão de Prazos</a>.
           </p>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 12, flexShrink: 0 }}>
           <span
             data-testid="selo-frescor-analises"
-            title={new Date(atualizadoEmMs).toLocaleString("pt-BR")}
+            title={`Dados de ${new Date(atualizadoEmMs).toLocaleString("pt-BR")}. A tela se atualiza sozinha quando alguém muda uma peça ou evento, ao voltar para a aba e, por segurança, a cada 5 minutos.`}
             style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: FS.small, color: dadoVelho ? "#b45309" : T.second, fontWeight: dadoVelho ? 700 : 400 }}
           >
             {isFetching && <RotateCcw aria-hidden="true" className="animate-spin" style={{ width: 11, height: 11 }} />}

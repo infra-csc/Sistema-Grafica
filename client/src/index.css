@@ -368,6 +368,16 @@
     background-color: var(--elevate-2);
   }
 
+  /* Botão desabilitado recebe o ponteiro (para o `title` com o motivo
+     aparecer — ver components/ui/button.tsx), mas não pode ACENDER no hover:
+     realce é promessa de clique, e o clique não vai acontecer. */
+  .hover-elevate:disabled:hover::after,
+  .active-elevate:disabled:active::after,
+  .hover-elevate-2:disabled:hover::after,
+  .active-elevate-2:disabled:active::after {
+    background-color: transparent;
+  }
+
   /* If there's a 1px border, adjust the inset so that it covers that parent's border */
   .border.hover-elevate:not(.no-hover-interaction-elevate)::after,
   .border.active-elevate:not(.no-active-interaction-elevate)::after,

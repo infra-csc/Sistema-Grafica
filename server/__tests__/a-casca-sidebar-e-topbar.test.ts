@@ -70,7 +70,8 @@ describe("2. os 18 itens cabem sem serem esmagados", () => {
 
   it("o rótulo mais longo do menu trunca com title", () => {
     // "Vincular Patrocinadores" era o único que podia encostar na borda.
-    expect(codigo).toContain('<span title={item.title}');
+    // 16/09: o title passou a dizer também PARA QUE SERVE a tela.
+    expect(codigo).toContain("<span title={DESCRICAO_DA_TELA[item.url] ? `${item.title} — ${DESCRICAO_DA_TELA[item.url]}` : item.title}");
   });
 });
 

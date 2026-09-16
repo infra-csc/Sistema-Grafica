@@ -427,6 +427,15 @@ export default function Modelos() {
     },
   });
 
+  // "SALVAR E CADASTRAR OUTRO" — o Duplicar resolve "um parecido com ESTE";
+  // faltava "vários seguidos" sem fechar e reabrir. Mesmo POST, mesmo
+  // onSuccess; só não fecha: limpa o NOME, mantém o resto (tipo, grupo,
+  // material, acabamento e medidas — é o que se repete numa família de
+  // peças) e diz isso na faixa verde, para a medida herdada não passar
+  // despercebida. Ref, não estado: só o onSuccess lê.
+  const continuarRef = useRef(false);
+  const [criadosNestaSequencia, setCriadosNestaSequencia] = useState<string[]>([]);
+
   const createStandardItemMutation = useMutation({
     mutationFn: async (data: typeof formData) => {
       if (editingItem) {
@@ -436,6 +445,20 @@ export default function Modelos() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/standard-items"] });
+      if (continuarRef.current && !editingItem) {
+        continuarRef.current = false;
+        const proximo = { ...formData, name: "" };
+        setCriadosNestaSequencia(prev => [...prev, formData.name]);
+        setFormData(proximo);
+        // A "foto" da guarda de descarte passa a ser o formulário novo: fechar
+        // agora sem mexer em nada não pode perguntar "descartar?".
+        formInicialRef.current = JSON.stringify(proximo);
+        setDuplicando(false); setArqTocado(false); setCienteDoCorte(false);
+        toast({ title: "Modelo criado", description: `"${formData.name}" já está no catálogo. Preencha o próximo.` });
+        window.setTimeout(() => nomeRef.current?.focus(), 0);
+        return;
+      }
+      continuarRef.current = false;
       setOpen(false);
       setEditingItem(null);
       setFormData({ ...EMPTY_FORM });
@@ -448,7 +471,8 @@ export default function Modelos() {
     onError: (error: Error) => {
       // O modal continua aberto com tudo o que foi digitado — o título diz
       // que nada se perdeu e que dá para tentar de novo dali mesmo.
-      toast({ title: editingItem ? "Não foi possível salvar o modelo" : "Não foi possível criar o modelo", description: error.message, variant: "destructive" });
+      continuarRef.current = false;
+      toast({ title: editingItem ? "Não foi possível salvar o modelo" : "Não foi possível criar o modelo", description: `${error.message} — nada foi salvo; o que você digitou continua no formulário.`, variant: "destructive" });
     },
   });
 
@@ -475,6 +499,9 @@ export default function Modelos() {
     e.preventDefault();
     if (corteNoForm && !cienteDoCorte) {
       // Não bloqueia de vez: força o aviso a aparecer e pede o "entendi".
+      // O pedido de "cadastrar outro" não sobrevive à parada: o próximo
+      // Enter não pode herdá-lo sem o clique no botão.
+      continuarRef.current = false;
       setArqTocado(true);
       return;
     }
@@ -541,11 +568,13 @@ export default function Modelos() {
       hasVariableMeasurement: item.hasVariableMeasurement || false,
     });
     setArqTocado(false); setCienteDoCorte(false);
+    setCriadosNestaSequencia([]);
     setDuplicando(true);
     setOpen(true);
   };
 
   const handleCloseDialog = () => {
+    setCriadosNestaSequencia([]);
     setOpen(false);
     setEditingItem(null);
     setFormData({ ...EMPTY_FORM });
@@ -572,6 +601,7 @@ export default function Modelos() {
   // o formulário e podia herdar o rascunho de uma edição anterior.
   const openCreate = () => {
     setEditingItem(null); setFormData({ ...EMPTY_FORM }); setDuplicando(false);
+    setCriadosNestaSequencia([]);
     setArqTocado(false); setCienteDoCorte(false); setOpen(true);
   };
 
@@ -657,8 +687,14 @@ export default function Modelos() {
           <h1 style={{ fontSize: FS.h1, fontWeight: 700, color: T.text, margin: "0 0 6px", letterSpacing: "-0.03em", lineHeight: 1.1, fontFamily: "'Space Grotesk', sans-serif" }}>
             Modelos
           </h1>
-          <p style={{ fontSize: FS.body, color: T.second, margin: 0, lineHeight: 1.5, maxWidth: 640 }}>
-            Catálogo de modelos reutilizáveis de peças gráficas
+          {/* ONDE O MODELO É USADO. "Catálogo reutilizável" não dizia onde ele
+              reaparece. Conferido no código: o formulário de peça do evento
+              lista os modelos no campo Tipo e, escolhido um, preenche medidas,
+              material e acabamento (event-detail.tsx, "Selecionar um Modelo
+              pré-preenche"); o Grupo Pai agrupa as peças no evento, na Arte e
+              na Gráfica (`groupOf`). */}
+          <p style={{ fontSize: FS.body, color: T.second, margin: 0, lineHeight: 1.5, maxWidth: 680 }}>
+            Peças padrão com medidas prontas. Ao adicionar uma peça no evento, escolher o modelo no campo Tipo já preenche medidas, material e acabamento.
           </p>
         </div>
 
@@ -674,7 +710,9 @@ export default function Modelos() {
             onMouseLeave={e => { e.currentTarget.style.backgroundColor = T.surface; }}
           >
             <Settings aria-hidden="true" style={{ width: 15, height: 15 }} />
-            Gerenciar
+            {/* "Gerenciar" o quê? O modal que abre é de grupos, materiais e
+                acabamentos — o rótulo passa a dizer. */}
+            {isMobile ? "Categorias" : "Gerenciar categorias"}
           </button>
 
           {/* New Model Button */}
@@ -1054,6 +1092,15 @@ export default function Modelos() {
           <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", flex: "1 1 auto", minHeight: 0 }}>
             <div style={{ padding: isMobile ? "20px 18px" : "24px 28px", display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 20, overflowY: "auto", flex: "1 1 auto", minHeight: 0 }}>
 
+              {/* "SALVOU?" com o modal aberto — e o aviso de que o resto do
+                  formulário veio do modelo anterior (medida herdada sem aviso
+                  vira peça errada). */}
+              {!editingItem && criadosNestaSequencia.length > 0 && (
+                <p role="status" data-testid="modelos-criados-na-sequencia" style={{ gridColumn: "1 / -1", margin: 0, padding: "9px 12px", borderRadius: 6, backgroundColor: "#f0fdf4", border: "1px solid #bbf7d0", fontSize: 12, lineHeight: 1.45, color: "#166534" }}>
+                  {criadosNestaSequencia.length === 1 ? "1 modelo criado" : `${criadosNestaSequencia.length} modelos criados`} nesta sequência: {criadosNestaSequencia.join(", ")}. Tipo, grupo, medidas, material e acabamento ficaram como no anterior — confira antes de salvar o próximo.
+                </p>
+              )}
+
               {/* Nome */}
               <div>
                 <label htmlFor="model-name" style={labelStyle}>Nome do Modelo</label>
@@ -1067,6 +1114,13 @@ export default function Modelos() {
                   data-testid="input-model-name"
                   style={fieldStyle}
                 />
+                {/* Cada campo diz ONDE reaparece — é o que decide como
+                    preenchê-lo. #57534e sobre o branco do modal = 7,6:1.
+                    A dica do começo do nome é regra, não estilo: a peça criada
+                    do modelo recebe o NOME como tipo, e o Auto-vincular por
+                    cota casa o grupo pelo INÍCIO do tipo (matchesGroup em
+                    server/storage.ts) — "Backdrop Palco" não cai em "Palco". */}
+                <p style={{ margin: "5px 2px 0", fontSize: 11, lineHeight: 1.4, color: "#57534e" }}>Aparece no campo Tipo ao adicionar peça no evento. Comece pelo Tipo (ex.: “Palco Lateral”) para o Auto-vincular por cota reconhecer a peça.</p>
               </div>
 
               {/* Tipo — combobox: catálogo + valores já usados, com criação.
@@ -1144,6 +1198,9 @@ export default function Modelos() {
                     Limpar
                   </button>
                 )}
+                {/* /api/quota-rules/groups lista o `type` dos modelos: é daqui
+                    que nasce a linha da grade de Configurar Cotas. */}
+                <p style={{ margin: "5px 2px 0", fontSize: 11, lineHeight: 1.4, color: "#57534e" }}>Vira uma linha em Configurar Cotas (ex.: Palco, Pórtico).</p>
               </div>
 
               {/* Grupo Pai */}
@@ -1255,6 +1312,7 @@ export default function Modelos() {
                     Limpar
                   </button>
                 )}
+                <p style={{ margin: "5px 2px 0", fontSize: 11, lineHeight: 1.4, color: "#57534e" }}>Agrupa as peças nas listas do evento, da Arte e da Gráfica.</p>
               </div>
 
               {/* Toggle Medida Variável — col-span-2 */}
@@ -1293,10 +1351,12 @@ export default function Modelos() {
                 <label style={{ ...labelStyle, marginBottom: 10, display: "flex", alignItems: "center", gap: 8 }}>
                   Medidas Visuais
                   <span style={{ fontSize: 10, fontWeight: 700, color: "#746e69", backgroundColor: "#f5f4f0", borderRadius: 6, padding: "2px 6px", letterSpacing: "0.06em" }}>VIS.</span>
+                  {/* VIS × ARQ era sigla sem legenda para quem chega. */}
+                  <span style={{ fontSize: 10, fontWeight: 500, color: "#746e69", textTransform: "none", letterSpacing: 0 }}>— o que aparece na peça montada</span>
                 </label>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                   <div>
-                    <label htmlFor="model-vis-w" style={{ ...labelStyle, color: "#746e69" }}>Largura — VIS. L</label>
+                    <label htmlFor="model-vis-w" style={{ ...labelStyle, color: "#746e69" }}>Largura — VIS. L (m)</label>
                     <input
                       id="model-vis-w"
                       type="number" step="0.01" min="0"
@@ -1314,7 +1374,7 @@ export default function Modelos() {
                     />
                   </div>
                   <div>
-                    <label htmlFor="model-vis-h" style={{ ...labelStyle, color: "#746e69" }}>Altura — VIS. A</label>
+                    <label htmlFor="model-vis-h" style={{ ...labelStyle, color: "#746e69" }}>Altura — VIS. A (m)</label>
                     <input
                       id="model-vis-h"
                       type="number" step="0.01" min="0"
@@ -1338,11 +1398,11 @@ export default function Modelos() {
                 <label style={{ ...labelStyle, marginBottom: 10, display: "flex", alignItems: "center", gap: 8 }}>
                   Medidas do Arquivo
                   <span style={{ fontSize: 10, fontWeight: 700, color: "#b45309", backgroundColor: "#FDF3E7", borderRadius: 6, padding: "2px 6px", letterSpacing: "0.06em" }}>ARQ.</span>
-                  <span style={{ fontSize: 10, fontWeight: 500, color: "#746e69", textTransform: "none", letterSpacing: 0 }}>— pré-preenchido igual ao visual</span>
+                  <span style={{ fontSize: 10, fontWeight: 500, color: "#746e69", textTransform: "none", letterSpacing: 0 }}>— o que vai para impressão, com a sangria; pré-preenchido igual ao visual</span>
                 </label>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                   <div>
-                    <label htmlFor="model-arq-w" style={{ ...labelStyle, color: "#746e69" }}>Largura — ARQ. L</label>
+                    <label htmlFor="model-arq-w" style={{ ...labelStyle, color: "#746e69" }}>Largura — ARQ. L (m)</label>
                     <input
                       id="model-arq-w"
                       type="number" step="0.01" min="0"
@@ -1356,7 +1416,7 @@ export default function Modelos() {
                     />
                   </div>
                   <div>
-                    <label htmlFor="model-arq-h" style={{ ...labelStyle, color: "#746e69" }}>Altura — ARQ. A</label>
+                    <label htmlFor="model-arq-h" style={{ ...labelStyle, color: "#746e69" }}>Altura — ARQ. A (m)</label>
                     <input
                       id="model-arq-h"
                       type="number" step="0.01" min="0"
@@ -1564,15 +1624,30 @@ export default function Modelos() {
                 style={{ height: toque + 4, borderRadius: R.md, border: "none", backgroundColor: T.dark, color: "#fff", fontSize: 14, fontWeight: 800, cursor: createStandardItemMutation.isPending ? "wait" : "pointer", opacity: createStandardItemMutation.isPending ? 0.7 : 1, transition: "background-color 0.15s ease" }}
                 onMouseEnter={e => { if (!createStandardItemMutation.isPending) e.currentTarget.style.backgroundColor = "#292524"; }}
                 onMouseLeave={e => { e.currentTarget.style.backgroundColor = T.dark; }}
+                onClick={() => { continuarRef.current = false; }}
               >
                 {createStandardItemMutation.isPending
                   ? (editingItem ? "Atualizando…" : "Criando…")
                   : (editingItem ? "Salvar alterações" : "Salvar modelo")}
               </button>
+              {/* Só na criação (e na duplicação, que também cria): mesmo
+                  submit, sem fechar o modal. */}
+              {!editingItem && (
+                <button type="submit" disabled={createStandardItemMutation.isPending}
+                  data-testid="button-submit-model-e-outro"
+                  onClick={() => { continuarRef.current = true; }}
+                  style={{ height: toque + 4, borderRadius: R.md, border: `1px solid ${T.bdark}`, backgroundColor: T.surface, color: T.text, fontSize: 13, fontWeight: 800, cursor: createStandardItemMutation.isPending ? "wait" : "pointer", opacity: createStandardItemMutation.isPending ? 0.7 : 1, transition: "background-color 0.15s ease" }}
+                  onMouseEnter={e => { e.currentTarget.style.backgroundColor = T.low; }}
+                  onMouseLeave={e => { e.currentTarget.style.backgroundColor = T.surface; }}
+                >
+                  Salvar e cadastrar outro
+                </button>
+              )}
               <button type="button" onClick={requestCloseDialog}
                 style={{ height: toque, borderRadius: R.md, border: "none", backgroundColor: "transparent", color: "#57534e", fontSize: FS.body, fontWeight: 700, cursor: "pointer" }}
               >
-                Cancelar
+                {/* Depois de criar na sequência, "Cancelar" sugeria desfazer. */}
+                {criadosNestaSequencia.length > 0 && !editingItem ? "Fechar" : "Cancelar"}
               </button>
             </ModalFooter>
           </form>

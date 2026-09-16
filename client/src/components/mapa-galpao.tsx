@@ -55,12 +55,14 @@ export function MapaGalpao({ value, onSelect, onClose }: {
                   reprovava AA nos 11px. "Toque" antes de "clique": o mapa é
                   usado no tablet do galpão. */}
               <DialogDescription asChild>
-                <p style={{ margin: 0, fontSize: 12, color: "#746e69" }}>Toque no setor e corredor, depois confirme</p>
+                <p style={{ margin: 0, fontSize: 12, color: "#746e69" }}>Linha = setor (A–F), coluna = corredor (1–8). O toque já marca o local.</p>
               </DialogDescription>
             </div>
           </div>
           {/* 44px: é o X que se procura com o dedo, em pé, no tablet. */}
-          <button type="button" onClick={onClose} aria-label="Fechar mapa" style={{ background: "transparent", border: "none", width: 44, height: 44, borderRadius: 10, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#57534e", flexShrink: 0 }}>
+          {/* O toque numa célula JÁ grava (onSelect); o X não desfaz. O rótulo
+              diz isso, para ninguém fechar achando que cancelou a escolha. */}
+          <button type="button" onClick={onClose} aria-label={value ? `Fechar mapa — mantém ${value}` : "Fechar mapa"} title={value ? "Fechar — o local escolhido fica" : "Fechar mapa"} style={{ background: "transparent", border: "none", width: 44, height: 44, borderRadius: 10, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#57534e", flexShrink: 0 }}>
             <X size={18} aria-hidden="true" />
           </button>
         </div>
@@ -118,7 +120,11 @@ export function MapaGalpao({ value, onSelect, onClose }: {
           {/* #c2410c: branco sobre #f97316 dava 2,8:1. 44px: é o botão que o
               operador procura com o dedo depois de escolher a célula. */}
           <button type="button" onClick={onClose} style={{ minHeight: 44, padding: "0 22px", borderRadius: 10, border: "none", background: "#c2410c", color: "#fff", fontSize: 13, cursor: "pointer", fontFamily: "Space Grotesk, sans-serif", fontWeight: 700 }}>
-            {value ? "Confirmar local" : "Fechar"}
+            {/* O CTA nomeia a célula ("Usar A3", o mesmo texto do botão do
+                mapa); local digitado à mão fora do formato vira "este local". */}
+            {value
+              ? (/^Setor \w - Corredor \d+$/.test(value) ? `Usar ${value.replace(/^Setor (\w) - Corredor (\d+)$/, "$1$2")}` : "Usar este local")
+              : "Fechar sem escolher"}
           </button>
         </div>
       </DialogContent>

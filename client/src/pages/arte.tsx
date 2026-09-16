@@ -10,6 +10,7 @@ import { CheckCircle, AlertCircle, AlertTriangle, Eye, Calendar, Truck, Check, C
 import { Input } from "@/components/ui/input";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { usePecaDoLink } from "@/hooks/use-peca-do-link";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { cn, parseDateLocal, toUTCDisplayDate, runInBatches, fileNameFromPath } from "@/lib/utils";
@@ -177,6 +178,19 @@ const TRAVANDO_CHIPS_VISIBLE = 8;
  * resolvia. Em 1848 (a tela do dono) sobra tudo para "Peça".
  */
 type ArteCol = { label: string; w: number | string; right?: boolean; sep?: boolean };
+
+/**
+ * O que cada cabeçalho QUER DIZER, no `title` (rodada 4). "Arte" com dois
+ * ícones, "Prazo" que não é a saída do caminhão e o negrito com relógio no
+ * patrocinador eram códigos que só quem já trabalhava aqui lia. Fica fora do
+ * array de larguras para não mexer no orçamento de colunas.
+ */
+const DICA_DA_COLUNA: Record<string, string> = {
+  'Arte': 'Dois ícones: thumb de aprovação (a imagem que o patrocinador aprova) e arquivo final (o que a Gráfica imprime). Verde = já subiu; passe o mouse no thumb para ver a prévia.',
+  'Prazo': 'O marco DESTA fase (não a saída do caminhão) e há quantos dias a peça está parada nela.',
+  'Patroc.': 'Patrocinadores da peça. Em "Aguardando patrocinador", negrito com relógio = ainda não decidiu.',
+  'Ações': 'O botão diz o próximo passo da peça; o "⋯" tem ver detalhes, prova em PDF, pular aprovação e devolver.',
+};
 
 // A LARGURA DE 'Patroc.' — a conta, e o que ela NÃO resolve.
 //
@@ -349,6 +363,24 @@ const TAB_THEME: Record<string, { dot: string; text: string; tint: string }> = {
   "correcao":                { dot: '#ef4444', text: '#b91c1c', tint: '#fef2f2' },
   "finalizar-layouts":       { dot: '#06b6d4', text: '#0e7490', tint: '#ecfeff' },
   "finalizados":             { dot: '#22c55e', text: '#15803d', tint: '#f0fdf4' },
+};
+
+/**
+ * O QUE SE FAZ EM CADA FASE, em uma frase (rodada 4, primeiro uso).
+ *
+ * As abas diziam ONDE a peça está e nunca o que a Arte faz com ela ali. Quem
+ * chegava via "Aguardando patrocinador" com vinte peças e nenhum botão não
+ * sabia se era defeito, espera ou tarefa; e "thumb" × "arquivo final" só se
+ * aprendia errando. A frase mora no topo da lista (área rolável, custa uma
+ * linha) e no `title` da aba. O texto descreve o fluxo que JÁ existe — não
+ * promete nada que o servidor não faça.
+ */
+const GUIA_DA_FASE: Record<string, string> = {
+  "criar-aprovacoes": "Suba o thumb (a imagem que o patrocinador aprova) e envie para aprovação. Peças do Kit ficam sempre no topo.",
+  "aguardando-patrocinador": "Nada a fazer aqui: o Atendimento registra a decisão de cada patrocinador. Se alguém reprovar, a peça volta na aba Correção.",
+  "correcao": "O patrocinador reprovou: leia o motivo, refaça a arte e envie a nova versão — ela volta para quem ainda não aprovou e para os patrocinadores com aprovação estrita, que reaprovam toda versão nova.",
+  "finalizar-layouts": "Arte aprovada: cole o caminho do arquivo final (o que a Gráfica imprime) e envie para a revisão de quem pediu a peça.",
+  "finalizados": "Consulta: peças já com arquivo final. Dá para trocar o arquivo final ou o thumb sem reabrir a aprovação.",
 };
 
 /**
@@ -791,20 +823,34 @@ export default function Arte() {
       // saído da lista local.
       const peca = itemPorId.get(variables.itemId);
       const id = peca?.displayId;
+      // PRÓXIMA PEÇA AUTOMÁTICA (rodada 4) — só quando o envio saiu do MODAL.
+      // Depois de enviar, o modal fechava e o designer voltava à lista para
+      // caçar a peça seguinte: abrir, subir, enviar, FECHAR, achar, abrir. A
+      // próxima é a da MESMA fila, na ordem da tela (Kit no topo); sem próxima,
+      // fecha como antes. O envio de um clique pela linha não abre nada.
+      const vinhaDoModal = selectedItemId === variables.itemId;
+      const proxima = vinhaDoModal ? proximaDaFila(variables.itemId, "criar-aprovacoes") : null;
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
       queryClient.invalidateQueries({ queryKey: ["/api/items/resubmission-needed"] });
       queryClient.invalidateQueries({ queryKey: ["/api/items/pending"] });
-      setSelectedItemId(null);
-      setApprovalThumbUrl("");
-      setApprovalThumbPreview("");
+      if (proxima) {
+        handleViewDetails(proxima);
+      } else {
+        setSelectedItemId(null);
+        setApprovalThumbUrl("");
+        setApprovalThumbPreview("");
+      }
+      const seguindo = proxima ? ` Abrindo a próxima: ${proxima.displayId}.` : "";
       // Peça SEM aprovação de patrocinador (skipApproval) não vai para
-      // "Aguardando patrocinador" — segue para a revisão final (é o que o
-      // `title` do botão "Enviar direto" já promete). O toast não pode
-      // contradizer o botão.
+      // "Aguardando patrocinador" — o servidor (submit-for-approval) a manda
+      // para awaiting_creator_review, que é a aba Finalizar arte desta mesma
+      // tela: a Arte ainda sobe o arquivo final antes da Revisão Final. Dizer
+      // "revisão final" prometia pular um passo que não é pulado. O toast, o
+      // `title` da linha e o rótulo do botão dizem o mesmo destino.
       if (peca?.skipApproval) {
         toast({
           title: id ? `${id} enviada` : "Peça enviada",
-          description: "Sem aprovação de patrocinador — segue direto para a revisão final.",
+          description: `Sem aprovação de patrocinador — foi direto para a finalização: falta subir o arquivo final (aba Finalizar arte).${seguindo}`,
         });
         return;
       }
@@ -813,7 +859,7 @@ export default function Arte() {
       // linha tinha sumido da fila.
       toast({
         title: id ? `${id} enviada para aprovação` : "Peça enviada para aprovação",
-        description: "Saiu desta fila e agora está em Aguardando patrocinador.",
+        description: `Saiu desta fila e agora está em Aguardando patrocinador.${seguindo}`,
       });
     },
     onError: (error: Error) => {
@@ -896,14 +942,24 @@ export default function Arte() {
     },
     onSuccess: (_res, variables) => {
       const id = itemPorId.get(variables.itemId)?.displayId;
+      // Mesma próxima peça automática do envio do thumb, na fila de Finalizar
+      // arte. Atualizar um arquivo que já existia (Finalizados) é conferência
+      // pontual, não fila — ali o modal fecha como sempre.
+      const proxima = !variables.isUpdate && selectedItemId === variables.itemId
+        ? proximaDaFila(variables.itemId, "finalizar-layouts")
+        : null;
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
-      setSelectedItemId(null);
-      resetFinalFileState(); // limpa url, nome e a flag de "sujo" de uma vez
+      if (proxima) {
+        handleViewDetails(proxima);
+      } else {
+        setSelectedItemId(null);
+        resetFinalFileState(); // limpa url, nome e a flag de "sujo" de uma vez
+      }
       // Atualizar e enviar pela primeira vez são fatos diferentes: só o envio
       // tira a peça de "Finalizar arte". O toast antigo dizia o mesmo nos dois.
       toast(variables.isUpdate
         ? { title: id ? `Arquivo final de ${id} atualizado` : "Arquivo final atualizado", description: "O caminho anterior ficou guardado no histórico da peça." }
-        : { title: id ? `Arquivo final de ${id} enviado` : "Arquivo final enviado", description: "Segue para a revisão de quem solicitou a peça." });
+        : { title: id ? `Arquivo final de ${id} enviado` : "Arquivo final enviado", description: `Segue para a revisão de quem solicitou a peça.${proxima ? ` Abrindo a próxima: ${proxima.displayId}.` : ""}` });
     },
     onError: (error: Error) => {
       toast({
@@ -958,7 +1014,9 @@ export default function Arte() {
       setCorrecaoFileName("");
       toast({
         title: id ? `Nova arte de ${id} enviada` : "Nova arte enviada",
-        description: "O Atendimento foi avisado para decidir a nova versão.",
+        // Quanto ainda falta na fila (rodada 4): "e agora?" depois do envio
+        // era voltar à lista e contar os cards.
+        description: `O Atendimento foi avisado para decidir a nova versão.${restamNaCorrecao(variables.itemId)}`,
       });
     },
     onError: (error: Error) => {
@@ -995,13 +1053,20 @@ export default function Arte() {
       setCorrecaoFileName("");
       toast({
         title: id ? `Nova arte de ${id} enviada` : "Nova arte enviada",
-        description: "A peça voltou para a aprovação dos patrocinadores.",
+        description: `A peça voltou para a aprovação dos patrocinadores.${restamNaCorrecao(variables.itemId)}`,
       });
     },
     onError: (error: Error) => {
       toast({ title: "Erro ao enviar", description: mensagemDeErro(error), variant: "destructive" });
     },
   });
+
+  /** " Faltam N na Correção." sem a peça que acabou de sair — a fila inteira,
+   *  não o recorte filtrado, para o número não mudar conforme o filtro. */
+  const restamNaCorrecao = (saiu: string): string => {
+    const n = (correcaoItems as any[]).filter((i: any) => i.id !== saiu).length;
+    return n === 0 ? " A fila da Correção zerou." : ` ${n === 1 ? "Falta 1 peça" : `Faltam ${n} peças`} na Correção.`;
+  };
 
   const dispenseMutation = useMutation({
     mutationFn: async ({ itemId, reason }: { itemId: string; reason: string }) => {
@@ -1528,7 +1593,7 @@ export default function Arte() {
   // Fechar a Correção descartava um arquivo JÁ ENVIADO ao storage sem avisar.
   const fecharCorrecaoModal = useCallback((forcar = false) => {
     if (!forcar && correcaoThumbUrl
-      && !window.confirm("A nova arte enviada ainda não foi confirmada. Fechar e descartar?")) {
+      && !window.confirm("A nova versão foi carregada, mas ainda NÃO foi enviada aos patrocinadores. Fechar e descartar?")) {
       return;
     }
     setCorrecaoItem(null);
@@ -1931,6 +1996,41 @@ export default function Arte() {
     setFinalDirty(false);
   };
 
+  // Deep link `?item=` (sino e "Resolver em Arte →" da Gestão de Prazos): abre
+  // a ficha JÁ na fase em que a peça está. A fase sai de onde a própria tela
+  // a coloca — Correção quando veio de /resubmission-needed (é lá que a ação
+  // de reenvio mora), senão o balde de TAB_STATUSES. Peça sem fase aqui (já
+  // na Revisão Final, na Gráfica…) não está nesta fila: o hook avisa.
+  usePecaDoLink<{ peca: any; aba: string }>({
+    pronto: !isLoading && !correcaoLoading && !isError && !correcaoIsError,
+    localizar: (id) => {
+      const emCorrecao = (correcaoItems as any[]).find((i: any) => i.id === id);
+      if (emCorrecao) return { peca: emCorrecao, aba: "correcao" };
+      const peca = itemPorId.get(id);
+      if (!peca) return null;
+      const aba = Object.keys(TAB_STATUSES).find((t) => TAB_STATUSES[t].includes(peca.status));
+      return aba ? { peca, aba } : null;
+    },
+    abrir: ({ peca, aba }) => {
+      if (aba !== activeTab) changeTab(aba);
+      handleViewDetails(peca);
+    },
+    codigoDe: (id) => (pecasDoServidor as any[]).find((i: any) => i.id === id)?.displayId,
+  });
+
+  /**
+   * A peça SEGUINTE da fila aberta, na ordem em que a tela a mostra (Kit e
+   * prioritárias no topo, depois evento e grupo) — a mesma lista, os mesmos
+   * filtros. Só vale quando a aba ativa É a fila da ação: um envio feito com
+   * outra aba aberta não tem "próxima" que a pessoa esteja vendo.
+   */
+  const proximaDaFila = (itemId: string, fila: string): any | null => {
+    if (activeTab !== fila) return null;
+    const i = filteredItems.findIndex((x: any) => x.id === itemId);
+    if (i < 0) return null;
+    return filteredItems.slice(i + 1).find((x: any) => x.id !== itemId) ?? null;
+  };
+
   /**
    * Leva o foco ao "Enviar para aprovação" quando o thumb acaba de subir.
    * O upload troca a zona vazia pelo bloco com a miniatura (outro nó), então o
@@ -2158,7 +2258,15 @@ export default function Arte() {
       // célula, o botão QUEBRAVA para a linha de cima do menu "⋯" e a linha da
       // tabela crescia ~40px por causa disso. O que a etiqueta perdeu está no
       // `title` de cada botão, que já existia.
-      label: tabId === "finalizar-layouts" ? "Finalizar" : isSkip ? "Enviar direto" : "Enviar",
+      //
+      // RODADA 4 — o MESMO rótulo "Enviar" fazia duas coisas: com rascunho
+      // salvo, enviava na hora; sem thumb, só abria o modal. Quem clicava
+      // numa peça sem thumb achava que tinha enviado. Sem thumb o botão diz o
+      // passo que falta ("Subir thumb"); "Enviar" fica só para o clique que
+      // envia de fato.
+      label: tabId === "finalizar-layouts" ? "Finalizar"
+        : isSkip ? "Enviar direto"
+        : item.approvalThumbUrl ? "Enviar" : "Subir thumb",
       // Um clique para enviar: se a peça já tem thumb salvo (rascunho), o botão
       // dispara o envio direto, sem abrir o modal e SEM confirmação — a ação é
       // reversível pela aba Correção e o toast dá o feedback; window.confirm só
@@ -2223,12 +2331,14 @@ export default function Arte() {
                   bloqueio.
                   O RÓTULO é escolha do dono, reafirmada em 09/09: "Direto
                   para finalização". Fica registrado o que a ação FAZ, para
-                  quem vier depois não se perder: ela grava
-                  `ready_for_production`, ou seja, a peça sai da mesa da Arte
-                  para a aba Finalizados e entra na fila da Gráfica — NÃO
-                  para na aba "Finalizar arte" (que é sponsor_approved +
-                  awaiting_creator_review). O corpo do diálogo continua
-                  dizendo o efeito real, que é onde o engano custaria caro.
+                  quem vier depois não se perder: desde 09/09 o servidor
+                  grava DESTINO_DA_DISPENSA (routes/items.ts) — a peça PARA
+                  na finalização da Arte, sobe o arquivo final e a Revisão
+                  ainda confere; o que se pula é só a aprovação do
+                  Atendimento. (Até 09/09 era `ready_for_production`, direto
+                  para a Gráfica — este comentário dizia isso e ficou velho.)
+                  O corpo do diálogo diz o efeito real, que é onde o engano
+                  custaria caro.
                   AZUL, e não o âmbar de "Devolver ao solicitante" (dono,
                   09/09: os dois estavam com a mesma cor): avançar e voltar
                   atrás não podem parecer a mesma coisa.
@@ -2290,10 +2400,12 @@ export default function Arte() {
         disabled={travado}
         data-testid={`button-action-${item.id}`}
         title={acao.isSkip
-          ? "Sem aprovação de patrocinador — vai direto para revisão final"
+          ? "Sem aprovação de patrocinador — abre a peça para enviar direto à finalização (arquivo final)"
           : acao.canSendDirect
-            ? "Envia o thumb salvo direto para aprovação do patrocinador"
-            : undefined}
+            ? "Envia AGORA o thumb salvo para a aprovação do patrocinador, sem abrir a peça"
+            : tabId === "finalizar-layouts"
+              ? "Abre a peça para colar o caminho do arquivo final"
+              : "Abre a peça para subir o thumb de aprovação"}
         style={{
           // minWidth 0 + flexShrink: numa coluna estreita o botão encolhe com
           // reticências em vez de empurrar o menu "⋯" para outra linha.
@@ -2726,6 +2838,24 @@ export default function Arte() {
               </button>
             </div>
           )}
+          {/* E AGORA? (rodada 4). Fila zerada sem filtro respondia "nada
+              aqui" e parava — a pessoa tinha de varrer as outras abas para
+              descobrir se havia trabalho em outro lugar. O atalho leva à
+              próxima fase COM peças em que a Arte age, na ordem do fluxo. */}
+          {!porFiltro && (() => {
+            const destino = tabs.find(t => t.id !== tabId && t.count > 0 && ['correcao', 'criar-aprovacoes', 'finalizar-layouts'].includes(t.id));
+            if (!destino) return null;
+            return (
+              <button
+                onClick={() => changeTab(destino.id)}
+                data-testid="button-empty-proxima-fase"
+                style={{ marginTop: 14, height: 36, padding: '0 16px', borderRadius: 8, border: 'none', background: '#1c1917', color: '#ffffff', fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}
+              >
+                Ir para {destino.label} ({destino.count})
+                <ArrowRight aria-hidden="true" style={{ width: 14, height: 14 }} />
+              </button>
+            );
+          })()}
         </div>
       );
     }
@@ -3224,7 +3354,7 @@ export default function Arte() {
                       <thead>
                         <tr style={{ backgroundColor: '#fafaf9', borderBottom: '1px solid #e7e5e4', boxShadow: '0 1px 0 #e7e5e4' }}>
                           {comSelecao && <th style={{ padding: '10px 12px' }}><span className="sr-only">Selecionar</span></th>}
-                          {cols.map((col, ci) => <th key={ci} style={thStyle(col)}>{col.label}</th>)}
+                          {cols.map((col, ci) => <th key={ci} style={thStyle(col)}><span title={DICA_DA_COLUNA[col.label]} style={{ cursor: DICA_DA_COLUNA[col.label] ? 'help' : undefined }}>{col.label}</span></th>)}
                         </tr>
                       </thead>
                       {bloco.grupos.map((grupo, gi) => {
@@ -3815,9 +3945,14 @@ export default function Arte() {
                     Arte
                   </h1>
                   {(pendingCount + correcaoCount + needsFinalFileCount) > 0 ? (
-                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 10px', borderRadius: 999, backgroundColor: '#fff7ed', border: '1px solid #fed7aa', fontSize: 11, fontWeight: 700, color: '#c2410c' }}>
+                    // "em andamento" não dizia DE QUEM (rodada 4): a soma é das
+                    // três fases em que a peça espera a Arte — o `title` conta.
+                    <span
+                      title="Soma de Aguardando envio, Correção e Finalizar arte — as fases em que a peça depende da Arte"
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 10px', borderRadius: 999, backgroundColor: '#fff7ed', border: '1px solid #fed7aa', fontSize: 11, fontWeight: 700, color: '#c2410c' }}
+                    >
                       <span style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: '#f97316', display: 'inline-block' }} />
-                      {pendingCount + correcaoCount + needsFinalFileCount} em andamento
+                      {pendingCount + correcaoCount + needsFinalFileCount} esperando a Arte
                     </span>
                   ) : (
                     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 10px', borderRadius: 999, backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0', fontSize: 11, fontWeight: 700, color: '#15803d' }}>
@@ -3826,7 +3961,9 @@ export default function Arte() {
                   )}
                 </div>
                 <p style={{ fontSize: 13, color: '#746e69', margin: 0, marginTop: 4, lineHeight: 1.5 }}>
-                  Aprovações · Correções · Finalizações de layout
+                  {/* O fluxo em ordem, com verbo (rodada 4): a lista de
+                      substantivos dizia os assuntos, não o trabalho. */}
+                  Suba o thumb, envie para aprovação, corrija o que voltar e finalize o arquivo
                 </p>
               </div>
             </div>
@@ -3880,8 +4017,8 @@ export default function Arte() {
                   // Botão desabilitado sem dizer por quê deixa o usuário achando
                   // que está quebrado; o título explica a condição que o libera.
                   title={selectedItemIds.size > 0
-                    ? `Vincular um PDF a ${selectedItemIds.size} peça(s) selecionada(s)`
-                    : 'Selecione ao menos uma peça para vincular um PDF compartilhado'}
+                    ? `Usar UM PDF como thumb das ${selectedItemIds.size === 1 ? 'peça selecionada' : `${selectedItemIds.size} peças selecionadas`} e enviar para aprovação`
+                    : 'Marque as peças na tabela (caixinhas à esquerda) para enviar todas com um mesmo PDF'}
                   style={{ display: 'flex', alignItems: 'center', gap: 6, height: isMobile ? 44 : 36, padding: '0 14px', borderRadius: 8, border: '1px solid #e7e5e4', background: '#ffffff', color: selectedItemIds.size > 0 ? '#44403c' : '#78716c', fontSize: 13, fontWeight: 600, cursor: selectedItemIds.size > 0 ? 'pointer' : 'not-allowed', transition: 'border-color 0.12s', opacity: selectedItemIds.size > 0 ? 1 : 0.75, whiteSpace: 'nowrap' }}
                 >
                   <Upload aria-hidden="true" style={{ width: 12, height: 12, color: '#57534e' }} />
@@ -4238,6 +4375,7 @@ export default function Arte() {
                     <button
                       key={tab.id}
                       id={`aba-${tab.id}`}
+                      title={GUIA_DA_FASE[tab.id]}
                       role="tab"
                       aria-selected={isActive}
                       aria-controls="painel-arte"
@@ -4325,6 +4463,15 @@ export default function Arte() {
           cheia também — quem procura uma peça específica precisa saber por que
           sumiu. A frase (e a distinção entre os dois motivos) vem de
           `avisoPecasOcultas`, a mesma das outras filas. */}
+      {/* O QUE SE FAZ NESTA FASE — ver GUIA_DA_FASE. Uma linha cinza, na
+          área que rola: não rouba altura do cabeçalho fixo (a conta dos stat
+          cards que saíram, acima) e some da vista assim que a pessoa desce
+          para trabalhar. */}
+      {!isLoading && !isError && GUIA_DA_FASE[activeTab] && (
+        <p data-testid="guia-da-fase" style={{ margin: '0 0 14px', fontSize: 12.5, color: '#57534e', lineHeight: 1.5 }}>
+          {GUIA_DA_FASE[activeTab]}
+        </p>
+      )}
       {!isLoading && !isError && avisoOcultas && (
         <div
           role="status"
@@ -4681,7 +4828,11 @@ export default function Arte() {
                         }
                       </div>
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: 11, fontWeight: 700, color: '#15803d' }}>Arquivo enviado</div>
+                        {/* "Arquivo enviado" lia como "já foi para o
+                            patrocinador" (rodada 4) — e a pessoa fechava o
+                            modal sem clicar no botão de baixo. Subiu para o
+                            servidor; ninguém recebeu ainda. */}
+                        <div style={{ fontSize: 11, fontWeight: 700, color: '#15803d' }}>Nova versão carregada — falta enviar</div>
                         {correcaoFileName && (
                           <div style={{ fontSize: 11, color: '#15803d', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={correcaoFileName}>{correcaoFileName}</div>
                         )}
@@ -4890,7 +5041,9 @@ export default function Arte() {
               {enviando ? (
                 <><div style={{ width: 15, height: 15, borderRadius: '50%', border: '2px solid #d6d3d1', borderTopColor: '#57534e', animation: 'spin 0.8s linear infinite' }} />Enviando…</>
               ) : (
-                <><Send aria-hidden="true" style={{ width: 15, height: 15 }} />{devolvidaInteira || correcaoDestinatarios.length === 0
+                <><Send aria-hidden="true" style={{ width: 15, height: 15 }} />{devolvidaInteira
+                  ? 'Enviar nova arte a todos os patrocinadores'
+                  : correcaoDestinatarios.length === 0
                   ? 'Enviar nova arte'
                   : `Enviar nova arte a ${correcaoDestinatarios.length} ${correcaoDestinatarios.length === 1 ? 'patrocinador' : 'patrocinadores'}`}</>
               )}
@@ -4967,6 +5120,12 @@ export default function Arte() {
                       <a href={selectedItem.approvalThumbUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: '#44403c', textDecoration: 'underline', textUnderlineOffset: 2 }}>
                         Abrir em nova aba
                       </a>
+                      {/* "Trocar thumb" aqui sobe NA HORA, sem confirmação — e
+                          a dúvida que segurava o clique era "isso reabre a
+                          aprovação?". Não reabre (update-thumb); diz antes. */}
+                      <p style={{ margin: '2px 0 0', fontSize: 11, color: '#57534e', lineHeight: 1.4 }}>
+                        Trocar não reabre a aprovação — o anterior fica no histórico.
+                      </p>
                     </div>
 
                     {/* Trocar o thumb sem reabrir a aprovação */}
@@ -5068,13 +5227,37 @@ export default function Arte() {
                 onMouseEnter={e => { if (submitFinalFileMutation.isPending || !finalFileUrl || (!!selectedItem.finalFileUrl && !finalDirty)) return; e.currentTarget.style.backgroundColor = '#44403c'; }}
                 onMouseLeave={e => { if (submitFinalFileMutation.isPending || !finalFileUrl || (!!selectedItem.finalFileUrl && !finalDirty)) return; e.currentTarget.style.backgroundColor = '#1c1917'; }}
               >
-                {submitFinalFileMutation.isPending ? 'Enviando…' : (selectedItem.finalFileUrl ? 'Atualizar arquivo final' : 'Enviar para revisão')}
+                {/* O CTA diz o resultado (rodada 4): "Enviar para revisão"
+                    não dizia O QUÊ nem de quem é a revisão. */}
+                {submitFinalFileMutation.isPending ? 'Enviando…' : (selectedItem.finalFileUrl ? 'Atualizar arquivo final' : 'Enviar arquivo final para revisão')}
                 {!submitFinalFileMutation.isPending && <ArrowRight aria-hidden="true" style={{ width: 16, height: 16 }} />}
               </button>
+              {/* POR QUE ESTÁ BLOQUEADO, à vista. A razão morava só no `title`
+                  (hover, e nunca no celular); o botão cinza parecia quebrado. */}
+              {!submitFinalFileMutation.isPending && (!finalFileUrl || (!!selectedItem.finalFileUrl && !finalDirty)) ? (
+                <p data-testid="final-bloqueado-motivo" style={{ margin: '-8px 0 0', fontSize: 11.5, color: '#57534e', textAlign: 'center' }}>
+                  {!finalFileUrl
+                    ? 'Cole o caminho do arquivo acima para liberar o envio.'
+                    : 'Troque o caminho acima para atualizar o arquivo final.'}
+                </p>
+              ) : !selectedItem.finalFileUrl && !submitFinalFileMutation.isPending ? (
+                <p style={{ margin: '-8px 0 0', fontSize: 11.5, color: '#57534e', textAlign: 'center' }}>
+                  Quem pediu a peça confere o arquivo; depois ela vai para a Gráfica.
+                </p>
+              ) : null}
             </div>
           </section>
         ) : null}
-        customActions={selectedItem && podeEditar && (
+        customActions={selectedItem && !podeEditar && ['awaiting_submission', 'sponsor_approved', 'awaiting_creator_review'].includes(selectedItem.status) ? (
+          // MODO CONSULTA DENTRO DA PEÇA (rodada 4). A faixa cinza do topo
+          // explica a lista, mas quem abria uma peça que espera a Arte via o
+          // modal sem nenhum bloco de ação e não sabia se faltava permissão ou
+          // se a tela tinha falhado. Só nas fases em que a Arte age.
+          <p data-testid="modal-modo-consulta" style={{ display: 'flex', alignItems: 'center', gap: 8, margin: 0, padding: '10px 14px', borderRadius: 10, background: '#f5f5f4', border: '1px solid #e7e5e4', fontSize: 12.5, color: '#44403c', lineHeight: 1.5 }}>
+            <Lock aria-hidden="true" style={{ width: 14, height: 14, color: '#57534e', flexShrink: 0 }} />
+            <span><b style={{ fontWeight: 700 }}>Modo consulta.</b> Subir o thumb e o arquivo final desta peça é da equipe de Arte.</span>
+          </p>
+        ) : selectedItem && podeEditar && (
           <div>
             {selectedItem.status === 'awaiting_submission' && (
               <section ref={zonaDoThumbRef} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -5087,8 +5270,11 @@ export default function Arte() {
                   <h3 style={{ fontFamily: '"Space Grotesk", sans-serif', fontWeight: 700, fontSize: 18, letterSpacing: '-0.02em', color: '#1c1917', margin: 0 }}>
                     Thumb de aprovação
                   </h3>
+                  {/* O que É o thumb, e não só que é obrigatório (rodada 4):
+                      "thumb × arquivo final" era a dúvida número um de quem
+                      chega — e a regra do obrigatório o botão já ensina. */}
                   <span style={{ fontSize: 12, color: '#746e69', fontWeight: 600 }}>
-                    obrigatório para enviar
+                    a imagem que o patrocinador vai aprovar
                   </span>
                 </div>
 
@@ -5187,8 +5373,29 @@ export default function Arte() {
                     >
                       {submitForApprovalMutation.isPending
                         ? <><span aria-hidden="true" style={{ width: 13, height: 13, borderRadius: '50%', border: '2px solid #d6d3d1', borderTopColor: '#57534e', animation: 'spin 0.8s linear infinite' }} />Enviando…</>
-                        : <><Send aria-hidden="true" style={{ width: 14, height: 14 }} />Enviar para aprovação</>}
+                        : <><Send aria-hidden="true" style={{ width: 14, height: 14 }} />{selectedItem.skipApproval ? 'Enviar direto para a finalização (arquivo final)' : 'Enviar para aprovação do patrocinador'}</>}
                     </button>
+                    {/* "ENVIOU PARA QUEM?" respondido antes do clique (rodada
+                        4). Os nomes já vêm na peça; peça sem aprovação de
+                        patrocinador diz isso em vez de listar marcas que não
+                        vão decidir nada. */}
+                    {(() => {
+                      if (selectedItem.skipApproval) {
+                        return (
+                          <p style={{ margin: '-4px 0 0', fontSize: 12, color: '#57534e', textAlign: 'center', lineHeight: 1.45 }}>
+                            Esta peça não passa por aprovação de patrocinador.
+                          </p>
+                        );
+                      }
+                      const nomes: string[] = (selectedItem.sponsors ?? []).map((s: any) => s?.name).filter(Boolean);
+                      if (nomes.length === 0) return null;
+                      const lista = nomes.length <= 3 ? nomes.join(', ') : `${nomes.slice(0, 3).join(', ')} e mais ${nomes.length - 3}`;
+                      return (
+                        <p data-testid="thumb-vai-para" style={{ margin: '-4px 0 0', fontSize: 12, color: '#57534e', textAlign: 'center', lineHeight: 1.45 }}>
+                          Vai para a aprovação de <strong style={{ color: '#1c1917', fontWeight: 600 }}>{lista}</strong>
+                        </p>
+                      );
+                    })()}
 
                     {/* Rascunho: secundário de verdade. Salvo, vira uma LINHA de
                         confirmação — era uma caixa verde do tamanho do botão
@@ -5326,7 +5533,7 @@ export default function Arte() {
             icon={Upload}
             tint="#2563eb"
             title="PDF compartilhado"
-            subtitle="Vincula um único documento a todas as peças selecionadas"
+            subtitle="Um PDF vira o thumb de todas as peças selecionadas, e elas vão juntas para a aprovação do patrocinador"
             onClose={() => { setShowBulkDialog(false); setSharedPdfUrl(""); }}
           />
           {/* ALTURA: cabeçalho 93 + este corpo ~380 (a lista de itens já tem teto
@@ -5442,6 +5649,18 @@ export default function Arte() {
           </div>
           <ModalFooter>
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', alignItems: 'center' }}>
+              {/* QUEM FICA DE FORA, ANTES do clique (rodada 4). A seleção
+                  atravessa abas, e só "aguardando envio" aceita o PDF; o aviso
+                  existia só como toast DEPOIS de enviar. */}
+              {(() => {
+                const fora = Array.from(selectedItemIds).filter(id => itemPorId.get(id)?.status !== 'awaiting_submission').length;
+                if (fora === 0) return null;
+                return (
+                  <span data-testid="aviso-fora-do-lote" style={{ marginRight: 'auto', fontSize: 12, color: '#92400e', lineHeight: 1.4 }}>
+                    {fora} {fora === 1 ? 'selecionada não está' : 'selecionadas não estão'} aguardando envio e {fora === 1 ? 'fica' : 'ficam'} fora
+                  </span>
+                );
+              })()}
               {/* Cancelar com contorno, como nos modais de dispensa e devolução:
                   transparente e sem borda ele lia como legenda, não como saída. */}
               <button
@@ -5474,7 +5693,7 @@ export default function Arte() {
                   <><div aria-hidden="true" style={{ width: 14, height: 14, borderRadius: '50%', border: '2px solid #d6d3d1', borderTopColor: '#57534e', animation: 'spin 0.8s linear infinite' }} />Enviando…</>
                 ) : (() => {
                   const n = Array.from(selectedItemIds).filter(id => itemPorId.get(id)?.status === 'awaiting_submission').length;
-                  return <><Send aria-hidden="true" style={{ width: 14, height: 14 }} />{n > 0 ? `Enviar ${n} ${n === 1 ? 'peça' : 'peças'}` : 'Enviar lote'}</>;
+                  return <><Send aria-hidden="true" style={{ width: 14, height: 14 }} />{n > 0 ? `Enviar ${n} para aprovação` : 'Enviar lote'}</>;
                 })()}
               </button>
             </div>
@@ -5503,9 +5722,13 @@ export default function Arte() {
             icon={FileText}
             tint="#ea580c"
             title={existingBookUrl ? 'Atualizar book (PDF)' : 'Subir book (PDF)'}
+            // "serão enviadas aos patrocinadores" prometia um destino que o
+            // servidor não tem (rodada 4): salvar publica o book no evento e o
+            // aviso por e-mail vai para a EQUIPE (avisarBookPorEmail) — o toast
+            // diz para quem saiu.
             subtitle={existingBookUrl
-              ? 'Substitua o PDF atual e confirme as peças cobertas.'
-              : 'Envie o layout pronto e marque as peças cobertas — serão enviadas aos patrocinadores.'}
+              ? 'Substitua o PDF atual e confirme as peças cobertas — ao salvar, a equipe é avisada por e-mail.'
+              : 'Envie o layout pronto e marque as peças que ele cobre — ao salvar, a equipe é avisada por e-mail.'}
             onClose={() => setShowBookModal(false)}
           />
 
@@ -5701,7 +5924,14 @@ export default function Arte() {
           </div>
 
           <ModalFooter>
-            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', alignItems: 'center' }}>
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', alignItems: 'center', flexWrap: 'wrap' }}>
+            {/* O QUE FALTA para salvar, escrito (rodada 4) — a mesma conta do
+                `title` do botão, que só aparecia no hover. */}
+            {!saveBookMutation.isPending && (!bookFileUrl || bookSelectedIds.size === 0 || bookComentarioFalta) && (
+              <span data-testid="book-falta" style={{ marginRight: 'auto', fontSize: 12, color: '#57534e', lineHeight: 1.4 }}>
+                {!bookFileUrl ? 'Falta o PDF do book.' : bookSelectedIds.size === 0 ? 'Marque ao menos uma peça.' : 'Escreva o que mudou nesta versão.'}
+              </span>
+            )}
             {/* Cancelar com contorno: mesma gramática dos outros rodapés da Arte. */}
             <button onClick={() => setShowBookModal(false)}
               style={{ height: 40, padding: '0 16px', borderRadius: 8, background: '#ffffff', border: '1px solid #e7e5e4', color: '#57534e', fontSize: 13, fontWeight: 600, cursor: 'pointer', transition: 'color 0.12s' }}
@@ -6043,6 +6273,15 @@ export default function Arte() {
                                   {matchedItem.event?.name && (
                                     <p style={{ fontSize: 11, color: '#1d4ed8', margin: '2px 0 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{matchedItem.event.name}</p>
                                   )}
+                                  {/* Peça da CORREÇÃO não tem rascunho: os dois
+                                      botões do rodapé a reenviam (ver o title de
+                                      "Salvar como rascunho"). Dito no card,
+                                      antes do clique (rodada 4). */}
+                                  {(correcaoItems as any[]).some((c: any) => c.id === matchedItem.id) && (
+                                    <p data-testid={`aviso-correcao-no-lote-${entry.id}`} style={{ fontSize: 11, fontWeight: 700, color: '#991b1b', margin: '3px 0 0' }}>
+                                      Na Correção — vai como nova versão
+                                    </p>
+                                  )}
                                   {/* O nome do arquivo tinha mais de um número
                                       candidato (ou um que parece ano): o vínculo
                                       foi feito pelo último, que é a convenção,
@@ -6245,7 +6484,12 @@ export default function Arte() {
                     style={{ height: isMobile ? 44 : 40, padding: '0 16px', borderRadius: 8, background: '#ffffff', border: '1px solid #e7e5e4', color: '#57534e', cursor: bulkThumbRunning ? 'not-allowed' : 'pointer', fontSize: 13, fontWeight: 600, transition: 'color 0.12s', opacity: bulkThumbRunning ? 0.5 : 1 }}
                     onMouseEnter={e => { e.currentTarget.style.color = '#1c1917'; }}
                     onMouseLeave={e => { e.currentTarget.style.color = '#57534e'; }}
-                  >Cancelar</button>
+                  >
+                    {/* Com tudo processado não há o que cancelar (rodada 4):
+                        "Cancelar" ao lado de cards "OK" fazia perguntar se
+                        fechar desfazia o envio. Não desfaz. */}
+                    {bulkThumbEntries.length > 0 && bulkThumbPendentes === 0 && !bulkThumbRunning ? 'Fechar' : 'Cancelar'}
+                  </button>
 
                   {/* Contorno NEUTRO — Salvar como rascunho (secundário). Era
                       roxo, e disputava com o primário ao lado. */}
@@ -6253,7 +6497,11 @@ export default function Arte() {
                     onClick={handleBulkThumbSaveDraft}
                     disabled={isDisabled}
                     data-testid="button-bulk-thumb-save-draft"
-                    title="Salva o thumb na peça sem enviá-la para aprovação. A peça continua como rascunho na fila de Arte."
+                    // O title prometia "sem enviar" para TODAS as imagens, mas
+                    // peça da Correção não tem rascunho: runBulkThumb a manda
+                    // pelo reenvio nos dois botões. O texto passa a dizer o
+                    // que acontece de fato (rodada 4) — a regra não mudou.
+                    title="Peça aguardando envio: só salva o thumb, sem enviar — ela continua na fila como rascunho. Peça da Correção não tem rascunho: a imagem vai como nova versão para quem ainda não aprovou."
                     style={{
                       height: isMobile ? 44 : 40, padding: '0 16px', borderRadius: 8,
                       backgroundColor: '#ffffff',
@@ -6281,6 +6529,10 @@ export default function Arte() {
                     onClick={handleBulkThumbUpload}
                     disabled={isDisabled}
                     data-testid="button-bulk-thumb-confirm"
+                    // "Enviar N thumbs" não dizia PARA ONDE (rodada 4). O
+                    // rótulo diz o destino; o title, o caso da Correção, que
+                    // vai pelo reenvio e não por um envio novo.
+                    title="Sobe cada imagem e manda a peça para a aprovação do patrocinador. Peça que está na Correção recebe a imagem como nova versão e volta para quem ainda não aprovou."
                     style={{
                       height: isMobile ? 44 : 40, padding: '0 20px', borderRadius: 8,
                       // TINTA, como os outros primários da Arte: verde nesta
@@ -6299,7 +6551,7 @@ export default function Arte() {
                   >
                     {bulkThumbRunning
                       ? <><div aria-hidden="true" style={{ width: 14, height: 14, borderRadius: '50%', border: '2px solid #d6d3d1', borderTopColor: '#57534e', animation: 'spin 0.8s linear infinite' }} />Enviando…</>
-                      : <><Send aria-hidden="true" style={{ width: 14, height: 14 }} />{readyCount > 0 ? `Enviar ${readyCount} ${readyCount === 1 ? 'thumb' : 'thumbs'}` : 'Enviar thumbs'}</>
+                      : <><Send aria-hidden="true" style={{ width: 14, height: 14 }} />{readyCount > 0 ? `Enviar ${readyCount} para aprovação` : 'Enviar para aprovação'}</>
                     }
                   </button>
                 </div>

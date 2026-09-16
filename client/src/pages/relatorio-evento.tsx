@@ -60,7 +60,16 @@ export default function RelatorioEvento() {
     return (
       <div style={{ padding: 40 }}>
         <p role="alert" style={{ fontSize: 14, color: "#b91c1c" }}>Não foi possível montar o relatório.</p>
-        <button onClick={() => refetch()} style={{ marginTop: 10, height: 36, padding: "0 14px", borderRadius: 8, border: "1px solid #e7e5e4", background: "#fff", cursor: "pointer", font: "inherit", fontSize: 13 }}>Tentar de novo</button>
+        {/* A saída ao lado do "tentar de novo": sem ela, quem caiu aqui por
+            falha de rede só voltava pelo botão do navegador. */}
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10 }}>
+          <button onClick={() => refetch()} style={{ height: 36, padding: "0 14px", borderRadius: 8, border: "1px solid #e7e5e4", background: "#fff", cursor: "pointer", font: "inherit", fontSize: 13 }}>Tentar de novo</button>
+          {eventId && (
+            <Link href={`/eventos/${eventId}`} style={{ display: "inline-flex", alignItems: "center", gap: 6, height: 36, padding: "0 12px", borderRadius: 8, color: "#44403c", fontSize: 13, fontWeight: 600, textDecoration: "none" }}>
+              <ArrowLeft style={{ width: 14, height: 14 }} /> Voltar ao evento
+            </Link>
+          )}
+        </div>
       </div>
     );
   }
@@ -92,6 +101,11 @@ export default function RelatorioEvento() {
             <Printer style={{ width: 14, height: 14 }} /> Imprimir / PDF
           </button>
         </div>
+        {/* "Imprimir / PDF" abre a janela do navegador — quem quer o arquivo
+            não sabia que o PDF sai dali. Uma linha, e some no papel. */}
+        <p className="rel-acao" style={{ margin: "-8px 0 16px", fontSize: 12, color: "#57534e", textAlign: "right" }}>
+          Para salvar em arquivo, escolha “Salvar como PDF” no destino da impressão.
+        </p>
 
         {/* ── Cabeçalho do documento ── */}
         <header style={{ borderBottom: "2px solid #1c1917", paddingBottom: 14, marginBottom: 20 }}>
@@ -179,7 +193,12 @@ export default function RelatorioEvento() {
               </tbody>
             </table>
             {atrasadas.length > 25 && (
-              <p style={{ margin: "6px 0 0", fontSize: 11.5, color: "#78716c" }}>+{atrasadas.length - 25} peças — a lista completa está na Gestão de Prazos.</p>
+              <p style={{ margin: "6px 0 0", fontSize: 11.5, color: "#78716c" }}>
+                +{atrasadas.length - 25} peças — a lista completa está na Gestão de Prazos.{" "}
+                {/* O atalho só na tela (rel-acao some no papel): a frase dizia
+                    onde estava a lista e não levava até ela. */}
+                <Link href="/prazos" className="rel-acao" style={{ color: "#c2410c", fontWeight: 600 }}>Abrir a Gestão de Prazos</Link>
+              </p>
             )}
           </section>
         )}

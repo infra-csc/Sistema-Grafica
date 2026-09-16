@@ -191,6 +191,10 @@ export function CobradoControl({
       onClick={() => mutation.mutate()}
       disabled={desabilitado}
       data-testid={`button-cobrar-${targetType}-${targetId}`}
+      // "O QUE ACONTECE SE EU CLICAR?" O verbo não dizia. A resposta é o que o
+      // POST faz de fato: grava quem, quando, promessa e nota (e o log). Não
+      // muda peça nenhuma e não manda mensagem — o broadcast só atualiza telas.
+      title={`Anota que ${targetType === "event" ? "este evento" : "este patrocinador"} foi cobrado: fica registrado quem cobrou, quando e o prazo combinado (se preenchido). Não muda nenhuma peça e não envia mensagem a ninguém.`}
       style={{
         display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 7,
         padding: "0 16px", height: alturaAcao, borderRadius: R.md,
@@ -365,6 +369,19 @@ export function CobradoControl({
         <div style={{ display: "flex", justifyContent: layout === "bloco" ? "flex-end" : "flex-start" }}>
           {botao}
         </div>
+      )}
+      {/* No BLOCO (o rodapé do modal, onde há espaço) a consequência vira
+          texto visível — o `title` do botão não existe no toque. E quem não
+          é admin deixa de ver um vazio sem explicação: diz por que não há
+          botão e o que a linha de cobrança acima significa. */}
+      {layout === "bloco" && (
+        <span data-testid={`texto-cobranca-explica-${targetType}-${targetId}`} style={{ display: "block", fontSize: 12, color: TI.secondary, lineHeight: 1.5, textAlign: podeCobrar ? "right" : "left" }}>
+          {podeCobrar
+            ? "Registrar a cobrança anota quem cobrou, quando e o prazo combinado. Não muda nenhuma peça e não avisa ninguém."
+            : cobranca
+              ? "Só o administrador registra cobranças. A linha acima mostra a última: quem cobrou, quando e se algo andou depois."
+              : `Só o administrador registra cobranças. ${targetType === "event" ? "Este evento" : "Este patrocinador"} ainda não foi cobrado.`}
+        </span>
       )}
     </div>
   );

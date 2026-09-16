@@ -133,6 +133,16 @@ const UI_STATUS_LABEL: Record<string, string> = {
   ENVIADO: 'Enviado',
 };
 
+// O QUE CADA SITUAÇÃO QUER DIZER — uma frase por estado, lida pelos chips da
+// barra e pelo selo da linha. Sem ela, "Pronto" não dizia pronto para quê, e
+// "Rascunho" não dizia que o vínculo ainda não existe no servidor.
+const UI_STATUS_SIGNIFICADO: Record<UIStatus, string> = {
+  PENDENTE: 'sem patrocinador marcado — falta vincular',
+  RASCUNHO: 'marcado mas não salvo — clique em Salvar',
+  PRONTO: 'vínculo salvo — falta enviar para a Arte',
+  ENVIADO: 'já na Arte — vínculo travado, só dá para acrescentar',
+};
+
 // Renderização incremental (padrão da casa, como arte.tsx/painel-geral):
 // tabelas grandes rendem só as primeiras 50 linhas + "Mostrar todos".
 const ITEM_RENDER_CAP = 50;
@@ -283,10 +293,17 @@ export default function VincularPatrocinadores() {
   const [autoLinkPreview, setAutoLinkPreview] = useState<any[] | null>(null);
   const [autoLinkLoading, setAutoLinkLoading] = useState(false);
   const [autoLinkConfirming, setAutoLinkConfirming] = useState(false);
+  // O EVENTO do auto-vínculo aberto. Antes a tela lia sempre eventFilter[0]:
+  // o único caminho era filtrar exatamente um evento antes — um passo que
+  // ninguém adivinhava (o porquê morava num title). Guardado na abertura, o
+  // mesmo diálogo serve ao botão do topo e ao do cabeçalho de cada evento.
+  const [autoLinkEventoId, setAutoLinkEventoId] = useState<string | null>(null);
 
-  // Modal de confirmação de salvamento
-  type SaveModal = { payloads: SavePayload[]; items: any[] };
-  const [saveConfirmModal, setSaveConfirmModal] = useState<SaveModal | null>(null);
+  // O modal "Confirmar salvamento" SAIU (rodada 4): salvar vínculo não é
+  // irreversível — a peça segue editável até o envio, que continua com a
+  // própria confirmação. O "Salvar" da linha nunca pediu confirmação; os de
+  // lote pediam, e a mesma ação tinha dois pesos. Agora os três salvam direto
+  // e o aviso diz em quantas peças e o passo seguinte.
 
 
   const { data: items = [], isLoading: itemsLoading, isError: itemsError, refetch: refetchItems } = useQuery<any[]>({
@@ -885,9 +902,11 @@ export default function VincularPatrocinadores() {
       // detalhes ficava stale sem isto.
       queryClient.invalidateQueries({ queryKey: ["/api/audit-logs"] });
       if (failed.length === 0) {
+        // "ESSE VÍNCULO FOI SALVO?" — sim, e o que vem depois. Sem modal de
+        // confirmação antes (saiu na rodada 4), este aviso é a prova do salvo.
         toast({
           title: "Vinculação salva",
-          description: `Vínculo salvo em ${savedIds.length} ${savedIds.length === 1 ? 'peça' : 'peças'}.`,
+          description: `Vínculo salvo em ${savedIds.length} ${savedIds.length === 1 ? 'peça' : 'peças'}. Próximo passo: Enviar para Arte.`,
         });
       } else {
         console.error("[vincular] falhas ao salvar:", failed);
@@ -952,7 +971,8 @@ export default function VincularPatrocinadores() {
       } else {
         toast({
           title: data.sent === 1 ? "Peça enviada para a Arte" : "Peças enviadas para a Arte",
-          description: data.sent === 1 ? "Ela já está na fila da Arte." : `As ${data.sent} já estão na fila da Arte.`,
+          description: (data.sent === 1 ? "Ela já está na fila da Arte" : `As ${data.sent} já estão na fila da Arte`)
+            + " — a Arte faz o layout e os patrocinadores vinculados aprovam. Aqui ficam como Enviado.",
         });
       }
 
@@ -1369,6 +1389,18 @@ export default function VincularPatrocinadores() {
       return next;
     });
     setItemSponsorsMap(prev => ({ ...prev, ...novosVinculos }));
+    // Marcar dezenas de linhas de uma vez muda a lista inteira para Rascunho
+    // — fora de vista, lá embaixo. O aviso diz o que aconteceu e que ainda
+    // falta salvar. Sem botão "Salvar" no aviso de propósito: ele guardaria a
+    // foto DESTE clique, e um chip marcado depois seria sobrescrito ao salvar.
+    const n = Object.keys(novosVinculos).length;
+    if (n > 0) {
+      const sponsorNome = (sponsors as any[]).find((s: any) => s.id === sponsorId)?.name ?? 'Patrocinador';
+      toast({
+        title: `${sponsorNome} marcado em ${n} ${n === 1 ? 'peça' : 'peças'}`,
+        description: 'Ainda é rascunho — use "Salvar rascunhos", na barra acima da lista, para gravar.',
+      });
+    }
   };
 
   /** Grava um conjunto novo de patrocinadores como rascunho local. */
@@ -1701,6 +1733,7 @@ export default function VincularPatrocinadores() {
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: isMobile ? 'flex-start' : 'flex-end', gap: 6, flexWrap: 'wrap' }}>
             <span
               data-testid={`badge-status-${item.id}`}
+              title={`${UI_STATUS_LABEL[estado] ?? estado}: ${UI_STATUS_SIGNIFICADO[estado as UIStatus] ?? ''}`}
               style={{
                 display: 'inline-flex', alignItems: 'center', gap: 5,
                 height: 24, padding: '0 9px', borderRadius: 999,
@@ -1806,6 +1839,31 @@ export default function VincularPatrocinadores() {
   };
 
   useEffect(() => { if (!sendConfirmModal) setSoSemPatrocinador(false); }, [sendConfirmModal]);
+
+  /** Abre a pré-visualização do auto-vínculo por cota de UM evento. */
+  const abrirAutoVinculo = async (eventId: string) => {
+    setAutoLinkEventoId(eventId);
+    setAutoLinkOpen(true);
+    setAutoLinkPreview(null);
+    setAutoLinkLoading(true);
+    try {
+      // apiRequest em vez de fetch cru: herda a guarda de servidor
+      // desatualizado (HTML no lugar de JSON) e o throw em erro HTTP.
+      const res = await apiRequest('GET', `/api/events/${eventId}/auto-link-preview`);
+      const data = await res.json();
+      // Guarda de formato: se o corpo não for a lista esperada, o
+      // .reduce() do rodapé derrubava a tela inteira.
+      if (!Array.isArray(data)) {
+        throw new Error('Não foi possível carregar a pré-visualização');
+      }
+      setAutoLinkPreview(data);
+    } catch (e: any) {
+      setAutoLinkOpen(false);
+      toast({ variant: 'destructive', title: 'Erro na pré-visualização', description: e?.message || 'Tente novamente' });
+    } finally {
+      setAutoLinkLoading(false);
+    }
+  };
 
   const openSendModalForItem = (item: any, preSelectedSponsorId?: string) => {
     const pending: Set<string> = new Set();
@@ -2081,7 +2139,9 @@ export default function VincularPatrocinadores() {
             icon={Zap}
             tint="#4f46e5"
             title="Auto-vincular por cota"
-            subtitle="Os patrocinadores entram conforme as regras de cota do evento"
+            /* O NOME do evento: aberto do cabeçalho de um grupo, o diálogo
+               precisa dizer sobre qual evento está falando. */
+            subtitle={`${(autoLinkEventoId && eventById.get(autoLinkEventoId)?.name) || 'Evento'} · os patrocinadores entram conforme as regras de cota`}
             /* Durante a confirmação o modal não pode fechar (o onOpenChange já
                bloqueia; o X precisava acompanhar). */
             onClose={autoLinkConfirming ? undefined : () => { setAutoLinkOpen(false); setAutoLinkPreview(null); }}
@@ -2146,7 +2206,10 @@ export default function VincularPatrocinadores() {
           {/* Footer */}
           <div style={{ padding: '14px 24px', borderTop: '1px solid #f0efed', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 10, flexShrink: 0 }}>
             <p style={{ fontSize: 12, color: '#57534e', lineHeight: 1.45, flex: '1 1 auto', minWidth: 0, marginRight: 12 }}>
-              Nada é gravado até você confirmar. Os vínculos entram como rascunho.
+              {/* Dizia "os vínculos entram como rascunho" — e não entram: a rota
+                  grava direto. A promessa errada fazia procurar um Salvar que
+                  não existe. */}
+              Nada é gravado até você confirmar. Ao confirmar, os vínculos são salvos na hora; o envio à Arte continua sendo seu.
             </p>
             <button
               onClick={() => { setAutoLinkOpen(false); setAutoLinkPreview(null); }}
@@ -2162,7 +2225,8 @@ export default function VincularPatrocinadores() {
                 if (!autoLinkPreview || autoLinkPreview.length === 0) return;
                 setAutoLinkConfirming(true);
                 try {
-                  const res = await apiRequest('POST', `/api/events/${eventFilter[0]}/auto-link-sponsors`);
+                  if (!autoLinkEventoId) return;
+                  const res = await apiRequest('POST', `/api/events/${autoLinkEventoId}/auto-link-sponsors`);
                   // Contagem real retornada pela rota — o total do preview
                   // podia divergir do que foi de fato gravado.
                   const { linked } = await res.json();
@@ -2191,7 +2255,9 @@ export default function VincularPatrocinadores() {
                   queryClient.invalidateQueries({ queryKey: ['/api/audit-logs'] });
                   setAutoLinkOpen(false);
                   setAutoLinkPreview(null);
-                  toast({ title: 'Patrocinadores vinculados!', description: `${linked} vínculo${linked !== 1 ? 's' : ''} criado${linked !== 1 ? 's' : ''} com sucesso.` });
+                  // "Foi salvo?" — sim, e já no servidor: o auto-vínculo não
+                  // passa pelo rascunho. O aviso diz isso e o passo seguinte.
+                  toast({ title: 'Vínculos salvos', description: `${linked} vínculo${linked !== 1 ? 's' : ''} gravado${linked !== 1 ? 's' : ''}. As peças vinculadas ficam Prontas — falta só Enviar para Arte.` });
                 } catch (e: any) {
                   toast({ variant: 'destructive', title: 'Erro ao vincular', description: e.message });
                 } finally {
@@ -2216,8 +2282,10 @@ export default function VincularPatrocinadores() {
           {/* Eyebrow numa linha, no mesmo desenho do Atendimento. Era um selo
               laranja cheio ("Fluxo de Verificação") + ponto + o nome da tela
               em maiúsculas — que o título logo abaixo repete por extenso. */}
+          {/* "Fluxo de Verificação" não situava ninguém: o eyebrow agora diz
+              ONDE esta etapa fica no caminho da peça. */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 10, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#c2410c' }}>
-            Fluxo de Verificação
+            Antes da Arte
           </div>
           <h1 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: FS.h1, fontWeight: 700, letterSpacing: '-0.03em', lineHeight: 1.1, color: '#1a1c1c', marginBottom: 6 }}>
             Vincular Patrocinadores
@@ -2227,41 +2295,27 @@ export default function VincularPatrocinadores() {
               chega aqui já sabe. No lugar dela, o que muda a cada visita: o que
               falta fazer agora. #57534e e não o #746e69 de antes — 4,4:1 não
               passa a régua da casa. */}
-          <p data-testid="frase-resolucao" style={{ color: '#57534e', fontSize: 14, fontWeight: 500, lineHeight: 1.5, marginBottom: 10, maxWidth: 560 }}>
+          <p data-testid="frase-resolucao" style={{ color: '#57534e', fontSize: 14, fontWeight: 500, lineHeight: 1.5, marginBottom: 4, maxWidth: 560 }}>
             {fraseDeResolucao}
+          </p>
+          {/* O QUE É E PARA ONDE VAI, numa linha secundária. A frase acima diz
+              o que falta hoje; quem chega pela primeira vez precisava também
+              saber o que "vincular" faz, que o rascunho só vale salvo e para
+              onde a peça segue depois do envio. */}
+          <p data-testid="explicacao-vincular" style={{ color: '#57534e', fontSize: 12, lineHeight: 1.5, margin: '0 0 10px', maxWidth: 640 }}>
+            Marque quem aprova a arte de cada peça (ou <strong style={{ color: '#44403c' }}>Sem patrocinador</strong>) e <strong style={{ color: '#44403c' }}>salve</strong> — marcar sem salvar é rascunho.
+            {' '}Depois, <strong style={{ color: '#44403c' }}>Enviar para Arte</strong>: a Arte faz o layout e os patrocinadores vinculados aprovam; a peça continua aqui como Enviado.
           </p>
         </div>
         <div style={{ display: 'flex', gap: 10, flexShrink: 0, flexWrap: 'wrap' }}>
           {/* O title fica no <span> porque botão desabilitado não dispara os
               eventos de mouse — o tooltip que explica POR QUE está desabilitado
               nunca aparecia. */}
-          <span title={eventFilter.length !== 1 ? 'Selecione exatamente um evento para usar o auto-vínculo' : 'Vincular patrocinadores automaticamente pela cota'} style={{ display: 'inline-flex' }}>
+          <span title={eventFilter.length !== 1 ? 'Filtre um evento para usar daqui — ou use o "Auto-vincular por cota" no cabeçalho de cada evento na lista' : 'Vincular patrocinadores automaticamente pela cota'} style={{ display: 'inline-flex' }}>
           <button
             data-testid="button-auto-vincular"
             disabled={eventFilter.length !== 1}
-            onClick={async () => {
-              if (eventFilter.length !== 1) return;
-              setAutoLinkOpen(true);
-              setAutoLinkPreview(null);
-              setAutoLinkLoading(true);
-              try {
-                // apiRequest em vez de fetch cru: herda a guarda de servidor
-                // desatualizado (HTML no lugar de JSON) e o throw em erro HTTP.
-                const res = await apiRequest('GET', `/api/events/${eventFilter[0]}/auto-link-preview`);
-                const data = await res.json();
-                // Guarda de formato: se o corpo não for a lista esperada, o
-                // .reduce() do rodapé derrubava a tela inteira.
-                if (!Array.isArray(data)) {
-                  throw new Error('Não foi possível carregar a pré-visualização');
-                }
-                setAutoLinkPreview(data);
-              } catch (e: any) {
-                setAutoLinkOpen(false);
-                toast({ variant: 'destructive', title: 'Erro na pré-visualização', description: e?.message || 'Tente novamente' });
-              } finally {
-                setAutoLinkLoading(false);
-              }
-            }}
+            onClick={() => { if (eventFilter.length === 1) abrirAutoVinculo(eventFilter[0]); }}
             /* Secundário e não preenchido: só a ação primária ("Enviar para
                Arte") fica sólida. Dois botões cheios lado a lado disputavam a
                atenção e nada indicava qual era o caminho principal da tela. */
@@ -2369,12 +2423,16 @@ export default function VincularPatrocinadores() {
 
         {/* Os quatro estados, clicáveis */}
         <div role="group" aria-label="Filtrar por situação" style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+          {/* O SIGNIFICADO de cada situação vai junto do chip (title e nome
+              acessível): "Pronto" para quê? "Rascunho" de quem? A ordem dos
+              chips já é a do caminho da peça. */}
           {([
             ['PENDENTE', 'Pendente', '#78716c'],
             ['RASCUNHO', 'Rascunho', '#c2410c'],
             ['PRONTO',   'Pronto',   '#15803d'],
             ['ENVIADO',  'Enviado',  '#1c1917'],
           ] as const).map(([estado, rotulo, cor]) => {
+            const significado = UI_STATUS_SIGNIFICADO[estado];
             const n = contagemPorEstado[estado];
             const marcado = statusFilter.includes(estado);
             // Situação sem nenhuma peça sai da linha — o clique nela devolveria
@@ -2388,7 +2446,8 @@ export default function VincularPatrocinadores() {
                 type="button"
                 onClick={() => alternarStatus(estado)}
                 aria-pressed={marcado}
-                title={marcado ? `Remover o filtro ${rotulo}` : `Ver só ${rotulo.toLowerCase()}`}
+                title={`${rotulo}: ${significado}. ${marcado ? 'Clique para remover o filtro.' : 'Clique para ver só estas.'}`}
+                aria-label={`${rotulo}, ${n} ${n === 1 ? 'peça' : 'peças'}: ${significado}`}
                 data-testid={`chip-status-${estado.toLowerCase()}`}
                 style={{
                   display: 'inline-flex', alignItems: 'center', gap: 7,
@@ -2409,18 +2468,25 @@ export default function VincularPatrocinadores() {
         </div>
 
         {/* Salvar rascunhos — a única ação que a barra carrega, e só quando há
-            o que salvar. */}
-        {contagemPorEstado.RASCUNHO > 0 && (
+            o que salvar NA LISTA VISÍVEL. */}
+        {contextStatusCounts.RASCUNHO > 0 && (
           <button
             type="button"
             onClick={() => {
+              // AGE SÓ SOBRE O QUE ESTÁ À VISTA (fullyFilteredItems — todos os
+              // filtros, inclusive o de status), e o rótulo conta
+              // `contextStatusCounts`, que sai do MESMO conjunto. Saía do pool
+              // sem a dimensão status: com o chip "Pronto" ligado, o clique
+              // gravava rascunhos escondidos pelo filtro, sem confirmação —
+              // vínculos que a pessoa não estava vendo. Mesma régua do
+              // "Enviar N para Arte".
               const rascunhoItems = fullyFilteredItems.filter(i => itemUIStates[i.id] === 'RASCUNHO');
               if (rascunhoItems.length === 0) return;
               const payloads = rascunhoItems.map(i => {
                 const ch = pendingChanges[i.id];
                 return { itemId: i.id, sponsorIds: ch?.sponsorIds ?? [], skipApproval: ch?.skipApproval ?? false };
               });
-              setSaveConfirmModal({ payloads, items: rascunhoItems });
+              saveLinkingMutation.mutate(payloads);
             }}
             disabled={saveLinkingMutation.isPending}
             data-testid="button-save-all-drafts"
@@ -2434,7 +2500,7 @@ export default function VincularPatrocinadores() {
             <Save style={{ width: 13, height: 13 }} />
             {saveLinkingMutation.isPending
               ? 'Salvando...'
-              : `Salvar ${contagemPorEstado.RASCUNHO} rascunho${contagemPorEstado.RASCUNHO !== 1 ? 's' : ''}`}
+              : `Salvar ${contextStatusCounts.RASCUNHO} rascunho${contextStatusCounts.RASCUNHO !== 1 ? 's' : ''}`}
           </button>
         )}
       </div>
@@ -2604,12 +2670,11 @@ export default function VincularPatrocinadores() {
                 return (
                   <button
                     onClick={() => {
-                      const selectedItems = dirtySelected.map(id => visibleItems.find(i => i.id === id)).filter(Boolean);
                       const payloads = dirtySelected.map(id => {
                         const ch = pendingChanges[id];
                         return { itemId: id, sponsorIds: ch?.sponsorIds ?? [], skipApproval: ch?.skipApproval ?? false };
                       });
-                      setSaveConfirmModal({ payloads, items: selectedItems });
+                      saveLinkingMutation.mutate(payloads);
                     }}
                     disabled={saveLinkingMutation.isPending}
                     data-testid="button-save-selected"
@@ -2800,6 +2865,30 @@ export default function VincularPatrocinadores() {
                     {faltando.length === 0 ? 'Todas vinculadas' : `Vincular restantes (${faltando.length})`}
                   </button>
                 ) : (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', flexShrink: 0 }}>
+                  {/* AUTO-VINCULAR NO PRÓPRIO EVENTO. O do topo exige filtrar
+                      exatamente um evento antes; aqui o evento já está
+                      escolhido pelo grupo. Mesmo diálogo, mesma pré-visualização
+                      e mesma confirmação — só sem o passo escondido. Só aparece
+                      com patrocinador no evento: sem eles não há cota. */}
+                  {eventSponsors.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => abrirAutoVinculo(event.id)}
+                      data-testid={`button-auto-vincular-evento-${event.id}`}
+                      title="Pré-visualiza os vínculos pelas regras de cota deste evento — nada é gravado antes de confirmar"
+                      style={{
+                        display: 'inline-flex', alignItems: 'center', gap: 6, flexShrink: 0,
+                        height: isMobile ? 44 : 34, padding: '0 14px', borderRadius: R.sm,
+                        backgroundColor: 'transparent', color: '#ffffff',
+                        border: '1px solid rgba(255,255,255,0.2)', cursor: 'pointer',
+                        font: 'inherit', fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap',
+                      }}
+                    >
+                      <Zap aria-hidden="true" style={{ width: 13, height: 13 }} />
+                      Auto-vincular por cota
+                    </button>
+                  )}
                   <button
                     type="button"
                     onClick={() => handleOpenSponsorDialog(event)}
@@ -2820,6 +2909,7 @@ export default function VincularPatrocinadores() {
                       ? 'Adicionar patrocinadores'
                       : `${eventSponsors.length} ${eventSponsors.length === 1 ? 'patrocinador' : 'patrocinadores'}`}
                   </button>
+                  </div>
                 )}
               </header>
 
@@ -2981,9 +3071,11 @@ export default function VincularPatrocinadores() {
             <p style={{ fontSize: 14, fontWeight: 700, color: '#1c1917', margin: '0 0 4px' }}>
               {temFiltroAtivo ? 'Nenhuma peça com os filtros atuais' : agrupamento === 'patrocinador' ? 'Nenhum evento com patrocinadores' : 'Nada a vincular'}
             </p>
+            {/* Com filtro: "por que a peça que eu procuro não aparece?" — além
+                do filtro, as duas regras de entrada da tela. */}
             <p style={{ fontSize: 13, color: '#57534e', margin: '0 0 16px', maxWidth: 400, marginLeft: 'auto', marginRight: 'auto', lineHeight: 1.5 }}>
               {temFiltroAtivo
-                ? 'Ajuste a busca ou os filtros acima para ver as peças.'
+                ?'Ajuste a busca ou os filtros acima. Se procura uma peça específica: as que ainda são rascunho no evento (não enviadas para vinculação) e as de evento finalizado não entram nesta tela.'
                 : agrupamento === 'patrocinador'
                   ? 'Nenhum evento desta fila tem patrocinador definido. Agrupe por evento e use o botão de patrocinadores no cabeçalho de cada um.'
                   : 'Toda peça em fila já foi vinculada e enviada à Arte.'}
@@ -3822,8 +3914,11 @@ export default function VincularPatrocinadores() {
           <div style={{ flexShrink: 0, padding: '18px 32px', borderTop: '1px solid #eeeeed', backgroundColor: '#fafaf9', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
             {/* A consequência é a saída daqui, não só a chegada lá: a peça
                 deixa esta tela e não volta a aparecer nela. */}
-            <p style={{ fontSize: 12, color: '#57534e', lineHeight: 1.45, maxWidth: 320 }}>
-              As peças saem desta tela e entram na fila da Arte.
+            {/* Dizia "as peças saem desta tela" — e não saem: ficam aqui como
+                Enviado, travadas. A frase agora diz o que acontece de fato e
+                quem age a seguir. */}
+            <p style={{ fontSize: 12, color: '#57534e', lineHeight: 1.45, maxWidth: 340 }}>
+              As peças entram na fila da Arte, que faz o layout para os patrocinadores aprovarem. Aqui elas ficam como Enviado.
             </p>
             <div style={{ display: 'flex', gap: 10, flexShrink: 0 }}>
               <button
@@ -3865,73 +3960,6 @@ export default function VincularPatrocinadores() {
         </DialogContent>
       </Dialog>
 
-      {/* ── MODAL DE CONFIRMAÇÃO DE SALVAMENTO ── */}
-      <Dialog open={!!saveConfirmModal} onOpenChange={open => { if (!open && !saveLinkingMutation.isPending) setSaveConfirmModal(null); }}>
-        <DialogContent className={HIDE_NATIVE_CLOSE} style={modalSurface(480)}>
-          <DialogTitle className="sr-only">Confirmar salvamento</DialogTitle>
-          <ModalHeader
-            variant="confirm"
-            icon={Save}
-            tint="#c2410c"
-            title="Confirmar salvamento"
-            subtitle={saveConfirmModal?.items.length === 1
-              ? 'A peça abaixo terá o vínculo salvo.'
-              : `${saveConfirmModal?.items.length} peças terão os vínculos salvos.`}
-            onClose={saveLinkingMutation.isPending ? undefined : () => setSaveConfirmModal(null)}
-          />
-          <DialogDescription className="sr-only">Revise os itens antes de salvar a vinculação</DialogDescription>
-          {/* ALTURA: cabeçalho 80 + lista 300 + 32 de padding + rodapé 121 =
-              533px. Em 445 cortava 44px de cada lado — o botão "Salvar" saía
-              junto com o título. `flex: 0 1 auto` + `minHeight: 0` deixa a lista
-              encolher abaixo dos 300 sob o teto do `modalSurface`. */}
-          <div style={{ maxHeight: 300, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6, padding: '16px 24px', flex: '0 1 auto', minHeight: 0 }}>
-            {saveConfirmModal?.items.map((item: any) => {
-              const ch = saveConfirmModal.payloads.find(p => p.itemId === item.id);
-              const sponsorNames = (ch?.sponsorIds ?? []).map((sid: string) => {
-                const sp = (sponsors as any[]).find((s: any) => s.id === sid);
-                return sp?.name ?? sid;
-              });
-              return (
-                <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', backgroundColor: '#f9f8f7', borderRadius: 8, border: '1px solid #e7e5e4' }}>
-                  <span style={{ fontFamily: 'monospace', fontSize: 13, fontWeight: 700, color: '#c2410c', minWidth: 52 }}>{item.displayId}</span>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <p style={{ fontSize: 13, fontWeight: 600, color: '#1a1c1c', margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.type}</p>
-                    {ch?.skipApproval ? (
-                      <p style={{ fontSize: 11, color: '#7c3aed', margin: 0, fontWeight: 600 }}>Sem aprovação de patrocinador</p>
-                    ) : sponsorNames.length > 0 ? (
-                      <p style={{ fontSize: 11, color: '#625d5b', margin: 0 }}>{sponsorNames.join(', ')}</p>
-                    ) : (
-                      <p style={{ fontSize: 11, color: '#746e69', margin: 0 }}>Sem patrocinador</p>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-          <ModalFooter>
-            <button
-              onClick={() => {
-                if (!saveConfirmModal) return;
-                saveLinkingMutation.mutate(saveConfirmModal.payloads, {
-                  onSuccess: () => setSaveConfirmModal(null),
-                  onError: () => setSaveConfirmModal(null),
-                });
-              }}
-              disabled={saveLinkingMutation.isPending}
-              data-testid="button-confirm-save"
-              style={{ width: '100%', height: 44, borderRadius: R.md, border: 'none', backgroundColor: '#c2410c', color: '#fff', fontSize: 13, fontWeight: 800, cursor: saveLinkingMutation.isPending ? 'wait' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, opacity: saveLinkingMutation.isPending ? 0.7 : 1 }}
-            >
-              <Save style={{ width: 15, height: 15 }} />
-              {saveLinkingMutation.isPending ? 'Salvando…' : 'Confirmar salvamento'}
-            </button>
-            <button
-              onClick={() => setSaveConfirmModal(null)}
-              disabled={saveLinkingMutation.isPending}
-              style={{ width: '100%', height: 36, borderRadius: R.md, border: 'none', background: 'none', fontSize: 13, fontWeight: 600, color: '#746e69', cursor: 'pointer' }}
-            >Cancelar</button>
-          </ModalFooter>
-        </DialogContent>
-      </Dialog>
 
     </div>
   );

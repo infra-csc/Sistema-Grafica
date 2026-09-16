@@ -26,12 +26,13 @@ import { FilterChip } from "@/components/prazos/filter-chip";
 // e das Análises, para as quatro telas datarem o dado com as mesmas palavras.
 import { fmtRelative } from "@/components/prazos/tokens";
 import {
-  getStatusMeta, getStatusLabel, getStatusShort, PRODUCTION_STATUSES,
+  getStatusMeta, getStatusLabel, getStatusShort, PRODUCTION_STATUSES, descricaoDoStatus,
   isEventoFinalizado, motivoEventoFinalizado, marcoEventoFinalizado,
   avisoPecasOcultas, todayBusinessMs,
 } from "@/lib/status";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { usePecaDoLink } from "@/hooks/use-peca-do-link";
 import {
   Dialog,
   DialogContent,
@@ -197,8 +198,18 @@ function jornadaDaPeca(item: any, agora: number) {
       ? Math.max(0, Math.round((ms - anterior) / DIA_MS))
       : null;
     if (ms !== null && !Number.isNaN(ms)) anterior = ms;
+    // O status que dá o SIGNIFICADO da etapa no `title` da bolinha: o da
+    // própria peça na etapa atual (é onde ela está de verdade); nas outras, o
+    // canônico da etapa — "Entregue" agrupa conferida e entregue, e o que a
+    // etapa promete é a entrega.
+    const statusDaEtapa = i === atual ? item.status
+      : stage.key === 'entregue' ? ST_DELIVERED
+      : stage.statuses[0];
     return {
       key: stage.key, label: stage.label, ms, desdeAnterior,
+      // Só a CHAVE aqui; a frase é montada no render. Esta função também roda
+      // dentro do comparador da ordenação por duração, a cada comparação.
+      statusDaEtapa,
       cumprida: atual >= 0 && i < atual,
       ehAtual: i === atual,
     };
@@ -263,6 +274,30 @@ export default function Atendimento() {
   const canDecide = user?.role === "atendimento" || user?.role === "admin";
   const [selectedItem, setSelectedItem] = useState<any>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
+
+  // TRAVA DE ~600 ms DEPOIS DO AVANÇO AUTOMÁTICO. Decidir uma peça abre a
+  // próxima no MESMO modal, com os botões no mesmo lugar: um duplo clique em
+  // "Aprovar para todos" (que não tem confirmação) aprovava também a peça
+  // seguinte, que a pessoa nem tinha visto. Por um instante as decisões ficam
+  // desabilitadas — visível, não um clique engolido em silêncio — enquanto o
+  // cabeçalho e o toast mostram a troca de peça. A navegação manual (setas,
+  // "Próxima peça") não trava: ali a pessoa escolheu trocar.
+  const TRAVA_POS_AVANCO_MS = 600;
+  const avancouEmRef = useRef(0);
+  const [pecaRecemAberta, setPecaRecemAberta] = useState(false);
+  const seguirParaPeca = (next: any) => {
+    avancouEmRef.current = Date.now();
+    setPecaRecemAberta(true);
+    setSelectedItem(next);
+  };
+  useEffect(() => {
+    if (!pecaRecemAberta) return;
+    const t = setTimeout(() => setPecaRecemAberta(false), TRAVA_POS_AVANCO_MS);
+    return () => clearTimeout(t);
+  }, [pecaRecemAberta, selectedItem?.id]);
+  // Checagem no próprio clique também: não depende do render já ter aplicado
+  // o `disabled`.
+  const decisaoTravada = () => Date.now() - avancouEmRef.current < TRAVA_POS_AVANCO_MS;
 
   // Aba ativa: pendentes ou histórico
   // (Os pedidos de peça saíram daqui para a página própria, /pedidos-de-peca.)
@@ -690,7 +725,7 @@ export default function Atendimento() {
         const idx = reviewQueue.findIndex((i: any) => i.id === selectedItem?.id);
         const next = idx >= 0 ? reviewQueue[idx + 1] : undefined;
         if (next) {
-          setSelectedItem(next);
+          seguirParaPeca(next);
           toast({ title: "Peça aprovada", description: `Seguindo para ${next.displayId} · ${next.type}` });
         } else {
           setDialogOpen(false);
@@ -706,11 +741,20 @@ export default function Atendimento() {
         // decisão recém-remendada (applyApprovalToCache roda antes, mas o
         // estado só vale no próximo render — por isso o sponsorId sai à mão).
         const restantes = quemFalta({ id: variables.itemId }).filter(n => n !== sponsorName).length;
+        // Sem ninguém pendente — mas nem todos aprovaram (alguém reprovou
+        // antes) — a peça não pede mais nada de quem decide (rodada 4). Ficar
+        // nela obrigava a achar "Próxima peça" numa ficha sem ação; segue como
+        // o ramo de todos aprovados.
+        const idx = reviewQueue.findIndex((i: any) => i.id === variables.itemId);
+        const next = restantes === 0 && dialogOpen && selectedItem?.id === variables.itemId && idx >= 0 ? reviewQueue[idx + 1] : undefined;
+        if (next) seguirParaPeca(next);
         toast({
           title: `${sponsorName || 'Patrocinador'} aprovou`,
           description: restantes > 0
             ? `${restantes === 1 ? 'Falta 1 patrocinador' : `Faltam ${restantes} patrocinadores`} decidir nesta peça.`
-            : "A decisão foi registrada.",
+            : next
+              ? `Nada mais a decidir nesta peça — seguindo para ${next.displayId} · ${next.type}`
+              : "A decisão foi registrada. Nada mais a decidir nesta peça.",
         });
       }
     },
@@ -734,25 +778,31 @@ export default function Atendimento() {
       setRejectionReason("");
       setRejectingSponsorId(null);
 
-      if (data.allDecided) {
+      // NADA MAIS A DECIDIR NESTA PEÇA? (rodada 4) O endpoint não devolve
+      // `allDecided`, então o ramo abaixo nunca rodava: depois de reprovar o
+      // último patrocinador pendente, a pessoa ficava parada numa peça sem
+      // decisão nenhuma a tomar. A conta sai de `quemFalta` (o mapa da lista),
+      // tirando à mão quem acabou de ser reprovado — o estado remendado por
+      // applyApprovalToCache só vale no próximo render.
+      const quemReprovou = itemSponsorsMap[variables.itemId]?.find((s: any) => s.id === variables.sponsorId)?.name;
+      const aindaFaltam = quemFalta({ id: variables.itemId }).filter(n => n !== quemReprovou).length;
+      const modalNaPeca = dialogOpen && selectedItem?.id === variables.itemId;
+      if (data.allDecided || (modalNaPeca && aindaFaltam === 0)) {
         // Peça resolvida (volta para a Arte): segue para a próxima da fila.
-        // Obs.: o endpoint atual não devolve `allDecided` — branch preservado
-        // para quando o servidor passar a informar (item 21 do backlog).
         const idx = reviewQueue.findIndex((i: any) => i.id === selectedItem?.id);
         const next = idx >= 0 ? reviewQueue[idx + 1] : undefined;
         if (next) {
-          setSelectedItem(next);
-          toast({ title: "Peça devolvida para a Arte", description: `Seguindo para ${next.displayId} · ${next.type}` });
+          seguirParaPeca(next);
+          toast({ title: quemReprovou ? `Reprovação de ${quemReprovou} registrada` : "Peça devolvida para a Arte", description: `A Arte recebe o motivo. Nada mais a decidir nesta peça — seguindo para ${next.displayId} · ${next.type}` });
         } else {
           setDialogOpen(false);
           setSelectedItem(null);
-          toast({ title: "Todos patrocinadores decidiram", description: "Peça retornou para Arte refazer o thumb." });
+          toast({ title: quemReprovou ? `Reprovação de ${quemReprovou} registrada` : "Todos patrocinadores decidiram", description: "A Arte recebe o motivo e refaz a arte. Era a última peça da fila." });
         }
       } else {
         // Diz QUEM reprovou e o que acontece com os demais — a pergunta
         // seguinte de quem acabou de reprovar é "e os outros patrocinadores?".
-        const quem = itemSponsorsMap[variables.itemId]?.find((s: any) => s.id === variables.sponsorId)?.name;
-        toast({ title: quem ? `Reprovação de ${quem} registrada` : "Reprovação registrada", description: "A Arte recebe o motivo e prepara a nova versão; os demais patrocinadores seguem podendo aprovar." });
+        toast({ title: quemReprovou ? `Reprovação de ${quemReprovou} registrada` : "Reprovação registrada", description: `A Arte recebe o motivo e prepara a nova versão. ${aindaFaltam === 0 ? "Nada mais a decidir nesta peça." : `${aindaFaltam === 1 ? "Falta 1 patrocinador" : `Faltam ${aindaFaltam} patrocinadores`} decidir nesta peça.`}` });
       }
     },
     onError: (error: any) => {
@@ -842,11 +892,23 @@ export default function Atendimento() {
       const response = await apiRequest("PATCH", `/api/items/${itemId}/sponsor-approve`, {});
       return response.json();
     },
-    onSuccess: (item) => {
+    onSuccess: (item, itemId) => {
       applyItemDecisionToCache(item);
-      setDialogOpen(false);
-      setSelectedItem(null);
-      toast({ title: "Peça aprovada", description: "A peça foi aprovada pelo patrocinador com sucesso!" });
+      // A MESMA fila da aprovação individual (rodada 4). "Aprovar para todos"
+      // fechava o modal e devolvia a pessoa à lista para reencontrar a próxima
+      // peça — o atalho mais rápido de decidir era o mais lento de continuar.
+      // O toast também dizia "aprovada pelo patrocinador", no singular, para
+      // uma decisão de todos.
+      const idx = reviewQueue.findIndex((i: any) => i.id === itemId);
+      const next = idx >= 0 ? reviewQueue[idx + 1] : undefined;
+      if (next) {
+        seguirParaPeca(next);
+        toast({ title: "Peça aprovada para todos os patrocinadores", description: `Seguindo para ${next.displayId} · ${next.type}` });
+      } else {
+        setDialogOpen(false);
+        setSelectedItem(null);
+        toast({ title: "Peça aprovada para todos os patrocinadores", description: "Era a última peça da fila." });
+      }
     },
     onError: (error: any) => {
       toast({ title: "Erro ao aprovar peça", description: error.message || "Ocorreu um erro", variant: "destructive" });
@@ -896,7 +958,9 @@ export default function Atendimento() {
         // Nenhum item mudou de status — ainda assim o log ficou defasado.
         queryClient.invalidateQueries({ queryKey: ["/api/audit-logs"], refetchType: dialogOpen ? "active" : "none" });
       }
-      setBatchSponsorId("");
+      // O PATROCINADOR FICA (rodada 4): decidir por marca é percorrer os
+      // eventos dela, e zerar tudo obrigava a reescolher a mesma marca a cada
+      // evento. Sem mais pendência, o efeito junto de batchSponsorNome limpa.
       setBatchEventId("");
       setBatchRejectReason("");
       setBatchShowRejectForm(false);
@@ -907,9 +971,9 @@ export default function Atendimento() {
         title: vars.action === "approve"
           ? `${n} ${n === 1 ? 'peça aprovada' : 'peças aprovadas'} em lote`
           : `${n} ${n === 1 ? 'peça reprovada' : 'peças reprovadas'} em lote`,
-        description: vars.action === "approve"
-          ? "As decisões deste patrocinador foram registradas."
-          : "As peças voltaram para a Arte com o motivo informado.",
+        description: `${vars.action === "approve"
+          ? `Aprovação de ${nomePorPatrocinador.get(vars.sponsorId) ?? "o patrocinador"} registrada.`
+          : "As peças voltaram para a Arte com o motivo informado."}`,
       });
     },
     onError: (error: any) => {
@@ -1262,6 +1326,21 @@ export default function Atendimento() {
 
   const batchItemCount = batchEligibleItems.length;
 
+  // NOMES do lote (rodada 4): a confirmação dizia "para o patrocinador
+  // selecionado" — a pergunta "para quem?" voltava justamente no último clique,
+  // com o seletor escondido atrás do diálogo.
+  const batchSponsorNome = nomePorPatrocinador.get(batchSponsorId) ?? "o patrocinador selecionado";
+  const batchEventoNome = eventoPorId.get(batchEventId)?.name ?? null;
+
+  // Depois de um lote o patrocinador FICA escolhido (ver batchSponsorMutation):
+  // o próximo evento dele é a pergunta seguinte. Se ele não tem mais nada
+  // pendente, a escolha volta ao zero em vez de apontar para um nome que saiu
+  // da lista.
+  useEffect(() => {
+    if (!batchSponsorId || loadingSponsors) return;
+    if (!batchEligibleSponsors.some((s: any) => s.id === batchSponsorId)) setBatchSponsorId("");
+  }, [batchSponsorId, batchEligibleSponsors, loadingSponsors]);
+
   // ── Aba Histórico ───────────────────────────────────────────────────────
   // Itens que têm pelo menos uma aprovação de patrocinador com status 'approved',
   // independente do status atual (podem estar em produção, entregues, etc.)
@@ -1484,6 +1563,22 @@ export default function Atendimento() {
     setSelectedItem(item);
     setDialogOpen(true);
   };
+
+  // Deep link `?item=` (sino e "Resolver em Atendimento →" da Gestão de
+  // Prazos): abre a revisão da peça na aba Pendentes. A fila é
+  // `awaitingItems` — a mesma regra que monta a lista (aguardando patrocinador,
+  // sem dispensa, evento em jogo). Peça que já foi decidida não está mais
+  // aqui, e o hook avisa em vez de abrir uma revisão sem decisão a tomar.
+  // Antes do `return` de carregamento: hook não pode ficar atrás dele.
+  usePecaDoLink<any>({
+    pronto: !itemsLoading && !eventsLoading && !itemsError,
+    localizar: (id) => (awaitingItems as any[]).find((i: any) => i.id === id),
+    abrir: (peca) => {
+      if (activeTab !== "pending") setActiveTab("pending");
+      handleViewDetails(peca);
+    },
+    codigoDe: (id) => (items as any[]).find((i: any) => i.id === id)?.displayId,
+  });
 
   if (itemsLoading || eventsLoading) {
     // Silhueta da fila, e não um spinner solto no meio da tela: é o mesmo
@@ -2318,8 +2413,10 @@ export default function Atendimento() {
                           <XCircle style={{ width: 16, height: 16, color: '#dc2626' }} />
                         </div>
                         <div>
-                          <p style={{ fontSize: 13, fontWeight: 800, color: '#dc2626', margin: 0 }}>Reprovar {batchSelectedItemIds.size} {batchSelectedItemIds.size === 1 ? 'peça' : 'peças'}</p>
-                          <p style={{ fontSize: 11, color: '#b91c1c', margin: 0 }}>O motivo será registrado no histórico e comunicado à Arte</p>
+                          {/* PARA QUEM, no título (rodada 4) — e #b91c1c no
+                              texto: #dc2626 fica abaixo de AA sobre o rosa. */}
+                          <p style={{ fontSize: 13, fontWeight: 800, color: '#b91c1c', margin: 0 }}>Reprovar {batchSelectedItemIds.size} {batchSelectedItemIds.size === 1 ? 'peça' : 'peças'} para {batchSponsorNome}</p>
+                          <p style={{ fontSize: 11, color: '#991b1b', margin: 0 }}>O mesmo motivo vai para todas; a Arte refaz e {batchSponsorNome} e os patrocinadores com aprovação estrita esperam a nova versão</p>
                         </div>
                       </div>
                       {/* autoFocus: quem clicou "Reprovar" vai escrever o motivo —
@@ -2391,7 +2488,7 @@ export default function Atendimento() {
                           {batchSponsorMutation.isPending
                             ? <Loader2 style={{ width: 13, height: 13 }} className="animate-spin" />
                             : <XCircle style={{ width: 13, height: 13 }} />}
-                          Confirmar reprovação
+                          Reprovar e devolver à Arte
                         </button>
                       </div>
                     </div>
@@ -2563,6 +2660,32 @@ export default function Atendimento() {
                 >
                   <Play aria-hidden="true" style={{ width: 13, height: 13 }} />
                   Decidir {filaDaSuaMesa.length === 1 ? 'a peça' : `as ${filaDaSuaMesa.length}`} em fila
+                </button>
+              )}
+              {/* A FILA INTEIRA (rodada 4). A porta acima só existe para "nova
+                  versão"; as peças que aguardam patrocinador — a maior parte do
+                  dia — ficavam atrás de eventos RECOLHIDOS: abrir o evento,
+                  achar a peça, Revisar. Esta abre a primeira da lista, na ordem
+                  da tela, e o modal segue com "Próxima peça". Quando há peça na
+                  sua mesa ela é secundária (contorno); sem, é a ação do dia. */}
+              {reviewQueue.length > filaDaSuaMesa.length && (
+                <button
+                  type="button"
+                  data-testid="button-fila-inteira"
+                  onClick={() => { setSelectedItem(reviewQueue[0]); setDialogOpen(true); }}
+                  title="Abre a primeira peça da lista, na ordem escolhida; do modal dá para seguir peça a peça sem voltar"
+                  style={{
+                    height: isMobile ? 44 : 36, padding: '0 16px', borderRadius: 9,
+                    border: filaDaSuaMesa.length > 0 ? '1px solid #e7e5e4' : 'none',
+                    backgroundColor: filaDaSuaMesa.length > 0 ? '#ffffff' : '#1c1917',
+                    color: filaDaSuaMesa.length > 0 ? '#1c1917' : '#ffffff', cursor: 'pointer',
+                    fontFamily: 'inherit', fontSize: 13, fontWeight: 700, whiteSpace: 'nowrap',
+                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, flexShrink: 0,
+                    flex: isMobile ? '1 1 auto' : undefined,
+                  }}
+                >
+                  <Play aria-hidden="true" style={{ width: 13, height: 13 }} />
+                  {filaDaSuaMesa.length > 0 ? `Toda a fila (${reviewQueue.length})` : reviewQueue.length === 1 ? 'Revisar a peça' : `Revisar as ${reviewQueue.length} em fila`}
                 </button>
               )}
               </div>
@@ -2880,7 +3003,7 @@ export default function Atendimento() {
                                     // com espaçamento): numa lista de dezenas de
                                     // cards, era a terceira coisa em maiúsculas
                                     // da mesma linha, ao lado do código e do tipo.
-                                    <span data-testid={`selo-status-${item.id}`} title={`A peça está em "${meta.label}" — é daqui que ela sai quando a decisão que falta chegar`}
+                                    <span data-testid={`selo-status-${item.id}`} title={`A peça está em "${meta.label}" — é daqui que ela sai quando a decisão que falta chegar${descricaoDoStatus(item.status) ? `\n${descricaoDoStatus(item.status)}` : ''}`}
                                       style={{ display: 'inline-flex', alignItems: 'center', gap: 5, flexShrink: 0, fontSize: 11, fontWeight: 600, color: meta.text, backgroundColor: meta.bg, border: `1px solid ${meta.border}`, borderRadius: 4, padding: '1px 6px', whiteSpace: 'nowrap' }}>
                                       <span aria-hidden="true" style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: meta.dot, flexShrink: 0 }} />
                                       {meta.short}
@@ -3345,7 +3468,10 @@ export default function Atendimento() {
                             </div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 3, flexWrap: 'wrap' }}>
                               <span style={{ fontSize: 11, color: '#746e69', fontWeight: 500 }}>{ev?.name || '—'}</span>
-                              <span style={{
+                              {/* `title` com o significado: o selo traz só o rótulo, e
+                                  no histórico a pergunta é o que quer dizer a peça
+                                  estar ali e quem age agora. */}
+                              <span title={descricaoDoStatus(item.status) ?? undefined} style={{
                                 fontSize: 11, fontWeight: 700,
                                 backgroundColor: statusCfg.bg, color: statusCfg.text, border: `1px solid ${statusCfg.border}`,
                                 padding: '2px 8px', borderRadius: 6, whiteSpace: 'nowrap', lineHeight: 1.5,
@@ -3440,7 +3566,7 @@ export default function Atendimento() {
                                           )}
                                         </span>
                                       )}
-                                      <span title={`${e.label}${e.ms ? ` · ${fmtDt(new Date(e.ms))}` : ' · sem carimbo de data'}`}
+                                      <span title={`${e.label}${e.ms ? ` · ${fmtDt(new Date(e.ms))}` : ' · sem carimbo de data'}${descricaoDoStatus(e.statusDaEtapa) ? `\n${descricaoDoStatus(e.statusDaEtapa)}` : ''}`}
                                         style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, flexShrink: 0, maxWidth: 78 }}>
                                         <span aria-hidden="true" style={{
                                           width: e.ehAtual ? 11 : 8, height: e.ehAtual ? 11 : 8, borderRadius: '50%', flexShrink: 0,
@@ -4097,6 +4223,15 @@ export default function Atendimento() {
                             Decisão
                           </h4>
 
+                          {/* MODO CONSULTA escrito (rodada 4): os botões apareciam
+                              esmaecidos e o porquê morava no `title` de cada um —
+                              no celular, em lugar nenhum. */}
+                          {!canDecide && (
+                            <p data-testid="decisao-modo-consulta" style={{ margin: '0 0 14px', padding: '10px 14px', borderRadius: 8, backgroundColor: '#f5f5f4', border: '1px solid #e7e5e4', fontSize: 12.5, color: '#44403c', lineHeight: 1.5 }}>
+                              <b style={{ fontWeight: 700 }}>Modo consulta.</b> Aprovar e reprovar é do Atendimento e dos administradores — aqui você acompanha quem já decidiu.
+                            </p>
+                          )}
+
                           {allDecided && !allApproved && (
                             <div style={{
                               display: 'flex', alignItems: 'center', gap: 10,
@@ -4105,7 +4240,9 @@ export default function Atendimento() {
                             }}>
                               <RotateCcw style={{ width: 14, height: 14, color: '#746e69', flexShrink: 0 }} />
                               <p style={{ fontSize: 13, color: '#57534e', margin: 0, fontWeight: 500 }}>
-                                Decisões registradas — a Arte está preparando uma nova versão.
+                                {/* "E agora?" respondido (rodada 4): a peça não pede
+                                    nada de você até a nova arte chegar. */}
+                                Nada a decidir nesta peça agora — a Arte está preparando a nova versão e você é avisado quando ela chegar.
                               </p>
                             </div>
                           )}
@@ -4192,15 +4329,16 @@ export default function Atendimento() {
                                       {isPending && !isRejectingThis && (
                                         <div style={{ display: 'flex', gap: 6, flexDirection: isMobile ? 'column' : 'row', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
                                           <button
-                                            onClick={() => setRejectingSponsorId(sponsor.id)}
-                                            disabled={individualRejectMutation.isPending || !canDecide}
-                                            title={!canDecide ? "Somente Atendimento e administradores decidem aprovações" : undefined}
+                                            onClick={() => { if (!decisaoTravada()) setRejectingSponsorId(sponsor.id); }}
+                                            disabled={individualRejectMutation.isPending || !canDecide || pecaRecemAberta}
+                                            // "Reprovar faz o quê?" antes do clique (rodada 4).
+                                            title={!canDecide ? "Somente Atendimento e administradores decidem aprovações" : `Abre o campo do motivo. A Arte refaz a arte por causa de ${sponsor.name}; os patrocinadores com aprovação estrita também esperam a nova versão, e os demais pendentes seguem podendo aprovar.`}
                                             style={{
                                               padding: '8px 16px', borderRadius: 8,
                                               backgroundColor: '#fef2f2', border: '1px solid #fecaca',
                                               color: '#b91c1c', fontSize: 13, fontWeight: 700,
                                               cursor: canDecide ? 'pointer' : 'not-allowed', transition: 'all 0.15s',
-                                              opacity: canDecide ? 1 : 0.5,
+                                              opacity: canDecide && !pecaRecemAberta ? 1 : 0.5,
                                               minHeight: isMobile ? 44 : 36,
                                               width: isMobile ? '100%' : undefined,
                                             }}
@@ -4209,16 +4347,16 @@ export default function Atendimento() {
                                             Reprovar
                                           </button>
                                           <button
-                                            onClick={() => setConfirmApproveIndividual({ itemId: selectedItem.id, sponsorId: sponsor.id, sponsorName: sponsor.name || 'Patrocinador' })}
-                                            disabled={individualApproveMutation.isPending || !canDecide}
-                                            title={!canDecide ? "Somente Atendimento e administradores decidem aprovações" : undefined}
+                                            onClick={() => { if (!decisaoTravada()) setConfirmApproveIndividual({ itemId: selectedItem.id, sponsorId: sponsor.id, sponsorName: sponsor.name || 'Patrocinador' }); }}
+                                            disabled={individualApproveMutation.isPending || !canDecide || pecaRecemAberta}
+                                            title={!canDecide ? "Somente Atendimento e administradores decidem aprovações" : `Registra a aprovação de ${sponsor.name} (dá para revogar depois)`}
                                             data-testid={`button-approve-sponsor-${sponsor.id}`}
                                             style={{
                                               padding: '8px 16px', borderRadius: 8,
                                               backgroundColor: '#f0fdf4', border: '1px solid #86efac',
                                               color: '#15803d', fontSize: 13, fontWeight: 700,
                                               cursor: canDecide ? 'pointer' : 'not-allowed', transition: 'all 0.15s',
-                                              opacity: canDecide ? 1 : 0.5,
+                                              opacity: canDecide && !pecaRecemAberta ? 1 : 0.5,
                                               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
                                               minHeight: isMobile ? 44 : 36,
                                               width: isMobile ? '100%' : undefined,
@@ -4311,6 +4449,13 @@ export default function Atendimento() {
                                           <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#dc2626' }}>Motivo da reprovação</span>
                                           <span style={{ fontSize: 11, color: '#b91c1c', fontWeight: 700, lineHeight: 1 }}>*</span>
                                         </div>
+                                        {/* O EFEITO, antes de escrever (rodada 4): a dúvida
+                                            "reprovar trava a peça inteira?" segurava o
+                                            clique. Não trava — só esta marca espera a
+                                            nova arte. */}
+                                        <p style={{ margin: '0 0 7px', fontSize: 12, color: '#57534e', lineHeight: 1.45 }}>
+                                          A Arte recebe este motivo e refaz a arte. {sponsor.name} e os patrocinadores com aprovação estrita (que perdem a aprovação já dada) esperam a nova versão; os demais pendentes seguem podendo aprovar.
+                                        </p>
 
                                         {/* Textarea nativa — sem reset de className interferindo no foco */}
                                         {/* autoFocus: "Reprovar" abre este campo para
@@ -4399,7 +4544,7 @@ export default function Atendimento() {
                                           >
                                             {individualRejectMutation.isPending
                                               ? <><Loader2 style={{ width: 13, height: 13 }} className="animate-spin" />Registrando…</>
-                                              : <><XCircle style={{ width: 13, height: 13 }} />Confirmar Reprovação</>
+                                              : <><XCircle style={{ width: 13, height: 13 }} />Reprovar e devolver à Arte</>
                                             }
                                           </button>
                                         </div>
@@ -4538,9 +4683,9 @@ export default function Atendimento() {
                           se escondeu. */}
                       {dialogSponsors.length > 0 && !allApproved && !allDecided && (
                         <button
-                          onClick={() => sponsorApproveMutation.mutate(selectedItem.id)}
-                          disabled={sponsorApproveMutation.isPending || !canDecide}
-                          title={!canDecide ? "Somente Atendimento e administradores decidem aprovações" : "Aprova a peça para TODOS os patrocinadores de uma vez"}
+                          onClick={() => { if (!decisaoTravada()) sponsorApproveMutation.mutate(selectedItem.id); }}
+                          disabled={sponsorApproveMutation.isPending || !canDecide || pecaRecemAberta}
+                          title={!canDecide ? "Somente Atendimento e administradores decidem aprovações" : `Aprova ${selectedItem.displayId} para TODOS os patrocinadores de uma vez`}
                           data-testid="button-approve-item"
                           style={{
                             height: 36, padding: '0 14px', borderRadius: 9,
@@ -4548,7 +4693,7 @@ export default function Atendimento() {
                             color: '#1c1917', fontSize: 13, fontWeight: 700,
                             cursor: canDecide ? 'pointer' : 'not-allowed',
                             display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap',
-                            opacity: sponsorApproveMutation.isPending || !canDecide ? 0.5 : 1,
+                            opacity: sponsorApproveMutation.isPending || !canDecide || pecaRecemAberta ? 0.5 : 1,
                           }}
                         >
                           {sponsorApproveMutation.isPending
@@ -4674,7 +4819,8 @@ export default function Atendimento() {
               style={{ width: '100%', height: 44, borderRadius: 9, backgroundColor: '#1c1917', border: 'none', color: '#ffffff', fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
             >
               <CheckCircle style={{ width: 15, height: 15 }} />
-              Aprovar
+              {/* O CTA diz o resultado e para quem (rodada 4). */}
+              {`Aprovar para ${confirmApproveIndividual?.sponsorName ?? 'o patrocinador'}`}
             </button>
             <button
               onClick={() => setConfirmApproveIndividual(null)}
@@ -4710,7 +4856,7 @@ export default function Atendimento() {
               pelo teto que o `modalSurface` passou a impor. */}
           <div style={{ padding: '20px 24px', overflowY: 'auto', flex: '1 1 auto', minHeight: 0 }}>
             <DialogDescription style={{ fontSize: 13, color: '#57534e', lineHeight: 1.6, margin: 0 }}>
-              Aprovar <strong style={{ color: '#1c1917' }}>{batchSelectedItemIds.size} {batchSelectedItemIds.size === 1 ? 'item' : 'itens'}</strong> para o patrocinador selecionado?
+              Aprovar <strong style={{ color: '#1c1917' }}>{batchSelectedItemIds.size} {batchSelectedItemIds.size === 1 ? 'peça' : 'peças'}</strong> para <strong style={{ color: '#1c1917' }}>{batchSponsorNome}</strong>{batchEventoNome ? <> em {batchEventoNome}</> : null}?
               Dá para revogar depois, enquanto a peça estiver em aprovação ou na finalização da Arte.
             </DialogDescription>
           </div>
@@ -4728,7 +4874,7 @@ export default function Atendimento() {
               style={{ width: '100%', height: 44, borderRadius: 9, backgroundColor: '#1c1917', border: 'none', color: '#ffffff', fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
             >
               <CheckCircle style={{ width: 15, height: 15 }} />
-              Aprovar seleção
+              {`Aprovar ${batchSelectedItemIds.size} ${batchSelectedItemIds.size === 1 ? 'peça' : 'peças'} para ${batchSponsorNome}`}
             </button>
             <button
               onClick={() => setConfirmApproveBatch(false)}

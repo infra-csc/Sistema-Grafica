@@ -173,9 +173,13 @@ export default function ChangePassword() {
             {isFirstLogin ? "Primeiro Acesso" : "Alterar Senha"}
           </CardTitle>
           <CardDescription>
+            {/* O QUE ACONTECE DEPOIS, antes do clique. No primeiro acesso: para
+                onde se vai. Na troca comum: o efeito colateral (as outras
+                sessões caem) — antes só o toast de sucesso contava, tarde demais
+                para quem estava logado no celular no meio de uma conferência. */}
             {isFirstLogin
-              ? "Por segurança, você deve criar uma nova senha"
-              : "Altere sua senha de acesso"}
+              ? "Por segurança, crie uma senha só sua antes de continuar. Depois você entra direto no Painel Geral."
+              : "Ao salvar, as outras sessões abertas com a sua conta (outro navegador, celular) são encerradas."}
           </CardDescription>
         </CardHeader>
         <CardContent>

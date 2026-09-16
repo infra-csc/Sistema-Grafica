@@ -42,14 +42,15 @@ describe("aparece", () => {
   });
 
   it("com KPI 'Em Revisão · Chegando' clicável, antes de Liberados", () => {
-    expect(GRAFICA).toContain('{ label: "Em Revisão",   value: stats.revisao,    sub: "Chegando",         testId: "stat-revisao",    filterVals: ["awaiting_final_review"] },');
+    // UX rodada 4: o "sub" da aba virou frase visível no desktop ("Chegando da Revisão").
+    expect(GRAFICA).toContain('{ label: "Em Revisão",   value: stats.revisao,    sub: "Chegando da Revisão",  testId: "stat-revisao",    filterVals: ["awaiting_final_review"] },');
     expect(GRAFICA.indexOf('testId: "stat-revisao"')).toBeLessThan(GRAFICA.indexOf('testId: "stat-approved"'));
   });
 
   it("com selo nas duas formas da lista (card e tabela)", () => {
     expect(GRAFICA).toContain("chip-revisao-${item.id}");
     expect(GRAFICA).toContain("selo-revisao-${item.id}");
-    expect(GRAFICA).toContain("As ações liberam quando a Revisão aprovar.");
+    expect(GRAFICA).toContain("As ações liberam quando a Revisão Final aprovar.");
   });
 
   it("o filtro casa a família inteira, e a contagem soma igual — invariante da faceta", () => {

@@ -305,6 +305,13 @@ export function QuadroDaTriagem({ evento, ativos, reservaPorAtivo, onVoltar, onT
             </button>
           </div>
         )}
+        {/* UM local para a coluna inteira — o campo fica no topo da coluna e
+            nada dizia que valia para todas as peças soltas nela. */}
+        {campoDeLocal && (
+          <p style={{ margin: "-4px 0 0", fontSize: 12, color: "#64748b", lineHeight: 1.4 }}>
+            {destino === "galpao" ? "Vale para todas as peças desta coluna." : "Opcional · vale para todas desta coluna."}
+          </p>
+        )}
 
         <div style={{
           flex: 1, gap: 8,
@@ -361,6 +368,7 @@ export function QuadroDaTriagem({ evento, ativos, reservaPorAtivo, onVoltar, onT
           <p aria-live="polite" style={{ margin: 0, fontSize: 13, color: "#475569", lineHeight: 1.45 }}>
             {evento.data ? `Evento ${diaEMes(evento.data)} · ` : ""}{naColuna("triar").length} a triar de {ativos.length} ·{" "}
             {toque ? "toque nas peças e escolha o destino" : "arraste as peças para o destino (ou selecione várias e arraste juntas)"}
+            {" · "}nada é gravado até salvar — dá para rearrumar
           </p>
         </div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", width: isMobile ? "100%" : undefined }}>
@@ -371,9 +379,9 @@ export function QuadroDaTriagem({ evento, ativos, reservaPorAtivo, onVoltar, onT
             <Table2 size={15} aria-hidden="true" /> Tabela (dividir por quantidade)
           </button>
           <button type="button" onClick={salvar} data-testid="button-salvar-triagem" disabled={movidas.length === 0 || salvando}
-            title={faltaLocal ? "Informe o local no galpão" : undefined}
+            title={movidas.length === 0 ? "Mova ao menos uma peça para um destino" : faltaLocal ? "Informe o local no galpão" : `Grava o destino de ${movidas.length} ${movidas.length === 1 ? "peça" : "peças"}`}
             style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, height: alvo, padding: "0 18px", borderRadius: 10, border: "none", fontSize: 14, fontWeight: 700, cursor: movidas.length === 0 || salvando ? "not-allowed" : "pointer", background: movidas.length === 0 || salvando ? "#e2e8f0" : "#c2410c", color: movidas.length === 0 || salvando ? "#64748b" : "#fff", boxShadow: movidas.length > 0 && !salvando ? "0 4px 14px rgba(194,65,12,0.28)" : "none", flex: isMobile ? "1 1 100%" : undefined, transition: "background-color 0.15s, box-shadow 0.15s" }}>
-            <CheckCircle2 size={16} aria-hidden="true" /> {salvando ? "Salvando…" : `Salvar triagem (${movidas.length})`}
+            <CheckCircle2 size={16} aria-hidden="true" /> {salvando ? "Salvando…" : movidas.length === 0 ? "Salvar triagem" : `Salvar ${movidas.length} ${movidas.length === 1 ? "peça" : "peças"}`}
           </button>
         </div>
       </div>

@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { Bell, Package, CheckCircle, AlertTriangle, Truck, FileText, ClipboardCheck, CalendarClock, PlusCircle, MinusCircle, ChevronRight, Inbox } from "lucide-react";
+import { Bell, Package, CheckCircle, AlertTriangle, Truck, FileText, ClipboardCheck, CalendarClock, PlusCircle, MinusCircle, ChevronRight, Inbox, RotateCcw, Link2, Palette } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 
 export interface Notification {
@@ -27,6 +27,11 @@ interface NotificationBellProps {
   onViewAll?: () => void;
   /** Navega até o evento/item da notificação (definido pelo App). */
   onOpen?: (n: Notification) => void;
+  /**
+   * true quando o aviso tem para onde levar. Sem isto o sino adivinhava pelo
+   * `eventId`, e avisos de lote (sem evento) viravam clique morto.
+   */
+  podeAbrir?: (n: Notification) => boolean;
 }
 
 // ── Type config ───────────────────────────────────────────────────────────────
@@ -39,17 +44,58 @@ type TypeConfig = {
 };
 
 const TYPE_CONFIG: Record<string, TypeConfig> = {
+  // "Estoque" e "Design" eram rótulos herdados de um protótipo: o servidor usa
+  // itemAdded para "peça chegou à sua fila" (clonadas, aguardando revisão,
+  // aguardando aprovação) e arteApproved para "a peça andou" (aprovada pelos
+  // patrocinadores, arquivo final pronto, liberada para produção). Quem lia
+  // "Estoque" num aviso de aprovação procurava o aviso na tela errada.
   itemAdded: {
     Icon: Package,
     border: "#3b82f6",
     bgIcon: "#dbeafe", iconColor: "#2563eb",
-    label: "Estoque",
+    label: "Chegou à sua fila",
   },
   arteApproved: {
     Icon: CheckCircle,
     border: "#22c55e",
     bgIcon: "#dcfce7", iconColor: "#16a34a",
-    label: "Design",
+    label: "Peça avançou",
+  },
+  // Os cinco tipos abaixo o servidor grava desde sempre e caíam no genérico
+  // "Sistema" com sino cinza — inclusive os dois que abrem o grupo "Precisa de
+  // ação" (prioridade e devolução), justo os que mais pedem identidade.
+  itemPriority: {
+    Icon: AlertTriangle,
+    border: "#ef4444",
+    bgIcon: "#fee2e2", iconColor: "#b91c1c",
+    label: "Prioridade",
+  },
+  itemRejected: {
+    Icon: RotateCcw,
+    border: "#ef4444",
+    bgIcon: "#fef2f2", iconColor: "#b91c1c",
+    // "Voltou para você" e não "Reprovada": o servidor usa este tipo para toda
+    // peça que VOLTA a alguém — reprovação para a Arte, nova versão para o
+    // Atendimento, devolução da Gráfica para a Revisão Final.
+    label: "Voltou para você",
+  },
+  itemsSubmitted: {
+    Icon: Link2,
+    border: "#3b82f6",
+    bgIcon: "#dbeafe", iconColor: "#1d4ed8",
+    label: "Vinculação",
+  },
+  itemsSentToArte: {
+    Icon: Palette,
+    border: "#3b82f6",
+    bgIcon: "#dbeafe", iconColor: "#1d4ed8",
+    label: "Chegou à sua fila",
+  },
+  itemReturnedToCreation: {
+    Icon: RotateCcw,
+    border: "#f59e0b",
+    bgIcon: "#fef3c7", iconColor: "#92400e",
+    label: "Voltou para você",
   },
   deadlineAlert: {
     Icon: AlertTriangle,
@@ -220,6 +266,7 @@ export function NotificationBell({
   isMarkingAll = false,
   onViewAll,
   onOpen,
+  podeAbrir,
 }: NotificationBellProps) {
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -292,7 +339,7 @@ export function NotificationBell({
     if (!n.isRead) onMarkAsRead(n.id);
     // Clicar leva ao contexto: antes só marcava como lida e o usuário tinha
     // de caçar o item manualmente.
-    if (n.eventId && onOpen) {
+    if (onOpen && (podeAbrir ? podeAbrir(n) : !!n.eventId)) {
       // Com navegação o foco segue para o novo contexto — sem refocus no sino.
       setOpen(false);
       onOpen(n);
@@ -550,6 +597,9 @@ export function NotificationBell({
                 const cfg = TYPE_CONFIG[n.type] ?? DEFAULT_CONFIG;
                 const Icon = cfg.Icon;
                 const isDeadline = n.type === "deadlineAlert";
+                // "O que acontece ao clicar?" Com destino, o aviso diz que abre;
+                // sem destino, o clique só marca como lido — e não promete nada.
+                const abre = !!onOpen && (podeAbrir ? podeAbrir(n) : !!n.eventId);
                 return (
                   <div
                     key={n.id}
@@ -559,7 +609,7 @@ export function NotificationBell({
                     // como lida sem mouse.
                     role="button"
                     tabIndex={0}
-                    aria-label={`${n.isRead ? "Lida" : "Não lida"}: ${n.message}`}
+                    aria-label={`${n.isRead ? "Lida" : "Não lida"}: ${n.message}${abre ? " — abrir" : " — marcar como lida"}`}
                     onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleItem(n); } }}
                     style={{
                       position: "relative",
@@ -617,6 +667,11 @@ export function NotificationBell({
                         margin: 0,
                       }}>
                         {fmtTime(n.createdAt)} · {cfg.label}
+                        {abre && (
+                          <span aria-hidden="true" style={{ display: "inline-flex", alignItems: "center", gap: 2, marginLeft: 8, fontWeight: 700, color: "#c2410c" }}>
+                            Abrir<ChevronRight style={{ width: 12, height: 12 }} />
+                          </span>
+                        )}
                       </p>
                     </div>
 
@@ -650,9 +705,13 @@ export function NotificationBell({
           </div>
 
           {/* Footer */}
+          {/* Fundo claro com régua em cima. A faixa quase preta tinha ficado
+              para trás quando o texto virou #c2410c: laranja escuro sobre
+              #1c1917 dá ~3:1 e reprovava justamente o único link do rodapé. */}
           <div style={{
-            padding: "12px 20px",
-            backgroundColor: "#1c1917",
+            padding: "4px 8px",
+            backgroundColor: "#fafaf9",
+            borderTop: "1px solid #e7e5e4",
             textAlign: "center",
           }}>
             <button
@@ -672,10 +731,12 @@ export function NotificationBell({
                 fontSize: 12, fontWeight: 700, color: "#c2410c",
                 transition: "background-color 0.15s",
               }}
-              onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = "#f9f9f8")}
+              onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = "#f5f5f4")}
               onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent")}
             >
-              Ver todas as atividades
+              {/* Diz o destino: o botão leva ao Histórico (registro de tudo),
+                  não a uma lista maior de avisos — "Ver todas" prometia outra. */}
+              Ver todas as atividades no Histórico
               <ChevronRight aria-hidden="true" style={{ width: 14, height: 14 }} />
             </button>
           </div>

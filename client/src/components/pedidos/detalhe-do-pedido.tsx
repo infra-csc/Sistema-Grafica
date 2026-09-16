@@ -30,6 +30,7 @@ import {
   AndamentoDaLinha,
   EstadoDoPedido,
   PrazoDaLinha,
+  QuemAgeNaLinha,
   ReferenciasDoPedido,
   SeloDoEventoChip,
   diaDoEvento,
@@ -114,6 +115,7 @@ function PecaDoDetalhe({ linha, numero, agora, selo, acoes }: { linha: LinhaDoPe
       {linha.status === "cancelado" && (
         <p style={{ margin: 0, fontSize: 14, color: "#44403c", lineHeight: 1.5 }}><strong>Motivo do cancelamento:</strong> {linha.motivoCancelamento ?? "—"}</p>
       )}
+      <QuemAgeNaLinha linha={linha} />
       {acoes.length > 0 && (
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           {acoes.map((a) => <BotaoDoCartao key={a.chave} acao={a} altura={isMobile ? 44 : 36} descritoPor={`bloqueio-detalhe-${linha.id}`} />)}

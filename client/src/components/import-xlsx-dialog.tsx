@@ -611,10 +611,19 @@ export function ImportXlsxDialog({
             </div>
           </div>
 
+          {/* sr-only, e não display:none: escondido de vez, o campo saía da
+              ordem de Tab e sem mouse não havia como escolher a planilha. Vem
+              ANTES do rótulo para o `peer` pintar o anel de foco nele. */}
+          <input id="xlsx-upload" type="file" accept=".xlsx,.xls" className="sr-only peer" aria-label="Escolher a planilha .xlsx" onChange={e => {
+            const f = e.target.files?.[0];
+            if (f) { setImportFile(f); setImportPreview(null); setImportPreviewItems(null); }
+            e.target.value = "";
+          }} />
           {/* Drop zone */}
           <label
             htmlFor="xlsx-upload"
             data-testid="dropzone-xlsx"
+            className="peer-focus-visible:ring-2 peer-focus-visible:ring-green-700 peer-focus-visible:ring-offset-2"
             style={{
               display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8,
               border: '2px dashed', borderColor: importFile ? '#16a34a' : '#d4d0cc',
@@ -658,11 +667,6 @@ export function ImportXlsxDialog({
               </>
             )}
           </label>
-          <input id="xlsx-upload" type="file" accept=".xlsx,.xls" style={{ display: 'none' }} onChange={e => {
-            const f = e.target.files?.[0];
-            if (f) { setImportFile(f); setImportPreview(null); setImportPreviewItems(null); }
-            e.target.value = "";
-          }} />
           </div>
 
           {/* MEIO ROLÁVEL: resumo, triagem e a dica de formato. */}
@@ -858,6 +862,12 @@ export function ImportXlsxDialog({
                   <><Check style={{ width: 15, height: 15 }} /> Importar {importPreviewItems.length} {importPreviewItems.length === 1 ? 'peça' : 'peças'}</>
                 )}
               </button>
+              {/* O QUE ACONTECE DEPOIS — antes de clicar. Importar não é
+                  enviar: as peças caem no card de rascunhos do evento e só
+                  seguem para a vinculação quando alguém envia. */}
+              <p data-testid="texto-depois-de-importar" style={{ margin: 0, fontSize: 11, color: '#57534e', lineHeight: 1.45, textAlign: 'center' }}>
+                As peças entram em Rascunho no evento. Depois, envie para a vinculação.
+              </p>
             </div>
           )}
           </div>

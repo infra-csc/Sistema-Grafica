@@ -89,6 +89,15 @@ export default function ReparoMotivos() {
           <p style={{ margin: 0, color: T.second, maxWidth: 640, fontSize: FS.body, lineHeight: 1.5 }}>
             Prévia das mensagens afetadas pelo erro que substituiu a letra “s” por espaços. Só correções revisadas são listadas.
           </p>
+          {/* PARA QUE SERVE E O QUE ACONTECE AO APLICAR — quem abre esta tela
+              pela primeira vez vê "Correção de textos" no menu sem saber se é
+              rotina ou conserto pontual. É conserto de UM bug: nada aqui é
+              trabalho recorrente, e aplicar grava uma linha "Texto corrigido"
+              por registro na trilha (services/reparoMotivosSemS.ts), o que
+              responde "quem mexeu no motivo?" depois. */}
+          <p style={{ margin: "6px 0 0", color: "#57534e", maxWidth: 680, fontSize: 12.5, lineHeight: 1.5 }}>
+            É um conserto pontual, não uma rotina: confira “como está” e “como ficará” abaixo e aplique uma vez. Cada texto corrigido fica registrado nos Logs do Sistema com o seu nome.
+          </p>
         </div>
       </header>
 

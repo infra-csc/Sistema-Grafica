@@ -54,7 +54,7 @@ export default function BookGerador() {
   const [ordem, setOrdem] = useState<string[]>([]);
   const [progresso, setProgresso] = useState<ProgressoDoBook | null>(null);
   const [publicando, setPublicando] = useState(false);
-  const [resultado, setResultado] = useState<{ url: string; falhas: number } | null>(null);
+  const [resultado, setResultado] = useState<{ url: string; falhas: number; aviso?: { status?: string; para?: string[]; reason?: string } | null } | null>(null);
 
   // ── Herança do book atual (o template de verdade — decisão do dono, 25/08) ──
   const [capaHerdada, setCapaHerdada] = useState(true);
@@ -176,15 +176,27 @@ export default function BookGerador() {
       setProgresso({ etapa: "Enviando o PDF…", feito: totalPecas, total: totalPecas });
       const bookUrl = await subirBookPdf(bytes);
       const itemIds = incluidos.flatMap((g) => g.itens.map((i) => i.id));
-      await apiRequest("POST", `/api/events/${eventId}/book`, { bookUrl, itemIds, comentario: comentario.trim() || undefined });
+      const resposta = await apiRequest("POST", `/api/events/${eventId}/book`, { bookUrl, itemIds, comentario: comentario.trim() || undefined });
+      // O DESFECHO DO AVISO (rodada 4). A tela dizia que "o aviso por e-mail
+      // continua sendo o botão do admin" — mas o POST /book já dispara o aviso
+      // e devolve o resultado (avisarBookPorEmail), o mesmo que o modal da Arte
+      // lê. Quem publicava saía achando que ninguém tinha sido avisado. A
+      // leitura é tolerante: sem corpo legível, não se afirma nada.
+      const corpo = await resposta.json().catch(() => null) as { aviso?: { status?: string; para?: string[]; reason?: string } | null } | null;
+      const aviso = corpo?.aviso ?? null;
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
       queryClient.invalidateQueries({ queryKey: ["/api/items", eventId] });
-      setResultado({ url: bookUrl, falhas: falhas.length });
+      setResultado({ url: bookUrl, falhas: falhas.length, aviso });
+      const fraseAviso = aviso?.status === "sent"
+        ? ` Aviso por e-mail enviado para ${(aviso.para ?? []).join(", ")}.`
+        : aviso?.status === "failed"
+          ? ` O aviso por e-mail NÃO saiu (${aviso.reason ?? "motivo desconhecido"}) — avise a equipe por outro caminho.`
+          : "";
       toast({
-        title: "Book gerado e publicado",
+        title: aviso?.status === "failed" ? "Book publicado — mas o aviso NÃO saiu" : "Book gerado e publicado",
         description: `${nPaginasFinal} ${nPaginasFinal === 1 ? "página" : "páginas"}, ${totalPecas - falhas.length} ${totalPecas - falhas.length === 1 ? "arte" : "artes"}.` +
-          (falhas.length ? ` ${falhas.length} arte${falhas.length !== 1 ? "s" : ""} falharam e ficaram fora.` : ""),
-        variant: falhas.length ? "destructive" : undefined,
+          (falhas.length ? ` ${falhas.length} arte${falhas.length !== 1 ? "s" : ""} falharam e ficaram fora.` : "") + fraseAviso,
+        variant: falhas.length || aviso?.status === "failed" ? "destructive" : undefined,
       });
     } catch (e: any) {
       toast({ title: "Não foi possível gerar o book", description: e?.message ?? String(e), variant: "destructive" });
@@ -270,7 +282,7 @@ export default function BookGerador() {
             onClick={gerarEPublicar}
             disabled={!podePublicar || publicando || totalPecas === 0}
             data-testid="button-gerar-book"
-            title={!podePublicar ? "Publicar book é da Arte e do admin — os demais podem montar e conferir a prévia." : totalPecas === 0 ? "Nenhum grupo com arte incluído — marque ao menos um grupo" : undefined}
+            title={!podePublicar ? "Publicar book é da Arte e do admin — os demais podem montar e conferir a prévia." : totalPecas === 0 ? "Nenhum grupo com arte incluído — marque ao menos um grupo" : bookAtualUrl ? "Gera o PDF, SUBSTITUI o book atual do evento e avisa a equipe por e-mail" : "Gera o PDF, publica o book no evento e avisa a equipe por e-mail"}
             style={{
               display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8, height: isMobile ? 44 : 40, padding: "0 18px",
               borderRadius: 9, border: "none",
@@ -289,6 +301,20 @@ export default function BookGerador() {
           </button>
           </div>
         </div>
+
+        {/* POR QUE NÃO DÁ PARA PUBLICAR, escrito (rodada 4). O botão cinza
+            explicava só no `title` — no celular, em lugar nenhum. E republicar
+            sem o "o que mudou" parecia liberado e respondia com um toast de
+            erro depois do clique. */}
+        {!podePublicar ? (
+          <p data-testid="book-modo-consulta" style={{ margin: "0 0 14px", padding: "10px 14px", borderRadius: 8, backgroundColor: "#f5f5f4", border: "1px solid #e7e5e4", color: "#44403c", fontSize: 13, lineHeight: 1.5 }}>
+            <b style={{ fontWeight: 700 }}>Modo consulta.</b> Publicar o book é da Arte e do admin — você pode montar a prévia e baixar o PDF para conferir.
+          </p>
+        ) : bookAtualUrl && !comentarioDoBookValido(true, comentario) && totalPecas > 0 ? (
+          <p data-testid="book-falta-comentario" style={{ margin: "0 0 14px", fontSize: 13, color: "#57534e", lineHeight: 1.5 }}>
+            Este evento já tem book: para publicar, escreva abaixo o que mudou nesta versão — é o que sai no e-mail.
+          </p>
+        ) : null}
 
         {/* PROGRESSO À VISTA. A geração leva minutos (cada arte é baixada e
             desenhada) e o único sinal era um "12/40" dentro do botão — que
@@ -325,7 +351,11 @@ export default function BookGerador() {
           <p role="status" data-testid="book-publicado" style={{ margin: "0 0 14px", padding: "10px 14px", borderRadius: 8, backgroundColor: "#f0fdf4", border: "1px solid #bbf7d0", color: "#15803d", fontSize: 13.5, fontWeight: 600 }}>
             Book publicado.{" "}
             <a href={resultado.url} target="_blank" rel="noopener noreferrer" style={{ color: "#15803d" }}>Abrir o PDF</a>
-            {" · "}o aviso por e-mail continua sendo o botão do admin, como no book manual.
+            {/* O que aconteceu com o aviso, com as palavras do servidor — e
+                em vermelho escuro quando falhou, porque aí alguém precisa
+                avisar na mão. */}
+            {resultado.aviso?.status === "sent" && <>{" · "}aviso por e-mail enviado para {(resultado.aviso.para ?? []).join(", ")}.</>}
+            {resultado.aviso?.status === "failed" && <span style={{ color: "#991b1b" }}>{" · "}o aviso por e-mail NÃO saiu ({resultado.aviso.reason ?? "motivo desconhecido"}) — avise a equipe por outro caminho.</span>}
           </p>
         )}
 

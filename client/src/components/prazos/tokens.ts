@@ -85,7 +85,9 @@ export const STAGE_STYLE: Record<StageState, { dot: string; bg: string; text: st
  */
 export const LEGENDA_TRILHA: { cor: string; texto: string }[] = [
   { cor: STAGE_STYLE.done.dot, texto: "concluída" },
-  { cor: STAGE_STYLE.warning.dot, texto: "vence agora" },
+  // "vence agora" prometia urgência de hoje; o estado `warning` do servidor
+  // vale para os 3 dias antes do prazo. A legenda diz a janela real.
+  { cor: STAGE_STYLE.warning.dot, texto: "vence em até 3 dias" },
   { cor: STAGE_STYLE.overdue.dot, texto: "vencida" },
   { cor: STAGE_STYLE.upcoming.dot, texto: "prevista" },
 ];
@@ -110,7 +112,9 @@ export const STAGE_SECTOR: Record<string, {
   // Finalizacao e a Arte anexando o arquivo final — mesmo setor de layouts,
   // outra aba: lá a peça já voltou aprovada e o que falta é o arquivo final.
   finalizacao:  { sector: "Arte",        base: "/arte", fase: "finalizar-layouts" },
-  revisao:      { sector: "Revisão",     base: "/solicitacao" },
+  // "Revisão Final", o nome do menu (16/09): o link diz "Resolver em Revisão
+  // Final →" e a pessoa acha a tela com a mesma palavra na barra lateral.
+  revisao:      { sector: "Revisão Final", base: "/solicitacao" },
   producao:     { sector: "Gráfica",     base: "/grafica" },
 };
 
@@ -137,10 +141,11 @@ export const STAGE_SECTOR: Record<string, {
 // seria sobrescrito — e, quando o uuid não estivesse no cache, sobrescrito
 // pelo PRÓPRIO uuid, que não acha nada. Mandar menos, aqui, acerta mais.
 //
-// O QUE FALTA (especificado para as telas de destino, não implementável daqui):
-// `arte.tsx`, `atendimento.tsx` e `solicitacao.tsx` ainda não leem `?item=`.
-// Até lá o link chega no recorte mais estreito que cada uma sabe aplicar —
-// nunca na fila inteira — e o `item` viaja junto, pronto para ser consumido.
+// DESDE 16/09 `arte.tsx`, `atendimento.tsx` e `solicitacao.tsx` também leem
+// `?item=` (hooks/use-peca-do-link.ts): com a peça na fila, a ficha abre — na
+// fase certa, na Arte; fora da fila, um aviso neutro. O recorte que viaja
+// junto (`busca`, `evento`, `fase`) continua valendo: é ele que a pessoa vê
+// ao fechar a ficha.
 
 /** O que a Gestão de Prazos sabe de uma peça na hora de montar um link. */
 export interface AlvoPeca {

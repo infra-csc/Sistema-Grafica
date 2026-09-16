@@ -230,7 +230,9 @@ export function CloneItemsDialog({
                         peça que a pessoa pode querer remarcar. A diferença
                         agora é o peso e o fundo da linha, e o checkbox. */}
                     <span style={{ fontSize: 13, color: escolhidas.has(i.id) ? '#1a1c1c' : '#746e69', fontWeight: escolhidas.has(i.id) ? 500 : 400, lineHeight: 1.4, minWidth: 0 }}>
-                      {i.displayId != null && <strong style={{ fontVariantNumeric: 'tabular-nums' }}>#{i.displayId}</strong>}{i.displayId != null ? " " : ""}{i.type}
+                      {/* displayId já vem com a cerquilha do backend ("#0281");
+                          prefixar de novo mostrava "##0281". */}
+                      {i.displayId != null && <strong style={{ fontVariantNumeric: 'tabular-nums' }}>{i.displayId}</strong>}{i.displayId != null ? " " : ""}{i.type}
                       {i.description ? <span style={{ color: '#746e69' }}> · {i.description}</span> : null}
                       <span style={{ color: '#746e69', whiteSpace: 'nowrap' }}> · {i.quantity} un.</span>
                     </span>
@@ -249,7 +251,11 @@ export function CloneItemsDialog({
                   {escolhidas.size === pecasDaOrigem.length
                     ? <>Todas as <strong>{pecasDaOrigem.length}</strong> peças do evento serão adicionadas a <strong>{eventName}</strong>.</>
                     : <>As <strong>{escolhidas.size}</strong> peças selecionadas (de {pecasDaOrigem.length}) serão adicionadas a <strong>{eventName}</strong>.</>}<br />
-                  Status: <strong>{getStatusLabel("requested")}</strong> · Patrocinadores e aprovações <strong>não</strong> serão copiados.
+                  {/* "draft", e não "requested": é o status que o servidor grava
+                      no clone (POST /api/events/:id/clone-items). O rótulo
+                      antigo dizia "Solicitado", que não é onde a peça aparece. */}
+                  Entram como <strong>{getStatusLabel("draft")}</strong> · Patrocinadores e aprovações <strong>não</strong> serão copiados.<br />
+                  Depois, revise e envie para a vinculação no card “Peças em Rascunho”.
                 </p>
               </div>
             </div>

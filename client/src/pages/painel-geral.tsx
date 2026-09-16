@@ -1496,6 +1496,72 @@ export default function PainelGeral() {
           <p style={{ fontSize: 13, color: "#746e69", fontWeight: 500, margin: "4px 0 0 0", display: useCards ? "none" : "block" }}>
             Todas as peças de todos os eventos, ordenadas pela saída do caminhão
           </p>
+          {/* ── POR ONDE COMEÇAR (rodada 4) ──────────────────────────────────
+              O Painel é a primeira tela de TODOS os perfis e não dizia a
+              nenhum deles o que fazer. A pessoa da Arte abria 3 mil peças e
+              tinha de descobrir sozinha que a fila dela é "Aguardando envio" +
+              "Aguardando finalização", que existe uma visão pronta para isso na
+              barra de filtros e que o trabalho em si acontece em OUTRA tela.
+              A frase junta as três respostas: quantas peças são dela, um
+              clique para vê-las aqui e um clique para a tela onde se age.
+
+              Nada é inventado: a fila é a visão do papel (lib/painel-visoes),
+              o número é a soma dos MESMOS cards de status abaixo e as telas
+              saem do mesmo mapa do "Continuar em …" da ficha
+              (lib/painel-rotas) — que já respeita o acesso do papel. */}
+          {!isLoading && !(isError && itensDoServidor.length === 0) && (() => {
+            const minha = visoes.find(v => v.id === "meu_papel") ?? null;
+            const linkStyle: React.CSSProperties = {
+              display: "inline-flex", alignItems: "center", gap: 4, minHeight: 36,
+              fontSize: 13, fontWeight: 700, color: "#c2410c",
+              textDecoration: "underline", textUnderlineOffset: 2, whiteSpace: "nowrap",
+            };
+            if (!minha) {
+              // Admin não tem fila própria: vê o fluxo inteiro. O próximo
+              // passo dele é cobrar, e a tela de cobrança é outra.
+              return (
+                <p data-testid="texto-por-onde-comecar" style={{ display: "flex", alignItems: "center", flexWrap: "wrap", columnGap: 8, margin: "2px 0 0", fontSize: 13, color: "#57534e", lineHeight: 1.4 }}>
+                  <span>Você vê o fluxo inteiro. Atraso por etapa e quem precisa agir ficam em</span>
+                  <Link href="/prazos" style={linkStyle}>Gestão de Prazos <ArrowUpRight aria-hidden="true" style={{ width: 13, height: 13 }} /></Link>
+                </p>
+              );
+            }
+            // Soma dos cards de status: `stats` ignora o próprio filtro de
+            // status (é o que deixa o card clicável mostrar o número), então o
+            // número não muda quando a pessoa aplica a visão da fila.
+            const n = minha.filtros.status.reduce((t, s) => t + (stats.byGroup[s as GroupKey] ?? 0), 0);
+            const recorteAlheio = !!searchTerm || eventFilter.length > 0 || typeFilter.length > 0
+              || sponsorFilter.length > 0 || dateFilter.length > 0 || focoFilter.length > 0;
+            const ativa = visaoEstaAtiva(minha, filtrosAtuais);
+            const telas = minha.filtros.status
+              .map(s => proximaTelaDoStatus(s, user?.role))
+              .filter((t, i, arr): t is NonNullable<typeof t> => !!t && arr.findIndex(x => x?.path === t.path) === i);
+            // "Peças aguardando envio…" → "aguardando envio…": a frase já começa
+            // pelo número de peças.
+            const oQue = minha.hint.replace(/^Peças\s+/i, "");
+            return (
+              <p data-testid="texto-por-onde-comecar" style={{ display: "flex", alignItems: "center", flexWrap: "wrap", columnGap: 10, margin: "2px 0 0", fontSize: 13, color: "#57534e", lineHeight: 1.4 }}>
+                <span>
+                  Sua fila: <strong style={{ color: "#1c1917", fontWeight: 700 }}>{fmtN(n)} {n === 1 ? "peça" : "peças"}</strong> {oQue}
+                  {recorteAlheio ? " neste recorte" : ""}.
+                </span>
+                <button
+                  type="button"
+                  onClick={() => aplicarVisao(minha)}
+                  aria-pressed={ativa}
+                  data-testid="button-ver-minha-fila"
+                  style={{ ...linkStyle, background: "none", border: "none", padding: 0, cursor: "pointer", fontFamily: "inherit" }}
+                >
+                  {ativa ? "Ver todas as peças" : "Ver só a minha fila"}
+                </button>
+                {telas.map(t => (
+                  <Link key={t.path} href={t.path} style={linkStyle}>
+                    Trabalhar em {t.label} <ArrowUpRight aria-hidden="true" style={{ width: 13, height: 13 }} />
+                  </Link>
+                ))}
+              </p>
+            );
+          })()}
         </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: 12, flexShrink: 0 }}>
@@ -1503,7 +1569,10 @@ export default function PainelGeral() {
               lê é verdade. Sem botão Atualizar — a tela revalida sozinha. */}
           {frescor && (
             <div
-              title={`${frescor.srLabel}. Esta tela se atualiza sozinha a cada minuto e ao voltar para a aba.`}
+              /* A promessa tem de bater com o código: "a cada minuto" era a
+                 regra antiga — hoje quem traz a mudança na hora é o aviso do
+                 servidor, e a revalidação de segurança roda a cada 5 min. */
+              title={`${frescor.srLabel}. Esta tela se atualiza sozinha: na hora em que alguém muda uma peça, ao voltar para a aba e, por segurança, a cada 5 minutos. Ponto verde = atualizada há menos de 3 minutos.`}
               data-testid="painel-frescor"
               style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, fontWeight: 700, color: "#746e69", whiteSpace: "nowrap" }}
             >
@@ -1650,6 +1719,20 @@ export default function PainelGeral() {
                 {" "}{atencao.atrasadas === 1 ? "peça em evento com caminhão atrasado" : "peças em evento com caminhão atrasado"}
               </span>
             </button>
+          )}
+          {/* "QUEM PRECISA AGIR NESTE ATRASO?" O chip responde quantas peças,
+              e o Painel não sabe dizer de quem é a vez — quem sabe é a Gestão
+              de Prazos, que cruza cada etapa vencida com o setor que a
+              destrava. O link já chega no recorte "Só com atraso" (?atrasados=1,
+              parâmetro que aquela tela lê), sem a pessoa remontar o filtro. */}
+          {atencao.atrasadas > 0 && (
+            <Link
+              href="/prazos?atrasados=1"
+              data-testid="link-atrasados-quem-age"
+              style={{ display: "inline-flex", alignItems: "center", gap: 4, minHeight: 38, fontSize: 13, fontWeight: 700, color: "#c2410c", textDecoration: "underline", textUnderlineOffset: 2, whiteSpace: "nowrap" }}
+            >
+              Quem precisa agir <ArrowUpRight aria-hidden="true" style={{ width: 13, height: 13 }} />
+            </Link>
           )}
           {/* ── Peças de evento fora de jogo ────────────────────────────────
               Mora AQUI, e não entre os cards de status, por dois motivos: os
@@ -1856,6 +1939,15 @@ export default function PainelGeral() {
                 })}
               </div>
             )}
+            {/* COMO LER A BARRA, por escrito. Quem chega pela primeira vez via
+                uma faixa cinza sem legenda e não tinha como saber que o tom
+                quer dizer avanço, nem que cada pedaço é um filtro. A cor
+                continua sem significar risco (risco mora na faixa de atenção
+                acima); a frase só ensina a ler a forma e o clique. */}
+            <p data-testid="texto-como-ler-fluxo" style={{ margin: 0, fontSize: 12, color: "#746e69", lineHeight: 1.45 }}>
+              Cada pedaço é uma etapa, do pedido à entrega — quanto mais escuro, mais perto da entrega.
+              {" "}Clique numa etapa (aqui ou nos cartões abaixo) para filtrar a lista; clique de novo para desfazer.
+            </p>
           </section>
         );
       })()}
@@ -2358,20 +2450,53 @@ export default function PainelGeral() {
                   : chipOcultasDados && !mostrarFinalizados ? "Só sobrou o que já acabou"
                   : "Nenhuma peça cadastrada ainda"}
               </p>
-              <p style={{ color: "#746e69", fontSize: 13, margin: "0 0 16px" }}>
+              <p style={{ color: "#746e69", fontSize: 13, margin: "0 0 16px", maxWidth: 520, marginLeft: "auto", marginRight: "auto", lineHeight: 1.5 }}>
+                {/* "FILTREI — POR QUE SUMIU TUDO?" A frase antiga mandava
+                    ajustar sem dizer O QUÊ: os filtros ativos são nomeados
+                    aqui (os mesmos rótulos dos chips acima), a busca diz onde
+                    procura, e as peças ocultas ganham a sua própria saída —
+                    com filtro ligado elas também podem ser a resposta. */}
                 {hasActiveFilters
-                  ? "Nenhuma peça corresponde aos filtros ativos. Ajuste a busca ou limpe os filtros."
+                  ? <>
+                      Nenhuma peça corresponde a {activeFilterCount === 1 ? "este filtro" : `estes ${activeFilterCount} filtros`}:{" "}
+                      <strong style={{ color: "#44403c", fontWeight: 600 }}>
+                        {[
+                          searchTerm && `busca "${searchTerm}"`,
+                          ...eventFilter.map(id => `evento ${events.find(e => e.id === id)?.name ?? ""}`.trim()),
+                          ...typeFilter.map(t => `tipo ${t}`),
+                          ...sponsorFilter.map(id => `patrocinador ${sponsors.find(s => s.id === id)?.name ?? ""}`.trim()),
+                          ...statusFilter.map(s => `status ${s === "deleted" ? "Excluídos" : getStatusLabel(s)}`),
+                          ...dateFilter.map(d => `saída ${(DATE_FILTER_LABELS[d] ?? d).toLowerCase()}`),
+                          ...focoFilter.map(f => `foco ${(FOCO_LABELS[f] ?? f).toLowerCase()}`),
+                        ].filter(Boolean).join(" · ")}
+                      </strong>.
+                      {searchTerm ? " A busca procura no código da peça, no nome do evento, no tipo, na descrição e no patrocinador." : ""}
+                      {chipOcultasDados && !mostrarFinalizados ? ` ${chipOcultasDados.total} ${chipOcultasDados.total === 1 ? "peça de evento encerrado ou realizado está oculta" : "peças de evento encerrado ou realizado estão ocultas"} e podem ser o que você procura.` : ""}
+                    </>
                   : chipOcultasDados && !mostrarFinalizados
                     ? `${chipOcultasDados.total} ${chipOcultasDados.total === 1 ? "peça está fora" : "peças estão fora"} da lista porque o evento delas foi encerrado ou já foi realizado.`
                     : "As peças aparecem aqui quando forem adicionadas a um evento."}
               </p>
               {hasActiveFilters ? (
-                <button
-                  onClick={clearAllFilters}
-                  style={{ fontSize: 13, fontWeight: 700, color: "#fff", background: "#1c1917", border: "none", borderRadius: 8, padding: "9px 20px", cursor: "pointer" }}
-                >
-                  Limpar filtros
-                </button>
+                <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "center", gap: 8 }}>
+                  <button
+                    onClick={clearAllFilters}
+                    style={{ fontSize: 13, fontWeight: 700, color: "#fff", background: "#1c1917", border: "none", borderRadius: 8, padding: "9px 20px", cursor: "pointer" }}
+                  >
+                    Limpar filtros
+                  </button>
+                  {chipOcultasDados && !mostrarFinalizados && (
+                    /* Contorno: é a saída secundária. Mesmo estado do chip da
+                       faixa de atenção — revela sem mexer nos filtros. */
+                    <button
+                      onClick={() => setMostrarFinalizados(true)}
+                      data-testid="button-incluir-ocultas-vazio"
+                      style={{ fontSize: 13, fontWeight: 700, color: "#1c1917", background: "#ffffff", border: "1px solid #d6d3d1", borderRadius: 8, padding: "9px 20px", cursor: "pointer" }}
+                    >
+                      Procurar também nas {chipOcultasDados.total} ocultas
+                    </button>
+                  )}
+                </div>
               ) : chipOcultasDados && !mostrarFinalizados ? (
                 <button
                   onClick={() => setMostrarFinalizados(true)}
@@ -3137,7 +3262,12 @@ export default function PainelGeral() {
                                       return (
                                         <p
                                           style={{ margin: "3px 0 0", fontSize: 11, color: tom.cor, fontWeight: tom.peso, whiteSpace: "nowrap" }}
-                                          title={d > LIMITE_PARADA ? `Parada em ${getStatusMeta(item.status).label} ${idadePorExtenso(d)}` : undefined}
+                                          /* O title passa a existir SEMPRE: "há 3 dias" solto
+                                             não diz de quê — da criação? da última edição?
+                                             É o tempo desde a última MUDANÇA DE STATUS. */
+                                          title={d > LIMITE_PARADA
+                                            ? `Parada em ${getStatusMeta(item.status).label} ${idadePorExtenso(d)} (mais de ${LIMITE_PARADA} dias sem mudar de etapa)`
+                                            : `Em ${getStatusMeta(item.status).label} ${d === 0 ? "desde hoje" : idadePorExtenso(d)} — tempo desde a última mudança de status`}
                                         >
                                           {idadePorExtenso(d)}
                                         </p>

@@ -7,7 +7,7 @@ import { parseDateLocal, toUTCDisplayDate } from "@/lib/utils";
 import { convertGCSUrlToLocalPath } from "@/lib/artePdfExport";
 import { refsDaPeca } from "@/lib/refs-da-peca";
 import { POS_APROVACAO } from "@shared/fluxo-peca";
-import { getApprovalMeta, getStatusLabel, marcoEventoFinalizado, todayBusinessMs } from "@/lib/status";
+import { getApprovalMeta, getStatusLabel, guiaDoStatus, marcoEventoFinalizado, proximoPassoDaAprovacao, todayBusinessMs } from "@/lib/status";
 import {
   Edit, Save, X, Check, Clock, Eye, ExternalLink, Camera, Paperclip,
   FileImage, FolderOpen, AlertTriangle, CheckCircle2, Recycle,
@@ -699,6 +699,18 @@ export function ItemDetailsDialog({
     return { tom: "neutro", frase: getStatusLabel(rawStatus) || "Sem etapa definida", detalhe: diasParado === null ? null : `Sem movimento ${haQuantoTempo(diasParado)}` };
   })();
 
+  // DE QUEM É A VEZ, E ONDE. A frase da faixa diz o que trava; faltava dizer a
+  // quem cabe destravar e em que tela — quem abre a ficha pela primeira vez
+  // lia "Aguardando a Arte enviar para aprovação" e não sabia se era com ele.
+  // Continua sendo DADO, não ação (ver "ESTA FICHA NÃO AGE" abaixo): nenhum
+  // botão, só o endereço de onde a ação mora. Fonte: lib/status (STATUS_GUIA).
+  const vezDeQuem: string | null = (() => {
+    if (bloqueio.tom === "reprovado") return proximoPassoDaAprovacao("awaiting_arte");
+    const g = guiaDoStatus(rawStatus);
+    if (!g?.quemAge) return null;
+    return `Quem age agora: ${g.quemAge}${g.onde ? ` — ${g.onde}` : ""}.`;
+  })();
+
   const tom = TOM[bloqueio.tom];
   const IconeDoBloqueio = bloqueio.tom === "ok" ? CheckCircle2 : bloqueio.tom === "reprovado" ? AlertTriangle : Clock;
 
@@ -792,7 +804,7 @@ export function ItemDetailsDialog({
           {item?.displayId ? `Peça ${item.displayId} — ${item.description || item.type || ""}` : "Detalhes da peça"}
         </DialogTitle>
         <DialogDescription className="sr-only">
-          {bloqueio.frase}
+          {bloqueio.frase}{vezDeQuem ? ` ${vezDeQuem}` : ""}
         </DialogDescription>
 
         {/* ══════════════════════════════════════════════════════════════════
@@ -963,6 +975,11 @@ export function ItemDetailsDialog({
             {bloqueio.detalhe && (
               <p style={{ fontSize: 12, color: tom.detalhe, margin: "3px 0 0", lineHeight: 1.45 }}>
                 {bloqueio.detalhe}
+              </p>
+            )}
+            {vezDeQuem && (
+              <p data-testid="text-vez-de-quem" style={{ fontSize: 12, fontWeight: 600, color: tom.detalhe, margin: "3px 0 0", lineHeight: 1.45 }}>
+                {vezDeQuem}
               </p>
             )}
           </div>

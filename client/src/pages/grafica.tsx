@@ -21,7 +21,7 @@ import { ObjectUploader } from "@/components/ObjectUploader";
 import { ItemDetailsDialog } from "@/components/item-details-dialog";
 import { useIsMobile, useElementSize, densityFromWidth } from "@/hooks/use-mobile";
 import {
-  getStatusMeta, getStatusLabel, getPriorityMeta,
+  getStatusMeta, getStatusLabel, getPriorityMeta, descricaoDoStatus,
   seloPecaEventoFinalizado, motivoAcaoBloqueada, todayBusinessMs,
 } from "@/lib/status";
 import type { SeloPecaEventoFinalizado } from "@/lib/status";
@@ -30,6 +30,7 @@ import { diasNaFase, tomDaIdade } from "@/lib/idade-na-fase";
 import { useAuth } from "@/contexts/auth-context";
 import { ModalHeader, modalSurface, HIDE_NATIVE_CLOSE } from "@/components/modal-shell";
 import { GalpaoFila, type GalpaoDados } from "@/components/galpao-fila";
+import { SugestaoRecebedor } from "@/components/sugestao-recebedor";
 import { EM_REVISAO } from "@shared/fluxo-peca";
 // Aritmética de saldo: fonte única em lib/saldo.ts. Estes onze cálculos
 // (quanto falta produzir, conferir, entregar, reaproveitar; quanto de m²
@@ -321,12 +322,79 @@ function PhotoPicker({ photos, onAdd, onRemove, onError, label = "Fotos", hint, 
   );
 }
 
+/**
+ * COMO FUNCIONA A FILA — o manual que não existia.
+ *
+ * Um operador novo chegava a esta tela com seis abas de etapa, dois botões de
+ * conferir (fila e lote), um ícone de reaproveitar, selos de complemento e de
+ * evento finalizado — e nenhuma frase dizendo o que é cada coisa. Os `title`
+ * explicavam no mouse, mas o galpão trabalha no toque, onde `title` não existe.
+ *
+ * Aberto na primeira visita, recolhido depois que a pessoa fecha (lembrado só
+ * neste navegador — é conveniência, não dado). É texto: nenhuma regra mora
+ * aqui, só a descrição das que já existem.
+ */
+const CHAVE_GUIA = "grafica.guia-da-fila.fechado";
+function GuiaDaFila({ podeConferir, canProduce }: { podeConferir: boolean; canProduce: boolean }) {
+  const [aberto, setAberto] = useState(() => {
+    try { return localStorage.getItem(CHAVE_GUIA) !== "1"; } catch { return false; }
+  });
+  const alternar = () => setAberto(a => {
+    try { localStorage.setItem(CHAVE_GUIA, a ? "1" : "0"); } catch { /* modo privado: só não lembra */ }
+    return !a;
+  });
+  // As etapas são o MESMO StatusPill das linhas (lib/status): a pessoa aprende
+  // aqui a pílula que vai encontrar na peça, com o significado que ela carrega.
+  const etapa = (status: string) => <StatusPill status={status} size="sm" showDot={false} />;
+  const seta = <span aria-hidden="true" style={{ color: "#78716c" }}>→</span>;
+  const item = (titulo: string, texto: React.ReactNode) => (
+    <li style={{ lineHeight: 1.5 }}><strong style={{ color: TI.text }}>{titulo}</strong> — {texto}</li>
+  );
+  return (
+    <div data-testid="guia-da-fila" style={{ background: TI.surface, border: `1px solid ${TI.border}`, borderRadius: 12 }}>
+      <button
+        type="button"
+        onClick={alternar}
+        aria-expanded={aberto}
+        data-testid="button-guia-da-fila"
+        style={{ width: "100%", display: "flex", alignItems: "center", gap: 8, minHeight: 44, padding: "0 14px", background: "transparent", border: "none", cursor: "pointer", textAlign: "left", fontSize: 13, fontWeight: 700, color: TI.text }}
+      >
+        <ListChecks aria-hidden="true" style={{ width: 15, height: 15, color: "#0e7490", flexShrink: 0 }} />
+        <span style={{ flex: 1 }}>Como funciona a fila</span>
+        <span style={{ fontSize: 12, fontWeight: 600, color: TI.secondary }}>{aberto ? "Recolher" : "Ver"}</span>
+        <ChevronDown aria-hidden="true" style={{ width: 14, height: 14, color: TI.secondary, transform: aberto ? "rotate(180deg)" : "none" }} />
+      </button>
+      {aberto && (
+        <div style={{ padding: "0 14px 14px", fontSize: 13, color: "#57534e", display: "flex", flexDirection: "column", gap: 10 }}>
+          <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "6px 8px" }}>
+            {etapa("approved")}{seta}{etapa("inProduction")}{seta}{etapa("produced")}{seta}{etapa("conferred")}{seta}{etapa("delivered")}
+          </div>
+          <ul style={{ margin: 0, paddingLeft: 18, display: "flex", flexDirection: "column", gap: 4 }}>
+            {canProduce && item("Produzir", "lance o TOTAL já produzido da peça; o número substitui o anterior, não soma.")}
+            {podeConferir && item("Conferir", "com a peça pronta na mão, compare com a arte e tire a foto. Pode ser parcial. Depois disso saem as etiquetas e a entrega.")}
+            {item("Entregar", "registre que o material saiu para o evento: foto do comprovante (obrigatória) e, se quiser, quem recebeu.")}
+            {item("Por que a foto é obrigatória", "é a prova quando alguém disser que a peça não chegou ou veio errada.")}
+            {item("♻ Reaproveitar", "usar uma peça que já existe no estoque em vez de imprimir; essas unidades pulam a produção e vão direto para a conferência.")}
+            {item("+N un. (complemento)", "aumento pedido depois que a peça entrou em produção. Vira uma linha própria (ex.: #0062-C1), logo abaixo da original, com exatamente o que falta imprimir.")}
+            {item("Evento finalizado", "a peça continua aqui porque a papelada da entrega chega depois do evento. Nela só dá para conferir e entregar; os outros botões ficam cinza.")}
+            {item("No celular: fila × lote", "“Conferir (N)” e “Entregar (N)” abrem a fila, uma peça por vez com uma foto cada. “Em lote” marca várias peças e usa uma foto só para todas; sair do lote só desmarca, nada é registrado.")}
+            {item("Sem botão de atualizar", "a fila se atualiza sozinha — o “Atualizado há…” no topo diz a idade do dado. Se um colega registrar a mesma peça, ela muda aqui e o aviso aparece.")}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // Dialog dos modos em lote — um único componente para conferência e entrega,
 // que eram duas cópias de ~150 linhas divergindo aos poucos.
 function BulkActionDialog({
   mode, open, onClose, items, photos, onAddPhoto, onRemovePhoto, onPhotoError,
   notes, onNotesChange, receivedBy = "", onReceivedByChange, isSubmitting, onConfirm, qtyFor,
+  sugestaoRecebedor = "",
 }: {
+  /** Quem recebeu na última entrega desta sessão — oferecido em 1 toque, nunca preenchido sozinho. */
+  sugestaoRecebedor?: string;
   mode: "confer" | "deliver";
   open: boolean;
   onClose: () => void;
@@ -343,6 +411,7 @@ function BulkActionDialog({
   onConfirm: () => void;
   qtyFor: (item: any) => number;
 }) {
+  const isMobileLote = useIsMobile();
   const isConfer = mode === "confer";
   const tint = isConfer ? "#0e7490" : TI.accent;
   // A FOTO LIBERA O BOTAO NOS DOIS MODOS.
@@ -400,11 +469,15 @@ function BulkActionDialog({
                 // toast de erro falso).
                 onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); if (!isSubmitting && canSubmit) onConfirm(); } }}
                 placeholder="Nome de quem recebeu (opcional)"
-                autoFocus
+                // Foco automático só com teclado físico: no celular ele abria o
+                // teclado virtual por cima da FOTO (a parte obrigatória) num
+                // campo opcional — um toque a mais só para fechá-lo.
+                autoFocus={!isMobileLote}
                 style={{ width: "100%", boxSizing: "border-box", padding: "14px 16px", background: "#fff", border: "1.5px solid #e7e5e4", borderRadius: 12, fontSize: 15, fontWeight: 600, color: TI.text, transition: "border-color 0.15s, box-shadow 0.15s" }}
                 onFocus={e => { e.currentTarget.style.borderColor = tint; e.currentTarget.style.boxShadow = `0 0 0 3px ${tint}22`; }}
                 onBlur={e => { e.currentTarget.style.borderColor = "#e7e5e4"; e.currentTarget.style.boxShadow = "none"; }}
               />
+              <SugestaoRecebedor nome={sugestaoRecebedor} atual={receivedBy} onUsar={v => onReceivedByChange?.(v)} />
             </div>
           )}
 
@@ -524,9 +597,11 @@ function BulkActionDialog({
               onMouseEnter={e => { if (canSubmit && !isSubmitting) e.currentTarget.style.background = confirmHover; }}
               onMouseLeave={e => { if (canSubmit && !isSubmitting) e.currentTarget.style.background = confirmBg; }}
             >
+              {/* O rótulo diz o RESULTADO do toque ("Conferir 5 peças"), não
+                  um "Confirmar" genérico — é a última leitura antes de gravar. */}
               {isSubmitting
                 ? <><Loader2 aria-hidden="true" className="animate-spin" style={{ width: 15, height: 15 }} />Registrando {count} peça{count !== 1 ? "s" : ""}…</>
-                : <><HeaderIcon style={{ width: 15, height: 15 }} />{isConfer ? "Confirmar conferência" : "Confirmar entrega"} ({count})</>
+                : <><HeaderIcon style={{ width: 15, height: 15 }} />{isConfer ? "Conferir" : "Entregar"} {count} peça{count !== 1 ? "s" : ""}</>
               }
             </button>
           </div>
@@ -632,6 +707,14 @@ export default function Grafica() {
   const [isExporting, setIsExporting] = useState(false);
   const [productionData, setProductionData] = useState({ quantityProduced: 0 });
   const [deliveryData, setDeliveryData] = useState({ receivedBy: "" });
+  // Último "quem recebeu" registrado NESTA sessão (modal, lote ou fila). Só
+  // memória da tela: vira atalho de um toque nos campos, e pré-preenche a fila
+  // do celular, onde o nome já atravessava as peças por desenho.
+  const [ultimoRecebedor, setUltimoRecebedor] = useState("");
+  const lembrarRecebedor = (nome: string | undefined | null) => {
+    const n = String(nome ?? "").trim();
+    if (n) setUltimoRecebedor(n);
+  };
   const [conferQty, setConferQty] = useState(0);   // conferência parcial
   const [deliverQty, setDeliverQty] = useState(0); // entrega parcial
   // Fotos anexadas no modal aberto (conferência ou entrega). Várias por vez.
@@ -721,6 +804,7 @@ export default function Grafica() {
       await apiRequest("PATCH", `/api/items/${item.id}/deliver`, {
         photoUrl: dados.photoUrl, receivedBy: dados.receivedBy ?? "", notes: "",
       });
+      lembrarRecebedor(dados.receivedBy);
     }
     // Invalidação POR PEÇA, não só na saída: esta é a tela em que duas pessoas
     // trabalham a mesma fila ao mesmo tempo — o computador da bancada precisa
@@ -943,6 +1027,7 @@ export default function Grafica() {
       setPhotos([]);
       const qtd = Number(vars.data?.qty) || 0;
       const quem = String(vars.data?.receivedBy ?? "").trim();
+      lembrarRecebedor(quem);
       toast({
         title: `Entrega registrada${vars.displayId ? ` · ${vars.displayId}` : ""}`,
         description: `${qtd > 0 ? `${qtd} un. entregue${qtd !== 1 ? "s" : ""}` : "Entrega gravada"}${quem ? ` — recebido por ${quem}` : ""}.`,
@@ -976,7 +1061,7 @@ export default function Grafica() {
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
       setDevolverItem(null);
       setDevolverMotivo("");
-      toast({ title: "Devolvida para a Revisão", description: "A peça saiu da fila da Gráfica e o motivo foi registrado." });
+      toast({ title: "Devolvida para a Revisão Final", description: "A peça saiu da fila da Gráfica e o motivo foi registrado." });
     },
     // Recusa típica: a peça já entrou em produção por outra pessoa. A fila
     // recarrega para o botão Devolver sumir de onde ele não vale mais.
@@ -1243,7 +1328,9 @@ export default function Grafica() {
     });
     return STATUS_DA_FILA
       .filter(s => (conta.get(s.value) ?? 0) > 0)
-      .map(s => ({ value: s.value, label: s.label, count: conta.get(s.value)!, pinned: true }));
+      // `title` com o significado do status (lib/status): "Liberados" e "Pronto
+      // p/ Produção" lado a lado no menu eram dúvida de quem filtrava.
+      .map(s => ({ value: s.value, label: s.label, count: conta.get(s.value)!, pinned: true, title: descricaoDoStatus(s.value) ?? undefined }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gFacetPool]);
 
@@ -1771,6 +1858,41 @@ export default function Grafica() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bulkOn, bulkEligibleList]);
 
+  // A FOTO PERTENCE ÀS PEÇAS FOTOGRAFADAS. Ela sobrevive a fechar e reabrir o
+  // diálogo — mas só enquanto a seleção for EXATAMENTE a mesma de quando foi
+  // anexada. Sem essa trava, fechar, desmarcar tudo e marcar peças de outro
+  // evento mandava o comprovante de um lote como prova de outro. Qualquer
+  // mudança no conjunto (marcar, desmarcar, poda por filtro) descarta as fotos
+  // do lote; reabrir para conferir/ajustar sem trocar peças continua valendo.
+  const chaveSelecaoLote = (ids: Iterable<string>) => Array.from(ids).sort().join("|");
+  const selecaoDaFotoRef = useRef<string | null>(null);
+  const chaveSelecaoAtual = chaveSelecaoLote(bulkSelectedIds);
+  const temFotoNoLote = bulkDeliveryPhotos.length > 0 || bulkConferPhotos.length > 0;
+  useEffect(() => {
+    if (!temFotoNoLote) { selecaoDaFotoRef.current = null; return; }
+    // Primeira foto: amarra ao conjunto marcado neste momento.
+    if (selecaoDaFotoRef.current === null) { selecaoDaFotoRef.current = chaveSelecaoAtual; return; }
+    if (selecaoDaFotoRef.current !== chaveSelecaoAtual) {
+      selecaoDaFotoRef.current = null;
+      setBulkDeliveryPhotos([]);
+      setBulkConferPhotos([]);
+    }
+  }, [temFotoNoLote, chaveSelecaoAtual]);
+
+  // SAIR DO LOTE — um lugar só (X da barra e Esc). A foto e as observações do
+  // lote SOBREVIVEM a fechar o diálogo com a mesma seleção (ver acima), e por
+  // isso são descartadas AQUI também, quando o lote acaba sem registrar nada.
+  const sairDoLote = () => {
+    setBulkDeliveryMode(false);
+    setBulkConferMode(false);
+    setBulkSelectedIds(new Set());
+    setBulkDeliveryPhotos([]);
+    setBulkConferPhotos([]);
+    setBulkDeliveryNotes("");
+    setBulkConferNotes("");
+    setBulkReceivedBy("");
+  };
+
   // Escape sai do modo lote — mas não quando há dialog aberto: o Escape do
   // dialog fecha o dialog, e o estado ainda aponta "aberto" quando este
   // handler roda, então os dois não conflitam.
@@ -1779,9 +1901,7 @@ export default function Grafica() {
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
       if (bulkDeliveryOpen || bulkConferOpen || viewDetailsItem || selectedItem) return;
-      setBulkDeliveryMode(false);
-      setBulkConferMode(false);
-      setBulkSelectedIds(new Set());
+      sairDoLote();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -1862,7 +1982,9 @@ export default function Grafica() {
       if (failed > 0) {
         // O toast promete que as peças que falharam "continuam na lista":
         // mantém o modo ativo com SÓ elas selecionadas (e a foto/notas para
-        // reenviar), em vez de zerar a seleção.
+        // reenviar), em vez de zerar a seleção. As que falharam estavam NA
+        // foto: a trava de "seleção mudou" é reamarrada a esse subconjunto.
+        selecaoDaFotoRef.current = chaveSelecaoLote(failedIds);
         setBulkSelectedIds(new Set(failedIds));
       } else {
         setBulkConferMode(false);
@@ -1959,10 +2081,13 @@ export default function Grafica() {
       }
 
       setBulkDeliveryOpen(false);
+      if (deliveredIds.length > 0) lembrarRecebedor(bulkReceivedBy);
       if (failed > 0) {
         // O toast promete que as peças que falharam "continuam na lista":
         // mantém o modo ativo com SÓ elas selecionadas (e responsável/foto
-        // preservados para reenviar), em vez de zerar a seleção.
+        // preservados para reenviar), em vez de zerar a seleção. As que
+        // falharam estavam NA foto: a trava de "seleção mudou" é reamarrada.
+        selecaoDaFotoRef.current = chaveSelecaoLote(failedIds);
         setBulkSelectedIds(new Set(failedIds));
       } else {
         setBulkDeliveryMode(false);
@@ -2104,6 +2229,14 @@ export default function Grafica() {
                 )}
               </div>
             )}
+            {/* Dois botões "Conferir" lado a lado (a fila acima e o lote logo
+                abaixo) sem dizer a diferença era a primeira dúvida de quem chega.
+                Uma linha curta resolve sem abrir nada. */}
+            {isMobile && (podeConferir && conferableInFilter.length > 0 || deliverableInFilter.length > 0) && (
+              <p data-testid="dica-fila-lote" style={{ margin: 0, width: "100%", fontSize: 11.5, color: TI.secondary, lineHeight: 1.4 }}>
+                <strong style={{ color: "#44403c" }}>Acima:</strong> uma peça por vez, uma foto cada · <strong style={{ color: "#44403c" }}>Em lote:</strong> várias peças, uma foto só
+              </p>
+            )}
             {/* Conferência em lote — só para quem pode conferir (gate do servidor).
                 Secundária: contorno neutro, ícone ciano (a cor da etapa). */}
             {podeConferir && conferableInFilter.length > 0 && !bulkOn && (
@@ -2185,7 +2318,7 @@ export default function Grafica() {
       >
         {(() => {
           // Uma aba — a mesma forma para "Todas" e para as seis etapas.
-          const aba = (p: { chave: string; rotulo: string; valor: number; dica: string; ativa: boolean; dot?: string; testId: string; ariaLabel: string; onClick: () => void }) => (
+          const aba = (p: { chave: string; rotulo: string; valor: number; dica: string; sub?: string; ativa: boolean; dot?: string; testId: string; ariaLabel: string; onClick: () => void }) => (
             <button
               key={p.chave}
               type="button"
@@ -2215,6 +2348,15 @@ export default function Grafica() {
               <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: isMobile ? 18 : 22, fontWeight: 700, lineHeight: 1.05, letterSpacing: "-0.02em", fontVariantNumeric: "tabular-nums", color: p.ativa ? "#ffffff" : (isLoading || p.valor === 0) ? "#78716c" : TI.text }}>
                 {isLoading ? "—" : p.valor}
               </span>
+              {/* O PRÓXIMO PASSO da etapa ("ag. conferência") vivia só no
+                  `title` — invisível no toque e para quem não passa o mouse.
+                  No desktop cabe como terceira linha; no celular a aba tem
+                  ~80px e o guia "Como funciona a fila" faz esse papel. */}
+              {!isMobile && p.sub && (
+                <span style={{ fontSize: 10.5, fontWeight: 500, color: p.ativa ? "rgba(255,255,255,0.72)" : TI.secondary, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "100%" }}>
+                  {p.sub}
+                </span>
+              )}
             </button>
           );
           const todasAtiva = filtros.status.length === 0;
@@ -2231,23 +2373,27 @@ export default function Grafica() {
                 // no filtro (o filtro em si é estrito — ver matchesFilters).
                 // "Em Revisão" vem ANTES de Liberados porque é o degrau anterior
                 // do fluxo: é o trabalho CHEGANDO — visível, sem ação da Gráfica.
-                { label: "Em Revisão",   value: stats.revisao,    sub: "Chegando",         testId: "stat-revisao",    filterVals: ["awaiting_final_review"] },
-                { label: "Liberados",    value: stats.liberados,  sub: "Aguard. produção", testId: "stat-approved",   filterVals: ["ready_for_production", "approved"] },
-                { label: "Em Produção",  value: stats.emProducao, sub: "Ativo",            testId: "stat-production", filterVals: ["inProduction"] },
-                { label: "Produzidos",   value: stats.produzidos, sub: "Ag. conferência",  testId: "stat-produced",   filterVals: ["produced"] },
-                { label: "Conferidos",   value: stats.conferidos, sub: "Ag. entrega",      testId: "stat-conferred",  filterVals: ["conferred"] },
-                { label: "Entregues",    value: stats.entregues,  sub: "Concluído",        testId: "stat-delivered",  filterVals: ["delivered"] },
+                { label: "Em Revisão",   value: stats.revisao,    sub: "Chegando da Revisão",  testId: "stat-revisao",    filterVals: ["awaiting_final_review"] },
+                { label: "Liberados",    value: stats.liberados,  sub: "Aguardam produção",    testId: "stat-approved",   filterVals: ["ready_for_production", "approved"] },
+                { label: "Em Produção",  value: stats.emProducao, sub: "Sendo impressos",      testId: "stat-production", filterVals: ["inProduction"] },
+                { label: "Produzidos",   value: stats.produzidos, sub: "Aguardam conferência", testId: "stat-produced",   filterVals: ["produced"] },
+                { label: "Conferidos",   value: stats.conferidos, sub: "Aguardam entrega",     testId: "stat-conferred",  filterVals: ["conferred"] },
+                { label: "Entregues",    value: stats.entregues,  sub: "Já saíram",            testId: "stat-delivered",  filterVals: ["delivered"] },
               ].map(kpi => {
                 const isActive = kpi.filterVals.every(v => filtros.status.includes(v)) && filtros.status.length === kpi.filterVals.length;
                 // A bolinha usa o `dot` do MESMO mapa dos pills (lib/status):
                 // a cor identifica a etapa na tabela e aqui do mesmo jeito.
                 const m = getStatusMeta(kpi.filterVals[0]);
+                // A dica diz o que a etapa SIGNIFICA e quem age (a mesma frase do
+                // StatusPill da tabela), não só o subtítulo que já está à vista.
+                // No celular o subtítulo some, e aí o próximo passo faz falta.
+                const significado = descricaoDoStatus(kpi.filterVals[0]) ?? kpi.sub;
                 return aba({
                   chave: kpi.testId,
                   // No celular a aba tem ~80px: "Em Produção" virava reticência.
                   rotulo: isMobile ? kpi.label.replace(/^Em /, "") : kpi.label,
-                  valor: kpi.value, testId: kpi.testId, dot: m.dot, ativa: isActive,
-                  dica: isActive ? `${kpi.sub} — clique para ver todas` : kpi.sub,
+                  valor: kpi.value, testId: kpi.testId, dot: m.dot, ativa: isActive, sub: kpi.sub,
+                  dica: isActive ? `${significado} — clique para ver todas` : significado,
                   ariaLabel: `Filtrar por ${kpi.label} — ${kpi.value} peças`,
                   onClick: () => patchFiltros({ status: isActive ? [] : kpi.filterVals }),
                 });
@@ -2256,6 +2402,11 @@ export default function Grafica() {
           );
         })()}
       </div>
+
+      {/* ── Como funciona a fila ── entre as abas (o fluxo) e os filtros (o
+          recorte): é onde a pergunta "o que é cada etapa?" nasce. Some no
+          modo lote, que já tem a própria orientação na barra de baixo. */}
+      {!bulkOn && <GuiaDaFila podeConferir={podeConferir} canProduce={canProduce} />}
 
       {/* ── Filters Bar ───────────────────────────────────────────────────────
           DESKTOP: a faixa horizontal de sempre — os selects viraram um map
@@ -2295,17 +2446,32 @@ export default function Grafica() {
           { label: "Material", allLabel: "Todos os materiais", values: filtros.material, set: (v: string[]) => patchFiltros({ material: v }), options: materialFilterOptions, testId: "select-material-filter" },
           { label: "Acabamento", allLabel: "Todos os acabamentos", values: filtros.acabamento, set: (v: string[]) => patchFiltros({ acabamento: v }), options: finishFilterOptions, testId: "select-finish-filter" },
         ];
+        // O QUE CADA FILTRO RECORTA — "Grupo" e "Percurso" não se explicam
+        // sozinhos (um vem do catálogo de Modelos, o outro do TEXTO da peça).
+        // Na folha do celular, onde há largura de sobra, a frase fica embaixo
+        // do campo; na barra do desktop o espaço é da fileira de campos.
+        const DICA_DO_FILTRO: Record<string, string> = {
+          Status: "Etapa da peça na fila; também filtra “♻ com reaproveitamento”.",
+          Grupo: "Grupo do catálogo de Modelos (ex.: placas de 5KM × 10KM).",
+          Percurso: "Distância escrita na peça (5k, 10k…).",
+          "Mês": "Mês da saída do caminhão do evento.",
+        };
         const selects = (fullWidth: boolean) => SELECTS_PRINCIPAIS.map(f => (
-          <FilterSelect
-            key={f.label} showAllLabelWhenEmpty hideWhenEmpty={f.sempre ? false : undefined}
-            fullWidth={fullWidth}
-            label={f.label} allLabel={f.allLabel}
-            values={f.values} onValuesChange={f.set}
-            options={f.options}
-            searchPlaceholder={f.busca} emptyText={f.vazio}
-            testId={f.testId}
-            triggerStyle={trigger}
-          />
+          <Fragment key={f.label}>
+            <FilterSelect
+              showAllLabelWhenEmpty hideWhenEmpty={f.sempre ? false : undefined}
+              fullWidth={fullWidth}
+              label={f.label} allLabel={f.allLabel}
+              values={f.values} onValuesChange={f.set}
+              options={f.options}
+              searchPlaceholder={f.busca} emptyText={f.vazio}
+              testId={f.testId}
+              triggerStyle={trigger}
+            />
+            {fullWidth && (f.sempre || f.options.length > 0) && DICA_DO_FILTRO[f.label] && (
+              <p style={{ margin: "-4px 0 2px", fontSize: 12, color: TI.secondary, lineHeight: 1.4 }}>{DICA_DO_FILTRO[f.label]}</p>
+            )}
+          </Fragment>
         ));
         const avancados = (fullWidth: boolean) => AVANCADOS.map(f => (
           <FilterSelect
@@ -2442,7 +2608,7 @@ export default function Grafica() {
           <>
             <div style={{ backgroundColor: "#f3f4f3", borderRadius: 12, padding: "10px 12px", display: "flex", flexDirection: "column", gap: 8 }}>
               {campoBusca}
-              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
                 <button
                   type="button"
                   onClick={() => setFiltrosAbertos(true)}
@@ -2459,6 +2625,10 @@ export default function Grafica() {
                   <Filter style={{ width: 14, height: 14 }} />
                   Filtros{nFiltros > 0 ? ` (${nFiltros})` : ""}
                 </button>
+                {/* "Próximos 10 dias" é o recorte do dia a dia do galpão (o
+                    caminhão que sai já): morava DENTRO da folha, a três toques
+                    (abrir, ligar, ver). Aqui fica a um. */}
+                {pillProximos}
                 {botaoLimpar}
               </div>
             </div>
@@ -2505,7 +2675,6 @@ export default function Grafica() {
                     />
                   </div>
                   {selects(true)}
-                  <div>{pillProximos}</div>
                   <p style={{ margin: "8px 0 0", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: TI.secondary }}>
                     Avançados
                   </p>
@@ -3103,7 +3272,7 @@ export default function Grafica() {
                           </span>
                         )}
                         {emRevisao && (
-                          <span data-testid={`chip-revisao-${item.id}`} style={qtyChip('#a21caf', '#fdf4ff')} title="Esta peça ainda está na Revisão — aparece aqui para a Gráfica ver o que está chegando. As ações liberam quando a Revisão aprovar.">
+                          <span data-testid={`chip-revisao-${item.id}`} style={qtyChip('#a21caf', '#fdf4ff')} title="Esta peça ainda está na Revisão Final — aparece aqui para a Gráfica ver o que está chegando. As ações liberam quando a Revisão Final aprovar.">
                             EM REVISÃO
                           </span>
                         )}
@@ -3248,7 +3417,7 @@ export default function Grafica() {
                                 data-testid={`button-reuse-card-${item.id}`}
                                 style={{ flex: '1 1 112px', minHeight: 44, padding: '0 12px', borderRadius: 8, background: selo ? '#f5f5f4' : '#ecfdf5', border: `1px solid ${selo ? TI.border : '#a7f3d0'}`, color: selo ? '#78716c' : '#047857', fontSize: 13, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, cursor: selo ? 'not-allowed' : 'pointer', whiteSpace: 'nowrap' }}
                               >
-                                <RotateCcw aria-hidden="true" style={{ width: 13, height: 13 }} />
+                                <Recycle aria-hidden="true" style={{ width: 13, height: 13 }} />
                                 {isProduced(item) ? 'Ajustar reaprov.' : 'Reaproveitar'}
                               </button>
                             )
@@ -3310,8 +3479,8 @@ export default function Grafica() {
                           {podeDevolverPeca && (
                             <button
                               onClick={e => { e.stopPropagation(); setDevolverItem(item); setDevolverMotivo(""); }}
-                              title="Devolver para a Revisão — a peça sai da fila da Gráfica"
-                              aria-label={`Devolver ${item.displayId} para a Revisão`}
+                              title="Devolver para a Revisão Final — a peça sai da fila da Gráfica"
+                              aria-label={`Devolver ${item.displayId} para a Revisão Final`}
                               data-testid={`button-devolver-revisao-card-${item.id}`}
                               style={{ flex: '1 1 112px', minHeight: 44, padding: '0 12px', borderRadius: 8, background: '#fff', border: '1px solid #fca5a5', color: '#b91c1c', fontSize: 13, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, cursor: 'pointer', whiteSpace: 'nowrap' }}
                             >
@@ -3329,7 +3498,9 @@ export default function Grafica() {
                               style={{ flex: '1 1 112px', minHeight: 44, padding: '0 12px', borderRadius: 8, background: '#0e7490', border: 'none', color: '#fff', fontSize: 13, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, cursor: 'pointer', whiteSpace: 'nowrap' }}
                             >
                               <CheckCircle aria-hidden="true" style={{ width: 13, height: 13 }} />
-                              Conferir
+                              {/* Mesmo rótulo da tabela: na conferência parcial
+                                  o botão diz QUANTO falta, e não só "Conferir". */}
+                              {conferredOf(item) > 0 ? `Conferir ${remainingConfer(item)}` : 'Conferir'}
                             </button>
                           )}
                           {canDeliverItem && (
@@ -3413,6 +3584,19 @@ export default function Grafica() {
                               <Trash2 aria-hidden="true" style={{ width: 12, height: 12 }} />
                               {cancelComplementMutation.isPending ? 'Cancelando…' : cancelComplementId === item.id ? 'Confirmar?' : 'Cancelar'}
                             </button>
+                          )}
+                          {/* POR QUE O BOTÃO ESTÁ CINZA — no toque. O motivo
+                              morava no `title` dos botões desabilitados, e no
+                              celular/tablet o `title` não existe: tocar num botão
+                              cinza não fazia nada e não dizia nada. A frase sai
+                              do mesmo selo (lib/status) e só aparece quando há
+                              botão barrado neste card. */}
+                          {selo && (podeProduzirAqui || podeProduzirPeca || podeReaproveitarPeca || podeCorrigirReaprov || mostraAumentar) && (
+                            <p data-testid={`motivo-bloqueio-card-${item.id}`} style={{ flex: '1 1 100%', margin: 0, fontSize: 12, color: '#57534e', lineHeight: 1.4 }}>
+                              {selo.motivo === 'encerrado'
+                                ? 'Evento encerrado por um administrador: aqui só conferir e entregar. Reabrir o evento libera o resto.'
+                                : 'Evento já realizado: aqui só conferir e entregar — produzir, reaproveitar e aumentar ficam bloqueados.'}
+                            </p>
                           )}
                         </div>
                       )}
@@ -4002,6 +4186,10 @@ export default function Grafica() {
                           {!bulkOn && !emRevisao && !soVisualizaKit(item) && !isDelivered(item) && !isConferred(item) && (!isProduced(item) ? tetoReaproveitar(item) > 0 : podeMexerQtd && qtyOf(item) > 0) && (
                             reuseConfirmItemId === item.id ? (
                               <div style={{ display: "flex", alignItems: "center", gap: 4 }} onClick={e => e.stopPropagation()}>
+                                {/* Rótulo, como no "Corrigir": sem ele o campo
+                                    aberto era um número solto com "OK" — nada
+                                    dizia que ali se marcava reaproveitamento. */}
+                                <span style={{ fontSize: 11, fontWeight: 700, color: "#047857", whiteSpace: "nowrap" }}>{isProduced(item) ? "Reaprov. total:" : "Reaproveitar:"}</span>
                                 <input
                                   type="number"
                                   min={isProduced(item) ? 0 : 1}
@@ -4050,7 +4238,10 @@ export default function Grafica() {
                                 onMouseEnter={e => { if (!selo) (e.currentTarget as HTMLButtonElement).style.color = "#065f46"; }}
                                 onMouseLeave={e => { if (!selo) (e.currentTarget as HTMLButtonElement).style.color = "#059669"; }}
                               >
-                                <RotateCcw style={{ width: 15, height: 15 }} />
+                                {/* ♻ e não a seta circular: ao lado de "Produzir",
+                                    a seta se lia como "desfazer" ou "recarregar".
+                                    É o mesmo ícone da Revisão e do filtro "♻". */}
+                                <Recycle aria-hidden="true" style={{ width: 15, height: 15 }} />
                               </button>
                             )
                           )}
@@ -4151,8 +4342,8 @@ export default function Grafica() {
                           {!bulkOn && canProduce && podeDevolverParaRevisao(item) && (
                             <button
                               onClick={() => { setDevolverItem(item); setDevolverMotivo(""); }}
-                              title="Devolver para a Revisão — a peça sai da fila da Gráfica"
-                              aria-label={`Devolver ${item.displayId} para a Revisão`}
+                              title="Devolver para a Revisão Final — a peça sai da fila da Gráfica"
+                              aria-label={`Devolver ${item.displayId} para a Revisão Final`}
                               data-testid={`button-devolver-revisao-${item.id}`}
                               style={{
                                 backgroundColor: "#ffffff", color: "#b91c1c",
@@ -4166,7 +4357,7 @@ export default function Grafica() {
                           )}
 
                           {emRevisao && (
-                            <span data-testid={`selo-revisao-${item.id}`} title="Esta peça ainda está na Revisão — aparece aqui para a Gráfica ver o que está chegando. As ações liberam quando a Revisão aprovar." style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 9px', borderRadius: 999, backgroundColor: '#fdf4ff', border: '1px solid #f5d0fe', color: '#a21caf', fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', whiteSpace: 'nowrap' }}>
+                            <span data-testid={`selo-revisao-${item.id}`} title="Esta peça ainda está na Revisão Final — aparece aqui para a Gráfica ver o que está chegando. As ações liberam quando a Revisão Final aprovar." style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 9px', borderRadius: 999, backgroundColor: '#fdf4ff', border: '1px solid #f5d0fe', color: '#a21caf', fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', whiteSpace: 'nowrap' }}>
                               <Eye style={{ width: 11, height: 11 }} /> Em revisão
                             </span>
                           )}
@@ -4357,10 +4548,18 @@ export default function Grafica() {
 
           {/* Confirmar — aria-disabled (não disabled) para poder receber o foco
               ao entrar no modo; o onClick já ignora o clique sem seleção. */}
+          {/* "Confirmar" aqui NÃO registrava nada — abria a foto. Quem tocava
+              achava que já tinha conferido e saía. O rótulo agora diz o
+              próximo passo, e o toque sem seleção responde em vez de calar. */}
           <button
             ref={bulkConfirmRef}
-            onClick={() => { if (bulkSelectedIds.size > 0) (bulkConferMode ? setBulkConferOpen(true) : setBulkDeliveryOpen(true)); }}
+            onClick={() => {
+              if (bulkSelectedIds.size > 0) (bulkConferMode ? setBulkConferOpen(true) : setBulkDeliveryOpen(true));
+              else toast({ title: "Nenhuma peça marcada", description: `${usaCards ? "Toque nas peças" : "Clique nas linhas"} (ou em Todas) para escolher o que ${bulkConferMode ? "conferir" : "entregar"}.` });
+            }}
             aria-disabled={bulkSelectedIds.size === 0}
+            data-testid="button-bulk-continuar"
+            title={bulkSelectedIds.size > 0 ? "Abre a foto e a confirmação — nada é registrado antes disso" : "Marque ao menos uma peça"}
             style={{
               minHeight: 44, padding: '0 18px', borderRadius: 12, border: 'none', flexShrink: 0,
               background: bulkSelectedIds.size === 0 ? 'rgba(255,255,255,0.15)' : bulkConferMode ? '#0e7490' : '#c2410c',
@@ -4373,15 +4572,16 @@ export default function Grafica() {
               transition: 'all 0.15s',
             }}
           >
-            {bulkConferMode ? <CheckCircle style={{ width: 15, height: 15 }} /> : <Truck style={{ width: 15, height: 15 }} />}
-            Confirmar{bulkSelectedIds.size > 0 && ` (${bulkSelectedIds.size})`}
+            <Camera aria-hidden="true" style={{ width: 15, height: 15 }} />
+            {isMobile ? "Continuar" : "Continuar para a foto"}{bulkSelectedIds.size > 0 && ` (${bulkSelectedIds.size})`}
           </button>
 
-          {/* Cancelar modo */}
+          {/* Cancelar modo — o rótulo responde "perco alguma coisa?": só a
+              seleção e a foto ainda não enviada; nada foi registrado. */}
           <button
-            onClick={() => { setBulkDeliveryMode(false); setBulkConferMode(false); setBulkSelectedIds(new Set()); }}
-            aria-label="Sair do modo lote"
-            title="Sair do modo lote (Esc)"
+            onClick={sairDoLote}
+            aria-label="Sair do modo lote sem registrar"
+            title="Sair do lote (Esc) — desmarca as peças; nada é registrado"
             style={{ width: isMobile ? 44 : 36, height: isMobile ? 44 : 36, borderRadius: 8, background: 'rgba(255,255,255,0.1)', border: 'none', color: 'rgba(255,255,255,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}
           >
             <X style={{ width: 16, height: 16 }} />
@@ -4393,7 +4593,9 @@ export default function Grafica() {
       <BulkActionDialog
         mode="deliver"
         open={bulkDeliveryOpen}
-        onClose={() => { setBulkDeliveryOpen(false); setBulkDeliveryPhotos([]); }}
+        // Fechar NÃO descarta a foto; trocar as peças marcadas, sim: ver
+        // `selecaoDaFotoRef` e `sairDoLote`.
+        onClose={() => setBulkDeliveryOpen(false)}
         items={bulkSelectedItems}
         photos={bulkDeliveryPhotos}
         onAddPhoto={addBulkPhoto}
@@ -4406,11 +4608,12 @@ export default function Grafica() {
         isSubmitting={isBulkSubmitting}
         onConfirm={handleBulkDelivery}
         qtyFor={remainingDeliver}
+        sugestaoRecebedor={ultimoRecebedor}
       />
       <BulkActionDialog
         mode="confer"
         open={bulkConferOpen}
-        onClose={() => { setBulkConferOpen(false); setBulkConferPhotos([]); }}
+        onClose={() => setBulkConferOpen(false)}
         items={bulkSelectedItems}
         photos={bulkConferPhotos}
         onAddPhoto={addBulkConferPhoto}
@@ -4495,8 +4698,8 @@ export default function Grafica() {
               : "Confirmar entrega"}
             subtitle={modalType === "production"
               ? (producedOf(selectedItem) > 0 ? "O campo grava o TOTAL produzido" : "Registre a quantidade produzida")
-              : modalType === "conference" ? "Anexe a foto da conferência"
-              : "Registre a entrega do material"}
+              : modalType === "conference" ? "Compare a peça pronta com a arte e tire a foto"
+              : "Foto do comprovante (obrigatória) e quem recebeu"}
             onClose={() => { setSelectedItem(null); setModalType(null); }}
           />
 
@@ -4737,7 +4940,10 @@ export default function Grafica() {
                     onMouseLeave={e => { if (!startProductionMutation.isPending) (e.currentTarget as HTMLButtonElement).style.backgroundColor = TI.text; }}
                   >
                     {startProductionMutation.isPending && <Loader2 aria-hidden="true" className="animate-spin" style={{ width: 14, height: 14 }} />}
-                    {startProductionMutation.isPending ? "Salvando…" : "Confirmar produção"}
+                    {/* O CTA repete o número que vai ser GRAVADO — o campo é
+                        absoluto, e ler "Gravar total: 8 un." antes do toque é a
+                        última chance de perceber que se digitou "o de hoje". */}
+                    {startProductionMutation.isPending ? "Registrando…" : productionData.quantityProduced > 0 ? `Gravar total: ${productionData.quantityProduced} un.` : "Informe o total produzido"}
                   </button>
                 </div>
               </form>
@@ -4760,10 +4966,12 @@ export default function Grafica() {
                     value={deliveryData.receivedBy}
                     onChange={e => setDeliveryData({ ...deliveryData, receivedBy: e.target.value })}
                     placeholder="Nome de quem recebeu (opcional)"
-                    autoFocus
+                    // Idem ao lote: no celular o teclado cobria a arte e a foto.
+                    autoFocus={!isMobile}
                     data-testid="input-received-by"
-                    style={{ width: "100%", padding: "12px 14px", backgroundColor: "#e8e8e7", border: "1px solid transparent", borderRadius: 8, fontSize: 13, fontWeight: 500, color: TI.text }}
+                    style={{ width: "100%", padding: "12px 14px", backgroundColor: "#e8e8e7", border: "1px solid transparent", borderRadius: 8, fontSize: isMobile ? 16 : 13, fontWeight: 500, color: TI.text }}
                   />
+                  <SugestaoRecebedor nome={ultimoRecebedor} atual={deliveryData.receivedBy} onUsar={v => setDeliveryData({ ...deliveryData, receivedBy: v })} />
                 </div>
 
                 {/* Quantidade a entregar (entrega parcial) — só exibe se restar mais de 1 */}
@@ -4816,7 +5024,7 @@ export default function Grafica() {
                     onMouseLeave={e => { if (!markDeliveredMutation.isPending && photos.length) (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#15803d"; }}
                   >
                     {markDeliveredMutation.isPending && <Loader2 aria-hidden="true" className="animate-spin" style={{ width: 14, height: 14 }} />}
-                    {markDeliveredMutation.isPending ? "Salvando…" : "Confirmar entrega"}
+                    {markDeliveredMutation.isPending ? "Registrando entrega…" : !photos.length ? "Falta a foto" : `Entregar ${deliverQty} un.`}
                   </button>
                 </div>
                 {!photos.length && (
@@ -4860,7 +5068,7 @@ export default function Grafica() {
                     aria-describedby={!photos.length ? "aviso-foto-conferencia" : undefined}
                     style={{ flex: 2, minHeight: 44, padding: "12px 0", backgroundColor: (!photos.length) ? "#e7e5e4" : "#0e7490", border: "none", color: (!photos.length) ? "#78716c" : "#ffffff", fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 14, cursor: (conferMutation.isPending || !photos.length) ? "not-allowed" : "pointer", borderRadius: 8, opacity: conferMutation.isPending ? 0.7 : 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
                     {conferMutation.isPending && <Loader2 aria-hidden="true" className="animate-spin" style={{ width: 14, height: 14 }} />}
-                    {conferMutation.isPending ? "Salvando…" : "Confirmar conferência"}
+                    {conferMutation.isPending ? "Registrando conferência…" : !photos.length ? "Falta a foto" : `Conferir ${conferQty} un.`}
                   </button>
                 </div>
                 {!photos.length && (
@@ -4884,17 +5092,18 @@ export default function Grafica() {
           itens={galpao === "confer" ? conferableInFilter : deliverableInFilter}
           onClose={fecharGalpao}
           onConfirmar={registrarNoGalpao}
+          sugestaoRecebedor={ultimoRecebedor}
         />
       )}
 
       <Dialog open={!!devolverItem} onOpenChange={o => { if (!o) { setDevolverItem(null); setDevolverMotivo(""); } }}>
         <DialogContent className={HIDE_NATIVE_CLOSE} style={modalSurface(460)}>
-          <DialogTitle className="sr-only">Devolver peça para a Revisão</DialogTitle>
+          <DialogTitle className="sr-only">Devolver peça para a Revisão Final</DialogTitle>
           <ModalHeader
             variant="confirm"
             icon={Undo2}
             tint="#b91c1c"
-            title="Devolver para a Revisão"
+            title="Devolver para a Revisão Final"
             subtitle={devolverItem ? `${devolverItem.displayId} · ${devolverItem.type ?? ""}` : undefined}
             onClose={() => { setDevolverItem(null); setDevolverMotivo(""); }}
           />
@@ -4948,7 +5157,7 @@ export default function Grafica() {
               }}
             >
               {devolverMutation.isPending && <Loader2 className="animate-spin" style={{ width: 14, height: 14 }} />}
-              Devolver para a Revisão
+              Devolver para a Revisão Final
             </button>
           </div>
         </DialogContent>

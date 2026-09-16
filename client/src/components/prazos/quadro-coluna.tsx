@@ -28,6 +28,7 @@
 // andam de verdade.
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { PrazoEvent } from "@shared/prazos-contract";
+import { MARCOS_DO_EVENTO } from "@shared/prazo-dates";
 import { pecasTexto, R, rolagem, SCROLLPORT_MAX_H, STAGE_SECTOR, STAGE_SHORT, TI } from "./tokens";
 
 interface QuadroColunaProps {
@@ -66,6 +67,11 @@ export function QuadroColuna({ stageKey, label, stageIdx, eventos, temFiltro, re
   const vencidos = eventos.filter((ev) => ev.stages[stageIdx]?.state === "overdue").length;
   const pecas = eventos.reduce((acc, ev) => acc + (ev.stages[stageIdx]?.pendingCount ?? 0), 0);
   const headingId = `gp-col-${stageKey}`;
+  const marco = MARCOS_DO_EVENTO.find((m) => m.key === stageKey);
+  const quemAge = setor ? ` (${setor})` : "";
+  const tituloDaEtapa = marco
+    ? `${label} — ${marco.descricao}${quemAge}. Prazo padrão: ${Math.abs(marco.offset)} dia${Math.abs(marco.offset) !== 1 ? "s" : ""} antes da saída do caminhão.`
+    : label;
 
   return (
     <section
@@ -99,7 +105,10 @@ export function QuadroColuna({ stageKey, label, stageIdx, eventos, temFiltro, re
             eventos · 1353 peças" — o dado mais urgente da coluna atrás do
             menos urgente. */}
         <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
-          <h2 id={headingId} title={label} style={{
+          {/* O título da coluna é abreviado ("Final", "Lista") e não dizia o
+              que a etapa é nem quando vence. O `title` completa com a mesma
+              descrição e o mesmo prazo padrão do cadastro do evento. */}
+          <h2 id={headingId} title={tituloDaEtapa} style={{
             margin: 0, flex: 1, minWidth: 0,
             fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em",
             color: TI.title, fontFamily: "'Plus Jakarta Sans', sans-serif",

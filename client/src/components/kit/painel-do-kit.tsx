@@ -176,7 +176,9 @@ export function PainelDoKit({ eventId, pecas, podeCriar, usuarioDoKit, nomeDoUsu
     onSuccess: (r) => {
       toast({
         title: r.pecas > 0 ? `Remessa ${form.versao.trim()} criada com ${r.pecas} ${r.pecas === 1 ? "peça" : "peças"}` : "Remessa do Kit criada",
-        description: r.pecas > 0 ? "As peças entraram na lista do evento com o selo KIT." : "Adicione as peças escolhendo esta remessa, ou crie outra com a planilha.",
+        // As peças nascem em RASCUNHO: sem dizer, quem importou achava que a
+        // remessa já tinha seguido para a vinculação.
+        description: r.pecas > 0 ? "As peças entraram em Rascunho com o selo KIT — envie para a vinculação no card “Peças em Rascunho”." : "Adicione as peças escolhendo esta remessa, ou crie outra com a planilha.",
       });
       queryClient.invalidateQueries({ queryKey: [chaveDasRemessas(eventId)] });
       queryClient.invalidateQueries({ queryKey: ["/api/items", eventId] });
@@ -214,8 +216,13 @@ export function PainelDoKit({ eventId, pecas, podeCriar, usuarioDoKit, nomeDoUsu
       <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
         <Package style={{ width: 16, height: 16, color: "#6d28d9" }} aria-hidden="true" />
         <h2 id="titulo-painel-do-kit" style={{ margin: 0, fontSize: 13, fontWeight: 800, color: T.text, textTransform: "uppercase", letterSpacing: "0.04em" }}>Kit</h2>
+        {/* Sem remessa, o painel aparece em TODO evento para quem pode criar:
+            a frase diz para que ele serve, e que ignorá-lo é normal quando o
+            evento não tem Kit. */}
         <span style={{ fontSize: FS.body, color: "#57534e" }}>
-          {remessas.length === 0 ? "Nenhuma remessa do Kit neste evento." : `${remessas.length} ${remessas.length === 1 ? "remessa" : "remessas"} — datas próprias do Kit`}
+          {remessas.length === 0
+            ? (usuarioDoKit ? "Nenhuma remessa do Kit neste evento." : "Nenhuma remessa. Só é usado se o evento tiver Kit, com datas próprias de entrega e caminhão.")
+            : `${remessas.length} ${remessas.length === 1 ? "remessa" : "remessas"} — datas próprias do Kit`}
         </span>
         {podeCriar && (
           <button type="button" data-testid="button-nova-remessa-kit" disabled={eventoFinalizado} onClick={() => setAberto(true)}
@@ -284,6 +291,13 @@ export function PainelDoKit({ eventId, pecas, podeCriar, usuarioDoKit, nomeDoUsu
                       ? `Excluir a KIT ${r.versao}? Ela não tem peças.`
                       : `Excluir a KIT ${r.versao} e ${daRemessa.length === 1 ? "a peça dela" : `as ${daRemessa.length} peças dela`}?`}
                   </span>
+                  {/* A REGRA À VISTA antes do clique — ela morava só no `title`
+                      do botão, e a recusa do servidor chegava como surpresa. */}
+                  {daRemessa.length > 0 && (
+                    <span style={{ fontSize: FS.small, color: "#57534e", flexBasis: "100%" }}>
+                      Vão para Peças Excluídas. Só é possível enquanto nenhuma peça saiu do rascunho.
+                    </span>
+                  )}
                   <button type="button" data-testid={`button-confirmar-excluir-remessa-${r.id}`} disabled={excluir.isPending} onClick={() => excluir.mutate(r.id)}
                     style={{ height: isMobile ? 44 : 32, padding: "0 12px", borderRadius: R.md, border: "none", background: "#b91c1c", color: "#fff", fontSize: 12.5, fontWeight: 800, cursor: excluir.isPending ? "wait" : "pointer" }}>
                     {excluir.isPending ? "Excluindo…" : "Excluir"}

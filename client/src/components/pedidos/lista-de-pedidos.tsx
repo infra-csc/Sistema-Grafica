@@ -232,13 +232,15 @@ export function ListaDePedidos({ podePedir, podeResolver }: {
 
   const termo = semAcento(busca.trim());
   const base = pedidos.filter((p) => (!eventoFiltro || p.linhas.some((l) => l.eventId === eventoFiltro)) && combina(p, termo));
-  const FILTROS: Array<{ k: Filtro; rotulo: string; n: number }> = [
-    { k: "aberto", rotulo: "Abertas", n: base.filter((p) => passaNoFiltro(p, "aberto")).length },
-    { k: "atendido", rotulo: "Atendidas", n: base.filter((p) => passaNoFiltro(p, "atendido")).length },
-    { k: "recusado", rotulo: "Recusadas", n: base.filter((p) => passaNoFiltro(p, "recusado")).length },
-    { k: "cancelado", rotulo: "Canceladas", n: base.filter((p) => passaNoFiltro(p, "cancelado")).length },
-    { k: "ajuste", rotulo: "Ajuste pendente", n: base.filter((p) => passaNoFiltro(p, "ajuste")).length },
-    { k: "todos", rotulo: "Todas", n: base.length },
+  // `dica`: o que o chip recorta, no title. "Abertas" inclui as parciais —
+  // não há chip "Parcial", e quem procurava uma não sabia onde ela estava.
+  const FILTROS: Array<{ k: Filtro; rotulo: string; n: number; dica: string }> = [
+    { k: "aberto", rotulo: "Abertas", n: base.filter((p) => passaNoFiltro(p, "aberto")).length, dica: "Com alguma peça esperando quem monta a lista — inclui as parciais" },
+    { k: "atendido", rotulo: "Atendidas", n: base.filter((p) => passaNoFiltro(p, "atendido")).length, dica: "Todas as peças já criadas no evento" },
+    { k: "recusado", rotulo: "Recusadas", n: base.filter((p) => passaNoFiltro(p, "recusado")).length, dica: "Recusadas por quem monta a lista, com o motivo" },
+    { k: "cancelado", rotulo: "Canceladas", n: base.filter((p) => passaNoFiltro(p, "cancelado")).length, dica: "Canceladas por quem pediu, com o motivo" },
+    { k: "ajuste", rotulo: "Ajuste pendente", n: base.filter((p) => passaNoFiltro(p, "ajuste")).length, dica: "Peça atendida com um ajuste esperando resposta de quem monta a lista" },
+    { k: "todos", rotulo: "Todas", n: base.length, dica: "Todas as solicitações" },
   ];
 
   const tempo = (d: string | null) => (d ? new Date(d).getTime() : Infinity);
@@ -327,7 +329,7 @@ export function ListaDePedidos({ podePedir, podeResolver }: {
 
         <div role="group" aria-label="Filtrar por estado" style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
           {FILTROS.map((f) => (
-            <button key={f.k} type="button" aria-pressed={filtro === f.k} data-testid={`filtro-pedidos-${f.k}`} onClick={() => setFiltro(f.k)} style={CHIP(filtro === f.k, f.n === 0)}>
+            <button key={f.k} type="button" aria-pressed={filtro === f.k} title={f.dica} data-testid={`filtro-pedidos-${f.k}`} onClick={() => setFiltro(f.k)} style={CHIP(filtro === f.k, f.n === 0)}>
               {f.rotulo}<span style={{ fontVariantNumeric: "tabular-nums" }}>{f.n}</span>
             </button>
           ))}
@@ -354,6 +356,15 @@ export function ListaDePedidos({ podePedir, podeResolver }: {
             Ver as {parados.length} mais antigas
           </button>
         </div>
+      )}
+
+      {/* "POR QUE NÃO POSSO CANCELAR?" — a pergunta de quem pede, diante de
+          uma peça atendida sem o botão. Uma vez, no recorte onde ela surge,
+          em vez de um botão travado repetido em cada linha. */}
+      {podePedir && !podeResolver && (filtro === "atendido" || filtro === "ajuste") && visiveis.length > 0 && (
+        <p data-testid="aviso-atendida-nao-cancela" style={{ margin: 0, padding: "8px 16px", fontSize: FS.body, color: "#44403c", background: "#fafaf9", borderBottom: "1px solid #f1f0ef", lineHeight: 1.45 }}>
+          Peça atendida já existe no evento, por isso não tem “Cancelar”. Para mudar algo, use <strong>Pedir ajuste</strong> — quem monta a lista aceita ou recusa, e você é avisado.
+        </p>
       )}
 
       {/* Falha ao ATUALIZAR não é falha ao carregar: o React Query mantém a

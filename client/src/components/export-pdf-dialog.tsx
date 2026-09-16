@@ -477,7 +477,7 @@ export function ExportPdfDialog({ open, onOpenChange, items, title = "Peças" }:
                   onClick={() => setExcludedIds(new Set())}
                   disabled={selected.length === filtered.length}
                   data-testid="button-export-selecionar-todas"
-                  style={{ background: "none", border: "none", padding: "0 4px", minHeight: isMobile ? 44 : 36, fontSize: 12, fontWeight: 700, cursor: selected.length === filtered.length ? "default" : "pointer", color: selected.length === filtered.length ? "#c4c0ba" : "#7c3aed" }}>
+                  style={{ background: "none", border: "none", padding: "0 4px", minHeight: isMobile ? 44 : 36, fontSize: 12, fontWeight: 700, cursor: selected.length === filtered.length ? "default" : "pointer", color: selected.length === filtered.length ? "#78716c" : "#7c3aed" }}>
                   Selecionar todas
                 </button>
                 <span aria-hidden="true" style={{ color: "#e4e0db" }}>·</span>
@@ -485,7 +485,7 @@ export function ExportPdfDialog({ open, onOpenChange, items, title = "Peças" }:
                   onClick={() => setExcludedIds(new Set(filtered.map(i => i.id)))}
                   disabled={selected.length === 0}
                   data-testid="button-export-limpar-selecao"
-                  style={{ background: "none", border: "none", padding: "0 4px", minHeight: isMobile ? 44 : 36, fontSize: 12, fontWeight: 700, cursor: selected.length === 0 ? "default" : "pointer", color: selected.length === 0 ? "#c4c0ba" : "#7c3aed" }}>
+                  style={{ background: "none", border: "none", padding: "0 4px", minHeight: isMobile ? 44 : 36, fontSize: 12, fontWeight: 700, cursor: selected.length === 0 ? "default" : "pointer", color: selected.length === 0 ? "#78716c" : "#7c3aed" }}>
                   Limpar
                 </button>
               </div>

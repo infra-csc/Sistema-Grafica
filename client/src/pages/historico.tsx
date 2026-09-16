@@ -1601,6 +1601,15 @@ export default function Historico() {
           <p style={{ fontSize: 13, color: P.second, margin: 0, fontWeight: 500 }}>
             {subtitulo}
           </p>
+          {/* O QUE SE FAZ AQUI, numa linha. Os dois gestos que respondem as
+              perguntas de auditoria ("o que aconteceu com esta linha?" e "por
+              onde esta peça passou?") viviam só num clique sem pista e num
+              ícone de rota sem rótulo — descoberta por acaso. */}
+          <p data-testid="texto-como-usar-historico" style={{ fontSize: 12, color: P.second, margin: "4px 0 0", lineHeight: 1.5, maxWidth: 720 }}>
+            Quem fez o quê e quando. Clique numa linha para ver o detalhe; o ícone
+            {" "}<Route role="img" aria-label="de rota" style={{ width: 12, height: 12, color: "#c2410c", verticalAlign: "-2px" }} />{" "}
+            ao lado de uma peça mostra todo o caminho dela, do pedido à entrega.
+          </p>
         </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>

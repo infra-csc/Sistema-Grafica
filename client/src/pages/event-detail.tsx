@@ -48,6 +48,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { ToastAction } from "@/components/ui/toast";
 import { BulkItemEntry } from "@/components/bulk-item-entry";
 import { ObjectUploader } from "@/components/ObjectUploader";
 import { useAuth } from "@/contexts/auth-context";
@@ -890,6 +891,27 @@ export default function EventDetail() {
     [items],
   );
 
+  // QUAIS RASCUNHOS O BOTÃO "ENVIAR" LEVA DE VERDADE. O servidor (POST
+  // /api/events/:id/items/submit) recorta por quem envia: admin leva tudo; o
+  // usuário do Kit, só as peças do Kit que ele criou; a Solicitação da Arena,
+  // só as que não são do Kit. A tela contava TODOS os rascunhos — prometia
+  // "12 peças serão enviadas" e mandava 8, e um rascunho só do Kit deixava o
+  // botão ativo para devolver "Nenhum item em rascunho". Isto é espelho de
+  // APRESENTAÇÃO (contagem e lista da confirmação); quem decide é o servidor.
+  const rascunhosQueEuEnvio = useMemo(() => {
+    if (user?.role === 'admin') return draftItems;
+    if (user?.kit) return draftItems.filter((i: any) => !!i.kitRemessaId && i.criadoPorId === user.id);
+    return draftItems.filter((i: any) => !i.kitRemessaId);
+  }, [draftItems, user]);
+
+  // Leva a pessoa até o card de rascunhos. Ele mora abaixo da agenda, do Kit e
+  // das solicitações — num evento com tudo isso, ficava fora da primeira tela
+  // e o rascunho era esquecido. Sem animação para quem pede menos movimento.
+  const irParaRascunhos = () => {
+    const reduzir = typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    document.getElementById('rascunhos-do-evento')?.scrollIntoView({ behavior: reduzir ? 'auto' : 'smooth', block: 'start' });
+  };
+
   // Chips de status do cabeçalho: contagem por status presente + m² total.
   // Derivados de mainItems (não de items): o filtro por chip roda sobre
   // mainItems — chips de rascunho/solicitado filtravam o nada (lista vazia).
@@ -1362,7 +1384,13 @@ export default function EventDetail() {
       if (vinculo) {
         invalidarPedidos();
         if (vinculo.ok) {
-          toast({ title: "Peça criada e ligada à solicitação", description: "Quem solicitou foi avisado." });
+          // A peça nasce em RASCUNHO como qualquer outra: sem dizer isso, quem
+          // atendeu a solicitação achava que ela já tinha seguido.
+          toast({
+            title: "Peça criada e ligada à solicitação",
+            description: "Quem solicitou foi avisado. A peça está em Rascunho — envie para a vinculação junto com a lista.",
+            action: <ToastAction altText="Ver os rascunhos do evento" onClick={irParaRascunhos}>Ver rascunhos</ToastAction>,
+          });
         } else {
           toast({
             title: "Peça criada, mas não ficou ligada à solicitação",
@@ -1373,9 +1401,12 @@ export default function EventDetail() {
       } else {
         // O CÓDIGO da peça criada: é o que a pessoa procura na lista logo
         // depois, e o que ela repete para a Arte.
+        // "Já está na lista" era meia verdade: a peça nasce em RASCUNHO e não
+        // anda até alguém enviar. O toast diz o passo seguinte e leva até ele.
         toast({
           title: createdItem?.displayId ? `Peça ${createdItem.displayId} adicionada` : "Peça adicionada",
-          description: "Já está na lista do evento.",
+          description: "Está em Rascunho. Quando a lista estiver pronta, envie para a vinculação.",
+          action: <ToastAction altText="Ver os rascunhos do evento" onClick={irParaRascunhos}>Ver rascunhos</ToastAction>,
         });
       }
     },
@@ -1417,12 +1448,18 @@ export default function EventDetail() {
       const quantidade = Array.isArray(data) ? data.length : 0;
       
       // Sem emoji e sem exclamação — o tom do resto do produto. A descrição diz
-      // onde as peças foram parar, que é a pergunta seguinte.
+      // onde as peças foram parar (RASCUNHO, não "a lista") e o passo seguinte.
+      // UM toast só: com linhas incompletas saíam dois "Peças salvas" empilhados.
+      const sobra = bulkLeftoverRef.current;
       toast({
         title: "Peças salvas",
-        description: `${quantidade} ${quantidade === 1 ? 'peça entrou' : 'peças entraram'} na lista do evento.`,
+        description: `${quantidade} ${quantidade === 1 ? 'peça entrou' : 'peças entraram'} em Rascunho — envie para a vinculação quando a lista estiver pronta.`
+          + (sobra > 0 ? ` ${sobra} ${sobra === 1 ? 'linha incompleta continua aberta' : 'linhas incompletas continuam abertas'} para você terminar.` : ''),
+        action: sobra === 0
+          ? <ToastAction altText="Ver os rascunhos do evento" onClick={irParaRascunhos}>Ver rascunhos</ToastAction>
+          : undefined,
       });
-      
+
       // Atualizar com dados reais do servidor (substitui os temporários)
       queryClient.invalidateQueries({ queryKey: ["/api/items", eventId] });
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
@@ -1436,11 +1473,6 @@ export default function EventDetail() {
       if (bulkLeftoverRef.current === 0) {
         setOpen(false);
         setBulkMode(false);
-      } else {
-        toast({
-          title: "Peças salvas",
-          description: `${bulkLeftoverRef.current} linha${bulkLeftoverRef.current !== 1 ? 's' : ''} incompleta${bulkLeftoverRef.current !== 1 ? 's' : ''} continua${bulkLeftoverRef.current !== 1 ? 'm' : ''} aberta${bulkLeftoverRef.current !== 1 ? 's' : ''} para você terminar.`,
-        });
       }
     },
     onError: (error: any, newItems: any, context: any) => {
@@ -1599,18 +1631,25 @@ export default function EventDetail() {
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/items", eventId] });
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+      // O passo seguinte mora em OUTRA tela: a ação leva direto para a
+      // Vinculação já filtrada neste evento (?ev= é o filtro que ela lê da URL).
       toast({
         title: "Peças enviadas para a vinculação",
-        description: `${data.count} ${data.count === 1 ? 'peça já está' : 'peças já estão'} na fila de Vincular Patrocinadores.`,
+        description: `${data.count} ${data.count === 1 ? 'peça já está' : 'peças já estão'} na fila de Vincular Patrocinadores. Aqui ${data.count === 1 ? 'ela aparece' : 'elas aparecem'} como Aguardando Vinculação.`,
+        action: (
+          <ToastAction altText="Abrir a Vinculação deste evento" onClick={() => setLocation(`/vincular-patrocinadores?ev=${eventId}`)}>
+            Ver na Vinculação
+          </ToastAction>
+        ),
       });
     },
     onError: (error: any) => {
       const message = error.message || "Erro desconhecido";
-      
+
       if (message.includes("Nenhum item em rascunho")) {
         toast({
           title: "Nenhuma peça para enviar",
-          description: "Não há peças em rascunho neste evento",
+          description: "Não há rascunho que o seu perfil envie neste evento — pode já ter sido enviado por outra pessoa.",
           variant: "destructive",
         });
       } else {
@@ -1659,7 +1698,9 @@ export default function EventDetail() {
   const motivoEdicaoBloqueada = (status: string): string | null => {
     if (eventoFinalizado) return avisoEventoFim;
     if (BLOCKED_EDIT_STATUSES.includes(status) && !canEditLists) {
-      return "Edição bloqueada — item já liberado para gráfica";
+      // "peça" (a palavra da tela) e QUEM pode: a frase manda a pessoa ao
+      // perfil certo em vez de fazê-la procurar um botão que não existe.
+      return "Edição bloqueada — a peça já foi liberada para a Gráfica. Só a Solicitação, um admin ou quem criou o evento edita.";
     }
     return null;
   };
@@ -2074,6 +2115,28 @@ export default function EventDetail() {
                     </button>
                   );
                 })}
+                {/* RASCUNHO NÃO ENVIADO, NO TOPO. Os rascunhos ficam fora destes
+                    chips (moram no card próprio, lá embaixo) — e era justamente
+                    o que se esquecia: a lista parecia montada e nada andava. O
+                    chip diz quantos esperam envio e leva até o card. */}
+                {draftItems.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={irParaRascunhos}
+                    data-testid="chip-rascunhos-nao-enviados"
+                    title="Peças criadas que ainda não foram enviadas para a vinculação — clique para ir até elas"
+                    style={{
+                      display: 'inline-flex', alignItems: 'center', gap: 6,
+                      fontSize: 12, fontWeight: 700, color: '#92400e',
+                      backgroundColor: '#fffbeb', border: '1px dashed #d97706',
+                      borderRadius: 999, padding: '4px 12px', cursor: 'pointer',
+                      minHeight: isMobile ? 44 : undefined, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap',
+                    }}
+                  >
+                    <Package aria-hidden="true" style={{ width: 12, height: 12 }} />
+                    {draftItems.length} em rascunho · {canEditLists && !eventoFinalizado ? 'falta enviar' : 'não enviadas'}
+                  </button>
+                )}
               </div>
             )}
           </div>
@@ -2694,6 +2757,16 @@ export default function EventDetail() {
                     })}
                   </div>
                 </div>
+                {/* O FILTRO POR MARCO SE ANUNCIA. A pílula clicável só dizia
+                    que era clicável no `title` — ninguém descobria que um
+                    clique mostra exatamente as peças atrasadas daquele marco. */}
+                {!isHistorical && milestones.some((_, i) => (atrasDoMarco[i] ?? 0) > 0) && (
+                  <p style={{ margin: '10px 0 0', fontSize: 12, color: TI.secondary, textAlign: 'center' }}>
+                    {marcoFiltro !== null
+                      ? 'Mostrando só as peças atrás do marco escolhido — clique nele de novo para ver todas.'
+                      : 'Clique num marco com peças para ver só as que ainda não passaram por ele.'}
+                  </p>
+                )}
               </div>
 
             </div>
@@ -2741,7 +2814,7 @@ export default function EventDetail() {
           SÓ aqui; a listagem principal exclui draft/requested. */}
       {draftItems.length > 0 && (
         <>
-        <div style={{ backgroundColor: '#fff', border: '1px solid #e7e5e4', borderLeft: '3px solid #b45309', borderRadius: 12, boxShadow: '0 1px 4px rgba(0,0,0,0.05)', marginBottom: 32 }} data-testid="card-draft-items">
+        <div id="rascunhos-do-evento" style={{ backgroundColor: '#fff', border: '1px solid #e7e5e4', borderLeft: '3px solid #b45309', borderRadius: 12, boxShadow: '0 1px 4px rgba(0,0,0,0.05)', marginBottom: 32, scrollMarginTop: 16 }} data-testid="card-draft-items">
           <div style={{ padding: '20px 24px 0' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
               <Package style={{ width: 16, height: 16, color: '#b45309', flexShrink: 0 }} />
@@ -2755,8 +2828,10 @@ export default function EventDetail() {
             {/* O destino certo: o envio leva à VINCULAÇÃO de patrocinadores
                 (o botão e a confirmação logo abaixo dizem isso), não à Arte.
                 E "peça", a palavra do resto da tela — "item" só vivia aqui. */}
-            <p style={{ fontSize: 13, color: '#6F6A63', margin: '8px 0 0' }}>
-              Revise as peças abaixo e envie para a vinculação de patrocinadores quando a lista estiver pronta.
+            {/* O QUE É E POR QUE IMPORTA: rascunho não anda sozinho. Quem
+                nunca usou lia "revise e envie" como opcional. */}
+            <p style={{ fontSize: 13, color: '#6F6A63', margin: '8px 0 0', lineHeight: 1.5 }}>
+              Enquanto estiverem aqui, as peças não seguem para a vinculação de patrocinadores nem para a Arte. Revise e envie quando a lista estiver pronta — dá para continuar adicionando depois.
             </p>
           </div>
           <div style={{ padding: '16px 24px 24px' }}>
@@ -2915,30 +2990,53 @@ export default function EventDetail() {
                 Mostrar todos os {draftItems.length} rascunhos (+{draftItems.length - 50})
               </button>
             )}
+            {(() => {
+              // POR QUE O BOTÃO ESTÁ TRAVADO — escrito, não só no `title`
+              // (no celular não há hover, e o botão cinza lia como defeito).
+              // A ordem é a do mais forte: evento finalizado vale para todos.
+              const podeEnviar = hasPermission("admin") || user?.role === "solicitacao";
+              const nEnvio = rascunhosQueEuEnvio.length;
+              const foraDoMeuEnvio = draftItems.length - nEnvio;
+              const motivoTravado = eventoFinalizado
+                ? avisoEventoFim
+                : !podeEnviar
+                  ? "Quem envia é a Solicitação ou um administrador — avise um deles quando a lista estiver pronta."
+                  : nEnvio === 0
+                    ? (user?.kit
+                        ? "Estes rascunhos não são peças do Kit criadas por você — quem os criou é que envia."
+                        : "Estes rascunhos são do Kit — quem os criou é que envia.")
+                    : null;
+              return (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', padding: 16, backgroundColor: '#fffbeb', border: '1px solid #fde68a', borderRadius: 10 }}>
-              <div className="flex items-center gap-2">
-                <AlertCircle className="h-5 w-5" style={{ color: '#b45309' }} />
-                <div>
-                  <p className="text-sm font-semibold">Pronto para enviar?</p>
-                  <p className="text-xs text-muted-foreground">
+              <div className="flex items-center gap-2" style={{ flex: '1 1 280px', minWidth: 0 }}>
+                <AlertCircle className="h-5 w-5" style={{ color: '#b45309', flexShrink: 0 }} />
+                <div style={{ minWidth: 0 }}>
+                  <p className="text-sm font-semibold">{motivoTravado ? 'Envio indisponível' : 'Pronto para enviar?'}</p>
+                  <p id="texto-envio-rascunhos" data-testid="texto-envio-rascunhos" style={{ fontSize: 12, color: '#57534e', margin: 0, lineHeight: 1.5 }}>
                     {/* draft + requested: o endpoint de envio abrange os dois —
                         contar só 'draft' subestimava a contagem. */}
-                    {draftItems.length} {draftItems.length === 1 ? 'peça será enviada' : 'peças serão enviadas'} para a vinculação de patrocinadores
+                    {motivoTravado
+                      ? motivoTravado
+                      : <>
+                          {nEnvio} {nEnvio === 1 ? 'peça vai' : 'peças vão'} para <strong>Vincular Patrocinadores</strong>, onde os patrocinadores são ligados e a peça segue para a Arte.
+                          {foraDoMeuEnvio > 0 && ` ${foraDoMeuEnvio} ${foraDoMeuEnvio === 1 ? 'rascunho do Kit fica' : 'rascunhos do Kit ficam'} para quem ${foraDoMeuEnvio === 1 ? 'o criou' : 'os criou'}.`}
+                        </>}
                   </p>
                 </div>
               </div>
               <Button
                 onClick={() => setSubmitConfirmOpen(true)}
                 // Gate: enviar rascunhos para a Arte é ação de admin ou do
-                // papel "solicitação" — mesmo critério do title abaixo.
+                // papel "solicitação" — mesmo critério do texto acima.
                 // Evento finalizado também trava: enviar rascunho é EMPURRAR
                 // trabalho para a fila de vinculação, que já não mostra estas
-                // peças. (O endpoint vive em server/routes/events.ts e ainda
-                // aceita a chamada — este gate é o que segura hoje.)
-                disabled={submitDraftsMutation.isPending || eventoFinalizado || !(hasPermission("admin") || user?.role === "solicitacao")}
-                title={eventoFinalizado
-                  ? avisoEventoFim
-                  : !(hasPermission("admin") || user?.role === "solicitacao") ? "Apenas Solicitação ou administradores podem enviar" : undefined}
+                // peças. Sem rascunho no recorte de quem envia, o clique só
+                // devolveria "Nenhum item em rascunho" do servidor.
+                disabled={submitDraftsMutation.isPending || !!motivoTravado}
+                title={motivoTravado ?? undefined}
+                // O motivo já está escrito ao lado; ligar o botão a ele faz o
+                // leitor de tela dizer POR QUE está travado ao focar.
+                aria-describedby={motivoTravado ? "texto-envio-rascunhos" : undefined}
                 size="lg"
                 data-testid="button-submit-drafts"
               >
@@ -2950,11 +3048,15 @@ export default function EventDetail() {
                 ) : (
                   <>
                     <Check className="h-4 w-4 mr-2" />
-                    Enviar todas as peças
+                    {foraDoMeuEnvio > 0 && nEnvio > 0
+                      ? `Enviar ${nEnvio} ${nEnvio === 1 ? 'peça' : 'peças'}`
+                      : 'Enviar todas as peças'}
                   </>
                 )}
               </Button>
             </div>
+              );
+            })()}
           </div>
         </div>
 
@@ -2970,7 +3072,7 @@ export default function EventDetail() {
               icon={Check}
               tint="#c2410c"
               title="Confirmar envio para vinculação"
-              subtitle={`${draftItems.length} ${draftItems.length === 1 ? 'peça será enviada' : 'peças serão enviadas'} para a fila de vinculação.`}
+              subtitle={`${rascunhosQueEuEnvio.length} ${rascunhosQueEuEnvio.length === 1 ? 'peça será enviada' : 'peças serão enviadas'} para a fila de vinculação.`}
               onClose={() => setSubmitConfirmOpen(false)}
             />
 
@@ -2982,10 +3084,10 @@ export default function EventDetail() {
                 `modalSurface`, e a rolagem que já existia passa a ligar. */}
             <div style={{ maxHeight: 340, overflowY: 'auto', padding: '16px 28px', flex: '0 1 auto', minHeight: 0 }}>
               {(() => {
-                // draftItems do escopo do componente: draft + requested — a
-                // mesma população que o servidor envia.
+                // rascunhosQueEuEnvio: draft + requested, no recorte de quem
+                // envia — a mesma população que o servidor manda.
                 const byType: Record<string, typeof draftItems> = {};
-                draftItems.forEach(item => {
+                rascunhosQueEuEnvio.forEach(item => {
                   const k = item.type || 'Sem tipo';
                   if (!byType[k]) byType[k] = [];
                   byType[k].push(item);
@@ -3024,7 +3126,7 @@ export default function EventDetail() {
               <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, backgroundColor: '#fff7ed', border: '1px solid #fed7aa', borderRadius: 8, padding: '10px 12px', marginBottom: 16 }}>
                 <AlertCircle style={{ width: 14, height: 14, color: '#f97316', flexShrink: 0, marginTop: 1 }} />
                 <p style={{ fontSize: 13, color: '#92400e', margin: 0, lineHeight: 1.5 }}>
-                  Após o envio, as peças vão para a fila de <strong>Vincular Patrocinadores</strong>. Esta ação não pode ser desfeita.
+                  Após o envio, as peças saem de Rascunho e vão para a fila de <strong>Vincular Patrocinadores</strong> — nesta tela passam a aparecer como Aguardando Vinculação. Esta ação não pode ser desfeita por aqui.
                 </p>
               </div>
               <DialogFooter style={{ gap: 8, flexDirection: 'row', justifyContent: 'flex-end' }}>
@@ -3279,6 +3381,15 @@ export default function EventDetail() {
                                 </button>
                               )}
                             </div>
+                          )}
+                          {/* O MOTIVO DO "EDITAR" TRAVADO, À VISTA. No celular o
+                              `title` nunca aparece (não há hover): o botão cinza
+                              sem explicação lia como app quebrado. */}
+                          {canEditLists && isEditBlocked(item.status) && (
+                            <p style={{ margin: '6px 0 0', fontSize: 11.5, color: '#57534e', lineHeight: 1.4, display: 'flex', alignItems: 'flex-start', gap: 5 }}>
+                              <Lock aria-hidden="true" style={{ width: 11, height: 11, flexShrink: 0, marginTop: 2 }} />
+                              {motivoEdicaoBloqueada(item.status)}
+                            </p>
                           )}
                         </div>
                       ))}
@@ -3577,6 +3688,7 @@ export default function EventDetail() {
                                   disabled
                                   aria-disabled="true"
                                   title={motivoEdicaoBloqueada(item.status) ?? undefined}
+                                  aria-label={`Edição bloqueada: ${motivoEdicaoBloqueada(item.status) ?? ""}`}
                                   style={{ color: '#78716c', padding: '6px', cursor: 'not-allowed', background: 'none', border: 'none' }}
                                   data-testid={`button-edit-item-${item.id}`}
                                 >

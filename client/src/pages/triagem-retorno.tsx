@@ -673,12 +673,15 @@ export default function TriagemRetorno() {
             {/* Subtítulo em texto corrido — a caixa alta com 0.18em era o
                 elemento mais ruidoso do cabeçalho. */}
             <p style={{ margin: 0, fontSize: 13, fontWeight: 500, color: "#746e69", fontFamily: "Plus Jakarta Sans, sans-serif" }}>
-              Logística reversa · avaliação de condição e destino
+              Peças que voltaram do evento: escolha a condição, o destino e onde guardar
             </p>
           </div>
         </div>
+        {/* Cinza sem dizer por quê era o "travou?" desta tela: o lote só
+            existe depois de marcar a caixa das peças. */}
         <button data-testid="button-bulk-triage-header" onClick={handleBulk}
           disabled={selectedIds.length === 0 || savingIds.size > 0}
+          title={selectedIds.length === 0 ? "Marque a caixa à esquerda das peças para triar várias de uma vez" : `Grava a triagem das ${selectedIds.length} peças marcadas`}
           style={{
             display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
             minHeight: 44, padding: "0 20px", borderRadius: 10, border: "none", flexShrink: 0,
@@ -879,6 +882,15 @@ export default function TriagemRetorno() {
           </button>
         </div>
       ) : (
+        <>
+        {/* A CONDIÇÃO MUDA O DESTINO SOZINHA (smartUpdateSplit) — sem aviso,
+            quem marcava "Avaria leve" via o destino pular para Manutenção e
+            achava que tinha tocado errado. Uma linha diz a regra e o caminho
+            de volta; também diz o que o Salvar grava. */}
+        <p data-testid="dica-triagem-tabela" style={{ margin: "0 0 10px", fontSize: 12.5, color: "#475569", lineHeight: 1.5, fontFamily: "Plus Jakarta Sans, sans-serif" }}>
+          A condição já sugere o destino (Perfeito → Galpão, Avaria leve → Manutenção, Sucata → Descartar) — troque o destino se precisar.
+          Voltar ao Galpão exige o local. Nada é gravado até <strong style={{ color: "#0f172a" }}>Salvar</strong> na linha ou <strong style={{ color: "#0f172a" }}>Confirmar lote</strong>.
+        </p>
         <div style={{ background: "#fff", borderRadius: isMobile ? 12 : 16, border: "1px solid #e2e8f0", overflow: "hidden", boxShadow: "0 1px 3px rgba(15,23,42,0.05)" }}>
           {(() => {
             // As peças de cada linha são montadas UMA vez e servem às duas
@@ -1349,6 +1361,7 @@ export default function TriagemRetorno() {
             );
           })()}
         </div>
+        </>
       )}
       </div>
 

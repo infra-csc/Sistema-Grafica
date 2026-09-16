@@ -7,6 +7,7 @@ import { FilePreview, isWebUrl } from "@/components/file-preview";
 import { parseDateLocal, normalizarBusca } from "@/lib/utils";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { usePecaDoLink } from "@/hooks/use-peca-do-link";
 import {
   Dialog,
   DialogContent,
@@ -114,6 +115,25 @@ function filtrosRevisaoParaQuery(searchAtual: string, f: FiltrosRevisao): string
   return p.toString();
 }
 
+/**
+ * Para onde a peça vai ao ser liberada — o MESMO critério do servidor.
+ * PATCH /api/items/:id/creator-review (server/routes/items.ts) trata a peça
+ * com reaproveitamento total (`isReuse`) como "não precisa produzir": ela vai
+ * direto para Produzido (a conferência da Gráfica) e não exige arquivo final.
+ * As demais, inclusive reaproveitamento parcial, vão para Pronto para Produção.
+ * Dizer "Pronto para Produção" para todas mentia justamente sobre a peça que
+ * nem entra na fila de impressão.
+ */
+function reaproveitamentoTotal(item: any): boolean {
+  return !!item?.isReuse;
+}
+/** Frase no passado, para o aviso depois de liberar. */
+function destinoAoLiberar(item: any): string {
+  return reaproveitamentoTotal(item)
+    ? "foi direto para Produzido, na conferência da Gráfica (reaproveitamento total — não passa pela impressão)"
+    : "entrou na fila da Gráfica como Pronto para Produção";
+}
+
 export default function Solicitacao() {
   const { toast } = useToast();
   const { user } = useAuth();
@@ -135,6 +155,8 @@ export default function Solicitacao() {
   const [complementItem, setComplementItem] = useState<any>(null);
   const [complementSugestao, setComplementSugestao] = useState<number | null>(null);
   const quantityInputRef = useRef<HTMLInputElement>(null);
+  // Alvo do foco ao abrir a confirmação de liberar (ver o AlertDialog dela).
+  const botaoConfirmarLiberarRef = useRef<HTMLButtonElement>(null);
   const [releaseConfirmOpen, setReleaseConfirmOpen] = useState(false);
   // Campo de observação do card: precisa existir por conta própria, sem
   // depender de "Liberar" ou "Devolver" — a pessoa pode querer deixar um
@@ -385,16 +407,25 @@ export default function Solicitacao() {
 
   const creatorReviewMutation = useMutation({
     mutationFn: async ({ itemId }: { itemId: string }) => await apiRequest("PATCH", `/api/items/${itemId}/creator-review`, {}),
-    onSuccess: () => {
+    onSuccess: (_res, { itemId }) => {
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
       queryClient.invalidateQueries({ queryKey: ["/api/items/approved"] });
       queryClient.invalidateQueries({ queryKey: ["/api/audit-logs"] });
       setReleaseConfirmOpen(false);
+      const liberada = (items as any[]).find((i: any) => i.id === itemId);
+      const id = liberada?.displayId ?? "A peça";
       // Avança para a peça seguinte em vez de fechar. Só fecha na última —
       // e é aí que o FreezeWhileClosing continua valendo, porque é aí que o
       // `selectedItem` de fato some com o modal em fade.
       if (!marcarAvanco()) { setModalOpen(false); setSelectedItem(null); }
-      toast({ title: "Peça liberada para produção!", description: "Pronto para produção — a Arte foi notificada." });
+      const avancou = proximaAposDecidir.current !== null;
+      // O aviso responde "foi para a Gráfica?" (o destino e o status que ela
+      // vai ver lá) e "e agora?" (a ficha já trocou de peça, ou a fila acabou).
+      // "A Arte foi notificada" dizia a verdade, mas respondia outra pergunta.
+      toast({
+        title: "Liberada para a Gráfica",
+        description: `${id} ${destinoAoLiberar(liberada)}. ${avancou ? "A próxima peça da fila já está aberta." : "Era a última desta fila."}`,
+      });
     },
     onError: (error: any) => toast({ title: "Erro ao liberar peça", description: parseApiError(error).message, variant: "destructive" }),
   });
@@ -427,13 +458,21 @@ export default function Solicitacao() {
       });
       setBulkReleaseConfirmOpen(false);
       if (failed > 0) {
+        // As que falharam continuam marcadas (acima): a frase aponta onde
+        // olhar e o motivo mais comum, em vez de "verifique o status".
         toast({
           title: "Liberação parcial",
-          description: `${released} de ${total} liberada(s). ${failed} não passou(aram) — verifique o status delas.`,
+          description: `${released} de ${total} foram para a fila da Gráfica. ${failed} não ${failed === 1 ? "passou e continua marcada" : "passaram e continuam marcadas"} — o motivo mais comum é faltar o arquivo final da Arte.`,
           variant: "destructive",
         });
       } else {
-        toast({ title: "Peças liberadas", description: `${released} peça(s) liberada(s) para produção.` });
+        // Reaproveitamento total vai para Produzido, não para a impressão
+        // (mesmo critério do servidor — ver `reaproveitamentoTotal`).
+        const reaproveitadas = enviados.filter(id => reaproveitamentoTotal(pendingItems.find((i: any) => i.id === id))).length;
+        const extra = reaproveitadas > 0
+          ? ` ${reaproveitadas === released ? (released === 1 ? "Era" : "Todas eram") : (reaproveitadas === 1 ? "1 era" : `${reaproveitadas} eram`)} de reaproveitamento total e ${reaproveitadas === 1 ? "foi" : "foram"} direto para Produzido.`
+          : "";
+        toast({ title: "Liberadas para a Gráfica", description: `${released} ${released === 1 ? "peça saiu" : "peças saíram"} da Revisão Final para a fila da Gráfica.${extra}` });
       }
     },
     onError: (error: any) => toast({ title: "Erro ao liberar peças", description: parseApiError(error).message, variant: "destructive" }),
@@ -450,13 +489,16 @@ export default function Solicitacao() {
       queryClient.invalidateQueries({ queryKey: ["/api/audit-logs"] });
       setReturnConfirmOpen(false); setReturnObservations("");
       if (!marcarAvanco()) { setModalOpen(false); setSelectedItem(null); }
+      const avancou = proximaAposDecidir.current !== null;
       // O aviso diz PARA ONDE ela foi — a escolha que acabou de ser feita, e
-      // a única que muda o que acontece com a aprovação do patrocinador.
+      // a única que muda o que acontece com a aprovação do patrocinador — e
+      // QUEM recebe: a Arte, avisada com o motivo (notificação do servidor).
       toast({
-        title: "Peça devolvida para a Arte",
-        description: payload.destino === "arte"
+        title: "Devolvida para a Arte",
+        description: (payload.destino === "arte"
           ? "Voltou para o começo da Arte — o patrocinador terá de aprovar de novo."
-          : "Voltou para a Finalização — a aprovação do patrocinador continua valendo.",
+          : "Voltou para a Finalização — a aprovação do patrocinador continua valendo.")
+          + ` A Arte foi avisada com o seu motivo.${avancou ? " A próxima peça já está aberta." : ""}`,
       });
     },
     onError: (error: any) => toast({ title: "Erro ao devolver peça", description: parseApiError(error).message, variant: "destructive" }),
@@ -484,9 +526,9 @@ export default function Solicitacao() {
       setBulkReturnConfirmOpen(false); setBulkReturnObservations("");
       const ok = total - failed;
       if (failed > 0) {
-        toast({ title: "Devolução parcial", description: `${ok} devolvida(s), ${failed} com erro.`, variant: "destructive" });
+        toast({ title: "Devolução parcial", description: `${ok} ${ok === 1 ? "voltou" : "voltaram"} para a Arte; ${failed} com erro ${failed === 1 ? "continua marcada" : "continuam marcadas"} para tentar de novo.`, variant: "destructive" });
       } else {
-        toast({ title: "Peças devolvidas", description: `${ok} peça(s) devolvida(s) para ${destinoDevolucao === "arte" ? "o começo da Arte" : "a Finalização"}.` });
+        toast({ title: "Devolvidas para a Arte", description: `${ok} ${ok === 1 ? "peça voltou" : "peças voltaram"} para ${destinoDevolucao === "arte" ? "o começo da Arte" : "a Finalização"}. A Arte foi avisada com o motivo.` });
       }
     },
     onError: (error: any) => toast({ title: "Erro ao devolver peças", description: parseApiError(error).message, variant: "destructive" }),
@@ -905,6 +947,15 @@ export default function Solicitacao() {
     return { ids, vivas, encerrado, realizado, finalizadas: encerrado + realizado };
   }, [selectedItemIds, selosPorItem]);
 
+  // Quantas das que VÃO no lote de liberar ainda não têm arquivo final — só
+  // para avisar no diálogo; o lote enviado continua o mesmo. Reaproveitamento
+  // total fica FORA da conta: o servidor não exige arquivo dela (vai direto
+  // para Produzido), e contá-la anunciava uma recusa que não acontece.
+  const itensDoLoteVivo = selecaoLote.vivas.map(id => pendingItems.find((i: any) => i.id === id));
+  const semArquivoNoLote = itensDoLoteVivo
+    .filter((it: any) => !it?.finalFileUrl && !reaproveitamentoTotal(it)).length;
+  const reaproveitadasNoLote = itensDoLoteVivo.filter((it: any) => reaproveitamentoTotal(it)).length;
+
   /** A frase do "ficam de fora" — uma só, para os dois diálogos de lote. */
   const avisoLoteFinalizadas = (): string | null => {
     const { finalizadas, encerrado, realizado } = selecaoLote;
@@ -997,9 +1048,26 @@ export default function Solicitacao() {
     setModalOpen(true);
   };
 
+  // Deep link `?item=` (sino e "Resolver em Revisão Final →" da Gestão de
+  // Prazos): abre a decisão da peça. A fila é `pendingItems` — a mesma regra
+  // da lista, com o recorte do Kit —, então peça já liberada ou devolvida não
+  // abre um modal sem decisão: o hook avisa que ela avançou.
+  usePecaDoLink<any>({
+    pronto: !itemsLoading && !eventsLoading && !itemsError,
+    localizar: (id) => (pendingItems as any[]).find((i: any) => i.id === id),
+    abrir: openModal,
+    codigoDe: (id) => (itensDoServidor as any[]).find((i: any) => i.id === id)?.displayId,
+  });
+
   useEffect(() => {
     if (!modalOpen) return;
     const handler = (e: KeyboardEvent) => {
+      // Tecla SEGURADA não é decisão: o auto-repeat do teclado abria a
+      // confirmação, o foco no "Liberar" confirmava, a fila avançava e o
+      // próximo repeat recomeçava — várias peças liberadas num só aperto.
+      // Só o keydown inicial conta; setas seguradas também param aqui (uma
+      // peça por aperto é o ritmo de revisão).
+      if (e.repeat) return;
       // Quem está digitando num campo (textarea de observação, input de
       // quantidade...) não pode ter Enter/Esc sequestrados pelo atalho.
       const t = e.target as HTMLElement | null;
@@ -1027,9 +1095,12 @@ export default function Solicitacao() {
   }, [modalOpen, selectedItem, releaseConfirmOpen, returnConfirmOpen, filaIdx, temAnterior, temProxima, seloSelecionado]);
 
   if (itemsLoading || eventsLoading) {
+    // O giro sozinho não dizia O QUE carrega — numa fila que às vezes está
+    // vazia de verdade, "carregando ou vazio?" era pergunta de todo dia.
     return (
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%" }}>
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2" style={{ borderColor: TI.accent }} />
+      <div role="status" style={{ display: "flex", flexDirection: "column", gap: 12, alignItems: "center", justifyContent: "center", height: "100%" }}>
+        <div aria-hidden="true" className="animate-spin rounded-full h-8 w-8 border-b-2" style={{ borderColor: TI.accent }} />
+        <p style={{ margin: 0, fontSize: 13, color: "#57534e" }}>Carregando a fila de revisão…</p>
       </div>
     );
   }
@@ -1058,6 +1129,9 @@ export default function Solicitacao() {
 
           O titulo virou "Revisao", o nome que a barra lateral ja usa: "Revisao
           do Criador" era o unico lugar do app que dizia outra coisa.
+          Em 16/09 o menu passou a "Revisão Final" (o status que traz a peça é
+          "Aguardando Revisão Final") e o título acompanhou: menu, aba do
+          navegador e h1 dizem o mesmo nome.
 
           Os contadores sairam daqui. "Aguardando: 74" e o "74 de 74 pecas" da
           barra de filtros eram o MESMO numero dito duas vezes, a 200px de
@@ -1069,11 +1143,22 @@ export default function Solicitacao() {
               margin: 0, fontSize: isMobile ? 20 : FS.h1, fontWeight: 700, color: TI.text,
               fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.03em", lineHeight: 1.1,
             }}>
-              Revisão
+              Revisão Final
             </h1>
             {/* #57534e e não o TI.secondary: em 13px a régua da casa é 4,5:1. */}
             <p data-testid="frase-resolucao" style={{ margin: "4px 0 0", fontSize: 13, color: "#57534e", maxWidth: 620, lineHeight: 1.5 }}>
               {fraseDeResolucao}
+            </p>
+            {/* O QUE É ESTA TELA, numa linha. A rodada de 13/09 tirou a
+                descrição diária (a frase acima diz o que muda a cada visita),
+                mas quem chega pela primeira vez não sabia o que "revisar" quer
+                dizer, nem para onde a peça vai depois do clique. Uma linha
+                curta, em tom secundário, responde as duas coisas sem competir
+                com a frase de resolução. */}
+            <p data-testid="explicacao-revisao" style={{ margin: "2px 0 0", fontSize: 12, color: "#57534e", maxWidth: 680, lineHeight: 1.5 }}>
+              Última conferência antes da Gráfica: compare o aprovado pelo patrocinador com o arquivo final da Arte.
+              {" "}<strong style={{ fontWeight: 700, color: "#44403c" }}>Liberar</strong> manda para a fila da Gráfica;
+              {" "}<strong style={{ fontWeight: 700, color: "#44403c" }}>Devolver</strong> volta para a Arte com o seu motivo.
             </p>
           </div>
 
@@ -1248,7 +1333,7 @@ export default function Solicitacao() {
               {selosPorItem.size > 0 && (
                 <span
                   data-testid="chip-evento-finalizado"
-                  title={"Estas peças continuam na lista porque a Revisão é onde se vê o que ficou por revisar — e porque excluir peça segue liberado."
+                  title={"Estas peças continuam na lista porque a Revisão Final é onde se vê o que ficou por revisar — e porque excluir peça segue liberado."
                     + " Liberar, devolver, reaproveitar e mexer na quantidade estão bloqueados nelas."}
                 >
                   {" · "}{selosPorItem.size} de evento finalizado
@@ -1383,6 +1468,14 @@ export default function Solicitacao() {
                 ? "Não há peças aguardando revisão no momento."
                 : `${pendingItems.length} ${pendingItems.length === 1 ? "peça aguardando revisão ficou" : "peças aguardando revisão ficaram"} fora da busca e dos filtros.`}
             </p>
+            {/* "POR QUE A PEÇA NÃO ESTÁ AQUI?" — a pergunta de quem chega
+                procurando uma peça específica. A resposta é a regra de entrada
+                da fila, dita onde a ausência é notada. */}
+            <p data-testid="regra-da-fila-revisao" style={{ fontSize: 12, color: "#57534e", margin: "10px auto 0", maxWidth: 460, lineHeight: 1.5 }}>
+              Aqui só entram peças que a Arte mandou para a revisão final. Peça ainda em criação na Arte, em aprovação do patrocinador
+              ou já liberada para a Gráfica não aparece — abra o evento dela para ver em que etapa está.
+              {user?.role === "solicitacao" && !user?.kit ? " Peças do Kit são revisadas pela equipe do Kit." : ""}
+            </p>
             {pendingItems.length > 0 && (
               <button
                 type="button"
@@ -1490,8 +1583,36 @@ export default function Solicitacao() {
                           da revisão: interativo aninhado em botão é estrutura
                           inválida. Mesmo testid da tabela, pelo mesmo motivo do
                           `button-review-`: os dois layouts nunca coexistem. */}
+                      {/* REAPROVEITAR também no cartão (rodada 4): a tabela
+                          tinha o ♻ na linha e o cartão não — abaixo de 980px de
+                          lista a ação só existia abrindo a ficha. Mesmo fluxo e
+                          mesmo testid do botão da tabela (os layouts nunca
+                          coexistem): desfaz a marcação ou abre total/parcial;
+                          em evento finalizado fica visível, travado, com o
+                          motivo escrito. */}
+                      <div style={{display:"flex",justifyContent:"flex-end",alignItems:"center",gap:4,flexWrap:"wrap",padding:"0 4px 4px",marginTop:-4}}>
+                          {(() => {
+                            const selo = seloDoItem(item);
+                            return (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (selo) return;
+                                  if (item.isReuse) toggleReuseMutation.mutate({ itemId: item.id, isReuse: false });
+                                  else { setPartialReuseQty(Math.max(1, Number(item.quantity) - 1 || 1)); setReuseDialogItemId(item.id); }
+                                }}
+                                disabled={!!selo}
+                                data-testid={`button-reuse-${item.id}`}
+                                aria-pressed={!!item.isReuse}
+                                title={selo ? motivoAcaoBloqueada(selo.motivo, "marcar reaproveitamento") : undefined}
+                                style={{minHeight:44,padding:"0 12px",background:item.isReuse ? "#dcfce7" : "none",border:item.isReuse ? "1px solid #86efac" : "1px solid transparent",borderRadius:8,cursor:selo ? "not-allowed" : "pointer",color:selo ? "#78716c" : "#15803d",fontSize:12,fontWeight:700,display:"inline-flex",alignItems:"center",gap:6}}
+                              >
+                                <Recycle aria-hidden="true" style={{width:14,height:14}} />
+                                {item.isReuse ? "Reaproveitada · desfazer" : "Reaproveitar"}
+                              </button>
+                            );
+                          })()}
                       {user?.role === "admin" && (
-                        <div style={{display:"flex",justifyContent:"flex-end",padding:"0 4px 4px",marginTop:-4}}>
                           <button
                             onClick={() => setDeleteConfirmItemId(item.id)}
                             data-testid={`button-delete-${item.id}`}
@@ -1502,8 +1623,8 @@ export default function Solicitacao() {
                             <Trash2 aria-hidden="true" style={{width:14,height:14}} />
                             Excluir
                           </button>
-                        </div>
                       )}
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -1825,14 +1946,15 @@ export default function Solicitacao() {
                                 modal e encontrando "Liberar" apagado: a
                                 informação que decide se a peça é revisável
                                 estava escondida atrás de um clique, numa fila
-                                de 74. */}
+                                de 74. O "de quem depende" (a Arte) vai no title:
+                                a coluna tem 140px e "Aguardando Arte" não cabe. */}
                             <td data-testid={`cell-final-file-${item.id}`} style={{ padding: "12px 16px", whiteSpace: "nowrap" }}>
                               {item.finalFileUrl ? (
                                 <span style={{ display: "inline-flex", alignItems: "center", gap: 5, height: 24, padding: "0 9px", borderRadius: 999, backgroundColor: "#f0fdf4", border: "1px solid #bbf7d0", color: "#166534", fontSize: 12, fontWeight: 700 }}>
                                   <Check aria-hidden="true" style={{ width: 11, height: 11 }} /> Recebido
                                 </span>
                               ) : (
-                                <span style={{ display: "inline-flex", alignItems: "center", gap: 5, height: 24, padding: "0 9px", borderRadius: 999, backgroundColor: "#fff7ed", border: "1px solid #fed7aa", color: "#9a3412", fontSize: 12, fontWeight: 700 }}>
+                                <span title="A Arte ainda não enviou o arquivo final — dá para abrir e devolver, mas liberar só depois do arquivo." style={{ display: "inline-flex", alignItems: "center", gap: 5, height: 24, padding: "0 9px", borderRadius: 999, backgroundColor: "#fff7ed", border: "1px solid #fed7aa", color: "#9a3412", fontSize: 12, fontWeight: 700 }}>
                                   <Clock aria-hidden="true" style={{ width: 11, height: 11 }} /> Aguardando
                                 </span>
                               )}
@@ -2418,6 +2540,30 @@ export default function Solicitacao() {
                     {selectedItem?.isReuse ? "Reaproveitada" : "Reaproveitar"}
                   </button>
                 </div>
+                {/* PARA ONDE A PEÇA VAI, dito ANTES do clique. "Liberei — foi
+                    para a Gráfica?" e "Devolvi — quem recebe?" eram as duas
+                    perguntas de quem revisava a primeira vez; o rótulo do botão
+                    (fixado por teste) diz a ação, esta linha diz o destino. Sem
+                    arquivo final, o porquê do Liberar travado deixa de morar só
+                    no `title`, que não aparece em botão desabilitado nem no
+                    toque. Em evento finalizado o aviso cinza abaixo já explica. */}
+                {!seloSelecionado && selectedItem && (
+                  <p data-testid="destino-da-decisao" style={{ margin: 0, fontSize: 12, lineHeight: 1.5, color: "#57534e" }}>
+                    {selectedItem.finalFileUrl ? (
+                      <>
+                        <strong style={{ color: "#1c1917" }}>Liberar</strong>: {reaproveitamentoTotal(selectedItem)
+                          ? "sai da Revisão Final e vai direto para Produzido (reaproveitamento total, sem impressão)."
+                          : "sai da Revisão Final e entra na fila da Gráfica como Pronto para Produção."}{" "}
+                        <strong style={{ color: "#1c1917" }}>Devolver</strong>: volta para a Arte, que é avisada com o seu motivo.
+                      </>
+                    ) : (
+                      <>
+                        <strong style={{ color: "#92400e" }}>Liberar fica disponível quando a Arte enviar o arquivo final.</strong>{" "}
+                        Dá para devolver agora, se algo já precisa mudar.
+                      </>
+                    )}
+                  </p>
+                )}
                 {seloSelecionado && (
                   <p
                     role="status"
@@ -2441,7 +2587,12 @@ export default function Solicitacao() {
                 <div style={{ backgroundColor: "#fffbeb", border: "1px solid #fde68a", borderRadius: 8, padding: "10px 12px", display: "flex", gap: 8 }}>
                   <AlertCircle style={{ width: 14, height: 14, color: "#d97706", flexShrink: 0, marginTop: 2 }} />
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <p style={{ fontSize: 11, fontWeight: 700, color: "#92400e", margin: "0 0 6px" }}>Observações do item</p>
+                    {/* "Salvar observação libera a peça?" — não. A frase curta
+                        separa o recado da decisão, que é o que o bloco existe
+                        para permitir. */}
+                    <p style={{ fontSize: 11, fontWeight: 700, color: "#92400e", margin: "0 0 6px" }}>
+                      Observações do item <span style={{ fontWeight: 500 }}>· fica gravada na peça, sem liberar nem devolver</span>
+                    </p>
                     <textarea
                       placeholder="Deixe um recado sobre esta peça (cor, acabamento, posição...)"
                       value={cardObservations}
@@ -2555,7 +2706,9 @@ export default function Solicitacao() {
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                   <span style={{ fontSize: 10, fontWeight: 700, color: TI.secondary, textTransform: "uppercase", letterSpacing: "0.08em" }}>Atalhos:</span>
                   {([
-                    ["Enter", "liberar"],
+                    // A confirmação abre com o foco no "Liberar": Enter de
+                    // novo confirma. Dito aqui para ninguém procurar o mouse.
+                    ["Enter", "liberar (Enter de novo confirma)"],
                     ["D", "devolver"],
                     ["← →", "peça anterior / próxima"],
                     ["Esc", "fechar"],
@@ -2577,7 +2730,15 @@ export default function Solicitacao() {
 
       {/* Release single */}
       <AlertDialog open={releaseConfirmOpen} onOpenChange={setReleaseConfirmOpen}>
-        <AlertDialogContent className="review-confirm-content">
+        {/* FOCO NO "LIBERAR", não no Cancelar (o padrão do Radix). Quem chega
+            aqui pelo atalho Enter da ficha apertava Enter de novo e CANCELAVA:
+            revisar em fila pelo teclado exigia Tab a cada peça. Liberar não
+            destrói nada — é o caminho que a tela existe para percorrer —, e
+            a confirmação continua existindo porque a peça sai para impressão. */}
+        <AlertDialogContent
+          className="review-confirm-content"
+          onOpenAutoFocus={(e) => { e.preventDefault(); botaoConfirmarLiberarRef.current?.focus(); }}
+        >
           {/* POR QUE congelar aqui: o mesmo onSuccess que fecha esta confirmação
               também faz `setSelectedItem(null)` — e é `selectedItem` que
               escreve o ID e o tipo da peça na descrição. Sem congelar, a frase
@@ -2586,12 +2747,25 @@ export default function Solicitacao() {
           <AlertDialogHeader>
             <AlertDialogTitle>Liberar para produção</AlertDialogTitle>
             <AlertDialogDescription>
-              {selectedItem && <span><strong>{selectedItem.displayId}</strong> — {selectedItem.type} será liberada para produção.</span>}
+              {selectedItem && (
+                <span>
+                  <strong>{selectedItem.displayId}</strong> — {selectedItem.type} sai da Revisão Final e
+                  {reaproveitamentoTotal(selectedItem)
+                    ? <> vai direto para <strong>Produzido</strong>, na conferência da Gráfica: é reaproveitamento total e não passa pela impressão.</>
+                    : <> entra na fila da Gráfica como <strong>Pronto para Produção</strong>. Se algo estiver errado depois, a Gráfica pode devolvê-la para a Revisão Final.</>}
+                </span>
+              )}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel data-testid="button-release-cancel">Cancelar</AlertDialogCancel>
             <AlertDialogAction
+              ref={botaoConfirmarLiberarRef}
+              // Com o foco já no botão, o repeat de um Enter SEGURADO (o mesmo
+              // aperto que abriu esta confirmação) ativaria o clique sozinho.
+              // Barrar o repeat obriga soltar e apertar de novo: confirmar
+              // continua a um Enter, mas nunca por inércia do dedo.
+              onKeyDown={(e) => { if (e.repeat) e.preventDefault(); }}
               onClick={() => selectedItem && creatorReviewMutation.mutate({ itemId: selectedItem.id })}
               disabled={creatorReviewMutation.isPending}
               style={{ backgroundColor: TI.text, color: "#fff" }}
@@ -2615,7 +2789,7 @@ export default function Solicitacao() {
           <AlertDialogHeader>
             <AlertDialogTitle>Devolver para Arte</AlertDialogTitle>
             <AlertDialogDescription>
-              {selectedItem && <span><strong>{selectedItem.displayId}</strong> será devolvida à Arte.</span>}
+              {selectedItem && <span><strong>{selectedItem.displayId}</strong> sai da Revisão Final e volta para a Arte. Quem recebe é a Arte: ela é avisada com o motivo que você escrever abaixo.</span>}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <div style={{ padding: 0 }}>
@@ -2657,7 +2831,25 @@ export default function Solicitacao() {
           <AlertDialogHeader>
             <AlertDialogTitle>Liberar {selecaoLote.vivas.length} {selecaoLote.vivas.length === 1 ? "peça" : "peças"}</AlertDialogTitle>
             <AlertDialogDescription>
-              Deseja liberar {selecaoLote.vivas.length} {selecaoLote.vivas.length === 1 ? "peça" : "peças"} para produção?
+              {selecaoLote.vivas.length === 1 ? "A peça sai" : `As ${selecaoLote.vivas.length} peças saem`} da Revisão Final
+              {reaproveitadasNoLote > 0 && reaproveitadasNoLote === selecaoLote.vivas.length
+                ? <> e {reaproveitadasNoLote === 1 ? "vai" : "vão"} direto para Produzido (conferência da Gráfica): reaproveitamento total, sem impressão e sem precisar de arquivo final.</>
+                : <> e {selecaoLote.vivas.length === 1 ? "entra" : "entram"} na fila da Gráfica como Pronto para Produção.</>}
+              {reaproveitadasNoLote > 0 && reaproveitadasNoLote < selecaoLote.vivas.length && (
+                <span data-testid="aviso-bulk-release-reaproveitadas" style={{ display: "block", marginTop: 8 }}>
+                  Exceção: {reaproveitadasNoLote === 1 ? "1 é" : `${reaproveitadasNoLote} são`} de reaproveitamento total e {reaproveitadasNoLote === 1 ? "vai" : "vão"} direto para Produzido (conferência da Gráfica), sem impressão e sem precisar de arquivo final.
+                </span>
+              )}
+              {/* SEM ARQUIVO FINAL, dito antes: o servidor recusa liberar peça
+                  sem arquivo (salvo reaproveitamento total, já fora da conta)
+                  e o lote voltava "parcial" sem aviso prévio. O envio NÃO muda
+                  (a regra é do servidor); só deixa de ser surpresa — e as
+                  recusadas seguem marcadas depois. */}
+              {semArquivoNoLote > 0 && (
+                <span data-testid="aviso-bulk-release-sem-arquivo" style={{ display: "block", marginTop: 8 }}>
+                  {semArquivoNoLote === 1 ? "1 ainda não tem" : `${semArquivoNoLote} ainda não têm`} arquivo final da Arte: o servidor recusa {semArquivoNoLote === 1 ? "essa" : "essas"}, que {semArquivoNoLote === 1 ? "continua marcada" : "continuam marcadas"}.
+                </span>
+              )}
               {selecaoLote.finalizadas > 0 && (
                 <span data-testid="aviso-bulk-release-finalizadas" style={{ display: "block", marginTop: 8 }}>
                   {avisoLoteFinalizadas()}
@@ -2693,7 +2885,7 @@ export default function Solicitacao() {
           <AlertDialogHeader>
             <AlertDialogTitle>Devolver {selecaoLote.vivas.length} {selecaoLote.vivas.length === 1 ? "peça" : "peças"} para a Arte</AlertDialogTitle>
             <AlertDialogDescription>
-              Deseja devolver {selecaoLote.vivas.length} {selecaoLote.vivas.length === 1 ? "peça" : "peças"} para a Arte?
+              {selecaoLote.vivas.length === 1 ? "A peça sai" : `As ${selecaoLote.vivas.length} peças saem`} da Revisão Final e {selecaoLote.vivas.length === 1 ? "volta" : "voltam"} para a Arte, que é avisada com o motivo escrito abaixo.
               {selecaoLote.finalizadas > 0 && (
                 <span data-testid="aviso-bulk-return-finalizadas" style={{ display: "block", marginTop: 8 }}>
                   {avisoLoteFinalizadas()}

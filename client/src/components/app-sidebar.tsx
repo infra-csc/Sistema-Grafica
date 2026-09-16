@@ -34,22 +34,47 @@ type MenuItem = {
   roles?: UserRole[];
   /** Some para o usuário do Kit (15/09: Modelos não é do Kit). */
   semKit?: boolean;
+  /**
+   * data-testid fixo quando o rótulo muda. O id nasce do título; renomear um
+   * item quebraria em silêncio quem já seleciona por ele.
+   */
+  testId?: string;
 };
 
 // roles: undefined = todos os perfis autenticados
-const productionItems: MenuItem[] = [
+//
+// TRÊS GRUPOS NO LUGAR DE UM "PRODUÇÃO" COM 15 ITENS (16/09). A lista única
+// misturava as filas de trabalho com as telas de consulta, e as filas vinham
+// fora da ordem do fluxo (Arte antes de Vincular). Agora o menu ENSINA o
+// caminho da peça: "Fluxo da peça" está na ordem em que ela anda — vincular →
+// arte → aprovação → revisão final → gráfica. Nenhum item sumiu nem mudou de
+// permissão; só de lugar.
+const inicioItems: MenuItem[] = [
   { title: "Painel Geral",            url: "/",                        icon: LayoutDashboard },
   { title: "Eventos",                 url: "/eventos",                 icon: CalendarRange },
-  { title: "Arte",                    url: "/arte",                    icon: Palette,        roles: ["arte", "atendimento", "admin"] },
+  // Sem `roles`: a tela passa a aparecer para TODOS (decisão do dono, 17/08).
+  // Quem não é admin vê e não mexe — o registro de cobrança se desabilita
+  // sozinho (ver CobradoControl), e o POST /api/prazos/cobrancas segue admin.
+  { title: "Gestão de Prazos",        url: "/prazos",                  icon: Timer },
+  { title: "Calendário",              url: "/calendario",              icon: Calendar },
+];
+
+const fluxoItems: MenuItem[] = [
   { title: "Vincular Patrocinadores", url: "/vincular-patrocinadores", icon: Link2,          roles: ["arte", "solicitacao", "atendimento", "admin"] },
+  { title: "Arte",                    url: "/arte",                    icon: Palette,        roles: ["arte", "atendimento", "admin"] },
   { title: "Atendimento",             url: "/atendimento",             icon: UserCheck,      roles: ["atendimento", "arte", "admin"] },
-  { title: "Revisão",                 url: "/solicitacao",             icon: ClipboardCheck, roles: ["solicitacao", "admin"] },
+  // "Revisão Final" e não só "Revisão" (16/09): o status que traz a peça para
+  // cá chama-se "Aguardando Revisão Final", e quem lia o selo não achava no
+  // menu uma tela com esse nome. A rota continua /solicitacao; o testId fica.
+  { title: "Revisão Final",           url: "/solicitacao",             icon: ClipboardCheck, roles: ["solicitacao", "admin"], testId: "nav-revisão" },
+  { title: "Gráfica",                 url: "/grafica",                 icon: Printer,        roles: ["grafica", "solicitacao", "admin"] },
   // O lugar único dos pedidos de peça (dono, 14/09): o Atendimento pede, a
   // Solicitação resolve — aqui e pelos eventos.
   { title: "Solicitação de peças",    url: "/pedidos-de-peca",         icon: Inbox,          roles: ["atendimento", "solicitacao", "admin"] },
-  { title: "Gráfica",                 url: "/grafica",                 icon: Printer,        roles: ["grafica", "solicitacao", "admin"] },
   { title: "Modelos",                 url: "/modelos",                 icon: Layers,         roles: ["solicitacao", "admin"], semKit: true },
-  { title: "Calendário",              url: "/calendario",              icon: Calendar },
+];
+
+const consultaItems: MenuItem[] = [
   { title: "Histórico",               url: "/historico",               icon: Activity },
   // Qual versão cada patrocinador aprovou, e os books baixáveis — pedido do
   // dono (21/08). Sem `roles`: quem aprova, quem desenha e quem revisa leem.
@@ -58,10 +83,6 @@ const productionItems: MenuItem[] = [
   // não acessa a Gráfica e este acervo interessa a todos.
   { title: "Registros",               url: "/registros",               icon: Camera },
   { title: "Análises",                url: "/analises",                icon: BarChart3,      roles: ["admin"] },
-  // Sem `roles`: a tela passa a aparecer para TODOS (decisão do dono, 17/08).
-  // Quem não é admin vê e não mexe — o registro de cobrança se desabilita
-  // sozinho (ver CobradoControl), e o POST /api/prazos/cobrancas segue admin.
-  { title: "Gestão de Prazos",        url: "/prazos",                  icon: Timer },
 ];
 
 // Patrocinadores: visível p/ solicitação, atendimento e admin
@@ -86,6 +107,42 @@ const adminItems: MenuItem[] = [
   { title: "Notificações",    url: "/notificacoes", icon: Bell },
   { title: "Logs do Sistema", url: "/logs-sistema", icon: ScrollText },
 ];
+
+/**
+ * PARA QUE SERVE CADA TELA, em uma frase — por url.
+ *
+ * Quem chega não distingue "Revisão Final", "Solicitação de peças" e
+ * "Atendimento" só pelo nome; eram exatamente os três que mais confundiam. A
+ * frase vai no `title` (ponteiro) e no `aria-description` (leitor de tela).
+ * Texto de ajuda, não permissão. Mapa à parte, e não um campo do item, para
+ * as linhas do menu continuarem uma por item — é por elas que os testes de
+ * permissão conferem o `roles` de cada tela.
+ */
+const DESCRICAO_DA_TELA: Record<string, string> = {
+  "/": "Todas as peças de todos os eventos, com a etapa de cada uma",
+  "/eventos": "Lista de eventos; dentro de cada um se monta e envia a lista de peças",
+  "/prazos": "O que está atrasado ou perto do prazo, por etapa e por evento",
+  "/calendario": "Os eventos no calendário",
+  "/vincular-patrocinadores": "1º passo: dizer quais marcas aparecem em cada peça e enviar para a Arte",
+  "/arte": "2º passo: criar o layout, mandar para aprovação e subir o arquivo final",
+  "/atendimento": "3º passo: registrar a aprovação ou a reprovação de cada patrocinador",
+  "/solicitacao": "4º passo: conferir o arquivo final e liberar para produção (ou devolver à Arte)",
+  "/grafica": "5º passo: produzir, conferir e entregar as peças liberadas",
+  "/pedidos-de-peca": "Peças que faltam na lista de um evento: o Atendimento pede, a Solicitação cria",
+  "/modelos": "Catálogo de peças reutilizáveis para montar a lista de um evento",
+  "/historico": "Tudo o que foi feito no sistema, por quem e quando",
+  "/versoes": "Qual versão da arte cada patrocinador aprovou, e os books",
+  "/registros": "Fotos de conferência e de entrega de todas as peças",
+  "/analises": "Indicadores do fluxo: tempos, volume e carga que vai vencer",
+  "/patrocinadores": "Cadastro, executivo responsável e regra de aprovação de cada patrocinador",
+  "/configurar-cotas": "Quais grupos de peças cada cota de patrocinador recebe",
+  "/triagem-retorno": "Peças que voltaram de evento: avaliar a condição e decidir o destino",
+  "/estoque": "Peças guardadas que podem ser reaproveitadas",
+  "/usuarios": "Quem acessa o sistema e com qual perfil",
+  "/reparo-motivos": "Corrigir mensagens gravadas com letras trocadas por espaços",
+  "/notificacoes": "O que o sistema manda por e-mail, para quem, e o que saiu",
+  "/logs-sistema": "Rastreamento técnico das operações do sistema",
+};
 
 // ─── Section label ────────────────────────────────────────
 const sectionLabelStyle: React.CSSProperties = {
@@ -122,11 +179,12 @@ function NavItem({ item, isActive, badge }: { item: MenuItem; isActive: boolean;
       <SidebarMenuButton
         asChild
         isActive={isActive}
-        data-testid={`nav-${item.title.toLowerCase().replace(/\s+/g, "-")}`}
+        data-testid={item.testId ?? `nav-${item.title.toLowerCase().replace(/\s+/g, "-")}`}
       >
         <Link
           href={item.url}
           aria-current={isActive ? "page" : undefined}
+          aria-description={DESCRICAO_DA_TELA[item.url]}
           style={{
             display: "flex",
             alignItems: "center",
@@ -178,8 +236,10 @@ function NavItem({ item, isActive, badge }: { item: MenuItem; isActive: boolean;
             }}
           />
           {/* `title` + reticência: "Vincular Patrocinadores" é o rótulo mais
-              longo do menu e era o único que podia encostar na borda. */}
-          <span title={item.title} style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              longo do menu e era o único que podia encostar na borda. O title
+              agora também diz PARA QUE SERVE a tela — é a primeira pergunta
+              de quem nunca abriu aquele item. */}
+          <span title={DESCRICAO_DA_TELA[item.url] ? `${item.title} — ${DESCRICAO_DA_TELA[item.url]}` : item.title} style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
             {item.title}
           </span>
           {badge !== undefined && badge > 0 && (
@@ -295,7 +355,9 @@ export function AppSidebar() {
     url === "/" ? location === "/" : location === url || location.startsWith(url + "/");
 
   const groups = [
-    { label: "Produção",             items: filterByRole(productionItems) },
+    { label: "Início",               items: filterByRole(inicioItems) },
+    { label: "Fluxo da peça",        items: filterByRole(fluxoItems) },
+    { label: "Consulta",             items: filterByRole(consultaItems) },
     { label: "Parceiros",            items: filterByRole(sponsorItems) },
     { label: "Estoque & Logística",  items: filterByRole(stockItems) },
     { label: "Administração",        items: hasPermission("admin") ? adminItems : [] },

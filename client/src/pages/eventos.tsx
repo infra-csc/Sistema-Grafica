@@ -297,6 +297,22 @@ function readEventStats(event: any): EventStats {
   };
 }
 
+/**
+ * Peças criadas que ainda não foram ENVIADAS para a vinculação (draft e o
+ * legado requested — a mesma população do botão "Enviar" do detalhe).
+ *
+ * POR QUE NO CARTÃO: rascunho esquecido é o travamento mais silencioso do
+ * fluxo. A barra de fases mostra 0% e o cartão parece "só começando", quando
+ * na verdade a lista está pronta e ninguém apertou enviar. `event.items` já
+ * vem no payload de /api/events (enrichEvent) — não há busca a mais.
+ */
+function contarRascunhos(event: any): number {
+  const items: any[] = Array.isArray(event.items) ? event.items : [];
+  let n = 0;
+  for (const it of items) if (it.status === 'draft' || it.status === 'requested') n += 1;
+  return n;
+}
+
 /** Prioridade do evento para filtro/ordenação. Ciclo de vida NÃO entra aqui. */
 function eventPriorityKey(event: any): PriorityLevel {
   return (event.priority as PriorityLevel) || 'sem_prioridade';
@@ -456,9 +472,15 @@ function EventRow({
 
   // A MESMA frase do rodapé do cartão — não uma segunda redação do mesmo
   // estado, que divergiria no primeiro ajuste.
+  const rascunhos = contarRascunhos(event);
+  // A coluna Peças já diz "x/y"; aqui "x de y" era a mesma conta duas vezes.
+  // Quando há rascunho não enviado, é ELE a situação — o que trava a lista.
   const situacao = stats.activeItemCount === 0
     ? 'Sem peças'
-    : `${stats.deliveredCount} de ${stats.activeItemCount}`;
+    : rascunhos > 0 && stats.lifecycle === 'active'
+      ? `${rascunhos} em rascunho`
+      : `${stats.deliveredCount} de ${stats.activeItemCount}`;
+  const situacaoEhRascunho = stats.activeItemCount > 0 && rascunhos > 0 && stats.lifecycle === 'active';
 
   const isClosed = stats.lifecycle === 'manually_closed';
   const isDone = stats.lifecycle === 'completed';
@@ -546,7 +568,10 @@ function EventRow({
       </span>
 
       {/* Situação */}
-      <span style={{ fontSize: FS.small, color: T.second, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+      <span
+        title={situacaoEhRascunho ? `${rascunhos} ${rascunhos === 1 ? 'peça criada e ainda não enviada' : 'peças criadas e ainda não enviadas'} para a vinculação` : undefined}
+        style={{ fontSize: FS.small, color: situacaoEhRascunho ? '#92400e' : T.second, fontWeight: situacaoEhRascunho ? 700 : undefined, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+      >
         {situacao}
       </span>
       </a>
@@ -814,6 +839,7 @@ function EventCard({
 
   // Uma passada só sobre as peças (a grade monta até 50 cards).
   const phaseCounts = contarPorFase(event);
+  const rascunhos = contarRascunhos(event);
 
   const emptyActive = stats.activeItemCount === 0 && stats.lifecycle === 'active';
 
@@ -1037,6 +1063,18 @@ function EventCard({
               {stats.canceledCount > 0 && (
                 <span style={{ fontSize: FS.micro, color: T.second, marginTop: '5px', display: 'block' }}>
                   {stats.canceledCount} {stats.canceledCount === 1 ? 'peça cancelada' : 'peças canceladas'} fora da conta
+                </span>
+              )}
+              {/* RASCUNHO NÃO ENVIADO — o "próximo passo" que o cartão não
+                  dizia. Só em evento em jogo: no arquivado e no já realizado
+                  o envio está travado, e cobrar seria pedir o impossível. */}
+              {rascunhos > 0 && !outOfPlay && !isRealizado && (
+                <span
+                  data-testid={`rascunhos-evento-${event.id}`}
+                  style={{ fontSize: FS.small, fontWeight: 700, color: '#92400e', marginTop: '6px', display: 'flex', alignItems: 'center', gap: 5 }}
+                >
+                  <Package aria-hidden="true" style={{ width: 11, height: 11, flexShrink: 0 }} />
+                  {rascunhos} em rascunho — {canEdit ? 'abra e envie para a vinculação' : 'ainda não enviadas'}
                 </span>
               )}
             </div>
@@ -1427,7 +1465,8 @@ export default function Eventos() {
       queryClient.invalidateQueries({ queryKey: ["/api/events"] });
       handleCloseDialog();
       const parts: string[] = [];
-      if (clonedItems > 0) parts.push(`${clonedItems} ${clonedItems === 1 ? 'peça copiada' : 'peças copiadas'}`);
+      // "em Rascunho": as cópias só andam depois do envio, feito no evento.
+      if (clonedItems > 0) parts.push(`${clonedItems} ${clonedItems === 1 ? 'peça copiada' : 'peças copiadas'} em Rascunho — abra o evento para revisar e enviar`);
       if (cloneFailed) parts.push("as peças não puderam ser copiadas — use 'Clonar peças' dentro do evento");
       if (failedSponsors.length > 0) parts.push(`não foi possível vincular: ${failedSponsors.join(", ")}`);
       toast({
@@ -2067,6 +2106,21 @@ export default function Eventos() {
       .forEach((e) => { c[baldeDe(e)] += 1; });
     return c;
   }, [events, matchesSearch, matchesDates, matchesFoco, matchesPriority, matchesSponsor, baldeDe]);
+
+  // "POR QUE NÃO APARECEU?" — os eventos que os demais filtros aceitam mas a
+  // SITUAÇÃO esconde. A busca pelo nome de um evento arquivado devolvia
+  // "Nenhum evento encontrado", e o "Limpar filtros" (que de propósito não
+  // mexe na situação) não o trazia de volta: a pessoa concluía que o evento
+  // tinha sumido. Os baldes e as contagens são os mesmos dos alternadores.
+  const ROTULO_DA_SITUACAO = { ativos: 'Ativos', pendencias: 'Pendências', arquivados: 'Arquivados' } as const;
+  const foraPorSituacao = useMemo(() => {
+    if (situacoes.size === 0) return { total: 0, baldes: [] as ('ativos' | 'pendencias' | 'arquivados')[] };
+    const baldes = (['ativos', 'pendencias', 'arquivados'] as const)
+      .filter((b) => !situacoes.has(b) && contagemPorSituacao[b] > 0);
+    return { total: baldes.reduce((s, b) => s + contagemPorSituacao[b], 0), baldes };
+  }, [situacoes, contagemPorSituacao]);
+  const incluirSituacoesOcultas = () => setSituacoes((prev) => new Set([...Array.from(prev), ...foraPorSituacao.baldes]));
+  const nomesDasSituacoesOcultas = foraPorSituacao.baldes.map((b) => ROTULO_DA_SITUACAO[b]).join(' e ');
 
   // Contagens de prioridade sobre a lista já filtrada pelos DEMAIS filtros.
   const priorityCounts = useMemo(() => {
@@ -3087,6 +3141,27 @@ export default function Eventos() {
               </div>
 
               <ModalFooter>
+                {/* O QUE FALTA, ANTES DO CLIQUE. As validações continuam as
+                    mesmas (handleSubmit) — só que antes elas apareciam como
+                    toast vermelho DEPOIS de apertar Salvar, um de cada vez.
+                    Aqui a pessoa vê de uma vez o que falta e decide. */}
+                {!soPatrocinadoresNoModal && (() => {
+                  const faltam = [
+                    !formData.name.trim() && 'nome',
+                    !formData.startDate && 'data de início',
+                    !formData.truckDepartureDate && 'saída do caminhão',
+                  ].filter(Boolean) as string[];
+                  const frase = faltam.length > 0
+                    ? `Falta preencher: ${faltam.length > 1 ? `${faltam.slice(0, -1).join(', ')} e ${faltam[faltam.length - 1]}` : faltam[0]}.`
+                    : hasOrderIssue
+                      ? 'Há prazos fora de ordem — confira a seção Prazos.'
+                      : null;
+                  return frase ? (
+                    <p aria-live="polite" data-testid="texto-falta-no-evento" style={{ margin: 0, fontSize: FS.small, fontWeight: 600, color: '#92400e', textAlign: 'right' }}>
+                      {frase}
+                    </p>
+                  ) : null;
+                })()}
                 <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '12px' }}>
                   <button
                     type="button"
@@ -3249,11 +3324,14 @@ export default function Eventos() {
             como três filtros que se sobrepõem em alguma parte que ninguém
             consegue apontar. */}
         <div role="group" aria-label="Situação dos eventos" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          {/* `significado`: o que cada balde É. "Pendências" sozinho não dizia
+              que se trata de evento que já aconteceu com peça em aberto, e
+              "Arquivados" escondia que ali mora o encerrado à mão. */}
           {([
-            { chave: 'ativos', rotulo: 'Ativos', cor: '#22c55e' },
-            { chave: 'pendencias', rotulo: 'Pendências', cor: '#f59e0b' },
-            { chave: 'arquivados', rotulo: 'Arquivados', cor: '#78716c' },
-          ] as const).map(({ chave, rotulo, cor }) => {
+            { chave: 'ativos', rotulo: 'Ativos', cor: '#22c55e', significado: 'em andamento — o dia do evento ainda não passou' },
+            { chave: 'pendencias', rotulo: 'Pendências', cor: '#f59e0b', significado: 'o dia do evento passou e ainda há peça em aberto' },
+            { chave: 'arquivados', rotulo: 'Arquivados', cor: '#78716c', significado: 'concluídos (tudo entregue) e encerrados manualmente' },
+          ] as const).map(({ chave, rotulo, cor, significado }) => {
             const ligado = situacoes.has(chave);
             return (
               <button
@@ -3262,7 +3340,7 @@ export default function Eventos() {
                 onClick={() => alternarSituacao(chave)}
                 aria-pressed={ligado}
                 data-testid={`toggle-situacao-${chave}`}
-                title={ligado ? `Tirar ${rotulo.toLowerCase()} da lista` : `Trazer ${rotulo.toLowerCase()} para a lista`}
+                title={`${rotulo}: ${significado}. ${ligado ? 'Clique para tirar da lista.' : 'Clique para trazer para a lista.'}`}
                 style={{
                   display: 'inline-flex', alignItems: 'center', gap: 7,
                   height: isMobile ? 44 : 30, padding: '0 12px', borderRadius: R.pill,
@@ -3298,6 +3376,20 @@ export default function Eventos() {
                 ? `${events.length} ${events.length === 1 ? 'evento' : 'eventos'}`
                 : `${filteredEvents.length} de ${events.length} ${events.length === 1 ? 'evento' : 'eventos'}`}
             </span>
+            {/* Buscando por nome, o evento procurado pode estar arquivado: a
+                lista mostra outros resultados e ele "não existe". Com a lista
+                vazia quem avisa é o estado vazio; aqui só com resultados. */}
+            {searchTerm && filteredEvents.length > 0 && foraPorSituacao.total > 0 && (
+              <button
+                type="button"
+                onClick={incluirSituacoesOcultas}
+                data-testid="button-busca-inclui-ocultos"
+                title={`A busca também encontrou eventos em ${nomesDasSituacoesOcultas}`}
+                style={{ fontSize: FS.small, fontWeight: 700, color: T.accentText, background: 'none', border: 'none', padding: '0 4px', minHeight: isMobile ? 44 : 30, cursor: 'pointer', whiteSpace: 'nowrap' }}
+              >
+                +{foraPorSituacao.total} em {nomesDasSituacoesOcultas}
+              </button>
+            )}
 
             {/* ── CARTÕES | LISTA ──
                 O cartão tem sete blocos e ~440px de altura; com 50 eventos a
@@ -3485,12 +3577,32 @@ export default function Eventos() {
         <div style={{ backgroundColor: '#ffffff', border: '1px solid #e7e5e4', borderRadius: R.lg, padding: '56px 24px', textAlign: 'center' }}>
           <Search style={{ width: '40px', height: '40px', color: '#d4d0cb', margin: '0 auto 16px' }} />
           <h3 style={{ color: T.dark, fontSize: FS.title, fontWeight: '700', marginBottom: '6px', fontFamily: "'Space Grotesk', sans-serif" }}>Nenhum evento encontrado</h3>
-          <p style={{ color: T.second, fontSize: FS.body, marginBottom: '16px' }}>Nenhum evento corresponde aos filtros ativos.</p>
+          <p style={{ color: T.second, fontSize: FS.body, marginBottom: '16px' }}>
+            {hasActiveFilters ? 'Nenhum evento corresponde aos filtros ativos.' : 'Nenhum evento na situação escolhida.'}
+          </p>
+          {/* A resposta ao "cadê o evento?": estão fora pela SITUAÇÃO, que o
+              "Limpar filtros" não toca. Um clique os traz para a lista. */}
+          {foraPorSituacao.total > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, marginBottom: '18px' }}>
+              <p style={{ color: '#44403c', fontSize: FS.body, fontWeight: 600, margin: 0 }}>
+                {foraPorSituacao.total} {foraPorSituacao.total === 1 ? 'evento está' : 'eventos estão'} em {nomesDasSituacoesOcultas}, fora da lista.
+              </p>
+              <button
+                type="button"
+                onClick={incluirSituacoesOcultas}
+                data-testid="button-incluir-situacoes-ocultas"
+                style={{ fontSize: FS.body, fontWeight: 700, color: T.dark, background: '#ffffff', border: '1px solid #d6d3d1', borderRadius: R.md, padding: '8px 16px', minHeight: isMobile ? 44 : undefined, cursor: 'pointer' }}
+              >
+                Mostrar {nomesDasSituacoesOcultas}
+              </button>
+            </div>
+          )}
           {/* Chips removíveis: "Limpar filtros" era tudo-ou-nada, e com
               prioridade + mês + próximos 10 dias combinados não dava para saber
               qual deles esvaziou a lista. */}
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', justifyContent: 'center', marginBottom: '20px' }}>
-            {activeFilterChips.map((chip) => (
+            {/* O chip "Arquivados fora da lista" repetiria o aviso logo acima. */}
+            {activeFilterChips.filter((chip) => !(chip.key === 'arquivados' && foraPorSituacao.total > 0)).map((chip) => (
               <button
                 key={chip.key}
                 type="button"
@@ -3504,13 +3616,17 @@ export default function Eventos() {
               </button>
             ))}
           </div>
-          <button
-            onClick={clearAllEventFilters}
-            data-testid="button-clear-filters-empty"
-            style={{ fontSize: FS.body, fontWeight: 700, color: '#fff', background: T.dark, border: 'none', borderRadius: R.md, padding: '9px 20px', cursor: 'pointer' }}
-          >
-            Limpar filtros
-          </button>
+          {/* Só quando há filtro a limpar: sem nenhum, o botão não fazia nada
+              visível — a lista seguia vazia e a pessoa clicava de novo. */}
+          {hasActiveFilters && (
+            <button
+              onClick={clearAllEventFilters}
+              data-testid="button-clear-filters-empty"
+              style={{ fontSize: FS.body, fontWeight: 700, color: '#fff', background: T.dark, border: 'none', borderRadius: R.md, padding: '9px 20px', cursor: 'pointer' }}
+            >
+              Limpar filtros
+            </button>
+          )}
         </div>
       ) : (
         <>

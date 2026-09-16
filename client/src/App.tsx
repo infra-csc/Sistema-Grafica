@@ -213,7 +213,9 @@ const ROUTE_LABELS: Record<string, string> = {
   "/arte": "Arte",
   "/vincular-patrocinadores": "Vincular Patrocinadores",
   "/atendimento": "Atendimento",
-  "/solicitacao": "Revisão",
+  // Mesmo rótulo do menu (16/09): o status que traz a peça para cá é
+  // "Aguardando Revisão Final".
+  "/solicitacao": "Revisão Final",
   "/pedidos-de-peca": "Solicitação de peças",
   "/grafica": "Gráfica",
   "/modelos": "Modelos",
@@ -236,6 +238,14 @@ const ROUTE_LABELS: Record<string, string> = {
 
 function getRouteLabel(location: string): string {
   if (ROUTE_LABELS[location]) return ROUTE_LABELS[location];
+  // As três subtelas do evento tinham o MESMO título do detalhe: quem abria o
+  // relatório via "Detalhe do Evento" na aba e na barra, e não sabia se o
+  // clique tinha levado a algum lugar.
+  if (location.startsWith("/eventos/")) {
+    if (location.endsWith("/gerar-book")) return "Gerar book";
+    if (location.endsWith("/etiquetas")) return "Etiquetas do evento";
+    if (location.endsWith("/relatorio")) return "Relatório do evento";
+  }
   if (location.startsWith("/eventos/")) return "Detalhe do Evento";
   // Rota desconhecida cai no NotFound — a aba dizia só "NORTE" e não contava
   // que a página não existe.
@@ -297,6 +307,47 @@ async function verComo(role: string, kit = false): Promise<void> {
     description: json?.error
       ?? "O servidor ainda está na versão anterior. No Replit, pare e rode o app de novo (Stop/Run) e tente outra vez.",
   });
+}
+
+/**
+ * AONDE CADA AVISO DO SINO LEVA — `null` quando não há lugar para ir.
+ *
+ * Um lugar só para a decisão, e o sino pergunta a ela antes de prometer
+ * "abrir" (antes ele decidia por `eventId`, e dois avisos de LOTE — "N peças
+ * aguardando criação de thumb" — não tinham evento: o clique só marcava como
+ * lido e deixava a pessoa sem saber para onde ir).
+ *
+ * A regra de fundo: o aviso existe para alguém AGIR, então o destino é a tela
+ * onde a ação mora quando ela é certa; nos demais, a ficha da peça no Detalhe
+ * do Evento, que diz na faixa do alto o que falta e de quem é a vez.
+ */
+function destinoDaNotificacao(n: Notification, role?: string | null): string | null {
+  const tipo = typeof n.type === "string" ? n.type : "";
+  // COMPLEMENTO para quem imprime. O aviso de aumento de quantidade existe para
+  // a Gráfica AGIR: o destino útil é a fila dela, com a peça já filtrada
+  // (/grafica lê ?item=), não a ficha no detalhe do evento, que é a tela de
+  // quem pede. Levar o operador para a tela errada é o tipo de detalhe que faz
+  // o alerta ser ignorado na segunda vez.
+  //
+  // "Item liberado para produção" é o mesmo caso: é o aviso que COLOCA trabalho
+  // na fila da Gráfica (items.ts, targetRoles grafica).
+  if (role === "grafica" && n.itemId && (tipo.startsWith("complement") || tipo === "arteApproved")) {
+    return `/grafica?item=${n.itemId}`;
+  }
+  // PEDIDOS DE PEÇA (14/09): cada aviso leva a quem precisa agir.
+  // Atendimento: a peça atendida abre a peça; o resto, a página de
+  // pedidos. Solicitação/admin: o painel de pedidos do evento.
+  if (tipo.startsWith("pedido")) {
+    if (role === "atendimento") {
+      return tipo === "pedidoAtendido" && n.itemId && n.eventId ? `/eventos/${n.eventId}?item=${n.itemId}` : "/pedidos-de-peca";
+    }
+    return n.eventId ? `/eventos/${n.eventId}?pedidos=1` : "/pedidos-de-peca";
+  }
+  // Avisos de LOTE, sem peça: a fila onde o lote espera.
+  if (tipo === "itemsSentToArte" && ROLES_ARTE.includes(role ?? "")) return "/arte";
+  if (tipo === "itemsSubmitted" && ROLES_VINCULAR.includes(role ?? "")) return "/vincular-patrocinadores";
+  if (n.eventId) return `/eventos/${n.eventId}${n.itemId ? `?item=${n.itemId}` : ""}`;
+  return null;
 }
 
 // Atalho real do sidebar no Mac é ⌘B — o title dizia Ctrl+B para todo mundo.
@@ -715,9 +766,17 @@ function AuthenticatedLayout() {
               data-testid="button-busca-global"
               title={`Buscar peça ou evento (${IS_MAC ? "⌘K" : "Ctrl+K"})`}
               aria-label="Buscar peça ou evento"
-              className="h-9 w-9 max-md:h-11 max-md:w-11 rounded-[9px] border border-[#e7e5e4] bg-white shrink-0 flex items-center justify-center cursor-pointer"
+              // Em tela larga a porta diz o que é e ensina o atalho: a lupa sozinha
+              // guardava o Ctrl+K num `title` que só aparece para quem para o
+              // ponteiro em cima — quem nunca usou não descobria nenhum dos dois.
+              // Abaixo de 1024 volta a ser o quadrado de 36/44 dos vizinhos.
+              className="h-9 w-9 max-md:h-11 max-md:w-11 lg:w-auto lg:px-3 lg:gap-2 rounded-[9px] border border-[#e7e5e4] bg-white shrink-0 flex items-center justify-center cursor-pointer"
             >
               <Search aria-hidden="true" style={{ width: 16, height: 16, color: "#57534e" }} />
+              <span aria-hidden="true" className="hidden lg:inline" style={{ fontSize: 12.5, fontWeight: 600, color: "#57534e" }}>Buscar</span>
+              <kbd aria-hidden="true" className="hidden lg:inline" style={{ fontFamily: "inherit", fontSize: 10.5, fontWeight: 700, color: "#746e69", backgroundColor: "#f5f5f4", border: "1px solid #e7e5e4", borderRadius: 5, padding: "1px 5px" }}>
+                {IS_MAC ? "⌘K" : "Ctrl K"}
+              </kbd>
             </button>
             <NotificationBell
               notifications={notifications}
@@ -730,31 +789,12 @@ function AuthenticatedLayout() {
               onViewAll={() => setLocation("/historico")}
               // Clique navega ao contexto: detalhe do evento e, se houver
               // itemId, ?item= abre o dialog da peça (deep-link do event-detail).
-              //
-              // EXCEÇÃO — complemento para quem imprime. O aviso de aumento de
-              // quantidade existe para a Gráfica AGIR: o destino útil é a fila
-              // dela, com a peça já filtrada (/grafica também lê ?item=), não a
-              // ficha da peça no detalhe do evento, que é a tela de quem pede.
-              // Levar o operador para a tela errada é o tipo de detalhe que faz
-              // o alerta ser ignorado na segunda vez.
+              // As exceções (fila da Gráfica, pedidos, avisos de lote) moram em
+              // `destinoDaNotificacao`.
+              podeAbrir={(n) => destinoDaNotificacao(n, user?.role) !== null}
               onOpen={(n) => {
-                const ehComplemento = typeof n.type === "string" && n.type.startsWith("complement");
-                if (ehComplemento && user?.role === "grafica" && n.itemId) {
-                  setLocation(`/grafica?item=${n.itemId}`);
-                  return;
-                }
-                // PEDIDOS DE PEÇA (14/09): cada aviso leva a quem precisa agir.
-                // Atendimento: a peça atendida abre a peça; o resto, a página de
-                // pedidos. Solicitação/admin: o painel de pedidos do evento.
-                if (typeof n.type === "string" && n.type.startsWith("pedido")) {
-                  if (user?.role === "atendimento") {
-                    setLocation(n.type === "pedidoAtendido" && n.itemId ? `/eventos/${n.eventId}?item=${n.itemId}` : "/pedidos-de-peca");
-                  } else {
-                    setLocation(`/eventos/${n.eventId}?pedidos=1`);
-                  }
-                  return;
-                }
-                setLocation(`/eventos/${n.eventId}${n.itemId ? `?item=${n.itemId}` : ""}`);
+                const destino = destinoDaNotificacao(n, user?.role);
+                if (destino) setLocation(destino);
               }}
             />
             {/* Quem está logado agora é um menu: alterar senha e sair deixam

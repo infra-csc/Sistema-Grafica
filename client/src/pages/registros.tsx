@@ -422,7 +422,10 @@ export default function Registros() {
                 Registros
               </h1>
               <p style={{ fontSize: FS.small, color: T.second, margin: 0 }}>
-                Fotos de conferência e entrega de todas as peças
+                {/* Diz DE ONDE as fotos vêm e o que se faz com elas: "registro"
+                    sozinho não conta a quem chega que é a prova tirada pela
+                    Gráfica, nem que a foto abre grande. */}
+                Fotos que a Gráfica tira ao conferir e ao entregar cada peça — clique numa foto para ampliar
               </p>
             </div>
           </div>

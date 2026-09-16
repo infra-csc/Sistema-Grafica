@@ -1,6 +1,6 @@
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { FreezeWhileClosing, HIDE_NATIVE_CLOSE, ModalFooter, ModalHeader, modalSurface } from "@/components/modal-shell";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { FilterSelect } from "@/components/filter-select";
 import { useQuery, useMutation } from "@tanstack/react-query";
@@ -16,7 +16,7 @@ import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import {
   UserPlus, Pencil, Trash2, Search,
-  ChevronLeft, ChevronRight, X, Check,
+  ChevronLeft, ChevronRight, X, Check, ScrollText,
 } from "lucide-react";
 import { T, FS, R } from "@/lib/theme";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -86,6 +86,27 @@ const PERMISSOES: Record<string, { pode: boolean; texto: string }[]> = {
     { pode: false, texto: "Não cria nem exclui eventos" },
   ],
 };
+
+/**
+ * AS TELAS QUE O PERFIL VÊ NO MENU.
+ *
+ * O bloco acima diz o que o perfil PODE FAZER; faltava o que a pessoa vai
+ * ENXERGAR ao entrar — é a primeira pergunta de quem recebe o acesso ("onde
+ * eu clico?") e a do admin ao escolher ("ela vai ver a Gráfica?"). Sai da
+ * régua do menu (components/app-sidebar.tsx: `roles` de cada item, e a
+ * seção Administração só para admin). Se um item mudar de perfil lá, mude
+ * aqui. Texto corrido e não lista: o teste do bloco de permissões conta as
+ * linhas `{ pode:` por perfil, e este mapa não pode parecer uma delas.
+ */
+const TELAS_NO_MENU: Record<string, string> = {
+  admin: "Todas — inclusive Usuários, Configurar Cotas, Estoque, Triagem de Retorno, Análises, Notificações e Logs",
+  solicitacao: "Revisão Final, Gráfica, Solicitação de peças, Vincular Patrocinadores, Patrocinadores e Modelos",
+  arte: "Arte, Atendimento e Vincular Patrocinadores",
+  grafica: "Gráfica",
+  atendimento: "Arte, Atendimento, Vincular Patrocinadores, Solicitação de peças e Patrocinadores",
+};
+// Itens do menu sem `roles` (app-sidebar.tsx): aparecem para qualquer perfil.
+const TELAS_DE_TODOS = "Painel Geral, Eventos, Gestão de Prazos, Calendário, Histórico, Versões aprovadas e Registros";
 
 /* ── Role config ── */
 // Tons 700 nos textos dos badges: os 500/600 anteriores reprovavam o piso de
@@ -221,10 +242,31 @@ export default function Usuarios() {
   // a auto-exclusão) e permite avisar antes de rebaixar o próprio papel.
   const { data: me } = useQuery<User>({ queryKey: ["/api/auth/me"] });
 
+  // "EXCLUIR APAGA O QUÊ?" — a exclusão solta o executivo dos patrocinadores
+  // dele (FK `account_executive_id` com ON DELETE SET NULL, shared/schema.ts).
+  // Só busca com a confirmação aberta: é a única pergunta que precisa disso.
+  const { data: patrocinadores = [] } = useQuery<{ id: string; name: string; accountExecutiveId: string | null }[]>({
+    queryKey: ["/api/sponsors"],
+    enabled: !!deletingUser,
+  });
+
   const form = useForm<UserForm>({
     resolver: zodResolver(userSchema),
     defaultValues: { name: "", email: "", role: "solicitacao", kit: false },
   });
+  // "SALVAR E CADASTRAR OUTRO": cadastrar a equipe da Gráfica eram N vezes
+  // Novo Usuário → preencher → salvar → Novo Usuário de novo. O botão usa o
+  // MESMO POST e o mesmo onSuccess; a única diferença é não fechar o modal —
+  // limpa nome e e-mail, MANTÉM o perfil (quem cadastra em sequência costuma
+  // cadastrar um time) — com aviso no campo, e nunca o perfil admin — e
+  // devolve o foco ao Nome. Ref e não estado: o valor só
+  // é lido no onSuccess e não deve provocar render.
+  const continuarRef = useRef(false);
+  const [criadosNestaSequencia, setCriadosNestaSequencia] = useState<string[]>([]);
+  // Perfil que veio do cadastro anterior da sequência (null = nada herdado).
+  // Só serve para o aviso "mantido do cadastro anterior" junto ao campo.
+  const [perfilHerdado, setPerfilHerdado] = useState<string | null>(null);
+
   const createMutation = useMutation({
     mutationFn: async (data: UserForm) => {
       const res = await apiRequest("POST", "/api/auth/register", data);
@@ -232,12 +274,28 @@ export default function Usuarios() {
     },
     // O nome no toast confirma QUEM foi criado — com o modal já fechado, um
     // "criado com sucesso" genérico não deixa conferir se o e-mail estava certo.
+    // A descrição responde "ela vai receber senha?": não — o sistema não manda
+    // nada, então o próximo passo é de quem cadastrou.
     onSuccess: (_r, vars) => {
       queryClient.invalidateQueries({ queryKey: ["/api/users"] });
+      toast({ title: `${vars.name} foi criado`, description: `Avise a pessoa: ela entra pelo portal NORTE com a conta Microsoft ${vars.email}. O sistema não envia convite.` });
+      if (continuarRef.current) {
+        continuarRef.current = false;
+        setCriadosNestaSequencia(prev => [...prev, vars.name]);
+        // ADMIN NÃO SE HERDA. Perfil sem restrição dado por inércia — o
+        // próximo da sequência saindo admin porque o anterior era — é o erro
+        // mais caro desta tela; volta ao padrão e a pessoa escolhe de novo.
+        // Os demais perfis continuam herdados, mas com aviso junto ao campo
+        // (`perfilHerdado`), no padrão de Modelos.
+        const herda = vars.role !== "admin";
+        setPerfilHerdado(herda ? vars.role : null);
+        form.reset({ name: "", email: "", role: herda ? vars.role : "solicitacao", kit: herda ? vars.kit : false });
+        window.setTimeout(() => document.getElementById("user-form-name")?.focus(), 0);
+        return;
+      }
       setModalOpen(false); form.reset();
-      toast({ title: `${vars.name} foi criado`, description: `Já pode entrar no sistema com a conta Microsoft ${vars.email}.` });
     },
-    onError: (e: Error) => toast({ variant: "destructive", title: "Erro ao criar usuário", description: e.message }),
+    onError: (e: Error) => { continuarRef.current = false; toast({ variant: "destructive", title: "Não foi possível criar o usuário", description: `${e.message} — nada foi salvo; corrija e tente de novo.` }); },
   });
 
   const updateMutation = useMutation({
@@ -245,10 +303,18 @@ export default function Usuarios() {
       const res = await apiRequest("PATCH", `/api/users/${data.id}`, data.update);
       return res.json();
     },
-    onSuccess: () => {
+    onSuccess: (_r, vars) => {
       queryClient.invalidateQueries({ queryKey: ["/api/users"] });
       setModalOpen(false); setEditingUser(null); form.reset();
-      toast({ title: "Alterações salvas", description: editingUser ? `Cadastro de ${editingUser.name} atualizado.` : undefined });
+      // Mesma regra do aviso no formulário: trocar perfil ou Kit derruba as
+      // sessões da pessoa no servidor — o toast confirma o efeito colateral.
+      const derrubouSessao = vars.update.role !== undefined || vars.update.kit !== undefined;
+      toast({
+        title: "Alterações salvas",
+        description: editingUser
+          ? `Cadastro de ${editingUser.name} atualizado.${derrubouSessao && me?.id !== editingUser.id ? " A pessoa foi desconectada e entra de novo já com o novo perfil." : ""}`
+          : undefined,
+      });
     },
     onError: (e: Error) => toast({ variant: "destructive", title: "Não foi possível salvar as alterações", description: e.message }),
   });
@@ -269,6 +335,8 @@ export default function Usuarios() {
 
   const openCreate = () => {
     setEditingUser(null);
+    setCriadosNestaSequencia([]);
+    setPerfilHerdado(null);
     form.reset({ name: "", email: "", role: "solicitacao", kit: false });
     setModalOpen(true);
   };
@@ -354,7 +422,9 @@ export default function Usuarios() {
             Usuários
           </h1>
           <p style={{ fontSize: FS.body, color: T.second, margin: 0, lineHeight: 1.5, maxWidth: 640 }}>
-            Gerencie usuários, perfis e permissões de acesso ao sistema
+            {/* Responde as duas dúvidas do primeiro cadastro antes do clique:
+                como a pessoa entra e o que decide o que ela vê. */}
+            Quem entra no sistema e o que cada um vê e faz. O acesso é pela conta Microsoft, via portal NORTE — não há senha para enviar; o perfil define telas e ações.
           </p>
         </div>
         <button
@@ -587,6 +657,21 @@ export default function Usuarios() {
                             >
                               <Pencil style={{ width: 15, height: 15 }} />
                             </button>
+                            {/* "QUEM FEZ ISSO?" ao contrário: "o que esta pessoa
+                                fez?". Era abrir Logs e digitar o nome; o atalho
+                                abre a trilha já buscando por ele (a busca dos
+                                Logs casa o nome do autor e mora na URL). */}
+                            <button
+                              data-testid={`button-logs-${user.id}`}
+                              onClick={() => navigate(`/logs-sistema?busca=${encodeURIComponent(user.name)}`)}
+                              aria-label={`Ver nos logs o que ${user.name} fez`}
+                              title="Ver nos logs o que esta pessoa fez"
+                              style={{ width: toque, height: toque, color: T.second, backgroundColor: "transparent", border: "none", borderRadius: R.md, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", transition: "background-color 0.12s ease, color 0.12s ease" }}
+                              onMouseEnter={e => { e.currentTarget.style.backgroundColor = T.low; e.currentTarget.style.color = T.text; }}
+                              onMouseLeave={e => { e.currentTarget.style.backgroundColor = "transparent"; e.currentTarget.style.color = T.second; }}
+                            >
+                              <ScrollText style={{ width: 15, height: 15 }} />
+                            </button>
                             {me?.id !== user.id && (
                               <button
                                 data-testid={`button-delete-${user.id}`}
@@ -732,7 +817,21 @@ export default function Usuarios() {
                   o item flex logo abaixo do cabeçalho — e é o scrollport único
                   do modal. Os botões moram no ModalFooter, FORA da rolagem, e
                   chegam ao submit pelo atributo `form`. */}
-              <form id="user-form" onSubmit={form.handleSubmit(onSubmit)} style={{ padding: isMobile ? "20px 18px" : "24px 28px", display: "flex", flexDirection: "column", gap: 18, overflowY: "auto", flex: "1 1 auto", minHeight: 0 }}>
+              <form id="user-form" onSubmit={form.handleSubmit(onSubmit, () => { continuarRef.current = false; })} style={{ padding: isMobile ? "20px 18px" : "24px 28px", display: "flex", flexDirection: "column", gap: 18, overflowY: "auto", flex: "1 1 auto", minHeight: 0 }}>
+
+                {/* "SALVOU?" dentro do modal que não fechou: com "Salvar e
+                    cadastrar outro" o formulário volta vazio, e só o toast
+                    (que some) dizia que o anterior entrou. A lista fica à
+                    vista enquanto a sequência durar. */}
+                {!editingUser && criadosNestaSequencia.length > 0 && (
+                  <p role="status" data-testid="usuarios-criados-na-sequencia" style={{ margin: 0, display: "flex", gap: 7, alignItems: "flex-start", padding: "9px 12px", borderRadius: 6, backgroundColor: "#f0fdf4", border: "1px solid #bbf7d0", fontSize: 12, lineHeight: 1.45, color: "#166534" }}>
+                    <Check aria-hidden="true" style={{ width: 13, height: 13, flexShrink: 0, marginTop: 2 }} />
+                    <span>
+                      {criadosNestaSequencia.length === 1 ? "1 usuário criado" : `${criadosNestaSequencia.length} usuários criados`} nesta sequência: {criadosNestaSequencia.join(", ")}.
+                      {perfilHerdado ? " O perfil ficou como no anterior — confira antes de salvar o próximo." : " Preencha o próximo."}
+                    </span>
+                  </p>
+                )}
 
                 {/* Nome */}
                 <FormField control={form.control} name="name" render={({ field }) => (
@@ -762,6 +861,14 @@ export default function Usuarios() {
                         />
                       </FormControl>
                       <FormMessage />
+                      {/* COMO A PESSOA ENTRA. "Ela vai receber senha?" era a
+                          dúvida do primeiro cadastro, e nada respondia. Não há
+                          senha nem convite: o login é o SSO do portal NORTE, que
+                          procura este e-mail EXATAMENTE como gravado (server/
+                          index.ts, `WHERE email = $1`) — por isso o "igual". */}
+                      <p style={{ margin: "6px 0 0", fontSize: 11, lineHeight: 1.4, color: "#57534e" }}>
+                        Igual ao da conta Microsoft. Não há senha nem convite por e-mail: avise a pessoa para entrar pelo portal NORTE.
+                      </p>
                     </FormItem>
                   )} />
 
@@ -792,6 +899,16 @@ export default function Usuarios() {
                         />
                       </FormControl>
                       <FormMessage />
+                      {/* HERDADO, DITO NO CAMPO. "Cadastrar outro" mantém o
+                          perfil do anterior; sem este aviso o próximo usuário
+                          saía com o perfil de outra pessoa sem ninguém notar.
+                          Some quando a pessoa troca o perfil. #92400e sobre
+                          #fffbeb = 7,1:1. */}
+                      {!editingUser && perfilHerdado && field.value === perfilHerdado && (
+                        <p role="status" data-testid="aviso-perfil-herdado" style={{ margin: "6px 0 0", padding: "6px 10px", borderRadius: 6, backgroundColor: "#fffbeb", border: "1px solid #fde68a", fontSize: 11.5, fontWeight: 700, lineHeight: 1.4, color: "#92400e" }}>
+                          Perfil mantido do cadastro anterior — confira antes de salvar.
+                        </p>
+                      )}
 
                       {/* O QUE ESTE PERFIL CONCEDE. Muda com a escolha, e o
                           Admin tem tratamento próprio: é o único que não tem
@@ -835,6 +952,15 @@ export default function Usuarios() {
                                 Perfil sem restrição: pode excluir dados e conceder acesso a outras pessoas.
                               </p>
                             )}
+                            {/* O QUE APARECE NO MENU — "poder fazer" não diz
+                                "onde clicar". #44403c sobre #fafaf9/#fef2f2 ≥ 9:1. */}
+                            {TELAS_NO_MENU[field.value] && (
+                              <p data-testid="bloco-telas-do-perfil" style={{ margin: "9px 0 0", paddingTop: 8, borderTop: `1px dashed ${ehAdmin ? "#fecaca" : T.border}`, fontSize: 11.5, lineHeight: 1.45, color: "#44403c" }}>
+                                <strong style={{ fontWeight: 800 }}>No menu: </strong>
+                                {TELAS_NO_MENU[field.value]}
+                                {field.value !== "admin" && `, além de ${TELAS_DE_TODOS}, que todos veem`}.
+                              </p>
+                            )}
                           </div>
                         );
                       })()}
@@ -853,13 +979,33 @@ export default function Usuarios() {
                         <span>
                           <span style={{ display: "block", fontSize: 13, fontWeight: 800, color: T.text }}>Usuário do Kit</span>
                           <span style={{ display: "block", fontSize: 12, color: "#57534e", lineHeight: 1.4, marginTop: 2 }}>
-                            Mesmas telas da Solicitação, mas só vê e cria peças do Kit — e só as que ele criou.
+                            {/* "menos Modelos": o item do menu tem `semKit` e a
+                                rota de escrita do catálogo recusa o Kit (routes.ts). */}
+                            Mesmas telas da Solicitação, menos Modelos. Só vê e cria peças do Kit — e só as que ele criou.
+                            Sem a marca, a Solicitação só visualiza as peças do Kit.
                           </span>
                         </span>
                       </label>
                     </FormItem>
                   )} />
                 )}
+
+                {/* "MUDAR O PERFIL DESLOGA A PESSOA?" — sim, e ninguém dizia.
+                    O PATCH /api/users/:id apaga as sessões dela quando muda
+                    `role` ou `kit` (server/routes/auth.ts); o aviso aparece só
+                    quando uma das duas mudou de verdade, e não para a própria
+                    conta (esse caso já tem a confirmação do onSubmit). */}
+                {(() => {
+                  if (!editingUser || me?.id === editingUser.id) return null;
+                  const papel = form.watch("role");
+                  const kitAgora = papel === "solicitacao" && form.watch("kit");
+                  if (papel === editingUser.role && kitAgora === !!editingUser.kit) return null;
+                  return (
+                    <p role="status" data-testid="aviso-sessao-encerrada" style={{ margin: 0, padding: "10px 12px", borderRadius: 6, backgroundColor: "#fffbeb", border: "1px solid #fde68a", fontSize: 12, lineHeight: 1.45, color: "#92400e" }}>
+                      Ao salvar, <strong>{editingUser.name}</strong> é desconectado e precisa entrar de novo pelo portal — já com o novo perfil.
+                    </p>
+                  );
+                })()}
 
               </form>
             </Form>
@@ -873,13 +1019,29 @@ export default function Usuarios() {
                 aria-busy={createMutation.isPending || updateMutation.isPending}
                 style={{ height: toque + 4, borderRadius: R.md, border: "none", backgroundColor: T.dark, color: "#fff", fontSize: 14, fontWeight: 800, cursor: createMutation.isPending || updateMutation.isPending ? "wait" : "pointer", opacity: createMutation.isPending || updateMutation.isPending ? 0.7 : 1, transition: "background-color 0.15s ease" }}
                 onMouseEnter={e => (e.currentTarget.style.backgroundColor = "#292524")}
-                onMouseLeave={e => (e.currentTarget.style.backgroundColor = T.dark)}>
+                onMouseLeave={e => (e.currentTarget.style.backgroundColor = T.dark)}
+                onClick={() => { continuarRef.current = false; }}>
                 {createMutation.isPending || updateMutation.isPending ? "Salvando…" : editingUser ? "Salvar alterações" : "Criar usuário"}
               </button>
+              {/* Secundário (contorno) e só na criação: editar é um de cada
+                  vez. Mesmo submit do formulário — só não fecha o modal. */}
+              {!editingUser && (
+                <button type="submit" form="user-form"
+                  data-testid="button-save-user-e-outro"
+                  disabled={createMutation.isPending}
+                  onClick={() => { continuarRef.current = true; }}
+                  style={{ height: toque + 4, borderRadius: R.md, border: `1px solid ${T.bdark}`, backgroundColor: T.surface, color: T.text, fontSize: 13, fontWeight: 800, cursor: createMutation.isPending ? "wait" : "pointer", opacity: createMutation.isPending ? 0.7 : 1, transition: "background-color 0.15s ease" }}
+                  onMouseEnter={e => (e.currentTarget.style.backgroundColor = T.low)}
+                  onMouseLeave={e => (e.currentTarget.style.backgroundColor = T.surface)}>
+                  Criar e cadastrar outro
+                </button>
+              )}
               <button type="button" onClick={requestClose}
                 data-testid="button-cancel"
                 style={{ height: toque, borderRadius: R.md, border: "none", backgroundColor: "transparent", color: "#57534e", fontSize: FS.body, fontWeight: 700, cursor: "pointer" }}>
-                Cancelar
+                {/* Depois de criar alguém na sequência, "Cancelar" sugeria
+                    desfazer quem já entrou — e não desfaz. */}
+                {criadosNestaSequencia.length > 0 && !editingUser ? "Fechar" : "Cancelar"}
               </button>
             </ModalFooter>
           </div>
@@ -929,6 +1091,24 @@ export default function Usuarios() {
                 <p style={{ fontSize: 12, color: T.second, margin: 0, padding: "9px 12px", borderRadius: R.sm, backgroundColor: T.low, border: `1px solid ${T.border}`, fontFamily: "'DM Mono', monospace", overflowWrap: "anywhere" }}>
                   {deletingUser.email} · {(ROLE_CFG[deletingUser.role] ?? ROLE_CFG.solicitacao).label}
                 </p>
+                {/* O QUE MUDA E O QUE FICA. Conferido no schema: patrocinadores
+                    perdem o executivo (SET NULL); eventos criados, comentários
+                    e fotos ficam, sem o vínculo; a trilha guarda o NOME como
+                    texto, então os logs continuam dizendo quem fez. */}
+                {(() => {
+                  const contas = patrocinadores.filter(s => s.accountExecutiveId === deletingUser.id);
+                  return (
+                    <ul data-testid="delete-user-impacto" style={{ margin: 0, paddingLeft: 18, fontSize: 12, lineHeight: 1.5, color: "#44403c", display: "flex", flexDirection: "column", gap: 3 }}>
+                      {contas.length > 0 && (
+                        <li style={{ color: "#92400e", fontWeight: 600 }}>
+                          É executivo de {contas.length === 1 ? "1 patrocinador" : `${contas.length} patrocinadores`} ({contas.slice(0, 3).map(s => s.name).join(", ")}{contas.length > 3 ? "…" : ""}) — {contas.length === 1 ? "ele fica" : "eles ficam"} sem executivo.
+                        </li>
+                      )}
+                      <li>Eventos, peças e comentários que a pessoa criou continuam no sistema.</li>
+                      <li>Os Logs do Sistema continuam mostrando o nome dela nas ações que fez.</li>
+                    </ul>
+                  );
+                })()}
               </div>
               {/* Excluir é o cheio (vermelho); recuar é o discreto abaixo —
                   o par de botões de toda confirmação da casa. */}

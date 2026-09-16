@@ -1135,9 +1135,15 @@ export function BulkItemEntry({
               borderRadius: '0 0 14px 14px',
               display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px',
             }}>
-              <p style={{ margin: 0, fontSize: '13px', color: '#746e69', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+              {/* O que o "Confirmar" faz, na hora de decidir: grava em
+                  RASCUNHO. Quem nunca usou achava que o lote já seguia para a
+                  vinculação — e esquecia o envio. */}
+              <p style={{ margin: 0, fontSize: '13px', color: '#746e69', fontFamily: "'Plus Jakarta Sans', sans-serif", lineHeight: 1.45 }}>
                 {duplicateConfirm.valid.length} {duplicateConfirm.valid.length === 1 ? 'peça nova' : 'peças novas'} ·{' '}
                 {existingItems.length} existentes no evento
+                <span style={{ display: 'block', fontSize: '12px', color: '#57534e' }}>
+                  Entram em Rascunho — depois, envie para a vinculação.
+                </span>
               </p>
               <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
                 <button
@@ -1560,10 +1566,12 @@ export function BulkItemEntry({
             onMouseEnter={e => { if (!isPending) (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#c2410c'; }}
             onMouseLeave={e => { if (!isPending) (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#1c1917'; }}
             data-testid="button-submit-bulk"
+            // "Finalizar Lote" prometia um fim que não existe: o clique abre
+            // a revisão, e o lote salvo ainda vira rascunho a enviar.
           >
             {isPending
               ? <><Loader2 size={15} className="animate-spin" /> Salvando...</>
-              : <>Finalizar Lote <ArrowRight size={15} /></>
+              : <>Revisar e salvar <ArrowRight size={15} /></>
             }
           </button>
         </div>

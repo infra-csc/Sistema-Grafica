@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { Link } from "wouter";
 import { FilterSelect } from "@/components/filter-select";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -41,6 +42,19 @@ const ACTION_CFG: Record<string, { label: string; bg: string; color: string }> =
   // conhece o código.
   complement_created:  { label: "Complemento",     bg: "#fff7ed", color: "#c2410c" },
   complement_canceled: { label: "Compl. Cancelado", bg: "#fef2f2", color: "#b91c1c" },
+  // Ações que o servidor grava e a tela mostrava CRUAS ("label_printed",
+  // "reserva_liberada") no cinza de fallback — levantadas por varredura dos
+  // createAuditLog/insert em auditLogs de server/ (16/09).
+  canceled:          { label: "Cancelado",        bg: "#fef2f2", color: "#b91c1c" },
+  added:             { label: "Adicionado",       bg: "#eff6ff", color: "#1d4ed8" },
+  removed:           { label: "Removido",         bg: "#fef2f2", color: "#b91c1c" },
+  restored:          { label: "Restaurado",       bg: "#f0fdf4", color: "#15803d" },
+  dispensed:         { label: "Dispensado",       bg: "#faf5ff", color: "#7e22ce" },
+  triagem:           { label: "Triagem",          bg: "#faf5ff", color: "#7e22ce" },
+  reservado:         { label: "Reservado",        bg: "#eff6ff", color: "#1d4ed8" },
+  reserva_liberada:  { label: "Reserva liberada", bg: "#f0fdf4", color: "#047857" },
+  label_printed:     { label: "Etiqueta",         bg: "#faf5ff", color: "#7e22ce" },
+  corrected_text:    { label: "Texto corrigido",  bg: "#fff7ed", color: "#c2410c" },
   // 'login' saiu de propósito: o sistema NÃO grava log de login — manter o
   // badge sugeria um rastreamento de acessos que não existe.
 };
@@ -58,6 +72,15 @@ const ENTITY_LABELS: Record<string, string> = {
   // Vínculos (25/08): apareciam com o nome cru da tabela no filtro e no chip.
   event_sponsor: "Patrocinador do evento",
   item_sponsor:  "Patrocinador da peça",
+  // Mesma varredura das ações: entidades que chegavam com o nome da tabela.
+  pedido_de_peca: "Solicitação de peça",
+  inventory_asset: "Estoque",
+  quota_rules: "Regra de cota",
+  // `gestao` cobre o acompanhamento E as listas de destinatários (tela
+  // Notificações grava com essa entidade); `revisao` é só o aviso da revisão.
+  gestao: "Avisos por e-mail",
+  revisao: "Aviso da revisão",
+  item_sponsor_approval: "Aprovação de patrocinador",
 };
 
 /* ── Avatar ── */
@@ -196,11 +219,19 @@ export default function LogsSistema() {
   // menus não tinham contagem nenhuma: numa trilha de 500 registros, escolher
   // "Tipo de ação" às cegas e cair numa tabela vazia era rotina. É a mesma
   // disciplina travada em server/__tests__/faceta-lista-invariante.test.ts.
+  // "QUEM FEZ ISSO?" começa com o que a pessoa TEM na mão: o nome de quem
+  // desconfia, o número da peça, o nome do evento — ou o ID copiado de outra
+  // linha. A busca não achava pelo ID (que a própria tabela oferece copiar)
+  // nem pelos rótulos em português que a tabela mostra ("Excluído",
+  // "Patrocinador"): só pela chave crua da entidade.
   const casaBusca = (l: AuditLog) => {
-    const q = search.toLowerCase();
+    const q = search.trim().toLowerCase();
     return !q || l.userName.toLowerCase().includes(q)
       || (l.details ?? "").toLowerCase().includes(q)
-      || l.entityType.toLowerCase().includes(q);
+      || l.entityType.toLowerCase().includes(q)
+      || l.entityId.toLowerCase().includes(q)
+      || getActionCfg(l.action).label.toLowerCase().includes(q)
+      || (ENTITY_LABELS[l.entityType] ?? "").toLowerCase().includes(q);
   };
 
   const actionFilterOptions = useMemo(() => {
@@ -228,8 +259,9 @@ export default function LogsSistema() {
   /* ── Filtered + paginated ── */
   const filtered = useMemo(() => {
     return logs.filter(l => {
-      const q = search.toLowerCase();
-      const matchQ = !q || l.userName.toLowerCase().includes(q) || (l.details ?? "").toLowerCase().includes(q) || l.entityType.toLowerCase().includes(q);
+      // A MESMA régua dos menus (casaBusca): lista e contagens não podem
+      // discordar sobre o que a busca acha.
+      const matchQ = casaBusca(l);
       const matchA = actionFilter === "all" || l.action === actionFilter;
       const matchE = entityFilter === "all" || l.entityType === entityFilter;
       return matchQ && matchA && matchE;
@@ -293,7 +325,10 @@ export default function LogsSistema() {
             Logs do Sistema
           </h1>
           <p style={{ fontSize: FS.body, color: T.second, margin: 0, lineHeight: 1.5, maxWidth: 640 }}>
-            Rastreamento das operações do sistema
+            {/* COMO INVESTIGAR, em uma frase — "rastreamento das operações"
+                não dizia por onde começar. O login não entra: o sistema não o
+                grava (ver ACTION_CFG). */}
+            Quem criou, alterou, aprovou ou excluiu cada registro. Para descobrir quem fez algo, busque pelo número da peça, nome do evento ou patrocinador — ou clique no nome de alguém para ver só as ações dessa pessoa. Entradas no sistema (login) não são registradas.
           </p>
         </div>
         {/* Secundário (contorno), não primário: exportar não cria nada. O
@@ -330,7 +365,13 @@ export default function LogsSistema() {
         ))}
         {isTruncated && (
           <span style={{ fontSize: 11, color: T.second, fontWeight: 600 }}>
-            Exibindo os últimos {logs.length} de {total} registros
+            Exibindo os últimos {logs.length} de {total} registros.{" "}
+            {/* O PRÓXIMO PASSO quando o que se procura é mais antigo: o
+                Histórico caminha a trilha inteira por cursor (ver o comentário
+                da query acima). Sem o link, a busca vazia parecia "não houve". */}
+            <Link href="/historico" style={{ color: "#c2410c", fontWeight: 700, textDecoration: "underline", textUnderlineOffset: 2 }}>
+              Mais antigos: Histórico
+            </Link>
           </span>
         )}
       </div>
@@ -345,8 +386,8 @@ export default function LogsSistema() {
           <input
             value={search}
             onChange={e => atualizar({ busca: e.target.value, pagina: 1 })}
-            placeholder="Buscar por usuário, ação ou entidade..."
-            aria-label="Buscar nos logs por usuário, descrição ou entidade"
+            placeholder="Pessoa, nº da peça, evento, ação ou ID..."
+            aria-label="Buscar nos logs por pessoa, descrição, ação, entidade ou ID"
             type="search"
             data-testid="input-search-logs"
             style={tiInput}
@@ -505,9 +546,15 @@ export default function LogsSistema() {
                             }}>
                               {init}
                             </div>
-                            <span style={{ fontSize: 13, fontWeight: 700, color: T.text, whiteSpace: "nowrap" }}>
+                            {/* Um clique no nome = "o que mais esta pessoa
+                                fez?". Era copiar o nome à mão para a busca. */}
+                            <button type="button"
+                              onClick={() => atualizar({ busca: log.userName, pagina: 1 })}
+                              title={`Ver só as ações de ${log.userName}`}
+                              aria-label={`Filtrar a trilha pelas ações de ${log.userName}`}
+                              style={{ fontSize: 13, fontWeight: 700, color: T.text, whiteSpace: "nowrap", background: "none", border: "none", padding: 0, cursor: "pointer", font: "inherit", textDecoration: "underline", textDecorationColor: T.border, textUnderlineOffset: 3 }}>
                               {log.userName}
-                            </span>
+                            </button>
                           </div>
                         </td>
 

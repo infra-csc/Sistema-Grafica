@@ -3,8 +3,9 @@ import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/compone
 import {
   X, Trash2, Warehouse, Package2,
   Tag, Calendar, Layers, CheckCircle2,
-  Archive, Truck, ClipboardCheck, Image, Wrench,
+  Archive, Truck, ClipboardCheck, Image, Wrench, Grid3X3,
 } from "lucide-react";
+import { MapaGalpao } from "@/components/mapa-galpao";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -60,6 +61,10 @@ export function TriagemModal({
   // viola as regras de hooks quando asset/entry alternam entre null e valor.
   const isMobile = useIsMobile();
   const [thumbImgFailed, setThumbImgFailed] = useState(false);
+  // O mapa do galpão já existia na linha da tabela e no quadro; no modal só
+  // havia o campo de texto — quem abria a peça para triar com calma tinha de
+  // adivinhar o formato "Setor A - Corredor 3".
+  const [mapaAberto, setMapaAberto] = useState(false);
 
   if (!asset || !entry) return null;
 
@@ -415,6 +420,12 @@ export function TriagemModal({
                         );
                       })}
                     </div>
+                    {/* Escolher a condição TROCA o destino ao lado (a sugestão
+                        do onUpdateCondition). Sem esta frase, parecia que o
+                        segundo grupo tinha mudado sozinho, por erro. */}
+                    <p style={{ margin: "8px 0 0", fontSize: 12, color: "#64748b", lineHeight: 1.4 }}>
+                      A condição sugere o destino {isMobile ? "abaixo" : "ao lado"} — troque se precisar.
+                    </p>
                   </div>
 
                   {/* Destino — no celular ícone em cima do rótulo (como a
@@ -476,22 +487,33 @@ export function TriagemModal({
                       </label>
                       {/* Sem `outline: none`: o inline anulava o anel de foco
                           global. 16px no celular (o Safari dá zoom abaixo). */}
-                      <input
-                        id="triagem-local"
-                        data-testid="input-triage-modal-location"
-                        list="locais-do-galpao"
-                        value={location}
-                        onChange={e => onUpdateLocation(e.target.value)}
-                        placeholder="Ex: Setor A - Corredor 3"
-                        aria-invalid={result === "NO_GALPAO" && !location.trim() ? true : undefined}
-                        style={{
-                          width: "100%", boxSizing: "border-box",
-                          minHeight: 44, padding: "0 14px", borderRadius: 8,
-                          border: `1.5px solid ${result === "NO_GALPAO" && !location.trim() ? "#fca5a5" : "#e2e8f0"}`,
-                          background: "#f8fafc", fontFamily: "Plus Jakarta Sans, sans-serif", fontSize: isMobile ? 16 : 13,
-                          color: "#1e293b",
-                        }}
-                      />
+                      <div style={{ display: "flex", gap: 6 }}>
+                        <input
+                          id="triagem-local"
+                          data-testid="input-triage-modal-location"
+                          list="locais-do-galpao"
+                          value={location}
+                          onChange={e => onUpdateLocation(e.target.value)}
+                          placeholder="Ex: Setor A - Corredor 3"
+                          aria-invalid={result === "NO_GALPAO" && !location.trim() ? true : undefined}
+                          style={{
+                            flex: 1, minWidth: 0, boxSizing: "border-box",
+                            minHeight: 44, padding: "0 14px", borderRadius: 8,
+                            border: `1.5px solid ${result === "NO_GALPAO" && !location.trim() ? "#fca5a5" : "#e2e8f0"}`,
+                            background: "#f8fafc", fontFamily: "Plus Jakarta Sans, sans-serif", fontSize: isMobile ? 16 : 13,
+                            color: "#1e293b",
+                          }}
+                        />
+                        <button type="button" onClick={() => setMapaAberto(true)}
+                          data-testid="button-triage-modal-mapa"
+                          title="Escolher no mapa do galpão" aria-label="Escolher o local no mapa do galpão"
+                          style={{ width: 44, minHeight: 44, flexShrink: 0, borderRadius: 8, border: "1.5px solid #e2e8f0", background: "#fff", color: "#c2410c", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                          <Grid3X3 size={16} aria-hidden="true" />
+                        </button>
+                      </div>
+                      {mapaAberto && (
+                        <MapaGalpao value={location} onSelect={onUpdateLocation} onClose={() => setMapaAberto(false)} />
+                      )}
                     </div>
                   )}
 

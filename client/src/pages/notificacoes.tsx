@@ -90,6 +90,8 @@ export default function Notificacoes() {
   const { data: saude, isLoading: saudeCarregando, isError: saudeFalhou, refetch: reconferirSaude, isFetching: saudeReconferindo } =
     useQuery<RetratoDaSaude>({ queryKey: ["/api/admin/consistencia"] });
   const [novoEmail, setNovoEmail] = useState<Record<string, string>>({});
+  // A edição clicada na grade: o desfecho dela aparece abaixo da tabela.
+  const [detalhe, setDetalhe] = useState<{ rotulo: string; texto: string; desfecho: string } | null>(null);
 
   const invalidar = () => queryClient.invalidateQueries({ queryKey: ["/api/admin/notificacoes"] });
 
@@ -139,7 +141,10 @@ export default function Notificacoes() {
             Notificações
           </h1>
           <p style={{ margin: 0, fontSize: FS.body, color: T.second, lineHeight: 1.5, maxWidth: 640 }}>
-            O que o sistema manda por e-mail, para quem, e o que saiu (ou não) em cada edição.
+            {/* Delimita a tela: os avisos do sino (GET /api/notifications, por
+                usuário) não são configurados aqui, e quem chega procurando
+                "por que fulano não viu no sino" precisa saber disso já. */}
+            O que o sistema manda por e-mail, para quem, e o que saiu (ou não) em cada edição. Os avisos do sino, dentro do app, não passam por aqui.
           </p>
         </div>
         {conteudo}
@@ -218,12 +223,27 @@ export default function Notificacoes() {
       texto = "Não rodou"; bg = "#fffbeb"; cor = "#92400e";
       title = "Nenhum registro na trilha para esta edição — relógio parado (deploy dormindo/reiniciando), chave desligada, ou versão anterior a 27/08 (que não registrava fila vazia).";
     }
+    // O DESFECHO SÓ MORAVA NO `title`: no celular não existe hover, e no
+    // desktop ninguém adivinha que a célula tem mais a dizer. Célula com
+    // registro (ou "Não rodou") vira botão que abre o desfecho logo abaixo da
+    // grade; "—" (horário que não chegou) segue texto — não há o que contar.
+    const temDetalhe = texto !== "—";
+    const rotulo = `${aviso === "gestao" ? "Acompanhamento" : "Revisão"} · ${rotuloDia(dia)} ${hora}h`;
+    const aberta = detalhe?.rotulo === rotulo;
+    const selo = { display: "inline-block", minWidth: 74, padding: "3px 8px", borderRadius: 6, fontSize: 11.5, fontWeight: 700, background: bg, color: cor } as const;
     return (
       <td key={`${aviso}-${hora}`} title={title} data-testid={`celula-${aviso}-${dia}-${hora}`}
         style={{ padding: "7px 10px", textAlign: "center", borderLeft: "1px solid #f5f4f2" }}>
-        <span style={{ display: "inline-block", minWidth: 74, padding: "3px 8px", borderRadius: 6, fontSize: 11.5, fontWeight: 700, background: bg, color: cor }}>
-          {texto}
-        </span>
+        {temDetalhe ? (
+          <button type="button" aria-expanded={aberta} aria-controls="detalhe-da-edicao"
+            aria-label={`${rotulo}: ${texto}. Ver o desfecho`}
+            onClick={() => setDetalhe(aberta ? null : { rotulo, texto, desfecho: title })}
+            style={{ ...selo, border: "none", cursor: "pointer", font: "inherit", fontSize: 11.5, fontWeight: 700, outline: aberta ? `2px solid ${cor}` : undefined, outlineOffset: 1 }}>
+            {texto}
+          </button>
+        ) : (
+          <span style={selo}>{texto}</span>
+        )}
       </td>
     );
   };
@@ -232,6 +252,16 @@ export default function Notificacoes() {
   // caixa alta e um h2 de 15 para o terceiro bloco.
   const tituloDeSecao: React.CSSProperties = { margin: 0, fontFamily: "'Space Grotesk', sans-serif", fontSize: 15, fontWeight: 800, color: T.text };
   const toque = isMobile ? 44 : 36;
+
+  // "CONFERIR DE NOVO" também com a conferência limpa ou com achados: depois
+  // de corrigir uma peça, a única forma de ver a lista diminuir era F5.
+  const botaoReconferir = (
+    <button type="button" onClick={() => reconferirSaude()} disabled={saudeReconferindo}
+      data-testid="saude-reconferir"
+      style={{ height: toque, padding: "0 14px", borderRadius: R.md, border: `1px solid ${T.bdark}`, background: "#fff", color: T.text, fontSize: 12, fontWeight: 700, cursor: saudeReconferindo ? "wait" : "pointer", flex: isMobile ? "1 1 100%" : undefined }}>
+      {saudeReconferindo ? "Conferindo…" : "Conferir de novo"}
+    </button>
+  );
 
   return casca(
       <>
@@ -286,10 +316,22 @@ export default function Notificacoes() {
                         </span>
                       ))}
                 </div>
+                {/* "Essa notificação vai para quem?" — o número responde antes
+                    de contar chip por chip; `emUso` é a lista que o envio usa
+                    de fato (a personalizada, senão a padrão). */}
+                <p style={{ margin: 0, fontSize: 11.5, color: "#57534e" }}>
+                  {c.canal === "book"
+                    ? `Até ${c.emUso.length} em cópia oculta (só quem é usuário cadastrado), além da Arte e dos executivos com cliente no evento.`
+                    : `Hoje ${c.emUso.length === 1 ? "1 pessoa recebe" : `${c.emUso.length} pessoas recebem`} este aviso.`}
+                </p>
+                {/* A lista vazia volta à padrão (destinatariosDoCanal:
+                    `emails.length > 0 ? emails : [...padrao]`) — remover o
+                    último e-mail NÃO silencia o aviso, e isso precisa estar
+                    escrito antes do clique no X. */}
                 <p style={{ margin: 0, fontSize: 10.5, color: "#78716c" }}>
                   {usandoPadrao
                     ? "Lista padrão do sistema. Ao adicionar o primeiro e-mail, ela é copiada para cá e vira editável."
-                    : "Lista editável — é ela que vale, no lugar da padrão."}
+                    : "Lista editável — é ela que vale, no lugar da padrão. Se remover todos, volta a valer a padrão."}
                 </p>
                 <form
                   onSubmit={(e) => {
@@ -400,6 +442,26 @@ export default function Notificacoes() {
             </tbody>
           </table>
         </div>
+        {/* O DESFECHO da edição clicada. Região viva: quem clica pelo teclado
+            ouve o texto sem precisar achar o painel. */}
+        <div id="detalhe-da-edicao" aria-live="polite">
+          {detalhe && (
+            <div data-testid="detalhe-da-edicao" style={{ marginTop: 8, display: "flex", alignItems: "flex-start", gap: 10, padding: "10px 12px", borderRadius: 10, background: T.surface, border: `1px solid ${T.bdark}` }}>
+              <p style={{ margin: 0, flex: 1, fontSize: 12.5, lineHeight: 1.5, color: "#44403c", overflowWrap: "anywhere" }}>
+                <strong style={{ color: T.text }}>{detalhe.rotulo} — {detalhe.texto}.</strong> {detalhe.desfecho}
+              </p>
+              <button type="button" onClick={() => setDetalhe(null)} aria-label="Fechar o desfecho"
+                style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: toque, height: toque, flexShrink: 0, border: "none", borderRadius: R.md, background: "transparent", color: "#57534e", cursor: "pointer" }}>
+                <X aria-hidden="true" style={{ width: 14, height: 14 }} />
+              </button>
+            </div>
+          )}
+        </div>
+        {/* LEGENDA: seis palavras de status sem explicação em lugar nenhum.
+            "Fila vazia" e "Simulação" em especial liam como falha. */}
+        <p data-testid="legenda-da-grade" style={{ margin: "8px 0 0", fontSize: 11.5, lineHeight: 1.55, color: "#57534e" }}>
+          <strong>Enviado</strong>: saiu para a lista · <strong>Fila vazia</strong>: não havia o que avisar, nada enviado (normal) · <strong>Simulação</strong>: montado e não enviado · <strong>Desligado</strong>/<strong>Falhou</strong>: não saiu — o desfecho diz o motivo · <strong>Não rodou</strong>: nenhum registro. Clique numa célula para ver o desfecho.
+        </p>
         <p style={{ margin: "8px 0 0", fontSize: 11, color: "#78716c", display: "flex", alignItems: "center", gap: 5 }}>
           <MinusCircle aria-hidden="true" style={{ width: 11, height: 11, flexShrink: 0 }} />
           "Não rodou" antes de 27/08 pode ser só a versão antiga, que não registrava edição de fila vazia — desde 27/08, toda edição deixa rastro.
@@ -440,14 +502,24 @@ export default function Notificacoes() {
         )}
 
         {saude && saude.achados.length === 0 && (
-          <div data-testid="saude-limpa" style={{ display: "flex", alignItems: "center", gap: 8, padding: "12px 14px", borderRadius: 10, background: "#f0fdf4", border: "1px solid #bbf7d0", fontSize: 13, color: "#15803d" }}>
+          <div data-testid="saude-limpa" style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", padding: "12px 14px", borderRadius: 10, background: "#f0fdf4", border: "1px solid #bbf7d0", fontSize: 13, color: "#15803d" }}>
             <CheckCircle2 style={{ width: 15, height: 15, flexShrink: 0 }} />
-            Nenhuma contradição encontrada — {saude.verificadas} verificações.
+            <span style={{ flex: "1 1 220px" }}>Nenhuma contradição encontrada — {saude.verificadas} verificações.</span>
+            {botaoReconferir}
           </div>
         )}
 
         {saude && saude.achados.length > 0 && (
           <div data-testid="saude-achados" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {/* O PRÓXIMO PASSO. A lista dizia o que está errado e parava —
+                o admin ficava com números de peça na mão e nenhum caminho.
+                A busca global (Ctrl+K) acha a peça pelo código. */}
+            <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", fontSize: 12.5, lineHeight: 1.5, color: "#44403c" }}>
+              <span style={{ flex: "1 1 260px" }}>
+                Para corrigir: abra cada peça pela busca do topo (Ctrl+K) usando o número listado, ajuste o que está em conflito e confira de novo.
+              </span>
+              {botaoReconferir}
+            </div>
             {saude.achados.map((a) => {
               const cor = a.gravidade === "critico"
                 ? { bg: "#fef2f2", borda: "#fecaca", texto: "#b91c1c", rotulo: "Crítico" }

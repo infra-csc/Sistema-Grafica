@@ -45,6 +45,23 @@ type TrackingStatus = typeof ALL_STATUSES[number];
 // peça ao galpão por aqui.
 const MANUAL_STATUSES: TrackingStatus[] = ["NO_GALPAO", "EM_MANUTENCAO", "DESCARTADO"];
 
+// O QUE CADA RÓTULO QUER DIZER, em uma frase. O acervo é do admin, mas quem
+// cadastra ou corrige uma peça decide aqui se ela volta a ser oferecida para
+// reaproveitamento — e os rótulos sozinhos não diziam isso. Texto apenas: as
+// regras (quem define EM_USO/AGUARDANDO_TRIAGEM, o que é manual) seguem acima.
+const SIGNIFICADO_DO_STATUS: Record<TrackingStatus, string> = {
+  NO_GALPAO: "Guardada no galpão — aparece na busca do estoque para reaproveitar.",
+  EM_USO: "Saiu num evento; volta para a triagem depois dele.",
+  AGUARDANDO_TRIAGEM: "Voltou de um evento e espera a triagem decidir o destino.",
+  EM_MANUTENCAO: "Fora do estoque disponível até o reparo terminar.",
+  DESCARTADO: "Saiu do acervo; fica oculta da tabela, salvo filtrando por Descartado.",
+};
+const SIGNIFICADO_DA_CONDICAO: Record<Condition, string> = {
+  PERFEITO: "Sem defeito — pronta para usar de novo.",
+  AVARIA_LEVE: "Defeito pequeno — confira antes de reaproveitar.",
+  SUCATA: "Não serve mais para evento.",
+};
+
 /** Reserva vigente (GET /api/estoque/reservas-ativas). */
 type ReservaAtiva = { reservaId: string; assetId: string; itemDisplayId: string | null; eventName: string; saida: string | null };
 
@@ -190,15 +207,21 @@ function AssetDetailModal({ asset, linkedItem, sponsors, onClose }: {
   // 2. Em Uso no Evento: done once dispatched (todo ativo listado já passou por despacho)
   // 3. Aguardando Triagem: done when triage passed
   // 4. Situação Atual: active when on final state
+  // Manutenção é destino de triagem (a triagem passou) e é a situação atual —
+  // sem ela aqui a linha do tempo dizia "Triagem: Pendente · Aguardando
+  // triagem" para uma peça que já foi triada e está no reparo.
   const step2Active = ts === "EM_USO";
-  const step3Done   = ts === "NO_GALPAO" || ts === "DESCARTADO";
+  const step3Done   = ts === "NO_GALPAO" || ts === "DESCARTADO" || ts === "EM_MANUTENCAO";
   const step3Active = ts === "AGUARDANDO_TRIAGEM";
-  const step4Active = ts === "NO_GALPAO" || ts === "DESCARTADO";
+  const step4Active = ts === "NO_GALPAO" || ts === "DESCARTADO" || ts === "EM_MANUTENCAO";
 
   // Localização Técnica: where the item currently IS
+  // EM_MANUTENCAO (14/09) caía no `else` e a peça em reparo aparecia como
+  // "Descartado" — a pior leitura possível para quem procura a peça para usar.
   const locLabel = ts === "NO_GALPAO" ? (asset.location ?? "Galpão Central")
     : ts === "EM_USO"            ? "Em Uso (Evento)"
     : ts === "AGUARDANDO_TRIAGEM" ? "Aguardando Triagem"
+    : ts === "EM_MANUTENCAO"     ? `Em manutenção${asset.location ? ` · ${asset.location}` : ""}`
     : "Descartado";
 
   const sidebarDot = (done: boolean, active: boolean, icon: React.ReactElement) => {
@@ -346,7 +369,7 @@ function AssetDetailModal({ asset, linkedItem, sponsors, onClose }: {
                 )}
                 <div style={{ paddingTop: 3, paddingLeft: 8 }}>
                   <div style={{ fontFamily: "Plus Jakarta Sans, sans-serif", fontWeight: step4Active ? 700 : 600, fontSize: 12, color: step4Active ? "#fdba74" : "#9ca3af" }}>
-                    {ts === "DESCARTADO" ? "Descartado" : ts === "NO_GALPAO" ? "No Galpão" : "Destino Final"}
+                    {ts === "DESCARTADO" ? "Descartado" : ts === "NO_GALPAO" ? "No Galpão" : ts === "EM_MANUTENCAO" ? "Em manutenção" : "Destino Final"}
                   </div>
                   <div style={{ fontFamily: "DM Mono, monospace", fontSize: 10, color: "rgba(255,255,255,0.62)", marginTop: 3, letterSpacing: "0.02em" }}>
                     {step4Active ? "Estado atual" : "Aguardando triagem"}
@@ -761,6 +784,11 @@ function AssetModal({ asset, onClose, onSaved }: {
                 triggerProps={{ id: "asset-condition" }}
                 triggerStyle={{ ...INP, height: "auto" }}
               />
+              {/* O que a condição escolhida QUER DIZER — sem manual, "Avaria
+                  leve" não dizia se a peça ainda serve. */}
+              <p style={{ margin: "5px 0 0", fontSize: 11, color: "#64748b", fontFamily: "Plus Jakarta Sans, sans-serif", lineHeight: 1.4 }}>
+                {SIGNIFICADO_DA_CONDICAO[form.condition]}
+              </p>
             </div>
             <div>
               <label htmlFor="asset-status" style={LBL}>Status</label>
@@ -784,6 +812,11 @@ function AssetModal({ asset, onClose, onSaved }: {
                   triggerProps={{ id: "asset-status" }}
                   triggerStyle={{ ...INP, height: "auto" }}
                 />
+              )}
+              {!lockedStatus && (
+                <p style={{ margin: "5px 0 0", fontSize: 11, color: "#64748b", fontFamily: "Plus Jakarta Sans, sans-serif", lineHeight: 1.4 }}>
+                  {SIGNIFICADO_DO_STATUS[form.trackingStatus]}
+                </p>
               )}
             </div>
           </div>
@@ -1011,7 +1044,7 @@ export default function Estoque() {
   const conditionFilterOptions = tally(eFacetPool('condition'), a =>
     ({ value: a.condition, label: conditionMeta(a.condition).label }));
   const originFilterOptions = tally(eFacetPool('auto'), a =>
-    ({ value: a.autoAdded ? "auto" : "manual", label: a.autoAdded ? "Gráfica" : "Manual" }));
+    ({ value: a.autoAdded ? "auto" : "manual", label: a.autoAdded ? "Gráfica (automático)" : "Manual" }));
   const franchiseFilterOptions = (() => {
     const map = new Map<string, { value: string; label: string; count: number }>();
     eFacetPool('franchise').forEach(a => (a.franchiseTags ?? []).forEach(t => {
@@ -1052,7 +1085,7 @@ export default function Estoque() {
             {/* Subtítulo em texto corrido: 10px em caixa alta com 0.18em era
                 o elemento mais "alto" do cabeçalho e o menos importante. */}
             <p style={{ margin: 0, fontSize: 13, fontWeight: 500, color: "#746e69", fontFamily: "Plus Jakarta Sans, sans-serif" }}>
-              Gestão de ativos físicos de produção gráfica
+              Peças guardadas para reaproveitar: onde estão, em que condição e se já têm reserva
             </p>
           </div>
         </div>
@@ -1081,13 +1114,15 @@ export default function Estoque() {
       <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(3, minmax(0, 1fr))" : "repeat(auto-fit, minmax(160px, 1fr))", gap: isMobile ? 8 : 14, marginBottom: isMobile ? 16 : 24 }}>
         <StatCard compacto={isMobile}
           label="Total Acervo" value={total} Icon={Package} color="#2563eb"
-          subtext="Ativos cadastrados"
+          // O cartão LIMPA os filtros ao ser tocado — e nada dizia isso: com
+          // filtro ativo, o subtexto vira o convite.
+          subtext={hasFilters ? "Toque para ver tudo (limpa filtros)" : "Ativos no acervo"}
           active={!hasFilters}
           onClick={() => { setSearch(""); setFilterStatus([]); setFilterCondition([]); setFilterAutoAdded("all"); setFilterEvent([]); setFilterSponsor([]); setFilterFranchise([]); }}
         />
         <StatCard compacto={isMobile}
           label="Descartados" value={byStatus("DESCARTADO")} Icon={XCircle} color="#6b7280"
-          subtext={byStatus("DESCARTADO") > 0 ? "Ver na tabela →" : "Nenhum descartado"}
+          subtext={byStatus("DESCARTADO") > 0 ? "Ocultos na tabela · ver →" : "Nenhum descartado"}
           subColor={byStatus("DESCARTADO") > 0 ? "#6b7280" : "#64748b"}
           active={filterStatus.length === 1 && filterStatus[0] === "DESCARTADO"}
           onClick={() => setFilterStatus(filterStatus.length === 1 && filterStatus[0] === "DESCARTADO" ? [] : ["DESCARTADO"])}
@@ -1100,7 +1135,7 @@ export default function Estoque() {
         />
         <StatCard compacto={isMobile}
           label="Em Uso" value={byStatus("EM_USO")} Icon={Truck} color="#ea580c"
-          subtext="Frota ativa"
+          subtext="Num evento agora"
           active={filterStatus.length === 1 && filterStatus[0] === "EM_USO"}
           onClick={() => setFilterStatus(filterStatus.length === 1 && filterStatus[0] === "EM_USO" ? [] : ["EM_USO"])}
         />
@@ -1450,7 +1485,7 @@ export default function Estoque() {
                     return (
                       <div data-testid={`chip-separada-${asset.id}`} title={`Impressa para ${origem.name}, que ainda não aconteceu`}
                         style={{ ...chip, background: "#f5f5f4", color: "#57534e" }}>
-                        Separada · evento de origem
+                        Separada · aguarda {origem.name}
                       </div>
                     );
                   }
@@ -1649,10 +1684,30 @@ export default function Estoque() {
               {(() => {
                 const baseline = acervoAssets.filter(a => filterStatus.length > 0 || a.trackingStatus !== "DESCARTADO").length;
                 const ocultos = Math.max(0, baseline - filtered.length);
+                // eFacetPool não aplica a busca — ela entra aqui com o MESMO
+                // casamento da lista (nome, ID, local, franquia).
+                const q = search.toLowerCase();
+                const descartadosNoRecorte = filterStatus.length === 0
+                  ? eFacetPool("status").filter(a => a.trackingStatus === "DESCARTADO"
+                      && (!q || a.name.toLowerCase().includes(q) || a.displayId.toLowerCase().includes(q) || (a.location ?? "").toLowerCase().includes(q) || a.franchiseTags.some(t => t.toLowerCase().includes(q)))).length
+                  : 0;
                 return (
                   <p role="status" style={{ margin: 0, fontSize: 12, fontWeight: 500, fontFamily: "Plus Jakarta Sans, sans-serif", color: "#64748b" }}>
                     Exibindo <span style={{ color: "#0f172a", fontWeight: 700 }}>{filtered.length}</span> {filtered.length === 1 ? "registro" : "registros"}
                     {ocultos > 0 && <span> ({ocultos} {ocultos === 1 ? "oculto" : "ocultos"} pelos filtros)</span>}
+                    {/* "Cadê a peça descartada?" — ela some por padrão e só
+                        voltava para quem adivinhasse o filtro. */}
+                    {/* Conta o que o CLIQUE traz (os outros filtros continuam
+                        valendo), não o total de descartados do acervo. */}
+                    {filterStatus.length === 0 && descartadosNoRecorte > 0 && (
+                      <>
+                        {" · "}
+                        <button type="button" data-testid="button-ver-descartados-rodape" onClick={() => setFilterStatus(["DESCARTADO"])}
+                          style={{ background: "none", border: "none", padding: 0, minHeight: isMobile ? 32 : undefined, font: "inherit", fontWeight: 700, color: "#0f172a", textDecoration: "underline", textUnderlineOffset: 3, cursor: "pointer" }}>
+                          {descartadosNoRecorte} {descartadosNoRecorte === 1 ? "descartado oculto" : "descartados ocultos"} · ver
+                        </button>
+                      </>
+                    )}
                   </p>
                 );
               })()}

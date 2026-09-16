@@ -141,7 +141,7 @@ export function useEventImport({ eventId, eventSponsorsList, eventQuotaRules }: 
       setImportSearch("");
       toast({
         title: `${data.imported} ${data.imported === 1 ? "peça importada" : "peças importadas"}`,
-        description: "Já estão na lista do evento.",
+        description: "Entraram em Rascunho — envie para a vinculação quando a lista estiver pronta.",
       });
     },
     onError: (error: any) => {
@@ -199,7 +199,7 @@ export function useEventClone({ eventId }: UseEventCloneParams) {
       setCloneSourceId("");
       toast({
         title: `${data.cloned} ${data.cloned === 1 ? "peça clonada" : "peças clonadas"}`,
-        description: "Já estão na lista deste evento.",
+        description: "Entraram em Rascunho — envie para a vinculação quando a lista estiver pronta.",
       });
     },
     onError: (error: any) => {

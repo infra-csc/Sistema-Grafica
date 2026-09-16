@@ -83,8 +83,10 @@ function Aviso({ children, testId }: { children: React.ReactNode; testId?: strin
   );
 }
 
-function BlocoDaPeca({ peca, numero, total, eventos, opcoesDeEvento, patrocinadores, modelos, nomesDeModelos, onMudar, onRemover, onDuplicar }: {
+function BlocoDaPeca({ peca, numero, total, eventos, eventosCarregando, opcoesDeEvento, patrocinadores, modelos, nomesDeModelos, onMudar, onRemover, onDuplicar }: {
   peca: PecaDoFormulario;
+  /** Enquanto a lista de eventos chega, o menu diz "carregando", não "nenhum". */
+  eventosCarregando: boolean;
   numero: number;
   total: number;
   eventos: any[];
@@ -101,7 +103,7 @@ function BlocoDaPeca({ peca, numero, total, eventos, opcoesDeEvento, patrocinado
   const [arrastando, setArrastando] = useState(false);
   const id = (campo: string) => `${peca.chave}-${campo}`;
 
-  const { data: vinculos = [] } = useQuery<Array<{ sponsorId: string }>>({
+  const { data: vinculos = [], isLoading: vinculosCarregando } = useQuery<Array<{ sponsorId: string }>>({
     queryKey: ["/api/events", peca.eventId, "sponsors"],
     enabled: !!peca.eventId,
   });
@@ -193,7 +195,7 @@ function BlocoDaPeca({ peca, numero, total, eventos, opcoesDeEvento, patrocinado
             <FilterSelect kind="field" fullWidth hideWhenEmpty={false}
               label="Evento" placeholder="Escolha o evento"
               value={peca.eventId} onChange={escolherEvento} options={opcoesDeEvento}
-              searchPlaceholder="Buscar evento..." emptyText="Nenhum evento em andamento."
+              searchPlaceholder="Buscar evento..." emptyText={eventosCarregando ? "Carregando eventos…" : "Nenhum evento em andamento."}
               testId={`select-pedido-evento-${numero}`} triggerProps={{ id: id("evento") }}
               triggerStyle={GATILHO} />
             {caminhaoSaiu && <Aviso>Atenção: o caminhão deste evento já saiu.</Aviso>}
@@ -206,7 +208,7 @@ function BlocoDaPeca({ peca, numero, total, eventos, opcoesDeEvento, patrocinado
                 label="Patrocinador" placeholder={peca.sponsorIds.length ? "Adicionar outro patrocinador" : "Sem patrocinador — adicionar"}
                 value="" onChange={(v) => { if (v) onMudar((p) => ({ sponsorIds: p.sponsorIds.includes(v) ? p.sponsorIds : [...p.sponsorIds, v] })); }}
                 options={opcoesDePatrocinador}
-                searchPlaceholder="Buscar patrocinador..." emptyText="Nenhum outro patrocinador neste evento."
+                searchPlaceholder="Buscar patrocinador..." emptyText={vinculosCarregando ? "Carregando os patrocinadores do evento…" : "Nenhum outro patrocinador neste evento."}
                 testId={`select-pedido-patrocinador-${numero}`} triggerProps={{ id: id("patrocinador") }}
                 triggerStyle={GATILHO} />
             ) : (
@@ -323,7 +325,7 @@ export function FormularioDoPedido({ aberto, onFechar }: { aberto: boolean; onFe
   // Cada abertura começa do zero.
   useEffect(() => { if (aberto) setPecas([novaPeca()]); }, [aberto]);
 
-  const { data: eventos = [] } = useQuery<any[]>({ queryKey: ["/api/events"], enabled: aberto });
+  const { data: eventos = [], isLoading: eventosCarregando } = useQuery<any[]>({ queryKey: ["/api/events"], enabled: aberto });
   const { data: patrocinadores = [] } = useQuery<Sponsor[]>({ queryKey: ["/api/sponsors"], enabled: aberto });
   const { data: modelos = [] } = useQuery<any[]>({ queryKey: ["/api/standard-items"], enabled: aberto });
 
@@ -439,7 +441,7 @@ export function FormularioDoPedido({ aberto, onFechar }: { aberto: boolean; onFe
           icon={Inbox}
           tint="#b45309"
           title="Solicitar peças para a lista"
-          subtitle="Uma solicitação pode ter várias peças — cada uma com evento, patrocinadores e status próprios."
+          subtitle="Várias peças numa solicitação só, cada uma com evento, patrocinadores e status próprios. Quem monta a lista recebe e cria cada peça no evento."
           onClose={fechar}
         />
 
@@ -450,7 +452,7 @@ export function FormularioDoPedido({ aberto, onFechar }: { aberto: boolean; onFe
         >
           {pecas.map((p, i) => (
             <BlocoDaPeca key={p.chave} peca={p} numero={i + 1} total={pecas.length}
-              eventos={eventos} opcoesDeEvento={opcoesDeEvento} patrocinadores={patrocinadores}
+              eventos={eventos} eventosCarregando={eventosCarregando} opcoesDeEvento={opcoesDeEvento} patrocinadores={patrocinadores}
               modelos={modelos} nomesDeModelos={nomesDeModelos}
               onMudar={mudadorDe(p.chave)} onRemover={() => remover(p.chave)} onDuplicar={() => duplicar(p.chave)} />
           ))}
@@ -463,10 +465,12 @@ export function FormularioDoPedido({ aberto, onFechar }: { aberto: boolean; onFe
         </form>
 
         <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 12, flexWrap: "wrap", padding: isMobile ? "12px 16px" : "14px 24px", borderTop: "1px solid #ebe8e4", background: "#fff", flexShrink: 0 }}>
+          {/* Pronto para enviar, a frase diz também PARA QUEM vai — o rodapé
+              era o único lugar sem destino, justo antes do clique. */}
           <span aria-live="polite" style={{ fontSize: FS.body, color: faltando ? "#92400e" : "#57534e", marginRight: "auto" }}>
             {faltando
               ? `${faltando}.`
-              : `${pecas.length} ${pecas.length === 1 ? "peça" : "peças"}${eventosDistintos > 1 ? ` · ${eventosDistintos} eventos` : ""}`}
+              : `${pecas.length} ${pecas.length === 1 ? "peça" : "peças"}${eventosDistintos > 1 ? ` · ${eventosDistintos} eventos` : ""} · vai para quem monta a lista`}
           </span>
           <button type="button" onClick={fechar} disabled={salvar.isPending}
             style={{ height: 44, padding: "0 18px", borderRadius: R.md, border: "1px solid #e7e5e4", background: "#fff", color: "#44403c", fontSize: 14, fontWeight: 700, cursor: salvar.isPending ? "not-allowed" : "pointer" }}>

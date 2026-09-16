@@ -26,6 +26,7 @@ import {
   IdadeDoPedido,
   ObservacaoDoPedido,
   PrazoDaLinha,
+  QuemAgeNaLinha,
   ReferenciasDoPedido,
   SeloDoEventoChip,
   TOM_DO_PEDIDO,
@@ -152,6 +153,8 @@ export function LinhaDoCartao({ linha, agora, selo, acoes = [], mostrarEvento = 
           Cancelada em {diaEMes(linha.resolvidoEm)}{linha.resolvidoPor ? ` por ${linha.resolvidoPor}` : ""}{linha.motivoCancelamento ? `: ${linha.motivoCancelamento}` : ""}
         </p>
       )}
+      {/* "Quem precisa agir?" — dito logo acima das ações da peça. */}
+      <QuemAgeNaLinha linha={linha} />
       {acoes.length > 0 && (
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           {/* 36 e não 32: a régua da casa no ponteiro. Uma altura só para as

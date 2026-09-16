@@ -273,6 +273,17 @@ export default function Versoes() {
               <p style={{ fontSize: FS.small, color: T.second, margin: 0 }}>
                 Qual versão da arte cada patrocinador aprovou — e se é ela que está indo para a gráfica
               </p>
+              {/* PARA QUE SERVE E ONDE ESTÁ O BOOK, numa linha. A tela abre em
+                  "Precisa de atenção" e quem veio só baixar o book de um
+                  evento não tinha pista de que ele mora na última aba — o
+                  atalho leva direto, com os filtros de evento mantidos. */}
+              <p data-testid="texto-como-usar-versoes" style={{ fontSize: FS.small, color: T.second, margin: "2px 0 0", lineHeight: 1.5 }}>
+                Abre pelo que precisa de conferência. Para baixar o book de um evento, use a aba{" "}
+                <button type="button" onClick={() => setAba("books")} data-testid="link-ir-para-books"
+                  style={{ display: "inline-flex", alignItems: "center", minHeight: isMobile ? 44 : 36, background: "none", border: "none", padding: 0, fontFamily: "inherit", fontSize: FS.small, fontWeight: 700, color: "#c2410c", textDecoration: "underline", textUnderlineOffset: 2, cursor: "pointer" }}>
+                  Books
+                </button>{" "}— cada publicação tem o botão Baixar.
+              </p>
             </div>
           </div>
 
@@ -423,15 +434,34 @@ export default function Versoes() {
                 {foco === "atencao" ? "Nada precisa de atenção neste recorte" : "Nenhuma peça neste recorte"}
               </p>
               <p style={{ color: T.second, fontSize: FS.body, margin: "0 0 14px", maxWidth: 460, marginLeft: "auto", marginRight: "auto" }}>
+                {/* O VAZIO DIZ POR QUÊ. Com filtro ligado, "É o que se espera"
+                    afirmava sobre o acervo o que só vale para o recorte; e
+                    "Ajuste os filtros" aparecia até sem filtro nenhum. */}
                 {foco === "atencao"
-                  ? "Ninguém aprovou uma versão diferente da atual, não há decisão parada há mais de uma semana e nenhuma peça tem arte indeterminada. É o que se espera."
-                  : "Ajuste os filtros para encontrar a peça."}
+                  ? filtrosAtivos > 0
+                    ? "Nada precisa de conferência com estes filtros. Limpe os filtros para olhar o acervo inteiro."
+                    : "Ninguém aprovou uma versão diferente da atual, não há decisão parada há mais de uma semana e nenhuma peça tem arte indeterminada. É o que se espera."
+                  : filtrosAtivos > 0
+                    ? "Nenhuma peça corresponde aos filtros. A busca procura no código da peça, no tipo, na descrição e no nome do evento."
+                    : foco === "sem-patrocinador"
+                      ? "Toda peça tem pelo menos um patrocinador vinculado."
+                      : "Nenhuma peça neste recorte."}
               </p>
               {foco === "atencao" ? (
-                <button onClick={() => trocarFoco("todas")} data-testid="button-ver-todas"
-                  style={{ fontSize: FS.body, fontWeight: 700, color: "#fff", background: T.dark, border: "none", borderRadius: R.md, padding: "9px 20px", minHeight: isMobile ? 44 : undefined, cursor: "pointer" }}>
-                  Ver todas as peças
-                </button>
+                <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "center", gap: 8 }}>
+                  {filtrosAtivos > 0 && (
+                    <button onClick={limpar} data-testid="button-limpar-versoes-atencao"
+                      style={{ fontSize: FS.body, fontWeight: 700, color: "#fff", background: T.dark, border: "none", borderRadius: R.md, padding: "9px 20px", minHeight: isMobile ? 44 : undefined, cursor: "pointer" }}>
+                      Limpar filtros
+                    </button>
+                  )}
+                  <button onClick={() => trocarFoco("todas")} data-testid="button-ver-todas"
+                    style={filtrosAtivos > 0
+                      ? { fontSize: FS.body, fontWeight: 700, color: T.text, background: "#ffffff", border: `1px solid ${T.border}`, borderRadius: R.md, padding: "9px 20px", minHeight: isMobile ? 44 : undefined, cursor: "pointer" }
+                      : { fontSize: FS.body, fontWeight: 700, color: "#fff", background: T.dark, border: "none", borderRadius: R.md, padding: "9px 20px", minHeight: isMobile ? 44 : undefined, cursor: "pointer" }}>
+                    Ver todas as peças
+                  </button>
+                </div>
               ) : filtrosAtivos > 0 ? (
                 // O texto mandava "ajustar os filtros" e a saída estava lá em
                 // cima, no fim da barra — o próximo passo fica onde o olho já
@@ -1144,7 +1174,7 @@ function LinhaDoBook({ b, ev, i, total, isMobile, alturaControle, podeAvisar, po
               <span style={{ display: 'block', marginTop: 2, fontStyle: 'italic', color: '#57534e' }}>“{b.comentario}”</span>
             )}
             {!b.membrosConhecidos && (
-              <span style={{ color: T.muted }}> · esta publicação foi substituída; o sistema guardou quantas peças ela tinha, não quais</span>
+              <span style={{ color: T.second }}> · esta publicação foi substituída; o sistema guardou quantas peças ela tinha, não quais</span>
             )}
           </p>
           {/* O AVISO DEIXA DE SER CEGO (25/08): antes de reenviar, dá para

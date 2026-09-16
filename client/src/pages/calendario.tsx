@@ -78,6 +78,12 @@ const DEADLINE_TYPES = MARCOS_DO_EVENTO.map(m => ({
   key: m.campo, label: m.label, short: m.curto, color: m.cor, text: m.texto,
 }));
 
+/** Frase de ajuda de cada marco (legenda): o que é e quando vence, por padrão. */
+const DICA_DO_MARCO: Record<string, string> = Object.fromEntries(MARCOS_DO_EVENTO.map(m => {
+  const dias = Math.abs(m.offset);
+  return [m.campo, `${m.label}: ${m.descricao}. Prazo padrão: ${dias} dia${dias !== 1 ? "s" : ""} antes da saída do caminhão (o evento pode ter prazo próprio).`];
+}));
+
 // ── CADA FUNÇÃO VÊ O QUE PRECISA (dono, 27/08) ─────────────────────────────
 // Seis marcos para todo mundo enchiam cada célula de "+8 mais": a Gráfica
 // caçava o "Prod. Gráfica" no meio de quatro prazos que não são dela. A régua
@@ -994,7 +1000,12 @@ export default function Calendario() {
 
         {/* ── Legend footer ── */}
         <div style={{ padding: isMobile ? "12px 16px" : "14px 32px", borderTop: "1px solid #eeeeed", backgroundColor: "#f9f9f8", display: "flex", flexWrap: "wrap", alignItems: "center", gap: isMobile ? "8px 14px" : 16 }}>
-          {/* Priority legend */}
+          {/* Priority legend.
+              A LEGENDA DIZ DE QUE É A COR. Seis bolinhas soltas ao lado de
+              marcações tracejadas não diziam se a cor era prioridade, setor ou
+              atraso — e "Urgente" em vermelho lia como "prazo estourando". Um
+              rótulo curto por grupo fecha a dúvida sem virar manual. */}
+          <span style={{ fontSize: 11, fontWeight: 700, color: P.text }}>Cor do evento:</span>
           {LEGEND_PRIOS.map(({ label, dot }) => (
             <div key={label} style={{ display: "flex", alignItems: "center", gap: 5 }}>
               <div style={{ width: 9, height: 9, borderRadius: "50%", backgroundColor: dot }} />
@@ -1007,8 +1018,12 @@ export default function Calendario() {
 
           {/* Deadline legend — só os marcos que a grade está DESENHANDO. Uma
               legenda com seis entradas sobre uma grade com dois seria mentira. */}
+          <span style={{ fontSize: 11, fontWeight: 700, color: P.text }}>Prazos:</span>
           {tiposVisiveis.map(dt => (
-            <div key={dt.key} style={{ display: "flex", alignItems: "center", gap: 5 }}>
+            /* O nome curto ("Lista Img", "Aprov. Layout") é código para quem
+               chega; o `title` diz o que a etapa é e quando vence, com a mesma
+               frase e o mesmo prazo padrão do cadastro do evento. */
+            <div key={dt.key} title={DICA_DO_MARCO[dt.key]} style={{ display: "flex", alignItems: "center", gap: 5, cursor: "help" }}>
               <div style={{ width: 14, height: 9, borderRadius: 6, borderLeft: `3px dashed ${dt.color}`, backgroundColor: `${dt.color}15` }} />
               <span style={{ fontSize: 11, fontWeight: 600, color: P.secondary }}>{dt.short}</span>
             </div>

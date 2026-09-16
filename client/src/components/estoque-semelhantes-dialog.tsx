@@ -189,7 +189,7 @@ function LoteLinha({ lote, indice, nomeDe, maximo, quantidade, onQuantidade, onR
             </div>
             <button type="button" data-testid={`button-reservar-lote-${indice}`} disabled={reservando} onClick={onReservar}
               style={{ height: 44, padding: "0 16px", borderRadius: 8, border: "none", background: "#1c1917", color: "#fff", fontWeight: 700, fontSize: 13, cursor: reservando ? "wait" : "pointer", opacity: reservando ? 0.6 : 1, whiteSpace: "nowrap" }}>
-              {reservando ? "Reservando…" : `Reservar ${quantidade}`}
+              {reservando ? "Reservando…" : `Reservar ${quantidade} un.`}
             </button>
           </div>
         )}
@@ -222,7 +222,9 @@ export function EstoqueSemelhantesDialog({ item, podeReservar, onClose }: {
   const reservar = useMutation({
     mutationFn: async (assetIds: string[]) => (await apiRequest("POST", `/api/items/${item!.id}/reservas`, { assetIds })).json(),
     onSuccess: (r: { reservadas: number }) => {
-      toast({ title: `${r.reservadas} un. reservada(s) do estoque`, description: "A peça fica segura para este evento." });
+      // "Posso desfazer?" — pode: o Liberar fica na lista logo acima. Dizer
+      // isso no toast tira o medo do toque.
+      toast({ title: `${r.reservadas} un. reservada(s) do estoque`, description: "A peça fica segura para este evento. Mudou de ideia? Use Liberar em “Reservadas para esta peça”." });
       setEscolha({});
       atualizar();
     },
@@ -234,7 +236,7 @@ export function EstoqueSemelhantesDialog({ item, podeReservar, onClose }: {
 
   const liberar = useMutation({
     mutationFn: async (reservaId: string) => (await apiRequest("DELETE", `/api/items/${item!.id}/reservas/${reservaId}`)).json(),
-    onSuccess: () => { toast({ title: "Reserva liberada" }); atualizar(); },
+    onSuccess: () => { toast({ title: "Reserva liberada", description: "A peça voltou a ficar disponível no estoque." }); atualizar(); },
     onError: (e: Error) => toast({ title: "Não deu para liberar", description: e.message, variant: "destructive" }),
   });
 

@@ -7,6 +7,7 @@ import { Link } from "wouter";
 import {
   ETAPAS_DA_PECA,
   ROTULO_DO_PEDIDO,
+  ajustePendente,
   ehChaveDePedidos,
   etapaDaPeca,
   idadeDoPedido,
@@ -55,10 +56,43 @@ export function mensagemDaApi(e: unknown): string {
   return bruto.replace(/^\d{3}:\s*/, "");
 }
 
+/**
+ * O QUE CADA STATUS QUER DIZER — uma frase por status, lida pelo selo (title)
+ * e pela legenda "Como funciona" da página. "Parcial" e "Atendida" eram os dois
+ * que ninguém sabia ler de primeira: atendida por quem, e o que falta na parcial.
+ */
+export const SIGNIFICADO_DO_PEDIDO: Record<StatusDaSolicitacao, string> = {
+  aberto: "esperando quem monta a lista criar a peça ou recusar",
+  parcial: "parte das peças já foi atendida; o resto ainda espera",
+  atendido: "a peça foi criada no evento e segue para Arte e Gráfica",
+  recusado: "quem monta a lista recusou, com o motivo",
+  cancelado: "quem solicitou cancelou, com o motivo",
+};
+
+/**
+ * QUEM PRECISA AGIR nesta peça, quando alguém precisa. Só nos dois estados que
+ * esperam uma pessoa — aberta e ajuste pendente —; nos outros o cartão já diz o
+ * desfecho (andamento, motivo). "Quem monta a lista" é o perfil Solicitação:
+ * o nome do perfil entre parênteses desfaz a confusão com "solicitação" (o pedido).
+ */
+export function QuemAgeNaLinha({ linha }: { linha: LinhaDoPedido }) {
+  const texto = linha.status === "aberto"
+    ? "quem monta a lista (perfil Solicitação) criar a peça no evento ou recusar."
+    : linha.status === "atendido" && ajustePendente(linha)
+      ? "quem monta a lista (perfil Solicitação) aceitar ou recusar o ajuste."
+      : null;
+  if (!texto) return null;
+  return (
+    <p data-testid={`quem-age-linha-${linha.id}`} style={{ margin: 0, fontSize: FS.small, color: "#57534e", lineHeight: 1.45 }}>
+      <strong style={{ fontWeight: 700, color: "#44403c" }}>Esperando:</strong> {texto}
+    </p>
+  );
+}
+
 export function EstadoDoPedido({ status }: { status: StatusDaSolicitacao }) {
   const tom = TOM_DO_PEDIDO[status] ?? TOM_DO_PEDIDO.cancelado;
   return (
-    <span style={{ flexShrink: 0, fontSize: FS.small, fontWeight: 800, color: tom.cor, background: tom.fundo, border: `1px solid ${tom.borda}`, borderRadius: R.pill, padding: "2px 9px", whiteSpace: "nowrap" }}>
+    <span title={SIGNIFICADO_DO_PEDIDO[status] ? `${ROTULO_DO_PEDIDO[status]}: ${SIGNIFICADO_DO_PEDIDO[status]}` : undefined} style={{ flexShrink: 0, fontSize: FS.small, fontWeight: 800, color: tom.cor, background: tom.fundo, border: `1px solid ${tom.borda}`, borderRadius: R.pill, padding: "2px 9px", whiteSpace: "nowrap" }}>
       {ROTULO_DO_PEDIDO[status] ?? status}
     </span>
   );
@@ -229,6 +263,9 @@ export function AjusteDaLinha({ linha }: { linha: LinhaDoPedido }) {
 export function ListaCarregando({ linhas = 3 }: { linhas?: number }) {
   return (
     <div aria-busy="true" data-testid="skeleton-pedidos" style={{ padding: "8px 16px" }}>
+      {/* O esqueleto é mudo para quem não vê as barras piscando: sem esta
+          frase, "carregando" e "vazio" soavam iguais. */}
+      <span role="status" className="sr-only">Carregando as solicitações…</span>
       {Array.from({ length: linhas }, (_, i) => (
         <div key={i} className="animate-pulse" style={{ display: "flex", flexDirection: "column", gap: 8, padding: "14px 0", borderBottom: i < linhas - 1 ? "1px solid #f1f0ef" : "none" }}>
           <div style={{ width: "45%", height: 12, borderRadius: 6, background: "#e7e5e4" }} />

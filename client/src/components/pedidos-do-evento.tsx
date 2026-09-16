@@ -65,7 +65,7 @@ export function PedidosDoEvento({ eventId, pecas, podeVer, podeAtender, motivoEv
   const atender = useMutation({
     mutationFn: async ({ linhaId, itemId }: { linhaId: string; itemId: string }) =>
       (await apiRequest("PATCH", `/api/pedidos-de-peca/linhas/${linhaId}/atender`, { itemId })).json(),
-    onSuccess: () => { toast({ title: "Peça ligada à solicitação", description: "Quem solicitou foi avisado." }); setLigando(null); setPecaEscolhida(""); invalidarPedidos(); },
+    onSuccess: () => { toast({ title: "Peça ligada à solicitação", description: "Quem solicitou foi avisado. Se a peça ainda está em Rascunho, envie-a para a vinculação com o resto da lista." }); setLigando(null); setPecaEscolhida(""); invalidarPedidos(); },
     onError: (e) => toast({ title: "Não deu para ligar a peça", description: mensagemDaApi(e), variant: "destructive" }),
   });
 
@@ -202,6 +202,15 @@ export function PedidosDoEvento({ eventId, pecas, podeVer, podeAtender, motivoEv
         <SeloDoEventoChip selo={selo} pedidoId={eventId} />
         {!podeAtender && qtdAbertas > 0 && <span style={{ fontSize: FS.body, color: "#57534e" }}>Quem atende é a Solicitação.</span>}
       </div>
+      {/* PARA QUE SERVE E O QUE FAZER — em uma frase. Quem nunca atendeu uma
+          solicitação via três botões e nenhuma pista de qual escolher, nem de
+          que "Criar peça" já liga e avisa sozinho. Só para quem atende e só
+          quando há o que atender. */}
+      {podeAtender && (qtdAbertas > 0 || qtdAjustes > 0) && (
+        <p data-testid="texto-como-atender" style={{ margin: 0, padding: "0 20px 12px", fontSize: FS.body, color: "#57534e", lineHeight: 1.5 }}>
+          Peças que o Atendimento pediu para este evento. <strong style={{ color: T.text }}>Criar peça</strong> abre o formulário já preenchido — a peça sai ligada e quem pediu é avisado. Se a peça já existe, use <strong style={{ color: T.text }}>Já criei a peça</strong>; se não vai ser feita, <strong style={{ color: T.text }}>Recusar</strong> pede o motivo.
+        </p>
+      )}
 
       {comAtivas.length > 0 && (
         <ul style={{ margin: 0, padding: 0, borderTop: "1px solid #f1f0ef" }}>

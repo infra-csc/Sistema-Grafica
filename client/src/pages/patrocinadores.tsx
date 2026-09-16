@@ -1,7 +1,7 @@
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { FreezeWhileClosing, HIDE_NATIVE_CLOSE, ModalFooter, ModalHeader, modalSurface } from "@/components/modal-shell";
 import { Link } from "wouter";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -170,18 +170,41 @@ export default function Patrocinadores() {
 
   const selectedColor = form.watch("color") || "#f97316";
 
+  // "SALVAR E CADASTRAR OUTRO": a carteira de um evento novo chega em lote
+  // (10, 15 marcas). Mesmo POST e mesmo onSuccess do salvar; só não fecha —
+  // limpa o nome, MANTÉM o executivo (o lote costuma ser da mesma pessoa) —
+  // com aviso junto ao campo, senão a conta ia para o executivo do anterior
+  // sem ninguém notar —, volta cor e regra ao padrão e devolve o foco ao Nome.
+  // Ref, não estado: só o onSuccess lê.
+  const continuarRef = useRef(false);
+  const [criadosNestaSequencia, setCriadosNestaSequencia] = useState<string[]>([]);
+  // Executivo que veio do cadastro anterior ("" = "Não atribuído" herdado;
+  // null = nada herdado). Só alimenta o aviso "mantido do cadastro anterior".
+  const [executivoHerdado, setExecutivoHerdado] = useState<string | null>(null);
+
   const createMutation = useMutation({
     mutationFn: async (data: SponsorForm) => {
       const res = await apiRequest("POST", "/api/sponsors", data);
       return res.json();
     },
-    // Nome no toast: com o modal já fechado, é a confirmação de QUAL cadastro saiu.
+    // Nome no toast: com o modal já fechado, é a confirmação de QUAL cadastro
+    // saiu — e o próximo passo, que mora em outra tela (a cota é por evento).
     onSuccess: (_r, vars) => {
       queryClient.invalidateQueries({ queryKey: ["/api/sponsors"] });
+      toast({ title: "Patrocinador cadastrado", description: `${vars.name} já pode ser vinculado aos eventos — a cota (Master, Gold…) se define no vínculo com cada evento.` });
+      if (continuarRef.current) {
+        continuarRef.current = false;
+        setCriadosNestaSequencia(prev => [...prev, vars.name]);
+        // Só avisa quando havia executivo: "Não atribuído" é o próprio padrão,
+        // não há o que herdar sem perceber.
+        setExecutivoHerdado(vars.accountExecutiveId ? vars.accountExecutiveId : null);
+        form.reset({ name: "", color: "#f97316", accountExecutiveId: vars.accountExecutiveId || "", strictApproval: false });
+        window.setTimeout(() => document.getElementById("sponsor-name")?.focus(), 0);
+        return;
+      }
       setModalOpen(false); form.reset();
-      toast({ title: "Patrocinador cadastrado", description: `${vars.name} já pode ser vinculado aos eventos.` });
     },
-    onError: (e: Error) => toast({ variant: "destructive", title: "Não foi possível cadastrar o patrocinador", description: e.message }),
+    onError: (e: Error) => { continuarRef.current = false; toast({ variant: "destructive", title: "Não foi possível cadastrar o patrocinador", description: `${e.message} — nada foi salvo; o formulário continua preenchido.` }); },
   });
 
   const updateMutation = useMutation({
@@ -213,6 +236,8 @@ export default function Patrocinadores() {
 
   const openCreate = () => {
     setEditingSponsor(null);
+    setCriadosNestaSequencia([]);
+    setExecutivoHerdado(null);
     form.reset({ name: "", color: "#f97316", accountExecutiveId: "", strictApproval: false });
     setModalOpen(true);
   };
@@ -344,7 +369,9 @@ export default function Patrocinadores() {
             Patrocinadores
           </h1>
           <p style={{ fontSize: FS.body, color: T.second, margin: 0, lineHeight: 1.5, maxWidth: 640 }}>
-            Cadastro, executivo responsável e regra de aprovação de cada patrocinador
+            {/* O que o cadastro É e o que NÃO é: quem chega procurando a cota
+                precisa saber que ela não mora aqui. */}
+            Cadastro, executivo responsável e regra de aprovação de cada patrocinador. A cota (Master, Gold…) é definida por evento, ao vincular o patrocinador.
           </p>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: isMobile ? 16 : 24, flexWrap: "wrap", width: isMobile ? "100%" : undefined }}>
@@ -822,8 +849,17 @@ export default function Patrocinadores() {
                 rodapé para fora da tela, que é o defeito de origem. */}
             <div style={{ overflowY: "auto", flex: "1 1 auto", minHeight: 0 }}>
               <Form {...form}>
-                <form id="sponsor-form" onSubmit={form.handleSubmit(onSubmit)}>
+                <form id="sponsor-form" onSubmit={form.handleSubmit(onSubmit, () => { continuarRef.current = false; })}>
                   <div style={{ padding: isMobile ? "20px 18px" : "24px 28px", display: "flex", flexDirection: "column", gap: 28 }}>
+
+                    {/* "SALVOU?" com o modal ainda aberto: a sequência fica à
+                        vista, porque o toast some e o formulário volta vazio. */}
+                    {!editingSponsor && criadosNestaSequencia.length > 0 && (
+                      <p role="status" data-testid="patrocinadores-criados-na-sequencia" style={{ margin: 0, padding: "9px 12px", borderRadius: 6, backgroundColor: "#f0fdf4", border: "1px solid #bbf7d0", fontSize: 12, lineHeight: 1.45, color: "#166534" }}>
+                        {criadosNestaSequencia.length === 1 ? "1 patrocinador cadastrado" : `${criadosNestaSequencia.length} patrocinadores cadastrados`} nesta sequência: {criadosNestaSequencia.join(", ")}.
+                        {executivoHerdado ? " O executivo ficou como no anterior — confira antes de salvar o próximo." : " Preencha o próximo."}
+                      </p>
+                    )}
 
                     {/* ─ 01 Informações Gerais ─ */}
                     <section>
@@ -878,6 +914,21 @@ export default function Patrocinadores() {
                               />
                             </FormControl>
                             <FormMessage />
+                            {/* HERDADO, DITO NO CAMPO: some quando a pessoa
+                                troca o executivo. #92400e sobre #fffbeb = 7,1:1. */}
+                            {!editingSponsor && executivoHerdado && field.value === executivoHerdado && (
+                              <p role="status" data-testid="aviso-executivo-herdado" style={{ margin: "6px 0 0", padding: "6px 10px", borderRadius: 6, backgroundColor: "#fffbeb", border: "1px solid #fde68a", fontSize: 11.5, fontWeight: 700, lineHeight: 1.4, color: "#92400e" }}>
+                                Executivo mantido do cadastro anterior — confira antes de salvar.
+                              </p>
+                            )}
+                            {/* PARA QUE SERVE: "executivo" sem contexto lia como
+                                contato do cliente. É gente da casa, e o efeito
+                                prático é o e-mail do book (o "Para" inclui os
+                                executivos com cliente no evento — CANAL_META em
+                                server/routes/items.ts). */}
+                            <p style={{ margin: "6px 0 0", fontSize: 11, lineHeight: 1.4, color: "#57534e" }}>
+                              Pessoa da equipe que cuida da conta. Recebe o e-mail quando sai o book de um evento deste patrocinador e aparece como responsável na Gestão de Prazos.
+                            </p>
                           </FormItem>
                         )} />
                       </div>
@@ -987,13 +1038,27 @@ export default function Patrocinadores() {
                 style={{ height: toque + 4, borderRadius: R.md, border: "none", backgroundColor: T.dark, color: "#fff", fontSize: 14, fontWeight: 800, cursor: createMutation.isPending || updateMutation.isPending ? "wait" : "pointer", opacity: createMutation.isPending || updateMutation.isPending ? 0.7 : 1, transition: "background-color 0.15s ease" }}
                 onMouseEnter={e => (e.currentTarget.style.backgroundColor = "#292524")}
                 onMouseLeave={e => (e.currentTarget.style.backgroundColor = T.dark)}
+                onClick={() => { continuarRef.current = false; }}
               >
                 {createMutation.isPending || updateMutation.isPending ? "Salvando…" : editingSponsor ? "Salvar alterações" : "Salvar patrocinador"}
               </button>
+              {/* Só na criação: mesmo submit, sem fechar o modal. */}
+              {!editingSponsor && (
+                <button type="submit" form="sponsor-form" data-testid="button-submit-e-outro"
+                  disabled={createMutation.isPending}
+                  onClick={() => { continuarRef.current = true; }}
+                  style={{ height: toque + 4, borderRadius: R.md, border: `1px solid ${T.bdark}`, backgroundColor: T.surface, color: T.text, fontSize: 13, fontWeight: 800, cursor: createMutation.isPending ? "wait" : "pointer", opacity: createMutation.isPending ? 0.7 : 1, transition: "background-color 0.15s ease" }}
+                  onMouseEnter={e => (e.currentTarget.style.backgroundColor = T.low)}
+                  onMouseLeave={e => (e.currentTarget.style.backgroundColor = T.surface)}
+                >
+                  Salvar e cadastrar outro
+                </button>
+              )}
               <button type="button" data-testid="button-cancel" onClick={requestClose}
                 style={{ height: toque, borderRadius: R.md, border: "none", backgroundColor: "transparent", color: "#57534e", fontSize: FS.body, fontWeight: 700, cursor: "pointer" }}
               >
-                Cancelar
+                {/* Depois de cadastrar na sequência, "Cancelar" sugeria desfazer. */}
+                {criadosNestaSequencia.length > 0 && !editingSponsor ? "Fechar" : "Cancelar"}
               </button>
             </ModalFooter>
           </div>
@@ -1043,9 +1108,21 @@ export default function Patrocinadores() {
                 rolam, então continuam à vista mesmo se o nome do patrocinador
                 esticar o parágrafo. */}
             <div style={{ padding: "16px 24px", overflowY: "auto", flex: "1 1 auto", minHeight: 0 }}>
+              {/* "EXCLUIR APAGA O QUÊ?" — por inteiro. O texto antigo falava só
+                  de "vínculos com eventos ativos", mas as FKs com ON DELETE
+                  CASCADE (shared/schema.ts: event_sponsors, item_sponsors,
+                  item_sponsor_approvals) levam também os vínculos com peças e
+                  as decisões registradas em nome dele, de QUALQUER evento. */}
               <p style={{ fontSize: FS.body, color: "#44403c", margin: 0, lineHeight: 1.6 }}>
-                Você está prestes a excluir o patrocinador{" "}
-                <strong style={{ color: T.text }}>{deletingSponsor.name}</strong>. Esta ação removerá todos os vínculos com eventos ativos. Deseja continuar?
+                <strong style={{ color: T.text }}>{deletingSponsor.name}</strong> sai do cadastro e leva junto, em todos os eventos:
+              </p>
+              <ul data-testid="delete-sponsor-o-que-some" style={{ margin: "8px 0 0", paddingLeft: 18, fontSize: 12.5, lineHeight: 1.55, color: "#44403c" }}>
+                <li>os vínculos com eventos, com a cota de cada um;</li>
+                <li>os vínculos com peças;</li>
+                <li>as aprovações e reprovações registradas em nome dele.</li>
+              </ul>
+              <p style={{ margin: "8px 0 0", fontSize: 12, lineHeight: 1.5, color: "#57534e" }}>
+                Eventos e peças continuam. Se ele só saiu de um evento, desvincule-o no evento em vez de excluir.
               </p>
               {/* O QUE SE PERDE, em número: a tabela já sabia (uso por evento),
                   e a confirmação pedia a decisão sem mostrar o tamanho dela. */}

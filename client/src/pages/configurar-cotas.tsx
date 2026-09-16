@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { Link } from "wouter";
 import { Check, RotateCcw, Save, Search, X } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { T, FS, R, darkenToContrast } from "@/lib/theme";
@@ -214,7 +215,7 @@ export default function ConfigurarCotas() {
     saveMutation.mutate(
       { quota, itemTypes: Array.from(matrix[quota] ?? []) },
       {
-        onSuccess: () => toast({ title: `Cota ${rotuloDaCota(quota)} salva`, description: `${n} grupo${n !== 1 ? "s" : ""} de peça no Auto-vincular.` }),
+        onSuccess: () => toast({ title: `Cota ${rotuloDaCota(quota)} salva`, description: `${n} grupo${n !== 1 ? "s" : ""} de peça. Vale no próximo Auto-vincular — vínculos já feitos não mudam.` }),
         onError: (e: any) => toast({ variant: "destructive", title: `Não foi possível salvar a cota ${rotuloDaCota(quota)}`, description: e.message }),
       },
     );
@@ -240,7 +241,7 @@ export default function ConfigurarCotas() {
         description: `Falharam: ${labels}. As pendentes continuam marcadas — tente salvar de novo.`,
       });
     } else if (pending.length > 0) {
-      toast({ title: pending.length === 1 ? "Cota salva" : `${pending.length} cotas salvas`, description: pending.map(rotuloDaCota).join(", ") });
+      toast({ title: pending.length === 1 ? "Cota salva" : `${pending.length} cotas salvas`, description: `${pending.map(rotuloDaCota).join(", ")}. Vale no próximo Auto-vincular — vínculos já feitos não mudam.` });
     }
   };
 
@@ -261,6 +262,40 @@ export default function ConfigurarCotas() {
     setDirty(new Set());
     toast({ title: "Alterações descartadas", description: `${nomes} ${pendentes.length === 1 ? "voltou" : "voltaram"} ao que está salvo.` });
   };
+
+  // SETAS NA GRADE. Com 25 grupos × 6 cotas eram 150 paradas de Tab para
+  // chegar à última célula — a grade era "acessível por teclado" só no
+  // papel. Setas andam uma célula (Home/End vão ao começo/fim da linha);
+  // Espaço/Enter continuam marcando. Busca pelo atributo, não por ref: as
+  // linhas mudam com o filtro e a posição (idx) já é a da lista visível.
+  const moverNaGrade = (e: React.KeyboardEvent<HTMLDivElement>, lin: number, col: number) => {
+    const destino: Record<string, [number, number]> = {
+      ArrowUp: [lin - 1, col], ArrowDown: [lin + 1, col],
+      ArrowLeft: [lin, col - 1], ArrowRight: [lin, col + 1],
+      Home: [lin, 0], End: [lin, QUOTAS.length - 1],
+    };
+    const alvo = destino[e.key];
+    if (!alvo) return;
+    const [l, c] = alvo;
+    if (l < 0 || c < 0 || c >= QUOTAS.length || l >= filteredGroups.length) return;
+    e.preventDefault();
+    document.querySelector<HTMLElement>(`[data-cota-lin="${l}"][data-cota-col="${c}"]`)?.focus();
+  };
+
+  // CTRL+S / ⌘+S salva tudo — o atalho que a mão já faz numa grade editável.
+  // Sem pendência não faz nada além de não abrir o "Salvar página" do
+  // navegador (que aqui só baixaria um HTML inútil).
+  const saveAllRef = useRef(saveAll);
+  saveAllRef.current = saveAll;
+  useEffect(() => {
+    const aoTeclar = (e: KeyboardEvent) => {
+      if (!(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== "s") return;
+      e.preventDefault();
+      if (dirtyRef.current.size > 0 && !saveMutation.isPending) saveAllRef.current();
+    };
+    window.addEventListener("keydown", aoTeclar);
+    return () => window.removeEventListener("keydown", aoTeclar);
+  }, [saveMutation.isPending]);
 
   // LARGURA MÍNIMA por coluna: com `1fr` puro, em 375px as seis cotas
   // espremiam-se em ~30px cada e o rótulo "Ministério" quebrava letra a letra.
@@ -286,6 +321,22 @@ export default function ConfigurarCotas() {
           <p style={{ fontSize: FS.body, color: T.second, margin: 0, lineHeight: 1.5, maxWidth: 640 }}>
             Defina quais grupos de peças cada cota de patrocinador recebe. Configuração global usada no Auto-vincular.
           </p>
+          {/* PARA QUE SERVE E ONDE APARECE DEPOIS. "Auto-vincular" sozinho não
+              dizia onde fica, de onde vem a cota de cada patrocinador nem se
+              salvar mexe no que já está vinculado. Cada frase vem do código:
+              a cota é do vínculo evento↔patrocinador (eventos.tsx, seletor de
+              cota); a regra só é lida por previewAutoLink/autoLinkByQuota
+              (server/storage.ts), que casa o grupo pelo INÍCIO do tipo da
+              peça ("Palco" pega "Palco Lateral") e só CRIA vínculo que falta. */}
+          <ul data-testid="cotas-como-funciona" style={{ margin: "12px 0 0", padding: "10px 14px 10px 30px", maxWidth: 700, borderRadius: R.md, backgroundColor: T.surface, border: `1px solid ${T.border}`, fontSize: 12.5, lineHeight: 1.55, color: "#44403c", display: "flex", flexDirection: "column", gap: 3 }}>
+            <li>A cota de cada patrocinador (Master, Gold…) é escolhida no evento, ao vinculá-lo.</li>
+            <li>
+              Em{" "}
+              <Link href="/vincular-patrocinadores" style={{ color: "#c2410c", fontWeight: 700, textDecoration: "underline", textUnderlineOffset: 2 }}>Vincular Patrocinadores</Link>
+              , o botão <strong>Auto-vincular por cota</strong> dá a cada patrocinador as peças dos grupos marcados na coluna da cota dele — o grupo “Palco” também pega “Palco Lateral”.
+            </li>
+            <li>Salvar aqui não muda vínculos já feitos: vale a partir do próximo Auto-vincular, em qualquer evento.</li>
+          </ul>
         </div>
         {/* AVISO + AÇÕES DE PENDÊNCIA. O "N cotas com alterações" morava só no
             rodapé da matriz — que, com muitos grupos, fica abaixo da dobra — e
@@ -499,7 +550,11 @@ export default function ConfigurarCotas() {
             ) : (
               <>
                 <p style={{ fontSize: 14, fontWeight: 700, color: T.second, margin: "0 0 6px" }}>Nenhum grupo de peça encontrado</p>
-                <p style={{ fontSize: 12, color: T.second, margin: 0 }}>Importe eventos com itens para que os grupos apareçam aqui</p>
+                {/* De onde vêm as linhas: /api/quota-rules/groups junta o
+                    `type` dos Modelos e das peças. Dizer as duas portas. */}
+                <p style={{ fontSize: 12, color: T.second, margin: 0 }}>
+                  Os grupos vêm do Tipo dos <Link href="/modelos" style={{ color: "#c2410c", fontWeight: 700, textDecoration: "underline" }}>Modelos</Link> e das peças dos eventos — cadastre um modelo ou importe um evento para eles aparecerem.
+                </p>
               </>
             )}
           </div>
@@ -523,7 +578,7 @@ export default function ConfigurarCotas() {
                 </div>
 
                 {/* Quota cells */}
-                {QUOTAS.map(q => {
+                {QUOTAS.map((q, col) => {
                   const checked = matrix[q.key]?.has(group) ?? false;
                   return (
                     <div
@@ -532,12 +587,16 @@ export default function ConfigurarCotas() {
                       aria-checked={checked}
                       aria-label={`${group} na cota ${q.label}`}
                       tabIndex={0}
+                      data-cota-lin={idx}
+                      data-cota-col={col}
                       onClick={() => toggleCell(q.key, group)}
                       onKeyDown={e => {
                         if (e.key === "Enter" || e.key === " ") {
                           e.preventDefault();
                           toggleCell(q.key, group);
+                          return;
                         }
+                        moverNaGrade(e, idx, col);
                       }}
                       data-testid={`cell-${q.key}-${group}`}
                       style={{
@@ -571,7 +630,9 @@ export default function ConfigurarCotas() {
         {!isLoading && groups.length > 0 && (
           <div style={{ padding: "10px 16px", backgroundColor: T.low, borderTop: `2px solid ${T.border}`, display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
             <span style={{ fontSize: 11, color: T.second, fontWeight: 600 }}>
-              {filteredGroups.length} de {groups.length} grupo{groups.length !== 1 ? "s" : ""} · clique nas células para marcar
+              {/* Os atalhos só existem se forem ditos: setas e Ctrl+S não se
+                  descobrem sozinhos numa grade de caixinhas. */}
+              {filteredGroups.length} de {groups.length} grupo{groups.length !== 1 ? "s" : ""}{isMobile ? " · toque na célula para marcar" : " · clique ou Espaço marca · setas andam na grade · Ctrl+S salva tudo"}
             </span>
             {dirty.size > 0 && (
               <span style={{ fontSize: 11, fontWeight: 700, color: "#c2410c" }}>

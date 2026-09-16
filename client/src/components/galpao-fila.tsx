@@ -28,7 +28,12 @@ import { useEffect, useRef, useState } from "react";
 import { miniatura } from "@/lib/miniatura";
 import { Camera, Check, ChevronRight, ImagePlus, Loader2, Truck, X } from "lucide-react";
 import { ObjectUploader } from "@/components/ObjectUploader";
+import { SugestaoRecebedor } from "@/components/sugestao-recebedor";
 import { remainingConfer } from "@/lib/saldo";
+// Só LEITURA do saldo, para dizer quantas unidades a entrega leva: a rota
+// entrega o que resta conferido quando não recebe `qty` — o número mostrado é
+// essa mesma conta, da mesma fonte da lista.
+import { remainingDeliver as saldoAEntregar } from "@/lib/saldo";
 
 export interface GalpaoDados { photoUrl: string; qty?: number; receivedBy?: string }
 
@@ -39,12 +44,14 @@ interface Props {
   onClose: (feitas: number) => void;
   /** Confirma UMA peça no servidor; lança em erro (a mensagem aparece aqui). */
   onConfirmar: (item: any, dados: GalpaoDados) => Promise<void>;
+  /** Último "quem recebeu" desta sessão — oferecido como atalho, NUNCA pré-preenchido. */
+  sugestaoRecebedor?: string;
 }
 
 const dataCurta = (iso?: string | null) =>
   iso ? new Date(iso).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", timeZone: "UTC" }) : null;
 
-export function GalpaoFila({ mode, itens, onClose, onConfirmar }: Props) {
+export function GalpaoFila({ mode, itens, onClose, onConfirmar, sugestaoRecebedor = "" }: Props) {
   const isConfer = mode === "confer";
   const tinta = isConfer ? "#0e7490" : "#15803d";
 
@@ -52,10 +59,16 @@ export function GalpaoFila({ mode, itens, onClose, onConfirmar }: Props) {
   const [foto, setFoto] = useState<string | null>(null);
   const [qty, setQty] = useState(0);
   // Quem recebe assina o caminhão inteiro — o nome atravessa as peças.
+  // Só as DESTA fila. Entre filas, não: a fila abre VAZIA e o nome da anterior
+  // aparece só como atalho de um toque (SugestaoRecebedor). Abrir com ele
+  // preenchido gravava um recebedor que ninguém digitou nesta entrega.
   const [receivedBy, setReceivedBy] = useState("");
   const [enviando, setEnviando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
   const [feitas, setFeitas] = useState(0);
+  // PULADAS — "se eu pular, perco a peça?". Não: ela continua na lista da
+  // Gráfica. O contador no topo diz quantas ficaram para depois.
+  const [puladas, setPuladas] = useState(0);
   // Espelhos em ref para o atalho de teclado (Esc) ler o valor ATUAL sem
   // reassinar o listener a cada foto ou envio.
   const feitasRef = useRef(0);
@@ -127,6 +140,10 @@ export function GalpaoFila({ mode, itens, onClose, onConfirmar }: Props) {
     if (idx + 1 < fila.length) setIdx(idx + 1);
     else onClose(totalFeitas);
   };
+  const pular = () => {
+    if (!jaRegistradaPorOutro) setPuladas((p) => p + 1);
+    avancar(feitas);
+  };
 
   const confirmar = async () => {
     if (!foto || enviando) return;
@@ -186,8 +203,18 @@ export function GalpaoFila({ mode, itens, onClose, onConfirmar }: Props) {
             · {feitas} registrada{feitas !== 1 ? "s" : ""}
           </span>
         )}
+        {puladas > 0 && (
+          <span data-testid="galpao-puladas" title="As peças puladas continuam na lista da Gráfica" style={{ fontSize: 12, fontWeight: 600, color: "#57534e", fontVariantNumeric: "tabular-nums" }}>
+            · {puladas} pulada{puladas !== 1 ? "s" : ""}
+          </span>
+        )}
         <span style={{ flex: 1 }} />
-        <button type="button" onClick={() => onClose(feitas)} aria-label="Sair da fila" data-testid="galpao-sair"
+        {/* Sair não desfaz nada: o que foi registrado JÁ está no servidor
+            (cada Confirmar grava na hora). O rótulo responde a dúvida. */}
+        <button type="button" onClick={() => onClose(feitas)}
+          aria-label={feitas > 0 ? `Sair da fila — as ${feitas} registradas ficam salvas` : "Sair da fila"}
+          title={feitas > 0 ? "Sair — o que já foi registrado fica salvo" : "Sair da fila"}
+          data-testid="galpao-sair"
           style={{ width: 44, height: 44, display: "flex", alignItems: "center", justifyContent: "center", border: "none", background: "transparent", cursor: "pointer", color: "#78716c" }}>
           <X style={{ width: 20, height: 20 }} />
         </button>
@@ -232,7 +259,7 @@ export function GalpaoFila({ mode, itens, onClose, onConfirmar }: Props) {
             <span style={{ flex: 1 }}>
               Esta peça saiu da fila depois que ela abriu — já foi {isConfer ? "conferida" : "entregue"} ou mudou de etapa. Nada a fazer aqui.
             </span>
-            <button type="button" onClick={() => avancar(feitas)}
+            <button type="button" onClick={pular}
               style={{ minHeight: 44, padding: "0 14px", borderRadius: 10, border: "none", backgroundColor: "#92400e", color: "#ffffff", fontSize: 13, fontWeight: 800, cursor: "pointer", whiteSpace: "nowrap" }}>
               Pular
             </button>
@@ -280,6 +307,15 @@ export function GalpaoFila({ mode, itens, onClose, onConfirmar }: Props) {
           </div>
         )}
 
+        {/* Quantas unidades esta entrega leva — antes a fila não dizia, e quem
+            estava com a pilha na mão não sabia se era a peça inteira. */}
+        {!isConfer && (
+          <p data-testid="galpao-qtd-entrega" style={{ margin: 0, fontSize: 13, color: "#44403c" }}>
+            Entrega de <strong style={{ fontSize: 18, color: "#1c1917", fontVariantNumeric: "tabular-nums" }}>{saldoAEntregar(vivo ?? item)} un.</strong>
+            <span style={{ color: "#78716c" }}> — tudo o que já foi conferido desta peça</span>
+          </p>
+        )}
+
         {/* Quem recebeu (só entrega) */}
         {!isConfer && (
           <label style={{ display: "block" }}>
@@ -290,6 +326,9 @@ export function GalpaoFila({ mode, itens, onClose, onConfirmar }: Props) {
               placeholder="Nome de quem assinou"
               style={{ width: "100%", marginTop: 6, height: 48, borderRadius: 10, border: "1px solid #d6d3d1", padding: "0 12px", fontSize: 15, fontFamily: "inherit", color: "#1c1917", backgroundColor: "#ffffff", boxSizing: "border-box" }} />
           </label>
+        )}
+        {!isConfer && (
+          <SugestaoRecebedor nome={sugestaoRecebedor} atual={receivedBy} onUsar={setReceivedBy} />
         )}
 
         {/* A foto — o primeiro dos dois toques */}
@@ -330,6 +369,16 @@ export function GalpaoFila({ mode, itens, onClose, onConfirmar }: Props) {
             </div>
           </div>
         )}
+        {/* POR QUE A FOTO — dito antes do toque. O motivo vivia no `title` do
+            Confirmar cinza, que no celular ninguém lê. Enquanto a foto sobe, o
+            próprio botão da câmera mostra "Enviando…" com o percentual. */}
+        {!foto && (
+          <p style={{ margin: "-4px 0 0", fontSize: 12, color: "#57534e", lineHeight: 1.4 }}>
+            {isConfer
+              ? "Foto obrigatória: é o registro de que a peça foi conferida."
+              : "Foto obrigatória: é o comprovante de que o material foi entregue."}
+          </p>
+        )}
 
         {erro && (
           <p data-testid="galpao-erro" role="alert" style={{ margin: 0, padding: "10px 12px", fontSize: 13, fontWeight: 600, color: "#b91c1c", backgroundColor: "#fef2f2", border: "1px solid #fecaca", borderRadius: 10 }}>
@@ -340,7 +389,8 @@ export function GalpaoFila({ mode, itens, onClose, onConfirmar }: Props) {
 
       {/* ── rodapé: o segundo toque ── */}
       <div style={{ padding: "10px 14px calc(12px + env(safe-area-inset-bottom))", borderTop: "1px solid #e7e5e4", backgroundColor: "#ffffff", display: "flex", gap: 10 }}>
-        <button type="button" onClick={() => avancar(feitas)} data-testid="galpao-pular"
+        <button type="button" onClick={pular} data-testid="galpao-pular"
+          title="Deixar para depois — a peça continua na lista"
           style={{ height: 56, padding: "0 16px", borderRadius: 12, border: "1px solid #d6d3d1", backgroundColor: "#ffffff", color: "#57534e", fontSize: 14, fontWeight: 700, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6 }}>
           Pular <ChevronRight style={{ width: 16, height: 16 }} />
         </button>
@@ -359,7 +409,7 @@ export function GalpaoFila({ mode, itens, onClose, onConfirmar }: Props) {
             : jaRegistradaPorOutro ? "Já registrada"
             : !foto ? "Falta a foto"
             : isConfer ? `Conferir ${qty} un.`
-            : "Confirmar entrega"}
+            : `Entregar ${saldoAEntregar(vivo ?? item)} un.`}
         </button>
       </div>
     </div>

@@ -2,6 +2,7 @@ import { Compass, ArrowLeft, Search } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@/contexts/auth-context";
 import { abrirBuscaGlobal } from "@/components/busca-global";
+import { FS } from "@/lib/theme";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 404 NA LÍNGUA DA CASA.
@@ -33,11 +34,13 @@ export default function NotFound() {
         <p style={{ margin: "0 0 6px", fontSize: 11, fontWeight: 800, letterSpacing: "0.12em", textTransform: "uppercase", color: "#746e69" }}>
           Erro 404
         </p>
-        <h1 style={{ margin: "0 0 10px", fontSize: 22, fontWeight: 800, letterSpacing: "-0.02em", color: "#1c1917" }}>
+        {/* Título de página na régua da casa (Space Grotesk, FS.h1, 700): o 404
+            era a única tela com h1 em 22/800 na fonte do corpo. */}
+        <h1 style={{ margin: "0 0 10px", fontFamily: "'Space Grotesk', sans-serif", fontSize: FS.h1, fontWeight: 700, letterSpacing: "-0.03em", lineHeight: 1.1, color: "#1c1917" }}>
           Página não encontrada
         </h1>
         <p style={{ margin: "0 0 6px", fontSize: 13.5, lineHeight: 1.6, color: "#57534e" }}>
-          O endereço que você tentou abrir não existe ou mudou de lugar.
+          O endereço que você tentou abrir não existe ou mudou de lugar. Nada foi alterado.
         </p>
         <p style={{ margin: "0 0 24px", fontSize: 12, color: "#746e69", wordBreak: "break-all" }}>
           <code style={{ fontFamily: "'DM Mono', Menlo, monospace", backgroundColor: "#f5f5f4", borderRadius: 4, padding: "1px 6px" }}>{location}</code>

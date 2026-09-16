@@ -28,6 +28,7 @@ import { FilterSelect } from "@/components/filter-select";
 import { ToastAction } from "@/components/ui/toast";
 import { useToast } from "@/hooks/use-toast";
 import { getPriorityMeta, PRIORITY } from "@/lib/status";
+import { MARCOS_DO_EVENTO } from "@shared/prazo-dates";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { onPrazosInvalidated } from "@/hooks/use-websocket";
 import type {
@@ -82,6 +83,8 @@ const VISAO_TECLA: Record<Visao, string> = { quadro: "Q", tabela: "T", atrasadas
 // das 15 telas que o usam, nao desta. Const de modulo para a identidade ser
 // estavel entre renders.
 const RAIO_FILTRO: React.CSSProperties = { borderRadius: R.md };
+
+const CHAVE_GUIA_FECHADO = "gestao-prazos:guia-fechado";
 
 function parseVisao(raw: string | null): Visao {
   return raw === "tabela" || raw === "atrasadas" ? raw : "quadro";
@@ -170,6 +173,24 @@ export default function GestaoPrazos() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [showDesdeOntem, setShowDesdeOntem] = useState(false);
   const [printMode, setPrintMode] = useState(false);
+
+  // Guia "Como ler esta tela": aberto até a pessoa fechá-lo uma vez. A
+  // lembrança é conveniência por navegador (localStorage) — sem ela, ou em
+  // aba privada, o pior caso é o guia fechado, com o botão à vista.
+  // No celular nasce FECHADO: lá o guia ocupa mais de uma tela inteira e
+  // empurraria o placar para baixo da dobra — o botão fica à vista no topo.
+  const [guiaAberto, setGuiaAberto] = useState<boolean>(() => {
+    if (isMobile) return false;
+    try { return localStorage.getItem(CHAVE_GUIA_FECHADO) !== "1"; } catch { return false; }
+  });
+  const alternarGuia = () => {
+    const novo = !guiaAberto;
+    setGuiaAberto(novo);
+    try {
+      if (novo) localStorage.removeItem(CHAVE_GUIA_FECHADO);
+      else localStorage.setItem(CHAVE_GUIA_FECHADO, "1");
+    } catch { /* modo privado: fica só nesta visita */ }
+  };
 
   // Última visão de EVENTO usada. O placar "Peças em etapa vencida" leva para
   // a lista de peças e traz de volta — e "de volta" tem que ser de onde a
@@ -922,6 +943,27 @@ export default function GestaoPrazos() {
             <p style={{ margin: "0 0 10px", fontSize: 13, color: TI.secondary }}>
               {events.length} evento{events.length !== 1 ? "s" : ""} ativo{events.length !== 1 ? "s" : ""} no total.
             </p>
+            {/* A BUSCA DO QUADRO E DA TABELA SÓ OLHA O NOME DO EVENTO. Quem
+                digita o código de uma peça ("#3089") caía aqui e concluía que
+                ela não existe. A lista de peças atrasadas já procura por
+                código e descrição — o botão leva a MESMA busca para lá. */}
+            {busca.trim() !== "" && (
+              <p style={{ margin: "0 0 12px", fontSize: 13, color: TI.strong }}>
+                Aqui a busca procura só no nome do evento.{" "}
+                <button
+                  type="button"
+                  onClick={() => setVisao("atrasadas")}
+                  data-testid="button-buscar-nas-pecas"
+                  style={{
+                    display: "inline-flex", alignItems: "center", minHeight: alvoEstado,
+                    background: "none", border: "none", padding: 0, cursor: "pointer",
+                    fontSize: 13, fontWeight: 700, color: TI.accentText, textDecoration: "underline",
+                  }}
+                >
+                  Procurar “{busca.trim()}” nas peças atrasadas
+                </button>
+              </p>
+            )}
             {/* Dizer QUAIS filtros: "Nenhum evento com esses filtros" sem a
                 lista obrigava o diretor a caçar o estado ativo na toolbar. */}
             {chipsAtivos.length > 0 && (
@@ -1386,6 +1428,37 @@ export default function GestaoPrazos() {
             <p style={{ margin: "4px 0 0", fontSize: 13, color: TI.secondary, maxWidth: 660 }}>
               Etapas de cada evento contra a saída do caminhão — o que venceu, o que vence e quem destrava.
             </p>
+            {/* ── COMO LER ESTA TELA (rodada 4) ─────────────────────────────
+                A tela abre para TODOS os perfis e falava a língua de quem a
+                desenhou: "marco", "etapa vencida", "destravar", "Marcar como
+                cobrado". Nada disso se deduz olhando. O guia é um disclosure
+                — aberto na primeira visita, lembrado fechado depois (o
+                diretor que já sabe não paga rolagem todo dia).
+
+                Tudo que ele afirma vem de fonte única: nome, descrição e prazo
+                padrão das etapas de @shared/prazo-dates (os mesmos do
+                cadastro do evento), o setor de STAGE_SECTOR (o mesmo do
+                "Resolver em …") e os tons TI.red/amber/green do semáforo. */}
+            <button
+              type="button"
+              onClick={() => alternarGuia()}
+              aria-expanded={guiaAberto}
+              aria-controls={guiaAberto ? "gp-guia" : undefined}
+              data-testid="toggle-como-ler-prazos"
+              className="gp-no-print"
+              style={{
+                display: "inline-flex", alignItems: "center", gap: 5, minHeight: 36, marginTop: 2,
+                background: "none", border: "none", padding: 0, cursor: "pointer",
+                fontSize: 12, fontWeight: 700, color: TI.accentText,
+              }}
+            >
+              <ChevronDown aria-hidden="true" style={{
+                width: 14, height: 14,
+                transform: guiaAberto ? "rotate(180deg)" : "none",
+                transition: "transform 0.15s ease",
+              }} />
+              {guiaAberto ? "Fechar o guia" : "Como ler esta tela"}
+            </button>
           </div>
           {data && (
             <div className="gp-no-print" style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
@@ -1414,7 +1487,10 @@ export default function GestaoPrazos() {
                   automática falhou e o clique é recuperação, não rotina. */}
               <span
                 style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 11, color: dadoVelho ? TI.amber : TI.label, fontWeight: dadoVelho ? 700 : 400 }}
-                title={new Date(data.generatedAt).toLocaleString("pt-BR")}
+                /* "Esse número está atualizado?" O title só dava a data crua;
+                   agora diz também COMO a tela se mantém fresca e quando o
+                   selo fica âmbar — sem isso o âmbar parecia alarme. */
+                title={`Dados de ${new Date(data.generatedAt).toLocaleString("pt-BR")}. A tela se atualiza sozinha quando alguém muda um evento ou peça, ao voltar para a aba e, por segurança, a cada 5 minutos. Fica âmbar se os dados tiverem 10 minutos ou mais.`}
               >
                 {isFetching && <RotateCcw aria-hidden="true" className="animate-spin" style={{ width: 11, height: 11 }} />}
                 Atualizado {fmtRelative(data.generatedAt, agora)}
@@ -1441,6 +1517,69 @@ export default function GestaoPrazos() {
             </div>
           )}
         </div>
+
+        {guiaAberto && (
+          <section
+            id="gp-guia"
+            aria-label="Como ler a Gestão de Prazos"
+            data-testid="guia-como-ler-prazos"
+            className="gp-no-print"
+            style={{
+              marginBottom: 16, padding: isMobile ? "12px 14px" : "14px 18px",
+              backgroundColor: TI.card, border: `1px solid ${TI.border}`, borderRadius: R.lg,
+              boxShadow: SHADOW.sm, fontSize: 13, color: TI.strong, lineHeight: 1.5,
+              display: "grid", gap: isMobile ? 14 : 24,
+              gridTemplateColumns: isMobile ? "1fr" : "minmax(0, 1.25fr) minmax(0, 1fr)",
+            }}
+          >
+            <div style={{ minWidth: 0 }}>
+              <h2 style={{ margin: "0 0 6px", fontSize: 13, fontWeight: 700, color: TI.title }}>
+                As {stageMeta.length} etapas de todo evento, em ordem
+              </h2>
+              <p style={{ margin: "0 0 8px", color: TI.secondary }}>
+                Cada etapa tem um prazo contado para trás a partir da saída do caminhão.
+                O evento pode ter prazos próprios, definidos no cadastro; abaixo está o padrão.
+              </p>
+              <ol style={{ margin: 0, paddingLeft: 20, display: "grid", gap: 3 }}>
+                {stageMeta.map((m) => {
+                  const marco = MARCOS_DO_EVENTO.find((x) => x.key === m.key);
+                  const setor = STAGE_SECTOR[m.key]?.sector;
+                  const dias = marco ? Math.abs(marco.offset) : null;
+                  return (
+                    <li key={m.key}>
+                      <strong style={{ color: TI.title, fontWeight: 700 }}>{m.label}</strong>
+                      {setor ? ` · quem age: ${setor}` : ""}
+                      {marco ? ` · ${marco.descricao.charAt(0).toLowerCase()}${marco.descricao.slice(1)}` : ""}
+                      {dias !== null && (
+                        <span style={{ color: TI.secondary }}>
+                          {` · ${dias} dia${dias !== 1 ? "s" : ""} antes da saída`}
+                        </span>
+                      )}
+                    </li>
+                  );
+                })}
+              </ol>
+            </div>
+            <div style={{ minWidth: 0, display: "grid", gap: 8, alignContent: "start" }}>
+              <h2 style={{ margin: 0, fontSize: 13, fontWeight: 700, color: TI.title }}>O que cada palavra quer dizer</h2>
+              <p style={{ margin: 0 }}>
+                <strong style={{ color: TI.red }}>Vencida</strong> — o prazo da etapa passou e ainda há peça parada nela.
+                {" "}<strong style={{ color: TI.amber }}>Vence em até 3 dias</strong> — ainda dá tempo, mas é a próxima cobrança.
+                {" "}<strong style={{ color: TI.green }}>Concluída</strong> — nenhuma peça parada nela. Cinza é prazo futuro.
+              </p>
+              <p style={{ margin: 0 }}>
+                <strong style={{ color: TI.title }}>Resolver em …</strong> abre a tela do setor que destrava a etapa, já recortada o mais perto possível daquele evento ou peça.
+              </p>
+              <p style={{ margin: 0 }}>
+                <strong style={{ color: TI.title }}>Marcar como cobrado</strong> anota que alguém cobrou o setor: quem cobrou, quando e, se quiser, o prazo combinado.
+                {" "}Não muda nenhuma peça e não envia mensagem a ninguém — serve para ver depois se algo andou. Só o administrador registra.
+              </p>
+              <p style={{ margin: 0, color: TI.secondary }}>
+                Evento que já começou ou com todas as peças entregues sai desta tela. A tela se atualiza sozinha.
+              </p>
+            </div>
+          </section>
+        )}
 
         {/* Dado antigo por falha de atualização: NUNCA jogar fora o cache bom —
             dashboard de 10 min atrás vale mais que tela vazia. */}
@@ -1790,8 +1929,9 @@ export default function GestaoPrazos() {
             {!isMobile && visao === "tabela" && (
               <span style={{ flexBasis: "100%", fontSize: 11, color: TI.label, paddingTop: 2 }}>
                 Semáforo: <strong style={{ color: TI.green }}>✓</strong> etapa concluída ·{" "}
-                <strong style={{ color: TI.amber }}>nº</strong> peças aguardando o prazo ·{" "}
-                <strong style={{ color: TI.red }}>Nd</strong> dias vencida (com o total de peças abaixo)
+                <strong style={{ color: TI.amber }}>nº</strong> peças com prazo vencendo em até 3 dias ·{" "}
+                <strong style={{ color: TI.red }}>Nd</strong> dias vencida (com o total de peças abaixo) ·{" "}
+                cinza = prazo futuro (o número são as peças já paradas nela) · passe o mouse numa célula para a frase completa
               </span>
             )}
             {!isMobile && visao === "quadro" && (

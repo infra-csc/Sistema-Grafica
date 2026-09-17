@@ -24,7 +24,7 @@ export function StatusPill({ status, size = "md", showDot = true }: StatusPillPr
   // A pílula só mostra o rótulo CURTO; o title devolve o nome inteiro do
   // status (e o que ele significa) a quem precisa confirmar ("Aguard." de quê?).
   return (
-    <span title={descricaoDoStatus(status) ?? cfg.label} aria-describedby={describedBy} {...handlers} style={{
+    <span className={sm ? "status-pill-sm" : undefined} title={descricaoDoStatus(status) ?? cfg.label} aria-describedby={describedBy} {...handlers} style={{
       display: "inline-flex", alignItems: "center", gap: showDot ? 6 : 0,
       padding: "3px 10px",
       backgroundColor: cfg.bg,

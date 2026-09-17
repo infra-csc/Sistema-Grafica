@@ -20,9 +20,10 @@ export function SugestaoRecebedor({ nome, atual, onUsar }: { nome: string; atual
       type="button"
       onClick={() => onUsar(nome)}
       data-testid="button-usar-ultimo-recebedor"
-      style={{ marginTop: 8, display: "inline-flex", alignItems: "center", gap: 6, minHeight: 36, padding: "0 12px", borderRadius: 999, border: "1px solid #d6d3d1", background: "#ffffff", color: "#44403c", fontSize: 12, fontWeight: 700, cursor: "pointer", maxWidth: "100%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+      // 44px e 13px: é tocado de pé, com a outra mão ocupada (36 era alvo de mouse).
+      style={{ marginTop: 8, display: "inline-flex", alignItems: "center", gap: 6, minHeight: 44, padding: "0 14px", borderRadius: 999, border: "1px solid #d6d3d1", background: "#ffffff", color: "#44403c", fontSize: 13, fontWeight: 700, cursor: "pointer", maxWidth: "100%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
     >
-      <Undo2 aria-hidden="true" style={{ width: 12, height: 12, flexShrink: 0 }} />
+      <Undo2 aria-hidden="true" style={{ width: 14, height: 14, flexShrink: 0 }} />
       Usar “{nome}” (última entrega)
     </button>
   );

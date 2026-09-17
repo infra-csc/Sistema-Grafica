@@ -4,11 +4,13 @@ import { SeloKit } from "@/components/kit/selo-kit";
 import { EsqueletoDeFila } from "@/components/esqueleto-de-fila";
 import { Link } from "wouter";
 import { FilterSelect, ShortcutPill } from "@/components/filter-select";
-import { AlertCircle, AlertTriangle, Package, CheckCircle, Truck, Calendar, Eye, Check, Camera, Search, Play, X, Filter, ChevronDown, Printer, RotateCcw, ImagePlus, FileSpreadsheet, ListChecks, PlusCircle, Trash2, Undo2, Loader2, Recycle, Tag } from "lucide-react";
-import { Fragment, useState, useMemo, useEffect, useRef, startTransition } from "react";
+import { AlertCircle, AlertTriangle, Package, CheckCircle, Truck, Calendar, Eye, Check, Camera, Search, Play, X, Filter, ChevronDown, Printer, RotateCcw, ImagePlus, FileSpreadsheet, ListChecks, PlusCircle, Trash2, Undo2, Loader2, Recycle, Tag, MoreHorizontal } from "lucide-react";
+import { Fragment, useState, useMemo, useEffect, useLayoutEffect, useRef, startTransition } from "react";
 // Fila de ~4 mil peças: linha memoizada + desenho por lotes (ver o arquivo).
 import { LinhaMemo, SentinelaDaLista } from "@/components/grafica/lista-incremental";
 import { recorteSoDaBusca, recorteSemABusca } from "@/components/grafica/recorte-da-busca";
+// Teclado virtual: modal e fila sobem junto com ele (ver o arquivo).
+import { useAcompanharAreaVisivel } from "@/components/grafica/area-visivel";
 import { EventFilterDropdown } from "@/components/event-filter-dropdown";
 import { parseDateLocal } from "@/lib/utils";
 import {
@@ -192,16 +194,17 @@ const apiErrorMessage = (error: any) => {
 };
 
 // Chip de quantidade do card mobile (reaproveitado/produzido/conferido/
-// entregue). Tons 700 sobre fundo claro: 10px precisa passar AA.
+// entregue). Tons 700 sobre fundo claro (AA). 12px, não 10: é o card do
+// celular, lido de braço esticado no galpão — "PROD. 5" em 10px virava mancha.
 const qtyChip = (color: string, bg: string): React.CSSProperties => ({
-  fontSize: 10, fontWeight: 800, color, backgroundColor: bg,
-  border: `1px solid ${color}33`, borderRadius: 6, padding: "2px 6px",
-  letterSpacing: "0.04em", whiteSpace: "nowrap",
+  fontSize: 12, fontWeight: 800, color, backgroundColor: bg,
+  border: `1px solid ${color}33`, borderRadius: 6, padding: "1px 6px",
+  letterSpacing: "0.02em", whiteSpace: "nowrap",
 });
 
 // Chip de prazo da Produção Gráfica — o mesmo visual sobre o cabeçalho escuro
 // do evento, tanto na tabela desktop quanto no card mobile.
-function DeadlineChip({ event }: { event: any }) {
+function DeadlineChip({ event, fonte = 10 }: { event: any; /** Celular: 12 (informação ≥ 12px). */ fonte?: number }) {
   if (!event?.truckDepartureDate) return null;
   const days = event.deadlineProducaoGrafica ?? -1;
   // Conta e formata em UTC — a mesma convenção da "Saída" exibida ao lado.
@@ -231,9 +234,12 @@ function DeadlineChip({ event }: { event: any }) {
     <span
       title={`Marco de Produção Gráfica em ${ds}${sufixo ? ` — ${sufixo}` : ""}`}
       aria-label={`Prazo de produção gráfica: ${ds}${sufixo ? `, ${sufixo}` : ""}`}
-      style={{ display: "inline-flex", alignItems: "center", gap: 5, backgroundColor: s.bg, border: `1px solid ${s.border}`, borderRadius: 999, padding: "3px 9px", fontSize: 10, fontWeight: 700, color: s.text, letterSpacing: "0.04em", whiteSpace: "nowrap", alignSelf: "flex-start" }}
+      // flexWrap + maxWidth: o selo vivia em `nowrap` e, com a tabela mais
+      // larga que a tela (sidebar aberta), saía pela direita cortado ao meio
+      // ("Produção Gráfica · 10/09 · atras…"). Agora quebra dentro da pílula.
+      style={{ display: "inline-flex", alignItems: "center", flexWrap: "wrap", maxWidth: "100%", gap: 5, backgroundColor: s.bg, border: `1px solid ${s.border}`, borderRadius: 999, padding: "3px 9px", fontSize: fonte, fontWeight: 700, color: s.text, letterSpacing: "0.04em", alignSelf: "flex-start" }}
     >
-      Produção Gráfica · {ds}{sufixo && <span style={{ opacity: diff < 0 ? 0.95 : 0.65, fontWeight: diff < 0 ? 700 : 500 }}> · {sufixo}</span>}
+      <span style={{ whiteSpace: "nowrap" }}>Produção Gráfica · {ds}</span>{sufixo && <span style={{ whiteSpace: "nowrap", opacity: diff < 0 ? 0.95 : 0.8, fontWeight: diff < 0 ? 700 : 500 }}>· {sufixo}</span>}
     </span>
   );
 }
@@ -271,9 +277,11 @@ function PhotoPicker({ photos, onAdd, onRemove, onError, label = "Fotos", hint, 
     { capture: true, Icon: Camera, text: dense ? "Câmera" : "Tirar Foto" },
     { capture: false, Icon: ImagePlus, text: dense ? "Galeria" : "Anexar Fotos" },
   ];
+  // Celular: rótulo ≥ 12px (10px maiúsculo não se lê no sol do galpão).
+  const noCelular = useIsMobile();
   return (
     <div>
-      <label style={{ display: "block", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#746e69", marginBottom: 10 }}>
+      <label style={{ display: "block", fontSize: noCelular ? 12 : 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#746e69", marginBottom: 10 }}>
         {label} {hint && <span style={{ color: "#746e69", textTransform: "none", letterSpacing: 0, fontWeight: 400 }}>{hint}</span>}
         {/* Contador vivo: depois de voltar da câmera, a pessoa precisa saber de
             relance que a foto ENTROU — a miniatura pode estar fora da dobra. */}
@@ -285,20 +293,23 @@ function PhotoPicker({ photos, onAdd, onRemove, onError, label = "Fotos", hint, 
         )}
       </label>
 
-      <div style={{ display: "flex", gap: 10 }}>
+      <div style={{ display: "flex", gap: 12 }}>
         {buttons.map(({ capture, Icon, text }) => (
           <div key={text} style={{ flex: 1 }}>
             <ObjectUploader
               {...(capture ? { capture: true } : { multiple: true })}
               maxFileSize={10485760}
               buttonVariant="ghost"
-              buttonClassName="w-full h-full p-0 border-0 hover:bg-transparent"
+              // min-h: durante o envio o ObjectUploader troca o conteúdo por
+              // "Enviando x%" (uma linha) e o botão encolhia de ~64 para ~20px
+              // — o layout pulava e o Confirmar mudava de lugar sob o dedo.
+              buttonClassName="w-full h-full min-h-[64px] p-0 border-0 hover:bg-transparent"
               onComplete={r => onAdd(r.url)}
               onError={onError}
             >
-              <div style={{ width: "100%", padding: dense ? "12px 0" : "14px 0", backgroundColor: "#f4f3f0", borderRadius: 8, border: "2px dashed #d6d3d1", display: "flex", flexDirection: "column", alignItems: "center", gap: dense ? 5 : 6, cursor: "pointer" }}>
-                <Icon style={{ width: dense ? 18 : 20, height: dense ? 18 : 20, color: "#746e69" }} />
-                <span style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "#746e69" }}>{text}</span>
+              <div style={{ width: "100%", minHeight: 64, boxSizing: "border-box", padding: dense ? "12px 0" : "14px 0", backgroundColor: "#f4f3f0", borderRadius: 8, border: "2px dashed #d6d3d1", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: dense ? 5 : 6, cursor: "pointer" }}>
+                <Icon aria-hidden="true" style={{ width: dense ? 18 : 20, height: dense ? 18 : 20, color: "#746e69" }} />
+                <span style={{ fontSize: 13, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em", color: "#57534e" }}>{text}</span>
               </div>
             </ObjectUploader>
           </div>
@@ -344,7 +355,17 @@ function PhotoPicker({ photos, onAdd, onRemove, onError, label = "Fotos", hint, 
  * da dobra — quem abre a Gráfica quer trabalhar; o "Ver" fica à vista. É
  * texto: nenhuma regra mora aqui, só a descrição das que já existem.
  */
-function GuiaDaFila({ podeConferir, canProduce }: { podeConferir: boolean; canProduce: boolean }) {
+function GuiaDaFila({ podeConferir, canProduce, emLinha = false }: {
+  podeConferir: boolean; canProduce: boolean;
+  /**
+   * CELULAR: o gatilho vira um botão compacto DENTRO da linha de atalhos da
+   * barra de filtros, e o texto abre logo abaixo, na largura inteira (base
+   * 100% num flex que quebra). Em cartão próprio o guia fechado custava 44px
+   * + o espaçamento antes da primeira peça — em toda abertura da tela, para
+   * uma leitura que se faz uma vez.
+   */
+  emLinha?: boolean;
+}) {
   const [aberto, setAberto] = useState(false);
   const alternar = () => setAberto(a => !a);
   // As etapas são o MESMO StatusPill das linhas (lib/status): a pessoa aprende
@@ -354,6 +375,46 @@ function GuiaDaFila({ podeConferir, canProduce }: { podeConferir: boolean; canPr
   const item = (titulo: string, texto: React.ReactNode) => (
     <li style={{ lineHeight: 1.5 }}><strong style={{ color: TI.text }}>{titulo}</strong> — {texto}</li>
   );
+  const texto = aberto && (
+    <div style={{ padding: "0 14px 14px", fontSize: 13, color: "#57534e", display: "flex", flexDirection: "column", gap: 10 }}>
+      <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "6px 8px" }}>
+        {etapa("approved")}{seta}{etapa("inProduction")}{seta}{etapa("produced")}{seta}{etapa("conferred")}{seta}{etapa("delivered")}
+      </div>
+      <ul style={{ margin: 0, paddingLeft: 18, display: "flex", flexDirection: "column", gap: 4 }}>
+        {canProduce && item("Produzir", "lance o TOTAL já produzido da peça; o número substitui o anterior, não soma.")}
+        {podeConferir && item("Conferir", "com a peça pronta na mão, compare com a arte e tire a foto. Pode ser parcial. Depois disso saem as etiquetas e a entrega.")}
+        {item("Entregar", "registre que o material saiu para o evento: foto do comprovante (obrigatória) e, se quiser, quem recebeu.")}
+        {item("Por que a foto é obrigatória", "é a prova quando alguém disser que a peça não chegou ou veio errada.")}
+        {item("♻ Reaproveitar", "usar uma peça que já existe no estoque em vez de imprimir; essas unidades pulam a produção e vão direto para a conferência.")}
+        {item("+N un. (complemento)", "aumento pedido depois que a peça entrou em produção. Vira uma linha própria (ex.: #0062-C1), logo abaixo da original, com exatamente o que falta imprimir.")}
+        {item("Evento finalizado", "a peça continua aqui porque a papelada da entrega chega depois do evento. Nela só dá para conferir e entregar; os outros botões ficam cinza.")}
+        {item("No celular: fila × lote", "“Conferir (N)” e “Entregar (N)” abrem a fila, uma peça por vez com uma foto cada. “Em lote” marca várias peças e usa uma foto só para todas; sair do lote só desmarca, nada é registrado.")}
+        {item("Sem botão de atualizar", "a fila se atualiza sozinha — o “Atualizado há…” no topo diz a idade do dado. Se um colega registrar a mesma peça, ela muda aqui e o aviso aparece.")}
+      </ul>
+    </div>
+  );
+  if (emLinha) {
+    return (
+      <>
+        <button
+          type="button"
+          onClick={alternar}
+          aria-expanded={aberto}
+          data-testid="button-guia-da-fila"
+          style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 6, minHeight: 44, padding: "0 12px", background: "#ffffff", border: `1px solid ${TI.border}`, borderRadius: 999, cursor: "pointer", fontSize: 13, fontWeight: 700, color: TI.text, whiteSpace: "nowrap" }}
+        >
+          <ListChecks aria-hidden="true" style={{ width: 15, height: 15, color: "#0e7490", flexShrink: 0 }} />
+          Como funciona?
+          <ChevronDown aria-hidden="true" style={{ width: 14, height: 14, color: TI.secondary, transform: aberto ? "rotate(180deg)" : "none" }} />
+        </button>
+        {aberto && (
+          <div data-testid="guia-da-fila" style={{ flex: "1 1 100%", paddingTop: 12, background: TI.surface, border: `1px solid ${TI.border}`, borderRadius: 12 }}>
+            {texto}
+          </div>
+        )}
+      </>
+    );
+  }
   return (
     <div data-testid="guia-da-fila" style={{ background: TI.surface, border: `1px solid ${TI.border}`, borderRadius: 12 }}>
       <button
@@ -368,24 +429,7 @@ function GuiaDaFila({ podeConferir, canProduce }: { podeConferir: boolean; canPr
         <span style={{ fontSize: 12, fontWeight: 600, color: TI.secondary }}>{aberto ? "Recolher" : "Ver"}</span>
         <ChevronDown aria-hidden="true" style={{ width: 14, height: 14, color: TI.secondary, transform: aberto ? "rotate(180deg)" : "none" }} />
       </button>
-      {aberto && (
-        <div style={{ padding: "0 14px 14px", fontSize: 13, color: "#57534e", display: "flex", flexDirection: "column", gap: 10 }}>
-          <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "6px 8px" }}>
-            {etapa("approved")}{seta}{etapa("inProduction")}{seta}{etapa("produced")}{seta}{etapa("conferred")}{seta}{etapa("delivered")}
-          </div>
-          <ul style={{ margin: 0, paddingLeft: 18, display: "flex", flexDirection: "column", gap: 4 }}>
-            {canProduce && item("Produzir", "lance o TOTAL já produzido da peça; o número substitui o anterior, não soma.")}
-            {podeConferir && item("Conferir", "com a peça pronta na mão, compare com a arte e tire a foto. Pode ser parcial. Depois disso saem as etiquetas e a entrega.")}
-            {item("Entregar", "registre que o material saiu para o evento: foto do comprovante (obrigatória) e, se quiser, quem recebeu.")}
-            {item("Por que a foto é obrigatória", "é a prova quando alguém disser que a peça não chegou ou veio errada.")}
-            {item("♻ Reaproveitar", "usar uma peça que já existe no estoque em vez de imprimir; essas unidades pulam a produção e vão direto para a conferência.")}
-            {item("+N un. (complemento)", "aumento pedido depois que a peça entrou em produção. Vira uma linha própria (ex.: #0062-C1), logo abaixo da original, com exatamente o que falta imprimir.")}
-            {item("Evento finalizado", "a peça continua aqui porque a papelada da entrega chega depois do evento. Nela só dá para conferir e entregar; os outros botões ficam cinza.")}
-            {item("No celular: fila × lote", "“Conferir (N)” e “Entregar (N)” abrem a fila, uma peça por vez com uma foto cada. “Em lote” marca várias peças e usa uma foto só para todas; sair do lote só desmarca, nada é registrado.")}
-            {item("Sem botão de atualizar", "a fila se atualiza sozinha — o “Atualizado há…” no topo diz a idade do dado. Se um colega registrar a mesma peça, ela muda aqui e o aviso aparece.")}
-          </ul>
-        </div>
-      )}
+      {texto}
     </div>
   );
 }
@@ -438,9 +482,17 @@ function BulkActionDialog({
   const [pecasDesenhadas, setPecasDesenhadas] = useState(LINHAS_POR_LOTE);
   useEffect(() => { if (open) setPecasDesenhadas(LINHAS_POR_LOTE); }, [open]);
   const pecasNaLista = items.length > pecasDesenhadas ? items.slice(0, pecasDesenhadas) : items;
+  // Teclado virtual aberto no "Responsável": o modal encolhe para a área
+  // visível e o rodapé com o Confirmar continua à vista (ver area-visivel.ts).
+  const superficieRef = useRef<HTMLDivElement>(null);
+  useAcompanharAreaVisivel(superficieRef, "centro", open && isMobileLote);
+  // Celular: ≥ 12px para informação, 16px nos campos (abaixo disso o iOS dá
+  // zoom na página ao focar) e 16px de margem interna (24 roubava largura).
+  const fs = (n: number) => (isMobileLote ? Math.max(12, n) : n);
+  const pad = isMobileLote ? 16 : 24;
   return (
     <Dialog open={open} onOpenChange={o => { if (!o) onClose(); }}>
-      <DialogContent className={HIDE_NATIVE_CLOSE} style={modalSurface(460)}>
+      <DialogContent ref={superficieRef} className={HIDE_NATIVE_CLOSE} style={modalSurface(460)}>
         <DialogTitle className="sr-only">{isConfer ? "Confirmar Conferência em Lote" : "Confirmar Entrega em Lote"}</DialogTitle>
         <DialogDescription className="sr-only">{isConfer ? "Registre a conferência de múltiplas peças de uma vez" : "Registre a entrega de múltiplas peças de uma vez"}</DialogDescription>
 
@@ -465,10 +517,10 @@ function BulkActionDialog({
             quebra ao primeiro subtítulo que quebre em duas linhas. Com o teto no
             DialogContent (via `modalSurface`), `flex: 1 1 auto` + `minHeight: 0`
             entrega a este corpo exatamente o que sobrar do cabeçalho medido. */}
-        <div style={{ padding: "20px 24px", display: "flex", flexDirection: "column", gap: 18, background: "#fafaf9", overflowY: "auto", flex: "1 1 auto", minHeight: 0 }}>
+        <div style={{ padding: `20px ${pad}px`, display: "flex", flexDirection: "column", gap: 18, background: "#fafaf9", overflowY: "auto", flex: "1 1 auto", minHeight: 0 }}>
           {!isConfer && (
             <div>
-              <label style={{ display: "block", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#746e69", marginBottom: 10 }}>
+              <label style={{ display: "block", fontSize: fs(10), fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#746e69", marginBottom: 10 }}>
                 Responsável pelo Recebimento
               </label>
               <input
@@ -484,7 +536,7 @@ function BulkActionDialog({
                 // teclado virtual por cima da FOTO (a parte obrigatória) num
                 // campo opcional — um toque a mais só para fechá-lo.
                 autoFocus={!isMobileLote}
-                style={{ width: "100%", boxSizing: "border-box", padding: "14px 16px", background: "#fff", border: "1.5px solid #e7e5e4", borderRadius: 12, fontSize: 15, fontWeight: 600, color: TI.text, transition: "border-color 0.15s, box-shadow 0.15s" }}
+                style={{ width: "100%", boxSizing: "border-box", padding: "14px 16px", background: "#fff", border: "1.5px solid #e7e5e4", borderRadius: 12, fontSize: 16, fontWeight: 600, color: TI.text, transition: "border-color 0.15s, box-shadow 0.15s" }}
                 onFocus={e => { e.currentTarget.style.borderColor = tint; e.currentTarget.style.boxShadow = `0 0 0 3px ${tint}22`; }}
                 onBlur={e => { e.currentTarget.style.borderColor = "#e7e5e4"; e.currentTarget.style.boxShadow = "none"; }}
               />
@@ -504,7 +556,7 @@ function BulkActionDialog({
 
           {/* Observações */}
           <div>
-            <label style={{ display: "block", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#746e69", marginBottom: 8 }}>
+            <label style={{ display: "block", fontSize: fs(10), fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#746e69", marginBottom: 8 }}>
               Observações <span style={{ textTransform: "none", fontWeight: 400, color: "#746e69", letterSpacing: 0 }}>(opcional)</span>
             </label>
             <textarea
@@ -512,7 +564,7 @@ function BulkActionDialog({
               onChange={e => onNotesChange(e.target.value)}
               placeholder={isConfer ? "Ex.: conferido contra o romaneio, sem avarias..." : "Ex.: entregue na portaria, aguardando retirada..."}
               rows={2}
-              style={{ width: "100%", boxSizing: "border-box", padding: "12px 14px", background: "#fff", border: "1.5px solid #e7e5e4", borderRadius: 12, fontSize: 13, fontFamily: "inherit", color: TI.text, resize: "none", lineHeight: 1.5 }}
+              style={{ width: "100%", minHeight: 64, boxSizing: "border-box", padding: "12px 14px", background: "#fff", border: "1.5px solid #e7e5e4", borderRadius: 12, fontSize: isMobileLote ? 16 : 13, fontFamily: "inherit", color: TI.text, resize: "none", lineHeight: 1.5 }}
             />
           </div>
 
@@ -521,7 +573,7 @@ function BulkActionDialog({
               repetido cinco vezes não diz ao operador o que ele está
               confirmando. maxHeight maior porque a linha agora tem miniatura. */}
           <div>
-            <label style={{ display: "block", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#746e69", marginBottom: 8 }}>
+            <label style={{ display: "block", fontSize: fs(10), fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#746e69", marginBottom: 8 }}>
               Peças selecionadas <span style={{ textTransform: "none", fontWeight: 400, letterSpacing: 0 }}>({count})</span>
             </label>
             <div style={{ background: "#fff", border: "1px solid #e7e5e4", borderRadius: 12, maxHeight: 232, overflowY: "auto" }}>
@@ -545,8 +597,10 @@ function BulkActionDialog({
                     )}
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
-                      <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, fontWeight: 700, color: tint, flexShrink: 0 }}>{item.displayId}</span>
+                    {/* flexWrap: código + selo Kit + "Compl. de #0062" não cabiam
+                        numa linha em 360px e empurravam a caixa para o lado. */}
+                    <div style={{ display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap", rowGap: 2 }}>
+                      <span style={{ fontFamily: "'DM Mono', monospace", fontSize: fs(11), fontWeight: 700, color: isConfer ? tint : "#c2410c", flexShrink: 0 }}>{item.displayId}</span>
                       <SeloKit peca={item} style={{ flexShrink: 0 }} />
                       {/* O complemento tem a MESMA arte, o mesmo tipo e quase a
                           mesma descrição da peça original: numa conferência em
@@ -557,13 +611,13 @@ function BulkActionDialog({
                         <span
                           title={item.complementReason ? `Complemento — motivo: ${item.complementReason}` : "Peça complementar (aumento de quantidade)"}
                           data-testid={`badge-complemento-lote-${item.id}`}
-                          style={{ flexShrink: 0, display: "inline-flex", alignItems: "center", gap: 3, backgroundColor: CO.solidBg, color: CO.solidText, borderRadius: 5, padding: "1px 6px", fontSize: 9, fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase", whiteSpace: "nowrap" }}
+                          style={{ flexShrink: 0, display: "inline-flex", alignItems: "center", gap: 3, backgroundColor: CO.solidBg, color: CO.solidText, borderRadius: 5, padding: "1px 6px", fontSize: fs(9), fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase", whiteSpace: "nowrap" }}
                         >
                           <PlusCircle style={{ width: 9, height: 9 }} />
                           Compl. de {parentDisplayIdOf(item)}
                         </span>
                       )}
-                      <span style={{ fontSize: 13, fontWeight: 600, color: TI.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.type}</span>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: TI.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>{item.type}</span>
                     </div>
                     {item.description && item.description !== item.type && (
                       <div style={{ fontSize: 12, color: TI.secondary, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
@@ -571,7 +625,7 @@ function BulkActionDialog({
                       </div>
                     )}
                   </div>
-                  <span style={{ fontSize: 11, fontWeight: 700, color: TI.secondary, flexShrink: 0 }}>{qtyFor(item)} un.</span>
+                  <span style={{ fontSize: fs(11), fontWeight: 700, color: TI.secondary, flexShrink: 0 }}>{qtyFor(item)} un.</span>
                 </div>
               ))}
               <SentinelaDaLista
@@ -588,7 +642,9 @@ function BulkActionDialog({
               de peças, o Confirmar ficava abaixo da dobra no celular e era
               preciso rolar para achá-lo depois de tirar a foto — o mesmo
               conserto que os modais individuais já tinham (modalActionsStyle). */}
-          <div style={{ display: "flex", gap: 10, position: "sticky", bottom: -20, margin: "0 -24px -20px", padding: "12px 24px calc(12px + env(safe-area-inset-bottom))", background: "#fafaf9", borderTop: "1px solid #e7e5e4" }}>
+          {/* Recorte seguro em LONGOS (paddingBottom): o atalho `padding` com
+              env() some inteiro no parser do jsdom e o teste não o enxergaria. */}
+          <div style={{ display: "flex", gap: 10, position: "sticky", bottom: -20, margin: `0 -${pad}px -20px`, paddingTop: 12, paddingLeft: pad, paddingRight: pad, paddingBottom: "calc(12px + env(safe-area-inset-bottom))", background: "#fafaf9", borderTop: "1px solid #e7e5e4" }}>
             <button
               type="button"
               onClick={onClose}
@@ -743,6 +799,11 @@ export default function Grafica() {
   const removePhoto = (url: string) => setPhotos(prev => prev.filter(p => p !== url));
   const [modalNotes, setModalNotes] = useState("");
   const [reuseConfirmItemId, setReuseConfirmItemId] = useState<string | null>(null);
+  // Menu "⋯" das ações SECUNDÁRIAS da linha na tabela compacta (ver a célula
+  // de Ações): qual linha está com ele aberto.
+  const [menuAcoesId, setMenuAcoesId] = useState<string | null>(null);
+  // Abre para CIMA quando falta espaço embaixo na janela (últimas linhas).
+  const [menuParaCima, setMenuParaCima] = useState(false);
   const [reuseQty, setReuseQty] = useState(0); // reaproveitamento parcial
   const [correctReuseItemId, setCorrectReuseItemId] = useState<string | null>(null);
   const [correctReuseQty, setCorrectReuseQty] = useState(0); // quantidade corrigida
@@ -762,6 +823,19 @@ export default function Grafica() {
   const [bulkConferPhotos, setBulkConferPhotos] = useState<string[]>([]);
   const addBulkConferPhoto = (url: string) => setBulkConferPhotos(prev => [...prev, convertGCSUrlToLocalPath(url)]);
   const isMobile = useIsMobile();
+  /** Celular: nenhuma informação abaixo de 12px (o galpão lê no sol, de braço esticado). */
+  const fsMin = (n: number) => (isMobile ? Math.max(12, n) : n);
+  /**
+   * Alvo de 44px num botão que mora NO MEIO DE UMA FRASE (resumo da lista):
+   * a altura vira área de toque e a margem negativa devolve a linha de texto
+   * ao tamanho normal — o parágrafo não engorda, o dedo acerta.
+   */
+  const alvoNoTexto: React.CSSProperties = isMobile
+    ? { display: "inline-flex", alignItems: "center", minHeight: 44, margin: "-14px 0", verticalAlign: "middle" }
+    : {};
+  // Folha de filtros do celular: acompanha o teclado virtual (area-visivel.ts).
+  const folhaFiltrosRef = useRef<HTMLDivElement>(null);
+  useAcompanharAreaVisivel(folhaFiltrosRef, "tela-cheia", isMobile && filtrosAbertos);
   // DENSIDADE PELA LARGURA DO CONTEÚDO, não da janela (mesma régua do Painel
   // Geral). O tablet do galpão em pé (768–1024px) com a sidebar aberta deixa
   // 500–700px de conteúdo — e `isMobile` respondia "desktop": caía na tabela
@@ -770,9 +844,29 @@ export default function Grafica() {
   // entre 820 e 1180 a tabela funde colunas secundárias. O padding de 24px de
   // cada lado sai da conta porque a medida é da caixa da raiz.
   const { ref: raizRef, width: larguraRaiz } = useElementSize<HTMLDivElement>();
-  const densidade = larguraRaiz === 0 ? (isMobile ? "cards" : "full") : densityFromWidth(larguraRaiz - (isMobile ? 24 : 48));
+  const larguraConteudo = larguraRaiz - (isMobile ? 24 : 48);
+  // ── A TABELA QUE NÃO CABE (dono, 17/09: "cortando quando o menu está aberto,
+  // cortando o status") ──────────────────────────────────────────────────────
+  // Os limites 820/1180 são um CHUTE sobre a largura mínima da tabela — e ela
+  // depende do conteúdo: descrição longa, selos, quantos botões a linha tem.
+  // Com a barra lateral aberta (~1.380px úteis) a tabela cheia passava da
+  // caixa: a coluna de Ações (sticky à direita) cobria o Status ("PR", "há 1")
+  // e o botão principal saía pela borda. Agora a tabela se MEDE depois de
+  // desenhada: se rolou para o lado, esta largura de conteúdo fica marcada
+  // como "não cabe" para aquela densidade e a tela desce um degrau (cheia →
+  // compacta → cartões). Marca a LARGURA, não um booleano: alargar a janela
+  // além dela tenta de novo o degrau de cima (e, se estourar, remarca).
+  const [estouroEm, setEstouroEm] = useState<{ full: number; compact: number }>({ full: 0, compact: 0 });
+  const densidadeBase = larguraRaiz === 0 ? (isMobile ? "cards" : "full") : densityFromWidth(larguraConteudo);
+  const densidade = larguraRaiz === 0 ? densidadeBase
+    : densidadeBase === "full" && larguraConteudo <= estouroEm.full
+      ? (larguraConteudo <= estouroEm.compact ? "cards" : "compact")
+    : densidadeBase === "compact" && larguraConteudo <= estouroEm.compact ? "cards"
+    : densidadeBase;
   const usaCards = isMobile || densidade === "cards";
   const compacto = !usaCards && densidade === "compact";
+  /** A caixa de rolagem lateral da tabela — é nela que se mede o estouro. */
+  const tabelaRolagemRef = useRef<HTMLDivElement>(null);
   // Colunas da tabela. Eram dez, com REAPROV. e PROD como colunas próprias
   // quase sempre "—": viraram linhas pequenas DENTRO da célula de Qtd, onde a
   // pergunta "quanto desta peça já andou?" nasce. Na densidade compacta,
@@ -1128,6 +1222,7 @@ export default function Grafica() {
       queryClient.invalidateQueries({ queryKey: ["/api/items/approved"] });
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
       setReuseConfirmItemId(null);
+      setMenuAcoesId(null);
       const falta = (updated?.quantity ?? 0) - (updated?.reuseQty ?? 0);
       toast({
         title: "Reaproveitamento registrado",
@@ -1152,6 +1247,7 @@ export default function Grafica() {
       queryClient.invalidateQueries({ queryKey: ["/api/items/approved"] });
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
       setCorrectReuseItemId(null);
+      setMenuAcoesId(null);
       const qty = Number(updated?.quantity) || 0;
       const reused = Number(updated?.reuseQty) || 0;
       toast({
@@ -1179,6 +1275,7 @@ export default function Grafica() {
       queryClient.invalidateQueries({ queryKey: ["/api/items/approved"] });
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
       setCancelComplementId(null);
+      setMenuAcoesId(null);
       toast({ title: "Complemento cancelado", description: `${vars.displayId} removido da fila.` });
     },
     onError: (error: Error) => {
@@ -1720,6 +1817,16 @@ export default function Grafica() {
     setBannerComplemento(null);
   };
 
+  // Modais de produzir/conferir/entregar e de devolver: no celular, com o
+  // teclado virtual aberto, encolhem para a área visível — o rodapé com o
+  // Confirmar fica logo acima do teclado (ver components/grafica/area-visivel).
+  const modalPecaRef = useRef<HTMLDivElement>(null);
+  useAcompanharAreaVisivel(modalPecaRef, "centro", isMobile && !!selectedItem && !!modalType);
+  const modalDevolverRef = useRef<HTMLDivElement>(null);
+  useAcompanharAreaVisivel(modalDevolverRef, "centro", isMobile && !!devolverItem);
+  /** Margem interna do corpo dos modais: 24 roubava 48px de largura em 360. */
+  const padModal = isMobile ? 16 : 24;
+
   const handleSubmitProduction = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedItem) return;
@@ -1813,17 +1920,28 @@ export default function Grafica() {
   // Barra de ações dos modais. No celular o conteúdo (arte grande + specs +
   // fotos + observação) passa da altura da tela, e o botão de confirmar ficava
   // no fim da rolagem: depois de tirar a foto era preciso procurar por ele.
+  //
+  // COLADA NA BORDA DE BAIXO, com o recorte seguro. Era `bottom: 0` dentro de
+  // um corpo com 24px de padding: o sticky respeita o padding do scrollport,
+  // então a barra parava 24px ACIMA da borda e o conteúdo rolava visível por
+  // baixo dela; e sem `env(safe-area-inset-bottom)` o Confirmar encostava no
+  // home indicator do iPhone. `bottom` e margens negativas iguais ao padding do
+  // corpo (o mesmo conserto do diálogo de lote). É a ÚLTIMA peça do formulário:
+  // o aviso "falta a foto" mora dentro dela, em vez de depois.
   const modalActionsStyle: React.CSSProperties = {
-    display: "flex", gap: 10,
-    position: "sticky", bottom: 0,
+    display: "flex", flexWrap: "wrap", gap: 10,
+    position: "sticky", bottom: -padModal,
     backgroundColor: "#ffffff",
-    paddingTop: 12, marginTop: -4,
+    marginTop: -4, marginLeft: -padModal, marginRight: -padModal, marginBottom: -padModal,
+    paddingTop: 12, paddingLeft: padModal, paddingRight: padModal,
+    paddingBottom: `calc(12px + env(safe-area-inset-bottom))`,
+    borderTop: "1px solid #f1f0ef",
     boxShadow: "0 -8px 12px -8px rgba(28,25,23,0.18)",
   };
 
   const renderNotesField = (placeholder: string) => (
     <div>
-      <label htmlFor="input-observacao-modal" style={{ display: "block", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#746e69", marginBottom: 8 }}>
+      <label htmlFor="input-observacao-modal" style={{ display: "block", fontSize: fsMin(10), fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#746e69", marginBottom: 8 }}>
         Observação <span style={{ color: "#746e69", textTransform: "none", letterSpacing: 0, fontWeight: 400 }}>(opcional)</span>
       </label>
       <textarea
@@ -1833,7 +1951,7 @@ export default function Grafica() {
         placeholder={placeholder}
         rows={2}
         data-testid="input-notes"
-        style={{ width: "100%", padding: "10px 14px", backgroundColor: "#e8e8e7", border: "1px solid transparent", borderRadius: 8, fontSize: 13, color: TI.text, resize: "vertical", fontFamily: "inherit" }}
+        style={{ width: "100%", minHeight: 64, boxSizing: "border-box", padding: "10px 14px", backgroundColor: "#e8e8e7", border: "1px solid transparent", borderRadius: 8, fontSize: isMobile ? 16 : 13, color: TI.text, resize: "vertical", fontFamily: "inherit" }}
       />
     </div>
   );
@@ -2257,8 +2375,60 @@ export default function Grafica() {
     reuseConfirmItemId === item.id ? reuseQty : null,
     correctReuseItemId === item.id ? correctReuseQty : null,
     cancelComplementId === item.id,
+    // o menu "⋯" das ações secundárias (tabela compacta) aberto NESTA linha
+    menuAcoesId === item.id,
+    // …ou aberto por uma edição em linha dele (z-index da célula), e o lado
+    idMenuAberto === item.id,
+    idMenuAberto === item.id && menuParaCima,
     ...daPosicao,
   ];
+
+  // Mede a tabela depois de desenhada (ver `estouroEm`). useLayoutEffect: a
+  // troca de densidade acontece antes da pintura — ninguém vê a tabela cortada
+  // piscar. Roda quando muda a largura, a densidade ou o recorte desenhado; não
+  // a cada tecla. No jsdom scrollWidth é 0 e nada acontece.
+  useLayoutEffect(() => {
+    const caixa = tabelaRolagemRef.current;
+    if (!caixa || usaCards || larguraRaiz === 0) return;
+    if (caixa.scrollWidth - caixa.clientWidth > 1) {
+      const chave = compacto ? "compact" : "full";
+      setEstouroEm(e => (e[chave] >= larguraConteudo ? e : { ...e, [chave]: larguraConteudo }));
+    }
+    // bulkOn: sair do lote devolve os botões à coluna de Ações — a mesma
+    // largura de tela pode deixar de caber.
+  }, [larguraRaiz, larguraConteudo, compacto, usaCards, linhasRenderizadas, bulkOn]);
+
+  // Menu "⋯": fecha ao tocar fora dele ou com Esc. O menu fica aberto também
+  // enquanto uma edição em linha DELE está aberta (Reaproveitar, Corrigir,
+  // Cancelar complemento) — então "aberto" e "fechar" olham os QUATRO estados.
+  // Antes só o menuAcoesId: Esc no meio de um Reaproveitar deixava o menu na
+  // tela, sem listener e atrás da célula sticky da linha de baixo.
+  // Só na tabela compacta: na cheia e nos cartões essas edições são inline e
+  // continuam com o próprio Cancelar, como sempre.
+  const idMenuAberto = compacto ? (menuAcoesId ?? reuseConfirmItemId ?? correctReuseItemId ?? cancelComplementId) : null;
+  const fecharMenuAcoes = () => {
+    setMenuAcoesId(null);
+    setReuseConfirmItemId(null);
+    setCorrectReuseItemId(null);
+    setCancelComplementId(null);
+  };
+  useEffect(() => {
+    if (!idMenuAberto) return;
+    const fora = (e: PointerEvent) => {
+      const alvo = e.target as Element | null;
+      if (!alvo?.closest?.(`[data-menu-acoes="${idMenuAberto}"]`)) fecharMenuAcoes();
+    };
+    const esc = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      fecharMenuAcoes();
+      // O menu vira display:none e o foco cairia no <body>: devolve ao "⋯".
+      document.querySelector<HTMLElement>(`button[data-menu-acoes="${idMenuAberto}"]`)?.focus();
+    };
+    document.addEventListener("pointerdown", fora);
+    window.addEventListener("keydown", esc);
+    return () => { document.removeEventListener("pointerdown", fora); window.removeEventListener("keydown", esc); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [idMenuAberto]);
 
   // ── Botões do topo ────────────────────────────────────────────────────────
   // UMA ação primária por contexto. No celular a primária é a FILA (uma foto
@@ -2282,8 +2452,10 @@ export default function Grafica() {
   };
   const exportDesabilitado = isExporting || filteredItems.length === 0;
 
+  // paddingBottom no lote: a barra fixa do celular tem DUAS linhas (≈120px +
+  // recorte seguro); com os 88 do desktop ela cobria a última peça.
   return (
-    <div ref={raizRef} style={{ display: "flex", flexDirection: "column", gap: isMobile ? 12 : 16, padding: isMobile ? "12px 12px" : 24, paddingBottom: bulkOn ? 'calc(88px + env(safe-area-inset-bottom))' : isMobile ? 12 : 24, backgroundColor: TI.bg, height: "100%", overflowY: "auto" }}>
+    <div ref={raizRef} style={{ display: "flex", flexDirection: "column", gap: isMobile ? 10 : 16, padding: isMobile ? "12px 12px" : 24, paddingBottom: bulkOn ? (isMobile ? 'calc(140px + env(safe-area-inset-bottom))' : 'calc(88px + env(safe-area-inset-bottom))') : isMobile ? 12 : 24, backgroundColor: TI.bg, height: "100%", overflowY: "auto" }}>
 
       {/* ── Cabeçalho ──
           Título + uma linha de contexto à esquerda (o que se faz aqui e de
@@ -2308,7 +2480,7 @@ export default function Grafica() {
               <span
                 data-testid="selo-atualizado"
                 title={new Date(dataUpdatedAt).toLocaleString("pt-BR")}
-                style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11, color: TI.secondary, whiteSpace: "nowrap" }}
+                style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 12, color: TI.secondary, whiteSpace: "nowrap" }}
               >
                 {isFetching && <RotateCcw aria-hidden="true" className="animate-spin" style={{ width: 11, height: 11 }} />}
                 Atualizado {fmtRelative(new Date(dataUpdatedAt).toISOString(), agora)}
@@ -2339,13 +2511,13 @@ export default function Grafica() {
             único lugar de ação, e o selo "modo lote ativo" que ficava aqui
             virou o rótulo da própria barra (é onde o olho já está). */}
         {!bulkOn && (
-          <div style={{ display: "flex", alignItems: "center", gap: isMobile ? 6 : 8, flexWrap: "wrap", width: isMobile ? "100%" : undefined }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", width: isMobile ? "100%" : undefined }}>
             {/* CONFERIR / ENTREGAR EM FILA — o caminho do celular, e por isso a
                 primária dele: sólidas, lado a lado, meia largura cada. O lote
                 continua sendo o da bancada (uma foto para várias peças); a fila
                 é uma foto POR peça, que é o registro que a conferência pede. */}
             {isMobile && (podeConferir && conferableInFilter.length > 0 || deliverableInFilter.length > 0) && (
-              <div style={{ display: "flex", gap: 6, width: "100%" }}>
+              <div style={{ display: "flex", gap: 8, width: "100%" }}>
                 {isMobile && podeConferir && conferableInFilter.length > 0 && !bulkOn && (
                   <button
                     onClick={() => setGalpao("confer")}
@@ -2385,9 +2557,11 @@ export default function Grafica() {
             {/* Dois botões "Conferir" lado a lado (a fila acima e o lote logo
                 abaixo) sem dizer a diferença era a primeira dúvida de quem chega.
                 Uma linha curta resolve sem abrir nada. */}
+            {/* UMA linha em 360px (eram duas, 75 caracteres a 11,5px): a mesma
+                diferença, dita com as palavras dos botões. */}
             {isMobile && (podeConferir && conferableInFilter.length > 0 || deliverableInFilter.length > 0) && (
-              <p data-testid="dica-fila-lote" style={{ margin: 0, width: "100%", fontSize: 11.5, color: TI.secondary, lineHeight: 1.4 }}>
-                <strong style={{ color: "#44403c" }}>Acima:</strong> uma peça por vez, uma foto cada · <strong style={{ color: "#44403c" }}>Em lote:</strong> várias peças, uma foto só
+              <p data-testid="dica-fila-lote" style={{ margin: 0, width: "100%", fontSize: 12, color: TI.secondary, lineHeight: 1.35 }}>
+                <strong style={{ color: "#44403c" }}>Fila:</strong> uma foto por peça · <strong style={{ color: "#44403c" }}>Lote:</strong> uma foto só
               </p>
             )}
             {/* Conferência em lote — só para quem pode conferir (gate do servidor).
@@ -2458,7 +2632,7 @@ export default function Grafica() {
           São SEIS cards (cinco status + Total): `auto-fit` fecha a linha em
           qualquer largura e degrada 6→4→3→2 sem nunca deixar órfão.
           Os números seguem a lista (regra do dono) — ver `stats`. */}
-      <div role="group" aria-label="Filtrar a fila por etapa" style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(3, 1fr)" : "repeat(auto-fit, minmax(150px, 1fr))", gap: isMobile ? 6 : 12 }}>
+      <div role="group" aria-label="Filtrar a fila por etapa" style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(3, 1fr)" : "repeat(auto-fit, minmax(150px, 1fr))", gap: isMobile ? 8 : 12 }}>
         {[
           // O KPI Liberados agrega dois status; ele seleciona os DOIS valores
           // no filtro (o filtro em si é estrito — ver matchesFilters).
@@ -2488,12 +2662,14 @@ export default function Grafica() {
               onClick={() => patchFiltros({ status: isActive ? [] : kpi.filterVals })}
               data-testid={kpi.testId}
               style={{
-                display: "block", width: "100%", minWidth: 0, textAlign: "left", font: "inherit",
+                display: "block", width: "100%", minWidth: 0, minHeight: 44, textAlign: "left", font: "inherit",
                 backgroundColor: isActive ? m.text : TI.surface,
                 border: "none",
                 borderLeft: `4px solid ${m.dot}`,
                 borderRadius: 8,
-                padding: isMobile ? "10px 10px" : "16px 18px",
+                // Celular: 7px em vez de 10 — os dois degraus de cartões
+                // custavam 120px antes da busca; o alvo segue ≥ 44 (minHeight).
+                padding: isMobile ? "7px 8px" : "16px 18px",
                 // Anel do estado ativo em boxShadow — o outline fica livre para
                 // o anel de foco do navegador.
                 boxShadow: isActive ? `0 4px 16px ${m.dot}33, 0 0 0 2px ${m.dot}` : "0 1px 4px rgba(0,0,0,0.06)",
@@ -2503,10 +2679,16 @@ export default function Grafica() {
               onMouseEnter={e => { if (!isActive) e.currentTarget.style.backgroundColor = `${m.dot}0f`; }}
               onMouseLeave={e => { if (!isActive) e.currentTarget.style.backgroundColor = TI.surface; }}
             >
-              <div style={{ fontSize: 10, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.06em", color: isActive ? "rgba(255,255,255,0.75)" : TI.secondary, marginBottom: isMobile ? 3 : 6, fontFamily: "'Space Grotesk', sans-serif", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{kpi.label}</div>
+              {/* Celular: 12px em caixa normal (10px maiúsculo não se lia no
+                  sol) e cabe inteiro em 3 colunas de 360px. O ✓ diz "ativo" sem
+                  depender da cor; 0.92 de branco passa AA sobre o tom 700. */}
+              <div style={{ display: "flex", alignItems: "center", gap: 3, fontSize: isMobile ? 12 : 10, fontWeight: isMobile ? 800 : 900, textTransform: isMobile ? "none" : "uppercase", letterSpacing: isMobile ? 0 : "0.06em", color: isActive ? "rgba(255,255,255,0.92)" : TI.secondary, marginBottom: isMobile ? 2 : 6, fontFamily: "'Space Grotesk', sans-serif", whiteSpace: "nowrap", overflow: "hidden", lineHeight: 1.2 }}>
+                {isActive && <Check aria-hidden="true" style={{ width: 12, height: 12, flexShrink: 0 }} />}
+                <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{kpi.label}</span>
+              </div>
               {/* Carregando mostra "—": o "0" em todos os cartões por meio
                   segundo dizia "fila vazia" antes de a fila chegar. */}
-              <div style={{ fontSize: isMobile ? 22 : 32, fontWeight: 900, letterSpacing: "-0.03em", fontFamily: "'Space Grotesk', sans-serif", color: isActive ? "#ffffff" : isLoading ? "#78716c" : m.text, lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>{isLoading ? "—" : kpi.value}</div>
+              <div style={{ fontSize: isMobile ? 20 : 32, fontWeight: 900, letterSpacing: "-0.03em", fontFamily: "'Space Grotesk', sans-serif", color: isActive ? "#ffffff" : isLoading ? "#78716c" : m.text, lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>{isLoading ? "—" : kpi.value}</div>
               {!isMobile && <div style={{ fontSize: 11, color: isActive ? "rgba(255,255,255,0.7)" : TI.secondary, marginTop: 4, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{isActive ? "Clique para limpar" : kpi.sub}</div>}
             </button>
           );
@@ -2520,9 +2702,9 @@ export default function Grafica() {
           onClick={() => patchFiltros({ status: [] })}
           data-testid="stat-total"
           style={{
-            display: "block", width: "100%", minWidth: 0, textAlign: "left", font: "inherit",
+            display: "block", width: "100%", minWidth: 0, minHeight: 44, textAlign: "left", font: "inherit",
             backgroundColor: TI.text, border: "none", borderLeft: `4px solid ${TI.accent}`, borderRadius: 8,
-            padding: isMobile ? "10px 10px" : "16px 18px",
+            padding: isMobile ? "7px 8px" : "16px 18px",
             // Estado ativo em boxShadow, outline livre para o foco (ver acima).
             boxShadow: filtros.status.length === 0 ? `0 4px 16px rgba(0,0,0,0.14), 0 0 0 2px ${TI.accent}` : "0 4px 16px rgba(0,0,0,0.14)",
             cursor: "pointer", transition: "opacity 0.15s",
@@ -2530,8 +2712,13 @@ export default function Grafica() {
           onMouseEnter={e => (e.currentTarget.style.opacity = "0.85")}
           onMouseLeave={e => (e.currentTarget.style.opacity = "1")}
         >
-          <div style={{ fontSize: 10, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.06em", color: "rgba(255,255,255,0.72)", marginBottom: isMobile ? 3 : 6, fontFamily: "'Space Grotesk', sans-serif" }}>Total</div>
-          <div style={{ fontSize: isMobile ? 22 : 32, fontWeight: 900, letterSpacing: "-0.03em", fontFamily: "'Space Grotesk', sans-serif", color: "#ffffff", lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>{isLoading ? "—" : stats.total}</div>
+          {/* O anel laranja era o ÚNICO sinal de "ativo" no Total (o cartão é
+              sempre escuro): o ✓ diz o mesmo sem depender de cor. */}
+          <div style={{ display: "flex", alignItems: "center", gap: 3, fontSize: isMobile ? 12 : 10, fontWeight: isMobile ? 800 : 900, textTransform: isMobile ? "none" : "uppercase", letterSpacing: isMobile ? 0 : "0.06em", color: "rgba(255,255,255,0.85)", marginBottom: isMobile ? 2 : 6, fontFamily: "'Space Grotesk', sans-serif", lineHeight: 1.2 }}>
+            {filtros.status.length === 0 && <Check aria-hidden="true" data-testid="stat-total-ativo" style={{ width: 12, height: 12, flexShrink: 0 }} />}
+            Total
+          </div>
+          <div style={{ fontSize: isMobile ? 20 : 32, fontWeight: 900, letterSpacing: "-0.03em", fontFamily: "'Space Grotesk', sans-serif", color: "#ffffff", lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>{isLoading ? "—" : stats.total}</div>
           {!isMobile && <div style={{ fontSize: 11, color: "rgba(255,255,255,0.72)", marginTop: 4 }}>{filtros.status.length === 0 ? "Todos selecionados" : "Ver todos"}</div>}
         </button>
       </div>
@@ -2539,7 +2726,9 @@ export default function Grafica() {
       {/* ── Como funciona a fila ── entre as abas (o fluxo) e os filtros (o
           recorte): é onde a pergunta "o que é cada etapa?" nasce. Some no
           modo lote, que já tem a própria orientação na barra de baixo. */}
-      {!bulkOn && <GuiaDaFila podeConferir={podeConferir} canProduce={canProduce} />}
+      {/* No celular o gatilho mora na segunda linha da barra de filtros (ver
+          lá): em cartão próprio custava 54px de dobra antes da primeira peça. */}
+      {!bulkOn && !isMobile && <GuiaDaFila podeConferir={podeConferir} canProduce={canProduce} />}
 
       {/* ── Filters Bar ───────────────────────────────────────────────────────
           DESKTOP: a faixa horizontal de sempre — os selects viraram um map
@@ -2624,14 +2813,16 @@ export default function Grafica() {
         // inteira — senão "Mais filtros" quebrava sozinho para a linha de
         // baixo, o mesmo defeito que esta barra tinha no notebook.
         const campoBusca = (
-          <div style={{ position: "relative", flex: isMobile ? "1" : usaCards ? "1 1 100%" : "1 1 280px", minWidth: isMobile ? 0 : usaCards ? 0 : 280 }}>
+          <div style={{ position: "relative", flex: isMobile ? "1 1 auto" : usaCards ? "1 1 100%" : "1 1 280px", minWidth: isMobile ? 0 : usaCards ? 0 : 280 }}>
             {/* #78716c em vez de TI.muted (#a8a29e): 2,06:1 sobre o fundo
                 #e8e8e7 do input reprovava o mínimo de 3:1 de elemento não
                 textual. E a borda de 1px devolve ao campo a cara de campo. */}
             <Search style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", width: 14, height: 14, color: "#78716c" }} />
             <input
               type="text"
-              placeholder="Buscar por ID, descrição ou evento"
+              // No celular a busca divide a linha com "Filtros": o texto longo
+              // saía cortado no meio ("Buscar por ID, descr").
+              placeholder={isMobile ? "Código, peça ou evento" : "Buscar por ID, descrição ou evento"}
               aria-label="Buscar peças"
               value={buscaInput}
               onChange={e => setBuscaInput(e.target.value)}
@@ -2671,7 +2862,7 @@ export default function Grafica() {
               title={`Limpar: ${descricaoFiltros.join(" · ")}`}
               style={{
                 display: "inline-flex", alignItems: "center", gap: 4,
-                minHeight: isMobile ? 44 : 32, padding: isMobile ? "0 14px" : "0 8px",
+                minHeight: isMobile ? 44 : 32, padding: isMobile ? "0 12px" : "0 8px",
                 background: isMobile ? "#ffffff" : "transparent", color: TI.text,
                 border: isMobile ? `1px solid ${TI.border}` : "none", borderRadius: 8,
                 fontSize: isMobile ? 13 : 12, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap",
@@ -2737,37 +2928,46 @@ export default function Grafica() {
         );
 
         // ── CELULAR: busca sempre à mão + a folha de filtros ──
+        // PRIMEIRA DOBRA: busca e "Filtros" dividem UMA linha, e a segunda
+        // linha junta os atalhos (Próximos 10 dias, Limpar) com o gatilho do
+        // guia. Antes eram busca / Filtros+atalhos / guia em cartão, dentro de
+        // uma faixa cinza com 10px de respiro: ~170px até a lista, agora 96.
         return (
           <>
-            <div style={{ backgroundColor: "#f3f4f3", borderRadius: 12, padding: "10px 12px", display: "flex", flexDirection: "column", gap: 8 }}>
-              {campoBusca}
-              <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                {campoBusca}
                 <button
                   type="button"
                   onClick={() => setFiltrosAbertos(true)}
                   data-testid="button-abrir-filtros-mobile"
+                  aria-haspopup="dialog"
                   style={{
-                    flex: 1, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6,
-                    minHeight: 44, borderRadius: 8,
+                    flex: "0 0 auto", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6,
+                    minHeight: 44, padding: "0 12px", borderRadius: 8,
                     backgroundColor: nFiltros > 0 ? TI.text : "#ffffff",
-                    color: nFiltros > 0 ? "#ffffff" : TI.secondary,
-                    border: `1px solid ${nFiltros > 0 ? TI.text : TI.border}`,
-                    fontSize: 13, fontWeight: 700, cursor: "pointer",
+                    color: nFiltros > 0 ? "#ffffff" : TI.text,
+                    border: `1px solid ${nFiltros > 0 ? TI.text : "#d6d3d1"}`,
+                    fontSize: 14, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap",
                   }}
                 >
-                  <Filter style={{ width: 14, height: 14 }} />
+                  <Filter aria-hidden="true" style={{ width: 15, height: 15 }} />
                   Filtros{nFiltros > 0 ? ` (${nFiltros})` : ""}
                 </button>
+              </div>
+              <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
                 {/* "Próximos 10 dias" é o recorte do dia a dia do galpão (o
                     caminhão que sai já): morava DENTRO da folha, a três toques
                     (abrir, ligar, ver). Aqui fica a um. */}
                 {pillProximos}
                 {botaoLimpar}
+                {!bulkOn && <GuiaDaFila emLinha podeConferir={podeConferir} canProduce={canProduce} />}
               </div>
             </div>
 
             {filtrosAbertos && (
               <div
+                ref={folhaFiltrosRef}
                 role="dialog"
                 aria-modal="true"
                 aria-label="Filtros da fila"
@@ -2780,7 +2980,9 @@ export default function Grafica() {
                   overscrollBehavior: "contain",
                 }}
               >
-                <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 14px", borderBottom: `1px solid ${TI.border}`, backgroundColor: "#ffffff" }}>
+                {/* Recorte seguro em cima (notch/ilha) e embaixo (home
+                    indicator), nos LONGOS — ver o rodapé. */}
+                <div style={{ display: "flex", alignItems: "center", gap: 8, paddingTop: "calc(6px + env(safe-area-inset-top))", paddingBottom: 6, paddingLeft: 14, paddingRight: 6, borderBottom: `1px solid ${TI.border}`, backgroundColor: "#ffffff" }}>
                   <Filter style={{ width: 16, height: 16, color: TI.secondary }} />
                   <span style={{ fontSize: 15, fontWeight: 800, fontFamily: "'Space Grotesk', sans-serif", color: TI.text }}>
                     Filtros{nFiltros > 0 ? ` · ${nFiltros} ativo${nFiltros !== 1 ? "s" : ""}` : ""}
@@ -2808,18 +3010,21 @@ export default function Grafica() {
                     />
                   </div>
                   {selects(true)}
-                  <p style={{ margin: "8px 0 0", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: TI.secondary }}>
+                  <p style={{ margin: "8px 0 0", fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: TI.secondary }}>
                     Avançados
                   </p>
                   {avancados(true)}
                   {(filtros.tipo.length > 0 || filtros.material.length > 0 || filtros.acabamento.length > 0) && (
-                    <button onClick={() => patchFiltros({ tipo: [], material: [], acabamento: [] })} data-testid="button-reset-advanced-filters" style={{ background: "none", border: "none", cursor: "pointer", fontSize: 13, color: "#b91c1c", fontWeight: 600, alignSelf: "flex-start", padding: "8px 0" }}>
+                    <button onClick={() => patchFiltros({ tipo: [], material: [], acabamento: [] })} data-testid="button-reset-advanced-filters" style={{ background: "none", border: "none", cursor: "pointer", fontSize: 14, color: "#b91c1c", fontWeight: 600, alignSelf: "flex-start", minHeight: 44, padding: "0 4px" }}>
                       Limpar filtros avançados
                     </button>
                   )}
                 </div>
 
-                <div style={{ display: "flex", gap: 8, padding: "10px 14px calc(10px + env(safe-area-inset-bottom))", borderTop: `1px solid ${TI.border}`, backgroundColor: "#ffffff" }}>
+                {/* LONGOS, não `padding: "10px 14px calc(…env())"`: o valor é o
+                    mesmo no navegador, e o atalho com env() some inteiro no
+                    parser do jsdom — o teste do celular não o enxergava. */}
+                <div style={{ display: "flex", gap: 8, paddingTop: 10, paddingLeft: 14, paddingRight: 14, paddingBottom: "calc(10px + env(safe-area-inset-bottom))", borderTop: `1px solid ${TI.border}`, backgroundColor: "#ffffff" }}>
                   {haFiltro && (
                     <button
                       type="button"
@@ -2918,7 +3123,7 @@ export default function Grafica() {
                     onClick={() => patchFiltros({ entregues: true })}
                     data-testid="chip-entregues-ocultas"
                     title="A tela abre na fila do que falta fazer. Clique para trazer o histórico de entregas de volta."
-                    style={{ background: "none", border: "none", padding: 0, fontSize: "inherit", fontWeight: 700, color: "#0e7490", textDecoration: "underline", textUnderlineOffset: 3, cursor: "pointer", minHeight: isMobile ? 32 : undefined }}
+                    style={{ background: "none", border: "none", padding: 0, fontSize: "inherit", fontWeight: 700, color: "#0e7490", textDecoration: "underline", textUnderlineOffset: 3, cursor: "pointer", ...alvoNoTexto }}
                   >
                     {entreguesOcultas} entregue{entreguesOcultas !== 1 ? "s" : ""} oculta{entreguesOcultas !== 1 ? "s" : ""} · mostrar
                   </button>
@@ -2931,14 +3136,14 @@ export default function Grafica() {
                     type="button"
                     onClick={() => patchFiltros({ entregues: false })}
                     data-testid="chip-ocultar-entregues"
-                    style={{ background: "none", border: "none", padding: 0, fontSize: "inherit", fontWeight: 700, color: "#0e7490", textDecoration: "underline", textUnderlineOffset: 3, cursor: "pointer", minHeight: isMobile ? 32 : undefined }}
+                    style={{ background: "none", border: "none", padding: 0, fontSize: "inherit", fontWeight: 700, color: "#0e7490", textDecoration: "underline", textUnderlineOffset: 3, cursor: "pointer", ...alvoNoTexto }}
                   >
                     ocultar entregues
                   </button>
                 </>
               )}
             </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
               {/* Chip de complementos — clicável e visível TAMBÉM no celular:
                   importante demais para sumir justamente na tela de quem está no
                   galpão. É o atalho para a fila de aumentos sem tirar a peça do
@@ -2954,12 +3159,12 @@ export default function Grafica() {
                     : "Mostrar só as peças complementares (aumentos de quantidade pedidos após a produção)"}
                   style={{
                     display: "inline-flex", alignItems: "center", gap: 6,
-                    minHeight: isMobile ? 36 : 28,
+                    minHeight: isMobile ? 44 : 28,
                     backgroundColor: filtros.complementos ? CO.hoverBg : CO.bg,
                     color: CO.text,
                     border: `1px solid ${filtros.complementos ? CO.stripe : CO.border}`,
-                    borderRadius: 999, padding: "0 11px",
-                    fontSize: 11, fontWeight: 700, cursor: "pointer",
+                    borderRadius: 999, padding: "0 12px",
+                    fontSize: fsMin(11), fontWeight: 700, cursor: "pointer",
                     whiteSpace: "nowrap", transition: "background-color 0.15s",
                   }}
                 >
@@ -2993,11 +3198,11 @@ export default function Grafica() {
                   }
                   style={{
                     display: "inline-flex", alignItems: "center", gap: 6,
-                    minHeight: isMobile ? 36 : 28,
+                    minHeight: isMobile ? 32 : 28,
                     backgroundColor: "#f5f5f4", color: "#44403c",
                     border: `1px solid ${TI.border}`,
                     borderRadius: 999, padding: "0 11px",
-                    fontSize: 11, fontWeight: 700, whiteSpace: "nowrap",
+                    fontSize: fsMin(11), fontWeight: 700, whiteSpace: "nowrap",
                   }}
                 >
                   <span aria-hidden="true" style={{ width: 6, height: 6, borderRadius: "50%", backgroundColor: "#78716c", display: "inline-block", flexShrink: 0 }} />
@@ -3016,7 +3221,7 @@ export default function Grafica() {
           <div
             role="status"
             data-testid="banner-complemento-fora-do-recorte"
-            style={{ background: CO.bg, border: `1px solid ${CO.border}`, borderRadius: 10, padding: "10px 12px", margin: "12px 12px 0", fontSize: 12, color: CO.textStrong, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}
+            style={{ background: CO.bg, border: `1px solid ${CO.border}`, borderRadius: 10, padding: "10px 12px", margin: "12px 12px 0", fontSize: 12, color: CO.textStrong, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}
           >
             <span style={{ flex: 1, minWidth: 0, lineHeight: 1.45 }}>
               <strong>{bannerComplemento.displayId} criado</strong> — está fora dos filtros atuais.
@@ -3025,7 +3230,7 @@ export default function Grafica() {
               type="button"
               onClick={mostrarComplementoCriado}
               data-testid="button-mostrar-complemento"
-              style={{ background: "none", border: "none", padding: "0 4px", minHeight: isMobile ? 44 : 24, fontSize: 11, fontWeight: 800, color: CO.text, textDecoration: "underline", cursor: "pointer", flexShrink: 0 }}
+              style={{ background: "none", border: "none", padding: "0 8px", minHeight: isMobile ? 44 : 24, fontSize: fsMin(11), fontWeight: 800, color: CO.text, textDecoration: "underline", cursor: "pointer", flexShrink: 0 }}
             >
               Mostrar
             </button>
@@ -3178,42 +3383,51 @@ export default function Grafica() {
                 <LinhaMemo key={item.id} deps={depsDaLinha(item, [index > 0, showEvHeader, corte?.chave, corte?.total, corte?.ocultas, etiquetaveisPorEvento.get(String(item.eventId)) ?? 0])} render={() => (
                 <Fragment>
                   {showEvHeader && (
-                    <div style={{ padding: '8px 8px 6px', marginTop: index > 0 ? 6 : 0, background: TI.text, borderRadius: '8px 8px 0 0', display: 'flex', flexDirection: 'column', gap: 5 }}>
+                    <div style={{ padding: '8px 10px 8px', marginTop: index > 0 ? 8 : 0, background: TI.text, borderRadius: '8px 8px 0 0', display: 'flex', flexDirection: 'column', gap: 6 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <Package style={{ width: 13, height: 13, color: TI.accent }} />
-                        <span style={{ fontSize: 11, fontWeight: 800, color: '#fff', textTransform: 'uppercase', letterSpacing: '0.05em', fontFamily: "'Space Grotesk', sans-serif" }}>
+                        <Package aria-hidden="true" style={{ width: 14, height: 14, color: TI.accent, flexShrink: 0 }} />
+                        {/* 13px (era 11): é o nome que o operador procura com o
+                            caminhão parado na porta. Quebra linha, nunca corta. */}
+                        <span style={{ fontSize: 13, fontWeight: 800, color: '#fff', textTransform: 'uppercase', letterSpacing: '0.04em', fontFamily: "'Space Grotesk', sans-serif", minWidth: 0, overflowWrap: 'anywhere', lineHeight: 1.25 }}>
                           {item.event?.name || 'Sem Evento'}
                         </span>
                         {/* A data aqui era o INÍCIO do evento — para a Gráfica o
                             que manda é a SAÍDA do caminhão, a mesma que ordena
                             a lista e o cabeçalho do desktop. */}
                         {item.event?.truckDepartureDate && (
-                          <span style={{ marginLeft: 'auto', fontSize: 10, color: 'rgba(255,255,255,0.72)', display: 'flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap' }}>
-                            <Truck style={{ width: 10, height: 10 }} />
+                          <span style={{ marginLeft: 'auto', fontSize: 12, fontWeight: 700, color: 'rgba(255,255,255,0.85)', display: 'flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap', flexShrink: 0 }}>
+                            <Truck aria-hidden="true" style={{ width: 12, height: 12 }} />
                             Saída {new Date(item.event.truckDepartureDate).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", timeZone: 'UTC' })}
                           </span>
                         )}
                       </div>
-                      {(etiquetaveisPorEvento.get(String(item.eventId)) ?? 0) > 0 && (
-                        <Link
-                          href={`/eventos/${item.eventId}/etiquetas?de=grafica`}
-                          data-testid={`link-etiquetas-mobile-${item.eventId}`}
-                          title="Imprimir as etiquetas das peças já conferidas deste evento"
-                          style={{ display: 'inline-flex', alignItems: 'center', gap: 5, alignSelf: 'flex-start', minHeight: 30, padding: '3px 10px', borderRadius: 999, background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.2)', color: '#fff', fontSize: 10.5, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', textDecoration: 'none' }}
-                        >
-                          <Tag style={{ width: 11, height: 11 }} />
-                          Etiquetas ({etiquetaveisPorEvento.get(String(item.eventId))})
-                        </Link>
+                      {/* Prazo e etiquetas NA MESMA linha (eram duas): o link
+                          ganha alvo de 44px com a pílula visível de ~30 dentro. */}
+                      {(item.event || (etiquetaveisPorEvento.get(String(item.eventId)) || 0) > 0) && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                          {item.event && <DeadlineChip event={item.event} fonte={12} />}
+                          {(etiquetaveisPorEvento.get(String(item.eventId)) ?? 0) > 0 && (
+                            <Link
+                              href={`/eventos/${item.eventId}/etiquetas?de=grafica`}
+                              data-testid={`link-etiquetas-mobile-${item.eventId}`}
+                              title="Imprimir as etiquetas das peças já conferidas deste evento"
+                              style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', minHeight: 44, textDecoration: 'none' }}
+                            >
+                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '6px 12px', borderRadius: 999, background: 'rgba(255,255,255,0.14)', border: '1px solid rgba(255,255,255,0.28)', color: '#fff', fontSize: 12, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                                <Tag aria-hidden="true" style={{ width: 12, height: 12 }} />
+                                Etiquetas ({etiquetaveisPorEvento.get(String(item.eventId))})
+                              </span>
+                            </Link>
+                          )}
+                        </div>
                       )}
-                      {item.event && <DeadlineChip event={item.event} />}
                     </div>
                   )}
                   <div
                     style={{
                       // Altura acompanha a arte: com a peça na mão, é pelo
                       // desenho que se reconhece o item na lista.
-                      display: 'flex', alignItems: 'stretch',
-                      minHeight: item.approvalThumbUrl ? 104 : 74,
+                      display: 'flex', alignItems: 'stretch', minHeight: 74,
                       // Complemento em aberto tinge o card inteiro — no celular
                       // não há coluna nenhuma para carregar o sinal, e é no
                       // celular que a Gráfica trabalha com a peça na mão.
@@ -3265,6 +3479,13 @@ export default function Grafica() {
                       <div style={{ width: 4, flexShrink: 0, background: coAberto ? CO.stripe : isDelivered(item) ? '#86efac' : canDeliverItem ? TI.accent : '#e7e5e4' }} />
                     )}
 
+                    {/* COLUNA: [arte + texto] em cima, AÇÕES embaixo na largura
+                        inteira do cartão. As ações moravam DENTRO da coluna de
+                        texto, ao lado da arte de 88px: em 360px sobravam ~205px
+                        e cada botão caía sozinho numa linha (Produzir /
+                        Reaproveitar / Devolver empilhados, 150px de botões). */}
+                    <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+                    <div style={{ display: 'flex', alignItems: 'stretch', minHeight: item.approvalThumbUrl ? 104 : 74 }}>
                     {/* Arte aprovada — no celular é ela que identifica a peça
                         de relance, na hora de conferir com o material na mão.
                         Some no modo lote era o pior momento possível para
@@ -3276,13 +3497,13 @@ export default function Grafica() {
                     {item.approvalThumbUrl && (() => {
                       const thumbW = bulkOn ? 64 : 88;
                       const thumbImg = (
-                        <img src={convertGCSUrlToLocalPath(item.approvalThumbUrl)} alt="Arte"
+                        <img src={convertGCSUrlToLocalPath(item.approvalThumbUrl)} alt={`Arte da peça ${item.displayId}`}
                           loading="lazy" decoding="async"
                           style={{ maxWidth: '100%', maxHeight: 104, objectFit: 'contain', display: 'block' }}
                           onError={e => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
                       );
                       const boxStyle: React.CSSProperties = {
-                        width: thumbW, flexShrink: 0, alignSelf: 'stretch', backgroundColor: '#faf9f7',
+                        width: thumbW, minHeight: 44, flexShrink: 0, alignSelf: 'stretch', backgroundColor: '#faf9f7',
                         borderRight: `1px solid ${TI.border}`, display: 'flex', alignItems: 'center',
                         justifyContent: 'center', padding: 5,
                       };
@@ -3311,7 +3532,9 @@ export default function Grafica() {
                       <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap' }}>
                         {/* #047857 (5,48:1) e não #059669 (3,77:1): 13px/700
                             precisa passar AA. Ver lib/status.ts P.emerald. */}
-                        <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 13, fontWeight: 700, color: item.isReuse ? '#047857' : '#c2410c' }}>
+                        {/* 15px (era 13): o código é o que se confere contra a
+                            etiqueta do material, de relance. */}
+                        <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 15, fontWeight: 700, color: item.isReuse ? '#047857' : '#c2410c' }}>
                           {(() => { const { base, suffix } = splitDisplayId(item.displayId); return (<>{base}{suffix && <span style={{ color: CO.suffix }}>{suffix}</span>}</>); })()}
                         </span>
                         <StatusPill status={item.status} size="sm" showDot={false} />
@@ -3319,9 +3542,9 @@ export default function Grafica() {
                           const d = diasNaFase(item, new Date());
                           if (d === null || d < 1) return null;
                           const tom = tomDaIdade(d);
-                          return <span title={`Está neste status há ${d} dia(s)`} style={{ fontSize: 10.5, fontFamily: "'DM Mono', monospace", fontWeight: tom.peso, color: tom.cor }}>há {d}d</span>;
+                          return <span title={`Está neste status há ${d} dia(s)`} style={{ fontSize: 12, fontFamily: "'DM Mono', monospace", fontWeight: tom.peso, color: tom.cor, whiteSpace: 'nowrap' }}>há {d}d</span>;
                         })()}
-                        {item.isReuse && <span style={{ fontSize: 10, fontWeight: 800, color: '#047857', background: '#dcfce7', border: '1px solid #86efac', borderRadius: 6, padding: '2px 6px' }}>REAPROV.</span>}
+                        {item.isReuse && <span style={{ fontSize: 12, fontWeight: 800, color: '#047857', background: '#dcfce7', border: '1px solid #86efac', borderRadius: 6, padding: '1px 6px' }}>REAPROV.</span>}
                         {/* Selo do complemento: sólido enquanto o lote está em
                             aberto (trabalho novo), outline depois de entregue —
                             a identidade fica, o alarme não. */}
@@ -3330,8 +3553,8 @@ export default function Grafica() {
                             data-testid={`badge-complemento-mobile-${item.id}`}
                             title={item.complementReason ? `Motivo: ${item.complementReason}` : `Complemento de ${maeDisplayId}`}
                             style={coAberto
-                              ? { fontSize: 9, fontWeight: 800, color: CO.solidText, background: CO.solidBg, borderRadius: 6, padding: '2px 6px', letterSpacing: '0.06em', whiteSpace: 'nowrap' }
-                              : { fontSize: 9, fontWeight: 800, color: CO.text, background: CO.bg, border: `1px solid ${CO.border}`, borderRadius: 6, padding: '1px 5px', letterSpacing: '0.06em', whiteSpace: 'nowrap' }}
+                              ? { fontSize: 12, fontWeight: 800, color: CO.solidText, background: CO.solidBg, borderRadius: 6, padding: '1px 6px', letterSpacing: '0.03em', whiteSpace: 'nowrap' }
+                              : { fontSize: 12, fontWeight: 800, color: CO.text, background: CO.bg, border: `1px solid ${CO.border}`, borderRadius: 6, padding: '0 5px', letterSpacing: '0.03em', whiteSpace: 'nowrap' }}
                           >
                             {coAberto ? `+${qtyOf(item)} COMPL.` : 'COMPL.'}
                           </span>
@@ -3341,7 +3564,7 @@ export default function Grafica() {
                         {complQty > 0 && (
                           <span
                             title={`Contratado total: ${contractedTotalOf(item)} un. (${qtyOf(item)} + ${complQty})`}
-                            style={{ fontSize: 9, fontWeight: 800, color: CO.text, background: CO.bg, border: `1px solid ${CO.border}`, borderRadius: 6, padding: '1px 5px', letterSpacing: '0.06em', whiteSpace: 'nowrap' }}
+                            style={{ fontSize: 12, fontWeight: 800, color: CO.text, background: CO.bg, border: `1px solid ${CO.border}`, borderRadius: 6, padding: '0 5px', letterSpacing: '0.03em', whiteSpace: 'nowrap' }}
                           >
                             TEM +{complQty}
                           </span>
@@ -3356,7 +3579,7 @@ export default function Grafica() {
                           <span
                             data-testid={`badge-evento-finalizado-mobile-${item.id}`}
                             title={selo.hint}
-                            style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 9, fontWeight: 800, color: selo.text, background: selo.bg, border: `1px solid ${selo.border}`, borderRadius: 6, padding: '1px 5px', letterSpacing: '0.06em', whiteSpace: 'nowrap', textTransform: 'uppercase' }}
+                            style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, fontWeight: 800, color: selo.text, background: selo.bg, border: `1px solid ${selo.border}`, borderRadius: 6, padding: '0 5px', letterSpacing: '0.03em', whiteSpace: 'nowrap', textTransform: 'uppercase' }}
                           >
                             <span aria-hidden="true" style={{ width: 5, height: 5, borderRadius: '50%', background: selo.dot, flexShrink: 0 }} />
                             {selo.label}
@@ -3367,7 +3590,7 @@ export default function Grafica() {
                       {/* Identidade permanente: de quem este lote é complemento,
                           quem pediu e quando. Não some depois da entrega. */}
                       {ehComplemento && (
-                        <div style={{ fontSize: 11, fontWeight: 600, color: CO.textStrong, lineHeight: 1.3 }}>
+                        <div style={{ fontSize: 12, fontWeight: 600, color: CO.textStrong, lineHeight: 1.3 }}>
                           Complemento de {maeDisplayId}
                           {item.complementRequestedBy ? ` · ${item.complementRequestedBy}` : ''}
                           {item.complementRequestedAt ? `, ${fmtDataHora(item.complementRequestedAt)}` : ''}
@@ -3396,7 +3619,7 @@ export default function Grafica() {
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginTop: 3 }}>
                         <span style={{ fontSize: 14, fontWeight: 800, color: TI.text, fontFamily: "'Space Grotesk', sans-serif", lineHeight: 1 }}>
                           {qtyOf(item)}
-                          <span style={{ fontSize: 11, fontWeight: 600, color: TI.secondary, marginLeft: 3 }}>un.</span>
+                          <span style={{ fontSize: 12, fontWeight: 600, color: TI.secondary, marginLeft: 3 }}>un.</span>
                         </span>
                         {item.isPriority && (
                           <span data-testid={`chip-prioritaria-${item.id}`} style={qtyChip('#be123c', '#fff1f2')} title="Peça prioritária — marcada pela Solicitação para sair na frente">
@@ -3433,7 +3656,7 @@ export default function Grafica() {
                           por extenso (duas linhas): é o "e claro isso ficar nos
                           logs" resolvido sem abrir ficha nenhuma. */}
                       {coAberto && item.complementReason && (
-                        <div style={{ fontSize: 11, color: CO.textStrong, display: 'flex', alignItems: 'flex-start', gap: 4, marginTop: 2, lineHeight: 1.35 }}>
+                        <div style={{ fontSize: 12, color: CO.textStrong, display: 'flex', alignItems: 'flex-start', gap: 4, marginTop: 2, lineHeight: 1.35 }}>
                           <PlusCircle style={{ width: 11, height: 11, color: CO.text, flexShrink: 0, marginTop: 1 }} />
                           <span style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
                             {item.complementReason}
@@ -3441,10 +3664,12 @@ export default function Grafica() {
                         </div>
                       )}
                       {item.observations && (
-                        <div style={{ fontSize: 11, color: '#b45309', display: 'flex', alignItems: 'center', gap: 4, marginTop: 1 }}>
-                          <AlertCircle style={{ width: 10, height: 10, flexShrink: 0 }} />{item.observations}
+                        <div style={{ fontSize: 12, color: '#92400e', display: 'flex', alignItems: 'flex-start', gap: 4, marginTop: 1, lineHeight: 1.35 }}>
+                          <AlertCircle aria-hidden="true" style={{ width: 12, height: 12, flexShrink: 0, marginTop: 1 }} />{item.observations}
                         </div>
                       )}
+                    </div>
+                    </div>
 
                       {/* AÇÕES — faixa no PÉ do card, não mais um trilho de 116px à
                           direita. O trilho roubava um terço da largura em 390px e
@@ -3454,8 +3679,14 @@ export default function Grafica() {
                           peça respira. Some em QUALQUER modo de lote (antes só
                           !bulkDeliveryMode: na conferência em lote os botões
                           continuavam aparecendo e disputando o toque). */}
+                      {/* ORDEM VISUAL (CSS order, o DOM segue o da tabela): a
+                          ação PRINCIPAL da etapa — Produzir/Continuar, Conferir,
+                          Entregar — vem primeiro e mais larga (2 1 150px); as
+                          secundárias (Reaproveitar, Corrigir, Devolver) dividem a
+                          linha de baixo; contrato (Aumentar, Cancelar) por último.
+                          8px entre botões: com 6 o dedo de luva pegava o vizinho. */}
                       {!bulkOn && (temGrupoFluxo || temGrupoContrato) && (
-                        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'stretch', gap: 6, marginTop: 8 }}>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'stretch', gap: 8, padding: '0 12px 12px' }}>
                           {/* PRODUZIR — o celular só tinha Entregar e Conferir.
                               Num complemento isso é o pior buraco possível: a
                               Gráfica em campo vê o alerta laranja e não tem o que
@@ -3472,7 +3703,7 @@ export default function Grafica() {
                               /* Desabilitado: #78716c sobre #f5f5f4 → 4,84:1 nos
                                  13px/800 (o cinza claro do padrão do navegador
                                  reprovaria AA). */
-                              style={{ flex: '1 1 112px', minHeight: 44, padding: '0 12px', borderRadius: 8, background: selo ? '#f5f5f4' : CO.solidBg, border: selo ? `1px solid ${TI.border}` : 'none', color: selo ? '#78716c' : '#fff', fontSize: 13, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, cursor: selo ? 'not-allowed' : 'pointer', whiteSpace: 'nowrap' }}
+                              style={{ order: 0, flex: '2 1 150px', minHeight: 48, padding: '0 12px', borderRadius: 8, background: selo ? '#f5f5f4' : CO.solidBg, border: selo ? `1px solid ${TI.border}` : 'none', color: selo ? '#78716c' : '#fff', fontSize: 14, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, cursor: selo ? 'not-allowed' : 'pointer', whiteSpace: 'nowrap' }}
                             >
                               <Play aria-hidden="true" style={{ width: 13, height: 13 }} />
                               Produzir {remainingProduce(item)}
@@ -3490,7 +3721,7 @@ export default function Grafica() {
                                 ? motivoAcaoBloqueada(selo.motivo, "produzir")
                                 : isInProd(item) ? "Continuar Produção" : "Iniciar Produção"}
                               data-testid={`button-production-card-${item.id}`}
-                              style={{ flex: '1 1 112px', minHeight: 44, padding: '0 12px', borderRadius: 8, background: selo ? '#f5f5f4' : TI.text, border: selo ? `1px solid ${TI.border}` : 'none', color: selo ? '#78716c' : '#fff', fontSize: 13, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, cursor: selo ? 'not-allowed' : 'pointer', whiteSpace: 'nowrap' }}
+                              style={{ order: 0, flex: '2 1 150px', minHeight: 48, padding: '0 12px', borderRadius: 8, background: selo ? '#f5f5f4' : TI.text, border: selo ? `1px solid ${TI.border}` : 'none', color: selo ? '#78716c' : '#fff', fontSize: 14, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, cursor: selo ? 'not-allowed' : 'pointer', whiteSpace: 'nowrap' }}
                             >
                               <Play aria-hidden="true" style={{ width: 13, height: 13 }} />
                               {isInProd(item) ? 'Continuar' : 'Produzir'}
@@ -3503,29 +3734,31 @@ export default function Grafica() {
                               dedo erra. */}
                           {podeReaproveitarPeca && (
                             reuseConfirmItemId === item.id ? (
-                              <div style={{ flex: '1 1 100%', display: 'flex', alignItems: 'center', gap: 6 }} onClick={e => e.stopPropagation()}>
-                                <span style={{ fontSize: 12, fontWeight: 700, color: '#047857', whiteSpace: 'nowrap' }}>
+                              <div style={{ order: 1, flex: '1 1 100%', display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 8 }} onClick={e => e.stopPropagation()}>
+                                <span style={{ fontSize: 13, fontWeight: 700, color: '#047857', whiteSpace: 'nowrap' }}>
                                   {isProduced(item) ? 'Reaprov. total:' : 'Reaproveitar:'}
                                 </span>
                                 <input
                                   type="number"
                                   inputMode="numeric"
+                                  pattern="[0-9]*"
                                   min={isProduced(item) ? 0 : 1}
                                   max={isProduced(item) ? qtyOf(item) : tetoReaproveitar(item)}
                                   value={reuseQty}
                                   onChange={e => setReuseQty(Math.max(isProduced(item) ? 0 : 1, Math.min(isProduced(item) ? qtyOf(item) : tetoReaproveitar(item), parseInt(e.target.value) || 0)))}
                                   aria-label={isProduced(item) ? `Total reaproveitado de ${item.displayId}` : `Quantas unidades de ${item.displayId} reaproveitar`}
                                   data-testid={`input-reuse-qty-card-${item.id}`}
-                                  style={{ width: 64, minHeight: 44, padding: '0 6px', borderRadius: 8, border: `1px solid ${TI.border}`, fontSize: 14, fontWeight: 700, color: TI.text, textAlign: 'center' }}
+                                  // 16px: abaixo disso o iOS dá zoom na página ao focar o campo.
+                                  style={{ width: 72, minHeight: 44, padding: '0 6px', borderRadius: 8, border: `1px solid ${TI.border}`, fontSize: 16, fontWeight: 700, color: TI.text, textAlign: 'center' }}
                                 />
-                                <span style={{ fontSize: 12, color: TI.secondary, whiteSpace: 'nowrap' }}>de {isProduced(item) ? qtyOf(item) : tetoReaproveitar(item)}</span>
+                                <span style={{ fontSize: 13, color: TI.secondary, whiteSpace: 'nowrap' }}>de {isProduced(item) ? qtyOf(item) : tetoReaproveitar(item)}</span>
                                 <button
                                   onClick={() => markReuseMutation.mutate(isProduced(item)
                                     ? { itemId: item.id, reuseTotal: reuseQty }
                                     : { itemId: item.id, qty: reuseQty })}
                                   disabled={markReuseMutation.isPending}
                                   data-testid={`button-reuse-confirm-card-${item.id}`}
-                                  style={{ flex: '1 1 auto', minHeight: 44, padding: '0 14px', borderRadius: 8, background: '#047857', border: 'none', color: '#fff', fontSize: 13, fontWeight: 800, cursor: markReuseMutation.isPending ? 'not-allowed' : 'pointer', opacity: markReuseMutation.isPending ? 0.6 : 1, whiteSpace: 'nowrap' }}
+                                  style={{ flex: '1 1 auto', minHeight: 44, padding: '0 14px', borderRadius: 8, background: '#047857', border: 'none', color: '#fff', fontSize: 14, fontWeight: 800, cursor: markReuseMutation.isPending ? 'not-allowed' : 'pointer', opacity: markReuseMutation.isPending ? 0.6 : 1, whiteSpace: 'nowrap' }}
                                 >
                                   Confirmar
                                 </button>
@@ -3547,7 +3780,7 @@ export default function Grafica() {
                                     ? `Ajustar reaproveitamento (0 a ${qtyOf(item)}) — converte entre produzidas e reaproveitadas, nas duas direções`
                                     : `Reaproveitar (pula produção) — até ${remainingReuse(item)} un.`}
                                 data-testid={`button-reuse-card-${item.id}`}
-                                style={{ flex: '1 1 112px', minHeight: 44, padding: '0 12px', borderRadius: 8, background: selo ? '#f5f5f4' : '#ecfdf5', border: `1px solid ${selo ? TI.border : '#a7f3d0'}`, color: selo ? '#78716c' : '#047857', fontSize: 13, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, cursor: selo ? 'not-allowed' : 'pointer', whiteSpace: 'nowrap' }}
+                                style={{ order: 1, flex: '1 1 100px', minHeight: 44, padding: '0 10px', borderRadius: 8, background: selo ? '#f5f5f4' : '#ecfdf5', border: `1px solid ${selo ? TI.border : '#a7f3d0'}`, color: selo ? '#78716c' : '#047857', fontSize: 13, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, cursor: selo ? 'not-allowed' : 'pointer', whiteSpace: 'nowrap' }}
                               >
                                 <Recycle aria-hidden="true" style={{ width: 13, height: 13 }} />
                                 {isProduced(item) ? 'Ajustar reaprov.' : 'Reaproveitar'}
@@ -3557,11 +3790,12 @@ export default function Grafica() {
                           {/* CORRIGIR REAPROVEITAMENTO — idem, espelho da tabela. */}
                           {podeCorrigirReaprov && (
                             correctReuseItemId === item.id ? (
-                              <div style={{ flex: '1 1 100%', display: 'flex', alignItems: 'center', gap: 6 }} onClick={e => e.stopPropagation()}>
-                                <span style={{ fontSize: 12, fontWeight: 700, color: '#b45309', whiteSpace: 'nowrap' }}>Reaprov.:</span>
+                              <div style={{ order: 1, flex: '1 1 100%', display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 8 }} onClick={e => e.stopPropagation()}>
+                                <span style={{ fontSize: 13, fontWeight: 700, color: '#b45309', whiteSpace: 'nowrap' }}>Reaprov.:</span>
                                 <input
                                   type="number"
                                   inputMode="numeric"
+                                  pattern="[0-9]*"
                                   min={0}
                                   max={isAdmin ? qtyOf(item) : qtyOf(item) - 1}
                                   value={correctReuseQty}
@@ -3570,14 +3804,14 @@ export default function Grafica() {
                                   onChange={e => setCorrectReuseQty(Math.max(0, Math.min(isAdmin ? qtyOf(item) : qtyOf(item) - 1, parseInt(e.target.value) || 0)))}
                                   aria-label="Quantidade reaproveitada corrigida"
                                   data-testid={`input-correct-reuse-card-${item.id}`}
-                                  style={{ width: 64, minHeight: 44, padding: '0 6px', borderRadius: 8, border: '1px solid #fbbf24', fontSize: 14, fontWeight: 700, color: TI.text, textAlign: 'center' }}
+                                  style={{ width: 72, minHeight: 44, padding: '0 6px', borderRadius: 8, border: '1px solid #fbbf24', fontSize: 16, fontWeight: 700, color: TI.text, textAlign: 'center' }}
                                 />
-                                <span style={{ fontSize: 12, color: TI.secondary, whiteSpace: 'nowrap' }}>de {qtyOf(item)}</span>
+                                <span style={{ fontSize: 13, color: TI.secondary, whiteSpace: 'nowrap' }}>de {qtyOf(item)}</span>
                                 <button
                                   onClick={() => correctReuseMutation.mutate({ itemId: item.id, correctedReuseQty: correctReuseQty })}
                                   disabled={correctReuseMutation.isPending}
                                   data-testid={`button-correct-reuse-confirm-card-${item.id}`}
-                                  style={{ flex: '1 1 auto', minHeight: 44, padding: '0 14px', borderRadius: 8, background: '#b45309', border: 'none', color: '#fff', fontSize: 13, fontWeight: 800, cursor: correctReuseMutation.isPending ? 'not-allowed' : 'pointer', opacity: correctReuseMutation.isPending ? 0.6 : 1, whiteSpace: 'nowrap' }}
+                                  style={{ flex: '1 1 auto', minHeight: 44, padding: '0 14px', borderRadius: 8, background: '#b45309', border: 'none', color: '#fff', fontSize: 14, fontWeight: 800, cursor: correctReuseMutation.isPending ? 'not-allowed' : 'pointer', opacity: correctReuseMutation.isPending ? 0.6 : 1, whiteSpace: 'nowrap' }}
                                 >
                                   Confirmar
                                 </button>
@@ -3597,7 +3831,7 @@ export default function Grafica() {
                                   ? motivoAcaoBloqueada(selo.motivo, "corrigir o reaproveitamento")
                                   : "Corrigir a quantidade reaproveitada desta peça"}
                                 data-testid={`button-correct-reuse-card-${item.id}`}
-                                style={{ flex: '1 1 112px', minHeight: 44, padding: '0 12px', borderRadius: 8, background: selo ? '#f5f5f4' : '#fff7ed', border: `1px solid ${selo ? TI.border : '#fed7aa'}`, color: selo ? '#78716c' : '#b45309', fontSize: 13, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, cursor: selo ? 'not-allowed' : 'pointer', whiteSpace: 'nowrap' }}
+                                style={{ order: 1, flex: '1 1 100px', minHeight: 44, padding: '0 10px', borderRadius: 8, background: selo ? '#f5f5f4' : '#fff7ed', border: `1px solid ${selo ? TI.border : '#fed7aa'}`, color: selo ? '#78716c' : '#b45309', fontSize: 13, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, cursor: selo ? 'not-allowed' : 'pointer', whiteSpace: 'nowrap' }}
                               >
                                 <RotateCcw aria-hidden="true" style={{ width: 13, height: 13 }} />
                                 Corrigir reaprov.
@@ -3614,7 +3848,7 @@ export default function Grafica() {
                               title="Devolver para a Revisão Final — a peça sai da fila da Gráfica"
                               aria-label={`Devolver ${item.displayId} para a Revisão Final`}
                               data-testid={`button-devolver-revisao-card-${item.id}`}
-                              style={{ flex: '1 1 112px', minHeight: 44, padding: '0 12px', borderRadius: 8, background: '#fff', border: '1px solid #fca5a5', color: '#b91c1c', fontSize: 13, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, cursor: 'pointer', whiteSpace: 'nowrap' }}
+                              style={{ order: 1, flex: '1 1 100px', minHeight: 44, padding: '0 10px', borderRadius: 8, background: '#fff', border: '1px solid #fca5a5', color: '#b91c1c', fontSize: 13, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, cursor: 'pointer', whiteSpace: 'nowrap' }}
                             >
                               <Undo2 aria-hidden="true" style={{ width: 13, height: 13 }} />
                               Devolver
@@ -3623,11 +3857,12 @@ export default function Grafica() {
                           {podeConferir && canConferItem && (
                             <button
                               onClick={e => { e.stopPropagation(); openConferenceModal(item); }}
+                              data-testid={`button-conferir-card-${item.id}`}
                               /* #0e7490 (5,36:1) — o mesmo ciano do desktop, do
                                  lote e do modal. #0891b2 com branco 13px/800 dá
                                  3,68:1 e reprova AA, e a tela tinha DOIS cianos
                                  diferentes para a mesma ação. */
-                              style={{ flex: '1 1 112px', minHeight: 44, padding: '0 12px', borderRadius: 8, background: '#0e7490', border: 'none', color: '#fff', fontSize: 13, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, cursor: 'pointer', whiteSpace: 'nowrap' }}
+                              style={{ order: 0, flex: '2 1 150px', minHeight: 48, padding: '0 12px', borderRadius: 8, background: '#0e7490', border: 'none', color: '#fff', fontSize: 14, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, cursor: 'pointer', whiteSpace: 'nowrap' }}
                             >
                               <CheckCircle aria-hidden="true" style={{ width: 13, height: 13 }} />
                               {/* Mesmo rótulo da tabela: na conferência parcial
@@ -3638,14 +3873,15 @@ export default function Grafica() {
                           {canDeliverItem && (
                             <button
                               onClick={e => { e.stopPropagation(); openDeliveryModal(item); }}
-                              style={{ flex: '1 1 112px', minHeight: 44, padding: '0 12px', borderRadius: 8, background: '#c2410c', border: 'none', color: '#fff', fontSize: 13, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, cursor: 'pointer', whiteSpace: 'nowrap' }}
+                              data-testid={`button-entregar-card-${item.id}`}
+                              style={{ order: 0, flex: '2 1 150px', minHeight: 48, padding: '0 12px', borderRadius: 8, background: '#c2410c', border: 'none', color: '#fff', fontSize: 14, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, cursor: 'pointer', whiteSpace: 'nowrap' }}
                             >
                               <Truck aria-hidden="true" style={{ width: 13, height: 13 }} />
                               {deliveredOf(item) > 0 ? `Entregar ${remainingDeliver(item)}` : 'Entregar'}
                             </button>
                           )}
                           {isDelivered(item) && (
-                            <span style={{ flex: '1 1 auto', minHeight: 32, fontSize: 13, color: '#15803d', display: 'flex', alignItems: 'center', gap: 4, fontWeight: 700 }}>
+                            <span style={{ order: 0, flex: '1 1 auto', minHeight: 32, fontSize: 14, color: '#15803d', display: 'flex', alignItems: 'center', gap: 4, fontWeight: 700 }}>
                               <Check aria-hidden="true" style={{ width: 13, height: 13 }} /> Entregue
                             </span>
                           )}
@@ -3655,7 +3891,7 @@ export default function Grafica() {
                               fluxo costuma estar vazio e "Aumentar" fica sozinho
                               no trilho inteiro, com salência máxima e sem truque. */}
                           {temGrupoFluxo && temGrupoContrato && (
-                            <div aria-hidden="true" style={{ width: 1, alignSelf: 'stretch', background: '#e7e5e4', margin: '2px 2px' }} />
+                            <div aria-hidden="true" style={{ order: 2, width: 1, alignSelf: 'stretch', background: '#e7e5e4', margin: '2px 0' }} />
                           )}
 
                           {/* AUMENTAR — o gatilho primário do celular. Tintado (não
@@ -3671,7 +3907,7 @@ export default function Grafica() {
                                  criar peça complementar é trabalho novo. */
                               title={selo ? motivoAcaoBloqueada(selo.motivo, "aumentar a quantidade") : "Aumentar quantidade"}
                               style={{
-                                width: 44, minHeight: 44, padding: 0, borderRadius: 8,
+                                order: 3, width: 44, minHeight: 44, padding: 0, borderRadius: 8,
                                 background: selo ? '#f5f5f4' : CO.bg,
                                 border: `1.5px solid ${selo ? TI.border : CO.border}`,
                                 color: selo ? '#78716c' : CO.text,
@@ -3703,11 +3939,11 @@ export default function Grafica() {
                               title={`Cancelar ${item.displayId} — só enquanto nada foi produzido`}
                               data-testid={`button-cancel-complement-mobile-${item.id}`}
                               style={{
-                                flex: '1 1 112px', minHeight: 44, padding: '0 12px', borderRadius: 8,
+                                order: 3, flex: '1 1 100px', minHeight: 44, padding: '0 10px', borderRadius: 8,
                                 background: cancelComplementId === item.id ? '#b91c1c' : 'transparent',
                                 border: `1px solid ${cancelComplementId === item.id ? '#b91c1c' : TI.border}`,
                                 color: cancelComplementId === item.id ? '#fff' : '#b91c1c',
-                                fontSize: 11, fontWeight: 700,
+                                fontSize: 13, fontWeight: 700,
                                 display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
                                 cursor: cancelComplementMutation.isPending ? 'not-allowed' : 'pointer',
                                 opacity: cancelComplementMutation.isPending ? 0.6 : 1, whiteSpace: 'nowrap',
@@ -3724,7 +3960,7 @@ export default function Grafica() {
                               do mesmo selo (lib/status) e só aparece quando há
                               botão barrado neste card. */}
                           {selo && (podeProduzirAqui || podeProduzirPeca || podeReaproveitarPeca || podeCorrigirReaprov || mostraAumentar) && (
-                            <p data-testid={`motivo-bloqueio-card-${item.id}`} style={{ flex: '1 1 100%', margin: 0, fontSize: 12, color: '#57534e', lineHeight: 1.4 }}>
+                            <p data-testid={`motivo-bloqueio-card-${item.id}`} style={{ order: 4, flex: '1 1 100%', margin: 0, fontSize: 12, color: '#57534e', lineHeight: 1.4 }}>
                               {selo.motivo === 'encerrado'
                                 ? 'Evento encerrado por um administrador: aqui só conferir e entregar. Reabrir o evento libera o resto.'
                                 : 'Evento já realizado: aqui só conferir e entregar — produzir, reaproveitar e aumentar ficam bloqueados.'}
@@ -3754,7 +3990,7 @@ export default function Grafica() {
           </div>
         ) : (
           /* ── View desktop: tabela ── */
-          <div style={{ overflowX: "auto" }}>
+          <div ref={tabelaRolagemRef} data-testid="tabela-rolagem" style={{ overflowX: idMenuAberto ? "visible" : "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
               {/* Cabeçalho CLARO: a tabela tinha três faixas escuras seguidas
@@ -3830,15 +4066,18 @@ export default function Grafica() {
                     {showEvHeader && (
                       <tr style={{ backgroundColor: "#292524" }}>
                         <td colSpan={nColunas} style={{ padding: "10px 16px" }}>
-                          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-                            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          {/* flexWrap: com a caixa estreita as datas, o prazo e
+                              as etiquetas descem para uma segunda linha em vez
+                              de sair pela direita cortados. */}
+                          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "6px 12px" }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
                               <Package style={{ width: 16, height: 16, color: TI.accent }} />
                               <span style={{ fontSize: 13, fontWeight: 800, color: "#ffffff", textTransform: "uppercase", letterSpacing: "0.05em", fontFamily: "'Space Grotesk', sans-serif" }}>
                                 {item.event?.name || "Sem Evento"}
                               </span>
                             </div>
                             {item.event && (
-                              <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
+                              <div style={{ display: "flex", alignItems: "center", gap: "6px 16px", flexWrap: "wrap", minWidth: 0 }}>
                                 <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, color: "rgba(255,255,255,0.72)" }}>
                                   <Calendar style={{ width: 12, height: 12 }} />
                                   Início: <strong style={{ color: "rgba(255,255,255,0.85)" }}>{parseDateLocal(item.event.startDate).toLocaleDateString("pt-BR")}</strong>
@@ -3925,8 +4164,15 @@ export default function Grafica() {
                       {/* Descrição — com a arte ao lado: a Gráfica identifica a
                           peça pelo desenho, não pelo texto, e antes era preciso
                           abrir o detalhe de cada uma para saber o que era. */}
-                      <td style={{ padding: "13px 16px", maxWidth: 320 }}>
-                        <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+                      {/* O TETO DE LARGURA MORA NA DIV, não na <td>. `max-width`
+                          numa célula de tabela automática é ignorado pelo
+                          Chrome: a descrição em `nowrap` (com reticências só
+                          visuais) fazia a coluna Peça medir a frase INTEIRA —
+                          era esta coluna que empurrava a tabela para fora da
+                          caixa com a barra lateral aberta. Numa div o teto vale
+                          e limita também a largura mínima que ela pede. */}
+                      <td style={{ padding: "13px 16px" }}>
+                        <div data-testid={`celula-peca-${item.id}`} style={{ display: "flex", alignItems: "flex-start", gap: 10, maxWidth: compacto ? 260 : 320, minWidth: 160 }}>
                           {item.approvalThumbUrl && (
                             <a
                               href={convertGCSUrlToLocalPath(item.approvalThumbUrl)}
@@ -4189,7 +4435,10 @@ export default function Grafica() {
                       {/* Status + IDADE NA FASE (UX 27/08): a mesma régua
                           7/14 dias da Arte — a Gráfica via a MESMA peça sem
                           saber há quanto tempo ela estava parada ali. */}
-                      <td style={{ padding: "13px 16px" }}>
+                      {/* nowrap na célula: a pílula nunca quebra ao meio e a
+                          coluna reserva a largura dela inteira. "há Nd" já é
+                          uma linha própria (div) logo abaixo. */}
+                      <td style={{ padding: "13px 16px", whiteSpace: "nowrap" }}>
                         <StatusPill status={item.status} size="sm" showDot={false} />
                         {(() => {
                           const d = diasNaFase(item, new Date());
@@ -4205,7 +4454,9 @@ export default function Grafica() {
                       <td
                         style={{
                           padding: "13px 16px", textAlign: "right",
-                          position: "sticky", right: 0, zIndex: 1,
+                          // zIndex 3 com o menu aberto: a célula sticky da linha
+                          // de baixo (z 1, depois no DOM) pintaria por cima dele.
+                          position: "sticky", right: 0, zIndex: idMenuAberto === item.id ? 3 : 1,
                           background: "inherit",
                           boxShadow: "-8px 0 8px -8px rgba(28,25,23,0.28)",
                         }}
@@ -4232,6 +4483,61 @@ export default function Grafica() {
                           </button>
                           )}
 
+                          {/* ── MENU "⋯" DAS SECUNDÁRIAS (tabela COMPACTA) ──
+                              Na faixa compacta (notebook, sidebar aberta) a
+                              coluna de Ações é sticky: cada px dela sai das
+                              colunas de baixo, e com Reaproveitar + Corrigir
+                              reaprov. + Devolver ao lado do botão principal ela
+                              cobria o Status. Ali as SECUNDÁRIAS moram num menu
+                              e a principal (Produzir/Conferir/Entregar) fica à
+                              vista. Os blocos abaixo são os MESMOS, com os
+                              mesmos gates (paridade com o cartão); só o
+                              invólucro muda: `display: contents` na tabela
+                              cheia (nada muda) e caixa flutuante na compacta.
+                              O menu fica aberto enquanto uma edição em linha
+                              dele estiver aberta. */}
+                          {(() => {
+                            const temSecundaria = !bulkOn && (
+                              (podeMexerQtd && !soVisualizaKit(item) && ehComplemento && complementUntouched(item))
+                              || (!emRevisao && !soVisualizaKit(item) && !isDelivered(item) && !isConferred(item) && (!isProduced(item) ? tetoReaproveitar(item) > 0 : podeMexerQtd && qtyOf(item) > 0))
+                              || (!emRevisao && !soVisualizaKit(item) && (isProduced(item) || isAdmin) && reusedTotalOf(item) > 0 && conferredOf(item) === 0 && deliveredOf(item) === 0)
+                              || (canProduce && podeDevolverParaRevisao(item)));
+                            if (!compacto || !temSecundaria) return null;
+                            const aberto = menuAcoesId === item.id || reuseConfirmItemId === item.id || correctReuseItemId === item.id || cancelComplementId === item.id;
+                            return (
+                              <button
+                                type="button"
+                                data-menu-acoes={item.id}
+                                onClick={e => {
+                                  if (aberto) { fecharMenuAcoes(); return; }
+                                  // Um menu por vez: abrir outro fecha as edições do anterior.
+                                  const r = e.currentTarget.getBoundingClientRect();
+                                  setMenuParaCima(window.innerHeight - r.bottom < 240);
+                                  fecharMenuAcoes();
+                                  setMenuAcoesId(item.id);
+                                }}
+                                aria-haspopup="true"
+                                aria-expanded={aberto}
+                                aria-label={`Mais ações de ${item.displayId}`}
+                                title="Mais ações"
+                                data-testid={`button-mais-acoes-${item.id}`}
+                                style={{ width: 32, height: 32, padding: 0, borderRadius: 8, border: `1px solid ${aberto ? TI.text : TI.border}`, background: aberto ? "#f5f5f4" : "#ffffff", color: TI.text, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}
+                              >
+                                <MoreHorizontal aria-hidden="true" style={{ width: 16, height: 16 }} />
+                              </button>
+                            );
+                          })()}
+                          <div
+                            data-menu-acoes={item.id}
+                            data-testid={compacto ? `menu-acoes-${item.id}` : undefined}
+                            role={compacto ? "group" : undefined}
+                            aria-label={compacto ? `Mais ações de ${item.displayId}` : undefined}
+                            style={!compacto
+                              ? { display: "contents" }
+                              : (menuAcoesId === item.id || reuseConfirmItemId === item.id || correctReuseItemId === item.id || cancelComplementId === item.id)
+                                ? { position: "absolute", right: 16, ...(menuParaCima ? { bottom: "calc(100% - 6px)" } : { top: "calc(100% - 6px)" }), zIndex: 5, minWidth: 220, display: "flex", flexDirection: "column", alignItems: "stretch", gap: 6, padding: 8, background: "#ffffff", border: `1px solid ${TI.border}`, borderRadius: 10, boxShadow: "0 12px 28px -8px rgba(28,25,23,0.28)", textAlign: "left" }
+                                : { display: "none" }}
+                          >
                           {/* Cancelar complemento — a janela de arrependimento.
                               Mesmo papel de quem CRIA o complemento (admin |
                               solicitacao), espelho de `podeMudarQuantidade` no
@@ -4280,32 +4586,6 @@ export default function Grafica() {
                             )
                           )}
 
-                          {/* Iniciar / Continuar Produção — oculto para reaproveitamento
-                              e para quem o servidor recusa (só grafica/admin produzem).
-                              Depois de conferida, a peça só tem a entrega pela frente. */}
-                          {!bulkOn && !emRevisao && canProduce && !isDelivered(item) && !isProduced(item) && !isConferred(item) && !item.isReuse && (
-                            <button
-                              onClick={() => { if (!selo) openProductionModal(item); }}
-                              disabled={!!selo}
-                              /* PATCH /api/items/:id/start-production tem a
-                                 guarda de evento finalizado: clicar aqui só
-                                 renderia 409. */
-                              title={selo
-                                ? motivoAcaoBloqueada(selo.motivo, "produzir")
-                                : isInProd(item) ? "Continuar Produção" : "Iniciar Produção"}
-                              data-testid={`button-production-${item.id}`}
-                              /* Desabilitado: #78716c sobre #f5f5f4 → 4,84:1
-                                 nos 11px/700. */
-                              style={{ backgroundColor: selo ? "#f5f5f4" : TI.text, color: selo ? "#78716c" : "#ffffff", border: selo ? `1px solid ${TI.border}` : "none", borderRadius: 8, height: 32, padding: "0 12px", fontSize: 12, fontWeight: 700, cursor: selo ? "not-allowed" : "pointer", display: "flex", alignItems: "center", gap: 5, whiteSpace: "nowrap", transition: "background-color 0.15s" }}
-                              /* Hover era TI.accent (#f97316): branco sobre ele dá
-                                 2,8:1 — o botão ficava ilegível justo sob o mouse. */
-                              onMouseEnter={e => { if (!selo) (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#44403c"; }}
-                              onMouseLeave={e => { if (!selo) (e.currentTarget as HTMLButtonElement).style.backgroundColor = TI.text; }}
-                            >
-                              <Play aria-hidden="true" style={{ width: 13, height: 13 }} />
-                              {isInProd(item) ? "Continuar" : "Produzir"}
-                            </button>
-                          )}
 
                           {/* Reaproveitar — total ou parcial, enquanto ainda há
                               unidades sem produzir nem reaproveitar.
@@ -4368,14 +4648,16 @@ export default function Grafica() {
                                     ? `Ajustar reaproveitamento (0 a ${qtyOf(item)}) — converte entre produzidas e reaproveitadas, nas duas direções`
                                     : `Reaproveitar (pula produção) — até ${remainingReuse(item)} un.`}
                                 data-testid={`button-reuse-${item.id}`}
-                                style={{ background: "none", border: "none", cursor: selo ? "not-allowed" : "pointer", color: selo ? "#78716c" : "#059669", width: 32, height: 32, padding: 0, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", transition: "color 0.15s" }}
+                                style={{ background: "none", border: "none", cursor: selo ? "not-allowed" : "pointer", color: selo ? "#78716c" : compacto ? "#047857" : "#059669", width: compacto ? "auto" : 32, height: 32, padding: compacto ? "0 8px" : 0, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: compacto ? "flex-start" : "center", gap: 6, fontSize: 12, fontWeight: 700, whiteSpace: "nowrap", transition: "color 0.15s" }}
                                 onMouseEnter={e => { if (!selo) (e.currentTarget as HTMLButtonElement).style.color = "#065f46"; }}
-                                onMouseLeave={e => { if (!selo) (e.currentTarget as HTMLButtonElement).style.color = "#059669"; }}
+                                onMouseLeave={e => { if (!selo) (e.currentTarget as HTMLButtonElement).style.color = compacto ? "#047857" : "#059669"; }}
                               >
                                 {/* ♻ e não a seta circular: ao lado de "Produzir",
                                     a seta se lia como "desfazer" ou "recarregar".
                                     É o mesmo ícone da Revisão e do filtro "♻". */}
                                 <Recycle aria-hidden="true" style={{ width: 15, height: 15 }} />
+                                {/* No menu "⋯" o ícone sozinho não diz o que faz. */}
+                                {compacto && (isProduced(item) ? "Ajustar reaproveitamento" : "Reaproveitar")}
                               </button>
                             )
                           )}
@@ -4482,11 +4764,44 @@ export default function Grafica() {
                               style={{
                                 backgroundColor: "#ffffff", color: "#b91c1c",
                                 border: "1px solid #fca5a5", borderRadius: 6,
-                                width: 32, height: 32, padding: 0, flexShrink: 0,
-                                cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+                                width: compacto ? "auto" : 32, height: 32, padding: compacto ? "0 8px" : 0, flexShrink: 0,
+                                cursor: "pointer", display: "flex", alignItems: "center", justifyContent: compacto ? "flex-start" : "center",
+                                gap: 6, fontSize: 12, fontWeight: 700, whiteSpace: "nowrap",
                               }}
                             >
                               <Undo2 aria-hidden="true" style={{ width: 13, height: 13 }} />
+                              {compacto && "Devolver para a Revisão"}
+                            </button>
+                          )}
+                          </div>
+
+                          {/* Iniciar / Continuar Produção — oculto para reaproveitamento
+                              e para quem o servidor recusa (só grafica/admin produzem).
+                              Depois de conferida, a peça só tem a entrega pela frente.
+                              Vem DEPOIS das secundárias: a ação principal de cada
+                              etapa (Produzir, Conferir, Entregar) fica sempre na
+                              ponta direita, onde o olho já procura. */}
+                          {!bulkOn && !emRevisao && canProduce && !isDelivered(item) && !isProduced(item) && !isConferred(item) && !item.isReuse && (
+                            <button
+                              onClick={() => { if (!selo) openProductionModal(item); }}
+                              disabled={!!selo}
+                              /* PATCH /api/items/:id/start-production tem a
+                                 guarda de evento finalizado: clicar aqui só
+                                 renderia 409. */
+                              title={selo
+                                ? motivoAcaoBloqueada(selo.motivo, "produzir")
+                                : isInProd(item) ? "Continuar Produção" : "Iniciar Produção"}
+                              data-testid={`button-production-${item.id}`}
+                              /* Desabilitado: #78716c sobre #f5f5f4 → 4,84:1
+                                 nos 11px/700. */
+                              style={{ backgroundColor: selo ? "#f5f5f4" : TI.text, color: selo ? "#78716c" : "#ffffff", border: selo ? `1px solid ${TI.border}` : "none", borderRadius: 8, height: 32, padding: "0 12px", fontSize: 12, fontWeight: 700, cursor: selo ? "not-allowed" : "pointer", display: "flex", alignItems: "center", gap: 5, whiteSpace: "nowrap", transition: "background-color 0.15s" }}
+                              /* Hover era TI.accent (#f97316): branco sobre ele dá
+                                 2,8:1 — o botão ficava ilegível justo sob o mouse. */
+                              onMouseEnter={e => { if (!selo) (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#44403c"; }}
+                              onMouseLeave={e => { if (!selo) (e.currentTarget as HTMLButtonElement).style.backgroundColor = TI.text; }}
+                            >
+                              <Play aria-hidden="true" style={{ width: 13, height: 13 }} />
+                              {isInProd(item) ? "Continuar" : "Produzir"}
                             </button>
                           )}
 
@@ -4656,8 +4971,15 @@ export default function Grafica() {
             // celular a sidebar não é fixa, então ali continua colada na borda.
             position: 'fixed', bottom: 0, left: isMobile ? 0 : 'var(--sidebar-width, 16rem)', right: 0, zIndex: 50,
             background: TI.text,
-            padding: '12px 16px calc(12px + env(safe-area-inset-bottom))',
-            display: 'flex', alignItems: 'center', gap: 10,
+            // LONGOS: o atalho com env() some no parser do jsdom (ver o teste
+            // grafica-celular). O valor no navegador é o mesmo de antes.
+            paddingTop: isMobile ? 10 : 12, paddingLeft: isMobile ? 12 : 16, paddingRight: isMobile ? 12 : 16,
+            paddingBottom: isMobile ? 'calc(10px + env(safe-area-inset-bottom))' : 'calc(12px + env(safe-area-inset-bottom))',
+            // CELULAR EM DUAS LINHAS: em 360px os quatro itens numa linha
+            // deixavam ~20px para o bloco "Conferência · 3 de 40" — o contador
+            // sumia. Linha 1: modo + contador e o X; linha 2: Todas e o
+            // "Continuar para a foto (N)" largo, na zona do polegar.
+            display: 'flex', alignItems: 'center', gap: isMobile ? 8 : 10, flexWrap: isMobile ? 'wrap' : 'nowrap',
             boxShadow: '0 -4px 24px rgba(0,0,0,0.28)',
           }}>
           {/* Selecionar tudo / desmarcar */}
@@ -4669,7 +4991,7 @@ export default function Grafica() {
             // "Sel. 12" era abreviação de planilha; o botão agora diz a ação por
             // extenso e tem alvo de dedo (44px) no celular.
             aria-label={allDeliverableSelected ? 'Desmarcar todas as peças' : `Selecionar todas as ${bulkEligibleList.length} peças elegíveis`}
-            style={{ minHeight: isMobile ? 44 : 36, padding: '0 12px', borderRadius: 8, background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.85)', fontSize: 13, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}
+            style={{ order: isMobile ? 2 : undefined, minHeight: isMobile ? 48 : 36, padding: isMobile ? '0 10px' : '0 12px', borderRadius: 8, background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.9)', fontSize: isMobile ? 14 : 13, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}
           >
             {allDeliverableSelected ? 'Desmarcar' : `Todas (${bulkEligibleList.length})`}
           </button>
@@ -4679,20 +5001,21 @@ export default function Grafica() {
               pessoa age — e sumido da vista assim que rolava a lista. Agora é o
               rótulo da própria barra, na cor da etapa (bolinha, não texto).
               aria-live só no contador: anuncia a contagem a cada seleção. */}
-          <span style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 1 }}>
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'rgba(255,255,255,0.72)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          {/* Celular: base "100% − X − espaço" força a quebra — esta linha é
+              só modo + contador e o X; os botões descem para a de baixo. */}
+          <span style={{ order: isMobile ? 0 : undefined, flex: isMobile ? '1 1 calc(100% - 52px)' : 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 1 }}>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: isMobile ? 12 : 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: isMobile ? '0.04em' : '0.08em', color: 'rgba(255,255,255,0.78)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
               <span aria-hidden="true" style={{ width: 7, height: 7, borderRadius: '50%', flexShrink: 0, backgroundColor: bulkConferMode ? '#22d3ee' : '#fb923c' }} />
-              {/* No celular sobram ~70px para este bloco: vai só o nome da etapa. */}
-              {bulkConferMode ? (isMobile ? 'Conferência' : 'Conferência em lote') : (isMobile ? 'Entrega' : 'Entrega em lote')}
+              {bulkConferMode ? 'Conferência em lote' : 'Entrega em lote'}
             </span>
-            <span aria-live="polite" style={{ color: bulkSelectedIds.size > 0 ? '#fff' : 'rgba(255,255,255,0.72)', fontSize: 13, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>
+            <span aria-live="polite" style={{ color: bulkSelectedIds.size > 0 ? '#fff' : 'rgba(255,255,255,0.78)', fontSize: isMobile ? 14 : 13, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>
               {bulkSelectedIds.size > 0
                 ? (isMobile
-                  ? `${bulkSelectedIds.size} de ${bulkEligibleList.length}`
+                  ? `${bulkSelectedIds.size} de ${bulkEligibleList.length} marcada${bulkSelectedIds.size !== 1 ? 's' : ''}`
                   : `${bulkSelectedIds.size} peça${bulkSelectedIds.size !== 1 ? 's' : ''} selecionada${bulkSelectedIds.size !== 1 ? 's' : ''}`)
-                : isMobile ? 'Toque nas peças'
+                : isMobile ? 'Toque nas peças para marcar'
                 : (usaCards ? 'Toque nas peças para selecionar' : 'Clique nas linhas para selecionar')}
-              {isMobile && bulkSelectedIds.size > 0 && <span className="sr-only"> peças selecionadas</span>}
+              {isMobile && bulkSelectedIds.size > 0 && <span className="sr-only"> peças</span>}
             </span>
           </span>
 
@@ -4711,7 +5034,8 @@ export default function Grafica() {
             data-testid="button-bulk-continuar"
             title={bulkSelectedIds.size > 0 ? "Abre a foto e a confirmação — nada é registrado antes disso" : "Marque ao menos uma peça"}
             style={{
-              minHeight: 44, padding: '0 18px', borderRadius: 12, border: 'none', flexShrink: 0,
+              order: isMobile ? 3 : undefined, flex: isMobile ? '1 1 0' : undefined, minWidth: 0, justifyContent: 'center',
+              minHeight: isMobile ? 48 : 44, padding: isMobile ? '0 12px' : '0 18px', borderRadius: 12, border: 'none', flexShrink: 0,
               background: bulkSelectedIds.size === 0 ? 'rgba(255,255,255,0.15)' : bulkConferMode ? '#0e7490' : '#c2410c',
               // 0.35 de branco sumia no preto; 0.6 ainda lê "inativo" e se lê.
               color: bulkSelectedIds.size === 0 ? 'rgba(255,255,255,0.6)' : '#fff',
@@ -4722,8 +5046,12 @@ export default function Grafica() {
               transition: 'all 0.15s',
             }}
           >
-            <Camera aria-hidden="true" style={{ width: 15, height: 15 }} />
-            {isMobile ? "Continuar" : "Continuar para a foto"}{bulkSelectedIds.size > 0 && ` (${bulkSelectedIds.size})`}
+            <Camera aria-hidden="true" style={{ width: 15, height: 15, flexShrink: 0 }} />
+            {/* O rótulo inteiro também no celular: "Continuar" sozinho não
+                dizia que o próximo passo é a FOTO (nada é gravado ainda). */}
+            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: isMobile ? 14 : undefined }}>
+              Continuar para a foto{bulkSelectedIds.size > 0 && ` (${bulkSelectedIds.size})`}
+            </span>
           </button>
 
           {/* Cancelar modo — o rótulo responde "perco alguma coisa?": só a
@@ -4732,7 +5060,7 @@ export default function Grafica() {
             onClick={sairDoLote}
             aria-label="Sair do modo lote sem registrar"
             title="Sair do lote (Esc) — desmarca as peças; nada é registrado"
-            style={{ width: isMobile ? 44 : 36, height: isMobile ? 44 : 36, borderRadius: 8, background: 'rgba(255,255,255,0.1)', border: 'none', color: 'rgba(255,255,255,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}
+            style={{ order: isMobile ? 1 : undefined, width: isMobile ? 44 : 36, height: isMobile ? 44 : 36, borderRadius: 8, background: 'rgba(255,255,255,0.1)', border: 'none', color: 'rgba(255,255,255,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}
           >
             <X style={{ width: 16, height: 16 }} />
           </button>
@@ -4819,7 +5147,7 @@ export default function Grafica() {
 
       {/* ── Modal de Produção / Entrega ── */}
       <Dialog open={!!selectedItem && !!modalType} onOpenChange={open => { if (!open) { setSelectedItem(null); setModalType(null); } }}>
-        <DialogContent className={HIDE_NATIVE_CLOSE} style={modalSurface(468)}>
+        <DialogContent ref={modalPecaRef} className={HIDE_NATIVE_CLOSE} style={modalSurface(468)}>
           <DialogTitle className="sr-only">
             {modalType === "production" ? "Registrar produção"
               : modalType === "conference" ? "Conferir peça"
@@ -4862,7 +5190,7 @@ export default function Grafica() {
               ganhar uma linha. Com o teto no DialogContent (via `modalSurface`),
               `flex: 1 1 auto` + `minHeight: 0` dá a este corpo o que sobrar do
               cabeçalho medido pelo navegador. */}
-          <div style={{ padding: 24, display: "flex", flexDirection: "column", gap: 20, overflowY: "auto", flex: "1 1 auto", minHeight: 0 }}>
+          <div style={{ padding: padModal, display: "flex", flexDirection: "column", gap: isMobile ? 16 : 20, overflowY: "auto", flex: "1 1 auto", minHeight: 0 }}>
 
             {/* Arte aprovada em destaque — na conferência é o que a pessoa
                 compara com a peça na mão, quase sempre pelo celular. Precisa ser
@@ -4876,7 +5204,9 @@ export default function Grafica() {
                 data-testid="thumb-approved-art"
                 style={{
                   display: "block", position: "relative", width: "100%",
-                  height: isMobile ? 240 : 200,
+                  // Nunca mais que um terço da tela: em 640px de altura os 240
+                  // fixos empurravam a foto e o Confirmar para fora da dobra.
+                  height: isMobile ? "min(240px, 34dvh)" : 200,
                   // O corpo do modal é um flex column com rolagem: sem
                   // flexShrink 0 este bloco era espremido até uma linha fina
                   // quando o conteúdo passava da altura máxima.
@@ -4885,16 +5215,16 @@ export default function Grafica() {
                   backgroundColor: "#ffffff", border: `1px solid ${TI.border}`,
                 }}
               >
-                <img loading="lazy" decoding="async"                   src={convertGCSUrlToLocalPath(selectedItem.approvalThumbUrl)}
+                <img decoding="async" src={convertGCSUrlToLocalPath(selectedItem.approvalThumbUrl)}
                   alt="Arte aprovada"
                   style={{ width: "100%", height: "100%", objectFit: "contain", display: "block" }}
                   onError={e => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
                 />
-                <span style={{ position: "absolute", top: 8, left: 8, backgroundColor: "rgba(28,25,23,0.78)", color: "#fff", fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", padding: "4px 8px", borderRadius: 6 }}>
+                <span style={{ position: "absolute", top: 8, left: 8, backgroundColor: "rgba(28,25,23,0.78)", color: "#fff", fontSize: fsMin(10), fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", padding: "4px 8px", borderRadius: 6 }}>
                   Arte aprovada
                 </span>
-                <span style={{ position: "absolute", bottom: 8, right: 8, backgroundColor: "rgba(28,25,23,0.78)", color: "#fff", fontSize: 10, fontWeight: 700, padding: "4px 8px", borderRadius: 6, display: "flex", alignItems: "center", gap: 4 }}>
-                  <Search style={{ width: 10, height: 10 }} /> Ampliar
+                <span style={{ position: "absolute", bottom: 8, right: 8, backgroundColor: "rgba(28,25,23,0.78)", color: "#fff", fontSize: fsMin(10), fontWeight: 700, padding: "4px 8px", borderRadius: 6, display: "flex", alignItems: "center", gap: 4 }}>
+                  <Search aria-hidden="true" style={{ width: 12, height: 12 }} /> Ampliar
                 </span>
               </a>
             )}
@@ -4911,15 +5241,15 @@ export default function Grafica() {
                       : <Truck style={{ width: 20, height: 20, color: TI.accent }} />}
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, marginBottom: 3 }}>
-                      <span style={{ display: "inline-flex", alignItems: "center", gap: 6, minWidth: 0 }}>
-                        <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 13, color: selectedItem.isReuse ? '#047857' : '#c2410c' }}>{selectedItem.displayId}</span>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8, marginBottom: 3 }}>
+                      <span style={{ display: "inline-flex", alignItems: "center", flexWrap: "wrap", gap: 6, minWidth: 0 }}>
+                        <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: isMobile ? 16 : 13, color: selectedItem.isReuse ? '#047857' : '#c2410c' }}>{selectedItem.displayId}</span>
                         <SeloKit peca={selectedItem} style={{ flexShrink: 0 }} />
                         {/* Produzir/conferir/entregar um complemento é registrar
                             um LOTE SEPARADO: o modal precisa dizer isso, senão
                             o operador acha que está lançando na peça original. */}
                         {isComplement(selectedItem) && (
-                          <span style={{ backgroundColor: CO.solidBg, color: CO.solidText, borderRadius: 5, padding: "1px 6px", fontSize: 9, fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase", whiteSpace: "nowrap" }}>
+                          <span style={{ backgroundColor: CO.solidBg, color: CO.solidText, borderRadius: 5, padding: "1px 6px", fontSize: fsMin(9), fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase", whiteSpace: "nowrap" }}>
                             Compl. de {parentDisplayIdOf(selectedItem)}
                           </span>
                         )}
@@ -4942,23 +5272,23 @@ export default function Grafica() {
                 {/* Grade de specs */}
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
                   <div style={{ background: '#fff', borderRadius: 8, padding: '8px 10px' }}>
-                    <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: TI.secondary, marginBottom: 3 }}>Material</div>
+                    <div style={{ fontSize: fsMin(10), fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: TI.secondary, marginBottom: 3 }}>Material</div>
                     <div style={{ fontSize: 13, fontWeight: 700, color: TI.text }}>{selectedItem.material || '—'}</div>
                     {selectedItem.visualWidth && (
-                      <div style={{ fontSize: 11, color: TI.secondary, marginTop: 1 }}>{selectedItem.visualWidth} × {selectedItem.visualHeight}m</div>
+                      <div style={{ fontSize: fsMin(11), color: TI.secondary, marginTop: 1 }}>{selectedItem.visualWidth} × {selectedItem.visualHeight}m</div>
                     )}
                   </div>
                   <div style={{ background: '#fff', borderRadius: 8, padding: '8px 10px' }}>
-                    <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: TI.secondary, marginBottom: 3 }}>Acabamento</div>
+                    <div style={{ fontSize: fsMin(10), fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: TI.secondary, marginBottom: 3 }}>Acabamento</div>
                     <div style={{ fontSize: 13, fontWeight: 700, color: TI.text }}>{selectedItem.finish || '—'}</div>
                     {Number(selectedItem.calculatedM2) > 0 && (
-                      <div style={{ fontSize: 11, color: TI.secondary, marginTop: 1 }}>{m2ToProduce(selectedItem).toFixed(2)} m²</div>
+                      <div style={{ fontSize: fsMin(11), color: TI.secondary, marginTop: 1 }}>{m2ToProduce(selectedItem).toFixed(2)} m²</div>
                     )}
                   </div>
                   <div style={{ background: '#fff', borderRadius: 8, padding: '8px 10px' }}>
-                    <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: TI.secondary, marginBottom: 2 }}>Quantidade</div>
-                    <div style={{ fontSize: 18, fontWeight: 800, color: TI.text, fontFamily: "'Space Grotesk', sans-serif", lineHeight: 1 }}>{qtyOf(selectedItem)}<span style={{ fontSize: 11, fontWeight: 500, color: TI.secondary, marginLeft: 3 }}>un.</span></div>
-                    {selectedItem.isReuse && <div style={{ fontSize: 10, color: '#047857', marginTop: 2, fontWeight: 600 }}>Reaproveitado</div>}
+                    <div style={{ fontSize: fsMin(10), fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: TI.secondary, marginBottom: 2 }}>Quantidade</div>
+                    <div style={{ fontSize: 18, fontWeight: 800, color: TI.text, fontFamily: "'Space Grotesk', sans-serif", lineHeight: 1 }}>{qtyOf(selectedItem)}<span style={{ fontSize: fsMin(11), fontWeight: 500, color: TI.secondary, marginLeft: 3 }}>un.</span></div>
+                    {selectedItem.isReuse && <div style={{ fontSize: fsMin(10), color: '#047857', marginTop: 2, fontWeight: 600 }}>Reaproveitado</div>}
                   </div>
                   {/* Tile de contexto — agora nos TRÊS tipos. A produção era o
                       único modal que nunca dizia quanto já foi produzido, e é
@@ -4973,22 +5303,22 @@ export default function Grafica() {
                       borderRadius: 8, padding: '8px 10px',
                       border: `1px solid ${modalType === "conference" ? '#a5f3fc' : modalType === "delivery" ? '#fed7aa' : '#d6d3d1'}`,
                     }}>
-                      <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: modalType === "conference" ? '#0e7490' : modalType === "delivery" ? '#c2410c' : '#57534e', marginBottom: 2 }}>
+                      <div style={{ fontSize: fsMin(10), fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: modalType === "conference" ? '#0e7490' : modalType === "delivery" ? '#c2410c' : '#57534e', marginBottom: 2 }}>
                         {modalType === "conference" ? "A Conferir" : modalType === "delivery" ? "A Entregar" : "A Produzir"}
                       </div>
                       <div style={{ fontSize: 18, fontWeight: 800, color: modalType === "conference" ? '#0e7490' : modalType === "delivery" ? '#c2410c' : TI.text, fontFamily: "'Space Grotesk', sans-serif", lineHeight: 1 }}>
                         {modalType === "conference" ? remainingConfer(selectedItem)
                           : modalType === "delivery" ? remainingDeliver(selectedItem)
-                          : remainingProduce(selectedItem)}<span style={{ fontSize: 11, fontWeight: 500, marginLeft: 3 }}>un.</span>
+                          : remainingProduce(selectedItem)}<span style={{ fontSize: fsMin(11), fontWeight: 500, marginLeft: 3 }}>un.</span>
                       </div>
                       {modalType === "conference" && conferredOf(selectedItem) > 0 && (
-                        <div style={{ fontSize: 10, color: '#0e7490', marginTop: 2 }}>{conferredOf(selectedItem)} já conferida{conferredOf(selectedItem) !== 1 ? 's' : ''}</div>
+                        <div style={{ fontSize: fsMin(10), color: '#0e7490', marginTop: 2 }}>{conferredOf(selectedItem)} já conferida{conferredOf(selectedItem) !== 1 ? 's' : ''}</div>
                       )}
                       {modalType === "delivery" && deliveredOf(selectedItem) > 0 && (
-                        <div style={{ fontSize: 10, color: '#c2410c', marginTop: 2 }}>{deliveredOf(selectedItem)} já entregue{deliveredOf(selectedItem) !== 1 ? 's' : ''}</div>
+                        <div style={{ fontSize: fsMin(10), color: '#c2410c', marginTop: 2 }}>{deliveredOf(selectedItem)} já entregue{deliveredOf(selectedItem) !== 1 ? 's' : ''}</div>
                       )}
                       {modalType === "production" && (
-                        <div data-testid="text-ja-produzidas" style={{ fontSize: 10, color: '#57534e', marginTop: 2 }}>
+                        <div data-testid="text-ja-produzidas" style={{ fontSize: fsMin(10), color: '#57534e', marginTop: 2 }}>
                           {producedOf(selectedItem)} já produzida{producedOf(selectedItem) !== 1 ? 's' : ''} de {qtyOf(selectedItem)}
                           {reusedTotalOf(selectedItem) > 0 && ` · ${reusedTotalOf(selectedItem)} reaproveitada${reusedTotalOf(selectedItem) !== 1 ? 's' : ''}`}
                         </div>
@@ -5001,7 +5331,7 @@ export default function Grafica() {
                     que este lote existe, antes de mandar para a impressora. */}
                 {isComplement(selectedItem) && selectedItem.complementReason && (
                   <div style={{ background: CO.bg, border: `1px solid ${CO.border}`, borderRadius: 8, padding: '8px 10px', display: 'flex', gap: 7, alignItems: 'flex-start' }}>
-                    <PlusCircle style={{ width: 12, height: 12, color: CO.text, flexShrink: 0, marginTop: 2 }} />
+                    <PlusCircle aria-hidden="true" style={{ width: 12, height: 12, color: CO.text, flexShrink: 0, marginTop: 2 }} />
                     <span style={{ fontSize: 13, color: CO.textStrong, lineHeight: 1.4 }}>
                       <strong>
                         Aumento pedido{selectedItem.complementRequestedBy ? ` por ${selectedItem.complementRequestedBy}` : ""}
@@ -5030,15 +5360,15 @@ export default function Grafica() {
                       dois vizinhos são INCREMENTAIS enquanto este é ABSOLUTO.
                       O nome agora diz o contrato, e a dica repete a conta com o
                       número real, porque é o número que resolve a dúvida. */}
-                  <label htmlFor="input-quantity-produced" style={{ display: "block", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#746e69", marginBottom: 6 }}>
+                  <label htmlFor="input-quantity-produced" style={{ display: "block", fontSize: fsMin(10), fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#746e69", marginBottom: 6 }}>
                     Total produzido até agora
                   </label>
-                  <div style={{ fontSize: 11, color: "#746e69", marginBottom: 10, lineHeight: 1.4 }} id="dica-quantidade-produzida">
+                  <div style={{ fontSize: fsMin(11), color: "#746e69", marginBottom: 10, lineHeight: 1.4 }} id="dica-quantidade-produzida">
                     {producedOf(selectedItem) > 0
                       ? `Este valor SUBSTITUI o anterior (${producedOf(selectedItem)} un.), não soma. Se produziu mais ${remainingProduce(selectedItem)} agora, lance ${producedOf(selectedItem) + remainingProduce(selectedItem)}.`
                       : "Este campo grava o total produzido da peça."}
                   </div>
-                  <div style={{ display: "flex", gap: 8 }}>
+                  <div style={{ display: "flex", gap: 10 }}>
                     {/* Teto = quantidade − reaproveitadas (a mesma conta de
                         `tetoDeProducao`, espelho da validação do servidor): o
                         reaproveitado não é produzido, e o teto antigo deixava
@@ -5047,6 +5377,11 @@ export default function Grafica() {
                       id="input-quantity-produced"
                       type="number"
                       inputMode="numeric"
+                      pattern="[0-9]*"
+                      // Enter no teclado numérico = "Gravar total" (submit do
+                      // form); o botão desabilitado durante o envio barra o
+                      // segundo toque.
+                      enterKeyHint="done"
                       min={1}
                       max={tetoDeProducao(selectedItem)}
                       value={productionData.quantityProduced}
@@ -5055,13 +5390,13 @@ export default function Grafica() {
                       aria-required="true"
                       aria-describedby="dica-quantidade-produzida"
                       data-testid="input-quantity-produced"
-                      style={{ flex: 1, textAlign: "center", fontFamily: "'Space Grotesk', sans-serif", fontSize: 26, fontWeight: 700, color: TI.text, backgroundColor: "#f4f3f0", border: "none", borderRadius: 8, padding: "16px 12px" }}
+                      style={{ flex: 1, minWidth: 0, minHeight: 56, boxSizing: "border-box", textAlign: "center", fontFamily: "'Space Grotesk', sans-serif", fontSize: 26, fontWeight: 700, color: TI.text, backgroundColor: "#f4f3f0", border: "none", borderRadius: 8, padding: "16px 12px" }}
                     />
                     <button
                       type="button"
                       onClick={() => setProductionData({ quantityProduced: tetoDeProducao(selectedItem) })}
                       data-testid="button-set-total"
-                      style={{ backgroundColor: "#e7e5e4", border: "none", borderRadius: 8, padding: "0 20px", minHeight: 44, fontWeight: 700, fontSize: 13, color: "#44403c", cursor: "pointer", whiteSpace: "nowrap", transition: "background-color 0.15s" }}
+                      style={{ backgroundColor: "#e7e5e4", border: "none", borderRadius: 8, padding: "0 20px", minHeight: 44, fontWeight: 700, fontSize: 14, color: "#44403c", cursor: "pointer", whiteSpace: "nowrap", transition: "background-color 0.15s" }}
                       onMouseEnter={e => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = "#d6d3d1")}
                       onMouseLeave={e => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = "#e7e5e4")}
                     >
@@ -5075,7 +5410,7 @@ export default function Grafica() {
                   <button
                     type="button"
                     onClick={() => { setSelectedItem(null); setModalType(null); }}
-                    style={{ flex: 1, minHeight: 44, padding: "0 12px", backgroundColor: "transparent", border: "1px solid #e7e5e4", color: "#57534e", fontWeight: 700, fontSize: 13, cursor: "pointer", borderRadius: 8, transition: "background-color 0.15s" }}
+                    style={{ flex: 1, minHeight: isMobile ? 48 : 44, padding: "0 12px", backgroundColor: "transparent", border: "1px solid #e7e5e4", color: "#57534e", fontWeight: 700, fontSize: 14, cursor: "pointer", borderRadius: 8, transition: "background-color 0.15s" }}
                     onMouseEnter={e => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = "#f4f3f0")}
                     onMouseLeave={e => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent")}
                   >
@@ -5085,7 +5420,8 @@ export default function Grafica() {
                     type="submit"
                     disabled={startProductionMutation.isPending || productionData.quantityProduced === 0}
                     data-testid="button-confirm-production"
-                    style={{ flex: 2, minHeight: 44, padding: "0 12px", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, backgroundColor: TI.text, border: "none", color: "#ffffff", fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 14, cursor: startProductionMutation.isPending || productionData.quantityProduced === 0 ? "not-allowed" : "pointer", borderRadius: 8, opacity: startProductionMutation.isPending || productionData.quantityProduced === 0 ? 0.6 : 1, transition: "background-color 0.15s" }}
+                    aria-busy={startProductionMutation.isPending || undefined}
+                    style={{ flex: 2, minHeight: isMobile ? 48 : 44, padding: "0 12px", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, backgroundColor: TI.text, border: "none", color: "#ffffff", fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 14, cursor: startProductionMutation.isPending || productionData.quantityProduced === 0 ? "not-allowed" : "pointer", borderRadius: 8, opacity: startProductionMutation.isPending || productionData.quantityProduced === 0 ? 0.6 : 1, transition: "background-color 0.15s" }}
                     onMouseEnter={e => { if (!startProductionMutation.isPending && productionData.quantityProduced > 0) (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#000000"; }}
                     onMouseLeave={e => { if (!startProductionMutation.isPending) (e.currentTarget as HTMLButtonElement).style.backgroundColor = TI.text; }}
                   >
@@ -5105,7 +5441,7 @@ export default function Grafica() {
 
                 {/* Responsável */}
                 <div>
-                  <label htmlFor="input-recebido-por" style={{ display: "block", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#746e69", marginBottom: 10 }}>
+                  <label htmlFor="input-recebido-por" style={{ display: "block", fontSize: fsMin(10), fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#746e69", marginBottom: 10 }}>
                     Responsável pelo Recebimento
                   </label>
                   {/* Campo livre: quem recebe muda a cada entrega, e a lista de
@@ -5119,7 +5455,7 @@ export default function Grafica() {
                     // Idem ao lote: no celular o teclado cobria a arte e a foto.
                     autoFocus={!isMobile}
                     data-testid="input-received-by"
-                    style={{ width: "100%", padding: "12px 14px", backgroundColor: "#e8e8e7", border: "1px solid transparent", borderRadius: 8, fontSize: isMobile ? 16 : 13, fontWeight: 500, color: TI.text }}
+                    style={{ width: "100%", boxSizing: "border-box", minHeight: 44, padding: "12px 14px", backgroundColor: "#e8e8e7", border: "1px solid transparent", borderRadius: 8, fontSize: isMobile ? 16 : 13, fontWeight: 500, color: TI.text }}
                   />
                   <SugestaoRecebedor nome={ultimoRecebedor} atual={deliveryData.receivedBy} onUsar={v => setDeliveryData({ ...deliveryData, receivedBy: v })} />
                 </div>
@@ -5127,12 +5463,13 @@ export default function Grafica() {
                 {/* Quantidade a entregar (entrega parcial) — só exibe se restar mais de 1 */}
                 {remainingDeliver(selectedItem) > 1 && (
                   <div>
-                    <label htmlFor="input-qtd-entregar" style={{ display: "block", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#746e69", marginBottom: 8 }}>
+                    <label htmlFor="input-qtd-entregar" style={{ display: "block", fontSize: fsMin(10), fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#746e69", marginBottom: 8 }}>
                       Quantidade a entregar agora <span style={{ color: "#746e69", textTransform: "none", letterSpacing: 0, fontWeight: 400 }}>· já entregue {deliveredOf(selectedItem)}/{qtyOf(selectedItem)}, disponível {remainingDeliver(selectedItem)}</span>
                     </label>
-                    <input id="input-qtd-entregar" type="number" inputMode="numeric" min={1} max={remainingDeliver(selectedItem)} value={deliverQty}
+                    {/* 16px: com 15 o iOS dava zoom na página ao tocar no campo. */}
+                    <input id="input-qtd-entregar" type="number" inputMode="numeric" pattern="[0-9]*" min={1} max={remainingDeliver(selectedItem)} value={deliverQty}
                       onChange={e => setDeliverQty(Math.max(1, Math.min(remainingDeliver(selectedItem), parseInt(e.target.value) || 1)))}
-                      style={{ width: "100%", padding: "10px 14px", backgroundColor: "#e8e8e7", border: "1px solid transparent", borderRadius: 8, fontSize: 15, fontWeight: 700, color: TI.text }} />
+                      style={{ width: "100%", boxSizing: "border-box", minHeight: 44, padding: "10px 14px", backgroundColor: "#e8e8e7", border: "1px solid transparent", borderRadius: 8, fontSize: 16, fontWeight: 700, color: TI.text }} />
                   </div>
                 )}
 
@@ -5152,7 +5489,7 @@ export default function Grafica() {
                   <button
                     type="button"
                     onClick={() => { setSelectedItem(null); setModalType(null); }}
-                    style={{ flex: 1, minHeight: 44, padding: "0 12px", backgroundColor: "transparent", border: "1px solid #e7e5e4", color: "#57534e", fontWeight: 700, fontSize: 13, cursor: "pointer", borderRadius: 8, transition: "background-color 0.15s" }}
+                    style={{ flex: 1, minHeight: isMobile ? 48 : 44, padding: "0 12px", backgroundColor: "transparent", border: "1px solid #e7e5e4", color: "#57534e", fontWeight: 700, fontSize: 14, cursor: "pointer", borderRadius: 8, transition: "background-color 0.15s" }}
                     onMouseEnter={e => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = "#f4f3f0")}
                     onMouseLeave={e => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent")}
                   >
@@ -5169,19 +5506,20 @@ export default function Grafica() {
                     disabled={markDeliveredMutation.isPending || !photos.length}
                     data-testid="button-confirm-delivery"
                     aria-describedby={!photos.length ? "aviso-foto-entrega" : undefined}
-                    style={{ flex: 2, minHeight: 44, padding: "12px 0", backgroundColor: !photos.length ? "#e7e5e4" : "#15803d", border: "none", color: !photos.length ? "#78716c" : "#ffffff", fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 14, cursor: markDeliveredMutation.isPending || !photos.length ? "not-allowed" : "pointer", borderRadius: 8, opacity: markDeliveredMutation.isPending ? 0.7 : 1, transition: "background-color 0.15s", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}
+                    aria-busy={markDeliveredMutation.isPending || undefined}
+                    style={{ flex: 2, minHeight: isMobile ? 48 : 44, padding: "12px 0", backgroundColor: !photos.length ? "#e7e5e4" : "#15803d", border: "none", color: !photos.length ? "#78716c" : "#ffffff", fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 14, cursor: markDeliveredMutation.isPending || !photos.length ? "not-allowed" : "pointer", borderRadius: 8, opacity: markDeliveredMutation.isPending ? 0.7 : 1, transition: "background-color 0.15s", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}
                     onMouseEnter={e => { if (!markDeliveredMutation.isPending && photos.length) (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#166534"; }}
                     onMouseLeave={e => { if (!markDeliveredMutation.isPending && photos.length) (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#15803d"; }}
                   >
                     {markDeliveredMutation.isPending && <Loader2 aria-hidden="true" className="animate-spin" style={{ width: 14, height: 14 }} />}
                     {markDeliveredMutation.isPending ? "Registrando entrega…" : !photos.length ? "Falta a foto" : `Entregar ${deliverQty} un.`}
                   </button>
+                  {!photos.length && (
+                    <p id="aviso-foto-entrega" style={{ flex: "1 1 100%", margin: "-2px 0 0", fontSize: fsMin(11), color: "#746e69", textAlign: "center" }}>
+                      Anexe ao menos uma foto — ela é o comprovante da entrega.
+                    </p>
+                  )}
                 </div>
-                {!photos.length && (
-                  <p id="aviso-foto-entrega" style={{ margin: "-8px 0 0", fontSize: 11, color: "#746e69", textAlign: "center" }}>
-                    Anexe ao menos uma foto — ela é o comprovante da entrega.
-                  </p>
-                )}
               </form>
             )}
 
@@ -5192,12 +5530,12 @@ export default function Grafica() {
                 </p>
                 {remainingConfer(selectedItem) > 1 && (
                   <div>
-                    <label htmlFor="input-qtd-conferir" style={{ display: "block", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#746e69", marginBottom: 8 }}>
+                    <label htmlFor="input-qtd-conferir" style={{ display: "block", fontSize: fsMin(10), fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#746e69", marginBottom: 8 }}>
                       Quantidade a conferir agora <span style={{ color: "#746e69", textTransform: "none", letterSpacing: 0, fontWeight: 400 }}>· já conferido {conferredOf(selectedItem)}/{qtyOf(selectedItem)}, faltam {remainingConfer(selectedItem)}</span>
                     </label>
-                    <input id="input-qtd-conferir" type="number" inputMode="numeric" min={1} max={remainingConfer(selectedItem)} value={conferQty}
+                    <input id="input-qtd-conferir" type="number" inputMode="numeric" pattern="[0-9]*" min={1} max={remainingConfer(selectedItem)} value={conferQty}
                       onChange={e => setConferQty(Math.max(1, Math.min(remainingConfer(selectedItem), parseInt(e.target.value) || 1)))}
-                      style={{ width: "100%", padding: "10px 14px", backgroundColor: "#e8e8e7", border: "1px solid transparent", borderRadius: 8, fontSize: 15, fontWeight: 700, color: TI.text }} />
+                      style={{ width: "100%", boxSizing: "border-box", minHeight: 44, padding: "10px 14px", backgroundColor: "#e8e8e7", border: "1px solid transparent", borderRadius: 8, fontSize: 16, fontWeight: 700, color: TI.text }} />
                   </div>
                 )}
                 <PhotoPicker photos={photos} onAdd={addPhoto} onRemove={removePhoto} onError={onPhotoError} hint="· obrigatória, pode anexar várias" />
@@ -5205,7 +5543,7 @@ export default function Grafica() {
                 {renderNotesField("Ex.: cor puxando para o escuro, ilhós faltando…")}
                 <div style={modalActionsStyle}>
                   <button type="button" onClick={() => { setSelectedItem(null); setModalType(null); }}
-                    style={{ flex: 1, minHeight: 44, padding: "0 12px", backgroundColor: "transparent", border: "1px solid #e7e5e4", color: "#57534e", fontWeight: 700, fontSize: 13, cursor: "pointer", borderRadius: 8 }}>
+                    style={{ flex: 1, minHeight: isMobile ? 48 : 44, padding: "0 12px", backgroundColor: "transparent", border: "1px solid #e7e5e4", color: "#57534e", fontWeight: 700, fontSize: 14, cursor: "pointer", borderRadius: 8 }}>
                     Cancelar
                   </button>
                   {/* Desabilitado era #a5f3fc com texto branco: 1,25:1, um
@@ -5216,16 +5554,17 @@ export default function Grafica() {
                   <button type="submit" disabled={conferMutation.isPending || !photos.length}
                     data-testid="button-confirm-conference"
                     aria-describedby={!photos.length ? "aviso-foto-conferencia" : undefined}
-                    style={{ flex: 2, minHeight: 44, padding: "12px 0", backgroundColor: (!photos.length) ? "#e7e5e4" : "#0e7490", border: "none", color: (!photos.length) ? "#78716c" : "#ffffff", fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 14, cursor: (conferMutation.isPending || !photos.length) ? "not-allowed" : "pointer", borderRadius: 8, opacity: conferMutation.isPending ? 0.7 : 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+                    aria-busy={conferMutation.isPending || undefined}
+                    style={{ flex: 2, minHeight: isMobile ? 48 : 44, padding: "12px 0", backgroundColor: (!photos.length) ? "#e7e5e4" : "#0e7490", border: "none", color: (!photos.length) ? "#78716c" : "#ffffff", fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 14, cursor: (conferMutation.isPending || !photos.length) ? "not-allowed" : "pointer", borderRadius: 8, opacity: conferMutation.isPending ? 0.7 : 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
                     {conferMutation.isPending && <Loader2 aria-hidden="true" className="animate-spin" style={{ width: 14, height: 14 }} />}
                     {conferMutation.isPending ? "Registrando conferência…" : !photos.length ? "Falta a foto" : `Conferir ${conferQty} un.`}
                   </button>
+                  {!photos.length && (
+                    <p id="aviso-foto-conferencia" style={{ flex: "1 1 100%", margin: "-2px 0 0", fontSize: fsMin(11), color: "#746e69", textAlign: "center" }}>
+                      Anexe ao menos uma foto para confirmar a conferência.
+                    </p>
+                  )}
                 </div>
-                {!photos.length && (
-                  <p id="aviso-foto-conferencia" style={{ margin: "-8px 0 0", fontSize: 11, color: "#746e69", textAlign: "center" }}>
-                    Anexe ao menos uma foto para confirmar a conferência.
-                  </p>
-                )}
               </form>
             )}
 
@@ -5247,7 +5586,7 @@ export default function Grafica() {
       )}
 
       <Dialog open={!!devolverItem} onOpenChange={o => { if (!o) { setDevolverItem(null); setDevolverMotivo(""); } }}>
-        <DialogContent className={HIDE_NATIVE_CLOSE} style={modalSurface(460)}>
+        <DialogContent ref={modalDevolverRef} className={HIDE_NATIVE_CLOSE} style={modalSurface(460)}>
           <DialogTitle className="sr-only">Devolver peça para a Revisão Final</DialogTitle>
           <ModalHeader
             variant="confirm"
@@ -5257,11 +5596,11 @@ export default function Grafica() {
             subtitle={devolverItem ? `${devolverItem.displayId} · ${devolverItem.type ?? ""}` : undefined}
             onClose={() => { setDevolverItem(null); setDevolverMotivo(""); }}
           />
-          <div style={{ padding: "18px 24px", overflowY: "auto", flex: "1 1 auto", minHeight: 0 }}>
+          <div style={{ padding: `18px ${padModal}px`, overflowY: "auto", flex: "1 1 auto", minHeight: 0 }}>
             <p style={{ fontSize: 13, color: "#57534e", lineHeight: 1.6, margin: "0 0 14px" }}>
               A peça sai da fila da Gráfica e volta para <strong style={{ color: "#1c1917" }}>Aguardando Revisão Final</strong>. Nada foi produzido, então não há material a estornar.
             </p>
-            <label style={{ display: "block", fontSize: 11, fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase", color: "#746e69", marginBottom: 6 }}>
+            <label htmlFor="textarea-devolver-motivo" style={{ display: "block", fontSize: fsMin(11), fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase", color: "#746e69", marginBottom: 6 }}>
               Motivo da devolução
             </label>
             <textarea
@@ -5269,10 +5608,11 @@ export default function Grafica() {
               onChange={e => setDevolverMotivo(e.target.value)}
               placeholder="O que está errado? Ex.: arquivo em baixa resolução, medida diferente do pedido..."
               rows={3}
+              id="textarea-devolver-motivo"
               data-testid="textarea-devolver-revisao-motivo"
               style={{
-                width: "100%", boxSizing: "border-box", padding: "10px 12px",
-                fontSize: 13, fontFamily: "inherit", color: "#1c1917",
+                width: "100%", minHeight: 80, boxSizing: "border-box", padding: "10px 12px",
+                fontSize: isMobile ? 16 : 13, fontFamily: "inherit", color: "#1c1917",
                 backgroundColor: "#ffffff", border: "1px solid #e7e5e4", borderRadius: 9,
                 resize: "vertical", outlineOffset: 2,
               }}
@@ -5280,14 +5620,18 @@ export default function Grafica() {
             {/* O mínimo aparece SEMPRE, não só depois de errar: botão
                 desabilitado sem explicação é o que faz a pessoa achar que o
                 app travou. */}
-            <p style={{ fontSize: 11, color: "#746e69", margin: "6px 0 0" }}>
+            <p style={{ fontSize: fsMin(11), color: "#746e69", margin: "6px 0 0" }}>
               Mínimo de {MOTIVO_MIN_DEVOLUCAO} caracteres — {devolverMotivo.trim().replace(/\s+/g, " ").length}/{MOTIVO_MIN_DEVOLUCAO}
             </p>
           </div>
-          <div style={{ padding: "12px 24px", borderTop: "1px solid #f1f0ef", backgroundColor: "#fafaf9", display: "flex", gap: 8, justifyContent: "flex-end" }}>
+          {/* Rodapé fora do corpo rolável (flexShrink 0) e com o recorte
+              seguro; no celular os dois botões dividem a largura — com
+              "Devolver para a Revisão Final" por extenso, a fileira alinhada à
+              direita passava de 360px e empurrava o botão para fora. */}
+          <div style={{ flexShrink: 0, paddingTop: 12, paddingLeft: padModal, paddingRight: padModal, paddingBottom: "calc(12px + env(safe-area-inset-bottom))", borderTop: "1px solid #f1f0ef", backgroundColor: "#fafaf9", display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "flex-end" }}>
             <button
               onClick={() => { setDevolverItem(null); setDevolverMotivo(""); }}
-              style={{ height: isMobile ? 44 : 36, padding: "0 14px", borderRadius: 9, border: "1px solid #e7e5e4", backgroundColor: "#ffffff", color: "#57534e", fontSize: 13, fontWeight: 600, cursor: "pointer" }}
+              style={{ flex: isMobile ? "1 1 auto" : undefined, height: isMobile ? 48 : 36, padding: "0 14px", borderRadius: 9, border: "1px solid #e7e5e4", backgroundColor: "#ffffff", color: "#57534e", fontSize: isMobile ? 14 : 13, fontWeight: 600, cursor: "pointer" }}
             >
               Cancelar
             </button>
@@ -5297,17 +5641,19 @@ export default function Grafica() {
               data-testid="button-confirmar-devolver-revisao"
               // Contorno vermelho, não preenchido: devolver tira o trabalho da
               // mão de alguém, e botão vermelho cheio convida ao clique reflexo.
+              aria-busy={devolverMutation.isPending || undefined}
               style={{
-                height: isMobile ? 44 : 36, padding: "0 16px", borderRadius: 9,
+                flex: isMobile ? "2 1 auto" : undefined, justifyContent: "center",
+                height: isMobile ? 48 : 36, padding: "0 16px", borderRadius: 9,
                 border: "1.5px solid #b91c1c", backgroundColor: "#ffffff", color: "#b91c1c",
-                fontSize: 13, fontWeight: 700,
+                fontSize: isMobile ? 14 : 13, fontWeight: 700,
                 cursor: devolverMutation.isPending ? "default" : "pointer",
                 opacity: devolverMutation.isPending || devolverMotivo.trim().replace(/\s+/g, " ").length < MOTIVO_MIN_DEVOLUCAO ? 0.5 : 1,
                 display: "flex", alignItems: "center", gap: 6,
               }}
             >
-              {devolverMutation.isPending && <Loader2 className="animate-spin" style={{ width: 14, height: 14 }} />}
-              Devolver para a Revisão Final
+              {devolverMutation.isPending && <Loader2 aria-hidden="true" className="animate-spin" style={{ width: 14, height: 14 }} />}
+              {isMobile ? "Devolver à Revisão" : "Devolver para a Revisão Final"}
             </button>
           </div>
         </DialogContent>

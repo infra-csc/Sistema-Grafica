@@ -871,3 +871,15 @@
     scroll-behavior: auto !important;
   }
 }
+
+/* ── Celular: legibilidade e alvo de toque (Gráfica mobile, 17/09) ──────────
+   Estilos inline não têm media query; estas classes só existem para isto.
+   Pílula de status pequena e selo do Kit usavam 10px — ilegível no galpão, sob
+   luz ruim. O X dos modais tinha 34/40px — abaixo do alvo de 44 no toque. */
+@media (max-width: 767px) {
+  .status-pill-sm { font-size: 12px !important; }
+  .selo-kit { font-size: 12px !important; }
+}
+@media (pointer: coarse) {
+  .modal-fechar { width: 44px !important; height: 44px !important; }
+}

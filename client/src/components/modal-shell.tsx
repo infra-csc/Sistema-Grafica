@@ -234,6 +234,9 @@ export function ModalHeader({
           onClick={onClose}
           aria-label="Fechar"
           title="Fechar (Esc)"
+          // .modal-fechar (index.css): 44px de alvo em tela de toque; no mouse
+          // continua o círculo discreto de 34/40.
+          className="modal-fechar"
           onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = dark ? "rgba(255,255,255,0.16)" : "#e7e5e4"; }}
           onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = dark ? "rgba(255,255,255,0.08)" : "#f5f5f4"; }}
           style={{

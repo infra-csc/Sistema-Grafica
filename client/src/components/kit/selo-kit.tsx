@@ -18,6 +18,7 @@ export function SeloKit({ peca, style }: {
   return (
     <span
       data-testid={`selo-kit-${peca.id}`}
+      className="selo-kit"
       title={detalheDaRemessa(peca.kitRemessa)}
       aria-label={`Peça do Kit${entrega ? `, entrega ${entrega}` : ""}`}
       style={{

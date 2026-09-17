@@ -34,7 +34,9 @@ export function MapaGalpao({ value, onSelect, onClose }: {
           // não rolam, então o navegador os mede sozinho e o corpo fica com o
           // que sobrar via `flex: 1 1 auto; minHeight: 0`. Mesma regra do
           // `modal-shell` e do modal da Gestão de Prazos.
-          display: "flex", flexDirection: "column", maxHeight: "calc(100vh - 48px)",
+          // dvh onde existe: no celular o 100vh inclui a barra recolhível do
+          // navegador e o "Usar A3" ficava atrás dela (mesma regra do modalSurface).
+          display: "flex", flexDirection: "column", maxHeight: typeof CSS !== "undefined" && CSS.supports?.("height: 100dvh") ? "calc(100dvh - 24px)" : "calc(100vh - 48px)",
           padding: 0, overflow: "hidden", borderRadius: 20,
           width: "min(480px, calc(100vw - 32px))", maxWidth: "min(480px, calc(100vw - 32px))",
           boxShadow: "0 25px 60px rgba(0,0,0,0.2)",
@@ -68,16 +70,18 @@ export function MapaGalpao({ value, onSelect, onClose }: {
         </div>
         {/* O mapa é o único scrollport: em telas baixas ele rola e o botão
             Confirmar continua no lugar. */}
-        <div style={{ padding: "16px 20px 20px", overflowY: "auto", flex: "1 1 auto", minHeight: 0 }}>
+        {/* 12px de lado (eram 20): em 360px cada uma das 8 colunas ganha ~4px de
+            largura de toque — é a medida que falta ao dedo neste grid. */}
+        <div style={{ padding: "16px 12px 20px", overflowY: "auto", flex: "1 1 auto", minHeight: 0 }}>
           <div style={{ display: "grid", gridTemplateColumns: "28px repeat(8, 1fr)", gap: 4, marginBottom: 4 }}>
             <div />
             {CORREDORES.map(c => (
-              <div key={c} style={{ textAlign: "center", fontSize: 10, fontWeight: 700, color: "#746e69", fontFamily: "DM Mono, monospace" }}>C{c}</div>
+              <div key={c} style={{ textAlign: "center", fontSize: 12, fontWeight: 700, color: "#746e69", fontFamily: "DM Mono, monospace" }}>C{c}</div>
             ))}
           </div>
           {SETORES.map(s => (
             <div key={s} style={{ display: "grid", gridTemplateColumns: "28px repeat(8, 1fr)", gap: 4, marginBottom: 4 }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 800, color: "#746e69", fontFamily: "DM Mono, monospace" }}>{s}</div>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 800, color: "#57534e", fontFamily: "DM Mono, monospace" }}>{s}</div>
               {CORREDORES.map(c => {
                 const loc = `Setor ${s} - Corredor ${c}`;
                 const isSelected = value === loc;
@@ -98,7 +102,7 @@ export function MapaGalpao({ value, onSelect, onClose }: {
                       height: 44, borderRadius: 8, border: `1px solid ${isSelected ? "#c2410c" : isHov ? "#fed7aa" : "#e7e5e4"}`,
                       background: isSelected ? "#c2410c" : isHov ? "#fff7ed" : "#fafaf9",
                       color: isSelected ? "#fff" : isHov ? "#c2410c" : "#44403c",
-                      fontSize: 11, fontWeight: 700, cursor: "pointer", padding: 0,
+                      fontSize: 12, fontWeight: 700, cursor: "pointer", padding: 0,
                       fontFamily: "DM Mono, monospace",
                       transition: "background-color 0.12s, color 0.12s, border-color 0.12s",
                       boxShadow: isSelected ? "0 0 0 2px #ffffff, 0 0 0 4px rgba(194,65,12,0.45)" : "none",
@@ -112,14 +116,14 @@ export function MapaGalpao({ value, onSelect, onClose }: {
           {value && (
             <div style={{ marginTop: 12, minHeight: 36, boxSizing: "border-box", padding: "8px 14px", borderRadius: 10, background: "#fff7ed", border: "1px solid #fed7aa", display: "flex", alignItems: "center", gap: 8 }}>
               <MapPin size={13} color="#c2410c" />
-              <span role="status" style={{ fontSize: 12, fontWeight: 700, color: "#c2410c", fontFamily: "Space Grotesk, sans-serif" }}>{value}</span>
+              <span role="status" style={{ fontSize: 13, fontWeight: 700, color: "#c2410c", fontFamily: "Space Grotesk, sans-serif" }}>{value}</span>
             </div>
           )}
         </div>
         <div style={{ padding: "12px 20px calc(12px + env(safe-area-inset-bottom))", borderTop: "1px solid #f1f0ef", display: "flex", justifyContent: "flex-end", flexShrink: 0 }}>
           {/* #c2410c: branco sobre #f97316 dava 2,8:1. 44px: é o botão que o
               operador procura com o dedo depois de escolher a célula. */}
-          <button type="button" onClick={onClose} style={{ minHeight: 44, padding: "0 22px", borderRadius: 10, border: "none", background: "#c2410c", color: "#fff", fontSize: 13, cursor: "pointer", fontFamily: "Space Grotesk, sans-serif", fontWeight: 700 }}>
+          <button type="button" onClick={onClose} style={{ minHeight: 48, padding: "0 22px", borderRadius: 10, border: "none", background: "#c2410c", color: "#fff", fontSize: 14, cursor: "pointer", fontFamily: "Space Grotesk, sans-serif", fontWeight: 700 }}>
             {/* O CTA nomeia a célula ("Usar A3", o mesmo texto do botão do
                 mapa); local digitado à mão fora do formato vira "este local". */}
             {value

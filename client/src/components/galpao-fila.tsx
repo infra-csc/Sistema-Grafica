@@ -30,6 +30,7 @@ import { Camera, Check, ChevronRight, ImagePlus, Loader2, Truck, X } from "lucid
 import { ObjectUploader } from "@/components/ObjectUploader";
 import { SugestaoRecebedor } from "@/components/sugestao-recebedor";
 import { remainingConfer } from "@/lib/saldo";
+import { useAcompanharAreaVisivel } from "@/components/grafica/area-visivel";
 // Só LEITURA do saldo, para dizer quantas unidades a entrega leva: a rota
 // entrega o que resta conferido quando não recebe `qty` — o número mostrado é
 // essa mesma conta, da mesma fonte da lista.
@@ -76,6 +77,9 @@ export function GalpaoFila({ mode, itens, onClose, onConfirmar, sugestaoRecebedo
   const enviandoRef = useRef(false);
   enviandoRef.current = enviando;
   const caixaRef = useRef<HTMLDivElement>(null);
+  // Teclado aberto em "Quem recebeu": a fila encolhe para a área visível e o
+  // rodapé (Pular / Entregar) sobe junto — antes ficava atrás do teclado.
+  useAcompanharAreaVisivel(caixaRef, "tela-cheia", true);
   // FOCO E ESC. A fila é um diálogo em tela cheia (aria-modal), mas o foco
   // ficava no botão da lista que a abriu, ATRÁS dela — Tab andava pela tela
   // escondida. Ao abrir, o foco entra na fila; ao sair, volta para quem abriu.
@@ -189,13 +193,16 @@ export function GalpaoFila({ mode, itens, onClose, onConfirmar, sugestaoRecebedo
         display: "flex", flexDirection: "column", outline: "none",
       }}
     >
-      {/* ── topo: progresso + sair ── */}
-      <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderBottom: "1px solid #e7e5e4", backgroundColor: "#ffffff" }}>
+      {/* ── topo: progresso + sair ──
+          Recorte seguro em cima (notch/ilha no iPhone deitado ou com o app na
+          tela inicial) e dos lados (paisagem), nos LONGOS: o atalho `padding`
+          com env() some no parser do jsdom e o teste deixaria de enxergá-lo. */}
+      <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", columnGap: 10, rowGap: 0, paddingTop: "calc(4px + env(safe-area-inset-top))", paddingBottom: 4, paddingLeft: "calc(12px + env(safe-area-inset-left))", paddingRight: "calc(4px + env(safe-area-inset-right))", borderBottom: "1px solid #e7e5e4", backgroundColor: "#ffffff", flexShrink: 0 }}>
         <span style={{ fontSize: 12, fontWeight: 800, color: tinta, textTransform: "uppercase", letterSpacing: "0.06em", display: "inline-flex", alignItems: "center", gap: 6 }}>
           {isConfer ? <Check style={{ width: 15, height: 15 }} /> : <Truck style={{ width: 15, height: 15 }} />}
           {isConfer ? "Conferindo" : "Entregando"}
         </span>
-        <span data-testid="galpao-progresso" style={{ fontSize: 13, fontWeight: 700, color: "#44403c", fontVariantNumeric: "tabular-nums" }}>
+        <span data-testid="galpao-progresso" style={{ fontSize: 15, fontWeight: 800, color: "#1c1917", fontVariantNumeric: "tabular-nums" }}>
           {idx + 1} de {fila.length}
         </span>
         {feitas > 0 && (
@@ -215,8 +222,8 @@ export function GalpaoFila({ mode, itens, onClose, onConfirmar, sugestaoRecebedo
           aria-label={feitas > 0 ? `Sair da fila — as ${feitas} registradas ficam salvas` : "Sair da fila"}
           title={feitas > 0 ? "Sair — o que já foi registrado fica salvo" : "Sair da fila"}
           data-testid="galpao-sair"
-          style={{ width: 44, height: 44, display: "flex", alignItems: "center", justifyContent: "center", border: "none", background: "transparent", cursor: "pointer", color: "#78716c" }}>
-          <X style={{ width: 20, height: 20 }} />
+          style={{ width: 48, height: 48, display: "flex", alignItems: "center", justifyContent: "center", border: "none", background: "transparent", cursor: "pointer", color: "#57534e" }}>
+          <X aria-hidden="true" style={{ width: 22, height: 22 }} />
         </button>
       </div>
 
@@ -239,9 +246,12 @@ export function GalpaoFila({ mode, itens, onClose, onConfirmar, sugestaoRecebedo
           só anuncia mudança dentro de uma região que já existia). A entrada
           desliza só para quem não pediu movimento reduzido. */}
       <style>{`@media (prefers-reduced-motion: no-preference) { .galpao-registrou { animation: galpao-registrou-in 180ms ease-out; } } @keyframes galpao-registrou-in { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }`}</style>
-      <div aria-live="polite" data-testid="galpao-registrou">
+      {/* SOBREPOSTA, altura zero: a faixa entrava NO FLUXO e empurrava a peça
+          36px para baixo justo quando o dedo ia para a câmera da próxima —
+          toque errado garantido. Agora flutua sobre o topo da peça e some. */}
+      <div aria-live="polite" data-testid="galpao-registrou" style={{ position: "relative", height: 0, zIndex: 2 }}>
         {registrouAgora && (
-          <div className="galpao-registrou" style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 14px", backgroundColor: "#f0fdf4", borderBottom: "1px solid #bbf7d0", color: "#15803d", fontSize: 13, fontWeight: 700 }}>
+          <div className="galpao-registrou" style={{ position: "absolute", top: 0, left: 0, right: 0, display: "flex", alignItems: "center", gap: 8, padding: "10px 14px", backgroundColor: "#f0fdf4", borderBottom: "1px solid #bbf7d0", color: "#15803d", fontSize: 14, fontWeight: 700, boxShadow: "0 4px 12px -6px rgba(21,128,61,0.35)" }}>
             <Check aria-hidden="true" style={{ width: 16, height: 16 }} />
             {registrouAgora}{fila[idx] ? " — próxima peça" : ""}
           </div>
@@ -249,7 +259,7 @@ export function GalpaoFila({ mode, itens, onClose, onConfirmar, sugestaoRecebedo
       </div>
 
       {/* ── a peça ── */}
-      <div style={{ flex: 1, overflowY: "auto", padding: "14px 14px 8px", display: "flex", flexDirection: "column", gap: 12 }}>
+      <div style={{ flex: 1, minHeight: 0, overflowY: "auto", overscrollBehavior: "contain", paddingTop: 14, paddingBottom: 8, paddingLeft: "calc(14px + env(safe-area-inset-left))", paddingRight: "calc(14px + env(safe-area-inset-right))", display: "flex", flexDirection: "column", gap: 12 }}>
         {/* Texto neutro: a peça sai da lista viva também quando é devolvida
             para a Revisão ou muda de recorte — afirmar "outra pessoa conferiu"
             seria mentira nesses casos. E some durante o PRÓPRIO envio: o eco
@@ -260,28 +270,34 @@ export function GalpaoFila({ mode, itens, onClose, onConfirmar, sugestaoRecebedo
               Esta peça saiu da fila depois que ela abriu — já foi {isConfer ? "conferida" : "entregue"} ou mudou de etapa. Nada a fazer aqui.
             </span>
             <button type="button" onClick={pular}
-              style={{ minHeight: 44, padding: "0 14px", borderRadius: 10, border: "none", backgroundColor: "#92400e", color: "#ffffff", fontSize: 13, fontWeight: 800, cursor: "pointer", whiteSpace: "nowrap" }}>
+              style={{ minHeight: 44, padding: "0 14px", borderRadius: 10, border: "none", backgroundColor: "#92400e", color: "#ffffff", fontSize: 14, fontWeight: 800, cursor: "pointer", whiteSpace: "nowrap" }}>
               Pular
             </button>
           </div>
         )}
         <div>
-          <p style={{ margin: 0, fontFamily: "'Space Grotesk', sans-serif", fontSize: 26, fontWeight: 900, letterSpacing: "-0.02em", color: "#1c1917" }} data-testid="galpao-codigo">
-            {item.displayId} <span style={{ fontWeight: 700, fontSize: 18, color: "#44403c" }}>· {item.type}</span>
+          {/* 30px: é o número que se confere contra a etiqueta do material, de
+              braço esticado. Quebra antes do tipo, nunca no meio do código. */}
+          <p style={{ margin: 0, fontFamily: "'Space Grotesk', sans-serif", fontSize: 30, fontWeight: 900, letterSpacing: "-0.02em", color: "#1c1917", lineHeight: 1.15 }} data-testid="galpao-codigo">
+            <span style={{ whiteSpace: "nowrap" }}>{item.displayId}</span> <span style={{ fontWeight: 700, fontSize: 18, color: "#44403c" }}>· {item.type}</span>
           </p>
           {item.description && (
-            <p style={{ margin: "2px 0 0", fontSize: 14, color: "#57534e", lineHeight: 1.4 }}>{item.description}</p>
+            <p style={{ margin: "2px 0 0", fontSize: 15, color: "#44403c", lineHeight: 1.4 }}>{item.description}</p>
           )}
-          <p style={{ margin: "4px 0 0", fontSize: 12.5, color: "#78716c" }}>
+          <p style={{ margin: "4px 0 0", fontSize: 13, color: "#57534e" }}>
             {item.event?.name ?? "Sem evento"}
-            {item.event?.truckDepartureDate && <> · saída <strong style={{ color: "#b45309" }}>{dataCurta(item.event.truckDepartureDate)}</strong></>}
+            {item.event?.truckDepartureDate && <> · saída <strong style={{ color: "#92400e" }}>{dataCurta(item.event.truckDepartureDate)}</strong></>}
           </p>
         </div>
 
         {/* A arte grande — conferir É comparar o material com ela. */}
         {arte ? (
-          <img loading="lazy" decoding="async" src={miniatura(arte)} alt={`Arte da peça ${item.displayId}`}
-            style={{ width: "100%", maxHeight: "34vh", objectFit: "contain", borderRadius: 10, border: "1px solid #e7e5e4", backgroundColor: "#ffffff" }} />
+          // ALTURA RESERVADA (não maxHeight): a arte chegava depois e empurrava
+          // a câmera para baixo do dedo. `clamp` com dvh: grande no retrato,
+          // e em paisagem (≈360px de altura) não toma a tela inteira. Sem
+          // `loading="lazy"`: está na primeira dobra por definição.
+          <img decoding="async" src={miniatura(arte)} alt={`Arte da peça ${item.displayId}`}
+            style={{ width: "100%", height: "clamp(120px, 32dvh, 320px)", flexShrink: 0, objectFit: "contain", borderRadius: 10, border: "1px solid #e7e5e4", backgroundColor: "#ffffff" }} />
         ) : (
           <p style={{ margin: 0, padding: "14px 12px", fontSize: 13, color: "#78716c", backgroundColor: "#f5f5f4", borderRadius: 10 }}>
             Esta peça não tem arte anexada — confira pela descrição.
@@ -293,7 +309,7 @@ export function GalpaoFila({ mode, itens, onClose, onConfirmar, sugestaoRecebedo
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <span style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "#57534e", flex: 1 }}>
               Conferidas agora
-              <span style={{ display: "block", fontWeight: 400, textTransform: "none", letterSpacing: 0, fontSize: 11.5, color: "#78716c" }}>
+              <span style={{ display: "block", fontWeight: 500, textTransform: "none", letterSpacing: 0, fontSize: 13, color: "#57534e" }}>
                 faltam {saldo} de {item.quantity}
               </span>
             </span>
@@ -322,9 +338,11 @@ export function GalpaoFila({ mode, itens, onClose, onConfirmar, sugestaoRecebedo
             <span style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "#57534e" }}>
               Quem recebeu <span style={{ fontWeight: 400, textTransform: "none", letterSpacing: 0, color: "#78716c" }}>(opcional — fica para as próximas)</span>
             </span>
+            {/* 16px: com 15 o iOS dava zoom na página inteira ao tocar. */}
             <input value={receivedBy} onChange={(e) => setReceivedBy(e.target.value)} data-testid="galpao-recebido-por"
               placeholder="Nome de quem assinou"
-              style={{ width: "100%", marginTop: 6, height: 48, borderRadius: 10, border: "1px solid #d6d3d1", padding: "0 12px", fontSize: 15, fontFamily: "inherit", color: "#1c1917", backgroundColor: "#ffffff", boxSizing: "border-box" }} />
+              autoComplete="off" autoCapitalize="words" enterKeyHint="done"
+              style={{ width: "100%", marginTop: 6, height: 48, borderRadius: 10, border: "1px solid #d6d3d1", padding: "0 12px", fontSize: 16, fontFamily: "inherit", color: "#1c1917", backgroundColor: "#ffffff", boxSizing: "border-box" }} />
           </label>
         )}
         {!isConfer && (
@@ -346,24 +364,26 @@ export function GalpaoFila({ mode, itens, onClose, onConfirmar, sugestaoRecebedo
             </button>
           </div>
         ) : (
-          <div style={{ display: "flex", gap: 10 }}>
+          <div style={{ display: "flex", gap: 12 }}>
             <div style={{ flex: 2.2 }}>
-              <ObjectUploader capture maxFileSize={10485760} buttonVariant="ghost" buttonClassName="w-full h-full p-0 border-0 hover:bg-transparent"
+              {/* min-h: durante o envio o conteúdo vira "Enviando x%" (uma
+                  linha) e o botão encolhia, mudando tudo de lugar sob o dedo. */}
+              <ObjectUploader capture maxFileSize={10485760} buttonVariant="ghost" buttonClassName="w-full h-full min-h-[88px] p-0 border-0 hover:bg-transparent"
                 onComplete={(r) => { setFoto(r.url); setErro(null); }}
                 onError={(e) => setErro(e.message)}>
                 <div data-testid="galpao-camera" style={{ width: "100%", padding: "22px 0", backgroundColor: tinta, borderRadius: 12, display: "flex", flexDirection: "column", alignItems: "center", gap: 6, cursor: "pointer" }}>
-                  <Camera style={{ width: 28, height: 28, color: "#ffffff" }} />
-                  <span style={{ fontSize: 15, fontWeight: 800, color: "#ffffff" }}>Tirar foto</span>
+                  <Camera aria-hidden="true" style={{ width: 28, height: 28, color: "#ffffff" }} />
+                  <span style={{ fontSize: 16, fontWeight: 800, color: "#ffffff" }}>Tirar foto</span>
                 </div>
               </ObjectUploader>
             </div>
             <div style={{ flex: 1 }}>
-              <ObjectUploader maxFileSize={10485760} buttonVariant="ghost" buttonClassName="w-full h-full p-0 border-0 hover:bg-transparent"
+              <ObjectUploader maxFileSize={10485760} buttonVariant="ghost" buttonClassName="w-full h-full min-h-[88px] p-0 border-0 hover:bg-transparent"
                 onComplete={(r) => { setFoto(r.url); setErro(null); }}
                 onError={(e) => setErro(e.message)}>
                 <div style={{ width: "100%", padding: "22px 0", backgroundColor: "#f4f3f0", borderRadius: 12, border: "2px dashed #d6d3d1", display: "flex", flexDirection: "column", alignItems: "center", gap: 6, cursor: "pointer" }}>
-                  <ImagePlus style={{ width: 22, height: 22, color: "#78716c" }} />
-                  <span style={{ fontSize: 13, fontWeight: 700, color: "#57534e" }}>Galeria</span>
+                  <ImagePlus aria-hidden="true" style={{ width: 22, height: 22, color: "#57534e" }} />
+                  <span style={{ fontSize: 14, fontWeight: 700, color: "#44403c" }}>Galeria</span>
                 </div>
               </ObjectUploader>
             </div>
@@ -373,7 +393,7 @@ export function GalpaoFila({ mode, itens, onClose, onConfirmar, sugestaoRecebedo
             Confirmar cinza, que no celular ninguém lê. Enquanto a foto sobe, o
             próprio botão da câmera mostra "Enviando…" com o percentual. */}
         {!foto && (
-          <p style={{ margin: "-4px 0 0", fontSize: 12, color: "#57534e", lineHeight: 1.4 }}>
+          <p style={{ margin: "-4px 0 0", fontSize: 13, color: "#57534e", lineHeight: 1.4 }}>
             {isConfer
               ? "Foto obrigatória: é o registro de que a peça foi conferida."
               : "Foto obrigatória: é o comprovante de que o material foi entregue."}
@@ -381,20 +401,26 @@ export function GalpaoFila({ mode, itens, onClose, onConfirmar, sugestaoRecebedo
         )}
 
         {erro && (
-          <p data-testid="galpao-erro" role="alert" style={{ margin: 0, padding: "10px 12px", fontSize: 13, fontWeight: 600, color: "#b91c1c", backgroundColor: "#fef2f2", border: "1px solid #fecaca", borderRadius: 10 }}>
+          <p data-testid="galpao-erro" role="alert" style={{ margin: 0, padding: "10px 12px", fontSize: 14, fontWeight: 600, color: "#b91c1c", backgroundColor: "#fef2f2", border: "1px solid #fecaca", borderRadius: 10 }}>
             {erro}
+            {/* O Confirmar continua habilitado com a foto: tocar nele de novo
+                É o "tentar de novo". A frase diz isso em vez de deixar a dúvida. */}
+            {foto && !jaRegistradaPorOutro && <span style={{ display: "block", marginTop: 2, fontWeight: 500, color: "#7f1d1d" }}>A foto continua anexada — toque no botão abaixo para tentar de novo.</span>}
           </p>
         )}
       </div>
 
       {/* ── rodapé: o segundo toque ── */}
-      <div style={{ padding: "10px 14px calc(12px + env(safe-area-inset-bottom))", borderTop: "1px solid #e7e5e4", backgroundColor: "#ffffff", display: "flex", gap: 10 }}>
+      {/* Zona do polegar: Pular e Confirmar embaixo, com o recorte seguro do
+          home indicator e dos lados (paisagem) nos LONGOS. */}
+      <div style={{ flexShrink: 0, paddingTop: 10, paddingBottom: "calc(12px + env(safe-area-inset-bottom))", paddingLeft: "calc(14px + env(safe-area-inset-left))", paddingRight: "calc(14px + env(safe-area-inset-right))", borderTop: "1px solid #e7e5e4", backgroundColor: "#ffffff", display: "flex", gap: 12 }}>
         <button type="button" onClick={pular} data-testid="galpao-pular"
           title="Deixar para depois — a peça continua na lista"
-          style={{ height: 56, padding: "0 16px", borderRadius: 12, border: "1px solid #d6d3d1", backgroundColor: "#ffffff", color: "#57534e", fontSize: 14, fontWeight: 700, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6 }}>
-          Pular <ChevronRight style={{ width: 16, height: 16 }} />
+          style={{ height: 56, padding: "0 16px", borderRadius: 12, border: "1px solid #d6d3d1", backgroundColor: "#ffffff", color: "#44403c", fontSize: 15, fontWeight: 700, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6 }}>
+          Pular <ChevronRight aria-hidden="true" style={{ width: 16, height: 16 }} />
         </button>
         <button type="button" onClick={confirmar} disabled={!foto || enviando} data-testid="galpao-confirmar"
+          aria-busy={enviando || undefined}
           title={!foto ? "A foto é obrigatória — é o registro da conferência/entrega." : undefined}
           style={{
             flex: 1, height: 56, borderRadius: 12, border: "none",

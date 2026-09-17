@@ -405,7 +405,27 @@ function semaforoPrazo(diff: number): { bg: string; border: string; text: string
   if (diff < 0) return { bg: '#fee2e2', border: '#fca5a5', text: '#991b1b' };
   if (diff === 0) return { bg: '#fef3c7', border: '#fcd34d', text: '#92400e' };
   if (diff <= 3) return { bg: '#ffedd5', border: '#fdba74', text: '#9a3412' };
-  return { bg: '#f5f5f4', border: '#e7e5e4', text: '#57534e' };
+  // Dentro do prazo = VERDE (dono, 17/09: "com base se passou ou não do
+  // prazo"). Era cinza, e o marco folgado se lia como "sem informação" ao lado
+  // do vermelho — agora a faixa diz de relance o que passou e o que não.
+  // #166534 sobre #dcfce7 ≈ 6,5:1 (AA).
+  return { bg: '#dcfce7', border: '#86efac', text: '#166534' };
+}
+
+/**
+ * Cor do chip de evento pelo VOLUME de peças (dono, 17/09: "com base na
+ * quantidade"). Quatro degraus relativos ao maior evento da lista: quem tem
+ * mais trabalho aparece no laranja mais forte, o evento pequeno fica claro. O
+ * número continua escrito — a cor só acelera o ranking. Texto 700–900 sobre
+ * fundo 50–100 (AA em todos os degraus); o selo do número inverte no degrau
+ * mais alto para o maior evento saltar.
+ */
+function corPorVolume(count: number, maior: number): { bg: string; border: string; text: string; seloBg: string; seloText: string } {
+  const r = maior > 0 ? count / maior : 0;
+  if (r >= 0.75) return { bg: '#ffedd5', border: '#fb923c', text: '#9a3412', seloBg: '#c2410c', seloText: '#ffffff' };
+  if (r >= 0.5) return { bg: '#fff7ed', border: '#fdba74', text: '#9a3412', seloBg: '#fed7aa', seloText: '#7c2d12' };
+  if (r >= 0.25) return { bg: '#fffbeb', border: '#fcd34d', text: '#92400e', seloBg: '#fef3c7', seloText: '#78350f' };
+  return { bg: '#ffffff', border: '#e7e5e4', text: '#1c1917', seloBg: '#f5f5f4', seloText: '#44403c' };
 }
 
 /**
@@ -3226,23 +3246,27 @@ export default function Arte() {
                 linhas de chips idênticos disputavam a atenção e o olho não tinha
                 onde pousar — "Rio S21K · 95" pesava o mesmo que um evento de uma
                 peça só. Os pequenos continuam a um clique. */}
-            {(showAllEvents ? eventSummary : eventSummary.slice(0, EVENT_CHIPS_VISIBLE)).map(ev => (
-              <button
-                key={ev.id || ev.name}
-                onClick={() => { if (ev.id) setEventFilter([ev.id]); }}
-                title={ev.id ? `Filtrar por ${ev.name}` : ev.name}
-                // NEUTRO. Oito pílulas laranja, cada uma com um selo laranja
-                // CHEIO, eram a maior mancha de cor da tela — num atalho de
-                // navegação. O laranja fica para o que pede atenção (prazo,
-                // aba ativa, recorte ligado); aqui o número já faz o ranking.
-                style={{ display: 'inline-flex', alignItems: 'center', gap: 6, minHeight: isMobile ? 36 : 28, padding: '0 6px 0 11px', borderRadius: 999, border: '1px solid #e7e5e4', backgroundColor: '#ffffff', color: '#1c1917', fontSize: 12, fontWeight: 600, cursor: ev.id ? 'pointer' : 'default', whiteSpace: 'nowrap' }}
-              >
-                {ev.name}
-                <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minWidth: 20, height: 18, padding: '0 6px', borderRadius: 999, backgroundColor: '#f5f5f4', color: '#44403c', fontSize: 11, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
-                  {ev.count}
-                </span>
-              </button>
-            ))}
+            {(() => {
+              // O maior volume da lista inteira (não só dos chips visíveis):
+              // abrir "mais N eventos" não pode recolorir os que já estavam à vista.
+              const maiorVolume = eventSummary.reduce((mx, e) => Math.max(mx, e.count), 0);
+              return (showAllEvents ? eventSummary : eventSummary.slice(0, EVENT_CHIPS_VISIBLE)).map(ev => {
+                const c = corPorVolume(ev.count, maiorVolume);
+                return (
+                  <button
+                    key={ev.id || ev.name}
+                    onClick={() => { if (ev.id) setEventFilter([ev.id]); }}
+                    title={ev.id ? `Filtrar por ${ev.name} — ${ev.count} ${ev.count === 1 ? 'peça' : 'peças'}` : ev.name}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 6, minHeight: isMobile ? 36 : 28, padding: '0 6px 0 11px', borderRadius: 999, border: `1px solid ${c.border}`, backgroundColor: c.bg, color: c.text, fontSize: 12, fontWeight: 600, cursor: ev.id ? 'pointer' : 'default', whiteSpace: 'nowrap' }}
+                  >
+                    {ev.name}
+                    <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minWidth: 20, height: 18, padding: '0 6px', borderRadius: 999, backgroundColor: c.seloBg, color: c.seloText, fontSize: 11, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
+                      {ev.count}
+                    </span>
+                  </button>
+                );
+              });
+            })()}
             {eventSummary.length > EVENT_CHIPS_VISIBLE && (
               <button
                 onClick={() => setShowAllEvents(v => !v)}
@@ -4016,13 +4040,17 @@ export default function Arte() {
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: isMobile ? 1 : 0, flexWrap: 'wrap', justifyContent: isMobile ? 'flex-start' : 'flex-end' }}>
               {/* O divisor vertical que abria esta fileira saiu: ele separava
                   os botões de NADA — à esquerda dele não havia controle. */}
-              {/* Exportar é LEITURA — continua disponível em modo consulta. */}
+              {/* COR NOS BOTÕES DO TOPO (dono, 17/09: "seria bom cor também").
+                  Cada ação ganha um tom próprio — fundo 50, borda 200, texto e
+                  ícone 700 (AA sobre o fundo claro) — para a pessoa achar a
+                  ação pela cor sem ler a fileira inteira.
+                  Exportar é LEITURA — continua disponível em modo consulta. */}
               <button
                 onClick={handleClickExportButton}
                 data-testid="button-export-pdf"
-                style={{ display: 'flex', alignItems: 'center', gap: 6, height: isMobile ? 44 : 36, padding: '0 14px', borderRadius: 8, border: '1px solid #e7e5e4', background: '#ffffff', color: '#44403c', fontSize: 13, fontWeight: 600, cursor: 'pointer', transition: 'border-color 0.12s', whiteSpace: 'nowrap' }}
+                style={{ display: 'flex', alignItems: 'center', gap: 6, height: isMobile ? 44 : 36, padding: '0 14px', borderRadius: 8, border: '1px solid #bfdbfe', background: '#eff6ff', color: '#1d4ed8', fontSize: 13, fontWeight: 600, cursor: 'pointer', transition: 'border-color 0.12s', whiteSpace: 'nowrap' }}
               >
-                <Printer style={{ width: 12, height: 12, color: '#57534e' }} />
+                <Printer style={{ width: 12, height: 12, color: '#1d4ed8' }} />
                 {selectedItemIds.size > 0 ? `Exportar ${selectedItemIds.size} selecionadas` : 'Exportar PDF'}
               </button>
               {podeEditar && (
@@ -4030,22 +4058,18 @@ export default function Arte() {
                   onClick={openBookModal}
                   data-testid="button-upload-book"
                   title="Subir o PDF do book (layout pronto) e escolher as peças"
-                  style={{ display: 'flex', alignItems: 'center', gap: 6, height: isMobile ? 44 : 36, padding: '0 14px', borderRadius: 8, border: '1px solid #e7e5e4', background: '#ffffff', color: '#44403c', fontSize: 13, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap', transition: 'border-color 0.12s' }}
+                  style={{ display: 'flex', alignItems: 'center', gap: 6, height: isMobile ? 44 : 36, padding: '0 14px', borderRadius: 8, border: '1px solid #e9d5ff', background: '#faf5ff', color: '#6b21a8', fontSize: 13, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap', transition: 'border-color 0.12s' }}
                 >
-                  {/* Ícones da fileira em cinza, não roxo/verde/azul: três cores
-                      de destaque em três botões secundários vizinhos não
-                      diziam nada além de "somos botões diferentes" — o rótulo
-                      já diz. A cor da tela fica para estado e prazo. */}
-                  <FileText aria-hidden="true" style={{ width: 12, height: 12, color: '#57534e' }} />
+                  <FileText aria-hidden="true" style={{ width: 12, height: 12, color: '#6b21a8' }} />
                   Subir book
                 </button>
               )}
               {podeEditar && activeTab === "criar-aprovacoes" && (
                 <label
                   data-testid="button-open-bulk-thumb"
-                  style={{ height: isMobile ? 44 : 36, padding: '0 14px', borderRadius: 8, border: '1px solid #e7e5e4', background: '#ffffff', color: '#44403c', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap', transition: 'border-color 0.12s' }}
+                  style={{ height: isMobile ? 44 : 36, padding: '0 14px', borderRadius: 8, border: '1px solid #a5f3fc', background: '#ecfeff', color: '#0e7490', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap', transition: 'border-color 0.12s' }}
                 >
-                  <FileImage aria-hidden="true" style={{ width: 12, height: 12, color: '#57534e' }} />
+                  <FileImage aria-hidden="true" style={{ width: 12, height: 12, color: '#0e7490' }} />
                   Envio de thumbs em lote
                   {/* sr-only e não display:none — um input display:none não entra
                       na ordem de foco, e nem <label> nem <div> são focáveis por
@@ -4063,9 +4087,11 @@ export default function Arte() {
                   title={selectedItemIds.size > 0
                     ? `Usar UM PDF como thumb das ${selectedItemIds.size === 1 ? 'peça selecionada' : `${selectedItemIds.size} peças selecionadas`} e enviar para aprovação`
                     : 'Marque as peças na tabela (caixinhas à esquerda) para enviar todas com um mesmo PDF'}
-                  style={{ display: 'flex', alignItems: 'center', gap: 6, height: isMobile ? 44 : 36, padding: '0 14px', borderRadius: 8, border: '1px solid #e7e5e4', background: '#ffffff', color: selectedItemIds.size > 0 ? '#44403c' : '#78716c', fontSize: 13, fontWeight: 600, cursor: selectedItemIds.size > 0 ? 'pointer' : 'not-allowed', transition: 'border-color 0.12s', opacity: selectedItemIds.size > 0 ? 1 : 0.75, whiteSpace: 'nowrap' }}
+                  // Laranja só quando há peças marcadas; bloqueado fica neutro,
+                  // para a cor não prometer uma ação que ainda não dá para fazer.
+                  style={{ display: 'flex', alignItems: 'center', gap: 6, height: isMobile ? 44 : 36, padding: '0 14px', borderRadius: 8, border: `1px solid ${selectedItemIds.size > 0 ? '#fed7aa' : '#e7e5e4'}`, background: selectedItemIds.size > 0 ? '#fff7ed' : '#ffffff', color: selectedItemIds.size > 0 ? '#c2410c' : '#78716c', fontSize: 13, fontWeight: 600, cursor: selectedItemIds.size > 0 ? 'pointer' : 'not-allowed', transition: 'border-color 0.12s', opacity: selectedItemIds.size > 0 ? 1 : 0.75, whiteSpace: 'nowrap' }}
                 >
-                  <Upload aria-hidden="true" style={{ width: 12, height: 12, color: '#57534e' }} />
+                  <Upload aria-hidden="true" style={{ width: 12, height: 12, color: selectedItemIds.size > 0 ? '#c2410c' : '#78716c' }} />
                   {selectedItemIds.size > 0 ? `PDF compartilhado (${selectedItemIds.size})` : 'PDF compartilhado'}
                 </button>
               )}

@@ -264,9 +264,11 @@ const PG_CSS = `
 // fecha a conta e só chama atenção quando há um filtro de status para desfazer.
 function StatusCard({
   label, value, filterKey, sub, subActionLabel, onSubAction,
-  isActive, onToggle, dark, title, carregando, pct,
+  isActive, onToggle, dark, title, carregando, pct, cor,
 }: {
   label: string; value: number;
+  /** Cor da etapa (getStatusMeta().dot) — a mesma da barra e dos selos. */
+  cor?: string;
   filterKey: string; sub?: string; subActionLabel?: string; onSubAction?: () => void;
   isActive: boolean; onToggle: () => void; dark?: boolean; title?: string;
   /** Enquanto os dados nao chegaram, o card nao sabe o numero — e nao deve chutar zero. */
@@ -319,12 +321,20 @@ function StatusCard({
         boxShadow: isActive && !dark ? "0 0 0 1px #c2410c" : "0 1px 2px rgba(28,25,23,.04)",
       }}
     >
+      {/* COR DA ETAPA (dono, 17/09: "aqui tem que ter cor"). Faixa à esquerda
+          com a mesma cor do pedaço da barra e do selo da linha: quem olha o
+          card reconhece a etapa sem ler o nome. Decorativa — o nome continua
+          escrito ao lado. */}
+      {cor && <span aria-hidden="true" style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 3, backgroundColor: cor }} />}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 6 }}>
         {/* Rótulo de CONTEÚDO em caixa normal, 12px. Quebra em duas linhas
             se precisar ("Aguardando Revisão Final" no celular) em vez de
             abreviar para "Ag. Revisão" — abreviação é mais um código a
             decorar. #57534e sobre #ffffff = 7,63:1; sobre #f5f5f4 = 6,99:1. */}
-        <p style={{ margin: 0, fontSize: 12, fontWeight: 600, color: "#57534e", lineHeight: 1.3, minWidth: 0 }}>{label}</p>
+        <p style={{ margin: 0, fontSize: 12, fontWeight: 600, color: "#57534e", lineHeight: 1.3, minWidth: 0, display: "flex", alignItems: "baseline", gap: 6 }}>
+          {cor && <span aria-hidden="true" style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: cor, flexShrink: 0, transform: "translateY(-1px)" }} />}
+          {label}
+        </p>
         {badgeTexto && (
           /* #c2410c sobre #fff7ed = 4,88:1 AA nos 11px peso 700. */
           <span style={{ display: "inline-flex", alignItems: "center", gap: 2, flexShrink: 0, fontSize: 11, fontWeight: 700, color: "#c2410c", lineHeight: 1.3, whiteSpace: "nowrap" }}>
@@ -2688,6 +2698,7 @@ export default function PainelGeral() {
         // de filtro logo abaixo diz "Aguardando Vinculação" — um nome só para
         // a mesma etapa na mesma tela.
         label={m.label}
+        cor={m.dot}
         value={stats.byGroup[key]} carregando={isLoading}
         pct={stats.total > 0 ? ((stats.byGroup[key] ?? 0) / stats.total) * 100 : undefined}
         filterKey={key}
@@ -3181,7 +3192,12 @@ export default function PainelGeral() {
                       // Filtrado = o laranja de "recorte ligado" da tela inteira
                       // (visões salvas, cards). O anel escuro é o segundo canal,
                       // para quem não distingue a cor.
-                      background: ativo ? "#c2410c" : tomDaZona(seg.k),
+                      // COR DA ETAPA (dono, 17/09): a mesma de getStatusMeta
+                      // usada no card e no selo da linha — a barra volta a
+                      // dizer QUAL etapa pesa, não só onde fica a massa.
+                      // Filtrado: a própria cor com o anel escuro (o laranja
+                      // de "recorte ligado" se confundiria com uma etapa).
+                      background: seg.meta.dot,
                       boxShadow: ativo ? "inset 0 0 0 2px #1c1917" : "none",
                       transition: "background-color .15s, box-shadow .15s, filter .15s",
                     }}
@@ -3230,7 +3246,7 @@ export default function PainelGeral() {
                 continua sem significar risco (risco mora na faixa de atenção
                 acima); a frase só ensina a ler a forma e o clique. */}
             <p data-testid="texto-como-ler-fluxo" style={{ margin: 0, fontSize: 12, color: "#746e69", lineHeight: 1.45 }}>
-              Cada pedaço é uma etapa, do pedido à entrega — quanto mais escuro, mais perto da entrega.
+              Cada pedaço é uma etapa, do pedido à entrega, na mesma cor do cartão e do selo da etapa.
               {" "}Clique numa etapa (aqui ou nos cartões abaixo) para filtrar a lista; clique de novo para desfazer.
             </p>
           </section>

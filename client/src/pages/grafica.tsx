@@ -340,19 +340,13 @@ function PhotoPicker({ photos, onAdd, onRemove, onError, label = "Fotos", hint, 
  * evento finalizado — e nenhuma frase dizendo o que é cada coisa. Os `title`
  * explicavam no mouse, mas o galpão trabalha no toque, onde `title` não existe.
  *
- * Aberto na primeira visita, recolhido depois que a pessoa fecha (lembrado só
- * neste navegador — é conveniência, não dado). É texto: nenhuma regra mora
- * aqui, só a descrição das que já existem.
+ * SEMPRE nasce recolhido (dono, 17/09): aberto, empurrava a fila para baixo
+ * da dobra — quem abre a Gráfica quer trabalhar; o "Ver" fica à vista. É
+ * texto: nenhuma regra mora aqui, só a descrição das que já existem.
  */
-const CHAVE_GUIA = "grafica.guia-da-fila.fechado";
 function GuiaDaFila({ podeConferir, canProduce }: { podeConferir: boolean; canProduce: boolean }) {
-  const [aberto, setAberto] = useState(() => {
-    try { return localStorage.getItem(CHAVE_GUIA) !== "1"; } catch { return false; }
-  });
-  const alternar = () => setAberto(a => {
-    try { localStorage.setItem(CHAVE_GUIA, a ? "1" : "0"); } catch { /* modo privado: só não lembra */ }
-    return !a;
-  });
+  const [aberto, setAberto] = useState(false);
+  const alternar = () => setAberto(a => !a);
   // As etapas são o MESMO StatusPill das linhas (lib/status): a pessoa aprende
   // aqui a pílula que vai encontrar na peça, com o significado que ela carrega.
   const etapa = (status: string) => <StatusPill status={status} size="sm" showDot={false} />;
@@ -2452,114 +2446,94 @@ export default function Grafica() {
         )}
       </div>
 
-      {/* ── Faixa de etapas ──
-          Eram SEIS cartões de 32px, cada um com uma borda de cor diferente
-          (roxo, verde, laranja, rosa, teal, verde) e mais um cartão PRETO — sete
-          cores gritando antes da primeira peça, e nenhuma delas dizia o que
-          fazer. Agora é UMA barra de abas: o número é resumo discreto, a cor
-          fica só na bolinha (o mesmo mapa dos pills de lib/status), e o estado
-          ativo é um só (fundo escuro) para todas. Continua sendo o filtro
-          principal de status: cada aba é um <button> com aria-pressed — antes
-          eram <div role="button">.
+      {/* ── Cartões de etapa ──
+          VOLTARAM OS CARTÕES (dono, 17/09: "os cards antigos estavam
+          melhores"). A rodada 3 os tinha trocado por uma barra de abas neutra;
+          o dono prefere o cartão com a borda e o número na cor da etapa, e o
+          Total em cartão escuro. Do que veio depois ficou: "—" enquanto
+          carrega (zero seria afirmar fila vazia), o subtítulo com o próximo
+          passo por extenso, e o significado do status (a mesma frase do
+          StatusPill) no title.
 
-          "Todas" vem PRIMEIRO: é a aba que desfaz o filtro, e no fim da fila
-          (onde morava o cartão preto) ela se lia como mais uma etapa.
+          São SEIS cards (cinco status + Total): `auto-fit` fecha a linha em
+          qualquer largura e degrada 6→4→3→2 sem nunca deixar órfão.
           Os números seguem a lista (regra do dono) — ver `stats`. */}
-      <div
-        role="group"
-        aria-label="Filtrar a fila por etapa"
-        style={{
-          display: "grid",
-          gridTemplateColumns: isMobile ? "repeat(4, minmax(0, 1fr))" : "repeat(auto-fit, minmax(112px, 1fr))",
-          gap: 4, padding: 4,
-          backgroundColor: TI.surface, border: `1px solid ${TI.border}`, borderRadius: 12,
-        }}
-      >
-        {(() => {
-          // Uma aba — a mesma forma para "Todas" e para as seis etapas.
-          const aba = (p: { chave: string; rotulo: string; valor: number; dica: string; sub?: string; ativa: boolean; dot?: string; testId: string; ariaLabel: string; onClick: () => void }) => (
+      <div role="group" aria-label="Filtrar a fila por etapa" style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(3, 1fr)" : "repeat(auto-fit, minmax(150px, 1fr))", gap: isMobile ? 6 : 12 }}>
+        {[
+          // O KPI Liberados agrega dois status; ele seleciona os DOIS valores
+          // no filtro (o filtro em si é estrito — ver matchesFilters).
+          // "Em Revisão" vem ANTES de Liberados porque é o degrau anterior
+          // do fluxo: é o trabalho CHEGANDO — visível, sem ação da Gráfica.
+          { label: "Em Revisão",   value: stats.revisao,    sub: "Chegando da Revisão",  testId: "stat-revisao",    filterVals: ["awaiting_final_review"] },
+          { label: "Liberados",    value: stats.liberados,  sub: "Aguardam produção",    testId: "stat-approved",   filterVals: ["ready_for_production", "approved"] },
+          { label: "Em Produção",  value: stats.emProducao, sub: "Sendo impressos",      testId: "stat-production", filterVals: ["inProduction"] },
+          { label: "Produzidos",   value: stats.produzidos, sub: "Aguardam conferência", testId: "stat-produced",   filterVals: ["produced"] },
+          { label: "Conferidos",   value: stats.conferidos, sub: "Aguardam entrega",     testId: "stat-conferred",  filterVals: ["conferred"] },
+          { label: "Entregues",    value: stats.entregues,  sub: "Já saíram",            testId: "stat-delivered",  filterVals: ["delivered"] },
+        ].map(kpi => {
+          const isActive = kpi.filterVals.every(v => filtros.status.includes(v)) && filtros.status.length === kpi.filterVals.length;
+          // Cores derivadas do MESMO mapa dos pills (lib/status): dot para a
+          // borda, text (tom 700, AA) para o número e para o fundo ativo.
+          const m = getStatusMeta(kpi.filterVals[0]);
+          // O title diz o que a etapa SIGNIFICA e quem age (a mesma frase do
+          // StatusPill da tabela), não só o subtítulo que já está à vista.
+          const significado = descricaoDoStatus(kpi.filterVals[0]) ?? kpi.sub;
+          return (
             <button
-              key={p.chave}
+              key={kpi.label}
               type="button"
-              aria-pressed={p.ativa}
-              aria-label={p.ariaLabel}
-              title={p.dica}
-              onClick={p.onClick}
-              data-testid={p.testId}
+              aria-pressed={isActive}
+              aria-label={`Filtrar por ${kpi.label} — ${kpi.value} peças`}
+              title={isActive ? `${significado} — clique para ver todas` : significado}
+              onClick={() => patchFiltros({ status: isActive ? [] : kpi.filterVals })}
+              data-testid={kpi.testId}
               style={{
-                display: "flex", flexDirection: "column", alignItems: "flex-start", justifyContent: "center", gap: 3,
-                minWidth: 0, minHeight: isMobile ? 52 : 56, padding: isMobile ? "6px 8px" : "8px 12px",
-                borderRadius: 9, border: "none", textAlign: "left", cursor: "pointer",
-                backgroundColor: p.ativa ? TI.text : "transparent",
-                transition: "background-color 0.15s",
+                display: "block", width: "100%", minWidth: 0, textAlign: "left", font: "inherit",
+                backgroundColor: isActive ? m.text : TI.surface,
+                border: "none",
+                borderLeft: `4px solid ${m.dot}`,
+                borderRadius: 8,
+                padding: isMobile ? "10px 10px" : "16px 18px",
+                // Anel do estado ativo em boxShadow — o outline fica livre para
+                // o anel de foco do navegador.
+                boxShadow: isActive ? `0 4px 16px ${m.dot}33, 0 0 0 2px ${m.dot}` : "0 1px 4px rgba(0,0,0,0.06)",
+                cursor: "pointer",
+                transition: "background-color 0.15s, box-shadow 0.15s",
               }}
-              onMouseEnter={e => { if (!p.ativa) e.currentTarget.style.backgroundColor = "#f5f5f4"; }}
-              onMouseLeave={e => { if (!p.ativa) e.currentTarget.style.backgroundColor = "transparent"; }}
+              onMouseEnter={e => { if (!isActive) e.currentTarget.style.backgroundColor = `${m.dot}0f`; }}
+              onMouseLeave={e => { if (!isActive) e.currentTarget.style.backgroundColor = TI.surface; }}
             >
-              <span style={{ display: "flex", alignItems: "center", gap: 5, maxWidth: "100%", fontSize: 11, fontWeight: 600, color: p.ativa ? "rgba(255,255,255,0.8)" : "#57534e", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                {p.dot && <span aria-hidden="true" style={{ width: 7, height: 7, borderRadius: "50%", backgroundColor: p.dot, flexShrink: 0 }} />}
-                {p.rotulo}
-              </span>
-              {/* Zero em cinza: a etapa vazia recua e a que tem trabalho salta,
-                  sem cor nenhuma. #78716c (4,8:1) — nunca #a8a29e como texto.
-                  Carregando mostra "—": o "0" em todas as abas por meio segundo
-                  dizia "fila vazia" antes de a fila chegar. */}
-              <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: isMobile ? 18 : 22, fontWeight: 700, lineHeight: 1.05, letterSpacing: "-0.02em", fontVariantNumeric: "tabular-nums", color: p.ativa ? "#ffffff" : (isLoading || p.valor === 0) ? "#78716c" : TI.text }}>
-                {isLoading ? "—" : p.valor}
-              </span>
-              {/* O PRÓXIMO PASSO da etapa ("ag. conferência") vivia só no
-                  `title` — invisível no toque e para quem não passa o mouse.
-                  No desktop cabe como terceira linha; no celular a aba tem
-                  ~80px e o guia "Como funciona a fila" faz esse papel. */}
-              {!isMobile && p.sub && (
-                <span style={{ fontSize: 10.5, fontWeight: 500, color: p.ativa ? "rgba(255,255,255,0.72)" : TI.secondary, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "100%" }}>
-                  {p.sub}
-                </span>
-              )}
+              <div style={{ fontSize: 10, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.06em", color: isActive ? "rgba(255,255,255,0.75)" : TI.secondary, marginBottom: isMobile ? 3 : 6, fontFamily: "'Space Grotesk', sans-serif", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{kpi.label}</div>
+              {/* Carregando mostra "—": o "0" em todos os cartões por meio
+                  segundo dizia "fila vazia" antes de a fila chegar. */}
+              <div style={{ fontSize: isMobile ? 22 : 32, fontWeight: 900, letterSpacing: "-0.03em", fontFamily: "'Space Grotesk', sans-serif", color: isActive ? "#ffffff" : isLoading ? "#78716c" : m.text, lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>{isLoading ? "—" : kpi.value}</div>
+              {!isMobile && <div style={{ fontSize: 11, color: isActive ? "rgba(255,255,255,0.7)" : TI.secondary, marginTop: 4, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{isActive ? "Clique para limpar" : kpi.sub}</div>}
             </button>
           );
-          const todasAtiva = filtros.status.length === 0;
-          return (
-            <>
-              {aba({
-                chave: "total", rotulo: "Todas", valor: stats.total, testId: "stat-total",
-                ativa: todasAtiva, dica: todasAtiva ? "Mostrando todas as etapas" : "Ver todas as etapas",
-                ariaLabel: `Mostrar todos os status — ${stats.total} peças`,
-                onClick: () => patchFiltros({ status: [] }),
-              })}
-              {[
-                // O KPI Liberados agrega dois status; ele seleciona os DOIS valores
-                // no filtro (o filtro em si é estrito — ver matchesFilters).
-                // "Em Revisão" vem ANTES de Liberados porque é o degrau anterior
-                // do fluxo: é o trabalho CHEGANDO — visível, sem ação da Gráfica.
-                { label: "Em Revisão",   value: stats.revisao,    sub: "Chegando da Revisão",  testId: "stat-revisao",    filterVals: ["awaiting_final_review"] },
-                { label: "Liberados",    value: stats.liberados,  sub: "Aguardam produção",    testId: "stat-approved",   filterVals: ["ready_for_production", "approved"] },
-                { label: "Em Produção",  value: stats.emProducao, sub: "Sendo impressos",      testId: "stat-production", filterVals: ["inProduction"] },
-                { label: "Produzidos",   value: stats.produzidos, sub: "Aguardam conferência", testId: "stat-produced",   filterVals: ["produced"] },
-                { label: "Conferidos",   value: stats.conferidos, sub: "Aguardam entrega",     testId: "stat-conferred",  filterVals: ["conferred"] },
-                { label: "Entregues",    value: stats.entregues,  sub: "Já saíram",            testId: "stat-delivered",  filterVals: ["delivered"] },
-              ].map(kpi => {
-                const isActive = kpi.filterVals.every(v => filtros.status.includes(v)) && filtros.status.length === kpi.filterVals.length;
-                // A bolinha usa o `dot` do MESMO mapa dos pills (lib/status):
-                // a cor identifica a etapa na tabela e aqui do mesmo jeito.
-                const m = getStatusMeta(kpi.filterVals[0]);
-                // A dica diz o que a etapa SIGNIFICA e quem age (a mesma frase do
-                // StatusPill da tabela), não só o subtítulo que já está à vista.
-                // No celular o subtítulo some, e aí o próximo passo faz falta.
-                const significado = descricaoDoStatus(kpi.filterVals[0]) ?? kpi.sub;
-                return aba({
-                  chave: kpi.testId,
-                  // No celular a aba tem ~80px: "Em Produção" virava reticência.
-                  rotulo: isMobile ? kpi.label.replace(/^Em /, "") : kpi.label,
-                  valor: kpi.value, testId: kpi.testId, dot: m.dot, ativa: isActive, sub: kpi.sub,
-                  dica: isActive ? `${significado} — clique para ver todas` : significado,
-                  ariaLabel: `Filtrar por ${kpi.label} — ${kpi.value} peças`,
-                  onClick: () => patchFiltros({ status: isActive ? [] : kpi.filterVals }),
-                });
-              })}
-            </>
-          );
-        })()}
+        })}
+        {/* Total — cartão escuro, clica para mostrar todas as etapas */}
+        <button
+          type="button"
+          aria-pressed={filtros.status.length === 0}
+          aria-label={`Mostrar todos os status — ${stats.total} peças`}
+          title={filtros.status.length === 0 ? "Mostrando todas as etapas" : "Ver todas as etapas"}
+          onClick={() => patchFiltros({ status: [] })}
+          data-testid="stat-total"
+          style={{
+            display: "block", width: "100%", minWidth: 0, textAlign: "left", font: "inherit",
+            backgroundColor: TI.text, border: "none", borderLeft: `4px solid ${TI.accent}`, borderRadius: 8,
+            padding: isMobile ? "10px 10px" : "16px 18px",
+            // Estado ativo em boxShadow, outline livre para o foco (ver acima).
+            boxShadow: filtros.status.length === 0 ? `0 4px 16px rgba(0,0,0,0.14), 0 0 0 2px ${TI.accent}` : "0 4px 16px rgba(0,0,0,0.14)",
+            cursor: "pointer", transition: "opacity 0.15s",
+          }}
+          onMouseEnter={e => (e.currentTarget.style.opacity = "0.85")}
+          onMouseLeave={e => (e.currentTarget.style.opacity = "1")}
+        >
+          <div style={{ fontSize: 10, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.06em", color: "rgba(255,255,255,0.72)", marginBottom: isMobile ? 3 : 6, fontFamily: "'Space Grotesk', sans-serif" }}>Total</div>
+          <div style={{ fontSize: isMobile ? 22 : 32, fontWeight: 900, letterSpacing: "-0.03em", fontFamily: "'Space Grotesk', sans-serif", color: "#ffffff", lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>{isLoading ? "—" : stats.total}</div>
+          {!isMobile && <div style={{ fontSize: 11, color: "rgba(255,255,255,0.72)", marginTop: 4 }}>{filtros.status.length === 0 ? "Todos selecionados" : "Ver todos"}</div>}
+        </button>
       </div>
 
       {/* ── Como funciona a fila ── entre as abas (o fluxo) e os filtros (o

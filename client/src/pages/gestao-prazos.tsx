@@ -84,8 +84,6 @@ const VISAO_TECLA: Record<Visao, string> = { quadro: "Q", tabela: "T", atrasadas
 // estavel entre renders.
 const RAIO_FILTRO: React.CSSProperties = { borderRadius: R.md };
 
-const CHAVE_GUIA_FECHADO = "gestao-prazos:guia-fechado";
-
 // ── Identidades ESTÁVEIS (PERF-4) ─────────────────────────────────────────
 // Os fallbacks de "payload sem o campo" eram literais no corpo do componente
 // (`?? []`, `?? {}`, `STAGE_HEADERS.map(...)`): um array/objeto NOVO a cada
@@ -209,23 +207,11 @@ export default function GestaoPrazos() {
   const [showDesdeOntem, setShowDesdeOntem] = useState(false);
   const [printMode, setPrintMode] = useState(false);
 
-  // Guia "Como ler esta tela": aberto até a pessoa fechá-lo uma vez. A
-  // lembrança é conveniência por navegador (localStorage) — sem ela, ou em
-  // aba privada, o pior caso é o guia fechado, com o botão à vista.
-  // No celular nasce FECHADO: lá o guia ocupa mais de uma tela inteira e
-  // empurraria o placar para baixo da dobra — o botão fica à vista no topo.
-  const [guiaAberto, setGuiaAberto] = useState<boolean>(() => {
-    if (isMobile) return false;
-    try { return localStorage.getItem(CHAVE_GUIA_FECHADO) !== "1"; } catch { return false; }
-  });
-  const alternarGuia = () => {
-    const novo = !guiaAberto;
-    setGuiaAberto(novo);
-    try {
-      if (novo) localStorage.removeItem(CHAVE_GUIA_FECHADO);
-      else localStorage.setItem(CHAVE_GUIA_FECHADO, "1");
-    } catch { /* modo privado: fica só nesta visita */ }
-  };
+  // Guia "Como ler esta tela": SEMPRE nasce fechado (dono, 17/09). Aberto na
+  // primeira visita ele empurrava o placar para baixo da dobra — quem abre a
+  // tela quer os números; o botão "Como ler esta tela" fica à vista no topo.
+  const [guiaAberto, setGuiaAberto] = useState(false);
+  const alternarGuia = () => setGuiaAberto((aberto) => !aberto);
 
   // Última visão de EVENTO usada. O placar "Peças em etapa vencida" leva para
   // a lista de peças e traz de volta — e "de volta" tem que ser de onde a

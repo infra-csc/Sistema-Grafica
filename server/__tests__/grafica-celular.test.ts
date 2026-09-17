@@ -260,7 +260,7 @@ describe.each([360, 390])("Gráfica em %ipx de largura", (largura) => {
 
     // ORDEM DA PRIMEIRA DOBRA — fila (primária) → lote/Excel → etapas → guia → busca/Filtros → peça.
     // O gatilho do guia mora na 2ª linha da barra de filtros no celular (fechado, decisão do dono).
-    const ordem = ["title-grafica", "button-fila-conferir", "button-bulk-confer", "button-export-xlsx", "stat-revisao", "stat-total", "input-search-filter", "button-abrir-filtros-mobile", "button-next-10-days-filter", "button-guia-da-fila"]
+    const ordem = ["title-grafica", "button-fila-conferir", "button-bulk-confer", "button-export-xlsx", "stat-revisao", "stat-total", "input-search-filter", "button-abrir-filtros-mobile", "button-next-10-days-filter"]
       .map((t) => $(`[data-testid="${t}"]`));
     ordem.forEach((el, i) => expect(el, `bloco ${i} da primeira dobra`).toBeTruthy());
     for (let i = 1; i < ordem.length; i++) {

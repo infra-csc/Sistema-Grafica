@@ -343,97 +343,6 @@ function PhotoPicker({ photos, onAdd, onRemove, onError, label = "Fotos", hint, 
   );
 }
 
-/**
- * COMO FUNCIONA A FILA — o manual que não existia.
- *
- * Um operador novo chegava a esta tela com seis abas de etapa, dois botões de
- * conferir (fila e lote), um ícone de reaproveitar, selos de complemento e de
- * evento finalizado — e nenhuma frase dizendo o que é cada coisa. Os `title`
- * explicavam no mouse, mas o galpão trabalha no toque, onde `title` não existe.
- *
- * SEMPRE nasce recolhido (dono, 17/09): aberto, empurrava a fila para baixo
- * da dobra — quem abre a Gráfica quer trabalhar; o "Ver" fica à vista. É
- * texto: nenhuma regra mora aqui, só a descrição das que já existem.
- */
-function GuiaDaFila({ podeConferir, canProduce, emLinha = false }: {
-  podeConferir: boolean; canProduce: boolean;
-  /**
-   * CELULAR: o gatilho vira um botão compacto DENTRO da linha de atalhos da
-   * barra de filtros, e o texto abre logo abaixo, na largura inteira (base
-   * 100% num flex que quebra). Em cartão próprio o guia fechado custava 44px
-   * + o espaçamento antes da primeira peça — em toda abertura da tela, para
-   * uma leitura que se faz uma vez.
-   */
-  emLinha?: boolean;
-}) {
-  const [aberto, setAberto] = useState(false);
-  const alternar = () => setAberto(a => !a);
-  // As etapas são o MESMO StatusPill das linhas (lib/status): a pessoa aprende
-  // aqui a pílula que vai encontrar na peça, com o significado que ela carrega.
-  const etapa = (status: string) => <StatusPill status={status} size="sm" showDot={false} />;
-  const seta = <span aria-hidden="true" style={{ color: "#78716c" }}>→</span>;
-  const item = (titulo: string, texto: React.ReactNode) => (
-    <li style={{ lineHeight: 1.5 }}><strong style={{ color: TI.text }}>{titulo}</strong> — {texto}</li>
-  );
-  const texto = aberto && (
-    <div style={{ padding: "0 14px 14px", fontSize: 13, color: "#57534e", display: "flex", flexDirection: "column", gap: 10 }}>
-      <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "6px 8px" }}>
-        {etapa("approved")}{seta}{etapa("inProduction")}{seta}{etapa("produced")}{seta}{etapa("conferred")}{seta}{etapa("delivered")}
-      </div>
-      <ul style={{ margin: 0, paddingLeft: 18, display: "flex", flexDirection: "column", gap: 4 }}>
-        {canProduce && item("Produzir", "lance o TOTAL já produzido da peça; o número substitui o anterior, não soma.")}
-        {podeConferir && item("Conferir", "com a peça pronta na mão, compare com a arte e tire a foto. Pode ser parcial. Depois disso saem as etiquetas e a entrega.")}
-        {item("Entregar", "registre que o material saiu para o evento: foto do comprovante (obrigatória) e, se quiser, quem recebeu.")}
-        {item("Por que a foto é obrigatória", "é a prova quando alguém disser que a peça não chegou ou veio errada.")}
-        {item("♻ Reaproveitar", "usar uma peça que já existe no estoque em vez de imprimir; essas unidades pulam a produção e vão direto para a conferência.")}
-        {item("+N un. (complemento)", "aumento pedido depois que a peça entrou em produção. Vira uma linha própria (ex.: #0062-C1), logo abaixo da original, com exatamente o que falta imprimir.")}
-        {item("Evento finalizado", "a peça continua aqui porque a papelada da entrega chega depois do evento. Nela só dá para conferir e entregar; os outros botões ficam cinza.")}
-        {item("No celular: fila × lote", "“Conferir (N)” e “Entregar (N)” abrem a fila, uma peça por vez com uma foto cada. “Em lote” marca várias peças e usa uma foto só para todas; sair do lote só desmarca, nada é registrado.")}
-        {item("Sem botão de atualizar", "a fila se atualiza sozinha — o “Atualizado há…” no topo diz a idade do dado. Se um colega registrar a mesma peça, ela muda aqui e o aviso aparece.")}
-      </ul>
-    </div>
-  );
-  if (emLinha) {
-    return (
-      <>
-        <button
-          type="button"
-          onClick={alternar}
-          aria-expanded={aberto}
-          data-testid="button-guia-da-fila"
-          style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 6, minHeight: 44, padding: "0 12px", background: "#ffffff", border: `1px solid ${TI.border}`, borderRadius: 999, cursor: "pointer", fontSize: 13, fontWeight: 700, color: TI.text, whiteSpace: "nowrap" }}
-        >
-          <ListChecks aria-hidden="true" style={{ width: 15, height: 15, color: "#0e7490", flexShrink: 0 }} />
-          Como funciona?
-          <ChevronDown aria-hidden="true" style={{ width: 14, height: 14, color: TI.secondary, transform: aberto ? "rotate(180deg)" : "none" }} />
-        </button>
-        {aberto && (
-          <div data-testid="guia-da-fila" style={{ flex: "1 1 100%", paddingTop: 12, background: TI.surface, border: `1px solid ${TI.border}`, borderRadius: 12 }}>
-            {texto}
-          </div>
-        )}
-      </>
-    );
-  }
-  return (
-    <div data-testid="guia-da-fila" style={{ background: TI.surface, border: `1px solid ${TI.border}`, borderRadius: 12 }}>
-      <button
-        type="button"
-        onClick={alternar}
-        aria-expanded={aberto}
-        data-testid="button-guia-da-fila"
-        style={{ width: "100%", display: "flex", alignItems: "center", gap: 8, minHeight: 44, padding: "0 14px", background: "transparent", border: "none", cursor: "pointer", textAlign: "left", fontSize: 13, fontWeight: 700, color: TI.text }}
-      >
-        <ListChecks aria-hidden="true" style={{ width: 15, height: 15, color: "#0e7490", flexShrink: 0 }} />
-        <span style={{ flex: 1 }}>Como funciona a fila</span>
-        <span style={{ fontSize: 12, fontWeight: 600, color: TI.secondary }}>{aberto ? "Recolher" : "Ver"}</span>
-        <ChevronDown aria-hidden="true" style={{ width: 14, height: 14, color: TI.secondary, transform: aberto ? "rotate(180deg)" : "none" }} />
-      </button>
-      {texto}
-    </div>
-  );
-}
-
 // Dialog dos modos em lote — um único componente para conferência e entrega,
 // que eram duas cópias de ~150 linhas divergindo aos poucos.
 function BulkActionDialog({
@@ -2723,12 +2632,8 @@ export default function Grafica() {
         </button>
       </div>
 
-      {/* ── Como funciona a fila ── entre as abas (o fluxo) e os filtros (o
-          recorte): é onde a pergunta "o que é cada etapa?" nasce. Some no
-          modo lote, que já tem a própria orientação na barra de baixo. */}
-      {/* No celular o gatilho mora na segunda linha da barra de filtros (ver
-          lá): em cartão próprio custava 54px de dobra antes da primeira peça. */}
-      {!bulkOn && !isMobile && <GuiaDaFila podeConferir={podeConferir} canProduce={canProduce} />}
+      {/* O guia "Como funciona a fila" saiu daqui a pedido do dono (17/09):
+          a explicação das etapas já vive no balão de cada selo de status. */}
 
       {/* ── Filters Bar ───────────────────────────────────────────────────────
           DESKTOP: a faixa horizontal de sempre — os selects viraram um map
@@ -2961,7 +2866,6 @@ export default function Grafica() {
                     (abrir, ligar, ver). Aqui fica a um. */}
                 {pillProximos}
                 {botaoLimpar}
-                {!bulkOn && <GuiaDaFila emLinha podeConferir={podeConferir} canProduce={canProduce} />}
               </div>
             </div>
 

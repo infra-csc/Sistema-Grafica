@@ -13,7 +13,7 @@
 // relógio da cobrança; é uma afirmação factual sobre a equipe exibida com nome
 // e sobrenome de quem cobrou, e quando é falsa ou gera cobrança injusta ou
 // ensina o diretor a ignorar o campo — que mata o recurso.
-import { useState } from "react";
+import { memo, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { Megaphone, ChevronDown } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -114,7 +114,11 @@ interface CobradoControlProps {
   layout?: "bloco" | "inline";
 }
 
-export function CobradoControl({
+// `memo`: as props são primitivas ou a `cobranca` do payload (estável pelo
+// structural sharing). A faixa "Comece por aqui", o modal e a análise montam
+// este controle — com `useMutation`, `useToast` e `useIsMobile` cada — e sem
+// o memo todos se refaziam a cada render da página.
+export const CobradoControl = memo(function CobradoControl({
   targetType, targetId, cobranca, today,
   variant = "secondary", showForm = false, showHistorico = false, layout = "inline",
 }: CobradoControlProps) {
@@ -385,4 +389,4 @@ export function CobradoControl({
       )}
     </div>
   );
-}
+});

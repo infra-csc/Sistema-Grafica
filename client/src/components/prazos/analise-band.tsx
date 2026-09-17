@@ -11,7 +11,7 @@
 // recorte no cliente reintroduziria exatamente o defeito que se quer corrigir.
 // Carimbar o escopo é o conserto honesto — e, em troca, o card de setor ganhou
 // uma ação que FILTRA o quadro em vez de só mandar para outra tela.
-import { Fragment, useState } from "react";
+import { Fragment, memo, useState } from "react";
 import { Link } from "wouter";
 import { ChevronDown, CheckCircle2 } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -47,7 +47,10 @@ interface AnaliseBandProps {
   onDiaFoco: (dia: string) => void;
 }
 
-export function AnaliseBand({
+// `memo`: a página passa agregados memoizados e callbacks estáveis; sem ele a
+// faixa (aberta, com o ranking de patrocinadores e a barra de dias) se refazia
+// a cada render da página, inclusive a cada tecla da busca.
+export const AnaliseBand = memo(function AnaliseBand({
   totalEventos, setores, sponsorDelays, eventosPorEtapa, proximosDias,
   cobrancas, today, etapaFoco, onEtapaFoco, diaFoco, onDiaFoco,
 }: AnaliseBandProps) {
@@ -539,4 +542,4 @@ export function AnaliseBand({
       )}
     </section>
   );
-}
+});

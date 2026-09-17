@@ -16,7 +16,7 @@
 // Estado, filtros e composição moram nesta página; os blocos visuais moram em
 // `@/components/prazos/*`.
 import { useQuery } from "@tanstack/react-query";
-import { useState, useMemo, useEffect, useLayoutEffect, useRef, useCallback, Fragment } from "react";
+import { useState, useMemo, useEffect, useLayoutEffect, useRef, useCallback, useDeferredValue, Fragment } from "react";
 import { Link } from "wouter";
 import {
   Truck, ChevronDown, RotateCcw, Search, CalendarRange,
@@ -32,7 +32,7 @@ import { MARCOS_DO_EVENTO } from "@shared/prazo-dates";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { onPrazosInvalidated } from "@/hooks/use-websocket";
 import type {
-  CobrancaEntry, PrazoEvent, PrazosPayload,
+  CobrancaEntry, CobrancaMap, PrazoEvent, PrazosPayload, SponsorDelay,
 } from "@shared/prazos-contract";
 import {
   addDaysStr, apiErrorMessage, currentStageIdx, diasTexto, eventHasOverdue,
@@ -85,6 +85,41 @@ const VISAO_TECLA: Record<Visao, string> = { quadro: "Q", tabela: "T", atrasadas
 const RAIO_FILTRO: React.CSSProperties = { borderRadius: R.md };
 
 const CHAVE_GUIA_FECHADO = "gestao-prazos:guia-fechado";
+
+// ── Identidades ESTÁVEIS (PERF-4) ─────────────────────────────────────────
+// Os fallbacks de "payload sem o campo" eram literais no corpo do componente
+// (`?? []`, `?? {}`, `STAGE_HEADERS.map(...)`): um array/objeto NOVO a cada
+// render, que invalidava todo `useMemo` que dependia deles e todo `memo` de
+// card que os recebia. Constantes de módulo têm a mesma cara e não mudam.
+const SEM_EVENTOS: PrazoEvent[] = [];
+const SEM_COBRANCAS: CobrancaMap = {};
+const SEM_PATROCINADORES: SponsorDelay[] = [];
+const STAGE_META_PADRAO = STAGE_HEADERS.map((h) => ({ key: h.key, label: h.full }));
+
+/** Mesmos itens, na mesma ordem, por identidade. */
+function mesmaLista<T>(a: readonly T[], b: readonly T[]): boolean {
+  if (a === b) return true;
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+  return true;
+}
+
+/**
+ * Devolve a lista ANTERIOR quando a nova tem exatamente os mesmos itens.
+ *
+ * PORQUÊ. `filtered` é refeito a cada revalidação e a cada tecla da busca, e
+ * quase sempre com o mesmo conteúdo — a revalidação de 60s devolve o mesmo
+ * payload (o structural sharing do React Query preserva cada evento) e a busca
+ * "c" → "co" costuma não tirar ninguém da lista. Um array novo com os mesmos
+ * eventos fazia as seis colunas do quadro se redesenharem e re-medirem
+ * `offsetTop` de todos os cards (layout síncrono forçado). Com a identidade
+ * preservada, `memo` e `useLayoutEffect` só rodam quando algo mudou de fato.
+ */
+function useListaEstavel<T>(lista: T[]): T[] {
+  const anterior = useRef(lista);
+  if (!mesmaLista(anterior.current, lista)) anterior.current = lista;
+  return anterior.current;
+}
 
 function parseVisao(raw: string | null): Visao {
   return raw === "tabela" || raw === "atrasadas" ? raw : "quadro";
@@ -254,7 +289,7 @@ export default function GestaoPrazos() {
     return () => window.removeEventListener("popstate", onPop);
   }, []);
 
-  const events = data?.events ?? [];
+  const events = data?.events ?? SEM_EVENTOS;
   const today = data?.today;
 
   // KPIs vêm do SERVIDOR (fonte única, mesma âncora de "hoje" do semáforo e
@@ -297,13 +332,18 @@ export default function GestaoPrazos() {
   // placar inteiro — melhor perder o clique e manter o número.
   const podeFiltrarSaidas = kpisDoServidor && !!data?.today;
   const trend = data?.trend ?? null;
-  const cobrancas = data?.cobrancas ?? {};
+  const cobrancas = data?.cobrancas ?? SEM_COBRANCAS;
   const desdeOntem = data?.desdeOntem ?? null;
 
   // `Partial<Record<...>>` de propósito no contrato: enquanto o db:push não
   // rodar o mapa vem VAZIO, e um `cobrancas[key].historico.map(...)` sem
   // guarda derrubaria a tela inteira do diretor.
-  const cobrancaEvento = (id: string): CobrancaEntry | undefined => cobrancas[`event:${id}`];
+  // `useCallback`: vai como prop para a tabela e para o `renderCard` do quadro,
+  // e uma função nova por render derrubaria o `memo` das linhas e dos cards.
+  const cobrancaEvento = useCallback(
+    (id: string): CobrancaEntry | undefined => cobrancas[`event:${id}`],
+    [cobrancas],
+  );
 
   const prioridadesDisponiveis = useMemo(
     () => Array.from(new Set(events.map((e) => e.priority).filter(Boolean))) as string[],
@@ -312,7 +352,7 @@ export default function GestaoPrazos() {
 
   // Ordem/rótulos das etapas vêm do payload (fonte única) — fallback local
   // só para o primeiro render sem dado.
-  const stageMeta = data?.stageMeta ?? STAGE_HEADERS.map((h) => ({ key: h.key, label: h.full }));
+  const stageMeta = data?.stageMeta ?? STAGE_META_PADRAO;
 
   // Gargalo por setor e eventos por etapa: regra de negócio em
   // `components/prazos/gargalos.ts` (funções puras, testadas em
@@ -322,7 +362,7 @@ export default function GestaoPrazos() {
     [events, stageMeta],
   );
 
-  const sponsorDelays = data?.sponsorDelays ?? [];
+  const sponsorDelays = data?.sponsorDelays ?? SEM_PATROCINADORES;
 
   const eventosPorEtapa = useMemo(
     () => computeEventosPorEtapa(events, stageMeta),
@@ -372,8 +412,15 @@ export default function GestaoPrazos() {
     return true;
   }, [passaRecorteDeEvento, eventoFiltro, prioridade]);
 
-  const filtered = useMemo(() => {
-    const q = normalize(busca.trim());
+  // A busca que FILTRA é adiada (`useDeferredValue`): o campo mostra a tecla
+  // na hora e o refiltro — que na lista de peças são cinco passadas sobre
+  // centenas de peças mais a troca das linhas visíveis — roda numa renderização
+  // de baixa prioridade que a próxima tecla pode interromper. O que o campo,
+  // os chips e a URL mostram continua sendo `busca`, o valor digitado.
+  const buscaFiltro = useDeferredValue(busca);
+
+  const filteredBruto = useMemo(() => {
+    const q = normalize(buscaFiltro.trim());
     const list = events.filter((ev) => {
       if (!passaFiltroDeEvento(ev)) return false;
       if (etapaFoco !== "all" && stageMeta[currentStageIdx(ev)]?.key !== etapaFoco) return false;
@@ -400,7 +447,8 @@ export default function GestaoPrazos() {
     // quebraria sem sintoma na primeira paginação.
     return [...list].sort((a, b) =>
       new Date(a.truckDepartureDate).getTime() - new Date(b.truckDepartureDate).getTime());
-  }, [events, passaFiltroDeEvento, etapaFoco, diaFoco, busca, ordem, stageMeta]);
+  }, [events, passaFiltroDeEvento, etapaFoco, diaFoco, buscaFiltro, ordem, stageMeta]);
+  const filtered = useListaEstavel(filteredBruto);
 
   // ── Visão de peças: a lista plana ────────────────────────────────────────
   // Duas listas de propósito. A COMPLETA (sem filtro nenhum) é o denominador
@@ -417,8 +465,8 @@ export default function GestaoPrazos() {
     [events, passaRecorteDeEvento],
   );
   const filtroPecas = useMemo(
-    () => ({ busca, eventoId: eventoFiltro, etapaKey: etapaFoco, prioridade, dia: diaFoco }),
-    [busca, eventoFiltro, etapaFoco, prioridade, diaFoco],
+    () => ({ busca: buscaFiltro, eventoId: eventoFiltro, etapaKey: etapaFoco, prioridade, dia: diaFoco }),
+    [buscaFiltro, eventoFiltro, etapaFoco, prioridade, diaFoco],
   );
   const pecasAtrasadas = useMemo(
     () => filtrarPecasAtrasadas(pecasBase, filtroPecas),
@@ -433,7 +481,7 @@ export default function GestaoPrazos() {
   );
   // Assinatura dos filtros: a paginação da lista volta ao começo quando ELA
   // muda, e não a cada revalidação de 60s (que troca a identidade do array).
-  const filtroKey = `${soAtrasados}|${soSaidas7d}|${soSemPecas}|${soInvalidos}|${prioridade}|${etapaFoco}|${diaFoco}|${eventoFiltro}|${busca}`;
+  const filtroKey = `${soAtrasados}|${soSaidas7d}|${soSemPecas}|${soInvalidos}|${prioridade}|${etapaFoco}|${diaFoco}|${eventoFiltro}|${buscaFiltro}`;
 
   // ── Opções dos filtros da lista de peças ─────────────────────────────────
   //
@@ -643,6 +691,44 @@ export default function GestaoPrazos() {
     return () => clearTimeout(t);
   }, [filtered, isMobile, visao]);
 
+  // ── Colunas do quadro, com identidade estável (PERF-4) ────────────────────
+  // Antes o `filtered.filter(eventoNaEtapa)` de cada coluna morava no JSX: seis
+  // arrays novos por render, e cada um derrubava o `memo` da coluna e
+  // re-disparava a medição de "+N abaixo". Agora a divisão só é refeita quando
+  // `filtered` muda, e cada coluna mantém o array anterior quando os eventos
+  // dela são os mesmos (a busca que só esvazia OUTRA coluna não toca esta).
+  const colunasAnterioresRef = useRef<PrazoEvent[][]>([]);
+  const colunasDoQuadro = useMemo(() => {
+    const anteriores = colunasAnterioresRef.current;
+    // MESMO predicado do cabeçalho (ver eventoNaEtapa): o evento aparece em
+    // toda etapa em que tem peça parada, e não só na do gargalo.
+    const proximas = stageMeta.map((_, i) => {
+      const col = filtered.filter((ev) => eventoNaEtapa(ev, i));
+      const antes = anteriores[i];
+      return antes && mesmaLista(antes, col) ? antes : col;
+    });
+    colunasAnterioresRef.current = proximas;
+    return proximas;
+  }, [filtered, stageMeta]);
+
+  const focarCard = useCallback((id: string) => { focoCardRef.current = id; }, []);
+  // UMA função para as seis colunas: com as props do card todas estáveis, o
+  // `memo` do QuadroCard pula o card numa revalidação sem mudança, no tique do
+  // selo, ao abrir o modal ou ao abrir o guia.
+  const renderCardQuadro = useCallback((ev: PrazoEvent, i: number) => (
+    <QuadroCard
+      ev={ev}
+      stage={ev.stages[i]}
+      cobranca={cobrancaEvento(ev.eventId ?? ev.id)}
+      onOpen={setDetailId}
+      onFocusCard={focarCard}
+      realce={movidos.has(ev.id)}
+    />
+  ), [cobrancaEvento, focarCard, movidos]);
+  const alternarExpandido = useCallback((id: string) => {
+    setExpandedId((atual) => (atual === id ? null : id));
+  }, []);
+
   // ── Modal de detalhe ──────────────────────────────────────────────────────
   const detailEv = detailId ? events.find((e) => e.id === detailId) ?? null : null;
   // Último snapshot: fechar o modal piscava uma caixa branca vazia, porque o
@@ -736,15 +822,40 @@ export default function GestaoPrazos() {
       if (r) setVisao(r.visao);
     };
     // Um respiro para o React pintar a tabela expandida antes do diálogo do SO.
+    let redeDeSeguranca: number | undefined;
     const id = window.setTimeout(() => {
       window.addEventListener("afterprint", restaurar, { once: true });
       window.print();
       // Safari não dispara `afterprint` de forma confiável — rede de segurança
       // para a tela não ficar presa no modo de impressão.
-      window.setTimeout(restaurar, 1200);
+      redeDeSeguranca = window.setTimeout(restaurar, 1200);
     }, 80);
-    return () => window.clearTimeout(id);
+    // A limpeza desfaz as TRÊS pendências, não só a primeira: sair da tela
+    // durante a impressão deixava o timer de 1,2s e o ouvinte de `afterprint`
+    // vivos, mexendo em estado de um componente que já não existe. Quando o
+    // `afterprint` chega primeiro, `printMode` vira false e esta limpeza
+    // descarta a rede de segurança, que já não tem o que restaurar.
+    return () => {
+      window.clearTimeout(id);
+      if (redeDeSeguranca !== undefined) window.clearTimeout(redeDeSeguranca);
+      window.removeEventListener("afterprint", restaurar);
+    };
   }, [printMode]);
+
+  // Callbacks da faixa de análise com identidade estável — a faixa é `memo`.
+  // O clique de etapa LIMPA os demais filtros de propósito: ver o comentário
+  // junto do <AnaliseBand>, no fim do arquivo.
+  const focarEtapaDaAnalise = useCallback((k: string) => {
+    setSoAtrasados(false); setSoSaidas7d(false); setSoSemPecas(false);
+    setSoInvalidos(false); setBusca(""); setPrioridade("all"); setDiaFoco("");
+    setEventoFiltro("all");
+    setEtapaFoco(k);
+    window.scrollTo({ top: 0, behavior: rolagem() });
+  }, []);
+  const focarDiaDaAnalise = useCallback((d: string) => {
+    setDiaFoco(d);
+    window.scrollTo({ top: 0, behavior: rolagem() });
+  }, []);
 
   // ── Blocos de estado ──────────────────────────────────────────────────────
   let body: React.ReactNode;
@@ -996,7 +1107,7 @@ export default function GestaoPrazos() {
             key={ev.id}
             ev={ev}
             expanded={expandedId === ev.id}
-            onToggle={() => setExpandedId(expandedId === ev.id ? null : ev.id)}
+            onToggle={alternarExpandido}
             cobranca={cobrancaEvento(ev.eventId ?? ev.id)}
             today={today}
           />
@@ -1019,31 +1130,17 @@ export default function GestaoPrazos() {
         gridTemplateColumns: `repeat(${stageMeta.length}, minmax(190px, 1fr))`,
         gap: 10, alignItems: "start", overflowX: "auto", paddingBottom: 4,
       }}>
-        {stageMeta.map((m, i) => {
-          // MESMO predicado do cabeçalho (ver eventoNaEtapa): o evento aparece
-          // em toda etapa em que tem peça parada, e não só na do gargalo.
-          const colEvents = filtered.filter((ev) => eventoNaEtapa(ev, i));
-          return (
-            <QuadroColuna
-              key={m.key}
-              stageKey={m.key}
-              label={m.label}
-              stageIdx={i}
-              eventos={colEvents}
-              temFiltro={hasActiveFilters}
-              renderCard={(ev) => (
-                <QuadroCard
-                  ev={ev}
-                  stage={ev.stages[i]}
-                  cobranca={cobrancaEvento(ev.eventId ?? ev.id)}
-                  onOpen={() => setDetailId(ev.id)}
-                  onFocusCard={() => { focoCardRef.current = ev.id; }}
-                  realce={movidos.has(ev.id)}
-                />
-              )}
-            />
-          );
-        })}
+        {stageMeta.map((m, i) => (
+          <QuadroColuna
+            key={m.key}
+            stageKey={m.key}
+            label={m.label}
+            stageIdx={i}
+            eventos={colunasDoQuadro[i]}
+            temFiltro={hasActiveFilters}
+            renderCard={renderCardQuadro}
+          />
+        ))}
       </div>
     );
   } else {
@@ -2175,15 +2272,9 @@ export default function GestaoPrazos() {
             // COMPLETO (a faixa de análise carimba esse escopo). Aplicar o
             // foco por cima de "Só com atraso" + busca devolvia menos que N —
             // o clique que se contradiz com o número prometido.
-            onEtapaFoco={(k) => {
-              setSoAtrasados(false); setSoSaidas7d(false); setSoSemPecas(false);
-              setSoInvalidos(false); setBusca(""); setPrioridade("all"); setDiaFoco("");
-              setEventoFiltro("all");
-              setEtapaFoco(k);
-              window.scrollTo({ top: 0, behavior: rolagem() });
-            }}
+            onEtapaFoco={focarEtapaDaAnalise}
             diaFoco={diaFoco}
-            onDiaFoco={(d) => { setDiaFoco(d); window.scrollTo({ top: 0, behavior: rolagem() }); }}
+            onDiaFoco={focarDiaDaAnalise}
           />
         )}
       </div>

@@ -13,6 +13,7 @@ import { useLogout } from "@/hooks/use-logout";
 // Alvo de 44 no toque: a mesma régua das outras telas, que a casca não
 // seguia — os itens do menu tinham altura de padding, não de controle.
 import { useIsMobile } from "@/hooks/use-mobile";
+import { prefetchRota } from "@/lib/prefetch-de-rota";
 import {
   Sidebar,
   SidebarContent,
@@ -162,9 +163,11 @@ const sectionLabelStyle: React.CSSProperties = {
 };
 
 // ─── Single nav item ─────────────────────────────────────
-function NavItem({ item, isActive, badge }: { item: MenuItem; isActive: boolean; badge?: number }) {
+function NavItem({ item, isActive, badge, isMobile }: { item: MenuItem; isActive: boolean; badge?: number; isMobile: boolean }) {
   const Icon = item.icon;
-  const isMobile = useIsMobile();
+  // `isMobile` chega do AppSidebar (perf-7): eram 23 useIsMobile, um por item
+  // — 23 listeners de matchMedia e 23 re-renders extras a cada montagem da
+  // casca, para responder a mesma pergunta.
 
   // Hover e foco de teclado compartilham o mesmo realce: os estilos são
   // inline, então :focus-visible do CSS não alcança estas cores. Estados
@@ -217,9 +220,13 @@ function NavItem({ item, isActive, badge }: { item: MenuItem; isActive: boolean;
             transition: "background-color 0.12s ease, color 0.12s ease",
             boxSizing: "border-box",
           }}
-          onMouseEnter={() => setHover(true)}
+          // Ponteiro, foco ou dedo no item = clique a caminho: o chunk da tela
+          // começa a descer já (ver lib/prefetch-de-rota) e a troca de tela
+          // deixa de piscar o esqueleto. Só código — nenhum dado é pedido.
+          onMouseEnter={() => { setHover(true); prefetchRota(item.url); }}
           onMouseLeave={() => setHover(false)}
-          onFocus={() => setFocus(true)}
+          onFocus={() => { setFocus(true); prefetchRota(item.url); }}
+          onTouchStart={() => prefetchRota(item.url)}
           onBlur={() => setFocus(false)}
         >
           <Icon
@@ -280,6 +287,7 @@ function NavGroup({
   isItemActive,
   badges,
   first = false,
+  isMobile,
 }: {
   // null = grupo único visível para o papel; o rótulo vira ruído e some.
   label: string | null;
@@ -288,6 +296,7 @@ function NavGroup({
   /** Número ao lado do item, por url. */
   badges?: Record<string, number | undefined>;
   first?: boolean;
+  isMobile: boolean;
 }) {
   // O rótulo visual da seção não nomeava a lista para leitores de tela —
   // todos os grupos eram anunciados como listas anônimas.
@@ -306,7 +315,7 @@ function NavGroup({
       <SidebarGroupContent>
         <SidebarMenu style={{ gap: 1 }} aria-labelledby={label !== null ? labelId : undefined}>
           {items.map((item) => (
-            <NavItem key={item.title} item={item} isActive={isItemActive(item.url)} badge={badges?.[item.url]} />
+            <NavItem key={item.title} item={item} isActive={isItemActive(item.url)} badge={badges?.[item.url]} isMobile={isMobile} />
           ))}
         </SidebarMenu>
       </SidebarGroupContent>
@@ -435,6 +444,7 @@ export function AppSidebar() {
               isItemActive={isItemActive}
               badges={badges}
               first={i === 0}
+              isMobile={isMobileCasca}
             />
           ))}
         </nav>

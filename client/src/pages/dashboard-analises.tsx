@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { FilterSelect } from "@/components/filter-select";
 import {
   Bar, BarChart, CartesianGrid, Cell, ReferenceArea, ReferenceLine,
@@ -20,8 +20,9 @@ import { T, FS, R, SHADOW } from "@/lib/theme";
 import { isOutOfFunnel } from "@/lib/analises-status";
 import type { AnaliseEvent, AnaliseItem, AnaliseSponsor } from "@/lib/analises-metrics";
 import {
-  cycleWindow, eventCycleDayIndex, filterItems, pickDefaultPeriod, previousWindow, qtyOf,
+  businessDayMs, cycleWindow, eventCycleDayIndex, filterItems, pickDefaultPeriod, previousWindow, qtyOf,
 } from "@/lib/analises-metrics";
+import type { Capacidade } from "@/lib/analises-capacidade";
 import {
   computeCapacidade, rotuloSemana,
 } from "@/lib/analises-capacidade";
@@ -244,40 +245,40 @@ function KpiAnalise({
   );
 }
 
-/* ── Quando a variação é ruído ────────────────────────────────────────────── */
-/**
- * A tela afirmava "+3,2 p.p." com a mesma convicção sobre 357 peças e sobre 9.
- * Variação em amostra pequena não é tendência: é sorte de amostra — e num
- * painel que existe para embasar decisão, esse é o defeito mais caro, porque
- * ele não parece defeito.
- *
- * O piso é 30, escolhido pelo dono (24/08). Não é estatística formal; é a
- * régua a partir da qual a casa aceita ler uma variação como sinal. Vale a
- * MENOR das duas janelas: comparar 300 contra 8 é tão frágil quanto 8 contra 8.
- */
-export const PISO_AMOSTRA = 30;
-
-function SeloRuido({ atual, anterior, testId }: { atual: number; anterior: number | null | undefined; testId: string }) {
-  if (anterior == null) return null;
-  const menor = Math.min(atual, anterior);
-  if (menor >= PISO_AMOSTRA) return null;
-  const qualJanela = atual <= anterior ? "Esta janela tem" : "A janela anterior tem";
-  return (
-    <span
-      data-testid={testId}
-      title={`${qualJanela} só ${int(menor)} ${menor === 1 ? "peça avaliável" : "peças avaliáveis"} — abaixo de ${PISO_AMOSTRA} a variação oscila por acaso e não indica tendência.`}
-      style={{
-        display: "inline-flex", alignItems: "center", gap: 4, marginLeft: 8,
-        fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em",
-        color: "#92400e", backgroundColor: "#fffbeb", border: "1px solid #fde68a",
-        borderRadius: R.sm, padding: "1px 6px", whiteSpace: "nowrap",
-      }}>
-      <AlertTriangle aria-hidden="true" style={{ width: 10, height: 10 }} />
-      amostra pequena · pode ser ruído
-    </span>
-  );
-}
-
+/* ── Quando a variação é ruído ────────────────────────────────────────────── */
+/**
+ * A tela afirmava "+3,2 p.p." com a mesma convicção sobre 357 peças e sobre 9.
+ * Variação em amostra pequena não é tendência: é sorte de amostra — e num
+ * painel que existe para embasar decisão, esse é o defeito mais caro, porque
+ * ele não parece defeito.
+ *
+ * O piso é 30, escolhido pelo dono (24/08). Não é estatística formal; é a
+ * régua a partir da qual a casa aceita ler uma variação como sinal. Vale a
+ * MENOR das duas janelas: comparar 300 contra 8 é tão frágil quanto 8 contra 8.
+ */
+export const PISO_AMOSTRA = 30;
+
+function SeloRuido({ atual, anterior, testId }: { atual: number; anterior: number | null | undefined; testId: string }) {
+  if (anterior == null) return null;
+  const menor = Math.min(atual, anterior);
+  if (menor >= PISO_AMOSTRA) return null;
+  const qualJanela = atual <= anterior ? "Esta janela tem" : "A janela anterior tem";
+  return (
+    <span
+      data-testid={testId}
+      title={`${qualJanela} só ${int(menor)} ${menor === 1 ? "peça avaliável" : "peças avaliáveis"} — abaixo de ${PISO_AMOSTRA} a variação oscila por acaso e não indica tendência.`}
+      style={{
+        display: "inline-flex", alignItems: "center", gap: 4, marginLeft: 8,
+        fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em",
+        color: "#92400e", backgroundColor: "#fffbeb", border: "1px solid #fde68a",
+        borderRadius: R.sm, padding: "1px 6px", whiteSpace: "nowrap",
+      }}>
+      <AlertTriangle aria-hidden="true" style={{ width: 10, height: 10 }} />
+      amostra pequena · pode ser ruído
+    </span>
+  );
+}
+
 /* ── Tooltip do gráfico de carga ── */
 const CargaTip = ({ active, payload, label }: any) => {
   if (!active || !payload?.length) return null;
@@ -295,6 +296,75 @@ const CargaTip = ({ active, payload, label }: any) => {
     </div>
   );
 };
+
+/* ── Uma semana do gráfico de carga, já no formato do recharts ── */
+interface SemanaDoGrafico {
+  label: string;
+  demanda: number;
+  concluido: number | null;
+  futura: boolean;
+  atualSemana: boolean;
+}
+
+/* ── O gráfico de Capacidade × Demanda, memoizado (PERF-4, 17/09) ──────────
+   O recharts é o pedaço mais caro do render desta tela (21 semanas × 2 barras,
+   eixos, referências e uma célula por barra) e era redesenhado a CADA render
+   da página: o tique de 1 min do "Atualizado há X", trocar a dimensão ou a
+   ordem da tabela de ofensores, abrir a gaveta de filtros, o giro de
+   "atualizando". Nenhum desses muda uma barra. Aqui ele só redesenha quando
+   os dados da carga mudam — todas as props chegam memoizadas da página. */
+const GraficoCarga = memo(function GraficoCarga({
+  dadosCarga, carga, rotulosQueEstouram, primeiraFutura, ultimaLabel, semanaAtualLabel, isMobile,
+}: {
+  dadosCarga: SemanaDoGrafico[];
+  carga: Capacidade;
+  rotulosQueEstouram: Set<string>;
+  primeiraFutura: string | undefined;
+  ultimaLabel: string | undefined;
+  semanaAtualLabel: string | undefined;
+  isMobile: boolean;
+}) {
+  return (
+    <div style={{ overflowX: isMobile ? "auto" : "visible" }}>
+      <div style={{ minWidth: isMobile ? 620 : undefined, height: 300 }}>
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={dadosCarga} margin={{ top: 22, right: 8, left: -12, bottom: 0 }} barGap={2}>
+            <CartesianGrid stroke={T.border} vertical={false} />
+            {primeiraFutura && ultimaLabel && (
+              <ReferenceArea
+                x1={primeiraFutura} x2={ultimaLabel}
+                fill={T.low} fillOpacity={1}
+                label={{ value: "PREVISTO", position: "insideTopRight", fill: T.second, fontSize: 10, fontWeight: 900, letterSpacing: "0.12em" }}
+              />
+            )}
+            <XAxis dataKey="label" tick={{ fontSize: 9, fontWeight: 700, fill: T.second, fontFamily: "'DM Mono'" }} axisLine={{ stroke: T.bdark }} tickLine={false} interval={1} />
+            <YAxis tick={{ fontSize: 10, fill: T.second }} axisLine={false} tickLine={false} width={54}
+              label={{ value: "m²", position: "top", offset: 12, fill: T.second, fontSize: 10, fontWeight: 900 }} />
+            <Tooltip content={<CargaTip />} cursor={{ fill: "rgba(28,25,23,0.05)" }} />
+            {semanaAtualLabel && (
+              <ReferenceLine x={semanaAtualLabel} stroke={T.dark} strokeWidth={1.5}
+                label={{ value: "HOJE", position: "top", fill: T.text, fontSize: 10, fontWeight: 900, letterSpacing: "0.1em" }} />
+            )}
+            {carga.mediaConcluidoM2 != null && carga.mediaConcluidoM2 > 0 && (
+              <ReferenceLine y={carga.mediaConcluidoM2} stroke={GRAFICO_NEUTRO} strokeDasharray="5 4" strokeWidth={2} />
+            )}
+            <Bar dataKey="demanda" name="Vence" fill={ACCENT_TEXT} maxBarSize={26} isAnimationActive={false}>
+              {/* O anel marca no desenho as MESMAS semanas que a
+                  faixa nomeia — senão são duas leituras a conferir
+                  uma contra a outra. */}
+              {dadosCarga.map((d) => (
+                <Cell key={d.label}
+                  stroke={rotulosQueEstouram.has(d.label) ? "#b45309" : "none"}
+                  strokeWidth={rotulosQueEstouram.has(d.label) ? 1.5 : 0} />
+              ))}
+            </Bar>
+            <Bar dataKey="concluido" name="Concluído" fill={T.dark} maxBarSize={26} isAnimationActive={false} />
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+    </div>
+  );
+});
 
 /* ── Bloco vazio: "não há dado" é diferente de "o filtro comeu tudo" ── */
 function Vazio({ porFiltro, real, aoLimpar }: { porFiltro: boolean; real: string; aoLimpar: () => void }) {
@@ -345,6 +415,10 @@ function lerFiltrosDaUrl() {
     ordem: ORDENS.some((o) => o.value === ordem) ? ordem! : "atraso",
   };
 }
+
+const SEM_EVENTOS: AnaliseEvent[] = [];
+const SEM_ITENS: AnaliseItem[] = [];
+const SEM_PATROCINADORES: AnaliseSponsor[] = [];
 
 export default function DashboardAnalises() {
   const isMobile = useIsMobile();
@@ -398,9 +472,12 @@ export default function DashboardAnalises() {
     ],
     ...freshness,
   });
-  const events = evQ.data ?? [];
-  const items = itQ.data ?? [];
-  const sponsors = spQ.data ?? [];
+  // Vazios de MÓDULO, não `?? []`: um literal novo a cada render mudaria a
+  // identidade de todas as dependências dos memos abaixo enquanto uma das
+  // fontes carrega, e cada agregado seria refeito em todo render.
+  const events = evQ.data ?? SEM_EVENTOS;
+  const items = itQ.data ?? SEM_ITENS;
+  const sponsors = spQ.data ?? SEM_PATROCINADORES;
   const isLoading = evQ.isLoading || itQ.isLoading || spQ.isLoading;
   // Qualquer uma das 3 fontes falhando distorce os números em silêncio (sem
   // /api/events não há saída do caminhão, e sem ela TODA métrica de prazo desta
@@ -493,7 +570,19 @@ export default function DashboardAnalises() {
     setPeriodoAutomatico(false);
   }, [periodoAutomatico, items, cycleDayByEvent, agora]);
   const eventNameById = useMemo(() => new Map(events.map((e) => [e.id, e.name])), [events]);
-  const janela = useMemo(() => cycleWindow(period, agora), [period, agora]);
+
+  /* ── Âncora de DIA para os agregados (PERF-4, 17/09) ──
+     `cycleWindow` e `computeCapacidade` só leem o DIA do negócio de "agora"
+     (`businessDayMs`). Com o `agora` cru nas dependências, o tique de 1 min
+     refazia as duas janelas de desempenho, a capacidade, os ofensores e o
+     gráfico — o painel inteiro, sessenta vezes por hora, para chegar aos
+     mesmos números. `agoraDoDia` é o primeiro `agora` visto em cada dia: o
+     mesmo resultado, recalculado só na virada do dia. O selo "Atualizado há X"
+     continua lendo o `agora` cru. */
+  const diaDoNegocio = businessDayMs(agora);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const agoraDoDia = useMemo(() => agora, [diaDoNegocio]);
+  const janela = useMemo(() => cycleWindow(period, agoraDoDia), [period, agoraDoDia]);
   const janelaAnterior = useMemo(() => previousWindow(janela), [janela]);
 
   // Contagem por opção: o usuário escolhia um evento ou patrocinador sem saber
@@ -536,20 +625,22 @@ export default function DashboardAnalises() {
     [janelaAnterior, fItemsAnterior, cycleDayByEvent]);
 
   const carga = useMemo(
-    () => computeCapacidade({ items: itemsCarga, cycleDayByEvent, nowMs: agora }),
-    [itemsCarga, cycleDayByEvent, agora]);
+    () => computeCapacidade({ items: itemsCarga, cycleDayByEvent, nowMs: agoraDoDia }),
+    [itemsCarga, cycleDayByEvent, agoraDoDia]);
 
   /* Tempo por etapa já chega agregado do servidor — aqui só se decide se há
      base para o bloco existir e qual etapa lidera a perda. */
   const tempo = temBaseParaExibir(tempoQ.data) ? tempoQ.data! : null;
   const piorEtapa = tempo ? etapaMaisCara(tempo) : null;
 
+  // Agrupar e ordenar em dois memos: trocar a ORDEM (clique no cabeçalho) só
+  // reordena as linhas já agregadas, em vez de reagrupar o recorte inteiro.
+  const ofensoresAgrupados = useMemo(
+    () => computeOfensores(fItems, dim, { cycleDayByEvent, eventNameById, sponsors }),
+    [fItems, dim, cycleDayByEvent, eventNameById, sponsors]);
   const ofensores = useMemo(
-    () => ordenarOfensores(
-      computeOfensores(fItems, dim, { cycleDayByEvent, eventNameById, sponsors }),
-      ordem,
-    ),
-    [fItems, dim, cycleDayByEvent, eventNameById, sponsors, ordem]);
+    () => ordenarOfensores(ofensoresAgrupados, ordem),
+    [ofensoresAgrupados, ordem]);
 
   // ── Estados que precisam ser distinguidos ────────────────────────────────
   const filtrosAtivos = [period !== "all", eventFilter !== "all", sponsorFilter !== "all"].filter(Boolean).length;
@@ -575,22 +666,22 @@ export default function DashboardAnalises() {
     return "Igual ao período anterior";
   };
 
-  /**
-   * O RECORTE VIAJA COM O CLIQUE.
-   *
-   * Evento e patrocinador vão porque o Painel Geral já os entende com os mesmos
-   * nomes de parâmetro. O PERÍODO não vai: a janela daqui é de SAÍDA DE
-   * CAMINHÃO e a de lá é de proximidade da saída — mandar o período faria a
-   * lista discordar do número que a abriu, que é pior que não filtrar.
-   */
-  const recorteNoLink = (extra: Record<string, string>) => {
-    const q = new URLSearchParams();
-    if (eventFilter !== "all") q.set("evento", eventFilter);
-    if (sponsorFilter !== "all") q.set("patrocinador", sponsorFilter);
-    for (const [k, v] of Object.entries(extra)) q.set(k, v);
-    return `/?${q.toString()}`;
-  };
-
+  /**
+   * O RECORTE VIAJA COM O CLIQUE.
+   *
+   * Evento e patrocinador vão porque o Painel Geral já os entende com os mesmos
+   * nomes de parâmetro. O PERÍODO não vai: a janela daqui é de SAÍDA DE
+   * CAMINHÃO e a de lá é de proximidade da saída — mandar o período faria a
+   * lista discordar do número que a abriu, que é pior que não filtrar.
+   */
+  const recorteNoLink = (extra: Record<string, string>) => {
+    const q = new URLSearchParams();
+    if (eventFilter !== "all") q.set("evento", eventFilter);
+    if (sponsorFilter !== "all") q.set("patrocinador", sponsorFilter);
+    for (const [k, v] of Object.entries(extra)) q.set(k, v);
+    return `/?${q.toString()}`;
+  };
+
   const kpis = [
     {
       testId: "kpi-prazo",
@@ -672,41 +763,46 @@ export default function DashboardAnalises() {
     },
   ];
 
-  const dadosCarga = carga.semanas.map((s) => ({
+  // Memoizado sobre `carga`: é a identidade destes arrays e do Set abaixo que
+  // deixa o gráfico (memo) pular os renders que não mudam barra nenhuma.
+  const dadosCarga = useMemo<SemanaDoGrafico[]>(() => carga.semanas.map((s) => ({
     label: rotuloSemana(s.inicioMs),
     demanda: Math.round(s.demandaM2),
     concluido: s.concluidoM2 == null ? null : Math.round(s.concluidoM2),
     futura: !s.passada && !s.atual,
     atualSemana: s.atual,
-  }));
+  })), [carga]);
   // Média de 0 m² não é régua de capacidade nenhuma: sem produção registrada
   // a linha tracejada assentaria no eixo e diria algo que não é verdade.
   const temMedia = carga.mediaConcluidoM2 != null && carga.mediaConcluidoM2 > 0;
   const semanaAtualLabel = dadosCarga.find((d) => d.atualSemana)?.label;
   const primeiraFutura = dadosCarga.find((d) => d.futura)?.label;
   const ultimaLabel = dadosCarga[dadosCarga.length - 1]?.label;
-  const cargaVazia = dadosCarga.every((d) => d.demanda === 0 && !d.concluido);
-
-  /**
-   * ONDE VAI ESTOURAR.
-   *
-   * O gráfico desenhava a demanda, o concluído e a linha da média, e deixava a
-   * conclusão para o olho: em 21 barras, comparar oito futuras contra uma
-   * tracejada é trabalho manual. O bloco existe para ANTECIPAR, e a antecipação
-   * não estava escrita em lugar nenhum.
-   *
-   * Só semanas FUTURAS entram: a semana passada que estourou já é história, e o
-   * bloco não é para lamentar. Sem média de capacidade não há régua — e sem
-   * régua não há estouro a declarar.
-   */
-  const semanasQueEstouram = temMedia
-    ? dadosCarga.filter((d) => d.futura && d.demanda > (carga.mediaConcluidoM2 as number))
-    : [];
-  const excedenteTotal = semanasQueEstouram.reduce(
-    (soma, d) => soma + (d.demanda - (carga.mediaConcluidoM2 as number)), 0,
-  );
-  const semanasFuturas = dadosCarga.filter((d) => d.futura).length;
-  const rotulosQueEstouram = new Set(semanasQueEstouram.map((d) => d.label));
+  const cargaVazia = dadosCarga.every((d) => d.demanda === 0 && !d.concluido);
+
+  /**
+   * ONDE VAI ESTOURAR.
+   *
+   * O gráfico desenhava a demanda, o concluído e a linha da média, e deixava a
+   * conclusão para o olho: em 21 barras, comparar oito futuras contra uma
+   * tracejada é trabalho manual. O bloco existe para ANTECIPAR, e a antecipação
+   * não estava escrita em lugar nenhum.
+   *
+   * Só semanas FUTURAS entram: a semana passada que estourou já é história, e o
+   * bloco não é para lamentar. Sem média de capacidade não há régua — e sem
+   * régua não há estouro a declarar.
+   */
+  const { semanasQueEstouram, excedenteTotal, semanasFuturas, rotulosQueEstouram } = useMemo(() => {
+    const semanasQueEstouram = temMedia
+      ? dadosCarga.filter((d) => d.futura && d.demanda > (carga.mediaConcluidoM2 as number))
+      : [];
+    const excedenteTotal = semanasQueEstouram.reduce(
+      (soma, d) => soma + (d.demanda - (carga.mediaConcluidoM2 as number)), 0,
+    );
+    const semanasFuturas = dadosCarga.filter((d) => d.futura).length;
+    const rotulosQueEstouram = new Set(semanasQueEstouram.map((d) => d.label));
+    return { semanasQueEstouram, excedenteTotal, semanasFuturas, rotulosQueEstouram };
+  }, [temMedia, dadosCarga, carga]);
 
   // ── Exportação ──────────────────────────────────────────────────────────
   // O arquivo leva o mesmo recorte que está na tela: sem o recorte escrito
@@ -808,6 +904,14 @@ export default function DashboardAnalises() {
         para procurar, e o campo ainda roubava o foco de quem só queria as
         setas. Mesmo conserto que o Histórico recebeu. */
   const gatilhoDesktop = isMobile ? undefined : { minWidth: 176 };
+  // Opções memoizadas: recriadas a cada render (inclusive no tique de 1 min),
+  // obrigavam cada FilterSelect a reordenar a lista com `localeCompare`.
+  const opcoesEvento = useMemo(
+    () => events.map((e) => ({ value: e.id, label: e.name, count: contagens.porEvento.get(e.id) ?? 0 })),
+    [events, contagens]);
+  const opcoesPatrocinador = useMemo(
+    () => sponsors.map((s) => ({ value: s.id, label: s.name, count: contagens.porPatrocinador.get(s.id) ?? 0 })),
+    [sponsors, contagens]);
   const camposDeRecorte = (
     <>
       <FilterSelect
@@ -828,7 +932,7 @@ export default function DashboardAnalises() {
         label="Evento" allLabel="Todos os eventos"
         icon={Calendar} activeAppearance="solid"
         value={eventFilter} onChange={setEventFilter}
-        options={events.map((e) => ({ value: e.id, label: e.name, count: contagens.porEvento.get(e.id) ?? 0 }))}
+        options={opcoesEvento}
         searchPlaceholder="Buscar evento…" emptyText="Nenhum evento encontrado."
         testId="select-event"
         fullWidth={isMobile}
@@ -840,7 +944,7 @@ export default function DashboardAnalises() {
         label="Patrocinador" allLabel="Todos os patrocinadores"
         icon={Building2} activeAppearance="solid"
         value={sponsorFilter} onChange={setSponsorFilter}
-        options={sponsors.map((s) => ({ value: s.id, label: s.name, count: contagens.porPatrocinador.get(s.id) ?? 0 }))}
+        options={opcoesPatrocinador}
         searchPlaceholder="Buscar patrocinador…" emptyText="Nenhum patrocinador encontrado."
         testId="select-sponsor"
         fullWidth={isMobile}
@@ -1144,92 +1248,63 @@ export default function DashboardAnalises() {
           />
         ) : (
           <>
-            {/* A CONCLUSÃO, ANTES DO GRÁFICO. Nomeia as semanas e soma o
-                excedente — e as barras dessas semanas ganham anel, para a
-                faixa e o desenho apontarem a mesma coisa. */}
-            {temMedia && !cargaVazia && (
-              <div data-testid="faixa-estouro-capacidade"
-                style={{
-                  display: "flex", gap: 10, alignItems: "flex-start", marginBottom: 12,
-                  padding: "10px 12px", borderRadius: R.sm,
-                  backgroundColor: semanasQueEstouram.length > 0 ? "#fffbeb" : "#f0fdf4",
-                  border: `1px solid ${semanasQueEstouram.length > 0 ? "#fde68a" : "#bbf7d0"}`,
-                }}>
-                {semanasQueEstouram.length > 0
-                  ? <AlertTriangle aria-hidden="true" style={{ width: 15, height: 15, color: "#b45309", flexShrink: 0, marginTop: 1 }} />
-                  : <Check aria-hidden="true" style={{ width: 15, height: 15, color: "#15803d", flexShrink: 0, marginTop: 1 }} />}
-                <div style={{ minWidth: 0 }}>
-                  {semanasQueEstouram.length > 0 ? (
-                    <>
-                      {/* #78350f sobre #fffbeb = 9,4:1 */}
-                      <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: "#78350f", lineHeight: 1.35 }}>
-                        {semanasQueEstouram.length === 1
-                          ? "1 semana prevista passa da capacidade: "
-                          : `${semanasQueEstouram.length} semanas previstas passam da capacidade: `}
-                        {semanasQueEstouram.map((d) => d.label).join(", ")}
-                      </p>
-                      <p style={{ margin: "3px 0 0", fontSize: 11, color: "#78350f", opacity: 0.85, lineHeight: 1.45 }}>
-                        Somam {int(excedenteTotal)} m² acima da média de {int(carga.mediaConcluidoM2 as number)} m² por semana.
-                        {" "}Antecipar produção nas semanas vizinhas é mais barato que estourar o prazo.
-                      </p>
-                    </>
-                  ) : (
-                    <>
-                      {/* #14532d sobre #f0fdf4 = 10,4:1 */}
-                      <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: "#14532d", lineHeight: 1.35 }}>
-                        Nenhuma semana prevista passa da capacidade
-                      </p>
-                      <p style={{ margin: "3px 0 0", fontSize: 11, color: "#14532d", opacity: 0.85, lineHeight: 1.45 }}>
-                        {semanasFuturas === 1 ? "A semana à frente cabe" : `As ${semanasFuturas} semanas à frente cabem`}
-                        {" "}na média de {int(carga.mediaConcluidoM2 as number)} m² por semana.
-                      </p>
-                    </>
-                  )}
-                </div>
-              </div>
-            )}
+            {/* A CONCLUSÃO, ANTES DO GRÁFICO. Nomeia as semanas e soma o
+                excedente — e as barras dessas semanas ganham anel, para a
+                faixa e o desenho apontarem a mesma coisa. */}
+            {temMedia && !cargaVazia && (
+              <div data-testid="faixa-estouro-capacidade"
+                style={{
+                  display: "flex", gap: 10, alignItems: "flex-start", marginBottom: 12,
+                  padding: "10px 12px", borderRadius: R.sm,
+                  backgroundColor: semanasQueEstouram.length > 0 ? "#fffbeb" : "#f0fdf4",
+                  border: `1px solid ${semanasQueEstouram.length > 0 ? "#fde68a" : "#bbf7d0"}`,
+                }}>
+                {semanasQueEstouram.length > 0
+                  ? <AlertTriangle aria-hidden="true" style={{ width: 15, height: 15, color: "#b45309", flexShrink: 0, marginTop: 1 }} />
+                  : <Check aria-hidden="true" style={{ width: 15, height: 15, color: "#15803d", flexShrink: 0, marginTop: 1 }} />}
+                <div style={{ minWidth: 0 }}>
+                  {semanasQueEstouram.length > 0 ? (
+                    <>
+                      {/* #78350f sobre #fffbeb = 9,4:1 */}
+                      <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: "#78350f", lineHeight: 1.35 }}>
+                        {semanasQueEstouram.length === 1
+                          ? "1 semana prevista passa da capacidade: "
+                          : `${semanasQueEstouram.length} semanas previstas passam da capacidade: `}
+                        {semanasQueEstouram.map((d) => d.label).join(", ")}
+                      </p>
+                      <p style={{ margin: "3px 0 0", fontSize: 11, color: "#78350f", opacity: 0.85, lineHeight: 1.45 }}>
+                        Somam {int(excedenteTotal)} m² acima da média de {int(carga.mediaConcluidoM2 as number)} m² por semana.
+                        {" "}Antecipar produção nas semanas vizinhas é mais barato que estourar o prazo.
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      {/* #14532d sobre #f0fdf4 = 10,4:1 */}
+                      <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: "#14532d", lineHeight: 1.35 }}>
+                        Nenhuma semana prevista passa da capacidade
+                      </p>
+                      <p style={{ margin: "3px 0 0", fontSize: 11, color: "#14532d", opacity: 0.85, lineHeight: 1.45 }}>
+                        {semanasFuturas === 1 ? "A semana à frente cabe" : `As ${semanasFuturas} semanas à frente cabem`}
+                        {" "}na média de {int(carga.mediaConcluidoM2 as number)} m² por semana.
+                      </p>
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
             <figure role="img" style={{ margin: 0 }} aria-label={`Gráfico de barras semanais em metros quadrados: m² que vencem contra m² concluídos, de ${dadosCarga[0]?.label} a ${ultimaLabel}. Os números estão na tabela seguinte.`}>
               {/* 21 semanas × 2 barras não cabem em 375px sem virar risco:
                   no celular o gráfico rola na horizontal em vez de encolher
                   as barras até deixarem de ser comparáveis. */}
-              <div style={{ overflowX: isMobile ? "auto" : "visible" }}>
-                <div style={{ minWidth: isMobile ? 620 : undefined, height: 300 }}>
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={dadosCarga} margin={{ top: 22, right: 8, left: -12, bottom: 0 }} barGap={2}>
-                      <CartesianGrid stroke={T.border} vertical={false} />
-                      {primeiraFutura && ultimaLabel && (
-                        <ReferenceArea
-                          x1={primeiraFutura} x2={ultimaLabel}
-                          fill={T.low} fillOpacity={1}
-                          label={{ value: "PREVISTO", position: "insideTopRight", fill: T.second, fontSize: 10, fontWeight: 900, letterSpacing: "0.12em" }}
-                        />
-                      )}
-                      <XAxis dataKey="label" tick={{ fontSize: 9, fontWeight: 700, fill: T.second, fontFamily: "'DM Mono'" }} axisLine={{ stroke: T.bdark }} tickLine={false} interval={1} />
-                      <YAxis tick={{ fontSize: 10, fill: T.second }} axisLine={false} tickLine={false} width={54}
-                        label={{ value: "m²", position: "top", offset: 12, fill: T.second, fontSize: 10, fontWeight: 900 }} />
-                      <Tooltip content={<CargaTip />} cursor={{ fill: "rgba(28,25,23,0.05)" }} />
-                      {semanaAtualLabel && (
-                        <ReferenceLine x={semanaAtualLabel} stroke={T.dark} strokeWidth={1.5}
-                          label={{ value: "HOJE", position: "top", fill: T.text, fontSize: 10, fontWeight: 900, letterSpacing: "0.1em" }} />
-                      )}
-                      {carga.mediaConcluidoM2 != null && carga.mediaConcluidoM2 > 0 && (
-                        <ReferenceLine y={carga.mediaConcluidoM2} stroke={GRAFICO_NEUTRO} strokeDasharray="5 4" strokeWidth={2} />
-                      )}
-                      <Bar dataKey="demanda" name="Vence" fill={ACCENT_TEXT} maxBarSize={26} isAnimationActive={false}>
-                        {/* O anel marca no desenho as MESMAS semanas que a
-                            faixa nomeia — senão são duas leituras a conferir
-                            uma contra a outra. */}
-                        {dadosCarga.map((d) => (
-                          <Cell key={d.label}
-                            stroke={rotulosQueEstouram.has(d.label) ? "#b45309" : "none"}
-                            strokeWidth={rotulosQueEstouram.has(d.label) ? 1.5 : 0} />
-                        ))}
-                      </Bar>
-                      <Bar dataKey="concluido" name="Concluído" fill={T.dark} maxBarSize={26} isAnimationActive={false} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              </div>
+              <GraficoCarga
+                dadosCarga={dadosCarga}
+                carga={carga}
+                rotulosQueEstouram={rotulosQueEstouram}
+                primeiraFutura={primeiraFutura}
+                ultimaLabel={ultimaLabel}
+                semanaAtualLabel={semanaAtualLabel}
+                isMobile={isMobile}
+              />
             </figure>
             <table className="sr-only">
               <caption>m² por semana: o que vence e o que foi concluído</caption>

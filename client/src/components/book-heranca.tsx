@@ -46,7 +46,8 @@ export function BookHeranca({ bookUrl, capa, onCapaChange, paginas, onTogglePagi
         const workerUrl = (await import("pdfjs-dist/build/pdf.worker.min.mjs?url")).default;
         pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
         const doc = await pdfjs.getDocument({ url: convertGCSUrlToLocalPath(bookUrl) }).promise;
-        if (genRef.current !== gen) return;
+        // Chegou depois de trocar de book/desmontar: ninguém vai usar — solta já.
+        if (genRef.current !== gen) { void doc.loadingTask?.destroy(); return; }
         docRef.current = doc;
         setNumPages(doc.numPages);
       } catch (e: any) {
@@ -54,6 +55,15 @@ export function BookHeranca({ bookUrl, capa, onCapaChange, paginas, onTogglePagi
         setErro(e?.message || "Não foi possível abrir o book atual.");
       }
     })();
+    return () => {
+      // Invalida trabalho em voo e solta o documento do pdf.js (PDF parseado
+      // e páginas no worker, MBs por book) ao trocar de book ou sair da tela —
+      // antes ele ficava vivo até o F5.
+      genRef.current++;
+      const doc = docRef.current;
+      docRef.current = null;
+      void doc?.loadingTask?.destroy();
+    };
   }, [bookUrl]);
 
   const pedirThumb = (n: number) => {

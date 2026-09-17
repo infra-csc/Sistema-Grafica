@@ -27,6 +27,15 @@ interface CloneItemsDialogProps {
   onConfirmClone: (itemIds: string[]) => void;
 }
 
+// LISTA VAZIA COM IDENTIDADE FIXA (PERF-6, 17/09). Com a query desligada (o
+// diálogo fechado, que é o estado de sempre no Detalhe do Evento), o `= []` do
+// useQuery criava um array NOVO a cada render. O efeito "trocou a origem"
+// depende dele: via mudança, gravava um Set novo, re-renderizava, ganhava outro
+// `[]`... um laço de render que nunca parava enquanto a página estivesse aberta
+// (26 mil commits medidos em 10 s no benchmark). Esta constante quebra o laço
+// sem mudar o que o efeito faz quando os dados chegam de verdade.
+const SEM_PECAS: any[] = [];
+
 // Extracted from event-detail.tsx: "Clonar Peças de Outro Evento" dialog.
 // Pure presentational split — no business logic changed, only relocated.
 export function CloneItemsDialog({
@@ -48,7 +57,7 @@ export function CloneItemsDialog({
   // que marcar dezenas. A busca recorta a lista; marcar/desmarcar todas age
   // só sobre o recorte visível, senão "desmarcar todas" com uma busca ativa
   // apagaria seleção que o operador nem estava vendo.
-  const { data: pecasDaOrigem = [], isLoading: pecasCarregando } = useQuery<any[]>({
+  const { data: pecasDaOrigem = SEM_PECAS, isLoading: pecasCarregando } = useQuery<any[]>({
     queryKey: ["/api/items", cloneSourceId],
     enabled: open && !!cloneSourceId,
   });

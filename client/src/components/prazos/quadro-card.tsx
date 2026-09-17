@@ -11,7 +11,7 @@
 // consumado (prazo vencido, evento sem peças, data quebrada); o selo RISCO,
 // que é risco PROJETADO, virou contorno. O mais sólido tem que ser o mais
 // urgente.
-import { useState } from "react";
+import { memo, useState } from "react";
 import { getPriorityMeta } from "@/lib/status";
 import type { CobrancaEntry, PrazoEvent, PrazoStage } from "@shared/prazos-contract";
 import { CobrancaLinha, cobrancaResumo } from "./cobrado-control";
@@ -27,13 +27,24 @@ interface QuadroCardProps {
   /** Etapa da COLUNA em que o card está (pode faltar num payload antigo). */
   stage?: PrazoStage;
   cobranca?: CobrancaEntry;
-  onOpen: () => void;
-  onFocusCard: () => void;
+  /**
+   * Recebem o ID, e não um fechamento por card: com `(id) => void` a página
+   * passa a MESMA função para todos os cards, e o `memo` abaixo consegue
+   * pular o card quando nada dele mudou. Um `() => setDetailId(ev.id)` inline
+   * era uma função nova a cada render e obrigava os ~130 cards do quadro a se
+   * redesenharem a cada revalidação de 60s, mensagem do WebSocket ou tique do
+   * selo "Atualizado há X".
+   */
+  onOpen: (id: string) => void;
+  onFocusCard: (id: string) => void;
   /** Realce de ~1,2s: este card acabou de mudar de coluna. */
   realce?: boolean;
 }
 
-export function QuadroCard({ ev, stage, cobranca, onOpen, onFocusCard, realce }: QuadroCardProps) {
+// `memo`: todas as props são estáveis entre revalidações sem mudança — `ev`,
+// `stage` e `cobranca` preservam a identidade pelo structural sharing do
+// React Query, e os dois handlers vêm de `useCallback` na página.
+export const QuadroCard = memo(function QuadroCard({ ev, stage, cobranca, onOpen, onFocusCard, realce }: QuadroCardProps) {
   // Hover em estado React (não `currentTarget.style`): mutar o nó direto
   // perde o teclado — quem chega no card por Tab não recebia elevação
   // nenhuma. O KpiCard desta mesma tela já fazia assim.
@@ -123,8 +134,8 @@ export function QuadroCard({ ev, stage, cobranca, onOpen, onFocusCard, realce }:
   return (
     <button
       type="button"
-      onClick={onOpen}
-      onFocus={() => { setElevado(true); onFocusCard(); }}
+      onClick={() => onOpen(ev.id)}
+      onFocus={() => { setElevado(true); onFocusCard(ev.id); }}
       onBlur={() => setElevado(false)}
       onMouseEnter={() => setElevado(true)}
       onMouseLeave={() => setElevado(false)}
@@ -302,4 +313,4 @@ export function QuadroCard({ ev, stage, cobranca, onOpen, onFocusCard, realce }:
       )}
     </button>
   );
-}
+});

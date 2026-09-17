@@ -18,7 +18,7 @@
 //
 // Abaixo de `DRILL_TABELA_MIN` a tabela vira CARTÃO: no celular cinco colunas
 // não cabem por mais fixas que sejam, e perder colunas é melhor que rolar.
-import { Fragment, useMemo, useState } from "react";
+import { Fragment, memo, useMemo, useState } from "react";
 import { Link } from "wouter";
 import { ChevronDown } from "lucide-react";
 import { useElementSize, useIsMobile } from "@/hooks/use-mobile";
@@ -164,7 +164,12 @@ function PecaCartao({ eventId, it, isAprovacao }: {
   );
 }
 
-export function EventDrilldown({ ev, cobranca, today, showCobranca = true }: {
+// `memo`: o drill vive dentro do modal e da linha expandida da tabela, e os
+// dois são redesenhados a cada render da página (revalidação, tique do selo,
+// pílula de novidades). Com `ev`/`cobranca` estáveis pelo structural sharing,
+// o drill — que pode ter quatro tabelas de quinze linhas — deixa de se refazer
+// à toa.
+export const EventDrilldown = memo(function EventDrilldown({ ev, cobranca, today, showCobranca = true }: {
   ev: PrazoEvent;
   cobranca?: CobrancaEntry;
   today?: string;
@@ -230,7 +235,12 @@ export function EventDrilldown({ ev, cobranca, today, showCobranca = true }: {
     }
     const grupos = ev.stages
       .map((stage, i) => ({ stage, items: byStage.get(i) ?? [] }))
-      .filter((g) => g.items.length > 0);
+      .filter((g) => g.items.length > 0)
+      // Pior primeiro: a lista é de cobrança, quem espera há mais tempo abre.
+      // Sem carimbo por último (é ausência de informação, não espera zero).
+      // A ordenação mora AQUI, e não no render: ela só muda quando o evento
+      // muda, e recolher uma etapa ou abrir "ver todas" não reordena nada.
+      .map((g) => ({ ...g, items: [...g.items].sort((a, b) => (b.waitingDays ?? -1) - (a.waitingDays ?? -1)) }));
 
     // As etapas SEGUINTES sumiam por completo. O gate é a pendência
     // ACUMULADA: as mesmas peças que travam a Lista também travam a Revisão
@@ -288,10 +298,8 @@ export function EventDrilldown({ ev, cobranca, today, showCobranca = true }: {
         const sector = STAGE_SECTOR[stage.key];
         const st = STAGE_STYLE[stage.state];
         const recolhida = recolhidas.has(stage.key);
-        // Pior primeiro: a lista é de cobrança, quem espera há mais tempo abre.
-        // Pior primeiro; sem carimbo por último (é ausência de informação,
-        // não espera zero — e a lista é de cobrança).
-        const sorted = [...items].sort((a, b) => (b.waitingDays ?? -1) - (a.waitingDays ?? -1));
+        // Já vem ordenada (pior espera primeiro) do `useMemo` acima.
+        const sorted = items;
         const tudoAberto = abertas.has(stage.key);
         const shown = tudoAberto ? sorted : sorted.slice(0, ROW_CAP);
         const acimaDoCorte = sorted.length - ROW_CAP;
@@ -561,4 +569,4 @@ export function EventDrilldown({ ev, cobranca, today, showCobranca = true }: {
       )}
     </div>
   );
-}
+});

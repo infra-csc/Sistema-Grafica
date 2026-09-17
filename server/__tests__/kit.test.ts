@@ -76,7 +76,12 @@ describe("servidor do Kit", () => {
   it("peças: filtro do usuário do Kit nas listas, na criação e na importação", () => {
     expect(ITEMS).toContain("const allItems = (await storage.getAllItems()).filter((i) => pecaVisivelPara(quemVe(req), i));");
     expect(ITEMS).toContain("(await storage.getItemsByEvent(req.params.eventId)).filter((i) => pecaVisivelPara(quemVe(req), i));");
-    expect(ITEMS).toContain("removidas: mudadas.filter((i) => i.deletedAt || !pecaVisivelPara(quemVe(req), i)).map((i) => i.id),");
+    // Perf 17/09 (recorte ?status=/?ids=): o predicado do delta virou um só —
+    // quem não cabe (excluída, INVISÍVEL para o Kit ou fora do recorte) sai
+    // como removida. A regra do Kit continua dentro dele e na lista recortada.
+    expect(ITEMS).toContain("const cabe = (i: any) => !i.deletedAt && pecaVisivelPara(usuario, i) && casaRecorte(recorte, i);");
+    expect(ITEMS).toContain("removidas: mudadas.filter((_i, n) => !visivel[n]).map((i) => i.id),");
+    expect(ITEMS).toContain("const doRecorte = (await pecasDoRecorte(recorte)).filter((i) => pecaVisivelPara(usuario, i));");
     expect(ITEMS).toContain('return res.status(400).json({ error: "Usuário do Kit cria só peça do Kit — escolha a remessa do Kit." });');
     expect(ITEMS).toContain("(validatedData as any).criadoPorId = req.userId ?? null;");
     expect(IMPORT).toContain("criadoPorId: (req as any).userId ?? null,");

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef, useCallback } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback, useDeferredValue, memo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { FilterSelect } from "@/components/filter-select";
 import {
@@ -158,6 +158,8 @@ function cfgFor(type: string): TypeCfg & { bg: string; border: string; color: st
 const EXCECAO_TYPES = Object.entries(TYPE_CONFIG)
   .filter(([, c]) => c.excecao)
   .map(([t]) => t);
+/** O mesmo conjunto, para consulta O(1) nas contagens sobre todas as linhas. */
+const EXCECAO_SET = new Set(EXCECAO_TYPES);
 
 /* ── Período ── */
 const PERIODS = [
@@ -222,6 +224,18 @@ function tomDoIntervalo(ms: number): string {
    data em diante a trilha é confiável — que é o que a faixa amarela já fazia. */
 const PAGINA_TRILHA = 1000;
 const TETO_TRILHA = 20000;
+
+/* ── Incorporar páginas em lotes, não uma a uma (PERF-4, 17/09) ─────────────
+   Cada página caminhada que entrava no estado reconstruía a timeline INTEIRA
+   (peças + todos os registros já acumulados) e refazia as contagens dos
+   filtros. Com 20 páginas até o teto, eram 20 reconstruções de tamanho
+   crescente — segundos de thread principal ocupada, em rajadas, enquanto a
+   pessoa já está lendo a lista. As páginas continuam sendo BAIXADAS uma a uma
+   (e guardadas no depósito a cada chegada, para sobreviver a sair da tela);
+   só a INCORPORAÇÃO à lista espera juntar o que chegou em até 2s. O fim da
+   trilha, o teto e uma falha de rede incorporam na hora o que estiver
+   pendente. */
+const INTERVALO_INCORPORACAO_MS = 2000;
 
 /* As páginas já caminhadas sobrevivem a sair da tela e voltar (até a coleta do
    react-query levá-las, por não terem observador — aí o caminhamento recomeça,
@@ -782,9 +796,14 @@ export default function Historico() {
   // oferecer nova tentativa do que exibir um histórico pela metade.
   const isError = eventsQ.isError || itemsQ.isError || logsQ.isError;
 
-  const sorted = useMemo(
-    () => buildTimeline(events, items, auditLogs),
-    [events, items, auditLogs],
+  // Enquanto alguma das três fontes ainda carrega, a tela mostra o esqueleto e
+  // não lê a timeline — reconstruí-la a cada fonte que chega (eventos, depois
+  // registros, depois peças) eram duas passadas completas jogadas fora antes
+  // do primeiro pixel útil. A adoção logo abaixo trata a chegada da versão
+  // completa como primeira carga, então nada muda para quem lê.
+  const sorted = useMemo<TimelineEvent[]>(
+    () => (isLoading ? VAZIO : buildTimeline(events, items, auditLogs)),
+    [events, items, auditLogs, isLoading],
   );
 
   /* ── Atualização em segundo plano sem reordenar sob o dedo ──────────────
@@ -876,11 +895,31 @@ export default function Historico() {
     if (!proximoCursor || esgotadoRef.current || andandoRef.current) return;
     let vivo = true;
     const ctrl = new AbortController();
+    // Solta o lote pendente quando a PRÓXIMA página demora: o lote só era
+    // incorporado na chegada de outra página, e uma resposta lenta (a trilha
+    // antiga é a consulta mais pesada) deixava a página já baixada fora da
+    // lista por muito mais que os 2s prometidos.
+    let timerDoLote: ReturnType<typeof setTimeout> | null = null;
     andandoRef.current = true;
     setCompletando(true);
 
     (async () => {
       let cursor: string | null = cursorRef.current ?? proximoCursor;
+      // Lote de incorporação (ver INTERVALO_INCORPORACAO_MS): `pendente` diz
+      // se há página baixada que ainda não entrou na lista.
+      let ultimaIncorporacao = performance.now();
+      let pendente = false;
+      const incorporar = () => {
+        if (timerDoLote) { clearTimeout(timerDoLote); timerDoLote = null; }
+        if (!vivo) return;
+        pendente = false;
+        ultimaIncorporacao = performance.now();
+        // Completar a trilha NÃO é novidade: sem isto, cada página anterior
+        // que chega dispara a pílula "N novas atividades" e pede ao usuário
+        // que atualize para ver um passado que ele não pediu para congelar.
+        adoptNextRef.current = true;
+        setPaginasSeguintes(acumuladoRef.current);
+      };
       try {
         while (vivo && cursor) {
           if (acumuladoRef.current.length >= TETO_TRILHA) {
@@ -900,11 +939,10 @@ export default function Historico() {
           queryClient.setQueryData<TrilhaCaminhada>(CACHE_TRILHA, {
             logs: acumuladoRef.current, cursor, esgotado: !cursor,
           });
-          // Completar a trilha NÃO é novidade: sem isto, cada página anterior
-          // que chega dispara a pílula "N novas atividades" e pede ao usuário
-          // que atualize para ver um passado que ele não pediu para congelar.
-          adoptNextRef.current = true;
-          setPaginasSeguintes(acumuladoRef.current);
+          pendente = true;
+          const decorrido = performance.now() - ultimaIncorporacao;
+          if (!cursor || decorrido >= INTERVALO_INCORPORACAO_MS) incorporar();
+          else if (!timerDoLote) timerDoLote = setTimeout(incorporar, INTERVALO_INCORPORACAO_MS - decorrido);
         }
         if (vivo && !cursor) esgotadoRef.current = true;
       } catch {
@@ -912,6 +950,10 @@ export default function Historico() {
         // faixa de confiança continua dizendo, com data, até onde ela vai.
       } finally {
         andandoRef.current = false;
+        // Teto, falha de rede ou fim: o que foi baixado e ainda esperava o
+        // lote entra agora. Tela desmontada não recebe estado — o depósito já
+        // guardou tudo e a próxima visita começa dele.
+        if (vivo && pendente) incorporar();
         if (vivo) setCompletando(false);
       }
     })();
@@ -920,12 +962,19 @@ export default function Historico() {
     // percebe: em modo estrito o efeito é recriado no mesmo tique, e esperar
     // pelo `finally` do laço antigo faria o novo desistir por achar que já há um
     // caminhamento em curso — o recurso ficaria desligado sem nenhum sintoma.
-    return () => { vivo = false; andandoRef.current = false; ctrl.abort(); };
+    return () => {
+      vivo = false;
+      andandoRef.current = false;
+      if (timerDoLote) clearTimeout(timerDoLote);
+      ctrl.abort();
+    };
   }, [proximoCursor, isLoading, queryClient]);
 
   // "Atualizado há X" precisa reescrever sozinho; sem o tick ele congelava em
   // "há menos de um minuto" pelo resto da sessão.
-  const [, setTick] = useState(0);
+  // O valor vai para as linhas (memoizadas): é ele que diz a uma linha com
+  // hora relativa ("há 5 minutos") que o texto dela precisa andar.
+  const [tick, setTick] = useState(0);
   useEffect(() => {
     const t = window.setInterval(() => setTick(n => n + 1), 30000);
     return () => window.clearInterval(t);
@@ -982,6 +1031,12 @@ export default function Historico() {
   }, [searchFilter, trilha, trilhaItemId, janelaCompleta]);
 
 
+  // A LISTA filtra pelo termo ADIADO: o campo mostra a tecla na hora e o
+  // recorte de dezenas de milhares de linhas roda em segundo plano, podendo
+  // ser descartado pela tecla seguinte. URL, contador de filtros, busca além
+  // da janela e o texto do estado vazio continuam lendo o termo digitado.
+  const buscaAdiada = useDeferredValue(searchFilter);
+
   const filtered = useMemo(() => {
     // A TRILHA ignora os outros recortes de propósito: "trilha completa" com
     // um período de 7 dias aplicado por cima seria uma trilha com buracos —
@@ -1000,15 +1055,15 @@ export default function Historico() {
     if (authorFilter.length > 0) {
       list = list.filter(e => authorFilter.includes(autorKey(e)));
     }
-    if (searchFilter.trim()) {
-      const q = searchFilter.toLowerCase();
+    if (buscaAdiada.trim()) {
+      const q = buscaAdiada.toLowerCase();
       // searchBlob cobre também o `logDetails` — que é o texto RENDERIZADO nas
       // linhas de aprovação/reprovação. O usuário lia "Patrocinador Ambev
       // reprovou…", digitava "Ambev" e recebia "Nenhuma atividade encontrada".
       list = list.filter(e => e.searchBlob.includes(q));
     }
     return list;
-  }, [displayed, period, eventFilter, actionFilter, authorFilter, searchFilter, trilha, trilhaItemId]);
+  }, [displayed, period, eventFilter, actionFilter, authorFilter, buscaAdiada, trilha, trilhaItemId]);
 
   // Dois contadores, de propósito. `recorteCount` conta só as quatro dimensões
   // que vivem nos dropdowns — é o número do botão "Filtros" do celular, que
@@ -1070,9 +1125,33 @@ export default function Historico() {
   /* ── Opções de filtro derivadas dos DADOS (com contagem) ──
      A lista de 24 ações era literal: "Reaprov. corrigido" aparecia mesmo que
      nunca tivesse existido e levava a zero resultados. */
+  /* ── UMA passada pelas linhas, todas as contagens ──
+     Eram sete varreduras de `displayed` (três opções de filtro, reconstruídas,
+     e três `filter` das métricas) — com a trilha caminhada, dezenas de
+     milhares de linhas percorridas sete vezes a cada lote incorporado. As
+     regras de cada contagem são as mesmas de antes, só moram no mesmo laço. */
+  const contagens = useMemo(() => {
+    const porTipo = new Map<string, number>();
+    const porEvento = new Map<string, number>();
+    const porAutor = new Map<string, number>();
+    let derivadas = 0, deHoje = 0, deSete = 0, excecoes = 0;
+    const hoje = startOfDay(new Date());
+    const sete = subDays(new Date(), 7);
+    for (const e of displayed) {
+      porTipo.set(e.type, (porTipo.get(e.type) ?? 0) + 1);
+      if (e.eventId) porEvento.set(e.eventId, (porEvento.get(e.eventId) ?? 0) + 1);
+      const k = autorKey(e);
+      porAutor.set(k, (porAutor.get(k) ?? 0) + 1);
+      if (e.authorSource === "derived") derivadas++;
+      if (e.timestamp >= hoje) deHoje++;
+      if (e.timestamp >= sete) deSete++;
+      if (EXCECAO_SET.has(e.type)) excecoes++;
+    }
+    return { porTipo, porEvento, porAutor, derivadas, deHoje, deSete, excecoes };
+  }, [displayed]);
+
   const actionOptions = useMemo(() => {
-    const counts = new Map<string, number>();
-    displayed.forEach(e => counts.set(e.type, (counts.get(e.type) ?? 0) + 1));
+    const counts = contagens.porTipo;
     const opts = Array.from(counts.entries()).map(([type, count]) => {
       const cfg = TYPE_CONFIG[type] ?? DEFAULT_CFG;
       return {
@@ -1084,49 +1163,31 @@ export default function Historico() {
     // Ordena por fase para o agrupamento do FilterSelect sair na ordem do fluxo.
     opts.sort((a, b) => a._order - b._order || b.count - a.count);
     return opts.map(({ _order, ...o }) => o);
-  }, [displayed]);
+  }, [contagens]);
 
   const eventOptions = useMemo(() => {
-    const counts = new Map<string, number>();
-    displayed.forEach(e => {
-      if (e.eventId) counts.set(e.eventId, (counts.get(e.eventId) ?? 0) + 1);
-    });
+    const counts = contagens.porEvento;
     return events.map((ev: any) => ({ value: ev.id, label: ev.name, count: counts.get(ev.id) ?? 0 }));
-  }, [events, displayed]);
+  }, [events, contagens]);
 
   const authorOptions = useMemo(() => {
-    const counts = new Map<string, number>();
-    displayed.forEach(e => {
-      const k = autorKey(e);
-      counts.set(k, (counts.get(k) ?? 0) + 1);
-    });
+    const counts = contagens.porAutor;
     return Array.from(counts.entries())
       .map(([value, count]) => ({
         value, count,
         label: AUTOR_LABEL[value] ?? value,
       }))
       .sort((a, b) => b.count - a.count);
-  }, [displayed]);
+  }, [contagens]);
 
   /* ── Quantas linhas a tela INVENTOU a partir de carimbos ──
      O número vai para a faixa de confiança porque é ele que explica a coluna
      "Realizado por" vazia. Sem ele, a única conclusão possível ao olhar a tela
      era "o sistema não registra quem faz as coisas". */
-  const reconstruidas = useMemo(
-    () => displayed.filter(e => e.authorSource === "derived").length,
-    [displayed],
-  );
+  const reconstruidas = contagens.derivadas;
 
-  /* ── Métricas-atalho ── */
-  const metrics = useMemo(() => {
-    const hoje = startOfDay(new Date());
-    const sete = subDays(new Date(), 7);
-    return {
-      hoje: displayed.filter(e => e.timestamp >= hoje).length,
-      sete: displayed.filter(e => e.timestamp >= sete).length,
-      excecoes: displayed.filter(e => EXCECAO_TYPES.includes(e.type)).length,
-    };
-  }, [displayed]);
+  /* ── Métricas-atalho ── (hoje, 7 dias e exceções, contados na passada única) */
+  const metrics = { hoje: contagens.deHoje, sete: contagens.deSete, excecoes: contagens.excecoes };
 
   // O atalho de exceções só se declara ativo quando o filtro de Ação é
   // EXATAMENTE o conjunto que ele aplica: comparar por tamanho + pertinência
@@ -1934,6 +1995,7 @@ export default function Historico() {
                     copied={copied}
                     onTrilha={!trilha && entry.itemId && entry.itemDisplayId ? () => abrirTrilha(entry) : undefined}
                     gapMs={trilha ? (intervalos.get(entry.id) ?? null) : null}
+                    tick={tick}
                   />
                 ))}
               </div>
@@ -2081,14 +2143,42 @@ function Sk({ w, h, r = 6 }: { w: number | string; h: number; r?: number }) {
 }
 
 /* ── Linha ── */
-function Row({ entry, idx, isCompact, nav, onOpen, onCopy, copied, onTrilha, gapMs }: {
+interface RowProps {
   entry: TimelineEvent; idx: number; isCompact: boolean; nav: Nav;
   onOpen: () => void; onCopy: (t: string, k: string) => void; copied: string | null;
   /** Abre a trilha desta peça — só em linha que TEM peça; registro de evento não tem trilha para seguir. */
   onTrilha?: () => void;
   /** No modo trilha: ms desde o passo anterior; null no primeiro passo. */
   gapMs?: number | null;
-}) {
+  /** Tique de 30s da tela — só serve para a comparação do memo (ver `mesmaLinha`). */
+  tick?: number;
+}
+
+/* ── Linha memoizada (PERF-4, 17/09) ────────────────────────────────────────
+   Tudo o que muda no topo da tela re-renderizava as 25–100 linhas: o tique de
+   30s do "Atualizado há X", abrir e fechar o painel de detalhe, o ✓ de copiar,
+   a faixa "Completando a trilha", o giro do Atualizar. Nenhum deles muda uma
+   linha. A comparação diz o que de fato muda uma linha:
+     · o registro (identidade — a timeline só gera objeto novo quando os
+       dados mudam), a posição, o layout, a navegação e o intervalo da trilha;
+     · TER ou não o botão da trilha (as funções de clique são recriadas a cada
+       render, mas só chamam setters estáveis com este mesmo registro — a
+       versão guardada faz exatamente a mesma coisa);
+     · o ✓ de copiado, só na linha que ele toca;
+     · o tique, só para linha com hora RELATIVA (últimas 24h, fora da trilha),
+       com 2 min de folga para a que acabou de passar das 24h trocar o
+       "há 23 horas" pela hora pura. */
+const FOLGA_RELATIVA_MS = 24 * 60 * 60 * 1000 + 2 * 60 * 1000;
+function mesmaLinha(a: RowProps, b: RowProps): boolean {
+  if (a.entry !== b.entry || a.idx !== b.idx || a.isCompact !== b.isCompact || a.nav !== b.nav) return false;
+  if (a.gapMs !== b.gapMs || !!a.onTrilha !== !!b.onTrilha) return false;
+  if ((a.copied === a.entry.id) !== (b.copied === b.entry.id)) return false;
+  if (a.tick !== b.tick && b.gapMs == null && Date.now() - b.entry.timestamp.getTime() < FOLGA_RELATIVA_MS) return false;
+  return true;
+}
+const Row = memo(LinhaDoHistorico, mesmaLinha);
+
+function LinhaDoHistorico({ entry, idx, isCompact, nav, onOpen, onCopy, copied, onTrilha, gapMs }: RowProps) {
   const cfg = cfgFor(entry.type);
   const Icon = cfg.icon;
   const downRef = useRef<{ x: number; y: number } | null>(null);

@@ -24,7 +24,11 @@ export function registerStandardItemRoutes(app: Express): void {
   // Peça excluída (soft delete) não conta em nenhuma das duas.
   app.get("/api/standard-items", requireAuth, async (req, res) => {
     try {
-      const [modelos, pecas] = await Promise.all([storage.getAllStandardItems(), storage.getAllItems()]);
+      // PERF (17/09): as peças vêm só com as sete colunas que a conta de uso
+      // lê (getItemsParaUsoDeModelos), não com as 66 de getAllItems. Eram
+      // megabytes decodificados na thread principal para uma resposta de
+      // 30 KB — daí os 600–1400 ms, e o resto do servidor esperando junto.
+      const [modelos, pecas] = await Promise.all([storage.getAllStandardItems(), storage.getItemsParaUsoDeModelos()]);
       const num = (v: unknown) => { const x = parseFloat(String(v ?? "")); return Number.isFinite(x) ? x : null; };
       const chaveAssinatura = (type: unknown, material: unknown, fw: unknown, fh: unknown) =>
         `${String(type ?? "").trim().toLowerCase()}|${String(material ?? "").trim().toLowerCase()}|${num(fw) ?? ""}|${num(fh) ?? ""}`;

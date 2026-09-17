@@ -334,6 +334,15 @@ export const items = pgTable("items", {
   // IS NULL ORDER BY created_at" — dois índices soltos obrigam o planner a
   // escolher um e ordenar fora. O composto serve filtro E ordem de uma vez.
   index("IDX_items_event_created").on(table.eventId, table.createdAt.desc()),
+  // PERF 17/09 — declarados aqui para o `db:push` não derrubá-los (índice que
+  // o schema não declara é índice que o push apaga). Criados em produção por
+  // scripts/indices-performance.sql, com CONCURRENTLY; o push depois só confere.
+  //  · delta-sync (`GET /api/items?since=`, getItemsChangedSince): `WHERE
+  //    updated_at >= $1` era seq scan na tabela inteira a cada reconexão/aba.
+  index("IDX_items_updated_at").on(table.updatedAt),
+  //  · usuário do Kit (getItemsDoKitDoCriador / getIdsDasPecasDoKitDoCriador):
+  //    `criado_por_id = $1 AND kit_remessa_id IS NOT NULL`.
+  index("IDX_items_criado_por_kit").on(table.criadoPorId, table.kitRemessaId),
 ]);
 
 // Standard items (templates)
@@ -459,6 +468,11 @@ export const prazoCobrancas = pgTable("prazo_cobrancas", {
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
 }, (table) => [
   index("IDX_prazo_cobrancas_target").on(table.targetType, table.targetId),
+  // PERF 17/09: GET /api/prazos busca `WHERE target_id IN (...) ORDER BY
+  // created_at DESC` — sem target_type no filtro, o índice acima (que começa
+  // por target_type) não serve. Este serve o filtro e a ordem. Criado por
+  // scripts/indices-performance.sql.
+  index("IDX_prazo_cobrancas_target_id_created").on(table.targetId, table.createdAt.desc()),
 ]);
 
 // Gestão de Prazos: snapshot diário dos KPIs (1 linha por dia de negócio) —

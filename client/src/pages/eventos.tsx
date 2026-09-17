@@ -33,7 +33,7 @@ import {
 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Link, useLocation } from "wouter";
-import { useState, useEffect, useMemo, useRef, useCallback } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback, memo } from "react";
 import type { Sponsor } from "@shared/schema";
 import { FilterSelect, ShortcutPill } from "@/components/filter-select";
 import { SponsorChips } from "@/components/sponsor-chips";
@@ -298,6 +298,27 @@ function readEventStats(event: any): EventStats {
 }
 
 /**
+ * CONTADORES POR OBJETO DE EVENTO, calculados uma vez (PERF-6, 17/09).
+ *
+ * `readEventStats` varre `event.items` inteiro — o payload embute as peças de
+ * cada evento (o acervo todo, somado). Os filtros da tela chamavam a função
+ * por evento em cada predicado (foco, prioridade, situação, ordem) e em cada
+ * contagem de faceta: a mesma varredura seis, sete vezes a cada recorte.
+ * O cache é por OBJETO (WeakMap): o refetch traz objetos novos e o cache velho
+ * vai embora com eles, então nunca serve número de um payload anterior.
+ * Só entra no cache o que não depende do relógio — quando o servidor já manda
+ * `eventHasPassed`. O fallback de servidor antigo calcula o "já passou" com o
+ * dia de hoje e, por isso, continua recalculado a cada chamada.
+ */
+const statsPorObjeto = new WeakMap<object, EventStats>();
+function statsDoEvento(event: any): EventStats {
+  if (!event || typeof event !== 'object' || typeof event.eventHasPassed !== 'boolean') return readEventStats(event);
+  let stats = statsPorObjeto.get(event);
+  if (!stats) { stats = readEventStats(event); statsPorObjeto.set(event, stats); }
+  return stats;
+}
+
+/**
  * Peças criadas que ainda não foram ENVIADAS para a vinculação (draft e o
  * legado requested — a mesma população do botão "Enviar" do detalhe).
  *
@@ -338,6 +359,8 @@ const MONTH_NAMES = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
 // cresce (nada nunca sai dela), então segue o mesmo teto do Painel Geral e do
 // detalhe do evento: 50 + "Mostrar todos".
 const CARD_PAGE = 50;
+/** Lista vazia com identidade fixa — `[]` no render quebraria o memo do cartão. */
+const SEM_PATROCINADORES: Sponsor[] = [];
 
 // ── Helpers de data (escopo de módulo: não dependem de estado) ───────────────
 const parseDateStr = (s: string): Date | undefined => {
@@ -427,7 +450,7 @@ const TH_LISTA: React.CSSProperties = {
  * GRADE_LISTA: densidade não pode custar capacidade.
  */
 function EventRow({
-  event, sponsorCount, currentYear, isMobile, pedidosAbertos = 0,
+  event, sponsorCount, currentYear, agoraMs, isMobile, pedidosAbertos = 0,
   canEdit, canDelete, canDuplicate, canSetPriority, canClose, soPatrocinadores = false,
   onEdit, onDelete, onDuplicate, onSetPriority, onClose, onReopen,
 }: {
@@ -435,6 +458,8 @@ function EventRow({
   sponsorCount: number;
   pedidosAbertos?: number;
   currentYear: number;
+  /** Relógio de minuto da página (ver `agoraMs` em Eventos). */
+  agoraMs: number;
   isMobile: boolean;
   canEdit: boolean;
   soPatrocinadores?: boolean;
@@ -461,9 +486,12 @@ function EventRow({
   // exibição. Com `new Date()` cru, um caminhão gravado para 08:00 exibia
   // "08:00" e o selo "Saiu hoje" ao mesmo tempo.
   const saida = event.truckDepartureDate ? toUTCDisplayDate(event.truckDepartureDate) : null;
+  // `agoraMs` (prop) e não `new Date()`: a linha é memoizada, e o relógio lido
+  // aqui dentro congelava o selo no dia em que ela desenhou pela última vez.
+  const hoje = new Date(agoraMs);
   const diasAteSaida = saida
     ? Math.ceil((new Date(saida.getFullYear(), saida.getMonth(), saida.getDate()).getTime()
-        - new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate()).getTime()) / 86400000)
+        - new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate()).getTime()) / 86400000)
     : null;
   const corDaSaida = diasAteSaida === null ? T.second
     : diasAteSaida < 0 ? '#b91c1c'
@@ -742,6 +770,7 @@ function EventCard({
   pedidosAbertos = 0,
   isMobile,
   currentYear,
+  agoraMs,
   canEdit,
   soPatrocinadores = false,
   canDelete,
@@ -760,6 +789,8 @@ function EventCard({
   pedidosAbertos?: number;
   isMobile: boolean;
   currentYear: number;
+  /** Relógio de minuto da página (ver `agoraMs` em Eventos). */
+  agoraMs: number;
   canEdit: boolean;
   soPatrocinadores?: boolean;
   canDelete: boolean;
@@ -787,7 +818,9 @@ function EventCard({
   // 08:00Z = 05:00 em Brasília: entre 05:00 e 08:00 do dia da saída o card
   // exibia "10 mar · 08:00" E o selo vermelho "Saiu hoje" ao mesmo tempo.
   const departure = event.truckDepartureDate ? toUTCDisplayDate(event.truckDepartureDate) : null;
-  const hoursUntilDeparture = departure ? (departure.getTime() - Date.now()) / 3600000 : null;
+  // `agoraMs` (prop) e não `Date.now()`: o cartão é memoizado, e o relógio
+  // lido aqui dentro parava o selo ("urgente" → "Saiu hoje") até o evento mudar.
+  const hoursUntilDeparture = departure ? (departure.getTime() - agoraMs) / 3600000 : null;
   const truckUrgency = hoursUntilDeparture === null ? 'normal'
     : hoursUntilDeparture < 0 ? 'departed'
     : hoursUntilDeparture < 24 ? 'urgent'
@@ -1108,6 +1141,15 @@ function EventCard({
   );
 }
 
+// CARTÃO E LINHA MEMOIZADOS (PERF-6, 17/09). Medido com 68 eventos: cada tecla
+// na busca ou no nome do modal de criar re-renderizava os 50 cartões — cada um
+// varrendo as peças embutidas (fases, rascunhos, contadores) —, ~250ms por
+// tecla. Os handlers já são estáveis (useCallback) e a lista de patrocinadores
+// de cada cartão vem de um mapa memoizado; com isso as props só mudam quando o
+// evento muda, e o cartão só desenha de novo nesse caso.
+const EventCardMemo = memo(EventCard);
+const EventRowMemo = memo(EventRow);
+
 export default function Eventos() {
   const { user } = useAuth();
   // Permissões de UI espelham os gates do servidor. Todas leem `user.role`
@@ -1298,6 +1340,16 @@ export default function Eventos() {
 
   const currentYear = useMemo(() => new Date().getFullYear(), []);
 
+  // RELÓGIO DE MINUTO. Cartão e linha são memoizados (PERF-6) e só desenham de
+  // novo quando as props mudam — o relógio lido lá dentro parava junto, e o
+  // selo de urgência do caminhão ficava no estado da última mudança do evento.
+  // Como prop, o tique de 1 min é o que os faz andar.
+  const [agoraMs, setAgoraMs] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setAgoraMs(Date.now()), 60_000);
+    return () => clearInterval(id);
+  }, []);
+
   // PEDIDOS DO ATENDIMENTO (dono, 14/09): quantos pedidos de peça cada evento
   // tem esperando a lista.
   const { data: pedidosAbertos = [] } = useQuery<PedidoDePeca[]>({ queryKey: ["/api/pedidos-de-peca?status=aberto"] });
@@ -1332,6 +1384,17 @@ export default function Eventos() {
 
   // Resolve nome/cor dos vínculos do payload de eventos (que só trazem sponsorId).
   const sponsorById = useMemo(() => new Map(sponsors.map((s) => [s.id, s])), [sponsors]);
+  // Patrocinadores de cada cartão, montados uma vez por payload. Montados no
+  // render, eram um array novo a cada tecla e nenhum cartão memoizado pulava.
+  const patrocinadoresDoCartao = useMemo(() => {
+    const m = new Map<string, Sponsor[]>();
+    for (const ev of events as any[]) {
+      m.set(ev.id, ((ev.sponsors || []) as any[])
+        .map((es) => sponsorById.get(es.sponsorId))
+        .filter(Boolean) as Sponsor[]);
+    }
+    return m;
+  }, [events, sponsorById]);
 
   const modalMode: 'create' | 'edit' | 'duplicate' =
     editingEvent ? 'edit' : duplicateSource ? 'duplicate' : 'create';
@@ -1968,7 +2031,7 @@ export default function Eventos() {
 
   const matchesFoco = useCallback((event: any) => {
     if (!foco) return true;
-    const stats = readEventStats(event);
+    const stats = statsDoEvento(event);
     if (foco === "atrasado") return event.nextMilestone?.state === 'overdue';
     if (foco === "sem_pecas") return stats.activeItemCount === 0 && !ARCHIVED_LIFECYCLES.has(stats.lifecycle);
     // Pedidos do Atendimento (dono, 14/09): eventos com pedido esperando a lista.
@@ -1978,7 +2041,7 @@ export default function Eventos() {
 
   const matchesPriority = useCallback((event: any) => {
     if (selectedPriorities.length === 0) return true;
-    const lifecycle = readEventStats(event).lifecycle;
+    const lifecycle = statsDoEvento(event).lifecycle;
     return selectedPriorities.some((sel) => {
       if ((LIFECYCLE_FILTERS as readonly string[]).includes(sel)) return lifecycle === sel;
       // Um evento CONCLUÍDO (ou encerrado à mão) não responde mais pela
@@ -1994,7 +2057,7 @@ export default function Eventos() {
    * isso que faz a soma das três contagens fechar com o total.
    */
   const baldeDe = useCallback((event: any): "ativos" | "pendencias" | "arquivados" => {
-    const lifecycle = readEventStats(event).lifecycle;
+    const lifecycle = statsDoEvento(event).lifecycle;
     if (ARCHIVED_LIFECYCLES.has(lifecycle)) return "arquivados";
     if (lifecycle === "realizado") return "pendencias";
     return "ativos";
@@ -2034,7 +2097,7 @@ export default function Eventos() {
    *   3 · concluído/encerrado (história)
    */
   const sortRank = (event: any): number => {
-    const lifecycle = readEventStats(event).lifecycle;
+    const lifecycle = statsDoEvento(event).lifecycle;
     if (ARCHIVED_LIFECYCLES.has(lifecycle)) return 3;
     if (lifecycle === 'realizado') return 2;
     if (event.nextMilestone?.state === 'overdue') return 0;
@@ -2128,7 +2191,7 @@ export default function Eventos() {
     events
       .filter((e) => matchesSearch(e) && matchesDates(e) && matchesFoco(e) && matchesSponsor(e))
       .forEach((e) => {
-        const lifecycle = readEventStats(e).lifecycle;
+        const lifecycle = statsDoEvento(e).lifecycle;
         if (lifecycle === 'manually_closed') {
           counts.manually_closed = (counts.manually_closed || 0) + 1;
           return;
@@ -2195,7 +2258,7 @@ export default function Eventos() {
     const base = events.filter((e) => matchesSearch(e) && matchesDates(e) && matchesPriority(e) && matchesSponsor(e) && matchesVisibility(e));
     let atrasado = 0, semPecas = 0, semPrioridade = 0, pedidos = 0;
     base.forEach((e) => {
-      const stats = readEventStats(e);
+      const stats = statsDoEvento(e);
       if (e.nextMilestone?.state === 'overdue') atrasado += 1;
       const arquivado = ARCHIVED_LIFECYCLES.has(stats.lifecycle);
       if (stats.activeItemCount === 0 && !arquivado) semPecas += 1;
@@ -3660,16 +3723,15 @@ export default function Eventos() {
               </div>
 
               {visibleEvents.map((event) => {
-                const cardSponsors = ((event.sponsors || []) as any[])
-                  .map((es) => sponsorById.get(es.sponsorId))
-                  .filter(Boolean) as Sponsor[];
+                const cardSponsors = patrocinadoresDoCartao.get(event.id) ?? SEM_PATROCINADORES;
                 return (
-                  <EventRow
+                  <EventRowMemo
                     key={event.id}
                     event={event}
                     sponsorCount={cardSponsors.length}
                     pedidosAbertos={pedidosPorEvento.get(event.id) ?? 0}
                     currentYear={currentYear}
+                    agoraMs={agoraMs}
                     isMobile={isMobile}
                     canEdit={canEdit}
                     soPatrocinadores={soPatrocinadores}
@@ -3691,18 +3753,18 @@ export default function Eventos() {
           <div className="grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-3 gap-6">
             {visibleEvents.map((event) => {
               // O payload de eventos traz só o vínculo (sponsorId/quota) —
-              // nome/cor vêm da lista global de patrocinadores.
-              const cardSponsors = ((event.sponsors || []) as any[])
-                .map((es) => sponsorById.get(es.sponsorId))
-                .filter(Boolean) as Sponsor[];
+              // nome/cor vêm da lista global de patrocinadores (mapa memoizado:
+              // a MESMA lista a cada render é o que deixa o cartão pular o render).
+              const cardSponsors = patrocinadoresDoCartao.get(event.id) ?? SEM_PATROCINADORES;
               return (
-                <EventCard
+                <EventCardMemo
                   key={event.id}
                   event={event}
                   cardSponsors={cardSponsors}
                   pedidosAbertos={pedidosPorEvento.get(event.id) ?? 0}
                   isMobile={isMobile}
                   currentYear={currentYear}
+                  agoraMs={agoraMs}
                   canEdit={canEdit}
                   soPatrocinadores={soPatrocinadores}
                   canDelete={canDelete}

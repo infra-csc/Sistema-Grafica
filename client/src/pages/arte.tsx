@@ -86,9 +86,15 @@ import { ItemDetailsDialog } from "@/components/item-details-dialog";
 import { PrazoInline } from "@/components/prazo-inline";
 import { Link } from "wouter";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { SoQuandoMudar } from "@/components/arte/so-quando-mudar";
 
 // Quantas linhas a tabela monta por vez. O resto entra por "Carregar mais".
 const ARTE_PAGE_SIZE = 100;
+
+// VAZIO ESTÁVEL para o `data` das queries enquanto carregam: `= []` criava um
+// array novo a cada render e invalidava toda a cadeia de memos (allItems,
+// baldes, facetas) em cada render do carregamento.
+const SEM_DADOS: any[] = [];
 
 // Quantos eventos aparecem no resumo antes do "mais N". Oito costuma caber em
 // uma linha em telas de trabalho; o resto entra por expansão.
@@ -661,12 +667,12 @@ export default function Arte() {
   // enquanto um envio direto corria TODAS as linhas ficavam desabilitadas.
   const [sendingId, setSendingId] = useState<string | null>(null);
 
-  const { data: pecasDoServidor = [], isLoading, isError, error, refetch } = useQuery<any[]>({
+  const { data: pecasDoServidor = SEM_DADOS, isLoading, isError, error, refetch } = useQuery<any[]>({
     queryKey: ["/api/items"],
   });
 
   const {
-    data: correcaoDoServidor = [],
+    data: correcaoDoServidor = SEM_DADOS,
     isLoading: correcaoLoading,
     isError: correcaoIsError,
     error: correcaoError,
@@ -744,7 +750,7 @@ export default function Arte() {
     [pecasOcultas],
   );
 
-  const { data: events = [] } = useQuery<any[]>({
+  const { data: events = SEM_DADOS } = useQuery<any[]>({
     queryKey: ["/api/events"],
   });
 
@@ -757,8 +763,13 @@ export default function Arte() {
    */
   const selectedItem = useMemo(() => {
     if (!selectedItemId) return null;
-    return [...allItems, ...correcaoItems].find((i: any) => i.id === selectedItemId) ?? null;
-  }, [selectedItemId, allItems, correcaoItems]);
+    // Mesma precedência do `[...allItems, ...correcaoItems].find` de antes (a
+    // lista principal primeiro), sem copiar 5 mil peças num array novo a cada
+    // atualização da lista só para achar uma.
+    return itemPorId.get(selectedItemId)
+      ?? (correcaoItems as any[]).find((i: any) => i.id === selectedItemId)
+      ?? null;
+  }, [selectedItemId, itemPorId, correcaoItems]);
 
   /**
    * O 409 de submit-for-approval traz a chave crua do status ("Status atual:
@@ -788,7 +799,7 @@ export default function Arte() {
     enabled: !!selectedItem?.id,
     placeholderData: [],
   });
-  const { data: standardItems = [] } = useQuery<any[]>({ queryKey: ['/api/standard-items'] });
+  const { data: standardItems = SEM_DADOS } = useQuery<any[]>({ queryKey: ['/api/standard-items'] });
   // Resolve o grupo pai (do catálogo de Modelos) para um item, tolerante a
   // maiúscula/acento/espaço. Casa o type do item tanto com o NOME de um modelo
   // (name → group) quanto diretamente com um NOME DE GRUPO do catálogo — assim
@@ -805,9 +816,18 @@ export default function Arte() {
     });
     return { byName, byGroup };
   }, [standardItems]);
+  // Cache por TIPO: a ordenação da fila chama groupOf duas vezes por
+  // comparação, e `normKey` faz normalize("NFD") + três regex. Com 3 mil peças
+  // em Finalizados eram ~70 mil normalizações por ordenação; os tipos distintos
+  // são poucas dezenas. O cache nasce de novo quando o catálogo muda.
+  const grupoPorTipo = useMemo(() => new Map<string, string>(), [groupMaps]);
   const groupOf = (type: string): string => {
+    const guardado = grupoPorTipo.get(type);
+    if (guardado !== undefined) return guardado;
     const k = normKey(type);
-    return groupMaps.byName[k] || groupMaps.byGroup[k] || "";
+    const grupo = groupMaps.byName[k] || groupMaps.byGroup[k] || "";
+    grupoPorTipo.set(type, grupo);
+    return grupo;
   };
 
   const submitForApprovalMutation = useMutation({
@@ -1278,6 +1298,16 @@ export default function Arte() {
     setShowExportModal(true);
   };
 
+  // O modal de exportação fica montado o tempo todo e recalcula oito facetas
+  // sobre `items` sempre que a identidade do array muda — isto é, a cada
+  // atualização de /api/items, com o modal FECHADO. Fechado, ele recebe o
+  // último array que mostrou (mesma identidade, zero recálculo, e a animação
+  // de saída continua com o conteúdo de antes); aberto, recebe o vivo.
+  const itensDaExportacao = selectedItems.length > 0 ? selectedItems : arteItemsPool;
+  const itensDaExportacaoRef = useRef<any[]>([]);
+  if (showExportModal) itensDaExportacaoRef.current = itensDaExportacao;
+  const itensDaExportacaoCongelados = showExportModal ? itensDaExportacao : itensDaExportacaoRef.current;
+
   const handleExportItemPDF = (item: any) => {
     void exportMixedToPDF([item], new Set(), `Prova — ${item.displayId || item.type}`);
   };
@@ -1420,11 +1450,13 @@ export default function Arte() {
   // só descobria que o evento não tinha peça depois de escolhê-lo).
   const bulkThumbBasePool = useMemo(() => {
     const seen = new Set<string>();
+    // Conjunto, e não `correcaoItems.some` por peça: eram ~5 mil varreduras da
+    // fila de correção a cada atualização da lista.
+    const emCorrecao = new Set<string>((correcaoItems as any[]).map((c: any) => c.id));
     return [...allItems, ...correcaoItems].filter((i: any) => {
       if (seen.has(i.id)) return false;
       seen.add(i.id);
-      return i.status === 'awaiting_submission'
-        || (correcaoItems as any[]).some((c: any) => c.id === i.id);
+      return i.status === 'awaiting_submission' || emCorrecao.has(i.id);
     });
   }, [allItems, correcaoItems]);
 
@@ -1896,16 +1928,28 @@ export default function Arte() {
   //
   // `filtrarAtrasadasDaFase` é item a item, então comuta com os demais e pode
   // ser aplicado antes de contar.
+  // BASE COMUM das sete contagens abaixo. Cada opção chamava matchesArteFilters
+  // sobre o balde inteiro da aba (3 mil peças em Finalizados) — nove passadas
+  // a cada tecla da busca. O predicado é um E de dimensões independentes, e
+  // valor neutro não restringe nada: filtrar UMA vez com as dimensões de
+  // uma-só-opção neutras e depois aplicar o filtro completo sobre essa base dá
+  // exatamente o mesmo conjunto — só que as nove passadas correm sobre o que
+  // já sobrou da busca/evento/tipo.
+  const baseDasDimensoes = useMemo(() => {
+    const neutro: ArteFilters = { ...filters, period: "Todos", months: [], urgente: false, thumb: "todos", final: "todos", next10Days: false };
+    return tabPoolItems.filter((i: any) => matchesArteFilters(i, neutro, dateBounds));
+  }, [filters, tabPoolItems, dateBounds]);
+
   const poolSemDimensao = useCallback((patch: Partial<ArteFilters>): any[] => {
     const f = { ...filters, ...patch };
-    let lista = tabPoolItems.filter((i: any) => matchesArteFilters(i, f, dateBounds));
+    let lista = baseDasDimensoes.filter((i: any) => matchesArteFilters(i, f, dateBounds));
     if (activeTab === "finalizados" && !finalizadosTudo) {
       lista = lista.filter((i: any) => dentroDaJanelaFinalizados(i, hoje));
     }
     if (f.atrasado) lista = filtrarAtrasadasDaFase(lista, activeTab, hoje);
     if (paradasFilter) lista = lista.filter((i: any) => estaParada(i, hoje));
     return lista;
-  }, [filters, tabPoolItems, dateBounds, activeTab, finalizadosTudo, hoje, paradasFilter]);
+  }, [filters, baseDasDimensoes, dateBounds, activeTab, finalizadosTudo, hoje, paradasFilter]);
 
   // Uma passada POR JANELA, e não um agrupamento único: as janelas são
   // cumulativas e se contêm ("7 dias" inclui "Hoje"), então não existe balde
@@ -4493,10 +4537,28 @@ export default function Arte() {
           () => { void refetch(); },
           "erro-arte",
         )
-      ) : activeTab === "correcao" ? (
-        renderCorrecaoTab()
       ) : (
-        renderGroupedTable(filteredItems, activeTab)
+        // FRONTEIRA DE RENDER da fila (ver SoQuandoMudar): o motivo digitado
+        // nos modais, o arrastar de arquivo, os toasts e o progresso do lote
+        // vivem neste mesmo componente. Sem ela cada tecla refazia as cem
+        // linhas (Popover, Checkbox, chips, prazo) e o resumo por evento, que
+        // varre a aba INTEIRA. `deps` = tudo o que as duas listas leem; os
+        // handlers de fora dela só chamam setters, que são estáveis.
+        <SoQuandoMudar
+          deps={[
+            activeTab, filteredItems, hoje, isMobile, podeEditar, sendingId, selectedItemIds,
+            eventosComBook, groupMaps, visibleCount, activeFilterCount, atrasadoFilter,
+            pendingCount, aguardandoCount, correcaoCount, needsFinalFileCount, finalizadosCount,
+            paradasNaAba, atrasadasNaAba, urgentesNaAba, paradasFilter, urgenteFilter,
+            showAllTravando, sponsorFilter, finalizadosForaDaJanela, finalizadosTudo,
+            eventFilter, showAllEvents,
+            correcaoLoading, correcaoIsError, correcaoError, correcaoItems, correcaoFiltrados,
+            correcaoSponsorFilter,
+          ]}
+          render={() => (activeTab === "correcao"
+            ? renderCorrecaoTab()
+            : renderGroupedTable(filteredItems, activeTab))}
+        />
       )}
 
       {/* ═══════════════════════════════════════════════════════════════════ */}
@@ -5706,7 +5768,7 @@ export default function Arte() {
       {/* MODAL — EXPORT PDF (componente compartilhado)                       */}
       {/* ═══════════════════════════════════════════════════════════════════ */}
       {/* Com peças selecionadas, o modal recebe só a seleção como pool. */}
-      <ExportPdfDialog open={showExportModal} onOpenChange={setShowExportModal} items={selectedItems.length > 0 ? selectedItems : arteItemsPool} title="Arte" />
+      <ExportPdfDialog open={showExportModal} onOpenChange={setShowExportModal} items={itensDaExportacaoCongelados} title="Arte" />
 
       {/* ═══════════════════════════════════════════════════════════════════ */}
       {/* MODAL — SUBIR BOOK (PDF) e escolher as peças cobertas               */}

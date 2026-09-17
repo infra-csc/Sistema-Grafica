@@ -3,7 +3,14 @@ import * as React from "react"
 const MOBILE_BREAKPOINT = 768
 
 export function useIsMobile() {
-  const [isMobile, setIsMobile] = React.useState<boolean | undefined>(undefined)
+  // Semente SÍNCRONA (perf-7): começava `undefined` e o efeito corrigia no
+  // quadro seguinte — todo componente que usa o hook (a casca inteira e quase
+  // toda tela) renderizava DUAS vezes ao montar, e no celular a primeira
+  // pintura saía no layout de desktop e trocava em seguida. O efeito abaixo
+  // continua valendo para as mudanças de largura.
+  const [isMobile, setIsMobile] = React.useState<boolean | undefined>(() =>
+    typeof window === "undefined" ? undefined : window.innerWidth < MOBILE_BREAKPOINT
+  )
 
   React.useEffect(() => {
     const mql = window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT - 1}px)`)
@@ -11,6 +18,8 @@ export function useIsMobile() {
       setIsMobile(window.innerWidth < MOBILE_BREAKPOINT)
     }
     mql.addEventListener("change", onChange)
+    // Mesmo valor da semente = o React descarta o setState sem re-render; só
+    // corrige se a largura mudou entre o render e o efeito.
     setIsMobile(window.innerWidth < MOBILE_BREAKPOINT)
     return () => mql.removeEventListener("change", onChange)
   }, [])

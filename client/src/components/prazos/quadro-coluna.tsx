@@ -26,7 +26,7 @@
 // peças, ou pior: exigiria inventar uma mutação que "move o evento de etapa",
 // que não existe no domínio. O evento só muda de coluna quando as peças
 // andam de verdade.
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { PrazoEvent } from "@shared/prazos-contract";
 import { MARCOS_DO_EVENTO } from "@shared/prazo-dates";
 import { pecasTexto, R, rolagem, SCROLLPORT_MAX_H, STAGE_SECTOR, STAGE_SHORT, TI } from "./tokens";
@@ -39,10 +39,21 @@ interface QuadroColunaProps {
   eventos: PrazoEvent[];
   /** Há filtro ativo? Muda o texto da coluna vazia. */
   temFiltro: boolean;
-  renderCard: (ev: PrazoEvent) => React.ReactNode;
+  /**
+   * Recebe o índice da etapa junto do evento para a página poder passar UMA
+   * função estável (`useCallback`) para as seis colunas. Com um fechamento
+   * por coluna criado no render, o `memo` desta coluna nunca pulava nada.
+   */
+  renderCard: (ev: PrazoEvent, stageIdx: number) => React.ReactNode;
 }
 
-export function QuadroColuna({ stageKey, label, stageIdx, eventos, temFiltro, renderCard }: QuadroColunaProps) {
+// `memo`: a página entrega `eventos` com identidade ESTÁVEL enquanto o
+// conteúdo da coluna não muda (ver `colunasDoQuadro` em gestao-prazos.tsx).
+// Sem isto, qualquer render da página — o tique de 1 min do selo, a pílula de
+// novidades, cada tecla da busca — refazia a coluna E o `useLayoutEffect`
+// abaixo, que lê `offsetTop` de todos os cards: um layout síncrono forçado
+// por coluna, seis por render.
+export const QuadroColuna = memo(function QuadroColuna({ stageKey, label, stageIdx, eventos, temFiltro, renderCard }: QuadroColunaProps) {
   const scrollRef = useRef<HTMLElement | null>(null);
   const [abaixo, setAbaixo] = useState(0);
 
@@ -57,11 +68,32 @@ export function QuadroColuna({ stageKey, label, stageIdx, eventos, temFiltro, re
     setAbaixo(n);
   }, []);
 
-  useLayoutEffect(() => { recalcular(); }, [eventos, recalcular]);
-  useEffect(() => {
-    window.addEventListener("resize", recalcular);
-    return () => window.removeEventListener("resize", recalcular);
+  // `renderCard` entra junto: a página o recria quando muda a cobrança ou o
+  // realce de um card (ver renderCardQuadro em gestao-prazos.tsx) — e a linha
+  // de cobrança muda a ALTURA do card. Só com `eventos` o "+N abaixo" ficava
+  // contando pela altura antiga até a próxima rolagem.
+  useLayoutEffect(() => { recalcular(); }, [eventos, renderCard, recalcular]);
+
+  // Rolagem e resize disparam dezenas de eventos por segundo, e cada chamada
+  // de `recalcular` varre todos os cards lendo `offsetTop`. Um quadro por
+  // frame basta para o "+N abaixo" — o número só precisa estar certo quando a
+  // tela é pintada. O rAF pendente é cancelado na desmontagem.
+  const rafRef = useRef<number | null>(null);
+  const agendarRecalculo = useCallback(() => {
+    if (rafRef.current !== null) return;
+    rafRef.current = requestAnimationFrame(() => {
+      rafRef.current = null;
+      recalcular();
+    });
   }, [recalcular]);
+  useEffect(() => {
+    window.addEventListener("resize", agendarRecalculo);
+    return () => {
+      window.removeEventListener("resize", agendarRecalculo);
+      if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+    };
+  }, [agendarRecalculo]);
 
   const setor = STAGE_SECTOR[stageKey]?.sector;
   const vencidos = eventos.filter((ev) => ev.stages[stageIdx]?.state === "overdue").length;
@@ -77,7 +109,7 @@ export function QuadroColuna({ stageKey, label, stageIdx, eventos, temFiltro, re
     <section
       ref={scrollRef}
       aria-labelledby={headingId}
-      onScroll={recalcular}
+      onScroll={agendarRecalculo}
       className="gp-scroll"
       style={{
         minWidth: 0, position: "relative",
@@ -169,7 +201,7 @@ export function QuadroColuna({ stageKey, label, stageIdx, eventos, temFiltro, re
         )}
         {eventos.map((ev) => (
           <div role="listitem" key={ev.id} style={{ minWidth: 0 }}>
-            {renderCard(ev)}
+            {renderCard(ev, stageIdx)}
           </div>
         ))}
       </div>
@@ -194,4 +226,4 @@ export function QuadroColuna({ stageKey, label, stageIdx, eventos, temFiltro, re
       )}
     </section>
   );
-}
+});

@@ -15,8 +15,7 @@
 import { inArray, sql } from "drizzle-orm";
 import { db } from "../db";
 import { prazoSnapshots, prazoEventSnapshots, kitRemessas } from "@shared/schema";
-import type { Item } from "@shared/schema";
-import { storage } from "../storage";
+import { storage, type ItemParaPrazo } from "../storage";
 import {
   buildEventPrazo,
   comKit,
@@ -42,9 +41,13 @@ async function agregarDiaCorrente(): Promise<{ day: string; events: PrazoEvent[]
 
   const allEvents = await storage.getAllEvents();
   const candidates = allEvents.filter((ev) => isPrazoCandidate(ev, today));
-  const candidateItems = await storage.getItemsByEvents(candidates.map((ev) => ev.id));
+  // PERF (17/09): só as colunas que o domínio de prazos lê — mesma projeção da
+  // rota (getItemsParaPrazos). O job roda no boot e de hora em hora no MESMO
+  // processo que atende as telas; decodificar as 66 colunas de cada peça aqui
+  // travava as requisições que chegassem naquele instante.
+  const candidateItems = await storage.getItemsParaPrazos(candidates.map((ev) => ev.id));
 
-  const itemsByEvent = new Map<string, Item[]>();
+  const itemsByEvent = new Map<string, ItemParaPrazo[]>();
   for (const it of candidateItems) {
     const arr = itemsByEvent.get(it.eventId);
     if (arr) arr.push(it); else itemsByEvent.set(it.eventId, [it]);

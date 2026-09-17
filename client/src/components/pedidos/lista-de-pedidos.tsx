@@ -11,7 +11,7 @@
 //     recusar, aceitar/recusar ajuste, reabrir a recusada.
 // Clicar na solicitação abre o detalhe, com histórico.
 // ─────────────────────────────────────────────────────────────────────────────
-import { useEffect, useMemo, useState } from "react";
+import { memo, useDeferredValue, useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { AlertTriangle, Inbox, Plus, Search, X } from "lucide-react";
 import {
@@ -70,14 +70,40 @@ function recorteDaURL(search: string, ordemPadrao: Ordem) {
   };
 }
 
+// O texto pesquisável de cada solicitação, normalizado UMA vez por objeto
+// (PERF-6). Montar e normalizar a string a cada tecla, para 300 solicitações,
+// era refeito sempre do zero; o refetch traz objetos novos e o WeakMap
+// esquece os velhos sozinho.
+const textoDeBusca = new WeakMap<PedidoDePeca, string>();
 const combina = (p: PedidoDePeca, termo: string) => {
   if (!termo) return true;
-  const alvo = [
-    p.pedidoPor,
-    ...p.linhas.flatMap((l) => [l.eventName, patrocinadoresDaLinha(l), textoDaObservacao(l.observacao), l.tipoDePeca, ...(l.pecas ?? []).map((x) => x.displayId)]),
-  ].filter(Boolean).join(" ");
-  return semAcento(alvo).includes(termo);
+  let alvo = textoDeBusca.get(p);
+  if (alvo === undefined) {
+    alvo = semAcento([
+      p.pedidoPor,
+      ...p.linhas.flatMap((l) => [l.eventName, patrocinadoresDaLinha(l), textoDaObservacao(l.observacao), l.tipoDePeca, ...(l.pecas ?? []).map((x) => x.displayId)]),
+    ].filter(Boolean).join(" "));
+    textoDeBusca.set(p, alvo);
+  }
+  return alvo.includes(termo);
 };
+
+/**
+ * CARTÃO MEMOIZADO (PERF-6, 17/09). Medido com 300 solicitações: cada tecla na
+ * busca re-renderizava os 300 cartões (com os links e selos de cada peça),
+ * ~900ms por tecla. O cartão só desenha de novo quando muda o que ele lê:
+ * `deps` traz a solicitação, os dados dos selos (eventos, dia, minuto), as
+ * travas da mutação e as permissões. Os handlers do cartão memoizado são do
+ * último render dele — seguro porque só chamam setters e `mutate` com a
+ * própria solicitação/peça.
+ */
+const CartaoMemoizado = memo(
+  function CartaoMemoizado({ desenhar }: { deps: unknown[]; desenhar: () => React.ReactNode }) {
+    return <>{desenhar()}</>;
+  },
+  (antes, depois) => antes.deps.length === depois.deps.length
+    && antes.deps.every((v, i) => Object.is(v, depois.deps[i])),
+);
 
 const passaNoFiltro = (p: PedidoDePeca, f: Filtro) =>
   f === "todos" ? true
@@ -149,6 +175,9 @@ export function ListaDePedidos({ podePedir, podeResolver }: {
   const { data: eventos = [] } = useQuery<any[]>({ queryKey: ["/api/events"] });
 
   const hoje = todayBusinessMs();
+  // Idade e prazo nos cartões leem `agora`: o cartão memoizado desenha de novo
+  // quando o minuto vira, e não a cada render.
+  const minutoAgora = Math.floor(agora.getTime() / 60000);
   const eventoPorId = useMemo(() => new Map<string, any>(eventos.map((e) => [e.id, e])), [eventos]);
   const seloDe = (l: LinhaDoPedido): SeloDoEvento | null => {
     if (l.status !== "aberto" && l.status !== "atendido") return null;
@@ -230,8 +259,14 @@ export function ListaDePedidos({ podePedir, podeResolver }: {
       ? [{ chave: "cancelar-tudo", rotulo: "Cancelar solicitação", tom: "perigo", onClick: () => setAlvo({ pedido: p, linha: null, acao: "cancelar" }), testId: `button-cancelar-pedido-${p.id}` }]
       : [];
 
-  const termo = semAcento(busca.trim());
-  const base = pedidos.filter((p) => (!eventoFiltro || p.linhas.some((l) => l.eventId === eventoFiltro)) && combina(p, termo));
+  // A busca filtra com o valor ADIADO: o campo responde na hora e a lista
+  // acompanha logo em seguida, sem que cada tecla espere o recorte terminar.
+  const buscaAdiada = useDeferredValue(busca);
+  const termo = semAcento(buscaAdiada.trim());
+  const base = useMemo(
+    () => pedidos.filter((p) => (!eventoFiltro || p.linhas.some((l) => l.eventId === eventoFiltro)) && combina(p, termo)),
+    [pedidos, eventoFiltro, termo],
+  );
   // `dica`: o que o chip recorta, no title. "Abertas" inclui as parciais —
   // não há chip "Parcial", e quem procurava uma não sabia onde ela estava.
   const FILTROS: Array<{ k: Filtro; rotulo: string; n: number; dica: string }> = [
@@ -244,13 +279,15 @@ export function ListaDePedidos({ podePedir, podeResolver }: {
   ];
 
   const tempo = (d: string | null) => (d ? new Date(d).getTime() : Infinity);
-  const visiveis = base
+  const visiveis = useMemo(() => base
     .filter((p) => passaNoFiltro(p, filtro))
     .sort((a, b) => {
       if (ordem === "antigos") return tempo(a.createdAt) - tempo(b.createdAt);
       if (ordem === "prazo") return (prazoMaisProximo(a.linhas) - prazoMaisProximo(b.linhas)) || (tempo(a.createdAt) - tempo(b.createdAt));
       return tempo(b.createdAt) - tempo(a.createdAt);
-    });
+    }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [base, filtro, ordem]);
 
   const parados = pedidos
     .filter((p) => temPecaAberta(p) && idadeDoPedido(p.createdAt, agora).dias > IDADE_DE_ATENCAO)
@@ -406,7 +443,10 @@ export function ListaDePedidos({ podePedir, podeResolver }: {
       ) : (
         <ul style={{ margin: 0, padding: 0 }}>
           {visiveis.map((p) => (
+            <CartaoMemoizado key={p.id} deps={[p, eventoPorId, hoje, minutoAgora, aceitarAjuste.isPending, aceitarAjuste.variables?.id, podePedir, podeResolver, isMobile]}
+              desenhar={() => (
             <CartaoDoPedido key={p.id} pedido={p} agora={agora} seloDe={seloDe} acoesDaLinha={acoesDaLinha(p)} acoes={acoesDaSolicitacao(p)} onAbrir={() => setDetalhe(p.id)} />
+              )} />
           ))}
         </ul>
       )}

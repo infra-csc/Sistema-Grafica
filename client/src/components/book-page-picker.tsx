@@ -132,7 +132,8 @@ export function BookPagePicker({ open, onOpenChange, books, fileName = "book" }:
         // então a grade de páginas aparece quase de imediato. O arquivo
         // completo só é buscado se o usuário mandar recortar.
         const doc = await pdfjs.getDocument({ url: convertGCSUrlToLocalPath(bookUrl) }).promise;
-        if (genRef.current !== gen) return;
+        // Chegou depois de fechar/trocar de book: ninguém vai usar — solta já.
+        if (genRef.current !== gen) { void doc.loadingTask?.destroy(); return; }
 
         docRef.current = doc;
         setNumPages(doc.numPages);
@@ -145,7 +146,16 @@ export function BookPagePicker({ open, onOpenChange, books, fileName = "book" }:
       }
     })();
 
-    return () => { genRef.current++; };
+    return () => {
+      genRef.current++;
+      // O documento do pdf.js segura o PDF parseado e as páginas no worker
+      // (MBs por book). Sem destruir a tarefa de carga ele sobrevivia a fechar o modal e a
+      // cada troca de book, e só o F5 devolvia a memória. Render em voo
+      // rejeita e cai no catch da miniatura, que já é tolerado.
+      const doc = docRef.current;
+      docRef.current = null;
+      void doc?.loadingTask?.destroy();
+    };
   }, [open, bookUrl, tentativa]);
 
   const pump = useCallback(async () => {

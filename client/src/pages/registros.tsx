@@ -44,6 +44,9 @@ interface Photo {
 
 const PAGE_SIZE = 60;
 
+/** Vazio estável enquanto /api/photos não responde (ver o uso em Registros). */
+const SEM_FOTOS: Photo[] = [];
+
 const PERIODS = ["Hoje", "7 dias", "15 dias", "30 dias", "Todos"] as const;
 type Period = typeof PERIODS[number];
 const PERIOD_DAYS: Record<string, number> = { "Hoje": 0, "7 dias": 7, "15 dias": 15, "30 dias": 30 };
@@ -77,7 +80,13 @@ const srcOf = (p: Photo) => convertGCSUrlToLocalPath(p.photoUrl || "");
 
 export default function Registros() {
   const isMobile = useIsMobile();
-  const { data: photos = [], isLoading, isError, refetch } = useQuery<Photo[]>({ queryKey: ["/api/photos"] });
+  // SEM_FOTOS (constante de módulo) e não `= []`: enquanto /api/photos não
+  // chega — e para sempre se a rota falhar — um literal novo a cada render
+  // disparava o reset de `brokenIds` logo abaixo, que grava um Set novo, que
+  // re-renderiza, que cria outro literal… A tela girava em falso durante toda
+  // a carga (82 commits em 1,5s com a rota pendurada; 239 com ela em erro —
+  // perf-calendario-versoes-registros.test.ts).
+  const { data: photos = SEM_FOTOS, isLoading, isError, refetch } = useQuery<Photo[]>({ queryKey: ["/api/photos"] });
 
   // Filtros inicializam da URL e são espelhados nela (mesmo padrão de
   // eventos.tsx): F5 não perde o estado e o link filtrado é compartilhável.

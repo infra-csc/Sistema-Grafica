@@ -1,9 +1,14 @@
 import { useEffect, useRef, useCallback } from 'react';
+import type { Query } from '@tanstack/react-query';
 import { queryClient } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
 
 const RECONNECT_BASE_DELAY_MS = 1000;
 const RECONNECT_MAX_DELAY_MS = 30000;
+// Coalescer das chaves pesadas (ver invalidateCoalesced): janela de silêncio e
+// teto de espera desde a primeira mensagem da rajada.
+const COALESCER_JANELA_MS = 500;
+const COALESCER_TETO_MS = 2000;
 
 // Timer do debounce da invalidação de /api/prazos (escopo de módulo: o hook
 // é um singleton por aba — ver AuthenticatedLayout).
@@ -53,11 +58,60 @@ function avisarConexao(conectado: boolean) {
   conexaoListeners.forEach((fn) => fn(conectado));
 }
 
+// ── INVALIDAÇÃO DURANTE A PRIMEIRA CARGA (17/09) ─────────────────────────────
+// No React Query 5.60, invalidar uma chave SEM dado e JÁ buscando não começa
+// busca nova: reaproveita a promessa em voo, e o sucesso dela zera
+// `isInvalidated`. Ou seja, a mudança de outra pessoa que chega (ou a conexão
+// que abre) enquanto a tela ainda faz a primeira carga era descartada — e a
+// busca em voo pode ter saído do servidor ANTES da mudança. Para essas
+// chaves, a invalidação é repetida UMA vez quando a carga termina bem.
+// Chave por queryHash: duas mensagens na mesma carga não empilham assinaturas.
+const aguardandoPrimeiraCarga = new Map<string, () => void>();
+
+function revalidarAoFimDaPrimeiraCarga(query: Query): void {
+  if (aguardandoPrimeiraCarga.has(query.queryHash)) return;
+  const cache = queryClient.getQueryCache();
+  const soltar = () => {
+    cancelar();
+    if (aguardandoPrimeiraCarga.get(query.queryHash) === soltar) aguardandoPrimeiraCarga.delete(query.queryHash);
+  };
+  const cancelar = cache.subscribe((evento) => {
+    if (evento.query !== query) return;
+    if (evento.type === "removed") { soltar(); return; }
+    if (evento.type !== "updated") return;
+    if (evento.action.type === "error") { soltar(); return; }
+    if (evento.action.type !== "success") return;
+    soltar();
+    // Fora do dispatch do próprio sucesso: a busca que acabou ainda está
+    // se desmontando dentro do React Query.
+    setTimeout(() => {
+      queryClient.invalidateQueries({ queryKey: query.queryKey, exact: true });
+    }, 0);
+  });
+  aguardandoPrimeiraCarga.set(query.queryHash, soltar);
+}
+
+/** invalidateQueries que não perde a chave em primeira carga (ver acima). */
+function invalidarSemPerderCargaEmVoo(queryKey: readonly unknown[], predicate?: (q: Query) => boolean): void {
+  for (const q of queryClient.getQueryCache().findAll({ queryKey })) {
+    if (q.state.data === undefined && q.state.fetchStatus === "fetching") revalidarAoFimDaPrimeiraCarga(q);
+  }
+  queryClient.invalidateQueries({ queryKey, predicate });
+}
+
+/** Desmontagem do hook: nenhuma assinatura fica pendurada no queryCache. */
+function soltarPrimeirasCargas(): void {
+  Array.from(aguardandoPrimeiraCarga.values()).forEach((soltar) => soltar());
+}
+
 export function useWebSocket() {
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const unmountedRef = useRef(false);
   const reconnectAttemptsRef = useRef(0);
+  // "Já abriu uma vez" — sobrevive aos reconnects (é do hook montado, não do
+  // socket). Ver ws.onopen.
+  const jaConectouRef = useRef(false);
   const { toast } = useToast();
 
   // ── COALESCING DAS CHAVES PESADAS (auditoria 27/08) ───────────────────────
@@ -68,17 +122,34 @@ export function useWebSocket() {
   // mesma janela dos blocos de prazos/audit-logs abaixo) invalida cada chave
   // UMA vez ao fim da rajada. O "tempo real" fica meio segundo atrás — nada
   // que uma tela do app distinga; o dado final é o mesmo.
+  //
+  // TETO DA RAJADA (PERFORMANCE, 17/09): o timer era reiniciado a CADA
+  // mensagem. Com gente trabalhando em várias abas ao mesmo tempo (ou um lote
+  // que emite por peça), a rajada nunca "acabava" e a tela não se atualizava
+  // enquanto houvesse movimento — e, quando atualizava, era tudo de uma vez.
+  // Agora a janela continua 500ms, mas nenhuma mudança espera mais que 2s
+  // desde a primeira mensagem pendente. As listas de peças buscam por delta
+  // (lib/queryClient.ts), então invalidar mais vezes custa KBs, não MBs.
   const pesadasPendentesRef = useRef<Set<string>>(new Set());
   const pesadasTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const rajadaDesdeRef = useRef(0);
   const invalidateCoalesced = useCallback((...keyParts: string[]) => {
     pesadasPendentesRef.current.add(JSON.stringify(keyParts));
-    if (pesadasTimerRef.current) clearTimeout(pesadasTimerRef.current);
+    const agora = Date.now();
+    if (pesadasTimerRef.current) {
+      // Rajada já no teto: o timer armado dispara no prazo, com esta chave junto.
+      if (agora - rajadaDesdeRef.current >= COALESCER_TETO_MS - COALESCER_JANELA_MS) return;
+      clearTimeout(pesadasTimerRef.current);
+    } else {
+      rajadaDesdeRef.current = agora;
+    }
+    const espera = Math.min(COALESCER_JANELA_MS, Math.max(0, rajadaDesdeRef.current + COALESCER_TETO_MS - agora));
     pesadasTimerRef.current = setTimeout(() => {
       pesadasTimerRef.current = null;
       const chaves = Array.from(pesadasPendentesRef.current, (s) => JSON.parse(s) as string[]);
       pesadasPendentesRef.current.clear();
-      for (const queryKey of chaves) queryClient.invalidateQueries({ queryKey });
-    }, 500);
+      for (const queryKey of chaves) invalidarSemPerderCargaEmVoo(queryKey);
+    }, espera);
   }, []);
 
   const connect = useCallback(() => {
@@ -95,14 +166,36 @@ export function useWebSocket() {
       console.log('WebSocket connected');
       reconnectAttemptsRef.current = 0;
       avisarConexao(true);
+      // PRIMEIRA CONEXÃO NÃO É RECONEXÃO (perf, 17/09). A revalidação abaixo
+      // cura o BURACO de uma queda — mas rodava também na primeira abertura,
+      // logo depois de a tela carregar, e as mesmas chaves que a tela tinha
+      // acabado de buscar saíam de novo (medido: /api/notifications 2× em
+      // 700 ms; /api/events e a lista de peças também dobravam). Na primeira
+      // conexão só revalida o que chegou ANTES de o socket ABRIR: até o
+      // onopen o servidor não conhecia este socket, e o broadcast de uma
+      // mudança nesse meio tempo não chegou a ninguém aqui. (A régua era a
+      // CRIAÇÃO do socket — o dado que chegava entre criar e abrir ficava sem
+      // cura.) A carga que ainda está em voo na abertura também saiu antes do
+      // socket: revalida UMA vez quando terminar (ver invalidarSemPerderCargaEmVoo).
+      const primeiraConexao = !jaConectouRef.current;
+      jaConectouRef.current = true;
+      if (primeiraConexao) {
+        const abertoEm = Date.now();
+        const antesDeAbrir = (q: Query) =>
+          q.state.dataUpdatedAt > 0 && q.state.dataUpdatedAt < abertoEm;
+        for (const chave of ['/api/prazos', '/api/audit-logs', '/api/items', '/api/items/approved', '/api/events', '/api/notifications']) {
+          invalidarSemPerderCargaEmVoo([chave], antesDeAbrir);
+        }
+        return;
+      }
       // Reconectar significa que houve um buraco: enquanto o socket esteve
       // fora, toda mutação de outro usuário passou sem invalidar nada. Sem
       // esta linha o painel do diretor servia o agregado de antes da queda —
       // errado com cara de certo, que é o pior modo de falha de um painel.
-      queryClient.invalidateQueries({ queryKey: ['/api/prazos'] });
+      invalidarSemPerderCargaEmVoo(['/api/prazos']);
       // Mesmo buraco, mesma cura, para a trilha de auditoria: enquanto o socket
       // esteve fora, toda ação de outro usuário passou sem invalidar nada.
-      queryClient.invalidateQueries({ queryKey: ['/api/audit-logs'] });
+      invalidarSemPerderCargaEmVoo(['/api/audit-logs']);
       // ...e para as três chaves que sustentam as telas de trabalho. Só
       // '/api/prazos' era revalidado, então TODA mutação ocorrida durante a
       // queda ficava invisível no Painel Geral ('/api/items'), na Gráfica
@@ -434,6 +527,7 @@ export function useWebSocket() {
 
     return () => {
       window.removeEventListener("online", aoVoltarInternet);
+      soltarPrimeirasCargas();
       unmountedRef.current = true;
       if (reconnectTimerRef.current) {
         clearTimeout(reconnectTimerRef.current);

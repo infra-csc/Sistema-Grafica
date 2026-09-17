@@ -5,7 +5,10 @@ import { EsqueletoDeFila } from "@/components/esqueleto-de-fila";
 import { Link } from "wouter";
 import { FilterSelect, ShortcutPill } from "@/components/filter-select";
 import { AlertCircle, AlertTriangle, Package, CheckCircle, Truck, Calendar, Eye, Check, Camera, Search, Play, X, Filter, ChevronDown, Printer, RotateCcw, ImagePlus, FileSpreadsheet, ListChecks, PlusCircle, Trash2, Undo2, Loader2, Recycle, Tag } from "lucide-react";
-import { Fragment, useState, useMemo, useEffect, useRef } from "react";
+import { Fragment, useState, useMemo, useEffect, useRef, startTransition } from "react";
+// Fila de ~4 mil peças: linha memoizada + desenho por lotes (ver o arquivo).
+import { LinhaMemo, SentinelaDaLista } from "@/components/grafica/lista-incremental";
+import { recorteSoDaBusca, recorteSemABusca } from "@/components/grafica/recorte-da-busca";
 import { EventFilterDropdown } from "@/components/event-filter-dropdown";
 import { parseDateLocal } from "@/lib/utils";
 import {
@@ -247,6 +250,13 @@ function DeadlineChip({ event }: { event: any }) {
 // pintava milhares de linhas concluídas (com miniatura e handlers de hover) em
 // máquinas modestas de galpão.
 const ROW_CAP = 50;
+// …e o teto por evento não bastava: com dezenas de eventos pequenos cada bloco
+// cabia inteiro e a soma passava de 4 mil linhas (55 mil elementos DOM medidos
+// em produção, aba congelada por 45 s). A fila inteira agora entra no DOM em
+// lotes deste tamanho, conforme a rolagem se aproxima do fim do que já está
+// desenhado. Contadores, seleção "Todas", exportação e fila do celular seguem
+// lendo o recorte INTEIRO — o lote só decide o que vai para a tela.
+const LINHAS_POR_LOTE = 60;
 
 function PhotoPicker({ photos, onAdd, onRemove, onError, label = "Fotos", hint, dense = false }: {
   photos: string[];
@@ -427,6 +437,13 @@ function BulkActionDialog({
   const confirmHover = isConfer ? "#155e75" : "#166534";
   const HeaderIcon = isConfer ? CheckCircle : Truck;
   const count = items.length;
+  // "Todas (2.000)" e Continuar abria o diálogo com DUAS MIL linhas de uma vez
+  // (miniatura, selos, descrição): o toque travava a tela justamente no último
+  // passo do lote. A lista entra em lotes dentro da própria caixa rolável; o
+  // título, o contador e o registro continuam valendo para TODAS as peças.
+  const [pecasDesenhadas, setPecasDesenhadas] = useState(LINHAS_POR_LOTE);
+  useEffect(() => { if (open) setPecasDesenhadas(LINHAS_POR_LOTE); }, [open]);
+  const pecasNaLista = items.length > pecasDesenhadas ? items.slice(0, pecasDesenhadas) : items;
   return (
     <Dialog open={open} onOpenChange={o => { if (!o) onClose(); }}>
       <DialogContent className={HIDE_NATIVE_CLOSE} style={modalSurface(460)}>
@@ -514,7 +531,7 @@ function BulkActionDialog({
               Peças selecionadas <span style={{ textTransform: "none", fontWeight: 400, letterSpacing: 0 }}>({count})</span>
             </label>
             <div style={{ background: "#fff", border: "1px solid #e7e5e4", borderRadius: 12, maxHeight: 232, overflowY: "auto" }}>
-              {items.map((item: any, idx: number) => (
+              {pecasNaLista.map((item: any, idx: number) => (
                 <div key={item.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", borderBottom: idx < count - 1 ? "1px solid #f5f5f4" : "none" }}>
                   <div style={{
                     width: 44, height: 44, flexShrink: 0, borderRadius: 8, overflow: "hidden",
@@ -563,6 +580,13 @@ function BulkActionDialog({
                   <span style={{ fontSize: 11, fontWeight: 700, color: TI.secondary, flexShrink: 0 }}>{qtyFor(item)} un.</span>
                 </div>
               ))}
+              <SentinelaDaLista
+                mostradas={pecasNaLista.length}
+                total={count}
+                lote={LINHAS_POR_LOTE}
+                onMais={() => setPecasDesenhadas(n => n + LINHAS_POR_LOTE)}
+                compacto
+              />
             </div>
           </div>
 
@@ -887,8 +911,11 @@ export default function Grafica() {
   }, []);
 
   // Debounce da busca (200ms) — ver o comentário do estado `buscaInput`.
+  // Busca igual à do recorte devolve o MESMO objeto: um objeto novo com o mesmo
+  // conteúdo (o disparo da montagem, por exemplo) refazia a filtragem, as oito
+  // facetas e os contadores sobre a base inteira sem mudar nada na tela.
   useEffect(() => {
-    const t = setTimeout(() => patchFiltros({ busca: buscaInput }), 200);
+    const t = setTimeout(() => setFiltros(f => (f.busca === buscaInput ? f : { ...f, busca: buscaInput })), 200);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [buscaInput]);
@@ -978,7 +1005,11 @@ export default function Grafica() {
 
   // Âncora temporal dos filtros de data, em UTC (o mesmo fuso da Saída exibida).
   // Presa ao tick de 1 min para a virada de meia-noite não exigir F5.
-  const ctxFiltros = useMemo(() => ({ groupOf, hojeUTC: hojeEmUTC(new Date(agora)) }), [groupOf, agora]);
+  // A dependência é o DIA (número), não o tick: com `agora` nas deps o contexto
+  // mudava a cada minuto e toda a filtragem, as facetas e os contadores eram
+  // refeitos sobre a base inteira uma vez por minuto, sem nada ter mudado.
+  const hojeUTC = hojeEmUTC(new Date(agora));
+  const ctxFiltros = useMemo(() => ({ groupOf, hojeUTC }), [groupOf, hojeUTC]);
 
   const startProductionMutation = useMutation({
     mutationFn: async ({ itemId, data }: { itemId: string; data: any; displayId?: string }) =>
@@ -1217,16 +1248,35 @@ export default function Grafica() {
   // useMemo obrigatório: eram SEIS varreduras da base a cada tecla digitada,
   // sem memo nenhum, cada uma chamando `groupOf` (normalize + duas regex) e
   // `itemPercursos` (exec em laço) sobre todo o histórico.
+  //
+  // A BUSCA UMA VEZ SÓ. Com texto na busca, cada uma das ONZE varreduras do
+  // recorte (lista, pool dos cards, oito facetas, entregues ocultas) normalizava
+  // quatro campos de cada peça (NFD + regex): ~500 ms de CPU a cada clique de
+  // aba ou pausa na digitação, com 4 mil peças. Agora o texto é casado UMA vez
+  // (`poolDaBusca`, que só depende do texto — trocar de aba não a refaz) e as
+  // passadas rodam sobre o que sobrou com `recorteDasPassadas`: o mesmo
+  // recorte sem o texto e com o efeito dele em `escondeEntregues` preservado.
+  // A identidade e o porquê estão em components/grafica/recorte-da-busca.ts,
+  // com teste peça a peça — a regra continua inteira em `itemCasaFiltros`.
+  const poolDaBusca = useMemo(
+    () => {
+      if (!filtros.busca.trim()) return items as any[];
+      const soBusca = recorteSoDaBusca(filtros.busca);
+      return (items as any[]).filter((i: any) => itemCasaFiltros(i, soBusca, ctxFiltros, { ignorarStatus: true }));
+    },
+    [items, filtros.busca, ctxFiltros],
+  );
+  const recorteDasPassadas = useMemo(() => recorteSemABusca(filtros), [filtros]);
   const gFacetPool = useMemo(() => {
     const cache = new Map<FacetaGrafica, any[]>();
     return (excluir: FacetaGrafica): any[] => {
       const pronto = cache.get(excluir);
       if (pronto) return pronto;
-      const pool = (items as any[]).filter((i: any) => itemCasaFiltros(i, filtros, ctxFiltros, { excluir }));
+      const pool = poolDaBusca.filter((i: any) => itemCasaFiltros(i, recorteDasPassadas, ctxFiltros, { excluir }));
       cache.set(excluir, pool);
       return pool;
     };
-  }, [items, filtros, ctxFiltros]);
+  }, [poolDaBusca, recorteDasPassadas, ctxFiltros]);
 
   const countField = (excluir: FacetaGrafica, key: 'type' | 'material' | 'finish') => {
     const map = new Map<string, { value: string; label: string; count: number }>();
@@ -1351,14 +1401,25 @@ export default function Grafica() {
   // desliga os três recortes com forma de status (o filtro de status, o chip de
   // complementos e a ocultação das entregues) para cada card poder mostrar a
   // contagem do seu próprio status dentro do recorte atual.
-  const filteredItems = useMemo(() =>
-    (items as any[])
-      .filter((item: any) => itemCasaFiltros(item, filtros, ctxFiltros))
-      .sort((a: any, b: any) => {
+  //
+  // ORDENAR UMA VEZ, FILTRAR MUITAS. A ordem da fila não depende do recorte,
+  // mas era refeita (4 mil peças, dois `new Date` por comparação) a cada tecla
+  // da busca e a cada clique de aba. Agora a base ordenada fica guardada por
+  // versão de `items` e o recorte só filtra — `filter` preserva a ordem e o
+  // `sort` é estável, então o resultado é idêntico ao de filtrar e depois
+  // ordenar. A data de saída é lida uma vez por peça, não por comparação.
+  const filaOrdenadaRef = useRef<{ base: any[]; ordenada: any[] } | null>(null);
+  const filteredItems = useMemo(() => {
+    if (filaOrdenadaRef.current?.base !== items) {
+      const saidaMs = new Map<any, number>();
+      for (const i of items as any[]) {
+        saidaMs.set(i, i.event?.truckDepartureDate ? new Date(i.event.truckDepartureDate).getTime() : Infinity);
+      }
+      filaOrdenadaRef.current = { base: items, ordenada: [...(items as any[])].sort((a: any, b: any) => {
         // Urgência primeiro: evento com saída do caminhão mais próxima no topo;
         // sem data vai para o fim. Nome desempata (e mantém os grupos estáveis).
-        const da = a.event?.truckDepartureDate ? new Date(a.event.truckDepartureDate).getTime() : Infinity;
-        const db = b.event?.truckDepartureDate ? new Date(b.event.truckDepartureDate).getTime() : Infinity;
+        const da = saidaMs.get(a)!;
+        const db = saidaMs.get(b)!;
         if (da !== db) return da - db;
         const ea = a.event?.name || ""; const eb = b.event?.name || "";
         if (ea !== eb) return ea.localeCompare(eb);
@@ -1376,16 +1437,21 @@ export default function Grafica() {
         // de complemento existe para evitar. Os cabeçalhos de evento/grupo/tipo
         // (derivados por comparação com a linha anterior) seguem corretos.
         return compareDisplayId(a.displayId, b.displayId);
-      }),
-    [items, filtros, ctxFiltros]);
+      }) };
+    }
+    // Com busca, só entra quem passou por ela (`poolDaBusca`, uma passada só).
+    const naBusca = poolDaBusca === items ? null : new Set(poolDaBusca);
+    return filaOrdenadaRef.current.ordenada.filter((item: any) =>
+      (naBusca === null || naBusca.has(item)) && itemCasaFiltros(item, recorteDasPassadas, ctxFiltros));
+  }, [items, poolDaBusca, recorteDasPassadas, ctxFiltros]);
 
   // statsPool: todos os filtros ativos EXCETO os de forma de status — os cards
   // mostram a contagem de cada status dentro do recorte atual. É também de onde
   // sai o "Entregues ocultas (N)": o KPI Entregues não pode ler 0 justamente
   // porque as entregues estão ocultas.
   const statsPool = useMemo(() =>
-    (items as any[]).filter((item: any) => itemCasaFiltros(item, filtros, ctxFiltros, { ignorarStatus: true })),
-    [items, filtros, ctxFiltros]);
+    poolDaBusca.filter((item: any) => itemCasaFiltros(item, recorteDasPassadas, ctxFiltros, { ignorarStatus: true })),
+    [poolDaBusca, recorteDasPassadas, ctxFiltros]);
   // A REGRA DOS NÚMEROS DESTA TELA, uma só: TODO contador conta o que a tela
   // MOSTRA. Com as peças de evento finalizado de volta à fila, elas entram nos
   // seis cards, no "N peças" do recorte e no rodapé de m² — pelo mesmo motivo
@@ -1397,7 +1463,10 @@ export default function Grafica() {
   // O QUE ESSA REGRA DEVE, e o chip abaixo paga: sozinho, "18 A PRODUZIR"
   // esconde que 6 são de evento que já aconteceu. O número segue a lista, e o
   // chip diz quanto dele é trabalho morto.
-  const stats = {
+  // Memoizado: eram seis varreduras do pool a CADA render da página (cada tecla,
+  // cada modal aberto, cada peça marcada no lote), sem o recorte ter mudado.
+  // Mesmas seis perguntas, mesmas contagens.
+  const stats = useMemo(() => ({
     liberados:  statsPool.filter((i: any) => i.status === 'approved' || i.status === 'ready_for_production' || i.status === 'pronto_para_producao').length,
     emProducao: statsPool.filter((i: any) => i.status === 'inProduction').length,
     produzidos: statsPool.filter((i: any) => i.status === 'produced').length,
@@ -1405,7 +1474,7 @@ export default function Grafica() {
     entregues:  statsPool.filter((i: any) => i.status === 'delivered').length,
     revisao:    statsPool.filter((i: any) => EM_REVISAO.has(i.status)).length,
     total:      statsPool.length,
-  };
+  }), [statsPool]);
 
   // Quanto do recorte é peça de evento finalizado — o contrapeso do parágrafo
   // acima. Sai do MESMO `statsPool` dos cards, senão o chip contaria uma
@@ -1484,6 +1553,80 @@ export default function Grafica() {
     mes: (v) => v.map(nomeDoMes).join(", "),
   });
 
+  // ── Renderização incremental ──────────────────────────────────────────────
+  // Cada bloco de evento desenha até ROW_CAP linhas; o resto entra por "Mostrar
+  // todas". A fila inclui as entregues de todo o histórico e o endpoint não tem
+  // recorte de período, então sem teto a tela pintava milhares de linhas
+  // concluídas (miniatura, badges e handlers de hover em cada uma) a cada
+  // entrada na rota. `filteredItems` já vem ordenado por evento, então as peças
+  // de um mesmo evento são contíguas e o Map preserva a ordem.
+  // (Mora ANTES dos efeitos de rolagem até a peça recém-criada, que precisam
+  // saber se a linha dela já está desenhada.)
+  const { linhasVisiveis, cortePorItem } = useMemo(() => {
+    const porEvento = new Map<string, any[]>();
+    for (const i of filteredItems as any[]) {
+      const chave = String(i.eventId ?? i.event?.name ?? "sem-evento");
+      const arr = porEvento.get(chave);
+      if (arr) arr.push(i); else porEvento.set(chave, [i]);
+    }
+    const linhas: any[] = [];
+    const corte = new Map<string, { chave: string; total: number; ocultas: number }>();
+    porEvento.forEach((arr, chave) => {
+      const aberto = gruposExpandidos.has(chave) || arr.length <= ROW_CAP;
+      const visiveis = aberto ? arr : arr.slice(0, ROW_CAP);
+      linhas.push(...visiveis);
+      if (!aberto) {
+        // Marca a ÚLTIMA linha visível do bloco: é depois dela que entra o
+        // "Mostrar todas", dentro do bloco a que o número pertence.
+        corte.set(visiveis[visiveis.length - 1].id, { chave, total: arr.length, ocultas: arr.length - visiveis.length });
+      }
+    });
+    return { linhasVisiveis: linhas, cortePorItem: corte };
+  }, [filteredItems, gruposExpandidos]);
+
+  const expandirGrupo = (chave: string) =>
+    setGruposExpandidos(prev => { const n = new Set(prev); n.add(chave); return n; });
+
+  // ── Lotes de linhas no DOM (LINHAS_POR_LOTE) ──
+  // O orçamento vale para UM recorte: guardado junto do objeto `filtros` em que
+  // nasceu, ele volta ao primeiro lote sozinho quando o recorte muda (lista
+  // nova começa do topo) e sobrevive às revalidações — quem rolou até a linha
+  // 400 não é devolvido à 60 quando o polling ou o WebSocket trazem dado novo.
+  const [orcamentoLinhas, setOrcamentoLinhas] = useState<{ recorte: GraficaFiltros; n: number }>(
+    () => ({ recorte: filtros, n: LINHAS_POR_LOTE }),
+  );
+  const limiteLinhas = orcamentoLinhas.recorte === filtros ? orcamentoLinhas.n : LINHAS_POR_LOTE;
+  const linhasRenderizadas = useMemo(
+    () => (linhasVisiveis.length > limiteLinhas ? linhasVisiveis.slice(0, limiteLinhas) : linhasVisiveis),
+    [linhasVisiveis, limiteLinhas],
+  );
+  // Números do resumo do recorte ("N peças · M eventos · X m² a produzir…").
+  // Eram cinco varreduras de `filteredItems` (duas delas criando um Set) a CADA
+  // render da página — cada tecla, cada modal, cada peça marcada. Uma passada,
+  // na mesma ordem e com as mesmas regras: entregue fica fora das somas de m² e
+  // de reaproveitamento; evento sem id não conta.
+  const resumoDaLista = useMemo(() => {
+    let complementos = 0, entreguesNaLista = 0, totalM2 = 0, printM2 = 0, reusedUn = 0;
+    const eventos = new Set<unknown>();
+    for (const i of filteredItems as any[]) {
+      if (isComplement(i)) complementos++;
+      if (i.eventId) eventos.add(i.eventId);
+      if (isDelivered(i)) { entreguesNaLista++; continue; }
+      totalM2 += Number(i.calculatedM2) || 0;
+      printM2 += m2ToProduce(i);
+      reusedUn += reusedTotalOf(i);
+    }
+    return { complementos, eventos: eventos.size, entreguesNaLista, totalM2, printM2, reusedUn };
+  }, [filteredItems]);
+
+  /** Garante ao menos `minimo` linhas no DOM (padrão: mais um lote). */
+  const desenharMaisLinhas = (minimo = limiteLinhas + LINHAS_POR_LOTE) =>
+    // Transição: o lote novo entra sem travar a rolagem nem o que se digita.
+    startTransition(() => setOrcamentoLinhas(o => {
+      const atual = o.recorte === filtros ? o.n : LINHAS_POR_LOTE;
+      return minimo <= atual ? o : { recorte: filtros, n: minimo };
+    }));
+
   // Deep link do sino: /grafica?item=<id> cai aqui vindo da notificação de
   // complemento. Joga o displayId no campo de busca (que já procura por ele) e
   // limpa a URL, para um F5 não reaplicar o recorte — mesmo padrão do
@@ -1537,6 +1680,14 @@ export default function Grafica() {
       return;
     }
     const alvo = document.querySelector(`[data-item-row="${novoComplementoId}"]`);
+    // Está no recorte e fora do teto do evento, mas ainda num LOTE que não foi
+    // desenhado: traz o DOM até ela (e um lote de folga) e deixa o efeito rodar
+    // de novo — `limiteLinhas` está nas deps.
+    const posicao = alvo ? -1 : linhasVisiveis.findIndex((i: any) => i.id === novoComplementoId);
+    if (posicao >= limiteLinhas) {
+      setOrcamentoLinhas({ recorte: filtros, n: posicao + LINHAS_POR_LOTE });
+      return;
+    }
     if (!alvo) {
       // Está no recorte, mas ALÉM do teto de linhas do bloco do evento: abre o
       // bloco e deixa o efeito rodar de novo (gruposExpandidos está nas deps).
@@ -1552,7 +1703,7 @@ export default function Grafica() {
     // tela precisa anunciar a peça que acabou de nascer.
     (document.querySelector(`[data-testid="text-display-id-${novoComplementoId}"]`) as HTMLElement | null)
       ?.focus({ preventScroll: true });
-  }, [items, filteredItems, novoComplementoId, gruposExpandidos]);
+  }, [items, filteredItems, novoComplementoId, gruposExpandidos, linhasVisiveis, limiteLinhas]);
 
   // O banner some sozinho assim que a peça entra no recorte — inclusive quando
   // é o operador que afrouxa um filtro por conta própria.
@@ -1751,38 +1902,6 @@ export default function Grafica() {
     setDeliverQty(remainingDeliver(item)); // padrão: o que falta entregar
   };
 
-  // ── Renderização incremental ──────────────────────────────────────────────
-  // Cada bloco de evento desenha até ROW_CAP linhas; o resto entra por "Mostrar
-  // todas". A fila inclui as entregues de todo o histórico e o endpoint não tem
-  // recorte de período, então sem teto a tela pintava milhares de linhas
-  // concluídas (miniatura, badges e handlers de hover em cada uma) a cada
-  // entrada na rota. `filteredItems` já vem ordenado por evento, então as peças
-  // de um mesmo evento são contíguas e o Map preserva a ordem.
-  const { linhasVisiveis, cortePorItem } = useMemo(() => {
-    const porEvento = new Map<string, any[]>();
-    for (const i of filteredItems as any[]) {
-      const chave = String(i.eventId ?? i.event?.name ?? "sem-evento");
-      const arr = porEvento.get(chave);
-      if (arr) arr.push(i); else porEvento.set(chave, [i]);
-    }
-    const linhas: any[] = [];
-    const corte = new Map<string, { chave: string; total: number; ocultas: number }>();
-    porEvento.forEach((arr, chave) => {
-      const aberto = gruposExpandidos.has(chave) || arr.length <= ROW_CAP;
-      const visiveis = aberto ? arr : arr.slice(0, ROW_CAP);
-      linhas.push(...visiveis);
-      if (!aberto) {
-        // Marca a ÚLTIMA linha visível do bloco: é depois dela que entra o
-        // "Mostrar todas", dentro do bloco a que o número pertence.
-        corte.set(visiveis[visiveis.length - 1].id, { chave, total: arr.length, ocultas: arr.length - visiveis.length });
-      }
-    });
-    return { linhasVisiveis: linhas, cortePorItem: corte };
-  }, [filteredItems, gruposExpandidos]);
-
-  const expandirGrupo = (chave: string) =>
-    setGruposExpandidos(prev => { const n = new Set(prev); n.add(chave); return n; });
-
   // ── LOTE E EVENTO FINALIZADO: aqui não há o que separar ───────────────────
   // As duas ações em lote desta tela são CONFERIR (POST /api/items/:id/confer)
   // e REGISTRAR ENTREGA (PATCH /api/items/:id/deliver) — as duas rotas que a
@@ -1832,10 +1951,15 @@ export default function Grafica() {
   const toggleBulkItem = (id: string) =>
     setBulkSelectedIds(prev => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n; });
 
+  // Índice por id da lista COMPLETA. Resolver o lote com `find` era O(lote ×
+  // fila): "Todas (2.000)" numa fila de 4 mil davam 4 milhões de comparações a
+  // cada peça marcada — e de novo ao confirmar.
+  const itemPorId = useMemo(() => new Map((items as any[]).map((i: any) => [i.id, i])), [items]);
+
   // Peças do lote resolvidas na lista COMPLETA (para os dialogs de lote).
   const bulkSelectedItems = useMemo(
-    () => Array.from(bulkSelectedIds).map(id => (items as any[]).find(i => i.id === id)).filter(Boolean) as any[],
-    [bulkSelectedIds, items],
+    () => Array.from(bulkSelectedIds).map(id => itemPorId.get(id)).filter(Boolean) as any[],
+    [bulkSelectedIds, itemPorId],
   );
 
   const bulkConfirmRef = useRef<HTMLButtonElement>(null);
@@ -1866,7 +1990,10 @@ export default function Grafica() {
   // do lote; reabrir para conferir/ajustar sem trocar peças continua valendo.
   const chaveSelecaoLote = (ids: Iterable<string>) => Array.from(ids).sort().join("|");
   const selecaoDaFotoRef = useRef<string | null>(null);
-  const chaveSelecaoAtual = chaveSelecaoLote(bulkSelectedIds);
+  // Memoizada: com "Todas (2.000)" marcadas, ordenar e juntar os ids a cada
+  // render da página (cada tecla, cada abrir de modal) custava à toa.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const chaveSelecaoAtual = useMemo(() => chaveSelecaoLote(bulkSelectedIds), [bulkSelectedIds]);
   const temFotoNoLote = bulkDeliveryPhotos.length > 0 || bulkConferPhotos.length > 0;
   useEffect(() => {
     if (!temFotoNoLote) { selecaoDaFotoRef.current = null; return; }
@@ -1922,7 +2049,7 @@ export default function Grafica() {
     // qty: 1 registrava conferência de 1 unidade em vez do restante real.
     // Peça não encontrada SAI do lote em vez de ir com quantidade chutada.
     const entries = Array.from(bulkSelectedIds)
-      .map(id => (items as any[]).find(i => i.id === id))
+      .map(id => itemPorId.get(id))
       .filter(Boolean) as any[];
     const ids = entries.map(i => i.id);
     try {
@@ -2014,7 +2141,7 @@ export default function Grafica() {
     // Mesma regra da conferência em lote: resolve na lista COMPLETA (items) e
     // exclui do lote a peça não encontrada — nunca entrega "1" por fallback.
     const entries = Array.from(bulkSelectedIds)
-      .map(id => (items as any[]).find(i => i.id === id))
+      .map(id => itemPorId.get(id))
       .filter(Boolean) as any[];
     const ids = entries.map(i => i.id);
     try {
@@ -2106,6 +2233,38 @@ export default function Grafica() {
       setIsBulkSubmitting(false);
     }
   };
+
+  // ── Dependências das linhas memoizadas (LinhaMemo) ─────────────────────────
+  // Cada tecla na busca, cada modal aberto e cada revalidação (polling,
+  // WebSocket, foco) re-renderizava TODAS as linhas desenhadas, mesmo sem
+  // mudança nenhuma nelas. Agora uma linha só roda de novo quando muda algo
+  // que ela LÊ — e esta lista é o inventário disso. Estado novo lido dentro
+  // da linha entra aqui, senão a linha fica com o valor (e o handler) velho.
+  //   • da página: papel do usuário (todos os gates derivam dele), modo de
+  //     lote, densidade da tabela, o dia (selo de evento finalizado, prazo) e
+  //     o "enviando" das três mutações que desabilitam botões na linha;
+  //   • da linha: a peça (referência — a revalidação preserva a das
+  //     inalteradas), realce de recém-criada, seleção no lote, dias na fase e
+  //     o valor em edição SÓ se a edição aberta for a dela.
+  // Os handlers (abrir modal, marcar, expandir) só chamam setState e
+  // `mutation.mutate`, estáveis entre renders — não precisam entrar.
+  const agoraDaTela = new Date();
+  const depsDasLinhas: unknown[] = [
+    user, bulkOn, bulkDeliveryMode, bulkConferMode, compacto,
+    hojeBusinessMs, hojeUTC,
+    markReuseMutation.isPending, correctReuseMutation.isPending, cancelComplementMutation.isPending,
+  ];
+  const depsDaLinha = (item: any, daPosicao: unknown[]): unknown[] => [
+    ...depsDasLinhas,
+    item,
+    item.id === novoComplementoId,
+    bulkSelectedIds.has(item.id),
+    diasNaFase(item, agoraDaTela),
+    reuseConfirmItemId === item.id ? reuseQty : null,
+    correctReuseItemId === item.id ? correctReuseQty : null,
+    cancelComplementId === item.id,
+    ...daPosicao,
+  ];
 
   // ── Botões do topo ────────────────────────────────────────────────────────
   // UMA ação primária por contexto. No celular a primária é a FILA (uma foto
@@ -2730,19 +2889,17 @@ export default function Grafica() {
                   produção própria). Dizer quantas são evita a pergunta "por que
                   agora são 43 se o evento tem 42?". */}
               {(() => {
-                const n = (filteredItems as any[]).filter((i: any) => isComplement(i)).length;
+                const n = resumoDaLista.complementos;
                 return n > 0 ? <span style={{ color: CO.text }}> ({n} complemento{n !== 1 ? "s" : ""})</span> : null;
               })()}
               {" · "}
-              <strong style={{ color: TI.text }}>{Array.from(new Set(filteredItems.map((i: any) => i.eventId).filter(Boolean))).length}</strong> evento{Array.from(new Set(filteredItems.map((i: any) => i.eventId).filter(Boolean))).length !== 1 ? "s" : ""}
+              <strong style={{ color: TI.text }}>{resumoDaLista.eventos}</strong> evento{resumoDaLista.eventos !== 1 ? "s" : ""}
               {(() => {
                 // O total que importa para a Gráfica é o que AINDA vai ser
                 // impresso: peça entregue já saiu da fila e não entra na soma
                 // (nem na economia — senão o entregue viraria "economia" falsa).
-                const pending = filteredItems.filter((i: any) => !isDelivered(i));
-                const totalM2 = pending.reduce((s: number, i: any) => s + (Number(i.calculatedM2) || 0), 0);
-                const printM2 = pending.reduce((s: number, i: any) => s + m2ToProduce(i), 0);
-                const reusedUn = pending.reduce((s: number, i: any) => s + reusedTotalOf(i), 0);
+                // As contas moram em `resumoDaLista` (uma passada, memoizada).
+                const { totalM2, printM2, reusedUn } = resumoDaLista;
                 if (!totalM2) return null;
                 return (
                   <>
@@ -2769,7 +2926,7 @@ export default function Grafica() {
                 // frase seria falsa — o defeito que esta tela mais teme é número
                 // que não bate com a lista logo acima.
                 if (filtros.evento.length === 0 || filtros.entregues) return null;
-                const n = (filteredItems as any[]).filter((i: any) => isDelivered(i)).length;
+                const n = resumoDaLista.entreguesNaLista;
                 if (n === 0) return null;
                 return (
                   <span data-testid="nota-entregues-do-evento">
@@ -2996,8 +3153,8 @@ export default function Grafica() {
         ) : usaCards ? (
           /* ── Cards: celular E tablet (conteúdo < 820px, ver `densidade`) ── */
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4, padding: '8px 8px' }}>
-            {(linhasVisiveis as any[]).map((item: any, index: number) => {
-              const prev = index > 0 ? (linhasVisiveis as any[])[index - 1] : null;
+            {(linhasRenderizadas as any[]).map((item: any, index: number) => {
+              const prev = index > 0 ? (linhasRenderizadas as any[])[index - 1] : null;
               const corte = cortePorItem.get(item.id);
               const showEvHeader = !prev || prev.event?.name !== item.event?.name;
               const isSelected = bulkSelectedIds.has(item.id);
@@ -3044,7 +3201,8 @@ export default function Grafica() {
               const temGrupoContrato = mostraAumentar || podeCancelarCompl;
 
               return (
-                <Fragment key={item.id}>
+                <LinhaMemo key={item.id} deps={depsDaLinha(item, [index > 0, showEvHeader, corte?.chave, corte?.total, corte?.ocultas, etiquetaveisPorEvento.get(String(item.eventId)) ?? 0])} render={() => (
+                <Fragment>
                   {showEvHeader && (
                     <div style={{ padding: '8px 8px 6px', marginTop: index > 0 ? 6 : 0, background: TI.text, borderRadius: '8px 8px 0 0', display: 'flex', flexDirection: 'column', gap: 5 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -3616,6 +3774,7 @@ export default function Grafica() {
                     </button>
                   )}
                 </Fragment>
+                )} />
               );
             })}
           </div>
@@ -3648,8 +3807,8 @@ export default function Grafica() {
               </tr>
             </thead>
             <tbody>
-              {linhasVisiveis.map((item: any, index: number) => {
-                const prev = index > 0 ? linhasVisiveis[index - 1] : null;
+              {linhasRenderizadas.map((item: any, index: number) => {
+                const prev = index > 0 ? linhasRenderizadas[index - 1] : null;
                 const corte = cortePorItem.get(item.id);
                 const showEvHeader = !prev || (prev as any).event?.name !== item.event?.name;
                 const showTypeHeader = !prev || (prev as any).event?.name !== item.event?.name || (prev as any).type !== item.type;
@@ -3677,7 +3836,8 @@ export default function Grafica() {
                 const selo = seloDoItem(item);
 
                 return (
-                  <Fragment key={item.id}>
+                  <LinhaMemo key={item.id} deps={depsDaLinha(item, [showEvHeader, showTypeHeader, typeToGroup[item.type] || '', prev ? (typeToGroup[(prev as any).type] || '') : '', corte?.chave, corte?.total, corte?.ocultas, etiquetaveisPorEvento.get(String(item.eventId)) ?? 0])} render={() => (
+                  <Fragment>
                     {/* Cabeçalho de Evento */}
                     {(() => {
                       const groupName = typeToGroup[item.type] || '';
@@ -4485,11 +4645,27 @@ export default function Grafica() {
                       </tr>
                     )}
                   </Fragment>
+                  )} />
                 );
               })}
             </tbody>
           </table>
           </div>
+        )}
+        {/* Próximo lote de linhas: entra sozinho quando a rolagem chega perto
+            do fim do que está desenhado, ou pelo botão (teclado, leitor de
+            tela). Fora do ramo de carregando/erro, onde não há lista. */}
+        {/* Sem a condição "falta desenhar": o próprio sentinela some quando a
+            lista está completa, e precisa continuar montado no último lote
+            pedido pelo botão para levar o foco ao texto do fim. */}
+        {!isLoading && !isError && (
+          <SentinelaDaLista
+            mostradas={linhasRenderizadas.length}
+            total={linhasVisiveis.length}
+            lote={LINHAS_POR_LOTE}
+            onMais={() => desenharMaisLinhas()}
+            compacto={usaCards}
+          />
         )}
 
       </div>

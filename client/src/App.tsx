@@ -80,15 +80,23 @@ function PaginaCarregando() {
   );
 }
 import NotFound from "@/pages/not-found";
-import Login from "@/pages/login";
-import ChangePassword from "@/pages/change-password";
 // ── CODE SPLITTING (auditoria de performance, 27/08) ─────────────────────────
 // As 28 páginas eram importadas eager e colapsavam num único chunk de ~2,4 MB:
 // o operador da Gráfica baixava recharts (página só-admin), pdf-lib (gerador
 // de book) e todo o resto antes do primeiro paint da fila dele. Com lazy, cada
 // rota vira um chunk próprio, baixado quando o usuário a abre — e um deploy só
-// invalida o cache dos chunks que mudaram. Login/NotFound/ChangePassword
-// seguem eager: são o caminho de entrada e pesam nada.
+// invalida o cache dos chunks que mudaram. NotFound segue eager: é leve e é a
+// rota de sobra do Switch.
+//
+// PERF-7 (17/09): Login e Alterar Senha ERAM eager "porque pesam nada" — mas
+// traziam junto zod, react-hook-form, @hookform/resolvers e (via
+// changePasswordSchema de @shared/schema) drizzle-orm + o schema inteiro:
+// o chunk de entrada caiu de 409 KB (121 KB gzip) para 247 KB (77 KB gzip)
+// ao tirá-los — peso baixado e parseado a cada F5 de quem JÁ está logado e
+// nunca vê essas telas. Lazy, eles só descem para quem
+// abre o login ou a troca de senha.
+const Login = lazyPage(() => import("@/pages/login"));
+const ChangePassword = lazyPage(() => import("@/pages/change-password"));
 const Usuarios = lazyPage(() => import("@/pages/usuarios"));
 const Patrocinadores = lazyPage(() => import("@/pages/patrocinadores"));
 const PainelGeral = lazyPage(() => import("@/pages/painel-geral"));
@@ -432,9 +440,16 @@ function Router() {
   return (
     <Suspense fallback={<PaginaCarregando />}>
     <Switch>
-      <Route path="/login" component={Login} />
+      <Route path="/login">
+        {/* Suspense próprio: o login não tem casca em volta, e a silhueta de
+            tabela do fallback geral parecia uma tela quebrada antes do form. */}
+        {() => <Suspense fallback={<FullPageLoader />}><Login /></Suspense>}
+      </Route>
       <Route path="/change-password">
-        {() => <ProtectedRoute component={ChangePassword} />}
+        {/* Mesmo Suspense do login: a troca obrigatória de senha também abre
+            fora da rotina da casca, e a silhueta de tabela antes do form
+            parecia tela quebrada. */}
+        {() => <Suspense fallback={<FullPageLoader />}><ProtectedRoute component={ChangePassword} /></Suspense>}
       </Route>
       <Route path="/">
         {() => <ProtectedRoute component={PainelGeral} />}
@@ -939,7 +954,14 @@ function AppContent() {
   // Sem sessão (o guard redireciona ao /login) ou já no /login: só o Router,
   // sem sidebar/topbar. Eram dois ifs idênticos.
   if (!isAuthenticated || location === "/login") {
-    return <Router />;
+    // Login agora é lazy: chunk que falha (deploy novo, rede do galpão) caía
+    // na fronteira GLOBAL, que não se limpa sozinha. Com a fronteira por rota,
+    // o erro fica na tela e navegar (ou voltar ao /login) tenta de novo.
+    return (
+      <ErrorBoundary resetKey={location}>
+        <Router />
+      </ErrorBoundary>
+    );
   }
 
   // Show authenticated layout with sidebar

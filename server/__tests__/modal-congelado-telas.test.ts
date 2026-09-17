@@ -161,8 +161,11 @@ beforeAll(() => {
     if (u === "/api/sponsors/usage") return json({ s1: { events: 1, items: 2 } });
     if (u === "/api/users/basic") return json([{ id: "u1", name: "Admin", role: "admin" }]);
     if (u === "/api/users" && method === "GET") { versao++; return json([{ ...USUARIO, _v: versao }]); }
-    if (u === "/api/items" && method === "GET") { versao++; return json([{ ...PECA_REVISAO, _v: versao }]); }
-    if (u === "/api/events" && method === "GET") return json([EVENTO_SOL]);
+    // Com ou sem query: o cliente pede /api/items?formato=compacto[&since=]
+    // (perf 17/09) e aceita o array cheio como full fetch em qualquer caso.
+    if ((u === "/api/items" || u.startsWith("/api/items?")) && method === "GET") { versao++; return json([{ ...PECA_REVISAO, _v: versao }]); }
+    // A lista de eventos é pedida com `?itens=resumo` (perf 17/09): o caminho decide.
+    if (u.split("?")[0] === "/api/events" && method === "GET") return json([EVENTO_SOL]);
     if (u.startsWith("/api/audit-logs")) return json([]);
     if (u.startsWith("/api/standard-items/") || u.startsWith("/api/sponsors/")
       || u.startsWith("/api/users/") || u.startsWith("/api/items/")) return json({ ok: true });

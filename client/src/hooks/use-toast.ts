@@ -16,7 +16,12 @@ import type {
 // antigo deles. O aviso novo nunca é o descartado — senão um erro sumiria
 // antes de aparecer.
 const TOAST_LIMIT = 3
-const TOAST_REMOVE_DELAY = 1000000
+// Quanto um aviso JÁ FECHADO fica na memória antes de sair do estado. Era
+// 1.000.000 ms (herança do shadcn, ~17 min): cada aviso fechado seguia vivo
+// com o ReactNode e o `onClick` da ação — closures que prendem o estado da
+// tela que o criou — mesmo depois de navegar para outra. O <Toaster> só
+// desenha os abertos e a saída anima em 320 ms; 5 s sobra (perf-7).
+const TOAST_REMOVE_DELAY = 5000
 
 /**
  * Mesmo título, mesma descrição e mesma ação (pelo rótulo): é o mesmo aviso
@@ -219,21 +224,45 @@ function toast({ ...props }: Toast) {
   }
 }
 
+/**
+ * SÓ RE-RENDERIZA QUEM LÊ A PILHA (perf-7, 17/09).
+ *
+ * O hook do shadcn assinava TODO consumidor na pilha de avisos. São 46
+ * `useToast()` no app e só o <Toaster> lê `toasts` — os outros querem apenas a
+ * função `toast`. Entre eles estão a casca (AuthenticatedLayout) e o hook do
+ * tempo real, montados em volta do Router: cada aviso (entrar, fechar, sair =
+ * três despachos) re-renderizava a casca e, por tabela, a TELA INTEIRA aberta —
+ * a lista de milhares de peças da Gráfica redesenhada por um "Salvo".
+ *
+ * Agora `toasts` é um getter: quem o lê durante o render passa a ser avisado
+ * das mudanças; quem só desestrutura `toast`/`dismiss` nunca re-renderiza por
+ * causa de aviso. A API pública é a mesma.
+ */
 function useToast() {
   const [state, setState] = React.useState<State>(memoryState)
+  const leuAPilha = React.useRef(false)
 
   React.useEffect(() => {
-    listeners.push(setState)
+    const ouvinte = (novo: State) => {
+      if (leuAPilha.current) setState(novo)
+    }
+    listeners.push(ouvinte)
+    // Aviso despachado entre o render e este efeito não pode se perder.
+    if (leuAPilha.current && memoryState !== state) setState(memoryState)
     return () => {
-      const index = listeners.indexOf(setState)
+      const index = listeners.indexOf(ouvinte)
       if (index > -1) {
         listeners.splice(index, 1)
       }
     }
-  }, [state])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   return {
-    ...state,
+    get toasts() {
+      leuAPilha.current = true
+      return state.toasts
+    },
     toast,
     dismiss: (toastId?: string) => dispatch({ type: "DISMISS_TOAST", toastId }),
   }

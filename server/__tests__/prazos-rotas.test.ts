@@ -310,6 +310,9 @@ Object.assign(H.storage, {
   getAllUsers: async () => mundo.usuarios,
   getOpenItemSponsorApprovals: async () => mundo.aprovacoes,
   getItemsByEvents: async (ids: string[]) => mundo.pecas.filter((p) => ids.includes(p.eventId)),
+  // Projeção magra da mesma leitura (perf 17/09) — o mundo em memória já tem
+  // só os campos que o domínio lê, então devolve as mesmas linhas.
+  getItemsParaPrazos: async (ids: string[]) => mundo.pecas.filter((p) => ids.includes(p.eventId)),
   getEvent: async (id: string) => mundo.eventos.find((e) => e.id === id),
   getSponsor: async (id: string) => mundo.patrocinadores.find((s) => s.id === id),
 });

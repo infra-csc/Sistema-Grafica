@@ -1,5 +1,5 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { useState, useMemo, useRef, Fragment, useEffect, useCallback } from "react";
+import { useState, useMemo, useRef, Fragment, useEffect, useCallback, memo, useSyncExternalStore } from "react";
 import { SeloKit } from "@/components/kit/selo-kit";
 import {
   Search, Calendar, Truck, Eye, Paperclip, Trash2, FileText, Printer, RotateCcw, Hourglass,
@@ -425,6 +425,29 @@ function FilterChip({ label, onRemove, isMobile }: { label: string; onRemove: ()
 const LIMITE_PARADA = 7;
 
 const DIA_MS = 86_400_000;
+const HORA_MS = 3_600_000;
+
+/** Lista vazia ESTÁVEL: `data = []` no destructuring cria um array novo a cada
+ *  render enquanto a query carrega, e todo useMemo que depende dele refaz. */
+const LISTA_VAZIA: any[] = [];
+
+/** Mesmo resultado de `localeCompare(x, "pt-BR")` (a especificação define um
+ *  pelo outro), sem montar o collator de novo a cada comparação do sort. */
+const COLLATOR_PT = new Intl.Collator("pt-BR");
+
+// Parse do carimbo memoizado por peça. `diasNoEstado` roda por peça no
+// comparador do sort por tempo, nos cabeçalhos de evento e na barra do fluxo —
+// dezenas de milhares de `new Date(string)` por clique com 5.000 peças. O
+// objeto da peça é imutável no cache do React Query (o delta-sync cria objetos
+// novos), e o texto bruto entra na chave para não servir carimbo velho.
+const CARIMBO_MS = new WeakMap<object, { bruto: string; t: number }>();
+function carimboEmMs(item: any, bruto: string): number {
+  const c = CARIMBO_MS.get(item);
+  if (c && c.bruto === bruto) return c.t;
+  const t = new Date(bruto).getTime();
+  if (item && typeof item === "object") CARIMBO_MS.set(item, { bruto, t });
+  return t;
+}
 
 /**
  * Dias inteiros desde a última mudança de status, ou `null` quando não há
@@ -434,7 +457,7 @@ const DIA_MS = 86_400_000;
 function diasNoEstado(item: any, agoraMs: number): number | null {
   const bruto = item?.statusChangedAt ?? item?.status_changed_at;
   if (!bruto) return null;
-  const t = new Date(bruto).getTime();
+  const t = typeof bruto === "string" ? carimboEmMs(item, bruto) : new Date(bruto).getTime();
   if (!Number.isFinite(t)) return null;
   return Math.max(0, Math.floor((agoraMs - t) / DIA_MS));
 }
@@ -483,6 +506,1111 @@ function EventStatusBar({ items, width }: { items: Array<{ status?: string | nul
     </div>
   );
 }
+
+// ─── Texto de busca por peça, memoizado ─────────────────────────────────────
+// A busca testava cinco campos com toLowerCase() cada, e o recorte roda a
+// busca uma vez por MENU com contagem (evento, tipo, patrocinador, data) além
+// da lista: ~30 toLowerCase por peça por tecla. Os campos são os mesmos e na
+// mesma ordem; o separador \u0001 impede um acerto atravessando dois campos
+// (fim do tipo + começo do evento), que a busca campo a campo nunca dava.
+const TEXTO_DE_BUSCA = new WeakMap<object, string>();
+function textoDeBusca(item: any): string {
+  let t = TEXTO_DE_BUSCA.get(item);
+  if (t === undefined) {
+    t = [
+      item.type ?? "",
+      item.event?.name || "",
+      item.displayId ?? "",
+      item.description || "",
+      ...(Array.isArray(item.sponsors) ? item.sponsors.map((s: any) => s?.name || "") : []),
+    ].join("\u0001").toLowerCase();
+    TEXTO_DE_BUSCA.set(item, t);
+  }
+  return t;
+}
+
+/** Opções do menu de Foco — constantes; inline, nasciam novas a cada render. */
+const FOCO_OPTIONS = Object.keys(FOCO_LABELS).map((value) => ({ value, label: FOCO_LABELS[value], pinned: true }));
+
+// ─── Carimbo de frescor com relógio PRÓPRIO ─────────────────────────────────
+// O relógio de 30s que envelhece o "Atualizado há 2 min" morava em PainelGeral
+// — e um setState no topo re-renderizava a página inteira a cada 30 segundos.
+// Pelo mesmo motivo `isFetching`/`dataUpdatedAt` saíram do useQuery da página:
+// o React Query só notifica quem LÊ a propriedade, e cada revalidação (duas
+// trocas de isFetching) virava dois renders da lista mesmo sem dado novo.
+// Aqui o carimbo assina o estado da query direto no cache, sem observer novo
+// (nenhuma mudança de refetch), e só ele re-renderiza.
+const CHAVE_ITENS = ["/api/items"];
+const HASH_ITENS = JSON.stringify(CHAVE_ITENS);
+function assinarEstadoDosItens(avisar: () => void) {
+  return queryClient.getQueryCache().subscribe((ev) => {
+    if (ev.query.queryHash === HASH_ITENS) avisar();
+  });
+}
+function lerEstadoDosItens(): string {
+  const s = queryClient.getQueryState(CHAVE_ITENS);
+  return `${s?.fetchStatus ?? "idle"}|${s?.dataUpdatedAt ?? 0}`;
+}
+
+function CarimboDeFrescor() {
+  const [fetchStatus, atualizadoEm] = useSyncExternalStore(assinarEstadoDosItens, lerEstadoDosItens).split("|");
+  const isFetching = fetchStatus === "fetching";
+  // Relógio de parede só para o carimbo envelhecer sozinho na tela: sem ele,
+  // "há 2 min" ficava escrito até a próxima revalidação.
+  const [agora, setAgora] = useState(() => Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setAgora(Date.now()), 30_000);
+    return () => clearInterval(t);
+  }, []);
+  const frescor = formatFrescor(Number(atualizadoEm), agora);
+  if (!frescor) return null;
+  return (
+    <div
+      /* A promessa tem de bater com o código: "a cada minuto" era a
+         regra antiga — hoje quem traz a mudança na hora é o aviso do
+         servidor, e a revalidação de segurança roda a cada 5 min. */
+      title={`${frescor.srLabel}. Esta tela se atualiza sozinha: na hora em que alguém muda uma peça, ao voltar para a aba e, por segurança, a cada 5 minutos. Ponto verde = atualizada há menos de 3 minutos.`}
+      data-testid="painel-frescor"
+      style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, fontWeight: 700, color: "#746e69", whiteSpace: "nowrap" }}
+    >
+      {isFetching
+        ? <Loader2 className="animate-spin" style={{ width: 11, height: 11, color: "#746e69" }} aria-hidden="true" />
+        : <span style={{ width: 7, height: 7, borderRadius: "50%", backgroundColor: frescor.tone === "fresco" ? "#15803d" : "#b45309", flexShrink: 0 }} />}
+      {/* Sem aria-live aqui de propósito: quem anuncia mudança é o
+          contador de resultados. Duas regiões vivas competindo fazem o
+          leitor de tela falar por cima de si mesmo a cada minuto. */}
+      <span>{isFetching ? "Atualizando…" : `Atualizado ${frescor.texto}`}</span>
+    </div>
+  );
+}
+
+// ─── A LISTA POR EVENTO — grupos e linhas memoizados (PERF-4, 17/09) ────────
+//
+// O PROBLEMA MEDIDO. A lista inteira morava dentro do corpo de PainelGeral, e
+// QUALQUER estado da página re-renderizava todas as linhas: abrir o menu de
+// Exportar, abrir a ficha de uma peça, o relógio de 30s do carimbo de frescor
+// e cada revalidação da query (isFetching liga e desliga — duas vezes a cada
+// invalidação do WebSocket, mesmo quando o servidor devolve exatamente o
+// mesmo acervo). Com 5.000 peças: 250 linhas e ~30 cabeçalhos refeitos por
+// clique, e em cada cabeçalho `diasNoEstado` sobre TODAS as peças do evento.
+//
+// A CURA. Cabeçalho de evento e linha de peça viram componentes memoizados,
+// com props primitivas ou estáveis (o objeto `acoes` nasce uma vez e lê o
+// estado atual por ref). Um clique que não muda a lista não chega às linhas.
+// Os componentes ficam NESTE arquivo de propósito: os testes da casa leem o
+// texto de painel-geral.tsx (testids, trechos de regra) e a regra é a mesma.
+
+type SortCampo = "displayId" | "status" | "area" | "ciclo";
+
+/** Ações da lista — objeto estável; as funções leem o estado atual por ref. */
+interface AcoesDaLista {
+  abrir: (item: any) => void;
+  alternarSelecao: (id: string) => void;
+  alternarSelecaoDoEvento: (itens: any[], marcar: boolean) => void;
+  excluir: (id: string) => void;
+  restaurar: (id: string) => void;
+  /** `extra`: quantas linhas o clique revela — entram no orçamento na hora. */
+  expandir: (key: string, extra: number) => void;
+  abrirGrupo: (key: string, extra: number) => void;
+  ordenar: (campo: SortCampo) => void;
+}
+
+type MetaDoEvento = {
+  truckDayMs: number | null;
+  pendentes: number;
+  selo: SeloEventoFinalizado | null;
+};
+
+// ─── Renderização incremental por ORÇAMENTO de linhas ───────────────────────
+// O teto antigo (5 eventos × 50 linhas) montava até 250 linhas na abertura, e
+// a primeira dobra mostra umas oito: o primeiro evento já passa de 3.000px.
+// Agora a tela monta um orçamento inicial e uma sentinela no fim do que foi
+// montado pede o próximo lote quando o usuário chega a ~1.500px dela. O
+// resultado final é o MESMO conjunto de antes (os mesmos tetos, os mesmos
+// botões "Mostrar"); só deixa de ser montado de uma vez o que ninguém vê.
+// Contadores, KPIs, busca e exportação continuam sobre a lista inteira — o
+// orçamento só decide o que vai para o DOM.
+const LINHAS_INICIAIS = 40;
+const LINHAS_POR_LOTE = 60;
+/** Cabeçalho do evento (+ thead ou botão "Mostrar") custa ~2 linhas de altura. */
+const CUSTO_CABECALHO = 2;
+
+/** O contêiner que rola de verdade (o <main> do layout), para a margem da sentinela valer. */
+function ancestralQueRola(el: HTMLElement): Element | null {
+  let n = el.parentElement;
+  while (n && n !== document.body) {
+    const oy = getComputedStyle(n).overflowY;
+    if (oy === "auto" || oy === "scroll") return n;
+    n = n.parentElement;
+  }
+  return null;
+}
+
+/**
+ * Pede o próximo lote quando se aproxima da área visível. A `key` muda a cada
+ * lote no pai: a sentinela remonta e o observer recém-criado reporta de novo
+ * se ela CONTINUA perto (lote pequeno demais para empurrá-la para longe).
+ */
+function SentinelaDeLote({ onVisivel }: { onVisivel: () => void }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || typeof IntersectionObserver === "undefined") return;
+    // A margem precisa ser do contêiner que rola: com a raiz implícita (a
+    // janela), o recorte do <main> anularia a antecipação e o lote só chegaria
+    // com a sentinela já na tela.
+    const io = new IntersectionObserver(
+      (entradas) => { if (entradas.some((e) => e.isIntersecting)) onVisivel(); },
+      { root: ancestralQueRola(el), rootMargin: "0px 0px 1500px 0px" },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, [onVisivel]);
+  return <div ref={ref} aria-hidden="true" data-testid="painel-sentinela-lote" style={{ height: 1 }} />;
+}
+
+/** Agrupa as linhas visíveis por Grupo Pai → Tipo, na ordem de exibição. */
+function secoesDoGrupo(visibleItems: any[], typeToGroup: Record<string, string>) {
+  // Group by Grupo Pai first, then by type within each
+  // group. typeToGroup vem do memo do topo (fonte única).
+  const groupMap: Record<string, Record<string, any[]>> = {};
+  for (const item of visibleItems) {
+    const g = typeToGroup[item.type] || '';
+    if (!groupMap[g]) groupMap[g] = {};
+    if (!groupMap[g][item.type]) groupMap[g][item.type] = [];
+    groupMap[g][item.type].push(item);
+  }
+  const sortedGroups = Object.keys(groupMap).sort((a, b) => {
+    if (a === '') return 1; if (b === '') return -1;
+    return COLLATOR_PT.compare(a, b);
+  });
+  return sortedGroups.map((group) => ({ group, tipos: Object.entries(groupMap[group]) }));
+}
+
+interface LinhaProps {
+  item: any;
+  idx: number;
+  selecionado: boolean;
+  selo: SeloEventoFinalizado | null;
+  isCompact: boolean;
+  isAdmin: boolean;
+  canDeleteAny: boolean;
+  restaurando: boolean;
+  restorePending: boolean;
+  relogioIdade: number;
+  acoes: AcoesDaLista;
+}
+
+const LinhaDaPeca = memo(function LinhaDaPeca({
+  item, idx, selecionado, selo, isCompact, isAdmin, canDeleteAny, restaurando, restorePending, relogioIdade, acoes,
+}: LinhaProps) {
+  const isDeleted = !!item.deletedAt;
+  return (
+    <tr
+      className="pg-row"
+      data-zebra={idx % 2 === 1 ? "1" : "0"}
+      data-deleted={isDeleted ? "1" : "0"}
+      data-selected={selecionado ? "1" : "0"}
+      data-testid={`item-row-${item.id}`}
+      onClick={() => !isDeleted && acoes.abrir(item)}
+    >
+      {/* Seleção */}
+      <td style={{ padding: "10px 0 10px 12px" }}>
+        {!isDeleted && (
+          /* stopPropagation no LABEL, e não só no input:
+             a linha inteira abre a peça no clique, e a área
+             nova do alvo fica fora do input. Sem isto, mirar
+             a borda do alvo marcaria a peça E abriria o
+             modal — o alvo maior viraria uma armadilha. */
+          <label className="pg-check" onClick={(e) => e.stopPropagation()}>
+            <input
+              type="checkbox"
+              checked={selecionado}
+              onChange={() => acoes.alternarSelecao(item.id)}
+              aria-label={`Selecionar a peça ${item.displayId}`}
+              data-testid={`checkbox-${item.id}`}
+              style={{ width: 15, height: 15, cursor: "pointer", accentColor: "#c2410c" }}
+            />
+          </label>
+        )}
+      </td>
+
+      {/* ID (+ tipo; + medidas no modo reduzido) */}
+      <td style={{ padding: "10px 18px 10px 20px", overflow: "hidden" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 4, minWidth: 0 }}>
+          <button onClick={e => { e.stopPropagation(); if (!isDeleted) acoes.abrir(item); }} disabled={isDeleted} aria-label={`Ver detalhes da peça ${item.displayId}`} data-testid={`text-display-id-${item.id}`} style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontFamily: "monospace", fontWeight: 700, color: isDeleted ? "#b91c1c" : "#c2410c", fontSize: 13, textDecoration: isDeleted ? "line-through" : "none", textAlign: "left" }}>
+            {item.displayId}
+          </button>
+          <SeloKit peca={item} style={{ alignSelf: "flex-start" }} />
+          {/* O TIPO só existia na linha de sub-header
+              com colspan, que não é sticky: com 40
+              "Banner" num evento, rolar deixava a
+              linha órfã do próprio tipo. */}
+          <span title={item.type} style={{ fontSize: 10, fontWeight: 600, color: "#746e69", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            {item.type}
+          </span>
+          {/* O selo se repete na LINHA, e não só
+              no cabeçalho do grupo: quem chega por
+              busca de código, por link direto ou
+              rolando uma lista longa lê a linha, e
+              o cabeçalho pode estar 40 linhas
+              acima. A frase começa em "Evento" —
+              é a mesma da trilha da ficha (lib/
+              status, marcoEventoFinalizado), para
+              que ninguém entenda que foi a PEÇA
+              que acabou. */}
+          {/* OS SELOS DEITAM, e não empilham.
+
+              Esta célula era uma coluna vertical com
+              até OITO filhos — ID, tipo, selo do
+              evento, data de exclusão, medidas,
+              "Reaproveit.", "Ref. visual" e "Book" —
+              cada um numa linha própria com gap 4.
+              Como quase todos são condicionais, a
+              altura da linha passava a depender de
+              QUANTOS selos aquela peça tivesse.
+
+              Medido em produção, 150 linhas: 55% em
+              63px e o resto espalhado até 93px. E a
+              coluna de ID era a única causa — as
+              outras seis colunas cabem em 24px. A
+              lista lia irregular porque a identidade
+              da peça crescia para baixo.
+
+              Selo é etiqueta, e etiqueta deita ao lado
+              da outra. Numa fileira que quebra só
+              quando precisa, quatro selos ocupam UMA
+              linha em vez de quatro. */}
+          <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 4, minWidth: 0 }}>
+          {selo && !isDeleted && (
+            <span
+              title={selo.hintPeca}
+              data-testid={`selo-peca-${item.id}`}
+              style={{ ...SELO_CALMO, color: selo.text, backgroundColor: selo.bg, border: `1px solid ${selo.border}` }}
+            >
+              {selo.labelPeca}
+            </span>
+          )}
+          {isDeleted && item.deletedAt && (
+            <span style={{ fontSize: 10, color: "#746e69" }}>
+              Excluído {format(new Date(item.deletedAt), "dd/MM/yy", { locale: ptBR })}
+            </span>
+          )}
+          {isCompact && !isDeleted && ((item.visualWidth && item.visualHeight) || (item.fileWidth && item.fileHeight)) && (
+            <span style={{ fontFamily: "monospace", fontSize: 11, fontWeight: 700, color: "#57534e", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {item.fileWidth && item.fileHeight
+                ? `ARQ ${item.fileWidth} × ${item.fileHeight}`
+                : `VIS ${item.visualWidth} × ${item.visualHeight}`}
+            </span>
+          )}
+          {!isDeleted && item.isReuse && (
+            <span style={SELO_CALMO}>
+              Reaproveitada
+            </span>
+          )}
+          {!isDeleted && item.referenceUrl && (
+            <a href={item.referenceUrl} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} title="Ver referência visual do solicitante" className="pg-anexo" style={{ ...SELO_CALMO, gap: 4, textDecoration: "none" }} data-testid={`link-reference-painel-${item.id}`}>
+              <Paperclip aria-hidden="true" style={{ width: 11, height: 11 }} />
+              Ref. visual
+            </a>
+          )}
+          {!isDeleted && item.bookUrl && (
+            <a href={item.bookUrl} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} title="Abrir book de aprovação (PDF) enviado pela Arte" className="pg-anexo" style={{ ...SELO_CALMO, gap: 4, textDecoration: "none" }} data-testid={`link-book-painel-${item.id}`}>
+              <FileText aria-hidden="true" style={{ width: 11, height: 11 }} />
+              Book
+            </a>
+          )}
+          </div>
+        </div>
+      </td>
+
+      {/* Descrição (+ patrocinador no modo reduzido) */}
+      <td style={{ padding: "10px 18px", overflow: "hidden" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6, overflow: "hidden", minWidth: 0 }}>
+          {item.description ? (
+            <span title={item.description} style={{ fontSize: 13, color: isDeleted ? "#746e69" : "#44403c", fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flexShrink: 1, minWidth: 0, textDecoration: isDeleted ? "line-through" : "none" }}>
+              {item.description}
+            </span>
+          ) : (
+            <span style={{ color: "#746e69", fontSize: 13 }}>—</span>
+          )}
+          {!isDeleted && item.observations && (
+            /* maxWidth + ellipsis + title: o selo
+               mostrava a observação INTEIRA com
+               nowrap e flex-shrink 0. O campo é
+               texto livre e carrega motivo de
+               reprovação — parágrafos. O ↩ cru
+               virou ícone com rótulo. */
+            <span
+              title={item.observations}
+              style={{ ...SELO_CALMO, flexShrink: 1, minWidth: 0, maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", gap: 4, fontWeight: 500 }}
+            >
+              <MessageSquare style={{ width: 11, height: 11, flexShrink: 0 }} aria-label="Observação" />
+              <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{item.observations}</span>
+            </span>
+          )}
+        </div>
+        {isCompact && !isDeleted && (
+          <div style={{ marginTop: 4, minWidth: 0, overflow: "hidden" }}>
+            <SponsorChips sponsors={item.sponsors ?? []} variant="colored" size="sm" max={3} />
+          </div>
+        )}
+      </td>
+
+      {/* Medidas */}
+      {!isCompact && (
+        <td style={{ padding: "10px 18px", overflow: "hidden" }}>
+          {!isDeleted && ((item.visualWidth && item.visualHeight) || (item.fileWidth && item.fileHeight)) ? (
+            <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+              {/* ARQ primeiro e escuro: é o par que a
+                  impressora recebe e o m² cobra — a mesma
+                  ênfase da Gráfica, para as duas telas
+                  contarem a mesma história. */}
+              {item.fileWidth && item.fileHeight && (
+                <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                  <span style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: "#b45309", width: 30, flexShrink: 0 }}>ARQ</span>
+                  <span style={{ fontFamily: "monospace", fontSize: 13, fontWeight: 700, color: "#44403c", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {item.fileWidth} × {item.fileHeight}
+                  </span>
+                </div>
+              )}
+              {item.visualWidth && item.visualHeight && (
+                <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                  <span style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: "#746e69", width: 30, flexShrink: 0 }}>VIS</span>
+                  <span style={{ fontFamily: "monospace", fontSize: 13, fontWeight: 700, color: "#746e69", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {item.visualWidth} × {item.visualHeight}
+                  </span>
+                </div>
+              )}
+            </div>
+          ) : (
+            <span style={{ color: "#746e69", fontSize: 13 }}>—</span>
+          )}
+        </td>
+      )}
+
+      {/* Patrocinador — na linha excluída a célula ganha "—" em vez
+          de ficar vazia (leitura de tabela: vazio parece dado faltando). */}
+      {!isCompact && (
+        <td style={{ padding: "10px 18px", overflow: "hidden" }}>
+          {isDeleted
+            ? <span style={{ color: "#746e69", fontSize: 13 }}>—</span>
+            : <SponsorChips sponsors={item.sponsors ?? []} variant="colored" size="sm" max={4} />}
+        </td>
+      )}
+
+      {/* Status · tempo
+
+          A pilula diz ONDE a peca esta; a linha
+          abaixo diz DESDE QUANDO. Sem a segunda, a
+          lista mostra 1.129 pecas em "Aguardando
+          envio" sem distinguir vazao normal de
+          travamento de duas semanas.
+
+          Peca sem carimbo nao ganha linha nenhuma:
+          um campo vazio diz "nao sei"; um numero
+          inferido da criacao diria "sei" e mentiria.
+
+          Padding 16 e nao 20: abre a linha extra sem
+          crescer a altura da tabela. */}
+      <td data-testid={`cell-idade-${item.id}`} style={{ padding: "10px 16px", overflow: "hidden" }}>
+        <StatusPill status={isDeleted ? "deleted" : item.status} />
+        {(() => {
+          if (isDeleted) return null;
+          // `relogioIdade` e nao Date.now(): a linha e memoizada, entao o
+          // "agora" chega por prop (ver o relogio de hora em PainelGeral).
+          const d = diasNoEstado(item, relogioIdade);
+          if (d === null) return null;
+          const tom = tomDaIdade(d);
+          return (
+            <p
+              style={{ margin: "3px 0 0", fontSize: 11, color: tom.cor, fontWeight: tom.peso, whiteSpace: "nowrap" }}
+              /* O title passa a existir SEMPRE: "há 3 dias" solto
+                 não diz de quê — da criação? da última edição?
+                 É o tempo desde a última MUDANÇA DE STATUS. */
+              title={d > LIMITE_PARADA
+                ? `Parada em ${getStatusMeta(item.status).label} ${idadePorExtenso(d)} (mais de ${LIMITE_PARADA} dias sem mudar de etapa)`
+                : `Em ${getStatusMeta(item.status).label} ${d === 0 ? "desde hoje" : idadePorExtenso(d)} — tempo desde a última mudança de status`}
+            >
+              {idadePorExtenso(d)}
+            </p>
+          );
+        })()}
+      </td>
+
+      {/* Ação */}
+      <td style={{ padding: "10px 18px", textAlign: "right" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 4 }}>
+          {isDeleted && (isAdmin ? (
+            <button
+              onClick={(e) => { e.stopPropagation(); acoes.restaurar(item.id); }}
+              disabled={restorePending}
+              title="Restaurar peça" aria-label="Restaurar peça"
+              data-testid={`button-restore-${item.id}`}
+              style={{ background: "#d1fae5", border: "1px solid #6ee7b7", cursor: restorePending ? "not-allowed" : "pointer", borderRadius: 6, color: "#065f46", display: "flex", alignItems: "center", justifyContent: "center", padding: 6, opacity: restorePending ? 0.6 : 1 }}
+            >
+              {restaurando
+                ? <Loader2 className="animate-spin" style={{ width: 14, height: 14 }} />
+                : <RotateCcw style={{ width: 14, height: 14 }} />}
+            </button>
+          ) : (
+            <button
+              type="button" disabled aria-disabled="true"
+              title="Só um administrador pode restaurar peças excluídas"
+              aria-label="Só um administrador pode restaurar peças excluídas"
+              style={{ background: "none", border: "none", padding: 4, color: "#a8a29e", display: "flex", alignItems: "center", justifyContent: "center", cursor: "not-allowed" }}
+            >
+              <RotateCcw style={{ width: 15, height: 15 }} />
+            </button>
+          ))}
+          {!isDeleted && (
+            <button
+              onClick={(e) => { e.stopPropagation(); acoes.abrir(item); }}
+              aria-label="Ver detalhes da peça" title="Ver detalhes" data-testid={`button-view-${item.id}`}
+              style={{
+                background: "none", border: "none", cursor: "pointer",
+                padding: 4, borderRadius: 6, color: "#746e69",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                transition: "color 0.15s",
+              }}
+              onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.color = "#c2410c")}
+              onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.color = "#746e69")}
+            >
+              <Eye style={{ width: 16, height: 16 }} />
+            </button>
+          )}
+          {!isDeleted && canDeleteAny && (
+            <button
+              onClick={(e) => { e.stopPropagation(); acoes.excluir(item.id); }}
+              data-testid={`button-delete-${item.id}`}
+              title="Excluir peça" aria-label="Excluir peça"
+              style={{
+                background: "none", border: "none", cursor: "pointer",
+                padding: 4, borderRadius: 6, color: "#746e69",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                transition: "color 0.15s",
+              }}
+              onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.color = "#dc2626")}
+              onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.color = "#746e69")}
+            >
+              <Trash2 style={{ width: 15, height: 15 }} />
+            </button>
+          )}
+        </div>
+      </td>
+    </tr>
+  );
+});
+
+const CartaoDaPeca = memo(function CartaoDaPeca({
+  item, idx: ci, selo, isAdmin, canDeleteAny, restaurando, restorePending, acoes,
+}: Omit<LinhaProps, "selecionado" | "isCompact" | "relogioIdade">) {
+  const isDeleted = !!item.deletedAt;
+  return (
+    <div
+      data-testid={`item-row-${item.id}`}
+      onClick={() => !isDeleted && acoes.abrir(item)}
+      style={{
+        border: `1px solid ${isDeleted ? "#fecaca" : "#e7e5e4"}`,
+        borderRadius: 8,
+        padding: "10px 12px",
+        marginBottom: 8,
+        backgroundColor: isDeleted ? "#fff5f5" : (ci % 2 === 1 ? "#f6f4f1" : "#ffffff"),
+        display: "flex",
+        alignItems: "flex-start",
+        gap: 8,
+        cursor: "pointer",
+        overflow: "hidden",
+        opacity: isDeleted ? 0.75 : 1,
+      }}
+    >
+      {/* Card content */}
+      <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 5 }}>
+        {/* Row 1: ID + type */}
+        <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+          <button onClick={e => { e.stopPropagation(); if (!isDeleted) acoes.abrir(item); }} disabled={isDeleted} aria-label={`Ver detalhes da peça ${item.displayId}`} data-testid={`text-display-id-${item.id}`} style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontFamily: "monospace", fontWeight: 700, color: isDeleted ? "#b91c1c" : "#c2410c", fontSize: 13, flexShrink: 0, textDecoration: isDeleted ? "line-through" : "none" }}>
+            {item.displayId}
+          </button>
+          <SeloKit peca={item} style={{ flexShrink: 0 }} />
+          <span style={{ fontSize: 11, fontWeight: 700, color: isDeleted ? "#746e69" : "#44403c", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0, textDecoration: isDeleted ? "line-through" : "none" }}>{item.type}</span>
+          {item.isReuse && !isDeleted && (
+            <span style={{ ...SELO_CALMO, flexShrink: 0 }}>
+              Reaproveitada
+            </span>
+          )}
+        </div>
+        {/* Row 2: description — allow up to 2 lines on mobile */}
+        {item.description && (
+          <span style={{ fontSize: 13, color: isDeleted ? "#746e69" : "#44403c", fontWeight: 500, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" } as React.CSSProperties}>
+            {item.description}
+          </span>
+        )}
+        {/* Row 3: status pill */}
+        <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+          <StatusPill status={isDeleted ? "deleted" : item.status} />
+          {/* Mesmo selo da linha do desktop, ao
+              lado do status: no card o status é
+              a informação que a pessoa lê, e é
+              justamente ele que engana sozinho
+              ("Em Produção" num evento que
+              acabou). */}
+          {selo && !isDeleted && (
+            <span
+              title={selo.hintPeca}
+              data-testid={`selo-peca-${item.id}`}
+              style={{ ...SELO_CALMO, color: selo.text, backgroundColor: selo.bg, border: `1px solid ${selo.border}` }}
+            >
+              {selo.labelPeca}
+            </span>
+          )}
+          {isDeleted && item.deletedAt && (
+            <span style={{ fontSize: 10, color: "#746e69" }}>
+              {format(new Date(item.deletedAt), "dd/MM/yyyy", { locale: ptBR })}
+            </span>
+          )}
+        </div>
+        {/* Row 4: sponsors */}
+        {!isDeleted && item.sponsors && item.sponsors.length > 0 && (
+          <div style={{ minWidth: 0, overflow: "hidden" }}>
+            <SponsorChips sponsors={item.sponsors} variant="colored" size="sm" max={2} />
+          </div>
+        )}
+      </div>
+      {/* Action buttons — compact on mobile */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 4, flexShrink: 0 }}>
+        {isDeleted && (isAdmin ? (
+          <button
+            onClick={(e) => { e.stopPropagation(); acoes.restaurar(item.id); }}
+            disabled={restorePending}
+            title="Restaurar peça" aria-label="Restaurar peça"
+            data-testid={`button-restore-${item.id}`}
+            style={{ background: "#d1fae5", border: "1px solid #6ee7b7", cursor: restorePending ? "not-allowed" : "pointer", borderRadius: 6, color: "#065f46", display: "flex", alignItems: "center", justifyContent: "center", height: 44, width: 44, opacity: restorePending ? 0.6 : 1 }}
+          >
+            {restaurando
+              ? <Loader2 className="animate-spin" style={{ width: 15, height: 15 }} />
+              : <RotateCcw style={{ width: 15, height: 15 }} />}
+          </button>
+        ) : (
+          // solicitacao ENXERGA a lixeira (o servidor libera o GET)
+          // mas não pode restaurar: sem este botão a pessoa achava a
+          // peça que apagou por engano e não descobria nem que existe
+          // caminho de volta, nem a quem pedir.
+          <button
+            type="button" disabled aria-disabled="true"
+            title="Só um administrador pode restaurar peças excluídas"
+            aria-label="Só um administrador pode restaurar peças excluídas"
+            style={{ background: "none", border: "1px solid #e7e5e4", borderRadius: 6, color: "#a8a29e", display: "flex", alignItems: "center", justifyContent: "center", height: 44, width: 44, cursor: "not-allowed" }}
+          >
+            <RotateCcw style={{ width: 15, height: 15 }} />
+          </button>
+        ))}
+        {!isDeleted && (
+          <button
+            onClick={(e) => { e.stopPropagation(); acoes.abrir(item); }}
+            aria-label="Ver detalhes da peça" title="Ver detalhes" data-testid={`button-view-${item.id}`}
+            style={{
+              background: "none", border: "1px solid #e7e5e4", cursor: "pointer",
+              borderRadius: 6, color: "#746e69",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              height: 44, width: 44,
+            }}
+          >
+            <Eye style={{ width: 15, height: 15 }} />
+          </button>
+        )}
+        {!isDeleted && canDeleteAny && (
+          <button
+            onClick={(e) => { e.stopPropagation(); acoes.excluir(item.id); }}
+            data-testid={`button-delete-${item.id}`}
+            title="Excluir peça" aria-label="Excluir peça"
+            style={{
+              background: "none", border: "1px solid #fecaca", cursor: "pointer",
+              borderRadius: 6, color: "#746e69",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              height: 44, width: 44,
+            }}
+          >
+            <Trash2 style={{ width: 14, height: 14 }} />
+          </button>
+        )}
+      </div>
+    </div>
+  );
+});
+
+interface GrupoDoEventoProps {
+  eventKey: string;
+  gd: { eventId: string | null; eventName: string; items: any[] };
+  meta: MetaDoEvento | undefined;
+  groupOpen: boolean;
+  isExpanded: boolean;
+  /** Quantas linhas este grupo pode montar agora (renderização incremental). */
+  linhasPermitidas: number;
+  hojeMs: number;
+  relogioIdade: number;
+  useCards: boolean;
+  isCompact: boolean;
+  colCount: number;
+  topOffset: number;
+  sortBy: SortCampo;
+  sortDir: "asc" | "desc";
+  typeToGroup: Record<string, string>;
+  selectedIds: Set<string>;
+  isAdmin: boolean;
+  canDeleteAny: boolean;
+  restoringItemId: string | null;
+  restorePending: boolean;
+  acoes: AcoesDaLista;
+}
+
+const GrupoDoEvento = memo(function GrupoDoEvento({
+  eventKey, gd, meta, groupOpen, isExpanded, linhasPermitidas, hojeMs, relogioIdade,
+  useCards, isCompact, colCount, topOffset, sortBy, sortDir, typeToGroup, selectedIds,
+  isAdmin, canDeleteAny, restoringItemId, restorePending, acoes,
+}: GrupoDoEventoProps) {
+  const firstItem = gd.items[0];
+  // Renderização incremental em dois níveis: até GROUP_CAP eventos
+  // abertos e ROW_CAP linhas por evento. O resto entra sob demanda —
+  // sem os dois tetos, o estado padrão da tela montava milhares de
+  // <tr> que o WebSocket depois re-renderiza a cada mutação alheia.
+  const visibleItems = useMemo(
+    () => !groupOpen ? [] : (isExpanded || gd.items.length <= ROW_CAP ? gd.items : gd.items.slice(0, ROW_CAP)),
+    [groupOpen, isExpanded, gd.items],
+  );
+  const hiddenCount = gd.items.length - visibleItems.length;
+  const secoes = useMemo(() => secoesDoGrupo(visibleItems, typeToGroup), [visibleItems, typeToGroup]);
+  // Selo de evento fora de jogo (encerrado à mão ou já realizado).
+  // `null` enquanto o evento conta — a esmagadora maioria.
+  const selo = meta?.selo ?? null;
+  // Chip de prazo: calendário CRUZADO com o estado real das peças.
+  // A regra inteira (e o porquê de a versão antiga errar em 100% dos
+  // eventos) mora em lib/painel-prazo.ts, testada. O 4º argumento é
+  // o que impede o "ATRASADO 8D" num evento que ninguém mais toca.
+  const deadline: PrazoChip | null = computeDeadlineChip(
+    meta?.truckDayMs ?? null, hojeMs, meta?.pendentes ?? 0, !!selo,
+  );
+  const todasSelecionadas = visibleItems.length > 0 && visibleItems.every((i: any) => i.deletedAt || selectedIds.has(i.id));
+  // Peças paradas: varre TODAS as peças do evento — memoizado, só refaz quando
+  // as peças ou o relógio de hora mudam (antes era a cada render da página).
+  const paradas = useMemo(
+    () => (gd.items as any[])
+      .map(i => ({ i, d: diasNoEstado(i, relogioIdade) }))
+      .filter((x): x is { i: any; d: number } => x.d !== null && x.d > LIMITE_PARADA),
+    [gd.items, relogioIdade],
+  );
+  // Quantas linhas cabem no orçamento, na ORDEM de exibição (grupo pai → tipo).
+  const renderizadas = Math.min(visibleItems.length, linhasPermitidas);
+  const ariaSort = (campo: string): "ascending" | "descending" | "none" =>
+    sortBy === campo ? (sortDir === "asc" ? "ascending" : "descending") : "none";
+
+  // overflow: clip (não hidden): clipa o border-radius SEM criar
+  // scroll-container — pré-requisito para o thead sticky funcionar
+  // contra o scroll da página.
+  return (
+    <div style={{ border: "1px solid #e2e2e2", borderRadius: 12, backgroundColor: "#ffffff", overflow: "clip", boxShadow: "0 2px 8px rgba(28,25,23,0.07)" }}>
+
+      {/* Group header — sticky logo abaixo da toolbar (topOffset):
+          mantém o contexto do evento visível ao rolar listas longas.
+          zIndex 6 fica ACIMA do thead sticky (5) e ABAIXO da toolbar
+          (8); fundo sólido para as linhas não vazarem por trás.
+          Altura FIXA (EVENT_HEADER_H) — é ela que o thead usa como
+          `top` para encostar exatamente abaixo. Nada aqui cria novo
+          scroll-container (ver comentário na tabela). */}
+      <div style={{
+        position: "sticky", top: topOffset, zIndex: 6,
+        backgroundColor: "#ffffff",
+        borderBottom: "1px solid #e7e5e4",
+        // Altura fixa SÓ no desktop (onde o thead precisa dela p/
+        // calcular o próprio top). Mobile usa cards, sem thead —
+        // altura automática deixa os metadados quebrarem linha.
+        ...(useCards
+          ? { padding: "13px 18px 13px 20px" }
+          : { padding: "0 18px 0 20px", height: EVENT_HEADER_H, boxSizing: "border-box" as const }),
+        display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16,
+        // Acento do evento fora de jogo — o MESMO da lista de
+        // Eventos: cinza no encerrado à mão (verde diria "deu tudo
+        // certo", âmbar diria "corre atrás", e encerrado não é
+        // nenhum dos dois) e âmbar no realizado. O laranja da marca
+        // fica para os eventos que ainda estão em jogo.
+        borderLeft: `3px solid ${selo ? selo.dot : "#f97316"}`,
+      }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
+          <div style={{ minWidth: 0 }}>
+            {/* Nome do evento navega para o detalhe. Era a única saída
+                da tela e não parecia clicável: sem hover, sem
+                sublinhado, sem ícone e sem foco visível — descoberta
+                por acaso não é descoberta. Afordância no CSS (.pg-event-link). */}
+            {gd.eventId ? (
+              <Link
+                href={`/eventos/${gd.eventId}`}
+                onClick={(e) => e.stopPropagation()}
+                title={`Abrir evento ${gd.eventName}`}
+                className="pg-event-link"
+              >
+                <span style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
+                  <h3 style={EVENT_TITLE_STYLE}>{gd.eventName}</h3>
+                  <ArrowUpRight className="pg-goto" style={{ width: 12, height: 12, color: "#c2410c" }} aria-hidden="true" />
+                </span>
+              </Link>
+            ) : (
+              <h3 style={EVENT_TITLE_STYLE}>{gd.eventName}</h3>
+            )}
+            {/* Ordem invertida de propósito: o CHIP DE PRAZO vem
+                primeiro e não encolhe. Com as datas primeiro e
+                flexWrap nowrap + overflow hidden, o que era clipado
+                em silêncio (sem reticências) era justamente
+                "Atrasado 5d" — o dado mais acionável da linha. */}
+            <div style={{ display: "flex", alignItems: "center", gap: useCards ? 10 : 12, marginTop: 5, minWidth: 0, flexWrap: useCards ? "wrap" : "nowrap", overflow: "hidden" }}>
+              {/* O selo vem ANTES do chip de prazo e também não
+                  encolhe: ele é a chave de leitura de todo o resto da
+                  linha. Sem ele, "Saiu há 8d · 66 em aberto" parecia
+                  um evento vivo em apuros. Palavras da lista de
+                  Eventos — as duas telas falam do mesmo estado. */}
+              {selo && (
+                <span
+                  title={selo.hint}
+                  data-testid={`selo-evento-${eventKey}`}
+                  style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 600, lineHeight: 1.3, color: selo.text, backgroundColor: selo.bg, border: `1px solid ${selo.border}`, borderRadius: 999, padding: "1px 8px", whiteSpace: "nowrap", flexShrink: 0 }}
+                >
+                  <span style={{ width: 6, height: 6, borderRadius: "50%", backgroundColor: selo.dot, flexShrink: 0 }} aria-hidden="true" />
+                  {isCompact || useCards ? selo.short : selo.label}
+                </span>
+              )}
+              {deadline && (
+                <span
+                  title={deadline.srLabel}
+                  data-testid={`chip-prazo-${eventKey}`}
+                  style={{ fontSize: 12, fontWeight: deadline.tone === "neutral" ? 500 : 700, color: deadline.color, whiteSpace: "nowrap", flexShrink: 0 }}
+                >
+                  {deadline.text}
+                </span>
+              )}
+              {/* ── PECAS PARADAS ──
+
+                  Antes das datas e com `flexShrink: 0`, pela mesma
+                  regra do chip de prazo ao lado: dado acionavel nao
+                  pode ser clipado em silencio quando a largura
+                  aperta. A data pode encolher; "7 paradas" nao.
+
+                  So aparece acima do limite — abaixo dele a peca esta
+                  em fluxo, e um chip em todo cabecalho viraria papel
+                  de parede. */}
+              {(() => {
+                if (paradas.length === 0) return null;
+                const pior = paradas.reduce((a, b) => (b.d > a.d ? b : a));
+                const tom = tomDaIdade(pior.d);
+                return (
+                  <span
+                    data-testid={`chip-paradas-${eventKey}`}
+                    title={`${paradas.length} ${paradas.length === 1 ? "peça parada" : "peças paradas"} há mais de ${LIMITE_PARADA} dias. A mais antiga: ${pior.i.displayId} em ${getStatusMeta(pior.i.status).label}, ${idadePorExtenso(pior.d)}.`}
+                    style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 12, fontWeight: tom.peso, color: tom.cor, whiteSpace: "nowrap", flexShrink: 0 }}
+                  >
+                    <Hourglass aria-hidden="true" style={{ width: 11, height: 11 }} />
+                    {paradas.length} {paradas.length === 1 ? "parada" : "paradas"} {isCompact ? `+${LIMITE_PARADA} dias` : `há mais de ${LIMITE_PARADA} dias`}
+                  </span>
+                );
+              })()}
+              {firstItem?.event?.truckDepartureDate && (
+                <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, fontWeight: 500, color: "#746e69", whiteSpace: "nowrap", flexShrink: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>
+                  <Truck style={{ width: 11, height: 11, flexShrink: 0 }} />
+                  Saída: {format(toUTCDisplayDate(firstItem.event.truckDepartureDate), "dd MMM yyyy 'às' HH:mm", { locale: ptBR })}
+                </span>
+              )}
+              {/* "Início" é o metadado menos acionável; some primeiro
+                  em container estreito (continua na ficha do evento). */}
+              {firstItem?.event?.startDate && !isCompact && (
+                <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, fontWeight: 500, color: "#746e69", whiteSpace: "nowrap", flexShrink: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>
+                  <Calendar style={{ width: 11, height: 11, flexShrink: 0 }} />
+                  Início: {format(parseDateLocal(firstItem.event.startDate), "dd MMM yyyy", { locale: ptBR })}
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
+          {!useCards && <EventStatusBar items={gd.items} width={120} />}
+          {/* Contador é informação neutra — texto simples, sem
+              pílula nem caixa-alta: ao lado do chip de prazo e do
+              selo, uma terceira cápsula só disputava o olho com os
+              dois que pedem ação. #57534e sobre #ffffff = 7,63:1. */}
+          <span style={{ fontSize: 12, fontWeight: 600, color: "#57534e", whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}>
+            {fmtN(gd.items.length)} {gd.items.length === 1 ? "peça" : "peças"}
+          </span>
+        </div>
+      </div>
+
+      {!groupOpen ? (
+        <button
+          onClick={() => acoes.abrirGrupo(eventKey, Math.min(gd.items.length, ROW_CAP))}
+          data-testid={`button-open-group-${eventKey}`}
+          style={{ width: "100%", padding: "13px", background: "#fafaf9", border: "none", color: "#1c1917", fontWeight: 700, fontSize: 13, cursor: "pointer" }}
+        >
+          Mostrar as {gd.items.length} {gd.items.length === 1 ? "peça" : "peças"} deste evento
+        </button>
+      ) : useCards ? (
+        <div style={{ padding: "8px 10px", display: "flex", flexDirection: "column", gap: 0 }}>
+          {(() => {
+            let cardIdx = 0;
+            return secoes.map(({ group, tipos }) => (
+              <Fragment key={group || '__nogroup'}>
+                {/* A FAIXA AZUL DO GRUPO PAI SAIU TAMBÉM DAQUI. No
+                    desktop ela já tinha virado prefixo da linha de
+                    tipo; o celular ficou com a versão antiga — azul,
+                    caixa-alta 10px, uma família de cor que não se
+                    repete em lugar nenhum. Agora as duas larguras
+                    dizem "Grupo / Tipo  N" do mesmo jeito. */}
+                {tipos.map(([type, typeItems]) => {
+                  // Orçamento: o tipo só aparece se ao menos uma peça dele cabe.
+                  const cabem = Math.max(0, Math.min(typeItems.length, renderizadas - cardIdx));
+                  if (cabem === 0) return null;
+                  return (
+                    <Fragment key={type}>
+                      {/* Type sub-header */}
+                      <div style={{ display: "flex", alignItems: "baseline", gap: 6, padding: "10px 4px 6px", marginTop: 4, overflow: "hidden" }}>
+                        <span style={{ fontSize: 13, fontWeight: 700, color: "#44403c", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0, flex: 1 }}>
+                          {group && <span style={{ fontWeight: 500, color: "#746e69" }}>{group} / </span>}
+                          {type}
+                        </span>
+                        <span style={{ fontSize: 12, fontWeight: 600, color: "#746e69", flexShrink: 0, fontVariantNumeric: "tabular-nums" }}>
+                          {typeItems.length}
+                        </span>
+                      </div>
+                      {typeItems.slice(0, cabem).map((item: any) => (
+                        <CartaoDaPeca
+                          key={item.id}
+                          item={item}
+                          idx={cardIdx++}
+                          selo={selo}
+                          isAdmin={isAdmin}
+                          canDeleteAny={canDeleteAny}
+                          restaurando={restoringItemId === item.id}
+                          restorePending={restorePending}
+                          acoes={acoes}
+                        />
+                      ))}
+                    </Fragment>
+                  );
+                })}
+              </Fragment>
+            ));
+          })()}
+          {hiddenCount > 0 && renderizadas === visibleItems.length && (
+            <button
+              onClick={() => acoes.expandir(eventKey, hiddenCount)}
+              data-testid={`button-show-all-${eventKey}`}
+              style={{ width: "100%", padding: "13px", marginTop: 4, background: "#fafaf9", border: "1px solid #e7e5e4", borderRadius: 8, color: "#1c1917", fontWeight: 700, fontSize: 13, cursor: "pointer" }}
+            >
+              Mostrar todas as {gd.items.length} peças (+{hiddenCount})
+            </button>
+          )}
+        </div>
+      ) : (
+      /* overflow visível (não auto): qualquer scroll-container entre o
+         th e o scroll da página quebraria o sticky do cabeçalho. O
+         desktop comporta a tabela; larguras menores usam cards. */
+      <div style={{ overflow: "visible" }}>
+        {/* table-layout: fixed + colgroup — com `auto`, a largura
+            mínima de uma coluna é o min-content do conteúdo, então um
+            único campo de texto livre (a observação) esticava a tabela
+            inteira e a página ganhava barra horizontal SILENCIOSA (o
+            overflow-y do SidebarInset faz o overflow-x computar auto).
+            Com fixed, nenhum conteúdo futuro consegue estourar. */}
+        <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
+          <caption className="sr-only">Peças do evento {gd.eventName}</caption>
+          <colgroup>
+            <col style={{ width: 40 }} />
+            {isCompact ? (
+              <>
+                <col style={{ width: "27%" }} />
+                <col style={{ width: "40%" }} />
+                <col style={{ width: "17%" }} />
+              </>
+            ) : (
+              <>
+                <col style={{ width: "15%" }} />
+                <col style={{ width: "27%" }} />
+                <col style={{ width: "12%" }} />
+                <col style={{ width: "17%" }} />
+                <col style={{ width: "12%" }} />
+              </>
+            )}
+            <col style={{ width: 96 }} />
+          </colgroup>
+          <thead>
+            <tr>
+              {(() => {
+                const thBase: React.CSSProperties = {
+                  /* Sticky: colunas continuam visíveis ao rolar listas
+                     longas. bg no th (não no tr) — th sticky sem fundo
+                     ficaria transparente sobre as linhas.
+                     top = topOffset + EVENT_HEADER_H: encosta exatamente
+                     sob o header sticky do evento, que por sua vez está
+                     sob a toolbar sticky (altura medida). */
+                  position: "sticky", top: topOffset + EVENT_HEADER_H, zIndex: 5,
+                  // CABEÇALHO CLARO. Era #1c1917 sólido — e com 38
+                  // eventos abertos a tela desenhava 38 barras pretas
+                  // de ponta a ponta, o elemento mais pesado do painel
+                  // repetido dezenas de vezes. O cabeçalho de tabela
+                  // não é conteúdo: é régua. A Arte e o Detalhe do
+                  // Evento já usam este tratamento claro.
+                  // #57534e sobre #fafaf9 = 7,30:1 ✓ nos 11px.
+                  backgroundColor: "#fafaf9",
+                  borderBottom: "1px solid #e7e5e4",
+                  padding: "11px 20px",
+                  fontSize: 11, fontWeight: 800, textTransform: "uppercase",
+                  letterSpacing: "0.08em", color: "#57534e",
+                  textAlign: "left",
+                  whiteSpace: "nowrap",
+                };
+                const seta = (campo: string) => sortBy === campo ? (sortDir === "asc" ? " ↑" : " ↓") : "";
+                const cols: React.ReactNode[] = [
+                  <th key="sel" scope="col" style={{ ...thBase, padding: "12px 0 12px 12px" }}>
+                    <label className="pg-check">
+                      <input
+                        type="checkbox"
+                        checked={todasSelecionadas}
+                        onChange={(e) => acoes.alternarSelecaoDoEvento(visibleItems, e.target.checked)}
+                        aria-label={`Selecionar as peças visíveis do evento ${gd.eventName}`}
+                        data-testid={`checkbox-all-${eventKey}`}
+                        style={{ width: 15, height: 15, cursor: "pointer", accentColor: "#c2410c" }}
+                      />
+                    </label>
+                  </th>,
+                  <th key="id" scope="col" aria-sort={ariaSort("displayId")} style={thBase}>
+                    <span className="pg-sortable" role="button" tabIndex={0} onClick={() => acoes.ordenar("displayId")} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); acoes.ordenar("displayId"); } }} title="Ordenar por ID">
+                      {isCompact ? "ID / Medidas" : "ID"}{seta("displayId")}
+                    </span>
+                  </th>,
+                  <th key="desc" scope="col" style={thBase}>{isCompact ? "Descrição / Patrocinador" : "Descrição"}</th>,
+                ];
+                if (!isCompact) {
+                  cols.push(
+                    <th key="med" scope="col" aria-sort={ariaSort("area")} style={thBase}>
+                      <span className="pg-sortable" role="button" tabIndex={0} onClick={() => acoes.ordenar("area")} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); acoes.ordenar("area"); } }} title="Ordenar por área">
+                        Medidas{seta("area")}
+                      </span>
+                    </th>,
+                    <th key="pat" scope="col" style={thBase}>Patrocinador</th>,
+                  );
+                }
+                cols.push(
+                  <th key="st" scope="col" aria-sort={ariaSort("status")} style={thBase}>
+                    <span className="pg-sortable" role="button" tabIndex={0} onClick={() => acoes.ordenar("status")} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); acoes.ordenar("status"); } }} title="Ordenar pela etapa do fluxo">
+                      Status · tempo{seta("status")}
+                    </span>
+                  </th>,
+                  <th key="ac" scope="col" style={{ ...thBase, textAlign: "right" }}>Ações</th>,
+                );
+                return cols;
+              })()}
+            </tr>
+          </thead>
+          <tbody>
+            {(() => {
+              let globalIdx = 0;
+              return secoes.map(({ group, tipos }) => (
+                <Fragment key={group || '__nogroup'}>
+                  {/* A FAIXA AZUL DO GRUPO PAI SAIU. Eram DUAS linhas
+                      inteiras empilhadas para rotular a mesma coisa —
+                      uma azul com "2X1" e outra cinza com "2×1 PADRÃO
+                      · 10" — em duas famílias de cor que não se
+                      repetem em lugar nenhum da tela.
+                      O pai virou PREFIXO da linha de tipo. Além de
+                      devolver uma linha por grupo, informa mais: antes
+                      o pai aparecia uma vez e some ao rolar; agora ele
+                      acompanha cada tipo. */}
+                  {tipos.map(([type, typeItems]) => {
+                    // Orçamento: o tipo só aparece se ao menos uma peça dele cabe.
+                    const cabem = Math.max(0, Math.min(typeItems.length, renderizadas - globalIdx));
+                    if (cabem === 0) return null;
+                    return (
+                <Fragment key={type}>
+                  {/* ── Type sub-header ── */}
+                  <tr>
+                    <td colSpan={colCount} style={{
+                      padding: "6px 18px 6px 20px",
+                      // #f5f5f4 e não #fafaf9: o cabeçalho da tabela
+                      // passou a ser claro nesta rodada, e os dois no
+                      // mesmo tom viravam a mesma faixa repetida.
+                      backgroundColor: "#f5f5f4",
+                      borderTop: "1px solid #e7e5e4",
+                      borderBottom: "1px solid #e7e5e4",
+                    }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        {group && (
+                          <>
+                            {/* #746e69 sobre #f5f5f4 = 4,61:1 ✓ nos 11px.
+                                O comentario anterior dizia "#78716c = 4,7:1"
+                                e estava ERRADO: aquele cinza da 4,40 sobre
+                                este fundo e REPROVA AA. Os dois cinzas ficam
+                                a 6 unidades de distancia — indistinguiveis —
+                                entao o que passa substitui o que falha, sem
+                                custo visual nenhum.
+                                O pai vem em peso e cor MENORES que o
+                                tipo: ele é contexto, o tipo é o rótulo. */}
+                            <span style={{ fontSize: 12, fontWeight: 500, color: "#746e69" }}>
+                              {group}
+                            </span>
+                            {/* #746e69: é glifo de texto, e a casa proíbe #a8a29e como cor de texto (2,52:1). */}
+                            <span aria-hidden="true" style={{ color: "#746e69", fontSize: 12 }}>/</span>
+                          </>
+                        )}
+                        <span style={{ fontSize: 13, fontWeight: 700, color: "#44403c" }}>
+                          {type}
+                        </span>
+                        {/* A contagem deixou de ser pílula: número
+                            simples, #746e69 sobre #f5f5f4 = 4,61:1. */}
+                        <span style={{ fontSize: 12, fontWeight: 600, color: "#746e69", fontVariantNumeric: "tabular-nums" }}>
+                          {typeItems.length}
+                        </span>
+                      </div>
+                    </td>
+                  </tr>
+
+                  {/* ── Items within this type ── */}
+                  {typeItems.slice(0, cabem).map((item: any) => (
+                    <LinhaDaPeca
+                      key={item.id}
+                      item={item}
+                      idx={globalIdx++}
+                      selecionado={selectedIds.has(item.id)}
+                      selo={selo}
+                      isCompact={isCompact}
+                      isAdmin={isAdmin}
+                      canDeleteAny={canDeleteAny}
+                      restaurando={restoringItemId === item.id}
+                      restorePending={restorePending}
+                      relogioIdade={relogioIdade}
+                      acoes={acoes}
+                    />
+                  ))}
+                </Fragment>
+                    );
+                  })}
+                </Fragment>
+              ));
+            })()}
+            {hiddenCount > 0 && renderizadas === visibleItems.length && (
+              <tr>
+                <td colSpan={colCount} style={{ padding: 0 }}>
+                  <button
+                    onClick={() => acoes.expandir(eventKey, hiddenCount)}
+                    data-testid={`button-show-all-${eventKey}`}
+                    style={{ width: "100%", padding: "13px", background: "#fafaf9", border: "none", borderTop: "1px solid #e7e5e4", color: "#1c1917", fontWeight: 700, fontSize: 13, cursor: "pointer" }}
+                  >
+                    Mostrar todas as {gd.items.length} peças (+{hiddenCount})
+                  </button>
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+      )}
+    </div>
+  );
+});
+
 
 export default function PainelGeral() {
   const { toast } = useToast();
@@ -588,11 +1716,7 @@ export default function PainelGeral() {
   }, []);
 
   const [expandedEvents, setExpandedEvents] = useState<Set<string>>(new Set());
-  const expandEvent = (key: string) =>
-    setExpandedEvents(prev => { const next = new Set(prev); next.add(key); return next; });
   const [openGroups, setOpenGroups] = useState<Set<string>>(new Set());
-  const openGroup = (key: string) =>
-    setOpenGroups(prev => { const next = new Set(prev); next.add(key); return next; });
   const [selectedItem, setSelectedItem] = useState<any>(null);
   // Aumento de quantidade pós-produção (COMPLEMENTO): a peça-mãe em foco.
   const [deleteConfirmItemId, setDeleteConfirmItemId] = useState<string | null>(null);
@@ -638,8 +1762,13 @@ export default function PainelGeral() {
   // desta tela sobrescreve o padrão: fica velha em 30s, revalida sozinha a cada
   // 60s e ao voltar o foco da aba. Sem botão "Atualizar" (decisão do dono): a
   // tela se atualiza sozinha e o carimbo diz desde quando o que se lê é verdade.
+  //
+  // PERF-4: `isFetching` e `dataUpdatedAt` NÃO são lidos aqui — quem os lê é o
+  // <CarimboDeFrescor>. O React Query só re-renderiza o componente que lê a
+  // propriedade; lidos aqui, cada revalidação re-renderizava a página duas
+  // vezes mesmo quando o servidor devolvia o mesmo acervo.
   const {
-    data: itensDoServidor = [], isLoading, isError, isFetching, dataUpdatedAt, refetch,
+    data: itensDoServidor = LISTA_VAZIA, isLoading, isError, refetch,
   } = useQuery<any[]>({
     queryKey: ["/api/items"],
     staleTime: 30_000,
@@ -649,18 +1778,19 @@ export default function PainelGeral() {
   });
   // BOOK COMPLETO fica de fora: é o trâmite do Atendimento, não uma peça (ver shared/fluxo-peca).
   const items = useMemo(() => (itensDoServidor as any[]).filter((i: any) => !ehBookCompleto(i)), [itensDoServidor]);
-  const { data: events = [] }        = useQuery<Event[]>({ queryKey: ["/api/events"], placeholderData: [], staleTime: 30_000, refetchOnWindowFocus: true });
-  const { data: sponsors = [] }      = useQuery<Sponsor[]>({ queryKey: ["/api/sponsors"], placeholderData: [] });
-  const { data: standardItems = [] } = useQuery<StandardItem[]>({ queryKey: ["/api/standard-items"], placeholderData: [] });
+  const { data: sponsors = LISTA_VAZIA }      = useQuery<Sponsor[]>({ queryKey: ["/api/sponsors"], placeholderData: LISTA_VAZIA });
+  const { data: standardItems = LISTA_VAZIA } = useQuery<StandardItem[]>({ queryKey: ["/api/standard-items"], placeholderData: LISTA_VAZIA });
 
-  // Relógio de parede só para o carimbo envelhecer sozinho na tela: sem ele,
-  // "há 2 min" ficava escrito até a próxima revalidação.
-  const [agora, setAgora] = useState(() => Date.now());
+  // Relógio de IDADE, na hora cheia. As idades ("há 3 dias") são em dias
+  // inteiros e as linhas são memoizadas: um "agora" que mudasse a cada render
+  // re-renderizaria todas elas. Este só muda uma vez por hora (o setState com
+  // o mesmo número é descartado pelo React), então a idade nunca fica mais de
+  // uma hora atrasada e a lista não re-renderiza à toa.
+  const [relogioIdade, setRelogioIdade] = useState(() => Math.floor(Date.now() / HORA_MS) * HORA_MS);
   useEffect(() => {
-    const t = setInterval(() => setAgora(Date.now()), 30_000);
+    const t = setInterval(() => setRelogioIdade(Math.floor(Date.now() / HORA_MS) * HORA_MS), 60_000);
     return () => clearInterval(t);
   }, []);
-  const frescor = formatFrescor(dataUpdatedAt, agora);
 
   // Audit log SÓ da peça aberta no modal, buscado sob demanda. Antes a página
   // baixava /api/audit-logs INTEIRO no load (tabela que só cresce — em 1 ano,
@@ -675,12 +1805,17 @@ export default function PainelGeral() {
     // como "array" — normaliza para lista vazia.
     select: d => (Array.isArray(d) ? d : []),
     enabled: !!selectedItem?.id,
-    placeholderData: [],
+    placeholderData: LISTA_VAZIA,
   });
 
   const showDeleted = statusFilter.includes("deleted");
   const {
-    data: deletedItems = [],
+    // LISTA_VAZIA e não `[]`: com a query desligada (o normal — sem a visão
+    // Excluídos), `= []` criava um array novo a CADA render, e como ele é
+    // dependência do useMemo do recorte, a filtragem/ordenação/agrupamento
+    // das 5.000 peças era refeita a cada clique na tela (abrir um menu, abrir
+    // a ficha, o relógio do carimbo). Era o gargalo nº 1 medido na PERF-4.
+    data: deletedItems = LISTA_VAZIA,
     isLoading: deletedLoading,
     isError: deletedError,
     refetch: refetchDeleted,
@@ -688,6 +1823,28 @@ export default function PainelGeral() {
     queryKey: ["/api/items/deleted"],
     enabled: showDeleted && canDeleteAny,
   });
+
+  // ── /api/events só quando faz falta (PERF-4) ─────────────────────────────
+  // Esta tela usava a lista de eventos (826 KB em produção, baixada duas vezes
+  // na abertura) só para NOME e PRIORIDADE de um id — e toda peça de
+  // /api/items já traz o evento dela embutido (`item.event`, o registro cru do
+  // enrich do servidor, re-costurado a cada delta). O mapa sai daí. A lista
+  // completa só é pedida no caso em que as peças não respondem: um link com
+  // ?evento= de um evento sem nenhuma peça aqui, para o chip do filtro dizer o
+  // nome e não o id.
+  const eventoDasPecas = useMemo(() => {
+    const m = new Map<string, any>();
+    for (const lista of [items, deletedItems]) {
+      for (const i of lista as any[]) if (i.eventId && i.event && !m.has(i.eventId)) m.set(i.eventId, i.event);
+    }
+    return m;
+  }, [items, deletedItems]);
+  const faltaNomeDeEvento = !isLoading && eventFilter.some((id) => !eventoDasPecas.has(id));
+  const { data: events = LISTA_VAZIA as Event[] } = useQuery<Event[]>({
+    queryKey: ["/api/events"], staleTime: 30_000, refetchOnWindowFocus: true, enabled: faltaNomeDeEvento,
+  });
+  const nomeDoEvento = (id: string): string | undefined =>
+    eventoDasPecas.get(id)?.name ?? events.find((e) => e.id === id)?.name;
 
   // Restaurar (desfaz o soft delete) — SOMENTE admin; a visão Excluídos era
   // um beco sem saída (dava para ver, não para voltar).
@@ -747,26 +1904,22 @@ export default function PainelGeral() {
     return map;
   }, [standardItems]);
 
-  // Filtragem, ordenação, agrupamento e KPIs são recomputados SÓ quando os
-  // dados ou filtros mudam — sem o useMemo, cada render (ex.: abrir um modal)
-  // refazia filter+sort da lista inteira.
-  const { filteredItems, sortedGroupEntries, stats, eventMeta, atencao, ocultas,
-          eventFilterOptions, typeFilterOptions, sponsorFilterOptions, dateFilterOptions } = useMemo(() => {
-  // Hoje à meia-noite — calculado UMA vez por recomputação (antes era um
-  // new Date por item dentro do filtro).
-  const today = new Date(); today.setHours(0, 0, 0, 0);
-  const todayMs = today.getTime();
   // Âncora SEPARADA para o predicado de evento finalizado, e ela é obrigatória:
-  // `todayMs` acima é meia-noite LOCAL do navegador, enquanto o predicado
-  // compartilhado (servidor + as cinco filas) roda no dia do negócio em
-  // São Paulo. Duas âncoras diferentes fariam o Painel divergir das filas
+  // `todayMs` (no memo abaixo) é meia-noite LOCAL do navegador, enquanto o
+  // predicado compartilhado (servidor + as cinco filas) roda no dia do negócio
+  // em São Paulo. Duas âncoras diferentes fariam o Painel divergir das filas
   // exatamente na virada do dia — o horário em que alguém confere o painel
-  // antes do evento.
+  // antes do evento. É um número por DIA: como dependência de memo, só muda
+  // na virada.
   const hojeNegocioMs = todayBusinessMs();
 
-  // Içado do applyBaseFilters: eram até 4 toLowerCase() do MESMO termo por item.
-  const q = searchTerm.toLowerCase();
-
+  // ── Retrato do evento, em memo PRÓPRIO (17/09) ───────────────────────────
+  // Morava dentro do memo dos filtros: cada tecla da busca, cada troca de
+  // status ou de ordenação criava um Map novo com objetos `meta` novos — e o
+  // `memo` de GrupoDoEvento (que recebe `meta` e, por ele, o `selo` que desce
+  // a cada linha) nunca pulava grupo nenhum. O retrato só lê `items` e o dia
+  // do negócio; é deles que depende.
+  const { eventMeta, seloDosEventosVivos } = useMemo(() => {
   // ── Retrato do evento, calculado sobre a base INTEIRA ────────────────────
   // De propósito não usa a lista filtrada: o chip de prazo diz "3 pendentes" e
   // esse número não pode encolher porque o usuário filtrou por "Entregue". O
@@ -803,7 +1956,36 @@ export default function PainelGeral() {
   // em `eventMeta`. Sem o fallback, a peça excluída de um evento encerrado
   // apareceria sem selo nenhum — exatamente o silêncio que este trabalho veio
   // acabar.
-  const seloPorEvento = new Map<string, SeloEventoFinalizado | null>();
+  const seloDosEventosVivos = new Map<string, SeloEventoFinalizado | null>();
+  for (const i of items as any[]) {
+    const key = i.eventId || "no-event";
+    const m = eventMeta.get(key);
+    if (!m || m.selo !== null) continue;
+    if (!seloDosEventosVivos.has(key)) {
+      seloDosEventosVivos.set(key, seloEventoFinalizado(i.event ?? null, hojeNegocioMs, m.pendentes));
+    }
+    m.selo = seloDosEventosVivos.get(key)!;
+  }
+  return { eventMeta, seloDosEventosVivos };
+  }, [items, hojeNegocioMs]);
+
+  // Filtragem, ordenação, agrupamento e KPIs são recomputados SÓ quando os
+  // dados ou filtros mudam — sem o useMemo, cada render (ex.: abrir um modal)
+  // refazia filter+sort da lista inteira.
+  const { filteredItems, sortedGroupEntries, stats, atencao, ocultas,
+          eventFilterOptions, typeFilterOptions, sponsorFilterOptions, dateFilterOptions } = useMemo(() => {
+  // Hoje à meia-noite — calculado UMA vez por recomputação (antes era um
+  // new Date por item dentro do filtro).
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const todayMs = today.getTime();
+
+  // Içado do applyBaseFilters: eram até 4 toLowerCase() do MESMO termo por item.
+  const q = searchTerm.toLowerCase();
+
+  // Cópia por recomputação: o fallback abaixo acrescenta eventos que só
+  // existem na lista de EXCLUÍDAS, e isso não pode vazar para o memo do
+  // retrato (que não depende de `deletedItems`).
+  const seloPorEvento = new Map(seloDosEventosVivos);
   const seloDoItem = (item: any): SeloEventoFinalizado | null => {
     const key = item.eventId || "no-event";
     if (seloPorEvento.has(key)) return seloPorEvento.get(key)!;
@@ -811,10 +1993,6 @@ export default function PainelGeral() {
     seloPorEvento.set(key, selo);
     return selo;
   };
-  for (const i of items as any[]) {
-    const m = eventMeta.get(i.eventId || "no-event");
-    if (m && m.selo === null) m.selo = seloDoItem(i);
-  }
   const eventoFinalizado = (item: any) => seloDoItem(item) !== null;
 
   const temReprovacao = (item: any) =>
@@ -847,10 +2025,19 @@ export default function PainelGeral() {
   // É ele que alimenta a contagem do chip — sem essa separação o chip zeraria
   // assim que o usuário revelasse as peças, e o caminho de VOLTA para a lista
   // limpa desapareceria junto com ele.
-  const seriaOculto = (item: any) =>
-    eventoFinalizado(item)
-    && !buscaEhCodigoDaPeca(item.displayId, searchTerm)
-    && !eventFilter.includes(item.eventId);
+  // Memoizado por peça DENTRO desta recomputação: a mesma peça passa por aqui
+  // até seis vezes (base, ocultas, três pools de menu e a lista).
+  const ocultoCache = new Map<any, boolean>();
+  const seriaOculto = (item: any) => {
+    let r = ocultoCache.get(item);
+    if (r === undefined) {
+      r = eventoFinalizado(item)
+        && !buscaEhCodigoDaPeca(item.displayId, searchTerm)
+        && !eventFilter.includes(item.eventId);
+      ocultoCache.set(item, r);
+    }
+    return r;
+  };
   const ocultoPorEvento = (item: any) => !mostrarFinalizados && seriaOculto(item);
 
   /**
@@ -862,20 +2049,27 @@ export default function PainelGeral() {
    * server/__tests__/faceta-lista-invariante.test.ts.
    */
   type DimBase = "evento" | "tipo" | "patrocinador" | "data";
-  const applyBaseFilters = (item: any, exceto?: DimBase) => {
-    const matchesSearch =
-      item.type?.toLowerCase().includes(q) ||
-      (item.event?.name || "").toLowerCase().includes(q) ||
-      item.displayId?.toLowerCase().includes(q) ||
-      (item.description || "").toLowerCase().includes(q) ||
-      // Patrocinador: a tela exibe chips de patrocinador em toda linha, então
-      // "buscar Ambev" é tentativa natural — e devolvia zero.
-      (Array.isArray(item.sponsors) && item.sponsors.some((s: any) => (s?.name || "").toLowerCase().includes(q)));
-    const matchesEvent   = exceto === "evento"        || eventFilter.length === 0   || eventFilter.includes(item.eventId);
-    const matchesType    = exceto === "tipo"          || typeFilter.length === 0    || typeFilter.includes(item.type);
-    const matchesSponsor = exceto === "patrocinador"  || sponsorFilter.length === 0 ||
+  // PERF-4: cada dimensão é avaliada UMA vez por peça por recomputação e
+  // guardada como máscara de bits das dimensões que a peça NÃO casa. Antes a
+  // peça era reavaliada inteira em cada chamada — uma pela base, uma por menu
+  // com contagem e uma pela lista —, com cinco toLowerCase de busca em cada.
+  // `applyBaseFilters(item, exceto)` responde igual: ignora o bit da dimensão
+  // excluída e exige que as demais casem.
+  const BIT_DIM: Record<DimBase, number> = { evento: 1, tipo: 2, patrocinador: 4, data: 8 };
+  const BIT_BUSCA = 16;
+  const falhasPorPeca = new Map<any, number>();
+  const falhasDoRecorte = (item: any): number => {
+    const cache = falhasPorPeca.get(item);
+    if (cache !== undefined) return cache;
+    // Busca sobre o texto memoizado da peça (código, evento, tipo, descrição
+    // e patrocinador — ver textoDeBusca). Patrocinador: a tela exibe chips de
+    // patrocinador em toda linha, então "buscar Ambev" é tentativa natural.
+    const matchesSearch = q === "" || textoDeBusca(item).includes(q);
+    const matchesEvent   = eventFilter.length === 0   || eventFilter.includes(item.eventId);
+    const matchesType    = typeFilter.length === 0    || typeFilter.includes(item.type);
+    const matchesSponsor = sponsorFilter.length === 0 ||
       (item.sponsors && Array.isArray(item.sponsors) && item.sponsors.some((s: any) => sponsorFilter.includes(s.id)));
-    const matchesDate = exceto === "data" || dateFilter.length === 0 || (() => {
+    const matchesDate = dateFilter.length === 0 || (() => {
       // Âncora: SAÍDA DO CAMINHÃO (decisão de negócio) — é o prazo operacional
       // que os chips e alertas usam. Antes filtrava pelo início do evento, que
       // podia dizer "no prazo" com o caminhão já atrasado.
@@ -887,8 +2081,14 @@ export default function PainelGeral() {
       const diff = dayDiff(todayMs, truckDayMs);
       return dateFilter.some(df => df === "no_departure" ? false : (DATE_RANGE_MAP[df] ? DATE_RANGE_MAP[df](diff) : true));
     })();
-    return matchesSearch && matchesEvent && matchesType && matchesSponsor && matchesDate;
+    const falhas = (matchesSearch ? 0 : BIT_BUSCA) | (matchesEvent ? 0 : BIT_DIM.evento)
+      | (matchesType ? 0 : BIT_DIM.tipo) | (matchesSponsor ? 0 : BIT_DIM.patrocinador)
+      | (matchesDate ? 0 : BIT_DIM.data);
+    falhasPorPeca.set(item, falhas);
+    return falhas;
   };
+  const applyBaseFilters = (item: any, exceto?: DimBase) =>
+    (falhasDoRecorte(item) & ~(exceto ? BIT_DIM[exceto] : 0)) === 0;
 
   // "Fora do prazo": peça ENTREGUE depois do dia em que o caminhão saiu. É a
   // mesma conta de computeDesempenho — inclusive o `<=`, que trata entregar
@@ -984,7 +2184,10 @@ export default function PainelGeral() {
 
   const PRIO_ORDEM: Record<string, number> = { urgente: 0, alta: 1, media: 2, baixa: 3 };
   const PRIO_COR: Record<string, string> = { urgente: "#ef4444", alta: "#f97316", media: "#eab308", baixa: "#3b82f6" };
-  const eventoPorId = new Map((events as any[]).map(e => [e.id, e]));
+  // Nome e prioridade do evento saem do evento EMBUTIDO nas peças (ver
+  // `eventoDasPecas`): todo id deste menu veio de uma peça, então ele sempre
+  // responde — e a tela não precisa da lista inteira de /api/events.
+  const eventoPorId = eventoDasPecas;
 
   const eventFilterOptions = (() => {
     const conta = new Map<string, number>();
@@ -1002,7 +2205,7 @@ export default function PainelGeral() {
       // `pinned` em todas para o FilterSelect preservar esta ordem: por
       // prioridade e, dentro dela, alfabética — era a ordem que a tela já
       // tinha e que a ordenação alfabética padrão do menu desmontaria.
-      .sort((a, b) => a._p !== b._p ? a._p - b._p : a.label.localeCompare(b.label, "pt-BR"))
+      .sort((a, b) => a._p !== b._p ? a._p - b._p : COLLATOR_PT.compare(a.label, b.label))
       .map(({ _p, ...o }) => ({ ...o, pinned: true }));
   })();
 
@@ -1081,7 +2284,7 @@ export default function PainelGeral() {
       // Itens excluídos ficam no final
       if (!!a.deletedAt !== !!b.deletedAt) return a.deletedAt ? 1 : -1;
       const gA = typeToGroup[a.type] || '', gB = typeToGroup[b.type] || '';
-      if (gA !== gB) return gA.localeCompare(gB, 'pt-BR');
+      if (gA !== gB) return COLLATOR_PT.compare(gA, gB);
       // Ordenação escolhida no cabeçalho. O padrão continua sendo o displayId:
       // compareDisplayId, não replace(/\D/g,'') — com o replace, o complemento
       // "#0062-C1" virava 621 e aparecia centenas de linhas longe da mãe.
@@ -1148,16 +2351,16 @@ export default function PainelGeral() {
     if (fa !== fb) return fa - fb;
     const da = eventMeta.get(ka)?.truckDayMs ?? null;
     const db = eventMeta.get(kb)?.truckDayMs ?? null;
-    if (da == null && db == null) return a.eventName.localeCompare(b.eventName, "pt-BR");
+    if (da == null && db == null) return COLLATOR_PT.compare(a.eventName, b.eventName);
     if (da == null) return 1;
     if (db == null) return -1;
     const diff = da - db;
-    return diff !== 0 ? diff : a.eventName.localeCompare(b.eventName, "pt-BR");
+    return diff !== 0 ? diff : COLLATOR_PT.compare(a.eventName, b.eventName);
   });
 
-  return { filteredItems, sortedGroupEntries, stats, eventMeta, atencao, ocultas,
+  return { filteredItems, sortedGroupEntries, stats, atencao, ocultas,
            eventFilterOptions, typeFilterOptions, sponsorFilterOptions, dateFilterOptions };
-  }, [items, deletedItems, showDeleted, searchTerm, statusFilter, eventFilter, sponsorFilter, typeFilter, dateFilter, focoFilter, mostrarFinalizados, typeToGroup, sortBy, sortDir, events, sponsors]);
+  }, [eventMeta, seloDosEventosVivos, hojeNegocioMs, items, deletedItems, showDeleted, searchTerm, statusFilter, eventFilter, sponsorFilter, typeFilter, dateFilter, focoFilter, mostrarFinalizados, typeToGroup, sortBy, sortDir, eventoDasPecas, sponsors]);
 
   // O chip de reversão. Fora do memo de propósito: ele depende de `ocultas`
   // (que vem de lá) mas também do estado do botão, e nada mais.
@@ -1211,6 +2414,55 @@ export default function PainelGeral() {
     setExpandedEvents(new Set());
     setOpenGroups(new Set());
   }, [searchTerm, statusFilter, eventFilter, sponsorFilter, typeFilter, dateFilter, focoFilter, mostrarFinalizados]);
+
+  // ── Orçamento de linhas montadas (ver LINHAS_INICIAIS) ────────────────────
+  // Volta ao inicial quando o RECORTE muda, pela mesma razão do efeito acima —
+  // mas derivado no próprio render (chave do recorte), e não num efeito: com
+  // efeito, o primeiro render do recorte novo ainda montaria o orçamento
+  // grande do anterior para desmontá-lo logo depois.
+  const chaveDoRecorte = JSON.stringify([searchTerm, statusFilter, eventFilter, sponsorFilter, typeFilter, dateFilter, focoFilter, mostrarFinalizados]);
+  const chaveDoRecorteRef = useRef(chaveDoRecorte);
+  chaveDoRecorteRef.current = chaveDoRecorte;
+  const [orcamento, setOrcamento] = useState(() => ({ chave: chaveDoRecorte, n: LINHAS_INICIAIS }));
+  // Sem IntersectionObserver (navegador muito antigo) não há quem peça o
+  // próximo lote: monta tudo de uma vez, como antes.
+  const orcamentoLinhas = typeof IntersectionObserver === "undefined"
+    ? Number.POSITIVE_INFINITY
+    : orcamento.chave === chaveDoRecorte ? orcamento.n : LINHAS_INICIAIS;
+  // `extra` explícito quando o usuário PEDE linhas ("Mostrar todas", "Mostrar
+  // as N peças"): elas entram inteiras de uma vez, como antes, em vez de
+  // esperar a sentinela — e os eventos logo abaixo não somem por um quadro.
+  const crescerOrcamento = useCallback((extra: number = LINHAS_POR_LOTE) => {
+    setOrcamento((prev) => {
+      const chave = chaveDoRecorteRef.current;
+      return { chave, n: (prev.chave === chave ? prev.n : LINHAS_INICIAIS) + extra };
+    });
+  }, []);
+  const pedirProximoLote = useCallback(() => crescerOrcamento(), [crescerOrcamento]);
+
+  // O plano do que vai para o DOM: grupos na ordem da lista, cada um com as
+  // linhas que o orçamento ainda cobre. Os tetos de sempre (GROUP_CAP e
+  // ROW_CAP, botões "Mostrar") valem igual; o orçamento só adia a montagem.
+  const planoDaLista = useMemo(() => {
+    const grupos: Array<{ eventKey: string; gd: { eventId: string | null; eventName: string; items: any[] }; groupOpen: boolean; isExpanded: boolean; linhasPermitidas: number }> = [];
+    let restante = orcamentoLinhas;
+    let incompleto = false;
+    for (let groupIdx = 0; groupIdx < sortedGroupEntries.length; groupIdx++) {
+      const [eventKey, gd] = sortedGroupEntries[groupIdx];
+      const groupOpen = groupIdx < GROUP_CAP || openGroups.has(eventKey);
+      const isExpanded = expandedEvents.has(eventKey);
+      const nVisiveis = !groupOpen ? 0 : (isExpanded || gd.items.length <= ROW_CAP ? gd.items.length : ROW_CAP);
+      // Sem espaço para o cabeçalho E ao menos uma linha, o grupo espera o
+      // próximo lote — um cabeçalho com a tabela vazia embaixo pareceria erro.
+      if (restante < CUSTO_CABECALHO + (nVisiveis > 0 ? 1 : 0)) { incompleto = true; break; }
+      restante -= CUSTO_CABECALHO;
+      const linhasPermitidas = Math.min(nVisiveis, restante);
+      restante -= linhasPermitidas;
+      grupos.push({ eventKey, gd, groupOpen, isExpanded, linhasPermitidas });
+      if (linhasPermitidas < nVisiveis) { incompleto = true; break; }
+    }
+    return { grupos, incompleto };
+  }, [sortedGroupEntries, openGroups, expandedEvents, orcamentoLinhas]);
 
   // ── Visões salvas ─────────────────────────────────────────────────────────
   const visoes = useMemo(() => visoesParaPapel(user?.role), [user?.role]);
@@ -1293,14 +2545,6 @@ export default function PainelGeral() {
     () => filteredItems.filter((i: any) => !i.deletedAt && selectedIds.has(i.id)),
     [filteredItems, selectedIds],
   );
-  const toggleSelecionado = (id: string) =>
-    setSelectedIds(prev => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n; });
-  const toggleSelecaoDoEvento = (evItems: any[], marcar: boolean) =>
-    setSelectedIds(prev => {
-      const n = new Set(prev);
-      for (const i of evItems) { if (i.deletedAt) continue; if (marcar) n.add(i.id); else n.delete(i.id); }
-      return n;
-    });
   const copiarIds = async () => {
     const txt = selecionadas.map((i: any) => i.displayId).join("\n");
     try {
@@ -1314,7 +2558,10 @@ export default function PainelGeral() {
   // ── Exportações ───────────────────────────────────────────────────────────
   // O que sai é sempre o que está na tela: a seleção quando existe, senão o
   // recorte filtrado. Nunca a base inteira, e nunca com peça excluída dentro.
-  const itensParaExportar = (selecionadas.length > 0 ? selecionadas : filteredItems).filter((i: any) => !i.deletedAt);
+  const itensParaExportar = useMemo(
+    () => (selecionadas.length > 0 ? selecionadas : filteredItems).filter((i: any) => !i.deletedAt),
+    [selecionadas, filteredItems],
+  );
   const tituloExport = statusFilter.length
     ? `Peças — ${statusFilter.filter(s => s !== "deleted").map(s => getStatusLabel(s)).join(", ") || "Excluídas"}`
     : "Peças";
@@ -1364,8 +2611,35 @@ export default function PainelGeral() {
   const toggleSort = useCallback((campo: "displayId" | "status" | "area" | "ciclo") => {
     setSortBy(prev => { if (prev === campo) { setSortDir(d => d === "asc" ? "desc" : "asc"); return prev; } setSortDir("asc"); return campo; });
   }, []);
-  const ariaSort = (campo: string): "ascending" | "descending" | "none" =>
-    sortBy === campo ? (sortDir === "asc" ? "ascending" : "descending") : "none";
+
+  // ── Ações da lista: UM objeto estável para todos os grupos e linhas ──────
+  // Funções novas a cada render derrubariam o memo de cada linha. As que só
+  // chamam setState já são estáveis; a de restaurar depende da mutação (objeto
+  // novo por render) e por isso lê a versão atual por ref.
+  const restaurarPecaRef = useRef<(id: string) => void>(() => {});
+  restaurarPecaRef.current = (id: string) => { setRestoringItemId(id); restoreItemMutation.mutate(id); };
+  const acoesDaLista = useMemo<AcoesDaLista>(() => ({
+    abrir: (item) => setSelectedItem(item),
+    alternarSelecao: (id) =>
+      setSelectedIds(prev => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n; }),
+    alternarSelecaoDoEvento: (evItems, marcar) =>
+      setSelectedIds(prev => {
+        const n = new Set(prev);
+        for (const i of evItems) { if (i.deletedAt) continue; if (marcar) n.add(i.id); else n.delete(i.id); }
+        return n;
+      }),
+    excluir: (id) => setDeleteConfirmItemId(id),
+    restaurar: (id) => restaurarPecaRef.current(id),
+    expandir: (key, extra) => {
+      setExpandedEvents(prev => { const next = new Set(prev); next.add(key); return next; });
+      crescerOrcamento(extra);
+    },
+    abrirGrupo: (key, extra) => {
+      setOpenGroups(prev => { const next = new Set(prev); next.add(key); return next; });
+      crescerOrcamento(extra);
+    },
+    ordenar: toggleSort,
+  }), [toggleSort, crescerOrcamento]);
 
   // Banner da visão Excluídos visível = o motivo do vazio JÁ está explicado em
   // cima. O bloco genérico "Nenhum item corresponde aos filtros ativos" logo
@@ -1441,10 +2715,38 @@ export default function PainelGeral() {
 
   // Hoje à meia-noite — uma vez por render, não uma por grupo de evento.
   const hojeMs = (() => { const t = new Date(); t.setHours(0, 0, 0, 0); return t.getTime(); })();
-  // "Agora" UMA vez por render, pelo mesmo motivo do `hojeMs`: o chip de peças
-  // paradas chamava Date.now() dentro de cada grupo, e dois cabeçalhos do
-  // mesmo render podiam medir a idade contra instantes diferentes.
-  const agoraMs = Date.now();
+  // O "agora" das idades é o `relogioIdade` (hora cheia), UM só para a tela
+  // inteira: o chip de peças paradas chamava Date.now() dentro de cada grupo,
+  // e dois cabeçalhos do mesmo render podiam medir contra instantes diferentes.
+
+  // Opções do menu de Status, memoizadas (inline, nasciam novas a cada render).
+  // Rótulos derivam de lib/status.ts (fonte única) — o hardcoded anterior
+  // chamava `requested` de "Rascunho", divergindo dos pills da tabela
+  // ("Solicitado").
+  const statusOptions = useMemo(() => [
+    ...STATUS_FILTER_VALUES.map((value) => ({ value, label: getStatusLabel(value), pinned: true })),
+    ...(canDeleteAny ? [{ value: "deleted", label: "Excluídos", pinned: true }] : []),
+  ], [canDeleteAny]);
+
+  // Idades por etapa da barra do fluxo, numa passada só e memoizada. A barra
+  // chamava `idadeDoSegmento` para até 13 segmentos — duas vezes cada, no
+  // title — e cada chamada varria a lista filtrada inteira com parse de data:
+  // ~130 mil iterações a cada render da página, inclusive ao abrir um menu.
+  const idadesPorEtapa = useMemo(() => {
+    const porStatus = new Map<string, GroupKey>();
+    for (const k of GROUP_KEYS) for (const s of STATUS_GROUPS[k]) porStatus.set(s, k);
+    const m = new Map<string, number[]>();
+    for (const i of filteredItems as any[]) {
+      const k = porStatus.get(i.status);
+      if (!k) continue;
+      const d = diasNoEstado(i, relogioIdade);
+      if (d === null) continue;
+      let lista = m.get(k);
+      if (!lista) { lista = []; m.set(k, lista); }
+      lista.push(d);
+    }
+    return m;
+  }, [filteredItems, relogioIdade]);
 
   return (
     <div
@@ -1566,25 +2868,9 @@ export default function PainelGeral() {
 
         <div style={{ display: "flex", alignItems: "center", gap: 12, flexShrink: 0 }}>
           {/* Carimbo de frescor: o usuário precisa saber DESDE QUANDO o que ele
-              lê é verdade. Sem botão Atualizar — a tela revalida sozinha. */}
-          {frescor && (
-            <div
-              /* A promessa tem de bater com o código: "a cada minuto" era a
-                 regra antiga — hoje quem traz a mudança na hora é o aviso do
-                 servidor, e a revalidação de segurança roda a cada 5 min. */
-              title={`${frescor.srLabel}. Esta tela se atualiza sozinha: na hora em que alguém muda uma peça, ao voltar para a aba e, por segurança, a cada 5 minutos. Ponto verde = atualizada há menos de 3 minutos.`}
-              data-testid="painel-frescor"
-              style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, fontWeight: 700, color: "#746e69", whiteSpace: "nowrap" }}
-            >
-              {isFetching
-                ? <Loader2 className="animate-spin" style={{ width: 11, height: 11, color: "#746e69" }} aria-hidden="true" />
-                : <span style={{ width: 7, height: 7, borderRadius: "50%", backgroundColor: frescor.tone === "fresco" ? "#15803d" : "#b45309", flexShrink: 0 }} />}
-              {/* Sem aria-live aqui de propósito: quem anuncia mudança é o
-                  contador de resultados. Duas regiões vivas competindo fazem o
-                  leitor de tela falar por cima de si mesmo a cada minuto. */}
-              <span>{isFetching ? "Atualizando…" : `Atualizado ${frescor.texto}`}</span>
-            </div>
-          )}
+              lê é verdade. Sem botão Atualizar — a tela revalida sozinha. O
+              relógio de 30s mora dentro dele (ver CarimboDeFrescor). */}
+          <CarimboDeFrescor />
 
           {/* Exportar rebaixado a contorno: o botão preto com sombra laranja era
               o elemento de maior peso visual da página — a ação mais destacada
@@ -1828,10 +3114,9 @@ export default function PainelGeral() {
         // divergem com filtro ativo; quando divergem, a media do que esta na
         // tela e a mais util das duas.
         const idadeDoSegmento = (chave: string): number | null => {
-          const idades = (filteredItems as any[])
-            .filter(i => (STATUS_GROUPS as any)[chave]?.includes(i.status))
-            .map(i => diasNoEstado(i, Date.now()))
-            .filter((d): d is number => d !== null);
+          // Vem pronto de `idadesPorEtapa` (memo): uma passada por mudança da
+          // lista, não uma varredura por segmento a cada render.
+          const idades = idadesPorEtapa.get(chave) ?? [];
           return idades.length ? Math.round(idades.reduce((t, d) => t + d, 0) / idades.length) : null;
         };
         const mediaDaMaior = idadeDoSegmento(maior.k);
@@ -2218,13 +3503,7 @@ export default function PainelGeral() {
                 label="Status" allLabel="Qualquer status"
                 values={statusFilter} onValuesChange={setStatusFilter}
                 hideWhenEmpty={false}
-                options={[
-                  // Rótulos derivam de lib/status.ts (fonte única) — o hardcoded
-                  // anterior chamava `requested` de "Rascunho", divergindo dos
-                  // pills da tabela ("Solicitado").
-                  ...STATUS_FILTER_VALUES.map((value) => ({ value, label: getStatusLabel(value), pinned: true })),
-                  ...(canDeleteAny ? [{ value: "deleted", label: "Excluídos", pinned: true }] : []),
-                ]}
+                options={statusOptions}
                 testId="select-status-filter"
                 fullWidth
               />
@@ -2253,7 +3532,7 @@ export default function PainelGeral() {
                 // mesma decisão que o Histórico tomou com os seus 25/50/100.
                 hideSearch
                 hideWhenEmpty={false}
-                options={Object.keys(FOCO_LABELS).map((value) => ({ value, label: FOCO_LABELS[value], pinned: true }))}
+                options={FOCO_OPTIONS}
                 testId="select-foco-filter"
                 fullWidth
               />
@@ -2325,7 +3604,7 @@ export default function PainelGeral() {
             <FilterChip isMobile={useCards} label={`Busca: "${searchTerm}"`} onRemove={() => { setSearchInput(""); setSearchTerm(""); }} />
           )}
           {eventFilter.map(id => (
-            <FilterChip isMobile={useCards} key={`ev-${id}`} label={`Evento: ${events.find(e => e.id === id)?.name ?? id}`} onRemove={() => setEventFilter(prev => prev.filter(v => v !== id))} />
+            <FilterChip isMobile={useCards} key={`ev-${id}`} label={`Evento: ${nomeDoEvento(id) ?? id}`} onRemove={() => setEventFilter(prev => prev.filter(v => v !== id))} />
           ))}
           {typeFilter.map(t => (
             <FilterChip isMobile={useCards} key={`tp-${t}`} label={`Tipo: ${t}`} onRemove={() => setTypeFilter(prev => prev.filter(v => v !== t))} />
@@ -2462,7 +3741,7 @@ export default function PainelGeral() {
                       <strong style={{ color: "#44403c", fontWeight: 600 }}>
                         {[
                           searchTerm && `busca "${searchTerm}"`,
-                          ...eventFilter.map(id => `evento ${events.find(e => e.id === id)?.name ?? ""}`.trim()),
+                          ...eventFilter.map(id => `evento ${nomeDoEvento(id) ?? ""}`.trim()),
                           ...typeFilter.map(t => `tipo ${t}`),
                           ...sponsorFilter.map(id => `patrocinador ${sponsors.find(s => s.id === id)?.name ?? ""}`.trim()),
                           ...statusFilter.map(s => `status ${s === "deleted" ? "Excluídos" : getStatusLabel(s)}`),
@@ -2509,860 +3788,37 @@ export default function PainelGeral() {
             </div>
           )
         ) : (
-          sortedGroupEntries.map(([eventKey, eventData], groupIdx) => {
-            const gd = eventData as { eventId: string | null; eventName: string; items: any[] };
-            const firstItem = gd.items[0];
-            // Renderização incremental em dois níveis: até GROUP_CAP eventos
-            // abertos e ROW_CAP linhas por evento. O resto entra sob demanda —
-            // sem os dois tetos, o estado padrão da tela montava milhares de
-            // <tr> que o WebSocket depois re-renderiza a cada mutação alheia.
-            const groupOpen = groupIdx < GROUP_CAP || openGroups.has(eventKey);
-            const isExpanded = expandedEvents.has(eventKey);
-            const visibleItems = !groupOpen ? [] : (isExpanded || gd.items.length <= ROW_CAP ? gd.items : gd.items.slice(0, ROW_CAP));
-            const hiddenCount = gd.items.length - visibleItems.length;
-            const meta = eventMeta.get(eventKey);
-            // Selo de evento fora de jogo (encerrado à mão ou já realizado).
-            // `null` enquanto o evento conta — a esmagadora maioria.
-            const selo = meta?.selo ?? null;
-            // Chip de prazo: calendário CRUZADO com o estado real das peças.
-            // A regra inteira (e o porquê de a versão antiga errar em 100% dos
-            // eventos) mora em lib/painel-prazo.ts, testada. O 4º argumento é
-            // o que impede o "ATRASADO 8D" num evento que ninguém mais toca.
-            const deadline: PrazoChip | null = computeDeadlineChip(
-              meta?.truckDayMs ?? null, hojeMs, meta?.pendentes ?? 0, !!selo,
-            );
-            const todasSelecionadas = visibleItems.length > 0 && visibleItems.every((i: any) => i.deletedAt || selectedIds.has(i.id));
-            // overflow: clip (não hidden): clipa o border-radius SEM criar
-            // scroll-container — pré-requisito para o thead sticky funcionar
-            // contra o scroll da página.
-            return (
-              <div key={eventKey} style={{ border: "1px solid #e2e2e2", borderRadius: 12, backgroundColor: "#ffffff", overflow: "clip", boxShadow: "0 2px 8px rgba(28,25,23,0.07)" }}>
-
-                {/* Group header — sticky logo abaixo da toolbar (topOffset):
-                    mantém o contexto do evento visível ao rolar listas longas.
-                    zIndex 6 fica ACIMA do thead sticky (5) e ABAIXO da toolbar
-                    (8); fundo sólido para as linhas não vazarem por trás.
-                    Altura FIXA (EVENT_HEADER_H) — é ela que o thead usa como
-                    `top` para encostar exatamente abaixo. Nada aqui cria novo
-                    scroll-container (ver comentário na tabela). */}
-                <div style={{
-                  position: "sticky", top: topOffset, zIndex: 6,
-                  backgroundColor: "#ffffff",
-                  borderBottom: "1px solid #e7e5e4",
-                  // Altura fixa SÓ no desktop (onde o thead precisa dela p/
-                  // calcular o próprio top). Mobile usa cards, sem thead —
-                  // altura automática deixa os metadados quebrarem linha.
-                  ...(useCards
-                    ? { padding: "13px 18px 13px 20px" }
-                    : { padding: "0 18px 0 20px", height: EVENT_HEADER_H, boxSizing: "border-box" as const }),
-                  display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16,
-                  // Acento do evento fora de jogo — o MESMO da lista de
-                  // Eventos: cinza no encerrado à mão (verde diria "deu tudo
-                  // certo", âmbar diria "corre atrás", e encerrado não é
-                  // nenhum dos dois) e âmbar no realizado. O laranja da marca
-                  // fica para os eventos que ainda estão em jogo.
-                  borderLeft: `3px solid ${selo ? selo.dot : "#f97316"}`,
-                }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
-                    <div style={{ minWidth: 0 }}>
-                      {/* Nome do evento navega para o detalhe. Era a única saída
-                          da tela e não parecia clicável: sem hover, sem
-                          sublinhado, sem ícone e sem foco visível — descoberta
-                          por acaso não é descoberta. Afordância no CSS (.pg-event-link). */}
-                      {gd.eventId ? (
-                        <Link
-                          href={`/eventos/${gd.eventId}`}
-                          onClick={(e) => e.stopPropagation()}
-                          title={`Abrir evento ${gd.eventName}`}
-                          className="pg-event-link"
-                        >
-                          <span style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
-                            <h3 style={EVENT_TITLE_STYLE}>{gd.eventName}</h3>
-                            <ArrowUpRight className="pg-goto" style={{ width: 12, height: 12, color: "#c2410c" }} aria-hidden="true" />
-                          </span>
-                        </Link>
-                      ) : (
-                        <h3 style={EVENT_TITLE_STYLE}>{gd.eventName}</h3>
-                      )}
-                      {/* Ordem invertida de propósito: o CHIP DE PRAZO vem
-                          primeiro e não encolhe. Com as datas primeiro e
-                          flexWrap nowrap + overflow hidden, o que era clipado
-                          em silêncio (sem reticências) era justamente
-                          "Atrasado 5d" — o dado mais acionável da linha. */}
-                      <div style={{ display: "flex", alignItems: "center", gap: useCards ? 10 : 12, marginTop: 5, minWidth: 0, flexWrap: useCards ? "wrap" : "nowrap", overflow: "hidden" }}>
-                        {/* O selo vem ANTES do chip de prazo e também não
-                            encolhe: ele é a chave de leitura de todo o resto da
-                            linha. Sem ele, "Saiu há 8d · 66 em aberto" parecia
-                            um evento vivo em apuros. Palavras da lista de
-                            Eventos — as duas telas falam do mesmo estado. */}
-                        {selo && (
-                          <span
-                            title={selo.hint}
-                            data-testid={`selo-evento-${eventKey}`}
-                            style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 600, lineHeight: 1.3, color: selo.text, backgroundColor: selo.bg, border: `1px solid ${selo.border}`, borderRadius: 999, padding: "1px 8px", whiteSpace: "nowrap", flexShrink: 0 }}
-                          >
-                            <span style={{ width: 6, height: 6, borderRadius: "50%", backgroundColor: selo.dot, flexShrink: 0 }} aria-hidden="true" />
-                            {isCompact || useCards ? selo.short : selo.label}
-                          </span>
-                        )}
-                        {deadline && (
-                          <span
-                            title={deadline.srLabel}
-                            data-testid={`chip-prazo-${eventKey}`}
-                            style={{ fontSize: 12, fontWeight: deadline.tone === "neutral" ? 500 : 700, color: deadline.color, whiteSpace: "nowrap", flexShrink: 0 }}
-                          >
-                            {deadline.text}
-                          </span>
-                        )}
-                        {/* ── PECAS PARADAS ──
-
-                            Antes das datas e com `flexShrink: 0`, pela mesma
-                            regra do chip de prazo ao lado: dado acionavel nao
-                            pode ser clipado em silencio quando a largura
-                            aperta. A data pode encolher; "7 paradas" nao.
-
-                            So aparece acima do limite — abaixo dele a peca esta
-                            em fluxo, e um chip em todo cabecalho viraria papel
-                            de parede. */}
-                        {(() => {
-                          const paradas = (gd.items as any[])
-                            .map(i => ({ i, d: diasNoEstado(i, agoraMs) }))
-                            .filter((x): x is { i: any; d: number } => x.d !== null && x.d > LIMITE_PARADA);
-                          if (paradas.length === 0) return null;
-                          const pior = paradas.reduce((a, b) => (b.d > a.d ? b : a));
-                          const tom = tomDaIdade(pior.d);
-                          return (
-                            <span
-                              data-testid={`chip-paradas-${eventKey}`}
-                              title={`${paradas.length} ${paradas.length === 1 ? "peça parada" : "peças paradas"} há mais de ${LIMITE_PARADA} dias. A mais antiga: ${pior.i.displayId} em ${getStatusMeta(pior.i.status).label}, ${idadePorExtenso(pior.d)}.`}
-                              style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 12, fontWeight: tom.peso, color: tom.cor, whiteSpace: "nowrap", flexShrink: 0 }}
-                            >
-                              <Hourglass aria-hidden="true" style={{ width: 11, height: 11 }} />
-                              {paradas.length} {paradas.length === 1 ? "parada" : "paradas"} {isCompact ? `+${LIMITE_PARADA} dias` : `há mais de ${LIMITE_PARADA} dias`}
-                            </span>
-                          );
-                        })()}
-                        {firstItem?.event?.truckDepartureDate && (
-                          <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, fontWeight: 500, color: "#746e69", whiteSpace: "nowrap", flexShrink: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>
-                            <Truck style={{ width: 11, height: 11, flexShrink: 0 }} />
-                            Saída: {format(toUTCDisplayDate(firstItem.event.truckDepartureDate), "dd MMM yyyy 'às' HH:mm", { locale: ptBR })}
-                          </span>
-                        )}
-                        {/* "Início" é o metadado menos acionável; some primeiro
-                            em container estreito (continua na ficha do evento). */}
-                        {firstItem?.event?.startDate && !isCompact && (
-                          <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, fontWeight: 500, color: "#746e69", whiteSpace: "nowrap", flexShrink: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>
-                            <Calendar style={{ width: 11, height: 11, flexShrink: 0 }} />
-                            Início: {format(parseDateLocal(firstItem.event.startDate), "dd MMM yyyy", { locale: ptBR })}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
-                    {!useCards && <EventStatusBar items={gd.items} width={120} />}
-                    {/* Contador é informação neutra — texto simples, sem
-                        pílula nem caixa-alta: ao lado do chip de prazo e do
-                        selo, uma terceira cápsula só disputava o olho com os
-                        dois que pedem ação. #57534e sobre #ffffff = 7,63:1. */}
-                    <span style={{ fontSize: 12, fontWeight: 600, color: "#57534e", whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}>
-                      {fmtN(gd.items.length)} {gd.items.length === 1 ? "peça" : "peças"}
-                    </span>
-                  </div>
-                </div>
-
-                {!groupOpen ? (
-                  <button
-                    onClick={() => openGroup(eventKey)}
-                    data-testid={`button-open-group-${eventKey}`}
-                    style={{ width: "100%", padding: "13px", background: "#fafaf9", border: "none", color: "#1c1917", fontWeight: 700, fontSize: 13, cursor: "pointer" }}
-                  >
-                    Mostrar as {gd.items.length} {gd.items.length === 1 ? "peça" : "peças"} deste evento
-                  </button>
-                ) : useCards ? (
-                  <div style={{ padding: "8px 10px", display: "flex", flexDirection: "column", gap: 0 }}>
-                    {(() => {
-                      // typeToGroup: usa o memo do topo — este bloco reconstruía
-                      // o mapa a cada render de cada evento.
-                      const groupMap: Record<string, Record<string, any[]>> = {};
-                      for (const item of visibleItems) {
-                        const g = typeToGroup[item.type] || '';
-                        if (!groupMap[g]) groupMap[g] = {};
-                        if (!groupMap[g][item.type]) groupMap[g][item.type] = [];
-                        groupMap[g][item.type].push(item);
-                      }
-                      const sortedGroups = Object.keys(groupMap).sort((a, b) => {
-                        if (a === '') return 1; if (b === '') return -1;
-                        return a.localeCompare(b, 'pt-BR');
-                      });
-                      let cardIdx = 0;
-                      return sortedGroups.map(group => (
-                        <Fragment key={group || '__nogroup'}>
-                          {/* A FAIXA AZUL DO GRUPO PAI SAIU TAMBÉM DAQUI. No
-                              desktop ela já tinha virado prefixo da linha de
-                              tipo; o celular ficou com a versão antiga — azul,
-                              caixa-alta 10px, uma família de cor que não se
-                              repete em lugar nenhum. Agora as duas larguras
-                              dizem "Grupo / Tipo  N" do mesmo jeito. */}
-                          {Object.entries(groupMap[group]).map(([type, typeItems]) => (
-                            <Fragment key={type}>
-                              {/* Type sub-header */}
-                              <div style={{ display: "flex", alignItems: "baseline", gap: 6, padding: "10px 4px 6px", marginTop: 4, overflow: "hidden" }}>
-                                <span style={{ fontSize: 13, fontWeight: 700, color: "#44403c", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0, flex: 1 }}>
-                                  {group && <span style={{ fontWeight: 500, color: "#746e69" }}>{group} / </span>}
-                                  {type}
-                                </span>
-                                <span style={{ fontSize: 12, fontWeight: 600, color: "#746e69", flexShrink: 0, fontVariantNumeric: "tabular-nums" }}>
-                                  {typeItems.length}
-                                </span>
-                              </div>
-                              {typeItems.map((item: any) => {
-                                const ci = cardIdx++;
-                                const isDeleted = !!item.deletedAt;
-                                return (
-                                  <div
-                                    key={item.id}
-                                    data-testid={`item-row-${item.id}`}
-                                    onClick={() => !isDeleted && setSelectedItem(item)}
-                                    style={{
-                                      border: `1px solid ${isDeleted ? "#fecaca" : "#e7e5e4"}`,
-                                      borderRadius: 8,
-                                      padding: "10px 12px",
-                                      marginBottom: 8,
-                                      backgroundColor: isDeleted ? "#fff5f5" : (ci % 2 === 1 ? "#f6f4f1" : "#ffffff"),
-                                      display: "flex",
-                                      alignItems: "flex-start",
-                                      gap: 8,
-                                      cursor: "pointer",
-                                      overflow: "hidden",
-                                      opacity: isDeleted ? 0.75 : 1,
-                                    }}
-                                  >
-                                    {/* Card content */}
-                                    <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 5 }}>
-                                      {/* Row 1: ID + type */}
-                                      <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-                                        <button onClick={e => { e.stopPropagation(); if (!isDeleted) setSelectedItem(item); }} disabled={isDeleted} aria-label={`Ver detalhes da peça ${item.displayId}`} data-testid={`text-display-id-${item.id}`} style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontFamily: "monospace", fontWeight: 700, color: isDeleted ? "#b91c1c" : "#c2410c", fontSize: 13, flexShrink: 0, textDecoration: isDeleted ? "line-through" : "none" }}>
-                                          {item.displayId}
-                                        </button>
-                                        <SeloKit peca={item} style={{ flexShrink: 0 }} />
-                                        <span style={{ fontSize: 11, fontWeight: 700, color: isDeleted ? "#746e69" : "#44403c", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0, textDecoration: isDeleted ? "line-through" : "none" }}>{item.type}</span>
-                                        {item.isReuse && !isDeleted && (
-                                          <span style={{ ...SELO_CALMO, flexShrink: 0 }}>
-                                            Reaproveitada
-                                          </span>
-                                        )}
-                                      </div>
-                                      {/* Row 2: description — allow up to 2 lines on mobile */}
-                                      {item.description && (
-                                        <span style={{ fontSize: 13, color: isDeleted ? "#746e69" : "#44403c", fontWeight: 500, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" } as React.CSSProperties}>
-                                          {item.description}
-                                        </span>
-                                      )}
-                                      {/* Row 3: status pill */}
-                                      <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-                                        <StatusPill status={isDeleted ? "deleted" : item.status} />
-                                        {/* Mesmo selo da linha do desktop, ao
-                                            lado do status: no card o status é
-                                            a informação que a pessoa lê, e é
-                                            justamente ele que engana sozinho
-                                            ("Em Produção" num evento que
-                                            acabou). */}
-                                        {selo && !isDeleted && (
-                                          <span
-                                            title={selo.hintPeca}
-                                            data-testid={`selo-peca-${item.id}`}
-                                            style={{ ...SELO_CALMO, color: selo.text, backgroundColor: selo.bg, border: `1px solid ${selo.border}` }}
-                                          >
-                                            {selo.labelPeca}
-                                          </span>
-                                        )}
-                                        {isDeleted && item.deletedAt && (
-                                          <span style={{ fontSize: 10, color: "#746e69" }}>
-                                            {format(new Date(item.deletedAt), "dd/MM/yyyy", { locale: ptBR })}
-                                          </span>
-                                        )}
-                                      </div>
-                                      {/* Row 4: sponsors */}
-                                      {!isDeleted && item.sponsors && item.sponsors.length > 0 && (
-                                        <div style={{ minWidth: 0, overflow: "hidden" }}>
-                                          <SponsorChips sponsors={item.sponsors} variant="colored" size="sm" max={2} />
-                                        </div>
-                                      )}
-                                    </div>
-                                    {/* Action buttons — compact on mobile */}
-                                    <div style={{ display: "flex", flexDirection: "column", gap: 4, flexShrink: 0 }}>
-                                      {isDeleted && (isAdmin ? (
-                                        <button
-                                          onClick={(e) => { e.stopPropagation(); setRestoringItemId(item.id); restoreItemMutation.mutate(item.id); }}
-                                          disabled={restoreItemMutation.isPending}
-                                          title="Restaurar peça" aria-label="Restaurar peça"
-                                          data-testid={`button-restore-${item.id}`}
-                                          style={{ background: "#d1fae5", border: "1px solid #6ee7b7", cursor: restoreItemMutation.isPending ? "not-allowed" : "pointer", borderRadius: 6, color: "#065f46", display: "flex", alignItems: "center", justifyContent: "center", height: 44, width: 44, opacity: restoreItemMutation.isPending ? 0.6 : 1 }}
-                                        >
-                                          {restoringItemId === item.id
-                                            ? <Loader2 className="animate-spin" style={{ width: 15, height: 15 }} />
-                                            : <RotateCcw style={{ width: 15, height: 15 }} />}
-                                        </button>
-                                      ) : (
-                                        // solicitacao ENXERGA a lixeira (o servidor libera o GET)
-                                        // mas não pode restaurar: sem este botão a pessoa achava a
-                                        // peça que apagou por engano e não descobria nem que existe
-                                        // caminho de volta, nem a quem pedir.
-                                        <button
-                                          type="button" disabled aria-disabled="true"
-                                          title="Só um administrador pode restaurar peças excluídas"
-                                          aria-label="Só um administrador pode restaurar peças excluídas"
-                                          style={{ background: "none", border: "1px solid #e7e5e4", borderRadius: 6, color: "#a8a29e", display: "flex", alignItems: "center", justifyContent: "center", height: 44, width: 44, cursor: "not-allowed" }}
-                                        >
-                                          <RotateCcw style={{ width: 15, height: 15 }} />
-                                        </button>
-                                      ))}
-                                      {!isDeleted && (
-                                        <button
-                                          onClick={(e) => { e.stopPropagation(); setSelectedItem(item); }}
-                                          aria-label="Ver detalhes da peça" title="Ver detalhes" data-testid={`button-view-${item.id}`}
-                                          style={{
-                                            background: "none", border: "1px solid #e7e5e4", cursor: "pointer",
-                                            borderRadius: 6, color: "#746e69",
-                                            display: "flex", alignItems: "center", justifyContent: "center",
-                                            height: 44, width: 44,
-                                          }}
-                                        >
-                                          <Eye style={{ width: 15, height: 15 }} />
-                                        </button>
-                                      )}
-                                      {!isDeleted && canDeleteAny && (
-                                        <button
-                                          onClick={(e) => { e.stopPropagation(); setDeleteConfirmItemId(item.id); }}
-                                          data-testid={`button-delete-${item.id}`}
-                                          title="Excluir peça" aria-label="Excluir peça"
-                                          style={{
-                                            background: "none", border: "1px solid #fecaca", cursor: "pointer",
-                                            borderRadius: 6, color: "#746e69",
-                                            display: "flex", alignItems: "center", justifyContent: "center",
-                                            height: 44, width: 44,
-                                          }}
-                                        >
-                                          <Trash2 style={{ width: 14, height: 14 }} />
-                                        </button>
-                                      )}
-                                    </div>
-                                  </div>
-                                );
-                              })}
-                            </Fragment>
-                          ))}
-                        </Fragment>
-                      ));
-                    })()}
-                    {hiddenCount > 0 && (
-                      <button
-                        onClick={() => expandEvent(eventKey)}
-                        data-testid={`button-show-all-${eventKey}`}
-                        style={{ width: "100%", padding: "13px", marginTop: 4, background: "#fafaf9", border: "1px solid #e7e5e4", borderRadius: 8, color: "#1c1917", fontWeight: 700, fontSize: 13, cursor: "pointer" }}
-                      >
-                        Mostrar todas as {gd.items.length} peças (+{hiddenCount})
-                      </button>
-                    )}
-                  </div>
-                ) : (
-                /* overflow visível (não auto): qualquer scroll-container entre o
-                   th e o scroll da página quebraria o sticky do cabeçalho. O
-                   desktop comporta a tabela; larguras menores usam cards. */
-                <div style={{ overflow: "visible" }}>
-                  {/* table-layout: fixed + colgroup — com `auto`, a largura
-                      mínima de uma coluna é o min-content do conteúdo, então um
-                      único campo de texto livre (a observação) esticava a tabela
-                      inteira e a página ganhava barra horizontal SILENCIOSA (o
-                      overflow-y do SidebarInset faz o overflow-x computar auto).
-                      Com fixed, nenhum conteúdo futuro consegue estourar. */}
-                  <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
-                    <caption className="sr-only">Peças do evento {gd.eventName}</caption>
-                    <colgroup>
-                      <col style={{ width: 40 }} />
-                      {isCompact ? (
-                        <>
-                          <col style={{ width: "27%" }} />
-                          <col style={{ width: "40%" }} />
-                          <col style={{ width: "17%" }} />
-                        </>
-                      ) : (
-                        <>
-                          <col style={{ width: "15%" }} />
-                          <col style={{ width: "27%" }} />
-                          <col style={{ width: "12%" }} />
-                          <col style={{ width: "17%" }} />
-                          <col style={{ width: "12%" }} />
-                        </>
-                      )}
-                      <col style={{ width: 96 }} />
-                    </colgroup>
-                    <thead>
-                      <tr>
-                        {(() => {
-                          const thBase: React.CSSProperties = {
-                            /* Sticky: colunas continuam visíveis ao rolar listas
-                               longas. bg no th (não no tr) — th sticky sem fundo
-                               ficaria transparente sobre as linhas.
-                               top = topOffset + EVENT_HEADER_H: encosta exatamente
-                               sob o header sticky do evento, que por sua vez está
-                               sob a toolbar sticky (altura medida). */
-                            position: "sticky", top: topOffset + EVENT_HEADER_H, zIndex: 5,
-                            // CABEÇALHO CLARO. Era #1c1917 sólido — e com 38
-                            // eventos abertos a tela desenhava 38 barras pretas
-                            // de ponta a ponta, o elemento mais pesado do painel
-                            // repetido dezenas de vezes. O cabeçalho de tabela
-                            // não é conteúdo: é régua. A Arte e o Detalhe do
-                            // Evento já usam este tratamento claro.
-                            // #57534e sobre #fafaf9 = 7,30:1 ✓ nos 11px.
-                            backgroundColor: "#fafaf9",
-                            borderBottom: "1px solid #e7e5e4",
-                            padding: "11px 20px",
-                            fontSize: 11, fontWeight: 800, textTransform: "uppercase",
-                            letterSpacing: "0.08em", color: "#57534e",
-                            textAlign: "left",
-                            whiteSpace: "nowrap",
-                          };
-                          const seta = (campo: string) => sortBy === campo ? (sortDir === "asc" ? " ↑" : " ↓") : "";
-                          const cols: React.ReactNode[] = [
-                            <th key="sel" scope="col" style={{ ...thBase, padding: "12px 0 12px 12px" }}>
-                              <label className="pg-check">
-                                <input
-                                  type="checkbox"
-                                  checked={todasSelecionadas}
-                                  onChange={(e) => toggleSelecaoDoEvento(visibleItems, e.target.checked)}
-                                  aria-label={`Selecionar as peças visíveis do evento ${gd.eventName}`}
-                                  data-testid={`checkbox-all-${eventKey}`}
-                                  style={{ width: 15, height: 15, cursor: "pointer", accentColor: "#c2410c" }}
-                                />
-                              </label>
-                            </th>,
-                            <th key="id" scope="col" aria-sort={ariaSort("displayId")} style={thBase}>
-                              <span className="pg-sortable" role="button" tabIndex={0} onClick={() => toggleSort("displayId")} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggleSort("displayId"); } }} title="Ordenar por ID">
-                                {isCompact ? "ID / Medidas" : "ID"}{seta("displayId")}
-                              </span>
-                            </th>,
-                            <th key="desc" scope="col" style={thBase}>{isCompact ? "Descrição / Patrocinador" : "Descrição"}</th>,
-                          ];
-                          if (!isCompact) {
-                            cols.push(
-                              <th key="med" scope="col" aria-sort={ariaSort("area")} style={thBase}>
-                                <span className="pg-sortable" role="button" tabIndex={0} onClick={() => toggleSort("area")} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggleSort("area"); } }} title="Ordenar por área">
-                                  Medidas{seta("area")}
-                                </span>
-                              </th>,
-                              <th key="pat" scope="col" style={thBase}>Patrocinador</th>,
-                            );
-                          }
-                          cols.push(
-                            <th key="st" scope="col" aria-sort={ariaSort("status")} style={thBase}>
-                              <span className="pg-sortable" role="button" tabIndex={0} onClick={() => toggleSort("status")} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggleSort("status"); } }} title="Ordenar pela etapa do fluxo">
-                                Status · tempo{seta("status")}
-                              </span>
-                            </th>,
-                            <th key="ac" scope="col" style={{ ...thBase, textAlign: "right" }}>Ações</th>,
-                          );
-                          return cols;
-                        })()}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {(() => {
-                        // Group by Grupo Pai first, then by type within each
-                        // group. typeToGroup vem do memo do topo (fonte única).
-                        const groupMap: Record<string, Record<string, any[]>> = {};
-                        for (const item of visibleItems) {
-                          const g = typeToGroup[item.type] || '';
-                          if (!groupMap[g]) groupMap[g] = {};
-                          if (!groupMap[g][item.type]) groupMap[g][item.type] = [];
-                          groupMap[g][item.type].push(item);
-                        }
-                        const sortedGroups = Object.keys(groupMap).sort((a, b) => {
-                          if (a === '') return 1; if (b === '') return -1;
-                          return a.localeCompare(b, 'pt-BR');
-                        });
-                        let globalIdx = 0;
-                        return sortedGroups.map(group => (
-                          <Fragment key={group || '__nogroup'}>
-                            {/* A FAIXA AZUL DO GRUPO PAI SAIU. Eram DUAS linhas
-                                inteiras empilhadas para rotular a mesma coisa —
-                                uma azul com "2X1" e outra cinza com "2×1 PADRÃO
-                                · 10" — em duas famílias de cor que não se
-                                repetem em lugar nenhum da tela.
-                                O pai virou PREFIXO da linha de tipo. Além de
-                                devolver uma linha por grupo, informa mais: antes
-                                o pai aparecia uma vez e some ao rolar; agora ele
-                                acompanha cada tipo. */}
-                            {Object.entries(groupMap[group]).map(([type, typeItems]) => (
-                          <Fragment key={type}>
-                            {/* ── Type sub-header ── */}
-                            <tr>
-                              <td colSpan={colCount} style={{
-                                padding: "6px 18px 6px 20px",
-                                // #f5f5f4 e não #fafaf9: o cabeçalho da tabela
-                                // passou a ser claro nesta rodada, e os dois no
-                                // mesmo tom viravam a mesma faixa repetida.
-                                backgroundColor: "#f5f5f4",
-                                borderTop: "1px solid #e7e5e4",
-                                borderBottom: "1px solid #e7e5e4",
-                              }}>
-                                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                                  {group && (
-                                    <>
-                                      {/* #746e69 sobre #f5f5f4 = 4,61:1 ✓ nos 11px.
-                                          O comentario anterior dizia "#78716c = 4,7:1"
-                                          e estava ERRADO: aquele cinza da 4,40 sobre
-                                          este fundo e REPROVA AA. Os dois cinzas ficam
-                                          a 6 unidades de distancia — indistinguiveis —
-                                          entao o que passa substitui o que falha, sem
-                                          custo visual nenhum.
-                                          O pai vem em peso e cor MENORES que o
-                                          tipo: ele é contexto, o tipo é o rótulo. */}
-                                      <span style={{ fontSize: 12, fontWeight: 500, color: "#746e69" }}>
-                                        {group}
-                                      </span>
-                                      {/* #746e69: é glifo de texto, e a casa proíbe #a8a29e como cor de texto (2,52:1). */}
-                                      <span aria-hidden="true" style={{ color: "#746e69", fontSize: 12 }}>/</span>
-                                    </>
-                                  )}
-                                  <span style={{ fontSize: 13, fontWeight: 700, color: "#44403c" }}>
-                                    {type}
-                                  </span>
-                                  {/* A contagem deixou de ser pílula: número
-                                      simples, #746e69 sobre #f5f5f4 = 4,61:1. */}
-                                  <span style={{ fontSize: 12, fontWeight: 600, color: "#746e69", fontVariantNumeric: "tabular-nums" }}>
-                                    {typeItems.length}
-                                  </span>
-                                </div>
-                              </td>
-                            </tr>
-
-                            {/* ── Items within this type ── */}
-                            {typeItems.map((item: any) => {
-                              const idx = globalIdx++;
-                              const isDeleted = !!item.deletedAt;
-                              const selecionado = selectedIds.has(item.id);
-                              return (
-                                <tr
-                                  key={item.id}
-                                  className="pg-row"
-                                  data-zebra={idx % 2 === 1 ? "1" : "0"}
-                                  data-deleted={isDeleted ? "1" : "0"}
-                                  data-selected={selecionado ? "1" : "0"}
-                                  data-testid={`item-row-${item.id}`}
-                                  onClick={() => !isDeleted && setSelectedItem(item)}
-                                >
-                                  {/* Seleção */}
-                                  <td style={{ padding: "10px 0 10px 12px" }}>
-                                    {!isDeleted && (
-                                      /* stopPropagation no LABEL, e não só no input:
-                                         a linha inteira abre a peça no clique, e a área
-                                         nova do alvo fica fora do input. Sem isto, mirar
-                                         a borda do alvo marcaria a peça E abriria o
-                                         modal — o alvo maior viraria uma armadilha. */
-                                      <label className="pg-check" onClick={(e) => e.stopPropagation()}>
-                                        <input
-                                          type="checkbox"
-                                          checked={selecionado}
-                                          onChange={() => toggleSelecionado(item.id)}
-                                          aria-label={`Selecionar a peça ${item.displayId}`}
-                                          data-testid={`checkbox-${item.id}`}
-                                          style={{ width: 15, height: 15, cursor: "pointer", accentColor: "#c2410c" }}
-                                        />
-                                      </label>
-                                    )}
-                                  </td>
-
-                                  {/* ID (+ tipo; + medidas no modo reduzido) */}
-                                  <td style={{ padding: "10px 18px 10px 20px", overflow: "hidden" }}>
-                                    <div style={{ display: "flex", flexDirection: "column", gap: 4, minWidth: 0 }}>
-                                      <button onClick={e => { e.stopPropagation(); if (!isDeleted) setSelectedItem(item); }} disabled={isDeleted} aria-label={`Ver detalhes da peça ${item.displayId}`} data-testid={`text-display-id-${item.id}`} style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontFamily: "monospace", fontWeight: 700, color: isDeleted ? "#b91c1c" : "#c2410c", fontSize: 13, textDecoration: isDeleted ? "line-through" : "none", textAlign: "left" }}>
-                                        {item.displayId}
-                                      </button>
-                                      <SeloKit peca={item} style={{ alignSelf: "flex-start" }} />
-                                      {/* O TIPO só existia na linha de sub-header
-                                          com colspan, que não é sticky: com 40
-                                          "Banner" num evento, rolar deixava a
-                                          linha órfã do próprio tipo. */}
-                                      <span title={item.type} style={{ fontSize: 10, fontWeight: 600, color: "#746e69", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                                        {item.type}
-                                      </span>
-                                      {/* O selo se repete na LINHA, e não só
-                                          no cabeçalho do grupo: quem chega por
-                                          busca de código, por link direto ou
-                                          rolando uma lista longa lê a linha, e
-                                          o cabeçalho pode estar 40 linhas
-                                          acima. A frase começa em "Evento" —
-                                          é a mesma da trilha da ficha (lib/
-                                          status, marcoEventoFinalizado), para
-                                          que ninguém entenda que foi a PEÇA
-                                          que acabou. */}
-                                      {/* OS SELOS DEITAM, e não empilham.
-
-                                          Esta célula era uma coluna vertical com
-                                          até OITO filhos — ID, tipo, selo do
-                                          evento, data de exclusão, medidas,
-                                          "Reaproveit.", "Ref. visual" e "Book" —
-                                          cada um numa linha própria com gap 4.
-                                          Como quase todos são condicionais, a
-                                          altura da linha passava a depender de
-                                          QUANTOS selos aquela peça tivesse.
-
-                                          Medido em produção, 150 linhas: 55% em
-                                          63px e o resto espalhado até 93px. E a
-                                          coluna de ID era a única causa — as
-                                          outras seis colunas cabem em 24px. A
-                                          lista lia irregular porque a identidade
-                                          da peça crescia para baixo.
-
-                                          Selo é etiqueta, e etiqueta deita ao lado
-                                          da outra. Numa fileira que quebra só
-                                          quando precisa, quatro selos ocupam UMA
-                                          linha em vez de quatro. */}
-                                      <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 4, minWidth: 0 }}>
-                                      {selo && !isDeleted && (
-                                        <span
-                                          title={selo.hintPeca}
-                                          data-testid={`selo-peca-${item.id}`}
-                                          style={{ ...SELO_CALMO, color: selo.text, backgroundColor: selo.bg, border: `1px solid ${selo.border}` }}
-                                        >
-                                          {selo.labelPeca}
-                                        </span>
-                                      )}
-                                      {isDeleted && item.deletedAt && (
-                                        <span style={{ fontSize: 10, color: "#746e69" }}>
-                                          Excluído {format(new Date(item.deletedAt), "dd/MM/yy", { locale: ptBR })}
-                                        </span>
-                                      )}
-                                      {isCompact && !isDeleted && ((item.visualWidth && item.visualHeight) || (item.fileWidth && item.fileHeight)) && (
-                                        <span style={{ fontFamily: "monospace", fontSize: 11, fontWeight: 700, color: "#57534e", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                                          {item.fileWidth && item.fileHeight
-                                            ? `ARQ ${item.fileWidth} × ${item.fileHeight}`
-                                            : `VIS ${item.visualWidth} × ${item.visualHeight}`}
-                                        </span>
-                                      )}
-                                      {!isDeleted && item.isReuse && (
-                                        <span style={SELO_CALMO}>
-                                          Reaproveitada
-                                        </span>
-                                      )}
-                                      {!isDeleted && item.referenceUrl && (
-                                        <a href={item.referenceUrl} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} title="Ver referência visual do solicitante" className="pg-anexo" style={{ ...SELO_CALMO, gap: 4, textDecoration: "none" }} data-testid={`link-reference-painel-${item.id}`}>
-                                          <Paperclip aria-hidden="true" style={{ width: 11, height: 11 }} />
-                                          Ref. visual
-                                        </a>
-                                      )}
-                                      {!isDeleted && item.bookUrl && (
-                                        <a href={item.bookUrl} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} title="Abrir book de aprovação (PDF) enviado pela Arte" className="pg-anexo" style={{ ...SELO_CALMO, gap: 4, textDecoration: "none" }} data-testid={`link-book-painel-${item.id}`}>
-                                          <FileText aria-hidden="true" style={{ width: 11, height: 11 }} />
-                                          Book
-                                        </a>
-                                      )}
-                                      </div>
-                                    </div>
-                                  </td>
-
-                                  {/* Descrição (+ patrocinador no modo reduzido) */}
-                                  <td style={{ padding: "10px 18px", overflow: "hidden" }}>
-                                    <div style={{ display: "flex", alignItems: "center", gap: 6, overflow: "hidden", minWidth: 0 }}>
-                                      {item.description ? (
-                                        <span title={item.description} style={{ fontSize: 13, color: isDeleted ? "#746e69" : "#44403c", fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flexShrink: 1, minWidth: 0, textDecoration: isDeleted ? "line-through" : "none" }}>
-                                          {item.description}
-                                        </span>
-                                      ) : (
-                                        <span style={{ color: "#746e69", fontSize: 13 }}>—</span>
-                                      )}
-                                      {!isDeleted && item.observations && (
-                                        /* maxWidth + ellipsis + title: o selo
-                                           mostrava a observação INTEIRA com
-                                           nowrap e flex-shrink 0. O campo é
-                                           texto livre e carrega motivo de
-                                           reprovação — parágrafos. O ↩ cru
-                                           virou ícone com rótulo. */
-                                        <span
-                                          title={item.observations}
-                                          style={{ ...SELO_CALMO, flexShrink: 1, minWidth: 0, maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", gap: 4, fontWeight: 500 }}
-                                        >
-                                          <MessageSquare style={{ width: 11, height: 11, flexShrink: 0 }} aria-label="Observação" />
-                                          <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{item.observations}</span>
-                                        </span>
-                                      )}
-                                    </div>
-                                    {isCompact && !isDeleted && (
-                                      <div style={{ marginTop: 4, minWidth: 0, overflow: "hidden" }}>
-                                        <SponsorChips sponsors={item.sponsors ?? []} variant="colored" size="sm" max={3} />
-                                      </div>
-                                    )}
-                                  </td>
-
-                                  {/* Medidas */}
-                                  {!isCompact && (
-                                    <td style={{ padding: "10px 18px", overflow: "hidden" }}>
-                                      {!isDeleted && ((item.visualWidth && item.visualHeight) || (item.fileWidth && item.fileHeight)) ? (
-                                        <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-                                          {/* ARQ primeiro e escuro: é o par que a
-                                              impressora recebe e o m² cobra — a mesma
-                                              ênfase da Gráfica, para as duas telas
-                                              contarem a mesma história. */}
-                                          {item.fileWidth && item.fileHeight && (
-                                            <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                                              <span style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: "#b45309", width: 30, flexShrink: 0 }}>ARQ</span>
-                                              <span style={{ fontFamily: "monospace", fontSize: 13, fontWeight: 700, color: "#44403c", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                                                {item.fileWidth} × {item.fileHeight}
-                                              </span>
-                                            </div>
-                                          )}
-                                          {item.visualWidth && item.visualHeight && (
-                                            <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                                              <span style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: "#746e69", width: 30, flexShrink: 0 }}>VIS</span>
-                                              <span style={{ fontFamily: "monospace", fontSize: 13, fontWeight: 700, color: "#746e69", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                                                {item.visualWidth} × {item.visualHeight}
-                                              </span>
-                                            </div>
-                                          )}
-                                        </div>
-                                      ) : (
-                                        <span style={{ color: "#746e69", fontSize: 13 }}>—</span>
-                                      )}
-                                    </td>
-                                  )}
-
-                                  {/* Patrocinador — na linha excluída a célula ganha "—" em vez
-                                      de ficar vazia (leitura de tabela: vazio parece dado faltando). */}
-                                  {!isCompact && (
-                                    <td style={{ padding: "10px 18px", overflow: "hidden" }}>
-                                      {isDeleted
-                                        ? <span style={{ color: "#746e69", fontSize: 13 }}>—</span>
-                                        : <SponsorChips sponsors={item.sponsors ?? []} variant="colored" size="sm" max={4} />}
-                                    </td>
-                                  )}
-
-                                  {/* Status · tempo
-
-                                      A pilula diz ONDE a peca esta; a linha
-                                      abaixo diz DESDE QUANDO. Sem a segunda, a
-                                      lista mostra 1.129 pecas em "Aguardando
-                                      envio" sem distinguir vazao normal de
-                                      travamento de duas semanas.
-
-                                      Peca sem carimbo nao ganha linha nenhuma:
-                                      um campo vazio diz "nao sei"; um numero
-                                      inferido da criacao diria "sei" e mentiria.
-
-                                      Padding 16 e nao 20: abre a linha extra sem
-                                      crescer a altura da tabela. */}
-                                  <td data-testid={`cell-idade-${item.id}`} style={{ padding: "10px 16px", overflow: "hidden" }}>
-                                    <StatusPill status={isDeleted ? "deleted" : item.status} />
-                                    {(() => {
-                                      if (isDeleted) return null;
-                                      const d = diasNoEstado(item, Date.now());
-                                      if (d === null) return null;
-                                      const tom = tomDaIdade(d);
-                                      return (
-                                        <p
-                                          style={{ margin: "3px 0 0", fontSize: 11, color: tom.cor, fontWeight: tom.peso, whiteSpace: "nowrap" }}
-                                          /* O title passa a existir SEMPRE: "há 3 dias" solto
-                                             não diz de quê — da criação? da última edição?
-                                             É o tempo desde a última MUDANÇA DE STATUS. */
-                                          title={d > LIMITE_PARADA
-                                            ? `Parada em ${getStatusMeta(item.status).label} ${idadePorExtenso(d)} (mais de ${LIMITE_PARADA} dias sem mudar de etapa)`
-                                            : `Em ${getStatusMeta(item.status).label} ${d === 0 ? "desde hoje" : idadePorExtenso(d)} — tempo desde a última mudança de status`}
-                                        >
-                                          {idadePorExtenso(d)}
-                                        </p>
-                                      );
-                                    })()}
-                                  </td>
-
-                                  {/* Ação */}
-                                  <td style={{ padding: "10px 18px", textAlign: "right" }}>
-                                    <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 4 }}>
-                                      {isDeleted && (isAdmin ? (
-                                        <button
-                                          onClick={(e) => { e.stopPropagation(); setRestoringItemId(item.id); restoreItemMutation.mutate(item.id); }}
-                                          disabled={restoreItemMutation.isPending}
-                                          title="Restaurar peça" aria-label="Restaurar peça"
-                                          data-testid={`button-restore-${item.id}`}
-                                          style={{ background: "#d1fae5", border: "1px solid #6ee7b7", cursor: restoreItemMutation.isPending ? "not-allowed" : "pointer", borderRadius: 6, color: "#065f46", display: "flex", alignItems: "center", justifyContent: "center", padding: 6, opacity: restoreItemMutation.isPending ? 0.6 : 1 }}
-                                        >
-                                          {restoringItemId === item.id
-                                            ? <Loader2 className="animate-spin" style={{ width: 14, height: 14 }} />
-                                            : <RotateCcw style={{ width: 14, height: 14 }} />}
-                                        </button>
-                                      ) : (
-                                        <button
-                                          type="button" disabled aria-disabled="true"
-                                          title="Só um administrador pode restaurar peças excluídas"
-                                          aria-label="Só um administrador pode restaurar peças excluídas"
-                                          style={{ background: "none", border: "none", padding: 4, color: "#a8a29e", display: "flex", alignItems: "center", justifyContent: "center", cursor: "not-allowed" }}
-                                        >
-                                          <RotateCcw style={{ width: 15, height: 15 }} />
-                                        </button>
-                                      ))}
-                                      {!isDeleted && (
-                                        <button
-                                          onClick={(e) => { e.stopPropagation(); setSelectedItem(item); }}
-                                          aria-label="Ver detalhes da peça" title="Ver detalhes" data-testid={`button-view-${item.id}`}
-                                          style={{
-                                            background: "none", border: "none", cursor: "pointer",
-                                            padding: 4, borderRadius: 6, color: "#746e69",
-                                            display: "flex", alignItems: "center", justifyContent: "center",
-                                            transition: "color 0.15s",
-                                          }}
-                                          onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.color = "#c2410c")}
-                                          onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.color = "#746e69")}
-                                        >
-                                          <Eye style={{ width: 16, height: 16 }} />
-                                        </button>
-                                      )}
-                                      {!isDeleted && canDeleteAny && (
-                                        <button
-                                          onClick={(e) => { e.stopPropagation(); setDeleteConfirmItemId(item.id); }}
-                                          data-testid={`button-delete-${item.id}`}
-                                          title="Excluir peça" aria-label="Excluir peça"
-                                          style={{
-                                            background: "none", border: "none", cursor: "pointer",
-                                            padding: 4, borderRadius: 6, color: "#746e69",
-                                            display: "flex", alignItems: "center", justifyContent: "center",
-                                            transition: "color 0.15s",
-                                          }}
-                                          onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.color = "#dc2626")}
-                                          onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.color = "#746e69")}
-                                        >
-                                          <Trash2 style={{ width: 15, height: 15 }} />
-                                        </button>
-                                      )}
-                                    </div>
-                                  </td>
-                                </tr>
-                              );
-                            })}
-                          </Fragment>
-                            ))}
-                          </Fragment>
-                        ));
-                      })()}
-                      {hiddenCount > 0 && (
-                        <tr>
-                          <td colSpan={colCount} style={{ padding: 0 }}>
-                            <button
-                              onClick={() => expandEvent(eventKey)}
-                              data-testid={`button-show-all-${eventKey}`}
-                              style={{ width: "100%", padding: "13px", background: "#fafaf9", border: "none", borderTop: "1px solid #e7e5e4", color: "#1c1917", fontWeight: 700, fontSize: 13, cursor: "pointer" }}
-                            >
-                              Mostrar todas as {gd.items.length} peças (+{hiddenCount})
-                            </button>
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-                )}
-              </div>
-            );
-          })
+          <>
+            {planoDaLista.grupos.map((p) => (
+              <GrupoDoEvento
+                key={p.eventKey}
+                eventKey={p.eventKey}
+                gd={p.gd}
+                meta={eventMeta.get(p.eventKey)}
+                groupOpen={p.groupOpen}
+                isExpanded={p.isExpanded}
+                linhasPermitidas={p.linhasPermitidas}
+                hojeMs={hojeMs}
+                relogioIdade={relogioIdade}
+                useCards={useCards}
+                isCompact={isCompact}
+                colCount={colCount}
+                topOffset={topOffset}
+                sortBy={sortBy}
+                sortDir={sortDir}
+                typeToGroup={typeToGroup}
+                selectedIds={selectedIds}
+                isAdmin={isAdmin}
+                canDeleteAny={canDeleteAny}
+                restoringItemId={restoringItemId}
+                restorePending={restoreItemMutation.isPending}
+                acoes={acoesDaLista}
+              />
+            ))}
+            {planoDaLista.incompleto && (
+              <SentinelaDeLote key={orcamentoLinhas} onVisivel={pedirProximoLote} />
+            )}
+          </>
         )}
       </section>
 

@@ -15,7 +15,7 @@ import { Input } from "@/components/ui/input";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { ToastAction } from "@/components/ui/toast";
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo, useRef, memo, useDeferredValue } from "react";
 import { Package, Check, Calendar, Truck, AlertTriangle, CheckCircle2, X, Building2, Plus, PlusCircle, Search, Users, ClipboardList, Save, Send, ChevronDown, Info, Lock, Paperclip, ExternalLink, RotateCcw, Zap, EyeOff, Recycle } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 // `isAfter`/`startOfDay` saíram junto com os dois recortes de data que esta
@@ -164,6 +164,30 @@ const hexToRgba = (hex: string, alpha: number = 1): string => {
 // que chamar localeCompare a cada comparação.
 const COLLATOR_PTBR = new Intl.Collator('pt-BR');
 
+/**
+ * LINHA MEMOIZADA (PERF-6, 17/09).
+ *
+ * Marcar UM chip re-renderizava as ~300 linhas visíveis (50 por grupo), cada
+ * uma com Checkbox do Radix e até oito chips: o clique custava o render da
+ * tabela inteira. Aqui a linha só desenha de novo quando muda algo que ELA
+ * lê — `deps` é a lista exata do que `renderLinhaDaPeca` usa para desenhar:
+ * a peça, o rascunho e o salvo DESTA peça (as entradas dos mapas, não os
+ * mapas), estado, seleção, travas das mutações, escopo de chips.
+ *
+ * Os handlers da linha que ficou memoizada são os do render em que ela
+ * desenhou pela última vez. É seguro porque todos só leem as entradas desta
+ * peça (que estão em `deps`) e gravam com setState funcional — nada de estado
+ * global da tela é lido no clique. Quem acrescentar à linha um handler que leia
+ * outro estado precisa pôr esse estado em `deps`.
+ */
+const LinhaMemoizada = memo(
+  function LinhaMemoizada({ desenhar }: { deps: unknown[]; desenhar: () => React.ReactNode }) {
+    return <>{desenhar()}</>;
+  },
+  (antes, depois) => antes.deps.length === depois.deps.length
+    && antes.deps.every((v, i) => Object.is(v, depois.deps[i])),
+);
+
 export default function VincularPatrocinadores() {
   const isMobile = useIsMobile();
   const { toast } = useToast();
@@ -181,7 +205,11 @@ export default function VincularPatrocinadores() {
   // filtro de evento (comportamento antigo de navegar e voltar).
   const initParams = useRef(new URLSearchParams(window.location.search)).current;
   const listParam = (k: string) => { const v = initParams.get(k); return v ? v.split(",").filter(Boolean) : []; };
-  const [searchQuery, setSearchQuery] = useState(initParams.get("q") ?? "");
+  // O campo mostra o que se digita na hora; filtros, contagens e a tabela leem
+  // o valor ADIADO (PERF-6). Cada tecla recalculava as facetas e redesenhava a
+  // tabela inteira antes de o caractere aparecer no campo.
+  const [buscaDigitada, setSearchQuery] = useState(initParams.get("q") ?? "");
+  const searchQuery = useDeferredValue(buscaDigitada);
   const [eventFilter, setEventFilter] = useState<string[]>(() => {
     const fromUrl = listParam("ev");
     if (fromUrl.length) return fromUrl;
@@ -1460,7 +1488,19 @@ export default function VincularPatrocinadores() {
     // células, e a função de render continua sendo uma só.
     const celula: React.CSSProperties = isMobile ? { display: 'block', width: '100%' } : {};
 
+    // Tudo o que a linha lê para desenhar e para agir — ver LinhaMemoizada.
+    const deps: unknown[] = [
+      item, itemSponsorsMap[item.id], pendingChanges[item.id], originalSponsorsMap[item.id],
+      estado, selecionada, editavel, semPatrocinador, podeSelecionar, salvandoEsta,
+      saveLinkingMutation.isPending, sendToArteMutation.isPending, isMobile,
+      chips.length, ...chips, eventSponsors.length, ...eventSponsors,
+    ];
+
     return (
+      <LinhaMemoizada
+        key={item.id}
+        deps={deps}
+        desenhar={() => (
       <tr
         key={item.id}
         data-testid={`item-row-${item.id}`}
@@ -1835,6 +1875,8 @@ export default function VincularPatrocinadores() {
           </div>
         </td>
       </tr>
+        )}
+      />
     );
   };
 
@@ -2523,7 +2565,7 @@ export default function VincularPatrocinadores() {
           <Search aria-hidden="true" style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', width: 15, height: 15, color: '#78716c', pointerEvents: 'none' }} />
           <input
             ref={searchInputRef}
-            value={searchQuery}
+            value={buscaDigitada}
             onChange={e => setSearchQuery(e.target.value)}
             placeholder="Peça, descrição ou evento   /"
             aria-label="Buscar por peça, descrição ou evento"
@@ -2538,7 +2580,7 @@ export default function VincularPatrocinadores() {
               font: 'inherit', fontSize: isMobile ? 16 : 13, color: '#1c1917',
             }}
           />
-          {searchQuery && (
+          {buscaDigitada && (
             <button
               type="button"
               onClick={() => { setSearchQuery(''); searchInputRef.current?.focus(); }}

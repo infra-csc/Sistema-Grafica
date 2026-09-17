@@ -6,6 +6,7 @@ import { EventFilterDropdown } from "@/components/event-filter-dropdown";
 import { FilePreview, isWebUrl } from "@/components/file-preview";
 import { parseDateLocal, normalizarBusca } from "@/lib/utils";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { FORMATO_COMPACTO, expandirResposta } from "@shared/itens-compactos";
 import { useToast } from "@/hooks/use-toast";
 import { usePecaDoLink } from "@/hooks/use-peca-do-link";
 import {
@@ -49,6 +50,37 @@ const TI = {
 // Status que esta tela revisa. O vocabulário canônico (rótulo/cores) vive em
 // lib/status: "awaiting_final_review" → "Aguardando Revisão Final".
 const REVIEW_STATUS = "awaiting_final_review";
+
+// A LISTA DESTA TELA VEM RECORTADA NO SERVIDOR (perf, 17/09). Ela lia
+// ["/api/items"] — o acervo inteiro, 5 mil peças e 15 MB em produção — para
+// mostrar as poucas em "Aguardando Revisão Final". GET /api/items?status=
+// devolve só essas, enriquecidas do mesmo jeito (Kit, patrocinadores na mesma
+// ordem, complemento e `parent`), com delta e formato compacto
+// (lib/queryClient.ts). A chave fica dentro do prefixo "/api/items": as
+// invalidações do WebSocket e das mutações abaixo continuam atingindo esta
+// lista, e a peça liberada/devolvida sai dela pelo delta (`removidas`).
+//
+// Tudo o que a tela lê de `items` é desta fila, com DUAS exceções que liam
+// peça de outro status no acervo — e que agora buscam só a peça:
+//   · o aviso do link `?item=` para peça que já saiu da fila diz o CÓDIGO dela;
+//   · o 409 USE_COMPLEMENT (a peça foi liberada e produzida em outra aba com o
+//     modal aberto) abre o complemento com a peça como ela está AGORA.
+const CHAVE_DA_REVISAO = ["/api/items", `?status=${REVIEW_STATUS}`] as const;
+
+/**
+ * A peça, como está agora no servidor — ou `null` (excluída, fora do que o
+ * usuário enxerga, rede fora). Só ela, pelo recorte `?ids=`: é o que as duas
+ * exceções acima liam do acervo inteiro.
+ */
+async function buscarPecaAtual(id: string): Promise<any | null> {
+  try {
+    const res = await apiRequest("GET", `/api/items?ids=${encodeURIComponent(id)}&formato=${FORMATO_COMPACTO}`);
+    const lista = expandirResposta(await res.json());
+    return Array.isArray(lista) ? lista.find((i: any) => i?.id === id) ?? null : null;
+  } catch {
+    return null;
+  }
+}
 
 // Config do HISTÓRICO: ações de log que correspondem a status do vocabulário
 // herdam rótulo e cor de lib/status; o mapa abaixo cobre apenas os tipos de
@@ -285,7 +317,7 @@ export default function Solicitacao() {
       </p>
     );
   };
-  const { data: itensDoServidor = [], isLoading: itemsLoading, isError: itemsError, refetch: refetchItems } = useQuery<any[]>({ queryKey: ["/api/items"] });
+  const { data: itensDoServidor = [], isLoading: itemsLoading, isError: itemsError, refetch: refetchItems } = useQuery<any[]>({ queryKey: CHAVE_DA_REVISAO });
   // BOOK COMPLETO fica de fora: é o trâmite do Atendimento, não uma peça (ver shared/fluxo-peca).
   const items = useMemo(() => (itensDoServidor as any[]).filter((i: any) => !ehBookCompleto(i)), [itensDoServidor]);
   const { data: events = [], isLoading: eventsLoading, isError: eventsError, refetch: refetchEvents } = useQuery<any[]>({ queryKey: ["/api/events"] });
@@ -360,13 +392,15 @@ export default function Solicitacao() {
       const { message, code, data } = parseApiError(error);
 
       if (code === "USE_COMPLEMENT") {
-        const alvo = (items as any[]).find((i: any) => i.id === (data?.itemId ?? selectedItem?.id)) ?? selectedItem;
+        const idAlvo = data?.itemId ?? selectedItem?.id;
+        const daFila = (items as any[]).find((i: any) => i.id === idAlvo) ?? selectedItem;
         setEditingQuantity(false);
         toast({
           title: "Peça em produção",
           description: 'Use "Aumentar quantidade" — o aumento vira uma peça complementar.',
         });
-        if (alvo) {
+        const abrirComplemento = (alvo: any) => {
+          if (!alvo) return;
           // `suggestedComplement` só existe quando o corpo JSON chega inteiro;
           // no caminho normal (apiRequest desembrulha o erro em texto) a
           // diferença é a que o próprio modal tentou salvar menos a atual.
@@ -376,7 +410,15 @@ export default function Solicitacao() {
               || (Number.isFinite(atual) && quantityValue > atual ? quantityValue - atual : null),
           );
           setComplementItem(alvo);
-        }
+        };
+        // A peça já saiu desta fila (está em produção): a lista recortada não
+        // a tem mais, e o complemento precisa do status, da quantidade e dos
+        // complementos de AGORA — era o que o acervo inteiro dava. Sem id, ou
+        // se a busca falhar, segue com a peça que o modal mostrava, como antes.
+        // Book completo nunca entrava em `items`: mesma régua aqui.
+        if (!idAlvo) { abrirComplemento(daFila); return; }
+        void buscarPecaAtual(idAlvo).then((atual) =>
+          abrirComplemento(atual && !ehBookCompleto(atual) ? atual : daFila));
         return;
       }
 
@@ -1052,11 +1094,37 @@ export default function Solicitacao() {
   // Prazos): abre a decisão da peça. A fila é `pendingItems` — a mesma regra
   // da lista, com o recorte do Kit —, então peça já liberada ou devolvida não
   // abre um modal sem decisão: o hook avisa que ela avançou.
+  //
+  // Peça do link FORA da fila: o aviso diz o código dela, que antes vinha do
+  // acervo inteiro e agora vem de uma busca só por ela (`buscarPecaAtual`). O
+  // hook espera essa busca (`pronto`) para o aviso sair com o código, como
+  // saía. O id é lido na montagem, no mesmo instante em que o hook o lê.
+  const [idDoLink] = useState<string | null>(() =>
+    typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("item"));
+  const [codigoDoLink, setCodigoDoLink] = useState<{ id: string; codigo: string | null } | null>(null);
+  const filaCarregada = !itemsLoading && !eventsLoading && !itemsError;
+  const linkForaDaFila = filaCarregada && !!idDoLink && !(pendingItems as any[]).some((i: any) => i.id === idDoLink);
+  const codigoDoLinkPronto = !!idDoLink && codigoDoLink?.id === idDoLink;
+  const linkPronto = filaCarregada && (!linkForaDaFila || codigoDoLinkPronto);
+  // O hook consome o link UMA vez. Depois disso, a peça do link sair da fila
+  // (a própria pessoa a liberou) não é motivo para buscar código nenhum.
+  const linkJaConsumido = useRef(false);
+  if (linkPronto) linkJaConsumido.current = true;
+  useEffect(() => {
+    if (linkJaConsumido.current || !linkForaDaFila || !idDoLink || codigoDoLinkPronto) return;
+    let vivo = true;
+    void buscarPecaAtual(idDoLink).then((peca) => {
+      if (vivo) setCodigoDoLink({ id: idDoLink, codigo: peca?.displayId ?? null });
+    });
+    return () => { vivo = false; };
+  }, [linkForaDaFila, idDoLink, codigoDoLinkPronto]);
   usePecaDoLink<any>({
-    pronto: !itemsLoading && !eventsLoading && !itemsError,
+    pronto: linkPronto,
     localizar: (id) => (pendingItems as any[]).find((i: any) => i.id === id),
     abrir: openModal,
-    codigoDe: (id) => (itensDoServidor as any[]).find((i: any) => i.id === id)?.displayId,
+    codigoDe: (id) =>
+      (itensDoServidor as any[]).find((i: any) => i.id === id)?.displayId
+      ?? (codigoDoLink?.id === id ? codigoDoLink.codigo : undefined),
   });
 
   useEffect(() => {

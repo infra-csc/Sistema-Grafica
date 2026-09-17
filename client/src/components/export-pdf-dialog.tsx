@@ -1,7 +1,7 @@
 // Modal de exportação de PDF compartilhado (Arte e Atendimento). Filtros
 // facetados, seleção manual das peças e agrupamento por grupo/evento — tudo
 // gerando o mesmo book via exportMixedToPDF.
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { Printer, X, FileText, FileImage, CheckCircle, SlidersHorizontal, BookOpen, Scissors, Search, LayoutGrid, File, AlertTriangle, Loader2 } from "lucide-react";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { HIDE_NATIVE_CLOSE } from "@/components/modal-shell";
@@ -76,7 +76,22 @@ interface ExportPdfDialogProps {
   title?: string;
 }
 
-export function ExportPdfDialog({ open, onOpenChange, items, title = "Peças" }: ExportPdfDialogProps) {
+/** Pool vazio estável: o modal que nunca abriu não tem o que contar. */
+const SEM_PECAS: any[] = [];
+
+export function ExportPdfDialog({ open, onOpenChange, items: itensDaTela, title = "Peças" }: ExportPdfDialogProps) {
+  // FECHADO NÃO CALCULA (perf, 17/09). Arte, Atendimento e Detalhe deixam este
+  // modal MONTADO o tempo todo, e cada revalidação da lista (WebSocket, delta,
+  // decisão de outra pessoa) entregava um array novo: as cinco facetas, o
+  // recorte, os grupos e a paginação varriam milhares de peças a cada vez — para
+  // um modal que ninguém estava vendo. Fechado, o pool fica PARADO na última
+  // lista com que ele esteve aberto (vazio se nunca abriu): as dependências não
+  // mudam e nenhum useMemo roda. Não é vazio de propósito — durante a animação
+  // de fechar o conteúdo ainda aparece e não pode piscar "0 peças". Aberto, o
+  // pool é a lista da tela, exatamente como antes.
+  const ultimoPoolAberto = useRef<any[]>(SEM_PECAS);
+  if (open) ultimoPoolAberto.current = itensDaTela;
+  const items = open ? itensDaTela : ultimoPoolAberto.current;
   const [eventFilter, setEventFilter]   = useState("all");
   const [sponsorFilter, setSponsorFilter] = useState("all");
   const [groupFilter, setGroupFilter]   = useState("all");

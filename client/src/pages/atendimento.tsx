@@ -31,6 +31,7 @@ import {
   avisoPecasOcultas, todayBusinessMs,
 } from "@/lib/status";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { FORMATO_COMPACTO, ehAprovacoesCompactas, expandirAprovacoes } from "@shared/itens-compactos";
 import { useToast } from "@/hooks/use-toast";
 import { usePecaDoLink } from "@/hooks/use-peca-do-link";
 import {
@@ -47,6 +48,7 @@ import { useAuth } from "@/contexts/auth-context";
 import { Undo2, Play, Hourglass } from "lucide-react";
 import { FS } from "@/lib/theme";
 import { EsqueletoDeFila } from "@/components/esqueleto-de-fila";
+import { SoQuandoMudar } from "@/components/arte/so-quando-mudar";
 import { ModalHeader, ModalFooter, modalSurface, HIDE_NATIVE_CLOSE } from "@/components/modal-shell";
 
 interface SponsorApproval {
@@ -68,6 +70,15 @@ interface SponsorApproval {
 // Reutilizado nos sorts de lista: um Collator criado uma vez é bem mais rápido
 // que chamar localeCompare a cada comparação. Sem locale, como era antes.
 const COLLATOR = new Intl.Collator();
+
+// VAZIO ESTÁVEL para o `data` das queries enquanto carregam (ou falham).
+// `data: items = []` criava um array NOVO a cada render: awaitingItems →
+// batchEligibleItems mudavam de identidade, o efeito que sincroniza a seleção
+// do lote gravava um Set novo, e isso pedia outro render — um laço de render
+// girando sem parar durante TODO o download de /api/items (15 MB em produção)
+// e para sempre se a busca falhasse. Um vazio só, fora do componente, quebra o
+// laço sem mudar o que a tela mostra.
+const SEM_DADOS: any[] = [];
 
 /**
  * Tecla de atalho desenhada como tecla — o mesmo desenho da Arte. Atalho
@@ -434,6 +445,11 @@ export default function Atendimento() {
 
   // Request ID para evitar race conditions
   const requestIdRef = useRef(0);
+  // O conjunto (tamanho do acervo + marca de cada peça em aprovação) que
+  // motivou o último download do lote, e as peças que ESTA tela decidiu e
+  // remendou desde então — ver o efeito de carga do lote.
+  const loteBaixadoRef = useRef<{ tamanho: number; marcas: Map<string, string> } | null>(null);
+  const decididasAquiRef = useRef<Set<string>>(new Set());
 
   // State para aprovações individuais de patrocinadores (no diálogo)
   const [sponsorApprovals, setSponsorApprovals] = useState<SponsorApproval[]>([]);
@@ -457,7 +473,7 @@ export default function Atendimento() {
   const [buscaPatrocinador, setBuscaPatrocinador] = useState("");
   // /api/events/:id/sponsors devolve VÍNCULOS ({ sponsorId, quota }) — os
   // nomes vêm do catálogo que esta tela já carrega em /api/sponsors.
-  const { data: vinculosDoEvento = [] } = useQuery<any[]>({
+  const { data: vinculosDoEvento = SEM_DADOS } = useQuery<any[]>({
     queryKey: ["/api/events", selectedItem?.eventId, "sponsors"],
     enabled: !!selectedItem?.eventId && dialogOpen && user?.role === "admin",
   });
@@ -508,16 +524,16 @@ export default function Atendimento() {
   // a primeira peça. A busca fica sempre à vista; o recorte ativo continua
   // escrito nos chips logo abaixo.
   const [filtrosAbertosMobile, setFiltrosAbertosMobile] = useState(false);
-  const { data: items = [], isLoading: itemsLoading, isError: itemsError, refetch: refetchItems,
+  const { data: items = SEM_DADOS, isLoading: itemsLoading, isError: itemsError, refetch: refetchItems,
     dataUpdatedAt, isFetching: isFetchingItems } = useQuery<any[]>({
     queryKey: ["/api/items"],
   });
 
-  const { data: events = [], isLoading: eventsLoading } = useQuery<any[]>({
+  const { data: events = SEM_DADOS, isLoading: eventsLoading } = useQuery<any[]>({
     queryKey: ["/api/events"],
   });
 
-  const { data: sponsors = [] } = useQuery<any[]>({
+  const { data: sponsors = SEM_DADOS } = useQuery<any[]>({
     queryKey: ["/api/sponsors"],
   });
   const sponsorsDoEvento = useMemo(() => {
@@ -539,7 +555,7 @@ export default function Atendimento() {
     enabled: dialogOpen && !!selectedItem?.id,
     placeholderData: [],
   });
-  const { data: standardItems = [] } = useQuery<any[]>({ queryKey: ['/api/standard-items'] });
+  const { data: standardItems = SEM_DADOS } = useQuery<any[]>({ queryKey: ['/api/standard-items'] });
   const typeToGroup = useMemo(() => {
     const map: Record<string, string> = {};
     (standardItems as any[]).forEach((s: any) => { if (s.group) map[s.name] = s.group; });
@@ -609,10 +625,48 @@ export default function Atendimento() {
   // Carrega sempre (não só quando há itens pendentes) para alimentar também
   // a aba Histórico, que mostra itens já aprovados em qualquer status.
   useEffect(() => {
+    // AS MUDANÇAS QUE ESTA TELA MESMA FEZ NÃO RE-BAIXAM O LOTE (5,8 MB em
+    // produção). Aprovar a última marca de uma peça aqui já remenda a peça
+    // (applyItemDecisionToCache) e a aprovação (applyApprovalToCache) com a
+    // resposta do servidor; mesmo assim, a peça saindo de "aguardando" mudava
+    // a chave e o lote INTEIRO voltava — um download e um parse de megabytes
+    // por peça aprovada, no meio do "aprovar e seguir para a próxima". Pula só
+    // quando TODA a diferença é de peças marcadas em decididasAquiRef (ver
+    // individualApproveMutation) e sem troca de thumb; peça que entra, some
+    // por outra mão, é reprovada ou ganha arte nova segue buscando o lote.
+    const marcas = new Map<string, string>(
+      awaitingItems.map(i => [i.id, `${i.approvalThumbUrl ?? ''}:${i.updatedAt ?? ''}`]),
+    );
+    const anterior = loteBaixadoRef.current;
+    const decididas = decididasAquiRef.current;
+    if (anterior && items.length > 0 && anterior.tamanho === items.length) {
+      const thumbDe = (m: string | undefined) => (m ?? '').slice(0, (m ?? '').lastIndexOf(':'));
+      let soDecisoesDaqui = true;
+      const tocadas: string[] = [];
+      marcas.forEach((m, id) => {
+        const antes = anterior.marcas.get(id);
+        if (antes === m) return;
+        if (antes !== undefined && decididas.has(id) && thumbDe(antes) === thumbDe(m)) { tocadas.push(id); return; }
+        soDecisoesDaqui = false;
+      });
+      anterior.marcas.forEach((_m, id) => {
+        if (marcas.has(id)) return;
+        if (decididas.has(id)) tocadas.push(id); else soDecisoesDaqui = false;
+      });
+      if (soDecisoesDaqui) {
+        loteBaixadoRef.current = { tamanho: items.length, marcas };
+        tocadas.forEach(id => decididas.delete(id));
+        return;
+      }
+    }
+    loteBaixadoRef.current = { tamanho: items.length, marcas };
+    decididas.clear();
+
     requestIdRef.current += 1;
     const currentRequestId = requestIdRef.current;
 
     if (items.length === 0) {
+      loteBaixadoRef.current = null;
       setItemSponsorsMap({});
       setItemApprovalsMap({});
       setLoadingSponsors(false);
@@ -621,8 +675,15 @@ export default function Atendimento() {
 
     setLoadingSponsors(true);
 
-    apiRequest("GET", "/api/items/batch-approval-data")
+    // FORMATO COMPACTO (perf, 17/09): o lote tinha 5,8 MB em produção porque o
+    // patrocinador ia inteiro em cada vínculo e de novo em cada aprovação. Com
+    // `?formato=compacto` ele vai uma vez (shared/itens-compactos.ts) e
+    // `expandirAprovacoes` devolve os MESMOS dois mapas de sempre — nada abaixo
+    // muda. Resposta que não é compacta (servidor antigo no meio do deploy)
+    // passa intacta.
+    apiRequest("GET", `/api/items/batch-approval-data?formato=${FORMATO_COMPACTO}`)
       .then(res => res.json())
+      .then((corpo: any) => (ehAprovacoesCompactas(corpo) ? expandirAprovacoes(corpo) : corpo))
       .then(({ sponsorsByItem = {}, approvalsByItem = {} } = {}) => {
         if (currentRequestId !== requestIdRef.current) return;
         setItemSponsorsMap(sponsorsByItem);
@@ -719,6 +780,17 @@ export default function Atendimento() {
       applyApprovalToCache(variables.itemId, data.approval);
 
       if (data.allApproved) {
+        // A última aprovação que faltava, já remendada acima com o registro do
+        // servidor: o mapa local está completo e a saída da peça da fila não
+        // precisa re-baixar o lote. (Só a APROVAÇÃO marca: reprovar pode tirar
+        // a aprovação estrita de outros patrocinadores no servidor, e "Aprovar
+        // para todos" não devolve os registros — esses seguem re-buscando.)
+        // E só se o mapa local já dizia o mesmo que o servidor sobre os DEMAIS
+        // patrocinadores (todos aprovados) — senão o lote é quem corrige.
+        const mapaConfere = (itemSponsorsMap[variables.itemId] ?? []).every((s: any) =>
+          s.id === variables.sponsorId
+          || (itemApprovalsMap[variables.itemId] ?? []).some(a => a.sponsorId === s.id && a.status === 'approved'));
+        if (data.item?.id && data.approval && mapaConfere) decididasAquiRef.current.add(data.item.id);
         // O item mudou de status: a resposta traz o item atualizado.
         applyItemDecisionToCache(data.item);
         // Peça concluída: segue direto para a próxima da fila, sem voltar à lista.
@@ -1131,6 +1203,11 @@ export default function Atendimento() {
   // quando só uma peça mudou — se só as pendentes entrassem, o book sairia
   // incompleto assim que as demais fossem aprovadas.
   const exportPool = useMemo(() => {
+    // Só com o modal ABERTO: o pool copia cada peça elegível (milhares de
+    // objetos novos) e o ExportPdfDialog, montado sempre, recalcula oito
+    // facetas a cada identidade nova. Fechado, ele recebe o último pool que
+    // mostrou (exportPoolCongelado) e não refaz nada — nem na animação de saída.
+    if (!showExportPDFModal) return null;
     const evById = new Map((events as any[]).map((e: any) => [e.id, e]));
     return (items as any[])
       .filter(item => {
@@ -1147,7 +1224,10 @@ export default function Atendimento() {
         sponsors: itemSponsorsMap[item.id] ?? [],
         event: item.event ?? evById.get(item.eventId),
       }));
-  }, [items, itemSponsorsMap, itemApprovalsMap, events]);
+  }, [showExportPDFModal, items, itemSponsorsMap, itemApprovalsMap, events]);
+  const exportPoolRef = useRef<any[]>([]);
+  if (exportPool) exportPoolRef.current = exportPool;
+  const exportPoolCongelado = exportPool ?? exportPoolRef.current;
 
   // Patrocinadores da peça já com o status de aprovação de cada um, para os
   // chips mostrarem a cor da marca E a decisão (aprovado / reprovado / aguardando).
@@ -1395,11 +1475,24 @@ export default function Atendimento() {
 
   const historyItems = useMemo(() => {
     if (loadingSponsors) return [];
+    // A aba Histórico só é desenhada com ela aberta (`activeTab === "history"`),
+    // e este memo varre as 5 mil peças e ORDENA as que casam. Com a aba
+    // Pendentes aberta ele rodava de graça a cada decisão (o mapa de aprovações
+    // muda) — agora espera a aba ser aberta.
+    if (activeTab !== "history") return [];
+    // Chave de ordenação calculada UMA vez por peça: antes `latestApproval`
+    // filtrava as aprovações e fazia `new Date` dentro de cada COMPARAÇÃO do
+    // sort (~12 comparações por peça).
+    const ultimaPorId = new Map<string, number>();
     const latestApproval = (item: any) => {
+      const guardada = ultimaPorId.get(item.id);
+      if (guardada !== undefined) return guardada;
       const times = (itemApprovalsMap[item.id] || [])
         .filter((a: SponsorApproval) => a.status === 'approved' && a.approvedAt)
         .map((a: SponsorApproval) => new Date(a.approvedAt!).getTime());
-      return times.length ? Math.max(...times) : 0;
+      const ultima = times.length ? Math.max(...times) : 0;
+      ultimaPorId.set(item.id, ultima);
+      return ultima;
     };
     const duracaoDe = (item: any) => jornadaDaPeca(item, hoje instanceof Date ? hoje.getTime() : Number(hoje)).duracao ?? -1;
     const nomeDoEvento = (item: any) => (eventoPorId.get(item.eventId)?.name || "").toLowerCase();
@@ -1409,13 +1502,15 @@ export default function Atendimento() {
       return latestApproval(b) - latestApproval(a);
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ordemHistorico, hoje, eventoPorId, items, itemApprovalsMap, itemSponsorsMap, loadingSponsors, histEventFilter, histSponsorFilter, histPeriodFilter, histSearchTerm]);
+  }, [activeTab, ordemHistorico, hoje, eventoPorId, items, itemApprovalsMap, itemSponsorsMap, loadingSponsors, histEventFilter, histSponsorFilter, histPeriodFilter, histSearchTerm]);
 
   // As duas facetas da aba Histórico, do MESMO pool da lista. Só o que tem
   // linha aparece, e a contagem ao lado do nome é o número de linhas que o
   // clique entrega.
   const histEventOptions = useMemo(() => {
     if (loadingSponsors) return [] as { value: string; label: string; count: number; dotColor?: string }[];
+    // Mesma razão do historyItems: menu da aba Histórico, só com ela aberta.
+    if (activeTab !== "history") return [] as { value: string; label: string; count: number; dotColor?: string }[];
     const C: Record<string, string> = { urgente: '#ef4444', urgent: '#ef4444', alta: '#f97316', media: '#eab308', baixa: '#3b82f6' };
     const byId = new Map((events as any[]).map((e: any) => [e.id, e]));
     const map = new Map<string, { value: string; label: string; count: number; dotColor?: string }>();
@@ -1434,10 +1529,11 @@ export default function Atendimento() {
       return pa !== pb ? pa - pb : a.label.localeCompare(b.label, 'pt-BR');
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [items, events, itemApprovalsMap, itemSponsorsMap, loadingSponsors, histSponsorFilter, histPeriodFilter, histSearchTerm]);
+  }, [activeTab, items, events, itemApprovalsMap, itemSponsorsMap, loadingSponsors, histSponsorFilter, histPeriodFilter, histSearchTerm]);
 
   const histSponsorOptions = useMemo(() => {
     if (loadingSponsors) return [] as { value: string; label: string; count: number }[];
+    if (activeTab !== "history") return [] as { value: string; label: string; count: number }[];
     const map = new Map<string, { value: string; label: string; count: number }>();
     (items as any[]).filter(i => casaHistorico(i, 'patrocinador')).forEach((i: any) => {
       (itemSponsorsMap[i.id] || []).forEach((s: any) => {
@@ -1448,7 +1544,7 @@ export default function Atendimento() {
     });
     return Array.from(map.values()).sort((a, b) => a.label.localeCompare(b.label, 'pt-BR'));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [items, itemApprovalsMap, itemSponsorsMap, loadingSponsors, histEventFilter, histPeriodFilter, histSearchTerm]);
+  }, [activeTab, items, itemApprovalsMap, itemSponsorsMap, loadingSponsors, histEventFilter, histPeriodFilter, histSearchTerm]);
 
   // Fila de revisão: todas as peças pendentes na MESMA ordem em que aparecem
   // na tela (agrupadas por evento). É o que permite ir para a próxima peça sem
@@ -2692,6 +2788,13 @@ export default function Atendimento() {
             </div>
           )}
 
+          {/* FRONTEIRA DE RENDER dos grupos (ver SoQuandoMudar): o motivo da
+              reprovação, a busca de patrocinador e a trava pós-avanço vivem
+              neste componente — sem ela cada tecla no modal refazia todos os
+              grupos e cards da fila. `deps` = tudo o que os grupos leem. */}
+          <SoQuandoMudar
+            deps={[pendingGroup, itemsByEvent, events, expandedEvents, isMobile, hoje, agora, itemApprovalsMap, itemSponsorsMap, typeToGroup, loadingSponsors]}
+            render={() => (<>
           {pendingGroup.length > 0 && Array.from(itemsByEvent.entries()).map(([eventId, eventItems]) => {
             const ev = getEventInfo(eventId);
             // ALTURA ESTIMADA do grupo, para o navegador reservar o espaço sem
@@ -2843,8 +2946,15 @@ export default function Atendimento() {
                   </span>
                 </div>
 
-                {/* Cards */}
-                <div style={{ display: eventoAberto(eventId) ? 'flex' : 'none', flexDirection: 'column', gap: 12 }}>
+                {/* Cards — montados SÓ com o evento aberto. Antes o grupo
+                    recolhido escondia as peças com `display: none`, mas elas
+                    continuavam no DOM e em cada render: com os eventos todos
+                    fechados (o padrão), ~500 cards invisíveis — thumb, chips,
+                    selos — eram refeitos a cada tecla da busca. Escondido por
+                    display:none já não entrava no Ctrl+F nem no leitor de tela,
+                    então não montar não tira nada de quem usa. */}
+                {eventoAberto(eventId) && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                   {eventItems.map((item, idx) => {
                     const itemSps = itemSponsorsMap[item.id] || [];
                     const approvals: SponsorApproval[] = itemApprovalsMap[item.id] || [];
@@ -3153,9 +3263,11 @@ export default function Atendimento() {
                     );
                   })}
                 </div>
+                )}
               </div>
             );
           })}
+          </>)} />
 
           {/* Sem "Carregar mais" na fila: a lista chega inteira. O botão
               paginava PEÇAS antes do agrupamento, então escondia eventos —
@@ -4890,7 +5002,7 @@ export default function Atendimento() {
       <ExportPdfDialog
         open={showExportPDFModal}
         onOpenChange={setShowExportPDFModal}
-        items={exportPool}
+        items={exportPoolCongelado}
         title="Aprovação"
       />
 

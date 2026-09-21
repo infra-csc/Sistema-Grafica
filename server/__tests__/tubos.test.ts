@@ -284,7 +284,7 @@ describe("fechar o tubo (foto do tubo e dos itens) — não é entrega", () => {
   it("mexer no conteúdo depois da foto marca o tubo, e a tela avisa", () => {
     expect(ROTAS).toContain("async function marcarConteudoAlterado(tubo: { id: string; fechadoEm: Date | null }, agora: Date) {");
     expect(ROTAS).toContain("alteradoDepoisDaFoto: !!t.fechadoEm && !!t.conteudoAlteradoEm && t.conteudoAlteradoEm > t.fechadoEm,");
-    expect(PAINEL).toContain("tubo alterado depois da foto");
+    expect(PAINEL).toContain("o conteúdo mudou depois da foto");
   });
 
   it("as colunas são ADITIVAS: schema, migração e conferência", () => {
@@ -331,22 +331,14 @@ describe("Embalado na tela", () => {
     expect(ROTAS).toContain("entregueEm: tubos.entregueEm, fechadoEm: tubos.fechadoEm }).from(tubos);");
   });
 
-  it("o modal tem os dois passos, nessa ordem: fechar (fotos) e entregar (quem recebeu)", () => {
-    const iFechar = PAINEL.indexOf("data-testid={`fechar-tubo-${t.numero}`}");
-    const iEntregar = PAINEL.indexOf("data-testid={`entregar-tubo-${t.numero}`}");
-    expect(iFechar).toBeGreaterThan(0);
-    expect(iEntregar).toBeGreaterThan(iFechar);
-    expect(PAINEL).toContain("Adicionar fotos ao tubo");
-    expect(PAINEL).toContain("Entregar tubo (quem recebeu)");
-    expect(PAINEL).toContain('await apiRequest("POST", `/api/tubos/${tubo.id}/fechar`, { fotos: fotosFechamento });');
-    expect(PAINEL).toContain("disabled={fechar.isPending || fotosFechamento.length === 0}");
-    // entregar: recebedor obrigatório, foto opcional, e entregar sem fechar é permitido (só sugere)
-    expect(PAINEL).toContain("disabled={entregar.isPending || !recebidoPor.trim()}");
-    expect(PAINEL).not.toContain("fotos.length === 0}");
-    expect(PAINEL).toContain("Este tubo foi embalado antes de a foto ser obrigatória e não tem nenhuma: anexe a foto do comprovante para entregar.");
-    // apagar tubo com peças pede confirmação e diz que elas voltam a Conferido
-    expect(PAINEL).toContain("data-testid={`confirmar-apagar-tubo-${t.numero}`}");
-    expect(PAINEL).toContain("`Apagar e devolver ${t.pecas.length} a Conferido`");
+  it("são TRÊS modais focados (21/09) — o comportamento está montado em tubos-tres-modais.test.ts", () => {
+    for (const nome of ["EmbalarDialog", "EntregarTuboDialog", "PainelDeTubos", "TubosDialog"]) expect(PAINEL).toContain(`export function ${nome}(`);
+    // as mesmas rotas de sempre, sem regra nova no cliente
+    expect(PAINEL).toContain('await apiRequest("POST", `/api/tubos/${tubo.id}/fechar`, { fotos: fotosNovas })');
+    expect(PAINEL).toContain('await apiRequest("POST", `/api/tubos/${t!.id}/entregar`, { photoUrl: fotos[0] ?? null, receivedBy: recebidoPor.trim(), notes: obs });');
+    // o painel não tem mais o "Colocar" nem a lista de peças sem tubo
+    expect(PAINEL).not.toContain("button-colocar-no-tubo");
+    expect(PAINEL).not.toContain("pecas-sem-tubo");
   });
 
   it("a etiqueta e a ficha reconhecem a embalada como conferida", () => {
@@ -375,9 +367,7 @@ describe("na Gráfica", () => {
   });
 
   it("o painel agrupa, entrega com quem recebeu e leva à etiqueta", () => {
-    expect(PAINEL).toContain('data-testid="button-colocar-no-tubo"');
-    expect(PAINEL).toContain("disabled={!t.prontoParaEntregar}");
-    expect(PAINEL).toContain("disabled={entregar.isPending || !recebidoPor.trim()}");
+    expect(PAINEL).toContain("const pronto = podeFormulario && !!recebidoPor.trim() && (temFotoDoTubo || fotos.length > 0);");
     expect(PAINEL).toContain("href={`/grafica/tubos/${t.id}/etiqueta`}");
   });
 });
@@ -444,7 +434,8 @@ describe("a trava 'Solicitação sem Kit só visualiza' alcança os tubos", () =
 
   it("a tela esconde a caixa e o 'Entregar tubo' de quem só visualiza", () => {
     expect(PAINEL).toContain('user?.role === "solicitacao" && !user?.kit && !!p.doKit');
-    expect(PAINEL).toContain("!t.pecas.some(soVisualizaKit) && (");
+    expect(PAINEL).toContain("const soVe = t.pecas.some(soVisualizaKit);");
+    expect(PAINEL).toContain("const podeFormulario = !!t && !t.entregueEm && t.prontoParaEntregar && !soVe;");
     expect(ROTAS).toContain("doKit: !!p.kitRemessaId,");
   });
 
@@ -485,7 +476,7 @@ describe("toda entrega tem foto (21/09)", () => {
   it("o tubo não sai sem foto: vale a do fechamento ou a do comprovante", () => {
     expect(ROTAS).toContain("if (!foto && (tubo.fotosFechamento ?? []).length === 0) {");
     expect(ROTAS).toContain("ainda não tem foto — feche o tubo com a foto antes de entregar");
-    expect(PAINEL).toContain("const temFoto = t.fotosFechamento.length > 0 || fotos.length > 0;");
+    expect(PAINEL).toContain("(temFotoDoTubo || fotos.length > 0)");
   });
   it("a entrega por peça continua exigindo foto, sem exceção", () => {
     const ITEMS = ler("server/routes/items.ts");

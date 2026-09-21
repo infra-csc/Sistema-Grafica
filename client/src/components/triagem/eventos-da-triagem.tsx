@@ -9,8 +9,8 @@
 // Ordem: primeiro o evento com peça RESERVADA para outro evento (a saída do
 // caminhão mais próxima primeiro), depois o que espera há mais tempo.
 // ─────────────────────────────────────────────────────────────────────────────
-import { useMemo } from "react";
-import { ArrowRight, BookmarkCheck, CalendarDays, Package, ScanSearch, Table2 } from "lucide-react";
+import { useMemo, useState } from "react";
+import { ArrowRight, BookmarkCheck, CalendarDays, ChevronDown, Package, ScanSearch, Search, Table2 } from "lucide-react";
 import { miniatura } from "@/lib/miniatura";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { diaEMes } from "@shared/estoque";
@@ -78,6 +78,18 @@ export function agruparPorEvento(ativos: EnrichedAsset[], reservaPorAtivo: Map<s
     });
 }
 
+/** Cartões de evento por vez. O acúmulo de 4 mil+ peças se espalha por mais de
+ *  cem eventos; cada cartão carrega até quatro miniaturas. */
+export const LOTE_DE_EVENTOS = 24;
+
+/** Casa o nome do evento ou de um patrocinador, sem acento nem caixa. */
+const semAcento = (t: string) => t.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+export function filtrarEventos(eventos: EventoDaTriagem[], busca: string): EventoDaTriagem[] {
+  const q = semAcento(busca.trim());
+  if (!q) return eventos;
+  return eventos.filter((e) => semAcento(e.nome).includes(q) || e.patrocinadores.some((p) => semAcento(p).includes(q)));
+}
+
 const ehImagem = (u: string) => /\.(png|jpe?g|gif|webp)/i.test(u) || u.startsWith("/objects/");
 
 export function EventosDaTriagem({ ativos, reservaPorAtivo, isLoading, isError, onTentarDeNovo, onAbrir, onTabela }: {
@@ -93,6 +105,13 @@ export function EventosDaTriagem({ ativos, reservaPorAtivo, isLoading, isError, 
   const eventos = useMemo(() => agruparPorEvento(ativos, reservaPorAtivo), [ativos, reservaPorAtivo]);
   const agora = Date.now();
   const totalPecas = ativos.length;
+  const [busca, setBusca] = useState("");
+  const [mostrando, setMostrando] = useState(LOTE_DE_EVENTOS);
+  const noRecorte = useMemo(() => filtrarEventos(eventos, busca), [eventos, busca]);
+  const visiveis = noRecorte.slice(0, mostrando);
+  // O que pede atenção, dito antes da lista: quantos eventos esperam há mais
+  // de duas semanas (o vermelho do cartão, somado).
+  const atrasados = useMemo(() => eventos.filter((e) => tempoDeEspera(e.desde, agora).dias > 14).length, [eventos, agora]);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: isMobile ? 16 : 24 }}>
@@ -152,8 +171,31 @@ export function EventosDaTriagem({ ativos, reservaPorAtivo, isLoading, isError, 
           <p style={{ margin: 0, fontSize: 13, color: "#475569" }}>As peças entram aqui sozinhas no dia seguinte ao evento.</p>
         </div>
       ) : (
+        <>
+        {eventos.length > 6 && (
+          <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+            <div style={{ position: "relative", flex: "1 1 260px", maxWidth: isMobile ? undefined : 380 }}>
+              <Search size={15} color="#64748b" aria-hidden="true" style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }} />
+              <input type="search" data-testid="input-busca-eventos-triagem" aria-label="Buscar evento da triagem por nome ou patrocinador"
+                placeholder="Buscar evento ou patrocinador…" value={busca}
+                onChange={(ev) => { setBusca(ev.target.value); setMostrando(LOTE_DE_EVENTOS); }}
+                style={{ width: "100%", boxSizing: "border-box", height: 44, padding: "0 12px 0 36px", borderRadius: 10, border: "1px solid #e2e8f0", background: "#fff", fontSize: isMobile ? 16 : 13, color: "#0f172a" }} />
+            </div>
+            <p role="status" data-testid="resumo-eventos-triagem" style={{ margin: 0, fontSize: 13, color: "#475569" }}>
+              {busca.trim() ? `${noRecorte.length} de ${eventos.length} eventos` : null}
+              {!busca.trim() && atrasados > 0 ? <><strong style={{ color: "#b91c1c" }}>{atrasados}</strong> {atrasados === 1 ? "evento espera" : "eventos esperam"} há mais de 14 dias</> : null}
+            </p>
+          </div>
+        )}
+        {noRecorte.length === 0 && (
+          <div data-testid="eventos-sem-resultado" style={{ background: "#fff", borderRadius: 16, border: "1px solid #e2e8f0", padding: isMobile ? "32px 20px" : 40, textAlign: "center" }}>
+            <p style={{ margin: "0 0 4px", fontSize: 15, fontWeight: 700, color: "#0f172a", fontFamily: "Space Grotesk, sans-serif" }}>Nenhum evento com “{busca.trim()}”</p>
+            <p style={{ margin: "0 0 14px", fontSize: 13, color: "#475569" }}>{eventos.length} eventos esperam triagem fora desta busca.</p>
+            <button type="button" onClick={() => setBusca("")} style={{ minHeight: 44, background: "#0f172a", color: "#fff", border: "none", borderRadius: 8, padding: "0 18px", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>Limpar busca</button>
+          </div>
+        )}
         <div data-testid="lista-eventos-triagem" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 290px), 1fr))", gap: isMobile ? 12 : 16 }}>
-          {eventos.map((e) => {
+          {visiveis.map((e) => {
             const espera = tempoDeEspera(e.desde, agora);
             return (
               <button
@@ -161,9 +203,9 @@ export function EventosDaTriagem({ ativos, reservaPorAtivo, isLoading, isError, 
                 type="button"
                 data-testid={`evento-triagem-${e.id}`}
                 onClick={() => onAbrir(e.id)}
-                style={{ textAlign: "left", display: "flex", flexDirection: "column", gap: 12, padding: isMobile ? 16 : 18, borderRadius: 16, cursor: "pointer", background: "#fff", border: `1px solid ${e.reservadas ? "#bfdbfe" : "#e2e8f0"}`, borderTop: `3px solid ${e.reservadas ? "#1d4ed8" : "#c2410c"}`, boxShadow: "0 1px 3px rgba(0,0,0,0.05)", transition: "box-shadow 0.15s, transform 0.15s" }}
-                onMouseEnter={(ev) => { ev.currentTarget.style.boxShadow = "0 8px 24px rgba(15,23,42,0.10)"; ev.currentTarget.style.transform = "translateY(-2px)"; }}
-                onMouseLeave={(ev) => { ev.currentTarget.style.boxShadow = "0 1px 3px rgba(0,0,0,0.05)"; ev.currentTarget.style.transform = "none"; }}
+                style={{ textAlign: "left", display: "flex", flexDirection: "column", gap: 12, padding: isMobile ? 16 : 18, borderRadius: 16, cursor: "pointer", background: "#fff", border: `1px solid ${e.reservadas ? "#bfdbfe" : "#e2e8f0"}`, borderTop: `3px solid ${e.reservadas ? "#1d4ed8" : "#c2410c"}`, boxShadow: "0 1px 3px rgba(0,0,0,0.05)", transition: "box-shadow 0.15s, border-color 0.15s" }}
+                onMouseEnter={(ev) => { ev.currentTarget.style.boxShadow = "0 6px 18px rgba(15,23,42,0.08)"; ev.currentTarget.style.borderColor = "#cbd5e1"; }}
+                onMouseLeave={(ev) => { ev.currentTarget.style.boxShadow = "0 1px 3px rgba(0,0,0,0.05)"; ev.currentTarget.style.borderColor = e.reservadas ? "#bfdbfe" : "#e2e8f0"; }}
               >
                 {/* Miniaturas decorativas (aria-hidden): o leitor de tela lia o
                     "+N" solto antes do nome do evento. */}
@@ -218,6 +260,13 @@ export function EventosDaTriagem({ ativos, reservaPorAtivo, isLoading, isError, 
             );
           })}
         </div>
+        {noRecorte.length > visiveis.length && (
+          <button type="button" data-testid="mostrar-mais-eventos" onClick={() => setMostrando((n) => n + LOTE_DE_EVENTOS)}
+            style={{ alignSelf: "center", display: "inline-flex", alignItems: "center", gap: 6, minHeight: 44, padding: "0 18px", borderRadius: 10, border: "1px solid #e2e8f0", background: "#fff", color: "#334155", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+            <ChevronDown size={15} aria-hidden="true" /> Mostrar mais {Math.min(LOTE_DE_EVENTOS, noRecorte.length - visiveis.length)} · faltam {noRecorte.length - visiveis.length}
+          </button>
+        )}
+        </>
       )}
     </div>
   );

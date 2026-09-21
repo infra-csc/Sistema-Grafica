@@ -17,12 +17,14 @@ const PHASE_ALIASES: Record<string, string[]> = {
   inProduction: ["inProduction", "em_producao"],
   produced:     ["produced", "produzido"],
   conferred:    ["conferred"],
+  packed:       ["packed"],
   delivered:    ["delivered", "entregue"],
 };
 const PHASE_NOUN: Record<string, string> = {
   inProduction: "em produção",
   produced:     "produzidas",
   conferred:    "conferidas",
+  packed:       "embaladas",
   delivered:    "entregues",
 };
 

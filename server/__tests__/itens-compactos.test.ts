@@ -182,7 +182,7 @@ vi.setConfig({ testTimeout: 180_000 });
 
 let M: ReturnType<typeof gerarMundo>;
 const FILA_DA_GRAFICA = new Set(["awaiting_final_review", "awaiting_review", "in_review", "ready_for_production",
-  "pronto_para_producao", "approved", "inProduction", "produced", "conferred", "delivered"]);
+  "pronto_para_producao", "approved", "inProduction", "produced", "conferred", "packed", "delivered"]);
 
 function ligarStorage() {
   const s = H.storage;
@@ -313,6 +313,20 @@ describe("codificar/decodificar é exato", () => {
     const comBase = compactarPecas(pecas, { eventos: [evRenomeado], patrocinadores: [sp] });
     expect(json(expandirPecas(viaRede(comBase)))).toBe(json(pecas));
     expect(comBase.eventos).toHaveLength(1);
+  });
+
+  it("o status é VALOR, não índice: 'packed' (Embalado, 21/09) e o tubo fechado fazem a volta byte a byte", () => {
+    // O formato guarda cada peça como [forma, ...valores] — o status viaja
+    // como o texto que está no banco. Um status novo não muda forma nenhuma.
+    const ev = { id: "e1", name: "A" };
+    const pecas = [
+      { id: "p1", eventId: "e1", event: ev, status: "conferred", tuboId: null, statusChangedAt: new Date("2026-09-21T14:00:00Z"), sponsors: [] },
+      { id: "p2", eventId: "e1", event: ev, status: "packed", tuboId: "t1", statusChangedAt: new Date("2026-09-21T14:32:00Z"), sponsors: [] },
+      { id: "p3", eventId: "e1", event: ev, status: "delivered", tuboId: "t1", sponsors: [] },
+    ];
+    const volta = expandirPecas(viaRede(compactarPecas(pecas)));
+    expect(json(volta)).toBe(json(pecas));
+    expect(volta.map((p) => p.status)).toEqual(["conferred", "packed", "delivered"]);
   });
 });
 

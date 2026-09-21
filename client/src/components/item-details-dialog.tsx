@@ -52,7 +52,7 @@ const STATUS_STEP: Record<string, number> = {
   awaiting_finalization: 3, sponsor_approved: 3, awaiting_creator_review: 3,
   awaiting_final_review: 4,
   ready_for_production: 5, approved: 5, inproduction: 5, inProduction: 5,
-  produced: 6, conferred: 6, delivered: 6,
+  produced: 6, conferred: 6, packed: 6, delivered: 6,
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -532,6 +532,9 @@ export function ItemDetailsDialog({
     // "Produzido" mesmo em peças já conferidas e entregues.
     { label: "Conferido",                       keywords: [], pool: itemLogsFlow,
       match: d => d.includes("conferência") },
+    // Embalado (21/09): entrou no tubo já conferida — ou o tubo fechou com foto.
+    { label: "Embalado",                        keywords: [], pool: itemLogsFlow,
+      match: d => d.includes("embalada no tubo") },
     { label: "Entregue",                        keywords: [], pool: itemLogsFlow, actionType: "delivered",
       match: d => d.includes("entrega concluída") || d.includes("entrega parcial") },
   ];
@@ -737,7 +740,10 @@ export function ItemDetailsDialog({
       return { tom: "espera", frase: `Em acabamento / conferência${desdeQuando}`, detalhe: item.conferredQty > 0 ? `${item.conferredQty} de ${item.quantity} já conferidas` : null };
     }
     if (["conferred", "conferido"].includes(rawStatus)) {
-      return { tom: "espera", frase: `Conferida — falta entregar${desdeQuando}`, detalhe: item.deliveredQty > 0 ? `${item.deliveredQty} de ${item.quantity} já entregues` : null };
+      return { tom: "espera", frase: `Conferida — falta embalar ou entregar${desdeQuando}`, detalhe: item.deliveredQty > 0 ? `${item.deliveredQty} de ${item.quantity} já entregues` : null };
+    }
+    if (rawStatus === "packed") {
+      return { tom: "espera", frase: `Embalada no tubo — aguarda o caminhão${desdeQuando}`, detalhe: item.deliveredQty > 0 ? `${item.deliveredQty} de ${item.quantity} já entregues` : null };
     }
     if (["delivered", "entregue"].includes(rawStatus)) {
       return { tom: "ok", frase: "Entregue — nada pendente", detalhe: item.receivedBy ? `Recebida por ${item.receivedBy}` : null };

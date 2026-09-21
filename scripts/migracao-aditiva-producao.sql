@@ -142,3 +142,14 @@ BEGIN
     END IF;
   END LOOP;
 END $$;
+
+-- ── 21/09 · Etapa "Embalado" (packed) ─────────────────────────────────────
+-- O status novo é TEXTO em items.status: não há enum nem constraint, então
+-- nada a migrar na peça. Só o TUBO ganha colunas (todas vazias ao nascer):
+--   fotos_fechamento     fotos do tubo fechado e dos itens (várias URLs /objects/)
+--   fechado_em / fechado_por   quando e quem fechou
+--   conteudo_alterado_em       pôs/tirou peça depois da foto (aviso na tela)
+ALTER TABLE tubos ADD COLUMN IF NOT EXISTS fotos_fechamento text[];
+ALTER TABLE tubos ADD COLUMN IF NOT EXISTS fechado_em timestamp;
+ALTER TABLE tubos ADD COLUMN IF NOT EXISTS fechado_por text;
+ALTER TABLE tubos ADD COLUMN IF NOT EXISTS conteudo_alterado_em timestamp;

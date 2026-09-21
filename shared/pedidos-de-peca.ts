@@ -302,7 +302,7 @@ export function etapaDaPeca(status: string | null | undefined): number | null {
   const s = String(status ?? "");
   if (s === "cancelled" || s === "canceled" || s === "cancelado") return null;
   if (s === "delivered" || s === "entregue") return 4;
-  if (["produced", "produzido", "conferred", "conferido"].includes(s)) return 3;
+  if (["produced", "produzido", "conferred", "conferido", "packed"].includes(s)) return 3;
   if (["inProduction", "em_producao", "ready_for_production", "pronto_para_producao", "approved", "liberado"].includes(s)) return 2;
   if (["awaiting_sponsor_approval", "awaiting_approval", "awaiting_creator_review", "awaiting_final_review", "new_version_pending"].includes(s)) return 1;
   return 0;

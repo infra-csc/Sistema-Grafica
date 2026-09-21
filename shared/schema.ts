@@ -192,7 +192,7 @@ export const items = pgTable("items", {
   finish: text("finish").notNull(),
   measurement: text("measurement").notNull(), // Can be edited, starts as area x visual
   calculatedM2: decimal("calculated_m2", { precision: 10, scale: 2 }).notNull(),
-  status: text("status").notNull().default("draft"), // draft, requested, awaiting_linking, awaiting_submission, awaiting_approval, awaiting_finalization, awaiting_final_review, ready_for_production, approved, inProduction, produced, delivered
+  status: text("status").notNull().default("draft"), // draft, requested, awaiting_linking, awaiting_submission, awaiting_approval, awaiting_finalization, awaiting_final_review, ready_for_production, approved, inProduction, produced, conferred, packed (Embalado, 21/09), delivered
   observations: text("observations"),
   quantityProduced: integer("quantity_produced"),
   receivedBy: text("received_by"),
@@ -464,6 +464,17 @@ export const tubos = pgTable("tubos", {
   eventId: varchar("event_id").notNull().references(() => events.id, { onDelete: "cascade" }),
   numero: integer("numero").notNull(),
   criadoPor: text("criado_por"),
+  // FECHAMENTO DO TUBO (dono, 21/09: "hoje eles colocam Entregue, mas a foto
+  // é do tubo; a entrega é feita depois"). O galpão tira a foto do tubo
+  // fechado E dos itens dentro dele — por isso VÁRIAS fotos, não uma. Não é
+  // entrega: as peças continuam "Embalado" (packed) até o tubo sair.
+  fotosFechamento: text("fotos_fechamento").array(),
+  fechadoEm: timestamp("fechado_em"),
+  fechadoPor: text("fechado_por"),
+  // Última vez que se pôs/tirou peça DEPOIS de fechado — a tela avisa que a
+  // foto pode não bater mais com o conteúdo. `updatedAt` da peça não serve:
+  // ele muda por conferência e edição, não só pelo tubo.
+  conteudoAlteradoEm: timestamp("conteudo_alterado_em"),
   entregueEm: timestamp("entregue_em"),
   recebidoPor: text("recebido_por"),
   fotoEntregaUrl: text("foto_entrega_url"),
@@ -1184,6 +1195,8 @@ export const ITEM_STATUSES = [
   "inProduction",
   "produced",
   "conferred",
+  // Embalado (dono, 21/09): conferida e dentro de um tubo, esperando o caminhão.
+  "packed",
   "delivered",
   "canceled",
   "archived",

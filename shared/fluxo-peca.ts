@@ -24,7 +24,7 @@
  */
 export const DEPOIS_DA_ARTE: ReadonlySet<string> = new Set([
   "ready_for_production", "approved", "inProduction",
-  "produced", "conferred", "delivered", "canceled", "archived",
+  "produced", "conferred", "packed", "delivered", "canceled", "archived",
 ]);
 
 /**
@@ -159,7 +159,37 @@ export const rotuloDaMaquina = (m: string | null | undefined): string =>
  * disso não há material para embalar. A lista mora aqui porque a tela
  * precisa saber o mesmo que o servidor recusa.
  */
-export const PODE_IR_PARA_TUBO: readonly string[] = ["produced", "produzido", "conferred", "conferido"];
+export const PODE_IR_PARA_TUBO: readonly string[] = ["produced", "produzido", "conferred", "conferido", "packed"];
 
 export const podeIrParaTubo = (status: string | null | undefined): boolean =>
   !!status && PODE_IR_PARA_TUBO.includes(status);
+
+/**
+ * EMBALADO — a etapa entre Conferido e Entregue (dono, 21/09: "precisava de
+ * mais um status entre Conferidos e Entregue, que é aí que colocamos em tubos
+ * as peças"; e o porquê: "hoje eles colocam Entregue, mas a foto é do tubo; a
+ * entrega é feita depois").
+ *
+ * A ORDEM DO FIM DO FLUXO é: produced → conferred → packed → delivered.
+ *
+ * Como a peça entra e sai daqui (server/routes/tubos.ts é quem grava):
+ *   · peça CONFERIDA colocada num tubo → packed (trilha "Embalada no Tubo N");
+ *     peça em acabamento (produced) pode ir para o tubo, mas só vira packed
+ *     quando a conferência dela fecha (routes/items.ts, confer);
+ *   · tirada do tubo (ou tubo apagado) → volta a conferred;
+ *   · tubo entregue → delivered. A entrega individual (PATCH /deliver) segue
+ *     aceitando conferred (peça grande que não vai em tubo) E packed.
+ *
+ * Nada muda no que já está no banco: a etapa vale do dia da publicação em
+ * diante (decisão do dono, 21/09 — sem reclassificar peça antiga). `packed`
+ * está em PODE_IR_PARA_TUBO só para a peça poder MUDAR de tubo.
+ */
+export const EMBALADO = "packed";
+
+export const ehEmbalada = (status: string | null | undefined): boolean => status === EMBALADO;
+
+/** Conferida OU embalada: já passou pela conferência e ainda não saiu. */
+export const POS_CONFERENCIA: readonly string[] = ["conferred", "conferido", EMBALADO];
+
+export const ehPosConferencia = (status: string | null | undefined): boolean =>
+  !!status && POS_CONFERENCIA.includes(status);

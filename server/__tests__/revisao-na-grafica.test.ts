@@ -99,7 +99,7 @@ describe("segunda rodada (25/08): os quatro furos que sobraram", () => {
   it("produzir e reaproveitar da tabela exigem !emRevisao", () => {
     expect(G).toContain("{!bulkOn && !emRevisao && canProduce && !isDelivered(item)");
     // 15/09: + !soVisualizaKit(item) — a Solicitação da Arena só vê a peça do Kit.
-    expect(G).toContain("{!bulkOn && !emRevisao && !soVisualizaKit(item) && !isDelivered(item) && !isConferred(item) && (!isProduced(item) ? tetoReaproveitar(item) > 0 : podeMexerQtd && qtyOf(item) > 0)");
+    expect(G).toContain("{!bulkOn && !emRevisao && !soVisualizaKit(item) && !isDelivered(item) && !isPosConferencia(item) && (!isProduced(item) ? tetoReaproveitar(item) > 0 : podeMexerQtd && qtyOf(item) > 0)");
     expect(G).toContain("{!bulkOn && !emRevisao && !soVisualizaKit(item) && (isProduced(item) || isAdmin) && reusedTotalOf(item) > 0");
   });
 

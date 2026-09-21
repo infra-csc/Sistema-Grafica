@@ -40,7 +40,7 @@ describe("a página /eventos/:id/etiquetas", () => {
   });
 
   it("abre nas CONFERIDAS — a etiqueta nasce da conferência", () => {
-    expect(PAGINA).toContain('const CONFERIDA = new Set(["conferred", "conferido", "delivered", "entregue"]);');
+    expect(PAGINA).toContain('const CONFERIDA = new Set(["conferred", "conferido", "packed", "delivered", "entregue"]);');
     expect(PAGINA).toContain("(i.conferredQty ?? 0) > 0");
     expect(PAGINA).toContain("const [incluirTodas, setIncluirTodas] = useState(false);");
     // e o vazio explica de onde as etiquetas vêm, em vez de parecer quebrado
@@ -75,7 +75,7 @@ describe("a etiqueta no caminho de quem confere (25/08)", () => {
   });
 
   it("a contagem é de peça JÁ conferida (total, parcial ou entregue)", () => {
-    expect(G).toContain("conferredOf(i) > 0 || isConferred(i) || isDelivered(i)");
+    expect(G).toContain("conferredOf(i) > 0 || isPosConferencia(i) || isDelivered(i)");
   });
 
   it("o galpão avisa no resumo de saída da conferência", () => {

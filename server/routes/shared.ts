@@ -80,6 +80,7 @@ export function translateStatus(status: string): string {
     inProduction: "Em Impressão",
     produced: "Impresso / Acabamento",
     conferred: "Conferido",
+    packed: "Embalado",
     delivered: "Entregue",
     canceled: "Cancelado",
     archived: "Arquivado",

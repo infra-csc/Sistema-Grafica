@@ -31,7 +31,7 @@ export const FINALIZADOS_STATUSES: string[] = [
   "pronto_para_producao",
   "liberado",
   "approved",
-  ...PRODUCTION_STATUSES, // inProduction, produced, conferred, delivered
+  ...PRODUCTION_STATUSES, // inProduction, produced, conferred, packed, delivered
   "em_producao",
   "produzido",
   "entregue",

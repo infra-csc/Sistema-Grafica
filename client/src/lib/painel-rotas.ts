@@ -54,6 +54,7 @@ const TELA_DO_STATUS: Record<string, ProximaTela> = {
   inProduction:            TELAS.grafica,
   produced:                TELAS.grafica,
   conferred:               TELAS.grafica,
+  packed:                  TELAS.grafica,
 };
 
 /**

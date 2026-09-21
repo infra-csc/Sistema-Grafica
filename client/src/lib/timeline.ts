@@ -475,6 +475,17 @@ export function buildTimeline(
       return;
     }
 
+    // Embalado (21/09): a peça entrou num tubo já conferida (ou o tubo foi
+    // fechado com foto), e a que saiu do tubo volta a Conferido.
+    if (detailsLower.includes("embalada no tubo")) {
+      timeline.push({ id: `packed-${uid}`, type: "item_packed", ...base });
+      return;
+    }
+    if (detailsLower.includes("retirada do tubo")) {
+      timeline.push({ id: `unpacked-${uid}`, type: "item_unpacked", ...base });
+      return;
+    }
+
     if (detailsLower.includes("item cancelado")) {
       timeline.push({ id: `canceled-${uid}`, type: "item_canceled", ...base });
       return;

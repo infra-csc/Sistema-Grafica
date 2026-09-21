@@ -46,7 +46,7 @@ import { EM_REVISAO, rotuloDaMaquina, podeIrParaTubo } from "@shared/fluxo-peca"
 // toda vez que uma regra mudou, uma das cópias ficou para trás. Aqui a lista,
 // os modais e a ficha leem os MESMOS números.
 import {
-  isDelivered, isConferred, isProduced, isInProd,
+  isDelivered, isPacked, isPosConferencia, isProduced, isInProd,
   qtyOf, producedOf, conferredOf, deliveredOf, reusedOf, reusedTotalOf,
   m2ToProduce, remainingProduce, remainingConfer, remainingDeliver, remainingReuse,
   canConfer as canConferBase, canDeliver as canDeliverBase,
@@ -191,7 +191,7 @@ function ProgressoImpressao({ item, fonte, duasLinhas }: { item: any; fonte: num
 }
 // Resumo de tubo que a fila lê (número por id). Constante vazia ESTÁVEL: ver
 // o useQuery de /api/tubos.
-type TuboResumo = { id: string; numero: number; eventId: string; entregueEm: string | null };
+type TuboResumo = { id: string; numero: number; eventId: string; entregueEm: string | null; fechadoEm?: string | null };
 const SEM_TUBOS: TuboResumo[] = [];
 
 const complementOpen = (item: any) => isComplement(item) && !isDelivered(item);
@@ -1197,6 +1197,33 @@ export default function Grafica() {
     refetchInterval: 60_000,
   });
   const numeroDoTubo = useMemo(() => new Map(todosOsTubos.map((t) => [t.id, t.numero])), [todosOsTubos]);
+  // Quando o tubo foi FECHADO (foto tirada) — "fechado 14:32" na peça embalada
+  // (dono, 21/09). Só hora: a fila é do dia, e a data já está no cabeçalho.
+  const fechamentoDoTubo = useMemo(() => new Map(
+    todosOsTubos.filter((t) => t.fechadoEm).map((t) => [t.id, new Date(t.fechadoEm as string).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })]),
+  ), [todosOsTubos]);
+  const seloDoTubo = (item: any): string | null => {
+    if (!item.tuboId || !numeroDoTubo.has(item.tuboId)) return null;
+    const fechado = fechamentoDoTubo.get(item.tuboId);
+    return `Tubo ${numeroDoTubo.get(item.tuboId)}${fechado ? ` · fechado ${fechado}` : ""}`;
+  };
+
+  // TIRAR DO TUBO direto da fila (21/09): a peça Embalado volta a Conferido —
+  // o servidor faz a transição e escreve a trilha. É o mesmo PATCH do modal.
+  const tirarDoTuboMutation = useMutation({
+    mutationFn: async ({ itemId, tuboId }: { itemId: string; tuboId: string; displayId?: string }) =>
+      await apiRequest("PATCH", `/api/tubos/${tuboId}/itens`, { remover: [itemId] }),
+    onSuccess: (_r, vars) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/items/approved"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/tubos"] });
+      toast({ title: `${vars.displayId ?? "Peça"} saiu do Tubo ${numeroDoTubo.get(vars.tuboId) ?? ""}`, description: "Voltou para Conferido." });
+    },
+    onError: (error: Error) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/items/approved"] });
+      toast({ title: "Não foi possível tirar do tubo", description: apiErrorMessage(error), variant: "destructive" });
+    },
+  });
   const eventoDaConferencia = modalType === "conference" ? selectedItem?.eventId : undefined;
   const { data: tubosDaConferencia } = useQuery<any>({
     queryKey: [`/api/events/${eventoDaConferencia}/tubos`],
@@ -1469,6 +1496,7 @@ export default function Grafica() {
     { value: "inProduction",         label: "Em Impressão" },
     { value: "produced",             label: "Impresso / Acabamento" },
     { value: "conferred",            label: "Conferidos" },
+    { value: "packed",               label: "Embalados" },
     { value: "delivered",            label: "Entregues" },
   ] as const;
   const statusFilterOptions = useMemo(() => {
@@ -1577,6 +1605,7 @@ export default function Grafica() {
     emProducao: statsPool.filter((i: any) => i.status === 'inProduction').length,
     produzidos: statsPool.filter((i: any) => i.status === 'produced').length,
     conferidos: statsPool.filter((i: any) => i.status === 'conferred').length,
+    embalados:  statsPool.filter((i: any) => i.status === 'packed').length,
     entregues:  statsPool.filter((i: any) => i.status === 'delivered').length,
     revisao:    statsPool.filter((i: any) => EM_REVISAO.has(i.status)).length,
     total:      statsPool.length,
@@ -2061,7 +2090,7 @@ export default function Grafica() {
   const etiquetaveisPorEvento = useMemo(() => {
     const m = new Map<string, number>();
     for (const i of filteredItems as any[]) {
-      if (!(conferredOf(i) > 0 || isConferred(i) || isDelivered(i))) continue;
+      if (!(conferredOf(i) > 0 || isPosConferencia(i) || isDelivered(i))) continue;
       const id = String(i.eventId ?? "");
       if (!id) continue;
       m.set(id, (m.get(id) ?? 0) + 1);
@@ -2471,6 +2500,9 @@ export default function Grafica() {
     // leem estes dois; sem eles a linha memoizada não redesenhava quando a
     // peça entrava num tubo ou o evento ganhava a primeira peça tubável.
     item.tuboId ? numeroDoTubo.get(item.tuboId) ?? null : null,
+    // …e o "fechado 14:32" do selo (21/09): a linha redesenha quando o tubo fecha.
+    item.tuboId ? fechamentoDoTubo.get(item.tuboId) ?? null : null,
+    tirarDoTuboMutation.isPending,
     tubaveisPorEvento.get(String(item.eventId)) ?? 0,
     ...daPosicao,
   ];
@@ -2753,7 +2785,9 @@ export default function Grafica() {
           { label: "Liberados",    value: stats.liberados,  sub: "Aguardam produção",    testId: "stat-approved",   filterVals: ["ready_for_production", "approved"] },
           { label: "Em Impressão", value: stats.emProducao, sub: "Na máquina",           testId: "stat-production", filterVals: ["inProduction"] },
           { label: "Impresso",     value: stats.produzidos, sub: "No acabamento",        testId: "stat-produced",   filterVals: ["produced"] },
-          { label: "Conferidos",   value: stats.conferidos, sub: "Aguardam entrega",     testId: "stat-conferred",  filterVals: ["conferred"] },
+          { label: "Conferidos",   value: stats.conferidos, sub: "Aguardam tubo ou entrega", testId: "stat-conferred", filterVals: ["conferred"] },
+          // EMBALADO (dono, 21/09): conferida e dentro do tubo — entre Conferidos e Entregues.
+          { label: "Embalados",    value: stats.embalados,  sub: "Aguardam o caminhão",  testId: "stat-packed",     filterVals: ["packed"] },
           { label: "Entregues",    value: stats.entregues,  sub: "Já saíram",            testId: "stat-delivered",  filterVals: ["delivered"] },
         ].map(kpi => {
           const isActive = kpi.filterVals.every(v => filtros.status.includes(v)) && filtros.status.length === kpi.filterVals.length;
@@ -3460,7 +3494,7 @@ export default function Grafica() {
               // !emRevisao em TODAS: em Revisão a Gráfica só OLHA (regra do
               // dono, 25/08) — a peça é trabalho chegando, não chegou.
               const mostraAumentar = !bulkOn && !emRevisao && !soVisualizaKit(item) && podeAumentarQuantidade(item, podeMexerQtd);
-              const podeProduzirAqui = !emRevisao && canProduce && coAberto && !isProduced(item) && !isConferred(item) && !item.isReuse && remainingProduce(item) > 0;
+              const podeProduzirAqui = !emRevisao && canProduce && coAberto && !isProduced(item) && !isPosConferencia(item) && !item.isReuse && remainingProduce(item) > 0;
               const podeCancelarCompl = podeMexerQtd && !soVisualizaKit(item) && ehComplemento && complementUntouched(item);
               // Evento finalizado: o botão continua na tela, DESABILITADO com o
               // motivo — sumir devolveria o buraco que esconder a peça criava
@@ -3477,8 +3511,8 @@ export default function Grafica() {
               // coluna de Ações da tabela, lá embaixo: se mudar um, mude o
               // outro — `grafica-mobile.test.ts` confere que as duas batem.
               // O `!bulkOn` já vem do trilho, que só existe fora do lote.
-              const podeProduzirPeca = !emRevisao && canProduce && !isDelivered(item) && !isProduced(item) && !isConferred(item) && !item.isReuse;
-              const podeReaproveitarPeca = !emRevisao && !soVisualizaKit(item) && !isDelivered(item) && !isConferred(item) && (!isProduced(item) ? tetoReaproveitar(item) > 0 : podeMexerQtd && qtyOf(item) > 0);
+              const podeProduzirPeca = !emRevisao && canProduce && !isDelivered(item) && !isProduced(item) && !isPosConferencia(item) && !item.isReuse;
+              const podeReaproveitarPeca = !emRevisao && !soVisualizaKit(item) && !isDelivered(item) && !isPosConferencia(item) && (!isProduced(item) ? tetoReaproveitar(item) > 0 : podeMexerQtd && qtyOf(item) > 0);
               const podeCorrigirReaprov = !emRevisao && !soVisualizaKit(item) && (isProduced(item) || isAdmin) && reusedTotalOf(item) > 0
                 && conferredOf(item) === 0 && deliveredOf(item) === 0;
               const podeDevolverPeca = canProduce && podeDevolverParaRevisao(item);
@@ -3779,8 +3813,9 @@ export default function Grafica() {
                         )}
                         {/* Paridade com a tabela: o tubo em que a peça vai. */}
                         {item.tuboId && numeroDoTubo.has(item.tuboId) && (
-                          <span data-testid={`chip-tubo-card-${item.id}`} style={qtyChip('#9a3412', '#fff7ed')} title="Tubo em que a peça vai para a entrega">
-                            TUBO {numeroDoTubo.get(item.tuboId)}
+                          <span data-testid={`chip-tubo-card-${item.id}`} style={qtyChip('#9a3412', '#fff7ed')} title={fechamentoDoTubo.has(item.tuboId) ? "Tubo já fechado com foto — só falta entregar" : "Tubo em que a peça vai para a entrega"}>
+                            {fechamentoDoTubo.has(item.tuboId) && <Camera aria-hidden="true" style={{ width: 10, height: 10, marginRight: 3, verticalAlign: -1 }} />}
+                            {(seloDoTubo(item) ?? "").toUpperCase()}
                           </span>
                         )}
                       </div>
@@ -4013,6 +4048,17 @@ export default function Grafica() {
                             >
                               <Truck aria-hidden="true" style={{ width: 13, height: 13 }} />
                               {deliveredOf(item) > 0 ? `Entregar ${remainingDeliver(item)}` : 'Entregar'}
+                            </button>
+                          )}
+                          {/* Embalado: tirar do tubo devolve a Conferido (21/09). */}
+                          {podeConferir && !soVisualizaKit(item) && isPacked(item) && item.tuboId && (
+                            <button
+                              onClick={e => { e.stopPropagation(); tirarDoTuboMutation.mutate({ itemId: item.id, tuboId: item.tuboId, displayId: item.displayId }); }}
+                              disabled={tirarDoTuboMutation.isPending}
+                              data-testid={`button-tirar-do-tubo-card-${item.id}`}
+                              style={{ order: 0, flex: '1 1 130px', minHeight: 48, padding: '0 12px', borderRadius: 8, background: '#fff', border: '1px solid #d6d3d1', color: '#44403c', fontSize: 14, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, cursor: 'pointer', whiteSpace: 'nowrap' }}
+                            >
+                              <Undo2 aria-hidden="true" style={{ width: 13, height: 13 }} /> Tirar do tubo
                             </button>
                           )}
                           {isDelivered(item) && (
@@ -4308,9 +4354,10 @@ export default function Grafica() {
                         {/* Kit (14/09): a peça do Kit se declara na fila, com a entrega. */}
                         <SeloKit peca={item} style={{ display: "flex", width: "fit-content", marginTop: 4 }} />
                         {item.tuboId && numeroDoTubo.has(item.tuboId) && (
-                          <span data-testid={`chip-tubo-${item.id}`} title="Tubo em que a peça vai para a entrega"
-                            style={{ display: "inline-block", marginTop: 4, padding: "1px 6px", borderRadius: 999, fontSize: 10, fontWeight: 800, color: "#9a3412", background: "#fff7ed", border: "1px solid #fed7aa", whiteSpace: "nowrap" }}>
-                            Tubo {numeroDoTubo.get(item.tuboId)}
+                          <span data-testid={`chip-tubo-${item.id}`} title={fechamentoDoTubo.has(item.tuboId) ? "Tubo já fechado com foto — só falta entregar" : "Tubo em que a peça vai para a entrega"}
+                            style={{ display: "inline-flex", alignItems: "center", gap: 3, marginTop: 4, padding: "1px 6px", borderRadius: 999, fontSize: 10, fontWeight: 800, color: "#9a3412", background: "#fff7ed", border: "1px solid #fed7aa", whiteSpace: "nowrap" }}>
+                            {fechamentoDoTubo.has(item.tuboId) && <Camera aria-hidden="true" style={{ width: 10, height: 10 }} />}
+                            {seloDoTubo(item)}
                           </span>
                         )}
                       </td>
@@ -4656,7 +4703,7 @@ export default function Grafica() {
                           {(() => {
                             const temSecundaria = !bulkOn && (
                               (podeMexerQtd && !soVisualizaKit(item) && ehComplemento && complementUntouched(item))
-                              || (!emRevisao && !soVisualizaKit(item) && !isDelivered(item) && !isConferred(item) && (!isProduced(item) ? tetoReaproveitar(item) > 0 : podeMexerQtd && qtyOf(item) > 0))
+                              || (!emRevisao && !soVisualizaKit(item) && !isDelivered(item) && !isPosConferencia(item) && (!isProduced(item) ? tetoReaproveitar(item) > 0 : podeMexerQtd && qtyOf(item) > 0))
                               || (!emRevisao && !soVisualizaKit(item) && (isProduced(item) || isAdmin) && reusedTotalOf(item) > 0 && conferredOf(item) === 0 && deliveredOf(item) === 0)
                               || (canProduce && podeDevolverParaRevisao(item)));
                             if (!compacto || !temSecundaria) return null;
@@ -4754,7 +4801,7 @@ export default function Grafica() {
                               (POST /api/items/:id/mark-reuse é barrado): marcar
                               reaproveitamento é decidir o que entra na fila de
                               produção, ou seja, faz o trabalho andar. */}
-                          {!bulkOn && !emRevisao && !soVisualizaKit(item) && !isDelivered(item) && !isConferred(item) && (!isProduced(item) ? tetoReaproveitar(item) > 0 : podeMexerQtd && qtyOf(item) > 0) && (
+                          {!bulkOn && !emRevisao && !soVisualizaKit(item) && !isDelivered(item) && !isPosConferencia(item) && (!isProduced(item) ? tetoReaproveitar(item) > 0 : podeMexerQtd && qtyOf(item) > 0) && (
                             reuseConfirmItemId === item.id ? (
                               <div style={{ display: "flex", alignItems: "center", gap: 4 }} onClick={e => e.stopPropagation()}>
                                 {/* Rótulo, como no "Corrigir": sem ele o campo
@@ -4938,7 +4985,7 @@ export default function Grafica() {
                               Vem DEPOIS das secundárias: a ação principal de cada
                               etapa (Produzir, Conferir, Entregar) fica sempre na
                               ponta direita, onde o olho já procura. */}
-                          {!bulkOn && !emRevisao && canProduce && !isDelivered(item) && !isProduced(item) && !isConferred(item) && !item.isReuse && (
+                          {!bulkOn && !emRevisao && canProduce && !isDelivered(item) && !isProduced(item) && !isPosConferencia(item) && !item.isReuse && (
                             <button
                               onClick={() => { if (!selo) openProductionModal(item); }}
                               disabled={!!selo}
@@ -5025,6 +5072,19 @@ export default function Grafica() {
                             >
                               <Truck aria-hidden="true" style={{ width: 13, height: 13 }} />
                               {deliveredOf(item) > 0 ? `Entregar ${remainingDeliver(item)}` : "Entregar"}
+                            </button>
+                          )}
+
+                          {/* Embalado: tirar do tubo devolve a Conferido (21/09). */}
+                          {!bulkOn && podeConferir && !soVisualizaKit(item) && isPacked(item) && item.tuboId && (
+                            <button
+                              onClick={() => tirarDoTuboMutation.mutate({ itemId: item.id, tuboId: item.tuboId, displayId: item.displayId })}
+                              disabled={tirarDoTuboMutation.isPending}
+                              data-testid={`button-tirar-do-tubo-${item.id}`}
+                              title="Tira a peça do tubo — ela volta a Conferido"
+                              style={{ backgroundColor: "#fff", color: "#44403c", border: "1px solid #d6d3d1", borderRadius: 8, height: 32, padding: "0 10px", fontSize: 12, fontWeight: 700, whiteSpace: "nowrap", cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}
+                            >
+                              <Undo2 aria-hidden="true" style={{ width: 13, height: 13 }} /> Tirar do tubo
                             </button>
                           )}
 

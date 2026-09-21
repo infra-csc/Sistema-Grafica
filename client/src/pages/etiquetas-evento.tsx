@@ -35,7 +35,8 @@ import { logoDaCapaDoBook } from "@/lib/logo-do-book";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 
 /** Conferida = já passou pela conferência (inclui as entregues e as grafias legadas). */
-const CONFERIDA = new Set(["conferred", "conferido", "delivered", "entregue"]);
+// `packed` (Embalado, 21/09): embalada é conferida — a etiqueta vale igual.
+const CONFERIDA = new Set(["conferred", "conferido", "packed", "delivered", "entregue"]);
 const jaConferida = (i: any) => CONFERIDA.has(i.status) || (i.conferredQty ?? 0) > 0;
 
 /**

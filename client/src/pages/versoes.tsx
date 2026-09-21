@@ -118,7 +118,7 @@ const GRAVIDADE: Record<string, Gravidade> = {
   awaiting_final_review: "liberada", ready_for_production: "liberada", pronto_para_producao: "liberada",
   approved: "liberada", liberado: "liberada",
   inProduction: "producao", em_producao: "producao",
-  produced: "impressa", produzido: "impressa", conferred: "impressa",
+  produced: "impressa", produzido: "impressa", conferred: "impressa", packed: "impressa",
   delivered: "impressa", entregue: "impressa",
 };
 

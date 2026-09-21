@@ -262,7 +262,7 @@ const MARCO_DEFS: MarcoDef[] = [
     key: "producao", label: "Produção Gráfica",
     offsetField: "deadlineProducaoGrafica", defaultOffset: -1, allDays: true,
     pendingStatuses: [
-      "ready_for_production", "approved", "inProduction", "produced", "conferred",
+      "ready_for_production", "approved", "inProduction", "produced", "conferred", "packed",
       "pronto_para_producao", "liberado", "em_producao", "produzido",
     ],
   },

@@ -137,7 +137,7 @@ export function ExportPdfDialog({ open, onOpenChange, items: itensDaTela, title 
   const APPROVED_STATUSES = [
     "sponsor_approved","awaiting_creator_review","awaiting_final_review",
     "ready_for_production","approved","pronto_para_producao","liberado",
-    "inProduction","em_producao","produced","produzido","conferred","delivered","entregue",
+    "inProduction","em_producao","produced","produzido","conferred","packed","delivered","entregue",
   ];
   const statusOf = (i: any): "pendente" | "aprovado" | "outro" =>
     i.status === "awaiting_sponsor_approval" ? "pendente"

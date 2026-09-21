@@ -20,6 +20,7 @@
 import type { Express } from "express";
 import { and, asc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { db } from "../db";
+import { storage } from "../storage";
 import { items as itemsTable, tubos, events, auditLogs } from "@shared/schema";
 import { podeIrParaTubo } from "@shared/fluxo-peca";
 import { pecaVisivelPara } from "@shared/kit";
@@ -78,6 +79,20 @@ type PecaCrua = {
 // o usuário do Kit só enxerga — e só mexe em — peça do Kit que ele criou.
 // Peça fora do recorte é tratada como inexistente, em leitura e em escrita.
 const quemVe = (req: any) => ({ kit: req.userKit === true, userId: req.userId ?? null });
+
+// "SOLICITAÇÃO SEM KIT SÓ VISUALIZA PEÇA DO KIT" — a trava global de
+// server/routes.ts. Ela só enxerga `/api/items/:id` e `itemIds`, e os tubos
+// mexem em peça por `adicionar`/`remover` e pela entrega do tubo inteiro, que
+// não cita id nenhum. Por isso a mesma regra é repetida aqui, com a MESMA
+// mensagem — senão a Solicitação da Arena agia na peça do Kit pelo tubo.
+const soVisualizaKit = (req: any): boolean => req.userRole === "solicitacao" && req.userKit !== true;
+const RECADO_SO_VISUALIZA = "Peça do Kit: a Solicitação da Arena só visualiza. Quem age nela é o usuário do Kit.";
+/** Responde 403 quando quem só visualiza tenta agir sobre peça do Kit. */
+const barraPecaDoKit = (req: any, res: any, pecas: Array<{ kitRemessaId: string | null }>): boolean => {
+  if (!soVisualizaKit(req) || !pecas.some((p) => !!p.kitRemessaId)) return false;
+  res.status(403).json({ error: RECADO_SO_VISUALIZA });
+  return true;
+};
 const visiveis = (req: any, pecas: PecaCrua[]): PecaCrua[] => pecas.filter((p) => pecaVisivelPara(quemVe(req), p));
 
 const linhas = (r: any): any[] => (r?.rows ?? r ?? []) as any[];
@@ -99,6 +114,8 @@ const pecaParaTela = (p: PecaCrua) => ({
   deliveredQty: p.deliveredQty ?? 0,
   conferida: ehConferidaInteira(p),
   entregue: ehEntregue(p),
+  // A tela esconde a caixa e o "Entregar" de quem só visualiza peça do Kit.
+  doKit: !!p.kitRemessaId,
 });
 
 const porCodigo = (a: PecaCrua, b: PecaCrua) =>
@@ -184,8 +201,18 @@ export function registerTubosRoutes(app: Express): void {
       if (!evento) return res.status(404).json({ error: "Evento não encontrado" });
 
       const lista = await db.select().from(tubos).where(eq(tubos.eventId, eventId)).orderBy(asc(tubos.numero));
-      const pecas = visiveis(req, (await db.select(COLUNAS_PECA).from(itemsTable)
-        .where(and(eq(itemsTable.eventId, eventId), isNull(itemsTable.deletedAt)))) as PecaCrua[]);
+      const todasDoEvento = (await db.select(COLUNAS_PECA).from(itemsTable)
+        .where(and(eq(itemsTable.eventId, eventId), isNull(itemsTable.deletedAt)))) as PecaCrua[];
+      const pecas = visiveis(req, todasDoEvento);
+
+      // Quantas peças cada tubo tem DE VERDADE (sem o recorte do Kit): o tubo
+      // é entregue inteiro, então "pronto para entregar" calculado só com as
+      // visíveis prometeria um botão que o servidor recusaria com 403.
+      const totalNoTubo = new Map<string, number>();
+      for (const p of todasDoEvento) {
+        if (!p.tuboId) continue;
+        totalNoTubo.set(p.tuboId, (totalNoTubo.get(p.tuboId) ?? 0) + 1);
+      }
 
       const dentroDe = new Map<string, PecaCrua[]>();
       for (const p of pecas) {
@@ -210,7 +237,12 @@ export function registerTubosRoutes(app: Express): void {
           fotoEntregaUrl: t.fotoEntregaUrl,
           pecas: dentro.map(pecaParaTela),
           faltamConferir,
-          prontoParaEntregar: !t.entregueEm && dentro.length > 0 && faltamConferir.length === 0 && dentro.some((p) => !ehEntregue(p)),
+          // Peça escondida dentro do tubo (Kit, ou Solicitação sem Kit com
+          // peça do Kit lá dentro): o tubo aparece, mas não como entregável.
+          vePorInteiro: (totalNoTubo.get(t.id) ?? 0) === dentro.length && !dentro.some((p) => p.kitRemessaId && soVisualizaKit(req)),
+          prontoParaEntregar: !t.entregueEm && dentro.length > 0 && faltamConferir.length === 0 && dentro.some((p) => !ehEntregue(p))
+            && (totalNoTubo.get(t.id) ?? 0) === dentro.length
+            && !(soVisualizaKit(req) && dentro.some((p) => p.kitRemessaId)),
         };
       });
 
@@ -307,6 +339,12 @@ export function registerTubosRoutes(app: Express): void {
         return res.status(409).json({ error: `O Tubo ${tubo.numero} já foi entregue — não dá para mexer no que tem dentro` });
       }
 
+      // A trava do Kit ANTES de qualquer escrita: as duas listas juntas, para
+      // não gravar metade e recusar a outra metade.
+      const mexidas = (await db.select(COLUNAS_PECA).from(itemsTable)
+        .where(inArray(itemsTable.id, [...adicionar, ...remover]))) as PecaCrua[];
+      if (barraPecaDoKit(req, res, mexidas)) return;
+
       if (adicionar.length) {
         const { pecas, recusas } = await recusasParaColocar(req, tubo.eventId, adicionar);
         if (recusas.length) return res.status(409).json({ error: `Não dá para pôr no Tubo ${tubo.numero} — ${recusas.join("; ")}` });
@@ -375,6 +413,8 @@ export function registerTubosRoutes(app: Express): void {
       const dentro = (await db.select(COLUNAS_PECA).from(itemsTable)
         .where(and(eq(itemsTable.tuboId, tubo.id), isNull(itemsTable.deletedAt)))) as PecaCrua[];
       if (dentro.length === 0) return res.status(409).json({ error: `O Tubo ${tubo.numero} está vazio` });
+      // Entregar o tubo é entregar TODAS as peças dele — inclusive as do Kit.
+      if (barraPecaDoKit(req, res, dentro)) return;
       // Kit: entregar o tubo é entregar TUDO que está dentro — só se tudo for dele.
       if (visiveis(req, dentro).length !== dentro.length) {
         return res.status(403).json({ error: `O Tubo ${tubo.numero} tem peças fora do seu Kit` });
@@ -419,7 +459,21 @@ export function registerTubosRoutes(app: Express): void {
         } as any).where(eq(tubos.id, tubo.id));
       });
 
+      // O evento pode ter FECHADO com esta entrega — e o aviso de "evento
+      // concluído" é da Solicitação. O mesmo que PATCH /api/items/:id/deliver
+      // faz; sem isto, o evento inteiro entregue por tubo fechava calado.
+      const antes = await storage.getEvent(tubo.eventId);
       await updateEventStatus(tubo.eventId);
+      const depois = await storage.getEvent(tubo.eventId);
+      if (antes?.status !== "completed" && depois?.status === "completed") {
+        const notification = await storage.createNotification({
+          type: "eventCompleted",
+          message: `Evento concluído: ${depois?.name} - Todos os itens foram entregues`,
+          eventId: tubo.eventId,
+          targetRoles: ["solicitacao"],
+        });
+        broadcast({ type: "notification_created", notification });
+      }
       broadcast({ type: "items_bulk_updated", itemIds: aEntregar.map((p) => p.id), eventId: tubo.eventId });
       broadcast({ type: "tubos_atualizados", eventId: tubo.eventId });
       res.json({ ok: true, numero: tubo.numero, entregues: aEntregar.length });

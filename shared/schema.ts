@@ -1001,6 +1001,12 @@ export const publicInsertItemSchema = insertItemSchema.omit({
   pedidoDePecaLinhaId: true,
   // Quem criou é o servidor que diz (a sessão), nunca o corpo da requisição.
   criadoPorId: true,
+  // Impressora e tubo NASCEM VAZIOS: quem os preenche é o gesto da Gráfica
+  // (start-printing / start-production e as rotas de tubo), que valida máquina,
+  // status e evento. Nenhum fluxo de criação legítimo os manda — nem o import,
+  // nem o complemento, nem o reaproveitamento (estes nem passam por aqui).
+  printMachine: true,
+  tuboId: true,
 });
 
 export const insertStandardItemSchema = createInsertSchema(standardItems).omit({

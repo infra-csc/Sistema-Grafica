@@ -2219,6 +2219,10 @@ export default function Grafica() {
     setBulkDeliveryNotes("");
     setBulkConferNotes("");
     setBulkReceivedBy("");
+    // O tubo escolhido é DAQUELE lote: um tubo pertence a um evento, e o lote
+    // seguinte pode ser de outro. Sem zerar, o próximo lote nascia apontando
+    // para um tubo que não é dele.
+    setTuboDoLote("");
   };
 
   // Escape sai do modo lote — mas não quando há dialog aberto: o Escape do
@@ -2294,7 +2298,12 @@ export default function Grafica() {
         const numeros: number[] = [];
         for (const [eventoId, idsDoEvento] of Array.from(porEvento)) {
           try {
-            const usarTuboAberto = tuboDoLote !== "novo" && porEvento.size === 1;
+            // O tubo aberto só vale se for DESTE evento (um tubo pertence a um
+            // evento só). Escolha antiga, de outro lote/evento, cai no caminho
+            // do tubo novo em vez de virar 409 no servidor.
+            const tuboEhDoEvento = ((tubosDoEventoDoLote?.tubos ?? []) as any[])
+              .some((t: any) => t.id === tuboDoLote && !t.entregueEm) && eventoUnicoDoLote === eventoId;
+            const usarTuboAberto = tuboDoLote !== "novo" && porEvento.size === 1 && tuboEhDoEvento;
             const r = usarTuboAberto
               ? await apiRequest("PATCH", `/api/tubos/${tuboDoLote}/itens`, { adicionar: idsDoEvento })
               : await apiRequest("POST", `/api/events/${eventoId}/tubos`, { itemIds: idsDoEvento });
@@ -2695,7 +2704,7 @@ export default function Grafica() {
                 Secundária: contorno neutro, ícone ciano (a cor da etapa). */}
             {podeConferir && conferableInFilter.length > 0 && !bulkOn && (
               <button
-                onClick={() => { setBulkConferMode(true); setBulkSelectedIds(new Set()); }}
+                onClick={() => { setBulkConferMode(true); setBulkSelectedIds(new Set()); setTuboDoLote(""); }}
                 data-testid="button-bulk-confer"
                 title="Selecionar várias peças e registrar a conferência com uma foto só"
                 style={{ ...botaoSecundario, flex: isMobile ? "1 1 0" : undefined }}
@@ -5219,7 +5228,7 @@ export default function Grafica() {
           <button
             ref={bulkConfirmRef}
             onClick={() => {
-              if (bulkSelectedIds.size > 0) (bulkConferMode ? setBulkConferOpen(true) : setBulkDeliveryOpen(true));
+              if (bulkSelectedIds.size > 0) (bulkConferMode ? (setTuboDoLote(""), setBulkConferOpen(true)) : setBulkDeliveryOpen(true));
               else toast({ title: "Nenhuma peça marcada", description: `${usaCards ? "Toque nas peças" : "Clique nas linhas"} (ou em Todas) para escolher o que ${bulkConferMode ? "conferir" : "entregar"}.` });
             }}
             aria-disabled={bulkSelectedIds.size === 0}

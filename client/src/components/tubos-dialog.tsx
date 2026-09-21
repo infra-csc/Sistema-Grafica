@@ -19,6 +19,7 @@ import { ObjectUploader } from "@/components/ObjectUploader";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useAuth } from "@/contexts/auth-context";
 
 type Peca = {
   id: string;
@@ -31,6 +32,8 @@ type Peca = {
   deliveredQty: number;
   conferida: boolean;
   entregue: boolean;
+  /** Peça de remessa do Kit — quem só visualiza não age nela. */
+  doKit?: boolean;
 };
 
 type Tubo = {
@@ -72,6 +75,11 @@ const quandoFoi = (iso: string | null) =>
 
 export function TubosDialog({ evento, onClose }: { evento: { id: string; name: string } | null; onClose: () => void }) {
   const { toast } = useToast();
+  // "Solicitação sem Kit só visualiza peça do Kit" (mesma trava do servidor,
+  // em routes.ts e em routes/tubos.ts): a caixa de seleção e o "Entregar tubo"
+  // somem, em vez de oferecer um toque que volta 403.
+  const { user } = useAuth();
+  const soVisualizaKit = (p: { doKit?: boolean }) => user?.role === "solicitacao" && !user?.kit && !!p.doKit;
   // Padrão da Gráfica nova no celular (21/09): alvo de toque de 44px, campo a
   // 16px (abaixo disso o iOS dá zoom ao focar) e letra de no mínimo 12px.
   const isMobile = useIsMobile();
@@ -150,7 +158,8 @@ export function TubosDialog({ evento, onClose }: { evento: { id: string; name: s
   });
 
   const abertos = (data?.tubos ?? []).filter((t) => !t.entregueEm);
-  const todasMarcadas = !!data && data.semTubo.length > 0 && selecionadas.size === data.semTubo.length;
+  const marcaveis = (data?.semTubo ?? []).filter((p) => !soVisualizaKit(p));
+  const todasMarcadas = marcaveis.length > 0 && selecionadas.size === marcaveis.length;
   const alternar = (id: string) => setSelecionadas((s) => {
     const n = new Set(s);
     if (n.has(id)) n.delete(id); else n.add(id);
@@ -192,7 +201,7 @@ export function TubosDialog({ evento, onClose }: { evento: { id: string; name: s
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
                   <span style={ROTULO}>Peças sem tubo · {data.semTubo.length}</span>
                   {data.semTubo.length > 1 && (
-                    <button type="button" onClick={() => setSelecionadas(todasMarcadas ? new Set() : new Set(data.semTubo.map((p) => p.id)))}
+                    <button type="button" onClick={() => setSelecionadas(todasMarcadas ? new Set() : new Set(data.semTubo.filter((p) => !soVisualizaKit(p)).map((p) => p.id)))}
                       style={{ minHeight: alvo, border: "none", background: "none", fontSize: 12, fontWeight: 700, color: COR.laranja, cursor: "pointer", padding: 0 }}>
                       {todasMarcadas ? "Desmarcar todas" : "Marcar todas"}
                     </button>
@@ -209,8 +218,12 @@ export function TubosDialog({ evento, onClose }: { evento: { id: string; name: s
                       {data.semTubo.map((p) => (
                         <label key={p.id} data-testid={`peca-sem-tubo-${p.id}`}
                           style={{ display: "flex", alignItems: "center", gap: 10, minHeight: alvo, boxSizing: "border-box", padding: "9px 12px", borderTop: `1px solid #f5f5f4`, cursor: "pointer", background: selecionadas.has(p.id) ? "#fff7ed" : "#fff" }}>
-                          <input type="checkbox" checked={selecionadas.has(p.id)} onChange={() => alternar(p.id)}
-                            style={{ width: 18, height: 18, accentColor: COR.laranja, flexShrink: 0 }} />
+                          {soVisualizaKit(p) ? (
+                            <span title="Peça do Kit: a Solicitação da Arena só visualiza" style={{ width: 18, flexShrink: 0, fontSize: 10, fontWeight: 800, color: "#92400e" }}>KIT</span>
+                          ) : (
+                            <input type="checkbox" checked={selecionadas.has(p.id)} onChange={() => alternar(p.id)}
+                              style={{ width: 18, height: 18, accentColor: COR.laranja, flexShrink: 0 }} />
+                          )}
                           <span style={{ fontFamily: "ui-monospace, monospace", fontSize: 12.5, fontWeight: 700, color: COR.laranja, flexShrink: 0 }}>{p.displayId ?? "—"}</span>
                           <span style={{ fontSize: 13, color: COR.texto, flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                             {p.type}{p.description ? <span style={{ color: COR.sec }}> · {p.description}</span> : null}
@@ -289,7 +302,7 @@ export function TubosDialog({ evento, onClose }: { evento: { id: string; name: s
                           {!entregue && !p.conferida && (
                             <span style={{ fontSize: fsMin(10.5), fontWeight: 700, color: COR.ambar, whiteSpace: "nowrap" }}>falta conferir</span>
                           )}
-                          {!entregue && (
+                          {!entregue && !soVisualizaKit(p) && (
                             <button type="button" onClick={() => tirar.mutate({ tuboId: t.id, itemId: p.id })} disabled={tirar.isPending}
                               aria-label={`Tirar ${p.displayId ?? "a peça"} do Tubo ${t.numero}`} title="Tirar do tubo"
                               style={{ width: isMobile ? 44 : 32, height: isMobile ? 44 : 32, borderRadius: 8, border: `1px solid ${COR.borda}`, background: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
@@ -315,7 +328,7 @@ export function TubosDialog({ evento, onClose }: { evento: { id: string; name: s
                             <Tag aria-hidden="true" style={{ width: 13, height: 13 }} /> Etiqueta
                           </Link>
                         )}
-                        {!entregue && !vazio && entregando !== t.id && (
+                        {!entregue && !vazio && entregando !== t.id && !t.pecas.some(soVisualizaKit) && (
                           <button type="button" onClick={() => { setEntregando(t.id); setFotos([]); setRecebidoPor(""); setObs(""); }}
                             disabled={!t.prontoParaEntregar} title={motivoBloqueio}
                             data-testid={`entregar-tubo-${t.numero}`}

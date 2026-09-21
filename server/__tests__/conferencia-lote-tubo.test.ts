@@ -50,7 +50,8 @@ describe("ao confirmar", () => {
     expect(handler).toContain("const porEvento = new Map<string, string[]>();");
     expect(handler).toContain('await apiRequest("POST", `/api/events/${eventoId}/tubos`, { itemIds: idsDoEvento })');
     expect(handler).toContain('await apiRequest("PATCH", `/api/tubos/${tuboDoLote}/itens`, { adicionar: idsDoEvento })');
-    expect(handler).toContain('const usarTuboAberto = tuboDoLote !== "novo" && porEvento.size === 1;');
+    // 21/09: o tubo aberto ainda precisa ser DO evento das peças deste lote.
+    expect(handler).toContain('const usarTuboAberto = tuboDoLote !== "novo" && porEvento.size === 1 && tuboEhDoEvento;');
   });
 
   it("só as que conferiram vão para o tubo, e falhar no tubo não desfaz a conferência", () => {

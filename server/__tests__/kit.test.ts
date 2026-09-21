@@ -56,7 +56,9 @@ describe("servidor do Kit", () => {
     expect(SCHEMA).toContain('entregaMaterial: timestamp("entrega_material").notNull(),');
     expect(SCHEMA).toContain('kitRemessaId: varchar("kit_remessa_id").references((): any => kitRemessas.id, { onDelete: "set null" }),');
     expect(SCHEMA).toContain('criadoPorId: varchar("criado_por_id"),');
-    expect(SCHEMA).toContain("  criadoPorId: true,\n});");
+    // O omit segue adiante (impressora e tubo também não vêm do corpo — ver
+    // tubos.test.ts), então o que se pina aqui é a linha, não o fim do bloco.
+    expect(SCHEMA).toContain("  criadoPorId: true,");
   });
 
   it("a marca vem do login (senha e SSO) e mudar a marca derruba as sessões", () => {

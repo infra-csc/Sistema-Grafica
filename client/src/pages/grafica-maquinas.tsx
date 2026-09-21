@@ -650,6 +650,9 @@ function PecaNoCartao({ p, agora, podeAgir, hojeMs, isMobile, onAgir }: {
   const thumb = p.miniatura ? miniatura(convertGCSUrlToLocalPath(p.miniatura)) : undefined;
   const rotuloAcao = rotuloCurtoDaAcao(feitas, teto);
   const concluir = rotuloAcao !== "Impressas";
+  // Parte desta impressora já esgotada (o servidor nem a manda mais como
+  // "imprimindo"; guarda de um retrato antigo): sem ação de impressas.
+  const parteEsgotada = dividida && feitas >= teto;
   const [semThumb, setSemThumb] = useState(false);
 
   return (
@@ -695,7 +698,7 @@ function PecaNoCartao({ p, agora, podeAgir, hojeMs, isMobile, onAgir }: {
           (dono, 21/09: "não consigo trocar de máquina um item") e a volta
           para a Gráfica. */}
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-        {podeAgir && (
+        {podeAgir && !parteEsgotada && (
           <button
             type="button"
             className="mq-acao mq-primario"
@@ -958,6 +961,12 @@ export default function GraficaMaquinas() {
   });
 
   // Aviso de lentidão só no carregamento INICIAL (depois há dado na tela).
+  // Rolagem até o diário DEPOIS de a aba montar (o clique só escreve a URL;
+  // rolar no clique achava um título que ainda não existia).
+  useEffect(() => {
+    if (aba === "diario" && maquinaFiltro) rolarAte("titulo-dia");
+  }, [aba, maquinaFiltro]);
+
   const [lento, setLento] = useState(false);
   useEffect(() => {
     if (!isLoading) return;
@@ -1257,7 +1266,7 @@ export default function GraficaMaquinas() {
                       <button
                         type="button"
                         className="mq-acao"
-                        onClick={() => { escreverURL({ maquina: m.codigo, aba: "diario" }); rolarAte("titulo-dia"); }}
+                        onClick={() => escreverURL({ maquina: m.codigo, aba: "diario" })}
                         data-testid={`resumo-dia-${m.codigo}`}
                         title={`Ver o diário da ${m.rotulo} neste dia`}
                         style={{ marginTop: "auto", minHeight: isMobile ? 44 : 32, padding: "6px 8px", border: "none", borderTop: `1px solid ${T.low}`, borderRadius: `0 0 ${R.sm}px ${R.sm}px`, background: "transparent", textAlign: "left", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, fontSize: isMobile ? 12 : FS.small, color: T.second, fontVariantNumeric: "tabular-nums" }}
@@ -1436,7 +1445,7 @@ export default function GraficaMaquinas() {
                     emCartoes={diarioEmCartoes}
                     isMobile={isMobile}
                     hoje={relatorio.data.hoje}
-                    onVerDiario={(d, m) => { escreverURL({ dia: hoje && d >= hoje ? null : d, maquina: m, aba: "diario" }); rolarAte("titulo-dia"); }}
+                    onVerDiario={(d, m) => escreverURL({ dia: hoje && d >= hoje ? null : d, maquina: m, aba: "diario" })}
                   />
                 ) : null}
               </div>

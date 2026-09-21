@@ -470,7 +470,9 @@ export function montarPlanilhaDeMaquinas(opts: { de: string; ate: string; resumo
     const row = abaRegistros.addRow({
       data: diaBR(r.dia), hora: r.hora, impressora: rotuloDaMaquina(r.maquina), codigo: r.displayId ?? "",
       peca: r.tipoPeca, tipo: ROTULO_DO_TIPO[r.tipo] ?? r.tipo, evento: r.evento ?? "", oque: oQueAconteceuNoRegistro(r),
-      quantidade: r.quantidade, total: r.totalDepois ?? "", quem: r.quem ?? "",
+      // A troca move, não imprime: a coluna Quantidade fica vazia (o "O que
+      // aconteceu" já diz quantas foram movidas), para a soma da coluna bater.
+      quantidade: r.tipo === "troca" || r.tipo === "inicio" ? "" : r.quantidade, total: r.totalDepois ?? "", quem: r.quem ?? "",
     });
     estiloDaLinha(row, i % 2 === 1, [2, 4, 6, 9, 10]);
   });

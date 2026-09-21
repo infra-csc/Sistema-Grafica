@@ -457,7 +457,7 @@ describe("8 · a impressão dividida — a conta pura", async () => {
 
   it("start-production: por impressora quando dividida, nunca mais que o atribuído; o total é a soma; concluir limpa o jsonb", () => {
     const rota = ITEMS.slice(ITEMS.indexOf('app.patch("/api/items/:id/start-production"'), ITEMS.indexOf("Auto-add to inventory when fully produced"));
-    expect(rota).toContain("if (maquina != null && impressasNaMaquina != null && estaDividida(before)) {");
+    expect(rota).toContain("if (estaDividida(before)) {");
     expect(rota).toContain("if (n > parte.atrib) return res.status(400).json({ error: `Máximo ${parte.atrib} un. na ${rotuloDaMaquina(maquina)} — é o que foi atribuído a ela` });");
     expect(rota).toContain("quantityProduced = totalImpressas(partesDepois);");
     expect(rota).toContain('{ impressaoPorMaquina: newProdStatus === "produced" ? null : partesDepois, printMachine: maquinaPrincipal(partesDepois, maquina) ?? before.printMachine }');
@@ -473,8 +473,68 @@ describe("8 · a impressão dividida — a conta pura", async () => {
     expect(GRAFICA).toContain("{!isInProd(item) && item.maquinaPrevista && <div style={{ marginTop: 4 }}><SeloFilaDaImpressora maquina={item.maquinaPrevista} fonte={10.5} /></div>}");
     expect(GRAFICA).toContain("const maquina = dividida ? resumoDaDivisao(partesDaPeca(item)) : item.printMachine ? rotuloDaMaquina(item.printMachine) : null;");
     // O retrato entrega a parte de cada impressora e a peça aparece nos dois cartões.
-    expect(ROTA).toContain("return partes ? !!partes[codigo] : l.print_machine === codigo;");
+    expect(ROTA).toContain("return partes ? !!partesAtivas(partes)[codigo] : l.print_machine === codigo;");
     expect(ROTA).toContain("return { ...p, maquina: codigo, parte };");
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 9 · Revisão adversarial da peça dividida (21/09): total nunca descola da
+// soma; parte esgotada não é "imprimindo"; teto que muda reescala o jsonb;
+// a troca não conta como peça impressa.
+// ─────────────────────────────────────────────────────────────────────────────
+describe("9 · peça dividida — os cantos que a revisão achou", async () => {
+  const d = await import("@shared/impressao-dividida");
+  const PRODUCAO = ITEMS.slice(ITEMS.indexOf('app.patch("/api/items/:id/start-production"'), ITEMS.indexOf("Auto-add to inventory when fully produced"));
+
+  it("reescalarPartes: encolhe a principal até a soma bater; estica quando o teto cresce; some quando sobra uma chave", () => {
+    const partes = { "1": { atrib: 8, impressas: 5 }, "2": { atrib: 2, impressas: 0 } };
+    // 10 → 7: tira 3 da principal (a "1", com 3 por imprimir).
+    expect(d.reescalarPartes(partes, 7)).toEqual({ "1": { atrib: 5, impressas: 5 }, "2": { atrib: 2, impressas: 0 } });
+    // 10 → 6: a "1" esgota o restante e a "2" perde 1.
+    expect(d.reescalarPartes(partes, 6)).toEqual({ "1": { atrib: 5, impressas: 5 }, "2": { atrib: 1, impressas: 0 } });
+    // 10 → 5: a "2" zera e some; sobra uma chave com tudo → sem divisão (null).
+    expect(d.reescalarPartes(partes, 5)).toBeNull();
+    // 10 → 3: o teto ficou abaixo das impressas — as impressas encolhem junto.
+    expect(d.reescalarPartes(partes, 3)).toBeNull();
+    expect(d.reescalarPartes({ "1": { atrib: 8, impressas: 5 }, "2": { atrib: 2, impressas: 2 } }, 4)).toEqual({ "1": { atrib: 2, impressas: 2 }, "2": { atrib: 2, impressas: 2 } });
+    // 10 → 12: a principal recebe o que cresceu.
+    expect(d.reescalarPartes(partes, 12)).toEqual({ "1": { atrib: 10, impressas: 5 }, "2": { atrib: 2, impressas: 0 } });
+    expect(d.reescalarPartes(null, 10)).toBeNull();
+    expect(d.partesAtivas({ "1": { atrib: 3, impressas: 3 }, "2": { atrib: 2, impressas: 0 } })).toEqual({ "2": { atrib: 2, impressas: 0 } });
+  });
+
+  it("[1] dividida sem `maquina` → 409; qualquer caminho que feche a peça zera o jsonb", () => {
+    expect(PRODUCAO).toContain("if (maquina == null || impressasNaMaquina == null) {");
+    expect(PRODUCAO).toContain('return res.status(409).json({ error: "Peça dividida entre impressoras: informe a impressora e quantas saíram dela" });');
+    expect(PRODUCAO).toContain('...(newProdStatus === "produced" ? { impressaoPorMaquina: null } : {}),');
+  });
+
+  it("[2] parte esgotada não é 'imprimindo'; lançamento com delta 0 que não conclui → 409", () => {
+    expect(ler("server/routes/maquinas.ts")).toContain("return partes ? !!partesAtivas(partes)[codigo] : l.print_machine === codigo;");
+    expect(PRODUCAO).toContain("if (quantityProduced === jaConsta && !fecha) {");
+    expect(PRODUCAO).toContain("return res.status(409).json({ error: `Nada mudou: já constam ${jaConsta} un. impressas.` });");
+    expect(ler("client/src/pages/grafica-maquinas.tsx")).toContain("{podeAgir && !parteEsgotada && (");
+  });
+
+  it("[3] editar quantidade, reaproveitar e corrigir reaproveitamento reescalam (ou apagam) a divisão", () => {
+    const patch = ITEMS.slice(ITEMS.indexOf('app.patch("/api/items/:id", requireAuth'), ITEMS.indexOf("storage.updateItem(req.params.id, updatePayload)"));
+    expect(patch).toContain("updatePayload.impressaoPorMaquina = promoveuParaProduzido ? null : reescalarPartes(lerPartes(currentItem.impressaoPorMaquina), nova - reusoNovo);");
+    const reuso = ITEMS.slice(ITEMS.indexOf('app.post("/api/items/:id/mark-reuse"'), ITEMS.indexOf('app.post("/api/items/:id/correct-reuse"'));
+    expect(reuso).toContain("{ impressaoPorMaquina: isReady ? null : reescalarPartes(lerPartes(current.impressaoPorMaquina), current.quantity - newReuse) }");
+    expect((reuso.match(/impressaoPorMaquina: null,/g) ?? []).length).toBe(1); // reaproveitar tudo → produzida
+    const correcao = ITEMS.slice(ITEMS.indexOf('app.post("/api/items/:id/correct-reuse"'));
+    expect(correcao.slice(0, 6000)).toContain("impressaoPorMaquina: null,");
+  });
+
+  it("[4] a troca com quantidade não conta como peça impressa; no Excel a Quantidade da troca fica vazia", async () => {
+    expect(ler("server/routes/maquinas.ts")).toContain('const pecasNoDia = new Set(registros.filter((r) => (r.tipo === "parcial" || r.tipo === "conclusao") && r.quantidade > 0).map((r) => r.itemId)).size;');
+    expect(ler("server/services/xlsxExport.ts")).toContain('quantidade: r.tipo === "troca" || r.tipo === "inicio" ? "" : r.quantidade,');
+    const r = await import("../services/relatorioDeMaquinas");
+    expect(r.oQueAconteceuNoRegistro({ tipo: "troca", quantidade: 2, totalDepois: 3, aImprimir: 10, maquina: "2" })).toBe("Trocou para Impressora 2 (2 un. movidas)");
+    // O resumo: uma troca de 2 un. não é unidade impressa nem peça concluída.
+    const dias = r.agregarRelatorioDeMaquinas([reg("t", "p1", "2", "troca", 2, 3, "2026-09-21", "10:00")]);
+    expect(dias[0].maquinas[1]).toMatchObject({ unidades: 0, pecas: 1, concluidas: 0 });
   });
 });
 

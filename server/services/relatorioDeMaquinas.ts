@@ -170,7 +170,7 @@ export function duracaoCurta(minutos: number): string {
  */
 export function oQueAconteceuNoRegistro(r: Pick<RegistroDoPeriodo, "tipo" | "quantidade" | "totalDepois" | "aImprimir" | "maquina">): string {
   if (r.tipo === "inicio") return "Iniciou a impressão";
-  if (r.tipo === "troca") return `Trocou para ${rotuloDaMaquina(r.maquina)}`;
+  if (r.tipo === "troca") return `Trocou para ${rotuloDaMaquina(r.maquina)}${r.quantidade > 0 ? ` (${r.quantidade} un. movidas)` : ""}`;
   const total = r.totalDepois == null ? "" : ` (${r.totalDepois} de ${r.aImprimir})`;
   if (r.quantidade < 0) return `Corrigiu para ${r.totalDepois ?? "?"} de ${r.aImprimir} (${r.quantidade})`;
   if (r.tipo === "conclusao") return `Concluiu: ${r.totalDepois ?? r.aImprimir} de ${r.aImprimir} impressas`;

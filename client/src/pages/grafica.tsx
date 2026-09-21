@@ -1490,13 +1490,15 @@ export default function Grafica() {
         : s;
       conta.set(chave, (conta.get(chave) ?? 0) + 1);
     });
+    // O status ESCOLHIDO fica na lista mesmo com zero peças: fora dela, o chip
+    // do filtro mostrava a chave crua ("inProduction") em vez de "Em Impressão".
     return STATUS_DA_FILA
-      .filter(s => (conta.get(s.value) ?? 0) > 0)
+      .filter(s => (conta.get(s.value) ?? 0) > 0 || filtros.status.includes(s.value))
       // `title` com o significado do status (lib/status): "Liberados" e "Pronto
       // p/ Produção" lado a lado no menu eram dúvida de quem filtrava.
-      .map(s => ({ value: s.value, label: s.label, count: conta.get(s.value)!, pinned: true, title: descricaoDoStatus(s.value) ?? undefined }));
+      .map(s => ({ value: s.value, label: s.label, count: conta.get(s.value) ?? 0, pinned: true, title: descricaoDoStatus(s.value) ?? undefined }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [gFacetPool]);
+  }, [gFacetPool, filtros.status]);
 
   const mesFilterOptions = useMemo(() => {
     const conta = new Map<string, number>();

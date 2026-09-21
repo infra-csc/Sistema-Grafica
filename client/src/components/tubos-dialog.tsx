@@ -54,11 +54,15 @@ type Peca = {
   entregue: boolean;
   /** Peça de remessa do Kit — quem só visualiza não age nela. */
   doKit?: boolean;
+  /** Foto da conferência da peça — quem entrega vê que o material está documentado. */
+  conferencePhotoUrl?: string | null;
 };
 
 type Tubo = {
   id: string;
   numero: number;
+  /** Embalada SOZINHA: volume avulso — nunca "Tubo N" na tela. */
+  avulso?: boolean;
   entregueEm: string | null;
   recebidoPor: string | null;
   entreguePor: string | null;
@@ -300,6 +304,8 @@ export function EmbalarDialog({ evento, itens, comCaixas = false, onClose, onEmb
 
   const [fora, setFora] = useState<Set<string>>(new Set());
   const [tubo, setTubo] = useState<string | null>(null);
+  // "Pôr num tubo que já existe": só então o tubo automático vira escolha.
+  const [escolhendo, setEscolhendo] = useState(false);
   const [fotos, setFotos] = useState<string[]>([]);
   // Enter segurado / toque duplo: `isPending` só vira true no render seguinte.
   const enviandoRef = useRef(false);
@@ -307,30 +313,49 @@ export function EmbalarDialog({ evento, itens, comCaixas = false, onClose, onEmb
   // Cada abertura começa limpa (outra peça, outro evento).
   const chave = evento ? `${evento.id}|${itens.join(",")}` : null;
   const [vista, setVista] = useState<string | null>(null);
-  if (chave !== vista) { setVista(chave); setFora(new Set()); setTubo(null); setFotos([]); }
+  if (chave !== vista) { setVista(chave); setFora(new Set()); setTubo(null); setEscolhendo(false); setFotos([]); }
 
   // Só embala quem está conferida e SEM tubo; a que outro aparelho embalou
   // antes (ou que é do Kit, para quem só visualiza) fica de fora, com aviso.
   const candidatas = (data?.semTubo ?? []).filter((p) => itens.includes(p.id) && p.conferida && !soVisualizaKit(p));
   const pecas = candidatas.filter((p) => !fora.has(p.id));
   const jaEmTubo = (data?.tubos ?? []).filter((t) => t.pecas.some((p) => itens.includes(p.id)));
-  const abertos = (data?.tubos ?? []).filter((t) => !t.entregueEm);
+  // Tubos DE VERDADE ainda abertos: o volume avulso (embalada sozinha) não é
+  // destino de ninguém e não consome número.
+  const abertos = (data?.tubos ?? []).filter((t) => !t.entregueEm && !t.avulso);
   const proximoNumero = (data?.tubos ?? []).reduce((m, t) => Math.max(m, t.numero), 0) + 1;
-  // Sem tubo aberto, "Novo tubo" já vem escolhido — é a única opção.
-  const escolhido = tubo ?? (data && abertos.length === 0 ? "novo" : null);
-  const tuboEscolhido = abertos.find((t) => t.id === escolhido) ?? null;
+  // A peça INDIVIDUAL vai sozinha ("quando eu clicar nele individual, não
+  // precisa ter a opção de tubo, ele vai sozinho") — e sozinha não é tubo:
+  // pode ser uma placa, um pórtico, um rolo. O servidor cria um volume AVULSO.
+  const sozinha = itens.length === 1 && !comCaixas;
+  // O TUBO AUTOMÁTICO (dono, 21/09: "quando for assim, ele gera um tubo
+  // automático, não precisa selecionar"). Tubo aberto e VAZIO (sobra de teste,
+  // tubo esvaziado) é REUSADO — criar outro deixaria um órfão; senão é o
+  // próximo número. Criar e colocar seguem numa chamada só (POST com itemIds +
+  // fotos), então foto ou rede falhando não deixa tubo vazio para trás.
+  const comPecas = abertos.filter((t) => t.pecas.length > 0);
+  const vazio = sozinha ? null : abertos.find((t) => t.pecas.length === 0) ?? null;
+  const automatico = vazio ? vazio.id : "novo";
+  const numeroAutomatico = vazio ? vazio.numero : proximoNumero;
+  // UMA peça ou o lote, a regra é uma só ("quando eu clicar nele individual,
+  // não precisa ter a opção de tubo, ele vai sozinho"): o passo de tubo NUNCA
+  // aparece por padrão. A única porta para a escolha é o link "Pôr num tubo
+  // que já existe", para quem precisa completar um tubo.
+  const mostrarEscolha = escolhendo && comPecas.length > 0;
+  const escolhido = tubo ?? (data ? automatico : null);
+  const tuboEscolhido = comPecas.find((t) => t.id === escolhido) ?? null;
 
   const embalar = useMutation({
     mutationFn: async () => {
       const ids = pecas.map((p) => p.id);
       const r = escolhido === "novo"
-        ? await apiRequest("POST", `/api/events/${evento!.id}/tubos`, { itemIds: ids, fotos })
+        ? await apiRequest("POST", `/api/events/${evento!.id}/tubos`, { itemIds: ids, fotos, ...(sozinha ? { avulso: true } : {}) })
         : await apiRequest("PATCH", `/api/tubos/${escolhido}/itens`, { adicionar: ids, fotos });
       const t = await r.json();
-      return { numero: t.numero as number, quantas: ids.length, nome: pecas[0]?.displayId ?? "Peça" };
+      return { numero: t.numero as number, avulso: !!t.avulso, quantas: ids.length, nome: pecas[0]?.displayId ?? "Peça" };
     },
-    onSuccess: ({ numero, quantas, nome }) => {
-      toast({ title: quantas === 1 ? `${nome} embalada no Tubo ${numero}` : `${quantas} peças embaladas no Tubo ${numero}` });
+    onSuccess: ({ numero, avulso, quantas, nome }) => {
+      toast({ title: avulso ? `${nome} embalada` : quantas === 1 ? `${nome} embalada no Tubo ${numero}` : `${quantas} peças embaladas no Tubo ${numero}` });
       atualizarTudo(evento!.id);
       onEmbalou?.();
       onClose();
@@ -348,13 +373,14 @@ export function EmbalarDialog({ evento, itens, comCaixas = false, onClose, onEmb
   const titulo = itens.length === 1
     ? `Embalar ${candidatas[0]?.displayId ?? "a peça"}`
     : `Embalar ${plural(pecas.length || itens.length, "peça", "peças")}`;
-  const destino = escolhido === "novo" ? `Tubo ${proximoNumero}` : tuboEscolhido ? `Tubo ${tuboEscolhido.numero}` : "";
+  const destino = escolhido === automatico ? `Tubo ${numeroAutomatico}` : tuboEscolhido ? `Tubo ${tuboEscolhido.numero}` : "";
   // O motivo de estar desabilitado mora NO botão, na ordem dos passos.
   const rotulo = embalar.isPending ? "Embalando…"
     : pecas.length === 0 ? "Nenhuma peça para embalar"
     : !escolhido ? "Escolha o tubo"
     : fotos.length === 0 ? "Tire a foto"
-    : `Embalar no ${destino} · ${plural(fotos.length, "foto", "fotos")}`;
+    : sozinha && escolhido === "novo" ? `Embalar ${pecas[0]?.displayId ?? "a peça"} · ${plural(fotos.length, "foto", "fotos")}`
+    : `Embalar ${pecas.length > 1 ? `${pecas.length} peças ` : ""}no ${destino} · ${plural(fotos.length, "foto", "fotos")}`;
 
   const cartao = (valor: string, principal: string, detalhe: string, testId: string) => {
     const ativo = escolhido === valor;
@@ -374,7 +400,7 @@ export function EmbalarDialog({ evento, itens, comCaixas = false, onClose, onEmb
 
   return (
     <Casca aberto={!!evento} onClose={onClose} icone={Package} tint={COR.azul} largura={520} testId="modal-embalar"
-      titulo={titulo} subtitulo="Escolha o tubo e tire a foto — a peça fica Embalada até o tubo ser entregue"
+      titulo={titulo} subtitulo="Tire a foto — a peça fica Embalada até ser entregue"
       rodape={data ? (
         <Rodape testId="rodape-embalar">
           <BotaoCancelar onClick={onClose} />
@@ -421,11 +447,29 @@ export function EmbalarDialog({ evento, itens, comCaixas = false, onClose, onEmb
           </section>
 
           <section style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            <span id="rotulo-tubo-do-embalar" style={ROTULO}>1 · Tubo</span>
-            <div role="radiogroup" aria-labelledby="rotulo-tubo-do-embalar" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {abertos.map((t) => cartao(t.id, `Tubo ${t.numero}`, `${plural(t.pecas.length, "peça", "peças")} · ${t.fotosFechamento.length ? plural(t.fotosFechamento.length, "foto", "fotos") : "sem foto"}`, `embalar-no-tubo-${t.numero}`))}
-              {cartao("novo", `Novo tubo (Tubo ${proximoNumero})`, abertos.length ? "Abre um tubo vazio para estas peças" : "Ainda não há tubo aberto neste evento", "embalar-em-tubo-novo")}
-            </div>
+            {mostrarEscolha ? (
+              <>
+                <span id="rotulo-tubo-do-embalar" style={ROTULO}>1 · Tubo</span>
+                <div role="radiogroup" aria-labelledby="rotulo-tubo-do-embalar" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  {comPecas.map((t) => cartao(t.id, `Tubo ${t.numero}`, `${plural(t.pecas.length, "peça", "peças")} · ${t.fotosFechamento.length ? plural(t.fotosFechamento.length, "foto", "fotos") : "sem foto"}`, `embalar-no-tubo-${t.numero}`))}
+                  {cartao(automatico, sozinha ? "Sozinha" : `Novo tubo (Tubo ${numeroAutomatico})`, sozinha ? "Embalagem própria, sem número de tubo" : vazio ? "Usa o tubo vazio que já está aberto" : "Abre um tubo para estas peças", "embalar-em-tubo-novo")}
+                </div>
+              </>
+            ) : (
+              <>
+                <p data-testid="embalar-tubo-automatico" style={{ margin: 0, fontSize: 13, color: COR.sec }}>
+                  {sozinha
+                    ? <>Vai <strong style={{ color: COR.texto }}>sozinha</strong> — embalagem própria, sem número de tubo.</>
+                    : <>Vai para o <strong style={{ color: COR.texto }}>Tubo {numeroAutomatico}</strong> ({vazio ? "vazio, já aberto" : "novo"}).</>}
+                </p>
+                {comPecas.length > 0 && (
+                  <button type="button" onClick={() => setEscolhendo(true)} data-testid="embalar-escolher-tubo"
+                    style={{ alignSelf: "flex-start", minHeight: isMobile ? 44 : 32, padding: 0, border: "none", background: "none", color: COR.azul, fontSize: 13, fontWeight: 700, textDecoration: "underline", cursor: "pointer" }}>
+                    Pôr num tubo que já existe
+                  </button>
+                )}
+              </>
+            )}
             {tuboEscolhido && tuboEscolhido.pecas.length > 0 && (
               <div data-testid="embalar-conteudo-do-tubo" style={{ padding: "8px 12px", borderRadius: 10, background: COR.fundo, border: `1px solid ${COR.borda}` }}>
                 <span style={{ fontSize: fsMin(12), fontWeight: 700, color: COR.sec }}>Já está no Tubo {tuboEscolhido.numero}:</span>
@@ -438,7 +482,7 @@ export function EmbalarDialog({ evento, itens, comCaixas = false, onClose, onEmb
           </section>
 
           <section>
-            <span style={ROTULO}>2 · Foto do tubo com os itens <span style={{ textTransform: "none", letterSpacing: 0, fontWeight: 400 }}>· obrigatória</span></span>
+            <span style={ROTULO}>{mostrarEscolha ? "2 · " : ""}{sozinha && escolhido === "novo" ? "Foto da peça embalada" : "Foto do tubo com os itens"} <span style={{ textTransform: "none", letterSpacing: 0, fontWeight: 400 }}>· obrigatória</span></span>
             <Fotos lista={fotos} onMudar={setFotos} alt="Foto do tubo com os itens" />
           </section>
         </>
@@ -476,6 +520,9 @@ export function EntregarTuboDialog({ evento, tuboId, sugestaoRecebedor = "", onC
   const t = (data?.tubos ?? []).find((x) => x.id === tuboId) ?? null;
   const soVe = !!t && t.pecas.some(soVisualizaKit);
   const temFotoDoTubo = (t?.fotosFechamento.length ?? 0) > 0;
+  const avulso = !!t?.avulso;
+  // "Entregar #0386 — Placa de octanorme" × "Entregar Tubo 1 · teste 3".
+  const oQue = avulso ? (t?.pecas[0]?.displayId ?? "a peça") : `Tubo ${t?.numero ?? ""}`;
   const podeFormulario = !!t && !t.entregueEm && t.prontoParaEntregar && !soVe;
   // Foco inicial no que falta preencher — só no desktop: no celular abrir o
   // teclado de cara esconderia a lista do que está no tubo.
@@ -487,7 +534,7 @@ export function EntregarTuboDialog({ evento, tuboId, sugestaoRecebedor = "", onC
       return r.json();
     },
     onSuccess: (r: any) => {
-      toast({ title: `Tubo ${r.numero} entregue a ${recebidoPor.trim()}`, description: plural(r.entregues, "peça entregue", "peças entregues") + "." });
+      toast({ title: `${r.avulso ? oQue : `Tubo ${r.numero}`} entregue a ${recebidoPor.trim()}`, description: r.avulso ? undefined : plural(r.entregues, "peça entregue", "peças entregues") + "." });
       atualizarTudo(evento!.id);
       onEntregou?.(recebidoPor.trim());
       onClose();
@@ -495,7 +542,9 @@ export function EntregarTuboDialog({ evento, tuboId, sugestaoRecebedor = "", onC
     onError: (e) => toast({ title: "Não foi possível entregar o tubo", description: mensagemDeErro(e), variant: "destructive" }),
     onSettled: () => { enviandoRef.current = false; },
   });
-  const pronto = podeFormulario && !!recebidoPor.trim() && (temFotoDoTubo || fotos.length > 0);
+  // Só quem recebeu é obrigatório (dono, 21/09: "a foto de entrega não é
+  // obrigatória, pois já tiraram a da conferência e a do tubo ou da peça").
+  const pronto = podeFormulario && !!recebidoPor.trim();
   const confirmar = () => {
     if (enviandoRef.current || entregar.isPending || !pronto) return;
     enviandoRef.current = true;
@@ -504,13 +553,13 @@ export function EntregarTuboDialog({ evento, tuboId, sugestaoRecebedor = "", onC
   const n = t?.numero ?? "";
   const rotulo = entregar.isPending ? "Entregando…"
     : !recebidoPor.trim() ? "Informe quem recebeu"
-    : !temFotoDoTubo && fotos.length === 0 ? "Tire a foto do comprovante"
-    : `Entregar Tubo ${n} a ${recebidoPor.trim()}`;
+    : `Entregar ${oQue} a ${recebidoPor.trim()}`;
   const campo: React.CSSProperties = { width: "100%", boxSizing: "border-box", height: isMobile ? 44 : 40, borderRadius: 8, border: `1px solid ${COR.borda}`, padding: "0 12px", fontSize: isMobile ? 16 : 14, background: "#fff", color: COR.texto };
 
   return (
     <Casca aberto={aberto} onClose={onClose} icone={Truck} tint={COR.verde} largura={520} testId="modal-entregar-tubo" focoInicial={campoRef}
-      titulo={`Entregar Tubo ${n}${evento ? ` · ${evento.name}` : ""}`} subtitulo="O tubo sai inteiro: confira o que tem dentro e registre quem recebeu"
+      titulo={avulso ? `Entregar ${oQue} — ${t?.pecas[0] ? linhaDaLista(t.pecas[0], { mostrarQuantidade: false }) : ""}` : `Entregar Tubo ${n}${evento ? ` · ${evento.name}` : ""}`}
+      subtitulo={avulso ? "Confira a peça e registre quem recebeu" : "O tubo sai inteiro: confira o que tem dentro e registre quem recebeu"}
       rodape={podeFormulario ? (
         <Rodape testId={`rodape-entregar-tubo-${n}`}>
           <BotaoCancelar onClick={onClose} />
@@ -526,7 +575,7 @@ export function EntregarTuboDialog({ evento, tuboId, sugestaoRecebedor = "", onC
       {t && (
         <>
           {t.entregueEm && (
-            <Aviso tom="azul" testId="entregar-ja-entregue">O Tubo {t.numero} já foi entregue{t.recebidoPor ? ` a ${t.recebidoPor}` : ""} em {quandoFoi(t.entregueEm)}.</Aviso>
+            <Aviso tom="azul" testId="entregar-ja-entregue">{avulso ? "Esta peça" : `O Tubo ${t.numero}`} já foi entregue{t.recebidoPor ? ` a ${t.recebidoPor}` : ""} em {quandoFoi(t.entregueEm)}.</Aviso>
           )}
           {!t.entregueEm && soVe && (
             <Aviso testId="entregar-so-visualiza">Este tubo tem peça do Kit: a Solicitação da Arena só visualiza. Quem entrega é o usuário do Kit.</Aviso>
@@ -542,20 +591,29 @@ export function EntregarTuboDialog({ evento, tuboId, sugestaoRecebedor = "", onC
           )}
 
           <section data-testid={`lista-entrega-tubo-${t.numero}`} style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            <span style={ROTULO}>No tubo · {plural(t.pecas.length, "peça", "peças")}</span>
+            <span style={ROTULO}>{avulso ? "A peça" : `No tubo · ${plural(t.pecas.length, "peça", "peças")}`}</span>
             <ul style={{ margin: 0, padding: 0, listStyle: "none", border: `1px solid ${COR.borda}`, borderRadius: 10, overflow: "hidden" }}>
               {t.pecas.map((p) => (
                 <li key={p.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", borderTop: "1px solid #f5f5f4", flexWrap: "wrap" }}>
                   <LinhaDaPeca p={p} />
                   {!p.conferida && <span style={{ fontSize: 12, fontWeight: 700, color: COR.ambar }}>falta conferir</span>}
+                  {p.conferencePhotoUrl && (
+                    <a href={p.conferencePhotoUrl} target="_blank" rel="noreferrer" data-testid={`foto-conferencia-${p.id}`}
+                      style={{ display: "inline-flex", alignItems: "center", minHeight: isMobile ? 44 : 24, fontSize: 12.5, fontWeight: 700, color: COR.azul }}>
+                      ver foto da conferência
+                    </a>
+                  )}
                 </li>
               ))}
             </ul>
           </section>
 
+          {!temFotoDoTubo && (
+            <p data-testid="entregar-sem-foto-da-embalagem" style={{ margin: 0, fontSize: 12.5, color: COR.sec }}>Sem foto da embalagem — as fotos da conferência valem.</p>
+          )}
           {temFotoDoTubo && (
             <section data-testid={`fotos-entrega-tubo-${t.numero}`} style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              <span style={ROTULO}>Fotos do tubo · {t.fotosFechamento.length}</span>
+              <span style={ROTULO}>{avulso ? "Fotos da embalagem" : "Fotos do tubo"} · {t.fotosFechamento.length}</span>
               <Miniaturas fotos={t.fotosFechamento} alt={`Foto do Tubo ${t.numero}`} />
               {t.alteradoDepoisDaFoto && <span style={{ fontSize: 12, fontWeight: 700, color: COR.ambar }}>O conteúdo mudou depois da última foto.</span>}
             </section>
@@ -571,12 +629,7 @@ export function EntregarTuboDialog({ evento, tuboId, sugestaoRecebedor = "", onC
                 <SugestaoRecebedor nome={sugestaoRecebedor} atual={recebidoPor} onUsar={setRecebidoPor} />
               </section>
               <section>
-                <span style={ROTULO}>Foto do comprovante <span style={{ textTransform: "none", letterSpacing: 0, fontWeight: 400 }}>{temFotoDoTubo ? "· opcional, o tubo já tem foto" : "· obrigatória"}</span></span>
-                {!temFotoDoTubo && (
-                  <p data-testid="entregar-porque-foto" style={{ margin: "4px 0 0", fontSize: 12.5, color: COR.ambar }}>
-                    Este tubo foi embalado antes de a foto ser obrigatória e não tem nenhuma. Toda entrega sai com foto: tire a do comprovante.
-                  </p>
-                )}
+                <span style={ROTULO}>Foto do comprovante <span style={{ textTransform: "none", letterSpacing: 0, fontWeight: 400 }}>· opcional</span></span>
                 <Fotos lista={fotos} onMudar={setFotos} alt="Foto do comprovante" />
               </section>
               <section>
@@ -613,13 +666,14 @@ export function PainelDeTubos({ evento, onClose, onEmbalar, onEntregar }: {
   // Apagar é a única ação que destrói: pede o segundo toque.
   const [confirmandoApagar, setConfirmandoApagar] = useState<string | null>(null);
   const [verEntregues, setVerEntregues] = useState(false);
+  const [verSozinhas, setVerSozinhas] = useState(false);
   const [vista, setVista] = useState<string | null>(null);
   if ((evento?.id ?? null) !== vista) { setVista(evento?.id ?? null); setAdicionandoFotos(null); setFotosNovas([]); setConfirmandoApagar(null); setVerEntregues(false); }
 
   const falhou = (titulo: string) => (e: any) => toast({ title: titulo, description: mensagemDeErro(e), variant: "destructive" });
   const tirar = useMutation({
     mutationFn: async ({ tubo, peca }: { tubo: Tubo; peca: Peca }) => apiRequest("PATCH", `/api/tubos/${tubo.id}/itens`, { remover: [peca.id] }),
-    onSuccess: (_r, { tubo, peca }) => { toast({ title: `${peca.displayId ?? "Peça"} saiu do Tubo ${tubo.numero}`, description: "Voltou para Conferido." }); atualizarTudo(evento!.id); },
+    onSuccess: (_r, { tubo, peca }) => { toast({ title: tubo.avulso ? `Embalagem de ${peca.displayId ?? "peça"} desfeita` : `${peca.displayId ?? "Peça"} saiu do Tubo ${tubo.numero}`, description: "Voltou para Conferido." }); atualizarTudo(evento!.id); },
     onError: falhou("Não foi possível tirar do tubo"),
   });
   const apagar = useMutation({
@@ -641,8 +695,11 @@ export function PainelDeTubos({ evento, onClose, onEmbalar, onEntregar }: {
     onError: falhou("Não foi possível guardar as fotos do tubo"),
   });
 
-  const abertos = (data?.tubos ?? []).filter((t) => !t.entregueEm);
-  const entregues = (data?.tubos ?? []).filter((t) => !!t.entregueEm);
+  const abertos = (data?.tubos ?? []).filter((t) => !t.entregueEm && !t.avulso);
+  const entregues = (data?.tubos ?? []).filter((t) => !!t.entregueEm && !t.avulso);
+  // Embaladas SOZINHAS ainda por entregar: seção própria, recolhida, sem
+  // etiqueta de tubo (a etiqueta delas é a individual do evento).
+  const sozinhas = (data?.tubos ?? []).filter((t) => t.avulso && !t.entregueEm && t.pecas.length > 0);
   const paraEmbalar = (data?.semTubo ?? []).filter((p) => p.conferida && !soVisualizaKit(p));
   const esperandoConferir = (data?.semTubo ?? []).filter((p) => !p.conferida).length;
   const tuboDasFotos = abertos.find((t) => t.id === adicionandoFotos) ?? null;
@@ -783,6 +840,35 @@ export function PainelDeTubos({ evento, onClose, onEmbalar, onEntregar }: {
             )}
             {abertos.map(cartaoDoTubo)}
           </section>
+
+          {sozinhas.length > 0 && (
+            <section style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              <button type="button" onClick={() => setVerSozinhas((v) => !v)} aria-expanded={verSozinhas} data-testid="painel-ver-sozinhas"
+                style={{ display: "flex", alignItems: "center", justifyContent: "space-between", minHeight: alvo, padding: "0 12px", borderRadius: 8, border: `1px solid ${COR.borda}`, background: COR.fundo, color: COR.texto, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+                Embaladas sozinhas ({sozinhas.length})
+                <ChevronDown aria-hidden="true" style={{ width: 15, height: 15, transform: verSozinhas ? "rotate(180deg)" : undefined }} />
+              </button>
+              {verSozinhas && sozinhas.map((t) => {
+                const peca = t.pecas[0];
+                const soVe = t.pecas.some(soVisualizaKit);
+                return (
+                  <div key={t.id} data-testid={`sozinha-${peca.id}`} style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", padding: "8px 12px", border: `1px solid ${COR.borda}`, borderRadius: 10, background: "#fff" }}>
+                    <LinhaDaPeca p={peca} />
+                    {!soVe && (
+                      <>
+                        <button type="button" onClick={() => onEntregar(t.id)} data-testid={`entregar-sozinha-${peca.id}`} style={acao(COR.verde, t.prontoParaEntregar)}>
+                          <Truck aria-hidden="true" style={{ width: 13, height: 13 }} /> Entregar
+                        </button>
+                        <button type="button" onClick={() => tirar.mutate({ tubo: t, peca })} disabled={tirar.isPending} data-testid={`desfazer-embalagem-${peca.id}`} style={acao(COR.sec)}>
+                          Desfazer embalagem
+                        </button>
+                      </>
+                    )}
+                  </div>
+                );
+              })}
+            </section>
+          )}
 
           {entregues.length > 0 && (
             <section style={{ display: "flex", flexDirection: "column", gap: 10 }}>

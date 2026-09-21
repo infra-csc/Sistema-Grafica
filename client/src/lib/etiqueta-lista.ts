@@ -218,3 +218,88 @@ export function lerPreferencias(): PreferenciasDaEtiqueta {
 export function gravarPreferencias(p: PreferenciasDaEtiqueta) {
   try { window.localStorage.setItem(CHAVE, JSON.stringify(p)); } catch { /* sem storage: a preferência vale só nesta visita */ }
 }
+
+// ── O cabeçalho: texto de cima + PALAVRA GIGANTE ────────────────────────────
+
+/** Cidades de mais de uma palavra que aparecem no FIM do nome do evento. A
+ *  comparação ignora caixa e acento ("sao paulo" casa). Lista curta de
+ *  propósito: o campo é editável, isto só acerta o padrão dos casos comuns. */
+const CIDADES_COMPOSTAS = [
+  "Rio de Janeiro", "São Paulo", "Porto Alegre", "Belo Horizonte", "Campo Grande", "João Pessoa", "Porto Velho",
+  "Rio Branco", "Boa Vista", "São Luís", "Juiz de Fora", "Ribeirão Preto", "São José dos Campos", "Santo André",
+  "São Bernardo do Campo", "Foz do Iguaçu", "Caxias do Sul", "Balneário Camboriú", "Vila Velha", "Nova Lima",
+  "Governador Valadares", "Montes Claros", "Poços de Caldas", "Sete Lagoas", "Ouro Preto", "Cabo Frio",
+];
+export const semAcento = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+
+/**
+ * O padrão do cabeçalho a partir do NOME do evento (dono, 22/09: "teste 3"
+ * saiu como "TESTE" pequeno e um "3" gigante). Regras, nesta ordem:
+ *  1. cidade composta conhecida no fim do nome → ela inteira é a gigante;
+ *  2. última palavra numérica ("Etapa 2", "Vale 2026") ou de 1–2 letras → a
+ *     gigante é o NOME INTEIRO (um "3" enorme não identifica nada na pilha);
+ *  3. senão, a última palavra (a cidade, no modelo do dono).
+ * Continua editável na tela — nenhuma regra automática acerta todos.
+ */
+export function cabecalhoPadrao(nomeDoEvento: string | null | undefined): { prefixo: string; gigante: string } {
+  const nome = String(nomeDoEvento ?? "").replace(/\s+/g, " ").trim();
+  if (!nome) return { prefixo: "", gigante: "" };
+  const plano = semAcento(nome);
+  for (const cidade of CIDADES_COMPOSTAS) {
+    const c = semAcento(cidade);
+    if (plano === c) return { prefixo: "", gigante: nome };
+    if (plano.endsWith(` ${c}`)) return { prefixo: nome.slice(0, nome.length - c.length).trim(), gigante: nome.slice(nome.length - c.length) };
+  }
+  const palavras = nome.split(" ");
+  const ultima = palavras[palavras.length - 1];
+  if (palavras.length === 1 || /^\d+$/.test(ultima) || ultima.length <= 2) return { prefixo: "", gigante: nome };
+  return { prefixo: palavras.slice(0, -1).join(" "), gigante: ultima };
+}
+
+/** O texto de cima quando a pessoa editou SÓ a gigante: o nome sem ela (sem
+ *  olhar a caixa). Gigante que não está no nome → o nome inteiro fica em cima. */
+export function prefixoPara(nomeDoEvento: string | null | undefined, gigante: string) {
+  const nome = String(nomeDoEvento ?? "").replace(/\s+/g, " ").trim();
+  const g = gigante.trim();
+  if (!g) return nome;
+  const idx = nome.toLowerCase().lastIndexOf(g.toLowerCase());
+  return idx >= 0 ? (nome.slice(0, idx) + nome.slice(idx + g.length)).replace(/\s+/g, " ").trim() : nome;
+}
+
+// ── O resumo do que vai sair, em linguagem de gente ─────────────────────────
+
+const plural = (n: number, um: string, varios: string) => `${n} ${n === 1 ? um : varios}`;
+
+export type ContaDaImpressao = {
+  /** Etiquetas individuais (A4, duas por folha) e as folhas que ocupam. */
+  etiquetas: number; folhasIndividuais: number;
+  /** Listas (já multiplicadas pelas cópias), peças dentro delas e o papel. */
+  listas: number; pecasEmLista: number; tamanho: TamanhoEtiqueta;
+};
+
+/**
+ * "Vai imprimir: 2 listas em Adesivo 10×15 cm (34 peças) e 5 etiquetas
+ * individuais em A4 (3 folhas) — 2 impressões separadas". O aviso das duas
+ * impressões só aparece quando os papéis são DIFERENTES: lista em A4 sai junto.
+ */
+export function resumoDaImpressao(c: ContaDaImpressao): { texto: string; impressoesSeparadas: boolean } {
+  const partes: string[] = [];
+  if (c.listas > 0) partes.push(`${plural(c.listas, "lista", "listas")} em ${nomeDoPapel(c.tamanho)} (${plural(c.pecasEmLista, "peça", "peças")})`);
+  if (c.etiquetas > 0) partes.push(`${plural(c.etiquetas, "etiqueta individual", "etiquetas individuais")} em A4 (${plural(c.folhasIndividuais, "folha", "folhas")})`);
+  if (partes.length === 0) return { texto: "Nada para imprimir ainda.", impressoesSeparadas: false };
+  const impressoesSeparadas = c.listas > 0 && c.etiquetas > 0 && c.tamanho !== "a4";
+  return { texto: `Vai imprimir: ${partes.join(" e ")}${impressoesSeparadas ? " — 2 impressões separadas" : ""}`, impressoesSeparadas };
+}
+
+/** Lista curta perdida numa folha grande: vale sugerir o adesivo? Só quando
+ *  TUDO cabe numa etiqueta de adesivo (senão a troca multiplicaria páginas). */
+export function cabeNoAdesivo<T extends PecaDaLista>(linhas: LinhaDaEtiqueta<T>[], opcoes: { comTubo: boolean; mostrarQuantidade?: boolean }) {
+  const m = TAMANHOS.adesivo;
+  return linhas.length > 0 && paginarLinhas(linhas, {
+    capacidade: opcoes.comTubo ? m.linhasComTubo : m.linhasSemTubo, letrasPorLinha: m.letrasPorLinha, mostrarQuantidade: opcoes.mostrarQuantidade,
+  }).length === 1;
+}
+
+/** O papel em texto corrido ("Adesivo 10×15 cm"): o "(em pé)" só ajuda no
+ *  seletor; em resumo e legenda é ruído. */
+export const nomeDoPapel = (t: TamanhoEtiqueta) => (TAMANHOS[t] ?? TAMANHOS[TAMANHO_PADRAO]).rotulo.replace(" (em pé)", "");

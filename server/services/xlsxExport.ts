@@ -182,7 +182,8 @@ async function writeWorkbook(
           eventName:    item.event?.name ?? item.eventName ?? "",
           statusLabel:  STATUS_LABELS[item.status] ?? item.status ?? "",
           printMachine: item.printMachine ? rotuloDaMaquina(item.printMachine) : "",
-          tuboNumero:   item.tuboNumero ?? (item.tuboId ? tuboPorId.get(item.tuboId)?.tuboNumero : undefined) ?? "",
+          // Embalada sozinha (número negativo): a coluna Tubo fica vazia.
+          tuboNumero:   (() => { const n = item.tuboNumero ?? (item.tuboId ? tuboPorId.get(item.tuboId)?.tuboNumero : undefined); return Number(n) > 0 ? n : ""; })(),
           qtyReused:    reusedTotal(item),
           m2ToProduce:  m2ToProduce(item),
           qtyProduced:  item.quantityProduced ?? 0,

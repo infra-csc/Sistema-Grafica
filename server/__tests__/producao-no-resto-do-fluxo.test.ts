@@ -75,7 +75,7 @@ describe("detalheDaProducao — a frase curta de cada etapa", () => {
   });
 
   it("conferida, embalada e entregue", () => {
-    expect(detalheDaProducao({ status: "conferred" })).toBe("Aguardando embalagem ou entrega");
+    expect(detalheDaProducao({ status: "conferred" })).toBe("Aguardando embalagem");
     expect(detalheDaProducao({ status: "packed", tuboId: "t", tuboNumero: 2 })).toBe("Tubo 2");
     // 17:32Z = 14:32 em São Paulo — o relógio é o do negócio, não o do servidor
     expect(detalheDaProducao({ status: "packed", tuboId: "t", tuboNumero: 2, tuboFechadoEm: "2026-09-21T17:32:00Z" })).toBe("Tubo 2 · fechado 14:32");

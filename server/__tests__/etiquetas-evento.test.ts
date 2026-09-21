@@ -52,9 +52,13 @@ describe("a página /eventos/:id/etiquetas", () => {
     // enorme. O padrão é a última palavra do nome; o campo é editável antes
     // de imprimir porque 'São Paulo' tem duas palavras e nenhuma regra
     // automática acerta todas.
-    expect(PAGINA).toContain('const palavraFinal = nome.trim().split(/\\s+/).slice(-1)[0] ?? "";');
+    // 22/09: o padrão saiu da "última palavra" crua para `cabecalhoPadrao`
+    // ("teste 3" virava um "3" gigante) — regra testada em etiqueta-lista.test.ts.
+    expect(PAGINA).toContain("const padrao = useMemo(() => cabecalhoPadrao(nome), [nome]);");
     expect(PAGINA).toContain('data-testid="input-destaque"');
-    expect(PAGINA).toContain('fontSize: gigante && prefixo ? "clamp(56px, 8vw, 104px)" : "clamp(34px, 5.2vw, 64px)"');
+    expect(PAGINA).toContain('data-testid="input-texto-de-cima"');
+    // gigante curta é enorme; nome inteiro / cidade composta desce um degrau
+    expect(PAGINA).toContain('fontSize: gigante && gigante.length <= 12 ? "clamp(56px, 8vw, 104px)" : "clamp(34px, 5.2vw, 64px)"');
     expect(PAGINA).toContain("compareDisplayId(a.displayId, b.displayId)");
   });
 
@@ -83,12 +87,14 @@ describe("a etiqueta no caminho de quem confere (25/08)", () => {
   });
 });
 describe("seleção e origem (25/08)", () => {
-  it("cada peça do pool tem chip de marcar/desmarcar, com todas/nenhuma", () => {
+  it("cada peça do pool tem caixa de marcar/desmarcar, com todas/nenhuma", () => {
     expect(PAGINA).toContain('data-testid={`selecao-peca-${p.id}`}');
     expect(PAGINA).toContain('data-testid="selecao-todas"');
     expect(PAGINA).toContain('data-testid="selecao-nenhuma"');
     // o conjunto guarda as DESMARCADAS: vazio = todas, e peça nova entra marcada
-    expect(PAGINA).toContain("const pecas = useMemo(() => poolFiltrado.filter((p) => !desmarcadas.has(p.id)), [poolFiltrado, desmarcadas]);");
+    // 22/09: imprime o que está MARCADO no pool inteiro — busca e filtro por
+    // tipo só estreitam a vista (antes o filtro mudava a impressão em silêncio).
+    expect(PAGINA).toContain("const pecas = useMemo(() => pool.filter((p) => !desmarcadas.has(p.id)), [pool, desmarcadas]);");
   });
 
   it("quem veio da Gráfica volta para a Gráfica", () => {
@@ -139,8 +145,11 @@ describe("o logo da prova, tirado do book (25/08)", () => {
     // e falha de cache nunca vira falha de logo
     expect(LIB.split("} catch {").length - 1).toBeGreaterThanOrEqual(3);
     // enquanto extrai, o Imprimir espera — sem logo só quem desmarcar
-    expect(PAGINA).toContain("disabled={buscandoLogo && usarLogo}");
-    expect(PAGINA).toContain('{buscandoLogo && usarLogo ? "Buscando o logo…" : "Imprimir / PDF"}');
+    expect(PAGINA).toContain("const esperandoLogo = buscandoLogo && usarLogo;");
+    // 22/09: o botão também para sem nada marcado — e o motivo aparece ESCRITO
+    expect(PAGINA).toContain("disabled={!!motivoParado}");
+    expect(PAGINA).toContain('data-testid="motivo-parado"');
+    expect(PAGINA).toContain('{esperandoLogo ? "Buscando o logo…" : "Imprimir / PDF"}');
     // o interruptor existe já durante a busca, para poder desmarcar
     expect(PAGINA).toContain("{(logo || buscandoLogo) && (");
   });
@@ -180,14 +189,15 @@ describe("registro de impressão, filtro por tipo e uma por unidade (25/08)", ()
   });
 
   it("escolhe-se pela descrição, com filtro por tipo; 'nenhuma' desmarca TUDO", () => {
-    expect(PAGINA).toContain("maxWidth: 260");
-    expect(PAGINA).toContain('t === null ? "filtro-tipo-todos"');
-    expect(PAGINA).toContain("`filtro-tipo-${t.toLowerCase().replace(");
-    // a fração conta sobre o pool FILTRADO; 'nenhuma' desmarca o pool inteiro
-    expect(PAGINA).toContain("Imprimir ({pecas.length}/{poolFiltrado.length})");
+    // 22/09: o filtro por tipo virou UM select (eram chips iguais aos de "em
+    // lista") e ganhou busca; a contagem é das marcadas no pool inteiro
+    expect(PAGINA).toContain('data-testid="select-filtro-tipo"');
+    expect(PAGINA).toContain('data-testid="busca-peca"');
+    expect(PAGINA).toContain("{pecas.length} de {pool.length}");
+    expect(PAGINA).toContain("{p.description || p.type}");
     expect(PAGINA).toContain("setDesmarcadas(new Set(pool.map((p) => p.id)))");
     // filtro apontando para tipo que sumiu do pool cai para 'todos' sozinho
-    expect(PAGINA).toContain("tipos.includes(filtroTipo) ? filtroTipo : null");
+    expect(PAGINA).toContain("tiposNoPool.some(([t]) => t === filtroTipo) ? filtroTipo : null");
   });
 
   it("'uma por unidade': volume numerado, contagem em etiquetas, padrão desligado", () => {
@@ -196,21 +206,23 @@ describe("registro de impressão, filtro por tipo e uma por unidade (25/08)", ()
     expect(PAGINA).toContain("{e.n} de {e.total}");
     // peça de 1 unidade não ganha numeração — não há o que numerar
     expect(PAGINA).toContain("if (q === 1) return [{ p, n: 0, total: 0 }];");
-    // com o interruptor ligado a barra mostra as DUAS contas: é a folha que
-    // vai para a impressora, mas a peça é o que o galpão conhece
-    // 21/09: conta as peças que SAEM ("O que sai" pode deixar as listas de fora)
-    expect(PAGINA).toContain("{porUnidade && <> · {pecasIndividuais.length + pecasDaLista.length} peça");
+    // 22/09: a conta de etiquetas e folhas vive no RESUMO ("5 etiquetas
+    // individuais em A4 (3 folhas)"), que já multiplica pelas unidades
+    expect(PAGINA).toContain("resumoDaImpressao({ etiquetas: etiquetas.length, folhasIndividuais,");
   });
 
   it("nada do que é novo vaza para o papel", () => {
-    // tudo novo vive nos blocos .etq-acao (barra, faixa de seleção e, desde
-    // 21/09, a faixa "Em lista"),
-    // que o print esconde — e aparece ANTES das folhas no arquivo
+    // tudo que é controle vive em blocos .etq-acao (barra, painel de opções,
+    // estado vazio, rodapé do celular; a legenda de cada folha também é
+    // etq-acao, no componente) — o print esconde todos
     expect(PAGINA).toContain(".etq-acao { display: none !important; }");
-    expect(PAGINA.split('className="etq-acao"').length - 1).toBe(3);
+    expect(PAGINA).toContain('<aside className="etq-acao etq-painel"');
+    expect(PAGINA).toContain('<div className="etq-acao" data-testid="rodape-de-acao"');
+    expect(PAGINA).toContain('<div className="etq-acao" data-testid="etiquetas-vazio"');
+    expect(readFileSync(new URL("../../client/src/components/etiqueta-lista.tsx", import.meta.url), "utf8")).toContain('<p className="etq-acao" data-testid={props.testid}');
     const inicioFolhas = PAGINA.indexOf("── Folhas");
     expect(inicioFolhas).toBeGreaterThan(-1);
-    for (const marca of ['data-testid="check-por-unidade"', "filtro-tipo-todos", "selo-impressa-", 'data-testid="selecao-so-novas"', 'data-testid="faixa-em-lista"', 'data-testid="select-tamanho-lista"']) {
+    for (const marca of ['data-testid="check-por-unidade"', 'data-testid="select-filtro-tipo"', "selo-impressa-", 'data-testid="selecao-so-novas"', 'data-testid="select-tamanho-lista"']) {
       expect(PAGINA.indexOf(marca)).toBeGreaterThan(-1);
       expect(PAGINA.indexOf(marca)).toBeLessThan(inicioFolhas);
     }
@@ -225,9 +237,10 @@ describe("registro de impressão, filtro por tipo e uma por unidade (25/08)", ()
 // (tipos, tamanhos, quantidade, registro) é testado em etiqueta-lista.test.ts.
 describe("em lista (21/09)", () => {
   it("os tipos escolhidos vão para listas, uma linha por peça, sem arte nem código", () => {
-    expect(PAGINA).toContain('data-testid="check-em-lista"');
+    // 22/09: a escolha virou "Como sai" — uma linha por tipo, Individual | Lista
+    expect(PAGINA).toContain("testid={`como-sai-${slug(t)}`}");
     expect(PAGINA).toContain("<EtiquetaEmLista");
-    expect(PAGINA).toContain('testidDaLinha="lista-linha"');
+    expect(PAGINA).toContain('"lista-linha"');
     // o padrão continua sendo o 2x1
     expect(PAGINA).toContain("filter((t) => ehDoisPorUm({ type: t }))");
   });

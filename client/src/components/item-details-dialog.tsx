@@ -527,7 +527,7 @@ export function ItemDetailsDialog({
     // Os nomes mudaram em 14/09; a trilha antiga continua dizendo "Em Produção"
     // e "Produzido", então as palavras velhas seguem reconhecidas.
     { label: "Em Impressão",                    keywords: ["em impressão", "impressão iniciada", "em produção"], pool: itemLogsFlow, actionType: "production" },
-    { label: "Em Acabamento / Conferência",     keywords: ["acabamento / conferência", "produzido"], pool: itemLogsFlow, actionType: "produced" },
+    { label: "Impresso / Acabamento",             keywords: ["impresso / acabamento", "acabamento / conferência", "produzido"], pool: itemLogsFlow, actionType: "produced" },
     // As etapas da Gráfica faltavam por completo: a trilha terminava em
     // "Produzido" mesmo em peças já conferidas e entregues.
     { label: "Conferido",                       keywords: [], pool: itemLogsFlow,

@@ -398,6 +398,10 @@ export function useWebSocket() {
           case 'production_started':
           case 'production_updated':
             invalidateCoalesced('/api/items');
+            // A aba Máquinas (o que cada impressora imprime agora e o diário do
+            // dia) lê estes mesmos gestos — sem esta linha ela só via a
+            // mudança no polling de 60s.
+            invalidateCoalesced('/api/grafica/maquinas');
             invalidateCoalesced('/api/items/approved');
             invalidateCoalesced('/api/events');
             toast({

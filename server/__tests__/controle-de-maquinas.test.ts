@@ -112,6 +112,7 @@ describe("4 · a leitura", () => {
 
 describe("5 · a tela", () => {
   const PAGINA_REL = "client/src/pages/grafica-maquinas.tsx";
+  const PAGINA = ler(PAGINA_REL);
 
   it("existe e está no app, com os papéis da Gráfica", () => {
     expect(existsSync(path.resolve(RAIZ, PAGINA_REL))).toBe(true);
@@ -120,33 +121,87 @@ describe("5 · a tela", () => {
     expect(APP).toContain("<RoleProtectedRoute component={GraficaMaquinas} allowedRoles={ROLES_GRAFICA} />");
   });
 
-  it("a Gráfica chega nela pelo cabeçalho, e dela volta para a fila", () => {
+  it("a Gráfica chega nela pelo cabeçalho, e dela volta para a fila — já filtrada", () => {
     expect(GRAFICA).toContain('href="/grafica/maquinas"');
     expect(GRAFICA).toContain('data-testid="link-maquinas"');
-    expect(ler(PAGINA_REL)).toContain('data-testid="link-voltar-fila"');
+    expect(PAGINA).toContain('data-testid="link-voltar-fila"');
+    expect(PAGINA).toContain('const GRAFICA_EM_IMPRESSAO = "/grafica?status=inProduction";');
+    expect(PAGINA).toContain('const GRAFICA_LIBERADOS = "/grafica?status=ready_for_production,approved";');
   });
 
   it("responde as duas perguntas: agora e o dia", () => {
-    const PAGINA = ler(PAGINA_REL);
     expect(PAGINA).toContain('data-testid={`maquina-agora-${m.codigo}`}');
-    expect(PAGINA).toContain('data-testid={`maquina-dia-${m.codigo}`}');
+    expect(PAGINA).toContain('data-testid="diario-tabela"');
+    expect(PAGINA).toContain('data-testid="diario-cartoes"');
     expect(PAGINA).toContain('"Livre"');
   });
 
-  it("navega entre dias sem deixar ir para o futuro", () => {
-    const PAGINA = ler(PAGINA_REL);
+  it("navega entre dias sem deixar ir para o futuro; dia e impressora vivem na URL", () => {
     expect(PAGINA).toContain('data-testid="dia-anterior"');
-    expect(PAGINA).toContain('disabled={ehHoje}');
+    expect(PAGINA).toContain("disabled={ehHoje}");
     expect(PAGINA).toContain("max={hoje}");
+    expect(PAGINA).toContain('const diaEscolhido = params.get("dia");');
+    expect(PAGINA).toContain('const maquinaFiltro = params.get("maquina") ?? "";');
+    expect(PAGINA).toContain("navegar(`/grafica/maquinas${qs ? `?${qs}` : \"\"}`, { replace: true });");
   });
 
   it("avisa das peças em impressão sem máquina e de quando o histórico começa", () => {
-    const PAGINA = ler(PAGINA_REL);
     expect(PAGINA).toContain('data-testid="sem-maquina"');
     expect(PAGINA).toContain("O histórico por máquina começa em 14/09/2026");
+    expect(PAGINA).toContain('const INICIO_DO_DIARIO = "2026-09-14";');
   });
 
-  it("atualiza sozinha — é painel de parede do galpão", () => {
-    expect(ler(PAGINA_REL)).toContain("refetchInterval: 60_000,");
+  it("atualiza sozinha — é painel de parede do galpão (polling + WebSocket + 'atualizado há')", () => {
+    expect(PAGINA).toContain("refetchInterval: 60_000,");
+    expect(PAGINA).toContain("refetchOnWindowFocus: true,");
+    expect(PAGINA).toContain('data-testid="atualizado-ha"');
+    // O WebSocket derruba a chave nos gestos de impressão…
+    expect(ler("client/src/hooks/use-websocket.ts")).toContain("invalidateCoalesced('/api/grafica/maquinas');");
+    // …e a chave é [rota, "?dia=…"] para o prefixo alcançar qualquer dia aberto.
+    expect(PAGINA).toContain('["/api/grafica/maquinas", `?dia=${diaEscolhido}`]');
+    expect(ler("client/src/lib/queryClient.ts")).toContain('typeof queryKey[0] === "string" && queryKey[0].startsWith("/api/")');
+  });
+
+  it("todos os estados: carregando (silhueta), lento, erro com 'tentar novamente', vazio útil, 'mostrar mais'", () => {
+    expect(PAGINA).toContain('data-testid="maquinas-carregando"');
+    expect(PAGINA).toContain('data-testid="maquinas-lento"');
+    expect(PAGINA).toContain('data-testid="maquinas-erro"');
+    expect(PAGINA).toContain('data-testid="maquinas-erro-suave"');
+    expect(PAGINA).toContain('data-testid="diario-vazio"');
+    expect(PAGINA).toContain("Ao iniciar uma impressão na Gráfica, ela aparece aqui.");
+    expect(PAGINA).toContain('data-testid="button-mostrar-mais"');
+    expect(PAGINA).toContain("const LOTE = 60;");
+  });
+
+  it("age daqui (dono, 21/09): o cartão e a linha do diário abrem o MESMO modal da fila — só para quem pode", () => {
+    expect(PAGINA).toContain('from "@/components/grafica/modal-impressao"');
+    expect(PAGINA).toContain('const podeAgir = user?.role === "grafica" || user?.role === "admin";');
+    expect(PAGINA).toContain("data-testid={`button-impressas-${p.id}`}");
+    expect(PAGINA).toContain("data-testid={`button-impressas-linha-${l.id}`}");
+    expect(PAGINA).toContain("data-testid={`link-escolher-peca-${m.codigo}`}");
+    // Evento finalizado: o botão explica antes, com a mesma frase do 409.
+    expect(PAGINA).toContain('motivoAcaoBloqueada(selo.motivo, "informar impressas")');
+    // A leitura entrega ao modal o que ele precisa.
+    expect(ler("server/routes/maquinas.ts")).toContain("i.approval_thumb_url,");
+    expect(ler("server/routes/maquinas.ts")).toContain("ordem: ordemPorId.get(l.id) ?? 0,");
+  });
+
+  it("vocabulário do dono (21/09): nunca 'Registrar'; o diário fala de impressas e acabamento", () => {
+    expect(PAGINA).not.toMatch(/Registrar/);
+    expect(PAGINA).toContain('return "Iniciou a impressão";');
+    expect(PAGINA).toContain("return `Trocou para ${rotuloMaquina}`;");
+    expect(PAGINA).toContain("return `Mandou ${r.quantidade} para acabamento${total}`;");
+    expect(PAGINA).toContain("return `Concluiu: ${r.totalDepois ?? r.aImprimir} de ${r.aImprimir} impressas`;");
+  });
+
+  it("acessibilidade e performance: aria nos controles, linha do diário memoizada, cores por token", () => {
+    expect(PAGINA).toContain('role="progressbar"');
+    expect(PAGINA).toContain("aria-pressed={ativo}");
+    expect(PAGINA).toContain('aria-label="Escolher o dia"');
+    expect(PAGINA).toContain("const LinhaDoDiario = memo(function LinhaDoDiario(");
+    expect(PAGINA).toContain('import { T, FS, R } from "@/lib/theme";');
+    // Cores proibidas como texto (régua da casa) e o cinza aposentado.
+    expect(PAGINA).not.toContain("#78716c");
+    expect(PAGINA).not.toMatch(/color: "#f97316"|color: "#a8a29e"/);
   });
 });

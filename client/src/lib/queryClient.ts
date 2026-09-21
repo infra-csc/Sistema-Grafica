@@ -165,8 +165,11 @@ const LISTAS_COM_DELTA: ReadonlySet<string> = new Set(["/api/items", "/api/items
  * "/api/items/?status=", e é por isso que a URL sai daqui.
  */
 function urlDaLista(queryKey: readonly unknown[]): string {
+  // Vale para QUALQUER rota, não só /api/items: a aba Máquinas usa
+  // ["/api/grafica/maquinas", "?dia=…"] pelo mesmo motivo — a invalidação por
+  // prefixo (WebSocket, mutations do modal de impressão) precisa alcançá-la.
   if (
-    queryKey.length === 2 && queryKey[0] === "/api/items"
+    queryKey.length === 2 && typeof queryKey[0] === "string" && queryKey[0].startsWith("/api/")
     && typeof queryKey[1] === "string" && queryKey[1].startsWith("?")
   ) {
     return `${queryKey[0]}${queryKey[1]}`;

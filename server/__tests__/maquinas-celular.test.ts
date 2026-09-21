@@ -255,7 +255,8 @@ describe("MÁQUINAS no celular (390px) — controles novos de 21/09", () => {
     const peca = $('[data-testid="peca-na-fila-q1"]')!;
     expect(peca.textContent).toContain("#0396");
     expect(peca.textContent).toContain("20 de 34 un.");
-    expect($('[data-testid="button-iniciar-fila-q1"]')!.textContent).toBe("Iniciar 20 un.");
+    // Impressora LIVRE: a primeira da fila é a "Próxima" e o Iniciar ganha destaque (dono, 21/09).
+    expect($('[data-testid="button-iniciar-fila-q1"]')!.textContent).toBe("Próxima: #0396 · Iniciar 20 un.");
     // Fechado: nem campo nem select desta peça na tela.
     expect($('[data-testid="qtd-mover-fila-q1"]')).toBeNull();
     expect($('[data-testid="mover-fila-q1"]')).toBeNull();

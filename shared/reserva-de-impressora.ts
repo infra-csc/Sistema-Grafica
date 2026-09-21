@@ -162,16 +162,24 @@ export function devolverReserva(p: PecaReservavel, de?: string | null, quantidad
  * em impressão + reservado ≤ a imprimir continua valendo por construção.
  */
 export function iniciarParte(
-  p: PecaReservavel, maquina: string, opcoes: { daReserva?: boolean; quantidade?: number | null },
+  p: PecaReservavel, maquina: string, opcoes: { daReserva?: boolean; quantidade?: number | null; /** A reserva consumida é a DESTA impressora (o operador trocou de máquina na hora de iniciar). Padrão: a própria `maquina`. */ reservaDe?: string | null },
 ): { ok: true; partes: PartesPorMaquina; reserva: ReservaPorMaquina | null; quantidade: number } | { ok: false; erro: string } {
   if (!MAQUINAS_DE_IMPRESSAO.includes(maquina)) return { ok: false, erro: "Escolha a máquina em que a peça vai ser impressa" };
   const reserva = reservaDaPeca(p);
   let n: number;
   let reservaNova: ReservaPorMaquina | null;
   if (opcoes.daReserva) {
-    n = reserva[maquina] ?? 0;
-    if (n <= 0) return { ok: false, erro: `Não há unidades reservadas para a ${rotuloDaMaquina(maquina)}` };
-    reservaNova = lerReserva({ ...reserva, [maquina]: 0 });
+    // Com `quantidade` (modal da etapa 1, 21/09: "quantas vão para esta
+    // impressora"): sai PRIMEIRO da reserva desta impressora e o que faltar, do
+    // que está sem impressora; iniciar menos que o reservado deixa o resto reservado.
+    const origem = opcoes.reservaDe && MAQUINAS_DE_IMPRESSAO.includes(opcoes.reservaDe) ? opcoes.reservaDe : maquina;
+    const reservadas = reserva[origem] ?? 0;
+    if (reservadas <= 0) return { ok: false, erro: `Não há unidades reservadas para a ${rotuloDaMaquina(origem)}` };
+    const disponivel = reservadas + semImpressora(p);
+    n = opcoes.quantidade == null ? reservadas : inteiro(opcoes.quantidade);
+    if (n <= 0) return { ok: false, erro: "Informe quantas unidades vão para a impressora" };
+    if (n > disponivel) return { ok: false, erro: `Só ${disponivel} un. podem ir para a ${rotuloDaMaquina(maquina)} agora — não dá para iniciar ${n}` };
+    reservaNova = lerReserva({ ...reserva, [origem]: Math.max(0, reservadas - n) });
   } else {
     const livre = semImpressora(p);
     n = opcoes.quantidade == null ? livre : inteiro(opcoes.quantidade);
@@ -208,6 +216,13 @@ export function reescalarReservaEPartes(
   const partes = lidas ? (comprometido > teto ? reescalarPartes(lidas, teto) : lidas) : null;
   return { partes, reserva };
 }
+
+/**
+ * Quanto PODE ir para `maquina` agora: o reservado a ela + o que está sem
+ * impressora (o reservado a OUTRAS impressoras não entra).
+ */
+export const disponivelParaAMaquina = (p: PecaReservavel, maquina: string | null | undefined): number =>
+  semImpressora(p) + (maquina ? reservaDaPeca(p)[maquina] ?? 0 : 0);
 
 /** "Impressora 1 (20) · Impressora 2 (14)" — a reserva em uma linha. */
 export function resumoDaReserva(r: ReservaPorMaquina | null | undefined): string {

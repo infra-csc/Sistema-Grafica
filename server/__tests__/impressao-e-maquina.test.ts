@@ -129,7 +129,7 @@ describe("a tela obriga a escolha — no modal COMPARTILHADO (components/grafica
   });
 
   it("nem informar impressas nem iniciar funcionam sem máquina", () => {
-    expect(MODAL).toContain("const pode = !!maquinaEscolhida && !startPrintingMutation.isPending;");
+    expect(MODAL).toContain("const pode = !!maquinaEscolhida && conta.valida && !startPrintingMutation.isPending;");
     expect(MODAL).toContain('toast({ title: "Escolha a máquina"');
   });
 
@@ -141,7 +141,7 @@ describe("a tela obriga a escolha — no modal COMPARTILHADO (components/grafica
 
   it("a fila mostra em que máquina a peça está e o progresso — o botão só diz o gesto", () => {
     expect(GRAFICA).toContain("function ProgressoImpressao(");
-    expect(GRAFICA).toContain("isInProd(item) && <ProgressoImpressao item={item} fonte={10.5} duasLinhas />");
+    expect(GRAFICA).toContain("isInProd(item) && <ProgressoImpressao item={item} fonte={10.5} duasLinhas onIniciarResto=");
     expect(GRAFICA).toContain("isInProd(item) ? rotuloAcaoImpressao(item)");
   });
 });

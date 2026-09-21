@@ -110,7 +110,7 @@ async function montarTriagem(largura: number, fila: any[] | "carregando" | "erro
   return queryClient;
 }
 
-async function montarEstoque(largura: number, acervo: any[], opts: { url?: string; reservas?: any[] } = {}) {
+async function montarEstoque(largura: number, acervo: any[], opts: { url?: string; reservas?: any[]; usos?: any[]; itens?: any[]; eventos?: any[]; trilha?: Record<string, any[]> } = {}) {
   prepararJsdom(largura);
   window.history.replaceState({}, "", opts.url ?? "/estoque");
   const { queryClient } = await import("@/lib/queryClient");
@@ -118,8 +118,10 @@ async function montarEstoque(largura: number, acervo: any[], opts: { url?: strin
   queryClient.clear();
   queryClient.setQueryData(["/api/inventory"], acervo);
   queryClient.setQueryData(["/api/sponsors"], []);
-  queryClient.setQueryData(["/api/items"], []);
-  queryClient.setQueryData(["/api/events"], []);
+  queryClient.setQueryData(["/api/items"], opts.itens ?? []);
+  queryClient.setQueryData(["/api/events"], opts.eventos ?? []);
+  queryClient.setQueryData(["/api/estoque/usos"], opts.usos ?? []);
+  for (const [id, logs] of Object.entries(opts.trilha ?? {})) queryClient.setQueryData([`/api/audit-logs?entityType=inventory_asset&entityId=${id}`], logs);
   queryClient.setQueryData(["/api/estoque/reservas-ativas"], opts.reservas ?? []);
   await act(async () => { render(h(QueryClientProvider, { client: queryClient } as any, h(Pagina as any, null))); });
   await tick(30);
@@ -461,14 +463,14 @@ describe("estoque", () => {
     const { LOTE_DO_ESTOQUE } = await import("@/pages/estoque");
     await montarEstoque(1280, acervo());
     expect($$('[data-testid^="row-asset-"]').length).toBe(LOTE_DO_ESTOQUE);
-    expect(document.body.textContent).toContain(`Exibindo ${LOTE_DO_ESTOQUE} de 4500 registros`);
+    expect(tid("contador-da-lista")!.textContent).toBe(`${LOTE_DO_ESTOQUE} de 4500 materiais · 4500 unidades`);
     await act(async () => { fireEvent.click(tid("mostrar-mais-estoque")!); });
     expect($$('[data-testid^="row-asset-"]').length).toBe(LOTE_DO_ESTOQUE * 2);
     // Trocar o recorte volta ao primeiro lote.
     await act(async () => { fireEvent.click(tid("button-ver-descartados-rodape")!); });
     await tick(10);
     expect($$('[data-testid^="row-asset-"]').length).toBe(LOTE_DO_ESTOQUE);
-    expect(document.body.textContent).toContain(`Exibindo ${LOTE_DO_ESTOQUE} de 500 registros`);
+    expect(tid("contador-da-lista")!.textContent).toBe(`${LOTE_DO_ESTOQUE} de 500 materiais · 500 unidades`);
   });
 
   it("'No galpão' não promete disponível; Reservadas filtra, grava na URL e Limpar desfaz", async () => {
@@ -500,6 +502,132 @@ describe("estoque", () => {
     await act(async () => { fireEvent.click(tid("button-clear-filters-vazio")!); });
     await tick(20);
     expect($$('[data-testid^="row-asset-"]').length).toBe(27);
+  });
+});
+
+// ─── Estoque agrupado por quantidade + detalhe do ativo (dono, 21/09) ───────
+describe("estoque · agrupado por quantidade, onde já foi usado e o detalhe", () => {
+  /** O print do dono: 34 registros "#EST-0396-N · 2×1 Nubank ×1", um por unidade. */
+  const nubank = () => Array.from({ length: 34 }, (_, i) => ativoDoAcervo(3000 + i, {
+    name: "2×1 — 2×1 Nubank", displayId: `#EST-0396-${i + 1}`, originalItemId: "item-0396", location: "Galpão Central",
+    trackingStatus: i < 30 ? "NO_GALPAO" : "EM_USO", condition: i < 2 ? "AVARIA_LEVE" : "PERFEITO", approvalThumbUrl: i === 0 ? "/objects/arte-nubank.png" : null,
+  }));
+  const acervo = () => [...nubank(), ativoDoAcervo(1, { name: "Pórtico" })];
+  const opts = () => ({
+    itens: [{ id: "item-0396", displayId: "#0396", eventId: "ev-origem", type: "2×1", material: "Lona 440g", finish: "Ilhós", visualWidth: "2.00", visualHeight: "1.00", quantity: 34, sponsors: [{ id: "sp1", name: "Nubank" }] }],
+    eventos: [{ id: "ev-origem", name: "Primavera RJ", startDate: "2026-08-10T00:00:00Z" }],
+    usos: [
+      ...[0, 1, 2, 3].map((i) => ({ id: `al${i}`, assetId: `s${3000 + i}`, eventId: "ev-t3", eventName: "teste 3", inicio: "2026-12-01T00:00:00Z", itemId: "it9", itemDisplayId: "#0777", em: "2026-09-20T10:00:00Z" })),
+      { id: "al9", assetId: "s3005", eventId: "ev-velho", eventName: "Meia de Floripa", inicio: "2026-06-01T00:00:00Z", itemId: null, itemDisplayId: null, em: "2026-05-20T10:00:00Z" },
+    ],
+    reservas: [0, 1, 2, 3].map((i) => ({ reservaId: `r${i}`, assetId: `s${3000 + i}`, itemDisplayId: "#0777", eventName: "teste 3", saida: "2026-11-28T08:00:00Z" })),
+    trilha: { s3000: [{ id: "l1", action: "cadastrado", userName: "Ana", createdAt: "2026-08-01T12:00:00Z" }, { id: "l2", action: "triagem", userName: "Bia", createdAt: "2026-08-12T12:00:00Z" }] },
+  });
+
+  it("34 linhas iguais viram UMA: soma, situação em unidades, condição agregada e onde já foi usado", async () => {
+    fetchFalso();
+    await montarEstoque(1280, acervo(), opts());
+    expect($$('[data-testid^="row-group-"]').length).toBe(1);
+    expect($$('[data-testid^="row-asset-"]').map((r) => r.dataset.testid)).toEqual(["row-asset-s1"]);
+    expect(tid("unidades-s3000")!.textContent).toBe("34un.");
+    expect(tid("situacao-s3000")!.textContent).toBe("30 no galpão (4 separadas) · 4 em uso");
+    expect(tid("condicao-s3000")!.textContent).toBe("32 perfeito · 2 avaria leve");
+    expect(tid("usado-em-s3000")!.textContent).toBe("teste 3Primavera RJ+1");
+    expect(tid("contador-da-lista")!.textContent).toBe("2 materiais · 35 unidades");
+    // Os cartões do topo seguem contando UNIDADES.
+    expect(document.body.textContent).toContain("4 com reserva");
+    // Sem coluna nem busca por localização.
+    expect($$("th").map((t) => t.textContent)).toEqual(["Material", "Quantidade", "Situação", "Condição", "Onde já foi usado", "Ações"]);
+    expect(document.body.textContent).not.toContain("Galpão Central");
+    expect(document.body.textContent).not.toContain("Sem local");
+    expect((tid("input-search-assets") as HTMLInputElement).placeholder).toBe("Nome, ID ou franquia...");
+  });
+
+  it("a expansão devolve as unidades, com as ações por unidade lá dentro", async () => {
+    fetchFalso();
+    await montarEstoque(1280, acervo(), opts());
+    expect(tid("row-asset-s3000")).toBeNull();
+    await act(async () => { fireEvent.click(tid("expandir-s3000")!); });
+    expect(tid("expandir-s3000")!.getAttribute("aria-expanded")).toBe("true");
+    expect($$('[data-testid^="row-asset-s30"]').length).toBe(34);
+    for (const acao of ["button-view-asset", "button-edit-asset", "button-delete-asset", "button-quick-condition"]) expect(tid(`${acao}-s3007`)).not.toBeNull();
+    expect(tid("chip-reservada-s3001")).not.toBeNull();
+  });
+
+  it("detalhe do GRUPO: 34 un., arte, situação, as duas quantidades explicadas, patrocinador da peça, usos e unidades", async () => {
+    fetchFalso();
+    await montarEstoque(1280, acervo(), opts());
+    await act(async () => { fireEvent.click(tid("button-view-group-s3000")!); });
+    const modal = tid("detalhe-do-ativo")!;
+    expect(modal.textContent).toContain("34 unidades em 34 registros");
+    expect(tid("detalhe-arte")!.getAttribute("alt")).toBe("Arte de 2×1 — 2×1 Nubank");
+    expect(tid("detalhe-situacao-frase")!.textContent).toContain("30 no galpão (4 separadas) · 4 em uso");
+    expect(modal.textContent).toContain("Neste material34 un.");
+    expect(modal.textContent).toContain("Peça de origem #039634 un. pedidas");
+    expect(modal.textContent).toContain("PatrocinadoresNubank");
+    expect(tid("detalhe-reserva")!.textContent).toContain("4 unidades reservadas: teste 3");
+    expect(tid("detalhe-usos")!.querySelectorAll("li").length).toBe(3);
+    expect(tid("detalhe-usos")!.textContent).toContain("Separada para teste 3 · 4 unidades");
+    expect(tid("detalhe-usos")!.textContent).toContain("Impressa para Primavera RJ · 34 unidades");
+    expect(tid("detalhe-unidades")!.querySelectorAll("li").length).toBe(34);
+    // Um tema só, sem localização, sem rótulo em caixa alta monoespaçada.
+    expect(modal.textContent).not.toMatch(/Localiza|Galpão Central|RASTREABILIDADE|ESPECIFICAÇÕES/);
+  });
+
+  it("detalhe da UNIDADE: abre pelo grupo, mostra a peça da reserva, a trilha clara e volta ao grupo", async () => {
+    fetchFalso();
+    await montarEstoque(1280, acervo(), opts());
+    await act(async () => { fireEvent.click(tid("button-view-group-s3000")!); });
+    await act(async () => { fireEvent.click(tid("detalhe-unidade-s3000")!); });
+    const modal = tid("detalhe-do-ativo")!;
+    expect(modal.textContent).toContain("#EST-0396-1 · 1 unidade · uma das 34 deste material");
+    expect(tid("detalhe-situacao")!.textContent).toBe("No galpão");
+    expect(tid("detalhe-reserva")!.textContent).toContain("Reservada para a peça #0777 de teste 3");
+    expect(tid("detalhe-usos")!.textContent).toContain("Separada para teste 3 · peça #0777");
+    expect(tid("detalhe-trilha")!.querySelectorAll("li").length).toBe(2);
+    expect(modal.textContent).toContain("Este registro1 un.");
+    expect(tid("detalhe-editar")).not.toBeNull();
+    await act(async () => { fireEvent.click(tid("detalhe-voltar-ao-grupo")!); });
+    expect(tid("detalhe-unidades")).not.toBeNull();
+  });
+
+  it("ação em grupo: mudar a condição das N unidades grava uma por uma, em grupos de 6", async () => {
+    const { GRAVACOES_POR_VEZ } = await import("@/components/triagem/quadro-da-triagem");
+    const { escritas, estado } = fetchFalso();
+    await montarEstoque(1280, acervo(), opts());
+    await act(async () => { fireEvent.click(tid("button-view-group-s3000")!); });
+    // Condições mistas: nenhuma marcada.
+    expect($$('[data-testid^="detalhe-condicao-"]').every((b) => b.getAttribute("aria-checked") === "false")).toBe(true);
+    await act(async () => { fireEvent.click(tid("detalhe-condicao-PERFEITO")!); });
+    await tick(120);
+    expect(escritas().length).toBe(34);
+    expect(escritas().every((e) => e.method === "PATCH" && e.body.condition === "PERFEITO" && !("location" in e.body))).toBe(true);
+    expect(estado.pico).toBeLessThanOrEqual(GRAVACOES_POR_VEZ);
+    expect(textoDosAvisos()).toContain("Condição: Perfeito");
+    // Manutenção só para o que está parado: o grupo tem 4 em uso.
+    expect(tid("detalhe-manutencao")).toBeNull();
+  });
+
+  it("celular 390px: cartão do material, expansão, e o modal com rodapé fixo, 44px e safe-area", async () => {
+    fetchFalso();
+    await montarEstoque(390, acervo(), opts());
+    expect($("table")).toBeNull();
+    expect(tid("situacao-s3000")!.textContent).toBe("30 no galpão (4 separadas) · 4 em uso");
+    await act(async () => { fireEvent.click(tid("expandir-s3000")!); });
+    expect(tid("unidades-de-s3000")!.querySelectorAll("li").length).toBe(34);
+    await act(async () => { fireEvent.click(tid("button-view-group-s3000")!); });
+    expect(px(tid("detalhe-fechar")!.style.minHeight)).toBeGreaterThanOrEqual(44);
+    expect(px(tid("detalhe-condicao-SUCATA")!.style.minHeight)).toBeGreaterThanOrEqual(44);
+    expect(tid("detalhe-fechar")!.parentElement!.style.paddingBottom).toContain("safe-area-inset-bottom");
+  });
+
+  it("o formulário de novo ativo não pede localização", async () => {
+    fetchFalso();
+    await montarEstoque(1280, acervo(), opts());
+    await act(async () => { fireEvent.click(tid("button-new-asset")!); });
+    expect(tid("input-asset-quantity")).not.toBeNull();
+    expect(tid("input-asset-location")).toBeNull();
+    expect($('[aria-label*="mapa do galpão"]')).toBeNull();
   });
 });
 

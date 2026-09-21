@@ -38,7 +38,7 @@ interface TriagemModalProps {
 const RESULT_META: Record<TriagemResult, {
   label: string; subLabel: string; color: string; bg: string; border: string; Icon: React.ElementType;
 }> = {
-  NO_GALPAO:  { label: "Galpão Central", subLabel: "Retorna ao estoque",                            color: "#1e40af", bg: "#eff6ff", border: "#93c5fd", Icon: Warehouse },
+  NO_GALPAO:  { label: "Galpão", subLabel: "Retorna ao estoque",                            color: "#1e40af", bg: "#eff6ff", border: "#93c5fd", Icon: Warehouse },
   MANUTENCAO: { label: "Manutenção",     subLabel: "Fica fora do estoque até o reparo terminar",    color: "#92400e", bg: "#fffbeb", border: "#fcd34d", Icon: Wrench    },
   DESCARTADO: { label: "Descartar",      subLabel: "Remover do inventário",                         color: "#991b1b", bg: "#fef2f2", border: "#fca5a5", Icon: Trash2    },
 };
@@ -424,7 +424,7 @@ export function TriagemModal({
                   </div>
 
                   {/* Destino — no celular ícone em cima do rótulo (como a
-                      Condição): lado a lado, "Galpão Central" não cabia em
+                      Condição): lado a lado, o rótulo do destino não cabia em
                       ~95px e o texto vazava do botão. */}
                   <div role="group" aria-labelledby="triagem-rotulo-destino">
                     <div id="triagem-rotulo-destino" style={ROTULO}>

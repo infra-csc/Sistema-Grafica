@@ -28,7 +28,7 @@ import { requireAuth, requireRole, broadcast, createAuditLog, createAuditLogsEmL
 import { motivoEventoDaPeca } from "./eventoFinalizado";
 import { storage } from "../storage";
 import { MAQUINAS_DE_IMPRESSAO, ehMaquinaValida, rotuloDaMaquina } from "@shared/fluxo-peca";
-import { lerPartes } from "@shared/impressao-dividida";
+import { lerPartes, partesAtivas } from "@shared/impressao-dividida";
 import { pecaVisivelPara } from "@shared/kit";
 import { agoraNoFuso } from "../services/revisaoDigest";
 import { agregarRelatorioDeMaquinas, periodoValido, type RegistroDoPeriodo } from "../services/relatorioDeMaquinas";
@@ -326,16 +326,20 @@ export function registerMaquinasRoutes(app: Express): void {
           (soma, r) => soma + (r.tipo === "parcial" || r.tipo === "conclusao" ? r.quantidade : 0),
           0,
         );
-        const pecasNoDia = new Set(registros.filter((r) => r.quantidade > 0).map((r) => r.itemId)).size;
+        // Peças que IMPRIMIRAM nesta máquina: a "troca" carrega a quantidade
+        // movida, mas não é peça impressa aqui.
+        const pecasNoDia = new Set(registros.filter((r) => (r.tipo === "parcial" || r.tipo === "conclusao") && r.quantidade > 0).map((r) => r.itemId)).size;
         return {
           codigo,
           rotulo: rotuloDaMaquina(codigo),
           // A peça dividida aparece no cartão de CADA impressora que tem
           // parte dela, com os números daquela parte (`parte`).
           imprimindo: emImpressao
+            // Parte já esgotada (restante 0) não é "imprimindo": fica só como
+            // histórico no jsonb — o cartão não ganha uma peça morta.
             .filter((l) => {
               const partes = lerPartes(l.impressao_por_maquina);
-              return partes ? !!partes[codigo] : l.print_machine === codigo;
+              return partes ? !!partesAtivas(partes)[codigo] : l.print_machine === codigo;
             })
             .map((l) => {
               const p = peca(l);

@@ -138,6 +138,51 @@ export function normalizarPartes(partes: PartesPorMaquina, aImprimir: number): P
   return partes;
 }
 
+/** Partes que ainda têm algo POR IMPRIMIR — as zeradas ficam só como histórico. */
+export function partesAtivas(partes: PartesPorMaquina): PartesPorMaquina {
+  const ativas: PartesPorMaquina = {};
+  for (const [m, x] of Object.entries(partes)) if (restanteNaMaquina(x) > 0) ativas[m] = x;
+  return ativas;
+}
+
+/**
+ * Quando `aImprimir` muda por fora (edição de quantidade, reaproveitamento,
+ * correção de reaproveitamento), a soma dos `atrib` tem de acompanhar:
+ * encolhe/estica o `atrib` da impressora principal (a com mais por imprimir),
+ * nunca abaixo do que ela já imprimiu; se ainda sobrar, tira das outras.
+ * Devolve NULL quando a divisão deixa de existir (uma chave só, ou teto 0).
+ */
+export function reescalarPartes(partes: PartesPorMaquina | null | undefined, aImprimir: number): PartesPorMaquina | null {
+  if (!partes || Object.keys(partes).length === 0) return null;
+  const alvo = Math.max(0, Math.floor(aImprimir));
+  const novas: PartesPorMaquina = {};
+  for (const [m, x] of Object.entries(partes)) novas[m] = { ...x };
+  let soma = Object.values(novas).reduce((s, x) => s + x.atrib, 0);
+  // Ordem de ajuste: a principal primeiro, depois as outras por restante.
+  const ordem = Object.keys(novas).sort((a, b) => restanteNaMaquina(novas[b]) - restanteNaMaquina(novas[a]));
+  if (soma > alvo) {
+    for (const m of ordem) {
+      if (soma <= alvo) break;
+      const podeTirar = Math.min(soma - alvo, restanteNaMaquina(novas[m]));
+      novas[m].atrib -= podeTirar;
+      soma -= podeTirar;
+    }
+    // Ainda acima do teto: só impressas sobraram — o teto ficou abaixo do que
+    // já saiu; encolhe as impressas junto (o handler já trata quantityProduced).
+    for (const m of ordem) {
+      if (soma <= alvo) break;
+      const tira = Math.min(soma - alvo, novas[m].atrib);
+      novas[m].atrib -= tira;
+      novas[m].impressas = Math.min(novas[m].impressas, novas[m].atrib);
+      soma -= tira;
+    }
+  } else if (soma < alvo) {
+    novas[ordem[0]].atrib += alvo - soma;
+  }
+  for (const m of Object.keys(novas)) if (novas[m].atrib === 0 && novas[m].impressas === 0) delete novas[m];
+  return normalizarPartes(novas, alvo);
+}
+
 /** "Impressora 1 · 3 un. / Impressora 2 · 2 un." — a divisão em uma linha. */
 export function resumoDaDivisao(partes: PartesPorMaquina): string {
   return Object.entries(partes)

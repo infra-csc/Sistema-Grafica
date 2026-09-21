@@ -10,7 +10,7 @@ import { eventoComDatasDoKit, pecaVisivelPara, remessaUtilizavelPor } from "@sha
 import { carregarRemessa, remessasPorIds } from "../services/kitRemessas";
 import { FORMATO_COMPACTO, compactarPecas, compactarAprovacoes } from "@shared/itens-compactos";
 import { DEPOIS_DA_ARTE, EM_REVISAO, POS_APROVACAO, DISPENSAVEIS, DESTINO_DA_DISPENSA, ehBookCompleto, ehMaquinaValida, rotuloDaMaquina } from "@shared/fluxo-peca";
-import { partesDaPeca, moverParte, normalizarPartes, maquinaPrincipal, aImprimirDaPeca, estaDividida, totalImpressas, type PartesPorMaquina } from "@shared/impressao-dividida";
+import { partesDaPeca, moverParte, normalizarPartes, maquinaPrincipal, aImprimirDaPeca, estaDividida, totalImpressas, lerPartes, reescalarPartes, type PartesPorMaquina } from "@shared/impressao-dividida";
 import {
   insertItemSchema,
   publicInsertItemSchema,
@@ -1810,6 +1810,11 @@ export function registerItemRoutes(app: Express): void {
         if (nova <= impressas + reusoNovo && (currentItem.status === "inProduction" || currentItem.status === "em_producao")) {
           updatePayload.status = "produced";
           promoveuParaProduzido = true;
+        }
+        // Peça dividida entre impressoras: a soma dos `atrib` acompanha o novo
+        // teto (senão a divisão fica impossível de fechar). Produzida → sem divisão.
+        if (lerPartes(currentItem.impressaoPorMaquina)) {
+          updatePayload.impressaoPorMaquina = promoveuParaProduzido ? null : reescalarPartes(lerPartes(currentItem.impressaoPorMaquina), nova - reusoNovo);
         }
       }
 
@@ -4735,7 +4740,12 @@ export function registerItemRoutes(app: Express): void {
       // (`quantityProduced`) passa a ser a soma das partes — nunca mais que o
       // atribuído àquela máquina.
       let partesDepois: PartesPorMaquina | null = null;
-      if (maquina != null && impressasNaMaquina != null && estaDividida(before)) {
+      if (estaDividida(before)) {
+        // Dividida, o total da peça é a SOMA das partes: sem dizer a impressora
+        // o lançamento descolaria o total do jsonb.
+        if (maquina == null || impressasNaMaquina == null) {
+          return res.status(409).json({ error: "Peça dividida entre impressoras: informe a impressora e quantas saíram dela" });
+        }
         const partes = partesDaPeca(before);
         const parte = partes[maquina];
         const n = Number(impressasNaMaquina);
@@ -4748,6 +4758,15 @@ export function registerItemRoutes(app: Express): void {
 
       if (!quantityProduced || quantityProduced <= 0) {
         return res.status(400).json({ error: "quantityProduced is required and must be greater than 0" });
+      }
+      // Lançamento que não muda nada e não conclui a peça (parte já esgotada,
+      // cartão "morto"): não há o que gravar nem o que anotar no diário.
+      {
+        const jaConsta = before.quantityProduced ?? 0;
+        const fecha = quantityProduced + (before.reuseQty || 0) >= parseInt(before.quantity.toString());
+        if (quantityProduced === jaConsta && !fecha) {
+          return res.status(409).json({ error: `Nada mudou: já constam ${jaConsta} un. impressas.` });
+        }
       }
       // ANDA — e é o mais caro de todos: aqui a peça vira LONA IMPRESSA e ainda
       // gera ativos no Estoque. Imprimir para um evento que já aconteceu é
@@ -4795,6 +4814,8 @@ export function registerItemRoutes(app: Express): void {
         ...(partesDepois
           ? { impressaoPorMaquina: newProdStatus === "produced" ? null : partesDepois, printMachine: maquinaPrincipal(partesDepois, maquina) ?? before.printMachine }
           : (printMachine ? { printMachine } : {})),
+        // Qualquer caminho que feche a peça apaga a divisão entre impressoras.
+        ...(newProdStatus === "produced" ? { impressaoPorMaquina: null } : {}),
         // produced_at era coluna morta desde sempre: a peça fechava como
         // "Produzido" e a trilha temporal da ficha pulava direto de "Produção
         // iniciada" para "Conferido". Uma linha devolve a etapa.
@@ -4987,6 +5008,8 @@ export function registerItemRoutes(app: Express): void {
           isReuse: alvo >= current.quantity,
           quantityProduced: current.quantity - alvo,
           status: "produced" as const,
+          // Produzida: a divisão entre impressoras acabou.
+          impressaoPorMaquina: null,
         });
         if (!item) return res.status(404).json({ error: "Item not found" });
         await createAuditLog(
@@ -5014,6 +5037,11 @@ export function registerItemRoutes(app: Express): void {
         reuseQty: newReuse,
         isReuse: isFullReuse,
         ...(isReady ? { status: "produced" as const } : {}),
+        // Reaproveitar muda o que há para imprimir: a divisão entre impressoras
+        // é reescalada (e some quando a peça fecha como produzida).
+        ...(lerPartes(current.impressaoPorMaquina)
+          ? { impressaoPorMaquina: isReady ? null : reescalarPartes(lerPartes(current.impressaoPorMaquina), current.quantity - newReuse) }
+          : {}),
       });
       if (!item) return res.status(404).json({ error: "Item not found" });
 
@@ -5107,6 +5135,9 @@ export function registerItemRoutes(app: Express): void {
         // A produção lançada antes da marcação errada não vale mais para a
         // quantidade que agora precisa ser impressa.
         quantityProduced: reaproveitaTudo ? current.quantity : null,
+        // A peça volta a "Pronto p/ Produção" (ou fecha): a divisão entre
+        // impressoras — que só faz sentido em impressão — é descartada.
+        impressaoPorMaquina: null,
       });
       if (!item) return res.status(404).json({ error: "Item not found" });
 

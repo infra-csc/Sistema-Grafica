@@ -965,7 +965,7 @@ export default function Estoque() {
                 const eventoEl = assetEventMap[asset.id] ? (
                   <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 3, minWidth: 0 }}>
                     <CalendarDays size={11} color="#64748b" aria-hidden="true" style={{ flexShrink: 0 }} />
-                    <span style={{ fontSize: 12, color: "#64748b", fontFamily: "Plus Jakarta Sans, sans-serif", fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: isMobile ? "100%" : 180 }}>
+                    <span style={{ fontSize: 12, color: "#64748b", fontFamily: "Plus Jakarta Sans, sans-serif", fontWeight: 500, whiteSpace: "normal", overflowWrap: "anywhere" }}>
                       {assetEventMap[asset.id].name}
                     </span>
                   </div>
@@ -1059,7 +1059,7 @@ export default function Estoque() {
                 // evento que ainda não aconteceu.
                 const reservaEl = (() => {
                   const reserva = reservaPorAtivo.get(asset.id);
-                  const chip: React.CSSProperties = { display: "inline-flex", alignItems: "center", gap: 4, marginTop: 5, padding: "2px 7px", borderRadius: 6, fontSize: 11, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif", whiteSpace: "nowrap", maxWidth: isMobile ? "100%" : 220, overflow: "hidden", textOverflow: "ellipsis" };
+                  const chip: React.CSSProperties = { display: "inline-flex", alignItems: "center", gap: 4, marginTop: 5, padding: "2px 7px", borderRadius: 6, fontSize: 11, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif", whiteSpace: "normal", overflowWrap: "anywhere", maxWidth: "100%" };
                   if (reserva) {
                     return (
                       <div data-testid={`chip-reservada-${asset.id}`} title={`Reservada para ${reserva.itemDisplayId ?? "uma peça"} de ${reserva.eventName}`}
@@ -1137,7 +1137,7 @@ export default function Estoque() {
                   <div data-testid={`usado-em-${g.ativos[0].id}`} style={{ display: "flex", flexWrap: "wrap", gap: 4, alignItems: "center" }}>
                     {eventos.slice(0, 2).map(e => (
                       <span key={e.eventId} title={`${ROTULO_DO_USO[e.situacao]} ${e.eventName} · ${e.unidades} un.`}
-                        style={{ maxWidth: 150, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", padding: "2px 7px", borderRadius: 6, fontSize: 11, fontWeight: 600, background: e.situacao === "separada" ? "#eff6ff" : "#f1f5f9", color: e.situacao === "separada" ? "#1d4ed8" : "#334155" }}>
+                        style={{ whiteSpace: "normal", overflowWrap: "anywhere", padding: "2px 7px", borderRadius: 6, fontSize: 11, fontWeight: 600, background: e.situacao === "separada" ? "#eff6ff" : "#f1f5f9", color: e.situacao === "separada" ? "#1d4ed8" : "#334155" }}>
                         {e.eventName}
                       </span>
                     ))}
@@ -1255,7 +1255,7 @@ export default function Estoque() {
                                 <div style={{ display: "flex", alignItems: "center", gap: 11 }}>
                                   {p.miniaturaEl}
                                   <div style={{ minWidth: 0 }}>
-                                    <span title={g.nome} style={{ display: "block", fontSize: 13, fontWeight: 700, color: "#0f172a", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 240 }}>{g.nome}</span>
+                                    <span style={{ display: "block", fontSize: 13, fontWeight: 700, color: "#0f172a", whiteSpace: "normal", overflowWrap: "anywhere", lineHeight: 1.3 }}>{g.nome}</span>
                                     <span style={{ fontFamily: "DM Mono, monospace", fontSize: 11, fontWeight: 600, color: "#9a3412" }}>
                                       {asset.displayId}{!unico ? ` +${g.ativos.length - 1}` : ""}
                                     </span>

@@ -24,6 +24,8 @@ export type RegistroDoPeriodo = {
   itemId: string;
   displayId: string | null;
   tipoPeca: string;
+  /** A descrição é o que distingue duas peças do mesmo tipo (todas "2×1"). */
+  descricaoPeca?: string | null;
   evento: string | null;
   maquina: string;
   tipo: TipoDeRegistro;

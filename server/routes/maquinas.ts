@@ -76,7 +76,7 @@ async function registrosDoPeriodo(req: any, de: string, ate: string): Promise<Re
            to_char((r.created_at at time zone 'UTC') at time zone ${FUSO}, 'YYYY-MM-DD') as dia,
            to_char((r.created_at at time zone 'UTC') at time zone ${FUSO}, 'HH24:MI') as hora,
            (extract(epoch from r.created_at) * 1000)::bigint as em,
-           i.display_id, i.type, i.quantity, coalesce(i.reuse_qty, 0) as reuso,
+           i.display_id, i.type, i.description, i.quantity, coalesce(i.reuse_qty, 0) as reuso,
            i.kit_remessa_id, i.criado_por_id,
            e.name as evento
     from registros_de_impressao r
@@ -92,6 +92,7 @@ async function registrosDoPeriodo(req: any, de: string, ate: string): Promise<Re
     itemId: l.item_id,
     displayId: l.display_id,
     tipoPeca: l.type,
+    descricaoPeca: l.description ?? null,
     evento: l.evento,
     maquina: l.maquina,
     tipo: l.tipo,
@@ -384,7 +385,7 @@ export function registerMaquinasRoutes(app: Express): void {
 
     try {
       const emImpressao = linhas(await db.execute(sql`
-        select i.id, i.display_id, i.type, i.description, i.quantity, i.status,
+        select i.id, i.display_id, i.type, i.description, i.material, i.measurement, i.quantity, i.status,
                coalesce(i.quantity_produced, 0) as produzido,
                coalesce(i.reuse_qty, 0) as reuso,
                i.print_machine, i.impressao_por_maquina, i.kit_remessa_id, i.criado_por_id,
@@ -403,7 +404,7 @@ export function registerMaquinasRoutes(app: Express): void {
       // com a impressora reservada (ou nenhuma = fila geral), na ordem da fila
       // da Gráfica — saída do caminhão mais próxima primeiro.
       const naFila = linhas(await db.execute(sql`
-        select i.id, i.display_id, i.type, i.description, i.quantity, i.status,
+        select i.id, i.display_id, i.type, i.description, i.material, i.measurement, i.quantity, i.status,
                coalesce(i.quantity_produced, 0) as produzido,
                coalesce(i.reuse_qty, 0) as reuso,
                i.calculated_m2, i.maquina_prevista, i.reserva_por_maquina, i.print_machine, i.impressao_por_maquina,
@@ -425,11 +426,27 @@ export function registerMaquinasRoutes(app: Express): void {
         order by e.truck_departure_date asc nulls last, i.display_id asc
       `)).filter(visivel);
 
+      // Patrocinadores de todas as peças da tela (em impressão + fila) numa
+      // consulta só — nada de uma busca por peça.
+      const patrocinadoresPorItem = new Map<string, string[]>();
+      for (const l of linhas(await db.execute(sql`
+        select isp.item_id, s.name
+        from item_sponsors isp
+        join sponsors s on s.id = isp.sponsor_id
+        join items i on i.id = isp.item_id
+        where i.deleted_at is null
+          and i.status in ('ready_for_production', 'pronto_para_producao', 'approved', 'liberado', 'inProduction', 'em_producao')
+        order by s.name asc
+      `))) {
+        const lista = patrocinadoresPorItem.get(l.item_id);
+        if (lista) lista.push(l.name); else patrocinadoresPorItem.set(l.item_id, [l.name]);
+      }
+
       const doDia = linhas(await db.execute(sql`
         select r.id, r.item_id, r.maquina, r.tipo, r.quantidade, r.total_depois, r.user_name,
                to_char((r.created_at at time zone 'UTC') at time zone ${FUSO}, 'HH24:MI') as hora,
                (extract(epoch from r.created_at) * 1000)::bigint as em,
-               i.display_id, i.type, i.quantity, coalesce(i.reuse_qty, 0) as reuso,
+               i.display_id, i.type, i.description, i.quantity, coalesce(i.reuse_qty, 0) as reuso,
                i.kit_remessa_id, i.criado_por_id,
                e.name as evento
         from registros_de_impressao r
@@ -444,6 +461,10 @@ export function registerMaquinasRoutes(app: Express): void {
         displayId: l.display_id,
         tipo: l.type,
         descricao: l.description,
+        // O que o operador usa para achar o arquivo (dono, 21/09).
+        material: l.material ?? null,
+        medida: l.measurement ?? null,
+        patrocinadores: patrocinadoresPorItem.get(l.id) ?? [],
         evento: l.evento,
         quantidade: Number(l.quantity),
         reuso: Number(l.reuso),
@@ -478,6 +499,7 @@ export function registerMaquinasRoutes(app: Express): void {
             itemId: l.item_id,
             displayId: l.display_id,
             tipoPeca: l.type,
+            descricaoPeca: l.description ?? null,
             evento: l.evento,
             tipo: l.tipo,
             quantidade: Number(l.quantidade),

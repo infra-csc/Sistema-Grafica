@@ -838,6 +838,19 @@ describe("12 · uma peça por impressora, pausar e trocar por prioridade", async
   });
 });
 
+describe("13 · a descrição da peça no retrato, no diário e no Excel (dono, 21/09)", () => {
+  const ROTA = ler("server/routes/maquinas.ts");
+  it("o retrato devolve descrição, material, medida e patrocinadores — estes numa consulta só", () => {
+    expect((ROTA.match(/select i\.id, i\.display_id, i\.type, i\.description, i\.material, i\.measurement,/g) ?? []).length).toBe(2); // imprimindo + fila
+    expect(ROTA).toContain("patrocinadores: patrocinadoresPorItem.get(l.id) ?? [],");
+    expect((ROTA.match(/from item_sponsors isp/g) ?? []).length).toBe(1); // sem N+1
+    expect((ROTA.match(/descricaoPeca: l\.description \?\? null,/g) ?? []).length).toBe(2); // diário do retrato + relatório
+  });
+  it("Excel 'Registros': a coluna Peça é tipo + descrição", () => {
+    expect(ler("server/services/xlsxExport.ts")).toContain("peca: nomeDaPeca(r.tipoPeca, r.descricaoPeca),");
+  });
+});
+
 describe("modal abre na etapa certa mesmo com servidor antigo (21/09)", () => {
   it("peça da lista 'em impressão' é tratada como inProduction e herda a máquina do cartão", () => {
     const tela = readFileSync(new URL("../../client/src/pages/grafica-maquinas.tsx", import.meta.url), "utf8");

@@ -75,6 +75,8 @@ const COLUNAS_PECA = {
   // Reaproveitamento: a etiqueta do tubo liga o "REAPROVEITAR" sozinha.
   isReuse: itemsTable.isReuse,
   reuseQty: itemsTable.reuseQty,
+  // A foto da conferência: quem entrega vê que o material já está documentado.
+  conferencePhotoUrl: itemsTable.conferencePhotoUrl,
   tuboId: itemsTable.tuboId,
   eventId: itemsTable.eventId,
   deletedAt: itemsTable.deletedAt,
@@ -94,6 +96,7 @@ type PecaCrua = {
   deliveredQty: number | null;
   isReuse?: boolean | null;
   reuseQty?: number | null;
+  conferencePhotoUrl?: string | null;
   tuboId: string | null;
   eventId: string;
   deletedAt: Date | null;
@@ -182,6 +185,7 @@ const pecaParaTela = (p: PecaCrua) => ({
   doKit: !!p.kitRemessaId,
   isReuse: !!p.isReuse,
   reuseQty: p.reuseQty ?? 0,
+  conferencePhotoUrl: p.conferencePhotoUrl ?? null,
 });
 
 const porCodigo = (a: PecaCrua, b: PecaCrua) =>
@@ -220,11 +224,20 @@ async function recusasParaColocar(req: any, eventId: string, ids: string[]): Pro
  * no índice único (evento, número); quem perde tenta de novo com o número
  * seguinte, em vez de devolver erro para quem só queria um tubo.
  */
-async function criarTubo(eventId: string, criadoPor: string) {
+async function proximoNumero(eventId: string, avulso: boolean): Promise<number> {
+  // Tubos de verdade: 1, 2, 3… (os negativos dos avulsos não contam — sem
+  // buraco). Avulsos: −1, −2, … — não consomem número de tubo.
+  const [{ proximo }] = linhas(await db.execute(avulso
+    ? sql`select least(coalesce(min(numero), 0), 0) - 1 as proximo from tubos where event_id = ${eventId}`
+    : sql`select greatest(coalesce(max(numero), 0), 0) + 1 as proximo from tubos where event_id = ${eventId}`));
+  return Number(proximo);
+}
+
+async function criarTubo(eventId: string, criadoPor: string, avulso = false) {
   for (let tentativa = 0; tentativa < 3; tentativa++) {
-    const [{ proximo }] = linhas(await db.execute(sql`select coalesce(max(numero), 0) + 1 as proximo from tubos where event_id = ${eventId}`));
+    const proximo = await proximoNumero(eventId, avulso);
     try {
-      const [tubo] = await db.insert(tubos).values({ eventId, numero: Number(proximo), criadoPor } as any).returning();
+      const [tubo] = await db.insert(tubos).values({ eventId, numero: proximo, avulso, criadoPor } as any).returning();
       return tubo;
     } catch (error: any) {
       const colidiu = error?.code === "23505" || /duplicate key/i.test(String(error?.message ?? ""));
@@ -234,7 +247,7 @@ async function criarTubo(eventId: string, criadoPor: string) {
   throw new Error("Não foi possível numerar o tubo");
 }
 
-async function colocarNoTubo(req: any, tubo: { id: string; numero: number; eventId: string; fechadoEm: Date | null }, pecas: PecaCrua[], ids: string[], nFotos = 0) {
+async function colocarNoTubo(req: any, tubo: { id: string; numero: number; avulso?: boolean | null; eventId: string; fechadoEm: Date | null }, pecas: PecaCrua[], ids: string[], nFotos = 0) {
   const outros = Array.from(new Set(pecas.map((p) => p.tuboId).filter((t) => t && t !== tubo.id))) as string[];
   const tubosDeOrigem = outros.length
     ? await db.select({ id: tubos.id, numero: tubos.numero, fechadoEm: tubos.fechadoEm }).from(tubos).where(inArray(tubos.id, outros))
@@ -254,7 +267,7 @@ async function colocarNoTubo(req: any, tubo: { id: string; numero: number; event
     const veio = antes && antes !== tubo.id ? ` (saiu do Tubo ${numeroDe.get(antes) ?? "?"})` : "";
     const comFoto = nFotos > 0 ? ` · ${nFotos} ${nFotos === 1 ? "foto" : "fotos"}` : "";
     const details = embaladas.has(id) || porId.get(id)?.status === EMBALADO
-      ? `Embalada no Tubo ${tubo.numero}${comFoto}${veio}`
+      ? (tubo.avulso ? `Embalada (sozinha)${comFoto}${veio}` : `Embalada no Tubo ${tubo.numero}${comFoto}${veio}`)
       : `Peça colocada no Tubo ${tubo.numero}${veio} — ainda falta conferir`;
     return { action: "updated", entityType: "item", entityId: id, details };
   }));
@@ -262,14 +275,14 @@ async function colocarNoTubo(req: any, tubo: { id: string; numero: number; event
 }
 
 /** Tira as peças do tubo e devolve as embaladas a Conferido. */
-async function tirarDoTubo(req: any, tubo: { id: string; numero: number; eventId: string; fechadoEm: Date | null }, ids: string[], motivo?: string) {
+async function tirarDoTubo(req: any, tubo: { id: string; numero: number; avulso?: boolean | null; eventId: string; fechadoEm: Date | null }, ids: string[], motivo?: string) {
   if (!ids.length) return;
   const agora = new Date();
   await db.update(itemsTable).set({ tuboId: null, updatedAt: agora } as any).where(inArray(itemsTable.id, ids));
   await desembalar(ids, agora);
   await marcarConteudoAlterado(tubo, agora);
   await createAuditLogsEmLote(req, ids.map((id) => ({
-    action: "updated", entityType: "item", entityId: id, details: `Retirada do Tubo ${tubo.numero}${motivo ? ` (${motivo})` : ""}`,
+    action: "updated", entityType: "item", entityId: id, details: tubo.avulso ? "Embalagem desfeita — voltou a Conferido" : `Retirada do Tubo ${tubo.numero}${motivo ? ` (${motivo})` : ""}`,
   })));
   broadcast({ type: "items_bulk_updated", itemIds: ids, eventId: tubo.eventId });
 }
@@ -285,7 +298,15 @@ function lerFotos(body: any): { fotos: string[]; erro?: string } {
   if (fotos.some((f) => !f)) return { fotos: [], erro: "As fotos precisam ser enviadas pelo app (endereço /objects/…)" };
   return { fotos: fotos as string[] };
 }
-const RECADO_FOTO_DO_EMBALAR = "Tire a foto do tubo para embalar";
+const RECADO_FOTO_DO_EMBALAR = "Tire a foto para embalar";
+
+// O NOME DO VOLUME (dono, 21/09: "nem sempre vai ser 'entregar tubo'"). A peça
+// embalada SOZINHA mora num volume avulso — nunca "Tubo N" em mensagem, trilha
+// ou tela. Os três jeitos de dizer, com o artigo certo:
+type Volume = { numero: number; avulso?: boolean | null };
+const oVolume = (t: Volume) => (t.avulso ? "A embalagem" : `O Tubo ${t.numero}`);
+const doVolume = (t: Volume) => (t.avulso ? "da embalagem" : `do Tubo ${t.numero}`);
+const noVolume = (t: Volume) => (t.avulso ? "na embalagem" : `no Tubo ${t.numero}`);
 /** Embalar = pôr no tubo peça já CONFERIDA (a que vem de outro tubo também). */
 const ehUmEmbalar = (pecas: PecaCrua[]) => pecas.some((p) => !ehEntregue(p) && ehConferidaInteira(p));
 
@@ -349,6 +370,8 @@ export function registerTubosRoutes(app: Express): void {
         return {
           id: t.id,
           numero: t.numero,
+          // Embalada sozinha: a tela nunca chama de "Tubo N".
+          avulso: !!t.avulso,
           entregueEm: t.entregueEm,
           recebidoPor: t.recebidoPor,
           entreguePor: t.entreguePor,
@@ -383,7 +406,7 @@ export function registerTubosRoutes(app: Express): void {
     if (!podeMexerEmTubo(req)) return res.status(403).json({ error: SEM_PAPEL });
     try {
       // `fechadoEm` vai junto: a fila da Gráfica mostra "fechado 14:32" na peça embalada.
-      const todos = await db.select({ id: tubos.id, numero: tubos.numero, eventId: tubos.eventId, entregueEm: tubos.entregueEm, fechadoEm: tubos.fechadoEm }).from(tubos);
+      const todos = await db.select({ id: tubos.id, numero: tubos.numero, avulso: tubos.avulso, eventId: tubos.eventId, entregueEm: tubos.entregueEm, fechadoEm: tubos.fechadoEm }).from(tubos);
       if (!quemVe(req).kit) return res.json(todos);
       // Kit: só os tubos em que há peça que ele vê.
       const comPeca = visiveis(req, (await db.select(COLUNAS_PECA).from(itemsTable)
@@ -414,7 +437,7 @@ export function registerTubosRoutes(app: Express): void {
         .where(and(eq(itemsTable.eventId, tubo.eventId), isNull(itemsTable.deletedAt), sql`${itemsTable.bookUrl} is not null`))
         .limit(50)) as Array<PecaCrua & { bookUrl: string | null }>);
       res.json({
-        tubo: { id: tubo.id, numero: tubo.numero, entregueEm: tubo.entregueEm, recebidoPor: tubo.recebidoPor },
+        tubo: { id: tubo.id, numero: tubo.numero, avulso: !!tubo.avulso, entregueEm: tubo.entregueEm, recebidoPor: tubo.recebidoPor },
         evento: evento ? { ...evento, bookUrl: (comBook[0] as any)?.bookUrl ?? null } : null,
         pecas: dentro.sort(porCodigo).map(pecaParaTela),
       });
@@ -442,8 +465,11 @@ export function registerTubosRoutes(app: Express): void {
       // não deixar um tubo vazio para trás.
       if (ehUmEmbalar(pecas) && lidas.fotos.length === 0) return res.status(400).json({ error: RECADO_FOTO_DO_EMBALAR });
 
-      const tubo = await criarTubo(eventId, resolveActor(req).userName);
-      await createAuditLog(req, "created", "tubo", tubo.id, `Tubo ${tubo.numero} criado (${evento.name})`);
+      // EMBALAR INDIVIDUAL → volume AVULSO (uma peça só; quem pede é a tela).
+      // O lote, e o tubo aberto à mão, são tubos de verdade, numerados.
+      const avulso = req.body?.avulso === true && ids.length === 1;
+      const tubo = await criarTubo(eventId, resolveActor(req).userName, avulso);
+      await createAuditLog(req, "created", "tubo", tubo.id, avulso ? `Embalagem avulsa criada (${evento.name})` : `Tubo ${tubo.numero} criado (${evento.name})`);
       if (ids.length) {
         await colocarNoTubo(req, tubo, pecas, ids, lidas.fotos.length);
         await acumularFotos(tubo as any, lidas.fotos, resolveActor(req).userName, new Date());
@@ -471,7 +497,7 @@ export function registerTubosRoutes(app: Express): void {
       const [tubo] = await db.select().from(tubos).where(eq(tubos.id, req.params.id));
       if (!tubo) return res.status(404).json({ error: "Tubo não encontrado" });
       if (tubo.entregueEm) {
-        return res.status(409).json({ error: `O Tubo ${tubo.numero} já foi entregue — não dá para mexer no que tem dentro` });
+        return res.status(409).json({ error: `${oVolume(tubo)} já foi entregue — não dá para mexer no que tem dentro` });
       }
 
       // A trava do Kit ANTES de qualquer escrita: as duas listas juntas, para
@@ -482,11 +508,19 @@ export function registerTubosRoutes(app: Express): void {
 
       if (adicionar.length) {
         const { pecas, recusas } = await recusasParaColocar(req, tubo.eventId, adicionar);
-        if (recusas.length) return res.status(409).json({ error: `Não dá para pôr no Tubo ${tubo.numero} — ${recusas.join("; ")}` });
+        if (recusas.length) return res.status(409).json({ error: `Não dá para pôr ${noVolume(tubo)} — ${recusas.join("; ")}` });
         // EMBALAR PEDE FOTO (dono, 21/09): peça conferida entrando no tubo —
         // inclusive a que vem de OUTRO tubo — só entra com a foto do tubo com
         // os itens. "Tirar do tubo" (remover) não pede.
         if (ehUmEmbalar(pecas) && lidas.fotos.length === 0) return res.status(400).json({ error: RECADO_FOTO_DO_EMBALAR });
+        // Segunda peça num volume AVULSO (a tela não tem porta para isto): ele
+        // deixa de ser avulso e ganha o próximo número de tubo de verdade.
+        if (tubo.avulso && adicionar.some((id) => !mexidas.some((m) => m.id === id && m.tuboId === tubo.id))) {
+          const numero = await proximoNumero(tubo.eventId, false);
+          await db.update(tubos).set({ avulso: false, numero } as any).where(eq(tubos.id, tubo.id));
+          tubo.avulso = false; tubo.numero = numero;
+          await createAuditLog(req, "updated", "tubo", tubo.id, `Embalagem avulsa virou o Tubo ${numero}`);
+        }
         await colocarNoTubo(req, tubo, pecas, adicionar, lidas.fotos.length);
         await acumularFotos(tubo as any, lidas.fotos, resolveActor(req).userName, new Date());
       }
@@ -495,10 +529,16 @@ export function registerTubosRoutes(app: Express): void {
         const dentro = visiveis(req, (await db.select(COLUNAS_PECA).from(itemsTable)
           .where(and(inArray(itemsTable.id, remover), eq(itemsTable.tuboId, tubo.id)))) as PecaCrua[]);
         await tirarDoTubo(req, tubo, dentro.map((d) => d.id));
+        // "Desfazer embalagem": o volume avulso existia só para aquela peça —
+        // vazio, some (não fica embalagem órfã no painel).
+        if (tubo.avulso && dentro.length) {
+          const [{ resta }] = linhas(await db.execute(sql`select count(*)::int as resta from items where tubo_id = ${tubo.id}`));
+          if (Number(resta) === 0) await db.delete(tubos).where(eq(tubos.id, tubo.id));
+        }
       }
 
       broadcast({ type: "tubos_atualizados", eventId: tubo.eventId });
-      res.json({ ok: true, numero: tubo.numero });
+      res.json({ ok: true, numero: tubo.numero, avulso: !!tubo.avulso });
     } catch (error: any) {
       console.error("[tubos] falha ao mudar peças do tubo:", error);
       res.status(500).json({ error: "Não foi possível mudar as peças do tubo." });
@@ -513,7 +553,7 @@ export function registerTubosRoutes(app: Express): void {
     try {
       const [tubo] = await db.select().from(tubos).where(eq(tubos.id, req.params.id));
       if (!tubo) return res.status(404).json({ error: "Tubo não encontrado" });
-      if (tubo.entregueEm) return res.status(409).json({ error: `O Tubo ${tubo.numero} já foi entregue e não pode ser apagado` });
+      if (tubo.entregueEm) return res.status(409).json({ error: `${oVolume(tubo)} já foi entregue e não pode ser apagado` });
       // Kit: o tubo pode ter peça de outro usuário — não é dele para apagar.
       if (quemVe(req).kit) return res.status(403).json({ error: "O usuário do Kit não apaga tubos" });
       const dentro = (await db.select(COLUNAS_PECA).from(itemsTable)
@@ -553,13 +593,13 @@ export function registerTubosRoutes(app: Express): void {
     try {
       const [tubo] = await db.select().from(tubos).where(eq(tubos.id, req.params.id));
       if (!tubo) return res.status(404).json({ error: "Tubo não encontrado" });
-      if (tubo.entregueEm) return res.status(409).json({ error: `O Tubo ${tubo.numero} já foi entregue` });
+      if (tubo.entregueEm) return res.status(409).json({ error: `${oVolume(tubo)} já foi entregue` });
       const dentro = (await db.select(COLUNAS_PECA).from(itemsTable)
         .where(and(eq(itemsTable.tuboId, tubo.id), isNull(itemsTable.deletedAt)))) as PecaCrua[];
-      if (dentro.length === 0) return res.status(409).json({ error: `O Tubo ${tubo.numero} está vazio — ponha as peças antes de fechar` });
+      if (dentro.length === 0) return res.status(409).json({ error: `${oVolume(tubo)} está vazio — ponha as peças antes de fechar` });
       if (barraPecaDoKit(req, res, dentro)) return;
       if (visiveis(req, dentro).length !== dentro.length) {
-        return res.status(403).json({ error: `O Tubo ${tubo.numero} tem peças fora do seu Kit` });
+        return res.status(403).json({ error: `${oVolume(tubo)} tem peças fora do seu Kit` });
       }
 
       const quem = resolveActor(req);
@@ -601,7 +641,7 @@ export function registerTubosRoutes(app: Express): void {
     const { photoUrl, receivedBy, notes } = req.body ?? {};
     const recebedor = typeof receivedBy === "string" ? receivedBy.trim() : "";
     if (!recebedor) {
-      return res.status(400).json({ error: "Informe quem recebeu o tubo — é o que registra a entrega" });
+      return res.status(400).json({ error: "Informe quem recebeu — é o que registra a entrega" });
     }
     // Foto opcional — mas, se vier, tem de ser do nosso storage (régua dos thumbs).
     const foto = typeof photoUrl === "string" && photoUrl.trim() ? urlDeThumbValida(photoUrl) : null;
@@ -612,32 +652,32 @@ export function registerTubosRoutes(app: Express): void {
     try {
       const [tubo] = await db.select().from(tubos).where(eq(tubos.id, req.params.id));
       if (!tubo) return res.status(404).json({ error: "Tubo não encontrado" });
-      if (tubo.entregueEm) return res.status(409).json({ error: `O Tubo ${tubo.numero} já foi entregue` });
-      // TODA entrega tem foto (dono, 21/09: "todos têm que ter fotos"). No tubo
-      // ela pode ser a do FECHAMENTO (tubo + itens) ou a do comprovante — o que
-      // não pode é sair sem nenhuma.
-      if (!foto && (tubo.fotosFechamento ?? []).length === 0) {
-        return res.status(400).json({ error: `O Tubo ${tubo.numero} ainda não tem foto — feche o tubo com a foto antes de entregar (ou anexe a foto da entrega)` });
-      }
+      if (tubo.entregueEm) return res.status(409).json({ error: `${oVolume(tubo)} já foi entregue` });
+      // A FOTO DO COMPROVANTE É SEMPRE OPCIONAL (dono, 21/09: "a foto de entrega
+      // não é obrigatória, pois já tiraram a da conferência e a do tubo ou da
+      // peça individual"). A garantia de foto vem de ANTES: a conferência (foto
+      // por peça) e o embalar (foto obrigatória). Obrigatório aqui é só quem
+      // recebeu. A entrega DIRETA da conferida que não foi embalada (PATCH
+      // /api/items/:id/deliver) continua exigindo foto — ali não houve embalar.
 
       const dentro = (await db.select(COLUNAS_PECA).from(itemsTable)
         .where(and(eq(itemsTable.tuboId, tubo.id), isNull(itemsTable.deletedAt)))) as PecaCrua[];
-      if (dentro.length === 0) return res.status(409).json({ error: `O Tubo ${tubo.numero} está vazio` });
+      if (dentro.length === 0) return res.status(409).json({ error: `${oVolume(tubo)} está vazio` });
       // Entregar o tubo é entregar TODAS as peças dele — inclusive as do Kit.
       if (barraPecaDoKit(req, res, dentro)) return;
       // Kit: entregar o tubo é entregar TUDO que está dentro — só se tudo for dele.
       if (visiveis(req, dentro).length !== dentro.length) {
-        return res.status(403).json({ error: `O Tubo ${tubo.numero} tem peças fora do seu Kit` });
+        return res.status(403).json({ error: `${oVolume(tubo)} tem peças fora do seu Kit` });
       }
 
       const faltam = dentro.filter((p) => !ehEntregue(p) && !ehConferidaInteira(p));
       if (faltam.length) {
         return res.status(409).json({
-          error: `O Tubo ${tubo.numero} só é entregue inteiro, e ainda falta conferir: ${faltam.map((p) => p.displayId ?? "peça").join(", ")}`,
+          error: `${oVolume(tubo)} só é entregue inteiro, e ainda falta conferir: ${faltam.map((p) => p.displayId ?? "peça").join(", ")}`,
         });
       }
       const aEntregar = dentro.filter((p) => !ehEntregue(p));
-      if (aEntregar.length === 0) return res.status(409).json({ error: `Tudo que está no Tubo ${tubo.numero} já foi entregue` });
+      if (aEntregar.length === 0) return res.status(409).json({ error: `Tudo que está ${noVolume(tubo)} já foi entregue` });
 
       const quem = resolveActor(req);
       const agora = new Date();
@@ -661,7 +701,7 @@ export function registerTubosRoutes(app: Express): void {
             action: "delivered",
             entityType: "item",
             entityId: p.id,
-            details: `Entrega concluída (${conferidas}/${p.quantity}, recebido por: ${recebedor}) — Tubo ${tubo.numero} entregue a ${recebedor} em ${hora}`,
+            details: `Entrega concluída (${conferidas}/${p.quantity}, recebido por: ${recebedor}) — ${tubo.avulso ? "Entregue" : `Tubo ${tubo.numero} entregue`} a ${recebedor} em ${hora}`,
           } as any);
         }
         await tx.update(tubos).set({
@@ -676,7 +716,7 @@ export function registerTubosRoutes(app: Express): void {
           action: "delivered",
           entityType: "tubo",
           entityId: tubo.id,
-          details: `Tubo ${tubo.numero} entregue a ${recebedor} em ${hora}${foto ? " (com foto)" : ""}`,
+          details: `${tubo.avulso ? "Embalagem avulsa entregue" : `Tubo ${tubo.numero} entregue`} a ${recebedor} em ${hora}${foto ? " (com foto)" : ""}`,
         } as any);
       });
 
@@ -697,7 +737,7 @@ export function registerTubosRoutes(app: Express): void {
       }
       broadcast({ type: "items_bulk_updated", itemIds: aEntregar.map((p) => p.id), eventId: tubo.eventId });
       broadcast({ type: "tubos_atualizados", eventId: tubo.eventId });
-      res.json({ ok: true, numero: tubo.numero, entregues: aEntregar.length });
+      res.json({ ok: true, numero: tubo.numero, avulso: !!tubo.avulso, entregues: aEntregar.length });
     } catch (error: any) {
       console.error("[tubos] falha ao entregar o tubo:", error);
       res.status(500).json({ error: "Não foi possível registrar a entrega do tubo." });

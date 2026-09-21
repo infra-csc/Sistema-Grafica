@@ -416,7 +416,9 @@ describe.each(MOTIVOS)("evento $nome — o que arruma a casa continua liberado",
   });
 
   it("ENTREGAR: registrar o que fisicamente já saiu — o teto é o que foi conferido", async () => {
-    mundo.itens["it-1"] = peca({ status: "conferred", quantityProduced: 2, conferredQty: 2 });
+    // Entrega por peça = só a PARCIAL (em acabamento, parte conferida); a
+    // conferida inteira é embalada e sai pelo volume (21/09).
+    mundo.itens["it-1"] = peca({ status: "produced", quantityProduced: 2, conferredQty: 1 });
     motivo.aplica();
 
     const r = await chamar("PATCH /api/items/:id/deliver", {

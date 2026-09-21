@@ -378,6 +378,10 @@ describe("GRÁFICA a 390px", () => {
     expect(px(seloTubo.style.minHeight)).toBe(44);
     // Conferida: Embalar é a principal, a 48px.
     expect(px($('[data-testid="button-embalar-card-g5"]')!.style.minHeight)).toBe(48);
+    // CARTÃO — a conferida só tem Embalar: nenhum "Entregar" (21/09).
+    expect($('[data-testid="button-entregar-card-g5"]')).toBeNull();
+    const cartaoG5 = $('[data-testid="button-embalar-card-g5"]')!.parentElement!;
+    expect(Array.from(cartaoG5.querySelectorAll("button")).map((b) => b.textContent?.trim()).filter((t) => /Entregar/.test(t ?? ""))).toEqual([]);
     expect(largurasFixas()).toEqual([]);
     expect(alvosPequenos()).toEqual([]);
     expect(camposRuins()).toEqual([]);

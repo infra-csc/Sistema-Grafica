@@ -5341,14 +5341,25 @@ export function registerItemRoutes(app: Express): void {
       // Peça conferida FORA de tubo (material que não vai em tubo) segue
       // podendo sair direto, com a foto obrigatória de sempre.
       if ((currentItem as any).tuboId) {
-        const [tuboDaPeca] = await db.select({ numero: tubosTable.numero, entregueEm: tubosTable.entregueEm })
+        const [tuboDaPeca] = await db.select({ numero: tubosTable.numero, avulso: tubosTable.avulso, entregueEm: tubosTable.entregueEm })
           .from(tubosTable).where(eq(tubosTable.id, (currentItem as any).tuboId));
         if (tuboDaPeca && !tuboDaPeca.entregueEm) {
-          return res.status(409).json({ error: `Esta peça está no Tubo ${tuboDaPeca.numero} — entregue o tubo (ou tire a peça dele)` });
+          return res.status(409).json({ error: tuboDaPeca.avulso
+            ? "Esta peça está embalada — entregue pela embalagem dela (Entregar)"
+            : `Esta peça está no Tubo ${tuboDaPeca.numero} — entregue o tubo (ou tire a peça dele)` });
         }
       }
+      // TODAS SÃO EMBALADAS (dono, 21/09): o fluxo é Conferido → Embalado →
+      // Entregue, sem entrega direta da conferida. Quem entrega é o volume
+      // (tubo ou embalagem avulsa), em POST /api/tubos/:id/entregar.
+      // O que CONTINUA por aqui, de propósito: a entrega PARCIAL da peça ainda
+      // em acabamento (produced com parte conferida) e o reuso legado — nenhum
+      // dos dois tem status "conferred", então não batem nesta trava.
+      if (currentItem.status === "conferred" || (currentItem.status as string) === "conferido") {
+        return res.status(409).json({ error: "Embale a peça antes de entregar (Embalar pede a foto; a entrega pede só quem recebeu)" });
+      }
       if (currentItem.status === "packed") {
-        return res.status(409).json({ error: "Esta peça está embalada — entregue o tubo (ou tire a peça dele)" });
+        return res.status(409).json({ error: "Esta peça está embalada — entregue pela embalagem dela (Entregar)" });
       }
       
       // Entrega parcial: acumula deliveredQty; só vira "delivered" quando entrega

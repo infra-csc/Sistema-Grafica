@@ -103,6 +103,11 @@ describe("tabela da Gráfica com a barra lateral aberta (1.380px úteis)", () =>
     await montar();
     expect(cabecalhos()).toContain("m² a produzir");
     expect(document.querySelectorAll('[data-testid^="button-mais-acoes-"]').length).toBe(0);
+    // TABELA CHEIA — a CONFERIDA (a3) só tem Embalar (21/09: "não pode entregar antes de embalar").
+    const linhaA3 = $('[data-testid="row-item-a3"]')!;
+    expect(linhaA3.querySelector('[data-testid="button-embalar-a3"]')).toBeTruthy();
+    expect(linhaA3.querySelector('[data-testid="button-deliver-a3"]')).toBeNull();
+    expect(Array.from(linhaA3.querySelectorAll("button")).map((b) => b.textContent?.trim()).filter((t) => /Entregar/.test(t ?? ""))).toEqual([]);
     // Teto da coluna Peça numa DIV (a <td> ignora max-width) e Status sem quebra.
     expect($('[data-testid="celula-peca-a1"]')!.style.maxWidth).toBe("320px");
     expect($('[data-testid="celula-peca-a1"]')!.closest("td")!.style.maxWidth).toBe("");
@@ -128,9 +133,11 @@ describe("tabela da Gráfica com a barra lateral aberta (1.380px úteis)", () =>
     expect(menu.querySelector('[data-testid="button-reuse-a1"]')).toBeTruthy();
     expect(menu.querySelector('[data-testid="button-devolver-revisao-a1"]')).toBeTruthy();
     expect($('[data-testid="menu-acoes-a2"]')!.querySelector('[data-testid="button-correct-reuse-a2"]')).toBeTruthy();
-    // A conferida ganha ⋯ só por causa do Entregar secundário (peça grande sem tubo).
-    expect($('[data-testid="button-mais-acoes-a3"]')).toBeTruthy();
-    expect($('[data-testid="menu-acoes-a3"]')!.querySelector('[data-testid="button-deliver-a3"]')).toBeTruthy();
+    // A conferida só tem Embalar (21/09: "não pode entregar antes de embalar"):
+    // sem secundária nenhuma, o ⋯ nem aparece — e não há Entregar em lugar nenhum.
+    expect($('[data-testid="button-mais-acoes-a3"]')).toBeNull();
+    expect($('[data-testid="button-deliver-a3"]')).toBeNull();
+    expect($('[data-testid="menu-acoes-a3"]')?.textContent ?? "").not.toContain("Entregar");
 
     // Abre: o menu aparece com RÓTULOS (o ícone solto não diz nada numa lista).
     await act(async () => { $('[data-testid="button-mais-acoes-a1"]')!.click(); });

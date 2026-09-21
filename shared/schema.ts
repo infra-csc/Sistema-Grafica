@@ -475,6 +475,13 @@ export const tubos = pgTable("tubos", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   eventId: varchar("event_id").notNull().references(() => events.id, { onDelete: "cascade" }),
   numero: integer("numero").notNull(),
+  // EMBALADA SOZINHA (dono, 21/09: "nem sempre vai ser 'entregar tubo'"): a
+  // peça embalada individualmente (uma placa, um pórtico, um rolo avulso) mora
+  // num VOLUME AVULSO — mesma tabela, mesmas fotos e mesma entrega, mas a tela
+  // nunca o chama de "Tubo N". Avulsos NÃO consomem número de tubo: usam a
+  // sequência NEGATIVA do evento (−1, −2, …), e os tubos de verdade seguem
+  // 1, 2, 3 sem buraco. O índice único (evento, número) continua valendo.
+  avulso: boolean("avulso").notNull().default(false),
   criadoPor: text("criado_por"),
   // FECHAMENTO DO TUBO (dono, 21/09: "hoje eles colocam Entregue, mas a foto
   // é do tubo; a entrega é feita depois"). O galpão tira a foto do tubo

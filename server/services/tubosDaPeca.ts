@@ -17,6 +17,8 @@ import { tubos } from "@shared/schema";
 
 export type ResumoDoTubo = {
   tuboNumero: number;
+  /** Embalada SOZINHA: o volume não é um "Tubo N" (número negativo). */
+  tuboAvulso: boolean;
   tuboFechadoEm: Date | null;
   tuboEntregueEm: Date | null;
   tuboRecebidoPor: string | null;
@@ -28,10 +30,10 @@ export async function resumosDeTuboPorIds(ids: Array<string | null | undefined>)
   // O tubo é ENFEITE da lista: se este select falhar (banco de dev sem a
   // migração dos tubos, por exemplo), as peças saem sem o número — nunca um 500
   // em TODAS as listas de peças do sistema por causa de uma frase secundária.
-  let linhas: Array<{ id: string; numero: number; fechadoEm: Date | null; entregueEm: Date | null; recebidoPor: string | null }>;
+  let linhas: Array<{ id: string; numero: number; avulso: boolean | null; fechadoEm: Date | null; entregueEm: Date | null; recebidoPor: string | null }>;
   try {
     linhas = await db
-      .select({ id: tubos.id, numero: tubos.numero, fechadoEm: tubos.fechadoEm, entregueEm: tubos.entregueEm, recebidoPor: tubos.recebidoPor })
+      .select({ id: tubos.id, numero: tubos.numero, avulso: tubos.avulso, fechadoEm: tubos.fechadoEm, entregueEm: tubos.entregueEm, recebidoPor: tubos.recebidoPor })
       .from(tubos)
       .where(inArray(tubos.id, unicos));
   } catch (erro) {
@@ -39,7 +41,7 @@ export async function resumosDeTuboPorIds(ids: Array<string | null | undefined>)
     return new Map();
   }
   return new Map(linhas.map((t) => [t.id, {
-    tuboNumero: t.numero, tuboFechadoEm: t.fechadoEm, tuboEntregueEm: t.entregueEm, tuboRecebidoPor: t.recebidoPor,
+    tuboNumero: t.numero, tuboAvulso: !!t.avulso, tuboFechadoEm: t.fechadoEm, tuboEntregueEm: t.entregueEm, tuboRecebidoPor: t.recebidoPor,
   }]));
 }
 

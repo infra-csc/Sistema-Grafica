@@ -33,8 +33,8 @@ const CARTOES = GRAFICA.slice(iCartoes, iTabela);
 const TABELA = GRAFICA.slice(iTabela, iBarra);
 
 describe("o gate de embalar", () => {
-  it("é a conferida (status conferred) sem tubo, de quem pode entregar — e nada de evento aberto", () => {
-    expect(GRAFICA).toContain("const podeEmbalar = (item: any) =>\n    !EM_REVISAO.has(item.status) && canDeliver(item) && isConferred(item) && !item.tuboId && !!item.eventId;");
+  it("é a conferida (status conferred) sem tubo — e nada de evento aberto", () => {
+    expect(GRAFICA).toContain("const podeEmbalar = (item: any) =>\n    !EM_REVISAO.has(item.status) && !soVisualizaKit(item) && isConferred(item) && !item.tuboId && !!item.eventId;");
     // helpers de saldo, não uma comparação de string solta
     expect(GRAFICA).toContain("isDelivered, isPacked, isConferred, isPosConferencia, isProduced, isInProd,");
   });
@@ -46,16 +46,15 @@ describe("o gate de embalar", () => {
 });
 
 describe("a peça conferida na fila", () => {
-  it("tabela: Embalar é a principal (azul do Embalado) e Entregar vira secundária", () => {
+  it("tabela: Embalar é a ÚNICA ação da conferida (azul do Embalado) — sem Entregar, nem no ⋯", () => {
     expect(TABELA).toContain("data-testid={`button-embalar-${item.id}`}");
     expect(TABELA).toContain("{!bulkOn && podeEmbalarPeca && (");
     expect(TABELA).toContain('backgroundColor: "#1d4ed8", color: "#ffffff",');
     // a principal Entregar só existe quando NÃO há Embalar…
     expect(TABELA).toContain("{!bulkOn && !emRevisao && canDeliver(item) && !podeEmbalarPeca && (");
-    // …e a secundária mora no invólucro do menu "⋯" (na cheia é `display: contents`, fica ao lado)
-    expect(TABELA).toContain("{!bulkOn && !emRevisao && podeEmbalarPeca && canDeliver(item) && (");
-    expect(TABELA).toContain("|| (podeEmbalarPeca && canDeliver(item)));");
-    expect(TABELA.match(/data-testid=\{`button-deliver-\$\{item\.id\}`\}/g)?.length).toBe(2);
+    // …e a secundária SUMIU (21/09: "não pode entregar antes de embalar"): nem ao lado, nem no "⋯"
+    expect(TABELA).not.toContain("podeEmbalarPeca && canDeliver(item)");
+    expect(TABELA.match(/data-testid=\{`button-deliver-\$\{item\.id\}`\}/g)?.length).toBe(1);
   });
 
   it("cartão: mesma coisa, com 48px de alvo e Entregar de contorno", () => {
@@ -92,7 +91,7 @@ describe("a peça embalada", () => {
   });
 
   it("ENTREGAR É SÓ DO TUBO: a embalada não tem Entregar individual nem entra no lote de entrega", () => {
-    expect(GRAFICA).toContain("const canDeliver = (item: any) => !soVisualizaKit(item) && canDeliverBase(item) && !isPacked(item) && !item.tuboId;");
+    expect(GRAFICA).toContain("const canDeliver = (item: any) => !soVisualizaKit(item) && canDeliverBase(item) && !isPosConferencia(item) && !item.tuboId;");
     // o lote de entrega e a fila do galpão leem o mesmo gate
     expect(GRAFICA).toContain("(filteredItems as any[]).filter(i => canDeliver(i) && !EM_REVISAO.has(i.status))");
     // na tabela, Entregar tubo é a sólida

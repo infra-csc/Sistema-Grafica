@@ -31,6 +31,23 @@ export type SituacaoDoAtivo = (typeof SITUACOES_DO_ATIVO)[number];
  *  evento (saída do caminhão / dia seguinte ao evento). */
 export const SITUACOES_MANUAIS = ["NO_GALPAO", "EM_MANUTENCAO", "DESCARTADO"] as const;
 
+// ─── Triagem: só quem está aguardando ────────────────────────────────────────
+
+/** Começo FIXO da recusa (409) quando a peça não está mais aguardando triagem.
+ *  A tela reconhece a recusa por este trecho — o apiRequest só carrega o texto
+ *  do erro, não o status. */
+export const PECA_JA_TRIADA = "Essa peça já foi triada";
+
+const ROTULO_DA_SITUACAO: Record<string, string> = {
+  NO_GALPAO: "No galpão", EM_USO: "Em uso", AGUARDANDO_TRIAGEM: "Aguardando triagem", EM_MANUTENCAO: "Em manutenção", DESCARTADO: "Descartada",
+};
+
+export const recusaDeTriagem = (situacaoAtual: string | null | undefined): string =>
+  `${PECA_JA_TRIADA} (está: ${ROTULO_DA_SITUACAO[situacaoAtual ?? ""] ?? "fora da triagem"}) — atualize a lista`;
+
+export const ehRecusaDeJaTriada = (mensagem: unknown): boolean =>
+  typeof mensagem === "string" && mensagem.startsWith(PECA_JA_TRIADA);
+
 // ─── Semelhança ──────────────────────────────────────────────────────────────
 
 /** "PLACAS KM", "Placa km" e "placa  km" são o mesmo tipo; "STANDS" e "STAND"

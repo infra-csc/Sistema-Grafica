@@ -193,10 +193,10 @@ describe("triagem · quadro do evento", () => {
     expect($$('[data-testid^="cartao-triagem-"]').length).toBe(LOTE_DA_COLUNA * 2);
 
     await act(async () => { fireEvent.click(tid("button-selecionar-visiveis")!); });
-    expect(tid("barra-mover-selecionadas")!.textContent).toContain(`${LOTE_DA_COLUNA * 2} selecionadas`);
+    expect(tid("barra-mover-selecionadas")!.textContent).toContain(`${LOTE_DA_COLUNA * 2} selecionados`);
     await act(async () => { fireEvent.click(tid("mover-para-manutencao")!); });
     // O contador da coluna diz o total, não o que está montado.
-    expect($('[data-testid="coluna-triagem-manutencao"] [aria-label$="peças"]')!.textContent).toBe(String(LOTE_DA_COLUNA * 2));
+    expect(tid("unidades-manutencao")!.textContent).toBe(`${LOTE_DA_COLUNA * 2} un.`);
     expect($$('[data-testid="coluna-triagem-manutencao"] [data-testid^="cartao-triagem-"]').length).toBe(LOTE_DA_COLUNA);
 
     await act(async () => { fireEvent.change(tid("input-busca-quadro")!, { target: { value: "Placa 4199" } }); });
@@ -206,20 +206,20 @@ describe("triagem · quadro do evento", () => {
   it("sem arrastar: teclas G/M/D no cartão focado movem, anunciam e passam o foco ao vizinho", async () => {
     fetchFalso();
     await montarTriagem(1280, filaGrande(), { url: "/triagem-retorno?vista=quadro&evento=e1" });
-    const primeiro = tid("cartao-triagem-a50")!;
+    const primeiro = tid("cartao-triagem-triar-a50")!;
     expect(primeiro.getAttribute("aria-keyshortcuts")).toBe("G M D T");
     primeiro.focus();
     await act(async () => { fireEvent.keyDown(primeiro, { key: "g" }); });
     await tick(5);
-    expect($('[data-testid="coluna-triagem-galpao"] [data-testid="cartao-triagem-a50"]')).not.toBeNull();
-    expect(tid("anuncio-do-quadro")!.textContent).toBe("1 peça movida para Galpão");
-    expect(document.activeElement?.getAttribute("data-testid")).toBe("cartao-triagem-a51");
+    expect($('[data-testid="coluna-triagem-galpao"] [data-testid="cartao-triagem-galpao-a50"]')).not.toBeNull();
+    expect(tid("anuncio-do-quadro")!.textContent).toBe("1 unidade movida para Galpão");
+    expect(document.activeElement?.getAttribute("data-testid")).toBe("cartao-triagem-triar-a51");
     // Ctrl+D é do navegador: não move.
-    await act(async () => { fireEvent.keyDown(tid("cartao-triagem-a51")!, { key: "d", ctrlKey: true }); });
+    await act(async () => { fireEvent.keyDown(tid("cartao-triagem-triar-a51")!, { key: "d", ctrlKey: true }); });
     expect($('[data-testid="coluna-triagem-descartar"] [data-testid^="cartao-triagem-"]')).toBeNull();
     // T devolve para "A triar" — o desfazer de antes de salvar.
-    await act(async () => { fireEvent.keyDown(tid("cartao-triagem-a50")!, { key: "T" }); });
-    expect($('[data-testid="coluna-triagem-triar"] [data-testid="cartao-triagem-a50"]')).not.toBeNull();
+    await act(async () => { fireEvent.keyDown(tid("cartao-triagem-galpao-a50")!, { key: "T" }); });
+    expect($('[data-testid="coluna-triagem-triar"] [data-testid="cartao-triagem-triar-a50"]')).not.toBeNull();
   });
 
   it("descartar pede confirmação; 'Rever' não grava; confirmar grava em grupos, com o motivo do erro", async () => {
@@ -229,7 +229,7 @@ describe("triagem · quadro do evento", () => {
     await act(async () => { fireEvent.click(tid("button-selecionar-visiveis")!); });
     await act(async () => { fireEvent.click(tid("mover-para-descartar")!); });
     await act(async () => { fireEvent.click(tid("button-salvar-triagem")!); });
-    expect(document.body.textContent).toContain("Descartar 40 peças?");
+    expect(document.body.textContent).toContain("Descartar 40 un. de 40 materiais?");
     expect(escritas().length).toBe(0);
     await act(async () => { fireEvent.click(tid("button-rever-descarte")!); });
     await tick(10);
@@ -241,36 +241,150 @@ describe("triagem · quadro do evento", () => {
     expect(escritas().length).toBe(40);
     expect(escritas()[0].body).toEqual({ condition: "SUCATA", trackingStatus: "DESCARTADO" });
     expect(estado.pico).toBeLessThanOrEqual(GRAVACOES_POR_VEZ);
-    expect(textoDosAvisos()).toContain("39 salvas, 1 com erro");
+    expect(textoDosAvisos()).toContain("39 salvas · 1 com erro");
     expect(textoDosAvisos()).toContain("Ativo bloqueado");
     // A que falhou continua no destino para tentar de novo.
-    expect($('[data-testid="coluna-triagem-descartar"] [data-testid="cartao-triagem-a101"]')).not.toBeNull();
+    expect($('[data-testid="coluna-triagem-descartar"] [data-testid="cartao-triagem-descartar-a101"]')).not.toBeNull();
   });
 
-  it("galpão sem local não grava e diz por quê; sem descarte não há confirmação", async () => {
+  it("galpão grava sem pedir local (o sistema não guarda onde fica); sem descarte não há confirmação", async () => {
     const { escritas } = fetchFalso();
     await montarTriagem(1280, filaGrande(), { url: "/triagem-retorno?vista=quadro&evento=e4" });
-    await act(async () => { fireEvent.click(tid("cartao-triagem-a200")!); });
+    await act(async () => { fireEvent.click(tid("cartao-triagem-triar-a200")!); });
     await act(async () => { fireEvent.click(tid("mover-para-galpao")!); });
-    expect(tid("aviso-local-galpao")).not.toBeNull();
-    await act(async () => { fireEvent.click(tid("button-salvar-triagem")!); });
-    expect(escritas().length).toBe(0);
-    await act(async () => { fireEvent.change(tid("input-local-galpao")!, { target: { value: "Setor B" } }); });
+    expect(tid("aviso-local-galpao")).toBeNull();
+    expect(tid("input-local-galpao")).toBeNull();
+    expect($('[aria-label*="mapa do galpão"]')).toBeNull();
     await act(async () => { fireEvent.click(tid("button-salvar-triagem")!); });
     await tick(40);
-    expect(escritas().map((e) => e.body)).toEqual([{ condition: "PERFEITO", trackingStatus: "NO_GALPAO", location: "Setor B" }]);
+    expect(escritas().map((e) => e.body)).toEqual([{ condition: "PERFEITO", trackingStatus: "NO_GALPAO" }]);
   });
 
   it("celular 390px: uma coluna, nada arrasta, barra de destinos com alvos de 44px e campo a 16px", async () => {
     fetchFalso();
     await montarTriagem(390, filaGrande(), { url: "/triagem-retorno?vista=quadro&evento=e5" });
     expect($$("[data-cartao]").every((c) => c.getAttribute("draggable") === "false")).toBe(true);
-    expect(document.body.textContent).toContain("toque nas peças e escolha o destino");
-    await act(async () => { fireEvent.click(tid("cartao-triagem-a250")!); });
+    expect(document.body.textContent).toContain("toque no material e escolha o destino");
+    await act(async () => { fireEvent.click(tid("cartao-triagem-triar-a250")!); });
     for (const d of ["galpao", "manutencao", "descartar", "triar"]) expect(px(tid(`mover-para-${d}`)!.style.height)).toBeGreaterThanOrEqual(44);
     expect(px(tid("input-busca-quadro")!.style.fontSize)).toBe(16);
-    expect(px(tid("input-local-galpao")!.style.fontSize)).toBe(16);
     expect(tid("barra-mover-selecionadas")!.style.bottom).toContain("safe-area-inset-bottom");
+  });
+});
+
+// ─── Triagem: itens por quantidade JUNTOS (dono, 21/09) ─────────────────────
+describe("triagem · quadro agrupado por quantidade", () => {
+  /** Como o dado é de fato: 24 registros de 1 unidade, todos da mesma peça. */
+  const vinteEQuatro = () => Array.from({ length: 24 }, (_, i) => ativoDaTriagem(1000 + i, "min", { name: "2x1 Ministério", originalItemId: "item-2x1", displayId: `#EST-0412-${i + 1}` }));
+  const fila = () => [...vinteEQuatro(), ativoDaTriagem(2000, "min", { name: "Grade", quantity: 10, displayId: "#EST-M-7" }), ativoDaTriagem(2001, "min", { name: "Pórtico" })];
+  const abrir = (largura: number, opts: any = {}) => montarTriagem(largura, fila(), { url: "/triagem-retorno?vista=quadro&evento=min", ...opts });
+  const digitar = async (destino: string, valor: string) => { await act(async () => { fireEvent.change(tid(`qtd-${destino}`)!, { target: { value: valor } }); }); };
+
+  it("24 registros iguais viram UM cartão com a soma; a expansão mostra os registros", async () => {
+    fetchFalso({ fila: fila() });
+    await abrir(1280);
+    expect($$('[data-testid^="cartao-triagem-triar-"]').length).toBe(3);
+    expect(tid("quantidade-triar-a1000")!.textContent).toBe("24un.");
+    expect(tid("resumo-do-quadro")!.textContent).toContain("3 materiais · 35 de 35 un. a triar");
+    expect(tid("pecas-triar-a1000")).toBeNull();
+    await act(async () => { fireEvent.click(tid("ver-pecas-triar-a1000")!); });
+    expect(tid("pecas-triar-a1000")!.querySelectorAll("li").length).toBe(24);
+    // Ordem natural do código: -2 antes de -10.
+    expect(Array.from(tid("pecas-triar-a1000")!.querySelectorAll("li")).slice(0, 3).map((l) => l.textContent)).toEqual(["#EST-0412-1", "#EST-0412-2", "#EST-0412-3"]);
+    // Material de uma unidade só não tem o que dividir.
+    expect(tid("dividir-triar-a2001")).toBeNull();
+  });
+
+  it("Dividir: 20 Galpão · 3 Manutenção · 1 Descartar, com o resto ao vivo e a soma presa no total", async () => {
+    fetchFalso({ fila: fila() });
+    await abrir(1280);
+    await act(async () => { fireEvent.click(tid("dividir-triar-a1000")!); });
+    expect(tid("resta-sem-destino")!.textContent).toContain("Restam 24 sem destino");
+    await digitar("galpao", "20");
+    await digitar("manutencao", "3");
+    expect(tid("resta-sem-destino")!.textContent).toContain("Resta 1 sem destino");
+    // 9 não cabe: só sobra 1.
+    await digitar("descartar", "9");
+    expect((tid("qtd-descartar") as HTMLInputElement).value).toBe("1");
+    expect(tid("resta-sem-destino")!.textContent).toContain("As 24 unidades têm destino");
+    await act(async () => { fireEvent.click(tid("dividir-aplicar")!); });
+    // O mesmo material aparece nas três colunas, cada uma com a sua fatia.
+    expect(tid("quantidade-galpao-a1000")!.textContent).toBe("20un.de 24");
+    expect(tid("quantidade-manutencao-a1000")!.textContent).toBe("3un.de 24");
+    expect(tid("quantidade-descartar-a1000")!.textContent).toBe("1un.de 24");
+    expect(tid("cartao-triagem-triar-a1000")).toBeNull();
+    expect(tid("unidades-galpao")!.textContent).toBe("20 un.");
+  });
+
+  it("salvar distribui os registros NA ORDEM, confirma o descarte parcial e resume as recusadas sem travar as demais", async () => {
+    const { escritas } = fetchFalso({ fila: fila(), falhar: (u) => (u.includes("/a1003/") || u.includes("/a1004/") ? "Essa peça já foi triada (está: No galpão) — atualize a lista" : null) });
+    await abrir(1280);
+    await act(async () => { fireEvent.click(tid("dividir-triar-a1000")!); });
+    await digitar("galpao", "20"); await digitar("manutencao", "3"); await digitar("descartar", "1");
+    await act(async () => { fireEvent.click(tid("dividir-aplicar")!); });
+    await act(async () => { fireEvent.click(tid("button-salvar-triagem")!); });
+    expect(tid("titulo-confirmar-descarte")!.textContent).toBe("Descartar 1 de 24 un. de 2x1 Ministério?");
+    expect(escritas().length).toBe(0);
+    await act(async () => { fireEvent.click(tid("button-confirmar-descarte")!); });
+    await tick(150);
+    const e = escritas();
+    expect(e.length).toBe(24);
+    expect(e.every((x) => x.method === "PATCH")).toBe(true);
+    const destinoDe = (n: number) => e.find((x) => x.url.includes(`/a${1000 + n}/`))!.body.trackingStatus;
+    expect([destinoDe(0), destinoDe(19), destinoDe(20), destinoDe(22), destinoDe(23)]).toEqual(["NO_GALPAO", "NO_GALPAO", "EM_MANUTENCAO", "EM_MANUTENCAO", "DESCARTADO"]);
+    expect(textoDosAvisos()).toContain("22 salvas · 2 já tinham sido triadas");
+    expect(avisos.some((a) => a.variant === "destructive")).toBe(false);
+  });
+
+  it("registro ×10: repartido inteiro usa triage-split; repartido só em parte não grava e diz por quê", async () => {
+    const { escritas } = fetchFalso({ fila: fila() });
+    await abrir(1280);
+    await act(async () => { fireEvent.click(tid("dividir-triar-a2000")!); });
+    await digitar("manutencao", "4");
+    await act(async () => { fireEvent.click(tid("dividir-aplicar")!); });
+    await act(async () => { fireEvent.click(tid("button-salvar-triagem")!); });
+    await tick(20);
+    expect(escritas().length).toBe(0);
+    expect(textoDosAvisos()).toContain("#EST-M-7 é um registro de 10 unidades");
+    expect(textoDosAvisos()).toContain("faltam 6 un.");
+
+    await act(async () => { fireEvent.click(tid("dividir-manutencao-a2000")!); });
+    await act(async () => { fireEvent.click(tid("tudo-para-galpao")!); });
+    await digitar("galpao", "6"); await digitar("manutencao", "4");
+    await act(async () => { fireEvent.click(tid("dividir-aplicar")!); });
+    await act(async () => { fireEvent.click(tid("button-salvar-triagem")!); });
+    await tick(40);
+    expect(escritas()).toEqual([{ url: "/api/inventory/a2000/triage-split", method: "POST", body: { splits: [
+      { qty: 6, condition: "PERFEITO", trackingStatus: "NO_GALPAO" },
+      { qty: 4, condition: "AVARIA_LEVE", trackingStatus: "EM_MANUTENCAO" },
+    ] } }]);
+  });
+
+  it("arrastar/mover o cartão inteiro = tudo para lá; a tabela deixa os iguais juntos e diz quantos são", async () => {
+    fetchFalso({ fila: fila() });
+    await abrir(1280);
+    await act(async () => { fireEvent.click(tid("cartao-triagem-triar-a1000")!); });
+    await act(async () => { fireEvent.click(tid("mover-para-manutencao")!); });
+    expect(tid("quantidade-manutencao-a1000")!.textContent).toBe("24un.");
+    expect(tid("anuncio-do-quadro")!.textContent).toBe("24 unidades movidas para Manutenção");
+    cleanup();
+    await montarTriagem(1280, fila(), { url: "/triagem-retorno?vista=tabela" });
+    expect(tid("iguais-a1000")!.textContent).toBe("24 un. iguais");
+    expect(tid("iguais-a2001")).toBeNull();
+  });
+
+  it("celular 390px: o controle de quantidade é numérico, 16px, 44px e com rodapé acima da barra de gesto", async () => {
+    fetchFalso({ fila: fila() });
+    await abrir(390);
+    await act(async () => { fireEvent.click(tid("dividir-triar-a1000")!); });
+    const campo = tid("qtd-galpao") as HTMLInputElement;
+    expect(campo.getAttribute("inputmode")).toBe("numeric");
+    expect(px(campo.style.fontSize)).toBe(16);
+    expect(px(campo.style.height)).toBeGreaterThanOrEqual(44);
+    expect(px(tid("dividir-aplicar")!.style.height)).toBeGreaterThanOrEqual(44);
+    expect(tid("dividir-aplicar")!.parentElement!.style.paddingBottom).toContain("safe-area-inset-bottom");
+    await act(async () => { fireEvent.click(tid("tudo-para-galpao")!); });
+    expect(campo.value).toBe("24");
   });
 });
 
@@ -324,7 +438,8 @@ describe("triagem · tabela completa", () => {
     await montarTriagem(390, filaGrande(), { url: "/triagem-retorno?vista=tabela" });
     expect($("table")).toBeNull();
     expect(px(tid("button-save-triage-a0")!.style.minHeight)).toBeGreaterThanOrEqual(44);
-    expect(px((tid("input-location-a0") as HTMLElement).style.fontSize)).toBe(16);
+    expect(tid("input-location-a0")).toBeNull();
+    expect(px((tid("input-notes-a0") as HTMLElement).style.fontSize)).toBe(16);
     await act(async () => { fireEvent.click(tid("button-selecionar-visiveis-tabela")!); });
     expect(tid("button-bulk-confirm")).not.toBeNull();
     expect(tid("button-selecionar-visiveis-tabela")!.getAttribute("aria-pressed")).toBe("true");

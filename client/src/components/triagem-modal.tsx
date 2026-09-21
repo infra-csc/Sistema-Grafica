@@ -3,9 +3,8 @@ import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/compone
 import {
   X, Trash2, Warehouse, Package2,
   Tag, Calendar, Layers, CheckCircle2,
-  Archive, Truck, ClipboardCheck, Image, Wrench, Grid3X3,
+  Archive, Truck, ClipboardCheck, Image, Wrench,
 } from "lucide-react";
-import { MapaGalpao } from "@/components/mapa-galpao";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -31,8 +30,6 @@ interface TriagemModalProps {
   onUpdateResult: (r: TriagemResult) => void;
   onUpdateNotes: (notes: string) => void;
   /** Onde a peça foi guardada — obrigatório quando volta ao galpão (14/09). */
-  location: string;
-  onUpdateLocation: (location: string) => void;
   /** Devolve `false` quando a gravação NÃO aconteceu (validação ou erro) —
    *  aí o modal fica aberto, com o toast explicando o que falta. */
   onSaveAndClose: () => Promise<boolean | void>;
@@ -55,7 +52,7 @@ const ROTULO: React.CSSProperties = {
 
 export function TriagemModal({
   asset, linkedItem, entry, open, isSaving, isSaved, user,
-  onOpenChange, onUpdateCondition, onUpdateResult, onUpdateNotes, location, onUpdateLocation, onSaveAndClose,
+  onOpenChange, onUpdateCondition, onUpdateResult, onUpdateNotes, onSaveAndClose,
 }: TriagemModalProps) {
   // Hooks SEMPRE antes do guard — chamá-los depois de um return condicional
   // viola as regras de hooks quando asset/entry alternam entre null e valor.
@@ -64,7 +61,6 @@ export function TriagemModal({
   // O mapa do galpão já existia na linha da tabela e no quadro; no modal só
   // havia o campo de texto — quem abria a peça para triar com calma tinha de
   // adivinhar o formato "Setor A - Corredor 3".
-  const [mapaAberto, setMapaAberto] = useState(false);
 
   if (!asset || !entry) return null;
 
@@ -321,7 +317,6 @@ export function TriagemModal({
                   fontFamily: "DM Mono, monospace", fontSize: 11, color: "#9ca3af",
                 }}>
                   Qtd: {qty} un.
-                  {asset.location ? ` · ${asset.location}` : ""}
                 </span>
               </div>
               {/* No celular o nome quebra linha em vez de cortar: é a única
@@ -474,49 +469,6 @@ export function TriagemModal({
                     </p>
                   </div>
 
-                  {/* Local — obrigatório para voltar ao galpão (dono, 14/09):
-                      sem ele ninguém encontra a peça para reaproveitar. */}
-                  {result !== "DESCARTADO" && (
-                    <div style={{ gridColumn: "1 / -1" }}>
-                      <label htmlFor="triagem-local" style={{
-                        ...ROTULO,
-                        color: result === "NO_GALPAO" && !location.trim() ? "#b91c1c" : ROTULO.color,
-                        marginBottom: 8,
-                      }}>
-                        Local no galpão {result === "NO_GALPAO" ? "· obrigatório" : "· opcional"}
-                      </label>
-                      {/* Sem `outline: none`: o inline anulava o anel de foco
-                          global. 16px no celular (o Safari dá zoom abaixo). */}
-                      <div style={{ display: "flex", gap: 6 }}>
-                        <input
-                          id="triagem-local"
-                          data-testid="input-triage-modal-location"
-                          list="locais-do-galpao"
-                          value={location}
-                          onChange={e => onUpdateLocation(e.target.value)}
-                          placeholder="Ex: Setor A - Corredor 3"
-                          aria-invalid={result === "NO_GALPAO" && !location.trim() ? true : undefined}
-                          style={{
-                            flex: 1, minWidth: 0, boxSizing: "border-box",
-                            minHeight: 44, padding: "0 14px", borderRadius: 8,
-                            border: `1.5px solid ${result === "NO_GALPAO" && !location.trim() ? "#fca5a5" : "#e2e8f0"}`,
-                            background: "#f8fafc", fontFamily: "Plus Jakarta Sans, sans-serif", fontSize: isMobile ? 16 : 13,
-                            color: "#1e293b",
-                          }}
-                        />
-                        <button type="button" onClick={() => setMapaAberto(true)}
-                          data-testid="button-triage-modal-mapa"
-                          title="Escolher no mapa do galpão" aria-label="Escolher o local no mapa do galpão"
-                          style={{ width: 44, minHeight: 44, flexShrink: 0, borderRadius: 8, border: "1.5px solid #e2e8f0", background: "#fff", color: "#c2410c", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                          <Grid3X3 size={16} aria-hidden="true" />
-                        </button>
-                      </div>
-                      {mapaAberto && (
-                        <MapaGalpao value={location} onSelect={onUpdateLocation} onClose={() => setMapaAberto(false)} />
-                      )}
-                    </div>
-                  )}
-
                   {/* Observação */}
                   <div style={{ gridColumn: "1 / -1" }}>
                     <label htmlFor="triagem-observacao" style={{ ...ROTULO, marginBottom: 8 }}>
@@ -599,7 +551,6 @@ export function TriagemModal({
                     { label: "Evento",    value: asset.eventName || "—" },
                     { label: "Data",      value: asset.eventDate ? format(new Date(asset.eventDate), "dd MMM yyyy", { locale: ptBR }) : "—" },
                     { label: "Qtd Total", value: `${qty} un.` },
-                    { label: "Localização", value: asset.location || "—" },
                   ].map(({ label, value }) => (
                     <div key={label} style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
                       <span style={{ fontFamily: "Plus Jakarta Sans, sans-serif", fontSize: 11, color: "#746e69" }}>{label}</span>

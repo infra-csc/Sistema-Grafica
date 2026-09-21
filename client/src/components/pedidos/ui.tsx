@@ -20,6 +20,8 @@ import {
   type StatusDaSolicitacao,
 } from "@shared/pedidos-de-peca";
 import { queryClient } from "@/lib/queryClient";
+import { StatusBadge } from "@/components/status-badge";
+import { DetalheProducao } from "@/components/detalhe-producao";
 import { miniatura } from "@/lib/miniatura";
 import { T, FS, R } from "@/lib/theme";
 
@@ -229,6 +231,12 @@ export function AndamentoDaLinha({ linha }: { linha: LinhaDoPedido }) {
                   </li>
                 ))}
               </ol>
+            )}
+            {etapa !== null && etapa >= 2 && (
+              <span data-testid={`producao-peca-${p.id}`} style={{ display: "inline-flex", alignItems: "center", gap: 6, flexWrap: "wrap", minWidth: 0 }}>
+                <StatusBadge status={p.status} short />
+                <DetalheProducao item={p} style={{ marginTop: 0 }} />
+              </span>
             )}
           </div>
         );

@@ -31,6 +31,7 @@ import { ModalHeader, ModalFooter, modalSurface, HIDE_NATIVE_CLOSE, FreezeWhileC
 import { R, FS, onColor, darkenToContrast } from "@/lib/theme";
 import {
   isEventoFinalizado, motivoEventoFinalizado, avisoPecasOcultas, todayBusinessMs,
+  PRODUCTION_STATUSES,
 } from "@/lib/status";
 
 type ItemChanges = {
@@ -56,7 +57,7 @@ const LINKING_STATUSES = ['requested', 'awaiting_linking'];
 // módulo porque DUAS contas leem a lista: a que monta `visibleItems` e a que
 // conta quantas peças o evento encerrado tirou de vista — se divergissem, o
 // aviso prometeria um número que a lista não teria mostrado.
-const VINCULACAO_VISIBLE_STATUSES = [
+const VINCULACAO_VISIBLE_STATUSES: string[] = [
   'awaiting_linking',
   'awaiting_submission',
   'awaiting_sponsor_approval',
@@ -66,9 +67,10 @@ const VINCULACAO_VISIBLE_STATUSES = [
   'awaiting_creator_review',
   'ready_for_production',
   'pronto_para_producao',
-  'inProduction',
-  'produced',
-  'delivered',
+  // Lista canônica (lib/status): inProduction, produced, conferred, packed,
+  // delivered. Escritas à mão, faltavam Conferido e Embalado — a peça SUMIA
+  // desta tela ao ser conferida e o selo caía em "Pendente" (21/09).
+  ...PRODUCTION_STATUSES,
 ];
 
 // Status "a jusante": o item já saiu da vinculação (foi para a Arte, aprovação
@@ -76,7 +78,7 @@ const VINCULACAO_VISIBLE_STATUSES = [
 // gravadas pelo backend — inclui camelCase (inProduction), português
 // (pronto_para_producao) e nomes legados. Um nome faltando aqui fazia o item
 // cair errado em "Pendente" (badge) e até sumir da tela (filtro de visibilidade).
-const DOWNSTREAM_STATUSES = [
+const DOWNSTREAM_STATUSES: string[] = [
   'awaiting_submission',       // enviado para Arte (thumb)
   'awaiting_sponsor_approval', // em aprovação pelo patrocinador
   'sponsor_approved',
@@ -86,9 +88,10 @@ const DOWNSTREAM_STATUSES = [
   'awaiting_creator_review',   // legado
   'ready_for_production',
   'pronto_para_producao',
-  'inProduction',
-  'produced',
-  'delivered',
+  // Lista canônica (lib/status): inProduction, produced, conferred, packed,
+  // delivered. Escritas à mão, faltavam Conferido e Embalado — a peça SUMIA
+  // desta tela ao ser conferida e o selo caía em "Pendente" (21/09).
+  ...PRODUCTION_STATUSES,
 ];
 
 // Função para determinar estado UI de um item (FONTE ÚNICA DE VERDADE)

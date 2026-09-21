@@ -76,7 +76,10 @@ export function visaoDoPapel(role: string | null | undefined): Visao | null {
     case "solicitacao":
       return { id: "meu_papel", label: "Minha fila (Solicitação)", hint: "Peças aguardando vinculação ou sua revisão final", filtros: { ...vazio(), status: ["awaiting_linking", "awaiting_final_review"] } };
     case "grafica":
-      return { id: "meu_papel", label: "Minha fila (Gráfica)", hint: "Peças liberadas ou já em produção", filtros: { ...vazio(), status: ["ready_for_production", "approved", "inProduction"] } };
+      // 21/09: a fila da Gráfica não acaba na impressora — acabamento/conferência
+      // (produced), embalagem (conferred) e a saída do tubo (packed) também são
+      // trabalho dela. Entregue fica de fora: aí a peça já saiu da fila.
+      return { id: "meu_papel", label: "Minha fila (Gráfica)", hint: "Peças liberadas, em impressão, em acabamento, conferidas ou embaladas", filtros: { ...vazio(), status: ["ready_for_production", "approved", "inProduction", "produced", "conferred", "packed"] } };
     default:
       return null;
   }

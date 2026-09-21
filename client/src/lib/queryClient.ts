@@ -2,6 +2,7 @@ import { QueryClient, QueryFunction } from "@tanstack/react-query";
 import { eventoComDatasDoKit } from "@shared/kit";
 import { FORMATO_COMPACTO, ehPecasCompactas, expandirResposta } from "@shared/itens-compactos";
 import { ITENS_RESUMO, expandirItensDosEventos } from "@shared/eventos-resumo";
+import { CABECALHO_DA_VERSAO, observarVersao } from "@/lib/versao-do-app";
 
 /**
  * Sessão expirada tem de levar para o login.
@@ -88,7 +89,11 @@ export const MENSAGEM_SEM_CONEXAO = "Não foi possível falar com o servidor. Ve
 
 async function fetchComRede(input: string, init?: RequestInit): Promise<Response> {
   try {
-    return await fetch(input, init);
+    const res = await fetch(input, init);
+    // Ponto ÚNICO por onde passam o fetch padrão das queries, o delta de itens
+    // e o apiRequest: é aqui que a aba fica sabendo de um deploy (X-App-Versao).
+    observarVersao(res.headers?.get?.(CABECALHO_DA_VERSAO));
+    return res;
   } catch (erro) {
     if (erro instanceof DOMException && erro.name === "AbortError") throw erro;
     if (erro instanceof TypeError) throw new Error(MENSAGEM_SEM_CONEXAO);

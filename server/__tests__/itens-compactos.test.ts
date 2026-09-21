@@ -45,6 +45,12 @@ vi.mock("../services/kitRemessas", () => ({
   remessasPorIds: async (ids: string[]) =>
     new Map(ids.filter((id) => H.remessas.has(id)).map((id) => [id, H.remessas.get(id)])),
 }));
+// O tubo viaja na peça (21/09) por um select em lote — aqui, sem banco, o lote
+// é vazio; o `comTubo` real segue valendo (devolve a mesma peça).
+vi.mock("../services/tubosDaPeca", async () => {
+  const real = await vi.importActual<any>("../services/tubosDaPeca");
+  return { ...real, resumosDeTuboPorIds: async () => new Map() };
+});
 vi.mock("../services/inventoryLifecycle", () => ({ runInventoryCron: vi.fn() }));
 vi.mock("../services/xlsxImport", () => ({ handlePreviewXlsx: vi.fn(), handleConfirmImport: vi.fn() }));
 vi.mock("../services/xlsxExport", () => ({ handleExportItemsXlsx: vi.fn(), handleExportSelectedItemsXlsx: vi.fn() }));

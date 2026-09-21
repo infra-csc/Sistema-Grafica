@@ -1,6 +1,7 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useRoute, Link, useLocation } from "wouter";
 import { StatusBadge } from "@/components/status-badge";
+import { DetalheProducao } from "@/components/detalhe-producao";
 import { faseDaArte } from "@/components/prazos/tokens";
 import { getStatusLabel, getStatusMeta, FINAL_STATUSES, PRODUCTION_STATUSES, STATUS, motivoEventoFinalizado, todayBusinessMs } from "@/lib/status";
 import { PHASES, contarPorFase } from "@/lib/fases";
@@ -3329,6 +3330,7 @@ export default function EventDetail() {
                             </button>
                             <StatusBadge status={item.status} />
                           </div>
+                          <DetalheProducao item={item} style={{ marginTop: 0, marginBottom: 6, textAlign: 'right' }} />
                           <SeloKit peca={item} style={{ marginBottom: 4, marginRight: 4 }} />
                           {item.isPriority && (
                             <div title="Peça prioritária — fura a fila da Arte" data-testid={`tag-prioritaria-card-${item.id}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, backgroundColor: '#fff1f2', border: '1px solid #fecdd3', color: '#be123c', borderRadius: 6, padding: '2px 7px', fontSize: 10, fontWeight: 800, letterSpacing: '0.06em', marginBottom: 4, marginRight: 4 }}>
@@ -3629,7 +3631,9 @@ export default function EventDetail() {
                           <td style={{ padding: '14px 14px' }}>
                             {(() => {
                               const fase = faseDaArte(item.status);
-                              if (!fase) return <StatusBadge status={item.status} short />;
+// Fora da Arte = produção em diante: o selo ganha a linha discreta
+                              // "Impressora 2 · 3 de 10 impressas" / "Tubo 2" (lib/detalhe-producao).
+                              if (!fase) return <><StatusBadge status={item.status} short /><DetalheProducao item={item} /></>;
                               const alvo = `/arte?fase=${fase}&evento=${item.eventId}&busca=${String(item.displayId ?? "").replace("#", "")}`;
                               return (
                                 <Link

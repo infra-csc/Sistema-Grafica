@@ -4,6 +4,7 @@ import { ptBR } from "date-fns/locale";
 import type { Request, Response } from "express";
 import { storage, compareDisplayId } from "../storage";
 import { rotuloDaMaquina } from "@shared/fluxo-peca";
+import { resumosDeTuboPorIds } from "./tubosDaPeca";
 import {
   duracaoCurta, oQueAconteceuNoRegistro, ROTULO_DO_TIPO, nomeDoArquivoDoRelatorio,
   type RegistroDoPeriodo, type ResumoDoDia,
@@ -17,6 +18,9 @@ const PRODUCTION_COLS = [
   // Em qual impressora a peça está/saiu (a última anotada), com o nome do
   // dono (shared/fluxo-peca). Vazio na peça que nunca passou por uma máquina.
   { header: "Impressora",      key: "printMachine", width: 24 },
+  // Número do tubo em que a peça foi embalada (21/09). Vazio = sem tubo (peça
+  // grande vai direto) ou ainda não embalada.
+  { header: "Tubo",            key: "tuboNumero",   width: 8  },
   { header: "Reaprov.",        key: "qtyReused",    width: 10 },
   { header: "M² a produzir",   key: "m2ToProduce",  width: 13 },
   { header: "Produzido",       key: "qtyProduced",  width: 11 },
@@ -129,6 +133,9 @@ async function writeWorkbook(
 ) {
   const { items: sorted, title, subtitle, filename, withProduction } = opts;
   const COLS = withProduction ? [...PRODUCTION_COLS, ...BASE_COLS] : BASE_COLS;
+  // As peças chegam CRUAS do storage (sem o enrich das listas): o número do
+  // tubo é buscado aqui, num select só. Peça já enriquecida usa o que trouxe.
+  const tuboPorId = withProduction ? await resumosDeTuboPorIds(sorted.map((i) => i.tuboId)) : new Map();
 
     const wb = new ExcelJS.Workbook();
     wb.creator = "NORTE";
@@ -174,6 +181,7 @@ async function writeWorkbook(
           eventName:    item.event?.name ?? item.eventName ?? "",
           statusLabel:  STATUS_LABELS[item.status] ?? item.status ?? "",
           printMachine: item.printMachine ? rotuloDaMaquina(item.printMachine) : "",
+          tuboNumero:   item.tuboNumero ?? (item.tuboId ? tuboPorId.get(item.tuboId)?.tuboNumero : undefined) ?? "",
           qtyReused:    reusedTotal(item),
           m2ToProduce:  m2ToProduce(item),
           qtyProduced:  item.quantityProduced ?? 0,
@@ -213,7 +221,7 @@ async function writeWorkbook(
       });
 
       const numericCols = ["quantity", "visualWidth", "visualHeight", "fileWidth", "fileHeight", "calculatedM2",
-                           "qtyReused", "m2ToProduce", "qtyProduced", "qtyConferred", "qtyDelivered"];
+                           "qtyReused", "m2ToProduce", "qtyProduced", "qtyConferred", "qtyDelivered", "tuboNumero"];
       numericCols.forEach((key) => {
         const colIdx = COLS.findIndex((c) => c.key === key);
         if (colIdx >= 0) {

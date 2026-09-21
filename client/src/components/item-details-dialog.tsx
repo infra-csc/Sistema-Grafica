@@ -8,6 +8,8 @@ import { convertGCSUrlToLocalPath } from "@/lib/artePdfExport";
 import { refsDaPeca } from "@/lib/refs-da-peca";
 import { POS_APROVACAO } from "@shared/fluxo-peca";
 import { rotuloDaMaquina } from "@shared/fluxo-peca";
+import { estaDividida } from "@shared/impressao-dividida";
+import { detalheDaProducao, rotuloDoTubo, subTrilhaDaProducao } from "@/lib/detalhe-producao";
 import { getApprovalMeta, getStatusLabel, guiaDoStatus, marcoEventoFinalizado, proximoPassoDaAprovacao, todayBusinessMs } from "@/lib/status";
 import {
   Edit, Save, X, Check, Clock, Eye, ExternalLink, Camera, Paperclip,
@@ -33,6 +35,54 @@ interface ItemDetailsDialogProps {
   customActions?: React.ReactNode;
   topActions?: React.ReactNode;
   onEditSave?: (editedItem: any) => void;
+}
+
+/**
+ * A etapa "Produção" ABERTA (21/09). A barra de cima tem uma etapa só para
+ * tudo o que acontece na gráfica: de Impresso em diante ela ficava inteira
+ * laranja, igual à peça entregue. Quando a peça está na produção, esta
+ * sub-trilha compacta diz ONDE: Liberada → Em Impressão → Impresso → Conferido
+ * → Embalado → Entregue, com a cor do selo de cada etapa (lib/status).
+ * Embalado de peça entregue sem tubo aparece tracejado: não se aplica.
+ * O fundo é o gradiente escuro do cabeçalho — nenhum texto abaixo de 0.55 de alfa.
+ */
+function SubTrilhaDaProducao({ item, isMobile }: { item: any; isMobile: boolean }) {
+  const passos = subTrilhaDaProducao(item);
+  if (!passos) return null;
+  const atual = passos.find((p) => p.estado === "atual");
+  return (
+    <div
+      data-testid="sub-trilha-producao"
+      role="img"
+      aria-label={`Etapa da produção: ${atual?.label ?? "—"}`}
+      style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: isMobile ? "6px 8px" : "6px 10px", marginTop: 12, paddingTop: 10, borderTop: "1px solid rgba(255,255,255,0.09)" }}
+    >
+      {passos.map((p, i) => {
+        const naoSeAplica = p.estado === "nao_se_aplica";
+        const cheio = p.estado === "feita" || p.estado === "atual";
+        return (
+          <span key={p.key} data-estado={p.estado} title={naoSeAplica ? `${p.label}: não se aplica — a peça foi entregue sem tubo` : p.label}
+            style={{ display: "inline-flex", alignItems: "center", gap: 5, minWidth: 0 }}>
+            {i > 0 && <span aria-hidden="true" style={{ width: isMobile ? 8 : 14, height: 1, backgroundColor: "rgba(255,255,255,0.25)" }} />}
+            <span aria-hidden="true" style={{
+              width: p.estado === "atual" ? 10 : 8, height: p.estado === "atual" ? 10 : 8, borderRadius: "50%", flexShrink: 0, boxSizing: "border-box",
+              backgroundColor: cheio ? p.cor : "transparent",
+              border: cheio ? "none" : `1.5px ${naoSeAplica ? "dashed" : "solid"} rgba(255,255,255,0.4)`,
+              boxShadow: p.estado === "atual" ? "0 0 0 3px rgba(255,255,255,0.18)" : "none",
+            }} />
+            <span style={{
+              fontSize: 12, whiteSpace: "nowrap",
+              fontWeight: p.estado === "atual" ? 800 : 500,
+              color: p.estado === "atual" ? "#ffffff" : p.estado === "feita" ? "rgba(255,255,255,0.8)" : "rgba(255,255,255,0.55)",
+              textDecoration: naoSeAplica ? "line-through" : "none",
+            }}>
+              {p.label}
+            </span>
+          </span>
+        );
+      })}
+    </div>
+  );
 }
 
 const TIMELINE_STEPS = [
@@ -605,8 +655,10 @@ export function ItemDetailsDialog({
     { label: "Aprovada pelo patrocinador", valor: item.sponsorApprovedAt,    por: item.sponsorApprovedBy, cor: "#16a34a" },
     { label: "Revisada pela Solicitação",  valor: item.creatorReviewedAt,    por: null,                  cor: "#d946ef" },
     { label: "Liberada para produção",     valor: item.approvedAt,           por: null,                  cor: "#f97316" },
-    { label: "Produção iniciada",          valor: item.productionStartedAt,  por: null,                  cor: "#eab308" },
-    { label: "Produzida",                  valor: item.producedAt,           por: null,                  cor: "#a855f7" },
+    // 21/09: o vocabulário do selo — "Em Impressão" / "Impresso". "Produção
+    // iniciada"/"Produzida" eram os nomes antigos das mesmas duas etapas.
+    { label: "Impressão iniciada",         valor: item.productionStartedAt,  por: null,                  cor: "#eab308" },
+    { label: "Impressão concluída",        valor: item.producedAt,           por: null,                  cor: "#a855f7" },
     { label: "Conferida",                  valor: item.conferredAt,          por: logBy(conferLog),      cor: "#06b6d4" },
     { label: "Entregue",                   valor: item.deliveredAt,          por: item.receivedBy,       cor: "#10b981" },
   ].filter(c => !!c.valor);
@@ -731,10 +783,14 @@ export function ItemDetailsDialog({
       return { tom: "espera", frase: `Aguardando a revisão final${desdeQuando}`, detalhe: "O arquivo final está pronto e espera a conferência da Solicitação antes de ir para a gráfica." };
     }
     if (["ready_for_production", "pronto_para_producao", "approved", "liberado"].includes(rawStatus)) {
-      return { tom: "ok", frase: "Liberada para produção", detalhe: `A gráfica pode imprimir${desdeQuando ? ` · liberada${desdeQuando}` : ""}` };
+// Reserva de impressora (aba Máquinas): "Fila: Impressora 2" entra na faixa.
+      return { tom: "ok", frase: "Liberada para produção", detalhe: [`A gráfica pode imprimir${desdeQuando ? ` · liberada${desdeQuando}` : ""}`, detalheDaProducao(item)].filter(Boolean).join(" · ") };
     }
     if (["inproduction", "inProduction", "em_producao"].includes(rawStatus)) {
-      return { tom: "espera", frase: `Em impressão${item.printMachine ? ` na ${rotuloDaMaquina(item.printMachine)}` : ""}${desdeQuando}`, detalhe: item.quantityProduced > 0 ? `${item.quantityProduced} de ${item.quantity} já impressas` : null };
+// Peça DIVIDIDA entre impressoras: a frase não escolhe uma máquina — o
+      // detalhe lista cada parte ("Impressora 1 · 5 de 8 · Impressora 2 · 0 de 2").
+      const dividida = estaDividida(item);
+      return { tom: "espera", frase: `Em impressão${!dividida && item.printMachine ? ` na ${rotuloDaMaquina(item.printMachine)}` : dividida ? " em mais de uma impressora" : ""}${desdeQuando}`, detalhe: detalheDaProducao(item) };
     }
     if (["produced", "produzido"].includes(rawStatus)) {
       return { tom: "espera", frase: `Em acabamento / conferência${desdeQuando}`, detalhe: item.conferredQty > 0 ? `${item.conferredQty} de ${item.quantity} já conferidas` : null };
@@ -743,10 +799,11 @@ export function ItemDetailsDialog({
       return { tom: "espera", frase: `Conferida — falta embalar ou entregar${desdeQuando}`, detalhe: item.deliveredQty > 0 ? `${item.deliveredQty} de ${item.quantity} já entregues` : null };
     }
     if (rawStatus === "packed") {
-      return { tom: "espera", frase: `Embalada no tubo — aguarda o caminhão${desdeQuando}`, detalhe: item.deliveredQty > 0 ? `${item.deliveredQty} de ${item.quantity} já entregues` : null };
+// O número do tubo chega na peça (enrich do servidor) — "Tubo 2 · fechado 14:32".
+      return { tom: "espera", frase: `Embalada${rotuloDoTubo(item) && rotuloDoTubo(item) !== "Em tubo" ? ` no ${rotuloDoTubo(item)}` : " no tubo"} — aguarda o caminhão${desdeQuando}`, detalhe: item.tuboFechadoEm ? detalheDaProducao(item) : item.deliveredQty > 0 ? `${item.deliveredQty} de ${item.quantity} já entregues` : null };
     }
     if (["delivered", "entregue"].includes(rawStatus)) {
-      return { tom: "ok", frase: "Entregue — nada pendente", detalhe: item.receivedBy ? `Recebida por ${item.receivedBy}` : null };
+      return { tom: "ok", frase: "Entregue — nada pendente", detalhe: detalheDaProducao(item) };
     }
     // Estado fora do fluxo (rascunho, cancelada, ou um status que esta versão
     // não conhece): dizer o rótulo do status é mais honesto que inventar uma
@@ -1021,6 +1078,7 @@ export function ItemDetailsDialog({
               );
             })}
           </div>
+          <SubTrilhaDaProducao item={item} isMobile={isMobile} />
           <div style={{ height: isMobile ? 16 : 20 }} />
         </header>
 

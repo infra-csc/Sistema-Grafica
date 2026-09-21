@@ -1,4 +1,5 @@
 import express, { type Request, Response, NextFunction } from "express";
+import { cabecalhoDeVersao } from "./versaoDoApp";
 import compression from "compression";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
@@ -86,6 +87,10 @@ app.use(express.urlencoded({ extended: false, limit: "2mb" }));
 // Session configuration (definida em ./session e compartilhada com o
 // handshake do WebSocket em ./routes).
 app.use(sessionMiddleware);
+
+// Versão do app em toda resposta /api/* — a aba aberta desde antes do deploy
+// oferece "Recarregar" (ver ./versaoDoApp e client/src/lib/versao-do-app).
+app.use(cabecalhoDeVersao());
 
 // ── Security headers ─────────────────────────────────────────────────────────
 // Applied to every response. Keeps the browser from doing dangerous things

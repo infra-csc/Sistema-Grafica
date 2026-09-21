@@ -341,19 +341,22 @@ function PecaNoCartao({ p, agora, podeAgir, hojeMs, isMobile, onAgir }: {
 }
 
 // ─── Linha do diário (memoizada: pode haver centenas) ─────────────────────────
-const LinhaDoDiario = memo(function LinhaDoDiario({ l, mostrarMaquina, acao, isMobile, onAgir }: {
-  l: Linha; mostrarMaquina: boolean; acao: PecaNaMaquina | null; isMobile: boolean; onAgir: (p: PecaNaMaquina) => void;
+const LinhaDoDiario = memo(function LinhaDoDiario({ l, mostrarMaquina, acao, isMobile, hojeMs, onAgir }: {
+  l: Linha; mostrarMaquina: boolean; acao: PecaNaMaquina | null; isMobile: boolean; hojeMs: number; onAgir: (p: PecaNaMaquina) => void;
 }) {
   const meta = TIPO_DO_REGISTRO[l.tipo] ?? TIPO_DO_REGISTRO.parcial;
   const texto = oQueAconteceu(l, l.rotuloMaquina);
+  // Evento finalizado: o mesmo bloqueio (e a mesma frase do 409) do cartão.
+  const selo = acao ? seloPecaEventoFinalizado(acao.eventoInfo, hojeMs) : null;
   const botao = acao && (
     <button
       type="button"
       className="mq-acao"
-      onClick={() => onAgir(acao)}
+      onClick={() => { if (!selo) onAgir(acao); }}
+      disabled={!!selo}
       data-testid={`button-impressas-linha-${l.id}`}
-      title={`Informar quantas já saíram — ${progressoDaImpressao(acao.impressas, acao.aImprimir)}`}
-      style={{ minHeight: isMobile ? 44 : 30, padding: "0 10px", display: "inline-flex", alignItems: "center", gap: 5, borderRadius: R.md, border: `1px solid ${T.bdark}`, background: T.surface, color: T.text, fontSize: 12, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}
+      title={selo ? motivoAcaoBloqueada(selo.motivo, "informar impressas") : `Informar quantas já saíram — ${progressoDaImpressao(acao.impressas, acao.aImprimir)}`}
+      style={{ minHeight: isMobile ? 44 : 30, padding: "0 10px", display: "inline-flex", alignItems: "center", gap: 5, borderRadius: R.md, border: `1px solid ${T.bdark}`, background: selo ? T.low : T.surface, color: selo ? "#746e69" : T.text, fontSize: 12, fontWeight: 700, cursor: selo ? "not-allowed" : "pointer", whiteSpace: "nowrap" }}
     >
       <Play aria-hidden="true" style={{ width: 11, height: 11, color: T.accentText }} />
       {rotuloCurtoDaAcao(acao.impressas, acao.aImprimir)}
@@ -710,7 +713,7 @@ export default function GraficaMaquinas() {
                 ) : isMobile ? (
                   <div data-testid="diario-cartoes">
                     {linhasVisiveis.map((l) => (
-                      <LinhaDoDiario key={l.id} l={l} mostrarMaquina={!maquinaFiltro} acao={podeAgir ? emImpressaoPorId.get(l.itemId) ?? null : null} isMobile onAgir={setPecaNoModal} />
+                      <LinhaDoDiario key={l.id} l={l} mostrarMaquina={!maquinaFiltro} acao={podeAgir ? emImpressaoPorId.get(l.itemId) ?? null : null} isMobile hojeMs={hojeMs} onAgir={setPecaNoModal} />
                     ))}
                   </div>
                 ) : (
@@ -725,7 +728,7 @@ export default function GraficaMaquinas() {
                       </thead>
                       <tbody>
                         {linhasVisiveis.map((l) => (
-                          <LinhaDoDiario key={l.id} l={l} mostrarMaquina={!maquinaFiltro} acao={podeAgir ? emImpressaoPorId.get(l.itemId) ?? null : null} isMobile={false} onAgir={setPecaNoModal} />
+                          <LinhaDoDiario key={l.id} l={l} mostrarMaquina={!maquinaFiltro} acao={podeAgir ? emImpressaoPorId.get(l.itemId) ?? null : null} isMobile={false} hojeMs={hojeMs} onAgir={setPecaNoModal} />
                         ))}
                       </tbody>
                     </table>

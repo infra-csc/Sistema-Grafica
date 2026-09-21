@@ -114,6 +114,8 @@ describe("as frases puras", async () => {
     expect(m.fraseDoBotaoDeImpressas(11, 1, 10)).toMatchObject({ rotulo: "Máximo 10", pode: false });
     expect(m.fraseDoBotaoDeImpressas(2, 4, 10)).toMatchObject({ rotulo: "Corrigir para 2 de 10", pode: true });
     expect(m.fraseDoBotaoDeImpressas(0, 1, 10).pode).toBe(false);
+    // Legado: total atingido e a peça ainda "Em Impressão" — só falta mandar.
+    expect(m.fraseDoBotaoDeImpressas(10, 10, 10)).toMatchObject({ rotulo: "Mandar para acabamento", pode: true });
   });
 
   it("o rótulo curto da linha: 'Impressas' enquanto falta, 'Mandar p/ acabamento' no teto", () => {
@@ -267,6 +269,40 @@ describe("o modal de impressão com a peça FORA da máquina", () => {
     expect(iniciar().disabled).toBe(false);
     expect(iniciar().textContent).toBe("Iniciar impressão na Impressora 4 (Targa Elite)");
     expect($('[role="dialog"]')!.textContent).toContain("Escolha a impressora e inicie a impressão");
+  });
+});
+
+describe("o modal com a peça EM impressão mas SEM impressora anotada (legado)", () => {
+  it("nasce com o painel de impressora aberto; 'Confirmar impressora' grava início; impressas travadas até lá", async () => {
+    prepararJsdom(1280);
+    const { ModalImpressao } = await import("@/components/grafica/modal-impressao");
+    const { queryClient } = await import("@/lib/queryClient");
+    const item = { id: "p7", displayId: "#0107", type: "Placa", status: "inProduction", quantity: 10, quantityProduced: 2, reuseQty: 0, printMachine: null, event: { name: "Meia do Rio" } };
+    await act(async () => { render(h(QueryClientProvider, { client: queryClient } as any, h(ModalImpressao as any, { item, onFechar: () => {} }))); });
+    await tick(30);
+    expect($('[data-testid="form-impressao"]')!.getAttribute("data-etapa")).toBe("impressas");
+    expect($('[data-testid="painel-troca"]')).toBeTruthy();
+    expect($('[data-testid="button-trocar-maquina"]')).toBeNull();
+    expect($('[data-testid="onde-esta"]')!.textContent).toContain("impressora não anotada");
+    const confirmar = () => $('[data-testid="button-iniciar-impressao"]') as HTMLButtonElement;
+    expect(confirmar().textContent).toBe("Confirmar impressora");
+    expect(confirmar().disabled).toBe(true);
+    await act(async () => { fireEvent.click($('[data-testid="maquina-2"]')!); });
+    expect(confirmar().textContent).toBe("Confirmar Impressora 2");
+    expect(confirmar().disabled).toBe(false);
+    // Informar impressas fica travado, com aviso, até a impressora existir.
+    const salvar = $('[data-testid="button-confirm-production"]') as HTMLButtonElement;
+    const campo = $('[data-testid="input-quantity-produced"]') as HTMLInputElement;
+    await act(async () => { fireEvent.change(campo, { target: { value: "5" } }); });
+    expect(salvar.disabled).toBe(true);
+    expect($('[data-testid="aviso-quantidade"]')!.textContent).toBe("Escolha a impressora antes de informar as impressas.");
+    // O gesto grava "inicio" (não "troca"): a mutation sai com trocando=false.
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ ...item, printMachine: "2" }), { status: 200, headers: { "content-type": "application/json" } }));
+    vi.stubGlobal("fetch", fetchMock);
+    await act(async () => { fireEvent.click(confirmar()); });
+    await tick(30);
+    expect(String((fetchMock.mock.calls[0] as any)[0])).toBe("/api/items/p7/start-printing");
+    expect(JSON.parse(String((fetchMock.mock.calls[0] as any)[1].body))).toEqual({ printMachine: "2" });
   });
 });
 

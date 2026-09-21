@@ -307,6 +307,9 @@ export function useWebSocket() {
             // Prefixos cobrem as chaves por id — invalidá-las separadamente
             // dobrava (e cancelava no meio) os refetches em voo.
             invalidateCoalesced('/api/items');
+            // A aba Máquinas também: editar quantidade, cancelar ou devolver uma
+            // peça em impressão muda o que ela mostra.
+            invalidateCoalesced('/api/grafica/maquinas');
             // O casamento de chave do TanStack é por PREFIXO elemento a
             // elemento: '/api/items' NÃO alcança '/api/items/approved'. Este é
             // o broadcast de /confer, /mark-reuse e /correct-reuse — as três

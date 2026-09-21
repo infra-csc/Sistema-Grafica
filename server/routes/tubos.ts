@@ -64,6 +64,9 @@ const COLUNAS_PECA = {
   status: itemsTable.status,
   conferredQty: itemsTable.conferredQty,
   deliveredQty: itemsTable.deliveredQty,
+  // Reaproveitamento: a etiqueta do tubo liga o "REAPROVEITAR" sozinha.
+  isReuse: itemsTable.isReuse,
+  reuseQty: itemsTable.reuseQty,
   tuboId: itemsTable.tuboId,
   eventId: itemsTable.eventId,
   deletedAt: itemsTable.deletedAt,
@@ -81,6 +84,8 @@ type PecaCrua = {
   status: string;
   conferredQty: number | null;
   deliveredQty: number | null;
+  isReuse?: boolean | null;
+  reuseQty?: number | null;
   tuboId: string | null;
   eventId: string;
   deletedAt: Date | null;
@@ -167,6 +172,8 @@ const pecaParaTela = (p: PecaCrua) => ({
   entregue: ehEntregue(p),
   // A tela esconde a caixa e o "Entregar" de quem só visualiza peça do Kit.
   doKit: !!p.kitRemessaId,
+  isReuse: !!p.isReuse,
+  reuseQty: p.reuseQty ?? 0,
 });
 
 const porCodigo = (a: PecaCrua, b: PecaCrua) =>

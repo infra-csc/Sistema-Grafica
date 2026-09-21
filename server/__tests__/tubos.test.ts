@@ -391,19 +391,23 @@ describe("a etiqueta do tubo", () => {
 
   it("imprime o evento e o número do tubo em destaque, e a lista do que está dentro", () => {
     const src = ler(PAGINA);
-    expect(src).toContain("TUBO {data.tubo.numero}");
+    // 21/09 (2ª rodada): o desenho mora no componente compartilhado com as
+    // listas do evento; a página monta as páginas e manda imprimir.
+    expect(ler("client/src/components/etiqueta-lista.tsx")).toContain("TUBO {props.tubo}");
+    expect(src).toContain("tubo={data?.tubo.numero ?? null}");
     expect(src).toContain("window.print()");
     // 21/09 (dono): o formato da etiqueta que o galpão já cola no rolo — logo
     // do book (ou prefixo do nome) e a cidade gigante no topo, uma linha por
     // peça, SEM arte e sem código.
     expect(src).toContain("logoDaCapaDoBook(bookUrl)");
-    expect(src).toContain("{linhaDaEtiquetaDoTubo(p)}");
+    expect(src).toContain("<EtiquetaEmLista");
     expect(src).not.toContain("displayId}</");
     expect(src).not.toContain("miniatura");
   });
 
   it("a linha da peça é 'tipo descrição - quantidade', sem repetir o tipo", async () => {
-    const { linhaDaEtiquetaDoTubo } = await import("../../client/src/pages/etiqueta-tubo");
+    // A regra saiu da página: um lugar só, o mesmo das listas do evento.
+    const { linhaDaLista: linhaDaEtiquetaDoTubo } = await import("../../client/src/lib/etiqueta-lista");
     expect(linhaDaEtiquetaDoTubo({ type: "2x1", description: "Ministério", quantity: 16 })).toBe("2x1 Ministério - 16");
     expect(linhaDaEtiquetaDoTubo({ type: "2x1", description: "2x1 Logo Santander", quantity: 3 })).toBe("2x1 Logo Santander - 3");
     expect(linhaDaEtiquetaDoTubo({ type: "Pórtico", description: "", quantity: 1 })).toBe("Pórtico - 1");

@@ -1,8 +1,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // ETIQUETA DO TUBO (dono, 14/09) — para colar no tubo antes do caminhão.
 //
-// 21/09 (dono): a etiqueta segue o formato da que o galpão já cola no rolo —
-// o mesmo das "Folhas de LISTA dos 2x1" em etiquetas-evento.tsx:
+// 21/09 (dono): a etiqueta segue o formato da que o galpão já cola no rolo:
 //   · cabeçalho CENTRALIZADO: o logo do book, se houver; senão, o prefixo do
 //     nome do evento. Embaixo, a palavra GIGANTE (a cidade), que se lê de
 //     longe na pilha;
@@ -13,42 +12,60 @@
 // A entrega no fim é por tubo, "dos itens que estão juntos": a lista é o que o
 // recebedor confere na ponta sem abrir o tubo.
 //
-// O PDF é o do navegador (Imprimir → salvar como PDF), como nas etiquetas de
-// peça. A impressão esconde tudo que não é a folha pela visibilidade, e não
-// por display: assim a folha sai sozinha mesmo dentro da casca do app.
+// 21/09, 2ª rodada — o galpão parar de fazer etiqueta no Corel (1.669 peças
+// saíram com a etiqueta deles em setembro, 25 com a do app). A barra ganha as
+// escolhas que eles fazem à mão: com ou sem quantidade, o TAMANHO do papel
+// (adesivo 10×15 em pé é o padrão — é o que eles colam), CÓPIAS (colam dos
+// dois lados do tubo) e a segunda etiqueta "REAPROVEITAR". Lista que não cabe
+// numa etiqueta quebra em "Tubo 2 · 1 de 2". As regras (linha, tamanhos,
+// paginação, preferências) moram em lib/etiqueta-lista.ts, as mesmas das
+// listas das etiquetas do evento.
+//
+// O PDF é o do navegador (Imprimir → salvar como PDF). Na impressão as
+// etiquetas saem por um PORTAL no <body> e todo o resto some por display: com
+// VÁRIAS páginas, esconder por visibilidade deixava a casca do app (altura de
+// tela, rolagem própria) segurar o fluxo — a segunda etiqueta não paginava.
 // ─────────────────────────────────────────────────────────────────────────────
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useRoute } from "wouter";
 import { ArrowLeft, Printer } from "lucide-react";
 import { logoDaCapaDoBook } from "@/lib/logo-do-book";
-import { useIsMobile } from "@/hooks/use-mobile";
+import {
+  COPIAS_MAX, ORDEM_DOS_TAMANHOS, TAMANHOS, comCopias, gravarPreferencias, lerPreferencias, limitarCopias,
+  paginarLinhas, regraDaPagina, temReaproveitamento, type LinhaDaEtiqueta, type TamanhoEtiqueta,
+} from "@/lib/etiqueta-lista";
+import { CSS_DA_ETIQUETA_EM_LISTA, EtiquetaEmLista, EtiquetaReaproveitar } from "@/components/etiqueta-lista";
 
-type Peca = { id: string; displayId: string | null; type: string; description: string | null; quantity: number; conferida: boolean };
+// `isReuse`/`reuseQty`: HOJE o GET /api/tubos/:id não devolve nenhum dos dois —
+// ficam opcionais para o REAPROVEITAR ligar sozinho no dia em que a rota
+// mandar; até lá vale o interruptor manual.
+type Peca = { id: string; displayId: string | null; type: string; description: string | null; quantity: number; conferida: boolean; isReuse?: boolean | null; reuseQty?: number | null };
 type Resposta = {
   tubo: { id: string; numero: number; entregueEm: string | null; recebidoPor: string | null };
   evento: { id: string; name: string; truckDepartureDate: string | null; bookUrl?: string | null } | null;
   pecas: Peca[];
 };
 
-/**
- * "2x1 Ministério - 16". A descrição que já começa pelo tipo ("2x1 Logo
- * Santander") não repete o tipo. MESMA regra de `linhaDaLista` em
- * etiquetas-evento.tsx (que chega à main no próximo merge da producao) —
- * quando os dois estiverem juntos, vale extrair para um lugar só.
- */
-export const linhaDaEtiquetaDoTubo = (p: { type?: string | null; description?: string | null; quantity?: number | null }) => {
-  const tipo = String(p.type ?? "").trim();
-  const desc = String(p.description ?? "").trim();
-  const nome = !desc ? tipo : desc.toLowerCase().startsWith(tipo.toLowerCase()) ? desc : `${tipo} ${desc}`;
-  return `${nome} - ${p.quantity ?? 1}`;
-};
+type Pagina = { tipo: "lista"; linhas: LinhaDaEtiqueta<Peca>[]; n: number; total: number } | { tipo: "reaproveitar" };
 
 export default function EtiquetaTubo() {
   const [, params] = useRoute("/grafica/tubos/:id/etiqueta");
   const id = params?.id;
-  const isMobile = useIsMobile();
   const { data, isLoading, isError } = useQuery<Resposta>({ queryKey: [`/api/tubos/${id}`], enabled: !!id });
+
+  // PREFERÊNCIAS lembradas por navegador (o computador do galpão imprime
+  // sempre no mesmo papel): lidas uma vez, gravadas a cada mudança.
+  const [prefs, setPrefs] = useState(lerPreferencias);
+  useEffect(() => { gravarPreferencias(prefs); }, [prefs]);
+  const { mostrarQuantidade, tamanho, copias } = prefs;
+
+  // REAPROVEITAR: null = "ainda não mexi" → segue o que as peças dizem. Não é
+  // preferência lembrada: depende do TUBO, não do computador.
+  const [reaproveitarManual, setReaproveitarManual] = useState<boolean | null>(null);
+  const temReuso = useMemo(() => temReaproveitamento(data?.pecas ?? []), [data]);
+  const reaproveitar = reaproveitarManual ?? temReuso;
 
   // O LOGO vem da capa do book do evento, como na etiqueta das peças. Sem book
   // (ou capa ilegível), o cabeçalho usa o prefixo do nome: o logo é enfeite,
@@ -77,93 +94,115 @@ export default function EtiquetaTubo() {
   const saida = data?.evento?.truckDepartureDate
     ? new Date(data.evento.truckDepartureDate).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", timeZone: "UTC" })
     : null;
-  const unidades = (data?.pecas ?? []).reduce((s, p) => s + (p.quantity || 0), 0);
-  const alvo = isMobile ? 44 : 38;
+
+  // AS PÁGINAS: a lista quebrada em etiquetas (+ REAPROVEITAR), o jogo inteiro
+  // repetido pelas cópias. No tubo a lista sai na ordem do código, SEM
+  // subtítulo de tipo: o tubo é pequeno e cada linha já começa pelo tipo.
+  const paginas = useMemo<Pagina[]>(() => {
+    if (!data) return [];
+    const medidas = TAMANHOS[tamanho];
+    const linhas = data.pecas.map((peca) => ({ tipo: "peca" as const, peca }));
+    const partes = paginarLinhas(linhas, { capacidade: medidas.linhasComTubo, letrasPorLinha: medidas.letrasPorLinha, mostrarQuantidade });
+    // Tubo vazio ainda imprime a etiqueta (evento + TUBO N): dá para colar antes de encher.
+    const listas: Pagina[] = (partes.length ? partes : [[]]).map((l, k, todas) => ({ tipo: "lista", linhas: l, n: k + 1, total: todas.length }));
+    return comCopias<Pagina>(reaproveitar ? [...listas, { tipo: "reaproveitar" }] : listas, copias);
+  }, [data, tamanho, mostrarQuantidade, reaproveitar, copias]);
+
+  const folha = (destino: "tela" | "papel") => paginas.map((pg, i) => {
+    const ultima = i === paginas.length - 1;
+    // data-testid só na cópia da TELA: a do papel é a mesma árvore repetida.
+    const tid = (s: string) => (destino === "tela" ? s : undefined);
+    return pg.tipo === "reaproveitar" ? (
+      <EtiquetaReaproveitar key={i} tamanho={tamanho} ultima={ultima} testid={tid(`etiqueta-reaproveitar-${i + 1}`)}
+        rodape={data ? `${gigante || nome} · Tubo ${data.tubo.numero}` : undefined} />
+    ) : (
+      <EtiquetaEmLista key={i} tamanho={tamanho} ultima={ultima} testid={tid(`etiqueta-tubo-${i + 1}`)}
+        testidDaLinha={destino === "tela" ? `linha-tubo-${i + 1}` : undefined}
+        logo={logo} prefixo={prefixo} gigante={gigante} saida={saida}
+        tubo={data?.tubo.numero ?? null}
+        contador={pg.total > 1 ? `Tubo ${data?.tubo.numero} · ${pg.n} de ${pg.total}` : null}
+        linhas={pg.linhas} mostrarQuantidade={mostrarQuantidade} vazio="Este tubo está vazio." />
+    );
+  });
+
+  const rotulo: React.CSSProperties = { display: "inline-flex", alignItems: "center", gap: 7, fontSize: 13, fontWeight: 600, color: "#44403c", cursor: "pointer" };
+  const campo: React.CSSProperties = { height: 38, borderRadius: 8, border: "1px solid #d6d3d1", padding: "0 10px", fontSize: 13, fontWeight: 700, color: "#1c1917", background: "#fff", fontFamily: "inherit" };
 
   return (
-    <div style={{ background: "#fafaf9", minHeight: "100%", padding: isMobile ? 12 : 24 }}>
+    <div style={{ background: "#fafaf9", minHeight: "100%" }}>
       <style>{`
+        ${CSS_DA_ETIQUETA_EM_LISTA}
+        .etq-impressao { display: none; }
+        @media screen and (pointer: coarse) {
+          .etq-alvo { min-height: 44px; }
+          .etq-acao input[type="text"], .etq-acao select { min-height: 44px; font-size: 16px !important; }
+        }
         @media print {
-          body * { visibility: hidden !important; }
-          .folha-do-tubo, .folha-do-tubo * { visibility: visible !important; }
-          .folha-do-tubo { position: absolute; left: 0; top: 0; width: 100%; box-shadow: none !important; margin: 0 !important; }
-          @page { size: A4 portrait; margin: 10mm; }
+          .etq-acao { display: none !important; }
+          /* Só o portal sai: a casca inteira (e a prévia da tela) some. */
+          body > *:not(.etq-impressao) { display: none !important; }
+          .etq-impressao { display: block !important; }
+          html, body { background: #fff !important; margin: 0 !important; padding: 0 !important; height: auto !important; overflow: visible !important; }
+          ${regraDaPagina(tamanho)}
         }
       `}</style>
 
-      <div className="nao-imprime" style={{ maxWidth: 820, margin: "0 auto 16px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-        <Link href="/grafica" style={{ display: "inline-flex", alignItems: "center", gap: 5, minHeight: isMobile ? 44 : undefined, fontSize: 12.5, fontWeight: 700, color: "#57534e", textDecoration: "none" }}>
+      <div className="etq-acao" style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", padding: "12px 16px", borderBottom: "1px solid #e7e5e4", backgroundColor: "#fafaf9" }}>
+        <Link href="/grafica" className="etq-alvo" style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 12.5, fontWeight: 700, color: "#57534e", textDecoration: "none" }}>
           <ArrowLeft aria-hidden="true" style={{ width: 14, height: 14 }} /> Fila da Gráfica
         </Link>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-          {data && (
-            <label style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 700, color: "#57534e" }}>
-              Destaque
-              <input
-                value={destaque ?? palavraFinal}
-                onChange={(e) => setDestaque(e.target.value)}
-                data-testid="input-destaque-tubo"
-                aria-label="Palavra em destaque na etiqueta (a cidade)"
-                style={{ height: alvo, width: 150, borderRadius: 8, border: "1px solid #d6d3d1", padding: "0 10px", fontSize: isMobile ? 16 : 13, fontWeight: 700, color: "#1c1917", background: "#fff" }}
-              />
+        {data && (
+          <>
+            <label className="etq-alvo" style={rotulo} title='Ligado: "2x1 Ministério - 16". Desligado: só "2x1 Ministério".'>
+              <input type="checkbox" checked={mostrarQuantidade} onChange={(e) => setPrefs((p) => ({ ...p, mostrarQuantidade: e.target.checked }))} data-testid="check-mostrar-quantidade" style={{ width: 16, height: 16, accentColor: "#c2410c" }} />
+              Mostrar quantidade
             </label>
-          )}
-          <button type="button" onClick={() => window.print()} disabled={!data} data-testid="imprimir-etiqueta-tubo"
-            style={{ display: "inline-flex", alignItems: "center", gap: 7, height: alvo, padding: "0 16px", borderRadius: 8, border: "none", background: "#1c1917", color: "#fff", fontWeight: 800, fontSize: 13, cursor: data ? "pointer" : "not-allowed", opacity: data ? 1 : 0.5 }}>
-            <Printer aria-hidden="true" style={{ width: 15, height: 15 }} /> Imprimir etiqueta
-          </button>
-        </div>
+            <label className="etq-alvo" style={{ ...rotulo, cursor: "default" }}>
+              Tamanho
+              <select value={tamanho} onChange={(e) => setPrefs((p) => ({ ...p, tamanho: e.target.value as TamanhoEtiqueta }))} data-testid="select-tamanho-etiqueta" style={campo}>
+                {ORDEM_DOS_TAMANHOS.map((t) => <option key={t} value={t}>{TAMANHOS[t].rotulo}</option>)}
+              </select>
+            </label>
+            <label className="etq-alvo" style={{ ...rotulo, cursor: "default" }} title="Quantas vezes o jogo de etiquetas sai — colam dos dois lados do tubo.">
+              Cópias
+              <select value={copias} onChange={(e) => setPrefs((p) => ({ ...p, copias: limitarCopias(e.target.value) }))} data-testid="select-copias-etiqueta" style={campo}>
+                {Array.from({ length: COPIAS_MAX }, (_, k) => k + 1).map((n) => <option key={n} value={n}>{n}</option>)}
+              </select>
+            </label>
+            <label className="etq-alvo" style={rotulo} title="Sai uma etiqueta extra, do mesmo tamanho, com REAPROVEITAR em pé — para tubo com material de reuso.">
+              <input type="checkbox" checked={reaproveitar} onChange={(e) => setReaproveitarManual(e.target.checked)} data-testid="check-reaproveitar" style={{ width: 16, height: 16, accentColor: "#c2410c" }} />
+              Imprimir etiqueta REAPROVEITAR
+            </label>
+            <label className="etq-alvo" style={{ ...rotulo, cursor: "default" }}>
+              Destaque
+              <input type="text" value={destaque ?? palavraFinal} onChange={(e) => setDestaque(e.target.value)} data-testid="input-destaque-tubo"
+                aria-label="Palavra em destaque na etiqueta (a cidade)" style={{ ...campo, width: 150 }} />
+            </label>
+          </>
+        )}
+        <span style={{ flex: 1 }} />
+        {data && (
+          <span data-testid="contagem-etiquetas-tubo" style={{ fontSize: 12.5, fontWeight: 700, color: "#57534e" }}>
+            {paginas.length} {paginas.length === 1 ? "etiqueta" : "etiquetas"}
+          </span>
+        )}
+        <button type="button" onClick={() => window.print()} disabled={!data} data-testid="imprimir-etiqueta-tubo" className="etq-alvo"
+          style={{ display: "inline-flex", alignItems: "center", gap: 7, height: 38, padding: "0 16px", borderRadius: 8, border: "none", background: data ? "#1c1917" : "#e7e5e4", color: data ? "#fff" : "#57534e", fontWeight: 800, fontSize: 13, cursor: data ? "pointer" : "not-allowed" }}>
+          <Printer aria-hidden="true" style={{ width: 15, height: 15 }} /> Imprimir etiqueta
+        </button>
       </div>
 
-      {isLoading && <p style={{ textAlign: "center", color: "#78716c", fontSize: 13 }}>Carregando o tubo…</p>}
-      {isError && <p style={{ textAlign: "center", color: "#b91c1c", fontSize: 13 }}>Não foi possível carregar o tubo.</p>}
+      {isLoading && <p role="status" style={{ textAlign: "center", color: "#57534e", fontSize: 13, padding: 24 }}>Carregando o tubo…</p>}
+      {isError && <p style={{ textAlign: "center", color: "#b91c1c", fontSize: 13, padding: 24 }}>Não foi possível carregar o tubo.</p>}
 
+      {/* A PRÉVIA: a etiqueta no tamanho real (mm). A4 é mais larga que o
+          celular — rola AQUI dentro, a página nunca ganha rolagem lateral. */}
       {data && (
-        <div className="folha-do-tubo" data-testid="folha-do-tubo" style={{ maxWidth: 820, margin: "0 auto", background: "#fff", border: "3px solid #1c1917", borderRadius: 6, padding: isMobile ? "18px 16px" : "24px 32px", boxShadow: "0 8px 24px rgba(0,0,0,0.08)", boxSizing: "border-box" }}>
-          <div style={{ borderBottom: "3px solid #1c1917", paddingBottom: 10, textAlign: "center" }}>
-            <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12 }}>
-              <p style={{ margin: 0, fontSize: 12, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "#78716c" }}>
-                {saida ? `Saída ${saida}` : " "}
-              </p>
-              <p style={{ margin: 0, fontSize: 12, fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase", color: "#57534e" }}>
-                {data.pecas.length} {data.pecas.length === 1 ? "peça" : "peças"} · {unidades} un.
-              </p>
-            </div>
-            {logo && (
-              <img loading="lazy" decoding="async" src={logo} alt="Logo do evento"
-                style={{ maxHeight: 64, maxWidth: "45%", objectFit: "contain", display: "block", margin: "4px auto 2px" }} />
-            )}
-            {!logo && gigante && prefixo && (
-              <p style={{ margin: "2px 0 0", fontFamily: "'Space Grotesk', sans-serif", fontWeight: 800, fontSize: "clamp(15px, 1.8vw, 22px)", textTransform: "uppercase", color: "#1c1917", lineHeight: 1.1 }}>
-                {prefixo}
-              </p>
-            )}
-            <p style={{ margin: "2px 0 0", fontFamily: "'Space Grotesk', sans-serif", fontWeight: 900, textTransform: "uppercase", letterSpacing: "-0.02em", color: "#1c1917", lineHeight: 0.95, fontSize: "clamp(36px, 5.2vw, 64px)", overflowWrap: "anywhere" }}>
-              {gigante || nome || "Evento"}
-            </p>
-          </div>
-
-          {/* O NÚMERO DO TUBO — o maior texto da folha depois da cidade: entre
-              os tubos do mesmo evento, é ele que diz qual é qual. */}
-          <div style={{ textAlign: "center", borderBottom: "3px solid #1c1917", padding: "6px 0 8px" }}>
-            <span data-testid="numero-do-tubo" style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: "clamp(56px, 9vw, 96px)", fontWeight: 900, lineHeight: 1, color: "#1c1917" }}>
-              TUBO {data.tubo.numero}
-            </span>
-          </div>
-
-          {data.pecas.length === 0 ? (
-            <p style={{ fontSize: 14, color: "#57534e", textAlign: "center" }}>Este tubo está vazio.</p>
-          ) : (
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", paddingTop: 10, gap: 2 }}>
-              {data.pecas.map((p) => (
-                <p key={p.id} data-testid={`linha-tubo-${p.id}`} style={{ margin: 0, maxWidth: "100%", fontFamily: "'Space Grotesk', sans-serif", fontSize: 20, fontWeight: 800, lineHeight: 1.25, color: "#1c1917", textAlign: "center", overflowWrap: "anywhere" }}>
-                  {linhaDaEtiquetaDoTubo(p)}
-                </p>
-              ))}
-            </div>
-          )}
+        <div className="folha-do-tubo" data-testid="folha-do-tubo" style={{ padding: "18px 12px 48px", overflowX: "auto" }}>
+          {folha("tela")}
         </div>
       )}
+      {data && typeof document !== "undefined" && createPortal(<div className="etq-impressao" aria-hidden="true">{folha("papel")}</div>, document.body)}
     </div>
   );
 }

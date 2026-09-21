@@ -198,17 +198,19 @@ describe("registro de impressão, filtro por tipo e uma por unidade (25/08)", ()
     expect(PAGINA).toContain("if (q === 1) return [{ p, n: 0, total: 0 }];");
     // com o interruptor ligado a barra mostra as DUAS contas: é a folha que
     // vai para a impressora, mas a peça é o que o galpão conhece
-    expect(PAGINA).toContain("{porUnidade && <> · {pecas.length} peça");
+    // 21/09: conta as peças que SAEM ("O que sai" pode deixar as listas de fora)
+    expect(PAGINA).toContain("{porUnidade && <> · {pecasIndividuais.length + pecasDaLista.length} peça");
   });
 
   it("nada do que é novo vaza para o papel", () => {
-    // tudo novo vive nos dois blocos .etq-acao (barra e faixa de seleção),
+    // tudo novo vive nos blocos .etq-acao (barra, faixa de seleção e, desde
+    // 21/09, a faixa "Em lista"),
     // que o print esconde — e aparece ANTES das folhas no arquivo
     expect(PAGINA).toContain(".etq-acao { display: none !important; }");
-    expect(PAGINA.split('className="etq-acao"').length - 1).toBe(2);
+    expect(PAGINA.split('className="etq-acao"').length - 1).toBe(3);
     const inicioFolhas = PAGINA.indexOf("── Folhas");
     expect(inicioFolhas).toBeGreaterThan(-1);
-    for (const marca of ['data-testid="check-por-unidade"', "filtro-tipo-todos", "selo-impressa-", 'data-testid="selecao-so-novas"']) {
+    for (const marca of ['data-testid="check-por-unidade"', "filtro-tipo-todos", "selo-impressa-", 'data-testid="selecao-so-novas"', 'data-testid="faixa-em-lista"', 'data-testid="select-tamanho-lista"']) {
       expect(PAGINA.indexOf(marca)).toBeGreaterThan(-1);
       expect(PAGINA.indexOf(marca)).toBeLessThan(inicioFolhas);
     }
@@ -218,21 +220,16 @@ describe("registro de impressão, filtro por tipo e uma por unidade (25/08)", ()
 
 
 
-describe("2x1 sai em lista (21/09)", () => {
-  it("peças 2x1 vão para folhas de lista, uma linha por peça, sem arte nem código", () => {
-    expect(PAGINA).toContain("const ehDoisPorUm = ");
-    expect(PAGINA).toContain('data-testid="check-2x1-lista"');
-    expect(PAGINA).toContain("data-testid={`lista-2x1-linha-${p.id}`}");
-    // "2x1 Ministério - 16": tipo, descrição e quantidade
-    expect(PAGINA).toContain("return `${nome} - ${p.quantity ?? 1}`;");
-  });
-
-  it("aceita as grafias das planilhas e não confunde 2x10", () => {
-    const fonte = /const ehDoisPorUm = \(p: any\) => (\/.+\/i)\.test/.exec(PAGINA)?.[1];
-    expect(fonte).toBeTruthy();
-    const re = eval(fonte!) as RegExp;
-    for (const t of ["2x1", "2X1", "2×1", "2 x 1", "2x1 MBRF"]) expect(re.test(t)).toBe(true);
-    for (const t of ["2x10", "Rolo", "12x1", "Stand"]) expect(re.test(t)).toBe(false);
+// 21/09 (2ª rodada): "2x1 em lista" virou "Em lista" com escolha de tipos; a
+// regra da linha e o 2x1 foram para lib/etiqueta-lista.ts. O comportamento
+// (tipos, tamanhos, quantidade, registro) é testado em etiqueta-lista.test.ts.
+describe("em lista (21/09)", () => {
+  it("os tipos escolhidos vão para listas, uma linha por peça, sem arte nem código", () => {
+    expect(PAGINA).toContain('data-testid="check-em-lista"');
+    expect(PAGINA).toContain("<EtiquetaEmLista");
+    expect(PAGINA).toContain('testidDaLinha="lista-linha"');
+    // o padrão continua sendo o 2x1
+    expect(PAGINA).toContain("filter((t) => ehDoisPorUm({ type: t }))");
   });
 
   it("a lista ocupa folha inteira e entra na conta de folhas", () => {

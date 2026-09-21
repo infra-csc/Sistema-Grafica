@@ -35,9 +35,13 @@ const soCodigo = (fonte: string) => fonte
   .replace(/^[ \t]*\/\/.*$/gm, "");
 
 describe("1. a estrutura do menu não mudou", () => {
-  it("continuam 24 itens — incluindo as três ações administrativas declaradas", () => {
-    // VINTE E QUATRO. Aos 21 já documentados foram somadas três ações admin:
-    // Notificações, Reparar vínculos e Inferir executivos.
+  it("continuam 24 itens — incluindo ações administrativas e páginas novas", () => {
+    // VINTE E UM. Eram 19 quando este teste nasceu (o prompt do refino dizia 18);
+    // o vigésimo é "Correção de textos", a tela de reparo dos motivos, que
+    // entrou depois; o vigésimo primeiro é "Versões aprovadas" (21/08/2026).
+    // O vigésimo terceiro é "Solicitação de peças", a caixa da Solicitação (14/09).
+    // As ações administrativas incluem Notificações, Reparar vínculos e Inferir
+    // executivos; o vigésimo quarto é "Máquinas da Gráfica".
     // O teste existe para a mudança ser DECLARADA, não impedida.
     const itens = (sidebar.match(/\{ title: "/g) ?? []).length;
     expect(itens).toBe(24);
@@ -68,7 +72,8 @@ describe("2. os 18 itens cabem sem serem esmagados", () => {
 
   it("o rótulo mais longo do menu trunca com title", () => {
     // "Vincular Patrocinadores" era o único que podia encostar na borda.
-    expect(codigo).toContain('<span title={item.title}');
+    // 16/09: o title passou a dizer também PARA QUE SERVE a tela.
+    expect(codigo).toContain("<span title={DESCRICAO_DA_TELA[item.url] ? `${item.title} — ${DESCRICAO_DA_TELA[item.url]}` : item.title}");
   });
 });
 

@@ -114,6 +114,10 @@ const plural = (n: number, um: string, varios: string) => `${n} ${n === 1 ? um :
 
 export default function GraficaMaquinas() {
   const isMobile = useIsMobile();
+  // Padrão da Gráfica nova no celular: alvo de toque de 44px e letra ≥ 12px
+  // (a tela é painel de galpão, muitas vezes aberta no telefone).
+  const alvo = isMobile ? 44 : 34;
+  const fsMin = (n: number) => (isMobile ? Math.max(12, n) : n);
   // null = "hoje" segundo o servidor (o fuso da operação é dele, não do navegador).
   const [diaEscolhido, setDiaEscolhido] = useState<string | null>(null);
 
@@ -137,7 +141,7 @@ export default function GraficaMaquinas() {
 
         {/* ── Cabeçalho ── */}
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          <Link href="/grafica" data-testid="link-voltar-fila" style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 12, fontWeight: 700, color: COR.sec, textDecoration: "none", width: "fit-content" }}>
+          <Link href="/grafica" data-testid="link-voltar-fila" style={{ display: "inline-flex", alignItems: "center", gap: 5, minHeight: isMobile ? 44 : undefined, fontSize: 12, fontWeight: 700, color: COR.sec, textDecoration: "none", width: "fit-content" }}>
             <ArrowLeft aria-hidden="true" style={{ width: 13, height: 13 }} /> Fila da Gráfica
           </Link>
           <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
@@ -146,7 +150,7 @@ export default function GraficaMaquinas() {
               Máquinas
             </h1>
             {data && (
-              <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11, color: COR.fraco }}>
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: fsMin(11), color: COR.fraco }}>
                 {isFetching && <RotateCcw aria-hidden="true" className="animate-spin" style={{ width: 11, height: 11 }} />}
                 Atualiza sozinha a cada minuto
               </span>
@@ -162,7 +166,7 @@ export default function GraficaMaquinas() {
         {isError && (
           <div data-testid="maquinas-erro" style={{ padding: "14px 16px", borderRadius: 10, background: "#fef2f2", border: "1px solid #fecaca", color: "#b91c1c", fontSize: 13, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
             Não foi possível carregar as máquinas. Confira a conexão e tente de novo.
-            <button onClick={() => refetch()} style={{ border: "none", borderRadius: 8, background: "#b91c1c", color: "#fff", fontWeight: 700, fontSize: 12, padding: "8px 14px", cursor: "pointer" }}>
+            <button onClick={() => refetch()} style={{ minHeight: alvo, border: "none", borderRadius: 8, background: "#b91c1c", color: "#fff", fontWeight: 700, fontSize: 12, padding: "0 14px", cursor: "pointer" }}>
               Tentar novamente
             </button>
           </div>
@@ -202,7 +206,7 @@ export default function GraficaMaquinas() {
                     <div key={m.codigo} data-testid={`maquina-agora-${m.codigo}`} style={{ background: COR.card, border: `1px solid ${COR.borda}`, borderRadius: 12, padding: 14, display: "flex", flexDirection: "column", gap: 10 }}>
                       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
                         <span style={{ ...TITULO, fontSize: 17 }}>{m.rotulo}</span>
-                        <span style={{ fontSize: 11, fontWeight: 800, padding: "3px 9px", borderRadius: 999, whiteSpace: "nowrap", color: ocupada ? COR.ativo : COR.livre, background: ocupada ? COR.ativoBg : COR.livreBg, border: `1px solid ${ocupada ? COR.ativoBorda : COR.livreBorda}` }}>
+                        <span style={{ fontSize: fsMin(11), fontWeight: 800, padding: "3px 9px", borderRadius: 999, whiteSpace: "nowrap", color: ocupada ? COR.ativo : COR.livre, background: ocupada ? COR.ativoBg : COR.livreBg, border: `1px solid ${ocupada ? COR.ativoBorda : COR.livreBorda}` }}>
                           {ocupada ? `Imprimindo ${m.imprimindo.length}` : "Livre"}
                         </span>
                       </div>
@@ -228,7 +232,7 @@ export default function GraficaMaquinas() {
                             <div aria-hidden="true" style={{ height: 6, borderRadius: 999, background: "#f5f5f4", marginTop: 8, overflow: "hidden" }}>
                               <div style={{ width: `${pct}%`, height: "100%", background: COR.laranja, borderRadius: 999 }} />
                             </div>
-                            <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginTop: 5, fontSize: 11.5, color: COR.sec }}>
+                            <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginTop: 5, fontSize: fsMin(11.5), color: COR.sec }}>
                               <span style={{ fontVariantNumeric: "tabular-nums" }}>{p.impressas} de {p.aImprimir} impressas</span>
                               {desde && <span style={{ color: COR.fraco }}>{desde}</span>}
                             </div>
@@ -253,11 +257,11 @@ export default function GraficaMaquinas() {
 
                 {dia && hoje && (
                   <div role="group" aria-label="Escolher o dia" data-testid="navegar-dia" style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                    <button type="button" onClick={() => irPara(somarDias(dia, -1))} aria-label="Dia anterior" data-testid="dia-anterior" style={{ height: 34, width: 34, borderRadius: 8, border: `1px solid ${COR.borda}`, background: COR.card, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <button type="button" onClick={() => irPara(somarDias(dia, -1))} aria-label="Dia anterior" data-testid="dia-anterior" style={{ height: alvo, width: alvo, borderRadius: 8, border: `1px solid ${COR.borda}`, background: COR.card, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
                       <ChevronLeft aria-hidden="true" style={{ width: 15, height: 15 }} />
                     </button>
                     <span style={{ minWidth: 92, textAlign: "center", fontSize: 13, fontWeight: 700, color: COR.texto }}>{rotuloDoDia(dia, hoje)}</span>
-                    <button type="button" onClick={() => irPara(somarDias(dia, 1))} disabled={ehHoje} aria-label="Próximo dia" data-testid="dia-seguinte" style={{ height: 34, width: 34, borderRadius: 8, border: `1px solid ${COR.borda}`, background: COR.card, cursor: ehHoje ? "not-allowed" : "pointer", opacity: ehHoje ? 0.4 : 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <button type="button" onClick={() => irPara(somarDias(dia, 1))} disabled={ehHoje} aria-label="Próximo dia" data-testid="dia-seguinte" style={{ height: alvo, width: alvo, borderRadius: 8, border: `1px solid ${COR.borda}`, background: COR.card, cursor: ehHoje ? "not-allowed" : "pointer", opacity: ehHoje ? 0.4 : 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
                       <ChevronRight aria-hidden="true" style={{ width: 15, height: 15 }} />
                     </button>
                     <input
@@ -267,10 +271,10 @@ export default function GraficaMaquinas() {
                       onChange={(e) => { if (e.target.value) irPara(e.target.value); }}
                       aria-label="Ir para uma data"
                       data-testid="escolher-data"
-                      style={{ height: 34, borderRadius: 8, border: `1px solid ${COR.borda}`, background: COR.card, padding: "0 8px", fontSize: 12.5, color: COR.texto }}
+                      style={{ height: alvo, borderRadius: 8, border: `1px solid ${COR.borda}`, background: COR.card, padding: "0 8px", fontSize: isMobile ? 16 : 12.5, color: COR.texto }}
                     />
                     {!ehHoje && (
-                      <button type="button" onClick={() => setDiaEscolhido(null)} data-testid="dia-hoje" style={{ height: 34, padding: "0 12px", borderRadius: 8, border: "none", background: COR.texto, color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+                      <button type="button" onClick={() => setDiaEscolhido(null)} data-testid="dia-hoje" style={{ height: alvo, padding: "0 12px", borderRadius: 8, border: "none", background: COR.texto, color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
                         Hoje
                       </button>
                     )}
@@ -296,7 +300,7 @@ export default function GraficaMaquinas() {
                           <thead>
                             <tr style={{ textAlign: "left", color: COR.fraco }}>
                               {["Hora", "Peça", "Evento", "O que", "Total", "Quem"].map((h) => (
-                                <th key={h} scope="col" style={{ padding: "8px 14px", fontSize: 10.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", whiteSpace: "nowrap" }}>{h}</th>
+                                <th key={h} scope="col" style={{ padding: "8px 14px", fontSize: fsMin(10.5), fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", whiteSpace: "nowrap" }}>{h}</th>
                               ))}
                             </tr>
                           </thead>
@@ -326,7 +330,7 @@ export default function GraficaMaquinas() {
                 ))}
               </div>
 
-              <p data-testid="nota-inicio-historico" style={{ margin: 0, fontSize: 11.5, color: COR.fraco }}>
+              <p data-testid="nota-inicio-historico" style={{ margin: 0, fontSize: fsMin(11.5), color: COR.fraco }}>
                 O histórico por máquina começa em 14/09/2026: antes disso a impressão não anotava em qual máquina a peça saiu.
               </p>
             </section>

@@ -86,7 +86,7 @@ describe("o percentual nos cards", () => {
     // A primeira tentativa usou #8c8580 para o percentual ficar subordinado —
     // 3,63:1 em 10px, reprova AA. Enfraquecer contraste para criar hierarquia
     // troca um problema de design por um de acesso.
-    const i = painel.indexOf("{pct < 1 ? \"<1\" : Math.round(pct)}% do total");
+    const i = painel.indexOf("{pct < 1 ? \"<1\" : Math.round(pct)}%");
     const bloco = painel.slice(i - 300, i);
     expect(bloco).toContain('"#746e69"');
     expect(bloco).toContain("fontWeight: 600");

@@ -127,6 +127,28 @@ export interface ComplementFields {
   complementRequestedAt: Date;
 }
 
+/**
+ * Projeções MAGRAS de `items` (auditoria de performance, 17/09).
+ *
+ * PORQUÊ: `select()` sem colunas traz as ~66 colunas da peça (URLs, notas,
+ * motivos…). Com 5 mil peças isso são megabytes que o driver serverless
+ * decodifica linha a linha NA THREAD PRINCIPAL — e enquanto decodifica, toda
+ * outra requisição do processo espera. As rotas abaixo só leem meia dúzia de
+ * campos; cada projeção lista exatamente o que o consumidor lê, e nada mais.
+ * Se um consumidor passar a ler um campo novo, o tsc acusa (o tipo é um Pick).
+ */
+export type ItemParaUsoDeModelo = Pick<Item,
+  "deletedAt" | "standardItemId" | "createdAt" | "type" | "material" | "fileWidth" | "fileHeight">;
+
+/** O que a Gestão de Prazos lê da peça: DomainItem + recorte do Kit + evento. */
+export type ItemParaPrazo = Pick<Item,
+  | "id" | "eventId" | "displayId" | "status" | "type" | "description" | "quantity"
+  | "skipApproval" | "updatedAt" | "createdAt" | "statusChangedAt"
+  | "kitRemessaId" | "criadoPorId">;
+
+/** Aprovação reduzida ao que o enriquecimento de peças usa para colorir os chips. */
+export type AprovacaoResumida = Pick<ItemSponsorApproval, "itemId" | "sponsorId" | "status">;
+
 /** Resumo de complemento devolvido no enriquecimento das listagens. */
 export interface ComplementSummary {
   id: string;
@@ -310,6 +332,7 @@ export interface IStorage {
   // Items
   getItem(id: string): Promise<Item | undefined>;
   getAllItems(): Promise<Item[]>;
+  getItemsByStatuses(statuses: string[]): Promise<Item[]>;
   getDeletedItems(): Promise<Item[]>;
   getItemsByEvent(eventId: string): Promise<Item[]>;
   getItemsByEvents(eventIds: string[]): Promise<Item[]>;
@@ -344,6 +367,11 @@ export interface IStorage {
   createCatalogOption(option: InsertCatalogOption): Promise<CatalogOption>;
   deleteCatalogOption(kind: string, value: string): Promise<boolean>;
   getItemsSlimForEvents(): Promise<Array<{ id: string; eventId: string; status: string; skipApproval: boolean }>>;
+  getItemsDoKitDoCriador(userId: string | null): Promise<Item[]>;
+  getIdsDasPecasDoKitDoCriador(userId: string | null): Promise<string[]>;
+  getItemsParaUsoDeModelos(): Promise<ItemParaUsoDeModelo[]>;
+  getItemsParaPrazos(eventIds: string[]): Promise<ItemParaPrazo[]>;
+  getAllItemSponsorApprovalStatuses(): Promise<AprovacaoResumida[]>;
   getItemsChangedSince(since: Date): Promise<Item[]>;
   getEventsByIds(ids: string[]): Promise<Event[]>;
   getItemSponsorsByItemIds(itemIds: string[]): Promise<ItemSponsor[]>;
@@ -359,7 +387,7 @@ export interface IStorage {
   getUnreadNotifications(): Promise<Notification[]>;
   createNotification(notification: InsertNotification): Promise<Notification>;
   markNotificationAsRead(id: string): Promise<Notification | undefined>;
-  markAllNotificationsAsReadForRole(role: string | null): Promise<number>;
+  markAllNotificationsAsReadForRole(role: string | null, userId?: string | null): Promise<number>;
   
   // Production Updates
   getProductionUpdates(itemId: string): Promise<ProductionUpdate[]>;
@@ -580,6 +608,19 @@ export class DatabaseStorage implements IStorage {
 
   async getAllItems(): Promise<Item[]> {
     return await db.select().from(items).where(sql`${items.deletedAt} IS NULL`).orderBy(desc(items.createdAt));
+  }
+
+  // RECORTE POR STATUS (perf, 17/09): a Revisão Final pedia o acervo inteiro
+  // (5 mil peças) para mostrar as ~8 em "Aguardando Revisão Final". Mesmo
+  // WHERE e mesma ORDEM de getAllItems, só com o status filtrado no banco —
+  // a lista recortada sai na ordem em que a lista inteira a traria.
+  async getItemsByStatuses(statuses: string[]): Promise<Item[]> {
+    if (statuses.length === 0) return [];
+    return await db
+      .select()
+      .from(items)
+      .where(and(inArray(items.status, statuses), sql`${items.deletedAt} IS NULL`))
+      .orderBy(desc(items.createdAt));
   }
 
   async getItemsByEvent(eventId: string): Promise<Item[]> {
@@ -1329,16 +1370,20 @@ export class DatabaseStorage implements IStorage {
   // notificação (até 50 em paralelo). role null (admin) marca todas as não
   // lidas; papel específico marca só as visíveis a ele (targetRoles nulo ou
   // vazio = visível para todos, compat retroativa). Retorna quantas marcou.
-  async markAllNotificationsAsReadForRole(role: string | null): Promise<number> {
+  async markAllNotificationsAsReadForRole(role: string | null, userId: string | null = null): Promise<number> {
+    // Notificação individual de OUTRA pessoa não é marcada — senão o "Marcar
+    // todas" de um colega apagava o "seu pedido foi atendido" de quem pediu.
+    const doUsuario = sql`(${notifications.targetUserId} IS NULL OR ${notifications.targetUserId} = ${userId})`;
     const marked = await db
       .update(notifications)
       .set({ isRead: true })
       .where(
         role === null
-          ? eq(notifications.isRead, false)
+          ? and(eq(notifications.isRead, false), doUsuario)
           : and(
               eq(notifications.isRead, false),
               sql`(${notifications.targetRoles} IS NULL OR cardinality(${notifications.targetRoles}) = 0 OR ${role} = ANY(${notifications.targetRoles}))`,
+              doUsuario,
             ),
       )
       .returning({ id: notifications.id });
@@ -1586,6 +1631,84 @@ export class DatabaseStorage implements IStorage {
       })
       .from(items)
       .where(isNull(items.deletedAt));
+  }
+
+  // USUÁRIO DO KIT (perf 17/09): as rotas de eventos e de notificações
+  // carregavam o acervo INTEIRO (getAllItems, 66 colunas × 5 mil linhas) só
+  // para ficar com as poucas peças do Kit criadas por este usuário. O recorte
+  // agora acontece no banco. Resultado idêntico ao filtro em JS que substitui
+  // — `!!it.kitRemessaId && it.criadoPorId === userId` sobre as peças vivas,
+  // na mesma ordem (created_at desc):
+  //   · `!!kitRemessaId` também descarta string vazia → `<> ''`;
+  //   · `criadoPorId === null` casaria as peças SEM criador quando o userId
+  //     vem nulo → IS NULL, em vez de `= NULL` (que não casa nada).
+  private filtroKitDoCriador(userId: string | null) {
+    return and(
+      isNull(items.deletedAt),
+      sql`${items.kitRemessaId} IS NOT NULL AND ${items.kitRemessaId} <> ''`,
+      userId === null ? isNull(items.criadoPorId) : eq(items.criadoPorId, userId),
+    );
+  }
+
+  async getItemsDoKitDoCriador(userId: string | null): Promise<Item[]> {
+    return await db
+      .select()
+      .from(items)
+      .where(this.filtroKitDoCriador(userId))
+      .orderBy(desc(items.createdAt));
+  }
+
+  // Só os ids — o filtro de notificações do Kit usa a lista como um Set.
+  async getIdsDasPecasDoKitDoCriador(userId: string | null): Promise<string[]> {
+    const linhas = await db
+      .select({ id: items.id })
+      .from(items)
+      .where(this.filtroKitDoCriador(userId));
+    return linhas.map((l) => l.id);
+  }
+
+  // GET /api/standard-items (perf 17/09): o uso de cada modelo lia as 66
+  // colunas de todas as peças para olhar sete. Mesmo recorte de antes (peças
+  // vivas); `deletedAt` segue na projeção porque a rota ainda confere o campo.
+  async getItemsParaUsoDeModelos(): Promise<ItemParaUsoDeModelo[]> {
+    return await db
+      .select({
+        deletedAt: items.deletedAt,
+        standardItemId: items.standardItemId,
+        createdAt: items.createdAt,
+        type: items.type,
+        material: items.material,
+        fileWidth: items.fileWidth,
+        fileHeight: items.fileHeight,
+      })
+      .from(items)
+      .where(isNull(items.deletedAt));
+  }
+
+  // GET /api/prazos e o fecho diário (perf 17/09): o mesmo recorte de
+  // getItemsByEvents (peças vivas dos eventos candidatos, created_at desc) com
+  // só as colunas que o domínio de prazos lê — ver ItemParaPrazo.
+  async getItemsParaPrazos(eventIds: string[]): Promise<ItemParaPrazo[]> {
+    if (eventIds.length === 0) return [];
+    return await db
+      .select({
+        id: items.id,
+        eventId: items.eventId,
+        displayId: items.displayId,
+        status: items.status,
+        type: items.type,
+        description: items.description,
+        quantity: items.quantity,
+        skipApproval: items.skipApproval,
+        updatedAt: items.updatedAt,
+        createdAt: items.createdAt,
+        statusChangedAt: items.statusChangedAt,
+        kitRemessaId: items.kitRemessaId,
+        criadoPorId: items.criadoPorId,
+      })
+      .from(items)
+      .where(and(inArray(items.eventId, eventIds), isNull(items.deletedAt)))
+      .orderBy(desc(items.createdAt));
   }
 
   // DELTA-SYNC (27/08): tudo que mudou desde `since` — INCLUINDO as apagadas
@@ -1865,6 +1988,23 @@ export class DatabaseStorage implements IStorage {
   async getAllItemSponsorApprovals(): Promise<ItemSponsorApproval[]> {
     return await db
       .select()
+      .from(itemSponsorApprovals)
+      .orderBy(desc(itemSponsorApprovals.createdAt));
+  }
+
+  // Mesma leitura e MESMA ORDEM de getAllItemSponsorApprovals, só com as três
+  // colunas que o enriquecimento de peças usa (itemId, sponsorId, status). A
+  // ordem importa: quem monta um Map item×patrocinador com `set` fica com a
+  // ÚLTIMA linha vista — trocar a ordem trocaria o status do chip num par
+  // duplicado. Disponível para a rota de peças (perf 17/09); o motivo da
+  // reprovação e o thumb decidido de cada linha são peso morto nas listas.
+  async getAllItemSponsorApprovalStatuses(): Promise<AprovacaoResumida[]> {
+    return await db
+      .select({
+        itemId: itemSponsorApprovals.itemId,
+        sponsorId: itemSponsorApprovals.sponsorId,
+        status: itemSponsorApprovals.status,
+      })
       .from(itemSponsorApprovals)
       .orderBy(desc(itemSponsorApprovals.createdAt));
   }
@@ -2381,8 +2521,18 @@ export class DatabaseStorage implements IStorage {
     if (touchedItemIds.size > 0) {
       const ids = Array.from(touchedItemIds);
       await db.update(items)
-        .set({ status: "awaiting_linking" })
+        .set({ status: "awaiting_linking", updatedAt: new Date() })
         .where(and(inArray(items.id, ids), eq(items.status, "requested")));
+      // Mesmo carimbo do touchItem, de uma vez: a peça que JÁ não estava em
+      // "requested" ganhou vínculo sem ter a linha tocada — sem isto o delta
+      // (/api/items?since=) não a enxergava e as abas abertas seguiam mostrando
+      // a peça sem o patrocinador até a próxima busca cheia. Falha no carimbo
+      // não derruba o vínculo (mesma regra do touchItem).
+      try {
+        await db.update(items).set({ updatedAt: new Date() }).where(inArray(items.id, ids));
+      } catch (e) {
+        console.error("[auto-link] falha ao carimbar updated_at", ids.length, e);
+      }
     }
     return linked;
   }

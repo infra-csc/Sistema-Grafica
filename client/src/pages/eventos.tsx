@@ -33,7 +33,7 @@ import {
 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Link, useLocation } from "wouter";
-import { useState, useEffect, useMemo, useRef, useCallback } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback, memo } from "react";
 import type { Sponsor } from "@shared/schema";
 import { FilterSelect, ShortcutPill } from "@/components/filter-select";
 import { SponsorChips } from "@/components/sponsor-chips";
@@ -68,13 +68,14 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { ToastAction } from "@/components/ui/toast";
+import { EncerrarEventoDialog } from "@/components/encerrar-evento-dialog";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/auth-context";
 import { MARCOS_DO_EVENTO, OFFSET_PADRAO_DO_MARCO } from "@shared/prazo-dates";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Inbox } from "lucide-react";
-import { idadeDoPedido, quantidadeDoPedido, type PedidoDePeca } from "@shared/pedidos-de-peca";
+import { idadeDoPedido, patrocinadoresDaLinha, quantidadeDoPedido, rotuloDaLinha, type PedidoDePeca } from "@shared/pedidos-de-peca";
 
 /** Selo de pedidos do Atendimento em aberto (dono, 14/09) — cartão e linha. */
 function SeloDePedidos({ n, eventId }: { n: number; eventId: string }) {
@@ -82,11 +83,11 @@ function SeloDePedidos({ n, eventId }: { n: number; eventId: string }) {
   return (
     <span
       data-testid={`selo-pedidos-${eventId}`}
-      title={`${n} ${n === 1 ? "pedido de peça do Atendimento esperando" : "pedidos de peça do Atendimento esperando"} a lista`}
+      title={`${n} ${n === 1 ? "peça solicitada pelo Atendimento esperando" : "peças solicitadas pelo Atendimento esperando"} a lista`}
       style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 800, color: '#92400e', backgroundColor: '#fffbeb', border: '1px solid #fde68a', borderRadius: 999, padding: '2px 8px', whiteSpace: 'nowrap', flexShrink: 0 }}
     >
       <Inbox style={{ width: 11, height: 11 }} aria-hidden="true" />
-      {n} {n === 1 ? 'pedido' : 'pedidos'}
+      {n} {n === 1 ? 'peça solicitada' : 'peças solicitadas'}
     </span>
   );
 }
@@ -296,6 +297,43 @@ function readEventStats(event: any): EventStats {
   };
 }
 
+/**
+ * CONTADORES POR OBJETO DE EVENTO, calculados uma vez (PERF-6, 17/09).
+ *
+ * `readEventStats` varre `event.items` inteiro — o payload embute as peças de
+ * cada evento (o acervo todo, somado). Os filtros da tela chamavam a função
+ * por evento em cada predicado (foco, prioridade, situação, ordem) e em cada
+ * contagem de faceta: a mesma varredura seis, sete vezes a cada recorte.
+ * O cache é por OBJETO (WeakMap): o refetch traz objetos novos e o cache velho
+ * vai embora com eles, então nunca serve número de um payload anterior.
+ * Só entra no cache o que não depende do relógio — quando o servidor já manda
+ * `eventHasPassed`. O fallback de servidor antigo calcula o "já passou" com o
+ * dia de hoje e, por isso, continua recalculado a cada chamada.
+ */
+const statsPorObjeto = new WeakMap<object, EventStats>();
+function statsDoEvento(event: any): EventStats {
+  if (!event || typeof event !== 'object' || typeof event.eventHasPassed !== 'boolean') return readEventStats(event);
+  let stats = statsPorObjeto.get(event);
+  if (!stats) { stats = readEventStats(event); statsPorObjeto.set(event, stats); }
+  return stats;
+}
+
+/**
+ * Peças criadas que ainda não foram ENVIADAS para a vinculação (draft e o
+ * legado requested — a mesma população do botão "Enviar" do detalhe).
+ *
+ * POR QUE NO CARTÃO: rascunho esquecido é o travamento mais silencioso do
+ * fluxo. A barra de fases mostra 0% e o cartão parece "só começando", quando
+ * na verdade a lista está pronta e ninguém apertou enviar. `event.items` já
+ * vem no payload de /api/events (enrichEvent) — não há busca a mais.
+ */
+function contarRascunhos(event: any): number {
+  const items: any[] = Array.isArray(event.items) ? event.items : [];
+  let n = 0;
+  for (const it of items) if (it.status === 'draft' || it.status === 'requested') n += 1;
+  return n;
+}
+
 /** Prioridade do evento para filtro/ordenação. Ciclo de vida NÃO entra aqui. */
 function eventPriorityKey(event: any): PriorityLevel {
   return (event.priority as PriorityLevel) || 'sem_prioridade';
@@ -321,6 +359,8 @@ const MONTH_NAMES = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
 // cresce (nada nunca sai dela), então segue o mesmo teto do Painel Geral e do
 // detalhe do evento: 50 + "Mostrar todos".
 const CARD_PAGE = 50;
+/** Lista vazia com identidade fixa — `[]` no render quebraria o memo do cartão. */
+const SEM_PATROCINADORES: Sponsor[] = [];
 
 // ── Helpers de data (escopo de módulo: não dependem de estado) ───────────────
 const parseDateStr = (s: string): Date | undefined => {
@@ -406,21 +446,23 @@ const TH_LISTA: React.CSSProperties = {
  *
  * Mesmas cinco informações do cartão, na mesma ordem de leitura, sem os
  * blocos que só fazem sentido quando há espaço para eles (patrocinadores por
- * extenso, data de início, ações). As ações ficam de fora de propósito: numa
- * linha de 44px elas seriam três alvos de 24px grudados na borda, e o cartão
- * continua a um clique.
+ * extenso, data de início). As AÇÕES estão aqui, sim — ver o comentário de
+ * GRADE_LISTA: densidade não pode custar capacidade.
  */
 function EventRow({
-  event, sponsorCount, currentYear, isMobile, pedidosAbertos = 0,
-  canEdit, canDelete, canDuplicate, canSetPriority, canClose,
+  event, sponsorCount, currentYear, agoraMs, isMobile, pedidosAbertos = 0,
+  canEdit, canDelete, canDuplicate, canSetPriority, canClose, soPatrocinadores = false,
   onEdit, onDelete, onDuplicate, onSetPriority, onClose, onReopen,
 }: {
   event: any;
   sponsorCount: number;
   pedidosAbertos?: number;
   currentYear: number;
+  /** Relógio de minuto da página (ver `agoraMs` em Eventos). */
+  agoraMs: number;
   isMobile: boolean;
   canEdit: boolean;
+  soPatrocinadores?: boolean;
   canDelete: boolean;
   canDuplicate: boolean;
   canSetPriority: boolean;
@@ -444,9 +486,12 @@ function EventRow({
   // exibição. Com `new Date()` cru, um caminhão gravado para 08:00 exibia
   // "08:00" e o selo "Saiu hoje" ao mesmo tempo.
   const saida = event.truckDepartureDate ? toUTCDisplayDate(event.truckDepartureDate) : null;
+  // `agoraMs` (prop) e não `new Date()`: a linha é memoizada, e o relógio lido
+  // aqui dentro congelava o selo no dia em que ela desenhou pela última vez.
+  const hoje = new Date(agoraMs);
   const diasAteSaida = saida
     ? Math.ceil((new Date(saida.getFullYear(), saida.getMonth(), saida.getDate()).getTime()
-        - new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate()).getTime()) / 86400000)
+        - new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate()).getTime()) / 86400000)
     : null;
   const corDaSaida = diasAteSaida === null ? T.second
     : diasAteSaida < 0 ? '#b91c1c'
@@ -455,9 +500,15 @@ function EventRow({
 
   // A MESMA frase do rodapé do cartão — não uma segunda redação do mesmo
   // estado, que divergiria no primeiro ajuste.
+  const rascunhos = contarRascunhos(event);
+  // A coluna Peças já diz "x/y"; aqui "x de y" era a mesma conta duas vezes.
+  // Quando há rascunho não enviado, é ELE a situação — o que trava a lista.
   const situacao = stats.activeItemCount === 0
     ? 'Sem peças'
-    : `${stats.deliveredCount} de ${stats.activeItemCount}`;
+    : rascunhos > 0 && stats.lifecycle === 'active'
+      ? `${rascunhos} em rascunho`
+      : `${stats.deliveredCount} de ${stats.activeItemCount}`;
+  const situacaoEhRascunho = stats.activeItemCount > 0 && rascunhos > 0 && stats.lifecycle === 'active';
 
   const isClosed = stats.lifecycle === 'manually_closed';
   const isDone = stats.lifecycle === 'completed';
@@ -545,7 +596,10 @@ function EventRow({
       </span>
 
       {/* Situação */}
-      <span style={{ fontSize: FS.small, color: T.second, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+      <span
+        title={situacaoEhRascunho ? `${rascunhos} ${rascunhos === 1 ? 'peça criada e ainda não enviada' : 'peças criadas e ainda não enviadas'} para a vinculação` : undefined}
+        style={{ fontSize: FS.small, color: situacaoEhRascunho ? '#92400e' : T.second, fontWeight: situacaoEhRascunho ? 700 : undefined, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+      >
         {situacao}
       </span>
       </a>
@@ -565,6 +619,7 @@ function EventRow({
           onClose={onClose}
           onReopen={onReopen}
           canEdit={canEdit}
+          soPatrocinadores={soPatrocinadores}
           canDelete={canDelete}
           canDuplicate={canDuplicate}
           // Mesma regra do cartão: prioridade não faz sentido no que já saiu
@@ -588,6 +643,7 @@ function EventCardActions({
   onClose,
   onReopen,
   canEdit,
+  soPatrocinadores = false,
   canDelete,
   canDuplicate,
   canSetPriority,
@@ -604,6 +660,8 @@ function EventCardActions({
   onClose: (event: any, e: React.MouseEvent) => void;
   onReopen: (event: any, e: React.MouseEvent) => void;
   canEdit: boolean;
+  /** Sem editar o evento: o lápis vira "Vincular patrocinadores". */
+  soPatrocinadores?: boolean;
   canDelete: boolean;
   canDuplicate: boolean;
   canSetPriority: boolean;
@@ -626,7 +684,10 @@ function EventCardActions({
   };
   return (
     <div
-      className={isMobile ? "focus-within:opacity-100" : "opacity-0 group-hover:opacity-100 focus-within:opacity-100"}
+      // `[@media(hover:none)]`: tablet e notebook de toque passam de 768px
+      // (então `isMobile` é falso) e NÃO têm hover — as ações ficavam
+      // invisíveis para sempre nesses aparelhos.
+      className={isMobile ? "focus-within:opacity-100" : "opacity-0 group-hover:opacity-100 focus-within:opacity-100 [@media(hover:none)]:opacity-100"}
       style={{ display: 'flex', gap: '6px', transition: 'opacity 0.2s', flexShrink: 0 }}
       onClick={(e) => { e.stopPropagation(); }}
     >
@@ -651,11 +712,17 @@ function EventCardActions({
           <Copy style={{ width: '13px', height: '13px' }} />
         </button>
       )}
-      {canEdit && (
+      {canEdit ? (
         <button onClick={(e) => onEdit(event, e)} data-testid={`button-edit-event-${event.id}`}
           title="Editar evento" aria-label={`Editar evento ${event.name}`}
           style={{ ...btnBase, backgroundColor: '#f9f9f8', color: '#78716c' }}>
           <Pencil style={{ width: '13px', height: '13px' }} />
+        </button>
+      ) : soPatrocinadores && (
+        <button onClick={(e) => onEdit(event, e)} data-testid={`button-sponsors-event-${event.id}`}
+          title="Vincular patrocinadores" aria-label={`Vincular patrocinadores ao evento ${event.name}`}
+          style={{ ...btnBase, backgroundColor: '#f9f9f8', color: '#78716c' }}>
+          <Building2 style={{ width: '13px', height: '13px' }} />
         </button>
       )}
       {/* Encerrar / Reabrir — o mesmo lugar no card, porque são a mesma
@@ -703,7 +770,9 @@ function EventCard({
   pedidosAbertos = 0,
   isMobile,
   currentYear,
+  agoraMs,
   canEdit,
+  soPatrocinadores = false,
   canDelete,
   canDuplicate,
   canSetPriority,
@@ -720,7 +789,10 @@ function EventCard({
   pedidosAbertos?: number;
   isMobile: boolean;
   currentYear: number;
+  /** Relógio de minuto da página (ver `agoraMs` em Eventos). */
+  agoraMs: number;
   canEdit: boolean;
+  soPatrocinadores?: boolean;
   canDelete: boolean;
   canDuplicate: boolean;
   canSetPriority: boolean;
@@ -746,7 +818,9 @@ function EventCard({
   // 08:00Z = 05:00 em Brasília: entre 05:00 e 08:00 do dia da saída o card
   // exibia "10 mar · 08:00" E o selo vermelho "Saiu hoje" ao mesmo tempo.
   const departure = event.truckDepartureDate ? toUTCDisplayDate(event.truckDepartureDate) : null;
-  const hoursUntilDeparture = departure ? (departure.getTime() - Date.now()) / 3600000 : null;
+  // `agoraMs` (prop) e não `Date.now()`: o cartão é memoizado, e o relógio
+  // lido aqui dentro parava o selo ("urgente" → "Saiu hoje") até o evento mudar.
+  const hoursUntilDeparture = departure ? (departure.getTime() - agoraMs) / 3600000 : null;
   const truckUrgency = hoursUntilDeparture === null ? 'normal'
     : hoursUntilDeparture < 0 ? 'departed'
     : hoursUntilDeparture < 24 ? 'urgent'
@@ -766,7 +840,7 @@ function EventCard({
   const msTone = MILESTONE_TONE[ms?.state ?? 'upcoming'];
 
   // Espaço reservado na primeira linha para as ações sobrepostas.
-  const actionCount = (canSetPriority ? 1 : 0) + (canDuplicate ? 1 : 0) + (canEdit ? 1 : 0)
+  const actionCount = (canSetPriority ? 1 : 0) + (canDuplicate ? 1 : 0) + (canEdit || soPatrocinadores ? 1 : 0)
     + (canClose ? 1 : 0) + (canDelete ? 1 : 0);
   const btnSize = isMobile ? 44 : 32;
   const actionsWidth = actionCount > 0 ? actionCount * btnSize + (actionCount - 1) * 6 + 10 : 0;
@@ -798,6 +872,7 @@ function EventCard({
 
   // Uma passada só sobre as peças (a grade monta até 50 cards).
   const phaseCounts = contarPorFase(event);
+  const rascunhos = contarRascunhos(event);
 
   const emptyActive = stats.activeItemCount === 0 && stats.lifecycle === 'active';
 
@@ -960,9 +1035,14 @@ function EventCard({
                 Nenhuma peça criada
                 {ms ? ` — lista ${milestoneDueText(ms)}` : ''}
               </span>
-              <span style={{ fontSize: FS.small, fontWeight: '700', color: T.accentText }}>
-                Criar lista de imagens →
-              </span>
+              {/* O convite só para quem monta a lista: para os outros perfis
+                  "Criar lista de imagens →" prometia um gesto que o detalhe
+                  não oferece a eles. */}
+              {canEdit && (
+                <span style={{ fontSize: FS.small, fontWeight: '700', color: T.accentText }}>
+                  Criar lista de imagens →
+                </span>
+              )}
             </div>
           ) : (
             <div>
@@ -973,16 +1053,20 @@ function EventCard({
                     : `${stats.deliveredCount} de ${stats.activeItemCount} ${stats.activeItemCount === 1 ? 'peça' : 'peças'}`}
                   {stats.inProductionCount > 0 ? ` · ${stats.inProductionCount} em produção` : ''}
                 </span>
+                {/* O ESTADO JÁ ESTÁ NO SELO do topo do cartão ("Encerrado
+                    manualmente", "Concluído"): repeti-lo aqui era a mesma
+                    palavra duas vezes no mesmo cartão. O rodapé fica com o que
+                    o selo não diz — quantas peças ficaram em aberto. */}
                 {isClosed ? (
                   // O número de peças abertas continua VISÍVEL num evento
                   // encerrado: encerrar tira o evento das filas, não apaga o
                   // que ficou para trás.
-                  <span style={{ fontSize: FS.small, fontWeight: '800', color: '#44403c', whiteSpace: 'nowrap' }}>
-                    {stats.openCount > 0 ? `Encerrado · ${stats.openCount} em aberto` : 'Encerrado'}
-                  </span>
-                ) : isDone ? (
-                  <span style={{ fontSize: FS.small, fontWeight: '800', color: '#047857', whiteSpace: 'nowrap' }}>Concluído</span>
-                ) : isRealizado ? (
+                  stats.openCount > 0 ? (
+                    <span style={{ fontSize: FS.small, fontWeight: '800', color: '#44403c', whiteSpace: 'nowrap' }}>
+                      {stats.openCount} em aberto
+                    </span>
+                  ) : null
+                ) : isDone ? null : isRealizado ? (
                   <span style={{ fontSize: FS.small, fontWeight: '800', color: '#b45309', whiteSpace: 'nowrap' }}>
                     {realizadoVazio ? 'Nada criado' : `${stats.openCount} em aberto`}
                   </span>
@@ -1014,6 +1098,18 @@ function EventCard({
                   {stats.canceledCount} {stats.canceledCount === 1 ? 'peça cancelada' : 'peças canceladas'} fora da conta
                 </span>
               )}
+              {/* RASCUNHO NÃO ENVIADO — o "próximo passo" que o cartão não
+                  dizia. Só em evento em jogo: no arquivado e no já realizado
+                  o envio está travado, e cobrar seria pedir o impossível. */}
+              {rascunhos > 0 && !outOfPlay && !isRealizado && (
+                <span
+                  data-testid={`rascunhos-evento-${event.id}`}
+                  style={{ fontSize: FS.small, fontWeight: 700, color: '#92400e', marginTop: '6px', display: 'flex', alignItems: 'center', gap: 5 }}
+                >
+                  <Package aria-hidden="true" style={{ width: 11, height: 11, flexShrink: 0 }} />
+                  {rascunhos} em rascunho — {canEdit ? 'abra e envie para a vinculação' : 'ainda não enviadas'}
+                </span>
+              )}
             </div>
           )}
         </div>
@@ -1030,6 +1126,7 @@ function EventCard({
           onClose={onClose}
           onReopen={onReopen}
           canEdit={canEdit}
+          soPatrocinadores={soPatrocinadores}
           canDelete={canDelete}
           canDuplicate={canDuplicate}
           // Prioridade não faz sentido no que já saiu de jogo — nem no
@@ -1044,6 +1141,15 @@ function EventCard({
   );
 }
 
+// CARTÃO E LINHA MEMOIZADOS (PERF-6, 17/09). Medido com 68 eventos: cada tecla
+// na busca ou no nome do modal de criar re-renderizava os 50 cartões — cada um
+// varrendo as peças embutidas (fases, rascunhos, contadores) —, ~250ms por
+// tecla. Os handlers já são estáveis (useCallback) e a lista de patrocinadores
+// de cada cartão vem de um mapa memoizado; com isso as props só mudam quando o
+// evento muda, e o cartão só desenha de novo nesse caso.
+const EventCardMemo = memo(EventCard);
+const EventRowMemo = memo(EventRow);
+
 export default function Eventos() {
   const { user } = useAuth();
   // Permissões de UI espelham os gates do servidor. Todas leem `user.role`
@@ -1052,6 +1158,10 @@ export default function Eventos() {
   // diferentes onde a regra é a mesma.
   const role = user?.role;
   const canEdit = role === 'admin' || role === 'solicitacao';        // PATCH /api/events/:id
+  // O Atendimento vincula patrocinadores (dono, 15/09) sem editar o evento:
+  // abre a mesma janela só com os patrocinadores e as cotas. As rotas de
+  // vínculo já aceitavam o perfil; o PATCH do evento continua fora.
+  const soPatrocinadores = !canEdit && role === 'atendimento';
   const canDelete = role === 'admin';                                 // DELETE /api/events/:id
   // Encerrar/reabrir é da mesma classe da exclusão (admin), e não da edição:
   // não muda um dado do evento, tira trabalho do campo de visão de OUTRAS
@@ -1230,14 +1340,29 @@ export default function Eventos() {
 
   const currentYear = useMemo(() => new Date().getFullYear(), []);
 
+  // RELÓGIO DE MINUTO. Cartão e linha são memoizados (PERF-6) e só desenham de
+  // novo quando as props mudam — o relógio lido lá dentro parava junto, e o
+  // selo de urgência do caminhão ficava no estado da última mudança do evento.
+  // Como prop, o tique de 1 min é o que os faz andar.
+  const [agoraMs, setAgoraMs] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setAgoraMs(Date.now()), 60_000);
+    return () => clearInterval(id);
+  }, []);
+
   // PEDIDOS DO ATENDIMENTO (dono, 14/09): quantos pedidos de peça cada evento
   // tem esperando a lista.
   const { data: pedidosAbertos = [] } = useQuery<PedidoDePeca[]>({ queryKey: ["/api/pedidos-de-peca?status=aberto"] });
+  // Uma solicitação tem várias peças, de eventos diferentes: conta PEÇAS abertas.
+  const linhasAbertas = useMemo(
+    () => pedidosAbertos.flatMap((p) => (p.linhas ?? []).filter((l) => l.status === 'aberto').map((linha) => ({ pedido: p, linha }))),
+    [pedidosAbertos],
+  );
   const pedidosPorEvento = useMemo(() => {
     const porEvento = new Map<string, number>();
-    for (const p of pedidosAbertos) porEvento.set(p.eventId, (porEvento.get(p.eventId) ?? 0) + 1);
+    for (const { linha } of linhasAbertas) porEvento.set(linha.eventId, (porEvento.get(linha.eventId) ?? 0) + 1);
     return porEvento;
-  }, [pedidosAbertos]);
+  }, [linhasAbertas]);
 
   const { data: events = [], isLoading, isError, refetch } = useQuery<any[]>({
     queryKey: ["/api/events"],
@@ -1259,9 +1384,22 @@ export default function Eventos() {
 
   // Resolve nome/cor dos vínculos do payload de eventos (que só trazem sponsorId).
   const sponsorById = useMemo(() => new Map(sponsors.map((s) => [s.id, s])), [sponsors]);
+  // Patrocinadores de cada cartão, montados uma vez por payload. Montados no
+  // render, eram um array novo a cada tecla e nenhum cartão memoizado pulava.
+  const patrocinadoresDoCartao = useMemo(() => {
+    const m = new Map<string, Sponsor[]>();
+    for (const ev of events as any[]) {
+      m.set(ev.id, ((ev.sponsors || []) as any[])
+        .map((es) => sponsorById.get(es.sponsorId))
+        .filter(Boolean) as Sponsor[]);
+    }
+    return m;
+  }, [events, sponsorById]);
 
   const modalMode: 'create' | 'edit' | 'duplicate' =
     editingEvent ? 'edit' : duplicateSource ? 'duplicate' : 'create';
+  // A janela aberta pelo Atendimento: só patrocinadores e cotas.
+  const soPatrocinadoresNoModal = modalMode === 'edit' && soPatrocinadores;
 
   // ── Snapshot do formulário ────────────────────────────────────────────────
   // `formDirty` comparado contra um SNAPSHOT em vez de "está em modo edição".
@@ -1390,12 +1528,15 @@ export default function Eventos() {
       queryClient.invalidateQueries({ queryKey: ["/api/events"] });
       handleCloseDialog();
       const parts: string[] = [];
-      if (clonedItems > 0) parts.push(`${clonedItems} ${clonedItems === 1 ? 'peça copiada' : 'peças copiadas'}`);
+      // "em Rascunho": as cópias só andam depois do envio, feito no evento.
+      if (clonedItems > 0) parts.push(`${clonedItems} ${clonedItems === 1 ? 'peça copiada' : 'peças copiadas'} em Rascunho — abra o evento para revisar e enviar`);
       if (cloneFailed) parts.push("as peças não puderam ser copiadas — use 'Clonar peças' dentro do evento");
       if (failedSponsors.length > 0) parts.push(`não foi possível vincular: ${failedSponsors.join(", ")}`);
       toast({
         title: "Evento criado",
-        description: parts.length > 0 ? parts.join(" · ") : "O evento foi criado com sucesso.",
+        // Sem ressalvas, a descrição aponta o PASSO SEGUINTE (a ação ao lado
+        // leva até ele) — "criado com sucesso" só repetia o título.
+        description: parts.length > 0 ? parts.join(" · ") : `"${event.name}" está pronto para receber a lista de peças.`,
         // O passo seguinte à criação é SEMPRE montar a lista de imagens — sem
         // esta ação o usuário voltava para a grade e precisava caçar o card
         // recém-criado, que pode estar fora do filtro ativo.
@@ -1407,21 +1548,22 @@ export default function Eventos() {
       });
     },
     onError: (error: Error) => {
-      toast({ title: "Erro ao criar evento", description: error.message, variant: "destructive" });
+      toast({ title: "Não foi possível criar o evento", description: error.message, variant: "destructive" });
     },
   });
 
   const updateEventMutation = useMutation({
-    mutationFn: async ({ id, fd }: { id: string; fd: typeof formData }) => {
+    mutationFn: async ({ id, fd, soPatrocinadores: soVinculos = false }: { id: string; fd: typeof formData; soPatrocinadores?: boolean }) => {
       const failedSponsors: string[] = [];
       try {
-        await apiRequest("PATCH", `/api/events/${id}`, eventPayload(fd));
+        // Só patrocinadores (Atendimento): o evento em si não é gravado.
+        if (!soVinculos) await apiRequest("PATCH", `/api/events/${id}`, eventPayload(fd));
 
         // Prioridade tem rota própria (gate e audit log próprios) e é a única
         // que aceita "" para REMOVER — insertEventSchema rejeitaria a string
         // vazia com 400.
         const originalPriority = editingEvent?.priority || "";
-        if ((fd.priority || "") !== originalPriority) {
+        if (!soVinculos && (fd.priority || "") !== originalPriority) {
           await apiRequest("PATCH", `/api/events/${id}/priority`, { priority: fd.priority || "" });
         }
 
@@ -1462,21 +1604,24 @@ export default function Eventos() {
       } catch (error: any) {
         throw new Error(error?.message || "Erro ao atualizar evento e patrocinadores");
       }
-      return { failedSponsors };
+      return { failedSponsors, soVinculos };
     },
-    onSuccess: ({ failedSponsors }) => {
+    onSuccess: ({ failedSponsors, soVinculos }, { fd }) => {
       queryClient.invalidateQueries({ queryKey: ["/api/events"] });
       handleCloseDialog();
+      // O NOME no toast: quem edita três eventos seguidos precisa saber qual
+      // acabou de salvar, e "atualizado com sucesso" servia para qualquer um.
+      const nomeSalvo = fd.name || editingEvent?.name || "o evento";
       toast({
-        title: "Evento atualizado",
+        title: soVinculos ? "Patrocinadores atualizados" : "Evento atualizado",
         description: failedSponsors.length > 0
           ? `Não foi possível atualizar: ${failedSponsors.join(", ")}. Reabra o evento para revisar.`
-          : "O evento foi atualizado com sucesso.",
+          : soVinculos ? `Patrocinadores e cotas de "${nomeSalvo}" salvos.` : `"${nomeSalvo}" salvo.`,
         variant: failedSponsors.length > 0 ? "destructive" : undefined,
       });
     },
     onError: (error: Error) => {
-      toast({ title: "Erro ao atualizar evento", description: error.message, variant: "destructive" });
+      toast({ title: "Não foi possível salvar o evento", description: error.message, variant: "destructive" });
     },
   });
 
@@ -1497,11 +1642,11 @@ export default function Eventos() {
         title: "Evento excluído",
         description: removed > 0
           ? `${removed} ${removed === 1 ? 'peça removida' : 'peças removidas'} em cascata${delivered > 0 ? ` (${delivered} já ${delivered === 1 ? 'entregue' : 'entregues'})` : ''}.`
-          : "O evento foi excluído com sucesso.",
+          : "Não havia peças ligadas a ele.",
       });
     },
     onError: (error: Error) => {
-      toast({ title: "Erro ao excluir evento", description: error.message, variant: "destructive" });
+      toast({ title: "Não foi possível excluir o evento", description: error.message, variant: "destructive" });
     },
   });
 
@@ -1541,7 +1686,7 @@ export default function Eventos() {
       });
     },
     onError: (error: Error) => {
-      toast({ title: "Erro ao encerrar evento", description: error.message, variant: "destructive" });
+      toast({ title: "Não foi possível encerrar o evento", description: error.message, variant: "destructive" });
     },
   });
 
@@ -1567,7 +1712,7 @@ export default function Eventos() {
       });
     },
     onError: (error: Error) => {
-      toast({ title: "Erro ao reabrir evento", description: error.message, variant: "destructive" });
+      toast({ title: "Não foi possível reabrir o evento", description: error.message, variant: "destructive" });
     },
   });
 
@@ -1575,14 +1720,24 @@ export default function Eventos() {
     mutationFn: async ({ id, priority }: { id: string; priority: string }) => {
       return await apiRequest("PATCH", `/api/events/${id}/priority`, { priority });
     },
-    onSuccess: () => {
+    onSuccess: (_res, { priority }) => {
       queryClient.invalidateQueries({ queryKey: ["/api/events"] });
+      const nome = selectedEventForPriority?.name;
       setPriorityDialogOpen(false);
       setSelectedEventForPriority(null);
-      toast({ title: "Prioridade atualizada", description: "A prioridade do evento foi atualizada com sucesso." });
+      // Diz O QUE ficou e EM QUAL evento: com os atalhos 1–4 a pessoa organiza
+      // a semana em sequência, e o toast é a única confirmação do nível.
+      // Vazio = volta à regra automática (ver o diálogo).
+      const nivel = priority ? getPriorityMeta(priority)?.label ?? priority : "Automática";
+      toast({
+        title: priority ? `Prioridade: ${nivel}` : "Prioridade automática",
+        description: priority
+          ? `${nome ? `"${nome}" ` : ""}travado neste nível — a regra da saída do caminhão não mexe mais nele.`
+          : `${nome ? `"${nome}" ` : "O evento "}voltou a seguir a saída do caminhão.`,
+      });
     },
     onError: (error: Error) => {
-      toast({ title: "Erro ao atualizar prioridade", description: error.message, variant: "destructive" });
+      toast({ title: "Não foi possível mudar a prioridade", description: error.message, variant: "destructive" });
     },
   });
 
@@ -1597,6 +1752,23 @@ export default function Eventos() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Só patrocinadores: as datas e os prazos nem aparecem, então não se
+    // validam. Continua a trava de não salvar antes de os vínculos carregarem.
+    if (soPatrocinadoresNoModal && editingEvent) {
+      if (sponsorsLoading || sponsorsError) {
+        toast({
+          title: sponsorsLoading ? "Aguarde o carregamento" : "Não foi possível carregar os patrocinadores",
+          description: sponsorsLoading
+            ? "Os patrocinadores do evento ainda estão carregando."
+            : "Reabra a janela — salvar agora poderia remover os patrocinadores vinculados.",
+          variant: "destructive",
+        });
+        return;
+      }
+      updateEventMutation.mutate({ id: editingEvent.id, fd: formData, soPatrocinadores: true });
+      return;
+    }
     if (!formData.startDate || !formData.truckDepartureDate) {
       toast({ title: "Datas obrigatórias", description: "Preencha a data de início e a saída do caminhão.", variant: "destructive" });
       return;
@@ -1859,7 +2031,7 @@ export default function Eventos() {
 
   const matchesFoco = useCallback((event: any) => {
     if (!foco) return true;
-    const stats = readEventStats(event);
+    const stats = statsDoEvento(event);
     if (foco === "atrasado") return event.nextMilestone?.state === 'overdue';
     if (foco === "sem_pecas") return stats.activeItemCount === 0 && !ARCHIVED_LIFECYCLES.has(stats.lifecycle);
     // Pedidos do Atendimento (dono, 14/09): eventos com pedido esperando a lista.
@@ -1869,7 +2041,7 @@ export default function Eventos() {
 
   const matchesPriority = useCallback((event: any) => {
     if (selectedPriorities.length === 0) return true;
-    const lifecycle = readEventStats(event).lifecycle;
+    const lifecycle = statsDoEvento(event).lifecycle;
     return selectedPriorities.some((sel) => {
       if ((LIFECYCLE_FILTERS as readonly string[]).includes(sel)) return lifecycle === sel;
       // Um evento CONCLUÍDO (ou encerrado à mão) não responde mais pela
@@ -1885,7 +2057,7 @@ export default function Eventos() {
    * isso que faz a soma das três contagens fechar com o total.
    */
   const baldeDe = useCallback((event: any): "ativos" | "pendencias" | "arquivados" => {
-    const lifecycle = readEventStats(event).lifecycle;
+    const lifecycle = statsDoEvento(event).lifecycle;
     if (ARCHIVED_LIFECYCLES.has(lifecycle)) return "arquivados";
     if (lifecycle === "realizado") return "pendencias";
     return "ativos";
@@ -1925,7 +2097,7 @@ export default function Eventos() {
    *   3 · concluído/encerrado (história)
    */
   const sortRank = (event: any): number => {
-    const lifecycle = readEventStats(event).lifecycle;
+    const lifecycle = statsDoEvento(event).lifecycle;
     if (ARCHIVED_LIFECYCLES.has(lifecycle)) return 3;
     if (lifecycle === 'realizado') return 2;
     if (event.nextMilestone?.state === 'overdue') return 0;
@@ -1998,13 +2170,28 @@ export default function Eventos() {
     return c;
   }, [events, matchesSearch, matchesDates, matchesFoco, matchesPriority, matchesSponsor, baldeDe]);
 
+  // "POR QUE NÃO APARECEU?" — os eventos que os demais filtros aceitam mas a
+  // SITUAÇÃO esconde. A busca pelo nome de um evento arquivado devolvia
+  // "Nenhum evento encontrado", e o "Limpar filtros" (que de propósito não
+  // mexe na situação) não o trazia de volta: a pessoa concluía que o evento
+  // tinha sumido. Os baldes e as contagens são os mesmos dos alternadores.
+  const ROTULO_DA_SITUACAO = { ativos: 'Ativos', pendencias: 'Pendências', arquivados: 'Arquivados' } as const;
+  const foraPorSituacao = useMemo(() => {
+    if (situacoes.size === 0) return { total: 0, baldes: [] as ('ativos' | 'pendencias' | 'arquivados')[] };
+    const baldes = (['ativos', 'pendencias', 'arquivados'] as const)
+      .filter((b) => !situacoes.has(b) && contagemPorSituacao[b] > 0);
+    return { total: baldes.reduce((s, b) => s + contagemPorSituacao[b], 0), baldes };
+  }, [situacoes, contagemPorSituacao]);
+  const incluirSituacoesOcultas = () => setSituacoes((prev) => new Set([...Array.from(prev), ...foraPorSituacao.baldes]));
+  const nomesDasSituacoesOcultas = foraPorSituacao.baldes.map((b) => ROTULO_DA_SITUACAO[b]).join(' e ');
+
   // Contagens de prioridade sobre a lista já filtrada pelos DEMAIS filtros.
   const priorityCounts = useMemo(() => {
     const counts: Record<string, number> = {};
     events
       .filter((e) => matchesSearch(e) && matchesDates(e) && matchesFoco(e) && matchesSponsor(e))
       .forEach((e) => {
-        const lifecycle = readEventStats(e).lifecycle;
+        const lifecycle = statsDoEvento(e).lifecycle;
         if (lifecycle === 'manually_closed') {
           counts.manually_closed = (counts.manually_closed || 0) + 1;
           return;
@@ -2071,7 +2258,7 @@ export default function Eventos() {
     const base = events.filter((e) => matchesSearch(e) && matchesDates(e) && matchesPriority(e) && matchesSponsor(e) && matchesVisibility(e));
     let atrasado = 0, semPecas = 0, semPrioridade = 0, pedidos = 0;
     base.forEach((e) => {
-      const stats = readEventStats(e);
+      const stats = statsDoEvento(e);
       if (e.nextMilestone?.state === 'overdue') atrasado += 1;
       const arquivado = ARCHIVED_LIFECYCLES.has(stats.lifecycle);
       if (stats.activeItemCount === 0 && !arquivado) semPecas += 1;
@@ -2114,7 +2301,7 @@ export default function Eventos() {
     if (next10DaysFilter) chips.push({ key: 'proximos', label: 'Próximos 10 dias', clear: () => setNext10DaysFilter(false) });
     if (foco === 'atrasado') chips.push({ key: 'foco', label: 'Marco atrasado', clear: () => setFoco("") });
     if (foco === 'sem_pecas') chips.push({ key: 'foco', label: 'Sem peças', clear: () => setFoco("") });
-    if (foco === 'pedidos') chips.push({ key: 'foco', label: 'Pedidos do Atendimento', clear: () => setFoco("") });
+    if (foco === 'pedidos') chips.push({ key: 'foco', label: 'Solicitações de peças', clear: () => setFoco("") });
     // O chip de "concluídos ocultos" saiu: os três alternadores de situação
     // JÁ mostram o que está dentro e o que está fora, com contagem. Um chip
     // que repete um controle visível ao lado é ruído — e este ainda oferecia
@@ -2193,7 +2380,7 @@ export default function Eventos() {
                 { key: 'atrasado', label: 'Marco atrasado', count: focoCounts.atrasado, tone: { text: '#b91c1c', bg: '#fef2f2', border: '#fecaca' }, active: foco === 'atrasado', toggle: () => setFoco(foco === 'atrasado' ? '' : 'atrasado') },
                 { key: 'sem_prioridade', label: 'Sem prioridade', count: focoCounts.semPrioridade, tone: { text: '#57534e', bg: T.low, border: '#e7e5e4' }, active: selectedPriorities.length === 1 && selectedPriorities[0] === 'sem_prioridade', toggle: () => setSelectedPriorities((prev) => (prev.length === 1 && prev[0] === 'sem_prioridade') ? [] : ['sem_prioridade']) },
                 { key: 'sem_pecas', label: 'Sem peças', count: focoCounts.semPecas, tone: { text: '#b45309', bg: '#fffbeb', border: '#fde68a' }, active: foco === 'sem_pecas', toggle: () => setFoco(foco === 'sem_pecas' ? '' : 'sem_pecas') },
-                { key: 'pedidos', label: 'Pedidos do Atendimento', count: focoCounts.pedidos, tone: { text: '#92400e', bg: '#fef3c7', border: '#fcd34d' }, active: foco === 'pedidos', toggle: () => setFoco(foco === 'pedidos' ? '' : 'pedidos') },
+                { key: 'pedidos', label: 'Solicitações de peças', count: focoCounts.pedidos, tone: { text: '#92400e', bg: '#fef3c7', border: '#fcd34d' }, active: foco === 'pedidos', toggle: () => setFoco(foco === 'pedidos' ? '' : 'pedidos') },
               ].map((chip) => (
                 <button
                   key={chip.key}
@@ -2205,6 +2392,8 @@ export default function Eventos() {
                   style={{
                     display: 'flex', alignItems: 'center', gap: '6px',
                     padding: '4px 11px', borderRadius: R.pill,
+                    // Alvo de dedo no celular; no desktop a pílula segue compacta.
+                    minHeight: isMobile ? 44 : undefined,
                     fontSize: FS.small, fontWeight: '700',
                     cursor: chip.count === 0 && !chip.active ? 'default' : 'pointer',
                     opacity: chip.count === 0 && !chip.active ? 0.45 : 1,
@@ -2233,7 +2422,7 @@ export default function Eventos() {
                 setPrazosExpanded(false);
                 setOpen(true);
               }}
-              style={{ flexShrink: 0, backgroundColor: T.accentText, color: '#ffffff', border: 'none', borderRadius: R.md, fontWeight: '700', fontSize: FS.body, padding: '0 18px', height: '34px', gap: '7px', boxShadow: '0 2px 8px rgba(249,115,22,0.28)', display: 'flex', alignItems: 'center' }}
+              style={{ flexShrink: 0, backgroundColor: T.accentText, color: '#ffffff', border: 'none', borderRadius: R.md, fontWeight: '700', fontSize: FS.body, padding: '0 18px', height: isMobile ? 44 : 34, gap: '7px', boxShadow: '0 2px 8px rgba(249,115,22,0.28)', display: 'flex', alignItems: 'center' }}
             >
               <Plus style={{ width: '14px', height: '14px' }} />
               Novo Evento
@@ -2247,10 +2436,10 @@ export default function Eventos() {
             filtro, quantos pedidos esperam e quais são os mais antigos — com
             link direto para o painel de pedidos do evento. Some quando não há
             nenhum. */}
-        {(user?.role === 'solicitacao' || user?.role === 'admin') && pedidosAbertos.length > 0 && (() => {
+        {(user?.role === 'solicitacao' || user?.role === 'admin') && linhasAbertas.length > 0 && (() => {
           const agora = new Date();
-          const maisAntigos = [...pedidosAbertos].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
-          const n = pedidosAbertos.length;
+          const maisAntigos = [...linhasAbertas].sort((a, b) => new Date(a.pedido.createdAt).getTime() - new Date(b.pedido.createdAt).getTime());
+          const n = linhasAbertas.length;
           return (
             <div
               data-testid="faixa-pedidos-atendimento"
@@ -2260,21 +2449,21 @@ export default function Eventos() {
               <Inbox aria-hidden="true" style={{ width: 18, height: 18, color: '#b45309', flexShrink: 0, marginTop: 2 }} />
               <div style={{ flex: '1 1 320px', minWidth: 0 }}>
                 <div style={{ fontSize: FS.body + 1, fontWeight: 800, color: '#78350f' }}>
-                  {n} {n === 1 ? 'pedido do Atendimento esperando a lista' : 'pedidos do Atendimento esperando a lista'}
+                  {n} {n === 1 ? 'peça solicitada pelo Atendimento esperando a lista' : 'peças solicitadas pelo Atendimento esperando a lista'}
                 </div>
                 <ul style={{ listStyle: 'none', margin: '6px 0 0', padding: 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
-                  {maisAntigos.slice(0, 3).map((p) => {
+                  {maisAntigos.slice(0, 3).map(({ pedido: p, linha: l }) => {
                     const idade = idadeDoPedido(p.createdAt, agora);
                     return (
-                      <li key={p.id} style={{ fontSize: FS.body, color: '#78350f', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <li key={l.id} style={{ fontSize: FS.body, color: '#78350f', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         <Link
-                          href={`/eventos/${p.eventId}?pedidos=1`}
-                          data-testid={`link-pedido-evento-${p.id}`}
+                          href={`/eventos/${l.eventId}?pedidos=1`}
+                          data-testid={`link-pedido-evento-${l.id}`}
                           style={{ fontWeight: 800, color: '#78350f', textDecoration: 'underline', textUnderlineOffset: 2 }}
                         >
-                          {p.eventName ?? 'Evento'}
+                          {l.eventName ?? 'Evento'}
                         </Link>
-                        {' · '}{p.sponsorName ?? 'sem patrocinador'} · {quantidadeDoPedido(p.quantidade)} ·{' '}
+                        {' · '}{rotuloDaLinha(l)} · {patrocinadoresDaLinha(l)} · {quantidadeDoPedido(l.quantidade)} ·{' '}
                         <span style={{ fontWeight: idade.nivel === 'normal' ? 600 : 800, color: idade.nivel === 'parado' ? '#b91c1c' : '#78350f' }}>{idade.texto}</span>
                       </li>
                     );
@@ -2288,8 +2477,15 @@ export default function Eventos() {
                 onClick={() => setFoco(foco === 'pedidos' ? '' : 'pedidos')}
                 style={{ height: isMobile ? 44 : 34, padding: '0 14px', borderRadius: R.md, border: '1px solid #fcd34d', backgroundColor: foco === 'pedidos' ? '#78350f' : '#ffffff', color: foco === 'pedidos' ? '#ffffff' : '#78350f', fontSize: FS.body, fontWeight: 800, cursor: 'pointer', whiteSpace: 'nowrap' }}
               >
-                {foco === 'pedidos' ? 'Mostrar todos os eventos' : 'Ver só eventos com pedido'}
+                {foco === 'pedidos' ? 'Mostrar todos os eventos' : 'Ver só eventos com solicitação'}
               </button>
+              <Link
+                href="/pedidos-de-peca"
+                data-testid="link-caixa-pedidos"
+                style={{ display: 'inline-flex', alignItems: 'center', height: isMobile ? 44 : 34, padding: '0 14px', borderRadius: R.md, border: '1px solid #fcd34d', backgroundColor: '#ffffff', color: '#78350f', fontSize: FS.body, fontWeight: 800, textDecoration: 'none', whiteSpace: 'nowrap' }}
+              >
+                Abrir as solicitações de peças
+              </Link>
             </div>
           );
         })()}
@@ -2298,6 +2494,16 @@ export default function Eventos() {
         <Dialog open={open} onOpenChange={(isOpen) => { if (!isOpen) requestCloseDialog(); else setOpen(true); }}>
           <DialogContent
             className={`${HIDE_NATIVE_CLOSE} p-0 gap-0`}
+            // O foco abre ONDE SE COMEÇA: no nome (criar, duplicar, editar) ou
+            // na busca de patrocinador (Atendimento). O padrão do Radix era o X
+            // do cabeçalho — "Novo Evento" custava um clique antes de digitar.
+            // Sem o alvo no DOM (patrocinadores ainda carregando), fica o padrão.
+            onOpenAutoFocus={(e) => {
+              const alvo = document.querySelector<HTMLElement>(
+                soPatrocinadoresNoModal ? '[data-testid="input-sponsor-search"]' : '#event-name',
+              );
+              if (alvo) { e.preventDefault(); alvo.focus(); }
+            }}
             style={{
               // A coluna flex e o teto de `100vh − 48` já vêm do `modalSurface`
               // (a conta está lá). O que sobra aqui é UMA troca de unidade:
@@ -2320,7 +2526,7 @@ export default function Eventos() {
                 saída. */}
             <FreezeWhileClosing open={open}>
             <DialogTitle className="sr-only">
-              {modalMode === 'edit' ? 'Editar evento' : modalMode === 'duplicate' ? 'Duplicar evento' : 'Novo evento'}
+              {soPatrocinadoresNoModal ? 'Vincular patrocinadores' : modalMode === 'edit' ? 'Editar evento' : modalMode === 'duplicate' ? 'Duplicar evento' : 'Novo evento'}
             </DialogTitle>
             <DialogDescription className="sr-only">
               Nome, prioridade, datas, prazos dos 5 marcos e patrocinadores do evento.
@@ -2329,9 +2535,11 @@ export default function Eventos() {
               icon={CalendarPlus}
               variant="work"
               tint="#c2410c"
-              title={modalMode === 'edit' ? 'Editar Evento' : modalMode === 'duplicate' ? 'Duplicar Evento' : 'Novo Evento'}
+              title={soPatrocinadoresNoModal ? 'Vincular Patrocinadores' : modalMode === 'edit' ? 'Editar Evento' : modalMode === 'duplicate' ? 'Duplicar Evento' : 'Novo Evento'}
               subtitle={
-                modalMode === 'edit'
+                soPatrocinadoresNoModal
+                  ? `Patrocinadores e cotas de "${editingEvent?.name}".`
+                  : modalMode === 'edit'
                   ? 'Atualize as informações do evento.'
                   : modalMode === 'duplicate'
                     ? `Cópia de "${duplicateSource?.name}" — prazos, patrocinadores e cotas já vieram junto.`
@@ -2343,6 +2551,8 @@ export default function Eventos() {
             <form onSubmit={handleSubmit} style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
               <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px', overflowY: 'auto', flex: 1, minHeight: 0 }}>
 
+                {/* Só patrocinadores: nome, datas e prazos ficam de fora. */}
+                {!soPatrocinadoresNoModal && (<>
                 {/* Nome + Prioridade */}
                 <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'minmax(240px, 1fr) auto', gap: '16px', alignItems: 'end' }}>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', minWidth: 0 }}>
@@ -2389,7 +2599,7 @@ export default function Eventos() {
                             data-testid={`form-priority-${opt.value || 'none'}`}
                             style={{
                               display: 'flex', alignItems: 'center', gap: '5px',
-                              height: 34, padding: '0 10px', borderRadius: R.md,
+                              height: isMobile ? 44 : 34, padding: '0 10px', borderRadius: R.md,
                               border: `1.5px solid ${active ? opt.dot : '#e7e5e4'}`,
                               backgroundColor: active ? opt.bg : '#ffffff',
                               color: active ? opt.text : '#57534e',
@@ -2409,12 +2619,15 @@ export default function Eventos() {
                 {/* Datas */}
                 <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '16px' }}>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    <label style={{ fontSize: FS.micro, fontWeight: '700', color: '#625d5b', textTransform: 'uppercase', letterSpacing: '0.12em' }}>
+                    {/* htmlFor → id do gatilho: sem o vínculo, o leitor de tela
+                        anunciava só "Selecionar data, botão", sem dizer QUAL. */}
+                    <label htmlFor="event-start-date" style={{ fontSize: FS.micro, fontWeight: '700', color: '#625d5b', textTransform: 'uppercase', letterSpacing: '0.12em' }}>
                       Data de Início
                     </label>
                     <Popover open={openStartDate} onOpenChange={setOpenStartDate}>
                       <PopoverTrigger asChild>
                         <button
+                          id="event-start-date"
                           type="button"
                           data-testid="input-start-date"
                           style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', height: 40, backgroundColor: openStartDate ? '#ffffff' : T.border, border: openStartDate ? '1px solid #f97316' : '1px solid transparent', borderRadius: R.md, padding: '0 12px', fontSize: FS.body, color: formData.startDate ? T.text : T.second, fontFamily: "'Plus Jakarta Sans', sans-serif", cursor: 'pointer', textAlign: 'left' as const, boxShadow: openStartDate ? '0 0 0 2px rgba(249,115,22,0.18)' : 'none', transition: 'all 0.15s' }}
@@ -2443,12 +2656,13 @@ export default function Eventos() {
                     </Popover>
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    <label style={{ fontSize: FS.micro, fontWeight: '700', color: '#625d5b', textTransform: 'uppercase', letterSpacing: '0.12em' }}>
+                    <label htmlFor="event-truck-date" style={{ fontSize: FS.micro, fontWeight: '700', color: '#625d5b', textTransform: 'uppercase', letterSpacing: '0.12em' }}>
                       Saída do Caminhão
                     </label>
                     <Popover open={openTruckDate} onOpenChange={setOpenTruckDate}>
                       <PopoverTrigger asChild>
                         <button
+                          id="event-truck-date"
                           type="button"
                           data-testid="input-truck-date"
                           style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', height: 40, backgroundColor: openTruckDate ? '#ffffff' : T.border, border: openTruckDate ? '1px solid #f97316' : '1px solid transparent', borderRadius: R.md, padding: '0 12px', fontSize: FS.body, color: formData.truckDepartureDate ? T.text : T.second, fontFamily: "'Plus Jakarta Sans', sans-serif", cursor: 'pointer', textAlign: 'left' as const, boxShadow: openTruckDate ? '0 0 0 2px rgba(249,115,22,0.18)' : 'none', transition: 'all 0.15s' }}
@@ -2541,7 +2755,7 @@ export default function Eventos() {
                       const s = formData.startDate;
                       const t = formData.truckDepartureDate?.substring(0, 10);
                       if (s && t && t >= s) {
-                        return <p style={{ margin: 0, fontSize: FS.small, color: '#dc2626', fontWeight: 600 }}>Deve ser pelo menos 1 dia antes do início do evento.</p>;
+                        return <p role="alert" style={{ margin: 0, fontSize: FS.small, color: '#b91c1c', fontWeight: 600 }}>Deve ser pelo menos 1 dia antes do início do evento.</p>;
                       }
                       return null;
                     })()}
@@ -2713,6 +2927,8 @@ export default function Eventos() {
                     </div>
                   )}
                 </div>
+
+                </>)}
 
                 {/* Patrocinadores */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -2988,6 +3204,27 @@ export default function Eventos() {
               </div>
 
               <ModalFooter>
+                {/* O QUE FALTA, ANTES DO CLIQUE. As validações continuam as
+                    mesmas (handleSubmit) — só que antes elas apareciam como
+                    toast vermelho DEPOIS de apertar Salvar, um de cada vez.
+                    Aqui a pessoa vê de uma vez o que falta e decide. */}
+                {!soPatrocinadoresNoModal && (() => {
+                  const faltam = [
+                    !formData.name.trim() && 'nome',
+                    !formData.startDate && 'data de início',
+                    !formData.truckDepartureDate && 'saída do caminhão',
+                  ].filter(Boolean) as string[];
+                  const frase = faltam.length > 0
+                    ? `Falta preencher: ${faltam.length > 1 ? `${faltam.slice(0, -1).join(', ')} e ${faltam[faltam.length - 1]}` : faltam[0]}.`
+                    : hasOrderIssue
+                      ? 'Há prazos fora de ordem — confira a seção Prazos.'
+                      : null;
+                  return frase ? (
+                    <p aria-live="polite" data-testid="texto-falta-no-evento" style={{ margin: 0, fontSize: FS.small, fontWeight: 600, color: '#92400e', textAlign: 'right' }}>
+                      {frase}
+                    </p>
+                  ) : null;
+                })()}
                 <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '12px' }}>
                   <button
                     type="button"
@@ -3007,7 +3244,7 @@ export default function Eventos() {
                     onMouseLeave={e => { e.currentTarget.style.backgroundColor = T.dark; }}
                   >
                     {modalMode === 'edit'
-                      ? (updateEventMutation.isPending ? "Salvando..." : "Salvar Alterações")
+                      ? (updateEventMutation.isPending ? "Salvando..." : soPatrocinadoresNoModal ? "Salvar patrocinadores" : "Salvar Alterações")
                       : modalMode === 'duplicate'
                         ? (createEventMutation.isPending ? "Duplicando..." : "Criar Cópia")
                         : (createEventMutation.isPending ? "Criando..." : "Salvar Evento")
@@ -3077,7 +3314,7 @@ export default function Eventos() {
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
             data-testid="input-search-events"
-            style={{ paddingLeft: '32px', paddingRight: '12px', height: '32px', width: isMobile ? '100%' : '230px', border: '1px solid #e7e5e4', borderRadius: R.pill, backgroundColor: '#ffffff', fontSize: FS.body, color: T.dark, fontFamily: 'inherit' }}
+            style={{ paddingLeft: '32px', paddingRight: '12px', height: isMobile ? 44 : 32, width: isMobile ? '100%' : '230px', border: '1px solid #e7e5e4', borderRadius: R.pill, backgroundColor: '#ffffff', fontSize: FS.body, color: T.dark, fontFamily: 'inherit' }}
             onFocus={e => { e.currentTarget.style.borderColor = '#fd761a'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(253,118,26,0.12)'; }}
             onBlur={e => { e.currentTarget.style.borderColor = '#e7e5e4'; e.currentTarget.style.boxShadow = 'none'; }}
           />
@@ -3150,11 +3387,14 @@ export default function Eventos() {
             como três filtros que se sobrepõem em alguma parte que ninguém
             consegue apontar. */}
         <div role="group" aria-label="Situação dos eventos" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          {/* `significado`: o que cada balde É. "Pendências" sozinho não dizia
+              que se trata de evento que já aconteceu com peça em aberto, e
+              "Arquivados" escondia que ali mora o encerrado à mão. */}
           {([
-            { chave: 'ativos', rotulo: 'Ativos', cor: '#22c55e' },
-            { chave: 'pendencias', rotulo: 'Pendências', cor: '#f59e0b' },
-            { chave: 'arquivados', rotulo: 'Arquivados', cor: '#78716c' },
-          ] as const).map(({ chave, rotulo, cor }) => {
+            { chave: 'ativos', rotulo: 'Ativos', cor: '#22c55e', significado: 'em andamento — o dia do evento ainda não passou' },
+            { chave: 'pendencias', rotulo: 'Pendências', cor: '#f59e0b', significado: 'o dia do evento passou e ainda há peça em aberto' },
+            { chave: 'arquivados', rotulo: 'Arquivados', cor: '#78716c', significado: 'concluídos (tudo entregue) e encerrados manualmente' },
+          ] as const).map(({ chave, rotulo, cor, significado }) => {
             const ligado = situacoes.has(chave);
             return (
               <button
@@ -3163,7 +3403,7 @@ export default function Eventos() {
                 onClick={() => alternarSituacao(chave)}
                 aria-pressed={ligado}
                 data-testid={`toggle-situacao-${chave}`}
-                title={ligado ? `Tirar ${rotulo.toLowerCase()} da lista` : `Trazer ${rotulo.toLowerCase()} para a lista`}
+                title={`${rotulo}: ${significado}. ${ligado ? 'Clique para tirar da lista.' : 'Clique para trazer para a lista.'}`}
                 style={{
                   display: 'inline-flex', alignItems: 'center', gap: 7,
                   height: isMobile ? 44 : 30, padding: '0 12px', borderRadius: R.pill,
@@ -3184,9 +3424,10 @@ export default function Eventos() {
           })}
         </div>
         {hasActiveFilters && (
-          <button onClick={clearAllEventFilters} data-testid="button-clear-filters"
-            style={{ padding: '5px 10px', borderRadius: R.pill, fontSize: FS.small, cursor: 'pointer', border: 'none', backgroundColor: 'transparent', color: T.second }}>
-            Limpar
+          <button type="button" onClick={clearAllEventFilters} data-testid="button-clear-filters"
+            title="Limpar busca, prioridade, patrocinador, mês e atalhos (a situação fica)"
+            style={{ padding: '5px 10px', minHeight: isMobile ? 44 : 30, borderRadius: R.pill, fontSize: FS.small, fontWeight: 600, cursor: 'pointer', border: 'none', backgroundColor: 'transparent', color: T.accentText }}>
+            Limpar filtros
           </button>
         )}
 
@@ -3198,6 +3439,20 @@ export default function Eventos() {
                 ? `${events.length} ${events.length === 1 ? 'evento' : 'eventos'}`
                 : `${filteredEvents.length} de ${events.length} ${events.length === 1 ? 'evento' : 'eventos'}`}
             </span>
+            {/* Buscando por nome, o evento procurado pode estar arquivado: a
+                lista mostra outros resultados e ele "não existe". Com a lista
+                vazia quem avisa é o estado vazio; aqui só com resultados. */}
+            {searchTerm && filteredEvents.length > 0 && foraPorSituacao.total > 0 && (
+              <button
+                type="button"
+                onClick={incluirSituacoesOcultas}
+                data-testid="button-busca-inclui-ocultos"
+                title={`A busca também encontrou eventos em ${nomesDasSituacoesOcultas}`}
+                style={{ fontSize: FS.small, fontWeight: 700, color: T.accentText, background: 'none', border: 'none', padding: '0 4px', minHeight: isMobile ? 44 : 30, cursor: 'pointer', whiteSpace: 'nowrap' }}
+              >
+                +{foraPorSituacao.total} em {nomesDasSituacoesOcultas}
+              </button>
+            )}
 
             {/* ── CARTÕES | LISTA ──
                 O cartão tem sete blocos e ~440px de altura; com 50 eventos a
@@ -3266,7 +3521,9 @@ export default function Eventos() {
           não apontando para um controle.
       ══════════════════════════════════════════════════════════════════ */}
       {!isLoading && !isError && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 16 }}>
+        // Sem marginBottom próprio: o `gap` da coluna já separa da lista, e os
+        // dois somados abriam um vão maior que o da barra de filtros acima.
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
           <span style={{ fontSize: FS.small, color: T.second, flexShrink: 0 }}>Ordem</span>
           <div
             role="radiogroup"
@@ -3383,15 +3640,37 @@ export default function Eventos() {
         <div style={{ backgroundColor: '#ffffff', border: '1px solid #e7e5e4', borderRadius: R.lg, padding: '56px 24px', textAlign: 'center' }}>
           <Search style={{ width: '40px', height: '40px', color: '#d4d0cb', margin: '0 auto 16px' }} />
           <h3 style={{ color: T.dark, fontSize: FS.title, fontWeight: '700', marginBottom: '6px', fontFamily: "'Space Grotesk', sans-serif" }}>Nenhum evento encontrado</h3>
-          <p style={{ color: T.second, fontSize: FS.body, marginBottom: '16px' }}>Nenhum evento corresponde aos filtros ativos.</p>
+          <p style={{ color: T.second, fontSize: FS.body, marginBottom: '16px' }}>
+            {hasActiveFilters ? 'Nenhum evento corresponde aos filtros ativos.' : 'Nenhum evento na situação escolhida.'}
+          </p>
+          {/* A resposta ao "cadê o evento?": estão fora pela SITUAÇÃO, que o
+              "Limpar filtros" não toca. Um clique os traz para a lista. */}
+          {foraPorSituacao.total > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, marginBottom: '18px' }}>
+              <p style={{ color: '#44403c', fontSize: FS.body, fontWeight: 600, margin: 0 }}>
+                {foraPorSituacao.total} {foraPorSituacao.total === 1 ? 'evento está' : 'eventos estão'} em {nomesDasSituacoesOcultas}, fora da lista.
+              </p>
+              <button
+                type="button"
+                onClick={incluirSituacoesOcultas}
+                data-testid="button-incluir-situacoes-ocultas"
+                style={{ fontSize: FS.body, fontWeight: 700, color: T.dark, background: '#ffffff', border: '1px solid #d6d3d1', borderRadius: R.md, padding: '8px 16px', minHeight: isMobile ? 44 : undefined, cursor: 'pointer' }}
+              >
+                Mostrar {nomesDasSituacoesOcultas}
+              </button>
+            </div>
+          )}
           {/* Chips removíveis: "Limpar filtros" era tudo-ou-nada, e com
               prioridade + mês + próximos 10 dias combinados não dava para saber
               qual deles esvaziou a lista. */}
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', justifyContent: 'center', marginBottom: '20px' }}>
-            {activeFilterChips.map((chip) => (
+            {/* O chip "Arquivados fora da lista" repetiria o aviso logo acima. */}
+            {activeFilterChips.filter((chip) => !(chip.key === 'arquivados' && foraPorSituacao.total > 0)).map((chip) => (
               <button
                 key={chip.key}
+                type="button"
                 onClick={chip.clear}
+                aria-label={`Remover o filtro ${chip.label}`}
                 data-testid={`chip-remove-${chip.key}`}
                 style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '4px 10px', borderRadius: R.pill, fontSize: FS.small, fontWeight: '700', border: '1px solid #e7e5e4', backgroundColor: '#f5f5f4', color: '#44403c', cursor: 'pointer' }}
               >
@@ -3400,13 +3679,17 @@ export default function Eventos() {
               </button>
             ))}
           </div>
-          <button
-            onClick={clearAllEventFilters}
-            data-testid="button-clear-filters-empty"
-            style={{ fontSize: FS.body, fontWeight: 700, color: '#fff', background: T.dark, border: 'none', borderRadius: R.md, padding: '9px 20px', cursor: 'pointer' }}
-          >
-            Limpar filtros
-          </button>
+          {/* Só quando há filtro a limpar: sem nenhum, o botão não fazia nada
+              visível — a lista seguia vazia e a pessoa clicava de novo. */}
+          {hasActiveFilters && (
+            <button
+              onClick={clearAllEventFilters}
+              data-testid="button-clear-filters-empty"
+              style={{ fontSize: FS.body, fontWeight: 700, color: '#fff', background: T.dark, border: 'none', borderRadius: R.md, padding: '9px 20px', cursor: 'pointer' }}
+            >
+              Limpar filtros
+            </button>
+          )}
         </div>
       ) : (
         <>
@@ -3440,18 +3723,18 @@ export default function Eventos() {
               </div>
 
               {visibleEvents.map((event) => {
-                const cardSponsors = ((event.sponsors || []) as any[])
-                  .map((es) => sponsorById.get(es.sponsorId))
-                  .filter(Boolean) as Sponsor[];
+                const cardSponsors = patrocinadoresDoCartao.get(event.id) ?? SEM_PATROCINADORES;
                 return (
-                  <EventRow
+                  <EventRowMemo
                     key={event.id}
                     event={event}
                     sponsorCount={cardSponsors.length}
                     pedidosAbertos={pedidosPorEvento.get(event.id) ?? 0}
                     currentYear={currentYear}
+                    agoraMs={agoraMs}
                     isMobile={isMobile}
                     canEdit={canEdit}
+                    soPatrocinadores={soPatrocinadores}
                     canDelete={canDelete}
                     canDuplicate={canCreate && !isMobile}
                     canSetPriority={canSetPriority}
@@ -3470,19 +3753,20 @@ export default function Eventos() {
           <div className="grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-3 gap-6">
             {visibleEvents.map((event) => {
               // O payload de eventos traz só o vínculo (sponsorId/quota) —
-              // nome/cor vêm da lista global de patrocinadores.
-              const cardSponsors = ((event.sponsors || []) as any[])
-                .map((es) => sponsorById.get(es.sponsorId))
-                .filter(Boolean) as Sponsor[];
+              // nome/cor vêm da lista global de patrocinadores (mapa memoizado:
+              // a MESMA lista a cada render é o que deixa o cartão pular o render).
+              const cardSponsors = patrocinadoresDoCartao.get(event.id) ?? SEM_PATROCINADORES;
               return (
-                <EventCard
+                <EventCardMemo
                   key={event.id}
                   event={event}
                   cardSponsors={cardSponsors}
                   pedidosAbertos={pedidosPorEvento.get(event.id) ?? 0}
                   isMobile={isMobile}
                   currentYear={currentYear}
+                  agoraMs={agoraMs}
                   canEdit={canEdit}
+                  soPatrocinadores={soPatrocinadores}
                   canDelete={canDelete}
                   canDuplicate={canCreate && !isMobile}
                   canSetPriority={canSetPriority}
@@ -3605,132 +3889,33 @@ export default function Eventos() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* ── ENCERRAR ──
-          A confirmação diz o NÚMERO real de peças em aberto e quantas estão em
-          produção. "Ainda há peças pendentes" não faz ninguém parar; "12 peças
-          pendentes, sendo 3 em produção" faz. E diz o que encerrar FAZ e o que
-          NÃO faz — nenhuma peça muda de status, nada é apagado. */}
-      <AlertDialog open={!!closingEventId} onOpenChange={(v) => { if (!v && !closeEventMutation.isPending) setClosingEventId(null); }}>
-        {/* ALTURA — a conta.
-              Medido no pior caso (evento com peças pendentes e em produção):
-              32 de padding + título 24 + tarja âmbar ~90 + o parágrafo do que
-              encerrar faz e não faz ~130 + rodapé 86 = ~400px, contra 397
-              disponíveis numa janela de 445 — CORTAVA por pouco, e por igual
-              nos dois lados.
-              O teto é `100vh − 48`: a viewport menos 24px de respiro em cima e
-              24 embaixo, simétrico porque o Radix centra o Content com
-              `top: 50%` + translate. A rede de segurança de ui/alert-dialog.tsx
-              NÃO alcança este diálogo: ele traz `overflow: hidden` inline, e
-              inline vence classe — sem a coluna flex e sem um scrollport o teto
-              só trocaria o corte simétrico por um corte embaixo. Por isso o
-              corpo vira o único item que rola e o rodapé leva `flexShrink: 0`. */}
-          <AlertDialogContent style={{ maxWidth: "460px", backgroundColor: "#ffffff", borderRadius: R.xl, padding: 0, border: "none", boxShadow: SHADOW.lg, overflow: "hidden", maxHeight: "calc(100vh - 48px)", display: "flex", flexDirection: "column" }}>
-          <div style={{ padding: "32px 32px 8px 32px", overflowY: "auto", flex: "1 1 auto", minHeight: 0 }}>
-            <AlertDialogTitle style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: FS.title, fontWeight: "700", letterSpacing: "-0.02em", color: T.dark, margin: 0 }}>
-              Encerrar evento
-            </AlertDialogTitle>
-
-            {closingStats && closingStats.openCount > 0 && (
-              <div style={{ marginTop: "20px", padding: "16px", backgroundColor: "#fffbeb", borderLeft: "4px solid #f59e0b", borderRadius: `0 ${R.md}px ${R.md}px 0`, display: "flex", alignItems: "flex-start", gap: "12px" }}>
-                <AlertTriangle style={{ width: "18px", height: "18px", color: "#b45309", flexShrink: 0, marginTop: "1px" }} />
-                <p style={{ fontSize: FS.body, fontWeight: "600", color: "#783200", margin: 0, lineHeight: 1.6 }}>
-                  Este evento tem{" "}
-                  <strong>{closingStats.openCount} {closingStats.openCount === 1 ? 'peça pendente' : 'peças pendentes'}</strong>
-                  {closingStats.inProductionCount > 0
-                    ? <>, {closingStats.inProductionCount === 1 ? 'sendo 1 em produção' : `sendo ${closingStats.inProductionCount} em produção`}</>
-                    : null}
-                  . Elas <strong>não são canceladas nem entregues</strong> — continuam na lista do evento, mas param de ser cobradas na Gestão de Prazos e saem das filas de trabalho.
-                </p>
-              </div>
-            )}
-
-            <AlertDialogDescription style={{ fontSize: FS.strong, color: T.second, lineHeight: 1.6, marginTop: "16px" }}>
-              Encerrar{" "}
-              <strong style={{ color: T.text, fontWeight: "600" }}>"{closingEvent?.name || "este evento"}"</strong>
-              {closingStats && closingStats.openCount === 0
-                ? closingStats.activeItemCount > 0
-                  ? <> — todas as {closingStats.activeItemCount} peças já estão entregues.</>
-                  : <> — este evento não tem nenhuma peça.</>
-                : '.'}
-              {" "}Ele sai da Gestão de Prazos e das filas de trabalho, e segue visível no histórico, na consulta e no filtro "Concluídos". A ação fica registrada com seu nome e horário, e pode ser desfeita em <strong style={{ color: T.text, fontWeight: 600 }}>Reabrir evento</strong>.
-            </AlertDialogDescription>
-          </div>
-
-          <AlertDialogFooter style={{ padding: "16px 32px 32px 32px", display: "flex", flexDirection: "row", justifyContent: "flex-end", gap: "10px", flexShrink: 0 }}>
-            <AlertDialogCancel
-              disabled={closeEventMutation.isPending}
-              style={{ padding: "9px 24px", backgroundColor: "transparent", border: "1px solid #e0c0b1", borderRadius: R.sm, fontSize: FS.body, fontWeight: "700", color: "#625d5b", cursor: "pointer", textTransform: "uppercase", letterSpacing: "0.04em", fontFamily: "'Plus Jakarta Sans', sans-serif" }}
-            >
-              Cancelar
-            </AlertDialogCancel>
-            <AlertDialogAction
-              onClick={(e) => {
-                // preventDefault: sem ele o diálogo fecha antes de a mutação
-                // responder e o toast com a contagem real se perde.
-                e.preventDefault();
-                if (closingEventId) closeEventMutation.mutate(closingEventId);
-              }}
-              disabled={closeEventMutation.isPending}
-              data-testid="button-confirm-close-event"
-              style={{ padding: "9px 24px", backgroundColor: "#57534e", border: "none", borderRadius: R.sm, fontSize: FS.body, fontWeight: "700", color: "#ffffff", cursor: closeEventMutation.isPending ? "wait" : "pointer", opacity: closeEventMutation.isPending ? 0.5 : 1, textTransform: "uppercase", letterSpacing: "0.04em", fontFamily: "'Plus Jakarta Sans', sans-serif", display: "flex", alignItems: "center", gap: "8px" }}
-            >
-              <Lock style={{ width: "14px", height: "14px" }} />
-              {closeEventMutation.isPending ? "Encerrando..." : "Encerrar"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      {/* ── REABRIR ── */}
-      <AlertDialog open={!!reopeningEventId} onOpenChange={(v) => { if (!v && !reopenEventMutation.isPending) setReopeningEventId(null); }}>
-        {/* ALTURA — a conta.
-              Medido: 32 de padding + título 24 + texto de três linhas ~72 +
-              rodapé 86 = ~300px. NÃO cortava; o teto é preventivo, e a parte
-              elástica é o nome do evento no texto.
-              O teto é `100vh − 48`: a viewport menos 24px de respiro em cima e
-              24 embaixo, simétrico porque o Radix centra o Content com
-              `top: 50%` + translate. A rede de segurança de ui/alert-dialog.tsx
-              NÃO alcança este diálogo: ele traz `overflow: hidden` inline, e
-              inline vence classe — sem a coluna flex e sem um scrollport o teto
-              só trocaria o corte simétrico por um corte embaixo. Por isso o
-              corpo vira o único item que rola e o rodapé leva `flexShrink: 0`. */}
-          <AlertDialogContent style={{ maxWidth: "440px", backgroundColor: "#ffffff", borderRadius: R.xl, padding: 0, border: "none", boxShadow: SHADOW.lg, overflow: "hidden", maxHeight: "calc(100vh - 48px)", display: "flex", flexDirection: "column" }}>
-          <div style={{ padding: "32px 32px 8px 32px", overflowY: "auto", flex: "1 1 auto", minHeight: 0 }}>
-            <AlertDialogTitle style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: FS.title, fontWeight: "700", letterSpacing: "-0.02em", color: T.dark, margin: 0 }}>
-              Reabrir evento
-            </AlertDialogTitle>
-            <AlertDialogDescription style={{ fontSize: FS.strong, color: T.second, lineHeight: 1.6, marginTop: "16px" }}>
-              <strong style={{ color: T.text, fontWeight: "600" }}>"{reopeningEvent?.name || "Este evento"}"</strong>{" "}
-              volta para a Gestão de Prazos e para as filas de trabalho
-              {reopeningStats && reopeningStats.openCount > 0
-                ? <> com <strong style={{ color: T.text, fontWeight: 600 }}>{reopeningStats.openCount} {reopeningStats.openCount === 1 ? 'peça em aberto' : 'peças em aberto'}</strong>{reopeningStats.inProductionCount > 0 ? ` (${reopeningStats.inProductionCount} em produção)` : ''}</>
-                : null}
-              . A partir daí os prazos voltam a ser cobrados normalmente. A reabertura fica registrada com seu nome e horário.
-            </AlertDialogDescription>
-          </div>
-
-          <AlertDialogFooter style={{ padding: "16px 32px 32px 32px", display: "flex", flexDirection: "row", justifyContent: "flex-end", gap: "10px", flexShrink: 0 }}>
-            <AlertDialogCancel
-              disabled={reopenEventMutation.isPending}
-              style={{ padding: "9px 24px", backgroundColor: "transparent", border: "1px solid #e0c0b1", borderRadius: R.sm, fontSize: FS.body, fontWeight: "700", color: "#625d5b", cursor: "pointer", textTransform: "uppercase", letterSpacing: "0.04em", fontFamily: "'Plus Jakarta Sans', sans-serif" }}
-            >
-              Cancelar
-            </AlertDialogCancel>
-            <AlertDialogAction
-              onClick={(e) => {
-                e.preventDefault();
-                if (reopeningEventId) reopenEventMutation.mutate(reopeningEventId);
-              }}
-              disabled={reopenEventMutation.isPending}
-              data-testid="button-confirm-reopen-event"
-              style={{ padding: "9px 24px", backgroundColor: "#15803d", border: "none", borderRadius: R.sm, fontSize: FS.body, fontWeight: "700", color: "#ffffff", cursor: reopenEventMutation.isPending ? "wait" : "pointer", opacity: reopenEventMutation.isPending ? 0.5 : 1, textTransform: "uppercase", letterSpacing: "0.04em", fontFamily: "'Plus Jakarta Sans', sans-serif", display: "flex", alignItems: "center", gap: "8px" }}
-            >
-              <Unlock style={{ width: "14px", height: "14px" }} />
-              {reopenEventMutation.isPending ? "Reabrindo..." : "Reabrir"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {/* ── ENCERRAR / REABRIR ──
+          A confirmação é UM componente, o mesmo do detalhe do evento
+          (components/encerrar-evento-dialog.tsx): a mesma decisão diz a mesma
+          frase nas duas telas. A mutação, as invalidações e o toast com
+          "Mostrar" continuam aqui. */}
+      <EncerrarEventoDialog
+        modo="encerrar"
+        open={!!closingEventId}
+        onFechar={() => setClosingEventId(null)}
+        onConfirmar={() => { if (closingEventId) closeEventMutation.mutate(closingEventId); }}
+        pendente={closeEventMutation.isPending}
+        nomeDoEvento={closingEvent?.name}
+        abertas={closingStats ? closingStats.openCount : null}
+        emProducao={closingStats?.inProductionCount ?? null}
+        ativas={closingStats?.activeItemCount ?? null}
+      />
+      <EncerrarEventoDialog
+        modo="reabrir"
+        open={!!reopeningEventId}
+        onFechar={() => setReopeningEventId(null)}
+        onConfirmar={() => { if (reopeningEventId) reopenEventMutation.mutate(reopeningEventId); }}
+        pendente={reopenEventMutation.isPending}
+        nomeDoEvento={reopeningEvent?.name}
+        abertas={reopeningStats ? reopeningStats.openCount : null}
+        emProducao={reopeningStats?.inProductionCount ?? null}
+        ativas={reopeningStats?.activeItemCount ?? null}
+      />
 
       {/* ── PRIORIDADE ── */}
       <Dialog open={priorityDialogOpen} onOpenChange={setPriorityDialogOpen}>

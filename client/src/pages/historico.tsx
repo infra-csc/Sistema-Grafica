@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef, useCallback } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback, useDeferredValue, memo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { FilterSelect } from "@/components/filter-select";
 import {
@@ -14,6 +14,7 @@ import { ptBR } from "date-fns/locale";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { HIDE_NATIVE_CLOSE, modalSurface, ModalHeader, ModalFooter } from "@/components/modal-shell";
 import { buildTimeline, type TimelineEvent } from "@/lib/timeline";
+import { FS } from "@/lib/theme";
 
 /* ── Palette ── */
 const P = {
@@ -157,6 +158,8 @@ function cfgFor(type: string): TypeCfg & { bg: string; border: string; color: st
 const EXCECAO_TYPES = Object.entries(TYPE_CONFIG)
   .filter(([, c]) => c.excecao)
   .map(([t]) => t);
+/** O mesmo conjunto, para consulta O(1) nas contagens sobre todas as linhas. */
+const EXCECAO_SET = new Set(EXCECAO_TYPES);
 
 /* ── Período ── */
 const PERIODS = [
@@ -221,6 +224,18 @@ function tomDoIntervalo(ms: number): string {
    data em diante a trilha é confiável — que é o que a faixa amarela já fazia. */
 const PAGINA_TRILHA = 1000;
 const TETO_TRILHA = 20000;
+
+/* ── Incorporar páginas em lotes, não uma a uma (PERF-4, 17/09) ─────────────
+   Cada página caminhada que entrava no estado reconstruía a timeline INTEIRA
+   (peças + todos os registros já acumulados) e refazia as contagens dos
+   filtros. Com 20 páginas até o teto, eram 20 reconstruções de tamanho
+   crescente — segundos de thread principal ocupada, em rajadas, enquanto a
+   pessoa já está lendo a lista. As páginas continuam sendo BAIXADAS uma a uma
+   (e guardadas no depósito a cada chegada, para sobreviver a sair da tela);
+   só a INCORPORAÇÃO à lista espera juntar o que chegou em até 2s. O fim da
+   trilha, o teto e uma falha de rede incorporam na hora o que estiver
+   pendente. */
+const INTERVALO_INCORPORACAO_MS = 2000;
 
 /* As páginas já caminhadas sobrevivem a sair da tela e voltar (até a coleta do
    react-query levá-las, por não terem observador — aí o caminhamento recomeça,
@@ -319,13 +334,16 @@ function Atalho({ label, count, tom, ativo, alto, onClick, testId }: {
       title={ativo ? `Desfazer o atalho "${label}"` : `Filtrar por ${label.toLowerCase()}`}
       style={{
         display: "inline-flex", alignItems: "center", gap: 7,
-        height: alto ? 40 : 30, padding: "0 12px", borderRadius: 999,
+        // 44px no celular (alvo de toque). Caixa normal: "EXCLUSÕES E
+        // REPROVAÇÕES" em maiúsculas espaçadas era a coisa mais barulhenta da
+        // faixa, e é um atalho — não um alerta. A cor já faz a distinção.
+        height: alto ? 44 : 30, padding: "0 12px", borderRadius: 999,
         backgroundColor: ativo ? t.text : t.tint,
         border: `1px solid ${ativo ? t.text : t.border}`,
         color: ativo ? "#ffffff" : t.text,
-        fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.06em",
+        fontSize: 12, fontWeight: 700,
         cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0,
-        transition: "background 0.12s, color 0.12s",
+        transition: "background-color 0.12s, color 0.12s",
       }}
     >
       <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 12, fontWeight: 700, letterSpacing: 0 }}>
@@ -778,9 +796,14 @@ export default function Historico() {
   // oferecer nova tentativa do que exibir um histórico pela metade.
   const isError = eventsQ.isError || itemsQ.isError || logsQ.isError;
 
-  const sorted = useMemo(
-    () => buildTimeline(events, items, auditLogs),
-    [events, items, auditLogs],
+  // Enquanto alguma das três fontes ainda carrega, a tela mostra o esqueleto e
+  // não lê a timeline — reconstruí-la a cada fonte que chega (eventos, depois
+  // registros, depois peças) eram duas passadas completas jogadas fora antes
+  // do primeiro pixel útil. A adoção logo abaixo trata a chegada da versão
+  // completa como primeira carga, então nada muda para quem lê.
+  const sorted = useMemo<TimelineEvent[]>(
+    () => (isLoading ? VAZIO : buildTimeline(events, items, auditLogs)),
+    [events, items, auditLogs, isLoading],
   );
 
   /* ── Atualização em segundo plano sem reordenar sob o dedo ──────────────
@@ -872,11 +895,31 @@ export default function Historico() {
     if (!proximoCursor || esgotadoRef.current || andandoRef.current) return;
     let vivo = true;
     const ctrl = new AbortController();
+    // Solta o lote pendente quando a PRÓXIMA página demora: o lote só era
+    // incorporado na chegada de outra página, e uma resposta lenta (a trilha
+    // antiga é a consulta mais pesada) deixava a página já baixada fora da
+    // lista por muito mais que os 2s prometidos.
+    let timerDoLote: ReturnType<typeof setTimeout> | null = null;
     andandoRef.current = true;
     setCompletando(true);
 
     (async () => {
       let cursor: string | null = cursorRef.current ?? proximoCursor;
+      // Lote de incorporação (ver INTERVALO_INCORPORACAO_MS): `pendente` diz
+      // se há página baixada que ainda não entrou na lista.
+      let ultimaIncorporacao = performance.now();
+      let pendente = false;
+      const incorporar = () => {
+        if (timerDoLote) { clearTimeout(timerDoLote); timerDoLote = null; }
+        if (!vivo) return;
+        pendente = false;
+        ultimaIncorporacao = performance.now();
+        // Completar a trilha NÃO é novidade: sem isto, cada página anterior
+        // que chega dispara a pílula "N novas atividades" e pede ao usuário
+        // que atualize para ver um passado que ele não pediu para congelar.
+        adoptNextRef.current = true;
+        setPaginasSeguintes(acumuladoRef.current);
+      };
       try {
         while (vivo && cursor) {
           if (acumuladoRef.current.length >= TETO_TRILHA) {
@@ -896,11 +939,10 @@ export default function Historico() {
           queryClient.setQueryData<TrilhaCaminhada>(CACHE_TRILHA, {
             logs: acumuladoRef.current, cursor, esgotado: !cursor,
           });
-          // Completar a trilha NÃO é novidade: sem isto, cada página anterior
-          // que chega dispara a pílula "N novas atividades" e pede ao usuário
-          // que atualize para ver um passado que ele não pediu para congelar.
-          adoptNextRef.current = true;
-          setPaginasSeguintes(acumuladoRef.current);
+          pendente = true;
+          const decorrido = performance.now() - ultimaIncorporacao;
+          if (!cursor || decorrido >= INTERVALO_INCORPORACAO_MS) incorporar();
+          else if (!timerDoLote) timerDoLote = setTimeout(incorporar, INTERVALO_INCORPORACAO_MS - decorrido);
         }
         if (vivo && !cursor) esgotadoRef.current = true;
       } catch {
@@ -908,6 +950,10 @@ export default function Historico() {
         // faixa de confiança continua dizendo, com data, até onde ela vai.
       } finally {
         andandoRef.current = false;
+        // Teto, falha de rede ou fim: o que foi baixado e ainda esperava o
+        // lote entra agora. Tela desmontada não recebe estado — o depósito já
+        // guardou tudo e a próxima visita começa dele.
+        if (vivo && pendente) incorporar();
         if (vivo) setCompletando(false);
       }
     })();
@@ -916,12 +962,19 @@ export default function Historico() {
     // percebe: em modo estrito o efeito é recriado no mesmo tique, e esperar
     // pelo `finally` do laço antigo faria o novo desistir por achar que já há um
     // caminhamento em curso — o recurso ficaria desligado sem nenhum sintoma.
-    return () => { vivo = false; andandoRef.current = false; ctrl.abort(); };
+    return () => {
+      vivo = false;
+      andandoRef.current = false;
+      if (timerDoLote) clearTimeout(timerDoLote);
+      ctrl.abort();
+    };
   }, [proximoCursor, isLoading, queryClient]);
 
   // "Atualizado há X" precisa reescrever sozinho; sem o tick ele congelava em
   // "há menos de um minuto" pelo resto da sessão.
-  const [, setTick] = useState(0);
+  // O valor vai para as linhas (memoizadas): é ele que diz a uma linha com
+  // hora relativa ("há 5 minutos") que o texto dela precisa andar.
+  const [tick, setTick] = useState(0);
   useEffect(() => {
     const t = window.setInterval(() => setTick(n => n + 1), 30000);
     return () => window.clearInterval(t);
@@ -978,6 +1031,12 @@ export default function Historico() {
   }, [searchFilter, trilha, trilhaItemId, janelaCompleta]);
 
 
+  // A LISTA filtra pelo termo ADIADO: o campo mostra a tecla na hora e o
+  // recorte de dezenas de milhares de linhas roda em segundo plano, podendo
+  // ser descartado pela tecla seguinte. URL, contador de filtros, busca além
+  // da janela e o texto do estado vazio continuam lendo o termo digitado.
+  const buscaAdiada = useDeferredValue(searchFilter);
+
   const filtered = useMemo(() => {
     // A TRILHA ignora os outros recortes de propósito: "trilha completa" com
     // um período de 7 dias aplicado por cima seria uma trilha com buracos —
@@ -996,15 +1055,15 @@ export default function Historico() {
     if (authorFilter.length > 0) {
       list = list.filter(e => authorFilter.includes(autorKey(e)));
     }
-    if (searchFilter.trim()) {
-      const q = searchFilter.toLowerCase();
+    if (buscaAdiada.trim()) {
+      const q = buscaAdiada.toLowerCase();
       // searchBlob cobre também o `logDetails` — que é o texto RENDERIZADO nas
       // linhas de aprovação/reprovação. O usuário lia "Patrocinador Ambev
       // reprovou…", digitava "Ambev" e recebia "Nenhuma atividade encontrada".
       list = list.filter(e => e.searchBlob.includes(q));
     }
     return list;
-  }, [displayed, period, eventFilter, actionFilter, authorFilter, searchFilter, trilha, trilhaItemId]);
+  }, [displayed, period, eventFilter, actionFilter, authorFilter, buscaAdiada, trilha, trilhaItemId]);
 
   // Dois contadores, de propósito. `recorteCount` conta só as quatro dimensões
   // que vivem nos dropdowns — é o número do botão "Filtros" do celular, que
@@ -1066,9 +1125,33 @@ export default function Historico() {
   /* ── Opções de filtro derivadas dos DADOS (com contagem) ──
      A lista de 24 ações era literal: "Reaprov. corrigido" aparecia mesmo que
      nunca tivesse existido e levava a zero resultados. */
+  /* ── UMA passada pelas linhas, todas as contagens ──
+     Eram sete varreduras de `displayed` (três opções de filtro, reconstruídas,
+     e três `filter` das métricas) — com a trilha caminhada, dezenas de
+     milhares de linhas percorridas sete vezes a cada lote incorporado. As
+     regras de cada contagem são as mesmas de antes, só moram no mesmo laço. */
+  const contagens = useMemo(() => {
+    const porTipo = new Map<string, number>();
+    const porEvento = new Map<string, number>();
+    const porAutor = new Map<string, number>();
+    let derivadas = 0, deHoje = 0, deSete = 0, excecoes = 0;
+    const hoje = startOfDay(new Date());
+    const sete = subDays(new Date(), 7);
+    for (const e of displayed) {
+      porTipo.set(e.type, (porTipo.get(e.type) ?? 0) + 1);
+      if (e.eventId) porEvento.set(e.eventId, (porEvento.get(e.eventId) ?? 0) + 1);
+      const k = autorKey(e);
+      porAutor.set(k, (porAutor.get(k) ?? 0) + 1);
+      if (e.authorSource === "derived") derivadas++;
+      if (e.timestamp >= hoje) deHoje++;
+      if (e.timestamp >= sete) deSete++;
+      if (EXCECAO_SET.has(e.type)) excecoes++;
+    }
+    return { porTipo, porEvento, porAutor, derivadas, deHoje, deSete, excecoes };
+  }, [displayed]);
+
   const actionOptions = useMemo(() => {
-    const counts = new Map<string, number>();
-    displayed.forEach(e => counts.set(e.type, (counts.get(e.type) ?? 0) + 1));
+    const counts = contagens.porTipo;
     const opts = Array.from(counts.entries()).map(([type, count]) => {
       const cfg = TYPE_CONFIG[type] ?? DEFAULT_CFG;
       return {
@@ -1080,49 +1163,31 @@ export default function Historico() {
     // Ordena por fase para o agrupamento do FilterSelect sair na ordem do fluxo.
     opts.sort((a, b) => a._order - b._order || b.count - a.count);
     return opts.map(({ _order, ...o }) => o);
-  }, [displayed]);
+  }, [contagens]);
 
   const eventOptions = useMemo(() => {
-    const counts = new Map<string, number>();
-    displayed.forEach(e => {
-      if (e.eventId) counts.set(e.eventId, (counts.get(e.eventId) ?? 0) + 1);
-    });
+    const counts = contagens.porEvento;
     return events.map((ev: any) => ({ value: ev.id, label: ev.name, count: counts.get(ev.id) ?? 0 }));
-  }, [events, displayed]);
+  }, [events, contagens]);
 
   const authorOptions = useMemo(() => {
-    const counts = new Map<string, number>();
-    displayed.forEach(e => {
-      const k = autorKey(e);
-      counts.set(k, (counts.get(k) ?? 0) + 1);
-    });
+    const counts = contagens.porAutor;
     return Array.from(counts.entries())
       .map(([value, count]) => ({
         value, count,
         label: AUTOR_LABEL[value] ?? value,
       }))
       .sort((a, b) => b.count - a.count);
-  }, [displayed]);
+  }, [contagens]);
 
   /* ── Quantas linhas a tela INVENTOU a partir de carimbos ──
      O número vai para a faixa de confiança porque é ele que explica a coluna
      "Realizado por" vazia. Sem ele, a única conclusão possível ao olhar a tela
      era "o sistema não registra quem faz as coisas". */
-  const reconstruidas = useMemo(
-    () => displayed.filter(e => e.authorSource === "derived").length,
-    [displayed],
-  );
+  const reconstruidas = contagens.derivadas;
 
-  /* ── Métricas-atalho ── */
-  const metrics = useMemo(() => {
-    const hoje = startOfDay(new Date());
-    const sete = subDays(new Date(), 7);
-    return {
-      hoje: displayed.filter(e => e.timestamp >= hoje).length,
-      sete: displayed.filter(e => e.timestamp >= sete).length,
-      excecoes: displayed.filter(e => EXCECAO_TYPES.includes(e.type)).length,
-    };
-  }, [displayed]);
+  /* ── Métricas-atalho ── (hoje, 7 dias e exceções, contados na passada única) */
+  const metrics = { hoje: contagens.deHoje, sete: contagens.deSete, excecoes: contagens.excecoes };
 
   // O atalho de exceções só se declara ativo quando o filtro de Ação é
   // EXATAMENTE o conjunto que ele aplica: comparar por tamanho + pertinência
@@ -1312,14 +1377,18 @@ export default function Historico() {
   // ele, cada gatilho ocupa só o seu texto.
   const selectStyle: React.CSSProperties | undefined = isMobile ? undefined : { minWidth: 168 };
 
+  // Caixa normal e texto escuro: em caixa alta cinza (#746e69, 0.08em) os dois
+  // botões pareciam desabilitados ao lado do título. 44px no celular.
   const headerBtn: React.CSSProperties = {
     display: "flex", alignItems: "center", gap: 7,
-    height: 38, padding: "0 16px",
-    backgroundColor: P.surface, color: P.second,
+    height: isMobile ? 44 : 38, padding: "0 16px",
+    backgroundColor: P.surface, color: "#44403c",
     border: `1px solid ${P.border}`, borderRadius: 8,
-    fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em",
+    fontSize: 13, fontWeight: 600,
     cursor: "pointer",
   };
+
+  const faixaFixa = !(isMobile && filtrosAbertos);
 
   const subtitulo = oldestLoaded
     ? `Ações registradas em eventos e peças · trilha a partir de ${format(oldestLoaded, "d 'de' MMMM 'de' yyyy", { locale: ptBR })}`
@@ -1373,7 +1442,7 @@ export default function Historico() {
           data-testid="button-clear-search"
           style={{
             position: "absolute", right: 6, top: "50%", transform: "translateY(-50%)",
-            width: 24, height: 24, borderRadius: 6, border: "none", background: "none",
+            width: isMobile ? 36 : 24, height: isMobile ? 36 : 24, borderRadius: 6, border: "none", background: "none",
             cursor: "pointer", color: P.second,
             display: "flex", alignItems: "center", justifyContent: "center",
           }}
@@ -1548,12 +1617,12 @@ export default function Historico() {
         title={hasActiveFilters ? "Remover todos os filtros e a busca" : "Não há filtro aplicado"}
         style={{
           display: "inline-flex", alignItems: "center", gap: 5,
-          height: isMobile ? 34 : 28, padding: "0 10px", borderRadius: 7,
+          height: isMobile ? 44 : 28, padding: "0 10px", borderRadius: 7,
           marginLeft: isMobile ? "auto" : 0,
           backgroundColor: hasActiveFilters ? "#fef2f2" : "transparent",
           border: `1px solid ${hasActiveFilters ? "#fecaca" : P.border}`,
           color: hasActiveFilters ? "#b91c1c" : "#57534e",
-          fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.06em",
+          fontSize: 12, fontWeight: 600,
           cursor: hasActiveFilters ? "pointer" : "default",
           whiteSpace: "nowrap", flexShrink: 0,
         }}
@@ -1569,6 +1638,13 @@ export default function Historico() {
       ref={scrollRef}
       style={{ backgroundColor: P.bg, height: "100%", overflowY: "auto", padding: isMobile ? "14px 14px 32px" : "28px 28px 48px" }}
     >
+      <style>{`
+        /* Hover dos botões brancos do cabeçalho. O fundo vem inline, e
+           estilo inline vence classe — daí o !important. A regra global de
+           movimento reduzido (index.css) zera a transição para quem pediu. */
+        .hist-hover { transition: background-color 0.15s, border-color 0.15s; }
+        .hist-hover:hover:not(:disabled) { background-color: #f5f5f4 !important; border-color: #d6d3d1 !important; }
+      `}</style>
 
       {/* ── Header ── */}
       <div style={{
@@ -1577,14 +1653,23 @@ export default function Historico() {
       }}>
         <div style={{ minWidth: 0 }}>
           <h1 style={{
-            fontSize: 26, fontWeight: 900, color: P.text, margin: "0 0 6px",
-            letterSpacing: "-0.04em", textTransform: "uppercase",
-            fontFamily: "'Space Grotesk', sans-serif", lineHeight: 1,
+            fontSize: FS.h1, fontWeight: 700, color: P.text, margin: "0 0 6px",
+            letterSpacing: "-0.03em",
+            fontFamily: "'Space Grotesk', sans-serif", lineHeight: 1.1,
           }}>
             Histórico de Atividades
           </h1>
           <p style={{ fontSize: 13, color: P.second, margin: 0, fontWeight: 500 }}>
             {subtitulo}
+          </p>
+          {/* O QUE SE FAZ AQUI, numa linha. Os dois gestos que respondem as
+              perguntas de auditoria ("o que aconteceu com esta linha?" e "por
+              onde esta peça passou?") viviam só num clique sem pista e num
+              ícone de rota sem rótulo — descoberta por acaso. */}
+          <p data-testid="texto-como-usar-historico" style={{ fontSize: 12, color: P.second, margin: "4px 0 0", lineHeight: 1.5, maxWidth: 720 }}>
+            Quem fez o quê e quando. Clique numa linha para ver o detalhe; o ícone
+            {" "}<Route role="img" aria-label="de rota" style={{ width: 12, height: 12, color: "#c2410c", verticalAlign: "-2px" }} />{" "}
+            ao lado de uma peça mostra todo o caminho dela, do pedido à entrega.
           </p>
         </div>
 
@@ -1595,12 +1680,13 @@ export default function Historico() {
             </span>
           )}
           <button onClick={atualizar} disabled={isFetching} data-testid="button-refresh-historico"
-            aria-label="Atualizar o histórico"
+            aria-label="Atualizar o histórico" className="hist-hover"
             style={{ ...headerBtn, cursor: isFetching ? "default" : "pointer", opacity: isFetching ? 0.7 : 1 }}>
             <RotateCcw aria-hidden="true" className={isFetching ? "animate-spin" : undefined} style={{ width: 13, height: 13 }} />
             {isFetching ? "Atualizando…" : "Atualizar"}
           </button>
           <button onClick={exportarCsv} disabled={filtered.length === 0} data-testid="button-export-historico"
+            className="hist-hover"
             style={{ ...headerBtn, cursor: filtered.length === 0 ? "not-allowed" : "pointer", opacity: filtered.length === 0 ? 0.6 : 1 }}>
             <Download aria-hidden="true" style={{ width: 13, height: 13 }} />
             Exportar CSV
@@ -1661,7 +1747,10 @@ export default function Historico() {
           cantos arredondados passam a ser dos filhos das pontas. */}
       <div style={{ backgroundColor: P.surface, border: `1px solid ${P.border}`, borderRadius: 12 }}>
 
-        <div ref={stickyRef} style={{ position: "sticky", top: 0, zIndex: 6, borderRadius: "12px 12px 0 0" }}>
+        {/* Com a gaveta de filtros ABERTA no celular a faixa passa de 400px —
+            metade de uma tela de 844 — e, fixa, cobriria a lista durante toda
+            a rolagem. Aberta, ela rola junto; fechada, volta a ser fixa. */}
+        <div ref={stickyRef} style={{ position: faixaFixa ? "sticky" : "relative", top: 0, zIndex: 6, borderRadius: "12px 12px 0 0" }}>
           {/* ── Faixa de filtros ──────────────────────────────────────────────
               Três coisas de naturezas diferentes dividiam a mesma roupa: atalho,
               filtro e resultado. Agora cada uma tem a sua, e a ordem de leitura
@@ -1757,7 +1846,7 @@ export default function Historico() {
             >
               <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0, flex: 1 }}>
                 <Route aria-hidden="true" style={{ width: 15, height: 15, color: "#c2410c", flexShrink: 0 }} />
-                <span style={{ fontSize: 10, fontWeight: 900, color: "#9a3412", textTransform: "uppercase", letterSpacing: "0.12em", whiteSpace: "nowrap" }}>Trilha da peça</span>
+                <span style={{ fontSize: 10, fontWeight: 700, color: "#9a3412", textTransform: "uppercase", letterSpacing: "0.06em", whiteSpace: "nowrap" }}>Trilha da peça</span>
                 <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 13, fontWeight: 700, color: "#c2410c", whiteSpace: "nowrap" }}>{trilha.display}</span>
                 {/* #9a3412 sobre #fff7ed = 6,1:1. */}
                 <span style={{ fontSize: 12, color: "#9a3412", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: isMobile ? "normal" : "nowrap" }}>
@@ -1769,9 +1858,9 @@ export default function Historico() {
                 onClick={() => { setTrilha(null); setPage(1); }}
                 data-testid="button-sair-trilha"
                 style={{
-                  height: isMobile ? 40 : 30, padding: "0 12px", borderRadius: 7,
+                  height: isMobile ? 44 : 30, padding: "0 12px", borderRadius: 7,
                   border: "1px solid #fed7aa", backgroundColor: "#ffffff", color: "#9a3412",
-                  fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.06em",
+                  fontSize: 12, fontWeight: 700,
                   cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0,
                 }}
               >
@@ -1790,7 +1879,7 @@ export default function Historico() {
               borderBottom: `1px solid ${P.border}`,
             }}>
               {["Tipo", "Ação", "Hora", "Realizado Por", ""].map((h, i) => (
-                <div key={h || `col-${i}`} style={{ fontSize: 10, fontWeight: 900, color: P.label, textTransform: "uppercase", letterSpacing: "0.12em" }}>
+                <div key={h || `col-${i}`} style={{ fontSize: 10, fontWeight: 700, color: P.label, textTransform: "uppercase", letterSpacing: "0.06em" }}>
                   {h}
                 </div>
               ))}
@@ -1800,7 +1889,10 @@ export default function Historico() {
 
         {/* Rows */}
         {isLoading ? (
-          <div data-testid="skeleton-historico">
+          // aria-busy + rótulo: sem eles o leitor de tela entrava num bloco
+          // mudo de retângulos cinza e não sabia se a lista estava vazia ou
+          // chegando — a mesma receita dos skeletons do Painel e de Registros.
+          <div data-testid="skeleton-historico" aria-busy="true" aria-label="Carregando histórico">
             {Array.from({ length: 8 }).map((_, i) => (
               <div key={i} style={{
                 display: isCompact ? "flex" : "grid",
@@ -1822,7 +1914,7 @@ export default function Historico() {
             <h3 style={{ color: "#b91c1c", fontSize: 16, fontWeight: 700, marginBottom: 6 }}>Não foi possível carregar o histórico</h3>
             <p style={{ color: P.label, fontSize: 13, marginBottom: 20 }}>Verifique sua conexão e tente novamente.</p>
             <button onClick={atualizar} disabled={isFetching} data-testid="button-retry-historico"
-              style={{ fontSize: 13, fontWeight: 700, color: "#fff", background: "#1c1917", border: "none", borderRadius: 8, padding: "9px 20px", cursor: isFetching ? "default" : "pointer", opacity: isFetching ? 0.7 : 1 }}>
+              style={{ fontSize: 13, fontWeight: 700, color: "#fff", background: "#1c1917", border: "none", borderRadius: 8, padding: "9px 20px", minHeight: isMobile ? 44 : undefined, cursor: isFetching ? "default" : "pointer", opacity: isFetching ? 0.7 : 1 }}>
               {isFetching ? "Tentando…" : "Tentar novamente"}
             </button>
           </div>
@@ -1856,7 +1948,7 @@ export default function Historico() {
                 ].filter(Boolean).join(" · ")}
               </p>
               <button onClick={clearFilters} data-testid="button-clear-filters"
-                style={{ fontSize: 13, fontWeight: 700, color: "#fff", background: "#1c1917", border: "none", borderRadius: 8, padding: "9px 20px", cursor: "pointer" }}>
+                style={{ fontSize: 13, fontWeight: 700, color: "#fff", background: "#1c1917", border: "none", borderRadius: 8, padding: "9px 20px", minHeight: isMobile ? 44 : undefined, cursor: "pointer" }}>
                 Limpar filtros
               </button>
             </div>
@@ -1865,16 +1957,19 @@ export default function Historico() {
           <div>
             {grupos.map(grupo => (
               <div key={grupo.chave}>
+                {/* Separador do dia em caixa normal, com o rótulo em tom de
+                    texto: "12 DE AGOSTO DE 2026" em 10px, peso 900 e 0.12em
+                    era um título gritado a cada 25 linhas. É a mesma leitura
+                    do cabeçalho de dia de Registros. */}
                 <div style={{
-                  position: "sticky", top: stickyH, zIndex: 4,
+                  position: "sticky", top: faixaFixa ? stickyH : 0, zIndex: 4,
                   padding: isCompact ? "8px 16px" : "8px 32px",
                   backgroundColor: "#f9f9f8", borderBottom: `1px solid ${P.border}`,
                   borderTop: `1px solid ${P.border}`,
-                  fontSize: 10, fontWeight: 900, color: P.label,
-                  textTransform: "uppercase", letterSpacing: "0.12em",
+                  fontSize: 12, fontWeight: 600, color: P.label,
                 }}>
-                  {grupo.rotulo}
-                  <span style={{ fontWeight: 700, letterSpacing: "0.04em", marginLeft: 8, textTransform: "none" }}>
+                  <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 13, fontWeight: 700, color: P.text }}>{grupo.rotulo}</span>
+                  <span style={{ fontWeight: 600, marginLeft: 8 }}>
                     · {grupo.itens.length} registro{grupo.itens.length === 1 ? "" : "s"}
                   </span>
                   {/* A FORMA DO DIA: varrer os separadores procurando o vermelho
@@ -1882,7 +1977,7 @@ export default function Historico() {
                       custa clique. Some no modo trilha: ali o dia tem um ou dois
                       passos e o número não informa. */}
                   {!trilha && grupo.excecoes > 0 && (
-                    <span data-testid={`text-excecoes-dia-${grupo.chave}`} style={{ fontWeight: 800, letterSpacing: "0.04em", marginLeft: 6, textTransform: "none", color: "#b91c1c" }}>
+                    <span data-testid={`text-excecoes-dia-${grupo.chave}`} style={{ fontWeight: 700, marginLeft: 6, color: "#b91c1c" }}>
                       · {grupo.excecoes} {grupo.excecoes === 1 ? "exceção" : "exceções"}
                     </span>
                   )}
@@ -1900,6 +1995,7 @@ export default function Historico() {
                     copied={copied}
                     onTrilha={!trilha && entry.itemId && entry.itemDisplayId ? () => abrirTrilha(entry) : undefined}
                     gapMs={trilha ? (intervalos.get(entry.id) ?? null) : null}
+                    tick={tick}
                   />
                 ))}
               </div>
@@ -2011,10 +2107,12 @@ export default function Historico() {
         <button
           onClick={adotarNovidades}
           data-testid="button-novas-atividades"
+          // safe-area: no iPhone sem botão, 24px de baixo caíam em cima da
+          // barra de gesto e o toque ia para o sistema, não para a pílula.
           style={{
-            position: "fixed", bottom: 24, left: "50%", transform: "translateX(-50%)",
+            position: "fixed", bottom: "calc(24px + env(safe-area-inset-bottom, 0px))", left: "50%", transform: "translateX(-50%)",
             zIndex: 40, display: "flex", alignItems: "center", gap: 8,
-            height: 40, padding: "0 18px", borderRadius: 999, border: "none",
+            height: isMobile ? 44 : 40, maxWidth: "calc(100vw - 32px)", whiteSpace: "nowrap", padding: "0 18px", borderRadius: 999, border: "none",
             backgroundColor: "#1c1917", color: "#ffffff",
             fontSize: 13, fontWeight: 700, cursor: "pointer",
             boxShadow: "0 8px 24px rgba(0,0,0,0.24)",
@@ -2026,6 +2124,7 @@ export default function Historico() {
       )}
 
       <DetailDialog
+        isMobile={isMobile}
         entry={detail}
         onClose={() => setDetail(null)}
         nav={nav}
@@ -2038,18 +2137,48 @@ export default function Historico() {
 
 /* ── Skeleton block ── */
 function Sk({ w, h, r = 6 }: { w: number | string; h: number; r?: number }) {
-  return <div style={{ width: w, height: h, borderRadius: r, backgroundColor: "#f0efee" }} />;
+  // animate-pulse: parado, o esqueleto parecia tela quebrada, não carregando.
+  // A classe já respeita movimento reduzido (index.css).
+  return <div className="animate-pulse" style={{ width: w, maxWidth: "100%", height: h, borderRadius: r, backgroundColor: "#f0efee" }} />;
 }
 
 /* ── Linha ── */
-function Row({ entry, idx, isCompact, nav, onOpen, onCopy, copied, onTrilha, gapMs }: {
+interface RowProps {
   entry: TimelineEvent; idx: number; isCompact: boolean; nav: Nav;
   onOpen: () => void; onCopy: (t: string, k: string) => void; copied: string | null;
   /** Abre a trilha desta peça — só em linha que TEM peça; registro de evento não tem trilha para seguir. */
   onTrilha?: () => void;
   /** No modo trilha: ms desde o passo anterior; null no primeiro passo. */
   gapMs?: number | null;
-}) {
+  /** Tique de 30s da tela — só serve para a comparação do memo (ver `mesmaLinha`). */
+  tick?: number;
+}
+
+/* ── Linha memoizada (PERF-4, 17/09) ────────────────────────────────────────
+   Tudo o que muda no topo da tela re-renderizava as 25–100 linhas: o tique de
+   30s do "Atualizado há X", abrir e fechar o painel de detalhe, o ✓ de copiar,
+   a faixa "Completando a trilha", o giro do Atualizar. Nenhum deles muda uma
+   linha. A comparação diz o que de fato muda uma linha:
+     · o registro (identidade — a timeline só gera objeto novo quando os
+       dados mudam), a posição, o layout, a navegação e o intervalo da trilha;
+     · TER ou não o botão da trilha (as funções de clique são recriadas a cada
+       render, mas só chamam setters estáveis com este mesmo registro — a
+       versão guardada faz exatamente a mesma coisa);
+     · o ✓ de copiado, só na linha que ele toca;
+     · o tique, só para linha com hora RELATIVA (últimas 24h, fora da trilha),
+       com 2 min de folga para a que acabou de passar das 24h trocar o
+       "há 23 horas" pela hora pura. */
+const FOLGA_RELATIVA_MS = 24 * 60 * 60 * 1000 + 2 * 60 * 1000;
+function mesmaLinha(a: RowProps, b: RowProps): boolean {
+  if (a.entry !== b.entry || a.idx !== b.idx || a.isCompact !== b.isCompact || a.nav !== b.nav) return false;
+  if (a.gapMs !== b.gapMs || !!a.onTrilha !== !!b.onTrilha) return false;
+  if ((a.copied === a.entry.id) !== (b.copied === b.entry.id)) return false;
+  if (a.tick !== b.tick && b.gapMs == null && Date.now() - b.entry.timestamp.getTime() < FOLGA_RELATIVA_MS) return false;
+  return true;
+}
+const Row = memo(LinhaDoHistorico, mesmaLinha);
+
+function LinhaDoHistorico({ entry, idx, isCompact, nav, onOpen, onCopy, copied, onTrilha, gapMs }: RowProps) {
   const cfg = cfgFor(entry.type);
   const Icon = cfg.icon;
   const downRef = useRef<{ x: number; y: number } | null>(null);
@@ -2072,8 +2201,10 @@ function Row({ entry, idx, isCompact, nav, onOpen, onCopy, copied, onTrilha, gap
       display: "inline-flex", alignItems: "center", gap: 5,
       maxWidth: "100%", padding: "4px 10px", borderRadius: 999,
       backgroundColor: cfg.bg, border: `1px solid ${cfg.border}`,
-      fontSize: 10, fontWeight: 800, color: cfg.color,
-      textTransform: "uppercase", letterSpacing: "0.04em",
+      // 11px em caixa normal (era 10px em caixa alta, peso 800): uma coluna
+      // inteira de pílulas maiúsculas fazia o TIPO pesar mais que a AÇÃO ao
+      // lado, que é o que se veio ler. Cor e ícone continuam carregando a fase.
+      fontSize: 11, fontWeight: 700, color: cfg.color,
       whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
     }}>
       <Icon aria-hidden="true" style={{ width: 11, height: 11, flexShrink: 0 }} />
@@ -2121,8 +2252,12 @@ function Row({ entry, idx, isCompact, nav, onOpen, onCopy, copied, onTrilha, gap
       onClick={e => { e.stopPropagation(); onCopy(entry.itemDisplayId!, entry.id); }}
       aria-label={`Copiar o código ${entry.itemDisplayId}`}
       title="Copiar o código da peça"
+      // No celular/tablet o alvo cresce para 44px, e a margem negativa devolve
+      // o excesso à linha de texto — sem ela cada descrição ganhava 18px de
+      // entrelinha só por causa do botão de copiar.
       style={{
-        width: 26, height: 26, borderRadius: 6, border: "none", background: "none",
+        width: isCompact ? 44 : 26, height: isCompact ? 44 : 26, margin: isCompact ? "-9px -9px -9px -5px" : undefined,
+        borderRadius: 6, border: "none", background: "none",
         cursor: "pointer", color: copied === entry.id ? "#15803d" : P.second,
         display: "inline-flex", alignItems: "center", justifyContent: "center", verticalAlign: "middle",
       }}
@@ -2168,7 +2303,7 @@ function Row({ entry, idx, isCompact, nav, onOpen, onCopy, copied, onTrilha, gap
         display: "grid", gridTemplateColumns: GRID, gap: 12,
         padding: "16px 32px", alignItems: "center",
         borderBottom: `1px solid #f0efee`,
-        cursor: "pointer", transition: "background 0.1s",
+        cursor: "pointer", transition: "background-color 0.12s",
       }}
       onMouseEnter={e => { e.currentTarget.style.backgroundColor = "#f9f9f8"; }}
       onMouseLeave={e => { e.currentTarget.style.backgroundColor = "transparent"; }}
@@ -2220,18 +2355,24 @@ function TimeCell({ ts, inline = false, gapMs = null, gapTestId }: { ts: Date; i
    Clicar na linha NÃO ejeta mais o usuário: filtros, página e rolagem ficam
    onde estavam, o `details` cru fica disponível (é o que a auditoria às vezes
    exige) e a navegação vira decisão explícita, com "Abrir peça" via ?item=. */
-function DetailDialog({ entry, onClose, nav, onCopy, copied }: {
+function DetailDialog({ entry, onClose, nav, onCopy, copied, isMobile = false }: {
   entry: TimelineEvent | null; onClose: () => void; nav: Nav;
   onCopy: (t: string, k: string) => void; copied: string | null;
+  isMobile?: boolean;
 }) {
   const cfg = entry ? cfgFor(entry.type) : null;
-  const linha: React.CSSProperties = { display: "flex", gap: 12, fontSize: 13, lineHeight: 1.55 };
+  // No celular o rótulo sobe para cima do valor: com 116px de coluna fixa
+  // numa tela de 390, a descrição (a parte que se veio ler) ficava com
+  // ~170px e virava uma tira de três palavras por linha.
+  const linha: React.CSSProperties = isMobile
+    ? { display: "flex", flexDirection: "column", gap: 2, fontSize: 13, lineHeight: 1.55 }
+    : { display: "flex", gap: 12, fontSize: 13, lineHeight: 1.55 };
   const rotulo: React.CSSProperties = {
-    width: 116, flexShrink: 0, fontSize: 10, fontWeight: 900, color: P.label,
-    textTransform: "uppercase", letterSpacing: "0.1em", paddingTop: 3,
+    width: isMobile ? "auto" : 116, flexShrink: 0, fontSize: 10, fontWeight: 700, color: P.label,
+    textTransform: "uppercase", letterSpacing: "0.06em", paddingTop: isMobile ? 0 : 3,
   };
   const acaoBtn: React.CSSProperties = {
-    flex: 1, height: 42, borderRadius: 8, border: `1px solid ${P.border}`,
+    flex: 1, height: 44, borderRadius: 8, border: `1px solid ${P.border}`,
     backgroundColor: "#fff", color: P.text, fontSize: 13, fontWeight: 700, cursor: "pointer",
   };
 
@@ -2266,7 +2407,7 @@ function DetailDialog({ entry, onClose, nav, onCopy, copied }: {
                 cabeçalho e rodapé MEDIDOS pelo navegador: `flex: 1 1 auto` +
                 `minHeight: 0`, que é o que derruba o piso automático do item
                 flex e deixa ele encolher. */}
-            <div style={{ padding: "18px 24px", display: "flex", flexDirection: "column", gap: 14, overflowY: "auto", flex: "1 1 auto", minHeight: 0 }}>
+            <div style={{ padding: isMobile ? "16px" : "18px 24px", display: "flex", flexDirection: "column", gap: 14, overflowY: "auto", flex: "1 1 auto", minHeight: 0 }}>
               <div style={linha}>
                 <span style={rotulo}>O que houve</span>
                 <span style={{ color: P.second, minWidth: 0 }}>{buildDescription(entry, nav)}</span>
@@ -2283,7 +2424,10 @@ function DetailDialog({ entry, onClose, nav, onCopy, copied }: {
                       type="button"
                       onClick={() => onCopy(entry.itemDisplayId!, `dlg-${entry.id}`)}
                       aria-label={`Copiar o código ${entry.itemDisplayId}`}
-                      style={{ border: "none", background: "none", cursor: "pointer", padding: 2, display: "flex", color: copied === `dlg-${entry.id}` ? "#15803d" : P.second }}
+                      title="Copiar o código da peça"
+                      // Alvo de 13px era só o ícone; 32px (44 no celular) com
+                      // margem negativa para não empurrar a linha.
+                      style={{ border: "none", background: "none", cursor: "pointer", padding: 0, width: isMobile ? 44 : 32, height: isMobile ? 44 : 32, margin: isMobile ? "-12px 0" : "-8px 0", borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center", color: copied === `dlg-${entry.id}` ? "#15803d" : P.second }}
                     >
                       {copied === `dlg-${entry.id}`
                         ? <Check aria-hidden="true" style={{ width: 13, height: 13 }} />

@@ -249,6 +249,16 @@ export default function Versoes() {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", overflow: "hidden", backgroundColor: T.bg }}>
+      <style>{`
+        /* Hover dos controles de apoio (abas, números, botões brancos). Os
+           fundos vêm inline, e estilo inline vence classe — por isso o
+           !important. 150ms: o bastante para o olho perceber a resposta, curto
+           demais para parecer lento. A regra global de movimento reduzido
+           (index.css) zera a transição para quem pediu. */
+        .vs-hover { transition: background-color 0.15s, border-color 0.15s; }
+        .vs-hover:hover:not(:disabled):not([aria-selected="true"]) { background-color: #f5f5f4 !important; }
+        .vs-sublinha:hover { text-decoration: underline !important; }
+      `}</style>
       {/* ══ Cabeçalho ══ */}
       <div style={{ flexShrink: 0, backgroundColor: "#ffffff", borderBottom: `1px solid ${T.border}`, padding: isMobile ? "14px 16px 0" : "20px 32px 0" }}>
         <div style={{ maxWidth: 1600, margin: "0 auto" }}>
@@ -262,6 +272,17 @@ export default function Versoes() {
               </h1>
               <p style={{ fontSize: FS.small, color: T.second, margin: 0 }}>
                 Qual versão da arte cada patrocinador aprovou — e se é ela que está indo para a gráfica
+              </p>
+              {/* PARA QUE SERVE E ONDE ESTÁ O BOOK, numa linha. A tela abre em
+                  "Precisa de atenção" e quem veio só baixar o book de um
+                  evento não tinha pista de que ele mora na última aba — o
+                  atalho leva direto, com os filtros de evento mantidos. */}
+              <p data-testid="texto-como-usar-versoes" style={{ fontSize: FS.small, color: T.second, margin: "2px 0 0", lineHeight: 1.5 }}>
+                Abre pelo que precisa de conferência. Para baixar o book de um evento, use a aba{" "}
+                <button type="button" onClick={() => setAba("books")} data-testid="link-ir-para-books"
+                  style={{ display: "inline-flex", alignItems: "center", minHeight: isMobile ? 44 : 36, background: "none", border: "none", padding: 0, fontFamily: "inherit", fontSize: FS.small, fontWeight: 700, color: "#c2410c", textDecoration: "underline", textUnderlineOffset: 2, cursor: "pointer" }}>
+                  Books
+                </button>{" "}— cada publicação tem o botão Baixar.
               </p>
             </div>
           </div>
@@ -336,8 +357,9 @@ export default function Versoes() {
               return (
                 <button key={valor} type="button" role="tab" aria-selected={ativo} data-testid={`tab-versoes-${valor}`}
                   onClick={() => (destino === "books" ? setAba("books") : trocarFoco(valor as Foco))}
+                  className="vs-hover"
                   style={{
-                    height: isMobile ? 38 : 30, padding: "0 12px", borderRadius: R.sm, border: "none",
+                    height: isMobile ? 44 : 30, padding: "0 12px", borderRadius: R.sm, border: "none",
                     fontSize: FS.body, fontWeight: 700, color: ativo ? T.text : "#57534e",
                     backgroundColor: ativo ? "#ffffff" : "transparent", boxShadow: ativo ? SHADOW.sm : "none",
                     cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap",
@@ -368,15 +390,19 @@ export default function Versoes() {
 
           {filtrosAtivos > 0 && (
             <button type="button" onClick={limpar} data-testid="button-limpar-versoes"
-              style={{ height: alturaControle, padding: "0 12px", borderRadius: R.md, border: "1px solid #fecaca", backgroundColor: "#fef2f2", color: "#b91c1c", fontSize: FS.small, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.06em", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 5 }}>
+              style={{ height: alturaControle, padding: "0 12px", borderRadius: R.md, border: "1px solid #fecaca", backgroundColor: "#fef2f2", color: "#b91c1c", fontSize: FS.small, fontWeight: 700, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 5, fontFamily: "inherit" }}>
               <X style={{ width: 12, height: 12 }} /> Limpar ({filtrosAtivos})
             </button>
           )}
 
-          {/* Exporta o RECORTE inteiro, não a página à vista. */}
+          {/* Exporta o RECORTE inteiro, não a página à vista.
+              Caixa normal nos botões da tela (Exportar, Baixar, Reenviar…): a
+              caixa alta com espaçamento largo em TODOS eles fazia a barra
+              inteira falar alto ao mesmo tempo — e nada se destacava. */}
           <a href={`/api/versoes/export.csv${parametros.toString() ? `?${parametros}` : ""}`} data-testid="link-exportar-versoes"
             title="Baixar o recorte inteiro em CSV (abre no Excel)"
-            style={{ marginLeft: isMobile ? 0 : "auto", height: alturaControle, padding: "0 12px", borderRadius: R.md, border: `1px solid ${T.border}`, backgroundColor: "#ffffff", color: T.text, fontSize: FS.small, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.06em", textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 6 }}>
+            className="vs-hover"
+            style={{ marginLeft: isMobile ? 0 : "auto", height: alturaControle, padding: "0 12px", borderRadius: R.md, border: `1px solid ${T.border}`, backgroundColor: "#ffffff", color: T.text, fontSize: FS.small, fontWeight: 700, textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 6 }}>
             <Table2 style={{ width: 13, height: 13 }} /> Exportar
           </a>
         </div>
@@ -396,7 +422,7 @@ export default function Versoes() {
               <h3 style={{ color: "#b91c1c", fontSize: FS.strong, fontWeight: 700, margin: "0 0 6px" }}>Não foi possível carregar as versões</h3>
               <p style={{ color: T.second, fontSize: FS.body, margin: "0 0 14px" }}>A conexão falhou ou a sessão expirou.</p>
               <button onClick={() => refetch()} data-testid="button-retry-versoes"
-                style={{ fontSize: FS.body, fontWeight: 700, color: "#fff", background: T.dark, border: "none", borderRadius: R.md, padding: "9px 20px", cursor: "pointer" }}>
+                style={{ fontSize: FS.body, fontWeight: 700, color: "#fff", background: T.dark, border: "none", borderRadius: R.md, padding: "9px 20px", minHeight: isMobile ? 44 : undefined, cursor: "pointer" }}>
                 Tentar novamente
               </button>
             </div>
@@ -408,27 +434,57 @@ export default function Versoes() {
                 {foco === "atencao" ? "Nada precisa de atenção neste recorte" : "Nenhuma peça neste recorte"}
               </p>
               <p style={{ color: T.second, fontSize: FS.body, margin: "0 0 14px", maxWidth: 460, marginLeft: "auto", marginRight: "auto" }}>
+                {/* O VAZIO DIZ POR QUÊ. Com filtro ligado, "É o que se espera"
+                    afirmava sobre o acervo o que só vale para o recorte; e
+                    "Ajuste os filtros" aparecia até sem filtro nenhum. */}
                 {foco === "atencao"
-                  ? "Ninguém aprovou uma versão diferente da atual, não há decisão parada há mais de uma semana e nenhuma peça tem arte indeterminada. É o que se espera."
-                  : "Ajuste os filtros para encontrar a peça."}
+                  ? filtrosAtivos > 0
+                    ? "Nada precisa de conferência com estes filtros. Limpe os filtros para olhar o acervo inteiro."
+                    : "Ninguém aprovou uma versão diferente da atual, não há decisão parada há mais de uma semana e nenhuma peça tem arte indeterminada. É o que se espera."
+                  : filtrosAtivos > 0
+                    ? "Nenhuma peça corresponde aos filtros. A busca procura no código da peça, no tipo, na descrição e no nome do evento."
+                    : foco === "sem-patrocinador"
+                      ? "Toda peça tem pelo menos um patrocinador vinculado."
+                      : "Nenhuma peça neste recorte."}
               </p>
-              {foco === "atencao" && (
-                <button onClick={() => trocarFoco("todas")} data-testid="button-ver-todas"
-                  style={{ fontSize: FS.body, fontWeight: 700, color: "#fff", background: T.dark, border: "none", borderRadius: R.md, padding: "9px 20px", cursor: "pointer" }}>
-                  Ver todas as peças
+              {foco === "atencao" ? (
+                <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "center", gap: 8 }}>
+                  {filtrosAtivos > 0 && (
+                    <button onClick={limpar} data-testid="button-limpar-versoes-atencao"
+                      style={{ fontSize: FS.body, fontWeight: 700, color: "#fff", background: T.dark, border: "none", borderRadius: R.md, padding: "9px 20px", minHeight: isMobile ? 44 : undefined, cursor: "pointer" }}>
+                      Limpar filtros
+                    </button>
+                  )}
+                  <button onClick={() => trocarFoco("todas")} data-testid="button-ver-todas"
+                    style={filtrosAtivos > 0
+                      ? { fontSize: FS.body, fontWeight: 700, color: T.text, background: "#ffffff", border: `1px solid ${T.border}`, borderRadius: R.md, padding: "9px 20px", minHeight: isMobile ? 44 : undefined, cursor: "pointer" }
+                      : { fontSize: FS.body, fontWeight: 700, color: "#fff", background: T.dark, border: "none", borderRadius: R.md, padding: "9px 20px", minHeight: isMobile ? 44 : undefined, cursor: "pointer" }}>
+                    Ver todas as peças
+                  </button>
+                </div>
+              ) : filtrosAtivos > 0 ? (
+                // O texto mandava "ajustar os filtros" e a saída estava lá em
+                // cima, no fim da barra — o próximo passo fica onde o olho já
+                // está. É o mesmo `limpar` do botão da barra.
+                <button onClick={limpar} data-testid="button-limpar-versoes-vazio"
+                  style={{ fontSize: FS.body, fontWeight: 700, color: "#fff", background: T.dark, border: "none", borderRadius: R.md, padding: "9px 20px", minHeight: isMobile ? 44 : undefined, cursor: "pointer" }}>
+                  Limpar filtros
                 </button>
-              )}
+              ) : null}
             </div>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 18, opacity: isFetching ? 0.65 : 1, transition: "opacity 0.15s" }}>
               {blocos.map(bloco => (
                 <section key={bloco.eventId}>
+                  {/* Nome do evento como está cadastrado, sem caixa alta: nome
+                      próprio em maiúsculas perde a forma das palavras e
+                      competia com os selos de alerta dos cartões. */}
                   <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
-                    <Link href={`/eventos/${bloco.eventId}`} style={{ fontFamily: '"Space Grotesk", sans-serif', fontSize: FS.strong, fontWeight: 700, color: T.text, textDecoration: "none", textTransform: "uppercase", letterSpacing: "-0.01em" }}>
+                    <Link href={`/eventos/${bloco.eventId}`} className="vs-sublinha" style={{ fontFamily: '"Space Grotesk", sans-serif', fontSize: FS.strong, fontWeight: 700, color: T.text, textDecoration: "none", letterSpacing: "-0.01em", minWidth: 0, overflowWrap: "anywhere" }}>
                       {bloco.eventName}
                     </Link>
-                    <div style={{ flex: 1, height: 1, backgroundColor: T.border }} />
-                    <span style={{ fontSize: FS.micro, fontWeight: 700, color: T.second, textTransform: "uppercase", letterSpacing: "0.08em" }}>
+                    <div aria-hidden="true" style={{ flex: 1, minWidth: 12, height: 1, backgroundColor: T.border }} />
+                    <span style={{ fontSize: FS.small, fontWeight: 600, color: T.second, whiteSpace: "nowrap" }}>
                       {bloco.pecas.length} {bloco.pecas.length === 1 ? "peça" : "peças"}
                     </span>
                   </div>
@@ -441,12 +497,14 @@ export default function Versoes() {
               ))}
 
               {totalPaginas > 1 && (
-                <nav aria-label="Páginas" style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10, padding: "8px 0 4px" }}>
+                <nav aria-label="Páginas" style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10, flexWrap: "wrap", padding: "8px 0 4px" }}>
                   <button type="button" disabled={pagina === 0} onClick={() => setPagina(p => Math.max(0, p - 1))} data-testid="button-pagina-anterior"
                     style={botaoPagina(pagina === 0, alturaControle)}>
                     <ChevronLeft style={{ width: 14, height: 14 }} /> Anterior
                   </button>
-                  <span data-testid="text-pagina" style={{ ...numero, fontSize: FS.small, color: T.second }}>
+                  {/* Em 390px os dois botões e a frase não cabem numa linha: a
+                      frase sobe para cima deles (order) em vez de espremê-los. */}
+                  <span data-testid="text-pagina" style={{ ...numero, fontSize: FS.small, color: T.second, order: isMobile ? -1 : 0, width: isMobile ? "100%" : undefined, textAlign: "center" }}>
                     Página {pagina + 1} de {totalPaginas} · {data?.total ?? 0} peças
                   </span>
                   <button type="button" disabled={pagina + 1 >= totalPaginas} onClick={() => setPagina(p => p + 1)} data-testid="button-pagina-proxima"
@@ -481,6 +539,7 @@ function BotaoResumo({ valor, rotulo, ajuda, tom, ativo, onClick, testId }: {
   const cor = valor === 0 ? T.second : tom === "critico" ? "#b91c1c" : tom === "alerta" ? "#b45309" : T.text;
   return (
     <button type="button" onClick={onClick} data-testid={testId} title={ajuda}
+      className="vs-hover"
       style={{
         textAlign: "left", padding: "9px 12px", borderRadius: R.md, cursor: "pointer", fontFamily: "inherit",
         // A MESMA superfície nos quatro (25/08): card sem borda parecia
@@ -500,12 +559,14 @@ function Esqueleto({ isMobile }: { isMobile: boolean }) {
     <div data-testid="skeleton-versoes" aria-hidden="true" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
       {[0, 1, 2, 3].map(i => (
         <div key={i} style={{ backgroundColor: "#ffffff", border: `1px solid ${T.border}`, borderRadius: R.lg, padding: isMobile ? 12 : "14px 18px" }}>
-          <div style={{ height: 13, width: 220, backgroundColor: T.low, borderRadius: 4, marginBottom: 12 }} />
+          {/* animate-pulse: parado, o esqueleto parecia tela quebrada, não
+              carregando. A classe já respeita movimento reduzido (index.css). */}
+          <div className="animate-pulse" style={{ height: 13, width: 220, maxWidth: "70%", backgroundColor: T.low, borderRadius: 4, marginBottom: 12 }} />
           <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-            <div style={{ height: 44, width: 44, backgroundColor: T.low, borderRadius: R.md }} />
-            <div style={{ flex: 1, maxWidth: 320, height: 44, backgroundColor: T.low, borderRadius: R.md }} />
+            <div className="animate-pulse" style={{ height: 44, width: 44, backgroundColor: T.low, borderRadius: R.md }} />
+            <div className="animate-pulse" style={{ flex: 1, maxWidth: 320, height: 44, backgroundColor: T.low, borderRadius: R.md }} />
           </div>
-          <div style={{ height: 30, backgroundColor: T.low, borderRadius: R.md }} />
+          <div className="animate-pulse" style={{ height: 30, backgroundColor: T.low, borderRadius: R.md }} />
         </div>
       ))}
     </div>
@@ -541,7 +602,7 @@ function CartaoDaPeca({ p, isMobile, onComparar }: { p: Peca; isMobile: boolean;
           {/* ONDE A PEÇA ESTÁ — vem antes dos selos de exceção porque é ele
               que diz o tamanho do problema que vem em seguida. */}
           <span data-testid={`selo-status-${p.id}`} title={gv.consequencia}
-            style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: FS.micro, fontWeight: 700, color: gv.cor, backgroundColor: gv.fundo, border: `1px solid ${gv.borda}`, borderRadius: R.sm, padding: "1px 7px", textTransform: "uppercase", letterSpacing: "0.04em", whiteSpace: "nowrap" }}>
+            style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: FS.small, fontWeight: 600, color: gv.cor, backgroundColor: gv.fundo, border: `1px solid ${gv.borda}`, borderRadius: R.sm, padding: "1px 7px", whiteSpace: "nowrap" }}>
             <span aria-hidden="true" style={{ width: 6, height: 6, borderRadius: "50%", backgroundColor: gv.cor, flexShrink: 0 }} />
             {gv.rotulo}
           </span>
@@ -550,7 +611,7 @@ function CartaoDaPeca({ p, isMobile, onComparar }: { p: Peca; isMobile: boolean;
           {impressaErrada ? (
             <span data-testid={`selo-divergente-${p.id}`}
               title="A arte que já foi para a gráfica não é a que o patrocinador aprovou"
-              style={{ fontSize: FS.micro, fontWeight: 800, color: "#ffffff", backgroundColor: "#b91c1c", border: "1px solid #b91c1c", borderRadius: R.sm, padding: "1px 7px", textTransform: "uppercase", letterSpacing: "0.04em", whiteSpace: "nowrap" }}>
+              style={{ fontSize: FS.small, fontWeight: 700, color: "#ffffff", backgroundColor: "#b91c1c", border: "1px solid #b91c1c", borderRadius: R.sm, padding: "1px 7px", whiteSpace: "nowrap" }}>
               produzida na versão errada
             </span>
           ) : p.divergente ? (
@@ -584,7 +645,7 @@ function CartaoDaPeca({ p, isMobile, onComparar }: { p: Peca; isMobile: boolean;
                 <span style={{ display: "block", padding: "5px 8px" }}>
                   <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: FS.small, fontWeight: 800, color: atual ? "#9a3412" : T.text }}>
                     v{i + 1}
-                    {atual && <span style={{ fontSize: FS.micro, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em" }}>· atual</span>}
+                    {atual && <span style={{ fontSize: FS.small, fontWeight: 600 }}>· atual</span>}
                     {v.inferida && <AlertTriangle aria-hidden="true" style={{ width: 10, height: 10, color: "#b45309", marginLeft: "auto" }} />}
                   </span>
                   <span style={{ display: "block", ...numero, fontSize: FS.micro, color: T.second }}>{fmtData(v.em)}</span>
@@ -603,7 +664,7 @@ function CartaoDaPeca({ p, isMobile, onComparar }: { p: Peca; isMobile: boolean;
         // galeria — a área do cartão volta para a decisão, que é o assunto.
         <div data-testid={`versao-unica-${p.id}`} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
           {isWebUrl(p.versoes[0]?.thumbUrl ?? "") ? (
-            <a href={p.versoes[0].thumbUrl} target="_blank" rel="noopener noreferrer" title="Abrir a arte" style={{ display: "block", width: 40, height: 30, border: `1px solid ${T.border}`, borderRadius: R.sm, overflow: "hidden", flexShrink: 0, backgroundColor: "#fff" }}>
+            <a href={p.versoes[0].thumbUrl} target="_blank" rel="noopener noreferrer" title="Abrir a arte" aria-label={`Abrir a arte de ${p.displayId}`} style={{ display: "block", width: 40, height: 30, border: `1px solid ${T.border}`, borderRadius: R.sm, overflow: "hidden", flexShrink: 0, backgroundColor: "#fff" }}>
               <img src={p.versoes[0].thumbUrl} alt="" loading="lazy" decoding="async" style={{ width: "100%", height: "100%", objectFit: "contain", display: "block" }}
                 onError={e => { (e.currentTarget as HTMLImageElement).style.visibility = "hidden"; }} />
             </a>
@@ -679,9 +740,12 @@ function FaixaDeResolucao({ p, isMobile }: { p: Peca; isMobile: boolean }) {
 
   return (
     <div data-testid={`faixa-resolucao-${p.id}`}
-      style={{ display: "flex", gap: 10, alignItems: "flex-start", backgroundColor: tom.fundo, borderRadius: R.md, padding: "10px 12px", marginBottom: 10, borderLeft: `3px solid ${tom.barra}` }}>
+      // flexWrap no celular: em 390px o "Abrir a peça" de 44px fixo ao lado
+      // espremia a frase numa coluna de ~150px, quebrando palavra a palavra.
+      // Lá o botão desce para a linha de baixo, alinhado com o texto.
+      style={{ display: "flex", gap: 10, alignItems: "flex-start", flexWrap: isMobile ? "wrap" : "nowrap", backgroundColor: tom.fundo, borderRadius: R.md, padding: "10px 12px", marginBottom: 10, borderLeft: `3px solid ${tom.barra}` }}>
       <MessageSquareWarning aria-hidden="true" style={{ width: 15, height: 15, color: tom.barra, flexShrink: 0, marginTop: 1 }} />
-      <div style={{ flex: 1, minWidth: 0 }}>
+      <div style={{ flex: isMobile ? "1 1 calc(100% - 25px)" : 1, minWidth: 0 }}>
         <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: tom.texto, lineHeight: 1.35 }}>{frase}</p>
         <p style={{ margin: "3px 0 0", fontSize: 11, color: tom.texto, opacity: 0.85, lineHeight: 1.45 }}>{detalhe}</p>
       </div>
@@ -689,7 +753,8 @@ function FaixaDeResolucao({ p, isMobile }: { p: Peca; isMobile: boolean }) {
       <Link href={`/eventos/${p.eventId}?item=${p.id}`}
         data-testid={`link-abrir-peca-${p.id}`}
         title="Abrir a peça no evento, onde a Arte troca a arte e o Atendimento reabre a aprovação"
-        style={{ flexShrink: 0, display: "inline-flex", alignItems: "center", gap: 5, height: isMobile ? 44 : 30, padding: "0 12px", borderRadius: R.md, border: `1px solid ${tom.barra}33`, backgroundColor: "#ffffff", color: tom.texto, fontSize: FS.small, fontWeight: 700, textDecoration: "none", whiteSpace: "nowrap" }}>
+        className="vs-hover"
+        style={{ flexShrink: 0, display: "inline-flex", alignItems: "center", gap: 5, height: isMobile ? 44 : 30, marginLeft: isMobile ? 25 : 0, padding: "0 12px", borderRadius: R.md, border: `1px solid ${tom.barra}33`, backgroundColor: "#ffffff", color: tom.texto, fontSize: FS.small, fontWeight: 700, textDecoration: "none", whiteSpace: "nowrap" }}>
         <ExternalLink style={{ width: 13, height: 13 }} /> Abrir a peça
       </Link>
     </div>
@@ -701,7 +766,10 @@ function Selo({ children, cor, fundo, borda, titulo, testId }: {
 }) {
   return (
     <span data-testid={testId} title={titulo}
-      style={{ fontSize: FS.micro, fontWeight: 700, color: cor, backgroundColor: fundo, border: `1px solid ${borda}`, borderRadius: R.sm, padding: "1px 7px", textTransform: "uppercase", letterSpacing: "0.04em", whiteSpace: "nowrap" }}>
+      // Caixa normal e 11px (era 10px em caixa alta): num cartão com selo de
+      // status, de divergência e de decisão, três rótulos em maiúsculas
+      // disputavam o olho e nenhum ganhava. A COR já diz a gravidade.
+      style={{ fontSize: FS.small, fontWeight: 600, color: cor, backgroundColor: fundo, border: `1px solid ${borda}`, borderRadius: R.sm, padding: "1px 7px", whiteSpace: "nowrap" }}>
       {children}
     </span>
   );
@@ -752,8 +820,12 @@ function LinhaDaDecisao({ d, pecaId }: { d: Decisao; pecaId: string }) {
       {motivo && <span style={{ fontSize: FS.small, color: "#57534e", width: "100%" }}>{motivo}</span>}
       {d.thumbUrl && isWebUrl(d.thumbUrl) && (
         <a href={d.thumbUrl} target="_blank" rel="noopener noreferrer" title="Abrir a versão decidida"
+          aria-label={`Abrir a versão decidida por ${d.nome}`}
           data-testid={`link-versao-decidida-${pecaId}-${d.sponsorId}`}
-          style={{ marginLeft: "auto", display: "inline-flex", color: T.second }}>
+          className="vs-hover"
+          // O ícone de 13px era o alvo inteiro. O padding leva a área de
+          // toque a 29px; a margem negativa devolve o espaço à linha.
+          style={{ display: "inline-flex", color: T.second, padding: 8, margin: "-8px -8px -8px auto", borderRadius: R.sm }}>
           <ExternalLink style={{ width: 13, height: 13 }} />
         </a>
       )}
@@ -893,10 +965,10 @@ function Comparador({ peca, onClose, isMobile }: { peca: Peca | null; onClose: (
                     : <span style={{ fontSize: FS.body, color: T.second }}>Sem prévia para esta versão</span>}
                   {total > 1 && (
                     <>
-                      <button type="button" onClick={anterior} aria-label="Versão anterior" data-testid="button-comparador-anterior" style={setaComparador("left")}>
+                      <button type="button" onClick={anterior} aria-label="Versão anterior" data-testid="button-comparador-anterior" style={setaComparador("left", isMobile)}>
                         <ChevronLeft style={{ width: 18, height: 18 }} />
                       </button>
-                      <button type="button" onClick={proxima} aria-label="Próxima versão" data-testid="button-comparador-proxima" style={setaComparador("right")}>
+                      <button type="button" onClick={proxima} aria-label="Próxima versão" data-testid="button-comparador-proxima" style={setaComparador("right", isMobile)}>
                         <ChevronRight style={{ width: 18, height: 18 }} />
                       </button>
                     </>
@@ -909,7 +981,8 @@ function Comparador({ peca, onClose, isMobile }: { peca: Peca | null; onClose: (
                   const ativo = i === (ladoALado ? iEsquerda : indice);
                   return (
                     <button key={`${x.thumbUrl}-${i}`} type="button" onClick={() => setIndice(i)} data-testid={`button-comparador-v${i + 1}`}
-                      style={{ height: 30, padding: "0 12px", borderRadius: R.md, cursor: "pointer", fontFamily: "inherit", fontSize: FS.small, fontWeight: 700,
+                      aria-pressed={ativo}
+                      style={{ height: isMobile ? 44 : 30, padding: "0 12px", borderRadius: R.md, cursor: "pointer", fontFamily: "inherit", fontSize: FS.small, fontWeight: 700,
                         border: `1px solid ${ativo ? T.dark : T.border}`, backgroundColor: ativo ? T.dark : "#ffffff", color: ativo ? "#ffffff" : T.text }}>
                       v{i + 1}{x.thumbUrl === peca?.approvalThumbUrl ? " · atual" : ""}
                     </button>
@@ -920,7 +993,7 @@ function Comparador({ peca, onClose, isMobile }: { peca: Peca | null; onClose: (
 
             <aside style={{ width: isMobile ? "100%" : 260, flexShrink: 0, display: "flex", flexDirection: "column", gap: 10 }}>
               <div>
-                <p style={{ margin: 0, fontSize: FS.micro, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: T.second }}>
+                <p style={{ margin: 0, fontSize: FS.micro, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: T.second }}>
                   {ladoALado ? "Painel da esquerda" : "Esta versão"}
                 </p>
                 <p style={{ margin: "4px 0 0", fontSize: FS.body, fontWeight: 700, color: T.text }}>v{(ladoALado ? iEsquerda : indice) + 1} de {total}</p>
@@ -935,7 +1008,7 @@ function Comparador({ peca, onClose, isMobile }: { peca: Peca | null; onClose: (
                 )}
               </div>
               <div>
-                <p style={{ margin: 0, fontSize: FS.micro, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: T.second }}>Quem decidiu nela</p>
+                <p style={{ margin: 0, fontSize: FS.micro, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: T.second }}>Quem decidiu nela</p>
                 {decisoesDaVersao.length === 0 ? (
                   <p style={{ margin: "4px 0 0", fontSize: FS.small, color: T.second }}>Nenhuma decisão registrada nesta versão.</p>
                 ) : (
@@ -952,7 +1025,8 @@ function Comparador({ peca, onClose, isMobile }: { peca: Peca | null; onClose: (
               </div>
               {v && isWebUrl(v.thumbUrl) && (
                 <a href={v.thumbUrl} target="_blank" rel="noopener noreferrer" data-testid="link-abrir-versao"
-                  style={{ marginTop: "auto", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, height: 38, borderRadius: R.md, border: `1px solid ${T.border}`, color: T.text, textDecoration: "none", fontSize: FS.small, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                  className="vs-hover"
+                  style={{ marginTop: "auto", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, height: isMobile ? 44 : 38, borderRadius: R.md, border: `1px solid ${T.border}`, backgroundColor: "#ffffff", color: T.text, textDecoration: "none", fontSize: FS.small, fontWeight: 700 }}>
                   <ExternalLink style={{ width: 13, height: 13 }} /> Abrir em tamanho real
                 </a>
               )}
@@ -963,9 +1037,11 @@ function Comparador({ peca, onClose, isMobile }: { peca: Peca | null; onClose: (
     </Dialog>
   );
 }
-const setaComparador = (lado: "left" | "right"): React.CSSProperties => ({
+// No celular não há ←/→ do teclado: as setas são o ÚNICO jeito de alternar
+// sem rolar até os chips, então ganham o alvo de toque de 44px.
+const setaComparador = (lado: "left" | "right", grande = false): React.CSSProperties => ({
   position: "absolute", [lado]: 8, top: "50%", transform: "translateY(-50%)",
-  width: 36, height: 36, borderRadius: "50%", border: `1px solid ${T.border}`,
+  width: grande ? 44 : 36, height: grande ? 44 : 36, borderRadius: "50%", border: `1px solid ${T.border}`,
   backgroundColor: "rgba(255,255,255,0.92)", color: T.text, cursor: "pointer",
   display: "flex", alignItems: "center", justifyContent: "center",
 });
@@ -985,8 +1061,8 @@ function AbaBooks({ eventos, isMobile, alturaControle, podeAvisar, podeRepublica
       {eventos.map(ev => (
         <section key={ev.eventId} data-testid={`books-evento-${ev.eventId}`}
           style={{ backgroundColor: "#ffffff", border: `1px solid ${T.border}`, borderRadius: R.lg, boxShadow: SHADOW.sm, overflow: "hidden" }}>
-          <div style={{ padding: "12px 18px", borderBottom: `1px solid ${T.low}`, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-            <Link href={`/eventos/${ev.eventId}`} style={{ fontFamily: '"Space Grotesk", sans-serif', fontSize: FS.strong, fontWeight: 700, color: T.text, textDecoration: "none" }}>{ev.eventName}</Link>
+          <div style={{ padding: isMobile ? "12px" : "12px 18px", borderBottom: `1px solid ${T.low}`, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+            <Link href={`/eventos/${ev.eventId}`} className="vs-sublinha" style={{ fontFamily: '"Space Grotesk", sans-serif', fontSize: FS.strong, fontWeight: 700, color: T.text, textDecoration: "none" }}>{ev.eventName}</Link>
             <span style={{ fontSize: FS.small, color: T.second }}>{ev.books.length} {ev.books.length === 1 ? "publicação" : "publicações"}</span>
           </div>
           <div>
@@ -1025,7 +1101,8 @@ function BotaoReenviarAviso({ eventId, altura }: { eventId: string; altura: numb
     <button type="button" onClick={() => enviar.mutate()} disabled={enviar.isPending}
       data-testid={`button-reenviar-aviso-${eventId}`}
       title="Reenviar por e-mail o aviso deste book para os responsáveis do evento"
-      style={{ display: "inline-flex", alignItems: "center", gap: 6, height: altura, padding: "0 12px", borderRadius: R.md, border: `1px solid ${T.border}`, backgroundColor: "#ffffff", color: T.text, fontSize: FS.small, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.06em", cursor: enviar.isPending ? "default" : "pointer", opacity: enviar.isPending ? 0.6 : 1, fontFamily: "inherit", whiteSpace: "nowrap" }}>
+      className="vs-hover"
+      style={{ display: "inline-flex", alignItems: "center", gap: 6, height: altura, padding: "0 12px", borderRadius: R.md, border: `1px solid ${T.border}`, backgroundColor: "#ffffff", color: T.text, fontSize: FS.small, fontWeight: 700, cursor: enviar.isPending ? "default" : "pointer", opacity: enviar.isPending ? 0.6 : 1, fontFamily: "inherit", whiteSpace: "nowrap" }}>
       {enviar.isPending
         ? <Loader2 style={{ width: 13, height: 13 }} className="animate-spin" />
         : <Send style={{ width: 13, height: 13 }} />}
@@ -1060,7 +1137,7 @@ function LinhaDoBook({ b, ev, i, total, isMobile, alturaControle, podeAvisar, po
   return (
     <div data-testid={`book-${ev.eventId}-${i}`}
       style={{ borderBottom: i < total - 1 ? `1px solid ${T.low}` : "none" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 18px", flexWrap: "wrap" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: isMobile ? 10 : 12, padding: isMobile ? "10px 12px" : "10px 18px", flexWrap: "wrap" }}>
         <span aria-hidden="true" style={{ width: 30, height: 30, borderRadius: R.md, backgroundColor: "#faf5ff", color: "#7e22ce", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
           <FileText style={{ width: 15, height: 15 }} />
         </span>
@@ -1075,7 +1152,7 @@ function LinhaDoBook({ b, ev, i, total, isMobile, alturaControle, podeAvisar, po
                 data-testid={`selo-book-desatualizado-${ev.eventId}-${i}`}
                 aria-expanded={aberto}
                 title="Ver quais peças deste book ganharam arte nova depois da publicação"
-                style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: FS.micro, fontWeight: 700, color: "#b45309", backgroundColor: "#fffbeb", border: "1px solid #fde68a", borderRadius: R.sm, padding: "2px 8px", textTransform: "uppercase", letterSpacing: "0.04em", cursor: "pointer", fontFamily: "inherit", minHeight: isMobile ? 32 : undefined }}>
+                style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: FS.small, fontWeight: 600, color: "#b45309", backgroundColor: "#fffbeb", border: "1px solid #fde68a", borderRadius: R.sm, padding: "2px 8px", cursor: "pointer", fontFamily: "inherit", textAlign: "left", minHeight: isMobile ? 44 : undefined }}>
                 desatualizado · {b.pecasMudaramDepois} de {b.itemCount} {b.pecasMudaramDepois === 1 ? "peça mudou" : "peças mudaram"}
                 <ChevronRight aria-hidden="true" style={{ width: 11, height: 11, transform: aberto ? "rotate(90deg)" : "none", transition: "transform 0.15s" }} />
               </button>
@@ -1097,7 +1174,7 @@ function LinhaDoBook({ b, ev, i, total, isMobile, alturaControle, podeAvisar, po
               <span style={{ display: 'block', marginTop: 2, fontStyle: 'italic', color: '#57534e' }}>“{b.comentario}”</span>
             )}
             {!b.membrosConhecidos && (
-              <span style={{ color: T.muted }}> · esta publicação foi substituída; o sistema guardou quantas peças ela tinha, não quais</span>
+              <span style={{ color: T.second }}> · esta publicação foi substituída; o sistema guardou quantas peças ela tinha, não quais</span>
             )}
           </p>
           {/* O AVISO DEIXA DE SER CEGO (25/08): antes de reenviar, dá para
@@ -1123,7 +1200,8 @@ function LinhaDoBook({ b, ev, i, total, isMobile, alturaControle, podeAvisar, po
         {podeAvisar && i === 0 && <BotaoReenviarAviso eventId={ev.eventId} altura={alturaControle} />}
         {isWebUrl(b.bookUrl) ? (
           <a href={b.bookUrl} download target="_blank" rel="noopener noreferrer" data-testid={`link-baixar-book-${ev.eventId}-${i}`}
-            style={{ display: "inline-flex", alignItems: "center", gap: 6, height: alturaControle, padding: "0 14px", borderRadius: R.md, border: `1px solid ${T.border}`, backgroundColor: "#ffffff", color: T.text, fontSize: FS.small, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.06em", textDecoration: "none", whiteSpace: "nowrap" }}>
+            className="vs-hover"
+            style={{ display: "inline-flex", alignItems: "center", gap: 6, height: alturaControle, padding: "0 14px", borderRadius: R.md, border: `1px solid ${T.border}`, backgroundColor: "#ffffff", color: T.text, fontSize: FS.small, fontWeight: 700, textDecoration: "none", whiteSpace: "nowrap" }}>
             <Download style={{ width: 13, height: 13 }} /> Baixar
           </a>
         ) : (
@@ -1141,9 +1219,12 @@ function LinhaDoBook({ b, ev, i, total, isMobile, alturaControle, podeAvisar, po
           publica — nenhuma rota nova. #78350f sobre #fffbeb = 9,4:1. */}
       {mostraFaixa && (
         <div data-testid={`faixa-book-${ev.eventId}`}
-          style={{ margin: "0 18px 12px 60px", display: "flex", gap: 10, alignItems: "flex-start", backgroundColor: "#fffbeb", border: "1px solid #fde68a", borderLeft: "3px solid #f59e0b", borderRadius: R.md, padding: "10px 12px" }}>
+          // Recuo de 60px alinha a faixa ao texto da linha no desktop; no
+          // celular o recuo comia um sexto da largura útil e a lista de fichas
+          // virava uma coluna estreita.
+          style={{ margin: isMobile ? "0 12px 12px" : "0 18px 12px 60px", display: "flex", flexWrap: isMobile ? "wrap" : "nowrap", gap: 10, alignItems: "flex-start", backgroundColor: "#fffbeb", border: "1px solid #fde68a", borderLeft: "3px solid #f59e0b", borderRadius: R.md, padding: "10px 12px" }}>
           <MessageSquareWarning aria-hidden="true" style={{ width: 15, height: 15, color: "#f59e0b", flexShrink: 0, marginTop: 1 }} />
-          <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ flex: isMobile ? "1 1 calc(100% - 25px)" : 1, minWidth: 0 }}>
             <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: "#78350f", lineHeight: 1.35 }}>
               O book publicado não tem a arte atual de {b.pecasMudaramDepois} {b.pecasMudaramDepois === 1 ? "peça" : "peças"}
             </p>
@@ -1155,7 +1236,7 @@ function LinhaDoBook({ b, ev, i, total, isMobile, alturaControle, podeAvisar, po
                 <Link key={pm.id} href={`/eventos/${pm.eventId}?item=${pm.id}`}
                   data-testid={`ficha-peca-mudou-${pm.id}`}
                   title={`${pm.type}${pm.description ? ` — ${pm.description}` : ""} · arte trocada em ${fmtData(pm.em)}`}
-                  style={{ ...numero, display: "inline-flex", alignItems: "center", minHeight: isMobile ? 32 : 22, padding: "1px 8px", borderRadius: R.sm, border: "1px solid #fde68a", backgroundColor: "#ffffff", color: "#92400e", fontSize: FS.small, fontWeight: 700, textDecoration: "none" }}>
+                  style={{ ...numero, display: "inline-flex", alignItems: "center", minHeight: isMobile ? 44 : 22, padding: "1px 8px", borderRadius: R.sm, border: "1px solid #fde68a", backgroundColor: "#ffffff", color: "#92400e", fontSize: FS.small, fontWeight: 700, textDecoration: "none" }}>
                   {pm.displayId}
                 </Link>
               ))}
@@ -1168,7 +1249,7 @@ function LinhaDoBook({ b, ev, i, total, isMobile, alturaControle, podeAvisar, po
             <Link href={`/eventos/${ev.eventId}/gerar-book`}
               data-testid={`button-republicar-book-${ev.eventId}`}
               title="Abrir o gerador de book: monta um PDF novo com a arte atual das peças e publica — o aviso aos responsáveis sai na publicação"
-              style={{ flexShrink: 0, display: "inline-flex", alignItems: "center", gap: 6, height: isMobile ? 44 : 32, padding: "0 14px", borderRadius: R.md, border: "none", backgroundColor: "#c2410c", color: "#ffffff", fontSize: FS.small, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.06em", textDecoration: "none", whiteSpace: "nowrap" }}>
+              style={{ flexShrink: 0, display: "inline-flex", alignItems: "center", gap: 6, height: isMobile ? 44 : 32, marginLeft: isMobile ? 25 : 0, padding: "0 14px", borderRadius: R.md, border: "none", backgroundColor: "#c2410c", color: "#ffffff", fontSize: FS.small, fontWeight: 700, textDecoration: "none", whiteSpace: "nowrap" }}>
               <FileText style={{ width: 13, height: 13 }} /> Republicar book
             </Link>
           )}
@@ -1178,14 +1259,15 @@ function LinhaDoBook({ b, ev, i, total, isMobile, alturaControle, podeAvisar, po
       {/* QUAIS. Cada peça com a data em que a arte mudou, e o caminho para ela. */}
       {aberto && desatualizado && (
         <div data-testid={`lista-mudaram-${ev.eventId}-${i}`}
-          style={{ padding: "0 18px 12px 60px", display: "flex", flexDirection: "column", gap: 4 }}>
+          style={{ padding: isMobile ? "0 12px 12px" : "0 18px 12px 60px", display: "flex", flexDirection: "column", gap: 4 }}>
           {b.pecasMudaram.map(pm => {
             const gv = GRAVIDADE_VISUAL[gravidadeDe(pm.status)];
             return (
               <Link key={pm.id} href={`/eventos/${pm.eventId}?item=${pm.id}`}
                 data-testid={`link-mudou-${pm.id}`}
                 title={`${pm.displayId} · ${pm.type}${pm.description ? ` — ${pm.description}` : ""}`}
-                style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", fontSize: FS.small, color: T.text, textDecoration: "none", padding: "4px 0", borderBottom: `1px solid ${T.low}` }}>
+                className="vs-hover"
+                style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", fontSize: FS.small, color: T.text, textDecoration: "none", padding: "4px 0", minHeight: isMobile ? 44 : undefined, borderBottom: `1px solid ${T.low}` }}>
                 <span style={{ ...numero, fontWeight: 700, color: T.accentText, flexShrink: 0 }}>{pm.displayId}</span>
                 <span style={{ fontWeight: 700, flexShrink: 0 }}>{pm.type}</span>
                 {pm.description && (
@@ -1193,7 +1275,7 @@ function LinhaDoBook({ b, ev, i, total, isMobile, alturaControle, podeAvisar, po
                 )}
                 {/* ONDE ELA ESTÁ. Arte trocada em peça que já foi para a
                     gráfica é outro problema — e é o que decide a urgência. */}
-                <span style={{ flexShrink: 0, fontSize: FS.micro, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em", color: gv.cor, backgroundColor: gv.fundo, border: `1px solid ${gv.borda}`, borderRadius: R.sm, padding: "1px 6px" }}>
+                <span style={{ flexShrink: 0, fontSize: FS.small, fontWeight: 600, color: gv.cor, backgroundColor: gv.fundo, border: `1px solid ${gv.borda}`, borderRadius: R.sm, padding: "1px 6px" }}>
                   {gv.rotulo}
                 </span>
                 <span style={{ marginLeft: "auto", color: T.second, whiteSpace: "nowrap" }}>

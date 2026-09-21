@@ -1,9 +1,14 @@
 import { useEffect, useRef, useCallback } from 'react';
+import type { Query } from '@tanstack/react-query';
 import { queryClient } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
 
 const RECONNECT_BASE_DELAY_MS = 1000;
 const RECONNECT_MAX_DELAY_MS = 30000;
+// Coalescer das chaves pesadas (ver invalidateCoalesced): janela de silêncio e
+// teto de espera desde a primeira mensagem da rajada.
+const COALESCER_JANELA_MS = 500;
+const COALESCER_TETO_MS = 2000;
 
 // Timer do debounce da invalidação de /api/prazos (escopo de módulo: o hook
 // é um singleton por aba — ver AuthenticatedLayout).
@@ -31,11 +36,82 @@ export function onPrazosInvalidated(fn: () => void): () => void {
 // notificação não está na lista.
 let auditInvalidateTimer: ReturnType<typeof setTimeout> | null = null;
 
+// ── SINAL DE CONEXÃO (UX, 15/09) ─────────────────────────────────────────────
+// O socket caía (servidor reiniciando, Wi-Fi do galpão) e a tela seguia
+// desenhando o cache como se estivesse ao vivo: o operador olhava uma fila
+// parada achando que ninguém tinha mexido. Este sinal só INFORMA — a casca
+// (App.tsx) decide mostrar o aviso depois de alguns segundos fora, para uma
+// reconexão rápida não piscar faixa nenhuma. Nada de dado muda por aqui.
+let conectadoAgora = true;
+const conexaoListeners = new Set<(conectado: boolean) => void>();
+
+/** Assina mudanças de conexão do tempo real. Devolve o cancelador. */
+export function onConexaoTempoReal(fn: (conectado: boolean) => void): () => void {
+  conexaoListeners.add(fn);
+  fn(conectadoAgora);
+  return () => { conexaoListeners.delete(fn); };
+}
+
+function avisarConexao(conectado: boolean) {
+  if (conectadoAgora === conectado) return;
+  conectadoAgora = conectado;
+  conexaoListeners.forEach((fn) => fn(conectado));
+}
+
+// ── INVALIDAÇÃO DURANTE A PRIMEIRA CARGA (17/09) ─────────────────────────────
+// No React Query 5.60, invalidar uma chave SEM dado e JÁ buscando não começa
+// busca nova: reaproveita a promessa em voo, e o sucesso dela zera
+// `isInvalidated`. Ou seja, a mudança de outra pessoa que chega (ou a conexão
+// que abre) enquanto a tela ainda faz a primeira carga era descartada — e a
+// busca em voo pode ter saído do servidor ANTES da mudança. Para essas
+// chaves, a invalidação é repetida UMA vez quando a carga termina bem.
+// Chave por queryHash: duas mensagens na mesma carga não empilham assinaturas.
+const aguardandoPrimeiraCarga = new Map<string, () => void>();
+
+function revalidarAoFimDaPrimeiraCarga(query: Query): void {
+  if (aguardandoPrimeiraCarga.has(query.queryHash)) return;
+  const cache = queryClient.getQueryCache();
+  const soltar = () => {
+    cancelar();
+    if (aguardandoPrimeiraCarga.get(query.queryHash) === soltar) aguardandoPrimeiraCarga.delete(query.queryHash);
+  };
+  const cancelar = cache.subscribe((evento) => {
+    if (evento.query !== query) return;
+    if (evento.type === "removed") { soltar(); return; }
+    if (evento.type !== "updated") return;
+    if (evento.action.type === "error") { soltar(); return; }
+    if (evento.action.type !== "success") return;
+    soltar();
+    // Fora do dispatch do próprio sucesso: a busca que acabou ainda está
+    // se desmontando dentro do React Query.
+    setTimeout(() => {
+      queryClient.invalidateQueries({ queryKey: query.queryKey, exact: true });
+    }, 0);
+  });
+  aguardandoPrimeiraCarga.set(query.queryHash, soltar);
+}
+
+/** invalidateQueries que não perde a chave em primeira carga (ver acima). */
+function invalidarSemPerderCargaEmVoo(queryKey: readonly unknown[], predicate?: (q: Query) => boolean): void {
+  for (const q of queryClient.getQueryCache().findAll({ queryKey })) {
+    if (q.state.data === undefined && q.state.fetchStatus === "fetching") revalidarAoFimDaPrimeiraCarga(q);
+  }
+  queryClient.invalidateQueries({ queryKey, predicate });
+}
+
+/** Desmontagem do hook: nenhuma assinatura fica pendurada no queryCache. */
+function soltarPrimeirasCargas(): void {
+  Array.from(aguardandoPrimeiraCarga.values()).forEach((soltar) => soltar());
+}
+
 export function useWebSocket() {
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const unmountedRef = useRef(false);
   const reconnectAttemptsRef = useRef(0);
+  // "Já abriu uma vez" — sobrevive aos reconnects (é do hook montado, não do
+  // socket). Ver ws.onopen.
+  const jaConectouRef = useRef(false);
   const { toast } = useToast();
 
   // ── COALESCING DAS CHAVES PESADAS (auditoria 27/08) ───────────────────────
@@ -46,17 +122,34 @@ export function useWebSocket() {
   // mesma janela dos blocos de prazos/audit-logs abaixo) invalida cada chave
   // UMA vez ao fim da rajada. O "tempo real" fica meio segundo atrás — nada
   // que uma tela do app distinga; o dado final é o mesmo.
+  //
+  // TETO DA RAJADA (PERFORMANCE, 17/09): o timer era reiniciado a CADA
+  // mensagem. Com gente trabalhando em várias abas ao mesmo tempo (ou um lote
+  // que emite por peça), a rajada nunca "acabava" e a tela não se atualizava
+  // enquanto houvesse movimento — e, quando atualizava, era tudo de uma vez.
+  // Agora a janela continua 500ms, mas nenhuma mudança espera mais que 2s
+  // desde a primeira mensagem pendente. As listas de peças buscam por delta
+  // (lib/queryClient.ts), então invalidar mais vezes custa KBs, não MBs.
   const pesadasPendentesRef = useRef<Set<string>>(new Set());
   const pesadasTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const rajadaDesdeRef = useRef(0);
   const invalidateCoalesced = useCallback((...keyParts: string[]) => {
     pesadasPendentesRef.current.add(JSON.stringify(keyParts));
-    if (pesadasTimerRef.current) clearTimeout(pesadasTimerRef.current);
+    const agora = Date.now();
+    if (pesadasTimerRef.current) {
+      // Rajada já no teto: o timer armado dispara no prazo, com esta chave junto.
+      if (agora - rajadaDesdeRef.current >= COALESCER_TETO_MS - COALESCER_JANELA_MS) return;
+      clearTimeout(pesadasTimerRef.current);
+    } else {
+      rajadaDesdeRef.current = agora;
+    }
+    const espera = Math.min(COALESCER_JANELA_MS, Math.max(0, rajadaDesdeRef.current + COALESCER_TETO_MS - agora));
     pesadasTimerRef.current = setTimeout(() => {
       pesadasTimerRef.current = null;
       const chaves = Array.from(pesadasPendentesRef.current, (s) => JSON.parse(s) as string[]);
       pesadasPendentesRef.current.clear();
-      for (const queryKey of chaves) queryClient.invalidateQueries({ queryKey });
-    }, 500);
+      for (const queryKey of chaves) invalidarSemPerderCargaEmVoo(queryKey);
+    }, espera);
   }, []);
 
   const connect = useCallback(() => {
@@ -72,14 +165,37 @@ export function useWebSocket() {
     ws.onopen = () => {
       console.log('WebSocket connected');
       reconnectAttemptsRef.current = 0;
+      avisarConexao(true);
+      // PRIMEIRA CONEXÃO NÃO É RECONEXÃO (perf, 17/09). A revalidação abaixo
+      // cura o BURACO de uma queda — mas rodava também na primeira abertura,
+      // logo depois de a tela carregar, e as mesmas chaves que a tela tinha
+      // acabado de buscar saíam de novo (medido: /api/notifications 2× em
+      // 700 ms; /api/events e a lista de peças também dobravam). Na primeira
+      // conexão só revalida o que chegou ANTES de o socket ABRIR: até o
+      // onopen o servidor não conhecia este socket, e o broadcast de uma
+      // mudança nesse meio tempo não chegou a ninguém aqui. (A régua era a
+      // CRIAÇÃO do socket — o dado que chegava entre criar e abrir ficava sem
+      // cura.) A carga que ainda está em voo na abertura também saiu antes do
+      // socket: revalida UMA vez quando terminar (ver invalidarSemPerderCargaEmVoo).
+      const primeiraConexao = !jaConectouRef.current;
+      jaConectouRef.current = true;
+      if (primeiraConexao) {
+        const abertoEm = Date.now();
+        const antesDeAbrir = (q: Query) =>
+          q.state.dataUpdatedAt > 0 && q.state.dataUpdatedAt < abertoEm;
+        for (const chave of ['/api/prazos', '/api/audit-logs', '/api/items', '/api/items/approved', '/api/events', '/api/notifications']) {
+          invalidarSemPerderCargaEmVoo([chave], antesDeAbrir);
+        }
+        return;
+      }
       // Reconectar significa que houve um buraco: enquanto o socket esteve
       // fora, toda mutação de outro usuário passou sem invalidar nada. Sem
       // esta linha o painel do diretor servia o agregado de antes da queda —
       // errado com cara de certo, que é o pior modo de falha de um painel.
-      queryClient.invalidateQueries({ queryKey: ['/api/prazos'] });
+      invalidarSemPerderCargaEmVoo(['/api/prazos']);
       // Mesmo buraco, mesma cura, para a trilha de auditoria: enquanto o socket
       // esteve fora, toda ação de outro usuário passou sem invalidar nada.
-      queryClient.invalidateQueries({ queryKey: ['/api/audit-logs'] });
+      invalidarSemPerderCargaEmVoo(['/api/audit-logs']);
       // ...e para as três chaves que sustentam as telas de trabalho. Só
       // '/api/prazos' era revalidado, então TODA mutação ocorrida durante a
       // queda ficava invisível no Painel Geral ('/api/items'), na Gráfica
@@ -180,9 +296,10 @@ export function useWebSocket() {
             // staleTime Infinity) só via peças novas no F5. O prefixo
             // '/api/items' já alcança ['/api/items', eventId].
             invalidateCoalesced('/api/items');
+            // Sem o tipo no payload a frase virava "Item undefined adicionado".
             toast({
-              title: 'Novo item adicionado',
-              description: `Item ${data.item?.type} adicionado`,
+              title: 'Nova peça adicionada',
+              description: data.item?.type ? `Peça ${data.item.type} entrou na lista.` : undefined,
             });
             break;
 
@@ -233,7 +350,9 @@ export function useWebSocket() {
             invalidateCoalesced('/api/items/pending');
             toast({
               title: 'Peças adicionadas',
-              description: `${data.items?.length || 0} peças adicionadas ao evento`,
+              description: (data.items?.length || 0) === 1
+                ? '1 peça adicionada ao evento'
+                : `${data.items?.length || 0} peças adicionadas ao evento`,
             });
             break;
 
@@ -246,11 +365,22 @@ export function useWebSocket() {
             invalidateCoalesced('/api/events');
             break;
 
+          case 'tubos_atualizados':
+            // TUBOS (14/09): criar, mexer, apagar ou entregar um tubo. A fila lê
+            // o número de /api/tubos (selo "Tubo N") e o painel lê
+            // /api/events/:id/tubos — sem isto, o colega do outro celular via o
+            // tubo antigo até o próximo polling.
+            invalidateCoalesced('/api/tubos');
+            if (data.eventId) invalidateCoalesced(`/api/events/${data.eventId}/tubos`);
+            break;
+
           case 'items_submitted':
             invalidateCoalesced('/api/items');
             toast({
               title: 'Peças enviadas para vinculação',
-              description: `${data.count || 0} peças aguardando vinculação de patrocinadores`,
+              description: (data.count || 0) === 1
+                ? '1 peça aguardando vinculação de patrocinadores'
+                : `${data.count || 0} peças aguardando vinculação de patrocinadores`,
             });
             break;
 
@@ -261,7 +391,7 @@ export function useWebSocket() {
             invalidateCoalesced('/api/events');
             toast({
               title: 'Peça liberada',
-              description: `${data.item?.type} aprovada para produção`,
+              description: data.item?.type ? `Peça ${data.item.type} aprovada para produção` : 'Aprovada para produção',
             });
             break;
 
@@ -271,16 +401,21 @@ export function useWebSocket() {
             invalidateCoalesced('/api/items/approved');
             invalidateCoalesced('/api/events');
             toast({
-              title: data.type === 'production_started' ? 'Produção iniciada' : 'Produção atualizada',
-              description: `Item ${data.item?.type} atualizado`,
+              // "Impressão" (14/09): o status inProduction chama-se Em Impressão.
+              title: data.type === 'production_started' ? 'Impressão iniciada' : 'Impressão atualizada',
+              description: data.item?.type ? `Peça ${data.item.type} atualizada` : undefined,
             });
             break;
 
           case 'deadline_alert':
             invalidateCoalesced('/api/events');
             toast({
-              title: '⚠️ Alerta de Prazo',
-              description: `Faltam ${data.hoursRemaining}h para saída - ${data.event?.name}`,
+              // Sem emoji: o toast de erro já traz ícone e cor de alerta, e o
+              // emoji renderizava diferente em cada sistema operacional.
+              title: 'Prazo perto do fim',
+              description: data.event?.name
+                ? `Faltam ${data.hoursRemaining}h para a saída · ${data.event.name}`
+                : `Faltam ${data.hoursRemaining}h para a saída`,
               variant: 'destructive',
             });
             break;
@@ -368,6 +503,7 @@ export function useWebSocket() {
     ws.onclose = () => {
       console.log('WebSocket disconnected');
       if (unmountedRef.current) return;
+      avisarConexao(false);
 
       // Exponential backoff: 1s, 2s, 4s, 8s, 16s, capped at 30s. Resets to 0
       // as soon as a connection is successfully (re)established in onopen.
@@ -388,7 +524,20 @@ export function useWebSocket() {
     unmountedRef.current = false;
     connect();
 
+    // A internet voltou: reconecta já, em vez de esperar o backoff (até 30s),
+    // durante o qual a faixa "Reconectando…" seguia na tela à toa.
+    const aoVoltarInternet = () => {
+      const estado = wsRef.current?.readyState;
+      if (estado === WebSocket.OPEN || estado === WebSocket.CONNECTING) return;
+      if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
+      reconnectAttemptsRef.current = 0;
+      connect();
+    };
+    window.addEventListener("online", aoVoltarInternet);
+
     return () => {
+      window.removeEventListener("online", aoVoltarInternet);
+      soltarPrimeirasCargas();
       unmountedRef.current = true;
       if (reconnectTimerRef.current) {
         clearTimeout(reconnectTimerRef.current);

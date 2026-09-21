@@ -118,7 +118,7 @@ export function computePecasAtrasadas(events: PrazoEvent[]): PecaAtrasada[] {
           status: item.status,
           atrasada: true,
         }),
-        urlPeca: urlPecaNoEvento(ev.id, item.id),
+        urlPeca: urlPecaNoEvento(ev.eventId ?? ev.id, item.id),
       });
     }
   }
@@ -167,6 +167,27 @@ export interface FiltroPecasAtrasadas {
   dia?: string;
 }
 
+/**
+ * Texto de busca JÁ NORMALIZADO de cada peça, calculado uma vez por objeto.
+ *
+ * `normalize` (minúsculas + NFD + remoção de acento) é a parte cara da busca,
+ * e ela rodava para CADA peça em CADA passada: a lista filtrada e as quatro
+ * contagens dos menus são cinco passadas por tecla — milhares de NFD por
+ * tecla com o volume de produção. `PecaAtrasada` é imutável depois de criada
+ * por `computePecasAtrasadas` (um objeto novo a cada payload novo), então a
+ * identidade do objeto é chave segura, e a `WeakMap` libera a entrada junto
+ * com a lista antiga.
+ */
+const textoDeBusca = new WeakMap<PecaAtrasada, string>();
+function alvoDaBusca(p: PecaAtrasada): string {
+  let alvo = textoDeBusca.get(p);
+  if (alvo === undefined) {
+    alvo = normalize(`${p.item.displayId} ${p.item.type} ${p.item.description ?? ""} ${p.eventName}`);
+    textoDeBusca.set(p, alvo);
+  }
+  return alvo;
+}
+
 export function filtrarPecasAtrasadas(
   lista: PecaAtrasada[],
   { busca = "", eventoId = "all", etapaKey = "all", prioridade = "all", dia = "" }: FiltroPecasAtrasadas,
@@ -177,11 +198,7 @@ export function filtrarPecasAtrasadas(
     if (etapaKey !== "all" && p.stage.key !== etapaKey) return false;
     if (prioridade !== "all" && p.eventPriority !== prioridade) return false;
     if (dia && p.marco.deadline !== dia) return false;
-    if (q) {
-      const alvo = normalize(
-        `${p.item.displayId} ${p.item.type} ${p.item.description ?? ""} ${p.eventName}`);
-      if (!alvo.includes(q)) return false;
-    }
+    if (q && !alvoDaBusca(p).includes(q)) return false;
     return true;
   });
 }
@@ -228,10 +245,15 @@ export function contarPecasAtrasadas(
   lista: PecaAtrasada[],
   filtro: FiltroPecasAtrasadas,
 ): ContagensPecasAtrasadas {
+  // A busca nunca é neutralizada (ela entra em TODAS as contagens), então
+  // aplicá-la uma vez antes das quatro passadas dá exatamente o mesmo número
+  // — e a lista que as quatro percorrem encolhe para o que a busca deixou.
+  const base = filtro.busca?.trim() ? filtrarPecasAtrasadas(lista, { busca: filtro.busca }) : lista;
+  const semBusca = { ...filtro, busca: "" };
   return {
-    porEvento: agrupar(filtrarPecasAtrasadas(lista, { ...filtro, eventoId: "all" }), (p) => p.eventId),
-    porEtapa: agrupar(filtrarPecasAtrasadas(lista, { ...filtro, etapaKey: "all" }), (p) => p.stage.key),
-    porPrioridade: agrupar(filtrarPecasAtrasadas(lista, { ...filtro, prioridade: "all" }), (p) => p.eventPriority),
-    porDia: agrupar(filtrarPecasAtrasadas(lista, { ...filtro, dia: "" }), (p) => p.marco.deadline),
+    porEvento: agrupar(filtrarPecasAtrasadas(base, { ...semBusca, eventoId: "all" }), (p) => p.eventId),
+    porEtapa: agrupar(filtrarPecasAtrasadas(base, { ...semBusca, etapaKey: "all" }), (p) => p.stage.key),
+    porPrioridade: agrupar(filtrarPecasAtrasadas(base, { ...semBusca, prioridade: "all" }), (p) => p.eventPriority),
+    porDia: agrupar(filtrarPecasAtrasadas(base, { ...semBusca, dia: "" }), (p) => p.marco.deadline),
   };
 }

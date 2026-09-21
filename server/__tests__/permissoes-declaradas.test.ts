@@ -42,10 +42,16 @@ describe("tabela ↔ código, sem sobras de nenhum lado", () => {
     expect(fantasmas).toEqual([]);
   });
 
-  it("são as 89 — o número que o diagnóstico mediu; mudou, atualize os dois", () => {
-    // 89 = contagem recomputada após o merge/rebase das rotas guardadas.
-    expect(REGUA_DE_PAPEIS.length).toBe(89);
-    expect(doCodigo.length).toBe(89);
+  it("são as 96 — o número que o diagnóstico mediu; mudou, atualize os dois", () => {
+    // 96 = as 78 do diagnóstico + o descancelar do admin (01/09)
+    //    + iniciar impressão da Gráfica (14/09)
+    //    + reservar e liberar peça do estoque (14/09)
+    //    + pedir, atender, recusar, cancelar, editar e reabrir pedido de peça (14/09).
+    //    + pedir e responder ajuste de solicitação de peça (14/09).
+    //    + criar remessa do Kit (14/09) + excluir remessa do Kit (15/09).
+    //    + criar, mexer, apagar e entregar tubo (14/09).
+    expect(REGUA_DE_PAPEIS.length).toBe(96);
+    expect(doCodigo.length).toBe(96);
   });
 });
 

@@ -30,7 +30,9 @@ describe("a ordem de leitura da produção", () => {
   it("existe uma função só: grupo pai → tipo → ID", () => {
     expect(VP).toContain("const ordenarParaLeitura = (lista: any[]) => [...lista].sort((a, b) => {");
     const i = VP.indexOf("const ordenarParaLeitura");
-    const corpo = VP.slice(i, i + 500);
+    // 15/09: o Kit vem antes (remessa junta, por último); a régua da Arena segue igual.
+    const corpo = VP.slice(i, i + 900);
+    expect(corpo).toContain("if (!!ka !== !!kb) return ka ? 1 : -1;");
     expect(corpo).toContain("const ga = typeToGroup[a.type] || '', gb = typeToGroup[b.type] || '';");
     expect(corpo).toContain("if (ga !== gb) return COLLATOR_PTBR.compare(ga, gb);");
     expect(corpo).toContain("if (a.type !== b.type) return COLLATOR_PTBR.compare(a.type || '', b.type || '');");
@@ -43,7 +45,8 @@ describe("a ordem de leitura da produção", () => {
   });
 
   it("e o agrupador por 'mudou em relação ao anterior' continua — agora com a garantia ao lado", () => {
-    expect(VP).toContain("const abreTipo = !anterior || anterior.type !== item.type;");
+    // A seção é o tipo — ou a remessa do Kit, que agrupa as peças do Kit (15/09).
+    expect(VP).toContain("const abreTipo = !anterior || secaoDaPeca(anterior) !== secaoDaPeca(item);");
     const i = VP.indexOf("const abreTipo = !anterior");
     expect(VP.slice(i - 400, i)).toContain("ordenarParaLeitura");
   });

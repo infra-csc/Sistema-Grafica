@@ -470,8 +470,14 @@ function bloco(fonte: string, nome: string): string {
 
 describe("Gráfica — todo dropdown sai do mesmo pool da lista", () => {
   it("o pool das facetas e a lista filtram o MESMO array", () => {
-    expect(bloco(GRAFICA, "gFacetPool")).toContain("(items as any[]).filter");
+    // 17/09 (performance): a busca passa UMA vez sobre `items` (poolDaBusca) e
+    // a lista, os cards e as facetas partem desse mesmo pool — o array
+    // continua sendo um só para todos.
+    expect(bloco(GRAFICA, "poolDaBusca")).toContain("(items as any[]).filter");
+    expect(bloco(GRAFICA, "gFacetPool")).toContain("poolDaBusca.filter");
+    expect(bloco(GRAFICA, "statsPool")).toContain("poolDaBusca.filter");
     expect(bloco(GRAFICA, "filteredItems")).toContain("(items as any[])");
+    expect(bloco(GRAFICA, "filteredItems")).toContain("poolDaBusca");
   });
 
   it.each([

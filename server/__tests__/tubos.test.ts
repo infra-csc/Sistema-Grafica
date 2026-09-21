@@ -72,7 +72,12 @@ describe("as rotas", () => {
   });
 
   it("são dos mesmos papéis de conferir e entregar", () => {
-    expect(ROTAS).toContain('const PAPEIS_DO_TUBO = ["grafica", "solicitacao", "admin"];');
+    // Predicado puro (21/09): a forma que o leitor da régua entende — as
+    // rotas de escrita dos tubos passam a constar em shared/permissoes.ts.
+    expect(ROTAS).toContain('return req.userRole === "grafica" || req.userRole === "solicitacao" || req.userRole === "admin";');
+    for (const rota of ["/api/events/:eventId/tubos", "/api/tubos/:id/itens", "/api/tubos/:id", "/api/tubos/:id/entregar"]) {
+      expect(ler("shared/permissoes.ts"), rota).toContain(`rota: "${rota}", papeis: ["admin", "grafica", "solicitacao"]`);
+    }
   });
 
   it("colocar recusa peça que não pode ir — e diz o motivo de cada uma", () => {
@@ -162,6 +167,89 @@ describe("a etiqueta do tubo", () => {
     const src = ler(PAGINA);
     expect(src).toContain("TUBO {data.tubo.numero}");
     expect(src).toContain("window.print()");
-    expect(src).toContain('["Código", "Peça", "Descrição", "Qtd"]');
+    // 21/09 (dono): o formato da etiqueta que o galpão já cola no rolo — logo
+    // do book (ou prefixo do nome) e a cidade gigante no topo, uma linha por
+    // peça, SEM arte e sem código.
+    expect(src).toContain("logoDaCapaDoBook(bookUrl)");
+    expect(src).toContain("{linhaDaEtiquetaDoTubo(p)}");
+    expect(src).not.toContain("displayId}</");
+    expect(src).not.toContain("miniatura");
+  });
+
+  it("a linha da peça é 'tipo descrição - quantidade', sem repetir o tipo", async () => {
+    const { linhaDaEtiquetaDoTubo } = await import("../../client/src/pages/etiqueta-tubo");
+    expect(linhaDaEtiquetaDoTubo({ type: "2x1", description: "Ministério", quantity: 16 })).toBe("2x1 Ministério - 16");
+    expect(linhaDaEtiquetaDoTubo({ type: "2x1", description: "2x1 Logo Santander", quantity: 3 })).toBe("2x1 Logo Santander - 3");
+    expect(linhaDaEtiquetaDoTubo({ type: "Pórtico", description: "", quantity: 1 })).toBe("Pórtico - 1");
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// REVISÃO ADVERSARIAL (21/09) — os furos achados no port.
+// ─────────────────────────────────────────────────────────────────────────────
+describe("a trava 'Solicitação sem Kit só visualiza' alcança os tubos", () => {
+  it("a trava global não enxerga adicionar/remover nem a entrega, então o tubo repete a regra", () => {
+    // A global (server/routes.ts) só lê /api/items/:id e itemIds.
+    const GLOBAL = ler("server/routes.ts");
+    expect(GLOBAL).toContain("Array.isArray(req.body?.itemIds)");
+    expect(GLOBAL).not.toContain("req.body?.adicionar");
+    // E o arquivo dos tubos repete a MESMA mensagem.
+    expect(ROTAS).toContain('const soVisualizaKit = (req: any): boolean => req.userRole === "solicitacao" && req.userKit !== true;');
+    expect(ROTAS).toContain("Peça do Kit: a Solicitação da Arena só visualiza. Quem age nela é o usuário do Kit.");
+  });
+
+  it("mexer no conteúdo do tubo confere as duas listas ANTES de gravar", () => {
+    const rota = ROTAS.slice(ROTAS.indexOf('app.patch("/api/tubos/:id/itens"'), ROTAS.indexOf('app.delete("/api/tubos/:id"'));
+    expect(rota).toContain("inArray(itemsTable.id, [...adicionar, ...remover])");
+    expect(rota).toContain("if (barraPecaDoKit(req, res, mexidas)) return;");
+    // a trava vem antes de qualquer escrita
+    expect(rota.indexOf("barraPecaDoKit")).toBeLessThan(rota.indexOf("colocarNoTubo(req"));
+  });
+
+  it("entregar o tubo é entregar tudo que está dentro — inclusive o que é do Kit", () => {
+    const rota = ROTAS.slice(ROTAS.indexOf('app.post("/api/tubos/:id/entregar"'));
+    expect(rota).toContain("if (barraPecaDoKit(req, res, dentro)) return;");
+  });
+
+  it("a tela esconde a caixa e o 'Entregar tubo' de quem só visualiza", () => {
+    expect(PAINEL).toContain('user?.role === "solicitacao" && !user?.kit && !!p.doKit');
+    expect(PAINEL).toContain("!t.pecas.some(soVisualizaKit) && (");
+    expect(ROTAS).toContain("doKit: !!p.kitRemessaId,");
+  });
+
+  it("tubo com peça que o usuário não vê nunca vem 'pronto para entregar'", () => {
+    const rota = ROTAS.slice(ROTAS.indexOf('app.get("/api/events/:eventId/tubos"'), ROTAS.indexOf('app.get("/api/tubos"'));
+    expect(rota).toContain("const totalNoTubo = new Map<string, number>();");
+    expect(rota).toContain("(totalNoTubo.get(t.id) ?? 0) === dentro.length");
+    expect(rota).toContain("!(soVisualizaKit(req) && dentro.some((p) => p.kitRemessaId))");
+  });
+});
+
+describe("a entrega do tubo fecha o evento como a entrega da peça", () => {
+  it("avisa a Solicitação quando o evento conclui", () => {
+    const rota = ROTAS.slice(ROTAS.indexOf('app.post("/api/tubos/:id/entregar"'));
+    expect(rota).toContain('type: "eventCompleted"');
+    expect(rota).toContain('broadcast({ type: "notification_created", notification })');
+    expect(rota).toContain('antes?.status !== "completed" && depois?.status === "completed"');
+  });
+});
+
+describe("o tubo do lote não vaza de um lote para o outro", () => {
+  it("é zerado ao sair do lote e ao abrir o dialog", () => {
+    expect(GRAFICA).toContain('setBulkReceivedBy("");\n    // O tubo escolhido é DAQUELE lote');
+    expect(GRAFICA).toContain('setBulkConferMode(true); setBulkSelectedIds(new Set()); setTuboDoLote("");');
+    expect(GRAFICA).toContain('(setTuboDoLote(""), setBulkConferOpen(true))');
+  });
+
+  it("só usa tubo aberto que seja DO evento das peças", () => {
+    expect(GRAFICA).toContain("const tuboEhDoEvento =");
+    expect(GRAFICA).toContain("eventoUnicoDoLote === eventoId");
+    expect(GRAFICA).toContain('const usarTuboAberto = tuboDoLote !== "novo" && porEvento.size === 1 && tuboEhDoEvento;');
+  });
+});
+
+describe("a peça não nasce com impressora nem tubo", () => {
+  it("publicInsertItemSchema omite os dois — quem preenche é o gesto da Gráfica", () => {
+    expect(SCHEMA).toContain("  printMachine: true,\n  tuboId: true,\n});");
   });
 });

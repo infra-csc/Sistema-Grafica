@@ -180,7 +180,8 @@ describe("dá para saber o que falta sem abrir nada", () => {
 
   it("são quatro colunas, não sete", () => {
     expect(tela).toContain('{ label: "Peça", w: undefined }');
-    expect(tela).toContain('{ label: "Qtd · Dim · m²", w: 190 }');
+    // 15/09: layout fixo sem rolagem — a medida ganhou largura para não quebrar.
+    expect(tela).toContain('{ label: "Qtd · Dim · m²", w: 230 }');
     expect(tela).toContain('{ label: "Arquivo final", w: 140 }');
     expect(codigo).not.toContain('{ label: "Descrição da Peça"');
     expect(codigo).not.toContain('{ label: "Dim (LxA)"');
@@ -299,7 +300,8 @@ describe("o resto do que estava certo", () => {
 
   it("o cabeçalho enxuto não voltou a crescer", () => {
     // Era um bloco preto de 275px com título de 56px e um olho decorativo.
-    expect(tela).toContain("fontSize: isMobile ? 20 : 24");
+    // Hoje segue o título padrão das páginas (FS.h1 = 26 no desktop).
+    expect(tela).toContain("fontSize: isMobile ? 20 : FS.h1");
   });
 });
 

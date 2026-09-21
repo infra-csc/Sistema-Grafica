@@ -15,14 +15,17 @@ import type { Express } from "express";
 import { eq, lt, desc, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "../db";
-import { prazoCobrancas, prazoSnapshots, prazoEventSnapshots } from "@shared/schema";
-import type { Item, ItemSponsorApproval } from "@shared/schema";
-import { storage } from "../storage";
+import { prazoCobrancas, prazoSnapshots, prazoEventSnapshots, kitRemessas } from "@shared/schema";
+import type { ItemSponsorApproval } from "@shared/schema";
+import { storage, type ItemParaPrazo } from "../storage";
 import { ehBookCompleto } from "@shared/fluxo-peca";
 import { requireRole, requireAuth, createAuditLog, broadcast } from "./shared";
 import {
   STAGE_META,
   buildEventPrazo,
+  comKit,
+  eventosDoPrazo,
+  idDoEventoReal,
   computeKpis,
   daysSince,
   isPrazoCandidate,
@@ -62,6 +65,24 @@ const cobrancaBodySchema = z.object({
     .optional().nullable(),
 });
 
+/**
+ * Dispara uma leitura JÁ (o builder do Drizzle só executa no `then`) e guarda
+ * o desfecho sem rejeitar. Serve para adiantar leituras independentes sem
+ * criar rejeição não tratada: o erro só "acontece" quando `abrir` é chamado,
+ * dentro do try/catch do bloco que sempre o tratou.
+ */
+type Desfecho<T> = { ok: true; valor: T } | { ok: false; erro: unknown };
+function capturar<T>(leitura: PromiseLike<T>): Promise<Desfecho<T>> {
+  return Promise.resolve(leitura).then(
+    (valor) => ({ ok: true as const, valor }),
+    (erro) => ({ ok: false as const, erro }),
+  );
+}
+function abrir<T>(d: Desfecho<T>): T {
+  if (!d.ok) throw d.erro;
+  return d.valor;
+}
+
 /** "YYYY-MM-DD" existente de verdade (barra 2026-02-31, que o regex aceita). */
 function isRealDay(day: string): boolean {
   const [y, m, d] = day.split("-").map(Number);
@@ -73,7 +94,7 @@ export function registerPrazoRoutes(app: Express): void {
   // Leitura aberta a todo usuario autenticado (decisao do dono, 17/08): a
   // Gestao de Prazos passa a aparecer para todos. O POST de cobranca logo
   // abaixo CONTINUA sendo admin — quem nao e admin ve e nao mexe.
-  app.get("/api/prazos", requireAuth, async (_req, res) => {
+  app.get("/api/prazos", requireAuth, async (req, res) => {
     try {
       const today = todayBusinessMs();
       const todayStr = todayBusinessStr();
@@ -86,6 +107,31 @@ export function registerPrazoRoutes(app: Express): void {
       // porque depende justamente das peças.
       // Só a busca de peças precisa esperar a lista de candidatos; as outras
       // três continuam em paralelo, como antes.
+      //
+      // PERF (17/09): as leituras de tendência e de "desde ontem" dependem só
+      // do DIA, não do payload — saem agora junto com o primeiro lote em vez
+      // de uma de cada vez no fim do handler (eram 3 round-trips em série).
+      // Cada uma já nasce com o erro capturado (`capturar`), então a
+      // degradação continua por bloco, exatamente como os try/catch abaixo
+      // faziam: tabela sem migração some com o bloco dela, não com a tela.
+      const trendP = capturar(
+        db.select().from(prazoSnapshots)
+          .where(lt(prazoSnapshots.day, todayStr))
+          .orderBy(desc(prazoSnapshots.day))
+          .limit(1),
+      );
+      const desdeOntemP = capturar((async () => {
+        const [base] = await db.select({ day: prazoEventSnapshots.day })
+          .from(prazoEventSnapshots)
+          .where(lt(prazoEventSnapshots.day, todayStr))
+          .orderBy(desc(prazoEventSnapshots.day))
+          .limit(1);
+        if (!base) return { base: null, baseRows: [] as (typeof prazoEventSnapshots.$inferSelect)[] };
+        const baseRows = await db.select().from(prazoEventSnapshots)
+          .where(eq(prazoEventSnapshots.day, base.day));
+        return { base, baseRows };
+      })());
+
       const [allEvents, allSponsors, openApprovals, allUsers] = await Promise.all([
         storage.getAllEvents(),
         storage.getAllSponsors(),
@@ -94,10 +140,21 @@ export function registerPrazoRoutes(app: Express): void {
       ]);
       const candidates = allEvents.filter((ev) => isPrazoCandidate(ev, today));
       // BOOK COMPLETO fica de fora: é o trâmite do Atendimento, não uma peça (ver shared/fluxo-peca).
-      const candidateItems = (await storage.getItemsByEvents(candidates.map((ev) => ev.id)))
-        .filter((i) => !ehBookCompleto(i));
+      // Usuário do Kit (14/09): só as peças do Kit que ele criou.
+      // PERF (17/09): getItemsParaPrazos traz só as colunas que o domínio lê
+      // (mesmas linhas e ordem de getItemsByEvents).
+      const doKit = (req as any).userKit === true;
+      const candidateItems = (await storage.getItemsParaPrazos(candidates.map((ev) => ev.id)))
+        .filter((i) => !ehBookCompleto(i) && (!doKit || (!!i.kitRemessaId && i.criadoPorId === (req as any).userId)));
 
-      const itemsByEvent = new Map<string, Item[]>();
+      // KIT (14/09): as remessas das peças do Kit — cada uma vira linha própria,
+      // com o funil pelas datas dela.
+      const idsDeRemessa = Array.from(new Set(candidateItems.map((i) => i.kitRemessaId).filter((v): v is string => !!v)));
+      const remessaPorId = new Map((idsDeRemessa.length
+        ? await db.select().from(kitRemessas).where(inArray(kitRemessas.id, idsDeRemessa))
+        : []).map((r) => [r.id, r]));
+
+      const itemsByEvent = new Map<string, ItemParaPrazo[]>();
       for (const it of candidateItems) {
         const arr = itemsByEvent.get(it.eventId);
         if (arr) arr.push(it); else itemsByEvent.set(it.eventId, [it]);
@@ -133,7 +190,8 @@ export function registerPrazoRoutes(app: Express): void {
       }>();
 
       const events: PrazoEvent[] = candidates
-        .map((event) => buildEventPrazo(event, itemsByEvent.get(event.id) ?? [], {
+        .flatMap((event) => eventosDoPrazo(event, itemsByEvent.get(event.id) ?? [], remessaPorId))
+        .map(({ evento, itens, kit }) => comKit(buildEventPrazo(evento, itens, {
           today,
           sponsorNameById,
           openApprovalsByItem,
@@ -143,14 +201,14 @@ export function registerPrazoRoutes(app: Express): void {
               ?? { name: info.sponsorName, pendingCount: 0, maxDays: 0, eventIds: new Set<string>(), items: [] };
             agg.pendingCount += 1;
             agg.maxDays = Math.max(agg.maxDays, info.days);
-            agg.eventIds.add(info.eventId);
+            agg.eventIds.add(idDoEventoReal(info.eventId));
             agg.items.push({
-              itemId: info.itemId, eventId: info.eventId, eventName: info.eventName,
+              itemId: info.itemId, eventId: idDoEventoReal(info.eventId), eventName: info.eventName,
               displayId: info.displayId, days: info.days,
             });
             sponsorAgg.set(info.sponsorId, agg);
           },
-        }))
+        }), kit))
         .filter((e): e is PrazoEvent => e !== null)
         .sort((a, b) => new Date(a.truckDepartureDate).getTime() - new Date(b.truckDepartureDate).getTime());
 
@@ -186,10 +244,7 @@ export function registerPrazoRoutes(app: Express): void {
       // acesso simplesmente não existiam na série.
       let trend: PrazoTrend = null;
       try {
-        const [prev] = await db.select().from(prazoSnapshots)
-          .where(lt(prazoSnapshots.day, todayStr))
-          .orderBy(desc(prazoSnapshots.day))
-          .limit(1);
+        const [prev] = await trendP.then(abrir);
         if (prev) {
           trend = {
             atrasados: kpis.atrasados - prev.atrasados,
@@ -308,15 +363,9 @@ export function registerPrazoRoutes(app: Express): void {
       // resto da tela continua inteiro.
       let desdeOntem: DesdeOntem | null = null;
       try {
-        const [base] = await db.select({ day: prazoEventSnapshots.day })
-          .from(prazoEventSnapshots)
-          .where(lt(prazoEventSnapshots.day, todayStr))
-          .orderBy(desc(prazoEventSnapshots.day))
-          .limit(1);
+        const { base, baseRows } = await desdeOntemP.then(abrir);
 
         if (base) {
-          const baseRows = await db.select().from(prazoEventSnapshots)
-            .where(eq(prazoEventSnapshots.day, base.day));
           const baseById = new Map(baseRows.map((r) => [r.eventId, r]));
 
           const entraramEmAtraso: DesdeOntemEvento[] = [];

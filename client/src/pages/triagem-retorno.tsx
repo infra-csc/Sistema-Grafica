@@ -7,15 +7,18 @@ import { useToast } from "@/hooks/use-toast";
 import {
   ScanSearch, CheckCircle2, Package, Save,
   CalendarDays, X, Scissors, Sparkles, Trash2, Eye, Wrench,
-  ClipboardCheck, Users, Search, MapPin, Grid3X3, BookmarkCheck,
+  ClipboardCheck, Users, Search, MapPin, Grid3X3, BookmarkCheck, ArrowLeft,
 } from "lucide-react";
 import { TriagemModal } from "@/components/triagem-modal";
 import { MapaGalpao, LOCAIS_DO_GALPAO } from "@/components/mapa-galpao";
+import { EventosDaTriagem, SEM_EVENTO } from "@/components/triagem/eventos-da-triagem";
+import { QuadroDaTriagem } from "@/components/triagem/quadro-da-triagem";
 import { diaEMes } from "@shared/estoque";
 import { SponsorChips } from "@/components/sponsor-chips";
 import { useAuth } from "@/contexts/auth-context";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { CONDITION_META, type Condition, type ConditionMeta, type EnrichedAsset } from "@/lib/inventory-meta";
+import { FS } from "@/lib/theme";
 
 // Re-export para compatibilidade — a definição vive em @/lib/inventory-meta.
 export type { EnrichedAsset };
@@ -41,7 +44,7 @@ function makeSplits(totalQty: number): SplitLine[] {
 // ─── ThumbCell — fallback quando a imagem falha ou URL está vazia ─────────────
 function ThumbCell({ url, size = 15 }: { url?: string | null; size?: number }) {
   const [failed, setFailed] = useState(false);
-  if (!url || failed) return <Package size={size} color="#94a3b8" />;
+  if (!url || failed) return <Package size={size} color="#64748b" />;
   return (
     <img
       src={url}
@@ -57,40 +60,48 @@ function makeEntry(totalQty: number): TriagemEntry {
 }
 
 // ─── Stat card (matches estoque layout) ───────────────────────────────────────
-function StatCard({ label, value, color, Icon }: {
+function StatCard({ label, value, color, Icon, compacto }: {
   label: string; value: number; color: string; Icon: React.ElementType;
+  /** Celular: três cartões em ~110px cada — sem o ícone d'água e com o
+   *  número menor, senão "Triados nesta sessão" estourava o cartão. */
+  compacto?: boolean;
 }) {
   return (
     <div style={{
       background: "#fff",
-      padding: "20px 22px 18px",
-      borderRadius: 14,
+      padding: compacto ? "12px 12px 10px" : "18px 20px 16px",
+      borderRadius: 12,
       border: "1px solid #e2e8f0",
-      borderBottom: `4px solid ${color}`,
-      boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
-      display: "flex", flexDirection: "column", gap: 8,
+      borderBottom: `3px solid ${color}`,
+      boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
+      display: "flex", flexDirection: "column", gap: compacto ? 4 : 8, minWidth: 0,
     }}>
-      <span style={{ fontSize: 10, fontWeight: 700, color: "#94a3b8", fontFamily: "Space Grotesk, sans-serif", textTransform: "uppercase", letterSpacing: "0.18em" }}>
+      {/* Rótulo em texto corrido: caixa alta com 0.18em nos três cartões
+          disputava atenção com o número, que é o que importa. */}
+      <span style={{ fontSize: compacto ? 11 : 12, fontWeight: 600, color: "#64748b", fontFamily: "Space Grotesk, sans-serif", lineHeight: 1.25 }}>
         {label}
       </span>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <p style={{ margin: 0, fontSize: 32, fontWeight: 900, color, fontFamily: "Space Grotesk, sans-serif", letterSpacing: "-0.04em", lineHeight: 1 }}>
+        <p style={{ margin: 0, fontSize: compacto ? 22 : 30, fontWeight: 800, color, fontFamily: "Space Grotesk, sans-serif", letterSpacing: "-0.03em", lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>
           {value}
         </p>
-        <Icon size={32} color={color} style={{ opacity: 0.15 }} />
+        {!compacto && <Icon size={28} color={color} aria-hidden="true" style={{ opacity: 0.15 }} />}
       </div>
     </div>
   );
 }
 
 // ─── ConditionToggles ─────────────────────────────────────────────────────────
-function ConditionToggles({ condition, onCondition, disabled, grayscale }: {
+// `grande` (celular): cada botão divide a largura e ganha 44px de altura —
+// os ~22px da tabela ficavam abaixo da ponta do dedo no chão do galpão.
+function ConditionToggles({ condition, onCondition, disabled, grayscale, grande }: {
   condition: Condition | null; onCondition: (c: Condition) => void;
-  disabled?: boolean; grayscale?: boolean;
+  disabled?: boolean; grayscale?: boolean; grande?: boolean;
 }) {
   return (
     <div role="group" aria-label="Condição do item" style={{
-      display: "inline-flex", background: "#f3f4f3", padding: 4, borderRadius: 8,
+      display: grande ? "flex" : "inline-flex", width: grande ? "100%" : undefined,
+      background: "#f3f4f3", padding: 3, borderRadius: 8,
       filter: grayscale ? "grayscale(1)" : "none",
     }}>
       {(Object.entries(CONDITION_META) as [Condition, ConditionMeta][]).map(([val, meta]) => {
@@ -99,17 +110,17 @@ function ConditionToggles({ condition, onCondition, disabled, grayscale }: {
           <button key={val} onClick={() => !disabled && onCondition(val)}
             aria-pressed={active} disabled={disabled}
             style={{
-              display: "inline-flex", alignItems: "center", gap: 4,
-              padding: "5px 10px", borderRadius: 6, border: "none",
+              display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 4,
+              flex: grande ? 1 : undefined, minHeight: grande ? 44 : 28,
+              padding: grande ? "0 6px" : "0 10px", borderRadius: 6, border: "none",
               cursor: disabled ? "default" : "pointer",
-              fontSize: 10, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif",
-              letterSpacing: "0.04em", textTransform: "uppercase",
-              whiteSpace: "nowrap", transition: "all 0.12s",
+              fontSize: grande ? 13 : 11, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif",
+              whiteSpace: "nowrap", transition: "background-color 0.12s, color 0.12s, box-shadow 0.12s",
               background: active ? "#fff" : "transparent",
               color: active ? meta.color : "#475569",
               boxShadow: active ? "0 1px 3px rgba(0,0,0,0.12)" : "none",
             }}>
-            <meta.Icon size={10} />
+            <meta.Icon size={grande ? 13 : 11} aria-hidden="true" />
             {meta.label}
           </button>
         );
@@ -119,13 +130,14 @@ function ConditionToggles({ condition, onCondition, disabled, grayscale }: {
 }
 
 // ─── ResultToggles ─────────────────────────────────────────────────────────────
-function ResultToggles({ result, onResult, disabled, grayscale }: {
+function ResultToggles({ result, onResult, disabled, grayscale, grande }: {
   result: TriagemResult; onResult: (r: TriagemResult) => void;
-  disabled?: boolean; grayscale?: boolean;
+  disabled?: boolean; grayscale?: boolean; grande?: boolean;
 }) {
   return (
     <div role="group" aria-label="Destino do item" style={{
-      display: "inline-flex", background: "#f3f4f3", padding: 4, borderRadius: 8,
+      display: grande ? "flex" : "inline-flex", width: grande ? "100%" : undefined,
+      background: "#f3f4f3", padding: 3, borderRadius: 8,
       filter: grayscale ? "grayscale(1)" : "none",
     }}>
       {(Object.entries(RESULT_META) as [TriagemResult, typeof RESULT_META[TriagemResult]][]).map(([val, meta]) => {
@@ -135,17 +147,17 @@ function ResultToggles({ result, onResult, disabled, grayscale }: {
             aria-pressed={active} disabled={disabled}
             title={val === "MANUTENCAO" ? "Fica fora do estoque até o reparo terminar" : undefined}
             style={{
-              display: "inline-flex", alignItems: "center", gap: 4,
-              padding: "5px 10px", borderRadius: 6, border: "none",
+              display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 4,
+              flex: grande ? 1 : undefined, minHeight: grande ? 44 : 28,
+              padding: grande ? "0 6px" : "0 10px", borderRadius: 6, border: "none",
               cursor: disabled ? "default" : "pointer",
-              fontSize: 10, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif",
-              letterSpacing: "0.04em", textTransform: "uppercase",
-              whiteSpace: "nowrap", transition: "all 0.12s",
+              fontSize: grande ? 13 : 11, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif",
+              whiteSpace: "nowrap", transition: "background-color 0.12s, color 0.12s, box-shadow 0.12s",
               background: active ? meta.activeBg : "transparent",
               color: active ? meta.activeColor : "#475569",
               boxShadow: active ? "0 1px 3px rgba(0,0,0,0.15)" : "none",
             }}>
-            {val === "MANUTENCAO" && <Wrench size={9} />}
+            {val === "MANUTENCAO" && <Wrench size={grande ? 13 : 11} aria-hidden="true" />}
             {meta.label}
           </button>
         );
@@ -156,43 +168,47 @@ function ResultToggles({ result, onResult, disabled, grayscale }: {
 
 // ─── TriageActionToggles (combined — used in split cards) ─────────────────────
 function TriageActionToggles({
-  condition, result, onCondition, onResult, disabled,
+  condition, result, onCondition, onResult, disabled, grande,
 }: {
   condition: Condition | null; result: TriagemResult;
   onCondition: (c: Condition) => void; onResult: (r: TriagemResult) => void;
-  disabled?: boolean;
+  disabled?: boolean; grande?: boolean;
 }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-      <ConditionToggles condition={condition} onCondition={onCondition} disabled={disabled} />
-      <ResultToggles result={result} onResult={onResult} disabled={disabled} />
+      <ConditionToggles condition={condition} onCondition={onCondition} disabled={disabled} grande={grande} />
+      <ResultToggles result={result} onResult={onResult} disabled={disabled} grande={grande} />
     </div>
   );
 }
 
 // ─── LabeledTriageToggles (main table — shows CONDIÇÃO / DESTINO labels) ──────
 function LabeledTriageToggles({
-  condition, result, onCondition, onResult, disabled, grayscale,
+  condition, result, onCondition, onResult, disabled, grayscale, grande,
 }: {
   condition: Condition | null; result: TriagemResult;
   onCondition: (c: Condition) => void; onResult: (r: TriagemResult) => void;
-  disabled?: boolean; grayscale?: boolean;
+  disabled?: boolean; grayscale?: boolean; grande?: boolean;
 }) {
+  // No celular o rótulo vai ACIMA dos botões: ao lado ele comia 62px dos
+  // ~320 disponíveis e os três botões não cabiam.
   const labelStyle: React.CSSProperties = {
-    fontSize: 9, fontWeight: 700, color: "#94a3b8",
-    fontFamily: "Space Grotesk, sans-serif", textTransform: "uppercase",
-    letterSpacing: "0.1em", minWidth: 62, flexShrink: 0,
+    fontSize: 11, fontWeight: 600, color: "#64748b",
+    fontFamily: "Space Grotesk, sans-serif", minWidth: grande ? undefined : 62, flexShrink: 0,
   };
+  const linha: React.CSSProperties = grande
+    ? { display: "flex", flexDirection: "column", alignItems: "stretch", gap: 4 }
+    : { display: "flex", alignItems: "center", gap: 6 };
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 6, paddingBottom: 7 }}>
+      <div style={{ ...linha, paddingBottom: 7 }}>
         <span style={labelStyle}>Condição</span>
-        <ConditionToggles condition={condition} onCondition={onCondition} disabled={disabled} grayscale={grayscale} />
+        <ConditionToggles condition={condition} onCondition={onCondition} disabled={disabled} grayscale={grayscale} grande={grande} />
       </div>
       <div style={{ height: 1, background: "#f1f5f9", marginBottom: 7 }} />
-      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+      <div style={linha}>
         <span style={labelStyle}>Destino</span>
-        <ResultToggles result={result} onResult={onResult} disabled={disabled} grayscale={grayscale} />
+        <ResultToggles result={result} onResult={onResult} disabled={disabled} grayscale={grayscale} grande={grande} />
       </div>
     </div>
   );
@@ -219,11 +235,11 @@ function SplitProgress({ splits, total }: { splits: SplitLine[]; total: number }
         ))}
       </div>
       <div style={{ display: "flex", justifyContent: "space-between", marginTop: 3 }}>
-        <span style={{ fontSize: 9, fontFamily: "DM Mono, monospace", fontWeight: 700, color: pct === 100 ? "#16a34a" : "#dc2626" }}>
+        <span style={{ fontSize: 11, fontFamily: "DM Mono, monospace", fontWeight: 700, color: pct === 100 ? "#15803d" : "#b91c1c" }}>
           {sum}/{total} un ({pct}%)
         </span>
         {pct < 100 && (
-          <span style={{ fontSize: 9, fontFamily: "DM Mono, monospace", color: "#746e69" }}>
+          <span style={{ fontSize: 11, fontFamily: "DM Mono, monospace", color: "#746e69" }}>
             faltam {total - sum} un
           </span>
         )}
@@ -249,6 +265,11 @@ export default function TriagemRetorno() {
   // Linha cujo mapa do galpão está aberto.
   const [mapaPara, setMapaPara] = useState<string | null>(null);
   const [localDoLote, setLocalDoLote] = useState("");
+  // ENTRADA POR EVENTO (dono, 14/09): a triagem abre na lista de eventos que
+  // voltaram; escolhido o evento, o quadro de arrastar. A tabela segue como
+  // vista completa (e é onde se divide uma peça ×N por condição).
+  const [vista, setVista] = useState<"eventos" | "quadro" | "tabela">("eventos");
+  const [eventoDoQuadro, setEventoDoQuadro] = useState<string | null>(null);
 
   const { data: awaitingAssets = [], isLoading, isError, refetch } = useQuery<EnrichedAsset[]>({
     queryKey: ["/api/inventory/awaiting-triage"],
@@ -402,29 +423,37 @@ export default function TriagemRetorno() {
     queryClient.invalidateQueries({ queryKey: ["/api/inventory/awaiting-triage"] });
   };
 
-  const handleSingle = useCallback(async (asset: EnrichedAsset) => {
+  // Devolve se a triagem ficou gravada — o modal só fecha quando é `true`
+  // (antes fechava por cima do toast de validação e levava o campo embora).
+  const handleSingle = useCallback(async (asset: EnrichedAsset): Promise<boolean> => {
     const totalQty = asset.quantity ?? 1;
     const entry = getEntry(asset.id, totalQty);
     if (entry.splits.some(l => l.condition === null)) {
       toast({ title: "Selecione a condição antes de salvar.", variant: "destructive" });
-      return;
+      return false;
     }
     if (!isSplitValid(entry, totalQty)) {
       toast({ title: `A soma das quantidades deve ser ${totalQty}.`, variant: "destructive" });
-      return;
+      return false;
     }
     if (precisaDeLocal(entry) && !localDe(asset)) {
       toast({ title: "Informe o local no galpão.", description: "Sem o local, ninguém encontra a peça para reaproveitar.", variant: "destructive" });
-      return;
+      return false;
     }
-    if (savedIds.has(asset.id)) return;
+    if (savedIds.has(asset.id)) return true;
     setSavingIds(prev => new Set(Array.from(prev).concat(asset.id)));
     try {
       await doTriage(asset.id, totalQty, localDe(asset));
       setSavedIds(prev => new Set(Array.from(prev).concat(asset.id)));
-      toast({ title: entry.splits.length > 1 ? `Triagem registrada em ${entry.splits.length} lotes.` : "Triagem registrada." });
-    } catch {
-      toast({ title: "Erro ao registrar triagem.", variant: "destructive" });
+      // O toast nomeia a peça e o destino: triando dezenas seguidas, "Triagem
+      // registrada." não dizia QUAL linha acabou de sair da fila.
+      const destino = entry.splits.length > 1 ? `${entry.splits.length} lotes`
+        : RESULT_META[entry.splits[0].result].label;
+      toast({ title: `${asset.displayId} triada · ${destino}`, description: entry.splits.length === 1 && entry.splits[0].result === "NO_GALPAO" && localDe(asset) ? `Guardada em ${localDe(asset)}.` : undefined });
+      return true;
+    } catch (e: any) {
+      toast({ title: `Não foi possível triar ${asset.displayId}`, description: e?.message || "Tente de novo.", variant: "destructive" });
+      return false;
     } finally {
       setSavingIds(prev => { const s = new Set(Array.from(prev)); s.delete(asset.id); return s; });
     }
@@ -547,7 +576,14 @@ export default function TriagemRetorno() {
       okIds.forEach(id => { if (next[id]) next[id] = { ...next[id], selected: false }; });
       return next;
     });
-    toast({ title: failed > 0 ? `${okIds.length} registrada(s), ${failed} com erro.` : `${okIds.length} triagem(ns) registradas.`, variant: failed > 0 ? "destructive" : "default" });
+    // Com erro, o toast traz o motivo da primeira recusa — "com erro" sem porquê
+    // deixava a pessoa reenviando o lote às cegas.
+    const primeiraFalha = results.find((r): r is PromiseRejectedResult => r.status === "rejected");
+    toast({
+      title: failed > 0 ? `${okIds.length} triada${okIds.length !== 1 ? "s" : ""}, ${failed} com erro` : `${okIds.length} peça${okIds.length !== 1 ? "s" : ""} triada${okIds.length !== 1 ? "s" : ""}`,
+      description: failed > 0 ? `${primeiraFalha?.reason?.message ?? "Erro ao gravar"}. As que falharam continuam selecionadas.` : undefined,
+      variant: failed > 0 ? "destructive" : "default",
+    });
     refetch();
   };
 
@@ -564,8 +600,43 @@ export default function TriagemRetorno() {
 
   const allSelected = pendingAssets.length > 0 && pendingAssets.every(a => getEntry(a.id).selected);
 
+  const moldura: React.CSSProperties = { padding: isMobile ? "14px 16px" : "32px 36px", background: "#f8fafc", height: "100%", overflowY: "auto" };
+
+  if (vista === "eventos") {
+    return (
+      <div style={moldura}>
+        <EventosDaTriagem
+          ativos={awaitingAssets}
+          reservaPorAtivo={reservaPorAtivo}
+          isLoading={isLoading}
+          isError={isError}
+          onTentarDeNovo={() => refetch()}
+          onAbrir={(id) => { setEventoDoQuadro(id); setVista("quadro"); }}
+          onTabela={() => { setFilterEvent([]); setVista("tabela"); }}
+        />
+      </div>
+    );
+  }
+
+  if (vista === "quadro" && eventoDoQuadro) {
+    const doEvento = awaitingAssets.filter((a) => (a.eventId ?? SEM_EVENTO) === eventoDoQuadro);
+    return (
+      <div style={moldura}>
+        <QuadroDaTriagem
+          key={eventoDoQuadro}
+          evento={{ id: eventoDoQuadro, nome: doEvento[0]?.eventName ?? "Sem evento", data: doEvento[0]?.eventDate ?? null }}
+          ativos={doEvento}
+          reservaPorAtivo={reservaPorAtivo}
+          onVoltar={() => setVista("eventos")}
+          onTabela={() => { setFilterEvent(eventoDoQuadro !== SEM_EVENTO ? [eventoDoQuadro] : []); setVista("tabela"); }}
+          onConcluido={() => setVista("eventos")}
+        />
+      </div>
+    );
+  }
+
   const TH: React.CSSProperties = {
-    padding: "14px 20px", fontSize: 10, fontWeight: 800, letterSpacing: "0.14em",
+    padding: "12px 14px", fontSize: 11, fontWeight: 700, letterSpacing: "0.06em",
     textTransform: "uppercase", color: "#fff", fontFamily: "Space Grotesk, sans-serif",
     textAlign: "left", background: "#0f172a", borderBottom: "none",
     whiteSpace: "nowrap",
@@ -576,71 +647,91 @@ export default function TriagemRetorno() {
       padding: isMobile ? "14px 16px" : "32px 36px",
       // Compensa a pill flutuante de lote: sem isso ela cobre as últimas
       // linhas da tabela quando há seleção.
-      paddingBottom: selectedIds.length > 0 ? 130 : undefined,
+      // No celular a pill quebra em três linhas de 44px — os 130 do desktop
+      // deixavam o Salvar da última peça escondido atrás dela.
+      paddingBottom: selectedIds.length > 0 ? (isMobile ? 240 : 130) : undefined,
       background: "#f8fafc", height: "100%", overflowY: "auto", display: "flex", flexDirection: "column", gap: isMobile ? 16 : 28,
     }}>
 
+      <button type="button" data-testid="button-voltar-eventos-triagem" onClick={() => setVista("eventos")}
+        style={{ alignSelf: "flex-start", display: "inline-flex", alignItems: "center", gap: 6, minHeight: isMobile ? 44 : 32, background: "none", border: "none", padding: 0, fontSize: 13, fontWeight: 700, color: "#475569", cursor: "pointer", transition: "color 0.12s" }}
+        onMouseEnter={e => { e.currentTarget.style.color = "#0f172a"; }}
+        onMouseLeave={e => { e.currentTarget.style.color = "#475569"; }}>
+        <ArrowLeft size={15} aria-hidden="true" /> Eventos da triagem
+      </button>
+
       {/* ── Header ── */}
-      <div style={{ display: "flex", alignItems: isMobile ? "flex-start" : "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 18 }}>
-          <div style={{ width: 52, height: 52, borderRadius: 14, background: "#c2610c", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 12px 32px rgba(194,97,12,0.30)" }}>
-            <ClipboardCheck size={22} color="#fff" strokeWidth={2.2} />
+      <div style={{ display: "flex", alignItems: isMobile ? "flex-start" : "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: isMobile ? 12 : 16, minWidth: 0 }}>
+          <div style={{ width: isMobile ? 44 : 48, height: isMobile ? 44 : 48, borderRadius: 12, background: "#c2410c", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, boxShadow: "0 4px 12px rgba(194,65,12,0.22)" }}>
+            <ClipboardCheck size={22} color="#fff" strokeWidth={2.2} aria-hidden="true" />
           </div>
-          <div>
-            <h1 style={{ margin: "0 0 3px", fontSize: 28, fontWeight: 900, fontFamily: "Space Grotesk, sans-serif", color: "#0f172a", letterSpacing: "-0.03em", lineHeight: 1 }}>
+          <div style={{ minWidth: 0 }}>
+            <h1 style={{ margin: "0 0 3px", fontSize: FS.h1, fontWeight: 700, fontFamily: "'Space Grotesk', sans-serif", color: "#1c1917", letterSpacing: "-0.03em", lineHeight: 1.1 }}>
               Triagem de Retorno
             </h1>
-            <p style={{ margin: 0, fontSize: 10, fontWeight: 700, color: "#94a3b8", fontFamily: "Space Grotesk, sans-serif", textTransform: "uppercase", letterSpacing: "0.18em" }}>
-              Logística reversa · avaliação de condição e destino
+            {/* Subtítulo em texto corrido — a caixa alta com 0.18em era o
+                elemento mais ruidoso do cabeçalho. */}
+            <p style={{ margin: 0, fontSize: 13, fontWeight: 500, color: "#746e69", fontFamily: "Plus Jakarta Sans, sans-serif" }}>
+              Peças que voltaram do evento: escolha a condição, o destino e onde guardar
             </p>
           </div>
         </div>
+        {/* Cinza sem dizer por quê era o "travou?" desta tela: o lote só
+            existe depois de marcar a caixa das peças. */}
         <button data-testid="button-bulk-triage-header" onClick={handleBulk}
           disabled={selectedIds.length === 0 || savingIds.size > 0}
+          title={selectedIds.length === 0 ? "Marque a caixa à esquerda das peças para triar várias de uma vez" : `Grava a triagem das ${selectedIds.length} peças marcadas`}
           style={{
-            display: "flex", alignItems: "center", gap: 6,
-            padding: "12px 24px", borderRadius: 12, border: "none", flexShrink: 0,
-            background: (selectedIds.length === 0 || savingIds.size > 0) ? "#e2e8f0" : "#c2610c",
-            color: (selectedIds.length === 0 || savingIds.size > 0) ? "#94a3b8" : "#fff", fontSize: 13,
+            display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+            minHeight: 44, padding: "0 20px", borderRadius: 10, border: "none", flexShrink: 0,
+            width: isMobile ? "100%" : undefined,
+            background: (selectedIds.length === 0 || savingIds.size > 0) ? "#e2e8f0" : "#c2410c",
+            color: (selectedIds.length === 0 || savingIds.size > 0) ? "#64748b" : "#fff", fontSize: 14,
             cursor: (selectedIds.length === 0 || savingIds.size > 0) ? "not-allowed" : "pointer",
-            fontFamily: "Space Grotesk, sans-serif", fontWeight: 800, letterSpacing: "0.06em",
-            boxShadow: (selectedIds.length === 0 || savingIds.size > 0) ? "none" : "0 8px 24px rgba(194,97,12,0.35)",
-            transition: "all 0.2s",
+            fontFamily: "Space Grotesk, sans-serif", fontWeight: 700,
+            boxShadow: (selectedIds.length === 0 || savingIds.size > 0) ? "none" : "0 4px 14px rgba(194,65,12,0.28)",
+            transition: "background-color 0.15s, box-shadow 0.15s, color 0.15s",
           }}>
-          <CheckCircle2 size={15} />
-          {savingIds.size > 0 ? "Registrando…" : `Confirmar Lote (${selectedIds.length})`}
+          <CheckCircle2 size={16} aria-hidden="true" />
+          {savingIds.size > 0 ? "Registrando…" : `Confirmar lote (${selectedIds.length})`}
         </button>
       </div>
 
-      {/* ── Stats ── */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16 }}>
+      {/* ── Stats ── minmax(0, 1fr): com `1fr` puro o mínimo automático é o
+          min-content do cartão e, em 375px, "Triados nesta sessão" estourava
+          a grade e dava rolagem lateral na página. */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: isMobile ? 8 : 14 }}>
         {/* Desconta os já triados na sessão — o card acompanha a fila real. */}
-        <StatCard label="Na Fila" value={Math.max(0, awaitingAssets.length - savedIds.size)} color="#c2610c" Icon={ScanSearch} />
-        <StatCard label="Selecionados" value={selectedIds.length} color="#16a34a" Icon={Users} />
-        <StatCard label="Triados nesta sessão" value={savedIds.size} color="#2563eb" Icon={CheckCircle2} />
+        <StatCard compacto={isMobile} label="Na fila" value={Math.max(0, awaitingAssets.length - savedIds.size)} color="#c2410c" Icon={ScanSearch} />
+        <StatCard compacto={isMobile} label="Selecionados" value={selectedIds.length} color="#15803d" Icon={Users} />
+        <StatCard compacto={isMobile} label="Triados nesta sessão" value={savedIds.size} color="#1d4ed8" Icon={CheckCircle2} />
       </div>
 
       {/* ── Filter bar ── */}
       {(() => {
         const FL: React.CSSProperties = {
-          fontSize: 11, fontWeight: 500, color: "#94a3b8",
+          fontSize: 11, fontWeight: 500, color: "#64748b",
           fontFamily: "Plus Jakarta Sans, sans-serif", marginBottom: 6, display: "block",
         };
+        // Sem `outline: none`: o inline anulava o anel de foco global e o
+        // teclado não via qual filtro estava focado. Texto ativo em #9a3412 —
+        // o #c2610c dava 4,17:1 e reprovava AA.
         const SEL = (active: boolean): React.CSSProperties => ({
           height: 44, width: "100%",
-          border: `1.5px solid ${active ? "#c2610c" : "#e2e8f0"}`,
+          border: `1.5px solid ${active ? "#c2410c" : "#e2e8f0"}`,
           borderRadius: 8, fontSize: 13, fontWeight: 500,
           fontFamily: "Plus Jakarta Sans, sans-serif",
           padding: "0 12px", background: "#fff",
-          color: active ? "#c2610c" : "#374151",
-          cursor: "pointer", outline: "none",
+          color: active ? "#9a3412" : "#374151",
+          cursor: "pointer",
           transition: "border-color 0.15s",
         });
         return (
           <div style={{
             background: "#fff", borderRadius: 12, border: "1px solid #e2e8f0",
-            padding: "16px 20px 18px",
-            display: "flex", alignItems: "flex-end", gap: 14, flexWrap: "wrap",
+            padding: isMobile ? "12px 14px 14px" : "16px 20px 18px",
+            display: "flex", alignItems: "flex-end", gap: isMobile ? 10 : 14, flexWrap: "wrap",
           }}>
             {/* Evento — wrapper .event-filter-44 iguala o trigger aos 44px dos
                 demais filtros (componente compartilhado sem prop de estilo). */}
@@ -685,19 +776,21 @@ export default function TriagemRetorno() {
             <div style={{ display: "flex", flexDirection: "column", flex: "1 1 150px" }}>
               <label style={FL}>Buscar</label>
               <div style={{ position: "relative" }}>
-                <Search size={14} color="#94a3b8" style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }} />
+                <Search size={14} color="#64748b" style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }} />
                 <input
                   data-testid="input-triage-search"
                   style={{
                     width: "100%", paddingLeft: 34, paddingRight: 12, height: 44,
                     border: `1.5px solid ${search ? "#c2610c" : "#e2e8f0"}`, borderRadius: 8,
-                    fontSize: 13, fontWeight: 400, fontFamily: "Plus Jakarta Sans, sans-serif",
+                    fontSize: isMobile ? 16 : 13, fontWeight: 400, fontFamily: "Plus Jakarta Sans, sans-serif",
                     background: "#fff", color: "#374151", outline: "none", boxSizing: "border-box",
                     transition: "border-color 0.15s",
                   }}
-                  onFocus={e => (e.target.style.borderColor = "#c2610c")}
+                  onFocus={e => (e.target.style.borderColor = "#c2410c")}
                   onBlur={e => (e.target.style.borderColor = search ? "#c2610c" : "#e2e8f0")}
-                  placeholder="Nome ou ID..."
+                  aria-label="Buscar peças na triagem"
+                  /* A busca também casa o local — o placeholder dizia só nome/ID. */
+                  placeholder="Nome, ID ou local..."
                   value={search}
                   onChange={e => setSearch(e.target.value)}
                 />
@@ -715,7 +808,7 @@ export default function TriagemRetorno() {
                   borderRadius: 8,
                   border: `1.5px solid ${hasFilters ? "#fecaca" : "#e2e8f0"}`,
                   background: hasFilters ? "#fef2f2" : "#f8fafc",
-                  color: hasFilters ? "#ef4444" : "#cbd5e1",
+                  color: hasFilters ? "#b91c1c" : "#94a3b8",
                   fontSize: 12, cursor: hasFilters ? "pointer" : "not-allowed",
                   fontFamily: "Space Grotesk, sans-serif", fontWeight: 700,
                   transition: "all 0.15s",
@@ -734,481 +827,621 @@ export default function TriagemRetorno() {
       <div>
       {isLoading ? (
         /* Skeleton no padrão da tabela do estoque — evita o "salto" do spinner. */
-        <div data-testid="skeleton-triagem" aria-busy="true" style={{ background: "#fff", borderRadius: 16, border: "1px solid #e2e8f0", padding: "8px 24px", boxShadow: "0 4px 16px rgba(0,0,0,0.05)" }}>
+        <div data-testid="skeleton-triagem" aria-busy="true" style={{ background: "#fff", borderRadius: 16, border: "1px solid #e2e8f0", padding: isMobile ? "4px 14px" : "8px 24px", boxShadow: "0 1px 3px rgba(15,23,42,0.05)" }}>
           {[0, 1, 2, 3, 4, 5].map(i => (
             <div key={i} className="animate-pulse" style={{ display: "flex", alignItems: "center", gap: 18, padding: "16px 0", borderBottom: i < 5 ? "1px solid #f1f5f9" : "none" }}>
               <div style={{ width: 15, height: 15, borderRadius: 4, background: "#e2e8f0", flexShrink: 0 }} />
               <div style={{ width: 36, height: 36, borderRadius: 8, background: "#e2e8f0", flexShrink: 0 }} />
               <div style={{ flex: 1, height: 12, borderRadius: 6, background: "#e2e8f0" }} />
-              <div style={{ width: 130, height: 12, borderRadius: 6, background: "#e2e8f0", flexShrink: 0 }} />
-              <div style={{ width: 180, height: 22, borderRadius: 8, background: "#e2e8f0", flexShrink: 0 }} />
-              <div style={{ width: 70, height: 12, borderRadius: 6, background: "#e2e8f0", flexShrink: 0 }} />
+              {!isMobile && <div style={{ width: 130, height: 12, borderRadius: 6, background: "#e2e8f0", flexShrink: 0 }} />}
+              {!isMobile && <div style={{ width: 180, height: 22, borderRadius: 8, background: "#e2e8f0", flexShrink: 0 }} />}
+              {!isMobile && <div style={{ width: 70, height: 12, borderRadius: 6, background: "#e2e8f0", flexShrink: 0 }} />}
             </div>
           ))}
         </div>
       ) : isError ? (
-        <div style={{ background: "#fff", borderRadius: 16, border: "1px solid #fecaca", padding: 60, textAlign: "center" }}>
+        <div style={{ background: "#fff", borderRadius: 16, border: "1px solid #fecaca", padding: isMobile ? "36px 20px" : 60, textAlign: "center" }}>
           <p style={{ fontSize: 15, fontWeight: 700, color: "#b91c1c", margin: "0 0 6px", fontFamily: "Space Grotesk, sans-serif" }}>Não foi possível carregar os materiais</p>
-          <p style={{ color: "#94a3b8", fontSize: 12, margin: "0 0 16px" }}>Verifique sua conexão e tente novamente.</p>
-          <button onClick={() => refetch()} style={{ background: "#0f172a", color: "#fff", border: "none", borderRadius: 8, padding: "8px 18px", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>Tentar novamente</button>
+          <p style={{ color: "#64748b", fontSize: 12, margin: "0 0 16px" }}>Verifique sua conexão e tente novamente.</p>
+          <button onClick={() => refetch()} style={{ minHeight: 44, background: "#0f172a", color: "#fff", border: "none", borderRadius: 8, padding: "0 18px", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>Tentar novamente</button>
         </div>
       ) : pendingAssets.length === 0 && savedIds.size === 0 ? (
-        <div style={{ background: "#fff", borderRadius: 16, border: "1px solid #e2e8f0", padding: 60, textAlign: "center" }}>
+        /* Dois vazios diferentes: a fila vazia de verdade, ou o RECORTE vazio.
+           Antes os dois diziam "Nenhum material aguardando triagem" — com um
+           filtro esquecido a pessoa concluía que não havia trabalho. */
+        <div style={{ background: "#fff", borderRadius: 16, border: "1px solid #e2e8f0", padding: isMobile ? "36px 20px" : 60, textAlign: "center" }}>
           <div style={{ width: 56, height: 56, borderRadius: 16, background: "#f8fafc", border: "1px solid #e2e8f0", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 14px" }}>
-            <ScanSearch size={24} color="#cbd5e1" />
+            <ScanSearch size={24} color="#64748b" />
           </div>
-          <p style={{ fontSize: 15, fontWeight: 700, color: "#0f172a", margin: "0 0 6px", fontFamily: "Space Grotesk, sans-serif" }}>Nenhum material aguardando triagem</p>
-          <p style={{ color: "#94a3b8", fontSize: 12, fontFamily: "Plus Jakarta Sans, sans-serif", margin: 0 }}>Os materiais são movidos automaticamente para triagem após o evento.</p>
+          <p style={{ fontSize: 15, fontWeight: 700, color: "#0f172a", margin: "0 0 6px", fontFamily: "Space Grotesk, sans-serif" }}>
+            {hasFilters && awaitingAssets.length > 0 ? "Nenhuma peça neste recorte" : "Nenhum material aguardando triagem"}
+          </p>
+          <p style={{ color: "#64748b", fontSize: 12, fontFamily: "Plus Jakarta Sans, sans-serif", margin: 0 }}>
+            {hasFilters && awaitingAssets.length > 0
+              ? `${awaitingAssets.length} ${awaitingAssets.length === 1 ? "peça espera" : "peças esperam"} triagem fora dos filtros atuais.`
+              : "Os materiais são movidos automaticamente para triagem após o evento."}
+          </p>
+          {hasFilters && awaitingAssets.length > 0 && (
+            <button type="button" onClick={() => { setFilterEvent([]); setFilterSponsor([]); setFilterLocation([]); setSearch(""); }}
+              style={{ marginTop: 16, minHeight: 44, background: "#0f172a", color: "#fff", border: "none", borderRadius: 8, padding: "0 18px", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+              Limpar filtros
+            </button>
+          )}
+        </div>
+      ) : pendingAssets.length === 0 ? (
+        /* Tudo o que estava no recorte foi triado nesta sessão: a tabela só
+           teria linhas cinzas "Salvo" — o fechamento merece ser dito. */
+        <div data-testid="triagem-concluida-no-recorte" style={{ background: "#fff", borderRadius: 16, border: "1px solid #bbf7d0", padding: isMobile ? "32px 20px" : 48, textAlign: "center" }}>
+          <CheckCircle2 size={28} color="#15803d" />
+          <p style={{ fontSize: 15, fontWeight: 700, color: "#0f172a", margin: "10px 0 6px", fontFamily: "Space Grotesk, sans-serif" }}>
+            {savedIds.size} {savedIds.size === 1 ? "peça triada" : "peças triadas"} nesta sessão — nada pendente {hasFilters ? "neste recorte" : "na fila"}
+          </p>
+          <button type="button" onClick={() => setVista("eventos")}
+            style={{ marginTop: 10, minHeight: 44, background: "#0f172a", color: "#fff", border: "none", borderRadius: 8, padding: "0 18px", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+            Voltar aos eventos da triagem
+          </button>
         </div>
       ) : (
-        <div style={{ background: "#fff", borderRadius: 16, border: "1px solid #e2e8f0", overflow: "hidden", boxShadow: "0 4px 16px rgba(0,0,0,0.05)" }}>
-          <div style={{ overflowX: "auto" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 920 }}>
-              <thead>
-                <tr style={{ background: "#f8fafc" }}>
-                  <th style={{ ...TH, width: 44, paddingLeft: 20 }}>
-                    <input type="checkbox" data-testid="checkbox-select-all"
-                      checked={allSelected} onChange={e => toggleAll(e.target.checked)}
-                      style={{ width: 15, height: 15, cursor: "pointer", accentColor: "#c2610c" }} />
-                  </th>
-                  {[
-                    { label: "Material / Qtd", align: "left" },
-                    { label: "Evento", align: "left" },
-                    { label: "Patrocinadores", align: "left" },
-                    { label: "Condição · Destino", align: "left" },
-                    { label: "Local · Observação", align: "left" },
-                    { label: "Ação", align: "right" },
-                  ].map(h => (
-                    <th key={h.label} style={{ ...TH, textAlign: h.align as "left" | "right" }}>
-                      {h.label}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {[...pendingAssets, ...awaitingAssets.filter(a => savedIds.has(a.id))].map((asset, idx) => {
-                  const qty = asset.quantity ?? 1;
-                  const entry = getEntry(asset.id, qty);
-                  const isSaved = savedIds.has(asset.id);
-                  const isSaving = savingIds.has(asset.id);
-                  const splitSum = entry.splits.reduce((s, l) => s + l.qty, 0);
-                  const splitValid = splitSum === qty;
-                  const isFocused = focusedId === asset.id;
-                  // Cor do anel derivada de CONDITION_META — fonte única.
-                  const condRingColor = entry.splits[0].condition
-                    ? CONDITION_META[entry.splits[0].condition].color
-                    : "#e2e8f0";
-                  const thumbRing = isSaved ? "0 0 0 2px #e2e8f0" : `0 0 0 2px ${condRingColor}`;
+        <>
+        {/* A CONDIÇÃO MUDA O DESTINO SOZINHA (smartUpdateSplit) — sem aviso,
+            quem marcava "Avaria leve" via o destino pular para Manutenção e
+            achava que tinha tocado errado. Uma linha diz a regra e o caminho
+            de volta; também diz o que o Salvar grava. */}
+        <p data-testid="dica-triagem-tabela" style={{ margin: "0 0 10px", fontSize: 12.5, color: "#475569", lineHeight: 1.5, fontFamily: "Plus Jakarta Sans, sans-serif" }}>
+          A condição já sugere o destino (Perfeito → Galpão, Avaria leve → Manutenção, Sucata → Descartar) — troque o destino se precisar.
+          Voltar ao Galpão exige o local. Nada é gravado até <strong style={{ color: "#0f172a" }}>Salvar</strong> na linha ou <strong style={{ color: "#0f172a" }}>Confirmar lote</strong>.
+        </p>
+        <div style={{ background: "#fff", borderRadius: isMobile ? 12 : 16, border: "1px solid #e2e8f0", overflow: "hidden", boxShadow: "0 1px 3px rgba(15,23,42,0.05)" }}>
+          {(() => {
+            // As peças de cada linha são montadas UMA vez e servem às duas
+            // vistas: tabela no desktop, cartões no celular. Antes o celular
+            // recebia a tabela de 920px com rolagem lateral: o Salvar ficava
+            // fora da tela e os botões de condição tinham ~22px de altura.
+            const alvo = isMobile ? 44 : 28;
+            const linhas = [...pendingAssets, ...awaitingAssets.filter(a => savedIds.has(a.id))];
+            const pecasDe = (asset: EnrichedAsset) => {
+              const qty = asset.quantity ?? 1;
+              const entry = getEntry(asset.id, qty);
+              const isSaved = savedIds.has(asset.id);
+              const isSaving = savingIds.has(asset.id);
+              const splitSum = entry.splits.reduce((s, l) => s + l.qty, 0);
+              const splitValid = splitSum === qty;
+              const isFocused = focusedId === asset.id;
+              // Cor do anel derivada de CONDITION_META — fonte única.
+              const condRingColor = entry.splits[0].condition
+                ? CONDITION_META[entry.splits[0].condition].color
+                : "#e2e8f0";
+              const thumbRing = isSaved ? "0 0 0 2px #e2e8f0" : `0 0 0 2px ${condRingColor}`;
+              const alternarSelecao = () => {
+                if (!isSaved) {
+                  setFocusedId(asset.id);
+                  updateEntry(asset.id, { selected: !entry.selected }, qty);
+                }
+              };
 
-                  const baseRowBg = idx % 2 === 1 ? "#fafaf9" : "#ffffff";
-                  return (
-                    <tr key={asset.id} data-testid={`row-triage-${asset.id}`}
-                      /* Sem role="button" no <tr>: a linha mantém a semântica
-                         implícita de row; o acesso por teclado é do checkbox. */
-                      onClick={() => {
-                        if (!isSaved) {
-                          setFocusedId(asset.id);
-                          updateEntry(asset.id, { selected: !entry.selected }, qty);
-                        }
-                      }}
-                      style={{
-                        opacity: isSaved ? 0.8 : 1,
-                        filter: isSaved ? "grayscale(0.5)" : "none",
-                        // Selecionada tem realce próprio; foco e zebra são fallback.
-                        backgroundColor: entry.selected && !isSaved ? "#fff7ed"
-                          : isFocused && !isSaved ? "#f8fafc" : baseRowBg,
-                        transition: "background-color 0.12s",
-                        borderBottom: "1px solid rgba(226,232,240,0.6)",
-                        borderLeft: (entry.selected || isFocused) && !isSaved ? "3px solid #c2610c" : "3px solid transparent",
-                        cursor: isSaved ? "default" : "pointer",
-                      }}
-                      onMouseEnter={e => { if (!isSaved && !isFocused && !entry.selected) (e.currentTarget as HTMLTableRowElement).style.backgroundColor = "#f8fafc"; }}
-                      onMouseLeave={e => { if (!isSaved && !isFocused && !entry.selected) (e.currentTarget as HTMLTableRowElement).style.backgroundColor = baseRowBg; }}
-                    >
-                      {/* Checkbox — âncora de teclado da linha */}
-                      <td style={{ padding: "12px 14px", verticalAlign: "middle" }}>
-                        {isSaved
-                          ? <CheckCircle2 size={17} color="#16a34a" />
-                          : <input type="checkbox" data-testid={`checkbox-asset-${asset.id}`}
-                              aria-label={`Selecionar ${asset.name} para triagem em lote`}
-                              checked={entry.selected}
-                              onChange={e => { e.stopPropagation(); updateEntry(asset.id, { selected: e.target.checked }, qty); }}
-                              onClick={e => e.stopPropagation()}
-                              onFocus={() => setFocusedId(asset.id)}
-                              style={{ width: 16, height: 16, cursor: "pointer", accentColor: "#2563eb" }}
-                            />
-                        }
-                      </td>
+              // Checkbox — âncora de teclado da linha. No celular o input fica
+              // dentro de um rótulo de 44px: os 16px do quadradinho eram o
+              // único jeito de marcar a peça sem abrir nada.
+              const checkboxEl = isSaved
+                ? <CheckCircle2 size={17} color="#15803d" aria-label="Triagem salva" />
+                : (
+                  <label onClick={e => e.stopPropagation()}
+                    style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: isMobile ? 44 : 24, height: isMobile ? 44 : 24, margin: isMobile ? "-10px 0 0 -10px" : 0, cursor: "pointer", flexShrink: 0 }}>
+                    <input type="checkbox" data-testid={`checkbox-asset-${asset.id}`}
+                      aria-label={`Selecionar ${asset.name} para triagem em lote`}
+                      checked={entry.selected}
+                      onChange={e => { e.stopPropagation(); updateEntry(asset.id, { selected: e.target.checked }, qty); }}
+                      onClick={e => e.stopPropagation()}
+                      onFocus={() => setFocusedId(asset.id)}
+                      style={{ width: isMobile ? 20 : 16, height: isMobile ? 20 : 16, cursor: "pointer", accentColor: "#c2410c" }}
+                    />
+                  </label>
+                );
 
-                      {/* Material + Qty */}
-                      <td style={{ padding: "10px 14px", verticalAlign: "middle" }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                          {/* Thumb / icon — ring muda com a condição */}
-                          <div style={{
-                            width: 36, height: 36, borderRadius: 8, flexShrink: 0,
-                            background: "#f1f5f9",
-                            display: "flex", alignItems: "center", justifyContent: "center",
-                            overflow: "hidden",
-                            boxShadow: thumbRing,
-                            transition: "box-shadow 0.2s",
-                          }}>
-                            <ThumbCell url={asset.approvalThumbUrl} size={15} />
-                          </div>
-                          {/* Text: ID acima do nome */}
-                          <div>
-                            <span style={{ fontSize: 10, color: "#c2610c", fontFamily: "DM Mono, monospace", fontWeight: 600, letterSpacing: "0.04em", display: "block", marginBottom: 2 }}>
-                              {asset.displayId}
-                            </span>
-                            <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                              <span style={{ fontWeight: 700, fontSize: 13, color: "#0f172a", fontFamily: "Plus Jakarta Sans, sans-serif" }}>{asset.name}</span>
-                              <span style={{
-                                display: "inline-flex", alignItems: "center", justifyContent: "center",
-                                height: 18, borderRadius: 5, padding: "0 5px",
-                                background: qty > 1 ? "#0f172a" : "#f1f5f9",
-                                color: qty > 1 ? "#fff" : "#94a3b8",
-                                fontSize: 10, fontWeight: 800, fontFamily: "DM Mono, monospace",
-                              }}>×{qty}</span>
+              const miniaturaEl = (
+                <div style={{
+                  width: isMobile ? 44 : 36, height: isMobile ? 44 : 36, borderRadius: 8, flexShrink: 0,
+                  background: "#f1f5f9",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  overflow: "hidden",
+                  boxShadow: thumbRing,
+                  transition: "box-shadow 0.15s",
+                }}>
+                  <ThumbCell url={asset.approvalThumbUrl} size={15} />
+                </div>
+              );
+
+              // ID em #9a3412: o #c2610c dava 4,17:1 no DM Mono de 10px.
+              const materialEl = (
+                <div style={{ minWidth: 0 }}>
+                  <span style={{ fontSize: 11, color: "#9a3412", fontFamily: "DM Mono, monospace", fontWeight: 600, display: "block", marginBottom: 2 }}>
+                    {asset.displayId}
+                  </span>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                    <span style={{ fontWeight: 700, fontSize: isMobile ? 14 : 13, color: "#0f172a", fontFamily: "Plus Jakarta Sans, sans-serif", overflowWrap: "anywhere" }}>{asset.name}</span>
+                    <span style={{
+                      display: "inline-flex", alignItems: "center", justifyContent: "center",
+                      height: 18, borderRadius: 5, padding: "0 5px",
+                      background: qty > 1 ? "#0f172a" : "#f1f5f9",
+                      color: qty > 1 ? "#fff" : "#64748b",
+                      fontSize: 11, fontWeight: 700, fontFamily: "DM Mono, monospace",
+                    }}>×{qty}</span>
+                  </div>
+                  {(() => {
+                    const reserva = reservaPorAtivo.get(asset.id);
+                    if (!reserva) return null;
+                    return (
+                      <span data-testid={`chip-reservada-${asset.id}`}
+                        title={`Reservada para ${reserva.itemDisplayId ?? "uma peça"} do evento ${reserva.eventName}`}
+                        style={{ display: "inline-flex", alignItems: "center", gap: 4, marginTop: 4, padding: "2px 7px", borderRadius: 6, background: "#eff6ff", color: "#1d4ed8", fontSize: 11, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif", maxWidth: "100%" }}>
+                        <BookmarkCheck size={11} aria-hidden="true" style={{ flexShrink: 0 }} /> Reservada · {reserva.eventName}{reserva.saida ? ` · saída ${diaEMes(reserva.saida)}` : ""}
+                      </span>
+                    );
+                  })()}
+                </div>
+              );
+
+              const dataDoEvento = asset.eventDate
+                ? new Date(asset.eventDate).toLocaleDateString("pt-BR", { day: "2-digit", month: "short" }).replace(".", "")
+                : null;
+              const eventoEl = asset.eventName ? (
+                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <span style={{
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      padding: 6, background: "#eff6ff", borderRadius: 6, flexShrink: 0,
+                    }}>
+                      <CalendarDays size={14} color="#1d4ed8" aria-hidden="true" />
+                    </span>
+                    <span style={{
+                      fontSize: 13, fontWeight: 700, color: "#0f172a",
+                      fontFamily: "Plus Jakarta Sans, sans-serif", lineHeight: 1.25,
+                    }}>
+                      {asset.eventName}
+                    </span>
+                  </div>
+                  <div style={{ paddingLeft: 34, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                    {dataDoEvento && (
+                      <span style={{ fontFamily: "DM Mono, monospace", fontSize: 11, color: "#64748b", letterSpacing: "-0.02em" }}>
+                        {dataDoEvento}
+                      </span>
+                    )}
+                    <span aria-hidden="true" style={{ color: "#cbd5e1", fontSize: 10 }}>•</span>
+                    <span style={{ fontSize: 12, fontWeight: 500, color: "#64748b", fontFamily: "Plus Jakarta Sans, sans-serif" }}>
+                      {asset.location ?? "Sem local"}
+                    </span>
+                  </div>
+                </div>
+              ) : <span style={{ fontSize: 12, color: "#746e69", fontStyle: "italic", fontFamily: "Plus Jakarta Sans, sans-serif" }}>Sem evento</span>;
+
+              const patrocinadoresEl = <SponsorChips sponsors={asset.sponsors ?? []} />;
+
+              // Botão de modo (qty > 1). Caixa alta em 10px saiu: é um controle,
+              // e o rótulo precisa ser lido, não gritado.
+              const botaoModo = (ativo: boolean, cor: string, fundo: string): React.CSSProperties => ({
+                display: "inline-flex", alignItems: "center", gap: 4, minHeight: isMobile ? 40 : 26, padding: "0 10px", borderRadius: 6,
+                fontSize: 12, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif", cursor: "pointer",
+                border: ativo ? `2px solid ${cor}` : "1px solid #e2e8f0", background: ativo ? fundo : "#f8fafc",
+                color: ativo ? cor : "#475569", transition: "background-color 0.12s, color 0.12s, border-color 0.12s",
+              });
+              const botaoPreset = (borda: string, fundo: string, cor: string): React.CSSProperties => ({
+                display: "inline-flex", alignItems: "center", gap: 4, minHeight: isMobile ? 40 : 26, padding: "0 10px", borderRadius: 6,
+                border: `1px solid ${borda}`, background: fundo, color: cor, fontSize: 12, fontWeight: 600,
+                fontFamily: "Space Grotesk, sans-serif", cursor: "pointer",
+              });
+              const botaoPasso = (desabilitado: boolean): React.CSSProperties => ({
+                width: alvo, height: alvo, borderRadius: 6, border: "1px solid #e2e8f0", background: "#fff",
+                cursor: desabilitado ? "not-allowed" : "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+                fontSize: 16, lineHeight: 1, color: desabilitado ? "#cbd5e1" : "#0f172a", fontWeight: 700, padding: 0,
+              });
+
+              const togglesEl = isSaved ? (
+                <LabeledTriageToggles
+                  condition={entry.splits[0].condition}
+                  result={entry.splits[0].result}
+                  onCondition={() => {}} onResult={() => {}}
+                  disabled grayscale grande={isMobile}
+                />
+              ) : qty === 1 ? (
+                <div style={{ background: "#f8fafc", borderRadius: 8, padding: "8px 10px", border: "1px solid #f1f5f9" }}>
+                  <LabeledTriageToggles
+                    condition={entry.splits[0].condition}
+                    result={entry.splits[0].result}
+                    onCondition={c => smartUpdateSplit(asset.id, 0, c)}
+                    onResult={r => updateSplit(asset.id, 0, { result: r })}
+                    grande={isMobile}
+                  />
+                </div>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }} onClick={e => e.stopPropagation()}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                    <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", minWidth: 28, height: 22, borderRadius: 6, background: "#0f172a", color: "#fff", fontSize: 12, fontWeight: 700, fontFamily: "DM Mono, monospace", padding: "0 6px" }}>×{qty}</span>
+                    <button data-testid={`button-mode-all-${asset.id}`} onClick={() => setMode(asset.id, "all", qty)}
+                      aria-pressed={entry.mode === "all"}
+                      style={botaoModo(entry.mode === "all", "#1d4ed8", "#eff6ff")}>
+                      Aplicar a todas
+                    </button>
+                    <button data-testid={`button-mode-split-${asset.id}`} onClick={() => setMode(asset.id, "split", qty)}
+                      aria-pressed={entry.mode === "split"}
+                      style={botaoModo(entry.mode === "split", "#c2410c", "#fff7ed")}>
+                      <Scissors size={12} aria-hidden="true" /> Dividir por condição
+                    </button>
+                  </div>
+                  {entry.mode === "all" ? (
+                    <div style={{ background: "#f8fafc", borderRadius: 8, padding: "8px 10px", border: "1px solid #f1f5f9" }}>
+                      <LabeledTriageToggles
+                        condition={entry.splits[0].condition}
+                        result={entry.splits[0].result}
+                        onCondition={c => smartUpdateSplit(asset.id, 0, c)}
+                        onResult={r => updateSplit(asset.id, 0, { result: r })}
+                        grande={isMobile}
+                      />
+                    </div>
+                  ) : (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 6, background: "rgba(248,250,252,0.7)", borderRadius: 10, padding: isMobile ? "8px 8px 8px 10px" : "8px 8px 8px 16px", borderLeft: "4px solid #e2e8f0", marginLeft: isMobile ? 0 : 6 }}>
+                      <div style={{ display: "flex", gap: 6, marginBottom: 2, flexWrap: "wrap" }}>
+                        <button data-testid={`button-preset-perfeito-${asset.id}`} onClick={() => applyPreset(asset.id, "PERFEITO", "NO_GALPAO", qty)}
+                          style={botaoPreset("#86efac", "#f0fdf4", "#166534")}>
+                          <Sparkles size={12} aria-hidden="true" /> Tudo perfeito → Galpão
+                        </button>
+                        <button data-testid={`button-preset-sucata-${asset.id}`} onClick={() => applyPreset(asset.id, "SUCATA", "DESCARTADO", qty)}
+                          style={botaoPreset("#fca5a5", "#fff1f2", "#991b1b")}>
+                          <Trash2 size={12} aria-hidden="true" /> Tudo sucata → Descartar
+                        </button>
+                      </div>
+                      {entry.splits.map((split, si) => (
+                        <div key={si} style={{ border: "1px solid #e2e8f0", borderRadius: 8, background: "#fafafa", overflow: "hidden" }}>
+                          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6, padding: "5px 8px", borderBottom: "1px solid #f1f5f9", background: "#f8fafc" }}>
+                            <span style={{ fontSize: 12, fontWeight: 600, color: "#64748b", fontFamily: "Space Grotesk, sans-serif" }}>Lote {si + 1}</span>
+                            <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                              {/* Rótulo falado: "−" sozinho não diz nada ao leitor
+                                  de tela. Desabilitado em #cbd5e1 (sai o #a8a29e,
+                                  proibido como cor de texto). 44px no celular. */}
+                              <button data-testid={`button-split-minus-${asset.id}-${si}`} onClick={() => stepSplit(asset.id, si, -1, qty)} disabled={split.qty <= 1}
+                                aria-label={`Uma unidade a menos no lote ${si + 1}`}
+                                style={botaoPasso(split.qty <= 1)}>−</button>
+                              <span aria-live="polite" style={{ minWidth: 28, textAlign: "center", fontSize: 13, fontWeight: 700, fontFamily: "DM Mono, monospace", color: splitValid ? "#0f172a" : "#b91c1c" }}>{split.qty}</span>
+                              <button data-testid={`button-split-plus-${asset.id}-${si}`} onClick={() => stepSplit(asset.id, si, +1, qty)} disabled={splitSum >= qty}
+                                aria-label={`Uma unidade a mais no lote ${si + 1}`}
+                                style={botaoPasso(splitSum >= qty)}>+</button>
                             </div>
-                            {(() => {
-                              const reserva = reservaPorAtivo.get(asset.id);
-                              if (!reserva) return null;
-                              return (
-                                <span data-testid={`chip-reservada-${asset.id}`}
-                                  title={`Reservada para ${reserva.itemDisplayId ?? "uma peça"} do evento ${reserva.eventName}`}
-                                  style={{ display: "inline-flex", alignItems: "center", gap: 4, marginTop: 4, padding: "2px 7px", borderRadius: 6, background: "#eff6ff", color: "#1d4ed8", fontSize: 10, fontWeight: 800, fontFamily: "Space Grotesk, sans-serif" }}>
-                                  <BookmarkCheck size={10} /> Reservada · {reserva.eventName}{reserva.saida ? ` · saída ${diaEMes(reserva.saida)}` : ""}
-                                </span>
-                              );
-                            })()}
-                          </div>
-                        </div>
-                      </td>
-
-                      {/* Evento */}
-                      <td style={{ padding: "10px 14px", verticalAlign: "middle", minWidth: 190 }}>
-                        {asset.eventName ? (
-                          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                            {/* Linha 1: ícone + nome */}
-                            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                              <span style={{
-                                display: "flex", alignItems: "center", justifyContent: "center",
-                                padding: 6, background: "#eff6ff", borderRadius: 6, flexShrink: 0,
-                              }}>
-                                <CalendarDays size={14} color="#2563eb" />
-                              </span>
-                              <span style={{
-                                fontSize: 13, fontWeight: 700, color: "#0f172a",
-                                fontFamily: "Plus Jakarta Sans, sans-serif", lineHeight: 1.25,
-                              }}>
-                                {asset.eventName}
-                              </span>
-                            </div>
-                            {/* Linha 2: data + local mockado */}
-                            <div style={{ paddingLeft: 34, display: "flex", alignItems: "center", gap: 6 }}>
-                              {asset.eventDate && (
-                                <span style={{
-                                  fontFamily: "DM Mono, monospace", fontSize: 11,
-                                  color: "#64748b", letterSpacing: "-0.02em",
-                                }}>
-                                  {new Date(asset.eventDate).toLocaleDateString("pt-BR", { day: "2-digit", month: "short" }).replace(".", "")}
-                                </span>
-                              )}
-                              <span style={{ color: "#cbd5e1", fontSize: 10 }}>•</span>
-                              <span style={{
-                                fontSize: 10, fontWeight: 700, color: "#94a3b8",
-                                fontFamily: "Space Grotesk, sans-serif",
-                                textTransform: "uppercase", letterSpacing: "0.06em",
-                              }}>{asset.location ?? "—"}</span>
-                            </div>
-                          </div>
-                        ) : <span style={{ fontSize: 11, color: "#94a3b8", fontStyle: "italic", fontFamily: "Plus Jakarta Sans, sans-serif" }}>—</span>}
-                      </td>
-
-                      {/* Patrocinadores */}
-                      <td style={{ padding: "12px 14px", verticalAlign: "middle", maxWidth: 140 }}>
-                        <SponsorChips sponsors={asset.sponsors ?? []} />
-                      </td>
-
-                      {/* ── Condição · Destino (coluna unificada com labels internos) ── */}
-                      <td onClick={e => e.stopPropagation()} style={{ padding: "10px 14px", verticalAlign: "top", minWidth: 300 }}>
-                        {isSaved ? (
-                          /* salvo: mostra toggles desabilitados */
-                          <LabeledTriageToggles
-                            condition={entry.splits[0].condition}
-                            result={entry.splits[0].result}
-                            onCondition={() => {}} onResult={() => {}}
-                            disabled grayscale
-                          />
-                        ) : qty === 1 ? (
-                          /* ── qty = 1: toggles simples com labels ── */
-                          <div style={{ background: "#f8fafc", borderRadius: 8, padding: "8px 10px", border: "1px solid #f1f5f9" }}>
-                            <LabeledTriageToggles
-                              condition={entry.splits[0].condition}
-                              result={entry.splits[0].result}
-                              onCondition={c => smartUpdateSplit(asset.id, 0, c)}
-                              onResult={r => updateSplit(asset.id, 0, { result: r })}
-                            />
-                          </div>
-                        ) : (
-                          /* ── qty > 1: banner + modo ── */
-                          <div style={{ display: "flex", flexDirection: "column", gap: 8 }} onClick={e => e.stopPropagation()}>
-                            {/* Mode toggle banner */}
-                            <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-                              <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", minWidth: 28, height: 20, borderRadius: 6, background: "#0f172a", color: "#fff", fontSize: 11, fontWeight: 800, fontFamily: "DM Mono, monospace", padding: "0 6px" }}>×{qty}</span>
-                              <button data-testid={`button-mode-all-${asset.id}`} onClick={() => setMode(asset.id, "all", qty)}
-                                style={{ display: "inline-flex", alignItems: "center", gap: 3, padding: "3px 9px", borderRadius: 6, fontSize: 10, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif", letterSpacing: "0.04em", textTransform: "uppercase", cursor: "pointer", border: entry.mode === "all" ? "2px solid #2563eb" : "1px solid #e2e8f0", background: entry.mode === "all" ? "#eff6ff" : "#f8fafc", color: entry.mode === "all" ? "#1d4ed8" : "#64748b", transition: "all 0.12s" }}>
-                                Aplicar a todas
+                            {entry.splits.length >= 2 && (
+                              <button data-testid={`button-remove-split-${asset.id}-${si}`} onClick={() => removeSplit(asset.id, si)}
+                                aria-label={`Remover o lote ${si + 1}`} title="Remover este lote"
+                                style={{ width: alvo, height: alvo, border: "none", borderRadius: 6, background: "none", cursor: "pointer", color: "#64748b", padding: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                                <X size={14} aria-hidden="true" />
                               </button>
-                              <button data-testid={`button-mode-split-${asset.id}`} onClick={() => setMode(asset.id, "split", qty)}
-                                style={{ display: "inline-flex", alignItems: "center", gap: 3, padding: "3px 9px", borderRadius: 6, fontSize: 10, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif", letterSpacing: "0.04em", textTransform: "uppercase", cursor: "pointer", border: entry.mode === "split" ? "2px solid #f97316" : "1px solid #e2e8f0", background: entry.mode === "split" ? "#fff7ed" : "#f8fafc", color: entry.mode === "split" ? "#ea580c" : "#64748b", transition: "all 0.12s" }}>
-                                <Scissors size={9} /> Dividir por condição
-                              </button>
-                            </div>
-                            {entry.mode === "all" ? (
-                              <div style={{ background: "#f8fafc", borderRadius: 8, padding: "8px 10px", border: "1px solid #f1f5f9" }}>
-                                <LabeledTriageToggles
-                                  condition={entry.splits[0].condition}
-                                  result={entry.splits[0].result}
-                                  onCondition={c => smartUpdateSplit(asset.id, 0, c)}
-                                  onResult={r => updateSplit(asset.id, 0, { result: r })}
-                                />
-                              </div>
-                            ) : (
-                              <div style={{ display: "flex", flexDirection: "column", gap: 6, background: "rgba(248,250,252,0.7)", borderRadius: 10, padding: "8px 8px 8px 16px", borderLeft: "4px solid #e2e8f0", marginLeft: 6 }}>
-                                {/* Presets rápidos */}
-                                <div style={{ display: "flex", gap: 5, marginBottom: 2 }}>
-                                  <button data-testid={`button-preset-perfeito-${asset.id}`} onClick={() => applyPreset(asset.id, "PERFEITO", "NO_GALPAO", qty)}
-                                    style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "3px 8px", borderRadius: 6, border: "1px solid #86efac", background: "#f0fdf4", color: "#166534", fontSize: 9, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif", letterSpacing: "0.04em", textTransform: "uppercase", cursor: "pointer" }}>
-                                    <Sparkles size={9} /> Tudo Perfeito → Galpão
-                                  </button>
-                                  <button data-testid={`button-preset-sucata-${asset.id}`} onClick={() => applyPreset(asset.id, "SUCATA", "DESCARTADO", qty)}
-                                    style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "3px 8px", borderRadius: 6, border: "1px solid #fca5a5", background: "#fff1f2", color: "#991b1b", fontSize: 9, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif", letterSpacing: "0.04em", textTransform: "uppercase", cursor: "pointer" }}>
-                                    <Trash2 size={9} /> Tudo Sucata → Descartar
-                                  </button>
-                                </div>
-                                {/* Split cards */}
-                                {entry.splits.map((split, si) => (
-                                  <div key={si} style={{ border: "1px solid #e2e8f0", borderRadius: 8, background: "#fafafa", overflow: "hidden" }}>
-                                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "5px 8px", borderBottom: "1px solid #f1f5f9", background: "#f8fafc" }}>
-                                      <span style={{ fontSize: 9, fontWeight: 700, color: "#64748b", fontFamily: "Space Grotesk, sans-serif", textTransform: "uppercase", letterSpacing: "0.08em" }}>Lote {si + 1}</span>
-                                      <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                                        <button data-testid={`button-split-minus-${asset.id}-${si}`} onClick={() => stepSplit(asset.id, si, -1, qty)} disabled={split.qty <= 1}
-                                          style={{ width: 20, height: 20, borderRadius: 5, border: "1px solid #e2e8f0", background: "#fff", cursor: split.qty <= 1 ? "not-allowed" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, lineHeight: 1, color: split.qty <= 1 ? "#a8a29e" : "#0f172a", fontWeight: 700, padding: 0 }}>−</button>
-                                        <span style={{ minWidth: 28, textAlign: "center", fontSize: 12, fontWeight: 800, fontFamily: "DM Mono, monospace", color: splitValid ? "#0f172a" : "#dc2626" }}>{split.qty}</span>
-                                        <button data-testid={`button-split-plus-${asset.id}-${si}`} onClick={() => stepSplit(asset.id, si, +1, qty)} disabled={splitSum >= qty}
-                                          style={{ width: 20, height: 20, borderRadius: 5, border: "1px solid #e2e8f0", background: "#fff", cursor: splitSum >= qty ? "not-allowed" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, lineHeight: 1, color: splitSum >= qty ? "#a8a29e" : "#0f172a", fontWeight: 700, padding: 0 }}>+</button>
-                                      </div>
-                                      {entry.splits.length >= 2 && (
-                                        <button data-testid={`button-remove-split-${asset.id}-${si}`} onClick={() => removeSplit(asset.id, si)}
-                                          style={{ border: "none", background: "none", cursor: "pointer", color: "#94a3b8", padding: 0, display: "flex", alignItems: "center" }}>
-                                          <X size={12} />
-                                        </button>
-                                      )}
-                                    </div>
-                                    <div style={{ padding: "6px 8px" }}>
-                                      <TriageActionToggles condition={split.condition} result={split.result} onCondition={c => smartUpdateSplit(asset.id, si, c)} onResult={r => updateSplit(asset.id, si, { result: r })} />
-                                    </div>
-                                  </div>
-                                ))}
-                                {splitSum < qty && (
-                                  <button data-testid={`button-add-split-${asset.id}`} onClick={() => addSplit(asset.id, qty)}
-                                    style={{ alignSelf: "flex-start", display: "flex", alignItems: "center", gap: 4, border: "1px dashed #cbd5e1", borderRadius: 6, background: "transparent", cursor: "pointer", color: "#64748b", fontSize: 9, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif", padding: "4px 8px", letterSpacing: "0.06em", textTransform: "uppercase" }}>
-                                    + Adicionar lote
-                                  </button>
-                                )}
-                                <SplitProgress splits={entry.splits} total={qty} />
-                                {!splitValid && (
-                                  <span style={{ fontSize: 9, fontWeight: 700, color: "#dc2626", fontFamily: "Space Grotesk, sans-serif" }}>
-                                    {splitSum < qty ? `Faltam ${qty - splitSum} unidades para distribuir` : `${splitSum - qty} unidades a mais`}
-                                  </span>
-                                )}
-                              </div>
                             )}
                           </div>
-                        )}
-                      </td>
-
-                      {/* Local · Observação — o local é obrigatório para voltar
-                          ao galpão (dono, 14/09). */}
-                      <td style={{ padding: "12px 14px", verticalAlign: "middle", minWidth: 200 }}>
-                        {isSaved ? (
-                          localDe(asset) ? (
-                            <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, color: "#475569", fontWeight: 600 }}>
-                              <MapPin size={11} /> {localDe(asset)}
-                            </span>
-                          ) : null
-                        ) : (
-                          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                          {!entry.splits.every(s => s.result === "DESCARTADO") && (() => {
-                            const obrigatorio = precisaDeLocal(entry);
-                            const faltando = obrigatorio && !localDe(asset);
-                            return (
-                              <div style={{ display: "flex", gap: 4 }}>
-                                <input data-testid={`input-location-${asset.id}`}
-                                  type="text" list="locais-do-galpao"
-                                  aria-label={`Local no galpão de ${asset.name}`}
-                                  placeholder={obrigatorio ? "Local no galpão *" : "Local (opcional)"}
-                                  value={entry.location || asset.location || ""}
-                                  onChange={e => updateEntry(asset.id, { location: e.target.value }, qty)}
-                                  onClick={e => e.stopPropagation()}
-                                  onFocus={() => setFocusedId(asset.id)}
-                                  style={{
-                                    padding: "6px 10px", borderRadius: 6,
-                                    border: `1px solid ${faltando ? "#fca5a5" : "#e2e8f0"}`,
-                                    fontSize: 11, fontFamily: "Plus Jakarta Sans, sans-serif",
-                                    background: faltando ? "#fff7f7" : "#f8fafc", color: "#0f172a", outline: "none",
-                                    width: "100%", boxSizing: "border-box",
-                                  }}
-                                />
-                                <button type="button" title="Abrir mapa do galpão" aria-label="Abrir mapa do galpão"
-                                  data-testid={`button-mapa-${asset.id}`}
-                                  onClick={e => { e.stopPropagation(); setMapaPara(asset.id); }}
-                                  style={{ width: 30, flexShrink: 0, borderRadius: 6, border: "1px solid #e2e8f0", background: "#f8fafc", color: "#c2610c", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                                  <Grid3X3 size={13} />
-                                </button>
-                              </div>
-                            );
-                          })()}
-                          <input data-testid={`input-notes-${asset.id}`}
-                            type="text" placeholder="Adicionar nota..."
-                            value={entry.notes}
-                            onChange={e => updateEntry(asset.id, { notes: e.target.value }, qty)}
-                            onClick={e => e.stopPropagation()}
-                            onFocus={() => setFocusedId(asset.id)}
-                            onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); handleSingle(asset); } }}
-                            style={{
-                              padding: "6px 10px", borderRadius: 6, border: "1px solid #e2e8f0",
-                              fontSize: 11, fontFamily: "Plus Jakarta Sans, sans-serif",
-                              background: "#f8fafc", color: "#0f172a", outline: "none",
-                              width: "100%", boxSizing: "border-box",
-                            }}
-                          />
+                          <div style={{ padding: "6px 8px" }}>
+                            <TriageActionToggles condition={split.condition} result={split.result} onCondition={c => smartUpdateSplit(asset.id, si, c)} onResult={r => updateSplit(asset.id, si, { result: r })} grande={isMobile} />
                           </div>
-                        )}
-                      </td>
-
-                      {/* Ação */}
-                      <td style={{ padding: "12px 14px", verticalAlign: "middle", textAlign: "right" }}>
-                        <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 6 }}>
-                          {/* Botão detalhe / triagem modal */}
-                          <button
-                            data-testid={`button-view-item-${asset.id}`}
-                            onClick={e => { e.stopPropagation(); setSelectedAsset(asset); }}
-                            title="Abrir triagem"
-                            onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = "#f97316"; (e.currentTarget as HTMLButtonElement).style.background = "rgba(249,115,22,0.08)"; }}
-                            onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = "#94a3b8"; (e.currentTarget as HTMLButtonElement).style.background = "transparent"; }}
-                            style={{ padding: 7, borderRadius: 7, border: "none", background: "transparent", cursor: "pointer", color: "#94a3b8", display: "flex", alignItems: "center", transition: "color 0.15s, background 0.15s" }}>
-                            <Eye size={14} />
-                          </button>
-                        {isSaved ? (
-                          <span style={{ display: "inline-flex", alignItems: "center", gap: 4, color: "#16a34a", fontSize: 12, fontFamily: "Space Grotesk, sans-serif", fontWeight: 700 }}>
-                            <CheckCircle2 size={15} /> Salvo
-                          </span>
-                        ) : (
-                          <button data-testid={`button-save-triage-${asset.id}`}
-                            disabled={isSaving || !splitValid}
-                            onClick={e => { e.stopPropagation(); handleSingle(asset); }}
-                            title={!splitValid ? `Soma deve ser ${qty}` : "Salvar (Enter)"}
-                            style={{
-                              display: "inline-flex", alignItems: "center", gap: 6,
-                              padding: "7px 14px", borderRadius: 8, border: "none",
-                              background: isSaving || !splitValid ? "#e2e8f0" : "#f97316",
-                              color: isSaving || !splitValid ? "#64748b" : "#fff",
-                              fontSize: 12, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif",
-                              cursor: isSaving || !splitValid ? "not-allowed" : "pointer",
-                              boxShadow: !isSaving && splitValid ? "0 2px 8px rgba(249,115,22,0.35)" : "none",
-                              transition: "all 0.15s", whiteSpace: "nowrap",
-                            }}>
-                            {isSaving ? "..." : <><Save size={13} /> Salvar</>}
-                          </button>
-                        )}
                         </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                      ))}
+                      {splitSum < qty && (
+                        <button data-testid={`button-add-split-${asset.id}`} onClick={() => addSplit(asset.id, qty)}
+                          style={{ alignSelf: "flex-start", display: "flex", alignItems: "center", gap: 4, minHeight: isMobile ? 40 : 26, border: "1px dashed #cbd5e1", borderRadius: 6, background: "transparent", cursor: "pointer", color: "#475569", fontSize: 12, fontWeight: 600, fontFamily: "Space Grotesk, sans-serif", padding: "0 10px" }}>
+                          + Adicionar lote
+                        </button>
+                      )}
+                      <SplitProgress splits={entry.splits} total={qty} />
+                      {!splitValid && (
+                        <span role="status" style={{ fontSize: 12, fontWeight: 600, color: "#b91c1c", fontFamily: "Space Grotesk, sans-serif" }}>
+                          {splitSum < qty ? `Faltam ${qty - splitSum} unidades para distribuir` : `${splitSum - qty} unidades a mais`}
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
 
+              // Local · Observação — o local é obrigatório para voltar ao
+              // galpão (dono, 14/09). Campos com borda visível e 16px no
+              // celular (abaixo disso o Safari dá zoom ao focar).
+              const campo = (faltando: boolean): React.CSSProperties => ({
+                minHeight: isMobile ? 44 : 32, padding: "0 10px", borderRadius: 6,
+                border: `1px solid ${faltando ? "#fca5a5" : "#e2e8f0"}`,
+                fontSize: isMobile ? 16 : 12, fontFamily: "Plus Jakarta Sans, sans-serif",
+                background: faltando ? "#fff7f7" : "#f8fafc", color: "#0f172a",
+                width: "100%", boxSizing: "border-box",
+              });
+              const localEl = isSaved ? (
+                localDe(asset) ? (
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 12, color: "#475569", fontWeight: 600 }}>
+                    <MapPin size={12} aria-hidden="true" /> {localDe(asset)}
+                  </span>
+                ) : null
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  {!entry.splits.every(s => s.result === "DESCARTADO") && (() => {
+                    const obrigatorio = precisaDeLocal(entry);
+                    const faltando = obrigatorio && !localDe(asset);
+                    return (
+                      <div style={{ display: "flex", gap: 4 }}>
+                        <input data-testid={`input-location-${asset.id}`}
+                          type="text" list="locais-do-galpao"
+                          aria-label={`Local no galpão de ${asset.name}`}
+                          aria-invalid={faltando || undefined}
+                          placeholder={obrigatorio ? "Local no galpão *" : "Local (opcional)"}
+                          value={entry.location || asset.location || ""}
+                          onChange={e => updateEntry(asset.id, { location: e.target.value }, qty)}
+                          onClick={e => e.stopPropagation()}
+                          onFocus={() => setFocusedId(asset.id)}
+                          style={campo(faltando)}
+                        />
+                        <button type="button" title="Abrir mapa do galpão" aria-label="Abrir mapa do galpão"
+                          data-testid={`button-mapa-${asset.id}`}
+                          onClick={e => { e.stopPropagation(); setMapaPara(asset.id); }}
+                          style={{ width: isMobile ? 44 : 32, flexShrink: 0, borderRadius: 6, border: "1px solid #e2e8f0", background: "#f8fafc", color: "#c2410c", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                          <Grid3X3 size={14} aria-hidden="true" />
+                        </button>
+                      </div>
+                    );
+                  })()}
+                  <input data-testid={`input-notes-${asset.id}`}
+                    type="text" placeholder="Adicionar nota..."
+                    aria-label={`Observação da triagem de ${asset.name}`}
+                    value={entry.notes}
+                    onChange={e => updateEntry(asset.id, { notes: e.target.value }, qty)}
+                    onClick={e => e.stopPropagation()}
+                    onFocus={() => setFocusedId(asset.id)}
+                    onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); handleSingle(asset); } }}
+                    style={campo(false)}
+                  />
+                </div>
+              );
+
+              // #c2410c no hover (regra da casa: #f97316 nunca como cor de
+              // texto/ícone sobre claro) e #64748b em repouso — o #94a3b8
+              // dava 2,6:1 num ícone de ação.
+              const verEl = (
+                <button
+                  data-testid={`button-view-item-${asset.id}`}
+                  onClick={e => { e.stopPropagation(); setSelectedAsset(asset); }}
+                  title="Abrir triagem"
+                  aria-label={`Abrir a triagem de ${asset.displayId}`}
+                  onMouseEnter={e => { e.currentTarget.style.color = "#c2410c"; e.currentTarget.style.background = "rgba(194,65,12,0.08)"; }}
+                  onMouseLeave={e => { e.currentTarget.style.color = "#64748b"; e.currentTarget.style.background = "transparent"; }}
+                  style={{ width: isMobile ? 44 : 32, height: isMobile ? 44 : 32, borderRadius: 8, border: "none", background: "transparent", cursor: "pointer", color: "#64748b", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, transition: "color 0.15s, background 0.15s" }}>
+                  <Eye size={isMobile ? 18 : 15} aria-hidden="true" />
+                </button>
+              );
+              const salvarEl = isSaved ? (
+                <span style={{ display: "inline-flex", alignItems: "center", gap: 4, color: "#15803d", fontSize: 13, fontFamily: "Space Grotesk, sans-serif", fontWeight: 700 }}>
+                  <CheckCircle2 size={15} aria-hidden="true" /> Salvo
+                </span>
+              ) : (
+                <button data-testid={`button-save-triage-${asset.id}`}
+                  disabled={isSaving || !splitValid}
+                  onClick={e => { e.stopPropagation(); handleSingle(asset); }}
+                  title={!splitValid ? `Soma deve ser ${qty}` : "Salvar (Enter)"}
+                  style={{
+                    display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6,
+                    minHeight: isMobile ? 44 : 32, padding: "0 14px", borderRadius: 8, border: "none",
+                    width: isMobile ? "100%" : undefined,
+                    // #c2410c: branco sobre #f97316 dava 2,8:1 (reprova AA).
+                    background: isSaving || !splitValid ? "#e2e8f0" : "#c2410c",
+                    color: isSaving || !splitValid ? "#64748b" : "#fff",
+                    fontSize: isMobile ? 14 : 12, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif",
+                    cursor: isSaving || !splitValid ? "not-allowed" : "pointer",
+                    boxShadow: !isSaving && splitValid ? "0 2px 8px rgba(194,65,12,0.25)" : "none",
+                    transition: "background-color 0.15s, box-shadow 0.15s", whiteSpace: "nowrap",
+                  }}>
+                  {isSaving ? "Salvando…" : <><Save size={13} aria-hidden="true" /> Salvar</>}
+                </button>
+              );
+
+              return { entry, isSaved, isFocused, alternarSelecao, checkboxEl, miniaturaEl, materialEl, eventoEl, patrocinadoresEl, togglesEl, localEl, verEl, salvarEl };
+            };
+
+            if (isMobile) {
+              return (
+                <ul aria-label="Peças aguardando triagem" style={{ listStyle: "none", margin: 0, padding: 0 }}>
+                  {linhas.map((asset, idx) => {
+                    const p = pecasDe(asset);
+                    const realce = p.entry.selected && !p.isSaved;
+                    return (
+                      <li key={asset.id} data-testid={`row-triage-${asset.id}`}
+                        onClick={p.alternarSelecao}
+                        style={{
+                          display: "flex", flexDirection: "column", gap: 12, padding: "14px 14px 16px 11px",
+                          borderBottom: idx < linhas.length - 1 ? "1px solid #e2e8f0" : "none",
+                          borderLeft: realce ? "3px solid #c2410c" : "3px solid transparent",
+                          background: realce ? "#fff7ed" : "#fff",
+                          opacity: p.isSaved ? 0.8 : 1, filter: p.isSaved ? "grayscale(0.5)" : "none",
+                          cursor: p.isSaved ? "default" : "pointer",
+                          transition: "background-color 0.12s",
+                        }}>
+                        <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+                          {p.checkboxEl}
+                          {p.miniaturaEl}
+                          <div style={{ flex: 1, minWidth: 0 }}>{p.materialEl}</div>
+                          {p.verEl}
+                        </div>
+                        {asset.eventName ? p.eventoEl : null}
+                        {(asset.sponsors ?? []).length > 0 && <div>{p.patrocinadoresEl}</div>}
+                        <div onClick={e => e.stopPropagation()}>{p.togglesEl}</div>
+                        <div onClick={e => e.stopPropagation()}>{p.localEl}</div>
+                        <div onClick={e => e.stopPropagation()}>{p.salvarEl}</div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              );
+            }
+
+            return (
+              <div style={{ overflowX: "auto" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 920 }}>
+                  <thead>
+                    <tr style={{ background: "#f8fafc" }}>
+                      <th style={{ ...TH, width: 44 }}>
+                        <input type="checkbox" data-testid="checkbox-select-all"
+                          aria-label="Selecionar todas as peças visíveis"
+                          checked={allSelected} onChange={e => toggleAll(e.target.checked)}
+                          style={{ width: 16, height: 16, cursor: "pointer", accentColor: "#c2410c" }} />
+                      </th>
+                      {[
+                        { label: "Material / Qtd", align: "left" },
+                        { label: "Evento", align: "left" },
+                        { label: "Patrocinadores", align: "left" },
+                        { label: "Condição · Destino", align: "left" },
+                        { label: "Local · Observação", align: "left" },
+                        { label: "Ação", align: "right" },
+                      ].map(h => (
+                        <th key={h.label} style={{ ...TH, textAlign: h.align as "left" | "right" }}>
+                          {h.label}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {linhas.map((asset, idx) => {
+                      const p = pecasDe(asset);
+                      const { entry, isSaved, isFocused } = p;
+                      const baseRowBg = idx % 2 === 1 ? "#fafaf9" : "#ffffff";
+                      return (
+                        <tr key={asset.id} data-testid={`row-triage-${asset.id}`}
+                          /* Sem role="button" no <tr>: a linha mantém a semântica
+                             implícita de row; o acesso por teclado é do checkbox. */
+                          onClick={p.alternarSelecao}
+                          style={{
+                            opacity: isSaved ? 0.8 : 1,
+                            filter: isSaved ? "grayscale(0.5)" : "none",
+                            // Selecionada tem realce próprio; foco e zebra são fallback.
+                            backgroundColor: entry.selected && !isSaved ? "#fff7ed"
+                              : isFocused && !isSaved ? "#f8fafc" : baseRowBg,
+                            transition: "background-color 0.12s",
+                            borderBottom: "1px solid rgba(226,232,240,0.6)",
+                            borderLeft: (entry.selected || isFocused) && !isSaved ? "3px solid #c2410c" : "3px solid transparent",
+                            cursor: isSaved ? "default" : "pointer",
+                          }}
+                          onMouseEnter={e => { if (!isSaved && !isFocused && !entry.selected) (e.currentTarget as HTMLTableRowElement).style.backgroundColor = "#f8fafc"; }}
+                          onMouseLeave={e => { if (!isSaved && !isFocused && !entry.selected) (e.currentTarget as HTMLTableRowElement).style.backgroundColor = baseRowBg; }}
+                        >
+                          <td style={{ padding: "12px 14px", verticalAlign: "middle" }}>
+                            {p.checkboxEl}
+                          </td>
+
+                          <td style={{ padding: "10px 14px", verticalAlign: "middle" }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                              {p.miniaturaEl}
+                              {p.materialEl}
+                            </div>
+                          </td>
+
+                          <td style={{ padding: "10px 14px", verticalAlign: "middle", minWidth: 190 }}>
+                            {p.eventoEl}
+                          </td>
+
+                          <td style={{ padding: "12px 14px", verticalAlign: "middle", maxWidth: 140 }}>
+                            {p.patrocinadoresEl}
+                          </td>
+
+                          <td onClick={e => e.stopPropagation()} style={{ padding: "10px 14px", verticalAlign: "top", minWidth: 300 }}>
+                            {p.togglesEl}
+                          </td>
+
+                          <td style={{ padding: "12px 14px", verticalAlign: "middle", minWidth: 200 }}>
+                            {p.localEl}
+                          </td>
+
+                          <td style={{ padding: "12px 14px", verticalAlign: "middle", textAlign: "right" }}>
+                            <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 6 }}>
+                              {p.verEl}
+                              {p.salvarEl}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            );
+          })()}
         </div>
+        </>
       )}
       </div>
 
       {/* ── Floating pill ── */}
       {selectedIds.length > 0 && (
-        <div style={{
-          // No mobile a pill ancora nas laterais (left/right 16) em vez de
-          // centralizar por transform — senão estoura a viewport estreita.
-          position: "fixed", bottom: 52, zIndex: 50, pointerEvents: "auto",
+        <div role="toolbar" aria-label="Ações para as peças selecionadas" style={{
+          // No mobile a pill ancora nas laterais (left/right 12) em vez de
+          // centralizar por transform — senão estoura a viewport estreita —
+          // e sobe a área segura do iPhone (a barra de gesto cobria o Confirmar).
+          position: "fixed", zIndex: 50, pointerEvents: "auto",
           ...(isMobile
-            ? { left: 16, right: 16, transform: "none" }
-            : { left: "50%", transform: "translateX(-50%)" }),
+            ? { left: 12, right: 12, bottom: "calc(12px + env(safe-area-inset-bottom, 0px))", transform: "none" }
+            : { left: "50%", bottom: 52, transform: "translateX(-50%)" }),
         }}>
           <div style={{
-            display: "flex", alignItems: "center", gap: isMobile ? 12 : 20,
+            display: "flex", alignItems: "center", gap: isMobile ? 8 : 16,
             flexWrap: isMobile ? "wrap" : "nowrap",
             justifyContent: isMobile ? "space-between" : "flex-start",
-            padding: "12px 20px", borderRadius: isMobile ? 20 : 9999,
+            padding: isMobile ? "10px 12px" : "10px 12px 10px 16px", borderRadius: isMobile ? 16 : 9999,
             background: "#0f172a",
-            boxShadow: "0 12px 40px rgba(0,0,0,0.4), 0 0 0 1px rgba(255,255,255,0.06)",
+            boxShadow: "0 12px 40px rgba(0,0,0,0.35), 0 0 0 1px rgba(255,255,255,0.06)",
           }}>
-            {/* Count badge */}
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <div style={{ width: 28, height: 28, borderRadius: "50%", background: "#f97316", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 12, fontWeight: 800, fontFamily: "Space Grotesk, sans-serif" }}>
+            {/* Count badge — "1 item selecionados" corrigido para concordar. */}
+            <div role="status" style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <div style={{ width: 28, height: 28, borderRadius: "50%", background: "#c2410c", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 12, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif", fontVariantNumeric: "tabular-nums" }}>
                 {selectedIds.length}
               </div>
-              <span style={{ fontSize: 12, fontWeight: 700, color: "#f1f5f9", fontFamily: "Space Grotesk, sans-serif", whiteSpace: "nowrap" }}>
-                {selectedIds.length === 1 ? "item" : "itens"} selecionados
+              <span style={{ fontSize: 13, fontWeight: 600, color: "#f1f5f9", fontFamily: "Space Grotesk, sans-serif", whiteSpace: "nowrap" }}>
+                {selectedIds.length === 1 ? "item selecionado" : "itens selecionados"}
               </span>
             </div>
             {/* Presets rápidos — ocultos no mobile: já existem por linha e não
                 cabem na pill estreita. */}
             {!isMobile && (
               <>
-                <div style={{ width: 1, height: 24, background: "rgba(255,255,255,0.12)" }} />
-                <div style={{ display: "flex", gap: 5, alignItems: "center" }}>
+                <div aria-hidden="true" style={{ width: 1, height: 24, background: "rgba(255,255,255,0.12)" }} />
+                <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
                   <button data-testid="button-bulk-preset-perfeito" onClick={() => applyBulkPreset("PERFEITO", "NO_GALPAO")}
-                    style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "5px 11px", borderRadius: 9999, border: "1px solid rgba(147,197,253,0.4)", background: "rgba(30,64,175,0.5)", color: "#93c5fd", fontSize: 10, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif", cursor: "pointer", whiteSpace: "nowrap" }}>
-                    <Sparkles size={10} /> Perfeitos → Galpão
+                    style={{ display: "inline-flex", alignItems: "center", gap: 4, height: 32, padding: "0 12px", borderRadius: 9999, border: "1px solid rgba(147,197,253,0.4)", background: "rgba(30,64,175,0.5)", color: "#bfdbfe", fontSize: 12, fontWeight: 600, fontFamily: "Space Grotesk, sans-serif", cursor: "pointer", whiteSpace: "nowrap" }}>
+                    <Sparkles size={12} aria-hidden="true" /> Perfeitos → Galpão
                   </button>
                   <button data-testid="button-bulk-preset-manutencao" onClick={() => applyBulkPreset("AVARIA_LEVE", "MANUTENCAO")}
-                    style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "5px 11px", borderRadius: 9999, border: "1px solid rgba(252,211,77,0.4)", background: "rgba(146,64,14,0.45)", color: "#fcd34d", fontSize: 10, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif", cursor: "pointer", whiteSpace: "nowrap" }}>
-                    <Wrench size={10} /> Avaria → Manutenção
+                    style={{ display: "inline-flex", alignItems: "center", gap: 4, height: 32, padding: "0 12px", borderRadius: 9999, border: "1px solid rgba(252,211,77,0.4)", background: "rgba(146,64,14,0.45)", color: "#fde68a", fontSize: 12, fontWeight: 600, fontFamily: "Space Grotesk, sans-serif", cursor: "pointer", whiteSpace: "nowrap" }}>
+                    <Wrench size={12} aria-hidden="true" /> Avaria → Manutenção
                   </button>
                   <button data-testid="button-bulk-preset-sucata" onClick={() => applyBulkPreset("SUCATA", "DESCARTADO")}
-                    style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "5px 11px", borderRadius: 9999, border: "1px solid rgba(252,165,165,0.4)", background: "rgba(185,28,28,0.45)", color: "#fca5a5", fontSize: 10, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif", cursor: "pointer", whiteSpace: "nowrap" }}>
-                    <Trash2 size={10} /> Sucata → Descartar
+                    style={{ display: "inline-flex", alignItems: "center", gap: 4, height: 32, padding: "0 12px", borderRadius: 9999, border: "1px solid rgba(252,165,165,0.4)", background: "rgba(185,28,28,0.45)", color: "#fecaca", fontSize: 12, fontWeight: 600, fontFamily: "Space Grotesk, sans-serif", cursor: "pointer", whiteSpace: "nowrap" }}>
+                    <Trash2 size={12} aria-hidden="true" /> Sucata → Descartar
                   </button>
                 </div>
-                <div style={{ width: 1, height: 24, background: "rgba(255,255,255,0.12)" }} />
+                <div aria-hidden="true" style={{ width: 1, height: 24, background: "rgba(255,255,255,0.12)" }} />
               </>
             )}
-            {/* Local para as selecionadas */}
-            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            {/* Local para as selecionadas — no celular ocupa a linha inteira. */}
+            <div style={{ display: "flex", alignItems: "center", gap: 6, flex: isMobile ? "1 1 100%" : undefined }}>
               <input data-testid="input-bulk-location" list="locais-do-galpao"
                 aria-label="Local no galpão para as peças selecionadas"
                 placeholder="Local para as selecionadas"
                 value={localDoLote}
                 onChange={e => setLocalDoLote(e.target.value)}
                 onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); applyBulkLocation(localDoLote.trim()); } }}
-                style={{ height: 30, width: isMobile ? 160 : 200, borderRadius: 9999, border: "1px solid rgba(255,255,255,0.18)", background: "rgba(255,255,255,0.08)", color: "#f1f5f9", padding: "0 12px", fontSize: 11, fontFamily: "Plus Jakarta Sans, sans-serif", outline: "none" }}
+                style={{ height: isMobile ? 44 : 32, width: isMobile ? undefined : 200, flex: isMobile ? 1 : undefined, minWidth: 0, borderRadius: 9999, border: "1px solid rgba(255,255,255,0.18)", background: "rgba(255,255,255,0.08)", color: "#f1f5f9", padding: "0 14px", fontSize: isMobile ? 16 : 12, fontFamily: "Plus Jakarta Sans, sans-serif" }}
               />
               <button data-testid="button-bulk-apply-location" disabled={!localDoLote.trim()} onClick={() => applyBulkLocation(localDoLote.trim())}
-                style={{ display: "inline-flex", alignItems: "center", gap: 4, height: 30, padding: "0 11px", borderRadius: 9999, border: "1px solid rgba(255,255,255,0.18)", background: "transparent", color: localDoLote.trim() ? "#f1f5f9" : "#64748b", fontSize: 10, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif", cursor: localDoLote.trim() ? "pointer" : "not-allowed", whiteSpace: "nowrap" }}>
-                <MapPin size={11} /> Aplicar
+                style={{ display: "inline-flex", alignItems: "center", gap: 4, height: isMobile ? 44 : 32, padding: "0 12px", borderRadius: 9999, border: "1px solid rgba(255,255,255,0.18)", background: "transparent", color: localDoLote.trim() ? "#f1f5f9" : "#94a3b8", fontSize: 12, fontWeight: 600, fontFamily: "Space Grotesk, sans-serif", cursor: localDoLote.trim() ? "pointer" : "not-allowed", whiteSpace: "nowrap", flexShrink: 0 }}>
+                <MapPin size={12} aria-hidden="true" /> Aplicar
               </button>
             </div>
             {/* Actions */}
-            <div style={{ display: "flex", gap: 8 }}>
+            <div style={{ display: "flex", gap: 8, flex: isMobile ? "1 1 100%" : undefined }}>
               <button data-testid="button-bulk-confirm" onClick={handleBulk}
                 disabled={savingIds.size > 0}
-                style={{ display: "flex", alignItems: "center", gap: 5, padding: "7px 16px", borderRadius: 9999, border: "none", background: savingIds.size > 0 ? "#64748b" : "#15803d", color: "#fff", fontSize: 11, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif", cursor: savingIds.size > 0 ? "not-allowed" : "pointer", whiteSpace: "nowrap", boxShadow: "0 2px 8px rgba(21,128,61,0.3)" }}>
-                <CheckCircle2 size={13} /> {savingIds.size > 0 ? "Registrando…" : "Confirmar Triagem"}
+                style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, height: isMobile ? 44 : 36, padding: "0 16px", flex: isMobile ? 1 : undefined, borderRadius: 9999, border: "none", background: savingIds.size > 0 ? "#64748b" : "#15803d", color: "#fff", fontSize: 13, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif", cursor: savingIds.size > 0 ? "not-allowed" : "pointer", whiteSpace: "nowrap", boxShadow: "0 2px 8px rgba(21,128,61,0.3)", transition: "background-color 0.15s" }}>
+                <CheckCircle2 size={14} aria-hidden="true" /> {savingIds.size > 0 ? "Registrando…" : "Confirmar triagem"}
               </button>
+              {/* "Cancelar" soava como desfazer a triagem; o botão só
+                  desmarca as linhas (o que foi preenchido nelas fica). */}
               <button data-testid="button-bulk-cancel" onClick={() => Object.keys(entries).forEach(id => updateEntry(id, { selected: false }))}
-                style={{ display: "flex", alignItems: "center", gap: 5, padding: "7px 12px", borderRadius: 9999, border: "1px solid rgba(255,255,255,0.12)", background: "transparent", color: "#94a3b8", fontSize: 11, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif", cursor: "pointer", whiteSpace: "nowrap" }}>
-                <X size={12} /> Cancelar
+                style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 5, height: isMobile ? 44 : 36, padding: "0 14px", borderRadius: 9999, border: "1px solid rgba(255,255,255,0.18)", background: "transparent", color: "#e2e8f0", fontSize: 13, fontWeight: 600, fontFamily: "Space Grotesk, sans-serif", cursor: "pointer", whiteSpace: "nowrap" }}>
+                <X size={13} aria-hidden="true" /> Limpar seleção
               </button>
             </div>
           </div>
@@ -1229,7 +1462,12 @@ export default function TriagemRetorno() {
         onUpdateNotes={(notes) => { if (selectedAsset) updateEntry(selectedAsset.id, { notes }, selectedAsset.quantity ?? 1); }}
         location={selectedAsset ? (entries[selectedAsset.id]?.location || selectedAsset.location || "") : ""}
         onUpdateLocation={(location) => { if (selectedAsset) updateEntry(selectedAsset.id, { location }, selectedAsset.quantity ?? 1); }}
-        onSaveAndClose={async () => { if (selectedAsset) { await handleSingle(selectedAsset); setSelectedAsset(null); } }}
+        onSaveAndClose={async () => {
+          if (!selectedAsset) return false;
+          const ok = await handleSingle(selectedAsset);
+          if (ok) setSelectedAsset(null);
+          return ok;
+        }}
       />
 
       {/* Sugestões de local: o formato do mapa do galpão. */}

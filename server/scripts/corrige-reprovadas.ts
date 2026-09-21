@@ -73,7 +73,9 @@ async function main() {
 
     await db
       .update(items)
-      .set({ status: "sponsor_approved" })
+      // updatedAt: sem o carimbo o delta das abas abertas (?since=) não vê a
+      // troca de status e a peça segue na fila antiga até a busca cheia.
+      .set({ status: "sponsor_approved", updatedAt: new Date() })
       .where(eq(items.id, peca.id));
 
     // Uma peça que muda de status sem linha no histórico é a próxima

@@ -25,11 +25,37 @@ export function parseDisplayId(id?: string | null): { base: number; seq: number 
   return { base: m ? parseInt(m[1], 10) : 0, seq: m?.[2] ? parseInt(m[2], 10) : 0 };
 }
 
+// MEMÓRIA DO PARSE (perf, 17/09). As filas ordenam milhares de peças com este
+// comparador: um sort de 5 mil peças chama a comparação ~60 mil vezes, e cada
+// chamada rodava a regex DUAS vezes e alocava dois objetos — para códigos que
+// quase nunca mudam entre um render e outro. O resultado do parse fica
+// guardado por texto; a regra (a regex e a conta) é a de parseDisplayId, então
+// a ordem resultante não muda. O teto impede que uma aba aberta o dia inteiro
+// acumule códigos sem fim: passou dele, a memória recomeça do zero (é só
+// cache — a próxima comparação refaz o parse).
+const PARSE_TETO = 20_000;
+const parsePorTexto = new Map<string, readonly [number, number]>();
+
+function parseMemorizado(id?: string | null): readonly [number, number] {
+  const texto = String(id ?? "");
+  let r = parsePorTexto.get(texto);
+  if (r === undefined) {
+    // Tupla interna, e não o objeto de parseDisplayId: quem chama
+    // parseDisplayId continua recebendo um objeto novo (pode mexer nele); o
+    // que fica guardado aqui nunca sai deste arquivo.
+    const { base, seq } = parseDisplayId(texto);
+    r = [base, seq] as const;
+    if (parsePorTexto.size >= PARSE_TETO) parsePorTexto.clear();
+    parsePorTexto.set(texto, r);
+  }
+  return r;
+}
+
 /** Ordena #0062 antes de #0062-C1, antes de #0062-C2, antes de #0063. */
 export function compareDisplayId(a?: string | null, b?: string | null): number {
-  const A = parseDisplayId(a);
-  const B = parseDisplayId(b);
-  return A.base !== B.base ? A.base - B.base : A.seq - B.seq;
+  const A = parseMemorizado(a);
+  const B = parseMemorizado(b);
+  return A[0] !== B[0] ? A[0] - B[0] : A[1] - B[1];
 }
 
 /**

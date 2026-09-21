@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
 import { useFileUpload } from "@/hooks/use-file-upload";
+import { ProgressoDoEnvio, rotuloDoEnvio } from "@/components/FileUploader";
 
 interface ObjectUploaderProps {
   maxNumberOfFiles?: number;
@@ -24,6 +25,8 @@ interface ObjectUploaderProps {
   buttonClassName?: string;
   buttonVariant?: "default" | "outline" | "ghost" | "secondary";
   children: ReactNode;
+  /** Esconde a faixa de progresso/erro sob o botão (mesmo contrato do FileUploader). */
+  ocultarProgresso?: boolean;
 }
 
 /**
@@ -42,8 +45,9 @@ export function ObjectUploader({
   buttonClassName,
   buttonVariant = "default",
   children,
+  ocultarProgresso = false,
 }: ObjectUploaderProps) {
-  const { fileInputRef, isUploading, validateAndGetFile, validateAndGetFiles, uploadFile, uploadFiles } = useFileUpload({
+  const { fileInputRef, isUploading, validateAndGetFile, validateAndGetFiles, uploadFile, uploadFiles, envio, falha, cancelar, tentarDeNovo, dispensarFalha } = useFileUpload({
     maxFileSize,
     onGetUploadParameters,
     onComplete,
@@ -91,17 +95,32 @@ export function ObjectUploader({
         variant={buttonVariant}
         type="button"
         disabled={isUploading}
+        // Mesmo motivo do FileUploader: desabilitado durante o envio precisa
+        // dizer que está OCUPADO, não só indisponível.
+        aria-busy={isUploading || undefined}
         data-testid="button-upload-photo"
       >
         {isUploading ? (
           <>
             <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-            Enviando...
+            <span style={{ fontVariantNumeric: "tabular-nums" }}>{rotuloDoEnvio(envio)}</span>
           </>
         ) : (
           children
         )}
       </Button>
+      {!ocultarProgresso && (
+        <ProgressoDoEnvio
+          envio={envio}
+          falha={falha}
+          onCancelar={cancelar}
+          onTentarDeNovo={tentarDeNovo}
+          onDispensar={dispensarFalha}
+          // Sem `onError` (as referências visuais do evento) a falha era
+          // silenciosa: a faixa vira o aviso e diz a frase inteira.
+          mensagemNaFalha={!onError}
+        />
+      )}
     </div>
   );
 }

@@ -21,6 +21,7 @@ import { sql } from "drizzle-orm";
 import { db } from "../db";
 import { requireAuth } from "./shared";
 import { MAQUINAS_DE_IMPRESSAO, rotuloDaMaquina } from "@shared/fluxo-peca";
+import { pecaVisivelPara } from "@shared/kit";
 import { agoraNoFuso } from "../services/revisaoDigest";
 
 /** Os mesmos papéis que veem a fila da Gráfica (ROLES_GRAFICA no App). */
@@ -42,31 +43,38 @@ export function registerMaquinasRoutes(app: Express): void {
     // futuro, e uma URL digitada errado não pode virar erro de tela.
     const dia = DIA_VALIDO.test(pedido) && pedido <= hoje ? pedido : hoje;
 
+    // O MESMO recorte do Kit que as leituras de peças aplicam (ver
+    // pecaVisivelPara): o usuário do Kit só enxerga as peças que ele mesmo
+    // criou em remessa. Sem isto, a aba Máquinas vazaria o que a fila esconde.
+    const quemVe = { kit: req.userKit === true, userId: req.userId ?? null };
+    const visivel = (l: any) => pecaVisivelPara(quemVe, { kitRemessaId: l.kit_remessa_id, criadoPorId: l.criado_por_id });
+
     try {
       const emImpressao = linhas(await db.execute(sql`
         select i.id, i.display_id, i.type, i.description, i.quantity,
                coalesce(i.quantity_produced, 0) as produzido,
                coalesce(i.reuse_qty, 0) as reuso,
-               i.print_machine,
+               i.print_machine, i.kit_remessa_id, i.criado_por_id,
                to_char(coalesce(i.production_started_at, i.status_changed_at), 'YYYY-MM-DD"T"HH24:MI:SS"Z"') as desde,
                e.name as evento
         from items i
         left join events e on e.id = i.event_id
         where i.deleted_at is null and i.status in ('inProduction', 'em_producao')
         order by coalesce(i.production_started_at, i.status_changed_at) asc nulls last
-      `));
+      `)).filter(visivel);
 
       const doDia = linhas(await db.execute(sql`
         select r.id, r.item_id, r.maquina, r.tipo, r.quantidade, r.total_depois, r.user_name,
                to_char((r.created_at at time zone 'UTC') at time zone ${FUSO}, 'HH24:MI') as hora,
                i.display_id, i.type, i.quantity, coalesce(i.reuse_qty, 0) as reuso,
+               i.kit_remessa_id, i.criado_por_id,
                e.name as evento
         from registros_de_impressao r
         join items i on i.id = r.item_id
         left join events e on e.id = i.event_id
         where ((r.created_at at time zone 'UTC') at time zone ${FUSO})::date = ${dia}::date
         order by r.created_at desc
-      `));
+      `)).filter(visivel);
 
       const aImprimir = (quantidade: unknown, reuso: unknown) =>
         Math.max(0, Number(quantidade) - Number(reuso));

@@ -43,7 +43,8 @@ import {
 } from "@shared/estoque";
 import { requireAuth, requireRole, broadcast, createAuditLog, createAuditLogsEmLote } from "./shared";
 
-const requireReservaDeEstoque = requireRole("admin", "solicitacao");
+// 15/09: Estoque é só do admin.
+const requireReservaDeEstoque = requireRole("admin");
 
 /** Peça cancelada ou entregue não precisa mais de estoque. */
 const STATUS_SEM_ESTOQUE = new Set(["cancelled", "canceled", "cancelado", "delivered", "entregue"]);

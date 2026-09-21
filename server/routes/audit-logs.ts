@@ -74,11 +74,19 @@ export function registerAuditLogRoutes(app: Express): void {
       const pedido = Number.parseInt(limit as string, 10);
       const tamanho = clampAuditLogLimit(Number.isFinite(pedido) ? pedido : undefined);
 
-      const logs = await storage.getAuditLogs(
+      let logs = await storage.getAuditLogs(
         entityType as string | undefined,
         entityId as string | undefined,
         { limit: tamanho, cursor: cursorParsed, busca: typeof busca === "string" ? busca : undefined },
       );
+      // Usuário do Kit (14/09): só o que ele fez e o histórico das peças dele.
+      if ((req as any).userKit) {
+        const userId = (req as any).userId;
+        const minhas = new Set((await storage.getAllItems())
+          .filter((i) => !!i.kitRemessaId && i.criadoPorId === userId)
+          .map((i) => i.id));
+        logs = logs.filter((l: any) => l.userId === userId || (l.entityType === "item" && minhas.has(l.entityId)));
+      }
 
       // Página cheia = pode haver mais. Página curta = acabou, e o cliente para
       // de pedir sem precisar de uma requisição extra só para descobrir isso.

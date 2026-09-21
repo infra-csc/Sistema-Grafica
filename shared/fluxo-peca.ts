@@ -134,8 +134,21 @@ export const MAQUINAS_DE_IMPRESSAO: readonly string[] = ["1", "2", "3", "4"];
 export const ehMaquinaValida = (m: unknown): m is string =>
   typeof m === "string" && MAQUINAS_DE_IMPRESSAO.includes(m);
 
+/**
+ * O NOME de cada impressora (dono, 21/09). Fonte ÚNICA: botões, seletor, aba
+ * Máquinas, histórico, Excel e ficha leem daqui. O banco segue gravando só o
+ * código ("1".."4") — trocar o nome aqui renomeia o passado junto, que é o
+ * que se quer (é a mesma máquina física).
+ */
+export const NOMES_DAS_MAQUINAS: Readonly<Record<string, string>> = {
+  "1": "Impressora 1 (New XT)",
+  "2": "Impressora 2",
+  "3": "Impressora 3",
+  "4": "Impressora 4 (Targa Elite)",
+};
+
 export const rotuloDaMaquina = (m: string | null | undefined): string =>
-  m ? `Máquina ${m}` : "máquina não informada";
+  m ? (NOMES_DAS_MAQUINAS[m] ?? `Impressora ${m}`) : "máquina não informada";
 
 /**
  * TUBOS (dono, 14/09: "na hora da conferência muitas peças vão no mesmo tubo;

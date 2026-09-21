@@ -18,7 +18,7 @@
 //
 // Abaixo de `DRILL_TABELA_MIN` a tabela vira CARTÃO: no celular cinco colunas
 // não cabem por mais fixas que sejam, e perder colunas é melhor que rolar.
-import { Fragment, useMemo, useState } from "react";
+import { Fragment, memo, useMemo, useState } from "react";
 import { Link } from "wouter";
 import { ChevronDown } from "lucide-react";
 import { useElementSize, useIsMobile } from "@/hooks/use-mobile";
@@ -164,7 +164,12 @@ function PecaCartao({ eventId, it, isAprovacao }: {
   );
 }
 
-export function EventDrilldown({ ev, cobranca, today, showCobranca = true }: {
+// `memo`: o drill vive dentro do modal e da linha expandida da tabela, e os
+// dois são redesenhados a cada render da página (revalidação, tique do selo,
+// pílula de novidades). Com `ev`/`cobranca` estáveis pelo structural sharing,
+// o drill — que pode ter quatro tabelas de quinze linhas — deixa de se refazer
+// à toa.
+export const EventDrilldown = memo(function EventDrilldown({ ev, cobranca, today, showCobranca = true }: {
   ev: PrazoEvent;
   cobranca?: CobrancaEntry;
   today?: string;
@@ -230,7 +235,12 @@ export function EventDrilldown({ ev, cobranca, today, showCobranca = true }: {
     }
     const grupos = ev.stages
       .map((stage, i) => ({ stage, items: byStage.get(i) ?? [] }))
-      .filter((g) => g.items.length > 0);
+      .filter((g) => g.items.length > 0)
+      // Pior primeiro: a lista é de cobrança, quem espera há mais tempo abre.
+      // Sem carimbo por último (é ausência de informação, não espera zero).
+      // A ordenação mora AQUI, e não no render: ela só muda quando o evento
+      // muda, e recolher uma etapa ou abrir "ver todas" não reordena nada.
+      .map((g) => ({ ...g, items: [...g.items].sort((a, b) => (b.waitingDays ?? -1) - (a.waitingDays ?? -1)) }));
 
     // As etapas SEGUINTES sumiam por completo. O gate é a pendência
     // ACUMULADA: as mesmas peças que travam a Lista também travam a Revisão
@@ -251,7 +261,7 @@ export function EventDrilldown({ ev, cobranca, today, showCobranca = true }: {
     // cobrança. O diretor lia "Nenhuma peça cadastrada", ligava para o
     // responsável, cobrava de verdade, e não tinha onde marcar.
     <div className="gp-no-print" style={{ display: "flex", justifyContent: "flex-end" }}>
-      <CobradoControl targetType="event" targetId={ev.id} cobranca={cobranca} today={today} />
+      <CobradoControl targetType="event" targetId={ev.eventId ?? ev.id} cobranca={cobranca} today={today} />
     </div>
   ) : null;
 
@@ -261,7 +271,7 @@ export function EventDrilldown({ ev, cobranca, today, showCobranca = true }: {
         {blocoCobranca}
         <p style={{ margin: 0, fontSize: 13, color: TI.secondary }}>
           Nenhuma peça cadastrada ainda —{" "}
-          <Link href={`/eventos/${ev.id}`} style={{ color: TI.accentText, fontWeight: 600 }}>
+          <Link href={`/eventos/${ev.eventId ?? ev.id}`} style={{ color: TI.accentText, fontWeight: 600 }}>
             cadastre as peças no evento
           </Link>{" "}
           para o funil começar a contar.
@@ -288,10 +298,8 @@ export function EventDrilldown({ ev, cobranca, today, showCobranca = true }: {
         const sector = STAGE_SECTOR[stage.key];
         const st = STAGE_STYLE[stage.state];
         const recolhida = recolhidas.has(stage.key);
-        // Pior primeiro: a lista é de cobrança, quem espera há mais tempo abre.
-        // Pior primeiro; sem carimbo por último (é ausência de informação,
-        // não espera zero — e a lista é de cobrança).
-        const sorted = [...items].sort((a, b) => (b.waitingDays ?? -1) - (a.waitingDays ?? -1));
+        // Já vem ordenada (pior espera primeiro) do `useMemo` acima.
+        const sorted = items;
         const tudoAberto = abertas.has(stage.key);
         const shown = tudoAberto ? sorted : sorted.slice(0, ROW_CAP);
         const acimaDoCorte = sorted.length - ROW_CAP;
@@ -301,13 +309,13 @@ export function EventDrilldown({ ev, cobranca, today, showCobranca = true }: {
         // informação para ser específico, e antes ela era jogada fora.
         const sectorUrl = sorted.length === 1
           ? urlSetorDaPeca(stage.key, {
-              eventId: ev.id,
+              eventId: ev.eventId ?? ev.id,
               itemId: sorted[0].id,
               displayId: sorted[0].displayId,
               status: sorted[0].status,
               atrasada: stage.state === "overdue",
             })
-          : urlSetorDoEvento(stage.key, ev.id, { atrasada: stage.state === "overdue" });
+          : urlSetorDoEvento(stage.key, ev.eventId ?? ev.id, { atrasada: stage.state === "overdue" });
         const isAprovacao = stage.key === "aprovacao";
         return (
           <div key={stage.key}>
@@ -367,7 +375,10 @@ export function EventDrilldown({ ev, cobranca, today, showCobranca = true }: {
                 title={sorted.length === 1
                   ? `${sector?.sector ?? stage.label} — já no recorte da peça ${sorted[0].displayId}`
                   : `${sector?.sector ?? stage.label} — já no recorte das peças deste evento nesta etapa`}
-                style={{ fontSize: 12, fontWeight: 600, color: TI.secondary, textDecoration: "none" }}
+                // Mesmo alvo do gatilho ao lado: os dois dividem a linha, e o
+                // gatilho já tinha 36/44 enquanto o link — a saída para quem
+                // resolve — ficava nos ~18px do próprio texto.
+                style={{ display: "inline-flex", alignItems: "center", minHeight: isMobile ? 44 : 36, fontSize: 12, fontWeight: 600, color: TI.secondary, textDecoration: "none" }}
                 data-testid={`link-setor-${ev.id}-${stage.key}`}
               >
                 Resolver em {sector?.sector ?? stage.label} →
@@ -380,7 +391,7 @@ export function EventDrilldown({ ev, cobranca, today, showCobranca = true }: {
             {emCartoes ? (
               <ul style={{ display: "flex", flexDirection: "column", gap: 6, margin: 0, padding: 0 }}>
                 {shown.map((it) => (
-                  <PecaCartao key={it.id} eventId={ev.id} it={it} isAprovacao={isAprovacao} />
+                  <PecaCartao key={it.id} eventId={ev.eventId ?? ev.id} it={it} isAprovacao={isAprovacao} />
                 ))}
               </ul>
             ) : (
@@ -415,7 +426,7 @@ export function EventDrilldown({ ev, cobranca, today, showCobranca = true }: {
                             alarga a coluna — invade a vizinha. */}
                         <td style={{ padding: "6px 10px" }}>
                           <Link
-                            href={urlPecaNoEvento(ev.id, it.id)}
+                            href={urlPecaNoEvento(ev.eventId ?? ev.id, it.id)}
                             title={`Abrir ${it.displayId} no evento`}
                             /* 24px, e não os 36 do resto — e a diferença é
                                deliberada.
@@ -500,7 +511,8 @@ export function EventDrilldown({ ev, cobranca, today, showCobranca = true }: {
                   data-testid={`ver-todas-${ev.id}-${stage.key}`}
                   style={{
                     display: "inline-flex", alignItems: "center", gap: 5,
-                    minHeight: 30, padding: "0 10px", borderRadius: R.sm,
+                    // 30 era o único controle do drill abaixo da régua (36/44).
+                    minHeight: isMobile ? 44 : 36, padding: "0 10px", borderRadius: R.sm,
                     border: `1px solid ${TI.border}`, backgroundColor: TI.card,
                     font: "inherit", fontSize: 11, fontWeight: 700, color: TI.strong,
                     cursor: "pointer",
@@ -521,8 +533,8 @@ export function EventDrilldown({ ev, cobranca, today, showCobranca = true }: {
                 {/* A saída para o evento continua, agora como o que ela é: o
                     caminho para EDITAR as peças, não para vê-las. */}
                 <Link
-                  href={`/eventos/${ev.id}`}
-                  style={{ fontSize: 11, fontWeight: 600, color: TI.secondary, textDecoration: "none" }}
+                  href={`/eventos/${ev.eventId ?? ev.id}`}
+                  style={{ display: "inline-flex", alignItems: "center", minHeight: isMobile ? 44 : 36, fontSize: 11, fontWeight: 600, color: TI.secondary, textDecoration: "none" }}
                 >
                   Abrir no evento →
                 </Link>
@@ -557,4 +569,4 @@ export function EventDrilldown({ ev, cobranca, today, showCobranca = true }: {
       )}
     </div>
   );
-}
+});

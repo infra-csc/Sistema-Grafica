@@ -2,9 +2,10 @@ import {
   Calendar, CalendarRange, Palette, Printer, Layers, LayoutDashboard,
   Activity, BarChart3, Users, Building2, UserCheck, ClipboardCheck,
   Link2, LogOut, Loader2, ScrollText, Archive, ScanSearch, Compass, Settings2, Camera, Wand2,
-  Timer, GitBranch, Bell,
+  Timer, GitBranch, Bell, Inbox, Cog,
 } from "lucide-react";
-import { useId, useState } from "react";
+import { useEffect, useId, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Link, useLocation } from "wouter";
 import { roleLabel, userInitials } from "@/lib/utils";
 import { useAuth, type UserRole } from "@/contexts/auth-context";
@@ -12,6 +13,7 @@ import { useLogout } from "@/hooks/use-logout";
 // Alvo de 44 no toque: a mesma régua das outras telas, que a casca não
 // seguia — os itens do menu tinham altura de padding, não de controle.
 import { useIsMobile } from "@/hooks/use-mobile";
+import { prefetchRota } from "@/lib/prefetch-de-rota";
 import {
   Sidebar,
   SidebarContent,
@@ -23,6 +25,7 @@ import {
   SidebarMenuButton,
   SidebarFooter,
   SidebarRail,
+  useSidebar,
 } from "@/components/ui/sidebar";
 
 type MenuItem = {
@@ -30,19 +33,52 @@ type MenuItem = {
   url: string;
   icon: React.ElementType;
   roles?: UserRole[];
+  /** Some para o usuário do Kit (15/09: Modelos não é do Kit). */
+  semKit?: boolean;
+  /**
+   * data-testid fixo quando o rótulo muda. O id nasce do título; renomear um
+   * item quebraria em silêncio quem já seleciona por ele.
+   */
+  testId?: string;
 };
 
 // roles: undefined = todos os perfis autenticados
-const productionItems: MenuItem[] = [
+//
+// TRÊS GRUPOS NO LUGAR DE UM "PRODUÇÃO" COM 15 ITENS (16/09). A lista única
+// misturava as filas de trabalho com as telas de consulta, e as filas vinham
+// fora da ordem do fluxo (Arte antes de Vincular). Agora o menu ENSINA o
+// caminho da peça: "Fluxo da peça" está na ordem em que ela anda — vincular →
+// arte → aprovação → revisão final → gráfica. Nenhum item sumiu nem mudou de
+// permissão; só de lugar.
+const inicioItems: MenuItem[] = [
   { title: "Painel Geral",            url: "/",                        icon: LayoutDashboard },
   { title: "Eventos",                 url: "/eventos",                 icon: CalendarRange },
-  { title: "Arte",                    url: "/arte",                    icon: Palette,        roles: ["arte", "atendimento", "admin"] },
-  { title: "Vincular Patrocinadores", url: "/vincular-patrocinadores", icon: Link2,          roles: ["arte", "solicitacao", "atendimento", "admin"] },
-  { title: "Atendimento",             url: "/atendimento",             icon: UserCheck,      roles: ["atendimento", "arte", "admin"] },
-  { title: "Revisão",                 url: "/solicitacao",             icon: ClipboardCheck, roles: ["solicitacao", "admin"] },
-  { title: "Gráfica",                 url: "/grafica",                 icon: Printer,        roles: ["grafica", "solicitacao", "admin"] },
-  { title: "Modelos",                 url: "/modelos",                 icon: Layers,         roles: ["solicitacao", "admin"] },
+  // Sem `roles`: a tela passa a aparecer para TODOS (decisão do dono, 17/08).
+  // Quem não é admin vê e não mexe — o registro de cobrança se desabilita
+  // sozinho (ver CobradoControl), e o POST /api/prazos/cobrancas segue admin.
+  { title: "Gestão de Prazos",        url: "/prazos",                  icon: Timer },
   { title: "Calendário",              url: "/calendario",              icon: Calendar },
+];
+
+const fluxoItems: MenuItem[] = [
+  { title: "Vincular Patrocinadores", url: "/vincular-patrocinadores", icon: Link2,          roles: ["arte", "solicitacao", "atendimento", "admin"] },
+  { title: "Arte",                    url: "/arte",                    icon: Palette,        roles: ["arte", "atendimento", "admin"] },
+  { title: "Atendimento",             url: "/atendimento",             icon: UserCheck,      roles: ["atendimento", "arte", "admin"] },
+  // "Revisão Final" e não só "Revisão" (16/09): o status que traz a peça para
+  // cá chama-se "Aguardando Revisão Final", e quem lia o selo não achava no
+  // menu uma tela com esse nome. A rota continua /solicitacao; o testId fica.
+  { title: "Revisão Final",           url: "/solicitacao",             icon: ClipboardCheck, roles: ["solicitacao", "admin"], testId: "nav-revisão" },
+  { title: "Gráfica",                 url: "/grafica",                 icon: Printer,        roles: ["grafica", "solicitacao", "admin"] },
+  // A aba de impressoras (dono, 14/09): o que cada uma imprime agora e o
+  // diário do dia. Mesmos papéis da Gráfica (ROLES_GRAFICA no App).
+  { title: "Máquinas da Gráfica",     url: "/grafica/maquinas",        icon: Cog,            roles: ["grafica", "solicitacao", "admin"] },
+  // O lugar único dos pedidos de peça (dono, 14/09): o Atendimento pede, a
+  // Solicitação resolve — aqui e pelos eventos.
+  { title: "Solicitação de peças",    url: "/pedidos-de-peca",         icon: Inbox,          roles: ["atendimento", "solicitacao", "admin"] },
+  { title: "Modelos",                 url: "/modelos",                 icon: Layers,         roles: ["solicitacao", "admin"], semKit: true },
+];
+
+const consultaItems: MenuItem[] = [
   { title: "Histórico",               url: "/historico",               icon: Activity },
   // Qual versão cada patrocinador aprovou, e os books baixáveis — pedido do
   // dono (21/08). Sem `roles`: quem aprova, quem desenha e quem revisa leem.
@@ -51,10 +87,6 @@ const productionItems: MenuItem[] = [
   // não acessa a Gráfica e este acervo interessa a todos.
   { title: "Registros",               url: "/registros",               icon: Camera },
   { title: "Análises",                url: "/analises",                icon: BarChart3,      roles: ["admin"] },
-  // Sem `roles`: a tela passa a aparecer para TODOS (decisão do dono, 17/08).
-  // Quem não é admin vê e não mexe — o registro de cobrança se desabilita
-  // sozinho (ver CobradoControl), e o POST /api/prazos/cobrancas segue admin.
-  { title: "Gestão de Prazos",        url: "/prazos",                  icon: Timer },
 ];
 
 // Patrocinadores: visível p/ solicitação, atendimento e admin
@@ -67,8 +99,9 @@ const sponsorItems: MenuItem[] = [
 // Estoque (dono, 14/09): a Gráfica faz a triagem e guarda as peças; a
 // Solicitação consulta o Estoque para reservar ao montar a lista.
 const stockItems: MenuItem[] = [
-  { title: "Triagem de Retorno", url: "/triagem-retorno", icon: ScanSearch, roles: ["grafica", "admin"] },
-  { title: "Estoque",            url: "/estoque",          icon: Archive,    roles: ["grafica", "solicitacao", "admin"] },
+  { title: "Triagem de Retorno", url: "/triagem-retorno", icon: ScanSearch, roles: ["admin"] },
+  // 15/09: Estoque é só do admin.
+  { title: "Estoque",            url: "/estoque",          icon: Archive,    roles: ["admin"] },
 ];
 
 // Administração: apenas admin (filtrado via hasPermission no componente)
@@ -80,6 +113,46 @@ const adminItems: MenuItem[] = [
   { title: "Inferir executivos", url: "/inferir-executivos", icon: UserCheck },
   { title: "Logs do Sistema", url: "/logs-sistema", icon: ScrollText },
 ];
+
+/**
+ * PARA QUE SERVE CADA TELA, em uma frase — por url.
+ *
+ * Quem chega não distingue "Revisão Final", "Solicitação de peças" e
+ * "Atendimento" só pelo nome; eram exatamente os três que mais confundiam. A
+ * frase vai no `title` (ponteiro) e no `aria-description` (leitor de tela).
+ * Texto de ajuda, não permissão. Mapa à parte, e não um campo do item, para
+ * as linhas do menu continuarem uma por item — é por elas que os testes de
+ * permissão conferem o `roles` de cada tela.
+ */
+/** Todas as urls do menu — para o destaque escolher o item mais específico. */
+const URLS_DO_MENU: string[] = [...inicioItems, ...fluxoItems, ...consultaItems, ...sponsorItems, ...stockItems, ...adminItems].map((i) => i.url);
+
+const DESCRICAO_DA_TELA: Record<string, string> = {
+  "/": "Todas as peças de todos os eventos, com a etapa de cada uma",
+  "/eventos": "Lista de eventos; dentro de cada um se monta e envia a lista de peças",
+  "/prazos": "O que está atrasado ou perto do prazo, por etapa e por evento",
+  "/calendario": "Os eventos no calendário",
+  "/vincular-patrocinadores": "1º passo: dizer quais marcas aparecem em cada peça e enviar para a Arte",
+  "/arte": "2º passo: criar o layout, mandar para aprovação e subir o arquivo final",
+  "/atendimento": "3º passo: registrar a aprovação ou a reprovação de cada patrocinador",
+  "/solicitacao": "4º passo: conferir o arquivo final e liberar para produção (ou devolver à Arte)",
+  "/grafica": "5º passo: produzir, conferir e entregar as peças liberadas",
+  "/grafica/maquinas": "O que cada impressora está imprimindo agora e o que saiu de cada uma no dia",
+  "/pedidos-de-peca": "Peças que faltam na lista de um evento: o Atendimento pede, a Solicitação cria",
+  "/modelos": "Catálogo de peças reutilizáveis para montar a lista de um evento",
+  "/historico": "Tudo o que foi feito no sistema, por quem e quando",
+  "/versoes": "Qual versão da arte cada patrocinador aprovou, e os books",
+  "/registros": "Fotos de conferência e de entrega de todas as peças",
+  "/analises": "Indicadores do fluxo: tempos, volume e carga que vai vencer",
+  "/patrocinadores": "Cadastro, executivo responsável e regra de aprovação de cada patrocinador",
+  "/configurar-cotas": "Quais grupos de peças cada cota de patrocinador recebe",
+  "/triagem-retorno": "Peças que voltaram de evento: avaliar a condição e decidir o destino",
+  "/estoque": "Peças guardadas que podem ser reaproveitadas",
+  "/usuarios": "Quem acessa o sistema e com qual perfil",
+  "/reparo-motivos": "Corrigir mensagens gravadas com letras trocadas por espaços",
+  "/notificacoes": "O que o sistema manda por e-mail, para quem, e o que saiu",
+  "/logs-sistema": "Rastreamento técnico das operações do sistema",
+};
 
 // ─── Section label ────────────────────────────────────────
 const sectionLabelStyle: React.CSSProperties = {
@@ -99,9 +172,11 @@ const sectionLabelStyle: React.CSSProperties = {
 };
 
 // ─── Single nav item ─────────────────────────────────────
-function NavItem({ item, isActive }: { item: MenuItem; isActive: boolean }) {
+function NavItem({ item, isActive, badge, isMobile }: { item: MenuItem; isActive: boolean; badge?: number; isMobile: boolean }) {
   const Icon = item.icon;
-  const isMobile = useIsMobile();
+  // `isMobile` chega do AppSidebar (perf-7): eram 23 useIsMobile, um por item
+  // — 23 listeners de matchMedia e 23 re-renders extras a cada montagem da
+  // casca, para responder a mesma pergunta.
 
   // Hover e foco de teclado compartilham o mesmo realce: os estilos são
   // inline, então :focus-visible do CSS não alcança estas cores. Estados
@@ -116,11 +191,12 @@ function NavItem({ item, isActive }: { item: MenuItem; isActive: boolean }) {
       <SidebarMenuButton
         asChild
         isActive={isActive}
-        data-testid={`nav-${item.title.toLowerCase().replace(/\s+/g, "-")}`}
+        data-testid={item.testId ?? `nav-${item.title.toLowerCase().replace(/\s+/g, "-")}`}
       >
         <Link
           href={item.url}
           aria-current={isActive ? "page" : undefined}
+          aria-description={DESCRICAO_DA_TELA[item.url]}
           style={{
             display: "flex",
             alignItems: "center",
@@ -153,9 +229,13 @@ function NavItem({ item, isActive }: { item: MenuItem; isActive: boolean }) {
             transition: "background-color 0.12s ease, color 0.12s ease",
             boxSizing: "border-box",
           }}
-          onMouseEnter={() => setHover(true)}
+          // Ponteiro, foco ou dedo no item = clique a caminho: o chunk da tela
+          // começa a descer já (ver lib/prefetch-de-rota) e a troca de tela
+          // deixa de piscar o esqueleto. Só código — nenhum dado é pedido.
+          onMouseEnter={() => { setHover(true); prefetchRota(item.url); }}
           onMouseLeave={() => setHover(false)}
-          onFocus={() => setFocus(true)}
+          onFocus={() => { setFocus(true); prefetchRota(item.url); }}
+          onTouchStart={() => prefetchRota(item.url)}
           onBlur={() => setFocus(false)}
         >
           <Icon
@@ -172,10 +252,37 @@ function NavItem({ item, isActive }: { item: MenuItem; isActive: boolean }) {
             }}
           />
           {/* `title` + reticência: "Vincular Patrocinadores" é o rótulo mais
-              longo do menu e era o único que podia encostar na borda. */}
-          <span title={item.title} style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              longo do menu e era o único que podia encostar na borda. O title
+              agora também diz PARA QUE SERVE a tela — é a primeira pergunta
+              de quem nunca abriu aquele item. */}
+          <span title={DESCRICAO_DA_TELA[item.url] ? `${item.title} — ${DESCRICAO_DA_TELA[item.url]}` : item.title} style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
             {item.title}
           </span>
+          {badge !== undefined && badge > 0 && (
+            <span
+              data-testid={`badge-${item.url.replace(/^\//, "")}`}
+              aria-label={`${badge} ${badge === 1 ? "solicitação esperando" : "solicitações esperando"} ação`}
+              title={`${badge} ${badge === 1 ? "solicitação esperando" : "solicitações esperando"} ação`}
+              style={{
+                marginLeft: "auto",
+                flexShrink: 0,
+                minWidth: 20,
+                height: 20,
+                padding: "0 6px",
+                borderRadius: 10,
+                backgroundColor: "#c2410c",
+                color: "#ffffff",
+                fontSize: 11,
+                fontWeight: 700,
+                lineHeight: "20px",
+                textAlign: "center",
+                fontVariantNumeric: "tabular-nums",
+                boxSizing: "border-box",
+              }}
+            >
+              {badge > 99 ? "99+" : badge}
+            </span>
+          )}
         </Link>
       </SidebarMenuButton>
     </SidebarMenuItem>
@@ -187,13 +294,18 @@ function NavGroup({
   label,
   items,
   isItemActive,
+  badges,
   first = false,
+  isMobile,
 }: {
   // null = grupo único visível para o papel; o rótulo vira ruído e some.
   label: string | null;
   items: MenuItem[];
   isItemActive: (url: string) => boolean;
+  /** Número ao lado do item, por url. */
+  badges?: Record<string, number | undefined>;
   first?: boolean;
+  isMobile: boolean;
 }) {
   // O rótulo visual da seção não nomeava a lista para leitores de tela —
   // todos os grupos eram anunciados como listas anônimas.
@@ -212,7 +324,7 @@ function NavGroup({
       <SidebarGroupContent>
         <SidebarMenu style={{ gap: 1 }} aria-labelledby={label !== null ? labelId : undefined}>
           {items.map((item) => (
-            <NavItem key={item.title} item={item} isActive={isItemActive(item.url)} />
+            <NavItem key={item.title} item={item} isActive={isItemActive(item.url)} badge={badges?.[item.url]} isMobile={isMobile} />
           ))}
         </SidebarMenu>
       </SidebarGroupContent>
@@ -229,22 +341,48 @@ export function AppSidebar() {
   const logoutMutation = useLogout();
   const isMobileCasca = useIsMobile();
 
+  // NO CELULAR O MENU FECHA AO ESCOLHER. A sidebar vira um Sheet por cima da
+  // tela; tocar num item trocava a página POR BAIXO dele e o menu continuava
+  // aberto, cobrindo justamente o destino. Eram dois toques para cada
+  // navegação, e o segundo (fechar) não tinha nada a ver com a intenção.
+  const { setOpenMobile } = useSidebar();
+  useEffect(() => { setOpenMobile(false); }, [location, setOpenMobile]);
+
   // 19 itens nao cabem numa tela de 768: a lista rola, e a barra fica sempre
   // com a mesma largura para nada se mover quando o ponteiro entra — o que
   // muda no hover e a COR do polegar (.sidebar-scroll no index.css).
 
   const role = (user?.role || "") as UserRole;
+
+  // Solicitações esperando a Solicitação agir (dono, 15/09). A chave começa
+  // com /api/pedidos-de-peca, então o aviso do websocket já a atualiza.
+  const resolvePedidos = role === "solicitacao" || role === "admin";
+  const { data: pendentes } = useQuery<{ total: number }>({
+    queryKey: ["/api/pedidos-de-peca/pendentes"],
+    enabled: resolvePedidos,
+  });
+  const badges = { "/pedidos-de-peca": resolvePedidos ? pendentes?.total : undefined };
+
   const filterByRole = (items: MenuItem[]) =>
-    items.filter((item) => (item.roles ? item.roles.includes(role) : true));
+    items.filter((item) => (item.roles ? item.roles.includes(role) : true) && !(item.semKit && user?.kit));
 
   // Ativo também nas sub-rotas: em /eventos/:id o item "Eventos" acendia
   // apagado (match exato), e a navegação perdia o contexto de onde se está.
   // "/" continua exato para não acender em tudo.
-  const isItemActive = (url: string) =>
-    url === "/" ? location === "/" : location === url || location.startsWith(url + "/");
+  // Com "/grafica/maquinas" no menu, "/grafica" deixou de ser a única dona
+  // das subrotas dela: o prefixo só acende o item quando nenhum OUTRO item
+  // do menu casa com a rota de forma mais específica (senão os dois acendiam).
+  const isItemActive = (url: string) => {
+    if (url === "/") return location === "/";
+    if (location === url) return true;
+    if (!location.startsWith(url + "/")) return false;
+    return !URLS_DO_MENU.some((outra) => outra.length > url.length && (location === outra || location.startsWith(outra + "/")));
+  };
 
   const groups = [
-    { label: "Produção",             items: filterByRole(productionItems) },
+    { label: "Início",               items: filterByRole(inicioItems) },
+    { label: "Fluxo da peça",        items: filterByRole(fluxoItems) },
+    { label: "Consulta",             items: filterByRole(consultaItems) },
     { label: "Parceiros",            items: filterByRole(sponsorItems) },
     { label: "Estoque & Logística",  items: filterByRole(stockItems) },
     { label: "Administração",        items: hasPermission("admin") ? adminItems : [] },
@@ -320,7 +458,9 @@ export function AppSidebar() {
               label={singleGroup ? null : g.label}
               items={g.items}
               isItemActive={isItemActive}
+              badges={badges}
               first={i === 0}
+              isMobile={isMobileCasca}
             />
           ))}
         </nav>

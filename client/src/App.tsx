@@ -15,13 +15,13 @@ import {
 import { AppSidebar } from "@/components/app-sidebar";
 import { NotificationBell, type Notification } from "@/components/notification-bell";
 import { BuscaGlobal, abrirBuscaGlobal } from "@/components/busca-global";
-import { Search } from "lucide-react";
+import { Search, WifiOff, RefreshCw } from "lucide-react";
 import { AuthProvider, useAuth } from "@/contexts/auth-context";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { roleLabel, userInitials } from "@/lib/utils";
-import { useToast } from "@/hooks/use-toast";
+import { useToast, toast as toastGlobal } from "@/hooks/use-toast";
 import { useLogout } from "@/hooks/use-logout";
-import { useWebSocket } from "@/hooks/use-websocket";
+import { useWebSocket, onConexaoTempoReal } from "@/hooks/use-websocket";
 import { useEffect, useState, Component, lazy, Suspense, type ReactNode, type ComponentType } from "react";
 
 /**
@@ -80,15 +80,23 @@ function PaginaCarregando() {
   );
 }
 import NotFound from "@/pages/not-found";
-import Login from "@/pages/login";
-import ChangePassword from "@/pages/change-password";
 // ── CODE SPLITTING (auditoria de performance, 27/08) ─────────────────────────
 // As 28 páginas eram importadas eager e colapsavam num único chunk de ~2,4 MB:
 // o operador da Gráfica baixava recharts (página só-admin), pdf-lib (gerador
 // de book) e todo o resto antes do primeiro paint da fila dele. Com lazy, cada
 // rota vira um chunk próprio, baixado quando o usuário a abre — e um deploy só
-// invalida o cache dos chunks que mudaram. Login/NotFound/ChangePassword
-// seguem eager: são o caminho de entrada e pesam nada.
+// invalida o cache dos chunks que mudaram. NotFound segue eager: é leve e é a
+// rota de sobra do Switch.
+//
+// PERF-7 (17/09): Login e Alterar Senha ERAM eager "porque pesam nada" — mas
+// traziam junto zod, react-hook-form, @hookform/resolvers e (via
+// changePasswordSchema de @shared/schema) drizzle-orm + o schema inteiro:
+// o chunk de entrada caiu de 409 KB (121 KB gzip) para 247 KB (77 KB gzip)
+// ao tirá-los — peso baixado e parseado a cada F5 de quem JÁ está logado e
+// nunca vê essas telas. Lazy, eles só descem para quem
+// abre o login ou a troca de senha.
+const Login = lazyPage(() => import("@/pages/login"));
+const ChangePassword = lazyPage(() => import("@/pages/change-password"));
 const Usuarios = lazyPage(() => import("@/pages/usuarios"));
 const Patrocinadores = lazyPage(() => import("@/pages/patrocinadores"));
 const PainelGeral = lazyPage(() => import("@/pages/painel-geral"));
@@ -101,6 +109,7 @@ const BookGerador = lazyPage(() => import("@/pages/book-gerador"));
 const Arte = lazyPage(() => import("@/pages/arte"));
 const Atendimento = lazyPage(() => import("@/pages/atendimento"));
 const Solicitacao = lazyPage(() => import("@/pages/solicitacao"));
+const PedidosDePeca = lazyPage(() => import("@/pages/pedidos-de-peca"));
 const Grafica = lazyPage(() => import("@/pages/grafica"));
 const GraficaMaquinas = lazyPage(() => import("@/pages/grafica-maquinas"));
 const EtiquetaTubo = lazyPage(() => import("@/pages/etiqueta-tubo"));
@@ -121,11 +130,21 @@ const ReparoVinculosEvento = lazyPage(() => import("@/pages/reparo-vinculos-even
 const InferirExecutivos = lazyPage(() => import("@/pages/inferir-executivos"));
 
 
-class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
-  state = { error: null };
+class ErrorBoundary extends Component<{ children: ReactNode; resetKey?: string }, { error: Error | null; key?: string }> {
+  state: { error: Error | null; key?: string } = { error: null, key: this.props.resetKey };
   static getDerivedStateFromError(error: Error) { return { error }; }
   componentDidCatch(error: Error, info: { componentStack: string }) {
     console.error("[ErrorBoundary] CRASH:", error.message, error.stack, info.componentStack);
+  }
+  // Mudou de rota, some o erro. A fronteira de dentro (em volta do Router)
+  // recebe a rota como resetKey: quem bateu num defeito numa tela sai dele
+  // clicando em qualquer item da sidebar — antes a tela quebrada ficava
+  // presa até um F5, com o menu ao lado funcionando e sem efeito nenhum.
+  // No render (e não em componentDidUpdate): lá, quando a tela NOVA quebrava,
+  // o update ainda via a rota anterior, limpava o erro e montava a tela
+  // quebrada duas vezes (requisições em dobro).
+  static getDerivedStateFromProps(props: { resetKey?: string }, state: { error: Error | null; key?: string }) {
+    return props.resetKey !== state.key ? { key: props.resetKey, error: null } : null;
   }
   render() {
     if (this.state.error) {
@@ -148,13 +167,33 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | 
           </div>
         );
       }
+      // Defeito de verdade. Era um stack trace vermelho em monospace na cara
+      // do usuário — parecia que o sistema inteiro tinha caído. Agora a tela
+      // fala a língua de quem usa, oferece as duas saídas que resolvem (tentar
+      // de novo / recarregar) e guarda o detalhe técnico recolhido, para quem
+      // for mandar o print ao suporte.
       return (
-        <div style={{ padding: '2rem', fontFamily: 'monospace' }}>
-          <h2 style={{ color: '#ef4444' }}>Erro de renderização</h2>
-          <pre style={{ whiteSpace: 'pre-wrap', color: '#ef4444', fontSize: 12 }}>{err.message}{"\n"}{err.stack}</pre>
-          <button onClick={() => this.setState({ error: null })} style={{ marginTop: '1rem', padding: '0.5rem 1rem', cursor: 'pointer' }}>
-            Tentar novamente
-          </button>
+        <div role="alert" data-testid="tela-erro-render" style={{ minHeight: '60vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '2rem 16px' }}>
+          <div style={{ maxWidth: 460, width: '100%', textAlign: 'center' }}>
+            <h2 style={{ margin: '0 0 8px', fontSize: 18, fontWeight: 800, color: '#1c1917' }}>Esta tela encontrou um problema</h2>
+            <p style={{ margin: '0 0 18px', fontSize: 13.5, lineHeight: 1.6, color: '#57534e' }}>
+              Nada do que já estava salvo foi perdido. Tente abrir de novo; se continuar, recarregue a página ou use o menu para ir a outra tela.
+            </p>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'wrap' }}>
+              <button type="button" onClick={() => this.setState({ error: null })} style={{ background: '#1c1917', color: '#fff', border: 'none', borderRadius: 8, padding: '10px 20px', fontSize: 13, fontWeight: 700, cursor: 'pointer', minHeight: 40 }}>
+                Tentar novamente
+              </button>
+              <button type="button" onClick={() => window.location.reload()} style={{ background: '#fff', color: '#1c1917', border: '1px solid #d6d3d1', borderRadius: 8, padding: '10px 20px', fontSize: 13, fontWeight: 700, cursor: 'pointer', minHeight: 40 }}>
+                Recarregar a página
+              </button>
+            </div>
+            <details style={{ marginTop: 20, textAlign: 'left' }}>
+              <summary style={{ cursor: 'pointer', fontSize: 12, fontWeight: 600, color: '#746e69' }}>Detalhes técnicos (para o suporte)</summary>
+              <pre style={{ marginTop: 8, whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontSize: 11, lineHeight: 1.5, color: '#57534e', background: '#fafaf9', border: '1px solid #e7e5e4', borderRadius: 8, padding: 12, maxHeight: 220, overflow: 'auto' }}>
+                {err.message}{"\n"}{err.stack}
+              </pre>
+            </details>
+          </div>
         </div>
       );
     }
@@ -164,10 +203,17 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | 
 
 // Um único loader de página inteira: o mesmo bloco vivia copiado em
 // ProtectedRoute, RoleProtectedRoute e AppContent.
+// A marca no lugar do "Carregando..." solto: é a primeira coisa que se vê a
+// cada F5, e texto cinza no meio do vazio tinha cara de página quebrada.
 function FullPageLoader() {
   return (
-    <div className="flex items-center justify-center h-dvh">
-      <div className="text-muted-foreground">Carregando...</div>
+    <div role="status" aria-live="polite" className="flex items-center justify-center h-dvh" style={{ backgroundColor: "#fafaf9" }}>
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 14 }}>
+        <span aria-hidden="true" className="animate-pulse" style={{ fontFamily: "'Outfit', sans-serif", fontSize: 18, fontWeight: 800, letterSpacing: "-0.05em", color: "#1c1917" }}>
+          NORTE
+        </span>
+        <span style={{ fontSize: 12, color: "#746e69" }}>Carregando…</span>
+      </div>
     </div>
   );
 }
@@ -179,7 +225,10 @@ const ROUTE_LABELS: Record<string, string> = {
   "/arte": "Arte",
   "/vincular-patrocinadores": "Vincular Patrocinadores",
   "/atendimento": "Atendimento",
-  "/solicitacao": "Revisão",
+  // Mesmo rótulo do menu (16/09): o status que traz a peça para cá é
+  // "Aguardando Revisão Final".
+  "/solicitacao": "Revisão Final",
+  "/pedidos-de-peca": "Solicitação de peças",
   "/grafica": "Gráfica",
   "/grafica/maquinas": "Máquinas da Gráfica",
   "/modelos": "Modelos",
@@ -204,6 +253,14 @@ const ROUTE_LABELS: Record<string, string> = {
 
 function getRouteLabel(location: string): string {
   if (ROUTE_LABELS[location]) return ROUTE_LABELS[location];
+  // As três subtelas do evento tinham o MESMO título do detalhe: quem abria o
+  // relatório via "Detalhe do Evento" na aba e na barra, e não sabia se o
+  // clique tinha levado a algum lugar.
+  if (location.startsWith("/eventos/")) {
+    if (location.endsWith("/gerar-book")) return "Gerar book";
+    if (location.endsWith("/etiquetas")) return "Etiquetas do evento";
+    if (location.endsWith("/relatorio")) return "Relatório do evento";
+  }
   if (location.startsWith("/eventos/")) return "Detalhe do Evento";
   if (location.startsWith("/grafica/tubos/")) return "Etiqueta do tubo";
   // Rota desconhecida cai no NotFound — a aba dizia só "NORTE" e não contava
@@ -221,10 +278,93 @@ const ROLES_SOLICITACAO = ["solicitacao", "admin"];
 const ROLES_GRAFICA = ["grafica", "solicitacao", "admin"];
 // Triagem e local no galpão são da Gráfica (dono, 14/09). O Estoque usa
 // ROLES_GRAFICA: a Solicitação consulta o que tem para reservar.
-const ROLES_TRIAGEM = ["grafica", "admin"];
+// 15/09: Triagem de Retorno é só do admin (como o Estoque).
+const ROLES_TRIAGEM = ["admin"];
+// Pedidos de peça: o Atendimento pede, a Solicitação resolve (dono, 14/09).
+const ROLES_PEDIDOS = ["atendimento", "solicitacao", "admin"];
 const ROLES_PATROCINADORES = ["solicitacao", "atendimento", "admin"];
 // Cotas voltou a ser só do admin (decisão do dono, 17/08).
 const ROLES_COTAS = ["admin"];
+// Estoque é só do admin (dono, 15/09). A Triagem continua da Gráfica.
+const ROLES_ESTOQUE = ["admin"];
+
+/** VER COMO (15/09): os perfis que o admin pode experimentar. */
+const PERFIS_VER_COMO: Array<{ chave: string; role: string; kit?: boolean; rotulo: string }> = [
+  { chave: "admin", role: "admin", rotulo: "Administrador" },
+  { chave: "solicitacao", role: "solicitacao", rotulo: "Solicitação" },
+  { chave: "solicitacao-kit", role: "solicitacao", kit: true, rotulo: "Solicitação · Kit" },
+  { chave: "arte", role: "arte", rotulo: "Arte" },
+  { chave: "atendimento", role: "atendimento", rotulo: "Atendimento" },
+  { chave: "grafica", role: "grafica", rotulo: "Gráfica" },
+];
+
+/** Troca o perfil da sessão e recarrega do início (caches de outro perfil não servem). */
+async function verComo(role: string, kit = false): Promise<void> {
+  const r = await fetch("/api/auth/ver-como", {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ role, kit }),
+  });
+  // Servidor antigo (git pull sem Stop/Run) não conhece a rota: o catch-all do
+  // app devolve a página HTML com 200 e parecia ter dado certo.
+  const json = (r.headers.get("content-type") || "").includes("application/json")
+    ? await r.json().catch(() => null)
+    : null;
+  if (r.ok && json && (json.role === role || (role === "admin" && json.papelReal == null))) {
+    window.location.assign("/");
+    return;
+  }
+  // Toast e não window.alert: o alerta nativo congelava a aba e tinha a cara
+  // do navegador, não do sistema.
+  toastGlobal({
+    variant: "destructive",
+    title: "Não deu para trocar o perfil",
+    description: json?.error
+      ?? "O servidor ainda está na versão anterior. No Replit, pare e rode o app de novo (Stop/Run) e tente outra vez.",
+  });
+}
+
+/**
+ * AONDE CADA AVISO DO SINO LEVA — `null` quando não há lugar para ir.
+ *
+ * Um lugar só para a decisão, e o sino pergunta a ela antes de prometer
+ * "abrir" (antes ele decidia por `eventId`, e dois avisos de LOTE — "N peças
+ * aguardando criação de thumb" — não tinham evento: o clique só marcava como
+ * lido e deixava a pessoa sem saber para onde ir).
+ *
+ * A regra de fundo: o aviso existe para alguém AGIR, então o destino é a tela
+ * onde a ação mora quando ela é certa; nos demais, a ficha da peça no Detalhe
+ * do Evento, que diz na faixa do alto o que falta e de quem é a vez.
+ */
+function destinoDaNotificacao(n: Notification, role?: string | null): string | null {
+  const tipo = typeof n.type === "string" ? n.type : "";
+  // COMPLEMENTO para quem imprime. O aviso de aumento de quantidade existe para
+  // a Gráfica AGIR: o destino útil é a fila dela, com a peça já filtrada
+  // (/grafica lê ?item=), não a ficha no detalhe do evento, que é a tela de
+  // quem pede. Levar o operador para a tela errada é o tipo de detalhe que faz
+  // o alerta ser ignorado na segunda vez.
+  //
+  // "Item liberado para produção" é o mesmo caso: é o aviso que COLOCA trabalho
+  // na fila da Gráfica (items.ts, targetRoles grafica).
+  if (role === "grafica" && n.itemId && (tipo.startsWith("complement") || tipo === "arteApproved")) {
+    return `/grafica?item=${n.itemId}`;
+  }
+  // PEDIDOS DE PEÇA (14/09): cada aviso leva a quem precisa agir.
+  // Atendimento: a peça atendida abre a peça; o resto, a página de
+  // pedidos. Solicitação/admin: o painel de pedidos do evento.
+  if (tipo.startsWith("pedido")) {
+    if (role === "atendimento") {
+      return tipo === "pedidoAtendido" && n.itemId && n.eventId ? `/eventos/${n.eventId}?item=${n.itemId}` : "/pedidos-de-peca";
+    }
+    return n.eventId ? `/eventos/${n.eventId}?pedidos=1` : "/pedidos-de-peca";
+  }
+  // Avisos de LOTE, sem peça: a fila onde o lote espera.
+  if (tipo === "itemsSentToArte" && ROLES_ARTE.includes(role ?? "")) return "/arte";
+  if (tipo === "itemsSubmitted" && ROLES_VINCULAR.includes(role ?? "")) return "/vincular-patrocinadores";
+  if (n.eventId) return `/eventos/${n.eventId}${n.itemId ? `?item=${n.itemId}` : ""}`;
+  return null;
+}
 
 // Atalho real do sidebar no Mac é ⌘B — o title dizia Ctrl+B para todo mundo.
 const IS_MAC = typeof navigator !== "undefined" && /mac/i.test(navigator.platform);
@@ -257,11 +397,16 @@ function ProtectedRoute({ component: Component }: { component: React.ComponentTy
 function RoleProtectedRoute({
   component: Component,
   allowedRoles,
+  semKit = false,
 }: {
   component: React.ComponentType;
   allowedRoles: string[];
+  /** A tela não é do usuário do Kit (15/09: Modelos). */
+  semKit?: boolean;
 }) {
-  const { isAuthenticated, isLoading, user } = useAuth();
+  const { isAuthenticated, isLoading, user: usuario } = useAuth();
+  // Usuário do Kit numa tela que não é dele conta como perfil sem acesso.
+  const user = usuario && semKit && usuario.kit ? { ...usuario, role: "__kit__" as any } : usuario;
   const [location, setLocation] = useLocation();
 
   // replace: mesmo racional do ProtectedRoute — redirect de guard não empilha
@@ -284,10 +429,14 @@ function RoleProtectedRoute({
     return null;
   }
 
+  // Aparece por um instante, enquanto o guard acima redireciona. "Acesso
+  // negado" soava como bronca; a frase diz o que é e para onde se vai.
   if (!allowedRoles.includes(user?.role || '')) {
     return (
-      <div className="flex items-center justify-center h-dvh">
-        <div className="text-muted-foreground">Acesso negado</div>
+      <div role="status" style={{ minHeight: "50vh", display: "flex", alignItems: "center", justifyContent: "center", padding: 24, textAlign: "center" }}>
+        <p style={{ margin: 0, fontSize: 13.5, color: "#57534e" }}>
+          Esta tela não faz parte do seu perfil. Levando você ao Painel Geral…
+        </p>
       </div>
     );
   }
@@ -299,9 +448,16 @@ function Router() {
   return (
     <Suspense fallback={<PaginaCarregando />}>
     <Switch>
-      <Route path="/login" component={Login} />
+      <Route path="/login">
+        {/* Suspense próprio: o login não tem casca em volta, e a silhueta de
+            tabela do fallback geral parecia uma tela quebrada antes do form. */}
+        {() => <Suspense fallback={<FullPageLoader />}><Login /></Suspense>}
+      </Route>
       <Route path="/change-password">
-        {() => <ProtectedRoute component={ChangePassword} />}
+        {/* Mesmo Suspense do login: a troca obrigatória de senha também abre
+            fora da rotina da casca, e a silhueta de tabela antes do form
+            parecia tela quebrada. */}
+        {() => <Suspense fallback={<FullPageLoader />}><ProtectedRoute component={ChangePassword} /></Suspense>}
       </Route>
       <Route path="/">
         {() => <ProtectedRoute component={PainelGeral} />}
@@ -342,6 +498,9 @@ function Router() {
       <Route path="/solicitacao">
         {() => <RoleProtectedRoute component={Solicitacao} allowedRoles={ROLES_SOLICITACAO} />}
       </Route>
+      <Route path="/pedidos-de-peca">
+        {() => <RoleProtectedRoute component={PedidosDePeca} allowedRoles={ROLES_PEDIDOS} />}
+      </Route>
       <Route path="/grafica/tubos/:id/etiqueta">
         {() => <RoleProtectedRoute component={EtiquetaTubo} allowedRoles={ROLES_GRAFICA} />}
       </Route>
@@ -352,7 +511,7 @@ function Router() {
         {() => <RoleProtectedRoute component={Grafica} allowedRoles={ROLES_GRAFICA} />}
       </Route>
       <Route path="/modelos">
-        {() => <RoleProtectedRoute component={Modelos} allowedRoles={ROLES_SOLICITACAO} />}
+        {() => <RoleProtectedRoute component={Modelos} allowedRoles={ROLES_SOLICITACAO} semKit />}
       </Route>
       <Route path="/calendario">
         {() => <ProtectedRoute component={Calendario} />}
@@ -388,7 +547,7 @@ function Router() {
         {() => <RoleProtectedRoute component={InferirExecutivos} allowedRoles={ROLES_ADMIN} />}
       </Route>
       <Route path="/estoque">
-        {() => <RoleProtectedRoute component={Estoque} allowedRoles={ROLES_GRAFICA} />}
+        {() => <RoleProtectedRoute component={Estoque} allowedRoles={ROLES_ESTOQUE} />}
       </Route>
       <Route path="/triagem-retorno">
         {() => <RoleProtectedRoute component={TriagemRetorno} allowedRoles={ROLES_TRIAGEM} />}
@@ -399,6 +558,58 @@ function Router() {
       <Route component={NotFound} />
     </Switch>
     </Suspense>
+  );
+}
+
+/**
+ * AVISO DE CONEXÃO — só aparece quando há algo errado, e some sozinho.
+ *
+ * Dois sinais, um lugar: sem internet (o navegador sabe na hora) e tempo real
+ * fora do ar (o WebSocket caiu e ainda não voltou). O segundo espera 8s antes
+ * de aparecer: reinício rápido do servidor reconecta em 1-2s, e piscar uma
+ * faixa amarela a cada deploy ensinaria a ignorá-la. Informativo apenas —
+ * nenhum dado, trava ou botão muda por causa dele.
+ */
+function AvisoDeConexao() {
+  const [online, setOnline] = useState(() => (typeof navigator === "undefined" ? true : navigator.onLine));
+  const [tempoRealFora, setTempoRealFora] = useState(false);
+
+  useEffect(() => {
+    const on = () => setOnline(true);
+    const off = () => setOnline(false);
+    window.addEventListener("online", on);
+    window.addEventListener("offline", off);
+    return () => { window.removeEventListener("online", on); window.removeEventListener("offline", off); };
+  }, []);
+
+  useEffect(() => {
+    let espera: ReturnType<typeof setTimeout> | null = null;
+    const cancelar = onConexaoTempoReal((conectado) => {
+      if (espera) { clearTimeout(espera); espera = null; }
+      if (conectado) setTempoRealFora(false);
+      else espera = setTimeout(() => setTempoRealFora(true), 8000);
+    });
+    return () => { cancelar(); if (espera) clearTimeout(espera); };
+  }, []);
+
+  if (online && !tempoRealFora) return null;
+  const semInternet = !online;
+  const Icone = semInternet ? WifiOff : RefreshCw;
+  return (
+    <div
+      role="status"
+      data-testid="aviso-conexao"
+      style={{
+        display: "flex", alignItems: "center", justifyContent: "center", gap: 8, flexWrap: "wrap",
+        padding: "7px 16px", backgroundColor: "#fffbeb", borderBottom: "1px solid #fde68a",
+        color: "#78350f", fontSize: 12.5, fontWeight: 600, textAlign: "center",
+      }}
+    >
+      <Icone aria-hidden="true" className={semInternet ? undefined : "animate-spin"} style={{ width: 14, height: 14, flexShrink: 0, animationDuration: "2s" }} />
+      {semInternet
+        ? "Sem internet. O que você fizer agora pode não chegar ao servidor."
+        : "Reconectando ao tempo real… As telas podem estar desatualizadas até voltar."}
+    </div>
   );
 }
 
@@ -489,12 +700,36 @@ function AuthenticatedLayout() {
     if (!ligar()) raf = requestAnimationFrame(() => { ligar(); });
     return () => { if (raf) cancelAnimationFrame(raf); obs?.disconnect(); };
   }, [location]);
+  // A aba conta as não lidas: quem trabalha com o NORTE numa aba de fundo
+  // (planilha na frente) via o aviso só quando voltava por outro motivo.
+  const naoLidas = notifications.filter((n) => !n.isRead).length;
   useEffect(() => {
-    document.title = pageLabel ? `NORTE — ${pageLabel}` : "NORTE";
-  }, [pageLabel]);
+    const base = pageLabel ? `NORTE — ${pageLabel}` : "NORTE";
+    document.title = naoLidas > 0 ? `(${naoLidas > 99 ? "99+" : naoLidas}) ${base}` : base;
+  }, [pageLabel, naoLidas]);
+
+  // TROCOU DE TELA, VOLTA AO TOPO. Quem rola é o <main> da casca, não a
+  // janela — e o wouter não mexe nele. Clicar numa peça no fim da lista de
+  // Eventos abria o Detalhe do Evento já rolado lá embaixo, com o cabeçalho
+  // fora de vista. `location` do wouter não inclui a query string: filtro na
+  // URL (?status=…) NÃO rola a tela para cima.
+  useEffect(() => {
+    document.getElementById("conteudo")?.scrollTo({ top: 0 });
+  }, [location]);
 
   return (
     <div className="flex h-dvh w-full">
+      <a href="#conteudo" className="pular-para-conteudo" onClick={(e) => {
+        // Âncora com foco explícito: só o hash rola, mas não leva o foco do
+        // teclado — o próximo Tab voltaria para a sidebar.
+        e.preventDefault();
+        document.getElementById("conteudo")?.focus();
+      }}>
+        Pular para o conteúdo
+      </a>
+      {/* Anúncio de troca de tela para leitor de tela: numa SPA a página
+          muda sem recarregar, e nada dizia que o destino tinha chegado. */}
+      <span className="sr-only" aria-live="polite" aria-atomic="true">{pageLabel}</span>
       <AppSidebar />
       {/* Paleta Ctrl+K — montada uma vez, para toda tela autenticada. */}
       <BuscaGlobal />
@@ -504,7 +739,9 @@ function AuthenticatedLayout() {
       <div className="flex flex-col flex-1 min-w-0">
         <header
           role="banner"
-          className="sticky top-0 z-50 w-full"
+          // px-3 no celular: os 24px de cada lado comiam 48 dos 375 de uma
+          // barra que precisa caber gatilho, título, busca, sino e conta.
+          className="sticky top-0 z-50 w-full px-6 max-md:px-3"
           style={{
             height: 64,
             backgroundColor: "rgba(249,249,248,0.85)",
@@ -516,7 +753,6 @@ function AuthenticatedLayout() {
             borderBottom: "1px solid #e7e5e4",
             display: "flex", alignItems: "center",
             justifyContent: "space-between",
-            padding: "0 24px",
           }}
         >
           {/* Left: trigger + título da rota. flex:1 + minWidth:0 deixam o
@@ -565,9 +801,17 @@ function AuthenticatedLayout() {
               data-testid="button-busca-global"
               title={`Buscar peça ou evento (${IS_MAC ? "⌘K" : "Ctrl+K"})`}
               aria-label="Buscar peça ou evento"
-              className="h-9 w-9 max-md:h-11 max-md:w-11 rounded-[9px] border border-[#e7e5e4] bg-white shrink-0 flex items-center justify-center cursor-pointer"
+              // Em tela larga a porta diz o que é e ensina o atalho: a lupa sozinha
+              // guardava o Ctrl+K num `title` que só aparece para quem para o
+              // ponteiro em cima — quem nunca usou não descobria nenhum dos dois.
+              // Abaixo de 1024 volta a ser o quadrado de 36/44 dos vizinhos.
+              className="h-9 w-9 max-md:h-11 max-md:w-11 lg:w-auto lg:px-3 lg:gap-2 rounded-[9px] border border-[#e7e5e4] bg-white shrink-0 flex items-center justify-center cursor-pointer"
             >
               <Search aria-hidden="true" style={{ width: 16, height: 16, color: "#57534e" }} />
+              <span aria-hidden="true" className="hidden lg:inline" style={{ fontSize: 12.5, fontWeight: 600, color: "#57534e" }}>Buscar</span>
+              <kbd aria-hidden="true" className="hidden lg:inline" style={{ fontFamily: "inherit", fontSize: 10.5, fontWeight: 700, color: "#746e69", backgroundColor: "#f5f5f4", border: "1px solid #e7e5e4", borderRadius: 5, padding: "1px 5px" }}>
+                {IS_MAC ? "⌘K" : "Ctrl K"}
+              </kbd>
             </button>
             <NotificationBell
               notifications={notifications}
@@ -580,20 +824,12 @@ function AuthenticatedLayout() {
               onViewAll={() => setLocation("/historico")}
               // Clique navega ao contexto: detalhe do evento e, se houver
               // itemId, ?item= abre o dialog da peça (deep-link do event-detail).
-              //
-              // EXCEÇÃO — complemento para quem imprime. O aviso de aumento de
-              // quantidade existe para a Gráfica AGIR: o destino útil é a fila
-              // dela, com a peça já filtrada (/grafica também lê ?item=), não a
-              // ficha da peça no detalhe do evento, que é a tela de quem pede.
-              // Levar o operador para a tela errada é o tipo de detalhe que faz
-              // o alerta ser ignorado na segunda vez.
+              // As exceções (fila da Gráfica, pedidos, avisos de lote) moram em
+              // `destinoDaNotificacao`.
+              podeAbrir={(n) => destinoDaNotificacao(n, user?.role) !== null}
               onOpen={(n) => {
-                const ehComplemento = typeof n.type === "string" && n.type.startsWith("complement");
-                if (ehComplemento && user?.role === "grafica" && n.itemId) {
-                  setLocation(`/grafica?item=${n.itemId}`);
-                  return;
-                }
-                setLocation(`/eventos/${n.eventId}${n.itemId ? `?item=${n.itemId}` : ""}`);
+                const destino = destinoDaNotificacao(n, user?.role);
+                if (destino) setLocation(destino);
               }}
             />
             {/* Quem está logado agora é um menu: alterar senha e sair deixam
@@ -601,11 +837,16 @@ function AuthenticatedLayout() {
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button
+                  type="button"
                   data-testid="button-user-menu"
                   aria-label={user?.name ? `Menu do usuário — ${user.name}` : "Menu do usuário"}
+                  // Altura pela classe: a mesma régua dos vizinhos (36 no
+                  // ponteiro, 44 no toque). No inline ela ficava em 36 também
+                  // no celular — o único controle da barra abaixo do alvo.
+                  className="h-9 max-md:h-11 max-md:!pl-[9px]"
                   style={{
                     display: "flex", alignItems: "center", gap: 8,
-                    height: 36, padding: "0 5px 0 12px",
+                    padding: "0 5px 0 12px",
                     backgroundColor: "#ffffff", border: "1px solid #e7e5e4",
                     borderRadius: 999,
                     cursor: "pointer", flexShrink: 0,
@@ -652,6 +893,25 @@ function AuthenticatedLayout() {
                   </p>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
+                {/* VER COMO (dono, 15/09): o admin navega como outro perfil
+                    para conferir o que cada um vê. */}
+                {(user?.role === "admin" || user?.papelReal === "admin") && (
+                  <>
+                    <DropdownMenuLabel style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: "#746e69" }}>
+                      Ver o sistema como
+                    </DropdownMenuLabel>
+                    {PERFIS_VER_COMO.map((p) => {
+                      const atual = (user?.role ?? "") === p.role && !!user?.kit === !!p.kit;
+                      return (
+                        <DropdownMenuItem key={p.chave} data-testid={`menu-ver-como-${p.chave}`} disabled={atual}
+                          onSelect={() => { void verComo(p.role, !!p.kit); }}>
+                          {p.rotulo}{atual ? " · atual" : ""}
+                        </DropdownMenuItem>
+                      );
+                    })}
+                    <DropdownMenuSeparator />
+                  </>
+                )}
                 <DropdownMenuItem
                   data-testid="menu-item-change-password"
                   onSelect={() => setLocation("/change-password")}
@@ -674,8 +934,29 @@ function AuthenticatedLayout() {
         {/* `position: relative` e o bloco de contencao das telas que se fixam
             na casca em vez de crescer dentro dela (hoje a Arte). Nao muda o
             layout de ninguem: so da um ancestral posicionado a quem pedir. */}
-        <SidebarInset className="flex-1 overflow-y-auto min-h-0" style={{ minWidth: 0, position: "relative" }}>
-          <Router />
+        <SidebarInset id="conteudo" tabIndex={-1} className="flex-1 overflow-y-auto min-h-0" style={{ minWidth: 0, position: "relative", outline: "none" }}>
+          {/* Um só bloco grudado no topo: as duas faixas eram sticky em top:0
+              e, com a página rolada e o tempo real caído, a amarela cobria a
+              azul — justo a do botão "Voltar ao admin". Empilhadas, ambas ficam. */}
+          <div style={{ position: "sticky", top: 0, zIndex: 41 }}>
+          <AvisoDeConexao />
+          {user?.papelReal === "admin" && (
+            <div role="status" data-testid="faixa-ver-como"
+              style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 12, flexWrap: "wrap", padding: "8px 16px", backgroundColor: "#1d4ed8", color: "#fff", fontSize: 13 }}>
+              <span>Você está vendo o sistema como <strong>{PERFIS_VER_COMO.find((p) => p.role === user?.role && !!p.kit === !!user?.kit)?.rotulo ?? roleLabel(user?.role)}</strong>.</span>
+              <button type="button" data-testid="button-voltar-admin" onClick={() => { void verComo("admin"); }}
+                style={{ height: 30, padding: "0 12px", borderRadius: 999, border: "1px solid rgba(255,255,255,0.6)", background: "#fff", color: "#1d4ed8", fontSize: 12.5, fontWeight: 800, cursor: "pointer" }}>
+                Voltar ao admin
+              </button>
+            </div>
+          )}
+          </div>
+          {/* Fronteira POR TELA: um defeito de render numa página não leva
+              junto a sidebar e a topbar (a fronteira de fora pegava tudo), e
+              trocar de rota limpa o erro. */}
+          <ErrorBoundary resetKey={location}>
+            <Router />
+          </ErrorBoundary>
         </SidebarInset>
       </div>
     </div>
@@ -693,7 +974,14 @@ function AppContent() {
   // Sem sessão (o guard redireciona ao /login) ou já no /login: só o Router,
   // sem sidebar/topbar. Eram dois ifs idênticos.
   if (!isAuthenticated || location === "/login") {
-    return <Router />;
+    // Login agora é lazy: chunk que falha (deploy novo, rede do galpão) caía
+    // na fronteira GLOBAL, que não se limpa sozinha. Com a fronteira por rota,
+    // o erro fica na tela e navegar (ou voltar ao /login) tenta de novo.
+    return (
+      <ErrorBoundary resetKey={location}>
+        <Router />
+      </ErrorBoundary>
+    );
   }
 
   // Show authenticated layout with sidebar

@@ -1,216 +1,258 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// PEDIDOS DO ATENDIMENTO — dentro do evento, para quem monta a lista (14/09).
+// SOLICITAÇÕES DE PEÇAS — dentro do evento, para quem monta a lista (14/09).
 //
-// Cada pedido aberto tem três saídas:
-//   · Criar peça — abre o formulário de peça já preenchido; ao salvar, a peça
-//     fica ligada ao pedido e recebe o patrocinador e as referências;
-//   · Já criei a peça — liga o pedido a uma peça que já está na lista;
-//   · Recusar — num modal, com motivo, que volta para o Atendimento.
+// Mostra as solicitações que têm peça DESTE evento, e só essas peças (a mesma
+// solicitação pode ter peças de outros eventos). Por peça:
+//   · aberta: Criar peça (formulário preenchido, sai ligada), Já criei a peça
+//     (busca entre as peças do evento) ou Recusar;
+//   · atendida: + Outra peça, ligar mais uma que já existe, aceitar/recusar
+//     ajuste pendente (não há "desfazer": excluir a peça criada devolve a
+//     peça solicitada para aberta sozinha);
+//   · recusada: Reabrir.
+// Evento finalizado: os botões de criar ficam visíveis e desabilitados.
 //
-// Evento que não aceita mais peça (encerrado ou já realizado): os botões que
-// criam peça ficam VISÍVEIS e desabilitados, com o motivo — sumir com eles
-// deixaria a ausência sem explicação. Recusar continua valendo.
+// ?pedidos=1 rola até aqui; ?criar=<peça solicitada> abre "Criar peça" direto
+// (é o caminho da página de solicitações).
 // ─────────────────────────────────────────────────────────────────────────────
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { ChevronDown, Inbox, Plus } from "lucide-react";
-import {
-  ROTULO_DO_PEDIDO,
-  quantidadeDoPedido,
-  seloDoEventoDoPedido,
-  type PedidoDePeca,
-} from "@shared/pedidos-de-peca";
+import { ChevronDown, Inbox } from "lucide-react";
+import { ajustePendente, seloDoEventoDoPedido, type LinhaDoPedido, type PedidoDePeca } from "@shared/pedidos-de-peca";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { FilterSelect } from "@/components/filter-select";
 import { T, FS, R } from "@/lib/theme";
-import { MotivoDoPedidoDialog } from "@/components/motivo-do-pedido-dialog";
-import {
-  IdadeDoPedido,
-  LinhaDoAtendimento,
-  ObservacaoDoPedido,
-  ReferenciasDoPedido,
-  SeloDoEventoChip,
-  SeloDoQueFalta,
-  TOM_DO_PEDIDO,
-  invalidarPedidos,
-  quandoFoi,
-} from "@/components/pedidos-de-peca-atendimento";
+import { MotivoDoPedidoDialog, descricaoDoAviso, enviarAcaoComMotivo, tituloDoAviso, type AlvoDaAcao } from "@/components/motivo-do-pedido-dialog";
+import { CartaoDoPedido, type AcaoDoCartao } from "@/components/pedidos/cartao-do-pedido";
+import { DetalheDoPedido } from "@/components/pedidos/detalhe-do-pedido";
+import { SeloDoEventoChip, invalidarPedidos, mensagemDaApi } from "@/components/pedidos/ui";
 
-export function PedidosDoEvento({ eventId, pecas, podeAtender, motivoEventoFim, saidaDoCaminhao, onCriarPeca }: {
+export function PedidosDoEvento({ eventId, pecas, podeVer, podeAtender, motivoEventoFim, saidaDoCaminhao, onCriarPeca }: {
   eventId: string;
   pecas: any[];
+  /** A Gráfica não usa solicitações. */
+  podeVer: boolean;
   /** solicitacao | admin — a régua do servidor. */
   podeAtender: boolean;
   motivoEventoFim: "encerrado" | "realizado" | null;
   saidaDoCaminhao: string | Date | null;
-  onCriarPeca: (pedido: PedidoDePeca) => void;
+  onCriarPeca: (pedido: PedidoDePeca, linha: LinhaDoPedido) => void;
 }) {
   const { toast } = useToast();
   const isMobile = useIsMobile();
   const [ligando, setLigando] = useState<string | null>(null);
   const [pecaEscolhida, setPecaEscolhida] = useState("");
-  const [recusando, setRecusando] = useState<PedidoDePeca | null>(null);
-  const [verResolvidos, setVerResolvidos] = useState(false);
+  const [alvo, setAlvo] = useState<AlvoDaAcao | null>(null);
+  const [verResolvidas, setVerResolvidas] = useState(false);
+  const [detalhe, setDetalhe] = useState<string | null>(null);
+  const criarConsumido = useRef(false);
   const agora = new Date();
-  const alvo = isMobile ? 44 : 34;
+  const toque = isMobile ? 44 : 36;
 
-  const { data: pedidos = [] } = useQuery<PedidoDePeca[]>({
+  const { data: pedidosCrus = [] } = useQuery<PedidoDePeca[]>({
     queryKey: [`/api/pedidos-de-peca?eventId=${eventId}`],
-    enabled: !!eventId,
+    enabled: !!eventId && podeVer,
   });
+  // Servidor antigo (sem reiniciar depois do Pull) manda solicitação sem as
+  // peças: fica de fora em vez de derrubar a tela.
+  const pedidos = useMemo(() => pedidosCrus.filter((p) => Array.isArray(p?.linhas)), [pedidosCrus]);
 
-  const atender = useMutation({
-    mutationFn: async ({ id, itemId }: { id: string; itemId: string }) =>
-      (await apiRequest("PATCH", `/api/pedidos-de-peca/${id}/atender`, { itemId })).json(),
-    onSuccess: () => { toast({ title: "Pedido atendido", description: "O Atendimento foi avisado." }); setLigando(null); setPecaEscolhida(""); invalidarPedidos(); },
-    onError: (e: Error) => toast({ title: "Não deu para atender", description: e.message, variant: "destructive" }),
-  });
-
-  const recusar = useMutation({
-    mutationFn: async ({ id, motivo }: { id: string; motivo: string }) =>
-      (await apiRequest("PATCH", `/api/pedidos-de-peca/${id}/recusar`, { motivo })).json(),
-    onSuccess: () => { toast({ title: "Pedido recusado", description: "O Atendimento recebeu o motivo." }); setRecusando(null); invalidarPedidos(); },
-    onError: (e: Error) => toast({ title: "Não deu para recusar", description: e.message, variant: "destructive" }),
-  });
-
-  // Vindo da faixa de Eventos (?pedidos=1): rola até este painel.
-  useEffect(() => {
-    if (pedidos.length === 0) return;
-    if (new URLSearchParams(window.location.search).get("pedidos") !== "1") return;
-    document.getElementById("pedidos-do-atendimento")?.scrollIntoView({ behavior: "smooth", block: "start" });
-  }, [pedidos.length]);
-
-  if (pedidos.length === 0) return null;
-  const abertos = pedidos.filter((p) => p.status === "aberto");
-  const resolvidos = pedidos.filter((p) => p.status !== "aberto");
-  const pecasDoEvento = pecas
-    .filter((i) => !i.deletedAt && i.status !== "cancelled")
-    .sort((a, b) => String(a.displayId ?? "").localeCompare(String(b.displayId ?? ""), "pt-BR", { numeric: true }));
   const selo = seloDoEventoDoPedido({ motivoFim: motivoEventoFim, saida: saidaDoCaminhao }, agora);
   const bloqueio = selo?.bloqueiaAtender ? selo.explicacao : null;
+  const seloDe = (l: LinhaDoPedido) => (l.status === "aberto" || l.status === "atendido" ? selo : null);
 
-  const BOTAO: React.CSSProperties = { height: alvo, padding: "0 12px", borderRadius: R.md, fontSize: 12.5, fontWeight: 800, display: "inline-flex", alignItems: "center", gap: 6, whiteSpace: "nowrap" };
+  const atender = useMutation({
+    mutationFn: async ({ linhaId, itemId }: { linhaId: string; itemId: string }) =>
+      (await apiRequest("PATCH", `/api/pedidos-de-peca/linhas/${linhaId}/atender`, { itemId })).json(),
+    onSuccess: () => { toast({ title: "Peça ligada à solicitação", description: "Quem solicitou foi avisado. Se a peça ainda está em Rascunho, envie-a para a vinculação com o resto da lista." }); setLigando(null); setPecaEscolhida(""); invalidarPedidos(); },
+    onError: (e) => toast({ title: "Não deu para ligar a peça", description: mensagemDaApi(e), variant: "destructive" }),
+  });
+
+  const acaoComMotivo = useMutation({
+    mutationFn: async ({ alvo: a, texto }: { alvo: AlvoDaAcao; texto: string }) => (await enviarAcaoComMotivo(a, texto)).json(),
+    // Mesmo aviso de duas linhas da página de solicitações: o que aconteceu e
+    // quem ficou sabendo.
+    onSuccess: (_d, v) => { toast({ title: tituloDoAviso(v.alvo), description: descricaoDoAviso(v.alvo) }); setAlvo(null); invalidarPedidos(); },
+    onError: (e) => toast({ title: "Não deu para concluir", description: mensagemDaApi(e), variant: "destructive" }),
+  });
+
+  const aceitarAjuste = useMutation({
+    mutationFn: async (linha: LinhaDoPedido) =>
+      (await apiRequest("PATCH", `/api/pedidos-de-peca/linhas/${linha.id}/ajuste/responder`, { aceitar: true })).json(),
+    onSuccess: () => { toast({ title: "Ajuste aceito", description: "Quem pediu foi avisado. Ajuste a peça na lista." }); invalidarPedidos(); },
+    onError: (e) => toast({ title: "Não deu para aceitar o ajuste", description: mensagemDaApi(e), variant: "destructive" }),
+  });
+
+  // Vindo da faixa de Eventos ou da página (?pedidos=1): rola até o painel.
+  // Vindo de "Criar peça" na página (?criar=<linha>): abre o formulário direto.
+  useEffect(() => {
+    if (pedidos.length === 0) return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("pedidos") === "1") {
+      document.getElementById("pedidos-do-atendimento")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+    const alvoCriar = params.get("criar");
+    if (!alvoCriar || criarConsumido.current) return;
+    criarConsumido.current = true;
+    params.delete("criar");
+    const qs = params.toString();
+    window.history.replaceState(null, "", qs ? `?${qs}` : window.location.pathname);
+    const pedido = pedidos.find((x) => x.linhas.some((l) => l.id === alvoCriar));
+    const linha = pedido?.linhas.find((l) => l.id === alvoCriar);
+    if (!pedido || !linha) return;
+    if (!podeAtender) { toast({ title: "Criar peça a partir da solicitação é do perfil Solicitação e do admin", variant: "destructive" }); return; }
+    if (bloqueio) { toast({ title: "Não dá para criar peça neste evento", description: bloqueio, variant: "destructive" }); return; }
+    if (linha.status !== "aberto" && linha.status !== "atendido") { toast({ title: "Esta peça solicitada não está aberta", description: "Reabra a peça antes de criar.", variant: "destructive" }); return; }
+    onCriarPeca(pedido, linha);
+  }, [pedidos, podeAtender, bloqueio, onCriarPeca, toast]);
+
+  const doEvento = (p: PedidoDePeca) => p.linhas.filter((l) => l.eventId === eventId);
+  const todasDoEvento = pedidos.flatMap(doEvento);
+  if (!podeVer || todasDoEvento.length === 0) return null;
+  const ativas = (p: PedidoDePeca) => doEvento(p).filter((l) => l.status === "aberto" || l.status === "atendido");
+  const resolvidas = (p: PedidoDePeca) => doEvento(p).filter((l) => l.status === "recusado" || l.status === "cancelado");
+  const comAtivas = pedidos.filter((p) => ativas(p).length > 0)
+    .sort((a, b) => (ativas(a).some((l) => l.status === "aberto") ? 0 : 1) - (ativas(b).some((l) => l.status === "aberto") ? 0 : 1));
+  const comResolvidas = pedidos.filter((p) => resolvidas(p).length > 0);
+  const qtdResolvidas = comResolvidas.reduce((s, p) => s + resolvidas(p).length, 0);
+  const qtdAbertas = todasDoEvento.filter((l) => l.status === "aberto").length;
+  const qtdAjustes = todasDoEvento.filter(ajustePendente).length;
+
+  const pecasDoEvento = pecas.filter((i) => !i.deletedAt && i.status !== "cancelled");
+  const opcoesDePeca = pecasDoEvento
+    .filter((i) => !i.pedidoDePecaId && !i.pedidoDePecaLinhaId)
+    .sort((a, b) => String(a.displayId ?? "").localeCompare(String(b.displayId ?? ""), "pt-BR", { numeric: true }))
+    .map((i) => ({ value: i.id, label: `${i.displayId} · ${i.type}${i.description ? ` — ${i.description}` : ""} · ${i.quantity} un.` }));
+  const jaAtendemOutras = pecasDoEvento.length - opcoesDePeca.length;
+
+  const acoesDaLinha = (p: PedidoDePeca) => (l: LinhaDoPedido): AcaoDoCartao[] => {
+    if (!podeAtender) return [];
+    const semLivres = opcoesDePeca.length === 0 ? "Nenhuma peça livre neste evento" : null;
+    if (l.status === "aberto") {
+      return [
+        { chave: "criar", rotulo: "Criar peça", tom: "criar", bloqueio, onClick: () => onCriarPeca(p, l), testId: `button-criar-peca-linha-${l.id}` },
+        { chave: "ligar", rotulo: "Já criei a peça", tom: "secundario", bloqueio: bloqueio ?? semLivres, onClick: () => { setLigando(l.id); setPecaEscolhida(""); }, testId: `button-ligar-peca-linha-${l.id}` },
+        { chave: "recusar", rotulo: "Recusar", tom: "perigo", onClick: () => setAlvo({ pedido: p, linha: l, acao: "recusar" }), testId: `button-recusar-linha-${l.id}` },
+      ];
+    }
+    if (l.status === "atendido") {
+      return [
+        ...(ajustePendente(l) ? [
+          // `ocupado` e não `bloqueio`: salvando não é motivo de bloqueio — o
+          // rótulo diz o que acontece NESTA linha e as outras só travam.
+          { chave: "aceitar-ajuste", rotulo: aceitarAjuste.isPending && aceitarAjuste.variables?.id === l.id ? "Aceitando…" : "Aceitar ajuste", tom: "criar", ocupado: aceitarAjuste.isPending, onClick: () => aceitarAjuste.mutate(l), testId: `button-aceitar-ajuste-${l.id}` },
+          { chave: "recusar-ajuste", rotulo: "Recusar ajuste", tom: "perigo", onClick: () => setAlvo({ pedido: p, linha: l, acao: "recusar-ajuste" }), testId: `button-recusar-ajuste-${l.id}` },
+        ] as AcaoDoCartao[] : []),
+        { chave: "outra", rotulo: "+ Outra peça", tom: "secundario", bloqueio, onClick: () => onCriarPeca(p, l), testId: `button-outra-peca-linha-${l.id}` },
+        { chave: "ligar", rotulo: "Ligar peça existente", tom: "secundario", bloqueio: bloqueio ?? semLivres, onClick: () => { setLigando(l.id); setPecaEscolhida(""); }, testId: `button-ligar-peca-linha-${l.id}` },
+      ];
+    }
+    if (l.status === "recusado") {
+      return [{ chave: "reabrir", rotulo: "Reabrir", tom: "secundario", bloqueio, onClick: () => setAlvo({ pedido: p, linha: l, acao: "reabrir" }), testId: `button-reabrir-linha-${l.id}` }];
+    }
+    return [];
+  };
+
+  const escolherPeca = (l: LinhaDoPedido) => ligando === l.id ? (
+    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+        <div style={{ flex: "1 1 280px", minWidth: 0 }}>
+          <FilterSelect kind="field" fullWidth hideWhenEmpty={false}
+            label="Peça que atende a solicitação" allLabel="Escolha a peça…" showAllLabelWhenEmpty
+            value={pecaEscolhida} onChange={setPecaEscolhida} options={opcoesDePeca}
+            searchPlaceholder="Buscar por código, tipo ou descrição…" emptyText="Nenhuma peça livre."
+            testId={`select-peca-linha-${l.id}`}
+            triggerStyle={{ height: toque, borderRadius: R.md, border: "1px solid #d6d3d1", padding: "0 10px", fontSize: 13, background: "#fff", width: "100%" }} />
+        </div>
+        <button type="button" disabled={!pecaEscolhida || atender.isPending} onClick={() => atender.mutate({ linhaId: l.id, itemId: pecaEscolhida })}
+          style={{ height: toque, padding: "0 12px", borderRadius: R.md, border: "none", fontSize: 12.5, fontWeight: 800, background: pecaEscolhida ? "#047857" : "#e7e5e4", color: pecaEscolhida ? "#fff" : "#78716c", cursor: pecaEscolhida ? "pointer" : "not-allowed" }}>
+          {atender.isPending ? "Ligando…" : "Ligar à solicitação"}
+        </button>
+        <button type="button" onClick={() => setLigando(null)} style={{ height: toque, padding: "0 10px", border: "none", background: "none", color: "#57534e", fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}>Voltar</button>
+      </div>
+      {jaAtendemOutras > 0 && (
+        <span style={{ fontSize: FS.small, color: "#57534e" }}>{jaAtendemOutras} {jaAtendemOutras === 1 ? "peça já atende outra solicitação e não aparece" : "peças já atendem outras solicitações e não aparecem"} na lista.</span>
+      )}
+    </div>
+  ) : null;
+
+  const pedidoDoDetalhe = detalhe ? pedidos.find((x) => x.id === detalhe) ?? null : null;
 
   return (
     <section
       id="pedidos-do-atendimento"
       data-testid="painel-pedidos-do-evento"
       aria-labelledby="titulo-pedidos-do-evento"
-      style={{ backgroundColor: "#fff", border: "1px solid #e7e5e4", borderLeft: `3px solid ${abertos.length ? "#b45309" : "#d6d3d1"}`, borderRadius: R.lg, boxShadow: "0 1px 4px rgba(0,0,0,0.05)", marginBottom: 32 }}
+      style={{ backgroundColor: "#fff", border: "1px solid #e7e5e4", borderLeft: `3px solid ${qtdAbertas || qtdAjustes ? "#b45309" : "#d6d3d1"}`, borderRadius: R.lg, boxShadow: "0 1px 4px rgba(0,0,0,0.05)", marginBottom: 32, overflow: "hidden" }}
     >
-      <div style={{ padding: "18px 22px 12px", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+      <div style={{ padding: "16px 20px 10px", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
         <Inbox style={{ width: 16, height: 16, color: "#b45309", flexShrink: 0 }} aria-hidden="true" />
-        <h2 id="titulo-pedidos-do-evento" style={{ margin: 0, fontSize: 13, fontWeight: 800, color: "#1F1D1A", fontFamily: "'Space Grotesk', sans-serif", textTransform: "uppercase", letterSpacing: "0.04em" }}>
-          Pedidos do Atendimento
+        <h2 id="titulo-pedidos-do-evento" style={{ margin: 0, fontSize: 13, fontWeight: 800, color: T.text, textTransform: "uppercase", letterSpacing: "0.04em" }}>
+          Solicitações de peças
         </h2>
-        <span style={{ backgroundColor: abertos.length ? "#fffbeb" : "#f5f5f4", color: abertos.length ? "#92400e" : "#57534e", border: `1px solid ${abertos.length ? "#fde68a" : "#e7e5e4"}`, borderRadius: R.pill, padding: "2px 10px", fontSize: FS.small, fontWeight: 800 }}>
-          {abertos.length} {abertos.length === 1 ? "aberto" : "abertos"}
+        <span style={{ backgroundColor: qtdAbertas ? "#fffbeb" : "#f5f5f4", color: qtdAbertas ? "#92400e" : "#57534e", border: `1px solid ${qtdAbertas ? "#fde68a" : "#e7e5e4"}`, borderRadius: R.pill, padding: "2px 10px", fontSize: FS.small, fontWeight: 800 }}>
+          {qtdAbertas} {qtdAbertas === 1 ? "peça aberta" : "peças abertas"}
         </span>
-        {abertos.length > 0 && <SeloDoEventoChip selo={selo} pedidoId={eventId} />}
-        {!podeAtender && abertos.length > 0 && (
-          <span style={{ fontSize: FS.body, color: "#57534e" }}>Quem atende é a Solicitação.</span>
+        {qtdAjustes > 0 && (
+          <span data-testid="chip-ajustes-do-evento" style={{ backgroundColor: "#fffbeb", color: "#92400e", border: "1px solid #fde68a", borderRadius: R.pill, padding: "2px 10px", fontSize: FS.small, fontWeight: 800 }}>
+            {qtdAjustes} {qtdAjustes === 1 ? "ajuste pendente" : "ajustes pendentes"}
+          </span>
         )}
+        <SeloDoEventoChip selo={selo} pedidoId={eventId} />
+        {!podeAtender && qtdAbertas > 0 && <span style={{ fontSize: FS.body, color: "#57534e" }}>Quem atende é a Solicitação.</span>}
       </div>
+      {/* PARA QUE SERVE E O QUE FAZER — em uma frase. Quem nunca atendeu uma
+          solicitação via três botões e nenhuma pista de qual escolher, nem de
+          que "Criar peça" já liga e avisa sozinho. Só para quem atende e só
+          quando há o que atender. */}
+      {podeAtender && (qtdAbertas > 0 || qtdAjustes > 0) && (
+        <p data-testid="texto-como-atender" style={{ margin: 0, padding: "0 20px 12px", fontSize: FS.body, color: "#57534e", lineHeight: 1.5 }}>
+          Peças que o Atendimento pediu para este evento. <strong style={{ color: T.text }}>Criar peça</strong> abre o formulário já preenchido — a peça sai ligada e quem pediu é avisado. Se a peça já existe, use <strong style={{ color: T.text }}>Já criei a peça</strong>; se não vai ser feita, <strong style={{ color: T.text }}>Recusar</strong> pede o motivo.
+        </p>
+      )}
 
-      {abertos.length > 0 && (
-        <ul style={{ listStyle: "none", margin: 0, padding: "0 22px 16px", display: "flex", flexDirection: "column", gap: 10 }}>
-          {abertos.map((p) => {
-            const estaLigando = ligando === p.id;
-            const patrocinador = p.sponsorName ?? "sem patrocinador";
-            return (
-              <li key={p.id} data-testid={`pedido-evento-${p.id}`} style={{ border: "1px solid #fde68a", background: "#fffdf7", borderRadius: R.lg, padding: "12px 14px", display: "flex", gap: 12, alignItems: "flex-start" }}>
-                <div style={{ flex: "1 1 auto", minWidth: 0, display: "flex", flexDirection: "column", gap: 8 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
-                    <strong style={{ flexShrink: 0, fontSize: 15, color: p.quantidade == null ? "#57534e" : T.text }}>{quantidadeDoPedido(p.quantidade)}</strong>
-                    <span title={patrocinador} style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 14, fontWeight: 700, color: T.text }}>{patrocinador}</span>
-                    <SeloDoQueFalta pedido={p} />
-                  </div>
-                  <ObservacaoDoPedido valor={p.observacao} />
-                  <ReferenciasDoPedido urls={p.referencias ?? []} tamanho={52} />
-                  <span style={{ fontSize: FS.small, color: "#57534e" }}>Pedido por {p.pedidoPor ?? "—"} · entrou em {quandoFoi(p.createdAt)}</span>
-
-                  {podeAtender && !estaLigando && (
-                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 2 }}>
-                      <button type="button" data-testid={`button-criar-peca-pedido-${p.id}`} onClick={() => onCriarPeca(p)}
-                        disabled={!!bloqueio} title={bloqueio ?? undefined}
-                        style={{ ...BOTAO, border: "none", background: bloqueio ? "#e7e5e4" : "#b45309", color: bloqueio ? "#78716c" : "#fff", cursor: bloqueio ? "not-allowed" : "pointer" }}>
-                        <Plus size={14} /> Criar peça
-                      </button>
-                      <button type="button" data-testid={`button-ligar-peca-pedido-${p.id}`} onClick={() => { setLigando(p.id); setPecaEscolhida(""); }}
-                        disabled={!!bloqueio || pecasDoEvento.length === 0}
-                        title={bloqueio ?? (pecasDoEvento.length === 0 ? "O evento ainda não tem peças" : undefined)}
-                        style={{ ...BOTAO, border: "1px solid #e7e5e4", background: "#fff", color: bloqueio || pecasDoEvento.length === 0 ? "#78716c" : T.text, cursor: bloqueio || pecasDoEvento.length === 0 ? "not-allowed" : "pointer" }}>
-                        Já criei a peça
-                      </button>
-                      <button type="button" data-testid={`button-recusar-pedido-${p.id}`} onClick={() => setRecusando(p)}
-                        style={{ ...BOTAO, border: "1px solid #fecaca", background: "#fff", color: "#b91c1c", cursor: "pointer" }}>
-                        Recusar
-                      </button>
-                    </div>
-                  )}
-
-                  {estaLigando && (
-                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-                      <select aria-label="Peça que atende o pedido" data-testid={`select-peca-pedido-${p.id}`} value={pecaEscolhida} onChange={(e) => setPecaEscolhida(e.target.value)}
-                        style={{ flex: "1 1 260px", minWidth: 0, height: alvo, borderRadius: R.md, border: "1px solid #d6d3d1", padding: "0 10px", fontSize: 13, background: "#fff" }}>
-                        <option value="">Escolha a peça…</option>
-                        {pecasDoEvento.map((i) => (
-                          <option key={i.id} value={i.id}>{i.displayId} · {i.type}{i.description ? ` — ${i.description}` : ""} · {i.quantity} un.</option>
-                        ))}
-                      </select>
-                      <button type="button" disabled={!pecaEscolhida || atender.isPending} onClick={() => atender.mutate({ id: p.id, itemId: pecaEscolhida })}
-                        style={{ ...BOTAO, border: "none", background: pecaEscolhida ? "#047857" : "#e7e5e4", color: pecaEscolhida ? "#fff" : "#78716c", cursor: pecaEscolhida ? "pointer" : "not-allowed" }}>
-                        {atender.isPending ? "Ligando…" : "Marcar como atendido"}
-                      </button>
-                      <button type="button" onClick={() => setLigando(null)} style={{ ...BOTAO, border: "none", background: "none", color: "#57534e", cursor: "pointer" }}>Voltar</button>
-                    </div>
-                  )}
-                </div>
-                <IdadeDoPedido pedido={p} agora={agora} />
-              </li>
-            );
-          })}
+      {comAtivas.length > 0 && (
+        <ul style={{ margin: 0, padding: 0, borderTop: "1px solid #f1f0ef" }}>
+          {comAtivas.map((p) => (
+            <CartaoDoPedido key={p.id} pedido={p} linhas={ativas(p)} agora={agora} seloDe={seloDe} mostrarEvento={false}
+              acoesDaLinha={acoesDaLinha(p)} extraDaLinha={escolherPeca} onAbrir={() => setDetalhe(p.id)} />
+          ))}
         </ul>
       )}
 
-      {resolvidos.length > 0 && (
-        <div style={{ padding: "0 22px 16px" }}>
-          <button type="button" aria-expanded={verResolvidos} onClick={() => setVerResolvidos((v) => !v)} data-testid="button-ver-pedidos-resolvidos"
+      {qtdResolvidas > 0 && (
+        <div style={{ padding: "10px 20px 14px", borderTop: "1px solid #f1f0ef" }}>
+          <button type="button" aria-expanded={verResolvidas} onClick={() => setVerResolvidas((v) => !v)} data-testid="button-ver-pedidos-resolvidos"
             style={{ border: "none", background: "none", padding: 0, minHeight: isMobile ? 44 : undefined, display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 800, color: "#57534e", cursor: "pointer" }}>
-            <ChevronDown size={14} style={{ transform: verResolvidos ? "rotate(180deg)" : "none", transition: "transform 0.15s" }} />
-            {verResolvidos ? "Esconder" : "Ver"} {resolvidos.length} {resolvidos.length === 1 ? "pedido resolvido" : "pedidos resolvidos"}
+            <ChevronDown size={14} style={{ transform: verResolvidas ? "rotate(180deg)" : "none", transition: "transform 0.15s" }} />
+            {verResolvidas ? "Esconder" : "Ver"} {qtdResolvidas} {qtdResolvidas === 1 ? "peça recusada ou cancelada" : "peças recusadas ou canceladas"}
           </button>
-          {verResolvidos && (
-            <ul style={{ listStyle: "none", margin: "10px 0 0", padding: 0, display: "flex", flexDirection: "column", gap: 10 }}>
-              {resolvidos.map((p) => {
-                const tom = TOM_DO_PEDIDO[p.status] ?? TOM_DO_PEDIDO.cancelado;
-                return (
-                  <li key={p.id} style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: FS.body, color: "#44403c" }}>
-                    <div style={{ display: "flex", gap: 8, alignItems: "center", minWidth: 0 }}>
-                      <span style={{ flexShrink: 0, fontSize: FS.small, fontWeight: 800, color: tom.cor, background: tom.fundo, border: `1px solid ${tom.borda}`, borderRadius: R.pill, padding: "1px 8px" }}>{ROTULO_DO_PEDIDO[p.status]}</span>
-                      <strong style={{ flexShrink: 0 }}>{quantidadeDoPedido(p.quantidade)}</strong>
-                      <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.sponsorName ?? "sem patrocinador"}</span>
-                    </div>
-                    <LinhaDoAtendimento pedido={p} />
-                    {p.status === "recusado" && <span style={{ color: "#991b1b" }}>Recusado: {p.motivoRecusa}</span>}
-                    {p.status === "cancelado" && <span style={{ color: "#57534e" }}>Cancelado pelo Atendimento{p.motivoCancelamento ? `: ${p.motivoCancelamento}` : ""}</span>}
-                  </li>
-                );
-              })}
+          {verResolvidas && (
+            <ul style={{ margin: "8px -20px 0", padding: 0 }}>
+              {comResolvidas.map((p) => (
+                <CartaoDoPedido key={p.id} pedido={p} linhas={resolvidas(p)} agora={agora} seloDe={seloDe} mostrarEvento={false}
+                  acoesDaLinha={acoesDaLinha(p)} onAbrir={() => setDetalhe(p.id)} />
+              ))}
             </ul>
           )}
         </div>
       )}
 
+      <DetalheDoPedido
+        pedido={pedidoDoDetalhe}
+        agora={agora}
+        seloDe={(l) => (l.eventId === eventId ? seloDe(l) : null)}
+        acoesDaLinha={pedidoDoDetalhe
+          ? (l) => (l.eventId === eventId ? acoesDaLinha(pedidoDoDetalhe)(l).filter((a) => a.chave !== "ligar") : [])
+          : () => []}
+        onFechar={() => setDetalhe(null)}
+      />
       <MotivoDoPedidoDialog
-        pedido={recusando}
-        titulo="Recusar pedido"
-        aviso="O Atendimento é notificado com este motivo."
-        rotuloConfirmar="Recusar pedido"
-        pendente={recusar.isPending}
-        onConfirmar={(motivo) => { if (recusando) recusar.mutate({ id: recusando.id, motivo }); }}
-        onFechar={() => setRecusando(null)}
+        alvo={alvo}
+        pendente={acaoComMotivo.isPending}
+        onConfirmar={(texto) => { if (alvo) acaoComMotivo.mutate({ alvo, texto }); }}
+        onFechar={() => setAlvo(null)}
       />
     </section>
   );

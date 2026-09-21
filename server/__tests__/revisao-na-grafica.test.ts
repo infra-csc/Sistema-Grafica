@@ -44,14 +44,15 @@ describe("aparece", () => {
   });
 
   it("com KPI 'Em Revisão · Chegando' clicável, antes de Liberados", () => {
-    expect(GRAFICA).toContain('{ label: "Em Revisão",   value: stats.revisao,    sub: "Chegando",         testId: "stat-revisao",    filterVals: ["awaiting_final_review"] },');
+    // UX rodada 4: o "sub" da aba virou frase visível no desktop ("Chegando da Revisão").
+    expect(GRAFICA).toContain('{ label: "Em Revisão",   value: stats.revisao,    sub: "Chegando da Revisão",  testId: "stat-revisao",    filterVals: ["awaiting_final_review"] },');
     expect(GRAFICA.indexOf('testId: "stat-revisao"')).toBeLessThan(GRAFICA.indexOf('testId: "stat-approved"'));
   });
 
   it("com selo nas duas formas da lista (card e tabela)", () => {
     expect(GRAFICA).toContain("chip-revisao-${item.id}");
     expect(GRAFICA).toContain("selo-revisao-${item.id}");
-    expect(GRAFICA).toContain("As ações liberam quando a Revisão aprovar.");
+    expect(GRAFICA).toContain("As ações liberam quando a Revisão Final aprovar.");
   });
 
   it("o filtro casa a família inteira, e a contagem soma igual — invariante da faceta", () => {
@@ -97,12 +98,13 @@ describe("segunda rodada (25/08): os quatro furos que sobraram", () => {
 
   it("produzir e reaproveitar da tabela exigem !emRevisao", () => {
     expect(G).toContain("{!bulkOn && !emRevisao && canProduce && !isDelivered(item)");
-    expect(G).toContain("{!bulkOn && !emRevisao && !isDelivered(item) && !isConferred(item) && (!isProduced(item) ? tetoReaproveitar(item) > 0 : podeMexerQtd && qtyOf(item) > 0)");
-    expect(G).toContain("{!bulkOn && !emRevisao && (isProduced(item) || isAdmin) && reusedTotalOf(item) > 0");
+    // 15/09: + !soVisualizaKit(item) — a Solicitação da Arena só vê a peça do Kit.
+    expect(G).toContain("{!bulkOn && !emRevisao && !soVisualizaKit(item) && !isDelivered(item) && !isConferred(item) && (!isProduced(item) ? tetoReaproveitar(item) > 0 : podeMexerQtd && qtyOf(item) > 0)");
+    expect(G).toContain("{!bulkOn && !emRevisao && !soVisualizaKit(item) && (isProduced(item) || isAdmin) && reusedTotalOf(item) > 0");
   });
 
   it("aumentar quantidade some nos DOIS layouts", () => {
-    expect(G.split("const mostraAumentar = !bulkOn && !emRevisao && podeAumentarQuantidade(item, podeMexerQtd);").length - 1).toBe(2);
+    expect(G.split("const mostraAumentar = !bulkOn && !emRevisao && !soVisualizaKit(item) && podeAumentarQuantidade(item, podeMexerQtd);").length - 1).toBe(2);
   });
 
   it("o servidor tranca reaproveitar e corrigir reaproveitamento em revisão", () => {

@@ -14,6 +14,8 @@ declare global {
       userName?: string;
       userId?: string;
       userRole?: string;
+      /** Usuário do Kit: só vê e cria peças do Kit, e só as dele (14/09). */
+      userKit?: boolean;
     }
   }
 }
@@ -24,6 +26,9 @@ declare module "express-session" {
     userId?: string;
     userName?: string;
     userRole?: string;
+    userKit?: boolean;
+    /** VER COMO (15/09): o perfil real ("admin") enquanto o admin navega como outro perfil. */
+    papelReal?: string;
   }
 }
 

@@ -157,6 +157,12 @@ export interface FilterOption {
   dotColor?: string;
   pinned?: boolean;
   group?: string;
+  /**
+   * Frase de ajuda da opção (vira `title`). Existe para os filtros de STATUS:
+   * o rótulo curto ("Conferidos") não diz o que a etapa significa nem quem
+   * age, e a dúvida nasce justamente na hora de escolher o recorte.
+   */
+  title?: string;
 }
 
 interface FilterSelectProps {
@@ -842,6 +848,7 @@ export function FilterSelect({
       <button
         key={opt.value}
         data-opt-idx={idx}
+        title={opt.title}
         // aria-pressed: o estado ativo passa a ser ANUNCIADO ("pressionado"),
         // não só pintado — quem usa leitor de tela não via diferença nenhuma
         // entre uma opção marcada e uma opção qualquer.

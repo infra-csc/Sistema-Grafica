@@ -18,7 +18,8 @@ import {
   EVENT_CLOSED_STATUS,
 } from "./shared";
 
-import { eventsCache, setEventsCache } from "../cache";
+import { eventsCache, setEventsCache, eventsCacheGeneration, EVENTS_CACHE_TTL_MS } from "../cache";
+import { ITENS_RESUMO, resumirItensDosEventos } from "@shared/eventos-resumo";
 // Mesmo predicado e mesma frase que server/routes/items.ts usa em toda
 // escrita de peça (ver o bloco "EVENTO FINALIZADO × ESCRITA DE PEÇA" em
 // ./eventoFinalizado). Importada de lá — não de "./items" — de propósito:
@@ -491,59 +492,190 @@ export function enrichEvent(
   };
 }
 
+/**
+ * Monta a lista enriquecida de eventos (sem o recorte do Kit). Pura sobre as
+ * três leituras: separada do handler para o agrupamento poder ser medido e
+ * reusado. O agrupamento por evento é UMA passada sobre as peças — nada aqui
+ * percorre o acervo uma vez por evento.
+ */
+export function montarListaDeEventos(
+  allEvents: Record<string, any>[],
+  allItems: Array<{ eventId: string; status: string; skipApproval?: boolean | null }>,
+  allEventSponsors: Array<{ eventId: string }>,
+  todayMs: number,
+) {
+  // getAllEventSponsors já vem ordenado por createdAt desc — agrupar preserva
+  // a mesma ordem que getEventSponsors daria.
+  const itemsByEvent = new Map<string, any[]>();
+  for (const it of allItems) {
+    const arr = itemsByEvent.get(it.eventId);
+    if (arr) arr.push(it); else itemsByEvent.set(it.eventId, [it]);
+  }
+  const sponsorsByEvent = new Map<string, any[]>();
+  for (const es of allEventSponsors) {
+    const arr = sponsorsByEvent.get(es.eventId);
+    if (arr) arr.push(es); else sponsorsByEvent.set(es.eventId, [es]);
+  }
+  return allEvents.map((event) =>
+    enrichEvent(
+      event,
+      itemsByEvent.get(event.id) ?? [],
+      sponsorsByEvent.get(event.id) ?? [],
+      todayMs,
+    ),
+  );
+}
+
+/** Envia um JSON já serializado com os mesmos cabeçalhos que res.json poria. */
+function enviarJsonPronto(res: any, json: string) {
+  if (!res.get("Content-Type")) res.set("Content-Type", "application/json");
+  return res.send(json);
+}
+
+// UMA montagem em voo por vez (perf 17/09). A tela pede /api/events 2–3× ao
+// abrir; com o cache vazio (toda escrita o invalida), cada pedido disparava as
+// mesmas três leituras e a mesma serialização de ~800 KB em paralelo. Agora os
+// pedidos que chegam durante a montagem esperam a MESMA promessa — mas só se
+// nenhuma escrita aconteceu desde que ela começou (mesma geração do cache).
+// Se houve escrita no meio, o pedido novo monta de novo, com o dado novo: é a
+// mesma garantia de frescor de não ter cache nenhum.
+//
+// DUAS VARIANTES (perf 17/09): a lista de sempre e a com `?itens=resumo` (as
+// peças embutidas viram contagem por status — shared/eventos-resumo.ts). Cada
+// uma tem a sua montagem em voo e o seu JSON pronto: servir a um pedido a
+// variante do outro mudaria o corpo que ele recebe. O JSON do resumo guarda a
+// GERAÇÃO junto — a mesma régua do eventsCache: qualquer escrita (broadcast →
+// invalidateEventsCache) avança a geração e o resumo guardado deixa de valer.
+type VarianteDaLista = "completa" | "resumo";
+const montagensEmVoo: Record<VarianteDaLista, { geracao: number; json: Promise<string> } | null> = {
+  completa: null,
+  resumo: null,
+};
+let resumoPronto: { geracao: number; expiresAt: number; json: string } | null = null;
+
+/** O JSON do resumo guardado, se ainda vale (mesma geração e dentro do TTL). */
+function resumoEmCache(): string | null {
+  return resumoPronto && resumoPronto.geracao === eventsCacheGeneration() && resumoPronto.expiresAt > Date.now()
+    ? resumoPronto.json
+    : null;
+}
+
+function listaDeEventosJson(variante: VarianteDaLista = "completa"): Promise<string> {
+  const geracao = eventsCacheGeneration();
+  const montagemEmVoo = montagensEmVoo[variante];
+  if (montagemEmVoo && montagemEmVoo.geracao === geracao) return montagemEmVoo.json;
+
+  const json = (async () => {
+    // 3 queries totais (eventos + todos os itens + todos os vínculos de
+    // patrocinador), agrupando em memória — em vez de 1 + 2 queries POR evento
+    // (N+1). Com centenas de eventos isso era a diferença entre ~3 e ~600
+    // queries neste endpoint, que é o mais chamado do app.
+    // AUDITORIA 27/08: getItemsSlimForEvents (id/eventId/status/skipApproval)
+    // no lugar de getAllItems (66 colunas do acervo inteiro). O enriquecimento
+    // só CONTA e classifica por status — e o `items` embutido na resposta,
+    // que os consumidores (Eventos, funil de fases) leem só por status,
+    // deixa de carregar o acervo dentro da lista de eventos.
+    const [allEvents, allItems, allEventSponsors] = await Promise.all([
+      storage.getAllEvents(),
+      storage.getItemsSlimForEvents(),
+      storage.getAllEventSponsors(),
+    ]);
+    // Um único "hoje" para toda a página: dois eventos nunca podem ser
+    // avaliados contra dias diferentes por causa da virada durante o loop.
+    const lista = montarListaDeEventos(
+      allEvents as unknown as Record<string, any>[],
+      allItems,
+      allEventSponsors,
+      todayBusinessMs(),
+    );
+    // Só vira cache se nenhuma escrita invalidou no meio da montagem.
+    if (variante === "resumo") {
+      const texto = JSON.stringify(resumirItensDosEventos(lista));
+      if (geracao === eventsCacheGeneration()) {
+        resumoPronto = { geracao, expiresAt: Date.now() + EVENTS_CACHE_TTL_MS, json: texto };
+      }
+      return texto;
+    }
+    const texto = JSON.stringify(lista);
+    setEventsCache(texto, geracao);
+    return texto;
+  })();
+
+  const voo = { geracao, json };
+  montagensEmVoo[variante] = voo;
+  // Limpa a vaga ao terminar (com sucesso ou erro) — sem apagar uma montagem
+  // MAIS NOVA que tenha ocupado o lugar enquanto esta rodava.
+  json.then(
+    () => { if (montagensEmVoo[variante] === voo) montagensEmVoo[variante] = null; },
+    () => { if (montagensEmVoo[variante] === voo) montagensEmVoo[variante] = null; },
+  );
+  return json;
+}
+
 export function registerEventRoutes(app: Express): void {
   // ============ EVENTS ============
 
   // Get all events with items count
   app.get("/api/events", requireAuth, async (req, res) => {
     try {
+      // `?itens=resumo` (perf 17/09): as peças embutidas vão como contagem por
+      // status (shared/eventos-resumo.ts). Sem o parâmetro, a resposta de sempre.
+      const resumo = req.query?.itens === ITENS_RESUMO;
+      // USUÁRIO DO KIT (14/09): vê todos os eventos (precisa deles para criar
+      // as remessas), mas as peças embutidas — contagens e fases — são só as
+      // peças do Kit dele. Fora do cache compartilhado, que é o de todos.
+      if ((req as any).userKit) {
+        const userId = (req as any).userId ?? "";
+        // PERF (17/09): o recorte "peças do Kit criadas por este usuário" vai
+        // para o banco — antes vinha o acervo inteiro (66 colunas × todas as
+        // peças) para sobrar meia dúzia. Mesmas linhas, mesma ordem.
+        const [eventosKit, pecasKit, vinculosKit] = await Promise.all([
+          storage.getAllEvents(),
+          storage.getItemsDoKitDoCriador(userId),
+          storage.getAllEventSponsors(),
+        ]);
+        const porEventoKit = new Map<string, any[]>();
+        for (const it of pecasKit) {
+          // Redundante com o WHERE do banco, de propósito: é a regra de
+          // visibilidade do Kit, e ela continua valendo aqui mesmo que a
+          // consulta mude um dia. Custa uma comparação por peça DO KIT.
+          if (!it.kitRemessaId || it.criadoPorId !== userId) continue;
+          const arr = porEventoKit.get(it.eventId);
+          if (arr) arr.push(it); else porEventoKit.set(it.eventId, [it]);
+        }
+        const patrocinadoresKit = new Map<string, any[]>();
+        for (const es of vinculosKit) {
+          const arr = patrocinadoresKit.get(es.eventId);
+          if (arr) arr.push(es); else patrocinadoresKit.set(es.eventId, [es]);
+        }
+        const hojeKit = todayBusinessMs();
+        const listaKit = eventosKit.map((event) => enrichEvent(
+          event as unknown as Record<string, any>,
+          porEventoKit.get(event.id) ?? [],
+          patrocinadoresKit.get(event.id) ?? [],
+          hojeKit,
+        ));
+        return res.json(resumo ? resumirItensDosEventos(listaKit) : listaKit);
+      }
+
+      // PERF (17/09): o cache guarda o JSON JÁ SERIALIZADO. A lista tem ~800 KB
+      // (as peças de todos os eventos vão embutidas) e é pedida 2–3× por tela:
+      // res.json refazia o JSON.stringify inteiro, síncrono, a cada acerto de
+      // cache. O corpo enviado é byte a byte o mesmo que res.json produziria
+      // (este app não configura "json spaces"/"json replacer"), e o
+      // Content-Type também — res.json só o define quando ausente, e o send
+      // acrescenta o charset nos dois caminhos.
+      if (resumo) {
+        const pronto = resumoEmCache();
+        return enviarJsonPronto(res, pronto ?? await listaDeEventosJson("resumo"));
+      }
+
       const now = Date.now();
       if (eventsCache && eventsCache.expiresAt > now) {
-        return res.json(eventsCache.data);
+        return enviarJsonPronto(res, eventsCache.data as string);
       }
 
-      // 3 queries totais (eventos + todos os itens + todos os vínculos de
-      // patrocinador), agrupando em memória — em vez de 1 + 2 queries POR evento
-      // (N+1). Com centenas de eventos isso era a diferença entre ~3 e ~600
-      // queries neste endpoint, que é o mais chamado do app.
-      // AUDITORIA 27/08: getItemsSlimForEvents (id/eventId/status/skipApproval)
-      // no lugar de getAllItems (66 colunas do acervo inteiro). O enriquecimento
-      // só CONTA e classifica por status — e o `items` embutido na resposta,
-      // que os consumidores (Eventos, funil de fases) leem só por status,
-      // deixa de carregar o acervo dentro da lista de eventos.
-      const [allEvents, allItems, allEventSponsors] = await Promise.all([
-        storage.getAllEvents(),
-        storage.getItemsSlimForEvents(),
-        storage.getAllEventSponsors(),
-      ]);
-
-      // getAllItems/getAllEventSponsors já vêm ordenados por createdAt desc —
-      // agrupar preserva a mesma ordem que getItemsByEvent/getEventSponsors dariam.
-      const itemsByEvent = new Map<string, any[]>();
-      for (const it of allItems) {
-        const arr = itemsByEvent.get(it.eventId);
-        if (arr) arr.push(it); else itemsByEvent.set(it.eventId, [it]);
-      }
-      const sponsorsByEvent = new Map<string, any[]>();
-      for (const es of allEventSponsors) {
-        const arr = sponsorsByEvent.get(es.eventId);
-        if (arr) arr.push(es); else sponsorsByEvent.set(es.eventId, [es]);
-      }
-
-      // Um único "hoje" para toda a página: dois eventos nunca podem ser
-      // avaliados contra dias diferentes por causa da virada durante o loop.
-      const todayMs = todayBusinessMs();
-      const eventsWithItems = allEvents.map((event) =>
-        enrichEvent(
-          event as unknown as Record<string, any>,
-          itemsByEvent.get(event.id) ?? [],
-          sponsorsByEvent.get(event.id) ?? [],
-          todayMs,
-        ),
-      );
-
-      setEventsCache(eventsWithItems);
-      res.json(eventsWithItems);
+      enviarJsonPronto(res, await listaDeEventosJson());
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
@@ -554,15 +686,23 @@ export function registerEventRoutes(app: Express): void {
   // rota dizia "Criado" para o mesmo evento, a um clique de distância.
   app.get("/api/events/:id", requireAuth, async (req, res) => {
     try {
-      const event = await storage.getEvent(req.params.id);
+      // PERF (17/09): as três leituras saem juntas. Antes o evento ia sozinho
+      // e só depois peças + vínculos — um round-trip inteiro a mais em toda
+      // abertura de detalhe, para economizar duas consultas baratas (por
+      // índice) no caso raro do 404.
+      const [event, todasAsPecas, eventSponsors] = await Promise.all([
+        storage.getEvent(req.params.id),
+        storage.getItemsByEvent(req.params.id),
+        storage.getEventSponsors(req.params.id),
+      ]);
       if (!event) {
         return res.status(404).json({ error: "Event not found" });
       }
-
-      const [eventItems, eventSponsors] = await Promise.all([
-        storage.getItemsByEvent(event.id),
-        storage.getEventSponsors(event.id),
-      ]);
+      // Usuário do Kit: só as peças do Kit dele entram nas contagens (14/09).
+      const userIdKit = (req as any).userId;
+      const eventItems = (req as any).userKit
+        ? todasAsPecas.filter((i) => !!i.kitRemessaId && i.criadoPorId === userIdKit)
+        : todasAsPecas;
 
       res.json(
         enrichEvent(
@@ -1041,7 +1181,12 @@ export function registerEventRoutes(app: Express): void {
 
       // Buscar todos os itens em rascunho deste evento (draft = novo, requested = legado)
       const allItems = await storage.getItemsByEvent(eventId);
-      const draftItems = allItems.filter(item => item.status === 'draft' || item.status === 'requested');
+      // KIT (14/09): cada um envia a sua lista — o usuário do Kit só as peças
+      // do Kit dele; a Solicitação da Arena só as da Arena; o admin, tudo.
+      const doKit = (req as any).userKit === true;
+      const draftItems = allItems.filter(item =>
+        (item.status === 'draft' || item.status === 'requested') &&
+        (isAdmin || (doKit ? (!!item.kitRemessaId && item.criadoPorId === userId) : !item.kitRemessaId)));
 
       if (draftItems.length === 0) {
         return res.status(400).json({ error: "Nenhum item em rascunho para enviar" });

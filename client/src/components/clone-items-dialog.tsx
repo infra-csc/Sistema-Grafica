@@ -27,6 +27,15 @@ interface CloneItemsDialogProps {
   onConfirmClone: (itemIds: string[]) => void;
 }
 
+// LISTA VAZIA COM IDENTIDADE FIXA (PERF-6, 17/09). Com a query desligada (o
+// diálogo fechado, que é o estado de sempre no Detalhe do Evento), o `= []` do
+// useQuery criava um array NOVO a cada render. O efeito "trocou a origem"
+// depende dele: via mudança, gravava um Set novo, re-renderizava, ganhava outro
+// `[]`... um laço de render que nunca parava enquanto a página estivesse aberta
+// (26 mil commits medidos em 10 s no benchmark). Esta constante quebra o laço
+// sem mudar o que o efeito faz quando os dados chegam de verdade.
+const SEM_PECAS: any[] = [];
+
 // Extracted from event-detail.tsx: "Clonar Peças de Outro Evento" dialog.
 // Pure presentational split — no business logic changed, only relocated.
 export function CloneItemsDialog({
@@ -48,7 +57,7 @@ export function CloneItemsDialog({
   // que marcar dezenas. A busca recorta a lista; marcar/desmarcar todas age
   // só sobre o recorte visível, senão "desmarcar todas" com uma busca ativa
   // apagaria seleção que o operador nem estava vendo.
-  const { data: pecasDaOrigem = [], isLoading: pecasCarregando } = useQuery<any[]>({
+  const { data: pecasDaOrigem = SEM_PECAS, isLoading: pecasCarregando } = useQuery<any[]>({
     queryKey: ["/api/items", cloneSourceId],
     enabled: open && !!cloneSourceId,
   });
@@ -187,7 +196,9 @@ export function CloneItemsDialog({
                   type="button"
                   onClick={alternarTodas}
                   data-testid="button-alternar-todas"
-                  style={{ border: 'none', background: 'transparent', fontSize: 12, fontWeight: 700, color: '#4f46e5', cursor: 'pointer', padding: 0 }}
+                  // minHeight 32 + respiro lateral: era um alvo do tamanho do
+                  // texto (16px) colado na borda da lista.
+                  style={{ border: 'none', background: 'transparent', fontSize: 12, fontWeight: 700, color: '#4f46e5', cursor: 'pointer', padding: '0 6px', minHeight: 32, borderRadius: 6 }}
                 >
                   {visiveisMarcadas === visiveis.length ? "Desmarcar todas" : "Marcar todas"}
                 </button>
@@ -195,11 +206,12 @@ export function CloneItemsDialog({
 
               {pecasDaOrigem.length > 8 && (
                 <div style={{ position: 'relative', marginBottom: 8 }}>
-                  <Search style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', width: 13, height: 13, color: '#a8a29e' }} />
+                  <Search aria-hidden="true" style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', width: 13, height: 13, color: '#78716c', pointerEvents: 'none' }} />
                   <input
                     value={busca}
                     onChange={(e) => setBusca(e.target.value)}
                     placeholder="Buscar peça…"
+                    aria-label="Buscar entre as peças do evento de origem"
                     data-testid="input-busca-pecas-clone"
                     style={{ width: '100%', padding: '7px 10px 7px 30px', borderRadius: 8, border: '1.5px solid #e7e5e4', fontSize: 13, outline: 'none' }}
                   />
@@ -222,10 +234,16 @@ export function CloneItemsDialog({
                       onChange={() => alternarUma(i.id)}
                       style={{ width: 15, height: 15, accentColor: '#4f46e5', flexShrink: 0, cursor: 'pointer' }}
                     />
-                    <span style={{ fontSize: 13, color: escolhidas.has(i.id) ? '#1a1c1c' : '#a8a29e', lineHeight: 1.4, minWidth: 0 }}>
-                      {i.displayId != null && <strong style={{ fontVariantNumeric: 'tabular-nums' }}>#{i.displayId}</strong>}{i.displayId != null ? " " : ""}{i.type}
-                      {i.description ? <span style={{ color: escolhidas.has(i.id) ? '#746e69' : '#c4beb8' }}> · {i.description}</span> : null}
-                      <span style={{ color: escolhidas.has(i.id) ? '#746e69' : '#c4beb8', whiteSpace: 'nowrap' }}> · {i.quantity} un.</span>
+                    {/* Desmarcada fica mais QUIETA, não ilegível: o #a8a29e /
+                        #c4beb8 de antes (2,5:1 e 1,8:1) escondia justamente a
+                        peça que a pessoa pode querer remarcar. A diferença
+                        agora é o peso e o fundo da linha, e o checkbox. */}
+                    <span style={{ fontSize: 13, color: escolhidas.has(i.id) ? '#1a1c1c' : '#746e69', fontWeight: escolhidas.has(i.id) ? 500 : 400, lineHeight: 1.4, minWidth: 0 }}>
+                      {/* displayId já vem com a cerquilha do backend ("#0281");
+                          prefixar de novo mostrava "##0281". */}
+                      {i.displayId != null && <strong style={{ fontVariantNumeric: 'tabular-nums' }}>{i.displayId}</strong>}{i.displayId != null ? " " : ""}{i.type}
+                      {i.description ? <span style={{ color: '#746e69' }}> · {i.description}</span> : null}
+                      <span style={{ color: '#746e69', whiteSpace: 'nowrap' }}> · {i.quantity} un.</span>
                     </span>
                   </label>
                 ))}
@@ -242,7 +260,11 @@ export function CloneItemsDialog({
                   {escolhidas.size === pecasDaOrigem.length
                     ? <>Todas as <strong>{pecasDaOrigem.length}</strong> peças do evento serão adicionadas a <strong>{eventName}</strong>.</>
                     : <>As <strong>{escolhidas.size}</strong> peças selecionadas (de {pecasDaOrigem.length}) serão adicionadas a <strong>{eventName}</strong>.</>}<br />
-                  Status: <strong>{getStatusLabel("requested")}</strong> · Patrocinadores e aprovações <strong>não</strong> serão copiados.
+                  {/* "draft", e não "requested": é o status que o servidor grava
+                      no clone (POST /api/events/:id/clone-items). O rótulo
+                      antigo dizia "Solicitado", que não é onde a peça aparece. */}
+                  Entram como <strong>{getStatusLabel("draft")}</strong> · Patrocinadores e aprovações <strong>não</strong> serão copiados.<br />
+                  Depois, revise e envie para a vinculação no card “Peças em Rascunho”.
                 </p>
               </div>
             </div>

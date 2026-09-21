@@ -34,9 +34,14 @@ const GRAFICA = ler("client/src/pages/grafica.tsx");
 const FICHA = ler("client/src/components/item-details-dialog.tsx");
 
 describe("as máquinas", () => {
-  it("são 1, 2, 3 e 4 por enquanto — o banco guarda o código, a tela lê o rótulo", () => {
+  it("são 1, 2, 3 e 4 — o banco guarda o código, a tela lê o nome do dono (21/09)", () => {
     expect([...MAQUINAS_DE_IMPRESSAO]).toEqual(["1", "2", "3", "4"]);
-    expect(rotuloDaMaquina("3")).toBe("Máquina 3");
+    expect(MAQUINAS_DE_IMPRESSAO.map(rotuloDaMaquina)).toEqual([
+      "Impressora 1 (New XT)",
+      "Impressora 2",
+      "Impressora 3",
+      "Impressora 4 (Targa Elite)",
+    ]);
   });
 
   it("máquina que não existe é recusada", () => {
@@ -122,7 +127,8 @@ describe("a tela obriga a escolha", () => {
   });
 
   it("a fila mostra em que máquina a peça está", () => {
-    expect(GRAFICA).toContain('`Máq. ${item.printMachine ?? "?"} · Registrar`');
+    expect(GRAFICA).toContain("`${rotuloDaMaquina(item.printMachine)} · Registrar`");
+    expect(GRAFICA).toContain("isInProd(item) ? rotuloRegistrarImpressao(item)");
   });
 });
 
@@ -146,8 +152,10 @@ describe("a impressão é registrada AOS POUCOS (dono, 14/09)", () => {
   });
 
   it("o aviso depois de salvar diz para onde a peça foi", () => {
-    expect(GRAFICA).toContain('toast({ title: "Impressão concluída", description: "A peça foi para Acabamento / Conferência." });');
-    expect(GRAFICA).toContain('title: "Parcial registrada"');
+    // O título carrega o código da peça (padrão da Gráfica nova: o toast
+    // nomeia a peça que o toque atingiu).
+    expect(GRAFICA).toContain('toast({ title: `Impressão concluída${cod}`, description: "A peça foi para Acabamento / Conferência." });');
+    expect(GRAFICA).toContain('title: `Parcial registrada${cod}`');
   });
 
   it("o campo diz o que se lança: quantas já saíram da máquina", () => {
@@ -194,6 +202,6 @@ describe("os nomes novos — com a trilha antiga ainda legível", () => {
   });
 
   it("a ficha diz em que máquina a peça está", () => {
-    expect(FICHA).toContain("na Máquina ${item.printMachine}");
+    expect(FICHA).toContain("na ${rotuloDaMaquina(item.printMachine)}");
   });
 });

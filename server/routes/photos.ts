@@ -11,9 +11,17 @@ export function registerPhotoRoutes(app: Express): void {
   // Galeria geral de registros (conferência + entrega) para a tela de Registros.
   // Aberta a todos os perfis: a maioria não acessa a Gráfica e precisa consultar
   // o comprovante das peças.
-  app.get("/api/photos", requireAuth, async (_req, res) => {
+  app.get("/api/photos", requireAuth, async (req, res) => {
     try {
-      res.json(await storage.getAllDeliveryPhotos());
+      const fotos = await storage.getAllDeliveryPhotos();
+      // Usuário do Kit (14/09): só os registros das peças do Kit que ele criou.
+      if ((req as any).userKit) {
+        const minhas = new Set((await storage.getAllItems())
+          .filter((i) => !!i.kitRemessaId && i.criadoPorId === (req as any).userId)
+          .map((i) => i.id));
+        return res.json(fotos.filter((f: any) => minhas.has(f.itemId)));
+      }
+      res.json(fotos);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }

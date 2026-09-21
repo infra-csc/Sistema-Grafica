@@ -46,7 +46,8 @@ export function BookHeranca({ bookUrl, capa, onCapaChange, paginas, onTogglePagi
         const workerUrl = (await import("pdfjs-dist/build/pdf.worker.min.mjs?url")).default;
         pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
         const doc = await pdfjs.getDocument({ url: convertGCSUrlToLocalPath(bookUrl) }).promise;
-        if (genRef.current !== gen) return;
+        // Chegou depois de trocar de book/desmontar: ninguém vai usar — solta já.
+        if (genRef.current !== gen) { void doc.loadingTask?.destroy(); return; }
         docRef.current = doc;
         setNumPages(doc.numPages);
       } catch (e: any) {
@@ -54,6 +55,15 @@ export function BookHeranca({ bookUrl, capa, onCapaChange, paginas, onTogglePagi
         setErro(e?.message || "Não foi possível abrir o book atual.");
       }
     })();
+    return () => {
+      // Invalida trabalho em voo e solta o documento do pdf.js (PDF parseado
+      // e páginas no worker, MBs por book) ao trocar de book ou sair da tela —
+      // antes ele ficava vivo até o F5.
+      genRef.current++;
+      const doc = docRef.current;
+      docRef.current = null;
+      void doc?.loadingTask?.destroy();
+    };
   }, [bookUrl]);
 
   const pedirThumb = (n: number) => {
@@ -87,18 +97,35 @@ export function BookHeranca({ bookUrl, capa, onCapaChange, paginas, onTogglePagi
     }
   };
 
+  // O que vai ser herdado, em uma frase — a escolha é feita numa fileira que
+  // rola de lado, e com 20 páginas as marcadas somem da vista. Conta só as
+  // páginas prontas (a 1 é a capa e tem controle próprio).
+  const prontas = Array.from(paginas).filter((n) => n !== 1).length;
+  const resumo = [capa ? "a capa" : null, prontas > 0 ? `${prontas} ${prontas === 1 ? "página pronta" : "páginas prontas"}` : null]
+    .filter(Boolean).join(" e ");
+
   if (erro) {
-    return <p style={{ margin: 0, fontSize: 12.5, color: "#b45309" }}>Book atual não abriu ({erro}) — o gerado sai sem herança.</p>;
+    // Caixa de aviso, não uma linha âmbar solta: é a notícia de que o book vai
+    // sair SEM a capa verdadeira — precisa ser vista antes de publicar.
+    return (
+      <p role="status" style={{ margin: 0, padding: "10px 12px", borderRadius: 8, fontSize: 13, color: "#92400e", backgroundColor: "#fffbeb", border: "1px solid #fde68a", lineHeight: 1.5 }}>
+        <strong>O book atual não abriu</strong> ({erro}). O gerado sai sem herança — capa com o nome do evento e só as grades.
+      </p>
+    );
   }
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 8 }} data-testid="book-heranca">
-      <label style={{ display: "inline-flex", alignItems: "center", gap: 8, fontSize: 13, fontWeight: 600, color: "#1c1917", cursor: "pointer" }}>
+      {/* minHeight 36: a caixa de 16px e o texto formam UM alvo de toque. */}
+      <label style={{ display: "inline-flex", alignItems: "center", gap: 8, minHeight: 36, fontSize: 13, fontWeight: 600, color: "#1c1917", cursor: "pointer", alignSelf: "flex-start" }}>
         <input type="checkbox" checked={capa} onChange={(e) => onCapaChange(e.target.checked)} data-testid="check-capa-herdada" style={{ width: 16, height: 16, accentColor: "#c2410c" }} />
         Usar a capa do book atual (o logo de verdade)
       </label>
-      <p style={{ margin: 0, fontSize: 12, color: "#78716c", lineHeight: 1.5 }}>
+      <p style={{ margin: 0, fontSize: 12, color: "#746e69", lineHeight: 1.5 }}>
         Marque as páginas prontas (renders de palco, pórtico, estande…) para entrarem <strong>copiadas do original</strong>, sem perda — elas vêm antes das grades geradas. Desmarque os grupos que elas já cobrem.
+      </p>
+      <p aria-live="polite" data-testid="heranca-resumo" style={{ margin: 0, fontSize: 12, fontWeight: 600, color: resumo ? "#1c1917" : "#746e69" }}>
+        {resumo ? `Entra no começo do book: ${resumo}.` : "Nada herdado — o book sai só com as grades geradas."}
       </p>
       {numPages === 0 ? (
         <p style={{ margin: 0, fontSize: 12.5, color: "#78716c", display: "inline-flex", alignItems: "center", gap: 6 }}>
@@ -115,21 +142,27 @@ export function BookHeranca({ bookUrl, capa, onCapaChange, paginas, onTogglePagi
                 type="button"
                 onClick={() => (ehCapa ? onCapaChange(!capa) : onTogglePagina(n))}
                 aria-pressed={marcada}
+                // Nome por extenso para o leitor de tela: o texto visível é
+                // "pág. 3", e a imagem virou decorativa (alt vazio) para não
+                // anunciar "Página 3" duas vezes.
+                aria-label={ehCapa ? "Capa do book atual (página 1)" : `Página ${n} do book atual, copiada do original`}
                 data-testid={`heranca-pag-${n}`}
                 ref={(el) => { if (el) pedirThumb(n); }}
                 title={ehCapa ? "Página 1 — a capa" : `Incluir a página ${n} pronta, copiada do original`}
                 style={{
-                  position: "relative", flexShrink: 0, width: THUMB_W, height: Math.round(THUMB_W * RATIO) + 20,
+                  position: "relative", flexShrink: 0, width: THUMB_W, height: Math.round(THUMB_W * RATIO) + 22,
                   padding: 0, borderRadius: 8, overflow: "hidden", cursor: "pointer",
-                  border: marcada ? "2px solid #c2410c" : "1px solid #e7e5e4",
-                  backgroundColor: "#fff",
+                  // Borda de 2px nos DOIS estados (cor muda, espessura não): com
+                  // 1px desmarcado e 2px marcado a miniatura "pulava" 1px ao clicar.
+                  border: marcada ? "2px solid #c2410c" : "2px solid #e7e5e4",
+                  backgroundColor: marcada ? "#fff7ed" : "#fff",
                 }}
               >
                 {thumbs[n]
-                  ? <img src={thumbs[n]} alt={`Página ${n}`} style={{ width: "100%", height: Math.round(THUMB_W * RATIO), objectFit: "cover", display: "block" }} />
-                  : <span style={{ display: "flex", width: "100%", height: Math.round(THUMB_W * RATIO), alignItems: "center", justifyContent: "center", backgroundColor: "#f5f5f4", color: "#a8a29e" }}><BookOpen style={{ width: 16, height: 16 }} /></span>}
-                <span style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 4, height: 20, fontSize: 10.5, fontWeight: 700, color: marcada ? "#c2410c" : "#78716c" }}>
-                  {marcada && <Check style={{ width: 11, height: 11 }} />}
+                  ? <img src={thumbs[n]} alt="" style={{ width: "100%", height: Math.round(THUMB_W * RATIO), objectFit: "cover", display: "block" }} />
+                  : <span style={{ display: "flex", width: "100%", height: Math.round(THUMB_W * RATIO), alignItems: "center", justifyContent: "center", backgroundColor: "#f5f5f4", color: "#a8a29e" }}><BookOpen aria-hidden="true" style={{ width: 16, height: 16 }} /></span>}
+                <span style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 4, height: 22, fontSize: 11, fontWeight: 700, color: marcada ? "#c2410c" : "#746e69" }}>
+                  {marcada && <Check aria-hidden="true" style={{ width: 11, height: 11 }} />}
                   {ehCapa ? "capa" : `pág. ${n}`}
                 </span>
               </button>

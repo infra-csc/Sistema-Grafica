@@ -34,56 +34,78 @@ export function MapaGalpao({ value, onSelect, onClose }: {
           // não rolam, então o navegador os mede sozinho e o corpo fica com o
           // que sobrar via `flex: 1 1 auto; minHeight: 0`. Mesma regra do
           // `modal-shell` e do modal da Gestão de Prazos.
-          display: "flex", flexDirection: "column", maxHeight: "calc(100vh - 48px)",
+          // dvh onde existe: no celular o 100vh inclui a barra recolhível do
+          // navegador e o "Usar A3" ficava atrás dela (mesma regra do modalSurface).
+          display: "flex", flexDirection: "column", maxHeight: typeof CSS !== "undefined" && CSS.supports?.("height: 100dvh") ? "calc(100dvh - 24px)" : "calc(100vh - 48px)",
           padding: 0, overflow: "hidden", borderRadius: 20,
           width: "min(480px, calc(100vw - 32px))", maxWidth: "min(480px, calc(100vw - 32px))",
           boxShadow: "0 25px 60px rgba(0,0,0,0.2)",
         }}
       >
-        <div style={{ padding: "16px 20px", borderBottom: "1px solid #f1f5f9", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
+        {/* PALETA: o mapa era o único canto do app em azul-ardósia (#0f172a,
+            #64748b, #f1f5f9, #f8fafc) — veio de outro projeto junto com o
+            componente. Agora usa a família "stone" do resto do app, com os
+            mesmos pares de contraste (#746e69 passa AA em todas as superfícies). */}
+        <div style={{ padding: "12px 12px 12px 20px", borderBottom: "1px solid #f1f0ef", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <Grid3X3 size={18} color="#f97316" />
+            <Grid3X3 size={18} color="#c2410c" />
             <div>
               <DialogTitle asChild>
-                <p style={{ margin: 0, fontSize: 14, fontWeight: 800, fontFamily: "Space Grotesk, sans-serif", color: "#0f172a" }}>Mapa do Galpão</p>
+                <p style={{ margin: 0, fontSize: 15, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif", color: "#1c1917" }}>Mapa do Galpão</p>
               </DialogTitle>
+              {/* #746e69 (≥4,56:1 em qualquer superfície): o #94a3b8 de antes
+                  reprovava AA nos 11px. "Toque" antes de "clique": o mapa é
+                  usado no tablet do galpão. */}
               <DialogDescription asChild>
-                <p style={{ margin: 0, fontSize: 10, color: "#94a3b8", fontFamily: "Plus Jakarta Sans, sans-serif" }}>Clique para selecionar e confirme a localização</p>
+                <p style={{ margin: 0, fontSize: 12, color: "#746e69" }}>Linha = setor (A–F), coluna = corredor (1–8). O toque já marca o local.</p>
               </DialogDescription>
             </div>
           </div>
-          <button onClick={onClose} aria-label="Fechar mapa" style={{ background: "#f1f5f9", border: "none", width: 30, height: 30, borderRadius: 8, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#64748b" }}>
-            <X size={14} />
+          {/* 44px: é o X que se procura com o dedo, em pé, no tablet. */}
+          {/* O toque numa célula JÁ grava (onSelect); o X não desfaz. O rótulo
+              diz isso, para ninguém fechar achando que cancelou a escolha. */}
+          <button type="button" onClick={onClose} aria-label={value ? `Fechar mapa — mantém ${value}` : "Fechar mapa"} title={value ? "Fechar — o local escolhido fica" : "Fechar mapa"} style={{ background: "transparent", border: "none", width: 44, height: 44, borderRadius: 10, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#57534e", flexShrink: 0 }}>
+            <X size={18} aria-hidden="true" />
           </button>
         </div>
         {/* O mapa é o único scrollport: em telas baixas ele rola e o botão
             Confirmar continua no lugar. */}
-        <div style={{ padding: 20, overflowY: "auto", flex: "1 1 auto", minHeight: 0 }}>
+        {/* 12px de lado (eram 20): em 360px cada uma das 8 colunas ganha ~4px de
+            largura de toque — é a medida que falta ao dedo neste grid. */}
+        <div style={{ padding: "16px 12px 20px", overflowY: "auto", flex: "1 1 auto", minHeight: 0 }}>
           <div style={{ display: "grid", gridTemplateColumns: "28px repeat(8, 1fr)", gap: 4, marginBottom: 4 }}>
             <div />
             {CORREDORES.map(c => (
-              <div key={c} style={{ textAlign: "center", fontSize: 9, fontWeight: 700, color: "#94a3b8", fontFamily: "DM Mono, monospace" }}>C{c}</div>
+              <div key={c} style={{ textAlign: "center", fontSize: 12, fontWeight: 700, color: "#746e69", fontFamily: "DM Mono, monospace" }}>C{c}</div>
             ))}
           </div>
           {SETORES.map(s => (
             <div key={s} style={{ display: "grid", gridTemplateColumns: "28px repeat(8, 1fr)", gap: 4, marginBottom: 4 }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 800, color: "#64748b", fontFamily: "DM Mono, monospace" }}>{s}</div>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 800, color: "#57534e", fontFamily: "DM Mono, monospace" }}>{s}</div>
               {CORREDORES.map(c => {
                 const loc = `Setor ${s} - Corredor ${c}`;
                 const isSelected = value === loc;
                 const isHov = hov === loc;
                 return (
-                  <button key={c} onClick={() => onSelect(loc)} aria-label={loc} aria-pressed={isSelected}
+                  <button key={c} type="button" onClick={() => onSelect(loc)} aria-label={loc} aria-pressed={isSelected}
                     onMouseEnter={() => setHov(loc)} onMouseLeave={() => setHov(null)}
+                    /* Regra da casa: #f97316 nunca como texto. O selecionado era
+                       branco sobre #f97316 (2,8:1) e o hover pintava o próprio
+                       texto de #f97316 — os dois viram #c2410c (5,18:1). O anel
+                       de foco deixa de ser suprimido: sem ele o mapa não era
+                       navegável por teclado. */
+                    /* 44 de altura (eram 40): a largura é a do grid, que em
+                       390px dá ~32 por célula — a altura é o que sobra para
+                       acertar o dedo. Célula com borda leve para ler como
+                       alvo, e não como texto solto num fundo quase branco. */
                     style={{
-                      height: 40, borderRadius: 8, border: "none",
-                      background: isSelected ? "#f97316" : isHov ? "#fff7ed" : "#f8fafc",
-                      color: isSelected ? "#fff" : isHov ? "#f97316" : "#64748b",
-                      fontSize: 9, fontWeight: 700, cursor: "pointer",
+                      height: 44, borderRadius: 8, border: `1px solid ${isSelected ? "#c2410c" : isHov ? "#fed7aa" : "#e7e5e4"}`,
+                      background: isSelected ? "#c2410c" : isHov ? "#fff7ed" : "#fafaf9",
+                      color: isSelected ? "#fff" : isHov ? "#c2410c" : "#44403c",
+                      fontSize: 12, fontWeight: 700, cursor: "pointer", padding: 0,
                       fontFamily: "DM Mono, monospace",
-                      transition: "all 0.12s",
-                      outline: isSelected ? "2px solid rgba(249,115,22,0.4)" : "none",
-                      outlineOffset: 2,
+                      transition: "background-color 0.12s, color 0.12s, border-color 0.12s",
+                      boxShadow: isSelected ? "0 0 0 2px #ffffff, 0 0 0 4px rgba(194,65,12,0.45)" : "none",
                     }}>
                     {s}{c}
                   </button>
@@ -92,15 +114,21 @@ export function MapaGalpao({ value, onSelect, onClose }: {
             </div>
           ))}
           {value && (
-            <div style={{ marginTop: 12, padding: "8px 14px", borderRadius: 10, background: "#fff7ed", border: "1px solid #fed7aa", display: "flex", alignItems: "center", gap: 8 }}>
-              <MapPin size={13} color="#ea580c" />
-              <span style={{ fontSize: 12, fontWeight: 700, color: "#ea580c", fontFamily: "Space Grotesk, sans-serif" }}>{value}</span>
+            <div style={{ marginTop: 12, minHeight: 36, boxSizing: "border-box", padding: "8px 14px", borderRadius: 10, background: "#fff7ed", border: "1px solid #fed7aa", display: "flex", alignItems: "center", gap: 8 }}>
+              <MapPin size={13} color="#c2410c" />
+              <span role="status" style={{ fontSize: 13, fontWeight: 700, color: "#c2410c", fontFamily: "Space Grotesk, sans-serif" }}>{value}</span>
             </div>
           )}
         </div>
-        <div style={{ padding: "12px 20px", borderTop: "1px solid #f1f5f9", display: "flex", justifyContent: "flex-end", flexShrink: 0 }}>
-          <button onClick={onClose} style={{ padding: "9px 20px", borderRadius: 10, border: "none", background: "#f97316", color: "#fff", fontSize: 13, cursor: "pointer", fontFamily: "Space Grotesk, sans-serif", fontWeight: 700 }}>
-            Confirmar
+        <div style={{ padding: "12px 20px calc(12px + env(safe-area-inset-bottom))", borderTop: "1px solid #f1f0ef", display: "flex", justifyContent: "flex-end", flexShrink: 0 }}>
+          {/* #c2410c: branco sobre #f97316 dava 2,8:1. 44px: é o botão que o
+              operador procura com o dedo depois de escolher a célula. */}
+          <button type="button" onClick={onClose} style={{ minHeight: 48, padding: "0 22px", borderRadius: 10, border: "none", background: "#c2410c", color: "#fff", fontSize: 14, cursor: "pointer", fontFamily: "Space Grotesk, sans-serif", fontWeight: 700 }}>
+            {/* O CTA nomeia a célula ("Usar A3", o mesmo texto do botão do
+                mapa); local digitado à mão fora do formato vira "este local". */}
+            {value
+              ? (/^Setor \w - Corredor \d+$/.test(value) ? `Usar ${value.replace(/^Setor (\w) - Corredor (\d+)$/, "$1$2")}` : "Usar este local")
+              : "Fechar sem escolher"}
           </button>
         </div>
       </DialogContent>

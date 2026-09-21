@@ -1,7 +1,7 @@
 // Modal de exportação de PDF compartilhado (Arte e Atendimento). Filtros
 // facetados, seleção manual das peças e agrupamento por grupo/evento — tudo
 // gerando o mesmo book via exportMixedToPDF.
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { Printer, X, FileText, FileImage, CheckCircle, SlidersHorizontal, BookOpen, Scissors, Search, LayoutGrid, File, AlertTriangle, Loader2 } from "lucide-react";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { HIDE_NATIVE_CLOSE } from "@/components/modal-shell";
@@ -76,7 +76,22 @@ interface ExportPdfDialogProps {
   title?: string;
 }
 
-export function ExportPdfDialog({ open, onOpenChange, items, title = "Peças" }: ExportPdfDialogProps) {
+/** Pool vazio estável: o modal que nunca abriu não tem o que contar. */
+const SEM_PECAS: any[] = [];
+
+export function ExportPdfDialog({ open, onOpenChange, items: itensDaTela, title = "Peças" }: ExportPdfDialogProps) {
+  // FECHADO NÃO CALCULA (perf, 17/09). Arte, Atendimento e Detalhe deixam este
+  // modal MONTADO o tempo todo, e cada revalidação da lista (WebSocket, delta,
+  // decisão de outra pessoa) entregava um array novo: as cinco facetas, o
+  // recorte, os grupos e a paginação varriam milhares de peças a cada vez — para
+  // um modal que ninguém estava vendo. Fechado, o pool fica PARADO na última
+  // lista com que ele esteve aberto (vazio se nunca abriu): as dependências não
+  // mudam e nenhum useMemo roda. Não é vazio de propósito — durante a animação
+  // de fechar o conteúdo ainda aparece e não pode piscar "0 peças". Aberto, o
+  // pool é a lista da tela, exatamente como antes.
+  const ultimoPoolAberto = useRef<any[]>(SEM_PECAS);
+  if (open) ultimoPoolAberto.current = itensDaTela;
+  const items = open ? itensDaTela : ultimoPoolAberto.current;
   const [eventFilter, setEventFilter]   = useState("all");
   const [sponsorFilter, setSponsorFilter] = useState("all");
   const [groupFilter, setGroupFilter]   = useState("all");
@@ -396,7 +411,7 @@ export function ExportPdfDialog({ open, onOpenChange, items, title = "Peças" }:
                   "que recorte eu quero"; nenhum responde "cadê a peça #3524",
                   que é a pergunta de quem já sabe o que procura. */}
               <div style={{ position: "relative", flex: "1 1 190px", minWidth: 150 }}>
-                <Search style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", width: 13, height: 13, color: "#a8a29e", pointerEvents: "none" }} />
+                <Search aria-hidden="true" style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", width: 13, height: 13, color: "#78716c", pointerEvents: "none" }} />
                 <input
                   value={busca}
                   onChange={e => setBusca(e.target.value)}
@@ -477,7 +492,7 @@ export function ExportPdfDialog({ open, onOpenChange, items, title = "Peças" }:
                   onClick={() => setExcludedIds(new Set())}
                   disabled={selected.length === filtered.length}
                   data-testid="button-export-selecionar-todas"
-                  style={{ background: "none", border: "none", padding: "0 4px", minHeight: isMobile ? 44 : 36, fontSize: 12, fontWeight: 700, cursor: selected.length === filtered.length ? "default" : "pointer", color: selected.length === filtered.length ? "#c4c0ba" : "#7c3aed" }}>
+                  style={{ background: "none", border: "none", padding: "0 4px", minHeight: isMobile ? 44 : 36, fontSize: 12, fontWeight: 700, cursor: selected.length === filtered.length ? "default" : "pointer", color: selected.length === filtered.length ? "#78716c" : "#7c3aed" }}>
                   Selecionar todas
                 </button>
                 <span aria-hidden="true" style={{ color: "#e4e0db" }}>·</span>
@@ -485,7 +500,7 @@ export function ExportPdfDialog({ open, onOpenChange, items, title = "Peças" }:
                   onClick={() => setExcludedIds(new Set(filtered.map(i => i.id)))}
                   disabled={selected.length === 0}
                   data-testid="button-export-limpar-selecao"
-                  style={{ background: "none", border: "none", padding: "0 4px", minHeight: isMobile ? 44 : 36, fontSize: 12, fontWeight: 700, cursor: selected.length === 0 ? "default" : "pointer", color: selected.length === 0 ? "#c4c0ba" : "#7c3aed" }}>
+                  style={{ background: "none", border: "none", padding: "0 4px", minHeight: isMobile ? 44 : 36, fontSize: 12, fontWeight: 700, cursor: selected.length === 0 ? "default" : "pointer", color: selected.length === 0 ? "#78716c" : "#7c3aed" }}>
                   Limpar
                 </button>
               </div>
@@ -660,7 +675,10 @@ export function ExportPdfDialog({ open, onOpenChange, items, title = "Peças" }:
                     <div key={idx}>
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4, gap: 8 }}>
                         <span style={{ fontSize: 10, color: "#78716c", fontFamily: "monospace", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{legenda}</span>
-                        <span style={{ fontSize: 10, color: "#a8a29e", fontFamily: "monospace", flexShrink: 0, fontVariantNumeric: "tabular-nums" }}>{idx + 1}</span>
+                        {/* #78716c: número de página e códigos da miniatura são
+                            texto que se confere contra o PDF — o #a8a29e de
+                            antes (2,5:1, em 8–10px) não se lia. */}
+                        <span style={{ fontSize: 10, color: "#78716c", fontFamily: "monospace", flexShrink: 0, fontVariantNumeric: "tabular-nums" }}>{idx + 1}</span>
                       </div>
                       <div style={{
                         backgroundColor: "#fff", border: "1px solid #e7e5e4", borderRadius: 6, padding: 8,
@@ -670,17 +688,17 @@ export function ExportPdfDialog({ open, onOpenChange, items, title = "Peças" }:
                       }}>
                         {pg.tipo === "capa" && (
                           <div style={{ backgroundColor: "#fafaf9", borderRadius: 3, display: "flex", alignItems: "center", justifyContent: "center", padding: 4 }}>
-                            <span style={{ fontSize: 8, fontFamily: "monospace", textTransform: "uppercase", color: "#a8a29e", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{pg.rotulo}</span>
+                            <span style={{ fontSize: 8, fontFamily: "monospace", textTransform: "uppercase", color: "#78716c", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{pg.rotulo}</span>
                           </div>
                         )}
                         {pg.tipo === "combinada" && pg.itens.map((it: any) => (
                           <div key={it.id} style={{ backgroundColor: "#f3f4f3", borderRadius: 3, display: "flex", alignItems: "center", justifyContent: "center", padding: 2 }}>
-                            <span style={{ fontSize: 8, fontFamily: "monospace", textTransform: "uppercase", color: "#a8a29e" }}>{it.displayId}</span>
+                            <span style={{ fontSize: 8, fontFamily: "monospace", textTransform: "uppercase", color: "#78716c" }}>{it.displayId}</span>
                           </div>
                         ))}
                         {pg.tipo === "unica" && (
                           <div style={{ backgroundColor: "#f3f4f3", borderRadius: 3, display: "flex", alignItems: "center", justifyContent: "center", padding: 4 }}>
-                            <span style={{ fontSize: 8, fontFamily: "monospace", textTransform: "uppercase", color: "#a8a29e" }}>{pg.item.displayId}</span>
+                            <span style={{ fontSize: 8, fontFamily: "monospace", textTransform: "uppercase", color: "#78716c" }}>{pg.item.displayId}</span>
                           </div>
                         )}
                       </div>

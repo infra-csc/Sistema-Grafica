@@ -113,7 +113,8 @@ beforeAll(() => {
       return json({ id: "u1", name: "Admin", email: "a@a", role: "admin", mustChangePassword: false });
     }
     if (u === "/api/sponsors") return json([{ id: "s1", name: "Patro 1", color: "#3b82f6" }]);
-    if (u === "/api/events" && method === "GET") { versao++; return json([{ ...EVENTO, _v: versao }]); }
+    // A lista de eventos é pedida com `?itens=resumo` (perf 17/09): o caminho decide.
+    if (u.split("?")[0] === "/api/events" && method === "GET") { versao++; return json([{ ...EVENTO, _v: versao }]); }
     if (u === "/api/events/e1/sponsors" && method === "GET") return json([{ sponsorId: "s1", quota: "MASTER" }]);
     if (u.startsWith("/api/events/e1")) return json({ ok: true });
     return json([]);

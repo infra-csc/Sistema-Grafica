@@ -29,6 +29,7 @@ import { motivoEventoDaPeca } from "./eventoFinalizado";
 import { storage } from "../storage";
 import { MAQUINAS_DE_IMPRESSAO, ehMaquinaValida, rotuloDaMaquina } from "@shared/fluxo-peca";
 import { lerPartes, partesAtivas } from "@shared/impressao-dividida";
+import { chaveDoLockDaImpressora } from "@shared/reserva-de-impressora";
 import { reservar, moverReserva, devolverReserva, colunasDaReserva, livreParaReservar, reservaDaPeca, semImpressora, lerPausas, pausarParte, iniciarParte, ocupanteDaImpressora } from "@shared/reserva-de-impressora";
 import { normalizarPartes, maquinaPrincipal, aImprimirDaPeca } from "@shared/impressao-dividida";
 import { EM_REVISAO } from "@shared/fluxo-peca";
@@ -258,9 +259,16 @@ export function registerMaquinasRoutes(app: Express): void {
     try {
       const resultado = await db.transaction(async (tx) => {
         const falha = (status: number, erro: string) => Object.assign(new Error(erro), { httpStatus: status });
+        // LOCK CONSULTIVO da impressora, PRIMEIRA instrução da transação: o
+        // mesmo que o start-printing pega — ocupação mora em jsonb, não há
+        // índice único que segure dois gestos simultâneos na mesma impressora.
+        await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${chaveDoLockDaImpressora(maquina)}))`);
         const [sai] = await tx.select().from(itemsTable).where(eq(itemsTable.id, tirarId));
         if (!sai || sai.deletedAt) throw falha(404, "Peça não encontrada");
-        if (await motivoEventoDaPeca(sai)) throw falha(409, "O evento da peça que está na impressora já foi finalizado");
+        // SEM guarda de evento finalizado para quem SAI: tirar da impressora
+        // não faz trabalho andar, só recua — e a peça de evento já realizado
+        // travaria a impressora para sempre (ela conta como ocupante). A
+        // guarda continua valendo para quem ENTRA.
         const pausa = pausarParte(sai as any, maquina, new Date().toISOString());
         if (!pausa.ok) throw falha(409, pausa.erro);
         const aImprimirSai = aImprimirDaPeca(sai as any);
@@ -268,9 +276,13 @@ export function registerMaquinasRoutes(app: Express): void {
           // As impressas ficam em quantityProduced (não muda); sem outra parte
           // ativa a peça volta a LIBERADA, no topo da fila desta impressora.
           status: pausa.voltaParaAFila ? "ready_for_production" : sai.status,
+          // De propósito: voltar a "liberada" é mudança REAL de etapa — o
+          // "há Xd neste status" recomeça a contar da pausa.
           ...(pausa.voltaParaAFila ? { statusChangedAt: new Date() } : {}),
           impressaoPorMaquina: pausa.partes ? normalizarPartes(pausa.partes, aImprimirSai) : null,
-          ...(pausa.principal ? { printMachine: pausa.principal } : {}),
+          // Liberada não está em impressora nenhuma: sem isto ela voltaria a
+          // "ocupar" a antiga assim que alguém a pusesse em impressão por outro caminho.
+          ...(pausa.voltaParaAFila ? { printMachine: null } : pausa.principal ? { printMachine: pausa.principal } : {}),
           ...colunasDaReserva(pausa.reserva, sai.reservaPorMaquina, pausa.pausas),
           updatedAt: new Date(),
         } as any).where(eq(itemsTable.id, sai.id)).returning();

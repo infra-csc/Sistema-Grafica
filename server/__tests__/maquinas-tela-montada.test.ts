@@ -1152,6 +1152,91 @@ describe("duas peças 2×1 são distinguíveis em cada lista, e o título abre a
   }, 30_000);
 });
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Revisão adversarial (21/09) + a barra de progresso ("esse traço embaixo
+// está estranho, parece que está cortando algo").
+// ─────────────────────────────────────────────────────────────────────────────
+describe("impressora nunca trava, sem duplo disparo, modal sabe das ocupadas, barra de progresso", () => {
+  it("[GRAVE] peça de evento JÁ REALIZADO: 'Impressas' e 'Trocar de máquina' ficam bloqueados, mas 'Tirar da impressora' não — senão a impressora travava para sempre", async () => {
+    const r = retrato();
+    (r.maquinas[0].imprimindo[0] as any).eventoInfo = { id: "ev9", name: "Corrida de 2020", status: "created", startDate: "2020-01-01T00:00:00Z", reopenedAt: null };
+    await montar(1280, r);
+    expect(($('[data-testid="button-impressas-p1"]') as HTMLButtonElement).disabled).toBe(true);
+    const tirar = $('[data-testid="button-tirar-da-impressora-p1"]') as HTMLButtonElement;
+    expect(tirar.disabled).toBe(false);
+    fetchPorUrl();
+    // Duplo clique: um POST só.
+    await act(async () => { fireEvent.click(tirar); fireEvent.click(tirar); });
+    await tick(30);
+    const posts = (fetchMockDe() as any).mock.calls.filter((c: any) => c[1]?.method === "POST").map((c: any) => String(c[0]));
+    expect(posts).toEqual(["/api/grafica/maquinas/1/pausar"]);
+  });
+
+  it("[7] enquanto o gesto voa, 'Tirar', 'Imprimir esta no lugar' e 'Trocar' ficam desabilitados", async () => {
+    const r = retrato({ fila: true });
+    (r.maquinas[0] as any).naFila = [{ ...naFila("n1", "#0398", "Lona", "1", 1), reservadas: 10 }];
+    await montar(1280, r);
+    await act(async () => { fireEvent.click($('[data-testid="button-imprimir-no-lugar-fila-n1"]')!); });
+    vi.stubGlobal("fetch", vi.fn(() => new Promise(() => {}))); // o POST nunca volta
+    await act(async () => { fireEvent.click($('[data-testid="button-trocar-fila-n1"]')!); });
+    await tick(20);
+    expect(($('[data-testid="button-tirar-da-impressora-p1"]') as HTMLButtonElement).disabled).toBe(true);
+    expect(($('[data-testid="button-imprimir-no-lugar-fila-n1"]') as HTMLButtonElement).disabled).toBe(true);
+    // A fila geral também espera (o controle inteiro fica desabilitado).
+    expect(($('[data-testid="reservar-fila-f1"]') as HTMLSelectElement).disabled).toBe(true);
+  });
+
+  it("[9] o modal sabe das OCUPADAS: a impressora com outra peça fica desabilitada ('com #0101'); a da própria peça, não", async () => {
+    await montar(1280, retrato({ fila: true }));
+    // Iniciar a #0204 (fila da Impressora 2, livre): a Impressora 1 está com a #0101.
+    await act(async () => { fireEvent.click($('[data-testid="button-iniciar-fila-f4"]')!); });
+    await tick(30);
+    const m1 = $('[data-testid="maquina-1"]') as HTMLButtonElement;
+    expect(m1.disabled).toBe(true);
+    expect(m1.textContent).toBe("Impressora 1 (New XT)com #0101");
+    expect(m1.getAttribute("data-ocupada")).toBe("#0101");
+    expect(($('[data-testid="maquina-2"]') as HTMLButtonElement).disabled).toBe(false);
+    expect(($('[data-testid="button-iniciar-impressao"]') as HTMLButtonElement).disabled).toBe(false);
+    cleanup();
+    // "Trocar de máquina" da própria #0101: a Impressora 1 é a ATUAL (não "ocupada por outra").
+    const r = retrato({ fila: true });
+    r.maquinas[2].imprimindo = [peca("p3", "#0303", 1, 5, "3") as any];
+    await montar(1280, r);
+    await act(async () => { fireEvent.click($('[data-testid="button-trocar-maquina-p1"]')!); });
+    await tick(30);
+    expect($('[data-testid="maquina-1"]')!.getAttribute("title")).toBe("A peça já está nesta impressora");
+    const m3 = $('[data-testid="maquina-3"]') as HTMLButtonElement;
+    expect(m3.disabled).toBe(true);
+    expect(m3.textContent).toBe("Impressora 3com #0303");
+    expect(($('[data-testid="maquina-2"]') as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it("BARRA de progresso: com 0 impressas NÃO há barra; com 3 de 10 há, em 30%, parecendo barra (6px, trilho neutro, até 160px, com respiro)", async () => {
+    const { BarraDeImpressao } = await import("@/components/grafica/modal-impressao");
+    await act(async () => { render(h("div", { "data-testid": "zero" }, h(BarraDeImpressao as any, { feitas: 0, teto: 10, rotulo: "x" }))); });
+    expect($('[data-testid="zero"] [role="progressbar"]')).toBeNull();
+    cleanup();
+    await act(async () => { render(h(BarraDeImpressao as any, { feitas: 3, teto: 10, rotulo: "#0101: 3 de 10 impressas" })); });
+    const barra = $('[role="progressbar"]')!;
+    expect(barra.getAttribute("aria-valuenow")).toBe("3");
+    expect(barra.getAttribute("aria-valuemax")).toBe("10");
+    expect(barra.getAttribute("aria-label")).toBe("#0101: 3 de 10 impressas");
+    expect((barra.firstElementChild as HTMLElement).style.width).toBe("30%");
+    expect([px(barra.style.height), px(barra.style.maxWidth), px(barra.style.marginTop), px(barra.style.marginBottom)]).toEqual([6, 160, 6, 4]);
+    expect(barra.style.background).toMatch(/e7e5e4|231, 229, 228/i);
+    // O preenchimento nunca é o laranja claro de texto proibido como TEXTO — aqui é fundo, no tom da etapa.
+    expect((barra.firstElementChild as HTMLElement).style.background).toMatch(/c2410c|194, 65, 12/i);
+    cleanup();
+    // Nos cartões de Máquinas: a #0101 (3 de 10) tem barra; uma peça com 0 impressas, não.
+    const r = retrato();
+    r.maquinas[1].imprimindo = [peca("p2", "#0102", 0, 10, "2") as any];
+    await montar(1280, r);
+    expect($('[data-testid="peca-na-maquina-p1"] [role="progressbar"]')!.getAttribute("aria-valuenow")).toBe("3");
+    expect($('[data-testid="peca-na-maquina-p2"] [role="progressbar"]')).toBeNull();
+    expect($('[data-testid="progresso-p2"]')!.textContent).toBe("nenhuma saiu ainda · 10 na impressora");
+  });
+});
+
 describe("o modal de impressão com a peça FORA da máquina", () => {
   it("só a impressora e UM botão; o campo que aparece é o de QUANTAS VÃO para a impressora — não o de impressas", async () => {
     prepararJsdom(1280);

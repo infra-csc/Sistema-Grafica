@@ -42,7 +42,7 @@ describe("tabela ↔ código, sem sobras de nenhum lado", () => {
     expect(fantasmas).toEqual([]);
   });
 
-  it("são as 102 — o número que o diagnóstico mediu; mudou, atualize os dois", () => {
+  it("são as 107 — o número que o diagnóstico mediu; mudou, atualize os dois", () => {
     // 96 = as 78 do diagnóstico + o descancelar do admin (01/09)
     //    + iniciar impressão da Gráfica (14/09)
     //    + reservar e liberar peça do estoque (14/09)
@@ -51,9 +51,10 @@ describe("tabela ↔ código, sem sobras de nenhum lado", () => {
     //    + criar remessa do Kit (14/09) + excluir remessa do Kit (15/09).
     //    + criar, mexer, apagar e entregar tubo (14/09).
     //    + fechar tubo com fotos (21/09) + reservar impressora, unitário e em lote (21/09).
+    //    + consultar o estoque, responder e cancelar a consulta (21/09).
     //    + tirar da impressora e trocar por prioridade (21/09).
-    expect(REGUA_DE_PAPEIS.length).toBe(104);
-    expect(doCodigo.length).toBe(104);
+    expect(REGUA_DE_PAPEIS.length).toBe(107);
+    expect(doCodigo.length).toBe(107);
   });
 });
 

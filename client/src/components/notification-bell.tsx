@@ -201,6 +201,27 @@ const TYPE_CONFIG: Record<string, TypeConfig> = {
     bgIcon: "#dcfce7", iconColor: "#15803d",
     label: "Ajuste aceito",
   },
+  // SOLICITAÇÃO AO ESTOQUE da Revisão Final (21/09).
+  consultaDeEstoque: {
+    Icon: Inbox,
+    border: "#f59e0b",
+    bgIcon: "#fffbeb", iconColor: "#92400e",
+    label: "Solicitação ao estoque",
+  },
+  // Respondida com a peça na Revisão Final: ela confirma e libera.
+  consultaDeEstoqueRespondida: {
+    Icon: CheckCircle,
+    border: "#22c55e",
+    bgIcon: "#dcfce7", iconColor: "#15803d",
+    label: "Estoque respondeu",
+  },
+  // Respondida com a peça já liberada: o reaproveitamento entrou direto.
+  consultaDeEstoqueAplicada: {
+    Icon: CheckCircle,
+    border: "#22c55e",
+    bgIcon: "#dcfce7", iconColor: "#15803d",
+    label: "Estoque respondeu",
+  },
   pedidoAjusteRecusado: {
     Icon: MinusCircle,
     border: "#ef4444",

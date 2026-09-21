@@ -484,6 +484,18 @@ export function useWebSocket() {
             queryClient.invalidateQueries({ predicate: (q) => String(q.queryKey[0] ?? '').startsWith('/api/pedidos-de-peca') });
             break;
 
+          case 'consultas_de_estoque':
+            // Consulta de estoque da Revisão Final (21/09): a caixa da Gráfica,
+            // o número do menu, a ficha da peça e o aviso na fila leem chaves
+            // diferentes: "/api/consultas-de-estoque…" e, na ficha,
+            // ["/api/items", id, "consulta-de-estoque"].
+            queryClient.invalidateQueries({
+              predicate: (q) =>
+                String(q.queryKey[0] ?? '').startsWith('/api/consultas-de-estoque')
+                || q.queryKey.includes('consulta-de-estoque'),
+            });
+            break;
+
           case 'notification_created':
           case 'notification_read':
             invalidateCoalesced('/api/notifications');

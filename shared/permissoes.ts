@@ -45,6 +45,10 @@ export const REGUA_DE_PAPEIS: RegraDeRota[] = [
   { metodo: "POST", rota: "/api/auth/register", papeis: ["admin"] },
   { metodo: "DELETE", rota: "/api/catalog-options", papeis: ["admin", "solicitacao"] },
   { metodo: "DELETE", rota: "/api/comments/:id", papeis: ["admin"] },
+  // Consulta de estoque a partir da Revisão Final (dono, 21/09): quem revisa
+  // pergunta e cancela; a Gráfica — que faz estoque e triagem — responde.
+  { metodo: "POST", rota: "/api/consultas-de-estoque/:id/cancelar", papeis: ["admin", "solicitacao"] },
+  { metodo: "POST", rota: "/api/consultas-de-estoque/:id/responder", papeis: ["admin", "grafica"] },
   { metodo: "POST", rota: "/api/events", papeis: ["admin", "solicitacao"] },
   { metodo: "POST", rota: "/api/events/:eventId/book", papeis: ["admin", "arte"] },
   { metodo: "POST", rota: "/api/events/:eventId/book/notify", papeis: ["admin"] },
@@ -85,6 +89,7 @@ export const REGUA_DE_PAPEIS: RegraDeRota[] = [
   { metodo: "PATCH", rota: "/api/items/:id/cancel", papeis: ["admin", "arte", "solicitacao"] },
   { metodo: "DELETE", rota: "/api/items/:id/complement", papeis: ["admin", "solicitacao"] },
   { metodo: "POST", rota: "/api/items/:id/complement", papeis: ["admin", "solicitacao"] },
+  { metodo: "POST", rota: "/api/items/:id/consulta-de-estoque", papeis: ["admin", "solicitacao"] },
   { metodo: "POST", rota: "/api/items/:id/correct-reuse", papeis: ["admin", "grafica", "solicitacao"] },
   { metodo: "PATCH", rota: "/api/items/:id/creator-reject", papeis: ["admin", "arte", "solicitacao"] },
   { metodo: "PATCH", rota: "/api/items/:id/creator-review", papeis: ["admin", "arte", "solicitacao"] },

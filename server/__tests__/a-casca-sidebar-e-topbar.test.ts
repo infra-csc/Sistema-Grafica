@@ -44,7 +44,8 @@ describe("1. a estrutura do menu não mudou", () => {
     // executivos; o vigésimo quarto é "Máquinas da Gráfica".
     // O teste existe para a mudança ser DECLARADA, não impedida.
     const itens = (sidebar.match(/\{ title: "/g) ?? []).length;
-    expect(itens).toBe(26); // + Inferir executivos e Reparo de vínculos (vieram do Replit, 21/09)
+    // O vigésimo sétimo é "Consultas de estoque", a caixa da Gráfica (21/09).
+    expect(itens).toBe(27);
   });
 
   it("e o controle de permissão segue de pé", () => {

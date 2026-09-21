@@ -28,6 +28,7 @@ const IMPORTADORES: Record<string, () => Promise<unknown>> = {
   "/solicitacao": () => import("@/pages/solicitacao"),
   "/grafica": () => import("@/pages/grafica"),
   "/grafica/maquinas": () => import("@/pages/grafica-maquinas"),
+  "/grafica/solicitacoes-ao-estoque": () => import("@/pages/solicitacoes-ao-estoque"),
   "/pedidos-de-peca": () => import("@/pages/pedidos-de-peca"),
   "/modelos": () => import("@/pages/modelos"),
   "/historico": () => import("@/pages/historico"),

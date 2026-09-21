@@ -1,6 +1,7 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { miniatura } from "@/lib/miniatura";
 import { SeloKit } from "@/components/kit/selo-kit";
+import { AvisoDoEstoqueNaPeca } from "@/components/consulta-de-estoque/aviso-na-grafica";
 import { EsqueletoDeFila } from "@/components/esqueleto-de-fila";
 import { Link } from "wouter";
 import { prefetchRota } from "@/lib/prefetch-de-rota";
@@ -42,7 +43,7 @@ import { GalpaoFila, type GalpaoDados } from "@/components/galpao-fila";
 import { SugestaoRecebedor } from "@/components/sugestao-recebedor";
 import { EM_REVISAO, rotuloDaMaquina, podeIrParaTubo, MAQUINAS_DE_IMPRESSAO } from "@shared/fluxo-peca";
 import { estaDividida, partesDaPeca, resumoDaDivisao } from "@shared/impressao-dividida";
-import { lerReserva, resumoDaReserva, semImpressora } from "@shared/reserva-de-impressora";
+import { lerReserva, resumoDaReserva, semImpressora, ocupanteDaImpressora } from "@shared/reserva-de-impressora";
 // Aritmética de saldo: fonte única em lib/saldo.ts. Estes onze cálculos
 // (quanto falta produzir, conferir, entregar, reaproveitar; quanto de m²
 // realmente vai para a impressora) viviam duplicados como consts locais no
@@ -82,7 +83,7 @@ import { tetoDeProducao } from "@/lib/grafica-producao";
 // toasts e o formulário moram em components/grafica/modal-impressao.tsx.
 import {
   useMutacoesDeImpressao, FormularioDeImpressao, cabecalhoDoModalDeImpressao,
-  progressoDaImpressao, rotuloCurtoDaAcao,
+  progressoDaImpressao, rotuloCurtoDaAcao, BarraDeImpressao,
 } from "@/components/grafica/modal-impressao";
 // Selo "Atualizado há X" — o mesmo formatador da Gestão de Prazos e das
 // Análises, para as três telas dizerem a idade do dado com as mesmas palavras.
@@ -178,7 +179,6 @@ function ProgressoImpressao({ item, fonte, duasLinhas, onIniciarResto }: { item:
   const resto = semImpressora(item);
   const teto = tetoDeProducao(item);
   const feitas = producedOf(item);
-  const pct = teto > 0 ? Math.min(100, Math.round((feitas / teto) * 100)) : 0;
   // Peça DIVIDIDA entre impressoras (Máquinas, 21/09): "Impressora 1 · 1 de 3
   // un. / Impressora 2 · 0 de 2 un." no lugar de uma impressora só.
   const dividida = estaDividida(item);
@@ -196,10 +196,12 @@ function ProgressoImpressao({ item, fonte, duasLinhas, onIniciarResto }: { item:
           Iniciar o resto
         </button>
       )}
-      {/* Barra decorativa (o texto acima já diz o número); 3px na cor da etapa. */}
-      <div aria-hidden="true" style={{ height: 3, borderRadius: 999, background: "#fed7aa", marginTop: 4, overflow: "hidden" }}>
-        <div style={{ width: `${pct}%`, height: "100%", background: "#f97316", borderRadius: 999, transition: "width 0.2s" }} />
-      </div>
+      {/* Sem barra com 0 impressas (o trilho vazio parecia um corte); dividida = uma barra por impressora. */}
+      {dividida
+        ? Object.entries(partesDaPeca(item)).map(([m, x]) => (
+          <BarraDeImpressao key={m} feitas={x.impressas} teto={x.atrib} rotulo={`${item.displayId ?? "peça"} na ${rotuloDaMaquina(m)}: ${x.impressas} de ${x.atrib} impressas`} />
+        ))
+        : <BarraDeImpressao feitas={feitas} teto={teto} rotulo={`${item.displayId ?? "peça"}: ${feitas} de ${teto} impressas`} />}
     </div>
   );
 }
@@ -601,6 +603,7 @@ function BulkActionDialog({
                     <div style={{ display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap", rowGap: 2 }}>
                       <span style={{ fontFamily: "'DM Mono', monospace", fontSize: fs(11), fontWeight: 700, color: isConfer ? tint : "#c2410c", flexShrink: 0 }}>{item.displayId}</span>
                       <SeloKit peca={item} style={{ flexShrink: 0 }} />
+                      <AvisoDoEstoqueNaPeca peca={item} style={{ flexShrink: 0 }} />
                       {/* O complemento tem a MESMA arte, o mesmo tipo e quase a
                           mesma descrição da peça original: numa conferência em
                           lote com as duas selecionadas, sem este selo as duas
@@ -4452,6 +4455,7 @@ export default function Grafica() {
                         </button>
                         {/* Kit (14/09): a peça do Kit se declara na fila, com a entrega. */}
                         <SeloKit peca={item} style={{ display: "flex", width: "fit-content", marginTop: 4 }} />
+                        <AvisoDoEstoqueNaPeca peca={item} style={{ marginTop: 4 }} />
                         {seloDoTubo(item) && (
                           <button type="button" data-testid={`chip-tubo-${item.id}`} title={tituloDoTubo(item)}
                             aria-label={`${seloDoTubo(item)} — ver o que está no tubo`}
@@ -5628,6 +5632,7 @@ export default function Grafica() {
                       <span style={{ display: "inline-flex", alignItems: "center", flexWrap: "wrap", gap: 6, minWidth: 0 }}>
                         <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: isMobile ? 16 : 13, color: selectedItem.isReuse ? '#047857' : '#c2410c' }}>{selectedItem.displayId}</span>
                         <SeloKit peca={selectedItem} style={{ flexShrink: 0 }} />
+                        <AvisoDoEstoqueNaPeca peca={selectedItem} style={{ flexShrink: 0 }} />
                         {/* Produzir/conferir/entregar um complemento é registrar
                             um LOTE SEPARADO: o modal precisa dizer isso, senão
                             o operador acha que está lançando na peça original. */}
@@ -5742,6 +5747,10 @@ export default function Grafica() {
                 key={`${selectedItem.id}:${iniciandoResto ? "resto" : ""}`}
                 parteAIniciar={iniciandoResto ? { quantidade: semImpressora(selectedItem), daReserva: false } : null}
                 item={selectedItem}
+                // Uma peça por vez por impressora: as ocupadas por OUTRA peça saem
+                // desabilitadas no seletor (derivado do que a fila já carregou — o
+                // 409 do servidor continua sendo a autoridade).
+                ocupadas={Object.fromEntries(MAQUINAS_DE_IMPRESSAO.map((m) => [m, ocupanteDaImpressora(pecasDoServidor as any[], m, selectedItem.id)] as const).filter(([, o]) => !!o).map(([m, o]) => [m, (o as any).displayId ?? null]))}
                 onFechar={() => { setSelectedItem(null); setModalType(null); }}
                 padModal={padModal}
                 mutacoes={mutacoesDeImpressao}

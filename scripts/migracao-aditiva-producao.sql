@@ -149,6 +149,47 @@ BEGIN
   END LOOP;
 END $$;
 
+-- ── 21/09 · Solicitação ao estoque a partir da Revisão Final ─────────────
+-- Quem revisa pede N un. ao estoque pelo modal Reaproveitamento; a Gráfica
+-- atende (tudo ou parte, reservando os ativos) ou diz que não consegue. Tabela
+-- nova, nada existente muda. O nome interno ficou "consulta de estoque".
+-- Sem coluna de local: o sistema não guarda onde a peça fica no galpão.
+CREATE TABLE IF NOT EXISTS consultas_de_estoque (
+  id varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+  item_id varchar NOT NULL,
+  event_id varchar NOT NULL,
+  pedido_por text,
+  pedido_por_id varchar,
+  pedido_em timestamp NOT NULL DEFAULT now(),
+  observacao text,
+  status text NOT NULL DEFAULT 'aberta',
+  quantidade_pedida integer NOT NULL,
+  quantidade_atendida integer,
+  ativos_ids text[] NOT NULL DEFAULT ARRAY[]::text[],
+  observacao_resposta text,
+  foto_url text,
+  respondido_por text,
+  respondido_por_id varchar,
+  respondido_em timestamp,
+  aplicado_em timestamp
+);
+CREATE INDEX IF NOT EXISTS "IDX_consultas_de_estoque_item" ON consultas_de_estoque (item_id);
+CREATE INDEX IF NOT EXISTS "IDX_consultas_de_estoque_status" ON consultas_de_estoque (status);
+CREATE UNIQUE INDEX IF NOT EXISTS "UQ_consultas_de_estoque_aberta_por_peca" ON consultas_de_estoque (item_id) WHERE status = 'aberta';
+DO $$
+DECLARE fk record;
+BEGIN
+  FOR fk IN SELECT * FROM (VALUES
+    ('consultas_de_estoque', 'consultas_de_estoque_item_id_items_id_fk', 'item_id', 'items', 'CASCADE'),
+    ('consultas_de_estoque', 'consultas_de_estoque_event_id_events_id_fk', 'event_id', 'events', 'CASCADE')
+  ) AS t(tabela, nome, coluna, referencia, acao) LOOP
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = fk.nome) THEN
+      EXECUTE format('ALTER TABLE %I ADD CONSTRAINT %I FOREIGN KEY (%I) REFERENCES %I(id) ON DELETE %s',
+        fk.tabela, fk.nome, fk.coluna, fk.referencia, fk.acao);
+    END IF;
+  END LOOP;
+END $$;
+
 -- ── 21/09 · Etapa "Embalado" (packed) ─────────────────────────────────────
 -- O status novo é TEXTO em items.status: não há enum nem constraint, então
 -- nada a migrar na peça. Só o TUBO ganha colunas (todas vazias ao nascer):

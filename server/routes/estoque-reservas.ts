@@ -47,7 +47,7 @@ import { requireAuth, requireRole, broadcast, createAuditLog, createAuditLogsEmL
 const requireReservaDeEstoque = requireRole("admin");
 
 /** Peça cancelada ou entregue não precisa mais de estoque. */
-const STATUS_SEM_ESTOQUE = new Set(["cancelled", "canceled", "cancelado", "delivered", "entregue"]);
+export const STATUS_SEM_ESTOQUE = new Set(["cancelled", "canceled", "cancelado", "delivered", "entregue"]);
 
 const erro = (httpStatus: number, message: string) => Object.assign(new Error(message), { httpStatus });
 
@@ -73,7 +73,7 @@ const COLUNAS_DO_ATIVO = {
   origemInicio: events.startDate,
 };
 
-type Ativo = {
+export type Ativo = {
   id: string; displayId: string; situacao: string; condicao: string; local: string | null;
   quantidade: number; sponsorIds: string[] | null; thumb: string | null;
   origemItemId: string; origemDisplayId: string | null; origemTipo: string; origemDescricao: string | null;
@@ -81,18 +81,18 @@ type Ativo = {
   origemEventId: string | null; origemEventName: string | null; origemInicio: Date | null;
 };
 
-type Reserva = {
+export type Reserva = {
   id: string; assetId: string; itemId: string | null; eventId: string; eventName: string;
   inicio: Date | null; saida: Date | null; reservadoPor: string | null; allocatedAt: Date; quantidade: number;
 };
 
-type Peca = {
+export type Peca = {
   id: string; displayId: string | null; type: string; quantity: number; status: string; deletedAt: Date | null;
   largura: string | null; altura: string | null; eventId: string; eventName: string | null;
   inicio: Date | null; saida: Date | null; sponsorIds: string[];
 };
 
-async function carregarAtivos(exec: Exec, ids?: string[]): Promise<Ativo[]> {
+export async function carregarAtivos(exec: Exec, ids?: string[]): Promise<Ativo[]> {
   if (ids && ids.length === 0) return [];
   return exec.select(COLUNAS_DO_ATIVO).from(inventoryAssets)
     .innerJoin(itemsTable, eq(itemsTable.id, inventoryAssets.originalItemId))
@@ -100,7 +100,7 @@ async function carregarAtivos(exec: Exec, ids?: string[]): Promise<Ativo[]> {
     .where(ids ? inArray(inventoryAssets.id, ids) : ne(inventoryAssets.trackingStatus, "DESCARTADO"));
 }
 
-async function carregarReservasAtivas(
+export async function carregarReservasAtivas(
   exec: Exec,
   agora: Date,
   filtro: { assetIds?: string[]; itemId?: string } = {},
@@ -130,7 +130,7 @@ async function carregarReservasAtivas(
   return linhas.filter((r) => reservaEstaAtiva(r.inicio, agora));
 }
 
-async function carregarPecas(exec: Exec, filtro: { itemId: string } | { eventId: string }): Promise<Peca[]> {
+export async function carregarPecas(exec: Exec, filtro: { itemId: string } | { eventId: string }): Promise<Peca[]> {
   const linhas = await exec.select({
     id: itemsTable.id,
     displayId: itemsTable.displayId,
@@ -162,12 +162,17 @@ async function carregarPecas(exec: Exec, filtro: { itemId: string } | { eventId:
 }
 
 /** A peça do estoque serve para esta peça? null = não é parecida. */
-function avaliar(peca: Peca, a: Ativo, reserva: Reserva | null, agora: Date) {
+export function avaliar(peca: Peca, a: Ativo, reserva: Reserva | null, agora: Date, exigirSemelhanca = true) {
   if (a.origemItemId === peca.id) return null;
-  if (normalizarTipo(a.origemTipo) !== normalizarTipo(peca.type)) return null;
-  if (!mesmaMedida({ largura: peca.largura, altura: peca.altura }, { largura: a.origemLargura, altura: a.origemAltura })) return null;
   const relacao = relacaoDePatrocinio(peca.sponsorIds, a.sponsorIds ?? []);
-  if (relacao === "diferente") return null;
+  // `exigirSemelhanca = false` (consulta de estoque, 21/09): a Gráfica achou a
+  // peça com os próprios olhos na busca manual — o tipo digitado diferente não
+  // pode barrar. A disponibilidade continua valendo igual.
+  if (exigirSemelhanca) {
+    if (normalizarTipo(a.origemTipo) !== normalizarTipo(peca.type)) return null;
+    if (!mesmaMedida({ largura: peca.largura, altura: peca.altura }, { largura: a.origemLargura, altura: a.origemAltura })) return null;
+    if (relacao === "diferente") return null;
+  }
   return {
     relacao,
     ...classificarDisponibilidade({
@@ -181,7 +186,7 @@ function avaliar(peca: Peca, a: Ativo, reserva: Reserva | null, agora: Date) {
   };
 }
 
-const caminhaoJaSaiu = (peca: { saida: Date | null }, agora: Date) =>
+export const caminhaoJaSaiu = (peca: { saida: Date | null }, agora: Date) =>
   !!peca.saida && agora.getTime() >= new Date(peca.saida).getTime();
 
 type Lote = {
@@ -200,6 +205,65 @@ type Lote = {
   ativos: Array<{ id: string; displayId: string; quantidade: number }>;
   quantidade: number;
 };
+
+/**
+ * A RESERVA, dentro de uma transação de quem chama. É o único lugar que grava
+ * reserva de peça: a rota de reservar (Estoque) e a resposta "temos" da
+ * consulta de estoque (21/09) passam por aqui — mesmas travas, mesmas recusas.
+ * Lança erro com `httpStatus`; quem chama traduz para a resposta.
+ */
+export async function reservarAtivosParaPeca(
+  tx: Exec,
+  e: { itemId: string; assetIds: string[]; quem: { userName?: string | null; userId?: string | null }; agora: Date; exigirSemelhanca?: boolean },
+): Promise<{ peca: Peca; ativos: Ativo[] }> {
+  const pedidos = e.assetIds;
+  const { quem, agora } = e;
+  const [peca] = await carregarPecas(tx, { itemId: e.itemId });
+  if (!peca || peca.deletedAt) throw erro(404, "Peça não encontrada");
+  if (STATUS_SEM_ESTOQUE.has(peca.status)) throw erro(409, "Peça cancelada ou já entregue não reserva estoque.");
+  if (caminhaoJaSaiu(peca, agora)) {
+    throw erro(409, "O caminhão deste evento já saiu — não dá mais para reservar peça do estoque para ele.");
+  }
+
+  // Trava as peças do estoque até o fim da transação: duas pessoas
+  // reservando a mesma peça no mesmo segundo — a segunda espera e
+  // encontra a reserva da primeira.
+  await tx.select({ id: inventoryAssets.id }).from(inventoryAssets)
+    .where(inArray(inventoryAssets.id, pedidos))
+    .for("update");
+
+  const ativos = await carregarAtivos(tx, pedidos);
+  if (ativos.length !== pedidos.length) {
+    throw erro(404, "Alguma peça escolhida não está mais no estoque — atualize a lista.");
+  }
+  const reservas = await carregarReservasAtivas(tx, agora, { assetIds: pedidos });
+  const jaDaPeca = await carregarReservasAtivas(tx, agora, { itemId: peca.id });
+  const unidadesJa = jaDaPeca.reduce((s, r) => s + r.quantidade, 0);
+  const unidadesNovas = ativos.reduce((s, a) => s + a.quantidade, 0);
+  if (unidadesJa + unidadesNovas > peca.quantity) {
+    const cabe = Math.max(0, peca.quantity - unidadesJa);
+    throw erro(409, `A peça tem ${peca.quantity} un. e já há ${unidadesJa} reservada(s) — dá para reservar mais ${cabe}.`);
+  }
+
+  const reservaPorAtivo = new Map(reservas.map((r) => [r.assetId, r]));
+  const recusas: string[] = [];
+  for (const a of ativos) {
+    const s = avaliar(peca, a, reservaPorAtivo.get(a.id) ?? null, agora, e.exigirSemelhanca !== false);
+    if (!s) recusas.push(`${a.displayId} não é do mesmo tipo e medida, ou tem outro patrocinador`);
+    else if (s.reservadaAqui) recusas.push(`${a.displayId} já está reservada para esta peça`);
+    else if (!podeReservar(s.disponibilidade)) recusas.push(`${a.displayId}: ${s.motivo}`);
+  }
+  if (recusas.length > 0) throw erro(409, `Não deu para reservar — ${recusas.join("; ")}.`);
+
+  await tx.insert(eventInventoryAllocations).values(ativos.map((a) => ({
+    eventId: peca.eventId,
+    assetId: a.id,
+    itemId: peca.id,
+    reservadoPor: quem.userName ?? null,
+    reservadoPorId: quem.userId ?? null,
+  })));
+  return { peca, ativos };
+}
 
 export function registerEstoqueReservasRoutes(app: Express): void {
   // Quantas peças parecidas cada peça do evento tem no estoque — o selo da
@@ -343,53 +407,8 @@ export function registerEstoqueReservasRoutes(app: Express): void {
 
       const agora = new Date();
       const quem = { userName: (req as any).userName, userId: (req as any).userId ?? null };
-      const { peca, ativos } = await db.transaction(async (tx) => {
-        const [peca] = await carregarPecas(tx, { itemId: req.params.id });
-        if (!peca || peca.deletedAt) throw erro(404, "Peça não encontrada");
-        if (STATUS_SEM_ESTOQUE.has(peca.status)) throw erro(409, "Peça cancelada ou já entregue não reserva estoque.");
-        if (caminhaoJaSaiu(peca, agora)) {
-          throw erro(409, "O caminhão deste evento já saiu — não dá mais para reservar peça do estoque para ele.");
-        }
-
-        // Trava as peças do estoque até o fim da transação: duas pessoas
-        // reservando a mesma peça no mesmo segundo — a segunda espera e
-        // encontra a reserva da primeira.
-        await tx.select({ id: inventoryAssets.id }).from(inventoryAssets)
-          .where(inArray(inventoryAssets.id, pedidos))
-          .for("update");
-
-        const ativos = await carregarAtivos(tx, pedidos);
-        if (ativos.length !== pedidos.length) {
-          throw erro(404, "Alguma peça escolhida não está mais no estoque — atualize a lista.");
-        }
-        const reservas = await carregarReservasAtivas(tx, agora, { assetIds: pedidos });
-        const jaDaPeca = await carregarReservasAtivas(tx, agora, { itemId: peca.id });
-        const unidadesJa = jaDaPeca.reduce((s, r) => s + r.quantidade, 0);
-        const unidadesNovas = ativos.reduce((s, a) => s + a.quantidade, 0);
-        if (unidadesJa + unidadesNovas > peca.quantity) {
-          const cabe = Math.max(0, peca.quantity - unidadesJa);
-          throw erro(409, `A peça tem ${peca.quantity} un. e já há ${unidadesJa} reservada(s) — dá para reservar mais ${cabe}.`);
-        }
-
-        const reservaPorAtivo = new Map(reservas.map((r) => [r.assetId, r]));
-        const recusas: string[] = [];
-        for (const a of ativos) {
-          const s = avaliar(peca, a, reservaPorAtivo.get(a.id) ?? null, agora);
-          if (!s) recusas.push(`${a.displayId} não é do mesmo tipo e medida, ou tem outro patrocinador`);
-          else if (s.reservadaAqui) recusas.push(`${a.displayId} já está reservada para esta peça`);
-          else if (!podeReservar(s.disponibilidade)) recusas.push(`${a.displayId}: ${s.motivo}`);
-        }
-        if (recusas.length > 0) throw erro(409, `Não deu para reservar — ${recusas.join("; ")}.`);
-
-        await tx.insert(eventInventoryAllocations).values(ativos.map((a) => ({
-          eventId: peca.eventId,
-          assetId: a.id,
-          itemId: peca.id,
-          reservadoPor: quem.userName ?? null,
-          reservadoPorId: quem.userId,
-        })));
-        return { peca, ativos };
-      });
+      const { peca, ativos } = await db.transaction((tx) =>
+        reservarAtivosParaPeca(tx, { itemId: req.params.id, assetIds: pedidos, quem, agora }));
 
       const codigos = ativos.map((a) => a.displayId).join(", ");
       const unidades = ativos.reduce((s, a) => s + a.quantidade, 0);

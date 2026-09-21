@@ -7,6 +7,7 @@ import { parseDateLocal, toUTCDisplayDate } from "@/lib/utils";
 import { convertGCSUrlToLocalPath } from "@/lib/artePdfExport";
 import { refsDaPeca } from "@/lib/refs-da-peca";
 import { POS_APROVACAO } from "@shared/fluxo-peca";
+import { rotuloDaMaquina } from "@shared/fluxo-peca";
 import { getApprovalMeta, getStatusLabel, guiaDoStatus, marcoEventoFinalizado, proximoPassoDaAprovacao, todayBusinessMs } from "@/lib/status";
 import {
   Edit, Save, X, Check, Clock, Eye, ExternalLink, Camera, Paperclip,
@@ -477,8 +478,10 @@ export function ItemDetailsDialog({
     { label: "Liberado para Produção",          keywords: ["pronto p/ produção", "pronto para produção", "liberado para produção"], pool: itemLogsFlow,
       match: (d, t) => t.includes("pronto p/ produção") || t.includes("pronto para produção")
                     || d.includes("liberado para produção") || d.includes("aprovado para produção") },
-    { label: "Em Produção",                     keywords: ["em produção"], pool: itemLogsFlow, actionType: "production" },
-    { label: "Produzido",                       keywords: ["produzido"], pool: itemLogsFlow, actionType: "produced" },
+    // Os nomes mudaram em 14/09; a trilha antiga continua dizendo "Em Produção"
+    // e "Produzido", então as palavras velhas seguem reconhecidas.
+    { label: "Em Impressão",                    keywords: ["em impressão", "impressão iniciada", "em produção"], pool: itemLogsFlow, actionType: "production" },
+    { label: "Em Acabamento / Conferência",     keywords: ["acabamento / conferência", "produzido"], pool: itemLogsFlow, actionType: "produced" },
     // As etapas da Gráfica faltavam por completo: a trilha terminava em
     // "Produzido" mesmo em peças já conferidas e entregues.
     { label: "Conferido",                       keywords: [], pool: itemLogsFlow,
@@ -682,10 +685,10 @@ export function ItemDetailsDialog({
       return { tom: "ok", frase: "Liberada para produção", detalhe: `A gráfica pode imprimir${desdeQuando ? ` · liberada${desdeQuando}` : ""}` };
     }
     if (["inproduction", "inProduction", "em_producao"].includes(rawStatus)) {
-      return { tom: "espera", frase: `Em produção na gráfica${desdeQuando}`, detalhe: null };
+      return { tom: "espera", frase: `Em impressão${item.printMachine ? ` na ${rotuloDaMaquina(item.printMachine)}` : ""}${desdeQuando}`, detalhe: item.quantityProduced > 0 ? `${item.quantityProduced} de ${item.quantity} já impressas` : null };
     }
     if (["produced", "produzido"].includes(rawStatus)) {
-      return { tom: "espera", frase: `Produzida — falta conferir${desdeQuando}`, detalhe: item.conferredQty > 0 ? `${item.conferredQty} de ${item.quantity} já conferidas` : null };
+      return { tom: "espera", frase: `Em acabamento / conferência${desdeQuando}`, detalhe: item.conferredQty > 0 ? `${item.conferredQty} de ${item.quantity} já conferidas` : null };
     }
     if (["conferred", "conferido"].includes(rawStatus)) {
       return { tom: "espera", frase: `Conferida — falta entregar${desdeQuando}`, detalhe: item.deliveredQty > 0 ? `${item.deliveredQty} de ${item.quantity} já entregues` : null };
@@ -762,7 +765,7 @@ export function ItemDetailsDialog({
   // ── Andamento na gráfica ──────────────────────────────────────────────────
   const andamentoGrafica = ([
     ["Reaproveitado", item.reuseQty,        "#047857"],
-    ["Produzido",     item.quantityProduced,"#7e22ce"],
+    ["Impresso",      item.quantityProduced,"#7e22ce"],
     ["Conferido",     item.conferredQty,    "#0e7490"],
     ["Entregue",      item.deliveredQty,    "#047857"],
   ] as const).filter(([, v]) => v > 0);

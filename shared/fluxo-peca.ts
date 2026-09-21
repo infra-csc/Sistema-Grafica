@@ -119,3 +119,33 @@ export const DISPENSAVEIS: readonly string[] = [
 
 /** Onde a peça cai ao pular a aprovação: a fila de finalização da Arte. */
 export const DESTINO_DA_DISPENSA = "awaiting_creator_review";
+
+/**
+ * AS MÁQUINAS DA GRÁFICA (dono, 14/09: "quando iniciar a produção, selecionar
+ * a máquina; ainda não tenho as máquinas, então vira 1, 2, 3, 4").
+ *
+ * Por enquanto são só números. Quando as máquinas ganharem nome, é ESTA lista
+ * que muda — o banco guarda o código ("1".."4") e a tela lê o rótulo daqui.
+ * Nomear a máquina direto na coluna faria todo histórico antigo mudar de nome
+ * junto, ou ficar com dois nomes para a mesma máquina.
+ */
+export const MAQUINAS_DE_IMPRESSAO: readonly string[] = ["1", "2", "3", "4"];
+
+export const ehMaquinaValida = (m: unknown): m is string =>
+  typeof m === "string" && MAQUINAS_DE_IMPRESSAO.includes(m);
+
+/**
+ * O NOME de cada impressora (dono, 21/09). Fonte ÚNICA: botões, seletor, aba
+ * Máquinas, histórico, Excel e ficha leem daqui. O banco segue gravando só o
+ * código ("1".."4") — trocar o nome aqui renomeia o passado junto, que é o
+ * que se quer (é a mesma máquina física).
+ */
+export const NOMES_DAS_MAQUINAS: Readonly<Record<string, string>> = {
+  "1": "Impressora 1 (New XT)",
+  "2": "Impressora 2",
+  "3": "Impressora 3",
+  "4": "Impressora 4 (Targa Elite)",
+};
+
+export const rotuloDaMaquina = (m: string | null | undefined): string =>
+  m ? (NOMES_DAS_MAQUINAS[m] ?? `Impressora ${m}`) : "máquina não informada";

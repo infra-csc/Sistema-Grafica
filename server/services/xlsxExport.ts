@@ -66,8 +66,8 @@ const STATUS_LABELS: Record<string, string> = {
   awaiting_approval: "Ag. Aprovação", awaiting_finalization: "Ag. Finalização",
   awaiting_final_review: "Ag. Revisão", awaiting_creator_review: "Ag. Finalização",
   ready_for_production: "Pronto p/ Prod.", pronto_para_producao: "Pronto p/ Prod.",
-  approved: "Liberado", inProduction: "Em Produção", em_producao: "Em Produção",
-  produced: "Produzido", conferred: "Conferido", delivered: "Entregue",
+  approved: "Liberado", inProduction: "Em Impressão", em_producao: "Em Impressão",
+  produced: "Em Acabamento / Conferência", conferred: "Conferido", delivered: "Entregue",
 };
 
 async function withSponsorNames(rawItems: any[]) {

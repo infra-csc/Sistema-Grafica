@@ -72,8 +72,13 @@ export function translateStatus(status: string): string {
     in_review: "Em Revisão",
     ready_for_production: "Pronto para Produção",
     approved: "Liberado",
-    inProduction: "Em Produção",
-    produced: "Produzido",
+    // Renomeados em 14/09 (dono): "Em Produção" → "Em Impressão" (a peça está
+    // NA MÁQUINA) e "Produzido" → "Em Acabamento / Conferência" (saiu da
+    // máquina e ainda precisa de acabamento e conferência). As chaves não
+    // mudaram — só o que se lê. A trilha antiga segue com os nomes velhos, e
+    // quem a interpreta reconhece os dois (ver tempo-etapas e a ficha).
+    inProduction: "Em Impressão",
+    produced: "Em Acabamento / Conferência",
     conferred: "Conferido",
     delivered: "Entregue",
     canceled: "Cancelado",

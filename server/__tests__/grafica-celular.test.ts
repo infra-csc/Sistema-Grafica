@@ -301,7 +301,7 @@ describe.each([360, 390])("Gráfica em %ipx de largura", (largura) => {
     const noCartao = (rotulo: RegExp) => Array.from(document.querySelectorAll<HTMLElement>("[data-item-row] button"))
       .find((b) => rotulo.test((b.textContent ?? "").trim()) && !(b as HTMLButtonElement).disabled) ?? null;
     const casos: [() => HTMLElement | null, string][] = [
-      [() => noCartao(/^Produzir$/), '[data-testid="button-confirm-production"]'],
+      [() => noCartao(/^Imprimir$/), '[data-testid="button-confirm-production"]'],
       [() => noCartao(/^Conferir( \d+)?$/), '[data-testid="button-confirm-conference"]'],
       [() => noCartao(/^Entregar( \d+)?$/), '[data-testid="button-confirm-delivery"]'],
       [() => $('[data-testid^="button-devolver-revisao-card-"]'), '[data-testid="button-confirmar-devolver-revisao"]'],

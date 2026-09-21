@@ -36,7 +36,7 @@ import { useAuth } from "@/contexts/auth-context";
 import { ModalHeader, modalSurface, HIDE_NATIVE_CLOSE } from "@/components/modal-shell";
 import { GalpaoFila, type GalpaoDados } from "@/components/galpao-fila";
 import { SugestaoRecebedor } from "@/components/sugestao-recebedor";
-import { EM_REVISAO } from "@shared/fluxo-peca";
+import { EM_REVISAO, MAQUINAS_DE_IMPRESSAO, rotuloDaMaquina } from "@shared/fluxo-peca";
 // Aritmética de saldo: fonte única em lib/saldo.ts. Estes onze cálculos
 // (quanto falta produzir, conferir, entregar, reaproveitar; quanto de m²
 // realmente vai para a impressora) viviam duplicados como consts locais no
@@ -139,6 +139,12 @@ const parentDisplayIdOf = (item: any) =>
  * identidade permanente ("complemento de #0062") — o alarme some sozinho, sem
  * ninguém precisar confirmar nada.
  */
+// Rótulo da ação principal da peça que JÁ está na máquina: diz em qual
+// impressora ela está (o nome do dono, de shared/fluxo-peca) e o que falta
+// fazer. Peça antiga, que entrou "Em Impressão" antes de existir a escolha,
+// não tem máquina — aí o botão só diz a ação, em vez de "máquina não informada".
+const rotuloRegistrarImpressao = (item: { printMachine?: string | null }) =>
+  item.printMachine ? `${rotuloDaMaquina(item.printMachine)} · Registrar` : "Registrar impressão";
 const complementOpen = (item: any) => isComplement(item) && !isDelivered(item);
 /** Espelha o gate do servidor no DELETE /api/items/:id/complement. */
 const complementUntouched = (item: any) =>
@@ -1008,6 +1014,12 @@ export default function Grafica() {
   const hojeUTC = hojeEmUTC(new Date(agora));
   const ctxFiltros = useMemo(() => ({ groupOf, hojeUTC }), [groupOf, hojeUTC]);
 
+  // A máquina escolhida no modal (dono, 14/09). Começa com a da peça, se ela
+  // já estiver em impressão; vazia obriga a escolha.
+  const [maquinaEscolhida, setMaquinaEscolhida] = useState<string>("");
+  // Trava do submit do registro de impressão (ver handleSubmitProduction).
+  const envioProducaoRef = useRef(false);
+
   const startProductionMutation = useMutation({
     mutationFn: async ({ itemId, data }: { itemId: string; data: any; displayId?: string }) =>
       await apiRequest("PATCH", `/api/items/${itemId}/start-production`, data),
@@ -1020,8 +1032,10 @@ export default function Grafica() {
       // "o que fez hoje" perceber na hora que substituiu o valor anterior.
       const total = Number(vars.data?.quantityProduced);
       toast({
-        title: `Produção registrada${vars.displayId ? ` · ${vars.displayId}` : ""}`,
-        description: Number.isFinite(total) && total > 0 ? `Total produzido agora: ${total} un.` : "A produção foi registrada.",
+        title: `Impressão registrada${vars.displayId ? ` · ${vars.displayId}` : ""}`,
+        description: Number.isFinite(total) && total > 0
+          ? `Total impresso agora: ${total} un. A peça segue para acabamento e conferência quando a quantidade fecha.`
+          : "A peça segue para acabamento e conferência quando a quantidade fecha.",
       });
     },
     onError: (error: Error) => {
@@ -1037,6 +1051,20 @@ export default function Grafica() {
         variant: "destructive",
       });
     },
+  });
+
+  // PRIMEIRO MOMENTO (14/09): a peça entra na máquina e fica "Em Impressão".
+  // O segundo — registrar o que saiu — continua sendo startProductionMutation.
+  const startPrintingMutation = useMutation({
+    mutationFn: async ({ itemId, printMachine }: { itemId: string; printMachine: string; displayId?: string }) =>
+      await apiRequest("PATCH", `/api/items/${itemId}/start-printing`, { printMachine }),
+    onSuccess: (_r, vars) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/items/approved"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+      setSelectedItem(null); setModalType(null);
+      toast({ title: `Em impressão na ${rotuloDaMaquina(vars.printMachine)}${vars.displayId ? ` · ${vars.displayId}` : ""}`, description: "Quando sair da máquina, registre o total impresso." });
+    },
+    onError: (error: Error) => toast({ title: "Não foi possível iniciar a impressão", description: apiErrorMessage(error), variant: "destructive" }),
   });
 
   // FEEDBACK QUE NOMEIA A PEÇA. "O item foi marcado como entregue com sucesso"
@@ -1362,8 +1390,8 @@ export default function Grafica() {
     { value: "awaiting_final_review", label: "Em Revisão" },
     { value: "ready_for_production", label: "Pronto p/ Produção" },
     { value: "approved",             label: "Liberados" },
-    { value: "inProduction",         label: "Em Produção" },
-    { value: "produced",             label: "Produzidos" },
+    { value: "inProduction",         label: "Em Impressão" },
+    { value: "produced",             label: "Em Acabamento / Conferência" },
     { value: "conferred",            label: "Conferidos" },
     { value: "delivered",            label: "Entregues" },
   ] as const;
@@ -1739,19 +1767,31 @@ export default function Grafica() {
   const handleSubmitProduction = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedItem) return;
+    // Enter SEGURADO no teclado numérico dispara vários submits antes de o
+    // React redesenhar o botão desabilitado — o `isPending` da closure ainda
+    // é false. A trava por ref vale na hora, e solta quando a gravação termina.
+    if (envioProducaoRef.current || startProductionMutation.isPending) return;
     // O campo grava o TOTAL produzido (contrato ABSOLUTO do servidor) enquanto
     // os dois modais irmãos mandam incremento. `avaliarProducao` é a única
     // dona dessa diferença: valida o teto, monta o `expectedProduced` (o lock
     // otimista que o servidor sempre soube conferir e o cliente nunca enviava)
     // e diz quando a gravação REDUZ o registro — caso em que a pergunta cita os
     // dois números, em vez de um "tem certeza?" que ninguém lê.
-    const av = avaliarProducao(selectedItem, productionData.quantityProduced);
+    if (!maquinaEscolhida) {
+      toast({ title: "Escolha a máquina", description: "Diga em qual máquina a peça foi impressa antes de registrar.", variant: "destructive" });
+      return;
+    }
+    const av = avaliarProducao(selectedItem, productionData.quantityProduced, maquinaEscolhida);
     if (!av.ok || !av.payload) {
       toast({ title: "Quantidade inválida", description: av.erro, variant: "destructive" });
       return;
     }
     if (av.precisaConfirmar && !window.confirm(av.confirmacao)) return;
-    startProductionMutation.mutate({ itemId: selectedItem.id, data: av.payload, displayId: selectedItem.displayId });
+    envioProducaoRef.current = true;
+    startProductionMutation.mutate(
+      { itemId: selectedItem.id, data: av.payload, displayId: selectedItem.displayId },
+      { onSettled: () => { envioProducaoRef.current = false; } },
+    );
   };
 
   const handleSubmitDelivery = async (e: React.FormEvent) => {
@@ -1871,6 +1911,7 @@ export default function Grafica() {
     // Pré-preenche com o TOTAL a produzir (o campo é absoluto): o que já foi
     // reaproveitado não precisa ser produzido de novo. Quem só confirma acerta.
     setProductionData({ quantityProduced: tetoDeProducao(item) });
+    setMaquinaEscolhida(item.printMachine ?? "");
   };
 
   // Exporta a lista visível. Manda os ids em vez de repetir os filtros no
@@ -2549,8 +2590,8 @@ export default function Grafica() {
           // do fluxo: é o trabalho CHEGANDO — visível, sem ação da Gráfica.
           { label: "Em Revisão",   value: stats.revisao,    sub: "Chegando da Revisão",  testId: "stat-revisao",    filterVals: ["awaiting_final_review"] },
           { label: "Liberados",    value: stats.liberados,  sub: "Aguardam produção",    testId: "stat-approved",   filterVals: ["ready_for_production", "approved"] },
-          { label: "Em Produção",  value: stats.emProducao, sub: "Sendo impressos",      testId: "stat-production", filterVals: ["inProduction"] },
-          { label: "Produzidos",   value: stats.produzidos, sub: "Aguardam conferência", testId: "stat-produced",   filterVals: ["produced"] },
+          { label: "Em Impressão", value: stats.emProducao, sub: "Na máquina",           testId: "stat-production", filterVals: ["inProduction"] },
+          { label: "Acabamento",   value: stats.produzidos, sub: "Aguardam conferência", testId: "stat-produced",   filterVals: ["produced"] },
           { label: "Conferidos",   value: stats.conferidos, sub: "Aguardam entrega",     testId: "stat-conferred",  filterVals: ["conferred"] },
           { label: "Entregues",    value: stats.entregues,  sub: "Já saíram",            testId: "stat-delivered",  filterVals: ["delivered"] },
         ].map(kpi => {
@@ -3610,7 +3651,7 @@ export default function Grafica() {
                               style={{ order: 0, flex: '2 1 150px', minHeight: 48, padding: '0 12px', borderRadius: 8, background: selo ? '#f5f5f4' : CO.solidBg, border: selo ? `1px solid ${TI.border}` : 'none', color: selo ? '#78716c' : '#fff', fontSize: 14, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, cursor: selo ? 'not-allowed' : 'pointer', whiteSpace: 'nowrap' }}
                             >
                               <Play aria-hidden="true" style={{ width: 13, height: 13 }} />
-                              Produzir {remainingProduce(item)}
+                              {isInProd(item) ? rotuloRegistrarImpressao(item) : `Imprimir ${remainingProduce(item)}`}
                             </button>
                           )}
                           {/* PRODUZIR / CONTINUAR da peça comum — o mesmo botão
@@ -3623,12 +3664,12 @@ export default function Grafica() {
                               disabled={!!selo}
                               title={selo
                                 ? motivoAcaoBloqueada(selo.motivo, "produzir")
-                                : isInProd(item) ? "Continuar Produção" : "Iniciar Produção"}
+                                : isInProd(item) ? `Em impressão na ${rotuloDaMaquina(item.printMachine)} — registrar o que saiu` : "Escolher a máquina e iniciar a impressão"}
                               data-testid={`button-production-card-${item.id}`}
                               style={{ order: 0, flex: '2 1 150px', minHeight: 48, padding: '0 12px', borderRadius: 8, background: selo ? '#f5f5f4' : TI.text, border: selo ? `1px solid ${TI.border}` : 'none', color: selo ? '#78716c' : '#fff', fontSize: 14, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, cursor: selo ? 'not-allowed' : 'pointer', whiteSpace: 'nowrap' }}
                             >
                               <Play aria-hidden="true" style={{ width: 13, height: 13 }} />
-                              {isInProd(item) ? 'Continuar' : 'Produzir'}
+                              {isInProd(item) ? rotuloRegistrarImpressao(item) : 'Imprimir'}
                             </button>
                           )}
                           {/* REAPROVEITAR / AJUSTAR — mesma edição em linha da
@@ -4694,7 +4735,7 @@ export default function Grafica() {
                                  renderia 409. */
                               title={selo
                                 ? motivoAcaoBloqueada(selo.motivo, "produzir")
-                                : isInProd(item) ? "Continuar Produção" : "Iniciar Produção"}
+                                : isInProd(item) ? `Em impressão na ${rotuloDaMaquina(item.printMachine)} — registrar o que saiu` : "Escolher a máquina e iniciar a impressão"}
                               data-testid={`button-production-${item.id}`}
                               /* Desabilitado: #78716c sobre #f5f5f4 → 4,84:1
                                  nos 11px/700. */
@@ -4705,7 +4746,7 @@ export default function Grafica() {
                               onMouseLeave={e => { if (!selo) (e.currentTarget as HTMLButtonElement).style.backgroundColor = TI.text; }}
                             >
                               <Play aria-hidden="true" style={{ width: 13, height: 13 }} />
-                              {isInProd(item) ? "Continuar" : "Produzir"}
+                              {isInProd(item) ? rotuloRegistrarImpressao(item) : "Imprimir"}
                             </button>
                           )}
 
@@ -5075,11 +5116,11 @@ export default function Grafica() {
             icon={modalType === "production" ? Play : modalType === "conference" ? CheckCircle : Truck}
             tint={modalType === "conference" ? "#0e7490" : modalType === "delivery" ? "#c2410c" : TI.text}
             title={modalType === "production"
-              ? (producedOf(selectedItem) > 0 ? "Continuar produção" : "Iniciar produção")
+              ? (isInProd(selectedItem) ? `Em impressão · ${rotuloDaMaquina(selectedItem?.printMachine)}` : producedOf(selectedItem) > 0 ? "Continuar impressão" : "Imprimir peça")
               : modalType === "conference" ? "Conferir peça"
               : "Confirmar entrega"}
             subtitle={modalType === "production"
-              ? (producedOf(selectedItem) > 0 ? "O campo grava o TOTAL produzido" : "Registre a quantidade produzida")
+              ? (isInProd(selectedItem) ? "Quando sair da máquina, registre o total impresso" : "Escolha a máquina e inicie a impressão")
               : modalType === "conference" ? "Compare a peça pronta com a arte e tire a foto"
               : "Foto do comprovante (obrigatória) e quem recebeu"}
             onClose={() => { setSelectedItem(null); setModalType(null); }}
@@ -5258,6 +5299,40 @@ export default function Grafica() {
             {/* ── FORM: PRODUÇÃO ── */}
             {selectedItem && modalType === "production" && (
               <form onSubmit={handleSubmitProduction} style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+                {/* A MÁQUINA (dono, 14/09) — primeira coisa do formulário,
+                    porque é o que "iniciar a impressão" significa. Botões
+                    grandes e não um select: é tela de galpão, muitas vezes no
+                    celular, e quatro alvos de toque resolvem com um dedo.
+                    Com os NOMES das impressoras (21/09) o texto cresceu: no
+                    celular vira 2×2, para "Impressora 4 (Targa Elite)" caber
+                    sem quebrar em três linhas. */}
+                <div role="radiogroup" aria-label="Impressora" data-testid="seletor-maquina">
+                  <div style={{ fontSize: fsMin(10), fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#746e69", marginBottom: 8 }}>
+                    Impressora
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : `repeat(${MAQUINAS_DE_IMPRESSAO.length}, 1fr)`, gap: 8 }}>
+                    {MAQUINAS_DE_IMPRESSAO.map((m) => {
+                      const ativa = maquinaEscolhida === m;
+                      return (
+                        <button
+                          key={m}
+                          type="button"
+                          role="radio"
+                          aria-checked={ativa}
+                          onClick={() => setMaquinaEscolhida(m)}
+                          data-testid={`maquina-${m}`}
+                          style={{ minHeight: 48, padding: "6px 8px", borderRadius: 8, cursor: "pointer", fontFamily: "'Space Grotesk', sans-serif", fontSize: 13, fontWeight: 800, lineHeight: 1.2, backgroundColor: ativa ? TI.text : "#f4f3f0", color: ativa ? "#ffffff" : TI.text, border: ativa ? `2px solid ${TI.text}` : "2px solid transparent", transition: "background-color 0.12s" }}
+                        >
+                          {rotuloDaMaquina(m)}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {!maquinaEscolhida && (
+                    <div style={{ fontSize: 12, color: "#b45309", marginTop: 6 }}>Escolha a impressora para continuar.</div>
+                  )}
+                </div>
+
                 <div>
                   {/* O rótulo era "Quantidade a Produzir", irmão de "Quantidade
                       a conferir agora" e "Quantidade a entregar agora" — e os
@@ -5320,9 +5395,23 @@ export default function Grafica() {
                   >
                     Cancelar
                   </button>
+                  {/* "Iniciar impressão" só existe enquanto a peça NÃO está na
+                      máquina. Já em impressão, escolher outra máquina e clicar
+                      aqui TROCA a máquina — por isso o rótulo muda. */}
+                  {(!isInProd(selectedItem) || (maquinaEscolhida && maquinaEscolhida !== selectedItem.printMachine)) && (
+                    <button
+                      type="button"
+                      onClick={() => { if (maquinaEscolhida) startPrintingMutation.mutate({ itemId: selectedItem.id, printMachine: maquinaEscolhida }); }}
+                      disabled={startPrintingMutation.isPending || !maquinaEscolhida}
+                      data-testid="button-iniciar-impressao"
+                      style={{ flex: 2, minHeight: isMobile ? 48 : 44, padding: "0 12px", backgroundColor: "#ffffff", border: `1.5px solid ${TI.text}`, color: TI.text, fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 14, borderRadius: 8, cursor: startPrintingMutation.isPending || !maquinaEscolhida ? "not-allowed" : "pointer", opacity: startPrintingMutation.isPending || !maquinaEscolhida ? 0.55 : 1 }}
+                    >
+                      {startPrintingMutation.isPending ? "Salvando..." : isInProd(selectedItem) ? "Trocar máquina" : "Iniciar impressão"}
+                    </button>
+                  )}
                   <button
                     type="submit"
-                    disabled={startProductionMutation.isPending || productionData.quantityProduced === 0}
+                    disabled={startProductionMutation.isPending || productionData.quantityProduced === 0 || !maquinaEscolhida}
                     data-testid="button-confirm-production"
                     aria-busy={startProductionMutation.isPending || undefined}
                     style={{ flex: 2, minHeight: isMobile ? 48 : 44, padding: "0 12px", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, backgroundColor: TI.text, border: "none", color: "#ffffff", fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 14, cursor: startProductionMutation.isPending || productionData.quantityProduced === 0 ? "not-allowed" : "pointer", borderRadius: 8, opacity: startProductionMutation.isPending || productionData.quantityProduced === 0 ? 0.6 : 1, transition: "background-color 0.15s" }}
@@ -5330,10 +5419,7 @@ export default function Grafica() {
                     onMouseLeave={e => { if (!startProductionMutation.isPending) (e.currentTarget as HTMLButtonElement).style.backgroundColor = TI.text; }}
                   >
                     {startProductionMutation.isPending && <Loader2 aria-hidden="true" className="animate-spin" style={{ width: 14, height: 14 }} />}
-                    {/* O CTA repete o número que vai ser GRAVADO — o campo é
-                        absoluto, e ler "Gravar total: 8 un." antes do toque é a
-                        última chance de perceber que se digitou "o de hoje". */}
-                    {startProductionMutation.isPending ? "Registrando…" : productionData.quantityProduced > 0 ? `Gravar total: ${productionData.quantityProduced} un.` : "Informe o total produzido"}
+                    {startProductionMutation.isPending ? "Registrando…" : isInProd(selectedItem) ? "Registrar impresso" : "Já impresso"}
                   </button>
                 </div>
               </form>

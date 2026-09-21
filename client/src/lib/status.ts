@@ -91,8 +91,12 @@ export const STATUS: Record<string, StatusMeta> = {
   // short = "Em Produção" (não "Produzindo"): no Painel Geral os cards
   // "Produzindo" e "Produzido" ficavam lado a lado com 1 letra de diferença —
   // impossível de escanear. "Em Produção" tem o mesmo tamanho e zero ambiguidade.
-  inProduction:          meta("Em Produção",            "Em Produção",    P.orange,  Package),
-  produced:              meta("Produzido",              "Produzido",      P.pink,    CheckCircle),
+  // 14/09 (dono): "Em Produção" virou "Em Impressão" — a peça está NA
+  // MÁQUINA — e "Produzido" virou "Em Acabamento / Conferência": saiu da
+  // máquina e ainda precisa de acabamento e conferência. O curto do segundo
+  // é "Acabamento": cabe onde "Produzido" cabia.
+  inProduction:          meta("Em Impressão",           "Em Impressão",   P.orange,  Package),
+  produced:              meta("Em Acabamento / Conferência", "Acabamento", P.pink,    CheckCircle),
   conferred:             meta("Conferido",              "Conferido",      P.cyan,    CheckCircle),
   delivered:             meta("Entregue",               "Entregue",       P.emerald, Truck),
   // ── Aliases LEGADOS em português (dados antigos ainda gravados assim) ──
@@ -100,8 +104,8 @@ export const STATUS: Record<string, StatusMeta> = {
   // (liberado→approved, em_producao→inProduction, produzido→produced,
   // entregue→delivered). Sem eles, o badge caía no fallback "—".
   liberado:              meta("Liberado",               "Liberado",       P.green,   CheckCircle),
-  em_producao:           meta("Em Produção",            "Em Produção",    P.orange,  Package),
-  produzido:             meta("Produzido",              "Produzido",      P.pink,    CheckCircle),
+  em_producao:           meta("Em Impressão",           "Em Impressão",   P.orange,  Package),
+  produzido:             meta("Em Acabamento / Conferência", "Acabamento", P.pink,    CheckCircle),
   entregue:              meta("Entregue",               "Entregue",       P.emerald, Truck),
   // ── Encerrados ──
   canceled:              meta("Cancelado",              "Cancelado",      P.red, XCircle),
@@ -201,17 +205,19 @@ const G_PRONTO: StatusGuia = {
   vez: "vez da Gráfica",
 };
 const G_EM_PRODUCAO: StatusGuia = {
-  significado: "A gráfica começou a imprimir e ainda falta parte da quantidade.",
+  // Com a escolha da máquina (14/09), "Em Impressão" é a peça NA impressora —
+  // começou e ainda não saiu toda. O guia diz isso e o próximo gesto.
+  significado: "A peça está na impressora escolhida e ainda não saiu toda.",
   quemAge: "Gráfica",
   onde: "tela Gráfica",
-  proximoPasso: "Registrar o restante da produção.",
+  proximoPasso: "Registrar quantas já saíram da máquina; com todas, vai para acabamento.",
   vez: "vez da Gráfica",
 };
 const G_PRODUZIDO: StatusGuia = {
-  significado: "Impressa na quantidade total; ainda não foi conferida.",
+  significado: "Saiu toda da impressora; está no acabamento e ainda não foi conferida.",
   quemAge: "Gráfica ou Solicitação",
   onde: "tela Gráfica",
-  proximoPasso: "Conferir a peça (com foto).",
+  proximoPasso: "Terminar o acabamento e conferir a peça (com foto).",
   vez: "vez da conferência",
 };
 const G_ENTREGUE: StatusGuia = {

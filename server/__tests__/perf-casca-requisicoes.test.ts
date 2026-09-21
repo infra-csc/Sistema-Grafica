@@ -105,7 +105,7 @@ describe("o menu pré-carrega a tela antes do clique", () => {
     const menu = lerFonte("client/src/components/app-sidebar.tsx");
     const prefetch = lerFonte("client/src/lib/prefetch-de-rota.ts");
     const urls = Array.from(menu.matchAll(/\{ title: "[^"]+",\s*url: "([^"]+)"/g), (m) => m[1]);
-    expect(urls.length).toBe(24); // + Máquinas da Gráfica (/grafica/maquinas)
+    expect(urls.length).toBe(26); // + Máquinas, Inferir executivos e Reparo de vínculos
     for (const url of urls) expect(prefetch, url).toContain(`"${url}": () => import(`);
     expect(menu).toContain("prefetchRota(item.url)");
   });

@@ -40,6 +40,8 @@ const IMPORTADORES: Record<string, () => Promise<unknown>> = {
   "/estoque": () => import("@/pages/estoque"),
   "/usuarios": () => import("@/pages/usuarios"),
   "/reparo-motivos": () => import("@/pages/reparo-motivos"),
+  "/reparo-vinculos-evento": () => import("@/pages/reparo-vinculos-evento"),
+  "/inferir-executivos": () => import("@/pages/inferir-executivos"),
   "/notificacoes": () => import("@/pages/notificacoes"),
   "/logs-sistema": () => import("@/pages/logs-sistema"),
 };

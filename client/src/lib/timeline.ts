@@ -477,12 +477,14 @@ export function buildTimeline(
 
     // Embalado (21/09): a peça entrou num tubo já conferida (ou o tubo foi
     // fechado com foto), e a que saiu do tubo volta a Conferido.
-    if (detailsLower.includes("embalada no tubo")) {
+    // A embalada SOZINHA (volume avulso) escreve "Embalada (sozinha) · 1 foto" —
+    // é a mesma etapa, sem tubo.
+    if (detailsLower.includes("embalada no tubo") || detailsLower.startsWith("embalada (sozinha)")) {
       timeline.push({ id: `packed-${uid}`, type: "item_packed", ...base });
       return;
     }
     // Só a grafia nova, no INÍCIO: a antiga "Peça retirada do Tubo N" não mudava status.
-    if (detailsLower.startsWith("retirada do tubo")) {
+    if (detailsLower.startsWith("retirada do tubo") || detailsLower.startsWith("embalagem desfeita")) {
       timeline.push({ id: `unpacked-${uid}`, type: "item_unpacked", ...base });
       return;
     }

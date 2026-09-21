@@ -532,6 +532,48 @@ export function registerTubosRoutes(app: Express): void {
     }
   });
 
+  // OS REGISTROS DOS VOLUMES (dono, 21/09: "inclusive isso aparecer nos registros:
+  // todos os itens que foram no tubo"). UMA entrada por tubo/embalagem — e não a
+  // mesma foto repetida em cada peça —, com a lista completa do que foi junto,
+  // as fotos da embalagem e o comprovante. A tela Registros é de TODOS os perfis
+  // (a maioria não acessa a Gráfica), então aqui NÃO há gate de papel — só a
+  // sessão e o recorte do Kit, como em GET /api/photos. Só leitura.
+  //
+  // O CONTEÚDO É O DA ENTREGA: tubo entregue não aceita pôr nem tirar peça, e
+  // a quantidade mora na LINHA (tubo_itens) — editar a peça depois não muda o
+  // que o registro diz que foi junto. A trilha do tubo guarda a mesma lista.
+  app.get("/api/registros/tubos", requireAuth, async (req, res) => {
+    try {
+      const lista = (await db.select().from(tubos)).filter((t: any) => (t.fotosFechamento ?? []).length > 0 || t.entregueEm);
+      if (!lista.length) return res.json([]);
+      const idsDeEvento = Array.from(new Set(lista.map((t: any) => t.eventId)));
+      const eventosDaLista = await db.select({ id: events.id, name: events.name }).from(events).where(inArray(events.id, idsDeEvento));
+      const eventoPorId = new Map(eventosDaLista.map((e) => [e.id, e.name]));
+      const ls = await linhasDosTubos(lista.map((t: any) => t.id));
+      const idsDePeca = Array.from(new Set(ls.map((l) => l.itemId)));
+      // A peça EXCLUÍDA continua no registro (é histórico) — sem filtro de deleted_at.
+      const cruas = idsDePeca.length ? ((await db.select(COLUNAS_PECA).from(itemsTable).where(inArray(itemsTable.id, idsDePeca))) as PecaCrua[]) : [];
+      const visivel = new Map(visiveis(req, cruas).map((p) => [p.id, p]));
+      const doKit = quemVe(req).kit;
+      const saida = lista.map((t: any) => {
+        const dentro = ls.filter((l) => l.tuboId === t.id && visivel.has(l.itemId)).map((l) => ({ p: visivel.get(l.itemId)!, l })).sort((x, y) => porCodigo(x.p, y.p));
+        return {
+          id: t.id, numero: t.numero, avulso: !!t.avulso, eventId: t.eventId, eventName: eventoPorId.get(t.eventId) ?? "Evento",
+          fotos: t.fotosFechamento ?? [], embaladoEm: t.fechadoEm, embaladoPor: t.fechadoPor,
+          entregueEm: t.entregueEm, recebidoPor: t.recebidoPor, entreguePor: t.entreguePor, comprovante: t.fotoEntregaUrl, observacao: t.entregueObs,
+          itens: dentro.map(({ p, l }) => ({ id: p.id, displayId: p.displayId, type: p.type, description: p.description, quantity: p.quantity, quantidadeNoTubo: l.quantidade, excluida: !!p.deletedAt })),
+          unidades: dentro.reduce((u, { l }) => u + l.quantidade, 0),
+        };
+      }).filter((t) => !doKit || t.itens.length > 0);
+      const quandoFoi = (t: { entregueEm: Date | null; embaladoEm: Date | null }) => new Date(t.entregueEm ?? t.embaladoEm ?? 0).getTime();
+      saida.sort((a, b) => quandoFoi(b) - quandoFoi(a));
+      res.json(saida);
+    } catch (error: any) {
+      console.error("[tubos] falha ao listar os registros dos volumes:", error);
+      res.status(500).json({ error: "Não foi possível carregar os registros dos tubos." });
+    }
+  });
+
   // Um tubo com o que tem dentro — a etiqueta lê daqui (`quantidadeNoTubo` por peça).
   app.get("/api/tubos/:id", requireAuth, async (req, res) => {
     if (!podeMexerEmTubo(req)) return res.status(403).json({ error: SEM_PAPEL });

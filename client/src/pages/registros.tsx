@@ -13,6 +13,7 @@ import { ptBR } from "date-fns/locale";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { T, FS, R, SHADOW } from "@/lib/theme";
 import { toast } from "@/hooks/use-toast";
+import { RegistrosDeTubos } from "@/components/registros-de-tubos";
 
 const KIND = {
   conference: { label: "Conferência", color: "#0e7490", bg: "#ecfeff", border: "#a5f3fc", icon: FileCheck },
@@ -568,6 +569,15 @@ export default function Registros() {
 
       {/* ── Galeria ── */}
       <div style={{ flex: 1, overflowY: "auto", padding: isMobile ? "16px" : "24px 32px", maxWidth: 1600, margin: "0 auto", width: "100%" }}>
+        {/* OS TUBOS (dono, 21/09): o que foi embalado/entregue JUNTO tem UMA
+            entrada por tubo, com a lista do que foi — em vez da mesma foto
+            repetida em cada peça. Segue o filtro de evento e a busca da página;
+            some quando o tipo está filtrado só em Conferência. */}
+        {(!kindFilter.length || kindFilter.includes("delivery")) && (
+          <div style={{ marginBottom: 16 }}>
+            <RegistrosDeTubos eventIds={eventFilter} busca={deferredSearch} />
+          </div>
+        )}
         {isLoading ? (
           /* Skeleton com a silhueta dos cards reais (foto + legenda) — o
              spinner central deixava a tela em branco e causava layout shift. */

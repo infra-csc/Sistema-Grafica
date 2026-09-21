@@ -10,6 +10,7 @@ import { POS_APROVACAO } from "@shared/fluxo-peca";
 import { rotuloDaMaquina } from "@shared/fluxo-peca";
 import { estaDividida } from "@shared/impressao-dividida";
 import { detalheDaProducao, rotuloDoTubo, subTrilhaDaProducao } from "@/lib/detalhe-producao";
+import { RegistrosDeTubos } from "@/components/registros-de-tubos";
 import { getApprovalMeta, getStatusLabel, guiaDoStatus, marcoEventoFinalizado, proximoPassoDaAprovacao, todayBusinessMs } from "@/lib/status";
 import {
   Edit, Save, X, Check, Clock, Eye, ExternalLink, Camera, Paperclip,
@@ -584,7 +585,7 @@ export function ItemDetailsDialog({
       match: d => d.includes("conferência") },
     // Embalado (21/09): entrou no tubo já conferida — ou o tubo fechou com foto.
     { label: "Embalado",                        keywords: [], pool: itemLogsFlow,
-      match: d => d.includes("embalada no tubo") },
+      match: d => d.includes("embalada no tubo") || d.startsWith("embalada (sozinha)") },
     { label: "Entregue",                        keywords: [], pool: itemLogsFlow, actionType: "delivered",
       match: d => d.includes("entrega concluída") || d.includes("entrega parcial") },
   ];
@@ -883,7 +884,7 @@ export function ItemDetailsDialog({
   const missingDeliveryProof = isDeliveredItem && deliveryPhotos.length === 0;
   const temRegistrosGrafica = conferencePhotos.length > 0 || deliveryPhotos.length > 0
     || !!item.conferenceNotes || !!item.deliveryNotes
-    || missingDeliveryProof || andamentoGrafica.length > 0 || !!item.receivedBy;
+    || missingDeliveryProof || andamentoGrafica.length > 0 || !!item.receivedBy || !!item.tuboId;
 
   const PAD = isMobile ? "16px" : "32px";
   const ALVO = isMobile ? 44 : 36;   // alvo de toque / de ponteiro
@@ -1665,6 +1666,9 @@ export function ItemDetailsDialog({
                   </div>
 
                   <div style={{ ...CARTAO, padding: 14, display: "flex", flexDirection: "column", gap: 14 }}>
+                    {/* O TUBO COMO UM TODO (dono, 21/09): a peça que foi em tubo mostra o
+                        registro do tubo — a quem, quando, as fotos e TUDO o que foi junto. */}
+                    {item.tuboId && <RegistrosDeTubos itemId={item.id} />}
                     {andamentoGrafica.length > 0 && (
                       <div style={{ display: "flex", flexWrap: "wrap", gap: "10px 22px" }}>
                         {andamentoGrafica.map(([label, valor, cor]) => (

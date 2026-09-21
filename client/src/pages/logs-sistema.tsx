@@ -1,11 +1,13 @@
 import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { Link } from "wouter";
 import { FilterSelect } from "@/components/filter-select";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Search, ChevronLeft, ChevronRight, X, Download, Copy, Check } from "lucide-react";
-import { T } from "@/lib/theme";
+import { T, FS, R } from "@/lib/theme";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useFiltrosNaUrl, paginaValida } from "@/hooks/use-filtros-na-url";
 
 interface AuditLog {
   id: string;
@@ -40,6 +42,19 @@ const ACTION_CFG: Record<string, { label: string; bg: string; color: string }> =
   // conhece o código.
   complement_created:  { label: "Complemento",     bg: "#fff7ed", color: "#c2410c" },
   complement_canceled: { label: "Compl. Cancelado", bg: "#fef2f2", color: "#b91c1c" },
+  // Ações que o servidor grava e a tela mostrava CRUAS ("label_printed",
+  // "reserva_liberada") no cinza de fallback — levantadas por varredura dos
+  // createAuditLog/insert em auditLogs de server/ (16/09).
+  canceled:          { label: "Cancelado",        bg: "#fef2f2", color: "#b91c1c" },
+  added:             { label: "Adicionado",       bg: "#eff6ff", color: "#1d4ed8" },
+  removed:           { label: "Removido",         bg: "#fef2f2", color: "#b91c1c" },
+  restored:          { label: "Restaurado",       bg: "#f0fdf4", color: "#15803d" },
+  dispensed:         { label: "Dispensado",       bg: "#faf5ff", color: "#7e22ce" },
+  triagem:           { label: "Triagem",          bg: "#faf5ff", color: "#7e22ce" },
+  reservado:         { label: "Reservado",        bg: "#eff6ff", color: "#1d4ed8" },
+  reserva_liberada:  { label: "Reserva liberada", bg: "#f0fdf4", color: "#047857" },
+  label_printed:     { label: "Etiqueta",         bg: "#faf5ff", color: "#7e22ce" },
+  corrected_text:    { label: "Texto corrigido",  bg: "#fff7ed", color: "#c2410c" },
   // 'login' saiu de propósito: o sistema NÃO grava log de login — manter o
   // badge sugeria um rastreamento de acessos que não existe.
 };
@@ -57,6 +72,15 @@ const ENTITY_LABELS: Record<string, string> = {
   // Vínculos (25/08): apareciam com o nome cru da tabela no filtro e no chip.
   event_sponsor: "Patrocinador do evento",
   item_sponsor:  "Patrocinador da peça",
+  // Mesma varredura das ações: entidades que chegavam com o nome da tabela.
+  pedido_de_peca: "Solicitação de peça",
+  inventory_asset: "Estoque",
+  quota_rules: "Regra de cota",
+  // `gestao` cobre o acompanhamento E as listas de destinatários (tela
+  // Notificações grava com essa entidade); `revisao` é só o aviso da revisão.
+  gestao: "Avisos por e-mail",
+  revisao: "Aviso da revisão",
+  item_sponsor_approval: "Aprovação de patrocinador",
 };
 
 /* ── Avatar ── */
@@ -72,27 +96,85 @@ function initials(name: string) {
 const PAGE_SIZE = 20;
 
 const tiInput: React.CSSProperties = {
-  width: "100%", padding: "9px 12px 9px 34px",
-  backgroundColor: "#f0efee", border: "none", borderRadius: 6,
+  width: "100%", height: 40, padding: "0 12px 0 36px",
+  backgroundColor: "#f0efee", border: "none", borderRadius: R.md,
   fontSize: 13, color: T.text,
-  transition: "all 0.2s",
+  transition: "background-color 0.15s ease, box-shadow 0.15s ease",
 };
 
 const filterSel: React.CSSProperties = {
-  padding: "9px 12px", backgroundColor: "#f0efee",
-  border: "none", borderRadius: 6,
-  fontSize: 13, fontWeight: 600, color: T.text,
+  height: 40, padding: "0 12px", backgroundColor: T.surface,
+  border: `1px solid ${T.border}`, borderRadius: R.md,
+  fontSize: 12, fontWeight: 700, color: T.second,
   cursor: "pointer",
   appearance: "none", WebkitAppearance: "none",
-  transition: "all 0.2s",
 };
+
+/* ── Desenho comum das telas de cadastro ──
+   Usuários, Patrocinadores, Modelos e Logs repetem estes controles com as
+   MESMAS medidas (40px de alvo, raio 8, rótulo 12/800 em caixa alta). Copiado
+   (e não importado) porque cada tela é dona do próprio arquivo; se mudar aqui,
+   mude nas outras três. */
+const BTN_PRIMARIO: React.CSSProperties = {
+  display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8,
+  height: 40, padding: "0 18px", backgroundColor: T.dark, color: "#fff",
+  border: "none", borderRadius: R.md, cursor: "pointer",
+  fontSize: 12, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em",
+  whiteSpace: "nowrap", transition: "background-color 0.15s ease",
+};
+const BTN_LIMPAR: React.CSSProperties = {
+  display: "inline-flex", alignItems: "center", gap: 6, height: 36, padding: "0 12px",
+  backgroundColor: "#fef2f2", border: "1px solid #fecaca", borderRadius: R.md, cursor: "pointer",
+  fontSize: 11, fontWeight: 800, color: "#b91c1c", textTransform: "uppercase", letterSpacing: "0.06em", whiteSpace: "nowrap",
+};
+
+/**
+ * PAGINAÇÃO — janela de até 5 páginas em volta da atual, alvos de 32px (44 no
+ * celular) e a página atual cheia em escuro. Some com uma página só.
+ */
+function Paginacao({ pagina, totalPaginas, onIr, toque }: { pagina: number; totalPaginas: number; onIr: (p: number) => void; toque: number }) {
+  if (totalPaginas <= 1) return null;
+  const inicio = Math.max(1, Math.min(pagina - 2, totalPaginas - 4));
+  const paginas = Array.from({ length: Math.min(5, totalPaginas) }, (_, i) => inicio + i);
+  const base: React.CSSProperties = {
+    minWidth: toque, height: toque, padding: "0 6px", display: "inline-flex", alignItems: "center", justifyContent: "center",
+    borderRadius: R.md, border: `1px solid ${T.border}`, backgroundColor: T.surface, color: T.second,
+    fontSize: 12, fontWeight: 700, cursor: "pointer", transition: "background-color 0.12s ease, border-color 0.12s ease",
+  };
+  const seta = (desligada: boolean): React.CSSProperties => ({ ...base, opacity: desligada ? 0.4 : 1, cursor: desligada ? "not-allowed" : "pointer" });
+  return (
+    <nav aria-label="Paginação" style={{ display: "flex", alignItems: "center", gap: 4 }}>
+      <button type="button" onClick={() => onIr(pagina - 1)} disabled={pagina === 1} aria-label="Página anterior" style={seta(pagina === 1)}>
+        <ChevronLeft aria-hidden="true" style={{ width: 14, height: 14 }} />
+      </button>
+      {paginas.map(p => (
+        <button key={p} type="button" onClick={() => onIr(p)} aria-label={`Página ${p}`} aria-current={p === pagina ? "page" : undefined}
+          style={p === pagina ? { ...base, backgroundColor: T.dark, borderColor: T.dark, color: "#fff" } : base}>
+          {p}
+        </button>
+      ))}
+      <button type="button" onClick={() => onIr(pagina + 1)} disabled={pagina === totalPaginas} aria-label="Próxima página" style={seta(pagina === totalPaginas)}>
+        <ChevronRight aria-hidden="true" style={{ width: 14, height: 14 }} />
+      </button>
+    </nav>
+  );
+}
 
 export default function LogsSistema() {
   const isMobile = useIsMobile();
-  const [search, setSearch]           = useState("");
-  const [actionFilter, setActionFilter] = useState("all");
-  const [entityFilter, setEntityFilter] = useState("all");
-  const [page, setPage]               = useState(1);
+  // RECORTE NA URL (regra da casa): numa investigação, o link "exclusões de
+  // patrocinador feitas pela Fulana" é justamente o que se manda a alguém — e
+  // o F5 não pode devolver a trilha inteira. Filtro novo volta à página 1.
+  const { valores: filtros, definir, atualizar, limpar } = useFiltrosNaUrl(
+    { busca: "", acao: "all", entidade: "all", pagina: 1 },
+    { aceita: { pagina: paginaValida } },
+  );
+  const search = filtros.busca;
+  const actionFilter = filtros.acao;
+  const entityFilter = filtros.entidade;
+  const page = filtros.pagina;
+  const setPage = (p: number) => definir("pagina", p);
+  const toque = isMobile ? 44 : 32;
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
   // ?withTotal=1: além da lista (a PRIMEIRA página da trilha — 500 registros,
@@ -115,11 +197,20 @@ export default function LogsSistema() {
   const total = data?.total ?? logs.length;
   const isTruncated = total > logs.length;
 
+  // Falha de cópia (HTTP sem clipboard, permissão negada) era silêncio total:
+  // o ícone não mudava e a pessoa colava o que estava antes na área de
+  // transferência. Agora a falha também se mostra, no mesmo lugar do acerto.
+  const [copyFailedId, setCopyFailedId] = useState<string | null>(null);
   const copyEntityId = (logId: string, entityId: string) => {
-    navigator.clipboard?.writeText(entityId).then(() => {
+    const falhou = () => {
+      setCopyFailedId(logId);
+      window.setTimeout(() => setCopyFailedId(current => (current === logId ? null : current)), 2500);
+    };
+    if (!navigator.clipboard) { falhou(); return; }
+    navigator.clipboard.writeText(entityId).then(() => {
       setCopiedId(logId);
       window.setTimeout(() => setCopiedId(current => (current === logId ? null : current)), 1500);
-    });
+    }, falhou);
   };
 
   /* ── Derived filter options ── */
@@ -128,11 +219,19 @@ export default function LogsSistema() {
   // menus não tinham contagem nenhuma: numa trilha de 500 registros, escolher
   // "Tipo de ação" às cegas e cair numa tabela vazia era rotina. É a mesma
   // disciplina travada em server/__tests__/faceta-lista-invariante.test.ts.
+  // "QUEM FEZ ISSO?" começa com o que a pessoa TEM na mão: o nome de quem
+  // desconfia, o número da peça, o nome do evento — ou o ID copiado de outra
+  // linha. A busca não achava pelo ID (que a própria tabela oferece copiar)
+  // nem pelos rótulos em português que a tabela mostra ("Excluído",
+  // "Patrocinador"): só pela chave crua da entidade.
   const casaBusca = (l: AuditLog) => {
-    const q = search.toLowerCase();
+    const q = search.trim().toLowerCase();
     return !q || l.userName.toLowerCase().includes(q)
       || (l.details ?? "").toLowerCase().includes(q)
-      || l.entityType.toLowerCase().includes(q);
+      || l.entityType.toLowerCase().includes(q)
+      || l.entityId.toLowerCase().includes(q)
+      || getActionCfg(l.action).label.toLowerCase().includes(q)
+      || (ENTITY_LABELS[l.entityType] ?? "").toLowerCase().includes(q);
   };
 
   const actionFilterOptions = useMemo(() => {
@@ -160,8 +259,9 @@ export default function LogsSistema() {
   /* ── Filtered + paginated ── */
   const filtered = useMemo(() => {
     return logs.filter(l => {
-      const q = search.toLowerCase();
-      const matchQ = !q || l.userName.toLowerCase().includes(q) || (l.details ?? "").toLowerCase().includes(q) || l.entityType.toLowerCase().includes(q);
+      // A MESMA régua dos menus (casaBusca): lista e contagens não podem
+      // discordar sobre o que a busca acha.
+      const matchQ = casaBusca(l);
       const matchA = actionFilter === "all" || l.action === actionFilter;
       const matchE = entityFilter === "all" || l.entityType === entityFilter;
       return matchQ && matchA && matchE;
@@ -176,7 +276,7 @@ export default function LogsSistema() {
 
   const activeFilters = [search, actionFilter !== "all", entityFilter !== "all"].filter(Boolean).length;
 
-  const clearFilters = () => { setSearch(""); setActionFilter("all"); setEntityFilter("all"); setPage(1); };
+  const clearFilters = () => limpar();
 
   /* ── CSV export (client-side, from the already-loaded/filtered logs) ── */
   const csvEscape = (value: string) => `"${value.replace(/"/g, '""')}"`;
@@ -216,28 +316,37 @@ export default function LogsSistema() {
   const errorCount  = logs.filter(l => ["deleted", "rejected"].includes(l.action)).length;
 
   return (
-    <div style={{ backgroundColor: T.bg, height: "100%", overflowY: "auto", padding: isMobile ? "14px 16px 48px" : "28px 32px 64px" }}>
+    <div style={{ backgroundColor: T.bg, height: "100%", overflowY: "auto", padding: isMobile ? "16px 16px 48px" : "28px 32px 64px" }}>
 
       {/* ── Header ── */}
       <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 24, gap: 16, flexWrap: "wrap" }}>
         <div>
-          <h1 style={{ fontSize: 26, fontWeight: 900, color: T.text, margin: "0 0 6px", fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.04em", textTransform: "uppercase", lineHeight: 1 }}>
+          <h1 style={{ fontSize: FS.h1, fontWeight: 700, color: T.text, margin: "0 0 6px", fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.03em", lineHeight: 1.1 }}>
             Logs do Sistema
           </h1>
-          <p style={{ fontSize: 15, color: T.second, margin: 0 }}>
-            Rastreamento das operações do sistema
+          <p style={{ fontSize: FS.body, color: T.second, margin: 0, lineHeight: 1.5, maxWidth: 640 }}>
+            {/* COMO INVESTIGAR, em uma frase — "rastreamento das operações"
+                não dizia por onde começar. O login não entra: o sistema não o
+                grava (ver ACTION_CFG). */}
+            Quem criou, alterou, aprovou ou excluiu cada registro. Para descobrir quem fez algo, busque pelo número da peça, nome do evento ou patrocinador — ou clique no nome de alguém para ver só as ações dessa pessoa. Entradas no sistema (login) não são registradas.
           </p>
         </div>
+        {/* Secundário (contorno), não primário: exportar não cria nada. O
+            desabilitado mantém o texto em T.second — o cinza decorativo
+            anterior reprovava contraste justamente no estado que precisa
+            explicar por que não dá. */}
         <button
           onClick={handleExport}
           disabled={filtered.length === 0}
+          title={filtered.length === 0 ? "Nada para exportar no recorte atual" : `Baixar os ${filtered.length} registros do recorte atual`}
           data-testid="button-export-logs"
-          style={{ display: "flex", alignItems: "center", gap: 7, padding: "9px 18px", backgroundColor: T.surface, color: filtered.length === 0 ? T.muted : T.second, border: `1px solid ${T.border}`, borderRadius: 6, cursor: filtered.length === 0 ? "not-allowed" : "pointer", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", opacity: filtered.length === 0 ? 0.6 : 1 }}
+          style={{ ...BTN_PRIMARIO, width: isMobile ? "100%" : undefined, backgroundColor: T.surface, color: filtered.length === 0 ? T.second : T.text, border: `1px solid ${T.bdark}`, cursor: filtered.length === 0 ? "not-allowed" : "pointer", opacity: filtered.length === 0 ? 0.6 : 1 }}
           onMouseEnter={e => { if (filtered.length > 0) e.currentTarget.style.backgroundColor = T.low; }}
           onMouseLeave={e => { e.currentTarget.style.backgroundColor = T.surface; }}
         >
-          <Download style={{ width: 13, height: 13 }} />
-          Exportar
+          <Download aria-hidden="true" style={{ width: 14, height: 14 }} />
+          {/* O formato no rótulo: "Exportar" sozinho não dizia o que baixa. */}
+          Exportar CSV
         </button>
       </div>
 
@@ -256,20 +365,30 @@ export default function LogsSistema() {
         ))}
         {isTruncated && (
           <span style={{ fontSize: 11, color: T.second, fontWeight: 600 }}>
-            Exibindo os últimos {logs.length} de {total} registros
+            Exibindo os últimos {logs.length} de {total} registros.{" "}
+            {/* O PRÓXIMO PASSO quando o que se procura é mais antigo: o
+                Histórico caminha a trilha inteira por cursor (ver o comentário
+                da query acima). Sem o link, a busca vazia parecia "não houve". */}
+            <Link href="/historico" style={{ color: "#c2410c", fontWeight: 700, textDecoration: "underline", textUnderlineOffset: 2 }}>
+              Mais antigos: Histórico
+            </Link>
           </span>
         )}
       </div>
 
       {/* ── Filter bar ── */}
-      <div style={{ backgroundColor: T.surface, border: `1px solid ${T.border}`, borderRadius: 12, padding: "14px 16px", marginBottom: 16, display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+      {/* Barra solta acima da tabela, como em Usuários e Modelos — o cartão
+          branco em volta dela era um quarto desenho de barra de busca. */}
+      <div style={{ marginBottom: 16, display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
         {/* Search */}
-        <div style={{ position: "relative", flex: "1 1 240px", minWidth: 200 }}>
-          <Search style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", width: 13, height: 13, color: T.muted }} />
+        <div style={{ position: "relative", flex: isMobile ? "1 1 100%" : "1 1 240px", maxWidth: isMobile ? "none" : 360 }}>
+          <Search aria-hidden="true" style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", width: 14, height: 14, color: T.muted }} />
           <input
             value={search}
-            onChange={e => { setSearch(e.target.value); setPage(1); }}
-            placeholder="Buscar por usuário, ação ou entidade..."
+            onChange={e => atualizar({ busca: e.target.value, pagina: 1 })}
+            placeholder="Pessoa, nº da peça, evento, ação ou ID..."
+            aria-label="Buscar nos logs por pessoa, descrição, ação, entidade ou ID"
+            type="search"
             data-testid="input-search-logs"
             style={tiInput}
             onFocus={e => { e.currentTarget.style.backgroundColor = "#fff"; e.currentTarget.style.boxShadow = "0 0 0 2px rgba(249,115,22,0.2)"; }}
@@ -282,7 +401,7 @@ export default function LogsSistema() {
           <FilterSelect
             label="Tipo de ação" allLabel="Todos os tipos de ação"
             value={actionFilter}
-            onChange={v => { setActionFilter(v); setPage(1); }}
+            onChange={v => atualizar({ acao: v, pagina: 1 })}
             options={actionFilterOptions}
             searchPlaceholder="Buscar ação..." emptyText="Nenhuma ação encontrada."
             hideWhenEmpty={false} testId="select-action-filter"
@@ -295,7 +414,7 @@ export default function LogsSistema() {
           <FilterSelect
             label="Entidade" allLabel="Todas as entidades"
             value={entityFilter}
-            onChange={v => { setEntityFilter(v); setPage(1); }}
+            onChange={v => atualizar({ entidade: v, pagina: 1 })}
             options={entityFilterOptions}
             searchPlaceholder="Buscar entidade..." emptyText="Nenhuma entidade encontrada."
             hideWhenEmpty={false} testId="select-entity-filter"
@@ -305,10 +424,11 @@ export default function LogsSistema() {
 
         {activeFilters > 0 && (
           <button
+            type="button"
             onClick={clearFilters}
-            style={{ display: "flex", alignItems: "center", gap: 5, padding: "7px 12px", backgroundColor: "#fef2f2", border: "1px solid #fecaca", borderRadius: 6, cursor: "pointer", fontSize: 10, fontWeight: 800, color: "#b91c1c", textTransform: "uppercase", letterSpacing: "0.06em", flexShrink: 0 }}
+            style={{ ...BTN_LIMPAR, flexShrink: 0 }}
           >
-            <X style={{ width: 10, height: 10 }} />
+            <X aria-hidden="true" style={{ width: 11, height: 11 }} />
             Limpar ({activeFilters})
           </button>
         )}
@@ -321,8 +441,18 @@ export default function LogsSistema() {
       {/* ── Table ── */}
       <section style={{ backgroundColor: T.surface, border: `1px solid ${T.border}`, borderRadius: 12, overflow: "hidden" }}>
         {isLoading ? (
-          <div style={{ padding: "64px 0", textAlign: "center", fontSize: 13, color: T.second }}>
-            Carregando logs...
+          // Esqueleto na silhueta da linha (data · avatar+nome · selo ·
+          // descrição): a trilha chega no lugar em que vai ficar.
+          <div role="status" aria-label="Carregando logs" style={{ padding: "6px 0" }}>
+            {Array.from({ length: 8 }, (_, i) => (
+              <div key={i} className="motion-safe:animate-pulse" style={{ display: "flex", alignItems: "center", gap: 18, padding: "15px 18px", borderBottom: `1px solid ${T.low}` }}>
+                <div style={{ width: 72, height: 22, borderRadius: 4, backgroundColor: T.low, flexShrink: 0 }} />
+                <div style={{ width: 30, height: 30, borderRadius: "50%", backgroundColor: T.low, flexShrink: 0 }} />
+                <div style={{ width: 110, height: 12, borderRadius: 4, backgroundColor: T.low, flexShrink: 0 }} />
+                <div style={{ width: 70, height: 18, borderRadius: 999, backgroundColor: T.low, flexShrink: 0 }} />
+                <div style={{ flex: 1, maxWidth: 320, height: 12, borderRadius: 4, backgroundColor: T.low }} />
+              </div>
+            ))}
           </div>
         ) : isError ? (
           <div style={{ padding: "64px 24px", textAlign: "center" }}>
@@ -333,8 +463,9 @@ export default function LogsSistema() {
               Verifique sua conexão e tente novamente.
             </p>
             <button
+              type="button"
               onClick={() => refetch()}
-              style={{ padding: "8px 18px", backgroundColor: T.dark, color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em" }}
+              style={{ ...BTN_PRIMARIO, height: 36, fontSize: 11 }}
             >
               Tentar novamente
             </button>
@@ -351,8 +482,9 @@ export default function LogsSistema() {
                   Nenhum registro corresponde à busca e aos filtros aplicados.
                 </p>
                 <button
+                  type="button"
                   onClick={clearFilters}
-                  style={{ padding: "8px 16px", backgroundColor: T.surface, border: `1px solid ${T.bdark}`, borderRadius: 6, cursor: "pointer", fontSize: 11, fontWeight: 700, color: T.text, textTransform: "uppercase", letterSpacing: "0.06em" }}
+                  style={{ ...BTN_PRIMARIO, height: 36, backgroundColor: T.surface, color: T.text, border: `1px solid ${T.bdark}`, fontSize: 11 }}
                 >
                   Limpar filtros
                 </button>
@@ -414,9 +546,15 @@ export default function LogsSistema() {
                             }}>
                               {init}
                             </div>
-                            <span style={{ fontSize: 13, fontWeight: 700, color: T.text, whiteSpace: "nowrap" }}>
+                            {/* Um clique no nome = "o que mais esta pessoa
+                                fez?". Era copiar o nome à mão para a busca. */}
+                            <button type="button"
+                              onClick={() => atualizar({ busca: log.userName, pagina: 1 })}
+                              title={`Ver só as ações de ${log.userName}`}
+                              aria-label={`Filtrar a trilha pelas ações de ${log.userName}`}
+                              style={{ fontSize: 13, fontWeight: 700, color: T.text, whiteSpace: "nowrap", background: "none", border: "none", padding: 0, cursor: "pointer", font: "inherit", textDecoration: "underline", textDecorationColor: T.border, textUnderlineOffset: 3 }}>
                               {log.userName}
-                            </span>
+                            </button>
                           </div>
                         </td>
 
@@ -434,31 +572,44 @@ export default function LogsSistema() {
 
                         {/* Descrição */}
                         <td style={{ padding: "13px 18px", fontSize: 13, color: T.second, maxWidth: 380 }}>
-                          <span style={{ display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
+                          {/* O corte em 2 linhas não tinha volta: numa trilha
+                              de investigação, o fim da frase é justamente o
+                              detalhe. O title devolve o texto inteiro. */}
+                          <span title={description} style={{ display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
                             {description}
                           </span>
                         </td>
 
                         {/* Entidade */}
                         <td style={{ padding: "13px 18px" }}>
-                          <div style={{ fontSize: 11, fontWeight: 700, color: T.second, textTransform: "capitalize" }}>
+                          {/* Sem `capitalize`: os rótulos já vêm grafados, e ele
+                              transformava "Patrocinador do evento" em
+                              "Patrocinador Do Evento". */}
+                          <div style={{ fontSize: 11, fontWeight: 700, color: T.second }}>
                             {ENTITY_LABELS[log.entityType] ?? log.entityType}
                           </div>
                           <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 1 }}>
                             <span title={log.entityId} style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, color: T.second }}>
                               {log.entityId.slice(0, 8)}…
                             </span>
+                            {/* Alvo de 21px (era 15) e o resultado dito em voz
+                                alta: aria-live anuncia "Copiado" ou a falha. */}
                             <button
                               onClick={() => copyEntityId(log.id, log.entityId)}
                               aria-label={`Copiar ID completo ${log.entityId}`}
-                              title="Copiar ID completo"
-                              style={{ background: "none", border: "none", cursor: "pointer", padding: 2, display: "flex", color: copiedId === log.id ? "#15803d" : T.second }}
+                              title={copyFailedId === log.id ? "Não foi possível copiar — selecione o ID manualmente" : "Copiar ID completo"}
+                              style={{ background: "none", border: "none", cursor: "pointer", padding: isMobile ? 16 : 7, margin: isMobile ? -14 : -5, borderRadius: 4, display: "flex", color: copiedId === log.id ? "#15803d" : copyFailedId === log.id ? "#b91c1c" : T.second }}
                             >
                               {copiedId === log.id
                                 ? <Check style={{ width: 11, height: 11 }} />
-                                : <Copy style={{ width: 11, height: 11 }} />
+                                : copyFailedId === log.id
+                                  ? <X style={{ width: 11, height: 11 }} />
+                                  : <Copy style={{ width: 11, height: 11 }} />
                               }
                             </button>
+                            <span className="sr-only" aria-live="polite">
+                              {copiedId === log.id ? "ID copiado" : copyFailedId === log.id ? "Não foi possível copiar o ID" : ""}
+                            </span>
                           </div>
                         </td>
                       </tr>
@@ -469,50 +620,12 @@ export default function LogsSistema() {
             </div>
 
             {/* ── Pagination footer ── */}
-            <div style={{ padding: "12px 18px", borderTop: `1px solid ${T.border}`, display: "flex", alignItems: "center", justifyContent: "space-between", backgroundColor: "rgba(243,244,243,0.5)" }}>
-              <p style={{ fontSize: 11, color: T.second, fontWeight: 500, margin: 0 }}>
+            <div style={{ padding: "10px 18px", borderTop: `1px solid ${T.border}`, display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10, backgroundColor: T.low }}>
+              <p style={{ fontSize: 11, color: T.second, fontWeight: 600, margin: 0 }}>
                 Exibindo {Math.min((safePage - 1) * PAGE_SIZE + 1, filtered.length)}–{Math.min(safePage * PAGE_SIZE, filtered.length)} de{" "}
                 <span style={{ fontFamily: "'DM Mono', monospace", fontWeight: 700, color: T.second }}>{filtered.length}</span> registros
               </p>
-              <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                <button
-                  onClick={() => setPage(Math.max(1, safePage - 1))}
-                  disabled={safePage === 1}
-                  aria-label="Página anterior"
-                  style={{ padding: 4, color: safePage === 1 ? T.muted : T.second, background: "none", border: "none", cursor: safePage === 1 ? "not-allowed" : "pointer", opacity: safePage === 1 ? 0.35 : 1, display: "flex" }}
-                >
-                  <ChevronLeft style={{ width: 16, height: 16 }} />
-                </button>
-
-                {Array.from({ length: totalPages }, (_, i) => i + 1)
-                  .slice(Math.max(0, safePage - 3), Math.min(totalPages, safePage + 2))
-                  .map(p => (
-                    <button
-                      key={p}
-                      onClick={() => setPage(p)}
-                      aria-label={`Página ${p}`}
-                      aria-current={p === safePage ? "page" : undefined}
-                      style={{
-                        width: 28, height: 28, borderRadius: 6,
-                        border: p === safePage ? `1px solid ${T.border}` : "1px solid transparent",
-                        backgroundColor: p === safePage ? T.surface : "transparent",
-                        fontSize: 11, fontWeight: p === safePage ? 900 : 600,
-                        color: p === safePage ? T.text : T.second, cursor: "pointer",
-                      }}
-                    >
-                      {p}
-                    </button>
-                  ))}
-
-                <button
-                  onClick={() => setPage(Math.min(totalPages, safePage + 1))}
-                  disabled={safePage === totalPages}
-                  aria-label="Próxima página"
-                  style={{ padding: 4, color: safePage === totalPages ? T.muted : T.second, background: "none", border: "none", cursor: safePage === totalPages ? "not-allowed" : "pointer", opacity: safePage === totalPages ? 0.35 : 1, display: "flex" }}
-                >
-                  <ChevronRight style={{ width: 16, height: 16 }} />
-                </button>
-              </div>
+              <Paginacao pagina={safePage} totalPaginas={totalPages} onIr={setPage} toque={toque} />
             </div>
           </>
         )}

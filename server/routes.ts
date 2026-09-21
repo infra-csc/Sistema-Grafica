@@ -28,10 +28,12 @@ import { registerReparoMotivosRoutes } from "./routes/reparo-motivos";
 import { registerVersoesRoutes } from "./routes/versoes";
 import { registerBuscaRoutes } from "./routes/busca";
 import { registerRelatorioRoutes } from "./routes/relatorio";
-import { registerMaquinasRoutes } from "./routes/maquinas";
-import { registerTubosRoutes } from "./routes/tubos";
 import { registerEstoqueReservasRoutes } from "./routes/estoque-reservas";
 import { registerPedidosDePecaRoutes } from "./routes/pedidos-de-peca";
+import { registerKitRoutes } from "./routes/kit";
+import { db } from "./db";
+import { items as itemsTable } from "@shared/schema";
+import { and, inArray, isNotNull } from "drizzle-orm";
 import { startRevisaoDigest } from "./services/revisaoDigest";
 import { startDeadlineAlerts } from "./services/deadlineAlerts";
 import { limparReservasAntigas } from "./services/reservaDeDisparo";
@@ -49,6 +51,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Sem fallback de papel: sessão sem role NÃO ganha privilégios de
       // solicitacao por default — gates comparam com string e falham fechado.
       req.userRole = req.session.userRole;
+      // Usuário do Kit (14/09): a marca vem do login; mudar a marca derruba as
+      // sessões da pessoa (PATCH /api/users/:id), como mudar o perfil.
+      req.userKit = req.session.userKit === true;
     } else {
       // Sem sessão: identidade NÃO pode vir do cliente. O header x-user-name
       // é controlado pelo navegador e era falsificável — a trilha de auditoria
@@ -57,6 +62,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
       req.userName = 'Sistema';
     }
     next();
+  });
+
+  // ── KIT: a Solicitação da Arena só VISUALIZA peça do Kit (dono, 15/09) ────
+  // Uma trava só para toda escrita em peça (/api/items/:id/…, e lotes com
+  // `itemIds`): quem é da Solicitação e NÃO é usuário do Kit não age sobre
+  // peça do Kit — nem conferir, entregar, revisar, editar ou excluir.
+  // Modelos não é do usuário do Kit (dono, 15/09): leitura segue (o formulário
+  // de peça usa o catálogo), escrita no catálogo não.
+  app.use((req, res, next) => {
+    if (req.userKit && req.path.startsWith("/api/standard-items") && ["POST", "PATCH", "PUT", "DELETE"].includes(req.method)) {
+      return res.status(403).json({ error: "Modelos não é do usuário do Kit." });
+    }
+    next();
+  });
+
+  app.use(async (req, res, next) => {
+    try {
+      if (req.userRole !== "solicitacao" || req.userKit || !["POST", "PATCH", "PUT", "DELETE"].includes(req.method)) return next();
+      const ids: string[] = [];
+      const alvo = req.path.match(/^\/api\/items\/([^/]+)(?:\/|$)/);
+      if (alvo && !["bulk", "export-xlsx"].includes(alvo[1])) ids.push(alvo[1]);
+      if (Array.isArray(req.body?.itemIds)) ids.push(...req.body.itemIds.filter((x: unknown): x is string => typeof x === "string"));
+      if (ids.length === 0) return next();
+      const doKit = await db.select({ id: itemsTable.id }).from(itemsTable)
+        .where(and(inArray(itemsTable.id, ids), isNotNull(itemsTable.kitRemessaId)))
+        .limit(1);
+      if (doKit.length > 0) {
+        return res.status(403).json({ error: "Peça do Kit: a Solicitação da Arena só visualiza. Quem age nela é o usuário do Kit." });
+      }
+      next();
+    } catch (error) {
+      next(error);
+    }
   });
 
   // ── Route registration ──────────────────────────────────────────────────
@@ -68,10 +106,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   registerVersoesRoutes(app);
   registerBuscaRoutes(app);
   registerRelatorioRoutes(app);
-  registerMaquinasRoutes(app);
-  registerTubosRoutes(app);
   registerEstoqueReservasRoutes(app);
   registerPedidosDePecaRoutes(app);
+  registerKitRoutes(app);
   registerNotificationRoutes(app);
   registerCommentRoutes(app);
   registerPhotoRoutes(app);

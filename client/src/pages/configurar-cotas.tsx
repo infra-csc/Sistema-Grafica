@@ -1,10 +1,11 @@
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { Check, Save, Search, X } from "lucide-react";
+import { Link } from "wouter";
+import { Check, RotateCcw, Save, Search, X } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { T, darkenToContrast } from "@/lib/theme";
+import { T, FS, R, darkenToContrast } from "@/lib/theme";
 
 /* ── Constants ── */
 // Pendência anotada: QUOTAS também existe em outras telas — mover para
@@ -34,6 +35,14 @@ const DEFAULT_QUOTA_RULES: Record<string, string[]> = {
 
 type GlobalRule = { quota: string; itemTypes: string[] };
 
+// Vazios ESTÁVEIS para o `data = …` das queries. Com `= []` literal, cada
+// render sem dado (a query falhou) criava um array novo; como `rules` e
+// `groups` são dependências do efeito que semeia a matriz, o efeito rodava a
+// cada render, chamava setMatrix com objeto novo e disparava outro render —
+// um laço justamente no estado de erro.
+const SEM_GRUPOS: string[] = [];
+const SEM_REGRAS: GlobalRule[] = [];
+
 export default function ConfigurarCotas() {
   const isMobile = useIsMobile();
   const { toast } = useToast();
@@ -41,11 +50,11 @@ export default function ConfigurarCotas() {
   const [dirty, setDirty] = useState<Set<string>>(new Set());
   const [search, setSearch] = useState("");
 
-  const { data: groups = [], isLoading: groupsLoading, isError: groupsError, refetch: refetchGroups } = useQuery<string[]>({
+  const { data: groups = SEM_GRUPOS, isLoading: groupsLoading, isError: groupsError, refetch: refetchGroups } = useQuery<string[]>({
     queryKey: ["/api/quota-rules/groups"],
   });
 
-  const { data: rules = [], isLoading: rulesLoading, isError: rulesError, refetch: refetchRules } = useQuery<GlobalRule[]>({
+  const { data: rules = SEM_REGRAS, isLoading: rulesLoading, isError: rulesError, refetch: refetchRules } = useQuery<GlobalRule[]>({
     queryKey: ["/api/quota-rules/global"],
   });
 
@@ -62,16 +71,20 @@ export default function ConfigurarCotas() {
   const dirtyRef = useRef(dirty);
   dirtyRef.current = dirty;
 
+  // O que o SERVIDOR diz para uma cota — a mesma regra de sempre (regra salva;
+  // senão vazio se já existe alguma regra; senão o padrão filtrado pelos
+  // grupos). Saiu de dentro do efeito para o "Descartar alterações" voltar
+  // exatamente ao mesmo ponto que a semeadura usa.
+  const fromServer = useCallback((key: string): Set<string> => {
+    const rule = rules.find(r => r.quota === key);
+    if (rule) return new Set(rule.itemTypes);
+    if (rules.length > 0) return new Set();
+    const defaults = DEFAULT_QUOTA_RULES[key] ?? [];
+    return new Set(groups.length > 0 ? defaults.filter(t => groups.includes(t)) : defaults);
+  }, [rules, groups]);
+
   useEffect(() => {
     if (isLoading) return;
-
-    const fromServer = (key: string): Set<string> => {
-      const rule = rules.find(r => r.quota === key);
-      if (rule) return new Set(rule.itemTypes);
-      if (rules.length > 0) return new Set();
-      const defaults = DEFAULT_QUOTA_RULES[key] ?? [];
-      return new Set(groups.length > 0 ? defaults.filter(t => groups.includes(t)) : defaults);
-    };
 
     if (!seededRef.current) {
       seededRef.current = true;
@@ -94,11 +107,10 @@ export default function ConfigurarCotas() {
       }
       return m;
     });
-  }, [rules, groups, isLoading]);
+  }, [rules, groups, isLoading, fromServer]);
 
   // Guarda de saída: com alteração pendente de verdade, fechar/recarregar a
-  // aba pergunta antes de descartar. (Navegação interna SPA não passa por
-  // beforeunload — pendência conhecida.)
+  // aba pergunta antes de descartar.
   useEffect(() => {
     if (dirty.size === 0) return;
     const handler = (e: BeforeUnloadEvent) => {
@@ -107,6 +119,42 @@ export default function ConfigurarCotas() {
     };
     window.addEventListener("beforeunload", handler);
     return () => window.removeEventListener("beforeunload", handler);
+  }, [dirty.size]);
+
+  // Guarda da NAVEGAÇÃO INTERNA — a pendência que o beforeunload não cobre.
+  //
+  // O app não tem bloqueador de rota (o wouter 3 não oferece um), e um clique
+  // na sidebar trocava de tela jogando fora a matriz editada sem perguntar.
+  // O caminho seguro, sem mexer no roteador: ouvir o clique em CAPTURA no
+  // `document`. A captura no document roda ANTES do ouvinte que o React
+  // registra na raiz do app, então, se a pessoa recusar, `preventDefault` +
+  // `stopPropagation` impedem tanto a navegação nativa do <a> quanto o
+  // `navigate()` do <Link> do wouter (que nem chega a ver o clique).
+  //
+  // Só intercepta o que de fato sai desta tela pelo mesmo app: clique
+  // primário, sem Ctrl/⌘/Shift/Alt (abrir em outra aba não perde nada), sem
+  // target=_blank nem download, mesma origem e OUTRO caminho.
+  // Fica de fora (e está relatado): navegação por código — `setLocation` do
+  // sino de notificações e da busca global — e o Voltar do navegador.
+  useEffect(() => {
+    if (dirty.size === 0) return;
+    const aoClicar = (e: MouseEvent) => {
+      if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      const alvo = e.target instanceof Element ? e.target.closest("a[href]") : null;
+      if (!(alvo instanceof HTMLAnchorElement)) return;
+      if ((alvo.target && alvo.target !== "_self") || alvo.hasAttribute("download")) return;
+      const destino = new URL(alvo.href, window.location.href);
+      if (destino.origin !== window.location.origin || destino.pathname === window.location.pathname) return;
+      const n = dirtyRef.current.size;
+      const ok = window.confirm(
+        `${n === 1 ? "Uma cota tem alterações que não foram salvas" : `${n} cotas têm alterações que não foram salvas`}.\n\nSair desta tela e descartar as marcações?`,
+      );
+      if (ok) return;
+      e.preventDefault();
+      e.stopPropagation();
+    };
+    document.addEventListener("click", aoClicar, true);
+    return () => document.removeEventListener("click", aoClicar, true);
   }, [dirty.size]);
 
   const filteredGroups = useMemo(() => {
@@ -123,11 +171,14 @@ export default function ConfigurarCotas() {
     onSuccess: (_, vars) => {
       queryClient.invalidateQueries({ queryKey: ["/api/quota-rules/global"] });
       setDirty(prev => { const n = new Set(prev); n.delete(vars.quota); return n; });
-      toast({ title: `Regras para ${vars.quota} salvas` });
     },
-    // O erro é tratado por chamada: toast individual no saveQuota, resumo
-    // agregado no saveAll — um onError global duplicaria os avisos.
+    // Erro E sucesso são avisados por chamada: toast individual no saveQuota,
+    // resumo agregado no saveAll. O toast de sucesso morava aqui e disparava
+    // uma vez POR COTA no "Salvar Tudo" — seis toasts empilhados, com a chave
+    // crua ("MINISTERIO") em vez do rótulo.
   });
+
+  const rotuloDaCota = (key: string) => QUOTAS.find(q => q.key === key)?.label ?? key;
 
   const toggleCell = (quota: string, type: string) => {
     setMatrix(prev => {
@@ -160,9 +211,13 @@ export default function ConfigurarCotas() {
   };
 
   const saveQuota = (quota: string) => {
+    const n = matrix[quota]?.size ?? 0;
     saveMutation.mutate(
       { quota, itemTypes: Array.from(matrix[quota] ?? []) },
-      { onError: (e: any) => toast({ variant: "destructive", title: "Erro ao salvar", description: e.message }) },
+      {
+        onSuccess: () => toast({ title: `Cota ${rotuloDaCota(quota)} salva`, description: `${n} grupo${n !== 1 ? "s" : ""} de peça. Vale no próximo Auto-vincular — vínculos já feitos não mudam.` }),
+        onError: (e: any) => toast({ variant: "destructive", title: `Não foi possível salvar a cota ${rotuloDaCota(quota)}`, description: e.message }),
+      },
     );
   };
 
@@ -185,38 +240,148 @@ export default function ConfigurarCotas() {
         title: `Salvas ${pending.length - failed.length} de ${pending.length} cotas`,
         description: `Falharam: ${labels}. As pendentes continuam marcadas — tente salvar de novo.`,
       });
+    } else if (pending.length > 0) {
+      toast({ title: pending.length === 1 ? "Cota salva" : `${pending.length} cotas salvas`, description: `${pending.map(rotuloDaCota).join(", ")}. Vale no próximo Auto-vincular — vínculos já feitos não mudam.` });
     }
   };
 
-  const COLS = `200px repeat(${QUOTAS.length}, 1fr)`;
+  // DESCARTAR — volta as cotas com alteração pendente ao que o servidor tem,
+  // pela mesma `fromServer` da semeadura. Antes o único jeito de desfazer uma
+  // bagunça de cliques era recarregar a página (e passar pelo aviso do
+  // beforeunload). Pergunta antes: são marcações que a pessoa fez à mão.
+  const descartarAlteracoes = () => {
+    const pendentes = Array.from(dirty);
+    if (pendentes.length === 0) return;
+    const nomes = pendentes.map(rotuloDaCota).join(", ");
+    if (!window.confirm(`Descartar as alterações de ${pendentes.length === 1 ? "1 cota" : `${pendentes.length} cotas`} (${nomes})?\n\nAs marcações voltam ao que está salvo.`)) return;
+    setMatrix(prev => {
+      const m = { ...prev };
+      for (const q of pendentes) m[q] = fromServer(q);
+      return m;
+    });
+    setDirty(new Set());
+    toast({ title: "Alterações descartadas", description: `${nomes} ${pendentes.length === 1 ? "voltou" : "voltaram"} ao que está salvo.` });
+  };
+
+  // SETAS NA GRADE. Com 25 grupos × 6 cotas eram 150 paradas de Tab para
+  // chegar à última célula — a grade era "acessível por teclado" só no
+  // papel. Setas andam uma célula (Home/End vão ao começo/fim da linha);
+  // Espaço/Enter continuam marcando. Busca pelo atributo, não por ref: as
+  // linhas mudam com o filtro e a posição (idx) já é a da lista visível.
+  const moverNaGrade = (e: React.KeyboardEvent<HTMLDivElement>, lin: number, col: number) => {
+    const destino: Record<string, [number, number]> = {
+      ArrowUp: [lin - 1, col], ArrowDown: [lin + 1, col],
+      ArrowLeft: [lin, col - 1], ArrowRight: [lin, col + 1],
+      Home: [lin, 0], End: [lin, QUOTAS.length - 1],
+    };
+    const alvo = destino[e.key];
+    if (!alvo) return;
+    const [l, c] = alvo;
+    if (l < 0 || c < 0 || c >= QUOTAS.length || l >= filteredGroups.length) return;
+    e.preventDefault();
+    document.querySelector<HTMLElement>(`[data-cota-lin="${l}"][data-cota-col="${c}"]`)?.focus();
+  };
+
+  // CTRL+S / ⌘+S salva tudo — o atalho que a mão já faz numa grade editável.
+  // Sem pendência não faz nada além de não abrir o "Salvar página" do
+  // navegador (que aqui só baixaria um HTML inútil).
+  const saveAllRef = useRef(saveAll);
+  saveAllRef.current = saveAll;
+  useEffect(() => {
+    const aoTeclar = (e: KeyboardEvent) => {
+      if (!(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== "s") return;
+      e.preventDefault();
+      if (dirtyRef.current.size > 0 && !saveMutation.isPending) saveAllRef.current();
+    };
+    window.addEventListener("keydown", aoTeclar);
+    return () => window.removeEventListener("keydown", aoTeclar);
+  }, [saveMutation.isPending]);
+
+  // LARGURA MÍNIMA por coluna: com `1fr` puro, em 375px as seis cotas
+  // espremiam-se em ~30px cada e o rótulo "Ministério" quebrava letra a letra.
+  // Com piso, a matriz passa a rolar na horizontal dentro do card — que já é o
+  // scrollport das duas direções, com a coluna de grupo grudada à esquerda.
+  const COL_GRUPO = isMobile ? 132 : 200;
+  const COL_COTA = isMobile ? 88 : 100;
+  const COLS = `${COL_GRUPO}px repeat(${QUOTAS.length}, minmax(${COL_COTA}px, 1fr))`;
+  const GRID_MIN = COL_GRUPO + QUOTAS.length * COL_COTA;
 
   return (
-    <div style={{ backgroundColor: T.bg, height: "100%", overflowY: "auto", padding: isMobile ? "14px 16px 60px" : "32px 36px 80px" }}>
+    <div style={{ backgroundColor: T.bg, height: "100%", overflowY: "auto", padding: isMobile ? "16px 16px 48px" : "28px 32px 64px" }}>
 
       {/* ── Header ── */}
-      <div style={{ marginBottom: 28, display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap", gap: 16 }}>
+      {/* Mesmo cabeçalho das outras telas de administração: título + frase à
+          esquerda, ações à direita. O sobretítulo laranja saiu; "Auto-vincular"
+          continua dito na frase. */}
+      <div style={{ marginBottom: 24, display: "flex", alignItems: "flex-end", justifyContent: "space-between", flexWrap: "wrap", gap: 16 }}>
         <div>
-          <span style={{ fontSize: 10, fontWeight: 900, color: T.accentText, textTransform: "uppercase", letterSpacing: "0.2em", fontFamily: "'Space Grotesk', sans-serif" }}>
-            Automação de Vinculação
-          </span>
-          <h1 style={{ fontSize: 36, fontWeight: 900, color: T.text, margin: "6px 0 0", fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.03em", lineHeight: 1 }}>
+          <h1 style={{ fontSize: FS.h1, fontWeight: 700, color: T.text, margin: "0 0 6px", fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.03em", lineHeight: 1.1 }}>
             Configurar Cotas
           </h1>
-          <p style={{ fontSize: 12, color: T.second, margin: "8px 0 0", maxWidth: 520 }}>
+          <p style={{ fontSize: FS.body, color: T.second, margin: 0, lineHeight: 1.5, maxWidth: 640 }}>
             Defina quais grupos de peças cada cota de patrocinador recebe. Configuração global usada no Auto-vincular.
           </p>
+          {/* PARA QUE SERVE E ONDE APARECE DEPOIS. "Auto-vincular" sozinho não
+              dizia onde fica, de onde vem a cota de cada patrocinador nem se
+              salvar mexe no que já está vinculado. Cada frase vem do código:
+              a cota é do vínculo evento↔patrocinador (eventos.tsx, seletor de
+              cota); a regra só é lida por previewAutoLink/autoLinkByQuota
+              (server/storage.ts), que casa o grupo pelo INÍCIO do tipo da
+              peça ("Palco" pega "Palco Lateral") e só CRIA vínculo que falta. */}
+          <ul data-testid="cotas-como-funciona" style={{ margin: "12px 0 0", padding: "10px 14px 10px 30px", maxWidth: 700, borderRadius: R.md, backgroundColor: T.surface, border: `1px solid ${T.border}`, fontSize: 12.5, lineHeight: 1.55, color: "#44403c", display: "flex", flexDirection: "column", gap: 3 }}>
+            <li>A cota de cada patrocinador (Master, Gold…) é escolhida no evento, ao vinculá-lo.</li>
+            <li>
+              Em{" "}
+              <Link href="/vincular-patrocinadores" style={{ color: "#c2410c", fontWeight: 700, textDecoration: "underline", textUnderlineOffset: 2 }}>Vincular Patrocinadores</Link>
+              , o botão <strong>Auto-vincular por cota</strong> dá a cada patrocinador as peças dos grupos marcados na coluna da cota dele — o grupo “Palco” também pega “Palco Lateral”.
+            </li>
+            <li>Salvar aqui não muda vínculos já feitos: vale a partir do próximo Auto-vincular, em qualquer evento.</li>
+          </ul>
         </div>
-        {dirty.size > 0 && (
-          <button
-            onClick={saveAll}
-            disabled={saveMutation.isPending}
-            data-testid="save-all-button"
-            style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 20px", backgroundColor: T.dark, color: "#fff", border: "none", borderRadius: 8, cursor: "pointer", fontSize: 11, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.12em", flexShrink: 0, opacity: saveMutation.isPending ? 0.7 : 1 }}
-          >
-            <Save style={{ width: 13, height: 13 }} />
-            Salvar Tudo ({dirty.size})
-          </button>
-        )}
+        {/* AVISO + AÇÕES DE PENDÊNCIA. O "N cotas com alterações" morava só no
+            rodapé da matriz — que, com muitos grupos, fica abaixo da dobra — e
+            a única saída era salvar. Agora o estado fica à vista no topo, com
+            as duas saídas lado a lado: descartar (secundário) e salvar tudo
+            (primário). A região viva (sempre montada, só o texto muda) avisa o
+            leitor de tela quando a contagem muda — sem reler os botões. */}
+        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", width: isMobile ? "100%" : undefined }}>
+          <span className="sr-only" aria-live="polite">
+            {dirty.size === 0 ? "" : dirty.size === 1 ? "1 cota com alterações não salvas" : `${dirty.size} cotas com alterações não salvas`}
+          </span>
+          {dirty.size > 0 && (
+            <>
+              <span data-testid="aviso-alteracoes-nao-salvas" style={{ display: "inline-flex", alignItems: "center", gap: 7, height: 32, padding: "0 12px", borderRadius: 999, backgroundColor: "#fff7ed", border: "1px solid #fed7aa", color: "#9a3412", fontSize: 12, fontWeight: 700, whiteSpace: "nowrap", animation: "norte-surge 0.18s ease-out", flex: isMobile ? "1 1 100%" : undefined, justifyContent: isMobile ? "center" : undefined }}>
+                <span aria-hidden="true" style={{ width: 7, height: 7, borderRadius: "50%", backgroundColor: "#f97316" }} />
+                {dirty.size === 1 ? "1 cota com alterações não salvas" : `${dirty.size} cotas com alterações não salvas`}
+              </span>
+              <button
+                type="button"
+                onClick={descartarAlteracoes}
+                disabled={saveMutation.isPending}
+                data-testid="discard-all-button"
+                style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8, height: 40, padding: "0 16px", backgroundColor: T.surface, color: T.text, border: `1px solid ${T.bdark}`, borderRadius: R.md, cursor: saveMutation.isPending ? "not-allowed" : "pointer", fontSize: 12, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", whiteSpace: "nowrap", opacity: saveMutation.isPending ? 0.6 : 1, flex: isMobile ? "1 1 0" : undefined, transition: "background-color 0.15s ease" }}
+                onMouseEnter={e => { if (!saveMutation.isPending) e.currentTarget.style.backgroundColor = T.low; }}
+                onMouseLeave={e => { e.currentTarget.style.backgroundColor = T.surface; }}
+              >
+                <RotateCcw aria-hidden="true" style={{ width: 14, height: 14 }} />
+                Descartar alterações
+              </button>
+              <button
+                type="button"
+                onClick={saveAll}
+                disabled={saveMutation.isPending}
+                aria-busy={saveMutation.isPending}
+                data-testid="save-all-button"
+                style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8, height: 40, padding: "0 18px", backgroundColor: T.dark, color: "#fff", border: "none", borderRadius: R.md, cursor: saveMutation.isPending ? "wait" : "pointer", fontSize: 12, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", whiteSpace: "nowrap", opacity: saveMutation.isPending ? 0.7 : 1, flex: isMobile ? "1 1 0" : undefined, transition: "background-color 0.15s ease" }}
+                onMouseEnter={e => { if (!saveMutation.isPending) e.currentTarget.style.backgroundColor = "#292524"; }}
+                onMouseLeave={e => { e.currentTarget.style.backgroundColor = T.dark; }}
+              >
+                <Save aria-hidden="true" style={{ width: 14, height: 14 }} />
+                {saveMutation.isPending ? "Salvando…" : `Salvar Tudo (${dirty.size})`}
+              </button>
+            </>
+          )}
+        </div>
       </div>
 
       {/* ── Matrix card ── */}
@@ -228,7 +393,7 @@ export default function ConfigurarCotas() {
         {/* ── Sticky header ── */}
         <div style={{
           position: "sticky", top: 0, zIndex: 10,
-          display: "grid", gridTemplateColumns: COLS,
+          display: "grid", gridTemplateColumns: COLS, minWidth: GRID_MIN,
           borderBottom: `2px solid ${T.border}`,
           backgroundColor: T.surface,
           boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
@@ -236,7 +401,7 @@ export default function ConfigurarCotas() {
           {/* Left corner: search — sticky à esquerda para a coluna de grupo
               não sumir no scroll horizontal */}
           <div style={{ position: "sticky", left: 0, zIndex: 11, backgroundColor: T.surface, padding: "14px 16px", borderRight: `1px solid ${T.border}`, display: "flex", flexDirection: "column", justifyContent: "flex-end", gap: 8 }}>
-            <span style={{ fontSize: 9, fontWeight: 900, color: T.second, textTransform: "uppercase", letterSpacing: "0.16em", fontFamily: "'Space Grotesk', sans-serif" }}>
+            <span style={{ fontSize: 10, fontWeight: 900, color: T.second, textTransform: "uppercase", letterSpacing: "0.16em", fontFamily: "'Space Grotesk', sans-serif" }}>
               Grupo de Peça
             </span>
             {groups.length > 6 && (
@@ -246,12 +411,15 @@ export default function ConfigurarCotas() {
                   value={search}
                   onChange={e => setSearch(e.target.value)}
                   placeholder="Filtrar grupos..."
+                  aria-label="Filtrar grupos de peça"
                   data-testid="input-search-groups"
-                  style={{ width: "100%", padding: "5px 24px 5px 24px", fontSize: 11, border: `1px solid ${T.border}`, borderRadius: 6, background: T.low, color: T.text, outline: "none", boxSizing: "border-box" }}
+                  // Sem `outline: none`: o inline vencia o anel de foco global
+                  // (:focus-visible) e quem navega por teclado perdia o cursor.
+                  style={{ width: "100%", height: isMobile ? 40 : 30, padding: "0 26px 0 24px", fontSize: 12, border: `1px solid ${T.border}`, borderRadius: R.sm, background: T.low, color: T.text, boxSizing: "border-box" }}
                 />
                 {search && (
-                  <button onClick={() => setSearch("")} style={{ position: "absolute", right: 6, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", padding: 0, display: "flex" }}>
-                    <X style={{ width: 11, height: 11, color: T.muted }} />
+                  <button type="button" onClick={() => setSearch("")} aria-label="Limpar filtro de grupos" style={{ position: "absolute", right: 2, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", padding: 6, display: "flex", borderRadius: 4 }}>
+                    <X aria-hidden="true" style={{ width: 12, height: 12, color: T.second }} />
                   </button>
                 )}
               </div>
@@ -291,15 +459,25 @@ export default function ConfigurarCotas() {
                   }}>
                     {count} grupo{count !== 1 ? "s" : ""}
                   </div>
+                  {/* O fundo colorido era o ÚNICO sinal de coluna com alteração
+                      pendente — e a própria coluna já usa essa cor quando a
+                      célula está marcada. O rótulo tira a ambiguidade. */}
+                  {isDirtyQ && (
+                    <div style={{ marginTop: 3, fontSize: 10, fontWeight: 800, color: "#c2410c", textTransform: "uppercase", letterSpacing: "0.08em" }}>
+                      não salvo
+                    </div>
+                  )}
                 </div>
 
-                {/* Actions row */}
-                <div style={{ display: "flex", alignItems: "center", gap: 3 }}>
+                {/* Actions row — quebra linha: no celular a coluna tem 88px e
+                    Todos + Limpar + salvar, com alvo de 44px, somavam ~150 e
+                    invadiam a coluna vizinha. Nada abaixo de 10px de fonte. */}
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "center", flexWrap: "wrap", gap: 3 }}>
                   <button
                     onClick={() => selectAll(q.key)}
                     data-testid={`btn-all-${q.key}`}
                     aria-label={`Marcar todos os grupos para a cota ${q.label}`}
-                    style={{ fontSize: 9, fontWeight: 700, color: q.color, background: q.bg, border: `1px solid ${q.light}`, borderRadius: 4, padding: isMobile ? "12px 10px" : "2px 7px", minHeight: isMobile ? 44 : undefined, cursor: "pointer", textTransform: "uppercase", letterSpacing: "0.06em" }}
+                    style={{ fontSize: 10, fontWeight: 700, color: q.color, background: q.bg, border: `1px solid ${q.light}`, borderRadius: 4, padding: isMobile ? "12px 10px" : "0 8px", minHeight: isMobile ? 44 : 24, cursor: "pointer", textTransform: "uppercase", letterSpacing: "0.06em" }}
                   >
                     Todos
                   </button>
@@ -307,7 +485,7 @@ export default function ConfigurarCotas() {
                     onClick={() => clearAll(q.key)}
                     data-testid={`btn-clear-${q.key}`}
                     aria-label={`Desmarcar todos os grupos da cota ${q.label}`}
-                    style={{ fontSize: 9, fontWeight: 700, color: T.second, background: T.low, border: `1px solid ${T.border}`, borderRadius: 4, padding: isMobile ? "12px 10px" : "2px 7px", minHeight: isMobile ? 44 : undefined, cursor: "pointer", textTransform: "uppercase", letterSpacing: "0.06em" }}
+                    style={{ fontSize: 10, fontWeight: 700, color: T.second, background: T.low, border: `1px solid ${T.border}`, borderRadius: 4, padding: isMobile ? "12px 10px" : "0 8px", minHeight: isMobile ? 44 : 24, cursor: "pointer", textTransform: "uppercase", letterSpacing: "0.06em" }}
                   >
                     Limpar
                   </button>
@@ -317,7 +495,7 @@ export default function ConfigurarCotas() {
                       disabled={saveMutation.isPending}
                       data-testid={`save-quota-${q.key}`}
                       aria-label={`Salvar regras da cota ${q.label}`}
-                      style={{ display: "flex", alignItems: "center", justifyContent: "center", width: isMobile ? 44 : 22, height: isMobile ? 44 : 22, backgroundColor: T.dark, border: "none", borderRadius: 4, cursor: "pointer", opacity: saveMutation.isPending ? 0.6 : 1, flexShrink: 0 }}
+                      style={{ display: "flex", alignItems: "center", justifyContent: "center", width: isMobile ? 44 : 24, height: isMobile ? 44 : 24, backgroundColor: T.dark, border: "none", borderRadius: 4, cursor: "pointer", opacity: saveMutation.isPending ? 0.6 : 1, flexShrink: 0 }}
                       title={`Salvar ${q.label}`}
                     >
                       <Save style={{ width: 11, height: 11, color: "#fff" }} />
@@ -331,18 +509,31 @@ export default function ConfigurarCotas() {
 
         {/* ── Rows ── */}
         {isLoading ? (
-          <div style={{ padding: "56px 0", textAlign: "center" }}>
+          // Esqueleto na silhueta das linhas da matriz. O pulso era um
+          // `animation` inline, que ignorava "reduzir movimento"; agora é o
+          // `motion-safe:` das outras telas.
+          <div role="status" aria-label="Carregando regras de cota" style={{ minWidth: GRID_MIN }}>
             {[...Array(6)].map((_, i) => (
-              <div key={i} style={{ height: 40, margin: "2px 0", background: T.low, borderRadius: 4, animation: "pulse 1.5s infinite", opacity: 0.5 }} />
+              <div key={i} className="motion-safe:animate-pulse" style={{ display: "grid", gridTemplateColumns: COLS, borderBottom: `1px solid ${T.border}` }}>
+                <div style={{ padding: "13px 16px", borderRight: `1px solid ${T.border}` }}>
+                  <div style={{ width: "70%", height: 12, borderRadius: 4, backgroundColor: T.low }} />
+                </div>
+                {QUOTAS.map(q => (
+                  <div key={q.key} style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: isMobile ? 44 : 40, borderLeft: `1px solid ${T.border}` }}>
+                    <div style={{ width: 18, height: 18, borderRadius: 4, backgroundColor: T.low }} />
+                  </div>
+                ))}
+              </div>
             ))}
           </div>
         ) : isError ? (
           <div style={{ padding: "60px 24px", textAlign: "center" }}>
-            <p style={{ fontSize: 14, fontWeight: 700, color: T.text, margin: "0 0 4px" }}>Não foi possível carregar as regras de cota</p>
+            <p style={{ fontSize: 13, fontWeight: 700, color: T.text, margin: "0 0 4px" }}>Não foi possível carregar as regras de cota</p>
             <p style={{ fontSize: 12, color: T.second, margin: "0 0 16px" }}>Verifique sua conexão e tente novamente.</p>
             <button
+              type="button"
               onClick={() => { refetchGroups(); refetchRules(); }}
-              style={{ padding: "9px 18px", backgroundColor: T.dark, color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em" }}
+              style={{ display: "inline-flex", alignItems: "center", height: 36, padding: "0 18px", backgroundColor: T.dark, color: "#fff", border: "none", borderRadius: R.md, cursor: "pointer", fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em" }}
             >
               Tentar novamente
             </button>
@@ -351,13 +542,19 @@ export default function ConfigurarCotas() {
           <div style={{ padding: "60px 0", textAlign: "center" }}>
             {search ? (
               <>
-                <p style={{ fontSize: 13, fontWeight: 700, color: T.second, margin: "0 0 4px" }}>Nenhum grupo encontrado para "{search}"</p>
-                <button onClick={() => setSearch("")} style={{ fontSize: 12, color: T.accentText, background: "none", border: "none", cursor: "pointer", fontWeight: 600 }}>Limpar filtro</button>
+                <p style={{ fontSize: 13, fontWeight: 700, color: T.second, margin: "0 0 14px" }}>Nenhum grupo encontrado para "{search}"</p>
+                {/* Mesmo botão "Limpar filtros" dos vazios de Usuários, Logs e
+                    Patrocinadores — era um link laranja solto. */}
+                <button type="button" onClick={() => setSearch("")} style={{ display: "inline-flex", alignItems: "center", height: 36, padding: "0 16px", backgroundColor: T.surface, border: `1px solid ${T.bdark}`, borderRadius: R.md, cursor: "pointer", fontSize: 11, fontWeight: 800, color: T.text, textTransform: "uppercase", letterSpacing: "0.08em" }}>Limpar filtro</button>
               </>
             ) : (
               <>
                 <p style={{ fontSize: 14, fontWeight: 700, color: T.second, margin: "0 0 6px" }}>Nenhum grupo de peça encontrado</p>
-                <p style={{ fontSize: 12, color: T.second, margin: 0 }}>Importe eventos com itens para que os grupos apareçam aqui</p>
+                {/* De onde vêm as linhas: /api/quota-rules/groups junta o
+                    `type` dos Modelos e das peças. Dizer as duas portas. */}
+                <p style={{ fontSize: 12, color: T.second, margin: 0 }}>
+                  Os grupos vêm do Tipo dos <Link href="/modelos" style={{ color: "#c2410c", fontWeight: 700, textDecoration: "underline" }}>Modelos</Link> e das peças dos eventos — cadastre um modelo ou importe um evento para eles aparecerem.
+                </p>
               </>
             )}
           </div>
@@ -368,7 +565,7 @@ export default function ConfigurarCotas() {
               <div
                 key={group}
                 style={{
-                  display: "grid", gridTemplateColumns: COLS,
+                  display: "grid", gridTemplateColumns: COLS, minWidth: GRID_MIN,
                   borderBottom: idx < filteredGroups.length - 1 ? `1px solid ${T.border}` : "none",
                   backgroundColor: isEven ? T.surface : STRIPE,
                 }}
@@ -381,7 +578,7 @@ export default function ConfigurarCotas() {
                 </div>
 
                 {/* Quota cells */}
-                {QUOTAS.map(q => {
+                {QUOTAS.map((q, col) => {
                   const checked = matrix[q.key]?.has(group) ?? false;
                   return (
                     <div
@@ -390,12 +587,16 @@ export default function ConfigurarCotas() {
                       aria-checked={checked}
                       aria-label={`${group} na cota ${q.label}`}
                       tabIndex={0}
+                      data-cota-lin={idx}
+                      data-cota-col={col}
                       onClick={() => toggleCell(q.key, group)}
                       onKeyDown={e => {
                         if (e.key === "Enter" || e.key === " ") {
                           e.preventDefault();
                           toggleCell(q.key, group);
+                          return;
                         }
+                        moverNaGrade(e, idx, col);
                       }}
                       data-testid={`cell-${q.key}-${group}`}
                       style={{
@@ -429,7 +630,9 @@ export default function ConfigurarCotas() {
         {!isLoading && groups.length > 0 && (
           <div style={{ padding: "10px 16px", backgroundColor: T.low, borderTop: `2px solid ${T.border}`, display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
             <span style={{ fontSize: 11, color: T.second, fontWeight: 600 }}>
-              {filteredGroups.length} de {groups.length} grupo{groups.length !== 1 ? "s" : ""} · clique nas células para marcar
+              {/* Os atalhos só existem se forem ditos: setas e Ctrl+S não se
+                  descobrem sozinhos numa grade de caixinhas. */}
+              {filteredGroups.length} de {groups.length} grupo{groups.length !== 1 ? "s" : ""}{isMobile ? " · toque na célula para marcar" : " · clique ou Espaço marca · setas andam na grade · Ctrl+S salva tudo"}
             </span>
             {dirty.size > 0 && (
               <span style={{ fontSize: 11, fontWeight: 700, color: "#c2410c" }}>

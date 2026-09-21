@@ -10,6 +10,10 @@ interface User {
   email: string;
   role: UserRole;
   mustChangePassword: boolean;
+  /** Usuário do Kit (14/09): só vê e cria peças do Kit, e só as dele. */
+  kit?: boolean;
+  /** VER COMO (15/09): "admin" enquanto o admin navega como outro perfil. */
+  papelReal?: string | null;
 }
 
 interface AuthContextType {

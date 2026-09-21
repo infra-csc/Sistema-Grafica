@@ -257,7 +257,9 @@ describe("o diálogo: nada cortado, e a barra lateral conta o que a tabela agrup
   });
 
   it("o que NÃO mudou: escala do m², triagem, padding da busca, reaproveitar, borda laranja", () => {
-    expect(dg).toContain("const m2Color = m2 > 30 ? '#dc2626' : m2 > 10 ? '#ea580c' : m2 > 0 ? '#16a34a' : '#d0cdc9';");
+    // A ESCALA (30 · 10 · 0) é o que não muda. Os tons do texto passaram a
+    // ser os que dão AA em 13px (#ea580c→#c2410c, #16a34a→#15803d).
+    expect(dg).toContain("const m2Color = m2 > 30 ? '#dc2626' : m2 > 10 ? '#c2410c' : m2 > 0 ? '#15803d' : '#78716c';");
     expect(dg).toContain("data-testid={`triagem-${chave}`}");
     expect(dg).toContain("padding: '10px 44px 10px 16px'");
     expect(dg).toContain("Reaproveitar");

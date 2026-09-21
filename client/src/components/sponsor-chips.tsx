@@ -1,5 +1,5 @@
 import { useState, type CSSProperties } from "react";
-import { getApprovalMeta, getApprovalTitle, type ApprovalMeta, type ApprovalStatus } from "@/lib/status";
+import { getApprovalMeta, getApprovalTitle, proximoPassoDaAprovacao, type ApprovalMeta, type ApprovalStatus } from "@/lib/status";
 import { Check, Clock } from "lucide-react";
 
 interface Sponsor {
@@ -168,7 +168,9 @@ export function SponsorChips({
         return (
           <span
             key={s.id}
-            title={getApprovalTitle(s.name, s.approvalStatus)}
+            // O title diz o que aconteceu E de quem é a vez: chip vermelho de
+            // "Reprovado" respondia "o quê", mas não "quem mexe agora".
+            title={[getApprovalTitle(s.name, s.approvalStatus), proximoPassoDaAprovacao(s.approvalStatus)].filter(Boolean).join(" · ")}
             style={{
               position: "relative", // âncora do rótulo sr-only
               display: "inline-flex",

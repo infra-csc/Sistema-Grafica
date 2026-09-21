@@ -1,18 +1,20 @@
 import { useQuery } from "@tanstack/react-query";
 import { parseDateLocal, toUTCDisplayDate } from "@/lib/utils";
 import { getPriorityMeta, getStatusMeta, isEventoEncerrado } from "@/lib/status";
-import { ChevronLeft, ChevronRight, AlertTriangle, Calendar, Truck, Search, BarChart2, Flag } from "lucide-react";
+import { ChevronLeft, ChevronRight, AlertTriangle, Calendar, Truck, Search, BarChart2, Flag, X } from "lucide-react";
 import { useState, useMemo, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 import {
   Dialog,
   DialogContent,
-  DialogHeader,
+  DialogDescription,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { ModalHeader, modalSurface, HIDE_NATIVE_CLOSE } from "@/components/modal-shell";
 import { MARCOS_DO_EVENTO, OFFSET_PADRAO_DO_MARCO } from "@shared/prazo-dates";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useAuth } from "@/contexts/auth-context";
+import { FS } from "@/lib/theme";
 
 /* ── Palette ── */
 const P = {
@@ -74,6 +76,12 @@ const LEGEND_PRIOS: { label: string; dot: string }[] = [
 // e não em duas, com a terceira descobrindo meses depois.
 const DEADLINE_TYPES = MARCOS_DO_EVENTO.map(m => ({
   key: m.campo, label: m.label, short: m.curto, color: m.cor, text: m.texto,
+}));
+
+/** Frase de ajuda de cada marco (legenda): o que é e quando vence, por padrão. */
+const DICA_DO_MARCO: Record<string, string> = Object.fromEntries(MARCOS_DO_EVENTO.map(m => {
+  const dias = Math.abs(m.offset);
+  return [m.campo, `${m.label}: ${m.descricao}. Prazo padrão: ${dias} dia${dias !== 1 ? "s" : ""} antes da saída do caminhão (o evento pode ter prazo próprio).`];
 }));
 
 // ── CADA FUNÇÃO VÊ O QUE PRECISA (dono, 27/08) ─────────────────────────────
@@ -365,6 +373,24 @@ export default function Calendario() {
   const urgentCount    = monthEvents.filter(e => e.priority === "urgente").length;
   const ongoingCount   = monthEvents.length - completedCount - closedCount;
 
+  // ── QUANTO A BUSCA ACHOU NO MÊS ──
+  // A busca filtra a grade em silêncio: um termo que não casa com nada deixava
+  // a grade VAZIA, idêntica a um mês sem evento — a pessoa não sabia se errou a
+  // digitação ou se não havia nada marcado. Aqui só se CONTA o que a grade já
+  // desenha, com o mesmo `casa` por nome: a busca em si não muda.
+  const resultadoDaBusca = useMemo(() => {
+    if (!searchTerm) return null;
+    const termo = searchTerm.toLowerCase();
+    let marcacoes = 0;
+    for (let d = 1; d <= daysInMonth; d++) {
+      const b = byDay.get(new Date(year, month, d).toDateString());
+      if (!b) continue;
+      marcacoes += b.events.filter(e => e.name.toLowerCase().includes(termo)).length
+                 + b.deadlines.filter(x => x.event.name.toLowerCase().includes(termo)).length;
+    }
+    return marcacoes;
+  }, [searchTerm, byDay, year, month, daysInMonth]);
+
   function msToHM(ms: number) {
     const h = Math.floor(ms / 3_600_000);
     const m = Math.floor((ms % 3_600_000) / 60_000);
@@ -389,14 +415,17 @@ export default function Calendario() {
           existem; se um dia existirem, voltam com conteúdo próprio. */}
       <div style={{ marginBottom: 28 }}>
         <h1 data-testid="title-calendario" style={{
-          fontSize: 26, fontWeight: 800, color: P.text, margin: 0,
-          textTransform: "uppercase", letterSpacing: "-0.03em",
-          fontFamily: "'Space Grotesk', sans-serif", lineHeight: 1,
+          fontSize: FS.h1, fontWeight: 700, color: P.text, margin: 0,
+          letterSpacing: "-0.03em",
+          fontFamily: "'Space Grotesk', sans-serif", lineHeight: 1.1,
         }}>
           Calendário de Eventos
         </h1>
+        {/* O subtítulo repetia o mês (que o cabeçalho da grade já mostra em
+            26px) atrás de um jargão. Agora ensina a ler a tela: de onde os
+            prazos saem e o que o clique faz. */}
         <p style={{ fontSize: 13, color: P.secondary, margin: "6px 0 0", fontWeight: 500 }}>
-          Gestão tática e logística — {MONTH_NAMES[month]} {year}
+          Início, saída do caminhão e prazos de cada evento — clique numa marcação para abrir o evento.
         </p>
       </div>
 
@@ -404,13 +433,19 @@ export default function Calendario() {
           role="alert": leitor de tela anuncia a urgência ao chegar na tela.
           O antigo "Ver Detalhes" abria só o dia do PRIMEIRO urgente; agora
           cada urgente é um botão que leva direto ao seu evento. */}
+      {/* <section> com rótulo, e não role="alert": o tick de 1 min reescreve
+          as contagens daqui, e uma região de alerta RE-ANUNCIA a cada mudança
+          — o leitor de tela interrompia a pessoa a cada minuto com a mesma
+          faixa. A seção continua achável pela navegação por regiões.
+          `border` ANTES de `borderLeft`: na ordem inversa o shorthand zerava a
+          barra de 6px e a faixa mais urgente da tela perdia o acento. */}
       {urgentEvents.length > 0 && (
-        <div role="alert" style={{
+        <section aria-label="Saídas do caminhão nas próximas 48 horas" data-testid="faixa-urgentes" style={{
           marginBottom: 20,
           backgroundColor: "#fef2f2",
+          border: "1px solid #fca5a5",
           borderLeft: "6px solid #dc2626",
           borderRadius: 12,
-          border: "1px solid #fca5a5",
           padding: "14px 20px",
         }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
@@ -446,7 +481,7 @@ export default function Calendario() {
               );
             })}
           </div>
-        </div>
+        </section>
       )}
 
       {/* ── Main Calendar Card ── */}
@@ -455,7 +490,7 @@ export default function Calendario() {
         {/* Navigation bar */}
         <div style={{ padding: isMobile ? "14px 16px" : "20px 32px", backgroundColor: "#f9f9f8", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-            <h2 style={{ margin: 0, fontSize: isMobile ? 20 : 26, fontWeight: 800, color: P.text, textTransform: "uppercase", letterSpacing: "-0.03em", fontFamily: "'Space Grotesk', sans-serif" }}>
+            <h2 style={{ margin: 0, fontSize: isMobile ? 20 : FS.h2, fontWeight: 700, color: P.text, letterSpacing: "-0.02em", fontFamily: "'Space Grotesk', sans-serif" }}>
               {MONTH_NAMES[month]} {year}
             </h2>
             <div style={{ display: "flex", gap: 4 }}>
@@ -471,15 +506,29 @@ export default function Calendario() {
             </div>
           </div>
 
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            {/* Search */}
-            <div style={{ position: "relative" }}>
+          {/* flexWrap + busca em linha própria no celular: em 390px a busca
+              (160) + Hoje + Semana|Mês somavam ~390px dentro de 330 úteis, e
+              o segmented vazava para fora do cartão. */}
+          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", width: isMobile ? "100%" : undefined }}>
+            <div style={{ position: "relative", flex: isMobile ? "1 1 100%" : undefined }}>
               <Search style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", width: 14, height: 14, color: P.muted }} />
+              {/* Esc limpa e o X aparece com texto: sem nenhum dos dois, apagar
+                  a busca era segurar Backspace — e a grade filtrada sem saída
+                  visível parece um mês vazio. Fonte 16 no celular: abaixo
+                  disso o Safari do iPhone dá zoom na página ao focar. */}
               <input placeholder="Filtrar evento..."
                 aria-label="Filtrar eventos do calendário"
                 ref={searchRef}
                 value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
-                style={{ paddingLeft: 32, paddingRight: 12, height: isMobile ? 44 : 36, width: isMobile ? 160 : 200, backgroundColor: "#eeeeed", border: "none", borderRadius: 8, fontSize: 13, color: P.text }} />
+                onKeyDown={e => { if (e.key === "Escape" && searchTerm) { e.preventDefault(); setSearchTerm(""); } }}
+                style={{ paddingLeft: 32, paddingRight: searchTerm ? 34 : 12, height: isMobile ? 44 : 36, width: isMobile ? "100%" : 200, boxSizing: "border-box", backgroundColor: "#eeeeed", border: "none", borderRadius: 8, fontSize: isMobile ? 16 : 13, color: P.text }} />
+              {searchTerm && (
+                <button type="button" onClick={() => { setSearchTerm(""); searchRef.current?.focus(); }}
+                  aria-label="Limpar filtro de evento" title="Limpar (Esc)" data-testid="button-limpar-busca-calendario"
+                  style={{ position: "absolute", right: 2, top: "50%", transform: "translateY(-50%)", width: isMobile ? 40 : 30, height: isMobile ? 40 : 30, display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: "none", borderRadius: 6, color: P.secondary, cursor: "pointer" }}>
+                  <X aria-hidden="true" style={{ width: 14, height: 14 }} />
+                </button>
+              )}
             </div>
             {/* Alvo de toque: 44px no celular, como os demais controles de navegação. */}
             <button onClick={() => setCurrentDate(new Date())} data-testid="button-today"
@@ -529,9 +578,59 @@ export default function Calendario() {
           </div>
         </div>
 
+        {/* O RESULTADO DA BUSCA, DITO. Só no mês: na semana o cabeçalho da
+            faixa já conta as marcações. `aria-live` para quem usa leitor de
+            tela ouvir o resultado enquanto digita, sem sair do campo. */}
+        {escala === "mes" && resultadoDaBusca !== null && !isLoading && !isError && (
+          <div
+            role="status"
+            aria-live="polite"
+            data-testid="resultado-busca-calendario"
+            style={{
+              display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap",
+              padding: isMobile ? "8px 16px" : "8px 32px",
+              borderTop: "1px solid #eeeeed",
+              backgroundColor: resultadoDaBusca === 0 ? "#fffbeb" : "#f9f9f8",
+              fontSize: 13, color: resultadoDaBusca === 0 ? "#92400e" : P.secondary,
+            }}
+          >
+            <span>
+              {resultadoDaBusca === 0
+                ? <>Nada com “<strong style={{ color: P.text }}>{searchTerm}</strong>” em {MONTH_NAMES[month].toLowerCase()}.</>
+                : <>{resultadoDaBusca} {resultadoDaBusca === 1 ? "marcação" : "marcações"} com “<strong style={{ color: P.text }}>{searchTerm}</strong>” em {MONTH_NAMES[month].toLowerCase()}</>}
+            </span>
+            {resultadoDaBusca === 0 && (
+              <button
+                type="button"
+                onClick={() => { setSearchTerm(""); searchRef.current?.focus(); }}
+                style={{ background: "none", border: "none", padding: isMobile ? "10px 0" : 0, font: "inherit", fontSize: 13, fontWeight: 700, color: "#92400e", textDecoration: "underline", textUnderlineOffset: 3, cursor: "pointer" }}
+              >
+                Limpar filtro
+              </button>
+            )}
+          </div>
+        )}
+
         {isLoading ? (
-          <div style={{ display: "flex", justifyContent: "center", padding: 64 }}>
-            <div style={{ width: 32, height: 32, border: "3px solid #e7e5e4", borderTopColor: P.accent, borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
+          // Skeleton com a silhueta da escala em vigor, no lugar do spinner
+          // central: o spinner deixava um vão branco e a grade "pulava" ao
+          // chegar. aria-busy + rótulo dizem ao leitor de tela que é carga, não
+          // mês vazio. `animate-pulse` já respeita prefers-reduced-motion
+          // (regra global do index.css).
+          <div aria-busy="true" aria-label="Carregando calendário" data-testid="skeleton-calendario"
+            style={escala === "semana"
+              ? { display: "flex", flexDirection: "column" }
+              : { display: "grid", gridTemplateColumns: "repeat(7, minmax(0, 1fr))" }}>
+            {Array.from({ length: escala === "semana" ? 7 : 35 }).map((_, i) => (
+              <div key={i} style={escala === "semana"
+                ? { display: "flex", gap: 14, alignItems: "center", padding: "14px", borderBottom: "1px solid #f5f4f2", minHeight: 56 }
+                : { height: isMobile ? 62 : 90, padding: 8, borderRight: i % 7 !== 6 ? "1px solid #eeeeed" : undefined, borderBottom: "1px solid #eeeeed" }}>
+                <div className="animate-pulse" style={{ width: escala === "semana" ? 48 : 18, height: escala === "semana" ? 28 : 12, borderRadius: 4, backgroundColor: P.low }} />
+                {(escala === "semana" || i % 3 === 0) && (
+                  <div className="animate-pulse" style={{ width: escala === "semana" ? "45%" : "80%", height: 10, borderRadius: 4, backgroundColor: "#eeeeed", marginTop: escala === "semana" ? 0 : 8 }} />
+                )}
+              </div>
+            ))}
           </div>
         ) : isError ? (
           <div role="alert" style={{ padding: "56px 24px", textAlign: "center" }}>
@@ -568,8 +667,13 @@ export default function Calendario() {
               return (
                 <div style={{ padding: "12px 20px", borderBottom: "1px solid #eeeeed", backgroundColor: "#f9f9f8", display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
                   <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 15, fontWeight: 800, color: P.text }}>{faixa}</span>
-                  <span style={{ fontSize: 12, color: P.secondary }}>
-                    {total} {total === 1 ? "marcação" : "marcações"}
+                  {/* Com busca ativa a contagem diz COM O QUÊ contou — "0
+                      marcações" sozinho não separa semana vazia de termo
+                      que não casou. */}
+                  <span role={searchTerm ? "status" : undefined} aria-live={searchTerm ? "polite" : undefined} style={{ fontSize: 12, color: searchTerm && total === 0 ? "#92400e" : P.secondary }}>
+                    {searchTerm && total === 0
+                      ? <>Nada com “{searchTerm}” nesta semana</>
+                      : <>{total} {total === 1 ? "marcação" : "marcações"}{searchTerm ? <> com “{searchTerm}”</> : null}</>}
                   </span>
                 </div>
               );
@@ -593,7 +697,9 @@ export default function Calendario() {
                   data-testid={`week-day-${date.getDate()}`}
                   style={{ display: "flex", gap: 0, borderBottom: "1px solid #f5f4f2", backgroundColor: hoje ? "#fffbf7" : "#ffffff" }}
                 >
-                  <div style={{ width: 92, flexShrink: 0, padding: "12px 14px", borderRight: "1px solid #f5f4f2" }}>
+                  {/* 56px no celular: com 92 sobravam ~50px para o nome depois
+                      do tipo e do horário — justo o nome, razão desta visão. */}
+                  <div style={{ width: isMobile ? 56 : 92, flexShrink: 0, padding: isMobile ? "12px 10px" : "12px 14px", borderRight: "1px solid #f5f4f2" }}>
                     <p style={{ margin: 0, fontSize: 10, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.08em", color: hoje ? "#c2410c" : P.secondary }}>
                       {WEEK_DAYS[date.getDay()]}
                     </p>
@@ -628,7 +734,11 @@ export default function Calendario() {
                           aria-label={`Abrir evento ${ev.name} — ${tipo}`}
                           style={{
                             display: "flex", alignItems: "center", gap: 10, width: "100%",
-                            minHeight: 44, padding: "8px 14px", textAlign: "left",
+                            minHeight: 44, padding: isMobile ? "8px 12px" : "8px 14px", textAlign: "left",
+                            // No celular o nome ocupa a primeira linha inteira e
+                            // tipo/horário/contagem descem para a segunda.
+                            flexWrap: isMobile ? "wrap" : "nowrap", rowGap: 2,
+                            transition: "background-color 0.12s ease",
                             background: "none", border: "none",
                             borderLeft: item.kind === "deadline" ? `3px dashed ${cor}` : `3px solid ${cor}`,
                             borderTop: i > 0 ? "1px solid #f9f9f8" : "none",
@@ -639,8 +749,8 @@ export default function Calendario() {
                         >
                           <Icone aria-hidden="true" style={{ width: 14, height: 14, color: cor, flexShrink: 0 }} />
                           {/* O NOME POR EXTENSO — o motivo desta visao existir. */}
-                          <span style={{ flex: 1, minWidth: 0, fontSize: 13, fontWeight: 600, color: P.text }}>{ev.name}</span>
-                          <span style={{ fontSize: 12, color: P.secondary, whiteSpace: "nowrap", flexShrink: 0 }}>{tipo}</span>
+                          <span style={{ flex: 1, minWidth: 0, flexBasis: isMobile ? "calc(100% - 24px)" : undefined, fontSize: 13, fontWeight: 600, color: P.text }}>{ev.name}</span>
+                          <span style={{ fontSize: 12, color: P.secondary, whiteSpace: "nowrap", flexShrink: 0, marginLeft: isMobile ? 24 : 0 }}>{tipo}</span>
                           {saida && (
                             <span style={{ fontFamily: "monospace", fontSize: 12, color: P.secondary, whiteSpace: "nowrap", flexShrink: 0 }}>
                               {String(saida.getHours()).padStart(2, "0")}:{String(saida.getMinutes()).padStart(2, "0")}
@@ -732,7 +842,10 @@ export default function Calendario() {
                   {...(hasAny ? {
                     role: "button" as const,
                     tabIndex: 0,
-                    "aria-label": `Dia ${day} — ver eventos`,
+                    // Com a contagem: "ver eventos" em toda célula não dizia ao
+                    // leitor de tela ONDE vale a pena parar — quem enxerga vê as
+                    // pílulas e o "+N mais"; quem ouve só tinha o número do dia.
+                    "aria-label": `Dia ${day} — ${allCellItems.length} ${allCellItems.length === 1 ? "marcação" : "marcações"}, ver detalhes`,
                     onKeyDown: (e: React.KeyboardEvent) => {
                       // Enter/Espaço numa pill INTERNA borbulha até aqui: sem o
                       // guard, ativar a pill abria também o dialog do dia por
@@ -886,12 +999,17 @@ export default function Calendario() {
         )}
 
         {/* ── Legend footer ── */}
-        <div style={{ padding: "14px 32px", borderTop: "1px solid #eeeeed", backgroundColor: "#f9f9f8", display: "flex", flexWrap: "wrap", alignItems: "center", gap: 16 }}>
-          {/* Priority legend */}
+        <div style={{ padding: isMobile ? "12px 16px" : "14px 32px", borderTop: "1px solid #eeeeed", backgroundColor: "#f9f9f8", display: "flex", flexWrap: "wrap", alignItems: "center", gap: isMobile ? "8px 14px" : 16 }}>
+          {/* Priority legend.
+              A LEGENDA DIZ DE QUE É A COR. Seis bolinhas soltas ao lado de
+              marcações tracejadas não diziam se a cor era prioridade, setor ou
+              atraso — e "Urgente" em vermelho lia como "prazo estourando". Um
+              rótulo curto por grupo fecha a dúvida sem virar manual. */}
+          <span style={{ fontSize: 11, fontWeight: 700, color: P.text }}>Cor do evento:</span>
           {LEGEND_PRIOS.map(({ label, dot }) => (
             <div key={label} style={{ display: "flex", alignItems: "center", gap: 5 }}>
               <div style={{ width: 9, height: 9, borderRadius: "50%", backgroundColor: dot }} />
-              <span style={{ fontSize: 10, fontWeight: 700, color: P.secondary, textTransform: "uppercase", letterSpacing: "0.07em" }}>{label}</span>
+              <span style={{ fontSize: 11, fontWeight: 600, color: P.secondary }}>{label}</span>
             </div>
           ))}
 
@@ -900,10 +1018,14 @@ export default function Calendario() {
 
           {/* Deadline legend — só os marcos que a grade está DESENHANDO. Uma
               legenda com seis entradas sobre uma grade com dois seria mentira. */}
+          <span style={{ fontSize: 11, fontWeight: 700, color: P.text }}>Prazos:</span>
           {tiposVisiveis.map(dt => (
-            <div key={dt.key} style={{ display: "flex", alignItems: "center", gap: 5 }}>
+            /* O nome curto ("Lista Img", "Aprov. Layout") é código para quem
+               chega; o `title` diz o que a etapa é e quando vence, com a mesma
+               frase e o mesmo prazo padrão do cadastro do evento. */
+            <div key={dt.key} title={DICA_DO_MARCO[dt.key]} style={{ display: "flex", alignItems: "center", gap: 5, cursor: "help" }}>
               <div style={{ width: 14, height: 9, borderRadius: 6, borderLeft: `3px dashed ${dt.color}`, backgroundColor: `${dt.color}15` }} />
-              <span style={{ fontSize: 10, fontWeight: 700, color: P.secondary, textTransform: "uppercase", letterSpacing: "0.07em" }}>{dt.short}</span>
+              <span style={{ fontSize: 11, fontWeight: 600, color: P.secondary }}>{dt.short}</span>
             </div>
           ))}
           {marcosDoPapel && (
@@ -915,24 +1037,27 @@ export default function Calendario() {
               title={verTodosOsMarcos
                 ? "Voltar a ver só os marcos da sua função"
                 : "A grade está mostrando só os marcos da sua função — clique para ver os seis"}
-              style={{ display: "inline-flex", alignItems: "center", gap: 5, height: 24, padding: "0 9px", borderRadius: 999, border: `1px dashed ${verTodosOsMarcos ? "#c2410c" : "#d6d3d1"}`, background: verTodosOsMarcos ? "#fff7ed" : "transparent", color: verTodosOsMarcos ? "#c2410c" : P.secondary, fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", cursor: "pointer", font: "inherit", whiteSpace: "nowrap" }}
+              style={{ display: "inline-flex", alignItems: "center", gap: 5, height: isMobile ? 40 : 28, padding: "0 12px", borderRadius: 999, border: `1px dashed ${verTodosOsMarcos ? "#c2410c" : "#d6d3d1"}`, background: verTodosOsMarcos ? "#fff7ed" : "transparent", color: verTodosOsMarcos ? "#c2410c" : P.secondary, font: "inherit", fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap", transition: "background-color 0.12s ease" }}
             >
               {verTodosOsMarcos ? "Só os da minha função" : `Todos os marcos (${DEADLINE_TYPES.length})`}
             </button>
           )}
 
-          <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 18 }}>
+          <div style={{ marginLeft: isMobile ? 0 : "auto", display: "flex", alignItems: "center", gap: isMobile ? 14 : 18, flexWrap: "wrap" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
               <Calendar style={{ width: 12, height: 12, color: P.muted }} />
               <span style={{ fontSize: 11, color: P.secondary }}>Início</span>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
               <Truck style={{ width: 12, height: 12, color: P.muted }} />
-              <span style={{ fontSize: 11, color: P.secondary }}>Saída Logística</span>
+              {/* Vocabulário da tela inteira ("saída do caminhão"), e a bandeira
+                  é de TODO prazo — "Prazo de Layout" ensinava errado a ler as
+                  outras cinco marcações tracejadas. */}
+              <span style={{ fontSize: 11, color: P.secondary }}>Saída do caminhão</span>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
               <Flag style={{ width: 12, height: 12, color: P.muted }} />
-              <span style={{ fontSize: 11, color: P.secondary }}>Prazo de Layout</span>
+              <span style={{ fontSize: 11, color: P.secondary }}>Prazo</span>
             </div>
           </div>
         </div>
@@ -942,14 +1067,14 @@ export default function Calendario() {
       <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr minmax(220px, 300px)", gap: 20, alignItems: "start" }}>
 
         {/* Próximos Eventos */}
-        <div style={{ backgroundColor: "#f0efee", borderRadius: 12, padding: 24, position: "relative", overflow: "hidden" }}>
+        <div style={{ backgroundColor: "#f0efee", borderRadius: 12, padding: isMobile ? 16 : 24, position: "relative", overflow: "hidden" }}>
           {/* watermark icon */}
           <div style={{ position: "absolute", right: -20, bottom: -20, opacity: 0.05, pointerEvents: "none" }}>
             <Truck style={{ width: 160, height: 160, color: "#1c1917" }} />
           </div>
           <div style={{ position: "relative" }}>
-            <h3 style={{ margin: "0 0 16px", fontSize: 18, fontWeight: 800, color: P.text, textTransform: "uppercase", letterSpacing: "-0.02em", fontFamily: "'Space Grotesk', sans-serif" }}>
-              Próximos Eventos
+            <h3 style={{ margin: "0 0 16px", fontSize: FS.title, fontWeight: 700, color: P.text, letterSpacing: "-0.02em", fontFamily: "'Space Grotesk', sans-serif" }}>
+              Próximos eventos
             </h3>
             {upcomingEvents.length === 0 ? (
               <p style={{ fontSize: 13, color: P.secondary }}>Nenhum evento futuro no momento.</p>
@@ -962,7 +1087,7 @@ export default function Calendario() {
                     <div key={ev.id}
                       data-testid={`upcoming-event-${ev.id}`}
                       role="link" tabIndex={0} aria-label={`Abrir evento ${ev.name}`} onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); setLocation(`/eventos/${ev.id}`); } }} onClick={() => setLocation(`/eventos/${ev.id}`)}
-                      style={{ backgroundColor: "#ffffff", borderRadius: 8, padding: "12px 14px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, borderLeft: `4px solid ${meta.dot}`, cursor: "pointer" }}
+                      style={{ backgroundColor: "#ffffff", borderRadius: 8, padding: "12px 14px", minHeight: 44, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, borderLeft: `4px solid ${meta.dot}`, cursor: "pointer", transition: "background-color 0.12s ease" }}
                       onMouseEnter={e => (e.currentTarget.style.backgroundColor = P.bg)}
                       onMouseLeave={e => (e.currentTarget.style.backgroundColor = "#ffffff")}>
                       <div style={{ flex: 1, minWidth: 0 }}>
@@ -971,7 +1096,7 @@ export default function Calendario() {
                           Saída: {dep.toLocaleDateString("pt-BR")} às {dep.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
                         </p>
                       </div>
-                      <span style={{ fontSize: 10, fontWeight: 700, color: meta.text, backgroundColor: meta.bg, border: `1px solid ${meta.border}`, borderRadius: 999, padding: "3px 10px", whiteSpace: "nowrap", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                      <span style={{ fontSize: 11, fontWeight: 600, color: meta.text, backgroundColor: meta.bg, border: `1px solid ${meta.border}`, borderRadius: 999, padding: "3px 10px", whiteSpace: "nowrap", flexShrink: 0 }}>
                         {meta.label}
                       </span>
                     </div>
@@ -983,11 +1108,11 @@ export default function Calendario() {
         </div>
 
         {/* Resumo do Mês */}
-        <div style={{ backgroundColor: "#1c1917", borderRadius: 12, padding: 24, color: "#ffffff" }}>
+        <div style={{ backgroundColor: "#1c1917", borderRadius: 12, padding: isMobile ? 16 : 24, color: "#ffffff" }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
             <div>
-              <h3 style={{ margin: 0, fontSize: 15, fontWeight: 800, color: "#ffffff", textTransform: "uppercase", letterSpacing: "-0.01em", fontFamily: "'Space Grotesk', sans-serif" }}>
-                Resumo do Mês
+              <h3 style={{ margin: 0, fontSize: FS.strong, fontWeight: 700, color: "#ffffff", letterSpacing: "-0.01em", fontFamily: "'Space Grotesk', sans-serif" }}>
+                Resumo do mês
               </h3>
               {/* A REGRA, ESCRITA. O filtro era pela data de INICIO e a grade
                   desenha pela SAIDA DO CAMINHAO: um evento que comeca em 12/09
@@ -1000,12 +1125,19 @@ export default function Calendario() {
             </div>
             <BarChart2 style={{ width: 18, height: 18, color: P.accent }} />
           </div>
+          {/* "Prioridade urgente", e não "Urgentes": o número conta a
+              PRIORIDADE cadastrada no evento, não prazo vencendo — a faixa
+              vermelha do topo é que fala de urgência de tempo, e os dois
+              rótulos iguais sugeriam que contavam a mesma coisa.
+              Cores dos números em tons claros (orange-300, red-400): o
+              #f97316 é proibido como texto, e o #dc2626 sobre este fundo
+              escuro dava ~3,6:1, abaixo do AA para 15px. */}
           <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
             {[
-              { label: "Total de Eventos", value: monthEvents.length, color: P.accent },
+              { label: "Total de eventos", value: monthEvents.length, color: "#fdba74" },
               { label: "Concluídos",       value: completedCount,     color: "#22c55e" },
               { label: "Encerrados",       value: closedCount,        color: "#d6d3d1" },
-              { label: "Urgentes",         value: urgentCount,        color: "#dc2626" },
+              { label: "Prioridade urgente", value: urgentCount,      color: "#f87171" },
               { label: "Em andamento",     value: ongoingCount,       color: "#ffffff" },
             ].map(({ label, value, color }, i, arr) => (
               <div key={label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 0", borderBottom: i < arr.length - 1 ? "1px solid rgba(255,255,255,0.08)" : "none" }}>
@@ -1016,24 +1148,51 @@ export default function Calendario() {
           </div>
           <button
             onClick={() => setCurrentDate(new Date())}
-            style={{ marginTop: 20, width: "100%", padding: "11px 0", backgroundColor: "rgba(255,255,255,0.07)", border: "none", borderRadius: 8, color: "#ffffff", fontSize: 11, fontWeight: 900, cursor: "pointer", textTransform: "uppercase", letterSpacing: "0.1em" }}
+            style={{ marginTop: 20, width: "100%", minHeight: 44, padding: "11px 0", backgroundColor: "rgba(255,255,255,0.07)", border: "none", borderRadius: 8, color: "#ffffff", fontSize: 13, fontWeight: 700, cursor: "pointer", transition: "background-color 0.12s ease" }}
             onMouseEnter={e => (e.currentTarget.style.backgroundColor = "rgba(255,255,255,0.12)")}
             onMouseLeave={e => (e.currentTarget.style.backgroundColor = "rgba(255,255,255,0.07)")}>
-            Ver Mês Atual
+            Ver mês atual
           </button>
         </div>
       </div>
 
       {/* ── Day detail dialog ── */}
+      {/* Casca da casa (modal-shell): o DialogContent cru tinha teto de 80vh
+          com rolagem no Content inteiro — o título rolava junto e sumia, e o
+          raio/sombra/X eram os do ui/dialog, diferentes de todos os outros
+          modais. Aqui o cabeçalho fica fixo e só a lista rola.
+          Foco e fechamento continuam do Radix: Esc, clique fora e o X do
+          ModalHeader chamam o mesmo setDialogOpen(false), e o foco volta
+          para a célula que abriu o dia. Variante `confirm` (clara): é uma
+          lista curta de consulta, não um modal de trabalho denso. */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent style={{ maxWidth: 480, maxHeight: "80vh", overflowY: "auto" }}>
-          <DialogHeader>
-            <DialogTitle style={{ fontSize: 15, fontWeight: 700, color: P.text, display: "flex", alignItems: "center", gap: 8 }}>
-              <Calendar style={{ width: 16, height: 16, color: P.accent }} />
-              {selectedDate?.toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
-            </DialogTitle>
-          </DialogHeader>
-          <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 8 }}>
+        <DialogContent className={HIDE_NATIVE_CLOSE} style={modalSurface(480)} data-testid="dialog-dia-calendario">
+          <DialogTitle className="sr-only">
+            {selectedDate?.toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
+          </DialogTitle>
+          <DialogDescription className="sr-only">
+            Eventos e prazos marcados neste dia. Escolha um para abrir o evento.
+          </DialogDescription>
+          <ModalHeader
+            variant="confirm"
+            icon={Calendar}
+            tint="#c2410c"
+            title={selectedDate
+              ? (() => {
+                  const t = selectedDate.toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long" });
+                  return t.charAt(0).toUpperCase() + t.slice(1);
+                })()
+              : ""}
+            subtitle={selectedDate
+              ? (() => {
+                  const n = getEventsForDate(selectedDate).filter(ev => !searchTerm || ev.name.toLowerCase().includes(searchTerm.toLowerCase())).length
+                    + getDeadlinesForDate(selectedDate).filter(d => !searchTerm || d.event.name.toLowerCase().includes(searchTerm.toLowerCase())).length;
+                  return `${n} ${n === 1 ? "marcação" : "marcações"}${searchTerm ? ` com “${searchTerm}”` : ""} · ${selectedDate.getFullYear()}`;
+                })()
+              : undefined}
+            onClose={() => setDialogOpen(false)}
+          />
+          <div style={{ display: "flex", flexDirection: "column", gap: 10, padding: isMobile ? "14px 16px 20px" : "16px 24px 24px", overflowY: "auto", flex: "1 1 auto", minHeight: 0 }}>
             {/* Mesmo filtro de busca da grade: a célula anunciava "2 itens"
                 (filtrados) e o dialog abria com todos — números que não batiam. */}
             {/* MESMA REGUA DA CELULA, dentro da secao. O dialog separa eventos
@@ -1058,7 +1217,7 @@ export default function Calendario() {
                 <div key={`${ev.id}-${ev._type}`}
                   data-testid={`dialog-event-${ev.id}-${ev._type}`}
                   role="link" tabIndex={0} aria-label={`Abrir evento ${ev.name}`} onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); setDialogOpen(false); setLocation(`/eventos/${ev.id}`); } }} onClick={() => { setDialogOpen(false); setLocation(`/eventos/${ev.id}`); }}
-                  style={{ display: "flex", alignItems: "flex-start", gap: 12, padding: "12px 14px", backgroundColor: P.surface, border: `1px solid ${P.border}`, borderLeft: `4px solid ${meta.dot}`, borderRadius: 8, cursor: "pointer" }}
+                  style={{ display: "flex", alignItems: "flex-start", gap: 12, padding: "12px 14px", backgroundColor: P.surface, border: `1px solid ${P.border}`, borderLeft: `4px solid ${meta.dot}`, borderRadius: 8, cursor: "pointer", transition: "background-color 0.12s ease" }}
                   onMouseEnter={e => (e.currentTarget.style.backgroundColor = P.bg)}
                   onMouseLeave={e => (e.currentTarget.style.backgroundColor = P.surface)}
                 >
@@ -1068,7 +1227,7 @@ export default function Calendario() {
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
                       <p style={{ fontSize: 15, fontWeight: 600, color: P.text, margin: 0 }}>{ev.name}</p>
-                      <span style={{ fontSize: 10, fontWeight: 600, whiteSpace: "nowrap", color: meta.text, backgroundColor: meta.bg, border: `1px solid ${meta.border}`, borderRadius: 6, padding: "2px 6px" }}>
+                      <span style={{ fontSize: 11, fontWeight: 600, whiteSpace: "nowrap", color: meta.text, backgroundColor: meta.bg, border: `1px solid ${meta.border}`, borderRadius: 6, padding: "2px 6px", flexShrink: 0 }}>
                         {meta.label}
                       </span>
                     </div>
@@ -1093,8 +1252,13 @@ export default function Calendario() {
               return (
                 <>
                   <div style={{ borderTop: "1px solid #eeeeed", paddingTop: 6, paddingBottom: 2 }}>
-                    <span style={{ fontSize: 10, fontWeight: 900, color: P.secondary, textTransform: "uppercase", letterSpacing: "0.12em" }}>
-                      Prazos de Layout
+                    {/* "Prazos", não "Prazos de Layout": a seção lista os seis
+                        marcos (lista, revisão, produção...), e a legenda da
+                        grade já tinha abandonado esse rótulo pelo mesmo motivo.
+                        O selo abaixo usa o tom 700 do marco sobre o tom claro:
+                        branco sobre âmbar/verde/laranja saturado reprovava AA. */}
+                    <span style={{ fontSize: 12, fontWeight: 700, color: P.secondary }}>
+                      Prazos
                     </span>
                   </div>
                   {deadlines.map(({ event, dtype }) => (
@@ -1105,7 +1269,7 @@ export default function Calendario() {
                       aria-label={`Abrir evento ${event.name}`}
                       onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); setDialogOpen(false); setLocation(`/eventos/${event.id}`); } }}
                       onClick={() => { setDialogOpen(false); setLocation(`/eventos/${event.id}`); }}
-                      style={{ display: "flex", alignItems: "flex-start", gap: 12, padding: "12px 14px", backgroundColor: `${dtype.color}08`, border: `1px solid ${P.border}`, borderLeft: `4px solid ${dtype.color}`, borderRadius: 8, cursor: "pointer" }}
+                      style={{ display: "flex", alignItems: "flex-start", gap: 12, padding: "12px 14px", backgroundColor: `${dtype.color}08`, border: `1px solid ${P.border}`, borderLeft: `4px solid ${dtype.color}`, borderRadius: 8, cursor: "pointer", transition: "background-color 0.12s ease" }}
                       onMouseEnter={e => (e.currentTarget.style.backgroundColor = `${dtype.color}14`)}
                       onMouseLeave={e => (e.currentTarget.style.backgroundColor = `${dtype.color}08`)}
                     >
@@ -1115,7 +1279,7 @@ export default function Calendario() {
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
                           <p style={{ fontSize: 15, fontWeight: 600, color: P.text, margin: 0 }}>{event.name}</p>
-                          <span style={{ fontSize: 10, fontWeight: 700, whiteSpace: "nowrap", color: "#ffffff", backgroundColor: dtype.color, borderRadius: 6, padding: "2px 8px" }}>
+                          <span style={{ fontSize: 11, fontWeight: 700, whiteSpace: "nowrap", color: dtype.text, backgroundColor: `${dtype.color}1f`, borderRadius: 6, padding: "2px 8px", flexShrink: 0 }}>
                             {dtype.short}
                           </span>
                         </div>

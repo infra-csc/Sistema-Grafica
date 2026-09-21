@@ -5,15 +5,17 @@ import { z } from "zod";
 import { eq } from "drizzle-orm";
 import { db } from "../db";
 import { storage, assetPrefix, assetSeqOf, isDisplayIdConflictError } from "../storage";
-import type { Item } from "@shared/schema";
-import { DEPOIS_DA_ARTE, EM_REVISAO, POS_APROVACAO, DISPENSAVEIS, DESTINO_DA_DISPENSA, ehBookCompleto, ehMaquinaValida, rotuloDaMaquina } from "@shared/fluxo-peca";
+import { ITEM_STATUSES, type Item } from "@shared/schema";
+import { eventoComDatasDoKit, pecaVisivelPara, remessaUtilizavelPor } from "@shared/kit";
+import { carregarRemessa, remessasPorIds } from "../services/kitRemessas";
+import { FORMATO_COMPACTO, compactarPecas, compactarAprovacoes } from "@shared/itens-compactos";
+import { DEPOIS_DA_ARTE, EM_REVISAO, POS_APROVACAO, DISPENSAVEIS, DESTINO_DA_DISPENSA, ehBookCompleto } from "@shared/fluxo-peca";
 import {
   insertItemSchema,
   publicInsertItemSchema,
   items as itemsTable,
   auditLogs,
   notifications,
-  registrosDeImpressao,
 } from "@shared/schema";
 import {
   requireAuth,
@@ -38,38 +40,6 @@ import { verificarConsistencia } from "../services/consistencia";
 // revoga uma aprovação e continua vendo o quadro velho numa tela cujo trabalho
 // é justamente conferir o que está valendo agora.
 import { invalidarCacheDeVersoes } from "./versoes";
-
-// ─── REGISTRO DE IMPRESSÃO POR MÁQUINA (dono, 14/09) ─────────────────────────
-//
-// Cada gesto da Gráfica na máquina vira uma linha em registros_de_impressao — é
-// o que alimenta a aba Máquinas (o que cada uma imprime agora e o que saiu dela
-// em cada dia). NUNCA derruba o gesto: a peça ter entrado na máquina ou ter
-// saído dela é o fato; o diário é o registro do fato. Se a gravação falhar, o
-// operador não pode ver um erro por causa disso — fica no log do servidor.
-// Sem máquina (chamador antigo de start-production) não há o que anotar.
-async function registrarImpressao(
-  req: any,
-  dado: { itemId: string; maquina: string | null | undefined; tipo: "inicio" | "troca" | "parcial" | "conclusao"; quantidade: number; totalDepois: number | null },
-): Promise<void> {
-  if (!dado.maquina) return;
-  try {
-    const ator = resolveActor(req);
-    await db.insert(registrosDeImpressao).values({
-      itemId: dado.itemId,
-      maquina: dado.maquina,
-      tipo: dado.tipo,
-      quantidade: dado.quantidade,
-      totalDepois: dado.totalDepois,
-      userName: ator.userName,
-      userId: (ator as any).userId ?? null,
-    } as any);
-  } catch (error) {
-    console.error("[maquinas] falha ao gravar o registro de impressão", {
-      itemId: dado.itemId,
-      reason: error instanceof Error ? error.message : String(error),
-    });
-  }
-}
 
 // ─── MOTIVO das devoluções ──────────────────────────────────────────────────
 //
@@ -365,6 +335,9 @@ function podeMudarQuantidade(req: { userRole?: string }): boolean {
   return req.userRole === "admin" || req.userRole === "solicitacao";
 }
 
+// KIT (14/09): quem está pedindo, na régua de shared/kit.ts.
+const quemVe = (req: any) => ({ kit: req.userKit === true, userId: req.userId ?? null });
+
 async function canCreateItemsFor(req: { userRole?: string; userId?: string }, eventId?: string): Promise<boolean> {
   if (req.userRole === "admin" || req.userRole === "solicitacao") return true;
   if (!eventId || !req.userId) return false;
@@ -406,49 +379,203 @@ import {
 // bloco), em vez de 1 getEvent + 1 getItemSponsors + N getSponsor POR item
 // (N+1). Cada sponsor recebe approvalStatus: "approved"|"rejected"|"pending"|null
 // para que SponsorChips possa colorir os chips sem requests adicionais.
-async function enrichItemsWithEventsAndSponsors(list: any[]): Promise<any[]> {
+async function enrichItemsWithEventsAndSponsors(
+  list: any[],
+  // PERFORMANCE (17/09): quem JÁ carregou eventos e patrocinadores (o delta
+  // devolve os dois inteiros) passa aqui — antes o delta buscava
+  // getAllSponsors duas vezes por request (aqui e na rota), e os eventos também.
+  //
+  // `ordemDoAcervo` (17/09): o recorte por status de GET /api/items é pequeno,
+  // mas precisa sair IGUAL à mesma peça na lista inteira — e as leituras por id
+  // (getItemSponsorsByItemIds) não têm ORDER BY: os chips de patrocinador
+  // poderiam trocar de ordem na tela. Com a opção, os vínculos e aprovações vêm
+  // das leituras do acervo, na ordem de sempre.
+  carregados?: { eventos?: any[]; patrocinadores?: any[]; ordemDoAcervo?: boolean },
+): Promise<any[]> {
   if (list.length === 0) return [];
   // AUDITORIA 27/08: para listas pequenas (o detalhe de UM evento, as filas
   // recortadas), buscar por id em vez de carregar as tabelas INTEIRAS — abrir
   // um evento de 20 peças puxava todos os vínculos e aprovações do sistema.
   // Acima do corte, o acervo inteiro está em jogo e o getAll* é o caminho
   // mais barato (mesma régua de getComplementsByParentIds).
-  const escopado = list.length <= 500;
+  const escopado = list.length <= 500 && !carregados?.ordemDoAcervo;
   const itemIds = escopado ? list.map((i) => i.id) : [];
-  const eventIds = escopado ? Array.from(new Set(list.map((i) => i.eventId).filter(Boolean))) : [];
+  const eventIds = escopado && !carregados?.eventos ? Array.from(new Set(list.map((i) => i.eventId).filter(Boolean))) : [];
   const [allEvents, allSponsors, allItemSponsors, allApprovals] = await Promise.all([
-    escopado ? storage.getEventsByIds(eventIds) : storage.getAllEvents(),
-    storage.getAllSponsors(),
+    carregados?.eventos ?? (escopado ? storage.getEventsByIds(eventIds) : storage.getAllEvents()),
+    carregados?.patrocinadores ?? storage.getAllSponsors(),
     escopado ? storage.getItemSponsorsByItemIds(itemIds) : storage.getAllItemSponsors(),
     escopado ? storage.getItemSponsorApprovalsByItemIds(itemIds) : storage.getAllItemSponsorApprovals(),
   ]);
-  const eventById = new Map(allEvents.map((e) => [e.id, e]));
-  const sponsorById = new Map(allSponsors.map((s) => [s.id, s]));
-  // key: `${itemId}_${sponsorId}` → approval status
-  const approvalKey = (itemId: string, sponsorId: string) => `${itemId}__${sponsorId}`;
-  const approvalStatus = new Map<string, string>();
+  const eventById = new Map<string, any>(allEvents.map((e: any) => [e.id, e]));
+  const sponsorById = new Map<string, any>(allSponsors.map((s: any) => [s.id, s]));
+  // itemId → sponsorId → status. PERFORMANCE (17/09): a chave em texto
+  // `${itemId}__${sponsorId}` alocava uma string de ~75 caracteres por
+  // aprovação DO SISTEMA INTEIRO a cada request, só para servir de índice.
+  const approvalStatus = new Map<string, Map<string, string>>();
   for (const a of allApprovals) {
-    approvalStatus.set(approvalKey(a.itemId, a.sponsorId), a.status);
+    let porPatrocinador = approvalStatus.get(a.itemId);
+    if (!porPatrocinador) approvalStatus.set(a.itemId, (porPatrocinador = new Map()));
+    porPatrocinador.set(a.sponsorId, a.status);
   }
+  // O patrocinador com o mesmo status é o MESMO objeto em todas as peças
+  // (PERFORMANCE, 17/09): eram dezenas de milhares de cópias idênticas por
+  // request para só 159 patrocinadores × poucos status. Ninguém muta a lista
+  // antes do res.json, e o formato compacto reconhece a referência repetida.
+  const entradaPorStatus = new Map<any, Map<string | null, any>>();
   const sponsorsByItem = new Map<string, any[]>();
   for (const is of allItemSponsors) {
     const sponsor = sponsorById.get(is.sponsorId);
     if (!sponsor) continue;
-    const enrichedSponsor = {
-      ...sponsor,
-      approvalStatus: approvalStatus.get(approvalKey(is.itemId, is.sponsorId)) ?? null,
-    };
+    const status = approvalStatus.get(is.itemId)?.get(is.sponsorId) ?? null;
+    let porStatus = entradaPorStatus.get(sponsor);
+    if (!porStatus) entradaPorStatus.set(sponsor, (porStatus = new Map()));
+    let enrichedSponsor = porStatus.get(status);
+    if (!enrichedSponsor) {
+      enrichedSponsor = {
+        ...sponsor,
+        approvalStatus: status,
+      };
+      porStatus.set(status, enrichedSponsor);
+    }
     const arr = sponsorsByItem.get(is.itemId);
     if (arr) arr.push(enrichedSponsor);
     else sponsorsByItem.set(is.itemId, [enrichedSponsor]);
   }
+  // A remessa do Kit (datas do Kit) vai junto: é o que o selo "KIT · entrega"
+  // mostra em todas as etapas.
+  const remessaPorId = await remessasPorIds(list.map((i) => i.kitRemessaId).filter(Boolean));
   const withEventsAndSponsors = list.map((item) => ({
     ...item,
-    event: eventById.get(item.eventId) ?? undefined,
+    kitRemessa: item.kitRemessaId ? remessaPorId.get(item.kitRemessaId) ?? null : null,
+    // Peça do Kit: o evento vem com as datas da remessa (dono, 14/09: "tem
+    // que ser pela data deles") — Arte, Gráfica e Painel cobram por elas.
+    event: eventoComDatasDoKit(eventById.get(item.eventId), item.kitRemessaId ? remessaPorId.get(item.kitRemessaId) : null),
     sponsors: sponsorsByItem.get(item.id) ?? [],
   }));
 
   return await enrichItemsWithComplements(withEventsAndSponsors);
+}
+
+/**
+ * `?formato=compacto` (PERFORMANCE, 17/09 — ver shared/itens-compactos.ts):
+ * evento e patrocinador vão uma vez num dicionário e os nomes de coluna uma
+ * vez por forma; o cliente reconstrói as peças idênticas. Sem o parâmetro a
+ * resposta é a de sempre, byte a byte — consumidor antigo segue funcionando.
+ */
+const querCompacto = (req: any): boolean => req.query?.formato === FORMATO_COMPACTO;
+
+/** Âncora do próximo delta: tirada ANTES da leitura, com 60s de sobreposição —
+ *  uma transação commitando "agora" não pode cair no vão entre dois deltas.
+ *  2s (até 17/09) não bastava: o updated_at é o now() do INÍCIO da transação,
+ *  e uma escrita em lote que confirma segundos depois ficava com carimbo
+ *  anterior ao `since` e nunca chegava às abas abertas (a Gráfica fica aberta
+ *  o dia todo, e agora vive só de delta). Duplicata é inofensiva: o merge é
+ *  por id, a peça idêntica ao cache é pulada (mantém o objeto) e a removida
+ *  que já saiu não muda nada — o custo são algumas peças a mais por delta. */
+const SOBREPOSICAO_DO_DELTA_MS = 60 * 1000;
+const agoraDoDelta = () => new Date(Date.now() - SOBREPOSICAO_DO_DELTA_MS).toISOString();
+
+/**
+ * Os status da fila da Gráfica — os MESMOS de storage.getApprovedItems (o
+ * SQL de lá lista estes dez). O delta de /api/items/approved decide com eles
+ * se a peça que mudou continua na fila ou sai; o teste
+ * itens-compactos.test.ts prende a paridade com o storage.
+ */
+const STATUS_DA_FILA_DA_GRAFICA: ReadonlySet<string> = new Set([
+  "awaiting_final_review", "awaiting_review", "in_review", "ready_for_production", "pronto_para_producao",
+  "approved", "inProduction", "produced", "conferred", "delivered",
+]);
+
+/**
+ * DELTA × COMPLEMENTO (17/09). A mãe carrega `complements[]` e
+ * `contractedTotal`, derivados dos FILHOS — e criar, produzir, entregar ou
+ * cancelar um complemento nunca toca a linha da mãe (regra do complemento:
+ * nenhum UPDATE na mãe). Sem isto o delta trazia o filho e deixava a mãe com
+ * o resumo velho no cache até o próximo full fetch — na Gráfica, que agora
+ * também vive de delta, a linha mostraria o total contratado errado. As mães
+ * dos filhos que mudaram entram no delta, re-enriquecidas, se ainda cabem na
+ * lista (`entra`).
+ */
+async function maesDosComplementosMudados(mudadas: any[], entra: (mae: any) => boolean): Promise<any[]> {
+  const noDelta = new Set(mudadas.map((i) => i.id));
+  const ids = Array.from(new Set(
+    mudadas.map((i) => i.parentItemId as string | null).filter((pid): pid is string => !!pid && !noDelta.has(pid)),
+  ));
+  if (ids.length === 0) return [];
+  return (await storage.getItemsByIds(ids)).filter(entra);
+}
+
+/** `since` válido e recente (<24h), ou null → full fetch. Velho demais, o
+ *  delta seria a lista inteira com overhead a mais. */
+function lerSince(req: any): Date | null {
+  const sinceCru = typeof req.query?.since === "string" ? new Date(req.query.since) : null;
+  return sinceCru && !isNaN(sinceCru.getTime()) && Date.now() - sinceCru.getTime() < 24 * 60 * 60 * 1000
+    ? sinceCru
+    : null;
+}
+
+/**
+ * Os status que existem — o canônico de shared/schema, as grafias legadas em
+ * português que ainda circulam no banco e os da fila da Gráfica. É contra esta
+ * lista que `?status=` é validado: um status digitado errado responderia uma
+ * lista VAZIA com cara de "não há nada aqui", que é pior que um erro.
+ */
+const STATUS_CONHECIDOS: ReadonlySet<string> = new Set<string>([
+  ...ITEM_STATUSES,
+  ...Array.from(STATUS_DA_FILA_DA_GRAFICA),
+  ...COMPLEMENT_ALLOWED_STATUSES,
+  "liberado",
+]);
+
+/** O que `?status=`/`?ids=` pedem, já validado. `null` = sem recorte. */
+type RecorteDePecas = { status: ReadonlySet<string> | null; ids: ReadonlySet<string> | null };
+
+/**
+ * RECORTE OPCIONAL de GET /api/items (PERFORMANCE, 17/09).
+ *
+ * A Revisão Final baixava as 5 mil peças (15 MB) para mostrar as ~8 em
+ * "Aguardando Revisão Final". Com `?status=a,b` (lista separada por vírgula) a
+ * rota devolve só as peças nesses status; com `?ids=x,y`, só essas peças (a
+ * Revisão usa para dizer o código de uma peça do link que já saiu da fila).
+ * Os dois juntos são E. Sem nenhum dos dois, a rota responde como sempre.
+ *
+ * O recorte é aplicado ANTES do enriquecimento e DEPOIS de pecaVisivelPara —
+ * a regra do Kit continua sendo a mesma para a lista recortada.
+ */
+function lerRecorte(req: any): { ok: true; recorte: RecorteDePecas | null } | { ok: false; erro: string } {
+  const lista = (v: unknown): string[] | null => {
+    if (v === undefined) return null;
+    const bruto = Array.isArray(v) ? v.join(",") : String(v);
+    return bruto.split(",").map((x) => x.trim()).filter(Boolean);
+  };
+  const status = lista(req.query?.status);
+  const ids = lista(req.query?.ids);
+  if (status === null && ids === null) return { ok: true, recorte: null };
+  if (status !== null) {
+    if (status.length === 0) return { ok: false, erro: "Informe ao menos um status em ?status=." };
+    const desconhecidos = status.filter((st) => !STATUS_CONHECIDOS.has(st));
+    if (desconhecidos.length > 0) return { ok: false, erro: `Status desconhecido: ${desconhecidos.join(", ")}` };
+  }
+  if (ids !== null) {
+    if (ids.length === 0 || ids.length > 200) return { ok: false, erro: "Informe de 1 a 200 ids em ?ids=." };
+    if (ids.some((id) => !/^[A-Za-z0-9_-]{1,64}$/.test(id))) return { ok: false, erro: "Id de peça inválido em ?ids=." };
+  }
+  return { ok: true, recorte: { status: status ? new Set(status) : null, ids: ids ? new Set(ids) : null } };
+}
+
+const casaRecorte = (recorte: RecorteDePecas | null, i: { id: string; status: string }): boolean =>
+  !recorte || ((!recorte.status || recorte.status.has(i.status)) && (!recorte.ids || recorte.ids.has(i.id)));
+
+/** As peças vivas do recorte, na ordem da lista inteira (created_at DESC). */
+async function pecasDoRecorte(recorte: RecorteDePecas): Promise<Item[]> {
+  if (recorte.status) return (await storage.getItemsByStatuses(Array.from(recorte.status))).filter((i) => casaRecorte(recorte, i));
+  // Só ids: getItemsByIds não filtra excluída nem ordena — as duas coisas que
+  // getAllItems faz, feitas aqui (sort estável, como o ORDER BY do banco).
+  const porId = await storage.getItemsByIds(Array.from(recorte.ids ?? []));
+  return porId
+    .filter((i) => !i.deletedAt)
+    .sort((a, b) => new Date(b.createdAt as any).getTime() - new Date(a.createdAt as any).getTime());
 }
 
 // Aviso de migração pendente: uma linha por processo, não uma por request.
@@ -517,15 +644,15 @@ async function attachParents(list: any[]): Promise<any[]> {
   const filhos = list.filter((i) => i.parentItemId);
   if (filhos.length === 0) return list;
 
-  const naLista = new Map(list.map((i) => [i.id, i]));
-  const faltando = Array.from(new Set(
-    filhos.map((f) => f.parentItemId).filter((pid: string) => !naLista.has(pid)),
-  ));
+  // PERFORMANCE (17/09): o índice guarda só as MÃES procuradas. Antes era um
+  // Map do acervo inteiro, depois COPIADO para outro Map (milhares de pares
+  // [id, peça] alocados por request) só para somar as mães vindas de fora.
+  const procuradas = new Set<string>(filhos.map((f) => f.parentItemId));
+  const maePorId = new Map<string, any>();
+  for (const i of list) if (procuradas.has(i.id)) maePorId.set(i.id, i);
+  const faltando = Array.from(procuradas).filter((pid) => !maePorId.has(pid));
   const extras = faltando.length ? await storage.getItemsByIds(faltando as string[]) : [];
-  const maePorId = new Map<string, any>([
-    ...Array.from(naLista.entries()),
-    ...extras.map((m) => [m.id, m] as [string, any]),
-  ]);
+  for (const m of extras) maePorId.set(m.id, m);
 
   return list.map((item) => {
     if (!item.parentItemId) return item;
@@ -782,39 +909,65 @@ export function registerItemRoutes(app: Express): void {
       // ou encerrado precisa se refletir nas peças que NÃO mudaram. Toda
       // escrita de vínculo/aprovação carimba updated_at da peça (touchItem no
       // storage), então mudança de patrocinador também entra no delta.
-      // `since` velho demais (>24h) cai no full fetch: o delta seria a lista
-      // inteira com overhead a mais.
-      const sinceCru = typeof req.query.since === "string" ? new Date(req.query.since) : null;
-      const since = sinceCru && !isNaN(sinceCru.getTime()) && Date.now() - sinceCru.getTime() < 24 * 60 * 60 * 1000
-        ? sinceCru
-        : null;
+      // `since` velho demais (>24h) cai no full fetch (lerSince).
+      //
+      // `?formato=compacto` (17/09) vale para os dois: o delta compacto leva
+      // as mesmas chaves, com `itens` codificadas contra os `eventos` e
+      // `patrocinadores` que ele já traz inteiros (nada vai duas vezes).
+      //
+      // `?status=`/`?ids=` (17/09, ver lerRecorte) recortam os dois caminhos.
+      // No delta, a peça que mudou e SAIU do recorte (a Revisão liberou, outra
+      // aba devolveu) vem em `removidas` — é assim que ela some da tela
+      // recortada sem F5, do mesmo jeito que some a peça excluída.
+      const leitura = lerRecorte(req);
+      if (!leitura.ok) return res.status(400).json({ error: leitura.erro });
+      const recorte = leitura.recorte;
+      const since = lerSince(req);
+      const compacto = querCompacto(req);
+      const agora = agoraDoDelta();
+      const usuario = quemVe(req);
       if (since) {
-        // 2s de sobreposição: uma transação commitando "agora" não pode cair
-        // no vão entre dois deltas. Duplicata é inofensiva — o merge é por id.
-        const agora = new Date(Date.now() - 2000).toISOString();
         const mudadas = await storage.getItemsChangedSince(since);
-        const vivas = mudadas.filter((i) => !i.deletedAt);
-        const itens = await enrichItemsWithEventsAndSponsors(vivas);
+        // Usuário do Kit: o que ele não enxerga sai do cache dele como removido.
+        const cabe = (i: any) => !i.deletedAt && pecaVisivelPara(usuario, i) && casaRecorte(recorte, i);
+        const visivel = mudadas.map(cabe);
+        const vivas = [
+          ...mudadas.filter((_i, n) => visivel[n]),
+          ...(await maesDosComplementosMudados(mudadas, cabe)),
+        ];
+        // Eventos e patrocinadores UMA vez: vão na resposta e servem ao
+        // enriquecimento (antes eram buscados de novo lá dentro).
         const [eventos, patrocinadores] = await Promise.all([
           storage.getAllEvents(),
           storage.getAllSponsors(),
         ]);
-        return res.json({
+        const itens = await enrichItemsWithEventsAndSponsors(vivas, { eventos, patrocinadores });
+        const resposta = {
           delta: true,
           agora,
           itens,
-          removidas: mudadas.filter((i) => i.deletedAt).map((i) => i.id),
+          removidas: mudadas.filter((_i, n) => !visivel[n]).map((i) => i.id),
           eventos,
           patrocinadores,
-        });
+        };
+        if (compacto) {
+          return res.json({ delta: true, agora, removidas: resposta.removidas, ...compactarPecas(itens, { eventos, patrocinadores }) });
+        }
+        return res.json(resposta);
       }
 
-      const allItems = await storage.getAllItems();
+      if (recorte) {
+        const doRecorte = (await pecasDoRecorte(recorte)).filter((i) => pecaVisivelPara(usuario, i));
+        const itens = await enrichItemsWithEventsAndSponsors(doRecorte, { ordemDoAcervo: true });
+        return res.json(compacto ? { agora, ...compactarPecas(itens) } : itens);
+      }
+
+      const allItems = (await storage.getAllItems()).filter((i) => pecaVisivelPara(quemVe(req), i));
       if (allItems.length > 5000) {
         console.warn(`[items] GET /api/items retornando ${allItems.length} itens — priorizar paginação`);
       }
       const itemsWithEventsAndSponsors = await enrichItemsWithEventsAndSponsors(allItems);
-      res.json(itemsWithEventsAndSponsors);
+      res.json(compacto ? { agora, ...compactarPecas(itemsWithEventsAndSponsors) } : itemsWithEventsAndSponsors);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
@@ -826,9 +979,9 @@ export function registerItemRoutes(app: Express): void {
       if (req.userRole !== "admin" && req.userRole !== "solicitacao") {
         return res.status(403).json({ error: "Sem permissão para ver peças excluídas" });
       }
-      const deletedItems = await storage.getDeletedItems();
+      const deletedItems = (await storage.getDeletedItems()).filter((i) => pecaVisivelPara(quemVe(req), i));
       const enriched = await enrichItemsWithEventsAndSponsors(deletedItems);
-      res.json(enriched);
+      res.json(querCompacto(req) ? compactarPecas(enriched) : enriched);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
@@ -903,9 +1056,9 @@ export function registerItemRoutes(app: Express): void {
   // Get pending items with event and sponsors (for Arte module) - MUST come BEFORE /:eventId route
   app.get("/api/items/pending", requireAuth, async (req, res) => {
     try {
-      const pendingItems = await storage.getPendingItems();
+      const pendingItems = (await storage.getPendingItems()).filter((i) => pecaVisivelPara(quemVe(req), i));
       const itemsWithEventsAndSponsors = await enrichItemsWithEventsAndSponsors(pendingItems);
-      res.json(itemsWithEventsAndSponsors);
+      res.json(querCompacto(req) ? compactarPecas(itemsWithEventsAndSponsors) : itemsWithEventsAndSponsors);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
@@ -1015,11 +1168,43 @@ export function registerItemRoutes(app: Express): void {
   // Get approved items with event and sponsors (for Gráfica module) - MUST come BEFORE /:eventId route
   app.get("/api/items/approved", requireAuth, async (req, res) => {
     try {
-      const approvedItems = await storage.getApprovedItems();
+      // DELTA-SYNC também aqui (PERFORMANCE, 17/09). A Gráfica fica aberta o
+      // dia inteiro, revalida em foco, a cada 5 min e a cada conferência de
+      // outra pessoa — e cada revalidação re-baixava 13,8 MB. Mesmo contrato
+      // de GET /api/items?since=: a peça que mudou e ainda é da fila vem em
+      // `itens`; a que mudou e saiu (status, exclusão, Kit, book) vem em
+      // `removidas`. Sem `since`, a resposta de sempre.
+      const since = lerSince(req);
+      const compacto = querCompacto(req);
+      const agora = agoraDoDelta();
+      const usuario = quemVe(req);
+      if (since) {
+        const mudadas = await storage.getItemsChangedSince(since);
+        const cabeNaFila = (i: any) =>
+          !i.deletedAt && STATUS_DA_FILA_DA_GRAFICA.has(i.status) && pecaVisivelPara(usuario, i) && !ehBookCompleto(i);
+        const naFila = mudadas.map(cabeNaFila);
+        const [eventos, patrocinadores, maes] = await Promise.all([
+          storage.getAllEvents(),
+          storage.getAllSponsors(),
+          maesDosComplementosMudados(mudadas, cabeNaFila),
+        ]);
+        const itens = await enrichItemsWithEventsAndSponsors(
+          [...mudadas.filter((_i, n) => naFila[n]), ...maes],
+          { eventos, patrocinadores },
+        );
+        const removidas = mudadas.filter((_i, n) => !naFila[n]).map((i) => i.id);
+        if (compacto) {
+          return res.json({ delta: true, agora, removidas, ...compactarPecas(itens, { eventos, patrocinadores }) });
+        }
+        return res.json({ delta: true, agora, itens, removidas, eventos, patrocinadores });
+      }
+
+      const approvedItems = (await storage.getApprovedItems()).filter((i) => pecaVisivelPara(quemVe(req), i));
       const itemsWithEventsAndSponsors = await enrichItemsWithEventsAndSponsors(approvedItems);
       // BOOK COMPLETO fica de fora da fila da Gráfica: é o trâmite do
       // Atendimento, não uma peça imprimível (ver shared/fluxo-peca).
-      res.json(itemsWithEventsAndSponsors.filter((i: any) => !ehBookCompleto(i)));
+      const fila = itemsWithEventsAndSponsors.filter((i: any) => !ehBookCompleto(i));
+      res.json(compacto ? { agora, ...compactarPecas(fila) } : fila);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
@@ -1059,7 +1244,11 @@ export function registerItemRoutes(app: Express): void {
         (approvalsByItem[a.itemId] ??= []).push(enriched);
       }
 
-      res.json({ sponsorsByItem, approvalsByItem });
+      // `?formato=compacto` (17/09): o patrocinador ia inteiro em cada vínculo
+      // e de novo em cada aprovação (5,8 MB medidos) — compacto, vai uma vez.
+      res.json(querCompacto(req)
+        ? compactarAprovacoes({ sponsorsByItem, approvalsByItem })
+        : { sponsorsByItem, approvalsByItem });
     } catch (error: any) {
       res.status(400).json({ error: error.message });
     }
@@ -1067,7 +1256,7 @@ export function registerItemRoutes(app: Express): void {
 
   app.get("/api/items/:eventId", requireAuth, async (req, res) => {
     try {
-      const items = await storage.getItemsByEvent(req.params.eventId);
+      const items = (await storage.getItemsByEvent(req.params.eventId)).filter((i) => pecaVisivelPara(quemVe(req), i));
       const itemsWithSponsors = await enrichItemsWithEventsAndSponsors(items);
       res.json(itemsWithSponsors);
     } catch (error: any) {
@@ -1089,6 +1278,23 @@ export function registerItemRoutes(app: Express): void {
       if (!(await canCreateItemsFor(req, validatedData.eventId))) {
         return res.status(403).json({ error: "Sem permissão para criar itens neste evento" });
       }
+      // PEÇA DO KIT (dono, 14/09): pertence a uma remessa do MESMO evento; o
+      // usuário do Kit só cria peça do Kit, numa remessa dele.
+      const kitRemessaId = typeof req.body?.kitRemessaId === "string" && req.body.kitRemessaId ? req.body.kitRemessaId : null;
+      if (req.userKit && !kitRemessaId) {
+        return res.status(400).json({ error: "Usuário do Kit cria só peça do Kit — escolha a remessa do Kit." });
+      }
+      if (kitRemessaId) {
+        const remessa = await carregarRemessa(kitRemessaId);
+        if (!remessa || remessa.eventId !== validatedData.eventId) {
+          return res.status(400).json({ error: "Remessa do Kit inválida para este evento." });
+        }
+        if (!remessaUtilizavelPor(quemVe(req), remessa)) {
+          return res.status(403).json({ error: "Esta remessa do Kit é de outra pessoa." });
+        }
+      }
+      (validatedData as any).kitRemessaId = kitRemessaId;
+      (validatedData as any).criadoPorId = req.userId ?? null;
       // Nascer PRIORITÁRIA é decisão de quem gerencia a lista (dono, 27/08) —
       // mesmo gate do PATCH. Criador de evento sem papel cria a peça normal.
       if (validatedData.isPriority && !["admin", "solicitacao"].includes(req.userRole ?? "")) {
@@ -1143,6 +1349,7 @@ export function registerItemRoutes(app: Express): void {
         item.id,
         `Item "${item.type}" criado - Qtd: ${item.quantity}, ${item.calculatedM2}m²`
         + (item.isPriority ? " — PRIORITÁRIA" : "")
+        + (item.kitRemessaId ? " — KIT" : "")
       );
 
       // Novo item adicionado - notifica Arte + Gráfica
@@ -1162,13 +1369,14 @@ export function registerItemRoutes(app: Express): void {
       broadcast({ type: "item_created", item });
       broadcast({ type: "notification_created", notification });
       
-      // PEDIDO DO ATENDIMENTO (14/09): "Criar peça" a partir de um pedido liga a
-      // peça ao pedido NA MESMA requisição. Antes eram duas chamadas do
-      // cliente, e uma falha na segunda deixava peça criada e pedido aberto.
-      const pedidoDePecaId = typeof req.body?.pedidoDePecaId === "string" ? req.body.pedidoDePecaId : "";
-      if (pedidoDePecaId) {
-        const { vincularPecaAoPedido } = await import("./pedidos-de-peca");
-        const vinculo = await vincularPecaAoPedido(req, pedidoDePecaId, item.id);
+      // SOLICITAÇÃO DO ATENDIMENTO (14/09): "Criar peça" a partir de uma peça
+      // solicitada liga a peça a ela NA MESMA requisição. Antes eram duas
+      // chamadas do cliente, e uma falha na segunda deixava peça criada e
+      // solicitação aberta.
+      const pedidoDePecaLinhaId = typeof req.body?.pedidoDePecaLinhaId === "string" ? req.body.pedidoDePecaLinhaId : "";
+      if (pedidoDePecaLinhaId) {
+        const { vincularPecaALinha } = await import("./pedidos-de-peca");
+        const vinculo = await vincularPecaALinha(req, pedidoDePecaLinhaId, item.id);
         return res.status(201).json({ ...item, vinculoDoPedido: vinculo.erro ? { ok: false, erro: vinculo.erro } : { ok: true } });
       }
       res.status(201).json(item);
@@ -1187,6 +1395,11 @@ export function registerItemRoutes(app: Express): void {
       }
       if (!(await canCreateItemsFor(req, itemsData[0]?.eventId))) {
         return res.status(403).json({ error: "Sem permissão para criar itens neste evento" });
+      }
+      // Entrada Rápida cria peça da Arena: o usuário do Kit usa o formulário
+      // ou a importação, que pedem a remessa (14/09).
+      if (req.userKit) {
+        return res.status(403).json({ error: "A Entrada Rápida não cria peça do Kit — use o formulário ou a importação." });
       }
       // Mesma trava do POST unitário — sem ela o lote era o caminho aberto para
       // pendurar peça num evento encerrado.
@@ -1797,6 +2010,12 @@ export function registerItemRoutes(app: Express): void {
       const success = await storage.deleteItem(req.params.id);
       if (!success) {
         return res.status(404).json({ error: "Item not found" });
+      }
+      // Peça que atendia uma solicitação: se era a última, a peça solicitada
+      // volta para aberta sozinha (dono, 14/09 — sem "desfazer atendimento").
+      if ((item as any).pedidoDePecaLinhaId) {
+        const { aoExcluirPeca } = await import("./pedidos-de-peca");
+        await aoExcluirPeca(req, item as any);
       }
       
       // Create audit log
@@ -3900,10 +4119,6 @@ export function registerItemRoutes(app: Express): void {
           "Em Revisão": "in_review",
           "Pronto para Produção": "ready_for_production",
           "Liberado": "approved",
-          // Nomes de 14/09 em diante; os antigos logo abaixo seguem valendo
-          // para a trilha escrita antes da renomeação.
-          "Em Impressão": "inProduction",
-          "Em Acabamento / Conferência": "produced",
           "Em Produção": "inProduction",
           "Produzido": "produced",
           "Conferido": "conferred",
@@ -4265,89 +4480,12 @@ export function registerItemRoutes(app: Express): void {
   });
 
   // Start production (Gráfica module)
-  // ── INICIAR IMPRESSÃO (dono, 14/09) ─────────────────────────────────────────
-  // "Em Produção" existia e quase nunca acontecia: 2.227 peças foram direto de
-  // "Pronto para Produção" para "Produzido" e só UMA passou pelo meio, porque o
-  // único gesto da Gráfica registrava o RESULTADO ("produzi 40") e nunca o
-  // INÍCIO ("coloquei na máquina"). Este é o primeiro momento: a peça entra na
-  // máquina escolhida e fica "Em Impressão" até alguém registrar o que saiu.
-  //
-  // Também serve para TROCAR de máquina com a peça já em impressão — a máquina
-  // quebra, a peça muda de lugar, e o registro precisa acompanhar.
-  app.patch("/api/items/:id/start-printing", requireAuth, async (req, res) => {
-    try {
-      if (req.userRole !== "grafica" && req.userRole !== "admin") {
-        return res.status(403).json({ error: "Apenas usuários com perfil Gráfica podem iniciar impressão" });
-      }
-      const { printMachine } = req.body ?? {};
-      if (!ehMaquinaValida(printMachine)) {
-        return res.status(400).json({ error: "Escolha a máquina em que a peça vai ser impressa" });
-      }
-      const current = await storage.getItem(req.params.id);
-      if (!current) return res.status(404).json({ error: "Item not found" });
-      // ANDA: a peça vai para a máquina — mesma guarda de quem imprime.
-      if (await barraEventoFinalizado(current, res)) return;
-      if (EM_REVISAO.has(current.status)) {
-        return res.status(409).json({ error: "Esta peça está em revisão — a Gráfica só age depois que a revisão liberar." });
-      }
-      const PODE_IR_PARA_A_MAQUINA = ["ready_for_production", "pronto_para_producao", "approved", "liberado", "inProduction", "em_producao"];
-      if (!PODE_IR_PARA_A_MAQUINA.includes(current.status)) {
-        return res.status(409).json({ error: `A peça não pode ir para a máquina no status atual: ${translateStatus(current.status)}` });
-      }
-      const aImprimir = current.quantity - (current.reuseQty || 0) - (current.quantityProduced || 0);
-      if (aImprimir <= 0) {
-        return res.status(409).json({ error: "Nada a imprimir: a peça já está coberta por produção e reaproveitamento" });
-      }
-      const trocouDeMaquina = (current.status === "inProduction" || current.status === "em_producao") && !!current.printMachine;
-      if (trocouDeMaquina && current.printMachine === printMachine) {
-        return res.status(409).json({ error: `A peça já está na ${rotuloDaMaquina(printMachine)}` });
-      }
-
-      const item = await storage.updateItem(req.params.id, {
-        status: "inProduction",
-        printMachine,
-        ...(!current.productionStartedAt ? { productionStartedAt: new Date() } : {}),
-      } as any);
-      if (!item) return res.status(404).json({ error: "Item not found" });
-
-      await createAuditLog(
-        req,
-        "production",
-        "item",
-        item.id,
-        trocouDeMaquina
-          ? `Impressão mudou de máquina: ${rotuloDaMaquina(current.printMachine)} → ${rotuloDaMaquina(printMachine)}`
-          : `Impressão iniciada na ${rotuloDaMaquina(printMachine)} (${translateStatus(current.status)} → ${translateStatus("inProduction")})`
-      );
-
-      await registrarImpressao(req, {
-        itemId: item.id,
-        maquina: printMachine,
-        tipo: trocouDeMaquina ? "troca" : "inicio",
-        quantidade: 0,
-        totalDepois: current.quantityProduced ?? 0,
-      });
-
-      broadcast({ type: "item_updated", item });
-      broadcast({ type: "production_started", item });
-      res.json(item);
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
-    }
-  });
-
   app.patch("/api/items/:id/start-production", requireAuth, async (req, res) => {
     try {
       if (req.userRole !== "grafica" && req.userRole !== "admin") {
         return res.status(403).json({ error: "Apenas usuários com perfil Gráfica podem iniciar produção" });
       }
-      const { quantityProduced, expectedProduced, printMachine } = req.body;
-      // A máquina é OPCIONAL aqui: a tela sempre manda (é ela que obriga a
-      // escolha), mas este contrato é antigo e tem outros chamadores. O que o
-      // servidor não aceita é máquina que não existe.
-      if (printMachine != null && !ehMaquinaValida(printMachine)) {
-        return res.status(400).json({ error: `Máquina inválida: ${printMachine}` });
-      }
+      const { quantityProduced, expectedProduced } = req.body;
 
       if (!quantityProduced || quantityProduced <= 0) {
         return res.status(400).json({ error: "quantityProduced is required and must be greater than 0" });
@@ -4398,7 +4536,6 @@ export function registerItemRoutes(app: Express): void {
         quantityProduced,
         updatedAt: new Date(),
         ...(!before.productionStartedAt ? { productionStartedAt: new Date() } : {}),
-        ...(printMachine ? { printMachine } : {}),
         // produced_at era coluna morta desde sempre: a peça fechava como
         // "Produzido" e a trilha temporal da ficha pulava direto de "Produção
         // iniciada" para "Conferido". Uma linha devolve a etapa.
@@ -4428,16 +4565,6 @@ export function registerItemRoutes(app: Express): void {
         });
 
         return updated;
-      });
-
-      // O que saiu NESTE lançamento, na máquina deste momento: a enviada agora
-      // ou, na falta, a que a peça já tinha.
-      await registrarImpressao(req, {
-        itemId: item.id,
-        maquina: printMachine || before.printMachine,
-        tipo: item.status === "produced" ? "conclusao" : "parcial",
-        quantidade: quantityProduced - jaProduzido,
-        totalDepois: quantityProduced,
       });
 
       const event = await storage.getEvent(item.eventId);

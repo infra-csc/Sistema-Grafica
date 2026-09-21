@@ -21,10 +21,10 @@
 // `urlSetorDaPeca` (tokens.ts), que carrega aba, busca e evento — os
 // parâmetros que cada tela de destino já sabe ler. Antes era o caminho cru
 // "/arte", e um clique numa peça aterrissava nas 1.112 da Arte.
-import { useEffect, useState } from "react";
+import { memo, useEffect, useState } from "react";
 import { Link } from "wouter";
 import { CheckCircle2, Search } from "lucide-react";
-import { CONTENT_CARDS_MAX, useElementSize } from "@/hooks/use-mobile";
+import { CONTENT_CARDS_MAX, useElementSize, useIsMobile } from "@/hooks/use-mobile";
 import { getStatusLabel, getStatusShort } from "@/lib/status";
 import { FilterChip } from "./filter-chip";
 import { PrioridadeChip, PrioridadePonto, temChipDePrioridade } from "./prioridade";
@@ -145,7 +145,7 @@ function NotaMarco({ p }: { p: PecaAtrasada }) {
 }
 
 /** O elo evento→peça: abre a peça dentro do evento, como o drill já faz. */
-function LinkPeca({ p }: { p: PecaAtrasada }) {
+function LinkPeca({ p, alvo }: { p: PecaAtrasada; alvo?: number }) {
   return (
     <Link
       href={p.urlPeca}
@@ -155,6 +155,10 @@ function LinkPeca({ p }: { p: PecaAtrasada }) {
         display: "block", fontSize: 12, fontWeight: 700,
         color: TI.accentText, textDecoration: "none",
         overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+        // `lineHeight` e não flex + minHeight: o link precisa continuar bloco
+        // para a reticência funcionar. Só o cartão passa `alvo` — na tabela a
+        // densidade é o ponto (ver a nota de 24px no drill).
+        ...(alvo ? { lineHeight: `${alvo}px` } : null),
       }}
     >
       {p.item.displayId}
@@ -219,11 +223,25 @@ function LinkSetor({ p, empilhado, style }: {
   );
 }
 
-/** Uma peça atrasada em formato de cartão (container estreito / celular). */
-function CartaoPeca({ p, onAbrirEvento }: {
+/**
+ * Uma peça atrasada em formato de cartão (container estreito / celular).
+ *
+ * `memo`: `p` é o mesmo objeto enquanto o payload não muda (a lista filtrada
+ * é um `.filter` sobre `pecasBase`, que só é recalculada quando os eventos
+ * mudam), e `onAbrirEvento` é o setter de estado da página. Sem ele, cada
+ * tecla da busca, cada revalidação e cada medida de largura refaziam as 100
+ * linhas visíveis.
+ */
+const CartaoPeca = memo(function CartaoPeca({ p, onAbrirEvento }: {
   p: PecaAtrasada;
   onAbrirEvento: (id: string) => void;
 }) {
+  // O cartão é a forma do CELULAR, e os dois alvos do topo dele eram texto
+  // puro: o código da peça e o nome do evento tinham ~16px de altura cada, a
+  // 4px um do outro — abaixo até do piso AA de 24px. O nome do evento
+  // (que abre o modal, o gesto principal) sobe para a régua de toque; o código
+  // fica em 32, acima do piso AA de 24, para o cartão não dobrar de altura.
+  const isMobile = useIsMobile();
   return (
     <li style={{
       listStyle: "none", border: `1px solid ${TI.border}`, borderRadius: R.md,
@@ -231,7 +249,7 @@ function CartaoPeca({ p, onAbrirEvento }: {
     }}>
       <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 8 }}>
         <span style={{ minWidth: 0 }}>
-          <LinkPeca p={p} />
+          <LinkPeca p={p} alvo={32} />
         </span>
         <span style={{ fontSize: 13, fontWeight: 800, color: TI.red, whiteSpace: "nowrap" }}>
           {p.diasAtraso}d de atraso
@@ -243,7 +261,7 @@ function CartaoPeca({ p, onAbrirEvento }: {
         aria-haspopup="dialog"
         style={{
           display: "flex", alignItems: "center", gap: 6, background: "none", border: "none",
-          padding: 0, marginTop: 4, cursor: "pointer", maxWidth: "100%",
+          padding: 0, cursor: "pointer", maxWidth: "100%", minHeight: isMobile ? 44 : 36,
           fontSize: 12, fontWeight: 800, color: TI.title, textAlign: "left",
           fontFamily: "'Space Grotesk', sans-serif", textTransform: "uppercase",
         }}
@@ -288,7 +306,132 @@ function CartaoPeca({ p, onAbrirEvento }: {
       </div>
     </li>
   );
-}
+});
+
+/**
+ * Uma linha da tabela de peças atrasadas. `memo` pelo mesmo motivo do
+ * `CartaoPeca`: com as props estáveis (`p` por identidade, `comEtapa`
+ * booleano, `onAbrirEvento` setter de estado), uma revalidação sem mudança ou
+ * uma tecla que não altera a página visível não redesenha nenhuma linha.
+ */
+const LinhaPeca = memo(function LinhaPeca({ p, comEtapa, onAbrirEvento }: {
+  p: PecaAtrasada;
+  comEtapa: boolean;
+  onAbrirEvento: (id: string) => void;
+}) {
+  return (
+    <tr className="gp-row" style={{ borderBottom: `1px solid ${TI.rule}` }}>
+      <th scope="row" style={{ padding: "9px 8px 9px 14px", textAlign: "left", fontWeight: 400, verticalAlign: "top" }}>
+        <LinkPeca p={p} />
+        <span
+          title={getStatusLabel(p.item.status)}
+          style={{
+            display: "block", fontSize: 10, color: TI.label,
+            overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+          }}
+        >
+          {/* A FORMA CURTA na coluna estreita.
+
+              A coluna da peça tem 104px e o rótulo longo era cortado
+              no meio da palavra: "Aguardando Vi…" não diz vinculação,
+              visita nem visualização. `lib/status` já mantém a forma
+              curta de cada status ("Ag. Vinculação") justamente para
+              isto — a tabela é que estava pedindo a longa. O `title`
+              acima continua com o rótulo inteiro. */}
+          {getStatusShort(p.item.status)}
+        </span>
+      </th>
+      <td style={{ padding: "9px 8px", verticalAlign: "top" }}>
+        <span style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
+          <PrioridadePonto priority={p.eventPriority} />
+          {/* Botão, não link: o evento abre no MODAL da própria
+              tela — o diretor confere o funil inteiro e volta para
+              a lista sem perder os filtros. Quem quer sair da tela
+              tem o link da peça e o do setor na mesma linha. */}
+          <button
+            type="button"
+            onClick={() => onAbrirEvento(p.eventId)}
+            aria-haspopup="dialog"
+            title={`${p.eventName} — abrir detalhes do evento`}
+            data-testid={`evento-da-peca-${p.item.id}`}
+            style={{
+              background: "none", border: "none", padding: 0, cursor: "pointer",
+              minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+              fontSize: 12, fontWeight: 800, color: TI.title, textAlign: "left",
+              fontFamily: "'Space Grotesk', sans-serif", textTransform: "uppercase",
+            }}
+          >
+            {p.eventName}
+          </button>
+        </span>
+        <span style={{ display: "block", fontSize: 10, color: TI.label, marginTop: 2 }}>
+          Saída {fmtDiaCurto(p.truckDepartureDate)}
+        </span>
+        {/* "urgente"/"alta" não têm ponto (viram chip de texto):
+            sem esta linha a prioridade que mais importa seria a
+            única sem marca nenhuma na lista. O `temChip` evita um
+            bloco vazio com margem nas outras. */}
+        {temChipDePrioridade(p.eventPriority) && (
+          <span style={{ display: "block", marginTop: 3 }}>
+            <PrioridadeChip priority={p.eventPriority} />
+          </span>
+        )}
+      </td>
+      <td style={{ padding: "9px 8px", verticalAlign: "top", fontSize: 12, color: TI.strong }}>
+        {/* Reticência com `title` da frase INTEIRA: num layout fixo
+            o que não cabe não alarga a coluna, invade a vizinha. */}
+        <span
+          title={textoPeca(p)}
+          style={{ display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+        >
+          {textoPeca(p)}
+        </span>
+        <span style={{
+          display: "block", fontSize: 10, marginTop: 2,
+          overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+        }}>
+          {/* Sem a coluna de etapa, o rótulo dela desce para cá —
+              a linha continua dizendo em que mesa a peça está, só
+              que na metade do espaço. `TI.secondary` (#746e69)
+              sobre branco = 5,03:1 ✓ em 10px. */}
+          {!comEtapa && (
+            <span style={{ color: TI.secondary }}>{p.stage.label} · </span>
+          )}
+          {p.item.waitingDays !== null && (
+            <span style={{ color: dayColor(p.item.waitingDays), fontWeight: 700 }}>
+              {p.item.waitingDays === 0 ? "entrou nesta etapa hoje" : `${p.item.waitingDays}d nesta etapa`}
+            </span>
+          )}
+        </span>
+        {!comEtapa && <NotaMarco p={p} />}
+      </td>
+      {comEtapa && (
+        <td style={{ padding: "9px 8px", verticalAlign: "top", fontSize: 12, color: TI.strong }}>
+          {/* Quebra em duas linhas em vez de reticência: "Aprovação
+              de Layout" não cabe em 104px de caixa, e a etapa é a
+              palavra que o diretor usa para cobrar — cortada em
+              "Aprovação de La…" ela obriga a passar o mouse. */}
+          <span style={{ display: "block", lineHeight: 1.3 }}>
+            {p.stage.label}
+          </span>
+          <NotaMarco p={p} />
+        </td>
+      )}
+      <td style={{ padding: "9px 8px", verticalAlign: "top", textAlign: "center" }}>
+        <span style={{ display: "block", fontSize: 14, fontWeight: 800, color: TI.red, whiteSpace: "nowrap" }}>
+          {p.diasAtraso}d
+        </span>
+        <span style={{ display: "block", fontSize: 10, color: TI.label, whiteSpace: "nowrap" }}>
+          venceu {fmtDayMonth(p.marco.deadline)}
+        </span>
+        <span className="sr-only">Atrasada há {diasTexto(p.diasAtraso)}</span>
+      </td>
+      <td style={{ padding: "9px 12px 9px 8px", verticalAlign: "top" }}>
+        <LinkSetor p={p} empilhado style={{ display: "block" }} />
+      </td>
+    </tr>
+  );
+});
 
 export function PecasAtrasadas({
   pecas, totalNoApp, kpiPecasAtrasadas, filtroKey, chips, onLimparFiltros, onAbrirEvento,
@@ -317,6 +460,11 @@ export function PecasAtrasadas({
   // nascer errada em toda carga, que é o caso comum desta tela.
   const emCartoes = width > 0 && width < TABELA_MIN;
   const comEtapa = width === 0 || width >= ETAPA_MIN;
+
+  // "Limpar filtros" e "Mostrar mais" eram `padding: 9px` — 36px também no
+  // dedo. Mesma régua dos estados da página: 36 no ponteiro, 44 no toque.
+  const isMobile = useIsMobile();
+  const alvoAcao = isMobile ? 44 : 36;
 
   const [mostrar, setMostrar] = useState(PAGINA);
   useEffect(() => { setMostrar(PAGINA); }, [filtroKey]);
@@ -366,7 +514,7 @@ export function PecasAtrasadas({
           onClick={onLimparFiltros}
           data-testid="button-limpar-filtros-pecas"
           style={{
-            padding: "9px 18px", borderRadius: R.md, border: `1px solid ${TI.border}`,
+            minHeight: alvoAcao, padding: "0 18px", borderRadius: R.md, border: `1px solid ${TI.border}`,
             backgroundColor: TI.card, color: TI.title,
             fontSize: 13, fontWeight: 700, cursor: "pointer",
           }}
@@ -473,116 +621,7 @@ export function PecasAtrasadas({
             </thead>
             <tbody>
               {visiveis.map((p) => (
-                <tr key={p.key} className="gp-row" style={{ borderBottom: `1px solid ${TI.rule}` }}>
-                  <th scope="row" style={{ padding: "9px 8px 9px 14px", textAlign: "left", fontWeight: 400, verticalAlign: "top" }}>
-                    <LinkPeca p={p} />
-                    <span
-                      title={getStatusLabel(p.item.status)}
-                      style={{
-                        display: "block", fontSize: 10, color: TI.label,
-                        overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-                      }}
-                    >
-                      {/* A FORMA CURTA na coluna estreita.
-
-                          A coluna da peça tem 104px e o rótulo longo era cortado
-                          no meio da palavra: "Aguardando Vi…" não diz vinculação,
-                          visita nem visualização. `lib/status` já mantém a forma
-                          curta de cada status ("Ag. Vinculação") justamente para
-                          isto — a tabela é que estava pedindo a longa. O `title`
-                          acima continua com o rótulo inteiro. */}
-                      {getStatusShort(p.item.status)}
-                    </span>
-                  </th>
-                  <td style={{ padding: "9px 8px", verticalAlign: "top" }}>
-                    <span style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
-                      <PrioridadePonto priority={p.eventPriority} />
-                      {/* Botão, não link: o evento abre no MODAL da própria
-                          tela — o diretor confere o funil inteiro e volta para
-                          a lista sem perder os filtros. Quem quer sair da tela
-                          tem o link da peça e o do setor na mesma linha. */}
-                      <button
-                        type="button"
-                        onClick={() => onAbrirEvento(p.eventId)}
-                        aria-haspopup="dialog"
-                        title={`${p.eventName} — abrir detalhes do evento`}
-                        data-testid={`evento-da-peca-${p.item.id}`}
-                        style={{
-                          background: "none", border: "none", padding: 0, cursor: "pointer",
-                          minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-                          fontSize: 12, fontWeight: 800, color: TI.title, textAlign: "left",
-                          fontFamily: "'Space Grotesk', sans-serif", textTransform: "uppercase",
-                        }}
-                      >
-                        {p.eventName}
-                      </button>
-                    </span>
-                    <span style={{ display: "block", fontSize: 10, color: TI.label, marginTop: 2 }}>
-                      Saída {fmtDiaCurto(p.truckDepartureDate)}
-                    </span>
-                    {/* "urgente"/"alta" não têm ponto (viram chip de texto):
-                        sem esta linha a prioridade que mais importa seria a
-                        única sem marca nenhuma na lista. O `temChip` evita um
-                        bloco vazio com margem nas outras. */}
-                    {temChipDePrioridade(p.eventPriority) && (
-                      <span style={{ display: "block", marginTop: 3 }}>
-                        <PrioridadeChip priority={p.eventPriority} />
-                      </span>
-                    )}
-                  </td>
-                  <td style={{ padding: "9px 8px", verticalAlign: "top", fontSize: 12, color: TI.strong }}>
-                    {/* Reticência com `title` da frase INTEIRA: num layout fixo
-                        o que não cabe não alarga a coluna, invade a vizinha. */}
-                    <span
-                      title={textoPeca(p)}
-                      style={{ display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
-                    >
-                      {textoPeca(p)}
-                    </span>
-                    <span style={{
-                      display: "block", fontSize: 10, marginTop: 2,
-                      overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-                    }}>
-                      {/* Sem a coluna de etapa, o rótulo dela desce para cá —
-                          a linha continua dizendo em que mesa a peça está, só
-                          que na metade do espaço. `TI.secondary` (#746e69)
-                          sobre branco = 5,03:1 ✓ em 10px. */}
-                      {!comEtapa && (
-                        <span style={{ color: TI.secondary }}>{p.stage.label} · </span>
-                      )}
-                      {p.item.waitingDays !== null && (
-                        <span style={{ color: dayColor(p.item.waitingDays), fontWeight: 700 }}>
-                          {p.item.waitingDays === 0 ? "entrou nesta etapa hoje" : `${p.item.waitingDays}d nesta etapa`}
-                        </span>
-                      )}
-                    </span>
-                    {!comEtapa && <NotaMarco p={p} />}
-                  </td>
-                  {comEtapa && (
-                    <td style={{ padding: "9px 8px", verticalAlign: "top", fontSize: 12, color: TI.strong }}>
-                      {/* Quebra em duas linhas em vez de reticência: "Aprovação
-                          de Layout" não cabe em 104px de caixa, e a etapa é a
-                          palavra que o diretor usa para cobrar — cortada em
-                          "Aprovação de La…" ela obriga a passar o mouse. */}
-                      <span style={{ display: "block", lineHeight: 1.3 }}>
-                        {p.stage.label}
-                      </span>
-                      <NotaMarco p={p} />
-                    </td>
-                  )}
-                  <td style={{ padding: "9px 8px", verticalAlign: "top", textAlign: "center" }}>
-                    <span style={{ display: "block", fontSize: 14, fontWeight: 800, color: TI.red, whiteSpace: "nowrap" }}>
-                      {p.diasAtraso}d
-                    </span>
-                    <span style={{ display: "block", fontSize: 10, color: TI.label, whiteSpace: "nowrap" }}>
-                      venceu {fmtDayMonth(p.marco.deadline)}
-                    </span>
-                    <span className="sr-only">Atrasada há {diasTexto(p.diasAtraso)}</span>
-                  </td>
-                  <td style={{ padding: "9px 12px 9px 8px", verticalAlign: "top" }}>
-                    <LinkSetor p={p} empilhado style={{ display: "block" }} />
-                  </td>
-                </tr>
+                <LinhaPeca key={p.key} p={p} comEtapa={comEtapa} onAbrirEvento={onAbrirEvento} />
               ))}
             </tbody>
           </table>
@@ -596,7 +635,7 @@ export function PecasAtrasadas({
             onClick={() => setMostrar((n) => n + PAGINA)}
             data-testid="button-mais-pecas-atrasadas"
             style={{
-              padding: "9px 18px", borderRadius: R.md, border: `1px solid ${TI.border}`,
+              minHeight: alvoAcao, padding: "0 18px", borderRadius: R.md, border: `1px solid ${TI.border}`,
               backgroundColor: TI.card, color: TI.title,
               fontSize: 13, fontWeight: 700, cursor: "pointer",
             }}

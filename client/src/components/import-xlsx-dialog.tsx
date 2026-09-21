@@ -1,4 +1,6 @@
-import { Fragment, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
+import type { CabecalhoDoKit, RemessaDoKit } from "@shared/kit";
+import { DestinoDaImportacaoDialog, type DestinoDaImportacao } from "@/components/kit/destino-da-importacao";
 import {
   Upload,
   List,
@@ -227,7 +229,9 @@ export function ImportPreviewRow({ row, idx, onChange, onDelete, eventSponsorsLi
           />
         ) : (
           <span style={{
-            color: display === '—' ? '#a8a29e' : (opts?.dim ? '#746e69' : '#1a1c1c'),
+            // O traço é INFORMAÇÃO ("a planilha não trouxe"): #78716c, não o
+            // #a8a29e de antes, que some sobre o zebrado da tabela.
+            color: display === '—' ? '#78716c' : (opts?.dim ? '#746e69' : '#1a1c1c'),
             fontSize: 13,
             fontFamily: opts?.mono ? 'DM Mono, monospace' : 'inherit',
             display: 'block',
@@ -277,7 +281,9 @@ export function ImportPreviewRow({ row, idx, onChange, onDelete, eventSponsorsLi
   };
 
   const m2 = parseFloat(row.calculatedM2) || 0;
-  const m2Color = m2 > 30 ? '#dc2626' : m2 > 10 ? '#ea580c' : m2 > 0 ? '#16a34a' : '#d0cdc9';
+  // Mesma escala (alto · médio · baixo), nos tons que passam AA em 13px:
+  // #ea580c (3,6:1) e #16a34a (3,3:1) viraram #c2410c e #15803d.
+  const m2Color = m2 > 30 ? '#dc2626' : m2 > 10 ? '#c2410c' : m2 > 0 ? '#15803d' : '#78716c';
 
   const hasSponsors = (row.suggestedSponsorIds ?? []).length > 0;
 
@@ -340,6 +346,9 @@ export function ImportPreviewRow({ row, idx, onChange, onDelete, eventSponsorsLi
               <span key={sid} style={{ display: 'inline-flex', alignItems: 'center', gap: 3, padding: '2px 6px 2px 7px', borderRadius: 6, border: `1.5px solid ${qc.border}`, backgroundColor: qc.bg, color: qc.color, fontSize: 10, fontWeight: 700, whiteSpace: 'nowrap' }}>
                 {sp.name}
                 <button
+                  type="button"
+                  aria-label={`Tirar ${sp.name} desta peça`}
+                  title={`Tirar ${sp.name}`}
                   onClick={e => { e.stopPropagation(); onChange({ ...row, suggestedSponsorIds: (row.suggestedSponsorIds ?? []).filter((id: string) => id !== sid) }); }}
                   style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'inherit', padding: '0 0 0 1px', opacity: 0.65, fontSize: 13, lineHeight: 1 }}
                 >×</button>
@@ -409,19 +418,21 @@ export function ImportPreviewRow({ row, idx, onChange, onDelete, eventSponsorsLi
             onKeyDown={e => { if (e.key === 'Enter') { update('observations', (e.target as HTMLInputElement).value); setEditField(null); } if (e.key === 'Escape') setEditField(null); }}
             style={{ width: '100%', border: 'none', borderBottom: '2px solid #f97316', padding: '0 2px', fontSize: 13, backgroundColor: 'transparent' }} />
         ) : (
-          <span style={{ color: row.observations ? '#746e69' : '#a8a29e', fontSize: 13, display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          <span style={{ color: row.observations ? '#746e69' : '#78716c', fontSize: 13, display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {row.observations || '—'}
           </span>
         )}
         {/* Reuse toggle */}
         <button
+          type="button"
+          aria-pressed={!!row.reuse}
           onClick={e => { e.stopPropagation(); onChange({ ...row, reuse: !row.reuse }); }}
           style={{
             marginTop: 3, display: 'block',
             fontSize: 10, fontWeight: 700, padding: '1px 7px', borderRadius: 999, cursor: 'pointer',
             border: `1px solid ${row.reuse ? '#22c55e' : '#e2deda'}`,
             backgroundColor: row.reuse ? '#f0fdf4' : 'transparent',
-            color: row.reuse ? '#16a34a' : '#57534e',
+            color: row.reuse ? '#15803d' : '#57534e',
             letterSpacing: '0.04em', textTransform: 'uppercase', transition: 'all 0.15s',
           }}
         >
@@ -431,10 +442,14 @@ export function ImportPreviewRow({ row, idx, onChange, onDelete, eventSponsorsLi
 
       {/* Delete */}
       <td style={{ padding: '6px 6px', borderBottom: '1px solid #f0efed', backgroundColor: rowBg }}>
+        {/* O X em repouso era #d0cdc9 (1,6:1): só aparecia no hover, então
+            no toque e no teclado a linha parecia não ter como sair. */}
         <button
+          type="button"
           onClick={onDelete}
-          title="Remover peça"
-          style={{ width: 26, height: 26, borderRadius: 6, border: 'none', backgroundColor: hovered ? '#fef2f2' : 'transparent', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: hovered ? '#dc2626' : '#d0cdc9', transition: 'all 0.15s' }}
+          title="Tirar esta peça da importação"
+          aria-label={`Tirar ${row.description || row.type || 'esta peça'} da importação`}
+          style={{ width: 26, height: 26, borderRadius: 6, border: 'none', backgroundColor: hovered ? '#fef2f2' : 'transparent', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: hovered ? '#dc2626' : '#78716c', transition: 'all 0.15s' }}
         >
           <X style={{ width: 13, height: 13 }} />
         </button>
@@ -458,9 +473,14 @@ interface ImportXlsxDialogProps {
   previewXlsxPending: boolean;
   onPreview: (file: File) => void;
   confirmImportPending: boolean;
-  onConfirmImport: (items: any[], fileName: string) => void;
+  /** O destino (Arena ou Kit) é escolhido no modal que abre antes de importar. */
+  onConfirmImport: (items: any[], fileName: string, destino: DestinoDaImportacao) => void;
   /** As peças que o evento JÁ tem — é contra elas que a repetição é medida. */
   itensDoEvento?: { type?: string | null; description?: string | null }[];
+  /** KIT (14/09): remessas do evento, cabeçalho lido da planilha do Kit e se só Kit vale. */
+  kitRemessas?: RemessaDoKit[];
+  kitCabecalho?: CabecalhoDoKit | null;
+  somenteKit?: boolean;
 }
 
 // Extracted from event-detail.tsx: the "Importar Peças" split-panel dialog
@@ -484,9 +504,18 @@ export function ImportXlsxDialog({
   confirmImportPending,
   onConfirmImport,
   itensDoEvento = [],
+  kitRemessas = [],
+  kitCabecalho = null,
+  somenteKit = false,
 }: ImportXlsxDialogProps) {
   const { toast } = useToast();
   const isMobile = useIsMobile();
+
+  // ARENA OU KIT (14/09): "Importar N peças" abre o modal de destino; a
+  // importação só acontece depois da escolha. Fecha sozinho quando a
+  // importação dá certo (o preview é limpo pelo pai).
+  const [escolhendoDestino, setEscolhendoDestino] = useState(false);
+  useEffect(() => { if (!importPreviewItems) setEscolhendoDestino(false); }, [importPreviewItems]);
 
   // Confirmação de descarte no padrão visual da casa — o window.confirm
   // nativo destoava do produto (flagrado em produção).
@@ -582,10 +611,19 @@ export function ImportXlsxDialog({
             </div>
           </div>
 
+          {/* sr-only, e não display:none: escondido de vez, o campo saía da
+              ordem de Tab e sem mouse não havia como escolher a planilha. Vem
+              ANTES do rótulo para o `peer` pintar o anel de foco nele. */}
+          <input id="xlsx-upload" type="file" accept=".xlsx,.xls" className="sr-only peer" aria-label="Escolher a planilha .xlsx" onChange={e => {
+            const f = e.target.files?.[0];
+            if (f) { setImportFile(f); setImportPreview(null); setImportPreviewItems(null); }
+            e.target.value = "";
+          }} />
           {/* Drop zone */}
           <label
             htmlFor="xlsx-upload"
             data-testid="dropzone-xlsx"
+            className="peer-focus-visible:ring-2 peer-focus-visible:ring-green-700 peer-focus-visible:ring-offset-2"
             style={{
               display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8,
               border: '2px dashed', borderColor: importFile ? '#16a34a' : '#d4d0cc',
@@ -612,8 +650,9 @@ export function ImportXlsxDialog({
                   <div style={{ fontSize: 11, color: '#746e69', marginTop: 2 }}>{(importFile.size / 1024).toFixed(1)} KB</div>
                 </div>
                 <button
+                  type="button"
                   onClick={e => { e.preventDefault(); setImportFile(null); setImportPreview(null); setImportPreviewItems(null); }}
-                  style={{ fontSize: 10, color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 3 }}
+                  style={{ fontSize: 11, fontWeight: 600, color: '#b91c1c', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 3, minHeight: 28, padding: '0 6px' }}
                 >
                   <X style={{ width: 10, height: 10 }} /> Remover
                 </button>
@@ -628,11 +667,6 @@ export function ImportXlsxDialog({
               </>
             )}
           </label>
-          <input id="xlsx-upload" type="file" accept=".xlsx,.xls" style={{ display: 'none' }} onChange={e => {
-            const f = e.target.files?.[0];
-            if (f) { setImportFile(f); setImportPreview(null); setImportPreviewItems(null); }
-            e.target.value = "";
-          }} />
           </div>
 
           {/* MEIO ROLÁVEL: resumo, triagem e a dica de formato. */}
@@ -651,8 +685,8 @@ export function ImportXlsxDialog({
                   {[
                     { l: 'Peças',      v: allItems.length,         color: '#1a1c1c', mono: false },
                     { l: 'Grupos',     v: groups,                  color: '#1a1c1c', mono: false },
-                    { l: 'M² total',   v: `${totalM2.toFixed(0)}`, color: '#D97A1E', mono: true  },
-                    { l: 'Vinculados', v: `${linkPct}%`,           color: linkPct === 100 ? '#16a34a' : '#d97706', mono: false },
+                    { l: 'M² total',   v: `${totalM2.toFixed(0)}`, color: '#b45309', mono: true  },
+                    { l: 'Vinculados', v: `${linkPct}%`,           color: linkPct === 100 ? '#15803d' : '#b45309', mono: false },
                   ].map(s => (
                     <div key={s.l} style={{ backgroundColor: '#f5f4f2', border: '1px solid #e7e5e4', borderRadius: 8, padding: '10px 12px' }}>
                       <div style={{ fontSize: 18, fontWeight: 900, color: s.color, fontFamily: s.mono ? 'DM Mono, monospace' : "'Space Grotesk', sans-serif", lineHeight: 1 }}>{s.v}</div>
@@ -663,7 +697,7 @@ export function ImportXlsxDialog({
                 <div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5 }}>
                     <span style={{ fontSize: 11, color: '#746e69', fontWeight: 600 }}>Vinculação</span>
-                    <span style={{ fontSize: 11, fontWeight: 700, color: linkPct === 100 ? '#16a34a' : '#d97706' }}>{linked}/{allItems.length}</span>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: linkPct === 100 ? '#15803d' : '#b45309' }}>{linked}/{allItems.length}</span>
                   </div>
                   <div style={{ height: 5, backgroundColor: '#e7e5e4', borderRadius: 999, overflow: 'hidden' }}>
                     <div style={{ height: '100%', width: `${linkPct}%`, backgroundColor: linkPct === 100 ? '#16a34a' : '#d97706', borderRadius: 999, transition: 'width 0.4s' }} />
@@ -752,7 +786,7 @@ export function ImportXlsxDialog({
               disabled={!importFile || previewXlsxPending}
               onClick={() => { if (importFile) onPreview(importFile); }}
               data-testid="button-preview-import"
-              style={{ width: '100%', padding: '11px 0', backgroundColor: importFile ? '#16a34a' : '#e7e5e4', color: importFile ? '#fff' : '#8a847e', border: 'none', borderRadius: 8, fontWeight: 800, fontSize: 13, cursor: importFile ? 'pointer' : 'not-allowed', fontFamily: "'Space Grotesk', sans-serif", display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
+              style={{ width: '100%', padding: '11px 0', backgroundColor: importFile ? '#15803d' : '#e7e5e4', color: importFile ? '#fff' : '#57534e', border: 'none', borderRadius: 8, fontWeight: 800, fontSize: 13, cursor: importFile ? 'pointer' : 'not-allowed', fontFamily: "'Space Grotesk', sans-serif", display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
             >
               {previewXlsxPending ? (
                 <><Loader2 style={{ width: 15, height: 15, animation: 'spin 1s linear infinite' }} /> Processando...</>
@@ -818,16 +852,22 @@ export function ImportXlsxDialog({
               </button>
               <button
                 disabled={!importPreviewItems.length || confirmImportPending}
-                onClick={() => { if (importPreviewItems.length > 0) onConfirmImport(importPreviewItems, importFileName); }}
+                onClick={() => { if (importPreviewItems.length > 0) setEscolhendoDestino(true); }}
                 data-testid="button-confirm-import"
                 style={{ width: '100%', padding: '11px 0', backgroundColor: '#1c1917', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 800, fontSize: 13, cursor: 'pointer', fontFamily: "'Space Grotesk', sans-serif", display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
               >
                 {confirmImportPending ? (
                   <><Loader2 style={{ width: 15, height: 15, animation: 'spin 1s linear infinite' }} /> Importando...</>
                 ) : (
-                  <><Check style={{ width: 15, height: 15 }} /> Importar {importPreviewItems.length} peças</>
+                  <><Check style={{ width: 15, height: 15 }} /> Importar {importPreviewItems.length} {importPreviewItems.length === 1 ? 'peça' : 'peças'}</>
                 )}
               </button>
+              {/* O QUE ACONTECE DEPOIS — antes de clicar. Importar não é
+                  enviar: as peças caem no card de rascunhos do evento e só
+                  seguem para a vinculação quando alguém envia. */}
+              <p data-testid="texto-depois-de-importar" style={{ margin: 0, fontSize: 11, color: '#57534e', lineHeight: 1.45, textAlign: 'center' }}>
+                As peças entram em Rascunho no evento. Depois, envie para a vinculação.
+              </p>
             </div>
           )}
           </div>
@@ -846,6 +886,7 @@ export function ImportXlsxDialog({
                   value={importSearch}
                   onChange={e => setImportSearch(e.target.value)}
                   placeholder="Filtrar peças ou grupos..."
+                  aria-label="Filtrar as peças da planilha por descrição ou grupo"
                   style={{ width: '100%', padding: '7px 12px 7px 28px', backgroundColor: '#f5f4f2', border: '1px solid #e7e5e4', borderRadius: 8, color: '#1a1c1c', fontSize: 13, boxSizing: 'border-box' }}
                 />
               </div>
@@ -931,9 +972,9 @@ export function ImportXlsxDialog({
                                 </div>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
                                   {groupM2 > 0 && (
-                                    <span style={{ fontSize: 11, fontFamily: 'DM Mono, monospace', fontWeight: 700, color: '#D97A1E' }}>{groupM2.toFixed(2)} m²</span>
+                                    <span style={{ fontSize: 11, fontFamily: 'DM Mono, monospace', fontWeight: 700, color: '#b45309' }}>{groupM2.toFixed(2)} m²</span>
                                   )}
-                                  <span style={{ fontSize: 11, color: groupLinked === groupItems.length ? '#16a34a' : '#d97706', fontWeight: 600 }}>
+                                  <span style={{ fontSize: 11, color: groupLinked === groupItems.length ? '#15803d' : '#b45309', fontWeight: 600 }}>
                                     {groupLinked}/{groupItems.length} vinculados
                                   </span>
                                 </div>
@@ -960,7 +1001,7 @@ export function ImportXlsxDialog({
               </table>
               {importPreviewItems.length === 0 && (
                 <div style={{ padding: 60, textAlign: 'center', color: '#746e69', fontSize: 13 }}>
-                  <List style={{ width: 32, height: 32, color: '#a8a29e', margin: '0 auto 12px' }} />
+                  <List aria-hidden="true" style={{ width: 32, height: 32, color: '#78716c', margin: '0 auto 12px' }} />
                   <div>Nenhuma peça para importar.</div>
                 </div>
               )}
@@ -968,7 +1009,7 @@ export function ImportXlsxDialog({
                   sem dizer o porquê nem oferecer saída. */}
               {importPreviewItems.length > 0 && importPreviewItems.filter(matchesImportFiltros).length === 0 && (
                 <div style={{ padding: 60, textAlign: 'center', color: '#746e69', fontSize: 13 }}>
-                  <Search style={{ width: 32, height: 32, color: '#a8a29e', margin: '0 auto 12px' }} />
+                  <Search aria-hidden="true" style={{ width: 32, height: 32, color: '#78716c', margin: '0 auto 12px' }} />
                   <div style={{ fontWeight: 700, color: '#1a1c1c', marginBottom: 4 }}>Nenhuma peça corresponde ao filtro</div>
                   <div style={{ marginBottom: 14 }}>Tente outro termo ou limpe o filtro para ver as {importPreviewItems.length} peças.</div>
                   <button
@@ -988,6 +1029,19 @@ export function ImportXlsxDialog({
         )}
         </div>{/* wrapper flex row */}
       </DialogContent>
+
+      {/* Arena ou Kit — antes de importar (14/09) */}
+      <DestinoDaImportacaoDialog
+        aberto={escolhendoDestino && !!importPreviewItems}
+        quantidade={importPreviewItems?.length ?? 0}
+        arquivo={importFileName}
+        remessas={kitRemessas}
+        cabecalho={kitCabecalho}
+        somenteKit={somenteKit}
+        pendente={confirmImportPending}
+        onConfirmar={(destino) => { if (importPreviewItems?.length) onConfirmImport(importPreviewItems, importFileName, destino); }}
+        onFechar={() => setEscolhendoDestino(false)}
+      />
 
       {/* Confirmação de descarte da importação — padrão da casa */}
       <AlertDialog open={confirmDiscardOpen} onOpenChange={setConfirmDiscardOpen}>

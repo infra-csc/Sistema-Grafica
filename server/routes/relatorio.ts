@@ -38,7 +38,9 @@ export function registerRelatorioRoutes(app: Express): void {
 
       const [itens, allSponsors, openApprovals, allUsers, todasFotos] = await Promise.all([
         // BOOK COMPLETO fica de fora: é o trâmite do Atendimento, não uma peça (ver shared/fluxo-peca).
-        storage.getItemsByEvents([event.id]).then((l) => l.filter((i) => !ehBookCompleto(i))),
+        // Usuário do Kit (14/09): só as peças do Kit que ele criou.
+        storage.getItemsByEvents([event.id]).then((l) => l.filter((i) => !ehBookCompleto(i)
+          && (!(req as any).userKit || (!!i.kitRemessaId && i.criadoPorId === (req as any).userId)))),
         storage.getAllSponsors(),
         storage.getOpenItemSponsorApprovals(),
         storage.getAllUsers(),

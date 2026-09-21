@@ -187,7 +187,7 @@ export default function EtiquetasEvento() {
     window.print();
   };
 
-  if (isLoading) return <p style={{ padding: 40, fontSize: 14, color: "#78716c" }}>Montando as etiquetas…</p>;
+  if (isLoading) return <p role="status" style={{ padding: 40, fontSize: 14, color: "#78716c" }}>Montando as etiquetas…</p>;
 
   // Falha de rede NÃO pode virar "evento sem peças" — mentiria justamente
   // para quem está com a impressora esperando.
@@ -197,9 +197,16 @@ export default function EtiquetasEvento() {
         <p data-testid="etiquetas-erro" style={{ margin: 0, fontSize: 14, color: "#b91c1c", fontWeight: 600 }}>
           Não foi possível carregar as peças do evento.
         </p>
-        <button type="button" onClick={() => refetch()} style={{ marginTop: 12, height: 40, padding: "0 16px", borderRadius: 8, border: "1px solid #e7e5e4", background: "#fff", cursor: "pointer", font: "inherit", fontSize: 13, fontWeight: 600, color: "#44403c" }}>
-          Tentar de novo
-        </button>
+        {/* Saída ao lado do "tentar de novo" — sem ela, a tela de erro era
+            beco sem saída para quem veio da Gráfica ou do evento. */}
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
+          <button type="button" onClick={() => refetch()} style={{ height: 40, padding: "0 16px", borderRadius: 8, border: "1px solid #e7e5e4", background: "#fff", cursor: "pointer", font: "inherit", fontSize: 13, fontWeight: 600, color: "#44403c" }}>
+            Tentar de novo
+          </button>
+          <Link href={voltarHref} style={{ display: "inline-flex", alignItems: "center", gap: 6, height: 40, padding: "0 12px", borderRadius: 8, color: "#44403c", fontSize: 13, fontWeight: 600, textDecoration: "none" }}>
+            <ArrowLeft style={{ width: 14, height: 14 }} /> {veioDaGrafica ? "Voltar à Gráfica" : "Voltar ao evento"}
+          </Link>
+        </div>
       </div>
     );
   }
@@ -302,7 +309,11 @@ export default function EtiquetasEvento() {
             segundos — o botão espera; quem não quer logo desmarca e imprime. */}
         <button type="button" onClick={imprimir} data-testid="button-imprimir-etiquetas"
           disabled={buscandoLogo && usarLogo}
-          title={buscandoLogo && usarLogo ? 'Extraindo o logo do book — segundos. Para imprimir sem logo, desmarque "Logo do book".' : undefined}
+          // O clique também REGISTRA a impressão (o selo "impressa dd/mm" das
+          // peças) — dizer isso evita a dúvida de por que o selo apareceu.
+          title={buscandoLogo && usarLogo
+            ? 'Extraindo o logo do book — segundos. Para imprimir sem logo, desmarque "Logo do book".'
+            : 'Abre a impressão (ou "Salvar como PDF") e marca as peças selecionadas como impressas hoje.'}
           style={{ display: "inline-flex", alignItems: "center", gap: 7, height: 38, padding: "0 16px", borderRadius: 8, border: "none", backgroundColor: buscandoLogo && usarLogo ? "#e7e5e4" : "#1c1917", color: buscandoLogo && usarLogo ? "#57534e" : "#fff", cursor: buscandoLogo && usarLogo ? "wait" : "pointer", font: "inherit", fontSize: 13, fontWeight: 700 }}>
           <Printer style={{ width: 14, height: 14 }} /> {buscandoLogo && usarLogo ? "Buscando o logo…" : "Imprimir / PDF"}
         </button>
@@ -377,7 +388,9 @@ export default function EtiquetasEvento() {
                 <span aria-hidden="true" style={{
                   width: 16, height: 16, flexShrink: 0, borderRadius: 4,
                   display: "inline-flex", alignItems: "center", justifyContent: "center",
-                  border: `1.5px solid ${marcada ? "#c2410c" : "#a8a29e"}`,
+                  // #78716c: a borda da caixa desmarcada é o único sinal de
+                  // que ali há um controle — #a8a29e ficava abaixo dos 3:1.
+                  border: `1.5px solid ${marcada ? "#c2410c" : "#78716c"}`,
                   backgroundColor: marcada ? "#c2410c" : "#fff",
                 }}>
                   {marcada && <Check style={{ width: 11, height: 11, color: "#fff", strokeWidth: 3.5 }} />}

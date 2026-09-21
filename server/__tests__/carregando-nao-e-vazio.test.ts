@@ -63,7 +63,7 @@ describe("os cards de status não afirmam zero durante a carga", () => {
     // Zero é uma AFIRMAÇÃO, e durante a carga a tela não tem como fazê-la.
     // Com 3.187 peças a caminho os cards exibiam "0" e o TOTAL anunciava
     // "0 TOTAL" com selo BASELINE — a manchete dizendo que não havia nada.
-    expect(painel).toContain('{carregando ? "—" : value}');
+    expect(painel).toContain('{carregando ? "—" : valorTexto}');
   });
 
   it("os dois pontos de chamada passam o estado de carga", () => {

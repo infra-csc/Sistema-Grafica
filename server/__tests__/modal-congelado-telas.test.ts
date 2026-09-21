@@ -161,8 +161,11 @@ beforeAll(() => {
     if (u === "/api/sponsors/usage") return json({ s1: { events: 1, items: 2 } });
     if (u === "/api/users/basic") return json([{ id: "u1", name: "Admin", role: "admin" }]);
     if (u === "/api/users" && method === "GET") { versao++; return json([{ ...USUARIO, _v: versao }]); }
-    if (u === "/api/items" && method === "GET") { versao++; return json([{ ...PECA_REVISAO, _v: versao }]); }
-    if (u === "/api/events" && method === "GET") return json([EVENTO_SOL]);
+    // Com ou sem query: o cliente pede /api/items?formato=compacto[&since=]
+    // (perf 17/09) e aceita o array cheio como full fetch em qualquer caso.
+    if ((u === "/api/items" || u.startsWith("/api/items?")) && method === "GET") { versao++; return json([{ ...PECA_REVISAO, _v: versao }]); }
+    // A lista de eventos é pedida com `?itens=resumo` (perf 17/09): o caminho decide.
+    if (u.split("?")[0] === "/api/events" && method === "GET") return json([EVENTO_SOL]);
     if (u.startsWith("/api/audit-logs")) return json([]);
     if (u.startsWith("/api/standard-items/") || u.startsWith("/api/sponsors/")
       || u.startsWith("/api/users/") || u.startsWith("/api/items/")) return json({ ok: true });
@@ -396,17 +399,28 @@ describe("modal de Solicitação: o item zerado não esvazia o modal que está s
     const Solicitacao = (await import("@/pages/solicitacao")).default;
 
     queryClient.clear();
+    // Os testes anteriores deste arquivo abrem telas que gravam filtros na URL
+    // (?busca=, ?pagina=…) e o jsdom não limpa o endereço entre eles: a Revisão
+    // também lê filtros da URL e escondia a peça. No app, trocar de tela pelo
+    // menu leva a um endereço limpo — aqui a URL é zerada à mão.
+    window.history.replaceState(null, "", "/solicitacao");
     render(
       h(QueryClientProvider, { client: queryClient } as any,
         h(TooltipProvider, null,
           h(AuthProvider, null, h(Solicitacao as any, null), h(Toaster as any, null)))),
     );
     await tick(200);
+    // Com a suíte inteira em paralelo a lista pode demorar a desenhar: espera
+    // o botão existir antes de clicar (sem isso o clique ia para `null`).
+    for (let i = 0; i < 100 && !document.querySelector('[data-testid="button-review-i1"]'); i++) await tick(20);
 
     await act(async () => {
       (document.querySelector('[data-testid="button-review-i1"]') as HTMLElement)?.click();
     });
-    await tick(150);
+    // Espera ATÉ abrir, como o fechamento abaixo: com a suíte inteira em
+    // paralelo, 150ms fixos às vezes não bastavam e o teste falhava sozinho.
+    for (let i = 0; i < 60 && dialog()?.getAttribute("data-state") !== "open"; i++) await tick(10);
+    await tick(50);
     expect(dialog()?.getAttribute("data-state")).toBe("open");
     // Os dois FilePreview (aprovado × final) provam que o miolo desenhou.
     expect(solicitacao.n).toBeGreaterThan(0);

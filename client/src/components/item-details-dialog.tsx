@@ -7,7 +7,7 @@ import { parseDateLocal, toUTCDisplayDate } from "@/lib/utils";
 import { convertGCSUrlToLocalPath } from "@/lib/artePdfExport";
 import { refsDaPeca } from "@/lib/refs-da-peca";
 import { POS_APROVACAO } from "@shared/fluxo-peca";
-import { getApprovalMeta, getStatusLabel, marcoEventoFinalizado, todayBusinessMs } from "@/lib/status";
+import { getApprovalMeta, getStatusLabel, guiaDoStatus, marcoEventoFinalizado, proximoPassoDaAprovacao, todayBusinessMs } from "@/lib/status";
 import {
   Edit, Save, X, Check, Clock, Eye, ExternalLink, Camera, Paperclip,
   FileImage, FolderOpen, AlertTriangle, CheckCircle2, Recycle,
@@ -477,10 +477,8 @@ export function ItemDetailsDialog({
     { label: "Liberado para Produção",          keywords: ["pronto p/ produção", "pronto para produção", "liberado para produção"], pool: itemLogsFlow,
       match: (d, t) => t.includes("pronto p/ produção") || t.includes("pronto para produção")
                     || d.includes("liberado para produção") || d.includes("aprovado para produção") },
-    // Os nomes mudaram em 14/09; a trilha antiga continua dizendo "Em Produção"
-    // e "Produzido", então as palavras velhas seguem reconhecidas.
-    { label: "Em Impressão",                    keywords: ["em impressão", "impressão iniciada", "em produção"], pool: itemLogsFlow, actionType: "production" },
-    { label: "Em Acabamento / Conferência",     keywords: ["acabamento / conferência", "produzido"], pool: itemLogsFlow, actionType: "produced" },
+    { label: "Em Produção",                     keywords: ["em produção"], pool: itemLogsFlow, actionType: "production" },
+    { label: "Produzido",                       keywords: ["produzido"], pool: itemLogsFlow, actionType: "produced" },
     // As etapas da Gráfica faltavam por completo: a trilha terminava em
     // "Produzido" mesmo em peças já conferidas e entregues.
     { label: "Conferido",                       keywords: [], pool: itemLogsFlow,
@@ -684,10 +682,10 @@ export function ItemDetailsDialog({
       return { tom: "ok", frase: "Liberada para produção", detalhe: `A gráfica pode imprimir${desdeQuando ? ` · liberada${desdeQuando}` : ""}` };
     }
     if (["inproduction", "inProduction", "em_producao"].includes(rawStatus)) {
-      return { tom: "espera", frase: `Em impressão${item.printMachine ? ` na Máquina ${item.printMachine}` : ""}${desdeQuando}`, detalhe: item.quantityProduced > 0 ? `${item.quantityProduced} de ${item.quantity} já impressas` : null };
+      return { tom: "espera", frase: `Em produção na gráfica${desdeQuando}`, detalhe: null };
     }
     if (["produced", "produzido"].includes(rawStatus)) {
-      return { tom: "espera", frase: `Em acabamento / conferência${desdeQuando}`, detalhe: item.conferredQty > 0 ? `${item.conferredQty} de ${item.quantity} já conferidas` : null };
+      return { tom: "espera", frase: `Produzida — falta conferir${desdeQuando}`, detalhe: item.conferredQty > 0 ? `${item.conferredQty} de ${item.quantity} já conferidas` : null };
     }
     if (["conferred", "conferido"].includes(rawStatus)) {
       return { tom: "espera", frase: `Conferida — falta entregar${desdeQuando}`, detalhe: item.deliveredQty > 0 ? `${item.deliveredQty} de ${item.quantity} já entregues` : null };
@@ -699,6 +697,18 @@ export function ItemDetailsDialog({
     // não conhece): dizer o rótulo do status é mais honesto que inventar uma
     // frase de bloqueio.
     return { tom: "neutro", frase: getStatusLabel(rawStatus) || "Sem etapa definida", detalhe: diasParado === null ? null : `Sem movimento ${haQuantoTempo(diasParado)}` };
+  })();
+
+  // DE QUEM É A VEZ, E ONDE. A frase da faixa diz o que trava; faltava dizer a
+  // quem cabe destravar e em que tela — quem abre a ficha pela primeira vez
+  // lia "Aguardando a Arte enviar para aprovação" e não sabia se era com ele.
+  // Continua sendo DADO, não ação (ver "ESTA FICHA NÃO AGE" abaixo): nenhum
+  // botão, só o endereço de onde a ação mora. Fonte: lib/status (STATUS_GUIA).
+  const vezDeQuem: string | null = (() => {
+    if (bloqueio.tom === "reprovado") return proximoPassoDaAprovacao("awaiting_arte");
+    const g = guiaDoStatus(rawStatus);
+    if (!g?.quemAge) return null;
+    return `Quem age agora: ${g.quemAge}${g.onde ? ` — ${g.onde}` : ""}.`;
   })();
 
   const tom = TOM[bloqueio.tom];
@@ -752,7 +762,7 @@ export function ItemDetailsDialog({
   // ── Andamento na gráfica ──────────────────────────────────────────────────
   const andamentoGrafica = ([
     ["Reaproveitado", item.reuseQty,        "#047857"],
-    ["Impresso",      item.quantityProduced,"#7e22ce"],
+    ["Produzido",     item.quantityProduced,"#7e22ce"],
     ["Conferido",     item.conferredQty,    "#0e7490"],
     ["Entregue",      item.deliveredQty,    "#047857"],
   ] as const).filter(([, v]) => v > 0);
@@ -794,7 +804,7 @@ export function ItemDetailsDialog({
           {item?.displayId ? `Peça ${item.displayId} — ${item.description || item.type || ""}` : "Detalhes da peça"}
         </DialogTitle>
         <DialogDescription className="sr-only">
-          {bloqueio.frase}
+          {bloqueio.frase}{vezDeQuem ? ` ${vezDeQuem}` : ""}
         </DialogDescription>
 
         {/* ══════════════════════════════════════════════════════════════════
@@ -965,6 +975,11 @@ export function ItemDetailsDialog({
             {bloqueio.detalhe && (
               <p style={{ fontSize: 12, color: tom.detalhe, margin: "3px 0 0", lineHeight: 1.45 }}>
                 {bloqueio.detalhe}
+              </p>
+            )}
+            {vezDeQuem && (
+              <p data-testid="text-vez-de-quem" style={{ fontSize: 12, fontWeight: 600, color: tom.detalhe, margin: "3px 0 0", lineHeight: 1.45 }}>
+                {vezDeQuem}
               </p>
             )}
           </div>

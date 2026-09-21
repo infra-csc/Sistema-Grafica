@@ -153,8 +153,8 @@ describe("o servidor da reserva", () => {
     expect(SERVIDOR).toContain("registerEstoqueReservasRoutes(app);");
   });
 
-  it("reservar e liberar são da Solicitação e do admin", () => {
-    expect(ROTAS).toContain('const requireReservaDeEstoque = requireRole("admin", "solicitacao");');
+  it("reservar e liberar são só do admin (15/09: Estoque é só do admin)", () => {
+    expect(ROTAS).toContain('const requireReservaDeEstoque = requireRole("admin");');
   });
 
   it("trava as peças e confere tudo de novo no servidor — nunca confia na tela", () => {
@@ -190,8 +190,8 @@ describe("a triagem é da Gráfica e exige o local", () => {
   const TELA = ler("client/src/pages/triagem-retorno.tsx");
   const MODAL = ler("client/src/components/triagem-modal.tsx");
 
-  it("Gráfica e admin escrevem; excluir e saída/retorno à mão seguem do admin", () => {
-    expect(INVENTARIO).toContain('const requireInventoryWrite = requireRole("admin", "grafica");');
+  it("só o admin escreve (15/09); excluir e saída/retorno à mão seguem do admin", () => {
+    expect(INVENTARIO).toContain('const requireInventoryWrite = requireRole("admin");');
     expect(INVENTARIO).toContain('const requireInventoryAdmin = requireRole("admin");');
     expect(INVENTARIO).toContain('app.delete("/api/inventory/:id", requireInventoryAdmin');
     expect(INVENTARIO).toContain('app.post("/api/events/:id/dispatch-inventory", requireInventoryAdmin');
@@ -227,11 +227,13 @@ describe("as telas", () => {
   const ESTOQUE = ler("client/src/pages/estoque.tsx");
   const DIALOGO = ler("client/src/components/estoque-semelhantes-dialog.tsx");
 
-  it("Triagem é da Gráfica e do admin; Estoque também da Solicitação", () => {
-    expect(APP).toContain('const ROLES_TRIAGEM = ["grafica", "admin"];');
+  it("Triagem e Estoque são só do admin (15/09)", () => {
+    expect(APP).toContain('const ROLES_TRIAGEM = ["admin"];');
     expect(APP).toContain("<RoleProtectedRoute component={TriagemRetorno} allowedRoles={ROLES_TRIAGEM} />");
-    expect(APP).toContain("<RoleProtectedRoute component={Estoque} allowedRoles={ROLES_GRAFICA} />");
-    expect(MENU).toContain('url: "/triagem-retorno", icon: ScanSearch, roles: ["grafica", "admin"] }');
+    expect(APP).toContain('const ROLES_ESTOQUE = ["admin"];');
+    expect(APP).toContain("<RoleProtectedRoute component={Estoque} allowedRoles={ROLES_ESTOQUE} />");
+    expect(MENU).toContain('url: "/estoque",          icon: Archive,    roles: ["admin"] }');
+    expect(MENU).toContain('url: "/triagem-retorno", icon: ScanSearch, roles: ["admin"] }');
   });
 
   it("a peça do evento mostra o selo do estoque e abre a busca, no desktop e no celular", () => {

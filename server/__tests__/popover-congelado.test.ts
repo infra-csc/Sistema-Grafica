@@ -100,8 +100,9 @@ beforeAll(() => {
     const json = (b: any) => new Response(JSON.stringify(b), { status: 200, headers: { "content-type": "application/json" } });
     if (u === "/api/auth/me") return json({ id: "u1", name: "Admin", email: "a@a", role: "admin", mustChangePassword: false });
     if (u === "/api/sponsors") return json([{ id: "s1", name: "Patro 1", color: "#3b82f6" }]);
-    if (u === "/api/events" && method === "GET") return json([EVENTO]);
-    if (u === "/api/events" && method === "POST") return json({ ...EVENTO, id: "novo" });
+    // A lista de eventos é pedida com `?itens=resumo` (perf 17/09): o caminho decide.
+    if (u.split("?")[0] === "/api/events" && method === "GET") return json([EVENTO]);
+    if (u.split("?")[0] === "/api/events" && method === "POST") return json({ ...EVENTO, id: "novo" });
     if (u.startsWith("/api/events/")) return json([]);
     return json([]);
   });

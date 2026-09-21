@@ -245,11 +245,6 @@ export const items = pgTable("items", {
   rejectionReason: text("rejection_reason"),
   approvedAt: timestamp("approved_at"), // Timestamp quando foi liberado pela Arte
   productionStartedAt: timestamp("production_started_at"), // Timestamp quando produção iniciou
-  // EM QUAL MÁQUINA a peça está sendo impressa (dono, 14/09). Código curto
-  // ("1".."4") — o rótulo mora em MAQUINAS_DE_IMPRESSAO (shared/fluxo-peca.ts).
-  // NULL = peça que nunca passou por "Iniciar impressão" (todo o acervo
-  // anterior a esta coluna, e as reaproveitadas, que não vão para máquina).
-  printMachine: text("print_machine"),
   producedAt: timestamp("produced_at"), // Timestamp quando foi produzido
   // DESDE QUANDO a peca esta no status atual.
   //
@@ -284,6 +279,15 @@ export const items = pgTable("items", {
   // várias peças; cada peça atende no máximo um pedido. Só o servidor grava
   // (rota de pedidos) — fora do schema público de criação/edição.
   pedidoDePecaId: varchar("pedido_de_peca_id").references((): any => pedidosDePeca.id, { onDelete: "set null" }),
+  // E de qual PEÇA da solicitação (a solicitação tem várias, cada uma com
+  // status próprio). Só o servidor grava.
+  pedidoDePecaLinhaId: varchar("pedido_de_peca_linha_id").references((): any => linhasDoPedidoDePeca.id, { onDelete: "set null" }),
+  // PEÇA DO KIT (dono, 14/09): a remessa do Kit a que ela pertence (datas do
+  // Kit). Nula = peça da Arena.
+  kitRemessaId: varchar("kit_remessa_id").references((): any => kitRemessas.id, { onDelete: "set null" }),
+  // QUEM CRIOU a peça (id do usuário). Só o servidor grava. É o que deixa o
+  // usuário do Kit ver só as peças dele.
+  criadoPorId: varchar("criado_por_id"),
   deliveredAt: timestamp("delivered_at"), // Timestamp quando foi entregue
   // QUANDO a etiqueta desta peça saiu na impressora pela última vez (25/08).
   // A tela de Etiquetas abre com as já impressas desmarcadas — sem isso, a
@@ -292,9 +296,6 @@ export const items = pgTable("items", {
   // também vira linha no audit_log, onde o histórico de reimpressões
   // sobrevive — mesmo padrão de statusChangedAt. NULL = nunca impressa.
   labelPrintedAt: timestamp("label_printed_at"),
-  // EM QUAL TUBO a peça vai para a entrega (dono, 14/09). A peça vai INTEIRA
-  // para um tubo só — decisão do dono. NULL = ainda sem tubo.
-  tuboId: varchar("tubo_id").references((): any => tubos.id, { onDelete: "set null" }),
   referenceUrl: text("reference_url"), // Anexo/referência de demonstração das peças (upload do Solicitante)
   // MAIS DE UMA referência por peça (pedido do dono, 25/08). A lista completa
   // vive aqui; referenceUrl continua sendo A PRIMEIRA da lista — as sete telas
@@ -322,7 +323,6 @@ export const items = pgTable("items", {
 }, (table) => [
   // Filtros mais usados nas listagens (por evento e por status/fase).
   index("IDX_items_event_id").on(table.eventId),
-  index("IDX_items_tubo_id").on(table.tuboId),
   index("IDX_items_status").on(table.status),
   // Toda listagem ordena por created_at e filtra deleted_at IS NULL (soft delete).
   index("IDX_items_created_at").on(table.createdAt),
@@ -334,6 +334,15 @@ export const items = pgTable("items", {
   // IS NULL ORDER BY created_at" — dois índices soltos obrigam o planner a
   // escolher um e ordenar fora. O composto serve filtro E ordem de uma vez.
   index("IDX_items_event_created").on(table.eventId, table.createdAt.desc()),
+  // PERF 17/09 — declarados aqui para o `db:push` não derrubá-los (índice que
+  // o schema não declara é índice que o push apaga). Criados em produção por
+  // scripts/indices-performance.sql, com CONCURRENTLY; o push depois só confere.
+  //  · delta-sync (`GET /api/items?since=`, getItemsChangedSince): `WHERE
+  //    updated_at >= $1` era seq scan na tabela inteira a cada reconexão/aba.
+  index("IDX_items_updated_at").on(table.updatedAt),
+  //  · usuário do Kit (getItemsDoKitDoCriador / getIdsDasPecasDoKitDoCriador):
+  //    `criado_por_id = $1 AND kit_remessa_id IS NOT NULL`.
+  index("IDX_items_criado_por_kit").on(table.criadoPorId, table.kitRemessaId),
 ]);
 
 // Standard items (templates)
@@ -406,56 +415,6 @@ export const emailDestinatarios = pgTable("email_destinatarios", {
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
 });
 
-// REGISTROS DE IMPRESSÃO — o diário de cada máquina (dono, 14/09: "a Gráfica
-// ter uma aba onde faz o controle de impressão por máquinas: quais máquinas
-// estão imprimindo o quê, o histórico do que foi impresso naquela máquina
-// naquele dia").
-//
-// Por que uma tabela e não a trilha de auditoria: a peça guarda só a ÚLTIMA
-// máquina, e o lançamento "Produção: 10/40" na trilha não diz em qual máquina
-// saiu. Uma peça que troca de máquina no meio perderia a divisão do que cada
-// uma imprimiu. Aqui cada linha é UM gesto, com a máquina daquele momento.
-//
-// `quantidade` é o que saiu NESTE lançamento (negativo quando é correção);
-// `total_depois` é o total absoluto da peça depois dele. O histórico começa
-// no dia em que esta tabela nasceu: antes disso nada anotava a máquina.
-export const registrosDeImpressao = pgTable("registros_de_impressao", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  itemId: varchar("item_id").notNull().references(() => items.id, { onDelete: "cascade" }),
-  maquina: text("maquina").notNull(),
-  tipo: text("tipo").notNull(), // "inicio" | "troca" | "parcial" | "conclusao"
-  quantidade: integer("quantidade").notNull().default(0),
-  totalDepois: integer("total_depois"),
-  userName: text("user_name"),
-  userId: varchar("user_id"),
-  createdAt: timestamp("created_at").notNull().default(sql`now()`),
-}, (table) => [
-  index("IDX_registros_impressao_maquina_data").on(table.maquina, table.createdAt),
-  index("IDX_registros_impressao_item").on(table.itemId),
-]);
-
-// TUBOS — a embalagem da entrega (dono, 14/09: "na hora da conferência muitas
-// peças vão no mesmo tubo… na hora da entrega, entregar por tubos").
-//
-// Numerado por EVENTO (Tubo 1, Tubo 2…) — o caminhão é por evento, e é assim
-// que o galpão fala. A entrega do tubo mora aqui (foto, recebedor, quando),
-// porque é UMA entrega para tudo que está dentro; cada peça também recebe o
-// comprovante, para a ficha dela continuar dizendo quando e com que foto saiu.
-export const tubos = pgTable("tubos", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  eventId: varchar("event_id").notNull().references(() => events.id, { onDelete: "cascade" }),
-  numero: integer("numero").notNull(),
-  criadoPor: text("criado_por"),
-  entregueEm: timestamp("entregue_em"),
-  recebidoPor: text("recebido_por"),
-  fotoEntregaUrl: text("foto_entrega_url"),
-  entregueObs: text("entregue_obs"),
-  entreguePor: text("entregue_por"),
-  createdAt: timestamp("created_at").notNull().default(sql`now()`),
-}, (table) => [
-  uniqueIndex("UQ_tubos_evento_numero").on(table.eventId, table.numero),
-]);
-
 // -----------------------------------------------------------------------------
 // RESERVA DE DISPARO - uma edicao de aviso, um envio, mesmo com N servidores.
 //
@@ -509,6 +468,11 @@ export const prazoCobrancas = pgTable("prazo_cobrancas", {
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
 }, (table) => [
   index("IDX_prazo_cobrancas_target").on(table.targetType, table.targetId),
+  // PERF 17/09: GET /api/prazos busca `WHERE target_id IN (...) ORDER BY
+  // created_at DESC` — sem target_type no filtro, o índice acima (que começa
+  // por target_type) não serve. Este serve o filtro e a ordem. Criado por
+  // scripts/indices-performance.sql.
+  index("IDX_prazo_cobrancas_target_id_created").on(table.targetId, table.createdAt.desc()),
 ]);
 
 // Gestão de Prazos: snapshot diário dos KPIs (1 linha por dia de negócio) —
@@ -552,12 +516,19 @@ export const prazoEventSnapshots = pgTable("prazo_event_snapshots", {
 // PEDIDOS DE PEÇA DO ATENDIMENTO (dono, 14/09): o Atendimento pede, quem monta
 // a lista (Solicitação) atende criando a peça — ou recusa com motivo. Regras e
 // rótulos em shared/pedidos-de-peca.ts.
+//
+// UMA SOLICITAÇÃO, VÁRIAS PEÇAS (dono, 14/09): esta tabela é a SOLICITAÇÃO
+// (quem pediu, quando, status calculado); cada peça solicitada — com evento,
+// patrocinadores e status próprios — mora em pedidos_de_peca_linhas. As
+// colunas de peça daqui (evento, quantidade, observação…) são do formato
+// antigo, de uma peça só: ficam para a conversão automática e não são mais
+// gravadas.
 export const pedidosDePeca = pgTable("pedidos_de_peca", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  eventId: varchar("event_id").notNull().references(() => events.id, { onDelete: "cascade" }),
+  eventId: varchar("event_id").references(() => events.id, { onDelete: "cascade" }),
   sponsorId: varchar("sponsor_id").references(() => sponsors.id, { onDelete: "set null" }),
-  quantidade: integer("quantidade").notNull(),
-  observacao: text("observacao").notNull(),
+  quantidade: integer("quantidade"),
+  observacao: text("observacao"),
   referencias: text("referencias").array().notNull().default(sql`ARRAY[]::text[]`),
   status: text("status").notNull().default("aberto"), // aberto | atendido | recusado | cancelado
   // Para quando a peça é necessária — nasce com a saída do caminhão do evento.
@@ -576,11 +547,78 @@ export const pedidosDePeca = pgTable("pedidos_de_peca", {
   resolvidoEm: timestamp("resolvido_em"),
   motivoRecusa: text("motivo_recusa"),
   motivoCancelamento: text("motivo_cancelamento"),
+  // Ajuste pedido pelo Atendimento depois de atendida — um por vez; o
+  // histórico completo fica na auditoria. pendente | aceito | recusado.
+  ajusteStatus: text("ajuste_status"),
+  ajusteTexto: text("ajuste_texto"),
+  ajustePedidoPor: text("ajuste_pedido_por"),
+  ajustePedidoPorId: varchar("ajuste_pedido_por_id"),
+  ajustePedidoEm: timestamp("ajuste_pedido_em"),
+  ajusteRespondidoPor: text("ajuste_respondido_por"),
+  ajusteRespondidoEm: timestamp("ajuste_respondido_em"),
+  ajusteResposta: text("ajuste_resposta"),
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
   updatedAt: timestamp("updated_at").notNull().default(sql`now()`),
 }, (table) => [
   index("IDX_pedidos_de_peca_event_status").on(table.eventId, table.status),
   index("IDX_pedidos_de_peca_status").on(table.status),
+]);
+
+/** Cada peça de uma solicitação — o próprio evento, patrocinadores (nenhum,
+ *  um ou vários) e o próprio ciclo aberto → atendido | recusado | cancelado. */
+export const linhasDoPedidoDePeca = pgTable("pedidos_de_peca_linhas", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  pedidoId: varchar("pedido_id").notNull().references(() => pedidosDePeca.id, { onDelete: "cascade" }),
+  ordem: integer("ordem").notNull().default(0),
+  eventId: varchar("event_id").notNull().references(() => events.id, { onDelete: "cascade" }),
+  sponsorIds: text("sponsor_ids").array().notNull().default(sql`ARRAY[]::text[]`),
+  quantidade: integer("quantidade").notNull(),
+  observacao: text("observacao").notNull(),
+  referencias: text("referencias").array().notNull().default(sql`ARRAY[]::text[]`),
+  status: text("status").notNull().default("aberto"), // aberto | atendido | recusado | cancelado
+  precisaAte: timestamp("precisa_ate"),
+  tipoDePeca: text("tipo_de_peca"),
+  largura: decimal("largura", { precision: 10, scale: 2 }),
+  altura: decimal("altura", { precision: 10, scale: 2 }),
+  resolvidoPor: text("resolvido_por"),
+  resolvidoPorId: varchar("resolvido_por_id"),
+  resolvidoEm: timestamp("resolvido_em"),
+  motivoRecusa: text("motivo_recusa"),
+  motivoCancelamento: text("motivo_cancelamento"),
+  ajusteStatus: text("ajuste_status"),
+  ajusteTexto: text("ajuste_texto"),
+  ajustePedidoPor: text("ajuste_pedido_por"),
+  ajustePedidoPorId: varchar("ajuste_pedido_por_id"),
+  ajustePedidoEm: timestamp("ajuste_pedido_em"),
+  ajusteRespondidoPor: text("ajuste_respondido_por"),
+  ajusteRespondidoEm: timestamp("ajuste_respondido_em"),
+  ajusteResposta: text("ajuste_resposta"),
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
+  updatedAt: timestamp("updated_at").notNull().default(sql`now()`),
+}, (table) => [
+  index("IDX_pedidos_de_peca_linhas_pedido").on(table.pedidoId),
+  index("IDX_pedidos_de_peca_linhas_event_status").on(table.eventId, table.status),
+]);
+
+/** REMESSA DO KIT (dono, 14/09): as datas do Kit de um evento — cada planilha
+ *  (ou criação à mão) é uma remessa, cada versão uma remessa nova. */
+export const kitRemessas = pgTable("kit_remessas", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  eventId: varchar("event_id").notNull().references(() => events.id, { onDelete: "cascade" }),
+  versao: text("versao").notNull(),
+  solicitante: text("solicitante"),
+  departamento: text("departamento"),
+  dataSolicitacao: timestamp("data_solicitacao"),
+  entregaMaterial: timestamp("entrega_material").notNull(),
+  dataEvento: timestamp("data_evento"),
+  cargaCaminhao: timestamp("carga_caminhao"),
+  saidaCaminhao: timestamp("saida_caminhao"),
+  arquivo: text("arquivo"),
+  criadoPor: text("criado_por"),
+  criadoPorId: varchar("criado_por_id"),
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
+}, (table) => [
+  index("IDX_kit_remessas_event").on(table.eventId),
 ]);
 
 export const notifications = pgTable("notifications", {
@@ -621,6 +659,9 @@ export const users = pgTable("users", {
   email: text("email").notNull().unique(),
   passwordHash: text("password_hash").notNull(),
   role: text("role").notNull().default("solicitacao"), // admin, solicitacao, arte, grafica, atendimento
+  // USUÁRIO DO KIT (dono, 14/09): um usuário de Solicitação com esta marca tem
+  // as mesmas telas, mas só vê e cria peças do Kit — e só as que ele criou.
+  kit: boolean("kit").notNull().default(false),
   mustChangePassword: boolean("must_change_password").notNull().default(true),
   // QUANDO A PESSOA ENTROU PELA ÚLTIMA VEZ. Sem isto, a tela de usuários
   // lista quem TEM acesso e nunca diz quem USA: quem saiu da empresa há seis
@@ -898,6 +939,9 @@ export const publicInsertItemSchema = insertItemSchema.omit({
   // O vínculo com o pedido do Atendimento só nasce pela rota de pedidos, que
   // confere papel, evento e se a peça já atende outro pedido.
   pedidoDePecaId: true,
+  pedidoDePecaLinhaId: true,
+  // Quem criou é o servidor que diz (a sessão), nunca o corpo da requisição.
+  criadoPorId: true,
 });
 
 export const insertStandardItemSchema = createInsertSchema(standardItems).omit({

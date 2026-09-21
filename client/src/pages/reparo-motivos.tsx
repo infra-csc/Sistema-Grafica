@@ -3,7 +3,8 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { CheckCircle2, FilePenLine, Loader2, ShieldCheck, Wand2 } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { T } from "@/lib/theme";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { T, FS, R } from "@/lib/theme";
 
 type Reparo = {
   recordId: string;
@@ -17,6 +18,9 @@ type Reparo = {
 type Previa = { reparos: Reparo[]; total: number };
 type Resultado = { totalEncontrado: number; aplicados: number; ignoradosPorMudanca: number };
 
+/** "1 registro" / "3 registros" — o "registro(s)" lia como formulário de repartição. */
+const plural = (n: number, um: string, varios: string) => `${n} ${n === 1 ? um : varios}`;
+
 function nomeDaOrigem(reparo: Reparo) {
   if (reparo.origem === "aprovacao_patrocinador") return "Motivo de patrocinador";
   return reparo.campo === "observations" ? "Observações da peça" : "Motivo da peça";
@@ -24,6 +28,7 @@ function nomeDaOrigem(reparo: Reparo) {
 
 export default function ReparoMotivos() {
   const { toast } = useToast();
+  const isMobile = useIsMobile();
   const { data, isLoading, isError, refetch } = useQuery<Previa>({
     queryKey: ["/api/admin/reparo-motivos-sem-s"],
   });
@@ -47,9 +52,14 @@ export default function ReparoMotivos() {
     onSuccess: async (resultado) => {
       await queryClient.invalidateQueries({ queryKey: ["/api/admin/reparo-motivos-sem-s"] });
       await queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+      // O servidor já devolvia quantos ficaram de fora por terem sido editados
+      // no meio do caminho — e o toast escondia. É exatamente a garantia que o
+      // aviso azul promete; o resultado precisa confirmá-la.
+      const preservados = resultado.ignoradosPorMudanca ?? 0;
       toast({
         title: "Textos corrigidos",
-        description: `${resultado.aplicados} registro(s) atualizado(s).`,
+        description: `${plural(resultado.aplicados, "registro atualizado", "registros atualizados")}.`
+          + (preservados > 0 ? ` ${plural(preservados, "foi preservado", "foram preservados")} porque mudou durante a aplicação.` : ""),
       });
     },
     onError: (error: Error) => {
@@ -66,53 +76,77 @@ export default function ReparoMotivos() {
     if (confirmado) aplicarMutation.mutate();
   };
 
+  // <div>, não <main>: o SidebarInset do App já É o <main> da página — um
+  // segundo landmark "principal" aninhado confundia a navegação por regiões
+  // do leitor de tela. Casca, respiro e cabeçalho iguais aos das outras telas
+  // de administração (Usuários, Logs, Notificações).
   return (
-    <main style={{ maxWidth: 1180, margin: "0 auto", padding: "28px 24px 56px" }}>
-      <header style={{ display: "flex", gap: 16, alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap", marginBottom: 22 }}>
-        <div style={{ display: "flex", gap: 13, alignItems: "flex-start" }}>
-          <div style={{ width: 42, height: 42, borderRadius: 12, background: "#fef2f2", color: "#b91c1c", display: "grid", placeItems: "center", flexShrink: 0 }}>
-            <Wand2 size={21} />
-          </div>
-          <div>
-            <p style={{ margin: "1px 0 5px", color: "#b91c1c", fontSize: 11, fontWeight: 800, letterSpacing: "0.1em", textTransform: "uppercase" }}>Administração</p>
-            <h1 style={{ margin: 0, color: T.text, fontSize: 26, letterSpacing: "-0.03em" }}>Correção de textos</h1>
-            <p style={{ margin: "7px 0 0", color: T.second, maxWidth: 680, fontSize: 13, lineHeight: 1.55 }}>
-              Prévia das mensagens afetadas pelo erro que substituiu a letra “s” por espaços. Só correções revisadas são listadas.
-            </p>
-          </div>
+    <div style={{ backgroundColor: T.bg, height: "100%", overflowY: "auto", padding: isMobile ? "16px 16px 48px" : "28px 32px 64px" }}>
+      <div style={{ maxWidth: 1180 }}>
+      <header style={{ display: "flex", gap: 16, alignItems: "flex-end", justifyContent: "space-between", flexWrap: "wrap", marginBottom: 24 }}>
+        <div>
+          <h1 style={{ margin: "0 0 6px", color: T.text, fontFamily: "'Space Grotesk', sans-serif", fontSize: FS.h1, fontWeight: 700, letterSpacing: "-0.03em", lineHeight: 1.1 }}>Correção de textos</h1>
+          <p style={{ margin: 0, color: T.second, maxWidth: 640, fontSize: FS.body, lineHeight: 1.5 }}>
+            Prévia das mensagens afetadas pelo erro que substituiu a letra “s” por espaços. Só correções revisadas são listadas.
+          </p>
+          {/* PARA QUE SERVE E O QUE ACONTECE AO APLICAR — quem abre esta tela
+              pela primeira vez vê "Correção de textos" no menu sem saber se é
+              rotina ou conserto pontual. É conserto de UM bug: nada aqui é
+              trabalho recorrente, e aplicar grava uma linha "Texto corrigido"
+              por registro na trilha (services/reparoMotivosSemS.ts), o que
+              responde "quem mexeu no motivo?" depois. */}
+          <p style={{ margin: "6px 0 0", color: "#57534e", maxWidth: 680, fontSize: 12.5, lineHeight: 1.5 }}>
+            É um conserto pontual, não uma rotina: confira “como está” e “como ficará” abaixo e aplique uma vez. Cada texto corrigido fica registrado nos Logs do Sistema com o seu nome.
+          </p>
         </div>
       </header>
 
       {isLoading ? (
-        <section style={{ padding: "52px 24px", border: `1px solid ${T.border}`, borderRadius: 14, textAlign: "center", color: T.second, background: T.surface }}>
-          <Loader2 size={21} style={{ animation: "spin 1s linear infinite", verticalAlign: "middle", marginRight: 8 }} />
-          Carregando prévia das correções…
+        <section role="status" aria-label="Carregando prévia das correções" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          {/* Esqueleto na silhueta do resumo + dois cartões "como está / como
+              ficará", pulso só com motion-safe — o mesmo carregamento das
+              outras telas, no lugar da frase com ícone girando. */}
+          <div className="motion-safe:animate-pulse" style={{ height: 76, borderRadius: 12, background: T.surface, border: `1px solid ${T.border}` }} />
+          {[0, 1].map((i) => (
+            <div key={i} className="motion-safe:animate-pulse" style={{ height: 150, borderRadius: 12, background: T.surface, border: `1px solid ${T.border}` }} />
+          ))}
         </section>
       ) : isError ? (
-        <section style={{ padding: "32px 24px", border: "1px solid #fecaca", borderRadius: 14, background: "#fff8f8" }}>
-          <strong style={{ color: "#991b1b" }}>Não foi possível carregar a prévia.</strong>
-          <button onClick={() => refetch()} style={{ display: "block", marginTop: 14, border: 0, borderRadius: 7, background: "#b91c1c", color: "white", padding: "9px 14px", fontWeight: 700, cursor: "pointer" }}>Tentar novamente</button>
+        <section role="alert" style={{ padding: "56px 24px", border: `1px solid ${T.border}`, borderRadius: 12, background: T.surface, textAlign: "center" }}>
+          <p style={{ margin: "0 0 4px", color: T.text, fontSize: 13, fontWeight: 700 }}>Não foi possível carregar a prévia</p>
+          <p style={{ margin: "0 0 16px", color: T.second, fontSize: 12 }}>Nenhum texto foi alterado. Verifique a conexão e tente de novo.</p>
+          <button type="button" onClick={() => refetch()} style={{ display: "inline-flex", alignItems: "center", height: 36, padding: "0 18px", border: 0, borderRadius: R.md, background: T.dark, color: "#fff", fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", cursor: "pointer" }}>Tentar novamente</button>
         </section>
       ) : (
         <>
-          <section style={{ display: "flex", gap: 14, alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", padding: "18px 20px", border: `1px solid ${data?.total ? "#fed7aa" : "#bbf7d0"}`, borderRadius: 14, background: data?.total ? "#fffaf5" : "#f0fdf4", marginBottom: 18 }}>
+          <section aria-live="polite" style={{ display: "flex", gap: 14, alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", padding: "16px 20px", border: `1px solid ${data?.total ? "#fed7aa" : "#bbf7d0"}`, borderRadius: 12, background: data?.total ? "#fffaf5" : "#f0fdf4", marginBottom: 16 }}>
             <div style={{ display: "flex", gap: 11, alignItems: "center" }}>
-              {data?.total ? <FilePenLine color="#c2410c" size={22} /> : <CheckCircle2 color="#15803d" size={22} />}
+              {data?.total ? <FilePenLine aria-hidden="true" color="#c2410c" size={22} style={{ flexShrink: 0 }} /> : <CheckCircle2 aria-hidden="true" color="#15803d" size={22} style={{ flexShrink: 0 }} />}
               <div>
                 <strong style={{ display: "block", color: data?.total ? "#9a3412" : "#166534", fontSize: 15 }}>
-                  {data?.total ? `${data.total} registro(s) prontos para correção` : "Nenhuma correção pendente"}
+                  {data?.total ? `${plural(data.total, "registro pronto", "registros prontos")} para correção` : "Nenhuma correção pendente"}
                 </strong>
                 <span style={{ color: T.second, fontSize: 12 }}>
-                  {data?.total ? `${grupos.length} texto(s) distinto(s) revisado(s), agrupados abaixo.` : "As mensagens revisadas já foram atualizadas."}
+                  {data?.total ? `${plural(grupos.length, "texto distinto revisado", "textos distintos revisados")}, agrupados abaixo.` : "As mensagens revisadas já foram atualizadas."}
                 </span>
               </div>
             </div>
             {!!data?.total && (
+              // Primário ESCURO, como o de toda tela de administração: aplicar
+              // corrige texto, não apaga nada — o vermelho cheio anterior dizia
+              // "destrutivo". A confirmação antes de gravar continua.
               <button
+                type="button"
                 onClick={confirmarAplicacao}
                 disabled={aplicarMutation.isPending}
-                style={{ border: 0, borderRadius: 8, background: "#b91c1c", color: "white", padding: "10px 15px", fontSize: 12, fontWeight: 800, cursor: aplicarMutation.isPending ? "wait" : "pointer", opacity: aplicarMutation.isPending ? 0.72 : 1 }}
+                aria-busy={aplicarMutation.isPending}
+                onMouseEnter={(e) => { if (!aplicarMutation.isPending) e.currentTarget.style.background = "#292524"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = T.dark; }}
+                style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8, height: 40, padding: "0 18px", border: 0, borderRadius: R.md, background: T.dark, color: "#fff", fontSize: 12, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", whiteSpace: "nowrap", cursor: aplicarMutation.isPending ? "wait" : "pointer", opacity: aplicarMutation.isPending ? 0.72 : 1, width: isMobile ? "100%" : undefined, transition: "background-color 0.15s ease" }}
               >
+                {aplicarMutation.isPending
+                  ? <Loader2 aria-hidden="true" className="motion-safe:animate-spin" style={{ width: 14, height: 14 }} />
+                  : <Wand2 aria-hidden="true" style={{ width: 14, height: 14 }} />}
                 {aplicarMutation.isPending ? "Aplicando…" : `Aplicar ${data.total} correções`}
               </button>
             )}
@@ -129,7 +163,7 @@ export default function ReparoMotivos() {
                 <div style={{ padding: "12px 16px", background: "#fafaf9", borderBottom: `1px solid ${T.border}`, display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
                   <div>
                     <span style={{ color: "#9a3412", fontSize: 10, fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase" }}>{nomeDaOrigem(exemplo)}</span>
-                    <strong style={{ display: "block", marginTop: 2, color: T.text, fontSize: 13 }}>{displayIds.length} registro(s)</strong>
+                    <strong style={{ display: "block", marginTop: 2, color: T.text, fontSize: 13 }}>{plural(displayIds.length, "registro", "registros")}</strong>
                   </div>
                   <span style={{ color: T.second, fontSize: 11, maxWidth: "100%", overflowWrap: "anywhere" }}>{displayIds.join(", ")}</span>
                 </div>
@@ -148,6 +182,7 @@ export default function ReparoMotivos() {
           </div>
         </>
       )}
-    </main>
+      </div>
+    </div>
   );
 }

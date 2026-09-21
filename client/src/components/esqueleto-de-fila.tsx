@@ -9,12 +9,15 @@
 export function EsqueletoDeFila({ linhas = 7, comCabecalho = true }: { linhas?: number; comCabecalho?: boolean }) {
   return (
     <div
+      // role="status": aria-label num <div> sem papel é ignorado pelo leitor
+      // de tela — a silhueta era muda. O texto sr-only é o que se anuncia.
+      role="status"
       aria-busy="true"
-      aria-label="Carregando a lista"
       data-testid="esqueleto-de-fila"
       style={{ backgroundColor: "#ffffff", border: "1px solid #e7e5e4", borderRadius: 10, overflow: "hidden" }}
     >
-      {comCabecalho && <div style={{ height: 44, backgroundColor: "#fafaf9", borderBottom: "1px solid #e7e5e4" }} />}
+      <span className="sr-only">Carregando a lista…</span>
+      {comCabecalho && <div aria-hidden="true" style={{ height: 44, backgroundColor: "#fafaf9", borderBottom: "1px solid #e7e5e4" }} />}
       {Array.from({ length: linhas }, (_, i) => (
         <div key={i} style={{ display: "flex", alignItems: "center", gap: 18, height: 58, boxSizing: "border-box", padding: "0 16px", borderBottom: "1px solid #f5f4f2" }}>
           <div className="animate-pulse" style={{ width: 52, height: 12, borderRadius: 4, backgroundColor: "#e7e5e4" }} />

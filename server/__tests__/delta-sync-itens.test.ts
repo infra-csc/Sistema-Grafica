@@ -35,6 +35,14 @@ describe("o carimbo que sustenta o delta", () => {
     expect(fn.slice(0, 500)).toContain("} catch (e) {");
   });
 
+  it("escritas em lote fora do touchItem também carimbam (vínculo automático por cota, script de correção)", () => {
+    // Revisão adversarial 17/09: sem o carimbo o delta não via a peça.
+    const auto = STORAGE.slice(STORAGE.indexOf("async autoLinkByQuota"));
+    expect(auto.slice(0, 1600)).toContain('.set({ status: "awaiting_linking", updatedAt: new Date() })');
+    expect(auto.slice(0, 1600)).toContain(".set({ updatedAt: new Date() }).where(inArray(items.id, ids))");
+    expect(ler("server/scripts/corrige-reprovadas.ts")).toContain('.set({ status: "sponsor_approved", updatedAt: new Date() })');
+  });
+
   it("getItemsChangedSince inclui as APAGADAS — o cliente precisa removê-las", () => {
     const fn = STORAGE.slice(STORAGE.indexOf("async getItemsChangedSince"));
     expect(fn.slice(0, 300)).toContain("gte(items.updatedAt, since)");
@@ -51,15 +59,25 @@ describe("a rota", () => {
     }
   });
 
-  it("sobreposição de 2s no `agora` e since velho (>24h) cai no full fetch", () => {
-    expect(rota).toContain("new Date(Date.now() - 2000).toISOString()");
-    expect(rota).toContain("24 * 60 * 60 * 1000");
+  it("sobreposição de 60s no `agora` e since velho (>24h) cai no full fetch", () => {
+    // Perf 17/09: as duas réguas viraram helpers (a fila da Gráfica usa o mesmo delta).
+    expect(rota).toContain("const agora = agoraDoDelta();");
+    expect(rota).toContain("const since = lerSince(req);");
+    // 17/09: 2s deixava escapar a transação que confirma depois do carimbo.
+    expect(ITEMS).toContain("const SOBREPOSICAO_DO_DELTA_MS = 60 * 1000;");
+    expect(ITEMS).toContain("new Date(Date.now() - SOBREPOSICAO_DO_DELTA_MS).toISOString()");
+    expect(ITEMS).toContain("24 * 60 * 60 * 1000");
   });
 });
 
 describe("o cliente", () => {
   it("só a chave /api/items passa pelo delta; o retorno segue sendo o array cheio", () => {
-    expect(QC).toContain('if (url === "/api/items") {');
+    // Perf 17/09: /api/items/approved (Gráfica) entrou no mesmo delta.
+    expect(QC).toContain('const LISTAS_COM_DELTA: ReadonlySet<string> = new Set(["/api/items", "/api/items/approved"]);');
+    // Perf 17/09: a lista recortada (["/api/items", "?status=…"]) usa o mesmo
+    // delta — a decisão é pelo caminho, sem a query.
+    expect(QC).toContain("const temDelta = (url: string) => LISTAS_COM_DELTA.has(url.split(\"?\")[0]);");
+    expect(QC).toContain("if (temDelta(url)) {");
     expect(QC).toContain("function aplicarDelta(");
     // resposta em array (servidor antigo / since expirado) reseta o estado
     expect(QC).toContain("if (Array.isArray(corpo)) {");
@@ -67,10 +85,12 @@ describe("o cliente", () => {
 
   it("o merge remove apagadas, substitui mudadas e re-costura evento/patrocinador embutidos", () => {
     const fn = QC.slice(QC.indexOf("function aplicarDelta("));
-    expect(fn.slice(0, 900)).toContain("porId.delete(id)");
-    expect(fn.slice(0, 900)).toContain("porId.set(item.id, item)");
-    expect(fn.slice(0, 900)).toContain("event: evPorId.get(i.eventId) ?? i.event,");
-    expect(fn.slice(0, 1200)).toContain("approvalStatus: s.approvalStatus ?? null");
+    expect(fn.slice(0, 1200)).toContain("porId.delete(id)");
+    expect(fn.slice(0, 1200)).toContain("porId.set(item.id, item)");
+    // Peça do Kit (15/09) re-costura o evento com as datas da remessa; o resto, como sempre.
+    expect(fn.slice(0, 2600)).toContain(": evPorId.get(i.eventId) ?? i.event,");
+    expect(fn.slice(0, 2600)).toContain("eventoComDatasDoKit(");
+    expect(fn.slice(0, 2800)).toContain("approvalStatus: s.approvalStatus ?? null");
   });
 
   it("a âncora do próximo delta vem do SERVIDOR (agora / maior updated_at) — nunca do relógio do cliente", () => {

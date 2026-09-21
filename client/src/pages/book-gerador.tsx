@@ -17,7 +17,9 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useRoute, Link, useLocation } from "wouter";
-import { ArrowLeft, ArrowDown, ArrowUp, BookOpen, Check, Download, Loader2 } from "lucide-react";
+import { ArrowLeft, ArrowDown, ArrowUp, BookOpen, Check, Download, Loader2, RefreshCw } from "lucide-react";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { FS } from "@/lib/theme";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/auth-context";
@@ -42,7 +44,8 @@ export default function BookGerador() {
   const podePublicar = user?.role === "arte" || user?.role === "admin";
 
   const { data: event } = useQuery<any>({ queryKey: ["/api/events", eventId], enabled: !!eventId });
-  const { data: itens = [], isLoading } = useQuery<any[]>({ queryKey: ["/api/items", eventId], enabled: !!eventId });
+  const { data: itens = [], isLoading, isError, refetch } = useQuery<any[]>({ queryKey: ["/api/items", eventId], enabled: !!eventId });
+  const isMobile = useIsMobile();
 
   // Ajustes do usuário por grupo — a base deriva dos dados; isto guarda só o
   // que a pessoa mudou (rótulo, exclusão, ordem), então peça nova não some.
@@ -51,7 +54,7 @@ export default function BookGerador() {
   const [ordem, setOrdem] = useState<string[]>([]);
   const [progresso, setProgresso] = useState<ProgressoDoBook | null>(null);
   const [publicando, setPublicando] = useState(false);
-  const [resultado, setResultado] = useState<{ url: string; falhas: number } | null>(null);
+  const [resultado, setResultado] = useState<{ url: string; falhas: number; aviso?: { status?: string; para?: string[]; reason?: string } | null } | null>(null);
 
   // ── Herança do book atual (o template de verdade — decisão do dono, 25/08) ──
   const [capaHerdada, setCapaHerdada] = useState(true);
@@ -140,7 +143,10 @@ export default function BookGerador() {
       URL.revokeObjectURL(a.href);
       toast({
         title: "Book baixado",
-        description: `${paginas.length + 1} páginas. Nada foi publicado` + (falhas.length ? ` — ${falhas.length} arte(s) falharam e ficaram fora.` : "."),
+        // A MESMA conta do botão "Gerar e publicar (N pág.)": `paginas + 1`
+        // ignorava as páginas herdadas do book atual, e o toast dizia um
+        // número diferente do que a tela tinha prometido um segundo antes.
+        description: `${nPaginasFinal} ${nPaginasFinal === 1 ? "página" : "páginas"}. Nada foi publicado` + (falhas.length ? ` — ${falhas.length} ${falhas.length === 1 ? "arte falhou e ficou" : "artes falharam e ficaram"} fora.` : "."),
         variant: falhas.length ? "destructive" : undefined,
       });
     } catch (e: any) {
@@ -170,15 +176,27 @@ export default function BookGerador() {
       setProgresso({ etapa: "Enviando o PDF…", feito: totalPecas, total: totalPecas });
       const bookUrl = await subirBookPdf(bytes);
       const itemIds = incluidos.flatMap((g) => g.itens.map((i) => i.id));
-      await apiRequest("POST", `/api/events/${eventId}/book`, { bookUrl, itemIds, comentario: comentario.trim() || undefined });
+      const resposta = await apiRequest("POST", `/api/events/${eventId}/book`, { bookUrl, itemIds, comentario: comentario.trim() || undefined });
+      // O DESFECHO DO AVISO (rodada 4). A tela dizia que "o aviso por e-mail
+      // continua sendo o botão do admin" — mas o POST /book já dispara o aviso
+      // e devolve o resultado (avisarBookPorEmail), o mesmo que o modal da Arte
+      // lê. Quem publicava saía achando que ninguém tinha sido avisado. A
+      // leitura é tolerante: sem corpo legível, não se afirma nada.
+      const corpo = await resposta.json().catch(() => null) as { aviso?: { status?: string; para?: string[]; reason?: string } | null } | null;
+      const aviso = corpo?.aviso ?? null;
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
       queryClient.invalidateQueries({ queryKey: ["/api/items", eventId] });
-      setResultado({ url: bookUrl, falhas: falhas.length });
+      setResultado({ url: bookUrl, falhas: falhas.length, aviso });
+      const fraseAviso = aviso?.status === "sent"
+        ? ` Aviso por e-mail enviado para ${(aviso.para ?? []).join(", ")}.`
+        : aviso?.status === "failed"
+          ? ` O aviso por e-mail NÃO saiu (${aviso.reason ?? "motivo desconhecido"}) — avise a equipe por outro caminho.`
+          : "";
       toast({
-        title: "Book gerado e publicado",
-        description: `${paginas.length + 1} páginas, ${totalPecas - falhas.length} artes.` +
-          (falhas.length ? ` ${falhas.length} arte${falhas.length !== 1 ? "s" : ""} falharam e ficaram fora.` : ""),
-        variant: falhas.length ? "destructive" : undefined,
+        title: aviso?.status === "failed" ? "Book publicado — mas o aviso NÃO saiu" : "Book gerado e publicado",
+        description: `${nPaginasFinal} ${nPaginasFinal === 1 ? "página" : "páginas"}, ${totalPecas - falhas.length} ${totalPecas - falhas.length === 1 ? "arte" : "artes"}.` +
+          (falhas.length ? ` ${falhas.length} arte${falhas.length !== 1 ? "s" : ""} falharam e ficaram fora.` : "") + fraseAviso,
+        variant: falhas.length || aviso?.status === "failed" ? "destructive" : undefined,
       });
     } catch (e: any) {
       toast({ title: "Não foi possível gerar o book", description: e?.message ?? String(e), variant: "destructive" });
@@ -188,7 +206,29 @@ export default function BookGerador() {
     }
   };
 
-  if (isLoading) return <p style={{ padding: 40, fontSize: 14, color: "#78716c" }}>Carregando as peças…</p>;
+  if (isLoading) {
+    return (
+      <p role="status" style={{ padding: 40, margin: 0, fontSize: 14, color: "#78716c", display: "flex", alignItems: "center", gap: 8 }}>
+        <Loader2 className="animate-spin" aria-hidden="true" style={{ width: 16, height: 16 }} /> Carregando as peças…
+      </p>
+    );
+  }
+
+  // Falha de carga ANTES da montagem: sem este ramo a lista vinha vazia e a
+  // tela dizia "Nenhuma peça com arte neste evento" — um "não há o que fazer"
+  // mentiroso, quando o que houve foi a busca não voltar.
+  if (isError) {
+    return (
+      <div role="alert" style={{ maxWidth: 460, margin: "40px auto", padding: "28px 24px", textAlign: "center", backgroundColor: "#fff", border: "1px solid #e7e5e4", borderRadius: 12 }}>
+        <p style={{ margin: "0 0 6px", fontSize: 15, fontWeight: 700, color: "#1c1917" }}>Não foi possível carregar as peças do evento</p>
+        <p style={{ margin: "0 0 16px", fontSize: 13, color: "#78716c", lineHeight: 1.5 }}>Nada foi gerado nem publicado. Verifique a conexão e tente de novo.</p>
+        <button type="button" onClick={() => { void refetch(); }} data-testid="button-recarregar-book"
+          style={{ display: "inline-flex", alignItems: "center", gap: 7, height: 38, padding: "0 16px", borderRadius: 9, border: "none", backgroundColor: "#1c1917", color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+          <RefreshCw aria-hidden="true" style={{ width: 14, height: 14 }} /> Tentar novamente
+        </button>
+      </div>
+    );
+  }
 
   // Escala da prévia: cada página vira um cartão de ~340 px de largura.
   const ESC = 340 / BOOK.LARGURA;
@@ -198,59 +238,124 @@ export default function BookGerador() {
     <div style={{ backgroundColor: "#fafaf9", minHeight: "100%", padding: "18px 18px 64px" }}>
       <div style={{ maxWidth: 1060, margin: "0 auto" }}>
 
-        {/* ── Barra ── */}
-        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 16 }}>
-          <Link href={`/eventos/${eventId}`} data-testid="link-voltar-evento" style={{ display: "inline-flex", alignItems: "center", gap: 6, height: 38, padding: "0 12px", borderRadius: 8, border: "1px solid #e7e5e4", color: "#44403c", fontSize: 13, fontWeight: 600, textDecoration: "none", backgroundColor: "#fff" }}>
-            <ArrowLeft style={{ width: 14, height: 14 }} /> Voltar
-          </Link>
-          <h1 style={{ margin: 0, fontFamily: "'Space Grotesk', sans-serif", fontSize: 20, fontWeight: 800, color: "#1c1917", display: "inline-flex", alignItems: "center", gap: 8 }}>
-            <BookOpen style={{ width: 18, height: 18, color: "#c2410c" }} />
-            Gerar book — {event?.name ?? ""}
-          </h1>
-          <span style={{ flex: 1 }} />
+        {/* ── Barra ──
+            O TÍTULO NO PADRÃO DA CASA (Space Grotesk 26/700, sem ícone
+            colorido), como as outras telas desde a 2ª rodada. Era 20/800 com
+            um livro laranja e o nome do evento colado depois de um travessão —
+            num evento de nome longo, o título quebrava no meio do nome. O
+            evento e o tamanho do book descem para a linha de apoio, que é onde
+            se confere "é o evento certo, com quantas páginas?". */}
+        <Link href={`/eventos/${eventId}`} data-testid="link-voltar-evento" style={{ display: "inline-flex", alignItems: "center", gap: 6, minHeight: isMobile ? 44 : 32, padding: "0 10px 0 6px", marginBottom: 8, borderRadius: 8, color: "#57534e", fontSize: 13, fontWeight: 600, textDecoration: "none" }}>
+          <ArrowLeft aria-hidden="true" style={{ width: 14, height: 14 }} /> Voltar ao evento
+        </Link>
+        <div style={{ display: "flex", alignItems: isMobile ? "stretch" : "flex-end", flexDirection: isMobile ? "column" : "row", gap: isMobile ? 12 : 16, marginBottom: 16 }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <h1 style={{ margin: 0, fontFamily: "'Space Grotesk', sans-serif", fontSize: FS.h1, fontWeight: 700, letterSpacing: "-0.03em", lineHeight: 1.1, color: "#1c1917" }}>
+              Gerar book
+            </h1>
+            <p data-testid="book-resumo" style={{ margin: "4px 0 0", fontSize: 13, color: "#746e69", lineHeight: 1.5 }}>
+              {event?.name ?? "Evento"}
+              {totalPecas > 0 && ` · ${totalPecas} ${totalPecas === 1 ? "arte" : "artes"} em ${nPaginasFinal} ${nPaginasFinal === 1 ? "página" : "páginas"}`}
+            </p>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
           <button
             type="button"
             onClick={baixarPdf}
             disabled={baixando || publicando || totalPecas === 0}
             data-testid="button-baixar-book"
-            title="Gera o PDF e salva na sua máquina — nada é publicado"
+            title={totalPecas === 0 ? "Nenhum grupo com arte incluído — marque ao menos um grupo" : "Gera o PDF e salva na sua máquina — nada é publicado"}
             style={{
-              display: "inline-flex", alignItems: "center", gap: 7, height: 42, padding: "0 16px",
-              borderRadius: 10, border: "1px solid #d6d3d1",
-              backgroundColor: "#ffffff", color: baixando ? "#78716c" : "#1c1917",
-              fontSize: 13.5, fontWeight: 700, cursor: baixando || publicando || totalPecas === 0 ? "not-allowed" : "pointer",
+              display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 7, height: isMobile ? 44 : 40, padding: "0 16px",
+              borderRadius: 9, border: "1px solid #d6d3d1",
+              backgroundColor: "#ffffff", color: baixando || totalPecas === 0 ? "#78716c" : "#1c1917",
+              opacity: totalPecas === 0 ? 0.7 : 1,
+              flex: isMobile ? "1 1 auto" : undefined,
+              fontSize: 13, fontWeight: 700, cursor: baixando || publicando || totalPecas === 0 ? "not-allowed" : "pointer",
             }}
           >
-            {baixando ? <Loader2 className="animate-spin" style={{ width: 14, height: 14 }} /> : <Download style={{ width: 14, height: 14 }} />}
-            {baixando ? (progresso ? `${progresso.feito}/${progresso.total}` : "Gerando…") : "Baixar PDF"}
+            {baixando ? <Loader2 aria-hidden="true" className="animate-spin" style={{ width: 14, height: 14 }} /> : <Download aria-hidden="true" style={{ width: 14, height: 14 }} />}
+            {baixando ? "Gerando…" : "Baixar PDF"}
           </button>
           <button
             type="button"
             onClick={gerarEPublicar}
             disabled={!podePublicar || publicando || totalPecas === 0}
             data-testid="button-gerar-book"
-            title={!podePublicar ? "Publicar book é da Arte e do admin — os demais podem montar e conferir a prévia." : undefined}
+            title={!podePublicar ? "Publicar book é da Arte e do admin — os demais podem montar e conferir a prévia." : totalPecas === 0 ? "Nenhum grupo com arte incluído — marque ao menos um grupo" : bookAtualUrl ? "Gera o PDF, SUBSTITUI o book atual do evento e avisa a equipe por e-mail" : "Gera o PDF, publica o book no evento e avisa a equipe por e-mail"}
             style={{
-              display: "inline-flex", alignItems: "center", gap: 8, height: 42, padding: "0 18px",
-              borderRadius: 10, border: "none",
+              display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8, height: isMobile ? 44 : 40, padding: "0 18px",
+              borderRadius: 9, border: "none",
               backgroundColor: !podePublicar || publicando || totalPecas === 0 ? "#e7e5e4" : "#1c1917",
               color: !podePublicar || publicando || totalPecas === 0 ? "#57534e" : "#fff",
-              fontSize: 14, fontWeight: 800, fontFamily: "'Space Grotesk', sans-serif",
+              flex: isMobile ? "1 1 auto" : undefined,
+              fontSize: 14, fontWeight: 700, fontFamily: "'Space Grotesk', sans-serif",
               cursor: !podePublicar || publicando || totalPecas === 0 ? "not-allowed" : "pointer",
             }}
           >
-            {publicando ? <Loader2 className="animate-spin" style={{ width: 15, height: 15 }} /> : <Check style={{ width: 15, height: 15 }} />}
-            {publicando
-              ? (progresso ? `${progresso.etapa} (${progresso.feito}/${progresso.total})` : "Gerando…")
-              : `Gerar e publicar (${nPaginasFinal} pág.)`}
+            {/* O progresso saiu do rótulo: "Desenhando páginas… (12/40)" fazia
+                o botão mudar de largura a cada arte e empurrar o vizinho. Ele
+                vive agora na barra logo abaixo, com a proporção desenhada. */}
+            {publicando ? <Loader2 aria-hidden="true" className="animate-spin" style={{ width: 15, height: 15 }} /> : <Check aria-hidden="true" style={{ width: 15, height: 15 }} />}
+            {publicando ? "Publicando…" : `Gerar e publicar (${nPaginasFinal} pág.)`}
           </button>
+          </div>
         </div>
 
+        {/* POR QUE NÃO DÁ PARA PUBLICAR, escrito (rodada 4). O botão cinza
+            explicava só no `title` — no celular, em lugar nenhum. E republicar
+            sem o "o que mudou" parecia liberado e respondia com um toast de
+            erro depois do clique. */}
+        {!podePublicar ? (
+          <p data-testid="book-modo-consulta" style={{ margin: "0 0 14px", padding: "10px 14px", borderRadius: 8, backgroundColor: "#f5f5f4", border: "1px solid #e7e5e4", color: "#44403c", fontSize: 13, lineHeight: 1.5 }}>
+            <b style={{ fontWeight: 700 }}>Modo consulta.</b> Publicar o book é da Arte e do admin — você pode montar a prévia e baixar o PDF para conferir.
+          </p>
+        ) : bookAtualUrl && !comentarioDoBookValido(true, comentario) && totalPecas > 0 ? (
+          <p data-testid="book-falta-comentario" style={{ margin: "0 0 14px", fontSize: 13, color: "#57534e", lineHeight: 1.5 }}>
+            Este evento já tem book: para publicar, escreva abaixo o que mudou nesta versão — é o que sai no e-mail.
+          </p>
+        ) : null}
+
+        {/* PROGRESSO À VISTA. A geração leva minutos (cada arte é baixada e
+            desenhada) e o único sinal era um "12/40" dentro do botão — que
+            muda de tamanho e some de vista ao rolar a prévia. A barra fica no
+            topo, com a etapa por extenso e a proporção. `role="progressbar"`
+            dá o número ao leitor de tela sem depender do anúncio abaixo. */}
+        {progresso && (
+          <div data-testid="book-progresso" style={{ marginBottom: 14, padding: "10px 14px", borderRadius: 10, backgroundColor: "#fff", border: "1px solid #e7e5e4" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 12, marginBottom: 6, fontSize: 13 }}>
+              <span style={{ fontWeight: 600, color: "#1c1917" }}>{progresso.etapa}</span>
+              <span style={{ color: "#57534e", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>{progresso.feito} de {progresso.total}</span>
+            </div>
+            <div
+              role="progressbar"
+              aria-label={baixando ? "Gerando o PDF" : "Gerando e publicando o book"}
+              aria-valuemin={0}
+              aria-valuemax={progresso.total}
+              aria-valuenow={progresso.feito}
+              style={{ height: 6, borderRadius: 999, backgroundColor: "#f0efee", overflow: "hidden" }}
+            >
+              <div style={{ height: "100%", width: `${progresso.total > 0 ? Math.round((progresso.feito / progresso.total) * 100) : 0}%`, backgroundColor: "#1c1917", borderRadius: 999, transition: "width 0.2s" }} />
+            </div>
+          </div>
+        )}
+
+        {/* Progresso anunciado: o rótulo do botão muda a cada arte, mas um
+            botão desabilitado não é relido pelo leitor de tela — a geração
+            leva minutos e parecia travada para quem não vê a tela. */}
+        <span role="status" aria-live="polite" style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0 0 0 0)", whiteSpace: "nowrap" }}>
+          {progresso ? `${progresso.etapa} ${progresso.feito} de ${progresso.total}` : ""}
+        </span>
+
         {resultado && (
-          <p data-testid="book-publicado" style={{ margin: "0 0 14px", padding: "10px 14px", borderRadius: 8, backgroundColor: "#f0fdf4", border: "1px solid #bbf7d0", color: "#15803d", fontSize: 13.5, fontWeight: 600 }}>
+          <p role="status" data-testid="book-publicado" style={{ margin: "0 0 14px", padding: "10px 14px", borderRadius: 8, backgroundColor: "#f0fdf4", border: "1px solid #bbf7d0", color: "#15803d", fontSize: 13.5, fontWeight: 600 }}>
             Book publicado.{" "}
-            <a href={resultado.url} target="_blank" rel="noreferrer" style={{ color: "#15803d" }}>Abrir o PDF</a>
-            {" · "}o aviso por e-mail continua sendo o botão do admin, como no book manual.
+            <a href={resultado.url} target="_blank" rel="noopener noreferrer" style={{ color: "#15803d" }}>Abrir o PDF</a>
+            {/* O que aconteceu com o aviso, com as palavras do servidor — e
+                em vermelho escuro quando falhou, porque aí alguém precisa
+                avisar na mão. */}
+            {resultado.aviso?.status === "sent" && <>{" · "}aviso por e-mail enviado para {(resultado.aviso.para ?? []).join(", ")}.</>}
+            {resultado.aviso?.status === "failed" && <span style={{ color: "#991b1b" }}>{" · "}o aviso por e-mail NÃO saiu ({resultado.aviso.reason ?? "motivo desconhecido"}) — avise a equipe por outro caminho.</span>}
           </p>
         )}
 
@@ -288,7 +393,9 @@ export default function BookGerador() {
           </div>
         )}
 
-        <div style={{ display: "grid", gridTemplateColumns: "minmax(280px, 380px) 1fr", gap: 16, alignItems: "start" }}>
+        {/* Uma coluna no celular: `minmax(280px, 380px) 1fr` num viewport de
+            375px empurrava a prévia para fora da tela, com rolagem lateral. */}
+        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "minmax(0, 1fr)" : "minmax(280px, 380px) 1fr", gap: 16, alignItems: "start" }}>
 
           {/* ── Montagem: grupos com rótulo, ordem e inclusão ── */}
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -296,28 +403,45 @@ export default function BookGerador() {
               Grupos · ordem e rótulo
             </p>
             {grupos.map((g, idx) => (
-              <div key={g.key} data-testid={`grupo-book-${g.key}`} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", borderRadius: 10, backgroundColor: "#fff", border: "1px solid #e7e5e4", opacity: g.incluido ? 1 : 0.55 }}>
-                <input
-                  type="checkbox"
-                  checked={g.incluido}
-                  onChange={() => setExcluidos((prev) => { const n = new Set(prev); if (n.has(g.key)) n.delete(g.key); else n.add(g.key); return n; })}
-                  aria-label={`Incluir o grupo ${g.key}`}
-                  style={{ width: 16, height: 16, accentColor: "#c2410c", flexShrink: 0 }}
-                />
+              // Excluído, o grupo perde a COR de fundo, não a legibilidade: a
+              // opacidade de 55% derrubava o rótulo e a contagem abaixo de AA —
+              // e é lendo o rótulo que se decide incluí-lo de volta.
+              <div key={g.key} data-testid={`grupo-book-${g.key}`} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 10px 6px 4px", borderRadius: 10, backgroundColor: g.incluido ? "#fff" : "#f5f5f4", border: `1px ${g.incluido ? "solid" : "dashed"} ${g.incluido ? "#e7e5e4" : "#d6d3d1"}` }}>
+                {/* A caixinha de 16px ganha uma área de toque de 36px (44 no
+                    celular) — era o menor alvo da tela e o que mais se usa. */}
+                <label style={{ display: "flex", alignItems: "center", justifyContent: "center", width: isMobile ? 44 : 36, height: isMobile ? 44 : 36, flexShrink: 0, cursor: "pointer" }}>
+                  <input
+                    type="checkbox"
+                    checked={g.incluido}
+                    onChange={() => setExcluidos((prev) => { const n = new Set(prev); if (n.has(g.key)) n.delete(g.key); else n.add(g.key); return n; })}
+                    aria-label={`Incluir o grupo ${g.key}`}
+                    style={{ width: 16, height: 16, accentColor: "#c2410c", flexShrink: 0, cursor: "pointer" }}
+                  />
+                </label>
                 <input
                   value={g.rotulo}
                   onChange={(e) => setRotulos((prev) => ({ ...prev, [g.key]: e.target.value }))}
                   aria-label={`Rótulo do grupo ${g.key}`}
                   data-testid={`rotulo-grupo-${g.key}`}
-                  style={{ flex: 1, minWidth: 0, height: 32, borderRadius: 7, border: "1px solid #e7e5e4", padding: "0 8px", fontSize: 13, fontWeight: 600, color: "#1c1917", backgroundColor: "#fafaf9" }}
+                  style={{ flex: 1, minWidth: 0, height: isMobile ? 40 : 32, borderRadius: 7, border: "1px solid #e7e5e4", padding: "0 8px", fontSize: 13, fontWeight: 600, color: g.incluido ? "#1c1917" : "#57534e", backgroundColor: g.incluido ? "#fafaf9" : "#ffffff", textDecoration: g.incluido ? "none" : "line-through" }}
                 />
-                <span style={{ fontSize: 11.5, color: "#78716c", whiteSpace: "nowrap" }}>{g.itens.length} arte{g.itens.length !== 1 ? "s" : ""}</span>
-                <button type="button" onClick={() => mover(g.key, -1)} disabled={idx === 0} aria-label="Subir grupo" style={{ width: 28, height: 28, borderRadius: 6, border: "1px solid #e7e5e4", background: "#fff", cursor: idx === 0 ? "not-allowed" : "pointer", color: idx === 0 ? "#d6d3d1" : "#44403c", display: "flex", alignItems: "center", justifyContent: "center" }}><ArrowUp style={{ width: 13, height: 13 }} /></button>
-                <button type="button" onClick={() => mover(g.key, 1)} disabled={idx === grupos.length - 1} aria-label="Descer grupo" style={{ width: 28, height: 28, borderRadius: 6, border: "1px solid #e7e5e4", background: "#fff", cursor: idx === grupos.length - 1 ? "not-allowed" : "pointer", color: idx === grupos.length - 1 ? "#d6d3d1" : "#44403c", display: "flex", alignItems: "center", justifyContent: "center" }}><ArrowDown style={{ width: 13, height: 13 }} /></button>
+                <span style={{ fontSize: 11.5, color: "#746e69", whiteSpace: "nowrap" }}>{g.incluido ? `${g.itens.length} arte${g.itens.length !== 1 ? "s" : ""}` : "fora"}</span>
+                <button type="button" onClick={() => mover(g.key, -1)} disabled={idx === 0} aria-label={`Subir o grupo ${g.rotulo.trim() || g.key}`} style={{ width: isMobile ? 40 : 28, height: isMobile ? 40 : 28, borderRadius: 6, border: "1px solid #e7e5e4", background: "#fff", cursor: idx === 0 ? "not-allowed" : "pointer", color: idx === 0 ? "#d6d3d1" : "#44403c", display: "flex", alignItems: "center", justifyContent: "center" }}><ArrowUp style={{ width: 13, height: 13 }} /></button>
+                <button type="button" onClick={() => mover(g.key, 1)} disabled={idx === grupos.length - 1} aria-label={`Descer o grupo ${g.rotulo.trim() || g.key}`} style={{ width: isMobile ? 40 : 28, height: isMobile ? 40 : 28, borderRadius: 6, border: "1px solid #e7e5e4", background: "#fff", cursor: idx === grupos.length - 1 ? "not-allowed" : "pointer", color: idx === grupos.length - 1 ? "#d6d3d1" : "#44403c", display: "flex", alignItems: "center", justifyContent: "center" }}><ArrowDown style={{ width: 13, height: 13 }} /></button>
               </div>
             ))}
+            {/* Vazio com a régua da casa (ícone, título, frase) e a saída: era
+                uma frase solta onde a lista de grupos deveria estar, fácil de
+                confundir com legenda. */}
             {grupos.length === 0 && (
-              <p style={{ margin: 0, fontSize: 13, color: "#57534e" }}>Nenhuma peça com arte neste evento — o book nasce das artes enviadas pela Arte.</p>
+              <div data-testid="book-vazio" style={{ padding: "28px 20px", textAlign: "center", borderRadius: 12, backgroundColor: "#fff", border: "1px solid #e7e5e4" }}>
+                <BookOpen aria-hidden="true" style={{ width: 28, height: 28, color: "#746e69", margin: "0 auto 10px" }} />
+                <p style={{ margin: "0 0 4px", fontSize: 15, fontWeight: 700, color: "#1c1917" }}>Nenhuma peça com arte neste evento</p>
+                <p style={{ margin: "0 0 14px", fontSize: 13, color: "#57534e", lineHeight: 1.5 }}>O book nasce das artes enviadas pela Arte. Quando os thumbs subirem, os grupos aparecem aqui.</p>
+                <Link href={`/eventos/${eventId}`} style={{ display: "inline-flex", alignItems: "center", gap: 6, height: 40, padding: "0 16px", borderRadius: 9, border: "1px solid #e7e5e4", color: "#1c1917", fontSize: 13, fontWeight: 700, textDecoration: "none", backgroundColor: "#fff" }}>
+                  <ArrowLeft aria-hidden="true" style={{ width: 14, height: 14 }} /> Voltar ao evento
+                </Link>
+              </div>
             )}
           </div>
 
@@ -355,8 +479,10 @@ export default function BookGerador() {
                     );
                   })}
                   {/* rodapé da prévia, nas mesmas coordenadas da spec */}
-                  <span style={{ position: "absolute", left: BOOK.ASSINATURA_X * ESC, bottom: (BOOK.RODAPE_BASELINE_DO_FUNDO - 4) * ESC, fontSize: 6, color: "#a8a29e", whiteSpace: "nowrap" }}>{event?.name ?? ""}</span>
-                  <span style={{ position: "absolute", left: BOOK.BARRA_X * ESC, bottom: (BOOK.RODAPE_BASELINE_DO_FUNDO - 6) * ESC, fontSize: 9, color: "#a8a29e" }}>╱</span>
+                  {/* Assinatura da prévia em #78716c (a regra da casa proíbe
+                      #a8a29e como texto); a barra é traço, pode ficar clara. */}
+                  <span style={{ position: "absolute", left: BOOK.ASSINATURA_X * ESC, bottom: (BOOK.RODAPE_BASELINE_DO_FUNDO - 4) * ESC, fontSize: 6, color: "#78716c", whiteSpace: "nowrap" }}>{event?.name ?? ""}</span>
+                  <span aria-hidden="true" style={{ position: "absolute", left: BOOK.BARRA_X * ESC, bottom: (BOOK.RODAPE_BASELINE_DO_FUNDO - 6) * ESC, fontSize: 9, color: "#a8a29e" }}>╱</span>
                   <span style={{ position: "absolute", left: BOOK.RODAPE_ROTULO_X * ESC, bottom: (BOOK.RODAPE_BASELINE_DO_FUNDO - 4) * ESC, fontSize: 7.5, fontWeight: 600, color: "#1c1917", whiteSpace: "nowrap" }}>{p.rotulo}</span>
                   {/* a linha do miolo, sutil, para ver a régua na prévia */}
                   <span aria-hidden="true" style={{ position: "absolute", left: miolo.x * ESC, top: miolo.y * ESC, width: miolo.w * ESC, height: miolo.h * ESC, border: "1px dashed rgba(0,0,0,0.05)", pointerEvents: "none" }} />

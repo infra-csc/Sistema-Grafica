@@ -16,7 +16,7 @@
 // Estado, filtros e composição moram nesta página; os blocos visuais moram em
 // `@/components/prazos/*`.
 import { useQuery } from "@tanstack/react-query";
-import { useState, useMemo, useEffect, useLayoutEffect, useRef, useCallback, Fragment } from "react";
+import { useState, useMemo, useEffect, useLayoutEffect, useRef, useCallback, useDeferredValue, Fragment } from "react";
 import { Link } from "wouter";
 import {
   Truck, ChevronDown, RotateCcw, Search, CalendarRange,
@@ -28,15 +28,16 @@ import { FilterSelect } from "@/components/filter-select";
 import { ToastAction } from "@/components/ui/toast";
 import { useToast } from "@/hooks/use-toast";
 import { getPriorityMeta, PRIORITY } from "@/lib/status";
+import { MARCOS_DO_EVENTO } from "@shared/prazo-dates";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { onPrazosInvalidated } from "@/hooks/use-websocket";
 import type {
-  CobrancaEntry, PrazoEvent, PrazosPayload,
+  CobrancaEntry, CobrancaMap, PrazoEvent, PrazosPayload, SponsorDelay,
 } from "@shared/prazos-contract";
 import {
   addDaysStr, apiErrorMessage, currentStageIdx, diasTexto, eventHasOverdue,
   fmtDayMonth, fmtDiaSemana, fmtRelative, fmtSaida, normalize, pecasTexto, saidaChip,
-  weekdayOfDay, LEGENDA_TRILHA, R, SHADOW,
+  rolagem, weekdayOfDay, LEGENDA_TRILHA, R, SHADOW,
   STAGE_HEADERS, STAGE_SECTOR, STAGE_SHORT, TI, urlSetorDoEvento,
 } from "@/components/prazos/tokens";
 import { StageCell } from "@/components/prazos/stage-cell";
@@ -54,6 +55,7 @@ import {
   computePecasAtrasadas, contarPecasAtrasadas, filtrarPecasAtrasadas,
 } from "@/components/prazos/atrasadas";
 import { computeEventosPorEtapa, computeSectorSummary, eventoNaEtapa } from "@/components/prazos/gargalos";
+import { FS } from "@/lib/theme";
 
 /**
  * As três visões do MESMO conjunto filtrado.
@@ -81,6 +83,41 @@ const VISAO_TECLA: Record<Visao, string> = { quadro: "Q", tabela: "T", atrasadas
 // das 15 telas que o usam, nao desta. Const de modulo para a identidade ser
 // estavel entre renders.
 const RAIO_FILTRO: React.CSSProperties = { borderRadius: R.md };
+
+// ── Identidades ESTÁVEIS (PERF-4) ─────────────────────────────────────────
+// Os fallbacks de "payload sem o campo" eram literais no corpo do componente
+// (`?? []`, `?? {}`, `STAGE_HEADERS.map(...)`): um array/objeto NOVO a cada
+// render, que invalidava todo `useMemo` que dependia deles e todo `memo` de
+// card que os recebia. Constantes de módulo têm a mesma cara e não mudam.
+const SEM_EVENTOS: PrazoEvent[] = [];
+const SEM_COBRANCAS: CobrancaMap = {};
+const SEM_PATROCINADORES: SponsorDelay[] = [];
+const STAGE_META_PADRAO = STAGE_HEADERS.map((h) => ({ key: h.key, label: h.full }));
+
+/** Mesmos itens, na mesma ordem, por identidade. */
+function mesmaLista<T>(a: readonly T[], b: readonly T[]): boolean {
+  if (a === b) return true;
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+  return true;
+}
+
+/**
+ * Devolve a lista ANTERIOR quando a nova tem exatamente os mesmos itens.
+ *
+ * PORQUÊ. `filtered` é refeito a cada revalidação e a cada tecla da busca, e
+ * quase sempre com o mesmo conteúdo — a revalidação de 60s devolve o mesmo
+ * payload (o structural sharing do React Query preserva cada evento) e a busca
+ * "c" → "co" costuma não tirar ninguém da lista. Um array novo com os mesmos
+ * eventos fazia as seis colunas do quadro se redesenharem e re-medirem
+ * `offsetTop` de todos os cards (layout síncrono forçado). Com a identidade
+ * preservada, `memo` e `useLayoutEffect` só rodam quando algo mudou de fato.
+ */
+function useListaEstavel<T>(lista: T[]): T[] {
+  const anterior = useRef(lista);
+  if (!mesmaLista(anterior.current, lista)) anterior.current = lista;
+  return anterior.current;
+}
 
 function parseVisao(raw: string | null): Visao {
   return raw === "tabela" || raw === "atrasadas" ? raw : "quadro";
@@ -170,6 +207,12 @@ export default function GestaoPrazos() {
   const [showDesdeOntem, setShowDesdeOntem] = useState(false);
   const [printMode, setPrintMode] = useState(false);
 
+  // Guia "Como ler esta tela": SEMPRE nasce fechado (dono, 17/09). Aberto na
+  // primeira visita ele empurrava o placar para baixo da dobra — quem abre a
+  // tela quer os números; o botão "Como ler esta tela" fica à vista no topo.
+  const [guiaAberto, setGuiaAberto] = useState(false);
+  const alternarGuia = () => setGuiaAberto((aberto) => !aberto);
+
   // Última visão de EVENTO usada. O placar "Peças em etapa vencida" leva para
   // a lista de peças e traz de volta — e "de volta" tem que ser de onde a
   // pessoa veio, não um quadro que ela talvez nunca tenha aberto.
@@ -232,7 +275,7 @@ export default function GestaoPrazos() {
     return () => window.removeEventListener("popstate", onPop);
   }, []);
 
-  const events = data?.events ?? [];
+  const events = data?.events ?? SEM_EVENTOS;
   const today = data?.today;
 
   // KPIs vêm do SERVIDOR (fonte única, mesma âncora de "hoje" do semáforo e
@@ -275,13 +318,18 @@ export default function GestaoPrazos() {
   // placar inteiro — melhor perder o clique e manter o número.
   const podeFiltrarSaidas = kpisDoServidor && !!data?.today;
   const trend = data?.trend ?? null;
-  const cobrancas = data?.cobrancas ?? {};
+  const cobrancas = data?.cobrancas ?? SEM_COBRANCAS;
   const desdeOntem = data?.desdeOntem ?? null;
 
   // `Partial<Record<...>>` de propósito no contrato: enquanto o db:push não
   // rodar o mapa vem VAZIO, e um `cobrancas[key].historico.map(...)` sem
   // guarda derrubaria a tela inteira do diretor.
-  const cobrancaEvento = (id: string): CobrancaEntry | undefined => cobrancas[`event:${id}`];
+  // `useCallback`: vai como prop para a tabela e para o `renderCard` do quadro,
+  // e uma função nova por render derrubaria o `memo` das linhas e dos cards.
+  const cobrancaEvento = useCallback(
+    (id: string): CobrancaEntry | undefined => cobrancas[`event:${id}`],
+    [cobrancas],
+  );
 
   const prioridadesDisponiveis = useMemo(
     () => Array.from(new Set(events.map((e) => e.priority).filter(Boolean))) as string[],
@@ -290,7 +338,7 @@ export default function GestaoPrazos() {
 
   // Ordem/rótulos das etapas vêm do payload (fonte única) — fallback local
   // só para o primeiro render sem dado.
-  const stageMeta = data?.stageMeta ?? STAGE_HEADERS.map((h) => ({ key: h.key, label: h.full }));
+  const stageMeta = data?.stageMeta ?? STAGE_META_PADRAO;
 
   // Gargalo por setor e eventos por etapa: regra de negócio em
   // `components/prazos/gargalos.ts` (funções puras, testadas em
@@ -300,7 +348,7 @@ export default function GestaoPrazos() {
     [events, stageMeta],
   );
 
-  const sponsorDelays = data?.sponsorDelays ?? [];
+  const sponsorDelays = data?.sponsorDelays ?? SEM_PATROCINADORES;
 
   const eventosPorEtapa = useMemo(
     () => computeEventosPorEtapa(events, stageMeta),
@@ -350,8 +398,15 @@ export default function GestaoPrazos() {
     return true;
   }, [passaRecorteDeEvento, eventoFiltro, prioridade]);
 
-  const filtered = useMemo(() => {
-    const q = normalize(busca.trim());
+  // A busca que FILTRA é adiada (`useDeferredValue`): o campo mostra a tecla
+  // na hora e o refiltro — que na lista de peças são cinco passadas sobre
+  // centenas de peças mais a troca das linhas visíveis — roda numa renderização
+  // de baixa prioridade que a próxima tecla pode interromper. O que o campo,
+  // os chips e a URL mostram continua sendo `busca`, o valor digitado.
+  const buscaFiltro = useDeferredValue(busca);
+
+  const filteredBruto = useMemo(() => {
+    const q = normalize(buscaFiltro.trim());
     const list = events.filter((ev) => {
       if (!passaFiltroDeEvento(ev)) return false;
       if (etapaFoco !== "all" && stageMeta[currentStageIdx(ev)]?.key !== etapaFoco) return false;
@@ -378,7 +433,8 @@ export default function GestaoPrazos() {
     // quebraria sem sintoma na primeira paginação.
     return [...list].sort((a, b) =>
       new Date(a.truckDepartureDate).getTime() - new Date(b.truckDepartureDate).getTime());
-  }, [events, passaFiltroDeEvento, etapaFoco, diaFoco, busca, ordem, stageMeta]);
+  }, [events, passaFiltroDeEvento, etapaFoco, diaFoco, buscaFiltro, ordem, stageMeta]);
+  const filtered = useListaEstavel(filteredBruto);
 
   // ── Visão de peças: a lista plana ────────────────────────────────────────
   // Duas listas de propósito. A COMPLETA (sem filtro nenhum) é o denominador
@@ -395,8 +451,8 @@ export default function GestaoPrazos() {
     [events, passaRecorteDeEvento],
   );
   const filtroPecas = useMemo(
-    () => ({ busca, eventoId: eventoFiltro, etapaKey: etapaFoco, prioridade, dia: diaFoco }),
-    [busca, eventoFiltro, etapaFoco, prioridade, diaFoco],
+    () => ({ busca: buscaFiltro, eventoId: eventoFiltro, etapaKey: etapaFoco, prioridade, dia: diaFoco }),
+    [buscaFiltro, eventoFiltro, etapaFoco, prioridade, diaFoco],
   );
   const pecasAtrasadas = useMemo(
     () => filtrarPecasAtrasadas(pecasBase, filtroPecas),
@@ -411,7 +467,7 @@ export default function GestaoPrazos() {
   );
   // Assinatura dos filtros: a paginação da lista volta ao começo quando ELA
   // muda, e não a cada revalidação de 60s (que troca a identidade do array).
-  const filtroKey = `${soAtrasados}|${soSaidas7d}|${soSemPecas}|${soInvalidos}|${prioridade}|${etapaFoco}|${diaFoco}|${eventoFiltro}|${busca}`;
+  const filtroKey = `${soAtrasados}|${soSaidas7d}|${soSemPecas}|${soInvalidos}|${prioridade}|${etapaFoco}|${diaFoco}|${eventoFiltro}|${buscaFiltro}`;
 
   // ── Opções dos filtros da lista de peças ─────────────────────────────────
   //
@@ -621,6 +677,44 @@ export default function GestaoPrazos() {
     return () => clearTimeout(t);
   }, [filtered, isMobile, visao]);
 
+  // ── Colunas do quadro, com identidade estável (PERF-4) ────────────────────
+  // Antes o `filtered.filter(eventoNaEtapa)` de cada coluna morava no JSX: seis
+  // arrays novos por render, e cada um derrubava o `memo` da coluna e
+  // re-disparava a medição de "+N abaixo". Agora a divisão só é refeita quando
+  // `filtered` muda, e cada coluna mantém o array anterior quando os eventos
+  // dela são os mesmos (a busca que só esvazia OUTRA coluna não toca esta).
+  const colunasAnterioresRef = useRef<PrazoEvent[][]>([]);
+  const colunasDoQuadro = useMemo(() => {
+    const anteriores = colunasAnterioresRef.current;
+    // MESMO predicado do cabeçalho (ver eventoNaEtapa): o evento aparece em
+    // toda etapa em que tem peça parada, e não só na do gargalo.
+    const proximas = stageMeta.map((_, i) => {
+      const col = filtered.filter((ev) => eventoNaEtapa(ev, i));
+      const antes = anteriores[i];
+      return antes && mesmaLista(antes, col) ? antes : col;
+    });
+    colunasAnterioresRef.current = proximas;
+    return proximas;
+  }, [filtered, stageMeta]);
+
+  const focarCard = useCallback((id: string) => { focoCardRef.current = id; }, []);
+  // UMA função para as seis colunas: com as props do card todas estáveis, o
+  // `memo` do QuadroCard pula o card numa revalidação sem mudança, no tique do
+  // selo, ao abrir o modal ou ao abrir o guia.
+  const renderCardQuadro = useCallback((ev: PrazoEvent, i: number) => (
+    <QuadroCard
+      ev={ev}
+      stage={ev.stages[i]}
+      cobranca={cobrancaEvento(ev.eventId ?? ev.id)}
+      onOpen={setDetailId}
+      onFocusCard={focarCard}
+      realce={movidos.has(ev.id)}
+    />
+  ), [cobrancaEvento, focarCard, movidos]);
+  const alternarExpandido = useCallback((id: string) => {
+    setExpandedId((atual) => (atual === id ? null : id));
+  }, []);
+
   // ── Modal de detalhe ──────────────────────────────────────────────────────
   const detailEv = detailId ? events.find((e) => e.id === detailId) ?? null : null;
   // Último snapshot: fechar o modal piscava uma caixa branca vazia, porque o
@@ -714,18 +808,51 @@ export default function GestaoPrazos() {
       if (r) setVisao(r.visao);
     };
     // Um respiro para o React pintar a tabela expandida antes do diálogo do SO.
+    let redeDeSeguranca: number | undefined;
     const id = window.setTimeout(() => {
       window.addEventListener("afterprint", restaurar, { once: true });
       window.print();
       // Safari não dispara `afterprint` de forma confiável — rede de segurança
       // para a tela não ficar presa no modo de impressão.
-      window.setTimeout(restaurar, 1200);
+      redeDeSeguranca = window.setTimeout(restaurar, 1200);
     }, 80);
-    return () => window.clearTimeout(id);
+    // A limpeza desfaz as TRÊS pendências, não só a primeira: sair da tela
+    // durante a impressão deixava o timer de 1,2s e o ouvinte de `afterprint`
+    // vivos, mexendo em estado de um componente que já não existe. Quando o
+    // `afterprint` chega primeiro, `printMode` vira false e esta limpeza
+    // descarta a rede de segurança, que já não tem o que restaurar.
+    return () => {
+      window.clearTimeout(id);
+      if (redeDeSeguranca !== undefined) window.clearTimeout(redeDeSeguranca);
+      window.removeEventListener("afterprint", restaurar);
+    };
   }, [printMode]);
+
+  // Callbacks da faixa de análise com identidade estável — a faixa é `memo`.
+  // O clique de etapa LIMPA os demais filtros de propósito: ver o comentário
+  // junto do <AnaliseBand>, no fim do arquivo.
+  const focarEtapaDaAnalise = useCallback((k: string) => {
+    setSoAtrasados(false); setSoSaidas7d(false); setSoSemPecas(false);
+    setSoInvalidos(false); setBusca(""); setPrioridade("all"); setDiaFoco("");
+    setEventoFiltro("all");
+    setEtapaFoco(k);
+    window.scrollTo({ top: 0, behavior: rolagem() });
+  }, []);
+  const focarDiaDaAnalise = useCallback((d: string) => {
+    setDiaFoco(d);
+    window.scrollTo({ top: 0, behavior: rolagem() });
+  }, []);
 
   // ── Blocos de estado ──────────────────────────────────────────────────────
   let body: React.ReactNode;
+
+  // Alvo dos botões e links dos ESTADOS (erro, vazio, dado antigo) e do rodapé
+  // do modal. Eram `padding: 9px` soltos — ~36px no desktop e os mesmos 36 no
+  // dedo — e "Tentar de novo"/"Abrir o evento completo" nem isso (~18px de
+  // texto puro). São justamente as saídas de quem travou: recebem a régua da
+  // casa, 36 no ponteiro e 44 no toque. `minHeight` em vez de mais padding, e
+  // o desenho do desktop não muda.
+  const alvoEstado = isMobile ? 44 : 36;
 
   if (isLoading) {
     // Skeleton RAMIFICADO por visão: o antigo desenhava uma faixa de 120px
@@ -808,7 +935,8 @@ export default function GestaoPrazos() {
           href="/"
           data-testid="link-voltar-painel"
           style={{
-            display: "inline-flex", padding: "9px 18px", borderRadius: R.md,
+            display: "inline-flex", alignItems: "center", minHeight: alvoEstado,
+            padding: "0 18px", borderRadius: R.md,
             backgroundColor: TI.ink, color: "#ffffff",
             fontSize: 13, fontWeight: 700, textDecoration: "none",
           }}
@@ -833,8 +961,8 @@ export default function GestaoPrazos() {
           onClick={() => refetch()}
           data-testid="button-retry-prazos"
           style={{
-            display: "inline-flex", alignItems: "center", gap: 8,
-            padding: "9px 18px", borderRadius: R.md, border: "none",
+            display: "inline-flex", alignItems: "center", gap: 8, minHeight: alvoEstado,
+            padding: "0 18px", borderRadius: R.md, border: "none",
             backgroundColor: TI.ink, color: "#ffffff",
             fontSize: 13, fontWeight: 700, cursor: "pointer",
           }}
@@ -860,7 +988,8 @@ export default function GestaoPrazos() {
         <Link
           href="/eventos"
           style={{
-            display: "inline-flex", padding: "9px 18px", borderRadius: R.md,
+            display: "inline-flex", alignItems: "center", minHeight: alvoEstado,
+            padding: "0 18px", borderRadius: R.md,
             backgroundColor: TI.ink, color: "#ffffff",
             fontSize: 13, fontWeight: 700, textDecoration: "none",
           }}
@@ -911,6 +1040,27 @@ export default function GestaoPrazos() {
             <p style={{ margin: "0 0 10px", fontSize: 13, color: TI.secondary }}>
               {events.length} evento{events.length !== 1 ? "s" : ""} ativo{events.length !== 1 ? "s" : ""} no total.
             </p>
+            {/* A BUSCA DO QUADRO E DA TABELA SÓ OLHA O NOME DO EVENTO. Quem
+                digita o código de uma peça ("#3089") caía aqui e concluía que
+                ela não existe. A lista de peças atrasadas já procura por
+                código e descrição — o botão leva a MESMA busca para lá. */}
+            {busca.trim() !== "" && (
+              <p style={{ margin: "0 0 12px", fontSize: 13, color: TI.strong }}>
+                Aqui a busca procura só no nome do evento.{" "}
+                <button
+                  type="button"
+                  onClick={() => setVisao("atrasadas")}
+                  data-testid="button-buscar-nas-pecas"
+                  style={{
+                    display: "inline-flex", alignItems: "center", minHeight: alvoEstado,
+                    background: "none", border: "none", padding: 0, cursor: "pointer",
+                    fontSize: 13, fontWeight: 700, color: TI.accentText, textDecoration: "underline",
+                  }}
+                >
+                  Procurar “{busca.trim()}” nas peças atrasadas
+                </button>
+              </p>
+            )}
             {/* Dizer QUAIS filtros: "Nenhum evento com esses filtros" sem a
                 lista obrigava o diretor a caçar o estado ativo na toolbar. */}
             {chipsAtivos.length > 0 && (
@@ -925,7 +1075,7 @@ export default function GestaoPrazos() {
           onClick={clearFilters}
           data-testid="button-limpar-filtros"
           style={{
-            padding: "9px 18px", borderRadius: R.md, border: `1px solid ${TI.border}`,
+            minHeight: alvoEstado, padding: "0 18px", borderRadius: R.md, border: `1px solid ${TI.border}`,
             backgroundColor: TI.card, color: TI.title,
             fontSize: 13, fontWeight: 700, cursor: "pointer",
           }}
@@ -943,8 +1093,8 @@ export default function GestaoPrazos() {
             key={ev.id}
             ev={ev}
             expanded={expandedId === ev.id}
-            onToggle={() => setExpandedId(expandedId === ev.id ? null : ev.id)}
-            cobranca={cobrancaEvento(ev.id)}
+            onToggle={alternarExpandido}
+            cobranca={cobrancaEvento(ev.eventId ?? ev.id)}
             today={today}
           />
         ))}
@@ -966,31 +1116,17 @@ export default function GestaoPrazos() {
         gridTemplateColumns: `repeat(${stageMeta.length}, minmax(190px, 1fr))`,
         gap: 10, alignItems: "start", overflowX: "auto", paddingBottom: 4,
       }}>
-        {stageMeta.map((m, i) => {
-          // MESMO predicado do cabeçalho (ver eventoNaEtapa): o evento aparece
-          // em toda etapa em que tem peça parada, e não só na do gargalo.
-          const colEvents = filtered.filter((ev) => eventoNaEtapa(ev, i));
-          return (
-            <QuadroColuna
-              key={m.key}
-              stageKey={m.key}
-              label={m.label}
-              stageIdx={i}
-              eventos={colEvents}
-              temFiltro={hasActiveFilters}
-              renderCard={(ev) => (
-                <QuadroCard
-                  ev={ev}
-                  stage={ev.stages[i]}
-                  cobranca={cobrancaEvento(ev.id)}
-                  onOpen={() => setDetailId(ev.id)}
-                  onFocusCard={() => { focoCardRef.current = ev.id; }}
-                  realce={movidos.has(ev.id)}
-                />
-              )}
-            />
-          );
-        })}
+        {stageMeta.map((m, i) => (
+          <QuadroColuna
+            key={m.key}
+            stageKey={m.key}
+            label={m.label}
+            stageIdx={i}
+            eventos={colunasDoQuadro[i]}
+            temFiltro={hasActiveFilters}
+            renderCard={renderCardQuadro}
+          />
+        ))}
       </div>
     );
   } else {
@@ -1113,7 +1249,7 @@ export default function GestaoPrazos() {
           // grupo da etapa e só então clicar. O link é de EVENTO + ETAPA (é o
           // grão da linha, que fala de um evento inteiro) e leva o recorte
           // junto — ver o contrato em components/prazos/tokens.ts.
-          const urlSetorAqui = setor ? urlSetorDoEvento(etapaKey, ev.id, { atrasada: true }) : null;
+          const urlSetorAqui = setor ? urlSetorDoEvento(etapaKey, ev.eventId ?? ev.id, { atrasada: true }) : null;
           return (
             <div key={ev.id} style={{
               display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap",
@@ -1192,8 +1328,8 @@ export default function GestaoPrazos() {
                     o modal — dois cliques a mais bem no momento do combinado. */}
                 <CobradoControl
                   targetType="event"
-                  targetId={ev.id}
-                  cobranca={cobrancaEvento(ev.id)}
+                  targetId={ev.eventId ?? ev.id}
+                  cobranca={cobrancaEvento(ev.eventId ?? ev.id)}
                   today={today}
                   variant="secondary"
                   showForm
@@ -1364,8 +1500,8 @@ export default function GestaoPrazos() {
               // 26 no desktop: o título dividia o corpo com o numeral do
               // placar (agora 34) e ficava menor que ele — a página parecia
               // começar no primeiro KPI.
-              margin: 0, fontSize: isMobile ? 20 : 26, fontWeight: 800, color: TI.title,
-              fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.03em",
+              margin: 0, fontSize: isMobile ? 20 : FS.h1, fontWeight: 700, color: TI.title,
+              fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.03em", lineHeight: 1.1,
             }}>
               Gestão de Prazos
             </h1>
@@ -1375,6 +1511,37 @@ export default function GestaoPrazos() {
             <p style={{ margin: "4px 0 0", fontSize: 13, color: TI.secondary, maxWidth: 660 }}>
               Etapas de cada evento contra a saída do caminhão — o que venceu, o que vence e quem destrava.
             </p>
+            {/* ── COMO LER ESTA TELA (rodada 4) ─────────────────────────────
+                A tela abre para TODOS os perfis e falava a língua de quem a
+                desenhou: "marco", "etapa vencida", "destravar", "Marcar como
+                cobrado". Nada disso se deduz olhando. O guia é um disclosure
+                — aberto na primeira visita, lembrado fechado depois (o
+                diretor que já sabe não paga rolagem todo dia).
+
+                Tudo que ele afirma vem de fonte única: nome, descrição e prazo
+                padrão das etapas de @shared/prazo-dates (os mesmos do
+                cadastro do evento), o setor de STAGE_SECTOR (o mesmo do
+                "Resolver em …") e os tons TI.red/amber/green do semáforo. */}
+            <button
+              type="button"
+              onClick={() => alternarGuia()}
+              aria-expanded={guiaAberto}
+              aria-controls={guiaAberto ? "gp-guia" : undefined}
+              data-testid="toggle-como-ler-prazos"
+              className="gp-no-print"
+              style={{
+                display: "inline-flex", alignItems: "center", gap: 5, minHeight: 36, marginTop: 2,
+                background: "none", border: "none", padding: 0, cursor: "pointer",
+                fontSize: 12, fontWeight: 700, color: TI.accentText,
+              }}
+            >
+              <ChevronDown aria-hidden="true" style={{
+                width: 14, height: 14,
+                transform: guiaAberto ? "rotate(180deg)" : "none",
+                transition: "transform 0.15s ease",
+              }} />
+              {guiaAberto ? "Fechar o guia" : "Como ler esta tela"}
+            </button>
           </div>
           {data && (
             <div className="gp-no-print" style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
@@ -1403,7 +1570,10 @@ export default function GestaoPrazos() {
                   automática falhou e o clique é recuperação, não rotina. */}
               <span
                 style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 11, color: dadoVelho ? TI.amber : TI.label, fontWeight: dadoVelho ? 700 : 400 }}
-                title={new Date(data.generatedAt).toLocaleString("pt-BR")}
+                /* "Esse número está atualizado?" O title só dava a data crua;
+                   agora diz também COMO a tela se mantém fresca e quando o
+                   selo fica âmbar — sem isso o âmbar parecia alarme. */
+                title={`Dados de ${new Date(data.generatedAt).toLocaleString("pt-BR")}. A tela se atualiza sozinha quando alguém muda um evento ou peça, ao voltar para a aba e, por segurança, a cada 5 minutos. Fica âmbar se os dados tiverem 10 minutos ou mais.`}
               >
                 {isFetching && <RotateCcw aria-hidden="true" className="animate-spin" style={{ width: 11, height: 11 }} />}
                 Atualizado {fmtRelative(data.generatedAt, agora)}
@@ -1431,6 +1601,69 @@ export default function GestaoPrazos() {
           )}
         </div>
 
+        {guiaAberto && (
+          <section
+            id="gp-guia"
+            aria-label="Como ler a Gestão de Prazos"
+            data-testid="guia-como-ler-prazos"
+            className="gp-no-print"
+            style={{
+              marginBottom: 16, padding: isMobile ? "12px 14px" : "14px 18px",
+              backgroundColor: TI.card, border: `1px solid ${TI.border}`, borderRadius: R.lg,
+              boxShadow: SHADOW.sm, fontSize: 13, color: TI.strong, lineHeight: 1.5,
+              display: "grid", gap: isMobile ? 14 : 24,
+              gridTemplateColumns: isMobile ? "1fr" : "minmax(0, 1.25fr) minmax(0, 1fr)",
+            }}
+          >
+            <div style={{ minWidth: 0 }}>
+              <h2 style={{ margin: "0 0 6px", fontSize: 13, fontWeight: 700, color: TI.title }}>
+                As {stageMeta.length} etapas de todo evento, em ordem
+              </h2>
+              <p style={{ margin: "0 0 8px", color: TI.secondary }}>
+                Cada etapa tem um prazo contado para trás a partir da saída do caminhão.
+                O evento pode ter prazos próprios, definidos no cadastro; abaixo está o padrão.
+              </p>
+              <ol style={{ margin: 0, paddingLeft: 20, display: "grid", gap: 3 }}>
+                {stageMeta.map((m) => {
+                  const marco = MARCOS_DO_EVENTO.find((x) => x.key === m.key);
+                  const setor = STAGE_SECTOR[m.key]?.sector;
+                  const dias = marco ? Math.abs(marco.offset) : null;
+                  return (
+                    <li key={m.key}>
+                      <strong style={{ color: TI.title, fontWeight: 700 }}>{m.label}</strong>
+                      {setor ? ` · quem age: ${setor}` : ""}
+                      {marco ? ` · ${marco.descricao.charAt(0).toLowerCase()}${marco.descricao.slice(1)}` : ""}
+                      {dias !== null && (
+                        <span style={{ color: TI.secondary }}>
+                          {` · ${dias} dia${dias !== 1 ? "s" : ""} antes da saída`}
+                        </span>
+                      )}
+                    </li>
+                  );
+                })}
+              </ol>
+            </div>
+            <div style={{ minWidth: 0, display: "grid", gap: 8, alignContent: "start" }}>
+              <h2 style={{ margin: 0, fontSize: 13, fontWeight: 700, color: TI.title }}>O que cada palavra quer dizer</h2>
+              <p style={{ margin: 0 }}>
+                <strong style={{ color: TI.red }}>Vencida</strong> — o prazo da etapa passou e ainda há peça parada nela.
+                {" "}<strong style={{ color: TI.amber }}>Vence em até 3 dias</strong> — ainda dá tempo, mas é a próxima cobrança.
+                {" "}<strong style={{ color: TI.green }}>Concluída</strong> — nenhuma peça parada nela. Cinza é prazo futuro.
+              </p>
+              <p style={{ margin: 0 }}>
+                <strong style={{ color: TI.title }}>Resolver em …</strong> abre a tela do setor que destrava a etapa, já recortada o mais perto possível daquele evento ou peça.
+              </p>
+              <p style={{ margin: 0 }}>
+                <strong style={{ color: TI.title }}>Marcar como cobrado</strong> anota que alguém cobrou o setor: quem cobrou, quando e, se quiser, o prazo combinado.
+                {" "}Não muda nenhuma peça e não envia mensagem a ninguém — serve para ver depois se algo andou. Só o administrador registra.
+              </p>
+              <p style={{ margin: 0, color: TI.secondary }}>
+                Evento que já começou ou com todas as peças entregues sai desta tela. A tela se atualiza sozinha.
+              </p>
+            </div>
+          </section>
+        )}
+
         {/* Dado antigo por falha de atualização: NUNCA jogar fora o cache bom —
             dashboard de 10 min atrás vale mais que tela vazia. */}
         {isError && data && (
@@ -1449,7 +1682,7 @@ export default function GestaoPrazos() {
             <button
               type="button"
               onClick={() => refetch()}
-              style={{ background: "none", border: "none", padding: 0, fontSize: 13, fontWeight: 700, color: TI.accentText, cursor: "pointer", textDecoration: "underline" }}
+              style={{ display: "inline-flex", alignItems: "center", minHeight: alvoEstado, background: "none", border: "none", padding: 0, fontSize: 13, fontWeight: 700, color: TI.accentText, cursor: "pointer", textDecoration: "underline" }}
             >
               Tentar de novo
             </button>
@@ -1779,8 +2012,9 @@ export default function GestaoPrazos() {
             {!isMobile && visao === "tabela" && (
               <span style={{ flexBasis: "100%", fontSize: 11, color: TI.label, paddingTop: 2 }}>
                 Semáforo: <strong style={{ color: TI.green }}>✓</strong> etapa concluída ·{" "}
-                <strong style={{ color: TI.amber }}>nº</strong> peças aguardando o prazo ·{" "}
-                <strong style={{ color: TI.red }}>Nd</strong> dias vencida (com o total de peças abaixo)
+                <strong style={{ color: TI.amber }}>nº</strong> peças com prazo vencendo em até 3 dias ·{" "}
+                <strong style={{ color: TI.red }}>Nd</strong> dias vencida (com o total de peças abaixo) ·{" "}
+                cinza = prazo futuro (o número são as peças já paradas nela) · passe o mouse numa célula para a frase completa
               </span>
             )}
             {!isMobile && visao === "quadro" && (
@@ -1958,7 +2192,7 @@ export default function GestaoPrazos() {
 
                   <EventDrilldown
                     ev={modalEv}
-                    cobranca={cobrancaEvento(modalEv.id)}
+                    cobranca={cobrancaEvento(modalEv.eventId ?? modalEv.id)}
                     today={today}
                     showCobranca={false}
                   />
@@ -1976,8 +2210,8 @@ export default function GestaoPrazos() {
                     <div style={{ maxWidth: 640 }}>
                       <CobradoControl
                         targetType="event"
-                        targetId={modalEv.id}
-                        cobranca={cobrancaEvento(modalEv.id)}
+                        targetId={modalEv.eventId ?? modalEv.id}
+                        cobranca={cobrancaEvento(modalEv.eventId ?? modalEv.id)}
                         today={today}
                         variant="primary"
                         layout="bloco"
@@ -1993,8 +2227,8 @@ export default function GestaoPrazos() {
                         link era blocado a 100% da largura e clicar no vazio à
                         direita navegava para fora do modal sem aviso. */}
                     <Link
-                      href={`/eventos/${modalEv.id}`}
-                      style={{ fontSize: 12, fontWeight: 600, color: TI.secondary, textDecoration: "none" }}
+                      href={`/eventos/${modalEv.eventId ?? modalEv.id}`}
+                      style={{ display: "inline-flex", alignItems: "center", minHeight: alvoEstado, fontSize: 12, fontWeight: 600, color: TI.secondary, textDecoration: "none" }}
                     >
                       Abrir o evento completo →
                     </Link>
@@ -2024,15 +2258,9 @@ export default function GestaoPrazos() {
             // COMPLETO (a faixa de análise carimba esse escopo). Aplicar o
             // foco por cima de "Só com atraso" + busca devolvia menos que N —
             // o clique que se contradiz com o número prometido.
-            onEtapaFoco={(k) => {
-              setSoAtrasados(false); setSoSaidas7d(false); setSoSemPecas(false);
-              setSoInvalidos(false); setBusca(""); setPrioridade("all"); setDiaFoco("");
-              setEventoFiltro("all");
-              setEtapaFoco(k);
-              window.scrollTo({ top: 0, behavior: "smooth" });
-            }}
+            onEtapaFoco={focarEtapaDaAnalise}
             diaFoco={diaFoco}
-            onDiaFoco={(d) => { setDiaFoco(d); window.scrollTo({ top: 0, behavior: "smooth" }); }}
+            onDiaFoco={focarDiaDaAnalise}
           />
         )}
       </div>

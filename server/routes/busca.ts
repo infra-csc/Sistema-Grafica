@@ -53,6 +53,8 @@ export function registerBuscaRoutes(app: Express): void {
             status: items.status,
             eventId: items.eventId,
             eventName: events.name,
+            kitRemessaId: items.kitRemessaId,
+            criadoPorId: items.criadoPorId,
           })
           .from(items)
           .leftJoin(events, sql`${events.id} = ${items.eventId}`)
@@ -81,7 +83,10 @@ export function registerBuscaRoutes(app: Express): void {
       ]);
 
       // BOOK COMPLETO fica de fora: é o trâmite do Atendimento, não uma peça (ver shared/fluxo-peca).
-      res.json({ pecas: pecas.filter((p) => !ehBookCompleto(p)), eventos });
+      // Usuário do Kit (14/09): só as peças do Kit que ele criou.
+      const visivel = (p: { kitRemessaId: string | null; criadoPorId: string | null }) =>
+        !(req as any).userKit || (!!p.kitRemessaId && p.criadoPorId === (req as any).userId);
+      res.json({ pecas: pecas.filter((p) => !ehBookCompleto(p) && visivel(p)), eventos });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }

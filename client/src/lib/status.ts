@@ -91,12 +91,8 @@ export const STATUS: Record<string, StatusMeta> = {
   // short = "Em Produção" (não "Produzindo"): no Painel Geral os cards
   // "Produzindo" e "Produzido" ficavam lado a lado com 1 letra de diferença —
   // impossível de escanear. "Em Produção" tem o mesmo tamanho e zero ambiguidade.
-  // 14/09 (dono): "Em Produção" virou "Em Impressão" — a peça está NA
-  // MÁQUINA — e "Produzido" virou "Em Acabamento / Conferência": saiu da
-  // máquina e ainda precisa de acabamento e conferência. O curto do segundo
-  // é "Acabamento": cabe onde "Produzido" cabia.
-  inProduction:          meta("Em Impressão",           "Em Impressão",   P.orange,  Package),
-  produced:              meta("Em Acabamento / Conferência", "Acabamento", P.pink,    CheckCircle),
+  inProduction:          meta("Em Produção",            "Em Produção",    P.orange,  Package),
+  produced:              meta("Produzido",              "Produzido",      P.pink,    CheckCircle),
   conferred:             meta("Conferido",              "Conferido",      P.cyan,    CheckCircle),
   delivered:             meta("Entregue",               "Entregue",       P.emerald, Truck),
   // ── Aliases LEGADOS em português (dados antigos ainda gravados assim) ──
@@ -104,8 +100,8 @@ export const STATUS: Record<string, StatusMeta> = {
   // (liberado→approved, em_producao→inProduction, produzido→produced,
   // entregue→delivered). Sem eles, o badge caía no fallback "—".
   liberado:              meta("Liberado",               "Liberado",       P.green,   CheckCircle),
-  em_producao:           meta("Em Impressão",           "Em Impressão",   P.orange,  Package),
-  produzido:             meta("Em Acabamento / Conferência", "Acabamento", P.pink,    CheckCircle),
+  em_producao:           meta("Em Produção",            "Em Produção",    P.orange,  Package),
+  produzido:             meta("Produzido",              "Produzido",      P.pink,    CheckCircle),
   entregue:              meta("Entregue",               "Entregue",       P.emerald, Truck),
   // ── Encerrados ──
   canceled:              meta("Cancelado",              "Cancelado",      P.red, XCircle),
@@ -121,6 +117,216 @@ export const STATUS: Record<string, StatusMeta> = {
   // evento caía no fallback "—".
   closed:                meta("Encerrado",              "Encerrado",      P.neutral, Lock),
 };
+
+// ─────────────────────────────────────────────────────────────────────────────
+// O SIGNIFICADO DE CADA STATUS — o que quer dizer, de quem é a vez, o que vem.
+//
+// PORQUÊ EXISTE. O rótulo "Aguardando Finalização" responde "em que etapa",
+// mas não responde as três perguntas que quem chega faz em seguida: "aguardando
+// QUEM?", "onde isso se resolve?" e "e depois?". A resposta vivia na cabeça de
+// quem já usava o sistema — e em pedaços espalhados (a faixa da ficha da peça,
+// o texto de cada fila). Aqui ela fica ao lado do rótulo, e o StatusBadge e o
+// StatusPill a mostram sozinhos: toda tela ganha o significado sem mudar nada.
+//
+// CONFERIDO NO CÓDIGO, não de memória (16/09). Cada "quem age" saiu da guarda
+// de perfil da rota que faz a peça ANDAR a partir daquele status:
+//   draft/requested     → POST /api/events/:id/items/submit     (solicitacao, admin)
+//   awaiting_linking    → POST /api/items/send-to-arte           (arte, solicitacao, atendimento, admin)
+//   awaiting_submission → PATCH /api/items/:id/submit-for-approval (arte, admin)
+//   aprovação           → POST .../sponsor-approvals/:id/approve|reject (atendimento, admin)
+//   finalização         → PATCH /api/items/:id/submit-final-file (arte, admin)
+//   awaiting_final_review → PATCH /api/items/:id/creator-review  (a tela /solicitacao, perfil Solicitação)
+//   pronto/liberado     → PATCH /api/items/:id/start-production  (grafica, admin)
+//   produced            → POST /api/items/:id/confer             (grafica, solicitacao, admin)
+//   conferred           → PATCH /api/items/:id/deliver           (grafica, solicitacao, admin)
+//   canceled            → PATCH /api/items/:id/uncancel          (admin, pela ficha da peça)
+//   evento closed       → POST /api/events/:id/reopen            (admin)
+// Se uma dessas guardas mudar, a frase daqui muda junto — é texto de ajuda,
+// não permissão: nenhum botão lê este mapa para decidir nada.
+//
+// Não é um campo novo do StatusMeta de propósito: o STATUS é importado por
+// dezenas de telas só pela cor, e ninguém precisa carregar estas frases no
+// objeto que pinta um ponto.
+// ─────────────────────────────────────────────────────────────────────────────
+export interface StatusGuia {
+  /** O que o status quer dizer, em uma frase de gente. */
+  significado: string;
+  /** De quem é a vez agora (perfil). `null` = ninguém precisa agir. */
+  quemAge: string | null;
+  /** Onde a ação mora (tela/aba). `null` quando não há ação. */
+  onde: string | null;
+  /** O que precisa acontecer para a peça andar. `null` no fim da linha. */
+  proximoPasso: string | null;
+  /**
+   * Versão CURTÍSSIMA de "de quem é a vez" ("vez da Arte"), para o leitor de
+   * tela ouvir junto do rótulo sem transformar cada linha de tabela num
+   * parágrafo. A frase completa fica no `title` e no balão ao tocar.
+   */
+  vez: string;
+}
+
+const G_RASCUNHO: StatusGuia = {
+  significado: "A peça está na lista do evento, mas a lista ainda não foi enviada.",
+  quemAge: "Solicitação",
+  onde: "Detalhe do Evento",
+  proximoPasso: "Enviar a lista para a vinculação de patrocinadores.",
+  vez: "vez da Solicitação",
+};
+const G_APROVACAO: StatusGuia = {
+  significado: "O layout está com os patrocinadores, esperando a decisão de cada um.",
+  quemAge: "Atendimento",
+  onde: "tela Atendimento",
+  proximoPasso: "Registrar a decisão de cada patrocinador. Todos aprovaram: a Arte finaliza. Alguém reprovou: volta para a Arte corrigir.",
+  vez: "vez do Atendimento",
+};
+const G_FINALIZACAO: StatusGuia = {
+  significado: "Os patrocinadores aprovaram; falta o arquivo final para impressão.",
+  quemAge: "Arte",
+  onde: "tela Arte, aba Finalizar arte",
+  proximoPasso: "Subir o arquivo final, que segue para a Revisão Final.",
+  vez: "vez da Arte",
+};
+const G_REVISAO: StatusGuia = {
+  significado: "O arquivo final está pronto e espera a conferência antes de ir para a gráfica.",
+  quemAge: "Solicitação",
+  onde: "tela Revisão Final",
+  proximoPasso: "Liberar para produção ou devolver para a Arte com o ajuste.",
+  vez: "vez da Revisão Final",
+};
+const G_PRONTO: StatusGuia = {
+  significado: "Aprovada e revisada: a peça já pode ser impressa.",
+  quemAge: "Gráfica",
+  onde: "tela Gráfica",
+  proximoPasso: "Registrar a produção.",
+  vez: "vez da Gráfica",
+};
+const G_EM_PRODUCAO: StatusGuia = {
+  significado: "A gráfica começou a imprimir e ainda falta parte da quantidade.",
+  quemAge: "Gráfica",
+  onde: "tela Gráfica",
+  proximoPasso: "Registrar o restante da produção.",
+  vez: "vez da Gráfica",
+};
+const G_PRODUZIDO: StatusGuia = {
+  significado: "Impressa na quantidade total; ainda não foi conferida.",
+  quemAge: "Gráfica ou Solicitação",
+  onde: "tela Gráfica",
+  proximoPasso: "Conferir a peça (com foto).",
+  vez: "vez da conferência",
+};
+const G_ENTREGUE: StatusGuia = {
+  significado: "A peça foi entregue — o ciclo dela terminou.",
+  quemAge: null,
+  onde: null,
+  proximoPasso: null,
+  vez: "concluída",
+};
+
+export const STATUS_GUIA: Record<string, StatusGuia> = {
+  draft: G_RASCUNHO,
+  requested: G_RASCUNHO,
+  awaiting_linking: {
+    significado: "A peça espera as marcas (patrocinadores) que vão aparecer nela.",
+    quemAge: "Arte, Atendimento ou Solicitação",
+    onde: "tela Vincular Patrocinadores",
+    proximoPasso: "Vincular os patrocinadores e enviar para a Arte.",
+    vez: "vez da vinculação",
+  },
+  awaiting_submission: {
+    significado: "A Arte precisa criar o layout e mandar para aprovação.",
+    quemAge: "Arte",
+    onde: "tela Arte, aba Aguardando envio",
+    proximoPasso: "Enviar para aprovação dos patrocinadores (ou direto para a finalização, quando a peça dispensa aprovação).",
+    vez: "vez da Arte",
+  },
+  awaiting_approval: G_APROVACAO,
+  awaiting_sponsor_approval: G_APROVACAO,
+  awaiting_finalization: G_FINALIZACAO,
+  sponsor_approved: G_FINALIZACAO,
+  // Guia PRÓPRIO, mesmo rótulo/cor: awaiting_creator_review é também onde cai
+  // a peça que dispensou aprovação (skipApproval ou sem patrocinador — ver
+  // submit-for-approval em server/routes/items.ts). "Os patrocinadores
+  // aprovaram" seria falso para ela.
+  awaiting_creator_review: {
+    ...G_FINALIZACAO,
+    significado: "Aprovada pelos patrocinadores ou sem aprovação exigida; falta o arquivo final da Arte.",
+  },
+  awaiting_final_review: G_REVISAO,
+  awaiting_review: G_REVISAO,
+  in_review: G_REVISAO,
+  ready_for_production: G_PRONTO,
+  pronto_para_producao: G_PRONTO,
+  approved: G_PRONTO,
+  liberado: G_PRONTO,
+  inProduction: G_EM_PRODUCAO,
+  em_producao: G_EM_PRODUCAO,
+  produced: G_PRODUZIDO,
+  produzido: G_PRODUZIDO,
+  conferred: {
+    significado: "Conferida; falta registrar a entrega.",
+    quemAge: "Gráfica ou Solicitação",
+    onde: "tela Gráfica",
+    proximoPasso: "Registrar a entrega (com foto).",
+    vez: "vez da entrega",
+  },
+  delivered: G_ENTREGUE,
+  entregue: G_ENTREGUE,
+  canceled: {
+    significado: "A peça saiu do fluxo e não será produzida.",
+    quemAge: null,
+    onde: null,
+    proximoPasso: "Nada a fazer. Se foi engano, um administrador pode descancelar pela ficha da peça.",
+    vez: "fora do fluxo",
+  },
+  deleted: {
+    significado: "A peça foi excluída e não conta mais no evento.",
+    quemAge: null,
+    onde: null,
+    proximoPasso: null,
+    vez: "fora do fluxo",
+  },
+  // ── Evento ──
+  created: {
+    significado: "Evento em andamento: as peças dele ainda estão no fluxo.",
+    quemAge: null,
+    onde: null,
+    proximoPasso: "Cada peça mostra de quem é a vez no próprio status.",
+    vez: "em andamento",
+  },
+  completed: {
+    significado: "Todas as peças do evento foram entregues.",
+    quemAge: null,
+    onde: null,
+    proximoPasso: null,
+    vez: "concluído",
+  },
+  closed: {
+    significado: "Um administrador encerrou o evento: ele saiu das filas de trabalho e da cobrança de prazos.",
+    quemAge: null,
+    onde: null,
+    proximoPasso: "Se foi engano, um administrador pode reabrir o evento.",
+    vez: "encerrado",
+  },
+};
+
+/** O guia de um status, ou `null` para status desconhecido (nunca inventa). */
+export function guiaDoStatus(status: string | null | undefined): StatusGuia | null {
+  return (status && STATUS_GUIA[status]) || null;
+}
+
+/**
+ * A frase inteira de um status — `title`, tooltip, leitor de tela.
+ * Ex.: "Aguardando Envio: A Arte precisa criar o layout… Quem age agora: Arte
+ * (tela Arte, aba Aguardando envio). Próximo passo: Enviar para aprovação…"
+ */
+export function descricaoDoStatus(status: string | null | undefined): string | null {
+  const g = guiaDoStatus(status);
+  if (!g) return null;
+  const partes = [`${getStatusLabel(status)}: ${g.significado}`];
+  if (g.quemAge) partes.push(`Quem age agora: ${g.quemAge}${g.onde ? ` (${g.onde})` : ""}.`);
+  if (g.proximoPasso) partes.push(`Próximo passo: ${g.proximoPasso}`);
+  return partes.join(" ");
+}
 
 // ── Listas canônicas por fase — para gates de edição/exclusão/referência. ──
 // Existem porque telas comparavam contra nomes que NÃO existem no vocabulário
@@ -630,6 +836,30 @@ export function getApprovalMeta(status: string | null | undefined): ApprovalMeta
 /** Rótulo completo do estado de aprovação (ou o texto de "sem registro"). */
 export function getApprovalLabel(status: string | null | undefined): string {
   return getApprovalMeta(status)?.label ?? "Sem registro de aprovação";
+}
+
+/**
+ * De quem é a vez em cada estado de aprovação — o complemento do `hint`.
+ *
+ * O `hint` diz O QUE aconteceu ("Reprovado pelo patrocinador — a Arte está
+ * refazendo"); faltava dizer a quem cabe o próximo movimento, que é a pergunta
+ * de quem olha um chip vermelho. Separado do APPROVAL para não mudar o
+ * `getApprovalTitle`, que várias telas já exibem e testam.
+ * Conferido nas rotas: aprovar/reprovar/reenviar são do Atendimento
+ * (items.ts, sponsor-approvals/*); refazer o layout é da Arte (update-thumb).
+ */
+const PROXIMO_DA_APROVACAO: Record<ApprovalStatus, string | null> = {
+  pending: "Vez do Atendimento: registrar a decisão do patrocinador (tela Atendimento).",
+  approved: null,
+  awaiting_arte: "Vez da Arte: refazer o layout (tela Arte, aba Correção).",
+  new_version_pending: "Vez do Atendimento: levar a nova versão ao patrocinador e registrar a decisão (tela Atendimento).",
+  rejected: "Vez da Arte: refazer o layout (tela Arte, aba Correção).",
+};
+
+/** O próximo passo de um estado de aprovação, ou `null` quando não há o que fazer. */
+export function proximoPassoDaAprovacao(status: string | null | undefined): string | null {
+  if (!status) return null;
+  return PROXIMO_DA_APROVACAO[status as ApprovalStatus] ?? null;
 }
 
 /**

@@ -1,6 +1,7 @@
 // Card de um evento no MOBILE — extraído da página (era um bloco de ~110
 // linhas dentro do map). Mesmo comportamento: cabeçalho com prioridade e
 // saída, semáforo das etapas, progresso e o drill expandindo inline.
+import { memo } from "react";
 import { ChevronDown, Truck } from "lucide-react";
 import type { CobrancaEntry, PrazoEvent } from "@shared/prazos-contract";
 import { EventDrilldown } from "./event-drilldown";
@@ -13,12 +14,15 @@ import { eventHasOverdue, fmtSaida, R, saidaChip, STAGE_SHORT, TI } from "./toke
 interface CardMobilePrazosProps {
   ev: PrazoEvent;
   expanded: boolean;
-  onToggle: () => void;
+  /** Recebe o id: a página passa UMA função estável para todos os cartões. */
+  onToggle: (id: string) => void;
   cobranca?: CobrancaEntry;
   today?: string;
 }
 
-export function CardMobilePrazos({ ev, expanded, onToggle, cobranca, today }: CardMobilePrazosProps) {
+// `memo` pelo mesmo motivo do QuadroCard: a revalidação sem mudança e o tique
+// do selo re-renderizam a página, e sem ele todos os cartões se refaziam.
+export const CardMobilePrazos = memo(function CardMobilePrazos({ ev, expanded, onToggle, cobranca, today }: CardMobilePrazosProps) {
   const chip = saidaChip(ev);
   return (
     <div style={{
@@ -79,7 +83,7 @@ export function CardMobilePrazos({ ev, expanded, onToggle, cobranca, today }: Ca
 
       <button
         type="button"
-        onClick={onToggle}
+        onClick={() => onToggle(ev.id)}
         aria-expanded={expanded}
         // aria-controls só quando o alvo existe no DOM (o drill é
         // renderizado condicionalmente) — referência pendurada é erro de AT.
@@ -107,4 +111,4 @@ export function CardMobilePrazos({ ev, expanded, onToggle, cobranca, today }: Ca
       )}
     </div>
   );
-}
+});

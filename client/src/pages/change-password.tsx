@@ -19,7 +19,13 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { KeyRound, Eye, EyeOff, Check, X, AlertCircle } from "lucide-react";
+import { KeyRound, Eye, EyeOff, Check, X, AlertCircle, ArrowLeft } from "lucide-react";
+
+// Fundo da casa, e não o degradê primário→acento do template: dentro da casca
+// autenticada ele virava uma mancha laranja atrás de um formulário de três
+// campos. A altura desconta a topbar de 64 — com min-h-screen a tela ganhava
+// rolagem sem ter nada abaixo da dobra.
+const FUNDO = "min-h-[calc(100dvh-64px)] flex items-center justify-center p-4 bg-[#fafaf9]";
 
 type ChangePasswordForm = z.infer<typeof changePasswordSchema>;
 
@@ -96,7 +102,7 @@ export default function ChangePassword() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary/10 via-background to-accent/10 p-4">
+      <div className={FUNDO}>
         <Card className="w-full max-w-md" aria-busy="true">
           <CardHeader className="space-y-1 text-center">
             <div className="flex justify-center mb-4">
@@ -118,7 +124,7 @@ export default function ChangePassword() {
 
   if (isError) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary/10 via-background to-accent/10 p-4">
+      <div className={FUNDO}>
         <Card className="w-full max-w-md">
           <CardHeader className="space-y-1 text-center">
             <div className="flex justify-center mb-4">
@@ -142,21 +148,38 @@ export default function ChangePassword() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary/10 via-background to-accent/10 p-4">
+    <div className={FUNDO}>
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1 text-center">
+          {/* Voltar só fora do primeiro acesso: no primeiro, trocar a senha
+              é obrigatório e o guard devolveria o usuário para cá. */}
+          {!isFirstLogin && (
+            <button
+              type="button"
+              onClick={() => (window.history.length > 1 ? window.history.back() : setLocation("/"))}
+              className="self-start -mt-2 -ml-2 mb-1 inline-flex items-center gap-1.5 h-9 px-2 rounded-md text-xs font-semibold text-muted-foreground hover:text-foreground hover:bg-[#f5f5f4] transition-colors"
+              data-testid="button-voltar-alterar-senha"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" aria-hidden="true" />
+              Voltar
+            </button>
+          )}
           <div className="flex justify-center mb-4">
-            <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center">
-              <KeyRound className="w-8 h-8 text-primary" />
+            <div className="w-14 h-14 rounded-2xl flex items-center justify-center" style={{ backgroundColor: "#fff7ed" }}>
+              <KeyRound className="w-7 h-7" style={{ color: "#c2410c" }} aria-hidden="true" />
             </div>
           </div>
           <CardTitle className="text-2xl font-bold">
             {isFirstLogin ? "Primeiro Acesso" : "Alterar Senha"}
           </CardTitle>
           <CardDescription>
+            {/* O QUE ACONTECE DEPOIS, antes do clique. No primeiro acesso: para
+                onde se vai. Na troca comum: o efeito colateral (as outras
+                sessões caem) — antes só o toast de sucesso contava, tarde demais
+                para quem estava logado no celular no meio de uma conferência. */}
             {isFirstLogin
-              ? "Por segurança, você deve criar uma nova senha"
-              : "Altere sua senha de acesso"}
+              ? "Por segurança, crie uma senha só sua antes de continuar. Depois você entra direto no Painel Geral."
+              : "Ao salvar, as outras sessões abertas com a sua conta (outro navegador, celular) são encerradas."}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -210,9 +233,9 @@ export default function ChangePassword() {
                         {...field}
                       />
                     </FormControl>
-                    <FormDescription>
-                      Mínimo de 8 caracteres
-                    </FormDescription>
+                    {/* A descrição "Mínimo de 8 caracteres" saiu: repetia o
+                        primeiro item do checklist logo abaixo, que diz o
+                        mesmo e ainda marca quando foi atendido. */}
                     <FormMessage />
                   </FormItem>
                 )}
@@ -259,7 +282,7 @@ export default function ChangePassword() {
                 disabled={changePasswordMutation.isPending}
                 data-testid="button-change-password"
               >
-                {changePasswordMutation.isPending ? "Alterando..." : "Alterar Senha"}
+                {changePasswordMutation.isPending ? "Salvando…" : isFirstLogin ? "Criar senha e entrar" : "Salvar nova senha"}
               </Button>
             </form>
           </Form>

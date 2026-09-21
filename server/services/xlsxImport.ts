@@ -6,6 +6,52 @@ import { storage } from "../storage";
 import { insertItemSchema } from "@shared/schema";
 import { broadcast, createAuditLog, updateEventStatus } from "../routes/shared";
 import AdmZip from "adm-zip";
+import { carregarRemessa, criarRemessa, remessaSchema } from "./kitRemessas";
+import { cabecalhoDoKit, remessaUtilizavelPor, type CabecalhoDoKit } from "@shared/kit";
+
+  // ── O CABEÇALHO DA PLANILHA DO KIT (14/09) ───────────────────────────────
+  // Rótulo na coluna A, valor na B, nas linhas acima da tabela de peças; o
+  // nome do evento na A1. Null quando a planilha não é do Kit.
+  export function lerCabecalhoDoKit(buffer: Buffer): CabecalhoDoKit | null {
+    let zip: any;
+    try { zip = new AdmZip(buffer); } catch { return null; }
+    const compartilhadas: string[] = [];
+    const ssEntry = zip.getEntry("xl/sharedStrings.xml");
+    if (ssEntry) {
+      const ssXml = ssEntry.getData().toString("utf8");
+      for (const siM of Array.from(ssXml.matchAll(/<si>([\s\S]*?)<\/si>/g)) as RegExpMatchArray[]) {
+        compartilhadas.push(Array.from((siM[1] as string).matchAll(/<t[^>]*>([^<]*)<\/t>/g)).map((t) => (t as RegExpMatchArray)[1]).join(""));
+      }
+    }
+    const decodificar = (s: string) => s.replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&apos;/g, "'");
+    for (const entry of zip.getEntries()) {
+      if (!/^xl\/worksheets\/sheet\d+\.xml$/.test(entry.entryName)) continue;
+      const xml = entry.getData().toString("utf8");
+      const pares: Array<{ rotulo: string; valor: string }> = [];
+      let primeira: string | null = null;
+      for (const rowM of Array.from(xml.matchAll(/<row r="(\d+)"[^>]*>([\s\S]*?)<\/row>/g)) as RegExpMatchArray[]) {
+        const numero = parseInt(rowM[1] as string, 10);
+        if (numero > 40) break;
+        // Célula vazia auto-fechada (<c r="B9" s="2"/>) atrapalharia a regex.
+        const conteudo = (rowM[2] as string).replace(/<c [^>]*\/>/g, "");
+        const celulas: Record<string, string> = {};
+        for (const cm of Array.from(conteudo.matchAll(/<c r="([A-Z]+)\d+"([^>]*)>([\s\S]*?)<\/c>/g)) as RegExpMatchArray[]) {
+          const tipo = ((cm[2] as string).match(/\bt="([^"]+)"/) ?? [])[1] ?? "";
+          let valor = "";
+          if (tipo === "s") valor = compartilhadas[parseInt(((cm[3] as string).match(/<v>(\d+)<\/v>/) ?? [])[1] ?? "-1", 10)] ?? "";
+          else if (tipo === "inlineStr") valor = Array.from((cm[3] as string).matchAll(/<t[^>]*>([^<]*)<\/t>/g)).map((t) => (t as RegExpMatchArray)[1]).join("");
+          else valor = ((cm[3] as string).match(/<v>([^<]+)<\/v>/) ?? [])[1] ?? "";
+          valor = decodificar(valor).trim();
+          if (valor) celulas[cm[1] as string] = valor;
+        }
+        if (numero === 1 && celulas.A) primeira = celulas.A;
+        if (celulas.A && celulas.B) pares.push({ rotulo: celulas.A, valor: celulas.B });
+      }
+      const cabecalho = cabecalhoDoKit(pares, primeira);
+      if (cabecalho) return cabecalho;
+    }
+    return null;
+  }
 
 
   // ── A LEITURA DA PLANILHA, como função pura ──────────────────────────────
@@ -422,7 +468,9 @@ import AdmZip from "adm-zip";
         if (leitura.amostra) console.error("[preview-xlsx] header not found. File:", file.originalname, "\nRows scanned:\n" + leitura.amostra);
         return res.status(400).json({ error: leitura.erro });
       }
-      res.json({ items: leitura.items, fileName: file.originalname });
+      // Planilha do Kit: o cabeçalho (datas, versão, solicitante) vai junto
+      // para a tela sugerir a remessa nova.
+      res.json({ items: leitura.items, fileName: file.originalname, kit: lerCabecalhoDoKit(file.buffer) });
     } catch (error: any) {
       console.error("[preview-xlsx] unhandled error:", error.message, error.stack?.slice(0, 600));
       res.status(400).json({ error: error.message || "Erro ao processar arquivo" });
@@ -435,9 +483,38 @@ import AdmZip from "adm-zip";
       const event = await storage.getEvent(req.params.id);
       if (!event) return res.status(404).json({ error: "Evento não encontrado" });
 
-      const { items, fileName } = req.body as { items: any[]; fileName?: string };
+      const { items, fileName, kitRemessaId: kitCru } = req.body as { items: any[]; fileName?: string; kitRemessaId?: string };
       if (!items || !Array.isArray(items) || items.length === 0)
         return res.status(400).json({ error: "Nenhum item para importar" });
+
+      // KIT (14/09): importação para uma remessa do Kit; o usuário do Kit só
+      // importa para uma remessa dele.
+      let kitRemessaId = typeof kitCru === "string" && kitCru ? kitCru : null;
+      // Planilha do Kit com remessa NOVA: a remessa nasce aqui, com as datas
+      // conferidas na tela, e as peças entram nela.
+      const novaRemessa = (req.body as any)?.kitNovaRemessa;
+      if (!kitRemessaId && novaRemessa && typeof novaRemessa === "object") {
+        if (!["admin", "solicitacao"].includes((req as any).userRole ?? "")) {
+          return res.status(403).json({ error: "Criar remessa do Kit é do admin e da Solicitação." });
+        }
+        const dadosRemessa = remessaSchema.safeParse({ ...novaRemessa, eventId: event.id });
+        if (!dadosRemessa.success) {
+          return res.status(400).json({ error: dadosRemessa.error.errors?.[0]?.message || "Dados da remessa do Kit inválidos" });
+        }
+        const criada = await criarRemessa(req, dadosRemessa.data);
+        if ("erro" in criada) return res.status(criada.status).json({ error: criada.erro });
+        kitRemessaId = criada.remessa.id;
+      }
+      if ((req as any).userKit && !kitRemessaId) {
+        return res.status(400).json({ error: "Usuário do Kit importa só peças do Kit — escolha a remessa do Kit." });
+      }
+      if (kitRemessaId) {
+        const remessa = await carregarRemessa(kitRemessaId);
+        if (!remessa || remessa.eventId !== event.id) return res.status(400).json({ error: "Remessa do Kit inválida para este evento." });
+        if (!remessaUtilizavelPor({ kit: (req as any).userKit === true, userId: (req as any).userId }, remessa)) {
+          return res.status(403).json({ error: "Esta remessa do Kit é de outra pessoa." });
+        }
+      }
 
       const toCreate = items.map((item: any) => ({
         eventId: event.id,
@@ -458,6 +535,8 @@ import AdmZip from "adm-zip";
         measurement: item.measurement || "",
         observations: item.observations || "",
         status: "requested",
+        kitRemessaId,
+        criadoPorId: (req as any).userId ?? null,
       }));
 
       const validated = toCreate.map((item, i) => {
@@ -503,13 +582,20 @@ import AdmZip from "adm-zip";
           )
         ));
       }
-      const notification = await storage.createNotification({
-        type: "itemAdded",
-        message: `${created.length} itens importados via Excel — Evento: ${event.name}`,
-        eventId: event.id,
-        targetRoles: ["arte"], // só quem AGE agora: a Gráfica entra bem depois, quando liberam p/ produção
-      });
-      broadcast({ type: "notification_created", notification });
+      // O aviso não pode desfazer a importação (15/09): as peças já estão
+      // gravadas — erro aqui fazia a tela dizer "não deu" e a pessoa importar
+      // de novo, duplicando a remessa inteira.
+      try {
+        const notification = await storage.createNotification({
+          type: "itemAdded",
+          message: `${created.length} itens importados via Excel — Evento: ${event.name}`,
+          eventId: event.id,
+          targetRoles: ["arte"], // só quem AGE agora: a Gráfica entra bem depois, quando liberam p/ produção
+        });
+        broadcast({ type: "notification_created", notification });
+      } catch (erroDoAviso: any) {
+        console.error("[confirm-import] peças importadas, mas o aviso falhou:", erroDoAviso?.message);
+      }
       broadcast({ type: "items_bulk_created", items: created, eventId: event.id });
       await updateEventStatus(event.id);
 

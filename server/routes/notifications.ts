@@ -3,7 +3,7 @@ import type { Express } from "express";
 import { storage } from "../storage";
 import { requireAuth, broadcast } from "./shared";
 
-import { notifCache, setNotifCache, invalidateNotificationsCache } from "../cache";
+import { notifCache, setNotifCache, invalidateNotificationsCache, notifCacheGeneration } from "../cache";
 
 export function registerNotificationRoutes(app: Express): void {
   // ============ NOTIFICATIONS ============
@@ -17,19 +17,33 @@ export function registerNotificationRoutes(app: Express): void {
       const userId = (req as any).session?.userId ?? null;
       // Destinatário individual (14/09): o cache é por PERFIL; a notificação
       // de outra pessoa sai aqui, depois do cache, sem virar cache por usuário.
+      // Usuário do Kit (14/09): além disso, só o que é dele — aviso individual
+      // ou aviso sobre uma peça do Kit que ele criou.
+      // PERF (17/09): o recorte das peças do Kit deste usuário vai para o
+      // banco e volta só com os ids — antes o acervo inteiro (66 colunas ×
+      // todas as peças) era carregado a cada abertura do sino. Mesmo conjunto
+      // de ids que o filtro em JS produzia (ver getIdsDasPecasDoKitDoCriador).
+      const minhasDoKit = (req as any).session?.userKit === true
+        ? new Set(await storage.getIdsDasPecasDoKitDoCriador(userId))
+        : null;
       const doUsuario = (lista: any[]) =>
-        lista.filter((n) => !n.targetUserId || n.targetUserId === userId);
+        lista.filter((n) => (!n.targetUserId || n.targetUserId === userId)
+          && (!minhasDoKit || n.targetUserId === userId || (!!n.itemId && minhasDoKit.has(n.itemId))));
 
       const cached = notifCache.get(userRole);
       if (cached && cached.expiresAt > Date.now()) {
         return res.json(doUsuario(cached.data as any[]));
       }
 
+      // Geração anotada ANTES da leitura: se uma notificação nova (ou um
+      // "marcar como lida") invalidar o cache enquanto lemos, o resultado
+      // desta leitura não vira cache — ver o bloco GERAÇÃO em ../cache.
+      const geracao = notifCacheGeneration();
       const allNotifications = await storage.getAllNotifications();
 
       // Admin vê TODAS as notificações de perfil — as individuais, só as dele.
       if (userRole === "admin") {
-        setNotifCache(userRole, allNotifications);
+        setNotifCache(userRole, allNotifications, geracao);
         return res.json(doUsuario(allNotifications));
       }
       
@@ -43,7 +57,7 @@ export function registerNotificationRoutes(app: Express): void {
         return notification.targetRoles.includes(userRole);
       });
 
-      setNotifCache(userRole, filteredNotifications);
+      setNotifCache(userRole, filteredNotifications, geracao);
       res.json(doUsuario(filteredNotifications));
     } catch (error: any) {
       res.status(500).json({ error: error.message });

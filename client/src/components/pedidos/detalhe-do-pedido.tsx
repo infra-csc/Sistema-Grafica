@@ -1,19 +1,22 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// DETALHE DO PEDIDO — tudo sobre um pedido, com o histórico (dono, 14/09).
+// DETALHE DA SOLICITAÇÃO — tudo sobre ela, com o histórico (dono, 14/09).
 //
 // "Um modal para as solicitações, com histórico e tudo mais, para detalhar."
-// À esquerda o pedido inteiro (campos, texto, referências grandes, peças que
-// saíram e o andamento de cada uma); à direita a linha do tempo — criado,
-// editado, atendido, peça a mais, recusado, cancelado, reaberto — lida da
-// trilha de auditoria do pedido. As ações são as mesmas do cartão.
+// À esquerda a solicitação e CADA PEÇA inteira (campos, texto, referências
+// grandes, peças criadas e andamento, ajuste, motivos, e as ações da peça); à
+// direita a linha do tempo lida da trilha de auditoria da solicitação.
 // ─────────────────────────────────────────────────────────────────────────────
 import { useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Inbox } from "lucide-react";
 import {
+  patrocinadoresDaLinha,
   quantidadeDoPedido,
+  resumoDasLinhas,
+  rotuloDaLinha,
   textoDaObservacao,
   unidadesCriadas,
+  type LinhaDoPedido,
   type PedidoDePeca,
   type SeloDoEvento,
 } from "@shared/pedidos-de-peca";
@@ -21,14 +24,17 @@ import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/compone
 import { HIDE_NATIVE_CLOSE, ModalHeader, modalSurface } from "@/components/modal-shell";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { T, FS, R } from "@/lib/theme";
-import { BotaoDoCartao, type AcaoDoCartao } from "@/components/pedidos/cartao-do-pedido";
+import { BotaoDoCartao, MotivosDoBloqueio, type AcaoDoCartao } from "@/components/pedidos/cartao-do-pedido";
 import {
-  AndamentoDoPedido,
+  AjusteDaLinha,
+  AndamentoDaLinha,
   EstadoDoPedido,
-  PrazoDoPedido,
+  PrazoDaLinha,
+  QuemAgeNaLinha,
   ReferenciasDoPedido,
   SeloDoEventoChip,
   diaDoEvento,
+  medidaDaLinha,
   quandoFoi,
 } from "@/components/pedidos/ui";
 
@@ -46,10 +52,7 @@ function Campo({ rotulo, children }: { rotulo: string; children: React.ReactNode
 }
 
 /** A frase do registro, sem o prefixo técnico repetido. */
-const fraseDoRegistro = (r: RegistroDeAuditoria) => {
-  if (r.action === "created") return "Solicitação criada";
-  return r.details?.trim() || "Solicitação atualizada";
-};
+const fraseDoRegistro = (r: RegistroDeAuditoria) => r.details?.trim() || (r.action === "created" ? "Solicitação criada" : "Solicitação atualizada");
 
 const saidaDoCaminhao = (d: string | null | undefined) => {
   if (!d) return null;
@@ -57,20 +60,87 @@ const saidaDoCaminhao = (d: string | null | undefined) => {
   return `${iso.slice(8, 10)}/${iso.slice(5, 7)} às ${iso.slice(11, 16)}`;
 };
 
-export function DetalheDoPedido({ pedido, agora, selo, acoes, onFechar }: {
+function PecaDoDetalhe({ linha, numero, agora, selo, acoes }: { linha: LinhaDoPedido; numero: number; agora: Date; selo: SeloDoEvento | null; acoes: AcaoDoCartao[] }) {
+  const isMobile = useIsMobile();
+  const pecas = linha.pecas ?? [];
+  const referencias = linha.referencias ?? [];
+  const criadas = unidadesCriadas(pecas);
+  const medida = medidaDaLinha(linha);
+  return (
+    <section data-testid={`detalhe-linha-${linha.id}`} style={{ border: "1px solid #e7e5e4", borderRadius: R.lg, padding: isMobile ? 12 : 16, display: "flex", flexDirection: "column", gap: 14 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+        <span style={{ fontSize: FS.small, fontWeight: 800, color: "#57534e", letterSpacing: "0.06em", textTransform: "uppercase" }}>Peça {numero}</span>
+        <EstadoDoPedido status={linha.status} />
+        <strong style={{ fontSize: 15, color: T.text }}>{quantidadeDoPedido(linha.quantidade)} · {rotuloDaLinha(linha)}</strong>
+      </div>
+      <dl style={{ margin: 0, display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(170px, 1fr))", gap: "12px 20px" }}>
+        <Campo rotulo="Evento">{linha.eventName ?? "Evento removido"}{linha.eventStart ? ` · ${diaDoEvento(linha.eventStart)}` : ""}</Campo>
+        <Campo rotulo="Patrocinadores">{patrocinadoresDaLinha(linha)}</Campo>
+        <Campo rotulo="Quantidade">
+          {quantidadeDoPedido(linha.quantidade)}
+          {pecas.length > 0 && criadas !== linha.quantidade && (
+            <span style={{ display: "block", fontSize: FS.small, color: "#92400e", fontWeight: 700 }}>criadas {criadas} un.</span>
+          )}
+        </Campo>
+        <Campo rotulo="Precisa até">
+          {linha.precisaAte ? new Date(linha.precisaAte).toISOString().slice(0, 10).split("-").reverse().join("/") : "—"}
+          <span style={{ display: "block", marginTop: 4 }}><PrazoDaLinha linha={linha} agora={agora} /></span>
+        </Campo>
+        <Campo rotulo="Saída do caminhão">
+          {saidaDoCaminhao(linha.eventSaida) ?? "—"}
+          {selo && <span style={{ display: "block", marginTop: 4 }}><SeloDoEventoChip selo={selo} pedidoId={linha.id} /></span>}
+        </Campo>
+        <Campo rotulo="Medida da área visual">{medida ?? "—"}</Campo>
+      </dl>
+      {/* Sem texto não há o que citar — aspas vazias pareciam dado perdido. */}
+      {textoDaObservacao(linha.observacao) && (
+        <div>
+          <h4 style={TITULO_DA_SECAO}>O que precisa</h4>
+          <p style={{ margin: 0, padding: "10px 12px", borderLeft: "3px solid #d6d3d1", background: "#fafaf9", borderRadius: R.sm, fontSize: 14, color: "#44403c", lineHeight: 1.55, whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>
+            “{textoDaObservacao(linha.observacao)}”
+          </p>
+        </div>
+      )}
+      {referencias.length > 0 && (
+        <div>
+          <h4 style={TITULO_DA_SECAO}>Referências ({referencias.length})</h4>
+          <ReferenciasDoPedido urls={referencias} tamanho={isMobile ? 84 : 108} legenda />
+        </div>
+      )}
+      <AndamentoDaLinha linha={linha} />
+      <AjusteDaLinha linha={linha} />
+      {linha.status === "recusado" && (
+        <p style={{ margin: 0, fontSize: 14, color: "#991b1b", lineHeight: 1.5 }}><strong>Motivo da recusa:</strong> {linha.motivoRecusa}</p>
+      )}
+      {linha.status === "cancelado" && (
+        <p style={{ margin: 0, fontSize: 14, color: "#44403c", lineHeight: 1.5 }}><strong>Motivo do cancelamento:</strong> {linha.motivoCancelamento ?? "—"}</p>
+      )}
+      <QuemAgeNaLinha linha={linha} />
+      {acoes.length > 0 && (
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {acoes.map((a) => <BotaoDoCartao key={a.chave} acao={a} altura={isMobile ? 44 : 36} descritoPor={`bloqueio-detalhe-${linha.id}`} />)}
+        </div>
+      )}
+      <MotivosDoBloqueio acoes={acoes} id={`bloqueio-detalhe-${linha.id}`} />
+    </section>
+  );
+}
+
+export function DetalheDoPedido({ pedido, agora, seloDe, acoesDaLinha, acoes = [], onFechar }: {
   pedido: PedidoDePeca | null;
   agora: Date;
-  selo: SeloDoEvento | null;
-  acoes: AcaoDoCartao[];
+  seloDe: (linha: LinhaDoPedido) => SeloDoEvento | null;
+  acoesDaLinha: (linha: LinhaDoPedido) => AcaoDoCartao[];
+  acoes?: AcaoDoCartao[];
   onFechar: () => void;
 }) {
   const isMobile = useIsMobile();
-  // Durante o fade de saída o pedido já é null: mantém o último na tela.
+  // Durante o fade de saída a solicitação já é null: mantém a última na tela.
   const ultimo = useRef<PedidoDePeca | null>(pedido);
   if (pedido) ultimo.current = pedido;
   const p = pedido ?? ultimo.current;
 
-  const { data: registros = [], isLoading, isError } = useQuery<RegistroDeAuditoria[]>({
+  const { data: registros = [], isLoading, isError, refetch, isFetching } = useQuery<RegistroDeAuditoria[]>({
     queryKey: [`/api/audit-logs?entityType=pedido_de_peca&entityId=${p?.id ?? ""}&limit=100`],
     enabled: !!pedido,
   });
@@ -79,96 +149,53 @@ export function DetalheDoPedido({ pedido, agora, selo, acoes, onFechar }: {
     .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
 
   if (!p) return null;
-  const medida = p.largura && p.altura ? `${Number(p.largura).toLocaleString("pt-BR")} × ${Number(p.altura).toLocaleString("pt-BR")} m` : null;
-  // Servidor antigo (sem reiniciar) ou cache velho podem mandar sem estas listas.
-  const pecas = p.pecas ?? [];
-  const referencias = p.referencias ?? [];
-  const criadas = unidadesCriadas(pecas);
-  const alvo = isMobile ? 44 : 38;
+  const linhas = p.linhas ?? [];
+  // As ações fecham o detalhe antes (a janela do motivo abre sobre a tela).
+  const fechandoAntes = (lista: AcaoDoCartao[]) => lista.map((a) => (a.onClick ? { ...a, onClick: () => { onFechar(); a.onClick!(); } } : a));
 
   return (
     <Dialog open={!!pedido} onOpenChange={(aberto) => { if (!aberto) onFechar(); }}>
-      <DialogContent data-testid="detalhe-do-pedido" className={HIDE_NATIVE_CLOSE} style={modalSurface(1000)}>
-        <DialogTitle className="sr-only">Solicitação de peça — {p.sponsorName ?? "sem patrocinador"}</DialogTitle>
-        <DialogDescription className="sr-only">{p.eventName ?? "Evento"}</DialogDescription>
+      <DialogContent data-testid="detalhe-do-pedido" className={HIDE_NATIVE_CLOSE} style={modalSurface(1080)}>
+        <DialogTitle className="sr-only">Solicitação de peças — {linhas.length} {linhas.length === 1 ? "peça" : "peças"}</DialogTitle>
+        <DialogDescription className="sr-only">Solicitada por {p.pedidoPor ?? "—"}</DialogDescription>
         <ModalHeader
           icon={Inbox}
           tint="#b45309"
-          title={`${quantidadeDoPedido(p.quantidade)} · ${p.sponsorName ?? "Patrocinador removido"}`}
-          subtitle={`${p.eventName ?? "Evento removido"}${p.eventStart ? ` · ${diaDoEvento(p.eventStart)}` : ""}`}
+          title={`Solicitação · ${linhas.length} ${linhas.length === 1 ? "peça" : "peças"}`}
+          subtitle={`Solicitada por ${p.pedidoPor ?? "—"} · ${quandoFoi(p.createdAt)}${linhas.length > 1 ? ` · ${resumoDasLinhas(linhas)}` : ""}`}
           onClose={onFechar}
         />
 
         <div style={{
           flex: "1 1 auto", minHeight: 0, overflowY: "auto", padding: isMobile ? 16 : "20px 28px",
           display: "grid", gap: isMobile ? 20 : "0 32px", alignItems: "start",
-          gridTemplateColumns: isMobile ? "minmax(0, 1fr)" : "minmax(0, 1.35fr) minmax(0, 1fr)",
+          gridTemplateColumns: isMobile ? "minmax(0, 1fr)" : "minmax(0, 1.6fr) minmax(0, 1fr)",
         }}>
-          <div style={{ display: "flex", flexDirection: "column", gap: 18, minWidth: 0 }}>
-            <dl style={{ margin: 0, display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(170px, 1fr))", gap: "12px 20px" }}>
-              <Campo rotulo="Estado"><EstadoDoPedido status={p.status} /></Campo>
-              <Campo rotulo="Quantidade">
-                {quantidadeDoPedido(p.quantidade)}
-                {pecas.length > 0 && criadas !== p.quantidade && (
-                  <span style={{ display: "block", fontSize: FS.small, color: "#92400e", fontWeight: 700 }}>criadas {criadas} un.</span>
-                )}
-              </Campo>
-              <Campo rotulo="Precisa até">
-                {p.precisaAte ? new Date(p.precisaAte).toISOString().slice(0, 10).split("-").reverse().join("/") : "—"}
-                <span style={{ display: "block", marginTop: 4 }}><PrazoDoPedido pedido={p} agora={agora} /></span>
-              </Campo>
-              <Campo rotulo="Saída do caminhão">
-                {saidaDoCaminhao(p.eventSaida) ?? "—"}
-                {selo && <span style={{ display: "block", marginTop: 4 }}><SeloDoEventoChip selo={selo} pedidoId={p.id} /></span>}
-              </Campo>
-              <Campo rotulo="Tipo de peça">{p.tipoDePeca ?? "—"}</Campo>
-              <Campo rotulo="Medida da área visual">{medida ?? "—"}</Campo>
-              <Campo rotulo="Solicitada por">{p.pedidoPor ?? "—"}<span style={{ display: "block", fontSize: FS.small, color: "#57534e", fontWeight: 500 }}>{quandoFoi(p.createdAt)}</span></Campo>
-              {p.editadoEm && (
-                <Campo rotulo="Última edição">{p.editadoPor ?? "—"}<span style={{ display: "block", fontSize: FS.small, color: "#57534e", fontWeight: 500 }}>{quandoFoi(p.editadoEm)}</span></Campo>
-              )}
-            </dl>
-
-            <section>
-              <h3 style={TITULO_DA_SECAO}>O que precisa</h3>
-              <p style={{ margin: 0, padding: "10px 12px", borderLeft: "3px solid #d6d3d1", background: "#fafaf9", borderRadius: R.sm, fontSize: 14, color: "#44403c", lineHeight: 1.55, whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>
-                “{textoDaObservacao(p.observacao)}”
-              </p>
-            </section>
-
-            {referencias.length > 0 && (
-              <section>
-                <h3 style={TITULO_DA_SECAO}>Referências ({referencias.length})</h3>
-                <ReferenciasDoPedido urls={referencias} tamanho={isMobile ? 84 : 108} legenda />
-              </section>
-            )}
-
-            {p.status === "atendido" && (
-              <section>
-                <h3 style={TITULO_DA_SECAO}>Peças que saíram da solicitação</h3>
-                <AndamentoDoPedido pedido={p} />
-              </section>
-            )}
-            {p.status === "recusado" && (
-              <section>
-                <h3 style={TITULO_DA_SECAO}>Motivo da recusa</h3>
-                <p style={{ margin: 0, fontSize: 14, color: "#991b1b", lineHeight: 1.5 }}>{p.motivoRecusa}</p>
-              </section>
-            )}
-            {p.status === "cancelado" && (
-              <section>
-                <h3 style={TITULO_DA_SECAO}>Motivo do cancelamento</h3>
-                <p style={{ margin: 0, fontSize: 14, color: "#44403c", lineHeight: 1.5 }}>{p.motivoCancelamento ?? "—"}</p>
-              </section>
-            )}
+          <div style={{ display: "flex", flexDirection: "column", gap: 14, minWidth: 0 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+              <EstadoDoPedido status={p.status} />
+              {acoes.length > 0 && fechandoAntes(acoes).map((a) => <BotaoDoCartao key={a.chave} acao={a} altura={isMobile ? 44 : 36} />)}
+            </div>
+            {linhas.map((l, i) => (
+              <PecaDoDetalhe key={l.id} linha={l} numero={i + 1} agora={agora} selo={seloDe(l)} acoes={fechandoAntes(acoesDaLinha(l))} />
+            ))}
           </div>
 
           <section data-testid="historico-do-pedido" aria-labelledby="titulo-historico-pedido" style={{ minWidth: 0 }}>
             <h3 id="titulo-historico-pedido" style={TITULO_DA_SECAO}>Histórico</h3>
+            {/* Falha no histórico tem botão de tentar de novo: a frase antiga
+                ("feche e abra a solicitação") mandava perder o lugar para
+                refazer o que um clique faz. */}
             {isLoading ? (
-              <p style={{ margin: 0, fontSize: FS.body, color: "#57534e" }}>Carregando o histórico…</p>
+              <p role="status" style={{ margin: 0, fontSize: FS.body, color: "#57534e" }}>Carregando o histórico…</p>
             ) : isError ? (
-              <p style={{ margin: 0, fontSize: FS.body, color: "#b91c1c" }}>Não foi possível carregar o histórico.</p>
+              <p role="alert" style={{ margin: 0, fontSize: FS.body, color: "#b91c1c", lineHeight: 1.45 }}>
+                Não foi possível carregar o histórico.{" "}
+                <button type="button" onClick={() => refetch()} disabled={isFetching} data-testid="button-recarregar-historico"
+                  style={{ border: "none", background: "none", padding: "0 4px", minHeight: isMobile ? 44 : 36, fontSize: FS.body, fontWeight: 800, textDecoration: "underline", color: T.text, cursor: isFetching ? "wait" : "pointer" }}>
+                  {isFetching ? "Tentando…" : "Tentar de novo"}
+                </button>
+              </p>
             ) : historico.length === 0 ? (
               <p style={{ margin: 0, fontSize: FS.body, color: "#57534e" }}>Nenhum registro ainda.</p>
             ) : (
@@ -189,18 +216,6 @@ export function DetalheDoPedido({ pedido, agora, selo, acoes, onFechar }: {
             )}
           </section>
         </div>
-
-        {acoes.length > 0 && (
-          <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, flexWrap: "wrap", padding: isMobile ? "12px 16px" : "14px 28px", borderTop: "1px solid #ebe8e4", background: "#fff", flexShrink: 0 }}>
-            {acoes.map((a) => (
-              <BotaoDoCartao
-                key={a.chave}
-                altura={alvo}
-                acao={a.href ? a : { ...a, onClick: () => { onFechar(); a.onClick?.(); } }}
-              />
-            ))}
-          </div>
-        )}
       </DialogContent>
     </Dialog>
   );

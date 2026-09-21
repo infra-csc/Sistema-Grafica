@@ -34,6 +34,8 @@ export function registerAuthRoutes(app: Express): void {
       // Create user (SSO-only: no password change required)
       const user = await storage.createUser({
         ...userData,
+        // Usuário do Kit só existe no perfil Solicitação (14/09).
+        kit: userData.role === "solicitacao" && userData.kit === true,
         passwordHash,
         mustChangePassword: false,
       });
@@ -79,6 +81,7 @@ export function registerAuthRoutes(app: Express): void {
       req.session.userId = user.id;
       req.session.userName = user.name;
       req.session.userRole = user.role;
+      req.session.userKit = user.kit === true;
 
       // O carimbo de login. Fora do caminho crítico de propósito: se o UPDATE
       // falhar, a pessoa ENTRA mesmo assim — o registro existe para a gestão
@@ -120,9 +123,52 @@ export function registerAuthRoutes(app: Express): void {
 
       // Don't send password hash to client
       const { passwordHash: _, ...userWithoutPassword } = user;
-      res.json(userWithoutPassword);
+      // VER COMO (15/09): enquanto o admin navega como outro perfil, a tela
+      // recebe o perfil da sessão — e o perfil real, para a faixa "Voltar".
+      const verComo = req.session.papelReal
+        ? { role: req.session.userRole, kit: req.session.userKit === true, papelReal: req.session.papelReal }
+        : { papelReal: null };
+      res.json({ ...userWithoutPassword, ...verComo });
     } catch (error: any) {
       sendSensitiveError(res, error, "Get current user error", 500);
+    }
+  });
+
+  // VER COMO (dono, 15/09): "um botão para trocar meu usuário de perfil e ver
+  // como estão os outros perfis". Só quem É admin; troca o perfil da SESSÃO
+  // (não do cadastro), e todo o servidor passa a responder como aquele perfil.
+  // "admin" volta. Novo login ou troca de perfil no cadastro também desfazem.
+  app.post("/api/auth/ver-como", requireAuth, async (req, res) => {
+    try {
+      const papelReal = req.session.papelReal ?? req.session.userRole;
+      if (papelReal !== "admin") {
+        return res.status(403).json({ error: "Só o administrador pode ver o sistema como outro perfil." });
+      }
+      const perfil = typeof req.body?.role === "string" ? req.body.role : "";
+      if (!["admin", "solicitacao", "arte", "grafica", "atendimento"].includes(perfil)) {
+        return res.status(400).json({ error: "Perfil inválido" });
+      }
+      const kit = perfil === "solicitacao" && req.body?.kit === true;
+      if (perfil === "admin") {
+        req.session.userRole = "admin";
+        req.session.userKit = false;
+        delete req.session.papelReal;
+      } else {
+        req.session.papelReal = "admin";
+        req.session.userRole = perfil;
+        req.session.userKit = kit;
+      }
+      await new Promise<void>((ok, falhou) => req.session.save((e) => (e ? falhou(e) : ok())));
+      await createAuditLog(
+        req.userName!,
+        'updated',
+        'user',
+        req.session.userId!,
+        perfil === "admin" ? "Voltou a ver o sistema como administrador" : `Passou a ver o sistema como ${perfil}${kit ? " (Kit)" : ""}`,
+      );
+      res.json({ role: perfil, kit, papelReal: perfil === "admin" ? null : "admin" });
+    } catch (error: any) {
+      sendSensitiveError(res, error, "Ver como error", 500);
     }
   });
 
@@ -248,7 +294,8 @@ export function registerAuthRoutes(app: Express): void {
       // If the role changed, invalidate all active sessions for that user so
       // they get the new role on their next login. Session data stores userId
       // as a JSON string field inside the `sess` column.
-      if (validatedData.role !== undefined) {
+      // A marca de usuário do Kit muda o que a pessoa enxerga: mesma regra.
+      if (validatedData.role !== undefined || validatedData.kit !== undefined) {
         try {
           await pool.query(
             `DELETE FROM session WHERE (sess->>'userId') = $1`,
@@ -267,6 +314,7 @@ export function registerAuthRoutes(app: Express): void {
         'user',
         user.id,
         `Usuário "${user.name}" atualizado${validatedData.role ? ` (perfil: ${validatedData.role})` : ""}`
+        + (validatedData.kit !== undefined ? (validatedData.kit ? " — marcado como usuário do Kit" : " — deixou de ser usuário do Kit") : "")
       );
 
       // Don't send password hash to client

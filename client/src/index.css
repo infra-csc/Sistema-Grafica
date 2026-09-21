@@ -368,6 +368,16 @@
     background-color: var(--elevate-2);
   }
 
+  /* Botão desabilitado recebe o ponteiro (para o `title` com o motivo
+     aparecer — ver components/ui/button.tsx), mas não pode ACENDER no hover:
+     realce é promessa de clique, e o clique não vai acontecer. */
+  .hover-elevate:disabled:hover::after,
+  .active-elevate:disabled:active::after,
+  .hover-elevate-2:disabled:hover::after,
+  .active-elevate-2:disabled:active::after {
+    background-color: transparent;
+  }
+
   /* If there's a 1px border, adjust the inset so that it covers that parent's border */
   .border.hover-elevate:not(.no-hover-interaction-elevate)::after,
   .border.active-elevate:not(.no-active-interaction-elevate)::after,
@@ -799,6 +809,45 @@
   background: #e7e5e4;
   border-radius: 2px;
 }
+/* ── Microinterações da casca ───────────────────────────────────────────────
+   Duas, e só duas. A barra de tempo do toast (encolhe da esquerda para a
+   direita; pausa sob o ponteiro via animation-play-state) e a entrada das
+   superfícies flutuantes da casca (busca global, sino): 140ms de fade com 4px
+   de subida — o suficiente para o olho saber de onde a coisa veio, curto
+   demais para parecer que o sistema está "fazendo charme". Ambas caem na
+   regra de prefers-reduced-motion no fim deste arquivo. */
+@keyframes norte-toast-tempo {
+  from { transform: scaleX(1); }
+  to   { transform: scaleX(0); }
+}
+@keyframes norte-surge {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.norte-surge {
+  animation: norte-surge 140ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+/* Link "Pular para o conteúdo": invisível até receber foco pelo teclado. Quem
+   navega por Tab atravessava a sidebar inteira (até 23 itens) em TODA tela
+   antes de chegar ao primeiro controle da página. */
+.pular-para-conteudo {
+  position: absolute;
+  left: 12px;
+  top: -60px;
+  z-index: 300;
+  padding: 10px 16px;
+  border-radius: 9px;
+  background: #1c1917;
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 700;
+  text-decoration: none;
+}
+.pular-para-conteudo:focus {
+  top: 12px;
+}
+
 @keyframes thumb-saved-pop {
   0%   { transform: scale(0.97); opacity: 0.7; }
   60%  { transform: scale(1.02); opacity: 1; }
@@ -821,4 +870,16 @@
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
+}
+
+/* ── Celular: legibilidade e alvo de toque (Gráfica mobile, 17/09) ──────────
+   Estilos inline não têm media query; estas classes só existem para isto.
+   Pílula de status pequena e selo do Kit usavam 10px — ilegível no galpão, sob
+   luz ruim. O X dos modais tinha 34/40px — abaixo do alvo de 44 no toque. */
+@media (max-width: 767px) {
+  .status-pill-sm { font-size: 12px !important; }
+  .selo-kit { font-size: 12px !important; }
+}
+@media (pointer: coarse) {
+  .modal-fechar { width: 44px !important; height: 44px !important; }
 }

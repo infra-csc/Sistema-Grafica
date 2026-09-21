@@ -42,12 +42,15 @@ describe("tabela ↔ código, sem sobras de nenhum lado", () => {
     expect(fantasmas).toEqual([]);
   });
 
-  it("são as 88 — o número que o diagnóstico mediu; mudou, atualize os dois", () => {
-    // 88 = as 78 do diagnóstico + o descancelar do admin (01/09) + iniciar impressão (14/09)
+  it("são as 87 — o número que o diagnóstico mediu; mudou, atualize os dois", () => {
+    // 87 = as 78 do diagnóstico + o descancelar do admin (01/09)
     //    + reservar e liberar peça do estoque (14/09)
     //    + pedir, atender, recusar, cancelar, editar e reabrir pedido de peça (14/09).
-    expect(REGUA_DE_PAPEIS.length).toBe(88);
-    expect(doCodigo.length).toBe(88);
+    // (Branch de produção: sem o "iniciar impressão" da Gráfica, que segurou.)
+    //    + pedir e responder ajuste de solicitação de peça (14/09).
+    //    + criar remessa do Kit (14/09) + excluir remessa do Kit (15/09).
+    expect(REGUA_DE_PAPEIS.length).toBe(91);
+    expect(doCodigo.length).toBe(91);
   });
 });
 

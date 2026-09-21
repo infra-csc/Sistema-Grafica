@@ -6,6 +6,8 @@ import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import type { CabecalhoDoKit } from "@shared/kit";
+import type { DestinoDaImportacao } from "@/components/kit/destino-da-importacao";
 
 interface EventSponsorListEntry {
   sponsorId: string;
@@ -29,6 +31,8 @@ export function useEventImport({ eventId, eventSponsorsList, eventQuotaRules }: 
   const [importPreviewOpen, setImportPreviewOpen] = useState(false);
   const [importFileName, setImportFileName] = useState<string>("");
   const [importSearch, setImportSearch] = useState("");
+  // Cabeçalho da planilha do Kit (datas, versão), quando a planilha é do Kit.
+  const [importKit, setImportKit] = useState<CabecalhoDoKit | null>(null);
 
   // ── Preview Excel mutation (parse → show review modal) ─────────────────
   const previewXlsxMutation = useMutation({
@@ -87,11 +91,12 @@ export function useEventImport({ eventId, eventSponsorsList, eventQuotaRules }: 
         };
       });
       setImportPreviewItems(withIds);
+      setImportKit(data.kit ?? null);
       setImportFileName(data.fileName || "");
       setImportSearch("");
     },
     onError: (error: any) => {
-      toast({ title: "Erro ao processar planilha", description: error.message, variant: "destructive" });
+      toast({ title: "Não foi possível ler a planilha", description: error.message, variant: "destructive" });
     },
   });
 
@@ -110,8 +115,14 @@ export function useEventImport({ eventId, eventSponsorsList, eventQuotaRules }: 
   // as peças que o evento já tem, e dizendo QUAIS se repetem. Ver
   // `chaveDaPeca` em components/import-xlsx-dialog.tsx.
   const confirmImportMutation = useMutation({
-    mutationFn: async ({ items, fileName }: { items: any[]; fileName: string }) => {
-      const response = await apiRequest("POST", `/api/events/${eventId}/confirm-import`, { items, fileName });
+    mutationFn: async ({ items, fileName, destino }: { items: any[]; fileName: string; destino?: DestinoDaImportacao }) => {
+      const response = await apiRequest("POST", `/api/events/${eventId}/confirm-import`, {
+        items,
+        fileName,
+        // Kit (14/09): remessa existente ou nova (o servidor cria e liga).
+        ...(destino?.tipo === "remessa" ? { kitRemessaId: destino.kitRemessaId } : {}),
+        ...(destino?.tipo === "nova" ? { kitNovaRemessa: destino.kitNovaRemessa } : {}),
+      });
       if (!response.ok) {
         const err = await response.json();
         throw new Error(err.error || "Erro ao importar");
@@ -121,15 +132,20 @@ export function useEventImport({ eventId, eventSponsorsList, eventQuotaRules }: 
     onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ["/api/items", eventId] });
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+      queryClient.invalidateQueries({ predicate: (q) => String(q.queryKey[0] ?? "").startsWith("/api/kit/remessas") });
       setImportDialogOpen(false);
       setImportPreviewItems(null);
+      setImportKit(null);
       setImportFile(null);
       setImportFileName("");
       setImportSearch("");
-      toast({ title: `${data.imported} peças importadas com sucesso`, description: "Os itens foram adicionados ao evento." });
+      toast({
+        title: `${data.imported} ${data.imported === 1 ? "peça importada" : "peças importadas"}`,
+        description: "Entraram em Rascunho — envie para a vinculação quando a lista estiver pronta.",
+      });
     },
     onError: (error: any) => {
-      toast({ title: "Erro na importação", description: error.message, variant: "destructive" });
+      toast({ title: "Não foi possível importar as peças", description: error.message, variant: "destructive" });
     },
   });
 
@@ -150,6 +166,7 @@ export function useEventImport({ eventId, eventSponsorsList, eventQuotaRules }: 
     setImportSearch,
     previewXlsxMutation,
     confirmImportMutation,
+    importKit,
   };
 }
 
@@ -181,12 +198,12 @@ export function useEventClone({ eventId }: UseEventCloneParams) {
       setCloneDialogOpen(false);
       setCloneSourceId("");
       toast({
-        title: `${data.cloned} peças clonadas com sucesso`,
-        description: "Os itens foram copiados para este evento.",
+        title: `${data.cloned} ${data.cloned === 1 ? "peça clonada" : "peças clonadas"}`,
+        description: "Entraram em Rascunho — envie para a vinculação quando a lista estiver pronta.",
       });
     },
     onError: (error: any) => {
-      toast({ title: "Erro ao clonar", description: error.message, variant: "destructive" });
+      toast({ title: "Não foi possível clonar as peças", description: error.message, variant: "destructive" });
     },
   });
 

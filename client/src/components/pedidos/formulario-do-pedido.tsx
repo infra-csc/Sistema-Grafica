@@ -1,26 +1,26 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// FORMULÁRIO DO PEDIDO — janela central para criar e editar (14/09).
+// NOVA SOLICITAÇÃO — janela central com VÁRIAS PEÇAS (dono, 14/09).
 //
-// Pedido do dono: modal central, sem rolagem (pode ser grande). Por isso duas
-// colunas no desktop — à esquerda o QUE e PARA QUANDO (evento, patrocinador,
-// quantidade, prazo, tipo, medida); à direita a DESCRIÇÃO e as referências.
-// No celular vira uma coluna e rola, que é o único jeito de caber.
+// "Poder solicitar mais de uma peça por solicitação, e cada uma teria seu
+// status. Pode selecionar outro evento e outro patrocinador, e pode colocar
+// sem patrocinador também, ou mais de um patrocinador por peça."
 //
-// Regras que o formulário cuida antes do servidor:
-//   · evento só em andamento; o prazo nasce com a saída do caminhão;
-//   · avisa se o caminhão já saiu ou se o prazo passa da saída;
-//   · referências: várias, arrastar/colar, e SALVAR TRAVA enquanto alguma
-//     imagem ainda está subindo.
+// Cada peça é um bloco com evento, patrocinadores (nenhum, um ou vários),
+// quantidade, prazo, tipo, medida, o que precisa e as próprias referências.
+// "Adicionar outra peça" já traz evento, patrocinadores e prazo da anterior —
+// o caso comum é várias peças do mesmo evento.
+//
+// Não há edição: o Atendimento, se errou, cancela e cria outra.
 // ─────────────────────────────────────────────────────────────────────────────
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { AlertTriangle, ImagePlus, Inbox, Send } from "lucide-react";
+import { AlertTriangle, Copy, ImagePlus, Inbox, Plus, Send, Trash2, X } from "lucide-react";
 import type { Sponsor } from "@shared/schema";
 import {
+  MAX_PECAS_POR_SOLICITACAO,
   MAX_REFERENCIAS_DO_PEDIDO,
   avisoDoPrazo,
   caminhaoJaSaiu,
-  type PedidoDePeca,
 } from "@shared/pedidos-de-peca";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { HIDE_NATIVE_CLOSE, ModalHeader, modalSurface } from "@/components/modal-shell";
@@ -28,13 +28,17 @@ import { FilterSelect } from "@/components/filter-select";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useFileUpload } from "@/hooks/use-file-upload";
+import { ProgressoDoEnvio, rotuloDoEnvio } from "@/components/FileUploader";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { motivoEventoFinalizado, todayBusinessMs } from "@/lib/status";
 import { T, FS, R } from "@/lib/theme";
 import { ReferenciasDoPedido, diaDoEvento, invalidarPedidos, mensagemDaApi } from "@/components/pedidos/ui";
 
 const ROTULO: React.CSSProperties = { display: "block", fontSize: FS.small, fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase", color: "#57534e", marginBottom: 6 };
-const CAMPO: React.CSSProperties = { width: "100%", boxSizing: "border-box", height: 42, padding: "0 12px", borderRadius: R.md, border: "1px solid #d6d3d1", background: "#ffffff", fontSize: 14, color: T.text, outline: "none", fontFamily: "inherit" };
+const CAMPO: React.CSSProperties = { width: "100%", boxSizing: "border-box", height: 40, padding: "0 12px", borderRadius: R.md, border: "1px solid #d6d3d1", background: "#ffffff", fontSize: 14, color: T.text, fontFamily: "inherit" };
+// Sem `outline: "none"` de propósito: o estilo inline vencia o :focus-visible
+// global e os campos do formulário não mostravam onde estava o foco — quem
+// navega por Tab via só o cursor piscando, e nos gatilhos de seleção nem isso.
 /** O gatilho do FilterSelect herda centralizado do botão — aqui é campo. */
 const GATILHO: React.CSSProperties = { ...CAMPO, textAlign: "left", justifyContent: "space-between" };
 const OPCIONAL = <span style={{ fontWeight: 600, textTransform: "none", letterSpacing: 0 }}>(opcional)</span>;
@@ -46,24 +50,30 @@ const numeroDoCampo = (v: string) => {
   return Number.isFinite(n) && n > 0 ? n : null;
 };
 
-type Estado = {
-  eventId: string; sponsorId: string; quantidade: string; precisaAte: string;
+export type PecaDoFormulario = {
+  chave: string;
+  eventId: string; sponsorIds: string[]; quantidade: string; precisaAte: string;
   tipoDePeca: string; largura: string; altura: string; observacao: string; referencias: string[];
+  enviando: boolean;
 };
 
-const vazio: Estado = { eventId: "", sponsorId: "", quantidade: "1", precisaAte: "", tipoDePeca: "", largura: "", altura: "", observacao: "", referencias: [] };
-
-const doPedido = (p: PedidoDePeca): Estado => ({
-  eventId: p.eventId,
-  sponsorId: p.sponsorId ?? "",
-  quantidade: String(p.quantidade),
-  precisaAte: dataDoCampo(p.precisaAte),
-  tipoDePeca: p.tipoDePeca ?? "",
-  largura: p.largura ? String(Number(p.largura)) : "",
-  altura: p.altura ? String(Number(p.altura)) : "",
-  observacao: p.observacao,
-  referencias: p.referencias ?? [],
+let sequencia = 0;
+const novaPeca = (base?: Partial<PecaDoFormulario>): PecaDoFormulario => ({
+  chave: `peca-${Date.now()}-${sequencia++}`,
+  eventId: "", sponsorIds: [], quantidade: "1", precisaAte: "", tipoDePeca: "", largura: "", altura: "", observacao: "", referencias: [],
+  ...base,
+  enviando: false,
 });
+
+/** O que falta nesta peça, ou null. */
+export function faltaNaPeca(p: PecaDoFormulario): string | null {
+  if (!p.eventId) return "escolha o evento";
+  if (!(parseInt(p.quantidade, 10) >= 1)) return "informe a quantidade (mínimo 1)";
+  if ((p.largura && !numeroDoCampo(p.largura)) || (p.altura && !numeroDoCampo(p.altura))) return "medida inválida — use números, ex.: 3 × 1";
+  if (p.observacao.trim().length < 3) return "descreva o que precisa";
+  if (p.enviando) return "aguarde o envio das imagens";
+  return null;
+}
 
 function Aviso({ children, testId }: { children: React.ReactNode; testId?: string }) {
   return (
@@ -73,273 +83,402 @@ function Aviso({ children, testId }: { children: React.ReactNode; testId?: strin
   );
 }
 
-export function FormularioDoPedido({ aberto, pedido, onFechar }: {
-  aberto: boolean;
-  /** Presente = editar este pedido; ausente = novo pedido. */
-  pedido: PedidoDePeca | null;
-  onFechar: () => void;
+function BlocoDaPeca({ peca, numero, total, eventos, eventosCarregando, opcoesDeEvento, patrocinadores, modelos, nomesDeModelos, onMudar, onRemover, onDuplicar }: {
+  peca: PecaDoFormulario;
+  /** Enquanto a lista de eventos chega, o menu diz "carregando", não "nenhum". */
+  eventosCarregando: boolean;
+  numero: number;
+  total: number;
+  eventos: any[];
+  opcoesDeEvento: Array<{ value: string; label: string }>;
+  patrocinadores: Sponsor[];
+  modelos: any[];
+  nomesDeModelos: string[];
+  onMudar: (mudanca: Partial<PecaDoFormulario> | ((p: PecaDoFormulario) => Partial<PecaDoFormulario>)) => void;
+  onRemover: () => void;
+  onDuplicar: () => void;
 }) {
   const { toast } = useToast();
   const isMobile = useIsMobile();
-  const editando = !!pedido;
-  const [form, setForm] = useState<Estado>(vazio);
   const [arrastando, setArrastando] = useState(false);
+  const id = (campo: string) => `${peca.chave}-${campo}`;
 
-  // Cada abertura começa do zero (novo) ou do pedido (editar).
-  useEffect(() => {
-    if (aberto) setForm(pedido ? doPedido(pedido) : vazio);
-  }, [aberto, pedido]);
-
-  const { data: eventos = [] } = useQuery<any[]>({ queryKey: ["/api/events"], enabled: aberto });
-  const { data: patrocinadores = [] } = useQuery<Sponsor[]>({ queryKey: ["/api/sponsors"], enabled: aberto });
-  const { data: modelos = [] } = useQuery<any[]>({ queryKey: ["/api/standard-items"], enabled: aberto });
-  const { data: vinculos = [] } = useQuery<Array<{ sponsorId: string }>>({
-    queryKey: ["/api/events", form.eventId, "sponsors"],
-    enabled: aberto && !!form.eventId,
+  const { data: vinculos = [], isLoading: vinculosCarregando } = useQuery<Array<{ sponsorId: string }>>({
+    queryKey: ["/api/events", peca.eventId, "sponsors"],
+    enabled: !!peca.eventId,
   });
-
-  const hoje = todayBusinessMs();
-  const eventosAbertos = useMemo(
-    () => eventos
-      .filter((e) => !motivoEventoFinalizado(e, hoje))
-      .sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime()),
-    [eventos, hoje],
-  );
-  const evento = eventos.find((e) => e.id === form.eventId) ?? null;
-  const opcoesDeEvento = eventosAbertos.map((e) => ({ value: e.id, label: `${e.name}${e.startDate ? ` · ${diaDoEvento(e.startDate)}` : ""}` }));
   const doEvento = new Set(vinculos.map((v) => v.sponsorId));
+  const nomePorId = new Map(patrocinadores.map((s) => [s.id, s.name]));
   const opcoesDePatrocinador = patrocinadores
-    .filter((s) => doEvento.size === 0 || doEvento.has(s.id))
+    .filter((s) => (doEvento.size === 0 || doEvento.has(s.id)) && !peca.sponsorIds.includes(s.id))
     .map((s) => ({ value: s.id, label: s.name }))
     .sort((a, b) => a.label.localeCompare(b.label, "pt-BR"));
-  const nomesDeModelos = useMemo(() => Array.from(new Set(modelos.map((m: any) => m.name))).sort(), [modelos]);
 
-  const escolherEvento = (id: string) => {
-    const ev = eventos.find((e) => e.id === id);
-    setForm((f) => ({ ...f, eventId: id, sponsorId: "", precisaAte: dataDoCampo(ev?.truckDepartureDate) }));
+  const evento = eventos.find((e) => e.id === peca.eventId) ?? null;
+  const saida = evento?.truckDepartureDate ?? null;
+  const caminhaoSaiu = caminhaoJaSaiu(saida, new Date());
+  const avisoPrazo = avisoDoPrazo(peca.precisaAte ? `${peca.precisaAte}T12:00:00Z` : null, saida);
+
+  const escolherEvento = (eventId: string) => {
+    const ev = eventos.find((e) => e.id === eventId);
+    // Patrocinador é do evento: trocar de evento limpa os escolhidos.
+    onMudar({ eventId, sponsorIds: [], precisaAte: dataDoCampo(ev?.truckDepartureDate) });
   };
   const escolherTipo = (valor: string) => {
     const modelo = modelos.find((m: any) => m.name === valor);
-    setForm((f) => ({
-      ...f,
+    onMudar((p) => ({
       tipoDePeca: valor,
-      ...(modelo && !f.largura && !f.altura && modelo.visualWidth && modelo.visualHeight
+      ...(modelo && !p.largura && !p.altura && modelo.visualWidth && modelo.visualHeight
         ? { largura: String(Number(modelo.visualWidth)), altura: String(Number(modelo.visualHeight)) }
         : {}),
     }));
   };
 
-  // Referências: um envio só (botão, arrastar e colar), que o salvar enxerga.
+  // Referências desta peça: botão, arrastar e colar.
   const envio = useFileUpload({
     maxFileSize: TAMANHO_MAXIMO,
-    onComplete: ({ url }) => setForm((f) => (f.referencias.length >= MAX_REFERENCIAS_DO_PEDIDO ? f : { ...f, referencias: [...f.referencias, url] })),
+    onComplete: ({ url }) => onMudar((p) => (p.referencias.length >= MAX_REFERENCIAS_DO_PEDIDO ? {} : { referencias: [...p.referencias, url] })),
     onError: (e) => toast({ title: "Não deu para enviar a imagem", description: e.message, variant: "destructive" }),
     validateFile: (file) => (!file.type.startsWith("image/") ? "Apenas imagens são permitidas" : null),
   });
+  useEffect(() => {
+    if (envio.isUploading !== peca.enviando) onMudar({ enviando: envio.isUploading });
+  }, [envio.isUploading, peca.enviando, onMudar]);
   const enviarImagens = (arquivos: File[]) => {
     const imagens = arquivos.filter((a) => a.type.startsWith("image/"));
     if (imagens.length === 0) return;
     const grandes = imagens.filter((a) => a.size > TAMANHO_MAXIMO).length;
-    if (grandes) toast({ title: `${grandes} imagem(ns) acima de 10 MB ficaram de fora`, variant: "destructive" });
-    const vagas = MAX_REFERENCIAS_DO_PEDIDO - form.referencias.length;
-    if (vagas <= 0) { toast({ title: `No máximo ${MAX_REFERENCIAS_DO_PEDIDO} referências por solicitação`, variant: "destructive" }); return; }
+    if (grandes) toast({ title: grandes === 1 ? "1 imagem acima de 10 MB ficou de fora" : `${grandes} imagens acima de 10 MB ficaram de fora`, variant: "destructive" });
+    const vagas = MAX_REFERENCIAS_DO_PEDIDO - peca.referencias.length;
+    if (vagas <= 0) { toast({ title: `No máximo ${MAX_REFERENCIAS_DO_PEDIDO} referências por peça`, variant: "destructive" }); return; }
     const aceitas = imagens.filter((a) => a.size <= TAMANHO_MAXIMO);
-    if (aceitas.length > vagas) toast({ title: `Só cabem mais ${vagas} referência(s)`, description: "As demais imagens ficaram de fora." });
+    if (aceitas.length > vagas) toast({ title: vagas === 1 ? "Só cabe mais 1 referência nesta peça" : `Só cabem mais ${vagas} referências nesta peça`, description: "As demais imagens ficaram de fora." });
     void envio.uploadFiles(aceitas.slice(0, vagas));
   };
 
-  const quantidade = parseInt(form.quantidade, 10);
-  const largura = numeroDoCampo(form.largura);
-  const altura = numeroDoCampo(form.altura);
-  const faltando = !form.eventId ? "Escolha o evento"
-    : !form.sponsorId ? "Escolha o patrocinador"
-    : !(quantidade >= 1) ? "Informe a quantidade (mínimo 1)"
-    : (form.largura && !largura) || (form.altura && !altura) ? "Medida inválida — use números, ex.: 3 × 1"
-    : form.observacao.trim().length < 3 ? "Descreva o que precisa"
-    : envio.isUploading ? "Aguarde o envio das imagens"
-    : null;
+  // 36/44: a régua da casa (ponteiro/toque). Eram 32/40 — no celular o
+  // "Remover" ficava a 4px do mínimo, ao lado do "Duplicar".
+  const botaoPequeno: React.CSSProperties = { display: "inline-flex", alignItems: "center", gap: 5, height: isMobile ? 44 : 36, padding: "0 10px", borderRadius: R.md, border: "1px solid #e7e5e4", background: "#fff", color: "#44403c", fontSize: 12.5, fontWeight: 700, cursor: "pointer" };
 
-  const saida = evento?.truckDepartureDate ?? pedido?.eventSaida ?? null;
-  const caminhaoSaiu = caminhaoJaSaiu(saida, new Date());
-  const avisoPrazo = avisoDoPrazo(form.precisaAte ? `${form.precisaAte}T12:00:00Z` : null, saida);
+  return (
+    <fieldset
+      data-testid={`bloco-peca-${numero}`}
+      onPaste={(e) => {
+        const arquivos = Array.from(e.clipboardData?.files ?? []);
+        if (arquivos.some((a) => a.type.startsWith("image/"))) { e.preventDefault(); enviarImagens(arquivos); }
+      }}
+      style={{ margin: 0, border: "1px solid #e7e5e4", borderRadius: R.lg, padding: isMobile ? 12 : "14px 16px 16px", background: "#ffffff", minWidth: 0 }}
+    >
+      <legend style={{ display: "contents" }}>
+        <span className="sr-only">Peça {numero}</span>
+      </legend>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+        <span aria-hidden="true" style={{ fontSize: 13, fontWeight: 800, color: T.text }}>Peça {numero}</span>
+        <span style={{ marginLeft: "auto", display: "flex", gap: 6 }}>
+          {total < MAX_PECAS_POR_SOLICITACAO && (
+            <button type="button" onClick={onDuplicar} data-testid={`button-duplicar-peca-${numero}`} style={botaoPequeno}>
+              <Copy size={13} aria-hidden="true" /> Duplicar
+            </button>
+          )}
+          {total > 1 && (
+            <button type="button" onClick={onRemover} data-testid={`button-remover-peca-${numero}`} aria-label={`Remover a peça ${numero}`} style={{ ...botaoPequeno, color: "#b91c1c", borderColor: "#fecaca" }}>
+              <Trash2 size={13} aria-hidden="true" /> Remover
+            </button>
+          )}
+        </span>
+      </div>
+
+      <div style={{ display: "grid", gap: isMobile ? 14 : "0 24px", gridTemplateColumns: isMobile ? "minmax(0, 1fr)" : "minmax(0, 1fr) minmax(0, 1fr)", alignItems: "start" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 12, minWidth: 0 }}>
+          <div>
+            <label htmlFor={id("evento")} style={ROTULO}>Evento</label>
+            <FilterSelect kind="field" fullWidth hideWhenEmpty={false}
+              label="Evento" placeholder="Escolha o evento"
+              value={peca.eventId} onChange={escolherEvento} options={opcoesDeEvento}
+              searchPlaceholder="Buscar evento..." emptyText={eventosCarregando ? "Carregando eventos…" : "Nenhum evento em andamento."}
+              testId={`select-pedido-evento-${numero}`} triggerProps={{ id: id("evento") }}
+              triggerStyle={GATILHO} />
+            {caminhaoSaiu && <Aviso>Atenção: o caminhão deste evento já saiu.</Aviso>}
+          </div>
+
+          <div>
+            <label htmlFor={id("patrocinador")} style={ROTULO}>Patrocinadores {OPCIONAL}</label>
+            {peca.eventId ? (
+              <FilterSelect kind="field" fullWidth hideWhenEmpty={false}
+                label="Patrocinador" placeholder={peca.sponsorIds.length ? "Adicionar outro patrocinador" : "Sem patrocinador — adicionar"}
+                value="" onChange={(v) => { if (v) onMudar((p) => ({ sponsorIds: p.sponsorIds.includes(v) ? p.sponsorIds : [...p.sponsorIds, v] })); }}
+                options={opcoesDePatrocinador}
+                searchPlaceholder="Buscar patrocinador..." emptyText={vinculosCarregando ? "Carregando os patrocinadores do evento…" : "Nenhum outro patrocinador neste evento."}
+                testId={`select-pedido-patrocinador-${numero}`} triggerProps={{ id: id("patrocinador") }}
+                triggerStyle={GATILHO} />
+            ) : (
+              <div id={id("patrocinador")} style={{ ...CAMPO, display: "flex", alignItems: "center", color: "#78716c", background: "#fafaf9" }}>Escolha o evento primeiro</div>
+            )}
+            {peca.sponsorIds.length > 0 && (
+              <div data-testid={`patrocinadores-escolhidos-${numero}`} style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
+                {peca.sponsorIds.map((sid) => (
+                  <span key={sid} style={{ display: "inline-flex", alignItems: "center", gap: 2, height: 32, padding: "0 2px 0 10px", borderRadius: R.pill, background: "#f5f5f4", border: "1px solid #e7e5e4", fontSize: 12.5, fontWeight: 700, color: "#44403c" }}>
+                    {nomePorId.get(sid) ?? "Patrocinador"}
+                    <button type="button" aria-label={`Tirar ${nomePorId.get(sid) ?? "patrocinador"}`}
+                      onClick={() => onMudar((p) => ({ sponsorIds: p.sponsorIds.filter((x) => x !== sid) }))}
+                      style={{ width: 28, height: 28, borderRadius: R.pill, border: "none", background: "transparent", color: "#57534e", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      <X size={13} aria-hidden="true" />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1.4fr)", gap: 12 }}>
+            <div>
+              <label htmlFor={id("quantidade")} style={ROTULO}>Quantidade</label>
+              <input id={id("quantidade")} data-testid={`input-pedido-quantidade-${numero}`} type="number" min={1} step={1} inputMode="numeric"
+                value={peca.quantidade}
+                onChange={(e) => {
+                  const digitos = e.target.value.replace(/\D/g, "");
+                  onMudar({ quantidade: digitos === "" ? "" : String(Math.max(1, parseInt(digitos, 10))) });
+                }}
+                onBlur={() => { if (peca.quantidade === "") onMudar({ quantidade: "1" }); }}
+                style={CAMPO} />
+            </div>
+            <div>
+              <label htmlFor={id("prazo")} style={ROTULO}>Precisa até</label>
+              <input id={id("prazo")} data-testid={`input-pedido-prazo-${numero}`} type="date" value={peca.precisaAte}
+                onChange={(e) => onMudar({ precisaAte: e.target.value })} style={CAMPO} />
+            </div>
+          </div>
+          {avisoPrazo && <Aviso testId="aviso-prazo-pedido">{avisoPrazo}</Aviso>}
+
+          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "minmax(0, 1fr)" : "minmax(0, 1fr) minmax(0, 1fr)", gap: 12 }}>
+            <div>
+              <label htmlFor={id("tipo")} style={ROTULO}>Tipo de peça {OPCIONAL}</label>
+              <input id={id("tipo")} data-testid={`input-pedido-tipo-${numero}`} list={id("modelos")} value={peca.tipoDePeca}
+                onChange={(e) => escolherTipo(e.target.value)} placeholder="Ex.: Banner 3x1" style={CAMPO} />
+              <datalist id={id("modelos")}>{nomesDeModelos.map((n) => <option key={n} value={n} />)}</datalist>
+            </div>
+            <div>
+              <span style={ROTULO}>Medida (m) {OPCIONAL}</span>
+              <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto minmax(0, 1fr)", gap: 6, alignItems: "center" }}>
+                <input aria-label={`Largura em metros da peça ${numero}`} data-testid={`input-pedido-largura-${numero}`} inputMode="decimal" value={peca.largura}
+                  onChange={(e) => onMudar({ largura: e.target.value })} placeholder="Larg." style={CAMPO} />
+                <span aria-hidden="true" style={{ color: "#57534e" }}>×</span>
+                <input aria-label={`Altura em metros da peça ${numero}`} data-testid={`input-pedido-altura-${numero}`} inputMode="decimal" value={peca.altura}
+                  onChange={(e) => onMudar({ altura: e.target.value })} placeholder="Alt." style={CAMPO} />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 12, minWidth: 0 }}>
+          <div>
+            <label htmlFor={id("observacao")} style={ROTULO}>O que precisa</label>
+            <textarea id={id("observacao")} data-testid={`input-pedido-observacao-${numero}`} rows={isMobile ? 3 : 4}
+              value={peca.observacao} onChange={(e) => onMudar({ observacao: e.target.value })}
+              placeholder="Ex.: banner com a nova logo, para a área de largada — o patrocinador pediu cor mais escura."
+              style={{ ...CAMPO, height: "auto", padding: "10px 12px", resize: "vertical", lineHeight: 1.45 }} />
+          </div>
+
+          <div>
+            <span style={ROTULO}>Referências {OPCIONAL}</span>
+            <div data-testid={`zona-referencias-pedido-${numero}`}
+              onDragOver={(e) => { e.preventDefault(); setArrastando(true); }}
+              onDragLeave={() => setArrastando(false)}
+              onDrop={(e) => { e.preventDefault(); setArrastando(false); enviarImagens(Array.from(e.dataTransfer.files)); }}
+              style={{ display: "flex", flexDirection: "column", gap: 8, padding: 10, borderRadius: R.md, border: `1.5px dashed ${arrastando ? "#b45309" : "#d6d3d1"}`, background: arrastando ? "#fffbeb" : "#fafaf9" }}>
+              <ReferenciasDoPedido urls={peca.referencias} tamanho={48}
+                onRemover={(i) => onMudar((p) => ({ referencias: p.referencias.filter((_, j) => j !== i) }))} />
+              <input ref={envio.fileInputRef} type="file" accept="image/*" multiple hidden data-testid={`input-referencias-pedido-${numero}`}
+                onChange={(e) => enviarImagens(Array.from(e.target.files ?? []))} />
+              <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                {peca.referencias.length < MAX_REFERENCIAS_DO_PEDIDO && (
+                  <button type="button" onClick={() => envio.fileInputRef.current?.click()} disabled={envio.isUploading} aria-busy={envio.isUploading || undefined}
+                    style={{ display: "inline-flex", alignItems: "center", gap: 6, height: isMobile ? 44 : 36, padding: "0 12px", borderRadius: R.md, border: "1px solid #d6d3d1", background: "#fff", color: T.text, fontSize: FS.body, fontWeight: 700, cursor: envio.isUploading ? "wait" : "pointer", fontVariantNumeric: "tabular-nums" }}>
+                    <ImagePlus size={15} aria-hidden="true" />
+                    {envio.isUploading ? rotuloDoEnvio(envio.envio) : peca.referencias.length === 0 ? "Adicionar" : "Adicionar mais"}
+                  </button>
+                )}
+                <span style={{ fontSize: FS.small, color: "#57534e", lineHeight: 1.45 }}>
+                  {peca.referencias.length} de {MAX_REFERENCIAS_DO_PEDIDO} · arraste ou cole (Ctrl+V). Não é arte final.
+                </span>
+              </div>
+              {/* Foto de celular sobe comprimida em 1-2s; um lote de dez, não.
+                  A faixa diz qual imagem, quanto falta, deixa desistir e, se
+                  a rede cair, reenviar só as que falharam. A frase do erro já
+                  saiu no toast — aqui fica o nome e o "Tentar de novo". */}
+              <ProgressoDoEnvio envio={envio.envio} falha={envio.falha}
+                onCancelar={envio.cancelar} onTentarDeNovo={envio.tentarDeNovo} onDispensar={envio.dispensarFalha}
+                mensagemNaFalha={false} />
+            </div>
+          </div>
+        </div>
+      </div>
+    </fieldset>
+  );
+}
+
+export function FormularioDoPedido({ aberto, onFechar }: { aberto: boolean; onFechar: () => void }) {
+  const { toast } = useToast();
+  const isMobile = useIsMobile();
+  const [pecas, setPecas] = useState<PecaDoFormulario[]>(() => [novaPeca()]);
+
+  // Cada abertura começa do zero.
+  useEffect(() => { if (aberto) setPecas([novaPeca()]); }, [aberto]);
+
+  const { data: eventos = [], isLoading: eventosCarregando } = useQuery<any[]>({ queryKey: ["/api/events"], enabled: aberto });
+  const { data: patrocinadores = [] } = useQuery<Sponsor[]>({ queryKey: ["/api/sponsors"], enabled: aberto });
+  const { data: modelos = [] } = useQuery<any[]>({ queryKey: ["/api/standard-items"], enabled: aberto });
+
+  const hoje = todayBusinessMs();
+  const opcoesDeEvento = useMemo(
+    () => eventos
+      .filter((e) => !motivoEventoFinalizado(e, hoje))
+      .sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime())
+      .map((e) => ({ value: e.id, label: `${e.name}${e.startDate ? ` · ${diaDoEvento(e.startDate)}` : ""}` })),
+    [eventos, hoje],
+  );
+  const nomesDeModelos = useMemo(() => Array.from(new Set(modelos.map((m: any) => m.name))).sort(), [modelos]);
+
+  const mudar = (chave: string) => (mudanca: Partial<PecaDoFormulario> | ((p: PecaDoFormulario) => Partial<PecaDoFormulario>)) =>
+    setPecas((lista) => lista.map((p) => (p.chave === chave ? { ...p, ...(typeof mudanca === "function" ? mudanca(p) : mudanca) } : p)));
+  // Os callbacks de cada bloco são estáveis por chave (o efeito de upload depende deles).
+  const mudadores = useMemo(() => new Map<string, ReturnType<typeof mudar>>(), []);
+  const mudadorDe = (chave: string) => {
+    let m = mudadores.get(chave);
+    if (!m) { m = mudar(chave); mudadores.set(chave, m); }
+    return m;
+  };
+
+  const adicionar = () => setPecas((lista) => {
+    const ultima = lista[lista.length - 1];
+    return [...lista, novaPeca(ultima ? { eventId: ultima.eventId, sponsorIds: ultima.sponsorIds, precisaAte: ultima.precisaAte } : {})];
+  });
+  const duplicar = (chave: string) => setPecas((lista) => {
+    const i = lista.findIndex((p) => p.chave === chave);
+    if (i < 0) return lista;
+    const { chave: _c, enviando: _e, ...resto } = lista[i];
+    const copia = novaPeca(resto);
+    return [...lista.slice(0, i + 1), copia, ...lista.slice(i + 1)];
+  });
+  const remover = (chave: string) => setPecas((lista) => (lista.length > 1 ? lista.filter((p) => p.chave !== chave) : lista));
+
+  // A PEÇA NOVA VEM ATÉ QUEM CLICOU. "Adicionar outra peça" e "Duplicar"
+  // criavam o bloco fora de vista, no pé de uma janela que rola — a pessoa
+  // clicava e não via nada acontecer. Agora a janela leva até o bloco novo e o
+  // cursor já está em "O que precisa" (evento e prazo vêm da peça anterior).
+  const chavesAnteriores = useRef<string[]>([]);
+  useEffect(() => {
+    const antes = new Set(chavesAnteriores.current);
+    chavesAnteriores.current = pecas.map((p) => p.chave);
+    if (antes.size === 0 || pecas.length <= antes.size) return;
+    const nova = pecas.find((p) => !antes.has(p.chave));
+    const campo = nova ? document.getElementById(`${nova.chave}-observacao`) : null;
+    if (!campo) return;
+    const semMovimento = typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    campo.closest("fieldset")?.scrollIntoView({ behavior: semMovimento ? "auto" : "smooth", block: "start" });
+    campo.focus({ preventScroll: true });
+  }, [pecas]);
+
+  const primeiraFalta = pecas.map((p, i) => ({ i, falta: faltaNaPeca(p) })).find((x) => x.falta);
+  const faltando = primeiraFalta ? `Peça ${primeiraFalta.i + 1}: ${primeiraFalta.falta}` : null;
+  const eventosDistintos = new Set(pecas.map((p) => p.eventId).filter(Boolean)).size;
 
   const salvar = useMutation({
     mutationFn: async () => {
       const corpo = {
-        sponsorId: form.sponsorId,
-        quantidade,
-        observacao: form.observacao.trim(),
-        referencias: form.referencias,
-        precisaAte: form.precisaAte || null,
-        tipoDePeca: form.tipoDePeca.trim() || null,
-        largura,
-        altura,
+        linhas: pecas.map((p) => ({
+          eventId: p.eventId,
+          sponsorIds: p.sponsorIds,
+          quantidade: parseInt(p.quantidade, 10),
+          observacao: p.observacao.trim(),
+          referencias: p.referencias,
+          precisaAte: p.precisaAte || null,
+          tipoDePeca: p.tipoDePeca.trim() || null,
+          largura: numeroDoCampo(p.largura),
+          altura: numeroDoCampo(p.altura),
+        })),
       };
-      const r = editando
-        ? await apiRequest("PATCH", `/api/pedidos-de-peca/${pedido!.id}`, corpo)
-        : await apiRequest("POST", "/api/pedidos-de-peca", { eventId: form.eventId, ...corpo });
-      return r.json();
+      return (await apiRequest("POST", "/api/pedidos-de-peca", corpo)).json();
     },
     onSuccess: () => {
-      toast({ title: editando ? "Solicitação atualizada" : "Solicitação enviada", description: "Quem monta a lista foi avisado." });
+      toast({
+        title: "Solicitação enviada",
+        description: `${pecas.length} ${pecas.length === 1 ? "peça" : "peças"} · quem monta a lista foi avisado. Acompanhe cada uma nesta lista.`,
+      });
       invalidarPedidos();
       onFechar();
     },
-    onError: (e) => toast({ title: editando ? "Não deu para salvar" : "Não deu para enviar a solicitação", description: mensagemDaApi(e), variant: "destructive" }),
+    onError: (e) => toast({ title: "Não deu para enviar a solicitação", description: mensagemDaApi(e), variant: "destructive" }),
   });
 
   const travado = !!faltando || salvar.isPending;
-  const fechar = () => { if (!salvar.isPending) onFechar(); };
+
+  // GUARDA DE DESCARTE — o mesmo contrato de Usuários, Patrocinadores e
+  // Modelos: X, Esc, clique fora e Cancelar passam todos por aqui, e só
+  // pergunta quando há o que perder. Antes, dez peças descritas com
+  // referências enviadas sumiam num Esc sem aviso. "Preenchido" é qualquer
+  // coisa além da peça em branco com que a janela abre (quantidade 1).
+  // Depois de enviar com sucesso quem fecha é o `onSuccess`, direto — não
+  // pergunta.
+  const enviandoImagens = pecas.some((p) => p.enviando);
+  const preenchido = enviandoImagens || pecas.length > 1 || pecas.some((p) =>
+    !!p.eventId || p.sponsorIds.length > 0 || p.quantidade !== "1" || !!p.precisaAte
+    || !!p.tipoDePeca.trim() || !!p.largura.trim() || !!p.altura.trim() || !!p.observacao.trim() || p.referencias.length > 0);
+  const fechar = () => {
+    if (salvar.isPending) return;
+    if (preenchido && !window.confirm(enviandoImagens
+      ? "Ainda há imagens sendo enviadas. Descartar esta solicitação?"
+      : "Descartar esta solicitação? O que foi preenchido se perde.")) return;
+    onFechar();
+  };
 
   return (
     <Dialog open={aberto} onOpenChange={(o) => { if (!o) fechar(); }}>
-      <DialogContent
-        data-testid="formulario-pedido-de-peca"
-        className={HIDE_NATIVE_CLOSE}
-        style={modalSurface(940)}
-        onPaste={(e) => {
-          const arquivos = Array.from(e.clipboardData?.files ?? []);
-          if (arquivos.some((a) => a.type.startsWith("image/"))) { e.preventDefault(); enviarImagens(arquivos); }
-        }}
-      >
-        <DialogTitle className="sr-only">{editando ? "Editar solicitação" : "Solicitar peça para a lista"}</DialogTitle>
-        <DialogDescription className="sr-only">
-          {editando ? "Quem monta a lista é avisado do que mudou." : "Quem monta a lista recebe a solicitação no evento e cria a peça."}
-        </DialogDescription>
+      <DialogContent data-testid="formulario-pedido-de-peca" className={HIDE_NATIVE_CLOSE} style={modalSurface(1100)}>
+        <DialogTitle className="sr-only">Solicitar peças para a lista</DialogTitle>
+        <DialogDescription className="sr-only">Uma solicitação pode ter várias peças, cada uma com evento e patrocinadores próprios.</DialogDescription>
         <ModalHeader
           icon={Inbox}
           tint="#b45309"
-          title={editando ? "Editar solicitação" : "Solicitar peça para a lista"}
-          subtitle={editando ? "Quem monta a lista é avisado do que mudou." : "Quem monta a lista recebe a solicitação no evento e cria a peça."}
+          title="Solicitar peças para a lista"
+          subtitle="Várias peças numa solicitação só, cada uma com evento, patrocinadores e status próprios. Quem monta a lista recebe e cria cada peça no evento."
           onClose={fechar}
         />
 
         <form
           id="form-pedido"
           onSubmit={(e) => { e.preventDefault(); if (!travado) salvar.mutate(); }}
-          style={{
-            flex: "1 1 auto", minHeight: 0, overflowY: "auto", padding: isMobile ? "16px" : "20px 28px",
-            display: "grid", gap: isMobile ? 16 : "0 28px",
-            gridTemplateColumns: isMobile ? "minmax(0, 1fr)" : "minmax(0, 1fr) minmax(0, 1fr)",
-            alignItems: "start",
-          }}
+          style={{ flex: "1 1 auto", minHeight: 0, overflowY: "auto", padding: isMobile ? 12 : "16px 24px", display: "flex", flexDirection: "column", gap: 12, background: "#fafaf9" }}
         >
-          {/* ── Coluna 1: o quê, para quem, quanto e para quando ── */}
-          <div style={{ display: "flex", flexDirection: "column", gap: 14, minWidth: 0 }}>
-            <div>
-              <label htmlFor="pedido-evento" style={ROTULO}>Evento</label>
-              {editando ? (
-                <div style={{ ...CAMPO, display: "flex", alignItems: "center", background: "#fafaf9", color: "#44403c" }}>{pedido?.eventName ?? "Evento"}</div>
-              ) : (
-                <FilterSelect kind="field" fullWidth hideWhenEmpty={false}
-                  label="Evento" placeholder="Escolha o evento"
-                  value={form.eventId} onChange={escolherEvento} options={opcoesDeEvento}
-                  searchPlaceholder="Buscar evento..." emptyText="Nenhum evento em andamento."
-                  testId="select-pedido-evento" triggerProps={{ id: "pedido-evento" }}
-                  triggerStyle={GATILHO} />
-              )}
-              {caminhaoSaiu && <Aviso>O caminhão deste evento já saiu — a peça não embarca nele.</Aviso>}
-            </div>
-
-            <div>
-              <label htmlFor="pedido-patrocinador" style={ROTULO}>Patrocinador</label>
-              {form.eventId ? (
-                <FilterSelect kind="field" fullWidth hideWhenEmpty={false}
-                  label="Patrocinador" placeholder="Escolha o patrocinador"
-                  value={form.sponsorId} onChange={(v) => setForm((f) => ({ ...f, sponsorId: v }))} options={opcoesDePatrocinador}
-                  searchPlaceholder="Buscar patrocinador..." emptyText="Nenhum patrocinador neste evento."
-                  testId="select-pedido-patrocinador" triggerProps={{ id: "pedido-patrocinador" }}
-                  triggerStyle={GATILHO} />
-              ) : (
-                <div id="pedido-patrocinador" style={{ ...CAMPO, display: "flex", alignItems: "center", color: "#78716c", background: "#fafaf9" }}>Escolha o evento primeiro</div>
-              )}
-            </div>
-
-            <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1.4fr)", gap: 12 }}>
-              <div>
-                <label htmlFor="pedido-quantidade" style={ROTULO}>Quantidade</label>
-                <input id="pedido-quantidade" data-testid="input-pedido-quantidade" type="number" min={1} step={1} inputMode="numeric"
-                  value={form.quantidade}
-                  onChange={(e) => {
-                    const digitos = e.target.value.replace(/\D/g, "");
-                    setForm((f) => ({ ...f, quantidade: digitos === "" ? "" : String(Math.max(1, parseInt(digitos, 10))) }));
-                  }}
-                  onBlur={() => setForm((f) => ({ ...f, quantidade: f.quantidade === "" ? "1" : f.quantidade }))}
-                  style={CAMPO} />
-              </div>
-              <div>
-                <label htmlFor="pedido-prazo" style={ROTULO}>Precisa até</label>
-                <input id="pedido-prazo" data-testid="input-pedido-prazo" type="date" value={form.precisaAte}
-                  onChange={(e) => setForm((f) => ({ ...f, precisaAte: e.target.value }))} style={CAMPO} />
-              </div>
-            </div>
-            {avisoPrazo && <Aviso testId="aviso-prazo-pedido">{avisoPrazo}</Aviso>}
-
-            <div>
-              <label htmlFor="pedido-tipo" style={ROTULO}>Tipo de peça {OPCIONAL}</label>
-              <input id="pedido-tipo" data-testid="input-pedido-tipo" list="modelos-do-pedido" value={form.tipoDePeca}
-                onChange={(e) => escolherTipo(e.target.value)} placeholder="Ex.: Banner 3x1, Placa km" style={CAMPO} />
-              <datalist id="modelos-do-pedido">{nomesDeModelos.map((n) => <option key={n} value={n} />)}</datalist>
-            </div>
-
-            <div>
-              <span style={ROTULO}>Medida da área visual {OPCIONAL}</span>
-              <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto minmax(0, 1fr) auto", gap: 8, alignItems: "center" }}>
-                <input aria-label="Largura em metros" data-testid="input-pedido-largura" inputMode="decimal" value={form.largura}
-                  onChange={(e) => setForm((f) => ({ ...f, largura: e.target.value }))} placeholder="Largura" style={CAMPO} />
-                <span aria-hidden="true" style={{ color: "#57534e" }}>×</span>
-                <input aria-label="Altura em metros" data-testid="input-pedido-altura" inputMode="decimal" value={form.altura}
-                  onChange={(e) => setForm((f) => ({ ...f, altura: e.target.value }))} placeholder="Altura" style={CAMPO} />
-                <span style={{ fontSize: FS.body, color: "#57534e" }}>m</span>
-              </div>
-            </div>
-          </div>
-
-          {/* ── Coluna 2: a descrição e as referências ── */}
-          <div style={{ display: "flex", flexDirection: "column", gap: 14, minWidth: 0 }}>
-            <div>
-              <label htmlFor="pedido-observacao" style={ROTULO}>O que precisa</label>
-              <textarea id="pedido-observacao" data-testid="input-pedido-observacao" rows={isMobile ? 4 : 6}
-                value={form.observacao} onChange={(e) => setForm((f) => ({ ...f, observacao: e.target.value }))}
-                placeholder="Ex.: 2 banners com a nova logo, para a área de largada — o patrocinador pediu cor mais escura."
-                style={{ ...CAMPO, height: "auto", padding: "10px 12px", resize: "vertical", lineHeight: 1.45 }} />
-            </div>
-
-            <div>
-              <span style={ROTULO}>Referências {OPCIONAL}</span>
-              <div data-testid="zona-referencias-pedido"
-                onDragOver={(e) => { e.preventDefault(); setArrastando(true); }}
-                onDragLeave={() => setArrastando(false)}
-                onDrop={(e) => { e.preventDefault(); setArrastando(false); enviarImagens(Array.from(e.dataTransfer.files)); }}
-                style={{ display: "flex", flexDirection: "column", gap: 10, padding: 12, borderRadius: R.md, border: `1.5px dashed ${arrastando ? "#b45309" : "#d6d3d1"}`, background: arrastando ? "#fffbeb" : "#fafaf9" }}>
-                <ReferenciasDoPedido urls={form.referencias} tamanho={56}
-                  onRemover={(i) => setForm((f) => ({ ...f, referencias: f.referencias.filter((_, j) => j !== i) }))} />
-                <input ref={envio.fileInputRef} type="file" accept="image/*" multiple hidden data-testid="input-referencias-pedido"
-                  onChange={(e) => enviarImagens(Array.from(e.target.files ?? []))} />
-                {form.referencias.length < MAX_REFERENCIAS_DO_PEDIDO && (
-                  <button type="button" onClick={() => envio.fileInputRef.current?.click()} disabled={envio.isUploading}
-                    style={{ alignSelf: "flex-start", display: "inline-flex", alignItems: "center", gap: 6, height: 40, padding: "0 14px", borderRadius: R.md, border: "1px solid #d6d3d1", background: "#fff", color: T.text, fontSize: FS.body, fontWeight: 700, cursor: envio.isUploading ? "wait" : "pointer" }}>
-                    <ImagePlus size={15} aria-hidden="true" />
-                    {envio.isUploading ? "Enviando imagens…" : form.referencias.length === 0 ? "Adicionar referências" : "Adicionar mais"}
-                  </button>
-                )}
-                <span data-testid="contador-referencias-pedido" style={{ fontSize: FS.small, color: "#57534e", lineHeight: 1.45 }}>
-                  {form.referencias.length} de {MAX_REFERENCIAS_DO_PEDIDO} · escolha várias, arraste para cá ou cole com Ctrl+V. Referência do solicitante — não é arte final.
-                </span>
-              </div>
-            </div>
-          </div>
+          {pecas.map((p, i) => (
+            <BlocoDaPeca key={p.chave} peca={p} numero={i + 1} total={pecas.length}
+              eventos={eventos} eventosCarregando={eventosCarregando} opcoesDeEvento={opcoesDeEvento} patrocinadores={patrocinadores}
+              modelos={modelos} nomesDeModelos={nomesDeModelos}
+              onMudar={mudadorDe(p.chave)} onRemover={() => remover(p.chave)} onDuplicar={() => duplicar(p.chave)} />
+          ))}
+          {pecas.length < MAX_PECAS_POR_SOLICITACAO && (
+            <button type="button" onClick={adicionar} data-testid="button-adicionar-peca"
+              style={{ alignSelf: "flex-start", display: "inline-flex", alignItems: "center", gap: 6, height: 42, padding: "0 16px", borderRadius: R.md, border: "1.5px dashed #b45309", background: "#fffbeb", color: "#92400e", fontSize: 14, fontWeight: 800, cursor: "pointer" }}>
+              <Plus size={16} aria-hidden="true" /> Adicionar outra peça
+            </button>
+          )}
         </form>
 
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 12, flexWrap: "wrap", padding: isMobile ? "12px 16px" : "14px 28px", borderTop: "1px solid #ebe8e4", background: "#fff", flexShrink: 0 }}>
-          {faltando && <span aria-live="polite" style={{ fontSize: FS.body, color: "#57534e", marginRight: "auto" }}>{faltando}.</span>}
-          <button type="button" onClick={fechar}
-            style={{ height: 44, padding: "0 18px", borderRadius: R.md, border: "1px solid #e7e5e4", background: "#fff", color: "#44403c", fontSize: 14, fontWeight: 700, cursor: "pointer" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 12, flexWrap: "wrap", padding: isMobile ? "12px 16px" : "14px 24px", borderTop: "1px solid #ebe8e4", background: "#fff", flexShrink: 0 }}>
+          {/* Pronto para enviar, a frase diz também PARA QUEM vai — o rodapé
+              era o único lugar sem destino, justo antes do clique. */}
+          <span aria-live="polite" style={{ fontSize: FS.body, color: faltando ? "#92400e" : "#57534e", marginRight: "auto" }}>
+            {faltando
+              ? `${faltando}.`
+              : `${pecas.length} ${pecas.length === 1 ? "peça" : "peças"}${eventosDistintos > 1 ? ` · ${eventosDistintos} eventos` : ""} · vai para quem monta a lista`}
+          </span>
+          <button type="button" onClick={fechar} disabled={salvar.isPending}
+            style={{ height: 44, padding: "0 18px", borderRadius: R.md, border: "1px solid #e7e5e4", background: "#fff", color: "#44403c", fontSize: 14, fontWeight: 700, cursor: salvar.isPending ? "not-allowed" : "pointer" }}>
             Cancelar
           </button>
           <button type="submit" form="form-pedido" data-testid="button-enviar-pedido" disabled={travado}
             style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8, height: 44, padding: "0 22px", borderRadius: R.md, border: "none", background: travado ? "#e7e5e4" : "#1c1917", color: travado ? "#78716c" : "#fff", fontSize: 14, fontWeight: 800, cursor: travado ? "not-allowed" : "pointer" }}>
-            <Send size={15} aria-hidden="true" /> {salvar.isPending ? "Salvando…" : editando ? "Salvar alterações" : "Enviar solicitação"}
+            <Send size={15} aria-hidden="true" /> {salvar.isPending ? "Enviando…" : "Enviar solicitação"}
           </button>
         </div>
       </DialogContent>

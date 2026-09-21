@@ -14,6 +14,7 @@ import { ArrowRight, BookmarkCheck, CalendarDays, Package, ScanSearch, Table2 } 
 import { miniatura } from "@/lib/miniatura";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { diaEMes } from "@shared/estoque";
+import { FS } from "@/lib/theme";
 import type { EnrichedAsset } from "@/lib/inventory-meta";
 
 export type ReservaDaTriagem = { assetId: string; eventName: string; saida: string | null; itemDisplayId: string | null };
@@ -96,46 +97,62 @@ export function EventosDaTriagem({ ativos, reservaPorAtivo, isLoading, isError, 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: isMobile ? 16 : 24 }}>
       <div style={{ display: "flex", alignItems: isMobile ? "flex-start" : "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-          <div style={{ width: 52, height: 52, borderRadius: 14, background: "#c2610c", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 12px 32px rgba(194,97,12,0.30)", flexShrink: 0 }}>
-            <ScanSearch size={22} color="#fff" strokeWidth={2.2} />
+        <div style={{ display: "flex", alignItems: "center", gap: isMobile ? 12 : 16, minWidth: 0 }}>
+          <div style={{ width: isMobile ? 44 : 48, height: isMobile ? 44 : 48, borderRadius: 12, background: "#c2410c", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 4px 12px rgba(194,65,12,0.22)", flexShrink: 0 }}>
+            <ScanSearch size={22} color="#fff" strokeWidth={2.2} aria-hidden="true" />
           </div>
-          <div>
-            <h1 style={{ margin: "0 0 4px", fontSize: isMobile ? 24 : 28, fontWeight: 900, fontFamily: "Space Grotesk, sans-serif", color: "#0f172a", letterSpacing: "-0.03em", lineHeight: 1 }}>
+          <div style={{ minWidth: 0 }}>
+            {/* Título no padrão da casa (FS.h1, 700): esta é a PRIMEIRA tela da
+                triagem e estava em 28/900, diferente da tabela logo depois —
+                entrar na tabela parecia trocar de produto. */}
+            <h1 style={{ margin: "0 0 3px", fontSize: FS.h1, fontWeight: 700, fontFamily: "'Space Grotesk', sans-serif", color: "#1c1917", letterSpacing: "-0.03em", lineHeight: 1.1 }}>
               Triagem de Retorno
             </h1>
-            <p style={{ margin: 0, fontSize: 13, color: "#475569" }}>
+            <p aria-live="polite" style={{ margin: 0, fontSize: 13, color: "#475569", lineHeight: 1.45 }}>
               {isLoading ? "Carregando…" : totalPecas === 0
                 ? "Nada esperando triagem."
                 : `${eventos.length} ${eventos.length === 1 ? "evento voltou" : "eventos voltaram"} · ${totalPecas} ${totalPecas === 1 ? "peça esperando" : "peças esperando"} — escolha um para começar`}
             </p>
+            {/* O QUE É TRIAR, para quem abre a tela pela primeira vez: a
+                palavra sozinha não dizia o que se decide nem que dá para
+                rearrumar antes de gravar. */}
+            {!isLoading && totalPecas > 0 && (
+              <p data-testid="dica-o-que-e-triar" style={{ margin: "4px 0 0", fontSize: 12.5, color: "#64748b", lineHeight: 1.45 }}>
+                Triar = decidir, peça por peça, se volta ao <strong style={{ color: "#1e40af" }}>Galpão</strong> (com o local), vai para <strong style={{ color: "#92400e" }}>Manutenção</strong> ou é <strong style={{ color: "#991b1b" }}>descartada</strong>. Nada é gravado até salvar.
+              </p>
+            )}
           </div>
         </div>
         {totalPecas > 0 && (
           <button type="button" onClick={onTabela} data-testid="button-triagem-tabela"
-            style={{ display: "inline-flex", alignItems: "center", gap: 6, height: isMobile ? 44 : 38, padding: "0 14px", borderRadius: 10, border: "1px solid #e2e8f0", background: "#fff", color: "#334155", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
-            <Table2 size={15} /> Ver todas em tabela
+            style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, height: 44, padding: "0 14px", borderRadius: 10, border: "1px solid #e2e8f0", background: "#fff", color: "#334155", fontSize: 13, fontWeight: 700, cursor: "pointer", width: isMobile ? "100%" : undefined, transition: "background-color 0.12s, border-color 0.12s" }}
+            onMouseEnter={(ev) => { ev.currentTarget.style.background = "#f8fafc"; ev.currentTarget.style.borderColor = "#cbd5e1"; }}
+            onMouseLeave={(ev) => { ev.currentTarget.style.background = "#fff"; ev.currentTarget.style.borderColor = "#e2e8f0"; }}>
+            <Table2 size={15} aria-hidden="true" /> Ver todas em tabela
           </button>
         )}
       </div>
 
       {isLoading ? (
-        <div aria-busy="true" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 16 }}>
+        <div aria-busy="true" aria-label="Carregando os eventos da triagem" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 290px), 1fr))", gap: isMobile ? 12 : 16 }}>
           {[0, 1, 2].map((i) => <div key={i} className="animate-pulse" style={{ height: 210, borderRadius: 16, background: "#e2e8f0" }} />)}
         </div>
       ) : isError ? (
-        <div style={{ background: "#fff", borderRadius: 16, border: "1px solid #fecaca", padding: 40, textAlign: "center" }}>
-          <p style={{ margin: "0 0 12px", fontSize: 15, fontWeight: 700, color: "#b91c1c" }}>Não foi possível carregar a triagem</p>
-          <button type="button" onClick={onTentarDeNovo} style={{ background: "#0f172a", color: "#fff", border: "none", borderRadius: 8, padding: "10px 18px", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>Tentar novamente</button>
+        <div role="alert" style={{ background: "#fff", borderRadius: 16, border: "1px solid #fecaca", padding: isMobile ? "32px 20px" : 40, textAlign: "center" }}>
+          <p style={{ margin: "0 0 6px", fontSize: 15, fontWeight: 700, color: "#b91c1c", fontFamily: "Space Grotesk, sans-serif" }}>Não foi possível carregar a triagem</p>
+          <p style={{ margin: "0 0 16px", fontSize: 13, color: "#475569" }}>Verifique sua conexão e tente novamente.</p>
+          <button type="button" onClick={onTentarDeNovo} style={{ minHeight: 44, background: "#0f172a", color: "#fff", border: "none", borderRadius: 8, padding: "0 18px", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>Tentar novamente</button>
         </div>
       ) : eventos.length === 0 ? (
-        <div style={{ background: "#fff", borderRadius: 16, border: "1px solid #e2e8f0", padding: 56, textAlign: "center" }}>
-          <ScanSearch size={28} color="#94a3b8" />
-          <p style={{ margin: "10px 0 4px", fontSize: 15, fontWeight: 700, color: "#0f172a" }}>Nenhum material aguardando triagem</p>
+        <div style={{ background: "#fff", borderRadius: 16, border: "1px solid #e2e8f0", padding: isMobile ? "40px 20px" : 56, textAlign: "center" }}>
+          <div style={{ width: 56, height: 56, borderRadius: 16, background: "#f0fdf4", border: "1px solid #bbf7d0", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 12px" }}>
+            <ScanSearch size={24} color="#15803d" aria-hidden="true" />
+          </div>
+          <p style={{ margin: "0 0 4px", fontSize: 15, fontWeight: 700, color: "#0f172a", fontFamily: "Space Grotesk, sans-serif" }}>Nenhum material aguardando triagem</p>
           <p style={{ margin: 0, fontSize: 13, color: "#475569" }}>As peças entram aqui sozinhas no dia seguinte ao evento.</p>
         </div>
       ) : (
-        <div data-testid="lista-eventos-triagem" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 290px), 1fr))", gap: 16 }}>
+        <div data-testid="lista-eventos-triagem" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 290px), 1fr))", gap: isMobile ? 12 : 16 }}>
           {eventos.map((e) => {
             const espera = tempoDeEspera(e.desde, agora);
             return (
@@ -144,11 +161,13 @@ export function EventosDaTriagem({ ativos, reservaPorAtivo, isLoading, isError, 
                 type="button"
                 data-testid={`evento-triagem-${e.id}`}
                 onClick={() => onAbrir(e.id)}
-                style={{ textAlign: "left", display: "flex", flexDirection: "column", gap: 12, padding: 18, borderRadius: 16, cursor: "pointer", background: "#fff", border: `1px solid ${e.reservadas ? "#bfdbfe" : "#e2e8f0"}`, borderTop: `4px solid ${e.reservadas ? "#1d4ed8" : "#c2610c"}`, boxShadow: "0 1px 3px rgba(0,0,0,0.05)", transition: "box-shadow 0.15s, transform 0.15s" }}
+                style={{ textAlign: "left", display: "flex", flexDirection: "column", gap: 12, padding: isMobile ? 16 : 18, borderRadius: 16, cursor: "pointer", background: "#fff", border: `1px solid ${e.reservadas ? "#bfdbfe" : "#e2e8f0"}`, borderTop: `3px solid ${e.reservadas ? "#1d4ed8" : "#c2410c"}`, boxShadow: "0 1px 3px rgba(0,0,0,0.05)", transition: "box-shadow 0.15s, transform 0.15s" }}
                 onMouseEnter={(ev) => { ev.currentTarget.style.boxShadow = "0 8px 24px rgba(15,23,42,0.10)"; ev.currentTarget.style.transform = "translateY(-2px)"; }}
                 onMouseLeave={(ev) => { ev.currentTarget.style.boxShadow = "0 1px 3px rgba(0,0,0,0.05)"; ev.currentTarget.style.transform = "none"; }}
               >
-                <div style={{ display: "flex", gap: 6, minHeight: 48 }}>
+                {/* Miniaturas decorativas (aria-hidden): o leitor de tela lia o
+                    "+N" solto antes do nome do evento. */}
+                <div aria-hidden="true" style={{ display: "flex", gap: 6, minHeight: 48 }}>
                   {e.thumbs.length === 0 ? (
                     <div style={{ width: 48, height: 48, borderRadius: 10, background: "#f1f5f9", display: "flex", alignItems: "center", justifyContent: "center" }}><Package size={18} color="#94a3b8" /></div>
                   ) : e.thumbs.map((t) => (

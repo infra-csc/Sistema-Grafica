@@ -1,7 +1,7 @@
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { FreezeWhileClosing, HIDE_NATIVE_CLOSE } from "@/components/modal-shell";
+import { FreezeWhileClosing, HIDE_NATIVE_CLOSE, ModalFooter, ModalHeader, modalSurface } from "@/components/modal-shell";
 import { Link } from "wouter";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -11,9 +11,10 @@ import { z } from "zod";
 import { Form, FormControl, FormField, FormItem, FormMessage } from "@/components/ui/form";
 import { Pencil, Trash2, Search, X, AlertTriangle, Plus, Building2, ChevronLeft, ChevronRight } from "lucide-react";
 import type { Sponsor } from "@shared/schema";
-import { T } from "@/lib/theme";
+import { T, FS, R } from "@/lib/theme";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { FilterSelect, type FilterOption } from "@/components/filter-select";
+import { useFiltrosNaUrl, paginaValida } from "@/hooks/use-filtros-na-url";
 
 const tiInput: React.CSSProperties = {
   width: "100%", padding: "14px 16px",
@@ -43,6 +44,61 @@ const PRESET_COLORS = [
 
 const PAGE_SIZE = 20;
 
+/* ── Desenho comum das telas de cadastro ──
+   Usuários, Patrocinadores, Modelos e Logs repetem estes controles com as
+   MESMAS medidas (40px de alvo, raio 8, rótulo 12/800 em caixa alta). Antes
+   cada tela tinha o seu, e trocar de cadastro parecia trocar de produto.
+   Copiado (e não importado) porque cada tela é dona do próprio arquivo; se
+   mudar aqui, mude nas outras três. */
+const BTN_PRIMARIO: React.CSSProperties = {
+  display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8,
+  height: 40, padding: "0 18px", backgroundColor: T.dark, color: "#fff",
+  border: "none", borderRadius: R.md, cursor: "pointer",
+  fontSize: 12, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em",
+  whiteSpace: "nowrap", transition: "background-color 0.15s ease",
+};
+const BTN_LIMPAR: React.CSSProperties = {
+  display: "inline-flex", alignItems: "center", gap: 6, height: 36, padding: "0 12px",
+  backgroundColor: "#fef2f2", border: "1px solid #fecaca", borderRadius: R.md, cursor: "pointer",
+  fontSize: 11, fontWeight: 800, color: "#b91c1c", textTransform: "uppercase", letterSpacing: "0.06em", whiteSpace: "nowrap",
+};
+
+/**
+ * PAGINAÇÃO — janela de até 5 páginas em volta da atual (antes esta tela
+ * desenhava TODOS os números, e com 15 páginas a barra estourava no celular),
+ * alvos de 32px (44 no celular) e a página atual cheia em escuro.
+ */
+function Paginacao({ pagina, totalPaginas, onIr, toque }: { pagina: number; totalPaginas: number; onIr: (p: number) => void; toque: number }) {
+  if (totalPaginas <= 1) return null;
+  const inicio = Math.max(1, Math.min(pagina - 2, totalPaginas - 4));
+  const paginas = Array.from({ length: Math.min(5, totalPaginas) }, (_, i) => inicio + i);
+  const base: React.CSSProperties = {
+    minWidth: toque, height: toque, padding: "0 6px", display: "inline-flex", alignItems: "center", justifyContent: "center",
+    borderRadius: R.md, border: `1px solid ${T.border}`, backgroundColor: T.surface, color: T.second,
+    fontSize: 12, fontWeight: 700, cursor: "pointer", transition: "background-color 0.12s ease, border-color 0.12s ease",
+  };
+  const seta = (desligada: boolean): React.CSSProperties => ({ ...base, opacity: desligada ? 0.4 : 1, cursor: desligada ? "not-allowed" : "pointer" });
+  return (
+    <nav aria-label="Paginação" style={{ display: "flex", alignItems: "center", gap: 4 }}>
+      <button type="button" onClick={() => onIr(pagina - 1)} disabled={pagina === 1} aria-label="Página anterior" style={seta(pagina === 1)}>
+        <ChevronLeft aria-hidden="true" style={{ width: 14, height: 14 }} />
+      </button>
+      {paginas.map(p => (
+        <button key={p} type="button" onClick={() => onIr(p)} aria-label={`Página ${p}`} aria-current={p === pagina ? "page" : undefined}
+          style={p === pagina ? { ...base, backgroundColor: T.dark, borderColor: T.dark, color: "#fff" } : base}>
+          {p}
+        </button>
+      ))}
+      <button type="button" onClick={() => onIr(pagina + 1)} disabled={pagina === totalPaginas} aria-label="Próxima página" style={seta(pagina === totalPaginas)}>
+        <ChevronRight aria-hidden="true" style={{ width: 14, height: 14 }} />
+      </button>
+    </nav>
+  );
+}
+
+const ORDENS = ["name", "company", "executive", "events"] as const;
+type Ordem = typeof ORDENS[number];
+
 // `quota` (campo global legado) saiu do formulário de propósito: a cota real
 // vive por evento em event_sponsors. Como o modal não tinha campo para ela,
 // todo PATCH reenviava quota vazia e zerava o valor gravado no banco.
@@ -66,12 +122,21 @@ export default function Patrocinadores() {
   const [modalOpen, setModalOpen]             = useState(false);
   const [editingSponsor, setEditingSponsor]   = useState<Sponsor | null>(null);
   const [deletingSponsor, setDeletingSponsor] = useState<Sponsor | null>(null);
-  const [search, setSearch]                   = useState("");
-  const [page, setPage]                       = useState(1);
   const [hoveredRow, setHoveredRow]           = useState<string | null>(null);
-  const [sortBy, setSortBy]                   = useState<"name" | "company" | "executive" | "events">("name");
-  const [sortDir, setSortDir]                 = useState<"asc" | "desc">("asc");
-  const [execFilter, setExecFilter]           = useState<string>("all");
+  // RECORTE NA URL (regra da casa): busca, executivo, ordem e página
+  // sobrevivem ao F5, ao voltar do Painel Geral pelo link de uso e ao link
+  // mandado a um colega. Filtro ou ordem nova voltam à página 1 no mesmo update.
+  const { valores: filtros, definir, atualizar, limpar } = useFiltrosNaUrl(
+    { busca: "", executivo: "all", ordem: "name", direcao: "asc", pagina: 1 },
+    { aceita: { ordem: v => (ORDENS as readonly string[]).includes(v), direcao: v => v === "asc" || v === "desc", pagina: paginaValida } },
+  );
+  const search = filtros.busca;
+  const execFilter = filtros.executivo;
+  const sortBy = filtros.ordem as Ordem;
+  const sortDir = filtros.direcao as "asc" | "desc";
+  const page = filtros.pagina;
+  const setPage = (p: number) => definir("pagina", p);
+  const toque = isMobile ? 44 : 32;
   const { toast } = useToast();
 
   const { data: sponsors = [], isLoading, isError: sponsorsError, refetch: refetchSponsors } = useQuery<Sponsor[]>({
@@ -105,17 +170,41 @@ export default function Patrocinadores() {
 
   const selectedColor = form.watch("color") || "#f97316";
 
+  // "SALVAR E CADASTRAR OUTRO": a carteira de um evento novo chega em lote
+  // (10, 15 marcas). Mesmo POST e mesmo onSuccess do salvar; só não fecha —
+  // limpa o nome, MANTÉM o executivo (o lote costuma ser da mesma pessoa) —
+  // com aviso junto ao campo, senão a conta ia para o executivo do anterior
+  // sem ninguém notar —, volta cor e regra ao padrão e devolve o foco ao Nome.
+  // Ref, não estado: só o onSuccess lê.
+  const continuarRef = useRef(false);
+  const [criadosNestaSequencia, setCriadosNestaSequencia] = useState<string[]>([]);
+  // Executivo que veio do cadastro anterior ("" = "Não atribuído" herdado;
+  // null = nada herdado). Só alimenta o aviso "mantido do cadastro anterior".
+  const [executivoHerdado, setExecutivoHerdado] = useState<string | null>(null);
+
   const createMutation = useMutation({
     mutationFn: async (data: SponsorForm) => {
       const res = await apiRequest("POST", "/api/sponsors", data);
       return res.json();
     },
-    onSuccess: () => {
+    // Nome no toast: com o modal já fechado, é a confirmação de QUAL cadastro
+    // saiu — e o próximo passo, que mora em outra tela (a cota é por evento).
+    onSuccess: (_r, vars) => {
       queryClient.invalidateQueries({ queryKey: ["/api/sponsors"] });
+      toast({ title: "Patrocinador cadastrado", description: `${vars.name} já pode ser vinculado aos eventos — a cota (Master, Gold…) se define no vínculo com cada evento.` });
+      if (continuarRef.current) {
+        continuarRef.current = false;
+        setCriadosNestaSequencia(prev => [...prev, vars.name]);
+        // Só avisa quando havia executivo: "Não atribuído" é o próprio padrão,
+        // não há o que herdar sem perceber.
+        setExecutivoHerdado(vars.accountExecutiveId ? vars.accountExecutiveId : null);
+        form.reset({ name: "", color: "#f97316", accountExecutiveId: vars.accountExecutiveId || "", strictApproval: false });
+        window.setTimeout(() => document.getElementById("sponsor-name")?.focus(), 0);
+        return;
+      }
       setModalOpen(false); form.reset();
-      toast({ title: "Patrocinador criado com sucesso" });
     },
-    onError: (e: Error) => toast({ variant: "destructive", title: "Erro ao criar patrocinador", description: e.message }),
+    onError: (e: Error) => { continuarRef.current = false; toast({ variant: "destructive", title: "Não foi possível cadastrar o patrocinador", description: `${e.message} — nada foi salvo; o formulário continua preenchido.` }); },
   });
 
   const updateMutation = useMutation({
@@ -123,12 +212,12 @@ export default function Patrocinadores() {
       const res = await apiRequest("PATCH", `/api/sponsors/${data.id}`, data.update);
       return res.json();
     },
-    onSuccess: () => {
+    onSuccess: (_r, vars) => {
       queryClient.invalidateQueries({ queryKey: ["/api/sponsors"] });
       setModalOpen(false); setEditingSponsor(null); form.reset();
-      toast({ title: "Patrocinador atualizado com sucesso" });
+      toast({ title: "Alterações salvas", description: vars.update.name ? `Cadastro de ${vars.update.name} atualizado.` : undefined });
     },
-    onError: (e: Error) => toast({ variant: "destructive", title: "Erro ao atualizar", description: e.message }),
+    onError: (e: Error) => toast({ variant: "destructive", title: "Não foi possível salvar as alterações", description: e.message }),
   });
 
   const deleteMutation = useMutation({
@@ -138,14 +227,17 @@ export default function Patrocinadores() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/sponsors"] });
+      const nome = deletingSponsor?.name;
       setDeletingSponsor(null);
-      toast({ title: "Patrocinador excluído com sucesso" });
+      toast({ title: "Patrocinador excluído", description: nome ? `${nome} saiu do cadastro.` : undefined });
     },
-    onError: (e: Error) => toast({ variant: "destructive", title: "Erro ao excluir", description: e.message }),
+    onError: (e: Error) => toast({ variant: "destructive", title: "Não foi possível excluir o patrocinador", description: e.message }),
   });
 
   const openCreate = () => {
     setEditingSponsor(null);
+    setCriadosNestaSequencia([]);
+    setExecutivoHerdado(null);
     form.reset({ name: "", color: "#f97316", accountExecutiveId: "", strictApproval: false });
     setModalOpen(true);
   };
@@ -242,9 +334,8 @@ export default function Patrocinadores() {
     });
 
   const toggleSort = (col: typeof sortBy) => {
-    if (sortBy === col) setSortDir(d => (d === "asc" ? "desc" : "asc"));
-    else { setSortBy(col); setSortDir("asc"); }
-    setPage(1);
+    if (sortBy === col) atualizar({ direcao: sortDir === "asc" ? "desc" : "asc", pagina: 1 });
+    else atualizar({ ordem: col, direcao: "asc", pagina: 1 });
   };
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
@@ -252,9 +343,9 @@ export default function Patrocinadores() {
   const paginated  = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
 
   const thStyle: React.CSSProperties = {
-    padding: "14px 20px", fontSize: 10, fontWeight: 900, color: T.second,
+    padding: "12px 20px", fontSize: 10, fontWeight: 900, color: T.second,
     textTransform: "uppercase", letterSpacing: "0.16em", textAlign: "left",
-    fontFamily: "'Space Grotesk', sans-serif", whiteSpace: "nowrap",
+    whiteSpace: "nowrap",
   };
 
   // Falha na lista principal bloqueia a tabela; falha nas queries auxiliares
@@ -266,37 +357,43 @@ export default function Patrocinadores() {
   };
 
   return (
-    <div style={{ backgroundColor: T.bg, height: "100%", overflowY: "auto", padding: isMobile ? "16px 16px 60px" : "36px 40px 80px" }}>
+    <div style={{ backgroundColor: T.bg, height: "100%", overflowY: "auto", padding: isMobile ? "16px 16px 48px" : "28px 32px 64px" }}>
 
       {/* ── Page Header ── */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 36, flexWrap: "wrap", gap: 16 }}>
+      {/* Mesmo cabeçalho de Usuários, Logs e Modelos: título + frase do que a
+          tela faz à esquerda, ação primária à direita. O sobretítulo laranja
+          "Console de Gerenciamento" saiu — não dizia nada que o menu não diga. */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 24, flexWrap: "wrap", gap: 16 }}>
         <div>
-          <span style={{ fontSize: 10, fontWeight: 900, color: T.accentText, textTransform: "uppercase", letterSpacing: "0.2em", fontFamily: "'Space Grotesk', sans-serif" }}>
-            Console de Gerenciamento
-          </span>
-          <h1 style={{ fontSize: 26, fontWeight: 900, color: T.text, margin: "6px 0 0", fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.04em", lineHeight: 1 }}>
-            Gerenciamento de Patrocinadores
+          <h1 style={{ fontSize: FS.h1, fontWeight: 700, color: T.text, margin: "0 0 6px", fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.03em", lineHeight: 1.1 }}>
+            Patrocinadores
           </h1>
+          <p style={{ fontSize: FS.body, color: T.second, margin: 0, lineHeight: 1.5, maxWidth: 640 }}>
+            {/* O que o cadastro É e o que NÃO é: quem chega procurando a cota
+                precisa saber que ela não mora aqui. */}
+            Cadastro, executivo responsável e regra de aprovação de cada patrocinador. A cota (Master, Gold…) é definida por evento, ao vincular o patrocinador.
+          </p>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 24, flexWrap: "wrap" }}>
-          <div style={{ textAlign: "right" }}>
-            <p style={{ fontSize: 10, fontWeight: 900, color: T.second, textTransform: "uppercase", letterSpacing: "0.16em", margin: "0 0 4px" }}>Total Parceiros</p>
-            <p style={{ fontSize: 26, fontWeight: 900, color: T.text, margin: 0, fontFamily: "'Space Grotesk', sans-serif" }}>{sponsors.length}</p>
+        <div style={{ display: "flex", alignItems: "center", gap: isMobile ? 16 : 24, flexWrap: "wrap", width: isMobile ? "100%" : undefined }}>
+          <div style={{ textAlign: isMobile ? "left" : "right" }}>
+            <p style={{ fontSize: 10, fontWeight: 900, color: T.second, textTransform: "uppercase", letterSpacing: "0.16em", margin: "0 0 4px" }}>Patrocinadores</p>
+            <p style={{ fontSize: FS.h2, fontWeight: 800, color: T.text, margin: 0, fontFamily: "'Space Grotesk', sans-serif", lineHeight: 1 }}>{sponsors.length}</p>
           </div>
-          <div style={{ width: 1, height: 44, backgroundColor: T.border }} />
+          <div aria-hidden="true" style={{ width: 1, height: 36, backgroundColor: T.border }} />
           {/* Contas sem executivo: clicar filtra a lista para resolver. */}
           {(() => {
             const semExec = sponsors.filter(s => !s.accountExecutiveId).length;
             const ativo = execFilter === "__none__";
             return (
               <button
-                onClick={() => { setExecFilter(ativo ? "all" : "__none__"); setPage(1); }}
+                onClick={() => atualizar({ executivo: ativo ? "all" : "__none__", pagina: 1 })}
                 data-testid="stat-sem-executivo"
+                aria-pressed={ativo}
                 title={ativo ? "Mostrar todos" : "Ver apenas patrocinadores sem executivo"}
-                style={{ textAlign: "right", background: "none", border: "none", padding: 0, cursor: "pointer", fontFamily: "inherit" }}
+                style={{ textAlign: isMobile ? "left" : "right", background: ativo ? "#fff7ed" : "none", border: `1px solid ${ativo ? "#fed7aa" : "transparent"}`, borderRadius: R.md, padding: "4px 8px", margin: "-4px -8px", cursor: "pointer", fontFamily: "inherit", transition: "background-color 0.15s ease, border-color 0.15s ease" }}
               >
                 <p style={{ fontSize: 10, fontWeight: 900, color: ativo ? "#c2410c" : T.second, textTransform: "uppercase", letterSpacing: "0.16em", margin: "0 0 4px" }}>Sem Executivo</p>
-                <p style={{ fontSize: 26, fontWeight: 900, color: semExec > 0 ? "#b45309" : T.text, margin: 0, fontFamily: "'Space Grotesk', sans-serif" }}>
+                <p style={{ fontSize: FS.h2, fontWeight: 800, color: semExec > 0 ? "#b45309" : T.text, margin: 0, fontFamily: "'Space Grotesk', sans-serif", lineHeight: 1 }}>
                   {semExec}
                 </p>
               </button>
@@ -305,35 +402,35 @@ export default function Patrocinadores() {
           <button
             onClick={openCreate}
             data-testid="button-add-sponsor"
-            style={{ display: "flex", alignItems: "center", gap: 8, padding: "12px 22px", backgroundColor: T.dark, color: "#fff", border: "none", borderRadius: 8, cursor: "pointer", fontSize: 11, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.12em", fontFamily: "'Space Grotesk', sans-serif", transition: "background 0.15s" }}
+            style={{ ...BTN_PRIMARIO, marginLeft: isMobile ? 0 : undefined, flex: isMobile ? "1 1 100%" : undefined }}
             onMouseEnter={e => (e.currentTarget.style.backgroundColor = "#292524")}
             onMouseLeave={e => (e.currentTarget.style.backgroundColor = T.dark)}
           >
-            <Plus style={{ width: 14, height: 14 }} />
+            <Plus aria-hidden="true" style={{ width: 15, height: 15 }} />
             Novo Patrocinador
           </button>
         </div>
       </div>
 
-      {/* ── Table Container ── */}
-      <div style={{ backgroundColor: T.surface, borderRadius: 12, border: `1px solid ${T.border}`, overflow: "hidden", boxShadow: "0 2px 16px rgba(26,28,28,0.06)" }}>
-
-        {/* Controls bar */}
-        <div style={{ padding: "16px 20px", display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: `1px solid ${T.border}`, backgroundColor: T.surface, flexWrap: "wrap", gap: 10 }}>
+        {/* Controls bar — solta acima da tabela, como em Usuários, Logs e
+            Modelos: a mesma barra de busca no mesmo lugar nas quatro telas. */}
+        <div style={{ marginBottom: 16, display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
           <div style={{ position: "relative", width: isMobile ? "100%" : 380 }}>
-            <Search style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", width: 14, height: 14, color: T.muted }} />
+            <Search aria-hidden="true" style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", width: 14, height: 14, color: T.muted }} />
             <input
               value={search}
-              onChange={e => { setSearch(e.target.value); setPage(1); }}
+              onChange={e => atualizar({ busca: e.target.value, pagina: 1 })}
               placeholder="Filtrar por nome, empresa, e-mail ou executivo..."
+              aria-label="Filtrar patrocinadores por nome, empresa, e-mail ou executivo"
+              type="search"
               data-testid="input-search-sponsors"
-              style={{ ...tiInput, paddingLeft: 36, paddingTop: 10, paddingBottom: 10 }}
+              style={{ ...tiInput, height: 40, padding: "0 12px 0 36px" }}
               onFocus={e => { e.currentTarget.style.backgroundColor = "#fff"; e.currentTarget.style.boxShadow = `0 0 0 2px rgba(249,115,22,0.2)`; }}
               onBlur={e =>  { e.currentTarget.style.backgroundColor = "#f0efee"; e.currentTarget.style.boxShadow = "none"; }}
             />
           </div>
 
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", width: isMobile ? "100%" : undefined }}>
             {/* Filtro por executivo responsável — FilterSelect, o controle da
                 casa (ver o vocabulário em components/filter-select.tsx). Era um
                 <select> NATIVO: abria o menu do sistema operacional, com o azul
@@ -343,23 +440,23 @@ export default function Patrocinadores() {
             <FilterSelect
               label="Executivo"
               allLabel="Todos os executivos"
-              showAllLabelWhenEmpty
               hideWhenEmpty={false}
               value={execFilter}
-              onChange={v => { setExecFilter(v); setPage(1); }}
+              onChange={v => atualizar({ executivo: v, pagina: 1 })}
               options={execFilterOptions}
               searchPlaceholder="Buscar executivo..."
               emptyText="Nenhum executivo"
               panelWidth={240}
-              dropdownAlign="right"
+              dropdownAlign={isMobile ? "left" : "right"}
               testId="filter-account-executive"
-              triggerStyle={{ minWidth: 200 }}
+              // Mesmo gatilho de Usuários, Logs e Modelos (40px, contorno
+              // claro, rótulo = nome da dimensão enquanto vazio).
+              triggerStyle={{ height: 40, padding: "0 12px", backgroundColor: T.surface, border: `1px solid ${T.border}`, borderRadius: R.md, fontSize: 12, fontWeight: 700, color: T.second }}
             />
 
             {(search || execFilter !== "all") && (
-              <button onClick={() => { setSearch(""); setExecFilter("all"); setPage(1); }}
-                style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 14px", backgroundColor: "#fef2f2", border: "1px solid #fecaca", borderRadius: 8, cursor: "pointer", fontSize: 10, fontWeight: 900, color: "#b91c1c", textTransform: "uppercase", letterSpacing: "0.1em", whiteSpace: "nowrap" }}>
-                <X style={{ width: 10, height: 10 }} />
+              <button type="button" onClick={() => limpar(["busca", "executivo", "pagina"])} style={BTN_LIMPAR}>
+                <X aria-hidden="true" style={{ width: 11, height: 11 }} />
                 {/* N = quantos FILTROS ativos o botão desfaz — com o nº de
                     resultados aqui, "Limpar (0)" numa busca vazia parecia
                     "nada a limpar" justamente quando limpar mais importa. */}
@@ -368,6 +465,9 @@ export default function Patrocinadores() {
             )}
           </div>
         </div>
+
+      {/* ── Table Container ── */}
+      <div style={{ backgroundColor: T.surface, borderRadius: 12, border: `1px solid ${T.border}`, overflow: "hidden" }}>
 
         {/* Falha nas queries auxiliares: avisa sem esconder a tabela */}
         {auxError && (
@@ -387,7 +487,18 @@ export default function Patrocinadores() {
 
         {/* Table */}
         {isLoading ? (
-          <div style={{ padding: "72px 0", textAlign: "center", fontSize: 13, color: T.second }}>Carregando patrocinadores...</div>
+          // Esqueleto com a silhueta da linha (bolinha de cor + nome + colunas):
+          // a tabela chega no lugar em que vai ficar. Pulso só com motion-safe.
+          <div role="status" aria-label="Carregando patrocinadores" style={{ padding: "8px 0" }}>
+            {Array.from({ length: 6 }, (_, i) => (
+              <div key={i} className="motion-safe:animate-pulse" style={{ display: "flex", alignItems: "center", gap: 10, padding: "18px 20px", borderBottom: `1px solid ${T.low}` }}>
+                <div style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: T.border }} />
+                <div style={{ width: 180, height: 12, borderRadius: 4, backgroundColor: T.low }} />
+                <div style={{ width: 120, height: 12, borderRadius: 4, backgroundColor: T.low, marginLeft: 40 }} />
+                <div style={{ width: 90, height: 12, borderRadius: 4, backgroundColor: T.low, marginLeft: 40 }} />
+              </div>
+            ))}
+          </div>
         ) : sponsorsError ? (
           <div style={{ padding: "72px 24px", textAlign: "center" }}>
             <AlertTriangle style={{ width: 40, height: 40, color: "#b45309", margin: "0 auto 12px" }} />
@@ -398,8 +509,9 @@ export default function Patrocinadores() {
               Verifique sua conexão e tente novamente.
             </p>
             <button
+              type="button"
               onClick={() => refetchSponsors()}
-              style={{ padding: "10px 22px", backgroundColor: T.dark, color: "#fff", border: "none", borderRadius: 8, cursor: "pointer", fontSize: 11, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.1em" }}
+              style={{ ...BTN_PRIMARIO, height: 36, fontSize: 11 }}
             >
               Tentar novamente
             </button>
@@ -410,9 +522,29 @@ export default function Patrocinadores() {
             <p style={{ fontSize: 15, fontWeight: 700, color: T.second, margin: "0 0 6px" }}>
               {search || execFilter !== "all" ? "Nenhum patrocinador encontrado" : "Nenhum patrocinador cadastrado"}
             </p>
-            <p style={{ fontSize: 13, color: T.second, margin: 0 }}>
-              {search || execFilter !== "all" ? "Tente buscar por outro termo ou limpe os filtros" : "Clique em \"Novo Patrocinador\" para começar"}
+            <p style={{ fontSize: 13, color: T.second, margin: "0 0 16px" }}>
+              {search || execFilter !== "all" ? "Tente buscar por outro termo ou limpe os filtros" : "Cadastre o primeiro para vinculá-lo aos eventos"}
             </p>
+            {/* O estado vazio dizia o que fazer mas não oferecia o botão — o
+                próximo passo ficava lá no topo da página. Mesmo padrão do vazio
+                de Usuários: a ação mora onde o olho já está. */}
+            {search || execFilter !== "all" ? (
+              <button
+                type="button"
+                onClick={() => limpar(["busca", "executivo", "pagina"])}
+                style={{ ...BTN_PRIMARIO, height: 36, backgroundColor: T.surface, color: T.text, border: `1px solid ${T.bdark}`, fontSize: 11 }}
+              >
+                Limpar filtros
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={openCreate}
+                style={{ ...BTN_PRIMARIO, height: 36, fontSize: 11 }}
+              >
+                <Plus aria-hidden="true" style={{ width: 13, height: 13 }} /> Novo Patrocinador
+              </button>
+            )}
           </div>
         ) : (
           <div style={{ overflowX: "auto" }}>
@@ -464,9 +596,12 @@ export default function Patrocinadores() {
                       data-testid={`sponsor-item-${sponsor.id}`}
                       onMouseEnter={() => setHoveredRow(sponsor.id)}
                       onMouseLeave={() => setHoveredRow(null)}
-                      tabIndex={0} aria-label={`Editar ${sponsor.name}`} onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); openEdit(sponsor); } }} onClick={() => openEdit(sponsor)}
+                      // `target === currentTarget`: o Enter num botão DENTRO da
+                      // linha (a lixeira, o link de uso) subia até aqui e abria
+                      // a edição por cima da confirmação de exclusão.
+                      tabIndex={0} aria-label={`Editar ${sponsor.name}`} onKeyDown={e => { if (e.key === "Enter" && e.target === e.currentTarget) { e.preventDefault(); openEdit(sponsor); } }} onClick={() => openEdit(sponsor)}
                       title="Clique para editar"
-                      style={{ borderBottom: i < paginated.length - 1 ? `1px solid ${T.low}` : "none", backgroundColor: isHover ? "rgba(249,115,22,0.03)" : "transparent", transition: "background 0.1s", cursor: "pointer" }}
+                      style={{ borderBottom: i < paginated.length - 1 ? `1px solid ${T.low}` : "none", backgroundColor: isHover ? "#fafaf9" : "transparent", transition: "background 0.1s", cursor: "pointer" }}
                     >
                       {/* Nome */}
                       <td style={{ padding: "16px 20px" }}>
@@ -589,12 +724,16 @@ export default function Patrocinadores() {
                         onFocus={() => setHoveredRow(sponsor.id)}
                         onBlur={() => setHoveredRow(current => (current === sponsor.id ? null : current))}
                       >
-                        <div style={{ display: "flex", justifyContent: "flex-end", gap: 4, opacity: isHover ? 1 : 0, transition: "opacity 0.15s" }}>
+                        {/* Opacidade 0 fora do hover escondia as ações de quem
+                            não tem mouse: no celular não existe hover, e a
+                            lixeira era um alvo invisível. Agora ficam discretas
+                            (0.45) e acendem no hover/foco; no celular, inteiras. */}
+                        <div style={{ display: "flex", justifyContent: "flex-end", gap: 4, opacity: isHover || isMobile ? 1 : 0.7, transition: "opacity 0.15s" }}>
                           <button
                             data-testid={`button-edit-${sponsor.id}`}
-                            tabIndex={0} aria-label={`Editar ${sponsor.name}`} onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); openEdit(sponsor); } }} onClick={() => openEdit(sponsor)}
-                            style={{ padding: 8, backgroundColor: "transparent", border: "none", borderRadius: 6, cursor: "pointer", color: T.second, display: "flex", alignItems: "center", transition: "all 0.12s" }}
-                            onMouseEnter={e => { e.currentTarget.style.backgroundColor = T.low; e.currentTarget.style.color = T.accent; }}
+                            aria-label={`Editar ${sponsor.name}`} onClick={() => openEdit(sponsor)}
+                            style={{ width: toque, height: toque, backgroundColor: "transparent", border: "none", borderRadius: R.md, cursor: "pointer", color: T.second, display: "flex", alignItems: "center", justifyContent: "center", transition: "background-color 0.12s ease, color 0.12s ease" }}
+                            onMouseEnter={e => { e.currentTarget.style.backgroundColor = T.low; e.currentTarget.style.color = T.text; }}
                             onMouseLeave={e => { e.currentTarget.style.backgroundColor = "transparent"; e.currentTarget.style.color = T.second; }}
                           >
                             <Pencil style={{ width: 15, height: 15 }} />
@@ -604,7 +743,7 @@ export default function Patrocinadores() {
                               data-testid={`button-delete-${sponsor.id}`}
                               onClick={() => setDeletingSponsor(sponsor)}
                               aria-label={`Excluir patrocinador ${sponsor.name}`}
-                              style={{ padding: 8, backgroundColor: "transparent", border: "none", borderRadius: 6, cursor: "pointer", color: T.second, display: "flex", alignItems: "center", transition: "all 0.12s" }}
+                              style={{ width: toque, height: toque, backgroundColor: "transparent", border: "none", borderRadius: R.md, cursor: "pointer", color: T.second, display: "flex", alignItems: "center", justifyContent: "center", transition: "background-color 0.12s ease, color 0.12s ease" }}
                               onMouseEnter={e => { e.currentTarget.style.backgroundColor = "#fef2f2"; e.currentTarget.style.color = "#b91c1c"; }}
                               onMouseLeave={e => { e.currentTarget.style.backgroundColor = "transparent"; e.currentTarget.style.color = T.second; }}
                             >
@@ -621,28 +760,14 @@ export default function Patrocinadores() {
           </div>
         )}
 
-        {/* Pagination */}
+        {/* Pagination — só aparece quando há mais de uma página; a contagem
+            total já mora no cabeçalho. */}
         {filtered.length > PAGE_SIZE && (
-          <div style={{ padding: "14px 20px", backgroundColor: T.low, borderTop: `1px solid ${T.border}`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <span style={{ fontSize: 11, color: T.second, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.1em" }}>
-              Mostrando {(safePage - 1) * PAGE_SIZE + 1}–{Math.min(safePage * PAGE_SIZE, filtered.length)} de {filtered.length} patrocinadores
+          <div style={{ padding: "10px 20px", backgroundColor: T.low, borderTop: `1px solid ${T.border}`, display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
+            <span style={{ fontSize: 11, color: T.second, fontWeight: 600 }}>
+              Exibindo {(safePage - 1) * PAGE_SIZE + 1}–{Math.min(safePage * PAGE_SIZE, filtered.length)} de {filtered.length} patrocinadores
             </span>
-            <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
-              <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={safePage === 1}
-                style={{ width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center", border: `1px solid ${T.border}`, backgroundColor: T.surface, borderRadius: 6, cursor: safePage === 1 ? "not-allowed" : "pointer", color: safePage === 1 ? T.muted : T.second, transition: "all 0.1s" }}>
-                <ChevronLeft style={{ width: 14, height: 14 }} />
-              </button>
-              {Array.from({ length: totalPages }, (_, i) => i + 1).map(p => (
-                <button key={p} onClick={() => setPage(p)}
-                  style={{ width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center", border: `1px solid ${p === safePage ? T.dark : T.border}`, backgroundColor: p === safePage ? T.dark : T.surface, borderRadius: 6, cursor: "pointer", fontSize: 11, fontWeight: 700, color: p === safePage ? "#fff" : T.second, transition: "all 0.1s" }}>
-                  {p}
-                </button>
-              ))}
-              <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={safePage === totalPages}
-                style={{ width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center", border: `1px solid ${T.border}`, backgroundColor: T.surface, borderRadius: 6, cursor: safePage === totalPages ? "not-allowed" : "pointer", color: safePage === totalPages ? T.muted : T.second, transition: "all 0.1s" }}>
-                <ChevronRight style={{ width: 14, height: 14 }} />
-              </button>
-            </div>
+            <Paginacao pagina={safePage} totalPaginas={totalPages} onIr={setPage} toque={toque} />
           </div>
         )}
       </div>
@@ -683,7 +808,12 @@ export default function Patrocinadores() {
           // Vale em 1080, em 445 e no celular, onde o título de duas linhas
           // engorda o cabeçalho e nenhum número fixo acertaria os dois casos.
           // É a mesma regra do modal da Gestão de Prazos e do `modal-shell`.
-          style={{ maxWidth: 640, width: "96vw", borderRadius: 12, overflow: "hidden", display: "flex", flexDirection: "column", maxHeight: "calc(100vh - 48px)" }}
+          // Hoje a conta vem pronta de `modalSurface` (mesma casca de Usuários
+          // e Modelos).
+          style={modalSurface(640)}
+          // FOCO INICIAL no Nome: o Radix focava o X do cabeçalho (primeiro
+          // focável), e quem abria o cadastro tinha de dar Tab para digitar.
+          onOpenAutoFocus={e => { e.preventDefault(); document.getElementById("sponsor-name")?.focus(); }}
         >
           {/* POR QUE congelar aqui: salvar fecha o modal, invalida /api/sponsors,
               chama form.reset() e toasta no MESMO commit. São 11 primitivas do
@@ -703,24 +833,15 @@ export default function Patrocinadores() {
               teto do Content não chega até o corpo e nada rola. */}
           <div style={{ display: "flex", flexDirection: "column", flex: "1 1 auto", minHeight: 0 }}>
 
-            {/* Header */}
-            <div style={{ padding: "28px 32px", borderBottom: `1px solid ${T.border}`, display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexShrink: 0 }}>
-              <div>
-                <h2 style={{ fontSize: 26, fontWeight: 900, color: T.text, margin: "0 0 4px", fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.04em", textTransform: "uppercase" }}>
-                  {editingSponsor ? "Editar Patrocinador" : "Cadastro de Patrocinador"}
-                </h2>
-                <p style={{ fontSize: 10, color: T.second, margin: 0, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.14em" }}>
-                  {editingSponsor ? "Atualize os detalhes da parceria" : "Insira os detalhes da nova parceria"}
-                </p>
-              </div>
-              <button onClick={requestClose}
-                aria-label="Fechar formulário"
-                style={{ padding: 6, color: T.second, background: "none", border: "none", cursor: "pointer", borderRadius: 6, display: "flex", marginTop: 2 }}
-                onMouseEnter={e => { e.currentTarget.style.backgroundColor = T.low; e.currentTarget.style.color = T.text; }}
-                onMouseLeave={e => { e.currentTarget.style.backgroundColor = "transparent"; e.currentTarget.style.color = T.second; }}>
-                <X style={{ width: 20, height: 20 }} />
-              </button>
-            </div>
+            {/* Cabeçalho da casa (variante `work`), o mesmo de Usuários e
+                Modelos. O X dele passa pelo `requestClose`. */}
+            <ModalHeader
+              icon={editingSponsor ? Pencil : Building2}
+              tint={T.accentText}
+              title={editingSponsor ? "Editar patrocinador" : "Novo patrocinador"}
+              subtitle={editingSponsor ? `Editando ${editingSponsor.name}` : "Nome, executivo e cor — o resto vem dos eventos"}
+              onClose={requestClose}
+            />
 
             {/* Corpo: o ÚNICO scrollport do modal. `minHeight: 0` é obrigatório
                 — sem ele o tamanho mínimo automático do item flex é o próprio
@@ -728,8 +849,17 @@ export default function Patrocinadores() {
                 rodapé para fora da tela, que é o defeito de origem. */}
             <div style={{ overflowY: "auto", flex: "1 1 auto", minHeight: 0 }}>
               <Form {...form}>
-                <form id="sponsor-form" onSubmit={form.handleSubmit(onSubmit)}>
-                  <div style={{ padding: "28px 32px", display: "flex", flexDirection: "column", gap: 28 }}>
+                <form id="sponsor-form" onSubmit={form.handleSubmit(onSubmit, () => { continuarRef.current = false; })}>
+                  <div style={{ padding: isMobile ? "20px 18px" : "24px 28px", display: "flex", flexDirection: "column", gap: 28 }}>
+
+                    {/* "SALVOU?" com o modal ainda aberto: a sequência fica à
+                        vista, porque o toast some e o formulário volta vazio. */}
+                    {!editingSponsor && criadosNestaSequencia.length > 0 && (
+                      <p role="status" data-testid="patrocinadores-criados-na-sequencia" style={{ margin: 0, padding: "9px 12px", borderRadius: 6, backgroundColor: "#f0fdf4", border: "1px solid #bbf7d0", fontSize: 12, lineHeight: 1.45, color: "#166534" }}>
+                        {criadosNestaSequencia.length === 1 ? "1 patrocinador cadastrado" : `${criadosNestaSequencia.length} patrocinadores cadastrados`} nesta sequência: {criadosNestaSequencia.join(", ")}.
+                        {executivoHerdado ? " O executivo ficou como no anterior — confira antes de salvar o próximo." : " Preencha o próximo."}
+                      </p>
+                    )}
 
                     {/* ─ 01 Informações Gerais ─ */}
                     <section>
@@ -784,6 +914,21 @@ export default function Patrocinadores() {
                               />
                             </FormControl>
                             <FormMessage />
+                            {/* HERDADO, DITO NO CAMPO: some quando a pessoa
+                                troca o executivo. #92400e sobre #fffbeb = 7,1:1. */}
+                            {!editingSponsor && executivoHerdado && field.value === executivoHerdado && (
+                              <p role="status" data-testid="aviso-executivo-herdado" style={{ margin: "6px 0 0", padding: "6px 10px", borderRadius: 6, backgroundColor: "#fffbeb", border: "1px solid #fde68a", fontSize: 11.5, fontWeight: 700, lineHeight: 1.4, color: "#92400e" }}>
+                                Executivo mantido do cadastro anterior — confira antes de salvar.
+                              </p>
+                            )}
+                            {/* PARA QUE SERVE: "executivo" sem contexto lia como
+                                contato do cliente. É gente da casa, e o efeito
+                                prático é o e-mail do book (o "Para" inclui os
+                                executivos com cliente no evento — CANAL_META em
+                                server/routes/items.ts). */}
+                            <p style={{ margin: "6px 0 0", fontSize: 11, lineHeight: 1.4, color: "#57534e" }}>
+                              Pessoa da equipe que cuida da conta. Recebe o e-mail quando sai o book de um evento deste patrocinador e aparece como responsável na Gestão de Prazos.
+                            </p>
                           </FormItem>
                         )} />
                       </div>
@@ -793,7 +938,11 @@ export default function Patrocinadores() {
                     {/* ─ 02 Identidade Visual ─ */}
                     <section>
                       {sectionLabel("02", "Identidade Visual")}
-                      <div style={{ display: "flex", alignItems: "flex-start", gap: 32 }}>
+                      {/* Empilha no celular: paleta (200px) + 32 de vão + o
+                          campo hex (quadrado de 44 + input de ~154 mínimos)
+                          davam ~430px numa coluna de ~320 — rolagem lateral
+                          dentro do modal. */}
+                      <div style={{ display: "flex", flexDirection: isMobile ? "column" : "row", alignItems: isMobile ? "stretch" : "flex-start", gap: isMobile ? 20 : 32 }}>
                         <FormField control={form.control} name="color" render={({ field }) => (
                           <FormItem style={{ flexShrink: 0 }}>
                             {/* Não há UM controle atrás deste rótulo (é um grupo
@@ -880,24 +1029,38 @@ export default function Patrocinadores() {
               </Form>
             </div>
 
-            {/* Footer */}
-            <div style={{ padding: "18px 32px", borderTop: `1px solid ${T.border}`, backgroundColor: T.low, display: "flex", justifyContent: "flex-end", gap: 14, flexShrink: 0 }}>
-              <button type="button" data-testid="button-cancel" onClick={requestClose}
-                style={{ padding: "11px 22px", background: "none", border: "none", cursor: "pointer", fontSize: 11, fontWeight: 800, color: T.second, textTransform: "uppercase", letterSpacing: "0.12em", fontFamily: "'Space Grotesk', sans-serif", borderRadius: 6, transition: "background 0.15s" }}
-                onMouseEnter={e => (e.currentTarget.style.backgroundColor = T.border)}
-                onMouseLeave={e => (e.currentTarget.style.backgroundColor = "transparent")}
-              >
-                Cancelar
-              </button>
+            {/* Rodapé da casa: primário cheio, recuar discreto abaixo — o mesmo
+                par de Usuários, Modelos e das confirmações. */}
+            <ModalFooter>
               <button type="submit" form="sponsor-form" data-testid="button-submit"
                 disabled={createMutation.isPending || updateMutation.isPending}
-                style={{ padding: "11px 32px", backgroundColor: T.dark, color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontSize: 11, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.12em", fontFamily: "'Space Grotesk', sans-serif", opacity: createMutation.isPending || updateMutation.isPending ? 0.6 : 1, transition: "background 0.15s" }}
+                aria-busy={createMutation.isPending || updateMutation.isPending}
+                style={{ height: toque + 4, borderRadius: R.md, border: "none", backgroundColor: T.dark, color: "#fff", fontSize: 14, fontWeight: 800, cursor: createMutation.isPending || updateMutation.isPending ? "wait" : "pointer", opacity: createMutation.isPending || updateMutation.isPending ? 0.7 : 1, transition: "background-color 0.15s ease" }}
                 onMouseEnter={e => (e.currentTarget.style.backgroundColor = "#292524")}
                 onMouseLeave={e => (e.currentTarget.style.backgroundColor = T.dark)}
+                onClick={() => { continuarRef.current = false; }}
               >
-                {createMutation.isPending || updateMutation.isPending ? "Salvando..." : "Salvar Patrocinador"}
+                {createMutation.isPending || updateMutation.isPending ? "Salvando…" : editingSponsor ? "Salvar alterações" : "Salvar patrocinador"}
               </button>
-            </div>
+              {/* Só na criação: mesmo submit, sem fechar o modal. */}
+              {!editingSponsor && (
+                <button type="submit" form="sponsor-form" data-testid="button-submit-e-outro"
+                  disabled={createMutation.isPending}
+                  onClick={() => { continuarRef.current = true; }}
+                  style={{ height: toque + 4, borderRadius: R.md, border: `1px solid ${T.bdark}`, backgroundColor: T.surface, color: T.text, fontSize: 13, fontWeight: 800, cursor: createMutation.isPending ? "wait" : "pointer", opacity: createMutation.isPending ? 0.7 : 1, transition: "background-color 0.15s ease" }}
+                  onMouseEnter={e => (e.currentTarget.style.backgroundColor = T.low)}
+                  onMouseLeave={e => (e.currentTarget.style.backgroundColor = T.surface)}
+                >
+                  Salvar e cadastrar outro
+                </button>
+              )}
+              <button type="button" data-testid="button-cancel" onClick={requestClose}
+                style={{ height: toque, borderRadius: R.md, border: "none", backgroundColor: "transparent", color: "#57534e", fontSize: FS.body, fontWeight: 700, cursor: "pointer" }}
+              >
+                {/* Depois de cadastrar na sequência, "Cancelar" sugeria desfazer. */}
+                {criadosNestaSequencia.length > 0 && !editingSponsor ? "Fechar" : "Cancelar"}
+              </button>
+            </ModalFooter>
           </div>
           </FreezeWhileClosing>
 
@@ -909,16 +1072,15 @@ export default function Patrocinadores() {
       ══════════════════════════════ */}
       <Dialog open={!!deletingSponsor} onOpenChange={o => { if (!o) setDeletingSponsor(null); }}>
         <DialogContent
-          className="p-0 gap-0 border-none"
-          // Mesmo desenho do modal de cadastro, mesma conta: teto de
-          // `100vh − 48` (24px de respiro em cima e 24 embaixo, porque o Radix
-          // centra) e coluna flex. Aqui o conteúdo é curto — medi 276px, faixa
-          // vermelha + texto + botões — e por isso ele NÃO cortava em nenhuma
-          // das alturas conferidas. O teto está aqui porque a única parte
-          // elástica é o parágrafo, que carrega o nome do patrocinador: um nome
-          // de razão social longa leva o texto a cinco ou seis linhas, e sem
-          // teto o crescimento sairia pelos dois lados em vez de virar rolagem.
-          style={{ maxWidth: 440, width: "96vw", borderRadius: 12, overflow: "hidden", display: "flex", flexDirection: "column", maxHeight: "calc(100vh - 48px)" }}
+          className={`p-0 gap-0 border-none ${HIDE_NATIVE_CLOSE}`}
+          // Mesma casca do cadastro (`modalSurface`): teto de `100vh − 48` e
+          // coluna flex. O conteúdo é curto, mas a única parte elástica é o
+          // parágrafo com o nome do patrocinador — uma razão social longa leva o
+          // texto a cinco ou seis linhas, e sem teto o crescimento sairia pelos
+          // dois lados em vez de virar rolagem.
+          style={modalSurface(440)}
+          // Foco inicial no "Manter": o Enter distraído recua, não exclui.
+          onOpenAutoFocus={e => { e.preventDefault(); document.querySelector<HTMLButtonElement>('[data-testid="button-cancel-delete"]')?.focus(); }}
         >
           {/* POR QUE congelar aqui: quem fecha este diálogo é
               `setDeletingSponsor(null)` dentro do onSuccess — e é o MESMO
@@ -929,40 +1091,68 @@ export default function Patrocinadores() {
           <DialogTitle className="sr-only">Excluir patrocinador</DialogTitle>
           <DialogDescription className="sr-only">Confirme a exclusão do patrocinador</DialogDescription>
           {deletingSponsor && (
-
-
-
-          <div data-testid="dialog-confirm-delete" style={{ backgroundColor: T.surface, width: "100%", maxWidth: 440, borderRadius: 12, overflow: "hidden", boxShadow: "0 32px 80px -16px rgba(0,0,0,0.35)", display: "flex", flexDirection: "column", flex: "1 1 auto", minHeight: 0 }}>
-            <div style={{ backgroundColor: "#ef4444", padding: "14px 24px", display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
-              <AlertTriangle style={{ width: 18, height: 18, color: "#fff", flexShrink: 0 }} />
-              <span style={{ fontSize: 10, fontWeight: 900, color: "#fff", textTransform: "uppercase", letterSpacing: "0.14em", fontFamily: "'Space Grotesk', sans-serif" }}>
-                Atenção: Ação Irreversível
-              </span>
-            </div>
-            {/* Só o texto rola. A faixa "Ação Irreversível" e os botões são
-                itens flex que não rolam, então continuam à vista mesmo se o
-                nome do patrocinador esticar o parágrafo. */}
-            <div style={{ padding: "28px 28px 20px", overflowY: "auto", flex: "1 1 auto", minHeight: 0 }}>
-              <h3 style={{ fontSize: 22, fontWeight: 900, color: T.text, margin: "0 0 12px", fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.03em" }}>
-                Excluir Patrocinador?
-              </h3>
-              <p style={{ fontSize: 13, color: T.second, margin: 0, lineHeight: 1.6 }}>
-                Você está prestes a excluir o patrocinador{" "}
-                <strong style={{ color: T.text }}>{deletingSponsor.name}</strong>. Esta ação removerá todos os vínculos com eventos ativos. Deseja continuar?
+          <div data-testid="dialog-confirm-delete" style={{ display: "flex", flexDirection: "column", flex: "1 1 auto", minHeight: 0 }}>
+            {/* Confirmação da casa (variante `confirm`): a MESMA casca das
+                exclusões de Usuários e Modelos. A faixa vermelha "Ação
+                Irreversível" virou o subtítulo — o aviso continua, sem um
+                terceiro desenho de confirmação no app. */}
+            <ModalHeader
+              icon={Trash2}
+              variant="confirm"
+              tint="#b91c1c"
+              title={`Excluir ${deletingSponsor.name}?`}
+              subtitle="Ação irreversível."
+              onClose={() => setDeletingSponsor(null)}
+            />
+            {/* Só o texto rola. Cabeçalho e botões são itens flex que não
+                rolam, então continuam à vista mesmo se o nome do patrocinador
+                esticar o parágrafo. */}
+            <div style={{ padding: "16px 24px", overflowY: "auto", flex: "1 1 auto", minHeight: 0 }}>
+              {/* "EXCLUIR APAGA O QUÊ?" — por inteiro. O texto antigo falava só
+                  de "vínculos com eventos ativos", mas as FKs com ON DELETE
+                  CASCADE (shared/schema.ts: event_sponsors, item_sponsors,
+                  item_sponsor_approvals) levam também os vínculos com peças e
+                  as decisões registradas em nome dele, de QUALQUER evento. */}
+              <p style={{ fontSize: FS.body, color: "#44403c", margin: 0, lineHeight: 1.6 }}>
+                <strong style={{ color: T.text }}>{deletingSponsor.name}</strong> sai do cadastro e leva junto, em todos os eventos:
               </p>
+              <ul data-testid="delete-sponsor-o-que-some" style={{ margin: "8px 0 0", paddingLeft: 18, fontSize: 12.5, lineHeight: 1.55, color: "#44403c" }}>
+                <li>os vínculos com eventos, com a cota de cada um;</li>
+                <li>os vínculos com peças;</li>
+                <li>as aprovações e reprovações registradas em nome dele.</li>
+              </ul>
+              <p style={{ margin: "8px 0 0", fontSize: 12, lineHeight: 1.5, color: "#57534e" }}>
+                Eventos e peças continuam. Se ele só saiu de um evento, desvincule-o no evento em vez de excluir.
+              </p>
+              {/* O QUE SE PERDE, em número: a tabela já sabia (uso por evento),
+                  e a confirmação pedia a decisão sem mostrar o tamanho dela. */}
+              {(() => {
+                const u = usage[deletingSponsor.id];
+                const semUso = !u || u.events === 0;
+                return (
+                  <p data-testid="delete-sponsor-impacto" style={{ margin: "12px 0 0", padding: "9px 12px", borderRadius: 6, fontSize: 12, fontWeight: 600, lineHeight: 1.5, backgroundColor: semUso ? T.low : "#fef2f2", color: semUso ? "#57534e" : "#b91c1c", border: `1px solid ${semUso ? T.border : "#fecaca"}` }}>
+                    {semUso
+                      ? "Nunca foi vinculado a um evento."
+                      : `Vinculado a ${u.events} ${u.events === 1 ? "evento" : "eventos"}${u.items > 0 ? ` e ${u.items} ${u.items === 1 ? "peça" : "peças"}` : ""}.`}
+                  </p>
+                );
+              })()}
             </div>
-            <div style={{ padding: "14px 28px 24px", display: "flex", justifyContent: "flex-end", gap: 20, flexShrink: 0 }}>
-              <button data-testid="button-cancel-delete" onClick={() => setDeletingSponsor(null)}
-                style={{ padding: "8px 0", background: "none", border: "none", cursor: "pointer", fontSize: 10, fontWeight: 900, color: T.second, textTransform: "uppercase", letterSpacing: "0.12em", fontFamily: "'Space Grotesk', sans-serif" }}>
-                Manter
-              </button>
-              <button data-testid="button-confirm-delete"
+            <ModalFooter>
+              <button type="button" data-testid="button-confirm-delete"
                 onClick={() => deleteMutation.mutate(deletingSponsor.id)}
                 disabled={deleteMutation.isPending}
-                style={{ padding: "10px 24px", backgroundColor: "#b91c1c", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontSize: 11, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.1em", fontFamily: "'Space Grotesk', sans-serif", opacity: deleteMutation.isPending ? 0.6 : 1 }}>
-                {deleteMutation.isPending ? "Excluindo..." : "Sim, Excluir"}
+                aria-busy={deleteMutation.isPending}
+                style={{ height: toque + 4, borderRadius: R.md, border: "none", backgroundColor: "#b91c1c", color: "#fff", fontSize: 14, fontWeight: 800, cursor: deleteMutation.isPending ? "wait" : "pointer", opacity: deleteMutation.isPending ? 0.7 : 1, transition: "background-color 0.15s ease" }}
+                onMouseEnter={e => (e.currentTarget.style.backgroundColor = "#991b1b")}
+                onMouseLeave={e => (e.currentTarget.style.backgroundColor = "#b91c1c")}>
+                {deleteMutation.isPending ? "Excluindo…" : "Sim, excluir"}
               </button>
-            </div>
+              <button type="button" data-testid="button-cancel-delete" onClick={() => setDeletingSponsor(null)}
+                style={{ height: toque, borderRadius: R.md, border: "none", backgroundColor: "transparent", color: "#57534e", fontSize: FS.body, fontWeight: 700, cursor: "pointer" }}>
+                Manter
+              </button>
+            </ModalFooter>
           </div>
           )}
           </FreezeWhileClosing>

@@ -220,7 +220,7 @@ function SeloFilaDaImpressora({ maquina, reserva, fonte }: { maquina: string; re
 }
 // Resumo de tubo que a fila lê (número por id). Constante vazia ESTÁVEL: ver
 // o useQuery de /api/tubos.
-type TuboResumo = { id: string; numero: number; eventId: string; entregueEm: string | null; fechadoEm?: string | null };
+type TuboResumo = { id: string; numero: number; avulso?: boolean; eventId: string; entregueEm: string | null; fechadoEm?: string | null };
 const SEM_TUBOS: TuboResumo[] = [];
 
 const complementOpen = (item: any) => isComplement(item) && !isDelivered(item);
@@ -725,13 +725,16 @@ export default function Grafica() {
   // tubo — não tem "Entregar" individual nem entra no "Entregar em lote"; sai
   // com o tubo inteiro ("Entregar tubo"). O servidor recusa com 409 do mesmo
   // jeito. A conferida FORA de tubo segue podendo sair direto, com foto.
-  const canDeliver = (item: any) => !soVisualizaKit(item) && canDeliverBase(item) && !isPacked(item) && !item.tuboId;
-  // EMBALAR (dono, 21/09): a ação principal da peça CONFERIDA é pôr no tubo;
-  // "Entregar" fica como secundária (peça grande que não vai em tubo). Mesmo
-  // gate de quem entrega — as rotas de tubos são dos mesmos papéis — e sem
-  // exigir evento aberto: conferir/embalar/entregar passam no finalizado.
+  // TODAS SÃO EMBALADAS (dono, 21/09): a conferida também não tem entrega
+  // direta — o caminho é Conferido → Embalado → Entregue. Sobra aqui só a
+  // entrega PARCIAL da peça ainda em acabamento (parte conferida), preservada.
+  const canDeliver = (item: any) => !soVisualizaKit(item) && canDeliverBase(item) && !isPosConferencia(item) && !item.tuboId;
+  // EMBALAR (dono, 21/09): a ÚNICA ação da peça CONFERIDA — "todas são
+  // embaladas", não existe entrega antes de embalar. Mesmos papéis das rotas
+  // de tubos, e sem exigir evento aberto: conferir/embalar/entregar passam no
+  // finalizado.
   const podeEmbalar = (item: any) =>
-    !EM_REVISAO.has(item.status) && canDeliver(item) && isConferred(item) && !item.tuboId && !!item.eventId;
+    !EM_REVISAO.has(item.status) && !soVisualizaKit(item) && isConferred(item) && !item.tuboId && !!item.eventId;
   // Abre o painel de tubos do evento da peça já com ela marcada para embalar.
   const abrirEmbalar = (itens: any[]) => {
     const primeira = itens[0];
@@ -1216,14 +1219,21 @@ export default function Grafica() {
     }
     return m;
   }, [pecasDoServidor]);
+  // EMBALADA SOZINHA (dono, 21/09: "nem sempre vai ser 'entregar tubo'"): o
+  // volume avulso nunca é "Tubo N" — o selo diz "Embalada", a ação é
+  // "Entregar" e o desfazer é "Desfazer embalagem".
+  const tubosAvulsos = useMemo(() => new Set(todosOsTubos.filter((t) => t.avulso).map((t) => t.id)), [todosOsTubos]);
+  const ehAvulsa = (item: any) => !!item.tuboAvulso || (!!item.tuboId && tubosAvulsos.has(item.tuboId));
   const seloDoTubo = (item: any): string | null => {
     if (!item.tuboId || !numeroDoTubo.has(item.tuboId)) return null;
+    if (ehAvulsa(item)) return "Embalada";
     const n = conteudoDoTubo.get(item.tuboId)?.total ?? 1;
     return `Tubo ${numeroDoTubo.get(item.tuboId)} · ${n} ${n === 1 ? "peça" : "peças"}`;
   };
   const tituloDoTubo = (item: any): string => {
     const c = conteudoDoTubo.get(item.tuboId);
     const foto = fechamentoDoTubo.get(item.tuboId);
+    if (ehAvulsa(item)) return `Embalada sozinha${foto ? ` · foto ${foto}` : ""}\nToque para entregar.`;
     return `${seloDoTubo(item) ?? "Tubo"}${foto ? ` · foto ${foto}` : " · sem foto"}\n${c?.lista ?? ""}\nToque para abrir o tubo.`;
   };
   const abrirTuboDaPeca = (item: any) =>
@@ -1238,7 +1248,7 @@ export default function Grafica() {
       queryClient.invalidateQueries({ queryKey: ["/api/items/approved"] });
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
       queryClient.invalidateQueries({ queryKey: ["/api/tubos"] });
-      toast({ title: `${vars.displayId ?? "Peça"} saiu do Tubo ${numeroDoTubo.get(vars.tuboId) ?? ""}`, description: "Voltou para Conferido." });
+      toast({ title: tubosAvulsos.has(vars.tuboId) ? `Embalagem de ${vars.displayId ?? "peça"} desfeita` : `${vars.displayId ?? "Peça"} saiu do Tubo ${numeroDoTubo.get(vars.tuboId) ?? ""}`, description: "Voltou para Conferido." });
     },
     onError: (error: Error) => {
       queryClient.invalidateQueries({ queryKey: ["/api/items/approved"] });
@@ -2492,6 +2502,8 @@ export default function Grafica() {
     item.tuboId ? fechamentoDoTubo.get(item.tuboId) ?? null : null,
     // …e o "· 4 peças" + a lista do title: muda quando outra peça entra ou sai.
     item.tuboId ? conteudoDoTubo.get(item.tuboId)?.lista ?? null : null,
+    // "Embalada" × "Tubo N", "Entregar" × "Entregar tubo".
+    ehAvulsa(item),
     // Só a linha DESTA peça fica "pendente" ao tirar do tubo — o booleano
     // global redesenhava a fila inteira a cada clique.
     tirarDoTuboMutation.isPending && tirarDoTuboMutation.variables?.itemId === item.id,
@@ -2792,7 +2804,7 @@ export default function Grafica() {
           { label: "Liberados",    value: stats.liberados,  sub: "Aguardam produção",    testId: "stat-approved",   filterVals: ["ready_for_production", "approved"] },
           { label: "Em Impressão", value: stats.emProducao, sub: "Na máquina",           testId: "stat-production", filterVals: ["inProduction"] },
           { label: "Impresso",     value: stats.produzidos, sub: "No acabamento",        testId: "stat-produced",   filterVals: ["produced"] },
-          { label: "Conferidos",   value: stats.conferidos, sub: "Aguardam tubo ou entrega", testId: "stat-conferred", filterVals: ["conferred"] },
+          { label: "Conferidos",   value: stats.conferidos, sub: "Aguardam embalagem", testId: "stat-conferred", filterVals: ["conferred"] },
           // EMBALADO (dono, 21/09): conferida e dentro do tubo — entre Conferidos e Entregues.
           { label: "Embalados",    value: stats.embalados,  sub: "Aguardam o caminhão",  testId: "stat-packed",     filterVals: ["packed"] },
           { label: "Entregues",    value: stats.entregues,  sub: "Já saíram",            testId: "stat-delivered",  filterVals: ["delivered"] },
@@ -3533,7 +3545,7 @@ export default function Grafica() {
               const podeCorrigirReaprov = !emRevisao && !soVisualizaKit(item) && (isProduced(item) || isAdmin) && reusedTotalOf(item) > 0
                 && conferredOf(item) === 0 && deliveredOf(item) === 0;
               const podeDevolverPeca = canProduce && podeDevolverParaRevisao(item);
-              const temGrupoFluxo = podeProduzirAqui || podeProduzirPeca || podeReaproveitarPeca || podeCorrigirReaprov || podeDevolverPeca || canDeliverItem || (podeConferir && canConferItem) || isDelivered(item);
+              const temGrupoFluxo = podeProduzirAqui || podeProduzirPeca || podeReaproveitarPeca || podeCorrigirReaprov || podeDevolverPeca || canDeliverItem || podeEmbalarPeca || isPacked(item) || (podeConferir && canConferItem) || isDelivered(item);
               const temGrupoContrato = mostraAumentar || podeCancelarCompl;
 
               return (
@@ -4066,8 +4078,9 @@ export default function Grafica() {
                           )}
                           {/* EMBALAR (dono, 21/09): a principal da peça CONFERIDA — abre
                               o painel de tubos já com a peça marcada. Azul do Embalado
-                              (#1d4ed8, 6,3:1 com branco). Entregar continua abaixo, de
-                              contorno: a peça grande que não vai em tubo. */}
+                              (#1d4ed8, 6,3:1 com branco). É a ÚNICA ação da conferida:
+                              o Entregar abaixo só existe para a entrega PARCIAL da
+                              peça ainda em acabamento. */}
                           {podeEmbalarPeca && (
                             <button
                               onClick={e => { e.stopPropagation(); abrirEmbalar([item]); }}
@@ -4102,7 +4115,7 @@ export default function Grafica() {
                               data-testid={`button-entregar-tubo-card-${item.id}`}
                               style={{ order: 0, flex: '2 1 150px', minHeight: 48, padding: '0 12px', borderRadius: 8, background: '#1d4ed8', border: 'none', color: '#fff', fontSize: 14, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, cursor: 'pointer', whiteSpace: 'nowrap' }}
                             >
-                              <Truck aria-hidden="true" style={{ width: 13, height: 13 }} /> Entregar tubo
+                              <Truck aria-hidden="true" style={{ width: 13, height: 13 }} /> {ehAvulsa(item) ? "Entregar" : "Entregar tubo"}
                             </button>
                           )}
                           {/* Embalado: tirar do tubo devolve a Conferido (21/09) — a
@@ -4114,7 +4127,7 @@ export default function Grafica() {
                               data-testid={`button-tirar-do-tubo-card-${item.id}`}
                               style={{ order: 0, flex: '1 1 130px', minHeight: 48, padding: '0 12px', borderRadius: 8, background: '#fff', border: '1px solid #d6d3d1', color: '#44403c', fontSize: 14, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, cursor: 'pointer', whiteSpace: 'nowrap' }}
                             >
-                              <Undo2 aria-hidden="true" style={{ width: 13, height: 13 }} /> Tirar do tubo
+                              <Undo2 aria-hidden="true" style={{ width: 13, height: 13 }} /> {ehAvulsa(item) ? "Desfazer embalagem" : "Tirar do tubo"}
                             </button>
                           )}
                           {isDelivered(item) && (
@@ -4765,9 +4778,7 @@ export default function Grafica() {
                               (podeMexerQtd && !soVisualizaKit(item) && ehComplemento && complementUntouched(item))
                               || (!emRevisao && !soVisualizaKit(item) && !isDelivered(item) && !isPosConferencia(item) && (!isProduced(item) ? tetoReaproveitar(item) > 0 : podeMexerQtd && qtyOf(item) > 0))
                               || (!emRevisao && !soVisualizaKit(item) && (isProduced(item) || isAdmin) && reusedTotalOf(item) > 0 && conferredOf(item) === 0 && deliveredOf(item) === 0)
-                              || (canProduce && podeDevolverParaRevisao(item))
-                              // Entregar vira secundária quando a peça tem Embalar (21/09).
-                              || (podeEmbalarPeca && canDeliver(item)));
+                              || (canProduce && podeDevolverParaRevisao(item)));
                             if (!compacto || !temSecundaria) return null;
                             const aberto = menuAcoesId === item.id || reuseConfirmItemId === item.id || correctReuseItemId === item.id || cancelComplementId === item.id;
                             return (
@@ -5039,26 +5050,6 @@ export default function Grafica() {
                               {compacto && "Devolver para a Revisão"}
                             </button>
                           )}
-                          {/* Entregar SECUNDÁRIA da conferida (21/09): a peça grande que
-                              não vai em tubo. Na tabela cheia fica ao lado do Embalar;
-                              na compacta, dentro do "⋯". Contorno laranja, mesmo tom
-                              do Entregar principal. */}
-                          {!bulkOn && !emRevisao && podeEmbalarPeca && canDeliver(item) && (
-                            <button
-                              onClick={() => openDeliveryModal(item)}
-                              title={`Entregar sem tubo (${remainingDeliver(item)} conferido(s) pendente(s)) — para a peça grande que não vai em tubo`}
-                              data-testid={`button-deliver-${item.id}`}
-                              style={{
-                                backgroundColor: "#ffffff", color: "#c2410c",
-                                border: "1px solid #fdba74", borderRadius: 8, height: 32, padding: compacto ? "0 8px" : "0 10px",
-                                fontSize: 12, fontWeight: 700, whiteSpace: "nowrap",
-                                cursor: "pointer", display: "flex", alignItems: "center", justifyContent: compacto ? "flex-start" : "center", gap: 4,
-                              }}
-                            >
-                              <Truck aria-hidden="true" style={{ width: 13, height: 13 }} />
-                              {deliveredOf(item) > 0 ? `Entregar ${remainingDeliver(item)}` : "Entregar"}
-                            </button>
-                          )}
                           </div>
 
                           {/* Iniciar / Continuar Produção — oculto para reaproveitamento
@@ -5158,9 +5149,9 @@ export default function Grafica() {
                             </button>
                           )}
 
-                          {/* Entregar — reaproveitamento: direto; normal: o que já foi
-                              conferido. Principal só quando a peça NÃO tem Embalar
-                              (parcial, reuso, embalada); na conferida é a secundária acima. */}
+                          {/* Entregar por peça — só a entrega PARCIAL da peça ainda em
+                              acabamento (parte conferida) e o reuso legado. A conferida
+                              só tem Embalar; a embalada sai pelo volume dela. */}
                           {!bulkOn && !emRevisao && canDeliver(item) && !podeEmbalarPeca && (
                             <button
                               onClick={() => openDeliveryModal(item)}
@@ -5192,7 +5183,7 @@ export default function Grafica() {
                               title="Entregar o tubo inteiro — a peça embalada só sai com o tubo"
                               style={{ backgroundColor: "#1d4ed8", color: "#fff", border: "none", borderRadius: 8, height: 32, padding: "0 12px", fontSize: 12, fontWeight: 700, whiteSpace: "nowrap", cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}
                             >
-                              <Truck aria-hidden="true" style={{ width: 13, height: 13 }} /> Entregar tubo
+                              <Truck aria-hidden="true" style={{ width: 13, height: 13 }} /> {ehAvulsa(item) ? "Entregar" : "Entregar tubo"}
                             </button>
                           )}
                           {/* Embalado: tirar do tubo devolve a Conferido (21/09) — secundária. */}
@@ -5204,7 +5195,7 @@ export default function Grafica() {
                               title="Tira a peça do tubo — ela volta a Conferido"
                               style={{ backgroundColor: "#fff", color: "#44403c", border: "1px solid #d6d3d1", borderRadius: 8, height: 32, padding: "0 10px", fontSize: 12, fontWeight: 700, whiteSpace: "nowrap", cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}
                             >
-                              <Undo2 aria-hidden="true" style={{ width: 13, height: 13 }} /> Tirar do tubo
+                              <Undo2 aria-hidden="true" style={{ width: 13, height: 13 }} /> {ehAvulsa(item) ? "Desfazer embalagem" : "Tirar do tubo"}
                             </button>
                           )}
 

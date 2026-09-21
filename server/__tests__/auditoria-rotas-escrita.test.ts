@@ -186,7 +186,9 @@ describe("as quatro rotas que enchem a coluna 'Realizado por'", () => {
       nome: "entrega",
       chave: "PATCH /api/items/:id/deliver",
       ctx: { params: { id: "i-1" }, body: { receivedBy: "Portaria", photoUrl: "/objects/uploads/comprovante.jpg" }, userRole: "grafica" },
-      antes: () => { itemEmFoco = peca({ status: "conferred", conferredQty: 4 }); },
+      // Entrega por peça = só a PARCIAL da peça ainda em acabamento (21/09:
+      // "todas são embaladas" — a conferida inteira sai pelo volume dela).
+      antes: () => { itemEmFoco = peca({ status: "produced", quantityProduced: 4, conferredQty: 2 }); },
       acao: "delivered",
     },
   ];

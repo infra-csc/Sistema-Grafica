@@ -31,6 +31,23 @@ export type SituacaoDoAtivo = (typeof SITUACOES_DO_ATIVO)[number];
  *  evento (saída do caminhão / dia seguinte ao evento). */
 export const SITUACOES_MANUAIS = ["NO_GALPAO", "EM_MANUTENCAO", "DESCARTADO"] as const;
 
+// ─── Triagem: só quem está aguardando ────────────────────────────────────────
+
+/** Começo FIXO da recusa (409) quando a peça não está mais aguardando triagem.
+ *  A tela reconhece a recusa por este trecho — o apiRequest só carrega o texto
+ *  do erro, não o status. */
+export const PECA_JA_TRIADA = "Essa peça já foi triada";
+
+const ROTULO_DA_SITUACAO: Record<string, string> = {
+  NO_GALPAO: "No galpão", EM_USO: "Em uso", AGUARDANDO_TRIAGEM: "Aguardando triagem", EM_MANUTENCAO: "Em manutenção", DESCARTADO: "Descartada",
+};
+
+export const recusaDeTriagem = (situacaoAtual: string | null | undefined): string =>
+  `${PECA_JA_TRIADA} (está: ${ROTULO_DA_SITUACAO[situacaoAtual ?? ""] ?? "fora da triagem"}) — atualize a lista`;
+
+export const ehRecusaDeJaTriada = (mensagem: unknown): boolean =>
+  typeof mensagem === "string" && mensagem.startsWith(PECA_JA_TRIADA);
+
 // ─── Semelhança ──────────────────────────────────────────────────────────────
 
 /** "PLACAS KM", "Placa km" e "placa  km" são o mesmo tipo; "STANDS" e "STAND"
@@ -122,6 +139,61 @@ export function eventoJaAcabou(inicio: Date | string | null | undefined, agora: 
  *  Depois disso a linha fica como histórico de onde a peça andou. */
 export function reservaEstaAtiva(inicioDoEventoReservado: Date | string | null | undefined, agora: Date): boolean {
   return !eventoJaAcabou(inicioDoEventoReservado, agora);
+}
+
+// ─── Onde já foi usado ───────────────────────────────────────────────────────
+
+/** Uma linha de GET /api/estoque/usos (alocação/reserva de uma peça física). */
+export interface AlocacaoDoAcervo {
+  id: string; assetId: string; eventId: string; eventName: string;
+  inicio: Date | string | null; itemId: string | null; itemDisplayId: string | null; em: Date | string | null;
+}
+
+/**
+ *   · origem   — o evento para o qual a peça foi impressa;
+ *   · separada — reservada para um evento que ainda não acabou;
+ *   · usada    — o evento da reserva já acabou.
+ * "Devolvida" não existe como fato no banco: liberar uma reserva APAGA a linha
+ * (não fica histórico de devolução), então a tela não inventa esse estado.
+ */
+export type SituacaoDoUso = "origem" | "separada" | "usada";
+export const ROTULO_DO_USO: Record<SituacaoDoUso, string> = { origem: "Impressa para", separada: "Separada para", usada: "Usada em" };
+
+export interface UsoDoAtivo {
+  chave: string; eventId: string; eventName: string; inicio: Date | string | null;
+  itemDisplayId: string | null; situacao: SituacaoDoUso;
+}
+
+/** Origem + alocações de UMA peça física, do mais recente para o mais antigo. */
+export function usosDoAtivo(
+  origem: { id: string; name: string; startDate: Date | string | null; itemDisplayId?: string | null } | null | undefined,
+  alocacoes: readonly AlocacaoDoAcervo[],
+  agora: Date,
+): UsoDoAtivo[] {
+  const usos: UsoDoAtivo[] = alocacoes.map((a) => ({
+    chave: `aloc:${a.id}`, eventId: a.eventId, eventName: a.eventName, inicio: a.inicio, itemDisplayId: a.itemDisplayId,
+    situacao: eventoJaAcabou(a.inicio, agora) ? "usada" : "separada",
+  }));
+  if (origem) usos.push({ chave: `origem:${origem.id}`, eventId: origem.id, eventName: origem.name, inicio: origem.startDate, itemDisplayId: origem.itemDisplayId ?? null, situacao: "origem" });
+  const t = (u: UsoDoAtivo) => (u.inicio ? new Date(u.inicio).getTime() : 0);
+  return usos.sort((x, y) => t(y) - t(x));
+}
+
+/** Os eventos de um GRUPO de peças, sem repetir, com quantas unidades em cada. */
+export function eventosDeUso(usosPorAtivo: readonly UsoDoAtivo[][]): { eventId: string; eventName: string; inicio: Date | string | null; unidades: number; situacao: SituacaoDoUso }[] {
+  const porEvento = new Map<string, { eventId: string; eventName: string; inicio: Date | string | null; unidades: number; situacao: SituacaoDoUso }>();
+  for (const usos of usosPorAtivo) {
+    const vistos = new Set<string>();
+    for (const u of usos) {
+      if (vistos.has(u.eventId)) continue;
+      vistos.add(u.eventId);
+      const e = porEvento.get(u.eventId);
+      if (e) { e.unidades += 1; if (u.situacao === "separada") e.situacao = "separada"; }
+      else porEvento.set(u.eventId, { eventId: u.eventId, eventName: u.eventName, inicio: u.inicio, unidades: 1, situacao: u.situacao });
+    }
+  }
+  const t = (i: Date | string | null) => (i ? new Date(i).getTime() : 0);
+  return Array.from(porEvento.values()).sort((x, y) => t(y.inicio) - t(x.inicio));
 }
 
 export const diaEMes = (d: Date | string): string =>

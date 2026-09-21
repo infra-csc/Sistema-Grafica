@@ -7,11 +7,15 @@
 // ANTES: um modal só mostrava o bloco "Embalar #0386", a lista "Peças sem tubo"
 // com caixas (inclusive de outra peça), "Pôr as 2 marcadas em", a lista de
 // tubos e um rodapé "Escolha o tubo". DEPOIS, o que este arquivo pina:
-//   1. EMBALAR — só as peças que estão sendo embaladas, o tubo (radiogroup de
-//      cartões) e a foto; o botão diz o que falta; nada é gravado ao escolher.
+//   1. EMBALAR — só as peças que estão sendo embaladas e a FOTO. O tubo é
+//      AUTOMÁTICO ("não precisa selecionar"): a peça individual vai SOZINHA
+//      (volume avulso, sem "Tubo N"); o lote vai num tubo automático (reusa o
+//      aberto vazio, senão o próximo número). A única porta para escolher é o
+//      link "Pôr num tubo que já existe".
 //   2. ENTREGAR TUBO N — a lista do que está dentro, as fotos, quem recebeu
-//      (com a sugestão do último), comprovante opcional/obrigatório com o
-//      porquê; se falta conferir, explica e NÃO mostra o formulário.
+//      (com a sugestão do último), comprovante SEMPRE opcional; a embalada
+//      sozinha é "Entregar #0386 — …", nunca "tubo"; se falta conferir,
+//      explica e NÃO mostra o formulário.
 //   3. PAINEL — gestão: tubos abertos, entregues recolhidos, ações por tubo,
 //      apagar com confirmação, e a porta "Embalar peças conferidas (N)" — sem
 //      "Peças sem tubo" nem "Pôr as marcadas em".
@@ -90,6 +94,8 @@ function retrato(mudar: (r: any) => void = () => {}) {
       tubo("t1", 1, [p("a1", "#0383", true), p("a2", "#0384", true)], { fotosFechamento: ["/objects/f1.jpg", "/objects/f2.jpg"], fechadoEm: "2026-09-21T17:32:00Z", fechadoPor: "Operador" }),
       tubo("t2", 2, [p("b1", "#0385", false)]),
       tubo("t3", 3, [p("c1", "#0380", true, { entregue: true })], { entregueEm: "2026-09-20T12:00:00Z", recebidoPor: "Carlos", prontoParaEntregar: false }),
+      // embalada SOZINHA (volume avulso: número negativo, nunca "Tubo N")
+      tubo("av1", -1, [p("z1", "#0390", true, { type: "Placa de octanorme", description: null, quantity: 1, conferencePhotoUrl: "/objects/conf-z1.jpg" })], { avulso: true, fotosFechamento: ["/objects/av.jpg"] }),
     ],
     semTubo: [p("s1", "#0386", true), p("s2", "#0381", true), p("s3", "#0382", false)],
   };
@@ -104,7 +110,8 @@ async function montar(props: Record<string, unknown>, largura = 1280, dados = re
   vi.stubGlobal("fetch", vi.fn(async (url: string, init?: RequestInit) => {
     const metodo = init?.method ?? "GET";
     if (metodo !== "GET") chamadas.push({ metodo, url: String(url), corpo: init?.body ? JSON.parse(String(init.body)) : null });
-    const corpo = metodo === "GET" ? dados : { ok: true, numero: /tubos$/.test(String(url)) ? 4 : 1, entregues: 2, fotos: 1, totalDeFotos: 3 };
+    const enviado = init?.body ? JSON.parse(String(init.body)) : {};
+    const corpo = metodo === "GET" ? dados : { ok: true, numero: enviado.avulso ? -2 : /tubos$/.test(String(url)) ? 4 : 1, avulso: !!enviado.avulso || /\/av1\//.test(String(url)), entregues: 2, fotos: 1, totalDeFotos: 3 };
     return new Response(JSON.stringify(corpo), { status: 200, headers: { "content-type": "application/json" } });
   }));
   const { queryClient } = await import("@/lib/queryClient");
@@ -129,73 +136,92 @@ for (const largura of [1280, 390]) {
   const onde = largura === 390 ? "390px" : "desktop";
 
   describe(`1 · EMBALAR (${onde})`, () => {
-    it("só o que interessa: título, as peças DESTE embalar, o tubo e a foto — sem 'Peças sem tubo', sem gestão", async () => {
+    it("só o que interessa: título, a peça DESTE embalar e a foto — sem passo de tubo, sem 'Peças sem tubo', sem gestão", async () => {
       await montar({ itensIniciais: ["s1"] }, largura);
       expect($$('[role="dialog"]').length, "um modal por vez").toBe(1);
       const m = $('[data-testid="modal-embalar"]')!;
       expect(m.textContent).toContain("Embalar #0386");
-      expect(m.textContent).toContain("Escolha o tubo e tire a foto — a peça fica Embalada até o tubo ser entregue");
+      expect(m.textContent).toContain("Tire a foto — a peça fica Embalada até ser entregue");
       expect($('[data-testid="embalar-pecas"]')!.textContent).toContain("2x1 Ministério da Saúde - 16");
-      // a OUTRA conferida sem tubo (#0381) não aparece, nem caixa, nem o segundo seletor
+      // a OUTRA conferida sem tubo (#0381) não aparece, nem caixa, nem seletor de tubo
       expect(m.textContent).not.toContain("#0381");
       expect(m.querySelector('input[type="checkbox"]')).toBeNull();
-      expect(m.textContent).not.toMatch(/Peças sem tubo|marcadas em|Apagar tubo|Etiqueta/i);
+      expect(m.querySelector('[role="radiogroup"]'), "individual: NUNCA mostra o passo de tubo por padrão").toBeNull();
+      expect(m.textContent).not.toMatch(/Peças sem tubo|marcadas em|Apagar tubo|Etiqueta|1 · Tubo/i);
       if (largura === 390) expect(reguaDoCelular(m)).toEqual([]);
     }, 30_000);
 
-    it("os tubos são um radiogroup de cartões; escolher NÃO grava e mostra o que já tem dentro; tubo entregue não é opção", async () => {
-      await montar({ itensIniciais: ["s1"] }, largura);
-      const grupo = $('[role="radiogroup"]')!;
-      expect(grupo.getAttribute("aria-labelledby")).toBe("rotulo-tubo-do-embalar");
-      expect($$('[role="radio"]').map((r) => r.textContent)).toEqual([
-        "Tubo 12 peças · 2 fotos", "Tubo 21 peça · sem foto", "Novo tubo (Tubo 4)Abre um tubo vazio para estas peças",
-      ]);
-      expect($$('[role="radio"][aria-checked="true"]').length).toBe(0);
-      await clicar('[data-testid="embalar-no-tubo-1"]');
-      expect($('[data-testid="embalar-no-tubo-1"]')!.getAttribute("aria-checked")).toBe("true");
-      expect($('[data-testid="embalar-conteudo-do-tubo"]')!.textContent).toContain("#0383");
-      expect(chamadas).toEqual([]);
-      if (largura === 390) for (const r of $$('[role="radio"]')) expect(px(r.style.minHeight)).toBeGreaterThanOrEqual(44);
-    }, 30_000);
-
-    it("o botão diz o que falta, na ordem: 'Escolha o tubo' → 'Tire a foto' → 'Embalar no Tubo 1 · 1 foto'; grava PATCH com a foto, avisa e fecha", async () => {
-      const { onClose } = await montar({ itensIniciais: ["s1"], onEmbalou: vi.fn() }, largura);
+    it("INDIVIDUAL vai SOZINHA: 'Tire a foto' → 'Embalar #0386 · 1 foto'; POST com avulso, sem tocar em tubo nenhum; toast sem 'Tubo'", async () => {
+      const { onClose } = await montar({ itensIniciais: ["s1"] }, largura);
+      expect($('[data-testid="embalar-tubo-automatico"]')!.textContent).toBe("Vai sozinha — embalagem própria, sem número de tubo.");
       const botao = () => $('[data-testid="confirmar-embalar"]') as HTMLButtonElement;
-      expect(botao().textContent).toBe("Escolha o tubo");
-      expect(botao().disabled).toBe(true);
-      await clicar('[data-testid="embalar-no-tubo-1"]');
+      // o tubo já está resolvido: o botão começa pedindo a FOTO, não o tubo
       expect(botao().textContent).toBe("Tire a foto");
-      // câmera direta é a primeira opção
-      expect($$('[data-testid="button-upload-photo"]')[0].getAttribute("data-capture")).toBe("sim");
+      expect(botao().disabled).toBe(true);
+      expect($$('[data-testid="button-upload-photo"]')[0].getAttribute("data-capture"), "câmera direta primeiro").toBe("sim");
       await act(async () => { fireEvent.click($$('[data-testid="button-upload-photo"]')[0]); });
-      expect(botao().textContent).toBe("Embalar no Tubo 1 · 1 foto");
-      expect(botao().disabled).toBe(false);
+      expect(botao().textContent).toBe("Embalar #0386 · 1 foto");
       expect(/safe-area-inset-bottom/.test($('[data-testid="rodape-embalar"]')!.style.paddingBottom)).toBe(true);
-      // remover a foto: alvo de 44 e o botão volta a pedir
-      const remover = $('button[aria-label="Remover a foto 1"]')!;
-      expect(px(remover.style.width)).toBe(44);
+      expect(px($('button[aria-label="Remover a foto 1"]')!.style.width)).toBe(44);
       // toque duplo não duplica
       await act(async () => { fireEvent.click(botao()); fireEvent.click(botao()); });
       await tick(30);
       expect(chamadas.length).toBe(1);
-      expect(chamadas[0].metodo).toBe("PATCH");
-      expect(chamadas[0].url).toContain("/api/tubos/t1/itens");
-      expect(chamadas[0].corpo.adicionar).toEqual(["s1"]);
+      expect(chamadas[0]).toMatchObject({ metodo: "POST", url: expect.stringContaining("/api/events/ev1/tubos"), corpo: { itemIds: ["s1"], avulso: true } });
       expect(chamadas[0].corpo.fotos.length).toBe(1);
       expect(onClose).toHaveBeenCalled();
     }, 30_000);
 
-    it("sem tubo aberto, 'Novo tubo' já vem escolhido e o embalar é um POST", async () => {
-      await montar({ itensIniciais: ["s1"] }, largura, retrato((r) => { r.tubos = [r.tubos[2]]; }));
-      expect($('[data-testid="embalar-em-tubo-novo"]')!.getAttribute("aria-checked")).toBe("true");
-      expect($('[data-testid="confirmar-embalar"]')!.textContent).toBe("Tire a foto");
+    it("LOTE vai junto num tubo AUTOMÁTICO: reusa o tubo aberto VAZIO (sem órfão) e diz qual; o botão resume", async () => {
+      await montar({ itensIniciais: ["s1", "s2"] }, largura, retrato((r) => { r.tubos.push(tubo("t5", 5, [])); }));
+      const m = $('[data-testid="modal-embalar"]')!;
+      expect(m.querySelector('[role="radiogroup"]')).toBeNull();
+      expect($('[data-testid="embalar-tubo-automatico"]')!.textContent).toBe("Vai para o Tubo 5 (vazio, já aberto).");
       await act(async () => { fireEvent.click($$('[data-testid="button-upload-photo"]')[0]); });
-      expect($('[data-testid="confirmar-embalar"]')!.textContent).toBe("Embalar no Tubo 4 · 1 foto");
+      expect($('[data-testid="confirmar-embalar"]')!.textContent).toBe("Embalar 2 peças no Tubo 5 · 1 foto");
       await clicar('[data-testid="confirmar-embalar"]');
       await tick(30);
-      expect(chamadas[0].metodo).toBe("POST");
-      expect(chamadas[0].url).toContain("/api/events/ev1/tubos");
-      expect(chamadas[0].corpo.itemIds).toEqual(["s1"]);
+      expect(chamadas[0]).toMatchObject({ metodo: "PATCH", url: expect.stringContaining("/api/tubos/t5/itens"), corpo: { adicionar: ["s1", "s2"] } });
+    }, 30_000);
+
+    it("LOTE sem tubo vazio: cria o PRÓXIMO número numa chamada só (POST com as peças e a foto — nunca avulso)", async () => {
+      await montar({ itensIniciais: ["s1", "s2"] }, largura);
+      expect($('[data-testid="embalar-tubo-automatico"]')!.textContent).toBe("Vai para o Tubo 4 (novo).");
+      await act(async () => { fireEvent.click($$('[data-testid="button-upload-photo"]')[0]); });
+      expect($('[data-testid="confirmar-embalar"]')!.textContent).toBe("Embalar 2 peças no Tubo 4 · 1 foto");
+      await clicar('[data-testid="confirmar-embalar"]');
+      await tick(30);
+      expect(chamadas.length).toBe(1);
+      expect(chamadas[0]).toMatchObject({ metodo: "POST", corpo: { itemIds: ["s1", "s2"] } });
+      expect(chamadas[0].corpo.avulso).toBeUndefined();
+    }, 30_000);
+
+    it("'Pôr num tubo que já existe' é a ÚNICA porta para a escolha: revela o radiogroup só com tubos de verdade que já têm peça", async () => {
+      await montar({ itensIniciais: ["s1"] }, largura);
+      const link = $('[data-testid="embalar-escolher-tubo"]')!;
+      expect(link.textContent).toBe("Pôr num tubo que já existe");
+      if (largura === 390) expect(px(link.style.minHeight)).toBe(44);
+      await act(async () => { fireEvent.click(link); });
+      const grupo = $('[role="radiogroup"]')!;
+      expect(grupo.getAttribute("aria-labelledby")).toBe("rotulo-tubo-do-embalar");
+      // Tubo 1 e Tubo 2 (têm peça) + a opção padrão; o entregue e a embalada sozinha não são destino
+      expect($$('[role="radio"]').map((r) => r.textContent)).toEqual(["Tubo 12 peças · 2 fotos", "Tubo 21 peça · sem foto", "SozinhaEmbalagem própria, sem número de tubo"]);
+      expect($('[data-testid="embalar-em-tubo-novo"]')!.getAttribute("aria-checked"), "o automático continua marcado").toBe("true");
+      await clicar('[data-testid="embalar-no-tubo-1"]');
+      expect($('[data-testid="embalar-conteudo-do-tubo"]')!.textContent).toContain("#0383");
+      expect(chamadas, "escolher não grava").toEqual([]);
+      await act(async () => { fireEvent.click($$('[data-testid="button-upload-photo"]')[0]); });
+      expect($('[data-testid="confirmar-embalar"]')!.textContent).toBe("Embalar no Tubo 1 · 1 foto");
+      await clicar('[data-testid="confirmar-embalar"]');
+      await tick(30);
+      expect(chamadas[0]).toMatchObject({ metodo: "PATCH", url: expect.stringContaining("/api/tubos/t1/itens"), corpo: { adicionar: ["s1"] } });
+      if (largura === 390) for (const r of $$('[role="radio"]')) expect(px(r.style.minHeight)).toBeGreaterThanOrEqual(44);
+    }, 30_000);
+
+    it("sem nenhum tubo com peça, o link nem aparece", async () => {
+      await montar({ itensIniciais: ["s1", "s2"] }, largura, retrato((r) => { r.tubos = [r.tubos[2]]; }));
+      expect($('[data-testid="embalar-escolher-tubo"]')).toBeNull();
+      expect($('[data-testid="embalar-tubo-automatico"]')!.textContent).toBe("Vai para o Tubo 4 (novo).");
     }, 30_000);
 
     it("lote: dá para TIRAR uma peça (x de 44px), não adicionar; a não conferida nunca entra", async () => {
@@ -234,7 +260,8 @@ for (const largura of [1280, 390]) {
       expect(lista.textContent).toContain("#0383");
       expect(lista.textContent).toContain("2x1 Ministério da Saúde - 16");
       expect($('[data-testid="fotos-entrega-tubo-1"]')!.querySelectorAll("img").length).toBe(2);
-      expect(m.textContent).toContain("opcional, o tubo já tem foto");
+      expect(m.textContent).toContain("Foto do comprovante · opcional");
+      expect(m.textContent).not.toMatch(/obrigatória/i);
       const botao = () => $('[data-testid="confirmar-entrega-tubo-1"]') as HTMLButtonElement;
       if (largura !== 390) expect(document.activeElement, "foco inicial no que falta").toBe($('[data-testid="recebedor-tubo-1"]'));
       expect(botao().textContent).toBe("Informe quem recebeu");
@@ -259,15 +286,26 @@ for (const largura of [1280, 390]) {
       expect(onClose).toHaveBeenCalled();
     }, 30_000);
 
-    it("tubo SEM foto: o comprovante vira obrigatório, com o porquê, e o botão pede a foto", async () => {
+    it("tubo legado SEM foto da embalagem: NÃO bloqueia — linha neutra, e o botão depende só de quem recebeu", async () => {
       await montar({ tuboInicial: "t1" }, largura, retrato((r) => { r.tubos[0].fotosFechamento = []; }));
-      expect($('[data-testid="entregar-porque-foto"]')!.textContent).toContain("Toda entrega sai com foto");
+      expect($('[data-testid="entregar-sem-foto-da-embalagem"]')!.textContent).toBe("Sem foto da embalagem — as fotos da conferência valem.");
+      expect($('[data-testid="entregar-porque-foto"]')).toBeNull();
       await act(async () => { fireEvent.change($('[data-testid="recebedor-tubo-1"]')!, { target: { value: "Ana" } }); });
-      const botao = () => $('[data-testid="confirmar-entrega-tubo-1"]') as HTMLButtonElement;
-      expect(botao().textContent).toBe("Tire a foto do comprovante");
-      expect(botao().disabled).toBe(true);
-      await act(async () => { fireEvent.click($$('[data-testid="button-upload-photo"]')[0]); });
-      expect(botao().textContent).toBe("Entregar Tubo 1 a Ana");
+      const botao = $('[data-testid="confirmar-entrega-tubo-1"]') as HTMLButtonElement;
+      expect(botao.textContent).toBe("Entregar Tubo 1 a Ana");
+      expect(botao.disabled).toBe(false);
+    }, 30_000);
+
+    it("EMBALADA SOZINHA: 'Entregar #0390 — Placa de octanorme', nunca 'tubo'; mesma régua (só quem recebeu) e link da foto da conferência", async () => {
+      await montar({ tuboInicial: "av1" }, largura);
+      const m = $('[data-testid="modal-entregar-tubo"]')!;
+      expect(m.textContent).toContain("Entregar #0390 — Placa de octanorme");
+      expect(m.textContent).not.toMatch(/tubo/i);
+      expect(m.textContent).toContain("Fotos da embalagem · 1");
+      expect($('[data-testid="foto-conferencia-z1"]')!.getAttribute("href")).toBe("/objects/conf-z1.jpg");
+      await act(async () => { fireEvent.change($('[data-testid="recebedor-tubo--1"]')!, { target: { value: "Bia" } }); });
+      expect($('[data-testid="confirmar-entrega-tubo--1"]')!.textContent).toBe("Entregar #0390 a Bia");
+      if (largura === 390) expect(reguaDoCelular(m)).toEqual([]);
     }, 30_000);
 
     it("falta conferir: abre EXPLICANDO, com a lista, e sem formulário — só 'Fechar'", async () => {
@@ -300,6 +338,16 @@ for (const largura of [1280, 390]) {
       expect(m.querySelector('input[type="checkbox"]')).toBeNull();
       expect(m.querySelector('[role="radiogroup"]')).toBeNull();
       expect(m.textContent).toContain("Tubos abertos · 2");
+      // a embalada SOZINHA não é tubo: seção própria, recolhida, sem etiqueta de tubo
+      expect($('[data-testid="tubo--1"]')).toBeNull();
+      expect($('[data-testid="painel-ver-sozinhas"]')!.textContent).toContain("Embaladas sozinhas (1)");
+      expect($('[data-testid="sozinha-z1"]')).toBeNull();
+      await clicar('[data-testid="painel-ver-sozinhas"]');
+      const sozinha = $('[data-testid="sozinha-z1"]')!;
+      expect(sozinha.textContent).toContain("#0390");
+      expect($('[data-testid="entregar-sozinha-z1"]')!.textContent).toBe(" Entregar");
+      expect($('[data-testid="desfazer-embalagem-z1"]')!.textContent).toBe("Desfazer embalagem");
+      expect(sozinha.querySelector("a[href*='etiqueta']")).toBeNull();
       expect($('[data-testid="tubo-3"]'), "entregue fica recolhido").toBeNull();
       await clicar('[data-testid="painel-ver-entregues"]');
       expect($('[data-testid="tubo-3"]')!.textContent).toContain("Recebido por Carlos");

@@ -90,7 +90,8 @@ describe("a entrega não tem gate de papel no cliente", () => {
         // `!podeEmbalarPeca` (21/09) também não é papel: a conferida tem Embalar
     // como principal e o Entregar vira secundária, no menu (mesmo canDeliver).
 expect(tela).toContain("{!bulkOn && !emRevisao && canDeliver(item) && !podeEmbalarPeca && (");
-    expect(tela).toContain("{!bulkOn && !emRevisao && podeEmbalarPeca && canDeliver(item) && (");
+    // …e a conferida não tem Entregar nenhum (21/09: "todas são embaladas").
+    expect(tela).not.toContain("podeEmbalarPeca && canDeliver(item)");
   });
 });
 

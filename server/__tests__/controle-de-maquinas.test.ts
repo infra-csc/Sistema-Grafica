@@ -177,7 +177,8 @@ describe("5 · a tela", () => {
     expect(PAGINA).toContain('from "@/components/grafica/modal-impressao"');
     expect(PAGINA).toContain('const podeAgir = user?.role === "grafica" || user?.role === "admin";');
     expect(PAGINA).toContain("data-testid={`button-impressas-${p.id}`}");
-    expect(PAGINA).toContain("data-testid={`button-impressas-linha-${l.id}`}");
+    // A linha do diário NÃO repete a ação (dono, 21/09): ela é da peça, no cartão.
+    expect(PAGINA).not.toContain("button-impressas-linha-");
     expect(PAGINA).toContain("data-testid={`link-escolher-peca-${m.codigo}`}");
     // Evento finalizado: o botão explica antes, com a mesma frase do 409.
     expect(PAGINA).toContain('motivoAcaoBloqueada(selo.motivo, "informar impressas")');

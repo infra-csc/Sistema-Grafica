@@ -224,8 +224,8 @@ describe("a aba Máquinas no desktop", () => {
     expect(($('[data-testid="maquina-1"]') as HTMLButtonElement).disabled).toBe(true);
     await act(async () => { fireEvent.click($('[data-testid="maquina-3"]')!); });
     expect($('[data-testid="button-iniciar-impressao"]')!.textContent).toBe("Mover para a Impressora 3");
-    // A linha do diário da peça ainda em impressão também age.
-    expect($('[data-testid="button-impressas-linha-r1"]')).toBeTruthy();
+    // A linha do diário não repete a ação da peça (ela mora no cartão).
+    expect($('[data-testid="button-impressas-linha-r1"]')).toBeNull();
   });
 
   it("PERMISSÃO: a Solicitação vê tudo e não age", async () => {

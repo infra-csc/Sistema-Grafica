@@ -345,27 +345,14 @@ function PecaNoCartao({ p, agora, podeAgir, hojeMs, isMobile, onAgir }: {
 }
 
 // ─── Linha do diário (memoizada: pode haver centenas) ─────────────────────────
-const LinhaDoDiario = memo(function LinhaDoDiario({ l, mostrarMaquina, acao, isMobile, hojeMs, onAgir }: {
-  l: Linha; mostrarMaquina: boolean; acao: PecaNaMaquina | null; isMobile: boolean; hojeMs: number; onAgir: (p: PecaNaMaquina) => void;
+// Sem botão por linha (dono, 21/09: "veja se esse botão Impressas está
+// fazendo sentido"): cada registro repetia a ação da MESMA peça, e a coluna
+// extra estourava a tabela. A ação mora no cartão da impressora, uma vez.
+const LinhaDoDiario = memo(function LinhaDoDiario({ l, mostrarMaquina, isMobile }: {
+  l: Linha; mostrarMaquina: boolean; isMobile: boolean;
 }) {
   const meta = TIPO_DO_REGISTRO[l.tipo] ?? TIPO_DO_REGISTRO.parcial;
   const texto = oQueAconteceu(l, l.rotuloMaquina);
-  // Evento finalizado: o mesmo bloqueio (e a mesma frase do 409) do cartão.
-  const selo = acao ? seloPecaEventoFinalizado(acao.eventoInfo, hojeMs) : null;
-  const botao = acao && (
-    <button
-      type="button"
-      className="mq-acao"
-      onClick={() => { if (!selo) onAgir(acao); }}
-      disabled={!!selo}
-      data-testid={`button-impressas-linha-${l.id}`}
-      title={selo ? motivoAcaoBloqueada(selo.motivo, "informar impressas") : `Informar quantas já saíram — ${progressoDaImpressao(acao.impressas, acao.aImprimir)}`}
-      style={{ minHeight: isMobile ? 44 : 30, padding: "0 10px", display: "inline-flex", alignItems: "center", gap: 5, borderRadius: R.md, border: `1px solid ${T.bdark}`, background: selo ? T.low : T.surface, color: selo ? "#746e69" : T.text, fontSize: 12, fontWeight: 700, cursor: selo ? "not-allowed" : "pointer", whiteSpace: "nowrap" }}
-    >
-      <Play aria-hidden="true" style={{ width: 11, height: 11, color: T.accentText }} />
-      {rotuloCurtoDaAcao(acao.impressas, acao.aImprimir)}
-    </button>
-  );
 
   if (isMobile) {
     return (
@@ -380,10 +367,7 @@ const LinhaDoDiario = memo(function LinhaDoDiario({ l, mostrarMaquina, acao, isM
           <span style={{ fontFamily: MONO, fontWeight: 700, color: T.accentText, flexShrink: 0 }}>{l.displayId ?? "—"}</span>
           <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{l.tipoPeca}{l.evento ? ` · ${l.evento}` : ""}</span>
         </Link>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-          <span style={{ fontSize: 12, color: T.second }}>{l.quem ?? "—"}</span>
-          {botao}
-        </div>
+        <span style={{ fontSize: 12, color: T.second }}>{l.quem ?? "—"}</span>
       </div>
     );
   }
@@ -407,7 +391,6 @@ const LinhaDoDiario = memo(function LinhaDoDiario({ l, mostrarMaquina, acao, isM
         </span>
       </td>
       <td style={{ ...td, color: T.second }}>{l.quem ?? "—"}</td>
-      <td style={{ ...td, textAlign: "right", paddingTop: 4, paddingBottom: 4 }}>{botao}</td>
     </tr>
   );
 });
@@ -717,22 +700,22 @@ export default function GraficaMaquinas() {
                 ) : isMobile ? (
                   <div data-testid="diario-cartoes">
                     {linhasVisiveis.map((l) => (
-                      <LinhaDoDiario key={l.id} l={l} mostrarMaquina={!maquinaFiltro} acao={podeAgir ? emImpressaoPorId.get(l.itemId) ?? null : null} isMobile hojeMs={hojeMs} onAgir={setPecaNoModal} />
+                      <LinhaDoDiario key={l.id} l={l} mostrarMaquina={!maquinaFiltro} isMobile />
                     ))}
                   </div>
                 ) : (
                   <div style={{ overflowX: "auto" }}>
-                    <table data-testid="diario-tabela" style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5, minWidth: 720 }}>
+                    <table data-testid="diario-tabela" style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5, minWidth: 640 }}>
                       <thead>
                         <tr style={{ textAlign: "left", color: T.second, background: T.bg }}>
-                          {["Hora", ...(maquinaFiltro ? [] : ["Impressora"]), "Peça", "Evento", "O que aconteceu", "Quem", ""].map((h, i) => (
-                            <th key={`${h}-${i}`} scope="col" style={{ padding: "9px 14px", ...ROTULO_MICRO, whiteSpace: "nowrap" }}>{h || <span className="sr-only">Ação</span>}</th>
+                          {["Hora", ...(maquinaFiltro ? [] : ["Impressora"]), "Peça", "Evento", "O que aconteceu", "Quem"].map((h, i) => (
+                            <th key={`${h}-${i}`} scope="col" style={{ padding: "9px 14px", ...ROTULO_MICRO, whiteSpace: "nowrap" }}>{h}</th>
                           ))}
                         </tr>
                       </thead>
                       <tbody>
                         {linhasVisiveis.map((l) => (
-                          <LinhaDoDiario key={l.id} l={l} mostrarMaquina={!maquinaFiltro} acao={podeAgir ? emImpressaoPorId.get(l.itemId) ?? null : null} isMobile={false} hojeMs={hojeMs} onAgir={setPecaNoModal} />
+                          <LinhaDoDiario key={l.id} l={l} mostrarMaquina={!maquinaFiltro} isMobile={false} />
                         ))}
                       </tbody>
                     </table>

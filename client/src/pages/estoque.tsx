@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useDeferredValue } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { FilterSelect } from "@/components/filter-select";
 import { EventFilterDropdown } from "@/components/event-filter-dropdown";
@@ -30,6 +30,10 @@ import { FS, R } from "@/lib/theme";
 // ─── Status meta ─────────────────────────────────────────────────────────────
 // Tons 700/800 (#15803d, #9a3412): os 600 reprovavam contraste AA no texto
 // pequeno em caps da coluna Status.
+/** Referência estável para "ainda sem dados": um `= []` no useQuery cria um
+ *  array novo a cada render e todo useMemo que depende dele recalcula sempre. */
+const VAZIO: never[] = [];
+
 const STATUS_META: Record<string, { label: string; color: string; bg: string }> = {
   NO_GALPAO:          { label: "No Galpão",   color: "#15803d", bg: "rgba(22,163,74,0.10)"  },
   EM_USO:             { label: "Em Uso",       color: "#9a3412", bg: "rgba(234,88,12,0.10)"  },
@@ -191,12 +195,12 @@ function AssetDetailModal({ asset, linkedItem, sponsors, onClose }: {
   // Sem queryFn inline: o default do queryClient junta a queryKey com "/",
   // inclui credenciais e lança em !res.ok — o fetch().json() anterior engolia
   // erros HTTP e derrubava a tela com JSON inválido.
-  const { data: allocations = [] } = useQuery<any[]>({
+  const { data: allocations = VAZIO as any[] } = useQuery<any[]>({
     queryKey: ["/api/inventory", asset.id, "allocations"],
   });
   const currentAlloc = ts === "EM_USO" ? allocations[allocations.length - 1] : null;
 
-  const { data: assetLogs = [] } = useQuery<any[]>({
+  const { data: assetLogs = VAZIO as any[] } = useQuery<any[]>({
     queryKey: [`/api/audit-logs?entityType=inventory_asset&entityId=${asset.id}`],
   });
   const productionLog = assetLogs.find((l: any) => l.action === 'cadastrado');
@@ -660,7 +664,7 @@ function AssetModal({ asset, onClose, onSaved }: {
   } : { name: "", quantity: 1, location: "", condition: "PERFEITO" as Condition, sponsorIds: [] as string[], trackingStatus: "NO_GALPAO" as TrackingStatus, notes: "" });
   const [showMapa, setShowMapa] = useState(false);
 
-  const { data: allSponsors = [] } = useQuery<Sponsor[]>({ queryKey: ["/api/sponsors"] });
+  const { data: allSponsors = VAZIO as Sponsor[] } = useQuery<Sponsor[]>({ queryKey: ["/api/sponsors"] });
 
   const toggleSponsor = (id: string) =>
     setForm(f => ({
@@ -885,6 +889,11 @@ function AssetModal({ asset, onClose, onSaved }: {
 
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
+/** Ativos montados por vez. O acervo passa de 5 mil peças e cada linha monta
+ *  um Popover, três botões e uma miniatura: montar tudo de uma vez travava a
+ *  tela a cada tecla da busca. O resto entra por "Mostrar mais". */
+export const LOTE_DO_ESTOQUE = 60;
+
 export default function Estoque() {
   const isMobile = useIsMobile();
   const { toast } = useToast();
@@ -903,6 +912,13 @@ export default function Estoque() {
   const [filterEvent, setFilterEvent] = useState<string[]>(() => listaDaUrl("evento"));
   const [filterSponsor, setFilterSponsor] = useState<string[]>(() => listaDaUrl("patrocinador"));
   const [filterFranchise, setFilterFranchise] = useState<string[]>(() => listaDaUrl("franquia"));
+  // "O que a Gráfica já reservou?" — a pergunta que liga esta tela à Gráfica
+  // e que não tinha resposta sem abrir peça por peça.
+  const [soReservadas, setSoReservadas] = useState(() => urlInicial.get("reserva") === "1");
+  const [mostrando, setMostrando] = useState(LOTE_DO_ESTOQUE);
+  const limparFiltros = () => { setSearch(""); setFilterStatus([]); setFilterCondition([]); setFilterAutoAdded("all"); setFilterEvent([]); setFilterSponsor([]); setFilterFranchise([]); setSoReservadas(false); };
+  // Trocar o recorte volta ao primeiro lote.
+  useEffect(() => { setMostrando(LOTE_DO_ESTOQUE); }, [search, filterStatus, filterCondition, filterAutoAdded, filterEvent, filterSponsor, filterFranchise, soReservadas]);
   useEffect(() => {
     const t = setTimeout(() => {
       const p = new URLSearchParams(window.location.search);
@@ -914,11 +930,12 @@ export default function Estoque() {
       grava("evento", filterEvent.join(","));
       grava("patrocinador", filterSponsor.join(","));
       grava("franquia", filterFranchise.join(","));
+      grava("reserva", soReservadas ? "1" : "");
       const qs = p.toString();
       window.history.replaceState(null, "", qs ? `?${qs}` : window.location.pathname);
     }, 200);
     return () => clearTimeout(t);
-  }, [search, filterStatus, filterCondition, filterAutoAdded, filterEvent, filterSponsor, filterFranchise]);
+  }, [search, filterStatus, filterCondition, filterAutoAdded, filterEvent, filterSponsor, filterFranchise, soReservadas]);
   const [editing, setEditing] = useState<InventoryAsset | null | false>(false);
   const [deleting, setDeleting] = useState<InventoryAsset | null>(null);
   // Fechamento por clique-fora/Escape do popover de condição agora é do
@@ -932,13 +949,15 @@ export default function Estoque() {
   const { user } = useAuth();
   const podeEditar = user?.role === "grafica" || user?.role === "admin";
   const podeExcluir = user?.role === "admin";
-  const { data: reservasAtivas = [] } = useQuery<ReservaAtiva[]>({ queryKey: ["/api/estoque/reservas-ativas"] });
+  const { data: reservasAtivas = VAZIO as ReservaAtiva[] } = useQuery<ReservaAtiva[]>({ queryKey: ["/api/estoque/reservas-ativas"] });
   const reservaPorAtivo = useMemo(() => new Map(reservasAtivas.map(r => [r.assetId, r])), [reservasAtivas]);
 
-  const { data: assets = [], isLoading, isError, refetch } = useQuery<InventoryAsset[]>({ queryKey: ["/api/inventory"] });
-  const { data: sponsors = [] } = useQuery<Sponsor[]>({ queryKey: ["/api/sponsors"] });
-  const { data: allItems = [] } = useQuery<any[]>({ queryKey: ["/api/items"] });
-  const { data: allEvents = [] } = useQuery<Event[]>({ queryKey: ["/api/events"] });
+  const { data: assets = VAZIO as InventoryAsset[], isLoading, isError, refetch } = useQuery<InventoryAsset[]>({ queryKey: ["/api/inventory"] });
+  const { data: sponsors = VAZIO as Sponsor[] } = useQuery<Sponsor[]>({ queryKey: ["/api/sponsors"] });
+  const { data: allItems = VAZIO as any[] } = useQuery<any[]>({ queryKey: ["/api/items"] });
+  const { data: allEvents = VAZIO as Event[] } = useQuery<Event[]>({ queryKey: ["/api/events"] });
+  // Por id: cada linha fazia sponsors.find() por patrocinador.
+  const patrocinadorPorId = useMemo(() => new Map(sponsors.map(s => [s.id, s])), [sponsors]);
 
   const getLinkedItem = (asset: InventoryAsset) => {
     if (!asset.originalItemId) return undefined;
@@ -975,16 +994,30 @@ export default function Estoque() {
   });
 
   // Exclude AGUARDANDO_TRIAGEM — those belong to the triage screen only
-  const acervoAssets = assets.filter(a => a.trackingStatus !== "AGUARDANDO_TRIAGEM");
-  const triageCount = assets.filter(a => a.trackingStatus === "AGUARDANDO_TRIAGEM").length;
+  // UMA passada conta tudo (eram oito filter() do acervo inteiro por render).
+  const { acervoAssets, contagem } = useMemo(() => {
+    const contagem: Record<string, number> = {};
+    const acervoAssets: InventoryAsset[] = [];
+    for (const a of assets) {
+      contagem[a.trackingStatus] = (contagem[a.trackingStatus] ?? 0) + 1;
+      if (a.trackingStatus !== "AGUARDANDO_TRIAGEM") acervoAssets.push(a);
+    }
+    return { acervoAssets, contagem };
+  }, [assets]);
+  const byStatus = (s: string) => contagem[s] ?? 0;
+  const triageCount = byStatus("AGUARDANDO_TRIAGEM");
+  const total = acervoAssets.length - byStatus("DESCARTADO");
+  // Reservadas que estão no galpão: "No galpão" não quer dizer livre (14/09).
+  const reservadasNoGalpao = useMemo(() => acervoAssets.filter(a => a.trackingStatus === "NO_GALPAO" && reservaPorAtivo.has(a.id)).length, [acervoAssets, reservaPorAtivo]);
 
-  const total = acervoAssets.filter(a => a.trackingStatus !== "DESCARTADO").length;
-  const byStatus = (s: string) => assets.filter(a => a.trackingStatus === s).length;
-
-  const filtered = acervoAssets.filter(a => {
+  // A busca filtra com o valor ADIADO: o campo responde na hora e a lista
+  // acompanha quando o navegador respira.
+  const buscaAdiada = useDeferredValue(search);
+  const filtered = useMemo(() => acervoAssets.filter(a => {
     // Hide DESCARTADO by default — only show when explicitly filtered
     if (filterStatus.length === 0 && a.trackingStatus === "DESCARTADO") return false;
-    const q = search.toLowerCase();
+    if (soReservadas && !reservaPorAtivo.has(a.id)) return false;
+    const q = buscaAdiada.trim().toLowerCase();
     const ms = !q || a.name.toLowerCase().includes(q) || a.displayId.toLowerCase().includes(q) || (a.location ?? "").toLowerCase().includes(q) || a.franchiseTags.some(t => t.toLowerCase().includes(q));
     const mst = filterStatus.length === 0 || filterStatus.includes(a.trackingStatus);
     const mc = filterCondition.length === 0 || filterCondition.includes(a.condition);
@@ -993,14 +1026,16 @@ export default function Estoque() {
     const msp = filterSponsor.length === 0 || (a.sponsorIds ?? []).some(sid => filterSponsor.includes(sid));
     const mf = filterFranchise.length === 0 || (a.franchiseTags ?? []).some(t => filterFranchise.includes(t));
     return ms && mst && mc && ma && me && msp && mf;
-  });
+  }), [acervoAssets, buscaAdiada, filterStatus, filterCondition, filterAutoAdded, filterEvent, filterSponsor, filterFranchise, soReservadas, reservaPorAtivo, assetEventMap]);
+  const visiveis = useMemo(() => filtered.slice(0, mostrando), [filtered, mostrando]);
 
-  const hasFilters = !!(search || filterStatus.length > 0 || filterCondition.length > 0 || filterAutoAdded !== "all" || filterEvent.length > 0 || filterSponsor.length > 0 || filterFranchise.length > 0);
+  const hasFilters = !!(soReservadas || search || filterStatus.length > 0 || filterCondition.length > 0 || filterAutoAdded !== "all" || filterEvent.length > 0 || filterSponsor.length > 0 || filterFranchise.length > 0);
 
   // Filtros facetados: cada filtro lista só o que existe no acervo já recortado
   // pelos OUTROS filtros ativos, com a contagem de ativos por opção.
   const eFacetPool = (exclude: 'status' | 'condition' | 'auto' | 'event' | 'sponsor' | 'franchise') =>
     acervoAssets.filter(a => {
+      if (soReservadas && !reservaPorAtivo.has(a.id)) return false;
       if (exclude !== 'status') {
         if (filterStatus.length === 0 && a.trackingStatus === "DESCARTADO") return false;
         if (filterStatus.length > 0 && !filterStatus.includes(a.trackingStatus)) return false;
@@ -1118,7 +1153,7 @@ export default function Estoque() {
           // filtro ativo, o subtexto vira o convite.
           subtext={hasFilters ? "Toque para ver tudo (limpa filtros)" : "Ativos no acervo"}
           active={!hasFilters}
-          onClick={() => { setSearch(""); setFilterStatus([]); setFilterCondition([]); setFilterAutoAdded("all"); setFilterEvent([]); setFilterSponsor([]); setFilterFranchise([]); }}
+          onClick={limparFiltros}
         />
         <StatCard compacto={isMobile}
           label="Descartados" value={byStatus("DESCARTADO")} Icon={XCircle} color="#6b7280"
@@ -1129,12 +1164,14 @@ export default function Estoque() {
         />
         <StatCard compacto={isMobile}
           label="No Galpão" value={byStatus("NO_GALPAO")} Icon={Warehouse} color="#16a34a"
-          subtext="Disponível no depósito"
+          // "Disponível" prometia o que a regra de 14/09 nega: no galpão pode
+          // estar reservada ou separada para o evento de origem.
+          subtext={reservadasNoGalpao > 0 ? `${reservadasNoGalpao} com reserva` : "Guardadas no depósito"}
           active={filterStatus.length === 1 && filterStatus[0] === "NO_GALPAO"}
           onClick={() => setFilterStatus(filterStatus.length === 1 && filterStatus[0] === "NO_GALPAO" ? [] : ["NO_GALPAO"])}
         />
         <StatCard compacto={isMobile}
-          label="Em Uso" value={byStatus("EM_USO")} Icon={Truck} color="#ea580c"
+          label="Em Uso" value={byStatus("EM_USO")} Icon={Truck} color="#c2410c"
           subtext="Num evento agora"
           active={filterStatus.length === 1 && filterStatus[0] === "EM_USO"}
           onClick={() => setFilterStatus(filterStatus.length === 1 && filterStatus[0] === "EM_USO" ? [] : ["EM_USO"])}
@@ -1261,7 +1298,7 @@ export default function Estoque() {
                   width: "100%", paddingLeft: 34, paddingRight: 12, height: 44,
                   border: `1.5px solid ${search ? "#c2610c" : "#e2e8f0"}`, borderRadius: 8,
                   fontSize: isMobile ? 16 : 13, fontWeight: 400, fontFamily: "Plus Jakarta Sans, sans-serif",
-                  background: "#fff", color: "#374151", outline: "none", boxSizing: "border-box",
+                  background: "#fff", color: "#374151", boxSizing: "border-box",
                   transition: "border-color 0.15s",
                 }}
                 onFocus={e => (e.target.style.borderColor = "#c2610c")}
@@ -1273,13 +1310,29 @@ export default function Estoque() {
               </div>
             </div>
 
+            {/* Só reservadas — botão de alternar (aria-pressed), não depende
+                só da cor: o ícone preenche e o texto muda. */}
+            {(reservasAtivas.length > 0 || soReservadas) && (
+              <div style={{ display: "flex", flexDirection: "column", flex: "0 0 auto" }}>
+                <label style={{ ...FL, visibility: "hidden" }} aria-hidden="true">·</label>
+                <button type="button" data-testid="button-so-reservadas" aria-pressed={soReservadas}
+                  onClick={() => setSoReservadas(v => !v)}
+                  title="Peças que a Gráfica reservou para outra peça de um evento"
+                  style={{ height: 44, display: "flex", alignItems: "center", gap: 6, padding: "0 14px", borderRadius: 8, border: `1.5px solid ${soReservadas ? "#1d4ed8" : "#e2e8f0"}`, background: soReservadas ? "#eff6ff" : "#fff", color: soReservadas ? "#1d4ed8" : "#374151", fontSize: 13, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap", transition: "background-color 0.15s, border-color 0.15s, color 0.15s" }}>
+                  <BookmarkCheck size={14} aria-hidden="true" fill={soReservadas ? "#bfdbfe" : "none"} />
+                  {soReservadas ? "Só reservadas" : "Reservadas"}
+                  <span style={{ fontFamily: "Space Grotesk, sans-serif", fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>{reservasAtivas.length}</span>
+                </button>
+              </div>
+            )}
+
             {/* Limpar */}
             <div style={{ display: "flex", flexDirection: "column", flex: "0 0 auto" }}>
               <label style={{ ...FL, visibility: "hidden" }}>·</label>
               <button
                 data-testid="button-clear-filters"
                 disabled={!hasFilters}
-                onClick={() => { setSearch(""); setFilterStatus([]); setFilterCondition([]); setFilterAutoAdded("all"); setFilterEvent([]); setFilterSponsor([]); setFilterFranchise([]); }}
+                onClick={limparFiltros}
                 style={{
                   height: 44, display: "flex", alignItems: "center", gap: 5, padding: "0 14px",
                   borderRadius: 8,
@@ -1333,7 +1386,7 @@ export default function Estoque() {
             </p>
             {hasFilters && (
               <button type="button" data-testid="button-clear-filters-vazio"
-                onClick={() => { setSearch(""); setFilterStatus([]); setFilterCondition([]); setFilterAutoAdded("all"); setFilterEvent([]); setFilterSponsor([]); setFilterFranchise([]); }}
+                onClick={limparFiltros}
                 style={{ marginTop: 16, minHeight: 44, background: "#0f172a", color: "#fff", border: "none", borderRadius: 8, padding: "0 18px", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
                 Limpar filtros
               </button>
@@ -1352,7 +1405,7 @@ export default function Estoque() {
                 const sm = STATUS_META[asset.trackingStatus ?? "NO_GALPAO"];
                 const cm = conditionMeta(asset.condition);
                 const thumbOk = asset.approvalThumbUrl && (/\.(png|jpg|jpeg|gif|webp)/i.test(asset.approvalThumbUrl) || asset.approvalThumbUrl.startsWith('/objects/'));
-                const assetSponsors = (asset.sponsorIds ?? []).map(id => sponsors.find(s => s.id === id)).filter(Boolean);
+                const assetSponsors = (asset.sponsorIds ?? []).map(id => patrocinadorPorId.get(id)).filter(Boolean);
                 const lado = isMobile ? 48 : 40;
 
                 const miniaturaEl = (
@@ -1539,12 +1592,12 @@ export default function Estoque() {
               if (isMobile) {
                 return (
                   <ul aria-label="Ativos do acervo" style={{ listStyle: "none", margin: 0, padding: 0 }}>
-                    {filtered.map((asset, i) => {
+                    {visiveis.map((asset, i) => {
                       const p = pecasDe(asset);
                       return (
                         <li key={asset.id} data-testid={`row-asset-${asset.id}`}
                           onClick={() => setViewingAsset(asset)}
-                          style={{ padding: "14px 14px 10px", borderBottom: i < filtered.length - 1 ? "1px solid #f1f5f9" : "none", cursor: "pointer", display: "flex", flexDirection: "column", gap: 10 }}>
+                          style={{ padding: "14px 14px 10px", borderBottom: i < visiveis.length - 1 ? "1px solid #f1f5f9" : "none", cursor: "pointer", display: "flex", flexDirection: "column", gap: 10 }}>
                           <div style={{ display: "flex", gap: 12, minWidth: 0 }}>
                             {p.miniaturaEl}
                             <div style={{ flex: 1, minWidth: 0 }}>
@@ -1601,7 +1654,7 @@ export default function Estoque() {
                       </tr>
                     </thead>
                     <tbody>
-                      {filtered.map(asset => {
+                      {visiveis.map(asset => {
                         const p = pecasDe(asset);
                         return (
                           <tr key={asset.id} data-testid={`row-asset-${asset.id}`}
@@ -1680,7 +1733,7 @@ export default function Estoque() {
             {/* Rodapé — "N de M" comparava conjuntos diferentes (o M excluía
                 descartados) e produzia "12 de 8". Agora: total exibido +
                 quantos registros os filtros estão ocultando. */}
-            <div style={{ padding: isMobile ? "12px 14px" : "14px 24px", background: "#f8fafc", borderTop: "1px solid #e2e8f0", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <div style={{ padding: isMobile ? "12px 14px" : "14px 24px", background: "#f8fafc", borderTop: "1px solid #e2e8f0", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
               {(() => {
                 const baseline = acervoAssets.filter(a => filterStatus.length > 0 || a.trackingStatus !== "DESCARTADO").length;
                 const ocultos = Math.max(0, baseline - filtered.length);
@@ -1693,7 +1746,7 @@ export default function Estoque() {
                   : 0;
                 return (
                   <p role="status" style={{ margin: 0, fontSize: 12, fontWeight: 500, fontFamily: "Plus Jakarta Sans, sans-serif", color: "#64748b" }}>
-                    Exibindo <span style={{ color: "#0f172a", fontWeight: 700 }}>{filtered.length}</span> {filtered.length === 1 ? "registro" : "registros"}
+                    Exibindo <span style={{ color: "#0f172a", fontWeight: 700, fontFamily: "Space Grotesk, sans-serif" }}>{visiveis.length < filtered.length ? `${visiveis.length} de ${filtered.length}` : filtered.length}</span> {filtered.length === 1 ? "registro" : "registros"}
                     {ocultos > 0 && <span> ({ocultos} {ocultos === 1 ? "oculto" : "ocultos"} pelos filtros)</span>}
                     {/* "Cadê a peça descartada?" — ela some por padrão e só
                         voltava para quem adivinhasse o filtro. */}
@@ -1711,6 +1764,12 @@ export default function Estoque() {
                   </p>
                 );
               })()}
+              {filtered.length > visiveis.length && (
+                <button type="button" data-testid="mostrar-mais-estoque" onClick={() => setMostrando(n => n + LOTE_DO_ESTOQUE)}
+                  style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, minHeight: 44, padding: "0 16px", borderRadius: 8, border: "1px solid #e2e8f0", background: "#fff", color: "#334155", fontSize: 13, fontWeight: 700, cursor: "pointer", width: isMobile ? "100%" : undefined }}>
+                  <ChevronDown size={15} aria-hidden="true" /> Mostrar mais {Math.min(LOTE_DO_ESTOQUE, filtered.length - visiveis.length)}
+                </button>
+              )}
             </div>
           </div>
         )}

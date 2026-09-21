@@ -15,8 +15,8 @@
 // No celular não existe arrastar: toca nas peças e escolhe o destino na barra.
 // Dividir uma peça ×N por condição continua na vista em tabela.
 // ─────────────────────────────────────────────────────────────────────────────
-import { useEffect, useState } from "react";
-import { ArrowLeft, BookmarkCheck, CheckCircle2, Grid3X3, Package, Table2, Trash2, Undo2, Warehouse, Wrench, X } from "lucide-react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ArrowLeft, BookmarkCheck, CheckCircle2, ChevronDown, Grid3X3, Package, Search, Table2, Trash2, Undo2, Warehouse, Wrench, X } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useElementSize, useIsMobile } from "@/hooks/use-mobile";
@@ -49,9 +49,35 @@ export function corpoDaTriagem(destino: Exclude<DestinoDaTriagem, "triar">, cond
   return { condition: "SUCATA", trackingStatus: "DESCARTADO" };
 }
 
+/** Cartões montados por coluna de cada vez. O acúmulo em triagem passa de 4 mil
+ *  peças e a pilha "Sem evento" sozinha pode ter centenas: montar tudo de uma
+ *  vez travava o quadro a cada seleção. O resto entra por "Mostrar mais". */
+export const LOTE_DA_COLUNA = 40;
+
+/** Gravações simultâneas. Um PATCH por peça, todos de uma vez, abria centenas
+ *  de conexões e o servidor devolvia erro no meio do lote. */
+export const GRAVACOES_POR_VEZ = 6;
+
+/** Executa `tarefa` sobre `itens` em grupos de `porVez`, na ordem, e devolve o
+ *  resultado de cada um no formato do Promise.allSettled. */
+export async function emGrupos<T, R>(itens: T[], porVez: number, tarefa: (item: T) => Promise<R>, aoAvancar?: (feitos: number) => void): Promise<PromiseSettledResult<R>[]> {
+  const resultados: PromiseSettledResult<R>[] = [];
+  for (let i = 0; i < itens.length; i += porVez) {
+    const grupo = await Promise.allSettled(itens.slice(i, i + porVez).map(tarefa));
+    resultados.push(...grupo);
+    aoAvancar?.(resultados.length);
+  }
+  return resultados;
+}
+
+/** Atalhos do cartão focado — a alternativa de TECLADO ao arrastar. */
+export const ATALHO_DO_DESTINO: Record<string, DestinoDaTriagem> = { g: "galpao", m: "manutencao", d: "descartar", t: "triar" };
+
 const ehImagem = (u?: string | null) => !!u && (/\.(png|jpe?g|gif|webp)/i.test(u) || u.startsWith("/objects/"));
 
-function CartaoDaPeca({ ativo, reserva, selecionada, fantasma, podeArrastar, noGalpao, condicao, onCondicao, onAlternar, onArrastar, onSoltar, alvo = 28 }: {
+// memo: selecionar UMA peça não pode redesenhar as outras dezenas de cartões.
+// Por isso os handlers chegam estáveis (useCallback) e recebem o id.
+const CartaoDaPeca = memo(function CartaoDaPeca({ ativo, reserva, selecionada, fantasma, podeArrastar, noGalpao, condicao, onCondicao, onAlternar, onArrastar, onSoltar, onAtalho, alvo = 28 }: {
   /** Altura dos botões Perfeito/Avaria leve — 44 no celular (toque). */
   alvo?: number;
   ativo: EnrichedAsset;
@@ -61,10 +87,11 @@ function CartaoDaPeca({ ativo, reserva, selecionada, fantasma, podeArrastar, noG
   podeArrastar: boolean;
   noGalpao: boolean;
   condicao: CondicaoNoGalpao;
-  onCondicao: (c: CondicaoNoGalpao) => void;
-  onAlternar: () => void;
-  onArrastar: (e: React.DragEvent) => void;
+  onCondicao: (id: string, c: CondicaoNoGalpao) => void;
+  onAlternar: (id: string) => void;
+  onArrastar: (e: React.DragEvent, id: string) => void;
   onSoltar: () => void;
+  onAtalho: (id: string, destino: DestinoDaTriagem) => void;
 }) {
   const qtd = ativo.quantity ?? 1;
   // Duas camadas: o invólucro arrasta e desenha a borda; o miolo é o botão de
@@ -74,8 +101,9 @@ function CartaoDaPeca({ ativo, reserva, selecionada, fantasma, podeArrastar, noG
   // arrastando o invólucro (o drag sobe até o ancestral draggable).
   return (
     <div
+      data-cartao=""
       draggable={podeArrastar}
-      onDragStart={onArrastar}
+      onDragStart={(e) => onArrastar(e, ativo.id)}
       onDragEnd={onSoltar}
       style={{
         display: "flex", flexDirection: "column", borderRadius: 12,
@@ -91,8 +119,14 @@ function CartaoDaPeca({ ativo, reserva, selecionada, fantasma, podeArrastar, noG
         aria-pressed={selecionada}
         aria-label={`${ativo.displayId} ${ativo.name}${selecionada ? " — selecionada" : ""}`}
         data-testid={`cartao-triagem-${ativo.id}`}
-        onClick={onAlternar}
-        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onAlternar(); } }}
+        aria-keyshortcuts="G M D T"
+        onClick={() => onAlternar(ativo.id)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onAlternar(ativo.id); return; }
+          // G/M/D/T movem sem mouse (só a tecla pura: Ctrl+D é do navegador).
+          const destino = !e.ctrlKey && !e.metaKey && !e.altKey ? ATALHO_DO_DESTINO[e.key.toLowerCase()] : undefined;
+          if (destino) { e.preventDefault(); onAtalho(ativo.id, destino); }
+        }}
         style={{ display: "flex", flexDirection: "column", gap: 8, padding: noGalpao ? "10px 10px 8px" : 10, borderRadius: 10 }}
       >
         <div style={{ display: "flex", gap: 10, alignItems: "center", minWidth: 0 }}>
@@ -124,7 +158,7 @@ function CartaoDaPeca({ ativo, reserva, selecionada, fantasma, podeArrastar, noG
             const ativa = condicao === valor;
             return (
               <button key={valor} type="button" role="radio" aria-checked={ativa} data-testid={`condicao-${valor}-${ativo.id}`}
-                onClick={() => onCondicao(valor)}
+                onClick={() => onCondicao(ativo.id, valor)}
                 style={{ flex: 1, height: alvo, borderRadius: 7, fontSize: 12, fontWeight: 700, cursor: "pointer", border: `1px solid ${ativa ? (valor === "PERFEITO" ? "#15803d" : "#b45309") : "#e2e8f0"}`, background: ativa ? (valor === "PERFEITO" ? "#f0fdf4" : "#fffbeb") : "#fff", color: ativa ? (valor === "PERFEITO" ? "#15803d" : "#b45309") : "#475569", transition: "background-color 0.12s, border-color 0.12s, color 0.12s" }}>
                 {rotulo}
               </button>
@@ -134,7 +168,7 @@ function CartaoDaPeca({ ativo, reserva, selecionada, fantasma, podeArrastar, noG
       )}
     </div>
   );
-}
+});
 
 export function QuadroDaTriagem({ evento, ativos, reservaPorAtivo, onVoltar, onTabela, onConcluido }: {
   evento: { id: string; nome: string; data: string | null };
@@ -172,15 +206,36 @@ export function QuadroDaTriagem({ evento, ativos, reservaPorAtivo, onVoltar, onT
   const [sobre, setSobre] = useState<DestinoDaTriagem | null>(null);
   const [mapaDe, setMapaDe] = useState<"galpao" | "manutencao" | null>(null);
   const [salvando, setSalvando] = useState(false);
+  const [gravadas, setGravadas] = useState(0);
+  const [confirmarDescarte, setConfirmarDescarte] = useState(false);
+  const [busca, setBusca] = useState("");
+  const [mostrando, setMostrando] = useState<Record<DestinoDaTriagem, number>>({ triar: LOTE_DA_COLUNA, galpao: LOTE_DA_COLUNA, manutencao: LOTE_DA_COLUNA, descartar: LOTE_DA_COLUNA });
+  // Dito ao leitor de tela a cada movimento: o cartão muda de coluna em
+  // silêncio e quem não vê a tela não sabia se a tecla tinha funcionado.
+  const [anuncio, setAnuncio] = useState("");
 
   const destinoDe = (id: string): DestinoDaTriagem => destinos[id] ?? "triar";
-  const naColuna = (d: DestinoDaTriagem) => ativos
-    .filter((a) => destinoDe(a.id) === d)
-    .sort((x, y) => Number(!!reservaPorAtivo.get(y.id)) - Number(!!reservaPorAtivo.get(x.id)));
-  const movidas = ativos.filter((a) => destinoDe(a.id) !== "triar");
-  const faltaLocal = naColuna("galpao").length > 0 && !local.galpao.trim();
+  // UMA passada por render para as quatro colunas (eram seis filter+sort da
+  // lista inteira a cada tecla no campo de local).
+  const porColuna = useMemo(() => {
+    const c: Record<DestinoDaTriagem, EnrichedAsset[]> = { triar: [], galpao: [], manutencao: [], descartar: [] };
+    for (const a of ativos) c[destinos[a.id] ?? "triar"].push(a);
+    for (const d of Object.keys(c) as DestinoDaTriagem[]) {
+      c[d].sort((x, y) => Number(!!reservaPorAtivo.get(y.id)) - Number(!!reservaPorAtivo.get(x.id)));
+    }
+    return c;
+  }, [ativos, destinos, reservaPorAtivo]);
+  // A busca recorta só "A triar": é a pilha que cresce; os destinos mostram
+  // sempre tudo o que vai ser gravado.
+  const termo = busca.trim().toLowerCase();
+  const triarNoRecorte = useMemo(() => !termo ? porColuna.triar : porColuna.triar.filter((a) =>
+    (a.name ?? "").toLowerCase().includes(termo) || (a.displayId ?? "").toLowerCase().includes(termo)
+    || (a.sponsors ?? []).some((s) => s.name.toLowerCase().includes(termo))), [porColuna, termo]);
+  const naColuna = (d: DestinoDaTriagem) => (d === "triar" ? triarNoRecorte : porColuna[d]);
+  const movidas = useMemo(() => ativos.filter((a) => !!destinos[a.id]), [ativos, destinos]);
+  const faltaLocal = porColuna.galpao.length > 0 && !local.galpao.trim();
 
-  const mover = (ids: string[], destino: DestinoDaTriagem) => {
+  const mover = useCallback((ids: string[], destino: DestinoDaTriagem) => {
     setDestinos((prev) => {
       const proximo = { ...prev };
       for (const id of ids) {
@@ -190,22 +245,56 @@ export function QuadroDaTriagem({ evento, ativos, reservaPorAtivo, onVoltar, onT
       return proximo;
     });
     setSelecionadas(new Set());
-  };
+    setAnuncio(`${ids.length} ${ids.length === 1 ? "peça movida" : "peças movidas"} para ${COLUNAS[destino].titulo}`);
+  }, []);
 
-  const alternar = (id: string) =>
-    setSelecionadas((prev) => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n; });
+  const alternar = useCallback((id: string) =>
+    setSelecionadas((prev) => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n; }), []);
 
-  const salvar = async () => {
+  // A seleção é lida por ref nos handlers estáveis — se entrasse como
+  // dependência, todo cartão redesenhava a cada clique e o memo não valia.
+  const refSelecionadas = useRef(selecionadas);
+  refSelecionadas.current = selecionadas;
+  const idsDoGesto = (id: string) => (refSelecionadas.current.has(id) ? Array.from(refSelecionadas.current) : [id]);
+
+  const aoArrastar = useCallback((e: React.DragEvent, id: string) => {
+    const ids = idsDoGesto(id);
+    e.dataTransfer.setData("text/plain", JSON.stringify(ids));
+    e.dataTransfer.effectAllowed = "move";
+    setArrastando(ids);
+  }, []);
+  const aoSoltar = useCallback(() => { setArrastando(null); setSobre(null); }, []);
+  const aoMudarCondicao = useCallback((id: string, c: CondicaoNoGalpao) => setCondicoes((prev) => ({ ...prev, [id]: c })), []);
+  // Tecla G/M/D/T no cartão focado. O cartão sai da coluna e o foco iria para
+  // o <body>: passa para o vizinho, para triar a pilha inteira só no teclado.
+  const aoAtalho = useCallback((id: string, destino: DestinoDaTriagem) => {
+    const atual = document.activeElement?.closest("[data-cartao]") as HTMLElement | null;
+    const vizinho = (atual?.nextElementSibling ?? atual?.previousElementSibling) as HTMLElement | null;
+    const proximo = vizinho?.querySelector<HTMLElement>('[role="button"]')?.dataset.testid;
+    mover(idsDoGesto(id), destino);
+    if (proximo) setTimeout(() => document.querySelector<HTMLElement>(`[data-testid="${proximo}"]`)?.focus(), 0);
+  }, [mover]);
+
+  // DESCARTAR é o único destino que destrói (a peça sai do inventário e a
+  // triagem não volta atrás pelo app): pede confirmação, com a contagem.
+  const salvar = () => {
     if (movidas.length === 0 || salvando) return;
     if (faltaLocal) {
       toast({ title: "Informe o local no galpão", description: "Sem o local, ninguém encontra a peça para reaproveitar.", variant: "destructive" });
       return;
     }
+    if (porColuna.descartar.length > 0) { setConfirmarDescarte(true); return; }
+    gravar();
+  };
+
+  const gravar = async () => {
+    setConfirmarDescarte(false);
     setSalvando(true);
+    setGravadas(0);
     const lote = movidas.map((a) => ({ ativo: a, destino: destinoDe(a.id) as Exclude<DestinoDaTriagem, "triar"> }));
-    const resultados = await Promise.allSettled(lote.map(({ ativo, destino }) =>
+    const resultados = await emGrupos(lote, GRAVACOES_POR_VEZ, ({ ativo, destino }) =>
       apiRequest("PATCH", `/api/inventory/${ativo.id}/triage`, corpoDaTriagem(destino, condicoes[ativo.id] ?? "PERFEITO", local)),
-    ));
+    setGravadas);
     const salvas = lote.filter((_, i) => resultados[i].status === "fulfilled").map((l) => l.ativo.id);
     const falhas = lote.length - salvas.length;
     setDestinos((prev) => { const n = { ...prev }; for (const id of salvas) delete n[id]; return n; });
@@ -214,7 +303,10 @@ export function QuadroDaTriagem({ evento, ativos, reservaPorAtivo, onVoltar, onT
     queryClient.invalidateQueries({ queryKey: ["/api/estoque/reservas-ativas"] });
     setSalvando(false);
     if (falhas > 0) {
-      toast({ title: `${salvas.length} salva(s), ${falhas} com erro`, description: "As que falharam continuam no destino — tente salvar de novo.", variant: "destructive" });
+      // O motivo da primeira recusa: "com erro" sem porquê deixava a pessoa
+      // reenviando o lote às cegas.
+      const motivo = (resultados.find((r) => r.status === "rejected") as PromiseRejectedResult | undefined)?.reason?.message;
+      toast({ title: `${salvas.length} ${salvas.length === 1 ? "salva" : "salvas"}, ${falhas} com erro`, description: `${motivo ? `${motivo}. ` : ""}As que falharam continuam no destino — tente salvar de novo.`, variant: "destructive" });
       return;
     }
     const restam = ativos.length - salvas.length;
@@ -247,7 +339,10 @@ export function QuadroDaTriagem({ evento, ativos, reservaPorAtivo, onVoltar, onT
   // mesma entre renders e o input continua focado.
   const coluna = (destino: DestinoDaTriagem) => {
     const meta = COLUNAS[destino];
-    const pecas = naColuna(destino);
+    const todas = naColuna(destino);
+    const pecas = todas.slice(0, mostrando[destino]);
+    const escondidas = todas.length - pecas.length;
+    const total = porColuna[destino].length;
     const destacada = sobre === destino && !!arrastando;
     const campoDeLocal = destino === "galpao" || destino === "manutencao" ? destino : null;
     return (
@@ -281,8 +376,26 @@ export function QuadroDaTriagem({ evento, ativos, reservaPorAtivo, onVoltar, onT
             <h2 style={{ margin: 0, fontSize: 14, fontWeight: 700, color: meta.cor, fontFamily: "Space Grotesk, sans-serif" }}>{meta.titulo}</h2>
             <div style={{ fontSize: 12, color: "#475569" }}>{destino === "triar" && toque ? "Toque nas peças e escolha o destino" : meta.sub}</div>
           </div>
-          <span aria-label={`${pecas.length} ${pecas.length === 1 ? "peça" : "peças"}`} style={{ minWidth: 26, height: 24, padding: "0 8px", borderRadius: 999, background: meta.fundo, display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 700, color: meta.cor, fontVariantNumeric: "tabular-nums" }}>{pecas.length}</span>
+          <span aria-label={`${total} ${total === 1 ? "peça" : "peças"}`} style={{ minWidth: 26, height: 24, padding: "0 8px", borderRadius: 999, background: meta.fundo, display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 700, color: meta.cor, fontFamily: "Space Grotesk, sans-serif", fontVariantNumeric: "tabular-nums" }}>{total}</span>
         </header>
+
+        {destino === "triar" && total > 8 && (
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+            <div style={{ position: "relative", flex: "1 1 180px", minWidth: 0 }}>
+              <Search size={14} color="#64748b" aria-hidden="true" style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }} />
+              <input type="search" data-testid="input-busca-quadro" aria-label="Buscar peça a triar por nome, código ou patrocinador"
+                placeholder="Buscar nesta pilha…" value={busca}
+                onChange={(e) => { setBusca(e.target.value); setMostrando((m) => ({ ...m, triar: LOTE_DA_COLUNA })); }}
+                style={{ width: "100%", boxSizing: "border-box", height: alvo, padding: "0 10px 0 30px", borderRadius: 8, border: "1px solid #e2e8f0", background: "#fff", fontSize: toque ? 16 : 13, color: "#0f172a" }} />
+            </div>
+            <button type="button" data-testid="button-selecionar-visiveis" disabled={pecas.length === 0}
+              title="Marca só o que está na tela — o resto da pilha entra por Mostrar mais"
+              onClick={() => setSelecionadas(pecas.every((a) => selecionadas.has(a.id)) ? new Set() : new Set(pecas.map((a) => a.id)))}
+              style={{ height: alvo, padding: "0 12px", borderRadius: 8, border: "1px solid #e2e8f0", background: "#fff", color: "#334155", fontSize: 13, fontWeight: 700, cursor: pecas.length === 0 ? "not-allowed" : "pointer", whiteSpace: "nowrap" }}>
+              {pecas.length > 0 && pecas.every((a) => selecionadas.has(a.id)) ? "Desmarcar" : `Selecionar as ${pecas.length} visíveis`}
+            </button>
+          </div>
+        )}
 
         {campoDeLocal && (
           <div style={{ display: "flex", gap: 4 }}>
@@ -323,7 +436,7 @@ export function QuadroDaTriagem({ evento, ativos, reservaPorAtivo, onVoltar, onT
         }}>
           {pecas.length === 0 ? (
             <div style={{ flex: 1, gridColumn: "1 / -1", minHeight: 70, display: "flex", alignItems: "center", justifyContent: "center", textAlign: "center", fontSize: 13, color: "#64748b", padding: 12 }}>
-              {destino === "triar" ? "Tudo arrumado — salve a triagem" : toque ? "Selecione peças e toque no destino" : "Solte as peças aqui"}
+              {destino === "triar" ? (termo && total > 0 ? `Nenhuma peça com “${busca.trim()}” nesta pilha` : "Tudo arrumado — salve a triagem") : toque ? "Selecione peças e toque no destino" : "Solte as peças aqui"}
             </div>
           ) : pecas.map((a) => (
             <CartaoDaPeca
@@ -336,18 +449,21 @@ export function QuadroDaTriagem({ evento, ativos, reservaPorAtivo, onVoltar, onT
               noGalpao={destino === "galpao"}
               alvo={toque ? 44 : 32}
               condicao={condicoes[a.id] ?? "PERFEITO"}
-              onCondicao={(c) => setCondicoes((prev) => ({ ...prev, [a.id]: c }))}
-              onAlternar={() => alternar(a.id)}
-              onArrastar={(e) => {
-                const ids = selecionadas.has(a.id) ? Array.from(selecionadas) : [a.id];
-                e.dataTransfer.setData("text/plain", JSON.stringify(ids));
-                e.dataTransfer.effectAllowed = "move";
-                setArrastando(ids);
-              }}
-              onSoltar={() => { setArrastando(null); setSobre(null); }}
+              onCondicao={aoMudarCondicao}
+              onAlternar={alternar}
+              onArrastar={aoArrastar}
+              onSoltar={aoSoltar}
+              onAtalho={aoAtalho}
             />
           ))}
         </div>
+        {escondidas > 0 && (
+          <button type="button" data-testid={`mostrar-mais-${destino}`}
+            onClick={() => setMostrando((m) => ({ ...m, [destino]: m[destino] + LOTE_DA_COLUNA }))}
+            style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, minHeight: 44, borderRadius: 10, border: "1px solid #e2e8f0", background: "#fff", color: "#334155", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+            <ChevronDown size={15} aria-hidden="true" /> Mostrar mais {Math.min(LOTE_DA_COLUNA, escondidas)} · faltam {escondidas}
+          </button>
+        )}
       </section>
     );
   };
@@ -367,7 +483,7 @@ export function QuadroDaTriagem({ evento, ativos, reservaPorAtivo, onVoltar, onT
           <h1 style={{ margin: "2px 0 3px", fontSize: FS.h1, fontWeight: 700, fontFamily: "'Space Grotesk', sans-serif", color: "#1c1917", letterSpacing: "-0.03em", lineHeight: 1.15, overflowWrap: "anywhere" }}>{evento.nome}</h1>
           <p aria-live="polite" style={{ margin: 0, fontSize: 13, color: "#475569", lineHeight: 1.45 }}>
             {evento.data ? `Evento ${diaEMes(evento.data)} · ` : ""}{naColuna("triar").length} a triar de {ativos.length} ·{" "}
-            {toque ? "toque nas peças e escolha o destino" : "arraste as peças para o destino (ou selecione várias e arraste juntas)"}
+            {toque ? "toque nas peças e escolha o destino" : "arraste as peças para o destino — ou clique para selecionar e use a barra; no teclado, G, M ou D no cartão"}
             {" · "}nada é gravado até salvar — dá para rearrumar
           </p>
         </div>
@@ -381,7 +497,7 @@ export function QuadroDaTriagem({ evento, ativos, reservaPorAtivo, onVoltar, onT
           <button type="button" onClick={salvar} data-testid="button-salvar-triagem" disabled={movidas.length === 0 || salvando}
             title={movidas.length === 0 ? "Mova ao menos uma peça para um destino" : faltaLocal ? "Informe o local no galpão" : `Grava o destino de ${movidas.length} ${movidas.length === 1 ? "peça" : "peças"}`}
             style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, height: alvo, padding: "0 18px", borderRadius: 10, border: "none", fontSize: 14, fontWeight: 700, cursor: movidas.length === 0 || salvando ? "not-allowed" : "pointer", background: movidas.length === 0 || salvando ? "#e2e8f0" : "#c2410c", color: movidas.length === 0 || salvando ? "#64748b" : "#fff", boxShadow: movidas.length > 0 && !salvando ? "0 4px 14px rgba(194,65,12,0.28)" : "none", flex: isMobile ? "1 1 100%" : undefined, transition: "background-color 0.15s, box-shadow 0.15s" }}>
-            <CheckCircle2 size={16} aria-hidden="true" /> {salvando ? "Salvando…" : movidas.length === 0 ? "Salvar triagem" : `Salvar ${movidas.length} ${movidas.length === 1 ? "peça" : "peças"}`}
+            <CheckCircle2 size={16} aria-hidden="true" /> {salvando ? `Salvando ${gravadas} de ${movidas.length}…` : movidas.length === 0 ? "Salvar triagem" : `Salvar ${movidas.length} ${movidas.length === 1 ? "peça" : "peças"}`}
           </button>
         </div>
       </div>
@@ -434,6 +550,27 @@ export function QuadroDaTriagem({ evento, ativos, reservaPorAtivo, onVoltar, onT
           </button>
         </div>
       )}
+
+      <p className="sr-only" role="status" aria-live="polite" data-testid="anuncio-do-quadro">{anuncio}</p>
+
+      <AlertDialog open={confirmarDescarte} onOpenChange={setConfirmarDescarte}>
+        <AlertDialogContent style={{ width: "min(440px, calc(100vw - 32px))", maxWidth: "min(440px, calc(100vw - 32px))", borderRadius: 16 }}>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Descartar {porColuna.descartar.length} {porColuna.descartar.length === 1 ? "peça" : "peças"}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {porColuna.descartar.length === 1 ? "Ela sai" : "Elas saem"} do inventário como sucata e a triagem não pode ser desfeita por aqui.
+              {movidas.length > porColuna.descartar.length ? ` As outras ${movidas.length - porColuna.descartar.length} seguem para Galpão e Manutenção.` : ""}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter style={{ gap: 8 }}>
+            <AlertDialogCancel data-testid="button-rever-descarte" style={{ minHeight: 44 }}>Rever</AlertDialogCancel>
+            <AlertDialogAction data-testid="button-confirmar-descarte" onClick={() => gravar()}
+              style={{ minHeight: 44, background: "#b91c1c", color: "#fff" }}>
+              Descartar e salvar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <datalist id="locais-do-galpao-quadro">
         {LOCAIS_DO_GALPAO.map((l) => <option key={l} value={l} />)}

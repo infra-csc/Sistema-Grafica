@@ -7,12 +7,16 @@ import { useToast } from "@/hooks/use-toast";
 import {
   ScanSearch, CheckCircle2, Package, Save,
   CalendarDays, X, Scissors, Sparkles, Trash2, Eye, Wrench,
-  ClipboardCheck, Users, Search, MapPin, Grid3X3, BookmarkCheck, ArrowLeft,
+  ClipboardCheck, Users, Search, MapPin, Grid3X3, BookmarkCheck, ArrowLeft, ChevronDown,
 } from "lucide-react";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { TriagemModal } from "@/components/triagem-modal";
 import { MapaGalpao, LOCAIS_DO_GALPAO } from "@/components/mapa-galpao";
 import { EventosDaTriagem, SEM_EVENTO } from "@/components/triagem/eventos-da-triagem";
-import { QuadroDaTriagem } from "@/components/triagem/quadro-da-triagem";
+import { QuadroDaTriagem, emGrupos, GRAVACOES_POR_VEZ } from "@/components/triagem/quadro-da-triagem";
 import { diaEMes } from "@shared/estoque";
 import { SponsorChips } from "@/components/sponsor-chips";
 import { useAuth } from "@/contexts/auth-context";
@@ -36,6 +40,15 @@ interface TriagemEntry { splits: SplitLine[]; notes: string; selected: boolean; 
 /** Reserva vigente (GET /api/estoque/reservas-ativas) — a peça que tem
  *  destino marcado vai para o topo da fila, com a data de saída. */
 type ReservaAtiva = { reservaId: string; assetId: string; itemDisplayId: string | null; eventName: string; saida: string | null };
+
+/** Linhas da tabela montadas por vez. A fila passa de 4 mil peças e cada linha
+ *  tem ~10 botões e 2 campos: montar tudo travava a tela a cada tecla. */
+export const LOTE_DA_TABELA = 50;
+
+/** Referência estável para "ainda sem dados": um `= []` no useQuery cria um
+ *  array novo a cada render e todo useMemo/useEffect que depende dele dispara
+ *  de novo (laço de render). */
+const VAZIO: never[] = [];
 
 function makeSplits(totalQty: number): SplitLine[] {
   return [{ qty: totalQty, condition: "PERFEITO", result: "NO_GALPAO" }];
@@ -256,10 +269,19 @@ export default function TriagemRetorno() {
   const [entries, setEntries] = useState<Record<string, TriagemEntry>>({});
   const [savingIds, setSavingIds] = useState<Set<string>>(new Set());
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
-  const [filterEvent, setFilterEvent] = useState<string[]>([]);
-  const [filterSponsor, setFilterSponsor] = useState<string[]>([]);
-  const [filterLocation, setFilterLocation] = useState<string[]>([]);
-  const [search, setSearch] = useState("");
+  // ONDE ESTOU NA URL (regra da casa): F5 no meio da triagem de um evento
+  // voltava à lista de eventos, e não dava para mandar o link da pilha.
+  // Lido uma vez; escrito com replaceState e debounce, como no Estoque.
+  const urlInicial = useMemo(() => new URLSearchParams(window.location.search), []);
+  const listaDaUrl = (k: string) => (urlInicial.get(k) ?? "").split(",").filter(Boolean);
+  const [filterEvent, setFilterEvent] = useState<string[]>(() => listaDaUrl("eventos"));
+  const [filterSponsor, setFilterSponsor] = useState<string[]>(() => listaDaUrl("patrocinador"));
+  const [filterLocation, setFilterLocation] = useState<string[]>(() => listaDaUrl("local"));
+  const [search, setSearch] = useState(() => urlInicial.get("q") ?? "");
+  const [mostrando, setMostrando] = useState(LOTE_DA_TABELA);
+  // Descarte pendente de confirmação: uma peça (salvar da linha) ou o lote.
+  const [descarte, setDescarte] = useState<{ tipo: "uma"; asset: EnrichedAsset } | { tipo: "lote"; quantas: number } | null>(null);
+  const [gravadasDoLote, setGravadasDoLote] = useState(0);
   const [focusedId, setFocusedId] = useState<string | null>(null);
   const [selectedAsset, setSelectedAsset] = useState<EnrichedAsset | null>(null);
   // Linha cujo mapa do galpão está aberto.
@@ -268,15 +290,39 @@ export default function TriagemRetorno() {
   // ENTRADA POR EVENTO (dono, 14/09): a triagem abre na lista de eventos que
   // voltaram; escolhido o evento, o quadro de arrastar. A tabela segue como
   // vista completa (e é onde se divide uma peça ×N por condição).
-  const [vista, setVista] = useState<"eventos" | "quadro" | "tabela">("eventos");
-  const [eventoDoQuadro, setEventoDoQuadro] = useState<string | null>(null);
+  const [vista, setVista] = useState<"eventos" | "quadro" | "tabela">(() => {
+    const v = urlInicial.get("vista");
+    return v === "tabela" ? "tabela" : v === "quadro" && urlInicial.get("evento") ? "quadro" : "eventos";
+  });
+  const [eventoDoQuadro, setEventoDoQuadro] = useState<string | null>(() => urlInicial.get("evento"));
+  useEffect(() => {
+    const t = setTimeout(() => {
+      const p = new URLSearchParams(window.location.search);
+      const grava = (k: string, v: string) => { if (v) p.set(k, v); else p.delete(k); };
+      grava("vista", vista === "eventos" ? "" : vista);
+      grava("evento", vista === "quadro" ? eventoDoQuadro ?? "" : "");
+      grava("q", vista === "tabela" ? search.trim() : "");
+      grava("eventos", vista === "tabela" ? filterEvent.join(",") : "");
+      grava("patrocinador", vista === "tabela" ? filterSponsor.join(",") : "");
+      grava("local", vista === "tabela" ? filterLocation.join(",") : "");
+      const qs = p.toString();
+      window.history.replaceState(null, "", qs ? `?${qs}` : window.location.pathname);
+    }, 200);
+    return () => clearTimeout(t);
+  }, [vista, eventoDoQuadro, search, filterEvent, filterSponsor, filterLocation]);
 
-  const { data: awaitingAssets = [], isLoading, isError, refetch } = useQuery<EnrichedAsset[]>({
+  const { data: awaitingAssets = VAZIO as EnrichedAsset[], isLoading, isError, refetch } = useQuery<EnrichedAsset[]>({
     queryKey: ["/api/inventory/awaiting-triage"],
   });
-  const { data: allItems = [] } = useQuery<any[]>({ queryKey: ["/api/items"] });
-  const { data: reservasAtivas = [] } = useQuery<ReservaAtiva[]>({ queryKey: ["/api/estoque/reservas-ativas"] });
+  // /api/items é a lista INTEIRA de peças (MBs) e só serve ao modal de
+  // detalhe: só é pedida quando alguém abre um.
+  const { data: allItems = VAZIO as any[] } = useQuery<any[]>({ queryKey: ["/api/items"], enabled: !!selectedAsset });
+  const { data: reservasAtivas = VAZIO as ReservaAtiva[] } = useQuery<ReservaAtiva[]>({ queryKey: ["/api/estoque/reservas-ativas"] });
   const reservaPorAtivo = useMemo(() => new Map(reservasAtivas.map(r => [r.assetId, r])), [reservasAtivas]);
+  // Por id: os laços de lote faziam awaitingAssets.find() por peça — 4 mil × 4 mil.
+  const ativoPorId = useMemo(() => new Map(awaitingAssets.map(a => [a.id, a])), [awaitingAssets]);
+  // Trocar o recorte volta ao primeiro lote de linhas.
+  useEffect(() => { setMostrando(LOTE_DA_TABELA); }, [search, filterEvent, filterSponsor, filterLocation]);
 
   const locationOptions = useMemo(() => {
     const seen = new Set<string>();
@@ -288,9 +334,11 @@ export default function TriagemRetorno() {
   // opções) e LIMPAR a seleção quando as opções somem. Sem isso, um filtro de
   // local ativo ficava preso invisível, escondendo a fila inteira sem que o
   // usuário tivesse como desfazer.
+  // Só depois de carregar: com o filtro vindo da URL, a lista ainda vazia do
+  // carregamento apagava o recorte antes de os dados chegarem.
   useEffect(() => {
-    if (locationOptions.length === 0 && filterLocation.length > 0) setFilterLocation([]);
-  }, [locationOptions.length, filterLocation.length]);
+    if (!isLoading && !isError && locationOptions.length === 0 && filterLocation.length > 0) setFilterLocation([]);
+  }, [isLoading, isError, locationOptions.length, filterLocation.length]);
 
   const getEntry = (id: string, totalQty?: number): TriagemEntry =>
     entries[id] ?? makeEntry(totalQty ?? 1);
@@ -363,8 +411,7 @@ export default function TriagemRetorno() {
     setEntries(prev => {
       const next = { ...prev };
       selectedIds.forEach(id => {
-        const asset = awaitingAssets.find(a => a.id === id);
-        const qty = asset?.quantity ?? 1;
+        const qty = ativoPorId.get(id)?.quantity ?? 1;
         const e = next[id] ?? makeEntry(qty);
         next[id] = { ...e, splits: [{ qty, condition, result }] };
       });
@@ -425,7 +472,7 @@ export default function TriagemRetorno() {
 
   // Devolve se a triagem ficou gravada — o modal só fecha quando é `true`
   // (antes fechava por cima do toast de validação e levava o campo embora).
-  const handleSingle = useCallback(async (asset: EnrichedAsset): Promise<boolean> => {
+  const handleSingle = useCallback(async (asset: EnrichedAsset, confirmado = false): Promise<boolean> => {
     const totalQty = asset.quantity ?? 1;
     const entry = getEntry(asset.id, totalQty);
     if (entry.splits.some(l => l.condition === null)) {
@@ -441,6 +488,12 @@ export default function TriagemRetorno() {
       return false;
     }
     if (savedIds.has(asset.id)) return true;
+    // DESCARTAR destrói (sai do inventário e a triagem não se desfaz pelo
+    // app): é o único destino que pede confirmação.
+    if (!confirmado && entry.splits.some(s => s.result === "DESCARTADO")) {
+      setDescarte({ tipo: "uma", asset });
+      return false;
+    }
     setSavingIds(prev => new Set(Array.from(prev).concat(asset.id)));
     try {
       await doTriage(asset.id, totalQty, localDe(asset));
@@ -505,9 +558,13 @@ export default function TriagemRetorno() {
     });
     return Array.from(map.values());
   };
-  const eventFilterOptions = tTally(tFacetPool('event'), a => a.eventId ? { value: a.eventId, label: a.eventName ?? "Evento" } : null);
-  const locationFilterOptions = tTally(tFacetPool('location'), a => a.location ? { value: a.location, label: a.location } : null);
-  const sponsorFilterOptions = (() => {
+  // Memo: três varreduras da fila inteira (4 mil+) rodavam a CADA render —
+  // inclusive a cada clique num botão de condição de uma linha.
+  const eventFilterOptions = useMemo(() => tTally(tFacetPool('event'), a => a.eventId ? { value: a.eventId, label: a.eventName ?? "Evento" } : null),
+    [awaitingAssets, savedIds, filterSponsor, filterLocation]);
+  const locationFilterOptions = useMemo(() => tTally(tFacetPool('location'), a => a.location ? { value: a.location, label: a.location } : null),
+    [awaitingAssets, savedIds, filterEvent, filterSponsor]);
+  const sponsorFilterOptions = useMemo(() => {
     const map = new Map<string, { value: string; label: string; count: number }>();
     tFacetPool('sponsor').forEach(a => (a.sponsors ?? []).forEach(s => {
       const cur = map.get(s.id);
@@ -515,11 +572,13 @@ export default function TriagemRetorno() {
       else map.set(s.id, { value: s.id, label: s.name, count: 1 });
     }));
     return Array.from(map.values());
-  })();
+  }, [awaitingAssets, savedIds, filterEvent, filterLocation]);
 
   // Seleção deriva SEMPRE da lista visível: uma entry marcada que saiu do
   // filtro não conta (nem no lote, nem no contador, nem nos presets).
-  const selectedIds = pendingAssets.filter(a => entries[a.id]?.selected).map(a => a.id);
+  const selectedIds = useMemo(() => pendingAssets.filter(a => entries[a.id]?.selected).map(a => a.id), [pendingAssets, entries]);
+  // O que está montado na tela agora (o resto entra por "Mostrar mais").
+  const linhasVisiveis = useMemo(() => pendingAssets.slice(0, mostrando), [pendingAssets, mostrando]);
 
   // Mesmo local para todas as selecionadas — a pilha que volta do caminhão
   // costuma ir inteira para o mesmo corredor.
@@ -528,8 +587,7 @@ export default function TriagemRetorno() {
     setEntries(prev => {
       const next = { ...prev };
       selectedIds.forEach(id => {
-        const a = awaitingAssets.find(x => x.id === id);
-        const e = next[id] ?? makeEntry(a?.quantity ?? 1);
+        const e = next[id] ?? makeEntry(ativoPorId.get(id)?.quantity ?? 1);
         next[id] = { ...e, location: local };
       });
       return next;
@@ -537,10 +595,23 @@ export default function TriagemRetorno() {
     toast({ title: `Local aplicado a ${selectedIds.length} ${selectedIds.length === 1 ? "peça" : "peças"}.` });
   };
 
-  const handleBulk = async () => {
+  const handleBulk = async (confirmado = false) => {
     if (selectedIds.length === 0 || savingIds.size > 0) return;
+    // Divisão incompleta: antes ia ao servidor e voltava como "N com erro".
+    const somaErrada = selectedIds.filter(id => {
+      const a = ativoPorId.get(id);
+      return !!a && !isSplitValid(getEntry(id, a.quantity ?? 1), a.quantity ?? 1);
+    });
+    if (somaErrada.length > 0) {
+      toast({
+        title: `${somaErrada.length} ${somaErrada.length === 1 ? "peça está" : "peças estão"} com a divisão incompleta.`,
+        description: `Confira os lotes de ${ativoPorId.get(somaErrada[0])?.displayId ?? "uma peça"}: a soma precisa fechar a quantidade.`,
+        variant: "destructive",
+      });
+      return;
+    }
     const semLocal = selectedIds.filter(id => {
-      const a = awaitingAssets.find(x => x.id === id);
+      const a = ativoPorId.get(id);
       return !!a && precisaDeLocal(getEntry(id, a.quantity ?? 1)) && !localDe(a);
     });
     if (semLocal.length > 0) {
@@ -551,19 +622,21 @@ export default function TriagemRetorno() {
       });
       return;
     }
+    const paraDescartar = selectedIds.filter(id => getEntry(id, ativoPorId.get(id)?.quantity ?? 1).splits.some(s => s.result === "DESCARTADO")).length;
+    if (!confirmado && paraDescartar > 0) { setDescarte({ tipo: "lote", quantas: paraDescartar }); return; }
     setSavingIds(new Set(selectedIds));
-    const results = await Promise.allSettled(
-      selectedIds.map(id => {
-        const asset = awaitingAssets.find(a => a.id === id);
-        if (!asset) {
-          // Sem o ativo não dá para validar a quantidade — rejeita com erro
-          // claro e o allSettled contabiliza como falha (antes virava
-          // doTriage com qty=1 silencioso).
-          return Promise.reject(new Error(`Ativo ${id} não está mais na fila de triagem.`));
-        }
-        return doTriage(id, asset.quantity ?? 1, localDe(asset));
-      })
-    );
+    setGravadasDoLote(0);
+    // Em grupos: um PATCH por peça, todos de uma vez, abria centenas de
+    // conexões e o servidor recusava no meio do lote.
+    const results = await emGrupos(selectedIds, GRAVACOES_POR_VEZ, (id) => {
+      const asset = ativoPorId.get(id);
+      if (!asset) {
+        // Sem o ativo não dá para validar a quantidade — rejeita com erro
+        // claro e conta como falha (antes virava doTriage com qty=1 silencioso).
+        return Promise.reject(new Error(`Ativo ${id} não está mais na fila de triagem.`));
+      }
+      return doTriage(id, asset.quantity ?? 1, localDe(asset));
+    }, setGravadasDoLote);
     // Só marca como salvo (some da fila) o que realmente foi registrado. Os que
     // falharam continuam visíveis e selecionados para nova tentativa — antes,
     // TODOS os selecionados saíam da lista, "engolindo" os que deram erro.
@@ -587,22 +660,34 @@ export default function TriagemRetorno() {
     refetch();
   };
 
-  // Selecionar tudo opera sobre a lista FILTRADA (pendingAssets), nunca sobre
-  // awaitingAssets inteira — senão o "Confirmar Lote" triava itens fora do
-  // filtro que o usuário nem estava vendo.
+  // Selecionar tudo opera sobre as linhas NA TELA (o lote visível do recorte),
+  // nunca sobre a fila inteira — senão o "Confirmar lote" triava milhares de
+  // peças que a pessoa nem chegou a ver. Desmarcar limpa o recorte todo.
   const toggleAll = (checked: boolean) => {
+    if (!checked) {
+      // Desmarca TUDO, inclusive o que ficou marcado fora do recorte atual —
+      // senão a marca voltava, de surpresa, ao limpar o filtro.
+      setEntries(prev => Object.fromEntries(Object.entries(prev).map(([id, e]) => [id, e.selected ? { ...e, selected: false } : e])));
+      return;
+    }
     const update: Record<string, TriagemEntry> = {};
-    pendingAssets.forEach(a => { update[a.id] = { ...getEntry(a.id, a.quantity ?? 1), selected: checked }; });
+    linhasVisiveis.forEach(a => { update[a.id] = { ...getEntry(a.id, a.quantity ?? 1), selected: checked }; });
     setEntries(prev => ({ ...prev, ...update }));
   };
 
   const hasFilters = filterEvent.length > 0 || filterSponsor.length > 0 || filterLocation.length > 0 || !!search;
 
-  const allSelected = pendingAssets.length > 0 && pendingAssets.every(a => getEntry(a.id).selected);
+  const allSelected = linhasVisiveis.length > 0 && linhasVisiveis.every(a => entries[a.id]?.selected);
 
   const moldura: React.CSSProperties = { padding: isMobile ? "14px 16px" : "32px 36px", background: "#f8fafc", height: "100%", overflowY: "auto" };
 
-  if (vista === "eventos") {
+  const doEventoDoQuadro = vista === "quadro" && eventoDoQuadro
+    ? awaitingAssets.filter((a) => (a.eventId ?? SEM_EVENTO) === eventoDoQuadro) : VAZIO as EnrichedAsset[];
+  // Link antigo para um evento que já terminou a triagem: cai na lista de
+  // eventos em vez de abrir um quadro vazio sem saída clara.
+  const quadroSemPecas = vista === "quadro" && !isLoading && !isError && doEventoDoQuadro.length === 0;
+
+  if (vista === "eventos" || quadroSemPecas || (vista === "quadro" && (isLoading || isError))) {
     return (
       <div style={moldura}>
         <EventosDaTriagem
@@ -619,7 +704,7 @@ export default function TriagemRetorno() {
   }
 
   if (vista === "quadro" && eventoDoQuadro) {
-    const doEvento = awaitingAssets.filter((a) => (a.eventId ?? SEM_EVENTO) === eventoDoQuadro);
+    const doEvento = doEventoDoQuadro;
     return (
       <div style={moldura}>
         <QuadroDaTriagem
@@ -679,7 +764,7 @@ export default function TriagemRetorno() {
         </div>
         {/* Cinza sem dizer por quê era o "travou?" desta tela: o lote só
             existe depois de marcar a caixa das peças. */}
-        <button data-testid="button-bulk-triage-header" onClick={handleBulk}
+        <button data-testid="button-bulk-triage-header" onClick={() => handleBulk()}
           disabled={selectedIds.length === 0 || savingIds.size > 0}
           title={selectedIds.length === 0 ? "Marque a caixa à esquerda das peças para triar várias de uma vez" : `Grava a triagem das ${selectedIds.length} peças marcadas`}
           style={{
@@ -694,7 +779,7 @@ export default function TriagemRetorno() {
             transition: "background-color 0.15s, box-shadow 0.15s, color 0.15s",
           }}>
           <CheckCircle2 size={16} aria-hidden="true" />
-          {savingIds.size > 0 ? "Registrando…" : `Confirmar lote (${selectedIds.length})`}
+          {savingIds.size > 1 ? `Registrando ${gravadasDoLote} de ${savingIds.size}…` : savingIds.size > 0 ? "Registrando…" : `Confirmar lote (${selectedIds.length})`}
         </button>
       </div>
 
@@ -783,7 +868,7 @@ export default function TriagemRetorno() {
                     width: "100%", paddingLeft: 34, paddingRight: 12, height: 44,
                     border: `1.5px solid ${search ? "#c2610c" : "#e2e8f0"}`, borderRadius: 8,
                     fontSize: isMobile ? 16 : 13, fontWeight: 400, fontFamily: "Plus Jakarta Sans, sans-serif",
-                    background: "#fff", color: "#374151", outline: "none", boxSizing: "border-box",
+                    background: "#fff", color: "#374151", boxSizing: "border-box",
                     transition: "border-color 0.15s",
                   }}
                   onFocus={e => (e.target.style.borderColor = "#c2410c")}
@@ -898,7 +983,9 @@ export default function TriagemRetorno() {
             // recebia a tabela de 920px com rolagem lateral: o Salvar ficava
             // fora da tela e os botões de condição tinham ~22px de altura.
             const alvo = isMobile ? 44 : 28;
-            const linhas = [...pendingAssets, ...awaitingAssets.filter(a => savedIds.has(a.id))];
+            // Só o lote visível + o que foi salvo nesta sessão (fica na tela,
+            // cinza, como recibo). O resto da fila entra por "Mostrar mais".
+            const linhas = [...linhasVisiveis, ...awaitingAssets.filter(a => savedIds.has(a.id))];
             const pecasDe = (asset: EnrichedAsset) => {
               const qty = asset.quantity ?? 1;
               const entry = getEntry(asset.id, qty);
@@ -1236,6 +1323,15 @@ export default function TriagemRetorno() {
 
             if (isMobile) {
               return (
+                <>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "6px 14px", borderBottom: "1px solid #e2e8f0", background: "#f8fafc" }}>
+                  <span style={{ fontSize: 12, color: "#475569" }}>{linhasVisiveis.length} de {pendingAssets.length} na tela</span>
+                  <button type="button" data-testid="button-selecionar-visiveis-tabela" onClick={() => toggleAll(!allSelected)}
+                    aria-pressed={allSelected}
+                    style={{ minHeight: 44, padding: "0 4px", background: "none", border: "none", fontSize: 13, fontWeight: 700, color: "#9a3412", cursor: "pointer" }}>
+                    {allSelected ? "Desmarcar todas" : `Selecionar as ${linhasVisiveis.length} visíveis`}
+                  </button>
+                </div>
                 <ul aria-label="Peças aguardando triagem" style={{ listStyle: "none", margin: 0, padding: 0 }}>
                   {linhas.map((asset, idx) => {
                     const p = pecasDe(asset);
@@ -1267,6 +1363,7 @@ export default function TriagemRetorno() {
                     );
                   })}
                 </ul>
+                </>
               );
             }
 
@@ -1360,6 +1457,17 @@ export default function TriagemRetorno() {
               </div>
             );
           })()}
+          {pendingAssets.length > linhasVisiveis.length && (
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", padding: isMobile ? "12px 14px" : "12px 24px", borderTop: "1px solid #e2e8f0", background: "#f8fafc" }}>
+              <span role="status" style={{ fontSize: 12.5, color: "#475569" }}>
+                Mostrando <strong style={{ color: "#0f172a", fontFamily: "Space Grotesk, sans-serif" }}>{linhasVisiveis.length}</strong> de <strong style={{ color: "#0f172a", fontFamily: "Space Grotesk, sans-serif" }}>{pendingAssets.length}</strong> peças — use os filtros para chegar na pilha certa
+              </span>
+              <button type="button" data-testid="mostrar-mais-tabela" onClick={() => setMostrando(n => n + LOTE_DA_TABELA)}
+                style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, minHeight: 44, padding: "0 16px", borderRadius: 8, border: "1px solid #e2e8f0", background: "#fff", color: "#334155", fontSize: 13, fontWeight: 700, cursor: "pointer", width: isMobile ? "100%" : undefined }}>
+                <ChevronDown size={15} aria-hidden="true" /> Mostrar mais {Math.min(LOTE_DA_TABELA, pendingAssets.length - linhasVisiveis.length)}
+              </button>
+            </div>
+          )}
         </div>
         </>
       )}
@@ -1432,14 +1540,14 @@ export default function TriagemRetorno() {
             </div>
             {/* Actions */}
             <div style={{ display: "flex", gap: 8, flex: isMobile ? "1 1 100%" : undefined }}>
-              <button data-testid="button-bulk-confirm" onClick={handleBulk}
+              <button data-testid="button-bulk-confirm" onClick={() => handleBulk()}
                 disabled={savingIds.size > 0}
                 style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, height: isMobile ? 44 : 36, padding: "0 16px", flex: isMobile ? 1 : undefined, borderRadius: 9999, border: "none", background: savingIds.size > 0 ? "#64748b" : "#15803d", color: "#fff", fontSize: 13, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif", cursor: savingIds.size > 0 ? "not-allowed" : "pointer", whiteSpace: "nowrap", boxShadow: "0 2px 8px rgba(21,128,61,0.3)", transition: "background-color 0.15s" }}>
-                <CheckCircle2 size={14} aria-hidden="true" /> {savingIds.size > 0 ? "Registrando…" : "Confirmar triagem"}
+                <CheckCircle2 size={14} aria-hidden="true" /> {savingIds.size > 1 ? `Registrando ${gravadasDoLote} de ${savingIds.size}…` : savingIds.size > 0 ? "Registrando…" : "Confirmar triagem"}
               </button>
               {/* "Cancelar" soava como desfazer a triagem; o botão só
                   desmarca as linhas (o que foi preenchido nelas fica). */}
-              <button data-testid="button-bulk-cancel" onClick={() => Object.keys(entries).forEach(id => updateEntry(id, { selected: false }))}
+              <button data-testid="button-bulk-cancel" onClick={() => toggleAll(false)}
                 style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 5, height: isMobile ? 44 : 36, padding: "0 14px", borderRadius: 9999, border: "1px solid rgba(255,255,255,0.18)", background: "transparent", color: "#e2e8f0", fontSize: 13, fontWeight: 600, fontFamily: "Space Grotesk, sans-serif", cursor: "pointer", whiteSpace: "nowrap" }}>
                 <X size={13} aria-hidden="true" /> Limpar seleção
               </button>
@@ -1470,6 +1578,36 @@ export default function TriagemRetorno() {
         }}
       />
 
+      <AlertDialog open={!!descarte} onOpenChange={(aberto) => { if (!aberto) setDescarte(null); }}>
+        <AlertDialogContent style={{ width: "min(440px, calc(100vw - 32px))", maxWidth: "min(440px, calc(100vw - 32px))", borderRadius: 16 }}>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {descarte?.tipo === "uma" ? `Descartar ${descarte.asset.displayId}?` : `Descartar ${descarte?.tipo === "lote" ? descarte.quantas : 0} ${descarte?.tipo === "lote" && descarte.quantas === 1 ? "peça" : "peças"}?`}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {descarte?.tipo === "uma" ? `${descarte.asset.name} sai` : "Elas saem"} do inventário como sucata e a triagem não pode ser desfeita por aqui.
+              {descarte?.tipo === "lote" && selectedIds.length > descarte.quantas ? ` As outras ${selectedIds.length - descarte.quantas} selecionadas seguem para o destino marcado.` : ""}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter style={{ gap: 8 }}>
+            <AlertDialogCancel data-testid="button-rever-descarte" style={{ minHeight: 44 }}>Rever</AlertDialogCancel>
+            <AlertDialogAction data-testid="button-confirmar-descarte" style={{ minHeight: 44, background: "#b91c1c", color: "#fff" }}
+              onClick={async () => {
+                const d = descarte;
+                setDescarte(null);
+                if (d?.tipo === "lote") { handleBulk(true); return; }
+                if (d?.tipo === "uma") {
+                  const ok = await handleSingle(d.asset, true);
+                  // Veio do modal de detalhe: fecha, como o Salvar dele faria.
+                  if (ok) setSelectedAsset(atual => (atual?.id === d.asset.id ? null : atual));
+                }
+              }}>
+              Descartar e salvar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       {/* Sugestões de local: o formato do mapa do galpão. */}
       <datalist id="locais-do-galpao">
         {LOCAIS_DO_GALPAO.map(l => <option key={l} value={l} />)}
@@ -1477,10 +1615,9 @@ export default function TriagemRetorno() {
 
       {mapaPara && (
         <MapaGalpao
-          value={(entries[mapaPara]?.location ?? "") || (awaitingAssets.find(a => a.id === mapaPara)?.location ?? "")}
+          value={(entries[mapaPara]?.location ?? "") || (ativoPorId.get(mapaPara)?.location ?? "")}
           onSelect={loc => {
-            const a = awaitingAssets.find(x => x.id === mapaPara);
-            updateEntry(mapaPara, { location: loc }, a?.quantity ?? 1);
+            updateEntry(mapaPara, { location: loc }, ativoPorId.get(mapaPara)?.quantity ?? 1);
           }}
           onClose={() => setMapaPara(null)}
         />

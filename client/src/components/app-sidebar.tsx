@@ -2,7 +2,7 @@ import {
   Calendar, CalendarRange, Palette, Printer, Layers, LayoutDashboard,
   Activity, BarChart3, Users, Building2, UserCheck, ClipboardCheck,
   Link2, LogOut, Loader2, ScrollText, Archive, ScanSearch, Compass, Settings2, Camera, Wand2,
-  Timer, GitBranch, Bell, Inbox, Cog,
+  Timer, GitBranch, Bell, Inbox, Cog, PackageSearch,
 } from "lucide-react";
 import { useEffect, useId, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -72,6 +72,10 @@ const fluxoItems: MenuItem[] = [
   // A aba de impressoras (dono, 14/09): o que cada uma imprime agora e o
   // diário do dia. Mesmos papéis da Gráfica (ROLES_GRAFICA no App).
   { title: "Máquinas da Gráfica",     url: "/grafica/maquinas",        icon: Cog,            roles: ["grafica", "solicitacao", "admin"] },
+  // A caixa da Gráfica (dono, 21/09): a Revisão Final pede peças ao estoque
+  // pelo modal Reaproveitamento; a Gráfica atende (tudo ou parte) ou diz que
+  // não consegue. A Solicitação entra para acompanhar as dela.
+  { title: "Solicitações ao estoque", url: "/grafica/solicitacoes-ao-estoque", icon: PackageSearch, roles: ["grafica", "solicitacao", "admin"] },
   // O lugar único dos pedidos de peça (dono, 14/09): o Atendimento pede, a
   // Solicitação resolve — aqui e pelos eventos.
   { title: "Solicitação de peças",    url: "/pedidos-de-peca",         icon: Inbox,          roles: ["atendimento", "solicitacao", "admin"] },
@@ -138,6 +142,7 @@ const DESCRICAO_DA_TELA: Record<string, string> = {
   "/solicitacao": "4º passo: conferir o arquivo final e liberar para produção (ou devolver à Arte)",
   "/grafica": "5º passo: produzir, conferir e entregar as peças liberadas",
   "/grafica/maquinas": "O que cada impressora está imprimindo agora e o que saiu de cada uma no dia",
+  "/grafica/solicitacoes-ao-estoque": "A Revisão Final pede peças ao estoque para reaproveitar; a Gráfica atende, atende em parte ou diz que não consegue",
   "/pedidos-de-peca": "Peças que faltam na lista de um evento: o Atendimento pede, a Solicitação cria",
   "/modelos": "Catálogo de peças reutilizáveis para montar a lista de um evento",
   "/historico": "Tudo o que foi feito no sistema, por quem e quando",
@@ -172,6 +177,12 @@ const sectionLabelStyle: React.CSSProperties = {
 };
 
 // ─── Single nav item ─────────────────────────────────────
+/** O que o número ao lado do item está contando — lido em voz alta e no hover. */
+const rotuloDoNumero = (url: string, n: number): string =>
+  url === "/grafica/solicitacoes-ao-estoque"
+    ? `${n} ${n === 1 ? "solicitação ao estoque esperando" : "solicitações ao estoque esperando"} resposta`
+    : `${n} ${n === 1 ? "solicitação esperando" : "solicitações esperando"} ação`;
+
 function NavItem({ item, isActive, badge, isMobile }: { item: MenuItem; isActive: boolean; badge?: number; isMobile: boolean }) {
   const Icon = item.icon;
   // `isMobile` chega do AppSidebar (perf-7): eram 23 useIsMobile, um por item
@@ -261,8 +272,8 @@ function NavItem({ item, isActive, badge, isMobile }: { item: MenuItem; isActive
           {badge !== undefined && badge > 0 && (
             <span
               data-testid={`badge-${item.url.replace(/^\//, "")}`}
-              aria-label={`${badge} ${badge === 1 ? "solicitação esperando" : "solicitações esperando"} ação`}
-              title={`${badge} ${badge === 1 ? "solicitação esperando" : "solicitações esperando"} ação`}
+              aria-label={rotuloDoNumero(item.url, badge)}
+              title={rotuloDoNumero(item.url, badge)}
               style={{
                 marginLeft: "auto",
                 flexShrink: 0,
@@ -361,7 +372,17 @@ export function AppSidebar() {
     queryKey: ["/api/pedidos-de-peca/pendentes"],
     enabled: resolvePedidos,
   });
-  const badges = { "/pedidos-de-peca": resolvePedidos ? pendentes?.total : undefined };
+  // Solicitações ao estoque esperando a Gráfica responder (dono, 21/09). Só
+  // para quem responde: para a Solicitação uma aberta não é tarefa dela.
+  const respondeConsultas = role === "grafica" || role === "admin";
+  const { data: consultasAbertas } = useQuery<{ total: number }>({
+    queryKey: ["/api/consultas-de-estoque/abertas"],
+    enabled: respondeConsultas,
+  });
+  const badges = {
+    "/pedidos-de-peca": resolvePedidos ? pendentes?.total : undefined,
+    "/grafica/solicitacoes-ao-estoque": respondeConsultas ? consultasAbertas?.total : undefined,
+  };
 
   const filterByRole = (items: MenuItem[]) =>
     items.filter((item) => (item.roles ? item.roles.includes(role) : true) && !(item.semKit && user?.kit));

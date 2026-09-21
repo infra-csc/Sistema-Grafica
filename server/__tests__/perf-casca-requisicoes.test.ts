@@ -66,22 +66,25 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 
 describe("a casca pede o mínimo ao montar", () => {
-  it("admin: me 1×, notificações 1×, badge 1× — e nenhum acervo pesado", async () => {
+  it("admin: me 1×, notificações 1×, os dois badges 1× — e nenhum acervo pesado", async () => {
     const contar = await montar("admin");
     expect(contar("/api/auth/me")).toBe(1);
     expect(contar("/api/notifications")).toBe(1);
     expect(contar("/api/pedidos-de-peca/pendentes")).toBe(1);
+    // + o número de consultas de estoque abertas (21/09): um count(*), de propósito.
+    expect(contar("/api/consultas-de-estoque/abertas")).toBe(1);
     for (const pesado of ["/api/events", "/api/sponsors", "/api/standard-items", "/api/items"]) {
       expect(contar(pesado), pesado).toBe(0);
     }
     // Orçamento total da casca: se crescer, que seja de propósito.
-    expect(pedidos.length, pedidos.join(", ")).toBe(3);
+    expect(pedidos.length, pedidos.join(", ")).toBe(4);
   }, 20_000);
 
-  it("gráfica: não pede o badge de pedidos (não é dela)", async () => {
+  it("gráfica: não pede o badge de pedidos (não é dela) — pede o das consultas de estoque, que é", async () => {
     const contar = await montar("grafica");
     expect(contar("/api/pedidos-de-peca/pendentes")).toBe(0);
-    expect(pedidos.length, pedidos.join(", ")).toBe(2);
+    expect(contar("/api/consultas-de-estoque/abertas")).toBe(1);
+    expect(pedidos.length, pedidos.join(", ")).toBe(3);
   }, 20_000);
 });
 
@@ -105,7 +108,7 @@ describe("o menu pré-carrega a tela antes do clique", () => {
     const menu = lerFonte("client/src/components/app-sidebar.tsx");
     const prefetch = lerFonte("client/src/lib/prefetch-de-rota.ts");
     const urls = Array.from(menu.matchAll(/\{ title: "[^"]+",\s*url: "([^"]+)"/g), (m) => m[1]);
-    expect(urls.length).toBe(26); // + Máquinas, Inferir executivos e Reparo de vínculos
+    expect(urls.length).toBe(27); // + Máquinas, Inferir executivos, Reparo de vínculos e Consultas de estoque (21/09)
     for (const url of urls) expect(prefetch, url).toContain(`"${url}": () => import(`);
     expect(menu).toContain("prefetchRota(item.url)");
   });

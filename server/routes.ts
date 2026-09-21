@@ -34,6 +34,7 @@ import { registerMaquinasRoutes } from "./routes/maquinas";
 import { registerTubosRoutes } from "./routes/tubos";
 import { registerEstoqueReservasRoutes } from "./routes/estoque-reservas";
 import { registerPedidosDePecaRoutes } from "./routes/pedidos-de-peca";
+import { registerConsultasDeEstoqueRoutes } from "./routes/consultas-de-estoque";
 import { registerKitRoutes } from "./routes/kit";
 import { registerArtesBuscaRoutes } from "./routes/artes-busca";
 import { db } from "./db";
@@ -115,6 +116,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   registerTubosRoutes(app);
   registerEstoqueReservasRoutes(app);
   registerPedidosDePecaRoutes(app);
+  registerConsultasDeEstoqueRoutes(app);
   registerKitRoutes(app);
   registerArtesBuscaRoutes(app);
   registerNotificationRoutes(app);

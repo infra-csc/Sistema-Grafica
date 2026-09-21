@@ -1,6 +1,7 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { miniatura } from "@/lib/miniatura";
 import { SeloKit } from "@/components/kit/selo-kit";
+import { AvisoDoEstoqueNaPeca } from "@/components/consulta-de-estoque/aviso-na-grafica";
 import { EsqueletoDeFila } from "@/components/esqueleto-de-fila";
 import { Link } from "wouter";
 import { prefetchRota } from "@/lib/prefetch-de-rota";
@@ -598,6 +599,7 @@ function BulkActionDialog({
                     <div style={{ display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap", rowGap: 2 }}>
                       <span style={{ fontFamily: "'DM Mono', monospace", fontSize: fs(11), fontWeight: 700, color: isConfer ? tint : "#c2410c", flexShrink: 0 }}>{item.displayId}</span>
                       <SeloKit peca={item} style={{ flexShrink: 0 }} />
+                      <AvisoDoEstoqueNaPeca peca={item} style={{ flexShrink: 0 }} />
                       {/* O complemento tem a MESMA arte, o mesmo tipo e quase a
                           mesma descrição da peça original: numa conferência em
                           lote com as duas selecionadas, sem este selo as duas
@@ -4409,6 +4411,7 @@ export default function Grafica() {
                         </button>
                         {/* Kit (14/09): a peça do Kit se declara na fila, com a entrega. */}
                         <SeloKit peca={item} style={{ display: "flex", width: "fit-content", marginTop: 4 }} />
+                        <AvisoDoEstoqueNaPeca peca={item} style={{ marginTop: 4 }} />
                         {item.tuboId && numeroDoTubo.has(item.tuboId) && (
                           <button type="button" data-testid={`chip-tubo-${item.id}`} title={tituloDoTubo(item)}
                             aria-label={`${seloDoTubo(item)} — ver o que está no tubo`}
@@ -5604,6 +5607,7 @@ export default function Grafica() {
                       <span style={{ display: "inline-flex", alignItems: "center", flexWrap: "wrap", gap: 6, minWidth: 0 }}>
                         <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: isMobile ? 16 : 13, color: selectedItem.isReuse ? '#047857' : '#c2410c' }}>{selectedItem.displayId}</span>
                         <SeloKit peca={selectedItem} style={{ flexShrink: 0 }} />
+                        <AvisoDoEstoqueNaPeca peca={selectedItem} style={{ flexShrink: 0 }} />
                         {/* Produzir/conferir/entregar um complemento é registrar
                             um LOTE SEPARADO: o modal precisa dizer isso, senão
                             o operador acha que está lançando na peça original. */}

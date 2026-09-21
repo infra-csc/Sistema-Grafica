@@ -36,6 +36,11 @@ import {
 import type { SeloPecaEventoFinalizado } from "@/lib/status";
 import { ModalHeader, modalSurface, HIDE_NATIVE_CLOSE, FreezeWhileClosing } from "@/components/modal-shell";
 import { AumentarQuantidadeDialog, parseApiError } from "@/components/aumentar-quantidade-dialog";
+import {
+  PedirAoEstoque, RespostaDoEstoqueNaFicha, SeloDoEstoqueNaLinha, CHAVE_DO_ESTOQUE_NA_REVISAO,
+  aguardandoEstoque, chaveDaConsulta, estoqueRespondeu, useConsultaDaPeca, useEstoqueDaRevisao,
+} from "@/components/consulta-de-estoque/na-revisao";
+import { propostaDaLiberacao, respostaEsperandoConfirmar, resumoDoLoteComEstoque } from "@shared/consultas-de-estoque";
 import { FS } from "@/lib/theme";
 
 // Tons de texto desta paleta valem para superfícies CLARAS (bg/surface).
@@ -190,6 +195,39 @@ export default function Solicitacao() {
   // Alvo do foco ao abrir a confirmação de liberar (ver o AlertDialog dela).
   const botaoConfirmarLiberarRef = useRef<HTMLButtonElement>(null);
   const [releaseConfirmOpen, setReleaseConfirmOpen] = useState(false);
+  // ── SOLICITAÇÃO AO ESTOQUE (dono, 21/09) ────────────────────────────────
+  // "As respostas do reaproveitar têm que aparecer na REVISÃO, e é ELA que
+  // segue com o item… tem que vir SUGERIDO e ela só CONFIRMAR."
+  // `estoquePorPeca`: o que vale para cada peça da lista (selo na linha, os
+  // dois contadores, a ordem e o resumo do lote) — uma leitura só.
+  // `propostaDaFicha`: a conta pronta da peça aberta, que escreve o botão
+  // "Confirmar e liberar · 3 reaproveitadas + 3 a produzir".
+  // `usarMenos`: o ajuste escondido atrás do link — null = a sugestão.
+  const estoquePorPeca = useEstoqueDaRevisao();
+  const [filtroEstoque, setFiltroEstoque] = useState<"" | "aguardando" | "respondeu">(() => {
+    const v = typeof window === "undefined" ? "" : new URLSearchParams(window.location.search).get("estoque");
+    return v === "aguardando" || v === "respondeu" ? v : "";
+  });
+  const [usarMenos, setUsarMenos] = useState<number | null>(null);
+  const idDaFicha = selectedItem?.id ?? null;
+  useEffect(() => { setUsarMenos(null); }, [idDaFicha]);
+  const { consulta: consultaDaFicha } = useConsultaDaPeca(idDaFicha, modalOpen);
+  const pedidoEmAberto = consultaDaFicha?.status === "aberta";
+  // Marcação manual de reaproveitamento total manda — o servidor também a
+  // respeita antes da resposta do estoque.
+  const propostaDaFicha = selectedItem && !selectedItem.isReuse && respostaEsperandoConfirmar(consultaDaFicha)
+    ? propostaDaLiberacao(Number(selectedItem.quantity) || 0, consultaDaFicha!, usarMenos)
+    : null;
+  // Sem arquivo final não libera — salvo quando o estoque cobre a peça inteira
+  // (reaproveitamento total não imprime nada; é a mesma régua do servidor).
+  const semArquivoParaLiberar = !selectedItem?.finalFileUrl && !propostaDaFicha?.pulaProducao;
+  // O filtro do estoque mora na URL, como os outros (?estoque=respondeu).
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search);
+    if (filtroEstoque) q.set("estoque", filtroEstoque); else q.delete("estoque");
+    const qs = q.toString();
+    window.history.replaceState(null, "", qs ? `?${qs}` : window.location.pathname);
+  }, [filtroEstoque]);
   // Campo de observação do card: precisa existir por conta própria, sem
   // depender de "Liberar" ou "Devolver" — a pessoa pode querer deixar um
   // recado (cor, acabamento, posição) sem estar pronta para tomar nenhuma das
@@ -448,8 +486,13 @@ export default function Solicitacao() {
   });
 
   const creatorReviewMutation = useMutation({
-    mutationFn: async ({ itemId }: { itemId: string }) => await apiRequest("PATCH", `/api/items/${itemId}/creator-review`, {}),
-    onSuccess: (_res, { itemId }) => {
+    // `corpo`: vazio = a sugestão do estoque (o servidor aplica o que a Gráfica
+    // atendeu); { reuseQty, peloEstoque } = "usar menos do que o estoque atendeu".
+    mutationFn: async ({ itemId, corpo }: { itemId: string; corpo?: { reuseQty: number; peloEstoque: true } }) =>
+      await apiRequest("PATCH", `/api/items/${itemId}/creator-review`, corpo ?? {}),
+    onSuccess: (_res, { itemId, corpo }) => {
+      queryClient.invalidateQueries({ queryKey: CHAVE_DO_ESTOQUE_NA_REVISAO });
+      queryClient.invalidateQueries({ queryKey: chaveDaConsulta(itemId) });
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
       queryClient.invalidateQueries({ queryKey: ["/api/items/approved"] });
       queryClient.invalidateQueries({ queryKey: ["/api/audit-logs"] });
@@ -461,12 +504,22 @@ export default function Solicitacao() {
       // `selectedItem` de fato some com o modal em fade.
       if (!marcarAvanco()) { setModalOpen(false); setSelectedItem(null); }
       const avancou = proximaAposDecidir.current !== null;
+      // A resposta do estoque entrou nesta liberação: o aviso não pode dizer
+      // só "Pronto para Produção" para uma peça que veio coberta pelo estoque.
+      const linhaDoEstoque = estoquePorPeca.get(itemId);
+      const doEstoque = liberada && !liberada.isReuse && linhaDoEstoque && estoqueRespondeu(linhaDoEstoque)
+        ? propostaDaLiberacao(Number(liberada.quantity) || 0, linhaDoEstoque, corpo ? corpo.reuseQty : null)
+        : null;
       // O aviso responde "foi para a Gráfica?" (o destino e o status que ela
       // vai ver lá) e "e agora?" (a ficha já trocou de peça, ou a fila acabou).
       // "A Arte foi notificada" dizia a verdade, mas respondia outra pergunta.
       toast({
         title: "Liberada para a Gráfica",
-        description: `${id} ${destinoAoLiberar(liberada)}. ${avancou ? "A próxima peça da fila já está aberta." : "Era a última desta fila."}`,
+        description: `${id} ${doEstoque && doEstoque.reaproveitadas > 0
+          ? (doEstoque.pulaProducao
+            ? `foi direto para Impresso / Acabamento: as ${doEstoque.reaproveitadas} un. vêm do estoque`
+            : `entrou na fila da Gráfica com ${doEstoque.reaproveitadas} un. do estoque e ${doEstoque.aProduzir} a produzir`)
+          : destinoAoLiberar(liberada)}. ${avancou ? "A próxima peça da fila já está aberta." : "Era a última desta fila."}`,
       });
     },
     onError: (error: any) => toast({ title: "Erro ao liberar peça", description: parseApiError(error).message, variant: "destructive" }),
@@ -486,6 +539,7 @@ export default function Solicitacao() {
       return { total: itemIds.length, released: itemIds.length - failedIds.length, failed: failedIds.length, failedIds };
     },
     onSuccess: ({ total, released, failed, failedIds }, enviados) => {
+      queryClient.invalidateQueries({ queryKey: CHAVE_DO_ESTOQUE_NA_REVISAO });
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
       queryClient.invalidateQueries({ queryKey: ["/api/items/approved"] });
       queryClient.invalidateQueries({ queryKey: ["/api/audit-logs"] });
@@ -810,7 +864,7 @@ export default function Solicitacao() {
   // que a Gráfica já tinha corrigido em lib/grafica-filtros.
   //
   // Busca sem acento (`normalizarBusca`): "so quero" acha "SÓ QUERO PEDALAR SP".
-  const casaRecorte = (item: any, excluir?: 'evento' | 'tipo' | 'sem-arquivo' | 'evento-finalizado'): boolean => {
+  const casaRecorte = (item: any, excluir?: 'evento' | 'tipo' | 'sem-arquivo' | 'evento-finalizado' | 'estoque'): boolean => {
     const q = normalizarBusca(searchTerm);
     if (q &&
         !normalizarBusca(item.type).includes(q) &&
@@ -821,12 +875,25 @@ export default function Solicitacao() {
     if (excluir !== 'tipo' && itemTypeFilter.length > 0 && !itemTypeFilter.includes(item.type)) return false;
     if (excluir !== 'sem-arquivo' && soSemArquivo && !!item.finalFileUrl) return false;
     if (excluir !== 'evento-finalizado' && soEventoFinalizado && !selosPorItem.has(item.id)) return false;
+    if (excluir !== 'estoque' && filtroEstoque === "aguardando" && !aguardandoEstoque(estoquePorPeca.get(item.id))) return false;
+    if (excluir !== 'estoque' && filtroEstoque === "respondeu" && !estoqueRespondeu(estoquePorPeca.get(item.id))) return false;
     return true;
   };
 
   const filteredItems = useMemo(() => pendingItems.filter(item => casaRecorte(item)),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [pendingItems, searchTerm, eventFilter, itemTypeFilter, soSemArquivo, soEventoFinalizado, selosPorItem]);
+    [pendingItems, searchTerm, eventFilter, itemTypeFilter, soSemArquivo, soEventoFinalizado, selosPorItem, filtroEstoque, estoquePorPeca]);
+
+  // "Aguardando estoque (N)" e "Estoque respondeu (N)" — mesma disciplina dos
+  // outros chips: a contagem sai do pool com a PRÓPRIA dimensão excluída.
+  const contagemDoEstoque = useMemo(() => {
+    const pool = pendingItems.filter(i => casaRecorte(i, 'estoque'));
+    return {
+      aguardando: pool.filter(i => aguardandoEstoque(estoquePorPeca.get(i.id))).length,
+      respondeu: pool.filter(i => estoqueRespondeu(estoquePorPeca.get(i.id))).length,
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingItems, searchTerm, eventFilter, itemTypeFilter, soSemArquivo, soEventoFinalizado, selosPorItem, estoquePorPeca]);
 
   // ── OS DOIS CHIPS DE FACETA ─────────────────────────────────────────────
   //
@@ -926,6 +993,10 @@ export default function Solicitacao() {
     const map = new Map<string, any[]>();
     // Dentro do evento: grupo do item padrão, depois tipo.
     const sorted = [...filteredItems].sort((a, b) => {
+      // ESTOQUE RESPONDEU sobe (dono, 21/09): a resposta existe para a Revisão
+      // Final agir — no meio de 74 peças ela passava batido.
+      const ra = estoqueRespondeu(estoquePorPeca.get(a.id)) ? 0 : 1, rb = estoqueRespondeu(estoquePorPeca.get(b.id)) ? 0 : 1;
+      if (ra !== rb) return ra - rb;
       const ga = typeToGroup[a.type] || '', gb = typeToGroup[b.type] || '';
       // type pode vir null do banco — sem o fallback o localeCompare lançava.
       return ga.localeCompare(gb) || (a.type || '').localeCompare(b.type || '');
@@ -994,6 +1065,11 @@ export default function Solicitacao() {
   // total fica FORA da conta: o servidor não exige arquivo dela (vai direto
   // para Impresso / Acabamento), e contá-la anunciava uma recusa que não acontece.
   const itensDoLoteVivo = selecaoLote.vivas.map(id => pendingItems.find((i: any) => i.id === id));
+  // O LOTE leva a sugestão do estoque (dono, 21/09): peça com resposta entra
+  // com o que a Gráfica atendeu — o servidor aplica na liberação de cada uma.
+  const propostasDoLote = itensDoLoteVivo
+    .filter((it: any) => it && !it.isReuse && estoqueRespondeu(estoquePorPeca.get(it.id)))
+    .map((it: any) => propostaDaLiberacao(Number(it.quantity) || 0, estoquePorPeca.get(it.id)!));
   const semArquivoNoLote = itensDoLoteVivo
     .filter((it: any) => !it?.finalFileUrl && !reaproveitamentoTotal(it)).length;
   const reaproveitadasNoLote = itensDoLoteVivo.filter((it: any) => reaproveitamentoTotal(it)).length;
@@ -1342,6 +1418,8 @@ export default function Solicitacao() {
           {([
             { id: "sem-arquivo", rotulo: "Sem arquivo final", n: contagemSemArquivo, ligado: soSemArquivo, alterna: () => setSoSemArquivo(v => !v), cor: "#9a3412", testid: "chip-sem-arquivo" },
             { id: "evento-finalizado", rotulo: "Evento finalizado", n: contagemEventoFinalizado, ligado: soEventoFinalizado, alterna: () => setSoEventoFinalizado(v => !v), cor: "#78716c", testid: "chip-evento-finalizado-faceta" },
+            { id: "estoque-respondeu", rotulo: "Estoque respondeu", n: contagemDoEstoque.respondeu, ligado: filtroEstoque === "respondeu", alterna: () => setFiltroEstoque(v => (v === "respondeu" ? "" : "respondeu")), cor: "#15803d", testid: "chip-estoque-respondeu" },
+            { id: "aguardando-estoque", rotulo: "Aguardando estoque", n: contagemDoEstoque.aguardando, ligado: filtroEstoque === "aguardando", alterna: () => setFiltroEstoque(v => (v === "aguardando" ? "" : "aguardando")), cor: "#d97706", testid: "chip-aguardando-estoque" },
           ]).map(chip => {
             if (chip.n === 0 && !chip.ligado) return null;
             return (
@@ -1368,9 +1446,9 @@ export default function Solicitacao() {
             );
           })}
 
-          {(searchTerm || eventFilter.length > 0 || itemTypeFilter.length > 0 || soSemArquivo || soEventoFinalizado) && (
+          {(searchTerm || eventFilter.length > 0 || itemTypeFilter.length > 0 || soSemArquivo || soEventoFinalizado || filtroEstoque) && (
             <button
-              onClick={() => { setSearchTerm(""); setEventFilter([]); setItemTypeFilter([]); setSoSemArquivo(false); setSoEventoFinalizado(false); }}
+              onClick={() => { setSearchTerm(""); setEventFilter([]); setItemTypeFilter([]); setSoSemArquivo(false); setSoEventoFinalizado(false); setFiltroEstoque(""); }}
               data-testid="button-clear-filters"
               style={{ height: alturaControle, fontSize: 13, fontWeight: 600, color: TI.secondary, textDecoration: "underline", textUnderlineOffset: 3, background: "none", border: "none", cursor: "pointer", padding: "0 8px" }}>
               Limpar filtros
@@ -1602,6 +1680,7 @@ export default function Solicitacao() {
                         <div style={{display:"flex",justifyContent:"flex-start",alignItems:"center",gap:6,flexWrap:"wrap",paddingRight:44}}>
                           <span style={{fontFamily:"monospace",fontWeight:700,color:"#c2410c",fontSize:13}}>{item.displayId}</span>
                           <SeloKit peca={item} />
+                          <SeloDoEstoqueNaLinha linha={estoquePorPeca.get(item.id)} />
                           {/* EVENTO FINALIZADO — a peça voltou para a fila (ver
                               `pendingItems`), então tem de se declarar. Aqui
                               quase nada funciona: só excluir. */}
@@ -1979,6 +2058,7 @@ export default function Solicitacao() {
                                     <Recycle aria-hidden="true" style={{ width: 13, height: 13 }} />
                                   </span>
                                 )}
+                                <SeloDoEstoqueNaLinha linha={estoquePorPeca.get(item.id)} />
                                 {/* EVENTO FINALIZADO — sem este selo, a linha
                                     mostra "Revisar" e dois botões apagados sem
                                     dizer por quê. */}
@@ -2524,28 +2604,30 @@ export default function Solicitacao() {
                 <div style={{ display: "flex", gap: 10, flexWrap: isMobile ? "wrap" : "nowrap" }}>
                   <button
                     onClick={() => { if (!seloSelecionado) setReleaseConfirmOpen(true); }}
-                    disabled={!!seloSelecionado || creatorReviewMutation.isPending || !selectedItem?.finalFileUrl}
+                    disabled={!!seloSelecionado || creatorReviewMutation.isPending || semArquivoParaLiberar}
                     data-testid="button-release-modal"
                     title={seloSelecionado
                       ? motivoAcaoBloqueada(seloSelecionado.motivo, "liberar para produção")
-                      : !selectedItem?.finalFileUrl ? "Arquivo final não enviado" : ""}
+                      : semArquivoParaLiberar ? "Arquivo final não enviado" : ""}
                     style={{
                       flex: "1 1 0", minWidth: 0, height: 48,
                       display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
                       borderRadius: 8,
-                      border: seloSelecionado || !selectedItem?.finalFileUrl ? "1px solid #e7e5e4" : "none",
-                      backgroundColor: seloSelecionado || !selectedItem?.finalFileUrl ? "#f5f5f4" : "#c2410c",
+                      border: seloSelecionado || semArquivoParaLiberar ? "1px solid #e7e5e4" : "none",
+                      backgroundColor: seloSelecionado || semArquivoParaLiberar ? "#f5f5f4" : "#c2410c",
                       /* #6f6a64 sobre #f5f5f4 → 4,91:1: o "off" continua legível
                          porque desabilitado-por-evento-finalizado é o único
                          estado off desta tela que carrega informação nova. */
-                      color: seloSelecionado || !selectedItem?.finalFileUrl ? "#6f6a64" : "#fff",
+                      color: seloSelecionado || semArquivoParaLiberar ? "#6f6a64" : "#fff",
                       fontSize: 13.5, fontWeight: 700, whiteSpace: "nowrap",
-                      cursor: seloSelecionado || !selectedItem?.finalFileUrl || creatorReviewMutation.isPending ? "not-allowed" : "pointer",
+                      cursor: seloSelecionado || semArquivoParaLiberar || creatorReviewMutation.isPending ? "not-allowed" : "pointer",
                     }}
                   >
                     <Check style={{ width: 16, height: 16, flexShrink: 0 }} />
                     <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>
-                      {creatorReviewMutation.isPending ? "Liberando..." : "Liberar para produção"}
+                      {creatorReviewMutation.isPending ? "Liberando..."
+                        : propostaDaFicha ? propostaDaFicha.rotulo
+                        : "Liberar para produção"}
                     </span>
                   </button>
                   <button
@@ -2615,6 +2697,9 @@ export default function Solicitacao() {
                     arquivo final, o porquê do Liberar travado deixa de morar só
                     no `title`, que não aparece em botão desabilitado nem no
                     toque. Em evento finalizado o aviso cinza abaixo já explica. */}
+                {selectedItem && (
+                  <RespostaDoEstoqueNaFicha item={selectedItem} usar={usarMenos} onUsar={setUsarMenos} />
+                )}
                 {!seloSelecionado && selectedItem && (
                   <p data-testid="destino-da-decisao" style={{ margin: 0, fontSize: 12, lineHeight: 1.5, color: "#57534e" }}>
                     {selectedItem.finalFileUrl ? (
@@ -2821,6 +2906,17 @@ export default function Solicitacao() {
                   {reaproveitamentoTotal(selectedItem)
                     ? <> vai direto para <strong>Impresso / Acabamento</strong>, na conferência da Gráfica: é reaproveitamento total e não passa pela impressão.</>
                     : <> entra na fila da Gráfica como <strong>Pronto para Produção</strong>. Se algo estiver errado depois, a Gráfica pode devolvê-la para a Revisão Final.</>}
+                  {propostaDaFicha && propostaDaFicha.reaproveitadas > 0 && (
+                    <span data-testid="confirmacao-com-estoque" style={{ display: "block", marginTop: 8, color: "#14532d" }}>
+                      <strong>{propostaDaFicha.reaproveitadas} un. vêm do estoque</strong> como reaproveitamento
+                      {propostaDaFicha.aProduzir > 0 ? <> e a Gráfica produz as outras {propostaDaFicha.aProduzir}.</> : <>: nada a produzir, a peça vai direto para Impresso / Acabamento.</>}
+                    </span>
+                  )}
+                  {pedidoEmAberto && (
+                    <span data-testid="confirmacao-pedido-em-aberto" style={{ display: "block", marginTop: 8, color: "#78350f" }}>
+                      <strong>Liberar sem esperar a resposta do estoque?</strong> O pedido continua aberto: se a Gráfica atender, o reaproveitamento entra direto na peça já liberada e você é avisada.
+                    </span>
+                  )}
                 </span>
               )}
             </AlertDialogDescription>
@@ -2834,7 +2930,10 @@ export default function Solicitacao() {
               // Barrar o repeat obriga soltar e apertar de novo: confirmar
               // continua a um Enter, mas nunca por inércia do dedo.
               onKeyDown={(e) => { if (e.repeat) e.preventDefault(); }}
-              onClick={() => selectedItem && creatorReviewMutation.mutate({ itemId: selectedItem.id })}
+              onClick={() => selectedItem && creatorReviewMutation.mutate({
+                itemId: selectedItem.id,
+                ...(propostaDaFicha && usarMenos != null ? { corpo: { reuseQty: propostaDaFicha.reaproveitadas, peloEstoque: true as const } } : {}),
+              })}
               disabled={creatorReviewMutation.isPending}
               style={{ backgroundColor: TI.text, color: "#fff" }}
               data-testid="button-release-confirm"
@@ -2906,6 +3005,11 @@ export default function Solicitacao() {
               {reaproveitadasNoLote > 0 && reaproveitadasNoLote < selecaoLote.vivas.length && (
                 <span data-testid="aviso-bulk-release-reaproveitadas" style={{ display: "block", marginTop: 8 }}>
                   Exceção: {reaproveitadasNoLote === 1 ? "1 é" : `${reaproveitadasNoLote} são`} de reaproveitamento total e {reaproveitadasNoLote === 1 ? "vai" : "vão"} direto para Impresso / Acabamento (conferência da Gráfica), sem impressão e sem precisar de arquivo final.
+                </span>
+              )}
+              {propostasDoLote.some(x => x.reaproveitadas > 0) && (
+                <span data-testid="aviso-bulk-release-estoque" style={{ display: "block", marginTop: 8, color: "#14532d" }}>
+                  <strong>{resumoDoLoteComEstoque(selecaoLote.vivas.length, propostasDoLote)}</strong> — entram com o que o estoque atendeu, sem digitar nada.
                 </span>
               )}
               {/* SEM ARQUIVO FINAL, dito antes: o servidor recusa liberar peça
@@ -3070,6 +3174,24 @@ export default function Solicitacao() {
                     quantidade é maior que 1, então o corpo é elástico. */}
                 <div style={{ padding: "20px 24px", overflowY: "auto", flex: "1 1 auto", minHeight: 0 }}>
 
+              {/* PEDIR AO ESTOQUE (dono, 21/09): confirmar aqui não aplica mais
+                  o reaproveitamento na hora — vira uma solicitação para a
+                  Gráfica, que atende, atende em parte ou não consegue. A
+                  resposta volta para a ficha desta peça. */}
+              <PedirAoEstoque key={dialogItem.id} item={dialogItem} onPedido={() => setReuseDialogItemId(null)} />
+
+              {/* JÁ CONFERI — APLICAR AGORA: o caminho antigo, só para o admin
+                  (que também responde pelo estoque): não faz sentido ele pedir
+                  a si mesmo. Marca o reaproveitamento e libera, como sempre. */}
+              {user?.role === "admin" && (
+              <details data-testid="ja-conferi-aplicar-agora" style={{ borderTop: "1px solid #e7e5e4", paddingTop: 8 }}>
+              <summary style={{ minHeight: 44, display: "flex", alignItems: "center", cursor: "pointer", fontSize: 13, fontWeight: 700, color: "#44403c" }}>
+                Já conferi no estoque — aplicar agora
+              </summary>
+              <p style={{ margin: "0 0 10px", fontSize: 12, color: "#57534e", lineHeight: 1.45 }}>
+                Sem passar pela Gráfica: marca o reaproveitamento e libera a peça, como era antes.
+              </p>
+
               {/* Opção: reaproveitar tudo */}
               <button
                 onClick={() => {
@@ -3130,6 +3252,8 @@ export default function Solicitacao() {
                     {partialReuseMutation.isPending ? "Salvando..." : `Confirmar ${partialReuseQty} un. reaproveitadas`}
                   </button>
                 </div>
+              )}
+              </details>
               )}
 
                   <button

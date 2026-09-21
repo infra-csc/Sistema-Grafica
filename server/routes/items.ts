@@ -8,6 +8,8 @@ import { storage, assetPrefix, assetSeqOf, isDisplayIdConflictError } from "../s
 import { ITEM_STATUSES, type Item } from "@shared/schema";
 import { eventoComDatasDoKit, pecaVisivelPara, remessaUtilizavelPor } from "@shared/kit";
 import { carregarRemessa, remessasPorIds } from "../services/kitRemessas";
+import { respostaDoEstoqueParaLiberar, marcarRespostaAplicada } from "../services/consultaDeEstoqueNaLiberacao";
+import { trilhaDaLiberacaoComEstoque } from "@shared/consultas-de-estoque";
 import { resumosDeTuboPorIds, comTubo } from "../services/tubosDaPeca";
 import { FORMATO_COMPACTO, compactarPecas, compactarAprovacoes } from "@shared/itens-compactos";
 import { DEPOIS_DA_ARTE, EM_REVISAO, POS_APROVACAO, DISPENSAVEIS, DESTINO_DA_DISPENSA, ehBookCompleto, ehMaquinaValida, rotuloDaMaquina } from "@shared/fluxo-peca";
@@ -3648,7 +3650,31 @@ export function registerItemRoutes(app: Express): void {
 
       // Reaproveitamento parcial: body pode trazer { reuseQty } quando a Solicitação
       // quer reaproveitar só algumas unidades, enviando o restante para produção.
-      const rawReuseQty = req.body?.reuseQty != null ? Number(req.body.reuseQty) : undefined;
+      const pedidoNoCorpo = req.body?.reuseQty != null ? Number(req.body.reuseQty) : undefined;
+      // SOLICITAÇÃO AO ESTOQUE (dono, 21/09): "as respostas do reaproveitar têm
+      // que aparecer na REVISÃO, e é ELA que segue com o item… tem que vir
+      // SUGERIDO de acordo com a resposta do estoque e ela só CONFIRMAR". Se a
+      // Gráfica atendeu N un. e a resposta ainda não foi aplicada, liberar SEM
+      // nada no corpo (um clique, o lote, a linha) leva as N como
+      // reaproveitamento. { reuseQty, peloEstoque: true } é o "usar menos do
+      // que o estoque atendeu": de 0 até N, nunca mais. Corpo com reuseQty SEM
+      // a marca é o caminho antigo ("já conferi — aplicar agora"), que manda.
+      const doEstoque = currentItem.isReuse ? null : await respostaDoEstoqueParaLiberar(currentItem.id);
+      let usadasDoEstoque: number | null = null;
+      // A tela mandou "usar N do estoque" mas a resposta não existe mais (já
+      // aplicada, cancelada): não vira reaproveitamento sem lastro.
+      if (req.body?.peloEstoque === true && !doEstoque) {
+        return res.status(409).json({ error: "A resposta do estoque desta peça não está mais disponível — atualize a tela antes de liberar." });
+      }
+      if (doEstoque && req.body?.peloEstoque === true && pedidoNoCorpo != null) {
+        if (!Number.isInteger(pedidoNoCorpo) || pedidoNoCorpo < 0 || pedidoNoCorpo > doEstoque.atendida) {
+          return res.status(409).json({ error: `O estoque atendeu ${doEstoque.atendida} un. — dá para usar de 0 a ${doEstoque.atendida}, nunca mais.` });
+        }
+        usadasDoEstoque = pedidoNoCorpo;
+      } else if (doEstoque && pedidoNoCorpo == null) {
+        usadasDoEstoque = Math.min(doEstoque.atendida, currentItem.quantity);
+      }
+      const rawReuseQty = usadasDoEstoque != null ? usadasDoEstoque : pedidoNoCorpo;
       const askedReuse = rawReuseQty != null && !isNaN(rawReuseQty) && rawReuseQty > 0;
       // Pedir a quantidade inteira pelo campo do parcial é reaproveitamento
       // total. Antes esse caso caía fora das duas condições e a peça seguia para
@@ -3702,6 +3728,21 @@ export function registerItemRoutes(app: Express): void {
           entityId: updated.id,
           details: auditDetails,
         });
+
+        // A resposta do estoque vira reaproveitamento NA MESMA transação da
+        // liberação: ou as duas coisas valem, ou nenhuma.
+        if (doEstoque) {
+          await marcarRespostaAplicada(tx, doEstoque.id);
+          if (usadasDoEstoque != null) {
+            await tx.insert(auditLogs).values({
+              ...resolveActor(req),
+              action: "updated",
+              entityType: "item",
+              entityId: updated.id,
+              details: trilhaDaLiberacaoComEstoque(usadasDoEstoque, doEstoque.atendida, doEstoque.pedida, doEstoque.respondidoPor),
+            });
+          }
+        }
 
         const [notif] = await tx.insert(notifications).values({
           type: "arteApproved",

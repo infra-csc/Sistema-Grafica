@@ -855,6 +855,43 @@ export const eventInventoryAllocations = pgTable("event_inventory_allocations", 
   index("IDX_event_inventory_allocations_item_id").on(table.itemId),
 ]);
 
+// SOLICITAÇÃO AO ESTOQUE A PARTIR DA REVISÃO FINAL (dono, 21/09) — por dentro,
+// "consulta de estoque". Quem revisa PEDE N un. pelo modal Reaproveitamento; a
+// Gráfica (que faz estoque e triagem) procura — o sistema sugere — e ATENDE,
+// ATENDE EM PARTE ou NÃO CONSEGUE ATENDER. Atender reserva os ativos escolhidos
+// e aplica o reaproveitamento na peça, na mesma transação.
+// Regras e rótulos em shared/consultas-de-estoque.ts.
+// SEM coluna de local: o dono decidiu (21/09) que o sistema não guarda onde a
+// peça fica no galpão.
+export const consultasDeEstoque = pgTable("consultas_de_estoque", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  itemId: varchar("item_id").notNull().references(() => items.id, { onDelete: "cascade" }),
+  eventId: varchar("event_id").notNull().references(() => events.id, { onDelete: "cascade" }),
+  pedidoPor: text("pedido_por"),
+  pedidoPorId: varchar("pedido_por_id"),
+  pedidoEm: timestamp("pedido_em").notNull().default(sql`now()`),
+  observacao: text("observacao"),
+  status: text("status").notNull().default("aberta"), // aberta | atendida | atendida_parcial | nao_atendida | cancelada
+  // Quantas unidades a Revisão Final pediu, e quantas o estoque atendeu.
+  quantidadePedida: integer("quantidade_pedida").notNull(),
+  quantidadeAtendida: integer("quantidade_atendida"),
+  // Os ativos do acervo reservados para a peça ao atender.
+  ativosIds: text("ativos_ids").array().notNull().default(sql`ARRAY[]::text[]`),
+  observacaoResposta: text("observacao_resposta"),
+  fotoUrl: text("foto_url"), // /objects/...
+  respondidoPor: text("respondido_por"),
+  respondidoPorId: varchar("respondido_por_id"),
+  respondidoEm: timestamp("respondido_em"),
+  // Quando o atendimento virou reaproveitamento na peça (junto da resposta).
+  aplicadoEm: timestamp("aplicado_em"),
+}, (table) => [
+  index("IDX_consultas_de_estoque_item").on(table.itemId),
+  index("IDX_consultas_de_estoque_status").on(table.status),
+  // UMA consulta aberta por peça: a segunda pessoa a pedir recebe 409, mesmo
+  // que as duas cliquem no mesmo segundo.
+  uniqueIndex("UQ_consultas_de_estoque_aberta_por_peca").on(table.itemId).where(sql`status = 'aberta'`),
+]);
+
 // Relations
 export const eventsRelations = relations(events, ({ many }) => ({
   items: many(items),
@@ -1289,3 +1326,8 @@ export type InsertPrazoSnapshot = typeof prazoSnapshots.$inferInsert;
 
 export type PrazoEventSnapshot = typeof prazoEventSnapshots.$inferSelect;
 export type InsertPrazoEventSnapshot = typeof prazoEventSnapshots.$inferInsert;
+
+// Consulta de estoque da Revisão Final (21/09): só as rotas escrevem, com a
+// validação na própria rota — mesmo critério das tabelas de prazos acima.
+export type ConsultaDeEstoque = typeof consultasDeEstoque.$inferSelect;
+export type InsertConsultaDeEstoque = typeof consultasDeEstoque.$inferInsert;

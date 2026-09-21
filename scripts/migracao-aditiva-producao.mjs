@@ -17,6 +17,7 @@ try {
        OR (table_name='kit_remessas' AND column_name='entrega_material')
        OR (table_name='pedidos_de_peca_linhas' AND column_name='sponsor_ids')
        OR (table_name='tubos' AND column_name IN ('fotos_fechamento','fechado_em','fechado_por','conteudo_alterado_em'))
+       OR (table_name='consultas_de_estoque' AND column_name IN ('status','quantidade_pedida','quantidade_atendida','ativos_ids','aplicado_em'))
     ORDER BY 1, 2`);
   console.log("Migração aditiva concluída. Conferido:", r.rows.map((x) => `${x.table_name}.${x.column_name}`).join(", "));
 } finally {

@@ -199,7 +199,10 @@ describe("os chips de faceta contam o que entregam", () => {
     // Filtrar por fora, depois de `filteredItems`, é o furo que o teste de
     // invariante existe para pegar — e a contagem do chip ligado passaria a ser
     // a de si mesmo.
-    expect(tela).toContain("const casaRecorte = (item: any, excluir?: 'evento' | 'tipo' | 'sem-arquivo' | 'evento-finalizado')");
+    // + 'estoque' (21/09): "Aguardando estoque" e "Estoque respondeu" entraram
+    // pela MESMA porta — dentro do casaRecorte, com a própria dimensão excluída.
+    expect(tela).toContain("const casaRecorte = (item: any, excluir?: 'evento' | 'tipo' | 'sem-arquivo' | 'evento-finalizado' | 'estoque')");
+    expect(tela).toContain("const pool = pendingItems.filter(i => casaRecorte(i, 'estoque'));");
     expect(tela).toContain("if (excluir !== 'sem-arquivo' && soSemArquivo && !!item.finalFileUrl) return false;");
     expect(tela).toContain("if (excluir !== 'evento-finalizado' && soEventoFinalizado && !selosPorItem.has(item.id)) return false;");
   });
@@ -271,7 +274,10 @@ describe("as guardas de evento finalizado", () => {
 
   it("os botões continuam VISÍVEIS e desabilitados, com motivo", () => {
     // Sumir com eles deixa a ficha sem explicação para a ausência.
-    expect(tela).toContain("disabled={!!seloSelecionado || creatorReviewMutation.isPending || !selectedItem?.finalFileUrl}");
+    // `semArquivoParaLiberar` (21/09): sem arquivo final — salvo quando o estoque
+    // cobre a peça inteira, que é reaproveitamento total e não imprime nada.
+    expect(tela).toContain("const semArquivoParaLiberar = !selectedItem?.finalFileUrl && !propostaDaFicha?.pulaProducao;");
+    expect(tela).toContain("disabled={!!seloSelecionado || creatorReviewMutation.isPending || semArquivoParaLiberar}");
     expect(tela).toContain('motivoAcaoBloqueada(seloSelecionado.motivo, "liberar para produção")');
   });
 
@@ -280,7 +286,7 @@ describe("as guardas de evento finalizado", () => {
     // contraste trocou junto: era #d6d3d1 sobre #292524 (10,18:1); agora é
     // #6f6a64 sobre #f5f5f4 (4,91:1) — o único "off" desta tela que carrega
     // informação nova continua legível. O sólido virou #c2410c com branco.
-    expect(tela).toContain('color: seloSelecionado || !selectedItem?.finalFileUrl ? "#6f6a64" : "#fff"');
+    expect(tela).toContain('color: seloSelecionado || semArquivoParaLiberar ? "#6f6a64" : "#fff"');
     expect(contraste("#6f6a64", "#f5f5f4")).toBeGreaterThanOrEqual(4.5);
     expect(contraste("#ffffff", "#c2410c")).toBeGreaterThanOrEqual(4.5);
   });

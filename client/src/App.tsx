@@ -113,6 +113,7 @@ const Solicitacao = lazyPage(() => import("@/pages/solicitacao"));
 const PedidosDePeca = lazyPage(() => import("@/pages/pedidos-de-peca"));
 const Grafica = lazyPage(() => import("@/pages/grafica"));
 const GraficaMaquinas = lazyPage(() => import("@/pages/grafica-maquinas"));
+const SolicitacoesAoEstoque = lazyPage(() => import("@/pages/solicitacoes-ao-estoque"));
 const EtiquetaTubo = lazyPage(() => import("@/pages/etiqueta-tubo"));
 const Modelos = lazyPage(() => import("@/pages/modelos"));
 const Calendario = lazyPage(() => import("@/pages/calendario"));
@@ -232,6 +233,7 @@ const ROUTE_LABELS: Record<string, string> = {
   "/pedidos-de-peca": "Solicitação de peças",
   "/grafica": "Gráfica",
   "/grafica/maquinas": "Máquinas da Gráfica",
+  "/grafica/solicitacoes-ao-estoque": "Solicitações ao estoque",
   "/modelos": "Modelos",
   "/calendario": "Calendário",
   "/historico": "Histórico",
@@ -350,6 +352,15 @@ function destinoDaNotificacao(n: Notification, role?: string | null): string | n
   // na fila da Gráfica (items.ts, targetRoles grafica).
   if (role === "grafica" && n.itemId && (tipo.startsWith("complement") || tipo === "arteApproved")) {
     return `/grafica?item=${n.itemId}`;
+  }
+  // SOLICITAÇÃO AO ESTOQUE (21/09). A Gráfica vai para a caixa dela, onde
+  // responde. Quem pediu: resposta de peça AINDA na Revisão Final abre a FICHA
+  // (é lá que ela confirma e libera); resposta de peça que ela liberou sem
+  // esperar abre a caixa, na aba Respondidas, onde o desfecho está escrito.
+  if (tipo.startsWith("consultaDeEstoque")) {
+    if (tipo === "consultaDeEstoque") return "/grafica/solicitacoes-ao-estoque";
+    if (role === "grafica" || tipo === "consultaDeEstoqueAplicada") return "/grafica/solicitacoes-ao-estoque?aba=respondidas";
+    return n.itemId ? `/solicitacao?item=${n.itemId}` : "/solicitacao";
   }
   // PEDIDOS DE PEÇA (14/09): cada aviso leva a quem precisa agir.
   // Atendimento: a peça atendida abre a peça; o resto, a página de
@@ -504,6 +515,9 @@ function Router() {
       </Route>
       <Route path="/grafica/tubos/:id/etiqueta">
         {() => <RoleProtectedRoute component={EtiquetaTubo} allowedRoles={ROLES_GRAFICA} />}
+      </Route>
+      <Route path="/grafica/solicitacoes-ao-estoque">
+        {() => <RoleProtectedRoute component={SolicitacoesAoEstoque} allowedRoles={ROLES_GRAFICA} />}
       </Route>
       <Route path="/grafica/maquinas">
         {() => <RoleProtectedRoute component={GraficaMaquinas} allowedRoles={ROLES_GRAFICA} />}

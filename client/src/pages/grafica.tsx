@@ -2810,6 +2810,11 @@ export default function Grafica() {
           data-testid="stat-total"
           style={{
             display: "block", width: "100%", minWidth: 0, minHeight: 44, textAlign: "left", font: "inherit",
+            // Celular (21/09, com Embalados são SETE etapas + Total = 8 em 3
+            // colunas): o Total ocupa as duas colunas que sobram da última
+            // linha — 3 / 3 / Entregues + Total — em vez de um órfão. 4 colunas
+            // deixariam 83px por cartão, e "Em Impressão" a 12px não cabe.
+            gridColumn: isMobile ? "span 2" : undefined,
             backgroundColor: TI.text, border: "none", borderLeft: `4px solid ${TI.accent}`, borderRadius: 8,
             padding: isMobile ? "7px 8px" : "16px 18px",
             // Estado ativo em boxShadow, outline livre para o foco (ver acima).
@@ -4026,7 +4031,9 @@ export default function Grafica() {
                             <button
                               onClick={e => { e.stopPropagation(); openDeliveryModal(item); }}
                               data-testid={`button-entregar-card-${item.id}`}
-                              style={podeEmbalarPeca
+                              // De contorno quando há uma principal mais certa:
+                              // "Embalar" na conferida, "Entregar tubo" na embalada.
+                              style={podeEmbalarPeca || isPacked(item)
                                 ? { order: 0, flex: '1 1 130px', minHeight: 48, padding: '0 12px', borderRadius: 8, background: '#fff', border: '1px solid #fdba74', color: '#c2410c', fontSize: 14, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, cursor: 'pointer', whiteSpace: 'nowrap' }
                                 : { order: 0, flex: '2 1 150px', minHeight: 48, padding: '0 12px', borderRadius: 8, background: '#c2410c', border: 'none', color: '#fff', fontSize: 14, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, cursor: 'pointer', whiteSpace: 'nowrap' }}
                             >
@@ -4034,7 +4041,21 @@ export default function Grafica() {
                               {deliveredOf(item) > 0 ? `Entregar ${remainingDeliver(item)}` : 'Entregar'}
                             </button>
                           )}
-                          {/* Embalado: tirar do tubo devolve a Conferido (21/09). */}
+                          {/* Embalada: entregar o TUBO inteiro — o painel abre já no
+                              formulário daquele tubo (quem recebeu). É a PRINCIPAL da
+                              embalada (sólida, azul do Embalado, primeira no DOM e na
+                              tela — Tab e dedo chegam nela antes do "Tirar"). */}
+                          {podeConferir && !soVisualizaKit(item) && isPacked(item) && item.tuboId && item.eventId && (
+                            <button
+                              onClick={e => { e.stopPropagation(); setTubosDoEvento({ id: String(item.eventId), name: item.event?.name ?? "Evento", entregarTubo: item.tuboId }); }}
+                              data-testid={`button-entregar-tubo-card-${item.id}`}
+                              style={{ order: 0, flex: '2 1 150px', minHeight: 48, padding: '0 12px', borderRadius: 8, background: '#1d4ed8', border: 'none', color: '#fff', fontSize: 14, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, cursor: 'pointer', whiteSpace: 'nowrap' }}
+                            >
+                              <Truck aria-hidden="true" style={{ width: 13, height: 13 }} /> Entregar tubo
+                            </button>
+                          )}
+                          {/* Embalado: tirar do tubo devolve a Conferido (21/09) — a
+                              secundária, de contorno, depois da principal. */}
                           {podeConferir && !soVisualizaKit(item) && isPacked(item) && item.tuboId && (
                             <button
                               onClick={e => { e.stopPropagation(); tirarDoTuboMutation.mutate({ itemId: item.id, tuboId: item.tuboId, displayId: item.displayId }); }}
@@ -4043,17 +4064,6 @@ export default function Grafica() {
                               style={{ order: 0, flex: '1 1 130px', minHeight: 48, padding: '0 12px', borderRadius: 8, background: '#fff', border: '1px solid #d6d3d1', color: '#44403c', fontSize: 14, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, cursor: 'pointer', whiteSpace: 'nowrap' }}
                             >
                               <Undo2 aria-hidden="true" style={{ width: 13, height: 13 }} /> Tirar do tubo
-                            </button>
-                          )}
-                          {/* Embalada: entregar o TUBO inteiro — o painel abre já no
-                              formulário daquele tubo (quem recebeu). */}
-                          {podeConferir && !soVisualizaKit(item) && isPacked(item) && item.tuboId && item.eventId && (
-                            <button
-                              onClick={e => { e.stopPropagation(); setTubosDoEvento({ id: String(item.eventId), name: item.event?.name ?? "Evento", entregarTubo: item.tuboId }); }}
-                              data-testid={`button-entregar-tubo-card-${item.id}`}
-                              style={{ order: 0, flex: '1 1 130px', minHeight: 48, padding: '0 12px', borderRadius: 8, background: '#fff', border: '1px solid #bfdbfe', color: '#1d4ed8', fontSize: 14, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, cursor: 'pointer', whiteSpace: 'nowrap' }}
-                            >
-                              <Truck aria-hidden="true" style={{ width: 13, height: 13 }} /> Entregar tubo
                             </button>
                           )}
                           {isDelivered(item) && (
@@ -5119,7 +5129,20 @@ export default function Grafica() {
                             </button>
                           )}
 
-                          {/* Embalado: tirar do tubo devolve a Conferido (21/09). */}
+                          {/* Embalada: entregar o TUBO inteiro — abre o painel já no
+                              formulário daquele tubo (quem recebeu). Principal da
+                              embalada, antes do "Tirar" (paridade com o cartão). */}
+                          {!bulkOn && podeConferir && !soVisualizaKit(item) && isPacked(item) && item.tuboId && item.eventId && (
+                            <button
+                              onClick={() => setTubosDoEvento({ id: String(item.eventId), name: item.event?.name ?? "Evento", entregarTubo: item.tuboId })}
+                              data-testid={`button-entregar-tubo-${item.id}`}
+                              title="Entregar o tubo inteiro — abre o painel já no formulário deste tubo"
+                              style={{ backgroundColor: "#fff", color: "#1d4ed8", border: "1px solid #bfdbfe", borderRadius: 8, height: 32, padding: "0 10px", fontSize: 12, fontWeight: 700, whiteSpace: "nowrap", cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}
+                            >
+                              <Truck aria-hidden="true" style={{ width: 13, height: 13 }} /> Entregar tubo
+                            </button>
+                          )}
+                          {/* Embalado: tirar do tubo devolve a Conferido (21/09) — secundária. */}
                           {!bulkOn && podeConferir && !soVisualizaKit(item) && isPacked(item) && item.tuboId && (
                             <button
                               onClick={() => tirarDoTuboMutation.mutate({ itemId: item.id, tuboId: item.tuboId, displayId: item.displayId })}
@@ -5129,18 +5152,6 @@ export default function Grafica() {
                               style={{ backgroundColor: "#fff", color: "#44403c", border: "1px solid #d6d3d1", borderRadius: 8, height: 32, padding: "0 10px", fontSize: 12, fontWeight: 700, whiteSpace: "nowrap", cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}
                             >
                               <Undo2 aria-hidden="true" style={{ width: 13, height: 13 }} /> Tirar do tubo
-                            </button>
-                          )}
-                          {/* Embalada: entregar o TUBO inteiro — abre o painel já no
-                              formulário daquele tubo (quem recebeu). */}
-                          {!bulkOn && podeConferir && !soVisualizaKit(item) && isPacked(item) && item.tuboId && item.eventId && (
-                            <button
-                              onClick={() => setTubosDoEvento({ id: String(item.eventId), name: item.event?.name ?? "Evento", entregarTubo: item.tuboId })}
-                              data-testid={`button-entregar-tubo-${item.id}`}
-                              title="Entregar o tubo inteiro — abre o painel já no formulário deste tubo"
-                              style={{ backgroundColor: "#fff", color: "#1d4ed8", border: "1px solid #bfdbfe", borderRadius: 8, height: 32, padding: "0 10px", fontSize: 12, fontWeight: 700, whiteSpace: "nowrap", cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}
-                            >
-                              <Truck aria-hidden="true" style={{ width: 13, height: 13 }} /> Entregar tubo
                             </button>
                           )}
 

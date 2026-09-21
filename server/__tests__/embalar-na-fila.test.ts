@@ -64,7 +64,8 @@ describe("a peça conferida na fila", () => {
     expect(CARTOES).toContain("background: '#1d4ed8', border: 'none', color: '#fff', fontSize: 14, fontWeight: 800");
     // Entregar continua no cartão; de contorno quando há Embalar
     expect(CARTOES).toContain("data-testid={`button-entregar-card-${item.id}`}");
-    expect(CARTOES).toContain("style={podeEmbalarPeca\n                                ? { order: 0, flex: '1 1 130px', minHeight: 48");
+    // (e na embalada também: ali a principal é "Entregar tubo" — passada de celular, 21/09)
+    expect(CARTOES).toContain("style={podeEmbalarPeca || isPacked(item)\n                                ? { order: 0, flex: '1 1 130px', minHeight: 48");
   });
 
   it("paridade: o gate da linha e do cartão é o MESMO helper", () => {

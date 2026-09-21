@@ -281,9 +281,10 @@ export default function EtiquetasEvento() {
           .etq-quebra { content-visibility: auto; contain-intrinsic-size: auto 540px; }
           /* Alvo de dedo na tela que o galpão usa por celular. */
           @media (pointer: coarse) {
-            .etq-acao button, .etq-acao input[type="checkbox"] + span { min-height: 40px; }
-            .etq-chip { min-height: 38px; }
-            .etq-alvo { min-height: 40px; }
+            /* 44px: a mesma régua da Gráfica no celular (era 40/38). */
+            .etq-acao button, .etq-acao input[type="checkbox"] + span { min-height: 44px; }
+            .etq-chip { min-height: 44px; }
+            .etq-alvo { min-height: 44px; }
           }
         }
         .etq-moldura-retrato { position: relative; width: 707px; height: 1000px; }
@@ -306,22 +307,24 @@ export default function EtiquetasEvento() {
           {" "}· {folhas} folha{folhas !== 1 ? "s" : ""}
           {porUnidade && <> · {pecas.length} peça{pecas.length !== 1 ? "s" : ""}</>}
         </span>
-        <label style={{ display: "inline-flex", alignItems: "center", gap: 7, fontSize: 13, color: "#44403c", cursor: "pointer", marginLeft: 6 }}>
+        {/* As caixas da barra são alvos de 44px no toque (.etq-alvo) e, como a
+            barra quebra linha (flexWrap), "2x1 em lista" nunca corta em 390px. */}
+        <label className="etq-alvo" style={{ display: "inline-flex", alignItems: "center", gap: 7, fontSize: 13, color: "#44403c", cursor: "pointer", marginLeft: 6 }}>
           <input type="checkbox" checked={incluirTodas} onChange={(e) => setIncluirTodas(e.target.checked)} data-testid="check-incluir-todas" style={{ width: 16, height: 16, accentColor: "#c2410c" }} />
           Incluir as não conferidas
         </label>
-        <label title="Peça de 6 unidades vira 6 etiquetas numeradas — uma para cada volume." style={{ display: "inline-flex", alignItems: "center", gap: 7, fontSize: 13, color: "#44403c", cursor: "pointer" }}>
+        <label className="etq-alvo" title="Peça de 6 unidades vira 6 etiquetas numeradas — uma para cada volume." style={{ display: "inline-flex", alignItems: "center", gap: 7, fontSize: 13, color: "#44403c", cursor: "pointer" }}>
           <input type="checkbox" checked={porUnidade} onChange={(e) => setPorUnidade(e.target.checked)} data-testid="check-por-unidade" style={{ width: 16, height: 16, accentColor: "#c2410c" }} />
           Uma por unidade
         </label>
         {haDoisPorUmNoPool && (
-          <label title="As peças 2x1 saem numa etiqueta em lista — o evento no topo e as peças uma embaixo da outra — em vez de uma etiqueta para cada." style={{ display: "inline-flex", alignItems: "center", gap: 7, fontSize: 13, color: "#44403c", cursor: "pointer" }}>
+          <label className="etq-alvo" title="As peças 2x1 saem numa etiqueta em lista — o evento no topo e as peças uma embaixo da outra — em vez de uma etiqueta para cada." style={{ display: "inline-flex", alignItems: "center", gap: 7, fontSize: 13, color: "#44403c", cursor: "pointer" }}>
             <input type="checkbox" checked={doisPorUmEmLista} onChange={(e) => setDoisPorUmEmLista(e.target.checked)} data-testid="check-2x1-lista" style={{ width: 16, height: 16, accentColor: "#c2410c" }} />
             2x1 em lista
           </label>
         )}
         {(logo || buscandoLogo) && (
-          <label style={{ display: "inline-flex", alignItems: "center", gap: 7, fontSize: 13, color: "#44403c", cursor: "pointer" }}>
+          <label className="etq-alvo" style={{ display: "inline-flex", alignItems: "center", gap: 7, fontSize: 13, color: "#44403c", cursor: "pointer" }}>
             <input type="checkbox" checked={usarLogo} onChange={(e) => setUsarLogo(e.target.checked)} data-testid="check-usar-logo" style={{ width: 16, height: 16, accentColor: "#c2410c" }} />
             Logo do book
           </label>

@@ -17,12 +17,13 @@
 // Fechar e entregar são DOIS passos, nessa ordem — mas entregar sem ter
 // fechado é permitido (o dono não quis obrigatoriedade); a tela só sugere.
 // ─────────────────────────────────────────────────────────────────────────────
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { Camera, CheckCircle2, ImagePlus, Package, PackageCheck, Tag, Trash2, Truck, X } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { HIDE_NATIVE_CLOSE, ModalHeader, modalSurface } from "@/components/modal-shell";
+import { useAcompanharAreaVisivel } from "@/components/grafica/area-visivel";
 import { ObjectUploader } from "@/components/ObjectUploader";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { convertGCSUrlToLocalPath } from "@/lib/artePdfExport";
@@ -117,6 +118,11 @@ export function TubosDialog({ evento, onClose, itensIniciais, tuboInicial, onEmb
   const isMobile = useIsMobile();
   const alvo = isMobile ? 44 : 34;
   const fsMin = (n: number) => (isMobile ? Math.max(12, n) : n);
+  const pad = isMobile ? 16 : 20;
+  // "Quem recebeu" abre o teclado: o modal recentra e encolhe para a área
+  // visível, e o rodapé fixo (Entregar / Fechar) continua à vista acima dele.
+  const superficieRef = useRef<HTMLDivElement>(null);
+  useAcompanharAreaVisivel(superficieRef, "centro", isMobile && !!evento);
   const chave = [`/api/events/${evento?.id}/tubos`];
   const { data, isLoading, isError, refetch } = useQuery<Retrato>({ queryKey: chave, enabled: !!evento, staleTime: 0 });
 
@@ -262,7 +268,9 @@ export function TubosDialog({ evento, onClose, itensIniciais, tuboInicial, onEmb
               {...(capture ? { capture: true } : { multiple: true })}
               maxFileSize={10485760}
               buttonVariant="ghost"
-              buttonClassName="w-full h-full p-0 border-0 hover:bg-transparent"
+              // min-h: durante o envio o conteúdo vira "Enviando…" e o botão
+              // não pode encolher abaixo do alvo de dedo.
+              buttonClassName="w-full h-full min-h-[44px] p-0 border-0 hover:bg-transparent"
               onComplete={(r) => setLista((f) => [...f, convertGCSUrlToLocalPath(r.url)])}
               onError={(e) => toast({ title: "Erro no upload", description: e.message, variant: "destructive" })}
             >
@@ -277,11 +285,15 @@ export function TubosDialog({ evento, onClose, itensIniciais, tuboInicial, onEmb
       {lista.length > 0 && (
         <div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" }}>
           {lista.map((url) => (
-            <div key={url} style={{ position: "relative", width: 64, height: 64, borderRadius: 8, overflow: "hidden", border: `1px solid ${COR.borda}` }}>
+            <div key={url} style={{ position: "relative", width: isMobile ? 80 : 64, height: isMobile ? 80 : 64, borderRadius: 8, overflow: "hidden", border: `1px solid ${COR.borda}` }}>
               <img src={url} alt={alt} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+              {/* O alvo é de 44px (o canto inteiro da miniatura); o círculo
+                  visível continua pequeno para não tapar a foto. */}
               <button type="button" onClick={() => setLista((f) => f.filter((x) => x !== url))} aria-label="Remover foto"
-                style={{ position: "absolute", top: 2, right: 2, width: 24, height: 24, borderRadius: "50%", border: "none", background: "rgba(28,25,23,0.75)", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
-                <X aria-hidden="true" style={{ width: 11, height: 11 }} />
+                style={{ position: "absolute", top: 0, right: 0, width: isMobile ? 44 : 28, height: isMobile ? 44 : 28, minHeight: isMobile ? 44 : 28, padding: 2, border: "none", background: "transparent", display: "flex", alignItems: "flex-start", justifyContent: "flex-end", cursor: "pointer" }}>
+                <span aria-hidden="true" style={{ width: 24, height: 24, borderRadius: "50%", background: "rgba(28,25,23,0.75)", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <X style={{ width: 11, height: 11 }} />
+                </span>
               </button>
             </div>
           ))}
@@ -290,7 +302,16 @@ export function TubosDialog({ evento, onClose, itensIniciais, tuboInicial, onEmb
     </>
   );
 
+  // O nome da peça: no desktop, uma linha com reticências (a lista é densa);
+  // no celular, até duas linhas — no galpão nada pode cortar o que se lê.
+  const estiloDoNomeDaPeca: React.CSSProperties = isMobile
+    ? { fontSize: 13, color: COR.texto, flex: "1 1 120px", minWidth: 0, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflowWrap: "anywhere", lineHeight: 1.3 }
+    : { fontSize: 13, color: COR.texto, flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" };
+
   const abertos = (data?.tubos ?? []).filter((t) => !t.entregueEm);
+  // O tubo cujo formulário (fechar ou entregar) está aberto: os botões dele
+  // moram no RODAPÉ FIXO do modal, sempre à vista, com o recorte seguro.
+  const tuboEmFormulario = (data?.tubos ?? []).find((t) => t.id === (fechando ?? entregando)) ?? null;
   const marcaveis = (data?.semTubo ?? []).filter((p) => !soVisualizaKit(p));
   const todasMarcadas = marcaveis.length > 0 && selecionadas.size === marcaveis.length;
   const alternar = (id: string) => setSelecionadas((s) => {
@@ -312,13 +333,13 @@ export function TubosDialog({ evento, onClose, itensIniciais, tuboInicial, onEmb
 
   return (
     <Dialog open={!!evento} onOpenChange={(o) => { if (!o) onClose(); }}>
-      <DialogContent className={HIDE_NATIVE_CLOSE} style={modalSurface(660)}>
+      <DialogContent ref={superficieRef} className={HIDE_NATIVE_CLOSE} style={modalSurface(660)}>
         <DialogTitle className="sr-only">Tubos do evento</DialogTitle>
         <DialogDescription className="sr-only">Agrupe as peças em tubos e entregue o tubo inteiro</DialogDescription>
         <ModalHeader icon={Package} tint={COR.laranja} title={`Tubos · ${evento?.name ?? ""}`}
           subtitle="Agrupe as peças que saíram da impressão e entregue o tubo inteiro" onClose={onClose} />
 
-        <div style={{ padding: isMobile ? 16 : 20, overflowY: "auto", flex: "1 1 auto", minHeight: 0, display: "flex", flexDirection: "column", gap: 22 }}>
+        <div style={{ padding: pad, overflowY: "auto", flex: "1 1 auto", minHeight: 0, display: "flex", flexDirection: "column", gap: 22 }}>
           {isLoading && <p style={{ margin: 0, fontSize: 13, color: COR.fraco }}>Carregando os tubos…</p>}
           {isError && (
             <div style={{ padding: "12px 14px", borderRadius: 10, background: "#fef2f2", border: "1px solid #fecaca", color: "#b91c1c", fontSize: 13, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
@@ -407,13 +428,13 @@ export function TubosDialog({ evento, onClose, itensIniciais, tuboInicial, onEmb
                         <label key={p.id} data-testid={`peca-sem-tubo-${p.id}`}
                           style={{ display: "flex", alignItems: "center", gap: 10, minHeight: alvo, boxSizing: "border-box", padding: "9px 12px", borderTop: `1px solid #f5f5f4`, cursor: "pointer", background: selecionadas.has(p.id) ? "#fff7ed" : "#fff" }}>
                           {soVisualizaKit(p) ? (
-                            <span title="Peça do Kit: a Solicitação da Arena só visualiza" style={{ width: 18, flexShrink: 0, fontSize: 10, fontWeight: 800, color: "#92400e" }}>KIT</span>
+                            <span title="Peça do Kit: a Solicitação da Arena só visualiza" style={{ width: 18, flexShrink: 0, fontSize: fsMin(10), fontWeight: 800, color: "#92400e" }}>KIT</span>
                           ) : (
                             <input type="checkbox" checked={selecionadas.has(p.id)} onChange={() => alternar(p.id)}
                               style={{ width: 18, height: 18, accentColor: COR.laranja, flexShrink: 0 }} />
                           )}
                           <span style={{ fontFamily: "ui-monospace, monospace", fontSize: 12.5, fontWeight: 700, color: COR.laranja, flexShrink: 0 }}>{p.displayId ?? "—"}</span>
-                          <span style={{ fontSize: 13, color: COR.texto, flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          <span style={estiloDoNomeDaPeca}>
                             {p.type}{p.description ? <span style={{ color: COR.sec }}> · {p.description}</span> : null}
                           </span>
                           <span style={{ fontSize: 12, color: COR.sec, whiteSpace: "nowrap" }}>{p.quantity} un.</span>
@@ -486,7 +507,7 @@ export function TubosDialog({ evento, onClose, itensIniciais, tuboInicial, onEmb
                       {t.pecas.map((p) => (
                         <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", borderTop: `1px solid #f5f5f4` }}>
                           <span style={{ fontFamily: "ui-monospace, monospace", fontSize: 12.5, fontWeight: 700, color: COR.laranja, flexShrink: 0 }}>{p.displayId ?? "—"}</span>
-                          <span style={{ fontSize: 13, color: COR.texto, flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          <span style={estiloDoNomeDaPeca}>
                             {p.type}{p.description ? <span style={{ color: COR.sec }}> · {p.description}</span> : null}
                           </span>
                           <span style={{ fontSize: 12, color: COR.sec, whiteSpace: "nowrap" }}>{p.quantity} un.</span>
@@ -598,17 +619,7 @@ export function TubosDialog({ evento, onClose, itensIniciais, tuboInicial, onEmb
                             <span style={ROTULO}>Fotos do tubo e dos itens *</span>
                             {uploaderDeFotos(fotosFechamento, setFotosFechamento, `Foto do Tubo ${t.numero}`)}
                           </div>
-                          <div style={{ display: "flex", gap: 8 }}>
-                            <button type="button" onClick={() => { setFechando(null); setFotosFechamento([]); }}
-                              style={{ flex: 1, height: isMobile ? 48 : 40, borderRadius: 8, border: `1px solid ${COR.borda}`, background: "#fff", color: COR.sec, fontWeight: 700, fontSize: 12.5, cursor: "pointer" }}>
-                              Cancelar
-                            </button>
-                            <button type="button" onClick={() => fechar.mutate(t)} disabled={fechar.isPending || fotosFechamento.length === 0}
-                              data-testid={`confirmar-fechar-tubo-${t.numero}`}
-                              style={{ flex: 2, height: isMobile ? 48 : 40, borderRadius: 8, border: "none", background: fotosFechamento.length ? COR.azul : "#e7e5e4", color: fotosFechamento.length ? "#fff" : COR.fraco, fontWeight: 800, fontSize: 13, cursor: fechar.isPending || !fotosFechamento.length ? "not-allowed" : "pointer" }}>
-                              {fechar.isPending ? "Salvando…" : fotosFechamento.length ? `Fechar Tubo ${t.numero} · ${fotosFechamento.length} ${fotosFechamento.length === 1 ? "foto" : "fotos"}` : "Tire a foto para fechar"}
-                            </button>
-                          </div>
+                          {/* Cancelar / Fechar moram no rodapé fixo do modal (abaixo). */}
                         </div>
                       )}
 
@@ -633,19 +644,9 @@ export function TubosDialog({ evento, onClose, itensIniciais, tuboInicial, onEmb
                             <span style={ROTULO}>Foto do comprovante <span style={{ textTransform: "none", letterSpacing: 0, fontWeight: 400 }}>· opcional</span></span>
                             {uploaderDeFotos(fotos, setFotos, "Foto da entrega")}
                           </div>
-                          <input value={obs} onChange={(e) => setObs(e.target.value)} placeholder="Observação (opcional)"
-                            style={{ height: isMobile ? 44 : 38, borderRadius: 8, border: `1px solid ${COR.borda}`, padding: "0 10px", fontSize: isMobile ? 16 : 13, background: "#fff" }} />
-                          <div style={{ display: "flex", gap: 8 }}>
-                            <button type="button" onClick={() => setEntregando(null)}
-                              style={{ flex: 1, height: isMobile ? 48 : 40, borderRadius: 8, border: `1px solid ${COR.borda}`, background: "#fff", color: COR.sec, fontWeight: 700, fontSize: 12.5, cursor: "pointer" }}>
-                              Cancelar
-                            </button>
-                            <button type="button" onClick={() => entregar.mutate(t)} disabled={entregar.isPending || !recebidoPor.trim()}
-                              data-testid={`confirmar-entrega-tubo-${t.numero}`}
-                              style={{ flex: 2, height: isMobile ? 48 : 40, borderRadius: 8, border: "none", background: recebidoPor.trim() ? COR.verde : "#e7e5e4", color: recebidoPor.trim() ? "#fff" : COR.fraco, fontWeight: 800, fontSize: 13, cursor: entregar.isPending || !recebidoPor.trim() ? "not-allowed" : "pointer" }}>
-                              {entregar.isPending ? "Salvando…" : recebidoPor.trim() ? `Entregar Tubo ${t.numero}` : "Informe quem recebeu"}
-                            </button>
-                          </div>
+                          <input value={obs} onChange={(e) => setObs(e.target.value)} placeholder="Observação (opcional)" aria-label="Observação (opcional)"
+                            style={{ width: "100%", boxSizing: "border-box", height: isMobile ? 44 : 38, borderRadius: 8, border: `1px solid ${COR.borda}`, padding: "0 10px", fontSize: isMobile ? 16 : 13, background: "#fff" }} />
+                          {/* Cancelar / Entregar moram no rodapé fixo do modal (abaixo). */}
                         </div>
                       )}
                     </div>
@@ -655,6 +656,41 @@ export function TubosDialog({ evento, onClose, itensIniciais, tuboInicial, onEmb
             </>
           )}
         </div>
+
+        {/* ── Rodapé fixo (fora da rolagem): os botões do formulário aberto ──
+            Fechar tubo / Entregar tubo ficavam no fim do bloco do tubo, e no
+            celular o teclado ou a lista de tubos os empurravam para fora da
+            tela. Aqui ficam sempre à vista, com o recorte seguro do home
+            indicator — nos LONGOS, porque o jsdom descarta o atalho com env(). */}
+        {tuboEmFormulario && (() => {
+          const t = tuboEmFormulario;
+          const fechandoEste = fechando === t.id;
+          const podeConfirmar = fechandoEste ? fotosFechamento.length > 0 : !!recebidoPor.trim();
+          const pendente = fechandoEste ? fechar.isPending : entregar.isPending;
+          return (
+            <div data-testid={`rodape-${fechandoEste ? "fechar" : "entregar"}-tubo-${t.numero}`}
+              style={{ flexShrink: 0, display: "flex", gap: 10, paddingTop: 10, paddingLeft: pad, paddingRight: pad, paddingBottom: "calc(10px + env(safe-area-inset-bottom))", borderTop: `1px solid ${COR.borda}`, background: "#fff", boxShadow: "0 -8px 12px -8px rgba(28,25,23,0.18)" }}>
+              <button type="button"
+                onClick={() => { if (fechandoEste) { setFechando(null); setFotosFechamento([]); } else setEntregando(null); }}
+                style={{ flex: 1, minHeight: isMobile ? 48 : 40, borderRadius: 8, border: `1px solid ${COR.borda}`, background: "#fff", color: COR.sec, fontWeight: 700, fontSize: 12.5, cursor: "pointer" }}>
+                Cancelar
+              </button>
+              {fechandoEste ? (
+                <button type="button" onClick={() => fechar.mutate(t)} disabled={fechar.isPending || fotosFechamento.length === 0}
+                  data-testid={`confirmar-fechar-tubo-${t.numero}`}
+                  style={{ flex: 2, minHeight: isMobile ? 48 : 40, borderRadius: 8, border: "none", background: podeConfirmar ? COR.azul : "#e7e5e4", color: podeConfirmar ? "#fff" : COR.fraco, fontWeight: 800, fontSize: 13, cursor: pendente || !podeConfirmar ? "not-allowed" : "pointer" }}>
+                  {fechar.isPending ? "Salvando…" : fotosFechamento.length ? `Fechar Tubo ${t.numero} · ${fotosFechamento.length} ${fotosFechamento.length === 1 ? "foto" : "fotos"}` : "Tire a foto para fechar"}
+                </button>
+              ) : (
+                <button type="button" onClick={() => entregar.mutate(t)} disabled={entregar.isPending || !recebidoPor.trim()}
+                  data-testid={`confirmar-entrega-tubo-${t.numero}`}
+                  style={{ flex: 2, minHeight: isMobile ? 48 : 40, borderRadius: 8, border: "none", background: podeConfirmar ? COR.verde : "#e7e5e4", color: podeConfirmar ? "#fff" : COR.fraco, fontWeight: 800, fontSize: 13, cursor: pendente || !podeConfirmar ? "not-allowed" : "pointer" }}>
+                  {entregar.isPending ? "Salvando…" : recebidoPor.trim() ? `Entregar Tubo ${t.numero}` : "Informe quem recebeu"}
+                </button>
+              )}
+            </div>
+          );
+        })()}
       </DialogContent>
     </Dialog>
   );

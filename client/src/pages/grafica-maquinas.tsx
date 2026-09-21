@@ -24,7 +24,7 @@
 // "atualizado há X". Dia e impressora escolhidos vivem na URL (?dia=&maquina=)
 // para um F5 — ou um link colado — abrir o mesmo recorte.
 // ─────────────────────────────────────────────────────────────────────────────
-import { Fragment, memo, useEffect, useMemo, useState } from "react";
+import { Fragment, memo, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useLocation, useSearch } from "wouter";
 import {
@@ -47,6 +47,7 @@ import { rotuloDaMaquina } from "@shared/fluxo-peca";
 import {
   ModalImpressao, progressoDaImpressao, rotuloCurtoDaAcao, horaDeInicio, mensagemDeErroDaApi, type PecaParaImprimir,
 } from "@/components/grafica/modal-impressao";
+import { useAcompanharAreaVisivel } from "@/components/grafica/area-visivel";
 
 // ─── Tipos (espelho de server/routes/maquinas.ts) ─────────────────────────────
 type EventoInfo = { id: string; name: string | null; status: string | null; startDate: string | null; reopenedAt: string | null };
@@ -449,7 +450,9 @@ function SeletorDeReserva({ valor, excluir, disabled, alvo, isMobile, testId, ro
       value=""
       disabled={disabled}
       onChange={(e) => { const v = e.target.value; if (v !== "") onEscolher(v === "geral" ? null : v); }}
-      style={{ minHeight: alvo, height: alvo, padding: "0 8px", borderRadius: R.md, border: `1px solid ${T.bdark}`, background: T.surface, color: T.text, fontSize: isMobile ? 16 : 12, fontWeight: 700, cursor: disabled ? "not-allowed" : "pointer", maxWidth: "100%" }}
+      // Celular: 16px (sem zoom do iOS) e a linha inteira — o menu nativo
+      // abre de um alvo de 44px que o dedo acha sem mirar.
+      style={{ minHeight: alvo, height: alvo, padding: "0 8px", borderRadius: R.md, border: `1px solid ${T.bdark}`, background: T.surface, color: T.text, fontSize: isMobile ? 16 : 12, fontWeight: 700, cursor: disabled ? "not-allowed" : "pointer", maxWidth: "100%", ...(isMobile ? { flex: "1 1 100%", width: "100%" } : {}) }}
     >
       <option value="">{rotulo}</option>
       {MAQUINAS_DE_IMPRESSAO.filter((m) => m !== excluir).map((m) => (
@@ -491,6 +494,10 @@ function SeletorDePeca({ maquina, reservadas, filaGeral, atualizando, hojeMs, on
   const padModal = isMobile ? 16 : 24;
   const [busca, setBusca] = useState("");
   const [visiveis, setVisiveis] = useState(LOTE_DO_SELETOR);
+  // A busca abre o teclado: o modal recentra e encolhe para a área visível,
+  // e a lista continua rolável acima dele (o mesmo gancho da Gráfica).
+  const superficieRef = useRef<HTMLDivElement>(null);
+  useAcompanharAreaVisivel(superficieRef, "centro", isMobile && !!maquina);
   const lista = useMemo(() => (maquina ? candidatasParaImprimir(maquina.codigo, reservadas, filaGeral, busca) : []), [maquina, reservadas, filaGeral, busca]);
   const total = reservadas.length + filaGeral.length;
   const mostradas = lista.slice(0, visiveis);
@@ -498,7 +505,7 @@ function SeletorDePeca({ maquina, reservadas, filaGeral, atualizando, hojeMs, on
 
   return (
     <Dialog open={!!maquina} onOpenChange={(open) => { if (!open) onFechar(); }}>
-      <DialogContent className={HIDE_NATIVE_CLOSE} style={modalSurface(620)} data-testid="seletor-de-peca">
+      <DialogContent ref={superficieRef} className={HIDE_NATIVE_CLOSE} style={modalSurface(620)} data-testid="seletor-de-peca">
         <DialogTitle className="sr-only">Escolher peça para imprimir{maquina ? ` na ${maquina.rotulo}` : ""}</DialogTitle>
         <DialogDescription className="sr-only">Lista das peças liberadas; um toque abre a impressão nesta impressora.</DialogDescription>
         <ModalHeader icon={Printer} tint={T.text} title={maquina ? `Imprimir na ${maquina.rotulo}` : "Escolher peça"} subtitle={total === 0 ? "Nenhuma peça liberada agora" : `${plural(total, "peça liberada", "peças liberadas")}${reservadas.length ? ` · ${reservadas.length} reservada${reservadas.length === 1 ? "" : "s"} para esta` : ""} — toque numa para iniciar`} onClose={onFechar} />
@@ -651,6 +658,10 @@ function PecaNoCartao({ p, agora, podeAgir, hojeMs, isMobile, onAgir }: {
   const rotuloAcao = rotuloCurtoDaAcao(feitas, teto);
   const concluir = rotuloAcao !== "Impressas";
   const [semThumb, setSemThumb] = useState(false);
+  // Celular (10/10 mobile, 21/09): cada ação ocupa a linha inteira do cartão
+  // — três alvos de 44px empilhados, a principal em cima, sem dois botões
+  // disputando 330px. No desktop dividem a linha como antes.
+  const largura = (desktop: string): React.CSSProperties => ({ flex: isMobile ? "1 1 100%" : desktop });
 
   return (
     <div data-testid={`peca-na-maquina-${p.id}`} style={{ borderTop: `1px solid ${T.border}`, paddingTop: 10, display: "flex", flexDirection: "column", gap: 8 }}>
@@ -705,7 +716,7 @@ function PecaNoCartao({ p, agora, podeAgir, hojeMs, isMobile, onAgir }: {
             title={selo
               ? motivoAcaoBloqueada(selo.motivo, "informar impressas")
               : concluir ? `Todas as ${teto} saíram${dividida ? " desta impressora" : " — mandar a peça para o acabamento"}` : `Informar quantas já saíram da ${rotuloDaMaquina(p.maquina)} (${progressoDaImpressao(feitas, teto)})`}
-            style={{ flex: "1 1 140px", minHeight: alvo, padding: "0 12px", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, borderRadius: R.md, border: selo ? `1px solid ${T.border}` : "none", background: selo ? T.low : T.text, color: selo ? "#746e69" : "#fff", fontFamily: GROTESK, fontSize: isMobile ? 13 : 12, fontWeight: 700, cursor: selo ? "not-allowed" : "pointer", whiteSpace: "nowrap" }}
+            style={{ ...largura("1 1 140px"), minHeight: alvo, padding: "0 12px", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, borderRadius: R.md, border: selo ? `1px solid ${T.border}` : "none", background: selo ? T.low : T.text, color: selo ? "#746e69" : "#fff", fontFamily: GROTESK, fontSize: isMobile ? 13 : 12, fontWeight: 700, cursor: selo ? "not-allowed" : "pointer", whiteSpace: "nowrap" }}
           >
             <Play aria-hidden="true" style={{ width: 12, height: 12, flexShrink: 0 }} />
             {rotuloAcao}
@@ -719,7 +730,7 @@ function PecaNoCartao({ p, agora, podeAgir, hojeMs, isMobile, onAgir }: {
             disabled={!!selo}
             data-testid={`button-trocar-maquina-${p.id}`}
             title={selo ? motivoAcaoBloqueada(selo.motivo, "trocar de máquina") : `Mover esta peça da ${rotuloDaMaquina(p.maquina)} para outra impressora`}
-            style={{ flex: "1 1 120px", minHeight: alvo, padding: "0 10px", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 5, borderRadius: R.md, border: `1px solid ${T.bdark}`, background: T.surface, color: selo ? "#746e69" : T.text, fontSize: isMobile ? 13 : 12, fontWeight: 700, cursor: selo ? "not-allowed" : "pointer", whiteSpace: "nowrap" }}
+            style={{ ...largura("1 1 120px"), minHeight: alvo, padding: "0 10px", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 5, borderRadius: R.md, border: `1px solid ${T.bdark}`, background: T.surface, color: selo ? "#746e69" : T.text, fontSize: isMobile ? 13 : 12, fontWeight: 700, cursor: selo ? "not-allowed" : "pointer", whiteSpace: "nowrap" }}
           >
             <ArrowLeftRight aria-hidden="true" style={{ width: 12, height: 12, color: T.accentText, flexShrink: 0 }} />
             Trocar de máquina
@@ -730,7 +741,7 @@ function PecaNoCartao({ p, agora, podeAgir, hojeMs, isMobile, onAgir }: {
           className="mq-acao"
           data-testid={`link-peca-grafica-${p.id}`}
           title="Abrir esta peça na fila da Gráfica"
-          style={{ flex: podeAgir ? "1 1 110px" : "1 1 140px", minHeight: alvo, padding: "0 10px", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 5, borderRadius: R.md, border: `1px solid ${T.bdark}`, background: T.surface, color: T.text, fontSize: isMobile ? 13 : 12, fontWeight: 700, textDecoration: "none", whiteSpace: "nowrap" }}
+          style={{ ...largura(podeAgir ? "1 1 110px" : "1 1 140px"), minHeight: alvo, padding: "0 10px", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 5, borderRadius: R.md, border: `1px solid ${T.bdark}`, background: T.surface, color: T.text, fontSize: isMobile ? 13 : 12, fontWeight: 700, textDecoration: "none", whiteSpace: "nowrap" }}
         >
           <ExternalLink aria-hidden="true" style={{ width: 12, height: 12, color: T.accentText }} />
           Ver na Gráfica
@@ -1230,7 +1241,7 @@ export default function GraficaMaquinas() {
                             {naFila.length ? "Nenhuma peça imprimindo agora — a fila abaixo espera." : "Nenhuma peça nesta máquina."}
                           </p>
                           {podeAgir && (
-                            <button type="button" className="mq-acao" onClick={() => setSeletorDaMaquina(m.codigo)} data-testid={`link-escolher-peca-${m.codigo}`} title="Escolher, entre as peças liberadas, a que vai imprimir nesta impressora" style={{ ...botaoNeutro, width: "fit-content" }}>
+                            <button type="button" className="mq-acao" onClick={() => setSeletorDaMaquina(m.codigo)} data-testid={`link-escolher-peca-${m.codigo}`} title="Escolher, entre as peças liberadas, a que vai imprimir nesta impressora" style={{ ...botaoNeutro, width: isMobile ? "100%" : "fit-content" }}>
                               Escolher peça para imprimir <ArrowRight aria-hidden="true" style={{ width: 12, height: 12, color: T.accentText }} />
                             </button>
                           )}

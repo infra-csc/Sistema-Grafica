@@ -40,6 +40,7 @@ import { useMutation } from "@tanstack/react-query";
 import { Loader2, Play, Printer, Calendar, ArrowLeftRight } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { HIDE_NATIVE_CLOSE, ModalHeader, modalSurface } from "@/components/modal-shell";
+import { useAcompanharAreaVisivel } from "@/components/grafica/area-visivel";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -487,9 +488,11 @@ export function FormularioDeImpressao({ item, onFechar, padModal, mutacoes, abri
     <form onSubmit={salvarImpressas} data-testid="form-impressao" data-etapa="impressas" style={{ display: "flex", flexDirection: "column", gap: 20 }}>
       {/* Onde a peça está, com hora — e o link discreto para trocar. */}
       <div data-testid="onde-esta" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap", padding: "10px 12px", borderRadius: R.md, background: "#fff7ed", border: "1px solid #fed7aa" }}>
-        <span style={{ display: "inline-flex", alignItems: "center", gap: 8, minWidth: 0, fontSize: fsMin(13), color: "#9a3412", fontWeight: 700 }}>
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 8, minWidth: 0, flex: "1 1 200px", fontSize: fsMin(13), color: "#9a3412", fontWeight: 700 }}>
           <Printer aria-hidden="true" style={{ width: 14, height: 14, flexShrink: 0 }} />
-          <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>
+          {/* Quebra linha, nunca corta: "Em impressão na Impressora 4 (Targa
+              Elite) · desde 10:12" não cabe em 390px numa linha só. */}
+          <span style={{ minWidth: 0, overflowWrap: "anywhere" }}>
             {maquinaAtual ? `Em impressão na ${rotuloDaMaquina(maquinaAtual)}` : "Em impressão — impressora não anotada"}{hora ? ` · desde ${hora}` : ""}
             <span data-testid="progresso-no-modal" style={{ display: "block", fontSize: fsMin(11), fontWeight: 600, color: "#9a3412", opacity: 0.9, marginTop: 2, fontVariantNumeric: "tabular-nums" }}>
               {dividida
@@ -511,7 +514,9 @@ export function FormularioDeImpressao({ item, onFechar, padModal, mutacoes, abri
             onClick={() => { setTrocando(true); setMaquinaEscolhida(""); }}
             data-testid="button-trocar-maquina"
             title="Mover esta peça para outra impressora"
-            style={{ minHeight: isMobile ? 44 : 34, padding: "0 12px", display: "inline-flex", alignItems: "center", gap: 6, border: "1.5px solid #9a3412", background: "#ffffff", color: "#9a3412", fontFamily: GROTESK, fontSize: fsMin(12), fontWeight: 700, cursor: "pointer", borderRadius: R.md, whiteSpace: "nowrap", flexShrink: 0 }}
+            // Celular: largura total, na linha de baixo da faixa — um alvo
+            // inteiro para o dedo, sem disputar a linha com o texto.
+            style={{ minHeight: isMobile ? 44 : 34, padding: "0 12px", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, border: "1.5px solid #9a3412", background: "#ffffff", color: "#9a3412", fontFamily: GROTESK, fontSize: fsMin(12), fontWeight: 700, cursor: "pointer", borderRadius: R.md, whiteSpace: "nowrap", flexShrink: 0, ...(isMobile ? { flex: "1 1 100%" } : {}) }}
           >
             <ArrowLeftRight aria-hidden="true" style={{ width: 13, height: 13 }} />
             Trocar de máquina
@@ -701,10 +706,15 @@ export function ModalImpressao({ item, onFechar, abrirNaTroca = false, maquinaIn
   const mutacoes = useMutacoesDeImpressao({ onSucesso: onFechar });
   const cab = cabecalhoDoModalDeImpressao(item, abrirNaTroca);
   const fsMin = (n: number) => (isMobile ? Math.max(12, n) : n);
+  // O teclado numérico de "Quantas saíram agora?" não pode esconder o botão
+  // primário: o modal recentra e encolhe para a área visível (o mesmo gancho
+  // dos modais da fila da Gráfica — ver area-visivel.ts).
+  const superficieRef = useRef<HTMLDivElement>(null);
+  useAcompanharAreaVisivel(superficieRef, "centro", isMobile && !!item);
 
   return (
     <Dialog open={!!item} onOpenChange={(open) => { if (!open) onFechar(); }}>
-      <DialogContent className={HIDE_NATIVE_CLOSE} style={modalSurface(468)} data-testid="modal-impressao">
+      <DialogContent ref={superficieRef} className={HIDE_NATIVE_CLOSE} style={modalSurface(468)} data-testid="modal-impressao">
         <DialogTitle className="sr-only">{cab.title}</DialogTitle>
         <DialogDescription className="sr-only">{cab.subtitle || "Informe a impressão desta peça"}</DialogDescription>
         <ModalHeader icon={Play} tint={T.text} title={cab.title} subtitle={cab.subtitle} onClose={onFechar} />
@@ -734,7 +744,8 @@ export function ModalImpressao({ item, onFechar, abrirNaTroca = false, maquinaIn
                 {item.event?.name && (
                   <div style={{ fontSize: FS.body, color: T.second, marginTop: 4, display: "flex", alignItems: "center", gap: 5 }}>
                     <Calendar aria-hidden="true" style={{ width: 11, height: 11, flexShrink: 0 }} />
-                    <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.event.name}</span>
+                    {/* Nome do evento em até duas linhas (não corta em 390px). */}
+                    <span style={{ minWidth: 0, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflowWrap: "anywhere" }}>{item.event.name}</span>
                   </div>
                 )}
                 <div style={{ fontSize: fsMin(11), color: "#57534e", marginTop: 6, fontVariantNumeric: "tabular-nums" }}>

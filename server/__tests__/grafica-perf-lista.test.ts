@@ -228,7 +228,8 @@ describe("fila da Gráfica com ~4.000 peças", () => {
     const rendersMarcar = linhas.n;
     expect(document.querySelectorAll('[role="checkbox"][aria-checked="true"]').length).toBe(1);
     // "Todas (N)" conta as elegíveis do recorte INTEIRO, não só as desenhadas.
-    const botaoTodas = Array.from(document.querySelectorAll("button")).find((b) => /^Todas \(\d+\)$/.test(b.textContent ?? ""));
+    // (desktop: "Selecionar todas (N)"; celular: "Todas (N)")
+    const botaoTodas = Array.from(document.querySelectorAll("button")).find((b) => /^(Selecionar todas|Todas) \(\d+\)$/.test(b.textContent ?? ""));
     const elegiveis = Number(botaoTodas?.textContent?.match(/\d+/)?.[0] ?? 0);
     const caixasDesenhadas = document.querySelectorAll('[role="checkbox"][aria-label^="Selecionar"]').length;
     registrar(`5b. lote: ${elegiveis} elegíveis no recorte, ${caixasDesenhadas} caixas desenhadas`);

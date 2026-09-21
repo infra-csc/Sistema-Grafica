@@ -360,7 +360,7 @@ function PhotoPicker({ photos, onAdd, onRemove, onError, label = "Fotos", hint, 
 // que eram duas cópias de ~150 linhas divergindo aos poucos.
 function BulkActionDialog({
   mode, open, onClose, items, photos, onAddPhoto, onRemovePhoto, onPhotoError,
-  notes, onNotesChange, receivedBy = "", onReceivedByChange, isSubmitting, onConfirm, qtyFor,
+  notes, onNotesChange, receivedBy = "", onReceivedByChange, isSubmitting, onConfirm, qtyFor, tubo,
   sugestaoRecebedor = "",
 }: {
   /** Quem recebeu na última entrega desta sessão — oferecido em 1 toque, nunca preenchido sozinho. */
@@ -380,6 +380,15 @@ function BulkActionDialog({
   isSubmitting: boolean;
   onConfirm: () => void;
   qtyFor: (item: any) => number;
+  /** Só na conferência: o tubo das peças conferidas (dono, 14/09 — a entrega
+   *  é por tubo). Um evento: tubo novo, tubo aberto ou agrupar depois. Vários
+   *  eventos: um tubo novo por evento, ou agrupar depois. */
+  tubo?: {
+    eventos: Array<{ id: string; nome: string }>;
+    tubosAbertos: Array<{ id: string; numero: number; pecas: number }>;
+    valor: string;
+    onChange: (valor: string) => void;
+  };
 }) {
   const isMobileLote = useIsMobile();
   const isConfer = mode === "confer";
@@ -475,6 +484,51 @@ function BulkActionDialog({
             label={isConfer ? "Foto da conferência *" : "Foto da entrega *"}
             hint={isConfer ? "· mesma para todas as peças" : "· obrigatória, mesma para todas as peças"}
           />
+
+          {/* O TUBO DO LOTE (dono, 14/09): "a conferência de lote tem que
+              explicar que vai ser por tubo". Conferidas, as peças entram no
+              tubo escolhido — e a entrega sai do tubo inteiro, no botão Tubos
+              do evento. Um tubo pertence a UM evento, por isso o lote que
+              mistura eventos ganha um tubo novo por evento. */}
+          {isConfer && tubo && tubo.eventos.length > 0 && (() => {
+            const variosEventos = tubo.eventos.length > 1;
+            const efetivo = variosEventos && tubo.valor !== "" ? "novo" : tubo.valor;
+            const opcoes = variosEventos
+              ? [{ valor: "novo", rotulo: `Um tubo novo por evento (${tubo.eventos.length})` }, { valor: "", rotulo: "Agrupar depois" }]
+              : [
+                  { valor: "novo", rotulo: "+ Tubo novo" },
+                  ...tubo.tubosAbertos.map((t) => ({ valor: t.id, rotulo: `Tubo ${t.numero} · ${t.pecas} ${t.pecas === 1 ? "peça" : "peças"}` })),
+                  { valor: "", rotulo: "Agrupar depois" },
+                ];
+            return (
+              <div data-testid="seletor-tubo-lote">
+                <div style={{ fontSize: fs(10), fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#746e69", marginBottom: 8 }}>
+                  Tubo das peças conferidas
+                </div>
+                <div role="radiogroup" aria-label="Tubo das peças conferidas" style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                  {opcoes.map(({ valor, rotulo }) => {
+                    const ativo = efetivo === valor;
+                    return (
+                      <button key={valor || "depois"} type="button" role="radio" aria-checked={ativo}
+                        data-testid={`tubo-lote-opcao-${valor || "depois"}`}
+                        onClick={() => tubo.onChange(valor)}
+                        style={{ height: isMobileLote ? 44 : 36, padding: "0 12px", borderRadius: 999, cursor: "pointer", fontSize: isMobileLote ? 14 : 12.5, fontWeight: 700, whiteSpace: "nowrap", backgroundColor: ativo ? TI.text : "#ffffff", color: ativo ? "#ffffff" : TI.text, border: `1px solid ${ativo ? TI.text : TI.border}` }}>
+                        {rotulo}
+                      </button>
+                    );
+                  })}
+                </div>
+                <p data-testid="aviso-entrega-por-tubo" style={{ margin: "10px 0 0", padding: "10px 12px", borderRadius: 10, background: "#ecfeff", border: "1px solid #a5f3fc", fontSize: 12.5, color: "#155e75", lineHeight: 1.45 }}>
+                  <strong>A entrega é por tubo.</strong>{" "}
+                  {efetivo === ""
+                    ? "Sem tubo agora: agrupe estas peças depois, no botão Tubos do evento. Só dá para entregar o tubo inteiro, com uma foto."
+                    : variosEventos
+                      ? `As peças de cada evento vão para um tubo próprio (${tubo.eventos.map((e) => e.nome).join(", ")}). Depois, entregue cada tubo inteiro no botão Tubos do evento, com uma foto.`
+                      : "Conferidas, estas peças entram no tubo escolhido. Depois, entregue o tubo inteiro no botão Tubos do evento, com uma foto."}
+                </p>
+              </div>
+            );
+          })()}
 
           {/* Observações */}
           <div>
@@ -1140,6 +1194,8 @@ export default function Grafica() {
   // TUBOS (dono, 14/09): na conferência a peça já pode ir para um tubo, e
   // cada evento abre o painel de tubos para agrupar e entregar por tubo.
   const [tuboDaConferencia, setTuboDaConferencia] = useState<string>("");
+  // Tubo da conferência em LOTE: "novo" por padrão — a entrega é por tubo.
+  const [tuboDoLote, setTuboDoLote] = useState<string>("novo");
   const [tubosDoEvento, setTubosDoEvento] = useState<{ id: string; name: string } | null>(null);
   // Sem `= []` no destructuring: o array novo a cada render mudaria o
   // `numeroDoTubo` (e as deps de TODAS as linhas memoizadas) a cada render.
@@ -2091,6 +2147,19 @@ export default function Grafica() {
     [bulkSelectedIds, itemPorId],
   );
 
+  // Eventos do lote — um tubo pertence a um evento só. Com um evento, o
+  // dialog oferece os tubos abertos dele; com vários, um tubo novo por evento.
+  const eventosDoLote = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const i of bulkSelectedItems) if (i.eventId) m.set(String(i.eventId), i.event?.name ?? "Evento");
+    return Array.from(m, ([id, nome]) => ({ id, nome }));
+  }, [bulkSelectedItems]);
+  const eventoUnicoDoLote = bulkConferMode && eventosDoLote.length === 1 ? eventosDoLote[0].id : undefined;
+  const { data: tubosDoEventoDoLote } = useQuery<any>({
+    queryKey: [`/api/events/${eventoUnicoDoLote}/tubos`],
+    enabled: bulkConferOpen && !!eventoUnicoDoLote,
+  });
+
   const bulkConfirmRef = useRef<HTMLButtonElement>(null);
 
   // Ao entrar num modo de lote o foco vai para o Confirmar da barra fixa —
@@ -2208,6 +2277,36 @@ export default function Grafica() {
         photoFailed = photos.filter(p => p.status === "rejected").length;
       }
 
+      // O TUBO DO LOTE (dono, 14/09): conferidas, as peças entram no tubo —
+      // um por evento quando o lote mistura eventos. Falhar aqui NÃO desfaz a
+      // conferência: avisa, e dá para agrupar no botão Tubos do evento.
+      let avisoDoTubo: string | null = null;
+      if (okIds.length > 0 && tuboDoLote !== "") {
+        const porEvento = new Map<string, string[]>();
+        for (const it of entries) {
+          if (!okIds.includes(it.id) || !it.eventId) continue;
+          const chave = String(it.eventId);
+          porEvento.set(chave, [...(porEvento.get(chave) ?? []), it.id]);
+        }
+        const numeros: number[] = [];
+        for (const [eventoId, idsDoEvento] of Array.from(porEvento)) {
+          try {
+            const usarTuboAberto = tuboDoLote !== "novo" && porEvento.size === 1;
+            const r = usarTuboAberto
+              ? await apiRequest("PATCH", `/api/tubos/${tuboDoLote}/itens`, { adicionar: idsDoEvento })
+              : await apiRequest("POST", `/api/events/${eventoId}/tubos`, { itemIds: idsDoEvento });
+            const t = await r.json().catch(() => null);
+            if (t?.numero) numeros.push(t.numero);
+          } catch (e: any) {
+            toast({ title: "Conferidas, mas não entraram no tubo", description: apiErrorMessage(e), variant: "destructive" });
+          }
+          queryClient.invalidateQueries({ queryKey: [`/api/events/${eventoId}/tubos`] });
+        }
+        queryClient.invalidateQueries({ queryKey: ["/api/tubos"] });
+        if (numeros.length === 1) avisoDoTubo = `Foram para o Tubo ${numeros[0]}.`;
+        else if (numeros.length > 1) avisoDoTubo = `Foram para ${numeros.length} tubos, um por evento.`;
+      }
+
       queryClient.invalidateQueries({ queryKey: ["/api/items/approved"] });
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
 
@@ -2230,7 +2329,9 @@ export default function Grafica() {
       } else {
         toast({
           title: `${okIds.length} peça${okIds.length !== 1 ? "s" : ""} conferida${okIds.length !== 1 ? "s" : ""}`,
-          description: "Prontas para entrega. As etiquetas ficam no cabeçalho do evento.",
+          description: avisoDoTubo
+            ? `${avisoDoTubo} A entrega é por tubo, no botão Tubos do evento. As etiquetas ficam no cabeçalho do evento.`
+            : "Agrupe em tubos no botão Tubos do evento — a entrega é por tubo. As etiquetas ficam no cabeçalho do evento.",
         });
       }
 
@@ -2247,6 +2348,7 @@ export default function Grafica() {
         setBulkSelectedIds(new Set());
         setBulkConferNotes("");
         setBulkConferPhotos([]);
+        setTuboDoLote("novo");
       }
     } catch (e: any) {
       // Mesmas chaves do fluxo feliz — invalidar só /approved deixava as
@@ -5070,7 +5172,10 @@ export default function Grafica() {
             aria-label={allDeliverableSelected ? 'Desmarcar todas as peças' : `Selecionar todas as ${bulkEligibleList.length} peças elegíveis`}
             style={{ order: isMobile ? 2 : undefined, minHeight: isMobile ? 48 : 36, padding: isMobile ? '0 10px' : '0 12px', borderRadius: 8, background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.9)', fontSize: isMobile ? 14 : 13, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}
           >
-            {allDeliverableSelected ? 'Desmarcar' : `Todas (${bulkEligibleList.length})`}
+            {/* "Sel. 1" lia como "1 selecionada" com nada selecionado — o
+                operador achava que o Confirmar estava quebrado (dono, 14/09).
+                No celular a barra é estreita: "Todas (N)" diz o mesmo. */}
+            {allDeliverableSelected ? 'Desmarcar' : isMobile ? `Todas (${bulkEligibleList.length})` : `Selecionar todas (${bulkEligibleList.length})`}
           </button>
 
           {/* Modo + contador. O MODO morava num selo do cabeçalho ("Modo
@@ -5091,7 +5196,11 @@ export default function Grafica() {
                   ? `${bulkSelectedIds.size} de ${bulkEligibleList.length} marcada${bulkSelectedIds.size !== 1 ? 's' : ''}`
                   : `${bulkSelectedIds.size} peça${bulkSelectedIds.size !== 1 ? 's' : ''} selecionada${bulkSelectedIds.size !== 1 ? 's' : ''}`)
                 : isMobile ? 'Toque nas peças para marcar'
-                : (usaCards ? 'Toque nas peças para selecionar' : 'Clique nas linhas para selecionar')}
+                // Conferência em lote: a barra já avisa que as conferidas vão
+                // para um tubo (a entrega é por tubo — dono, 14/09).
+                : bulkConferMode
+                  ? (usaCards ? 'Toque nas peças em acabamento para conferir — depois elas vão para um tubo' : 'Clique nas linhas em acabamento para conferir — depois elas vão para um tubo')
+                  : (usaCards ? 'Toque nas peças para selecionar' : 'Clique nas linhas para selecionar')}
               {isMobile && bulkSelectedIds.size > 0 && <span className="sr-only"> peças</span>}
             </span>
           </span>
@@ -5179,6 +5288,16 @@ export default function Grafica() {
         isSubmitting={isBulkSubmitting}
         onConfirm={handleBulkConference}
         qtyFor={remainingConfer}
+        tubo={{
+          eventos: eventosDoLote,
+          tubosAbertos: eventosDoLote.length === 1
+            ? ((tubosDoEventoDoLote?.tubos ?? []) as any[])
+                .filter((t) => !t.entregueEm)
+                .map((t) => ({ id: t.id, numero: t.numero, pecas: t.pecas?.length ?? 0 }))
+            : [],
+          valor: tuboDoLote,
+          onChange: setTuboDoLote,
+        }}
       />
 
       {/* ── Dialog de Detalhes ── */}

@@ -626,3 +626,12 @@ describe("a migração é só aditiva — e sem local", () => {
     expect(ws).toContain("q.queryKey.includes('consulta-de-estoque')");
   });
 });
+
+describe("o SQL da migração é executável", () => {
+  it("todo bloco DO usa $$ … $$ (um cifrão só é erro de sintaxe no Postgres)", () => {
+    const sql = require("fs").readFileSync(require("path").resolve(__dirname, "../../scripts/migracao-aditiva-producao.sql"), "utf8");
+    expect(sql).not.toMatch(/^DO \$\r?$/m);
+    expect(sql).not.toMatch(/^END \$;\r?$/m);
+    expect((sql.match(/^DO \$\$/gm) ?? []).length).toBe((sql.match(/^END \$\$;/gm) ?? []).length);
+  });
+});

@@ -176,7 +176,7 @@ CREATE TABLE IF NOT EXISTS consultas_de_estoque (
 CREATE INDEX IF NOT EXISTS "IDX_consultas_de_estoque_item" ON consultas_de_estoque (item_id);
 CREATE INDEX IF NOT EXISTS "IDX_consultas_de_estoque_status" ON consultas_de_estoque (status);
 CREATE UNIQUE INDEX IF NOT EXISTS "UQ_consultas_de_estoque_aberta_por_peca" ON consultas_de_estoque (item_id) WHERE status = 'aberta';
-DO $
+DO $$
 DECLARE fk record;
 BEGIN
   FOR fk IN SELECT * FROM (VALUES
@@ -188,7 +188,7 @@ BEGIN
         fk.tabela, fk.nome, fk.coluna, fk.referencia, fk.acao);
     END IF;
   END LOOP;
-END $;
+END $$;
 
 -- ── 21/09 · Etapa "Embalado" (packed) ─────────────────────────────────────
 -- O status novo é TEXTO em items.status: não há enum nem constraint, então

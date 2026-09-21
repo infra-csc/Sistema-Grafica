@@ -47,7 +47,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { avaliarProducao, tetoDeProducao, ehConflitoDeProducao } from "@/lib/grafica-producao";
 import { isInProd, producedOf, qtyOf, reusedTotalOf, remainingProduce, type SaldoItem } from "@/lib/saldo";
 import { MAQUINAS_DE_IMPRESSAO, rotuloDaMaquina } from "@shared/fluxo-peca";
-import { partesDaPeca, estaDividida, resumoDaDivisao } from "@shared/impressao-dividida";
+import { partesDaPeca, estaDividida, lerPartes, resumoDaDivisao } from "@shared/impressao-dividida";
 import { T, FS, R } from "@/lib/theme";
 
 /** O mínimo que o formulário precisa saber da peça. A fila passa o item inteiro. */
@@ -181,8 +181,8 @@ export function useMutacoesDeImpressao({ onSucesso }: { onSucesso?: () => void }
   // `quantidade` + `deMaquina` (dono, 21/09): mover só parte do que resta —
   // a peça fica dividida entre impressoras. Sem `quantidade`, move tudo.
   const startPrintingMutation = useMutation({
-    mutationFn: async ({ itemId, printMachine, quantidade, deMaquina }: { itemId: string; printMachine: string; displayId?: string | null; trocando?: boolean; quantidade?: number | null; deMaquina?: string | null; ficam?: number }) =>
-      await apiRequest("PATCH", `/api/items/${itemId}/start-printing`, { printMachine, ...(quantidade != null ? { quantidade } : {}), ...(deMaquina ? { deMaquina } : {}) }),
+    mutationFn: async ({ itemId, printMachine, quantidade, deMaquina, iniciarParte, daReserva }: { itemId: string; printMachine: string; displayId?: string | null; trocando?: boolean; quantidade?: number | null; deMaquina?: string | null; ficam?: number; iniciarParte?: boolean; daReserva?: boolean }) =>
+      await apiRequest("PATCH", `/api/items/${itemId}/start-printing`, { printMachine, ...(quantidade != null ? { quantidade } : {}), ...(deMaquina ? { deMaquina } : {}), ...(iniciarParte ? { iniciarParte: true, ...(daReserva ? { daReserva: true } : {}) } : {}) }),
     onSuccess: (_r, vars) => {
       invalidarTudo();
       onSucesso?.();
@@ -272,6 +272,13 @@ interface FormularioProps {
    * impressas e a troca passam a valer para a parte DESSA impressora.
    */
   maquinaEmQuestao?: string | null;
+  /**
+   * Iniciar SÓ UMA PARTE da peça (reserva com quantidade, 21/09): a reservada
+   * a `maquinaInicial` (`daReserva`) ou `quantidade` do que está sem
+   * impressora. O modal fica na etapa "iniciar" mesmo com a peça já em
+   * impressão em outra máquina.
+   */
+  parteAIniciar?: { quantidade: number; daReserva: boolean } | null;
 }
 
 /**
@@ -297,16 +304,18 @@ export function totalAPartirDoAgora(jaSairam: number, agora: number | "", teto: 
  * quantidade) nasce da peça e NÃO é sincronizado por efeito — trocar a peça
  * troca a chave, e o React remonta limpo.
  */
-export function FormularioDeImpressao({ item, onFechar, padModal, mutacoes, abrirNaTroca = false, maquinaInicial = null, maquinaEmQuestao = null }: FormularioProps) {
+export function FormularioDeImpressao({ item, onFechar, padModal, mutacoes, abrirNaTroca = false, maquinaInicial = null, maquinaEmQuestao = null, parteAIniciar = null }: FormularioProps) {
   const isMobile = useIsMobile();
   const { toast } = useToast();
   const fsMin = (n: number) => (isMobile ? Math.max(12, n) : n);
   const { startProductionMutation, startPrintingMutation } = mutacoes;
-  const emImpressao = isInProd(item);
+  const emImpressao = isInProd(item) && !parteAIniciar;
   // Peça dividida: a "máquina atual" é a do cartão que abriu o modal, e os
   // números (já saíram / teto) são os da parte dela.
   const partes = partesDaPeca(item);
-  const dividida = estaDividida(item);
+  // "Por partes" = tem jsonb — inclusive UMA parte só, quando apenas a parte
+  // reservada a uma impressora foi iniciada (o teto dela é menor que a peça).
+  const dividida = estaDividida(item) || !!lerPartes((item as any).impressaoPorMaquina);
   const maquinaAtual = (dividida && maquinaEmQuestao && partes[maquinaEmQuestao] ? maquinaEmQuestao : item.printMachine) ?? "";
   const parte = maquinaAtual ? partes[maquinaAtual] : undefined;
 
@@ -347,6 +356,10 @@ export function FormularioDeImpressao({ item, onFechar, padModal, mutacoes, abri
   const iniciarOuTrocar = () => {
     if (!maquinaEscolhida || startPrintingMutation.isPending) return;
     const trocando = emImpressao && !!maquinaAtual;
+    if (parteAIniciar) {
+      startPrintingMutation.mutate({ itemId: item.id, printMachine: maquinaEscolhida, displayId: item.displayId, trocando: false, iniciarParte: true, daReserva: parteAIniciar.daReserva && maquinaEscolhida === maquinaInicial, quantidade: parteAIniciar.quantidade });
+      return;
+    }
     const n = !trocando || moverTudo ? null : (qtdMover === "" ? 0 : qtdMover);
     if (trocando && !moverTudo && (!n || n <= 0 || n > restanteAqui)) return;
     startPrintingMutation.mutate({
@@ -446,7 +459,9 @@ export function FormularioDeImpressao({ item, onFechar, padModal, mutacoes, abri
         <p style={{ margin: 0, fontSize: fsMin(12), color: T.second, lineHeight: 1.45 }}>
           {jaSairam > 0
             ? `Já saíram ${jaSairam} de ${teto}. Ao iniciar, a peça volta para "Em Impressão" e você informa o restante conforme sair.`
-            : `Ao iniciar, a peça fica "Em Impressão". Faltam ${remainingProduce(item)} un. — você informa quantas saíram conforme a máquina terminar.`}
+            : parteAIniciar
+              ? `Só estas ${parteAIniciar.quantidade} un. entram em impressão agora; o resto da peça continua reservado ou na fila geral.`
+              : `Ao iniciar, a peça fica "Em Impressão". Faltam ${remainingProduce(item)} un. — você informa quantas saíram conforme a máquina terminar.`}
         </p>
         <div style={rodapeDoModal(padModal)}>
           {botaoCancelar}
@@ -461,7 +476,10 @@ export function FormularioDeImpressao({ item, onFechar, padModal, mutacoes, abri
             onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = T.text; }}
           >
             {startPrintingMutation.isPending && <Loader2 aria-hidden="true" className="animate-spin" style={{ width: 14, height: 14 }} />}
-            {startPrintingMutation.isPending ? "Iniciando…" : maquinaEscolhida ? `Iniciar impressão na ${rotuloDaMaquina(maquinaEscolhida)}` : "Iniciar impressão"}
+            {startPrintingMutation.isPending ? "Iniciando…"
+              : !maquinaEscolhida ? "Iniciar impressão"
+              : parteAIniciar ? `Iniciar ${parteAIniciar.quantidade} un. na ${rotuloDaMaquina(maquinaEscolhida)}`
+              : `Iniciar impressão na ${rotuloDaMaquina(maquinaEscolhida)}`}
           </button>
         </div>
       </div>
@@ -698,13 +716,16 @@ interface ModalProps {
   maquinaInicial?: string | null;
   /** Peça dividida: de qual cartão o modal foi aberto. */
   maquinaEmQuestao?: string | null;
+  /** Iniciar só uma parte da peça (ver FormularioProps). */
+  parteAIniciar?: { quantidade: number; daReserva: boolean } | null;
 }
 
-export function ModalImpressao({ item, onFechar, abrirNaTroca = false, maquinaInicial = null, maquinaEmQuestao = null }: ModalProps) {
+export function ModalImpressao({ item, onFechar, abrirNaTroca = false, maquinaInicial = null, maquinaEmQuestao = null, parteAIniciar = null }: ModalProps) {
   const isMobile = useIsMobile();
   const padModal = isMobile ? 16 : 24;
   const mutacoes = useMutacoesDeImpressao({ onSucesso: onFechar });
-  const cab = cabecalhoDoModalDeImpressao(item, abrirNaTroca);
+  // Iniciando uma parte, o cabeçalho é o de "imprimir", mesmo com a peça já em impressão noutra máquina.
+  const cab = parteAIniciar ? { title: "Imprimir parte da peça", subtitle: `${parteAIniciar.quantidade} un. — confirme a impressora e inicie` } : cabecalhoDoModalDeImpressao(item, abrirNaTroca);
   const fsMin = (n: number) => (isMobile ? Math.max(12, n) : n);
   // O teclado numérico de "Quantas saíram agora?" não pode esconder o botão
   // primário: o modal recentra e encolhe para a área visível (o mesmo gancho
@@ -754,7 +775,7 @@ export function ModalImpressao({ item, onFechar, abrirNaTroca = false, maquinaIn
                 </div>
               </div>
             </div>
-            <FormularioDeImpressao key={`${item.id}:${abrirNaTroca ? "troca" : "impressas"}:${maquinaInicial ?? ""}:${maquinaEmQuestao ?? ""}`} item={item} onFechar={onFechar} padModal={padModal} mutacoes={mutacoes} abrirNaTroca={abrirNaTroca} maquinaInicial={maquinaInicial} maquinaEmQuestao={maquinaEmQuestao} />
+            <FormularioDeImpressao key={`${item.id}:${abrirNaTroca ? "troca" : "impressas"}:${maquinaInicial ?? ""}:${maquinaEmQuestao ?? ""}`} item={item} onFechar={onFechar} padModal={padModal} mutacoes={mutacoes} abrirNaTroca={abrirNaTroca} maquinaInicial={maquinaInicial} maquinaEmQuestao={maquinaEmQuestao} parteAIniciar={parteAIniciar} />
           </div>
         )}
       </DialogContent>

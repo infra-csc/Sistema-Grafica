@@ -176,9 +176,10 @@ export function reescalarPartes(partes: PartesPorMaquina | null | undefined, aIm
       novas[m].impressas = Math.min(novas[m].impressas, novas[m].atrib);
       soma -= tira;
     }
-  } else if (soma < alvo) {
-    novas[ordem[0]].atrib += alvo - soma;
   }
+  // Teto MAIOR que a soma não estica nenhuma parte: desde a reserva com
+  // quantidade (shared/reserva-de-impressora.ts) a soma das partes pode ser
+  // legitimamente menor que o teto — a diferença está reservada ou na fila geral.
   for (const m of Object.keys(novas)) if (novas[m].atrib === 0 && novas[m].impressas === 0) delete novas[m];
   return normalizarPartes(novas, alvo);
 }

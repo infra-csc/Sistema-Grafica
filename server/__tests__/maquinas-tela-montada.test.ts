@@ -523,14 +523,20 @@ describe("a fila: geral, reservada por impressora, e o seletor de peça", () => 
     expect(nome.style.whiteSpace).not.toBe("nowrap");
   });
 
-  it("RESERVAR manda SÓ { maquina } — nada de status; devolver manda null; o lote usa bulk-", async () => {
+  it("RESERVAR manda SÓ { maquina, quantidade } — nada de status; devolver manda null; o lote usa bulk-", async () => {
     await montar(1280, retrato({ fila: true }));
     const { escritas } = fetchPorUrl();
     const sel = $('[data-testid="reservar-fila-f1"]') as HTMLSelectElement;
-    expect(Array.from(sel.options).map((o) => o.textContent)).toEqual(["Reservar para…", "Impressora 1 (New XT)", "Impressora 2", "Impressora 3", "Impressora 4 (Targa Elite)"]);
+    expect(Array.from(sel.options).map((o) => o.textContent)).toEqual(["Impressora…", "Impressora 1 (New XT)", "Impressora 2", "Impressora 3", "Impressora 4 (Targa Elite)"]);
+    // Sem impressora escolhida o botão não age; a quantidade nasce com tudo (placeholder).
+    const botao = () => $('[data-testid="button-reservar-f1"]') as HTMLButtonElement;
+    expect(botao().disabled).toBe(true);
+    expect(($('[data-testid="qtd-reservar-f1"]') as HTMLInputElement).placeholder).toBe("10");
     await act(async () => { fireEvent.change(sel, { target: { value: "2" } }); });
+    expect(botao().disabled).toBe(false);
+    await act(async () => { fireEvent.click(botao()); });
     await tick(30);
-    expect(escritas()).toEqual([{ url: "/api/items/f1/maquina-prevista", body: { maquina: "2" } }]);
+    expect(escritas()).toEqual([{ url: "/api/items/f1/maquina-prevista", body: { maquina: "2", quantidade: 10 } }]);
 
     // No cartão: "Mover para…" oferece as outras três e "Devolver à fila geral".
     const mover = $('[data-testid="mover-fila-f4"]') as HTMLSelectElement;
@@ -705,6 +711,137 @@ describe("peça dividida, fila sempre visível e servidor antigo", () => {
     for (let i = 0; i < 40 && !$('[data-testid="resumo-erro"]'); i++) await tick(50);
     expect($('[data-testid="resumo-erro"]')!.textContent).toContain("O servidor ainda está na versão anterior — no Replit, faça Stop e Run e recarregue a página.");
   }, 20_000);
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// RESERVA COM QUANTIDADE (dono, 21/09, olhando "#0396 2×1 · 34 un."): "além de
+// reservar, posso direcionar a quantidade e para qual impressora vai".
+// ─────────────────────────────────────────────────────────────────────────────
+describe("reserva com quantidade: 34 un. → 20 para a Impressora 1 e 14 para a 2", () => {
+  const com34 = () => {
+    const r = retrato({ fila: true });
+    // #0396: 20 já direcionadas à Impressora 1, 14 sem impressora → segue na fila geral E aparece no cartão da 1.
+    const base = { ...naFila("g1", "#0396", "2×1", "1", 3), quantidade: 34, aImprimir: 34, reserva: { "1": 20 }, semImpressora: 14, imprimindoEm: [] as string[] };
+    r.filaGeral = [base as any];
+    r.maquinas[0].imprimindo = [];
+    (r.maquinas[0] as any).naFila = [{ ...base, maquinaPrevista: "1", reservadas: 20 }];
+    (r.maquinas[1] as any).naFila = [];
+    return r;
+  };
+
+  it("a linha mostra o que já foi direcionado e continua na fila geral com o resto; reservar PARTE manda a quantidade", async () => {
+    await montar(1280, com34());
+    expect($('[data-testid="direcionado-g1"]')!.textContent).toBe("20 → Impressora 1 (New XT) · 14 sem impressora");
+    const qtd = $('[data-testid="qtd-reservar-g1"]') as HTMLInputElement;
+    expect(qtd.placeholder).toBe("14");
+    expect(qtd.getAttribute("max")).toBe("14");
+    expect(qtd.getAttribute("inputmode")).toBe("numeric");
+    const botao = () => $('[data-testid="button-reservar-g1"]') as HTMLButtonElement;
+    await act(async () => { fireEvent.change($('[data-testid="reservar-fila-g1"]')!, { target: { value: "2" } }); });
+    // Mais do que sobra não passa.
+    await act(async () => { fireEvent.change(qtd, { target: { value: "15" } }); });
+    expect(botao().disabled).toBe(true);
+    expect(qtd.getAttribute("aria-invalid")).toBe("true");
+    await act(async () => { fireEvent.change(qtd, { target: { value: "9" } }); });
+    expect(botao().disabled).toBe(false);
+    expect(botao().getAttribute("title")).toBe("Reservar 9 un. para a Impressora 2");
+    const { escritas } = fetchPorUrl();
+    await act(async () => { fireEvent.click(botao()); });
+    await tick(30);
+    expect(escritas()[0]).toEqual({ url: "/api/items/g1/maquina-prevista", body: { maquina: "2", quantidade: 9 } });
+  });
+
+  it("no cartão: '20 de 34 un.'; mover PARTE manda quantidade e deMaquina; devolver também", async () => {
+    await montar(1280, com34());
+    expect($('[data-testid="estado-1"]')!.textContent).toBe("Livre · Na fila 1");
+    expect($('[data-testid="peca-na-fila-g1"]')!.textContent).toContain("20 de 34 un.");
+    // (o retrato recarregado depois de cada gesto continua sendo o das 34 un.)
+    const { escritas } = fetchPorUrl((u) => (u.includes("/api/grafica/maquinas") && !u.includes("relatorio") ? new Response(JSON.stringify(com34()), { status: 200, headers: { "content-type": "application/json" } }) : null));
+    const qtd = $('[data-testid="qtd-mover-fila-g1"]') as HTMLInputElement;
+    expect(qtd.placeholder).toBe("20");
+    await act(async () => { fireEvent.change(qtd, { target: { value: "6" } }); });
+    const mover = $('[data-testid="mover-fila-g1"]') as HTMLSelectElement;
+    expect(mover.options[0].textContent).toBe("Mover 6 para…");
+    await act(async () => { fireEvent.change(mover, { target: { value: "3" } }); });
+    await tick(30);
+    expect(escritas()[0]).toEqual({ url: "/api/items/g1/maquina-prevista", body: { maquina: "3", quantidade: 6, deMaquina: "1" } });
+    // Sem digitar quantidade, devolve TODAS as 20 desta impressora (não as de outra).
+    await act(async () => { fireEvent.change(qtd, { target: { value: "" } }); });
+    await act(async () => { fireEvent.change($('[data-testid="mover-fila-g1"]')!, { target: { value: "geral" } }); });
+    await tick(30);
+    expect(escritas()[1]).toEqual({ url: "/api/items/g1/maquina-prevista", body: { maquina: null, quantidade: 20, deMaquina: "1" } });
+    // Quantidade fora do que está reservado trava o seletor.
+    await act(async () => { fireEvent.change(qtd, { target: { value: "21" } }); });
+    expect(($('[data-testid="mover-fila-g1"]') as HTMLSelectElement).disabled).toBe(true);
+  });
+
+  it("INICIAR do cartão inicia SÓ a parte reservada àquela impressora (iniciarParte + daReserva)", async () => {
+    await montar(1280, com34());
+    await act(async () => { fireEvent.click($('[data-testid="button-iniciar-fila-g1"]')!); });
+    await tick(30);
+    const dialogo = $('[role="dialog"]')!;
+    expect(dialogo.textContent).toContain("Imprimir parte da peça");
+    expect(dialogo.textContent).toContain("Só estas 20 un. entram em impressão agora");
+    expect($('[data-testid="form-impressao"]')!.getAttribute("data-etapa")).toBe("iniciar");
+    expect($('[data-testid="maquina-1"]')!.getAttribute("aria-checked")).toBe("true");
+    const iniciar = $('[data-testid="button-iniciar-impressao"]') as HTMLButtonElement;
+    expect(iniciar.textContent).toBe("Iniciar 20 un. na Impressora 1 (New XT)");
+    const { escritas } = fetchPorUrl();
+    await act(async () => { fireEvent.click(iniciar); });
+    await tick(30);
+    expect(escritas()[0]).toEqual({ url: "/api/items/g1/start-printing", body: { printMachine: "1", quantidade: 20, iniciarParte: true, daReserva: true } });
+  });
+
+  it("peça JÁ em impressão numa impressora e com parte na fila de outra: o cartão diz isso, e Iniciar soma a parte nova", async () => {
+    const r = com34();
+    const emOutra = { ...naFila("g1", "#0396", "2×1", "2", 3), quantidade: 34, aImprimir: 34, status: "inProduction", maquina: "1", reserva: { "2": 14 }, semImpressora: 0, imprimindoEm: ["1"], impressaoPorMaquina: { "1": { atrib: 20, impressas: 5 } } };
+    r.filaGeral = [];
+    (r.maquinas[0] as any).naFila = [];
+    r.maquinas[0].imprimindo = [{ ...peca("g1", "#0396", 5, 34, "1"), impressaoPorMaquina: { "1": { atrib: 20, impressas: 5 } }, parte: { atrib: 20, impressas: 5 } } as any];
+    (r.maquinas[1] as any).naFila = [{ ...emOutra, maquinaPrevista: "2", reservadas: 14 }];
+    await montar(1280, r);
+    // Na Impressora 1: a parte dela (teto 20, não 34) — mesmo sendo a ÚNICA parte.
+    expect($('[data-testid="maquina-agora-1"] [data-testid="progresso-g1"]')!.textContent).toBe("5 de 20 nesta impressora · peça 5 de 34 no total");
+    expect($('[data-testid="ja-imprimindo-g1"]')!.textContent).toBe("14 un. na fila · peça já em impressão na Impressora 1 (New XT)");
+    await act(async () => { fireEvent.click($('[data-testid="button-iniciar-fila-g1"]')!); });
+    await tick(30);
+    // Mesmo com a peça "em impressão", o modal fica na etapa INICIAR (é uma parte nova).
+    expect($('[data-testid="form-impressao"]')!.getAttribute("data-etapa")).toBe("iniciar");
+    expect($('[data-testid="button-iniciar-impressao"]')!.textContent).toBe("Iniciar 14 un. na Impressora 2");
+  });
+
+  it("'Impressas' de uma parte ÚNICA usa o teto da parte e manda por impressora", async () => {
+    const r = com34();
+    r.maquinas[0].imprimindo = [{ ...peca("g1", "#0396", 5, 34, "1"), impressaoPorMaquina: { "1": { atrib: 20, impressas: 5 } }, parte: { atrib: 20, impressas: 5 } } as any];
+    await montar(1280, r);
+    await act(async () => { fireEvent.click($('[data-testid="maquina-agora-1"] [data-testid="button-impressas-g1"]')!); });
+    await tick(30);
+    const campo = $('[data-testid="input-quantity-produced"]') as HTMLInputElement;
+    expect(campo.getAttribute("max")).toBe("15"); // 20 atribuídas − 5 impressas; NÃO 29
+    await act(async () => { fireEvent.click($('[data-testid="button-set-total"]')!); });
+    const { escritas } = fetchPorUrl();
+    await act(async () => { fireEvent.click($('[data-testid="button-confirm-production"]')!); });
+    await tick(30);
+    expect(escritas()[0]).toEqual({ url: "/api/items/g1/start-production", body: { quantityProduced: 20, expectedProduced: 5, printMachine: "1", maquina: "1", impressasNaMaquina: 20 } });
+  });
+
+  it("SELETOR DE PEÇA mostra a quantidade reservada a esta impressora e inicia só ela; da fila geral, só o que está sem impressora", async () => {
+    await montar(1280, com34());
+    await act(async () => { fireEvent.click($('[data-testid="link-escolher-peca-1"]')!); });
+    await tick(30);
+    expect($('[data-testid="selo-reservada-g1"]')!.textContent).toBe("Reservada · 20 un.");
+    cleanup();
+    await montar(1280, com34());
+    await act(async () => { fireEvent.click($('[data-testid="link-escolher-peca-3"]')!); });
+    await tick(30);
+    await act(async () => { fireEvent.click($('[data-testid="escolher-peca-g1"]')!); });
+    await tick(30);
+    expect($('[data-testid="button-iniciar-impressao"]')!.textContent).toBe("Iniciar 14 un. na Impressora 3");
+    const { escritas } = fetchPorUrl();
+    await act(async () => { fireEvent.click($('[data-testid="button-iniciar-impressao"]')!); });
+    await tick(30);
+    expect(escritas()[0]).toEqual({ url: "/api/items/g1/start-printing", body: { printMachine: "3", quantidade: 14, iniciarParte: true } });
+  });
 });
 
 describe("o modal de impressão com a peça FORA da máquina", () => {

@@ -29,6 +29,7 @@ import { motivoEventoDaPeca } from "./eventoFinalizado";
 import { storage } from "../storage";
 import { MAQUINAS_DE_IMPRESSAO, ehMaquinaValida, rotuloDaMaquina } from "@shared/fluxo-peca";
 import { lerPartes, partesAtivas } from "@shared/impressao-dividida";
+import { reservar, moverReserva, devolverReserva, colunasDaReserva, livreParaReservar, reservaDaPeca, semImpressora } from "@shared/reserva-de-impressora";
 import { pecaVisivelPara } from "@shared/kit";
 import { agoraNoFuso } from "../services/revisaoDigest";
 import { agregarRelatorioDeMaquinas, periodoValido, type RegistroDoPeriodo } from "../services/relatorioDeMaquinas";
@@ -99,7 +100,10 @@ async function registrosDoPeriodo(req: any, de: string, ate: string): Promise<Re
 
 // ─── RESERVA de impressora (dono, 21/09) ───────────────────────────────────────
 // "Deixar na fila alguns itens (geral) ou já setar em alguma impressora."
-// É SÓ um controle da aba Máquinas: grava items.maquina_prevista e NADA mais —
+// Com QUANTIDADE (21/09): { maquina, quantidade?, deMaquina? } — a conta mora em
+// shared/reserva-de-impressora.ts e as duas colunas (reserva_por_maquina + o
+// atalho maquina_prevista) saem juntas de colunasDaReserva.
+// É SÓ um controle da aba Máquinas: grava a reserva e NADA mais —
 // nem status, nem statusChangedAt, nem printMachine, nem productionStartedAt,
 // nem linha no diário. A trilha ganha uma linha informativa. A reserva vira
 // realidade no start-printing (items.ts), que a limpa.
@@ -114,10 +118,16 @@ function maquinaDoCorpo(corpo: any): { ok: true; maquina: string | null } | { ok
   return { ok: true, maquina: m };
 }
 
-/** Por que esta peça NÃO pode ser reservada agora; null quando pode. */
+/**
+ * Por que esta peça NÃO pode ser reservada agora; null quando pode. Além das
+ * liberadas, entra a peça que JÁ está em impressão POR PARTES (iniciou só a
+ * parte reservada a uma impressora) — o resto dela continua na fila.
+ */
 async function motivoDeNaoReservar(item: any): Promise<string | null> {
   if (!item || item.deletedAt) return "Peça não encontrada";
-  if (!PODE_RESERVAR.includes(item.status)) {
+  const emImpressaoPorPartes = (item.status === "inProduction" || item.status === "em_producao")
+    && !!lerPartes(item.impressaoPorMaquina) && livreParaReservar(item) > 0;
+  if (!PODE_RESERVAR.includes(item.status) && !emImpressaoPorPartes) {
     return `Só peças liberadas para a Gráfica entram na fila das impressoras — esta está em ${translateStatus(item.status)}`;
   }
   const motivo = await motivoEventoDaPeca(item);
@@ -125,8 +135,33 @@ async function motivoDeNaoReservar(item: any): Promise<string | null> {
   return null;
 }
 
-const fraseDaReserva = (maquina: string | null) =>
-  maquina ? `Reservada para a ${rotuloDaMaquina(maquina)}` : "Devolvida à fila geral";
+/** O que o corpo pede: reservar (com ou sem quantidade), mover ou devolver. Puro sobre a peça. */
+function aplicarPedidoDeReserva(item: any, corpo: any, maquina: string | null):
+  { ok: true; reserva: Record<string, number> | null; frase: string } | { ok: false; erro: string } {
+  const quantidade = corpo?.quantidade == null || corpo.quantidade === "" ? null : Number(corpo.quantidade);
+  if (quantidade != null && (!Number.isInteger(quantidade) || quantidade <= 0)) {
+    return { ok: false, erro: "A quantidade precisa ser um número inteiro maior que zero" };
+  }
+  const de = ehMaquinaValida(corpo?.deMaquina) ? corpo.deMaquina as string : null;
+  if (maquina === null) {
+    const r = devolverReserva(item, de, quantidade);
+    if (!r.ok) return r;
+    return { ok: true, reserva: r.reserva, frase: de ? `Devolvidas ${r.quantidade} un. da ${rotuloDaMaquina(de)} à fila geral` : "Devolvida à fila geral" };
+  }
+  if (de) {
+    const r = moverReserva(item, de, maquina, quantidade);
+    if (!r.ok) return r;
+    return { ok: true, reserva: r.reserva, frase: `Reserva movida: ${r.quantidade} un. da ${rotuloDaMaquina(de)} para a ${rotuloDaMaquina(maquina)}` };
+  }
+  const r = reservar(item, maquina, quantidade);
+  if (!r.ok) return r;
+  return {
+    ok: true, reserva: r.reserva,
+    frase: r.semImpressora > 0
+      ? `Reservadas ${r.quantidade} un. para a ${rotuloDaMaquina(maquina)} (${r.semImpressora} na fila geral)`
+      : `Reservada para a ${rotuloDaMaquina(maquina)}${quantidade != null ? ` (${r.quantidade} un.)` : ""}`,
+  };
+}
 
 export function registerMaquinasRoutes(app: Express): void {
   app.patch("/api/items/:id/maquina-prevista", requireAuth, async (req, res) => {
@@ -139,11 +174,12 @@ export function registerMaquinasRoutes(app: Express): void {
       const atual = await storage.getItem(req.params.id);
       const motivo = await motivoDeNaoReservar(atual);
       if (motivo) return res.status(atual ? 409 : 404).json({ error: motivo });
-      if ((atual!.maquinaPrevista ?? null) === pedido.maquina) return res.json(atual);
+      const r = aplicarPedidoDeReserva(atual, req.body, pedido.maquina);
+      if (!r.ok) return res.status(409).json({ error: r.erro });
       // SÓ a reserva (e o updatedAt que o storage carimba). Nada de status.
-      const item = await storage.updateItem(atual!.id, { maquinaPrevista: pedido.maquina } as any);
+      const item = await storage.updateItem(atual!.id, colunasDaReserva(r.reserva) as any);
       if (!item) return res.status(404).json({ error: "Peça não encontrada" });
-      await createAuditLog(req, "production", "item", item.id, fraseDaReserva(pedido.maquina));
+      await createAuditLog(req, "production", "item", item.id, r.frase);
       broadcast({ type: "item_updated", item });
       res.json(item);
     } catch (error: any) {
@@ -171,11 +207,16 @@ export function registerMaquinasRoutes(app: Express): void {
         const atual = porId.get(id);
         const motivo = await motivoDeNaoReservar(atual);
         if (motivo) { erros.push({ itemId: id, displayId: atual?.displayId ?? null, erro: motivo }); continue; }
-        if ((atual!.maquinaPrevista ?? null) === pedido.maquina) { feitas.push(atual); continue; }
-        const item = await storage.updateItem(id, { maquinaPrevista: pedido.maquina } as any);
+        // O lote é sempre "TUDO": tudo o que está livre vai para a impressora
+        // (ou a reserva inteira volta à fila geral). Quantidade é gesto unitário.
+        const livre = livreParaReservar(atual!);
+        const reserva = pedido.maquina && livre > 0 ? { [pedido.maquina]: livre } : null;
+        if (pedido.maquina && livre <= 0) { erros.push({ itemId: id, displayId: atual?.displayId ?? null, erro: "Não há unidades fora de impressora para reservar" }); continue; }
+        const item = await storage.updateItem(id, colunasDaReserva(reserva) as any);
         if (item) feitas.push(item);
       }
-      await createAuditLogsEmLote(req, feitas.map((i) => ({ action: "production", entityType: "item", entityId: i.id, details: fraseDaReserva(pedido.maquina) })));
+      const fraseDoLote = pedido.maquina ? `Reservada para a ${rotuloDaMaquina(pedido.maquina)}` : "Devolvida à fila geral";
+      await createAuditLogsEmLote(req, feitas.map((i) => ({ action: "production", entityType: "item", entityId: i.id, details: fraseDoLote })));
       for (const item of feitas) broadcast({ type: "item_updated", item });
       res.json({ atualizadas: feitas.length, itens: feitas, erros });
     } catch (error: any) {
@@ -248,8 +289,10 @@ export function registerMaquinasRoutes(app: Express): void {
         select i.id, i.display_id, i.type, i.description, i.quantity, i.status,
                coalesce(i.quantity_produced, 0) as produzido,
                coalesce(i.reuse_qty, 0) as reuso,
-               i.calculated_m2, i.maquina_prevista, i.kit_remessa_id, i.criado_por_id,
+               i.calculated_m2, i.maquina_prevista, i.reserva_por_maquina, i.print_machine, i.impressao_por_maquina,
+               i.kit_remessa_id, i.criado_por_id,
                i.approval_thumb_url,
+               to_char(coalesce(i.production_started_at, i.status_changed_at), 'YYYY-MM-DD"T"HH24:MI:SS"Z"') as desde,
                e.id as evento_id, e.name as evento, e.status as evento_status,
                e.deadline_producao_grafica,
                to_char(e.truck_departure_date, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') as saida_caminhao,
@@ -257,7 +300,11 @@ export function registerMaquinasRoutes(app: Express): void {
                to_char(e.reopened_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') as evento_reaberto
         from items i
         left join events e on e.id = i.event_id
-        where i.deleted_at is null and i.status in ('ready_for_production', 'pronto_para_producao', 'approved', 'liberado')
+        where i.deleted_at is null and (
+          i.status in ('ready_for_production', 'pronto_para_producao', 'approved', 'liberado')
+          -- A peça que iniciou SÓ UMA PARTE segue na fila com o resto dela.
+          or (i.status in ('inProduction', 'em_producao') and i.impressao_por_maquina is not null)
+        )
         order by e.truck_departure_date asc nulls last, i.display_id asc
       `)).filter(visivel);
 
@@ -356,16 +403,33 @@ export function registerMaquinasRoutes(app: Express): void {
         .filter((l) => !l.print_machine || !MAQUINAS_DE_IMPRESSAO.includes(l.print_machine))
         .map(peca);
 
+      // A conta da fila (shared/reserva-de-impressora.ts): em impressão +
+      // reservado + sem impressora = a imprimir. `reserva` é por impressora;
+      // `semImpressora` é o que ainda aparece na fila geral.
+      const comoPeca = (l: any) => ({
+        status: l.status, quantity: l.quantity, reuseQty: l.reuso, quantityProduced: l.produzido,
+        printMachine: l.print_machine, impressaoPorMaquina: l.impressao_por_maquina,
+        maquinaPrevista: l.maquina_prevista, reservaPorMaquina: l.reserva_por_maquina,
+      });
       const pecaDaFila = (l: any) => ({
         ...peca(l),
         maquinaPrevista: MAQUINAS_DE_IMPRESSAO.includes(l.maquina_prevista) ? l.maquina_prevista : null,
+        reserva: reservaDaPeca(comoPeca(l)),
+        semImpressora: semImpressora(comoPeca(l)),
+        // Em quais impressoras a peça JÁ está imprimindo (parte iniciada).
+        imprimindoEm: (l.status === "inProduction" || l.status === "em_producao") ? Object.keys(partesAtivas(lerPartes(l.impressao_por_maquina) ?? {})) : [],
         m2: l.calculated_m2 == null ? null : Number(l.calculated_m2),
         saidaCaminhao: l.saida_caminhao ?? null,
         prazoProducaoGrafica: l.deadline_producao_grafica == null ? -1 : Number(l.deadline_producao_grafica),
       });
       const fila = naFila.map(pecaDaFila);
-      const maquinasComFila = maquinas.map((m) => ({ ...m, naFila: fila.filter((p) => p.maquinaPrevista === m.codigo) }));
-      const filaGeral = fila.filter((p) => !p.maquinaPrevista);
+      // No cartão: as peças com unidades reservadas PARA esta impressora, com
+      // quantas são (`reservadas`). Na fila geral: enquanto sobrar unidade sem impressora.
+      const maquinasComFila = maquinas.map((m) => ({
+        ...m,
+        naFila: fila.filter((p) => (p.reserva[m.codigo] ?? 0) > 0).map((p) => ({ ...p, maquinaPrevista: m.codigo, reservadas: p.reserva[m.codigo] })),
+      }));
+      const filaGeral = fila.filter((p) => p.semImpressora > 0);
 
       res.json({ dia, hoje, maquinas: maquinasComFila, semMaquina, filaGeral });
     } catch (error: any) {

@@ -369,22 +369,27 @@ describe("7 · a reserva de impressora — só um controle, nunca uma etapa", ()
     // Só código: os comentários explicam justamente o que NÃO se faz.
     const reserva = ROTA.slice(ROTA.indexOf("// ─── RESERVA de impressora"), ROTA.indexOf("// ── O relatório")).replace(/\/\/.*$/gm, "");
     // As duas gravações escrevem SÓ a reserva (o storage carimba updatedAt).
-    expect((reserva.match(/storage\.updateItem\([^,]+, \{ maquinaPrevista: pedido\.maquina \} as any\)/g) ?? []).length).toBe(2);
+    expect((reserva.match(/storage\.updateItem\([^,]+, colunasDaReserva\(\w+(\.\w+)?\) as any\)/g) ?? []).length).toBe(2);
     expect(reserva).not.toMatch(/status:|statusChangedAt|printMachine|productionStartedAt|registrarImpressao|registros_de_impressao/);
     // A trilha é informativa, sem etapa.
-    expect(reserva).toContain('maquina ? `Reservada para a ${rotuloDaMaquina(maquina)}` : "Devolvida à fila geral"');
+    expect(reserva).toContain('? `Reservadas ${r.quantidade} un. para a ${rotuloDaMaquina(maquina)} (${r.semImpressora} na fila geral)`');
+    expect(reserva).toContain('"Devolvida à fila geral"');
     expect(reserva).toContain('broadcast({ type: "item_updated", item });');
   });
 
   it("vira realidade só no start-printing, que limpa a reserva", () => {
     const rota = ITEMS.slice(ITEMS.indexOf('app.patch("/api/items/:id/start-printing"'), ITEMS.indexOf('app.patch("/api/items/:id/start-production"'));
-    expect(rota).toContain("maquinaPrevista: null,");
+    // Iniciar a peça inteira limpa a reserva toda; iniciar uma parte consome só a desta impressora; a troca não mexe nela.
+    expect(rota).toContain("const reservaDepois = movimento ? colunasDaReserva(reservaDaPeca(current)) : colunasDaReserva(parte ? parte.reserva : null);");
+    expect(rota).toContain("...reservaDepois,");
   });
 
   it("o retrato traz a fila: reservadas por impressora e a fila geral, na ordem do caminhão", () => {
-    expect(ROTA).toContain("where i.deleted_at is null and i.status in ('ready_for_production', 'pronto_para_producao', 'approved', 'liberado')");
+    expect(ROTA).toContain("i.status in ('ready_for_production', 'pronto_para_producao', 'approved', 'liberado')");
+    expect(ROTA).toContain("or (i.status in ('inProduction', 'em_producao') and i.impressao_por_maquina is not null)");
     expect(ROTA).toContain("order by e.truck_departure_date asc nulls last, i.display_id asc");
-    expect(ROTA).toContain("naFila: fila.filter((p) => p.maquinaPrevista === m.codigo)");
+    expect(ROTA).toContain("naFila: fila.filter((p) => (p.reserva[m.codigo] ?? 0) > 0).map((p) => ({ ...p, maquinaPrevista: m.codigo, reservadas: p.reserva[m.codigo] })),");
+    expect(ROTA).toContain("const filaGeral = fila.filter((p) => p.semImpressora > 0);");
     expect(ROTA).toContain("res.json({ dia, hoje, maquinas: maquinasComFila, semMaquina, filaGeral });");
   });
 
@@ -446,7 +451,7 @@ describe("8 · a impressão dividida — a conta pura", async () => {
 
   it("start-printing: `quantidade` move parte, grava a troca com a quantidade e a trilha diz quantas ficam", () => {
     const rota = ITEMS.slice(ITEMS.indexOf('app.patch("/api/items/:id/start-printing"'), ITEMS.indexOf('app.patch("/api/items/:id/start-production"'));
-    expect(rota).toContain("const { printMachine, quantidade, deMaquina } = req.body ?? {};");
+    expect(rota).toContain("const { printMachine, quantidade, deMaquina, iniciarParte: pedeParte, daReserva } = req.body ?? {};");
     expect(rota).toContain("const r = moverParte(partesAtuais, origem!, printMachine, quantidade == null ? null : Number(quantidade));");
     expect(rota).toContain("if (!r.ok) return res.status(409).json({ error: r.erro });");
     expect(rota).toContain("printMachine: principal,");
@@ -457,7 +462,7 @@ describe("8 · a impressão dividida — a conta pura", async () => {
 
   it("start-production: por impressora quando dividida, nunca mais que o atribuído; o total é a soma; concluir limpa o jsonb", () => {
     const rota = ITEMS.slice(ITEMS.indexOf('app.patch("/api/items/:id/start-production"'), ITEMS.indexOf("Auto-add to inventory when fully produced"));
-    expect(rota).toContain("if (estaDividida(before)) {");
+    expect(rota).toContain("if (lerPartes(before.impressaoPorMaquina)) {");
     expect(rota).toContain("if (n > parte.atrib) return res.status(400).json({ error: `Máximo ${parte.atrib} un. na ${rotuloDaMaquina(maquina)} — é o que foi atribuído a ela` });");
     expect(rota).toContain("quantityProduced = totalImpressas(partesDepois);");
     expect(rota).toContain('{ impressaoPorMaquina: newProdStatus === "produced" ? null : partesDepois, printMachine: maquinaPrincipal(partesDepois, maquina) ?? before.printMachine }');
@@ -469,8 +474,8 @@ describe("8 · a impressão dividida — a conta pura", async () => {
     expect(ler("client/src/App.tsx")).toContain("<RoleProtectedRoute component={GraficaMaquinas} allowedRoles={ROLES_GRAFICA} />");
     expect(ler("client/src/components/app-sidebar.tsx")).toMatch(/url: "\/grafica\/maquinas",\s+icon: \w+,\s+roles: \["grafica", "solicitacao", "admin"\]/);
     expect(GRAFICA).toContain("function SeloFilaDaImpressora(");
-    expect(GRAFICA).toContain("{!isInProd(item) && item.maquinaPrevista && <SeloFilaDaImpressora maquina={item.maquinaPrevista} fonte={12} />}");
-    expect(GRAFICA).toContain("{!isInProd(item) && item.maquinaPrevista && <div style={{ marginTop: 4 }}><SeloFilaDaImpressora maquina={item.maquinaPrevista} fonte={10.5} /></div>}");
+    expect(GRAFICA).toContain("{!isInProd(item) && item.maquinaPrevista && <SeloFilaDaImpressora maquina={item.maquinaPrevista} reserva={item.reservaPorMaquina} fonte={12} />}");
+    expect(GRAFICA).toContain("{!isInProd(item) && item.maquinaPrevista && <div style={{ marginTop: 4 }}><SeloFilaDaImpressora maquina={item.maquinaPrevista} reserva={item.reservaPorMaquina} fonte={10.5} /></div>}");
     expect(GRAFICA).toContain("const maquina = dividida ? resumoDaDivisao(partesDaPeca(item)) : item.printMachine ? rotuloDaMaquina(item.printMachine) : null;");
     // O retrato entrega a parte de cada impressora e a peça aparece nos dois cartões.
     expect(ROTA).toContain("return partes ? !!partesAtivas(partes)[codigo] : l.print_machine === codigo;");
@@ -487,7 +492,7 @@ describe("9 · peça dividida — os cantos que a revisão achou", async () => {
   const d = await import("@shared/impressao-dividida");
   const PRODUCAO = ITEMS.slice(ITEMS.indexOf('app.patch("/api/items/:id/start-production"'), ITEMS.indexOf("Auto-add to inventory when fully produced"));
 
-  it("reescalarPartes: encolhe a principal até a soma bater; estica quando o teto cresce; some quando sobra uma chave", () => {
+  it("reescalarPartes: encolhe a principal até a soma bater; NÃO estica quando o teto cresce; some quando sobra uma chave", () => {
     const partes = { "1": { atrib: 8, impressas: 5 }, "2": { atrib: 2, impressas: 0 } };
     // 10 → 7: tira 3 da principal (a "1", com 3 por imprimir).
     expect(d.reescalarPartes(partes, 7)).toEqual({ "1": { atrib: 5, impressas: 5 }, "2": { atrib: 2, impressas: 0 } });
@@ -498,8 +503,8 @@ describe("9 · peça dividida — os cantos que a revisão achou", async () => {
     // 10 → 3: o teto ficou abaixo das impressas — as impressas encolhem junto.
     expect(d.reescalarPartes(partes, 3)).toBeNull();
     expect(d.reescalarPartes({ "1": { atrib: 8, impressas: 5 }, "2": { atrib: 2, impressas: 2 } }, 4)).toEqual({ "1": { atrib: 2, impressas: 2 }, "2": { atrib: 2, impressas: 2 } });
-    // 10 → 12: a principal recebe o que cresceu.
-    expect(d.reescalarPartes(partes, 12)).toEqual({ "1": { atrib: 10, impressas: 5 }, "2": { atrib: 2, impressas: 0 } });
+    // 10 → 12: nenhuma parte estica — a diferença vai para a fila geral (reserva com quantidade).
+    expect(d.reescalarPartes(partes, 12)).toEqual(partes);
     expect(d.reescalarPartes(null, 10)).toBeNull();
     expect(d.partesAtivas({ "1": { atrib: 3, impressas: 3 }, "2": { atrib: 2, impressas: 0 } })).toEqual({ "2": { atrib: 2, impressas: 0 } });
   });
@@ -507,7 +512,7 @@ describe("9 · peça dividida — os cantos que a revisão achou", async () => {
   it("[1] dividida sem `maquina` → 409; qualquer caminho que feche a peça zera o jsonb", () => {
     expect(PRODUCAO).toContain("if (maquina == null || impressasNaMaquina == null) {");
     expect(PRODUCAO).toContain('return res.status(409).json({ error: "Peça dividida entre impressoras: informe a impressora e quantas saíram dela" });');
-    expect(PRODUCAO).toContain('...(newProdStatus === "produced" ? { impressaoPorMaquina: null } : {}),');
+    expect(PRODUCAO).toContain('...(newProdStatus === "produced" ? { impressaoPorMaquina: null, reservaPorMaquina: null, maquinaPrevista: null } : {}),');
   });
 
   it("[2] parte esgotada não é 'imprimindo'; lançamento com delta 0 que não conclui → 409", () => {
@@ -519,9 +524,12 @@ describe("9 · peça dividida — os cantos que a revisão achou", async () => {
 
   it("[3] editar quantidade, reaproveitar e corrigir reaproveitamento reescalam (ou apagam) a divisão", () => {
     const patch = ITEMS.slice(ITEMS.indexOf('app.patch("/api/items/:id", requireAuth'), ITEMS.indexOf("storage.updateItem(req.params.id, updatePayload)"));
-    expect(patch).toContain("updatePayload.impressaoPorMaquina = promoveuParaProduzido ? null : reescalarPartes(lerPartes(currentItem.impressaoPorMaquina), nova - reusoNovo);");
+    expect(patch).toContain("const r = reescalarReservaEPartes(currentItem, nova - reusoNovo);");
+    expect(patch).toContain("if (lerPartes(currentItem.impressaoPorMaquina)) updatePayload.impressaoPorMaquina = promoveuParaProduzido ? null : r.partes;");
+    expect(patch).toContain("Object.assign(updatePayload, colunasDaReserva(promoveuParaProduzido ? null : r.reserva));");
     const reuso = ITEMS.slice(ITEMS.indexOf('app.post("/api/items/:id/mark-reuse"'), ITEMS.indexOf('app.post("/api/items/:id/correct-reuse"'));
-    expect(reuso).toContain("{ impressaoPorMaquina: isReady ? null : reescalarPartes(lerPartes(current.impressaoPorMaquina), current.quantity - newReuse) }");
+    expect(reuso).toContain("const r = reescalarReservaEPartes(current, current.quantity - newReuse);");
+    expect(reuso).toContain("...colunasDaReserva(isReady ? null : r.reserva),");
     expect((reuso.match(/impressaoPorMaquina: null,/g) ?? []).length).toBe(1); // reaproveitar tudo → produzida
     const correcao = ITEMS.slice(ITEMS.indexOf('app.post("/api/items/:id/correct-reuse"'));
     expect(correcao.slice(0, 6000)).toContain("impressaoPorMaquina: null,");
@@ -535,6 +543,134 @@ describe("9 · peça dividida — os cantos que a revisão achou", async () => {
     // O resumo: uma troca de 2 un. não é unidade impressa nem peça concluída.
     const dias = r.agregarRelatorioDeMaquinas([reg("t", "p1", "2", "troca", 2, 3, "2026-09-21", "10:00")]);
     expect(dias[0].maquinas[1]).toMatchObject({ unidades: 0, pecas: 1, concluidas: 0 });
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 10 · RESERVA COM QUANTIDADE (dono, 21/09: "além de reservar, posso
+// direcionar a quantidade e para qual impressora vai"). A conta que tudo
+// protege: em impressão + reservado ≤ a imprimir; o resto é "sem impressora".
+// ─────────────────────────────────────────────────────────────────────────────
+describe("10 · reserva com quantidade — as contas", async () => {
+  const r = await import("@shared/reserva-de-impressora");
+  const d = await import("@shared/impressao-dividida");
+  const liberada = (extra: Record<string, unknown> = {}) => ({ status: "approved", quantity: 34, reuseQty: 0, quantityProduced: 0, printMachine: null, impressaoPorMaquina: null, maquinaPrevista: null, reservaPorMaquina: null, ...extra });
+  /** A invariante, para qualquer peça: nunca passa do que há para imprimir. */
+  const confere = (p: any) => {
+    const soma = r.comprometidoDaPeca(p) + Object.values(r.reservaDaPeca(p)).reduce((s: number, n: any) => s + n, 0) + r.semImpressora(p);
+    expect(soma).toBe(d.aImprimirDaPeca(p));
+  };
+
+  it("reservar tudo, reservar parte, e o resto fica na fila geral", () => {
+    const p = liberada();
+    expect(r.semImpressora(p)).toBe(34);
+    const parte = r.reservar(p, "1", 20);
+    expect(parte).toEqual({ ok: true, reserva: { "1": 20 }, quantidade: 20, semImpressora: 14 });
+    const p2 = liberada({ reservaPorMaquina: { "1": 20 } });
+    expect(r.semImpressora(p2)).toBe(14);
+    expect(r.reservar(p2, "2", null)).toEqual({ ok: true, reserva: { "1": 20, "2": 14 }, quantidade: 14, semImpressora: 0 });
+    expect(r.reservar(p2, "1", 4)).toMatchObject({ ok: true, reserva: { "1": 24 }, semImpressora: 10 });
+    expect(r.reservar(p2, "2", 15)).toMatchObject({ ok: false, erro: "Só 14 un. estão sem impressora — não dá para reservar 15" });
+    expect(r.reservar(p2, "9", 1)).toMatchObject({ ok: false });
+    expect(r.reservar(p, "2", null)).toMatchObject({ ok: true, reserva: { "2": 34 }, semImpressora: 0 });
+    confere(p); confere(p2); confere(liberada({ reservaPorMaquina: { "1": 20, "2": 14 } }));
+  });
+
+  it("o gesto antigo (tudo para a Impressora X, sem quantidade) segue valendo — inclusive para mover tudo", () => {
+    const cheia = liberada({ reservaPorMaquina: { "2": 34 }, maquinaPrevista: "2" });
+    expect(r.reservar(cheia, "3", null)).toMatchObject({ ok: true, reserva: { "3": 34 } });
+    // Linha antiga, só com o atalho maquina_prevista: vale como "tudo naquela impressora".
+    const antiga = liberada({ maquinaPrevista: "2" });
+    expect(r.reservaDaPeca(antiga)).toEqual({ "2": 34 });
+    expect(r.semImpressora(antiga)).toBe(0);
+    confere(antiga);
+  });
+
+  it("mover parte entre impressoras e devolver parte à fila geral", () => {
+    const p = liberada({ reservaPorMaquina: { "1": 20, "2": 14 } });
+    expect(r.moverReserva(p, "1", "2", 5)).toMatchObject({ ok: true, reserva: { "1": 15, "2": 19 }, quantidade: 5 });
+    expect(r.moverReserva(p, "1", "3", null)).toMatchObject({ ok: true, reserva: { "2": 14, "3": 20 } });
+    expect(r.moverReserva(p, "1", "2", 21)).toMatchObject({ ok: false });
+    expect(r.moverReserva(p, "4", "2", 1)).toMatchObject({ ok: false });
+    expect(r.devolverReserva(p, "2", 4)).toMatchObject({ ok: true, reserva: { "1": 20, "2": 10 }, semImpressora: 4 });
+    expect(r.devolverReserva(p, "2", null)).toMatchObject({ ok: true, reserva: { "1": 20 }, semImpressora: 14 });
+    expect(r.devolverReserva(p, null, null)).toMatchObject({ ok: true, reserva: null, quantidade: 34, semImpressora: 34 });
+  });
+
+  it("as duas colunas saem juntas: o atalho é a impressora com mais unidades (empate = menor código)", () => {
+    expect(r.colunasDaReserva({ "1": 20, "2": 14 })).toEqual({ reservaPorMaquina: { "1": 20, "2": 14 }, maquinaPrevista: "1" });
+    expect(r.colunasDaReserva({ "3": 5, "2": 5 })).toEqual({ reservaPorMaquina: { "2": 5, "3": 5 }, maquinaPrevista: "2" });
+    expect(r.colunasDaReserva({ "1": 0 })).toEqual({ reservaPorMaquina: null, maquinaPrevista: null });
+    expect(r.colunasDaReserva(null)).toEqual({ reservaPorMaquina: null, maquinaPrevista: null });
+    expect(r.resumoDaReserva({ "1": 20, "2": 14 })).toBe("Impressora 1 (New XT) (20) · Impressora 2 (14)");
+  });
+
+  it("INICIAR só a parte reservada: consome a reserva dela, as outras continuam; a peça só fecha com tudo impresso", () => {
+    const p = liberada({ reservaPorMaquina: { "1": 20, "2": 14 }, maquinaPrevista: "1" });
+    const a = r.iniciarParte(p, "1", { daReserva: true });
+    expect(a).toEqual({ ok: true, partes: { "1": { atrib: 20, impressas: 0 } }, reserva: { "2": 14 }, quantidade: 20 });
+    // A parte única com atrib < a imprimir NÃO vira null: é ela que diz que só 20 estão na máquina.
+    expect(d.normalizarPartes({ "1": { atrib: 20, impressas: 0 } }, 34)).toEqual({ "1": { atrib: 20, impressas: 0 } });
+    const emImpressao = { ...p, status: "inProduction", printMachine: "1", impressaoPorMaquina: { "1": { atrib: 20, impressas: 20 } }, quantityProduced: 20, reservaPorMaquina: { "2": 14 } };
+    confere(emImpressao);
+    expect(r.comprometidoDaPeca(emImpressao)).toBe(20);
+    expect(d.totalImpressas(d.partesDaPeca(emImpressao))).toBe(20); // 20 de 34: a peça NÃO está produzida
+    expect(d.partesAtivas(d.partesDaPeca(emImpressao))).toEqual({}); // a Impressora 1 já não tem nada dela
+    // Iniciar a parte da Impressora 2 soma às partes; a reserva acaba.
+    const b = r.iniciarParte(emImpressao, "2", { daReserva: true });
+    expect(b).toEqual({ ok: true, partes: { "1": { atrib: 20, impressas: 20 }, "2": { atrib: 14, impressas: 0 } }, reserva: null, quantidade: 14 });
+    expect(r.iniciarParte(emImpressao, "3", { daReserva: true })).toMatchObject({ ok: false });
+    // Da fila geral: só o que está sem impressora.
+    const p3 = liberada({ reservaPorMaquina: { "1": 20 } });
+    expect(r.iniciarParte(p3, "4", { quantidade: null })).toMatchObject({ ok: true, partes: { "4": { atrib: 14, impressas: 0 } }, reserva: { "1": 20 }, quantidade: 14 });
+    expect(r.iniciarParte(p3, "4", { quantidade: 15 })).toMatchObject({ ok: false });
+    // Peça em impressão do jeito antigo (jsonb nulo): tudo já está na máquina — nada livre.
+    const legado = liberada({ status: "inProduction", printMachine: "1", quantityProduced: 3 });
+    expect(r.semImpressora(legado)).toBe(0);
+    expect(r.iniciarParte(legado, "2", { quantidade: 1 })).toMatchObject({ ok: false });
+    confere(legado);
+  });
+
+  it("REESCALAR quando o que há para imprimir muda: sai do sem-impressora, depois da reserva, depois das partes", () => {
+    const p = liberada({ reservaPorMaquina: { "1": 20, "2": 10 } }); // 4 sem impressora
+    expect(r.reescalarReservaEPartes(p, 32)).toEqual({ partes: null, reserva: { "1": 20, "2": 10 } });
+    // 34 → 25: tira 5 da MENOR reserva.
+    expect(r.reescalarReservaEPartes(p, 25)).toEqual({ partes: null, reserva: { "1": 20, "2": 5 } });
+    expect(r.reescalarReservaEPartes(p, 12)).toEqual({ partes: null, reserva: { "1": 12 } });
+    expect(r.reescalarReservaEPartes(p, 0)).toEqual({ partes: null, reserva: null });
+    // Em impressão por partes: 20 na Impressora 1 (8 impressas) + 14 reservadas na 2.
+    const em = liberada({ status: "inProduction", printMachine: "1", quantityProduced: 8, impressaoPorMaquina: { "1": { atrib: 20, impressas: 8 } }, reservaPorMaquina: { "2": 14 } });
+    expect(r.reescalarReservaEPartes(em, 30)).toEqual({ partes: { "1": { atrib: 20, impressas: 8 } }, reserva: { "2": 10 } });
+    expect(r.reescalarReservaEPartes(em, 20)).toEqual({ partes: { "1": { atrib: 20, impressas: 8 } }, reserva: null });
+    // Abaixo do que já está na máquina: a reserva zera e a parte encolhe (vira "tudo" → null).
+    expect(r.reescalarReservaEPartes(em, 15)).toEqual({ partes: null, reserva: null });
+    for (const teto of [34, 30, 25, 20, 15, 8]) {
+      const x = r.reescalarReservaEPartes(em, teto);
+      const emImp = x.partes ? Object.values(x.partes).reduce((s: number, y: any) => s + y.atrib, 0) : Math.min(teto, 20);
+      const res = Object.values(x.reserva ?? {}).reduce((s: number, n: any) => s + n, 0);
+      expect(emImp + res, `teto ${teto}`).toBeLessThanOrEqual(teto);
+    }
+  });
+
+  it("o dado e as rotas: coluna aditiva, fora da API pública, compacto de ida e volta; quantidade/deMaquina no PATCH; lote = tudo", async () => {
+    expect(SCHEMA).toContain('reservaPorMaquina: jsonb("reserva_por_maquina")');
+    expect(SCHEMA.slice(SCHEMA.indexOf("export const publicInsertItemSchema"))).toContain("reservaPorMaquina: true,");
+    expect(ler("scripts/migracao-aditiva-producao.sql")).toContain("ALTER TABLE items ADD COLUMN IF NOT EXISTS reserva_por_maquina jsonb;");
+    expect(ler("scripts/migracao-aditiva-producao.mjs")).toContain("'reserva_por_maquina'");
+    const { compactarPecas, expandirPecas } = await import("@shared/itens-compactos");
+    const peca = { id: "p1", displayId: "#0396", status: "approved", quantity: 34, maquinaPrevista: "1", reservaPorMaquina: { "1": 20, "2": 14 }, eventId: "e1", event: { id: "e1", name: "Maratona" } };
+    expect(JSON.stringify(expandirPecas(compactarPecas([peca]))[0])).toBe(JSON.stringify(peca));
+    const ROTA = ler("server/routes/maquinas.ts");
+    expect(ROTA).toContain("const r = aplicarPedidoDeReserva(atual, req.body, pedido.maquina);");
+    expect(ROTA).toContain("const r = moverReserva(item, de, maquina, quantidade);");
+    expect(ROTA).toContain("const r = devolverReserva(item, de, quantidade);");
+    expect(ROTA).toContain("const reserva = pedido.maquina && livre > 0 ? { [pedido.maquina]: livre } : null;");
+    // Em impressão POR PARTES a peça continua reservável (o resto dela).
+    expect(ROTA).toContain("&& !!lerPartes(item.impressaoPorMaquina) && livreParaReservar(item) > 0;");
+    const rota = ITEMS.slice(ITEMS.indexOf('app.patch("/api/items/:id/start-printing"'), ITEMS.indexOf('app.patch("/api/items/:id/start-production"'));
+    expect(rota).toContain("const r = iniciarParteDaPeca(current, printMachine, { daReserva: daReserva === true, quantidade: quantidade == null ? null : Number(quantidade) });");
+    expect(rota).toContain("const trocouDeMaquina = pedeParte !== true &&");
+    expect(GRAFICA).toContain("Fila: {dividida ? resumoDaReserva(lerReserva(reserva)) : rotuloDaMaquina(maquina)}");
   });
 });
 

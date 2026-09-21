@@ -95,6 +95,16 @@ type PecaNaFila = PecaNaMaquina & {
   saidaCaminhao: string | null;
   /** Dias em relação à saída do caminhão (negativo = antes). */
   prazoProducaoGrafica: number;
+  // Reserva COM QUANTIDADE (21/09). Servidor na versão anterior não manda
+  // nenhum destes: a tela cai no comportamento "tudo numa impressora".
+  /** Unidades reservadas por impressora: { "1": 20, "2": 14 }. */
+  reserva?: Record<string, number>;
+  /** Unidades ainda sem impressora (é o que mantém a peça na fila geral). */
+  semImpressora?: number;
+  /** No cartão de uma impressora: quantas unidades estão reservadas PARA ELA. */
+  reservadas?: number;
+  /** Impressoras onde a peça JÁ está imprimindo (iniciou só uma parte). */
+  imprimindoEm?: string[];
 };
 
 type Maquina = {
@@ -401,9 +411,11 @@ function useReservarImpressora() {
   const { toast } = useToast();
   const invalidar = () => { for (const k of CHAVES_DA_RESERVA) queryClient.invalidateQueries({ queryKey: [k] }); };
   return useMutation({
-    mutationFn: async ({ itemIds, maquina }: { itemIds: string[]; maquina: string | null }) => {
+    // Unitário: { maquina, quantidade?, deMaquina? } — reservar parte, mover parte
+    // entre impressoras ou devolver parte. O lote é sempre "tudo".
+    mutationFn: async ({ itemIds, maquina, quantidade, deMaquina }: { itemIds: string[]; maquina: string | null; quantidade?: number | null; deMaquina?: string | null }) => {
       const res = itemIds.length === 1
-        ? await apiRequest("PATCH", `/api/items/${itemIds[0]}/maquina-prevista`, { maquina })
+        ? await apiRequest("PATCH", `/api/items/${itemIds[0]}/maquina-prevista`, { maquina, ...(quantidade != null ? { quantidade } : {}), ...(deMaquina ? { deMaquina } : {}) })
         : await apiRequest("PATCH", "/api/items/bulk-maquina-prevista", { itemIds, maquina });
       return itemIds.length === 1 ? { atualizadas: 1, erros: [] as { displayId: string | null; erro: string }[] } : await res.json();
     },
@@ -412,7 +424,9 @@ function useReservarImpressora() {
       const n = Number(r?.atualizadas ?? 0);
       const erros: { displayId: string | null; erro: string }[] = r?.erros ?? [];
       toast({
-        title: vars.maquina ? `${plural(n, "peça reservada", "peças reservadas")} para a ${rotuloDaMaquina(vars.maquina)}` : `${plural(n, "peça devolvida", "peças devolvidas")} à fila geral`,
+        title: vars.quantidade != null
+          ? (vars.maquina ? `${vars.quantidade} un. ${vars.deMaquina ? "movidas" : "reservadas"} para a ${rotuloDaMaquina(vars.maquina)}` : `${vars.quantidade} un. devolvidas à fila geral`)
+          : vars.maquina ? `${plural(n, "peça reservada", "peças reservadas")} para a ${rotuloDaMaquina(vars.maquina)}` : `${plural(n, "peça devolvida", "peças devolvidas")} à fila geral`,
         description: erros.length ? `${erros.length} não ${erros.length === 1 ? "entrou" : "entraram"}: ${erros.map((e) => e.displayId ?? "peça").join(", ")} — ${erros[0].erro}` : "Nada muda na etapa da peça — é só a fila desta tela.",
         variant: erros.length && n === 0 ? "destructive" : undefined,
       });
@@ -461,6 +475,58 @@ function SeletorDeReserva({ valor, excluir, disabled, alvo, isMobile, testId, ro
       {valor && <option value="geral">Devolver à fila geral</option>}
     </select>
   );
+}
+
+/**
+ * "Reservar": impressora + QUANTIDADE (dono, 21/09: "além de reservar, posso
+ * direcionar a quantidade e para qual impressora vai"). A quantidade nasce
+ * com tudo o que ainda está sem impressora; reservar menos deixa o resto na
+ * fila geral, para outra impressora.
+ */
+function ControleDeReserva({ id, semImpressora, disabled, alvo, isMobile, onReservar }: {
+  id: string; semImpressora: number; disabled?: boolean; alvo: number; isMobile: boolean; onReservar: (maquina: string, quantidade: number) => void;
+}) {
+  const [maquina, setMaquina] = useState("");
+  const [qtd, setQtd] = useState<number | "">("");
+  const n = qtd === "" ? semImpressora : qtd;
+  const valida = n >= 1 && n <= semImpressora;
+  const campo: React.CSSProperties = { minHeight: alvo, height: alvo, boxSizing: "border-box", borderRadius: R.md, border: `1px solid ${T.bdark}`, background: T.surface, color: T.text, fontSize: isMobile ? 16 : 12, fontWeight: 700 };
+  return (
+    <div role="group" aria-label="Reservar impressora" data-testid={`controle-reserva-${id}`} style={{ display: isMobile ? "flex" : "inline-flex", alignItems: "center", gap: 6, flexWrap: "wrap", ...(isMobile ? { flex: "1 1 100%", width: "100%" } : {}) }}>
+      <select aria-label="Impressora" value={maquina} disabled={disabled} onChange={(e) => setMaquina(e.target.value)} data-testid={`reservar-fila-${id}`} style={{ ...campo, padding: "0 8px", cursor: disabled ? "not-allowed" : "pointer", maxWidth: "100%", ...(isMobile ? { flex: "1 1 100%", width: "100%" } : {}) }}>
+        <option value="">Impressora…</option>
+        {MAQUINAS_DE_IMPRESSAO.map((m) => <option key={m} value={m}>{rotuloDaMaquina(m)}</option>)}
+      </select>
+      <input
+        type="number" inputMode="numeric" pattern="[0-9]*" min={1} max={semImpressora}
+        value={qtd} placeholder={String(semImpressora)} disabled={disabled}
+        onChange={(e) => setQtd(e.target.value === "" ? "" : Math.max(0, parseInt(e.target.value) || 0))}
+        aria-label={`Quantas das ${semImpressora} un. reservar (vazio = todas)`}
+        aria-invalid={!valida || undefined}
+        title={valida ? undefined : `De 1 a ${semImpressora}`}
+        data-testid={`qtd-reservar-${id}`}
+        style={{ ...campo, width: 68, textAlign: "center", padding: "0 6px", borderColor: valida ? T.bdark : VERMELHO.border, ...(isMobile ? { flex: "0 0 84px", width: 84 } : {}) }}
+      />
+      <button
+        type="button"
+        className="mq-acao"
+        disabled={disabled || !maquina || !valida}
+        onClick={() => { if (maquina && valida) { onReservar(maquina, n); setQtd(""); setMaquina(""); } }}
+        data-testid={`button-reservar-${id}`}
+        title={!maquina ? "Escolha a impressora" : !valida ? `De 1 a ${semImpressora}` : `Reservar ${n} un. para a ${rotuloDaMaquina(maquina)}`}
+        style={{ minHeight: alvo, padding: "0 12px", borderRadius: R.md, border: `1px solid ${T.bdark}`, background: T.surface, color: T.text, fontSize: isMobile ? 13 : 12, fontWeight: 700, cursor: disabled || !maquina || !valida ? "not-allowed" : "pointer", opacity: disabled || !maquina || !valida ? 0.55 : 1, whiteSpace: "nowrap", ...(isMobile ? { flex: "1 1 auto" } : {}) }}
+      >
+        Reservar
+      </button>
+    </div>
+  );
+}
+
+/** "20 → Impressora 1 · 14 sem impressora" — o que já foi direcionado desta peça. */
+export function textoDoDirecionamento(reserva: Record<string, number> | undefined, semImpressora: number | undefined, imprimindoEm?: string[]): string {
+  const partes = Object.entries(reserva ?? {}).filter(([, n]) => n > 0).map(([m, n]) => `${n} → ${rotuloDaMaquina(m)}`);
+  if (!partes.length && !(imprimindoEm ?? []).length) return "";
+  return [...partes, ...(imprimindoEm ?? []).map((m) => `imprimindo na ${rotuloDaMaquina(m)}`), `${semImpressora ?? 0} sem impressora`].join(" · ");
 }
 
 // ─── O seletor de peça (dono, 21/09: "tinha que ser mais fácil de selecionar
@@ -574,7 +640,7 @@ function SeletorDePeca({ maquina, reservadas, filaGeral, atualizando, hojeMs, on
                           </span>
                         </span>
                         <span style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4, flexShrink: 0 }}>
-                          {p.reservada && <Pilula pal={P.amber} fonte={fonte} testId={`selo-reservada-${p.id}`}>Reservada</Pilula>}
+                          {p.reservada && <Pilula pal={P.amber} fonte={fonte} testId={`selo-reservada-${p.id}`}>{p.reservadas != null && p.reservadas < p.aImprimir ? `Reservada · ${p.reservadas} un.` : "Reservada"}</Pilula>}
                           <SeloDePrazo p={prazo} fonte={fonte} />
                         </span>
                       </button>
@@ -602,9 +668,15 @@ function SeletorDePeca({ maquina, reservadas, filaGeral, atualizando, hojeMs, on
 // (Uma impressora pode ter mais de uma peça ao mesmo tempo — "Imprimindo 2" —
 // então iniciar nunca é barrado por ela estar ocupada.)
 function PecaNaFilaDoCartao({ p, podeAgir, hojeMs, isMobile, onIniciar, onReservar }: {
-  p: PecaNaFila; podeAgir: boolean; hojeMs: number; isMobile: boolean; onIniciar: (p: PecaNaFila) => void; onReservar: (p: PecaNaFila, maquina: string | null) => void;
+  p: PecaNaFila; podeAgir: boolean; hojeMs: number; isMobile: boolean; onIniciar: (p: PecaNaFila) => void; onReservar: (p: PecaNaFila, maquina: string | null, quantidade: number | null) => void;
 }) {
   const ocupado = false;
+  // Quantas unidades estão reservadas PARA ESTA impressora; mover/devolver
+  // aceita uma parte delas (campo ao lado do seletor; vazio = todas).
+  const reservadas = p.reservadas ?? p.aImprimir;
+  const [qtd, setQtd] = useState<number | "">("");
+  const qtdValida = qtd === "" || (qtd >= 1 && qtd <= reservadas);
+  const jaImprimindo = (p.imprimindoEm ?? []).filter((m) => m !== p.maquinaPrevista);
   const selo = seloPecaEventoFinalizado(p.eventoInfo, hojeMs);
   const alvo = isMobile ? 44 : 34;
   const prazo = prazoDaPeca(p.saidaCaminhao, p.prazoProducaoGrafica);
@@ -618,8 +690,13 @@ function PecaNaFilaDoCartao({ p, podeAgir, hojeMs, isMobile, onIniciar, onReserv
         <SeloDePrazo p={prazo} fonte={isMobile ? 12 : FS.small} />
       </div>
       <div style={{ fontSize: isMobile ? 12 : FS.small, color: T.second, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflowWrap: "anywhere" }}>
-        {[p.evento, `${p.aImprimir} un.`, p.m2 != null ? `${p.m2.toLocaleString("pt-BR", { maximumFractionDigits: 2 })} m²` : null].filter(Boolean).join(" · ")}
+        {[p.evento, reservadas < p.aImprimir ? `${reservadas} de ${p.aImprimir} un.` : `${p.aImprimir} un.`, p.m2 != null ? `${p.m2.toLocaleString("pt-BR", { maximumFractionDigits: 2 })} m²` : null].filter(Boolean).join(" · ")}
       </div>
+      {jaImprimindo.length > 0 && (
+        <div data-testid={`ja-imprimindo-${p.id}`} style={{ fontSize: isMobile ? 12 : FS.small, color: IMP.text, fontWeight: 700 }}>
+          {reservadas} un. na fila · peça já em impressão na {jaImprimindo.map((m) => rotuloDaMaquina(m)).join(" e na ")}
+        </div>
+      )}
       {podeAgir && (
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
           <button
@@ -634,7 +711,18 @@ function PecaNaFilaDoCartao({ p, podeAgir, hojeMs, isMobile, onIniciar, onReserv
             <Play aria-hidden="true" style={{ width: 12, height: 12, flexShrink: 0 }} />
             Iniciar impressão
           </button>
-          <SeletorDeReserva valor={p.maquinaPrevista} excluir={p.maquinaPrevista} alvo={alvo} isMobile={isMobile} testId={`mover-fila-${p.id}`} rotulo="Mover para…" onEscolher={(m) => onReservar(p, m)} />
+          {reservadas > 1 && (
+            <input
+              type="number" inputMode="numeric" pattern="[0-9]*" min={1} max={reservadas}
+              value={qtd} placeholder={String(reservadas)}
+              onChange={(e) => setQtd(e.target.value === "" ? "" : Math.max(0, parseInt(e.target.value) || 0))}
+              aria-label={`Quantas das ${reservadas} un. mover ou devolver (vazio = todas)`}
+              aria-invalid={!qtdValida || undefined}
+              data-testid={`qtd-mover-fila-${p.id}`}
+              style={{ width: 64, minHeight: alvo, height: alvo, boxSizing: "border-box", textAlign: "center", borderRadius: R.md, border: `1px solid ${qtdValida ? T.bdark : VERMELHO.border}`, background: T.surface, color: T.text, fontSize: isMobile ? 16 : 12, fontWeight: 700, padding: "0 6px" }}
+            />
+          )}
+          <SeletorDeReserva valor={p.maquinaPrevista} excluir={p.maquinaPrevista} disabled={!qtdValida} alvo={alvo} isMobile={isMobile} testId={`mover-fila-${p.id}`} rotulo={qtd === "" ? "Mover para…" : `Mover ${qtd} para…`} onEscolher={(m) => onReservar(p, m, qtd === "" ? null : qtd)} />
         </div>
       )}
     </div>
@@ -646,7 +734,9 @@ function PecaNoCartao({ p, agora, podeAgir, hojeMs, isMobile, onAgir }: {
   p: PecaNaMaquina; agora: number; podeAgir: boolean; hojeMs: number; isMobile: boolean; onAgir: (p: PecaNaMaquina, trocar: boolean) => void;
 }) {
   // Dividida: o cartão mostra e age sobre a PARTE desta impressora.
-  const dividida = !!p.parte && !!p.impressaoPorMaquina && Object.keys(p.impressaoPorMaquina).length > 1;
+  // (Vale também com UMA parte só: a peça que iniciou apenas a parte reservada
+  // a esta impressora tem teto menor que a peça.)
+  const dividida = !!p.parte;
   const feitas = dividida ? p.parte!.impressas : p.impressas;
   const teto = dividida ? p.parte!.atrib : p.aImprimir;
   const pct = teto > 0 ? Math.min(100, Math.round((feitas / teto) * 100)) : 0;
@@ -998,15 +1088,17 @@ export default function GraficaMaquinas() {
   // `trocar` abre direto no painel de impressora (ação "Trocar de máquina" do cartão).
   // `maquinaInicial`: peça reservada abre em "Iniciar impressão" já com a
   // impressora marcada (o servidor limpa a reserva ao iniciar).
-  const [pecaNoModal, setPecaNoModal] = useState<{ peca: PecaNaMaquina; trocar: boolean; maquinaInicial: string | null } | null>(null);
+  const [pecaNoModal, setPecaNoModal] = useState<{ peca: PecaNaMaquina; trocar: boolean; maquinaInicial: string | null; parte?: { quantidade: number; daReserva: boolean } | null } | null>(null);
   const itemDoModal = useMemo(() => (pecaNoModal ? pecaParaOModal(pecaNoModal.peca) : null), [pecaNoModal]);
   const abrirModal = (peca: PecaNaMaquina, trocar: boolean) => setPecaNoModal({ peca, trocar, maquinaInicial: null });
-  const iniciarDaFila = (p: PecaNaFila) => setPecaNoModal({ peca: p, trocar: false, maquinaInicial: p.maquinaPrevista });
+  // Do cartão: inicia SÓ a parte reservada àquela impressora (o servidor
+  // consome essa reserva; as outras da peça continuam valendo).
+  const iniciarDaFila = (p: PecaNaFila) => setPecaNoModal({ peca: p, trocar: false, maquinaInicial: p.maquinaPrevista, parte: p.reservadas != null ? { quantidade: p.reservadas, daReserva: true } : null });
   const hojeMs = todayBusinessMs();
 
   // ── Reservar impressora (fila geral ↔ fila da impressora) ─────────────────
   const reserva = useReservarImpressora();
-  const reservar = (itemIds: string[], maquina: string | null) => { if (itemIds.length) reserva.mutate({ itemIds, maquina }); };
+  const reservar = (itemIds: string[], maquina: string | null, quantidade?: number | null, deMaquina?: string | null) => { if (itemIds.length) reserva.mutate({ itemIds, maquina, quantidade, deMaquina }); };
   // Seleção em lote da fila geral: só ids; some ao mudar o recorte do retrato.
   const [selecionadas, setSelecionadas] = useState<Set<string>>(() => new Set());
   const filaGeral = useMemo(() => ordenarFila(data?.filaGeral ?? []), [data?.filaGeral]);
@@ -1268,7 +1360,7 @@ export default function GraficaMaquinas() {
                         <div data-testid={`fila-maquina-${m.codigo}`} style={{ display: "flex", flexDirection: "column", gap: 2, marginTop: 2 }}>
                           <div style={{ ...ROTULO_MICRO, fontSize: isMobile ? 12 : FS.micro, paddingTop: 6 }}>Na fila desta impressora · {naFila.length}</div>
                           {naFila.map((p) => (
-                            <PecaNaFilaDoCartao key={p.id} p={p} podeAgir={podeAgir} hojeMs={hojeMs} isMobile={isMobile} onIniciar={iniciarDaFila} onReservar={(peca, maquina) => reservar([peca.id], maquina)} />
+                            <PecaNaFilaDoCartao key={p.id} p={p} podeAgir={podeAgir} hojeMs={hojeMs} isMobile={isMobile} onIniciar={iniciarDaFila} onReservar={(peca, maquina, quantidade) => reservar([peca.id], maquina, quantidade ?? (peca.reservadas != null ? peca.reservadas : null), peca.reservadas != null ? m.codigo : null)} />
                           ))}
                         </div>
                       )}
@@ -1352,10 +1444,15 @@ export default function GraficaMaquinas() {
                               <span style={{ fontSize: isMobile ? 12 : FS.small, color: T.second, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflowWrap: "anywhere" }}>
                                 {[p.evento, `${p.aImprimir} un.`, p.m2 != null ? `${p.m2.toLocaleString("pt-BR", { maximumFractionDigits: 2 })} m²` : null].filter(Boolean).join(" · ")}
                               </span>
+                              {textoDoDirecionamento(p.reserva, p.semImpressora, p.imprimindoEm) && (
+                                <span data-testid={`direcionado-${p.id}`} style={{ fontSize: isMobile ? 12 : FS.small, color: IMP.text, fontWeight: 700, fontVariantNumeric: "tabular-nums", overflowWrap: "anywhere" }}>
+                                  {textoDoDirecionamento(p.reserva, p.semImpressora, p.imprimindoEm)}
+                                </span>
+                              )}
                             </Link>
                             <SeloDePrazo p={prazo} fonte={isMobile ? 12 : FS.small} />
                             {podeAgir && (
-                              <SeletorDeReserva valor={null} excluir={null} disabled={!!selo || reserva.isPending} alvo={alvo} isMobile={isMobile} testId={`reservar-fila-${p.id}`} rotulo="Reservar para…" onEscolher={(m) => reservar([p.id], m)} />
+                              <ControleDeReserva id={p.id} semImpressora={p.semImpressora ?? p.aImprimir} disabled={!!selo || reserva.isPending} alvo={alvo} isMobile={isMobile} onReservar={(m, n) => reservar([p.id], m, n)} />
                             )}
                           </div>
                         );
@@ -1599,7 +1696,7 @@ export default function GraficaMaquinas() {
 
       {/* O mesmo modal da fila da Gráfica: iniciar não cabe aqui (a peça já
           está na máquina), então ele abre direto em "informar impressas". */}
-      <ModalImpressao item={itemDoModal} abrirNaTroca={pecaNoModal?.trocar ?? false} maquinaInicial={pecaNoModal?.maquinaInicial ?? null} maquinaEmQuestao={pecaNoModal?.peca.parte ? pecaNoModal.peca.maquina : null} onFechar={() => setPecaNoModal(null)} />
+      <ModalImpressao item={itemDoModal} abrirNaTroca={pecaNoModal?.trocar ?? false} maquinaInicial={pecaNoModal?.maquinaInicial ?? null} maquinaEmQuestao={pecaNoModal?.peca.parte ? pecaNoModal.peca.maquina : null} parteAIniciar={pecaNoModal?.parte ?? null} onFechar={() => setPecaNoModal(null)} />
 
       {/* O seletor de peça do cartão "Livre": fecha e passa a vez ao modal de
           impressão, já com a impressora marcada. */}
@@ -1610,7 +1707,15 @@ export default function GraficaMaquinas() {
         atualizando={isFetching && !isLoading}
         hojeMs={hojeMs}
         onFechar={() => setSeletorDaMaquina(null)}
-        onEscolher={(p, codigo) => { setSeletorDaMaquina(null); setPecaNoModal({ peca: p, trocar: false, maquinaInicial: codigo }); }}
+        onEscolher={(p, codigo) => {
+          setSeletorDaMaquina(null);
+          // Reservada para esta impressora: só a parte dela. Da fila geral: o
+          // que está sem impressora (a peça inteira quando nada foi direcionado).
+          const parte = p.reservadas != null ? { quantidade: p.reservadas, daReserva: true }
+            : p.semImpressora != null && (p.semImpressora < p.aImprimir || (p.imprimindoEm ?? []).length > 0) ? { quantidade: p.semImpressora, daReserva: false }
+            : null;
+          setPecaNoModal({ peca: p, trocar: false, maquinaInicial: codigo, parte });
+        }}
       />
     </div>
   );

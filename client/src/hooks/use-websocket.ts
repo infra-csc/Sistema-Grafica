@@ -365,6 +365,15 @@ export function useWebSocket() {
             invalidateCoalesced('/api/events');
             break;
 
+          case 'tubos_atualizados':
+            // TUBOS (14/09): criar, mexer, apagar ou entregar um tubo. A fila lê
+            // o número de /api/tubos (selo "Tubo N") e o painel lê
+            // /api/events/:id/tubos — sem isto, o colega do outro celular via o
+            // tubo antigo até o próximo polling.
+            invalidateCoalesced('/api/tubos');
+            if (data.eventId) invalidateCoalesced(`/api/events/${data.eventId}/tubos`);
+            break;
+
           case 'items_submitted':
             invalidateCoalesced('/api/items');
             toast({
@@ -392,7 +401,8 @@ export function useWebSocket() {
             invalidateCoalesced('/api/items/approved');
             invalidateCoalesced('/api/events');
             toast({
-              title: data.type === 'production_started' ? 'Produção iniciada' : 'Produção atualizada',
+              // "Impressão" (14/09): o status inProduction chama-se Em Impressão.
+              title: data.type === 'production_started' ? 'Impressão iniciada' : 'Impressão atualizada',
               description: data.item?.type ? `Peça ${data.item.type} atualizada` : undefined,
             });
             break;

@@ -46,6 +46,9 @@ export const REGUA_DE_PAPEIS: RegraDeRota[] = [
   { metodo: "POST", rota: "/api/events", papeis: ["admin", "solicitacao"] },
   { metodo: "POST", rota: "/api/events/:eventId/book", papeis: ["admin", "arte"] },
   { metodo: "POST", rota: "/api/events/:eventId/book/notify", papeis: ["admin"] },
+  // Tubos (dono, 14/09): a embalagem da conferência e da entrega — os mesmos
+  // papéis de conferir e entregar.
+  { metodo: "POST", rota: "/api/events/:eventId/tubos", papeis: ["admin", "grafica", "solicitacao"] },
   { metodo: "DELETE", rota: "/api/events/:eventId/sponsors/:sponsorId", papeis: ["admin", "arte", "atendimento", "solicitacao"] },
   { metodo: "PATCH", rota: "/api/events/:eventId/sponsors/:sponsorId", papeis: ["admin", "arte", "atendimento", "solicitacao"] },
   { metodo: "DELETE", rota: "/api/events/:id", papeis: ["admin"] },
@@ -128,6 +131,9 @@ export const REGUA_DE_PAPEIS: RegraDeRota[] = [
   { metodo: "PATCH", rota: "/api/standard-items/rename-finish", papeis: ["admin", "solicitacao"] },
   { metodo: "PATCH", rota: "/api/standard-items/rename-group", papeis: ["admin", "solicitacao"] },
   { metodo: "PATCH", rota: "/api/standard-items/rename-material", papeis: ["admin", "solicitacao"] },
+  { metodo: "DELETE", rota: "/api/tubos/:id", papeis: ["admin", "grafica", "solicitacao"] },
+  { metodo: "POST", rota: "/api/tubos/:id/entregar", papeis: ["admin", "grafica", "solicitacao"] },
+  { metodo: "PATCH", rota: "/api/tubos/:id/itens", papeis: ["admin", "grafica", "solicitacao"] },
   { metodo: "DELETE", rota: "/api/users/:id", papeis: ["admin"] },
   { metodo: "PATCH", rota: "/api/users/:id", papeis: ["admin"] },
 ];

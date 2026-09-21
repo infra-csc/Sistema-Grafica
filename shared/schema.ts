@@ -301,6 +301,9 @@ export const items = pgTable("items", {
   // também vira linha no audit_log, onde o histórico de reimpressões
   // sobrevive — mesmo padrão de statusChangedAt. NULL = nunca impressa.
   labelPrintedAt: timestamp("label_printed_at"),
+  // EM QUAL TUBO a peça vai para a entrega (dono, 14/09). A peça vai INTEIRA
+  // para um tubo só — decisão do dono. NULL = ainda sem tubo.
+  tuboId: varchar("tubo_id").references((): any => tubos.id, { onDelete: "set null" }),
   referenceUrl: text("reference_url"), // Anexo/referência de demonstração das peças (upload do Solicitante)
   // MAIS DE UMA referência por peça (pedido do dono, 25/08). A lista completa
   // vive aqui; referenceUrl continua sendo A PRIMEIRA da lista — as sete telas
@@ -328,6 +331,7 @@ export const items = pgTable("items", {
 }, (table) => [
   // Filtros mais usados nas listagens (por evento e por status/fase).
   index("IDX_items_event_id").on(table.eventId),
+  index("IDX_items_tubo_id").on(table.tuboId),
   index("IDX_items_status").on(table.status),
   // Toda listagem ordena por created_at e filtra deleted_at IS NULL (soft delete).
   index("IDX_items_created_at").on(table.createdAt),
@@ -446,6 +450,28 @@ export const registrosDeImpressao = pgTable("registros_de_impressao", {
 }, (table) => [
   index("IDX_registros_impressao_maquina_data").on(table.maquina, table.createdAt),
   index("IDX_registros_impressao_item").on(table.itemId),
+]);
+
+// TUBOS — a embalagem da entrega (dono, 14/09: "na hora da conferência muitas
+// peças vão no mesmo tubo… na hora da entrega, entregar por tubos").
+//
+// Numerado por EVENTO (Tubo 1, Tubo 2…) — o caminhão é por evento, e é assim
+// que o galpão fala. A entrega do tubo mora aqui (foto, recebedor, quando),
+// porque é UMA entrega para tudo que está dentro; cada peça também recebe o
+// comprovante, para a ficha dela continuar dizendo quando e com que foto saiu.
+export const tubos = pgTable("tubos", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  eventId: varchar("event_id").notNull().references(() => events.id, { onDelete: "cascade" }),
+  numero: integer("numero").notNull(),
+  criadoPor: text("criado_por"),
+  entregueEm: timestamp("entregue_em"),
+  recebidoPor: text("recebido_por"),
+  fotoEntregaUrl: text("foto_entrega_url"),
+  entregueObs: text("entregue_obs"),
+  entreguePor: text("entregue_por"),
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
+}, (table) => [
+  uniqueIndex("UQ_tubos_evento_numero").on(table.eventId, table.numero),
 ]);
 
 // -----------------------------------------------------------------------------

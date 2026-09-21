@@ -24,6 +24,7 @@ import { apiRequest, queryClient, getCurrentUserName } from "@/lib/queryClient";
 import { convertGCSUrlToLocalPath } from "@/lib/artePdfExport";
 import { useToast } from "@/hooks/use-toast";
 import { ObjectUploader } from "@/components/ObjectUploader";
+import { TubosDialog } from "@/components/tubos-dialog";
 import { ItemDetailsDialog } from "@/components/item-details-dialog";
 import { useIsMobile, useElementSize, densityFromWidth } from "@/hooks/use-mobile";
 import {
@@ -37,7 +38,7 @@ import { useAuth } from "@/contexts/auth-context";
 import { ModalHeader, modalSurface, HIDE_NATIVE_CLOSE } from "@/components/modal-shell";
 import { GalpaoFila, type GalpaoDados } from "@/components/galpao-fila";
 import { SugestaoRecebedor } from "@/components/sugestao-recebedor";
-import { EM_REVISAO, MAQUINAS_DE_IMPRESSAO, rotuloDaMaquina } from "@shared/fluxo-peca";
+import { EM_REVISAO, MAQUINAS_DE_IMPRESSAO, rotuloDaMaquina, podeIrParaTubo } from "@shared/fluxo-peca";
 // Aritmética de saldo: fonte única em lib/saldo.ts. Estes onze cálculos
 // (quanto falta produzir, conferir, entregar, reaproveitar; quanto de m²
 // realmente vai para a impressora) viviam duplicados como consts locais no
@@ -146,6 +147,11 @@ const parentDisplayIdOf = (item: any) =>
 // não tem máquina — aí o botão só diz a ação, em vez de "máquina não informada".
 const rotuloRegistrarImpressao = (item: { printMachine?: string | null }) =>
   item.printMachine ? `${rotuloDaMaquina(item.printMachine)} · Registrar` : "Registrar impressão";
+// Resumo de tubo que a fila lê (número por id). Constante vazia ESTÁVEL: ver
+// o useQuery de /api/tubos.
+type TuboResumo = { id: string; numero: number; eventId: string; entregueEm: string | null };
+const SEM_TUBOS: TuboResumo[] = [];
+
 const complementOpen = (item: any) => isComplement(item) && !isDelivered(item);
 /** Espelha o gate do servidor no DELETE /api/items/:id/complement. */
 const complementUntouched = (item: any) =>
@@ -1131,6 +1137,23 @@ export default function Grafica() {
     },
   });
 
+  // TUBOS (dono, 14/09): na conferência a peça já pode ir para um tubo, e
+  // cada evento abre o painel de tubos para agrupar e entregar por tubo.
+  const [tuboDaConferencia, setTuboDaConferencia] = useState<string>("");
+  const [tubosDoEvento, setTubosDoEvento] = useState<{ id: string; name: string } | null>(null);
+  // Sem `= []` no destructuring: o array novo a cada render mudaria o
+  // `numeroDoTubo` (e as deps de TODAS as linhas memoizadas) a cada render.
+  const { data: todosOsTubos = SEM_TUBOS } = useQuery<TuboResumo[]>({
+    queryKey: ["/api/tubos"],
+    refetchInterval: 60_000,
+  });
+  const numeroDoTubo = useMemo(() => new Map(todosOsTubos.map((t) => [t.id, t.numero])), [todosOsTubos]);
+  const eventoDaConferencia = modalType === "conference" ? selectedItem?.eventId : undefined;
+  const { data: tubosDaConferencia } = useQuery<any>({
+    queryKey: [`/api/events/${eventoDaConferencia}/tubos`],
+    enabled: !!eventoDaConferencia,
+  });
+
   // Mesmo desenho da entrega: o toast nomeia a peça e a quantidade, e o erro
   // recarrega a fila (o colega pode ter conferido a mesma peça no celular).
   const conferMutation = useMutation({
@@ -1849,6 +1872,9 @@ export default function Grafica() {
     // deixava fotos órfãs na galeria.
     const itemId = selectedItem.id;
     const photosToAttach = photos;
+    const eventoDaPeca = selectedItem.eventId;
+    const tuboAntes = selectedItem.tuboId ?? "";
+    const tuboEscolhido = tuboDaConferencia;
     try {
       await conferMutation.mutateAsync({ itemId, displayId: selectedItem.displayId, conferencePhotoUrl: photosToAttach[0], qty: conferQty, notes: modalNotes });
     } catch {
@@ -1862,6 +1888,25 @@ export default function Grafica() {
     ));
     if (results.some(r => r.status === "rejected")) {
       toast({ title: "Conferência registrada", description: "Parte das fotos não pôde ser anexada.", variant: "destructive" });
+    }
+    // O TUBO (dono, 14/09): conferida, a peça vai para o tubo escolhido. Falhar
+    // aqui NÃO desfaz a conferência — só avisa, e dá para agrupar no painel.
+    if (tuboEscolhido !== tuboAntes) {
+      try {
+        if (tuboEscolhido === "novo") {
+          const r = await apiRequest("POST", `/api/events/${eventoDaPeca}/tubos`, { itemIds: [itemId] });
+          const t = await r.json().catch(() => null);
+          toast({ title: t?.numero ? `Foi para o Tubo ${t.numero}` : "Foi para um tubo novo" });
+        } else if (tuboEscolhido) {
+          await apiRequest("PATCH", `/api/tubos/${tuboEscolhido}/itens`, { adicionar: [itemId] });
+        } else if (tuboAntes) {
+          await apiRequest("PATCH", `/api/tubos/${tuboAntes}/itens`, { remover: [itemId] });
+        }
+      } catch (e: any) {
+        toast({ title: "Conferida, mas não entrou no tubo", description: apiErrorMessage(e), variant: "destructive" });
+      }
+      queryClient.invalidateQueries({ queryKey: ["/api/tubos"] });
+      queryClient.invalidateQueries({ queryKey: [`/api/events/${eventoDaPeca}/tubos`] });
     }
     queryClient.invalidateQueries({ queryKey: ["/api/items/approved"] });
     queryClient.invalidateQueries({ queryKey: ["/api/items"] });
@@ -1962,6 +2007,7 @@ export default function Grafica() {
     setModalType("conference");
     setPhotos([]); setModalNotes("");
     setConferQty(remainingConfer(item)); // padrão: o que falta conferir
+    setTuboDaConferencia(item.tuboId ?? "");
   };
 
   const openDeliveryModal = (item: any) => {
@@ -2001,6 +2047,19 @@ export default function Grafica() {
     const m = new Map<string, number>();
     for (const i of filteredItems as any[]) {
       if (!(conferredOf(i) > 0 || isConferred(i) || isDelivered(i))) continue;
+      const id = String(i.eventId ?? "");
+      if (!id) continue;
+      m.set(id, (m.get(id) ?? 0) + 1);
+    }
+    return m;
+  }, [filteredItems]);
+
+  // TUBOS (dono, 14/09): peças que já saíram da impressão ou estão num tubo —
+  // o cabeçalho do evento ganha o botão "Tubos" quando há alguma.
+  const tubaveisPorEvento = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const i of filteredItems as any[]) {
+      if (!(podeIrParaTubo(i.status) || i.tuboId)) continue;
       const id = String(i.eventId ?? "");
       if (!id) continue;
       m.set(id, (m.get(id) ?? 0) + 1);
@@ -2338,6 +2397,11 @@ export default function Grafica() {
     // …ou aberto por uma edição em linha dele (z-index da célula), e o lado
     idMenuAberto === item.id,
     idMenuAberto === item.id && menuParaCima,
+    // TUBOS: o chip "Tubo N" da linha e o botão "Tubos" do cabeçalho do evento
+    // leem estes dois; sem eles a linha memoizada não redesenhava quando a
+    // peça entrava num tubo ou o evento ganhava a primeira peça tubável.
+    item.tuboId ? numeroDoTubo.get(item.tuboId) ?? null : null,
+    tubaveisPorEvento.get(String(item.eventId)) ?? 0,
     ...daPosicao,
   ];
 
@@ -3375,7 +3439,7 @@ export default function Grafica() {
                       </div>
                       {/* Prazo e etiquetas NA MESMA linha (eram duas): o link
                           ganha alvo de 44px com a pílula visível de ~30 dentro. */}
-                      {(item.event || (etiquetaveisPorEvento.get(String(item.eventId)) || 0) > 0) && (
+                      {(item.event || (etiquetaveisPorEvento.get(String(item.eventId)) || 0) > 0 || (tubaveisPorEvento.get(String(item.eventId)) || 0) > 0) && (
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                           {item.event && <DeadlineChip event={item.event} fonte={12} />}
                           {(etiquetaveisPorEvento.get(String(item.eventId)) ?? 0) > 0 && (
@@ -3390,6 +3454,23 @@ export default function Grafica() {
                                 Etiquetas ({etiquetaveisPorEvento.get(String(item.eventId))})
                               </span>
                             </Link>
+                          )}
+                          {/* TUBOS (dono, 14/09): o painel de agrupar e entregar
+                              por tubo, na mesma linha e no mesmo desenho das
+                              Etiquetas — alvo de 44px com a pílula dentro. */}
+                          {(tubaveisPorEvento.get(String(item.eventId)) ?? 0) > 0 && (
+                            <button
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); setTubosDoEvento({ id: String(item.eventId), name: item.event?.name ?? "Evento" }); }}
+                              data-testid={`button-tubos-mobile-${item.eventId}`}
+                              title="Agrupar as peças em tubos e entregar por tubo"
+                              style={{ marginLeft: (etiquetaveisPorEvento.get(String(item.eventId)) || 0) > 0 ? 0 : 'auto', display: 'inline-flex', alignItems: 'center', minHeight: 44, padding: 0, background: 'none', border: 'none', cursor: 'pointer' }}
+                            >
+                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '6px 12px', borderRadius: 999, background: 'rgba(255,255,255,0.14)', border: '1px solid rgba(255,255,255,0.28)', color: '#fff', fontSize: 12, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                                <Package aria-hidden="true" style={{ width: 12, height: 12 }} />
+                                Tubos
+                              </span>
+                            </button>
                           )}
                         </div>
                       )}
@@ -3621,6 +3702,12 @@ export default function Grafica() {
                         {deliveredOf(item) > 0 && (
                           <span style={qtyChip('#15803d', '#f0fdf4')} title={`${deliveredOf(item)} de ${qtyOf(item)} un. entregues`}>
                             ENTREG. {deliveredOf(item)}
+                          </span>
+                        )}
+                        {/* Paridade com a tabela: o tubo em que a peça vai. */}
+                        {item.tuboId && numeroDoTubo.has(item.tuboId) && (
+                          <span data-testid={`chip-tubo-card-${item.id}`} style={qtyChip('#9a3412', '#fff7ed')} title="Tubo em que a peça vai para a entrega">
+                            TUBO {numeroDoTubo.get(item.tuboId)}
                           </span>
                         )}
                       </div>
@@ -4073,6 +4160,18 @@ export default function Grafica() {
                                     Etiquetas ({etiquetaveisPorEvento.get(String(item.eventId))})
                                   </Link>
                                 )}
+                                {(tubaveisPorEvento.get(String(item.eventId)) ?? 0) > 0 && (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => { e.stopPropagation(); setTubosDoEvento({ id: String(item.eventId), name: item.event?.name ?? "Evento" }); }}
+                                    data-testid={`button-tubos-${item.eventId}`}
+                                    title="Agrupar as peças em tubos e entregar por tubo"
+                                    style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "4px 10px", borderRadius: 999, background: "rgba(255,255,255,0.12)", border: "1px solid rgba(255,255,255,0.2)", color: "#fff", fontSize: 10.5, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.05em", whiteSpace: "nowrap", cursor: "pointer" }}
+                                  >
+                                    <Package style={{ width: 11, height: 11 }} />
+                                    Tubos
+                                  </button>
+                                )}
                               </div>
                             )}
                           </div>
@@ -4132,6 +4231,12 @@ export default function Grafica() {
                         </button>
                         {/* Kit (14/09): a peça do Kit se declara na fila, com a entrega. */}
                         <SeloKit peca={item} style={{ display: "flex", width: "fit-content", marginTop: 4 }} />
+                        {item.tuboId && numeroDoTubo.has(item.tuboId) && (
+                          <span data-testid={`chip-tubo-${item.id}`} title="Tubo em que a peça vai para a entrega"
+                            style={{ display: "inline-block", marginTop: 4, padding: "1px 6px", borderRadius: 999, fontSize: 10, fontWeight: 800, color: "#9a3412", background: "#fff7ed", border: "1px solid #fed7aa", whiteSpace: "nowrap" }}>
+                            Tubo {numeroDoTubo.get(item.tuboId)}
+                          </span>
+                        )}
                       </td>
                       {/* Descrição — com a arte ao lado: a Gráfica identifica a
                           peça pelo desenho, não pelo texto, e antes era preciso
@@ -5557,6 +5662,32 @@ export default function Grafica() {
                 )}
                 <PhotoPicker photos={photos} onAdd={addPhoto} onRemove={removePhoto} onError={onPhotoError} hint="· obrigatória, pode anexar várias" />
 
+                {/* O TUBO (dono, 14/09): na conferência muitas peças vão no mesmo
+                    tubo. Escolher aqui evita abrir o painel de tubos peça por
+                    peça; é opcional — dá para agrupar depois. */}
+                <div role="radiogroup" aria-label="Tubo da peça" data-testid="seletor-tubo">
+                  <div style={{ fontSize: fsMin(10), fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#746e69", marginBottom: 8 }}>
+                    Tubo <span style={{ textTransform: "none", letterSpacing: 0, fontWeight: 400 }}>· opcional, dá para agrupar depois</span>
+                  </div>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                    {[
+                      { valor: "", rotulo: "Sem tubo" },
+                      ...((tubosDaConferencia?.tubos ?? []) as any[]).filter((t) => !t.entregueEm).map((t) => ({ valor: t.id, rotulo: `Tubo ${t.numero} · ${t.pecas.length}` })),
+                      { valor: "novo", rotulo: "+ Tubo novo" },
+                    ].map(({ valor, rotulo }) => {
+                      const ativo = tuboDaConferencia === valor;
+                      return (
+                        <button key={valor || "sem-tubo"} type="button" role="radio" aria-checked={ativo}
+                          onClick={() => setTuboDaConferencia(valor)}
+                          data-testid={`tubo-opcao-${valor || "sem"}`}
+                          style={{ height: isMobile ? 44 : 36, padding: "0 12px", borderRadius: 999, cursor: "pointer", fontSize: isMobile ? 14 : 12.5, fontWeight: 700, whiteSpace: "nowrap", backgroundColor: ativo ? TI.text : "#ffffff", color: ativo ? "#ffffff" : TI.text, border: `1px solid ${ativo ? TI.text : TI.border}` }}>
+                          {rotulo}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
                 {renderNotesField("Ex.: cor puxando para o escuro, ilhós faltando…")}
                 <div style={modalActionsStyle}>
                   <button type="button" onClick={() => { setSelectedItem(null); setModalType(null); }}
@@ -5592,6 +5723,8 @@ export default function Grafica() {
       {/* Devolver para a Revisão — o motivo é obrigatório pela mesma régua das
           outras devoluções: quem recebe a peça de volta precisa saber o que
           refazer, senão é ida e volta garantida. */}
+      <TubosDialog evento={tubosDoEvento} onClose={() => setTubosDoEvento(null)} />
+
       {galpao && (
         <GalpaoFila
           mode={galpao}

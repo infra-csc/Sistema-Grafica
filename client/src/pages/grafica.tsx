@@ -3867,9 +3867,12 @@ export default function Grafica() {
                               /* Desabilitado: #78716c sobre #f5f5f4 → 4,84:1 nos
                                  13px/800 (o cinza claro do padrão do navegador
                                  reprovaria AA). */
-                              style={{ order: 0, flex: '2 1 150px', minHeight: 48, padding: '0 12px', borderRadius: 8, background: selo ? '#f5f5f4' : CO.solidBg, border: selo ? `1px solid ${TI.border}` : 'none', color: selo ? '#78716c' : '#fff', fontSize: 14, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, cursor: selo ? 'not-allowed' : 'pointer', whiteSpace: 'nowrap' }}
+                              style={{ order: 0, flex: '2 1 150px', minHeight: 48, padding: '0 12px', borderRadius: 8, background: selo ? '#f5f5f4' : CO.solidBg, border: selo ? `1px solid ${TI.border}` : 'none', color: selo ? '#78716c' : '#fff', fontSize: 14, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, cursor: selo ? 'not-allowed' : 'pointer', whiteSpace: 'normal', textAlign: 'center', lineHeight: 1.15 }}
                             >
-                              <Play aria-hidden="true" style={{ width: 13, height: 13 }} />
+                              {/* Quebra permitida: com o nome da impressora
+                                  ("Impressora 4 (Targa Elite) · Registrar") o
+                                  rótulo não cabe numa linha em 360px. */}
+                              <Play aria-hidden="true" style={{ width: 13, height: 13, flexShrink: 0 }} />
                               {isInProd(item) ? rotuloRegistrarImpressao(item) : `Imprimir ${remainingProduce(item)}`}
                             </button>
                           )}
@@ -3885,9 +3888,9 @@ export default function Grafica() {
                                 ? motivoAcaoBloqueada(selo.motivo, "produzir")
                                 : isInProd(item) ? `Em impressão na ${rotuloDaMaquina(item.printMachine)} — registrar o que saiu` : "Escolher a máquina e iniciar a impressão"}
                               data-testid={`button-production-card-${item.id}`}
-                              style={{ order: 0, flex: '2 1 150px', minHeight: 48, padding: '0 12px', borderRadius: 8, background: selo ? '#f5f5f4' : TI.text, border: selo ? `1px solid ${TI.border}` : 'none', color: selo ? '#78716c' : '#fff', fontSize: 14, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, cursor: selo ? 'not-allowed' : 'pointer', whiteSpace: 'nowrap' }}
+                              style={{ order: 0, flex: '2 1 150px', minHeight: 48, padding: '0 12px', borderRadius: 8, background: selo ? '#f5f5f4' : TI.text, border: selo ? `1px solid ${TI.border}` : 'none', color: selo ? '#78716c' : '#fff', fontSize: 14, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, cursor: selo ? 'not-allowed' : 'pointer', whiteSpace: 'normal', textAlign: 'center', lineHeight: 1.15 }}
                             >
-                              <Play aria-hidden="true" style={{ width: 13, height: 13 }} />
+                              <Play aria-hidden="true" style={{ width: 13, height: 13, flexShrink: 0 }} />
                               {isInProd(item) ? rotuloRegistrarImpressao(item) : 'Imprimir'}
                             </button>
                           )}

@@ -5239,7 +5239,7 @@ export function registerItemRoutes(app: Express): void {
             deliveryPhotoUrl: photoUrl || currentItem.deliveryPhotoUrl || null,
             updatedAt: new Date(),
             ...(trimmedNotes ? { deliveryNotes: trimmedNotes } : {}),
-            ...(isFullDelivery ? { status: "delivered" as const, deliveredAt: new Date() } : {}),
+            ...(isFullDelivery ? { status: "delivered" as const, deliveredAt: new Date(), statusChangedAt: new Date() } : {}),
           })
           .where(eq(itemsTable.id, req.params.id))
           .returning();

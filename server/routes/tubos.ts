@@ -221,12 +221,13 @@ async function criarTubo(eventId: string, criadoPor: string) {
 
 async function colocarNoTubo(req: any, tubo: { id: string; numero: number; eventId: string; fechadoEm: Date | null }, pecas: PecaCrua[], ids: string[]) {
   const outros = Array.from(new Set(pecas.map((p) => p.tuboId).filter((t) => t && t !== tubo.id))) as string[];
-  const numeroDe = new Map(
-    outros.length
-      ? (await db.select({ id: tubos.id, numero: tubos.numero }).from(tubos).where(inArray(tubos.id, outros))).map((t) => [t.id, t.numero])
-      : [],
-  );
+  const tubosDeOrigem = outros.length
+    ? await db.select({ id: tubos.id, numero: tubos.numero, fechadoEm: tubos.fechadoEm }).from(tubos).where(inArray(tubos.id, outros))
+    : [];
+  const numeroDe = new Map(tubosDeOrigem.map((t) => [t.id, t.numero]));
   const agora = new Date();
+  // O tubo de ORIGEM já fechado também perdeu peça: a foto dele não bate mais.
+  for (const origem of tubosDeOrigem) await marcarConteudoAlterado(origem, agora);
   await db.update(itemsTable).set({ tuboId: tubo.id, updatedAt: agora } as any).where(inArray(itemsTable.id, ids));
   // Conferida que entrou no tubo → Embalado. Quem veio de outro tubo já era
   // packed e continua; quem está em acabamento espera a conferência.
@@ -458,12 +459,19 @@ export function registerTubosRoutes(app: Express): void {
       const dentro = (await db.select(COLUNAS_PECA).from(itemsTable)
         .where(and(eq(itemsTable.tuboId, tubo.id), isNull(itemsTable.deletedAt)))) as PecaCrua[];
       if (barraPecaDoKit(req, res, dentro)) return;
-      await tirarDoTubo(req, tubo, dentro.map((p) => p.id), `Tubo ${tubo.numero} apagado`);
+      // A já entregue só perde o vínculo (trilha neutra); as outras voltam a Conferido.
+      const entregues = dentro.filter(ehEntregue);
+      const abertas = dentro.filter((p) => !ehEntregue(p));
+      await tirarDoTubo(req, tubo, abertas.map((p) => p.id), `Tubo ${tubo.numero} apagado`);
+      if (entregues.length) {
+        await db.update(itemsTable).set({ tuboId: null } as any).where(inArray(itemsTable.id, entregues.map((p) => p.id)));
+        await createAuditLogsEmLote(req, entregues.map((p) => ({ action: "updated", entityType: "item", entityId: p.id, details: `Tubo ${tubo.numero} apagado` })));
+      }
       await db.delete(tubos).where(eq(tubos.id, tubo.id));
       await createAuditLog(req, "deleted", "tubo", tubo.id,
-        dentro.length ? `Tubo ${tubo.numero} apagado — ${dentro.length} peça(s) voltaram a Conferido` : `Tubo ${tubo.numero} apagado (estava vazio)`);
+        abertas.length ? `Tubo ${tubo.numero} apagado — ${abertas.length} peça(s) voltaram a Conferido` : `Tubo ${tubo.numero} apagado${entregues.length ? "" : " (estava vazio)"}`);
       broadcast({ type: "tubos_atualizados", eventId: tubo.eventId });
-      res.json({ ok: true, devolvidas: dentro.length });
+      res.json({ ok: true, devolvidas: abertas.length });
     } catch (error: any) {
       console.error("[tubos] falha ao apagar tubo:", error);
       res.status(500).json({ error: "Não foi possível apagar o tubo." });
@@ -509,7 +517,12 @@ export function registerTubosRoutes(app: Express): void {
       const n = fotos.length;
       await createAuditLogsEmLote(req, dentro.map((p) => ({
         action: "updated", entityType: "item", entityId: p.id,
-        details: `Embalada no Tubo ${tubo.numero} · ${n} ${n === 1 ? "foto" : "fotos"}${ehConferidaInteira(p) ? "" : " (ainda falta conferir)"}`,
+        // Só a peça que de fato embalou ganha "Embalada" — timeline e ficha leem
+        // essa palavra como etapa cumprida. A em acabamento ou já entregue só
+        // foi fotografada.
+        details: !ehEntregue(p) && ehConferidaInteira(p)
+          ? `Embalada no Tubo ${tubo.numero} · ${n} ${n === 1 ? "foto" : "fotos"}`
+          : `Fotografada no Tubo ${tubo.numero} · ${n} ${n === 1 ? "foto" : "fotos"}${ehEntregue(p) ? " — já entregue" : " — ainda falta conferir"}`,
       })));
       await createAuditLog(req, "updated", "tubo", tubo.id, `Tubo ${tubo.numero} fechado com ${n} ${n === 1 ? "foto" : "fotos"} em ${quandoBR(agora)}`);
       broadcast({ type: "items_bulk_updated", itemIds: dentro.map((p) => p.id), eventId: tubo.eventId });
@@ -536,7 +549,11 @@ export function registerTubosRoutes(app: Express): void {
     if (!recebedor) {
       return res.status(400).json({ error: "Informe quem recebeu o tubo — é o que registra a entrega" });
     }
-    const foto = typeof photoUrl === "string" && photoUrl.trim() ? photoUrl.trim() : null;
+    // Foto opcional — mas, se vier, tem de ser do nosso storage (régua dos thumbs).
+    const foto = typeof photoUrl === "string" && photoUrl.trim() ? urlDeThumbValida(photoUrl) : null;
+    if (typeof photoUrl === "string" && photoUrl.trim() && !foto) {
+      return res.status(400).json({ error: "A foto precisa ser enviada pelo app (endereço /objects/…)" });
+    }
     const obs = typeof notes === "string" ? notes.trim() : "";
     try {
       const [tubo] = await db.select().from(tubos).where(eq(tubos.id, req.params.id));

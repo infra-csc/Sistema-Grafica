@@ -96,7 +96,8 @@ describe("as rotas", () => {
   it("tubo entregue não se mexe; apagar tubo com peças devolve-as a Conferido (21/09)", () => {
     expect(ROTAS).toContain("já foi entregue — não dá para mexer no que tem dentro");
     expect(ROTAS).not.toContain("tire as peças antes de apagar");
-    expect(ROTAS).toContain("await tirarDoTubo(req, tubo, dentro.map((p) => p.id), `Tubo ${tubo.numero} apagado`);");
+    expect(ROTAS).toContain("await tirarDoTubo(req, tubo, abertas.map((p) => p.id), `Tubo ${tubo.numero} apagado`);");
+    expect(ROTAS).toContain("res.json({ ok: true, devolvidas: abertas.length });");
     expect(ROTAS).toContain("peça(s) voltaram a Conferido");
   });
 });
@@ -110,7 +111,8 @@ describe("a entrega do tubo inteiro", () => {
     expect(entrega).toContain('if (!recebedor) {');
     expect(entrega).toContain('return res.status(400).json({ error: "Informe quem recebeu o tubo — é o que registra a entrega" });');
     expect(entrega).not.toContain("A foto da entrega é obrigatória");
-    expect(entrega).toContain('const foto = typeof photoUrl === "string" && photoUrl.trim() ? photoUrl.trim() : null;');
+    expect(entrega).toContain('const foto = typeof photoUrl === "string" && photoUrl.trim() ? urlDeThumbValida(photoUrl) : null;');
+    expect(entrega).toContain('A foto precisa ser enviada pelo app (endereço /objects/…)');
     // e o recebedor obrigatório é SÓ do tubo: a entrega por peça continua como era
     const ITEMS = ler("server/routes/items.ts");
     const porPeca = ITEMS.slice(ITEMS.indexOf('app.patch("/api/items/:id/deliver"'), ITEMS.indexOf('app.patch("/api/items/:id/deliver"') + 4000);
@@ -266,7 +268,9 @@ describe("fechar o tubo (foto do tubo e dos itens) — não é entrega", () => {
 
   it("as peças viram/continuam packed e a trilha diz 'Embalada no Tubo N · 3 fotos'", () => {
     expect(fechar).toContain("await embalar(dentro.filter((p) => !ehEntregue(p)).map((p) => p.id), agora);");
-    expect(fechar).toContain("details: `Embalada no Tubo ${tubo.numero} · ${n} ${n === 1 ? \"foto\" : \"fotos\"}${ehConferidaInteira(p) ? \"\" : \" (ainda falta conferir)\"}`");
+    expect(fechar).toContain("details: !ehEntregue(p) && ehConferidaInteira(p)");
+    expect(fechar).toContain("? `Embalada no Tubo ${tubo.numero} · ${n} ${n === 1 ? \"foto\" : \"fotos\"}`");
+    expect(fechar).toContain(": `Fotografada no Tubo ${tubo.numero} · ${n}");
     expect(fechar).toContain("`Tubo ${tubo.numero} fechado com ${n} ${n === 1 ? \"foto\" : \"fotos\"} em ${quandoBR(agora)}`");
   });
 
@@ -292,6 +296,11 @@ describe("fechar o tubo (foto do tubo e dos itens) — não é entrega", () => {
     expect(ler("scripts/migracao-aditiva-producao.mjs")).toContain("(table_name='tubos' AND column_name IN ('fotos_fechamento','fechado_em','fechado_por','conteudo_alterado_em'))");
     // e NENHUM script mexe no status do que já está no banco (dono: "não muda nada em produção")
     expect(existsSync(path.resolve(RAIZ, "scripts/backfill-status-em-tubo.mjs"))).toBe(false);
+    expect(SQL).not.toMatch(/updates+items/i);
+    const trecho = SQL.slice(SQL.indexOf("21/09 · Etapa"));
+    const comandos = trecho.split("
+").filter((l) => l.trim() && !l.trim().startsWith("--"));
+    for (const c of comandos) expect(c).toMatch(/^ALTER TABLE tubos ADD COLUMN IF NOT EXISTS /);
   });
 });
 

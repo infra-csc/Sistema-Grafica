@@ -481,7 +481,8 @@ export function buildTimeline(
       timeline.push({ id: `packed-${uid}`, type: "item_packed", ...base });
       return;
     }
-    if (detailsLower.includes("retirada do tubo")) {
+    // Só a grafia nova, no INÍCIO: a antiga "Peça retirada do Tubo N" não mudava status.
+    if (detailsLower.startsWith("retirada do tubo")) {
       timeline.push({ id: `unpacked-${uid}`, type: "item_unpacked", ...base });
       return;
     }

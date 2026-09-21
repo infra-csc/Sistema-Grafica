@@ -69,7 +69,7 @@ describe("mas não age", () => {
     expect(GRAFICA).toContain("const bulkEligible = !emRevisao && (bulkDeliveryMode");
     expect(GRAFICA).toContain("{!bulkOn && !emRevisao && podeConferir && canConfer(item) && (");
     expect(GRAFICA).toContain("{!bulkOn && !emRevisao && canDeliver(item) && !podeEmbalarPeca && (");
-    expect(GRAFICA).toContain("{!bulkOn && !emRevisao && podeEmbalarPeca && canDeliver(item) && (");
+    expect(GRAFICA).not.toContain("podeEmbalarPeca && canDeliver(item)");
   });
 
   it("as filas do galpão e do lote nunca a incluem", () => {

@@ -197,9 +197,12 @@ describe("a triagem é da Gráfica e exige o local", () => {
     expect(INVENTARIO).toContain('app.post("/api/events/:id/dispatch-inventory", requireInventoryAdmin');
   });
 
-  it("voltar ao galpão sem local é recusado — nas duas rotas de triagem", () => {
-    expect(INVENTARIO).toContain('if (newStatus === "NO_GALPAO" && !local) return res.status(400).json({ error: SEM_LOCAL });');
-    expect(INVENTARIO).toContain('if (splits.some((sp) => destinoDaTriagem(sp.trackingStatus) === "NO_GALPAO" && !localDoLote(sp))) {');
+  // 21/09 — o dono decidiu que o sistema NÃO guarda onde a peça fica no galpão:
+  // a exigência de 14/09 caiu (a tela não pede mais o campo; exigir travaria
+  // toda triagem para o Galpão). O campo segue aceito, só não é obrigatório.
+  it("voltar ao galpão NÃO exige mais o local — nas duas rotas de triagem", () => {
+    expect(INVENTARIO).not.toContain("SEM_LOCAL");
+    expect(INVENTARIO).toContain("location: z.string().max(120).nullish(),");
   });
 
   it("manutenção é situação própria, fora do estoque disponível", () => {
@@ -211,12 +214,14 @@ describe("a triagem é da Gráfica e exige o local", () => {
     expect(INVENTARIO).toContain("displayId: `${asset.displayId}-L${ultimoLote}`,");
   });
 
-  it("a tela pede o local na linha, no lote e no modal, e sobe as reservadas", () => {
-    expect(TELA).toContain("data-testid={`input-location-${asset.id}`}");
-    expect(TELA).toContain('data-testid="input-bulk-location"');
-    expect(TELA).toContain("Informe o local no galpão.");
+  it("a tela NÃO pede local (linha, lote, modal, mapa) e sobe as reservadas", () => {
+    for (const fonte of [TELA, MODAL]) {
+      expect(fonte).not.toContain("input-location");
+      expect(fonte).not.toContain("input-bulk-location");
+      expect(fonte).not.toContain("input-triage-modal-location");
+      expect(fonte).not.toContain("mapa-galpao");
+    }
     expect(TELA).toContain("data-testid={`chip-reservada-${asset.id}`}");
-    expect(MODAL).toContain('data-testid="input-triage-modal-location"');
   });
 });
 

@@ -2,11 +2,21 @@
 // Extracted from server/routes.ts (INVENTORY ASSETS section).
 import type { Express } from "express";
 import { z } from "zod";
-import { eq, like } from "drizzle-orm";
+import { and, eq, like } from "drizzle-orm";
 import { db } from "../db";
 import { storage } from "../storage";
 import { insertInventoryAssetSchema, inventoryAssets, auditLogs } from "@shared/schema";
 import { requireAuth, requireRole, broadcast, createAuditLog } from "./shared";
+import { recusaDeTriagem } from "@shared/estoque";
+
+// TRIAGEM SÓ DE QUEM ESTÁ AGUARDANDO (dono, 21/09). Antes as duas rotas
+// aceitavam qualquer ativo: uma peça EM USO num evento podia ser "triada" de
+// volta ao galpão, e duas pessoas triando a mesma pilha gravavam uma por cima
+// da outra. A conferência vai NO WHERE do UPDATE (e não num SELECT antes):
+// das duas requisições simultâneas, só uma encontra a linha ainda aguardando —
+// a outra atualiza zero linhas e recebe 409.
+const AGUARDANDO = "AGUARDANDO_TRIAGEM";
+class JaTriada extends Error {}
 
 // Escritas no acervo: Gráfica e admin (dono, 14/09 — quem recebe o material
 // na volta do caminhão faz a triagem e registra onde guardou). Excluir peça e
@@ -36,10 +46,11 @@ const triageSchema = z.object({
 const destinoDaTriagem = (s?: string | null) =>
   s === "DESCARTADO" ? "DESCARTADO" : s === "EM_MANUTENCAO" ? "EM_MANUTENCAO" : "NO_GALPAO";
 
-// Nenhuma das 5.008 peças do acervo tinha local em 14/09 — e "onde está a
-// peça" é a primeira pergunta de quem vai reaproveitar. Voltar ao galpão
-// exige dizer onde.
-const SEM_LOCAL = "Informe onde a peça foi guardada no galpão — sem o local, ninguém a encontra para reaproveitar.";
+// SEM LOCAL NO GALPÃO (dono, 21/09): "não vamos ter informação de ONDE ele fica
+// no galpão". A regra de 14/09 (voltar ao galpão exigia o local) caiu com a
+// decisão — a tela não pede mais o campo, então exigir aqui travaria toda
+// triagem para o Galpão. O campo continua ACEITO e gravado se vier (nenhuma
+// coluna nem dado existente muda); só não é mais obrigatório.
 
 // Validação de cada lote da triagem por quantidade.
 const triageSplitSchema = z.object({
@@ -189,13 +200,20 @@ export function registerInventoryRoutes(app: Express): void {
       if (!asset) return res.status(404).json({ error: "Ativo não encontrado" });
       const newStatus = destinoDaTriagem(trackingStatus);
       const local = (location ?? "").trim() || asset.location || null;
-      if (newStatus === "NO_GALPAO" && !local) return res.status(400).json({ error: SEM_LOCAL });
-      const updated = await storage.updateInventoryAsset(req.params.id, {
-        condition: condition ?? asset.condition,
-        notes: notes ?? asset.notes,
-        trackingStatus: newStatus,
-        location: local,
-      } as any);
+      const [updated] = await db.update(inventoryAssets)
+        .set({
+          condition: condition ?? asset.condition,
+          notes: notes ?? asset.notes,
+          trackingStatus: newStatus,
+          location: local,
+          updatedAt: new Date(),
+        } as any)
+        .where(and(eq(inventoryAssets.id, req.params.id), eq(inventoryAssets.trackingStatus, AGUARDANDO)))
+        .returning();
+      if (!updated) {
+        const atual = await storage.getInventoryAsset(req.params.id);
+        return res.status(409).json({ error: recusaDeTriagem(atual?.trackingStatus ?? asset.trackingStatus) });
+      }
       const triagedBy = (req as any).userName || 'Sistema';
       await createAuditLog(triagedBy, 'triagem', 'inventory_asset', req.params.id,
         JSON.stringify({ destino: newStatus, condicao: condition ?? asset.condition, local }));
@@ -223,9 +241,6 @@ export function registerInventoryRoutes(app: Express): void {
 
       const localDoLote = (sp: { location?: string | null }) =>
         (sp.location ?? "").trim() || (location ?? "").trim() || asset.location || null;
-      if (splits.some((sp) => destinoDaTriagem(sp.trackingStatus) === "NO_GALPAO" && !localDoLote(sp))) {
-        return res.status(400).json({ error: SEM_LOCAL });
-      }
 
       const triagedBy = (req as any).userName || 'Sistema';
       const firstStatus = destinoDaTriagem(splits[0].trackingStatus);
@@ -235,8 +250,9 @@ export function registerInventoryRoutes(app: Express): void {
       // deixava o original já reduzido e unidades sumiam do acervo. O storage
       // não aceita `tx`, então as operações usam as tabelas do drizzle aqui.
       await db.transaction(async (tx) => {
-        // Original fica com o primeiro lote
-        await tx.update(inventoryAssets)
+        // Original fica com o primeiro lote — e só se AINDA estiver aguardando:
+        // zero linhas = outra pessoa triou primeiro; a transação inteira volta.
+        const [travado] = await tx.update(inventoryAssets)
           .set({
             condition: splits[0].condition,
             notes: splits[0].notes ?? asset.notes,
@@ -245,7 +261,9 @@ export function registerInventoryRoutes(app: Express): void {
             quantity: splits[0].qty,
             updatedAt: new Date(),
           })
-          .where(eq(inventoryAssets.id, req.params.id));
+          .where(and(eq(inventoryAssets.id, req.params.id), eq(inventoryAssets.trackingStatus, AGUARDANDO)))
+          .returning({ id: inventoryAssets.id });
+        if (!travado) throw new JaTriada();
 
         await tx.insert(auditLogs).values({
           userName: triagedBy,
@@ -305,6 +323,10 @@ export function registerInventoryRoutes(app: Express): void {
     } catch (error) {
       if (error instanceof z.ZodError) {
         return res.status(400).json({ error: error.errors?.[0]?.message || "Dados inválidos" });
+      }
+      if (error instanceof JaTriada) {
+        const atual = await storage.getInventoryAsset(req.params.id).catch(() => undefined);
+        return res.status(409).json({ error: recusaDeTriagem(atual?.trackingStatus) });
       }
       console.error("Error in triage-split:", error);
       res.status(500).json({ error: "Erro ao registrar triagem por quantidade" });

@@ -200,3 +200,6 @@ ALTER TABLE tubos ADD COLUMN IF NOT EXISTS fotos_fechamento text[];
 ALTER TABLE tubos ADD COLUMN IF NOT EXISTS fechado_em timestamp;
 ALTER TABLE tubos ADD COLUMN IF NOT EXISTS fechado_por text;
 ALTER TABLE tubos ADD COLUMN IF NOT EXISTS conteudo_alterado_em timestamp;
+-- Embalada SOZINHA (21/09): o volume avulso não é "Tubo N" na tela e usa a
+-- numeração negativa do evento. Aditivo: os tubos existentes ficam false.
+ALTER TABLE tubos ADD COLUMN IF NOT EXISTS avulso boolean NOT NULL DEFAULT false;

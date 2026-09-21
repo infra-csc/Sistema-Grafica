@@ -258,7 +258,9 @@ export const items = pgTable("items", {
   // A reserva COM QUANTIDADE (dono, 21/09): { "1": 20, "2": 14 }. NULL = nada
   // reservado. `maquinaPrevista` acima segue como atalho (a de mais unidades);
   // as duas saem juntas de shared/reserva-de-impressora.ts.
-  reservaPorMaquina: jsonb("reserva_por_maquina").$type<Record<string, number> | null>(),
+  // O valor pode ser { qtd, pausadaEm } quando a peça foi tirada da impressora
+  // para dar lugar a outra (fica no topo da fila daquela impressora).
+  reservaPorMaquina: jsonb("reserva_por_maquina").$type<Record<string, number | { qtd: number; pausadaEm?: string | null }> | null>(),
   // PEÇA DIVIDIDA entre impressoras (dono, 21/09): { "1": { atrib, impressas },
   // "2": {...} }. NULL = tudo na printMachine. Ver shared/impressao-dividida.ts.
   impressaoPorMaquina: jsonb("impressao_por_maquina").$type<Record<string, { atrib: number; impressas: number }> | null>(),
@@ -475,6 +477,13 @@ export const tubos = pgTable("tubos", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   eventId: varchar("event_id").notNull().references(() => events.id, { onDelete: "cascade" }),
   numero: integer("numero").notNull(),
+  // EMBALADA SOZINHA (dono, 21/09: "nem sempre vai ser 'entregar tubo'"): a
+  // peça embalada individualmente (uma placa, um pórtico, um rolo avulso) mora
+  // num VOLUME AVULSO — mesma tabela, mesmas fotos e mesma entrega, mas a tela
+  // nunca o chama de "Tubo N". Avulsos NÃO consomem número de tubo: usam a
+  // sequência NEGATIVA do evento (−1, −2, …), e os tubos de verdade seguem
+  // 1, 2, 3 sem buraco. O índice único (evento, número) continua valendo.
+  avulso: boolean("avulso").notNull().default(false),
   criadoPor: text("criado_por"),
   // FECHAMENTO DO TUBO (dono, 21/09: "hoje eles colocam Entregue, mas a foto
   // é do tubo; a entrega é feita depois"). O galpão tira a foto do tubo
@@ -1038,7 +1047,7 @@ export const insertItemSchema = createInsertSchema(items).omit({
   // O jsonb inferido pelo drizzle-zod vira um tipo recursivo que derruba a
   // inferência do schema inteiro (`validatedData` virava `{}`); declarado à mão.
   impressaoPorMaquina: z.record(z.string(), z.object({ atrib: z.number().int().min(0), impressas: z.number().int().min(0) })).nullable().optional(),
-  reservaPorMaquina: z.record(z.string(), z.number().int().min(0)).nullable().optional(),
+  reservaPorMaquina: z.record(z.string(), z.union([z.number().int().min(0), z.object({ qtd: z.number().int().min(0), pausadaEm: z.string().nullable().optional() })])).nullable().optional(),
   area: z.string().or(z.number()),
   visual: z.string().or(z.number()),
   calculatedM2: z.string().or(z.number()),

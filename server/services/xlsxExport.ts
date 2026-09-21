@@ -4,6 +4,7 @@ import { ptBR } from "date-fns/locale";
 import type { Request, Response } from "express";
 import { storage, compareDisplayId } from "../storage";
 import { rotuloDaMaquina } from "@shared/fluxo-peca";
+import { nomeDaPeca } from "@shared/nome-da-peca";
 import { resumosDeTuboPorIds } from "./tubosDaPeca";
 import {
   duracaoCurta, oQueAconteceuNoRegistro, ROTULO_DO_TIPO, nomeDoArquivoDoRelatorio,
@@ -181,7 +182,8 @@ async function writeWorkbook(
           eventName:    item.event?.name ?? item.eventName ?? "",
           statusLabel:  STATUS_LABELS[item.status] ?? item.status ?? "",
           printMachine: item.printMachine ? rotuloDaMaquina(item.printMachine) : "",
-          tuboNumero:   item.tuboNumero ?? (item.tuboId ? tuboPorId.get(item.tuboId)?.tuboNumero : undefined) ?? "",
+          // Embalada sozinha (número negativo): a coluna Tubo fica vazia.
+          tuboNumero:   (() => { const n = item.tuboNumero ?? (item.tuboId ? tuboPorId.get(item.tuboId)?.tuboNumero : undefined); return Number(n) > 0 ? n : ""; })(),
           qtyReused:    reusedTotal(item),
           m2ToProduce:  m2ToProduce(item),
           qtyProduced:  item.quantityProduced ?? 0,
@@ -378,7 +380,7 @@ const REGISTROS_COLS = [
   { header: "Hora",            key: "hora",       width: 8  },
   { header: "Impressora",      key: "impressora", width: 28 },
   { header: "Código",          key: "codigo",     width: 10 },
-  { header: "Peça",            key: "peca",       width: 24 },
+  { header: "Peça",            key: "peca",       width: 36 },
   { header: "Tipo",            key: "tipo",       width: 12 },
   { header: "Evento",          key: "evento",     width: 28 },
   { header: "O que aconteceu", key: "oque",       width: 40 },
@@ -477,10 +479,10 @@ export function montarPlanilhaDeMaquinas(opts: { de: string; ate: string; resumo
   emOrdem.forEach((r, i) => {
     const row = abaRegistros.addRow({
       data: diaBR(r.dia), hora: r.hora, impressora: rotuloDaMaquina(r.maquina), codigo: r.displayId ?? "",
-      peca: r.tipoPeca, tipo: ROTULO_DO_TIPO[r.tipo] ?? r.tipo, evento: r.evento ?? "", oque: oQueAconteceuNoRegistro(r),
+      peca: nomeDaPeca(r.tipoPeca, r.descricaoPeca), tipo: ROTULO_DO_TIPO[r.tipo] ?? r.tipo, evento: r.evento ?? "", oque: oQueAconteceuNoRegistro(r),
       // A troca move, não imprime: a coluna Quantidade fica vazia (o "O que
       // aconteceu" já diz quantas foram movidas), para a soma da coluna bater.
-      quantidade: r.tipo === "troca" || r.tipo === "inicio" ? "" : r.quantidade, total: r.totalDepois ?? "", quem: r.quem ?? "",
+      quantidade: r.tipo === "troca" || r.tipo === "inicio" || r.tipo === "pausa" ? "" : r.quantidade, total: r.totalDepois ?? "", quem: r.quem ?? "",
     });
     estiloDaLinha(row, i % 2 === 1, [2, 4, 6, 9, 10]);
   });

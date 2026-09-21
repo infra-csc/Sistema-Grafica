@@ -24,11 +24,11 @@
 // "atualizado há X". Dia e impressora escolhidos vivem na URL (?dia=&maquina=)
 // para um F5 — ou um link colado — abrir o mesmo recorte.
 // ─────────────────────────────────────────────────────────────────────────────
-import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, createContext, useContext, memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useLocation, useSearch } from "wouter";
 import {
-  AlertTriangle, ArrowLeft, ArrowLeftRight, ArrowRight, BarChart3, ChevronDown, ChevronLeft, ChevronRight, Download, ExternalLink, ListOrdered, Loader2, Play, Printer, RotateCcw, Search,
+  AlertTriangle, ArrowLeft, ArrowLeftRight, ArrowRight, BarChart3, ChevronDown, ChevronLeft, ChevronRight, Download, ExternalLink, Eye, ListOrdered, Loader2, Play, Printer, RotateCcw, Search,
 } from "lucide-react";
 import { useIsMobile, useElementSize, CONTENT_CARDS_MAX, CONTENT_COMPACT_MAX } from "@/hooks/use-mobile";
 import { useAuth } from "@/contexts/auth-context";
@@ -36,6 +36,8 @@ import { useToast } from "@/hooks/use-toast";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { MAQUINAS_DE_IMPRESSAO } from "@shared/fluxo-peca";
+import { partesDoNomeDaPeca, nomeDaPeca } from "@shared/nome-da-peca";
+import { ItemDetailsDialog } from "@/components/item-details-dialog";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { HIDE_NATIVE_CLOSE, ModalHeader, modalSurface } from "@/components/modal-shell";
 import { T, FS, R } from "@/lib/theme";
@@ -45,7 +47,7 @@ import { convertGCSUrlToLocalPath } from "@/lib/artePdfExport";
 import { fmtRelative } from "@/components/prazos/tokens";
 import { rotuloDaMaquina } from "@shared/fluxo-peca";
 import {
-  ModalImpressao, progressoDaImpressao, rotuloCurtoDaAcao, horaDeInicio, mensagemDeErroDaApi, type PecaParaImprimir,
+  ModalImpressao, BarraDeImpressao, progressoDaImpressao, rotuloCurtoDaAcao, horaDeInicio, mensagemDeErroDaApi, type PecaParaImprimir,
 } from "@/components/grafica/modal-impressao";
 import { useAcompanharAreaVisivel } from "@/components/grafica/area-visivel";
 
@@ -67,6 +69,10 @@ type PecaNaMaquina = {
   status: string;
   miniatura: string | null;
   eventoInfo: EventoInfo | null;
+  /** O que o operador usa para achar o arquivo (servidor antigo não manda). */
+  material?: string | null;
+  medida?: string | null;
+  patrocinadores?: string[];
   /** Peça dividida entre impressoras (jsonb); ausente/null = tudo em `maquina`. */
   impressaoPorMaquina?: Record<string, { atrib: number; impressas: number }> | null;
   /** A parte DESTA impressora, quando a peça está dividida. */
@@ -78,8 +84,12 @@ type Registro = {
   itemId: string;
   displayId: string | null;
   tipoPeca: string;
+  /** A descrição é o que distingue duas peças do mesmo tipo. */
+  descricaoPeca?: string | null;
   evento: string | null;
-  tipo: "inicio" | "troca" | "parcial" | "conclusao";
+  tipo: "inicio" | "troca" | "parcial" | "conclusao" | "pausa";
+  /** Só na "pausa": a peça que entrou no lugar (null = só tirou da impressora). */
+  deuLugarA?: string | null;
   quantidade: number;
   totalDepois: number | null;
   aImprimir: number;
@@ -105,6 +115,8 @@ type PecaNaFila = PecaNaMaquina & {
   reservadas?: number;
   /** Impressoras onde a peça JÁ está imprimindo (iniciou só uma parte). */
   imprimindoEm?: string[];
+  /** Foi TIRADA desta impressora para dar lugar a outra: fica no topo da fila dela. */
+  pausadaEm?: string | null;
 };
 
 type Maquina = {
@@ -264,6 +276,7 @@ function haQuanto(iso: string | null, agora: number): string | null {
  */
 export function oQueAconteceu(r: Registro, rotuloMaquina: string): string {
   if (r.tipo === "inicio") return "Iniciou a impressão";
+  if (r.tipo === "pausa") return r.deuLugarA ? `Pausou — deu lugar à ${r.deuLugarA} (${r.totalDepois ?? 0} de ${r.aImprimir} impressas)` : `Pausou — saiu da impressora (${r.totalDepois ?? 0} de ${r.aImprimir} impressas)`;
   if (r.tipo === "troca") return `Trocou para ${rotuloMaquina}`;
   const total = r.totalDepois == null ? "" : ` (${r.totalDepois} de ${r.aImprimir})`;
   if (r.quantidade < 0) return `Corrigiu para ${r.totalDepois ?? "?"} de ${r.aImprimir} (${r.quantidade})`;
@@ -276,6 +289,7 @@ const TIPO_DO_REGISTRO: Record<Registro["tipo"], { rotulo: string; pal: { bg: st
   troca:     { rotulo: "Troca",      pal: P.amber },
   parcial:   { rotulo: "Impressas",  pal: P.orange },
   conclusao: { rotulo: "Concluída",  pal: P.green },
+  pausa:     { rotulo: "Pausa",      pal: P.neutral },
 };
 
 const plural = (n: number, um: string, varios: string) => `${n} ${n === 1 ? um : varios}`;
@@ -334,8 +348,59 @@ export function textoDoPrazo(p: { data: string; diff: number }): string {
 /** Ordem da fila: saída do caminhão mais próxima primeiro, depois o código. */
 function ordenarFila<P extends PecaNaFila>(pecas: P[]): P[] {
   const ms = (p: PecaNaFila) => (p.saidaCaminhao ? new Date(p.saidaCaminhao).getTime() : Infinity);
-  return [...pecas].sort((a, b) => ms(a) - ms(b) || String(a.displayId ?? "").localeCompare(String(b.displayId ?? ""), "pt-BR", { numeric: true }));
+  // PAUSADAS PRIMEIRO (a mais recente em cima): a peça tirada da impressora
+  // por prioridade volta para o topo da fila dela.
+  const pausa = (a: PecaNaFila, b: PecaNaFila) => (a.pausadaEm && b.pausadaEm ? (a.pausadaEm < b.pausadaEm ? 1 : -1) : a.pausadaEm ? -1 : b.pausadaEm ? 1 : 0);
+  return [...pecas].sort((a, b) => pausa(a, b) || ms(a) - ms(b) || String(a.displayId ?? "").localeCompare(String(b.displayId ?? ""), "pt-BR", { numeric: true }));
 }
+
+// ─── O NOME DA PEÇA e a FICHA ─────────────────────────────────────────────────
+// Dono (21/09): "aqui precisa da descrição do item" (todas eram "2×1") e
+// "quando clicar, abrir o card com as informações do item". Em toda a tela o
+// título da peça é um BOTÃO que abre a mesma ficha da Gráfica (ItemDetailsDialog);
+// "Ver na Gráfica" segue como ação separada. O contexto evita passar o gesto
+// por cinco componentes (e mantém as linhas memoizadas).
+const FichaContext = createContext<(id: string) => void>(() => {});
+
+/**
+ * Código + DESCRIÇÃO em destaque (é ela que identifica) + tipo como apoio, em
+ * até 2 linhas. Botão de verdade: Enter/Espaço abrem; 44px no celular.
+ */
+function TituloDaPeca({ id, codigo, tipo, descricao, isMobile, testId, fonte = FS.body, emLinha = false }: {
+  id: string; codigo: string | null; tipo: string; descricao?: string | null; isMobile: boolean; testId?: string; fonte?: number; /** Diário: sem altura mínima nem bloco. */ emLinha?: boolean;
+}) {
+  const abrirFicha = useContext(FichaContext);
+  const nome = partesDoNomeDaPeca(tipo, descricao);
+  return (
+    <button
+      type="button"
+      className="mq-link"
+      onClick={(e) => { e.stopPropagation(); abrirFicha(id); }}
+      aria-label={`Ver detalhes de ${codigo ?? "peça"}`}
+      title={`${codigo ?? ""} ${nomeDaPeca(tipo, descricao)} — ver detalhes`.trim()}
+      data-testid={testId}
+      style={{ border: "none", background: "transparent", padding: 0, margin: 0, font: "inherit", textAlign: "left", cursor: "pointer", color: T.text, fontSize: fonte, fontWeight: 700, lineHeight: 1.3, minWidth: 0, maxWidth: "100%", minHeight: isMobile && !emLinha ? 44 : undefined, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflowWrap: "anywhere" }}
+    >
+      <span style={{ fontFamily: MONO, color: T.accentText, marginRight: 6 }}>{codigo ?? "—"}</span>
+      {nome.destaque}
+      {nome.tipo && <span style={{ fontWeight: 500, color: T.second, marginLeft: 6 }}>{nome.tipo}</span>}
+    </button>
+  );
+}
+
+/** No seletor a linha inteira ESCOLHE a peça; a ficha abre por este botão ao lado. */
+function BotaoDaFicha({ id, codigo, isMobile, comBorda, fundo }: { id: string; codigo: string | null; isMobile: boolean; comBorda: boolean; fundo: string }) {
+  const abrirFicha = useContext(FichaContext);
+  return (
+    <button type="button" className="mq-acao" onClick={() => abrirFicha(id)} aria-label={`Ver detalhes de ${codigo ?? "peça"}`} title="Ver detalhes da peça" data-testid={`ficha-${id}`} style={{ flex: "0 0 auto", minWidth: 44, minHeight: isMobile ? 44 : 40, border: "none", borderTop: comBorda ? `1px solid ${T.low}` : "none", borderLeft: `1px solid ${T.low}`, background: fundo, cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", color: T.second }}>
+      <Eye aria-hidden="true" style={{ width: 15, height: 15 }} />
+    </button>
+  );
+}
+
+/** "SANETT · 1,90 × 0,90 · Nubank" — material, medida e patrocinador, em letra pequena. */
+const apoioDaPeca = (p: { material?: string | null; medida?: string | null; patrocinadores?: string[] }) =>
+  [p.material, p.medida, (p.patrocinadores ?? []).join(", ") || null].filter(Boolean).join(" · ");
 
 // ─── Pedaços de interface ─────────────────────────────────────────────────────
 /** Estilos de hover/foco que estilo inline não alcança — só desta tela. */
@@ -488,7 +553,22 @@ function SeletorDeReserva({ valor, excluir, disabled, alvo, isMobile, testId, ro
  * fila geral, para outra impressora.
  */
 /** O que cada impressora tem AGORA: quantas peças e o código da primeira. */
-export type OcupacaoDasImpressoras = Record<string, { n: number; primeira: string | null }>;
+export type OcupanteDaImpressora = { id: string; displayId: string | null; impressas: number; teto: number; /** tipo + descrição, para a pergunta dizer QUAL peça sai. */ nome?: string | null };
+export type OcupacaoDasImpressoras = Record<string, { n: number; primeira: string | null; atual?: OcupanteDaImpressora | null }>;
+
+/**
+ * A pergunta da TROCA POR PRIORIDADE (dono, 21/09: "tirar um item e colocar o
+ * outro, pois às vezes tem ordem de prioridade") — diz o que acontece com a
+ * peça que sai: as impressas ficam anotadas e o resto volta para o topo da fila.
+ */
+export function perguntaDaTroca(sai: OcupanteDaImpressora, entra: string | null, maquina: string): string {
+  const faltam = Math.max(0, sai.teto - sai.impressas);
+  const s = sai.displayId ?? "a peça atual";
+  return `Tirar ${s}${sai.nome ? ` (${sai.nome})` : ""} da ${rotuloDaMaquina(maquina)} (${sai.impressas} de ${sai.teto} já ${sai.impressas === 1 ? "impressa fica anotada" : "impressas ficam anotadas"}) e imprimir ${entra ?? "esta peça"} no lugar? A ${s} volta para o topo da fila desta impressora com ${faltam === 1 ? "a 1 que falta" : `as ${faltam} que faltam`}.`;
+}
+
+/** "A impressora está com #0384 — tire-a, troque-a de máquina ou espere acabar". */
+export const motivoImpressoraOcupada = (codigo: string | null) => `A impressora está com ${codigo ?? "outra peça"} — tire-a, troque-a de máquina ou espere acabar`;
 const SEM_OCUPACAO: OcupacaoDasImpressoras = {};
 
 /** Livres primeiro (dono, 21/09: "quando a impressora estiver vazia…"), depois pelo código. */
@@ -496,12 +576,14 @@ export function impressorasComLivresPrimeiro(ocupacao: OcupacaoDasImpressoras): 
   return [...MAQUINAS_DE_IMPRESSAO].sort((a, b) => Math.min(1, ocupacao[a]?.n ?? 0) - Math.min(1, ocupacao[b]?.n ?? 0) || (a < b ? -1 : 1));
 }
 
-function ControleDeReserva({ id, codigoDaPeca, semImpressora, disabled, alvo, isMobile, ocupacao = SEM_OCUPACAO, imprimindo = false, onReservar, onImprimir }: {
+function ControleDeReserva({ id, codigoDaPeca, semImpressora, disabled, alvo, isMobile, ocupacao = SEM_OCUPACAO, imprimindo = false, onReservar, onImprimir, onTrocar }: {
   id: string; codigoDaPeca?: string | null; semImpressora: number; disabled?: boolean; alvo: number; isMobile: boolean;
   ocupacao?: OcupacaoDasImpressoras; /** O "Imprimir agora" DESTA linha está em voo. */ imprimindo?: boolean;
   onReservar: (maquina: string, quantidade: number) => void;
   /** "Imprimir agora" (dono, 21/09): põe direto em impressão, sem modal. Ausente = só reservar. */
   onImprimir?: (maquina: string, quantidade: number) => void;
+  /** Impressora ocupada: tirar a peça atual e imprimir esta no lugar (troca por prioridade). */
+  onTrocar?: (maquina: string, quantidade: number, sai: OcupanteDaImpressora) => void;
 }) {
   const [maquina, setMaquina] = useState("");
   const [qtd, setQtd] = useState<number | "">("");
@@ -512,20 +594,24 @@ function ControleDeReserva({ id, codigoDaPeca, semImpressora, disabled, alvo, is
   const n = qtd === "" ? semImpressora : qtd;
   const valida = n >= 1 && n <= semImpressora;
   const ocupada = !!maquina && (ocupacao[maquina]?.n ?? 0) > 0;
-  const imprimir = () => {
-    if (!onImprimir || !maquina || !valida || travaRef.current || imprimindo) return;
+  const atual = ocupada ? ocupacao[maquina]?.atual ?? null : null;
+  const gesto = (fazer: () => void) => {
+    if (!maquina || !valida || travaRef.current || imprimindo) return;
     travaRef.current = true;
     setTimeout(() => { travaRef.current = false; }, 1500);
     setConfirmando(false);
-    onImprimir(maquina, n);
+    fazer();
   };
+  // UMA PEÇA POR VEZ: com a impressora ocupada não há "imprimir junto".
+  const imprimir = () => { if (onImprimir && !ocupada) gesto(() => onImprimir(maquina, n)); };
+  const trocar = () => { if (onTrocar && atual) gesto(() => onTrocar(maquina, n, atual)); };
   const campo: React.CSSProperties = { minHeight: alvo, height: alvo, boxSizing: "border-box", borderRadius: R.md, border: `1px solid ${T.bdark}`, background: T.surface, color: T.text, fontSize: isMobile ? 16 : 12, fontWeight: 700 };
   return (
     <div role="group" aria-label="Reservar impressora" data-testid={`controle-reserva-${id}`} style={{ display: isMobile ? "flex" : "inline-flex", alignItems: "center", gap: 6, flexWrap: "wrap", ...(isMobile ? { flex: "1 1 100%", width: "100%" } : {}) }}>
       <select aria-label="Impressora" value={maquina} disabled={disabled} onChange={(e) => { setMaquina(e.target.value); setConfirmando(false); }} data-testid={`reservar-fila-${id}`} style={{ ...campo, padding: "0 8px", cursor: disabled ? "not-allowed" : "pointer", maxWidth: "100%", ...(isMobile ? { flex: "1 1 100%", width: "100%" } : {}) }}>
         <option value="">Impressora…</option>
         {impressorasComLivresPrimeiro(ocupacao).map((m) => (
-          <option key={m} value={m}>{rotuloDaMaquina(m)}{onImprimir ? ((ocupacao[m]?.n ?? 0) > 0 ? ` — imprimindo ${ocupacao[m].n}` : " — livre") : ""}</option>
+          <option key={m} value={m}>{rotuloDaMaquina(m)}{onImprimir ? ((ocupacao[m]?.n ?? 0) > 0 ? ` — imprimindo ${ocupacao[m].primeira ?? ocupacao[m].n}` : " — livre") : ""}</option>
         ))}
       </select>
       <input
@@ -542,12 +628,12 @@ function ControleDeReserva({ id, codigoDaPeca, semImpressora, disabled, alvo, is
         <button
           type="button"
           className="mq-acao mq-primario"
-          disabled={disabled || imprimindo || !maquina || !valida}
+          disabled={disabled || imprimindo || !maquina || !valida || ocupada}
           aria-busy={imprimindo || undefined}
-          onClick={() => { if (ocupada && !confirmando) setConfirmando(true); else imprimir(); }}
+          onClick={imprimir}
           data-testid={`button-imprimir-agora-${id}`}
-          title={!maquina ? "Escolha a impressora" : !valida ? `De 1 a ${semImpressora}` : `Pôr ${n} un. em impressão na ${rotuloDaMaquina(maquina)} agora`}
-          style={{ minHeight: alvo, padding: "0 12px", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 5, borderRadius: R.md, border: "none", background: T.text, color: "#fff", fontFamily: GROTESK, fontSize: isMobile ? 13 : 12, fontWeight: 700, cursor: disabled || imprimindo || !maquina || !valida ? "not-allowed" : "pointer", opacity: disabled || imprimindo || !maquina || !valida ? 0.55 : 1, whiteSpace: "nowrap", ...(isMobile ? { flex: "1 1 100%", width: "100%", order: -1 } : {}) }}
+          title={!maquina ? "Escolha a impressora" : ocupada ? `${rotuloDaMaquina(maquina)} está com ${ocupacao[maquina]?.primeira ?? "outra peça"}` : !valida ? `De 1 a ${semImpressora}` : `Pôr ${n} un. em impressão na ${rotuloDaMaquina(maquina)} agora`}
+          style={{ minHeight: alvo, padding: "0 12px", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 5, borderRadius: R.md, border: "none", background: T.text, color: "#fff", fontFamily: GROTESK, fontSize: isMobile ? 13 : 12, fontWeight: 700, cursor: disabled || imprimindo || !maquina || !valida || ocupada ? "not-allowed" : "pointer", opacity: disabled || imprimindo || !maquina || !valida || ocupada ? 0.55 : 1, whiteSpace: "nowrap", ...(isMobile ? { flex: "1 1 100%", width: "100%", order: -1 } : {}) }}
         >
           {imprimindo ? <Loader2 aria-hidden="true" className="animate-spin" style={{ width: 12, height: 12 }} /> : <Play aria-hidden="true" style={{ width: 12, height: 12, flexShrink: 0 }} />}
           {imprimindo ? "Iniciando…" : "Imprimir agora"}
@@ -564,13 +650,23 @@ function ControleDeReserva({ id, codigoDaPeca, semImpressora, disabled, alvo, is
       >
         Reservar
       </button>
-      {confirmando && ocupada && (
-        <div role="alertdialog" aria-label="Impressora ocupada" data-testid={`confirmar-imprimir-junto-${id}`} style={{ flex: "1 1 100%", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", padding: "8px 10px", borderRadius: R.md, background: AMBAR.bg, border: `1px solid ${AMBAR.border}`, color: "#92400e", fontSize: isMobile ? 13 : 12 }}>
-          <span style={{ flex: "1 1 200px", fontWeight: 700 }}>
-            A {rotuloDaMaquina(maquina)} já está com {ocupacao[maquina]?.primeira ?? "outra peça"}{(ocupacao[maquina]?.n ?? 0) > 1 ? ` e mais ${ocupacao[maquina].n - 1}` : ""}. Imprimir {codigoDaPeca ?? "esta peça"} junto?
+      {ocupada && onImprimir && (
+        <div data-testid={`ocupada-${id}`} style={{ flex: "1 1 100%", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", fontSize: isMobile ? 12 : FS.small, color: AMBAR.text }}>
+          <span role="status" style={{ flex: "1 1 200px", fontWeight: 700 }}>
+            {rotuloDaMaquina(maquina)} está com {ocupacao[maquina]?.primeira ?? "outra peça"} — dá para reservar, ou imprimir esta no lugar.
           </span>
-          <button type="button" className="mq-acao mq-primario" onClick={imprimir} data-testid={`button-imprimir-junto-${id}`} style={{ minHeight: alvo, padding: "0 12px", borderRadius: R.md, border: "none", background: T.text, color: "#fff", fontSize: isMobile ? 13 : 12, fontWeight: 700, cursor: "pointer", ...(isMobile ? { flex: "1 1 100%" } : {}) }}>Imprimir junto</button>
-          <button type="button" className="mq-acao" onClick={() => { onReservar(maquina, n); setQtd(""); setMaquina(""); setConfirmando(false); }} data-testid={`button-so-reservar-${id}`} style={{ minHeight: alvo, padding: "0 12px", borderRadius: R.md, border: `1px solid ${T.bdark}`, background: T.surface, color: T.text, fontSize: isMobile ? 13 : 12, fontWeight: 700, cursor: "pointer", ...(isMobile ? { flex: "1 1 100%" } : {}) }}>Só reservar</button>
+          {onTrocar && atual && !confirmando && (
+            <button type="button" className="mq-acao" disabled={disabled || imprimindo || !valida} onClick={() => setConfirmando(true)} data-testid={`button-imprimir-no-lugar-${id}`} style={{ minHeight: alvo, padding: "0 12px", borderRadius: R.md, border: `1px solid ${T.text}`, background: T.surface, color: T.text, fontSize: isMobile ? 13 : 12, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap", ...(isMobile ? { flex: "1 1 100%" } : {}) }}>
+              Imprimir esta no lugar
+            </button>
+          )}
+        </div>
+      )}
+      {confirmando && ocupada && atual && (
+        <div role="alertdialog" aria-label="Trocar a peça da impressora" data-testid={`confirmar-troca-${id}`} style={{ flex: "1 1 100%", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", padding: "8px 10px", borderRadius: R.md, background: AMBAR.bg, border: `1px solid ${AMBAR.border}`, color: "#92400e", fontSize: isMobile ? 13 : 12, lineHeight: 1.45 }}>
+          <span style={{ flex: "1 1 240px", fontWeight: 700 }}>{perguntaDaTroca(atual, codigoDaPeca ?? null, maquina)}</span>
+          <button type="button" className="mq-acao mq-primario" disabled={disabled || imprimindo} onClick={trocar} data-testid={`button-trocar-${id}`} style={{ opacity: disabled || imprimindo ? 0.6 : 1, minHeight: alvo, padding: "0 14px", borderRadius: R.md, border: "none", background: T.text, color: "#fff", fontSize: isMobile ? 13 : 12, fontWeight: 700, cursor: "pointer", ...(isMobile ? { flex: "1 1 100%" } : {}) }}>Trocar</button>
+          <button type="button" className="mq-acao" onClick={() => setConfirmando(false)} data-testid={`button-cancelar-troca-${id}`} style={{ minHeight: alvo, padding: "0 12px", borderRadius: R.md, border: `1px solid ${T.bdark}`, background: T.surface, color: T.text, fontSize: isMobile ? 13 : 12, fontWeight: 700, cursor: "pointer", ...(isMobile ? { flex: "1 1 100%" } : {}) }}>Cancelar</button>
         </div>
       )}
     </div>
@@ -682,9 +778,9 @@ function SeletorDePeca({ maquina, reservadas, filaGeral, atualizando, hojeMs, on
                       {cabecalhoGeral && reservadas.length > 0 && (
                         <div style={{ ...ROTULO_MICRO, fontSize: isMobile ? 12 : FS.micro, padding: "8px 12px 4px", background: T.bg, borderTop: i ? `1px solid ${T.low}` : "none" }}>Fila geral</div>
                       )}
+                      <div role="listitem" style={{ display: "flex", alignItems: "stretch" }}>
                       <button
                         type="button"
-                        role="listitem"
                         className="mq-peca"
                         onClick={() => { if (!selo) onEscolher(p, maquina.codigo); }}
                         disabled={!!selo}
@@ -697,15 +793,19 @@ function SeletorDePeca({ maquina, reservadas, filaGeral, atualizando, hojeMs, on
                         </span>
                         <span style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 2 }}>
                           <span style={{ fontSize: FS.body, fontWeight: 700, lineHeight: 1.3, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflowWrap: "anywhere" }}>
-                            <span style={{ fontFamily: MONO, color: T.accentText, marginRight: 6 }}>{p.displayId ?? "—"}</span>{p.tipo}
+                            <span style={{ fontFamily: MONO, color: T.accentText, marginRight: 6 }}>{p.displayId ?? "—"}</span>{partesDoNomeDaPeca(p.tipo, p.descricao).destaque}
+                            {partesDoNomeDaPeca(p.tipo, p.descricao).tipo && <span style={{ fontWeight: 500, color: T.second, marginLeft: 6 }}>{partesDoNomeDaPeca(p.tipo, p.descricao).tipo}</span>}
                           </span>
                           <span style={{ fontSize: fonte, color: T.second, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflowWrap: "anywhere" }}>
                             {[p.evento, `${p.aImprimir} un.`, p.m2 != null ? `${p.m2.toLocaleString("pt-BR", { maximumFractionDigits: 2 })} m²` : null].filter(Boolean).join(" · ")}
                           </span>
+                          {apoioDaPeca(p) && <span style={{ fontSize: fonte, color: T.second, overflowWrap: "anywhere" }}>{apoioDaPeca(p)}</span>}
                           {isMobile && <span data-testid={`selos-peca-${p.id}`} style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 2 }}>{selos}</span>}
                         </span>
                         {!isMobile && <span style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4, flexShrink: 0 }}>{selos}</span>}
                       </button>
+                      <BotaoDaFicha id={p.id} codigo={p.displayId} isMobile={isMobile} comBorda={!!(i || (cabecalhoGeral && reservadas.length))} fundo={p.reservada ? "#fffbeb" : T.surface} />
+                      </div>
                     </Fragment>
                   );
                 })}
@@ -729,10 +829,13 @@ function SeletorDePeca({ maquina, reservadas, filaGeral, atualizando, hojeMs, on
 // ─── A peça reservada, dentro do cartão da impressora ─────────────────────────
 // (Uma impressora pode ter mais de uma peça ao mesmo tempo — "Imprimindo 2" —
 // então iniciar nunca é barrado por ela estar ocupada.)
-function PecaNaFilaDoCartao({ p, podeAgir, hojeMs, isMobile, proxima = false, onIniciar, onReservar }: {
-  p: PecaNaFila; podeAgir: boolean; hojeMs: number; isMobile: boolean; /** Impressora LIVRE: esta é a próxima a entrar — o Iniciar ganha destaque. */ proxima?: boolean; onIniciar: (p: PecaNaFila) => void; onReservar: (p: PecaNaFila, maquina: string | null, quantidade: number | null) => void;
+function PecaNaFilaDoCartao({ p, podeAgir, hojeMs, isMobile, proxima = false, ocupante = null, mexendo = false, onTrocar, onIniciar, onReservar }: {
+  p: PecaNaFila; podeAgir: boolean; hojeMs: number; isMobile: boolean; /** Impressora LIVRE: esta é a próxima a entrar — o Iniciar ganha destaque. */ proxima?: boolean;
+  /** A peça que OCUPA a impressora agora: com ela, a fila não inicia (uma por vez) — só troca por prioridade. */
+  ocupante?: OcupanteDaImpressora | null; /** Tirar/trocar em voo: sem segundo disparo. */ mexendo?: boolean; onTrocar?: (p: PecaNaFila, sai: OcupanteDaImpressora) => void; onIniciar: (p: PecaNaFila) => void; onReservar: (p: PecaNaFila, maquina: string | null, quantidade: number | null) => void;
 }) {
-  const ocupado = false;
+  const ocupado = !!ocupante;
+  const [confirmandoTroca, setConfirmandoTroca] = useState(false);
   // Quantas unidades estão reservadas PARA ESTA impressora; mover/devolver
   // aceita uma parte delas (campo ao lado do seletor; vazio = todas).
   const reservadas = p.reservadas ?? p.aImprimir;
@@ -752,14 +855,13 @@ function PecaNaFilaDoCartao({ p, podeAgir, hojeMs, isMobile, proxima = false, on
   return (
     <div data-testid={`peca-na-fila-${p.id}`} style={{ display: "flex", flexDirection: "column", gap: 6, padding: "8px 0", borderTop: `1px solid ${T.low}` }}>
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
-        <Link href={`/grafica?item=${p.id}`} className="mq-link" title="Abrir esta peça na fila da Gráfica" style={{ textDecoration: "none", color: T.text, fontSize: FS.body, fontWeight: 700, lineHeight: 1.3, flex: "1 1 140px", minWidth: 0, minHeight: isMobile ? 44 : undefined, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflowWrap: "anywhere" }}>
-          <span style={{ fontFamily: MONO, color: T.accentText, marginRight: 6 }}>{p.displayId ?? "—"}</span>
-          {p.tipo}
-        </Link>
+        <span style={{ flex: "1 1 140px", minWidth: 0, display: "flex" }}>
+          <TituloDaPeca id={p.id} codigo={p.displayId} tipo={p.tipo} descricao={p.descricao} isMobile={isMobile} testId={`nome-fila-${p.id}`} />
+        </span>
         <SeloDePrazo p={prazo} fonte={isMobile ? 12 : FS.small} />
       </div>
       <div style={{ fontSize: isMobile ? 12 : FS.small, color: T.second, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflowWrap: "anywhere" }}>
-        {[p.evento, reservadas < p.aImprimir ? `${reservadas} de ${p.aImprimir} un.` : `${p.aImprimir} un.`, p.m2 != null ? `${p.m2.toLocaleString("pt-BR", { maximumFractionDigits: 2 })} m²` : null].filter(Boolean).join(" · ")}
+        {[p.pausadaEm ? "Pausada — volta primeiro" : null, p.evento, reservadas < p.aImprimir ? `${reservadas} de ${p.aImprimir} un.` : `${p.aImprimir} un.`, p.impressas > 0 ? `${p.impressas} de ${p.aImprimir} já impressas` : null, p.m2 != null ? `${p.m2.toLocaleString("pt-BR", { maximumFractionDigits: 2 })} m²` : null].filter(Boolean).join(" · ")}
       </div>
       {jaImprimindo.length > 0 && (
         <div data-testid={`ja-imprimindo-${p.id}`} style={{ fontSize: isMobile ? 12 : FS.small, color: IMP.text, fontWeight: 700 }}>
@@ -774,7 +876,7 @@ function PecaNaFilaDoCartao({ p, podeAgir, hojeMs, isMobile, proxima = false, on
             onClick={() => { if (!selo) onIniciar(p); }}
             disabled={!!selo || ocupado}
             data-testid={`button-iniciar-fila-${p.id}`}
-            title={selo ? motivoAcaoBloqueada(selo.motivo, "iniciar impressão") : ocupado ? "A impressora está imprimindo outra peça agora — dá para iniciar assim que ela ficar livre" : `Iniciar a impressão na ${rotuloDaMaquina(p.maquinaPrevista)}`}
+            title={selo ? motivoAcaoBloqueada(selo.motivo, "iniciar impressão") : ocupado ? motivoImpressoraOcupada(ocupante?.displayId ?? null) : `Iniciar a impressão na ${rotuloDaMaquina(p.maquinaPrevista)}`}
             data-proxima={proxima || undefined}
             style={{ flex: isMobile ? "2 1 150px" : "1 1 130px", minHeight: alvo, padding: "0 10px", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 5, borderRadius: R.md, border: `1px solid ${selo || ocupado ? T.border : T.text}`, background: proxima && !selo ? T.text : T.surface, color: selo || ocupado ? "#746e69" : proxima ? "#fff" : T.text, fontFamily: GROTESK, fontSize: isMobile ? 13 : 12, fontWeight: 700, cursor: selo || ocupado ? "not-allowed" : "pointer", whiteSpace: "nowrap" }}
           >
@@ -821,6 +923,23 @@ function PecaNaFilaDoCartao({ p, podeAgir, hojeMs, isMobile, proxima = false, on
           )}
         </div>
       )}
+      {podeAgir && ocupante && !selo && (
+        <div data-testid={`fila-ocupada-${p.id}`} style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          <span role="status" style={{ flex: "1 1 180px", fontSize: 12, color: AMBAR.text, fontWeight: 700, lineHeight: 1.4 }}>{motivoImpressoraOcupada(ocupante.displayId)}</span>
+          {onTrocar && !confirmandoTroca && (
+            <button type="button" className="mq-acao" disabled={mexendo} onClick={() => setConfirmandoTroca(true)} data-testid={`button-imprimir-no-lugar-fila-${p.id}`} style={{ opacity: mexendo ? 0.6 : 1, minHeight: alvo, padding: "0 12px", borderRadius: R.md, border: `1px solid ${T.text}`, background: T.surface, color: T.text, fontSize: isMobile ? 13 : 12, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap", ...(isMobile ? { flex: "1 1 100%" } : {}) }}>
+              Imprimir esta no lugar
+            </button>
+          )}
+        </div>
+      )}
+      {confirmandoTroca && ocupante && onTrocar && (
+        <div role="alertdialog" aria-label="Trocar a peça da impressora" data-testid={`confirmar-troca-fila-${p.id}`} style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", padding: "8px 10px", borderRadius: R.md, background: AMBAR.bg, border: `1px solid ${AMBAR.border}`, color: "#92400e", fontSize: isMobile ? 13 : 12, lineHeight: 1.45 }}>
+          <span style={{ flex: "1 1 200px", fontWeight: 700 }}>{perguntaDaTroca(ocupante, [p.displayId, `(${nomeDaPeca(p.tipo, p.descricao)})`].filter(Boolean).join(" "), p.maquinaPrevista ?? "")}</span>
+          <button type="button" className="mq-acao mq-primario" disabled={mexendo} onClick={() => { setConfirmandoTroca(false); onTrocar(p, ocupante); }} data-testid={`button-trocar-fila-${p.id}`} style={{ opacity: mexendo ? 0.6 : 1, minHeight: alvo, padding: "0 14px", borderRadius: R.md, border: "none", background: T.text, color: "#fff", fontSize: isMobile ? 13 : 12, fontWeight: 700, cursor: "pointer", ...(isMobile ? { flex: "1 1 100%" } : {}) }}>Trocar</button>
+          <button type="button" className="mq-acao" onClick={() => setConfirmandoTroca(false)} style={{ minHeight: alvo, padding: "0 12px", borderRadius: R.md, border: `1px solid ${T.bdark}`, background: T.surface, color: T.text, fontSize: isMobile ? 13 : 12, fontWeight: 700, cursor: "pointer", ...(isMobile ? { flex: "1 1 100%" } : {}) }}>Cancelar</button>
+        </div>
+      )}
     </div>
   );
 }
@@ -849,8 +968,12 @@ function FechoDaLista({ visiveis, total, um, varios, lote, onMais, testId, botao
 }
 
 // ─── A peça dentro do cartão da impressora ────────────────────────────────────
-function PecaNoCartao({ p, agora, podeAgir, hojeMs, isMobile, onAgir }: {
+function PecaNoCartao({ p, agora, podeAgir, hojeMs, isMobile, onAgir, onTirar, mexendo = false }: {
   p: PecaNaMaquina; agora: number; podeAgir: boolean; hojeMs: number; isMobile: boolean; onAgir: (p: PecaNaMaquina, trocar: boolean) => void;
+  /** "Tirar da impressora": pausa a peça (as impressas ficam anotadas; o resto volta para o topo da fila dela). */
+  onTirar?: (p: PecaNaMaquina) => void;
+  /** Um gesto de tirar/trocar está em voo: nada de segundo disparo. */
+  mexendo?: boolean;
 }) {
   // Dividida: o cartão mostra e age sobre a PARTE desta impressora.
   // (Vale também com UMA parte só: a peça que iniciou apenas a parte reservada
@@ -858,7 +981,6 @@ function PecaNoCartao({ p, agora, podeAgir, hojeMs, isMobile, onAgir }: {
   const dividida = !!p.parte;
   const feitas = dividida ? p.parte!.impressas : p.impressas;
   const teto = dividida ? p.parte!.atrib : p.aImprimir;
-  const pct = teto > 0 ? Math.min(100, Math.round((feitas / teto) * 100)) : 0;
   const desde = haQuanto(p.desde, agora);
   const hora = horaDeInicio(p.desde);
   const selo = seloPecaEventoFinalizado(p.eventoInfo, hojeMs);
@@ -887,13 +1009,10 @@ function PecaNoCartao({ p, agora, podeAgir, hojeMs, isMobile, onAgir }: {
         <div style={{ flex: 1, minWidth: 0 }}>
           {/* "#0386 Placa de octanorme (..." não pode cortar (dono, 21/09):
               o nome quebra em até duas linhas e só então reticencia. */}
-          <div data-testid={`nome-peca-${p.id}`} title={`${p.displayId ?? ""} ${p.tipo}`.trim()} style={{ fontSize: FS.body, fontWeight: 700, color: T.text, lineHeight: 1.3, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflowWrap: "anywhere" }}>
-            <span style={{ fontFamily: MONO, color: T.accentText, marginRight: 6 }}>{p.displayId ?? "—"}</span>
-            {p.tipo}
-          </div>
-          {(p.evento || p.descricao) && (
-            <div title={[p.evento, p.descricao].filter(Boolean).join(" · ")} style={{ fontSize: isMobile ? 12 : FS.small, color: T.second, marginTop: 2, lineHeight: 1.35, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflowWrap: "anywhere" }}>
-              {[p.evento, p.descricao].filter(Boolean).join(" · ")}
+          <TituloDaPeca id={p.id} codigo={p.displayId} tipo={p.tipo} descricao={p.descricao} isMobile={isMobile} testId={`nome-peca-${p.id}`} />
+          {(p.evento || apoioDaPeca(p)) && (
+            <div title={[p.evento, apoioDaPeca(p)].filter(Boolean).join(" · ")} style={{ fontSize: isMobile ? 12 : FS.small, color: T.second, marginTop: 2, lineHeight: 1.35, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflowWrap: "anywhere" }}>
+              {[p.evento, apoioDaPeca(p)].filter(Boolean).join(" · ")}
             </div>
           )}
           <div style={{ fontSize: isMobile ? 12 : FS.small, color: T.second, marginTop: 2, fontVariantNumeric: "tabular-nums" }}>
@@ -909,9 +1028,7 @@ function PecaNoCartao({ p, agora, podeAgir, hojeMs, isMobile, onAgir }: {
             ? `${feitas} de ${teto} nesta impressora · peça ${p.impressas} de ${p.aImprimir} no total`
             : progressoDaImpressao(feitas, teto)}
         </div>
-        <div role="progressbar" aria-valuemin={0} aria-valuemax={teto} aria-valuenow={feitas} aria-label={`${p.displayId ?? "peça"}: ${feitas} de ${teto} impressas${dividida ? " nesta impressora" : ""}`} style={{ height: 5, borderRadius: 999, background: IMP.border, marginTop: 5, overflow: "hidden" }}>
-          <div style={{ width: `${pct}%`, height: "100%", background: IMP.dot, borderRadius: 999, transition: "width 0.2s" }} />
-        </div>
+        <BarraDeImpressao feitas={feitas} teto={teto} rotulo={`${p.displayId ?? "peça"}: ${feitas} de ${teto} impressas${dividida ? " nesta impressora" : ""}`} />
       </div>
 
       {/* Ações: a principal (o mesmo modal da fila), a troca de máquina
@@ -946,6 +1063,23 @@ function PecaNoCartao({ p, agora, podeAgir, hojeMs, isMobile, onAgir }: {
           >
             <ArrowLeftRight aria-hidden="true" style={{ width: 12, height: 12, color: T.accentText, flexShrink: 0 }} />
             Trocar de máquina
+          </button>
+        )}
+        {podeAgir && onTirar && !parteEsgotada && (
+          <button
+            type="button"
+            className="mq-acao"
+            // SEM o bloqueio de evento finalizado (selo): tirar não faz trabalho
+            // andar, só recua — e a peça de evento já realizado travaria a
+            // impressora para sempre. O servidor também não barra quem SAI.
+            onClick={() => onTirar(p)}
+            disabled={mexendo}
+            aria-busy={mexendo || undefined}
+            data-testid={`button-tirar-da-impressora-${p.id}`}
+            title={`Tirar da ${rotuloDaMaquina(p.maquina)}: o que já saiu fica anotado e o resto volta para o topo da fila dela — a impressora fica livre`}
+            style={{ ...largura("1 1 120px"), minHeight: alvo, padding: "0 10px", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 5, borderRadius: R.md, border: `1px solid ${T.bdark}`, background: T.surface, color: T.text, fontSize: isMobile ? 13 : 12, fontWeight: 700, cursor: mexendo ? "wait" : "pointer", opacity: mexendo ? 0.6 : 1, whiteSpace: "nowrap" }}
+          >
+            Tirar da impressora
           </button>
         )}
         <Link
@@ -992,10 +1126,8 @@ const LinhaDoDiario = memo(function LinhaDoDiario({ l, mostrarMaquina, isMobile,
           {mostrarMaquina && <span style={{ fontSize: 12, color: T.second }}>{l.rotuloMaquina}</span>}
         </div>
         <div style={{ fontSize: 13, color: T.text, fontWeight: 700 }}>{texto}</div>
-        <Link href={`/grafica?item=${l.itemId}`} className="mq-link" style={{ textDecoration: "none", color: T.text, fontSize: 13, minHeight: 44, display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
-          <span style={{ fontFamily: MONO, fontWeight: 700, color: T.accentText, flexShrink: 0 }}>{l.displayId ?? "—"}</span>
-          <span style={{ overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflowWrap: "anywhere", lineHeight: 1.3 }}>{l.tipoPeca}{l.evento ? ` · ${l.evento}` : ""}</span>
-        </Link>
+        <TituloDaPeca id={l.itemId} codigo={l.displayId} tipo={l.tipoPeca} descricao={l.descricaoPeca} isMobile fonte={13} testId={`nome-diario-${l.id}`} />
+        {l.evento && <span style={{ fontSize: 12, color: T.second, overflowWrap: "anywhere" }}>{l.evento}</span>}
         <span style={{ fontSize: 12, color: T.second }}>{l.quem ?? "—"}</span>
       </div>
     );
@@ -1008,10 +1140,7 @@ const LinhaDoDiario = memo(function LinhaDoDiario({ l, mostrarMaquina, isMobile,
       <td style={{ ...fixo, fontFamily: MONO, fontVariantNumeric: "tabular-nums", color: T.second }}>{l.hora}</td>
       {mostrarMaquina && <td style={{ ...td, color: T.second, minWidth: 110, overflowWrap: "anywhere" }}>{l.rotuloMaquina}</td>}
       <td style={{ ...td, minWidth: 160, overflowWrap: "anywhere" }}>
-        <Link href={`/grafica?item=${l.itemId}`} className="mq-link" title="Abrir na fila da Gráfica" style={{ textDecoration: "none", color: T.text }}>
-          <span style={{ fontFamily: MONO, fontWeight: 700, color: T.accentText }}>{l.displayId ?? "—"}</span>{" "}
-          {l.tipoPeca}
-        </Link>
+        <TituloDaPeca id={l.itemId} codigo={l.displayId} tipo={l.tipoPeca} descricao={l.descricaoPeca} isMobile={false} emLinha fonte={12.5} testId={`nome-diario-${l.id}`} />
         {compacto && l.evento && <div style={{ fontSize: FS.small, color: T.second, marginTop: 2 }}>{l.evento}</div>}
       </td>
       {!compacto && <td style={{ ...td, color: T.second, minWidth: 120, overflowWrap: "anywhere" }}>{l.evento ?? "—"}</td>}
@@ -1153,11 +1282,12 @@ const LOTE_DA_FILA = 20;
 const FILA_DO_CARTAO_NO_CELULAR = 3;
 /** Desktop: passa disso, o cartão ganha "Ver as N da fila" — um cartão não vira parede ao lado de um "Livre". */
 const FILA_DO_CARTAO_NO_DESKTOP = 5;
-const LinhaDaFilaGeral = memo(function LinhaDaFilaGeral({ p, marcada, podeAgir, ocupado, hojeMs, isMobile, ocupacao, imprimindo, onAlternar, onReservar, onImprimir }: {
+const LinhaDaFilaGeral = memo(function LinhaDaFilaGeral({ p, marcada, podeAgir, ocupado, hojeMs, isMobile, ocupacao, imprimindo, onAlternar, onReservar, onImprimir, onTrocar }: {
   p: PecaNaFila; marcada: boolean; podeAgir: boolean; ocupado: boolean; hojeMs: number; isMobile: boolean;
   ocupacao: OcupacaoDasImpressoras; imprimindo: boolean;
   onAlternar: (id: string) => void; onReservar: (id: string, maquina: string, quantidade: number) => void;
   onImprimir: (p: PecaNaFila, maquina: string, quantidade: number) => void;
+  onTrocar: (p: PecaNaFila, maquina: string, quantidade: number | null, sai: OcupanteDaImpressora) => void;
 }) {
   const alvo = isMobile ? 44 : 34;
   const fonte = isMobile ? 12 : FS.small;
@@ -1171,26 +1301,27 @@ const LinhaDaFilaGeral = memo(function LinhaDaFilaGeral({ p, marcada, podeAgir, 
           <input type="checkbox" checked={marcada} disabled={!!selo} onChange={() => onAlternar(p.id)} aria-label={`Selecionar ${p.displayId ?? "peça"}`} data-testid={`selecionar-fila-${p.id}`} style={{ width: isMobile ? 22 : 18, height: isMobile ? 22 : 18, accentColor: T.text }} />
         </label>
       )}
-      <Link href={`/grafica?item=${p.id}`} className="mq-link" title="Abrir na fila da Gráfica" data-testid={`fila-dados-${p.id}`} style={{ flex: isMobile ? "1 1 0%" : "1 1 220px", minWidth: 0, textDecoration: "none", color: T.text, display: "flex", flexDirection: "column", gap: 2, minHeight: isMobile ? 44 : undefined, justifyContent: "center" }}>
-        <span style={{ fontSize: FS.body, fontWeight: 700, lineHeight: 1.3, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflowWrap: "anywhere" }}>
-          <span style={{ fontFamily: MONO, color: T.accentText, marginRight: 6 }}>{p.displayId ?? "—"}</span>{p.tipo}
-        </span>
+      <div data-testid={`fila-dados-${p.id}`} style={{ flex: isMobile ? "1 1 0%" : "1 1 220px", minWidth: 0, color: T.text, display: "flex", flexDirection: "column", gap: 2, minHeight: isMobile ? 44 : undefined, justifyContent: "center" }}>
+        <TituloDaPeca id={p.id} codigo={p.displayId} tipo={p.tipo} descricao={p.descricao} isMobile={isMobile} testId={`nome-fila-geral-${p.id}`} />
         <span style={{ fontSize: fonte, color: T.second, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflowWrap: "anywhere" }}>
           {[p.evento, `${p.aImprimir} un.`, p.m2 != null ? `${p.m2.toLocaleString("pt-BR", { maximumFractionDigits: 2 })} m²` : null].filter(Boolean).join(" · ")}
         </span>
+        {apoioDaPeca(p) && (
+          <span data-testid={`apoio-${p.id}`} style={{ fontSize: fonte, color: T.second, overflowWrap: "anywhere", lineHeight: 1.35 }}>{apoioDaPeca(p)}</span>
+        )}
         {direcionamento && (
           <span data-testid={`direcionado-${p.id}`} style={{ fontSize: fonte, color: IMP.text, fontWeight: 700, fontVariantNumeric: "tabular-nums", overflowWrap: "anywhere", lineHeight: 1.35 }}>
             {direcionamento}
           </span>
         )}
         {isMobile && <span style={{ display: "flex", marginTop: 2 }}><SeloDePrazo p={prazo} fonte={fonte} /></span>}
-      </Link>
+      </div>
       {!isMobile && <SeloDePrazo p={prazo} fonte={fonte} />}
       {selo && isMobile && (
         <span data-testid={`fila-bloqueada-${p.id}`} style={{ flex: "1 1 100%", fontSize: 12, fontWeight: 700, color: selo.text }}>{selo.label} — {selo.hint}</span>
       )}
       {podeAgir && (
-        <ControleDeReserva id={p.id} codigoDaPeca={p.displayId} semImpressora={p.semImpressora ?? p.aImprimir} disabled={!!selo || ocupado} alvo={alvo} isMobile={isMobile} ocupacao={ocupacao} imprimindo={imprimindo} onReservar={(m, n) => onReservar(p.id, m, n)} onImprimir={(m, n) => onImprimir(p, m, n)} />
+        <ControleDeReserva id={p.id} codigoDaPeca={[p.displayId, `(${nomeDaPeca(p.tipo, p.descricao)})`].filter(Boolean).join(" ")} semImpressora={p.semImpressora ?? p.aImprimir} disabled={!!selo || ocupado} alvo={alvo} isMobile={isMobile} ocupacao={ocupacao} imprimindo={imprimindo} onReservar={(m, n) => onReservar(p.id, m, n)} onImprimir={(m, n) => onImprimir(p, m, n)} onTrocar={(m, n, sai) => onTrocar(p, m, n, sai)} />
       )}
     </div>
   );
@@ -1293,7 +1424,13 @@ export default function GraficaMaquinas() {
   // sempre) quando vai tudo, ou só a parte (`iniciarParte` + `quantidade`).
   const ocupacao = useMemo<OcupacaoDasImpressoras>(() => {
     const o: OcupacaoDasImpressoras = {};
-    for (const m of data?.maquinas ?? []) o[m.codigo] = { n: m.imprimindo.length, primeira: m.imprimindo[0]?.displayId ?? null };
+    for (const m of data?.maquinas ?? []) {
+      const a = m.imprimindo[0];
+      o[m.codigo] = {
+        n: m.imprimindo.length, primeira: a?.displayId ?? null,
+        atual: a ? { id: a.id, displayId: a.displayId, nome: nomeDaPeca(a.tipo, a.descricao), impressas: a.parte ? a.parte.impressas : a.impressas, teto: a.parte ? a.parte.atrib : a.aImprimir } : null,
+      };
+    }
     return o;
   }, [data]);
   const imprimirAgora = useMutation({
@@ -1304,13 +1441,47 @@ export default function GraficaMaquinas() {
     },
     onSuccess: (_r, v) => {
       for (const k of CHAVES_DA_RESERVA) queryClient.invalidateQueries({ queryKey: [k] });
-      toast({ title: `${v.peca.displayId ?? "Peça"}: ${v.quantidade} un. em impressão na ${rotuloDaMaquina(v.maquina)}`, description: "Conforme as unidades saírem, informe as impressas no cartão da impressora." });
+      toast({ title: `${v.peca.displayId ?? "Peça"} ${nomeDaPeca(v.peca.tipo, v.peca.descricao)}: ${v.quantidade} un. em impressão na ${rotuloDaMaquina(v.maquina)}`, description: "Conforme as unidades saírem, informe as impressas no cartão da impressora." });
     },
     onError: (error: Error) => {
       for (const k of CHAVES_DA_RESERVA) queryClient.invalidateQueries({ queryKey: [k] });
       toast({ title: "Não foi possível iniciar a impressão", description: mensagemDeErroDaApi(error), variant: "destructive" });
     },
   });
+  // ── TIRAR da impressora / TROCAR por prioridade (uma peça por vez) ────────
+  const mexerNaImpressora = useMutation({
+    mutationFn: async (v: { maquina: string; sai: OcupanteDaImpressora; entra?: PecaNaFila | null; quantidade?: number | null }) =>
+      v.entra
+        ? await apiRequest("POST", `/api/grafica/maquinas/${v.maquina}/trocar`, { tirarItemId: v.sai.id, colocarItemId: v.entra.id, ...(v.quantidade != null ? { quantidade: v.quantidade } : {}) })
+        : await apiRequest("POST", `/api/grafica/maquinas/${v.maquina}/pausar`, { itemId: v.sai.id }),
+    onSuccess: (_r, v) => {
+      for (const k of CHAVES_DA_RESERVA) queryClient.invalidateQueries({ queryKey: [k] });
+      toast(v.entra
+        ? { title: `${v.entra.displayId ?? "Peça"} em impressão na ${rotuloDaMaquina(v.maquina)}`, description: `A ${v.sai.displayId ?? "peça anterior"} voltou para o topo da fila desta impressora — o que já saiu dela ficou anotado.` }
+        : { title: `${v.sai.displayId ?? "Peça"} tirada da ${rotuloDaMaquina(v.maquina)}`, description: "A impressora ficou livre; a peça está no topo da fila dela com o que falta." });
+    },
+    onError: (error: Error) => {
+      for (const k of CHAVES_DA_RESERVA) queryClient.invalidateQueries({ queryKey: [k] });
+      toast({ title: "Não foi possível mexer na impressora", description: mensagemDeErroDaApi(error), variant: "destructive" });
+    },
+  });
+  // DUPLO DISPARO: a trava por ref vale ANTES do próximo render (duplo clique,
+  // Enter segurado); o isPending desabilita os botões enquanto o gesto voa.
+  const travaDaImpressoraRef = useRef(false);
+  const mexer = (v: { maquina: string; sai: OcupanteDaImpressora; entra?: PecaNaFila | null; quantidade?: number | null }) => {
+    if (travaDaImpressoraRef.current || mexerNaImpressora.isPending) return;
+    travaDaImpressoraRef.current = true;
+    mexerNaImpressora.mutate(v, { onSettled: () => { travaDaImpressoraRef.current = false; } });
+  };
+  const mexerRef = useRef(mexer);
+  mexerRef.current = mexer;
+  const trocarDaLinha = useCallback((entra: PecaNaFila, maquina: string, quantidade: number | null, sai: OcupanteDaImpressora) => mexerRef.current({ maquina, sai, entra, quantidade }), []);
+  // [modal] impressoras ocupadas → código da peça que está nelas.
+  const ocupadasParaOModal = useMemo(() => {
+    const o: Record<string, string | null> = {};
+    for (const [m, x] of Object.entries(ocupacao)) if (x.n > 0 && x.atual?.id !== pecaNoModal?.peca.id) o[m] = x.primeira;
+    return o;
+  }, [ocupacao, pecaNoModal]);
   const imprimirRef = useRef(imprimirAgora.mutate);
   imprimirRef.current = imprimirAgora.mutate;
   const imprimirDaLinha = useCallback((peca: PecaNaFila, maquina: string, quantidade: number) => imprimirRef.current({ peca, maquina, quantidade }), []);
@@ -1322,6 +1493,26 @@ export default function GraficaMaquinas() {
   const [filasAbertas, setFilasAbertas] = useState<Set<string>>(() => new Set());
   // O seletor de peça de um cartão "Livre": qual impressora está escolhendo.
   const [seletorDaMaquina, setSeletorDaMaquina] = useState<string | null>(null);
+
+  // ── A FICHA da peça (dono, 21/09: "quando clicar, abrir o card com as
+  // informações do item") — a MESMA da Gráfica. A peça completa vem, sob
+  // demanda, da lista que a Gráfica já usa (/api/items/approved: toda peça
+  // desta tela está nela); o histórico, do mesmo endpoint com escopo na peça.
+  const [fichaId, setFichaId] = useState<string | null>(null);
+  const abrirFicha = useCallback((id: string) => setFichaId(id), []);
+  const pecasDaGrafica = useQuery<any[]>({ queryKey: ["/api/items/approved"], enabled: !!fichaId, staleTime: 30_000 });
+  const itemDaFicha = useMemo(
+    () => (fichaId ? (Array.isArray(pecasDaGrafica.data) ? pecasDaGrafica.data : []).find((i: any) => i?.id === fichaId) ?? null : null),
+    [fichaId, pecasDaGrafica.data],
+  );
+  const historicoDaFicha = useQuery<any[]>({
+    queryKey: ["/api/audit-logs", "item", fichaId],
+    queryFn: () => fetch(`/api/audit-logs?entityType=item&entityId=${fichaId}`, { credentials: "include" })
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`Falha ao carregar o histórico (HTTP ${r.status})`)))),
+    select: (d) => (Array.isArray(d) ? d : []),
+    enabled: !!itemDaFicha,
+    placeholderData: [],
+  });
   const maquinaDoSeletor = useMemo(() => {
     const m = (data?.maquinas ?? []).find((x) => x.codigo === seletorDaMaquina);
     return m ? { codigo: m.codigo, rotulo: m.rotulo, naFila: m.naFila ?? [] } : null;
@@ -1442,6 +1633,7 @@ export default function GraficaMaquinas() {
   ) : null;
 
   return (
+    <FichaContext.Provider value={abrirFicha}>
     <div
       data-testid="pagina-maquinas"
       style={{
@@ -1599,7 +1791,7 @@ export default function GraficaMaquinas() {
                       )}
 
                       {m.imprimindo.map((p) => (
-                        <PecaNoCartao key={p.id} p={p.maquina ? p : { ...p, maquina: m.codigo }} agora={agora} podeAgir={podeAgir} hojeMs={hojeMs} isMobile={isMobile} onAgir={abrirModal} />
+                        <PecaNoCartao key={p.id} p={p.maquina ? p : { ...p, maquina: m.codigo }} agora={agora} podeAgir={podeAgir} hojeMs={hojeMs} isMobile={isMobile} onAgir={abrirModal} mexendo={mexerNaImpressora.isPending} onTirar={(peca) => mexer({ maquina: m.codigo, sai: { id: peca.id, displayId: peca.displayId, nome: nomeDaPeca(peca.tipo, peca.descricao), impressas: peca.parte ? peca.parte.impressas : peca.impressas, teto: peca.parte ? peca.parte.atrib : peca.aImprimir } })} />
                       ))}
 
                       {/* A fila DESTA impressora (dono, 21/09): reservadas, na
@@ -1609,7 +1801,7 @@ export default function GraficaMaquinas() {
                         <div data-testid={`fila-maquina-${m.codigo}`} style={{ display: "flex", flexDirection: "column", gap: 2, marginTop: 2 }}>
                           <div style={{ ...ROTULO_MICRO, fontSize: isMobile ? 12 : FS.micro, paddingTop: 6 }}>Na fila desta impressora · {naFila.length}</div>
                           {(!filasAbertas.has(m.codigo) ? naFila.slice(0, isMobile ? FILA_DO_CARTAO_NO_CELULAR : FILA_DO_CARTAO_NO_DESKTOP) : naFila).map((p, i) => (
-                            <PecaNaFilaDoCartao key={p.id} p={p} proxima={!ocupada && i === 0} podeAgir={podeAgir} hojeMs={hojeMs} isMobile={isMobile} onIniciar={iniciarDaFila} onReservar={(peca, maquina, quantidade) => reservar([peca.id], maquina, quantidade ?? (peca.reservadas != null ? peca.reservadas : null), peca.reservadas != null ? m.codigo : null)} />
+                            <PecaNaFilaDoCartao key={p.id} p={p} proxima={!ocupada && i === 0} ocupante={ocupada ? ocupacao[m.codigo]?.atual ?? null : null} mexendo={mexerNaImpressora.isPending} onTrocar={(entra, sai) => mexer({ maquina: m.codigo, sai, entra, quantidade: entra.reservadas ?? null })} podeAgir={podeAgir} hojeMs={hojeMs} isMobile={isMobile} onIniciar={iniciarDaFila} onReservar={(peca, maquina, quantidade) => reservar([peca.id], maquina, quantidade ?? (peca.reservadas != null ? peca.reservadas : null), peca.reservadas != null ? m.codigo : null)} />
                           ))}
                           {!filasAbertas.has(m.codigo) && naFila.length > (isMobile ? FILA_DO_CARTAO_NO_CELULAR : FILA_DO_CARTAO_NO_DESKTOP) && (
                             <button type="button" className="mq-acao" onClick={() => setFilasAbertas((s) => new Set(s).add(m.codigo))} data-testid={`fila-maquina-ver-todas-${m.codigo}`} style={{ ...botaoNeutro, width: "100%", fontSize: 13 }}>
@@ -1675,7 +1867,7 @@ export default function GraficaMaquinas() {
                   ) : (
                     <div data-testid="fila-geral">
                       {filaGeral.slice(0, filaVisiveis).map((p) => (
-                        <LinhaDaFilaGeral key={p.id} p={p} marcada={selecionadas.has(p.id)} podeAgir={podeAgir} ocupado={reserva.isPending} hojeMs={hojeMs} isMobile={isMobile} ocupacao={ocupacao} imprimindo={imprimindoId === p.id} onAlternar={alternar} onReservar={reservarDaLinha} onImprimir={imprimirDaLinha} />
+                        <LinhaDaFilaGeral key={p.id} p={p} marcada={selecionadas.has(p.id)} podeAgir={podeAgir} ocupado={reserva.isPending || mexerNaImpressora.isPending} hojeMs={hojeMs} isMobile={isMobile} ocupacao={ocupacao} imprimindo={imprimindoId === p.id} onAlternar={alternar} onReservar={reservarDaLinha} onImprimir={imprimirDaLinha} onTrocar={trocarDaLinha} />
                       ))}
                       <FechoDaLista visiveis={Math.min(filaVisiveis, filaGeral.length)} total={filaGeral.length} um="peça" varios="peças" lote={LOTE_DA_FILA} onMais={() => setFilaVisiveis((v) => v + LOTE_DA_FILA)} testId="fecho-fila-geral" botaoTestId="button-fila-toda" isMobile={isMobile} estiloDoBotao={botaoNeutro} />
                     </div>
@@ -1907,7 +2099,7 @@ export default function GraficaMaquinas() {
 
       {/* O mesmo modal da fila da Gráfica: iniciar não cabe aqui (a peça já
           está na máquina), então ele abre direto em "informar impressas". */}
-      <ModalImpressao item={itemDoModal} abrirNaTroca={pecaNoModal?.trocar ?? false} maquinaInicial={pecaNoModal?.maquinaInicial ?? null} maquinaEmQuestao={pecaNoModal?.peca.parte ? pecaNoModal.peca.maquina : null} parteAIniciar={pecaNoModal?.parte ?? null} onFechar={() => setPecaNoModal(null)} />
+      <ModalImpressao item={itemDoModal} abrirNaTroca={pecaNoModal?.trocar ?? false} maquinaInicial={pecaNoModal?.maquinaInicial ?? null} maquinaEmQuestao={pecaNoModal?.peca.parte ? pecaNoModal.peca.maquina : null} parteAIniciar={pecaNoModal?.parte ?? null} ocupadas={ocupadasParaOModal} onFechar={() => setPecaNoModal(null)} />
 
       {/* O seletor de peça do cartão "Livre": fecha e passa a vez ao modal de
           impressão, já com a impressora marcada. */}
@@ -1928,6 +2120,41 @@ export default function GraficaMaquinas() {
           setPecaNoModal({ peca: p, trocar: false, maquinaInicial: codigo, parte });
         }}
       />
+
+      {/* A ficha: enquanto a peça completa não chega, um aviso pequeno (com
+          saída); depois, o mesmo diálogo que a Gráfica abre no "Ver detalhes". */}
+      <Dialog open={!!fichaId && !itemDaFicha} onOpenChange={(open) => { if (!open) setFichaId(null); }}>
+        <DialogContent className={HIDE_NATIVE_CLOSE} style={modalSurface(380)} data-testid="ficha-carregando">
+          <DialogTitle className="sr-only">Detalhes da peça</DialogTitle>
+          <DialogDescription className="sr-only">Carregando as informações da peça</DialogDescription>
+          <ModalHeader icon={Eye} tint={T.text} title="Detalhes da peça" subtitle={pecasDaGrafica.isError ? "Não foi possível carregar" : pecasDaGrafica.isFetching || pecasDaGrafica.isLoading ? "Carregando…" : "Peça não encontrada na fila"} onClose={() => setFichaId(null)} />
+          <div style={{ padding: isMobile ? 16 : 24, display: "flex", flexDirection: "column", gap: 12, fontSize: FS.body, color: T.second }}>
+            {pecasDaGrafica.isError ? (
+              <p role="alert" style={{ margin: 0, color: VERMELHO.text }}>{ehServidorNaVersaoAnterior(pecasDaGrafica.error) ? AVISO_SERVIDOR_ANTIGO : "Não foi possível carregar a ficha desta peça. Confira a conexão e tente de novo."}</p>
+            ) : pecasDaGrafica.isFetching || pecasDaGrafica.isLoading ? (
+              <p role="status" aria-busy="true" style={{ margin: 0, display: "flex", alignItems: "center", gap: 8 }}><Loader2 aria-hidden="true" className="animate-spin" style={{ width: 14, height: 14 }} /> Buscando as informações da peça…</p>
+            ) : (
+              <p role="status" style={{ margin: 0 }}>Esta peça não está mais na fila da Gráfica (pode ter sido concluída, cancelada ou devolvida).</p>
+            )}
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              {pecasDaGrafica.isError && <button type="button" className="mq-acao" onClick={() => pecasDaGrafica.refetch()} style={botaoNeutro}>Tentar novamente</button>}
+              {fichaId && <Link href={`/grafica?item=${fichaId}`} className="mq-acao" style={botaoNeutro}>Ver na Gráfica <ArrowRight aria-hidden="true" style={{ width: 12, height: 12, color: T.accentText }} /></Link>}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+      <ItemDetailsDialog
+        item={itemDaFicha}
+        auditLogs={historicoDaFicha.data ?? []}
+        open={!!itemDaFicha}
+        onOpenChange={(open) => { if (!open) setFichaId(null); }}
+        topActions={fichaId ? (
+          <Link href={`/grafica?item=${fichaId}`} className="mq-acao" data-testid="ficha-ver-na-grafica" style={botaoNeutro}>
+            Ver na Gráfica <ArrowRight aria-hidden="true" style={{ width: 12, height: 12, color: T.accentText }} />
+          </Link>
+        ) : undefined}
+      />
     </div>
+    </FichaContext.Provider>
   );
 }

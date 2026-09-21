@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useDeferredValue } from "react";
+import { useState, useMemo, useEffect, useDeferredValue, Fragment } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { FilterSelect } from "@/components/filter-select";
 import { EventFilterDropdown } from "@/components/event-filter-dropdown";
@@ -15,7 +15,9 @@ import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useAuth } from "@/contexts/auth-context";
-import { diaEMes, eventoJaAcabou } from "@shared/estoque";
+import { diaEMes, eventoJaAcabou, eventosDeUso, usosDoAtivo, ROTULO_DO_USO, type AlocacaoDoAcervo, type UsoDoAtivo } from "@shared/estoque";
+import { agruparAcervo, fraseDaCondicao, fraseDaSituacao, type GrupoDoAcervo } from "@/lib/agrupar-acervo";
+import { DetalheDoAtivo } from "@/components/estoque/detalhe-do-ativo";
 import { miniatura } from "@/lib/miniatura";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import {
@@ -24,7 +26,6 @@ import {
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { HIDE_NATIVE_CLOSE, FreezeWhileClosing, ModalHeader, modalSurface } from "@/components/modal-shell";
 import { CONDITIONS, CONDITION_META, conditionMeta, type Condition } from "@/lib/inventory-meta";
-import { MapaGalpao } from "@/components/mapa-galpao";
 import { FS, R } from "@/lib/theme";
 
 // ─── Status meta ─────────────────────────────────────────────────────────────
@@ -176,478 +177,6 @@ function DeleteModal({ asset, onClose, onConfirm, isPending }: {
   );
 }
 
-// ─── Asset Detail Modal (Eye button) ─────────────────────────────────────────
-function AssetDetailModal({ asset, linkedItem, sponsors, onClose }: {
-  asset: InventoryAsset;
-  linkedItem?: any;
-  sponsors: Sponsor[];
-  onClose: () => void;
-}) {
-  const isMobile = useIsMobile();
-  const assetSponsors = (asset.sponsorIds ?? []).map(id => sponsors.find(s => s.id === id)).filter(Boolean) as Sponsor[];
-  const sm = STATUS_META[asset.trackingStatus ?? "NO_GALPAO"];
-  const cm = conditionMeta(asset.condition);
-  const ts = asset.trackingStatus ?? "NO_GALPAO";
-
-  const eventName = linkedItem?.event?.name ?? null;
-  const eventDate = linkedItem?.event?.startDate ?? null;
-
-  // Sem queryFn inline: o default do queryClient junta a queryKey com "/",
-  // inclui credenciais e lança em !res.ok — o fetch().json() anterior engolia
-  // erros HTTP e derrubava a tela com JSON inválido.
-  const { data: allocations = VAZIO as any[] } = useQuery<any[]>({
-    queryKey: ["/api/inventory", asset.id, "allocations"],
-  });
-  const currentAlloc = ts === "EM_USO" ? allocations[allocations.length - 1] : null;
-
-  const { data: assetLogs = VAZIO as any[] } = useQuery<any[]>({
-    queryKey: [`/api/audit-logs?entityType=inventory_asset&entityId=${asset.id}`],
-  });
-  const productionLog = assetLogs.find((l: any) => l.action === 'cadastrado');
-  const triageLog = assetLogs.find((l: any) => l.action === 'triagem');
-
-  // Timeline logic — 4 steps
-  // 1. Entrada no Estoque: always done
-  // 2. Em Uso no Evento: done once dispatched (todo ativo listado já passou por despacho)
-  // 3. Aguardando Triagem: done when triage passed
-  // 4. Situação Atual: active when on final state
-  // Manutenção é destino de triagem (a triagem passou) e é a situação atual —
-  // sem ela aqui a linha do tempo dizia "Triagem: Pendente · Aguardando
-  // triagem" para uma peça que já foi triada e está no reparo.
-  const step2Active = ts === "EM_USO";
-  const step3Done   = ts === "NO_GALPAO" || ts === "DESCARTADO" || ts === "EM_MANUTENCAO";
-  const step3Active = ts === "AGUARDANDO_TRIAGEM";
-  const step4Active = ts === "NO_GALPAO" || ts === "DESCARTADO" || ts === "EM_MANUTENCAO";
-
-  // Localização Técnica: where the item currently IS
-  // EM_MANUTENCAO (14/09) caía no `else` e a peça em reparo aparecia como
-  // "Descartado" — a pior leitura possível para quem procura a peça para usar.
-  const locLabel = ts === "NO_GALPAO" ? (asset.location ?? "Galpão Central")
-    : ts === "EM_USO"            ? "Em Uso (Evento)"
-    : ts === "AGUARDANDO_TRIAGEM" ? "Aguardando Triagem"
-    : ts === "EM_MANUTENCAO"     ? `Em manutenção${asset.location ? ` · ${asset.location}` : ""}`
-    : "Descartado";
-
-  const sidebarDot = (done: boolean, active: boolean, icon: React.ReactElement) => {
-    const isFinal = done && !active;
-    return (
-      <div style={{
-        position: "absolute", left: -21, top: 1,
-        width: 20, height: 20, borderRadius: "50%",
-        background: isFinal ? "#f97316" : active ? "rgba(249,115,22,0.15)" : "#1f2937",
-        border: active ? "1.5px solid #f97316" : isFinal ? "none" : "1px solid #374151",
-        display: "flex", alignItems: "center", justifyContent: "center",
-        boxShadow: active ? "0 0 0 4px rgba(249,115,22,0.10)" : "none",
-        flexShrink: 0,
-      }}>
-        {isFinal ? <Check size={10} color="#fff" strokeWidth={3} /> : icon}
-      </div>
-    );
-  };
-
-  return (
-    <Dialog open onOpenChange={open => { if (!open) onClose(); }}>
-      <DialogContent
-        className={`p-0 gap-0 border-0 ${HIDE_NATIVE_CLOSE}`}
-        style={{
-          // Teto de altura da casca (dvh: a barra recolhível do navegador do
-          // celular não cobre o rodapé). O 90vh fixo de antes deixava o Fechar
-          // atrás da barra do Safari.
-          ...modalSurface(1040),
-          flexDirection: isMobile ? "column" : "row",
-          overflow: isMobile ? "auto" : "hidden",
-          backgroundColor: "#f9f9f8",
-        }}
-      >
-        <DialogTitle className="sr-only">{`Detalhes do ativo ${asset.displayId} — ${asset.name}`}</DialogTitle>
-        <DialogDescription className="sr-only">
-          Rastreabilidade, especificações técnicas e situação atual do ativo.
-        </DialogDescription>
-
-        {/* ── Sidebar ── No celular vai para DEPOIS do conteúdo (order): antes a
-            linha do tempo inteira vinha primeiro e o nome da peça, a condição
-            e o botão de fechar só apareciam depois de uma tela de rolagem. */}
-        <aside style={{ width: isMobile ? "100%" : 264, flexShrink: 0, background: "#1c1917", display: "flex", flexDirection: "column", padding: isMobile ? "20px 16px" : "28px 22px", order: isMobile ? 2 : 0 }}>
-          {/* Marca só no desktop: no celular é uma faixa a mais sem informação. */}
-          {!isMobile && (
-            <div style={{ marginBottom: 28 }}>
-              <div style={{ fontFamily: "Space Grotesk, sans-serif", fontWeight: 900, fontSize: 22, color: "#f9f9f8", letterSpacing: "-0.05em", lineHeight: 1 }}>NORTE</div>
-            </div>
-          )}
-
-          {/* Rastreabilidade */}
-          <div style={{ flex: 1, minHeight: 0, overflowY: "auto" }}>
-            {/* Regra da casa: #f97316 nunca como cor de texto. Na barra escura
-                a família laranja entra em #fdba74 (orange-300, ~10:1 sobre
-                #1c1917) — mesmo matiz, sem o hex proibido. */}
-            <div style={{ fontFamily: "Space Grotesk, sans-serif", fontWeight: 700, fontSize: 10, color: "#fdba74", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 18 }}>
-              Rastreabilidade
-            </div>
-            <div style={{ position: "relative", paddingLeft: 30 }}>
-              <div style={{ position: "absolute", left: 9, top: 12, bottom: 12, width: 1, background: "rgba(255,255,255,0.08)" }} />
-
-              {/* Step 1 — Produção & Cadastro */}
-              <div style={{ position: "relative", marginBottom: 28 }}>
-                {sidebarDot(true, false, <Package size={10} color="#9ca3af" />)}
-                <div style={{ paddingTop: 3, paddingLeft: 8 }}>
-                  <div style={{ fontFamily: "Plus Jakarta Sans, sans-serif", fontWeight: 600, fontSize: 12, color: "#f9f9f8" }}>
-                    {linkedItem?.type ? `Produção · ${linkedItem.type}` : "Produção Gráfica"}
-                  </div>
-                  <div style={{ fontFamily: "DM Mono, monospace", fontSize: 10, color: "rgba(255,255,255,0.62)", marginTop: 3, letterSpacing: "0.02em" }}>
-                    {productionLog
-                      ? `${productionLog.userName} · ${format(new Date(productionLog.createdAt), "dd MMM yyyy", { locale: ptBR })}`
-                      : `Auto-cadastrado · ${asset.autoAdded ? "Gráfica" : "Manual"}`}
-                  </div>
-                </div>
-              </div>
-
-              {/* Step 2 — Entrada no Estoque */}
-              <div style={{ position: "relative", marginBottom: 28 }}>
-                {sidebarDot(true, false, <Archive size={10} color="#9ca3af" />)}
-                <div style={{ paddingTop: 3, paddingLeft: 8 }}>
-                  <div style={{ fontFamily: "Plus Jakarta Sans, sans-serif", fontWeight: 600, fontSize: 12, color: "#f9f9f8" }}>Entrada no Estoque</div>
-                  <div style={{ fontFamily: "DM Mono, monospace", fontSize: 10, color: "rgba(255,255,255,0.62)", marginTop: 3, letterSpacing: "0.02em" }}>
-                    {eventDate ? format(new Date(eventDate), "dd MMM yyyy", { locale: ptBR }) : "Cadastrado"}
-                  </div>
-                </div>
-              </div>
-
-              {/* Dynamic allocation steps — one per event */}
-              {allocations.length > 0 ? allocations.map((alloc: any, i: number) => {
-                const isLast = i === allocations.length - 1;
-                const isCurrent = ts === "EM_USO" && isLast;
-                const isDone = !isCurrent;
-                const evDate = alloc.event?.startDate;
-                return (
-                  <div key={alloc.id} style={{ position: "relative", marginBottom: 28 }}>
-                    {sidebarDot(isDone, isCurrent, <Truck size={10} color={isCurrent ? "#f97316" : "#9ca3af"} />)}
-                    <div style={{ paddingTop: 3, paddingLeft: 8 }}>
-                      <div style={{ fontFamily: "Plus Jakarta Sans, sans-serif", fontWeight: isCurrent ? 700 : 600, fontSize: 12, color: isCurrent ? "#fdba74" : "#d1d5db" }}>
-                        {alloc.event?.name ?? "Evento"}
-                      </div>
-                      <div style={{ fontFamily: "DM Mono, monospace", fontSize: 10, color: "rgba(255,255,255,0.62)", marginTop: 3, letterSpacing: "0.02em" }}>
-                        {evDate ? format(new Date(evDate), "dd MMM yyyy", { locale: ptBR }) : "—"} · {isCurrent ? "Em uso" : "Concluído"}
-                      </div>
-                    </div>
-                  </div>
-                );
-              }) : (
-                /* No allocations yet — show generic step */
-                eventName && (
-                  <div style={{ position: "relative", marginBottom: 28 }}>
-                    {sidebarDot(!step2Active, step2Active, <Truck size={10} color={step2Active ? "#f97316" : "#9ca3af"} />)}
-                    <div style={{ paddingTop: 3, paddingLeft: 8 }}>
-                      <div style={{ fontFamily: "Plus Jakarta Sans, sans-serif", fontWeight: step2Active ? 700 : 600, fontSize: 12, color: step2Active ? "#fdba74" : "#d1d5db" }}>
-                        {eventName}
-                      </div>
-                      <div style={{ fontFamily: "DM Mono, monospace", fontSize: 10, color: "rgba(255,255,255,0.62)", marginTop: 3, letterSpacing: "0.02em" }}>
-                        {eventDate ? format(new Date(eventDate), "dd MMM yyyy", { locale: ptBR }) : "—"} · {step2Active ? "Em uso" : "Concluído"}
-                      </div>
-                    </div>
-                  </div>
-                )
-              )}
-
-              {/* Triagem de Retorno */}
-              <div style={{ position: "relative", marginBottom: 28 }}>
-                {sidebarDot(step3Done, step3Active, <ClipboardCheck size={10} color={step3Active ? "#f97316" : "#9ca3af"} />)}
-                <div style={{ paddingTop: 3, paddingLeft: 8 }}>
-                  <div style={{ fontFamily: "Plus Jakarta Sans, sans-serif", fontWeight: step3Active ? 700 : 600, fontSize: 12, color: step3Active ? "#fdba74" : step3Done ? "#d1d5db" : "#9ca3af" }}>
-                    Triagem de Retorno
-                  </div>
-                  <div style={{ fontFamily: "DM Mono, monospace", fontSize: 10, color: "rgba(255,255,255,0.62)", marginTop: 3, letterSpacing: "0.02em" }}>
-                    {step3Active
-                      ? "Em análise"
-                      : step3Done && triageLog
-                        ? `${triageLog.userName} · ${format(new Date(triageLog.createdAt), "dd MMM yyyy", { locale: ptBR })}`
-                        : step3Done ? "Concluído" : "Pendente"}
-                  </div>
-                </div>
-              </div>
-
-              {/* Situação Atual */}
-              <div style={{ position: "relative" }}>
-                {sidebarDot(false, step4Active, ts === "DESCARTADO"
-                  ? <Trash2 size={10} color={step4Active ? "#ef4444" : "#6b7280"} />
-                  : <Warehouse size={10} color={step4Active ? "#f97316" : "#6b7280"} />
-                )}
-                <div style={{ paddingTop: 3, paddingLeft: 8 }}>
-                  <div style={{ fontFamily: "Plus Jakarta Sans, sans-serif", fontWeight: step4Active ? 700 : 600, fontSize: 12, color: step4Active ? "#fdba74" : "#9ca3af" }}>
-                    {ts === "DESCARTADO" ? "Descartado" : ts === "NO_GALPAO" ? "No Galpão" : ts === "EM_MANUTENCAO" ? "Em manutenção" : "Destino Final"}
-                  </div>
-                  <div style={{ fontFamily: "DM Mono, monospace", fontSize: 10, color: "rgba(255,255,255,0.62)", marginTop: 3, letterSpacing: "0.02em" }}>
-                    {step4Active ? "Estado atual" : "Aguardando triagem"}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Sponsors */}
-            {assetSponsors.length > 0 && (
-              <div style={{ marginTop: 24, paddingTop: 18, borderTop: "1px solid rgba(255,255,255,0.07)" }}>
-                <div style={{ fontFamily: "Space Grotesk, sans-serif", fontWeight: 700, fontSize: 10, color: "rgba(255,255,255,0.62)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10 }}>Patrocinadores</div>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
-                  {assetSponsors.map(s => (
-                    <div key={s.id} style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "3px 7px", background: "#292524", borderRadius: 4, border: "1px solid rgba(255,255,255,0.07)" }}>
-                      <Tag size={8} color="#6b7280" />
-                      <span style={{ fontFamily: "Space Grotesk, sans-serif", fontWeight: 700, fontSize: 9, color: "#d1d5db", textTransform: "uppercase", letterSpacing: "0.06em" }}>{s.name}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Footer card — Localização Técnica */}
-          <div style={{ background: "rgba(255,255,255,0.04)", padding: 14, borderRadius: 8, border: "1px solid rgba(255,255,255,0.08)", marginTop: 18, flexShrink: 0 }}>
-            <div style={{ fontFamily: "Space Grotesk, sans-serif", fontWeight: 700, fontSize: 10, color: "rgba(255,255,255,0.62)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 5 }}>
-              Localização Técnica
-            </div>
-            <div style={{ fontFamily: "Space Grotesk, sans-serif", fontWeight: 800, fontSize: 14, color: "#f9f9f8", letterSpacing: "-0.02em", wordBreak: "break-word", lineHeight: 1.3 }}>
-              {locLabel}
-            </div>
-            <div style={{ marginTop: 10, paddingTop: 8, borderTop: "1px solid rgba(255,255,255,0.07)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <span style={{ fontSize: 11, color: "rgba(255,255,255,0.62)", fontFamily: "Space Grotesk, sans-serif" }}>Condição</span>
-              {/* cm.border (tom 300) sobre o escuro: cm.color é o tom 700,
-                  pensado para fundo CLARO — aqui dava ~3:1. */}
-              <span style={{ fontSize: 11, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif", color: cm.border }}>
-                {cm.label}
-              </span>
-            </div>
-          </div>
-          {isMobile && (
-            <button type="button" onClick={onClose}
-              style={{ marginTop: 16, minHeight: 44, borderRadius: 10, border: "1px solid rgba(255,255,255,0.16)", background: "rgba(255,255,255,0.06)", color: "#f9f9f8", fontFamily: "Space Grotesk, sans-serif", fontWeight: 700, fontSize: 14, cursor: "pointer" }}>
-              Fechar
-            </button>
-          )}
-        </aside>
-
-        {/* ── Main content ── */}
-        <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0, minHeight: 0, background: "#f9f9f8", maxHeight: isMobile ? undefined : "calc(100vh - 48px)", order: isMobile ? 1 : 0 }}>
-
-          {/* Dark header */}
-          <header style={{ background: "#1a1c1c", padding: isMobile ? "16px 16px 16px 20px" : "20px 28px", display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, flexShrink: 0 }}>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, flexWrap: "wrap" }}>
-                <span style={{ background: "#f97316", color: "#1a1c1c", fontFamily: "Space Grotesk, sans-serif", fontWeight: 900, fontSize: 9, letterSpacing: "-0.02em", padding: "3px 8px", borderRadius: 4 }}>
-                  {asset.displayId}
-                </span>
-                {eventName && (
-                  <span style={{ fontFamily: "DM Mono, monospace", fontSize: 10, color: "rgba(255,255,255,0.5)", background: "rgba(255,255,255,0.07)", padding: "3px 8px", borderRadius: 4, textTransform: "uppercase", letterSpacing: "0.06em" }}>
-                    {eventName}
-                  </span>
-                )}
-                {asset.autoAdded && (
-                  <span style={{ fontFamily: "Space Grotesk, sans-serif", fontSize: 9, fontWeight: 700, color: "rgba(255,255,255,0.62)", background: "rgba(255,255,255,0.06)", padding: "3px 8px", borderRadius: 4, textTransform: "uppercase", letterSpacing: "0.06em" }}>
-                    Auto-Adicionado
-                  </span>
-                )}
-              </div>
-              {/* Nome no caso original: em CAIXA ALTA com -0.05em as letras
-                  encostavam e o nome da peça (que já vem em maiúsculas às
-                  vezes) virava um bloco ilegível. No celular quebra linha em
-                  vez de cortar — o nome é a informação principal do modal. */}
-              <h1 style={{ margin: 0, color: "#ffffff", fontFamily: "Space Grotesk, sans-serif", fontWeight: 700, fontSize: isMobile ? 20 : 24, letterSpacing: "-0.03em", lineHeight: 1.15, ...(isMobile ? { overflowWrap: "anywhere" as const } : { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const, maxWidth: "calc(100% - 8px)" }) }}>
-                {asset.name}
-              </h1>
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0, flexDirection: isMobile ? "column-reverse" : "row", ...(isMobile ? { alignItems: "flex-end" } : {}) }}>
-              <span style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 6, background: sm.color, color: "#fff", fontFamily: "Space Grotesk, sans-serif", fontWeight: 700, fontSize: 12, whiteSpace: "nowrap" }}>
-                <Warehouse size={13} aria-hidden="true" />{sm.label}
-              </span>
-              <button onClick={onClose} data-testid="button-close-asset-detail" aria-label="Fechar detalhes do ativo"
-                style={{ background: "rgba(255,255,255,0.08)", border: "none", cursor: "pointer", color: "rgba(255,255,255,0.72)", width: isMobile ? 44 : 40, height: isMobile ? 44 : 40, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", transition: "color 0.15s, background 0.15s" }}
-                onMouseEnter={e => { e.currentTarget.style.color = "#fff"; e.currentTarget.style.background = "rgba(255,255,255,0.14)"; }}
-                onMouseLeave={e => { e.currentTarget.style.color = "rgba(255,255,255,0.72)"; e.currentTarget.style.background = "rgba(255,255,255,0.08)"; }}>
-                <X size={20} />
-              </button>
-            </div>
-          </header>
-
-          {/* Scrollable body */}
-          <div style={{ flex: "1 1 auto", minHeight: 0, overflowY: isMobile ? "visible" : "auto", padding: isMobile ? "16px 16px 0" : "28px 28px 0", display: "flex", flexDirection: "column", gap: isMobile ? 16 : 24 }}>
-
-            {/* Condition + Notes read-only banner — quebra linha no celular:
-                lado a lado a observação ficava com ~120px de largura. */}
-            <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-              {/* Condition chip */}
-              <div style={{ flex: "1 1 180px", background: "#fff", borderRadius: 10, padding: "16px 20px", border: "1px solid #e2e8f0", display: "flex", alignItems: "center", gap: 12 }}>
-                <div style={{ width: 40, height: 40, borderRadius: 8, background: cm.bg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                  <cm.Icon size={18} color={cm.color} />
-                </div>
-                <div>
-                  <div style={{ fontFamily: "Space Grotesk, sans-serif", fontWeight: 700, fontSize: 11, color: "#64748b" }}>Condição</div>
-                  <div style={{ fontFamily: "Space Grotesk, sans-serif", fontWeight: 800, fontSize: 14, color: cm.color, marginTop: 2 }}>{cm.label}</div>
-                </div>
-              </div>
-              {/* Notes read-only */}
-              {asset.notes && (
-                <div style={{ flex: "2 1 240px", background: "#fff", borderRadius: 10, padding: "16px 20px", border: "1px solid #e2e8f0" }}>
-                  <div style={{ fontFamily: "Space Grotesk, sans-serif", fontWeight: 700, fontSize: 11, color: "#64748b", marginBottom: 6 }}>Observações</div>
-                  <div style={{ fontFamily: "Plus Jakarta Sans, sans-serif", fontSize: 12, color: "#374151", lineHeight: 1.5 }}>{asset.notes}</div>
-                </div>
-              )}
-            </div>
-
-            {/* Info grid — same layout as triagem-modal. Uma coluna no celular:
-                as duas lado a lado em 343px espremiam "PATROCINADORES" contra
-                o valor. */}
-            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 16 }}>
-
-              {/* Evento e Histórico — light card */}
-              <div style={{ background: "#f3f4f3", borderRadius: 10, overflow: "hidden" }}>
-                {/* EM USO banner */}
-                {ts === "EM_USO" && (
-                  <div style={{ background: "#c2410c", padding: "8px 16px", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                    {/* #c2410c: branco em 10px sobre #f97316 dava 2,8:1. */}
-                    <Truck size={13} color="#fff" aria-hidden="true" />
-                    <span style={{ fontFamily: "Space Grotesk, sans-serif", fontWeight: 700, fontSize: 11, color: "#fff" }}>
-                      Em uso agora
-                    </span>
-                    {currentAlloc?.event?.name && (
-                      <span style={{ fontFamily: "Plus Jakarta Sans, sans-serif", fontWeight: 600, fontSize: 10, color: "rgba(255,255,255,0.85)", marginLeft: 4 }}>
-                        — {currentAlloc.event.name}
-                      </span>
-                    )}
-                  </div>
-                )}
-                <div style={{ padding: "18px 22px" }}>
-                  <h3 style={{ margin: "0 0 14px", display: "flex", alignItems: "center", gap: 8, fontFamily: "Space Grotesk, sans-serif", fontWeight: 700, fontSize: 13, color: "#374151" }}>
-                    <Calendar size={15} color="#6b7280" />
-                    {allocations.length > 0 ? "Histórico de Participações" : "Informações do Evento"}
-                  </h3>
-
-                  {/* Allocation history */}
-                  {allocations.length > 0 ? (
-                    <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
-                      {allocations.map((alloc: any, i: number) => {
-                        const isCurrent = ts === "EM_USO" && i === allocations.length - 1;
-                        const evName = alloc.event?.name ?? "Evento";
-                        const evDate = alloc.event?.startDate;
-                        return (
-                          <div key={alloc.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "8px 0", borderBottom: i < allocations.length - 1 ? "1px solid rgba(0,0,0,0.06)" : "none" }}>
-                            <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
-                              <div style={{ width: 6, height: 6, borderRadius: "50%", background: isCurrent ? "#f97316" : "#9ca3af", flexShrink: 0 }} />
-                              <span style={{ fontFamily: "Plus Jakarta Sans, sans-serif", fontSize: 11, fontWeight: 600, color: isCurrent ? "#c2410c" : "#374151", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                                {evName}
-                              </span>
-                            </div>
-                            <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
-                              {isCurrent && (
-                                <span style={{ background: "#fed7aa", color: "#9a3412", fontFamily: "Space Grotesk, sans-serif", fontWeight: 700, fontSize: 10, padding: "2px 6px", borderRadius: 3 }}>
-                                  Em Uso
-                                </span>
-                              )}
-                              <span style={{ fontFamily: "DM Mono, monospace", fontSize: 10, color: "#746e69" }}>
-                                {evDate ? format(new Date(evDate), "dd MMM yy", { locale: ptBR }) : "—"}
-                              </span>
-                            </div>
-                          </div>
-                        );
-                      })}
-                      {/* Static info below history */}
-                      <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid rgba(0,0,0,0.06)", display: "flex", justifyContent: "space-between" }}>
-                        <span style={{ fontFamily: "Plus Jakarta Sans, sans-serif", fontSize: 11, color: "#746e69" }}>Qtd Total</span>
-                        <span style={{ fontFamily: "Plus Jakarta Sans, sans-serif", fontWeight: 700, fontSize: 11, color: "#1f2937" }}>{asset.quantity ?? 1} un.</span>
-                      </div>
-                    </div>
-                  ) : (
-                    /* No allocations — show static info */
-                    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                      {[
-                        { label: "Evento",      value: eventName ?? "—" },
-                        { label: "Data",        value: eventDate ? format(new Date(eventDate), "dd MMM yyyy", { locale: ptBR }) : "—" },
-                        { label: "Qtd Total",   value: `${asset.quantity ?? 1} un.` },
-                        { label: "Localização", value: asset.location ?? "—" },
-                      ].map(({ label, value }) => (
-                        <div key={label} style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
-                          <span style={{ fontFamily: "Plus Jakarta Sans, sans-serif", fontSize: 11, color: "#746e69" }}>{label}</span>
-                          <span style={{ fontFamily: "Plus Jakarta Sans, sans-serif", fontWeight: 700, fontSize: 11, color: "#1f2937", textAlign: "right" }}>{value}</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Especificações Técnicas — dark card */}
-              <div style={{ background: "#111827", borderRadius: 10, padding: "20px 22px" }}>
-                <h3 style={{ margin: "0 0 16px", display: "flex", alignItems: "center", gap: 8, fontFamily: "Space Grotesk, sans-serif", fontWeight: 700, fontSize: 13, color: "#f9fafb" }}>
-                  <Layers size={15} color="#f97316" />
-                  Especificações Técnicas
-                </h3>
-                <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
-                  {[
-                    { label: "TIPO",        value: linkedItem?.type ?? "—" },
-                    { label: "MATERIAL",    value: linkedItem?.material ?? "—" },
-                    { label: "ACABAMENTO",  value: linkedItem?.finish ?? "—" },
-                    { label: "MEDIDA",      value: linkedItem?.measurement ?? "—" },
-                    { label: "DIMENSÕES",   value: linkedItem?.visualWidth && linkedItem?.visualHeight ? `${linkedItem.visualWidth} × ${linkedItem.visualHeight} m` : "—" },
-                    { label: "M² TOTAL",    value: linkedItem?.calculatedM2 ? `${linkedItem.calculatedM2} m²` : "—" },
-                    { label: "QUANTIDADE",  value: linkedItem?.quantity ? `${linkedItem.quantity} un.` : `${asset.quantity ?? 1} un.` },
-                    { label: "PATROCINADORES", value: assetSponsors.length > 0 ? assetSponsors.map(s => s.name).join(", ") : "—" },
-                  ].map(({ label, value }, i, arr) => (
-                    <div key={label} style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8, padding: "9px 0", borderBottom: i < arr.length - 1 ? "1px solid rgba(255,255,255,0.06)" : "none" }}>
-                      <span style={{ fontFamily: "DM Mono, monospace", fontSize: 10, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.1em", flexShrink: 0 }}>{label}</span>
-                      <span style={{ fontFamily: "DM Mono, monospace", fontWeight: 500, fontSize: 10, color: "#e5e7eb", textAlign: "right" }}>{value}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            {/* Approval thumb reference — only when URL is an image */}
-            {asset.approvalThumbUrl && (/\.(png|jpg|jpeg|gif|webp)/i.test(asset.approvalThumbUrl) || asset.approvalThumbUrl.startsWith('/objects/')) && (
-              <div style={{ position: "relative", borderRadius: 10, overflow: "hidden", aspectRatio: "21/9" }}>
-                <img loading="lazy" decoding="async" src={miniatura(asset.approvalThumbUrl)} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block", filter: "grayscale(0.25)", opacity: 0.85 }} />
-                <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to top, rgba(28,25,23,0.8) 0%, transparent 55%)", display: "flex", alignItems: "flex-end", padding: "20px 24px" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                    <div style={{ width: 36, height: 36, borderRadius: "50%", background: "rgba(28,25,23,0.7)", border: "2px solid #f97316", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                      <Eye size={16} color="#f97316" />
-                    </div>
-                    <div>
-                      <div style={{ fontFamily: "Space Grotesk, sans-serif", fontWeight: 700, fontSize: 12, color: "#f9f9f8" }}>Arte de Referência</div>
-                      <div style={{ fontFamily: "DM Mono, monospace", fontSize: 9, color: "#9ca3af", marginTop: 2 }}>Arte aprovada · Montagem original</div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            <div style={{ height: 8 }} />
-          </div>
-
-          {/* Footer */}
-          {/* No celular o rodapé some: ID e origem já estão nos selos do
-              cabeçalho, e com a linha do tempo DEPOIS do conteúdo o Fechar
-              ficaria no meio da rolagem — ele vai para o fim do aside. */}
-          {!isMobile && <footer style={{ flexShrink: 0, background: "#f3f4f3", borderTop: "1px solid #e2e8f0", padding: "14px 28px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
-              <div style={{ lineHeight: 1.3 }}>
-                <div style={{ fontFamily: "Space Grotesk, sans-serif", fontWeight: 700, fontSize: 10, color: "#746e69", textTransform: "uppercase", letterSpacing: "0.06em" }}>ID do Ativo</div>
-                <div style={{ fontFamily: "DM Mono, monospace", fontSize: 12, color: "#374151", fontWeight: 500, marginTop: 1 }}>{asset.displayId}</div>
-              </div>
-              {asset.autoAdded && (
-                <div style={{ lineHeight: 1.3, borderLeft: "1px solid #d1d5db", paddingLeft: 20 }}>
-                  <div style={{ fontFamily: "Space Grotesk, sans-serif", fontWeight: 700, fontSize: 10, color: "#746e69", textTransform: "uppercase", letterSpacing: "0.06em" }}>Origem</div>
-                  <div style={{ fontFamily: "Plus Jakarta Sans, sans-serif", fontSize: 12, color: "#374151", fontWeight: 600, marginTop: 1 }}>Gráfica (Auto)</div>
-                </div>
-              )}
-            </div>
-            <button onClick={onClose}
-              style={{ minHeight: 40, padding: "0 16px", borderRadius: 8, background: "none", border: "none", cursor: "pointer", fontFamily: "Space Grotesk, sans-serif", fontWeight: 700, fontSize: 13, color: "#57534e", transition: "color 0.15s, background 0.15s" }}
-              onMouseEnter={e => { e.currentTarget.style.color = "#111827"; e.currentTarget.style.background = "#e7e5e4"; }}
-              onMouseLeave={e => { e.currentTarget.style.color = "#57534e"; e.currentTarget.style.background = "none"; }}>
-              Fechar
-            </button>
-          </footer>}
-        </div>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
 // ─── Asset Modal ──────────────────────────────────────────────────────────────
 function AssetModal({ asset, onClose, onSaved }: {
   asset: InventoryAsset | null; onClose: () => void; onSaved: () => void;
@@ -656,13 +185,14 @@ function AssetModal({ asset, onClose, onSaved }: {
   const isMobile = useIsMobile();
   const isEdit = !!asset;
   const [form, setForm] = useState(asset ? {
-    name: asset.name, quantity: asset.quantity ?? 1, location: asset.location ?? "",
+    // Sem `location`: o formulário não pede mais o local (dono, 21/09) e, fora
+    // do corpo do PATCH, o valor que já existe no banco fica intocado.
+    name: asset.name, quantity: asset.quantity ?? 1,
     condition: (asset.condition as Condition) ?? "PERFEITO",
     sponsorIds: asset.sponsorIds ?? [] as string[],
     trackingStatus: (asset.trackingStatus as TrackingStatus) ?? "NO_GALPAO",
     notes: asset.notes ?? "",
-  } : { name: "", quantity: 1, location: "", condition: "PERFEITO" as Condition, sponsorIds: [] as string[], trackingStatus: "NO_GALPAO" as TrackingStatus, notes: "" });
-  const [showMapa, setShowMapa] = useState(false);
+  } : { name: "", quantity: 1, condition: "PERFEITO" as Condition, sponsorIds: [] as string[], trackingStatus: "NO_GALPAO" as TrackingStatus, notes: "" });
 
   const { data: allSponsors = VAZIO as Sponsor[] } = useQuery<Sponsor[]>({ queryKey: ["/api/sponsors"] });
 
@@ -747,29 +277,7 @@ function AssetModal({ asset, onClose, onSaved }: {
                 value={form.quantity}
                 onChange={e => setForm(f => ({ ...f, quantity: Math.max(1, parseInt(e.target.value) || 1) }))} />
             </div>
-            <div>
-              <label htmlFor="asset-location" style={LBL}>Localização</label>
-              <div style={{ display: "flex", gap: 6 }}>
-                <input id="asset-location" data-testid="input-asset-location" style={{ ...INP, flex: 1 }} value={form.location}
-                  onChange={e => setForm(f => ({ ...f, location: e.target.value }))}
-                  placeholder="Ex: Setor A - Corredor 3" />
-                <button type="button" onClick={() => setShowMapa(true)}
-                  title="Abrir mapa do galpão" aria-label="Abrir mapa do galpão"
-                  style={{ width: 44, height: 44, borderRadius: 8, border: "1px solid #d6d3d1", background: "#fff", cursor: "pointer", color: "#c2410c", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                  <Grid3X3 size={15} />
-                </button>
-              </div>
-            </div>
           </div>
-          {showMapa && (
-            <MapaGalpao
-              value={form.location}
-              /* onSelect só grava — o modal fecha no Confirmar, permitindo
-                 trocar de célula antes de decidir. */
-              onSelect={loc => setForm(f => ({ ...f, location: loc }))}
-              onClose={() => setShowMapa(false)}
-            />
-          )}
           <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 12 }}>
             <div>
               <label htmlFor="asset-condition" style={LBL}>Condição</label>
@@ -942,7 +450,11 @@ export default function Estoque() {
   // Radix (ui/popover) — sem listener manual em document. Só "condition" tem
   // edição rápida; o status é definido pelo ciclo do evento.
   const [quickEdit, setQuickEdit] = useState<{ assetId: string; field: "condition" } | null>(null);
-  const [viewingAsset, setViewingAsset] = useState<InventoryAsset | null>(null);
+  // O detalhe aberto: um MATERIAL (grupo) ou uma unidade dele. Guarda chave e
+  // id — não o objeto — para o modal acompanhar os dados depois de uma mudança.
+  const [vendo, setVendo] = useState<{ chave: string; unidadeId: string | null } | null>(null);
+  const [abertos, setAbertos] = useState<Set<string>>(new Set());
+  const alternarGrupo = (chave: string) => setAbertos(prev => { const n = new Set(prev); if (n.has(chave)) n.delete(chave); else n.add(chave); return n; });
 
   // Quem mexe no acervo (dono, 14/09): Gráfica e admin editam; excluir segue
   // só do admin; a Solicitação consulta o que tem para reservar.
@@ -1018,7 +530,7 @@ export default function Estoque() {
     if (filterStatus.length === 0 && a.trackingStatus === "DESCARTADO") return false;
     if (soReservadas && !reservaPorAtivo.has(a.id)) return false;
     const q = buscaAdiada.trim().toLowerCase();
-    const ms = !q || a.name.toLowerCase().includes(q) || a.displayId.toLowerCase().includes(q) || (a.location ?? "").toLowerCase().includes(q) || a.franchiseTags.some(t => t.toLowerCase().includes(q));
+    const ms = !q || a.name.toLowerCase().includes(q) || a.displayId.toLowerCase().includes(q) || a.franchiseTags.some(t => t.toLowerCase().includes(q));
     const mst = filterStatus.length === 0 || filterStatus.includes(a.trackingStatus);
     const mc = filterCondition.length === 0 || filterCondition.includes(a.condition);
     const ma = filterAutoAdded === "all" || (filterAutoAdded === "auto" ? a.autoAdded : !a.autoAdded);
@@ -1027,7 +539,32 @@ export default function Estoque() {
     const mf = filterFranchise.length === 0 || (a.franchiseTags ?? []).some(t => filterFranchise.includes(t));
     return ms && mst && mc && ma && me && msp && mf;
   }), [acervoAssets, buscaAdiada, filterStatus, filterCondition, filterAutoAdded, filterEvent, filterSponsor, filterFranchise, soReservadas, reservaPorAtivo, assetEventMap]);
-  const visiveis = useMemo(() => filtered.slice(0, mostrando), [filtered, mostrando]);
+  // ONDE JÁ FOI USADO: uma leitura do acervo inteiro (sem N+1), por ativo.
+  const { data: alocacoes = VAZIO as AlocacaoDoAcervo[] } = useQuery<AlocacaoDoAcervo[]>({ queryKey: ["/api/estoque/usos"] });
+  const usosPorAtivo = useMemo(() => {
+    const porAtivo = new Map<string, AlocacaoDoAcervo[]>();
+    for (const a of alocacoes) { const l = porAtivo.get(a.assetId); if (l) l.push(a); else porAtivo.set(a.assetId, [a]); }
+    const agora = new Date();
+    const m = new Map<string, UsoDoAtivo[]>();
+    for (const a of assets) {
+      const usos = usosDoAtivo(assetEventMap[a.id] ?? null, porAtivo.get(a.id) ?? VAZIO, agora);
+      if (usos.length) m.set(a.id, usos);
+    }
+    return m;
+  }, [alocacoes, assets, assetEventMap]);
+
+  // AGRUPADO POR QUANTIDADE: os filtros e os cartões contam UNIDADES; a lista
+  // mostra MATERIAIS. Lotes por grupo.
+  const grupos = useMemo(() => {
+    const agora = new Date();
+    return agruparAcervo(filtered, a => assetEventMap[a.id]?.id ?? null,
+      a => reservaPorAtivo.has(a.id) || (!!assetEventMap[a.id] && !eventoJaAcabou(assetEventMap[a.id].startDate, agora)));
+  }, [filtered, assetEventMap, reservaPorAtivo]);
+  const gruposVisiveis = useMemo(() => grupos.slice(0, mostrando), [grupos, mostrando]);
+  const unidadesNoRecorte = useMemo(() => filtered.reduce((s, a) => s + (a.quantity ?? 1), 0), [filtered]);
+  const chaveDoAtivo = useMemo(() => { const m = new Map<string, string>(); for (const g of grupos) for (const a of g.ativos) m.set(a.id, g.chave); return m; }, [grupos]);
+  const setViewingAsset = (a: InventoryAsset) => { const chave = chaveDoAtivo.get(a.id); if (chave) setVendo({ chave, unidadeId: a.id }); };
+  const grupoVendo = vendo ? grupos.find(g => g.chave === vendo.chave) : undefined;
 
   const hasFilters = !!(soReservadas || search || filterStatus.length > 0 || filterCondition.length > 0 || filterAutoAdded !== "all" || filterEvent.length > 0 || filterSponsor.length > 0 || filterFranchise.length > 0);
 
@@ -1304,9 +841,7 @@ export default function Estoque() {
                 onFocus={e => (e.target.style.borderColor = "#c2610c")}
                 onBlur={e => (e.target.style.borderColor = search ? "#c2610c" : "#e2e8f0")}
                 aria-label="Buscar ativos"
-                /* A busca sempre casou nome, ID, local e franquia — o
-                   placeholder "Nome..." escondia três quartos dela. */
-                placeholder="Nome, ID, local ou franquia..." value={search} onChange={e => setSearch(e.target.value)} />
+                placeholder="Nome, ID ou franquia..." value={search} onChange={e => setSearch(e.target.value)} />
               </div>
             </div>
 
@@ -1430,7 +965,7 @@ export default function Estoque() {
                 const eventoEl = assetEventMap[asset.id] ? (
                   <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 3, minWidth: 0 }}>
                     <CalendarDays size={11} color="#64748b" aria-hidden="true" style={{ flexShrink: 0 }} />
-                    <span style={{ fontSize: 12, color: "#64748b", fontFamily: "Plus Jakarta Sans, sans-serif", fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: isMobile ? "100%" : 180 }}>
+                    <span style={{ fontSize: 12, color: "#64748b", fontFamily: "Plus Jakarta Sans, sans-serif", fontWeight: 500, whiteSpace: "normal", overflowWrap: "anywhere" }}>
                       {assetEventMap[asset.id].name}
                     </span>
                   </div>
@@ -1524,7 +1059,7 @@ export default function Estoque() {
                 // evento que ainda não aconteceu.
                 const reservaEl = (() => {
                   const reserva = reservaPorAtivo.get(asset.id);
-                  const chip: React.CSSProperties = { display: "inline-flex", alignItems: "center", gap: 4, marginTop: 5, padding: "2px 7px", borderRadius: 6, fontSize: 11, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif", whiteSpace: "nowrap", maxWidth: isMobile ? "100%" : 220, overflow: "hidden", textOverflow: "ellipsis" };
+                  const chip: React.CSSProperties = { display: "inline-flex", alignItems: "center", gap: 4, marginTop: 5, padding: "2px 7px", borderRadius: 6, fontSize: 11, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif", whiteSpace: "normal", overflowWrap: "anywhere", maxWidth: "100%" };
                   if (reserva) {
                     return (
                       <div data-testid={`chip-reservada-${asset.id}`} title={`Reservada para ${reserva.itemDisplayId ?? "uma peça"} de ${reserva.eventName}`}
@@ -1589,46 +1124,96 @@ export default function Estoque() {
                 return { miniaturaEl, quantidadeEl, eventoEl, patrocinadoresEl, franquiasEl, condicaoEl, reservaEl, statusEl, acoesEl };
               };
 
+              // ── AGRUPADO POR QUANTIDADE (dono, 21/09) ─────────────────────
+              // Uma linha por MATERIAL, com a soma e a distribuição por
+              // situação; as unidades (e as ações por unidade) ficam dentro da
+              // expansão. Material de um registro só continua sendo uma linha
+              // comum. O espaço da antiga coluna de localização foi para
+              // "Situação" e "Onde já foi usado".
+              const usadoEmEl = (g: GrupoDoAcervo<InventoryAsset>) => {
+                const eventos = eventosDeUso(g.ativos.map(a => usosPorAtivo.get(a.id) ?? []));
+                if (eventos.length === 0) return <span style={{ fontSize: 12, color: "#64748b" }}>Ainda não saiu</span>;
+                return (
+                  <div data-testid={`usado-em-${g.ativos[0].id}`} style={{ display: "flex", flexWrap: "wrap", gap: 4, alignItems: "center" }}>
+                    {eventos.slice(0, 2).map(e => (
+                      <span key={e.eventId} title={`${ROTULO_DO_USO[e.situacao]} ${e.eventName} · ${e.unidades} un.`}
+                        style={{ whiteSpace: "normal", overflowWrap: "anywhere", padding: "2px 7px", borderRadius: 6, fontSize: 11, fontWeight: 600, background: e.situacao === "separada" ? "#eff6ff" : "#f1f5f9", color: e.situacao === "separada" ? "#1d4ed8" : "#334155" }}>
+                        {e.eventName}
+                      </span>
+                    ))}
+                    {eventos.length > 2 && <span style={{ fontSize: 11, color: "#64748b", fontFamily: "Space Grotesk, sans-serif", fontWeight: 700 }}>+{eventos.length - 2}</span>}
+                  </div>
+                );
+              };
+              const quantidadeDoGrupoEl = (g: GrupoDoAcervo<InventoryAsset>) => (
+                <span data-testid={`unidades-${g.ativos[0].id}`} style={{ whiteSpace: "nowrap" }}>
+                  <span style={{ fontFamily: "Space Grotesk, sans-serif", fontSize: 18, fontWeight: 700, color: "#0f172a", fontVariantNumeric: "tabular-nums" }}>{g.unidades}</span>
+                  <span style={{ fontSize: 11, fontWeight: 600, color: "#64748b", marginLeft: 3 }}>un.</span>
+                </span>
+              );
+              const alternarEl = (g: GrupoDoAcervo<InventoryAsset>, aberto: boolean) => (
+                <button type="button" data-testid={`expandir-${g.ativos[0].id}`} aria-expanded={aberto}
+                  aria-label={`${aberto ? "Recolher" : "Ver"} as ${g.ativos.length} unidades de ${g.nome}`}
+                  onClick={e => { e.stopPropagation(); alternarGrupo(g.chave); }}
+                  style={{ ...botaoAcao, width: "auto", padding: "0 8px", gap: 4, fontSize: 12, fontWeight: 700, color: "#334155" }}>
+                  {aberto ? "Recolher" : "Unidades"} <ChevronDown size={14} aria-hidden="true" style={{ transform: aberto ? "rotate(180deg)" : "none", transition: "transform 0.15s" }} />
+                </button>
+              );
+              const verGrupoEl = (g: GrupoDoAcervo<InventoryAsset>) => (
+                <button data-testid={`button-view-group-${g.ativos[0].id}`} title="Ver o material" aria-label={`Ver detalhes de ${g.nome}`}
+                  onClick={e => { e.stopPropagation(); setVendo({ chave: g.chave, unidadeId: null }); }} style={botaoAcao}>
+                  <Eye size={isMobile ? 18 : 15} aria-hidden="true" />
+                </button>
+              );
+              const LIMITE_DE_UNIDADES = 40;
+
               if (isMobile) {
                 return (
-                  <ul aria-label="Ativos do acervo" style={{ listStyle: "none", margin: 0, padding: 0 }}>
-                    {visiveis.map((asset, i) => {
+                  <ul aria-label="Materiais do acervo" style={{ listStyle: "none", margin: 0, padding: 0 }}>
+                    {gruposVisiveis.map((g, i) => {
+                      const unico = g.ativos.length === 1;
+                      const asset = g.ativos[0];
                       const p = pecasDe(asset);
+                      const aberto = abertos.has(g.chave);
                       return (
-                        <li key={asset.id} data-testid={`row-asset-${asset.id}`}
-                          onClick={() => setViewingAsset(asset)}
-                          style={{ padding: "14px 14px 10px", borderBottom: i < visiveis.length - 1 ? "1px solid #f1f5f9" : "none", cursor: "pointer", display: "flex", flexDirection: "column", gap: 10 }}>
-                          <div style={{ display: "flex", gap: 12, minWidth: 0 }}>
+                        <li key={g.chave} data-testid={unico ? `row-asset-${asset.id}` : `row-group-${asset.id}`}
+                          style={{ padding: "14px 14px 10px", borderBottom: i < gruposVisiveis.length - 1 ? "1px solid #f1f5f9" : "none", display: "flex", flexDirection: "column", gap: 10 }}>
+                          <div onClick={() => setVendo({ chave: g.chave, unidadeId: unico ? asset.id : null })} style={{ display: "flex", gap: 12, minWidth: 0, cursor: "pointer" }}>
                             {p.miniaturaEl}
                             <div style={{ flex: 1, minWidth: 0 }}>
-                              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                                <span style={{ fontFamily: "DM Mono, monospace", fontSize: 12, fontWeight: 600, color: "#9a3412" }}>{asset.displayId}</span>
-                                {p.quantidadeEl}
-                              </div>
-                              <div style={{ fontSize: 14, fontWeight: 700, color: "#0f172a", fontFamily: "Plus Jakarta Sans, sans-serif", lineHeight: 1.3, marginTop: 2, overflowWrap: "anywhere" }}>
-                                {asset.name}
-                              </div>
+                              {unico && <span style={{ fontFamily: "DM Mono, monospace", fontSize: 12, fontWeight: 600, color: "#9a3412" }}>{asset.displayId}</span>}
+                              <div style={{ fontSize: 14, fontWeight: 700, color: "#0f172a", lineHeight: 1.3, overflowWrap: "anywhere" }}>{g.nome}</div>
                               {p.eventoEl}
-                              <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 3, fontSize: 12, color: "#475569", minWidth: 0 }}>
-                                <MapPin size={11} aria-hidden="true" style={{ flexShrink: 0 }} />
-                                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                                  {asset.location || "Sem local"} · {asset.autoAdded ? "Gráfica" : "Manual"}
-                                </span>
-                              </div>
                               {p.patrocinadoresEl}
-                              {p.franquiasEl}
                             </div>
+                            <div style={{ flexShrink: 0 }}>{quantidadeDoGrupoEl(g)}</div>
                           </div>
-                          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
-                            <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 2, minWidth: 0 }}>
-                              <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }} onClick={e => e.stopPropagation()}>
-                                {p.condicaoEl}
-                                {p.statusEl}
-                              </div>
-                              {p.reservaEl}
+                          {unico ? (
+                            <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>{p.condicaoEl}{p.statusEl}{p.reservaEl}</div>
+                          ) : (
+                            <div style={{ fontSize: 13, color: "#0f172a", lineHeight: 1.45 }}>
+                              <div data-testid={`situacao-${asset.id}`} style={{ fontWeight: 600 }}>{fraseDaSituacao(g)}</div>
+                              <div style={{ color: "#475569" }}>{fraseDaCondicao(g)}</div>
                             </div>
-                            <div onClick={e => e.stopPropagation()}>{p.acoesEl}</div>
+                          )}
+                          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                            <div style={{ minWidth: 0 }}>{usadoEmEl(g)}</div>
+                            <div style={{ display: "flex", alignItems: "center", flexShrink: 0 }}>{unico ? p.acoesEl : <>{alternarEl(g, aberto)}{verGrupoEl(g)}</>}</div>
                           </div>
+                          {!unico && aberto && (
+                            <ul data-testid={`unidades-de-${asset.id}`} style={{ listStyle: "none", margin: 0, padding: "4px 0 0", borderTop: "1px dashed #e2e8f0" }}>
+                              {g.ativos.slice(0, LIMITE_DE_UNIDADES).map(u => {
+                                const pu = pecasDe(u);
+                                return (
+                                  <li key={u.id} data-testid={`row-asset-${u.id}`} style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", padding: "6px 0", borderBottom: "1px solid #f8fafc" }}>
+                                    <span style={{ fontFamily: "DM Mono, monospace", fontSize: 12, fontWeight: 600, color: "#9a3412", flex: "1 1 120px" }}>{u.displayId}</span>
+                                    {pu.condicaoEl}{pu.statusEl}
+                                    <div style={{ marginLeft: "auto" }}>{pu.acoesEl}</div>
+                                  </li>
+                                );
+                              })}
+                            </ul>
+                          )}
                         </li>
                       );
                     })}
@@ -1638,90 +1223,82 @@ export default function Estoque() {
 
               return (
                 <div style={{ overflowX: "auto" }}>
-                  <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 860 }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 900 }}>
                     <thead>
                       <tr style={{ background: "#f8fafc" }}>
                         {[
-                          { label: "Identificador", align: "left" },
-                          { label: "Ativo", align: "left" },
-                          { label: "Localização", align: "left" },
+                          { label: "Material", align: "left" },
+                          { label: "Quantidade", align: "left" },
+                          { label: "Situação", align: "left" },
                           { label: "Condição", align: "left" },
-                          { label: "Status", align: "left" },
+                          { label: "Onde já foi usado", align: "left" },
                           { label: "Ações", align: "right" },
                         ].map(({ label, align }) => (
-                          <th key={label} style={{ ...TH, textAlign: align as any }}>{label}</th>
+                          <th key={label} scope="col" style={{ ...TH, textAlign: align as any }}>{label}</th>
                         ))}
                       </tr>
                     </thead>
                     <tbody>
-                      {visiveis.map(asset => {
+                      {gruposVisiveis.map(g => {
+                        const unico = g.ativos.length === 1;
+                        const asset = g.ativos[0];
                         const p = pecasDe(asset);
+                        const aberto = abertos.has(g.chave);
                         return (
-                          <tr key={asset.id} data-testid={`row-asset-${asset.id}`}
-                            className="group"
-                            /* Sem role="button" no <tr> (mantém a semântica de row);
-                               o acesso por teclado é do botão Eye ("Ver detalhes"). */
-                            onClick={() => setViewingAsset(asset)}
-                            onMouseEnter={e => (e.currentTarget as HTMLTableRowElement).style.background = "#f8fafc"}
-                            onMouseLeave={e => (e.currentTarget as HTMLTableRowElement).style.background = ""}
-                            style={{ transition: "background 0.12s", cursor: "pointer" }}
-                          >
-                            {/* ID — #9a3412: o #c2610c dava 4,17:1 e reprovava AA */}
-                            <td style={TD}>
-                              <span style={{ fontFamily: "DM Mono, monospace", fontSize: 12, fontWeight: 600, color: "#9a3412" }}>
-                                {asset.displayId}
-                              </span>
-                            </td>
-
-                            {/* Ativo: thumb + nome + qtd + evento + patrocinadores */}
-                            <td style={{ ...TD, maxWidth: 280 }}>
-                              <div style={{ display: "flex", alignItems: "center", gap: 11 }}>
-                                {p.miniaturaEl}
-                                <div style={{ minWidth: 0 }}>
-                                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                                    <span title={asset.name} style={{ fontSize: 13, fontWeight: 700, color: "#0f172a", fontFamily: "Plus Jakarta Sans, sans-serif", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 180 }}>
-                                      {asset.name}
+                          <Fragment key={g.chave}>
+                            <tr data-testid={unico ? `row-asset-${asset.id}` : `row-group-${asset.id}`} className="group"
+                              onClick={() => setVendo({ chave: g.chave, unidadeId: unico ? asset.id : null })}
+                              onMouseEnter={e => (e.currentTarget as HTMLTableRowElement).style.background = "#f8fafc"}
+                              onMouseLeave={e => (e.currentTarget as HTMLTableRowElement).style.background = ""}
+                              style={{ transition: "background 0.12s", cursor: "pointer" }}>
+                              <td style={{ ...TD, maxWidth: 320 }}>
+                                <div style={{ display: "flex", alignItems: "center", gap: 11 }}>
+                                  {p.miniaturaEl}
+                                  <div style={{ minWidth: 0 }}>
+                                    <span style={{ display: "block", fontSize: 13, fontWeight: 700, color: "#0f172a", whiteSpace: "normal", overflowWrap: "anywhere", lineHeight: 1.3 }}>{g.nome}</span>
+                                    <span style={{ fontFamily: "DM Mono, monospace", fontSize: 11, fontWeight: 600, color: "#9a3412" }}>
+                                      {asset.displayId}{!unico ? ` +${g.ativos.length - 1}` : ""}
                                     </span>
-                                    {p.quantidadeEl}
+                                    {p.eventoEl}
+                                    {p.patrocinadoresEl}
+                                    {p.franquiasEl}
                                   </div>
-                                  {p.eventoEl}
-                                  {p.patrocinadoresEl}
                                 </div>
-                              </div>
-                            </td>
-
-                            {/* Localização + origem + franquias */}
-                            <td style={TD}>
-                              <div>
-                                {asset.location ? (
-                                  <span style={{ fontSize: 13, fontWeight: 600, color: "#0f172a", fontFamily: "Plus Jakarta Sans, sans-serif", display: "block" }}>
-                                    {asset.location}
-                                  </span>
-                                ) : (
-                                  <span style={{ color: "#746e69", fontSize: 12, display: "block" }}>Sem local</span>
-                                )}
-                                <span style={{ fontSize: 12, color: "#64748b", fontFamily: "Plus Jakarta Sans, sans-serif" }}>
-                                  {asset.autoAdded ? "Gráfica" : "Manual"}
-                                </span>
-                                {p.franquiasEl}
-                              </div>
-                            </td>
-
-                            <td style={TD} onClick={e => e.stopPropagation()}>
-                              {p.condicaoEl}
-                            </td>
-
-                            <td style={TD}>
-                              {p.statusEl}
-                              {p.reservaEl}
-                            </td>
-
-                            {/* Ações — opacidade base 0.7 e revelação total por
-                                hover/focus-within da linha via CSS (.group/.row-actions). */}
-                            <td style={{ ...TD, textAlign: "right", paddingRight: 20 }}>
-                              {p.acoesEl}
-                            </td>
-                          </tr>
+                              </td>
+                              <td style={TD}>{quantidadeDoGrupoEl(g)}</td>
+                              <td style={TD}>
+                                {unico ? <>{p.statusEl}{p.reservaEl}</> : <span data-testid={`situacao-${asset.id}`} style={{ fontSize: 13, fontWeight: 600, color: "#0f172a", lineHeight: 1.4 }}>{fraseDaSituacao(g)}</span>}
+                              </td>
+                              <td style={TD} onClick={e => { if (unico) e.stopPropagation(); }}>
+                                {unico ? p.condicaoEl : <span data-testid={`condicao-${asset.id}`} style={{ fontSize: 13, color: "#334155" }}>{fraseDaCondicao(g)}</span>}
+                              </td>
+                              <td style={TD}>{usadoEmEl(g)}</td>
+                              <td style={{ ...TD, textAlign: "right", paddingRight: 20 }}>
+                                {unico ? p.acoesEl : <div className="row-actions" style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 2 }}>{alternarEl(g, aberto)}{verGrupoEl(g)}</div>}
+                              </td>
+                            </tr>
+                            {!unico && aberto && g.ativos.slice(0, LIMITE_DE_UNIDADES).map(u => {
+                              const pu = pecasDe(u);
+                              return (
+                                <tr key={u.id} data-testid={`row-asset-${u.id}`} className="group" style={{ background: "#fafaf9" }}>
+                                  <td style={{ ...TD, paddingLeft: 75 }}><span style={{ fontFamily: "DM Mono, monospace", fontSize: 12, fontWeight: 600, color: "#9a3412" }}>{u.displayId}</span></td>
+                                  <td style={TD}>{pu.quantidadeEl}</td>
+                                  <td style={TD}>{pu.statusEl}{pu.reservaEl}</td>
+                                  <td style={TD}>{pu.condicaoEl}</td>
+                                  <td style={TD} />
+                                  <td style={{ ...TD, textAlign: "right", paddingRight: 20 }}>{pu.acoesEl}</td>
+                                </tr>
+                              );
+                            })}
+                            {!unico && aberto && g.ativos.length > LIMITE_DE_UNIDADES && (
+                              <tr style={{ background: "#fafaf9" }}>
+                                <td colSpan={6} style={{ ...TD, paddingLeft: 75, fontSize: 12, color: "#475569" }}>
+                                  Mostrando {LIMITE_DE_UNIDADES} de {g.ativos.length} unidades —{" "}
+                                  <button type="button" onClick={() => setVendo({ chave: g.chave, unidadeId: null })} style={{ background: "none", border: "none", padding: 0, font: "inherit", fontWeight: 700, color: "#0f172a", textDecoration: "underline", cursor: "pointer" }}>ver todas no detalhe</button>
+                                </td>
+                              </tr>
+                            )}
+                          </Fragment>
                         );
                       })}
                     </tbody>
@@ -1742,11 +1319,11 @@ export default function Estoque() {
                 const q = search.toLowerCase();
                 const descartadosNoRecorte = filterStatus.length === 0
                   ? eFacetPool("status").filter(a => a.trackingStatus === "DESCARTADO"
-                      && (!q || a.name.toLowerCase().includes(q) || a.displayId.toLowerCase().includes(q) || (a.location ?? "").toLowerCase().includes(q) || a.franchiseTags.some(t => t.toLowerCase().includes(q)))).length
+                      && (!q || a.name.toLowerCase().includes(q) || a.displayId.toLowerCase().includes(q) || a.franchiseTags.some(t => t.toLowerCase().includes(q)))).length
                   : 0;
                 return (
                   <p role="status" style={{ margin: 0, fontSize: 12, fontWeight: 500, fontFamily: "Plus Jakarta Sans, sans-serif", color: "#64748b" }}>
-                    Exibindo <span style={{ color: "#0f172a", fontWeight: 700, fontFamily: "Space Grotesk, sans-serif" }}>{visiveis.length < filtered.length ? `${visiveis.length} de ${filtered.length}` : filtered.length}</span> {filtered.length === 1 ? "registro" : "registros"}
+                    <span data-testid="contador-da-lista"><span style={{ color: "#0f172a", fontWeight: 700, fontFamily: "Space Grotesk, sans-serif" }}>{gruposVisiveis.length < grupos.length ? `${gruposVisiveis.length} de ${grupos.length}` : grupos.length}</span> {grupos.length === 1 ? "material" : "materiais"} · <span style={{ color: "#0f172a", fontWeight: 700, fontFamily: "Space Grotesk, sans-serif" }}>{unidadesNoRecorte}</span> {unidadesNoRecorte === 1 ? "unidade" : "unidades"}</span>
                     {ocultos > 0 && <span> ({ocultos} {ocultos === 1 ? "oculto" : "ocultos"} pelos filtros)</span>}
                     {/* "Cadê a peça descartada?" — ela some por padrão e só
                         voltava para quem adivinhasse o filtro. */}
@@ -1764,10 +1341,10 @@ export default function Estoque() {
                   </p>
                 );
               })()}
-              {filtered.length > visiveis.length && (
+              {grupos.length > gruposVisiveis.length && (
                 <button type="button" data-testid="mostrar-mais-estoque" onClick={() => setMostrando(n => n + LOTE_DO_ESTOQUE)}
                   style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, minHeight: 44, padding: "0 16px", borderRadius: 8, border: "1px solid #e2e8f0", background: "#fff", color: "#334155", fontSize: 13, fontWeight: 700, cursor: "pointer", width: isMobile ? "100%" : undefined }}>
-                  <ChevronDown size={15} aria-hidden="true" /> Mostrar mais {Math.min(LOTE_DO_ESTOQUE, filtered.length - visiveis.length)}
+                  <ChevronDown size={15} aria-hidden="true" /> Mostrar mais {Math.min(LOTE_DO_ESTOQUE, grupos.length - gruposVisiveis.length)}
                 </button>
               )}
             </div>
@@ -1792,12 +1369,18 @@ export default function Estoque() {
       {deleting && (
         <DeleteModal asset={deleting} onClose={() => setDeleting(null)} onConfirm={() => deleteMutation.mutate(deleting.id)} isPending={deleteMutation.isPending} />
       )}
-      {viewingAsset && (
-        <AssetDetailModal
-          asset={viewingAsset}
-          linkedItem={getLinkedItem(viewingAsset)}
+      {vendo && grupoVendo && (
+        <DetalheDoAtivo
+          grupo={grupoVendo}
+          unidade={vendo.unidadeId ? grupoVendo.ativos.find(a => a.id === vendo.unidadeId) ?? null : null}
+          linkedItem={getLinkedItem(grupoVendo.ativos[0])}
           sponsors={sponsors}
-          onClose={() => setViewingAsset(null)}
+          reservaPorAtivo={reservaPorAtivo}
+          usosPorAtivo={usosPorAtivo}
+          podeEditar={podeEditar}
+          onClose={() => setVendo(null)}
+          onEditar={a => { setVendo(null); setEditing(a); }}
+          onAbrirUnidade={a => setVendo({ chave: vendo.chave, unidadeId: a?.id ?? null })}
         />
       )}
     </div>

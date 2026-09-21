@@ -2,7 +2,7 @@
 // XLSX import routes. Extracted from server/routes.ts (ITEMS section).
 import type { Express } from "express";
 import { z } from "zod";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { db } from "../db";
 import { storage, assetPrefix, assetSeqOf, isDisplayIdConflictError } from "../storage";
 import { ITEM_STATUSES, type Item } from "@shared/schema";
@@ -13,6 +13,9 @@ import { trilhaDaLiberacaoComEstoque } from "@shared/consultas-de-estoque";
 import { resumosDeTuboPorIds, comTubo } from "../services/tubosDaPeca";
 import { FORMATO_COMPACTO, compactarPecas, compactarAprovacoes } from "@shared/itens-compactos";
 import { DEPOIS_DA_ARTE, EM_REVISAO, POS_APROVACAO, DISPENSAVEIS, DESTINO_DA_DISPENSA, ehBookCompleto, ehMaquinaValida, rotuloDaMaquina } from "@shared/fluxo-peca";
+import { quemOcupaAImpressora, erroImpressoraOcupada } from "../services/ocupacaoDasImpressoras";
+import { devolverTudoAFila, chaveDoLockDaImpressora } from "@shared/reserva-de-impressora";
+import { partesAtivas } from "@shared/impressao-dividida";
 import { iniciarParte as iniciarParteDaPeca, colunasDaReserva, reservaDaPeca, lerReserva, encolherReserva, reescalarReservaEPartes, resumoDaReserva } from "@shared/reserva-de-impressora";
 import { partesDaPeca, moverParte, normalizarPartes, maquinaPrincipal, aImprimirDaPeca, estaDividida, totalImpressas, lerPartes, reescalarPartes, type PartesPorMaquina } from "@shared/impressao-dividida";
 import {
@@ -1829,7 +1832,7 @@ export function registerItemRoutes(app: Express): void {
         if (lerPartes(currentItem.impressaoPorMaquina) || lerReserva(currentItem.reservaPorMaquina) || currentItem.maquinaPrevista) {
           const r = reescalarReservaEPartes(currentItem, nova - reusoNovo);
           if (lerPartes(currentItem.impressaoPorMaquina)) updatePayload.impressaoPorMaquina = promoveuParaProduzido ? null : r.partes;
-          Object.assign(updatePayload, colunasDaReserva(promoveuParaProduzido ? null : r.reserva));
+          Object.assign(updatePayload, colunasDaReserva(promoveuParaProduzido ? null : r.reserva, currentItem.reservaPorMaquina));
         }
       }
 
@@ -4062,6 +4065,14 @@ export function registerItemRoutes(app: Express): void {
         });
       }
 
+      // A peça tirada da impressora volta a "liberada" COM impressas: o status
+      // sozinho não diz mais que não há material produzido.
+      if ((currentItem.quantityProduced ?? 0) > 0) {
+        return res.status(409).json({
+          error: `A peça já tem ${currentItem.quantityProduced} un. impressas e não pode voltar para a Revisão — há material produzido para desfazer.`,
+        });
+      }
+
       const item = await storage.updateItem(req.params.id, {
         status: "awaiting_final_review",
         // A revisão anterior deixa de valer: foi ela que liberou a peça para
@@ -4321,10 +4332,18 @@ export function registerItemRoutes(app: Express): void {
       }
       if (!alvo) { alvo = "requested"; origem = "sem registro do status anterior — voltou ao início do fluxo"; }
 
+      // A peça que estava EM IMPRESSÃO não volta ocupando a impressora (outra
+      // pode ter entrado nela enquanto esta esteve cancelada): volta LIBERADA,
+      // com o que faltava reservado — no topo da fila — da impressora onde
+      // estava, e as impressas preservadas em quantityProduced.
+      const estavaImprimindo = alvo === "inProduction" || alvo === "em_producao";
+      const devolvida = estavaImprimindo ? devolverTudoAFila(currentItem, new Date().toISOString()) : null;
+      if (estavaImprimindo) { alvo = "ready_for_production"; origem = `${origem}; estava em impressão — voltou para o topo da fila da impressora`; }
       const item = await storage.updateItem(req.params.id, {
         status: alvo,
         statusBeforeCancel: null,
-      });
+        ...(devolvida ? { impressaoPorMaquina: null, printMachine: null, ...colunasDaReserva(devolvida.reserva, currentItem.reservaPorMaquina, devolvida.pausas) } : {}),
+      } as any);
       if (!item) return res.status(404).json({ error: "Item not found" });
 
       await createAuditLog(
@@ -4711,11 +4730,30 @@ export function registerItemRoutes(app: Express): void {
       if (aImprimir <= 0) {
         return res.status(409).json({ error: "Nada a imprimir: a peça já está coberta por produção e reaproveitamento" });
       }
+      // UMA PEÇA POR VEZ POR IMPRESSORA (dono, 21/09): iniciar (inteira ou
+      // parte) e trocar de máquina recusam a impressora que já tem OUTRA peça
+      // com parte ativa. A mesma peça pode somar parte onde já está.
+      //
+      // CORRIDA: dois operadores iniciando peças diferentes na mesma impressora
+      // livre passavam os dois pela checagem. Um índice único não resolve — a
+      // ocupação não é uma coluna, mora no jsonb das partes (e no print_machine
+      // das peças antigas). Então a checagem + a gravação rodam sob um LOCK
+      // CONSULTIVO por impressora (pg_advisory_xact_lock, solto no fim da
+      // transação). Na troca de máquina travam-se origem e destino, sempre na
+      // MESMA ordem, para dois gestos cruzados não se esperarem para sempre.
+      const falha = (status: number, corpo: Record<string, unknown>) => Object.assign(new Error(String(corpo.error)), { httpStatus: status, corpo });
+      const travas = Array.from(new Set([printMachine, current.printMachine, deMaquina].filter((m): m is string => ehMaquinaValida(m)))).sort();
+      const feito = await db.transaction(async (tx) => {
+      for (const m of travas) await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${chaveDoLockDaImpressora(m)}))`);
+      const ocupante = await quemOcupaAImpressora(printMachine, current.id, tx);
+      if (ocupante) {
+        throw falha(409, { error: erroImpressoraOcupada(printMachine, ocupante), code: "PRINTER_BUSY", ocupante: { id: ocupante.id, displayId: ocupante.displayId } });
+      }
       const trocouDeMaquina = pedeParte !== true && (current.status === "inProduction" || current.status === "em_producao") && !!current.printMachine;
       const partesAtuais = partesDaPeca(current);
       const origem = trocouDeMaquina ? (ehMaquinaValida(deMaquina) && partesAtuais[deMaquina] ? deMaquina : current.printMachine!) : null;
       if (trocouDeMaquina && origem === printMachine) {
-        return res.status(409).json({ error: `A peça já está na ${rotuloDaMaquina(printMachine)}` });
+        throw falha(409, { error: `A peça já está na ${rotuloDaMaquina(printMachine)}` });
       }
 
       // A troca move o que resta na origem (tudo, ou `quantidade`). Iniciar
@@ -4723,7 +4761,7 @@ export function registerItemRoutes(app: Express): void {
       let movimento: { partes: PartesPorMaquina; movidas: number; ficam: number } | null = null;
       if (trocouDeMaquina) {
         const r = moverParte(partesAtuais, origem!, printMachine, quantidade == null ? null : Number(quantidade));
-        if (!r.ok) return res.status(409).json({ error: r.erro });
+        if (!r.ok) throw falha(409, { error: r.erro });
         movimento = r;
       }
       // Iniciar UMA PARTE: consome a reserva desta impressora (ou tira do que
@@ -4732,7 +4770,7 @@ export function registerItemRoutes(app: Express): void {
       let parte: { partes: PartesPorMaquina; reserva: Record<string, number> | null; quantidade: number } | null = null;
       if (pedeParte === true) {
         const r = iniciarParteDaPeca(current, printMachine, { daReserva: daReserva === true, quantidade: quantidade == null ? null : Number(quantidade), reservaDe: ehMaquinaValida(deMaquina) ? deMaquina : null });
-        if (!r.ok) return res.status(409).json({ error: r.erro });
+        if (!r.ok) throw falha(409, { error: r.erro });
         parte = r;
       }
       const partesDepoisDoGesto = movimento?.partes ?? parte?.partes ?? null;
@@ -4741,7 +4779,7 @@ export function registerItemRoutes(app: Express): void {
       // A reserva: a troca não mexe nela; iniciar uma parte consome só a desta
       // impressora; iniciar a peça INTEIRA (o gesto de sempre) a limpa toda —
       // a peça está numa máquina de verdade agora.
-      const reservaDepois = movimento ? colunasDaReserva(reservaDaPeca(current)) : colunasDaReserva(parte ? parte.reserva : null);
+      const reservaDepois = movimento ? colunasDaReserva(reservaDaPeca(current), current.reservaPorMaquina) : colunasDaReserva(parte ? parte.reserva : null, current.reservaPorMaquina);
 
       const item = await storage.updateItem(req.params.id, {
         status: "inProduction",
@@ -4750,7 +4788,10 @@ export function registerItemRoutes(app: Express): void {
         ...reservaDepois,
         ...(!current.productionStartedAt ? { productionStartedAt: new Date() } : {}),
       } as any);
-      if (!item) return res.status(404).json({ error: "Item not found" });
+      if (!item) throw falha(404, { error: "Item not found" });
+      return { item, movimento, parte, origem };
+      });
+      const { item, movimento, parte, origem } = feito;
 
       await createAuditLog(
         req,
@@ -4780,6 +4821,7 @@ export function registerItemRoutes(app: Express): void {
       broadcast({ type: "production_started", item });
       res.json(item);
     } catch (error: any) {
+      if (error?.httpStatus) return res.status(error.httpStatus).json(error.corpo ?? { error: error.message });
       res.status(500).json({ error: error.message });
     }
   });
@@ -4845,6 +4887,12 @@ export function registerItemRoutes(app: Express): void {
       // gera ativos no Estoque. Imprimir para um evento que já aconteceu é
       // dinheiro queimado que nenhum estorno recupera.
       if (await barraEventoFinalizado(before, res)) return;
+      // Informar impressas é gesto de peça EM IMPRESSÃO. Sem este guarda, a peça
+      // pausada (liberada, no topo da fila) entrava em "Em Impressão" por aqui,
+      // pulando a checagem de impressora ocupada do start-printing.
+      if (before.status !== "inProduction" && before.status !== "em_producao") {
+        return res.status(409).json({ error: "A peça não está em impressão — inicie a impressão antes de informar as impressas" });
+      }
 
       // ── Concorrência: `quantityProduced` é ABSOLUTO (total produzido até
       // agora), não incremental. Quando o cliente informa `expectedProduced`
@@ -4877,8 +4925,12 @@ export function registerItemRoutes(app: Express): void {
         quantityProduced + (before.reuseQty || 0) >= parseInt(before.quantity.toString())
           ? "produced"
           : "inProduction";
+      // LIMBO: a última parte ativa esgotou, mas a peça não fechou (o resto está
+      // reservado a outra impressora ou sem impressora). "Em Impressão" em
+      // lugar nenhum não existe: ela volta a LIBERADA, com as impressas no total.
+      const semParteAtiva = newProdStatus !== "produced" && !!partesDepois && Object.keys(partesAtivas(partesDepois)).length === 0;
       const prodUpdateData: Record<string, unknown> = {
-        status: newProdStatus,
+        status: semParteAtiva ? "ready_for_production" : newProdStatus,
         quantityProduced,
         updatedAt: new Date(),
         ...(!before.productionStartedAt ? { productionStartedAt: new Date() } : {}),
@@ -4887,6 +4939,7 @@ export function registerItemRoutes(app: Express): void {
         ...(partesDepois
           ? { impressaoPorMaquina: newProdStatus === "produced" ? null : partesDepois, printMachine: maquinaPrincipal(partesDepois, maquina) ?? before.printMachine }
           : (printMachine ? { printMachine } : {})),
+        ...(semParteAtiva ? { impressaoPorMaquina: null, printMachine: null, statusChangedAt: new Date() } : {}),
         // Qualquer caminho que feche a peça apaga a divisão entre impressoras
         // e o que sobrou de reserva.
         ...(newProdStatus === "produced" ? { impressaoPorMaquina: null, reservaPorMaquina: null, maquinaPrevista: null } : {}),
@@ -5119,7 +5172,7 @@ export function registerItemRoutes(app: Express): void {
           const r = reescalarReservaEPartes(current, current.quantity - newReuse);
           return {
             ...(lerPartes(current.impressaoPorMaquina) ? { impressaoPorMaquina: isReady ? null : r.partes } : {}),
-            ...colunasDaReserva(isReady ? null : r.reserva),
+            ...colunasDaReserva(isReady ? null : r.reserva, current.reservaPorMaquina),
           };
         })(),
       });
@@ -5219,7 +5272,7 @@ export function registerItemRoutes(app: Express): void {
         // impressoras — que só faz sentido em impressão — é descartada; a
         // reserva encolhe para caber no que agora há para imprimir.
         impressaoPorMaquina: null,
-        ...colunasDaReserva(reaproveitaTudo ? null : encolherReserva(reservaDaPeca({ ...current, status: "ready_for_production", quantityProduced: 0, impressaoPorMaquina: null }), current.quantity - correctedReuseQty)),
+        ...colunasDaReserva(reaproveitaTudo ? null : encolherReserva(reservaDaPeca({ ...current, status: "ready_for_production", quantityProduced: 0, impressaoPorMaquina: null }), current.quantity - correctedReuseQty), current.reservaPorMaquina),
       });
       if (!item) return res.status(404).json({ error: "Item not found" });
 
@@ -5382,14 +5435,25 @@ export function registerItemRoutes(app: Express): void {
       // Peça conferida FORA de tubo (material que não vai em tubo) segue
       // podendo sair direto, com a foto obrigatória de sempre.
       if ((currentItem as any).tuboId) {
-        const [tuboDaPeca] = await db.select({ numero: tubosTable.numero, entregueEm: tubosTable.entregueEm })
+        const [tuboDaPeca] = await db.select({ numero: tubosTable.numero, avulso: tubosTable.avulso, entregueEm: tubosTable.entregueEm })
           .from(tubosTable).where(eq(tubosTable.id, (currentItem as any).tuboId));
         if (tuboDaPeca && !tuboDaPeca.entregueEm) {
-          return res.status(409).json({ error: `Esta peça está no Tubo ${tuboDaPeca.numero} — entregue o tubo (ou tire a peça dele)` });
+          return res.status(409).json({ error: tuboDaPeca.avulso
+            ? "Esta peça está embalada — entregue pela embalagem dela (Entregar)"
+            : `Esta peça está no Tubo ${tuboDaPeca.numero} — entregue o tubo (ou tire a peça dele)` });
         }
       }
+      // TODAS SÃO EMBALADAS (dono, 21/09): o fluxo é Conferido → Embalado →
+      // Entregue, sem entrega direta da conferida. Quem entrega é o volume
+      // (tubo ou embalagem avulsa), em POST /api/tubos/:id/entregar.
+      // O que CONTINUA por aqui, de propósito: a entrega PARCIAL da peça ainda
+      // em acabamento (produced com parte conferida) e o reuso legado — nenhum
+      // dos dois tem status "conferred", então não batem nesta trava.
+      if (currentItem.status === "conferred" || (currentItem.status as string) === "conferido") {
+        return res.status(409).json({ error: "Embale a peça antes de entregar (Embalar pede a foto; a entrega pede só quem recebeu)" });
+      }
       if (currentItem.status === "packed") {
-        return res.status(409).json({ error: "Esta peça está embalada — entregue o tubo (ou tire a peça dele)" });
+        return res.status(409).json({ error: "Esta peça está embalada — entregue pela embalagem dela (Entregar)" });
       }
       
       // Entrega parcial: acumula deliveredQty; só vira "delivered" quando entrega

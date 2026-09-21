@@ -458,6 +458,36 @@ export function registerEstoqueReservasRoutes(app: Express): void {
     }
   });
 
+  // ONDE JÁ FOI USADO (dono, 21/09): "aparecer agrupados em quais eventos foi
+  // usado / em quais itens já foi usado". LEITURA do acervo inteiro numa
+  // consulta só (dois LEFT JOIN) — a tela agrupa por material e não pode pedir
+  // o histórico peça por peça (seriam 5 mil chamadas). Fora de
+  // /api/inventory/* para não cair na rota /api/inventory/:id. Mesmos papéis
+  // das outras leituras do acervo. A peça de ORIGEM não vem daqui: a tela já
+  // a conhece (originalItemId) e junta com isto em usosDoAtivo().
+  app.get("/api/estoque/usos", requireAuth, async (_req, res) => {
+    try {
+      const linhas = await db
+        .select({
+          id: eventInventoryAllocations.id,
+          assetId: eventInventoryAllocations.assetId,
+          eventId: eventInventoryAllocations.eventId,
+          eventName: events.name,
+          inicio: events.startDate,
+          itemId: eventInventoryAllocations.itemId,
+          itemDisplayId: itemsTable.displayId,
+          em: eventInventoryAllocations.allocatedAt,
+        })
+        .from(eventInventoryAllocations)
+        .innerJoin(events, eq(events.id, eventInventoryAllocations.eventId))
+        .leftJoin(itemsTable, eq(itemsTable.id, eventInventoryAllocations.itemId));
+      res.json(linhas);
+    } catch (error) {
+      console.error("[estoque] erro ao listar usos:", error);
+      res.status(500).json({ error: "Erro ao listar onde as peças foram usadas" });
+    }
+  });
+
   // Reservas vigentes do acervo inteiro — o Estoque e a Triagem mostram
   // "reservada para o evento X, saída dd/mm". Fora de /api/inventory/* para
   // não cair na rota /api/inventory/:id.

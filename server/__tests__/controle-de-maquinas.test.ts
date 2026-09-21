@@ -196,7 +196,8 @@ describe("5 · a tela", () => {
   });
 
   it("acessibilidade e performance: aria nos controles, linha do diário memoizada, cores por token", () => {
-    expect(PAGINA).toContain('role="progressbar"');
+    expect(PAGINA).toContain("<BarraDeImpressao feitas={feitas} teto={teto}");
+    expect(ler("client/src/components/grafica/modal-impressao.tsx")).toContain('role="progressbar"');
     expect(PAGINA).toContain("aria-pressed={ativo}");
     expect(PAGINA).toContain('aria-label="Escolher o dia"');
     expect(PAGINA).toContain("const LinhaDoDiario = memo(function LinhaDoDiario(");
@@ -279,8 +280,8 @@ describe("6 · o relatório — a rota e o Excel", () => {
     expect(ROTA).toContain(".filter(filtroDoKit(req));");
     expect(ROTA).toContain("between ${de}::date and ${ate}::date");
     expect(ROTA).toContain("periodoValido(req.query.de, req.query.ate, hoje)");
-    // As únicas escritas do arquivo são as da reserva (abaixo).
-    expect((ROTA.match(/app\.(post|patch|put|delete)\(/g) ?? []).length).toBe(2);
+    // As únicas escritas do arquivo: as duas da reserva e as duas de tirar/trocar a peça da impressora.
+    expect((ROTA.match(/app\.(post|patch|put|delete)\(/g) ?? []).length).toBe(4);
   });
 
   it("a planilha sai com as abas Resumo e Registros, cabeçalhos em pt-BR e o total do dia", async () => {
@@ -367,9 +368,9 @@ describe("7 · a reserva de impressora — só um controle, nunca uma etapa", ()
 
   it("NUNCA muda status, statusChangedAt, printMachine, productionStartedAt nem grava no diário", () => {
     // Só código: os comentários explicam justamente o que NÃO se faz.
-    const reserva = ROTA.slice(ROTA.indexOf("// ─── RESERVA de impressora"), ROTA.indexOf("// ── O relatório")).replace(/\/\/.*$/gm, "");
+    const reserva = ROTA.slice(ROTA.indexOf("// ─── RESERVA de impressora"), ROTA.indexOf("// ── TIRAR da impressora")).replace(/\/\/.*$/gm, "");
     // As duas gravações escrevem SÓ a reserva (o storage carimba updatedAt).
-    expect((reserva.match(/storage\.updateItem\([^,]+, colunasDaReserva\(\w+(\.\w+)?\) as any\)/g) ?? []).length).toBe(2);
+    expect((reserva.match(/storage\.updateItem\([^,]+, colunasDaReserva\(\w+(\.\w+)?, atual!\.reservaPorMaquina\) as any\)/g) ?? []).length).toBe(2);
     expect(reserva).not.toMatch(/status:|statusChangedAt|printMachine|productionStartedAt|registrarImpressao|registros_de_impressao/);
     // A trilha é informativa, sem etapa.
     expect(reserva).toContain('? `Reservadas ${r.quantidade} un. para a ${rotuloDaMaquina(maquina)} (${r.semImpressora} na fila geral)`');
@@ -380,7 +381,7 @@ describe("7 · a reserva de impressora — só um controle, nunca uma etapa", ()
   it("vira realidade só no start-printing, que limpa a reserva", () => {
     const rota = ITEMS.slice(ITEMS.indexOf('app.patch("/api/items/:id/start-printing"'), ITEMS.indexOf('app.patch("/api/items/:id/start-production"'));
     // Iniciar a peça inteira limpa a reserva toda; iniciar uma parte consome só a desta impressora; a troca não mexe nela.
-    expect(rota).toContain("const reservaDepois = movimento ? colunasDaReserva(reservaDaPeca(current)) : colunasDaReserva(parte ? parte.reserva : null);");
+    expect(rota).toContain("const reservaDepois = movimento ? colunasDaReserva(reservaDaPeca(current), current.reservaPorMaquina) : colunasDaReserva(parte ? parte.reserva : null, current.reservaPorMaquina);");
     expect(rota).toContain("...reservaDepois,");
   });
 
@@ -388,7 +389,8 @@ describe("7 · a reserva de impressora — só um controle, nunca uma etapa", ()
     expect(ROTA).toContain("i.status in ('ready_for_production', 'pronto_para_producao', 'approved', 'liberado')");
     expect(ROTA).toContain("or (i.status in ('inProduction', 'em_producao') and i.impressao_por_maquina is not null)");
     expect(ROTA).toContain("order by e.truck_departure_date asc nulls last, i.display_id asc");
-    expect(ROTA).toContain("naFila: fila.filter((p) => (p.reserva[m.codigo] ?? 0) > 0).map((p) => ({ ...p, maquinaPrevista: m.codigo, reservadas: p.reserva[m.codigo] })),");
+    expect(ROTA).toContain("naFila: fila.filter((p) => (p.reserva[m.codigo] ?? 0) > 0)");
+    expect(ROTA).toContain(".map((p) => ({ ...p, maquinaPrevista: m.codigo, reservadas: p.reserva[m.codigo], pausadaEm: p.pausas[m.codigo] ?? null }))");
     expect(ROTA).toContain("const filaGeral = fila.filter((p) => p.semImpressora > 0);");
     expect(ROTA).toContain("res.json({ dia, hoje, maquinas: maquinasComFila, semMaquina, filaGeral });");
   });
@@ -453,7 +455,7 @@ describe("8 · a impressão dividida — a conta pura", async () => {
     const rota = ITEMS.slice(ITEMS.indexOf('app.patch("/api/items/:id/start-printing"'), ITEMS.indexOf('app.patch("/api/items/:id/start-production"'));
     expect(rota).toContain("const { printMachine, quantidade, deMaquina, iniciarParte: pedeParte, daReserva } = req.body ?? {};");
     expect(rota).toContain("const r = moverParte(partesAtuais, origem!, printMachine, quantidade == null ? null : Number(quantidade));");
-    expect(rota).toContain("if (!r.ok) return res.status(409).json({ error: r.erro });");
+    expect(rota).toContain("if (!r.ok) throw falha(409, { error: r.erro });");
     expect(rota).toContain("printMachine: principal,");
     expect(rota).toContain("impressaoPorMaquina: partesNovas,");
     expect(rota).toContain("quantidade: movimento?.movidas ?? 0,");
@@ -526,10 +528,10 @@ describe("9 · peça dividida — os cantos que a revisão achou", async () => {
     const patch = ITEMS.slice(ITEMS.indexOf('app.patch("/api/items/:id", requireAuth'), ITEMS.indexOf("storage.updateItem(req.params.id, updatePayload)"));
     expect(patch).toContain("const r = reescalarReservaEPartes(currentItem, nova - reusoNovo);");
     expect(patch).toContain("if (lerPartes(currentItem.impressaoPorMaquina)) updatePayload.impressaoPorMaquina = promoveuParaProduzido ? null : r.partes;");
-    expect(patch).toContain("Object.assign(updatePayload, colunasDaReserva(promoveuParaProduzido ? null : r.reserva));");
+    expect(patch).toContain("Object.assign(updatePayload, colunasDaReserva(promoveuParaProduzido ? null : r.reserva, currentItem.reservaPorMaquina));");
     const reuso = ITEMS.slice(ITEMS.indexOf('app.post("/api/items/:id/mark-reuse"'), ITEMS.indexOf('app.post("/api/items/:id/correct-reuse"'));
     expect(reuso).toContain("const r = reescalarReservaEPartes(current, current.quantity - newReuse);");
-    expect(reuso).toContain("...colunasDaReserva(isReady ? null : r.reserva),");
+    expect(reuso).toContain("...colunasDaReserva(isReady ? null : r.reserva, current.reservaPorMaquina),");
     expect((reuso.match(/impressaoPorMaquina: null,/g) ?? []).length).toBe(1); // reaproveitar tudo → produzida
     const correcao = ITEMS.slice(ITEMS.indexOf('app.post("/api/items/:id/correct-reuse"'));
     expect(correcao.slice(0, 6000)).toContain("impressaoPorMaquina: null,");
@@ -537,7 +539,7 @@ describe("9 · peça dividida — os cantos que a revisão achou", async () => {
 
   it("[4] a troca com quantidade não conta como peça impressa; no Excel a Quantidade da troca fica vazia", async () => {
     expect(ler("server/routes/maquinas.ts")).toContain('const pecasNoDia = new Set(registros.filter((r) => (r.tipo === "parcial" || r.tipo === "conclusao") && r.quantidade > 0).map((r) => r.itemId)).size;');
-    expect(ler("server/services/xlsxExport.ts")).toContain('quantidade: r.tipo === "troca" || r.tipo === "inicio" ? "" : r.quantidade,');
+    expect(ler("server/services/xlsxExport.ts")).toContain('quantidade: r.tipo === "troca" || r.tipo === "inicio" || r.tipo === "pausa" ? "" : r.quantidade,');
     const r = await import("../services/relatorioDeMaquinas");
     expect(r.oQueAconteceuNoRegistro({ tipo: "troca", quantidade: 2, totalDepois: 3, aImprimir: 10, maquina: "2" })).toBe("Trocou para Impressora 2 (2 un. movidas)");
     // O resumo: uma troca de 2 un. não é unidade impressa nem peça concluída.
@@ -718,6 +720,230 @@ describe("11 · iniciar PARTE de uma peça sem reserva — servidor, contas e Gr
     expect(GRAFICA).toContain("const openProductionModal = (item: any, resto = false) => {");
     expect(GRAFICA).toContain("parteAIniciar={iniciandoResto ? { quantidade: semImpressora(selectedItem), daReserva: false } : null}");
     expect(GRAFICA).toContain('(isInProd(selectedItem) && !iniciandoResto ? "Na impressora" : "A imprimir")');
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 12 · UMA PEÇA POR VEZ POR IMPRESSORA e a TROCA POR PRIORIDADE (dono, 21/09:
+// "caso a impressora esteja imprimindo algo, não dá para colocar outra; o que
+// podemos implementar é TIRAR um item e COLOCAR o outro").
+// ─────────────────────────────────────────────────────────────────────────────
+describe("12 · uma peça por impressora, pausar e trocar por prioridade", async () => {
+  const r = await import("@shared/reserva-de-impressora");
+  const d = await import("@shared/impressao-dividida");
+  const AGORA = "2026-09-21T14:03:00.000Z";
+  const pecaEm = (extra: Record<string, unknown> = {}) => ({ id: "a", status: "inProduction", quantity: 10, reuseQty: 0, quantityProduced: 3, printMachine: "1", impressaoPorMaquina: null, maquinaPrevista: null, reservaPorMaquina: null, ...extra });
+  const conta = (p: any) => r.comprometidoDaPeca(p) + Object.values(r.reservaDaPeca(p)).reduce((s: number, n: any) => s + n, 0) + r.semImpressora(p);
+
+  it("PAUSAR: as impressas ficam; o que faltava vira reserva da MESMA impressora, marcada; sem outra parte ativa a peça volta a liberada", () => {
+    const p = pecaEm(); // 3 de 10 na Impressora 1, do jeito antigo (jsonb nulo)
+    const pausa = r.pausarParte(p, "1", AGORA);
+    expect(pausa).toEqual({ ok: true, partes: null, reserva: { "1": 7 }, pausas: { "1": AGORA }, voltaParaAFila: true, impressasNaMaquina: 3, restante: 7, principal: null });
+    const colunas = r.colunasDaReserva({ "1": 7 }, null, { "1": AGORA });
+    expect(colunas).toEqual({ reservaPorMaquina: { "1": { qtd: 7, pausadaEm: AGORA } }, maquinaPrevista: "1" });
+    // Depois da pausa: liberada, 3 impressas preservadas, 7 reservadas, nada sem impressora — a conta fecha em 10.
+    const depois = { ...p, status: "ready_for_production", impressaoPorMaquina: null, ...colunas };
+    expect(r.lerReserva(depois.reservaPorMaquina)).toEqual({ "1": 7 });
+    expect(r.lerPausas(depois.reservaPorMaquina)).toEqual({ "1": AGORA });
+    expect(conta(depois)).toBe(10);
+    expect(r.semImpressora(depois)).toBe(0);
+    // RETOMAR: inicia a parte reservada; as 3 já impressas ficam anotadas na máquina; a marca some com a reserva.
+    const volta = r.iniciarParte(depois, "1", { daReserva: true });
+    expect(volta).toEqual({ ok: true, partes: { "1": { atrib: 10, impressas: 3 } }, reserva: null, quantidade: 7 });
+    expect(volta.ok && d.normalizarPartes(volta.partes, 10)).toBeNull(); // tudo numa impressora = sem divisão
+    expect(r.colunasDaReserva(null, depois.reservaPorMaquina)).toEqual({ reservaPorMaquina: null, maquinaPrevista: null });
+    // Erros: nada por imprimir nela; peça fora de impressão.
+    expect(r.pausarParte(p, "2", AGORA)).toMatchObject({ ok: false });
+    expect(r.pausarParte({ ...p, status: "approved" }, "1", AGORA)).toMatchObject({ ok: false });
+  });
+
+  it("PAUSAR uma parte de peça DIVIDIDA: a outra impressora segue imprimindo e a peça continua em impressão", () => {
+    const p = pecaEm({ quantityProduced: 5, impressaoPorMaquina: { "1": { atrib: 8, impressas: 5 }, "2": { atrib: 2, impressas: 0 } } });
+    const pausa = r.pausarParte(p, "1", AGORA);
+    expect(pausa).toMatchObject({ ok: true, partes: { "1": { atrib: 5, impressas: 5 }, "2": { atrib: 2, impressas: 0 } }, reserva: { "1": 3 }, voltaParaAFila: false, principal: "2", restante: 3 });
+    const depois = { ...p, impressaoPorMaquina: (pausa as any).partes, printMachine: "2", ...r.colunasDaReserva((pausa as any).reserva, null, (pausa as any).pausas) };
+    expect(conta(depois)).toBe(10);
+    expect(d.totalImpressas(d.partesDaPeca(depois))).toBe(5); // nenhuma impressa se perdeu
+  });
+
+  it("a marca de pausa SOBREVIVE a mexidas na reserva de outra impressora e some quando a dela acaba", () => {
+    const anterior = { "1": { qtd: 7, pausadaEm: AGORA }, "2": 4 };
+    expect(r.colunasDaReserva({ "1": 7, "2": 9 }, anterior).reservaPorMaquina).toEqual({ "1": { qtd: 7, pausadaEm: AGORA }, "2": 9 });
+    expect(r.colunasDaReserva({ "1": 5, "3": 2 }, anterior).reservaPorMaquina).toEqual({ "1": { qtd: 5, pausadaEm: AGORA }, "3": 2 });
+    expect(r.colunasDaReserva({ "2": 4 }, anterior).reservaPorMaquina).toEqual({ "2": 4 });
+    // O formato antigo (só números) continua valendo.
+    expect(r.lerReserva({ "1": 7, "2": { qtd: 3 } })).toEqual({ "1": 7, "2": 3 });
+    expect(r.lerPausas({ "1": 7 })).toEqual({});
+  });
+
+  it("UMA POR VEZ: quem ocupa a impressora é quem tem parte ATIVA nela; a mesma peça e a parte esgotada não contam", () => {
+    const a = pecaEm({ id: "a", displayId: "#0386" });
+    const b = pecaEm({ id: "b", displayId: "#0390", printMachine: "2", quantityProduced: 4, impressaoPorMaquina: { "2": { atrib: 4, impressas: 4 }, "3": { atrib: 6, impressas: 0 } } });
+    const liberada = pecaEm({ id: "c", status: "approved" });
+    expect(r.ocupanteDaImpressora([a, b, liberada], "1")?.id).toBe("a");
+    expect(r.ocupanteDaImpressora([a, b, liberada], "1", "a")).toBeNull(); // a mesma peça pode somar parte
+    expect(r.ocupanteDaImpressora([a, b, liberada], "2")).toBeNull();      // a parte da 2 já esgotou
+    expect(r.ocupanteDaImpressora([a, b, liberada], "3")?.id).toBe("b");
+    expect(r.ocupanteDaImpressora([a, b, liberada], "4")).toBeNull();
+  });
+
+  it("servidor: start-printing recusa a impressora ocupada (409) — inteira, parte e troca de máquina passam pelo mesmo guarda", () => {
+    const rota = ITEMS.slice(ITEMS.indexOf('app.patch("/api/items/:id/start-printing"'), ITEMS.indexOf('app.patch("/api/items/:id/start-production"'));
+    expect(rota).toContain("const ocupante = await quemOcupaAImpressora(printMachine, current.id, tx);");
+    expect(rota).toContain('throw falha(409, { error: erroImpressoraOcupada(printMachine, ocupante), code: "PRINTER_BUSY"');
+    // O guarda vem ANTES de decidir se é troca, parte ou peça inteira.
+    expect(rota.indexOf("quemOcupaAImpressora(printMachine, current.id, tx)")).toBeLessThan(rota.indexOf("const trocouDeMaquina ="));
+    const svc = ler("server/services/ocupacaoDasImpressoras.ts");
+    expect(svc).toContain("já está imprimindo ${ocupante.displayId ?? \"outra peça\"} — tire ela da impressora ou escolha outra");
+    expect(svc).toContain("return ocupanteDaImpressora(emImpressao as any[], maquina, excetoId);");
+  });
+
+  it("servidor: trocar/pausar — grafica/admin, numa transação, status volta a liberada, registro 'pausa' sem contar unidade", () => {
+    const ROTA = ler("server/routes/maquinas.ts");
+    expect(ROTA).toContain('app.post("/api/grafica/maquinas/:maquina/trocar", requireAuth');
+    expect(ROTA).toContain('app.post("/api/grafica/maquinas/:maquina/pausar", requireAuth');
+    const bloco = ROTA.slice(ROTA.indexOf("const tirarEColocar = async"), ROTA.indexOf('app.post("/api/grafica/maquinas/:maquina/trocar"'));
+    expect(bloco).toContain("const resultado = await db.transaction(async (tx) => {");
+    expect(bloco).toContain("const pausa = pausarParte(sai as any, maquina, new Date().toISOString());");
+    expect(bloco).toContain('status: pausa.voltaParaAFila ? "ready_for_production" : sai.status,');
+    expect(bloco).toContain("...colunasDaReserva(pausa.reserva, sai.reservaPorMaquina, pausa.pausas),");
+    // As impressas NÃO são tocadas: quantityProduced não aparece no set da peça que sai.
+    expect(bloco.slice(bloco.indexOf("const [saiu]"), bloco.indexOf("let entrou")).replace(/\/\/.*$/gm, "")).not.toContain("quantityProduced");
+    // Depois da pausa a impressora tem de estar livre; a que entra usa a MESMA conta do iniciar.
+    expect(bloco).toContain("const ocupante = ocupanteDaImpressora(emImpressao as any[], maquina, entra.id);");
+    expect(bloco).toContain("const inicio = iniciarParte(entra, maquina, { daReserva: temReserva, quantidade });");
+    expect(bloco).toContain('if (await motivoEventoDaPeca(entra)) throw falha(409, "O evento da peça que entra já foi finalizado");');
+    expect(bloco).toContain('{ itemId: sai.id, maquina, tipo: "pausa", quantidade: 0, totalDepois: jaImpressas,');
+    expect(bloco).toContain("Tirada da ${rotuloDaMaquina(maquina)} para dar lugar à ${entra.displayId");
+    const PERMISSOES = ler("shared/permissoes.ts");
+    expect(PERMISSOES).toContain('{ metodo: "POST", rota: "/api/grafica/maquinas/:maquina/trocar", papeis: ["admin", "grafica"] },');
+    expect(PERMISSOES).toContain('{ metodo: "POST", rota: "/api/grafica/maquinas/:maquina/pausar", papeis: ["admin", "grafica"] },');
+  });
+
+  it("diário, resumo e Excel: 'Pausou — deu lugar à #0398', sem unidade e sem 'ainda na máquina'", async () => {
+    const rel = await import("../services/relatorioDeMaquinas");
+    const registros = [
+      reg("i1", "p1", "1", "inicio", 0, 0, "2026-09-21", "08:00"),
+      reg("x1", "p1", "1", "parcial", 3, 3, "2026-09-21", "09:00"),
+      { ...reg("z1", "p1", "1", "pausa", 0, 3, "2026-09-21", "10:00"), displayId: "#0386" },
+      { ...reg("i2", "p2", "1", "inicio", 0, 0, "2026-09-21", "10:00"), displayId: "#0398", em: em("2026-09-21", "10:00") + 40 },
+    ];
+    const lugar = rel.quemEntrouNoLugar(registros as any);
+    expect(lugar.get("z1")).toBe("#0398");
+    expect(rel.oQueAconteceuNoRegistro({ tipo: "pausa", quantidade: 0, totalDepois: 3, aImprimir: 10, maquina: "1", deuLugarA: "#0398" })).toBe("Pausou — deu lugar à #0398 (3 de 10 impressas)");
+    expect(rel.oQueAconteceuNoRegistro({ tipo: "pausa", quantidade: 0, totalDepois: 3, aImprimir: 10, maquina: "1" })).toBe("Pausou — saiu da impressora (3 de 10 impressas)");
+    expect(rel.ROTULO_DO_TIPO.pausa).toBe("Pausa");
+    const m1 = rel.agregarRelatorioDeMaquinas(registros as any)[0].maquinas[0];
+    // 3 unidades (só o parcial); a #0386 foi tirada → só a #0398 segue na máquina.
+    expect(m1).toMatchObject({ unidades: 3, pecas: 2, concluidas: 0, aindaNaMaquina: 1 });
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 14 · A revisão adversarial da rodada "uma peça por impressora" (21/09).
+// ─────────────────────────────────────────────────────────────────────────────
+describe("14 · revisão adversarial: impressora nunca trava, corrida, limbo e rotas vizinhas", async () => {
+  const r = await import("@shared/reserva-de-impressora");
+  const ROTA = ler("server/routes/maquinas.ts");
+  const semComentario = (s: string) => s.replace(/\/\/.*$/gm, "");
+  const PRINTING = ITEMS.slice(ITEMS.indexOf('app.patch("/api/items/:id/start-printing"'), ITEMS.indexOf('app.patch("/api/items/:id/start-production"'));
+  const PRODUCTION = ITEMS.slice(ITEMS.indexOf('app.patch("/api/items/:id/start-production"'), ITEMS.indexOf("Auto-add to inventory when fully produced"));
+
+  it("[GRAVE] peça de evento finalizado NÃO trava a impressora: quem SAI não tem guarda de evento; quem ENTRA tem", () => {
+    const bloco = semComentario(ROTA.slice(ROTA.indexOf("const tirarEColocar = async"), ROTA.indexOf('app.post("/api/grafica/maquinas/:maquina/trocar"')));
+    expect(bloco).not.toContain("motivoEventoDaPeca(sai)");
+    expect(bloco).toContain("if (await motivoEventoDaPeca(entra)) throw falha(409,");
+    // Na tela, o "Tirar da impressora" não é desabilitado pelo selo de evento finalizado.
+    const PAGINA = ler("client/src/pages/grafica-maquinas.tsx");
+    const botao = PAGINA.slice(PAGINA.indexOf("{podeAgir && onTirar && !parteEsgotada && ("), PAGINA.indexOf("Tirar da impressora\n"));
+    expect(semComentario(botao)).not.toContain("selo");
+    expect(botao).toContain("disabled={mexendo}");
+  });
+
+  it("[2] a pausa que devolve à fila grava printMachine null; informar impressas exige peça EM impressão (depois do guarda de evento)", () => {
+    expect(ROTA).toContain("...(pausa.voltaParaAFila ? { printMachine: null } : pausa.principal ? { printMachine: pausa.principal } : {}),");
+    expect(PRODUCTION).toContain('if (before.status !== "inProduction" && before.status !== "em_producao") {');
+    expect(PRODUCTION).toContain("A peça não está em impressão — inicie a impressão antes de informar as impressas");
+    expect(PRODUCTION.indexOf("barraEventoFinalizado(before, res)")).toBeLessThan(PRODUCTION.indexOf('before.status !== "inProduction"'));
+  });
+
+  it("[3] CORRIDA: checagem de ocupação + gravação sob lock consultivo por impressora, em ordem fixa; o mesmo lock abre a transação de tirar/trocar", () => {
+    expect(PRINTING).toContain("const travas = Array.from(new Set([printMachine, current.printMachine, deMaquina].filter((m): m is string => ehMaquinaValida(m)))).sort();");
+    expect(PRINTING).toContain("for (const m of travas) await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${chaveDoLockDaImpressora(m)}))`);");
+    // lock → checagem → gravação, tudo dentro da MESMA transação.
+    const iTx = PRINTING.indexOf("const feito = await db.transaction(async (tx) => {");
+    const iLock = PRINTING.indexOf("select pg_advisory_xact_lock");
+    const iCheca = PRINTING.indexOf("quemOcupaAImpressora(printMachine, current.id, tx)");
+    const iGrava = PRINTING.indexOf("const item = await storage.updateItem(req.params.id, {");
+    const iFim = PRINTING.indexOf("return { item, movimento, parte, origem };");
+    expect(iTx).toBeGreaterThan(0);
+    expect([iTx < iLock, iLock < iCheca, iCheca < iGrava, iGrava < iFim]).toEqual([true, true, true, true]);
+    expect(PRINTING).toContain("Um índice único não resolve");
+    const bloco = ROTA.slice(ROTA.indexOf("const resultado = await db.transaction(async (tx) => {"));
+    expect(bloco.indexOf("pg_advisory_xact_lock")).toBeLessThan(bloco.indexOf("await tx.select().from(itemsTable)"));
+    expect(r.chaveDoLockDaImpressora("2")).toBe("impressora:2");
+  });
+
+  it("[4] return-to-review recusa peça com impressas (a pausada volta a 'liberada' COM material produzido)", () => {
+    const rota = ITEMS.slice(ITEMS.indexOf('app.patch("/api/items/:id/return-to-review"'));
+    expect(rota.slice(0, 8000)).toContain("if ((currentItem.quantityProduced ?? 0) > 0) {");
+    expect(rota.slice(0, 8000)).toContain("un. impressas e não pode voltar para a Revisão — há material produzido para desfazer.");
+  });
+
+  it("[5] descancelar peça que estava em impressão: SEMPRE liberada, sem impressora, o que faltava no topo da fila dela, impressas preservadas", () => {
+    const rota = ITEMS.slice(ITEMS.indexOf('app.patch("/api/items/:id/uncancel"'));
+    expect(rota.slice(0, 6000)).toContain('const estavaImprimindo = alvo === "inProduction" || alvo === "em_producao";');
+    expect(rota.slice(0, 6000)).toContain('if (estavaImprimindo) { alvo = "ready_for_production";');
+    expect(rota.slice(0, 6000)).toContain("...(devolvida ? { impressaoPorMaquina: null, printMachine: null, ...colunasDaReserva(devolvida.reserva, currentItem.reservaPorMaquina, devolvida.pausas) } : {}),");
+    // A conta pura: 3 de 10 na Impressora 1 (cancelada) → 7 reservadas à 1, marcadas; dividida → cada parte na sua.
+    const AGORA = "2026-09-21T15:00:00.000Z";
+    const cancelada = { status: "canceled", quantity: 10, reuseQty: 0, quantityProduced: 3, printMachine: "1", impressaoPorMaquina: null, maquinaPrevista: null, reservaPorMaquina: null };
+    expect(r.devolverTudoAFila(cancelada, AGORA)).toEqual({ reserva: { "1": 7 }, pausas: { "1": AGORA } });
+    const dividida = { ...cancelada, quantityProduced: 5, impressaoPorMaquina: { "1": { atrib: 8, impressas: 5 }, "2": { atrib: 2, impressas: 0 } } };
+    expect(r.devolverTudoAFila(dividida, AGORA)).toEqual({ reserva: { "1": 3, "2": 2 }, pausas: { "1": AGORA, "2": AGORA } });
+    // Depois: liberada, 5 impressas + 5 reservadas = 10 — a conta fecha.
+    const depois = { ...dividida, status: "ready_for_production", impressaoPorMaquina: null, printMachine: null, reservaPorMaquina: { "1": 3, "2": 2 } };
+    expect(r.comprometidoDaPeca(depois) + 5 + r.semImpressora(depois)).toBe(10);
+    // Com parte ainda reservada a outra impressora, a reserva antiga continua.
+    const comReserva = { ...cancelada, quantity: 34, quantityProduced: 5, impressaoPorMaquina: { "1": { atrib: 20, impressas: 5 } }, reservaPorMaquina: { "2": 14 } };
+    expect(r.devolverTudoAFila(comReserva, AGORA).reserva).toEqual({ "1": 15, "2": 14 });
+  });
+
+  it("[6] LIMBO: a última parte ativa esgotou sem fechar a peça → volta a liberada, sem impressora (a saída da pausa)", () => {
+    expect(PRODUCTION).toContain('const semParteAtiva = newProdStatus !== "produced" && !!partesDepois && Object.keys(partesAtivas(partesDepois)).length === 0;');
+    expect(PRODUCTION).toContain('status: semParteAtiva ? "ready_for_production" : newProdStatus,');
+    expect(PRODUCTION).toContain("...(semParteAtiva ? { impressaoPorMaquina: null, printMachine: null, statusChangedAt: new Date() } : {}),");
+  });
+
+  it("a Gráfica usa a mesma barra: nenhuma com 0 impressas; na peça dividida, uma por impressora", () => {
+    expect(GRAFICA).toContain("<BarraDeImpressao key={m} feitas={x.impressas} teto={x.atrib}");
+    expect(GRAFICA).toContain(": <BarraDeImpressao feitas={feitas} teto={teto}");
+    expect(GRAFICA).not.toContain('background: "#fed7aa", marginTop: 4, overflow: "hidden"'); // o trilho fino antigo
+    const MODAL = ler("client/src/components/grafica/modal-impressao.tsx");
+    expect(MODAL).toContain("if (!(feitas > 0) || !(teto > 0)) return null;");
+  });
+
+  it("[7][8][9] duplo disparo travado por ref + isPending; statusChangedAt da pausa é de propósito; o modal recebe as ocupadas", () => {
+    const PAGINA = ler("client/src/pages/grafica-maquinas.tsx");
+    expect(PAGINA).toContain("if (travaDaImpressoraRef.current || mexerNaImpressora.isPending) return;");
+    expect(PAGINA).toContain("mexendo={mexerNaImpressora.isPending} onTirar={(peca) => mexer({");
+    expect(PAGINA).toContain("ocupado={reserva.isPending || mexerNaImpressora.isPending}");
+    expect(PAGINA).toContain("ocupadas={ocupadasParaOModal}");
+    expect(ROTA).toContain("De propósito: voltar a \"liberada\" é mudança REAL de etapa");
+    expect(GRAFICA).toContain("ocupanteDaImpressora(pecasDoServidor as any[], m, selectedItem.id)");
+  });
+});
+
+describe("13 · a descrição da peça no retrato, no diário e no Excel (dono, 21/09)", () => {
+  const ROTA = ler("server/routes/maquinas.ts");
+  it("o retrato devolve descrição, material, medida e patrocinadores — estes numa consulta só", () => {
+    expect((ROTA.match(/select i\.id, i\.display_id, i\.type, i\.description, i\.material, i\.measurement,/g) ?? []).length).toBe(2); // imprimindo + fila
+    expect(ROTA).toContain("patrocinadores: patrocinadoresPorItem.get(l.id) ?? [],");
+    expect((ROTA.match(/from item_sponsors isp/g) ?? []).length).toBe(1); // sem N+1
+    expect((ROTA.match(/descricaoPeca: l\.description \?\? null,/g) ?? []).length).toBe(2); // diário do retrato + relatório
+  });
+  it("Excel 'Registros': a coluna Peça é tipo + descrição", () => {
+    expect(ler("server/services/xlsxExport.ts")).toContain("peca: nomeDaPeca(r.tipoPeca, r.descricaoPeca),");
   });
 });
 

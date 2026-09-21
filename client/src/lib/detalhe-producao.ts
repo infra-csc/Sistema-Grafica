@@ -39,6 +39,8 @@ export type PecaComProducao = {
   reservaPorMaquina?: unknown;
   tuboId?: string | null;
   tuboNumero?: number | string | null;
+  /** Embalada sozinha (volume avulso): nunca se diz "Tubo N". */
+  tuboAvulso?: boolean | null;
   tuboFechadoEm?: string | Date | null;
   tuboEntregueEm?: string | Date | null;
   tuboRecebidoPor?: string | null;
@@ -68,6 +70,7 @@ function horaDe(v: string | Date | null | undefined): string | null {
 /** "Tubo 2" — ou só "Em tubo" quando a peça tem tubo mas o número não veio. */
 export function rotuloDoTubo(item: PecaComProducao | null | undefined): string | null {
   if (!item) return null;
+  if (item.tuboAvulso) return "Embalada sozinha";
   const numero = inteiro(item.tuboNumero);
   if (numero > 0) return `Tubo ${numero}`;
   return item.tuboId ? "Em tubo" : null;
@@ -110,13 +113,13 @@ export function detalheDaProducao(item: PecaComProducao | null | undefined): str
     return "Aguardando conferência";
   }
 
-  if (CONFERIDA.has(status)) return "Aguardando embalagem ou entrega";
+  if (CONFERIDA.has(status)) return "Aguardando embalagem";
 
   if (status === "packed") {
     const tubo = rotuloDoTubo(item);
     if (!tubo) return "Aguardando entrega";
     const hora = horaDe(item.tuboFechadoEm);
-    return hora ? `${tubo} · fechado ${hora}` : tubo;
+    return hora ? `${tubo} · ${item.tuboAvulso ? "foto" : "fechado"} ${hora}` : tubo;
   }
 
   if (ENTREGUE.has(status)) {

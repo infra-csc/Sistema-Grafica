@@ -493,17 +493,19 @@ function BulkActionDialog({
           {isConfer && tubo && tubo.eventos.length > 0 && (() => {
             const variosEventos = tubo.eventos.length > 1;
             const efetivo = variosEventos && tubo.valor !== "" ? "novo" : tubo.valor;
+            // "Sem tubo agora" vem primeiro e é o padrão: conferir e agrupar
+            // são gestos separados (dono, 14/09).
             const opcoes = variosEventos
-              ? [{ valor: "novo", rotulo: `Um tubo novo por evento (${tubo.eventos.length})` }, { valor: "", rotulo: "Agrupar depois" }]
+              ? [{ valor: "", rotulo: "Sem tubo agora" }, { valor: "novo", rotulo: `Um tubo novo por evento (${tubo.eventos.length})` }]
               : [
+                  { valor: "", rotulo: "Sem tubo agora" },
                   { valor: "novo", rotulo: "+ Tubo novo" },
                   ...tubo.tubosAbertos.map((t) => ({ valor: t.id, rotulo: `Tubo ${t.numero} · ${t.pecas} ${t.pecas === 1 ? "peça" : "peças"}` })),
-                  { valor: "", rotulo: "Agrupar depois" },
                 ];
             return (
               <div data-testid="seletor-tubo-lote">
                 <div style={{ fontSize: fs(10), fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#746e69", marginBottom: 8 }}>
-                  Tubo das peças conferidas
+                  Tubo <span style={{ textTransform: "none", letterSpacing: 0, fontWeight: 400 }}>· opcional, dá para agrupar depois</span>
                 </div>
                 <div role="radiogroup" aria-label="Tubo das peças conferidas" style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
                   {opcoes.map(({ valor, rotulo }) => {
@@ -521,7 +523,7 @@ function BulkActionDialog({
                 <p data-testid="aviso-entrega-por-tubo" style={{ margin: "10px 0 0", padding: "10px 12px", borderRadius: 10, background: "#ecfeff", border: "1px solid #a5f3fc", fontSize: 12.5, color: "#155e75", lineHeight: 1.45 }}>
                   <strong>A entrega é por tubo.</strong>{" "}
                   {efetivo === ""
-                    ? "Sem tubo agora: agrupe estas peças depois, no botão Tubos do evento. Só dá para entregar o tubo inteiro, com uma foto."
+                    ? "Pode conferir agora e pôr no tubo depois, no botão Tubos do evento. Na entrega, sai o tubo inteiro, com uma foto."
                     : variosEventos
                       ? `As peças de cada evento vão para um tubo próprio (${tubo.eventos.map((e) => e.nome).join(", ")}). Depois, entregue cada tubo inteiro no botão Tubos do evento, com uma foto.`
                       : "Conferidas, estas peças entram no tubo escolhido. Depois, entregue o tubo inteiro no botão Tubos do evento, com uma foto."}
@@ -1194,8 +1196,9 @@ export default function Grafica() {
   // TUBOS (dono, 14/09): na conferência a peça já pode ir para um tubo, e
   // cada evento abre o painel de tubos para agrupar e entregar por tubo.
   const [tuboDaConferencia, setTuboDaConferencia] = useState<string>("");
-  // Tubo da conferência em LOTE: "novo" por padrão — a entrega é por tubo.
-  const [tuboDoLote, setTuboDoLote] = useState<string>("novo");
+  // Tubo da conferência em LOTE: "" (sem tubo) por padrão — conferir não
+  // obriga a agrupar; dá para pôr no tubo depois (dono, 14/09).
+  const [tuboDoLote, setTuboDoLote] = useState<string>("");
   const [tubosDoEvento, setTubosDoEvento] = useState<{ id: string; name: string } | null>(null);
   // Sem `= []` no destructuring: o array novo a cada render mudaria o
   // `numeroDoTubo` (e as deps de TODAS as linhas memoizadas) a cada render.
@@ -2348,7 +2351,7 @@ export default function Grafica() {
         setBulkSelectedIds(new Set());
         setBulkConferNotes("");
         setBulkConferPhotos([]);
-        setTuboDoLote("novo");
+        setTuboDoLote("");
       }
     } catch (e: any) {
       // Mesmas chaves do fluxo feliz — invalidar só /approved deixava as
@@ -5196,10 +5199,10 @@ export default function Grafica() {
                   ? `${bulkSelectedIds.size} de ${bulkEligibleList.length} marcada${bulkSelectedIds.size !== 1 ? 's' : ''}`
                   : `${bulkSelectedIds.size} peça${bulkSelectedIds.size !== 1 ? 's' : ''} selecionada${bulkSelectedIds.size !== 1 ? 's' : ''}`)
                 : isMobile ? 'Toque nas peças para marcar'
-                // Conferência em lote: a barra já avisa que as conferidas vão
-                // para um tubo (a entrega é por tubo — dono, 14/09).
+                // Conferência em lote: diz QUAIS peças tocar (as em acabamento).
+                // O tubo é opcional — agrupar vem depois (dono, 14/09).
                 : bulkConferMode
-                  ? (usaCards ? 'Toque nas peças em acabamento para conferir — depois elas vão para um tubo' : 'Clique nas linhas em acabamento para conferir — depois elas vão para um tubo')
+                  ? (usaCards ? 'Toque nas peças em acabamento para conferir' : 'Clique nas linhas em acabamento para conferir')
                   : (usaCards ? 'Toque nas peças para selecionar' : 'Clique nas linhas para selecionar')}
               {isMobile && bulkSelectedIds.size > 0 && <span className="sr-only"> peças</span>}
             </span>

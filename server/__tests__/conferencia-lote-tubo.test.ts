@@ -20,7 +20,7 @@ describe("a barra do lote", () => {
   it("diz 'Selecionar todas (N)' e explica o que tocar", () => {
     expect(GRAFICA).toContain("`Selecionar todas (${bulkEligibleList.length})`");
     expect(GRAFICA).not.toContain("`Sel. ${bulkEligibleList.length}`");
-    expect(GRAFICA).toContain("Toque nas peças em acabamento para conferir — depois elas vão para um tubo");
+    expect(GRAFICA).toContain("'Toque nas peças em acabamento para conferir'");
   });
 });
 
@@ -34,7 +34,12 @@ describe("o dialog da conferência em lote", () => {
   it("lote de vários eventos: um tubo novo por evento; de um evento: tubos abertos dele", () => {
     expect(GRAFICA).toContain("`Um tubo novo por evento (${tubo.eventos.length})`");
     expect(GRAFICA).toContain(".filter((t) => !t.entregueEm)");
-    expect(GRAFICA).toContain('const [tuboDoLote, setTuboDoLote] = useState<string>("novo");');
+  });
+
+  it("conferir não obriga a agrupar: o padrão é 'Sem tubo agora', primeira opção", () => {
+    expect(GRAFICA).toContain('const [tuboDoLote, setTuboDoLote] = useState<string>("");');
+    expect(GRAFICA).toContain('[{ valor: "", rotulo: "Sem tubo agora" }, { valor: "novo",');
+    expect(GRAFICA).toContain("Pode conferir agora e pôr no tubo depois, no botão Tubos do evento.");
   });
 });
 

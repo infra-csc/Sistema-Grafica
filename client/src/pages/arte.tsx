@@ -6,7 +6,7 @@ import { SponsorChips } from "@/components/sponsor-chips";
 import { ComentarioDoBook, comentarioDoBookValido } from "@/components/comentario-do-book";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { CheckCircle, AlertCircle, AlertTriangle, Eye, Calendar, Truck, Check, ChevronsUpDown, Search, Upload, FileImage, Clock, Package, Send, FolderOpen, FileText, FileCheck, RotateCcw, X, ArrowRight, Paperclip, Ban, FastForward, Printer, ChevronDown, CheckSquare, Palette, ExternalLink, RefreshCw, MoreHorizontal, Lock, WifiOff, Zap, Hourglass } from "lucide-react";
+import { CheckCircle, AlertCircle, AlertTriangle, Eye, Calendar, Truck, Check, ChevronsUpDown, Search, Upload, FileImage, Clock, Package, Send, FolderOpen, FileText, FileCheck, RotateCcw, X, ArrowRight, Paperclip, Ban, FastForward, Printer, ChevronDown, CheckSquare, Palette, ExternalLink, RefreshCw, MoreHorizontal, Lock, WifiOff, Zap, Hourglass, Sparkles } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -87,6 +87,7 @@ import { PrazoInline } from "@/components/prazo-inline";
 import { Link } from "wouter";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { SoQuandoMudar } from "@/components/arte/so-quando-mudar";
+import { BuscarArteDialog, type ArteEncontrada } from "@/components/buscar-arte-dialog";
 
 // Quantas linhas a tabela monta por vez. O resto entra por "Carregar mais".
 const ARTE_PAGE_SIZE = 100;
@@ -543,6 +544,70 @@ const ARTE_SORT_OPTIONS = [
   { value: "evento", label: "Evento", pinned: true },
   { value: "prazo", label: "Prazo da fase", pinned: true },
 ];
+
+/**
+ * "Buscar arte já feita" — o gêmeo do botão de subir arquivo, ao lado dele.
+ *
+ * Fica ONDE HOJE SE SOBE a thumb ou o arquivo, porque é ali que nasce a
+ * pergunta do dono: "essa arte eu já fiz, não dá para achar?". Dois tamanhos:
+ * `cheio` para a zona de upload vazia (o outro caminho tem o mesmo peso do
+ * "Escolher arquivo") e `discreto` para as linhas de troca, onde o gesto
+ * principal já existe.
+ */
+function BotaoBuscarArte({ onClick, variante = "cheio", testId }: {
+  onClick: () => void;
+  variante?: "cheio" | "discreto";
+  testId: string;
+}) {
+  const cheio = variante === "cheio";
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      data-testid={testId}
+      title="Reaproveitar uma arte já enviada no app, sem subir o arquivo de novo"
+      style={cheio
+        ? {
+            // 44px de alvo: o modal da Arte também abre no celular.
+            minHeight: 44, padding: '0 16px', borderRadius: 8, cursor: 'pointer',
+            border: '1px solid #d6d3d1', background: '#ffffff', color: '#1c1917',
+            fontSize: 13, fontWeight: 600,
+            display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 7,
+            transition: 'background 0.12s',
+          }
+        : {
+            minHeight: 44, padding: '0 10px', borderRadius: 8, cursor: 'pointer',
+            border: 'none', background: 'transparent', color: '#44403c',
+            fontSize: 12, fontWeight: 700, textDecoration: 'underline', textUnderlineOffset: 2,
+            display: 'inline-flex', alignItems: 'center', gap: 6, alignSelf: 'flex-start',
+          }}
+      onMouseEnter={(e) => { if (cheio) e.currentTarget.style.background = '#fafaf9'; }}
+      onMouseLeave={(e) => { if (cheio) e.currentTarget.style.background = '#ffffff'; }}
+    >
+      <Sparkles aria-hidden="true" style={{ width: 14, height: 14 }} />
+      Buscar arte já feita
+    </button>
+  );
+}
+
+/**
+ * Miniatura da nova versão na Correção. Antes testava a EXTENSÃO na URL para
+ * decidir entre imagem e ícone de arquivo — e o upload devolve
+ * `/objects/uploads/<uuid>`, sem extensão: toda imagem subida (ou
+ * reaproveitada pelo "Buscar arte já feita") aparecia como PDF. Agora tenta a
+ * miniatura sempre e só cai no ícone quando o navegador não consegue pintar
+ * (PDF de verdade). `key={url}` no uso zera o `falhou` a cada arquivo novo.
+ */
+function MiniaturaDaCorrecao({ url }: { url: string }) {
+  const [falhou, setFalhou] = useState(false);
+  return (
+    <div style={{ width: 32, height: 32, borderRadius: 8, backgroundColor: '#15803d', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden' }}>
+      {falhou
+        ? <FileText style={{ width: 15, height: 15, color: '#fff' }} />
+        : <img loading="lazy" decoding="async" src={miniatura(url)} alt="" onError={() => setFalhou(true)} style={{ width: 32, height: 32, objectFit: 'cover', borderRadius: 8 }} />}
+    </div>
+  );
+}
 
 export default function Arte() {
   const { toast } = useToast();
@@ -1018,15 +1083,20 @@ export default function Arte() {
     // bloco "versão anterior guardada" continuavam mostrando o thumb velho.
     // Com selectedItem derivado da lista, a invalidação abaixo já repinta o
     // modal — o .json() fica porque a mutação devolve a peça atualizada.
-    mutationFn: async ({ itemId, approvalThumbUrl }: { itemId: string; approvalThumbUrl: string }) => {
+    // `origem`: de qual peça a arte veio, quando o thumb foi REAPROVEITADO em
+    // vez de subido (Buscar arte já feita). Só muda o texto do toast — a
+    // gravação é a mesma para os dois caminhos.
+    mutationFn: async ({ itemId, approvalThumbUrl }: { itemId: string; approvalThumbUrl: string; origem?: string }) => {
       const res = await apiRequest("PATCH", `/api/items/${itemId}/update-thumb`, { approvalThumbUrl });
       return await res.json();
     },
-    onSuccess: () => {
+    onSuccess: (_dados, variables) => {
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
       queryClient.invalidateQueries({ queryKey: ["/api/items/approved"] });
       queryClient.invalidateQueries({ queryKey: ["/api/audit-logs"], refetchType: "none" });
-      toast({ title: "Thumb atualizado", description: "O thumb anterior ficou guardado no histórico da peça." });
+      toast(variables.origem
+        ? { title: `Arte de ${variables.origem} aplicada`, description: "O thumb anterior ficou guardado no histórico da peça." }
+        : { title: "Thumb atualizado", description: "O thumb anterior ficou guardado no histórico da peça." });
     },
     onError: (error: Error) =>
       toast({ title: "Erro ao atualizar thumb", description: mensagemDeErro(error), variant: "destructive" }),
@@ -1530,6 +1600,12 @@ export default function Arte() {
   // Núcleo do upload em lote de thumbs. Se send=true, envia para aprovação
   // (/submit-for-approval, muda status). Se send=false, só salva o thumb no
   // item (PATCH /api/items/:id, mantém status awaiting_submission = rascunho).
+  // PRÓXIMO PASSO (21/09), deliberadamente FORA desta rodada: sugerir aqui,
+  // por peça, uma arte já feita ("Buscar arte já feita" individual existe no
+  // modal da peça). Ficou de fora porque o lote casa ARQUIVO × peça pelo nome
+  // do arquivo (matchFileToItem) e a sugestão automática casaria peça × arte
+  // sem arquivo nenhum — dois vínculos diferentes na mesma tela, cada um com
+  // seu jeito de errar. Fazer só com o desenho de conferência em pé.
   const runBulkThumb = useCallback(async (send: boolean) => {
     if (!podeEditar) return; // gate de papel: nem sobe arquivo para tomar 403 depois
     const toProcess = bulkThumbEntries.filter(e => e.matchedItemId && e.status === 'pending');
@@ -2163,6 +2239,80 @@ export default function Arte() {
     }
     const isUpdate = !!selectedItem.finalFileUrl; // já tinha arquivo → é atualização
     submitFinalFileMutation.mutate({ itemId: selectedItem.id, finalFileUrl, finalPreviewUrl: "", finalFileName: fileNameFromPath(finalFileUrl) || "", isUpdate });
+  };
+
+  // ── BUSCAR ARTE JÁ FEITA (dono, 21/09) ───────────────────────────────────
+  //
+  // "Para ele não precisar colocar o arquivo ou a thumb novamente e só
+  // referenciar." O modal (components/buscar-arte-dialog.tsx) só ACHA a arte;
+  // aplicar é encher o MESMO campo que o upload encheria. Daí em diante o
+  // caminho é o de sempre — submit-for-approval, update-thumb,
+  // sponsor-approvals/resubmit, submit-final-file — com os mesmos efeitos, a
+  // mesma trilha e a mesma versão de arte. Nenhuma regra de negócio muda:
+  // reaproveitar troca a ORIGEM da URL, não o fluxo de aprovação.
+  //
+  // `destino` em vez de guardar a função de aplicar no estado: função em
+  // useState precisa de `setX(() => fn)` e some no primeiro esquecimento —
+  // com o destino declarado, o que fazer com a arte fica num lugar só, aqui.
+  type DestinoDaArte = "thumb-aprovacao" | "thumb-troca" | "thumb-correcao" | "arquivo-final";
+  const [buscaDeArte, setBuscaDeArte] = useState<{ itemId: string; displayId?: string | null; destino: DestinoDaArte } | null>(null);
+
+  const aplicarArteEncontrada = (arte: ArteEncontrada) => {
+    if (!buscaDeArte) return;
+    const de = `${arte.displayId ?? "peça"}${arte.eventName ? ` (${arte.eventName})` : ""}`;
+    const imagem = arte.thumbUrl ?? arte.previewUrl;
+
+    if (buscaDeArte.destino === "arquivo-final") {
+      if (!arte.arquivoFinalUrl) {
+        toast({ title: "Esta arte não tem arquivo final", description: "Escolha outra ou informe o caminho à mão.", variant: "destructive" });
+        return;
+      }
+      setFinalFileUrl(arte.arquivoFinalUrl);
+      setFinalFileName(arte.arquivoFinalNome || fileNameFromPath(arte.arquivoFinalUrl) || "");
+      // `finalDirty`: sem isto o botão "Atualizar arquivo" continua travado —
+      // ele só libera quando o campo MUDA em relação ao que está gravado.
+      setFinalDirty(true);
+      setBuscaDeArte(null);
+      toast({ title: `Arquivo final de ${de} aplicado`, description: "Confira o caminho e envie — a peça segue o fluxo normal." });
+      return;
+    }
+
+    if (!imagem) {
+      toast({ title: "Esta arte não tem imagem", description: "Escolha outra arte da lista.", variant: "destructive" });
+      return;
+    }
+
+    if (buscaDeArte.destino === "thumb-troca") {
+      // Última barreira do gate de papel, como em todo handler que GRAVA: os
+      // outros destinos só enchem um campo, este manda para o servidor.
+      if (bloqueadoPorPapel()) return;
+      // A arte escolhida já é a atual: não há o que gravar (o servidor
+      // responderia 409 "igual ao atual" — em vermelho, para um clique que não
+      // errou nada). Aviso neutro e o modal fecha.
+      if (itemPorId.get(buscaDeArte.itemId)?.approvalThumbUrl === imagem) {
+        setBuscaDeArte(null);
+        toast({ title: "Essa já é a arte atual desta peça" });
+        return;
+      }
+      // A troca do thumb já aprovado grava NA HORA, pela mutação de sempre
+      // (update-thumb): mesma revogação de aprovação estrita, mesma versão de
+      // arte, mesma trilha.
+      updateThumbMutation.mutate({ itemId: buscaDeArte.itemId, approvalThumbUrl: imagem, origem: de });
+      setBuscaDeArte(null);
+      return;
+    }
+
+    if (buscaDeArte.destino === "thumb-correcao") {
+      setCorrecaoThumbUrl(imagem);
+      setCorrecaoFileName(imagem.split("/").pop() || "Arte reaproveitada");
+    } else {
+      // Mesmo par de setters do upload: a miniatura aparece e o "Enviar para
+      // aprovação" destrava, porque `approvalThumbUrl` é o que ele exige.
+      concluirEnvioDoThumb(imagem);
+      focarEnvioParaAprovacao();
+    }
+    setBuscaDeArte(null);
+    toast({ title: `Arte de ${de} aplicada`, description: "Confira a miniatura e envie — a peça segue o fluxo normal de aprovação." });
   };
 
   const toggleItemSelection = (itemId: string) => {
@@ -4909,12 +5059,7 @@ export default function Arte() {
                       {/* Ladrilho chapado: o gradiente verde era o ultimo desta
                           area, e num aviso de sucesso de 32px ele nao le como
                           gradiente — le como ruido. */}
-                      <div style={{ width: 32, height: 32, borderRadius: 8, backgroundColor: '#15803d', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                        {/\.(png|jpg|jpeg|gif|webp)/i.test(correcaoThumbUrl)
-                          ? <img loading="lazy" decoding="async" src={miniatura(correcaoThumbUrl)} alt="" style={{ width: 32, height: 32, objectFit: 'cover', borderRadius: 8 }} />
-                          : <FileText style={{ width: 15, height: 15, color: '#fff' }} />
-                        }
-                      </div>
+                      <MiniaturaDaCorrecao key={correcaoThumbUrl} url={correcaoThumbUrl} />
                       <div style={{ flex: 1, minWidth: 0 }}>
                         {/* "Arquivo enviado" lia como "já foi para o
                             patrocinador" (rodada 4) — e a pessoa fechava o
@@ -4994,6 +5139,13 @@ export default function Arte() {
                       <p style={{ fontSize: 11, color: '#57534e', margin: '3px 0 0' }}>
                         {isPasteUploading ? 'Aguarde…' : <>PDF, PNG, SVG · ou cole com <kbd style={KBD}>Ctrl</kbd>+<kbd style={KBD}>V</kbd></>}
                       </p>
+                      {!isPasteUploading && correcaoItem && (
+                        <BotaoBuscarArte
+                          variante="discreto"
+                          testId="button-buscar-arte-correcao"
+                          onClick={() => setBuscaDeArte({ itemId: correcaoItem.id, displayId: correcaoItem.displayId, destino: "thumb-correcao" })}
+                        />
+                      )}
                     </div>
                   )}
                 </div>
@@ -5230,6 +5382,14 @@ export default function Arte() {
                     >
                       {updateThumbMutation.isPending ? 'Enviando…' : 'Trocar thumb'}
                     </FileUploader>
+                    {/* Aqui a troca grava na hora (update-thumb), e
+                        reaproveitar segue a MESMA mutação — ver
+                        aplicarArteEncontrada. */}
+                    <BotaoBuscarArte
+                      variante="discreto"
+                      testId="button-buscar-arte-troca-aprovada"
+                      onClick={() => setBuscaDeArte({ itemId: selectedItem.id, displayId: selectedItem.displayId, destino: "thumb-troca" })}
+                    />
                   </div>
                 );
               })()}
@@ -5274,6 +5434,13 @@ export default function Arte() {
                     style={{ paddingLeft: 36, paddingRight: 16, height: 44, background: '#ffffff', border: 'none', boxShadow: '0 0 0 1px #d6d3d1', borderRadius: 8, fontSize: 13, fontWeight: 500 }}
                   />
                 </div>
+                {/* O arquivo final da mesma arte já está no app — copiar o
+                    caminho à mão da outra peça era o que se fazia. */}
+                <BotaoBuscarArte
+                  variante="discreto"
+                  testId="button-buscar-arte-final"
+                  onClick={() => setBuscaDeArte({ itemId: selectedItem.id, displayId: selectedItem.displayId, destino: "arquivo-final" })}
+                />
                 {finalFileUrl.trim() && (
                   fileNameFromPath(finalFileUrl)
                     ? (
@@ -5430,6 +5597,11 @@ export default function Arte() {
                         >
                           Trocar thumb
                         </FileUploader>
+                        <BotaoBuscarArte
+                          variante="discreto"
+                          testId="button-buscar-arte-trocar"
+                          onClick={() => setBuscaDeArte({ itemId: selectedItem.id, displayId: selectedItem.displayId, destino: "thumb-aprovacao" })}
+                        />
                       </div>
                     </div>
 
@@ -5588,6 +5760,17 @@ export default function Arte() {
                       >
                         Escolher arquivo
                       </FileUploader>
+                    )}
+                    {/* O SEGUNDO CAMINHO, ao lado do primeiro (dono, 21/09):
+                        a arte deste patrocinador já existe no app, num evento
+                        do mesmo circuito. Reaproveitar é só não subir o
+                        arquivo de novo — daqui para a frente é o envio de
+                        sempre. */}
+                    {!isPasteUploading && (
+                      <BotaoBuscarArte
+                        testId="button-buscar-arte-aprovacao"
+                        onClick={() => setBuscaDeArte({ itemId: selectedItem.id, displayId: selectedItem.displayId, destino: "thumb-aprovacao" })}
+                      />
                     )}
                     {/* A linha "ou Ctrl+V para colar direto" saiu: repetia, em
                         roxo, o atalho que a frase logo acima já ensina. */}
@@ -5795,6 +5978,16 @@ export default function Arte() {
       {/* ═══════════════════════════════════════════════════════════════════ */}
       {/* Com peças selecionadas, o modal recebe só a seleção como pool. */}
       <ExportPdfDialog open={showExportModal} onOpenChange={setShowExportModal} items={itensDaExportacaoCongelados} title="Arte" />
+
+      {/* BUSCAR ARTE JÁ FEITA — um modal só para os quatro pontos de envio
+          (thumb de aprovação, troca do thumb aprovado, correção e arquivo
+          final). Quem abriu diz o DESTINO; aplicar é aplicarArteEncontrada. */}
+      <BuscarArteDialog
+        item={buscaDeArte ? { id: buscaDeArte.itemId, displayId: buscaDeArte.displayId } : null}
+        querArquivoFinal={buscaDeArte?.destino === "arquivo-final"}
+        onUsar={aplicarArteEncontrada}
+        onClose={() => setBuscaDeArte(null)}
+      />
 
       {/* ═══════════════════════════════════════════════════════════════════ */}
       {/* MODAL — SUBIR BOOK (PDF) e escolher as peças cobertas               */}

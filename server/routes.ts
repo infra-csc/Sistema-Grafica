@@ -35,6 +35,7 @@ import { registerTubosRoutes } from "./routes/tubos";
 import { registerEstoqueReservasRoutes } from "./routes/estoque-reservas";
 import { registerPedidosDePecaRoutes } from "./routes/pedidos-de-peca";
 import { registerKitRoutes } from "./routes/kit";
+import { registerArtesBuscaRoutes } from "./routes/artes-busca";
 import { db } from "./db";
 import { items as itemsTable } from "@shared/schema";
 import { and, inArray, isNotNull } from "drizzle-orm";
@@ -115,6 +116,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   registerEstoqueReservasRoutes(app);
   registerPedidosDePecaRoutes(app);
   registerKitRoutes(app);
+  registerArtesBuscaRoutes(app);
   registerNotificationRoutes(app);
   registerCommentRoutes(app);
   registerPhotoRoutes(app);

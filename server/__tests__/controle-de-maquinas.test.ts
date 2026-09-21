@@ -205,3 +205,11 @@ describe("5 · a tela", () => {
     expect(PAGINA).not.toMatch(/color: "#f97316"|color: "#a8a29e"/);
   });
 });
+
+describe("modal abre na etapa certa mesmo com servidor antigo (21/09)", () => {
+  it("peça da lista 'em impressão' é tratada como inProduction e herda a máquina do cartão", () => {
+    const tela = readFileSync(new URL("../../client/src/pages/grafica-maquinas.tsx", import.meta.url), "utf8");
+    expect(tela).toContain('status: p.status ?? "inProduction"');
+    expect(tela).toContain("p={p.maquina ? p : { ...p, maquina: m.codigo }}");
+  });
+});

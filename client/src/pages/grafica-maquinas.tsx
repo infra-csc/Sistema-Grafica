@@ -172,7 +172,11 @@ function pecaParaOModal(p: PecaNaMaquina): PecaParaImprimir {
     displayId: p.displayId,
     type: p.tipo,
     description: p.descricao,
-    status: p.status,
+    // Quem está nesta lista está em impressão por definição. Um servidor
+    // ainda na versão anterior (Pull sem Stop/Run) não manda `status` nem
+    // `maquina` — sem isto o modal abria em "Iniciar impressão" para uma peça
+    // que já estava imprimindo (dono, 21/09).
+    status: p.status ?? "inProduction",
     quantity: p.quantidade,
     quantityProduced: p.impressas,
     reuseQty: p.reuso,
@@ -597,7 +601,7 @@ export default function GraficaMaquinas() {
                       )}
 
                       {m.imprimindo.map((p) => (
-                        <PecaNoCartao key={p.id} p={p} agora={agora} podeAgir={podeAgir} hojeMs={hojeMs} isMobile={isMobile} onAgir={setPecaNoModal} />
+                        <PecaNoCartao key={p.id} p={p.maquina ? p : { ...p, maquina: m.codigo }} agora={agora} podeAgir={podeAgir} hojeMs={hojeMs} isMobile={isMobile} onAgir={setPecaNoModal} />
                       ))}
 
                       {/* Rodapé: o que saiu desta máquina no dia aberto — e o atalho para o diário dela. */}

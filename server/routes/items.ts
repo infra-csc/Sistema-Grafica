@@ -4155,6 +4155,7 @@ export function registerItemRoutes(app: Express): void {
           // Nomes de 14/09 em diante; os antigos logo abaixo seguem valendo
           // para a trilha escrita antes da renomeação.
           "Em Impressão": "inProduction",
+          "Impresso / Acabamento": "produced",
           "Em Acabamento / Conferência": "produced",
           "Em Produção": "inProduction",
           "Produzido": "produced",

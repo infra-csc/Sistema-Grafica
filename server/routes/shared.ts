@@ -78,7 +78,7 @@ export function translateStatus(status: string): string {
     // mudaram — só o que se lê. A trilha antiga segue com os nomes velhos, e
     // quem a interpreta reconhece os dois (ver tempo-etapas e a ficha).
     inProduction: "Em Impressão",
-    produced: "Em Acabamento / Conferência",
+    produced: "Impresso / Acabamento",
     conferred: "Conferido",
     delivered: "Entregue",
     canceled: "Cancelado",

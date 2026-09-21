@@ -91,7 +91,7 @@ export const STATUS_LABEL: Record<string, string> = {
   ready_for_production: "Pronto para Produção",
   approved: "Liberado",
   inProduction: "Em Impressão",
-  produced: "Em Acabamento / Conferência",
+  produced: "Impresso / Acabamento",
   conferred: "Conferido",
   delivered: "Entregue",
   canceled: "Cancelado",

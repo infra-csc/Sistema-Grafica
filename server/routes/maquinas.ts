@@ -12,6 +12,11 @@
 //   · O DIA — os registros de registros_de_impressao daquele dia, no fuso da
 //     operação, por máquina, com o total que saiu de cada uma.
 //
+// A tela AGE a partir daqui (dono, 21/09: "com base no que está aqui eles
+// fazem a manutenção e ajustam"): cada peça em impressão vem com o que o modal
+// de impressão precisa (quantidade, reaproveitadas, impressas, máquina, desde,
+// miniatura da arte, evento) — a gravação continua nos endpoints de items.ts.
+//
 // O "dia" é o de São Paulo, e a conversão é feita NO BANCO: created_at é
 // gravado em UTC, e converter no Node dependeria do fuso do processo — um
 // lançamento às 22h caía no dia seguinte.
@@ -51,12 +56,15 @@ export function registerMaquinasRoutes(app: Express): void {
 
     try {
       const emImpressao = linhas(await db.execute(sql`
-        select i.id, i.display_id, i.type, i.description, i.quantity,
+        select i.id, i.display_id, i.type, i.description, i.quantity, i.status,
                coalesce(i.quantity_produced, 0) as produzido,
                coalesce(i.reuse_qty, 0) as reuso,
                i.print_machine, i.kit_remessa_id, i.criado_por_id,
+               i.approval_thumb_url,
                to_char(coalesce(i.production_started_at, i.status_changed_at), 'YYYY-MM-DD"T"HH24:MI:SS"Z"') as desde,
-               e.name as evento
+               e.id as evento_id, e.name as evento, e.status as evento_status,
+               to_char(e.start_date, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') as evento_inicio,
+               to_char(e.reopened_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') as evento_reaberto
         from items i
         left join events e on e.id = i.event_id
         where i.deleted_at is null and i.status in ('inProduction', 'em_producao')
@@ -86,10 +94,24 @@ export function registerMaquinasRoutes(app: Express): void {
         descricao: l.description,
         evento: l.evento,
         quantidade: Number(l.quantity),
+        reuso: Number(l.reuso),
         aImprimir: aImprimir(l.quantity, l.reuso),
         impressas: Number(l.produzido),
         desde: l.desde,
+        maquina: l.print_machine ?? null,
+        status: l.status,
+        miniatura: l.approval_thumb_url ?? null,
+        // O bastante para a tela saber se o evento já acabou (o servidor
+        // barra o gesto de qualquer jeito; aqui é para o botão explicar antes).
+        eventoInfo: l.evento_id
+          ? { id: l.evento_id, name: l.evento, status: l.evento_status, startDate: l.evento_inicio, reopenedAt: l.evento_reaberto }
+          : null,
       });
+
+      // `ordem` é a posição na lista do dia inteiro (mais recente = 0): a tela
+      // funde as máquinas num diário só e precisa de uma ordem estável entre
+      // lançamentos do mesmo minuto — a hora "HH:MM" sozinha não desempata.
+      const ordemPorId = new Map<string, number>(doDia.map((l, i) => [l.id, i]));
 
       const maquinas = MAQUINAS_DE_IMPRESSAO.map((codigo) => {
         const registros = doDia
@@ -106,6 +128,7 @@ export function registerMaquinasRoutes(app: Express): void {
             aImprimir: aImprimir(l.quantity, l.reuso),
             hora: l.hora,
             quem: l.user_name,
+            ordem: ordemPorId.get(l.id) ?? 0,
           }));
         // O que SAIU da máquina no dia: só lançamentos de quantidade (início e
         // troca não imprimem nada). Correção entra com sinal, então o número é

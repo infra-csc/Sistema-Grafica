@@ -32,6 +32,7 @@ const SCHEMA = ler("shared/schema.ts");
 const STATUS = ler("client/src/lib/status.ts");
 const GRAFICA = ler("client/src/pages/grafica.tsx");
 const FICHA = ler("client/src/components/item-details-dialog.tsx");
+const MODAL = ler("client/src/components/grafica/modal-impressao.tsx");
 
 describe("as máquinas", () => {
   it("são 1, 2, 3 e 4 — o banco guarda o código, a tela lê o nome do dono (21/09)", () => {
@@ -109,60 +110,70 @@ describe("o segundo momento: registrar o que saiu", () => {
   });
 });
 
-describe("a tela obriga a escolha", () => {
+describe("a tela obriga a escolha — no modal COMPARTILHADO (components/grafica/modal-impressao.tsx)", () => {
+  // O modal saiu de grafica.tsx em 21/09 para servir também à aba Máquinas:
+  // uma cópia só do formulário, das mutations e dos toasts.
+  it("a fila e a aba Máquinas importam o mesmo modal", () => {
+    expect(GRAFICA).toContain('from "@/components/grafica/modal-impressao"');
+    expect(GRAFICA).toContain("useMutacoesDeImpressao({ onSucesso:");
+    expect(GRAFICA).toContain("<FormularioDeImpressao");
+    expect(ler("client/src/pages/grafica-maquinas.tsx")).toContain("<ModalImpressao item={itemDoModal}");
+    // Nenhum resto do formulário antigo na fila.
+    expect(GRAFICA).not.toContain("handleSubmitProduction");
+    expect(GRAFICA).not.toContain("productionData");
+  });
+
   it("o modal tem o seletor das quatro máquinas", () => {
-    expect(GRAFICA).toContain('data-testid="seletor-maquina"');
-    expect(GRAFICA).toContain("MAQUINAS_DE_IMPRESSAO.map((m) =>");
+    expect(MODAL).toContain('data-testid="seletor-maquina"');
+    expect(MODAL).toContain("MAQUINAS_DE_IMPRESSAO.map((m) =>");
   });
 
-  it("nem registrar nem iniciar funcionam sem máquina", () => {
-    expect(GRAFICA).toContain("productionData.quantityProduced === producedOf(selectedItem) || !maquinaEscolhida}");
-    expect(GRAFICA).toContain("disabled={startPrintingMutation.isPending || !maquinaEscolhida}");
-    expect(GRAFICA).toContain('toast({ title: "Escolha a máquina"');
+  it("nem informar impressas nem iniciar funcionam sem máquina", () => {
+    expect(MODAL).toContain("const pode = !!maquinaEscolhida && !startPrintingMutation.isPending;");
+    expect(MODAL).toContain('toast({ title: "Escolha a máquina"');
   });
 
-  it("existe o botão de iniciar, que vira 'Trocar máquina' com a peça já na máquina", () => {
-    expect(GRAFICA).toContain('data-testid="button-iniciar-impressao"');
-    expect(GRAFICA).toContain('"Trocar máquina" : "Iniciar impressão"');
+  it("existe o botão de iniciar; a troca de máquina vive num painel próprio", () => {
+    expect(MODAL).toContain('data-testid="button-iniciar-impressao"');
+    expect(MODAL).toContain('data-testid="button-trocar-maquina"');
+    expect(MODAL).toContain("trocando: emImpressao");
   });
 
-  it("a fila mostra em que máquina a peça está", () => {
-    expect(GRAFICA).toContain("`${rotuloDaMaquina(item.printMachine)} · Registrar`");
-    expect(GRAFICA).toContain("isInProd(item) ? rotuloRegistrarImpressao(item)");
+  it("a fila mostra em que máquina a peça está e o progresso — o botão só diz o gesto", () => {
+    expect(GRAFICA).toContain("function ProgressoImpressao(");
+    expect(GRAFICA).toContain("isInProd(item) && <ProgressoImpressao item={item} fonte={10.5} duasLinhas />");
+    expect(GRAFICA).toContain("isInProd(item) ? rotuloAcaoImpressao(item)");
   });
 });
 
-describe("a impressão é registrada AOS POUCOS (dono, 14/09)", () => {
-  // "ele inicia a impressão, conforme o tempo registra quantos já finalizaram,
-  // e só vai para em acabamento / em conferência quando finaliza todos os itens
-  // impressos; o acabamento / conferência é antes da foto e dos detalhes da
-  // conferência; depois disso fica como conferido aguardando a entrega."
+describe("a impressão é informada AOS POUCOS (dono, 14/09)", () => {
+  // "ele inicia a impressão, conforme o tempo informa quantos já finalizaram,
+  // e só vai para acabamento quando finaliza todos os itens impressos."
 
   it("o modal abre com o que JÁ SAIU, não com o total — um toque distraído não conclui", () => {
-    expect(GRAFICA).toContain("setProductionData({ quantityProduced: producedOf(item) });");
-    expect(GRAFICA).not.toContain("setProductionData({ quantityProduced: tetoDeProducao(item) });");
+    expect(MODAL).toContain("useState<number>(producedOf(item))");
+    expect(MODAL).not.toContain("useState<number>(tetoDeProducao(item))");
   });
 
-  it("lançar o mesmo número de antes não muda nada, então o botão fica apagado", () => {
-    expect(GRAFICA).toContain("productionData.quantityProduced === producedOf(selectedItem)");
+  it("informar o mesmo número de antes não muda nada, então o botão fica apagado e explica", () => {
+    expect(MODAL).toContain('return { rotulo: "Nada mudou", pode: false');
   });
 
-  it("o botão diz o destino: parcial registra, completo conclui", () => {
-    expect(GRAFICA).toContain('? "Concluir impressão" : `Registrar ${productionData.quantityProduced} de ${tetoDeProducao(selectedItem)}`');
+  it("o botão diz o que acontece com a DIFERENÇA; no teto, conclui", () => {
+    expect(MODAL).toContain("rotulo: `Mandar ${diferenca} para acabamento (${informado} de ${teto})`");
+    expect(MODAL).toContain("`Mandar as últimas ${diferenca} e concluir`");
   });
 
   it("o aviso depois de salvar diz para onde a peça foi", () => {
-    // O título carrega o código da peça (padrão da Gráfica nova: o toast
-    // nomeia a peça que o toque atingiu).
-    expect(GRAFICA).toContain('toast({ title: `Impressão concluída${cod}`, description: "A peça foi para Acabamento / Conferência." });');
-    expect(GRAFICA).toContain('title: `Parcial registrada${cod}`');
+    expect(MODAL).toContain("toast({ title: `Mandada para acabamento${cod}`");
+    expect(MODAL).toContain("title: `Impressas informadas${cod}`");
   });
 
   it("o campo diz o que se lança: quantas já saíram da máquina", () => {
-    expect(GRAFICA).toContain("Quantas já saíram da máquina");
+    expect(MODAL).toContain("Quantas já saíram da máquina");
   });
 
-  it("servidor: parcial fica Em Impressão; todas impressas vão para Acabamento / Conferência", () => {
+  it("servidor: parcial fica Em Impressão; todas impressas vão para Impresso / Acabamento", () => {
     expect(ITEMS).toContain('? "produced"\n          : "inProduction";');
   });
 
@@ -173,11 +184,15 @@ describe("a impressão é registrada AOS POUCOS (dono, 14/09)", () => {
 });
 
 describe("os nomes novos — com a trilha antiga ainda legível", () => {
-  it("'Em Produção' virou 'Em Impressão' e 'Produzido' virou 'Em Acabamento / Conferência'", () => {
+  it("'Em Produção' virou 'Em Impressão' e 'Produzido' virou 'Impresso / Acabamento' (dono, 21/09)", () => {
     expect(SHARED).toContain('inProduction: "Em Impressão",');
-    expect(SHARED).toContain('produced: "Em Acabamento / Conferência",');
+    expect(SHARED).toContain('produced: "Impresso / Acabamento",');
     expect(STATUS).toContain('inProduction:          meta("Em Impressão"');
-    expect(STATUS).toContain('produced:              meta("Em Acabamento / Conferência", "Acabamento"');
+    expect(STATUS).toContain('produced:              meta("Impresso / Acabamento",        "Impresso"');
+    // Excel, tempo por etapa e a KPI da Gráfica dizem o mesmo nome.
+    expect(ler("server/services/xlsxExport.ts")).toContain('produced: "Impresso / Acabamento"');
+    expect(ler("server/services/tempo-etapas.ts")).toContain('produced: "Impresso / Acabamento",');
+    expect(GRAFICA).toContain('{ label: "Impresso",     value: stats.produzidos');
   });
 
   it("nenhum rótulo de tela ou servidor ainda diz 'Em Produção' para a peça", () => {
@@ -188,6 +203,7 @@ describe("os nomes novos — com a trilha antiga ainda legível", () => {
   it("o descancelar entende os nomes novos E os antigos da trilha", () => {
     for (const par of [
       '"Em Impressão": "inProduction",',
+      '"Impresso / Acabamento": "produced",',
       '"Em Acabamento / Conferência": "produced",',
       '"Em Produção": "inProduction",',
       '"Produzido": "produced",',
@@ -198,7 +214,7 @@ describe("os nomes novos — com a trilha antiga ainda legível", () => {
 
   it("a linha do tempo da ficha reconhece as palavras novas e as velhas", () => {
     expect(FICHA).toContain('keywords: ["em impressão", "impressão iniciada", "em produção"]');
-    expect(FICHA).toContain('keywords: ["acabamento / conferência", "produzido"]');
+    expect(FICHA).toContain('keywords: ["impresso / acabamento", "acabamento / conferência", "produzido"]');
   });
 
   it("a ficha diz em que máquina a peça está", () => {

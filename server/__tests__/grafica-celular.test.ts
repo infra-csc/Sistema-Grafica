@@ -301,7 +301,10 @@ describe.each([360, 390])("Gráfica em %ipx de largura", (largura) => {
     const noCartao = (rotulo: RegExp) => Array.from(document.querySelectorAll<HTMLElement>("[data-item-row] button"))
       .find((b) => rotulo.test((b.textContent ?? "").trim()) && !(b as HTMLButtonElement).disabled) ?? null;
     const casos: [() => HTMLElement | null, string][] = [
-      [() => noCartao(/^Imprimir$/), '[data-testid="button-confirm-production"]'],
+      // Peça AINDA NÃO na máquina: o modal só tem a impressora e "Iniciar".
+      [() => noCartao(/^Imprimir$/), '[data-testid="button-iniciar-impressao"]'],
+      // Peça EM impressão: o campo de quantidade e "Mandar N para acabamento".
+      [() => noCartao(/^Impressas$/), '[data-testid="button-confirm-production"]'],
       [() => noCartao(/^Conferir( \d+)?$/), '[data-testid="button-confirm-conference"]'],
       [() => noCartao(/^Entregar( \d+)?$/), '[data-testid="button-confirm-delivery"]'],
       [() => $('[data-testid^="button-devolver-revisao-card-"]'), '[data-testid="button-confirmar-devolver-revisao"]'],

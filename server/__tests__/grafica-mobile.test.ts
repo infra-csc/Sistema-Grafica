@@ -115,7 +115,9 @@ describe("o que o pedido mandou preservar", () => {
   });
 
   it("nenhuma lógica mudou: as mesmas mutações, os mesmos gates", () => {
-    for (const m of ["startProductionMutation", "conferMutation", "markDeliveredMutation", "devolverMutation", "podeConferir"]) {
+    // O modal de impressão (e suas duas mutations) mora em components/grafica/
+    // modal-impressao.tsx desde 21/09 — a fila o importa por `useMutacoesDeImpressao`.
+    for (const m of ["useMutacoesDeImpressao", "conferMutation", "markDeliveredMutation", "devolverMutation", "podeConferir"]) {
       expect(G, m).toContain(m);
     }
   });

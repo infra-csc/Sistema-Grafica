@@ -26,6 +26,14 @@
 // conferida → packed; sai do tubo (ou o tubo é apagado) → conferred. Ver
 // EMBALADO em shared/fluxo-peca.ts.
 //
+// AJUSTE DO MESMO DIA (dono, 21/09, depois de testar): "o EMBALAR tem que pedir
+// a foto, igual é o Entregar; e depois o ENTREGAR é só o tubo".
+//   · EMBALAR = tubo + FOTO: peça conferida só entra em tubo (novo, aberto ou
+//     vinda de outro tubo) com a foto do tubo com os itens — 400 sem ela. As
+//     fotos ACUMULAM em fotos_fechamento. "Fechar" virou "Adicionar fotos ao
+//     tubo": opcional, e também acumula.
+//   · ENTREGAR é do tubo: PATCH /api/items/:id/deliver recusa peça embalada.
+//
 // Papéis: os mesmos de conferir e entregar (grafica, solicitacao, admin). Os
 // tubos são a embalagem dessas duas etapas, não uma permissão nova.
 // ─────────────────────────────────────────────────────────────────────────────
@@ -226,7 +234,7 @@ async function criarTubo(eventId: string, criadoPor: string) {
   throw new Error("Não foi possível numerar o tubo");
 }
 
-async function colocarNoTubo(req: any, tubo: { id: string; numero: number; eventId: string; fechadoEm: Date | null }, pecas: PecaCrua[], ids: string[]) {
+async function colocarNoTubo(req: any, tubo: { id: string; numero: number; eventId: string; fechadoEm: Date | null }, pecas: PecaCrua[], ids: string[], nFotos = 0) {
   const outros = Array.from(new Set(pecas.map((p) => p.tuboId).filter((t) => t && t !== tubo.id))) as string[];
   const tubosDeOrigem = outros.length
     ? await db.select({ id: tubos.id, numero: tubos.numero, fechadoEm: tubos.fechadoEm }).from(tubos).where(inArray(tubos.id, outros))
@@ -244,8 +252,9 @@ async function colocarNoTubo(req: any, tubo: { id: string; numero: number; event
   await createAuditLogsEmLote(req, ids.map((id) => {
     const antes = porId.get(id)?.tuboId;
     const veio = antes && antes !== tubo.id ? ` (saiu do Tubo ${numeroDe.get(antes) ?? "?"})` : "";
+    const comFoto = nFotos > 0 ? ` · ${nFotos} ${nFotos === 1 ? "foto" : "fotos"}` : "";
     const details = embaladas.has(id) || porId.get(id)?.status === EMBALADO
-      ? `Embalada no Tubo ${tubo.numero}${veio}`
+      ? `Embalada no Tubo ${tubo.numero}${comFoto}${veio}`
       : `Peça colocada no Tubo ${tubo.numero}${veio} — ainda falta conferir`;
     return { action: "updated", entityType: "item", entityId: id, details };
   }));
@@ -263,6 +272,35 @@ async function tirarDoTubo(req: any, tubo: { id: string; numero: number; eventId
     action: "updated", entityType: "item", entityId: id, details: `Retirada do Tubo ${tubo.numero}${motivo ? ` (${motivo})` : ""}`,
   })));
   broadcast({ type: "items_bulk_updated", itemIds: ids, eventId: tubo.eventId });
+}
+
+/**
+ * As fotos de um embalar/fechar: no mínimo 0 aqui (quem exige é a rota), no
+ * máximo 20 por vez, todas do nosso storage — a mesma régua dos thumbs.
+ */
+function lerFotos(body: any): { fotos: string[]; erro?: string } {
+  const cruas = Array.isArray(body?.fotos) ? body.fotos : (body?.fotoUrl ? [body.fotoUrl] : []);
+  if (cruas.length > 20) return { fotos: [], erro: "No máximo 20 fotos por vez" };
+  const fotos = Array.from(new Set(cruas.map(urlDeThumbValida))) as Array<string | null>;
+  if (fotos.some((f) => !f)) return { fotos: [], erro: "As fotos precisam ser enviadas pelo app (endereço /objects/…)" };
+  return { fotos: fotos as string[] };
+}
+const RECADO_FOTO_DO_EMBALAR = "Tire a foto do tubo para embalar";
+/** Embalar = pôr no tubo peça já CONFERIDA (a que vem de outro tubo também). */
+const ehUmEmbalar = (pecas: PecaCrua[]) => pecas.some((p) => !ehEntregue(p) && ehConferidaInteira(p));
+
+/**
+ * As fotos do tubo ACUMULAM (dono, 21/09): cada embalar traz a foto do tubo
+ * com os itens, e o tubo guarda todas — sem duplicar. `fechadoEm/fechadoPor`
+ * dizem quando e quem fotografou por último, e o aviso de "conteúdo alterado
+ * depois da foto" zera, porque a foto nova já mostra o conteúdo novo.
+ */
+async function acumularFotos(tubo: { id: string; fotosFechamento?: string[] | null }, novas: string[], quem: string, agora: Date) {
+  if (!novas.length) return (tubo.fotosFechamento ?? []).length;
+  const todas = Array.from(new Set([...(tubo.fotosFechamento ?? []), ...novas]));
+  await db.update(tubos).set({ fotosFechamento: todas, fechadoEm: agora, fechadoPor: quem, conteudoAlteradoEm: null } as any)
+    .where(eq(tubos.id, tubo.id));
+  return todas.length;
 }
 
 function lerIds(valor: unknown): string[] | null {
@@ -391,6 +429,8 @@ export function registerTubosRoutes(app: Express): void {
     if (!podeMexerEmTubo(req)) return res.status(403).json({ error: SEM_PAPEL });
     const ids = lerIds(req.body?.itemIds);
     if (ids === null) return res.status(400).json({ error: "itemIds deve ser uma lista de peças" });
+    const lidas = lerFotos(req.body);
+    if (lidas.erro) return res.status(400).json({ error: lidas.erro });
     try {
       const eventId = req.params.eventId;
       const [evento] = await db.select({ id: events.id, name: events.name }).from(events).where(eq(events.id, eventId));
@@ -398,10 +438,16 @@ export function registerTubosRoutes(app: Express): void {
 
       const { pecas, recusas } = await recusasParaColocar(req, eventId, ids);
       if (recusas.length) return res.status(409).json({ error: `Não dá para pôr no tubo — ${recusas.join("; ")}` });
+      // EMBALAR PEDE FOTO (dono, 21/09) — antes de criar o tubo, para a recusa
+      // não deixar um tubo vazio para trás.
+      if (ehUmEmbalar(pecas) && lidas.fotos.length === 0) return res.status(400).json({ error: RECADO_FOTO_DO_EMBALAR });
 
       const tubo = await criarTubo(eventId, resolveActor(req).userName);
       await createAuditLog(req, "created", "tubo", tubo.id, `Tubo ${tubo.numero} criado (${evento.name})`);
-      if (ids.length) await colocarNoTubo(req, tubo, pecas, ids);
+      if (ids.length) {
+        await colocarNoTubo(req, tubo, pecas, ids, lidas.fotos.length);
+        await acumularFotos(tubo as any, lidas.fotos, resolveActor(req).userName, new Date());
+      }
 
       broadcast({ type: "tubos_atualizados", eventId });
       res.status(201).json(tubo);
@@ -419,6 +465,8 @@ export function registerTubosRoutes(app: Express): void {
     const remover = lerIds(req.body?.remover);
     if (adicionar === null || remover === null) return res.status(400).json({ error: "adicionar e remover devem ser listas de peças" });
     if (adicionar.length === 0 && remover.length === 0) return res.status(400).json({ error: "Nada a mudar no tubo" });
+    const lidas = lerFotos(req.body);
+    if (lidas.erro) return res.status(400).json({ error: lidas.erro });
     try {
       const [tubo] = await db.select().from(tubos).where(eq(tubos.id, req.params.id));
       if (!tubo) return res.status(404).json({ error: "Tubo não encontrado" });
@@ -435,7 +483,12 @@ export function registerTubosRoutes(app: Express): void {
       if (adicionar.length) {
         const { pecas, recusas } = await recusasParaColocar(req, tubo.eventId, adicionar);
         if (recusas.length) return res.status(409).json({ error: `Não dá para pôr no Tubo ${tubo.numero} — ${recusas.join("; ")}` });
-        await colocarNoTubo(req, tubo, pecas, adicionar);
+        // EMBALAR PEDE FOTO (dono, 21/09): peça conferida entrando no tubo —
+        // inclusive a que vem de OUTRO tubo — só entra com a foto do tubo com
+        // os itens. "Tirar do tubo" (remover) não pede.
+        if (ehUmEmbalar(pecas) && lidas.fotos.length === 0) return res.status(400).json({ error: RECADO_FOTO_DO_EMBALAR });
+        await colocarNoTubo(req, tubo, pecas, adicionar, lidas.fotos.length);
+        await acumularFotos(tubo as any, lidas.fotos, resolveActor(req).userName, new Date());
       }
 
       if (remover.length) {
@@ -487,17 +540,16 @@ export function registerTubosRoutes(app: Express): void {
 
   // FECHAR O TUBO (dono, 21/09): as fotos do tubo pronto e dos itens dentro.
   // NÃO é entrega — as peças ficam Embalado, e a entrega vem depois. Várias
-  // fotos, todas do nosso storage (a mesma régua dos thumbs). Fechar de novo
-  // substitui as fotos (o galpão refez o tubo) e zera o aviso de "alterado".
+  // fotos, todas do nosso storage (a mesma régua dos thumbs). Desde que o
+  // EMBALAR passou a exigir a foto (21/09), este passo deixou de ser
+  // obrigação: é o "Adicionar fotos ao tubo" — ACUMULA nas que já existem, em
+  // vez de substituir, e zera o aviso de "alterado".
   app.post("/api/tubos/:id/fechar", requireAuth, async (req, res) => {
     if (!podeMexerEmTubo(req)) return res.status(403).json({ error: SEM_PAPEL });
-    const cruas = Array.isArray(req.body?.fotos) ? req.body.fotos : (req.body?.fotoUrl ? [req.body.fotoUrl] : []);
-    if (cruas.length === 0) return res.status(400).json({ error: "Tire pelo menos uma foto do tubo fechado" });
-    if (cruas.length > 20) return res.status(400).json({ error: "No máximo 20 fotos por tubo" });
-    const fotos = Array.from(new Set(cruas.map(urlDeThumbValida)));
-    if (fotos.some((f) => !f)) {
-      return res.status(400).json({ error: "As fotos precisam ser enviadas pelo app (endereço /objects/…)" });
-    }
+    const lidas = lerFotos(req.body);
+    if (lidas.erro) return res.status(400).json({ error: lidas.erro });
+    if (lidas.fotos.length === 0) return res.status(400).json({ error: "Tire pelo menos uma foto do tubo" });
+    const fotos = lidas.fotos;
     try {
       const [tubo] = await db.select().from(tubos).where(eq(tubos.id, req.params.id));
       if (!tubo) return res.status(404).json({ error: "Tubo não encontrado" });
@@ -512,12 +564,7 @@ export function registerTubosRoutes(app: Express): void {
 
       const quem = resolveActor(req);
       const agora = new Date();
-      await db.update(tubos).set({
-        fotosFechamento: fotos,
-        fechadoEm: agora,
-        fechadoPor: quem.userName,
-        conteudoAlteradoEm: null,
-      } as any).where(eq(tubos.id, tubo.id));
+      const totalDeFotos = await acumularFotos(tubo as any, fotos, quem.userName, agora);
       // Conferida que por algum motivo ainda não estava packed (peça de antes
       // da etapa existir) vira agora — fechar o tubo é o gesto de embalar.
       await embalar(dentro.filter((p) => !ehEntregue(p)).map((p) => p.id), agora);
@@ -534,7 +581,7 @@ export function registerTubosRoutes(app: Express): void {
       await createAuditLog(req, "updated", "tubo", tubo.id, `Tubo ${tubo.numero} fechado com ${n} ${n === 1 ? "foto" : "fotos"} em ${quandoBR(agora)}`);
       broadcast({ type: "items_bulk_updated", itemIds: dentro.map((p) => p.id), eventId: tubo.eventId });
       broadcast({ type: "tubos_atualizados", eventId: tubo.eventId });
-      res.json({ ok: true, numero: tubo.numero, fotos: n });
+      res.json({ ok: true, numero: tubo.numero, fotos: n, totalDeFotos });
     } catch (error: any) {
       console.error("[tubos] falha ao fechar o tubo:", error);
       res.status(500).json({ error: "Não foi possível fechar o tubo." });

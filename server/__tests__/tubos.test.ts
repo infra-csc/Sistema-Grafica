@@ -213,7 +213,7 @@ describe("as transições conferred ⇄ packed moram nas rotas de tubos", () => 
     expect(ROTAS).toContain('.set({ status: EMBALADO, statusChangedAt: agora, updatedAt: agora } as any)');
     expect(ROTAS).toContain('.where(and(inArray(itemsTable.id, ids), inArray(itemsTable.status, ["conferred", "conferido"])))');
     expect(ROTAS).toContain("const embaladas = new Set(await embalar(ids, agora));");
-    expect(ROTAS).toContain("? `Embalada no Tubo ${tubo.numero}${veio}`");
+    expect(ROTAS).toContain("? `Embalada no Tubo ${tubo.numero}${comFoto}${veio}`");
     expect(ROTAS).toContain(": `Peça colocada no Tubo ${tubo.numero}${veio} — ainda falta conferir`");
   });
 
@@ -248,20 +248,21 @@ describe("fechar o tubo (foto do tubo e dos itens) — não é entrega", () => {
     expect(ler("shared/permissoes.ts")).toContain('rota: "/api/tubos/:id/fechar", papeis: ["admin", "grafica", "solicitacao"]');
   });
 
-  it("aceita VÁRIAS fotos, só do nosso storage (a régua dos thumbs), no mínimo uma e no máximo 20", () => {
+  it("aceita VÁRIAS fotos, só do nosso storage (a régua dos thumbs), no mínimo uma e no máximo 20 por vez", () => {
     expect(ROTAS).toContain('import { urlDeThumbValida } from "./thumb-url";');
-    expect(fechar).toContain("const cruas = Array.isArray(req.body?.fotos) ? req.body.fotos : (req.body?.fotoUrl ? [req.body.fotoUrl] : []);");
-    expect(fechar).toContain('if (cruas.length === 0) return res.status(400).json({ error: "Tire pelo menos uma foto do tubo fechado" });');
-    expect(fechar).toContain('if (cruas.length > 20) return res.status(400).json({ error: "No máximo 20 fotos por tubo" });');
-    expect(fechar).toContain("const fotos = Array.from(new Set(cruas.map(urlDeThumbValida)));");
-    expect(fechar).toContain("As fotos precisam ser enviadas pelo app (endereço /objects/…)");
+    // a leitura é uma só, para embalar e para adicionar fotos
+    expect(ROTAS).toContain("const cruas = Array.isArray(body?.fotos) ? body.fotos : (body?.fotoUrl ? [body.fotoUrl] : []);");
+    expect(ROTAS).toContain('if (cruas.length > 20) return { fotos: [], erro: "No máximo 20 fotos por vez" };');
+    expect(ROTAS).toContain("As fotos precisam ser enviadas pelo app (endereço /objects/…)");
+    expect(fechar).toContain("const lidas = lerFotos(req.body);");
+    expect(fechar).toContain('if (lidas.fotos.length === 0) return res.status(400).json({ error: "Tire pelo menos uma foto do tubo" });');
   });
 
-  it("grava as fotos, quando e quem — e NÃO mexe na entrega nem leva a delivered", () => {
-    expect(fechar).toContain("fotosFechamento: fotos,");
-    expect(fechar).toContain("fechadoEm: agora,");
-    expect(fechar).toContain("fechadoPor: quem.userName,");
-    expect(fechar).toContain("conteudoAlteradoEm: null,");
+  it("ACUMULA as fotos (21/09) em vez de substituir, sem duplicar; grava quando e quem — e NÃO mexe na entrega", () => {
+    expect(fechar).toContain("const totalDeFotos = await acumularFotos(tubo as any, fotos, quem.userName, agora);");
+    expect(fechar).not.toContain("fotosFechamento: fotos,");
+    expect(ROTAS).toContain("const todas = Array.from(new Set([...(tubo.fotosFechamento ?? []), ...novas]));");
+    expect(ROTAS).toContain("await db.update(tubos).set({ fotosFechamento: todas, fechadoEm: agora, fechadoPor: quem, conteudoAlteradoEm: null } as any)");
     expect(fechar).not.toContain("delivered");
     // só LÊ entregueEm (para recusar tubo já entregue); nunca grava
     expect(fechar).not.toContain("entregueEm: ");
@@ -322,7 +323,7 @@ describe("Embalado na tela", () => {
     expect(GRAFICA).toContain("data-testid={`button-tirar-do-tubo-${item.id}`}");
     expect(GRAFICA).toContain("data-testid={`button-tirar-do-tubo-card-${item.id}`}");
     expect(GRAFICA).toContain("const fechamentoDoTubo = useMemo(() => new Map(");
-    expect(GRAFICA).toContain("return `Tubo ${numeroDoTubo.get(item.tuboId)}${fechado ? ` · fechado ${fechado}` : \"\"}`;");
+    expect(GRAFICA).toContain("return `Tubo ${numeroDoTubo.get(item.tuboId)} · ${n} ${n === 1 ? \"peça\" : \"peças\"}`;");
     // o gate de produzir/reaproveitar trata embalada como conferida
     expect(GRAFICA).not.toMatch(/!isConferred\(item\)/);
     expect(GRAFICA).toContain("isPosConferencia(item)");
@@ -335,14 +336,14 @@ describe("Embalado na tela", () => {
     const iEntregar = PAINEL.indexOf("data-testid={`entregar-tubo-${t.numero}`}");
     expect(iFechar).toBeGreaterThan(0);
     expect(iEntregar).toBeGreaterThan(iFechar);
-    expect(PAINEL).toContain("Fechar tubo (foto do tubo)");
+    expect(PAINEL).toContain("Adicionar fotos ao tubo");
     expect(PAINEL).toContain("Entregar tubo (quem recebeu)");
     expect(PAINEL).toContain('await apiRequest("POST", `/api/tubos/${tubo.id}/fechar`, { fotos: fotosFechamento });');
     expect(PAINEL).toContain("disabled={fechar.isPending || fotosFechamento.length === 0}");
     // entregar: recebedor obrigatório, foto opcional, e entregar sem fechar é permitido (só sugere)
     expect(PAINEL).toContain("disabled={entregar.isPending || !recebidoPor.trim()}");
     expect(PAINEL).not.toContain("fotos.length === 0}");
-    expect(PAINEL).toContain("Este tubo ainda não foi fechado com foto. Dá para entregar assim mesmo");
+    expect(PAINEL).toContain("Este tubo foi embalado antes de a foto ser obrigatória e não tem nenhuma: anexe a foto do comprovante para entregar.");
     // apagar tubo com peças pede confirmação e diz que elas voltam a Conferido
     expect(PAINEL).toContain("data-testid={`confirmar-apagar-tubo-${t.numero}`}");
     expect(PAINEL).toContain("`Apagar e devolver ${t.pecas.length} a Conferido`");
@@ -490,5 +491,54 @@ describe("toda entrega tem foto (21/09)", () => {
     const ITEMS = ler("server/routes/items.ts");
     expect(ITEMS).toContain('return res.status(400).json({ error: "photoUrl is required" });');
     expect(ITEMS).not.toContain("semComprovante");
+  });
+});
+
+describe("EMBALAR = TUBO + FOTO (dono, 21/09: 'o embalar tem que pedir a foto, igual é o entregar')", () => {
+  const patch = ROTAS.slice(ROTAS.indexOf('app.patch("/api/tubos/:id/itens"'), ROTAS.indexOf('app.delete("/api/tubos/:id"'));
+  const criar = ROTAS.slice(ROTAS.indexOf('app.post("/api/events/:eventId/tubos"'), ROTAS.indexOf('app.patch("/api/tubos/:id/itens"'));
+
+  it("embalar sem foto → 400 'Tire a foto do tubo para embalar' — no tubo aberto e no tubo novo", () => {
+    expect(ROTAS).toContain('const RECADO_FOTO_DO_EMBALAR = "Tire a foto do tubo para embalar";');
+    expect(patch).toContain("if (ehUmEmbalar(pecas) && lidas.fotos.length === 0) return res.status(400).json({ error: RECADO_FOTO_DO_EMBALAR });");
+    expect(criar).toContain("if (ehUmEmbalar(pecas) && lidas.fotos.length === 0) return res.status(400).json({ error: RECADO_FOTO_DO_EMBALAR });");
+    // no tubo novo a recusa vem ANTES de criar — não deixa tubo vazio para trás
+    expect(criar.indexOf("RECADO_FOTO_DO_EMBALAR")).toBeLessThan(criar.indexOf("await criarTubo("));
+  });
+
+  it("é embalar quando entra peça CONFERIDA — inclusive a que vem de outro tubo; a em acabamento entra sem foto; tirar não pede", () => {
+    expect(ROTAS).toContain("const ehUmEmbalar = (pecas: PecaCrua[]) => pecas.some((p) => !ehEntregue(p) && ehConferidaInteira(p));");
+    const remover = patch.slice(patch.indexOf("if (remover.length) {"));
+    expect(remover).not.toContain("RECADO_FOTO_DO_EMBALAR");
+  });
+
+  it("as fotos do embalar acumulam no tubo e a trilha da peça diz 'Embalada no Tubo 2 · 2 fotos'", () => {
+    expect(patch).toContain("await colocarNoTubo(req, tubo, pecas, adicionar, lidas.fotos.length);");
+    expect(patch).toContain("await acumularFotos(tubo as any, lidas.fotos, resolveActor(req).userName, new Date());");
+    expect(criar).toContain("await acumularFotos(tubo as any, lidas.fotos, resolveActor(req).userName, new Date());");
+    expect(ROTAS).toContain('const comFoto = nFotos > 0 ? ` · ${nFotos} ${nFotos === 1 ? "foto" : "fotos"}` : "";');
+  });
+
+  it("todo tubo continua saindo com foto: a do embalar ou a do comprovante", () => {
+    const entregar = ROTAS.slice(ROTAS.indexOf('app.post("/api/tubos/:id/entregar"'));
+    expect(entregar).toContain("if (!foto && (tubo.fotosFechamento ?? []).length === 0) {");
+  });
+});
+
+describe("ENTREGAR É SÓ DO TUBO (dono, 21/09)", () => {
+  const ITEMS = ler("server/routes/items.ts");
+  const deliver = ITEMS.slice(ITEMS.indexOf('app.patch("/api/items/:id/deliver"'), ITEMS.indexOf('app.patch("/api/items/:id/deliver"') + 5000);
+
+  it("PATCH /deliver (e o lote, que chama a mesma rota) recusa peça em tubo aberto ou packed com 409", () => {
+    expect(deliver).toContain("if (tuboDaPeca && !tuboDaPeca.entregueEm) {");
+    expect(deliver).toContain("return res.status(409).json({ error: `Esta peça está no Tubo ${tuboDaPeca.numero} — entregue o tubo (ou tire a peça dele)` });");
+    expect(deliver).toContain('if (currentItem.status === "packed") {');
+    // a recusa vem antes de qualquer conta de saldo
+    expect(deliver.indexOf("entregue o tubo")).toBeLessThan(deliver.indexOf("const legacyReuse"));
+  });
+
+  it("o lote de entrega da tela passa pela mesma rota, peça a peça", () => {
+    const handler = GRAFICA.slice(GRAFICA.indexOf("const handleBulkDelivery = async"), GRAFICA.indexOf("const handleBulkDelivery = async") + 3000);
+    expect(handler).toContain("apiRequest(\"PATCH\", `/api/items/${item.id}/deliver`");
   });
 });

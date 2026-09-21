@@ -85,12 +85,38 @@ describe("a peça embalada", () => {
   it("tem 'Entregar tubo' na tabela e no cartão, que abre o painel naquele tubo", () => {
     expect(TABELA).toContain("data-testid={`button-entregar-tubo-${item.id}`}");
     expect(CARTOES).toContain("data-testid={`button-entregar-tubo-card-${item.id}`}");
-    expect(GRAFICA.match(/entregarTubo: item\.tuboId \}\)/g)?.length).toBe(2);
+    // os dois botões e o selo (abrirTuboDaPeca) levam ao mesmo lugar
+    expect(GRAFICA.match(/entregarTubo: item\.tuboId \}\)/g)?.length).toBe(3);
     // o painel abre o formulário do tubo quando ele pode ser entregue
     expect(PAINEL).toContain("if (t && !t.entregueEm && t.prontoParaEntregar) { setEntregando(t.id); setFechando(null); }");
   });
 
-  it("continua com Entregar (individual), 'Tirar do tubo' e o selo 'Tubo N'", () => {
+  it("ENTREGAR É SÓ DO TUBO: a embalada não tem Entregar individual nem entra no lote de entrega", () => {
+    expect(GRAFICA).toContain("const canDeliver = (item: any) => !soVisualizaKit(item) && canDeliverBase(item) && !isPacked(item) && !item.tuboId;");
+    // o lote de entrega e a fila do galpão leem o mesmo gate
+    expect(GRAFICA).toContain("(filteredItems as any[]).filter(i => canDeliver(i) && !EM_REVISAO.has(i.status))");
+    // na tabela, Entregar tubo é a sólida
+    expect(TABELA).toContain('title="Entregar o tubo inteiro — a peça embalada só sai com o tubo"');
+  });
+
+  it("o selo diz 'Tubo 1 · 4 peças', lista o conteúdo no title (linha da etiqueta) e abre o tubo no toque", () => {
+    expect(GRAFICA).toContain("return `Tubo ${numeroDoTubo.get(item.tuboId)} · ${n} ${n === 1 ? \"peça\" : \"peças\"}`;");
+    expect(GRAFICA).toContain("lista: pecas.map((x) => `${x.displayId ?? \"—\"} · ${linhaDaLista(x)}`).join(\"\\n\")");
+    expect(GRAFICA.match(/title=\{tituloDoTubo\(item\)\}/g)?.length).toBe(2);
+    expect(GRAFICA.match(/abrirTuboDaPeca\(item\); \}\}/g)?.length).toBe(2);
+    // a linha memoizada redesenha quando o conteúdo do tubo muda
+    expect(GRAFICA).toContain("item.tuboId ? conteudoDoTubo.get(item.tuboId)?.lista ?? null : null,");
+  });
+
+  it("o modal 'Entregar Tubo N' abre com a LISTA das peças, as fotos do tubo, quem recebeu e o comprovante opcional", () => {
+    expect(PAINEL).toContain("data-testid={`lista-entrega-tubo-${t.numero}`}");
+    expect(PAINEL).toContain("<span style={{ minWidth: 0, overflowWrap: \"anywhere\" }}>{linhaDaLista(p)}</span>");
+    expect(PAINEL).toContain("data-testid={`fotos-entrega-tubo-${t.numero}`}");
+    expect(PAINEL).toContain('"· opcional, o tubo já tem foto" : "· obrigatória, o tubo não tem foto"');
+    expect(PAINEL).toContain("disabled={entregar.isPending || !recebidoPor.trim()}");
+  });
+
+  it("continua com 'Tirar do tubo' (sem foto) e o selo do tubo", () => {
     expect(TABELA).toContain("data-testid={`button-tirar-do-tubo-${item.id}`}");
     expect(CARTOES).toContain("data-testid={`button-tirar-do-tubo-card-${item.id}`}");
     expect(TABELA).toContain("data-testid={`chip-tubo-${item.id}`}");
@@ -106,19 +132,40 @@ describe("o painel de tubos aberto pelo Embalar", () => {
     expect(PAINEL).toContain("minHeight: isMobile ? 44 : 36");
   });
 
-  it("lista os tubos abertos (número · peças · fechado HH:MM/aberto) e 'Novo tubo'", () => {
-    expect(PAINEL).toContain("{abertos.map((t) => (\n                        <button key={t.id} type=\"button\" onClick={() => embalar.mutate(t.id)}");
-    expect(PAINEL).toContain("data-testid={`embalar-no-tubo-${t.numero}`}");
-    expect(PAINEL).toContain("Tubo {t.numero} · {t.pecas.length} {t.pecas.length === 1 ? \"peça\" : \"peças\"} · {t.fechadoEm ? `fechado ${horaDe(t.fechadoEm)}` : \"aberto\"}");
-    expect(PAINEL).toContain('data-testid="embalar-em-tubo-novo"');
-    expect(PAINEL).toContain('onClick={() => embalar.mutate("novo")}');
+  it("(a) escolhe o tubo: abertos do evento (número · peças · foto HH:MM/sem foto) e 'Novo tubo' — escolher NÃO grava", () => {
+    expect(PAINEL).toContain("const [tuboDoEmbalar, setTuboDoEmbalar] = useState<string | null>(null);");
+    expect(PAINEL).toContain('role="radio" aria-checked={ativo} onClick={() => setTuboDoEmbalar(valor)}');
+    expect(PAINEL).toContain("`embalar-no-tubo-${t.numero}`");
+    expect(PAINEL).toContain('{chip("novo", "+ Novo tubo", "embalar-em-tubo-novo")}');
+    expect(PAINEL).not.toContain("onClick={() => embalar.mutate(t.id)}");
   });
 
-  it("um toque = PATCH adicionar no tubo aberto, ou POST tubo novo; toast '#0381 embalada no Tubo 2'; fecha o painel", () => {
-    expect(PAINEL).toContain('? await apiRequest("POST", `/api/events/${evento!.id}/tubos`, { itemIds: ids })');
-    expect(PAINEL).toContain(': await apiRequest("PATCH", `/api/tubos/${destinoEscolhido}/itens`, { adicionar: ids });');
-    expect(PAINEL).toContain("toast({ title: `${nome} embalada${quantas === 1 ? \"\" : \"s\"} no Tubo ${numero}` });");
+  it("(b) pede a FOTO do tubo com os itens — câmera direta, a mesma área do fechar/entregar — e lista as peças", () => {
+    expect(PAINEL).toContain('{uploaderDeFotos(fotosDoEmbalar, setFotosDoEmbalar, "Foto do tubo com os itens")}');
+    expect(PAINEL).toContain('data-testid="embalar-pecas"');
+    expect(PAINEL).toContain('import { linhaDaLista } from "@/lib/etiqueta-lista";');
+  });
+
+  it("(c) 'Embalar no Tubo 2 · 2 fotos' no rodapé fixo com o recorte seguro; só libera com tubo E foto; Enter segurado não duplica", () => {
+    expect(PAINEL).toContain('data-testid="rodape-embalar"');
+    expect(PAINEL).toContain('data-testid="confirmar-embalar"');
+    expect(PAINEL).toContain('`Embalar no ${numero ? `Tubo ${numero}` : "tubo novo"} · ${n} ${n === 1 ? "foto" : "fotos"}`');
+    expect(PAINEL).toContain("const pronto = !!tuboDoEmbalar && n > 0;");
+    expect(PAINEL).toContain("if (enviandoRef.current || embalar.isPending || !tuboDoEmbalar || fotosDoEmbalar.length === 0) return;");
+    expect(PAINEL).toContain("onSettled: () => { enviandoRef.current = false; },");
+  });
+
+  it("manda as fotos junto: PATCH adicionar+fotos no tubo aberto, ou POST itemIds+fotos; toast e fecha o painel", () => {
+    expect(PAINEL).toContain('? await apiRequest("POST", `/api/events/${evento!.id}/tubos`, { itemIds: ids, fotos: fotosDoEmbalar })');
+    expect(PAINEL).toContain(': await apiRequest("PATCH", `/api/tubos/${tuboDoEmbalar}/itens`, { adicionar: ids, fotos: fotosDoEmbalar });');
+    expect(PAINEL).toContain("toast({ title: `${nome} embalada${quantas === 1 ? \"\" : \"s\"} no Tubo ${numero}`,");
     expect(PAINEL).toContain("atualizar();\n      onEmbalou?.();\n      onClose();");
+  });
+
+  it("'Colocar' (seção 1) com peça conferida também pede a foto", () => {
+    expect(PAINEL).toContain("const precisaFotoNoColocar = (data?.semTubo ?? []).some((p) => selecionadas.has(p.id) && p.conferida);");
+    expect(PAINEL).toContain("disabled={colocar.isPending || (precisaFotoNoColocar && fotosDoColocar.length === 0)}");
+    expect(PAINEL).toContain("{ adicionar: ids, fotos: fotosDoColocar }");
   });
 
   it("a abertura é reiniciada quando muda a peça, não só o evento", () => {

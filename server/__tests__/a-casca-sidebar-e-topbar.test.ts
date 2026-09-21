@@ -35,13 +35,10 @@ const soCodigo = (fonte: string) => fonte
   .replace(/^[ \t]*\/\/.*$/gm, "");
 
 describe("1. a estrutura do menu não mudou", () => {
-  it("continuam 24 itens — incluindo ações administrativas e páginas novas", () => {
-    // VINTE E UM. Eram 19 quando este teste nasceu (o prompt do refino dizia 18);
-    // o vigésimo é "Correção de textos", a tela de reparo dos motivos, que
-    // entrou depois; o vigésimo primeiro é "Versões aprovadas" (21/08/2026).
-    // O vigésimo terceiro é "Solicitação de peças", a caixa da Solicitação (14/09).
-    // As ações administrativas incluem Notificações, Reparar vínculos e Inferir
-    // executivos; o vigésimo quarto é "Máquinas da Gráfica".
+  it("continuam 26 itens — incluindo ações administrativas e páginas novas", () => {
+    // O merge reuniu os 24 itens da origem — entre eles Solicitação de peças
+    // e Máquinas da Gráfica — com duas ações administrativas que só existiam
+    // localmente: Reparar vínculos e Inferir executivos.
     // O teste existe para a mudança ser DECLARADA, não impedida.
     const itens = (sidebar.match(/\{ title: "/g) ?? []).length;
     expect(itens).toBe(26); // + Inferir executivos e Reparo de vínculos (vieram do Replit, 21/09)

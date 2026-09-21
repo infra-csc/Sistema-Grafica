@@ -16,6 +16,7 @@ import {
   items as itemsTable,
   auditLogs,
   notifications,
+  registrosDeImpressao,
 } from "@shared/schema";
 import {
   requireAuth,
@@ -40,6 +41,38 @@ import { verificarConsistencia } from "../services/consistencia";
 // revoga uma aprovação e continua vendo o quadro velho numa tela cujo trabalho
 // é justamente conferir o que está valendo agora.
 import { invalidarCacheDeVersoes } from "./versoes";
+
+// ─── REGISTRO DE IMPRESSÃO POR MÁQUINA (dono, 14/09) ─────────────────────────
+//
+// Cada gesto da Gráfica na máquina vira uma linha em registros_de_impressao — é
+// o que alimenta a aba Máquinas (o que cada uma imprime agora e o que saiu dela
+// em cada dia). NUNCA derruba o gesto: a peça ter entrado na máquina ou ter
+// saído dela é o fato; o diário é o registro do fato. Se a gravação falhar, o
+// operador não pode ver um erro por causa disso — fica no log do servidor.
+// Sem máquina (chamador antigo de start-production) não há o que anotar.
+async function registrarImpressao(
+  req: any,
+  dado: { itemId: string; maquina: string | null | undefined; tipo: "inicio" | "troca" | "parcial" | "conclusao"; quantidade: number; totalDepois: number | null },
+): Promise<void> {
+  if (!dado.maquina) return;
+  try {
+    const ator = resolveActor(req);
+    await db.insert(registrosDeImpressao).values({
+      itemId: dado.itemId,
+      maquina: dado.maquina,
+      tipo: dado.tipo,
+      quantidade: dado.quantidade,
+      totalDepois: dado.totalDepois,
+      userName: ator.userName,
+      userId: (ator as any).userId ?? null,
+    } as any);
+  } catch (error) {
+    console.error("[maquinas] falha ao gravar o registro de impressão", {
+      itemId: dado.itemId,
+      reason: error instanceof Error ? error.message : String(error),
+    });
+  }
+}
 
 // ─── MOTIVO das devoluções ──────────────────────────────────────────────────
 //
@@ -4539,6 +4572,14 @@ export function registerItemRoutes(app: Express): void {
           : `Impressão iniciada na ${rotuloDaMaquina(printMachine)} (${translateStatus(current.status)} → ${translateStatus("inProduction")})`
       );
 
+      await registrarImpressao(req, {
+        itemId: item.id,
+        maquina: printMachine,
+        tipo: trocouDeMaquina ? "troca" : "inicio",
+        quantidade: 0,
+        totalDepois: current.quantityProduced ?? 0,
+      });
+
       broadcast({ type: "item_updated", item });
       broadcast({ type: "production_started", item });
       res.json(item);
@@ -4639,6 +4680,16 @@ export function registerItemRoutes(app: Express): void {
         });
 
         return updated;
+      });
+
+      // O que saiu NESTE lançamento, na máquina deste momento: a enviada agora
+      // ou, na falta, a que a peça já tinha.
+      await registrarImpressao(req, {
+        itemId: item.id,
+        maquina: printMachine || before.printMachine,
+        tipo: item.status === "produced" ? "conclusao" : "parcial",
+        quantidade: quantityProduced - jaProduzido,
+        totalDepois: quantityProduced,
       });
 
       const event = await storage.getEvent(item.eventId);

@@ -420,6 +420,34 @@ export const emailDestinatarios = pgTable("email_destinatarios", {
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
 });
 
+// REGISTROS DE IMPRESSÃO — o diário de cada máquina (dono, 14/09: "a Gráfica
+// ter uma aba onde faz o controle de impressão por máquinas: quais máquinas
+// estão imprimindo o quê, o histórico do que foi impresso naquela máquina
+// naquele dia").
+//
+// Por que uma tabela e não a trilha de auditoria: a peça guarda só a ÚLTIMA
+// máquina, e o lançamento "Produção: 10/40" na trilha não diz em qual máquina
+// saiu. Uma peça que troca de máquina no meio perderia a divisão do que cada
+// uma imprimiu. Aqui cada linha é UM gesto, com a máquina daquele momento.
+//
+// `quantidade` é o que saiu NESTE lançamento (negativo quando é correção);
+// `total_depois` é o total absoluto da peça depois dele. O histórico começa
+// no dia em que esta tabela nasceu: antes disso nada anotava a máquina.
+export const registrosDeImpressao = pgTable("registros_de_impressao", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  itemId: varchar("item_id").notNull().references(() => items.id, { onDelete: "cascade" }),
+  maquina: text("maquina").notNull(),
+  tipo: text("tipo").notNull(), // "inicio" | "troca" | "parcial" | "conclusao"
+  quantidade: integer("quantidade").notNull().default(0),
+  totalDepois: integer("total_depois"),
+  userName: text("user_name"),
+  userId: varchar("user_id"),
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
+}, (table) => [
+  index("IDX_registros_impressao_maquina_data").on(table.maquina, table.createdAt),
+  index("IDX_registros_impressao_item").on(table.itemId),
+]);
+
 // -----------------------------------------------------------------------------
 // RESERVA DE DISPARO - uma edicao de aviso, um envio, mesmo com N servidores.
 //

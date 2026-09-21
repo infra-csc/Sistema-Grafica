@@ -3,12 +3,16 @@ import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import type { Request, Response } from "express";
 import { storage, compareDisplayId } from "../storage";
+import { rotuloDaMaquina } from "@shared/fluxo-peca";
 
 // Colunas extras da exportação da Gráfica: as peças vêm de vários eventos e o
 // que interessa ali é o andamento da produção, não só a especificação.
 const PRODUCTION_COLS = [
   { header: "Evento",          key: "eventName",    width: 26 },
   { header: "Status",          key: "statusLabel",  width: 16 },
+  // Em qual impressora a peça está/saiu (a última anotada), com o nome do
+  // dono (shared/fluxo-peca). Vazio na peça que nunca passou por uma máquina.
+  { header: "Impressora",      key: "printMachine", width: 24 },
   { header: "Reaprov.",        key: "qtyReused",    width: 10 },
   { header: "M² a produzir",   key: "m2ToProduce",  width: 13 },
   { header: "Produzido",       key: "qtyProduced",  width: 11 },
@@ -165,6 +169,7 @@ async function writeWorkbook(
         ...(withProduction ? {
           eventName:    item.event?.name ?? item.eventName ?? "",
           statusLabel:  STATUS_LABELS[item.status] ?? item.status ?? "",
+          printMachine: item.printMachine ? rotuloDaMaquina(item.printMachine) : "",
           qtyReused:    reusedTotal(item),
           m2ToProduce:  m2ToProduce(item),
           qtyProduced:  item.quantityProduced ?? 0,

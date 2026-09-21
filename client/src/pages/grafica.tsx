@@ -3,6 +3,7 @@ import { miniatura } from "@/lib/miniatura";
 import { SeloKit } from "@/components/kit/selo-kit";
 import { EsqueletoDeFila } from "@/components/esqueleto-de-fila";
 import { Link } from "wouter";
+import { prefetchRota } from "@/lib/prefetch-de-rota";
 import { FilterSelect, ShortcutPill } from "@/components/filter-select";
 import { AlertCircle, AlertTriangle, Package, CheckCircle, Truck, Calendar, Eye, Check, Camera, Search, Play, X, Filter, ChevronDown, Printer, RotateCcw, ImagePlus, FileSpreadsheet, ListChecks, PlusCircle, Trash2, Undo2, Loader2, Recycle, Tag, MoreHorizontal } from "lucide-react";
 import { Fragment, useState, useMemo, useEffect, useLayoutEffect, useRef, startTransition } from "react";
@@ -2552,6 +2553,25 @@ export default function Grafica() {
                 {!isMobile && <span style={{ color: TI.secondary, fontVariantNumeric: "tabular-nums" }}>{deliverableInFilter.length}</span>}
               </button>
             )}
+            {/* A aba MÁQUINAS (dono, 14/09): o que cada impressora imprime
+                agora e o histórico do dia. Fica à vista no cabeçalho, no
+                mesmo peso dos secundários; no celular vira só o ícone, como
+                o Excel ao lado. O chunk começa a descer no hover/foco/toque
+                (lib/prefetch-de-rota), como no menu lateral. */}
+            <Link
+              href="/grafica/maquinas"
+              data-testid="link-maquinas"
+              aria-label={isMobile ? "Máquinas: o que cada impressora imprime agora e o histórico do dia" : undefined}
+              title="O que cada impressora imprime agora e o histórico do dia"
+              onMouseEnter={(e) => { prefetchRota("/grafica/maquinas"); e.currentTarget.style.backgroundColor = "#f5f5f4"; }}
+              onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = TI.surface; }}
+              onFocus={() => prefetchRota("/grafica/maquinas")}
+              onTouchStart={() => prefetchRota("/grafica/maquinas")}
+              style={{ ...botaoSecundario, ...(isMobile ? { width: 44, padding: 0, flex: "0 0 44px" } : null), textDecoration: "none" }}
+            >
+              <Printer aria-hidden="true" style={{ width: 15, height: 15, color: "#c2410c", flexShrink: 0 }} />
+              {!isMobile && "Máquinas"}
+            </Link>
             {/* Exportar Excel — é só um download, funciona igualmente no
                 celular; ali vira só o ícone (o rótulo vai no aria-label). */}
             <button

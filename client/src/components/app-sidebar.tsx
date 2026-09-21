@@ -2,7 +2,7 @@ import {
   Calendar, CalendarRange, Palette, Printer, Layers, LayoutDashboard,
   Activity, BarChart3, Users, Building2, UserCheck, ClipboardCheck,
   Link2, LogOut, Loader2, ScrollText, Archive, ScanSearch, Compass, Settings2, Camera, Wand2,
-  Timer, GitBranch, Bell, Inbox,
+  Timer, GitBranch, Bell, Inbox, Cog,
 } from "lucide-react";
 import { useEffect, useId, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -69,6 +69,9 @@ const fluxoItems: MenuItem[] = [
   // menu uma tela com esse nome. A rota continua /solicitacao; o testId fica.
   { title: "Revisão Final",           url: "/solicitacao",             icon: ClipboardCheck, roles: ["solicitacao", "admin"], testId: "nav-revisão" },
   { title: "Gráfica",                 url: "/grafica",                 icon: Printer,        roles: ["grafica", "solicitacao", "admin"] },
+  // A aba de impressoras (dono, 14/09): o que cada uma imprime agora e o
+  // diário do dia. Mesmos papéis da Gráfica (ROLES_GRAFICA no App).
+  { title: "Máquinas da Gráfica",     url: "/grafica/maquinas",        icon: Cog,            roles: ["grafica", "solicitacao", "admin"] },
   // O lugar único dos pedidos de peça (dono, 14/09): o Atendimento pede, a
   // Solicitação resolve — aqui e pelos eventos.
   { title: "Solicitação de peças",    url: "/pedidos-de-peca",         icon: Inbox,          roles: ["atendimento", "solicitacao", "admin"] },
@@ -119,6 +122,9 @@ const adminItems: MenuItem[] = [
  * as linhas do menu continuarem uma por item — é por elas que os testes de
  * permissão conferem o `roles` de cada tela.
  */
+/** Todas as urls do menu — para o destaque escolher o item mais específico. */
+const URLS_DO_MENU: string[] = [...inicioItems, ...fluxoItems, ...consultaItems, ...sponsorItems, ...stockItems, ...adminItems].map((i) => i.url);
+
 const DESCRICAO_DA_TELA: Record<string, string> = {
   "/": "Todas as peças de todos os eventos, com a etapa de cada uma",
   "/eventos": "Lista de eventos; dentro de cada um se monta e envia a lista de peças",
@@ -129,6 +135,7 @@ const DESCRICAO_DA_TELA: Record<string, string> = {
   "/atendimento": "3º passo: registrar a aprovação ou a reprovação de cada patrocinador",
   "/solicitacao": "4º passo: conferir o arquivo final e liberar para produção (ou devolver à Arte)",
   "/grafica": "5º passo: produzir, conferir e entregar as peças liberadas",
+  "/grafica/maquinas": "O que cada impressora está imprimindo agora e o que saiu de cada uma no dia",
   "/pedidos-de-peca": "Peças que faltam na lista de um evento: o Atendimento pede, a Solicitação cria",
   "/modelos": "Catálogo de peças reutilizáveis para montar a lista de um evento",
   "/historico": "Tudo o que foi feito no sistema, por quem e quando",
@@ -360,8 +367,15 @@ export function AppSidebar() {
   // Ativo também nas sub-rotas: em /eventos/:id o item "Eventos" acendia
   // apagado (match exato), e a navegação perdia o contexto de onde se está.
   // "/" continua exato para não acender em tudo.
-  const isItemActive = (url: string) =>
-    url === "/" ? location === "/" : location === url || location.startsWith(url + "/");
+  // Com "/grafica/maquinas" no menu, "/grafica" deixou de ser a única dona
+  // das subrotas dela: o prefixo só acende o item quando nenhum OUTRO item
+  // do menu casa com a rota de forma mais específica (senão os dois acendiam).
+  const isItemActive = (url: string) => {
+    if (url === "/") return location === "/";
+    if (location === url) return true;
+    if (!location.startsWith(url + "/")) return false;
+    return !URLS_DO_MENU.some((outra) => outra.length > url.length && (location === outra || location.startsWith(outra + "/")));
+  };
 
   const groups = [
     { label: "Início",               items: filterByRole(inicioItems) },

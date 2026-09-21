@@ -1,36 +1,45 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// TUBOS DO EVENTO (dono, 14/09) — agrupar as peças e entregar o tubo inteiro.
+// TUBOS — TRÊS MODAIS, UM PARA CADA TAREFA (dono, 21/09).
 //
-// Abre pelo botão "Tubos" no cabeçalho de cada evento da fila da Gráfica — e,
-// desde 21/09 ("o tubo só na hora de embalar"), pelo "Embalar" da peça
-// conferida (e do lote), já focado em escolher o tubo (passo 0). A escolha de
-// tubo SAIU da conferência: conferir é só conferir com foto.
-// Na ordem em que o galpão faz:
-//   1. PEÇAS SEM TUBO — as que já saíram da impressão; marca e põe num tubo
-//      (existente ou novo). A peça vai inteira para um tubo só.
-//   2. OS TUBOS — o que tem em cada um, o que falta conferir, e a etiqueta.
-//   3. FECHAR O TUBO (dono, 21/09) — as fotos do tubo pronto e dos itens
-//      dentro. As peças ficam "Embalado"; NÃO é entrega.
-//   4. ENTREGAR O TUBO — quem recebeu (obrigatório) e quando; a foto do
-//      comprovante é opcional, porque o material já foi fotografado ao fechar.
-//      Só libera quando todas as peças do tubo estão conferidas, e diz quais não.
-// Fechar e entregar são DOIS passos, nessa ordem — mas entregar sem ter
-// fechado é permitido (o dono não quis obrigatoriedade); a tela só sugere.
+// "Este modal do tubo está extremamente confuso": o painel antigo mostrava, ao
+// mesmo tempo, o bloco "Embalar #0386", a lista "Peças sem tubo" com caixas já
+// marcadas (inclusive de OUTRA peça), um segundo seletor "Pôr as 2 marcadas
+// em", a lista de tubos e um rodapé "Escolha o tubo". Eram dois fluxos de
+// embalar concorrendo com a gestão dos tubos. Agora cada tarefa tem o seu
+// modal, com UMA ação primária:
+//
+//   1. EmbalarDialog       — "Embalar #0386": o tubo + a foto. Só isso.
+//   2. EntregarTuboDialog  — "Entregar Tubo 1": o que tem dentro, as fotos,
+//                            quem recebeu. Só isso.
+//   3. PainelDeTubos       — "Tubos do evento": gestão (conteúdo, fotos,
+//                            etiqueta, tirar peça, apagar) e as PORTAS para os
+//                            outros dois — nunca o formulário deles embutido.
+//
+// `TubosDialog` é o ponto de entrada que a Gráfica usa: escolhe o modal pela
+// porta por onde se chegou (Embalar da peça/lote, Entregar tubo da embalada,
+// botão Tubos do evento) e, a partir do painel, troca para os outros dois e
+// volta. Um modal por vez na tela — nada empilhado.
+//
+// As regras continuam no servidor (routes/tubos.ts), sem mudança: embalar peça
+// conferida pede foto; as fotos do tubo acumulam; o tubo só sai inteiro, com
+// tudo conferido, com quem recebeu e com alguma foto (a do tubo ou a do
+// comprovante); peça do Kit é só-visualização para a Solicitação sem Kit.
 // ─────────────────────────────────────────────────────────────────────────────
 import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
-import { Camera, CheckCircle2, ImagePlus, Package, PackageCheck, Tag, Trash2, Truck, X } from "lucide-react";
+import { AlertTriangle, Camera, CheckCircle2, ChevronDown, ImagePlus, Package, Tag, Trash2, Truck, X, type LucideIcon } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { HIDE_NATIVE_CLOSE, ModalHeader, modalSurface } from "@/components/modal-shell";
 import { useAcompanharAreaVisivel } from "@/components/grafica/area-visivel";
 import { ObjectUploader } from "@/components/ObjectUploader";
+import { SugestaoRecebedor } from "@/components/sugestao-recebedor";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { convertGCSUrlToLocalPath } from "@/lib/artePdfExport";
+import { linhaDaLista } from "@/lib/etiqueta-lista";
 import { useToast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useAuth } from "@/contexts/auth-context";
-import { linhaDaLista } from "@/lib/etiqueta-lista";
 
 type Peca = {
   id: string;
@@ -54,11 +63,11 @@ type Tubo = {
   recebidoPor: string | null;
   entreguePor: string | null;
   fotoEntregaUrl: string | null;
-  /** Fechamento (21/09): as fotos do tubo pronto e dos itens, quando e quem. */
+  /** As fotos do tubo com os itens (acumulam a cada embalar), quando e quem. */
   fotosFechamento: string[];
   fechadoEm: string | null;
   fechadoPor: string | null;
-  /** Pôs ou tirou peça DEPOIS da foto — ela pode não bater mais com o conteúdo. */
+  /** Pôs ou tirou peça DEPOIS da última foto — ela pode não bater mais. */
   alteradoDepoisDaFoto: boolean;
   pecas: Peca[];
   faltamConferir: string[];
@@ -66,12 +75,14 @@ type Tubo = {
 };
 
 type Retrato = { evento: { id: string; name: string }; tubos: Tubo[]; semTubo: Peca[] };
+type Evento = { id: string; name: string };
 
 const COR = {
   texto: "#1c1917", sec: "#57534e", fraco: "#78716c", borda: "#e7e5e4", fundo: "#fafaf9",
   laranja: "#c2410c", verde: "#15803d", verdeBg: "#f0fdf4", verdeBorda: "#bbf7d0",
   ambar: "#92400e", ambarBg: "#fffbeb", ambarBorda: "#fde68a",
-  // Azul do Embalado (P.blue de lib/status): o tubo fechado usa a cor da etapa.
+  vermelho: "#b91c1c",
+  // Azul do Embalado (P.blue de lib/status): embalar usa a cor da etapa.
   azul: "#1d4ed8", azulBg: "#eff6ff", azulBorda: "#bfdbfe",
 };
 
@@ -91,193 +102,142 @@ function mensagemDeErro(e: any): string {
 
 const quandoFoi = (iso: string | null) =>
   iso ? new Date(iso).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "";
-/** Só a hora ("14:32"): o selo do tubo na escolha rápida, onde a data é a de hoje. */
-const horaDe = (iso: string | null) =>
-  iso ? new Date(iso).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }) : "";
+const plural = (n: number, um: string, varios: string) => `${n} ${n === 1 ? um : varios}`;
 
-export function TubosDialog({ evento, onClose, itensIniciais, tuboInicial, onEmbalou }: {
-  evento: { id: string; name: string } | null;
-  onClose: () => void;
-  /** EMBALAR (dono, 21/09 — "o tubo só na hora de embalar"): a peça (ou o
-   *  lote de peças conferidas) que chegou pelo botão "Embalar" da fila. O
-   *  painel abre focado em escolher o tubo: um toque num tubo aberto ou em
-   *  "Novo tubo" já coloca — nada de marcar caixinha. */
-  itensIniciais?: string[];
-  /** "Entregar tubo" da peça embalada: abre já no formulário daquele tubo. */
-  tuboInicial?: string;
-  /** Embalou pelo atalho: a fila sai do modo "Embalar em lote". */
-  onEmbalou?: () => void;
-}) {
-  const { toast } = useToast();
-  // "Solicitação sem Kit só visualiza peça do Kit" (mesma trava do servidor,
-  // em routes.ts e em routes/tubos.ts): a caixa de seleção e o "Entregar tubo"
-  // somem, em vez de oferecer um toque que volta 403.
-  const { user } = useAuth();
-  const soVisualizaKit = (p: { doKit?: boolean }) => user?.role === "solicitacao" && !user?.kit && !!p.doKit;
-  // Padrão da Gráfica nova no celular (21/09): alvo de toque de 44px, campo a
-  // 16px (abaixo disso o iOS dá zoom ao focar) e letra de no mínimo 12px.
+// ── O que os três modais compartilham ───────────────────────────────────────
+
+/** Padrão da Gráfica no celular: alvo de 44px, campo a 16px (abaixo disso o
+ *  iOS dá zoom ao focar) e letra de no mínimo 12px. */
+function useMedidas() {
   const isMobile = useIsMobile();
-  const alvo = isMobile ? 44 : 34;
-  const fsMin = (n: number) => (isMobile ? Math.max(12, n) : n);
-  const pad = isMobile ? 16 : 20;
-  // "Quem recebeu" abre o teclado: o modal recentra e encolhe para a área
-  // visível, e o rodapé fixo (Entregar / Fechar) continua à vista acima dele.
+  return { isMobile, alvo: isMobile ? 44 : 36, pad: isMobile ? 16 : 20, fsMin: (n: number) => (isMobile ? Math.max(12, n) : n) };
+}
+
+const chaveDoRetrato = (eventoId: string | undefined) => [`/api/events/${eventoId}/tubos`];
+function useRetrato(evento: Evento | null) {
+  return useQuery<Retrato>({ queryKey: chaveDoRetrato(evento?.id), enabled: !!evento, staleTime: 0 });
+}
+function atualizarTudo(eventoId: string) {
+  queryClient.invalidateQueries({ queryKey: chaveDoRetrato(eventoId) });
+  queryClient.invalidateQueries({ queryKey: ["/api/tubos"] });
+  queryClient.invalidateQueries({ queryKey: ["/api/items/approved"] });
+  queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+}
+
+/** "Solicitação sem Kit só visualiza peça do Kit" — a mesma trava do servidor:
+ *  a tela não oferece o toque que voltaria 403. */
+function useSoVisualizaKit() {
+  const { user } = useAuth();
+  return (p: { doKit?: boolean }) => user?.role === "solicitacao" && !user?.kit && !!p.doKit;
+}
+
+/** A casca dos três: superfície do modal-shell, cabeçalho, corpo que rola e
+ *  rodapé fixo. No celular acompanha o teclado (o rodapé não some atrás dele). */
+function Casca({ aberto, onClose, icone, tint, titulo, subtitulo, largura, rodape, children, testId, focoInicial }: {
+  aberto: boolean; onClose: () => void; icone: LucideIcon; tint: string; titulo: string; subtitulo: string;
+  largura: number; rodape?: React.ReactNode; children: React.ReactNode; testId: string;
+  /** Onde o foco cai ao abrir (desktop). Sem ele, o Radix foca o primeiro focável. */
+  focoInicial?: React.RefObject<HTMLElement | null>;
+}) {
+  const { isMobile, pad } = useMedidas();
   const superficieRef = useRef<HTMLDivElement>(null);
-  useAcompanharAreaVisivel(superficieRef, "centro", isMobile && !!evento);
-  const chave = [`/api/events/${evento?.id}/tubos`];
-  const { data, isLoading, isError, refetch } = useQuery<Retrato>({ queryKey: chave, enabled: !!evento, staleTime: 0 });
+  useAcompanharAreaVisivel(superficieRef, "centro", isMobile && aberto);
+  return (
+    <Dialog open={aberto} onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent ref={superficieRef} data-testid={testId} className={HIDE_NATIVE_CLOSE} style={modalSurface(largura)}
+        onOpenAutoFocus={(e) => { if (!isMobile && focoInicial?.current) { e.preventDefault(); focoInicial.current.focus(); } }}>
+        <DialogTitle className="sr-only">{titulo}</DialogTitle>
+        <DialogDescription className="sr-only">{subtitulo}</DialogDescription>
+        <ModalHeader icon={icone} tint={tint} title={titulo} subtitle={subtitulo} onClose={onClose} />
+        <div style={{ padding: pad, overflowY: "auto", flex: "1 1 auto", minHeight: 0, display: "flex", flexDirection: "column", gap: 18 }}>
+          {children}
+        </div>
+        {rodape}
+      </DialogContent>
+    </Dialog>
+  );
+}
 
-  const [selecionadas, setSelecionadas] = useState<Set<string>>(new Set());
-  const [destino, setDestino] = useState<string>("novo");
-  const [entregando, setEntregando] = useState<string | null>(null);
-  const [fotos, setFotos] = useState<string[]>([]);
-  const [recebidoPor, setRecebidoPor] = useState("");
-  const [obs, setObs] = useState("");
-  // Fechamento (21/09): o tubo que está sendo fechado e as fotos já tiradas.
-  const [fechando, setFechando] = useState<string | null>(null);
-  const [fotosFechamento, setFotosFechamento] = useState<string[]>([]);
-  // EMBALAR = TUBO + FOTO (dono, 21/09: "o embalar tem que pedir a foto, igual
-  // é o entregar"). O tubo escolhido e as fotos do tubo com os itens; o botão
-  // do rodapé só libera com os dois. As fotos do "Colocar" (seção 1) são as
-  // mesmas: peça conferida só entra em tubo com foto.
-  const [tuboDoEmbalar, setTuboDoEmbalar] = useState<string | null>(null);
-  const [fotosDoEmbalar, setFotosDoEmbalar] = useState<string[]>([]);
-  const [fotosDoColocar, setFotosDoColocar] = useState<string[]>([]);
-  // Enter segurado / toque duplo: `isPending` só vira true no render seguinte.
-  const enviandoRef = useRef(false);
-  // Apagar tubo COM peças pede um segundo toque — as peças voltam a Conferido.
-  const [confirmandoApagar, setConfirmandoApagar] = useState<string | null>(null);
+/** Rodapé fixo, fora da rolagem, com o recorte seguro do home indicator — nos
+ *  LONGOS, porque o jsdom descarta o atalho `padding` com env(). */
+function Rodape({ testId, children }: { testId: string; children: React.ReactNode }) {
+  const { pad } = useMedidas();
+  return (
+    <div data-testid={testId}
+      style={{ flexShrink: 0, display: "flex", gap: 10, paddingTop: 10, paddingLeft: pad, paddingRight: pad, paddingBottom: "calc(10px + env(safe-area-inset-bottom))", borderTop: `1px solid ${COR.borda}`, background: "#fff", boxShadow: "0 -8px 12px -8px rgba(28,25,23,0.18)" }}>
+      {children}
+    </div>
+  );
+}
+function BotaoCancelar({ onClick, texto = "Cancelar" }: { onClick: () => void; texto?: string }) {
+  const { isMobile } = useMedidas();
+  return (
+    <button type="button" onClick={onClick}
+      style={{ flex: 1, minHeight: isMobile ? 48 : 40, borderRadius: 8, border: `1px solid ${COR.borda}`, background: "#fff", color: COR.sec, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
+      {texto}
+    </button>
+  );
+}
+function BotaoPrimario({ onClick, disabled, cor, children, testId }: { onClick: () => void; disabled: boolean; cor: string; children: React.ReactNode; testId: string }) {
+  const { isMobile } = useMedidas();
+  return (
+    <button type="button" onClick={onClick} disabled={disabled} data-testid={testId}
+      style={{ flex: 2, minHeight: isMobile ? 48 : 40, borderRadius: 8, border: "none", background: disabled ? "#e7e5e4" : cor, color: disabled ? COR.sec : "#fff", fontWeight: 800, fontSize: 13, cursor: disabled ? "not-allowed" : "pointer" }}>
+      {children}
+    </button>
+  );
+}
 
-  // Trocou de evento (ou reabriu pelo "Embalar"/"Entregar tubo" de outra
-  // peça): nada da seleção anterior pode vazar para a abertura nova.
-  const chaveDaAbertura = evento ? `${evento.id}|${(itensIniciais ?? []).join(",")}|${tuboInicial ?? ""}` : null;
-  const [aberturaVista, setAberturaVista] = useState<string | null>(null);
-  if (chaveDaAbertura !== aberturaVista) {
-    setAberturaVista(chaveDaAbertura);
-    setSelecionadas(new Set()); setDestino("novo");
-    setEntregando(null); setFotos([]); setRecebidoPor(""); setObs("");
-    setFechando(null); setFotosFechamento([]); setConfirmandoApagar(null);
-    setTuboDoEmbalar(null); setFotosDoEmbalar([]); setFotosDoColocar([]);
-  }
+function Carregando() {
+  return <p role="status" style={{ margin: 0, fontSize: 13, color: COR.fraco }}>Carregando os tubos…</p>;
+}
+function ErroAoCarregar({ onTentar }: { onTentar: () => void }) {
+  const { alvo } = useMedidas();
+  return (
+    <div role="alert" style={{ padding: "12px 14px", borderRadius: 10, background: "#fef2f2", border: "1px solid #fecaca", color: COR.vermelho, fontSize: 13, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
+      Não foi possível carregar os tubos.
+      <button type="button" onClick={onTentar} style={{ minHeight: alvo, border: "none", borderRadius: 8, background: COR.vermelho, color: "#fff", fontWeight: 700, fontSize: 12, padding: "0 12px", cursor: "pointer" }}>Tentar novamente</button>
+    </div>
+  );
+}
+function Aviso({ children, testId, tom = "ambar" }: { children: React.ReactNode; testId?: string; tom?: "ambar" | "azul" }) {
+  const c = tom === "ambar" ? { cor: COR.ambar, bg: COR.ambarBg, borda: COR.ambarBorda } : { cor: COR.azul, bg: COR.azulBg, borda: COR.azulBorda };
+  return (
+    <div data-testid={testId} style={{ display: "flex", gap: 8, padding: "10px 12px", borderRadius: 10, background: c.bg, border: `1px solid ${c.borda}`, color: c.cor, fontSize: 13, lineHeight: 1.4 }}>
+      <AlertTriangle aria-hidden="true" style={{ width: 15, height: 15, flexShrink: 0, marginTop: 2 }} />
+      <span style={{ minWidth: 0 }}>{children}</span>
+    </div>
+  );
+}
 
-  const atualizar = () => {
-    queryClient.invalidateQueries({ queryKey: chave });
-    queryClient.invalidateQueries({ queryKey: ["/api/tubos"] });
-    queryClient.invalidateQueries({ queryKey: ["/api/items/approved"] });
-    queryClient.invalidateQueries({ queryKey: ["/api/items"] });
-  };
-  const falhou = (titulo: string) => (e: any) => toast({ title: titulo, description: mensagemDeErro(e), variant: "destructive" });
+/** Código + a linha da etiqueta ("2x1 Ministério - 16") — a língua do galpão. */
+function LinhaDaPeca({ p }: { p: Peca }) {
+  return (
+    <>
+      <span style={{ fontFamily: "ui-monospace, monospace", fontSize: 12.5, fontWeight: 700, color: COR.laranja, flexShrink: 0 }}>{p.displayId ?? "—"}</span>
+      <span style={{ fontSize: 13, color: COR.texto, flex: "1 1 120px", minWidth: 0, overflowWrap: "anywhere", lineHeight: 1.3 }}>{linhaDaLista(p)}</span>
+    </>
+  );
+}
 
-  const colocar = useMutation({
-    mutationFn: async () => {
-      const ids = Array.from(selecionadas);
-      if (destino === "novo") {
-        const r = await apiRequest("POST", `/api/events/${evento!.id}/tubos`, { itemIds: ids, fotos: fotosDoColocar });
-        const t = await r.json();
-        return { numero: t.numero as number, quantas: ids.length };
-      }
-      const r = await apiRequest("PATCH", `/api/tubos/${destino}/itens`, { adicionar: ids, fotos: fotosDoColocar });
-      const t = await r.json();
-      return { numero: t.numero as number, quantas: ids.length };
-    },
-    onSuccess: ({ numero, quantas }) => {
-      toast({ title: `${quantas} ${quantas === 1 ? "peça foi" : "peças foram"} para o Tubo ${numero}` });
-      setSelecionadas(new Set()); setDestino("novo"); setFotosDoColocar([]);
-      atualizar();
-    },
-    onError: falhou("Não foi possível pôr no tubo"),
-  });
+function Miniaturas({ fotos, alt, tamanho = 56 }: { fotos: string[]; alt: string; tamanho?: number }) {
+  return (
+    <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+      {fotos.map((url, i) => (
+        <a key={url} href={url} target="_blank" rel="noreferrer" aria-label={`${alt} ${i + 1} — abrir`}
+          style={{ width: tamanho, height: tamanho, borderRadius: 6, overflow: "hidden", border: `1px solid ${COR.borda}`, display: "block" }}>
+          <img src={url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+        </a>
+      ))}
+    </div>
+  );
+}
 
-  // EMBALAR PELO ATALHO (21/09): as peças que vieram pelo botão "Embalar" e
-  // ainda estão sem tubo. Escolhe o tubo, tira a foto do tubo com os itens e
-  // confirma no rodapé — a mesma rota do "Colocar", agora com `fotos` (o
-  // servidor recusa embalar sem foto). O painel fecha sozinho ao embalar.
-  const pecasParaEmbalar = (data?.semTubo ?? []).filter((p) => itensIniciais?.includes(p.id) && !soVisualizaKit(p));
-  const embalar = useMutation({
-    mutationFn: async () => {
-      const ids = pecasParaEmbalar.map((p) => p.id);
-      const r = tuboDoEmbalar === "novo"
-        ? await apiRequest("POST", `/api/events/${evento!.id}/tubos`, { itemIds: ids, fotos: fotosDoEmbalar })
-        : await apiRequest("PATCH", `/api/tubos/${tuboDoEmbalar}/itens`, { adicionar: ids, fotos: fotosDoEmbalar });
-      const t = await r.json();
-      return { numero: t.numero as number, quantas: ids.length };
-    },
-    onSuccess: ({ numero, quantas }) => {
-      const nome = quantas === 1 ? (pecasParaEmbalar[0]?.displayId ?? "Peça") : `${quantas} peças`;
-      toast({ title: `${nome} embalada${quantas === 1 ? "" : "s"} no Tubo ${numero}`, description: `${fotosDoEmbalar.length} ${fotosDoEmbalar.length === 1 ? "foto guardada" : "fotos guardadas"} no tubo.` });
-      atualizar();
-      onEmbalou?.();
-      onClose();
-    },
-    onError: falhou("Não foi possível embalar"),
-    onSettled: () => { enviandoRef.current = false; },
-  });
-  const confirmarEmbalar = () => {
-    if (enviandoRef.current || embalar.isPending || !tuboDoEmbalar || fotosDoEmbalar.length === 0) return;
-    enviandoRef.current = true;
-    embalar.mutate();
-  };
-
-  // "Entregar tubo" da peça embalada: quando o retrato chega, o formulário
-  // daquele tubo já está aberto — se ele puder ser entregue. Se não puder, o
-  // botão desabilitado e o motivo ao lado explicam, como sempre.
-  useEffect(() => {
-    if (!tuboInicial || !data) return;
-    const t = data.tubos.find((x) => x.id === tuboInicial);
-    if (t && !t.entregueEm && t.prontoParaEntregar) { setEntregando(t.id); setFechando(null); }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [chaveDaAbertura, data === undefined]);
-
-  const tirar = useMutation({
-    mutationFn: async ({ tuboId, itemId }: { tuboId: string; itemId: string }) =>
-      apiRequest("PATCH", `/api/tubos/${tuboId}/itens`, { remover: [itemId] }),
-    onSuccess: atualizar,
-    onError: falhou("Não foi possível tirar do tubo"),
-  });
-
-  const apagar = useMutation({
-    mutationFn: async (tuboId: string) => {
-      const r = await apiRequest("DELETE", `/api/tubos/${tuboId}`);
-      return r.json();
-    },
-    onSuccess: (r: any) => {
-      if (r?.devolvidas > 0) toast({ title: "Tubo apagado", description: `${r.devolvidas} ${r.devolvidas === 1 ? "peça voltou" : "peças voltaram"} para Conferido.` });
-      setConfirmandoApagar(null);
-      atualizar();
-    },
-    onError: falhou("Não foi possível apagar o tubo"),
-  });
-
-  // FECHAR (21/09): várias fotos — o tubo fechado e os itens dentro dele.
-  const fechar = useMutation({
-    mutationFn: async (tubo: Tubo) => {
-      const r = await apiRequest("POST", `/api/tubos/${tubo.id}/fechar`, { fotos: fotosFechamento });
-      return r.json();
-    },
-    onSuccess: (r: any) => {
-      toast({ title: `Fotos guardadas no Tubo ${r.numero}`, description: `${r.fotos} ${r.fotos === 1 ? "foto nova" : "fotos novas"} · ${r.totalDeFotos ?? r.fotos} no tubo. As peças ficam Embalado até a entrega.` });
-      setFechando(null); setFotosFechamento([]);
-      atualizar();
-    },
-    onError: falhou("Não foi possível guardar as fotos do tubo"),
-  });
-
-  const entregar = useMutation({
-    mutationFn: async (tubo: Tubo) => {
-      const r = await apiRequest("POST", `/api/tubos/${tubo.id}/entregar`, { photoUrl: fotos[0] ?? null, receivedBy: recebidoPor.trim(), notes: obs });
-      return r.json();
-    },
-    onSuccess: (r: any) => {
-      toast({ title: `Tubo ${r.numero} entregue`, description: `${r.entregues} ${r.entregues === 1 ? "peça entregue" : "peças entregues"} a ${recebidoPor.trim()}.` });
-      setEntregando(null); setFotos([]); setRecebidoPor(""); setObs("");
-      atualizar();
-    },
-    onError: falhou("Não foi possível entregar o tubo"),
-  });
-
-  /** Câmera + galeria, várias fotos, com miniaturas e "remover" — o mesmo
-   *  desenho da conferência em lote da Gráfica. */
-  const uploaderDeFotos = (lista: string[], setLista: (f: (atual: string[]) => string[]) => void, alt: string) => (
+/** Câmera (direta no celular) + Galeria, com miniaturas e remover de 44px. */
+function Fotos({ lista, onMudar, alt }: { lista: string[]; onMudar: (f: (atual: string[]) => string[]) => void; alt: string }) {
+  const { toast } = useToast();
+  const { fsMin } = useMedidas();
+  return (
     <>
       <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
         {[{ capture: true, Icone: Camera, texto: "Câmera" }, { capture: false, Icone: ImagePlus, texto: "Galeria" }].map(({ capture, Icone, texto }) => (
@@ -289,7 +249,7 @@ export function TubosDialog({ evento, onClose, itensIniciais, tuboInicial, onEmb
               // min-h: durante o envio o conteúdo vira "Enviando…" e o botão
               // não pode encolher abaixo do alvo de dedo.
               buttonClassName="w-full h-full min-h-[44px] p-0 border-0 hover:bg-transparent"
-              onComplete={(r) => setLista((f) => [...f, convertGCSUrlToLocalPath(r.url)])}
+              onComplete={(r) => onMudar((f) => (f.length >= 20 ? f : [...f, convertGCSUrlToLocalPath(r.url)]))}
               onError={(e) => toast({ title: "Erro no upload", description: e.message, variant: "destructive" })}
             >
               <div style={{ width: "100%", padding: "11px 0", background: "#fff", borderRadius: 8, border: "2px dashed #d6d3d1", display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
@@ -301,16 +261,15 @@ export function TubosDialog({ evento, onClose, itensIniciais, tuboInicial, onEmb
         ))}
       </div>
       {lista.length > 0 && (
-        <div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" }}>
-          {lista.map((url) => (
-            <div key={url} style={{ position: "relative", width: isMobile ? 80 : 64, height: isMobile ? 80 : 64, borderRadius: 8, overflow: "hidden", border: `1px solid ${COR.borda}` }}>
-              <img src={url} alt={alt} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-              {/* O alvo é de 44px (o canto inteiro da miniatura); o círculo
-                  visível continua pequeno para não tapar a foto. */}
-              <button type="button" onClick={() => setLista((f) => f.filter((x) => x !== url))} aria-label="Remover foto"
-                style={{ position: "absolute", top: 0, right: 0, width: isMobile ? 44 : 28, height: isMobile ? 44 : 28, minHeight: isMobile ? 44 : 28, padding: 2, border: "none", background: "transparent", display: "flex", alignItems: "flex-start", justifyContent: "flex-end", cursor: "pointer" }}>
-                <span aria-hidden="true" style={{ width: 24, height: 24, borderRadius: "50%", background: "rgba(28,25,23,0.75)", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  <X style={{ width: 11, height: 11 }} />
+        <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
+          {lista.map((url, i) => (
+            <div key={url} style={{ position: "relative", width: 72, height: 72, borderRadius: 8, overflow: "hidden", border: `1px solid ${COR.borda}` }}>
+              <img src={url} alt={`${alt} ${i + 1}`} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+              {/* Alvo de 44px; o X visível é o disco de 24 no canto. */}
+              <button type="button" onClick={() => onMudar((f) => f.filter((x) => x !== url))} aria-label={`Remover a foto ${i + 1}`}
+                style={{ position: "absolute", top: 0, right: 0, width: 44, height: 44, padding: 4, border: "none", background: "none", display: "flex", alignItems: "flex-start", justifyContent: "flex-end", cursor: "pointer" }}>
+                <span style={{ width: 24, height: 24, borderRadius: "50%", background: "rgba(28,25,23,0.78)", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <X aria-hidden="true" style={{ width: 12, height: 12 }} />
                 </span>
               </button>
             </div>
@@ -319,462 +278,558 @@ export function TubosDialog({ evento, onClose, itensIniciais, tuboInicial, onEmb
       )}
     </>
   );
+}
 
-  // O nome da peça: no desktop, uma linha com reticências (a lista é densa);
-  // no celular, até duas linhas — no galpão nada pode cortar o que se lê.
-  const estiloDoNomeDaPeca: React.CSSProperties = isMobile
-    ? { fontSize: 13, color: COR.texto, flex: "1 1 120px", minWidth: 0, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflowWrap: "anywhere", lineHeight: 1.3 }
-    : { fontSize: 13, color: COR.texto, flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" };
+// ═════════════════════════════════════════════════════════════════════════════
+// 1 · EMBALAR — o tubo + a foto. Nada de outras peças, nada de gestão.
+// ═════════════════════════════════════════════════════════════════════════════
+export function EmbalarDialog({ evento, itens, comCaixas = false, onClose, onEmbalou }: {
+  evento: Evento | null;
+  /** As peças que estão sendo embaladas (uma, ou o lote). */
+  itens: string[];
+  /** Veio do painel ("Embalar peças conferidas"): aí sim as peças têm caixa de
+   *  marcar. Vindo da fila, o lote só deixa TIRAR uma peça (x). */
+  comCaixas?: boolean;
+  onClose: () => void;
+  onEmbalou?: () => void;
+}) {
+  const { toast } = useToast();
+  const { isMobile, fsMin } = useMedidas();
+  const soVisualizaKit = useSoVisualizaKit();
+  const { data, isLoading, isError, refetch } = useRetrato(evento);
 
+  const [fora, setFora] = useState<Set<string>>(new Set());
+  const [tubo, setTubo] = useState<string | null>(null);
+  const [fotos, setFotos] = useState<string[]>([]);
+  // Enter segurado / toque duplo: `isPending` só vira true no render seguinte.
+  const enviandoRef = useRef(false);
+
+  // Cada abertura começa limpa (outra peça, outro evento).
+  const chave = evento ? `${evento.id}|${itens.join(",")}` : null;
+  const [vista, setVista] = useState<string | null>(null);
+  if (chave !== vista) { setVista(chave); setFora(new Set()); setTubo(null); setFotos([]); }
+
+  // Só embala quem está conferida e SEM tubo; a que outro aparelho embalou
+  // antes (ou que é do Kit, para quem só visualiza) fica de fora, com aviso.
+  const candidatas = (data?.semTubo ?? []).filter((p) => itens.includes(p.id) && p.conferida && !soVisualizaKit(p));
+  const pecas = candidatas.filter((p) => !fora.has(p.id));
+  const jaEmTubo = (data?.tubos ?? []).filter((t) => t.pecas.some((p) => itens.includes(p.id)));
   const abertos = (data?.tubos ?? []).filter((t) => !t.entregueEm);
-  // O tubo cujo formulário (fechar ou entregar) está aberto: os botões dele
-  // moram no RODAPÉ FIXO do modal, sempre à vista, com o recorte seguro.
-  const tuboEmFormulario = (data?.tubos ?? []).find((t) => t.id === (fechando ?? entregando)) ?? null;
-  const marcaveis = (data?.semTubo ?? []).filter((p) => !soVisualizaKit(p));
-  const todasMarcadas = marcaveis.length > 0 && selecionadas.size === marcaveis.length;
-  const precisaFotoNoColocar = (data?.semTubo ?? []).some((p) => selecionadas.has(p.id) && p.conferida);
-  const alternar = (id: string) => setSelecionadas((s) => {
-    const n = new Set(s);
-    if (n.has(id)) n.delete(id); else n.add(id);
-    return n;
-  });
+  const proximoNumero = (data?.tubos ?? []).reduce((m, t) => Math.max(m, t.numero), 0) + 1;
+  // Sem tubo aberto, "Novo tubo" já vem escolhido — é a única opção.
+  const escolhido = tubo ?? (data && abertos.length === 0 ? "novo" : null);
+  const tuboEscolhido = abertos.find((t) => t.id === escolhido) ?? null;
 
-  const chipDeDestino = (valor: string, rotulo: string) => {
-    const ativo = destino === valor;
+  const embalar = useMutation({
+    mutationFn: async () => {
+      const ids = pecas.map((p) => p.id);
+      const r = escolhido === "novo"
+        ? await apiRequest("POST", `/api/events/${evento!.id}/tubos`, { itemIds: ids, fotos })
+        : await apiRequest("PATCH", `/api/tubos/${escolhido}/itens`, { adicionar: ids, fotos });
+      const t = await r.json();
+      return { numero: t.numero as number, quantas: ids.length, nome: pecas[0]?.displayId ?? "Peça" };
+    },
+    onSuccess: ({ numero, quantas, nome }) => {
+      toast({ title: quantas === 1 ? `${nome} embalada no Tubo ${numero}` : `${quantas} peças embaladas no Tubo ${numero}` });
+      atualizarTudo(evento!.id);
+      onEmbalou?.();
+      onClose();
+    },
+    onError: (e) => toast({ title: "Não foi possível embalar", description: mensagemDeErro(e), variant: "destructive" }),
+    onSettled: () => { enviandoRef.current = false; },
+  });
+  const pronto = pecas.length > 0 && !!escolhido && fotos.length > 0;
+  const confirmar = () => {
+    if (enviandoRef.current || embalar.isPending || !pronto) return;
+    enviandoRef.current = true;
+    embalar.mutate();
+  };
+
+  const titulo = itens.length === 1
+    ? `Embalar ${candidatas[0]?.displayId ?? "a peça"}`
+    : `Embalar ${plural(pecas.length || itens.length, "peça", "peças")}`;
+  const destino = escolhido === "novo" ? `Tubo ${proximoNumero}` : tuboEscolhido ? `Tubo ${tuboEscolhido.numero}` : "";
+  // O motivo de estar desabilitado mora NO botão, na ordem dos passos.
+  const rotulo = embalar.isPending ? "Embalando…"
+    : pecas.length === 0 ? "Nenhuma peça para embalar"
+    : !escolhido ? "Escolha o tubo"
+    : fotos.length === 0 ? "Tire a foto"
+    : `Embalar no ${destino} · ${plural(fotos.length, "foto", "fotos")}`;
+
+  const cartao = (valor: string, principal: string, detalhe: string, testId: string) => {
+    const ativo = escolhido === valor;
     return (
-      <button key={valor} type="button" role="radio" aria-checked={ativo} onClick={() => setDestino(valor)}
-        data-testid={`destino-tubo-${valor}`}
-        style={{ height: alvo, padding: "0 12px", borderRadius: 999, cursor: "pointer", fontSize: fsMin(12.5), fontWeight: 700, whiteSpace: "nowrap", background: ativo ? COR.texto : "#fff", color: ativo ? "#fff" : COR.texto, border: `1px solid ${ativo ? COR.texto : COR.borda}` }}>
-        {rotulo}
+      <button key={valor} type="button" role="radio" aria-checked={ativo} onClick={() => setTubo(valor)} data-testid={testId}
+        style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", minHeight: isMobile ? 52 : 44, padding: "8px 12px", borderRadius: 10, textAlign: "left", cursor: "pointer", border: `2px solid ${ativo ? COR.azul : COR.borda}`, background: ativo ? COR.azulBg : "#fff" }}>
+        <span aria-hidden="true" style={{ width: 18, height: 18, borderRadius: "50%", flexShrink: 0, border: `2px solid ${ativo ? COR.azul : "#a8a29e"}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          {ativo && <span style={{ width: 8, height: 8, borderRadius: "50%", background: COR.azul }} />}
+        </span>
+        <span style={{ minWidth: 0, display: "flex", flexDirection: "column" }}>
+          <span style={{ fontSize: 14, fontWeight: 800, color: COR.texto }}>{principal}</span>
+          <span style={{ fontSize: fsMin(12), color: COR.sec }}>{detalhe}</span>
+        </span>
       </button>
     );
   };
 
   return (
-    <Dialog open={!!evento} onOpenChange={(o) => { if (!o) onClose(); }}>
-      <DialogContent ref={superficieRef} className={HIDE_NATIVE_CLOSE} style={modalSurface(660)}>
-        <DialogTitle className="sr-only">Tubos do evento</DialogTitle>
-        <DialogDescription className="sr-only">Agrupe as peças em tubos e entregue o tubo inteiro</DialogDescription>
-        <ModalHeader icon={Package} tint={COR.laranja} title={`Tubos · ${evento?.name ?? ""}`}
-          subtitle="Agrupe as peças que saíram da impressão e entregue o tubo inteiro" onClose={onClose} />
+    <Casca aberto={!!evento} onClose={onClose} icone={Package} tint={COR.azul} largura={520} testId="modal-embalar"
+      titulo={titulo} subtitulo="Escolha o tubo e tire a foto — a peça fica Embalada até o tubo ser entregue"
+      rodape={data ? (
+        <Rodape testId="rodape-embalar">
+          <BotaoCancelar onClick={onClose} />
+          <BotaoPrimario onClick={confirmar} disabled={embalar.isPending || !pronto} cor={COR.azul} testId="confirmar-embalar">{rotulo}</BotaoPrimario>
+        </Rodape>
+      ) : undefined}>
+      {isLoading && <Carregando />}
+      {isError && <ErroAoCarregar onTentar={() => refetch()} />}
+      {data && jaEmTubo.length > 0 && (
+        <Aviso tom="azul" testId="embalar-ja-no-tubo">
+          {candidatas.length === 0 && itens.length === 1 ? "Esta peça já está" : "Parte das peças já está"} no {jaEmTubo.map((t) => `Tubo ${t.numero}`).join(", ")} — outra pessoa embalou antes.
+        </Aviso>
+      )}
+      {data && candidatas.length === 0 && jaEmTubo.length === 0 && (
+        <Aviso testId="embalar-sem-pecas">Não há peça conferida e sem tubo para embalar aqui. Só a peça já conferida é embalada.</Aviso>
+      )}
 
-        <div style={{ padding: pad, overflowY: "auto", flex: "1 1 auto", minHeight: 0, display: "flex", flexDirection: "column", gap: 22 }}>
-          {isLoading && <p style={{ margin: 0, fontSize: 13, color: COR.fraco }}>Carregando os tubos…</p>}
-          {isError && (
-            <div style={{ padding: "12px 14px", borderRadius: 10, background: "#fef2f2", border: "1px solid #fecaca", color: "#b91c1c", fontSize: 13, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
-              Não foi possível carregar os tubos.
-              <button onClick={() => refetch()} style={{ minHeight: alvo, border: "none", borderRadius: 8, background: "#b91c1c", color: "#fff", fontWeight: 700, fontSize: 12, padding: "0 12px", cursor: "pointer" }}>Tentar novamente</button>
+      {data && candidatas.length > 0 && (
+        <>
+          <section data-testid="embalar-pecas" aria-label="Peças que serão embaladas" style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            <span style={ROTULO}>{comCaixas ? `Peças conferidas sem tubo · ${pecas.length} de ${candidatas.length} marcadas` : plural(pecas.length, "peça", "peças")}</span>
+            <div style={{ border: `1px solid ${COR.borda}`, borderRadius: 10, overflow: "hidden" }}>
+              {(comCaixas ? candidatas : pecas).map((p) => (
+                comCaixas ? (
+                  <label key={p.id} data-testid={`embalar-peca-${p.id}`} style={{ display: "flex", alignItems: "center", gap: 10, minHeight: 44, padding: "6px 12px", borderTop: "1px solid #f5f5f4", cursor: "pointer", background: fora.has(p.id) ? "#fff" : COR.azulBg }}>
+                    <input type="checkbox" checked={!fora.has(p.id)}
+                      onChange={() => setFora((s) => { const n = new Set(s); if (n.has(p.id)) n.delete(p.id); else n.add(p.id); return n; })}
+                      style={{ width: 18, height: 18, accentColor: COR.azul, flexShrink: 0 }} />
+                    <LinhaDaPeca p={p} />
+                  </label>
+                ) : (
+                  <div key={p.id} data-testid={`embalar-peca-${p.id}`} style={{ display: "flex", alignItems: "center", gap: 10, minHeight: 44, padding: "6px 12px", borderTop: "1px solid #f5f5f4" }}>
+                    <LinhaDaPeca p={p} />
+                    {pecas.length > 1 && (
+                      <button type="button" onClick={() => setFora((s) => new Set(s).add(p.id))} aria-label={`Tirar ${p.displayId ?? "a peça"} deste embalar`} title="Tirar deste embalar"
+                        style={{ width: 44, height: 44, marginRight: -8, border: "none", background: "none", color: COR.sec, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}>
+                        <X aria-hidden="true" style={{ width: 15, height: 15 }} />
+                      </button>
+                    )}
+                  </div>
+                )
+              ))}
             </div>
+          </section>
+
+          <section style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <span id="rotulo-tubo-do-embalar" style={ROTULO}>1 · Tubo</span>
+            <div role="radiogroup" aria-labelledby="rotulo-tubo-do-embalar" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {abertos.map((t) => cartao(t.id, `Tubo ${t.numero}`, `${plural(t.pecas.length, "peça", "peças")} · ${t.fotosFechamento.length ? plural(t.fotosFechamento.length, "foto", "fotos") : "sem foto"}`, `embalar-no-tubo-${t.numero}`))}
+              {cartao("novo", `Novo tubo (Tubo ${proximoNumero})`, abertos.length ? "Abre um tubo vazio para estas peças" : "Ainda não há tubo aberto neste evento", "embalar-em-tubo-novo")}
+            </div>
+            {tuboEscolhido && tuboEscolhido.pecas.length > 0 && (
+              <div data-testid="embalar-conteudo-do-tubo" style={{ padding: "8px 12px", borderRadius: 10, background: COR.fundo, border: `1px solid ${COR.borda}` }}>
+                <span style={{ fontSize: fsMin(12), fontWeight: 700, color: COR.sec }}>Já está no Tubo {tuboEscolhido.numero}:</span>
+                <ul style={{ margin: "4px 0 0", padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 3 }}>
+                  {tuboEscolhido.pecas.slice(0, 6).map((p) => <li key={p.id} style={{ display: "flex", gap: 8 }}><LinhaDaPeca p={p} /></li>)}
+                  {tuboEscolhido.pecas.length > 6 && <li style={{ fontSize: fsMin(12), color: COR.sec }}>e mais {tuboEscolhido.pecas.length - 6}</li>}
+                </ul>
+              </div>
+            )}
+          </section>
+
+          <section>
+            <span style={ROTULO}>2 · Foto do tubo com os itens <span style={{ textTransform: "none", letterSpacing: 0, fontWeight: 400 }}>· obrigatória</span></span>
+            <Fotos lista={fotos} onMudar={setFotos} alt="Foto do tubo com os itens" />
+          </section>
+        </>
+      )}
+    </Casca>
+  );
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// 2 · ENTREGAR TUBO N — o que tem dentro, as fotos, quem recebeu.
+// ═════════════════════════════════════════════════════════════════════════════
+export function EntregarTuboDialog({ evento, tuboId, sugestaoRecebedor = "", onClose, onEntregou }: {
+  evento: Evento | null;
+  tuboId: string | null;
+  /** Quem recebeu a última entrega desta sessão — oferecido em um toque. */
+  sugestaoRecebedor?: string;
+  onClose: () => void;
+  onEntregou?: (recebedor: string) => void;
+}) {
+  const { toast } = useToast();
+  const { isMobile } = useMedidas();
+  const soVisualizaKit = useSoVisualizaKit();
+  const aberto = !!evento && !!tuboId;
+  const { data, isLoading, isError, refetch } = useRetrato(aberto ? evento : null);
+
+  const [recebidoPor, setRecebidoPor] = useState("");
+  const [obs, setObs] = useState("");
+  const [fotos, setFotos] = useState<string[]>([]);
+  const enviandoRef = useRef(false);
+  const campoRef = useRef<HTMLInputElement>(null);
+  const chave = aberto ? `${evento!.id}|${tuboId}` : null;
+  const [vista, setVista] = useState<string | null>(null);
+  if (chave !== vista) { setVista(chave); setRecebidoPor(""); setObs(""); setFotos([]); }
+
+  const t = (data?.tubos ?? []).find((x) => x.id === tuboId) ?? null;
+  const soVe = !!t && t.pecas.some(soVisualizaKit);
+  const temFotoDoTubo = (t?.fotosFechamento.length ?? 0) > 0;
+  const podeFormulario = !!t && !t.entregueEm && t.prontoParaEntregar && !soVe;
+  // Foco inicial no que falta preencher — só no desktop: no celular abrir o
+  // teclado de cara esconderia a lista do que está no tubo.
+  useEffect(() => { if (podeFormulario && !isMobile) campoRef.current?.focus(); }, [podeFormulario, isMobile, chave]);
+
+  const entregar = useMutation({
+    mutationFn: async () => {
+      const r = await apiRequest("POST", `/api/tubos/${t!.id}/entregar`, { photoUrl: fotos[0] ?? null, receivedBy: recebidoPor.trim(), notes: obs });
+      return r.json();
+    },
+    onSuccess: (r: any) => {
+      toast({ title: `Tubo ${r.numero} entregue a ${recebidoPor.trim()}`, description: plural(r.entregues, "peça entregue", "peças entregues") + "." });
+      atualizarTudo(evento!.id);
+      onEntregou?.(recebidoPor.trim());
+      onClose();
+    },
+    onError: (e) => toast({ title: "Não foi possível entregar o tubo", description: mensagemDeErro(e), variant: "destructive" }),
+    onSettled: () => { enviandoRef.current = false; },
+  });
+  const pronto = podeFormulario && !!recebidoPor.trim() && (temFotoDoTubo || fotos.length > 0);
+  const confirmar = () => {
+    if (enviandoRef.current || entregar.isPending || !pronto) return;
+    enviandoRef.current = true;
+    entregar.mutate();
+  };
+  const n = t?.numero ?? "";
+  const rotulo = entregar.isPending ? "Entregando…"
+    : !recebidoPor.trim() ? "Informe quem recebeu"
+    : !temFotoDoTubo && fotos.length === 0 ? "Tire a foto do comprovante"
+    : `Entregar Tubo ${n} a ${recebidoPor.trim()}`;
+  const campo: React.CSSProperties = { width: "100%", boxSizing: "border-box", height: isMobile ? 44 : 40, borderRadius: 8, border: `1px solid ${COR.borda}`, padding: "0 12px", fontSize: isMobile ? 16 : 14, background: "#fff", color: COR.texto };
+
+  return (
+    <Casca aberto={aberto} onClose={onClose} icone={Truck} tint={COR.verde} largura={520} testId="modal-entregar-tubo" focoInicial={campoRef}
+      titulo={`Entregar Tubo ${n}${evento ? ` · ${evento.name}` : ""}`} subtitulo="O tubo sai inteiro: confira o que tem dentro e registre quem recebeu"
+      rodape={podeFormulario ? (
+        <Rodape testId={`rodape-entregar-tubo-${n}`}>
+          <BotaoCancelar onClick={onClose} />
+          <BotaoPrimario onClick={confirmar} disabled={entregar.isPending || !pronto} cor={COR.verde} testId={`confirmar-entrega-tubo-${n}`}>{rotulo}</BotaoPrimario>
+        </Rodape>
+      ) : data ? (
+        <Rodape testId="rodape-entregar-fechar"><BotaoCancelar onClick={onClose} texto="Fechar" /></Rodape>
+      ) : undefined}>
+      {isLoading && <Carregando />}
+      {isError && <ErroAoCarregar onTentar={() => refetch()} />}
+      {data && !t && <Aviso testId="entregar-tubo-sumiu">Este tubo não existe mais — alguém apagou. Feche e abra os tubos do evento.</Aviso>}
+
+      {t && (
+        <>
+          {t.entregueEm && (
+            <Aviso tom="azul" testId="entregar-ja-entregue">O Tubo {t.numero} já foi entregue{t.recebidoPor ? ` a ${t.recebidoPor}` : ""} em {quandoFoi(t.entregueEm)}.</Aviso>
+          )}
+          {!t.entregueEm && soVe && (
+            <Aviso testId="entregar-so-visualiza">Este tubo tem peça do Kit: a Solicitação da Arena só visualiza. Quem entrega é o usuário do Kit.</Aviso>
+          )}
+          {!t.entregueEm && !soVe && t.pecas.length === 0 && <Aviso testId="entregar-vazio">O Tubo {t.numero} está vazio — não há o que entregar.</Aviso>}
+          {!t.entregueEm && !soVe && t.faltamConferir.length > 0 && (
+            <Aviso testId="entregar-falta-conferir">
+              O tubo só sai inteiro, e ainda falta conferir <strong>{t.faltamConferir.join(", ")}</strong>. Confira {t.faltamConferir.length === 1 ? "essa peça" : "essas peças"} (ou tire do tubo) e volte aqui.
+            </Aviso>
+          )}
+          {!t.entregueEm && !soVe && t.pecas.length > 0 && t.faltamConferir.length === 0 && !t.prontoParaEntregar && (
+            <Aviso testId="entregar-fora-do-alcance">Este tubo tem peças que você não vê — quem entrega é quem enxerga o tubo inteiro.</Aviso>
           )}
 
-          {data && (
+          <section data-testid={`lista-entrega-tubo-${t.numero}`} style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            <span style={ROTULO}>No tubo · {plural(t.pecas.length, "peça", "peças")}</span>
+            <ul style={{ margin: 0, padding: 0, listStyle: "none", border: `1px solid ${COR.borda}`, borderRadius: 10, overflow: "hidden" }}>
+              {t.pecas.map((p) => (
+                <li key={p.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", borderTop: "1px solid #f5f5f4", flexWrap: "wrap" }}>
+                  <LinhaDaPeca p={p} />
+                  {!p.conferida && <span style={{ fontSize: 12, fontWeight: 700, color: COR.ambar }}>falta conferir</span>}
+                </li>
+              ))}
+            </ul>
+          </section>
+
+          {temFotoDoTubo && (
+            <section data-testid={`fotos-entrega-tubo-${t.numero}`} style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              <span style={ROTULO}>Fotos do tubo · {t.fotosFechamento.length}</span>
+              <Miniaturas fotos={t.fotosFechamento} alt={`Foto do Tubo ${t.numero}`} />
+              {t.alteradoDepoisDaFoto && <span style={{ fontSize: 12, fontWeight: 700, color: COR.ambar }}>O conteúdo mudou depois da última foto.</span>}
+            </section>
+          )}
+
+          {podeFormulario && (
             <>
-              {/* ── 0 · Embalar (atalho da fila) ── só quando o painel abriu
-                  pelo "Embalar" de uma peça ou de um lote. Três passos, como o
-                  Entregar: (a) o tubo, (b) a foto do tubo com os itens, (c) o
-                  botão do rodapé fixo "Embalar no Tubo 2 · 2 fotos". */}
-              {pecasParaEmbalar.length > 0 && (() => {
-                const uma = pecasParaEmbalar.length === 1;
-                const titulo = uma ? `Embalar ${pecasParaEmbalar[0].displayId ?? "a peça"}` : `Embalar ${pecasParaEmbalar.length} peças`;
-                const chip = (valor: string, rotulo: React.ReactNode, testId: string, title?: string) => {
-                  const ativo = tuboDoEmbalar === valor;
-                  return (
-                    <button key={valor} type="button" role="radio" aria-checked={ativo} onClick={() => setTuboDoEmbalar(valor)}
-                      data-testid={testId} title={title}
-                      style={{ display: "inline-flex", alignItems: "center", gap: 6, minHeight: isMobile ? 44 : 36, padding: "0 12px", borderRadius: 999, border: `1px solid ${ativo ? COR.azul : COR.azulBorda}`, background: ativo ? COR.azul : "#fff", color: ativo ? "#fff" : COR.azul, fontSize: fsMin(12.5), fontWeight: 700, cursor: "pointer" }}>
-                      {rotulo}
-                    </button>
-                  );
-                };
-                return (
-                  <section data-testid="embalar-atalho" style={{ display: "flex", flexDirection: "column", gap: 12, padding: 12, borderRadius: 12, background: COR.azulBg, border: `1px solid ${COR.azulBorda}` }}>
-                    <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 16, fontWeight: 800, color: COR.texto }}>{titulo}</span>
-                    <ul data-testid="embalar-pecas" style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 2 }}>
-                      {pecasParaEmbalar.map((p) => (
-                        <li key={p.id} style={{ fontSize: 13, color: COR.texto, display: "flex", gap: 8 }}>
-                          <span style={{ fontFamily: "ui-monospace, monospace", fontWeight: 700, color: COR.laranja, flexShrink: 0 }}>{p.displayId ?? "—"}</span>
-                          <span style={{ minWidth: 0, overflowWrap: "anywhere" }}>{linhaDaLista(p)}</span>
-                        </li>
-                      ))}
-                    </ul>
-                    <div>
-                      <span style={ROTULO}>1 · Em que tubo *</span>
-                      <div role="radiogroup" aria-label="Tubo em que embalar" style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 6 }}>
-                        {abertos.map((t) => chip(t.id, (
-                          <>
-                            <Package aria-hidden="true" style={{ width: 13, height: 13 }} />
-                            Tubo {t.numero} · {t.pecas.length} {t.pecas.length === 1 ? "peça" : "peças"} · {t.fechadoEm ? `foto ${horaDe(t.fechadoEm)}` : "sem foto"}
-                          </>
-                        ), `embalar-no-tubo-${t.numero}`))}
-                        {chip("novo", "+ Novo tubo", "embalar-em-tubo-novo")}
-                      </div>
-                    </div>
-                    <div>
-                      <span style={ROTULO}>2 · Foto do tubo com os itens * <span style={{ textTransform: "none", letterSpacing: 0, fontWeight: 400 }}>· obrigatória, até 20</span></span>
-                      {uploaderDeFotos(fotosDoEmbalar, setFotosDoEmbalar, "Foto do tubo com os itens")}
-                    </div>
-                    {/* Cancelar / Embalar moram no rodapé fixo do modal (abaixo). */}
-                  </section>
-                );
-              })()}
-              {/* Chegou pelo "Embalar" mas a peça já está num tubo (outro
-                  aparelho embalou antes): diz onde, em vez de sumir calado. */}
-              {itensIniciais && itensIniciais.length > 0 && pecasParaEmbalar.length === 0 && (() => {
-                const onde = data.tubos.filter((t) => t.pecas.some((p) => itensIniciais.includes(p.id)));
-                if (onde.length === 0) return null;
-                return (
-                  <p data-testid="embalar-ja-no-tubo" style={{ margin: 0, padding: "10px 12px", borderRadius: 10, background: COR.azulBg, border: `1px solid ${COR.azulBorda}`, fontSize: 12.5, color: COR.azul }}>
-                    {itensIniciais.length === 1 ? "A peça já está" : "As peças já estão"} no {onde.map((t) => `Tubo ${t.numero}`).join(", ")}.
-                  </p>
-                );
-              })()}
-
-              {/* ── 1 · Peças sem tubo ── */}
-              <section data-testid="pecas-sem-tubo" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-                  <span style={ROTULO}>Peças sem tubo · {data.semTubo.length}</span>
-                  {data.semTubo.length > 1 && (
-                    <button type="button" onClick={() => setSelecionadas(todasMarcadas ? new Set() : new Set(data.semTubo.filter((p) => !soVisualizaKit(p)).map((p) => p.id)))}
-                      style={{ minHeight: alvo, border: "none", background: "none", fontSize: 12, fontWeight: 700, color: COR.laranja, cursor: "pointer", padding: 0 }}>
-                      {todasMarcadas ? "Desmarcar todas" : "Marcar todas"}
-                    </button>
-                  )}
-                </div>
-
-                {data.semTubo.length === 0 ? (
-                  <p style={{ margin: 0, fontSize: 12.5, color: COR.fraco }}>
-                    Nenhuma peça esperando tubo — as que terminaram a impressão já estão em tubos.
-                  </p>
-                ) : (
-                  <>
-                    <div style={{ border: `1px solid ${COR.borda}`, borderRadius: 10, overflow: "hidden" }}>
-                      {data.semTubo.map((p) => (
-                        <label key={p.id} data-testid={`peca-sem-tubo-${p.id}`}
-                          style={{ display: "flex", alignItems: "center", gap: 10, minHeight: alvo, boxSizing: "border-box", padding: "9px 12px", borderTop: `1px solid #f5f5f4`, cursor: "pointer", background: selecionadas.has(p.id) ? "#fff7ed" : "#fff" }}>
-                          {soVisualizaKit(p) ? (
-                            <span title="Peça do Kit: a Solicitação da Arena só visualiza" style={{ width: 18, flexShrink: 0, fontSize: fsMin(10), fontWeight: 800, color: "#92400e" }}>KIT</span>
-                          ) : (
-                            <input type="checkbox" checked={selecionadas.has(p.id)} onChange={() => alternar(p.id)}
-                              style={{ width: 18, height: 18, accentColor: COR.laranja, flexShrink: 0 }} />
-                          )}
-                          <span style={{ fontFamily: "ui-monospace, monospace", fontSize: 12.5, fontWeight: 700, color: COR.laranja, flexShrink: 0 }}>{p.displayId ?? "—"}</span>
-                          <span style={estiloDoNomeDaPeca}>
-                            {p.type}{p.description ? <span style={{ color: COR.sec }}> · {p.description}</span> : null}
-                          </span>
-                          <span style={{ fontSize: 12, color: COR.sec, whiteSpace: "nowrap" }}>{p.quantity} un.</span>
-                          {!p.conferida && (
-                            <span style={{ fontSize: fsMin(10.5), fontWeight: 700, color: COR.ambar, background: COR.ambarBg, border: `1px solid ${COR.ambarBorda}`, borderRadius: 999, padding: "1px 7px", whiteSpace: "nowrap" }}>
-                              falta conferir
-                            </span>
-                          )}
-                        </label>
-                      ))}
-                    </div>
-
-                    {selecionadas.size > 0 && (
-                      <div style={{ display: "flex", flexDirection: "column", gap: 8, padding: 12, borderRadius: 10, background: COR.fundo, border: `1px solid ${COR.borda}` }}>
-                        <span style={ROTULO}>Pôr as {selecionadas.size} marcadas em</span>
-                        <div role="radiogroup" aria-label="Tubo de destino" style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                          {abertos.map((t) => chipDeDestino(t.id, `Tubo ${t.numero}`))}
-                          {chipDeDestino("novo", "+ Tubo novo")}
-                        </div>
-                        {/* Peça CONFERIDA entrando no tubo é um embalar: pede a foto
-                            do tubo com os itens (o servidor recusa sem ela). A que
-                            ainda falta conferir entra sem foto. */}
-                        {precisaFotoNoColocar && (
-                          <div data-testid="fotos-do-colocar">
-                            <span style={ROTULO}>Foto do tubo com os itens * <span style={{ textTransform: "none", letterSpacing: 0, fontWeight: 400 }}>· obrigatória para embalar</span></span>
-                            {uploaderDeFotos(fotosDoColocar, setFotosDoColocar, "Foto do tubo com os itens")}
-                          </div>
-                        )}
-                        <button type="button" onClick={() => colocar.mutate()} disabled={colocar.isPending || (precisaFotoNoColocar && fotosDoColocar.length === 0)}
-                          data-testid="button-colocar-no-tubo"
-                          style={{ alignSelf: isMobile ? "stretch" : "flex-start", height: isMobile ? 48 : 38, padding: "0 16px", borderRadius: 8, border: "none", background: COR.laranja, color: "#fff", fontWeight: 800, fontSize: 13, cursor: colocar.isPending ? "wait" : "pointer", opacity: colocar.isPending || (precisaFotoNoColocar && fotosDoColocar.length === 0) ? 0.55 : 1 }}>
-                          {colocar.isPending ? "Salvando…" : precisaFotoNoColocar && fotosDoColocar.length === 0 ? "Tire a foto do tubo para embalar" : `Colocar ${selecionadas.size} no ${destino === "novo" ? "tubo novo" : `Tubo ${abertos.find((t) => t.id === destino)?.numero ?? ""}`}`}
-                        </button>
-                      </div>
-                    )}
-                  </>
-                )}
+              <section>
+                <label htmlFor="campo-quem-recebeu" style={ROTULO}>Quem recebeu <span style={{ textTransform: "none", letterSpacing: 0, fontWeight: 400 }}>· obrigatório</span></label>
+                <input id="campo-quem-recebeu" ref={campoRef} value={recebidoPor} onChange={(e) => setRecebidoPor(e.target.value)} placeholder="Nome de quem recebeu" autoComplete="off"
+                  onKeyDown={(e) => { if (e.key === "Enter" && !e.repeat) confirmar(); }}
+                  data-testid={`recebedor-tubo-${t.numero}`} style={{ ...campo, marginTop: 6 }} />
+                <SugestaoRecebedor nome={sugestaoRecebedor} atual={recebidoPor} onUsar={setRecebidoPor} />
               </section>
-
-              {/* ── 2 · Os tubos ── */}
-              <section style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                <span style={ROTULO}>Tubos · {data.tubos.length}</span>
-                {data.tubos.length === 0 && (
-                  <p style={{ margin: 0, fontSize: 12.5, color: COR.fraco }}>
-                    Nenhum tubo ainda. Marque as peças acima e coloque num tubo novo.
+              <section>
+                <span style={ROTULO}>Foto do comprovante <span style={{ textTransform: "none", letterSpacing: 0, fontWeight: 400 }}>{temFotoDoTubo ? "· opcional, o tubo já tem foto" : "· obrigatória"}</span></span>
+                {!temFotoDoTubo && (
+                  <p data-testid="entregar-porque-foto" style={{ margin: "4px 0 0", fontSize: 12.5, color: COR.ambar }}>
+                    Este tubo foi embalado antes de a foto ser obrigatória e não tem nenhuma. Toda entrega sai com foto: tire a do comprovante.
                   </p>
                 )}
-
-                {data.tubos.map((t) => {
-                  const entregue = !!t.entregueEm;
-                  const vazio = t.pecas.length === 0;
-                  const fechado = !!t.fechadoEm;
-                  const status = entregue
-                    ? { texto: `Entregue ${quandoFoi(t.entregueEm)}`, cor: COR.verde, bg: COR.verdeBg, borda: COR.verdeBorda }
-                    : vazio
-                      ? { texto: "Vazio", cor: COR.fraco, bg: COR.fundo, borda: COR.borda }
-                      : t.prontoParaEntregar
-                        ? (fechado
-                          ? { texto: `Foto ${quandoFoi(t.fechadoEm)} · pronto para entregar`, cor: COR.azul, bg: COR.azulBg, borda: COR.azulBorda }
-                          : { texto: "Sem foto · pronto para entregar", cor: COR.verde, bg: COR.verdeBg, borda: COR.verdeBorda })
-                        : { texto: `Falta conferir ${t.faltamConferir.length}`, cor: COR.ambar, bg: COR.ambarBg, borda: COR.ambarBorda };
-                  const motivoBloqueio = vazio
-                    ? "O tubo está vazio"
-                    : t.faltamConferir.length
-                      ? `Falta conferir: ${t.faltamConferir.join(", ")}`
-                      : undefined;
-
-                  return (
-                    <div key={t.id} data-testid={`tubo-${t.numero}`} style={{ border: `1px solid ${COR.borda}`, borderRadius: 12, overflow: "hidden", background: "#fff" }}>
-                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "10px 12px", background: COR.fundo, borderBottom: `1px solid ${COR.borda}`, flexWrap: "wrap" }}>
-                        <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 16, fontWeight: 800, color: COR.texto }}>
-                          Tubo {t.numero} <span style={{ fontSize: 12, fontWeight: 600, color: COR.sec }}>· {t.pecas.length} {t.pecas.length === 1 ? "peça" : "peças"}</span>
-                        </span>
-                        <span style={{ fontSize: fsMin(11), fontWeight: 800, color: status.cor, background: status.bg, border: `1px solid ${status.borda}`, borderRadius: 999, padding: "2px 9px", whiteSpace: "nowrap" }}>
-                          {status.texto}
-                        </span>
-                      </div>
-
-                      {t.pecas.map((p) => (
-                        <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", borderTop: `1px solid #f5f5f4` }}>
-                          <span style={{ fontFamily: "ui-monospace, monospace", fontSize: 12.5, fontWeight: 700, color: COR.laranja, flexShrink: 0 }}>{p.displayId ?? "—"}</span>
-                          <span style={estiloDoNomeDaPeca}>
-                            {p.type}{p.description ? <span style={{ color: COR.sec }}> · {p.description}</span> : null}
-                          </span>
-                          <span style={{ fontSize: 12, color: COR.sec, whiteSpace: "nowrap" }}>{p.quantity} un.</span>
-                          {!entregue && !p.conferida && (
-                            <span style={{ fontSize: fsMin(10.5), fontWeight: 700, color: COR.ambar, whiteSpace: "nowrap" }}>falta conferir</span>
-                          )}
-                          {!entregue && !soVisualizaKit(p) && (
-                            <button type="button" onClick={() => tirar.mutate({ tuboId: t.id, itemId: p.id })} disabled={tirar.isPending}
-                              aria-label={`Tirar ${p.displayId ?? "a peça"} do Tubo ${t.numero}`} title="Tirar do tubo"
-                              style={{ width: isMobile ? 44 : 32, height: isMobile ? 44 : 32, borderRadius: 8, border: `1px solid ${COR.borda}`, background: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                              <X aria-hidden="true" style={{ width: 13, height: 13, color: COR.sec }} />
-                            </button>
-                          )}
-                        </div>
-                      ))}
-
-                      {/* O fechamento: as fotos do tubo pronto, quando e quem —
-                          e o aviso quando mexeram no conteúdo depois da foto. */}
-                      {fechado && (
-                        <div data-testid={`fechamento-tubo-${t.numero}`} style={{ padding: "8px 12px", borderTop: `1px solid #f5f5f4`, display: "flex", flexDirection: "column", gap: 6 }}>
-                          <div style={{ fontSize: 12, color: COR.sec, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-                            <Camera aria-hidden="true" style={{ width: 13, height: 13, color: COR.azul }} />
-                            Fechado {quandoFoi(t.fechadoEm)}{t.fechadoPor ? ` por ${t.fechadoPor}` : ""} · {t.fotosFechamento.length} {t.fotosFechamento.length === 1 ? "foto" : "fotos"}
-                            {t.alteradoDepoisDaFoto && !entregue && (
-                              <span data-testid={`aviso-alterado-tubo-${t.numero}`} style={{ fontSize: fsMin(10.5), fontWeight: 700, color: COR.ambar, background: COR.ambarBg, border: `1px solid ${COR.ambarBorda}`, borderRadius: 999, padding: "1px 7px" }}>
-                                tubo alterado depois da foto
-                              </span>
-                            )}
-                          </div>
-                          {t.fotosFechamento.length > 0 && (
-                            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                              {t.fotosFechamento.map((url) => (
-                                <a key={url} href={url} target="_blank" rel="noreferrer" style={{ width: 48, height: 48, borderRadius: 6, overflow: "hidden", border: `1px solid ${COR.borda}`, display: "block" }}>
-                                  <img src={url} alt={`Foto do Tubo ${t.numero} fechado`} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                                </a>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      )}
-
-                      {entregue && (
-                        <div style={{ padding: "8px 12px", borderTop: `1px solid #f5f5f4`, fontSize: 12, color: COR.sec, display: "flex", alignItems: "center", gap: 6 }}>
-                          <CheckCircle2 aria-hidden="true" style={{ width: 13, height: 13, color: COR.verde }} />
-                          {t.recebidoPor ? `Recebido por ${t.recebidoPor}` : "Recebedor não informado"}
-                          {t.entreguePor ? ` · registrado por ${t.entreguePor}` : ""}
-                        </div>
-                      )}
-
-                      {/* Ações do tubo — dois passos, nesta ordem: fechar (foto
-                          do tubo) e entregar (quem recebeu). */}
-                      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", padding: "10px 12px", borderTop: `1px solid ${COR.borda}` }}>
-                        {!vazio && (
-                          <Link href={`/grafica/tubos/${t.id}/etiqueta`} data-testid={`etiqueta-tubo-${t.numero}`}
-                            style={{ display: "inline-flex", alignItems: "center", gap: 6, height: alvo, padding: "0 12px", borderRadius: 8, border: `1px solid ${COR.borda}`, background: "#fff", color: COR.texto, fontSize: 12.5, fontWeight: 700, textDecoration: "none" }}>
-                            <Tag aria-hidden="true" style={{ width: 13, height: 13 }} /> Etiqueta
-                          </Link>
-                        )}
-                        {!entregue && !vazio && fechando !== t.id && entregando !== t.id && !t.pecas.some(soVisualizaKit) && (
-                          <button type="button" onClick={() => { setFechando(t.id); setFotosFechamento([]); setEntregando(null); }}
-                            data-testid={`fechar-tubo-${t.numero}`}
-                            title={fechado ? "Tirar as fotos de novo (substitui as anteriores)" : "Foto do tubo fechado e dos itens dentro — as peças ficam Embalado"}
-                            style={{ display: "inline-flex", alignItems: "center", gap: 6, height: alvo, padding: "0 12px", borderRadius: 8, border: fechado ? `1px solid ${COR.azulBorda}` : "none", background: fechado ? COR.azulBg : COR.azul, color: fechado ? COR.azul : "#fff", fontSize: 12.5, fontWeight: 800, cursor: "pointer" }}>
-                            <PackageCheck aria-hidden="true" style={{ width: 13, height: 13 }} /> {fechado ? "Adicionar fotos" : "Adicionar fotos ao tubo"}
-                          </button>
-                        )}
-                        {!entregue && !vazio && entregando !== t.id && fechando !== t.id && !t.pecas.some(soVisualizaKit) && (
-                          <button type="button" onClick={() => { setEntregando(t.id); setFotos([]); setRecebidoPor(""); setObs(""); }}
-                            disabled={!t.prontoParaEntregar} title={motivoBloqueio ?? (fechado ? undefined : "Sem a foto do fechamento, a entrega vai pedir a foto do comprovante")}
-                            data-testid={`entregar-tubo-${t.numero}`}
-                            style={{ display: "inline-flex", alignItems: "center", gap: 6, height: alvo, padding: "0 12px", borderRadius: 8, border: "none", background: t.prontoParaEntregar ? COR.verde : "#e7e5e4", color: t.prontoParaEntregar ? "#fff" : COR.fraco, fontSize: 12.5, fontWeight: 800, cursor: t.prontoParaEntregar ? "pointer" : "not-allowed" }}>
-                            <Truck aria-hidden="true" style={{ width: 13, height: 13 }} /> Entregar tubo (quem recebeu)
-                          </button>
-                        )}
-                        {!entregue && !t.pecas.some(soVisualizaKit) && (
-                          confirmandoApagar === t.id ? (
-                            <>
-                              <button type="button" onClick={() => apagar.mutate(t.id)} disabled={apagar.isPending}
-                                data-testid={`confirmar-apagar-tubo-${t.numero}`}
-                                style={{ display: "inline-flex", alignItems: "center", gap: 6, height: alvo, padding: "0 12px", borderRadius: 8, border: "none", background: "#b91c1c", color: "#fff", fontSize: 12.5, fontWeight: 800, cursor: "pointer" }}>
-                                <Trash2 aria-hidden="true" style={{ width: 13, height: 13 }} /> {vazio ? "Apagar" : `Apagar e devolver ${t.pecas.length} a Conferido`}
-                              </button>
-                              <button type="button" onClick={() => setConfirmandoApagar(null)}
-                                style={{ height: alvo, padding: "0 10px", borderRadius: 8, border: `1px solid ${COR.borda}`, background: "#fff", color: COR.sec, fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}>
-                                Não
-                              </button>
-                            </>
-                          ) : (
-                            <button type="button" onClick={() => setConfirmandoApagar(t.id)}
-                              data-testid={`apagar-tubo-${t.numero}`}
-                              title={vazio ? "Apaga o tubo vazio" : "Apaga o tubo; as peças voltam a Conferido"}
-                              style={{ display: "inline-flex", alignItems: "center", gap: 6, height: alvo, padding: "0 12px", borderRadius: 8, border: `1px solid ${COR.borda}`, background: "#fff", color: "#b91c1c", fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}>
-                              <Trash2 aria-hidden="true" style={{ width: 13, height: 13 }} /> {vazio ? "Apagar tubo vazio" : "Apagar tubo"}
-                            </button>
-                          )
-                        )}
-                        {!entregue && !vazio && !t.prontoParaEntregar && motivoBloqueio && (
-                          <span style={{ fontSize: fsMin(11.5), color: COR.ambar, alignSelf: "center" }}>{motivoBloqueio}</span>
-                        )}
-                      </div>
-
-                      {/* Adicionar fotos ao tubo (opcional — o embalar já trouxe a foto) */}
-                      {fechando === t.id && (
-                        <div data-testid={`form-fechar-tubo-${t.numero}`} style={{ padding: 12, borderTop: `1px solid ${COR.borda}`, background: COR.azulBg, display: "flex", flexDirection: "column", gap: 10 }}>
-                          <span style={{ fontSize: 12.5, color: COR.texto }}>
-                            Mais fotos do <strong>Tubo {t.numero}</strong> e dos itens que estão nele — somam às {t.fotosFechamento.length} que o tubo já tem. Não é a entrega: as peças ficam <strong>Embalado</strong> até o tubo sair.
-                          </span>
-                          <div>
-                            <span style={ROTULO}>Fotos do tubo e dos itens *</span>
-                            {uploaderDeFotos(fotosFechamento, setFotosFechamento, `Foto do Tubo ${t.numero}`)}
-                          </div>
-                          {/* Cancelar / Fechar moram no rodapé fixo do modal (abaixo). */}
-                        </div>
-                      )}
-
-                      {/* Passo 2 · Entregar o tubo inteiro: quem recebeu e quando */}
-                      {entregando === t.id && (
-                        <div data-testid={`form-entrega-tubo-${t.numero}`} style={{ padding: 12, borderTop: `1px solid ${COR.borda}`, background: "#f0fdf4", display: "flex", flexDirection: "column", gap: 10 }}>
-                          <span style={{ fontSize: 12.5, color: COR.texto }}>
-                            Entregar as <strong>{t.pecas.filter((p) => !p.entregue).length}</strong> peças do Tubo {t.numero} de uma vez. O que registra a entrega é <strong>quem recebeu</strong> e a hora.
-                          </span>
-                          {/* O QUE ESTÁ NO TUBO (dono, 21/09: "tem que sinalizar quais
-                              itens estão no tubo") — a mesma linha da etiqueta. */}
-                          <div data-testid={`lista-entrega-tubo-${t.numero}`}>
-                            <span style={ROTULO}>No tubo · {t.pecas.length} {t.pecas.length === 1 ? "peça" : "peças"}</span>
-                            <ul style={{ margin: "6px 0 0", padding: "8px 10px", listStyle: "none", display: "flex", flexDirection: "column", gap: 4, background: "#fff", border: `1px solid ${COR.verdeBorda}`, borderRadius: 8 }}>
-                              {t.pecas.map((p) => (
-                                <li key={p.id} style={{ fontSize: 13, color: COR.texto, display: "flex", gap: 8 }}>
-                                  <span style={{ fontFamily: "ui-monospace, monospace", fontWeight: 700, color: COR.laranja, flexShrink: 0 }}>{p.displayId ?? "—"}</span>
-                                  <span style={{ minWidth: 0, overflowWrap: "anywhere" }}>{linhaDaLista(p)}</span>
-                                </li>
-                              ))}
-                            </ul>
-                          </div>
-                          {t.fotosFechamento.length > 0 ? (
-                            <div data-testid={`fotos-entrega-tubo-${t.numero}`}>
-                              <span style={ROTULO}>Fotos do tubo · {t.fotosFechamento.length}</span>
-                              <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 6 }}>
-                                {t.fotosFechamento.map((url) => (
-                                  <a key={url} href={url} target="_blank" rel="noreferrer" style={{ width: 56, height: 56, borderRadius: 6, overflow: "hidden", border: `1px solid ${COR.borda}`, display: "block" }}>
-                                    <img src={url} alt={`Foto do Tubo ${t.numero}`} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                                  </a>
-                                ))}
-                              </div>
-                            </div>
-                          ) : (
-                            <span style={{ fontSize: fsMin(11.5), color: COR.ambar }}>
-                              Este tubo foi embalado antes de a foto ser obrigatória e não tem nenhuma: anexe a foto do comprovante para entregar.
-                            </span>
-                          )}
-                          <div>
-                            <span style={ROTULO}>Quem recebeu *</span>
-                            <input value={recebidoPor} onChange={(e) => setRecebidoPor(e.target.value)} placeholder="Nome de quem recebeu"
-                              data-testid={`recebedor-tubo-${t.numero}`}
-                              style={{ marginTop: 6, width: "100%", boxSizing: "border-box", height: isMobile ? 44 : 38, borderRadius: 8, border: `1px solid ${COR.borda}`, padding: "0 10px", fontSize: isMobile ? 16 : 13, background: "#fff" }} />
-                          </div>
-                          <div>
-                            <span style={ROTULO}>Foto do comprovante <span style={{ textTransform: "none", letterSpacing: 0, fontWeight: 400 }}>{t.fotosFechamento.length > 0 ? "· opcional, o tubo já tem foto" : "· obrigatória, o tubo não tem foto"}</span></span>
-                            {uploaderDeFotos(fotos, setFotos, "Foto da entrega")}
-                          </div>
-                          <input value={obs} onChange={(e) => setObs(e.target.value)} placeholder="Observação (opcional)" aria-label="Observação (opcional)"
-                            style={{ width: "100%", boxSizing: "border-box", height: isMobile ? 44 : 38, borderRadius: 8, border: `1px solid ${COR.borda}`, padding: "0 10px", fontSize: isMobile ? 16 : 13, background: "#fff" }} />
-                          {/* Cancelar / Entregar moram no rodapé fixo do modal (abaixo). */}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
+                <Fotos lista={fotos} onMudar={setFotos} alt="Foto do comprovante" />
+              </section>
+              <section>
+                <label htmlFor="campo-obs-entrega" style={ROTULO}>Observação <span style={{ textTransform: "none", letterSpacing: 0, fontWeight: 400 }}>· opcional</span></label>
+                <input id="campo-obs-entrega" value={obs} onChange={(e) => setObs(e.target.value)} placeholder="Ex.: entregue na portaria" style={{ ...campo, marginTop: 6 }} />
               </section>
             </>
           )}
+        </>
+      )}
+    </Casca>
+  );
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// 3 · TUBOS DO EVENTO — gestão. As portas para embalar e entregar; nunca o
+//     formulário deles embutido.
+// ═════════════════════════════════════════════════════════════════════════════
+export function PainelDeTubos({ evento, onClose, onEmbalar, onEntregar }: {
+  evento: Evento | null;
+  onClose: () => void;
+  /** Abre o modal Embalar com as conferidas sem tubo do evento. */
+  onEmbalar: (ids: string[]) => void;
+  /** Abre o modal Entregar daquele tubo. */
+  onEntregar: (tuboId: string) => void;
+}) {
+  const { toast } = useToast();
+  const { isMobile, alvo, fsMin } = useMedidas();
+  const soVisualizaKit = useSoVisualizaKit();
+  const { data, isLoading, isError, refetch } = useRetrato(evento);
+
+  const [adicionandoFotos, setAdicionandoFotos] = useState<string | null>(null);
+  const [fotosNovas, setFotosNovas] = useState<string[]>([]);
+  // Apagar é a única ação que destrói: pede o segundo toque.
+  const [confirmandoApagar, setConfirmandoApagar] = useState<string | null>(null);
+  const [verEntregues, setVerEntregues] = useState(false);
+  const [vista, setVista] = useState<string | null>(null);
+  if ((evento?.id ?? null) !== vista) { setVista(evento?.id ?? null); setAdicionandoFotos(null); setFotosNovas([]); setConfirmandoApagar(null); setVerEntregues(false); }
+
+  const falhou = (titulo: string) => (e: any) => toast({ title: titulo, description: mensagemDeErro(e), variant: "destructive" });
+  const tirar = useMutation({
+    mutationFn: async ({ tubo, peca }: { tubo: Tubo; peca: Peca }) => apiRequest("PATCH", `/api/tubos/${tubo.id}/itens`, { remover: [peca.id] }),
+    onSuccess: (_r, { tubo, peca }) => { toast({ title: `${peca.displayId ?? "Peça"} saiu do Tubo ${tubo.numero}`, description: "Voltou para Conferido." }); atualizarTudo(evento!.id); },
+    onError: falhou("Não foi possível tirar do tubo"),
+  });
+  const apagar = useMutation({
+    mutationFn: async (tubo: Tubo) => (await apiRequest("DELETE", `/api/tubos/${tubo.id}`)).json(),
+    onSuccess: (r: any, tubo) => {
+      toast({ title: `Tubo ${tubo.numero} apagado`, description: r?.devolvidas > 0 ? `${plural(r.devolvidas, "peça voltou", "peças voltaram")} para Conferido.` : undefined });
+      setConfirmandoApagar(null);
+      atualizarTudo(evento!.id);
+    },
+    onError: falhou("Não foi possível apagar o tubo"),
+  });
+  const guardarFotos = useMutation({
+    mutationFn: async (tubo: Tubo) => (await apiRequest("POST", `/api/tubos/${tubo.id}/fechar`, { fotos: fotosNovas })).json(),
+    onSuccess: (r: any) => {
+      toast({ title: `Fotos guardadas no Tubo ${r.numero}`, description: `${plural(r.fotos, "foto nova", "fotos novas")} · ${r.totalDeFotos ?? r.fotos} no tubo.` });
+      setAdicionandoFotos(null); setFotosNovas([]);
+      atualizarTudo(evento!.id);
+    },
+    onError: falhou("Não foi possível guardar as fotos do tubo"),
+  });
+
+  const abertos = (data?.tubos ?? []).filter((t) => !t.entregueEm);
+  const entregues = (data?.tubos ?? []).filter((t) => !!t.entregueEm);
+  const paraEmbalar = (data?.semTubo ?? []).filter((p) => p.conferida && !soVisualizaKit(p));
+  const esperandoConferir = (data?.semTubo ?? []).filter((p) => !p.conferida).length;
+  const tuboDasFotos = abertos.find((t) => t.id === adicionandoFotos) ?? null;
+
+  const acao = (cor: string, solido = false): React.CSSProperties => ({
+    display: "inline-flex", alignItems: "center", gap: 6, minHeight: alvo, padding: "0 12px", borderRadius: 8, fontSize: fsMin(12.5), fontWeight: 700, cursor: "pointer", textDecoration: "none",
+    border: solido ? "none" : `1px solid ${COR.borda}`, background: solido ? cor : "#fff", color: solido ? "#fff" : cor,
+  });
+
+  const cartaoDoTubo = (t: Tubo) => {
+    const entregue = !!t.entregueEm;
+    const vazio = t.pecas.length === 0;
+    const soVe = t.pecas.some(soVisualizaKit);
+    const status = entregue ? { texto: `Entregue ${quandoFoi(t.entregueEm)}`, cor: COR.verde, bg: COR.verdeBg, borda: COR.verdeBorda }
+      : vazio ? { texto: "Vazio", cor: COR.sec, bg: COR.fundo, borda: COR.borda }
+      : t.faltamConferir.length ? { texto: `Falta conferir ${t.faltamConferir.length}`, cor: COR.ambar, bg: COR.ambarBg, borda: COR.ambarBorda }
+      : { texto: "Pronto para entregar", cor: COR.azul, bg: COR.azulBg, borda: COR.azulBorda };
+    return (
+      <article key={t.id} data-testid={`tubo-${t.numero}`} aria-label={`Tubo ${t.numero}`} style={{ border: `1px solid ${COR.borda}`, borderRadius: 12, overflow: "hidden", background: "#fff" }}>
+        <header style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "10px 12px", background: COR.fundo, borderBottom: `1px solid ${COR.borda}`, flexWrap: "wrap" }}>
+          <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 16, fontWeight: 800, color: COR.texto }}>
+            Tubo {t.numero} <span style={{ fontSize: 12, fontWeight: 600, color: COR.sec }}>· {plural(t.pecas.length, "peça", "peças")} · {t.fotosFechamento.length ? plural(t.fotosFechamento.length, "foto", "fotos") : "sem foto"}</span>
+          </span>
+          <span style={{ fontSize: fsMin(11), fontWeight: 800, color: status.cor, background: status.bg, border: `1px solid ${status.borda}`, borderRadius: 999, padding: "2px 9px" }}>{status.texto}</span>
+        </header>
+
+        {t.pecas.map((p) => (
+          <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "6px 12px", borderTop: "1px solid #f5f5f4", flexWrap: "wrap" }}>
+            <LinhaDaPeca p={p} />
+            {!entregue && !p.conferida && <span style={{ fontSize: fsMin(11), fontWeight: 700, color: COR.ambar }}>falta conferir</span>}
+            {!entregue && !soVisualizaKit(p) && (
+              <button type="button" onClick={() => tirar.mutate({ tubo: t, peca: p })} disabled={tirar.isPending}
+                data-testid={`tirar-peca-${p.id}`} aria-label={`Tirar ${p.displayId ?? "a peça"} do Tubo ${t.numero}`}
+                style={{ ...acao(COR.sec), padding: "0 10px" }}>
+                Tirar
+              </button>
+            )}
+          </div>
+        ))}
+
+        {t.fotosFechamento.length > 0 && (
+          <div data-testid={`fotos-tubo-${t.numero}`} style={{ padding: "8px 12px", borderTop: "1px solid #f5f5f4", display: "flex", flexDirection: "column", gap: 6 }}>
+            <span style={{ fontSize: 12, color: COR.sec }}>
+              Última foto {quandoFoi(t.fechadoEm)}{t.fechadoPor ? ` por ${t.fechadoPor}` : ""}
+              {t.alteradoDepoisDaFoto && !entregue && <strong data-testid={`aviso-alterado-tubo-${t.numero}`} style={{ color: COR.ambar }}> · o conteúdo mudou depois da foto</strong>}
+            </span>
+            <Miniaturas fotos={t.fotosFechamento} alt={`Foto do Tubo ${t.numero}`} tamanho={48} />
+          </div>
+        )}
+        {entregue && (
+          <div style={{ padding: "8px 12px", borderTop: "1px solid #f5f5f4", fontSize: 12, color: COR.sec, display: "flex", alignItems: "center", gap: 6 }}>
+            <CheckCircle2 aria-hidden="true" style={{ width: 13, height: 13, color: COR.verde }} />
+            {t.recebidoPor ? `Recebido por ${t.recebidoPor}` : "Recebedor não informado"}{t.entreguePor ? ` · registrado por ${t.entreguePor}` : ""}
+          </div>
+        )}
+
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", padding: "10px 12px", borderTop: `1px solid ${COR.borda}` }}>
+          {!entregue && !vazio && !soVe && (
+            <button type="button" onClick={() => onEntregar(t.id)} data-testid={`entregar-tubo-${t.numero}`}
+              title={t.prontoParaEntregar ? "Abre a entrega deste tubo" : `Falta conferir: ${t.faltamConferir.join(", ")}`}
+              style={acao(COR.verde, t.prontoParaEntregar)}>
+              <Truck aria-hidden="true" style={{ width: 13, height: 13 }} /> Entregar
+            </button>
+          )}
+          {!entregue && !vazio && !soVe && (
+            <button type="button" onClick={() => { setAdicionandoFotos(t.id); setFotosNovas([]); }} data-testid={`fechar-tubo-${t.numero}`} style={acao(COR.azul)}>
+              <Camera aria-hidden="true" style={{ width: 13, height: 13 }} /> Adicionar fotos
+            </button>
+          )}
+          {!vazio && (
+            <Link href={`/grafica/tubos/${t.id}/etiqueta`} data-testid={`etiqueta-tubo-${t.numero}`} style={acao(COR.texto)}>
+              <Tag aria-hidden="true" style={{ width: 13, height: 13 }} /> Etiqueta
+            </Link>
+          )}
+          {!entregue && !soVe && (
+            confirmandoApagar === t.id ? (
+              <>
+                <button type="button" onClick={() => apagar.mutate(t)} disabled={apagar.isPending} data-testid={`confirmar-apagar-tubo-${t.numero}`} style={acao(COR.vermelho, true)}>
+                  <Trash2 aria-hidden="true" style={{ width: 13, height: 13 }} /> {vazio ? "Apagar mesmo" : `Apagar e devolver ${t.pecas.length} a Conferido`}
+                </button>
+                <button type="button" onClick={() => setConfirmandoApagar(null)} style={acao(COR.sec)}>Não</button>
+              </>
+            ) : (
+              <button type="button" onClick={() => setConfirmandoApagar(t.id)} data-testid={`apagar-tubo-${t.numero}`}
+                title={vazio ? "Apaga o tubo vazio" : "Apaga o tubo; as peças voltam a Conferido"} style={acao(COR.vermelho)}>
+                <Trash2 aria-hidden="true" style={{ width: 13, height: 13 }} /> Apagar tubo
+              </button>
+            )
+          )}
+          {soVe && !entregue && <span style={{ fontSize: fsMin(12), color: COR.ambar }}>Tem peça do Kit: aqui você só visualiza.</span>}
         </div>
 
-        {/* ── Rodapé fixo (fora da rolagem): os botões do formulário aberto ──
-            Fechar tubo / Entregar tubo ficavam no fim do bloco do tubo, e no
-            celular o teclado ou a lista de tubos os empurravam para fora da
-            tela. Aqui ficam sempre à vista, com o recorte seguro do home
-            indicator — nos LONGOS, porque o jsdom descarta o atalho com env(). */}
-        {!tuboEmFormulario && pecasParaEmbalar.length > 0 && (() => {
-          const n = fotosDoEmbalar.length;
-          const numero = tuboDoEmbalar === "novo" ? null : abertos.find((t) => t.id === tuboDoEmbalar)?.numero;
-          const pronto = !!tuboDoEmbalar && n > 0;
-          const rotulo = embalar.isPending ? "Salvando…"
-            : !tuboDoEmbalar ? "Escolha o tubo"
-            : n === 0 ? "Tire a foto para embalar"
-            : `Embalar no ${numero ? `Tubo ${numero}` : "tubo novo"} · ${n} ${n === 1 ? "foto" : "fotos"}`;
-          return (
-            <div data-testid="rodape-embalar"
-              style={{ flexShrink: 0, display: "flex", gap: 10, paddingTop: 10, paddingLeft: pad, paddingRight: pad, paddingBottom: "calc(10px + env(safe-area-inset-bottom))", borderTop: `1px solid ${COR.borda}`, background: "#fff", boxShadow: "0 -8px 12px -8px rgba(28,25,23,0.18)" }}>
-              <button type="button" onClick={onClose}
-                style={{ flex: 1, minHeight: isMobile ? 48 : 40, borderRadius: 8, border: `1px solid ${COR.borda}`, background: "#fff", color: COR.sec, fontWeight: 700, fontSize: 12.5, cursor: "pointer" }}>
-                Cancelar
+        {adicionandoFotos === t.id && (
+          <div data-testid={`form-fechar-tubo-${t.numero}`} style={{ padding: 12, borderTop: `1px solid ${COR.borda}`, background: COR.azulBg }}>
+            <span style={{ fontSize: 13, color: COR.texto }}>Mais fotos do <strong>Tubo {t.numero}</strong> com os itens — somam às que ele já tem.</span>
+            <Fotos lista={fotosNovas} onMudar={setFotosNovas} alt={`Foto do Tubo ${t.numero}`} />
+          </div>
+        )}
+      </article>
+    );
+  };
+
+  return (
+    <Casca aberto={!!evento} onClose={onClose} icone={Package} tint={COR.laranja} largura={660} testId="painel-de-tubos"
+      titulo={`Tubos · ${evento?.name ?? ""}`} subtitulo="O que está em cada tubo, as fotos, a etiqueta e a entrega"
+      rodape={tuboDasFotos ? (
+        <Rodape testId={`rodape-fechar-tubo-${tuboDasFotos.numero}`}>
+          <BotaoCancelar onClick={() => { setAdicionandoFotos(null); setFotosNovas([]); }} />
+          <BotaoPrimario onClick={() => guardarFotos.mutate(tuboDasFotos)} disabled={guardarFotos.isPending || fotosNovas.length === 0} cor={COR.azul} testId={`confirmar-fechar-tubo-${tuboDasFotos.numero}`}>
+            {guardarFotos.isPending ? "Salvando…" : fotosNovas.length ? `Guardar no Tubo ${tuboDasFotos.numero} · ${plural(fotosNovas.length, "foto", "fotos")}` : "Tire a foto para guardar"}
+          </BotaoPrimario>
+        </Rodape>
+      ) : undefined}>
+      {isLoading && <Carregando />}
+      {isError && <ErroAoCarregar onTentar={() => refetch()} />}
+
+      {data && (
+        <>
+          {/* A porta para o modal Embalar — só aparece quando há o que embalar. */}
+          {paraEmbalar.length > 0 && (
+            <button type="button" onClick={() => onEmbalar(paraEmbalar.map((p) => p.id))} data-testid="painel-embalar-conferidas"
+              style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, minHeight: isMobile ? 48 : 44, borderRadius: 10, border: "none", background: COR.azul, color: "#fff", fontSize: 14, fontWeight: 800, cursor: "pointer" }}>
+              <Package aria-hidden="true" style={{ width: 15, height: 15 }} /> Embalar peças conferidas ({paraEmbalar.length})
+            </button>
+          )}
+          {esperandoConferir > 0 && (
+            <p data-testid="painel-esperando-conferir" style={{ margin: 0, fontSize: 12.5, color: COR.sec }}>
+              {plural(esperandoConferir, "peça saiu", "peças saíram")} da impressão e ainda {esperandoConferir === 1 ? "espera" : "esperam"} a conferência — só a conferida é embalada.
+            </p>
+          )}
+
+          <section style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            <span style={ROTULO}>Tubos abertos · {abertos.length}</span>
+            {abertos.length === 0 && (
+              <p data-testid="painel-sem-tubos" style={{ margin: 0, fontSize: 13, color: COR.sec }}>
+                {paraEmbalar.length > 0 ? "Nenhum tubo aberto. Embale as peças conferidas para abrir o primeiro." : "Nenhum tubo aberto neste evento."}
+              </p>
+            )}
+            {abertos.map(cartaoDoTubo)}
+          </section>
+
+          {entregues.length > 0 && (
+            <section style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              <button type="button" onClick={() => setVerEntregues((v) => !v)} aria-expanded={verEntregues} data-testid="painel-ver-entregues"
+                style={{ display: "flex", alignItems: "center", justifyContent: "space-between", minHeight: alvo, padding: "0 12px", borderRadius: 8, border: `1px solid ${COR.borda}`, background: COR.fundo, color: COR.texto, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+                Tubos entregues · {entregues.length}
+                <ChevronDown aria-hidden="true" style={{ width: 15, height: 15, transform: verEntregues ? "rotate(180deg)" : undefined }} />
               </button>
-              <button type="button" onClick={confirmarEmbalar} disabled={embalar.isPending || !pronto}
-                data-testid="confirmar-embalar"
-                style={{ flex: 2, minHeight: isMobile ? 48 : 40, borderRadius: 8, border: "none", background: pronto ? COR.azul : "#e7e5e4", color: pronto ? "#fff" : COR.fraco, fontWeight: 800, fontSize: 13, cursor: embalar.isPending || !pronto ? "not-allowed" : "pointer" }}>
-                {rotulo}
-              </button>
-            </div>
-          );
-        })()}
-        {tuboEmFormulario && (() => {
-          const t = tuboEmFormulario;
-          const fechandoEste = fechando === t.id;
-          // Entrega: quem recebeu E alguma foto — a do fechamento já serve; sem
-          // nenhuma, anexa-se a do comprovante (dono, 21/09: toda entrega tem foto).
-          const temFoto = t.fotosFechamento.length > 0 || fotos.length > 0;
-          const podeConfirmar = fechandoEste ? fotosFechamento.length > 0 : !!recebidoPor.trim() && temFoto;
-          const pendente = fechandoEste ? fechar.isPending : entregar.isPending;
-          return (
-            <div data-testid={`rodape-${fechandoEste ? "fechar" : "entregar"}-tubo-${t.numero}`}
-              style={{ flexShrink: 0, display: "flex", gap: 10, paddingTop: 10, paddingLeft: pad, paddingRight: pad, paddingBottom: "calc(10px + env(safe-area-inset-bottom))", borderTop: `1px solid ${COR.borda}`, background: "#fff", boxShadow: "0 -8px 12px -8px rgba(28,25,23,0.18)" }}>
-              <button type="button"
-                onClick={() => { if (fechandoEste) { setFechando(null); setFotosFechamento([]); } else setEntregando(null); }}
-                style={{ flex: 1, minHeight: isMobile ? 48 : 40, borderRadius: 8, border: `1px solid ${COR.borda}`, background: "#fff", color: COR.sec, fontWeight: 700, fontSize: 12.5, cursor: "pointer" }}>
-                Cancelar
-              </button>
-              {fechandoEste ? (
-                <button type="button" onClick={() => fechar.mutate(t)} disabled={fechar.isPending || fotosFechamento.length === 0}
-                  data-testid={`confirmar-fechar-tubo-${t.numero}`}
-                  style={{ flex: 2, minHeight: isMobile ? 48 : 40, borderRadius: 8, border: "none", background: podeConfirmar ? COR.azul : "#e7e5e4", color: podeConfirmar ? "#fff" : COR.fraco, fontWeight: 800, fontSize: 13, cursor: pendente || !podeConfirmar ? "not-allowed" : "pointer" }}>
-                  {fechar.isPending ? "Salvando…" : fotosFechamento.length ? `Guardar no Tubo ${t.numero} · ${fotosFechamento.length} ${fotosFechamento.length === 1 ? "foto" : "fotos"}` : "Tire a foto para guardar"}
-                </button>
-              ) : (
-                <button type="button" onClick={() => entregar.mutate(t)} disabled={entregar.isPending || !recebidoPor.trim()}
-                  data-testid={`confirmar-entrega-tubo-${t.numero}`}
-                  style={{ flex: 2, minHeight: isMobile ? 48 : 40, borderRadius: 8, border: "none", background: podeConfirmar ? COR.verde : "#e7e5e4", color: podeConfirmar ? "#fff" : COR.fraco, fontWeight: 800, fontSize: 13, cursor: pendente || !podeConfirmar ? "not-allowed" : "pointer" }}>
-                  {entregar.isPending ? "Salvando…" : recebidoPor.trim() ? `Entregar Tubo ${t.numero}` : "Informe quem recebeu"}
-                </button>
-              )}
-            </div>
-          );
-        })()}
-      </DialogContent>
-    </Dialog>
+              {verEntregues && entregues.map(cartaoDoTubo)}
+            </section>
+          )}
+        </>
+      )}
+    </Casca>
+  );
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// O ponto de entrada da Gráfica: UM modal por vez, escolhido pela porta.
+// ═════════════════════════════════════════════════════════════════════════════
+export function TubosDialog({ evento, onClose, itensIniciais, tuboInicial, onEmbalou, sugestaoRecebedor, onEntregou }: {
+  evento: Evento | null;
+  onClose: () => void;
+  /** Chegou pelo "Embalar" da peça (ou do lote): abre direto o modal Embalar. */
+  itensIniciais?: string[];
+  /** Chegou pelo "Entregar tubo" da embalada: abre direto o modal Entregar. */
+  tuboInicial?: string;
+  onEmbalou?: () => void;
+  sugestaoRecebedor?: string;
+  onEntregou?: (recebedor: string) => void;
+}) {
+  // A partir do painel: o modal que ele abriu. Fechar volta ao painel.
+  const [doPainel, setDoPainel] = useState<{ embalar: string[] } | { entregar: string } | null>(null);
+  const [vista, setVista] = useState<string | null>(null);
+  if ((evento?.id ?? null) !== vista) { setVista(evento?.id ?? null); setDoPainel(null); }
+
+  const direto = itensIniciais?.length ? "embalar" : tuboInicial ? "entregar" : null;
+  const embalando = direto === "embalar" ? itensIniciais! : doPainel && "embalar" in doPainel ? doPainel.embalar : null;
+  const entregando = direto === "entregar" ? tuboInicial! : doPainel && "entregar" in doPainel ? doPainel.entregar : null;
+  const voltar = () => (direto ? onClose() : setDoPainel(null));
+
+  return (
+    <>
+      <PainelDeTubos evento={evento && !embalando && !entregando ? evento : null} onClose={onClose}
+        onEmbalar={(ids) => setDoPainel({ embalar: ids })} onEntregar={(id) => setDoPainel({ entregar: id })} />
+      <EmbalarDialog evento={embalando ? evento : null} itens={embalando ?? []} comCaixas={!direto} onClose={voltar} onEmbalou={onEmbalou} />
+      <EntregarTuboDialog evento={entregando ? evento : null} tuboId={entregando} sugestaoRecebedor={sugestaoRecebedor} onClose={voltar} onEntregou={onEntregou} />
+    </>
   );
 }

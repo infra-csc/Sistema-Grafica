@@ -40,6 +40,7 @@ import { temRefacao } from "@/lib/analises-desempenho";
 import { ehBookCompleto } from "@shared/fluxo-peca";
 import { isDelivered } from "@/lib/analises-status";
 import { StatusPill } from "@/components/status-pill";
+import { DetalheProducao } from "@/components/detalhe-producao";
 import type { Event, Sponsor, StandardItem } from "@shared/schema";
 import {
   STATUS_GROUPS, GROUP_KEYS, computeStats, matchesStatusFilter,
@@ -925,6 +926,7 @@ const LinhaDaPeca = memo(function LinhaDaPeca({
           crescer a altura da tabela. */}
       <td data-testid={`cell-idade-${item.id}`} style={{ padding: "10px 16px", overflow: "hidden" }}>
         <StatusPill status={isDeleted ? "deleted" : item.status} />
+        {!isDeleted && <DetalheProducao item={item} style={{ whiteSpace: "normal" }} />}
         {(() => {
           if (isDeleted) return null;
           // `relogioIdade` e nao Date.now(): a linha e memoizada, entao o
@@ -1079,6 +1081,7 @@ const CartaoDaPeca = memo(function CartaoDaPeca({
             </span>
           )}
         </div>
+        {!isDeleted && <DetalheProducao item={item} style={{ marginTop: 0 }} />}
         {/* Row 4: sponsors */}
         {!isDeleted && item.sponsors && item.sponsors.length > 0 && (
           <div style={{ minWidth: 0, overflow: "hidden" }}>

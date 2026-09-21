@@ -68,6 +68,22 @@ export interface PecaDoPedido {
   type: string;
   quantity: number;
   status: string;
+  // Produção (21/09) — o que a frase "Impressora 2 · 3 de 10" / "Tubo 2" lê.
+  // Opcionais: resposta antiga em cache e testes não os trazem.
+  reuseQty?: number | null;
+  isReuse?: boolean | null;
+  quantityProduced?: number | null;
+  conferredQty?: number | null;
+  printMachine?: string | null;
+  impressaoPorMaquina?: unknown;
+  maquinaPrevista?: string | null;
+  reservaPorMaquina?: unknown;
+  tuboId?: string | null;
+  tuboNumero?: number | null;
+  tuboFechadoEm?: string | null;
+  tuboEntregueEm?: string | null;
+  tuboRecebidoPor?: string | null;
+  receivedBy?: string | null;
 }
 
 /** Uma peça solicitada, como a API devolve (nomes resolvidos e peças criadas). */
@@ -295,7 +311,12 @@ export function seloDoEventoDoPedido(
 
 // ─── Andamento da peça que saiu do pedido ────────────────────────────────────
 
-export const ETAPAS_DA_PECA = ["Criação", "Aprovação", "Produção", "Conferência", "Entregue"] as const;
+// 5 etapas GROSSAS de propósito (as contagens de progresso e o teste leem os
+// índices 0..4). A 4ª cobre produced + conferred + packed — por isso o nome
+// "Acabamento / Conferência" e não só "Conferência" (21/09). A etapa FINA
+// (Em Impressão, Impresso, Conferido, Embalado) aparece ao lado das bolinhas,
+// no selo de lib/status + a frase de lib/detalhe-producao.
+export const ETAPAS_DA_PECA = ["Criação", "Aprovação", "Produção", "Acabamento / Conferência", "Entregue"] as const;
 
 /** Em que etapa a peça está (0..4), ou null se foi cancelada. */
 export function etapaDaPeca(status: string | null | undefined): number | null {

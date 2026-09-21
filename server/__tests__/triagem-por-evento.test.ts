@@ -52,7 +52,8 @@ describe("a lista de eventos", () => {
   });
 
   it("a página abre na lista de eventos e o clique abre o quadro", () => {
-    expect(PAGINA).toContain('useState<"eventos" | "quadro" | "tabela">("eventos")');
+    // Abre nos eventos; só a URL (F5 / link da pilha) leva direto ao quadro ou à tabela (21/09).
+    expect(PAGINA).toContain('return v === "tabela" ? "tabela" : v === "quadro" && urlInicial.get("evento") ? "quadro" : "eventos";');
     expect(PAGINA).toContain('onAbrir={(id) => { setEventoDoQuadro(id); setVista("quadro"); }}');
     expect(EVENTOS).toContain("data-testid={`evento-triagem-${e.id}`}");
   });
@@ -68,7 +69,8 @@ describe("o quadro de arrastar", () => {
 
   it("arrasta (uma ou as selecionadas juntas) e solta na coluna", () => {
     expect(QUADRO).toContain("draggable={podeArrastar}");
-    expect(QUADRO).toContain("const ids = selecionadas.has(a.id) ? Array.from(selecionadas) : [a.id];");
+    // A seleção é lida por ref para os handlers ficarem estáveis (memo do cartão, 21/09).
+    expect(QUADRO).toContain("const idsDoGesto = (id: string) => (refSelecionadas.current.has(id) ? Array.from(refSelecionadas.current) : [id]);");
     expect(QUADRO).toContain("if (ids?.length) mover(ids, destino);");
     expect(QUADRO).toContain("data-testid={`coluna-triagem-${destino}`}");
   });
@@ -80,7 +82,7 @@ describe("o quadro de arrastar", () => {
 
   it("nada grava antes de salvar, e o Galpão exige local", () => {
     expect(QUADRO).toContain('apiRequest("PATCH", `/api/inventory/${ativo.id}/triage`');
-    expect(QUADRO).toContain("const faltaLocal = naColuna(\"galpao\").length > 0 && !local.galpao.trim();");
+    expect(QUADRO).toContain("const faltaLocal = porColuna.galpao.length > 0 && !local.galpao.trim();");
     expect(QUADRO).toContain('data-testid="aviso-local-galpao"');
   });
 

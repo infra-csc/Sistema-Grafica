@@ -5869,7 +5869,8 @@ export default function Grafica() {
           refazer, senão é ida e volta garantida. */}
       <TubosDialog evento={tubosDoEvento} onClose={() => setTubosDoEvento(null)}
         itensIniciais={tubosDoEvento?.embalar} tuboInicial={tubosDoEvento?.entregarTubo}
-        onEmbalou={() => { if (bulkPackMode) sairDoLote(); }} />
+        onEmbalou={() => { if (bulkPackMode) sairDoLote(); }}
+        sugestaoRecebedor={ultimoRecebedor} onEntregou={setUltimoRecebedor} />
 
       {galpao && (
         <GalpaoFila

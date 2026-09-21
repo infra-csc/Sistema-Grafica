@@ -94,7 +94,9 @@ export const STATUS: Record<string, StatusMeta> = {
   // 14/09 (dono): "Em Produção" virou "Em Impressão" — a peça está NA
   // MÁQUINA — e "Produzido" virou "Impresso / Acabamento" (21/09): saiu da
   // máquina e ainda precisa de acabamento e conferência. O curto do segundo
-  // é "Acabamento": cabe onde "Produzido" cabia.
+  // é "Impresso" — UM rótulo curto só, o do cartão da Gráfica (decisão de 21/09:
+  // Atendimento dizia "Acabamento" e a Gráfica "Impresso" para a mesma etapa).
+  // "Acabamento" sozinho fica para frases ("em acabamento"), nunca como selo.
   inProduction:          meta("Em Impressão",           "Em Impressão",   P.orange,  Package),
   produced:              meta("Impresso / Acabamento",        "Impresso",   P.pink,    CheckCircle),
   conferred:             meta("Conferido",              "Conferido",      P.cyan,    CheckCircle),

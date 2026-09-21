@@ -21,8 +21,11 @@ const PHASE_ALIASES: Record<string, string[]> = {
   delivered:    ["delivered", "entregue"],
 };
 const PHASE_NOUN: Record<string, string> = {
-  inProduction: "em produção",
-  produced:     "produzidas",
+  // 21/09: o vocabulário do selo (lib/status) — "Em Impressão" e "Impresso /
+  // Acabamento". "em produção"/"produzidas" era o nome ANTIGO das duas etapas
+  // e aparecia nos tooltips/aria de Eventos e do Detalhe do evento.
+  inProduction: "em impressão",
+  produced:     "em acabamento",
   conferred:    "conferidas",
   packed:       "embaladas",
   delivered:    "entregues",

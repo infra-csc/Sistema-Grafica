@@ -8,6 +8,7 @@ import { storage, assetPrefix, assetSeqOf, isDisplayIdConflictError } from "../s
 import { ITEM_STATUSES, type Item } from "@shared/schema";
 import { eventoComDatasDoKit, pecaVisivelPara, remessaUtilizavelPor } from "@shared/kit";
 import { carregarRemessa, remessasPorIds } from "../services/kitRemessas";
+import { resumosDeTuboPorIds, comTubo } from "../services/tubosDaPeca";
 import { FORMATO_COMPACTO, compactarPecas, compactarAprovacoes } from "@shared/itens-compactos";
 import { DEPOIS_DA_ARTE, EM_REVISAO, POS_APROVACAO, DISPENSAVEIS, DESTINO_DA_DISPENSA, ehBookCompleto, ehMaquinaValida, rotuloDaMaquina } from "@shared/fluxo-peca";
 import { quemOcupaAImpressora, erroImpressoraOcupada } from "../services/ocupacaoDasImpressoras";
@@ -484,9 +485,15 @@ async function enrichItemsWithEventsAndSponsors(
   }
   // A remessa do Kit (datas do Kit) vai junto: é o que o selo "KIT · entrega"
   // mostra em todas as etapas.
-  const remessaPorId = await remessasPorIds(list.map((i) => i.kitRemessaId).filter(Boolean));
+  // O TUBO vai junto (21/09): número e carimbos, para Atendimento/Solicitação
+  // lerem "Tubo 2" sem acesso a /api/tubos (403 para eles, e continua assim).
+  // Um select em lote, só com os ids presentes — ver services/tubosDaPeca.
+  const [remessaPorId, tuboPorId] = await Promise.all([
+    remessasPorIds(list.map((i) => i.kitRemessaId).filter(Boolean)),
+    resumosDeTuboPorIds(list.map((i) => i.tuboId)),
+  ]);
   const withEventsAndSponsors = list.map((item) => ({
-    ...item,
+    ...comTubo(item, tuboPorId),
     kitRemessa: item.kitRemessaId ? remessaPorId.get(item.kitRemessaId) ?? null : null,
     // Peça do Kit: o evento vem com as datas da remessa (dono, 14/09: "tem
     // que ser pela data deles") — Arte, Gráfica e Painel cobram por elas.

@@ -415,86 +415,9 @@ describe("GRÁFICA a 390px", () => {
 });
 
 // ═════════════════════════════════════════════════════════════════════════════
-// 4 · O MODAL DE TUBOS
+// 4 · OS MODAIS DE TUBOS — viraram três modais focados (Embalar, Entregar tubo,
+// Tubos do evento) e são medidos a 390px em tubos-tres-modais.test.ts.
 // ═════════════════════════════════════════════════════════════════════════════
-function retratoDosTubos() {
-  const p = (id: string, displayId: string, conferida: boolean, description = "lona 440g com logo do patrocinador master aplicado") => ({ id, displayId, type: "Placa de octanorme grande", description, quantity: 4, status: conferida ? "conferred" : "produced", conferredQty: conferida ? 4 : 0, deliveredQty: 0, conferida, entregue: false });
-  const tubo = (id: string, numero: number, pecas: any[], extra: Partial<any> = {}) => ({ id, numero, entregueEm: null, recebidoPor: null, entreguePor: null, fotoEntregaUrl: null, fotosFechamento: [], fechadoEm: null, fechadoPor: null, alteradoDepoisDaFoto: false, pecas, faltamConferir: pecas.filter((x) => !x.conferida).map((x) => x.displayId), prontoParaEntregar: pecas.length > 0 && pecas.every((x) => x.conferida), ...extra });
-  return {
-    evento: { id: "ev1", name: "Maratona Internacional de São Paulo 2026" },
-    tubos: [tubo("t1", 1, [p("p3", "#0383", true)]), tubo("t2", 2, [p("p4", "#0384", false)])],
-    semTubo: [p("p1", "#0381", true), p("p2", "#0382", false)],
-  };
-}
-async function montarTubos(props: Record<string, unknown> = {}) {
-  const vv = prepararJsdom();
-  vi.stubGlobal("fetch", vi.fn(async () => json(retratoDosTubos())));
-  const { queryClient } = await import("@/lib/queryClient");
-  const { TubosDialog } = await import("@/components/tubos-dialog");
-  queryClient.clear();
-  queryClient.setQueryData(["/api/events/ev1/tubos"], retratoDosTubos());
-  await act(async () => { render(h(QueryClientProvider, { client: queryClient } as any, h(TubosDialog as any, { evento: { id: "ev1", name: "Maratona Internacional de São Paulo 2026" }, onClose: () => {}, ...props }))); });
-  await tick(30);
-  return vv;
-}
-
-describe("MODAL DE TUBOS a 390px", () => {
-  it("'Embalar #0381': os tubos são alvos de 44px; a lista não corta nomes nem estoura a tela", async () => {
-    await montarTubos({ itensIniciais: ["p1"] });
-    const dialogo = $('[role="dialog"]')!;
-    const atalho = $('[data-testid="embalar-atalho"]')!;
-    expect(atalho.textContent).toContain("Embalar #0381");
-    for (const id of ["embalar-no-tubo-1", "embalar-no-tubo-2", "embalar-em-tubo-novo"]) expect(px($(`[data-testid="${id}"]`)!.style.minHeight), id).toBe(44);
-    expect(comReticencias(dialogo)).toEqual([]);
-    expect(largurasFixas(dialogo)).toEqual([]);
-    expect(alvosPequenos(dialogo)).toEqual([]);
-    expect(letrasMiudas(dialogo)).toEqual([]);
-  }, 30_000);
-
-  it("'Fechar tubo': câmera direta, rodapé fixo com o recorte seguro; 'Entregar tubo': recebedor a 16px, rodapé fixo, e o teclado não esconde o botão", async () => {
-    const vv = await montarTubos();
-    const dialogo = $('[role="dialog"]')!;
-    await act(async () => { fireEvent.click($('[data-testid="fechar-tubo-1"]')!); });
-    const formFechar = $('[data-testid="form-fechar-tubo-1"]')!;
-    expect(formFechar.querySelector('input[type="file"][capture="environment"]'), "câmera traseira direto").toBeTruthy();
-    // Os botões do formulário moram no rodapé do modal, fora da rolagem, com o recorte seguro.
-    const rodapeFechar = $('[data-testid="rodape-fechar-tubo-1"]')!;
-    expect(rodapeFechar).toBeTruthy();
-    expect(formFechar.contains(rodapeFechar)).toBe(false);
-    expect(/safe-area-inset-bottom/.test(rodapeFechar.style.paddingBottom)).toBe(true);
-    const confirmarFechar = $('[data-testid="confirmar-fechar-tubo-1"]') as HTMLButtonElement;
-    expect(confirmarFechar.disabled).toBe(true);
-    expect(confirmarFechar.textContent).toBe("Tire a foto para guardar");
-    expect(px(confirmarFechar.style.minHeight)).toBe(48);
-    expect(alvosPequenos(dialogo)).toEqual([]);
-    // Cancelar fecha o formulário e o rodapé some.
-    await act(async () => { fireEvent.click(rodapeFechar.querySelector("button")!); });
-    expect($('[data-testid="rodape-fechar-tubo-1"]')).toBeNull();
-    // Entregar o Tubo 1 (pronto): recebedor obrigatório a 16px, rodapé fixo.
-    await act(async () => { fireEvent.click($('[data-testid="entregar-tubo-1"]')!); });
-    const recebedor = $('[data-testid="recebedor-tubo-1"]') as HTMLInputElement;
-    expect(px(recebedor.style.fontSize)).toBe(16);
-    expect(px(recebedor.style.height)).toBe(44);
-    const rodapeEntregar = $('[data-testid="rodape-entregar-tubo-1"]')!;
-    expect(/safe-area-inset-bottom/.test(rodapeEntregar.style.paddingBottom)).toBe(true);
-    const confirmarEntrega = () => $('[data-testid="confirmar-entrega-tubo-1"]') as HTMLButtonElement;
-    expect(confirmarEntrega().disabled).toBe(true);
-    await act(async () => { fireEvent.change(recebedor, { target: { value: "João" } }); });
-    expect(confirmarEntrega().disabled).toBe(false);
-    expect(confirmarEntrega().textContent).toBe("Entregar Tubo 1");
-    // O Tubo 2 (falta conferir) não entrega, e diz por quê.
-    expect(($('[data-testid="entregar-tubo-2"]') as HTMLButtonElement).disabled).toBe(true);
-    expect(dialogo.textContent).toContain("Falta conferir: #0384");
-    // Teclado aberto no "Quem recebeu": o modal cabe na área visível.
-    await teclado(vv, 420);
-    expect(dialogo.style.maxHeight).toBe("404px");
-    await teclado(vv, 760);
-    expect(camposRuins(dialogo)).toEqual([]);
-    expect(alvosPequenos(dialogo)).toEqual([]);
-    expect(letrasMiudas(dialogo)).toEqual([]);
-    expect(largurasFixas(dialogo)).toEqual([]);
-  }, 30_000);
-});
 
 // ═════════════════════════════════════════════════════════════════════════════
 // 5 · ETIQUETAS

@@ -1,5 +1,6 @@
 import { Switch, Route, useLocation } from "wouter";
 import { queryClient, apiRequest } from "./lib/queryClient";
+import { haVersaoNova, onVersaoNova } from "@/lib/versao-do-app";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -988,6 +989,42 @@ function AppContent() {
   return <AuthenticatedLayout />;
 }
 
+/**
+ * VERSÃO NOVA NO AR — a aba aberta desde antes do deploy roda o JavaScript
+ * antigo (sem os status e telas novos). Faixa discreta e PERSISTENTE, fora das
+ * rotas: vale no login e em qualquer tela. Só OFERECE recarregar — recarregar
+ * sozinho apagaria o formulário de quem está digitando. Flutua no rodapé para
+ * não empurrar o layout de 100svh; a detecção mora em lib/versao-do-app.
+ */
+function AvisoDeVersaoNova() {
+  const [nova, setNova] = useState(haVersaoNova);
+  useEffect(() => onVersaoNova(() => setNova(true)), []);
+  if (!nova) return null;
+  return (
+    <div
+      role="status"
+      data-testid="aviso-versao-nova"
+      style={{
+        position: "fixed", left: "50%", bottom: 12, transform: "translateX(-50%)", zIndex: 2147483000,
+        display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", justifyContent: "center",
+        maxWidth: "calc(100vw - 24px)", padding: "8px 10px 8px 14px", borderRadius: 12,
+        backgroundColor: "#1c1917", color: "#ffffff", fontSize: 13, fontWeight: 600,
+        boxShadow: "0 8px 24px rgba(0,0,0,0.25)",
+      }}
+    >
+      Há uma versão nova do NORTE
+      <button
+        type="button"
+        data-testid="button-recarregar-versao"
+        onClick={() => window.location.reload()}
+        style={{ minHeight: 36, padding: "0 14px", borderRadius: 8, border: "none", cursor: "pointer", backgroundColor: "#ffffff", color: "#1c1917", fontSize: 13, fontWeight: 800 }}
+      >
+        Recarregar
+      </button>
+    </div>
+  );
+}
+
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
@@ -1007,6 +1044,7 @@ export default function App() {
             </ErrorBoundary>
           </SidebarProvider>
           <Toaster />
+          <AvisoDeVersaoNova />
         </AuthProvider>
       </TooltipProvider>
     </QueryClientProvider>

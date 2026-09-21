@@ -50,8 +50,21 @@ const registro = (id: string, itemId: string, displayId: string, tipo: string, q
   id, itemId, displayId, tipoPeca: "Backdrop", evento: "Maratona SP", tipo, quantidade, totalDepois, aImprimir: 10, hora, quem: "Ana", ordem,
 });
 
-function retrato(opts: { registros?: boolean; imprimindo?: boolean; muitos?: number } = {}) {
-  const { registros = true, imprimindo = true, muitos = 0 } = opts;
+/** Peça liberada, para a fila (geral ou reservada). Saída do caminhão daqui a `diasParaSaida` dias. */
+const naFila = (id: string, displayId: string, tipo: string, maquinaPrevista: string | null, diasParaSaida: number, evento = "Maratona SP") => ({
+  ...peca(id, displayId, 0, 10, ""), tipo, evento, status: "approved", maquina: null, desde: null, eventoInfo: { ...evento_(evento) },
+  maquinaPrevista, m2: 4.5, saidaCaminhao: new Date(Date.now() + diasParaSaida * 86_400_000).toISOString(), prazoProducaoGrafica: -1,
+});
+function evento_(name: string) { return evento(name); }
+
+function retrato(opts: { registros?: boolean; imprimindo?: boolean; muitos?: number; fila?: boolean } = {}) {
+  const { registros = true, imprimindo = true, muitos = 0, fila = false } = opts;
+  const filaGeral = fila ? [
+    naFila("f2", "#0202", "Banner de rua", null, 9, "Meia do Rio"),
+    naFila("f1", "#0201", "Placa de octanorme grande para o pórtico", null, 2),
+    naFila("f3", "#0203", "Lona", null, 20),
+  ] : [];
+  const reservadas2 = fila ? [naFila("f5", "#0205", "Totem", "2", 5), naFila("f4", "#0204", "Backdrop", "2", 1)] : [];
   const regs1 = registros ? [
     registro("r1", "p1", "#0101", "parcial", 3, 3, "10:12", 0),
     registro("r2", "p1", "#0101", "inicio", 0, 0, "09:00", 2),
@@ -62,12 +75,29 @@ function retrato(opts: { registros?: boolean; imprimindo?: boolean; muitos?: num
     dia: HOJE, hoje: HOJE,
     maquinas: [
       { codigo: "1", rotulo: "Impressora 1 (New XT)", imprimindo: imprimindo ? [peca("p1", "#0101", 3, 10, "1")] : [], registros: [...regs1, ...extras], unidadesNoDia: 3 + muitos, pecasNoDia: 1 },
-      { codigo: "2", rotulo: "Impressora 2", imprimindo: [], registros: regs2, unidadesNoDia: registros ? 4 : 0, pecasNoDia: registros ? 1 : 0 },
+      { codigo: "2", rotulo: "Impressora 2", imprimindo: [], naFila: reservadas2, registros: regs2, unidadesNoDia: registros ? 4 : 0, pecasNoDia: registros ? 1 : 0 },
       { codigo: "3", rotulo: "Impressora 3", imprimindo: [], registros: [], unidadesNoDia: 0, pecasNoDia: 0 },
       { codigo: "4", rotulo: "Impressora 4 (Targa Elite)", imprimindo: [], registros: [], unidadesNoDia: 0, pecasNoDia: 0 },
     ],
     semMaquina: [],
+    filaGeral,
   };
+}
+
+/** fetch falso que responde por URL e guarda as chamadas de escrita. */
+function fetchPorUrl(extra?: (url: string, init: any) => Response | null) {
+  const json = (corpo: unknown) => new Response(JSON.stringify(corpo), { status: 200, headers: { "content-type": "application/json" } });
+  const mock = vi.fn(async (url: any, init?: any) => {
+    const u = String(url);
+    const r = extra?.(u, init);
+    if (r) return r;
+    if (u.includes("/relatorio")) return json(relatorioDoDia());
+    if (u.includes("/api/grafica/maquinas")) return json(retrato({ fila: true }));
+    return json({ atualizadas: 1, itens: [], erros: [] });
+  });
+  vi.stubGlobal("fetch", mock);
+  const escritas = () => mock.mock.calls.filter((c: any) => c[1]?.method === "PATCH").map((c: any) => ({ url: String(c[0]), body: JSON.parse(String(c[1].body)) }));
+  return { mock, escritas };
 }
 
 /** O que o jsdom não tem e a página usa. Reaplicado a cada montagem (o afterEach limpa os stubs). */
@@ -83,13 +113,37 @@ function prepararJsdom(largura: number) {
   (Element.prototype as any).releasePointerCapture = () => {};
 }
 
-async function montar(largura: number, dados: any | null) {
+/** O relatório de um dia (a chave que a tela pede com ?periodo=dia). */
+function relatorioDoDia(de = HOJE, ate = HOJE) {
+  const maq = (maquina: string, rotulo: string, extra: Partial<any> = {}) => ({
+    dia: de, maquina, rotulo, unidades: 0, pecas: 0, concluidas: 0, aindaNaMaquina: 0, primeira: null, ultima: null, minutosAtivos: 0, quem: [], ...extra,
+  });
+  return {
+    de, ate, hoje: HOJE,
+    dias: [{
+      dia: de,
+      maquinas: [
+        maq("1", "Impressora 1 (New XT)", { unidades: 3, pecas: 1, aindaNaMaquina: 1, primeira: "09:00", ultima: "10:12", minutosAtivos: 72, quem: ["Ana"] }),
+        maq("2", "Impressora 2", { unidades: 4, pecas: 1, concluidas: 1, primeira: "09:40", ultima: "09:40", quem: ["Ana"] }),
+        maq("3", "Impressora 3"),
+        maq("4", "Impressora 4 (Targa Elite)"),
+      ],
+      total: { unidades: 7, pecas: 2, concluidas: 1, aindaNaMaquina: 1, minutosAtivos: 72 },
+    }],
+  };
+}
+
+async function montar(largura: number, dados: any | null, opts: { url?: string; relatorio?: any } = {}) {
   prepararJsdom(largura);
-  window.history.replaceState({}, "", "/grafica/maquinas");
+  window.history.replaceState({}, "", opts.url ?? "/grafica/maquinas");
   const { queryClient } = await import("@/lib/queryClient");
   const Pagina = (await import("@/pages/grafica-maquinas")).default;
   queryClient.clear();
   if (dados) queryClient.setQueryData(["/api/grafica/maquinas"], dados);
+  if (dados) {
+    const rel = opts.relatorio ?? relatorioDoDia();
+    queryClient.setQueryData(["/api/grafica/maquinas/relatorio", `?de=${rel.de}&ate=${rel.ate}`], rel);
+  }
   await act(async () => { render(h(QueryClientProvider, { client: queryClient } as any, h(Pagina as any, null))); });
   await tick(30);
   return queryClient;
@@ -143,7 +197,8 @@ describe("a aba Máquinas no desktop", () => {
     expect($('[data-testid="estado-2"]')!.textContent).toBe("Livre");
     expect($('[data-testid="progresso-p1"]')!.textContent).toBe("3 de 10 impressas · 7 na impressora");
     expect($('[role="progressbar"]')!.getAttribute("aria-valuenow")).toBe("3");
-    expect($('[data-testid="link-escolher-peca-2"]')!.getAttribute("href")).toBe("/grafica?status=ready_for_production,approved");
+    // "Escolher peça" abre o seletor AQUI (dono, 21/09), não a fila da Gráfica.
+    expect($('[data-testid="link-escolher-peca-2"]')!.tagName).toBe("BUTTON");
     expect($('[data-testid="link-grafica-em-impressao"]')!.getAttribute("href")).toBe("/grafica?status=inProduction");
     expect($('[data-testid="resumo-agora"]')!.textContent).toBe("1 peça em impressão");
     expect($('[data-testid="atualizado-ha"]')).toBeTruthy();
@@ -249,6 +304,278 @@ describe("a aba Máquinas no desktop", () => {
     expect($('[data-testid="button-tentar-novamente"]')).toBeTruthy();
     qc.clear();
   }, 20_000);
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SEGUNDA PASSADA (dono em produção, 21/09): "cortando o nome da impressora",
+// "não consigo trocar de máquina um item", "não tem relatório diário, não tem
+// relatório para exportar".
+// ─────────────────────────────────────────────────────────────────────────────
+describe("segunda passada: nada cortado, trocar direto, resumo e Excel", () => {
+  it("o nome da impressora e o da peça não cortam: quebram em linha (h3 sem nowrap; peça com clamp de 2 linhas)", async () => {
+    await montar(1280, retrato());
+    const h3 = $('[data-testid="maquina-agora-1"] h3')!;
+    expect(h3.textContent).toBe("Impressora 1 (New XT)");
+    expect(h3.style.whiteSpace).not.toBe("nowrap");
+    expect(h3.style.textOverflow).not.toBe("ellipsis");
+    expect(h3.style.overflowWrap).toBe("anywhere");
+    // A pílula não disputa espaço: o cabeçalho quebra linha se precisar.
+    expect((h3.parentElement as HTMLElement).style.flexWrap).toBe("wrap");
+    const nome = $('[data-testid="nome-peca-p1"]')!;
+    expect(nome.textContent).toBe("#0101Backdrop");
+    expect(nome.style.whiteSpace).not.toBe("nowrap");
+    expect(nome.style.webkitLineClamp || (nome.style as any).WebkitLineClamp).toBe("2");
+    // Em nenhum lugar da tela um rótulo ainda usa reticências de linha única.
+    expect($$('[data-testid^="maquina-agora-"] *').filter((e) => e.style.textOverflow === "ellipsis")).toEqual([]);
+  });
+
+  it("'Trocar de máquina' no cartão abre o modal já no painel de troca, com o título dizendo isso", async () => {
+    await montar(1280, retrato());
+    const trocar = $('[data-testid="button-trocar-maquina-p1"]')!;
+    expect(trocar.textContent).toContain("Trocar de máquina");
+    await act(async () => { fireEvent.click(trocar); });
+    await tick(30);
+    const dialogo = $('[role="dialog"]')!;
+    expect(dialogo.textContent).toContain("Trocar de máquina — Impressora 1 (New XT)");
+    expect($('[data-testid="painel-troca"]')).toBeTruthy();
+    expect(($('[data-testid="maquina-1"]') as HTMLButtonElement).disabled).toBe(true);
+    const mover = () => $('[data-testid="button-iniciar-impressao"]') as HTMLButtonElement;
+    expect(mover().disabled).toBe(true);
+    await act(async () => { fireEvent.click($('[data-testid="maquina-2"]')!); });
+    expect(mover().textContent).toBe("Mover para a Impressora 2");
+    expect(mover().disabled).toBe(false);
+    // O gesto grava "troca" na máquina nova (mesmo endpoint da fila). Depois
+    // dele a página recarrega o retrato e o relatório — o mock responde por URL.
+    const json = (corpo: unknown) => new Response(JSON.stringify(corpo), { status: 200, headers: { "content-type": "application/json" } });
+    const fetchMock = vi.fn(async (url: any) => {
+      const u = String(url);
+      if (u.includes("/start-printing")) return json({ id: "p1", printMachine: "2" });
+      if (u.includes("/relatorio")) return json(relatorioDoDia());
+      return json(retrato());
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    await act(async () => { fireEvent.click(mover()); });
+    await tick(30);
+    const chamada = fetchMock.mock.calls.find((c: any) => String(c[0]).includes("/start-printing")) as any;
+    expect(String(chamada[0])).toBe("/api/items/p1/start-printing");
+    expect(JSON.parse(String(chamada[1].body))).toEqual({ printMachine: "2" });
+  });
+
+  it("no modal aberto em 'impressas', o 'Trocar de máquina' é um botão contornado — não um link perdido", async () => {
+    await montar(1280, retrato());
+    await act(async () => { fireEvent.click($('[data-testid="button-impressas-p1"]')!); });
+    await tick(30);
+    const b = $('[data-testid="button-trocar-maquina"]')!;
+    expect(b.style.border).toContain("1.5px solid");
+    expect(b.style.textDecoration).not.toBe("underline");
+    expect(px(b.style.minHeight)).toBeGreaterThanOrEqual(34);
+  });
+
+  it("RESUMO do dia: uma linha por impressora com unidades, peças, concluídas, na máquina, atividade, tempo e quem — e o total", async () => {
+    await montar(1280, retrato());
+    expect($('[data-testid="resumo-periodo"]')!.textContent).toBe("Hoje · 7 unidades impressas");
+    const cabecalhos = $$('[data-testid="resumo-tabela"] th').map((e) => e.textContent);
+    expect(cabecalhos).toEqual(["Impressora", "Unidades", "Peças", "Concluídas", "Na máquina", "Atividade", "Tempo ativo", "Quem"]);
+    const celulas = (id: string) => $$(`[data-testid="${id}"] td`).map((e) => e.textContent);
+    expect(celulas(`resumo-${HOJE}-1`)).toEqual(["Impressora 1 (New XT)", "3", "1", "0", "1", "09:00 → 10:12", "1h 12min", "Ana"]);
+    expect(celulas(`resumo-${HOJE}-3`)).toEqual(["Impressora 3", "0", "0", "0", "0", "—", "—", "—"]);
+    expect(celulas(`resumo-${HOJE}-total`)).toEqual(["Total", "7", "2", "1", "1", "", "1h 12min", ""]);
+    // Clicar na impressora leva ao diário dela.
+    await act(async () => { fireEvent.click($(`[data-testid="resumo-${HOJE}-2"] button`)!); });
+    await tick(20);
+    expect(window.location.search).toBe("?maquina=2");
+  });
+
+  it("o PERÍODO vive na URL e vale para o resumo e para o Excel; semana e mês nascem do dia do diário", async () => {
+    const { intervaloDoPeriodo } = await import("@/pages/grafica-maquinas");
+    // 21/09/2026 é segunda-feira: a semana é 21..27, travada em hoje (21).
+    expect(intervaloDoPeriodo("dia", "2026-09-21", "2026-09-21", null, null)).toEqual({ de: "2026-09-21", ate: "2026-09-21" });
+    expect(intervaloDoPeriodo("semana", "2026-09-21", "2026-09-21", null, null)).toEqual({ de: "2026-09-21", ate: "2026-09-21" });
+    expect(intervaloDoPeriodo("semana", "2026-09-17", "2026-09-21", null, null)).toEqual({ de: "2026-09-14", ate: "2026-09-20" });
+    expect(intervaloDoPeriodo("mes", "2026-09-17", "2026-09-21", null, null)).toEqual({ de: "2026-09-01", ate: "2026-09-21" });
+    expect(intervaloDoPeriodo("mes", "2026-08-17", "2026-09-21", null, null)).toEqual({ de: "2026-08-01", ate: "2026-08-31" });
+    expect(intervaloDoPeriodo("intervalo", "2026-09-21", "2026-09-21", "2026-09-15", "2026-09-21")).toEqual({ de: "2026-09-15", ate: "2026-09-21" });
+    expect(intervaloDoPeriodo("intervalo", "2026-09-21", "2026-09-21", "2026-09-25", "2026-09-30")).toEqual({ de: "2026-09-21", ate: "2026-09-21" });
+    expect(intervaloDoPeriodo("intervalo", "2026-09-21", "2026-09-21", null, null)).toEqual({ de: "2026-09-21", ate: "2026-09-21" });
+
+    const semana = { ...relatorioDoDia("2026-09-21", "2026-09-21") };
+    await montar(1280, retrato(), { relatorio: semana });
+    expect($('[data-testid="periodo-dia"]')!.getAttribute("aria-pressed")).toBe("true");
+    await act(async () => { fireEvent.click($('[data-testid="periodo-semana"]')!); });
+    await tick(20);
+    expect(window.location.search).toBe("?periodo=semana");
+    expect($('[data-testid="periodo-semana"]')!.getAttribute("aria-pressed")).toBe("true");
+    await act(async () => { fireEvent.click($('[data-testid="periodo-intervalo"]')!); });
+    await tick(20);
+    expect($('[data-testid="intervalo-de"]')).toBeTruthy();
+    expect($('[data-testid="intervalo-ate"]')).toBeTruthy();
+    await act(async () => { fireEvent.change($('[data-testid="intervalo-de"]')!, { target: { value: "2026-09-15" } }); });
+    await tick(20);
+    expect(window.location.search).toBe("?periodo=intervalo&de=2026-09-15&ate=2026-09-21");
+    expect($('[data-testid="button-exportar-excel"]')!.getAttribute("title")).toContain("15/09/2026 a 21/09/2026");
+  });
+
+  it("EXPORTAR Excel baixa o .xlsx do mesmo período, com o nome do dia", async () => {
+    await montar(1280, retrato());
+    const fetchMock = vi.fn(async () => new Response(new Blob(["xlsx"]), { status: 200, headers: { "content-type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" } }));
+    vi.stubGlobal("fetch", fetchMock);
+    (URL as any).createObjectURL = () => "blob:x";
+    (URL as any).revokeObjectURL = () => {};
+    const cliques: string[] = [];
+    const clickOriginal = HTMLAnchorElement.prototype.click;
+    HTMLAnchorElement.prototype.click = function () { cliques.push(this.download); };
+    try {
+      await act(async () => { fireEvent.click($('[data-testid="button-exportar-excel"]')!); });
+      for (let i = 0; i < 20 && !cliques.length; i++) await tick(20);
+    } finally {
+      HTMLAnchorElement.prototype.click = clickOriginal;
+    }
+    expect(String((fetchMock.mock.calls[0] as any)[0])).toBe(`/api/grafica/maquinas/relatorio.xlsx?de=${HOJE}&ate=${HOJE}`);
+    expect(cliques).toEqual([`maquinas-${HOJE}.xlsx`]);
+  });
+
+  it("RESUMO vazio diz o que fazer; a Solicitação vê o resumo e exporta (é leitura)", async () => {
+    papel.atual = "solicitacao";
+    await montar(1280, retrato(), { relatorio: { de: HOJE, ate: HOJE, hoje: HOJE, dias: [] } });
+    expect($('[data-testid="resumo-vazio"]')!.textContent).toContain("Nenhuma impressão registrada hoje.");
+    expect($('[data-testid="button-exportar-excel"]')).toBeTruthy();
+    expect($('[data-testid="button-trocar-maquina-p1"]')).toBeNull();
+  });
+
+  it("DIÁRIO a ~1040px úteis (menu aberto): tabela compacta, sem coluna cortada; abaixo de 820px vira cartões", async () => {
+    await montar(1040, retrato());
+    const tabela = $('[data-testid="diario-tabela"]')!;
+    expect(tabela.getAttribute("data-compacto")).toBe("true");
+    expect($$('[data-testid="diario-tabela"] th').map((e) => e.textContent)).toEqual(["Hora", "Impressora", "Peça", "O que aconteceu", "Quem"]);
+    // O evento continua na tela, embaixo da peça.
+    expect($('[data-testid="linha-diario-r1"]')!.textContent).toContain("Maratona SP");
+    // Nenhuma célula corta texto — todas quebram linha.
+    expect($$('[data-testid="diario-tabela"] td').filter((e) => e.style.textOverflow === "ellipsis" || e.style.maxWidth)).toEqual([]);
+    expect(tabela.style.minWidth).toBe("");
+    cleanup();
+    await montar(700, retrato());
+    expect($("table[data-testid='diario-tabela']")).toBeNull();
+    expect($('[data-testid="diario-cartoes"]')).toBeTruthy();
+    expect($('[data-testid="resumo-cartoes"]')).toBeTruthy();
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// A FILA (dono, 21/09): "deixar na fila alguns itens (geral) ou já setar em
+// alguma impressora" — e "o reservar é só um controle, não muda status".
+// ─────────────────────────────────────────────────────────────────────────────
+describe("a fila: geral, reservada por impressora, e o seletor de peça", () => {
+  it("FILA GERAL na ordem do caminhão, com prazo e m²; o cartão diz 'Livre · Na fila 2' e lista as reservadas", async () => {
+    await montar(1280, retrato({ fila: true }));
+    expect($('[data-testid="resumo-fila"]')!.textContent).toBe("3 peças liberadas sem impressora · 2 reservadas nos cartões acima");
+    expect($$('[data-testid^="fila-peca-"]').map((e) => e.getAttribute("data-testid"))).toEqual(["fila-peca-f1", "fila-peca-f2", "fila-peca-f3"]);
+    expect($('[data-testid="fila-peca-f1"]')!.textContent).toContain("Placa de octanorme grande para o pórtico");
+    expect($('[data-testid="fila-peca-f1"]')!.textContent).toContain("4,5 m²");
+    expect($('[data-testid="fila-peca-f1"]')!.textContent).toMatch(/Prazo \d\d\/\d\d · 1d/);
+    expect($('[data-testid="estado-2"]')!.textContent).toBe("Livre · Na fila 2");
+    expect($$('[data-testid="fila-maquina-2"] [data-testid^="peca-na-fila-"]').map((e) => e.getAttribute("data-testid"))).toEqual(["peca-na-fila-f4", "peca-na-fila-f5"]);
+    // O nome longo não corta: clamp de 2 linhas, sem nowrap.
+    const nome = $('[data-testid="fila-peca-f1"] a span') as HTMLElement;
+    expect(nome.style.whiteSpace).not.toBe("nowrap");
+  });
+
+  it("RESERVAR manda SÓ { maquina } — nada de status; devolver manda null; o lote usa bulk-", async () => {
+    await montar(1280, retrato({ fila: true }));
+    const { escritas } = fetchPorUrl();
+    const sel = $('[data-testid="reservar-fila-f1"]') as HTMLSelectElement;
+    expect(Array.from(sel.options).map((o) => o.textContent)).toEqual(["Reservar para…", "Impressora 1 (New XT)", "Impressora 2", "Impressora 3", "Impressora 4 (Targa Elite)"]);
+    await act(async () => { fireEvent.change(sel, { target: { value: "2" } }); });
+    await tick(30);
+    expect(escritas()).toEqual([{ url: "/api/items/f1/maquina-prevista", body: { maquina: "2" } }]);
+
+    // No cartão: "Mover para…" oferece as outras três e "Devolver à fila geral".
+    const mover = $('[data-testid="mover-fila-f4"]') as HTMLSelectElement;
+    expect(Array.from(mover.options).map((o) => o.textContent)).toEqual(["Mover para…", "Impressora 1 (New XT)", "Impressora 3", "Impressora 4 (Targa Elite)", "Devolver à fila geral"]);
+    await act(async () => { fireEvent.change(mover, { target: { value: "geral" } }); });
+    await tick(30);
+    expect(escritas()[1]).toEqual({ url: "/api/items/f4/maquina-prevista", body: { maquina: null } });
+
+    // Lote: duas marcadas → bulk-maquina-prevista com os ids.
+    await act(async () => { fireEvent.click($('[data-testid="selecionar-fila-f2"]')!); fireEvent.click($('[data-testid="selecionar-fila-f3"]')!); });
+    expect($('[data-testid="lote-fila"]')!.textContent).toContain("2 selecionadas");
+    await act(async () => { fireEvent.change($('[data-testid="reservar-lote"]')!, { target: { value: "3" } }); });
+    await tick(30);
+    expect(escritas()[2]).toEqual({ url: "/api/items/bulk-maquina-prevista", body: { itemIds: ["f2", "f3"], maquina: "3" } });
+  });
+
+  it("INICIAR da fila do cartão abre o modal em 'iniciar' com a Impressora 2 já marcada", async () => {
+    await montar(1280, retrato({ fila: true }));
+    await act(async () => { fireEvent.click($('[data-testid="button-iniciar-fila-f4"]')!); });
+    await tick(30);
+    expect($('[data-testid="form-impressao"]')!.getAttribute("data-etapa")).toBe("iniciar");
+    expect($('[data-testid="maquina-2"]')!.getAttribute("aria-checked")).toBe("true");
+    const iniciar = $('[data-testid="button-iniciar-impressao"]') as HTMLButtonElement;
+    expect(iniciar.disabled).toBe(false);
+    expect(iniciar.textContent).toBe("Iniciar impressão na Impressora 2");
+    // O gesto é o start-printing de sempre — quem limpa a reserva é o servidor.
+    const { escritas } = fetchPorUrl();
+    await act(async () => { fireEvent.click(iniciar); });
+    await tick(30);
+    expect(escritas()).toEqual([{ url: "/api/items/f4/start-printing", body: { printMachine: "2" } }]);
+  });
+
+  it("SELETOR DE PEÇA: 'Escolher peça' abre a lista aqui (reservadas desta no topo, com selo), busca filtra, um clique abre a impressão com a impressora escolhida", async () => {
+    await montar(1280, retrato({ fila: true }));
+    await act(async () => { fireEvent.click($('[data-testid="link-escolher-peca-2"]')!); });
+    await tick(30);
+    const seletor = $('[data-testid="seletor-de-peca"]')!;
+    expect(seletor.textContent).toContain("Imprimir na Impressora 2");
+    expect(seletor.textContent).toContain("5 peças liberadas · 2 reservadas para esta");
+    expect($$('[data-testid^="escolher-peca-"]').map((e) => e.getAttribute("data-testid"))).toEqual(["escolher-peca-f4", "escolher-peca-f5", "escolher-peca-f1", "escolher-peca-f2", "escolher-peca-f3"]);
+    expect($('[data-testid="selo-reservada-f4"]')).toBeTruthy();
+    expect($('[data-testid="selo-reservada-f1"]')).toBeNull();
+    expect($('[data-testid="link-ver-na-grafica"]')!.getAttribute("href")).toBe("/grafica?status=ready_for_production,approved");
+    // Busca por evento, sem acento.
+    await act(async () => { fireEvent.change($('[data-testid="busca-peca"]')!, { target: { value: "meia do rio" } }); });
+    expect($$('[data-testid^="escolher-peca-"]').map((e) => e.getAttribute("data-testid"))).toEqual(["escolher-peca-f2"]);
+    await act(async () => { fireEvent.change($('[data-testid="busca-peca"]')!, { target: { value: "xyz" } }); });
+    expect($('[data-testid="seletor-sem-resultado"]')).toBeTruthy();
+    await act(async () => { fireEvent.change($('[data-testid="busca-peca"]')!, { target: { value: "0202" } }); });
+    await act(async () => { fireEvent.click($('[data-testid="escolher-peca-f2"]')!); });
+    await tick(30);
+    expect($('[data-testid="seletor-de-peca"]')).toBeNull();
+    expect($('[data-testid="form-impressao"]')!.getAttribute("data-etapa")).toBe("iniciar");
+    expect($('[data-testid="maquina-2"]')!.getAttribute("aria-checked")).toBe("true");
+    expect(($('[data-testid="button-iniciar-impressao"]') as HTMLButtonElement).textContent).toBe("Iniciar impressão na Impressora 2");
+  });
+
+  it("SELETOR vazio diz o que esperar; a Solicitação não vê reservar nem selecionar", async () => {
+    await montar(1280, retrato());
+    await act(async () => { fireEvent.click($('[data-testid="link-escolher-peca-2"]')!); });
+    await tick(30);
+    expect($('[data-testid="seletor-vazio"]')!.textContent).toContain("Nenhuma peça liberada agora.");
+    cleanup();
+    papel.atual = "solicitacao";
+    await montar(1280, retrato({ fila: true }));
+    expect($('[data-testid="fila-peca-f1"]')).toBeTruthy();
+    expect($('[data-testid="reservar-fila-f1"]')).toBeNull();
+    expect($('[data-testid="selecionar-fila-f1"]')).toBeNull();
+    expect($('[data-testid="button-iniciar-fila-f4"]')).toBeNull();
+  });
+
+  it("CELULAR com a fila e o seletor abertos: alvos de 44, campos a 16px, nada mais largo que a tela", async () => {
+    await montar(390, retrato({ fila: true }));
+    await act(async () => { fireEvent.click($('[data-testid="link-escolher-peca-2"]')!); });
+    await tick(30);
+    const ruins: string[] = [];
+    for (const el of $$("button, a[href], input:not([type=checkbox]), select")) {
+      if (el.closest(".sr-only")) continue;
+      // A casca do modal (X do cabeçalho, fechar nativo escondido) é do
+      // modal-shell e ganha 44px por CSS global no celular — fora deste recorte.
+      if (el.closest('[role="dialog"]') && !el.getAttribute("data-testid")) continue;
+      const alt = Math.max(px(el.style.minHeight), px(el.style.height));
+      if (alt < 44) ruins.push(`${el.getAttribute("data-testid") ?? el.tagName} altura ${alt}`);
+    }
+    expect(ruins).toEqual([]);
+    expect(px(($('[data-testid="busca-peca"]') as HTMLInputElement).style.fontSize)).toBe(16);
+    expect(px(($('[data-testid="reservar-fila-f1"]') as HTMLSelectElement).style.fontSize)).toBe(16);
+    for (const el of $$("*")) for (const v of [el.style.width, el.style.minWidth]) expect(px(v), `${el.tagName} ${v}`).toBeLessThanOrEqual(390);
+  });
 });
 
 describe("o modal de impressão com a peça FORA da máquina", () => {

@@ -37,7 +37,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { useRef, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
-import { Loader2, Play, Printer, Calendar } from "lucide-react";
+import { Loader2, Play, Printer, Calendar, ArrowLeftRight } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { HIDE_NATIVE_CLOSE, ModalHeader, modalSurface } from "@/components/modal-shell";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -199,10 +199,16 @@ export function useMutacoesDeImpressao({ onSucesso }: { onSucesso?: () => void }
 
 // ─── O cabeçalho ──────────────────────────────────────────────────────────────
 /** Título e subtítulo do ModalHeader — os dois lugares dizem a mesma coisa. */
-export function cabecalhoDoModalDeImpressao(item: PecaParaImprimir | null | undefined): { title: string; subtitle: string } {
+export function cabecalhoDoModalDeImpressao(item: PecaParaImprimir | null | undefined, abrirNaTroca = false): { title: string; subtitle: string } {
   if (!item) return { title: "Imprimir peça", subtitle: "" };
   if (isInProd(item)) {
     const hora = horaDeInicio(item.productionStartedAt);
+    if (abrirNaTroca && item.printMachine) {
+      return {
+        title: `Trocar de máquina — ${rotuloDaMaquina(item.printMachine)}`,
+        subtitle: `${hora ? `Desde ${hora} · ` : ""}escolha para onde a peça vai; o que já saiu fica anotado na atual`,
+      };
+    }
     return {
       title: `Em impressão na ${rotuloDaMaquina(item.printMachine)}`,
       subtitle: `${hora ? `Desde ${hora} · ` : ""}informe quantas já saíram — vai para o acabamento quando todas saírem`,
@@ -243,6 +249,18 @@ interface FormularioProps {
   /** Recuo do corpo do modal, para o rodapé grudado alinhar (16 no celular, 24 no desktop). */
   padModal: number;
   mutacoes: ReturnType<typeof useMutacoesDeImpressao>;
+  /**
+   * Abre já no painel "Trocar de máquina" (dono, 21/09: "não consigo trocar de
+   * máquina um item" — o cartão da aba Máquinas tem a ação direta). Só faz
+   * sentido com a peça em impressão; fora disso é ignorado.
+   */
+  abrirNaTroca?: boolean;
+  /**
+   * Impressora já marcada ao abrir (peça RESERVADA na aba Máquinas, 21/09):
+   * o operador só confirma "Iniciar impressão na Impressora 2" — e pode
+   * trocar antes. Só vale para peça ainda fora da máquina.
+   */
+  maquinaInicial?: string | null;
 }
 
 /**
@@ -250,7 +268,7 @@ interface FormularioProps {
  * quantidade) nasce da peça e NÃO é sincronizado por efeito — trocar a peça
  * troca a chave, e o React remonta limpo.
  */
-export function FormularioDeImpressao({ item, onFechar, padModal, mutacoes }: FormularioProps) {
+export function FormularioDeImpressao({ item, onFechar, padModal, mutacoes, abrirNaTroca = false, maquinaInicial = null }: FormularioProps) {
   const isMobile = useIsMobile();
   const { toast } = useToast();
   const fsMin = (n: number) => (isMobile ? Math.max(12, n) : n);
@@ -258,14 +276,19 @@ export function FormularioDeImpressao({ item, onFechar, padModal, mutacoes }: Fo
   const emImpressao = isInProd(item);
   const maquinaAtual = item.printMachine ?? "";
 
-  // Antes de iniciar, começa vazia (obriga a escolha). Em impressão, é a da
-  // peça — e só muda dentro do painel "Trocar de máquina".
-  const [maquinaEscolhida, setMaquinaEscolhida] = useState<string>(emImpressao ? maquinaAtual : "");
   // Peça em impressão SEM máquina anotada (iniciada antes do controle por
   // máquina): o painel de impressora já nasce aberto e o gesto é "Confirmar
   // impressora" — o servidor grava "inicio", não "troca".
   const semMaquinaAnotada = emImpressao && !maquinaAtual;
-  const [trocando, setTrocando] = useState(semMaquinaAnotada);
+  // Quem veio pelo "Trocar de máquina" do cartão também nasce no painel.
+  const nasceTrocando = semMaquinaAnotada || (emImpressao && abrirNaTroca);
+  // Antes de iniciar, começa vazia (obriga a escolha). Em impressão, é a da
+  // peça — e só muda dentro do painel "Trocar de máquina" (que nasce vazio,
+  // para a atual, desabilitada, não ficar marcada).
+  const [maquinaEscolhida, setMaquinaEscolhida] = useState<string>(
+    emImpressao ? (nasceTrocando ? "" : maquinaAtual) : (maquinaInicial && MAQUINAS_DE_IMPRESSAO.includes(maquinaInicial) ? maquinaInicial : ""),
+  );
+  const [trocando, setTrocando] = useState(nasceTrocando);
   // Pré-preenche com o que JÁ SAIU da máquina, não com o total (dono, 14/09):
   // a impressão é registrada aos poucos, e com o TOTAL pré-preenchido um toque
   // distraído concluía uma peça com 10 de 40 impressas. "Tudo" continua a um toque.
@@ -402,13 +425,17 @@ export function FormularioDeImpressao({ item, onFechar, padModal, mutacoes }: Fo
             </span>
           </span>
         </span>
+        {/* Botão contornado, não link sublinhado: o dono não o achava no
+            meio da faixa laranja (21/09). Some só enquanto o painel está aberto. */}
         {!trocando && !!maquinaAtual && (
           <button
             type="button"
             onClick={() => { setTrocando(true); setMaquinaEscolhida(""); }}
             data-testid="button-trocar-maquina"
-            style={{ minHeight: isMobile ? 44 : 32, padding: "0 8px", border: "none", background: "transparent", color: T.accentText, fontSize: fsMin(12), fontWeight: 700, cursor: "pointer", textDecoration: "underline", textUnderlineOffset: 3, borderRadius: R.sm }}
+            title="Mover esta peça para outra impressora"
+            style={{ minHeight: isMobile ? 44 : 34, padding: "0 12px", display: "inline-flex", alignItems: "center", gap: 6, border: "1.5px solid #9a3412", background: "#ffffff", color: "#9a3412", fontFamily: GROTESK, fontSize: fsMin(12), fontWeight: 700, cursor: "pointer", borderRadius: R.md, whiteSpace: "nowrap", flexShrink: 0 }}
           >
+            <ArrowLeftRight aria-hidden="true" style={{ width: 13, height: 13 }} />
             Trocar de máquina
           </button>
         )}
@@ -524,13 +551,17 @@ export function FormularioDeImpressao({ item, onFechar, padModal, mutacoes }: Fo
 interface ModalProps {
   item: PecaParaImprimir | null;
   onFechar: () => void;
+  /** Abre direto no painel de troca de impressora (ação "Trocar de máquina" do cartão). */
+  abrirNaTroca?: boolean;
+  /** Impressora já marcada (peça reservada na aba Máquinas). */
+  maquinaInicial?: string | null;
 }
 
-export function ModalImpressao({ item, onFechar }: ModalProps) {
+export function ModalImpressao({ item, onFechar, abrirNaTroca = false, maquinaInicial = null }: ModalProps) {
   const isMobile = useIsMobile();
   const padModal = isMobile ? 16 : 24;
   const mutacoes = useMutacoesDeImpressao({ onSucesso: onFechar });
-  const cab = cabecalhoDoModalDeImpressao(item);
+  const cab = cabecalhoDoModalDeImpressao(item, abrirNaTroca);
   const fsMin = (n: number) => (isMobile ? Math.max(12, n) : n);
 
   return (
@@ -560,7 +591,7 @@ export function ModalImpressao({ item, onFechar }: ModalProps) {
                 <div style={{ fontFamily: GROTESK, fontWeight: 700, fontSize: isMobile ? 16 : 13, color: T.accentText }}>{item.displayId ?? "—"}</div>
                 <div style={{ fontSize: FS.strong, fontWeight: 700, color: T.text }}>{item.type}</div>
                 {item.description && item.description !== item.type && (
-                  <div style={{ fontSize: FS.body, color: T.second, marginTop: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.description}</div>
+                  <div title={item.description} style={{ fontSize: FS.body, color: T.second, marginTop: 1, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflowWrap: "anywhere" }}>{item.description}</div>
                 )}
                 {item.event?.name && (
                   <div style={{ fontSize: FS.body, color: T.second, marginTop: 4, display: "flex", alignItems: "center", gap: 5 }}>
@@ -574,7 +605,7 @@ export function ModalImpressao({ item, onFechar }: ModalProps) {
                 </div>
               </div>
             </div>
-            <FormularioDeImpressao key={item.id} item={item} onFechar={onFechar} padModal={padModal} mutacoes={mutacoes} />
+            <FormularioDeImpressao key={`${item.id}:${abrirNaTroca ? "troca" : "impressas"}:${maquinaInicial ?? ""}`} item={item} onFechar={onFechar} padModal={padModal} mutacoes={mutacoes} abrirNaTroca={abrirNaTroca} maquinaInicial={maquinaInicial} />
           </div>
         )}
       </DialogContent>

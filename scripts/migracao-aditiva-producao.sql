@@ -119,6 +119,8 @@ ALTER TABLE items ADD COLUMN IF NOT EXISTS pedido_de_peca_id varchar;
 ALTER TABLE items ADD COLUMN IF NOT EXISTS pedido_de_peca_linha_id varchar;
 ALTER TABLE items ADD COLUMN IF NOT EXISTS kit_remessa_id varchar;
 ALTER TABLE items ADD COLUMN IF NOT EXISTS criado_por_id varchar;
+-- Máquinas: reserva de impressora antes de imprimir (fila por impressora, 21/09)
+ALTER TABLE items ADD COLUMN IF NOT EXISTS maquina_prevista text;
 
 -- Chaves estrangeiras (nomes do drizzle; só cria se ainda não existir)
 DO $$

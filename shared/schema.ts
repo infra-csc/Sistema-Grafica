@@ -250,6 +250,11 @@ export const items = pgTable("items", {
   // NULL = peça que nunca passou por "Iniciar impressão" (todo o acervo
   // anterior a esta coluna, e as reaproveitadas, que não vão para máquina).
   printMachine: text("print_machine"),
+  // RESERVA de impressora ANTES de imprimir (dono, 21/09: "deixar na fila
+  // alguns itens (geral) ou já setar em alguma impressora"). Código "1".."4";
+  // NULL = fila geral. É só um controle da aba Máquinas: não mexe em status,
+  // printMachine nem no diário. Vira realidade no start-printing, que a limpa.
+  maquinaPrevista: text("maquina_prevista"),
   producedAt: timestamp("produced_at"), // Timestamp quando foi produzido
   // DESDE QUANDO a peca esta no status atual.
   //
@@ -1016,6 +1021,8 @@ export const publicInsertItemSchema = insertItemSchema.omit({
   // (start-printing / start-production e as rotas de tubo), que valida máquina,
   // status e evento. Nenhum fluxo de criação legítimo os manda — nem o import,
   // nem o complemento, nem o reaproveitamento (estes nem passam por aqui).
+  // A reserva de impressora é gesto da aba Máquinas (PATCH maquina-prevista).
+  maquinaPrevista: true,
   printMachine: true,
   tuboId: true,
 });

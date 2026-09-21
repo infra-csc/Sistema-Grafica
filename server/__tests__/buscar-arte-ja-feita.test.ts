@@ -172,9 +172,9 @@ async function montarRota() {
   return rotas;
 }
 
-async function chamar(query: any, usuario: any) {
+async function chamar(query: any, usuario: any, rota = "GET /api/artes/busca") {
   const rotas = await montarRota();
-  const handlers = rotas.get("GET /api/artes/busca")!;
+  const handlers = rotas.get(rota)!;
   const resposta: any = { statusCode: 200, corpo: undefined };
   const res: any = {
     status(c: number) { resposta.statusCode = c; return res; },
@@ -310,6 +310,79 @@ describe("GET /api/artes/busca", () => {
     for (const metodo of ["app.post(", "app.patch(", "app.put(", "app.delete("]) {
       expect(ROTA).not.toContain(metodo);
     }
+  });
+});
+
+// ─── a sugestão do arquivo final ─────────────────────────────────────────────
+
+describe("GET /api/artes/sugestao-final — o arquivo final da peça de onde a arte veio", () => {
+  beforeEach(() => { H.filas = []; });
+  const SUG = "GET /api/artes/sugestao-final";
+  const comFinal = (id: string, mudanca: any = {}) => linha(id, {
+    thumbUrl: "/objects/mesma", arquivoFinalUrl: "//srv/arte/" + id + ".tif", arquivoFinalNome: id + ".tif",
+    quando: new Date("2026-09-01T00:00:00Z"), ...mudanca,
+  });
+
+  it("é da Arte e do admin, e exige a peça", async () => {
+    const ROTA = ler("server/routes/artes-busca.ts");
+    expect(ROTA).toContain('app.get("/api/artes/sugestao-final", requireArte');
+    expect((await chamar({ item: "alvo" }, { ...ARTE, userRole: "grafica" }, SUG)).statusCode).toBe(403);
+    expect((await chamar({}, ARTE, SUG)).statusCode).toBe(400);
+  });
+
+  it("casa pela MESMA URL de thumb e devolve a mais recente, ignorando a própria peça", async () => {
+    H.filas = [[linha("alvo", { thumbUrl: "/objects/mesma" })], [comFinal("alvo"), comFinal("origem"), comFinal("velha")]];
+    const r = await chamar({ item: "alvo" }, ARTE, SUG);
+    expect(r.statusCode).toBe(200);
+    expect(r.corpo.displayId).toBe("#origem");
+    expect(r.corpo.finalFileUrl).toContain("origem.tif");
+    expect(r.corpo.evento).toBe("Circuito das Estações 2026 São Paulo");
+    const ROTA = ler("server/routes/artes-busca.ts");
+    expect(ROTA).toContain("or(inArray(itemsTable.approvalThumbUrl, urls), inArray(itemsTable.finalPreviewUrl, urls))");
+    expect(ROTA).toContain("ne(itemsTable.id, alvo.id)");
+    expect(ROTA).toContain("desc nulls last");
+  });
+
+  it("exige o caminho do arquivo final preenchido", async () => {
+    H.filas = [[linha("alvo", { thumbUrl: "/objects/mesma" })], [comFinal("a", { arquivoFinalUrl: "  " }), comFinal("b", { arquivoFinalUrl: null })]];
+    expect((await chamar({ item: "alvo" }, ARTE, SUG)).corpo).toBeNull();
+    expect(ler("server/routes/artes-busca.ts")).toContain("isNotNull(itemsTable.finalFileUrl),");
+  });
+
+  it("nada casa pela URL → null, sem plano B por patrocinador", async () => {
+    H.filas = [[linha("alvo")], []];
+    const r = await chamar({ item: "alvo" }, ARTE, SUG);
+    expect(r.statusCode).toBe(200);
+    expect(r.corpo).toBeNull();
+    // peça sem thumb nem prévia nem chega a consultar
+    H.filas = [[linha("alvo", { thumbUrl: null })]];
+    expect((await chamar({ item: "alvo" }, ARTE, SUG)).corpo).toBeNull();
+    expect(ler("server/routes/artes-busca.ts")).toContain("NÃO HÁ PLANO B de propósito");
+  });
+
+  it("o usuário do Kit só recebe sugestão de peça que ele vê", async () => {
+    const doKit = { kitRemessaId: "r1", criadoPorId: "u1" };
+    const kit = { userRole: "arte", userId: "u1", userKit: true };
+    H.filas = [[linha("alvo", { ...doKit, thumbUrl: "/objects/mesma" })], [comFinal("alheia"), comFinal("dele", doKit)]];
+    expect((await chamar({ item: "alvo" }, kit, SUG)).corpo.displayId).toBe("#dele");
+    H.filas = [[linha("alvo", { thumbUrl: "/objects/mesma" })], []];
+    expect((await chamar({ item: "alvo" }, kit, SUG)).statusCode).toBe(404);
+  });
+
+  it("na tela: o bloco aparece com o campo vazio, Usar preenche SEM enviar, Ignorar some", () => {
+    const T = ler("client/src/pages/arte.tsx");
+    expect(T).toContain('data-testid="sugestao-arquivo-final"');
+    expect(T).toContain('data-testid="sugestao-arquivo-final-linha"');
+    expect(T).toContain("Usar este caminho");
+    expect(T).toContain("Confira se o arquivo serve para esta peça (medida e evento).");
+    expect(T).toContain("enabled: naFinalizacao && finalFileUrl.trim() === \"\" && !sugestoesIgnoradas.has(selectedItem!.id),");
+    const usar = T.slice(T.indexOf("const usarSugestaoFinal = () => {"), T.indexOf("const ignorarSugestaoFinal"));
+    expect(usar).toContain("setFinalFileUrl(sugestaoVisivel.finalFileUrl);");
+    expect(usar).toContain("setFinalDirty(true);");
+    expect(usar).not.toContain("mutate(");
+    expect(usar).not.toContain("apiRequest(");
+    expect(T).toContain("setSugestoesIgnoradas((s) => new Set(s).add(selectedItem.id));");
+    expect(T).toContain("&& sugestaoFinal.finalFileUrl !== finalFileUrl");
   });
 });
 

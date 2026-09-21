@@ -559,6 +559,12 @@ export function registerTubosRoutes(app: Express): void {
       const [tubo] = await db.select().from(tubos).where(eq(tubos.id, req.params.id));
       if (!tubo) return res.status(404).json({ error: "Tubo não encontrado" });
       if (tubo.entregueEm) return res.status(409).json({ error: `O Tubo ${tubo.numero} já foi entregue` });
+      // TODA entrega tem foto (dono, 21/09: "todos têm que ter fotos"). No tubo
+      // ela pode ser a do FECHAMENTO (tubo + itens) ou a do comprovante — o que
+      // não pode é sair sem nenhuma.
+      if (!foto && (tubo.fotosFechamento ?? []).length === 0) {
+        return res.status(400).json({ error: `O Tubo ${tubo.numero} ainda não tem foto — feche o tubo com a foto antes de entregar (ou anexe a foto da entrega)` });
+      }
 
       const dentro = (await db.select(COLUNAS_PECA).from(itemsTable)
         .where(and(eq(itemsTable.tuboId, tubo.id), isNull(itemsTable.deletedAt)))) as PecaCrua[];

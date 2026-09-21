@@ -479,3 +479,16 @@ describe("a peça não nasce com impressora nem tubo", () => {
     expect(SCHEMA).toContain("  printMachine: true,\n  tuboId: true,\n});");
   });
 });
+
+describe("toda entrega tem foto (21/09)", () => {
+  it("o tubo não sai sem foto: vale a do fechamento ou a do comprovante", () => {
+    expect(ROTAS).toContain("if (!foto && (tubo.fotosFechamento ?? []).length === 0) {");
+    expect(ROTAS).toContain("ainda não tem foto — feche o tubo com a foto antes de entregar");
+    expect(PAINEL).toContain("const temFoto = t.fotosFechamento.length > 0 || fotos.length > 0;");
+  });
+  it("a entrega por peça continua exigindo foto, sem exceção", () => {
+    const ITEMS = ler("server/routes/items.ts");
+    expect(ITEMS).toContain('return res.status(400).json({ error: "photoUrl is required" });');
+    expect(ITEMS).not.toContain("semComprovante");
+  });
+});

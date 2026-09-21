@@ -576,7 +576,7 @@ export function TubosDialog({ evento, onClose, itensIniciais, tuboInicial, onEmb
                         )}
                         {!entregue && !vazio && entregando !== t.id && fechando !== t.id && !t.pecas.some(soVisualizaKit) && (
                           <button type="button" onClick={() => { setEntregando(t.id); setFotos([]); setRecebidoPor(""); setObs(""); }}
-                            disabled={!t.prontoParaEntregar} title={motivoBloqueio ?? (fechado ? undefined : "Dá para entregar sem fechar, mas o certo é fotografar o tubo antes")}
+                            disabled={!t.prontoParaEntregar} title={motivoBloqueio ?? (fechado ? undefined : "Sem a foto do fechamento, a entrega vai pedir a foto do comprovante")}
                             data-testid={`entregar-tubo-${t.numero}`}
                             style={{ display: "inline-flex", alignItems: "center", gap: 6, height: alvo, padding: "0 12px", borderRadius: 8, border: "none", background: t.prontoParaEntregar ? COR.verde : "#e7e5e4", color: t.prontoParaEntregar ? "#fff" : COR.fraco, fontSize: 12.5, fontWeight: 800, cursor: t.prontoParaEntregar ? "pointer" : "not-allowed" }}>
                             <Truck aria-hidden="true" style={{ width: 13, height: 13 }} /> Entregar tubo (quem recebeu)
@@ -665,7 +665,10 @@ export function TubosDialog({ evento, onClose, itensIniciais, tuboInicial, onEmb
         {tuboEmFormulario && (() => {
           const t = tuboEmFormulario;
           const fechandoEste = fechando === t.id;
-          const podeConfirmar = fechandoEste ? fotosFechamento.length > 0 : !!recebidoPor.trim();
+          // Entrega: quem recebeu E alguma foto — a do fechamento já serve; sem
+          // nenhuma, anexa-se a do comprovante (dono, 21/09: toda entrega tem foto).
+          const temFoto = t.fotosFechamento.length > 0 || fotos.length > 0;
+          const podeConfirmar = fechandoEste ? fotosFechamento.length > 0 : !!recebidoPor.trim() && temFoto;
           const pendente = fechandoEste ? fechar.isPending : entregar.isPending;
           return (
             <div data-testid={`rodape-${fechandoEste ? "fechar" : "entregar"}-tubo-${t.numero}`}

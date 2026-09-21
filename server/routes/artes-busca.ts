@@ -39,7 +39,7 @@
 // peça segue o fluxo normal de aprovação depois.
 // ─────────────────────────────────────────────────────────────────────────────
 import type { Express } from "express";
-import { and, eq, inArray, isNull, isNotNull, or, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull, isNotNull, ne, or, sql } from "drizzle-orm";
 import { db } from "../db";
 import { items as itemsTable, events, itemSponsors, sponsors } from "@shared/schema";
 import { pecaVisivelPara } from "@shared/kit";
@@ -252,6 +252,73 @@ export function registerArtesBuscaRoutes(app: Express) {
     } catch (error) {
       console.error("[artes] erro ao buscar arte já feita:", error);
       res.status(500).json({ error: "Erro ao buscar artes" });
+    }
+  });
+
+  // ── SUGESTÃO DO ARQUIVO FINAL (dono, 21/09) ───────────────────────────────
+  //
+  // "Caso eu tenha buscado a arte já feita, na hora da finalização aparece uma
+  // sugestão do arquivo final da última peça — apenas sugestão."
+  //
+  // SEM COLUNA NOVA: a origem se descobre pela própria referência. Quem
+  // reaproveitou uma arte aponta para a MESMA URL de thumb (ou de prévia) da
+  // peça de onde ela veio — reaproveitar é referenciar, ver o topo deste
+  // arquivo. Então: outra peça, não apagada, com a mesma URL e com o caminho
+  // do arquivo final preenchido; a mais recente vence.
+  //
+  // NÃO HÁ PLANO B de propósito. Se nada casar pela URL a resposta é null —
+  // nada de "mesmo patrocinador" ou "evento parecido": o dono pediu o arquivo
+  // da peça DE ONDE A ARTE VEIO, e um caminho de rede chutado é pior que
+  // campo vazio. E é só leitura: nada é gravado até o envio de sempre
+  // (submit-final-file).
+  app.get("/api/artes/sugestao-final", requireArte, async (req: any, res) => {
+    try {
+      const alvoId = typeof req.query?.item === "string" ? req.query.item : "";
+      if (!alvoId) return res.status(400).json({ error: "Informe a peça (item)." });
+      const usuario = { kit: req.userKit === true, userId: req.userId ?? null };
+
+      const [alvo]: Linha[] = await db.select(COLUNAS).from(itemsTable)
+        .leftJoin(events, eq(events.id, itemsTable.eventId))
+        .where(and(eq(itemsTable.id, alvoId), isNull(itemsTable.deletedAt)));
+      if (!alvo || !pecaVisivelPara(usuario, alvo)) {
+        return res.status(404).json({ error: "Peça não encontrada" });
+      }
+
+      const urls = [alvo.thumbUrl, alvo.previewUrl].filter(temTexto);
+      if (urls.length === 0) return res.json(null);
+
+      const irmas: Array<Linha & { quando: Date | null }> = await db
+        .select({ ...COLUNAS, quando: itemsTable.finalFileUpdatedAt })
+        .from(itemsTable)
+        .leftJoin(events, eq(events.id, itemsTable.eventId))
+        .where(and(
+          isNull(itemsTable.deletedAt),
+          ne(itemsTable.id, alvo.id),
+          isNotNull(itemsTable.finalFileUrl),
+          sql`${itemsTable.finalFileUrl} <> ''`,
+          or(inArray(itemsTable.approvalThumbUrl, urls), inArray(itemsTable.finalPreviewUrl, urls)),
+        ))
+        .orderBy(sql`${itemsTable.finalFileUpdatedAt} desc nulls last`)
+        .limit(20);
+
+      // O filtro do Kit e o "≠ a própria" de novo em memória: a régua de
+      // visibilidade é uma função, não SQL, e o teste chama a rota com um
+      // banco de mentira — a garantia não pode depender só do WHERE.
+      const origem = irmas.find((c) => c.id !== alvo.id && temTexto(c.arquivoFinalUrl) && pecaVisivelPara(usuario, c));
+      if (!origem) return res.json(null);
+
+      res.json({
+        finalFileUrl: origem.arquivoFinalUrl,
+        finalFileName: origem.arquivoFinalNome,
+        displayId: origem.displayId,
+        tipo: origem.tipo,
+        descricao: origem.descricao,
+        evento: origem.eventName,
+        quando: origem.quando,
+      });
+    } catch (error) {
+      console.error("[artes] erro na sugestão do arquivo final:", error);
+      res.status(500).json({ error: "Erro ao sugerir o arquivo final" });
     }
   });
 }

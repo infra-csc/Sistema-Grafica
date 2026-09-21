@@ -84,6 +84,9 @@ function retrato(opts: { registros?: boolean; imprimindo?: boolean; muitos?: num
   };
 }
 
+/** O fetch falso em uso (vi.stubGlobal) — para olhar chamadas que não são PATCH. */
+const fetchMockDe = () => globalThis.fetch as unknown;
+
 /** fetch falso que responde por URL e guarda as chamadas de escrita. */
 function fetchPorUrl(extra?: (url: string, init: any) => Response | null) {
   const json = (corpo: unknown) => new Response(JSON.stringify(corpo), { status: 200, headers: { "content-type": "application/json" } });
@@ -364,7 +367,8 @@ describe("segunda passada: nada cortado, trocar direto, resumo e Excel", () => {
     // A pílula não disputa espaço: o cabeçalho quebra linha se precisar.
     expect((h3.parentElement as HTMLElement).style.flexWrap).toBe("wrap");
     const nome = $('[data-testid="nome-peca-p1"]')!;
-    expect(nome.textContent).toBe("#0101Backdrop");
+    // A DESCRIÇÃO em destaque (é ela que identifica) e o tipo como apoio.
+    expect(nome.textContent).toBe("#0101lona 440gBackdrop");
     expect(nome.style.whiteSpace).not.toBe("nowrap");
     expect(nome.style.webkitLineClamp || (nome.style as any).WebkitLineClamp).toBe("2");
     // Em nenhum lugar da tela um rótulo ainda usa reticências de linha única.
@@ -519,7 +523,8 @@ describe("a fila: geral, reservada por impressora, e o seletor de peça", () => 
     expect($('[data-testid="estado-2"]')!.textContent).toBe("Livre · Na fila 2");
     expect($$('[data-testid="fila-maquina-2"] [data-testid^="peca-na-fila-"]').map((e) => e.getAttribute("data-testid"))).toEqual(["peca-na-fila-f4", "peca-na-fila-f5"]);
     // O nome longo não corta: clamp de 2 linhas, sem nowrap.
-    const nome = $('[data-testid="fila-peca-f1"] a span') as HTMLElement;
+    const nome = $('[data-testid="nome-fila-geral-f1"]') as HTMLElement;
+    expect(nome.style.webkitLineClamp || (nome.style as any).WebkitLineClamp).toBe("2");
     expect(nome.style.whiteSpace).not.toBe("nowrap");
   });
 
@@ -527,7 +532,7 @@ describe("a fila: geral, reservada por impressora, e o seletor de peça", () => 
     await montar(1280, retrato({ fila: true }));
     const { escritas } = fetchPorUrl();
     const sel = $('[data-testid="reservar-fila-f1"]') as HTMLSelectElement;
-    expect(Array.from(sel.options).map((o) => o.textContent)).toEqual(["Impressora…", "Impressora 2 — livre", "Impressora 3 — livre", "Impressora 4 (Targa Elite) — livre", "Impressora 1 (New XT) — imprimindo 1"]);
+    expect(Array.from(sel.options).map((o) => o.textContent)).toEqual(["Impressora…", "Impressora 2 — livre", "Impressora 3 — livre", "Impressora 4 (Targa Elite) — livre", "Impressora 1 (New XT) — imprimindo #0101"]);
     // Sem impressora escolhida o botão não age; a quantidade nasce com tudo (placeholder).
     const botao = () => $('[data-testid="button-reservar-f1"]') as HTMLButtonElement;
     expect(botao().disabled).toBe(true);
@@ -853,7 +858,7 @@ describe("fila geral: Imprimir agora, sem modal", () => {
     await montar(1280, retrato({ fila: true }));
     const sel = $('[data-testid="reservar-fila-f1"]') as HTMLSelectElement;
     expect(sel.options[1].textContent).toBe("Impressora 2 — livre");
-    expect(sel.options[4].textContent).toBe("Impressora 1 (New XT) — imprimindo 1");
+    expect(sel.options[4].textContent).toBe("Impressora 1 (New XT) — imprimindo #0101");
     const agora = () => $('[data-testid="button-imprimir-agora-f1"]') as HTMLButtonElement;
     expect(agora().disabled).toBe(true); // sem impressora escolhida
     await act(async () => { fireEvent.change(sel, { target: { value: "3" } }); });
@@ -879,24 +884,88 @@ describe("fila geral: Imprimir agora, sem modal", () => {
     expect(escritas()).toEqual([{ url: "/api/items/f2/start-printing", body: { printMachine: "2", iniciarParte: true, quantidade: 4 } }]);
   });
 
-  it("impressora OCUPADA: confirmação leve na própria linha — 'Imprimir junto' inicia, 'Só reservar' reserva", async () => {
+  // Dono (21/09): "caso a impressora esteja imprimindo algo, não dá para colocar outra; não faz
+  // sentido dar [o Imprimir junto]. O que podemos implementar é TIRAR um item e COLOCAR o outro."
+  it("impressora OCUPADA: 'Imprimir agora' desabilitado com o motivo; só Reservar — ou 'Imprimir esta no lugar', com a pergunta clara", async () => {
     await montar(1280, retrato({ fila: true }));
     const { escritas } = fetchPorUrl();
     await act(async () => { fireEvent.change($('[data-testid="reservar-fila-f1"]')!, { target: { value: "1" } }); });
-    await act(async () => { fireEvent.click($('[data-testid="button-imprimir-agora-f1"]')!); });
+    const agora = $('[data-testid="button-imprimir-agora-f1"]') as HTMLButtonElement;
+    expect(agora.disabled).toBe(true);
+    expect(agora.getAttribute("title")).toBe("Impressora 1 (New XT) está com #0101");
+    expect($('[data-testid="ocupada-f1"]')!.textContent).toContain("Impressora 1 (New XT) está com #0101 — dá para reservar, ou imprimir esta no lugar.");
+    expect($('[data-testid="button-imprimir-junto-f1"]')).toBeNull();
+    expect(($('[data-testid="button-reservar-f1"]') as HTMLButtonElement).disabled).toBe(false);
+    // A troca por prioridade pede confirmação e diz o que acontece com a que sai.
+    await act(async () => { fireEvent.click($('[data-testid="button-imprimir-no-lugar-f1"]')!); });
+    expect(escritas()).toEqual([]);
+    expect($('[data-testid="confirmar-troca-f1"]')!.textContent).toContain("Tirar #0101 (Backdrop — lona 440g) da Impressora 1 (New XT) (3 de 10 já impressas ficam anotadas) e imprimir #0201 (Placa de octanorme grande para o pórtico — lona 440g) no lugar? A #0101 volta para o topo da fila desta impressora com as 7 que faltam.");
+    await act(async () => { fireEvent.click($('[data-testid="button-cancelar-troca-f1"]')!); });
+    expect($('[data-testid="confirmar-troca-f1"]')).toBeNull();
+    await act(async () => { fireEvent.click($('[data-testid="button-imprimir-no-lugar-f1"]')!); });
+    await act(async () => { fireEvent.click($('[data-testid="button-trocar-f1"]')!); });
+    await tick(30);
+    const posts = (fetchMockDe() as any).mock.calls.filter((c: any) => c[1]?.method === "POST").map((c: any) => ({ url: String(c[0]), body: JSON.parse(String(c[1].body)) }));
+    expect(posts).toEqual([{ url: "/api/grafica/maquinas/1/trocar", body: { tirarItemId: "p1", colocarItemId: "f1", quantidade: 10 } }]);
+  });
+
+  it("CARTÃO ocupado: a fila NÃO inicia — botão desabilitado, motivo em 12px e 'Imprimir esta no lugar'; 'Tirar da impressora' libera", async () => {
+    const r = retrato({ fila: true });
+    // A #0204 e a #0205 estão na fila da Impressora 1, que imprime a #0101.
+    (r.maquinas[0] as any).naFila = (r.maquinas[1] as any).naFila.map((x: any) => ({ ...x, maquinaPrevista: "1", reservadas: 10 }));
+    (r.maquinas[1] as any).naFila = [];
+    await montar(1280, r);
+    const iniciar = $('[data-testid="button-iniciar-fila-f4"]') as HTMLButtonElement;
+    expect(iniciar.disabled).toBe(true);
+    expect(iniciar.getAttribute("data-proxima")).toBeNull(); // ocupada não tem "Próxima"
+    const motivo = $('[data-testid="fila-ocupada-f4"] [role="status"]') as HTMLElement;
+    expect(motivo.textContent).toBe("A impressora está com #0101 — tire-a, troque-a de máquina ou espere acabar");
+    expect(px(motivo.style.fontSize)).toBe(12);
+    expect($('[data-testid="mover-fila-f4"]')).toBeTruthy(); // a outra saída continua ali
+    fetchPorUrl();
+    await act(async () => { fireEvent.click($('[data-testid="button-imprimir-no-lugar-fila-f4"]')!); });
+    expect($('[data-testid="confirmar-troca-fila-f4"]')!.textContent).toContain("Tirar #0101 (Backdrop — lona 440g) da Impressora 1 (New XT) (3 de 10 já impressas ficam anotadas) e imprimir #0204 (Backdrop — lona 440g) no lugar?");
+    await act(async () => { fireEvent.click($('[data-testid="button-trocar-fila-f4"]')!); });
+    await tick(30);
+    const posts = () => (fetchMockDe() as any).mock.calls.filter((c: any) => c[1]?.method === "POST").map((c: any) => ({ url: String(c[0]), body: JSON.parse(String(c[1].body)) }));
+    expect(posts()[0]).toEqual({ url: "/api/grafica/maquinas/1/trocar", body: { tirarItemId: "p1", colocarItemId: "f4", quantidade: 10 } });
+    // "Tirar da impressora", sozinho: pausa e deixa a impressora livre.
+    await act(async () => { fireEvent.click($('[data-testid="button-tirar-da-impressora-p1"]')!); });
+    await tick(30);
+    expect(posts()[1]).toEqual({ url: "/api/grafica/maquinas/1/pausar", body: { itemId: "p1" } });
+  });
+
+  it("quando a impressora ESVAZIA, a 'Próxima' volta a ser o botão do cartão; a pausada vem primeiro na fila; o diário conta a pausa", async () => {
+    const r = retrato({ fila: true, imprimindo: false });
+    (r.maquinas[0] as any).naFila = [
+      { ...naFila("n1", "#0398", "Lona", "1", 1), reservadas: 10 },
+      { ...naFila("n2", "#0386", "Placa", "1", 30), reservadas: 7, impressas: 3, pausadaEm: "2026-09-21T14:03:00.000Z" },
+    ];
+    (r.maquinas[0].registros as any).unshift({ ...registro("rp", "n2", "#0386", "pausa", 0, 3, "11:03", -1), deuLugarA: "#0398" });
+    await montar(1280, r);
+    // A pausada (#0386) sobe para o topo mesmo com a saída do caminhão mais longe — e é ela a "Próxima".
+    expect($$('[data-testid="fila-maquina-1"] [data-testid^="peca-na-fila-"]').map((e) => e.getAttribute("data-testid"))).toEqual(["peca-na-fila-n2", "peca-na-fila-n1"]);
+    const proxima = $('[data-testid="button-iniciar-fila-n2"]') as HTMLButtonElement;
+    expect(proxima.disabled).toBe(false);
+    expect(proxima.textContent).toBe("Próxima: #0386 · Iniciar 7 un.");
+    expect($('[data-testid="peca-na-fila-n2"]')!.textContent).toContain("Pausada — volta primeiro");
+    expect($('[data-testid="peca-na-fila-n2"]')!.textContent).toContain("3 de 10 já impressas");
+    expect($('[data-testid="fila-ocupada-n1"]')).toBeNull();
+    await act(async () => { fireEvent.click($('[data-testid="aba-diario"]')!); });
     await tick(20);
-    expect(escritas()).toEqual([]); // nada iniciou ainda
-    const pergunta = $('[data-testid="confirmar-imprimir-junto-f1"]')!;
-    expect(pergunta.textContent).toContain("A Impressora 1 (New XT) já está com #0101. Imprimir #0201 junto?");
-    await act(async () => { fireEvent.click($('[data-testid="button-so-reservar-f1"]')!); });
-    await tick(30);
-    expect(escritas()[0]).toEqual({ url: "/api/items/f1/maquina-prevista", body: { maquina: "1", quantidade: 10 } });
-    // De novo, agora confirmando.
-    await act(async () => { fireEvent.change($('[data-testid="reservar-fila-f3"]')!, { target: { value: "1" } }); });
-    await act(async () => { fireEvent.click($('[data-testid="button-imprimir-agora-f3"]')!); });
-    await act(async () => { fireEvent.click($('[data-testid="button-imprimir-junto-f3"]')!); });
-    await tick(30);
-    expect(escritas()[1]).toEqual({ url: "/api/items/f3/start-printing", body: { printMachine: "1" } });
+    expect($('[data-testid="linha-diario-rp"]')!.textContent).toContain("Pausou — deu lugar à #0398 (3 de 10 impressas)");
+  });
+
+  it("CELULAR: as saídas do cartão ocupado têm 44px e ocupam a linha inteira", async () => {
+    const r = retrato({ fila: true });
+    (r.maquinas[0] as any).naFila = [{ ...naFila("n1", "#0398", "Lona", "1", 1), reservadas: 10 }];
+    await montar(390, r);
+    const noLugar = $('[data-testid="button-imprimir-no-lugar-fila-n1"]')!;
+    expect(px(noLugar.style.minHeight)).toBe(44);
+    expect(noLugar.style.flex).toBe("1 1 100%");
+    expect(px(($('[data-testid="button-tirar-da-impressora-p1"]') as HTMLElement).style.minHeight)).toBe(44);
+    await act(async () => { fireEvent.click(noLugar); });
+    for (const b of $$('[data-testid="confirmar-troca-fila-n1"] button')) expect(px(b.style.minHeight)).toBe(44);
   });
 
   it("cartão LIVRE com fila: a primeira é a 'Próxima', em destaque; a Solicitação não vê 'Imprimir agora'; no celular ele vem em cima, na linha inteira", async () => {
@@ -969,6 +1038,118 @@ describe("as listas FECHAM e a página respira no fim", () => {
     await act(async () => { fireEvent.click($('[data-testid="selecionar-fila-f1"]')!); });
     expect(pagina()).toBe("calc(160px + env(safe-area-inset-bottom))");
   });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// A DESCRIÇÃO e a FICHA (dono, 21/09): "aqui precisa da descrição do item"
+// (todas eram "2×1") e "quando clicar, abrir o card com as informações do item".
+// ─────────────────────────────────────────────────────────────────────────────
+describe("duas peças 2×1 são distinguíveis em cada lista, e o título abre a ficha", () => {
+  const duas = () => {
+    const r = retrato({ fila: true });
+    const x = (id: string, cod: string, descricao: string, maquinaPrevista: string | null, extra: Record<string, unknown> = {}) =>
+      ({ ...naFila(id, cod, "2×1", maquinaPrevista, 3), descricao, material: "SANETT", medida: "1,90 × 0,90", patrocinadores: [descricao.replace("2×1 ", "")], ...extra });
+    r.filaGeral = [x("d1", "#0400", "2×1 Nubank", null), x("d2", "#0401", "2×1 Santander", null)] as any;
+    (r.maquinas[1] as any).naFila = [x("d3", "#0402", "Logo Caixa", "2", { reservadas: 10 }), x("d4", "#0403", "2×1 Itaú", "2", { reservadas: 10 })];
+    r.maquinas[0].imprimindo = [{ ...peca("d5", "#0404", 3, 10, "1"), tipo: "2×1", descricao: "2×1 Bradesco", material: "SANETT", medida: "1,90 × 0,90", patrocinadores: ["Bradesco"] } as any];
+    r.maquinas[0].registros = [{ ...registro("rd1", "d5", "#0404", "parcial", 3, 3, "10:12", 0), tipoPeca: "2×1", descricaoPeca: "2×1 Bradesco" }, { ...registro("rd2", "d1", "#0400", "inicio", 0, 0, "09:00", 1), tipoPeca: "2×1", descricaoPeca: "2×1 Nubank" }] as any;
+    return r;
+  };
+
+  it("a regra pura do nome: descrição em destaque; tipo só quando não é repetição", async () => {
+    const { nomeDaPeca, partesDoNomeDaPeca } = await import("@shared/nome-da-peca");
+    expect(partesDoNomeDaPeca("2×1", "2×1 Nubank")).toEqual({ destaque: "2×1 Nubank", tipo: null });
+    expect(partesDoNomeDaPeca("2×1", "2x1 Nubank")).toEqual({ destaque: "2x1 Nubank", tipo: null }); // x e × são a mesma coisa
+    expect(partesDoNomeDaPeca("2×1", "Logo Caixa")).toEqual({ destaque: "Logo Caixa", tipo: "2×1" });
+    expect(partesDoNomeDaPeca("Backdrop", "")).toEqual({ destaque: "Backdrop", tipo: null });
+    expect(partesDoNomeDaPeca("Backdrop", "backdrop")).toEqual({ destaque: "Backdrop", tipo: null });
+    expect(nomeDaPeca("2×1", "Logo Caixa")).toBe("2×1 — Logo Caixa");
+    expect(nomeDaPeca("2×1", "2×1 Nubank")).toBe("2×1 Nubank");
+  });
+
+  it("fila geral, 'Na fila', cartão imprimindo, seletor e diário mostram a descrição — e material · medida · patrocinador", async () => {
+    await montar(1280, duas());
+    expect($('[data-testid="nome-fila-geral-d1"]')!.textContent).toBe("#04002×1 Nubank");
+    expect($('[data-testid="nome-fila-geral-d2"]')!.textContent).toBe("#04012×1 Santander");
+    expect($('[data-testid="apoio-d1"]')!.textContent).toBe("SANETT · 1,90 × 0,90 · Nubank");
+    expect($('[data-testid="nome-fila-d3"]')!.textContent).toBe("#0402Logo Caixa2×1"); // o tipo entra como apoio
+    expect($('[data-testid="nome-fila-d4"]')!.textContent).toBe("#04032×1 Itaú");
+    expect($('[data-testid="nome-peca-d5"]')!.textContent).toBe("#04042×1 Bradesco");
+    expect($('[data-testid="peca-na-maquina-d5"]')!.textContent).toContain("SANETT · 1,90 × 0,90 · Bradesco");
+    // Nada cortado: 2 linhas com clamp, sem reticências de linha única.
+    for (const id of ["nome-fila-geral-d1", "nome-fila-d3", "nome-peca-d5"]) {
+      const el = $(`[data-testid="${id}"]`)!;
+      expect(el.style.webkitLineClamp || (el.style as any).WebkitLineClamp, id).toBe("2");
+      expect(el.style.whiteSpace, id).not.toBe("nowrap");
+    }
+    // Seletor "Escolher peça".
+    await act(async () => { fireEvent.click($('[data-testid="link-escolher-peca-3"]')!); });
+    await tick(30);
+    expect($('[data-testid="escolher-peca-d1"]')!.textContent).toContain("2×1 Nubank");
+    expect($('[data-testid="escolher-peca-d2"]')!.textContent).toContain("2×1 Santander");
+    expect($('[data-testid="escolher-peca-d1"]')!.textContent).toContain("SANETT · 1,90 × 0,90 · Nubank");
+    cleanup();
+    // Diário.
+    await montar(1280, duas(), { url: "/grafica/maquinas?aba=diario" });
+    expect($('[data-testid="nome-diario-rd1"]')!.textContent).toBe("#04042×1 Bradesco");
+    expect($('[data-testid="nome-diario-rd2"]')!.textContent).toBe("#04002×1 Nubank");
+  });
+
+  it("clicar no TÍTULO abre a ficha (a mesma da Gráfica); a área de ações não abre; o link do código não leva mais para a Gráfica", async () => {
+    await montar(1280, duas());
+    const { queryClient } = await import("@/lib/queryClient");
+    const titulo = $('[data-testid="nome-fila-geral-d1"]') as HTMLButtonElement;
+    expect(titulo.tagName).toBe("BUTTON"); // Enter/Espaço abrem, de graça
+    expect(titulo.getAttribute("aria-label")).toBe("Ver detalhes de #0400");
+    expect($('[data-testid="fila-peca-d1"] a[href^="/grafica?item="]')).toBeNull();
+    // Mexer nos controles NÃO abre a ficha.
+    await act(async () => { fireEvent.change($('[data-testid="reservar-fila-d1"]')!, { target: { value: "3" } }); });
+    await act(async () => { fireEvent.click($('[data-testid="qtd-reservar-d1"]')!); });
+    expect($('[data-testid="ficha-carregando"]')).toBeNull();
+    // Sob demanda: enquanto a peça completa não chega, o aviso de carregando (com saída).
+    vi.stubGlobal("fetch", vi.fn(() => new Promise(() => {})));
+    await act(async () => { fireEvent.click(titulo); });
+    await tick(30);
+    expect($('[data-testid="ficha-carregando"]')!.textContent).toContain("Buscando as informações da peça…");
+    expect($('[data-testid="ficha-carregando"] a[href="/grafica?item=d1"]')).toBeTruthy();
+    // A peça chega (a lista que a Gráfica usa) → a ficha de verdade abre.
+    await act(async () => {
+      queryClient.setQueryData(["/api/items/approved"], [{ id: "d1", displayId: "#0400", type: "2×1", description: "2×1 Nubank", status: "approved", quantity: 10, material: "SANETT", finish: "Ilhós", measurement: "1,90 × 0,90", eventId: "ev1", event: { id: "ev1", name: "Maratona SP" }, sponsors: [] }]);
+    });
+    await tick(60);
+    expect($('[data-testid="ficha-carregando"]')).toBeNull();
+    const ficha = $$('[role="dialog"]').find((d) => (d.textContent ?? "").includes("2×1 Nubank"));
+    expect(ficha).toBeTruthy();
+    expect(ficha!.textContent).toContain("#0400");
+    expect($('[data-testid="ficha-ver-na-grafica"]')!.getAttribute("href")).toBe("/grafica?item=d1");
+  }, 20_000);
+
+  it("cartão imprimindo, 'Na fila', diário e seletor também abrem a ficha; no celular o título tem 44px", async () => {
+    await montar(390, duas());
+    const { queryClient } = await import("@/lib/queryClient");
+    queryClient.setQueryData(["/api/items/approved"], [
+      { id: "d5", displayId: "#0404", type: "2×1", description: "2×1 Bradesco", status: "inProduction", quantity: 10, material: "SANETT", finish: "", measurement: "", eventId: "ev1", event: { id: "ev1", name: "Maratona SP" }, sponsors: [] },
+      { id: "d3", displayId: "#0402", type: "2×1", description: "Logo Caixa", status: "approved", quantity: 10, material: "SANETT", finish: "", measurement: "", eventId: "ev1", event: { id: "ev1", name: "Maratona SP" }, sponsors: [] },
+    ]);
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("[]", { status: 200, headers: { "content-type": "application/json" } })));
+    for (const [testId, texto] of [["nome-peca-d5", "2×1 Bradesco"], ["nome-fila-d3", "Logo Caixa"]] as const) {
+      const titulo = $(`[data-testid="${testId}"]`) as HTMLElement;
+      expect(px(titulo.style.minHeight), testId).toBe(44);
+      await act(async () => { fireEvent.click(titulo); });
+      await tick(60);
+      const ficha = $$('[role="dialog"]').find((d) => (d.textContent ?? "").includes(texto));
+      expect(ficha, testId).toBeTruthy();
+      await act(async () => { fireEvent.keyDown(document.activeElement ?? document.body, { key: "Escape" }); });
+      await tick(60);
+    }
+    // No seletor a linha ESCOLHE a peça; a ficha abre pelo botão ao lado (44px).
+    await act(async () => { fireEvent.click($('[data-testid="link-escolher-peca-3"]')!); });
+    await tick(30);
+    const olho = $('[data-testid="ficha-d1"]') as HTMLElement;
+    expect(olho.getAttribute("aria-label")).toBe("Ver detalhes de #0400");
+    expect(px(olho.style.minHeight)).toBe(44);
+    expect(px(olho.style.minWidth)).toBe(44);
+  }, 30_000);
 });
 
 describe("o modal de impressão com a peça FORA da máquina", () => {

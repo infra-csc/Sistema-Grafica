@@ -31,7 +31,7 @@ const grafica = readFileSync(path.resolve(__dirname, "../../client/src/pages/gra
 function rotaDeEntrega(): string {
   const i = rotas.indexOf("const { receivedBy, photoUrl, notes } = req.body;");
   expect(i).toBeGreaterThan(-1);
-  return rotas.slice(i, i + 5200);
+  return rotas.slice(i, i + 7200);
 }
 
 describe("o servidor exige a foto, não o nome", () => {

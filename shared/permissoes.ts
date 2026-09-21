@@ -109,6 +109,10 @@ export const REGUA_DE_PAPEIS: RegraDeRota[] = [
   // só desvia ids com esse prefixo.
   { metodo: "PATCH", rota: "/api/items/:id/maquina-prevista", papeis: ["admin", "grafica"] },
   { metodo: "PATCH", rota: "/api/items/bulk-maquina-prevista", papeis: ["admin", "grafica"] },
+  // Uma peça por vez por impressora (dono, 21/09): tirar a que está e, na
+  // troca por prioridade, colocar outra no lugar.
+  { metodo: "POST", rota: "/api/grafica/maquinas/:maquina/trocar", papeis: ["admin", "grafica"] },
+  { metodo: "POST", rota: "/api/grafica/maquinas/:maquina/pausar", papeis: ["admin", "grafica"] },
   { metodo: "PATCH", rota: "/api/items/:id/start-production", papeis: ["admin", "grafica"] },
   { metodo: "PATCH", rota: "/api/items/:id/submit-final-file", papeis: ["admin", "arte"] },
   { metodo: "PATCH", rota: "/api/items/:id/submit-for-approval", papeis: ["admin", "arte"] },

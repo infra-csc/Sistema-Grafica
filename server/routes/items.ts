@@ -4648,6 +4648,9 @@ export function registerItemRoutes(app: Express): void {
       const item = await storage.updateItem(req.params.id, {
         status: "inProduction",
         printMachine,
+        // A reserva (aba Máquinas, 21/09) cumpriu o papel: a peça está numa
+        // máquina de verdade agora. Limpa mesmo se a escolhida foi outra.
+        maquinaPrevista: null,
         ...(!current.productionStartedAt ? { productionStartedAt: new Date() } : {}),
       } as any);
       if (!item) return res.status(404).json({ error: "Item not found" });

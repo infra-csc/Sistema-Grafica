@@ -14,7 +14,7 @@
 //   4. A LEITURA responde as duas perguntas da tela, no fuso da operação.
 //   5. A TELA existe, está no app e a Gráfica chega nela pelo cabeçalho.
 // ─────────────────────────────────────────────────────────────────────────────
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { readFileSync, existsSync } from "fs";
 import path from "path";
 
@@ -204,6 +204,196 @@ describe("5 · a tela", () => {
     // Cores proibidas como texto (régua da casa) e o cinza aposentado.
     expect(PAGINA).not.toContain("#78716c");
     expect(PAGINA).not.toMatch(/color: "#f97316"|color: "#a8a29e"/);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 6 · O RELATÓRIO (dono, 21/09: "não tem relatório diário, não tem relatório
+// para exportar"). A conta é pura e roda aqui sem banco; a planilha é lida de
+// volta com o próprio ExcelJS para provar as duas abas.
+// ─────────────────────────────────────────────────────────────────────────────
+process.env.DATABASE_URL ??= "postgresql://teste:teste@localhost:5432/teste";
+
+const em = (dia: string, hora: string) => Date.parse(`${dia}T${hora}:00-03:00`);
+const reg = (id: string, itemId: string, maquina: string, tipo: any, quantidade: number, totalDepois: number | null, dia: string, hora: string, quem = "Ana") => ({
+  id, itemId, displayId: `#${itemId}`, tipoPeca: "Backdrop", evento: "Maratona SP", maquina, tipo, quantidade, totalDepois, aImprimir: 10, dia, hora, em: em(dia, hora), quem,
+});
+
+describe("6 · o relatório — a conta pura", async () => {
+  const r = await import("../services/relatorioDeMaquinas");
+
+  it("por dia × impressora: unidades, peças, concluídas, ainda na máquina, primeira/última, tempo ativo, quem", () => {
+    const dias = r.agregarRelatorioDeMaquinas([
+      reg("a", "p1", "1", "inicio", 0, 0, "2026-09-21", "08:00"),
+      reg("b", "p1", "1", "parcial", 3, 3, "2026-09-21", "09:30", "Bia"),
+      reg("c", "p2", "1", "inicio", 0, 0, "2026-09-21", "10:00"),
+      reg("d", "p2", "1", "conclusao", 10, 10, "2026-09-21", "11:20"),
+      reg("e", "p3", "2", "inicio", 0, 0, "2026-09-21", "07:00"),
+      reg("f", "p3", "2", "parcial", -1, 4, "2026-09-21", "07:45"), // correção entra com sinal
+      reg("g", "p3", "3", "troca", 0, 4, "2026-09-21", "08:10"),    // saiu da 2, foi para a 3
+      reg("h", "p9", "4", "conclusao", 5, 10, "2026-09-20", "16:00"),
+    ]);
+    expect(dias.map((d) => d.dia)).toEqual(["2026-09-21", "2026-09-20"]); // mais recente primeiro
+    const hoje = dias[0];
+    expect(hoje.maquinas.map((m) => m.maquina)).toEqual(["1", "2", "3", "4"]); // sempre as quatro
+    const m1 = hoje.maquinas[0];
+    expect(m1).toMatchObject({ unidades: 13, pecas: 2, concluidas: 1, aindaNaMaquina: 1, primeira: "08:00", ultima: "11:20", minutosAtivos: 200 });
+    expect(m1.quem).toEqual(["Ana", "Bia"]);
+    // A 2 perdeu a peça para a 3: não está "ainda na máquina" na 2, e sim na 3.
+    expect(hoje.maquinas[1]).toMatchObject({ unidades: -1, pecas: 1, concluidas: 0, aindaNaMaquina: 0 });
+    expect(hoje.maquinas[2]).toMatchObject({ unidades: 0, pecas: 1, aindaNaMaquina: 1, primeira: "08:10", ultima: "08:10", minutosAtivos: 0 });
+    expect(hoje.maquinas[3]).toMatchObject({ unidades: 0, pecas: 0, primeira: null, ultima: null });
+    expect(hoje.total).toEqual({ unidades: 12, pecas: 4, concluidas: 1, aindaNaMaquina: 2, minutosAtivos: 245 });
+    expect(dias[1].total.unidades).toBe(5);
+    expect(r.agregarRelatorioDeMaquinas([])).toEqual([]);
+  });
+
+  it("o período: sem nada é hoje; fim não passa de hoje; início não passa do fim; teto de um ano", () => {
+    expect(r.periodoValido(undefined, undefined, "2026-09-21")).toEqual({ de: "2026-09-21", ate: "2026-09-21" });
+    expect(r.periodoValido("2026-09-15", "2026-09-21", "2026-09-21")).toEqual({ de: "2026-09-15", ate: "2026-09-21" });
+    expect(r.periodoValido("2026-09-15", "2026-12-01", "2026-09-21")).toEqual({ de: "2026-09-15", ate: "2026-09-21" });
+    expect(r.periodoValido("2026-09-25", "2026-09-21", "2026-09-21")).toEqual({ de: "2026-09-21", ate: "2026-09-21" });
+    expect(r.periodoValido("lixo", "2026-09-21", "2026-09-21")).toEqual({ de: "2026-09-21", ate: "2026-09-21" });
+    expect(r.periodoValido("2020-01-01", "2026-09-21", "2026-09-21").de).toBe("2025-09-21");
+  });
+
+  it("frases: duração curta, o que aconteceu (a mesma da tela) e o nome do arquivo", () => {
+    expect(r.duracaoCurta(0)).toBe("—");
+    expect(r.duracaoCurta(45)).toBe("45 min");
+    expect(r.duracaoCurta(80)).toBe("1h 20min");
+    expect(r.duracaoCurta(120)).toBe("2h");
+    expect(r.oQueAconteceuNoRegistro({ tipo: "troca", quantidade: 0, totalDepois: 3, aImprimir: 10, maquina: "2" })).toBe("Trocou para Impressora 2");
+    expect(r.oQueAconteceuNoRegistro({ tipo: "parcial", quantidade: 3, totalDepois: 4, aImprimir: 10, maquina: "2" })).toBe("Mandou 3 para acabamento (4 de 10)");
+    expect(r.nomeDoArquivoDoRelatorio("2026-09-21", "2026-09-21")).toBe("maquinas-2026-09-21.xlsx");
+    expect(r.nomeDoArquivoDoRelatorio("2026-09-15", "2026-09-21")).toBe("maquinas-2026-09-15-a-2026-09-21.xlsx");
+  });
+});
+
+describe("6 · o relatório — a rota e o Excel", () => {
+  const ROTA = ler("server/routes/maquinas.ts");
+
+  it("duas rotas de LEITURA, com os mesmos papéis e o mesmo filtro do Kit do retrato", () => {
+    expect(ROTA).toContain('app.get("/api/grafica/maquinas/relatorio", requireAuth');
+    expect(ROTA).toContain('app.get("/api/grafica/maquinas/relatorio.xlsx", requireAuth');
+    expect((ROTA.match(/if \(!podeVer\(req, res\)\) return;/g) ?? []).length).toBe(3);
+    expect(ROTA).toContain(".filter(filtroDoKit(req));");
+    expect(ROTA).toContain("between ${de}::date and ${ate}::date");
+    expect(ROTA).toContain("periodoValido(req.query.de, req.query.ate, hoje)");
+    // As únicas escritas do arquivo são as da reserva (abaixo).
+    expect((ROTA.match(/app\.(post|patch|put|delete)\(/g) ?? []).length).toBe(2);
+  });
+
+  it("a planilha sai com as abas Resumo e Registros, cabeçalhos em pt-BR e o total do dia", async () => {
+    // O exceljs de verdade puxa o jszip ao carregar, e o pnpm não o expõe
+    // neste ambiente (a mesma nota do teste de importação). O fake abaixo
+    // guarda o que o gerador escreve — que é o que se quer conferir.
+    vi.doMock("exceljs", () => {
+      class Cell { value: any = null; font: any; fill: any; alignment: any; border: any; numFmt: any; }
+      class Row {
+        cells = new Map<number, Cell>();
+        height = 0;
+        constructor(private ws: Sheet) {}
+        getCell(i: number) { let c = this.cells.get(i); if (!c) { c = new Cell(); this.cells.set(i, c); } return c; }
+        eachCell(_o: any, fn: (c: Cell, i: number) => void) { const n = Math.max(this.ws.columns.length, ...this.cells.keys()); for (let i = 1; i <= n; i++) fn(this.getCell(i), i); }
+        get values() { const v: any[] = [undefined]; const n = Math.max(...this.cells.keys(), 0); for (let i = 1; i <= n; i++) v.push(this.cells.get(i)?.value); return v; }
+      }
+      class Sheet {
+        columns: { key: string }[] = [];
+        rows: Row[] = [];
+        views: any; autoFilter: any;
+        constructor(public name: string) {}
+        getRow(n: number) { while (this.rows.length < n) this.rows.push(new Row(this)); return this.rows[n - 1]; }
+        getCell(ref: string) { const col = ref.charCodeAt(0) - 64; const row = Number(ref.slice(1)); return this.getRow(row).getCell(col); }
+        mergeCells() {}
+        addRow(obj: Record<string, any>) { const r = this.getRow(this.rows.length + 1); this.columns.forEach((c, i) => { if (obj[c.key] !== undefined) r.getCell(i + 1).value = obj[c.key]; }); return r; }
+      }
+      class Workbook {
+        creator = ""; created: any; worksheets: Sheet[] = [];
+        addWorksheet(name: string) { const s = new Sheet(name); this.worksheets.push(s); return s; }
+        getWorksheet(name: string) { return this.worksheets.find((w) => w.name === name); }
+      }
+      return { default: { Workbook } };
+    });
+    const { montarPlanilhaDeMaquinas } = await import("../services/xlsxExport");
+    const { agregarRelatorioDeMaquinas } = await import("../services/relatorioDeMaquinas");
+    const registros = [
+      reg("a", "p1", "1", "inicio", 0, 0, "2026-09-21", "08:00"),
+      reg("b", "p1", "1", "parcial", 3, 3, "2026-09-21", "09:30", "Bia"),
+      reg("c", "p2", "2", "conclusao", 10, 10, "2026-09-21", "11:20"),
+    ];
+    // O workbook é conferido em memória: serializar puxa o jszip, que o pnpm
+    // não expõe ao exceljs neste ambiente (a mesma nota do teste de importação).
+    const lido = montarPlanilhaDeMaquinas({ de: "2026-09-21", ate: "2026-09-21", resumo: agregarRelatorioDeMaquinas(registros), registros });
+    expect(lido.worksheets.map((w) => w.name)).toEqual(["Resumo", "Registros"]);
+
+    const resumo = lido.getWorksheet("Resumo")!;
+    const texto = (ws: { getRow: (n: number) => { values: unknown } }, linha: number) => (ws.getRow(linha).values as any[]).slice(1).map((v) => (v == null ? "" : String(v)));
+    expect(texto(resumo, 3)).toEqual(["Dia", "Impressora", "Unidades impressas", "Peças", "Concluídas", "Ainda na máquina", "Primeira atividade", "Última atividade", "Tempo ativo", "Quem"]);
+    expect(texto(resumo, 4)).toEqual(["21/09/2026", "Impressora 1 (New XT)", "3", "1", "0", "1", "08:00", "09:30", "1h 30min", "Ana, Bia"]);
+    expect(texto(resumo, 8).slice(0, 5)).toEqual(["21/09/2026", "TOTAL DO DIA", "13", "2", "1"]);
+
+    const regs = lido.getWorksheet("Registros")!;
+    expect(texto(regs, 3)).toEqual(["Data", "Hora", "Impressora", "Código", "Peça", "Tipo", "Evento", "O que aconteceu", "Quantidade", "Total depois", "Quem"]);
+    expect(texto(regs, 5)).toEqual(["21/09/2026", "09:30", "Impressora 1 (New XT)", "#p1", "Backdrop", "Impressas", "Maratona SP", "Mandou 3 para acabamento (3 de 10)", "3", "3", "Bia"]);
+    expect(texto(regs, 6)[7]).toBe("Concluiu: 10 de 10 impressas");
+    // Importar xlsxExport puxa o storage inteiro; na suíte cheia passa de 5s.
+  }, 30_000);
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 7 · A RESERVA de impressora (dono, 21/09: "deixar na fila alguns itens
+// (geral) ou já setar em alguma impressora" — e "o reservar é só um controle
+// na Máquinas, não muda nada de status").
+// ─────────────────────────────────────────────────────────────────────────────
+describe("7 · a reserva de impressora — só um controle, nunca uma etapa", () => {
+  const ROTA = ler("server/routes/maquinas.ts");
+  const PERMISSOES = ler("shared/permissoes.ts");
+
+  it("o dado: items.maquina_prevista, aditivo, fora do que a API pública aceita criar", () => {
+    expect(SCHEMA).toContain('maquinaPrevista: text("maquina_prevista"),');
+    expect(SCHEMA.slice(SCHEMA.indexOf("export const publicInsertItemSchema"))).toContain("maquinaPrevista: true,");
+    expect(ler("scripts/migracao-aditiva-producao.sql")).toContain("ALTER TABLE items ADD COLUMN IF NOT EXISTS maquina_prevista text;");
+    expect(ler("scripts/migracao-aditiva-producao.mjs")).toContain("'maquina_prevista'");
+  });
+
+  it("a rota (unitária e em lote): grafica/admin, só peças liberadas, evento vivo", () => {
+    expect(ROTA).toContain('app.patch("/api/items/:id/maquina-prevista", requireAuth');
+    expect(ROTA).toContain('app.patch("/api/items/bulk-maquina-prevista", requireAuth');
+    expect(ROTA).toContain('const PODE_RESERVAR = ["ready_for_production", "pronto_para_producao", "approved", "liberado"];');
+    expect(ROTA).toContain("const motivo = await motivoEventoDaPeca(item);");
+    expect(PERMISSOES).toContain('{ metodo: "PATCH", rota: "/api/items/:id/maquina-prevista", papeis: ["admin", "grafica"] },');
+    expect(PERMISSOES).toContain('{ metodo: "PATCH", rota: "/api/items/bulk-maquina-prevista", papeis: ["admin", "grafica"] },');
+  });
+
+  it("NUNCA muda status, statusChangedAt, printMachine, productionStartedAt nem grava no diário", () => {
+    // Só código: os comentários explicam justamente o que NÃO se faz.
+    const reserva = ROTA.slice(ROTA.indexOf("// ─── RESERVA de impressora"), ROTA.indexOf("// ── O relatório")).replace(/\/\/.*$/gm, "");
+    // As duas gravações escrevem SÓ a reserva (o storage carimba updatedAt).
+    expect((reserva.match(/storage\.updateItem\([^,]+, \{ maquinaPrevista: pedido\.maquina \} as any\)/g) ?? []).length).toBe(2);
+    expect(reserva).not.toMatch(/status:|statusChangedAt|printMachine|productionStartedAt|registrarImpressao|registros_de_impressao/);
+    // A trilha é informativa, sem etapa.
+    expect(reserva).toContain('maquina ? `Reservada para a ${rotuloDaMaquina(maquina)}` : "Devolvida à fila geral"');
+    expect(reserva).toContain('broadcast({ type: "item_updated", item });');
+  });
+
+  it("vira realidade só no start-printing, que limpa a reserva", () => {
+    const rota = ITEMS.slice(ITEMS.indexOf('app.patch("/api/items/:id/start-printing"'), ITEMS.indexOf('app.patch("/api/items/:id/start-production"'));
+    expect(rota).toContain("maquinaPrevista: null,");
+  });
+
+  it("o retrato traz a fila: reservadas por impressora e a fila geral, na ordem do caminhão", () => {
+    expect(ROTA).toContain("where i.deleted_at is null and i.status in ('ready_for_production', 'pronto_para_producao', 'approved', 'liberado')");
+    expect(ROTA).toContain("order by e.truck_departure_date asc nulls last, i.display_id asc");
+    expect(ROTA).toContain("naFila: fila.filter((p) => p.maquinaPrevista === m.codigo)");
+    expect(ROTA).toContain("res.json({ dia, hoje, maquinas: maquinasComFila, semMaquina, filaGeral });");
+  });
+
+  it("o formato compacto leva a reserva de ida e volta", async () => {
+    const { compactarPecas, expandirPecas } = await import("@shared/itens-compactos");
+    const peca = { id: "p1", displayId: "#0001", status: "approved", quantity: 3, printMachine: null, maquinaPrevista: "2", tuboId: null, eventId: "e1", event: { id: "e1", name: "Maratona" } };
+    const volta = expandirPecas(compactarPecas([peca]));
+    expect(JSON.stringify(volta[0])).toBe(JSON.stringify(peca));
+    expect(volta[0].maquinaPrevista).toBe("2");
   });
 });
 

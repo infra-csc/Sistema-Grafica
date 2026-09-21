@@ -4,6 +4,10 @@ import { ptBR } from "date-fns/locale";
 import type { Request, Response } from "express";
 import { storage, compareDisplayId } from "../storage";
 import { rotuloDaMaquina } from "@shared/fluxo-peca";
+import {
+  duracaoCurta, oQueAconteceuNoRegistro, ROTULO_DO_TIPO, nomeDoArquivoDoRelatorio,
+  type RegistroDoPeriodo, type ResumoDoDia,
+} from "./relatorioDeMaquinas";
 
 // Colunas extras da exportação da Gráfica: as peças vêm de vários eventos e o
 // que interessa ali é o andamento da produção, não só a especificação.
@@ -336,4 +340,149 @@ export async function handleExportSelectedItemsXlsx(req: Request, res: Response)
     console.error("[export-selected-items]", error);
     res.status(500).json({ error: error.message });
   }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// RELATÓRIO DAS MÁQUINAS (dono, 21/09: "não tem relatório para exportar").
+//
+// Duas abas: "Resumo" (um bloco por dia, uma linha por impressora — unidades,
+// peças, concluídas, ainda na máquina, primeira/última atividade, tempo
+// ativo, quem) e "Registros" (uma linha por lançamento do diário). A conta é
+// a de services/relatorioDeMaquinas.ts — a mesma da tela.
+// ─────────────────────────────────────────────────────────────────────────────
+const diaBR = (dia: string) => `${dia.slice(8, 10)}/${dia.slice(5, 7)}/${dia.slice(0, 4)}`;
+
+const RESUMO_COLS = [
+  { header: "Dia",                key: "dia",        width: 12 },
+  { header: "Impressora",         key: "rotulo",     width: 28 },
+  { header: "Unidades impressas", key: "unidades",   width: 18 },
+  { header: "Peças",              key: "pecas",      width: 9  },
+  { header: "Concluídas",         key: "concluidas", width: 12 },
+  { header: "Ainda na máquina",   key: "ainda",      width: 17 },
+  { header: "Primeira atividade", key: "primeira",   width: 18 },
+  { header: "Última atividade",   key: "ultima",     width: 16 },
+  { header: "Tempo ativo",        key: "tempo",      width: 13 },
+  { header: "Quem",               key: "quem",       width: 30 },
+];
+
+const REGISTROS_COLS = [
+  { header: "Data",            key: "data",       width: 12 },
+  { header: "Hora",            key: "hora",       width: 8  },
+  { header: "Impressora",      key: "impressora", width: 28 },
+  { header: "Código",          key: "codigo",     width: 10 },
+  { header: "Peça",            key: "peca",       width: 24 },
+  { header: "Tipo",            key: "tipo",       width: 12 },
+  { header: "Evento",          key: "evento",     width: 28 },
+  { header: "O que aconteceu", key: "oque",       width: 40 },
+  { header: "Quantidade",      key: "quantidade", width: 12 },
+  { header: "Total depois",    key: "total",      width: 13 },
+  { header: "Quem",            key: "quem",       width: 20 },
+];
+
+/** Cabeçalho de duas linhas + linha de colunas, no mesmo visual das outras planilhas. */
+function cabecalhoDaAba(ws: ExcelJS.Worksheet, cols: { header: string; key: string; width: number }[], title: string, subtitle: string) {
+  ws.columns = cols.map((c) => ({ key: c.key, width: c.width }));
+  ws.mergeCells(1, 1, 1, cols.length);
+  const t = ws.getCell("A1");
+  t.value = title.toUpperCase();
+  t.font = { name: "Arial", bold: true, size: 14, color: { argb: "FFFFFFFF" } };
+  t.alignment = { vertical: "middle", horizontal: "left" };
+  t.fill = HEADER_FILL;
+  ws.getRow(1).height = 28;
+  ws.mergeCells(2, 1, 2, cols.length);
+  const s = ws.getCell("A2");
+  s.value = subtitle;
+  s.font = { name: "Arial", size: 10, color: { argb: "FFBFB8B0" } };
+  s.alignment = { vertical: "middle", horizontal: "left" };
+  s.fill = HEADER_FILL;
+  ws.getRow(2).height = 20;
+  const h = ws.getRow(3);
+  cols.forEach((c, i) => {
+    const cell = h.getCell(i + 1);
+    cell.value = c.header;
+    cell.font = { name: "Arial", bold: true, size: 10, color: { argb: "FF44403C" } };
+    cell.fill = COL_HEADER_FILL;
+    cell.alignment = { vertical: "middle", horizontal: "center", wrapText: false };
+    cell.border = THIN_BORDER;
+  });
+  h.height = 22;
+  // Cabeçalho congelado e filtro nas colunas: é planilha de consulta.
+  ws.views = [{ state: "frozen", ySplit: 3 }];
+  ws.autoFilter = { from: { row: 3, column: 1 }, to: { row: 3, column: cols.length } };
+}
+
+function estiloDaLinha(row: ExcelJS.Row, alt: boolean, centradas: number[]) {
+  row.eachCell({ includeEmpty: true }, (cell, col) => {
+    if (alt) cell.fill = ROW_ALT_FILL;
+    cell.font = { name: "Arial", size: 10 };
+    cell.alignment = { vertical: "middle", horizontal: centradas.includes(col) ? "center" : undefined };
+    cell.border = THIN_BORDER;
+  });
+}
+
+/**
+ * Monta o workbook (sem responder): a rota escreve na resposta, o teste lê o
+ * buffer. `resumo` já vem agregado por relatorioDeMaquinas.ts.
+ */
+export function montarPlanilhaDeMaquinas(opts: { de: string; ate: string; resumo: ResumoDoDia[]; registros: RegistroDoPeriodo[] }): ExcelJS.Workbook {
+  const { de, ate, resumo, registros } = opts;
+  const periodo = de === ate ? diaBR(de) : `${diaBR(de)} a ${diaBR(ate)}`;
+  const wb = new ExcelJS.Workbook();
+  wb.creator = "NORTE";
+  wb.created = new Date();
+
+  // ── Aba 1: Resumo ────────────────────────────────────────────────────────
+  const totalUnidades = resumo.reduce((s, d) => s + d.total.unidades, 0);
+  const abaResumo = wb.addWorksheet("Resumo", { properties: { defaultColWidth: 14 } });
+  cabecalhoDaAba(abaResumo, RESUMO_COLS, "Máquinas — resumo", `Período: ${periodo}   |   ${totalUnidades} un. impressas   |   Exportado em ${fmt(new Date())}`);
+  let n = 0;
+  for (const d of resumo) {
+    for (const m of d.maquinas) {
+      const row = abaResumo.addRow({
+        dia: diaBR(d.dia), rotulo: m.rotulo, unidades: m.unidades, pecas: m.pecas, concluidas: m.concluidas,
+        ainda: m.aindaNaMaquina, primeira: m.primeira ?? "", ultima: m.ultima ?? "", tempo: duracaoCurta(m.minutosAtivos),
+        quem: m.quem.join(", "),
+      });
+      estiloDaLinha(row, n++ % 2 === 1, [3, 4, 5, 6, 7, 8, 9]);
+    }
+    // Total do dia, destacado — é o número que o dono pergunta primeiro.
+    const tot = abaResumo.addRow({
+      dia: diaBR(d.dia), rotulo: "TOTAL DO DIA", unidades: d.total.unidades, pecas: d.total.pecas,
+      concluidas: d.total.concluidas, ainda: d.total.aindaNaMaquina, primeira: "", ultima: "", tempo: duracaoCurta(d.total.minutosAtivos), quem: "",
+    });
+    tot.eachCell({ includeEmpty: true }, (cell, col) => {
+      cell.fill = TOTAL_FILL;
+      cell.font = { name: "Arial", bold: true, size: 10, color: { argb: "FF92400E" } };
+      cell.alignment = { vertical: "middle", horizontal: col >= 3 ? "center" : undefined };
+    });
+    tot.height = 22;
+  }
+  if (resumo.length === 0) {
+    const vazio = abaResumo.addRow({ dia: "", rotulo: "Nenhuma impressão registrada no período." });
+    vazio.getCell(2).font = { name: "Arial", italic: true, size: 10, color: { argb: "FF746E69" } };
+  }
+
+  // ── Aba 2: Registros ─────────────────────────────────────────────────────
+  const abaRegistros = wb.addWorksheet("Registros", { properties: { defaultColWidth: 14 } });
+  cabecalhoDaAba(abaRegistros, REGISTROS_COLS, "Máquinas — registros", `Período: ${periodo}   |   ${registros.length} ${registros.length === 1 ? "lançamento" : "lançamentos"}`);
+  const emOrdem = [...registros].sort((a, b) => a.em - b.em);
+  emOrdem.forEach((r, i) => {
+    const row = abaRegistros.addRow({
+      data: diaBR(r.dia), hora: r.hora, impressora: rotuloDaMaquina(r.maquina), codigo: r.displayId ?? "",
+      peca: r.tipoPeca, tipo: ROTULO_DO_TIPO[r.tipo] ?? r.tipo, evento: r.evento ?? "", oque: oQueAconteceuNoRegistro(r),
+      quantidade: r.quantidade, total: r.totalDepois ?? "", quem: r.quem ?? "",
+    });
+    estiloDaLinha(row, i % 2 === 1, [2, 4, 6, 9, 10]);
+  });
+
+  return wb;
+}
+
+/** Responde com o .xlsx do relatório das máquinas. A rota (routes/maquinas.ts) busca os dados. */
+export async function responderRelatorioMaquinasXlsx(res: Response, opts: { de: string; ate: string; resumo: ResumoDoDia[]; registros: RegistroDoPeriodo[] }) {
+  const wb = montarPlanilhaDeMaquinas(opts);
+  res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+  res.setHeader("Content-Disposition", `attachment; filename="${nomeDoArquivoDoRelatorio(opts.de, opts.ate)}"`);
+  await wb.xlsx.write(res);
+  res.end();
 }

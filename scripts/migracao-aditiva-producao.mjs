@@ -13,7 +13,7 @@ try {
   const r = await client.query(`SELECT table_name, column_name FROM information_schema.columns
     WHERE (table_name='notifications' AND column_name='target_user_id')
        OR (table_name='users' AND column_name='kit')
-       OR (table_name='items' AND column_name IN ('pedido_de_peca_linha_id','kit_remessa_id','criado_por_id'))
+       OR (table_name='items' AND column_name IN ('pedido_de_peca_linha_id','kit_remessa_id','criado_por_id','maquina_prevista'))
        OR (table_name='kit_remessas' AND column_name='entrega_material')
        OR (table_name='pedidos_de_peca_linhas' AND column_name='sponsor_ids')
     ORDER BY 1, 2`);

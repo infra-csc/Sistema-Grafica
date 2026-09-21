@@ -104,6 +104,11 @@ export const REGUA_DE_PAPEIS: RegraDeRota[] = [
   { metodo: "POST", rota: "/api/items/:id/sponsors/sync", papeis: ["admin", "arte", "atendimento", "solicitacao"] },
   // Iniciar impressão (dono, 14/09): escolher a máquina é trabalho do galpão.
   { metodo: "PATCH", rota: "/api/items/:id/start-printing", papeis: ["admin", "grafica"] },
+  // Reservar impressora antes de imprimir (dono, 21/09): só controle da aba
+  // Máquinas, não muda status. O lote é "bulk-" porque PATCH /api/items/:id
+  // só desvia ids com esse prefixo.
+  { metodo: "PATCH", rota: "/api/items/:id/maquina-prevista", papeis: ["admin", "grafica"] },
+  { metodo: "PATCH", rota: "/api/items/bulk-maquina-prevista", papeis: ["admin", "grafica"] },
   { metodo: "PATCH", rota: "/api/items/:id/start-production", papeis: ["admin", "grafica"] },
   { metodo: "PATCH", rota: "/api/items/:id/submit-final-file", papeis: ["admin", "arte"] },
   { metodo: "PATCH", rota: "/api/items/:id/submit-for-approval", papeis: ["admin", "arte"] },

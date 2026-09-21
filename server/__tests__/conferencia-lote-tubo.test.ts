@@ -1,14 +1,15 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// CONFERÊNCIA EM LOTE POR TUBO (dono, 14/09): "a conferência de lote tem que
-// servir e explicar que vai ser por tubo".
+// CONFERÊNCIA EM LOTE — sem tubo (dono, 21/09: "o tubo só na hora de embalar;
+// tire da conferência"). Até 14/09 o dialog do lote escolhia o tubo e as
+// conferidas entravam nele; agora conferir é só conferir com uma foto, e o
+// tubo entra depois, pelo "Embalar" da peça (ou "Embalar em lote" — ver
+// embalar-na-fila.test.ts).
 //
 // O que este arquivo pina:
 //   · a barra do lote não diz mais "Sel. 1" (lia como "1 selecionada" com nada
 //     selecionado, e o Confirmar parecia quebrado);
-//   · o dialog de conferência em lote escolhe o tubo e explica que a entrega é
-//     por tubo;
-//   · conferidas, as peças entram no tubo — um por evento quando o lote mistura
-//     eventos —, e falhar no tubo não desfaz a conferência.
+//   · o dialog e o handler da conferência em lote NÃO falam de tubo;
+//   · o toast final aponta o próximo passo: embalar.
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "fs";
@@ -25,41 +26,26 @@ describe("a barra do lote", () => {
 });
 
 describe("o dialog da conferência em lote", () => {
-  it("escolhe o tubo e explica que a entrega é por tubo", () => {
-    expect(GRAFICA).toContain('data-testid="seletor-tubo-lote"');
-    expect(GRAFICA).toContain('data-testid="aviso-entrega-por-tubo"');
-    expect(GRAFICA).toContain("<strong>A entrega é por tubo.</strong>");
-  });
+  const dialog = GRAFICA.slice(GRAFICA.indexOf("function BulkActionDialog("), GRAFICA.indexOf("export default function"));
 
-  it("lote de vários eventos: um tubo novo por evento; de um evento: tubos abertos dele", () => {
-    expect(GRAFICA).toContain("`Um tubo novo por evento (${tubo.eventos.length})`");
-    expect(GRAFICA).toContain(".filter((t) => !t.entregueEm)");
-  });
-
-  it("conferir não obriga a agrupar: o padrão é 'Sem tubo agora', primeira opção", () => {
-    expect(GRAFICA).toContain('const [tuboDoLote, setTuboDoLote] = useState<string>("");');
-    expect(GRAFICA).toContain('[{ valor: "", rotulo: "Sem tubo agora" }, { valor: "novo",');
-    expect(GRAFICA).toContain("Pode conferir agora e pôr no tubo depois, no botão Tubos do evento.");
+  it("não escolhe tubo nem avisa de entrega por tubo", () => {
+    expect(dialog).not.toContain('data-testid="seletor-tubo-lote"');
+    expect(dialog).not.toContain('data-testid="aviso-entrega-por-tubo"');
+    expect(dialog).not.toContain("tubosAbertos");
+    expect(GRAFICA).not.toContain("tubo={{");
   });
 });
 
 describe("ao confirmar", () => {
   const handler = GRAFICA.slice(GRAFICA.indexOf("const handleBulkConference = async"), GRAFICA.indexOf("const handleBulkDelivery = async"));
 
-  it("põe as conferidas no tubo, agrupando por evento", () => {
-    expect(handler).toContain("const porEvento = new Map<string, string[]>();");
-    expect(handler).toContain('await apiRequest("POST", `/api/events/${eventoId}/tubos`, { itemIds: idsDoEvento })');
-    expect(handler).toContain('await apiRequest("PATCH", `/api/tubos/${tuboDoLote}/itens`, { adicionar: idsDoEvento })');
-    // 21/09: o tubo aberto ainda precisa ser DO evento das peças deste lote.
-    expect(handler).toContain('const usarTuboAberto = tuboDoLote !== "novo" && porEvento.size === 1 && tuboEhDoEvento;');
+  it("só confere: nenhuma chamada às rotas de tubo", () => {
+    expect(handler).not.toContain("/tubos");
+    expect(handler).not.toContain("tuboDoLote");
+    expect(handler).not.toContain("porEvento");
   });
 
-  it("só as que conferiram vão para o tubo, e falhar no tubo não desfaz a conferência", () => {
-    expect(handler).toContain("if (!okIds.includes(it.id) || !it.eventId) continue;");
-    expect(handler).toContain("Conferidas, mas não entraram no tubo");
-  });
-
-  it("o toast final lembra que a entrega é por tubo", () => {
-    expect(handler).toContain("A entrega é por tubo, no botão Tubos do evento.");
+  it("o toast final aponta o próximo passo: embalar", () => {
+    expect(handler).toContain("Agora é embalar: o botão Embalar da peça (ou Embalar em lote) escolhe o tubo.");
   });
 });

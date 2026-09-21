@@ -1,8 +1,11 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // TUBOS DO EVENTO (dono, 14/09) — agrupar as peças e entregar o tubo inteiro.
 //
-// Abre pelo botão "Tubos" no cabeçalho de cada evento da fila da Gráfica. Três
-// coisas, na ordem em que o galpão faz:
+// Abre pelo botão "Tubos" no cabeçalho de cada evento da fila da Gráfica — e,
+// desde 21/09 ("o tubo só na hora de embalar"), pelo "Embalar" da peça
+// conferida (e do lote), já focado em escolher o tubo (passo 0). A escolha de
+// tubo SAIU da conferência: conferir é só conferir com foto.
+// Na ordem em que o galpão faz:
 //   1. PEÇAS SEM TUBO — as que já saíram da impressão; marca e põe num tubo
 //      (existente ou novo). A peça vai inteira para um tubo só.
 //   2. OS TUBOS — o que tem em cada um, o que falta conferir, e a etiqueta.
@@ -14,7 +17,7 @@
 // Fechar e entregar são DOIS passos, nessa ordem — mas entregar sem ter
 // fechado é permitido (o dono não quis obrigatoriedade); a tela só sugere.
 // ─────────────────────────────────────────────────────────────────────────────
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { Camera, CheckCircle2, ImagePlus, Package, PackageCheck, Tag, Trash2, Truck, X } from "lucide-react";
@@ -86,8 +89,23 @@ function mensagemDeErro(e: any): string {
 
 const quandoFoi = (iso: string | null) =>
   iso ? new Date(iso).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "";
+/** Só a hora ("14:32"): o selo do tubo na escolha rápida, onde a data é a de hoje. */
+const horaDe = (iso: string | null) =>
+  iso ? new Date(iso).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }) : "";
 
-export function TubosDialog({ evento, onClose }: { evento: { id: string; name: string } | null; onClose: () => void }) {
+export function TubosDialog({ evento, onClose, itensIniciais, tuboInicial, onEmbalou }: {
+  evento: { id: string; name: string } | null;
+  onClose: () => void;
+  /** EMBALAR (dono, 21/09 — "o tubo só na hora de embalar"): a peça (ou o
+   *  lote de peças conferidas) que chegou pelo botão "Embalar" da fila. O
+   *  painel abre focado em escolher o tubo: um toque num tubo aberto ou em
+   *  "Novo tubo" já coloca — nada de marcar caixinha. */
+  itensIniciais?: string[];
+  /** "Entregar tubo" da peça embalada: abre já no formulário daquele tubo. */
+  tuboInicial?: string;
+  /** Embalou pelo atalho: a fila sai do modo "Embalar em lote". */
+  onEmbalou?: () => void;
+}) {
   const { toast } = useToast();
   // "Solicitação sem Kit só visualiza peça do Kit" (mesma trava do servidor,
   // em routes.ts e em routes/tubos.ts): a caixa de seleção e o "Entregar tubo"
@@ -114,10 +132,12 @@ export function TubosDialog({ evento, onClose }: { evento: { id: string; name: s
   // Apagar tubo COM peças pede um segundo toque — as peças voltam a Conferido.
   const [confirmandoApagar, setConfirmandoApagar] = useState<string | null>(null);
 
-  // Trocou de evento: nada da seleção anterior pode vazar para o novo.
-  const [eventoVisto, setEventoVisto] = useState<string | null>(null);
-  if ((evento?.id ?? null) !== eventoVisto) {
-    setEventoVisto(evento?.id ?? null);
+  // Trocou de evento (ou reabriu pelo "Embalar"/"Entregar tubo" de outra
+  // peça): nada da seleção anterior pode vazar para a abertura nova.
+  const chaveDaAbertura = evento ? `${evento.id}|${(itensIniciais ?? []).join(",")}|${tuboInicial ?? ""}` : null;
+  const [aberturaVista, setAberturaVista] = useState<string | null>(null);
+  if (chaveDaAbertura !== aberturaVista) {
+    setAberturaVista(chaveDaAbertura);
     setSelecionadas(new Set()); setDestino("novo");
     setEntregando(null); setFotos([]); setRecebidoPor(""); setObs("");
     setFechando(null); setFotosFechamento([]); setConfirmandoApagar(null);
@@ -150,6 +170,39 @@ export function TubosDialog({ evento, onClose }: { evento: { id: string; name: s
     },
     onError: falhou("Não foi possível pôr no tubo"),
   });
+
+  // EMBALAR PELO ATALHO (21/09): as peças que vieram pelo botão "Embalar" e
+  // ainda estão sem tubo. Um toque no tubo (ou em "Novo tubo") = a mesma rota
+  // do "Colocar" acima; o painel fecha sozinho, porque a tarefa era só essa.
+  const pecasParaEmbalar = (data?.semTubo ?? []).filter((p) => itensIniciais?.includes(p.id) && !soVisualizaKit(p));
+  const embalar = useMutation({
+    mutationFn: async (destinoEscolhido: string) => {
+      const ids = pecasParaEmbalar.map((p) => p.id);
+      const r = destinoEscolhido === "novo"
+        ? await apiRequest("POST", `/api/events/${evento!.id}/tubos`, { itemIds: ids })
+        : await apiRequest("PATCH", `/api/tubos/${destinoEscolhido}/itens`, { adicionar: ids });
+      const t = await r.json();
+      return { numero: t.numero as number, quantas: ids.length };
+    },
+    onSuccess: ({ numero, quantas }) => {
+      const nome = quantas === 1 ? (pecasParaEmbalar[0]?.displayId ?? "Peça") : `${quantas} peças`;
+      toast({ title: `${nome} embalada${quantas === 1 ? "" : "s"} no Tubo ${numero}` });
+      atualizar();
+      onEmbalou?.();
+      onClose();
+    },
+    onError: falhou("Não foi possível embalar"),
+  });
+
+  // "Entregar tubo" da peça embalada: quando o retrato chega, o formulário
+  // daquele tubo já está aberto — se ele puder ser entregue. Se não puder, o
+  // botão desabilitado e o motivo ao lado explicam, como sempre.
+  useEffect(() => {
+    if (!tuboInicial || !data) return;
+    const t = data.tubos.find((x) => x.id === tuboInicial);
+    if (t && !t.entregueEm && t.prontoParaEntregar) { setEntregando(t.id); setFechando(null); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chaveDaAbertura, data === undefined]);
 
   const tirar = useMutation({
     mutationFn: async ({ tuboId, itemId }: { tuboId: string; itemId: string }) =>
@@ -276,6 +329,61 @@ export function TubosDialog({ evento, onClose }: { evento: { id: string; name: s
 
           {data && (
             <>
+              {/* ── 0 · Embalar (atalho da fila) ── só quando o painel abriu
+                  pelo "Embalar" de uma peça ou de um lote. Um toque no tubo
+                  coloca e fecha; o resto do painel continua logo abaixo. */}
+              {pecasParaEmbalar.length > 0 && (() => {
+                const uma = pecasParaEmbalar.length === 1;
+                const titulo = uma ? `Embalar ${pecasParaEmbalar[0].displayId ?? "a peça"}` : `Embalar ${pecasParaEmbalar.length} peças`;
+                const estiloTubo: React.CSSProperties = {
+                  display: "inline-flex", alignItems: "center", gap: 6, minHeight: isMobile ? 44 : 36, padding: "0 12px", borderRadius: 999,
+                  border: `1px solid ${COR.azulBorda}`, background: COR.azulBg, color: COR.azul, fontSize: fsMin(12.5), fontWeight: 700,
+                  cursor: embalar.isPending ? "wait" : "pointer", opacity: embalar.isPending ? 0.6 : 1,
+                };
+                return (
+                  <section data-testid="embalar-atalho" style={{ display: "flex", flexDirection: "column", gap: 10, padding: 12, borderRadius: 12, background: COR.azulBg, border: `1px solid ${COR.azulBorda}` }}>
+                    <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
+                      <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 16, fontWeight: 800, color: COR.texto }}>{titulo}</span>
+                      {!uma && (
+                        <span style={{ fontSize: fsMin(11.5), color: COR.sec }}>
+                          {pecasParaEmbalar.map((p) => p.displayId ?? "—").join(", ")}
+                        </span>
+                      )}
+                    </div>
+                    <span style={{ fontSize: 12.5, color: COR.sec }}>
+                      {abertos.length > 0 ? "Toque no tubo em que vai — ou abra um novo." : "Ainda não há tubo aberto neste evento: abra um novo."}
+                    </span>
+                    <div role="group" aria-label="Tubo em que embalar" style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                      {abertos.map((t) => (
+                        <button key={t.id} type="button" onClick={() => embalar.mutate(t.id)} disabled={embalar.isPending}
+                          data-testid={`embalar-no-tubo-${t.numero}`}
+                          title={t.fechadoEm ? "Este tubo já foi fotografado — pôr mais uma peça marca o tubo como alterado depois da foto" : undefined}
+                          style={estiloTubo}>
+                          <Package aria-hidden="true" style={{ width: 13, height: 13 }} />
+                          Tubo {t.numero} · {t.pecas.length} {t.pecas.length === 1 ? "peça" : "peças"} · {t.fechadoEm ? `fechado ${horaDe(t.fechadoEm)}` : "aberto"}
+                        </button>
+                      ))}
+                      <button type="button" onClick={() => embalar.mutate("novo")} disabled={embalar.isPending}
+                        data-testid="embalar-em-tubo-novo"
+                        style={{ ...estiloTubo, background: COR.azul, color: "#fff", border: "none" }}>
+                        + Novo tubo
+                      </button>
+                    </div>
+                  </section>
+                );
+              })()}
+              {/* Chegou pelo "Embalar" mas a peça já está num tubo (outro
+                  aparelho embalou antes): diz onde, em vez de sumir calado. */}
+              {itensIniciais && itensIniciais.length > 0 && pecasParaEmbalar.length === 0 && (() => {
+                const onde = data.tubos.filter((t) => t.pecas.some((p) => itensIniciais.includes(p.id)));
+                if (onde.length === 0) return null;
+                return (
+                  <p data-testid="embalar-ja-no-tubo" style={{ margin: 0, padding: "10px 12px", borderRadius: 10, background: COR.azulBg, border: `1px solid ${COR.azulBorda}`, fontSize: 12.5, color: COR.azul }}>
+                    {itensIniciais.length === 1 ? "A peça já está" : "As peças já estão"} no {onde.map((t) => `Tubo ${t.numero}`).join(", ")}.
+                  </p>
+                );
+              })()}
+
               {/* ── 1 · Peças sem tubo ── */}
               <section data-testid="pecas-sem-tubo" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>

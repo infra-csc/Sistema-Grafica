@@ -46,7 +46,7 @@ import { EM_REVISAO, rotuloDaMaquina, podeIrParaTubo, MAQUINAS_DE_IMPRESSAO } fr
 // toda vez que uma regra mudou, uma das cópias ficou para trás. Aqui a lista,
 // os modais e a ficha leem os MESMOS números.
 import {
-  isDelivered, isPacked, isPosConferencia, isProduced, isInProd,
+  isDelivered, isPacked, isConferred, isPosConferencia, isProduced, isInProd,
   qtyOf, producedOf, conferredOf, deliveredOf, reusedOf, reusedTotalOf,
   m2ToProduce, remainingProduce, remainingConfer, remainingDeliver, remainingReuse,
   canConfer as canConferBase, canDeliver as canDeliverBase,
@@ -402,7 +402,7 @@ function PhotoPicker({ photos, onAdd, onRemove, onError, label = "Fotos", hint, 
 // que eram duas cópias de ~150 linhas divergindo aos poucos.
 function BulkActionDialog({
   mode, open, onClose, items, photos, onAddPhoto, onRemovePhoto, onPhotoError,
-  notes, onNotesChange, receivedBy = "", onReceivedByChange, isSubmitting, onConfirm, qtyFor, tubo,
+  notes, onNotesChange, receivedBy = "", onReceivedByChange, isSubmitting, onConfirm, qtyFor,
   sugestaoRecebedor = "",
 }: {
   /** Quem recebeu na última entrega desta sessão — oferecido em 1 toque, nunca preenchido sozinho. */
@@ -422,15 +422,6 @@ function BulkActionDialog({
   isSubmitting: boolean;
   onConfirm: () => void;
   qtyFor: (item: any) => number;
-  /** Só na conferência: o tubo das peças conferidas (dono, 14/09 — a entrega
-   *  é por tubo). Um evento: tubo novo, tubo aberto ou agrupar depois. Vários
-   *  eventos: um tubo novo por evento, ou agrupar depois. */
-  tubo?: {
-    eventos: Array<{ id: string; nome: string }>;
-    tubosAbertos: Array<{ id: string; numero: number; pecas: number }>;
-    valor: string;
-    onChange: (valor: string) => void;
-  };
 }) {
   const isMobileLote = useIsMobile();
   const isConfer = mode === "confer";
@@ -527,52 +518,9 @@ function BulkActionDialog({
             hint={isConfer ? "· mesma para todas as peças" : "· obrigatória, mesma para todas as peças"}
           />
 
-          {/* O TUBO DO LOTE (dono, 14/09): "a conferência de lote tem que
-              explicar que vai ser por tubo". Conferidas, as peças entram no
-              tubo escolhido — e a entrega sai do tubo inteiro, no botão Tubos
-              do evento. Um tubo pertence a UM evento, por isso o lote que
-              mistura eventos ganha um tubo novo por evento. */}
-          {isConfer && tubo && tubo.eventos.length > 0 && (() => {
-            const variosEventos = tubo.eventos.length > 1;
-            const efetivo = variosEventos && tubo.valor !== "" ? "novo" : tubo.valor;
-            // "Sem tubo agora" vem primeiro e é o padrão: conferir e agrupar
-            // são gestos separados (dono, 14/09).
-            const opcoes = variosEventos
-              ? [{ valor: "", rotulo: "Sem tubo agora" }, { valor: "novo", rotulo: `Um tubo novo por evento (${tubo.eventos.length})` }]
-              : [
-                  { valor: "", rotulo: "Sem tubo agora" },
-                  { valor: "novo", rotulo: "+ Tubo novo" },
-                  ...tubo.tubosAbertos.map((t) => ({ valor: t.id, rotulo: `Tubo ${t.numero} · ${t.pecas} ${t.pecas === 1 ? "peça" : "peças"}` })),
-                ];
-            return (
-              <div data-testid="seletor-tubo-lote">
-                <div style={{ fontSize: fs(10), fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#746e69", marginBottom: 8 }}>
-                  Tubo <span style={{ textTransform: "none", letterSpacing: 0, fontWeight: 400 }}>· opcional, dá para agrupar depois</span>
-                </div>
-                <div role="radiogroup" aria-label="Tubo das peças conferidas" style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                  {opcoes.map(({ valor, rotulo }) => {
-                    const ativo = efetivo === valor;
-                    return (
-                      <button key={valor || "depois"} type="button" role="radio" aria-checked={ativo}
-                        data-testid={`tubo-lote-opcao-${valor || "depois"}`}
-                        onClick={() => tubo.onChange(valor)}
-                        style={{ height: isMobileLote ? 44 : 36, padding: "0 12px", borderRadius: 999, cursor: "pointer", fontSize: isMobileLote ? 14 : 12.5, fontWeight: 700, whiteSpace: "nowrap", backgroundColor: ativo ? TI.text : "#ffffff", color: ativo ? "#ffffff" : TI.text, border: `1px solid ${ativo ? TI.text : TI.border}` }}>
-                        {rotulo}
-                      </button>
-                    );
-                  })}
-                </div>
-                <p data-testid="aviso-entrega-por-tubo" style={{ margin: "10px 0 0", padding: "10px 12px", borderRadius: 10, background: "#ecfeff", border: "1px solid #a5f3fc", fontSize: 12.5, color: "#155e75", lineHeight: 1.45 }}>
-                  <strong>A entrega é por tubo.</strong>{" "}
-                  {efetivo === ""
-                    ? "Pode conferir agora e pôr no tubo depois, no botão Tubos do evento. Na entrega, sai o tubo inteiro, com uma foto."
-                    : variosEventos
-                      ? `As peças de cada evento vão para um tubo próprio (${tubo.eventos.map((e) => e.nome).join(", ")}). Depois, entregue cada tubo inteiro no botão Tubos do evento, com uma foto.`
-                      : "Conferidas, estas peças entram no tubo escolhido. Depois, entregue o tubo inteiro no botão Tubos do evento, com uma foto."}
-                </p>
-              </div>
-            );
-          })()}
+          {/* Sem escolha de tubo (dono, 21/09): conferir é só conferir com
+              foto. O tubo entra depois, no "Embalar" da peça conferida (ou no
+              "Embalar em lote"). */}
 
           {/* Observações */}
           <div>
@@ -745,6 +693,18 @@ export default function Grafica() {
   const soVisualizaKit = (item: any) => user?.role === "solicitacao" && !user?.kit && !!item?.kitRemessaId;
   const canConfer = (item: any) => !soVisualizaKit(item) && canConferBase(item);
   const canDeliver = (item: any) => !soVisualizaKit(item) && canDeliverBase(item);
+  // EMBALAR (dono, 21/09): a ação principal da peça CONFERIDA é pôr no tubo;
+  // "Entregar" fica como secundária (peça grande que não vai em tubo). Mesmo
+  // gate de quem entrega — as rotas de tubos são dos mesmos papéis — e sem
+  // exigir evento aberto: conferir/embalar/entregar passam no finalizado.
+  const podeEmbalar = (item: any) =>
+    !EM_REVISAO.has(item.status) && canDeliver(item) && isConferred(item) && !item.tuboId && !!item.eventId;
+  // Abre o painel de tubos do evento da peça já com ela marcada para embalar.
+  const abrirEmbalar = (itens: any[]) => {
+    const primeira = itens[0];
+    if (!primeira) return;
+    setTubosDoEvento({ id: String(primeira.eventId), name: primeira.event?.name ?? "Evento", embalar: itens.map((i) => i.id) });
+  };
   // MEXER NA QUANTIDADE (criar complemento e cancelar complemento) é outro
   // papel: admin | solicitacao, espelho de `podeMudarQuantidade` no servidor.
   // `canProduce` (grafica|admin) NÃO participa deste gate em ponto nenhum — a
@@ -837,6 +797,10 @@ export default function Grafica() {
   const addBulkPhoto = (url: string) => setBulkDeliveryPhotos(prev => [...prev, convertGCSUrlToLocalPath(url)]);
   // ── Conferência em lote (espelha a entrega em lote) ──
   const [bulkConferMode, setBulkConferMode] = useState(false);
+  // EMBALAR EM LOTE (dono, 21/09): marcar várias conferidas e mandar todas
+  // para um tubo de uma vez. Sem foto e sem dialog próprio — o "Continuar"
+  // abre o painel de tubos do evento já com as peças marcadas.
+  const [bulkPackMode, setBulkPackMode] = useState(false);
   const [bulkConferOpen, setBulkConferOpen] = useState(false);
   const [bulkConferNotes, setBulkConferNotes] = useState("");
   const [bulkConferPhotos, setBulkConferPhotos] = useState<string[]>([]);
@@ -1183,13 +1147,14 @@ export default function Grafica() {
     },
   });
 
-  // TUBOS (dono, 14/09): na conferência a peça já pode ir para um tubo, e
-  // cada evento abre o painel de tubos para agrupar e entregar por tubo.
-  const [tuboDaConferencia, setTuboDaConferencia] = useState<string>("");
-  // Tubo da conferência em LOTE: "" (sem tubo) por padrão — conferir não
-  // obriga a agrupar; dá para pôr no tubo depois (dono, 14/09).
-  const [tuboDoLote, setTuboDoLote] = useState<string>("");
-  const [tubosDoEvento, setTubosDoEvento] = useState<{ id: string; name: string } | null>(null);
+  // TUBOS (dono, 14/09): cada evento abre o painel de tubos para agrupar e
+  // entregar por tubo. Desde 21/09 ("o tubo só na hora de embalar; tire da
+  // conferência") a escolha de tubo NÃO mora mais na conferência — nem na
+  // individual, nem no lote: conferir é só conferir com foto. O tubo entra
+  // pelo "Embalar" da peça conferida (`embalar`: o painel abre já com a peça
+  // marcada, focado em escolher o tubo) e pelo "Entregar tubo" da embalada
+  // (`entregarTubo`: abre no formulário daquele tubo).
+  const [tubosDoEvento, setTubosDoEvento] = useState<{ id: string; name: string; embalar?: string[]; entregarTubo?: string } | null>(null);
   // Sem `= []` no destructuring: o array novo a cada render mudaria o
   // `numeroDoTubo` (e as deps de TODAS as linhas memoizadas) a cada render.
   const { data: todosOsTubos = SEM_TUBOS } = useQuery<TuboResumo[]>({
@@ -1224,12 +1189,6 @@ export default function Grafica() {
       toast({ title: "Não foi possível tirar do tubo", description: apiErrorMessage(error), variant: "destructive" });
     },
   });
-  const eventoDaConferencia = modalType === "conference" ? selectedItem?.eventId : undefined;
-  const { data: tubosDaConferencia } = useQuery<any>({
-    queryKey: [`/api/events/${eventoDaConferencia}/tubos`],
-    enabled: !!eventoDaConferencia,
-  });
-
   // Mesmo desenho da entrega: o toast nomeia a peça e a quantidade, e o erro
   // recarrega a fila (o colega pode ter conferido a mesma peça no celular).
   const conferMutation = useMutation({
@@ -1950,9 +1909,6 @@ export default function Grafica() {
     // deixava fotos órfãs na galeria.
     const itemId = selectedItem.id;
     const photosToAttach = photos;
-    const eventoDaPeca = selectedItem.eventId;
-    const tuboAntes = selectedItem.tuboId ?? "";
-    const tuboEscolhido = tuboDaConferencia;
     try {
       await conferMutation.mutateAsync({ itemId, displayId: selectedItem.displayId, conferencePhotoUrl: photosToAttach[0], qty: conferQty, notes: modalNotes });
     } catch {
@@ -1967,25 +1923,8 @@ export default function Grafica() {
     if (results.some(r => r.status === "rejected")) {
       toast({ title: "Conferência registrada", description: "Parte das fotos não pôde ser anexada.", variant: "destructive" });
     }
-    // O TUBO (dono, 14/09): conferida, a peça vai para o tubo escolhido. Falhar
-    // aqui NÃO desfaz a conferência — só avisa, e dá para agrupar no painel.
-    if (tuboEscolhido !== tuboAntes) {
-      try {
-        if (tuboEscolhido === "novo") {
-          const r = await apiRequest("POST", `/api/events/${eventoDaPeca}/tubos`, { itemIds: [itemId] });
-          const t = await r.json().catch(() => null);
-          toast({ title: t?.numero ? `Foi para o Tubo ${t.numero}` : "Foi para um tubo novo" });
-        } else if (tuboEscolhido) {
-          await apiRequest("PATCH", `/api/tubos/${tuboEscolhido}/itens`, { adicionar: [itemId] });
-        } else if (tuboAntes) {
-          await apiRequest("PATCH", `/api/tubos/${tuboAntes}/itens`, { remover: [itemId] });
-        }
-      } catch (e: any) {
-        toast({ title: "Conferida, mas não entrou no tubo", description: apiErrorMessage(e), variant: "destructive" });
-      }
-      queryClient.invalidateQueries({ queryKey: ["/api/tubos"] });
-      queryClient.invalidateQueries({ queryKey: [`/api/events/${eventoDaPeca}/tubos`] });
-    }
+    // Conferir é só conferir (dono, 21/09): o tubo entra depois, pelo
+    // "Embalar" da peça conferida — nada de tubo aqui.
     queryClient.invalidateQueries({ queryKey: ["/api/items/approved"] });
     queryClient.invalidateQueries({ queryKey: ["/api/items"] });
   };
@@ -2079,7 +2018,6 @@ export default function Grafica() {
     setModalType("conference");
     setPhotos([]); setModalNotes("");
     setConferQty(remainingConfer(item)); // padrão: o que falta conferir
-    setTuboDaConferencia(item.tuboId ?? "");
   };
 
   const openDeliveryModal = (item: any) => {
@@ -2143,9 +2081,14 @@ export default function Grafica() {
     () => (filteredItems as any[]).filter(i => canConfer(i) && !EM_REVISAO.has(i.status)),
     [filteredItems],
   );
+  // Embaláveis no filtro atual (modo "Embalar em lote"): conferidas sem tubo.
+  const packableInFilter = useMemo(
+    () => (filteredItems as any[]).filter(i => podeEmbalar(i)),
+    [filteredItems],
+  );
   // Um modo de lote por vez; a lista elegível depende do modo ativo.
-  const bulkOn = bulkDeliveryMode || bulkConferMode;
-  const bulkEligibleList = bulkConferMode ? conferableInFilter : deliverableInFilter;
+  const bulkOn = bulkDeliveryMode || bulkConferMode || bulkPackMode;
+  const bulkEligibleList = bulkConferMode ? conferableInFilter : bulkPackMode ? packableInFilter : deliverableInFilter;
   const allDeliverableSelected =
     bulkEligibleList.length > 0 && bulkEligibleList.every((i: any) => bulkSelectedIds.has(i.id));
 
@@ -2163,18 +2106,14 @@ export default function Grafica() {
     [bulkSelectedIds, itemPorId],
   );
 
-  // Eventos do lote — um tubo pertence a um evento só. Com um evento, o
-  // dialog oferece os tubos abertos dele; com vários, um tubo novo por evento.
+  // Eventos do lote — um tubo pertence a um evento só, e o "Embalar em lote"
+  // manda as conferidas marcadas para UM tubo: por isso exige um evento só
+  // (com vários, a barra avisa em vez de abrir o painel).
   const eventosDoLote = useMemo(() => {
     const m = new Map<string, string>();
     for (const i of bulkSelectedItems) if (i.eventId) m.set(String(i.eventId), i.event?.name ?? "Evento");
     return Array.from(m, ([id, nome]) => ({ id, nome }));
   }, [bulkSelectedItems]);
-  const eventoUnicoDoLote = bulkConferMode && eventosDoLote.length === 1 ? eventosDoLote[0].id : undefined;
-  const { data: tubosDoEventoDoLote } = useQuery<any>({
-    queryKey: [`/api/events/${eventoUnicoDoLote}/tubos`],
-    enabled: bulkConferOpen && !!eventoUnicoDoLote,
-  });
 
   const bulkConfirmRef = useRef<HTMLButtonElement>(null);
 
@@ -2226,16 +2165,13 @@ export default function Grafica() {
   const sairDoLote = () => {
     setBulkDeliveryMode(false);
     setBulkConferMode(false);
+    setBulkPackMode(false);
     setBulkSelectedIds(new Set());
     setBulkDeliveryPhotos([]);
     setBulkConferPhotos([]);
     setBulkDeliveryNotes("");
     setBulkConferNotes("");
     setBulkReceivedBy("");
-    // O tubo escolhido é DAQUELE lote: um tubo pertence a um evento, e o lote
-    // seguinte pode ser de outro. Sem zerar, o próximo lote nascia apontando
-    // para um tubo que não é dele.
-    setTuboDoLote("");
   };
 
   // Escape sai do modo lote — mas não quando há dialog aberto: o Escape do
@@ -2245,12 +2181,12 @@ export default function Grafica() {
     if (!bulkOn) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
-      if (bulkDeliveryOpen || bulkConferOpen || viewDetailsItem || selectedItem) return;
+      if (bulkDeliveryOpen || bulkConferOpen || tubosDoEvento || viewDetailsItem || selectedItem) return;
       sairDoLote();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [bulkOn, bulkDeliveryOpen, bulkConferOpen, viewDetailsItem, selectedItem]);
+  }, [bulkOn, bulkDeliveryOpen, bulkConferOpen, tubosDoEvento, viewDetailsItem, selectedItem]);
 
   // Conferência em lote: mesma disciplina da entrega (allSettled + tolerância a
   // falha parcial). Foto é obrigatória (regra do servidor); a primeira vira o
@@ -2297,41 +2233,8 @@ export default function Grafica() {
         photoFailed = photos.filter(p => p.status === "rejected").length;
       }
 
-      // O TUBO DO LOTE (dono, 14/09): conferidas, as peças entram no tubo —
-      // um por evento quando o lote mistura eventos. Falhar aqui NÃO desfaz a
-      // conferência: avisa, e dá para agrupar no botão Tubos do evento.
-      let avisoDoTubo: string | null = null;
-      if (okIds.length > 0 && tuboDoLote !== "") {
-        const porEvento = new Map<string, string[]>();
-        for (const it of entries) {
-          if (!okIds.includes(it.id) || !it.eventId) continue;
-          const chave = String(it.eventId);
-          porEvento.set(chave, [...(porEvento.get(chave) ?? []), it.id]);
-        }
-        const numeros: number[] = [];
-        for (const [eventoId, idsDoEvento] of Array.from(porEvento)) {
-          try {
-            // O tubo aberto só vale se for DESTE evento (um tubo pertence a um
-            // evento só). Escolha antiga, de outro lote/evento, cai no caminho
-            // do tubo novo em vez de virar 409 no servidor.
-            const tuboEhDoEvento = ((tubosDoEventoDoLote?.tubos ?? []) as any[])
-              .some((t: any) => t.id === tuboDoLote && !t.entregueEm) && eventoUnicoDoLote === eventoId;
-            const usarTuboAberto = tuboDoLote !== "novo" && porEvento.size === 1 && tuboEhDoEvento;
-            const r = usarTuboAberto
-              ? await apiRequest("PATCH", `/api/tubos/${tuboDoLote}/itens`, { adicionar: idsDoEvento })
-              : await apiRequest("POST", `/api/events/${eventoId}/tubos`, { itemIds: idsDoEvento });
-            const t = await r.json().catch(() => null);
-            if (t?.numero) numeros.push(t.numero);
-          } catch (e: any) {
-            toast({ title: "Conferidas, mas não entraram no tubo", description: apiErrorMessage(e), variant: "destructive" });
-          }
-          queryClient.invalidateQueries({ queryKey: [`/api/events/${eventoId}/tubos`] });
-        }
-        queryClient.invalidateQueries({ queryKey: ["/api/tubos"] });
-        if (numeros.length === 1) avisoDoTubo = `Foram para o Tubo ${numeros[0]}.`;
-        else if (numeros.length > 1) avisoDoTubo = `Foram para ${numeros.length} tubos, um por evento.`;
-      }
-
+      // Conferir é só conferir (dono, 21/09): nada de tubo aqui. Conferidas,
+      // as peças ganham o botão Embalar na fila (ou o "Embalar em lote").
       queryClient.invalidateQueries({ queryKey: ["/api/items/approved"] });
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
 
@@ -2354,9 +2257,7 @@ export default function Grafica() {
       } else {
         toast({
           title: `${okIds.length} peça${okIds.length !== 1 ? "s" : ""} conferida${okIds.length !== 1 ? "s" : ""}`,
-          description: avisoDoTubo
-            ? `${avisoDoTubo} A entrega é por tubo, no botão Tubos do evento. As etiquetas ficam no cabeçalho do evento.`
-            : "Agrupe em tubos no botão Tubos do evento — a entrega é por tubo. As etiquetas ficam no cabeçalho do evento.",
+          description: "Agora é embalar: o botão Embalar da peça (ou Embalar em lote) escolhe o tubo. As etiquetas ficam no cabeçalho do evento.",
         });
       }
 
@@ -2373,7 +2274,6 @@ export default function Grafica() {
         setBulkSelectedIds(new Set());
         setBulkConferNotes("");
         setBulkConferPhotos([]);
-        setTuboDoLote("");
       }
     } catch (e: any) {
       // Mesmas chaves do fluxo feliz — invalidar só /approved deixava as
@@ -2506,7 +2406,7 @@ export default function Grafica() {
   // `mutation.mutate`, estáveis entre renders — não precisam entrar.
   const agoraDaTela = new Date();
   const depsDasLinhas: unknown[] = [
-    user, bulkOn, bulkDeliveryMode, bulkConferMode, compacto,
+    user, bulkOn, bulkDeliveryMode, bulkConferMode, bulkPackMode, compacto,
     hojeBusinessMs, hojeUTC,
     markReuseMutation.isPending, correctReuseMutation.isPending, cancelComplementMutation.isPending,
   ];
@@ -2530,7 +2430,9 @@ export default function Grafica() {
     item.tuboId ? numeroDoTubo.get(item.tuboId) ?? null : null,
     // …e o "fechado 14:32" do selo (21/09): a linha redesenha quando o tubo fecha.
     item.tuboId ? fechamentoDoTubo.get(item.tuboId) ?? null : null,
-    tirarDoTuboMutation.isPending,
+    // Só a linha DESTA peça fica "pendente" ao tirar do tubo — o booleano
+    // global redesenhava a fila inteira a cada clique.
+    tirarDoTuboMutation.isPending && tirarDoTuboMutation.variables?.itemId === item.id,
     tubaveisPorEvento.get(String(item.eventId)) ?? 0,
     ...daPosicao,
   ];
@@ -2720,7 +2622,7 @@ export default function Grafica() {
                 Secundária: contorno neutro, ícone ciano (a cor da etapa). */}
             {podeConferir && conferableInFilter.length > 0 && !bulkOn && (
               <button
-                onClick={() => { setBulkConferMode(true); setBulkSelectedIds(new Set()); setTuboDoLote(""); }}
+                onClick={() => { setBulkConferMode(true); setBulkSelectedIds(new Set()); }}
                 data-testid="button-bulk-confer"
                 title="Selecionar várias peças e registrar a conferência com uma foto só"
                 style={{ ...botaoSecundario, flex: isMobile ? "1 1 0" : undefined }}
@@ -2731,6 +2633,21 @@ export default function Grafica() {
                 {/* No celular a contagem já está na fila logo acima — repetir
                     empurrava os três botões para duas linhas em 390px. */}
                 {!isMobile && <span style={{ color: TI.secondary, fontVariantNumeric: "tabular-nums" }}>{conferableInFilter.length}</span>}
+              </button>
+            )}
+            {/* Embalar em lote (dono, 21/09) — várias conferidas para um tubo
+                de uma vez. Ícone no azul do Embalado, a cor da etapa. */}
+            {podeConferir && packableInFilter.length > 0 && !bulkOn && (
+              <button
+                onClick={() => { setBulkPackMode(true); setBulkSelectedIds(new Set()); }}
+                data-testid="button-bulk-pack"
+                title="Marcar várias peças conferidas e pôr todas num tubo"
+                style={{ ...botaoSecundario, flex: isMobile ? "1 1 0" : undefined }}
+                {...hoverSecundario}
+              >
+                <Package aria-hidden="true" style={{ width: 15, height: 15, color: "#1d4ed8", flexShrink: 0 }} />
+                Embalar em lote
+                {!isMobile && <span style={{ color: TI.secondary, fontVariantNumeric: "tabular-nums" }}>{packableInFilter.length}</span>}
               </button>
             )}
             {/* Entrega em lote — ícone no laranja-texto (#c2410c), o mesmo do
@@ -3513,7 +3430,8 @@ export default function Grafica() {
               const emRevisao = EM_REVISAO.has(item.status);
               const canDeliverItem = canDeliver(item) && !emRevisao;
               const canConferItem = canConfer(item) && !emRevisao;
-              const bulkEligible = bulkDeliveryMode ? canDeliverItem : bulkConferMode ? canConferItem : false;
+              const podeEmbalarPeca = podeEmbalar(item);
+              const bulkEligible = bulkDeliveryMode ? canDeliverItem : bulkConferMode ? canConferItem : bulkPackMode ? podeEmbalarPeca : false;
               // ── Complemento: os mesmos três números do desktop ──
               const ehComplemento = isComplement(item);
               const coAberto = complementOpen(item);
@@ -4072,11 +3990,27 @@ export default function Grafica() {
                               {conferredOf(item) > 0 ? `Conferir ${remainingConfer(item)}` : 'Conferir'}
                             </button>
                           )}
+                          {/* EMBALAR (dono, 21/09): a principal da peça CONFERIDA — abre
+                              o painel de tubos já com a peça marcada. Azul do Embalado
+                              (#1d4ed8, 6,3:1 com branco). Entregar continua abaixo, de
+                              contorno: a peça grande que não vai em tubo. */}
+                          {podeEmbalarPeca && (
+                            <button
+                              onClick={e => { e.stopPropagation(); abrirEmbalar([item]); }}
+                              data-testid={`button-embalar-card-${item.id}`}
+                              style={{ order: 0, flex: '2 1 150px', minHeight: 48, padding: '0 12px', borderRadius: 8, background: '#1d4ed8', border: 'none', color: '#fff', fontSize: 14, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, cursor: 'pointer', whiteSpace: 'nowrap' }}
+                            >
+                              <Package aria-hidden="true" style={{ width: 13, height: 13 }} />
+                              Embalar
+                            </button>
+                          )}
                           {canDeliverItem && (
                             <button
                               onClick={e => { e.stopPropagation(); openDeliveryModal(item); }}
                               data-testid={`button-entregar-card-${item.id}`}
-                              style={{ order: 0, flex: '2 1 150px', minHeight: 48, padding: '0 12px', borderRadius: 8, background: '#c2410c', border: 'none', color: '#fff', fontSize: 14, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, cursor: 'pointer', whiteSpace: 'nowrap' }}
+                              style={podeEmbalarPeca
+                                ? { order: 0, flex: '1 1 130px', minHeight: 48, padding: '0 12px', borderRadius: 8, background: '#fff', border: '1px solid #fdba74', color: '#c2410c', fontSize: 14, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, cursor: 'pointer', whiteSpace: 'nowrap' }
+                                : { order: 0, flex: '2 1 150px', minHeight: 48, padding: '0 12px', borderRadius: 8, background: '#c2410c', border: 'none', color: '#fff', fontSize: 14, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, cursor: 'pointer', whiteSpace: 'nowrap' }}
                             >
                               <Truck aria-hidden="true" style={{ width: 13, height: 13 }} />
                               {deliveredOf(item) > 0 ? `Entregar ${remainingDeliver(item)}` : 'Entregar'}
@@ -4086,11 +4020,22 @@ export default function Grafica() {
                           {podeConferir && !soVisualizaKit(item) && isPacked(item) && item.tuboId && (
                             <button
                               onClick={e => { e.stopPropagation(); tirarDoTuboMutation.mutate({ itemId: item.id, tuboId: item.tuboId, displayId: item.displayId }); }}
-                              disabled={tirarDoTuboMutation.isPending}
+                              disabled={tirarDoTuboMutation.isPending && tirarDoTuboMutation.variables?.itemId === item.id}
                               data-testid={`button-tirar-do-tubo-card-${item.id}`}
                               style={{ order: 0, flex: '1 1 130px', minHeight: 48, padding: '0 12px', borderRadius: 8, background: '#fff', border: '1px solid #d6d3d1', color: '#44403c', fontSize: 14, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, cursor: 'pointer', whiteSpace: 'nowrap' }}
                             >
                               <Undo2 aria-hidden="true" style={{ width: 13, height: 13 }} /> Tirar do tubo
+                            </button>
+                          )}
+                          {/* Embalada: entregar o TUBO inteiro — o painel abre já no
+                              formulário daquele tubo (quem recebeu). */}
+                          {podeConferir && !soVisualizaKit(item) && isPacked(item) && item.tuboId && item.eventId && (
+                            <button
+                              onClick={e => { e.stopPropagation(); setTubosDoEvento({ id: String(item.eventId), name: item.event?.name ?? "Evento", entregarTubo: item.tuboId }); }}
+                              data-testid={`button-entregar-tubo-card-${item.id}`}
+                              style={{ order: 0, flex: '1 1 130px', minHeight: 48, padding: '0 12px', borderRadius: 8, background: '#fff', border: '1px solid #bfdbfe', color: '#1d4ed8', fontSize: 14, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, cursor: 'pointer', whiteSpace: 'nowrap' }}
+                            >
+                              <Truck aria-hidden="true" style={{ width: 13, height: 13 }} /> Entregar tubo
                             </button>
                           )}
                           {isDelivered(item) && (
@@ -4239,7 +4184,8 @@ export default function Grafica() {
                 // ativo — antes só a entrega em lote tinha checkbox na tabela.
                 const isSelected = bulkSelectedIds.has(item.id);
                 const emRevisao = EM_REVISAO.has(item.status);
-                const bulkEligible = !emRevisao && (bulkDeliveryMode ? canDeliver(item) : bulkConferMode ? canConfer(item) : false);
+                const podeEmbalarPeca = podeEmbalar(item);
+                const bulkEligible = !emRevisao && (bulkDeliveryMode ? canDeliver(item) : bulkConferMode ? canConfer(item) : bulkPackMode ? podeEmbalarPeca : false);
                 // ── Complemento ──
                 // ehComplemento: esta linha nasceu de um aumento de quantidade.
                 // coAberto: o realce FORTE ainda vale (não foi entregue).
@@ -4737,7 +4683,9 @@ export default function Grafica() {
                               (podeMexerQtd && !soVisualizaKit(item) && ehComplemento && complementUntouched(item))
                               || (!emRevisao && !soVisualizaKit(item) && !isDelivered(item) && !isPosConferencia(item) && (!isProduced(item) ? tetoReaproveitar(item) > 0 : podeMexerQtd && qtyOf(item) > 0))
                               || (!emRevisao && !soVisualizaKit(item) && (isProduced(item) || isAdmin) && reusedTotalOf(item) > 0 && conferredOf(item) === 0 && deliveredOf(item) === 0)
-                              || (canProduce && podeDevolverParaRevisao(item)));
+                              || (canProduce && podeDevolverParaRevisao(item))
+                              // Entregar vira secundária quando a peça tem Embalar (21/09).
+                              || (podeEmbalarPeca && canDeliver(item)));
                             if (!compacto || !temSecundaria) return null;
                             const aberto = menuAcoesId === item.id || reuseConfirmItemId === item.id || correctReuseItemId === item.id || cancelComplementId === item.id;
                             return (
@@ -5009,6 +4957,26 @@ export default function Grafica() {
                               {compacto && "Devolver para a Revisão"}
                             </button>
                           )}
+                          {/* Entregar SECUNDÁRIA da conferida (21/09): a peça grande que
+                              não vai em tubo. Na tabela cheia fica ao lado do Embalar;
+                              na compacta, dentro do "⋯". Contorno laranja, mesmo tom
+                              do Entregar principal. */}
+                          {!bulkOn && !emRevisao && podeEmbalarPeca && canDeliver(item) && (
+                            <button
+                              onClick={() => openDeliveryModal(item)}
+                              title={`Entregar sem tubo (${remainingDeliver(item)} conferido(s) pendente(s)) — para a peça grande que não vai em tubo`}
+                              data-testid={`button-deliver-${item.id}`}
+                              style={{
+                                backgroundColor: "#ffffff", color: "#c2410c",
+                                border: "1px solid #fdba74", borderRadius: 8, height: 32, padding: compacto ? "0 8px" : "0 10px",
+                                fontSize: 12, fontWeight: 700, whiteSpace: "nowrap",
+                                cursor: "pointer", display: "flex", alignItems: "center", justifyContent: compacto ? "flex-start" : "center", gap: 4,
+                              }}
+                            >
+                              <Truck aria-hidden="true" style={{ width: 13, height: 13 }} />
+                              {deliveredOf(item) > 0 ? `Entregar ${remainingDeliver(item)}` : "Entregar"}
+                            </button>
+                          )}
                           </div>
 
                           {/* Iniciar / Continuar Produção — oculto para reaproveitamento
@@ -5085,8 +5053,33 @@ export default function Grafica() {
                               {isSelected && <Check style={{ width: 13, height: 13, color: '#fff' }} />}
                             </div>
                           )}
-                          {/* Entregar — reaproveitamento: direto; normal: o que já foi conferido */}
-                          {!bulkOn && !emRevisao && canDeliver(item) && (
+                          {/* EMBALAR (dono, 21/09): a principal da peça CONFERIDA — abre
+                              o painel de tubos do evento já com a peça marcada, focado em
+                              escolher o tubo. Azul do Embalado (#1d4ed8, 6,3:1 com branco). */}
+                          {!bulkOn && podeEmbalarPeca && (
+                            <button
+                              onClick={() => abrirEmbalar([item])}
+                              title="Pôr no tubo — escolhe o tubo no painel do evento"
+                              data-testid={`button-embalar-${item.id}`}
+                              style={{
+                                backgroundColor: "#1d4ed8", color: "#ffffff",
+                                border: "none", borderRadius: 8, height: 32, padding: "0 12px",
+                                fontSize: 12, fontWeight: 700, whiteSpace: "nowrap",
+                                cursor: "pointer", display: "flex", alignItems: "center", gap: 4,
+                                transition: "background-color 0.15s",
+                              }}
+                              onMouseEnter={e => (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#1e40af"}
+                              onMouseLeave={e => (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#1d4ed8"}
+                            >
+                              <Package aria-hidden="true" style={{ width: 13, height: 13 }} />
+                              Embalar
+                            </button>
+                          )}
+
+                          {/* Entregar — reaproveitamento: direto; normal: o que já foi
+                              conferido. Principal só quando a peça NÃO tem Embalar
+                              (parcial, reuso, embalada); na conferida é a secundária acima. */}
+                          {!bulkOn && !emRevisao && canDeliver(item) && !podeEmbalarPeca && (
                             <button
                               onClick={() => openDeliveryModal(item)}
                               title={`Entregar (${remainingDeliver(item)} conferido(s) pendente(s))`}
@@ -5111,12 +5104,24 @@ export default function Grafica() {
                           {!bulkOn && podeConferir && !soVisualizaKit(item) && isPacked(item) && item.tuboId && (
                             <button
                               onClick={() => tirarDoTuboMutation.mutate({ itemId: item.id, tuboId: item.tuboId, displayId: item.displayId })}
-                              disabled={tirarDoTuboMutation.isPending}
+                              disabled={tirarDoTuboMutation.isPending && tirarDoTuboMutation.variables?.itemId === item.id}
                               data-testid={`button-tirar-do-tubo-${item.id}`}
                               title="Tira a peça do tubo — ela volta a Conferido"
                               style={{ backgroundColor: "#fff", color: "#44403c", border: "1px solid #d6d3d1", borderRadius: 8, height: 32, padding: "0 10px", fontSize: 12, fontWeight: 700, whiteSpace: "nowrap", cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}
                             >
                               <Undo2 aria-hidden="true" style={{ width: 13, height: 13 }} /> Tirar do tubo
+                            </button>
+                          )}
+                          {/* Embalada: entregar o TUBO inteiro — abre o painel já no
+                              formulário daquele tubo (quem recebeu). */}
+                          {!bulkOn && podeConferir && !soVisualizaKit(item) && isPacked(item) && item.tuboId && item.eventId && (
+                            <button
+                              onClick={() => setTubosDoEvento({ id: String(item.eventId), name: item.event?.name ?? "Evento", entregarTubo: item.tuboId })}
+                              data-testid={`button-entregar-tubo-${item.id}`}
+                              title="Entregar o tubo inteiro — abre o painel já no formulário deste tubo"
+                              style={{ backgroundColor: "#fff", color: "#1d4ed8", border: "1px solid #bfdbfe", borderRadius: 8, height: 32, padding: "0 10px", fontSize: 12, fontWeight: 700, whiteSpace: "nowrap", cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}
+                            >
+                              <Truck aria-hidden="true" style={{ width: 13, height: 13 }} /> Entregar tubo
                             </button>
                           )}
 
@@ -5208,11 +5213,11 @@ export default function Grafica() {
 
       </div>
 
-      {/* ── Barra flutuante dos modos em lote (entrega OU conferência) ── */}
+      {/* ── Barra flutuante dos modos em lote (entrega, conferência OU embalar) ── */}
       {bulkOn && (
         <div
           role="toolbar"
-          aria-label={bulkConferMode ? "Ações da conferência em lote" : "Ações da entrega em lote"}
+          aria-label={bulkConferMode ? "Ações da conferência em lote" : bulkPackMode ? "Ações do embalar em lote" : "Ações da entrega em lote"}
           style={{
             // A barra ancora na COLUNA DE CONTEÚDO. Com left:0 e zIndex 50 ela
             // passava por cima da sidebar (fixed, z-10) e cobria a navegação e o
@@ -5257,8 +5262,8 @@ export default function Grafica() {
               só modo + contador e o X; os botões descem para a de baixo. */}
           <span style={{ order: isMobile ? 0 : undefined, flex: isMobile ? '1 1 calc(100% - 52px)' : 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 1 }}>
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: isMobile ? 12 : 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: isMobile ? '0.04em' : '0.08em', color: 'rgba(255,255,255,0.78)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-              <span aria-hidden="true" style={{ width: 7, height: 7, borderRadius: '50%', flexShrink: 0, backgroundColor: bulkConferMode ? '#22d3ee' : '#fb923c' }} />
-              {bulkConferMode ? 'Conferência em lote' : 'Entrega em lote'}
+              <span aria-hidden="true" style={{ width: 7, height: 7, borderRadius: '50%', flexShrink: 0, backgroundColor: bulkConferMode ? '#22d3ee' : bulkPackMode ? '#60a5fa' : '#fb923c' }} />
+              {bulkConferMode ? 'Conferência em lote' : bulkPackMode ? 'Embalar em lote' : 'Entrega em lote'}
             </span>
             <span aria-live="polite" style={{ color: bulkSelectedIds.size > 0 ? '#fff' : 'rgba(255,255,255,0.78)', fontSize: isMobile ? 14 : 13, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>
               {bulkSelectedIds.size > 0
@@ -5266,11 +5271,13 @@ export default function Grafica() {
                   ? `${bulkSelectedIds.size} de ${bulkEligibleList.length} marcada${bulkSelectedIds.size !== 1 ? 's' : ''}`
                   : `${bulkSelectedIds.size} peça${bulkSelectedIds.size !== 1 ? 's' : ''} selecionada${bulkSelectedIds.size !== 1 ? 's' : ''}`)
                 : isMobile ? 'Toque nas peças para marcar'
-                // Conferência em lote: diz QUAIS peças tocar (as em acabamento).
-                // O tubo é opcional — agrupar vem depois (dono, 14/09).
+                // Conferência em lote: diz QUAIS peças tocar (as em acabamento);
+                // embalar em lote: as conferidas.
                 : bulkConferMode
                   ? (usaCards ? 'Toque nas peças em acabamento para conferir' : 'Clique nas linhas em acabamento para conferir')
-                  : (usaCards ? 'Toque nas peças para selecionar' : 'Clique nas linhas para selecionar')}
+                  : bulkPackMode
+                    ? (usaCards ? 'Toque nas peças conferidas para embalar' : 'Clique nas linhas conferidas para embalar')
+                    : (usaCards ? 'Toque nas peças para selecionar' : 'Clique nas linhas para selecionar')}
               {isMobile && bulkSelectedIds.size > 0 && <span className="sr-only"> peças</span>}
             </span>
           </span>
@@ -5283,30 +5290,44 @@ export default function Grafica() {
           <button
             ref={bulkConfirmRef}
             onClick={() => {
-              if (bulkSelectedIds.size > 0) (bulkConferMode ? (setTuboDoLote(""), setBulkConferOpen(true)) : setBulkDeliveryOpen(true));
-              else toast({ title: "Nenhuma peça marcada", description: `${usaCards ? "Toque nas peças" : "Clique nas linhas"} (ou em Todas) para escolher o que ${bulkConferMode ? "conferir" : "entregar"}.` });
+              if (bulkSelectedIds.size === 0) {
+                toast({ title: "Nenhuma peça marcada", description: `${usaCards ? "Toque nas peças" : "Clique nas linhas"} (ou em Todas) para escolher o que ${bulkConferMode ? "conferir" : bulkPackMode ? "embalar" : "entregar"}.` });
+                return;
+              }
+              if (bulkConferMode) { setBulkConferOpen(true); return; }
+              if (!bulkPackMode) { setBulkDeliveryOpen(true); return; }
+              // Embalar em lote: um tubo pertence a um evento — com peças de
+              // vários eventos marcadas, avisa em vez de abrir o painel.
+              if (eventosDoLote.length > 1) {
+                toast({ title: "Marque peças de um evento só", description: `Um tubo pertence a um evento. Há peças de ${eventosDoLote.length} eventos marcadas (${eventosDoLote.map((e) => e.nome).join(", ")}).`, variant: "destructive" });
+                return;
+              }
+              abrirEmbalar(bulkSelectedItems);
             }}
             aria-disabled={bulkSelectedIds.size === 0}
             data-testid="button-bulk-continuar"
-            title={bulkSelectedIds.size > 0 ? "Abre a foto e a confirmação — nada é registrado antes disso" : "Marque ao menos uma peça"}
+            title={bulkSelectedIds.size > 0 ? (bulkPackMode ? "Abre a escolha do tubo — nada é registrado antes disso" : "Abre a foto e a confirmação — nada é registrado antes disso") : "Marque ao menos uma peça"}
             style={{
               order: isMobile ? 3 : undefined, flex: isMobile ? '1 1 0' : undefined, minWidth: 0, justifyContent: 'center',
               minHeight: isMobile ? 48 : 44, padding: isMobile ? '0 12px' : '0 18px', borderRadius: 12, border: 'none', flexShrink: 0,
-              background: bulkSelectedIds.size === 0 ? 'rgba(255,255,255,0.15)' : bulkConferMode ? '#0e7490' : '#c2410c',
+              background: bulkSelectedIds.size === 0 ? 'rgba(255,255,255,0.15)' : bulkConferMode ? '#0e7490' : bulkPackMode ? '#1d4ed8' : '#c2410c',
               // 0.35 de branco sumia no preto; 0.6 ainda lê "inativo" e se lê.
               color: bulkSelectedIds.size === 0 ? 'rgba(255,255,255,0.6)' : '#fff',
               fontSize: 13, fontWeight: 800, fontFamily: "'Space Grotesk', sans-serif",
               cursor: bulkSelectedIds.size === 0 ? 'not-allowed' : 'pointer',
               display: 'flex', alignItems: 'center', gap: 7,
-              boxShadow: bulkSelectedIds.size > 0 ? (bulkConferMode ? '0 4px 16px rgba(14,116,144,0.4)' : '0 4px 16px rgba(194,65,12,0.4)') : 'none',
+              boxShadow: bulkSelectedIds.size > 0 ? (bulkConferMode ? '0 4px 16px rgba(14,116,144,0.4)' : bulkPackMode ? '0 4px 16px rgba(29,78,216,0.4)' : '0 4px 16px rgba(194,65,12,0.4)') : 'none',
               transition: 'all 0.15s',
             }}
           >
-            <Camera aria-hidden="true" style={{ width: 15, height: 15, flexShrink: 0 }} />
+            {bulkPackMode
+              ? <Package aria-hidden="true" style={{ width: 15, height: 15, flexShrink: 0 }} />
+              : <Camera aria-hidden="true" style={{ width: 15, height: 15, flexShrink: 0 }} />}
             {/* O rótulo inteiro também no celular: "Continuar" sozinho não
-                dizia que o próximo passo é a FOTO (nada é gravado ainda). */}
+                dizia que o próximo passo é a FOTO (nada é gravado ainda). No
+                embalar, o próximo passo é escolher o TUBO. */}
             <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: isMobile ? 14 : undefined }}>
-              Continuar para a foto{bulkSelectedIds.size > 0 && ` (${bulkSelectedIds.size})`}
+              {bulkPackMode ? "Escolher o tubo" : "Continuar para a foto"}{bulkSelectedIds.size > 0 && ` (${bulkSelectedIds.size})`}
             </span>
           </button>
 
@@ -5358,16 +5379,6 @@ export default function Grafica() {
         isSubmitting={isBulkSubmitting}
         onConfirm={handleBulkConference}
         qtyFor={remainingConfer}
-        tubo={{
-          eventos: eventosDoLote,
-          tubosAbertos: eventosDoLote.length === 1
-            ? ((tubosDoEventoDoLote?.tubos ?? []) as any[])
-                .filter((t) => !t.entregueEm)
-                .map((t) => ({ id: t.id, numero: t.numero, pecas: t.pecas?.length ?? 0 }))
-            : [],
-          valor: tuboDoLote,
-          onChange: setTuboDoLote,
-        }}
       />
 
       {/* ── Dialog de Detalhes ── */}
@@ -5735,31 +5746,8 @@ export default function Grafica() {
                 )}
                 <PhotoPicker photos={photos} onAdd={addPhoto} onRemove={removePhoto} onError={onPhotoError} hint="· obrigatória, pode anexar várias" />
 
-                {/* O TUBO (dono, 14/09): na conferência muitas peças vão no mesmo
-                    tubo. Escolher aqui evita abrir o painel de tubos peça por
-                    peça; é opcional — dá para agrupar depois. */}
-                <div role="radiogroup" aria-label="Tubo da peça" data-testid="seletor-tubo">
-                  <div style={{ fontSize: fsMin(10), fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#746e69", marginBottom: 8 }}>
-                    Tubo <span style={{ textTransform: "none", letterSpacing: 0, fontWeight: 400 }}>· opcional, dá para agrupar depois</span>
-                  </div>
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                    {[
-                      { valor: "", rotulo: "Sem tubo" },
-                      ...((tubosDaConferencia?.tubos ?? []) as any[]).filter((t) => !t.entregueEm).map((t) => ({ valor: t.id, rotulo: `Tubo ${t.numero} · ${t.pecas.length}` })),
-                      { valor: "novo", rotulo: "+ Tubo novo" },
-                    ].map(({ valor, rotulo }) => {
-                      const ativo = tuboDaConferencia === valor;
-                      return (
-                        <button key={valor || "sem-tubo"} type="button" role="radio" aria-checked={ativo}
-                          onClick={() => setTuboDaConferencia(valor)}
-                          data-testid={`tubo-opcao-${valor || "sem"}`}
-                          style={{ height: isMobile ? 44 : 36, padding: "0 12px", borderRadius: 999, cursor: "pointer", fontSize: isMobile ? 14 : 12.5, fontWeight: 700, whiteSpace: "nowrap", backgroundColor: ativo ? TI.text : "#ffffff", color: ativo ? "#ffffff" : TI.text, border: `1px solid ${ativo ? TI.text : TI.border}` }}>
-                          {rotulo}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
+                {/* Sem escolha de tubo aqui (dono, 21/09): "o tubo só na hora de
+                    embalar". Conferida, a peça ganha o botão Embalar na fila. */}
 
                 {renderNotesField("Ex.: cor puxando para o escuro, ilhós faltando…")}
                 <div style={modalActionsStyle}>
@@ -5796,7 +5784,9 @@ export default function Grafica() {
       {/* Devolver para a Revisão — o motivo é obrigatório pela mesma régua das
           outras devoluções: quem recebe a peça de volta precisa saber o que
           refazer, senão é ida e volta garantida. */}
-      <TubosDialog evento={tubosDoEvento} onClose={() => setTubosDoEvento(null)} />
+      <TubosDialog evento={tubosDoEvento} onClose={() => setTubosDoEvento(null)}
+        itensIniciais={tubosDoEvento?.embalar} tuboInicial={tubosDoEvento?.entregarTubo}
+        onEmbalou={() => { if (bulkPackMode) sairDoLote(); }} />
 
       {galpao && (
         <GalpaoFila

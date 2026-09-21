@@ -87,7 +87,10 @@ describe("a entrega não tem gate de papel no cliente", () => {
     // para divergir da primeira.
     // O !emRevisao NÃO é gate de papel: é a peça que a Revisão ainda não
     // liberou — visível na fila, sem ação (decisão do dono, 24/08).
-    expect(tela).toContain("{!bulkOn && !emRevisao && canDeliver(item) && (");
+        // `!podeEmbalarPeca` (21/09) também não é papel: a conferida tem Embalar
+    // como principal e o Entregar vira secundária, no menu (mesmo canDeliver).
+expect(tela).toContain("{!bulkOn && !emRevisao && canDeliver(item) && !podeEmbalarPeca && (");
+    expect(tela).toContain("{!bulkOn && !emRevisao && podeEmbalarPeca && canDeliver(item) && (");
   });
 });
 

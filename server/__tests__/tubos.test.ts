@@ -1,11 +1,12 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// TUBOS — agrupar na conferência, entregar por tubo (dono, 14/09).
+// TUBOS — embalar depois de conferir, entregar por tubo (dono, 14/09 e 21/09).
 //
 // As decisões do dono, e o que este arquivo pina de cada uma:
 //   · a peça vai INTEIRA para um tubo — o vínculo é uma coluna na peça, e não
 //     uma tabela de unidades;
-//   · a conferência continua com foto de CADA peça — o tubo só é escolhido
-//     junto, e falhar no tubo não desfaz a conferência;
+//   · a conferência é só conferir com foto de CADA peça — o tubo é escolhido
+//     DEPOIS, no "Embalar" da peça conferida (21/09: "o tubo só na hora de
+//     embalar; tire da conferência"). Ver embalar-na-fila.test.ts;
 //   · a entrega é do TUBO INTEIRO — uma foto e um recebedor para tudo, e só
 //     quando todas as peças estão conferidas (a recusa diz quais faltam);
 //   · o tubo é numerado por evento e tem etiqueta.
@@ -354,19 +355,18 @@ describe("Embalado na tela", () => {
 });
 
 describe("na Gráfica", () => {
-  it("a conferência escolhe o tubo, começando pelo tubo atual da peça", () => {
-    expect(GRAFICA).toContain('data-testid="seletor-tubo"');
-    expect(GRAFICA).toContain('setTuboDaConferencia(item.tuboId ?? "");');
-  });
-
-  it("falhar no tubo não desfaz a conferência — só avisa", () => {
-    expect(GRAFICA).toContain("Conferida, mas não entrou no tubo");
+  it("a conferência NÃO escolhe tubo (dono, 21/09) — nem a individual, nem o lote", () => {
+    expect(GRAFICA).not.toContain('data-testid="seletor-tubo"');
+    expect(GRAFICA).not.toContain("tuboDaConferencia");
+    expect(GRAFICA).not.toContain("tuboDoLote");
+    expect(GRAFICA).not.toContain("Conferida, mas não entrou no tubo");
+    expect(GRAFICA).not.toContain("Conferidas, mas não entraram no tubo");
   });
 
   it("cada evento abre o painel de tubos, no desktop e no celular", () => {
     expect(GRAFICA).toContain("data-testid={`button-tubos-${item.eventId}`}");
     expect(GRAFICA).toContain("data-testid={`button-tubos-mobile-${item.eventId}`}");
-    expect(GRAFICA).toContain("<TubosDialog evento={tubosDoEvento} onClose={() => setTubosDoEvento(null)} />");
+    expect(GRAFICA).toContain("<TubosDialog evento={tubosDoEvento} onClose={() => setTubosDoEvento(null)}");
   });
 
   it("a linha mostra em que tubo a peça está", () => {
@@ -460,17 +460,13 @@ describe("a entrega do tubo fecha o evento como a entrega da peça", () => {
   });
 });
 
-describe("o tubo do lote não vaza de um lote para o outro", () => {
-  it("é zerado ao sair do lote e ao abrir o dialog", () => {
-    expect(GRAFICA).toContain('setBulkReceivedBy("");\n    // O tubo escolhido é DAQUELE lote');
-    expect(GRAFICA).toContain('setBulkConferMode(true); setBulkSelectedIds(new Set()); setTuboDoLote("");');
-    expect(GRAFICA).toContain('(setTuboDoLote(""), setBulkConferOpen(true))');
-  });
-
-  it("só usa tubo aberto que seja DO evento das peças", () => {
-    expect(GRAFICA).toContain("const tuboEhDoEvento =");
-    expect(GRAFICA).toContain("eventoUnicoDoLote === eventoId");
-    expect(GRAFICA).toContain('const usarTuboAberto = tuboDoLote !== "novo" && porEvento.size === 1 && tuboEhDoEvento;');
+describe("o servidor nunca recebeu tubo pela conferência", () => {
+  it("POST /confer não lê tuboId do corpo — só o tubo em que a peça JÁ está", () => {
+    const ITEMS = ler("server/routes/items.ts");
+    const confer = ITEMS.slice(ITEMS.indexOf('app.post("/api/items/:id/confer"'), ITEMS.indexOf('app.post("/api/items/:id/confer"') + 6000);
+    expect(confer).not.toContain("req.body.tuboId");
+    expect(confer).not.toMatch(/tuboId\s*[,}]\s*=\s*req\.body/);
+    expect(confer).toContain("current.tuboId");
   });
 });
 

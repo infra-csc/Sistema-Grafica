@@ -115,8 +115,9 @@ describe("tabela da Gráfica com a barra lateral aberta (1.380px úteis)", () =>
     await montar();
     expect(cabecalhos(), "desceu para a compacta").not.toContain("m² a produzir");
 
-    // Principais à vista, fora de qualquer menu.
-    for (const t of ["button-production-a1", "button-confer-a2", "button-deliver-a3"]) {
+    // Principais à vista, fora de qualquer menu. A da CONFERIDA (a3) é
+    // Embalar (dono, 21/09); Entregar virou secundária dela.
+    for (const t of ["button-production-a1", "button-confer-a2", "button-embalar-a3"]) {
       const b = $(`[data-testid="${t}"]`);
       expect(b, t).toBeTruthy();
       expect(b!.closest('[data-testid^="menu-acoes-"]'), `${t} não pode morar no menu`).toBeNull();
@@ -127,8 +128,9 @@ describe("tabela da Gráfica com a barra lateral aberta (1.380px úteis)", () =>
     expect(menu.querySelector('[data-testid="button-reuse-a1"]')).toBeTruthy();
     expect(menu.querySelector('[data-testid="button-devolver-revisao-a1"]')).toBeTruthy();
     expect($('[data-testid="menu-acoes-a2"]')!.querySelector('[data-testid="button-correct-reuse-a2"]')).toBeTruthy();
-    // Peça só com a principal não ganha ⋯.
-    expect($('[data-testid="button-mais-acoes-a3"]')).toBeNull();
+    // A conferida ganha ⋯ só por causa do Entregar secundário (peça grande sem tubo).
+    expect($('[data-testid="button-mais-acoes-a3"]')).toBeTruthy();
+    expect($('[data-testid="menu-acoes-a3"]')!.querySelector('[data-testid="button-deliver-a3"]')).toBeTruthy();
 
     // Abre: o menu aparece com RÓTULOS (o ícone solto não diz nada numa lista).
     await act(async () => { $('[data-testid="button-mais-acoes-a1"]')!.click(); });

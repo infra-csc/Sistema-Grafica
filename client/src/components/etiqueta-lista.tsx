@@ -8,6 +8,7 @@
 // o tamanho da área útil do papel, então o que se vê na tela é o que sai, e a
 // tipografia escala junto com o tamanho escolhido.
 // ─────────────────────────────────────────────────────────────────────────────
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { TAMANHOS, fonteDaCidadeMm, linhaDaLista, type LinhaDaEtiqueta, type PecaDaLista, type TamanhoEtiqueta } from "@/lib/etiqueta-lista";
 
 const GROTESK = "'Space Grotesk', sans-serif";
@@ -125,3 +126,91 @@ export function EtiquetaReaproveitar(props: { tamanho: TamanhoEtiqueta; rodape?:
     </div>
   );
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// A LINGUAGEM DAS OPÇÕES (22/09) — o dono abriu as etiquetas do evento e achou
+// "confusa": três faixas de chips parecidos com papéis diferentes. As duas telas
+// de etiqueta passam a falar igual: SEÇÕES nomeadas (o que imprimir · como sai
+// · formato · cabeçalho), SEGMENTOS para escolha de um entre poucos, e cada
+// folha da prévia com a sua LEGENDA (papel e "1 de N"). Nada disto imprime.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Seção nomeada do painel: fieldset + legend, para o leitor de tela anunciar
+ *  o grupo ("Formato, grupo") antes de cada controle. */
+export function SecaoDeOpcoes(props: { titulo: string; ajuda?: string; testid?: string; children: ReactNode }) {
+  return (
+    <fieldset data-testid={props.testid} style={{ border: "1px solid #e7e5e4", borderRadius: 10, margin: 0, padding: "10px 12px 12px", minWidth: 0, backgroundColor: "#fff" }}>
+      <legend style={{ padding: "0 6px", fontSize: 12, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.07em", color: "#44403c" }}>{props.titulo}</legend>
+      {props.ajuda && <p style={{ margin: "0 0 8px", fontSize: 12.5, lineHeight: 1.4, color: "#57534e" }}>{props.ajuda}</p>}
+      <div style={{ display: "flex", flexDirection: "column", gap: 8, minWidth: 0 }}>{props.children}</div>
+    </fieldset>
+  );
+}
+
+/** Um entre poucos (Individual | Lista, Deitada | Em pé, Tudo | Só…). Botões
+ *  com aria-pressed dentro de um grupo rotulado; `alvo` é a altura (44 no toque). */
+export function Segmento<V extends string>(props: {
+  rotulo: string; valor: V; opcoes: ReadonlyArray<readonly [V, string]>; aoMudar: (v: V) => void; alvo: number; testid: string; fonte?: number; esticar?: boolean;
+}) {
+  return (
+    <div role="group" aria-label={props.rotulo} style={{ display: props.esticar ? "flex" : "inline-flex", borderRadius: 8, border: "1px solid #d6d3d1", overflow: "hidden", flexShrink: 0, backgroundColor: "#fff" }}>
+      {props.opcoes.map(([v, texto], i) => {
+        const ativo = props.valor === v;
+        return (
+          <button key={v} type="button" className="etq-foco" aria-pressed={ativo} onClick={() => props.aoMudar(v)} data-testid={`${props.testid}-${v}`}
+            style={{ flex: props.esticar ? 1 : undefined, minHeight: props.alvo, padding: "0 12px", border: "none", borderLeft: i > 0 ? "1px solid #d6d3d1" : "none", fontFamily: "inherit", fontSize: props.fonte ?? 12.5, fontWeight: 700, cursor: "pointer", backgroundColor: ativo ? "#1c1917" : "#fff", color: ativo ? "#fff" : "#44403c" }}>
+            {texto}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/** A legenda de cada folha da prévia: o papel e a posição ("Adesivo 10×15 cm ·
+ *  lista 1 de 2"). Classe etq-acao: aparece só na tela. */
+export function LegendaDaFolha(props: { children: ReactNode; testid?: string }) {
+  return (
+    <p className="etq-acao" data-testid={props.testid} style={{ margin: "0 auto 6px", fontSize: 12, fontWeight: 700, letterSpacing: "0.04em", color: "#57534e", textAlign: "center" }}>
+      {props.children}
+    </p>
+  );
+}
+
+const PX_POR_MM = 96 / 25.4;
+
+/**
+ * ZOOM PARA CABER: a folha é desenhada no tamanho real (mm); num celular de
+ * 390px a A4 (190 mm ≈ 718px) estourava e a prévia rolava de lado. Mede o
+ * contêiner e devolve a escala (≤ 1) para a folha caber INTEIRA na largura.
+ * Vai num `zoom` só de tela — o papel continua 1:1.
+ */
+export function useEscalaParaCaber() {
+  const ref = useRef<HTMLDivElement | null>(null);
+  const [largura, setLargura] = useState(0);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const medir = () => setLargura(el.clientWidth);
+    medir();
+    if (typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(medir);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  // Sem medida ainda (ou jsdom, que mede 0): escala 1 — nunca encolhe às cegas.
+  const escalaPara = (larguraDaFolhaPx: number) =>
+    largura > 0 ? Math.round(Math.min(1, Math.max(0.2, (largura - 4) / larguraDaFolhaPx)) * 1000) / 1000 : 1;
+  return { ref, escalaPara };
+}
+/** A regra do zoom: só na TELA, lida de --etq-zoom no próprio elemento. */
+export const CSS_DO_ZOOM = "@media screen { .etq-zoom { zoom: var(--etq-zoom, 1); } }";
+export const estiloDoZoom = (escala: number) => ({ ["--etq-zoom" as any]: escala }) as CSSProperties;
+export const mmParaPx = (mm: number) => mm * PX_POR_MM;
+
+/** Estilos comuns dos campos do painel — 16px no celular (o iOS dá zoom em
+ *  campo menor que isso) e alvo de 44. */
+export const estiloDoCampo = (mobile: boolean): CSSProperties => ({
+  minHeight: mobile ? 44 : 34, borderRadius: 8, border: "1px solid #d6d3d1", padding: "0 10px", fontSize: mobile ? 16 : 13,
+  fontFamily: "inherit", fontWeight: 600, color: "#1c1917", backgroundColor: "#fff", minWidth: 0, boxSizing: "border-box",
+});

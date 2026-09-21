@@ -20,7 +20,7 @@
 //      tubo", barra "Embalar em lote", filtro Impressora na folha.
 //   4. MODAL DE TUBOS — "Embalar #0381" com tubos de 44px, fechar com câmera
 //      direta, entregar com recebedor a 16px, rodapé fixo e teclado.
-//   5. ETIQUETAS — "Em lista" (era "2x1 em lista") cabe na barra, como alvo de 44.
+//   5. ETIQUETAS — o painel "Opções" (22/09) cabe em 390px, com alvos de 44.
 //
 // COMO MEDE: o jsdom não faz layout — as regras são estruturais (estilos inline
 // que o navegador vai aplicar). Ver a nota sobre o atalho `padding` com env()
@@ -423,7 +423,7 @@ describe("GRÁFICA a 390px", () => {
 // 5 · ETIQUETAS
 // ═════════════════════════════════════════════════════════════════════════════
 describe("ETIQUETAS a 390px", () => {
-  it("'Em lista' está na barra que quebra linha (nada cortado) e é alvo de 44 no toque", async () => {
+  it("o painel 'Opções' (com 'Como sai') cabe em 390px: alvos de 44, campos de 16, nada cortado", async () => {
     prepararJsdom();
     vi.stubGlobal("fetch", vi.fn(async () => json([])));
     window.history.replaceState({}, "", "/eventos/ev1/etiquetas");
@@ -437,23 +437,22 @@ describe("ETIQUETAS a 390px", () => {
     ]);
     await act(async () => { render(h(QueryClientProvider, { client: queryClient } as any, h(Pagina as any, null))); });
     await tick(60);
-    const caixa = $('[data-testid="check-em-lista"]')!;
-    expect(caixa, "a caixa 'Em lista'").toBeTruthy();
-    const rotulo = caixa.closest("label")!;
-    expect(rotulo.textContent).toContain("Em lista");
-    // A faixa dos tipos/tamanho também quebra linha e não estoura os 390px.
-    const faixa = $('[data-testid="faixa-em-lista"]')!;
-    expect(faixa.style.flexWrap).toBe("wrap");
-    expect(largurasFixas(faixa)).toEqual([]);
-    expect(alvosPequenos(faixa)).toEqual([]);
-    expect(rotulo.className).toContain("etq-alvo");
-    const barra = rotulo.closest<HTMLElement>(".etq-acao")!;
-    expect(barra.style.flexWrap).toBe("wrap");
-    expect(largurasFixas(barra)).toEqual([]);
-    expect(comReticencias(barra)).toEqual([]);
-    // A regra de 44 vive no CSS da página (o inline não tem media query).
-    const css = $("style")?.textContent ?? "";
-    expect(css).toContain(".etq-alvo { min-height: 44px; }");
-    expect(css).toContain('.etq-acao button, .etq-acao input[type="checkbox"] + span { min-height: 44px; }');
+    // 22/09: a tela foi reorganizada (o dono achou confusa). No celular o
+    // painel vira "Opções"; "Em lista" virou a seção "2 · Como sai" (uma linha
+    // por tipo, Individual | Lista). A régua é a mesma: 44 de alvo DECLARADO
+    // no inline (não depende mais de media query), 16px nos campos, nada
+    // cortado, nada mais largo que a tela. Cobertura completa dos estados em
+    // etiqueta-lista.test.ts.
+    await act(async () => { fireEvent.click($('[data-testid="abrir-opcoes"]')!); });
+    const painel = $('[data-testid="painel-de-opcoes"]')!;
+    expect(painel.textContent).toContain("2 · Como sai");
+    expect($('[data-testid="como-sai-2x1-lista"]')!.getAttribute("aria-pressed")).toBe("true");
+    for (const raiz of [painel, $('[data-testid="barra-das-etiquetas"]')!, $('[data-testid="rodape-de-acao"]')!]) {
+      expect(alvosPequenos(raiz)).toEqual([]);
+      expect(camposRuins(raiz)).toEqual([]);
+      expect(largurasFixas(raiz)).toEqual([]);
+      expect(comReticencias(raiz)).toEqual([]);
+    }
+    expect($('[data-testid="barra-das-etiquetas"]')!.style.flexWrap).toBe("wrap");
   }, 30_000);
 });

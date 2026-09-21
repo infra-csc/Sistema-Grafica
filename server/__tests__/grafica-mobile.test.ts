@@ -38,7 +38,9 @@ describe("uma fonte, duas apresentações", () => {
 describe("a folha de filtros do celular", () => {
   it("abre por um botão que diz quantos filtros estão ativos", () => {
     expect(G).toContain('data-testid="button-abrir-filtros-mobile"');
-    expect(G).toContain('Filtros{nFiltros > 0 ? ` (${nFiltros})` : ""}');
+    // O evento fica à vista na barra (21/09): a folha conta só o que mora nela.
+    expect(G).toContain('Filtros{nFiltrosNaFolha > 0 ? ` (${nFiltrosNaFolha})` : ""}');
+    expect(G).toContain('data-testid="filtro-evento-mobile"');
   });
 
   it("é tela cheia com dvh — o 100vh clássico esconde o rodapé atrás da barra do navegador", () => {

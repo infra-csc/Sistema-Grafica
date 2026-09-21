@@ -1773,6 +1773,9 @@ export default function Grafica() {
   // Contagem e descrição do recorte — derivadas da tabela de campos da lib, não
   // de uma lista escrita à mão que o próximo filtro esqueceria de atualizar.
   const nFiltros = contarFiltrosAtivos(filtros);
+  // No celular o EVENTO fica à vista na barra (dono, 21/09) — o "Filtros (N)"
+  // da folha conta só o que está DENTRO dela.
+  const nFiltrosNaFolha = nFiltros - (filtros.evento.length > 0 ? 1 : 0);
   const haFiltro = temFiltroAtivo(filtros);
   const limparFiltros = () => {
     setFiltros({ ...FILTROS_VAZIOS, entregues: filtros.entregues });
@@ -3198,15 +3201,36 @@ export default function Grafica() {
                   style={{
                     flex: "0 0 auto", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6,
                     minHeight: 44, padding: "0 12px", borderRadius: 8,
-                    backgroundColor: nFiltros > 0 ? TI.text : "#ffffff",
-                    color: nFiltros > 0 ? "#ffffff" : TI.text,
-                    border: `1px solid ${nFiltros > 0 ? TI.text : "#d6d3d1"}`,
+                    backgroundColor: nFiltrosNaFolha > 0 ? TI.text : "#ffffff",
+                    color: nFiltrosNaFolha > 0 ? "#ffffff" : TI.text,
+                    border: `1px solid ${nFiltrosNaFolha > 0 ? TI.text : "#d6d3d1"}`,
                     fontSize: 14, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap",
                   }}
                 >
                   <Filter aria-hidden="true" style={{ width: 15, height: 15 }} />
-                  Filtros{nFiltros > 0 ? ` (${nFiltros})` : ""}
+                  Filtros{nFiltrosNaFolha > 0 ? ` (${nFiltrosNaFolha})` : ""}
                 </button>
+              </div>
+              {/* O EVENTO À VISTA (dono, 21/09: "filtro de eventos no mobile na tela
+                  inicial da Gráfica, sem precisar clicar em Filtros"). O MESMO
+                  componente, estado e URL da folha — só mudou de lugar: linha
+                  própria, largura total, logo abaixo da busca. O X limpa só o
+                  evento; o resto da folha fica como está. */}
+              <div data-testid="filtro-evento-mobile" style={{ display: "flex", gap: 8, alignItems: "center", width: "100%" }}>
+                <div style={{ flex: "1 1 0", minWidth: 0 }}>
+                  <EventFilterDropdown
+                    values={filtros.evento}
+                    onValuesChange={v => patchFiltros({ evento: v })}
+                    options={eventFilterOptions}
+                  />
+                </div>
+                {filtros.evento.length > 0 && (
+                  <button type="button" onClick={() => patchFiltros({ evento: [] })} data-testid="button-limpar-evento-mobile"
+                    aria-label="Limpar o filtro de evento" title="Limpar o filtro de evento"
+                    style={{ flex: "0 0 44px", width: 44, height: 44, borderRadius: 8, border: "1px solid #d6d3d1", background: "#ffffff", color: TI.text, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
+                    <X aria-hidden="true" style={{ width: 16, height: 16 }} />
+                  </button>
+                )}
               </div>
               <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
                 {/* "Próximos 10 dias" é o recorte do dia a dia do galpão (o
@@ -3254,13 +3278,6 @@ export default function Grafica() {
                 {/* Os MESMOS campos da barra, empilhados. A lista some ao vivo
                     atrás da folha; o rodapé diz quantas sobraram. */}
                 <div style={{ flex: 1, overflowY: "auto", padding: "14px 14px 20px", display: "flex", flexDirection: "column", gap: 10 }}>
-                  <div style={{ width: "100%" }}>
-                    <EventFilterDropdown
-                      values={filtros.evento}
-                      onValuesChange={v => patchFiltros({ evento: v })}
-                      options={eventFilterOptions}
-                    />
-                  </div>
                   {selects(true)}
                   <p style={{ margin: "8px 0 0", fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: TI.secondary }}>
                     Avançados

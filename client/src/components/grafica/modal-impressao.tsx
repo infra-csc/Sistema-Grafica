@@ -48,6 +48,7 @@ import { avaliarProducao, tetoDeProducao, ehConflitoDeProducao } from "@/lib/gra
 import { isInProd, producedOf, qtyOf, reusedTotalOf, remainingProduce, type SaldoItem } from "@/lib/saldo";
 import { MAQUINAS_DE_IMPRESSAO, rotuloDaMaquina } from "@shared/fluxo-peca";
 import { partesDaPeca, estaDividida, lerPartes, resumoDaDivisao } from "@shared/impressao-dividida";
+import { disponivelParaAMaquina, livreParaReservar, reservaDaPeca } from "@shared/reserva-de-impressora";
 import { T, FS, R } from "@/lib/theme";
 
 /** O mínimo que o formulário precisa saber da peça. A fila passa o item inteiro. */
@@ -133,6 +134,39 @@ export function fraseDoBotaoDeImpressas(informado: number, jaSairam: number, tet
     };
   }
   return { rotulo: `Mandar ${diferenca} para acabamento (${informado} de ${teto})`, pode: true, aviso: "" };
+}
+
+/**
+ * A CONTA DA ETAPA 1 (pura): quantas unidades vão para `maquina`.
+ *   · disponível = reservado a ESTA impressora + o que está sem impressora
+ *     (o reservado a outras não entra);
+ *   · padrão = a parte pedida (`parte`), ou o reservado a ela, ou tudo;
+ *   · `inteira` = a peça ainda fora de impressão indo TODA para a máquina —
+ *     é o payload de sempre; qualquer outra coisa é `iniciarParte`.
+ */
+export function contaDoInicio(
+  item: PecaParaImprimir, maquina: string, digitado: number | "" | null,
+  parte: { quantidade: number; daReserva: boolean } | null | undefined, maquinaDaParte: string | null | undefined,
+): { disponivel: number; reservadas: number; origem: string; padrao: number; n: number; valida: boolean; inteira: boolean; linha: string } {
+  const peca = item as any;
+  // De QUAL reserva saem as unidades: a da impressora escolhida — ou, quando o
+  // modal abriu para iniciar a parte reservada a uma impressora e o operador
+  // trocou de máquina na hora, a reserva daquela (ela vai para a nova).
+  const origem = parte?.daReserva && maquinaDaParte && (reservaDaPeca(peca)[maquinaDaParte] ?? 0) > 0 ? maquinaDaParte : maquina;
+  const reservadas = origem ? reservaDaPeca(peca)[origem] ?? 0 : 0;
+  const disponivel = disponivelParaAMaquina(peca, origem || null);
+  const livre = livreParaReservar(peca);
+  const daParte = parte ? parte.quantidade : 0;
+  const padrao = Math.min(disponivel, daParte || reservadas || disponivel);
+  const n = digitado === null ? padrao : digitado === "" ? 0 : digitado;
+  const valida = Number.isInteger(n) && n >= 1 && n <= disponivel;
+  const inteira = valida && !isInProd(item) && n === livre;
+  const sobram = Math.max(0, livre - n);
+  const linha = !maquina ? ""
+    : !valida ? `Informe de 1 a ${disponivel} — é o que pode ir para a ${rotuloDaMaquina(maquina)} agora.`
+    : sobram === 0 ? `${n === 1 ? "A única unidade vai" : `Todas as ${n} vão`} para a ${rotuloDaMaquina(maquina)}`
+    : `${n} ${n === 1 ? "vai" : "vão"} para a ${rotuloDaMaquina(maquina)} · ${sobram} ${sobram === 1 ? "continua liberada" : "continuam liberadas"}${livre - disponivel > 0 ? ` (${livre - disponivel} já reservadas a outra impressora)` : " (sem impressora)"}`;
+  return { disponivel, reservadas, origem, padrao, n, valida, inteira, linha };
 }
 
 // ─── As mutations ─────────────────────────────────────────────────────────────
@@ -340,6 +374,10 @@ export function FormularioDeImpressao({ item, onFechar, padModal, mutacoes, abri
   const [agora, setAgora] = useState<number | "">("");
   const [modoTotal, setModoTotal] = useState(false);
   const [quantidadeTotal, setQuantidadeTotal] = useState<number>(producedOf(item));
+  // ETAPA 1 — quantas vão para a impressora escolhida (dono, 21/09: "ainda não
+  // consigo colocar a quantidade"). null = ainda no padrão (reservado a ela,
+  // ou tudo o que está livre); o resto da peça continua liberado.
+  const [qtdIniciar, setQtdIniciar] = useState<number | "" | null>(null);
   // Mover: tudo o que resta (padrão) ou uma quantidade.
   const [moverTudo, setMoverTudo] = useState(true);
   const [qtdMover, setQtdMover] = useState<number | "">("");
@@ -356,8 +394,14 @@ export function FormularioDeImpressao({ item, onFechar, padModal, mutacoes, abri
   const iniciarOuTrocar = () => {
     if (!maquinaEscolhida || startPrintingMutation.isPending) return;
     const trocando = emImpressao && !!maquinaAtual;
-    if (parteAIniciar) {
-      startPrintingMutation.mutate({ itemId: item.id, printMachine: maquinaEscolhida, displayId: item.displayId, trocando: false, iniciarParte: true, daReserva: parteAIniciar.daReserva && maquinaEscolhida === maquinaInicial, quantidade: parteAIniciar.quantidade });
+    if (!emImpressao) {
+      const c = contaDoInicio(item, maquinaEscolhida, qtdIniciar, parteAIniciar, maquinaInicial);
+      if (!c.valida) return;
+      // Tudo o que a peça tem livre, numa peça ainda fora de impressão = o gesto
+      // de sempre. Qualquer outra coisa é UMA PARTE (o resto segue liberado).
+      startPrintingMutation.mutate(c.inteira
+        ? { itemId: item.id, printMachine: maquinaEscolhida, displayId: item.displayId, trocando: false }
+        : { itemId: item.id, printMachine: maquinaEscolhida, displayId: item.displayId, trocando: false, iniciarParte: true, daReserva: c.reservadas > 0, quantidade: c.n, ...(c.reservadas > 0 && c.origem !== maquinaEscolhida ? { deMaquina: c.origem } : {}) });
       return;
     }
     const n = !trocando || moverTudo ? null : (qtdMover === "" ? 0 : qtdMover);
@@ -452,15 +496,50 @@ export function FormularioDeImpressao({ item, onFechar, padModal, mutacoes, abri
 
   // ── PEÇA AINDA NÃO EM IMPRESSÃO: só a máquina e UM botão. ──────────────────
   if (!emImpressao) {
-    const pode = !!maquinaEscolhida && !startPrintingMutation.isPending;
+    const conta = contaDoInicio(item, maquinaEscolhida, qtdIniciar, parteAIniciar, maquinaInicial);
+    const pode = !!maquinaEscolhida && conta.valida && !startPrintingMutation.isPending;
     return (
       <div data-testid="form-impressao" data-etapa="iniciar" style={{ display: "flex", flexDirection: "column", gap: 20 }}>
         {seletorDeMaquina(null)}
+        {!!maquinaEscolhida && conta.disponivel > 0 && (
+          <div data-testid="quantas-vao">
+            <label htmlFor="input-quantidade-iniciar" style={rotulo(fsMin)}>Quantas vão para esta impressora?</label>
+            <div style={{ display: "flex", gap: 10 }}>
+              <input
+                id="input-quantidade-iniciar"
+                type="number"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                enterKeyHint="done"
+                min={1}
+                max={conta.disponivel}
+                value={qtdIniciar === null ? conta.padrao : qtdIniciar}
+                onChange={(e) => setQtdIniciar(e.target.value === "" ? "" : Math.max(0, parseInt(e.target.value) || 0))}
+                aria-describedby="linha-quantas-vao"
+                aria-invalid={!conta.valida || undefined}
+                data-testid="input-quantidade-iniciar"
+                style={{ flex: 1, minWidth: 0, minHeight: alvo, boxSizing: "border-box", textAlign: "center", fontFamily: GROTESK, fontSize: isMobile ? 18 : 20, fontWeight: 700, color: T.text, backgroundColor: "#f4f3f0", border: "none", borderRadius: R.md, padding: "0 12px" }}
+              />
+              <button
+                type="button"
+                onClick={() => setQtdIniciar(conta.disponivel)}
+                data-testid="button-iniciar-tudo"
+                title={`Todas as ${conta.disponivel} que podem ir para esta impressora`}
+                style={{ backgroundColor: "#e7e5e4", border: "none", borderRadius: R.md, padding: "0 20px", minHeight: alvo, fontWeight: 700, fontSize: 14, color: "#44403c", cursor: "pointer", whiteSpace: "nowrap" }}
+              >
+                Tudo
+              </button>
+            </div>
+            <div id="linha-quantas-vao" role="status" data-testid="linha-quantas-vao" style={{ fontSize: fsMin(12), fontWeight: 700, color: conta.valida ? T.text : "#b45309", marginTop: 8, fontVariantNumeric: "tabular-nums", lineHeight: 1.4 }}>
+              {conta.linha}
+            </div>
+          </div>
+        )}
         <p style={{ margin: 0, fontSize: fsMin(12), color: T.second, lineHeight: 1.45 }}>
           {jaSairam > 0
             ? `Já saíram ${jaSairam} de ${teto}. Ao iniciar, a peça volta para "Em Impressão" e você informa o restante conforme sair.`
             : parteAIniciar
-              ? `Só estas ${parteAIniciar.quantidade} un. entram em impressão agora; o resto da peça continua reservado ou na fila geral.`
+              ? `Só as unidades acima entram em impressão agora; o resto da peça continua reservado ou na fila geral.`
               : `Ao iniciar, a peça fica "Em Impressão". Faltam ${remainingProduce(item)} un. — você informa quantas saíram conforme a máquina terminar.`}
         </p>
         <div data-testid="rodape-iniciar" style={rodapeDoModal(padModal)}>
@@ -482,8 +561,9 @@ export function FormularioDeImpressao({ item, onFechar, padModal, mutacoes, abri
             {startPrintingMutation.isPending && <Loader2 aria-hidden="true" className="animate-spin" style={{ width: 14, height: 14 }} />}
             {startPrintingMutation.isPending ? "Iniciando…"
               : !maquinaEscolhida ? "Iniciar impressão"
-              : parteAIniciar ? `Iniciar ${parteAIniciar.quantidade} un. na ${rotuloDaMaquina(maquinaEscolhida)}`
-              : `Iniciar impressão na ${rotuloDaMaquina(maquinaEscolhida)}`}
+              : !conta.valida ? `De 1 a ${conta.disponivel}`
+              : conta.inteira ? `Iniciar tudo (${conta.n}) na ${rotuloDaMaquina(maquinaEscolhida)}`
+              : `Iniciar ${conta.n} un. na ${rotuloDaMaquina(maquinaEscolhida)}`}
           </button>
           {isMobile && botaoCancelar}
         </div>

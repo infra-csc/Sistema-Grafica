@@ -4683,7 +4683,7 @@ export function registerItemRoutes(app: Express): void {
       // da peça continuam valendo.
       let parte: { partes: PartesPorMaquina; reserva: Record<string, number> | null; quantidade: number } | null = null;
       if (pedeParte === true) {
-        const r = iniciarParteDaPeca(current, printMachine, { daReserva: daReserva === true, quantidade: quantidade == null ? null : Number(quantidade) });
+        const r = iniciarParteDaPeca(current, printMachine, { daReserva: daReserva === true, quantidade: quantidade == null ? null : Number(quantidade), reservaDe: ehMaquinaValida(deMaquina) ? deMaquina : null });
         if (!r.ok) return res.status(409).json({ error: r.erro });
         parte = r;
       }

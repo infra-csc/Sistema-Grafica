@@ -41,7 +41,7 @@ import { GalpaoFila, type GalpaoDados } from "@/components/galpao-fila";
 import { SugestaoRecebedor } from "@/components/sugestao-recebedor";
 import { EM_REVISAO, rotuloDaMaquina, podeIrParaTubo, MAQUINAS_DE_IMPRESSAO } from "@shared/fluxo-peca";
 import { estaDividida, partesDaPeca, resumoDaDivisao } from "@shared/impressao-dividida";
-import { lerReserva, resumoDaReserva } from "@shared/reserva-de-impressora";
+import { lerReserva, resumoDaReserva, semImpressora } from "@shared/reserva-de-impressora";
 // Aritmética de saldo: fonte única em lib/saldo.ts. Estes onze cálculos
 // (quanto falta produzir, conferir, entregar, reaproveitar; quanto de m²
 // realmente vai para a impressora) viviam duplicados como consts locais no
@@ -173,7 +173,8 @@ const tituloAcaoImpressao = (item: any) =>
  * celular usam a MESMA (paridade); `duasLinhas` quebra impressora e
  * progresso em linhas separadas para a coluna Status não alargar.
  */
-function ProgressoImpressao({ item, fonte, duasLinhas }: { item: any; fonte: number; duasLinhas?: boolean }) {
+function ProgressoImpressao({ item, fonte, duasLinhas, onIniciarResto }: { item: any; fonte: number; duasLinhas?: boolean; /** "Iniciar o resto": a peça entrou em impressão só com PARTE das unidades (21/09). */ onIniciarResto?: () => void }) {
+  const resto = semImpressora(item);
   const teto = tetoDeProducao(item);
   const feitas = producedOf(item);
   const pct = teto > 0 ? Math.min(100, Math.round((feitas / teto) * 100)) : 0;
@@ -187,7 +188,13 @@ function ProgressoImpressao({ item, fonte, duasLinhas }: { item: any; fonte: num
       <div style={{ fontSize: fonte, color: "#9a3412", fontWeight: 700, lineHeight: 1.3, fontVariantNumeric: "tabular-nums" }}>
         {maquina && <span style={{ display: duasLinhas ? "block" : "inline" }}>{maquina}{!duasLinhas && " · "}</span>}
         <span style={{ fontWeight: 600 }}>{progresso}</span>
+        {resto > 0 && <span data-testid={`resto-sem-impressora-${item.id}`} style={{ display: "block", fontWeight: 700 }}>{resto} sem impressora</span>}
       </div>
+      {resto > 0 && onIniciarResto && (
+        <button type="button" onClick={(e) => { e.stopPropagation(); onIniciarResto(); }} data-testid={`button-iniciar-resto-${item.id}`} title={`Iniciar a impressão das ${resto} un. que ainda não estão em nenhuma impressora`} style={{ marginTop: 4, minHeight: fonte >= 12 ? 44 : 28, padding: "0 10px", borderRadius: 6, border: "1px solid #9a3412", background: "#ffffff", color: "#9a3412", fontSize: Math.max(fonte, 11), fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}>
+          Iniciar o resto
+        </button>
+      )}
       {/* Barra decorativa (o texto acima já diz o número); 3px na cor da etapa. */}
       <div aria-hidden="true" style={{ height: 3, borderRadius: 999, background: "#fed7aa", marginTop: 4, overflow: "hidden" }}>
         <div style={{ width: `${pct}%`, height: "100%", background: "#f97316", borderRadius: 999, transition: "width 0.2s" }} />
@@ -2019,7 +2026,11 @@ export default function Grafica() {
     </div>
   );
 
-  const openProductionModal = (item: any) => {
+  // `resto`: a peça já está em impressão com PARTE das unidades; o modal abre
+  // na etapa 1 (escolher impressora + quantidade) para o que está sem impressora.
+  const [iniciandoResto, setIniciandoResto] = useState(false);
+  const openProductionModal = (item: any, resto = false) => {
+    setIniciandoResto(resto);
     setSelectedItem(item);
     setModalType("production");
     // A máquina e a quantidade nascem da peça DENTRO do FormularioDeImpressao
@@ -3708,7 +3719,7 @@ export default function Grafica() {
                         })()}
                         {/* Paridade com a tabela: o progresso da impressão
                             ocupa a linha inteira do cartão (flexBasis 100%). */}
-                        {isInProd(item) && <span style={{ flexBasis: '100%' }}><ProgressoImpressao item={item} fonte={12} /></span>}
+                        {isInProd(item) && <span style={{ flexBasis: '100%' }}><ProgressoImpressao item={item} fonte={12} onIniciarResto={podeProduzirPeca && !selo ? () => openProductionModal(item, true) : undefined} /></span>}
                         {!isInProd(item) && item.maquinaPrevista && <SeloFilaDaImpressora maquina={item.maquinaPrevista} reserva={item.reservaPorMaquina} fonte={12} />}
                         {item.isReuse && <span style={{ fontSize: 12, fontWeight: 800, color: '#047857', background: '#dcfce7', border: '1px solid #86efac', borderRadius: 6, padding: '1px 6px' }}>REAPROV.</span>}
                         {/* Selo do complemento: sólido enquanto o lote está em
@@ -4696,7 +4707,7 @@ export default function Grafica() {
                         {/* Em impressão: impressora + "3 de 10 impressas · 7 na
                             impressora" + barra (dono, 21/09). Duas linhas para a
                             coluna Status não alargar. */}
-                        {isInProd(item) && <ProgressoImpressao item={item} fonte={10.5} duasLinhas />}
+                        {isInProd(item) && <ProgressoImpressao item={item} fonte={10.5} duasLinhas onIniciarResto={canProduce && !seloDoItem(item) ? () => openProductionModal(item, true) : undefined} />}
                         {!isInProd(item) && item.maquinaPrevista && <div style={{ marginTop: 4 }}><SeloFilaDaImpressora maquina={item.maquinaPrevista} reserva={item.reservaPorMaquina} fonte={10.5} /></div>}
                       </td>
                       {/* Ações — `sticky right` com sombra à esquerda marcando a
@@ -5652,12 +5663,12 @@ export default function Grafica() {
                       border: `1px solid ${modalType === "conference" ? '#a5f3fc' : modalType === "delivery" ? '#fed7aa' : '#d6d3d1'}`,
                     }}>
                       <div style={{ fontSize: fsMin(10), fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: modalType === "conference" ? '#0e7490' : modalType === "delivery" ? '#c2410c' : '#57534e', marginBottom: 2 }}>
-                        {modalType === "conference" ? "A Conferir" : modalType === "delivery" ? "A Entregar" : "Na impressora"}
+                        {modalType === "conference" ? "A Conferir" : modalType === "delivery" ? "A Entregar" : (isInProd(selectedItem) && !iniciandoResto ? "Na impressora" : "A imprimir")}
                       </div>
                       <div style={{ fontSize: 18, fontWeight: 800, color: modalType === "conference" ? '#0e7490' : modalType === "delivery" ? '#c2410c' : TI.text, fontFamily: "'Space Grotesk', sans-serif", lineHeight: 1 }}>
                         {modalType === "conference" ? remainingConfer(selectedItem)
                           : modalType === "delivery" ? remainingDeliver(selectedItem)
-                          : remainingProduce(selectedItem)}<span style={{ fontSize: fsMin(11), fontWeight: 500, marginLeft: 3 }}>un.</span>
+                          : iniciandoResto ? semImpressora(selectedItem) : remainingProduce(selectedItem)}<span style={{ fontSize: fsMin(11), fontWeight: 500, marginLeft: 3 }}>un.</span>
                       </div>
                       {modalType === "conference" && conferredOf(selectedItem) > 0 && (
                         <div style={{ fontSize: fsMin(10), color: '#0e7490', marginTop: 2 }}>{conferredOf(selectedItem)} já conferida{conferredOf(selectedItem) !== 1 ? 's' : ''}</div>
@@ -5704,7 +5715,8 @@ export default function Grafica() {
                 formulário; trocar a peça remonta limpo, sem efeito de sync. */}
             {selectedItem && modalType === "production" && (
               <FormularioDeImpressao
-                key={selectedItem.id}
+                key={`${selectedItem.id}:${iniciandoResto ? "resto" : ""}`}
+                parteAIniciar={iniciandoResto ? { quantidade: semImpressora(selectedItem), daReserva: false } : null}
                 item={selectedItem}
                 onFechar={() => { setSelectedItem(null); setModalType(null); }}
                 padModal={padModal}

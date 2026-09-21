@@ -177,7 +177,8 @@ describe("5 · a tela", () => {
     expect(PAGINA).toContain('from "@/components/grafica/modal-impressao"');
     expect(PAGINA).toContain('const podeAgir = user?.role === "grafica" || user?.role === "admin";');
     expect(PAGINA).toContain("data-testid={`button-impressas-${p.id}`}");
-    expect(PAGINA).toContain("data-testid={`button-impressas-linha-${l.id}`}");
+    // A linha do diário NÃO repete a ação (dono, 21/09): ela é da peça, no cartão.
+    expect(PAGINA).not.toContain("button-impressas-linha-");
     expect(PAGINA).toContain("data-testid={`link-escolher-peca-${m.codigo}`}");
     // Evento finalizado: o botão explica antes, com a mesma frase do 409.
     expect(PAGINA).toContain('motivoAcaoBloqueada(selo.motivo, "informar impressas")');
@@ -203,5 +204,13 @@ describe("5 · a tela", () => {
     // Cores proibidas como texto (régua da casa) e o cinza aposentado.
     expect(PAGINA).not.toContain("#78716c");
     expect(PAGINA).not.toMatch(/color: "#f97316"|color: "#a8a29e"/);
+  });
+});
+
+describe("modal abre na etapa certa mesmo com servidor antigo (21/09)", () => {
+  it("peça da lista 'em impressão' é tratada como inProduction e herda a máquina do cartão", () => {
+    const tela = readFileSync(new URL("../../client/src/pages/grafica-maquinas.tsx", import.meta.url), "utf8");
+    expect(tela).toContain('status: p.status ?? "inProduction"');
+    expect(tela).toContain("p={p.maquina ? p : { ...p, maquina: m.codigo }}");
   });
 });

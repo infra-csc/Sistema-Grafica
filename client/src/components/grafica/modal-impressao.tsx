@@ -111,6 +111,12 @@ export function fraseDoBotaoDeImpressas(informado: number, jaSairam: number, tet
     return { rotulo: `Máximo ${teto}`, pode: false, aviso: `A peça tem ${teto} un. para imprimir — não dá para informar ${informado}.` };
   }
   const diferenca = informado - jaSairam;
+  // Dado legado: o total já foi atingido mas a peça continua "Em Impressão"
+  // (lançado antes de a conclusão mover a etapa). Mesmo endpoint e payload;
+  // só falta mandá-la para o acabamento.
+  if (diferenca === 0 && informado >= teto && teto > 0) {
+    return { rotulo: "Mandar para acabamento", pode: true, aviso: `Todas as ${teto} já constam impressas — só falta mandar a peça para Impresso / Acabamento.` };
+  }
   if (diferenca === 0) {
     return { rotulo: "Nada mudou", pode: false, aviso: `Já constam ${jaSairam} de ${teto} impressas — mude o número para salvar.` };
   }
@@ -255,7 +261,11 @@ export function FormularioDeImpressao({ item, onFechar, padModal, mutacoes }: Fo
   // Antes de iniciar, começa vazia (obriga a escolha). Em impressão, é a da
   // peça — e só muda dentro do painel "Trocar de máquina".
   const [maquinaEscolhida, setMaquinaEscolhida] = useState<string>(emImpressao ? maquinaAtual : "");
-  const [trocando, setTrocando] = useState(false);
+  // Peça em impressão SEM máquina anotada (iniciada antes do controle por
+  // máquina): o painel de impressora já nasce aberto e o gesto é "Confirmar
+  // impressora" — o servidor grava "inicio", não "troca".
+  const semMaquinaAnotada = emImpressao && !maquinaAtual;
+  const [trocando, setTrocando] = useState(semMaquinaAnotada);
   // Pré-preenche com o que JÁ SAIU da máquina, não com o total (dono, 14/09):
   // a impressão é registrada aos poucos, e com o TOTAL pré-preenchido um toque
   // distraído concluía uma peça com 10 de 40 impressas. "Tudo" continua a um toque.
@@ -270,7 +280,7 @@ export function FormularioDeImpressao({ item, onFechar, padModal, mutacoes }: Fo
 
   const iniciarOuTrocar = () => {
     if (!maquinaEscolhida || startPrintingMutation.isPending) return;
-    startPrintingMutation.mutate({ itemId: item.id, printMachine: maquinaEscolhida, displayId: item.displayId, trocando: emImpressao });
+    startPrintingMutation.mutate({ itemId: item.id, printMachine: maquinaEscolhida, displayId: item.displayId, trocando: emImpressao && !!maquinaAtual });
   };
 
   const salvarImpressas = (e: React.FormEvent) => {
@@ -375,7 +385,7 @@ export function FormularioDeImpressao({ item, onFechar, padModal, mutacoes }: Fo
   // ── PEÇA EM IMPRESSÃO: quantidade + UM botão; a troca fica num painel. ─────
   const hora = horaDeInicio(item.productionStartedAt);
   const frase = fraseDoBotaoDeImpressas(quantidade, jaSairam, teto);
-  const podeSalvar = frase.pode && !startProductionMutation.isPending;
+  const podeSalvar = frase.pode && !!maquinaAtual && !startProductionMutation.isPending;
   const podeTrocar = !!maquinaEscolhida && maquinaEscolhida !== maquinaAtual && !startPrintingMutation.isPending;
   const naImpressora = Math.max(0, teto - jaSairam);
 
@@ -386,13 +396,13 @@ export function FormularioDeImpressao({ item, onFechar, padModal, mutacoes }: Fo
         <span style={{ display: "inline-flex", alignItems: "center", gap: 8, minWidth: 0, fontSize: fsMin(13), color: "#9a3412", fontWeight: 700 }}>
           <Printer aria-hidden="true" style={{ width: 14, height: 14, flexShrink: 0 }} />
           <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>
-            Em impressão na {rotuloDaMaquina(maquinaAtual)}{hora ? ` · desde ${hora}` : ""}
+            {maquinaAtual ? `Em impressão na ${rotuloDaMaquina(maquinaAtual)}` : "Em impressão — impressora não anotada"}{hora ? ` · desde ${hora}` : ""}
             <span style={{ display: "block", fontSize: fsMin(11), fontWeight: 600, color: "#9a3412", opacity: 0.9, marginTop: 2, fontVariantNumeric: "tabular-nums" }}>
               {progressoDaImpressao(jaSairam, teto)}
             </span>
           </span>
         </span>
-        {!trocando && (
+        {!trocando && !!maquinaAtual && (
           <button
             type="button"
             onClick={() => { setTrocando(true); setMaquinaEscolhida(""); }}
@@ -406,18 +416,20 @@ export function FormularioDeImpressao({ item, onFechar, padModal, mutacoes }: Fo
 
       {trocando && (
         <div data-testid="painel-troca" style={{ display: "flex", flexDirection: "column", gap: 12, padding: 12, borderRadius: R.lg, border: `1px solid ${T.border}`, background: T.bg }}>
-          {seletorDeMaquina(maquinaAtual)}
+          {seletorDeMaquina(maquinaAtual || null)}
           <p style={{ margin: 0, fontSize: fsMin(12), color: T.second, lineHeight: 1.45 }}>
-            O que já saiu ({jaSairam} de {teto}) fica anotado na {rotuloDaMaquina(maquinaAtual)}; o restante passa a contar na nova.
+            {maquinaAtual
+              ? `O que já saiu (${jaSairam} de ${teto}) fica anotado na ${rotuloDaMaquina(maquinaAtual)}; o restante passa a contar na nova.`
+              : "Esta peça entrou em impressão antes do controle por máquina. Diga em qual impressora ela está para poder informar as impressas."}
           </p>
           <div style={{ display: "flex", gap: 10 }}>
-            <button
+            {!!maquinaAtual && <button
               type="button"
               onClick={() => { setTrocando(false); setMaquinaEscolhida(maquinaAtual); }}
               style={{ flex: 1, minHeight: alvo, padding: "0 12px", backgroundColor: "transparent", border: `1px solid ${T.border}`, color: "#57534e", fontWeight: 700, fontSize: 13, cursor: "pointer", borderRadius: R.md }}
             >
               Manter na {rotuloDaMaquina(maquinaAtual)}
-            </button>
+            </button>}
             <button
               type="button"
               onClick={iniciarOuTrocar}
@@ -426,7 +438,9 @@ export function FormularioDeImpressao({ item, onFechar, padModal, mutacoes }: Fo
               aria-busy={startPrintingMutation.isPending || undefined}
               style={{ flex: 2, minHeight: alvo, padding: "0 12px", backgroundColor: "#ffffff", border: `1.5px solid ${T.text}`, color: T.text, fontFamily: GROTESK, fontWeight: 700, fontSize: 13, borderRadius: R.md, cursor: podeTrocar ? "pointer" : "not-allowed", opacity: podeTrocar ? 1 : 0.55 }}
             >
-              {startPrintingMutation.isPending ? "Movendo…" : maquinaEscolhida ? `Mover para a ${rotuloDaMaquina(maquinaEscolhida)}` : "Mover"}
+              {startPrintingMutation.isPending ? (maquinaAtual ? "Movendo…" : "Confirmando…")
+                : !maquinaAtual ? (maquinaEscolhida ? `Confirmar ${rotuloDaMaquina(maquinaEscolhida)}` : "Confirmar impressora")
+                : maquinaEscolhida ? `Mover para a ${rotuloDaMaquina(maquinaEscolhida)}` : "Mover"}
             </button>
           </div>
         </div>
@@ -472,7 +486,11 @@ export function FormularioDeImpressao({ item, onFechar, padModal, mutacoes }: Fo
         </div>
         {/* A explicação do botão desabilitado mora aqui, ao lado do campo —
             e não só na opacidade do botão. */}
-        {frase.aviso && (
+        {!maquinaAtual ? (
+          <div role="status" data-testid="aviso-quantidade" style={{ fontSize: fsMin(11), color: "#b45309", marginTop: 6 }}>
+            Escolha a impressora antes de informar as impressas.
+          </div>
+        ) : frase.aviso && (
           <div role="status" data-testid="aviso-quantidade" style={{ fontSize: fsMin(11), color: frase.pode ? T.second : "#b45309", marginTop: 6 }}>
             {frase.aviso}
           </div>

@@ -609,6 +609,17 @@ function MiniaturaDaCorrecao({ url }: { url: string }) {
   );
 }
 
+/** O que GET /api/artes/sugestao-final devolve (ou null). */
+interface SugestaoDeArquivoFinal {
+  finalFileUrl: string;
+  finalFileName: string | null;
+  displayId: string | null;
+  tipo: string;
+  descricao: string | null;
+  evento: string | null;
+  quando: string | null;
+}
+
 export default function Arte() {
   const { toast } = useToast();
   const { user } = useAuth();
@@ -2254,6 +2265,41 @@ export default function Arte() {
   // `destino` em vez de guardar a função de aplicar no estado: função em
   // useState precisa de `setX(() => fn)` e some no primeiro esquecimento —
   // com o destino declarado, o que fazer com a arte fica num lugar só, aqui.
+  // ── SUGESTÃO DO ARQUIVO FINAL (dono, 21/09) ──────────────────────────────
+  // "Caso eu tenha buscado a arte já feita, na hora da finalização aparece uma
+  // sugestão do arquivo final da última peça — apenas sugestão." O servidor
+  // acha a peça de onde a arte veio pela MESMA URL de thumb (sem coluna nova)
+  // e devolve o caminho dela, ou null. Aqui nada é gravado: "Usar este
+  // caminho" só enche o campo; quem grava é o envio de sempre.
+  //
+  // A consulta só roda na etapa de Finalização e com o campo VAZIO — é
+  // quando a sugestão serve; depois de carregada ela fica (vira a linha
+  // menor enquanto a pessoa digita). "Ignorar" vale para a sessão, por peça.
+  const naFinalizacao = !!selectedItem && podeEditar
+    && ["sponsor_approved", "awaiting_creator_review"].includes(selectedItem.status);
+  const [sugestoesIgnoradas, setSugestoesIgnoradas] = useState<Set<string>>(() => new Set());
+  const chaveDaSugestaoFinal = selectedItem ? `/api/artes/sugestao-final?item=${encodeURIComponent(selectedItem.id)}` : "";
+  const { data: sugestaoFinal = null } = useQuery<SugestaoDeArquivoFinal | null>({
+    queryKey: [chaveDaSugestaoFinal],
+    enabled: naFinalizacao && finalFileUrl.trim() === "" && !sugestoesIgnoradas.has(selectedItem!.id),
+    staleTime: 60_000,
+  });
+  const sugestaoVisivel = naFinalizacao && sugestaoFinal?.finalFileUrl
+    && !sugestoesIgnoradas.has(selectedItem!.id)
+    && sugestaoFinal.finalFileUrl !== finalFileUrl
+    ? sugestaoFinal : null;
+  const usarSugestaoFinal = () => {
+    if (!sugestaoVisivel) return;
+    setFinalFileUrl(sugestaoVisivel.finalFileUrl);
+    setFinalFileName(sugestaoVisivel.finalFileName || fileNameFromPath(sugestaoVisivel.finalFileUrl) || "");
+    // Marca como editado para o botão de envio destravar — e NÃO envia.
+    setFinalDirty(true);
+  };
+  const ignorarSugestaoFinal = () => {
+    if (!selectedItem) return;
+    setSugestoesIgnoradas((s) => new Set(s).add(selectedItem.id));
+  };
+
   type DestinoDaArte = "thumb-aprovacao" | "thumb-troca" | "thumb-correcao" | "arquivo-final";
   const [buscaDeArte, setBuscaDeArte] = useState<{ itemId: string; displayId?: string | null; destino: DestinoDaArte } | null>(null);
 
@@ -5441,6 +5487,37 @@ export default function Arte() {
                   testId="button-buscar-arte-final"
                   onClick={() => setBuscaDeArte({ itemId: selectedItem.id, displayId: selectedItem.displayId, destino: "arquivo-final" })}
                 />
+                {sugestaoVisivel && (
+                  finalFileUrl.trim() === "" ? (
+                    <div data-testid="sugestao-arquivo-final" style={{ display: "flex", flexDirection: "column", gap: 8, padding: "10px 12px", borderRadius: 8, background: "#fafaf9", border: "1px solid #e7e5e4" }}>
+                      <p style={{ margin: 0, fontSize: 12, color: "#44403c", lineHeight: 1.5 }}>
+                        <b style={{ fontWeight: 700, color: "#1c1917" }}>Sugestão</b> — arquivo final da {sugestaoVisivel.displayId ?? "peça de origem"}{sugestaoVisivel.evento ? ` (${sugestaoVisivel.evento})` : ""}:
+                      </p>
+                      <p style={{ margin: 0, fontSize: 12, fontFamily: "'DM Mono', monospace", color: "#1c1917", wordBreak: "break-all" }}>{sugestaoVisivel.finalFileUrl}</p>
+                      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                        <button type="button" onClick={usarSugestaoFinal} data-testid="button-usar-sugestao-final"
+                          style={{ minHeight: 44, padding: "0 14px", borderRadius: 8, border: "1px solid #d6d3d1", background: "#ffffff", color: "#1c1917", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+                          Usar este caminho
+                        </button>
+                        <button type="button" onClick={ignorarSugestaoFinal} data-testid="button-ignorar-sugestao-final"
+                          style={{ minHeight: 44, padding: "0 12px", borderRadius: 8, border: "none", background: "transparent", color: "#57534e", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
+                          Ignorar
+                        </button>
+                      </div>
+                      <p style={{ margin: 0, fontSize: 11, color: "#746e69", lineHeight: 1.45 }}>
+                        É só sugestão — nada é enviado até você clicar em enviar. Confira se o arquivo serve para esta peça (medida e evento).
+                      </p>
+                    </div>
+                  ) : (
+                    <p data-testid="sugestao-arquivo-final-linha" style={{ margin: 0, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", fontSize: 11.5, color: "#57534e", paddingLeft: 2 }}>
+                      <span style={{ minWidth: 0, wordBreak: "break-all" }}>Sugestão: {sugestaoVisivel.finalFileUrl}</span>
+                      <button type="button" onClick={usarSugestaoFinal} data-testid="button-usar-sugestao-final-linha"
+                        style={{ minHeight: 44, padding: "0 8px", border: "none", background: "transparent", color: "#1c1917", fontSize: 12, fontWeight: 700, textDecoration: "underline", textUnderlineOffset: 2, cursor: "pointer" }}>
+                        Usar
+                      </button>
+                    </p>
+                  )
+                )}
                 {finalFileUrl.trim() && (
                   fileNameFromPath(finalFileUrl)
                     ? (

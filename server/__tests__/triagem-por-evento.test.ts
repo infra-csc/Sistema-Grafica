@@ -61,17 +61,18 @@ describe("a lista de eventos", () => {
 
 describe("o quadro de arrastar", () => {
   it("cada destino grava o que a triagem manda", () => {
-    const local = { galpao: " Setor A - Corredor 3 ", manutencao: "" };
-    expect(corpoDaTriagem("galpao", "AVARIA_LEVE", local)).toEqual({ condition: "AVARIA_LEVE", trackingStatus: "NO_GALPAO", location: "Setor A - Corredor 3" });
-    expect(corpoDaTriagem("manutencao", "PERFEITO", local)).toEqual({ condition: "AVARIA_LEVE", trackingStatus: "EM_MANUTENCAO", location: null });
-    expect(corpoDaTriagem("descartar", "PERFEITO", local)).toEqual({ condition: "SUCATA", trackingStatus: "DESCARTADO" });
+    // Sem local (dono, 21/09: o sistema não guarda onde a peça fica no galpão).
+    expect(corpoDaTriagem("galpao", "AVARIA_LEVE")).toEqual({ condition: "AVARIA_LEVE", trackingStatus: "NO_GALPAO" });
+    expect(corpoDaTriagem("manutencao", "PERFEITO")).toEqual({ condition: "AVARIA_LEVE", trackingStatus: "EM_MANUTENCAO" });
+    expect(corpoDaTriagem("descartar", "PERFEITO")).toEqual({ condition: "SUCATA", trackingStatus: "DESCARTADO" });
   });
 
   it("arrasta (uma ou as selecionadas juntas) e solta na coluna", () => {
     expect(QUADRO).toContain("draggable={podeArrastar}");
     // A seleção é lida por ref para os handlers ficarem estáveis (memo do cartão, 21/09).
-    expect(QUADRO).toContain("const idsDoGesto = (id: string) => (refSelecionadas.current.has(id) ? Array.from(refSelecionadas.current) : [id]);");
-    expect(QUADRO).toContain("if (ids?.length) mover(ids, destino);");
+    // Desde 21/09 o que se arrasta é a FATIA de um material numa coluna (itens por quantidade juntos).
+    expect(QUADRO).toContain("const fatiasDoGesto = (f: string) => (refSelecionadas.current.has(f) ? Array.from(refSelecionadas.current) : [f]);");
+    expect(QUADRO).toContain("if (fatias?.length) mover(fatias, destino);");
     expect(QUADRO).toContain("data-testid={`coluna-triagem-${destino}`}");
   });
 
@@ -80,14 +81,15 @@ describe("o quadro de arrastar", () => {
     expect(QUADRO).toContain("data-testid={`mover-para-${d}`}");
   });
 
-  it("nada grava antes de salvar, e o Galpão exige local", () => {
-    expect(QUADRO).toContain('apiRequest("PATCH", `/api/inventory/${ativo.id}/triage`');
-    expect(QUADRO).toContain("const faltaLocal = porColuna.galpao.length > 0 && !local.galpao.trim();");
-    expect(QUADRO).toContain('data-testid="aviso-local-galpao"');
+  it("nada grava antes de salvar; o que grava sai do plano por quantidade, em grupos", () => {
+    expect(QUADRO).toContain("emGrupos(passos, GRAVACOES_POR_VEZ, (p) => apiRequest(p.metodo, p.url, p.corpo), setGravadas)");
+    expect(QUADRO).not.toContain("faltaLocal");
+    expect(QUADRO).not.toContain("mapa-galpao");
   });
 
-  it("dividir por quantidade continua na tabela, e da tabela se volta aos eventos", () => {
-    expect(QUADRO).toContain("Tabela (dividir por quantidade)");
+  it("dividir por quantidade é no quadro; a tabela é registro por registro, e dela se volta aos eventos", () => {
+    expect(QUADRO).toContain('data-testid={`dividir-${id}`}');
+    expect(QUADRO).toContain("Tabela (registro por registro)");
     expect(PAGINA).toContain('data-testid="button-voltar-eventos-triagem"');
   });
 });

@@ -14,7 +14,9 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { MAQUINAS_DE_IMPRESSAO, rotuloDaMaquina } from "@shared/fluxo-peca";
 
-export type TipoDeRegistro = "inicio" | "troca" | "parcial" | "conclusao";
+// "pausa" (21/09): a peça foi TIRADA da impressora (para dar lugar a outra ou
+// só para liberá-la). Quantidade 0 — não é unidade impressa.
+export type TipoDeRegistro = "inicio" | "troca" | "parcial" | "conclusao" | "pausa";
 
 /** Uma linha do diário como a rota devolve (e o Excel lista na aba "Registros"). */
 export type RegistroDoPeriodo = {
@@ -22,6 +24,8 @@ export type RegistroDoPeriodo = {
   itemId: string;
   displayId: string | null;
   tipoPeca: string;
+  /** A descrição é o que distingue duas peças do mesmo tipo (todas "2×1"). */
+  descricaoPeca?: string | null;
   evento: string | null;
   maquina: string;
   tipo: TipoDeRegistro;
@@ -35,6 +39,8 @@ export type RegistroDoPeriodo = {
   /** Milissegundos desde a época — só para ordenar e medir o tempo ativo. */
   em: number;
   quem: string | null;
+  /** Só na "pausa": o código da peça que entrou no lugar (null = só tirou). */
+  deuLugarA?: string | null;
 };
 
 export type ResumoDaMaquinaNoDia = {
@@ -120,7 +126,8 @@ export function agregarRelatorioDeMaquinas(registros: RegistroDoPeriodo[]): Resu
       const concluidas = new Set(daMaquina.filter((r) => r.tipo === "conclusao").map((r) => r.itemId));
       const aindaNaMaquina = Array.from(pecas).filter((id) => {
         const u = ultimoDaPeca.get(id);
-        return !!u && u.maquina === codigo && u.tipo !== "conclusao";
+        // Concluída ou TIRADA da impressora (pausa) não está mais nela.
+        return !!u && u.maquina === codigo && u.tipo !== "conclusao" && u.tipo !== "pausa";
       });
       const primeira = daMaquina[0] ?? null;
       const ultima = daMaquina[daMaquina.length - 1] ?? null;
@@ -168,8 +175,9 @@ export function duracaoCurta(minutos: number): string {
  * do diário na tela (pages/grafica-maquinas.tsx). Mora aqui também porque o
  * Excel é montado no servidor.
  */
-export function oQueAconteceuNoRegistro(r: Pick<RegistroDoPeriodo, "tipo" | "quantidade" | "totalDepois" | "aImprimir" | "maquina">): string {
+export function oQueAconteceuNoRegistro(r: Pick<RegistroDoPeriodo, "tipo" | "quantidade" | "totalDepois" | "aImprimir" | "maquina"> & { deuLugarA?: string | null }): string {
   if (r.tipo === "inicio") return "Iniciou a impressão";
+  if (r.tipo === "pausa") return r.deuLugarA ? `Pausou — deu lugar à ${r.deuLugarA} (${r.totalDepois ?? 0} de ${r.aImprimir} impressas)` : `Pausou — saiu da impressora (${r.totalDepois ?? 0} de ${r.aImprimir} impressas)`;
   if (r.tipo === "troca") return `Trocou para ${rotuloDaMaquina(r.maquina)}${r.quantidade > 0 ? ` (${r.quantidade} un. movidas)` : ""}`;
   const total = r.totalDepois == null ? "" : ` (${r.totalDepois} de ${r.aImprimir})`;
   if (r.quantidade < 0) return `Corrigiu para ${r.totalDepois ?? "?"} de ${r.aImprimir} (${r.quantidade})`;
@@ -178,8 +186,25 @@ export function oQueAconteceuNoRegistro(r: Pick<RegistroDoPeriodo, "tipo" | "qua
 }
 
 export const ROTULO_DO_TIPO: Record<TipoDeRegistro, string> = {
-  inicio: "Início", troca: "Troca", parcial: "Impressas", conclusao: "Concluída",
+  inicio: "Início", troca: "Troca", parcial: "Impressas", conclusao: "Concluída", pausa: "Pausa",
 };
+
+/**
+ * Para cada "pausa", quem entrou no lugar: o "inicio" de OUTRA peça na mesma
+ * impressora até 10s depois (a troca por prioridade grava os dois juntos).
+ * Devolve id da pausa → código da peça que entrou.
+ */
+export function quemEntrouNoLugar(registros: { id: string; itemId: string; maquina: string; tipo: string; displayId: string | null; em: number }[]): Map<string, string> {
+  const mapa = new Map<string, string>();
+  for (const p of registros) {
+    if (p.tipo !== "pausa") continue;
+    const entrou = registros
+      .filter((r) => r.tipo === "inicio" && r.maquina === p.maquina && r.itemId !== p.itemId && r.em >= p.em && r.em - p.em <= 10_000)
+      .sort((a, b) => a.em - b.em)[0];
+    if (entrou?.displayId) mapa.set(p.id, entrou.displayId);
+  }
+  return mapa;
+}
 
 /** "maquinas-2026-09-21.xlsx" num dia só; "maquinas-2026-09-15-a-2026-09-21.xlsx" no intervalo. */
 export function nomeDoArquivoDoRelatorio(de: string, ate: string): string {

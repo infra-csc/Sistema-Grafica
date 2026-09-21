@@ -51,8 +51,9 @@ describe("tabela ↔ código, sem sobras de nenhum lado", () => {
     //    + criar remessa do Kit (14/09) + excluir remessa do Kit (15/09).
     //    + criar, mexer, apagar e entregar tubo (14/09).
     //    + fechar tubo com fotos (21/09) + reservar impressora, unitário e em lote (21/09).
-    expect(REGUA_DE_PAPEIS.length).toBe(102);
-    expect(doCodigo.length).toBe(102);
+    //    + tirar da impressora e trocar por prioridade (21/09).
+    expect(REGUA_DE_PAPEIS.length).toBe(104);
+    expect(doCodigo.length).toBe(104);
   });
 });
 

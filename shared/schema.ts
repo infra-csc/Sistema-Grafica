@@ -258,7 +258,9 @@ export const items = pgTable("items", {
   // A reserva COM QUANTIDADE (dono, 21/09): { "1": 20, "2": 14 }. NULL = nada
   // reservado. `maquinaPrevista` acima segue como atalho (a de mais unidades);
   // as duas saem juntas de shared/reserva-de-impressora.ts.
-  reservaPorMaquina: jsonb("reserva_por_maquina").$type<Record<string, number> | null>(),
+  // O valor pode ser { qtd, pausadaEm } quando a peça foi tirada da impressora
+  // para dar lugar a outra (fica no topo da fila daquela impressora).
+  reservaPorMaquina: jsonb("reserva_por_maquina").$type<Record<string, number | { qtd: number; pausadaEm?: string | null }> | null>(),
   // PEÇA DIVIDIDA entre impressoras (dono, 21/09): { "1": { atrib, impressas },
   // "2": {...} }. NULL = tudo na printMachine. Ver shared/impressao-dividida.ts.
   impressaoPorMaquina: jsonb("impressao_por_maquina").$type<Record<string, { atrib: number; impressas: number }> | null>(),
@@ -1008,7 +1010,7 @@ export const insertItemSchema = createInsertSchema(items).omit({
   // O jsonb inferido pelo drizzle-zod vira um tipo recursivo que derruba a
   // inferência do schema inteiro (`validatedData` virava `{}`); declarado à mão.
   impressaoPorMaquina: z.record(z.string(), z.object({ atrib: z.number().int().min(0), impressas: z.number().int().min(0) })).nullable().optional(),
-  reservaPorMaquina: z.record(z.string(), z.number().int().min(0)).nullable().optional(),
+  reservaPorMaquina: z.record(z.string(), z.union([z.number().int().min(0), z.object({ qtd: z.number().int().min(0), pausadaEm: z.string().nullable().optional() })])).nullable().optional(),
   area: z.string().or(z.number()),
   visual: z.string().or(z.number()),
   calculatedM2: z.string().or(z.number()),

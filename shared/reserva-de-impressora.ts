@@ -39,15 +39,38 @@ const inteiro = (v: unknown): number => {
 };
 const soma = (r: ReservaPorMaquina | null | undefined): number => Object.values(r ?? {}).reduce((s, n) => s + n, 0);
 
+/**
+ * O valor de cada impressora no jsonb é um número (20) ou, quando a peça foi
+ * TIRADA da impressora para dar lugar a outra (dono, 21/09: "tirar um item e
+ * colocar o outro"), { qtd: 7, pausadaEm: ISO } — a marca que põe a peça no
+ * TOPO da fila daquela impressora. Sem coluna nova: o formato antigo continua
+ * válido, e quem só quer as quantidades lê por `lerReserva`.
+ */
+export type ValorDaReserva = number | { qtd: number; pausadaEm?: string | null };
+
 /** Lê o jsonb com tolerância: só máquinas válidas e inteiros > 0. */
 export function lerReserva(bruto: unknown): ReservaPorMaquina | null {
   if (!bruto || typeof bruto !== "object" || Array.isArray(bruto)) return null;
   const r: ReservaPorMaquina = {};
   for (const m of MAQUINAS_DE_IMPRESSAO) {
-    const n = inteiro((bruto as Record<string, unknown>)[m]);
+    const v = (bruto as Record<string, unknown>)[m];
+    const n = inteiro(v && typeof v === "object" ? (v as { qtd?: unknown }).qtd : v);
     if (n > 0) r[m] = n;
   }
   return Object.keys(r).length ? r : null;
+}
+
+/** As marcas de pausa do jsonb: { "1": "2026-09-21T14:03:00.000Z" }. */
+export function lerPausas(bruto: unknown): Record<string, string> {
+  const pausas: Record<string, string> = {};
+  if (!bruto || typeof bruto !== "object" || Array.isArray(bruto)) return pausas;
+  for (const m of MAQUINAS_DE_IMPRESSAO) {
+    const v = (bruto as Record<string, unknown>)[m];
+    if (v && typeof v === "object" && typeof (v as { pausadaEm?: unknown }).pausadaEm === "string" && inteiro((v as { qtd?: unknown }).qtd) > 0) {
+      pausas[m] = (v as { pausadaEm: string }).pausadaEm;
+    }
+  }
+  return pausas;
 }
 
 /**
@@ -86,10 +109,21 @@ export function maquinaDoAtalho(r: ReservaPorMaquina | null | undefined): string
   return melhor;
 }
 
-/** As DUAS colunas, sempre coerentes — é o que as rotas gravam. */
-export function colunasDaReserva(r: ReservaPorMaquina | null | undefined): { reservaPorMaquina: ReservaPorMaquina | null; maquinaPrevista: string | null } {
+/**
+ * As DUAS colunas, sempre coerentes — é o que as rotas gravam. `anterior` é o
+ * jsonb que a peça tinha: a marca de pausa de uma impressora SOBREVIVE enquanto
+ * ainda houver unidades reservadas a ela (mexer na reserva de outra impressora
+ * não tira a peça do topo da fila); `pausas` acrescenta marcas novas.
+ */
+export function colunasDaReserva(
+  r: ReservaPorMaquina | null | undefined, anterior?: unknown, pausas?: Record<string, string>,
+): { reservaPorMaquina: Record<string, ValorDaReserva> | null; maquinaPrevista: string | null } {
   const limpa = lerReserva(r);
-  return { reservaPorMaquina: limpa, maquinaPrevista: maquinaDoAtalho(limpa) };
+  if (!limpa) return { reservaPorMaquina: null, maquinaPrevista: null };
+  const marcas = { ...lerPausas(anterior), ...(pausas ?? {}) };
+  const gravada: Record<string, ValorDaReserva> = {};
+  for (const [m, n] of Object.entries(limpa)) gravada[m] = marcas[m] ? { qtd: n, pausadaEm: marcas[m] } : n;
+  return { reservaPorMaquina: gravada, maquinaPrevista: maquinaDoAtalho(limpa) };
 }
 
 /** Encolhe a reserva até caber em `teto`, tirando primeiro das MENORES partes. */
@@ -196,6 +230,62 @@ export function iniciarParte(
   const antes = partes[maquina] ?? { atrib: 0, impressas: 0 };
   partes[maquina] = { atrib: antes.atrib + n + jaImpressas, impressas: antes.impressas + jaImpressas };
   return { ok: true, partes, reserva: reservaNova, quantidade: n };
+}
+
+/**
+ * TIRAR A PEÇA DA IMPRESSORA (dono, 21/09: "tirar um item e colocar o outro,
+ * pois às vezes tem ordem de prioridade"). A parte ativa de `maquina` sai de
+ * impressão: o que ela JÁ imprimiu fica anotado (o total da peça não muda) e
+ * o que FALTAVA vira reserva daquela mesma impressora — com a marca de pausa,
+ * que a põe no topo da fila dela. Sem outra parte ativa em lugar nenhum, a
+ * peça volta a "liberada" (com as impressas preservadas em quantityProduced).
+ *
+ * A conta fecha por construção: o que sai de "em impressão" (o restante da
+ * parte) entra, igual, em "reservado".
+ */
+export function pausarParte(p: PecaReservavel, maquina: string, agoraISO: string):
+  | { ok: true; partes: PartesPorMaquina | null; reserva: ReservaPorMaquina; pausas: Record<string, string>; voltaParaAFila: boolean; impressasNaMaquina: number; restante: number; principal: string | null }
+  | { ok: false; erro: string } {
+  if (!EM_IMPRESSAO.includes(p.status ?? "")) return { ok: false, erro: "A peça não está em impressão" };
+  const atuais = partesDaPeca(p);
+  const parte = atuais[maquina];
+  const restante = parte ? restanteNaMaquina(parte) : 0;
+  if (!parte || restante <= 0) return { ok: false, erro: `A peça não tem nada por imprimir na ${rotuloDaMaquina(maquina)}` };
+  const novas: PartesPorMaquina = {};
+  for (const [m, x] of Object.entries(atuais)) novas[m] = { ...x };
+  // O que já saiu desta impressora fica como histórico (atrib = impressas).
+  if (parte.impressas > 0) novas[maquina] = { atrib: parte.impressas, impressas: parte.impressas };
+  else delete novas[maquina];
+  const aindaImprimindo = Object.values(novas).some((x) => restanteNaMaquina(x) > 0);
+  const reservaAtual = reservaDaPeca(p);
+  const reserva = { ...reservaAtual, [maquina]: (reservaAtual[maquina] ?? 0) + restante };
+  return {
+    ok: true,
+    // Voltando para a fila, a divisão por impressora deixa de existir: o total
+    // impresso fica em quantityProduced, como em toda peça liberada.
+    partes: aindaImprimindo ? (Object.keys(novas).length ? novas : null) : null,
+    reserva,
+    pausas: { [maquina]: agoraISO },
+    voltaParaAFila: !aindaImprimindo,
+    impressasNaMaquina: parte.impressas,
+    restante,
+    principal: aindaImprimindo ? (Object.entries(novas).sort((a, b) => restanteNaMaquina(b[1]) - restanteNaMaquina(a[1]))[0]?.[0] ?? null) : null,
+  };
+}
+
+/**
+ * UMA PEÇA POR VEZ POR IMPRESSORA (dono, 21/09: "caso a impressora esteja
+ * imprimindo algo, não dá para colocar outra"). Entre as peças em impressão,
+ * quem ocupa `maquina` — tem parte ATIVA nela — que não seja `excetoId`
+ * (a mesma peça pode somar parte à impressora onde já está).
+ */
+export function ocupanteDaImpressora<P extends PecaReservavel & { id: string }>(emImpressao: P[], maquina: string, excetoId?: string | null): P | null {
+  for (const p of emImpressao) {
+    if (p.id === excetoId || !EM_IMPRESSAO.includes(p.status ?? "")) continue;
+    const parte = partesDaPeca(p)[maquina];
+    if (parte && restanteNaMaquina(parte) > 0) return p;
+  }
+  return null;
 }
 
 /**

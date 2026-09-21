@@ -7,17 +7,17 @@ import { useToast } from "@/hooks/use-toast";
 import {
   ScanSearch, CheckCircle2, Package, Save,
   CalendarDays, X, Scissors, Sparkles, Trash2, Eye, Wrench,
-  ClipboardCheck, Users, Search, MapPin, Grid3X3, BookmarkCheck, ArrowLeft, ChevronDown,
+  ClipboardCheck, Users, Search, BookmarkCheck, ArrowLeft, ChevronDown,
 } from "lucide-react";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { TriagemModal } from "@/components/triagem-modal";
-import { MapaGalpao, LOCAIS_DO_GALPAO } from "@/components/mapa-galpao";
 import { EventosDaTriagem, SEM_EVENTO } from "@/components/triagem/eventos-da-triagem";
 import { QuadroDaTriagem, emGrupos, GRAVACOES_POR_VEZ } from "@/components/triagem/quadro-da-triagem";
-import { diaEMes } from "@shared/estoque";
+import { diaEMes, ehRecusaDeJaTriada } from "@shared/estoque";
+import { chaveDoGrupo, resumoDaGravacao } from "@/components/triagem/grupos-da-triagem";
 import { SponsorChips } from "@/components/sponsor-chips";
 import { useAuth } from "@/contexts/auth-context";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -35,7 +35,7 @@ const RESULT_META: Record<TriagemResult, { label: string; color: string; bg: str
 };
 
 interface SplitLine { qty: number; condition: Condition | null; result: TriagemResult; }
-interface TriagemEntry { splits: SplitLine[]; notes: string; selected: boolean; mode: "all" | "split"; location: string; }
+interface TriagemEntry { splits: SplitLine[]; notes: string; selected: boolean; mode: "all" | "split"; }
 
 /** Reserva vigente (GET /api/estoque/reservas-ativas) — a peça que tem
  *  destino marcado vai para o topo da fila, com a data de saída. */
@@ -69,7 +69,7 @@ function ThumbCell({ url, size = 15 }: { url?: string | null; size?: number }) {
 }
 
 function makeEntry(totalQty: number): TriagemEntry {
-  return { splits: makeSplits(totalQty), notes: "", selected: false, mode: "all", location: "" };
+  return { splits: makeSplits(totalQty), notes: "", selected: false, mode: "all" };
 }
 
 // ─── Stat card (matches estoque layout) ───────────────────────────────────────
@@ -276,7 +276,6 @@ export default function TriagemRetorno() {
   const listaDaUrl = (k: string) => (urlInicial.get(k) ?? "").split(",").filter(Boolean);
   const [filterEvent, setFilterEvent] = useState<string[]>(() => listaDaUrl("eventos"));
   const [filterSponsor, setFilterSponsor] = useState<string[]>(() => listaDaUrl("patrocinador"));
-  const [filterLocation, setFilterLocation] = useState<string[]>(() => listaDaUrl("local"));
   const [search, setSearch] = useState(() => urlInicial.get("q") ?? "");
   const [mostrando, setMostrando] = useState(LOTE_DA_TABELA);
   // Descarte pendente de confirmação: uma peça (salvar da linha) ou o lote.
@@ -284,9 +283,6 @@ export default function TriagemRetorno() {
   const [gravadasDoLote, setGravadasDoLote] = useState(0);
   const [focusedId, setFocusedId] = useState<string | null>(null);
   const [selectedAsset, setSelectedAsset] = useState<EnrichedAsset | null>(null);
-  // Linha cujo mapa do galpão está aberto.
-  const [mapaPara, setMapaPara] = useState<string | null>(null);
-  const [localDoLote, setLocalDoLote] = useState("");
   // ENTRADA POR EVENTO (dono, 14/09): a triagem abre na lista de eventos que
   // voltaram; escolhido o evento, o quadro de arrastar. A tabela segue como
   // vista completa (e é onde se divide uma peça ×N por condição).
@@ -304,12 +300,13 @@ export default function TriagemRetorno() {
       grava("q", vista === "tabela" ? search.trim() : "");
       grava("eventos", vista === "tabela" ? filterEvent.join(",") : "");
       grava("patrocinador", vista === "tabela" ? filterSponsor.join(",") : "");
-      grava("local", vista === "tabela" ? filterLocation.join(",") : "");
+      // "local" saiu do sistema (21/09): um link antigo com o parâmetro é limpo.
+      p.delete("local");
       const qs = p.toString();
       window.history.replaceState(null, "", qs ? `?${qs}` : window.location.pathname);
     }, 200);
     return () => clearTimeout(t);
-  }, [vista, eventoDoQuadro, search, filterEvent, filterSponsor, filterLocation]);
+  }, [vista, eventoDoQuadro, search, filterEvent, filterSponsor]);
 
   const { data: awaitingAssets = VAZIO as EnrichedAsset[], isLoading, isError, refetch } = useQuery<EnrichedAsset[]>({
     queryKey: ["/api/inventory/awaiting-triage"],
@@ -322,23 +319,7 @@ export default function TriagemRetorno() {
   // Por id: os laços de lote faziam awaitingAssets.find() por peça — 4 mil × 4 mil.
   const ativoPorId = useMemo(() => new Map(awaitingAssets.map(a => [a.id, a])), [awaitingAssets]);
   // Trocar o recorte volta ao primeiro lote de linhas.
-  useEffect(() => { setMostrando(LOTE_DA_TABELA); }, [search, filterEvent, filterSponsor, filterLocation]);
-
-  const locationOptions = useMemo(() => {
-    const seen = new Set<string>();
-    for (const a of awaitingAssets) { if (a.location) seen.add(a.location); }
-    return Array.from(seen).sort();
-  }, [awaitingAssets]);
-
-  // Item 15 — decisão: manter o seletor "Local" condicional (só aparece com
-  // opções) e LIMPAR a seleção quando as opções somem. Sem isso, um filtro de
-  // local ativo ficava preso invisível, escondendo a fila inteira sem que o
-  // usuário tivesse como desfazer.
-  // Só depois de carregar: com o filtro vindo da URL, a lista ainda vazia do
-  // carregamento apagava o recorte antes de os dados chegarem.
-  useEffect(() => {
-    if (!isLoading && !isError && locationOptions.length === 0 && filterLocation.length > 0) setFilterLocation([]);
-  }, [isLoading, isError, locationOptions.length, filterLocation.length]);
+  useEffect(() => { setMostrando(LOTE_DA_TABELA); }, [search, filterEvent, filterSponsor]);
 
   const getEntry = (id: string, totalQty?: number): TriagemEntry =>
     entries[id] ?? makeEntry(totalQty ?? 1);
@@ -437,24 +418,18 @@ export default function TriagemRetorno() {
   const toDbStatus = (r: TriagemResult): string =>
     r === "DESCARTADO" ? "DESCARTADO" : r === "MANUTENCAO" ? "EM_MANUTENCAO" : "NO_GALPAO";
 
-  // Local digitado nesta tela, ou o que a peça já tinha.
-  const localDe = (asset: EnrichedAsset): string =>
-    (entries[asset.id]?.location ?? "").trim() || asset.location || "";
-  const precisaDeLocal = (entry: TriagemEntry) => entry.splits.some(s => s.result === "NO_GALPAO");
-
   // Destino MANUTENCAO persiste a condição como AVARIA_LEVE — cumpre a
   // microcopy "Volta ao galpão como Avaria Leve para reparo" do toggle.
   const toDbCondition = (s: SplitLine): Condition | null =>
     s.result === "MANUTENCAO" ? "AVARIA_LEVE" : s.condition;
 
-  const doTriage = async (assetId: string, totalQty: number, local: string) => {
+  const doTriage = async (assetId: string, totalQty: number) => {
     const entry = getEntry(assetId, totalQty);
     if (entry.splits.length === 1) {
       await apiRequest("PATCH", `/api/inventory/${assetId}/triage`, {
         condition: toDbCondition(entry.splits[0]),
         notes: entry.notes,
         trackingStatus: toDbStatus(entry.splits[0].result),
-        location: local || null,
       });
     } else {
       await apiRequest("POST", `/api/inventory/${assetId}/triage-split`, {
@@ -463,7 +438,6 @@ export default function TriagemRetorno() {
           trackingStatus: toDbStatus(s.result),
           notes: entry.notes,
         })),
-        location: local || null,
       });
     }
     queryClient.invalidateQueries({ queryKey: ["/api/inventory"] });
@@ -483,10 +457,6 @@ export default function TriagemRetorno() {
       toast({ title: `A soma das quantidades deve ser ${totalQty}.`, variant: "destructive" });
       return false;
     }
-    if (precisaDeLocal(entry) && !localDe(asset)) {
-      toast({ title: "Informe o local no galpão.", description: "Sem o local, ninguém encontra a peça para reaproveitar.", variant: "destructive" });
-      return false;
-    }
     if (savedIds.has(asset.id)) return true;
     // DESCARTAR destrói (sai do inventário e a triagem não se desfaz pelo
     // app): é o único destino que pede confirmação.
@@ -496,15 +466,22 @@ export default function TriagemRetorno() {
     }
     setSavingIds(prev => new Set(Array.from(prev).concat(asset.id)));
     try {
-      await doTriage(asset.id, totalQty, localDe(asset));
+      await doTriage(asset.id, totalQty);
       setSavedIds(prev => new Set(Array.from(prev).concat(asset.id)));
       // O toast nomeia a peça e o destino: triando dezenas seguidas, "Triagem
       // registrada." não dizia QUAL linha acabou de sair da fila.
       const destino = entry.splits.length > 1 ? `${entry.splits.length} lotes`
         : RESULT_META[entry.splits[0].result].label;
-      toast({ title: `${asset.displayId} triada · ${destino}`, description: entry.splits.length === 1 && entry.splits[0].result === "NO_GALPAO" && localDe(asset) ? `Guardada em ${localDe(asset)}.` : undefined });
+      toast({ title: `${asset.displayId} triada · ${destino}` });
       return true;
     } catch (e: any) {
+      // Outra pessoa chegou antes (409): não é erro de quem está aqui — a
+      // lista só estava velha. Aviso neutro e lista nova.
+      if (ehRecusaDeJaTriada(e?.message)) {
+        toast({ title: `Outra pessoa já triou ${asset.displayId} — lista atualizada` });
+        refetch();
+        return false;
+      }
       toast({ title: `Não foi possível triar ${asset.displayId}`, description: e?.message || "Tente de novo.", variant: "destructive" });
       return false;
     } finally {
@@ -521,9 +498,8 @@ export default function TriagemRetorno() {
       if (savedIds.has(a.id)) return false;
       const me = filterEvent.length === 0 || filterEvent.includes(a.eventId ?? "");
       const msp = filterSponsor.length === 0 || (a.sponsors ?? []).some(s => filterSponsor.includes(s.id));
-      const mloc = filterLocation.length === 0 || filterLocation.includes(a.location ?? "");
-      const msearch = !q || (a.name ?? "").toLowerCase().includes(q) || (a.displayId ?? "").toLowerCase().includes(q) || (a.location ?? "").toLowerCase().includes(q);
-      return me && msp && mloc && msearch;
+      const msearch = !q || (a.name ?? "").toLowerCase().includes(q) || (a.displayId ?? "").toLowerCase().includes(q);
+      return me && msp && msearch;
     })
       // Reservadas primeiro, pela saída do caminhão mais próxima: é a peça
       // que tem hora para estar triada e guardada.
@@ -535,16 +511,32 @@ export default function TriagemRetorno() {
         return sx - sy || x.i - y.i;
       })
       .map(({ a }) => a);
-  }, [awaitingAssets, savedIds, filterEvent, filterSponsor, filterLocation, search, reservaPorAtivo]);
+  }, [awaitingAssets, savedIds, filterEvent, filterSponsor, search, reservaPorAtivo]);
+
+  // ITENS POR QUANTIDADE JUNTOS (dono, 21/09): o ciclo cria um registro por
+  // unidade, então 24 unidades da mesma peça são 24 linhas. Aqui elas ficam
+  // ADJACENTES (o grupo entra na posição do seu primeiro registro, que já vem
+  // ordenado por reserva) e cada linha diz quantas iguais existem. Repartir a
+  // quantidade entre destinos é no quadro do evento ("Dividir…").
+  const { emOrdemDeGrupo, iguaisPorChave } = useMemo(() => {
+    const porChave = new Map<string, EnrichedAsset[]>();
+    for (const a of pendingAssets) {
+      const k = chaveDoGrupo(a);
+      const lista = porChave.get(k);
+      if (lista) lista.push(a); else porChave.set(k, [a]);
+    }
+    const iguaisPorChave = new Map<string, number>();
+    porChave.forEach((lista, k) => iguaisPorChave.set(k, lista.reduce((s, a) => s + (a.quantity ?? 1), 0)));
+    return { emOrdemDeGrupo: Array.from(porChave.values()).flat(), iguaisPorChave };
+  }, [pendingAssets]);
 
   // Filtros facetados: cada filtro lista só o que existe na triagem, aplicando
   // os OUTROS filtros ativos, com contagem por opção.
-  const tFacetPool = (exclude: 'event' | 'sponsor' | 'location') =>
+  const tFacetPool = (exclude: 'event' | 'sponsor') =>
     awaitingAssets.filter(a => {
       if (savedIds.has(a.id)) return false;
       if (exclude !== 'event' && filterEvent.length > 0 && !filterEvent.includes(a.eventId ?? "")) return false;
       if (exclude !== 'sponsor' && filterSponsor.length > 0 && !(a.sponsors ?? []).some(s => filterSponsor.includes(s.id))) return false;
-      if (exclude !== 'location' && filterLocation.length > 0 && !filterLocation.includes(a.location ?? "")) return false;
       return true;
     });
   const tTally = (rows: EnrichedAsset[], key: (r: EnrichedAsset) => { value: string; label: string } | null) => {
@@ -561,9 +553,7 @@ export default function TriagemRetorno() {
   // Memo: três varreduras da fila inteira (4 mil+) rodavam a CADA render —
   // inclusive a cada clique num botão de condição de uma linha.
   const eventFilterOptions = useMemo(() => tTally(tFacetPool('event'), a => a.eventId ? { value: a.eventId, label: a.eventName ?? "Evento" } : null),
-    [awaitingAssets, savedIds, filterSponsor, filterLocation]);
-  const locationFilterOptions = useMemo(() => tTally(tFacetPool('location'), a => a.location ? { value: a.location, label: a.location } : null),
-    [awaitingAssets, savedIds, filterEvent, filterSponsor]);
+    [awaitingAssets, savedIds, filterSponsor]);
   const sponsorFilterOptions = useMemo(() => {
     const map = new Map<string, { value: string; label: string; count: number }>();
     tFacetPool('sponsor').forEach(a => (a.sponsors ?? []).forEach(s => {
@@ -572,28 +562,13 @@ export default function TriagemRetorno() {
       else map.set(s.id, { value: s.id, label: s.name, count: 1 });
     }));
     return Array.from(map.values());
-  }, [awaitingAssets, savedIds, filterEvent, filterLocation]);
+  }, [awaitingAssets, savedIds, filterEvent]);
 
   // Seleção deriva SEMPRE da lista visível: uma entry marcada que saiu do
   // filtro não conta (nem no lote, nem no contador, nem nos presets).
   const selectedIds = useMemo(() => pendingAssets.filter(a => entries[a.id]?.selected).map(a => a.id), [pendingAssets, entries]);
   // O que está montado na tela agora (o resto entra por "Mostrar mais").
-  const linhasVisiveis = useMemo(() => pendingAssets.slice(0, mostrando), [pendingAssets, mostrando]);
-
-  // Mesmo local para todas as selecionadas — a pilha que volta do caminhão
-  // costuma ir inteira para o mesmo corredor.
-  const applyBulkLocation = (local: string) => {
-    if (!local) return;
-    setEntries(prev => {
-      const next = { ...prev };
-      selectedIds.forEach(id => {
-        const e = next[id] ?? makeEntry(ativoPorId.get(id)?.quantity ?? 1);
-        next[id] = { ...e, location: local };
-      });
-      return next;
-    });
-    toast({ title: `Local aplicado a ${selectedIds.length} ${selectedIds.length === 1 ? "peça" : "peças"}.` });
-  };
+  const linhasVisiveis = useMemo(() => emOrdemDeGrupo.slice(0, mostrando), [emOrdemDeGrupo, mostrando]);
 
   const handleBulk = async (confirmado = false) => {
     if (selectedIds.length === 0 || savingIds.size > 0) return;
@@ -606,18 +581,6 @@ export default function TriagemRetorno() {
       toast({
         title: `${somaErrada.length} ${somaErrada.length === 1 ? "peça está" : "peças estão"} com a divisão incompleta.`,
         description: `Confira os lotes de ${ativoPorId.get(somaErrada[0])?.displayId ?? "uma peça"}: a soma precisa fechar a quantidade.`,
-        variant: "destructive",
-      });
-      return;
-    }
-    const semLocal = selectedIds.filter(id => {
-      const a = ativoPorId.get(id);
-      return !!a && precisaDeLocal(getEntry(id, a.quantity ?? 1)) && !localDe(a);
-    });
-    if (semLocal.length > 0) {
-      toast({
-        title: `${semLocal.length} ${semLocal.length === 1 ? "peça está" : "peças estão"} sem local no galpão.`,
-        description: "Preencha o local na linha ou use “Local para as selecionadas”.",
         variant: "destructive",
       });
       return;
@@ -635,26 +598,30 @@ export default function TriagemRetorno() {
         // claro e conta como falha (antes virava doTriage com qty=1 silencioso).
         return Promise.reject(new Error(`Ativo ${id} não está mais na fila de triagem.`));
       }
-      return doTriage(id, asset.quantity ?? 1, localDe(asset));
+      return doTriage(id, asset.quantity ?? 1);
     }, setGravadasDoLote);
     // Só marca como salvo (some da fila) o que realmente foi registrado. Os que
     // falharam continuam visíveis e selecionados para nova tentativa — antes,
     // TODOS os selecionados saíam da lista, "engolindo" os que deram erro.
     const okIds = selectedIds.filter((_, i) => results[i].status === "fulfilled");
-    const failed = selectedIds.length - okIds.length;
+    // Recusadas porque OUTRA pessoa já triou: contam à parte, não travam as
+    // demais e saem da seleção (somem na atualização da lista).
+    const jaTriadas = selectedIds.filter((_, i) => { const r = results[i]; return r.status === "rejected" && ehRecusaDeJaTriada(r.reason?.message); });
+    const failed = selectedIds.length - okIds.length - jaTriadas.length;
     setSavedIds(prev => new Set(Array.from(prev).concat(okIds)));
     setSavingIds(new Set());
     setEntries(prev => {
       const next = { ...prev };
-      okIds.forEach(id => { if (next[id]) next[id] = { ...next[id], selected: false }; });
+      [...okIds, ...jaTriadas].forEach(id => { if (next[id]) next[id] = { ...next[id], selected: false }; });
       return next;
     });
     // Com erro, o toast traz o motivo da primeira recusa — "com erro" sem porquê
     // deixava a pessoa reenviando o lote às cegas.
-    const primeiraFalha = results.find((r): r is PromiseRejectedResult => r.status === "rejected");
+    const primeiraFalha = results.find((r): r is PromiseRejectedResult => r.status === "rejected" && !ehRecusaDeJaTriada(r.reason?.message));
     toast({
-      title: failed > 0 ? `${okIds.length} triada${okIds.length !== 1 ? "s" : ""}, ${failed} com erro` : `${okIds.length} peça${okIds.length !== 1 ? "s" : ""} triada${okIds.length !== 1 ? "s" : ""}`,
-      description: failed > 0 ? `${primeiraFalha?.reason?.message ?? "Erro ao gravar"}. As que falharam continuam selecionadas.` : undefined,
+      title: resumoDaGravacao(okIds.length, jaTriadas.length, failed),
+      description: failed > 0 ? `${primeiraFalha?.reason?.message ?? "Erro ao gravar"}. As que falharam continuam selecionadas.`
+        : jaTriadas.length > 0 ? "Outra pessoa triou parte da seleção — lista atualizada." : undefined,
       variant: failed > 0 ? "destructive" : "default",
     });
     refetch();
@@ -675,7 +642,7 @@ export default function TriagemRetorno() {
     setEntries(prev => ({ ...prev, ...update }));
   };
 
-  const hasFilters = filterEvent.length > 0 || filterSponsor.length > 0 || filterLocation.length > 0 || !!search;
+  const hasFilters = filterEvent.length > 0 || filterSponsor.length > 0 || !!search;
 
   const allSelected = linhasVisiveis.length > 0 && linhasVisiveis.every(a => entries[a.id]?.selected);
 
@@ -842,21 +809,6 @@ export default function TriagemRetorno() {
               />
             </div>
 
-            {/* Local */}
-            {locationOptions.length > 0 && (
-              <div style={{ display: "flex", flexDirection: "column", flex: "1 1 130px" }}>
-                <label style={FL}>Local</label>
-                <FilterSelect
-                  fullWidth showAllLabelWhenEmpty hideWhenEmpty={false}
-                  label="Local" allLabel="Todos os locais"
-                  values={filterLocation} onValuesChange={setFilterLocation}
-                  options={locationFilterOptions}
-                  searchPlaceholder="Buscar local..." emptyText="Nenhum local encontrado."
-                  testId="select-triage-filter-location" triggerStyle={SEL(filterLocation.length > 0)}
-                />
-              </div>
-            )}
-
             {/* Buscar */}
             <div style={{ display: "flex", flexDirection: "column", flex: "1 1 150px" }}>
               <label style={FL}>Buscar</label>
@@ -874,8 +826,7 @@ export default function TriagemRetorno() {
                   onFocus={e => (e.target.style.borderColor = "#c2410c")}
                   onBlur={e => (e.target.style.borderColor = search ? "#c2610c" : "#e2e8f0")}
                   aria-label="Buscar peças na triagem"
-                  /* A busca também casa o local — o placeholder dizia só nome/ID. */
-                  placeholder="Nome, ID ou local..."
+                  placeholder="Nome ou ID..."
                   value={search}
                   onChange={e => setSearch(e.target.value)}
                 />
@@ -887,7 +838,7 @@ export default function TriagemRetorno() {
               <button
                 data-testid="button-triage-clear-filters"
                 disabled={!hasFilters}
-                onClick={() => { setFilterEvent([]); setFilterSponsor([]); setFilterLocation([]); setSearch(""); }}
+                onClick={() => { setFilterEvent([]); setFilterSponsor([]); setSearch(""); }}
                 style={{
                   height: 44, display: "flex", alignItems: "center", gap: 5, padding: "0 14px",
                   borderRadius: 8,
@@ -947,7 +898,7 @@ export default function TriagemRetorno() {
               : "Os materiais são movidos automaticamente para triagem após o evento."}
           </p>
           {hasFilters && awaitingAssets.length > 0 && (
-            <button type="button" onClick={() => { setFilterEvent([]); setFilterSponsor([]); setFilterLocation([]); setSearch(""); }}
+            <button type="button" onClick={() => { setFilterEvent([]); setFilterSponsor([]); setSearch(""); }}
               style={{ marginTop: 16, minHeight: 44, background: "#0f172a", color: "#fff", border: "none", borderRadius: 8, padding: "0 18px", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
               Limpar filtros
             </button>
@@ -974,7 +925,7 @@ export default function TriagemRetorno() {
             de volta; também diz o que o Salvar grava. */}
         <p data-testid="dica-triagem-tabela" style={{ margin: "0 0 10px", fontSize: 12.5, color: "#475569", lineHeight: 1.5, fontFamily: "Plus Jakarta Sans, sans-serif" }}>
           A condição já sugere o destino (Perfeito → Galpão, Avaria leve → Manutenção, Sucata → Descartar) — troque o destino se precisar.
-          Voltar ao Galpão exige o local. Nada é gravado até <strong style={{ color: "#0f172a" }}>Salvar</strong> na linha ou <strong style={{ color: "#0f172a" }}>Confirmar lote</strong>.
+          Nada é gravado até <strong style={{ color: "#0f172a" }}>Salvar</strong> na linha ou <strong style={{ color: "#0f172a" }}>Confirmar lote</strong>.
         </p>
         <div style={{ background: "#fff", borderRadius: isMobile ? 12 : 16, border: "1px solid #e2e8f0", overflow: "hidden", boxShadow: "0 1px 3px rgba(15,23,42,0.05)" }}>
           {(() => {
@@ -1053,6 +1004,12 @@ export default function TriagemRetorno() {
                       color: qty > 1 ? "#fff" : "#64748b",
                       fontSize: 11, fontWeight: 700, fontFamily: "DM Mono, monospace",
                     }}>×{qty}</span>
+                    {(iguaisPorChave.get(chaveDoGrupo(asset)) ?? 0) > qty && (
+                      <span data-testid={`iguais-${asset.id}`} title="Registros do mesmo material ficam juntos; para repartir a quantidade entre destinos, use Dividir no quadro do evento"
+                        style={{ fontSize: 11, fontWeight: 600, color: "#475569", background: "#f1f5f9", borderRadius: 5, padding: "1px 6px", whiteSpace: "nowrap" }}>
+                        {iguaisPorChave.get(chaveDoGrupo(asset))} un. iguais
+                      </span>
+                    )}
                   </div>
                   {(() => {
                     const reserva = reservaPorAtivo.get(asset.id);
@@ -1093,10 +1050,6 @@ export default function TriagemRetorno() {
                         {dataDoEvento}
                       </span>
                     )}
-                    <span aria-hidden="true" style={{ color: "#cbd5e1", fontSize: 10 }}>•</span>
-                    <span style={{ fontSize: 12, fontWeight: 500, color: "#64748b", fontFamily: "Plus Jakarta Sans, sans-serif" }}>
-                      {asset.location ?? "Sem local"}
-                    </span>
                   </div>
                 </div>
               ) : <span style={{ fontSize: 12, color: "#746e69", fontStyle: "italic", fontFamily: "Plus Jakarta Sans, sans-serif" }}>Sem evento</span>;
@@ -1222,9 +1175,9 @@ export default function TriagemRetorno() {
                 </div>
               );
 
-              // Local · Observação — o local é obrigatório para voltar ao
-              // galpão (dono, 14/09). Campos com borda visível e 16px no
-              // celular (abaixo disso o Safari dá zoom ao focar).
+              // Observação — sem o campo de local (dono, 21/09: o sistema não
+              // guarda ONDE a peça fica no galpão). 16px no celular (abaixo
+              // disso o Safari dá zoom ao focar).
               const campo = (faltando: boolean): React.CSSProperties => ({
                 minHeight: isMobile ? 44 : 32, padding: "0 10px", borderRadius: 6,
                 border: `1px solid ${faltando ? "#fca5a5" : "#e2e8f0"}`,
@@ -1233,38 +1186,9 @@ export default function TriagemRetorno() {
                 width: "100%", boxSizing: "border-box",
               });
               const localEl = isSaved ? (
-                localDe(asset) ? (
-                  <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 12, color: "#475569", fontWeight: 600 }}>
-                    <MapPin size={12} aria-hidden="true" /> {localDe(asset)}
-                  </span>
-                ) : null
+                entry.notes ? <span style={{ fontSize: 12, color: "#475569" }}>{entry.notes}</span> : null
               ) : (
                 <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                  {!entry.splits.every(s => s.result === "DESCARTADO") && (() => {
-                    const obrigatorio = precisaDeLocal(entry);
-                    const faltando = obrigatorio && !localDe(asset);
-                    return (
-                      <div style={{ display: "flex", gap: 4 }}>
-                        <input data-testid={`input-location-${asset.id}`}
-                          type="text" list="locais-do-galpao"
-                          aria-label={`Local no galpão de ${asset.name}`}
-                          aria-invalid={faltando || undefined}
-                          placeholder={obrigatorio ? "Local no galpão *" : "Local (opcional)"}
-                          value={entry.location || asset.location || ""}
-                          onChange={e => updateEntry(asset.id, { location: e.target.value }, qty)}
-                          onClick={e => e.stopPropagation()}
-                          onFocus={() => setFocusedId(asset.id)}
-                          style={campo(faltando)}
-                        />
-                        <button type="button" title="Abrir mapa do galpão" aria-label="Abrir mapa do galpão"
-                          data-testid={`button-mapa-${asset.id}`}
-                          onClick={e => { e.stopPropagation(); setMapaPara(asset.id); }}
-                          style={{ width: isMobile ? 44 : 32, flexShrink: 0, borderRadius: 6, border: "1px solid #e2e8f0", background: "#f8fafc", color: "#c2410c", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                          <Grid3X3 size={14} aria-hidden="true" />
-                        </button>
-                      </div>
-                    );
-                  })()}
                   <input data-testid={`input-notes-${asset.id}`}
                     type="text" placeholder="Adicionar nota..."
                     aria-label={`Observação da triagem de ${asset.name}`}
@@ -1383,7 +1307,7 @@ export default function TriagemRetorno() {
                         { label: "Evento", align: "left" },
                         { label: "Patrocinadores", align: "left" },
                         { label: "Condição · Destino", align: "left" },
-                        { label: "Local · Observação", align: "left" },
+                        { label: "Observação", align: "left" },
                         { label: "Ação", align: "right" },
                       ].map(h => (
                         <th key={h.label} style={{ ...TH, textAlign: h.align as "left" | "right" }}>
@@ -1523,21 +1447,6 @@ export default function TriagemRetorno() {
                 <div aria-hidden="true" style={{ width: 1, height: 24, background: "rgba(255,255,255,0.12)" }} />
               </>
             )}
-            {/* Local para as selecionadas — no celular ocupa a linha inteira. */}
-            <div style={{ display: "flex", alignItems: "center", gap: 6, flex: isMobile ? "1 1 100%" : undefined }}>
-              <input data-testid="input-bulk-location" list="locais-do-galpao"
-                aria-label="Local no galpão para as peças selecionadas"
-                placeholder="Local para as selecionadas"
-                value={localDoLote}
-                onChange={e => setLocalDoLote(e.target.value)}
-                onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); applyBulkLocation(localDoLote.trim()); } }}
-                style={{ height: isMobile ? 44 : 32, width: isMobile ? undefined : 200, flex: isMobile ? 1 : undefined, minWidth: 0, borderRadius: 9999, border: "1px solid rgba(255,255,255,0.18)", background: "rgba(255,255,255,0.08)", color: "#f1f5f9", padding: "0 14px", fontSize: isMobile ? 16 : 12, fontFamily: "Plus Jakarta Sans, sans-serif" }}
-              />
-              <button data-testid="button-bulk-apply-location" disabled={!localDoLote.trim()} onClick={() => applyBulkLocation(localDoLote.trim())}
-                style={{ display: "inline-flex", alignItems: "center", gap: 4, height: isMobile ? 44 : 32, padding: "0 12px", borderRadius: 9999, border: "1px solid rgba(255,255,255,0.18)", background: "transparent", color: localDoLote.trim() ? "#f1f5f9" : "#94a3b8", fontSize: 12, fontWeight: 600, fontFamily: "Space Grotesk, sans-serif", cursor: localDoLote.trim() ? "pointer" : "not-allowed", whiteSpace: "nowrap", flexShrink: 0 }}>
-                <MapPin size={12} aria-hidden="true" /> Aplicar
-              </button>
-            </div>
             {/* Actions */}
             <div style={{ display: "flex", gap: 8, flex: isMobile ? "1 1 100%" : undefined }}>
               <button data-testid="button-bulk-confirm" onClick={() => handleBulk()}
@@ -1568,8 +1477,6 @@ export default function TriagemRetorno() {
         onUpdateCondition={(c) => { if (selectedAsset) smartUpdateSplit(selectedAsset.id, 0, c); }}
         onUpdateResult={(r) => { if (selectedAsset) updateSplit(selectedAsset.id, 0, { result: r }); }}
         onUpdateNotes={(notes) => { if (selectedAsset) updateEntry(selectedAsset.id, { notes }, selectedAsset.quantity ?? 1); }}
-        location={selectedAsset ? (entries[selectedAsset.id]?.location || selectedAsset.location || "") : ""}
-        onUpdateLocation={(location) => { if (selectedAsset) updateEntry(selectedAsset.id, { location }, selectedAsset.quantity ?? 1); }}
         onSaveAndClose={async () => {
           if (!selectedAsset) return false;
           const ok = await handleSingle(selectedAsset);
@@ -1607,21 +1514,6 @@ export default function TriagemRetorno() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-
-      {/* Sugestões de local: o formato do mapa do galpão. */}
-      <datalist id="locais-do-galpao">
-        {LOCAIS_DO_GALPAO.map(l => <option key={l} value={l} />)}
-      </datalist>
-
-      {mapaPara && (
-        <MapaGalpao
-          value={(entries[mapaPara]?.location ?? "") || (ativoPorId.get(mapaPara)?.location ?? "")}
-          onSelect={loc => {
-            updateEntry(mapaPara, { location: loc }, ativoPorId.get(mapaPara)?.quantity ?? 1);
-          }}
-          onClose={() => setMapaPara(null)}
-        />
-      )}
 
       {/* Iguala o trigger do EventFilterDropdown aos demais filtros (44px de
           altura e largura total) — componente compartilhado, sem prop de estilo. */}

@@ -297,6 +297,10 @@ function pecaParaOModal(p: PecaNaMaquina): PecaParaImprimir {
     reuseQty: p.reuso,
     printMachine: p.maquina,
     impressaoPorMaquina: p.impressaoPorMaquina ?? null,
+    // A reserva por impressora (só as peças da fila trazem): o modal calcula
+    // quantas PODEM ir para a impressora escolhida.
+    reservaPorMaquina: (p as Partial<PecaNaFila>).reserva ?? null,
+    maquinaPrevista: (p as Partial<PecaNaFila>).reserva ? null : (p as Partial<PecaNaFila>).maquinaPrevista ?? null,
     productionStartedAt: p.desde,
     approvalThumbUrl: p.miniatura ? convertGCSUrlToLocalPath(p.miniatura) : null,
     event: p.eventoInfo ? { name: p.eventoInfo.name } : null,
@@ -483,19 +487,46 @@ function SeletorDeReserva({ valor, excluir, disabled, alvo, isMobile, testId, ro
  * com tudo o que ainda está sem impressora; reservar menos deixa o resto na
  * fila geral, para outra impressora.
  */
-function ControleDeReserva({ id, semImpressora, disabled, alvo, isMobile, onReservar }: {
-  id: string; semImpressora: number; disabled?: boolean; alvo: number; isMobile: boolean; onReservar: (maquina: string, quantidade: number) => void;
+/** O que cada impressora tem AGORA: quantas peças e o código da primeira. */
+export type OcupacaoDasImpressoras = Record<string, { n: number; primeira: string | null }>;
+const SEM_OCUPACAO: OcupacaoDasImpressoras = {};
+
+/** Livres primeiro (dono, 21/09: "quando a impressora estiver vazia…"), depois pelo código. */
+export function impressorasComLivresPrimeiro(ocupacao: OcupacaoDasImpressoras): string[] {
+  return [...MAQUINAS_DE_IMPRESSAO].sort((a, b) => Math.min(1, ocupacao[a]?.n ?? 0) - Math.min(1, ocupacao[b]?.n ?? 0) || (a < b ? -1 : 1));
+}
+
+function ControleDeReserva({ id, codigoDaPeca, semImpressora, disabled, alvo, isMobile, ocupacao = SEM_OCUPACAO, imprimindo = false, onReservar, onImprimir }: {
+  id: string; codigoDaPeca?: string | null; semImpressora: number; disabled?: boolean; alvo: number; isMobile: boolean;
+  ocupacao?: OcupacaoDasImpressoras; /** O "Imprimir agora" DESTA linha está em voo. */ imprimindo?: boolean;
+  onReservar: (maquina: string, quantidade: number) => void;
+  /** "Imprimir agora" (dono, 21/09): põe direto em impressão, sem modal. Ausente = só reservar. */
+  onImprimir?: (maquina: string, quantidade: number) => void;
 }) {
   const [maquina, setMaquina] = useState("");
   const [qtd, setQtd] = useState<number | "">("");
+  // Impressora ocupada pede uma confirmação leve, aqui mesmo na linha.
+  const [confirmando, setConfirmando] = useState(false);
+  // Enter segurado / duplo clique: a trava por ref vale antes do próximo render.
+  const travaRef = useRef(false);
   const n = qtd === "" ? semImpressora : qtd;
   const valida = n >= 1 && n <= semImpressora;
+  const ocupada = !!maquina && (ocupacao[maquina]?.n ?? 0) > 0;
+  const imprimir = () => {
+    if (!onImprimir || !maquina || !valida || travaRef.current || imprimindo) return;
+    travaRef.current = true;
+    setTimeout(() => { travaRef.current = false; }, 1500);
+    setConfirmando(false);
+    onImprimir(maquina, n);
+  };
   const campo: React.CSSProperties = { minHeight: alvo, height: alvo, boxSizing: "border-box", borderRadius: R.md, border: `1px solid ${T.bdark}`, background: T.surface, color: T.text, fontSize: isMobile ? 16 : 12, fontWeight: 700 };
   return (
     <div role="group" aria-label="Reservar impressora" data-testid={`controle-reserva-${id}`} style={{ display: isMobile ? "flex" : "inline-flex", alignItems: "center", gap: 6, flexWrap: "wrap", ...(isMobile ? { flex: "1 1 100%", width: "100%" } : {}) }}>
-      <select aria-label="Impressora" value={maquina} disabled={disabled} onChange={(e) => setMaquina(e.target.value)} data-testid={`reservar-fila-${id}`} style={{ ...campo, padding: "0 8px", cursor: disabled ? "not-allowed" : "pointer", maxWidth: "100%", ...(isMobile ? { flex: "1 1 100%", width: "100%" } : {}) }}>
+      <select aria-label="Impressora" value={maquina} disabled={disabled} onChange={(e) => { setMaquina(e.target.value); setConfirmando(false); }} data-testid={`reservar-fila-${id}`} style={{ ...campo, padding: "0 8px", cursor: disabled ? "not-allowed" : "pointer", maxWidth: "100%", ...(isMobile ? { flex: "1 1 100%", width: "100%" } : {}) }}>
         <option value="">Impressora…</option>
-        {MAQUINAS_DE_IMPRESSAO.map((m) => <option key={m} value={m}>{rotuloDaMaquina(m)}</option>)}
+        {impressorasComLivresPrimeiro(ocupacao).map((m) => (
+          <option key={m} value={m}>{rotuloDaMaquina(m)}{onImprimir ? ((ocupacao[m]?.n ?? 0) > 0 ? ` — imprimindo ${ocupacao[m].n}` : " — livre") : ""}</option>
+        ))}
       </select>
       <input
         type="number" inputMode="numeric" pattern="[0-9]*" min={1} max={semImpressora}
@@ -507,17 +538,41 @@ function ControleDeReserva({ id, semImpressora, disabled, alvo, isMobile, onRese
         data-testid={`qtd-reservar-${id}`}
         style={{ ...campo, width: 68, textAlign: "center", padding: "0 6px", borderColor: valida ? T.bdark : VERMELHO.border, ...(isMobile ? { flex: "0 0 84px", width: 84 } : {}) }}
       />
+      {onImprimir && (
+        <button
+          type="button"
+          className="mq-acao mq-primario"
+          disabled={disabled || imprimindo || !maquina || !valida}
+          aria-busy={imprimindo || undefined}
+          onClick={() => { if (ocupada && !confirmando) setConfirmando(true); else imprimir(); }}
+          data-testid={`button-imprimir-agora-${id}`}
+          title={!maquina ? "Escolha a impressora" : !valida ? `De 1 a ${semImpressora}` : `Pôr ${n} un. em impressão na ${rotuloDaMaquina(maquina)} agora`}
+          style={{ minHeight: alvo, padding: "0 12px", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 5, borderRadius: R.md, border: "none", background: T.text, color: "#fff", fontFamily: GROTESK, fontSize: isMobile ? 13 : 12, fontWeight: 700, cursor: disabled || imprimindo || !maquina || !valida ? "not-allowed" : "pointer", opacity: disabled || imprimindo || !maquina || !valida ? 0.55 : 1, whiteSpace: "nowrap", ...(isMobile ? { flex: "1 1 100%", width: "100%", order: -1 } : {}) }}
+        >
+          {imprimindo ? <Loader2 aria-hidden="true" className="animate-spin" style={{ width: 12, height: 12 }} /> : <Play aria-hidden="true" style={{ width: 12, height: 12, flexShrink: 0 }} />}
+          {imprimindo ? "Iniciando…" : "Imprimir agora"}
+        </button>
+      )}
       <button
         type="button"
         className="mq-acao"
         disabled={disabled || !maquina || !valida}
-        onClick={() => { if (maquina && valida) { onReservar(maquina, n); setQtd(""); setMaquina(""); } }}
+        onClick={() => { if (maquina && valida) { onReservar(maquina, n); setQtd(""); setMaquina(""); setConfirmando(false); } }}
         data-testid={`button-reservar-${id}`}
         title={!maquina ? "Escolha a impressora" : !valida ? `De 1 a ${semImpressora}` : `Reservar ${n} un. para a ${rotuloDaMaquina(maquina)}`}
         style={{ minHeight: alvo, padding: "0 12px", borderRadius: R.md, border: `1px solid ${T.bdark}`, background: T.surface, color: T.text, fontSize: isMobile ? 13 : 12, fontWeight: 700, cursor: disabled || !maquina || !valida ? "not-allowed" : "pointer", opacity: disabled || !maquina || !valida ? 0.55 : 1, whiteSpace: "nowrap", ...(isMobile ? { flex: "1 1 auto" } : {}) }}
       >
         Reservar
       </button>
+      {confirmando && ocupada && (
+        <div role="alertdialog" aria-label="Impressora ocupada" data-testid={`confirmar-imprimir-junto-${id}`} style={{ flex: "1 1 100%", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", padding: "8px 10px", borderRadius: R.md, background: AMBAR.bg, border: `1px solid ${AMBAR.border}`, color: "#92400e", fontSize: isMobile ? 13 : 12 }}>
+          <span style={{ flex: "1 1 200px", fontWeight: 700 }}>
+            A {rotuloDaMaquina(maquina)} já está com {ocupacao[maquina]?.primeira ?? "outra peça"}{(ocupacao[maquina]?.n ?? 0) > 1 ? ` e mais ${ocupacao[maquina].n - 1}` : ""}. Imprimir {codigoDaPeca ?? "esta peça"} junto?
+          </span>
+          <button type="button" className="mq-acao mq-primario" onClick={imprimir} data-testid={`button-imprimir-junto-${id}`} style={{ minHeight: alvo, padding: "0 12px", borderRadius: R.md, border: "none", background: T.text, color: "#fff", fontSize: isMobile ? 13 : 12, fontWeight: 700, cursor: "pointer", ...(isMobile ? { flex: "1 1 100%" } : {}) }}>Imprimir junto</button>
+          <button type="button" className="mq-acao" onClick={() => { onReservar(maquina, n); setQtd(""); setMaquina(""); setConfirmando(false); }} data-testid={`button-so-reservar-${id}`} style={{ minHeight: alvo, padding: "0 12px", borderRadius: R.md, border: `1px solid ${T.bdark}`, background: T.surface, color: T.text, fontSize: isMobile ? 13 : 12, fontWeight: 700, cursor: "pointer", ...(isMobile ? { flex: "1 1 100%" } : {}) }}>Só reservar</button>
+        </div>
+      )}
     </div>
   );
 }
@@ -674,8 +729,8 @@ function SeletorDePeca({ maquina, reservadas, filaGeral, atualizando, hojeMs, on
 // ─── A peça reservada, dentro do cartão da impressora ─────────────────────────
 // (Uma impressora pode ter mais de uma peça ao mesmo tempo — "Imprimindo 2" —
 // então iniciar nunca é barrado por ela estar ocupada.)
-function PecaNaFilaDoCartao({ p, podeAgir, hojeMs, isMobile, onIniciar, onReservar }: {
-  p: PecaNaFila; podeAgir: boolean; hojeMs: number; isMobile: boolean; onIniciar: (p: PecaNaFila) => void; onReservar: (p: PecaNaFila, maquina: string | null, quantidade: number | null) => void;
+function PecaNaFilaDoCartao({ p, podeAgir, hojeMs, isMobile, proxima = false, onIniciar, onReservar }: {
+  p: PecaNaFila; podeAgir: boolean; hojeMs: number; isMobile: boolean; /** Impressora LIVRE: esta é a próxima a entrar — o Iniciar ganha destaque. */ proxima?: boolean; onIniciar: (p: PecaNaFila) => void; onReservar: (p: PecaNaFila, maquina: string | null, quantidade: number | null) => void;
 }) {
   const ocupado = false;
   // Quantas unidades estão reservadas PARA ESTA impressora; mover/devolver
@@ -720,10 +775,13 @@ function PecaNaFilaDoCartao({ p, podeAgir, hojeMs, isMobile, onIniciar, onReserv
             disabled={!!selo || ocupado}
             data-testid={`button-iniciar-fila-${p.id}`}
             title={selo ? motivoAcaoBloqueada(selo.motivo, "iniciar impressão") : ocupado ? "A impressora está imprimindo outra peça agora — dá para iniciar assim que ela ficar livre" : `Iniciar a impressão na ${rotuloDaMaquina(p.maquinaPrevista)}`}
-            style={{ flex: isMobile ? "2 1 150px" : "1 1 130px", minHeight: alvo, padding: "0 10px", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 5, borderRadius: R.md, border: `1px solid ${selo || ocupado ? T.border : T.text}`, background: T.surface, color: selo || ocupado ? "#746e69" : T.text, fontFamily: GROTESK, fontSize: isMobile ? 13 : 12, fontWeight: 700, cursor: selo || ocupado ? "not-allowed" : "pointer", whiteSpace: "nowrap" }}
+            data-proxima={proxima || undefined}
+            style={{ flex: isMobile ? "2 1 150px" : "1 1 130px", minHeight: alvo, padding: "0 10px", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 5, borderRadius: R.md, border: `1px solid ${selo || ocupado ? T.border : T.text}`, background: proxima && !selo ? T.text : T.surface, color: selo || ocupado ? "#746e69" : proxima ? "#fff" : T.text, fontFamily: GROTESK, fontSize: isMobile ? 13 : 12, fontWeight: 700, cursor: selo || ocupado ? "not-allowed" : "pointer", whiteSpace: "nowrap" }}
           >
             <Play aria-hidden="true" style={{ width: 12, height: 12, flexShrink: 0 }} />
-            {p.reservadas != null && reservadas < p.aImprimir ? `Iniciar ${reservadas} un.` : "Iniciar impressão"}
+            {proxima
+              ? `Próxima: ${p.displayId ?? "peça"} · Iniciar ${reservadas} un.`
+              : p.reservadas != null && reservadas < p.aImprimir ? `Iniciar ${reservadas} un.` : "Iniciar impressão"}
           </button>
           {isMobile && (
             <button
@@ -762,6 +820,29 @@ function PecaNaFilaDoCartao({ p, podeAgir, hojeMs, isMobile, onIniciar, onReserv
           </div>
           )}
         </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * O fecho de uma lista: diz que ela ACABOU ("6 de 6 peças") ou quanto falta
+ * ("Mostrando 20 de 143" + o botão). Sem ele a lista terminava colada na
+ * borda e parecia cortada (dono, 21/09).
+ */
+function FechoDaLista({ visiveis, total, um, varios, lote, onMais, testId, botaoTestId, isMobile, estiloDoBotao }: {
+  visiveis: number; total: number; um: string; varios: string; lote: number; onMais: () => void; testId: string; botaoTestId: string; isMobile: boolean; estiloDoBotao: React.CSSProperties;
+}) {
+  const tudo = visiveis >= total;
+  return (
+    <div data-testid={testId} data-fim={tudo || undefined} style={{ padding: tudo ? "8px 14px" : 12, borderTop: `1px solid ${T.low}`, background: T.bg, display: "flex", alignItems: "center", justifyContent: "center", gap: 12, flexWrap: "wrap" }}>
+      <span style={{ fontSize: isMobile ? 12 : FS.small, color: T.second, fontVariantNumeric: "tabular-nums" }}>
+        {tudo ? `${total} de ${total} ${total === 1 ? um : varios}` : `Mostrando ${visiveis} de ${total} ${varios}`}
+      </span>
+      {!tudo && (
+        <button type="button" className="mq-acao" onClick={onMais} data-testid={botaoTestId} style={{ ...estiloDoBotao, ...(isMobile ? { flex: "1 1 100%", fontSize: 13 } : {}) }}>
+          Mostrar mais {Math.min(lote, total - visiveis)}
+        </button>
       )}
     </div>
   );
@@ -1054,6 +1135,9 @@ function ResumoDoPeriodo({ dias, emCartoes, isMobile, hoje, onVerDiario }: {
           ))}
         </tbody>
       </table>
+      <div data-testid="fecho-resumo" style={{ padding: "8px 14px", borderTop: `1px solid ${T.low}`, background: T.bg, textAlign: "center", fontSize: FS.small, color: T.second, fontVariantNumeric: "tabular-nums" }}>
+        {dias.length === 1 ? "Fim do resumo do dia" : `Fim do resumo · ${dias.length} dias`}
+      </div>
     </div>
   );
 }
@@ -1067,9 +1151,13 @@ function ResumoDoPeriodo({ dias, emCartoes, isMobile, hoje, onVerDiario }: {
 const LOTE_DA_FILA = 20;
 /** Celular: quantas peças da fila de UM cartão ficam à vista antes do "Ver as N". */
 const FILA_DO_CARTAO_NO_CELULAR = 3;
-const LinhaDaFilaGeral = memo(function LinhaDaFilaGeral({ p, marcada, podeAgir, ocupado, hojeMs, isMobile, onAlternar, onReservar }: {
+/** Desktop: passa disso, o cartão ganha "Ver as N da fila" — um cartão não vira parede ao lado de um "Livre". */
+const FILA_DO_CARTAO_NO_DESKTOP = 5;
+const LinhaDaFilaGeral = memo(function LinhaDaFilaGeral({ p, marcada, podeAgir, ocupado, hojeMs, isMobile, ocupacao, imprimindo, onAlternar, onReservar, onImprimir }: {
   p: PecaNaFila; marcada: boolean; podeAgir: boolean; ocupado: boolean; hojeMs: number; isMobile: boolean;
+  ocupacao: OcupacaoDasImpressoras; imprimindo: boolean;
   onAlternar: (id: string) => void; onReservar: (id: string, maquina: string, quantidade: number) => void;
+  onImprimir: (p: PecaNaFila, maquina: string, quantidade: number) => void;
 }) {
   const alvo = isMobile ? 44 : 34;
   const fonte = isMobile ? 12 : FS.small;
@@ -1102,7 +1190,7 @@ const LinhaDaFilaGeral = memo(function LinhaDaFilaGeral({ p, marcada, podeAgir, 
         <span data-testid={`fila-bloqueada-${p.id}`} style={{ flex: "1 1 100%", fontSize: 12, fontWeight: 700, color: selo.text }}>{selo.label} — {selo.hint}</span>
       )}
       {podeAgir && (
-        <ControleDeReserva id={p.id} semImpressora={p.semImpressora ?? p.aImprimir} disabled={!!selo || ocupado} alvo={alvo} isMobile={isMobile} onReservar={(m, n) => onReservar(p.id, m, n)} />
+        <ControleDeReserva id={p.id} codigoDaPeca={p.displayId} semImpressora={p.semImpressora ?? p.aImprimir} disabled={!!selo || ocupado} alvo={alvo} isMobile={isMobile} ocupacao={ocupacao} imprimindo={imprimindo} onReservar={(m, n) => onReservar(p.id, m, n)} onImprimir={(m, n) => onImprimir(p, m, n)} />
       )}
     </div>
   );
@@ -1198,6 +1286,35 @@ export default function GraficaMaquinas() {
   const reservarRef = useRef(reservar);
   reservarRef.current = reservar;
   const reservarDaLinha = useCallback((id: string, maquina: string, quantidade: number) => reservarRef.current([id], maquina, quantidade), []);
+
+  // ── "Imprimir agora" (dono, 21/09: "quando a impressora estiver vazia, eu
+  // poder colocar direto para impressão, e não só reservar") ────────────────
+  // O MESMO start-printing do modal, sem abri-lo: a peça inteira (payload de
+  // sempre) quando vai tudo, ou só a parte (`iniciarParte` + `quantidade`).
+  const ocupacao = useMemo<OcupacaoDasImpressoras>(() => {
+    const o: OcupacaoDasImpressoras = {};
+    for (const m of data?.maquinas ?? []) o[m.codigo] = { n: m.imprimindo.length, primeira: m.imprimindo[0]?.displayId ?? null };
+    return o;
+  }, [data]);
+  const imprimirAgora = useMutation({
+    mutationFn: async ({ peca, maquina, quantidade }: { peca: PecaNaFila; maquina: string; quantidade: number }) => {
+      const livre = (peca.semImpressora ?? peca.aImprimir) + Object.values(peca.reserva ?? {}).reduce((t, x) => t + x, 0);
+      const inteira = peca.status !== "inProduction" && peca.status !== "em_producao" && quantidade === livre && (peca.imprimindoEm ?? []).length === 0;
+      return await apiRequest("PATCH", `/api/items/${peca.id}/start-printing`, inteira ? { printMachine: maquina } : { printMachine: maquina, iniciarParte: true, quantidade });
+    },
+    onSuccess: (_r, v) => {
+      for (const k of CHAVES_DA_RESERVA) queryClient.invalidateQueries({ queryKey: [k] });
+      toast({ title: `${v.peca.displayId ?? "Peça"}: ${v.quantidade} un. em impressão na ${rotuloDaMaquina(v.maquina)}`, description: "Conforme as unidades saírem, informe as impressas no cartão da impressora." });
+    },
+    onError: (error: Error) => {
+      for (const k of CHAVES_DA_RESERVA) queryClient.invalidateQueries({ queryKey: [k] });
+      toast({ title: "Não foi possível iniciar a impressão", description: mensagemDeErroDaApi(error), variant: "destructive" });
+    },
+  });
+  const imprimirRef = useRef(imprimirAgora.mutate);
+  imprimirRef.current = imprimirAgora.mutate;
+  const imprimirDaLinha = useCallback((peca: PecaNaFila, maquina: string, quantidade: number) => imprimirRef.current({ peca, maquina, quantidade }), []);
+  const imprimindoId = imprimirAgora.isPending ? imprimirAgora.variables?.peca.id ?? null : null;
   // A fila entra em LOTES (eram 20 e depois "todas": 300+ linhas com select e
   // campo cada travavam o celular). Cada toque traz mais um lote.
   const [filaVisiveis, setFilaVisiveis] = useState(LOTE_DA_FILA);
@@ -1307,6 +1424,7 @@ export default function GraficaMaquinas() {
   const contagemDoLote = (
     <span aria-live="polite" style={{ flex: isMobile ? "1 1 0%" : undefined, minWidth: 0, fontSize: FS.body, fontWeight: 700, color: T.text, fontVariantNumeric: "tabular-nums" }}>{plural(selecionadasVivas.length, "selecionada", "selecionadas")}</span>
   );
+  const barraDoLoteVisivel = podeAgir && selecionadasVivas.length > 0 && aba === "agora";
   const barraDoLote = podeAgir && selecionadasVivas.length > 0 ? (
     <div
       role="group"
@@ -1324,7 +1442,17 @@ export default function GraficaMaquinas() {
   ) : null;
 
   return (
-    <div style={{ backgroundColor: T.bg, minHeight: "100%", padding: isMobile ? "12px 16px 48px" : "24px 24px 64px" }}>
+    <div
+      data-testid="pagina-maquinas"
+      style={{
+        backgroundColor: T.bg, minHeight: "100%",
+        paddingTop: isMobile ? 12 : 24, paddingLeft: isMobile ? 16 : 24, paddingRight: isMobile ? 16 : 24,
+        // Respiro no FIM: a lista nunca termina colada na borda da janela. No
+        // celular soma a área segura; com a barra de lote grudada embaixo, o
+        // bastante para a última linha não ficar atrás dela.
+        paddingBottom: isMobile ? `calc(${barraDoLoteVisivel ? 160 : 72}px + env(safe-area-inset-bottom))` : 80,
+      }}
+    >
       <style>{CSS_DA_TELA}</style>
       <div ref={medida.ref} style={{ maxWidth: 1180, margin: "0 auto", display: "flex", flexDirection: "column", gap: isMobile ? 18 : 24 }}>
 
@@ -1480,10 +1608,10 @@ export default function GraficaMaquinas() {
                       {naFila.length > 0 && (
                         <div data-testid={`fila-maquina-${m.codigo}`} style={{ display: "flex", flexDirection: "column", gap: 2, marginTop: 2 }}>
                           <div style={{ ...ROTULO_MICRO, fontSize: isMobile ? 12 : FS.micro, paddingTop: 6 }}>Na fila desta impressora · {naFila.length}</div>
-                          {(isMobile && !filasAbertas.has(m.codigo) ? naFila.slice(0, FILA_DO_CARTAO_NO_CELULAR) : naFila).map((p) => (
-                            <PecaNaFilaDoCartao key={p.id} p={p} podeAgir={podeAgir} hojeMs={hojeMs} isMobile={isMobile} onIniciar={iniciarDaFila} onReservar={(peca, maquina, quantidade) => reservar([peca.id], maquina, quantidade ?? (peca.reservadas != null ? peca.reservadas : null), peca.reservadas != null ? m.codigo : null)} />
+                          {(!filasAbertas.has(m.codigo) ? naFila.slice(0, isMobile ? FILA_DO_CARTAO_NO_CELULAR : FILA_DO_CARTAO_NO_DESKTOP) : naFila).map((p, i) => (
+                            <PecaNaFilaDoCartao key={p.id} p={p} proxima={!ocupada && i === 0} podeAgir={podeAgir} hojeMs={hojeMs} isMobile={isMobile} onIniciar={iniciarDaFila} onReservar={(peca, maquina, quantidade) => reservar([peca.id], maquina, quantidade ?? (peca.reservadas != null ? peca.reservadas : null), peca.reservadas != null ? m.codigo : null)} />
                           ))}
-                          {isMobile && !filasAbertas.has(m.codigo) && naFila.length > FILA_DO_CARTAO_NO_CELULAR && (
+                          {!filasAbertas.has(m.codigo) && naFila.length > (isMobile ? FILA_DO_CARTAO_NO_CELULAR : FILA_DO_CARTAO_NO_DESKTOP) && (
                             <button type="button" className="mq-acao" onClick={() => setFilasAbertas((s) => new Set(s).add(m.codigo))} data-testid={`fila-maquina-ver-todas-${m.codigo}`} style={{ ...botaoNeutro, width: "100%", fontSize: 13 }}>
                               Ver as {naFila.length} da fila <ChevronDown aria-hidden="true" style={{ width: 13, height: 13 }} />
                             </button>
@@ -1547,16 +1675,9 @@ export default function GraficaMaquinas() {
                   ) : (
                     <div data-testid="fila-geral">
                       {filaGeral.slice(0, filaVisiveis).map((p) => (
-                        <LinhaDaFilaGeral key={p.id} p={p} marcada={selecionadas.has(p.id)} podeAgir={podeAgir} ocupado={reserva.isPending} hojeMs={hojeMs} isMobile={isMobile} onAlternar={alternar} onReservar={reservarDaLinha} />
+                        <LinhaDaFilaGeral key={p.id} p={p} marcada={selecionadas.has(p.id)} podeAgir={podeAgir} ocupado={reserva.isPending} hojeMs={hojeMs} isMobile={isMobile} ocupacao={ocupacao} imprimindo={imprimindoId === p.id} onAlternar={alternar} onReservar={reservarDaLinha} onImprimir={imprimirDaLinha} />
                       ))}
-                      {filaGeral.length > filaVisiveis && (
-                        <div style={{ padding: 12, borderTop: `1px solid ${T.low}`, display: "flex", alignItems: "center", justifyContent: "center", gap: 12, flexWrap: "wrap" }}>
-                          <span style={{ fontSize: isMobile ? 12 : FS.small, color: T.second, fontVariantNumeric: "tabular-nums" }}>Mostrando {filaVisiveis} de {filaGeral.length}</span>
-                          <button type="button" className="mq-acao" onClick={() => setFilaVisiveis((v) => v + LOTE_DA_FILA)} data-testid="button-fila-toda" style={{ ...botaoNeutro, ...(isMobile ? { flex: "1 1 100%", fontSize: 13 } : {}) }}>
-                            Mostrar mais {Math.min(LOTE_DA_FILA, filaGeral.length - filaVisiveis)}
-                          </button>
-                        </div>
-                      )}
+                      <FechoDaLista visiveis={Math.min(filaVisiveis, filaGeral.length)} total={filaGeral.length} um="peça" varios="peças" lote={LOTE_DA_FILA} onMais={() => setFilaVisiveis((v) => v + LOTE_DA_FILA)} testId="fecho-fila-geral" botaoTestId="button-fila-toda" isMobile={isMobile} estiloDoBotao={botaoNeutro} />
                     </div>
                   )}
                 </div>
@@ -1768,13 +1889,8 @@ export default function GraficaMaquinas() {
                   </div>
                 )}
 
-                {diario.length > visiveis && (
-                  <div style={{ padding: 12, borderTop: `1px solid ${T.low}`, display: "flex", alignItems: "center", justifyContent: "center", gap: 12, flexWrap: "wrap" }}>
-                    <span style={{ fontSize: isMobile ? 12 : FS.small, color: T.second, fontVariantNumeric: "tabular-nums" }}>Mostrando {visiveis} de {diario.length} lançamentos</span>
-                    <button type="button" className="mq-acao" onClick={() => setLimite({ chave: chaveDoRecorte, n: visiveis + LOTE })} data-testid="button-mostrar-mais" style={botaoNeutro}>
-                      Mostrar mais {Math.min(LOTE, diario.length - visiveis)}
-                    </button>
-                  </div>
+                {diario.length > 0 && (
+                  <FechoDaLista visiveis={Math.min(visiveis, diario.length)} total={diario.length} um="lançamento" varios="lançamentos" lote={LOTE} onMais={() => setLimite({ chave: chaveDoRecorte, n: visiveis + LOTE })} testId="fecho-diario" botaoTestId="button-mostrar-mais" isMobile={isMobile} estiloDoBotao={botaoNeutro} />
                 )}
               </div>
 

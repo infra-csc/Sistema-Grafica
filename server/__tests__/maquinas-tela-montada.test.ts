@@ -24,6 +24,11 @@ import * as React from "react";
 import { render, act, cleanup, fireEvent } from "@testing-library/react";
 import { QueryClientProvider } from "@tanstack/react-query";
 
+// A página é grande: o primeiro import dinâmico passa de 5 s com a máquina
+// carregada (suíte inteira + outros processos) e o teste estourava o limite
+// padrão sem ter nada errado. Folga só neste arquivo.
+vi.setConfig({ testTimeout: 30_000 });
+
 const h = React.createElement;
 
 // Papel mutável: a maioria dos casos é a Gráfica; um caso vira Solicitação.

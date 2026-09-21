@@ -84,6 +84,9 @@ function retrato(opts: { registros?: boolean; imprimindo?: boolean; muitos?: num
   };
 }
 
+/** O fetch falso em uso (vi.stubGlobal) — para olhar chamadas que não são PATCH. */
+const fetchMockDe = () => globalThis.fetch as unknown;
+
 /** fetch falso que responde por URL e guarda as chamadas de escrita. */
 function fetchPorUrl(extra?: (url: string, init: any) => Response | null) {
   const json = (corpo: unknown) => new Response(JSON.stringify(corpo), { status: 200, headers: { "content-type": "application/json" } });
@@ -527,7 +530,7 @@ describe("a fila: geral, reservada por impressora, e o seletor de peça", () => 
     await montar(1280, retrato({ fila: true }));
     const { escritas } = fetchPorUrl();
     const sel = $('[data-testid="reservar-fila-f1"]') as HTMLSelectElement;
-    expect(Array.from(sel.options).map((o) => o.textContent)).toEqual(["Impressora…", "Impressora 2 — livre", "Impressora 3 — livre", "Impressora 4 (Targa Elite) — livre", "Impressora 1 (New XT) — imprimindo 1"]);
+    expect(Array.from(sel.options).map((o) => o.textContent)).toEqual(["Impressora…", "Impressora 2 — livre", "Impressora 3 — livre", "Impressora 4 (Targa Elite) — livre", "Impressora 1 (New XT) — imprimindo #0101"]);
     // Sem impressora escolhida o botão não age; a quantidade nasce com tudo (placeholder).
     const botao = () => $('[data-testid="button-reservar-f1"]') as HTMLButtonElement;
     expect(botao().disabled).toBe(true);
@@ -853,7 +856,7 @@ describe("fila geral: Imprimir agora, sem modal", () => {
     await montar(1280, retrato({ fila: true }));
     const sel = $('[data-testid="reservar-fila-f1"]') as HTMLSelectElement;
     expect(sel.options[1].textContent).toBe("Impressora 2 — livre");
-    expect(sel.options[4].textContent).toBe("Impressora 1 (New XT) — imprimindo 1");
+    expect(sel.options[4].textContent).toBe("Impressora 1 (New XT) — imprimindo #0101");
     const agora = () => $('[data-testid="button-imprimir-agora-f1"]') as HTMLButtonElement;
     expect(agora().disabled).toBe(true); // sem impressora escolhida
     await act(async () => { fireEvent.change(sel, { target: { value: "3" } }); });
@@ -879,24 +882,88 @@ describe("fila geral: Imprimir agora, sem modal", () => {
     expect(escritas()).toEqual([{ url: "/api/items/f2/start-printing", body: { printMachine: "2", iniciarParte: true, quantidade: 4 } }]);
   });
 
-  it("impressora OCUPADA: confirmação leve na própria linha — 'Imprimir junto' inicia, 'Só reservar' reserva", async () => {
+  // Dono (21/09): "caso a impressora esteja imprimindo algo, não dá para colocar outra; não faz
+  // sentido dar [o Imprimir junto]. O que podemos implementar é TIRAR um item e COLOCAR o outro."
+  it("impressora OCUPADA: 'Imprimir agora' desabilitado com o motivo; só Reservar — ou 'Imprimir esta no lugar', com a pergunta clara", async () => {
     await montar(1280, retrato({ fila: true }));
     const { escritas } = fetchPorUrl();
     await act(async () => { fireEvent.change($('[data-testid="reservar-fila-f1"]')!, { target: { value: "1" } }); });
-    await act(async () => { fireEvent.click($('[data-testid="button-imprimir-agora-f1"]')!); });
+    const agora = $('[data-testid="button-imprimir-agora-f1"]') as HTMLButtonElement;
+    expect(agora.disabled).toBe(true);
+    expect(agora.getAttribute("title")).toBe("Impressora 1 (New XT) está com #0101");
+    expect($('[data-testid="ocupada-f1"]')!.textContent).toContain("Impressora 1 (New XT) está com #0101 — dá para reservar, ou imprimir esta no lugar.");
+    expect($('[data-testid="button-imprimir-junto-f1"]')).toBeNull();
+    expect(($('[data-testid="button-reservar-f1"]') as HTMLButtonElement).disabled).toBe(false);
+    // A troca por prioridade pede confirmação e diz o que acontece com a que sai.
+    await act(async () => { fireEvent.click($('[data-testid="button-imprimir-no-lugar-f1"]')!); });
+    expect(escritas()).toEqual([]);
+    expect($('[data-testid="confirmar-troca-f1"]')!.textContent).toContain("Tirar #0101 da Impressora 1 (New XT) (3 de 10 já impressas ficam anotadas) e imprimir #0201 no lugar? A #0101 volta para o topo da fila desta impressora com as 7 que faltam.");
+    await act(async () => { fireEvent.click($('[data-testid="button-cancelar-troca-f1"]')!); });
+    expect($('[data-testid="confirmar-troca-f1"]')).toBeNull();
+    await act(async () => { fireEvent.click($('[data-testid="button-imprimir-no-lugar-f1"]')!); });
+    await act(async () => { fireEvent.click($('[data-testid="button-trocar-f1"]')!); });
+    await tick(30);
+    const posts = (fetchMockDe() as any).mock.calls.filter((c: any) => c[1]?.method === "POST").map((c: any) => ({ url: String(c[0]), body: JSON.parse(String(c[1].body)) }));
+    expect(posts).toEqual([{ url: "/api/grafica/maquinas/1/trocar", body: { tirarItemId: "p1", colocarItemId: "f1", quantidade: 10 } }]);
+  });
+
+  it("CARTÃO ocupado: a fila NÃO inicia — botão desabilitado, motivo em 12px e 'Imprimir esta no lugar'; 'Tirar da impressora' libera", async () => {
+    const r = retrato({ fila: true });
+    // A #0204 e a #0205 estão na fila da Impressora 1, que imprime a #0101.
+    (r.maquinas[0] as any).naFila = (r.maquinas[1] as any).naFila.map((x: any) => ({ ...x, maquinaPrevista: "1", reservadas: 10 }));
+    (r.maquinas[1] as any).naFila = [];
+    await montar(1280, r);
+    const iniciar = $('[data-testid="button-iniciar-fila-f4"]') as HTMLButtonElement;
+    expect(iniciar.disabled).toBe(true);
+    expect(iniciar.getAttribute("data-proxima")).toBeNull(); // ocupada não tem "Próxima"
+    const motivo = $('[data-testid="fila-ocupada-f4"] [role="status"]') as HTMLElement;
+    expect(motivo.textContent).toBe("A impressora está com #0101 — tire-a, troque-a de máquina ou espere acabar");
+    expect(px(motivo.style.fontSize)).toBe(12);
+    expect($('[data-testid="mover-fila-f4"]')).toBeTruthy(); // a outra saída continua ali
+    fetchPorUrl();
+    await act(async () => { fireEvent.click($('[data-testid="button-imprimir-no-lugar-fila-f4"]')!); });
+    expect($('[data-testid="confirmar-troca-fila-f4"]')!.textContent).toContain("Tirar #0101 da Impressora 1 (New XT) (3 de 10 já impressas ficam anotadas) e imprimir #0204 no lugar?");
+    await act(async () => { fireEvent.click($('[data-testid="button-trocar-fila-f4"]')!); });
+    await tick(30);
+    const posts = () => (fetchMockDe() as any).mock.calls.filter((c: any) => c[1]?.method === "POST").map((c: any) => ({ url: String(c[0]), body: JSON.parse(String(c[1].body)) }));
+    expect(posts()[0]).toEqual({ url: "/api/grafica/maquinas/1/trocar", body: { tirarItemId: "p1", colocarItemId: "f4", quantidade: 10 } });
+    // "Tirar da impressora", sozinho: pausa e deixa a impressora livre.
+    await act(async () => { fireEvent.click($('[data-testid="button-tirar-da-impressora-p1"]')!); });
+    await tick(30);
+    expect(posts()[1]).toEqual({ url: "/api/grafica/maquinas/1/pausar", body: { itemId: "p1" } });
+  });
+
+  it("quando a impressora ESVAZIA, a 'Próxima' volta a ser o botão do cartão; a pausada vem primeiro na fila; o diário conta a pausa", async () => {
+    const r = retrato({ fila: true, imprimindo: false });
+    (r.maquinas[0] as any).naFila = [
+      { ...naFila("n1", "#0398", "Lona", "1", 1), reservadas: 10 },
+      { ...naFila("n2", "#0386", "Placa", "1", 30), reservadas: 7, impressas: 3, pausadaEm: "2026-09-21T14:03:00.000Z" },
+    ];
+    (r.maquinas[0].registros as any).unshift({ ...registro("rp", "n2", "#0386", "pausa", 0, 3, "11:03", -1), deuLugarA: "#0398" });
+    await montar(1280, r);
+    // A pausada (#0386) sobe para o topo mesmo com a saída do caminhão mais longe — e é ela a "Próxima".
+    expect($$('[data-testid="fila-maquina-1"] [data-testid^="peca-na-fila-"]').map((e) => e.getAttribute("data-testid"))).toEqual(["peca-na-fila-n2", "peca-na-fila-n1"]);
+    const proxima = $('[data-testid="button-iniciar-fila-n2"]') as HTMLButtonElement;
+    expect(proxima.disabled).toBe(false);
+    expect(proxima.textContent).toBe("Próxima: #0386 · Iniciar 7 un.");
+    expect($('[data-testid="peca-na-fila-n2"]')!.textContent).toContain("Pausada — volta primeiro");
+    expect($('[data-testid="peca-na-fila-n2"]')!.textContent).toContain("3 de 10 já impressas");
+    expect($('[data-testid="fila-ocupada-n1"]')).toBeNull();
+    await act(async () => { fireEvent.click($('[data-testid="aba-diario"]')!); });
     await tick(20);
-    expect(escritas()).toEqual([]); // nada iniciou ainda
-    const pergunta = $('[data-testid="confirmar-imprimir-junto-f1"]')!;
-    expect(pergunta.textContent).toContain("A Impressora 1 (New XT) já está com #0101. Imprimir #0201 junto?");
-    await act(async () => { fireEvent.click($('[data-testid="button-so-reservar-f1"]')!); });
-    await tick(30);
-    expect(escritas()[0]).toEqual({ url: "/api/items/f1/maquina-prevista", body: { maquina: "1", quantidade: 10 } });
-    // De novo, agora confirmando.
-    await act(async () => { fireEvent.change($('[data-testid="reservar-fila-f3"]')!, { target: { value: "1" } }); });
-    await act(async () => { fireEvent.click($('[data-testid="button-imprimir-agora-f3"]')!); });
-    await act(async () => { fireEvent.click($('[data-testid="button-imprimir-junto-f3"]')!); });
-    await tick(30);
-    expect(escritas()[1]).toEqual({ url: "/api/items/f3/start-printing", body: { printMachine: "1" } });
+    expect($('[data-testid="linha-diario-rp"]')!.textContent).toContain("Pausou — deu lugar à #0398 (3 de 10 impressas)");
+  });
+
+  it("CELULAR: as saídas do cartão ocupado têm 44px e ocupam a linha inteira", async () => {
+    const r = retrato({ fila: true });
+    (r.maquinas[0] as any).naFila = [{ ...naFila("n1", "#0398", "Lona", "1", 1), reservadas: 10 }];
+    await montar(390, r);
+    const noLugar = $('[data-testid="button-imprimir-no-lugar-fila-n1"]')!;
+    expect(px(noLugar.style.minHeight)).toBe(44);
+    expect(noLugar.style.flex).toBe("1 1 100%");
+    expect(px(($('[data-testid="button-tirar-da-impressora-p1"]') as HTMLElement).style.minHeight)).toBe(44);
+    await act(async () => { fireEvent.click(noLugar); });
+    for (const b of $$('[data-testid="confirmar-troca-fila-n1"] button')) expect(px(b.style.minHeight)).toBe(44);
   });
 
   it("cartão LIVRE com fila: a primeira é a 'Próxima', em destaque; a Solicitação não vê 'Imprimir agora'; no celular ele vem em cima, na linha inteira", async () => {

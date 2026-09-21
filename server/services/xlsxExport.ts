@@ -472,7 +472,7 @@ export function montarPlanilhaDeMaquinas(opts: { de: string; ate: string; resumo
       peca: r.tipoPeca, tipo: ROTULO_DO_TIPO[r.tipo] ?? r.tipo, evento: r.evento ?? "", oque: oQueAconteceuNoRegistro(r),
       // A troca move, não imprime: a coluna Quantidade fica vazia (o "O que
       // aconteceu" já diz quantas foram movidas), para a soma da coluna bater.
-      quantidade: r.tipo === "troca" || r.tipo === "inicio" ? "" : r.quantidade, total: r.totalDepois ?? "", quem: r.quem ?? "",
+      quantidade: r.tipo === "troca" || r.tipo === "inicio" || r.tipo === "pausa" ? "" : r.quantidade, total: r.totalDepois ?? "", quem: r.quem ?? "",
     });
     estiloDaLinha(row, i % 2 === 1, [2, 4, 6, 9, 10]);
   });

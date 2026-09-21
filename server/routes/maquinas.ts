@@ -24,15 +24,20 @@
 import type { Express } from "express";
 import { sql } from "drizzle-orm";
 import { db } from "../db";
-import { requireAuth, requireRole, broadcast, createAuditLog, createAuditLogsEmLote, translateStatus } from "./shared";
+import { requireAuth, requireRole, broadcast, createAuditLog, createAuditLogsEmLote, translateStatus, resolveActor } from "./shared";
 import { motivoEventoDaPeca } from "./eventoFinalizado";
 import { storage } from "../storage";
 import { MAQUINAS_DE_IMPRESSAO, ehMaquinaValida, rotuloDaMaquina } from "@shared/fluxo-peca";
 import { lerPartes, partesAtivas } from "@shared/impressao-dividida";
-import { reservar, moverReserva, devolverReserva, colunasDaReserva, livreParaReservar, reservaDaPeca, semImpressora } from "@shared/reserva-de-impressora";
+import { reservar, moverReserva, devolverReserva, colunasDaReserva, livreParaReservar, reservaDaPeca, semImpressora, lerPausas, pausarParte, iniciarParte, ocupanteDaImpressora } from "@shared/reserva-de-impressora";
+import { normalizarPartes, maquinaPrincipal, aImprimirDaPeca } from "@shared/impressao-dividida";
+import { EM_REVISAO } from "@shared/fluxo-peca";
+import { items as itemsTable, registrosDeImpressao } from "@shared/schema";
+import { and, eq, inArray, isNull } from "drizzle-orm";
+import { erroImpressoraOcupada } from "../services/ocupacaoDasImpressoras";
 import { pecaVisivelPara } from "@shared/kit";
 import { agoraNoFuso } from "../services/revisaoDigest";
-import { agregarRelatorioDeMaquinas, periodoValido, type RegistroDoPeriodo } from "../services/relatorioDeMaquinas";
+import { agregarRelatorioDeMaquinas, periodoValido, quemEntrouNoLugar, type RegistroDoPeriodo } from "../services/relatorioDeMaquinas";
 import { responderRelatorioMaquinasXlsx } from "../services/xlsxExport";
 
 /** Os mesmos papéis que veem a fila da Gráfica (ROLES_GRAFICA no App). */
@@ -80,7 +85,9 @@ async function registrosDoPeriodo(req: any, de: string, ate: string): Promise<Re
     where ((r.created_at at time zone 'UTC') at time zone ${FUSO})::date between ${de}::date and ${ate}::date
     order by r.created_at asc
   `)).filter(filtroDoKit(req));
+  const deuLugarA = quemEntrouNoLugar(brutos.map((l) => ({ id: l.id, itemId: l.item_id, maquina: l.maquina, tipo: l.tipo, displayId: l.display_id, em: Number(l.em) })));
   return brutos.map((l) => ({
+    deuLugarA: deuLugarA.get(l.id) ?? null,
     id: l.id,
     itemId: l.item_id,
     displayId: l.display_id,
@@ -177,7 +184,7 @@ export function registerMaquinasRoutes(app: Express): void {
       const r = aplicarPedidoDeReserva(atual, req.body, pedido.maquina);
       if (!r.ok) return res.status(409).json({ error: r.erro });
       // SÓ a reserva (e o updatedAt que o storage carimba). Nada de status.
-      const item = await storage.updateItem(atual!.id, colunasDaReserva(r.reserva) as any);
+      const item = await storage.updateItem(atual!.id, colunasDaReserva(r.reserva, atual!.reservaPorMaquina) as any);
       if (!item) return res.status(404).json({ error: "Peça não encontrada" });
       await createAuditLog(req, "production", "item", item.id, r.frase);
       broadcast({ type: "item_updated", item });
@@ -212,7 +219,7 @@ export function registerMaquinasRoutes(app: Express): void {
         const livre = livreParaReservar(atual!);
         const reserva = pedido.maquina && livre > 0 ? { [pedido.maquina]: livre } : null;
         if (pedido.maquina && livre <= 0) { erros.push({ itemId: id, displayId: atual?.displayId ?? null, erro: "Não há unidades fora de impressora para reservar" }); continue; }
-        const item = await storage.updateItem(id, colunasDaReserva(reserva) as any);
+        const item = await storage.updateItem(id, colunasDaReserva(reserva, atual!.reservaPorMaquina) as any);
         if (item) feitas.push(item);
       }
       const fraseDoLote = pedido.maquina ? `Reservada para a ${rotuloDaMaquina(pedido.maquina)}` : "Devolvida à fila geral";
@@ -223,6 +230,116 @@ export function registerMaquinasRoutes(app: Express): void {
       console.error("[maquinas] falha ao reservar impressora em lote:", error);
       res.status(500).json({ error: "Não foi possível reservar as impressoras." });
     }
+  });
+
+  // ── TIRAR da impressora / TROCAR por prioridade (dono, 21/09) ─────────────
+  // "Caso a impressora esteja imprimindo algo, não dá para colocar outra. O
+  // que podemos implementar é TIRAR um item e COLOCAR o outro, pois às vezes
+  // tem ordem de prioridade." A conta é de pausarParte/iniciarParte (shared):
+  // o que a peça tirada já imprimiu fica anotado, o que faltava vira reserva
+  // no TOPO da fila daquela impressora, e a outra entra. Tudo numa transação.
+  const tirarEColocar = async (req: any, res: any, comTroca: boolean) => {
+    if (req.userRole !== "grafica" && req.userRole !== "admin") {
+      return res.status(403).json({ error: "Só a Gráfica e o admin mexem no que está na impressora" });
+    }
+    const maquina = req.params.maquina;
+    if (!ehMaquinaValida(maquina)) return res.status(400).json({ error: "Impressora inválida — escolha 1 a 4" });
+    const tirarId = comTroca ? req.body?.tirarItemId : req.body?.itemId;
+    const colocarId = comTroca ? req.body?.colocarItemId : null;
+    if (typeof tirarId !== "string" || (comTroca && typeof colocarId !== "string")) {
+      return res.status(400).json({ error: comTroca ? "Diga qual peça sai e qual entra" : "Diga qual peça sai da impressora" });
+    }
+    if (comTroca && tirarId === colocarId) return res.status(400).json({ error: "A peça que entra é a mesma que sai" });
+    const quantidade = req.body?.quantidade == null || req.body.quantidade === "" ? null : Number(req.body.quantidade);
+    if (quantidade != null && (!Number.isInteger(quantidade) || quantidade <= 0)) {
+      return res.status(400).json({ error: "A quantidade precisa ser um número inteiro maior que zero" });
+    }
+    try {
+      const resultado = await db.transaction(async (tx) => {
+        const falha = (status: number, erro: string) => Object.assign(new Error(erro), { httpStatus: status });
+        const [sai] = await tx.select().from(itemsTable).where(eq(itemsTable.id, tirarId));
+        if (!sai || sai.deletedAt) throw falha(404, "Peça não encontrada");
+        if (await motivoEventoDaPeca(sai)) throw falha(409, "O evento da peça que está na impressora já foi finalizado");
+        const pausa = pausarParte(sai as any, maquina, new Date().toISOString());
+        if (!pausa.ok) throw falha(409, pausa.erro);
+        const aImprimirSai = aImprimirDaPeca(sai as any);
+        const [saiu] = await tx.update(itemsTable).set({
+          // As impressas ficam em quantityProduced (não muda); sem outra parte
+          // ativa a peça volta a LIBERADA, no topo da fila desta impressora.
+          status: pausa.voltaParaAFila ? "ready_for_production" : sai.status,
+          ...(pausa.voltaParaAFila ? { statusChangedAt: new Date() } : {}),
+          impressaoPorMaquina: pausa.partes ? normalizarPartes(pausa.partes, aImprimirSai) : null,
+          ...(pausa.principal ? { printMachine: pausa.principal } : {}),
+          ...colunasDaReserva(pausa.reserva, sai.reservaPorMaquina, pausa.pausas),
+          updatedAt: new Date(),
+        } as any).where(eq(itemsTable.id, sai.id)).returning();
+
+        let entrou: any = null;
+        let entra: any = null;
+        let parte: { quantidade: number } | null = null;
+        if (comTroca) {
+          [entra] = await tx.select().from(itemsTable).where(eq(itemsTable.id, colocarId));
+          if (!entra || entra.deletedAt) throw falha(404, "A peça que entra não foi encontrada");
+          if (EM_REVISAO.has(entra.status)) throw falha(409, "A peça que entra está em revisão — a Gráfica só age depois que a revisão liberar.");
+          const PODE = ["ready_for_production", "pronto_para_producao", "approved", "liberado", "inProduction", "em_producao"];
+          if (!PODE.includes(entra.status)) throw falha(409, `A peça que entra não pode ir para a máquina no status atual: ${translateStatus(entra.status)}`);
+          if (await motivoEventoDaPeca(entra)) throw falha(409, "O evento da peça que entra já foi finalizado");
+          // Depois da pausa a impressora tem de estar LIVRE (outra peça com parte nela barra a troca).
+          const emImpressao = await tx.select().from(itemsTable).where(and(inArray(itemsTable.status, ["inProduction", "em_producao"]), isNull(itemsTable.deletedAt)));
+          const ocupante = ocupanteDaImpressora(emImpressao as any[], maquina, entra.id);
+          if (ocupante) throw falha(409, erroImpressoraOcupada(maquina, ocupante));
+          const temReserva = (reservaDaPeca(entra)[maquina] ?? 0) > 0;
+          const inicio = iniciarParte(entra, maquina, { daReserva: temReserva, quantidade });
+          if (!inicio.ok) throw falha(409, inicio.erro);
+          parte = inicio;
+          [entrou] = await tx.update(itemsTable).set({
+            status: "inProduction",
+            ...(entra.status !== "inProduction" && entra.status !== "em_producao" ? { statusChangedAt: new Date() } : {}),
+            printMachine: maquinaPrincipal(inicio.partes, maquina) ?? maquina,
+            impressaoPorMaquina: normalizarPartes(inicio.partes, aImprimirDaPeca(entra)),
+            ...colunasDaReserva(inicio.reserva, entra.reservaPorMaquina),
+            ...(!entra.productionStartedAt ? { productionStartedAt: new Date() } : {}),
+            updatedAt: new Date(),
+          } as any).where(eq(itemsTable.id, entra.id)).returning();
+        }
+        return { sai, saiu, pausa, entra, entrou, parte };
+      });
+
+      const { sai, saiu, pausa, entra, entrou, parte } = resultado;
+      const aImprimirSai = aImprimirDaPeca(sai as any);
+      const jaImpressas = sai.quantityProduced ?? 0;
+      await createAuditLog(req, "production", "item", sai.id, entra
+        ? `Tirada da ${rotuloDaMaquina(maquina)} para dar lugar à ${entra.displayId ?? "outra peça"} (${jaImpressas} de ${aImprimirSai} impressas)`
+        : `Tirada da ${rotuloDaMaquina(maquina)} (${jaImpressas} de ${aImprimirSai} impressas) — ${pausa.restante} un. voltam para o topo da fila dela`);
+      if (entrou) await createAuditLog(req, "production", "item", entrou.id, `Impressão iniciada na ${rotuloDaMaquina(maquina)}: ${parte!.quantidade} un. — no lugar da ${sai.displayId ?? "peça anterior"}`);
+      // O diário: "pausa" (quantidade 0 — não é unidade impressa) e o "inicio" da que entrou.
+      try {
+        const ator = resolveActor(req);
+        await db.insert(registrosDeImpressao).values([
+          { itemId: sai.id, maquina, tipo: "pausa", quantidade: 0, totalDepois: jaImpressas, userName: ator.userName, userId: ator.userId ?? null },
+          ...(entrou ? [{ itemId: entrou.id, maquina, tipo: "inicio", quantidade: 0, totalDepois: entra.quantityProduced ?? 0, userName: ator.userName, userId: ator.userId ?? null }] : []),
+        ] as any);
+      } catch (error) {
+        console.error("[maquinas] falha ao gravar o registro de impressão", error);
+      }
+      broadcast({ type: "item_updated", item: saiu });
+      if (entrou) { broadcast({ type: "item_updated", item: entrou }); broadcast({ type: "production_started", item: entrou }); }
+      res.json({ saiu, entrou });
+    } catch (error: any) {
+      if (error?.httpStatus) return res.status(error.httpStatus).json({ error: error.message });
+      console.error("[maquinas] falha ao tirar/trocar a peça da impressora:", error);
+      res.status(500).json({ error: "Não foi possível mexer na impressora." });
+    }
+  };
+
+  app.post("/api/grafica/maquinas/:maquina/trocar", requireAuth, async (req, res) => {
+    if (req.userRole !== "grafica" && req.userRole !== "admin") return res.status(403).json({ error: "Só a Gráfica e o admin trocam a peça da impressora" });
+    return tirarEColocar(req, res, true);
+  });
+
+  app.post("/api/grafica/maquinas/:maquina/pausar", requireAuth, async (req, res) => {
+    if (req.userRole !== "grafica" && req.userRole !== "admin") return res.status(403).json({ error: "Só a Gráfica e o admin tiram a peça da impressora" });
+    return tirarEColocar(req, res, false);
   });
 
   // ── O relatório: resumo por dia × impressora + os registros do período ────
@@ -311,6 +428,7 @@ export function registerMaquinasRoutes(app: Express): void {
       const doDia = linhas(await db.execute(sql`
         select r.id, r.item_id, r.maquina, r.tipo, r.quantidade, r.total_depois, r.user_name,
                to_char((r.created_at at time zone 'UTC') at time zone ${FUSO}, 'HH24:MI') as hora,
+               (extract(epoch from r.created_at) * 1000)::bigint as em,
                i.display_id, i.type, i.quantity, coalesce(i.reuse_qty, 0) as reuso,
                i.kit_remessa_id, i.criado_por_id,
                e.name as evento
@@ -348,6 +466,9 @@ export function registerMaquinasRoutes(app: Express): void {
       // funde as máquinas num diário só e precisa de uma ordem estável entre
       // lançamentos do mesmo minuto — a hora "HH:MM" sozinha não desempata.
       const ordemPorId = new Map<string, number>(doDia.map((l, i) => [l.id, i]));
+      // A pausa diz a QUEM deu lugar: o "inicio" de outra peça na mesma
+      // impressora logo depois dela (a troca grava os dois juntos).
+      const deuLugarA = quemEntrouNoLugar(doDia.map((l) => ({ id: l.id, itemId: l.item_id, maquina: l.maquina, tipo: l.tipo, displayId: l.display_id, em: Number(l.em) })));
 
       const maquinas = MAQUINAS_DE_IMPRESSAO.map((codigo) => {
         const registros = doDia
@@ -365,6 +486,7 @@ export function registerMaquinasRoutes(app: Express): void {
             hora: l.hora,
             quem: l.user_name,
             ordem: ordemPorId.get(l.id) ?? 0,
+            deuLugarA: deuLugarA.get(l.id) ?? null,
           }));
         // O que SAIU da máquina no dia: só lançamentos de quantidade (início e
         // troca não imprimem nada). Correção entra com sinal, então o número é
@@ -415,6 +537,7 @@ export function registerMaquinasRoutes(app: Express): void {
         ...peca(l),
         maquinaPrevista: MAQUINAS_DE_IMPRESSAO.includes(l.maquina_prevista) ? l.maquina_prevista : null,
         reserva: reservaDaPeca(comoPeca(l)),
+        pausas: lerPausas(l.reserva_por_maquina),
         semImpressora: semImpressora(comoPeca(l)),
         // Em quais impressoras a peça JÁ está imprimindo (parte iniciada).
         imprimindoEm: (l.status === "inProduction" || l.status === "em_producao") ? Object.keys(partesAtivas(lerPartes(l.impressao_por_maquina) ?? {})) : [],
@@ -427,7 +550,12 @@ export function registerMaquinasRoutes(app: Express): void {
       // quantas são (`reservadas`). Na fila geral: enquanto sobrar unidade sem impressora.
       const maquinasComFila = maquinas.map((m) => ({
         ...m,
-        naFila: fila.filter((p) => (p.reserva[m.codigo] ?? 0) > 0).map((p) => ({ ...p, maquinaPrevista: m.codigo, reservadas: p.reserva[m.codigo] })),
+        // PAUSADAS PRIMEIRO: a peça tirada da impressora para dar lugar a outra
+        // volta para o TOPO da fila dela (a mais recente em cima); depois, a
+        // ordem de sempre (saída do caminhão).
+        naFila: fila.filter((p) => (p.reserva[m.codigo] ?? 0) > 0)
+          .map((p) => ({ ...p, maquinaPrevista: m.codigo, reservadas: p.reserva[m.codigo], pausadaEm: p.pausas[m.codigo] ?? null }))
+          .sort((a, b) => (a.pausadaEm && b.pausadaEm ? (a.pausadaEm < b.pausadaEm ? 1 : -1) : a.pausadaEm ? -1 : b.pausadaEm ? 1 : 0)),
       }));
       const filaGeral = fila.filter((p) => p.semImpressora > 0);
 

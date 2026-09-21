@@ -20,7 +20,7 @@
 //      tubo", barra "Embalar em lote", filtro Impressora na folha.
 //   4. MODAL DE TUBOS — "Embalar #0381" com tubos de 44px, fechar com câmera
 //      direta, entregar com recebedor a 16px, rodapé fixo e teclado.
-//   5. ETIQUETAS — "2x1 em lista" cabe na barra, como alvo de 44.
+//   5. ETIQUETAS — "Em lista" (era "2x1 em lista") cabe na barra, como alvo de 44.
 //
 // COMO MEDE: o jsdom não faz layout — as regras são estruturais (estilos inline
 // que o navegador vai aplicar). Ver a nota sobre o atalho `padding` com env()
@@ -496,7 +496,7 @@ describe("MODAL DE TUBOS a 390px", () => {
 // 5 · ETIQUETAS
 // ═════════════════════════════════════════════════════════════════════════════
 describe("ETIQUETAS a 390px", () => {
-  it("'2x1 em lista' está na barra que quebra linha (nada cortado) e é alvo de 44 no toque", async () => {
+  it("'Em lista' está na barra que quebra linha (nada cortado) e é alvo de 44 no toque", async () => {
     prepararJsdom();
     vi.stubGlobal("fetch", vi.fn(async () => json([])));
     window.history.replaceState({}, "", "/eventos/ev1/etiquetas");
@@ -510,10 +510,15 @@ describe("ETIQUETAS a 390px", () => {
     ]);
     await act(async () => { render(h(QueryClientProvider, { client: queryClient } as any, h(Pagina as any, null))); });
     await tick(60);
-    const caixa = $('[data-testid="check-2x1-lista"]')!;
-    expect(caixa, "a caixa '2x1 em lista'").toBeTruthy();
+    const caixa = $('[data-testid="check-em-lista"]')!;
+    expect(caixa, "a caixa 'Em lista'").toBeTruthy();
     const rotulo = caixa.closest("label")!;
-    expect(rotulo.textContent).toContain("2x1 em lista");
+    expect(rotulo.textContent).toContain("Em lista");
+    // A faixa dos tipos/tamanho também quebra linha e não estoura os 390px.
+    const faixa = $('[data-testid="faixa-em-lista"]')!;
+    expect(faixa.style.flexWrap).toBe("wrap");
+    expect(largurasFixas(faixa)).toEqual([]);
+    expect(alvosPequenos(faixa)).toEqual([]);
     expect(rotulo.className).toContain("etq-alvo");
     const barra = rotulo.closest<HTMLElement>(".etq-acao")!;
     expect(barra.style.flexWrap).toBe("wrap");

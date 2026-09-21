@@ -33,6 +33,11 @@ import { compareDisplayId } from "@/lib/displayId";
 import { ehBookCompleto } from "@shared/fluxo-peca";
 import { logoDaCapaDoBook } from "@/lib/logo-do-book";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import {
+  ORDEM_DOS_TAMANHOS, TAMANHOS, ehDoisPorUm, gravarPreferencias, lerPreferencias, linhasAgrupadas,
+  paginarLinhas, regraDaPagina, type TamanhoEtiqueta,
+} from "@/lib/etiqueta-lista";
+import { CSS_DA_ETIQUETA_EM_LISTA, EtiquetaEmLista } from "@/components/etiqueta-lista";
 
 /** Conferida = já passou pela conferência (inclui as entregues e as grafias legadas). */
 // `packed` (Embalado, 21/09): embalada é conferida — a etiqueta vale igual.
@@ -40,27 +45,16 @@ const CONFERIDA = new Set(["conferred", "conferido", "packed", "delivered", "ent
 const jaConferida = (i: any) => CONFERIDA.has(i.status) || (i.conferredQty ?? 0) > 0;
 
 /**
- * 2x1 SAI EM LISTA (pedido do dono, 21/09 — foto do galpão montando no Corel):
- * o 2x1 é peça pequena e numerosa; uma etiqueta de meia folha para cada uma
- * gastava papel e a equipe já refazia à mão como LISTA — o evento no topo e as
- * peças uma embaixo da outra, uma linha cada: "2x1 Ministério - 16" (tipo,
- * descrição e quantidade). Sem arte e sem código — como a etiqueta que o
- * galpão já cola no rolo.
- * Aceita as grafias que chegam das planilhas: "2x1", "2X1", "2×1", "2x1 MBRF".
+ * EM LISTA (dono, 21/09 — o galpão parar de fazer etiqueta no Corel): nasceu
+ * como "2x1 em lista" (peça pequena e numerosa; o galpão já refazia à mão como
+ * LISTA — o evento no topo e uma linha por peça, "2x1 Ministério - 16", sem
+ * arte e sem código). Mas não é só 2x1: testeiras, rolos, stands e mandalas
+ * também vão em lista no adesivo deles. Agora escolhe-se QUAIS TIPOS saem em
+ * lista (2x1 marcado por padrão); os demais continuam individuais.
+ * A regra da linha, os tamanhos e a paginação moram em lib/etiqueta-lista.ts —
+ * as mesmas da etiqueta do tubo.
  */
-const ehDoisPorUm = (p: any) => /^2\s*[x×]\s*1(?![0-9])/i.test(String(p?.type ?? "").trim());
-/** Linhas por folha de lista: cabe com o logo do book no topo (folha A4
- *  deitada, 194 mm úteis) sem cortar a última linha. */
-const LINHAS_POR_LISTA = 18;
-
-/** "2x1 Ministério - 16". A descrição que já começa pelo tipo ("2x1 Logo
- *  Santander") não repete o "2x1". */
-const linhaDaLista = (p: any) => {
-  const tipo = String(p.type ?? "").trim();
-  const desc = String(p.description ?? "").trim();
-  const nome = !desc ? tipo : desc.toLowerCase().startsWith(tipo.toLowerCase()) ? desc : `${tipo} ${desc}`;
-  return `${nome} - ${p.quantity ?? 1}`;
-};
+const tipoDe = (p: any) => String(p?.type ?? "").trim();
 
 const dataBR = (iso?: string | null) =>
   iso ? new Date(iso).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", timeZone: "UTC" }) : null;
@@ -97,9 +91,23 @@ export default function EtiquetasEvento() {
    *  existe para identificar VOLUME. Desligado por padrão. */
   const [porUnidade, setPorUnidade] = useState(false);
 
-  /** 2x1 em lista (ver ehDoisPorUm). Ligado por padrão; desligar volta à
-   *  etiqueta individual para quem precisar dela numa peça específica. */
-  const [doisPorUmEmLista, setDoisPorUmEmLista] = useState(true);
+  /** EM LISTA: ligado por padrão; desligar volta TUDO à etiqueta individual. */
+  const [emLista, setEmLista] = useState(true);
+  /** Os TIPOS que saem em lista. null = "não mexi" → os 2x1 (o padrão de
+   *  sempre). Não é preferência lembrada: os tipos mudam de evento para evento. */
+  const [tiposEmLista, setTiposEmLista] = useState<Set<string> | null>(null);
+  /** "Mostrar quantidade" e o TAMANHO da lista: lembrados por navegador, os
+   *  mesmos da etiqueta do tubo (o galpão imprime sempre no mesmo papel). */
+  const [prefs, setPrefs] = useState(lerPreferencias);
+  useEffect(() => { gravarPreferencias(prefs); }, [prefs]);
+  const { mostrarQuantidade, tamanho } = prefs;
+  /**
+   * O QUE SAI nesta impressão. A lista pode ter papel diferente da etiqueta
+   * individual (adesivo × A4): a impressora de adesivo não recebe A4 no mesmo
+   * trabalho, então dá para mandar "só as listas" para uma e "só as etiquetas"
+   * para a outra — e o registro de impressão acompanha o que saiu de fato.
+   */
+  const [oQueSai, setOQueSai] = useState<"tudo" | "etiquetas" | "listas">("tudo");
 
   /**
    * ORIENTAÇÃO: paisagem (folha deitada, tiras empilhadas) ou retrato — a
@@ -168,14 +176,28 @@ export default function EtiquetasEvento() {
 
   /** As ETIQUETAS da folha: uma por peça, ou uma por UNIDADE ("3 de 6") com o
    *  interruptor ligado. Peça de 1 unidade não ganha numeração. */
-  // Os 2x1 saem das etiquetas individuais e vão para as folhas de LISTA.
-  const pecasDaLista = useMemo(() => (doisPorUmEmLista ? pecas.filter(ehDoisPorUm) : []), [pecas, doisPorUmEmLista]);
-  const pecasIndividuais = useMemo(() => (doisPorUmEmLista ? pecas.filter((p) => !ehDoisPorUm(p)) : pecas), [pecas, doisPorUmEmLista]);
-  const paginasDaLista = useMemo(
-    () => Array.from({ length: Math.ceil(pecasDaLista.length / LINHAS_POR_LISTA) }, (_, k) => pecasDaLista.slice(k * LINHAS_POR_LISTA, (k + 1) * LINHAS_POR_LISTA)),
-    [pecasDaLista],
+  // Os tipos escolhidos saem das etiquetas individuais e vão para as LISTAS.
+  const tiposNoPool = useMemo(() => {
+    const conta = new Map<string, number>();
+    for (const p of pool) { const t = tipoDe(p); if (t) conta.set(t, (conta.get(t) ?? 0) + 1); }
+    return Array.from(conta.entries()).sort((a, b) => a[0].localeCompare(b[0], "pt-BR"));
+  }, [pool]);
+  const tiposEscolhidos = useMemo(
+    () => tiposEmLista ?? new Set(tiposNoPool.map(([t]) => t).filter((t) => ehDoisPorUm({ type: t }))),
+    [tiposEmLista, tiposNoPool],
   );
-  const haDoisPorUmNoPool = useMemo(() => pool.some(ehDoisPorUm), [pool]);
+  const todasAsDaLista = useMemo(() => (emLista ? pecas.filter((p) => tiposEscolhidos.has(tipoDe(p))) : []), [pecas, emLista, tiposEscolhidos]);
+  const todasAsIndividuais = useMemo(() => (emLista ? pecas.filter((p) => !tiposEscolhidos.has(tipoDe(p))) : pecas), [pecas, emLista, tiposEscolhidos]);
+  // "O que sai" só faz sentido com os DOIS na mesa; sem um deles, vale "tudo"
+  // (senão um "só listas" esquecido esconderia as etiquetas do próximo filtro).
+  const haOsDois = todasAsDaLista.length > 0 && todasAsIndividuais.length > 0;
+  const saiValido = haOsDois ? oQueSai : "tudo";
+  const pecasDaLista = useMemo(() => (saiValido === "etiquetas" ? [] : todasAsDaLista), [saiValido, todasAsDaLista]);
+  const pecasIndividuais = useMemo(() => (saiValido === "listas" ? [] : todasAsIndividuais), [saiValido, todasAsIndividuais]);
+  const paginasDaLista = useMemo(() => {
+    const m = TAMANHOS[tamanho];
+    return paginarLinhas(linhasAgrupadas(pecasDaLista), { capacidade: m.linhasSemTubo, letrasPorLinha: m.letrasPorLinha, mostrarQuantidade });
+  }, [pecasDaLista, tamanho, mostrarQuantidade]);
 
   const etiquetas = useMemo(() => {
     if (!porUnidade) return pecasIndividuais.map((p) => ({ p, n: 0, total: 0 }));
@@ -185,7 +207,7 @@ export default function EtiquetasEvento() {
       return Array.from({ length: q }, (_, k) => ({ p, n: k + 1, total: q }));
     });
   }, [pecasIndividuais, porUnidade]);
-  // A lista ocupa a folha INTEIRA (não meia): as duas contas somam.
+  // Cada lista é uma folha INTEIRA do tamanho escolhido: as duas contas somam.
   const folhasIndividuais = Math.ceil(etiquetas.length / 2);
   const folhas = folhasIndividuais + paginasDaLista.length;
 
@@ -217,7 +239,9 @@ export default function EtiquetasEvento() {
   // antes do window.print() — a impressão não espera a rede, e se o registro
   // falhar a folha sai do mesmo jeito: o registro informa, não bloqueia.
   const imprimir = () => {
-    const ids = Array.from(new Set<string>(pecas.map((p) => p.id)));
+    // Todas as que SAÍRAM — em lista ou individuais; o que "O que sai" deixou
+    // de fora desta vez não ganha o selo de impressa.
+    const ids = Array.from(new Set<string>([...pecasIndividuais, ...pecasDaLista].map((p) => p.id)));
     if (ids.length > 0) {
       apiRequest("POST", "/api/items/labels-printed", { itemIds: ids })
         .then(() => queryClient.invalidateQueries({ queryKey: ["/api/items", eventId] }))
@@ -253,6 +277,7 @@ export default function EtiquetasEvento() {
   return (
     <div style={{ backgroundColor: "#ffffff", minHeight: "100%" }}>
       <style>{`
+        ${CSS_DA_ETIQUETA_EM_LISTA}
         /* A ETIQUETA É MEIA FOLHA, SEMPRE. A altura vinha do conteúdo
            (minHeight solto) — a linha de corte caía onde o texto mandasse, e
            a guilhotina corta no MEIO do papel. Folha com proporção de A4 nas
@@ -263,6 +288,13 @@ export default function EtiquetasEvento() {
         @media print {
           .etq-acao { display: none !important; }
           @page { size: A4 ${orientacao === "retrato" ? "portrait" : "landscape"}; margin: 8mm; }
+          /* A LISTA tem papel próprio (adesivo 10×15 / meia A4 / A4 em pé):
+             página NOMEADA, para conviver com as etiquetas A4 no mesmo PDF.
+             Com "só as listas", a página padrão também vira a da lista — a
+             impressora de adesivo não depende do suporte a página nomeada. */
+          ${regraDaPagina(tamanho, "etqlista")}
+          ${saiValido === "listas" ? regraDaPagina(tamanho) : ""}
+          .etq-lista { page: etqlista; }
           body { background: #fff !important; }
           .etq-quebra { page-break-after: always; }
           .etq-quebra:last-child { page-break-after: auto; }
@@ -285,6 +317,7 @@ export default function EtiquetasEvento() {
             .etq-acao button, .etq-acao input[type="checkbox"] + span { min-height: 44px; }
             .etq-chip { min-height: 44px; }
             .etq-alvo { min-height: 44px; }
+            .etq-acao select { min-height: 44px; font-size: 16px !important; }
           }
         }
         .etq-moldura-retrato { position: relative; width: 707px; height: 1000px; }
@@ -303,12 +336,12 @@ export default function EtiquetasEvento() {
           {/* A conta é de ETIQUETAS — é a folha que vai para a impressora. Com
               "uma por unidade" as contas divergem, então as duas aparecem. */}
           {etiquetas.length} etiqueta{etiquetas.length !== 1 ? "s" : ""}
-          {paginasDaLista.length > 0 && <> + {paginasDaLista.length} lista{paginasDaLista.length !== 1 ? "s" : ""} 2x1</>}
+          {paginasDaLista.length > 0 && <> + {paginasDaLista.length} lista{paginasDaLista.length !== 1 ? "s" : ""}</>}
           {" "}· {folhas} folha{folhas !== 1 ? "s" : ""}
-          {porUnidade && <> · {pecas.length} peça{pecas.length !== 1 ? "s" : ""}</>}
+          {porUnidade && <> · {pecasIndividuais.length + pecasDaLista.length} peça{pecasIndividuais.length + pecasDaLista.length !== 1 ? "s" : ""}</>}
         </span>
         {/* As caixas da barra são alvos de 44px no toque (.etq-alvo) e, como a
-            barra quebra linha (flexWrap), "2x1 em lista" nunca corta em 390px. */}
+            barra quebra linha (flexWrap), "Em lista" nunca corta em 390px. */}
         <label className="etq-alvo" style={{ display: "inline-flex", alignItems: "center", gap: 7, fontSize: 13, color: "#44403c", cursor: "pointer", marginLeft: 6 }}>
           <input type="checkbox" checked={incluirTodas} onChange={(e) => setIncluirTodas(e.target.checked)} data-testid="check-incluir-todas" style={{ width: 16, height: 16, accentColor: "#c2410c" }} />
           Incluir as não conferidas
@@ -317,10 +350,10 @@ export default function EtiquetasEvento() {
           <input type="checkbox" checked={porUnidade} onChange={(e) => setPorUnidade(e.target.checked)} data-testid="check-por-unidade" style={{ width: 16, height: 16, accentColor: "#c2410c" }} />
           Uma por unidade
         </label>
-        {haDoisPorUmNoPool && (
-          <label className="etq-alvo" title="As peças 2x1 saem numa etiqueta em lista — o evento no topo e as peças uma embaixo da outra — em vez de uma etiqueta para cada." style={{ display: "inline-flex", alignItems: "center", gap: 7, fontSize: 13, color: "#44403c", cursor: "pointer" }}>
-            <input type="checkbox" checked={doisPorUmEmLista} onChange={(e) => setDoisPorUmEmLista(e.target.checked)} data-testid="check-2x1-lista" style={{ width: 16, height: 16, accentColor: "#c2410c" }} />
-            2x1 em lista
+        {tiposNoPool.length > 0 && (
+          <label className="etq-alvo" title="Os tipos escolhidos saem numa etiqueta em LISTA — o evento no topo e uma linha por peça, como o adesivo do galpão — em vez de uma etiqueta para cada." style={{ display: "inline-flex", alignItems: "center", gap: 7, fontSize: 13, color: "#44403c", cursor: "pointer" }}>
+            <input type="checkbox" checked={emLista} onChange={(e) => setEmLista(e.target.checked)} data-testid="check-em-lista" style={{ width: 16, height: 16, accentColor: "#c2410c" }} />
+            Em lista
           </label>
         )}
         {(logo || buscandoLogo) && (
@@ -466,6 +499,69 @@ export default function EtiquetasEvento() {
         </div>
       )}
 
+      {/* ── EM LISTA: quais tipos, com ou sem quantidade, em que papel. Faixa
+          própria (não imprime) — na barra de cima não caberia em 390px. ── */}
+      {emLista && tiposNoPool.length > 0 && (
+        <div className="etq-acao" data-testid="faixa-em-lista" style={{ padding: "10px 18px", borderBottom: "1px solid #f0efee", display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center" }}>
+          <span style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: "#57534e", marginRight: 4 }}>
+            Em lista
+          </span>
+          <span role="group" aria-label="Tipos que saem em lista" style={{ display: "inline-flex", gap: 4, flexWrap: "wrap", alignItems: "center" }}>
+            {tiposNoPool.map(([t, n]) => {
+              const ativo = tiposEscolhidos.has(t);
+              return (
+                <button key={t} type="button" className="etq-alvo" aria-pressed={ativo}
+                  data-testid={`lista-tipo-${t.toLowerCase().replace(/\s+/g, "-")}`}
+                  onClick={() => { const novo = new Set(tiposEscolhidos); if (novo.has(t)) novo.delete(t); else novo.add(t); setTiposEmLista(novo); }}
+                  style={{
+                    height: 28, padding: "0 10px", borderRadius: 999, fontSize: 11, fontWeight: 700, cursor: "pointer",
+                    border: `1px solid ${ativo ? "#9a3412" : "#d6d3d1"}`,
+                    backgroundColor: ativo ? "#fff7ed" : "#fff",
+                    color: ativo ? "#9a3412" : "#44403c",
+                  }}>
+                  {t} · {n}
+                </button>
+              );
+            })}
+            {tiposNoPool.length > 1 && (
+              <button type="button" className="etq-alvo" data-testid="lista-tipo-todos"
+                aria-pressed={tiposNoPool.every(([t]) => tiposEscolhidos.has(t))}
+                // Segundo clique desfaz: "todos" marcado → volta ao padrão (só 2x1).
+                onClick={() => setTiposEmLista(tiposNoPool.every(([t]) => tiposEscolhidos.has(t)) ? null : new Set(tiposNoPool.map(([t]) => t)))}
+                style={{ height: 28, padding: "0 10px", borderRadius: 999, border: "1px solid #d6d3d1", background: "#fff", fontSize: 11, fontWeight: 700, color: "#44403c", cursor: "pointer" }}>
+                todos
+              </button>
+            )}
+          </span>
+          <label className="etq-alvo" title='Ligado: "2x1 Ministério - 16". Desligado: só "2x1 Ministério".' style={{ display: "inline-flex", alignItems: "center", gap: 7, fontSize: 13, color: "#44403c", cursor: "pointer", marginLeft: 6 }}>
+            <input type="checkbox" checked={mostrarQuantidade} onChange={(e) => setPrefs((p) => ({ ...p, mostrarQuantidade: e.target.checked }))} data-testid="check-mostrar-quantidade" style={{ width: 16, height: 16, accentColor: "#c2410c" }} />
+            Mostrar quantidade
+          </label>
+          <label className="etq-alvo" style={{ display: "inline-flex", alignItems: "center", gap: 7, fontSize: 13, color: "#44403c" }}>
+            Tamanho da lista
+            <select value={tamanho} onChange={(e) => setPrefs((p) => ({ ...p, tamanho: e.target.value as TamanhoEtiqueta }))} data-testid="select-tamanho-lista"
+              style={{ height: 34, borderRadius: 8, border: "1px solid #d6d3d1", padding: "0 8px", fontSize: 13, fontFamily: "inherit", color: "#1c1917", backgroundColor: "#fff" }}>
+              {ORDEM_DOS_TAMANHOS.map((t) => <option key={t} value={t}>{TAMANHOS[t].rotulo}</option>)}
+            </select>
+          </label>
+          {haOsDois && (
+            <div role="group" aria-label="O que sai nesta impressão" style={{ display: "inline-flex", borderRadius: 8, border: "1px solid #d6d3d1", overflow: "hidden", marginLeft: 6 }}>
+              {([["tudo", "Tudo"], ["etiquetas", "Só etiquetas"], ["listas", "Só listas"]] as const).map(([v, rotulo]) => (
+                <button key={v} type="button" className="etq-alvo" onClick={() => setOQueSai(v)} aria-pressed={saiValido === v} data-testid={`o-que-sai-${v}`}
+                  style={{ height: 34, padding: "0 12px", border: "none", fontSize: 12.5, fontWeight: 700, backgroundColor: saiValido === v ? "#1c1917" : "#fff", color: saiValido === v ? "#fff" : "#57534e", cursor: "pointer" }}>
+                  {rotulo}
+                </button>
+              ))}
+            </div>
+          )}
+          {saiValido === "tudo" && tamanho !== "a4" && haOsDois && (
+            <span data-testid="aviso-papeis-diferentes" style={{ flexBasis: "100%", fontSize: 12, color: "#57534e" }}>
+              As listas saem em {TAMANHOS[tamanho].rotulo} e as etiquetas em A4: para a impressora de adesivo, imprima “Só listas” e depois “Só etiquetas”.
+            </span>
+          )}
+        </div>
+      )}
+
       {etiquetas.length === 0 && paginasDaLista.length === 0 && (
         <p data-testid="etiquetas-vazio" style={{ margin: 0, padding: "36px 24px", fontSize: 14, color: "#57534e", maxWidth: 560 }}>
           {pool.length > 0
@@ -558,48 +654,18 @@ export default function EtiquetasEvento() {
           </div>
         ))}
 
-        {/* ── Folhas de LISTA dos 2x1: a folha inteira, o evento no topo (os
-            mesmos dois níveis da etiqueta, menores) e as peças em linhas.
-            Mesma moldura e mesma orientação das individuais — a guilhotina e
-            o "Em pé" continuam valendo. ── */}
+        {/* ── LISTAS: a etiqueta em lista do galpão (em pé, no papel escolhido),
+            a mesma peça da etiqueta do tubo. Tem página própria na impressão
+            (.etq-lista) e não gira com o "Em pé" das individuais. ── */}
         {paginasDaLista.map((linhas, k) => (
-          <div key={`lista-${k}`} className={`etq-quebra ${orientacao === "retrato" ? "etq-moldura-retrato" : "etq-moldura-paisagem"}`} style={orientacao === "retrato" ? { margin: "0 auto 18px" } : undefined}>
-          <div className="etq-folha" data-testid={`lista-2x1-${k + 1}`} style={{ display: "flex", flexDirection: "column", padding: "22px 30px", boxSizing: "border-box", overflow: "hidden" }}>
-            <div style={{ flexShrink: 0, borderBottom: "3px solid #1c1917", paddingBottom: 10, marginBottom: 4, textAlign: "center" }}>
-              <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12 }}>
-                <p style={{ margin: 0, fontSize: 12, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "#78716c" }}>
-                  {event?.truckDepartureDate ? `Saída ${dataBR(event.truckDepartureDate)}` : " "}
-                </p>
-                {/* "1 de 2": quem pega a segunda folha sabe que existe outra. */}
-                {paginasDaLista.length > 1 && (
-                  <p style={{ margin: 0, fontSize: 12, fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase", color: "#c2410c" }}>
-                    Lista 2x1 · {k + 1} de {paginasDaLista.length}
-                  </p>
-                )}
-              </div>
-              {logo && usarLogo && (
-                <img loading="lazy" decoding="async" src={logo} alt="Logo do evento"
-                  style={{ maxHeight: 64, maxWidth: "45%", objectFit: "contain", display: "block", margin: "4px auto 2px" }} />
-              )}
-              {!(logo && usarLogo) && gigante && prefixo && (
-                <p style={{ margin: "2px 0 0", fontFamily: "'Space Grotesk', sans-serif", fontWeight: 800, fontSize: "clamp(15px, 1.8vw, 22px)", textTransform: "uppercase", color: "#1c1917", lineHeight: 1.1 }}>
-                  {prefixo}
-                </p>
-              )}
-              <p style={{ margin: "2px 0 0", fontFamily: "'Space Grotesk', sans-serif", fontWeight: 900, textTransform: "uppercase", letterSpacing: "-0.02em", color: "#1c1917", lineHeight: 0.95, fontSize: "clamp(36px, 5.2vw, 64px)", overflowWrap: "anywhere" }}>
-                {gigante || nome}
-              </p>
-            </div>
-            {/* Uma linha por peça, centralizada: "2x1 Ministério - 16" — o
-                formato da etiqueta que o galpão já cola no rolo (foto do dono). */}
-            <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-start", paddingTop: 10, gap: 2 }}>
-              {linhas.map((p) => (
-                <p key={p.id} data-testid={`lista-2x1-linha-${p.id}`} style={{ margin: 0, maxWidth: "100%", fontFamily: "'Space Grotesk', sans-serif", fontSize: 20, fontWeight: 800, lineHeight: 1.25, color: "#1c1917", textAlign: "center", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                  {linhaDaLista(p)}
-                </p>
-              ))}
-            </div>
-          </div>
+          <div key={`lista-${k}`} className="etq-lista">
+            <EtiquetaEmLista tamanho={tamanho} testid={`lista-${k + 1}`} testidDaLinha="lista-linha"
+              ultima={k === paginasDaLista.length - 1}
+              logo={usarLogo ? logo : null} prefixo={prefixo} gigante={gigante}
+              saida={dataBR(event?.truckDepartureDate)}
+              // "1 de 2": quem pega a segunda etiqueta sabe que existe outra.
+              contador={paginasDaLista.length > 1 ? `Lista · ${k + 1} de ${paginasDaLista.length}` : null}
+              linhas={linhas} mostrarQuantidade={mostrarQuantidade} />
           </div>
         ))}
       </div>

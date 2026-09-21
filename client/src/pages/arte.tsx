@@ -6461,8 +6461,12 @@ export default function Arte() {
                         : isLinked ? (entry.ambiguous ? '#fffbeb' : '#eff6ff') : '#fffbeb';
 
                       return (
-                        <div key={entry.id} style={{
+                        <div key={entry.id} data-testid={`bulk-thumb-card-${entry.id}`} style={{
                           display: 'flex', alignItems: 'stretch', gap: 0,
+                          // flexShrink 0 + minHeight: a lista é uma coluna flex de altura
+                          // fixa, e o cartão tem overflow hidden — com 20+ arquivos o
+                          // navegador ESPREMIA todos em tirinhas em vez de rolar (dono, 21/09).
+                          flexShrink: 0, minHeight: 80,
                           borderRadius: 12, border: `1.5px solid ${cardBorderColor}`,
                           backgroundColor: '#ffffff',
                           overflow: 'hidden', position: 'relative',

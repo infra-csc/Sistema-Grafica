@@ -19,6 +19,7 @@ import {
   auditLogs,
   notifications,
   registrosDeImpressao,
+  tubos as tubosTable,
 } from "@shared/schema";
 import {
   requireAuth,
@@ -5325,6 +5326,22 @@ export function registerItemRoutes(app: Express): void {
       const currentItem = await storage.getItem(req.params.id);
       if (!currentItem) {
         return res.status(404).json({ error: "Item not found" });
+      }
+
+      // ENTREGAR É SÓ DO TUBO (dono, 21/09): peça embalada — ou dentro de um
+      // tubo ainda aberto — não sai sozinha; sai com o tubo inteiro. Vale
+      // também para a entrega em LOTE, que chama esta mesma rota peça a peça.
+      // Peça conferida FORA de tubo (material que não vai em tubo) segue
+      // podendo sair direto, com a foto obrigatória de sempre.
+      if ((currentItem as any).tuboId) {
+        const [tuboDaPeca] = await db.select({ numero: tubosTable.numero, entregueEm: tubosTable.entregueEm })
+          .from(tubosTable).where(eq(tubosTable.id, (currentItem as any).tuboId));
+        if (tuboDaPeca && !tuboDaPeca.entregueEm) {
+          return res.status(409).json({ error: `Esta peça está no Tubo ${tuboDaPeca.numero} — entregue o tubo (ou tire a peça dele)` });
+        }
+      }
+      if (currentItem.status === "packed") {
+        return res.status(409).json({ error: "Esta peça está embalada — entregue o tubo (ou tire a peça dele)" });
       }
       
       // Entrega parcial: acumula deliveredQty; só vira "delivered" quando entrega

@@ -25,6 +25,7 @@ import { convertGCSUrlToLocalPath } from "@/lib/artePdfExport";
 import { useToast } from "@/hooks/use-toast";
 import { ObjectUploader } from "@/components/ObjectUploader";
 import { TubosDialog } from "@/components/tubos-dialog";
+import { linhaDaLista } from "@/lib/etiqueta-lista";
 import { ItemDetailsDialog } from "@/components/item-details-dialog";
 import { useIsMobile, useElementSize, densityFromWidth } from "@/hooks/use-mobile";
 import {
@@ -712,7 +713,11 @@ export default function Grafica() {
   // servidor também barra). O usuário do Kit só recebe as peças dele.
   const soVisualizaKit = (item: any) => user?.role === "solicitacao" && !user?.kit && !!item?.kitRemessaId;
   const canConfer = (item: any) => !soVisualizaKit(item) && canConferBase(item);
-  const canDeliver = (item: any) => !soVisualizaKit(item) && canDeliverBase(item);
+  // ENTREGAR É SÓ DO TUBO (dono, 21/09): a peça embalada — ou dentro de um
+  // tubo — não tem "Entregar" individual nem entra no "Entregar em lote"; sai
+  // com o tubo inteiro ("Entregar tubo"). O servidor recusa com 409 do mesmo
+  // jeito. A conferida FORA de tubo segue podendo sair direto, com foto.
+  const canDeliver = (item: any) => !soVisualizaKit(item) && canDeliverBase(item) && !isPacked(item) && !item.tuboId;
   // EMBALAR (dono, 21/09): a ação principal da peça CONFERIDA é pôr no tubo;
   // "Entregar" fica como secundária (peça grande que não vai em tubo). Mesmo
   // gate de quem entrega — as rotas de tubos são dos mesmos papéis — e sem
@@ -1187,11 +1192,34 @@ export default function Grafica() {
   const fechamentoDoTubo = useMemo(() => new Map(
     todosOsTubos.filter((t) => t.fechadoEm).map((t) => [t.id, new Date(t.fechadoEm as string).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })]),
   ), [todosOsTubos]);
+  // O QUE ESTÁ EM CADA TUBO (dono, 21/09: "tem que sinalizar quais itens estão
+  // no tubo"): o selo diz "Tubo 1 · 4 peças" e o title lista código + a mesma
+  // linha da etiqueta ("2x1 Ministério - 16"). Sai da fila que já está na
+  // memória — nenhuma consulta nova. Tocar no selo abre o painel naquele tubo.
+  const conteudoDoTubo = useMemo(() => {
+    const m = new Map<string, { total: number; lista: string }>();
+    const grupos = new Map<string, any[]>();
+    for (const i of pecasDoServidor as any[]) {
+      if (!i.tuboId) continue;
+      grupos.set(i.tuboId, [...(grupos.get(i.tuboId) ?? []), i]);
+    }
+    for (const [tuboId, pecas] of Array.from(grupos)) {
+      m.set(tuboId, { total: pecas.length, lista: pecas.map((x) => `${x.displayId ?? "—"} · ${linhaDaLista(x)}`).join("\n") });
+    }
+    return m;
+  }, [pecasDoServidor]);
   const seloDoTubo = (item: any): string | null => {
     if (!item.tuboId || !numeroDoTubo.has(item.tuboId)) return null;
-    const fechado = fechamentoDoTubo.get(item.tuboId);
-    return `Tubo ${numeroDoTubo.get(item.tuboId)}${fechado ? ` · fechado ${fechado}` : ""}`;
+    const n = conteudoDoTubo.get(item.tuboId)?.total ?? 1;
+    return `Tubo ${numeroDoTubo.get(item.tuboId)} · ${n} ${n === 1 ? "peça" : "peças"}`;
   };
+  const tituloDoTubo = (item: any): string => {
+    const c = conteudoDoTubo.get(item.tuboId);
+    const foto = fechamentoDoTubo.get(item.tuboId);
+    return `${seloDoTubo(item) ?? "Tubo"}${foto ? ` · foto ${foto}` : " · sem foto"}\n${c?.lista ?? ""}\nToque para abrir o tubo.`;
+  };
+  const abrirTuboDaPeca = (item: any) =>
+    setTubosDoEvento({ id: String(item.eventId), name: item.event?.name ?? "Evento", entregarTubo: item.tuboId });
 
   // TIRAR DO TUBO direto da fila (21/09): a peça Embalado volta a Conferido —
   // o servidor faz a transição e escreve a trilha. É o mesmo PATCH do modal.
@@ -2450,6 +2478,8 @@ export default function Grafica() {
     item.tuboId ? numeroDoTubo.get(item.tuboId) ?? null : null,
     // …e o "fechado 14:32" do selo (21/09): a linha redesenha quando o tubo fecha.
     item.tuboId ? fechamentoDoTubo.get(item.tuboId) ?? null : null,
+    // …e o "· 4 peças" + a lista do title: muda quando outra peça entra ou sai.
+    item.tuboId ? conteudoDoTubo.get(item.tuboId)?.lista ?? null : null,
     // Só a linha DESTA peça fica "pendente" ao tirar do tubo — o booleano
     // global redesenhava a fila inteira a cada clique.
     tirarDoTuboMutation.isPending && tirarDoTuboMutation.variables?.itemId === item.id,
@@ -3789,10 +3819,16 @@ export default function Grafica() {
                         )}
                         {/* Paridade com a tabela: o tubo em que a peça vai. */}
                         {item.tuboId && numeroDoTubo.has(item.tuboId) && (
-                          <span data-testid={`chip-tubo-card-${item.id}`} style={qtyChip('#9a3412', '#fff7ed')} title={fechamentoDoTubo.has(item.tuboId) ? "Tubo já fechado com foto — só falta entregar" : "Tubo em que a peça vai para a entrega"}>
-                            {fechamentoDoTubo.has(item.tuboId) && <Camera aria-hidden="true" style={{ width: 10, height: 10, marginRight: 3, verticalAlign: -1 }} />}
-                            {(seloDoTubo(item) ?? "").toUpperCase()}
-                          </span>
+                          <button type="button" data-testid={`chip-tubo-card-${item.id}`} title={tituloDoTubo(item)}
+                            aria-label={`${seloDoTubo(item)} — ver o que está no tubo`}
+                            onClick={e => { if (bulkOn) return; e.stopPropagation(); abrirTuboDaPeca(item); }}
+                            /* Alvo de 44px no dedo; o desenho do selo fica no span de dentro. */
+                            style={{ minHeight: 44, padding: 0, border: 'none', background: 'none', display: 'inline-flex', alignItems: 'center', cursor: 'pointer', fontFamily: 'inherit' }}>
+                            <span style={{ ...qtyChip('#9a3412', '#fff7ed'), border: '1px solid #fed7aa' }}>
+                              {fechamentoDoTubo.has(item.tuboId) && <Camera aria-hidden="true" style={{ width: 10, height: 10, marginRight: 3, verticalAlign: -1 }} />}
+                              {(seloDoTubo(item) ?? "").toUpperCase()}
+                            </span>
+                          </button>
                         )}
                       </div>
                       {/* MOTIVO do aumento — a informação principal deste card,
@@ -4363,11 +4399,13 @@ export default function Grafica() {
                         {/* Kit (14/09): a peça do Kit se declara na fila, com a entrega. */}
                         <SeloKit peca={item} style={{ display: "flex", width: "fit-content", marginTop: 4 }} />
                         {item.tuboId && numeroDoTubo.has(item.tuboId) && (
-                          <span data-testid={`chip-tubo-${item.id}`} title={fechamentoDoTubo.has(item.tuboId) ? "Tubo já fechado com foto — só falta entregar" : "Tubo em que a peça vai para a entrega"}
-                            style={{ display: "inline-flex", alignItems: "center", gap: 3, marginTop: 4, padding: "1px 6px", borderRadius: 999, fontSize: 10, fontWeight: 800, color: "#9a3412", background: "#fff7ed", border: "1px solid #fed7aa", whiteSpace: "nowrap" }}>
+                          <button type="button" data-testid={`chip-tubo-${item.id}`} title={tituloDoTubo(item)}
+                            aria-label={`${seloDoTubo(item)} — ver o que está no tubo`}
+                            onClick={e => { if (bulkOn) return; e.stopPropagation(); abrirTuboDaPeca(item); }}
+                            style={{ display: "inline-flex", alignItems: "center", gap: 3, marginTop: 4, padding: "1px 6px", borderRadius: 999, fontSize: 10, fontWeight: 800, color: "#9a3412", background: "#fff7ed", border: "1px solid #fed7aa", whiteSpace: "nowrap", cursor: "pointer", fontFamily: "inherit" }}>
                             {fechamentoDoTubo.has(item.tuboId) && <Camera aria-hidden="true" style={{ width: 10, height: 10 }} />}
                             {seloDoTubo(item)}
-                          </span>
+                          </button>
                         )}
                       </td>
                       {/* Descrição — com a arte ao lado: a Gráfica identifica a
@@ -5139,8 +5177,8 @@ export default function Grafica() {
                             <button
                               onClick={() => setTubosDoEvento({ id: String(item.eventId), name: item.event?.name ?? "Evento", entregarTubo: item.tuboId })}
                               data-testid={`button-entregar-tubo-${item.id}`}
-                              title="Entregar o tubo inteiro — abre o painel já no formulário deste tubo"
-                              style={{ backgroundColor: "#fff", color: "#1d4ed8", border: "1px solid #bfdbfe", borderRadius: 8, height: 32, padding: "0 10px", fontSize: 12, fontWeight: 700, whiteSpace: "nowrap", cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}
+                              title="Entregar o tubo inteiro — a peça embalada só sai com o tubo"
+                              style={{ backgroundColor: "#1d4ed8", color: "#fff", border: "none", borderRadius: 8, height: 32, padding: "0 12px", fontSize: 12, fontWeight: 700, whiteSpace: "nowrap", cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}
                             >
                               <Truck aria-hidden="true" style={{ width: 13, height: 13 }} /> Entregar tubo
                             </button>

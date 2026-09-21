@@ -369,9 +369,13 @@ describe("GRÁFICA a 390px", () => {
     expect(entregarTubo.style.background).toBe("rgb(29, 78, 216)");
     expect(px(entregarTubo.style.minHeight)).toBe(48);
     expect(px(tirar.style.minHeight)).toBe(48);
-    // "Entregar" da embalada é de contorno — uma sólida só por peça.
-    const entregar = $('[data-testid="button-entregar-card-g1"]');
-    if (entregar) expect(entregar.style.background).toBe("rgb(255, 255, 255)");
+    // A embalada NÃO tem "Entregar" individual (dono, 21/09): só sai com o tubo.
+    expect($('[data-testid="button-entregar-card-g1"]')).toBeNull();
+    // O selo diz quantas peças o tubo tem, lista o conteúdo no title e é alvo de 44px.
+    const seloTubo = $('[data-testid="chip-tubo-card-g1"]')!;
+    expect(seloTubo.textContent).toContain("TUBO 1 · 1 PEÇA");
+    expect(seloTubo.getAttribute("title")).toContain("#0381");
+    expect(px(seloTubo.style.minHeight)).toBe(44);
     // Conferida: Embalar é a principal, a 48px.
     expect(px($('[data-testid="button-embalar-card-g5"]')!.style.minHeight)).toBe(48);
     expect(largurasFixas()).toEqual([]);
@@ -460,7 +464,7 @@ describe("MODAL DE TUBOS a 390px", () => {
     expect(/safe-area-inset-bottom/.test(rodapeFechar.style.paddingBottom)).toBe(true);
     const confirmarFechar = $('[data-testid="confirmar-fechar-tubo-1"]') as HTMLButtonElement;
     expect(confirmarFechar.disabled).toBe(true);
-    expect(confirmarFechar.textContent).toBe("Tire a foto para fechar");
+    expect(confirmarFechar.textContent).toBe("Tire a foto para guardar");
     expect(px(confirmarFechar.style.minHeight)).toBe(48);
     expect(alvosPequenos(dialogo)).toEqual([]);
     // Cancelar fecha o formulário e o rodapé some.

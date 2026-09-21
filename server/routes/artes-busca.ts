@@ -43,7 +43,7 @@ import { and, eq, inArray, isNull, isNotNull, or, sql } from "drizzle-orm";
 import { db } from "../db";
 import { items as itemsTable, events, itemSponsors, sponsors } from "@shared/schema";
 import { pecaVisivelPara } from "@shared/kit";
-import { ordenarArtes, type ArteComparavel } from "@shared/artes-parecidas";
+import { normalizarTexto, ordenarArtes, type ArteComparavel } from "@shared/artes-parecidas";
 import { requireRole } from "./shared";
 
 // Mexer na Arte é de `arte` e `admin` (shared/permissoes.ts: update-thumb,
@@ -55,6 +55,13 @@ const requireArte = requireRole("admin", "arte");
 
 /** Teto de payload: a tela mostra uma grade para escolher, não um acervo. */
 const TETO_DE_RESULTADOS = 60;
+/** Quantas linhas o banco entrega ao ranking, por consulta. */
+const TETO_DE_CANDIDATAS = 600;
+
+/** `lower` + `translate` dos acentos do português: a régua de
+ *  `normalizarTexto`, só que dentro do SQL. `unaccent` não está instalado. */
+const semAcentoSql = (expr: ReturnType<typeof sql>) =>
+  sql`translate(lower(coalesce(${expr}, '')), 'áàâãäéèêëíìîïóòôõöúùûüçñ', 'aaaaaeeeeiiiiooooouuuucn')`;
 
 const COLUNAS = {
   id: itemsTable.id,
@@ -100,32 +107,74 @@ export function registerArtesBuscaRoutes(app: Express) {
         return res.status(404).json({ error: "Peça não encontrada" });
       }
 
-      // As candidatas são TODAS as peças com arte, e não só as do mesmo
-      // circuito: a arte que o dono quer reaproveitar pode estar num evento de
-      // outro ano, com outro nome. São ~5 mil linhas de 13 colunas enxutas (a
-      // lista inteira de peças, com evento e patrocinadores, é o que custava
-      // 15 MB — ver shared/itens-compactos.ts); o ranking roda em memória e o
-      // corte de 60 acontece antes de serializar.
-      const candidatas: Linha[] = await db.select(COLUNAS).from(itemsTable)
-        .leftJoin(events, eq(events.id, itemsTable.eventId))
-        .where(and(
-          isNull(itemsTable.deletedAt),
-          // "Peça COM arte" = tem thumb de aprovação ou prévia do final. O
-          // arquivo final sozinho não entra: sem imagem não há o que conferir
-          // no olho antes de reaproveitar.
-          or(
-            and(isNotNull(itemsTable.approvalThumbUrl), sql`${itemsTable.approvalThumbUrl} <> ''`),
-            and(isNotNull(itemsTable.finalPreviewUrl), sql`${itemsTable.finalPreviewUrl} <> ''`),
-          ),
-        ));
-
       // `comArquivoFinal`: quem abriu a busca a partir do CAMINHO DO ARQUIVO
-      // FINAL só pode usar arte que tenha esse caminho. O corte é aqui, e não
-      // na tela, senão o teto de 60 sairia cheio de artes sem arquivo e a
+      // FINAL só pode usar arte que tenha esse caminho. O corte é no SQL, e
+      // não na tela, senão o teto de 60 sairia cheio de artes sem arquivo e a
       // grade chegaria quase vazia do outro lado.
       const soComArquivoFinal = req.query?.comArquivoFinal === "1";
-      const visiveis = candidatas.filter((c) =>
-        pecaVisivelPara(usuario, c) && (!soComArquivoFinal || temTexto(c.arquivoFinalUrl)));
+
+      // O RECORTE É DO BANCO, O RANKING É DA MEMÓRIA (revisão de 21/09).
+      // Antes cada tecla varria as ~5 mil peças com arte e ranqueava tudo.
+      // Agora o SQL devolve só o que interessa:
+      //   · COM `q`: as peças em que TODAS as palavras aparecem em descrição,
+      //     tipo, código, nome do evento ou nome de patrocinador (subquery),
+      //     comparando sem caixa e sem acento — `translate` no lugar de
+      //     `unaccent`, que não está instalado no banco (só pg_trgm, ver
+      //     scripts/criar-indices-de-busca.ts). O `casaComTermo` em memória
+      //     refina com a mesma régua;
+      //   · SEM `q`: as peças que DIVIDEM PATROCINADOR com a peça alvo (o caso
+      //     do dono, em qualquer ano) mais as 600 mais recentes — o ranking
+      //     acha o mesmo circuito ali dentro. Um teto sem o primeiro grupo
+      //     esconderia justamente a arte do Bradesco de dois anos atrás.
+      const base = [
+        isNull(itemsTable.deletedAt),
+        // "Peça COM arte" = tem thumb de aprovação ou prévia do final. O
+        // arquivo final sozinho não entra: sem imagem não há o que conferir
+        // no olho antes de reaproveitar.
+        or(
+          and(isNotNull(itemsTable.approvalThumbUrl), sql`${itemsTable.approvalThumbUrl} <> ''`),
+          and(isNotNull(itemsTable.finalPreviewUrl), sql`${itemsTable.finalPreviewUrl} <> ''`),
+        ),
+        ...(soComArquivoFinal
+          ? [and(isNotNull(itemsTable.finalFileUrl), sql`${itemsTable.finalFileUrl} <> ''`)]
+          : []),
+      ];
+
+      const palavras = normalizarTexto(termo).split(" ").filter(Boolean);
+      let candidatas: Linha[];
+      if (palavras.length > 0) {
+        const texto = semAcentoSql(sql`concat_ws(' ', ${itemsTable.displayId}, ${itemsTable.description}, ${itemsTable.type}, ${events.name})`);
+        const porPalavra = palavras.map((p) => {
+          const padrao = `%${p.replace(/[%_\\]/g, "\\$&")}%`;
+          return or(
+            sql`${texto} like ${padrao}`,
+            sql`exists (select 1 from ${itemSponsors} join ${sponsors} on ${sponsors.id} = ${itemSponsors.sponsorId}
+                        where ${itemSponsors.itemId} = ${itemsTable.id} and ${semAcentoSql(sql`${sponsors.name}`)} like ${padrao})`,
+          );
+        });
+        candidatas = await db.select(COLUNAS).from(itemsTable)
+          .leftJoin(events, eq(events.id, itemsTable.eventId))
+          .where(and(...base, ...porPalavra))
+          .limit(TETO_DE_CANDIDATAS);
+      } else {
+        const [doMesmoPatrocinador, recentes]: Linha[][] = await Promise.all([
+          db.select(COLUNAS).from(itemsTable)
+            .leftJoin(events, eq(events.id, itemsTable.eventId))
+            .where(and(...base, sql`exists (select 1 from ${itemSponsors} a join ${itemSponsors} b on b.sponsor_id = a.sponsor_id
+                                            where a.item_id = ${itemsTable.id} and b.item_id = ${alvo.id})`))
+            .limit(TETO_DE_CANDIDATAS),
+          db.select(COLUNAS).from(itemsTable)
+            .leftJoin(events, eq(events.id, itemsTable.eventId))
+            .where(and(...base))
+            .orderBy(sql`${events.startDate} desc nulls last`)
+            .limit(TETO_DE_CANDIDATAS),
+        ]);
+        const porId = new Map<string, Linha>();
+        for (const c of [...doMesmoPatrocinador, ...recentes]) if (!porId.has(c.id)) porId.set(c.id, c);
+        candidatas = Array.from(porId.values());
+      }
+
+      const visiveis = candidatas.filter((c) => pecaVisivelPara(usuario, c));
 
       const vinculos: Array<{ itemId: string; sponsorId: string; nome: string | null }> = visiveis.length === 0
         ? []

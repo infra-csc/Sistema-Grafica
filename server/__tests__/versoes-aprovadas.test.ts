@@ -82,7 +82,9 @@ describe("2 · o legado é RECONSTRUÍDO e rotulado", () => {
   });
 
   it("lê a trilha com o MESMO formato que a rota de troca escreve", () => {
-    expect(ITEMS).toContain("`Thumb de aprovação atualizado por ${req.userName}. Anterior: ${prevUrl} → Novo: ${approvalThumbUrl}`");
+    // `thumbNormalizado` (21/09): a rota grava a URL já na forma /objects/,
+    // a mesma que esta trilha guarda — o FORMATO da linha não mudou.
+    expect(ITEMS).toContain("`Thumb de aprovação atualizado por ${req.userName}. Anterior: ${prevUrl} → Novo: ${thumbNormalizado}`");
     expect(ROTA).toContain("const RE_TROCA = /Thumb de aprovação atualizado por (.+?)\\. Anterior: (\\S+) → Novo: (\\S+)/;");
     const re = /Thumb de aprovação atualizado por (.+?)\. Anterior: (\S+) → Novo: (\S+)/;
     const m = re.exec("Thumb de aprovação atualizado por Ana Paula. Anterior: /objects/uploads/a.png → Novo: /objects/uploads/b.png");

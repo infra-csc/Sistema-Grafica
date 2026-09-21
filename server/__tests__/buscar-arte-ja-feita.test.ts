@@ -27,6 +27,7 @@ import {
   normalizarTexto,
   type ArteComparavel,
 } from "@shared/artes-parecidas";
+import { urlDeThumbValida } from "../routes/thumb-url";
 
 const RAIZ = path.resolve(__dirname, "../..");
 const ler = (rel: string) => readFileSync(path.resolve(RAIZ, rel), "utf8");
@@ -48,6 +49,11 @@ describe("o que é um evento parecido", () => {
   it("nome de uma palavra não vira vazio — a cidade só cai quando sobra nome", () => {
     expect(mioloDoEvento("Réveillon")).toEqual(["reveillon"]);
     expect(parecencaDeEvento("Réveillon", "Reveillon")).toBe(1);
+  });
+
+  it("com duas palavras a cidade já cai: 'Estações Curitiba' ≈ 'Estações Salvador'", () => {
+    expect(mioloDoEvento("Estações Curitiba")).toEqual(["estacoes"]);
+    expect(parecencaDeEvento("Estações Curitiba", "Estações Salvador")).toBe(1);
   });
 
   it("texto sem acento e sem caixa é a régua de comparação", () => {
@@ -129,12 +135,15 @@ const H = vi.hoisted(() => ({ filas: [] as any[][] }));
 vi.mock("../db", () => {
   // O drizzle é uma cadeia que só vira promessa quando awaited: cada consulta
   // da rota consome a próxima resposta enfileirada, na ordem em que o handler
-  // as faz (alvo → candidatas → vínculos).
+  // as faz. Sem `q`: alvo → mesmo patrocinador → recentes → vínculos. Com
+  // `q`: alvo → candidatas → vínculos.
   const consulta = () => {
     const q: any = {
       from: () => q,
       leftJoin: () => q,
       where: () => q,
+      orderBy: () => q,
+      limit: () => q,
       then: (ok: any, falha: any) => Promise.resolve(H.filas.shift() ?? []).then(ok, falha),
     };
     return q;
@@ -198,7 +207,7 @@ describe("GET /api/artes/busca", () => {
     expect(ROTA).toContain('const requireArte = requireRole("admin", "arte");');
     expect(ROTA).toContain('app.get("/api/artes/busca", requireArte');
 
-    H.filas = [[linha("alvo")], [], []];
+    H.filas = [[linha("alvo")], [], [], []];
     expect((await chamar({ item: "alvo" }, { ...ARTE, userRole: "grafica" })).statusCode).toBe(403);
   });
 
@@ -208,8 +217,12 @@ describe("GET /api/artes/busca", () => {
   });
 
   it("devolve as sugestões sem a própria peça e com os selos", async () => {
+    // Sem `q`, o banco entrega dois grupos (mesmo patrocinador; mais
+    // recentes) e a peça alvo pode vir nos dois — o ranking a tira, e a
+    // repetida entre grupos vira uma só.
     H.filas = [
       [linha("alvo")],
+      [linha("a", { eventId: "ev-rj", eventName: "Circuito das Estações 2025 Rio de Janeiro" })],
       [linha("alvo"), linha("a", { eventId: "ev-rj", eventName: "Circuito das Estações 2025 Rio de Janeiro" })],
       [{ itemId: "alvo", sponsorId: "s1", nome: "Bradesco" }, { itemId: "a", sponsorId: "s1", nome: "Bradesco" }],
     ];
@@ -222,7 +235,7 @@ describe("GET /api/artes/busca", () => {
   });
 
   it("o payload é enxuto — nada de peça inteira viajando", async () => {
-    H.filas = [[linha("alvo")], [linha("a")], []];
+    H.filas = [[linha("alvo")], [], [linha("a")], []];
     const r = await chamar({ item: "alvo" }, ARTE);
     expect(Object.keys(r.corpo.artes[0]).sort()).toEqual([
       "arquivoFinalNome", "arquivoFinalUrl", "descricao", "displayId", "eventId", "eventInicio",
@@ -235,6 +248,7 @@ describe("GET /api/artes/busca", () => {
     const doKit = { kitRemessaId: "r1", criadoPorId: "u1" };
     H.filas = [
       [linha("alvo", doKit)],
+      [],
       [linha("a", doKit), linha("b"), linha("c", { kitRemessaId: "r1", criadoPorId: "outro" })],
       [],
     ];
@@ -242,7 +256,7 @@ describe("GET /api/artes/busca", () => {
     expect(r.corpo.artes.map((x: any) => x.id)).toEqual(["a"]);
 
     // A peça de destino que ele não vê é como se não existisse.
-    H.filas = [[linha("alvo")], [], []];
+    H.filas = [[linha("alvo")], [], [], []];
     const fora = await chamar({ item: "alvo" }, { userRole: "arte", userId: "u1", userKit: true });
     expect(fora.statusCode).toBe(404);
   });
@@ -255,10 +269,31 @@ describe("GET /api/artes/busca", () => {
     expect(ROTA).toContain("pecaVisivelPara(usuario, c)");
   });
 
-  it("aberta pelo arquivo final, só oferece arte que TEM arquivo final", async () => {
+  it("o recorte é do banco: `q` vira LIKE sem acento no SQL e sem `q` há teto de candidatas", async () => {
+    const ROTA = ler("server/routes/artes-busca.ts");
+    expect(ROTA).toContain("const TETO_DE_CANDIDATAS = 600;");
+    expect(ROTA).toContain("translate(lower(coalesce(");
+    expect(ROTA).toContain("like ${padrao}");
+    expect(ROTA).toContain(".limit(TETO_DE_CANDIDATAS)");
+    expect(ROTA).toContain("desc nulls last");
+    // Sem `q`, quem divide patrocinador com o alvo entra sempre — o teto de
+    // recentes não pode esconder a arte do mesmo patrocinador de dois anos atrás.
+    expect(ROTA).toContain("b.item_id = ${alvo.id}");
+
+    // Com `q` a rota faz UMA consulta de candidatas e o refino em memória
+    // segue a mesma régua (todas as palavras).
+    H.filas = [[linha("alvo")], [linha("a", { descricao: "Pórtico Bradesco" }), linha("b", { descricao: "Pórtico" })], []];
+    const r = await chamar({ item: "alvo", q: "portico bradesco" }, ARTE);
+    expect(r.corpo.artes.map((x: any) => x.id)).toEqual(["a"]);
+  });
+
+  it("aberta pelo arquivo final, o SQL só traz arte que TEM arquivo final", async () => {
+    const ROTA = ler("server/routes/artes-busca.ts");
+    expect(ROTA).toContain("isNotNull(itemsTable.finalFileUrl)");
     H.filas = [
       [linha("alvo")],
-      [linha("a"), linha("b", { arquivoFinalUrl: "\\\\rede\\arte\\rolo.tif", arquivoFinalNome: "rolo.tif" })],
+      [],
+      [linha("b", { arquivoFinalUrl: "\\\\rede\\arte\\rolo.tif", arquivoFinalNome: "rolo.tif" })],
       [],
     ];
     const r = await chamar({ item: "alvo", comArquivoFinal: "1" }, ARTE);
@@ -275,6 +310,41 @@ describe("GET /api/artes/busca", () => {
     for (const metodo of ["app.post(", "app.patch(", "app.put(", "app.delete("]) {
       expect(ROTA).not.toContain(metodo);
     }
+  });
+});
+
+// ─── o thumb só pode ser objeto do nosso storage ─────────────────────────────
+
+describe("as rotas que gravam thumb só aceitam objeto do storage", () => {
+  it("a régua: /objects/ passa, a URL crua do bucket vira /objects/, o resto é recusado", () => {
+    expect(urlDeThumbValida("/objects/uploads/abc")).toBe("/objects/uploads/abc");
+    expect(urlDeThumbValida("  /objects/uploads/abc  ")).toBe("/objects/uploads/abc");
+    expect(urlDeThumbValida("https://storage.googleapis.com/bucket/.private/uploads/abc?x=1")).toBe("/objects/uploads/abc");
+    expect(urlDeThumbValida("https://drive.google.com/file/d/x")).toBeNull();
+    expect(urlDeThumbValida("https://obj/thumb.png")).toBeNull();
+    expect(urlDeThumbValida("/objects/")).toBeNull();
+    expect(urlDeThumbValida("")).toBeNull();
+    expect(urlDeThumbValida(null)).toBeNull();
+  });
+
+  it("submit-for-approval, update-thumb e resubmit validam e gravam a forma normalizada", () => {
+    const ITEMS = ler("server/routes/items.ts");
+    expect(ITEMS).toContain('import { urlDeThumbValida, ERRO_THUMB_FORA_DO_STORAGE } from "./thumb-url";');
+    expect(ITEMS.split("const thumbNormalizado = urlDeThumbValida(").length - 1).toBe(3);
+    expect(ITEMS.split("return res.status(400).json({ error: ERRO_THUMB_FORA_DO_STORAGE });").length - 1).toBe(3);
+    expect(ITEMS).toContain("itemUpdates.approvalThumbUrl = thumbNormalizado;");
+    expect(ITEMS).toContain("approvalThumbUrl: thumbNormalizado,\n        rejectedBySponsor: false,");
+    expect(ITEMS).toContain("approvalThumbUrl: thumbNormalizado,\n        previousApprovalThumbUrl: prevUrl,");
+    expect(ITEMS).toContain("if (currentItem.approvalThumbUrl === thumbNormalizado) {");
+    for (const origem of ['origem: "envio"', 'origem: "reenvio"', 'origem: "troca"']) {
+      expect(ITEMS).toContain(`thumbUrl: thumbNormalizado, ${origem}`);
+    }
+  });
+
+  it("o caminho do arquivo final fica fora da régua — é caminho de rede por regra da casa", () => {
+    const ITEMS = ler("server/routes/items.ts");
+    expect(ITEMS).not.toContain("urlDeThumbValida(validatedData.finalFileUrl");
+    expect(ler("server/routes/thumb-url.ts")).toContain("O CAMINHO DO ARQUIVO FINAL NÃO ENTRA nesta régua");
   });
 });
 
@@ -307,6 +377,17 @@ describe("o botão e o modal na Arte", () => {
     expect(ARTE_TSX).toContain("setCorrecaoThumbUrl(imagem);");
     expect(ARTE_TSX).toContain("setFinalFileUrl(arte.arquivoFinalUrl);");
     expect(ARTE_TSX).toContain("setFinalDirty(true);");
+  });
+
+  it("escolher a arte que já é a atual não chama update-thumb — aviso neutro", () => {
+    expect(ARTE_TSX).toContain("if (itemPorId.get(buscaDeArte.itemId)?.approvalThumbUrl === imagem) {");
+    expect(ARTE_TSX).toContain('toast({ title: "Essa já é a arte atual desta peça" });');
+  });
+
+  it("a miniatura da Correção tenta a imagem sempre e cai no ícone só no erro — objetos não têm extensão", () => {
+    expect(ARTE_TSX).toContain("function MiniaturaDaCorrecao(");
+    expect(ARTE_TSX).toContain("<MiniaturaDaCorrecao key={correcaoThumbUrl} url={correcaoThumbUrl} />");
+    expect(ARTE_TSX).not.toContain("/\\.(png|jpg|jpeg|gif|webp)/i.test(correcaoThumbUrl)");
   });
 
   it("o toast diz de qual peça e de qual evento a arte veio", () => {

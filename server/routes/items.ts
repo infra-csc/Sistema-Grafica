@@ -319,6 +319,9 @@ function derivarAreaVisual(
   return undefined;
 }
 
+// Régua do thumb (só objeto do nosso storage): ./thumb-url.ts.
+import { urlDeThumbValida, ERRO_THUMB_FORA_DO_STORAGE } from "./thumb-url";
+
 // Criação de itens: Solicitação/admin, ou o CRIADOR do evento (qualquer papel)
 // — espelha o gate canEditLists do client. Sem isto, Gráfica/Arte/Atendimento
 // criavam itens em eventos alheios direto pela API.
@@ -2401,7 +2404,13 @@ export function registerItemRoutes(app: Express): void {
       if (!approvalThumbUrl) {
         return res.status(400).json({ error: "approvalThumbUrl is required" });
       }
-      
+      // Só objeto do nosso storage (ver urlDeThumbValida). Depois da guarda de
+      // evento finalizado: o 409 daquela decisão vem antes do formato do campo.
+      const thumbNormalizado = urlDeThumbValida(approvalThumbUrl);
+      if (!thumbNormalizado) {
+        return res.status(400).json({ error: ERRO_THUMB_FORA_DO_STORAGE });
+      }
+
       // Check if item has sponsors linked
       const itemSponsors = await storage.getItemSponsors(req.params.id);
       const hasSponsors = itemSponsors.length > 0;
@@ -2441,7 +2450,7 @@ export function registerItemRoutes(app: Express): void {
         rejectedByCreator: false,
       };
       if (approvalThumbUrl) {
-        itemUpdates.approvalThumbUrl = approvalThumbUrl;
+        itemUpdates.approvalThumbUrl = thumbNormalizado;
       }
       
       const item = await storage.updateItem(req.params.id, itemUpdates);
@@ -2452,7 +2461,7 @@ export function registerItemRoutes(app: Express): void {
       // A versão da arte que foi para aprovação — uma linha por envio. É o
       // que deixa a tela de Versões dizer QUAL thumb cada patrocinador viu.
       if (approvalThumbUrl) {
-        await storage.createItemArtVersion({ itemId: item.id, thumbUrl: approvalThumbUrl, origem: "envio", createdBy: req.userName ?? null });
+        await storage.createItemArtVersion({ itemId: item.id, thumbUrl: thumbNormalizado, origem: "envio", createdBy: req.userName ?? null });
         invalidarCacheDeVersoes();
       }
       
@@ -3086,6 +3095,12 @@ export function registerItemRoutes(app: Express): void {
       if (currentItem.status !== "awaiting_sponsor_approval") {
         return res.status(409).json({ error: "Item não está aguardando aprovação do patrocinador" });
       }
+      // Só objeto do nosso storage (ver urlDeThumbValida), depois das guardas
+      // de evento e de status: a decisão de negócio fala antes do formato.
+      const thumbNormalizado = urlDeThumbValida(newThumbUrl);
+      if (!thumbNormalizado) {
+        return res.status(400).json({ error: ERRO_THUMB_FORA_DO_STORAGE });
+      }
 
       // O REENVIO É DERIVADO, NÃO ESCOLHIDO (regra do dono): vai para quem
       // ainda não aprovou — quem reprovou e quem está aguardando. Quem já
@@ -3122,10 +3137,10 @@ export function registerItemRoutes(app: Express): void {
 
       // Update item thumb with the new version
       const item = await storage.updateItem(itemId, {
-        approvalThumbUrl: newThumbUrl,
+        approvalThumbUrl: thumbNormalizado,
         rejectedBySponsor: false,
       });
-      await storage.createItemArtVersion({ itemId, thumbUrl: newThumbUrl, origem: "reenvio", createdBy: req.userName ?? null });
+      await storage.createItemArtVersion({ itemId, thumbUrl: thumbNormalizado, origem: "reenvio", createdBy: req.userName ?? null });
       invalidarCacheDeVersoes();
       // Versão nova: o desaprovador que já tinha aprovado volta para a fila.
       await revogarAprovacoesEstritas(req, currentItem, { tipo: "nova_versao" });
@@ -3305,21 +3320,28 @@ export function registerItemRoutes(app: Express): void {
       if (!currentItem.approvalThumbUrl) {
         return res.status(409).json({ error: "Este item ainda não possui um thumb enviado" });
       }
-      if (currentItem.approvalThumbUrl === approvalThumbUrl) {
+      // Só objeto do nosso storage (ver urlDeThumbValida). A comparação com o
+      // atual usa a forma normalizada: a URL crua do bucket e a `/objects/`
+      // são o mesmo arquivo.
+      const thumbNormalizado = urlDeThumbValida(approvalThumbUrl);
+      if (!thumbNormalizado) {
+        return res.status(400).json({ error: ERRO_THUMB_FORA_DO_STORAGE });
+      }
+      if (currentItem.approvalThumbUrl === thumbNormalizado) {
         return res.status(409).json({ error: "O thumb enviado é igual ao atual" });
       }
 
       const prevUrl = currentItem.approvalThumbUrl;
 
       const item = await storage.updateItem(req.params.id, {
-        approvalThumbUrl,
+        approvalThumbUrl: thumbNormalizado,
         previousApprovalThumbUrl: prevUrl,
         approvalThumbUpdatedAt: new Date(),
       });
       if (!item) {
         return res.status(404).json({ error: "Item not found" });
       }
-      await storage.createItemArtVersion({ itemId: item.id, thumbUrl: approvalThumbUrl, origem: "troca", createdBy: req.userName ?? null });
+      await storage.createItemArtVersion({ itemId: item.id, thumbUrl: thumbNormalizado, origem: "troca", createdBy: req.userName ?? null });
       invalidarCacheDeVersoes();
       // Versão nova enquanto a peça está em aprovação (ou já aprovada e na
       // finalização da Arte): o desaprovador perde a aprovação — e se a peça
@@ -3348,7 +3370,7 @@ export function registerItemRoutes(app: Express): void {
         'updated',
         'item',
         item.id,
-        `Thumb de aprovação atualizado por ${req.userName}. Anterior: ${prevUrl} → Novo: ${approvalThumbUrl}`
+        `Thumb de aprovação atualizado por ${req.userName}. Anterior: ${prevUrl} → Novo: ${thumbNormalizado}`
       );
 
       broadcast({ type: "item_updated", item });

@@ -22,7 +22,7 @@
 // POR QUE ISTO É PURO (sem banco): a rota decide com estas funções e a tela
 // explica com as MESMAS palavras nos selos ("mesmo patrocinador", "evento
 // parecido"). Régua única, e testável sozinha (server/__tests__/
-// artes-parecidas.test.ts).
+// buscar-arte-ja-feita.test.ts).
 //
 // O QUE ESTE MÓDULO NÃO DECIDE: quem pode ver a peça (papel e visibilidade do
 // Kit são da rota) nem o que acontece ao reaproveitar — reaproveitar grava a
@@ -45,7 +45,7 @@ const CURTA = 3;
 
 /**
  * O MIOLO do nome do evento: sem ano, sem cidade (última palavra) e sem
- * palavras curtas. A última palavra só cai quando sobram outras — "Réveillon"
+ * palavras curtas. A última palavra só cai quando sobra outra — "Réveillon"
  * sozinho continua sendo "reveillon", e não nada.
  */
 export function mioloDoEvento(nome: string | null | undefined): string[] {
@@ -53,7 +53,9 @@ export function mioloDoEvento(nome: string | null | undefined): string[] {
   // O ano sai ANTES de tirar a cidade: em "Circuito 2026 Rio" a cidade é
   // "rio" (a última palavra de verdade), não o ano.
   const semAno = palavras.filter((p) => !/^\d{4}$/.test(p));
-  const semCidade = semAno.length > 2 ? semAno.slice(0, -1) : semAno;
+  // Com duas palavras já se corta: "Estações Curitiba" e "Estações Salvador"
+  // são o mesmo circuito. Só o nome de UMA palavra fica inteiro.
+  const semCidade = semAno.length >= 2 ? semAno.slice(0, -1) : semAno;
   return Array.from(new Set(semCidade.filter((p) => p.length > CURTA)));
 }
 

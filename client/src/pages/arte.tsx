@@ -590,6 +590,25 @@ function BotaoBuscarArte({ onClick, variante = "cheio", testId }: {
   );
 }
 
+/**
+ * Miniatura da nova versão na Correção. Antes testava a EXTENSÃO na URL para
+ * decidir entre imagem e ícone de arquivo — e o upload devolve
+ * `/objects/uploads/<uuid>`, sem extensão: toda imagem subida (ou
+ * reaproveitada pelo "Buscar arte já feita") aparecia como PDF. Agora tenta a
+ * miniatura sempre e só cai no ícone quando o navegador não consegue pintar
+ * (PDF de verdade). `key={url}` no uso zera o `falhou` a cada arquivo novo.
+ */
+function MiniaturaDaCorrecao({ url }: { url: string }) {
+  const [falhou, setFalhou] = useState(false);
+  return (
+    <div style={{ width: 32, height: 32, borderRadius: 8, backgroundColor: '#15803d', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden' }}>
+      {falhou
+        ? <FileText style={{ width: 15, height: 15, color: '#fff' }} />
+        : <img loading="lazy" decoding="async" src={miniatura(url)} alt="" onError={() => setFalhou(true)} style={{ width: 32, height: 32, objectFit: 'cover', borderRadius: 8 }} />}
+    </div>
+  );
+}
+
 export default function Arte() {
   const { toast } = useToast();
   const { user } = useAuth();
@@ -2267,6 +2286,14 @@ export default function Arte() {
       // Última barreira do gate de papel, como em todo handler que GRAVA: os
       // outros destinos só enchem um campo, este manda para o servidor.
       if (bloqueadoPorPapel()) return;
+      // A arte escolhida já é a atual: não há o que gravar (o servidor
+      // responderia 409 "igual ao atual" — em vermelho, para um clique que não
+      // errou nada). Aviso neutro e o modal fecha.
+      if (itemPorId.get(buscaDeArte.itemId)?.approvalThumbUrl === imagem) {
+        setBuscaDeArte(null);
+        toast({ title: "Essa já é a arte atual desta peça" });
+        return;
+      }
       // A troca do thumb já aprovado grava NA HORA, pela mutação de sempre
       // (update-thumb): mesma revogação de aprovação estrita, mesma versão de
       // arte, mesma trilha.
@@ -5032,12 +5059,7 @@ export default function Arte() {
                       {/* Ladrilho chapado: o gradiente verde era o ultimo desta
                           area, e num aviso de sucesso de 32px ele nao le como
                           gradiente — le como ruido. */}
-                      <div style={{ width: 32, height: 32, borderRadius: 8, backgroundColor: '#15803d', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                        {/\.(png|jpg|jpeg|gif|webp)/i.test(correcaoThumbUrl)
-                          ? <img loading="lazy" decoding="async" src={miniatura(correcaoThumbUrl)} alt="" style={{ width: 32, height: 32, objectFit: 'cover', borderRadius: 8 }} />
-                          : <FileText style={{ width: 15, height: 15, color: '#fff' }} />
-                        }
-                      </div>
+                      <MiniaturaDaCorrecao key={correcaoThumbUrl} url={correcaoThumbUrl} />
                       <div style={{ flex: 1, minWidth: 0 }}>
                         {/* "Arquivo enviado" lia como "já foi para o
                             patrocinador" (rodada 4) — e a pessoa fechava o

@@ -11,6 +11,7 @@ import { carregarRemessa, remessasPorIds } from "../services/kitRemessas";
 import { resumosDeTuboPorIds, comTubo } from "../services/tubosDaPeca";
 import { FORMATO_COMPACTO, compactarPecas, compactarAprovacoes } from "@shared/itens-compactos";
 import { DEPOIS_DA_ARTE, EM_REVISAO, POS_APROVACAO, DISPENSAVEIS, DESTINO_DA_DISPENSA, ehBookCompleto, ehMaquinaValida, rotuloDaMaquina } from "@shared/fluxo-peca";
+import { quemOcupaAImpressora, erroImpressoraOcupada } from "../services/ocupacaoDasImpressoras";
 import { iniciarParte as iniciarParteDaPeca, colunasDaReserva, reservaDaPeca, lerReserva, encolherReserva, reescalarReservaEPartes, resumoDaReserva } from "@shared/reserva-de-impressora";
 import { partesDaPeca, moverParte, normalizarPartes, maquinaPrincipal, aImprimirDaPeca, estaDividida, totalImpressas, lerPartes, reescalarPartes, type PartesPorMaquina } from "@shared/impressao-dividida";
 import {
@@ -1827,7 +1828,7 @@ export function registerItemRoutes(app: Express): void {
         if (lerPartes(currentItem.impressaoPorMaquina) || lerReserva(currentItem.reservaPorMaquina) || currentItem.maquinaPrevista) {
           const r = reescalarReservaEPartes(currentItem, nova - reusoNovo);
           if (lerPartes(currentItem.impressaoPorMaquina)) updatePayload.impressaoPorMaquina = promoveuParaProduzido ? null : r.partes;
-          Object.assign(updatePayload, colunasDaReserva(promoveuParaProduzido ? null : r.reserva));
+          Object.assign(updatePayload, colunasDaReserva(promoveuParaProduzido ? null : r.reserva, currentItem.reservaPorMaquina));
         }
       }
 
@@ -4670,6 +4671,13 @@ export function registerItemRoutes(app: Express): void {
       if (aImprimir <= 0) {
         return res.status(409).json({ error: "Nada a imprimir: a peça já está coberta por produção e reaproveitamento" });
       }
+      // UMA PEÇA POR VEZ POR IMPRESSORA (dono, 21/09): iniciar (inteira ou
+      // parte) e trocar de máquina recusam a impressora que já tem OUTRA peça
+      // com parte ativa. A mesma peça pode somar parte onde já está.
+      const ocupante = await quemOcupaAImpressora(printMachine, current.id);
+      if (ocupante) {
+        return res.status(409).json({ error: erroImpressoraOcupada(printMachine, ocupante), code: "PRINTER_BUSY", ocupante: { id: ocupante.id, displayId: ocupante.displayId } });
+      }
       const trocouDeMaquina = pedeParte !== true && (current.status === "inProduction" || current.status === "em_producao") && !!current.printMachine;
       const partesAtuais = partesDaPeca(current);
       const origem = trocouDeMaquina ? (ehMaquinaValida(deMaquina) && partesAtuais[deMaquina] ? deMaquina : current.printMachine!) : null;
@@ -4700,7 +4708,7 @@ export function registerItemRoutes(app: Express): void {
       // A reserva: a troca não mexe nela; iniciar uma parte consome só a desta
       // impressora; iniciar a peça INTEIRA (o gesto de sempre) a limpa toda —
       // a peça está numa máquina de verdade agora.
-      const reservaDepois = movimento ? colunasDaReserva(reservaDaPeca(current)) : colunasDaReserva(parte ? parte.reserva : null);
+      const reservaDepois = movimento ? colunasDaReserva(reservaDaPeca(current), current.reservaPorMaquina) : colunasDaReserva(parte ? parte.reserva : null, current.reservaPorMaquina);
 
       const item = await storage.updateItem(req.params.id, {
         status: "inProduction",
@@ -5078,7 +5086,7 @@ export function registerItemRoutes(app: Express): void {
           const r = reescalarReservaEPartes(current, current.quantity - newReuse);
           return {
             ...(lerPartes(current.impressaoPorMaquina) ? { impressaoPorMaquina: isReady ? null : r.partes } : {}),
-            ...colunasDaReserva(isReady ? null : r.reserva),
+            ...colunasDaReserva(isReady ? null : r.reserva, current.reservaPorMaquina),
           };
         })(),
       });
@@ -5178,7 +5186,7 @@ export function registerItemRoutes(app: Express): void {
         // impressoras — que só faz sentido em impressão — é descartada; a
         // reserva encolhe para caber no que agora há para imprimir.
         impressaoPorMaquina: null,
-        ...colunasDaReserva(reaproveitaTudo ? null : encolherReserva(reservaDaPeca({ ...current, status: "ready_for_production", quantityProduced: 0, impressaoPorMaquina: null }), current.quantity - correctedReuseQty)),
+        ...colunasDaReserva(reaproveitaTudo ? null : encolherReserva(reservaDaPeca({ ...current, status: "ready_for_production", quantityProduced: 0, impressaoPorMaquina: null }), current.quantity - correctedReuseQty), current.reservaPorMaquina),
       });
       if (!item) return res.status(404).json({ error: "Item not found" });
 

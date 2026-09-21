@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, pgSequence, text, varchar, timestamp, integer, decimal, boolean, json, index, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgTable, pgSequence, text, varchar, timestamp, integer, decimal, boolean, json, jsonb, index, uniqueIndex } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
@@ -255,6 +255,9 @@ export const items = pgTable("items", {
   // NULL = fila geral. É só um controle da aba Máquinas: não mexe em status,
   // printMachine nem no diário. Vira realidade no start-printing, que a limpa.
   maquinaPrevista: text("maquina_prevista"),
+  // PEÇA DIVIDIDA entre impressoras (dono, 21/09): { "1": { atrib, impressas },
+  // "2": {...} }. NULL = tudo na printMachine. Ver shared/impressao-dividida.ts.
+  impressaoPorMaquina: jsonb("impressao_por_maquina").$type<Record<string, { atrib: number; impressas: number }> | null>(),
   producedAt: timestamp("produced_at"), // Timestamp quando foi produzido
   // DESDE QUANDO a peca esta no status atual.
   //
@@ -991,6 +994,9 @@ export const insertItemSchema = createInsertSchema(items).omit({
   updatedAt: true,
 }).extend({
   quantity: z.number().min(1),
+  // O jsonb inferido pelo drizzle-zod vira um tipo recursivo que derruba a
+  // inferência do schema inteiro (`validatedData` virava `{}`); declarado à mão.
+  impressaoPorMaquina: z.record(z.string(), z.object({ atrib: z.number().int().min(0), impressas: z.number().int().min(0) })).nullable().optional(),
   area: z.string().or(z.number()),
   visual: z.string().or(z.number()),
   calculatedM2: z.string().or(z.number()),
@@ -1023,6 +1029,7 @@ export const publicInsertItemSchema = insertItemSchema.omit({
   // nem o complemento, nem o reaproveitamento (estes nem passam por aqui).
   // A reserva de impressora é gesto da aba Máquinas (PATCH maquina-prevista).
   maquinaPrevista: true,
+  impressaoPorMaquina: true,
   printMachine: true,
   tuboId: true,
 });

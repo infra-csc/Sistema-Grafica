@@ -48,7 +48,7 @@ describe("2 · os gestos gravam no diário", () => {
       ITEMS.indexOf('app.patch("/api/items/:id/start-production"'),
     );
     expect(rota).toContain("await registrarImpressao(req, {");
-    expect(rota).toContain('tipo: trocouDeMaquina ? "troca" : "inicio",');
+    expect(rota).toContain(`tipo: movimento ? "troca" : "inicio",`);
   });
 
   it("lançar parcial e concluir — com o que saiu NESTE lançamento, não o total", () => {
@@ -58,7 +58,7 @@ describe("2 · os gestos gravam no diário", () => {
   });
 
   it("usa a máquina enviada agora ou, na falta, a que a peça já tinha", () => {
-    expect(ITEMS).toContain("maquina: printMachine || before.printMachine,");
+    expect(ITEMS).toContain("maquina: (partesDepois ? maquina : null) || printMachine || before.printMachine,");
   });
 });
 
@@ -394,6 +394,87 @@ describe("7 · a reserva de impressora — só um controle, nunca uma etapa", ()
     const volta = expandirPecas(compactarPecas([peca]));
     expect(JSON.stringify(volta[0])).toBe(JSON.stringify(peca));
     expect(volta[0].maquinaPrevista).toBe("2");
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 8 · PEÇA DIVIDIDA entre impressoras (dono, 21/09: "ao mover, poder
+// selecionar tudo ou quantidades"), só os papéis da Gráfica na leitura, e o
+// selo "Fila: Impressora N" na Gráfica.
+// ─────────────────────────────────────────────────────────────────────────────
+describe("8 · a impressão dividida — a conta pura", async () => {
+  const d = await import("@shared/impressao-dividida");
+
+  it("mover tudo, mover parte, limites e a origem que some", () => {
+    const partes = { "1": { atrib: 10, impressas: 5 } };
+    const parcial = d.moverParte(partes, "1", "2", 2);
+    expect(parcial).toEqual({ ok: true, partes: { "1": { atrib: 8, impressas: 5 }, "2": { atrib: 2, impressas: 0 } }, movidas: 2, ficam: 3 });
+    const tudo = d.moverParte(partes, "1", "2", null);
+    expect(tudo).toEqual({ ok: true, partes: { "1": { atrib: 5, impressas: 5 }, "2": { atrib: 5, impressas: 0 } }, movidas: 5, ficam: 0 });
+    // Origem sem nada impresso nem atribuído desaparece.
+    expect(d.moverParte({ "1": { atrib: 4, impressas: 0 } }, "1", "3", null)).toMatchObject({ ok: true, partes: { "3": { atrib: 4, impressas: 0 } } });
+    expect(d.moverParte(partes, "1", "2", 6)).toMatchObject({ ok: false, erro: "Só há 5 un. por imprimir na Impressora 1 (New XT) — não dá para mover 6" });
+    expect(d.moverParte(partes, "1", "2", 0)).toMatchObject({ ok: false });
+    expect(d.moverParte(partes, "1", "1", 1)).toMatchObject({ ok: false });
+    expect(d.moverParte({ "1": { atrib: 5, impressas: 5 } }, "1", "2", null)).toMatchObject({ ok: false });
+  });
+
+  it("principal = a que mais tem por imprimir; total = soma das impressas; jsonb nulo quando não há divisão", () => {
+    const partes = { "1": { atrib: 8, impressas: 5 }, "2": { atrib: 2, impressas: 0 } };
+    expect(d.maquinaPrincipal(partes, "2")).toBe("1");
+    expect(d.maquinaPrincipal({ "1": { atrib: 5, impressas: 5 }, "2": { atrib: 5, impressas: 0 } }, "2")).toBe("2");
+    expect(d.totalImpressas(partes)).toBe(5);
+    expect(d.normalizarPartes({ "2": { atrib: 10, impressas: 0 } }, 10)).toBeNull();
+    expect(d.normalizarPartes(partes, 10)).toEqual(partes);
+    expect(d.estaDividida({ printMachine: "1", impressaoPorMaquina: partes })).toBe(true);
+    expect(d.estaDividida({ printMachine: "1", impressaoPorMaquina: null })).toBe(false);
+    expect(d.partesDaPeca({ printMachine: "1", quantity: 10, reuseQty: 2, quantityProduced: 3 })).toEqual({ "1": { atrib: 8, impressas: 3 } });
+    expect(d.lerPartes({ "9": { atrib: 1 }, "1": { atrib: "3", impressas: 7 } })).toEqual({ "1": { atrib: 3, impressas: 3 } });
+    expect(d.resumoDaDivisao(partes)).toBe("Impressora 1 (New XT) · 5 de 8 un. / Impressora 2 · 0 de 2 un.");
+  });
+
+  it("o dado: items.impressao_por_maquina jsonb, aditivo, fora da API pública, e o compacto leva de ida e volta", async () => {
+    expect(SCHEMA).toContain('impressaoPorMaquina: jsonb("impressao_por_maquina")');
+    expect(SCHEMA.slice(SCHEMA.indexOf("export const publicInsertItemSchema"))).toContain("impressaoPorMaquina: true,");
+    expect(ler("scripts/migracao-aditiva-producao.sql")).toContain("ALTER TABLE items ADD COLUMN IF NOT EXISTS impressao_por_maquina jsonb;");
+    expect(ler("scripts/migracao-aditiva-producao.mjs")).toContain("'impressao_por_maquina'");
+    const { compactarPecas, expandirPecas } = await import("@shared/itens-compactos");
+    const peca = { id: "p1", displayId: "#0001", status: "inProduction", quantity: 10, printMachine: "1", impressaoPorMaquina: { "1": { atrib: 8, impressas: 5 }, "2": { atrib: 2, impressas: 0 } }, eventId: "e1", event: { id: "e1", name: "Maratona" } };
+    const volta = expandirPecas(compactarPecas([peca]));
+    expect(JSON.stringify(volta[0])).toBe(JSON.stringify(peca));
+  });
+
+  it("start-printing: `quantidade` move parte, grava a troca com a quantidade e a trilha diz quantas ficam", () => {
+    const rota = ITEMS.slice(ITEMS.indexOf('app.patch("/api/items/:id/start-printing"'), ITEMS.indexOf('app.patch("/api/items/:id/start-production"'));
+    expect(rota).toContain("const { printMachine, quantidade, deMaquina } = req.body ?? {};");
+    expect(rota).toContain("const r = moverParte(partesAtuais, origem!, printMachine, quantidade == null ? null : Number(quantidade));");
+    expect(rota).toContain("if (!r.ok) return res.status(409).json({ error: r.erro });");
+    expect(rota).toContain("printMachine: principal,");
+    expect(rota).toContain("impressaoPorMaquina: partesNovas,");
+    expect(rota).toContain("quantidade: movimento?.movidas ?? 0,");
+    expect(rota).toContain("`Movidas ${movimento.movidas} un. para a ${rotuloDaMaquina(printMachine)} (${movimento.ficam} ficam na ${rotuloDaMaquina(origem)})`");
+  });
+
+  it("start-production: por impressora quando dividida, nunca mais que o atribuído; o total é a soma; concluir limpa o jsonb", () => {
+    const rota = ITEMS.slice(ITEMS.indexOf('app.patch("/api/items/:id/start-production"'), ITEMS.indexOf("Auto-add to inventory when fully produced"));
+    expect(rota).toContain("if (maquina != null && impressasNaMaquina != null && estaDividida(before)) {");
+    expect(rota).toContain("if (n > parte.atrib) return res.status(400).json({ error: `Máximo ${parte.atrib} un. na ${rotuloDaMaquina(maquina)} — é o que foi atribuído a ela` });");
+    expect(rota).toContain("quantityProduced = totalImpressas(partesDepois);");
+    expect(rota).toContain('{ impressaoPorMaquina: newProdStatus === "produced" ? null : partesDepois, printMachine: maquinaPrincipal(partesDepois, maquina) ?? before.printMachine }');
+  });
+
+  it("a Gráfica: só admin/grafica/solicitacao leem Máquinas; o selo 'Fila: Impressora N' e a divisão na linha", () => {
+    const ROTA = ler("server/routes/maquinas.ts");
+    expect((ROTA.match(/requireAuth, requireRole\(\.\.\.PAPEIS_QUE_VEEM\)/g) ?? []).length).toBe(3);
+    expect(ler("client/src/App.tsx")).toContain("<RoleProtectedRoute component={GraficaMaquinas} allowedRoles={ROLES_GRAFICA} />");
+    expect(ler("client/src/components/app-sidebar.tsx")).toMatch(/url: "\/grafica\/maquinas",\s+icon: \w+,\s+roles: \["grafica", "solicitacao", "admin"\]/);
+    expect(GRAFICA).toContain("function SeloFilaDaImpressora(");
+    expect(GRAFICA).toContain("{!isInProd(item) && item.maquinaPrevista && <SeloFilaDaImpressora maquina={item.maquinaPrevista} fonte={12} />}");
+    expect(GRAFICA).toContain("{!isInProd(item) && item.maquinaPrevista && <div style={{ marginTop: 4 }}><SeloFilaDaImpressora maquina={item.maquinaPrevista} fonte={10.5} /></div>}");
+    expect(GRAFICA).toContain("const maquina = dividida ? resumoDaDivisao(partesDaPeca(item)) : item.printMachine ? rotuloDaMaquina(item.printMachine) : null;");
+    // O retrato entrega a parte de cada impressora e a peça aparece nos dois cartões.
+    expect(ROTA).toContain("return partes ? !!partes[codigo] : l.print_machine === codigo;");
+    expect(ROTA).toContain("return { ...p, maquina: codigo, parte };");
   });
 });
 

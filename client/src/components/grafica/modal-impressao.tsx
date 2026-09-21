@@ -46,6 +46,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { avaliarProducao, tetoDeProducao, ehConflitoDeProducao } from "@/lib/grafica-producao";
 import { isInProd, producedOf, qtyOf, reusedTotalOf, remainingProduce, type SaldoItem } from "@/lib/saldo";
 import { MAQUINAS_DE_IMPRESSAO, rotuloDaMaquina } from "@shared/fluxo-peca";
+import { partesDaPeca, estaDividida, resumoDaDivisao } from "@shared/impressao-dividida";
 import { T, FS, R } from "@/lib/theme";
 
 /** O mínimo que o formulário precisa saber da peça. A fila passa o item inteiro. */
@@ -176,15 +177,19 @@ export function useMutacoesDeImpressao({ onSucesso }: { onSucesso?: () => void }
 
   // PRIMEIRO MOMENTO (14/09): a peça entra na máquina e fica "Em Impressão".
   // Serve também para TROCAR de máquina no meio da impressão.
+  // `quantidade` + `deMaquina` (dono, 21/09): mover só parte do que resta —
+  // a peça fica dividida entre impressoras. Sem `quantidade`, move tudo.
   const startPrintingMutation = useMutation({
-    mutationFn: async ({ itemId, printMachine }: { itemId: string; printMachine: string; displayId?: string | null; trocando?: boolean }) =>
-      await apiRequest("PATCH", `/api/items/${itemId}/start-printing`, { printMachine }),
+    mutationFn: async ({ itemId, printMachine, quantidade, deMaquina }: { itemId: string; printMachine: string; displayId?: string | null; trocando?: boolean; quantidade?: number | null; deMaquina?: string | null; ficam?: number }) =>
+      await apiRequest("PATCH", `/api/items/${itemId}/start-printing`, { printMachine, ...(quantidade != null ? { quantidade } : {}), ...(deMaquina ? { deMaquina } : {}) }),
     onSuccess: (_r, vars) => {
       invalidarTudo();
       onSucesso?.();
       const cod = vars.displayId ? ` · ${vars.displayId}` : "";
       toast(vars.trocando
-        ? { title: `Movida para a ${rotuloDaMaquina(vars.printMachine)}${cod}`, description: "O que já saiu fica anotado na máquina anterior." }
+        ? (vars.quantidade != null && (vars.ficam ?? 0) > 0
+          ? { title: `${vars.quantidade} un. para a ${rotuloDaMaquina(vars.printMachine)}${cod}`, description: `${vars.ficam} ficam na ${rotuloDaMaquina(vars.deMaquina)}. Informe as impressas de cada impressora no cartão dela.` }
+          : { title: `Movida para a ${rotuloDaMaquina(vars.printMachine)}${cod}`, description: "O que já saiu fica anotado na máquina anterior." })
         : { title: `Em impressão na ${rotuloDaMaquina(vars.printMachine)}${cod}`, description: "Conforme as unidades saírem, informe quantas já foram impressas." });
     },
     onError: (error: Error, vars) => toast({
@@ -261,6 +266,29 @@ interface FormularioProps {
    * trocar antes. Só vale para peça ainda fora da máquina.
    */
   maquinaInicial?: string | null;
+  /**
+   * Peça DIVIDIDA entre impressoras: de qual cartão o modal foi aberto. As
+   * impressas e a troca passam a valer para a parte DESSA impressora.
+   */
+  maquinaEmQuestao?: string | null;
+}
+
+/**
+ * Quanto saiu AGORA vira o TOTAL que o servidor grava (dono, 21/09: "se tem
+ * 5 na impressora, como imprimo 10?" — ele digitava o de agora num campo que
+ * pedia o acumulado). Pura: `agora` vazio/0 → nada a salvar.
+ */
+export function totalAPartirDoAgora(jaSairam: number, agora: number | "", teto: number): { total: number; pode: boolean; aviso: string; linha: string } {
+  const naImpressora = Math.max(0, teto - jaSairam);
+  const n = agora === "" ? 0 : agora;
+  if (!Number.isFinite(n) || n <= 0) {
+    return { total: jaSairam, pode: false, aviso: "", linha: `${jaSairam} já ${jaSairam === 1 ? "saiu" : "saíram"} · ${naImpressora} na impressora` };
+  }
+  if (n > naImpressora) {
+    return { total: jaSairam + n, pode: false, aviso: `Só há ${naImpressora} na impressora — não dá para informar ${n} agora.`, linha: `${jaSairam} já saíram + ${n} agora = ${jaSairam + n} de ${teto}` };
+  }
+  const total = jaSairam + n;
+  return { total, pode: true, aviso: "", linha: `${jaSairam} já ${jaSairam === 1 ? "saiu" : "saíram"} + ${n} agora = ${total} de ${teto} · ${total >= teto ? "nenhuma fica na impressora" : `${teto - total} ${teto - total === 1 ? "fica" : "ficam"} na impressora`}` };
 }
 
 /**
@@ -268,13 +296,18 @@ interface FormularioProps {
  * quantidade) nasce da peça e NÃO é sincronizado por efeito — trocar a peça
  * troca a chave, e o React remonta limpo.
  */
-export function FormularioDeImpressao({ item, onFechar, padModal, mutacoes, abrirNaTroca = false, maquinaInicial = null }: FormularioProps) {
+export function FormularioDeImpressao({ item, onFechar, padModal, mutacoes, abrirNaTroca = false, maquinaInicial = null, maquinaEmQuestao = null }: FormularioProps) {
   const isMobile = useIsMobile();
   const { toast } = useToast();
   const fsMin = (n: number) => (isMobile ? Math.max(12, n) : n);
   const { startProductionMutation, startPrintingMutation } = mutacoes;
   const emImpressao = isInProd(item);
-  const maquinaAtual = item.printMachine ?? "";
+  // Peça dividida: a "máquina atual" é a do cartão que abriu o modal, e os
+  // números (já saíram / teto) são os da parte dela.
+  const partes = partesDaPeca(item);
+  const dividida = estaDividida(item);
+  const maquinaAtual = (dividida && maquinaEmQuestao && partes[maquinaEmQuestao] ? maquinaEmQuestao : item.printMachine) ?? "";
+  const parte = maquinaAtual ? partes[maquinaAtual] : undefined;
 
   // Peça em impressão SEM máquina anotada (iniciada antes do controle por
   // máquina): o painel de impressora já nasce aberto e o gesto é "Confirmar
@@ -292,18 +325,34 @@ export function FormularioDeImpressao({ item, onFechar, padModal, mutacoes, abri
   // Pré-preenche com o que JÁ SAIU da máquina, não com o total (dono, 14/09):
   // a impressão é registrada aos poucos, e com o TOTAL pré-preenchido um toque
   // distraído concluía uma peça com 10 de 40 impressas. "Tudo" continua a um toque.
-  const [quantidade, setQuantidade] = useState<number>(producedOf(item));
+  // O campo pergunta quantas saíram AGORA (nasce vazio); o total é calculado.
+  // "Corrigir o total já informado" abre o modo antigo, absoluto.
+  const [agora, setAgora] = useState<number | "">("");
+  const [modoTotal, setModoTotal] = useState(false);
+  const [quantidadeTotal, setQuantidadeTotal] = useState<number>(producedOf(item));
+  // Mover: tudo o que resta (padrão) ou uma quantidade.
+  const [moverTudo, setMoverTudo] = useState(true);
+  const [qtdMover, setQtdMover] = useState<number | "">("");
   // Enter SEGURADO no teclado numérico dispara vários submits antes de o React
   // redesenhar o botão desabilitado. A trava por ref vale na hora.
   const envioRef = useRef(false);
 
-  const teto = tetoDeProducao(item);
-  const jaSairam = producedOf(item);
+  // Dividida: os números da parte desta impressora; senão, os da peça.
+  const teto = dividida && parte ? parte.atrib : tetoDeProducao(item);
+  const jaSairam = dividida && parte ? parte.impressas : producedOf(item);
+  const restanteAqui = Math.max(0, teto - jaSairam);
   const alvo = isMobile ? 48 : 44;
 
   const iniciarOuTrocar = () => {
     if (!maquinaEscolhida || startPrintingMutation.isPending) return;
-    startPrintingMutation.mutate({ itemId: item.id, printMachine: maquinaEscolhida, displayId: item.displayId, trocando: emImpressao && !!maquinaAtual });
+    const trocando = emImpressao && !!maquinaAtual;
+    const n = !trocando || moverTudo ? null : (qtdMover === "" ? 0 : qtdMover);
+    if (trocando && !moverTudo && (!n || n <= 0 || n > restanteAqui)) return;
+    startPrintingMutation.mutate({
+      itemId: item.id, printMachine: maquinaEscolhida, displayId: item.displayId, trocando,
+      ...(trocando && n != null ? { quantidade: n, deMaquina: maquinaAtual, ficam: restanteAqui - n } : {}),
+      ...(trocando && dividida && n == null ? { deMaquina: maquinaAtual } : {}),
+    });
   };
 
   const salvarImpressas = (e: React.FormEvent) => {
@@ -313,18 +362,31 @@ export function FormularioDeImpressao({ item, onFechar, padModal, mutacoes, abri
       toast({ title: "Escolha a máquina", description: "Diga em qual máquina a peça foi impressa antes de informar as impressas.", variant: "destructive" });
       return;
     }
-    // O campo grava o TOTAL produzido (contrato ABSOLUTO do servidor).
-    // `avaliarProducao` valida o teto, monta o lock otimista e diz quando a
-    // gravação REDUZ o registro — caso em que a pergunta cita os dois números.
-    const av = avaliarProducao(item, quantidade, maquinaAtual);
-    if (!av.ok || !av.payload) {
-      toast({ title: "Quantidade inválida", description: av.erro, variant: "destructive" });
-      return;
+    const total = modoTotal ? quantidadeTotal : totalAPartirDoAgora(jaSairam, agora, teto).total;
+    let payload: any;
+    if (dividida && parte) {
+      // Por impressora: o servidor recalcula o total da peça como a soma das partes.
+      if (!Number.isInteger(total) || total <= 0 || total > teto) {
+        toast({ title: "Quantidade inválida", description: `Informe entre 1 e ${teto} un. para a ${rotuloDaMaquina(maquinaAtual)}.`, variant: "destructive" });
+        return;
+      }
+      if (total < jaSairam && !window.confirm(`Reduz o que consta impresso na ${rotuloDaMaquina(maquinaAtual)} de ${jaSairam} para ${total} un. Confirmar?`)) return;
+      payload = { quantityProduced: producedOf(item) - jaSairam + total, expectedProduced: producedOf(item), printMachine: maquinaAtual, maquina: maquinaAtual, impressasNaMaquina: total };
+    } else {
+      // O servidor grava o TOTAL produzido (contrato ABSOLUTO). `avaliarProducao`
+      // valida o teto, monta o lock otimista e diz quando a gravação REDUZ o
+      // registro — caso em que a pergunta cita os dois números.
+      const av = avaliarProducao(item, total, maquinaAtual);
+      if (!av.ok || !av.payload) {
+        toast({ title: "Quantidade inválida", description: av.erro, variant: "destructive" });
+        return;
+      }
+      if (av.precisaConfirmar && !window.confirm(av.confirmacao)) return;
+      payload = av.payload;
     }
-    if (av.precisaConfirmar && !window.confirm(av.confirmacao)) return;
     envioRef.current = true;
     startProductionMutation.mutate(
-      { itemId: item.id, data: av.payload, displayId: item.displayId },
+      { itemId: item.id, data: payload, displayId: item.displayId },
       { onSettled: () => { envioRef.current = false; } },
     );
   };
@@ -407,10 +469,19 @@ export function FormularioDeImpressao({ item, onFechar, padModal, mutacoes, abri
 
   // ── PEÇA EM IMPRESSÃO: quantidade + UM botão; a troca fica num painel. ─────
   const hora = horaDeInicio(item.productionStartedAt);
-  const frase = fraseDoBotaoDeImpressas(quantidade, jaSairam, teto);
+  const doAgora = totalAPartirDoAgora(jaSairam, agora, teto);
+  // No modo "agora", a frase do botão é a de sempre sobre o total calculado;
+  // sem número, o botão diz o que falta ("Informe quantas saíram").
+  const frase = modoTotal
+    ? fraseDoBotaoDeImpressas(quantidadeTotal, jaSairam, teto)
+    : (agora === "" || agora <= 0)
+      ? (jaSairam >= teto && teto > 0 ? fraseDoBotaoDeImpressas(teto, jaSairam, teto) : { rotulo: "Informe quantas saíram", pode: false, aviso: "" })
+      : doAgora.pode ? fraseDoBotaoDeImpressas(doAgora.total, jaSairam, teto) : { rotulo: `Máximo ${restanteAqui} agora`, pode: false, aviso: doAgora.aviso };
   const podeSalvar = frase.pode && !!maquinaAtual && !startProductionMutation.isPending;
-  const podeTrocar = !!maquinaEscolhida && maquinaEscolhida !== maquinaAtual && !startPrintingMutation.isPending;
-  const naImpressora = Math.max(0, teto - jaSairam);
+  const qtdMoverValida = moverTudo || (qtdMover !== "" && qtdMover > 0 && qtdMover <= restanteAqui);
+  const podeTrocar = !!maquinaEscolhida && maquinaEscolhida !== maquinaAtual && !startPrintingMutation.isPending && qtdMoverValida;
+  const naImpressora = restanteAqui;
+  const movidas = moverTudo ? restanteAqui : (qtdMover === "" ? 0 : qtdMover);
 
   return (
     <form onSubmit={salvarImpressas} data-testid="form-impressao" data-etapa="impressas" style={{ display: "flex", flexDirection: "column", gap: 20 }}>
@@ -420,9 +491,16 @@ export function FormularioDeImpressao({ item, onFechar, padModal, mutacoes, abri
           <Printer aria-hidden="true" style={{ width: 14, height: 14, flexShrink: 0 }} />
           <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>
             {maquinaAtual ? `Em impressão na ${rotuloDaMaquina(maquinaAtual)}` : "Em impressão — impressora não anotada"}{hora ? ` · desde ${hora}` : ""}
-            <span style={{ display: "block", fontSize: fsMin(11), fontWeight: 600, color: "#9a3412", opacity: 0.9, marginTop: 2, fontVariantNumeric: "tabular-nums" }}>
-              {progressoDaImpressao(jaSairam, teto)}
+            <span data-testid="progresso-no-modal" style={{ display: "block", fontSize: fsMin(11), fontWeight: 600, color: "#9a3412", opacity: 0.9, marginTop: 2, fontVariantNumeric: "tabular-nums" }}>
+              {dividida
+                ? `${jaSairam} de ${teto} nesta impressora · peça ${producedOf(item)} de ${tetoDeProducao(item)} no total`
+                : progressoDaImpressao(jaSairam, teto)}
             </span>
+            {dividida && (
+              <span data-testid="divisao-no-modal" style={{ display: "block", fontSize: fsMin(11), fontWeight: 600, color: "#9a3412", opacity: 0.8, marginTop: 2 }}>
+                Dividida: {resumoDaDivisao(partes)}
+              </span>
+            )}
           </span>
         </span>
         {/* Botão contornado, não link sublinhado: o dono não o achava no
@@ -444,9 +522,43 @@ export function FormularioDeImpressao({ item, onFechar, padModal, mutacoes, abri
       {trocando && (
         <div data-testid="painel-troca" style={{ display: "flex", flexDirection: "column", gap: 12, padding: 12, borderRadius: R.lg, border: `1px solid ${T.border}`, background: T.bg }}>
           {seletorDeMaquina(maquinaAtual || null)}
+          {/* Tudo ou uma quantidade (dono, 21/09): a peça pode ficar dividida. */}
+          {!!maquinaAtual && !!maquinaEscolhida && restanteAqui > 1 && (
+            <div role="radiogroup" aria-label="Quanto mover" data-testid="quanto-mover" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              <span style={rotulo(fsMin)}>Quanto vai para a {rotuloDaMaquina(maquinaEscolhida)}</span>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+                <button type="button" role="radio" aria-checked={moverTudo} onClick={() => setMoverTudo(true)} data-testid="mover-tudo" style={{ minHeight: alvo, padding: "0 14px", borderRadius: R.md, fontFamily: GROTESK, fontSize: 13, fontWeight: 800, backgroundColor: moverTudo ? T.text : "#f4f3f0", color: moverTudo ? "#fff" : T.text, border: `2px solid ${moverTudo ? T.text : "transparent"}`, cursor: "pointer" }}>
+                  Tudo ({restanteAqui})
+                </button>
+                <button type="button" role="radio" aria-checked={!moverTudo} onClick={() => setMoverTudo(false)} data-testid="mover-quantidade" style={{ minHeight: alvo, padding: "0 14px", borderRadius: R.md, fontFamily: GROTESK, fontSize: 13, fontWeight: 800, backgroundColor: !moverTudo ? T.text : "#f4f3f0", color: !moverTudo ? "#fff" : T.text, border: `2px solid ${!moverTudo ? T.text : "transparent"}`, cursor: "pointer" }}>
+                  Quantidade
+                </button>
+                {!moverTudo && (
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    min={1}
+                    max={restanteAqui}
+                    value={qtdMover}
+                    onChange={(e) => setQtdMover(e.target.value === "" ? "" : Math.max(0, parseInt(e.target.value) || 0))}
+                    aria-label={`Quantas unidades vão para a ${rotuloDaMaquina(maquinaEscolhida)}`}
+                    placeholder="0"
+                    data-testid="input-quantidade-mover"
+                    style={{ width: 96, minHeight: alvo, boxSizing: "border-box", textAlign: "center", fontFamily: GROTESK, fontSize: isMobile ? 16 : 18, fontWeight: 700, color: T.text, backgroundColor: "#f4f3f0", border: "none", borderRadius: R.md, padding: "0 10px" }}
+                  />
+                )}
+              </div>
+              <p role="status" data-testid="texto-mover" style={{ margin: 0, fontSize: fsMin(12), color: qtdMoverValida ? T.second : "#b45309", lineHeight: 1.45 }}>
+                {qtdMoverValida
+                  ? `${movidas} ${movidas === 1 ? "vai" : "vão"} para a ${rotuloDaMaquina(maquinaEscolhida)}; ${restanteAqui - movidas} ${restanteAqui - movidas === 1 ? "fica" : "ficam"} na ${rotuloDaMaquina(maquinaAtual)}.`
+                  : `Informe de 1 a ${restanteAqui} — é o que ainda está por imprimir na ${rotuloDaMaquina(maquinaAtual)}.`}
+              </p>
+            </div>
+          )}
           <p style={{ margin: 0, fontSize: fsMin(12), color: T.second, lineHeight: 1.45 }}>
             {maquinaAtual
-              ? `O que já saiu (${jaSairam} de ${teto}) fica anotado na ${rotuloDaMaquina(maquinaAtual)}; o restante passa a contar na nova.`
+              ? `O que já saiu (${jaSairam} de ${teto}) fica anotado na ${rotuloDaMaquina(maquinaAtual)}; o que for movido passa a contar na nova.`
               : "Esta peça entrou em impressão antes do controle por máquina. Diga em qual impressora ela está para poder informar as impressas."}
           </p>
           <div style={{ display: "flex", gap: 10 }}>
@@ -467,21 +579,25 @@ export function FormularioDeImpressao({ item, onFechar, padModal, mutacoes, abri
             >
               {startPrintingMutation.isPending ? (maquinaAtual ? "Movendo…" : "Confirmando…")
                 : !maquinaAtual ? (maquinaEscolhida ? `Confirmar ${rotuloDaMaquina(maquinaEscolhida)}` : "Confirmar impressora")
-                : maquinaEscolhida ? `Mover para a ${rotuloDaMaquina(maquinaEscolhida)}` : "Mover"}
+                : !maquinaEscolhida ? "Mover"
+                : moverTudo || restanteAqui <= 1 ? `Mover tudo para a ${rotuloDaMaquina(maquinaEscolhida)}`
+                : `Mover ${movidas || "…"} para a ${rotuloDaMaquina(maquinaEscolhida)}`}
             </button>
           </div>
         </div>
       )}
 
       <div>
-        {/* O campo é ABSOLUTO (o TOTAL até agora) ao lado de vizinhos
-            incrementais: o rótulo diz o contrato e a dica repete a conta
-            com o número real. */}
-        <label htmlFor="input-quantity-produced" style={rotulo(fsMin)}>Quantas já saíram da máquina</label>
+        {/* O campo pergunta o que saiu AGORA (dono, 21/09: "se tem 5 na
+            impressora, como imprimo 10?"); o total é calculado e mostrado
+            na linha viva. "Corrigir o total" abre o modo absoluto antigo. */}
+        <label htmlFor="input-quantity-produced" style={rotulo(fsMin)}>{modoTotal ? "Total já impresso (corrigir)" : "Quantas saíram agora?"}</label>
         <div style={{ fontSize: fsMin(11), color: T.second, marginBottom: 10, lineHeight: 1.4 }} id="dica-quantidade-produzida">
-          {jaSairam > 0
-            ? `Já saíram ${jaSairam} de ${teto} e ${naImpressora} ainda ${naImpressora === 1 ? "está" : "estão"} na impressora. Informe o TOTAL até agora (as que já estavam + as novas), não só as de hoje. A peça vai para Impresso / Acabamento quando chegar a ${teto}.`
-            : `Informe quantas unidades já terminaram de imprimir. A peça vai para Impresso / Acabamento quando chegar a ${teto}.`}
+          {modoTotal
+            ? `Aqui você corrige o TOTAL que consta impresso (hoje ${jaSairam} de ${teto}). Para informar o que saiu agora, volte ao modo normal.`
+            : naImpressora > 0
+              ? `${naImpressora} ${naImpressora === 1 ? "está" : "estão"} na ${dividida ? rotuloDaMaquina(maquinaAtual) : "impressora"}. ${dividida ? "A peça vai para Impresso / Acabamento quando todas as partes saírem." : `A peça vai para Impresso / Acabamento quando chegar a ${teto}.`}`
+              : "Todas já constam impressas — só falta mandar a peça para o acabamento."}
         </div>
         <div style={{ display: "flex", gap: 10 }}>
           <input
@@ -490,19 +606,23 @@ export function FormularioDeImpressao({ item, onFechar, padModal, mutacoes, abri
             inputMode="numeric"
             pattern="[0-9]*"
             enterKeyHint="done"
-            min={1}
-            max={teto}
-            value={quantidade}
-            onChange={(e) => setQuantidade(parseInt(e.target.value) || 0)}
-            required
-            aria-required="true"
+            min={modoTotal ? 1 : 0}
+            max={modoTotal ? teto : naImpressora}
+            value={modoTotal ? quantidadeTotal : agora}
+            placeholder="0"
+            onChange={(e) => {
+              const v = e.target.value;
+              if (modoTotal) setQuantidadeTotal(parseInt(v) || 0);
+              else setAgora(v === "" ? "" : Math.max(0, parseInt(v) || 0));
+            }}
             aria-describedby="dica-quantidade-produzida"
             data-testid="input-quantity-produced"
             style={{ flex: 1, minWidth: 0, minHeight: 56, boxSizing: "border-box", textAlign: "center", fontFamily: GROTESK, fontSize: 26, fontWeight: 700, color: T.text, backgroundColor: "#f4f3f0", border: "none", borderRadius: R.md, padding: "16px 12px" }}
           />
           <button
             type="button"
-            onClick={() => setQuantidade(teto)}
+            onClick={() => { if (modoTotal) setQuantidadeTotal(teto); else setAgora(naImpressora); }}
+            title={modoTotal ? `Total ${teto}` : `Todas as ${naImpressora} que estão na impressora`}
             data-testid="button-set-total"
             style={{ backgroundColor: "#e7e5e4", border: "none", borderRadius: R.md, padding: "0 20px", minHeight: 44, fontWeight: 700, fontSize: 14, color: "#44403c", cursor: "pointer", whiteSpace: "nowrap", transition: "background-color 0.15s" }}
             onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "#d6d3d1")}
@@ -511,6 +631,12 @@ export function FormularioDeImpressao({ item, onFechar, padModal, mutacoes, abri
             Tudo
           </button>
         </div>
+        {/* A linha viva faz a conta na frente do operador. */}
+        {!modoTotal && !!maquinaAtual && (
+          <div role="status" data-testid="linha-da-conta" style={{ fontSize: fsMin(12), fontWeight: 700, color: T.text, marginTop: 8, fontVariantNumeric: "tabular-nums" }}>
+            {doAgora.linha}
+          </div>
+        )}
         {/* A explicação do botão desabilitado mora aqui, ao lado do campo —
             e não só na opacidade do botão. */}
         {!maquinaAtual ? (
@@ -521,6 +647,16 @@ export function FormularioDeImpressao({ item, onFechar, padModal, mutacoes, abri
           <div role="status" data-testid="aviso-quantidade" style={{ fontSize: fsMin(11), color: frase.pode ? T.second : "#b45309", marginTop: 6 }}>
             {frase.aviso}
           </div>
+        )}
+        {!!maquinaAtual && jaSairam > 0 && (
+          <button
+            type="button"
+            onClick={() => { setModoTotal((m) => !m); setQuantidadeTotal(jaSairam); setAgora(""); }}
+            data-testid="button-corrigir-total"
+            style={{ marginTop: 8, minHeight: isMobile ? 44 : 32, padding: "0 4px", border: "none", background: "transparent", color: T.accentText, fontSize: fsMin(12), fontWeight: 700, cursor: "pointer", textDecoration: "underline", textUnderlineOffset: 3, borderRadius: R.sm }}
+          >
+            {modoTotal ? "Voltar a informar o que saiu agora" : "Corrigir o total já informado"}
+          </button>
         )}
       </div>
 
@@ -555,9 +691,11 @@ interface ModalProps {
   abrirNaTroca?: boolean;
   /** Impressora já marcada (peça reservada na aba Máquinas). */
   maquinaInicial?: string | null;
+  /** Peça dividida: de qual cartão o modal foi aberto. */
+  maquinaEmQuestao?: string | null;
 }
 
-export function ModalImpressao({ item, onFechar, abrirNaTroca = false, maquinaInicial = null }: ModalProps) {
+export function ModalImpressao({ item, onFechar, abrirNaTroca = false, maquinaInicial = null, maquinaEmQuestao = null }: ModalProps) {
   const isMobile = useIsMobile();
   const padModal = isMobile ? 16 : 24;
   const mutacoes = useMutacoesDeImpressao({ onSucesso: onFechar });
@@ -605,7 +743,7 @@ export function ModalImpressao({ item, onFechar, abrirNaTroca = false, maquinaIn
                 </div>
               </div>
             </div>
-            <FormularioDeImpressao key={`${item.id}:${abrirNaTroca ? "troca" : "impressas"}:${maquinaInicial ?? ""}`} item={item} onFechar={onFechar} padModal={padModal} mutacoes={mutacoes} abrirNaTroca={abrirNaTroca} maquinaInicial={maquinaInicial} />
+            <FormularioDeImpressao key={`${item.id}:${abrirNaTroca ? "troca" : "impressas"}:${maquinaInicial ?? ""}:${maquinaEmQuestao ?? ""}`} item={item} onFechar={onFechar} padModal={padModal} mutacoes={mutacoes} abrirNaTroca={abrirNaTroca} maquinaInicial={maquinaInicial} maquinaEmQuestao={maquinaEmQuestao} />
           </div>
         )}
       </DialogContent>

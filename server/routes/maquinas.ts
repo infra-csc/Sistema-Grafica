@@ -24,10 +24,11 @@
 import type { Express } from "express";
 import { sql } from "drizzle-orm";
 import { db } from "../db";
-import { requireAuth, broadcast, createAuditLog, createAuditLogsEmLote, translateStatus } from "./shared";
+import { requireAuth, requireRole, broadcast, createAuditLog, createAuditLogsEmLote, translateStatus } from "./shared";
 import { motivoEventoDaPeca } from "./eventoFinalizado";
 import { storage } from "../storage";
 import { MAQUINAS_DE_IMPRESSAO, ehMaquinaValida, rotuloDaMaquina } from "@shared/fluxo-peca";
+import { lerPartes } from "@shared/impressao-dividida";
 import { pecaVisivelPara } from "@shared/kit";
 import { agoraNoFuso } from "../services/revisaoDigest";
 import { agregarRelatorioDeMaquinas, periodoValido, type RegistroDoPeriodo } from "../services/relatorioDeMaquinas";
@@ -186,7 +187,7 @@ export function registerMaquinasRoutes(app: Express): void {
   // ── O relatório: resumo por dia × impressora + os registros do período ────
   // (dono, 21/09: "não tem relatório diário, não tem relatório para exportar").
   // Leitura só; os mesmos papéis e o mesmo filtro do Kit do retrato.
-  app.get("/api/grafica/maquinas/relatorio", requireAuth, async (req, res) => {
+  app.get("/api/grafica/maquinas/relatorio", requireAuth, requireRole(...PAPEIS_QUE_VEEM), async (req, res) => {
     if (!podeVer(req, res)) return;
     const hoje = agoraNoFuso(new Date()).dia;
     const { de, ate } = periodoValido(req.query.de, req.query.ate, hoje);
@@ -199,7 +200,7 @@ export function registerMaquinasRoutes(app: Express): void {
     }
   });
 
-  app.get("/api/grafica/maquinas/relatorio.xlsx", requireAuth, async (req, res) => {
+  app.get("/api/grafica/maquinas/relatorio.xlsx", requireAuth, requireRole(...PAPEIS_QUE_VEEM), async (req, res) => {
     if (!podeVer(req, res)) return;
     const hoje = agoraNoFuso(new Date()).dia;
     const { de, ate } = periodoValido(req.query.de, req.query.ate, hoje);
@@ -212,7 +213,7 @@ export function registerMaquinasRoutes(app: Express): void {
     }
   });
 
-  app.get("/api/grafica/maquinas", requireAuth, async (req, res) => {
+  app.get("/api/grafica/maquinas", requireAuth, requireRole(...PAPEIS_QUE_VEEM), async (req, res) => {
     if (!podeVer(req, res)) return;
 
     const hoje = agoraNoFuso(new Date()).dia;
@@ -228,7 +229,7 @@ export function registerMaquinasRoutes(app: Express): void {
         select i.id, i.display_id, i.type, i.description, i.quantity, i.status,
                coalesce(i.quantity_produced, 0) as produzido,
                coalesce(i.reuse_qty, 0) as reuso,
-               i.print_machine, i.kit_remessa_id, i.criado_por_id,
+               i.print_machine, i.impressao_por_maquina, i.kit_remessa_id, i.criado_por_id,
                i.approval_thumb_url,
                to_char(coalesce(i.production_started_at, i.status_changed_at), 'YYYY-MM-DD"T"HH24:MI:SS"Z"') as desde,
                e.id as evento_id, e.name as evento, e.status as evento_status,
@@ -287,6 +288,8 @@ export function registerMaquinasRoutes(app: Express): void {
         maquina: l.print_machine ?? null,
         status: l.status,
         miniatura: l.approval_thumb_url ?? null,
+        // Peça DIVIDIDA entre impressoras (jsonb); null = tudo na `maquina`.
+        impressaoPorMaquina: lerPartes(l.impressao_por_maquina),
         // O bastante para a tela saber se o evento já acabou (o servidor
         // barra o gesto de qualquer jeito; aqui é para o botão explicar antes).
         eventoInfo: l.evento_id
@@ -327,7 +330,18 @@ export function registerMaquinasRoutes(app: Express): void {
         return {
           codigo,
           rotulo: rotuloDaMaquina(codigo),
-          imprimindo: emImpressao.filter((l) => l.print_machine === codigo).map(peca),
+          // A peça dividida aparece no cartão de CADA impressora que tem
+          // parte dela, com os números daquela parte (`parte`).
+          imprimindo: emImpressao
+            .filter((l) => {
+              const partes = lerPartes(l.impressao_por_maquina);
+              return partes ? !!partes[codigo] : l.print_machine === codigo;
+            })
+            .map((l) => {
+              const p = peca(l);
+              const parte = p.impressaoPorMaquina?.[codigo] ?? null;
+              return { ...p, maquina: codigo, parte };
+            }),
           registros,
           unidadesNoDia,
           pecasNoDia,

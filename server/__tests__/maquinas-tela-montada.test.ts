@@ -205,7 +205,7 @@ describe("a aba Máquinas no desktop", () => {
   });
 
   it("DIÁRIO: uma lista só na ordem do dia; o chip filtra e grava na URL", async () => {
-    await montar(1280, retrato());
+    await montar(1280, retrato(), { url: "/grafica/maquinas?aba=diario" });
     const linhas = () => $$('[data-testid^="linha-diario-"]').map((e) => e.getAttribute("data-testid"));
     expect(linhas()).toEqual(["linha-diario-r1", "linha-diario-r3", "linha-diario-r2"]);
     expect($('[data-testid="chip-maquina-todas"]')!.textContent).toBe("Todas3");
@@ -215,21 +215,34 @@ describe("a aba Máquinas no desktop", () => {
 
     await act(async () => { fireEvent.click($('[data-testid="chip-maquina-2"]')!); });
     await tick(20);
-    expect(window.location.search).toBe("?maquina=2");
+    expect(window.location.search).toBe("?aba=diario&maquina=2");
     expect($('[data-testid="chip-maquina-2"]')!.getAttribute("aria-pressed")).toBe("true");
     expect(linhas()).toEqual(["linha-diario-r3"]);
     // Com uma impressora escolhida a coluna "Impressora" some.
     expect($$('[data-testid="diario-tabela"] th').map((e) => e.textContent)).not.toContain("Impressora");
+  });
 
-    // O rodapé do cartão leva ao diário daquela impressora.
+  it("ABAS: 'agora' é o padrão (sem diário nem resumo montados); o rodapé do cartão leva à aba Diário daquela impressora", async () => {
+    await montar(1280, retrato());
+    expect($('[data-testid="aba-agora"]')!.getAttribute("aria-selected")).toBe("true");
+    expect($('[data-testid="aba-agora"]')!.textContent).toContain("1"); // 1 peça em impressão
+    expect($('[data-testid="aba-diario"]')!.textContent).toContain("3"); // 3 lançamentos hoje
+    expect($$('[data-testid^="linha-diario-"]').length).toBe(0);
+    expect($('[data-testid="secao-resumo"]')).toBeNull();
+    expect($('[data-testid="secao-fila"]')).toBeTruthy();
     await act(async () => { fireEvent.click($('[data-testid="resumo-dia-1"]')!); });
     await tick(20);
-    expect(window.location.search).toBe("?maquina=1");
-    expect(linhas()).toEqual(["linha-diario-r1", "linha-diario-r2"]);
+    expect(window.location.search).toBe("?maquina=1&aba=diario");
+    expect($('[data-testid="aba-diario"]')!.getAttribute("aria-selected")).toBe("true");
+    expect($$('[data-testid^="linha-diario-"]').map((e) => e.getAttribute("data-testid"))).toEqual(["linha-diario-r1", "linha-diario-r2"]);
+    expect($('[data-testid="maquina-agora-1"]')).toBeNull();
+    await act(async () => { fireEvent.click($('[data-testid="aba-resumo"]')!); });
+    await tick(20);
+    expect($('[data-testid="secao-resumo"]')).toBeTruthy();
   });
 
   it("DIÁRIO vazio: diz o que fazer; com filtro, oferece 'ver todas'", async () => {
-    await montar(1280, retrato({ registros: false }));
+    await montar(1280, retrato({ registros: false }), { url: "/grafica/maquinas?aba=diario" });
     expect($('[data-testid="diario-vazio"]')!.textContent).toContain("Nenhuma impressão registrada hoje.");
     expect($('[data-testid="diario-vazio"]')!.textContent).toContain("Ao iniciar uma impressão na Gráfica, ela aparece aqui.");
     await act(async () => { fireEvent.click($('[data-testid="chip-maquina-3"]')!); });
@@ -237,11 +250,11 @@ describe("a aba Máquinas no desktop", () => {
     expect($('[data-testid="diario-vazio"]')!.textContent).toContain("Nada saiu da Impressora 3 hoje.");
     await act(async () => { fireEvent.click($('[data-testid="button-ver-todas"]')!); });
     await tick(20);
-    expect(window.location.search).toBe("");
+    expect(window.location.search).toBe("?aba=diario");
   });
 
   it("DIÁRIO grande: entra por lotes de 60 com 'mostrar mais'", async () => {
-    await montar(1280, retrato({ muitos: 100 }));
+    await montar(1280, retrato({ muitos: 100 }), { url: "/grafica/maquinas?aba=diario" });
     expect($$('[data-testid^="linha-diario-"]').length).toBe(60);
     expect($('[data-testid="button-mostrar-mais"]')!.textContent).toBe("Mostrar mais 43");
     await act(async () => { fireEvent.click($('[data-testid="button-mostrar-mais"]')!); });
@@ -260,25 +273,54 @@ describe("a aba Máquinas no desktop", () => {
     expect(dialogo!.textContent).toContain("3 de 10 impressas · 7 na impressora");
     // Só UM botão primário: nada de "Iniciar" ao lado de "Salvar".
     expect($('[data-testid="button-iniciar-impressao"]')).toBeNull();
+    // O campo pergunta o que saiu AGORA (dono, 21/09: "se tem 5 na
+    // impressora, como imprimo 10?"): nasce vazio, o total é calculado.
     const campo = $('[data-testid="input-quantity-produced"]') as HTMLInputElement;
-    expect(campo.value).toBe("3");
+    expect(campo.value).toBe("");
+    expect(campo.getAttribute("max")).toBe("7");
+    expect(dialogo!.textContent).toContain("Quantas saíram agora?");
+    expect(dialogo!.textContent).not.toContain("Informe o TOTAL");
     const confirmar = () => $('[data-testid="button-confirm-production"]') as HTMLButtonElement;
     expect(confirmar().disabled).toBe(true);
-    expect(confirmar().textContent).toBe("Nada mudou");
-    await act(async () => { fireEvent.change(campo, { target: { value: "4" } }); });
+    expect(confirmar().textContent).toBe("Informe quantas saíram");
+    await act(async () => { fireEvent.change(campo, { target: { value: "1" } }); });
+    expect($('[data-testid="linha-da-conta"]')!.textContent).toBe("3 já saíram + 1 agora = 4 de 10 · 6 ficam na impressora");
     expect(confirmar().textContent).toBe("Mandar 1 para acabamento (4 de 10)");
     expect(confirmar().disabled).toBe(false);
+    // "Tudo" = o que resta na impressora (7), não o teto.
     await act(async () => { fireEvent.click($('[data-testid="button-set-total"]')!); });
+    expect(campo.value).toBe("7");
     expect(confirmar().textContent).toBe("Mandar as últimas 7 e concluir");
     await act(async () => { fireEvent.change(campo, { target: { value: "12" } }); });
     expect(confirmar().disabled).toBe(true);
-    expect($('[data-testid="aviso-quantidade"]')!.textContent).toContain("A peça tem 10 un. para imprimir");
-    // Trocar de máquina é um link discreto que abre um painel; a atual fica desabilitada.
+    expect($('[data-testid="aviso-quantidade"]')!.textContent).toContain("Só há 7 na impressora");
+    // O gesto manda o TOTAL ao servidor: 3 já + 5 agora = 8.
+    await act(async () => { fireEvent.change(campo, { target: { value: "5" } }); });
+    const { escritas } = fetchPorUrl();
+    await act(async () => { fireEvent.click(confirmar()); });
+    await tick(30);
+    expect(escritas()[0]).toEqual({ url: "/api/items/p1/start-production", body: { quantityProduced: 8, expectedProduced: 3, printMachine: "1" } });
+  });
+
+  it("AGE: 'Corrigir o total já informado' abre o modo absoluto, com a frase de correção", async () => {
+    await montar(1280, retrato());
+    await act(async () => { fireEvent.click($('[data-testid="button-impressas-p1"]')!); });
+    await tick(30);
+    const dialogo = $('[role="dialog"]')!;
+    await act(async () => { fireEvent.click($('[data-testid="button-corrigir-total"]')!); });
+    const campo = $('[data-testid="input-quantity-produced"]') as HTMLInputElement;
+    expect(campo.value).toBe("3");
+    const confirmar = () => $('[data-testid="button-confirm-production"]') as HTMLButtonElement;
+    expect(confirmar().textContent).toBe("Nada mudou");
+    await act(async () => { fireEvent.change(campo, { target: { value: "2" } }); });
+    expect(confirmar().textContent).toBe("Corrigir para 2 de 10");
+    // Trocar de máquina é um botão contornado que abre um painel; a atual fica desabilitada.
     await act(async () => { fireEvent.click($('[data-testid="button-trocar-maquina"]')!); });
     expect($('[data-testid="painel-troca"]')).toBeTruthy();
     expect(($('[data-testid="maquina-1"]') as HTMLButtonElement).disabled).toBe(true);
     await act(async () => { fireEvent.click($('[data-testid="maquina-3"]')!); });
-    expect($('[data-testid="button-iniciar-impressao"]')!.textContent).toBe("Mover para a Impressora 3");
+    expect($('[data-testid="button-iniciar-impressao"]')!.textContent).toBe("Mover tudo para a Impressora 3");
+    expect(dialogo.textContent).toContain("7 vão para a Impressora 3; 0 ficam na Impressora 1 (New XT).");
     // A linha do diário não repete a ação da peça (ela mora no cartão).
     expect($('[data-testid="button-impressas-linha-r1"]')).toBeNull();
   });
@@ -342,7 +384,7 @@ describe("segunda passada: nada cortado, trocar direto, resumo e Excel", () => {
     const mover = () => $('[data-testid="button-iniciar-impressao"]') as HTMLButtonElement;
     expect(mover().disabled).toBe(true);
     await act(async () => { fireEvent.click($('[data-testid="maquina-2"]')!); });
-    expect(mover().textContent).toBe("Mover para a Impressora 2");
+    expect(mover().textContent).toBe("Mover tudo para a Impressora 2");
     expect(mover().disabled).toBe(false);
     // O gesto grava "troca" na máquina nova (mesmo endpoint da fila). Depois
     // dele a página recarrega o retrato e o relatório — o mock responde por URL.
@@ -372,7 +414,7 @@ describe("segunda passada: nada cortado, trocar direto, resumo e Excel", () => {
   });
 
   it("RESUMO do dia: uma linha por impressora com unidades, peças, concluídas, na máquina, atividade, tempo e quem — e o total", async () => {
-    await montar(1280, retrato());
+    await montar(1280, retrato(), { url: "/grafica/maquinas?aba=resumo" });
     expect($('[data-testid="resumo-periodo"]')!.textContent).toBe("Hoje · 7 unidades impressas");
     const cabecalhos = $$('[data-testid="resumo-tabela"] th').map((e) => e.textContent);
     expect(cabecalhos).toEqual(["Impressora", "Unidades", "Peças", "Concluídas", "Na máquina", "Atividade", "Tempo ativo", "Quem"]);
@@ -383,7 +425,7 @@ describe("segunda passada: nada cortado, trocar direto, resumo e Excel", () => {
     // Clicar na impressora leva ao diário dela.
     await act(async () => { fireEvent.click($(`[data-testid="resumo-${HOJE}-2"] button`)!); });
     await tick(20);
-    expect(window.location.search).toBe("?maquina=2");
+    expect(window.location.search).toBe("?aba=diario&maquina=2");
   });
 
   it("o PERÍODO vive na URL e vale para o resumo e para o Excel; semana e mês nascem do dia do diário", async () => {
@@ -399,11 +441,11 @@ describe("segunda passada: nada cortado, trocar direto, resumo e Excel", () => {
     expect(intervaloDoPeriodo("intervalo", "2026-09-21", "2026-09-21", null, null)).toEqual({ de: "2026-09-21", ate: "2026-09-21" });
 
     const semana = { ...relatorioDoDia("2026-09-21", "2026-09-21") };
-    await montar(1280, retrato(), { relatorio: semana });
+    await montar(1280, retrato(), { relatorio: semana, url: "/grafica/maquinas?aba=resumo" });
     expect($('[data-testid="periodo-dia"]')!.getAttribute("aria-pressed")).toBe("true");
     await act(async () => { fireEvent.click($('[data-testid="periodo-semana"]')!); });
     await tick(20);
-    expect(window.location.search).toBe("?periodo=semana");
+    expect(window.location.search).toBe("?aba=resumo&periodo=semana");
     expect($('[data-testid="periodo-semana"]')!.getAttribute("aria-pressed")).toBe("true");
     await act(async () => { fireEvent.click($('[data-testid="periodo-intervalo"]')!); });
     await tick(20);
@@ -411,12 +453,12 @@ describe("segunda passada: nada cortado, trocar direto, resumo e Excel", () => {
     expect($('[data-testid="intervalo-ate"]')).toBeTruthy();
     await act(async () => { fireEvent.change($('[data-testid="intervalo-de"]')!, { target: { value: "2026-09-15" } }); });
     await tick(20);
-    expect(window.location.search).toBe("?periodo=intervalo&de=2026-09-15&ate=2026-09-21");
+    expect(window.location.search).toBe("?aba=resumo&periodo=intervalo&de=2026-09-15&ate=2026-09-21");
     expect($('[data-testid="button-exportar-excel"]')!.getAttribute("title")).toContain("15/09/2026 a 21/09/2026");
   });
 
   it("EXPORTAR Excel baixa o .xlsx do mesmo período, com o nome do dia", async () => {
-    await montar(1280, retrato());
+    await montar(1280, retrato(), { url: "/grafica/maquinas?aba=resumo" });
     const fetchMock = vi.fn(async () => new Response(new Blob(["xlsx"]), { status: 200, headers: { "content-type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" } }));
     vi.stubGlobal("fetch", fetchMock);
     (URL as any).createObjectURL = () => "blob:x";
@@ -436,14 +478,14 @@ describe("segunda passada: nada cortado, trocar direto, resumo e Excel", () => {
 
   it("RESUMO vazio diz o que fazer; a Solicitação vê o resumo e exporta (é leitura)", async () => {
     papel.atual = "solicitacao";
-    await montar(1280, retrato(), { relatorio: { de: HOJE, ate: HOJE, hoje: HOJE, dias: [] } });
+    await montar(1280, retrato(), { relatorio: { de: HOJE, ate: HOJE, hoje: HOJE, dias: [] }, url: "/grafica/maquinas?aba=resumo" });
     expect($('[data-testid="resumo-vazio"]')!.textContent).toContain("Nenhuma impressão registrada hoje.");
     expect($('[data-testid="button-exportar-excel"]')).toBeTruthy();
     expect($('[data-testid="button-trocar-maquina-p1"]')).toBeNull();
   });
 
   it("DIÁRIO a ~1040px úteis (menu aberto): tabela compacta, sem coluna cortada; abaixo de 820px vira cartões", async () => {
-    await montar(1040, retrato());
+    await montar(1040, retrato(), { url: "/grafica/maquinas?aba=diario" });
     const tabela = $('[data-testid="diario-tabela"]')!;
     expect(tabela.getAttribute("data-compacto")).toBe("true");
     expect($$('[data-testid="diario-tabela"] th').map((e) => e.textContent)).toEqual(["Hora", "Impressora", "Peça", "O que aconteceu", "Quem"]);
@@ -453,9 +495,11 @@ describe("segunda passada: nada cortado, trocar direto, resumo e Excel", () => {
     expect($$('[data-testid="diario-tabela"] td').filter((e) => e.style.textOverflow === "ellipsis" || e.style.maxWidth)).toEqual([]);
     expect(tabela.style.minWidth).toBe("");
     cleanup();
-    await montar(700, retrato());
+    await montar(700, retrato(), { url: "/grafica/maquinas?aba=diario" });
     expect($("table[data-testid='diario-tabela']")).toBeNull();
     expect($('[data-testid="diario-cartoes"]')).toBeTruthy();
+    cleanup();
+    await montar(700, retrato(), { url: "/grafica/maquinas?aba=resumo" });
     expect($('[data-testid="resumo-cartoes"]')).toBeTruthy();
   });
 });
@@ -578,6 +622,91 @@ describe("a fila: geral, reservada por impressora, e o seletor de peça", () => 
   });
 });
 
+// ─────────────────────────────────────────────────────────────────────────────
+// PEÇA DIVIDIDA (dono, 21/09: "ao mover, poder selecionar tudo ou
+// quantidades"), fila geral sempre visível, servidor na versão anterior.
+// ─────────────────────────────────────────────────────────────────────────────
+describe("peça dividida, fila sempre visível e servidor antigo", () => {
+  const dividida = () => {
+    const r = retrato();
+    const base = { ...peca("p1", "#0101", 5, 10, "1"), impressaoPorMaquina: { "1": { atrib: 8, impressas: 5 }, "2": { atrib: 2, impressas: 0 } } };
+    r.maquinas[0].imprimindo = [{ ...base, maquina: "1", parte: { atrib: 8, impressas: 5 } } as any];
+    r.maquinas[1].imprimindo = [{ ...base, maquina: "2", parte: { atrib: 2, impressas: 0 } } as any];
+    return r;
+  };
+
+  it("MOVER uma quantidade: 'Tudo (7)' é o padrão; 'Quantidade' abre o campo; o PATCH leva quantidade e deMaquina", async () => {
+    await montar(1280, retrato());
+    await act(async () => { fireEvent.click($('[data-testid="button-trocar-maquina-p1"]')!); });
+    await tick(30);
+    await act(async () => { fireEvent.click($('[data-testid="maquina-2"]')!); });
+    expect($('[data-testid="mover-tudo"]')!.textContent).toBe("Tudo (7)");
+    expect($('[data-testid="mover-tudo"]')!.getAttribute("aria-checked")).toBe("true");
+    const mover = () => $('[data-testid="button-iniciar-impressao"]') as HTMLButtonElement;
+    expect(mover().textContent).toBe("Mover tudo para a Impressora 2");
+    await act(async () => { fireEvent.click($('[data-testid="mover-quantidade"]')!); });
+    expect(mover().disabled).toBe(true);
+    expect($('[data-testid="texto-mover"]')!.textContent).toBe("Informe de 1 a 7 — é o que ainda está por imprimir na Impressora 1 (New XT).");
+    const campo = $('[data-testid="input-quantidade-mover"]') as HTMLInputElement;
+    expect(campo.getAttribute("inputmode")).toBe("numeric");
+    await act(async () => { fireEvent.change(campo, { target: { value: "9" } }); });
+    expect(mover().disabled).toBe(true);
+    await act(async () => { fireEvent.change(campo, { target: { value: "2" } }); });
+    expect($('[data-testid="texto-mover"]')!.textContent).toBe("2 vão para a Impressora 2; 5 ficam na Impressora 1 (New XT).");
+    expect(mover().textContent).toBe("Mover 2 para a Impressora 2");
+    expect(mover().disabled).toBe(false);
+    const { escritas } = fetchPorUrl();
+    await act(async () => { fireEvent.click(mover()); });
+    await tick(30);
+    expect(escritas()[0]).toEqual({ url: "/api/items/p1/start-printing", body: { printMachine: "2", quantidade: 2, deMaquina: "1" } });
+  });
+
+  it("CARTÕES: a peça dividida aparece nos dois, cada um com a sua parte; 'Impressas' informa só a parte daquela impressora", async () => {
+    await montar(1280, dividida());
+    expect($('[data-testid="maquina-agora-1"] [data-testid="progresso-p1"]')!.textContent).toBe("5 de 8 nesta impressora · peça 5 de 10 no total");
+    expect($('[data-testid="maquina-agora-2"] [data-testid="progresso-p1"]')!.textContent).toBe("0 de 2 nesta impressora · peça 5 de 10 no total");
+    expect($('[data-testid="estado-2"]')!.textContent).toContain("Imprimindo");
+    // Abrir pelo cartão da Impressora 2: o modal fala da parte dela (0 de 2).
+    await act(async () => { fireEvent.click($('[data-testid="maquina-agora-2"] [data-testid="button-impressas-p1"]')!); });
+    await tick(30);
+    expect($('[data-testid="progresso-no-modal"]')!.textContent).toBe("0 de 2 nesta impressora · peça 5 de 10 no total");
+    expect($('[data-testid="divisao-no-modal"]')!.textContent).toContain("Impressora 1 (New XT) · 5 de 8 un. / Impressora 2 · 0 de 2 un.");
+    const campo = $('[data-testid="input-quantity-produced"]') as HTMLInputElement;
+    expect(campo.getAttribute("max")).toBe("2");
+    await act(async () => { fireEvent.change(campo, { target: { value: "3" } }); });
+    expect(($('[data-testid="button-confirm-production"]') as HTMLButtonElement).disabled).toBe(true);
+    await act(async () => { fireEvent.change(campo, { target: { value: "2" } }); });
+    expect($('[data-testid="button-confirm-production"]')!.textContent).toBe("Mandar todas as 2 e concluir");
+    // O PATCH vai POR impressora: total da peça 5 + 2 = 7, impressasNaMaquina 2 na "2".
+    const { escritas } = fetchPorUrl();
+    await act(async () => { fireEvent.click($('[data-testid="button-confirm-production"]')!); });
+    await tick(30);
+    expect(escritas()[0]).toEqual({ url: "/api/items/p1/start-production", body: { quantityProduced: 7, expectedProduced: 5, printMachine: "2", maquina: "2", impressasNaMaquina: 2 } });
+  });
+
+  it("FILA GERAL vazia continua na tela, com o que esperar e o link para a Gráfica", async () => {
+    await montar(1280, retrato());
+    expect($('[data-testid="secao-fila"]')).toBeTruthy();
+    expect($('[data-testid="fila-vazia"]')!.textContent).toContain("Nenhuma peça liberada aguardando impressão.");
+    expect($('[data-testid="fila-vazia"]')!.textContent).toContain("Quando a Revisão Final liberar, elas aparecem aqui para você reservar uma impressora.");
+    expect($('[data-testid="link-fila-ver-na-grafica"]')!.getAttribute("href")).toBe("/grafica?status=ready_for_production,approved");
+  });
+
+  it("SERVIDOR NA VERSÃO ANTERIOR: rota nova devolvendo o HTML do SPA vira a mensagem do conserto (Stop e Run)", async () => {
+    const { ehServidorNaVersaoAnterior } = await import("@/pages/grafica-maquinas");
+    expect(ehServidorNaVersaoAnterior(new Error("O sistema acabou de ser atualizado — recarregue a página (F5) e tente de novo."))).toBe(true);
+    expect(ehServidorNaVersaoAnterior(new Error("Unexpected token '<', \"<!DOCTYPE \"... is not valid JSON"))).toBe(true);
+    expect(ehServidorNaVersaoAnterior(new Error("500: Não foi possível montar o relatório"))).toBe(false);
+    await montar(1280, retrato(), { url: "/grafica/maquinas?aba=resumo" });
+    const { queryClient } = await import("@/lib/queryClient");
+    queryClient.removeQueries({ queryKey: ["/api/grafica/maquinas/relatorio"] });
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("<!DOCTYPE html><html></html>", { status: 200, headers: { "content-type": "text/html" } })));
+    await act(async () => { fireEvent.click($('[data-testid="periodo-semana"]')!); });
+    for (let i = 0; i < 40 && !$('[data-testid="resumo-erro"]'); i++) await tick(50);
+    expect($('[data-testid="resumo-erro"]')!.textContent).toContain("O servidor ainda está na versão anterior — no Replit, faça Stop e Run e recarregue a página.");
+  }, 20_000);
+});
+
 describe("o modal de impressão com a peça FORA da máquina", () => {
   it("só a impressora e UM botão 'Iniciar impressão na …'; sem campo de quantidade", async () => {
     prepararJsdom(1280);
@@ -635,7 +764,7 @@ describe("o modal com a peça EM impressão mas SEM impressora anotada (legado)"
 
 describe("a aba Máquinas no celular", () => {
   it("sem tabela; alvos de 44; campo de data a 16px; nada mais largo que a tela", async () => {
-    await montar(390, retrato());
+    await montar(390, retrato(), { url: "/grafica/maquinas?aba=diario" });
     expect($("table")).toBeNull();
     expect($('[data-testid="diario-cartoes"]')).toBeTruthy();
     const ruins: string[] = [];

@@ -39,6 +39,7 @@ import { ModalHeader, modalSurface, HIDE_NATIVE_CLOSE } from "@/components/modal
 import { GalpaoFila, type GalpaoDados } from "@/components/galpao-fila";
 import { SugestaoRecebedor } from "@/components/sugestao-recebedor";
 import { EM_REVISAO, rotuloDaMaquina, podeIrParaTubo, MAQUINAS_DE_IMPRESSAO } from "@shared/fluxo-peca";
+import { estaDividida, partesDaPeca, resumoDaDivisao } from "@shared/impressao-dividida";
 // Aritmética de saldo: fonte única em lib/saldo.ts. Estes onze cálculos
 // (quanto falta produzir, conferir, entregar, reaproveitar; quanto de m²
 // realmente vai para a impressora) viviam duplicados como consts locais no
@@ -174,7 +175,10 @@ function ProgressoImpressao({ item, fonte, duasLinhas }: { item: any; fonte: num
   const teto = tetoDeProducao(item);
   const feitas = producedOf(item);
   const pct = teto > 0 ? Math.min(100, Math.round((feitas / teto) * 100)) : 0;
-  const maquina = item.printMachine ? rotuloDaMaquina(item.printMachine) : null;
+  // Peça DIVIDIDA entre impressoras (Máquinas, 21/09): "Impressora 1 · 1 de 3
+  // un. / Impressora 2 · 0 de 2 un." no lugar de uma impressora só.
+  const dividida = estaDividida(item);
+  const maquina = dividida ? resumoDaDivisao(partesDaPeca(item)) : item.printMachine ? rotuloDaMaquina(item.printMachine) : null;
   const progresso = progressoDaImpressao(feitas, teto);
   return (
     <div data-testid={`progresso-impressao-${item.id}`} style={{ marginTop: 4, maxWidth: duasLinhas ? 190 : undefined, whiteSpace: "normal" }}>
@@ -187,6 +191,19 @@ function ProgressoImpressao({ item, fonte, duasLinhas }: { item: any; fonte: num
         <div style={{ width: `${pct}%`, height: "100%", background: "#f97316", borderRadius: 999, transition: "width 0.2s" }} />
       </div>
     </div>
+  );
+}
+/**
+ * "Fila: Impressora 2" — a peça liberada já tem impressora RESERVADA na aba
+ * Máquinas (dono, 21/09: "isso refletir na tela da Gráfica"). Só leitura:
+ * a reserva se faz lá; aqui nada muda de status.
+ */
+function SeloFilaDaImpressora({ maquina, fonte }: { maquina: string; fonte: number }) {
+  return (
+    <span data-testid="selo-fila-impressora" title={`Reservada na aba Máquinas para a ${rotuloDaMaquina(maquina)} — a etapa não muda até iniciar a impressão`} style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: fonte, fontWeight: 700, color: "#57534e", background: "#f5f5f4", border: "1px solid #e7e5e4", borderRadius: 6, padding: "1px 6px", whiteSpace: "nowrap" }}>
+      <Printer aria-hidden="true" style={{ width: 11, height: 11, flexShrink: 0 }} />
+      Fila: {rotuloDaMaquina(maquina)}
+    </span>
   );
 }
 // Resumo de tubo que a fila lê (número por id). Constante vazia ESTÁVEL: ver
@@ -3654,6 +3671,7 @@ export default function Grafica() {
                         {/* Paridade com a tabela: o progresso da impressão
                             ocupa a linha inteira do cartão (flexBasis 100%). */}
                         {isInProd(item) && <span style={{ flexBasis: '100%' }}><ProgressoImpressao item={item} fonte={12} /></span>}
+                        {!isInProd(item) && item.maquinaPrevista && <SeloFilaDaImpressora maquina={item.maquinaPrevista} fonte={12} />}
                         {item.isReuse && <span style={{ fontSize: 12, fontWeight: 800, color: '#047857', background: '#dcfce7', border: '1px solid #86efac', borderRadius: 6, padding: '1px 6px' }}>REAPROV.</span>}
                         {/* Selo do complemento: sólido enquanto o lote está em
                             aberto (trabalho novo), outline depois de entregue —
@@ -4628,6 +4646,7 @@ export default function Grafica() {
                             impressora" + barra (dono, 21/09). Duas linhas para a
                             coluna Status não alargar. */}
                         {isInProd(item) && <ProgressoImpressao item={item} fonte={10.5} duasLinhas />}
+                        {!isInProd(item) && item.maquinaPrevista && <div style={{ marginTop: 4 }}><SeloFilaDaImpressora maquina={item.maquinaPrevista} fonte={10.5} /></div>}
                       </td>
                       {/* Ações — `sticky right` com sombra à esquerda marcando a
                           borda. `background: inherit` copia a cor da <tr>,

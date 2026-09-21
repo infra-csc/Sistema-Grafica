@@ -121,6 +121,8 @@ ALTER TABLE items ADD COLUMN IF NOT EXISTS kit_remessa_id varchar;
 ALTER TABLE items ADD COLUMN IF NOT EXISTS criado_por_id varchar;
 -- Máquinas: reserva de impressora antes de imprimir (fila por impressora, 21/09)
 ALTER TABLE items ADD COLUMN IF NOT EXISTS maquina_prevista text;
+-- Máquinas: peça dividida entre impressoras ({"1":{"atrib":3,"impressas":1},...})
+ALTER TABLE items ADD COLUMN IF NOT EXISTS impressao_por_maquina jsonb;
 
 -- Chaves estrangeiras (nomes do drizzle; só cria se ainda não existir)
 DO $$

@@ -10,6 +10,7 @@ import { eventoComDatasDoKit, pecaVisivelPara, remessaUtilizavelPor } from "@sha
 import { carregarRemessa, remessasPorIds } from "../services/kitRemessas";
 import { FORMATO_COMPACTO, compactarPecas, compactarAprovacoes } from "@shared/itens-compactos";
 import { DEPOIS_DA_ARTE, EM_REVISAO, POS_APROVACAO, DISPENSAVEIS, DESTINO_DA_DISPENSA, ehBookCompleto, ehMaquinaValida, rotuloDaMaquina } from "@shared/fluxo-peca";
+import { partesDaPeca, moverParte, normalizarPartes, maquinaPrincipal, aImprimirDaPeca, estaDividida, totalImpressas, type PartesPorMaquina } from "@shared/impressao-dividida";
 import {
   insertItemSchema,
   publicInsertItemSchema,
@@ -4622,9 +4623,16 @@ export function registerItemRoutes(app: Express): void {
       if (req.userRole !== "grafica" && req.userRole !== "admin") {
         return res.status(403).json({ error: "Apenas usuários com perfil Gráfica podem iniciar impressão" });
       }
-      const { printMachine } = req.body ?? {};
+      // `quantidade` (dono, 21/09: "ao mover, poder selecionar tudo ou
+      // quantidades"): só na TROCA, move parte do que resta na origem —
+      // a peça fica dividida entre impressoras (shared/impressao-dividida.ts).
+      // `deMaquina`: de qual parte sai, quando a peça já está dividida.
+      const { printMachine, quantidade, deMaquina } = req.body ?? {};
       if (!ehMaquinaValida(printMachine)) {
         return res.status(400).json({ error: "Escolha a máquina em que a peça vai ser impressa" });
+      }
+      if (quantidade != null && (!Number.isInteger(Number(quantidade)) || Number(quantidade) <= 0)) {
+        return res.status(400).json({ error: "A quantidade a mover precisa ser um número inteiro maior que zero" });
       }
       const current = await storage.getItem(req.params.id);
       if (!current) return res.status(404).json({ error: "Item not found" });
@@ -4642,13 +4650,27 @@ export function registerItemRoutes(app: Express): void {
         return res.status(409).json({ error: "Nada a imprimir: a peça já está coberta por produção e reaproveitamento" });
       }
       const trocouDeMaquina = (current.status === "inProduction" || current.status === "em_producao") && !!current.printMachine;
-      if (trocouDeMaquina && current.printMachine === printMachine) {
+      const partesAtuais = partesDaPeca(current);
+      const origem = trocouDeMaquina ? (ehMaquinaValida(deMaquina) && partesAtuais[deMaquina] ? deMaquina : current.printMachine!) : null;
+      if (trocouDeMaquina && origem === printMachine) {
         return res.status(409).json({ error: `A peça já está na ${rotuloDaMaquina(printMachine)}` });
       }
 
+      // A troca move o que resta na origem (tudo, ou `quantidade`). Iniciar
+      // do zero apaga qualquer divisão antiga: a peça inteira vai para a máquina.
+      let movimento: { partes: PartesPorMaquina; movidas: number; ficam: number } | null = null;
+      if (trocouDeMaquina) {
+        const r = moverParte(partesAtuais, origem!, printMachine, quantidade == null ? null : Number(quantidade));
+        if (!r.ok) return res.status(409).json({ error: r.erro });
+        movimento = r;
+      }
+      const partesNovas = movimento ? normalizarPartes(movimento.partes, aImprimirDaPeca(current)) : null;
+      const principal = movimento ? maquinaPrincipal(movimento.partes, printMachine) ?? printMachine : printMachine;
+
       const item = await storage.updateItem(req.params.id, {
         status: "inProduction",
-        printMachine,
+        printMachine: principal,
+        impressaoPorMaquina: partesNovas,
         // A reserva (aba Máquinas, 21/09) cumpriu o papel: a peça está numa
         // máquina de verdade agora. Limpa mesmo se a escolhida foi outra.
         maquinaPrevista: null,
@@ -4661,16 +4683,20 @@ export function registerItemRoutes(app: Express): void {
         "production",
         "item",
         item.id,
-        trocouDeMaquina
-          ? `Impressão mudou de máquina: ${rotuloDaMaquina(current.printMachine)} → ${rotuloDaMaquina(printMachine)}`
+        movimento
+          ? (movimento.ficam > 0
+            ? `Movidas ${movimento.movidas} un. para a ${rotuloDaMaquina(printMachine)} (${movimento.ficam} ficam na ${rotuloDaMaquina(origem)})`
+            : `Impressão mudou de máquina: ${rotuloDaMaquina(origem)} → ${rotuloDaMaquina(printMachine)}`)
           : `Impressão iniciada na ${rotuloDaMaquina(printMachine)} (${translateStatus(current.status)} → ${translateStatus("inProduction")})`
       );
 
       await registrarImpressao(req, {
         itemId: item.id,
         maquina: printMachine,
-        tipo: trocouDeMaquina ? "troca" : "inicio",
-        quantidade: 0,
+        tipo: movimento ? "troca" : "inicio",
+        // Na troca, quantas unidades foram para a máquina nova (o resumo não
+        // soma "troca" como impressas — é só o rastro de quanto se moveu).
+        quantidade: movimento?.movidas ?? 0,
         totalDepois: current.quantityProduced ?? 0,
       });
 
@@ -4687,22 +4713,42 @@ export function registerItemRoutes(app: Express): void {
       if (req.userRole !== "grafica" && req.userRole !== "admin") {
         return res.status(403).json({ error: "Apenas usuários com perfil Gráfica podem iniciar produção" });
       }
-      const { quantityProduced, expectedProduced, printMachine } = req.body;
+      let { quantityProduced } = req.body;
+      const { expectedProduced, printMachine, maquina, impressasNaMaquina } = req.body;
       // A máquina é OPCIONAL aqui: a tela sempre manda (é ela que obriga a
       // escolha), mas este contrato é antigo e tem outros chamadores. O que o
       // servidor não aceita é máquina que não existe.
       if (printMachine != null && !ehMaquinaValida(printMachine)) {
         return res.status(400).json({ error: `Máquina inválida: ${printMachine}` });
       }
-
-      if (!quantityProduced || quantityProduced <= 0) {
-        return res.status(400).json({ error: "quantityProduced is required and must be greater than 0" });
+      if (maquina != null && !ehMaquinaValida(maquina)) {
+        return res.status(400).json({ error: `Máquina inválida: ${maquina}` });
       }
 
       // Read current state before the transaction (for audit log description and
       // to compute the new status — replicating startProduction logic inside tx).
       const before = await storage.getItem(req.params.id);
       if (!before) return res.status(404).json({ error: "Item not found" });
+
+      // PEÇA DIVIDIDA (dono, 21/09): com `maquina` + `impressasNaMaquina`, o
+      // operador informa o total impresso NAQUELA impressora; o total da peça
+      // (`quantityProduced`) passa a ser a soma das partes — nunca mais que o
+      // atribuído àquela máquina.
+      let partesDepois: PartesPorMaquina | null = null;
+      if (maquina != null && impressasNaMaquina != null && estaDividida(before)) {
+        const partes = partesDaPeca(before);
+        const parte = partes[maquina];
+        const n = Number(impressasNaMaquina);
+        if (!parte) return res.status(409).json({ error: `A peça não tem unidades na ${rotuloDaMaquina(maquina)}` });
+        if (!Number.isInteger(n) || n < 0) return res.status(400).json({ error: "Informe um número inteiro de unidades impressas" });
+        if (n > parte.atrib) return res.status(400).json({ error: `Máximo ${parte.atrib} un. na ${rotuloDaMaquina(maquina)} — é o que foi atribuído a ela` });
+        partesDepois = { ...partes, [maquina]: { atrib: parte.atrib, impressas: n } };
+        quantityProduced = totalImpressas(partesDepois);
+      }
+
+      if (!quantityProduced || quantityProduced <= 0) {
+        return res.status(400).json({ error: "quantityProduced is required and must be greater than 0" });
+      }
       // ANDA — e é o mais caro de todos: aqui a peça vira LONA IMPRESSA e ainda
       // gera ativos no Estoque. Imprimir para um evento que já aconteceu é
       // dinheiro queimado que nenhum estorno recupera.
@@ -4744,7 +4790,11 @@ export function registerItemRoutes(app: Express): void {
         quantityProduced,
         updatedAt: new Date(),
         ...(!before.productionStartedAt ? { productionStartedAt: new Date() } : {}),
-        ...(printMachine ? { printMachine } : {}),
+        // Dividida: guarda as partes (some ao concluir) e a principal segue a
+        // parte com mais por imprimir. Não dividida: a máquina enviada, como sempre.
+        ...(partesDepois
+          ? { impressaoPorMaquina: newProdStatus === "produced" ? null : partesDepois, printMachine: maquinaPrincipal(partesDepois, maquina) ?? before.printMachine }
+          : (printMachine ? { printMachine } : {})),
         // produced_at era coluna morta desde sempre: a peça fechava como
         // "Produzido" e a trilha temporal da ficha pulava direto de "Produção
         // iniciada" para "Conferido". Uma linha devolve a etapa.
@@ -4780,7 +4830,7 @@ export function registerItemRoutes(app: Express): void {
       // ou, na falta, a que a peça já tinha.
       await registrarImpressao(req, {
         itemId: item.id,
-        maquina: printMachine || before.printMachine,
+        maquina: (partesDepois ? maquina : null) || printMachine || before.printMachine,
         tipo: item.status === "produced" ? "conclusao" : "parcial",
         quantidade: quantityProduced - jaProduzido,
         totalDepois: quantityProduced,

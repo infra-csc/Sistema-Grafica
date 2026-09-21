@@ -93,9 +93,9 @@ describe("o primeiro momento: iniciar a impressão", () => {
 
 describe("o segundo momento: registrar o que saiu", () => {
   it("o servidor aceita a máquina junto e recusa máquina inválida", () => {
-    expect(ITEMS).toContain("const { quantityProduced, expectedProduced, printMachine } = req.body;");
+    expect(ITEMS).toContain("const { expectedProduced, printMachine, maquina, impressasNaMaquina } = req.body;");
     expect(ITEMS).toContain("if (printMachine != null && !ehMaquinaValida(printMachine))");
-    expect(ITEMS).toContain("...(printMachine ? { printMachine } : {}),");
+    expect(ITEMS).toContain(": (printMachine ? { printMachine } : {})),");
   });
 
   it("a máquina viaja no payload do registro", () => {
@@ -136,7 +136,7 @@ describe("a tela obriga a escolha — no modal COMPARTILHADO (components/grafica
   it("existe o botão de iniciar; a troca de máquina vive num painel próprio", () => {
     expect(MODAL).toContain('data-testid="button-iniciar-impressao"');
     expect(MODAL).toContain('data-testid="button-trocar-maquina"');
-    expect(MODAL).toContain("trocando: emImpressao");
+    expect(MODAL).toContain("const trocando = emImpressao && !!maquinaAtual;");
   });
 
   it("a fila mostra em que máquina a peça está e o progresso — o botão só diz o gesto", () => {
@@ -170,7 +170,8 @@ describe("a impressão é informada AOS POUCOS (dono, 14/09)", () => {
   });
 
   it("o campo diz o que se lança: quantas já saíram da máquina", () => {
-    expect(MODAL).toContain("Quantas já saíram da máquina");
+    // Dono, 21/09: o campo pergunta o que saiu AGORA; o total é calculado.
+    expect(MODAL).toContain("Quantas saíram agora?");
   });
 
   it("servidor: parcial fica Em Impressão; todas impressas vão para Impresso / Acabamento", () => {

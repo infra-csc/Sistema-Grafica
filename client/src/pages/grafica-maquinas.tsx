@@ -28,7 +28,7 @@ import { Fragment, memo, useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useLocation, useSearch } from "wouter";
 import {
-  AlertTriangle, ArrowLeft, ArrowLeftRight, ArrowRight, ChevronLeft, ChevronRight, Download, ExternalLink, Loader2, Play, Printer, RotateCcw, Search,
+  AlertTriangle, ArrowLeft, ArrowLeftRight, ArrowRight, BarChart3, ChevronLeft, ChevronRight, Download, ExternalLink, ListOrdered, Loader2, Play, Printer, RotateCcw, Search,
 } from "lucide-react";
 import { useIsMobile, useElementSize, CONTENT_CARDS_MAX, CONTENT_COMPACT_MAX } from "@/hooks/use-mobile";
 import { useAuth } from "@/contexts/auth-context";
@@ -66,6 +66,10 @@ type PecaNaMaquina = {
   status: string;
   miniatura: string | null;
   eventoInfo: EventoInfo | null;
+  /** Peça dividida entre impressoras (jsonb); ausente/null = tudo em `maquina`. */
+  impressaoPorMaquina?: Record<string, { atrib: number; impressas: number }> | null;
+  /** A parte DESTA impressora, quando a peça está dividida. */
+  parte?: { atrib: number; impressas: number } | null;
 };
 
 type Registro = {
@@ -116,8 +120,30 @@ type ResumoDaMaquinaNoDia = {
 type ResumoDoDia = { dia: string; maquinas: ResumoDaMaquinaNoDia[]; total: { unidades: number; pecas: number; concluidas: number; aindaNaMaquina: number; minutosAtivos: number } };
 type Relatorio = { de: string; ate: string; hoje: string; dias: ResumoDoDia[] };
 
+/** As abas da tela (?aba=). "agora" é o padrão e não vai para a URL. */
+type Aba = "agora" | "diario" | "resumo";
+
+/**
+ * Servidor ainda na versão anterior (Pull sem Stop/Run no Replit): a rota
+ * nova não existe e o catch-all do SPA devolve o index.html com 200. O
+ * queryFn já converte isso num erro com frase própria; aqui a tela reconhece
+ * esse erro (e o JSON inválido que vazaria se a guarda falhasse) para dizer
+ * o conserto certo em vez de "confira a conexão".
+ */
+export function ehServidorNaVersaoAnterior(error: unknown): boolean {
+  const msg = String((error as any)?.message ?? error ?? "");
+  return /acabou de ser atualizado|<!doctype|<html|Unexpected token '<'|is not valid JSON/i.test(msg);
+}
+const AVISO_SERVIDOR_ANTIGO = "O servidor ainda está na versão anterior — no Replit, faça Stop e Run e recarregue a página.";
+
 /** Os recortes do resumo e da exportação (?periodo=). "dia" segue o dia do diário. */
 type Periodo = "dia" | "semana" | "mes" | "intervalo";
+const ABAS: { id: Aba; rotulo: string; Icone: typeof Printer; dica: string }[] = [
+  { id: "agora", rotulo: "Agora", Icone: Printer, dica: "O que cada impressora está imprimindo e a fila do que vem" },
+  { id: "diario", rotulo: "Diário", Icone: ListOrdered, dica: "Lançamento por lançamento, por dia e por impressora" },
+  { id: "resumo", rotulo: "Resumo", Icone: BarChart3, dica: "Totais por dia e impressora, com exportação em Excel" },
+];
+
 const PERIODOS: { valor: Periodo; rotulo: string }[] = [
   { valor: "dia", rotulo: "Dia" }, { valor: "semana", rotulo: "Semana" }, { valor: "mes", rotulo: "Mês" }, { valor: "intervalo", rotulo: "Intervalo" },
 ];
@@ -259,6 +285,7 @@ function pecaParaOModal(p: PecaNaMaquina): PecaParaImprimir {
     quantityProduced: p.impressas,
     reuseQty: p.reuso,
     printMachine: p.maquina,
+    impressaoPorMaquina: p.impressaoPorMaquina ?? null,
     productionStartedAt: p.desde,
     approvalThumbUrl: p.miniatura ? convertGCSUrlToLocalPath(p.miniatura) : null,
     event: p.eventoInfo ? { name: p.eventoInfo.name } : null,
@@ -611,13 +638,17 @@ function PecaNaFilaDoCartao({ p, podeAgir, hojeMs, isMobile, onIniciar, onReserv
 function PecaNoCartao({ p, agora, podeAgir, hojeMs, isMobile, onAgir }: {
   p: PecaNaMaquina; agora: number; podeAgir: boolean; hojeMs: number; isMobile: boolean; onAgir: (p: PecaNaMaquina, trocar: boolean) => void;
 }) {
-  const pct = p.aImprimir > 0 ? Math.min(100, Math.round((p.impressas / p.aImprimir) * 100)) : 0;
+  // Dividida: o cartão mostra e age sobre a PARTE desta impressora.
+  const dividida = !!p.parte && !!p.impressaoPorMaquina && Object.keys(p.impressaoPorMaquina).length > 1;
+  const feitas = dividida ? p.parte!.impressas : p.impressas;
+  const teto = dividida ? p.parte!.atrib : p.aImprimir;
+  const pct = teto > 0 ? Math.min(100, Math.round((feitas / teto) * 100)) : 0;
   const desde = haQuanto(p.desde, agora);
   const hora = horaDeInicio(p.desde);
   const selo = seloPecaEventoFinalizado(p.eventoInfo, hojeMs);
   const alvo = isMobile ? 44 : 34;
   const thumb = p.miniatura ? miniatura(convertGCSUrlToLocalPath(p.miniatura)) : undefined;
-  const rotuloAcao = rotuloCurtoDaAcao(p.impressas, p.aImprimir);
+  const rotuloAcao = rotuloCurtoDaAcao(feitas, teto);
   const concluir = rotuloAcao !== "Impressas";
   const [semThumb, setSemThumb] = useState(false);
 
@@ -651,9 +682,11 @@ function PecaNoCartao({ p, agora, podeAgir, hojeMs, isMobile, onAgir }: {
       {/* Progresso: o número em palavras (o que se lê) e a barra (o que se vê de longe). */}
       <div>
         <div data-testid={`progresso-${p.id}`} style={{ fontSize: isMobile ? 12 : FS.small, fontWeight: 700, color: IMP.text, fontVariantNumeric: "tabular-nums" }}>
-          {progressoDaImpressao(p.impressas, p.aImprimir)}
+          {dividida
+            ? `${feitas} de ${teto} nesta impressora · peça ${p.impressas} de ${p.aImprimir} no total`
+            : progressoDaImpressao(feitas, teto)}
         </div>
-        <div role="progressbar" aria-valuemin={0} aria-valuemax={p.aImprimir} aria-valuenow={p.impressas} aria-label={`${p.displayId ?? "peça"}: ${p.impressas} de ${p.aImprimir} impressas`} style={{ height: 5, borderRadius: 999, background: IMP.border, marginTop: 5, overflow: "hidden" }}>
+        <div role="progressbar" aria-valuemin={0} aria-valuemax={teto} aria-valuenow={feitas} aria-label={`${p.displayId ?? "peça"}: ${feitas} de ${teto} impressas${dividida ? " nesta impressora" : ""}`} style={{ height: 5, borderRadius: 999, background: IMP.border, marginTop: 5, overflow: "hidden" }}>
           <div style={{ width: `${pct}%`, height: "100%", background: IMP.dot, borderRadius: 999, transition: "width 0.2s" }} />
         </div>
       </div>
@@ -671,7 +704,7 @@ function PecaNoCartao({ p, agora, podeAgir, hojeMs, isMobile, onAgir }: {
             data-testid={`button-impressas-${p.id}`}
             title={selo
               ? motivoAcaoBloqueada(selo.motivo, "informar impressas")
-              : concluir ? `Todas as ${p.aImprimir} saíram — mandar a peça para o acabamento` : `Informar quantas já saíram da ${rotuloDaMaquina(p.maquina)} (${progressoDaImpressao(p.impressas, p.aImprimir)})`}
+              : concluir ? `Todas as ${teto} saíram${dividida ? " desta impressora" : " — mandar a peça para o acabamento"}` : `Informar quantas já saíram da ${rotuloDaMaquina(p.maquina)} (${progressoDaImpressao(feitas, teto)})`}
             style={{ flex: "1 1 140px", minHeight: alvo, padding: "0 12px", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, borderRadius: R.md, border: selo ? `1px solid ${T.border}` : "none", background: selo ? T.low : T.text, color: selo ? "#746e69" : "#fff", fontFamily: GROTESK, fontSize: isMobile ? 13 : 12, fontWeight: 700, cursor: selo ? "not-allowed" : "pointer", whiteSpace: "nowrap" }}
           >
             <Play aria-hidden="true" style={{ width: 12, height: 12, flexShrink: 0 }} />
@@ -903,6 +936,9 @@ export default function GraficaMaquinas() {
   const periodo: Periodo = periodoDaURL === "semana" || periodoDaURL === "mes" || periodoDaURL === "intervalo" ? periodoDaURL : "dia";
   const deDaURL = params.get("de");
   const ateDaURL = params.get("ate");
+  // A aba (dono, 21/09: "deixe isso em outra aba da tela"): agora | diario | resumo.
+  const abaDaURL = params.get("aba");
+  const aba: Aba = abaDaURL === "diario" || abaDaURL === "resumo" ? abaDaURL : "agora";
   const escreverURL = (mudancas: Record<string, string | null>) => {
     const p = new URLSearchParams(search);
     for (const [k, v] of Object.entries(mudancas)) { if (v) p.set(k, v); else p.delete(k); }
@@ -914,7 +950,7 @@ export default function GraficaMaquinas() {
   // A chave é [rota, "?dia=…"]: o queryFn padrão junta as duas sem barra, e a
   // invalidação por prefixo ("/api/grafica/maquinas" — WebSocket e modal de
   // impressão) alcança qualquer dia aberto.
-  const { data, isLoading, isError, isFetching, refetch, dataUpdatedAt } = useQuery<Retrato>({
+  const { data, isLoading, isError, error, isFetching, refetch, dataUpdatedAt } = useQuery<Retrato>({
     queryKey: diaEscolhido ? ["/api/grafica/maquinas", `?dia=${diaEscolhido}`] : ["/api/grafica/maquinas"],
     refetchInterval: 60_000,
     refetchOnWindowFocus: true,
@@ -973,6 +1009,13 @@ export default function GraficaMaquinas() {
   const maquinas = data?.maquinas ?? [];
   const totalImprimindo = maquinas.reduce((s, m) => s + m.imprimindo.length, 0) + (data?.semMaquina.length ?? 0);
   const totalReservadas = maquinas.reduce((s, m) => s + (m.naFila?.length ?? 0), 0);
+  const irParaAba = (nova: Aba) => escreverURL({ aba: nova === "agora" ? null : nova });
+  // Contagem de cada aba: peças em impressão, lançamentos do dia, unidades do período.
+  const contagemDaAba: Record<Aba, number | null> = {
+    agora: totalImprimindo,
+    diario: maquinas.reduce((s, m) => s + m.registros.length, 0),
+    resumo: null,
+  };
   const unidadesDoDia = maquinas.reduce((s, m) => s + m.unidadesNoDia, 0);
 
   // ── O relatório (resumo do período) ───────────────────────────────────────
@@ -984,7 +1027,8 @@ export default function GraficaMaquinas() {
   );
   const relatorio = useQuery<Relatorio>({
     queryKey: ["/api/grafica/maquinas/relatorio", `?de=${intervalo?.de}&ate=${intervalo?.ate}`],
-    enabled: !!intervalo,
+    // Só na aba Resumo: a aba Agora (painel de parede) não paga essa consulta.
+    enabled: !!intervalo && aba === "resumo",
     staleTime: 15_000,
     refetchInterval: 60_000,
   });
@@ -1074,11 +1118,55 @@ export default function GraficaMaquinas() {
           </p>
         </header>
 
+        {/* ── As abas (o mesmo desenho das abas da Arte) ── */}
+        <div
+          role="tablist"
+          aria-label="Seções da tela"
+          data-testid="abas-maquinas"
+          onKeyDown={(e) => {
+            if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
+            e.preventDefault();
+            const i = ABAS.findIndex((t) => t.id === aba);
+            const prox = e.key === "ArrowRight" ? (i + 1) % ABAS.length : (i - 1 + ABAS.length) % ABAS.length;
+            irParaAba(ABAS[prox].id);
+            (e.currentTarget.querySelectorAll('[role="tab"]')[prox] as HTMLElement | undefined)?.focus();
+          }}
+          style={{ display: "flex", alignItems: "flex-end", overflowX: "auto", scrollbarWidth: "none", maxWidth: "100%", borderBottom: `1px solid ${T.border}`, marginTop: -8 }}
+        >
+          {ABAS.map((t) => {
+            const ativa = aba === t.id;
+            const Icone = t.Icone;
+            const n = contagemDaAba[t.id];
+            return (
+              <button
+                key={t.id}
+                id={`aba-${t.id}`}
+                role="tab"
+                aria-selected={ativa}
+                aria-controls="painel-maquinas"
+                tabIndex={ativa ? 0 : -1}
+                onClick={() => irParaAba(t.id)}
+                data-testid={`aba-${t.id}`}
+                title={t.dica}
+                style={{ display: "flex", alignItems: "center", gap: 7, padding: isMobile ? "12px 14px" : "10px 16px", minHeight: isMobile ? 44 : undefined, border: "none", cursor: "pointer", borderBottom: ativa ? `2px solid ${T.accent}` : "2px solid transparent", marginBottom: -1, background: "transparent", color: ativa ? T.accentText : "#57534e", fontWeight: ativa ? 700 : 500, fontSize: 13, whiteSpace: "nowrap", borderRadius: "6px 6px 0 0", flexShrink: 0 }}
+              >
+                <Icone aria-hidden="true" style={{ width: 13, height: 13, flexShrink: 0 }} />
+                {t.rotulo}
+                {n != null && n > 0 && (
+                  <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", minWidth: 18, height: 18, borderRadius: 999, fontSize: 11, fontWeight: 700, padding: "0 5px", fontVariantNumeric: "tabular-nums", backgroundColor: ativa ? "#fff7ed" : "#f5f5f4", border: ativa ? "1px solid #fed7aa" : "1px solid #e7e5e4", color: ativa ? T.accentText : "#57534e" }}>
+                    {n}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+
         {isLoading && <Esqueleto lento={lento} />}
 
         {isError && !data && (
           <div role="alert" data-testid="maquinas-erro" style={{ padding: "14px 16px", borderRadius: R.lg, background: VERMELHO.bg, border: `1px solid ${VERMELHO.border}`, color: VERMELHO.text, fontSize: FS.body, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-            <span>Não foi possível carregar as máquinas. Confira a conexão e tente de novo.</span>
+            <span>{ehServidorNaVersaoAnterior(error) ? AVISO_SERVIDOR_ANTIGO : "Não foi possível carregar as máquinas. Confira a conexão e tente de novo."}</span>
             <button type="button" onClick={() => refetch()} data-testid="button-tentar-novamente" style={{ minHeight: alvo, border: "none", borderRadius: R.md, background: VERMELHO.text, color: "#fff", fontWeight: 700, fontSize: 12, padding: "0 14px", cursor: "pointer" }}>
               Tentar novamente
             </button>
@@ -1094,7 +1182,8 @@ export default function GraficaMaquinas() {
             )}
 
             {/* ── 1 · AGORA ── */}
-            <section aria-labelledby="titulo-agora" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            {aba === "agora" && (
+            <section id="painel-maquinas" role="tabpanel" aria-labelledby="aba-agora" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
               <div style={{ display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
                 <h2 id="titulo-agora" style={{ ...TITULO, fontSize: FS.title }}>Agora</h2>
                 <span data-testid="resumo-agora" style={{ fontSize: FS.body, color: T.second }}>
@@ -1168,7 +1257,7 @@ export default function GraficaMaquinas() {
                       <button
                         type="button"
                         className="mq-acao"
-                        onClick={() => { escreverURL({ maquina: m.codigo }); rolarAte("titulo-dia"); }}
+                        onClick={() => { escreverURL({ maquina: m.codigo, aba: "diario" }); rolarAte("titulo-dia"); }}
                         data-testid={`resumo-dia-${m.codigo}`}
                         title={`Ver o diário da ${m.rotulo} neste dia`}
                         style={{ marginTop: "auto", minHeight: isMobile ? 44 : 32, padding: "6px 8px", border: "none", borderTop: `1px solid ${T.low}`, borderRadius: `0 0 ${R.sm}px ${R.sm}px`, background: "transparent", textAlign: "left", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, fontSize: isMobile ? 12 : FS.small, color: T.second, fontVariantNumeric: "tabular-nums" }}
@@ -1186,9 +1275,10 @@ export default function GraficaMaquinas() {
                 })}
               </div>
             </section>
+            )}
 
             {/* ── 2 · A FILA GERAL (liberadas sem impressora reservada) ── */}
-            {(filaGeral.length > 0 || totalReservadas > 0) && (
+            {aba === "agora" && (
               <section aria-labelledby="titulo-fila" data-testid="secao-fila" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
                   <div style={{ display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
@@ -1211,8 +1301,16 @@ export default function GraficaMaquinas() {
                 </p>
                 <div style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: R.lg, overflow: "hidden" }}>
                   {filaGeral.length === 0 ? (
-                    <div data-testid="fila-vazia" style={{ padding: isMobile ? "20px 16px" : "22px 24px", textAlign: "center", fontSize: FS.body, color: T.second }}>
-                      Todas as peças liberadas já têm impressora reservada.
+                    <div data-testid="fila-vazia" style={{ padding: isMobile ? "22px 16px" : "26px 24px", textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
+                      <p style={{ margin: 0, fontSize: FS.strong, fontWeight: 700, color: T.text }}>
+                        {totalReservadas > 0 ? "Todas as peças liberadas já têm impressora reservada." : "Nenhuma peça liberada aguardando impressão."}
+                      </p>
+                      <p style={{ margin: 0, fontSize: FS.body, color: T.second, maxWidth: 440 }}>
+                        Quando a Revisão Final liberar, elas aparecem aqui para você reservar uma impressora.
+                      </p>
+                      <Link href={GRAFICA_LIBERADOS} className="mq-acao" data-testid="link-fila-ver-na-grafica" style={{ ...botaoNeutro, marginTop: 4 }}>
+                        Ver na Gráfica <ArrowRight aria-hidden="true" style={{ width: 12, height: 12, color: T.accentText }} />
+                      </Link>
                     </div>
                   ) : (
                     <div data-testid="fila-geral">
@@ -1255,7 +1353,8 @@ export default function GraficaMaquinas() {
             )}
 
             {/* ── 3 · O RESUMO (por dia × impressora, no período escolhido) ── */}
-            <section aria-labelledby="titulo-resumo" data-testid="secao-resumo" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            {aba === "resumo" && (
+            <section id="painel-maquinas" role="tabpanel" aria-labelledby="aba-resumo" data-testid="secao-resumo" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
                 <div style={{ display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
                   <h2 id="titulo-resumo" style={{ ...TITULO, fontSize: FS.title, scrollMarginTop: 16 }}>Resumo</h2>
@@ -1319,7 +1418,7 @@ export default function GraficaMaquinas() {
                   </div>
                 ) : relatorio.isError && !relatorio.data ? (
                   <div role="alert" data-testid="resumo-erro" style={{ padding: "14px 16px", color: VERMELHO.text, fontSize: FS.body, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-                    <span>Não foi possível montar o resumo deste período.</span>
+                    <span>{ehServidorNaVersaoAnterior(relatorio.error) ? AVISO_SERVIDOR_ANTIGO : "Não foi possível montar o resumo deste período."}</span>
                     <button type="button" className="mq-acao" onClick={() => relatorio.refetch()} style={botaoNeutro}>Tentar novamente</button>
                   </div>
                 ) : relatorio.data && relatorio.data.dias.length === 0 ? (
@@ -1337,14 +1436,16 @@ export default function GraficaMaquinas() {
                     emCartoes={diarioEmCartoes}
                     isMobile={isMobile}
                     hoje={relatorio.data.hoje}
-                    onVerDiario={(d, m) => { escreverURL({ dia: hoje && d >= hoje ? null : d, maquina: m }); rolarAte("titulo-dia"); }}
+                    onVerDiario={(d, m) => { escreverURL({ dia: hoje && d >= hoje ? null : d, maquina: m, aba: "diario" }); rolarAte("titulo-dia"); }}
                   />
                 ) : null}
               </div>
             </section>
+            )}
 
             {/* ── 4 · O DIÁRIO ── */}
-            <section aria-labelledby="titulo-dia" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            {aba === "diario" && (
+            <section id="painel-maquinas" role="tabpanel" aria-labelledby="aba-diario" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
                 <div style={{ display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
                   <h2 id="titulo-dia" style={{ ...TITULO, fontSize: FS.title, scrollMarginTop: 16 }}>Diário</h2>
@@ -1471,13 +1572,14 @@ export default function GraficaMaquinas() {
                 </p>
               )}
             </section>
+            )}
           </>
         )}
       </div>
 
       {/* O mesmo modal da fila da Gráfica: iniciar não cabe aqui (a peça já
           está na máquina), então ele abre direto em "informar impressas". */}
-      <ModalImpressao item={itemDoModal} abrirNaTroca={pecaNoModal?.trocar ?? false} maquinaInicial={pecaNoModal?.maquinaInicial ?? null} onFechar={() => setPecaNoModal(null)} />
+      <ModalImpressao item={itemDoModal} abrirNaTroca={pecaNoModal?.trocar ?? false} maquinaInicial={pecaNoModal?.maquinaInicial ?? null} maquinaEmQuestao={pecaNoModal?.peca.parte ? pecaNoModal.peca.maquina : null} onFechar={() => setPecaNoModal(null)} />
 
       {/* O seletor de peça do cartão "Livre": fecha e passa a vez ao modal de
           impressão, já com a impressora marcada. */}

@@ -38,6 +38,29 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 const CONFERIDA = new Set(["conferred", "conferido", "delivered", "entregue"]);
 const jaConferida = (i: any) => CONFERIDA.has(i.status) || (i.conferredQty ?? 0) > 0;
 
+/**
+ * 2x1 SAI EM LISTA (pedido do dono, 21/09 — foto do galpão montando no Corel):
+ * o 2x1 é peça pequena e numerosa; uma etiqueta de meia folha para cada uma
+ * gastava papel e a equipe já refazia à mão como LISTA — o evento no topo e as
+ * peças uma embaixo da outra, uma linha cada: "2x1 Ministério - 16" (tipo,
+ * descrição e quantidade). Sem arte e sem código — como a etiqueta que o
+ * galpão já cola no rolo.
+ * Aceita as grafias que chegam das planilhas: "2x1", "2X1", "2×1", "2x1 MBRF".
+ */
+const ehDoisPorUm = (p: any) => /^2\s*[x×]\s*1(?![0-9])/i.test(String(p?.type ?? "").trim());
+/** Linhas por folha de lista: cabe com o logo do book no topo (folha A4
+ *  deitada, 194 mm úteis) sem cortar a última linha. */
+const LINHAS_POR_LISTA = 18;
+
+/** "2x1 Ministério - 16". A descrição que já começa pelo tipo ("2x1 Logo
+ *  Santander") não repete o "2x1". */
+const linhaDaLista = (p: any) => {
+  const tipo = String(p.type ?? "").trim();
+  const desc = String(p.description ?? "").trim();
+  const nome = !desc ? tipo : desc.toLowerCase().startsWith(tipo.toLowerCase()) ? desc : `${tipo} ${desc}`;
+  return `${nome} - ${p.quantity ?? 1}`;
+};
+
 const dataBR = (iso?: string | null) =>
   iso ? new Date(iso).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", timeZone: "UTC" }) : null;
 
@@ -72,6 +95,10 @@ export default function EtiquetasEvento() {
   /** UMA POR UNIDADE (25/08): 6 lonas em 6 rolos = 6 volumes, e etiqueta
    *  existe para identificar VOLUME. Desligado por padrão. */
   const [porUnidade, setPorUnidade] = useState(false);
+
+  /** 2x1 em lista (ver ehDoisPorUm). Ligado por padrão; desligar volta à
+   *  etiqueta individual para quem precisar dela numa peça específica. */
+  const [doisPorUmEmLista, setDoisPorUmEmLista] = useState(true);
 
   /**
    * ORIENTAÇÃO: paisagem (folha deitada, tiras empilhadas) ou retrato — a
@@ -140,15 +167,26 @@ export default function EtiquetasEvento() {
 
   /** As ETIQUETAS da folha: uma por peça, ou uma por UNIDADE ("3 de 6") com o
    *  interruptor ligado. Peça de 1 unidade não ganha numeração. */
+  // Os 2x1 saem das etiquetas individuais e vão para as folhas de LISTA.
+  const pecasDaLista = useMemo(() => (doisPorUmEmLista ? pecas.filter(ehDoisPorUm) : []), [pecas, doisPorUmEmLista]);
+  const pecasIndividuais = useMemo(() => (doisPorUmEmLista ? pecas.filter((p) => !ehDoisPorUm(p)) : pecas), [pecas, doisPorUmEmLista]);
+  const paginasDaLista = useMemo(
+    () => Array.from({ length: Math.ceil(pecasDaLista.length / LINHAS_POR_LISTA) }, (_, k) => pecasDaLista.slice(k * LINHAS_POR_LISTA, (k + 1) * LINHAS_POR_LISTA)),
+    [pecasDaLista],
+  );
+  const haDoisPorUmNoPool = useMemo(() => pool.some(ehDoisPorUm), [pool]);
+
   const etiquetas = useMemo(() => {
-    if (!porUnidade) return pecas.map((p) => ({ p, n: 0, total: 0 }));
-    return pecas.flatMap((p) => {
+    if (!porUnidade) return pecasIndividuais.map((p) => ({ p, n: 0, total: 0 }));
+    return pecasIndividuais.flatMap((p) => {
       const q = Math.max(1, Math.floor(Number(p.quantity ?? 1)) || 1);
       if (q === 1) return [{ p, n: 0, total: 0 }];
       return Array.from({ length: q }, (_, k) => ({ p, n: k + 1, total: q }));
     });
-  }, [pecas, porUnidade]);
-  const folhas = Math.ceil(etiquetas.length / 2);
+  }, [pecasIndividuais, porUnidade]);
+  // A lista ocupa a folha INTEIRA (não meia): as duas contas somam.
+  const folhasIndividuais = Math.ceil(etiquetas.length / 2);
+  const folhas = folhasIndividuais + paginasDaLista.length;
 
   const impressasNoPool = useMemo(() => pool.filter((p) => p.labelPrintedAt).length, [pool]);
   const faltamNoPool = pool.length - impressasNoPool;
@@ -262,7 +300,9 @@ export default function EtiquetasEvento() {
           <Tags style={{ width: 15, height: 15, color: "#c2410c" }} />
           {/* A conta é de ETIQUETAS — é a folha que vai para a impressora. Com
               "uma por unidade" as contas divergem, então as duas aparecem. */}
-          {etiquetas.length} etiqueta{etiquetas.length !== 1 ? "s" : ""} · {folhas} folha{folhas !== 1 ? "s" : ""}
+          {etiquetas.length} etiqueta{etiquetas.length !== 1 ? "s" : ""}
+          {paginasDaLista.length > 0 && <> + {paginasDaLista.length} lista{paginasDaLista.length !== 1 ? "s" : ""} 2x1</>}
+          {" "}· {folhas} folha{folhas !== 1 ? "s" : ""}
           {porUnidade && <> · {pecas.length} peça{pecas.length !== 1 ? "s" : ""}</>}
         </span>
         <label style={{ display: "inline-flex", alignItems: "center", gap: 7, fontSize: 13, color: "#44403c", cursor: "pointer", marginLeft: 6 }}>
@@ -273,6 +313,12 @@ export default function EtiquetasEvento() {
           <input type="checkbox" checked={porUnidade} onChange={(e) => setPorUnidade(e.target.checked)} data-testid="check-por-unidade" style={{ width: 16, height: 16, accentColor: "#c2410c" }} />
           Uma por unidade
         </label>
+        {haDoisPorUmNoPool && (
+          <label title="As peças 2x1 saem numa etiqueta em lista — o evento no topo e as peças uma embaixo da outra — em vez de uma etiqueta para cada." style={{ display: "inline-flex", alignItems: "center", gap: 7, fontSize: 13, color: "#44403c", cursor: "pointer" }}>
+            <input type="checkbox" checked={doisPorUmEmLista} onChange={(e) => setDoisPorUmEmLista(e.target.checked)} data-testid="check-2x1-lista" style={{ width: 16, height: 16, accentColor: "#c2410c" }} />
+            2x1 em lista
+          </label>
+        )}
         {(logo || buscandoLogo) && (
           <label style={{ display: "inline-flex", alignItems: "center", gap: 7, fontSize: 13, color: "#44403c", cursor: "pointer" }}>
             <input type="checkbox" checked={usarLogo} onChange={(e) => setUsarLogo(e.target.checked)} data-testid="check-usar-logo" style={{ width: 16, height: 16, accentColor: "#c2410c" }} />
@@ -416,7 +462,7 @@ export default function EtiquetasEvento() {
         </div>
       )}
 
-      {etiquetas.length === 0 && (
+      {etiquetas.length === 0 && paginasDaLista.length === 0 && (
         <p data-testid="etiquetas-vazio" style={{ margin: 0, padding: "36px 24px", fontSize: 14, color: "#57534e", maxWidth: 560 }}>
           {pool.length > 0
             ? "Nenhuma peça selecionada — marque na faixa acima quais entram nesta impressão."
@@ -432,7 +478,7 @@ export default function EtiquetasEvento() {
       {/* overflow-x próprio: a folha em pé (707px) rola AQUI no celular — a
           página nunca ganha rolagem lateral (régua da casa). */}
       <div style={{ padding: "18px 12px 48px", overflowX: "auto" }}>
-        {Array.from({ length: folhas }, (_, f) => etiquetas.slice(f * 2, f * 2 + 2)).map((dupla, f) => (
+        {Array.from({ length: folhasIndividuais }, (_, f) => etiquetas.slice(f * 2, f * 2 + 2)).map((dupla, f) => (
           <div key={f} className={`etq-quebra ${orientacao === "retrato" ? "etq-moldura-retrato" : "etq-moldura-paisagem"}`} style={orientacao === "retrato" ? { margin: "0 auto 18px" } : undefined}>
           <div className="etq-folha" style={{ display: "flex", flexDirection: "column" }}>
             {dupla.map((e, i) => (
@@ -504,6 +550,51 @@ export default function EtiquetasEvento() {
                 </div>
               </div>
             ))}
+          </div>
+          </div>
+        ))}
+
+        {/* ── Folhas de LISTA dos 2x1: a folha inteira, o evento no topo (os
+            mesmos dois níveis da etiqueta, menores) e as peças em linhas.
+            Mesma moldura e mesma orientação das individuais — a guilhotina e
+            o "Em pé" continuam valendo. ── */}
+        {paginasDaLista.map((linhas, k) => (
+          <div key={`lista-${k}`} className={`etq-quebra ${orientacao === "retrato" ? "etq-moldura-retrato" : "etq-moldura-paisagem"}`} style={orientacao === "retrato" ? { margin: "0 auto 18px" } : undefined}>
+          <div className="etq-folha" data-testid={`lista-2x1-${k + 1}`} style={{ display: "flex", flexDirection: "column", padding: "22px 30px", boxSizing: "border-box", overflow: "hidden" }}>
+            <div style={{ flexShrink: 0, borderBottom: "3px solid #1c1917", paddingBottom: 10, marginBottom: 4, textAlign: "center" }}>
+              <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12 }}>
+                <p style={{ margin: 0, fontSize: 12, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "#78716c" }}>
+                  {event?.truckDepartureDate ? `Saída ${dataBR(event.truckDepartureDate)}` : " "}
+                </p>
+                {/* "1 de 2": quem pega a segunda folha sabe que existe outra. */}
+                {paginasDaLista.length > 1 && (
+                  <p style={{ margin: 0, fontSize: 12, fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase", color: "#c2410c" }}>
+                    Lista 2x1 · {k + 1} de {paginasDaLista.length}
+                  </p>
+                )}
+              </div>
+              {logo && usarLogo && (
+                <img loading="lazy" decoding="async" src={logo} alt="Logo do evento"
+                  style={{ maxHeight: 64, maxWidth: "45%", objectFit: "contain", display: "block", margin: "4px auto 2px" }} />
+              )}
+              {!(logo && usarLogo) && gigante && prefixo && (
+                <p style={{ margin: "2px 0 0", fontFamily: "'Space Grotesk', sans-serif", fontWeight: 800, fontSize: "clamp(15px, 1.8vw, 22px)", textTransform: "uppercase", color: "#1c1917", lineHeight: 1.1 }}>
+                  {prefixo}
+                </p>
+              )}
+              <p style={{ margin: "2px 0 0", fontFamily: "'Space Grotesk', sans-serif", fontWeight: 900, textTransform: "uppercase", letterSpacing: "-0.02em", color: "#1c1917", lineHeight: 0.95, fontSize: "clamp(36px, 5.2vw, 64px)", overflowWrap: "anywhere" }}>
+                {gigante || nome}
+              </p>
+            </div>
+            {/* Uma linha por peça, centralizada: "2x1 Ministério - 16" — o
+                formato da etiqueta que o galpão já cola no rolo (foto do dono). */}
+            <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-start", paddingTop: 10, gap: 2 }}>
+              {linhas.map((p) => (
+                <p key={p.id} data-testid={`lista-2x1-linha-${p.id}`} style={{ margin: 0, maxWidth: "100%", fontFamily: "'Space Grotesk', sans-serif", fontSize: 20, fontWeight: 800, lineHeight: 1.25, color: "#1c1917", textAlign: "center", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {linhaDaLista(p)}
+                </p>
+              ))}
+            </div>
           </div>
           </div>
         ))}

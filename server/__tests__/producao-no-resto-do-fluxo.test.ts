@@ -262,7 +262,7 @@ describe("rótulos, visão, Excel e pedidos", () => {
     const X = ler("server/services/xlsxExport.ts");
     const iProd = X.indexOf("const PRODUCTION_COLS");
     const prod = X.slice(iProd, X.indexOf("];", iProd));
-    expect(prod).toContain('{ header: "Tubo",            key: "tuboNumero",   width: 8  },');
+    expect(prod).toContain('{ header: "Tubo",            key: "tuboNumero",   width: 22 },');
     expect(prod.indexOf('"Tubo"')).toBeGreaterThan(prod.indexOf('"Impressora"'));
     // o relatório de máquinas segue sem a coluna
     expect(X.slice(X.indexOf("export function montarPlanilhaDeMaquinas"))).not.toContain("tuboNumero");

@@ -38,6 +38,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { convertGCSUrlToLocalPath } from "@/lib/artePdfExport";
 import { linhaDaLista } from "@/lib/etiqueta-lista";
 import { parteDoTotal } from "@shared/embalagem";
+import { nomeDaPeca } from "@shared/nome-da-peca";
 import { useToast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useAuth } from "@/contexts/auth-context";
@@ -929,15 +930,184 @@ export function PainelDeTubos({ evento, onClose, onEmbalar, onEntregar }: {
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
+// 4 · O TUBO — "quais peças estão junto com ele" (dono, 21/09). Abre pelo selo
+//     da peça na fila e pelos cartões da aba Tubos: UM tubo, o que tem dentro,
+//     as fotos, quem embalou, o estado — e as ações dele no rodapé.
+// ═════════════════════════════════════════════════════════════════════════════
+export function TuboDialog({ evento, tuboId, onClose, onEntregar, onAbrirPeca }: {
+  evento: Evento | null;
+  tuboId: string | null;
+  onClose: () => void;
+  /** Abre o modal de entrega deste volume. */
+  onEntregar: (tuboId: string) => void;
+  /** O código da peça é clicável: abre a ficha dela (quem chama decide como). */
+  onAbrirPeca?: (itemId: string) => void;
+}) {
+  const { toast } = useToast();
+  const { isMobile, alvo, fsMin } = useMedidas();
+  const soVisualizaKit = useSoVisualizaKit();
+  const aberto = !!evento && !!tuboId;
+  const { data, isLoading, isError, refetch } = useRetrato(aberto ? evento : null);
+  const [adicionando, setAdicionando] = useState(false);
+  const [fotosNovas, setFotosNovas] = useState<string[]>([]);
+  const chave = aberto ? `${evento!.id}|${tuboId}` : null;
+  const [vista, setVista] = useState<string | null>(null);
+  if (chave !== vista) { setVista(chave); setAdicionando(false); setFotosNovas([]); }
+
+  const t = (data?.tubos ?? []).find((x) => x.id === tuboId) ?? null;
+  const avulso = !!t?.avulso;
+  const entregue = !!t?.entregueEm;
+  const soVe = !!t && t.pecas.some(soVisualizaKit);
+  const unidades = (t?.pecas ?? []).reduce((u, x) => u + (x.quantidadeNoTubo ?? x.quantity), 0);
+
+  const tirar = useMutation({
+    mutationFn: async (peca: Peca) => apiRequest("PATCH", `/api/tubos/${t!.id}/itens`, { remover: [peca.id] }),
+    onSuccess: (_r, peca) => {
+      toast({ title: avulso ? `Embalagem de ${peca.displayId ?? "peça"} desfeita` : `${peca.displayId ?? "Peça"} saiu do Tubo ${t!.numero}`, description: "Voltou para Conferido." });
+      atualizarTudo(evento!.id);
+      // A embalagem avulsa existia só para aquela peça: desfeita, não há o que mostrar.
+      if (avulso || (t?.pecas.length ?? 0) <= 1) onClose();
+    },
+    onError: (e) => toast({ title: avulso ? "Não foi possível desfazer a embalagem" : "Não foi possível tirar do tubo", description: mensagemDeErro(e), variant: "destructive" }),
+  });
+  const guardarFotos = useMutation({
+    mutationFn: async () => (await apiRequest("POST", `/api/tubos/${t!.id}/fechar`, { fotos: fotosNovas })).json(),
+    onSuccess: (r: any) => {
+      toast({ title: avulso ? "Fotos guardadas na embalagem" : `Fotos guardadas no Tubo ${r.numero}`, description: `${plural(r.fotos, "foto nova", "fotos novas")} · ${r.totalDeFotos ?? r.fotos} no total.` });
+      setAdicionando(false); setFotosNovas([]);
+      atualizarTudo(evento!.id);
+    },
+    onError: (e) => toast({ title: "Não foi possível guardar as fotos", description: mensagemDeErro(e), variant: "destructive" }),
+  });
+
+  const titulo = !t ? "Tubo" : avulso ? `Embalagem de ${t.pecas[0]?.displayId ?? "peça"}` : `Tubo ${t.numero}${evento ? ` · ${evento.name}` : ""}`;
+  const estado = !t ? "" : entregue
+    ? `Entregue${t.recebidoPor ? ` a ${t.recebidoPor}` : ""} em ${quandoFoi(t.entregueEm)}`
+    : "Aberto — aguardando a entrega";
+  const acao = (cor: string, solido = false): React.CSSProperties => ({
+    display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, flex: isMobile ? "1 1 140px" : undefined, minHeight: isMobile ? 48 : 40, padding: "0 14px", borderRadius: 8, fontSize: 13, fontWeight: 800, cursor: "pointer", textDecoration: "none",
+    border: solido ? "none" : `1px solid ${COR.borda}`, background: solido ? cor : "#fff", color: solido ? "#fff" : cor,
+  });
+
+  return (
+    <Casca aberto={aberto} onClose={onClose} icone={Package} tint={avulso ? COR.azul : COR.laranja} largura={560} testId="modal-do-tubo"
+      titulo={titulo} subtitulo={avulso ? "A peça embalada sozinha, as fotos e o que dá para fazer com ela" : "O que vai junto neste tubo, as fotos e o que dá para fazer com ele"}
+      rodape={!t ? undefined : adicionando ? (
+        <Rodape testId="rodape-fotos-do-tubo">
+          <BotaoCancelar onClick={() => { setAdicionando(false); setFotosNovas([]); }} />
+          <BotaoPrimario onClick={() => guardarFotos.mutate()} disabled={guardarFotos.isPending || fotosNovas.length === 0} cor={COR.azul} testId="confirmar-fotos-do-tubo">
+            {guardarFotos.isPending ? "Salvando…" : fotosNovas.length ? `Guardar ${plural(fotosNovas.length, "foto", "fotos")}` : "Tire a foto para guardar"}
+          </BotaoPrimario>
+        </Rodape>
+      ) : (
+        <div data-testid="rodape-do-tubo" style={{ flexShrink: 0, display: "flex", flexWrap: "wrap", gap: 8, paddingTop: 10, paddingLeft: isMobile ? 16 : 20, paddingRight: isMobile ? 16 : 20, paddingBottom: "calc(10px + env(safe-area-inset-bottom))", borderTop: `1px solid ${COR.borda}`, background: "#fff" }}>
+          {!entregue && !soVe && t.pecas.length > 0 && (
+            <button type="button" onClick={() => onEntregar(t.id)} data-testid="tubo-entregar" style={acao(COR.verde, true)}>
+              <Truck aria-hidden="true" style={{ width: 14, height: 14 }} /> {avulso ? "Entregar" : "Entregar tubo"}
+            </button>
+          )}
+          {!entregue && !soVe && t.pecas.length > 0 && (
+            <button type="button" onClick={() => setAdicionando(true)} data-testid="tubo-adicionar-fotos" style={acao(COR.azul)}>
+              <Camera aria-hidden="true" style={{ width: 14, height: 14 }} /> Adicionar fotos
+            </button>
+          )}
+          {!avulso && t.pecas.length > 0 && (
+            <Link href={`/grafica/tubos/${t.id}/etiqueta`} data-testid="tubo-etiqueta" style={acao(COR.texto)}>
+              <Tag aria-hidden="true" style={{ width: 14, height: 14 }} /> Etiqueta
+            </Link>
+          )}
+          <button type="button" onClick={onClose} style={acao(COR.sec)}>Fechar</button>
+        </div>
+      )}>
+      {isLoading && <Carregando />}
+      {isError && <ErroAoCarregar onTentar={() => refetch()} />}
+      {data && !t && <Aviso testId="tubo-sumiu">{"Este tubo não existe mais — alguém apagou, ou a embalagem foi desfeita."}</Aviso>}
+
+      {t && (
+        <>
+          <p data-testid="tubo-estado" style={{ margin: 0, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", fontSize: 13, fontWeight: 700, color: entregue ? COR.verde : COR.azul }}>
+            {entregue ? <CheckCircle2 aria-hidden="true" style={{ width: 15, height: 15 }} /> : <Package aria-hidden="true" style={{ width: 15, height: 15 }} />}
+            {estado}
+            {t.entreguePor && entregue ? <span style={{ fontWeight: 400, color: COR.sec }}>· registrado por {t.entreguePor}</span> : null}
+          </p>
+          {soVe && !entregue && <Aviso testId="tubo-so-visualiza">Tem peça do Kit aqui: a Solicitação da Arena só visualiza.</Aviso>}
+
+          <section data-testid="tubo-conteudo" style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            <span style={ROTULO}>{avulso ? "A peça" : `O que vai junto · ${plural(t.pecas.length, "peça", "peças")} · ${unidades} un.`}</span>
+            {t.pecas.length === 0 && <p style={{ margin: 0, fontSize: 13, color: COR.sec }}>Este tubo está vazio.</p>}
+            <ul style={{ margin: 0, padding: 0, listStyle: "none", border: t.pecas.length ? `1px solid ${COR.borda}` : "none", borderRadius: 10, overflow: "hidden" }}>
+              {t.pecas.map((p) => {
+                const q = p.quantidadeNoTubo ?? p.quantity;
+                const parte = parteDoTotal(q, p.quantity);
+                return (
+                  <li key={p.id} data-testid={`tubo-peca-${p.id}`} style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", padding: "6px 12px", borderTop: "1px solid #f5f5f4" }}>
+                    {onAbrirPeca ? (
+                      <button type="button" onClick={() => onAbrirPeca(p.id)} aria-label={`Abrir a ficha de ${p.displayId ?? "peça"}`}
+                        style={{ minHeight: alvo, padding: 0, border: "none", background: "none", fontFamily: "ui-monospace, monospace", fontSize: 13, fontWeight: 700, color: COR.laranja, textDecoration: "underline", cursor: "pointer", flexShrink: 0 }}>
+                        {p.displayId ?? "—"}
+                      </button>
+                    ) : (
+                      <span style={{ fontFamily: "ui-monospace, monospace", fontSize: 13, fontWeight: 700, color: COR.laranja, flexShrink: 0 }}>{p.displayId ?? "—"}</span>
+                    )}
+                    <span style={{ fontSize: 13, color: COR.texto, flex: "1 1 140px", minWidth: 0, overflowWrap: "anywhere", lineHeight: 1.3 }}>{nomeDaPeca(p.type, p.description)}</span>
+                    <span style={{ fontSize: 13, fontWeight: 800, color: COR.texto, whiteSpace: "nowrap" }}>
+                      {q} un.{parte ? <span style={{ fontWeight: 400, color: COR.sec }}> {parte}</span> : null}
+                    </span>
+                    {!entregue && !soVisualizaKit(p) && (
+                      <button type="button" onClick={() => tirar.mutate(p)} disabled={tirar.isPending} data-testid={`tubo-tirar-${p.id}`}
+                        style={{ minHeight: alvo, padding: "0 10px", borderRadius: 8, border: `1px solid ${COR.borda}`, background: "#fff", color: COR.sec, fontSize: fsMin(12.5), fontWeight: 700, cursor: "pointer" }}>
+                        {avulso ? "Desfazer embalagem" : "Tirar do tubo"}
+                      </button>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
+
+          <section data-testid="tubo-fotos" style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            <span style={ROTULO}>Fotos da embalagem · {t.fotosFechamento.length}</span>
+            {t.fotosFechamento.length > 0 ? (
+              <>
+                <Miniaturas fotos={t.fotosFechamento} alt={avulso ? "Foto da embalagem" : `Foto do Tubo ${t.numero}`} tamanho={72} />
+                <span style={{ fontSize: 12.5, color: COR.sec }}>
+                  {t.fechadoPor ? `Embalado por ${t.fechadoPor}` : "Embalado"}{t.fechadoEm ? ` em ${quandoFoi(t.fechadoEm)}` : ""}
+                  {t.alteradoDepoisDaFoto && !entregue ? <strong style={{ color: COR.ambar }}> · o conteúdo mudou depois da última foto</strong> : null}
+                </span>
+              </>
+            ) : (
+              <span style={{ fontSize: 12.5, color: COR.sec }}>Sem foto da embalagem — as fotos da conferência valem.</span>
+            )}
+            {t.fotoEntregaUrl && (
+              <a href={t.fotoEntregaUrl} target="_blank" rel="noreferrer" style={{ display: "inline-flex", alignItems: "center", minHeight: alvo, fontSize: 13, fontWeight: 700, color: COR.azul }}>ver o comprovante da entrega</a>
+            )}
+          </section>
+
+          {adicionando && (
+            <section data-testid="tubo-form-fotos" style={{ padding: 12, borderRadius: 10, background: COR.azulBg, border: `1px solid ${COR.azulBorda}` }}>
+              <span style={{ fontSize: 13, color: COR.texto }}>Mais fotos — somam às que já existem.</span>
+              <Fotos lista={fotosNovas} onMudar={setFotosNovas} alt="Foto da embalagem" />
+            </section>
+          )}
+        </>
+      )}
+    </Casca>
+  );
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
 // O ponto de entrada da Gráfica: UM modal por vez, escolhido pela porta.
 // ═════════════════════════════════════════════════════════════════════════════
-export function TubosDialog({ evento, onClose, itensIniciais, tuboInicial, onEmbalou, sugestaoRecebedor, onEntregou }: {
+export function TubosDialog({ evento, onClose, itensIniciais, tuboInicial, verTubo, onAbrirPeca, onEmbalou, sugestaoRecebedor, onEntregou }: {
   evento: Evento | null;
   onClose: () => void;
   /** Chegou pelo "Embalar" da peça (ou do lote): abre direto o modal Embalar. */
   itensIniciais?: string[];
   /** Chegou pelo "Entregar tubo" da embalada: abre direto o modal Entregar. */
   tuboInicial?: string;
+  /** Chegou pelo SELO da peça (ou por um cartão da aba Tubos): abre o modal daquele tubo. */
+  verTubo?: string;
+  onAbrirPeca?: (itemId: string) => void;
   onEmbalou?: () => void;
   sugestaoRecebedor?: string;
   onEntregou?: (recebedor: string) => void;
@@ -945,19 +1115,24 @@ export function TubosDialog({ evento, onClose, itensIniciais, tuboInicial, onEmb
   // A partir do painel: o modal que ele abriu. Fechar volta ao painel.
   const [doPainel, setDoPainel] = useState<{ embalar: string[] } | { entregar: string } | null>(null);
   const [vista, setVista] = useState<string | null>(null);
-  if ((evento?.id ?? null) !== vista) { setVista(evento?.id ?? null); setDoPainel(null); }
+  const porta = evento ? `${evento.id}|${verTubo ?? ""}|${tuboInicial ?? ""}` : null;
+  if (porta !== vista) { setVista(porta); setDoPainel(null); }
 
-  const direto = itensIniciais?.length ? "embalar" : tuboInicial ? "entregar" : null;
+  const direto = itensIniciais?.length ? "embalar" : tuboInicial ? "entregar" : verTubo ? "ver" : null;
   const embalando = direto === "embalar" ? itensIniciais! : doPainel && "embalar" in doPainel ? doPainel.embalar : null;
+  // Do modal do tubo também se chega à entrega (e, fechando-a, volta-se a ele).
   const entregando = direto === "entregar" ? tuboInicial! : doPainel && "entregar" in doPainel ? doPainel.entregar : null;
-  const voltar = () => (direto ? onClose() : setDoPainel(null));
+  const vendo = direto === "ver" && !entregando ? verTubo! : null;
+  const voltar = () => (direto && direto !== "ver" ? onClose() : setDoPainel(null));
 
   return (
     <>
-      <PainelDeTubos evento={evento && !embalando && !entregando ? evento : null} onClose={onClose}
+      <PainelDeTubos evento={evento && !embalando && !entregando && !vendo ? evento : null} onClose={onClose}
         onEmbalar={(ids) => setDoPainel({ embalar: ids })} onEntregar={(id) => setDoPainel({ entregar: id })} />
       <EmbalarDialog evento={embalando ? evento : null} itens={embalando ?? []} comCaixas={!direto} onClose={voltar} onEmbalou={onEmbalou} />
-      <EntregarTuboDialog evento={entregando ? evento : null} tuboId={entregando} sugestaoRecebedor={sugestaoRecebedor} onClose={voltar} onEntregou={onEntregou} />
+      <EntregarTuboDialog evento={entregando ? evento : null} tuboId={entregando} sugestaoRecebedor={sugestaoRecebedor} onClose={voltar}
+        onEntregou={(quem) => { onEntregou?.(quem); if (direto === "ver") onClose(); }} />
+      <TuboDialog evento={vendo ? evento : null} tuboId={vendo} onClose={onClose} onEntregar={(id) => setDoPainel({ entregar: id })} onAbrirPeca={onAbrirPeca} />
     </>
   );
 }

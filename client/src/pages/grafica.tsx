@@ -26,6 +26,7 @@ import { convertGCSUrlToLocalPath } from "@/lib/artePdfExport";
 import { useToast } from "@/hooks/use-toast";
 import { ObjectUploader } from "@/components/ObjectUploader";
 import { TubosDialog } from "@/components/tubos-dialog";
+import { AbaTubos } from "@/components/grafica/aba-tubos";
 import { linhaDaLista } from "@/lib/etiqueta-lista";
 import { aEmbalar, embaladaDe, parteDoTotal, seloDosVolumes, type LinhaDoVolume } from "@shared/embalagem";
 import { ItemDetailsDialog } from "@/components/item-details-dialog";
@@ -1204,13 +1205,24 @@ export default function Grafica() {
   // pelo "Embalar" da peça conferida (`embalar`: o painel abre já com a peça
   // marcada, focado em escolher o tubo) e pelo "Entregar tubo" da embalada
   // (`entregarTubo`: abre no formulário daquele tubo).
-  const [tubosDoEvento, setTubosDoEvento] = useState<{ id: string; name: string; embalar?: string[]; entregarTubo?: string } | null>(null);
+  // A ABA DA TELA — "fila" (padrão) ou "tubos", em `?aba=`. replaceState: trocar
+  // de aba não empilha histórico nem mexe nos outros parâmetros (os filtros).
+  const [abaDaTela, setAbaDaTela] = useState<"fila" | "tubos">(() => (new URLSearchParams(window.location.search).get("aba") === "tubos" ? "tubos" : "fila"));
+  const irParaAba = (aba: "fila" | "tubos") => {
+    const u = new URL(window.location.href);
+    if (aba === "fila") u.searchParams.delete("aba"); else u.searchParams.set("aba", aba);
+    window.history.replaceState(null, "", u.pathname + u.search);
+    setAbaDaTela(aba);
+  };
+  const [tubosDoEvento, setTubosDoEvento] = useState<{ id: string; name: string; embalar?: string[]; entregarTubo?: string; verTubo?: string } | null>(null);
   // Sem `= []` no destructuring: o array novo a cada render mudaria o
   // `numeroDoTubo` (e as deps de TODAS as linhas memoizadas) a cada render.
   const { data: todosOsTubos = SEM_TUBOS } = useQuery<TuboResumo[]>({
     queryKey: ["/api/tubos"],
     refetchInterval: 60_000,
   });
+  // O número da aba: tubos de verdade, abertos, com alguma coisa dentro.
+  const tubosAbertosNaTela = useMemo(() => todosOsTubos.filter((t) => !t.avulso && !t.entregueEm && (t.linhas ?? []).some((l) => !l.entregue)).length, [todosOsTubos]);
   const numeroDoTubo = useMemo(() => new Map(todosOsTubos.map((t) => [t.id, t.numero])), [todosOsTubos]);
   // Quando o tubo foi FECHADO (foto tirada) — "fechado 14:32" na peça embalada
   // (dono, 21/09). Só hora: a fila é do dia, e a data já está no cabeçalho.
@@ -1263,11 +1275,14 @@ export default function Grafica() {
   const tituloDoTubo = (item: any): string => {
     const c = conteudoDoTubo.get(item.tuboId);
     const foto = fechamentoDoTubo.get(item.tuboId);
-    if (ehAvulsa(item)) return `Embalada sozinha${foto ? ` · foto ${foto}` : ""}\nToque para entregar.`;
+    if (ehAvulsa(item)) return `Embalada sozinha${foto ? ` · foto ${foto}` : ""}\nToque para ver a embalagem.`;
     return `Tubo ${numeroDoTubo.get(item.tuboId) ?? ""} · ${c?.total ?? 1} ${(c?.total ?? 1) === 1 ? "peça" : "peças"}${foto ? ` · foto ${foto}` : " · sem foto"}\n${c?.lista ?? ""}\nToque para abrir o tubo.`;
   };
+  // O toque no SELO abre o modal DAQUELE tubo ("devia abrir um modal para saber
+  // quais peças estão junto com ele") — não mais o painel do evento inteiro,
+  // que continua no botão Tubos do cabeçalho do evento.
   const abrirTuboDaPeca = (item: any) =>
-    setTubosDoEvento({ id: String(item.eventId), name: item.event?.name ?? "Evento", entregarTubo: item.tuboId });
+    setTubosDoEvento({ id: String(item.eventId), name: item.event?.name ?? "Evento", verTubo: item.tuboId });
 
   // TIRAR DO TUBO direto da fila (21/09): a peça Embalado volta a Conferido —
   // o servidor faz a transição e escreve a trilha. É o mesmo PATCH do modal.
@@ -2814,6 +2829,43 @@ export default function Grafica() {
         )}
       </div>
 
+      {/* ── As abas da tela: Fila | Tubos (dono, 21/09: "Tubos põe na mesma da
+          Gráfica, uma abinha separada, não precisa ser uma página"). O mesmo
+          desenho das abas de Máquinas/Arte: tablist, setas, roving tabindex;
+          no celular, trilho com rolagem e 44px. `?aba=tubos` na URL — os
+          filtros da fila são outros parâmetros e não se perdem ao alternar.
+          Cada aba monta SÓ o próprio painel. */}
+      <div role="tablist" aria-label="Seções da Gráfica" data-testid="abas-grafica"
+        onKeyDown={(e) => {
+          if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
+          e.preventDefault();
+          const prox = abaDaTela === "fila" ? "tubos" : "fila";
+          irParaAba(prox);
+          (e.currentTarget.querySelector(`#aba-grafica-${prox}`) as HTMLElement | null)?.focus();
+        }}
+        style={{ display: "flex", alignItems: "flex-end", gap: isMobile ? 8 : 0, overflowX: "auto", scrollbarWidth: "none", maxWidth: "100%", borderBottom: `1px solid ${TI.border}` }}>
+        {([["fila", "Fila", null], ["tubos", "Tubos", tubosAbertosNaTela]] as const).map(([id, rotulo, n]) => {
+          const ativa = abaDaTela === id;
+          return (
+            <button key={id} id={`aba-grafica-${id}`} type="button" role="tab" aria-selected={ativa} aria-controls={id === "tubos" ? "painel-tubos" : "painel-fila"} tabIndex={ativa ? 0 : -1}
+              onClick={() => irParaAba(id)} data-testid={`aba-grafica-${id}`}
+              title={id === "tubos" ? "Quais tubos têm o quê: abertos, embaladas sozinhas e entregues" : "A fila de peças da Gráfica"}
+              style={{ display: "flex", alignItems: "center", gap: 7, flexShrink: 0, padding: isMobile ? "12px 14px" : "10px 16px", minHeight: isMobile ? 44 : undefined, border: "none", cursor: "pointer", background: "none", borderBottom: `2px solid ${ativa ? TI.accent : "transparent"}`, marginBottom: -1, fontSize: isMobile ? 14 : 13, fontWeight: ativa ? 800 : 600, color: ativa ? TI.text : TI.secondary, whiteSpace: "nowrap" }}>
+              {id === "tubos" && <Package aria-hidden="true" style={{ width: 13, height: 13, flexShrink: 0 }} />}
+              {rotulo}
+              {n != null && n > 0 && <span style={{ fontVariantNumeric: "tabular-nums", fontWeight: 700 }}>({n} {n === 1 ? "aberto" : "abertos"})</span>}
+            </button>
+          );
+        })}
+      </div>
+
+      {abaDaTela === "tubos" && (
+        <AbaTubos sugestaoRecebedor={ultimoRecebedor} onEntregou={setUltimoRecebedor}
+          onAbrirPeca={(id) => { const peca = itemPorId.get(id); if (peca) setViewDetailsItem(peca); }} />
+      )}
+
+      {abaDaTela === "fila" && (
+      <div id="painel-fila" role="tabpanel" aria-labelledby="aba-grafica-fila" style={{ display: "contents" }}>
       {/* ── Cartões de etapa ──
           VOLTARAM OS CARTÕES (dono, 17/09: "os cards antigos estavam
           melhores"). A rodada 3 os tinha trocado por uma barra de abas neutra;
@@ -5322,6 +5374,8 @@ export default function Grafica() {
         )}
 
       </div>
+      </div>
+      )}
 
       {/* ── Barra flutuante dos modos em lote (entrega, conferência OU embalar) ── */}
       {bulkOn && (
@@ -5902,6 +5956,8 @@ export default function Grafica() {
           refazer, senão é ida e volta garantida. */}
       <TubosDialog evento={tubosDoEvento} onClose={() => setTubosDoEvento(null)}
         itensIniciais={tubosDoEvento?.embalar} tuboInicial={tubosDoEvento?.entregarTubo}
+        verTubo={tubosDoEvento?.verTubo}
+        onAbrirPeca={(id) => { const peca = itemPorId.get(id); if (peca) { setTubosDoEvento(null); setViewDetailsItem(peca); } }}
         onEmbalou={() => { if (bulkPackMode) sairDoLote(); }}
         sugestaoRecebedor={ultimoRecebedor} onEntregou={setUltimoRecebedor} />
 

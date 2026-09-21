@@ -458,6 +458,87 @@ for (const largura of [1280, 390]) {
       expect($('[data-testid="tubo-1"]')!.textContent).toContain("aqui você só visualiza");
     }, 30_000);
   });
+
+  describe(`4 · O TUBO — o modal do selo (${onde})`, () => {
+    it("'Tubo 1 · teste 3': o que vai junto (código clicável, nome, quantidade NAQUELE tubo e '(7 de 10)'), fotos, quem embalou, estado", async () => {
+      const onAbrirPeca = vi.fn();
+      await montar({ verTubo: "t1", onAbrirPeca }, largura, retrato((r) => { Object.assign(r.tubos[0].pecas[0], { quantity: 10, quantidadeNoTubo: 7 }); }));
+      expect($$('[role="dialog"]').length, "um modal por vez — não o painel do evento").toBe(1);
+      expect($('[data-testid="painel-de-tubos"]')).toBeNull();
+      const m = $('[data-testid="modal-do-tubo"]')!;
+      expect(m.textContent).toContain("Tubo 1 · teste 3");
+      expect($('[data-testid="tubo-estado"]')!.textContent).toContain("Aberto — aguardando a entrega");
+      expect($('[data-testid="tubo-conteudo"]')!.textContent).toContain("O que vai junto · 2 peças · 23 un.");
+      const linha = $('[data-testid="tubo-peca-a1"]')!;
+      expect(linha.textContent).toContain("2x1 — Ministério da Saúde");
+      expect(linha.textContent).toContain("7 un. (7 de 10)");
+      await act(async () => { fireEvent.click(linha.querySelector('button[aria-label="Abrir a ficha de #0383"]')!); });
+      expect(onAbrirPeca).toHaveBeenCalledWith("a1");
+      const fotos = $('[data-testid="tubo-fotos"]')!;
+      expect(fotos.querySelectorAll("img").length).toBe(2);
+      expect(fotos.textContent).toContain("Embalado por Operador em");
+      // ações no rodapé, com o recorte seguro
+      const rodape = $('[data-testid="rodape-do-tubo"]')!;
+      expect(/safe-area-inset-bottom/.test(rodape.style.paddingBottom)).toBe(true);
+      expect(Array.from(rodape.querySelectorAll("button, a")).map((b) => b.textContent?.trim())).toEqual(["Entregar tubo", "Adicionar fotos", "Etiqueta", "Fechar"]);
+      expect($('[data-testid="tubo-etiqueta"]')!.getAttribute("href")).toBe("/grafica/tubos/t1/etiqueta");
+      if (largura === 390) expect(reguaDoCelular(m)).toEqual([]);
+    }, 30_000);
+
+    it("'Entregar tubo' troca para o modal de entrega daquele tubo; 'Tirar do tubo' é por linha (PATCH remover)", async () => {
+      await montar({ verTubo: "t1" }, largura);
+      await clicar('[data-testid="tubo-tirar-a2"]');
+      await tick(30);
+      expect(chamadas[0]).toMatchObject({ metodo: "PATCH", url: expect.stringContaining("/api/tubos/t1/itens"), corpo: { remover: ["a2"] } });
+      await clicar('[data-testid="tubo-entregar"]');
+      await tick(20);
+      expect($('[data-testid="modal-do-tubo"]')).toBeNull();
+      expect($('[data-testid="modal-entregar-tubo"]')!.textContent).toContain("Entregar Tubo 1 · teste 3");
+    }, 30_000);
+
+    it("'Adicionar fotos' abre o formulário com câmera direta e o confirmar no rodapé", async () => {
+      await montar({ verTubo: "t1" }, largura);
+      await clicar('[data-testid="tubo-adicionar-fotos"]');
+      expect($('[data-testid="confirmar-fotos-do-tubo"]')!.textContent).toBe("Tire a foto para guardar");
+      const form = $('[data-testid="tubo-form-fotos"]')!;
+      expect(form.querySelector('[data-capture="sim"]')).toBeTruthy();
+      await act(async () => { fireEvent.click(form.querySelector('[data-testid="button-upload-photo"]')!); });
+      expect($('[data-testid="confirmar-fotos-do-tubo"]')!.textContent).toBe("Guardar 1 foto");
+      await clicar('[data-testid="confirmar-fotos-do-tubo"]');
+      await tick(30);
+      expect(chamadas[0]).toMatchObject({ metodo: "POST", url: expect.stringContaining("/api/tubos/t1/fechar") });
+    }, 30_000);
+
+    it("EMBALADA SOZINHA: 'Embalagem de #0390', sem 'tubo' nem etiqueta; ações 'Entregar' e 'Desfazer embalagem'", async () => {
+      await montar({ verTubo: "av1" }, largura);
+      const m = $('[data-testid="modal-do-tubo"]')!;
+      expect(m.textContent).toContain("Embalagem de #0390");
+      expect(m.textContent).not.toMatch(/tubo/i);
+      expect($('[data-testid="tubo-etiqueta"]')).toBeNull();
+      expect($('[data-testid="tubo-entregar"]')!.textContent).toBe(" Entregar");
+      expect($('[data-testid="tubo-tirar-z1"]')!.textContent).toBe("Desfazer embalagem");
+    }, 30_000);
+
+    it("ENTREGUE: o registro — a quem e quando, o conteúdo congelado, sem ações que mexem", async () => {
+      await montar({ verTubo: "t3" }, largura);
+      expect($('[data-testid="tubo-estado"]')!.textContent).toContain("Entregue a Carlos em");
+      expect($('[data-testid="tubo-conteudo"]')!.textContent).toContain("#0380");
+      expect($('[data-testid="tubo-entregar"]')).toBeNull();
+      expect($('[data-testid="tubo-adicionar-fotos"]')).toBeNull();
+      expect($('[data-testid="tubo-tirar-c1"]')).toBeNull();
+    }, 30_000);
+
+    it("estados: tubo que sumiu e Kit só-visualiza", async () => {
+      await montar({ verTubo: "nao-existe" }, largura);
+      expect($('[data-testid="tubo-sumiu"]')).toBeTruthy();
+      cleanup();
+      papel = { role: "solicitacao", kit: false };
+      await montar({ verTubo: "t1" }, largura, retrato((r) => { r.tubos[0].pecas[0].doKit = true; }));
+      expect($('[data-testid="tubo-so-visualiza"]')).toBeTruthy();
+      expect($('[data-testid="tubo-entregar"]')).toBeNull();
+      expect($('[data-testid="tubo-tirar-a1"]')).toBeNull();
+    }, 30_000);
+  });
 }
 
 describe("o teclado não esconde o botão (390px)", () => {

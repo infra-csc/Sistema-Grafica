@@ -84,10 +84,11 @@ describe("a peça embalada", () => {
   it("tem 'Entregar tubo' na tabela e no cartão, que abre o painel naquele tubo", () => {
     expect(TABELA).toContain("data-testid={`button-entregar-tubo-${item.id}`}");
     expect(CARTOES).toContain("data-testid={`button-entregar-tubo-card-${item.id}`}");
-    // os dois botões e o selo (abrirTuboDaPeca) levam ao mesmo lugar
-    expect(GRAFICA.match(/entregarTubo: item\.tuboId \}\)/g)?.length).toBe(3);
+    // os dois botões abrem a ENTREGA; o selo abre o MODAL DO TUBO (o que vai junto)
+    expect(GRAFICA.split("entregarTubo: item.tuboId })").length - 1).toBe(2);
+    expect(GRAFICA).toContain("verTubo: item.tuboId });");
     // a porta escolhe o modal: Embalar, Entregar tubo ou o painel
-    expect(PAINEL).toContain('const direto = itensIniciais?.length ? "embalar" : tuboInicial ? "entregar" : null;');
+    expect(PAINEL).toContain('const direto = itensIniciais?.length ? "embalar" : tuboInicial ? "entregar" : verTubo ? "ver" : null;');
   });
 
   it("ENTREGAR É SÓ DO TUBO: a embalada não tem Entregar individual nem entra no lote de entrega", () => {

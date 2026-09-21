@@ -465,6 +465,50 @@ export function registerTubosRoutes(app: Express): void {
   app.get("/api/tubos", requireAuth, async (req, res) => {
     if (!podeMexerEmTubo(req)) return res.status(403).json({ error: SEM_PAPEL });
     try {
+      // A ABA TUBOS da Gráfica (dono, 21/09: "uma abinha para eles saberem quais
+      // tubos têm o quê e administrar") pede `?detalhe=1`: TODOS os volumes com
+      // evento, prazo, conteúdo com quantidade, fotos e entrega. QUATRO selects
+      // no total (tubos, eventos, linhas, peças) — nunca um por tubo. A fila
+      // continua com o payload enxuto de baixo.
+      if (req.query.detalhe) {
+        const lista = await db.select().from(tubos).orderBy(asc(tubos.numero));
+        const idsDeEvento = Array.from(new Set(lista.map((t: any) => t.eventId)));
+        const eventosDaLista = idsDeEvento.length
+          ? await db.select({ id: events.id, name: events.name, truckDepartureDate: events.truckDepartureDate }).from(events).where(inArray(events.id, idsDeEvento))
+          : [];
+        const eventoPorId = new Map(eventosDaLista.map((e) => [e.id, e]));
+        const ls = (await db.select(COLUNAS_LINHA).from(tuboItens)) as Linha[];
+        const idsDePeca = Array.from(new Set(ls.map((l) => l.itemId)));
+        const cruas = idsDePeca.length
+          ? ((await db.select(COLUNAS_PECA).from(itemsTable).where(and(inArray(itemsTable.id, idsDePeca), isNull(itemsTable.deletedAt)))) as PecaCrua[])
+          : [];
+        const existe = new Set(cruas.map((p) => p.id));
+        const visivel = new Map(visiveis(req, cruas).map((p) => [p.id, p]));
+        const total = new Map<string, number>();
+        const dentroDe = new Map<string, Array<{ p: PecaCrua; l: Linha }>>();
+        for (const l of ls) {
+          if (!existe.has(l.itemId)) continue;
+          total.set(l.tuboId, (total.get(l.tuboId) ?? 0) + 1);
+          const p = visivel.get(l.itemId);
+          if (p) dentroDe.set(l.tuboId, [...(dentroDe.get(l.tuboId) ?? []), { p, l }]);
+        }
+        const doKit = quemVe(req).kit;
+        return res.json(lista.filter((t: any) => !doKit || dentroDe.has(t.id)).map((t: any) => {
+          const dentro = (dentroDe.get(t.id) ?? []).sort((x, y) => porCodigo(x.p, y.p));
+          const soVe = soVisualizaKit(req) && dentro.some(({ p }) => p.kitRemessaId);
+          return {
+            id: t.id, numero: t.numero, avulso: !!t.avulso,
+            evento: eventoPorId.get(t.eventId) ?? { id: t.eventId, name: "Evento", truckDepartureDate: null },
+            criadoEm: t.createdAt,
+            fotosFechamento: t.fotosFechamento ?? [], fechadoEm: t.fechadoEm, fechadoPor: t.fechadoPor,
+            entregueEm: t.entregueEm, recebidoPor: t.recebidoPor, entreguePor: t.entreguePor, fotoEntregaUrl: t.fotoEntregaUrl, entregueObs: t.entregueObs,
+            pecas: dentro.map(({ p, l }) => pecaParaTela(p, l)),
+            unidades: dentro.reduce((u, { l }) => u + l.quantidade, 0),
+            // Age quem enxerga o volume inteiro e não esbarra na trava do Kit.
+            podeAgir: !t.entregueEm && dentro.length > 0 && (total.get(t.id) ?? 0) === dentro.length && !soVe,
+          };
+        }));
+      }
       // `fechadoEm` vai junto: a fila da Gráfica mostra a hora da foto na peça embalada.
       const todos = await db.select({ id: tubos.id, numero: tubos.numero, avulso: tubos.avulso, eventId: tubos.eventId, entregueEm: tubos.entregueEm, fechadoEm: tubos.fechadoEm }).from(tubos);
       // UM select para todas as linhas — nunca um por tubo.

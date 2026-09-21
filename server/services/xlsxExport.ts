@@ -6,6 +6,7 @@ import { storage, compareDisplayId } from "../storage";
 import { rotuloDaMaquina } from "@shared/fluxo-peca";
 import { nomeDaPeca } from "@shared/nome-da-peca";
 import { resumosDeTuboPorIds } from "./tubosDaPeca";
+import { seloDosVolumes } from "@shared/embalagem";
 import {
   duracaoCurta, oQueAconteceuNoRegistro, ROTULO_DO_TIPO, nomeDoArquivoDoRelatorio,
   type RegistroDoPeriodo, type ResumoDoDia,
@@ -21,7 +22,7 @@ const PRODUCTION_COLS = [
   { header: "Impressora",      key: "printMachine", width: 24 },
   // Número do tubo em que a peça foi embalada (21/09). Vazio = sem tubo (peça
   // grande vai direto) ou ainda não embalada.
-  { header: "Tubo",            key: "tuboNumero",   width: 8  },
+  { header: "Tubo",            key: "tuboNumero",   width: 22 },
   { header: "Reaprov.",        key: "qtyReused",    width: 10 },
   { header: "M² a produzir",   key: "m2ToProduce",  width: 13 },
   { header: "Produzido",       key: "qtyProduced",  width: 11 },
@@ -182,8 +183,15 @@ async function writeWorkbook(
           eventName:    item.event?.name ?? item.eventName ?? "",
           statusLabel:  STATUS_LABELS[item.status] ?? item.status ?? "",
           printMachine: item.printMachine ? rotuloDaMaquina(item.printMachine) : "",
-          // Embalada sozinha (número negativo): a coluna Tubo fica vazia.
-          tuboNumero:   (() => { const n = item.tuboNumero ?? (item.tuboId ? tuboPorId.get(item.tuboId)?.tuboNumero : undefined); return Number(n) > 0 ? n : ""; })(),
+          // A peça DIVIDIDA entre tubos diz todos, com a quantidade de cada um:
+          // "Tubo 1 (7) · Tubo 2 (3)". Inteira num tubo só, fica o número (como
+          // sempre foi). Embalada sozinha (número negativo): coluna vazia.
+          tuboNumero:   (() => {
+            const volumes = ((tuboPorId as any).volumesPorItem?.get(item.id) ?? (item as any).tuboVolumes ?? []).filter((v: any) => !v.avulso);
+            if (volumes.length > 1 || (volumes.length === 1 && Number(volumes[0].quantidade) < Number(item.quantity))) return seloDosVolumes(volumes);
+            const n = item.tuboNumero ?? (item.tuboId ? tuboPorId.get(item.tuboId)?.tuboNumero : undefined);
+            return Number(n) > 0 ? n : "";
+          })(),
           qtyReused:    reusedTotal(item),
           m2ToProduce:  m2ToProduce(item),
           qtyProduced:  item.quantityProduced ?? 0,

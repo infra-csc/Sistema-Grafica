@@ -274,6 +274,30 @@ export function pausarParte(p: PecaReservavel, maquina: string, agoraISO: string
 }
 
 /**
+ * DEVOLVER A PEÇA INTEIRA À FILA, como liberada: cada parte ainda ativa vira
+ * reserva (marcada) da impressora onde estava; as impressas ficam no total.
+ * É a mesma saída da pausa, para quem não passa pela pausa: o descancelar de
+ * uma peça que estava em impressão (não pode voltar ocupando uma impressora
+ * sem checar) e o lançamento que esgota a última parte ativa com resto ainda
+ * reservado/sem impressora (a peça não pode ficar "Em Impressão" em lugar nenhum).
+ */
+export function devolverTudoAFila(p: PecaReservavel, agoraISO: string): { reserva: ReservaPorMaquina | null; pausas: Record<string, string> } {
+  const comoEmImpressao = { ...p, status: "inProduction" };
+  const reserva: ReservaPorMaquina = { ...reservaDaPeca(comoEmImpressao) };
+  const pausas: Record<string, string> = {};
+  for (const [m, parte] of Object.entries(partesDaPeca(comoEmImpressao))) {
+    const restante = restanteNaMaquina(parte);
+    if (restante <= 0 || !MAQUINAS_DE_IMPRESSAO.includes(m)) continue;
+    reserva[m] = (reserva[m] ?? 0) + restante;
+    pausas[m] = agoraISO;
+  }
+  return { reserva: lerReserva(reserva), pausas };
+}
+
+/** O nome do lock consultivo de uma impressora (pg_advisory_xact_lock(hashtext(...))). */
+export const chaveDoLockDaImpressora = (maquina: string) => `impressora:${maquina}`;
+
+/**
  * UMA PEÇA POR VEZ POR IMPRESSORA (dono, 21/09: "caso a impressora esteja
  * imprimindo algo, não dá para colocar outra"). Entre as peças em impressão,
  * quem ocupa `maquina` — tem parte ATIVA nela — que não seja `excetoId`

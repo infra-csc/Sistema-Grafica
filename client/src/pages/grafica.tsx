@@ -41,7 +41,7 @@ import { GalpaoFila, type GalpaoDados } from "@/components/galpao-fila";
 import { SugestaoRecebedor } from "@/components/sugestao-recebedor";
 import { EM_REVISAO, rotuloDaMaquina, podeIrParaTubo, MAQUINAS_DE_IMPRESSAO } from "@shared/fluxo-peca";
 import { estaDividida, partesDaPeca, resumoDaDivisao } from "@shared/impressao-dividida";
-import { lerReserva, resumoDaReserva, semImpressora } from "@shared/reserva-de-impressora";
+import { lerReserva, resumoDaReserva, semImpressora, ocupanteDaImpressora } from "@shared/reserva-de-impressora";
 // Aritmética de saldo: fonte única em lib/saldo.ts. Estes onze cálculos
 // (quanto falta produzir, conferir, entregar, reaproveitar; quanto de m²
 // realmente vai para a impressora) viviam duplicados como consts locais no
@@ -81,7 +81,7 @@ import { tetoDeProducao } from "@/lib/grafica-producao";
 // toasts e o formulário moram em components/grafica/modal-impressao.tsx.
 import {
   useMutacoesDeImpressao, FormularioDeImpressao, cabecalhoDoModalDeImpressao,
-  progressoDaImpressao, rotuloCurtoDaAcao,
+  progressoDaImpressao, rotuloCurtoDaAcao, BarraDeImpressao,
 } from "@/components/grafica/modal-impressao";
 // Selo "Atualizado há X" — o mesmo formatador da Gestão de Prazos e das
 // Análises, para as três telas dizerem a idade do dado com as mesmas palavras.
@@ -177,7 +177,6 @@ function ProgressoImpressao({ item, fonte, duasLinhas, onIniciarResto }: { item:
   const resto = semImpressora(item);
   const teto = tetoDeProducao(item);
   const feitas = producedOf(item);
-  const pct = teto > 0 ? Math.min(100, Math.round((feitas / teto) * 100)) : 0;
   // Peça DIVIDIDA entre impressoras (Máquinas, 21/09): "Impressora 1 · 1 de 3
   // un. / Impressora 2 · 0 de 2 un." no lugar de uma impressora só.
   const dividida = estaDividida(item);
@@ -195,10 +194,12 @@ function ProgressoImpressao({ item, fonte, duasLinhas, onIniciarResto }: { item:
           Iniciar o resto
         </button>
       )}
-      {/* Barra decorativa (o texto acima já diz o número); 3px na cor da etapa. */}
-      <div aria-hidden="true" style={{ height: 3, borderRadius: 999, background: "#fed7aa", marginTop: 4, overflow: "hidden" }}>
-        <div style={{ width: `${pct}%`, height: "100%", background: "#f97316", borderRadius: 999, transition: "width 0.2s" }} />
-      </div>
+      {/* Sem barra com 0 impressas (o trilho vazio parecia um corte); dividida = uma barra por impressora. */}
+      {dividida
+        ? Object.entries(partesDaPeca(item)).map(([m, x]) => (
+          <BarraDeImpressao key={m} feitas={x.impressas} teto={x.atrib} rotulo={`${item.displayId ?? "peça"} na ${rotuloDaMaquina(m)}: ${x.impressas} de ${x.atrib} impressas`} />
+        ))
+        : <BarraDeImpressao feitas={feitas} teto={teto} rotulo={`${item.displayId ?? "peça"}: ${feitas} de ${teto} impressas`} />}
     </div>
   );
 }
@@ -5718,6 +5719,10 @@ export default function Grafica() {
                 key={`${selectedItem.id}:${iniciandoResto ? "resto" : ""}`}
                 parteAIniciar={iniciandoResto ? { quantidade: semImpressora(selectedItem), daReserva: false } : null}
                 item={selectedItem}
+                // Uma peça por vez por impressora: as ocupadas por OUTRA peça saem
+                // desabilitadas no seletor (derivado do que a fila já carregou — o
+                // 409 do servidor continua sendo a autoridade).
+                ocupadas={Object.fromEntries(MAQUINAS_DE_IMPRESSAO.map((m) => [m, ocupanteDaImpressora(pecasDoServidor as any[], m, selectedItem.id)] as const).filter(([, o]) => !!o).map(([m, o]) => [m, (o as any).displayId ?? null]))}
                 onFechar={() => { setSelectedItem(null); setModalType(null); }}
                 padModal={padModal}
                 mutacoes={mutacoesDeImpressao}

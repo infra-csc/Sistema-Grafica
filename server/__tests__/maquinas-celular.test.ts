@@ -327,9 +327,13 @@ describe("MÁQUINAS no celular (390px) — controles novos de 21/09", () => {
     expect(iniciar.style.flex).toBe("1 1 100%");
     expect(px(iniciar.style.minHeight)).toBe(48);
     expect(rodape.lastElementChild!.textContent).toBe("Cancelar");
-    // O nome mais comprido também cabe: a Impressora 4.
-    await act(async () => { fireEvent.click($('[data-testid="maquina-4"]')!); });
-    expect(iniciar.textContent).toBe("Iniciar 20 un. na Impressora 4 (Targa Elite)");
+    // UMA PEÇA POR VEZ (21/09): a Impressora 4 está com a #0101 → desabilitada, dizendo com quem.
+    const ocupada = $('[data-testid="maquina-4"]') as HTMLButtonElement;
+    expect(ocupada.disabled).toBe(true);
+    expect(ocupada.textContent).toBe("Impressora 4 (Targa Elite)com #0101");
+    // Um nome comprido também cabe no botão: a Impressora 1, que está livre.
+    await act(async () => { fireEvent.click($('[data-testid="maquina-1"]')!); });
+    expect(iniciar.textContent).toBe("Iniciar 20 un. na Impressora 1 (New XT)");
     expect(iniciar.style.whiteSpace).not.toBe("nowrap");
     await teclado(vv, 420);
     expect(modal.style.maxHeight).toBe("404px");

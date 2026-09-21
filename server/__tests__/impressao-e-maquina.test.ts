@@ -129,7 +129,7 @@ describe("a tela obriga a escolha — no modal COMPARTILHADO (components/grafica
   });
 
   it("nem informar impressas nem iniciar funcionam sem máquina", () => {
-    expect(MODAL).toContain("const pode = !!maquinaEscolhida && conta.valida && !startPrintingMutation.isPending;");
+    expect(MODAL).toContain("const pode = !!maquinaEscolhida && conta.valida && !escolhidaOcupada && !startPrintingMutation.isPending;");
     expect(MODAL).toContain('toast({ title: "Escolha a máquina"');
   });
 

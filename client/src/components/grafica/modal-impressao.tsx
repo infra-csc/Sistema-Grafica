@@ -169,6 +169,25 @@ export function contaDoInicio(
   return { disponivel, reservadas, origem, padrao, n, valida, inteira, linha };
 }
 
+/**
+ * A BARRA de progresso da impressão — a mesma na Gráfica (tabela e cartão do
+ * celular) e nos cartões de Máquinas. Dono (21/09), com 0 impressas: "esse
+ * traço embaixo está estranho, parece que está cortando algo" — era o trilho
+ * vazio, fino e da largura da coluna, colado na borda da linha. Então:
+ *   · com 0 impressas NÃO há barra (o texto "nenhuma saiu ainda" já diz tudo);
+ *   · quando há, PARECE barra: 6px, cantos redondos, trilho neutro, no máximo
+ *     160px, com respiro em cima e embaixo.
+ */
+export function BarraDeImpressao({ feitas, teto, rotulo, testId }: { feitas: number; teto: number; rotulo: string; testId?: string }) {
+  if (!(feitas > 0) || !(teto > 0)) return null;
+  const pct = Math.min(100, Math.round((feitas / teto) * 100));
+  return (
+    <div role="progressbar" aria-valuemin={0} aria-valuemax={teto} aria-valuenow={Math.min(feitas, teto)} aria-label={rotulo} data-testid={testId} style={{ height: 6, maxWidth: 160, borderRadius: 999, background: "#e7e5e4", marginTop: 6, marginBottom: 4, overflow: "hidden" }}>
+      <div style={{ width: `${pct}%`, height: "100%", background: "#c2410c", borderRadius: 999, transition: "width 0.2s" }} />
+    </div>
+  );
+}
+
 // ─── As mutations ─────────────────────────────────────────────────────────────
 // Invalidam a fila (`/api/items/approved`), o acervo e a aba Máquinas — quem
 // registra numa tela vê a outra atualizada ao voltar, sem depender do socket.
@@ -313,6 +332,12 @@ interface FormularioProps {
    * impressão em outra máquina.
    */
   parteAIniciar?: { quantidade: number; daReserva: boolean } | null;
+  /**
+   * UMA PEÇA POR VEZ (21/09): impressoras ocupadas por OUTRA peça → código dela
+   * ({ "1": "#0123" }). Ficam desabilitadas no seletor, com "com #0123". Pode vir
+   * incompleto (a Gráfica só conhece o que carregou): o 409 do servidor é a autoridade.
+   */
+  ocupadas?: Record<string, string | null>;
 }
 
 /**
@@ -338,7 +363,7 @@ export function totalAPartirDoAgora(jaSairam: number, agora: number | "", teto: 
  * quantidade) nasce da peça e NÃO é sincronizado por efeito — trocar a peça
  * troca a chave, e o React remonta limpo.
  */
-export function FormularioDeImpressao({ item, onFechar, padModal, mutacoes, abrirNaTroca = false, maquinaInicial = null, maquinaEmQuestao = null, parteAIniciar = null }: FormularioProps) {
+export function FormularioDeImpressao({ item, onFechar, padModal, mutacoes, abrirNaTroca = false, maquinaInicial = null, maquinaEmQuestao = null, parteAIniciar = null, ocupadas }: FormularioProps) {
   const isMobile = useIsMobile();
   const { toast } = useToast();
   const fsMin = (n: number) => (isMobile ? Math.max(12, n) : n);
@@ -459,19 +484,24 @@ export function FormularioDeImpressao({ item, onFechar, padModal, mutacoes, abri
         {MAQUINAS_DE_IMPRESSAO.map((m) => {
           const ativa = maquinaEscolhida === m;
           const ehAtual = m === excluir;
+          // Ocupada por OUTRA peça — exceto a impressora onde esta peça já está
+          // (somar parte onde ela já imprime é permitido).
+          const ocupadaPor = ocupadas && m in ocupadas && !(partes[m] && partes[m].atrib > partes[m].impressas) ? ocupadas[m] ?? "outra peça" : null;
           return (
             <button
               key={m}
               type="button"
               role="radio"
               aria-checked={ativa}
-              disabled={ehAtual}
-              title={ehAtual ? "A peça já está nesta impressora" : undefined}
+              disabled={ehAtual || !!ocupadaPor}
+              data-ocupada={ocupadaPor || undefined}
+              title={ehAtual ? "A peça já está nesta impressora" : ocupadaPor ? `Ocupada: está com ${ocupadaPor} — uma peça por vez por impressora` : undefined}
               onClick={() => setMaquinaEscolhida(m)}
               data-testid={`maquina-${m}`}
-              style={{ minHeight: 48, padding: "6px 8px", borderRadius: R.md, cursor: ehAtual ? "not-allowed" : "pointer", fontFamily: GROTESK, fontSize: 13, fontWeight: 800, lineHeight: 1.2, backgroundColor: ativa ? T.text : "#f4f3f0", color: ativa ? "#ffffff" : T.text, border: ativa ? `2px solid ${T.text}` : "2px solid transparent", opacity: ehAtual ? 0.45 : 1, transition: "background-color 0.12s" }}
+              style={{ minHeight: 48, padding: "6px 8px", borderRadius: R.md, cursor: ehAtual || ocupadaPor ? "not-allowed" : "pointer", fontFamily: GROTESK, fontSize: 13, fontWeight: 800, lineHeight: 1.2, backgroundColor: ativa ? T.text : "#f4f3f0", color: ativa ? "#ffffff" : T.text, border: ativa ? `2px solid ${T.text}` : "2px solid transparent", opacity: ehAtual || ocupadaPor ? 0.45 : 1, transition: "background-color 0.12s" }}
             >
               {rotuloDaMaquina(m)}
+              {ocupadaPor && <span style={{ display: "block", fontSize: 12, fontWeight: 700 }}>com {ocupadaPor}</span>}
             </button>
           );
         })}
@@ -497,7 +527,8 @@ export function FormularioDeImpressao({ item, onFechar, padModal, mutacoes, abri
   // ── PEÇA AINDA NÃO EM IMPRESSÃO: só a máquina e UM botão. ──────────────────
   if (!emImpressao) {
     const conta = contaDoInicio(item, maquinaEscolhida, qtdIniciar, parteAIniciar, maquinaInicial);
-    const pode = !!maquinaEscolhida && conta.valida && !startPrintingMutation.isPending;
+    const escolhidaOcupada = !!maquinaEscolhida && !!ocupadas && maquinaEscolhida in ocupadas && !(partes[maquinaEscolhida] && partes[maquinaEscolhida].atrib > partes[maquinaEscolhida].impressas);
+    const pode = !!maquinaEscolhida && conta.valida && !escolhidaOcupada && !startPrintingMutation.isPending;
     return (
       <div data-testid="form-impressao" data-etapa="iniciar" style={{ display: "flex", flexDirection: "column", gap: 20 }}>
         {seletorDeMaquina(null)}
@@ -583,7 +614,7 @@ export function FormularioDeImpressao({ item, onFechar, padModal, mutacoes, abri
       : doAgora.pode ? fraseDoBotaoDeImpressas(doAgora.total, jaSairam, teto) : { rotulo: `Máximo ${restanteAqui} agora`, pode: false, aviso: doAgora.aviso };
   const podeSalvar = frase.pode && !!maquinaAtual && !startProductionMutation.isPending;
   const qtdMoverValida = moverTudo || (qtdMover !== "" && qtdMover > 0 && qtdMover <= restanteAqui);
-  const podeTrocar = !!maquinaEscolhida && maquinaEscolhida !== maquinaAtual && !startPrintingMutation.isPending && qtdMoverValida;
+  const podeTrocar = !!maquinaEscolhida && maquinaEscolhida !== maquinaAtual && !startPrintingMutation.isPending && qtdMoverValida && !(ocupadas && maquinaEscolhida in ocupadas);
   const naImpressora = restanteAqui;
   const movidas = moverTudo ? restanteAqui : (qtdMover === "" ? 0 : qtdMover);
   // "Manter na Impressora 1 (New XT)" ao lado de "Mover 5 para a Impressora 4
@@ -811,9 +842,11 @@ interface ModalProps {
   maquinaEmQuestao?: string | null;
   /** Iniciar só uma parte da peça (ver FormularioProps). */
   parteAIniciar?: { quantidade: number; daReserva: boolean } | null;
+  /** Impressoras ocupadas por outra peça → código dela (ver FormularioProps). */
+  ocupadas?: Record<string, string | null>;
 }
 
-export function ModalImpressao({ item, onFechar, abrirNaTroca = false, maquinaInicial = null, maquinaEmQuestao = null, parteAIniciar = null }: ModalProps) {
+export function ModalImpressao({ item, onFechar, abrirNaTroca = false, maquinaInicial = null, maquinaEmQuestao = null, parteAIniciar = null, ocupadas }: ModalProps) {
   const isMobile = useIsMobile();
   const padModal = isMobile ? 16 : 24;
   const mutacoes = useMutacoesDeImpressao({ onSucesso: onFechar });
@@ -868,7 +901,7 @@ export function ModalImpressao({ item, onFechar, abrirNaTroca = false, maquinaIn
                 </div>
               </div>
             </div>
-            <FormularioDeImpressao key={`${item.id}:${abrirNaTroca ? "troca" : "impressas"}:${maquinaInicial ?? ""}:${maquinaEmQuestao ?? ""}`} item={item} onFechar={onFechar} padModal={padModal} mutacoes={mutacoes} abrirNaTroca={abrirNaTroca} maquinaInicial={maquinaInicial} maquinaEmQuestao={maquinaEmQuestao} parteAIniciar={parteAIniciar} />
+            <FormularioDeImpressao key={`${item.id}:${abrirNaTroca ? "troca" : "impressas"}:${maquinaInicial ?? ""}:${maquinaEmQuestao ?? ""}`} item={item} onFechar={onFechar} padModal={padModal} mutacoes={mutacoes} abrirNaTroca={abrirNaTroca} maquinaInicial={maquinaInicial} maquinaEmQuestao={maquinaEmQuestao} parteAIniciar={parteAIniciar} ocupadas={ocupadas} />
           </div>
         )}
       </DialogContent>

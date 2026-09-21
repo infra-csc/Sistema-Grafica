@@ -463,15 +463,19 @@ export function FormularioDeImpressao({ item, onFechar, padModal, mutacoes, abri
               ? `Só estas ${parteAIniciar.quantidade} un. entram em impressão agora; o resto da peça continua reservado ou na fila geral.`
               : `Ao iniciar, a peça fica "Em Impressão". Faltam ${remainingProduce(item)} un. — você informa quantas saíram conforme a máquina terminar.`}
         </p>
-        <div style={rodapeDoModal(padModal)}>
-          {botaoCancelar}
+        <div data-testid="rodape-iniciar" style={rodapeDoModal(padModal)}>
+          {!isMobile && botaoCancelar}
           <button
             type="button"
             onClick={iniciarOuTrocar}
             disabled={!pode}
             data-testid="button-iniciar-impressao"
             aria-busy={startPrintingMutation.isPending || undefined}
-            style={{ flex: 2, minHeight: alvo, padding: "0 12px", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, backgroundColor: T.text, border: "none", color: "#ffffff", fontFamily: GROTESK, fontWeight: 700, fontSize: 14, borderRadius: R.md, cursor: pode ? "pointer" : "not-allowed", opacity: pode ? 1 : 0.55, transition: "background-color 0.15s" }}
+            // Celular: "Iniciar 20 un. na Impressora 4 (Targa Elite)" não cabe
+            // em 2/3 de 358px sem quebrar em três linhas — o primário ocupa a
+            // linha inteira, EM CIMA (no DOM também), e o Cancelar vai embaixo.
+            // Esta etapa não abre teclado, então os dois andares não apertam.
+            style={{ flex: isMobile ? "1 1 100%" : 2, minHeight: alvo, padding: "0 12px", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, backgroundColor: T.text, border: "none", color: "#ffffff", fontFamily: GROTESK, fontWeight: 700, fontSize: 14, borderRadius: R.md, cursor: pode ? "pointer" : "not-allowed", opacity: pode ? 1 : 0.55, transition: "background-color 0.15s" }}
             onMouseEnter={(e) => { if (pode) e.currentTarget.style.backgroundColor = "#000000"; }}
             onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = T.text; }}
           >
@@ -481,6 +485,7 @@ export function FormularioDeImpressao({ item, onFechar, padModal, mutacoes, abri
               : parteAIniciar ? `Iniciar ${parteAIniciar.quantidade} un. na ${rotuloDaMaquina(maquinaEscolhida)}`
               : `Iniciar impressão na ${rotuloDaMaquina(maquinaEscolhida)}`}
           </button>
+          {isMobile && botaoCancelar}
         </div>
       </div>
     );
@@ -501,6 +506,19 @@ export function FormularioDeImpressao({ item, onFechar, padModal, mutacoes, abri
   const podeTrocar = !!maquinaEscolhida && maquinaEscolhida !== maquinaAtual && !startPrintingMutation.isPending && qtdMoverValida;
   const naImpressora = restanteAqui;
   const movidas = moverTudo ? restanteAqui : (qtdMover === "" ? 0 : qtdMover);
+  // "Manter na Impressora 1 (New XT)" ao lado de "Mover 5 para a Impressora 4
+  // (Targa Elite)" não cabe em 326px: no celular o Mover ocupa a linha de cima
+  // e o Manter a de baixo (ordem do DOM = ordem na tela).
+  const botaoManter = maquinaAtual ? (
+    <button
+      type="button"
+      onClick={() => { setTrocando(false); setMaquinaEscolhida(maquinaAtual); }}
+      data-testid="button-manter-maquina"
+      style={{ flex: isMobile ? "1 1 100%" : 1, minHeight: alvo, padding: "0 12px", backgroundColor: "transparent", border: `1px solid ${T.border}`, color: "#57534e", fontWeight: 700, fontSize: 13, cursor: "pointer", borderRadius: R.md }}
+    >
+      Manter na {rotuloDaMaquina(maquinaAtual)}
+    </button>
+  ) : null;
 
   return (
     <form onSubmit={salvarImpressas} data-testid="form-impressao" data-etapa="impressas" style={{ display: "flex", flexDirection: "column", gap: 20 }}>
@@ -584,21 +602,15 @@ export function FormularioDeImpressao({ item, onFechar, padModal, mutacoes, abri
               ? `O que já saiu (${jaSairam} de ${teto}) fica anotado na ${rotuloDaMaquina(maquinaAtual)}; o que for movido passa a contar na nova.`
               : "Esta peça entrou em impressão antes do controle por máquina. Diga em qual impressora ela está para poder informar as impressas."}
           </p>
-          <div style={{ display: "flex", gap: 10 }}>
-            {!!maquinaAtual && <button
-              type="button"
-              onClick={() => { setTrocando(false); setMaquinaEscolhida(maquinaAtual); }}
-              style={{ flex: 1, minHeight: alvo, padding: "0 12px", backgroundColor: "transparent", border: `1px solid ${T.border}`, color: "#57534e", fontWeight: 700, fontSize: 13, cursor: "pointer", borderRadius: R.md }}
-            >
-              Manter na {rotuloDaMaquina(maquinaAtual)}
-            </button>}
+          <div data-testid="acoes-da-troca" style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+            {!isMobile && botaoManter}
             <button
               type="button"
               onClick={iniciarOuTrocar}
               disabled={!podeTrocar}
               data-testid="button-iniciar-impressao"
               aria-busy={startPrintingMutation.isPending || undefined}
-              style={{ flex: 2, minHeight: alvo, padding: "0 12px", backgroundColor: "#ffffff", border: `1.5px solid ${T.text}`, color: T.text, fontFamily: GROTESK, fontWeight: 700, fontSize: 13, borderRadius: R.md, cursor: podeTrocar ? "pointer" : "not-allowed", opacity: podeTrocar ? 1 : 0.55 }}
+              style={{ flex: isMobile ? "1 1 100%" : 2, minHeight: alvo, padding: "0 12px", backgroundColor: "#ffffff", border: `1.5px solid ${T.text}`, color: T.text, fontFamily: GROTESK, fontWeight: 700, fontSize: 13, borderRadius: R.md, cursor: podeTrocar ? "pointer" : "not-allowed", opacity: podeTrocar ? 1 : 0.55 }}
             >
               {startPrintingMutation.isPending ? (maquinaAtual ? "Movendo…" : "Confirmando…")
                 : !maquinaAtual ? (maquinaEscolhida ? `Confirmar ${rotuloDaMaquina(maquinaEscolhida)}` : "Confirmar impressora")
@@ -606,6 +618,7 @@ export function FormularioDeImpressao({ item, onFechar, padModal, mutacoes, abri
                 : moverTudo || restanteAqui <= 1 ? `Mover tudo para a ${rotuloDaMaquina(maquinaEscolhida)}`
                 : `Mover ${movidas || "…"} para a ${rotuloDaMaquina(maquinaEscolhida)}`}
             </button>
+            {isMobile && botaoManter}
           </div>
         </div>
       )}

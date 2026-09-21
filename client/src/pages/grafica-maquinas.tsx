@@ -24,11 +24,11 @@
 // "atualizado há X". Dia e impressora escolhidos vivem na URL (?dia=&maquina=)
 // para um F5 — ou um link colado — abrir o mesmo recorte.
 // ─────────────────────────────────────────────────────────────────────────────
-import { Fragment, memo, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useLocation, useSearch } from "wouter";
 import {
-  AlertTriangle, ArrowLeft, ArrowLeftRight, ArrowRight, BarChart3, ChevronLeft, ChevronRight, Download, ExternalLink, ListOrdered, Loader2, Play, Printer, RotateCcw, Search,
+  AlertTriangle, ArrowLeft, ArrowLeftRight, ArrowRight, BarChart3, ChevronDown, ChevronLeft, ChevronRight, Download, ExternalLink, ListOrdered, Loader2, Play, Printer, RotateCcw, Search,
 } from "lucide-react";
 import { useIsMobile, useElementSize, CONTENT_CARDS_MAX, CONTENT_COMPACT_MAX } from "@/hooks/use-mobile";
 import { useAuth } from "@/contexts/auth-context";
@@ -613,6 +613,15 @@ function SeletorDePeca({ maquina, reservadas, filaGeral, atualizando, hojeMs, on
                   const prazo = prazoDaPeca(p.saidaCaminhao, p.prazoProducaoGrafica);
                   const thumb = p.miniatura ? miniatura(convertGCSUrlToLocalPath(p.miniatura)) : undefined;
                   const cabecalhoGeral = !p.reservada && (i === 0 || mostradas[i - 1].reservada);
+                  // Celular: "Reservada · 20 un." + prazo numa coluna à direita
+                  // deixavam ~100px para o nome da peça; ali os selos descem para
+                  // baixo do texto e o nome usa a largura toda.
+                  const selos = (
+                    <>
+                      {p.reservada && <Pilula pal={P.amber} fonte={fonte} testId={`selo-reservada-${p.id}`}>{p.reservadas != null && p.reservadas < p.aImprimir ? `Reservada · ${p.reservadas} un.` : "Reservada"}</Pilula>}
+                      <SeloDePrazo p={prazo} fonte={fonte} />
+                    </>
+                  );
                   return (
                     <Fragment key={p.id}>
                       {cabecalhoGeral && reservadas.length > 0 && (
@@ -638,11 +647,9 @@ function SeletorDePeca({ maquina, reservadas, filaGeral, atualizando, hojeMs, on
                           <span style={{ fontSize: fonte, color: T.second, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflowWrap: "anywhere" }}>
                             {[p.evento, `${p.aImprimir} un.`, p.m2 != null ? `${p.m2.toLocaleString("pt-BR", { maximumFractionDigits: 2 })} m²` : null].filter(Boolean).join(" · ")}
                           </span>
+                          {isMobile && <span data-testid={`selos-peca-${p.id}`} style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 2 }}>{selos}</span>}
                         </span>
-                        <span style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4, flexShrink: 0 }}>
-                          {p.reservada && <Pilula pal={P.amber} fonte={fonte} testId={`selo-reservada-${p.id}`}>{p.reservadas != null && p.reservadas < p.aImprimir ? `Reservada · ${p.reservadas} un.` : "Reservada"}</Pilula>}
-                          <SeloDePrazo p={prazo} fonte={fonte} />
-                        </span>
+                        {!isMobile && <span style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4, flexShrink: 0 }}>{selos}</span>}
                       </button>
                     </Fragment>
                   );
@@ -680,6 +687,13 @@ function PecaNaFilaDoCartao({ p, podeAgir, hojeMs, isMobile, onIniciar, onReserv
   const selo = seloPecaEventoFinalizado(p.eventoInfo, hojeMs);
   const alvo = isMobile ? 44 : 34;
   const prazo = prazoDaPeca(p.saidaCaminhao, p.prazoProducaoGrafica);
+  // Celular: com várias peças na fila, Iniciar + quantidade + select por peça
+  // viravam uma parede (e a quantidade ao lado do Iniciar parecia ser DELE).
+  // Iniciar fica à vista; "Mover…" abre a quantidade e o destino só da peça
+  // tocada. No desktop continua tudo na linha.
+  const [moverAberto, setMoverAberto] = useState(false);
+  const mostrarMover = !isMobile || moverAberto;
+  const idMover = `mover-painel-${p.id}`;
   return (
     <div data-testid={`peca-na-fila-${p.id}`} style={{ display: "flex", flexDirection: "column", gap: 6, padding: "8px 0", borderTop: `1px solid ${T.low}` }}>
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
@@ -706,23 +720,47 @@ function PecaNaFilaDoCartao({ p, podeAgir, hojeMs, isMobile, onIniciar, onReserv
             disabled={!!selo || ocupado}
             data-testid={`button-iniciar-fila-${p.id}`}
             title={selo ? motivoAcaoBloqueada(selo.motivo, "iniciar impressão") : ocupado ? "A impressora está imprimindo outra peça agora — dá para iniciar assim que ela ficar livre" : `Iniciar a impressão na ${rotuloDaMaquina(p.maquinaPrevista)}`}
-            style={{ flex: "1 1 130px", minHeight: alvo, padding: "0 10px", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 5, borderRadius: R.md, border: `1px solid ${selo || ocupado ? T.border : T.text}`, background: T.surface, color: selo || ocupado ? "#746e69" : T.text, fontFamily: GROTESK, fontSize: isMobile ? 13 : 12, fontWeight: 700, cursor: selo || ocupado ? "not-allowed" : "pointer", whiteSpace: "nowrap" }}
+            style={{ flex: isMobile ? "2 1 150px" : "1 1 130px", minHeight: alvo, padding: "0 10px", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 5, borderRadius: R.md, border: `1px solid ${selo || ocupado ? T.border : T.text}`, background: T.surface, color: selo || ocupado ? "#746e69" : T.text, fontFamily: GROTESK, fontSize: isMobile ? 13 : 12, fontWeight: 700, cursor: selo || ocupado ? "not-allowed" : "pointer", whiteSpace: "nowrap" }}
           >
             <Play aria-hidden="true" style={{ width: 12, height: 12, flexShrink: 0 }} />
-            Iniciar impressão
+            {p.reservadas != null && reservadas < p.aImprimir ? `Iniciar ${reservadas} un.` : "Iniciar impressão"}
           </button>
+          {isMobile && (
+            <button
+              type="button"
+              className="mq-acao"
+              aria-expanded={moverAberto}
+              aria-controls={idMover}
+              onClick={() => setMoverAberto((v) => !v)}
+              data-testid={`abrir-mover-fila-${p.id}`}
+              style={{ flex: "1 1 104px", minHeight: alvo, padding: "0 10px", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 5, borderRadius: R.md, border: `1px solid ${T.bdark}`, background: moverAberto ? T.low : T.surface, color: T.text, fontSize: 13, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}
+            >
+              Mover…
+              <ChevronDown aria-hidden="true" style={{ width: 13, height: 13, flexShrink: 0, transform: moverAberto ? "rotate(180deg)" : "none" }} />
+            </button>
+          )}
+          {mostrarMover && (
+          <div id={idMover} role="group" aria-label="Mover ou devolver" data-testid={idMover} style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center", ...(isMobile ? { flex: "1 1 100%", width: "100%" } : { flex: "0 1 auto" }) }}>
+          {isMobile && reservadas > 1 && (
+            <label htmlFor={`qtd-mover-${p.id}`} style={{ flex: "1 1 0%", minWidth: 0, fontSize: 12, color: T.second, lineHeight: 1.3 }}>
+              Quantas das {reservadas} un. (vazio = todas)
+            </label>
+          )}
           {reservadas > 1 && (
             <input
+              id={`qtd-mover-${p.id}`}
               type="number" inputMode="numeric" pattern="[0-9]*" min={1} max={reservadas}
               value={qtd} placeholder={String(reservadas)}
               onChange={(e) => setQtd(e.target.value === "" ? "" : Math.max(0, parseInt(e.target.value) || 0))}
               aria-label={`Quantas das ${reservadas} un. mover ou devolver (vazio = todas)`}
               aria-invalid={!qtdValida || undefined}
               data-testid={`qtd-mover-fila-${p.id}`}
-              style={{ width: 64, minHeight: alvo, height: alvo, boxSizing: "border-box", textAlign: "center", borderRadius: R.md, border: `1px solid ${qtdValida ? T.bdark : VERMELHO.border}`, background: T.surface, color: T.text, fontSize: isMobile ? 16 : 12, fontWeight: 700, padding: "0 6px" }}
+              style={{ width: isMobile ? 84 : 64, ...(isMobile ? { flex: "0 0 84px" } : {}), minHeight: alvo, height: alvo, boxSizing: "border-box", textAlign: "center", borderRadius: R.md, border: `1px solid ${qtdValida ? T.bdark : VERMELHO.border}`, background: T.surface, color: T.text, fontSize: isMobile ? 16 : 12, fontWeight: 700, padding: "0 6px" }}
             />
           )}
           <SeletorDeReserva valor={p.maquinaPrevista} excluir={p.maquinaPrevista} disabled={!qtdValida} alvo={alvo} isMobile={isMobile} testId={`mover-fila-${p.id}`} rotulo={qtd === "" ? "Mover para…" : `Mover ${qtd} para…`} onEscolher={(m) => onReservar(p, m, qtd === "" ? null : qtd)} />
+          </div>
+          )}
         </div>
       )}
     </div>
@@ -1020,6 +1058,56 @@ function ResumoDoPeriodo({ dias, emCartoes, isMobile, hoje, onVerDiario }: {
   );
 }
 
+// ─── Linha da fila geral (memoizada: a fila passa de 300 peças) ───────────────
+// Celular (390px): os DADOS em cima (caixa de seleção + código/peça/evento/m²,
+// o direcionamento "20 → Impressora 1 · 14 sem impressora" quebrando linha e o
+// prazo logo abaixo, sem linha própria); os CONTROLES embaixo — impressora na
+// linha inteira, depois quantidade + "Reservar" lado a lado. Desktop: tudo
+// numa linha, como antes.
+const LOTE_DA_FILA = 20;
+/** Celular: quantas peças da fila de UM cartão ficam à vista antes do "Ver as N". */
+const FILA_DO_CARTAO_NO_CELULAR = 3;
+const LinhaDaFilaGeral = memo(function LinhaDaFilaGeral({ p, marcada, podeAgir, ocupado, hojeMs, isMobile, onAlternar, onReservar }: {
+  p: PecaNaFila; marcada: boolean; podeAgir: boolean; ocupado: boolean; hojeMs: number; isMobile: boolean;
+  onAlternar: (id: string) => void; onReservar: (id: string, maquina: string, quantidade: number) => void;
+}) {
+  const alvo = isMobile ? 44 : 34;
+  const fonte = isMobile ? 12 : FS.small;
+  const selo = seloPecaEventoFinalizado(p.eventoInfo, hojeMs);
+  const prazo = prazoDaPeca(p.saidaCaminhao, p.prazoProducaoGrafica);
+  const direcionamento = textoDoDirecionamento(p.reserva, p.semImpressora, p.imprimindoEm);
+  return (
+    <div data-testid={`fila-peca-${p.id}`} className="mq-peca" style={{ display: "flex", alignItems: isMobile ? "flex-start" : "center", gap: isMobile ? 8 : 10, padding: isMobile ? "10px 12px" : "6px 14px", borderTop: `1px solid ${T.low}`, flexWrap: "wrap" }}>
+      {podeAgir && (
+        <label style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", minHeight: alvo, minWidth: isMobile ? 44 : 28, flexShrink: 0, cursor: selo ? "not-allowed" : "pointer" }}>
+          <input type="checkbox" checked={marcada} disabled={!!selo} onChange={() => onAlternar(p.id)} aria-label={`Selecionar ${p.displayId ?? "peça"}`} data-testid={`selecionar-fila-${p.id}`} style={{ width: isMobile ? 22 : 18, height: isMobile ? 22 : 18, accentColor: T.text }} />
+        </label>
+      )}
+      <Link href={`/grafica?item=${p.id}`} className="mq-link" title="Abrir na fila da Gráfica" data-testid={`fila-dados-${p.id}`} style={{ flex: isMobile ? "1 1 0%" : "1 1 220px", minWidth: 0, textDecoration: "none", color: T.text, display: "flex", flexDirection: "column", gap: 2, minHeight: isMobile ? 44 : undefined, justifyContent: "center" }}>
+        <span style={{ fontSize: FS.body, fontWeight: 700, lineHeight: 1.3, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflowWrap: "anywhere" }}>
+          <span style={{ fontFamily: MONO, color: T.accentText, marginRight: 6 }}>{p.displayId ?? "—"}</span>{p.tipo}
+        </span>
+        <span style={{ fontSize: fonte, color: T.second, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflowWrap: "anywhere" }}>
+          {[p.evento, `${p.aImprimir} un.`, p.m2 != null ? `${p.m2.toLocaleString("pt-BR", { maximumFractionDigits: 2 })} m²` : null].filter(Boolean).join(" · ")}
+        </span>
+        {direcionamento && (
+          <span data-testid={`direcionado-${p.id}`} style={{ fontSize: fonte, color: IMP.text, fontWeight: 700, fontVariantNumeric: "tabular-nums", overflowWrap: "anywhere", lineHeight: 1.35 }}>
+            {direcionamento}
+          </span>
+        )}
+        {isMobile && <span style={{ display: "flex", marginTop: 2 }}><SeloDePrazo p={prazo} fonte={fonte} /></span>}
+      </Link>
+      {!isMobile && <SeloDePrazo p={prazo} fonte={fonte} />}
+      {selo && isMobile && (
+        <span data-testid={`fila-bloqueada-${p.id}`} style={{ flex: "1 1 100%", fontSize: 12, fontWeight: 700, color: selo.text }}>{selo.label} — {selo.hint}</span>
+      )}
+      {podeAgir && (
+        <ControleDeReserva id={p.id} semImpressora={p.semImpressora ?? p.aImprimir} disabled={!!selo || ocupado} alvo={alvo} isMobile={isMobile} onReservar={(m, n) => onReservar(p.id, m, n)} />
+      )}
+    </div>
+  );
+});
+
 // ─── A página ─────────────────────────────────────────────────────────────────
 export default function GraficaMaquinas() {
   const isMobile = useIsMobile();
@@ -1104,9 +1192,17 @@ export default function GraficaMaquinas() {
   const filaGeral = useMemo(() => ordenarFila(data?.filaGeral ?? []), [data?.filaGeral]);
   const idsDaFila = useMemo(() => new Set(filaGeral.map((p) => p.id)), [filaGeral]);
   const selecionadasVivas = useMemo(() => Array.from(selecionadas).filter((id) => idsDaFila.has(id)), [selecionadas, idsDaFila]);
-  const alternar = (id: string) => setSelecionadas((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
-  const [filaAberta, setFilaAberta] = useState(false);
-  const LOTE_DA_FILA = 20;
+  // Estáveis (useCallback + ref): a linha da fila é memoizada, e uma função
+  // nova a cada render redesenharia as 300 linhas a cada marcação.
+  const alternar = useCallback((id: string) => setSelecionadas((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; }), []);
+  const reservarRef = useRef(reservar);
+  reservarRef.current = reservar;
+  const reservarDaLinha = useCallback((id: string, maquina: string, quantidade: number) => reservarRef.current([id], maquina, quantidade), []);
+  // A fila entra em LOTES (eram 20 e depois "todas": 300+ linhas com select e
+  // campo cada travavam o celular). Cada toque traz mais um lote.
+  const [filaVisiveis, setFilaVisiveis] = useState(LOTE_DA_FILA);
+  // Fila de cada cartão no celular: as primeiras à vista, o resto sob pedido.
+  const [filasAbertas, setFilasAbertas] = useState<Set<string>>(() => new Set());
   // O seletor de peça de um cartão "Livre": qual impressora está escolhendo.
   const [seletorDaMaquina, setSeletorDaMaquina] = useState<string | null>(null);
   const maquinaDoSeletor = useMemo(() => {
@@ -1202,6 +1298,31 @@ export default function GraficaMaquinas() {
   const botaoNeutro: React.CSSProperties = { minHeight: alvo, padding: "0 12px", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, borderRadius: R.md, border: `1px solid ${T.bdark}`, background: T.surface, color: T.text, fontSize: 12, fontWeight: 700, cursor: "pointer", textDecoration: "none", whiteSpace: "nowrap" };
   const botaoIcone: React.CSSProperties = { height: alvo, width: alvo, borderRadius: R.md, border: `1px solid ${T.bdark}`, background: T.surface, cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", color: T.text };
 
+  // A barra do lote. Desktop: ao lado do título. Celular: DEPOIS da lista no
+  // DOM e grudada embaixo da tela — quem marcou a 15ª peça não rola de volta
+  // ao título para achar o "Reservar para…"; o recorte seguro vai no LONGO
+  // (o atalho `padding` com env() não sobrevive ao estilo inline).
+  // No celular a ação principal (o select, linha inteira) vem em cima; a
+  // contagem e o "Limpar" dividem a linha de baixo.
+  const contagemDoLote = (
+    <span aria-live="polite" style={{ flex: isMobile ? "1 1 0%" : undefined, minWidth: 0, fontSize: FS.body, fontWeight: 700, color: T.text, fontVariantNumeric: "tabular-nums" }}>{plural(selecionadasVivas.length, "selecionada", "selecionadas")}</span>
+  );
+  const barraDoLote = podeAgir && selecionadasVivas.length > 0 ? (
+    <div
+      role="group"
+      aria-label="Reservar as selecionadas"
+      data-testid="lote-fila"
+      style={isMobile
+        ? { position: "sticky", bottom: 0, zIndex: 5, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", background: T.surface, border: `1px solid ${T.bdark}`, borderRadius: R.lg, boxShadow: "0 -6px 14px -8px rgba(28,25,23,0.25)", paddingTop: 10, paddingLeft: 12, paddingRight: 12, paddingBottom: "calc(10px + env(safe-area-inset-bottom))" }
+        : { display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}
+    >
+      {!isMobile && contagemDoLote}
+      <SeletorDeReserva valor={null} excluir={null} disabled={reserva.isPending} alvo={alvo} isMobile={isMobile} testId="reservar-lote" rotulo={isMobile ? `Reservar ${plural(selecionadasVivas.length, "peça", "peças")} para…` : "Reservar para…"} onEscolher={(m) => { reservar(selecionadasVivas, m); setSelecionadas(new Set()); }} />
+      {isMobile && contagemDoLote}
+      <button type="button" className="mq-acao" onClick={() => setSelecionadas(new Set())} data-testid="lote-limpar" style={{ ...botaoNeutro, ...(isMobile ? { fontSize: 13 } : {}) }}>Limpar</button>
+    </div>
+  ) : null;
+
   return (
     <div style={{ backgroundColor: T.bg, minHeight: "100%", padding: isMobile ? "12px 16px 48px" : "24px 24px 64px" }}>
       <style>{CSS_DA_TELA}</style>
@@ -1288,7 +1409,7 @@ export default function GraficaMaquinas() {
         {data && (
           <>
             {isError && (
-              <p role="status" data-testid="maquinas-erro-suave" style={{ margin: 0, fontSize: FS.small, color: AMBAR.text }}>
+              <p role="status" data-testid="maquinas-erro-suave" style={{ margin: 0, fontSize: isMobile ? 12 : FS.small, color: AMBAR.text }}>
                 A última atualização falhou — mostrando o retrato de {fmtRelative(new Date(dataUpdatedAt).toISOString(), agora)}. Tentando de novo em breve.
               </p>
             )}
@@ -1359,9 +1480,14 @@ export default function GraficaMaquinas() {
                       {naFila.length > 0 && (
                         <div data-testid={`fila-maquina-${m.codigo}`} style={{ display: "flex", flexDirection: "column", gap: 2, marginTop: 2 }}>
                           <div style={{ ...ROTULO_MICRO, fontSize: isMobile ? 12 : FS.micro, paddingTop: 6 }}>Na fila desta impressora · {naFila.length}</div>
-                          {naFila.map((p) => (
+                          {(isMobile && !filasAbertas.has(m.codigo) ? naFila.slice(0, FILA_DO_CARTAO_NO_CELULAR) : naFila).map((p) => (
                             <PecaNaFilaDoCartao key={p.id} p={p} podeAgir={podeAgir} hojeMs={hojeMs} isMobile={isMobile} onIniciar={iniciarDaFila} onReservar={(peca, maquina, quantidade) => reservar([peca.id], maquina, quantidade ?? (peca.reservadas != null ? peca.reservadas : null), peca.reservadas != null ? m.codigo : null)} />
                           ))}
+                          {isMobile && !filasAbertas.has(m.codigo) && naFila.length > FILA_DO_CARTAO_NO_CELULAR && (
+                            <button type="button" className="mq-acao" onClick={() => setFilasAbertas((s) => new Set(s).add(m.codigo))} data-testid={`fila-maquina-ver-todas-${m.codigo}`} style={{ ...botaoNeutro, width: "100%", fontSize: 13 }}>
+                              Ver as {naFila.length} da fila <ChevronDown aria-hidden="true" style={{ width: 13, height: 13 }} />
+                            </button>
+                          )}
                         </div>
                       )}
 
@@ -1400,13 +1526,7 @@ export default function GraficaMaquinas() {
                       {totalReservadas > 0 ? ` · ${plural(totalReservadas, "reservada", "reservadas")} nos cartões acima` : ""}
                     </span>
                   </div>
-                  {podeAgir && selecionadasVivas.length > 0 && (
-                    <div role="group" aria-label="Reservar as selecionadas" data-testid="lote-fila" style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                      <span style={{ fontSize: FS.body, fontWeight: 700, color: T.text, fontVariantNumeric: "tabular-nums" }}>{plural(selecionadasVivas.length, "selecionada", "selecionadas")}</span>
-                      <SeletorDeReserva valor={null} excluir={null} disabled={reserva.isPending} alvo={alvo} isMobile={isMobile} testId="reservar-lote" rotulo="Reservar para…" onEscolher={(m) => { reservar(selecionadasVivas, m); setSelecionadas(new Set()); }} />
-                      <button type="button" className="mq-acao" onClick={() => setSelecionadas(new Set())} style={botaoNeutro}>Limpar</button>
-                    </div>
-                  )}
+                  {!isMobile && barraDoLote}
                 </div>
                 <p style={{ margin: 0, fontSize: FS.body, color: T.second, maxWidth: 680 }}>
                   Reservar só organiza a fila desta tela: a peça continua liberada na Gráfica até alguém iniciar a impressão.
@@ -1426,46 +1546,21 @@ export default function GraficaMaquinas() {
                     </div>
                   ) : (
                     <div data-testid="fila-geral">
-                      {(filaAberta ? filaGeral : filaGeral.slice(0, LOTE_DA_FILA)).map((p) => {
-                        const selo = seloPecaEventoFinalizado(p.eventoInfo, hojeMs);
-                        const prazo = prazoDaPeca(p.saidaCaminhao, p.prazoProducaoGrafica);
-                        const marcada = selecionadas.has(p.id);
-                        return (
-                          <div key={p.id} data-testid={`fila-peca-${p.id}`} className="mq-peca" style={{ display: "flex", alignItems: "center", gap: 10, padding: isMobile ? "8px 12px" : "6px 14px", borderTop: `1px solid ${T.low}`, flexWrap: "wrap" }}>
-                            {podeAgir && (
-                              <label style={{ display: "inline-flex", alignItems: "center", minHeight: alvo, minWidth: 28, cursor: selo ? "not-allowed" : "pointer" }}>
-                                <input type="checkbox" checked={marcada} disabled={!!selo} onChange={() => alternar(p.id)} aria-label={`Selecionar ${p.displayId ?? "peça"}`} data-testid={`selecionar-fila-${p.id}`} style={{ width: 18, height: 18, accentColor: T.text }} />
-                              </label>
-                            )}
-                            <Link href={`/grafica?item=${p.id}`} className="mq-link" title="Abrir na fila da Gráfica" style={{ flex: "1 1 220px", minWidth: 0, textDecoration: "none", color: T.text, display: "flex", flexDirection: "column", gap: 2, minHeight: isMobile ? 44 : undefined, justifyContent: "center" }}>
-                              <span style={{ fontSize: FS.body, fontWeight: 700, lineHeight: 1.3, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflowWrap: "anywhere" }}>
-                                <span style={{ fontFamily: MONO, color: T.accentText, marginRight: 6 }}>{p.displayId ?? "—"}</span>{p.tipo}
-                              </span>
-                              <span style={{ fontSize: isMobile ? 12 : FS.small, color: T.second, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflowWrap: "anywhere" }}>
-                                {[p.evento, `${p.aImprimir} un.`, p.m2 != null ? `${p.m2.toLocaleString("pt-BR", { maximumFractionDigits: 2 })} m²` : null].filter(Boolean).join(" · ")}
-                              </span>
-                              {textoDoDirecionamento(p.reserva, p.semImpressora, p.imprimindoEm) && (
-                                <span data-testid={`direcionado-${p.id}`} style={{ fontSize: isMobile ? 12 : FS.small, color: IMP.text, fontWeight: 700, fontVariantNumeric: "tabular-nums", overflowWrap: "anywhere" }}>
-                                  {textoDoDirecionamento(p.reserva, p.semImpressora, p.imprimindoEm)}
-                                </span>
-                              )}
-                            </Link>
-                            <SeloDePrazo p={prazo} fonte={isMobile ? 12 : FS.small} />
-                            {podeAgir && (
-                              <ControleDeReserva id={p.id} semImpressora={p.semImpressora ?? p.aImprimir} disabled={!!selo || reserva.isPending} alvo={alvo} isMobile={isMobile} onReservar={(m, n) => reservar([p.id], m, n)} />
-                            )}
-                          </div>
-                        );
-                      })}
-                      {!filaAberta && filaGeral.length > LOTE_DA_FILA && (
+                      {filaGeral.slice(0, filaVisiveis).map((p) => (
+                        <LinhaDaFilaGeral key={p.id} p={p} marcada={selecionadas.has(p.id)} podeAgir={podeAgir} ocupado={reserva.isPending} hojeMs={hojeMs} isMobile={isMobile} onAlternar={alternar} onReservar={reservarDaLinha} />
+                      ))}
+                      {filaGeral.length > filaVisiveis && (
                         <div style={{ padding: 12, borderTop: `1px solid ${T.low}`, display: "flex", alignItems: "center", justifyContent: "center", gap: 12, flexWrap: "wrap" }}>
-                          <span style={{ fontSize: FS.small, color: T.second }}>Mostrando {LOTE_DA_FILA} de {filaGeral.length}</span>
-                          <button type="button" className="mq-acao" onClick={() => setFilaAberta(true)} data-testid="button-fila-toda" style={botaoNeutro}>Mostrar todas</button>
+                          <span style={{ fontSize: isMobile ? 12 : FS.small, color: T.second, fontVariantNumeric: "tabular-nums" }}>Mostrando {filaVisiveis} de {filaGeral.length}</span>
+                          <button type="button" className="mq-acao" onClick={() => setFilaVisiveis((v) => v + LOTE_DA_FILA)} data-testid="button-fila-toda" style={{ ...botaoNeutro, ...(isMobile ? { flex: "1 1 100%", fontSize: 13 } : {}) }}>
+                            Mostrar mais {Math.min(LOTE_DA_FILA, filaGeral.length - filaVisiveis)}
+                          </button>
                         </div>
                       )}
                     </div>
                   )}
                 </div>
+                {isMobile && barraDoLote}
               </section>
             )}
 
@@ -1484,7 +1579,7 @@ export default function GraficaMaquinas() {
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                   {/* O período vale para o resumo E para o Excel. */}
-                  <div role="group" aria-label="Período do resumo" data-testid="seletor-periodo" style={{ display: "inline-flex", border: `1px solid ${T.bdark}`, borderRadius: R.md, overflow: "hidden", background: T.surface }}>
+                  <div role="group" aria-label="Período do resumo" data-testid="seletor-periodo" style={{ display: isMobile ? "flex" : "inline-flex", ...(isMobile ? { flex: "1 1 100%" } : {}), border: `1px solid ${T.bdark}`, borderRadius: R.md, overflow: "hidden", background: T.surface }}>
                     {PERIODOS.map((p, i) => {
                       const ativo = periodo === p.valor;
                       return (
@@ -1495,7 +1590,7 @@ export default function GraficaMaquinas() {
                           aria-pressed={ativo}
                           onClick={() => escreverURL({ periodo: p.valor === "dia" ? null : p.valor, ...(p.valor !== "intervalo" ? { de: null, ate: null } : {}) })}
                           data-testid={`periodo-${p.valor}`}
-                          style={{ minHeight: alvo, padding: "0 12px", border: "none", borderLeft: i ? `1px solid ${T.border}` : "none", background: ativo ? T.text : "transparent", color: ativo ? "#fff" : T.text, fontSize: 12, fontWeight: 700, cursor: "pointer" }}
+                          style={{ minHeight: alvo, padding: isMobile ? "0 4px" : "0 12px", ...(isMobile ? { flex: "1 1 0%", minWidth: 0 } : {}), border: "none", borderLeft: i ? `1px solid ${T.border}` : "none", background: ativo ? T.text : "transparent", color: ativo ? "#fff" : T.text, fontSize: 12, fontWeight: 700, cursor: "pointer" }}
                         >
                           {p.rotulo}
                         </button>
@@ -1506,7 +1601,7 @@ export default function GraficaMaquinas() {
                     <div role="group" aria-label="Intervalo de datas" style={{ display: "inline-flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
                       <label htmlFor="intervalo-de" className="sr-only">De</label>
                       <input id="intervalo-de" type="date" value={intervalo.de} max={intervalo.ate} data-testid="intervalo-de" onChange={(e) => { if (e.target.value) escreverURL({ de: e.target.value, ate: intervalo.ate }); }} style={{ height: alvo, borderRadius: R.md, border: `1px solid ${T.bdark}`, background: T.surface, padding: "0 8px", fontSize: isMobile ? 16 : 12.5, color: T.text }} />
-                      <span aria-hidden="true" style={{ fontSize: FS.small, color: T.second }}>a</span>
+                      <span aria-hidden="true" style={{ fontSize: isMobile ? 12 : FS.small, color: T.second }}>a</span>
                       <label htmlFor="intervalo-ate" className="sr-only">Até</label>
                       <input id="intervalo-ate" type="date" value={intervalo.ate} min={intervalo.de} max={hoje} data-testid="intervalo-ate" onChange={(e) => { if (e.target.value) escreverURL({ de: intervalo.de, ate: e.target.value }); }} style={{ height: alvo, borderRadius: R.md, border: `1px solid ${T.bdark}`, background: T.surface, padding: "0 8px", fontSize: isMobile ? 16 : 12.5, color: T.text }} />
                     </div>
@@ -1519,7 +1614,7 @@ export default function GraficaMaquinas() {
                     aria-busy={exportando || undefined}
                     data-testid="button-exportar-excel"
                     title={intervalo ? `Baixar o resumo e os registros de ${periodoBR(intervalo.de, intervalo.ate)} em Excel` : "Aguarde o carregamento"}
-                    style={{ ...botaoNeutro, cursor: !intervalo || exportando ? "wait" : "pointer", opacity: !intervalo ? 0.6 : 1 }}
+                    style={{ ...botaoNeutro, ...(isMobile ? { flex: "1 1 100%", fontSize: 13 } : {}), cursor: !intervalo || exportando ? "wait" : "pointer", opacity: !intervalo ? 0.6 : 1 }}
                   >
                     {exportando ? <Loader2 aria-hidden="true" className="animate-spin" style={{ width: 13, height: 13 }} /> : <Download aria-hidden="true" style={{ width: 13, height: 13, color: T.accentText }} />}
                     {exportando ? "Gerando…" : "Exportar Excel"}
@@ -1675,7 +1770,7 @@ export default function GraficaMaquinas() {
 
                 {diario.length > visiveis && (
                   <div style={{ padding: 12, borderTop: `1px solid ${T.low}`, display: "flex", alignItems: "center", justifyContent: "center", gap: 12, flexWrap: "wrap" }}>
-                    <span style={{ fontSize: FS.small, color: T.second, fontVariantNumeric: "tabular-nums" }}>Mostrando {visiveis} de {diario.length} lançamentos</span>
+                    <span style={{ fontSize: isMobile ? 12 : FS.small, color: T.second, fontVariantNumeric: "tabular-nums" }}>Mostrando {visiveis} de {diario.length} lançamentos</span>
                     <button type="button" className="mq-acao" onClick={() => setLimite({ chave: chaveDoRecorte, n: visiveis + LOTE })} data-testid="button-mostrar-mais" style={botaoNeutro}>
                       Mostrar mais {Math.min(LOTE, diario.length - visiveis)}
                     </button>

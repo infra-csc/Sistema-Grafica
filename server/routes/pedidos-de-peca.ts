@@ -41,6 +41,7 @@ import {
 } from "@shared/pedidos-de-peca";
 import { requireRole, broadcast, createAuditLog, resolveActor } from "./shared";
 import { motivoEventoDaPeca, erroEventoFechado } from "./eventoFinalizado";
+import { resumosDeTuboPorIds, comTubo } from "../services/tubosDaPeca";
 
 const requireLerPedidos = requireRole("admin", "solicitacao", "atendimento", "arte");
 const requirePedirPeca = requireRole("admin", "atendimento");
@@ -190,14 +191,28 @@ async function listarSolicitacoes(filtro: { eventId?: string; pedidoPorId?: stri
         type: itemsTable.type,
         quantity: itemsTable.quantity,
         status: itemsTable.status,
+        // O que a frase de produção lê (lib/detalhe-producao, 21/09): "Impressora
+        // 2 · 3 de 10", "Tubo 2". Só leitura; nada aqui muda regra nenhuma.
+        reuseQty: itemsTable.reuseQty,
+        isReuse: itemsTable.isReuse,
+        quantityProduced: itemsTable.quantityProduced,
+        conferredQty: itemsTable.conferredQty,
+        printMachine: itemsTable.printMachine,
+        impressaoPorMaquina: itemsTable.impressaoPorMaquina,
+        maquinaPrevista: itemsTable.maquinaPrevista,
+        reservaPorMaquina: itemsTable.reservaPorMaquina,
+        tuboId: itemsTable.tuboId,
+        receivedBy: itemsTable.receivedBy,
         linhaId: itemsTable.pedidoDePecaLinhaId,
       })
         .from(itemsTable)
         .where(and(inArray(itemsTable.pedidoDePecaLinhaId, idsDeLinha), isNull(itemsTable.deletedAt)))
     : [];
   const pecasPorLinha = new Map<string, Array<Omit<(typeof pecas)[number], "linhaId">>>();
-  for (const { linhaId, ...p } of pecas) {
+  const tuboPorId = await resumosDeTuboPorIds(pecas.map((p) => p.tuboId));
+  for (const { linhaId, ...crua } of pecas) {
     if (!linhaId) continue;
+    const p = comTubo(crua, tuboPorId);
     const lista = pecasPorLinha.get(linhaId);
     if (lista) lista.push(p); else pecasPorLinha.set(linhaId, [p]);
   }

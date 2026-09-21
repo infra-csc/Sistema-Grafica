@@ -151,7 +151,7 @@ function filtrosRevisaoParaQuery(searchAtual: string, f: FiltrosRevisao): string
  * Para onde a peça vai ao ser liberada — o MESMO critério do servidor.
  * PATCH /api/items/:id/creator-review (server/routes/items.ts) trata a peça
  * com reaproveitamento total (`isReuse`) como "não precisa produzir": ela vai
- * direto para Produzido (a conferência da Gráfica) e não exige arquivo final.
+ * direto para Impresso / Acabamento (a conferência da Gráfica) e não exige arquivo final.
  * As demais, inclusive reaproveitamento parcial, vão para Pronto para Produção.
  * Dizer "Pronto para Produção" para todas mentia justamente sobre a peça que
  * nem entra na fila de impressão.
@@ -162,7 +162,7 @@ function reaproveitamentoTotal(item: any): boolean {
 /** Frase no passado, para o aviso depois de liberar. */
 function destinoAoLiberar(item: any): string {
   return reaproveitamentoTotal(item)
-    ? "foi direto para Produzido, na conferência da Gráfica (reaproveitamento total — não passa pela impressão)"
+    ? "foi direto para Impresso / Acabamento, na conferência da Gráfica (reaproveitamento total — não passa pela impressão)"
     : "entrou na fila da Gráfica como Pronto para Produção";
 }
 
@@ -508,11 +508,11 @@ export default function Solicitacao() {
           variant: "destructive",
         });
       } else {
-        // Reaproveitamento total vai para Produzido, não para a impressão
+        // Reaproveitamento total vai para Impresso / Acabamento, não para a impressão
         // (mesmo critério do servidor — ver `reaproveitamentoTotal`).
         const reaproveitadas = enviados.filter(id => reaproveitamentoTotal(pendingItems.find((i: any) => i.id === id))).length;
         const extra = reaproveitadas > 0
-          ? ` ${reaproveitadas === released ? (released === 1 ? "Era" : "Todas eram") : (reaproveitadas === 1 ? "1 era" : `${reaproveitadas} eram`)} de reaproveitamento total e ${reaproveitadas === 1 ? "foi" : "foram"} direto para Produzido.`
+          ? ` ${reaproveitadas === released ? (released === 1 ? "Era" : "Todas eram") : (reaproveitadas === 1 ? "1 era" : `${reaproveitadas} eram`)} de reaproveitamento total e ${reaproveitadas === 1 ? "foi" : "foram"} direto para Impresso / Acabamento.`
           : "";
         toast({ title: "Liberadas para a Gráfica", description: `${released} ${released === 1 ? "peça saiu" : "peças saíram"} da Revisão Final para a fila da Gráfica.${extra}` });
       }
@@ -992,7 +992,7 @@ export default function Solicitacao() {
   // Quantas das que VÃO no lote de liberar ainda não têm arquivo final — só
   // para avisar no diálogo; o lote enviado continua o mesmo. Reaproveitamento
   // total fica FORA da conta: o servidor não exige arquivo dela (vai direto
-  // para Produzido), e contá-la anunciava uma recusa que não acontece.
+  // para Impresso / Acabamento), e contá-la anunciava uma recusa que não acontece.
   const itensDoLoteVivo = selecaoLote.vivas.map(id => pendingItems.find((i: any) => i.id === id));
   const semArquivoNoLote = itensDoLoteVivo
     .filter((it: any) => !it?.finalFileUrl && !reaproveitamentoTotal(it)).length;
@@ -2620,7 +2620,7 @@ export default function Solicitacao() {
                     {selectedItem.finalFileUrl ? (
                       <>
                         <strong style={{ color: "#1c1917" }}>Liberar</strong>: {reaproveitamentoTotal(selectedItem)
-                          ? "sai da Revisão Final e vai direto para Produzido (reaproveitamento total, sem impressão)."
+                          ? "sai da Revisão Final e vai direto para Impresso / Acabamento (reaproveitamento total, sem impressão)."
                           : "sai da Revisão Final e entra na fila da Gráfica como Pronto para Produção."}{" "}
                         <strong style={{ color: "#1c1917" }}>Devolver</strong>: volta para a Arte, que é avisada com o seu motivo.
                       </>
@@ -2819,7 +2819,7 @@ export default function Solicitacao() {
                 <span>
                   <strong>{selectedItem.displayId}</strong> — {selectedItem.type} sai da Revisão Final e
                   {reaproveitamentoTotal(selectedItem)
-                    ? <> vai direto para <strong>Produzido</strong>, na conferência da Gráfica: é reaproveitamento total e não passa pela impressão.</>
+                    ? <> vai direto para <strong>Impresso / Acabamento</strong>, na conferência da Gráfica: é reaproveitamento total e não passa pela impressão.</>
                     : <> entra na fila da Gráfica como <strong>Pronto para Produção</strong>. Se algo estiver errado depois, a Gráfica pode devolvê-la para a Revisão Final.</>}
                 </span>
               )}
@@ -2901,11 +2901,11 @@ export default function Solicitacao() {
             <AlertDialogDescription>
               {selecaoLote.vivas.length === 1 ? "A peça sai" : `As ${selecaoLote.vivas.length} peças saem`} da Revisão Final
               {reaproveitadasNoLote > 0 && reaproveitadasNoLote === selecaoLote.vivas.length
-                ? <> e {reaproveitadasNoLote === 1 ? "vai" : "vão"} direto para Produzido (conferência da Gráfica): reaproveitamento total, sem impressão e sem precisar de arquivo final.</>
+                ? <> e {reaproveitadasNoLote === 1 ? "vai" : "vão"} direto para Impresso / Acabamento (conferência da Gráfica): reaproveitamento total, sem impressão e sem precisar de arquivo final.</>
                 : <> e {selecaoLote.vivas.length === 1 ? "entra" : "entram"} na fila da Gráfica como Pronto para Produção.</>}
               {reaproveitadasNoLote > 0 && reaproveitadasNoLote < selecaoLote.vivas.length && (
                 <span data-testid="aviso-bulk-release-reaproveitadas" style={{ display: "block", marginTop: 8 }}>
-                  Exceção: {reaproveitadasNoLote === 1 ? "1 é" : `${reaproveitadasNoLote} são`} de reaproveitamento total e {reaproveitadasNoLote === 1 ? "vai" : "vão"} direto para Produzido (conferência da Gráfica), sem impressão e sem precisar de arquivo final.
+                  Exceção: {reaproveitadasNoLote === 1 ? "1 é" : `${reaproveitadasNoLote} são`} de reaproveitamento total e {reaproveitadasNoLote === 1 ? "vai" : "vão"} direto para Impresso / Acabamento (conferência da Gráfica), sem impressão e sem precisar de arquivo final.
                 </span>
               )}
               {/* SEM ARQUIVO FINAL, dito antes: o servidor recusa liberar peça

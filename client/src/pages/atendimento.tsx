@@ -1,5 +1,6 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { diasNaFase, tomDaIdade } from "@/lib/idade-na-fase";
+import { DetalheProducao } from "@/components/detalhe-producao";
 import { SeloKit } from "@/components/kit/selo-kit";
 import { Button } from "@/components/ui/button";
 import { TextoComLinks } from "@/components/texto-com-links";
@@ -152,11 +153,21 @@ function situacaoDaPeca(aprovacoes: { status?: string | null }[] | undefined): S
   return "aguardando";
 }
 
-// ── Pipeline de fluxo do cartão de histórico (10 etapas) ───────────────────
+// ── Pipeline de fluxo do cartão de histórico (12 etapas) ───────────────────
 // Const de módulo: antes era recriado a cada card renderizado. As etapas de
 // produção/entrega derivam da lista canônica PRODUCTION_STATUSES da lib de
 // status (+ aliases legados que versões antigas gravaram no banco).
+//
+// 21/09 (dono: "mostrar esses novos status para o restante do fluxo"):
+// Conferido e Embalado ganharam etapa PRÓPRIA. Antes caíam em "Entregue" — a
+// peça conferida, ainda no galpão, aparecia como jornada concluída. Rótulo e
+// cor das etapas de produção vêm de getStatusMeta: o mesmo nome e a mesma cor
+// do selo em qualquer tela (o "Acabamento" e o Entregue roxo eram só daqui).
 const [ST_IN_PRODUCTION, ST_PRODUCED, ST_CONFERRED, ST_PACKED, ST_DELIVERED] = PRODUCTION_STATUSES;
+const etapaDeProducao = (key: string, status: string, legados: string[]) => {
+  const m = getStatusMeta(status);
+  return { key, label: m.short, color: m.dot, statuses: [status, ...legados] };
+};
 const PIPELINE_STAGES: { key: string; label: string; color: string; statuses: string[] }[] = [
   { key: 'solicitado',   label: 'Solicitado',      color: '#f97316', statuses: ['draft', 'requested', 'solicitado'] },
   { key: 'vinculacao',   label: 'Vinculação',      color: '#746e69', statuses: ['awaiting_linking'] },
@@ -165,15 +176,17 @@ const PIPELINE_STAGES: { key: string; label: string; color: string; statuses: st
   { key: 'finalizacao',  label: 'Finalização',     color: '#a855f7', statuses: ['awaiting_finalization', 'awaiting_creator_review'] },
   { key: 'revisao',      label: 'Revisão',         color: '#d946ef', statuses: ['awaiting_final_review'] },
   { key: 'pronto',       label: 'Pronto p/ Prod.', color: '#10b981', statuses: ['ready_for_production', 'pronto_para_producao', 'approved', 'liberado'] },
-  { key: 'producao',     label: 'Em Impressão',    color: '#f59e0b', statuses: [ST_IN_PRODUCTION, 'in_production', 'em_producao'] },
-  { key: 'produzido',    label: 'Acabamento',      color: '#ec4899', statuses: [ST_PRODUCED, 'produzido'] },
-  { key: 'entregue',     label: 'Entregue',        color: '#7c3aed', statuses: [ST_CONFERRED, 'conferido', ST_PACKED, ST_DELIVERED, 'entregue'] },
+  etapaDeProducao('producao',  ST_IN_PRODUCTION, ['in_production', 'em_producao']),
+  etapaDeProducao('produzido', ST_PRODUCED,      ['produzido']),
+  etapaDeProducao('conferido', ST_CONFERRED,     ['conferido']),
+  etapaDeProducao('embalado',  ST_PACKED,        []),
+  etapaDeProducao('entregue',  ST_DELIVERED,     ['entregue']),
 ];
 
 // ── A JORNADA DA PEÇA, EM UMA LEITURA SÓ ───────────────────────────────────
 //
 // O cartão do histórico contava a mesma história duas vezes: uma trilha de
-// MARCOS (datas, em texto) e um pipeline de 10 ETAPAS (posição, em bolinhas),
+// MARCOS (datas, em texto) e um pipeline de ETAPAS (posição, em bolinhas),
 // empilhados, custando duas faixas por linha numa lista de dezenas de peças.
 // São a mesma coisa: as etapas SÃO os marcos. Aqui elas viram uma faixa só,
 // com posição, data e o tempo gasto em cada trecho.
@@ -189,7 +202,13 @@ const DATA_DA_ETAPA: Record<string, (i: any) => string | null | undefined> = {
   pronto:       (i) => i.approvedAt,
   producao:     (i) => i.productionStartedAt,
   produzido:    (i) => i.producedAt,
-  entregue:     (i) => i.deliveredAt ?? i.conferredAt,
+  conferido:    (i) => i.conferredAt,
+  // Embalado não tem carimbo na peça: o que o tubo grava é o FECHAMENTO, que
+  // chega na peça como `tuboFechadoEm` (enrich do servidor). Sem ele, sem data —
+  // e tubo fechado ANTES da conferência desta peça (ela entrou depois) também
+  // fica sem data: o carimbo não é dela e faria a trilha andar para trás.
+  embalado:     (i) => (i.tuboFechadoEm && (!i.conferredAt || new Date(i.tuboFechadoEm).getTime() >= new Date(i.conferredAt).getTime()) ? i.tuboFechadoEm : null),
+  entregue:     (i) => i.deliveredAt,
 };
 
 const DIA_MS = 86400000;
@@ -213,15 +232,17 @@ function jornadaDaPeca(item: any, agora: number) {
     // própria peça na etapa atual (é onde ela está de verdade); nas outras, o
     // canônico da etapa — "Entregue" agrupa conferida e entregue, e o que a
     // etapa promete é a entrega.
-    const statusDaEtapa = i === atual ? item.status
-      : stage.key === 'entregue' ? ST_DELIVERED
-      : stage.statuses[0];
+    const statusDaEtapa = i === atual ? item.status : stage.statuses[0];
+    // Peça ENTREGUE SEM TUBO (peça grande vai direto): Embalado não é etapa
+    // pendente nem cumprida — não se aplica. Marcar como cumprida mentiria.
+    const pulada = stage.key === 'embalado' && atual > i && !item.tuboId;
     return {
       key: stage.key, label: stage.label, ms, desdeAnterior,
       // Só a CHAVE aqui; a frase é montada no render. Esta função também roda
       // dentro do comparador da ordenação por duração, a cada comparação.
       statusDaEtapa,
-      cumprida: atual >= 0 && i < atual,
+      cumprida: atual >= 0 && i < atual && !pulada,
+      pulada,
       ehAtual: i === atual,
     };
   });
@@ -264,7 +285,8 @@ const ACTION_CONFIG: Record<string, { label: string; bg: string; iconColor: stri
   approved:         { label: 'Aprovado',              bg: '#dcfce7', iconColor: '#15803d', icon: CheckCircle },
   rejected:         { label: 'Reprovado',             bg: '#fee2e2', iconColor: '#dc2626', icon: XCircle },
   canceled:         { label: 'Cancelado',             bg: '#fee2e2', iconColor: '#dc2626', icon: XCircle },
-  delivered:        { label: 'Entregue',              bg: '#ede9fe', iconColor: '#7c3aed', icon: Truck },
+  // Entregue na cor do resto do app (esmeralda de lib/status) — era roxo só aqui.
+  delivered:        { label: 'Entregue',              bg: '#ecfdf5', iconColor: '#047857', icon: Truck },
   produced:         { label: 'Impressão concluída',   bg: '#e0e7ff', iconColor: '#4338ca', icon: Cog },
   submitted:        { label: 'Enviado',               bg: '#cffafe', iconColor: '#0e7490', icon: Send },
   linked:           { label: 'Vinculado',             bg: '#ccfbf1', iconColor: '#0f766e', icon: Link2 },
@@ -3474,11 +3496,11 @@ export default function Atendimento() {
 
                   // acento lateral por status
                   const accentColor = allApproved ? '#22c55e'
-                    : item.status === 'inProduction' || item.status === 'produced' ? '#7c3aed'
+                    : (PRODUCTION_STATUSES as readonly string[]).includes(item.status) ? statusCfg.dot
                     : item.status === 'ready_for_production' ? '#2563eb'
                     : '#e7e5e4';
 
-                  // Pipeline de fluxo (10 etapas) — const de módulo PIPELINE_STAGES
+                  // Pipeline de fluxo (12 etapas) — const de módulo PIPELINE_STAGES
                   const pipelineIdx = PIPELINE_STAGES.findIndex(s => s.statuses.includes(item.status));
                   const currentPipelineIdx = pipelineIdx === -1 ? 0 : pipelineIdx;
 
@@ -3588,6 +3610,7 @@ export default function Atendimento() {
                                 backgroundColor: statusCfg.bg, color: statusCfg.text, border: `1px solid ${statusCfg.border}`,
                                 padding: '2px 8px', borderRadius: 6, whiteSpace: 'nowrap', lineHeight: 1.5,
                               }}>{isMobile ? getStatusShort(item.status) : getStatusLabel(item.status)}</span>
+                              <DetalheProducao item={item} style={{ marginTop: 0 }} />
                               {/* ARQUIVO CORRIGIDO. O estado "nova versão" é o único
                                   em que a bola está com o ATENDIMENTO: a Arte já
                                   refez e o arquivo está parado esperando ser
@@ -3663,12 +3686,12 @@ export default function Atendimento() {
                           return (
                             <div data-testid={`faixa-jornada-${item.id}`} style={{ borderTop: '1px solid #f5f5f4', padding: '10px 16px 12px', display: 'flex', alignItems: 'flex-start', gap: 12 }}>
                               <div className="pipeline-scroll" style={{ flex: 1, minWidth: 0 }}>
-                                <div style={{ display: 'flex', alignItems: 'flex-start', minWidth: isMobile ? 520 : 0 }}>
+                                <div style={{ display: 'flex', alignItems: 'flex-start', minWidth: isMobile ? 620 : 0 }}>
                                   {j.etapas.map((e, i) => (
                                     <Fragment key={e.key}>
                                       {i > 0 && (
                                         <span style={{ flex: 1, minWidth: 14, display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: 3 }}>
-                                          <span style={{ display: 'block', width: '100%', height: 2, borderRadius: 999, background: e.cumprida || e.ehAtual ? '#c2410c' : '#e7e5e4' }} />
+                                          <span style={{ display: 'block', width: '100%', height: 2, borderRadius: 999, background: e.cumprida || e.ehAtual || e.pulada ? '#c2410c' : '#e7e5e4' }} />
                                           {/* O TEMPO DO TRECHO. "Criado 04/08 → Todos aprovaram
                                               13/08" obrigava a contar nove dias de cabeça. */}
                                           {e.desdeAnterior !== null && (
@@ -3678,11 +3701,13 @@ export default function Atendimento() {
                                           )}
                                         </span>
                                       )}
-                                      <span title={`${e.label}${e.ms ? ` · ${fmtDt(new Date(e.ms))}` : ' · sem carimbo de data'}${descricaoDoStatus(e.statusDaEtapa) ? `\n${descricaoDoStatus(e.statusDaEtapa)}` : ''}`}
+                                      <span title={e.pulada ? `${e.label} · não se aplica: a peça foi entregue sem tubo` : `${e.label}${e.ms ? ` · ${fmtDt(new Date(e.ms))}` : ' · sem carimbo de data'}${descricaoDoStatus(e.statusDaEtapa) ? `\n${descricaoDoStatus(e.statusDaEtapa)}` : ''}`}
                                         style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, flexShrink: 0, maxWidth: 78 }}>
                                         <span aria-hidden="true" style={{
                                           width: e.ehAtual ? 11 : 8, height: e.ehAtual ? 11 : 8, borderRadius: '50%', flexShrink: 0,
                                           background: e.cumprida || e.ehAtual ? '#c2410c' : '#e7e5e4',
+                                          // Embalado que NÃO SE APLICA (entregue sem tubo): oco e tracejado.
+                                          ...(e.pulada ? { background: '#ffffff', border: '1.5px dashed #d6d3d1', boxSizing: 'border-box' as const } : null),
                                           boxShadow: e.ehAtual ? '0 0 0 3px rgba(251,146,60,0.25)' : 'none',
                                         }} />
                                         {(e.ehAtual || e.ms) && (

@@ -35,7 +35,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "fs";
+import { readFileSync, existsSync } from "fs";
 import path from "path";
 
 const ler = (rel: string) => readFileSync(path.resolve(__dirname, "../../", rel), "utf8");
@@ -107,15 +107,11 @@ describe("as duas derivações que faltavam", () => {
 });
 
 describe("o que o usuário lê vem do par vivo", () => {
-  it("a linha do tempo lê visualWidth antes de area", () => {
-    // Assim as peças que divergiram ANTES da correção leem certo mesmo sem
-    // passar pelo script — a tela não espera o banco ser consertado.
-    const tl = ler("client/src/components/item-timeline-dialog.tsx");
-    expect(tl).toContain("{(item.visualWidth ?? item.area)} × {(item.visualHeight ?? item.visual)}");
-    // A comparação que decide mostrar a linha "Medida" usa o MESMO par que a
-    // linha acima imprime; antes media contra as colunas velhas, e bastava uma
-    // envelhecer para a linha aparecer ou sumir sem nada ter mudado na peça.
-    expect(tl).toContain("item.measurement !== `${item.visualWidth ?? item.area} × ${item.visualHeight ?? item.visual}`");
+  it("a linha do tempo antiga (item-timeline-dialog) saiu: era código morto", () => {
+    // Ninguém importava o componente (21/09) — a jornada da peça mora na ficha
+    // (item-details-dialog). Este teste lia o arquivo morto e o mantinha vivo;
+    // agora prende que ele não volta sem alguém usá-lo.
+    expect(existsSync(path.resolve(__dirname, "../../client/src/components/item-timeline-dialog.tsx"))).toBe(false);
   });
 
   it("e a trilha de auditoria diz quando cada uma mudou", () => {

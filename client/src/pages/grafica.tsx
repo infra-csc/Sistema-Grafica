@@ -38,7 +38,7 @@ import { useAuth } from "@/contexts/auth-context";
 import { ModalHeader, modalSurface, HIDE_NATIVE_CLOSE } from "@/components/modal-shell";
 import { GalpaoFila, type GalpaoDados } from "@/components/galpao-fila";
 import { SugestaoRecebedor } from "@/components/sugestao-recebedor";
-import { EM_REVISAO, rotuloDaMaquina, podeIrParaTubo } from "@shared/fluxo-peca";
+import { EM_REVISAO, rotuloDaMaquina, podeIrParaTubo, MAQUINAS_DE_IMPRESSAO } from "@shared/fluxo-peca";
 // Aritmética de saldo: fonte única em lib/saldo.ts. Estes onze cálculos
 // (quanto falta produzir, conferir, entregar, reaproveitar; quanto de m²
 // realmente vai para a impressora) viviam duplicados como consts locais no
@@ -66,7 +66,7 @@ import { compareDisplayId, splitDisplayId } from "@/lib/displayId";
 import {
   FILTROS_VAZIOS, filtrosDaURL, filtrosParaQuery, itemCasaFiltros, itemPercursos,
   contarFiltrosAtivos, temFiltroAtivo, descreverFiltros, nomeDoMes, escondeEntregues,
-  hojeEmUTC, normKey, ordemPercurso, itemMes,
+  hojeEmUTC, normKey, ordemPercurso, itemMes, itemImpressora, SEM_IMPRESSORA,
   type GraficaFiltros, type FacetaGrafica,
 } from "@/lib/grafica-filtros";
 // Lançamento de produção: o único campo do app cujo contrato é ABSOLUTO ao lado
@@ -1530,6 +1530,33 @@ export default function Grafica() {
       .map(([m, count]) => ({ value: m, label: nomeDoMes(m), count, pinned: true }));
   }, [gFacetPool]);
 
+  // Impressoras presentes no recorte (dono, 21/09). A ordem é fixa — as quatro
+  // máquinas de shared/fluxo-peca e depois "Sem impressora" (peça em impressão
+  // sem máquina, legado de antes do controle de máquinas). Como no Status, a
+  // opção ESCOLHIDA fica na lista mesmo com zero peças: fora dela o chip do
+  // filtro mostrava a chave crua ("3") em vez do nome da máquina.
+  const impressoraFilterOptions = useMemo(() => {
+    const conta = new Map<string, number>();
+    gFacetPool('impressora').forEach((i: any) => {
+      const m = itemImpressora(i);
+      if (!m) return;
+      conta.set(m, (conta.get(m) ?? 0) + 1);
+    });
+    const ordem = [...MAQUINAS_DE_IMPRESSAO, SEM_IMPRESSORA];
+    return ordem
+      .filter(m => (conta.get(m) ?? 0) > 0 || filtros.impressora.includes(m))
+      .map(m => ({
+        value: m,
+        label: m === SEM_IMPRESSORA ? "Sem impressora" : rotuloDaMaquina(m),
+        count: conta.get(m) ?? 0,
+        pinned: true,
+        title: m === SEM_IMPRESSORA
+          ? "Em impressão sem a máquina informada (peças de antes do controle de máquinas)."
+          : "Peças que começaram a imprimir nesta máquina — inclusive as que já saíram dela.",
+      }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gFacetPool, filtros.impressora]);
+
   // O casamento item↔recorte mora em lib/grafica-filtros.ts. A lista e o pool
   // dos KPIs usam a MESMA função; a única diferença é `ignorarStatus`, que
   // desliga os três recortes com forma de status (o filtro de status, o chip de
@@ -1686,6 +1713,7 @@ export default function Grafica() {
     status: (v) => v.map(getStatusLabel).join(", "),
     evento: (v) => v.map(id => eventFilterOptions.find(o => o.value === id)?.label ?? id).join(", "),
     mes: (v) => v.map(nomeDoMes).join(", "),
+    impressora: (v) => v.map(m => m === SEM_IMPRESSORA ? "Sem impressora" : rotuloDaMaquina(m)).join(", "),
   });
 
   // ── Renderização incremental ──────────────────────────────────────────────
@@ -2900,6 +2928,9 @@ export default function Grafica() {
               ? [...statusFilterOptions, { value: "reuso", label: "♻ Com reaproveitamento", count: comReusoNaLista, pinned: true }]
               : statusFilterOptions,
             testId: "select-status-filter", sempre: true, busca: "Buscar status...", vazio: "Nenhum status nesta fila." },
+          // Só aparece quando há peça com impressora no recorte (`sempre: false`):
+          // numa fila sem nada em impressão o campo seria um menu vazio.
+          { label: "Impressora", allLabel: "Todas as impressoras", values: filtros.impressora, set: (v: string[]) => patchFiltros({ impressora: v }), options: impressoraFilterOptions, testId: "select-impressora-filter", sempre: false, busca: "Buscar impressora...", vazio: "Nenhuma peça com impressora nesta fila." },
           { label: "Grupo", allLabel: "Todos os grupos", values: filtros.grupo, set: (v: string[]) => patchFiltros({ grupo: v }), options: groupFilterOptions, testId: "select-group-filter", sempre: false, busca: "Buscar grupo...", vazio: "Nenhum grupo encontrado." },
           { label: "Percurso", allLabel: "Todos os percursos", values: filtros.percurso, set: (v: string[]) => patchFiltros({ percurso: v }), options: percursoFilterOptions, testId: "select-percurso-filter", sempre: false, busca: "Buscar percurso...", vazio: "Nenhum percurso encontrado." },
           { label: "Mês", allLabel: "Todos os meses", values: filtros.mes, set: (v: string[]) => patchFiltros({ mes: v }), options: mesFilterOptions, testId: "select-month-filter", sempre: true, busca: "Buscar mês...", vazio: "Nenhuma saída de caminhão nesta fila." },
@@ -2915,6 +2946,7 @@ export default function Grafica() {
         // do campo; na barra do desktop o espaço é da fileira de campos.
         const DICA_DO_FILTRO: Record<string, string> = {
           Status: "Etapa da peça na fila; também filtra “♻ com reaproveitamento”.",
+          Impressora: "Máquina em que a peça começou a imprimir; “Sem impressora” é a peça em impressão sem máquina informada.",
           Grupo: "Grupo do catálogo de Modelos (ex.: placas de 5KM × 10KM).",
           Percurso: "Distância escrita na peça (5k, 10k…).",
           "Mês": "Mês da saída do caminhão do evento.",

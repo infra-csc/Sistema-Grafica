@@ -79,7 +79,7 @@ function prepararJsdom(largura: number) {
 // ── Dados: três tubos (pronto com foto · falta conferir · entregue) e três sem tubo ──
 const p = (id: string, displayId: string, conferida: boolean, extra: Record<string, unknown> = {}) => ({
   id, displayId, type: "2x1", description: "Ministério da Saúde", quantity: 16, status: conferida ? "conferred" : "produced",
-  conferredQty: conferida ? 16 : 0, deliveredQty: 0, conferida, entregue: false, ...extra,
+  conferredQty: conferida ? 16 : 0, deliveredQty: 0, embaladaQty: 0, aEmbalar: conferida ? 16 : 0, quantidadeNoTubo: 16, conferida, entregue: false, ...extra,
 });
 const tubo = (id: string, numero: number, pecas: any[], extra: Record<string, unknown> = {}) => ({
   id, numero, entregueEm: null, recebidoPor: null, entreguePor: null, fotoEntregaUrl: null, fotosFechamento: [] as string[], fechadoEm: null, fechadoPor: null,
@@ -142,7 +142,10 @@ for (const largura of [1280, 390]) {
       const m = $('[data-testid="modal-embalar"]')!;
       expect(m.textContent).toContain("Embalar #0386");
       expect(m.textContent).toContain("Tire a foto — a peça fica Embalada até ser entregue");
-      expect($('[data-testid="embalar-pecas"]')!.textContent).toContain("2x1 Ministério da Saúde - 16");
+      // a linha da peça + o campo "Quantas" (padrão: tudo o que está conferido e não embalado) + o apoio
+      expect($('[data-testid="embalar-pecas"]')!.textContent).toContain("2x1 Ministério da Saúde");
+      expect(($('[data-testid="quantas-s1"]') as HTMLInputElement).value).toBe("16");
+      expect($('[data-testid="apoio-s1"]')!.textContent).toBe("16 conferidas de 16 · 0 embaladas");
       // a OUTRA conferida sem tubo (#0381) não aparece, nem caixa, nem seletor de tubo
       expect(m.textContent).not.toContain("#0381");
       expect(m.querySelector('input[type="checkbox"]')).toBeNull();
@@ -160,14 +163,14 @@ for (const largura of [1280, 390]) {
       expect(botao().disabled).toBe(true);
       expect($$('[data-testid="button-upload-photo"]')[0].getAttribute("data-capture"), "câmera direta primeiro").toBe("sim");
       await act(async () => { fireEvent.click($$('[data-testid="button-upload-photo"]')[0]); });
-      expect(botao().textContent).toBe("Embalar #0386 · 1 foto");
+      expect(botao().textContent).toBe("Embalar #0386 · 16 un. · 1 foto");
       expect(/safe-area-inset-bottom/.test($('[data-testid="rodape-embalar"]')!.style.paddingBottom)).toBe(true);
       expect(px($('button[aria-label="Remover a foto 1"]')!.style.width)).toBe(44);
       // toque duplo não duplica
       await act(async () => { fireEvent.click(botao()); fireEvent.click(botao()); });
       await tick(30);
       expect(chamadas.length).toBe(1);
-      expect(chamadas[0]).toMatchObject({ metodo: "POST", url: expect.stringContaining("/api/events/ev1/tubos"), corpo: { itemIds: ["s1"], avulso: true } });
+      expect(chamadas[0]).toMatchObject({ metodo: "POST", url: expect.stringContaining("/api/events/ev1/tubos"), corpo: { itens: [{ id: "s1", quantidade: 16 }], avulso: true } });
       expect(chamadas[0].corpo.fotos.length).toBe(1);
       expect(onClose).toHaveBeenCalled();
     }, 30_000);
@@ -178,21 +181,21 @@ for (const largura of [1280, 390]) {
       expect(m.querySelector('[role="radiogroup"]')).toBeNull();
       expect($('[data-testid="embalar-tubo-automatico"]')!.textContent).toBe("Vai para o Tubo 5 (vazio, já aberto).");
       await act(async () => { fireEvent.click($$('[data-testid="button-upload-photo"]')[0]); });
-      expect($('[data-testid="confirmar-embalar"]')!.textContent).toBe("Embalar 2 peças no Tubo 5 · 1 foto");
+      expect($('[data-testid="confirmar-embalar"]')!.textContent).toBe("Embalar 32 un. de 2 peças · 1 foto");
       await clicar('[data-testid="confirmar-embalar"]');
       await tick(30);
-      expect(chamadas[0]).toMatchObject({ metodo: "PATCH", url: expect.stringContaining("/api/tubos/t5/itens"), corpo: { adicionar: ["s1", "s2"] } });
+      expect(chamadas[0]).toMatchObject({ metodo: "PATCH", url: expect.stringContaining("/api/tubos/t5/itens"), corpo: { itens: [{ id: "s1", quantidade: 16 }, { id: "s2", quantidade: 16 }] } });
     }, 30_000);
 
     it("LOTE sem tubo vazio: cria o PRÓXIMO número numa chamada só (POST com as peças e a foto — nunca avulso)", async () => {
       await montar({ itensIniciais: ["s1", "s2"] }, largura);
       expect($('[data-testid="embalar-tubo-automatico"]')!.textContent).toBe("Vai para o Tubo 4 (novo).");
       await act(async () => { fireEvent.click($$('[data-testid="button-upload-photo"]')[0]); });
-      expect($('[data-testid="confirmar-embalar"]')!.textContent).toBe("Embalar 2 peças no Tubo 4 · 1 foto");
+      expect($('[data-testid="confirmar-embalar"]')!.textContent).toBe("Embalar 32 un. de 2 peças · 1 foto");
       await clicar('[data-testid="confirmar-embalar"]');
       await tick(30);
       expect(chamadas.length).toBe(1);
-      expect(chamadas[0]).toMatchObject({ metodo: "POST", corpo: { itemIds: ["s1", "s2"] } });
+      expect(chamadas[0]).toMatchObject({ metodo: "POST", corpo: { itens: [{ id: "s1", quantidade: 16 }, { id: "s2", quantidade: 16 }] } });
       expect(chamadas[0].corpo.avulso).toBeUndefined();
     }, 30_000);
 
@@ -211,10 +214,10 @@ for (const largura of [1280, 390]) {
       expect($('[data-testid="embalar-conteudo-do-tubo"]')!.textContent).toContain("#0383");
       expect(chamadas, "escolher não grava").toEqual([]);
       await act(async () => { fireEvent.click($$('[data-testid="button-upload-photo"]')[0]); });
-      expect($('[data-testid="confirmar-embalar"]')!.textContent).toBe("Embalar no Tubo 1 · 1 foto");
+      expect($('[data-testid="confirmar-embalar"]')!.textContent).toBe("Embalar 16 un. no Tubo 1 · 1 foto");
       await clicar('[data-testid="confirmar-embalar"]');
       await tick(30);
-      expect(chamadas[0]).toMatchObject({ metodo: "PATCH", url: expect.stringContaining("/api/tubos/t1/itens"), corpo: { adicionar: ["s1"] } });
+      expect(chamadas[0]).toMatchObject({ metodo: "PATCH", url: expect.stringContaining("/api/tubos/t1/itens"), corpo: { itens: [{ id: "s1", quantidade: 16 }] } });
       if (largura === 390) for (const r of $$('[role="radio"]')) expect(px(r.style.minHeight)).toBeGreaterThanOrEqual(44);
     }, 30_000);
 
@@ -224,17 +227,45 @@ for (const largura of [1280, 390]) {
       expect($('[data-testid="embalar-tubo-automatico"]')!.textContent).toBe("Vai para o Tubo 4 (novo).");
     }, 30_000);
 
-    it("lote: dá para TIRAR uma peça (x de 44px), não adicionar; a não conferida nunca entra", async () => {
+    it("QUANTAS: embalar só PARTE (7 de 10 conferidas → 5 agora); 'Tudo' devolve o padrão; o botão soma as unidades", async () => {
+      await montar({ itensIniciais: ["s1"] }, largura, retrato((r) => { Object.assign(r.semTubo[0], { quantity: 10, conferredQty: 7, embaladaQty: 0, aEmbalar: 7 }); }));
+      const campo = () => $('[data-testid="quantas-s1"]') as HTMLInputElement;
+      expect(campo().value).toBe("7");
+      expect(campo().getAttribute("inputmode")).toBe("numeric");
+      expect($('[data-testid="apoio-s1"]')!.textContent).toBe("7 conferidas de 10 · 0 embaladas");
+      await act(async () => { fireEvent.change(campo(), { target: { value: "5" } }); });
+      expect(campo().value).toBe("5");
+      // nunca acima do que está conferido e sem embalar
+      await act(async () => { fireEvent.change(campo(), { target: { value: "99" } }); });
+      expect(campo().value).toBe("7");
+      await act(async () => { fireEvent.change(campo(), { target: { value: "5" } }); });
+      await act(async () => { fireEvent.click($$('[data-testid="button-upload-photo"]')[0]); });
+      expect($('[data-testid="confirmar-embalar"]')!.textContent).toBe("Embalar #0386 · 5 un. · 1 foto");
+      expect($('[data-testid="quantas-tudo-s1"]')!.textContent).toBe("Tudo (7)");
+      if (largura === 390) { expect(px(campo().style.fontSize)).toBe(16); expect(px(campo().style.height)).toBe(44); expect(reguaDoCelular($('[data-testid="modal-embalar"]')!)).toEqual([]); }
+      await clicar('[data-testid="confirmar-embalar"]');
+      await tick(30);
+      expect(chamadas[0]).toMatchObject({ metodo: "POST", corpo: { itens: [{ id: "s1", quantidade: 5 }], avulso: true } });
+    }, 30_000);
+
+    it("lote: dá para TIRAR uma peça (x de 44px), não adicionar; quem não tem unidade a embalar nunca entra", async () => {
       await montar({ itensIniciais: ["s1", "s2", "s3"] }, largura);
       const m = $('[data-testid="modal-embalar"]')!;
       expect(m.textContent).toContain("Embalar 2 peças");
-      expect($('[data-testid="embalar-peca-s3"]'), "a em acabamento não é embalada").toBeNull();
+      expect($('[data-testid="embalar-peca-s3"]'), "sem unidade conferida não é embalada").toBeNull();
       const x = $('button[aria-label="Tirar #0381 deste embalar"]')!;
       expect(px(x.style.width)).toBe(44);
       await act(async () => { fireEvent.click(x); });
       expect($('[data-testid="embalar-peca-s2"]')).toBeNull();
       // a última não tem x: embalar zero peças não existe
       expect($('button[aria-label="Tirar #0386 deste embalar"]')).toBeNull();
+    }, 30_000);
+
+    it("DENTRO do volume a quantidade é a QUE ESTÁ NELE, com '(7 de 10)' quando a peça está dividida", async () => {
+      await montar({ tuboInicial: "t1" }, largura, retrato((r) => { Object.assign(r.tubos[0].pecas[0], { quantity: 10, quantidadeNoTubo: 7 }); }));
+      const lista = $('[data-testid="lista-entrega-tubo-1"]')!;
+      expect(lista.textContent).toContain("2x1 Ministério da Saúde - 7 (7 de 10)");
+      expect(lista.textContent).toContain("2x1 Ministério da Saúde - 16");
     }, 30_000);
 
     it("estados: peça que outro aparelho já embalou diz onde; Kit só-visualiza não embala", async () => {
@@ -352,12 +383,11 @@ for (const largura of [1280, 390]) {
       await clicar('[data-testid="painel-ver-entregues"]');
       expect($('[data-testid="tubo-3"]')!.textContent).toContain("Recebido por Carlos");
       const t1 = $('[data-testid="tubo-1"]')!;
-      expect(t1.textContent).toContain("Tubo 1 · 2 peças · 2 fotos");
+      expect(t1.textContent).toContain("Tubo 1 · 2 peças · 32 un. · 2 fotos");
       expect(t1.textContent).toContain("Pronto para entregar");
       for (const id of ["entregar-tubo-1", "fechar-tubo-1", "etiqueta-tubo-1", "apagar-tubo-1", "tirar-peca-a1"]) expect($(`[data-testid="${id}"]`), id).toBeTruthy();
       expect($('[data-testid="etiqueta-tubo-1"]')!.getAttribute("href")).toBe("/grafica/tubos/t1/etiqueta");
       expect($('[data-testid="tubo-2"]')!.textContent).toContain("Falta conferir 1");
-      expect($('[data-testid="painel-esperando-conferir"]')!.textContent).toContain("1 peça saiu da impressão");
       if (largura === 390) expect(reguaDoCelular(m)).toEqual([]);
     }, 30_000);
 

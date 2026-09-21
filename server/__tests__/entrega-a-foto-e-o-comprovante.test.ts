@@ -27,27 +27,18 @@ import path from "path";
 const rotas = readFileSync(path.resolve(__dirname, "../routes/items.ts"), "utf8");
 const grafica = readFileSync(path.resolve(__dirname, "../../client/src/pages/grafica.tsx"), "utf8");
 
-/** O corpo da rota de entrega. */
-function rotaDeEntrega(): string {
-  const i = rotas.indexOf("const { receivedBy, photoUrl, notes } = req.body;");
-  expect(i).toBeGreaterThan(-1);
-  return rotas.slice(i, i + 7200);
-}
-
-describe("o servidor exige a foto, não o nome", () => {
-  it("recusa entrega sem foto", () => {
-    expect(rotaDeEntrega()).toContain("if (!photoUrl) {");
-    expect(rotaDeEntrega()).toContain('error: "photoUrl is required"');
-  });
-
-  it("não recusa mais por falta de nome", () => {
-    expect(rotaDeEntrega()).not.toContain('error: "receivedBy is required"');
-  });
-
-  it("a trilha funciona sem o nome", () => {
-    // Sem isto o log gravaria "recebido por: undefined" na primeira entrega
-    // que viesse sem o campo.
-    expect(rotaDeEntrega()).toContain('${receivedBy ? `, recebido por: ${receivedBy}` : ""}');
+// A ENTREGA POR PEÇA FOI APOSENTADA (dono, 21/09: "todas são embaladas" + "tem que
+// colocar as quantidades"): quem entrega é o volume (tubo ou embalagem avulsa),
+// em routes/tubos.ts — obrigatório é quem recebeu; a foto veio de antes (a da
+// conferência e a do embalar). A rota por peça responde 409 para qualquer peça.
+describe("a entrega por peça está aposentada", () => {
+  const i = rotas.indexOf('app.patch("/api/items/:id/deliver"');
+  const rota = rotas.slice(i, i + 900);
+  it("responde 409 que ensina, sem escrever nada", () => {
+    expect(i).toBeGreaterThan(-1);
+    expect(rota).toContain('return res.status(409).json({ error: "Embale antes de entregar (Embalar pede a foto; a entrega pede só quem recebeu)" });');
+    expect(rota).not.toContain("updateItem");
+    expect(rota).not.toContain("photoUrl is required");
   });
 });
 

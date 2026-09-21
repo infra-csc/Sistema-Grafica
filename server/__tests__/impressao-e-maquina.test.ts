@@ -180,8 +180,8 @@ describe("a impressão é informada AOS POUCOS (dono, 14/09)", () => {
 
   it("servidor: a conferência exige foto e só vira Conferido quando confere tudo", () => {
     expect(ITEMS).toContain("if (!conferencePhotoUrl && !current.conferencePhotoUrl)");
-    // 21/09: peça que já estava no tubo fecha a conferência como Embalado.
-    expect(ITEMS).toContain('...(isFull ? { status: (current.tuboId ? "packed" : "conferred") as "packed" | "conferred" } : {}),');
+    // 21/09 (embalagem com quantidade): só fecha como Embalado se TUDO já estava embalado.
+    expect(ITEMS).toContain('...(isFull ? { status: (((current as any).embaladaQty ?? 0) >= current.quantity ? "packed" : "conferred") as "packed" | "conferred" } : {}),');
   });
 });
 

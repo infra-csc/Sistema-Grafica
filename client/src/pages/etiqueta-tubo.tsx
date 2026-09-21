@@ -54,7 +54,7 @@ import {
 // `isReuse`/`reuseQty`: HOJE o GET /api/tubos/:id não devolve nenhum dos dois —
 // ficam opcionais para o REAPROVEITAR ligar sozinho no dia em que a rota
 // mandar; até lá vale o interruptor manual.
-type Peca = { id: string; displayId: string | null; type: string; description: string | null; quantity: number; conferida: boolean; isReuse?: boolean | null; reuseQty?: number | null };
+type Peca = { id: string; displayId: string | null; type: string; description: string | null; quantity: number; /** quanto da peça está NESTE tubo (a linha usa esta) */ quantidadeNoTubo?: number; conferida: boolean; isReuse?: boolean | null; reuseQty?: number | null };
 type Resposta = {
   tubo: { id: string; numero: number | null; avulso?: boolean | null; entregueEm: string | null; recebidoPor: string | null };
   evento: { id: string; name: string; truckDepartureDate: string | null; bookUrl?: string | null } | null;

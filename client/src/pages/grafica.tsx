@@ -26,6 +26,7 @@ import { useToast } from "@/hooks/use-toast";
 import { ObjectUploader } from "@/components/ObjectUploader";
 import { TubosDialog } from "@/components/tubos-dialog";
 import { linhaDaLista } from "@/lib/etiqueta-lista";
+import { aEmbalar, embaladaDe, parteDoTotal, seloDosVolumes, type LinhaDoVolume } from "@shared/embalagem";
 import { ItemDetailsDialog } from "@/components/item-details-dialog";
 import { useIsMobile, useElementSize, densityFromWidth } from "@/hooks/use-mobile";
 import {
@@ -219,7 +220,9 @@ function SeloFilaDaImpressora({ maquina, reserva, fonte }: { maquina: string; re
 }
 // Resumo de tubo que a fila lê (número por id). Constante vazia ESTÁVEL: ver
 // o useQuery de /api/tubos.
-type TuboResumo = { id: string; numero: number; avulso?: boolean; eventId: string; entregueEm: string | null; fechadoEm?: string | null };
+type TuboResumo = { id: string; numero: number; avulso?: boolean; eventId: string; entregueEm: string | null; fechadoEm?: string | null;
+  /** EMBALAGEM COM QUANTIDADE (21/09): o que está em cada volume, e quanto. */
+  linhas?: Array<{ itemId: string; quantidade: number; entregue: boolean }> };
 const SEM_TUBOS: TuboResumo[] = [];
 
 const complementOpen = (item: any) => isComplement(item) && !isDelivered(item);
@@ -727,13 +730,22 @@ export default function Grafica() {
   // TODAS SÃO EMBALADAS (dono, 21/09): a conferida também não tem entrega
   // direta — o caminho é Conferido → Embalado → Entregue. Sobra aqui só a
   // entrega PARCIAL da peça ainda em acabamento (parte conferida), preservada.
-  const canDeliver = (item: any) => !soVisualizaKit(item) && canDeliverBase(item) && !isPosConferencia(item) && !item.tuboId;
+  // …e, com a EMBALAGEM COM QUANTIDADE (mesma noite), nem a parcial: ela embala
+  // a parte já conferida e sai pela embalagem. A entrega por peça está
+  // APOSENTADA — o servidor responde 409 para qualquer peça —, então nenhum
+  // "Entregar" por peça, "Entregar em lote" ou fila de entrega aparece mais.
+  // (A interface antiga de entrega fica dormente; apagá-la é faxina à parte.)
+  const canDeliver = (_item: any) => false && canDeliverBase(_item);
   // EMBALAR (dono, 21/09): a ÚNICA ação da peça CONFERIDA — "todas são
   // embaladas", não existe entrega antes de embalar. Mesmos papéis das rotas
   // de tubos, e sem exigir evento aberto: conferir/embalar/entregar passam no
   // finalizado.
+  // Com QUANTIDADE: embala quem tem unidade conferida ainda não embalada — a
+  // conferida inteira, a PARCIAL (7 de 10 conferidas) e a que já foi em parte.
   const podeEmbalar = (item: any) =>
-    !EM_REVISAO.has(item.status) && !soVisualizaKit(item) && isConferred(item) && !item.tuboId && !!item.eventId;
+    !EM_REVISAO.has(item.status) && !soVisualizaKit(item) && !isDelivered(item) && !isPacked(item) && !!item.eventId && aEmbalar(item) > 0;
+  // "Embalar" quando é tudo; "Embalar 3" quando é só o que falta (ou a parte conferida).
+  const rotuloEmbalar = (item: any) => (aEmbalar(item) < qtyOf(item) ? `Embalar ${aEmbalar(item)}` : "Embalar");
   // Abre o painel de tubos do evento da peça já com ela marcada para embalar.
   const abrirEmbalar = (itens: any[]) => {
     const primeira = itens[0];
@@ -1207,33 +1219,49 @@ export default function Grafica() {
   // linha da etiqueta ("2x1 Ministério - 16"). Sai da fila que já está na
   // memória — nenhuma consulta nova. Tocar no selo abre o painel naquele tubo.
   const conteudoDoTubo = useMemo(() => {
+    const porId = new Map((pecasDoServidor as any[]).map((i) => [i.id, i]));
     const m = new Map<string, { total: number; lista: string }>();
-    const grupos = new Map<string, any[]>();
-    for (const i of pecasDoServidor as any[]) {
-      if (!i.tuboId) continue;
-      grupos.set(i.tuboId, [...(grupos.get(i.tuboId) ?? []), i]);
-    }
-    for (const [tuboId, pecas] of Array.from(grupos)) {
-      m.set(tuboId, { total: pecas.length, lista: pecas.map((x) => `${x.displayId ?? "—"} · ${linhaDaLista(x)}`).join("\n") });
+    for (const t of todosOsTubos) {
+      const dentro = (t.linhas ?? []).filter((l) => porId.has(l.itemId));
+      if (!dentro.length) continue;
+      m.set(t.id, {
+        total: dentro.length,
+        // A quantidade é a QUE ESTÁ NAQUELE volume; "(7 de 10)" quando dividida.
+        lista: dentro.map((l) => { const x = porId.get(l.itemId); return `${x.displayId ?? "—"} · ${linhaDaLista({ ...x, quantity: l.quantidade })} ${parteDoTotal(l.quantidade, qtyOf(x))}`.trim(); }).join("\n"),
+      });
     }
     return m;
-  }, [pecasDoServidor]);
+  }, [pecasDoServidor, todosOsTubos]);
+  // Os volumes ABERTOS de cada peça, com a quantidade em cada um — o selo da
+  // linha ("Tubo 1 (7) · Tubo 2 (3)" / "Embalada (10)") sai daqui.
+  const volumesDaPeca = useMemo(() => {
+    const m = new Map<string, LinhaDoVolume[]>();
+    for (const t of todosOsTubos) {
+      for (const l of t.linhas ?? []) {
+        if (l.entregue) continue;
+        m.set(l.itemId, [...(m.get(l.itemId) ?? []), { tuboId: t.id, quantidade: l.quantidade, numero: t.numero, avulso: !!t.avulso }]);
+      }
+    }
+    return m;
+  }, [todosOsTubos]);
+  const temVolumeAberto = (item: any) => (volumesDaPeca.get(item.id)?.length ?? 0) > 0 && !!item.tuboId;
   // EMBALADA SOZINHA (dono, 21/09: "nem sempre vai ser 'entregar tubo'"): o
   // volume avulso nunca é "Tubo N" — o selo diz "Embalada", a ação é
   // "Entregar" e o desfazer é "Desfazer embalagem".
   const tubosAvulsos = useMemo(() => new Set(todosOsTubos.filter((t) => t.avulso).map((t) => t.id)), [todosOsTubos]);
   const ehAvulsa = (item: any) => !!item.tuboAvulso || (!!item.tuboId && tubosAvulsos.has(item.tuboId));
   const seloDoTubo = (item: any): string | null => {
-    if (!item.tuboId || !numeroDoTubo.has(item.tuboId)) return null;
-    if (ehAvulsa(item)) return "Embalada";
-    const n = conteudoDoTubo.get(item.tuboId)?.total ?? 1;
-    return `Tubo ${numeroDoTubo.get(item.tuboId)} · ${n} ${n === 1 ? "peça" : "peças"}`;
+    const volumes = volumesDaPeca.get(item.id) ?? [];
+    if (!volumes.length) return null;
+    // "7 de 10 embaladas" na frente quando ainda falta embalar o resto.
+    const falta = embaladaDe(item) < qtyOf(item) ? `${embaladaDe(item)} de ${qtyOf(item)} embaladas · ` : "";
+    return falta + seloDosVolumes(volumes);
   };
   const tituloDoTubo = (item: any): string => {
     const c = conteudoDoTubo.get(item.tuboId);
     const foto = fechamentoDoTubo.get(item.tuboId);
     if (ehAvulsa(item)) return `Embalada sozinha${foto ? ` · foto ${foto}` : ""}\nToque para entregar.`;
-    return `${seloDoTubo(item) ?? "Tubo"}${foto ? ` · foto ${foto}` : " · sem foto"}\n${c?.lista ?? ""}\nToque para abrir o tubo.`;
+    return `Tubo ${numeroDoTubo.get(item.tuboId) ?? ""} · ${c?.total ?? 1} ${(c?.total ?? 1) === 1 ? "peça" : "peças"}${foto ? ` · foto ${foto}` : " · sem foto"}\n${c?.lista ?? ""}\nToque para abrir o tubo.`;
   };
   const abrirTuboDaPeca = (item: any) =>
     setTubosDoEvento({ id: String(item.eventId), name: item.event?.name ?? "Evento", entregarTubo: item.tuboId });
@@ -2503,6 +2531,8 @@ export default function Grafica() {
     item.tuboId ? conteudoDoTubo.get(item.tuboId)?.lista ?? null : null,
     // "Embalada" × "Tubo N", "Entregar" × "Entregar tubo".
     ehAvulsa(item),
+    // o selo com as quantidades por volume e o "Embalar 3"
+    seloDoTubo(item), aEmbalar(item),
     // Só a linha DESTA peça fica "pendente" ao tirar do tubo — o booleano
     // global redesenhava a fila inteira a cada clique.
     tirarDoTuboMutation.isPending && tirarDoTuboMutation.variables?.itemId === item.id,
@@ -3841,13 +3871,13 @@ export default function Grafica() {
                           </span>
                         )}
                         {/* Paridade com a tabela: o tubo em que a peça vai. */}
-                        {item.tuboId && numeroDoTubo.has(item.tuboId) && (
+                        {seloDoTubo(item) && (
                           <button type="button" data-testid={`chip-tubo-card-${item.id}`} title={tituloDoTubo(item)}
                             aria-label={`${seloDoTubo(item)} — ver o que está no tubo`}
                             onClick={e => { if (bulkOn) return; e.stopPropagation(); abrirTuboDaPeca(item); }}
                             /* Alvo de 44px no dedo; o desenho do selo fica no span de dentro. */
-                            style={{ minHeight: 44, padding: 0, border: 'none', background: 'none', display: 'inline-flex', alignItems: 'center', cursor: 'pointer', fontFamily: 'inherit' }}>
-                            <span style={{ ...qtyChip('#9a3412', '#fff7ed'), border: '1px solid #fed7aa' }}>
+                            style={{ minHeight: 44, flexBasis: '100%', padding: 0, border: 'none', background: 'none', display: 'flex', alignItems: 'center', textAlign: 'left', cursor: 'pointer', fontFamily: 'inherit' }}>
+                            <span style={{ ...qtyChip('#9a3412', '#fff7ed'), border: '1px solid #fed7aa', whiteSpace: 'normal' }}>
                               {fechamentoDoTubo.has(item.tuboId) && <Camera aria-hidden="true" style={{ width: 10, height: 10, marginRight: 3, verticalAlign: -1 }} />}
                               {(seloDoTubo(item) ?? "").toUpperCase()}
                             </span>
@@ -4087,7 +4117,7 @@ export default function Grafica() {
                               style={{ order: 0, flex: '2 1 150px', minHeight: 48, padding: '0 12px', borderRadius: 8, background: '#1d4ed8', border: 'none', color: '#fff', fontSize: 14, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, cursor: 'pointer', whiteSpace: 'nowrap' }}
                             >
                               <Package aria-hidden="true" style={{ width: 13, height: 13 }} />
-                              Embalar
+                              {rotuloEmbalar(item)}
                             </button>
                           )}
                           {canDeliverItem && (
@@ -4108,7 +4138,7 @@ export default function Grafica() {
                               formulário daquele tubo (quem recebeu). É a PRINCIPAL da
                               embalada (sólida, azul do Embalado, primeira no DOM e na
                               tela — Tab e dedo chegam nela antes do "Tirar"). */}
-                          {podeConferir && !soVisualizaKit(item) && isPacked(item) && item.tuboId && item.eventId && (
+                          {podeConferir && !soVisualizaKit(item) && temVolumeAberto(item) && item.eventId && (
                             <button
                               onClick={e => { e.stopPropagation(); setTubosDoEvento({ id: String(item.eventId), name: item.event?.name ?? "Evento", entregarTubo: item.tuboId }); }}
                               data-testid={`button-entregar-tubo-card-${item.id}`}
@@ -4119,7 +4149,7 @@ export default function Grafica() {
                           )}
                           {/* Embalado: tirar do tubo devolve a Conferido (21/09) — a
                               secundária, de contorno, depois da principal. */}
-                          {podeConferir && !soVisualizaKit(item) && isPacked(item) && item.tuboId && (
+                          {podeConferir && !soVisualizaKit(item) && temVolumeAberto(item) && (
                             <button
                               onClick={e => { e.stopPropagation(); tirarDoTuboMutation.mutate({ itemId: item.id, tuboId: item.tuboId, displayId: item.displayId }); }}
                               disabled={tirarDoTuboMutation.isPending && tirarDoTuboMutation.variables?.itemId === item.id}
@@ -4422,11 +4452,14 @@ export default function Grafica() {
                         </button>
                         {/* Kit (14/09): a peça do Kit se declara na fila, com a entrega. */}
                         <SeloKit peca={item} style={{ display: "flex", width: "fit-content", marginTop: 4 }} />
-                        {item.tuboId && numeroDoTubo.has(item.tuboId) && (
+                        {seloDoTubo(item) && (
                           <button type="button" data-testid={`chip-tubo-${item.id}`} title={tituloDoTubo(item)}
                             aria-label={`${seloDoTubo(item)} — ver o que está no tubo`}
                             onClick={e => { if (bulkOn) return; e.stopPropagation(); abrirTuboDaPeca(item); }}
-                            style={{ display: "inline-flex", alignItems: "center", gap: 3, marginTop: 4, padding: "1px 6px", borderRadius: 999, fontSize: 10, fontWeight: 800, color: "#9a3412", background: "#fff7ed", border: "1px solid #fed7aa", whiteSpace: "nowrap", cursor: "pointer", fontFamily: "inherit" }}>
+                            /* LINHA PRÓPRIA, abaixo do código (dono, 21/09: "muito grudado no número
+                               do item") — como o selo KIT; quebra sem cortar quando a peça
+                               está em mais de um tubo. */
+                            style={{ display: "flex", width: "fit-content", maxWidth: "100%", flexWrap: "wrap", alignItems: "center", gap: 3, marginTop: 6, padding: "2px 7px", borderRadius: 10, fontSize: 10, fontWeight: 800, lineHeight: 1.35, textAlign: "left", color: "#9a3412", background: "#fff7ed", border: "1px solid #fed7aa", whiteSpace: "normal", cursor: "pointer", fontFamily: "inherit" }}>
                             {fechamentoDoTubo.has(item.tuboId) && <Camera aria-hidden="true" style={{ width: 10, height: 10 }} />}
                             {seloDoTubo(item)}
                           </button>
@@ -5144,7 +5177,7 @@ export default function Grafica() {
                               onMouseLeave={e => (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#1d4ed8"}
                             >
                               <Package aria-hidden="true" style={{ width: 13, height: 13 }} />
-                              Embalar
+                              {rotuloEmbalar(item)}
                             </button>
                           )}
 
@@ -5175,7 +5208,7 @@ export default function Grafica() {
                           {/* Embalada: entregar o TUBO inteiro — abre o painel já no
                               formulário daquele tubo (quem recebeu). Principal da
                               embalada, antes do "Tirar" (paridade com o cartão). */}
-                          {!bulkOn && podeConferir && !soVisualizaKit(item) && isPacked(item) && item.tuboId && item.eventId && (
+                          {!bulkOn && podeConferir && !soVisualizaKit(item) && temVolumeAberto(item) && item.eventId && (
                             <button
                               onClick={() => setTubosDoEvento({ id: String(item.eventId), name: item.event?.name ?? "Evento", entregarTubo: item.tuboId })}
                               data-testid={`button-entregar-tubo-${item.id}`}
@@ -5186,7 +5219,7 @@ export default function Grafica() {
                             </button>
                           )}
                           {/* Embalado: tirar do tubo devolve a Conferido (21/09) — secundária. */}
-                          {!bulkOn && podeConferir && !soVisualizaKit(item) && isPacked(item) && item.tuboId && (
+                          {!bulkOn && podeConferir && !soVisualizaKit(item) && temVolumeAberto(item) && (
                             <button
                               onClick={() => tirarDoTuboMutation.mutate({ itemId: item.id, tuboId: item.tuboId, displayId: item.displayId })}
                               disabled={tirarDoTuboMutation.isPending && tirarDoTuboMutation.variables?.itemId === item.id}

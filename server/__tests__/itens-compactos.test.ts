@@ -597,6 +597,11 @@ describe("GET /api/items recortado (?status=, ?ids=)", () => {
 
   it("cliente: a chave recortada busca com delta PRÓPRIO; peça liberada some e peça que chega aparece, sem F5", async () => {
     M = gerarMundo();
+    // O gerador é pseudoaleatório com semente fixa e sorteia UM valor por coluna
+    // do schema: uma coluna nova desloca a sequência, e o sorteio pode não cair
+    // em "revisão" nenhuma vez. O teste precisa de peças simples em revisão —
+    // então as põe lá à mão, em vez de depender da sorte da semente.
+    for (const p of M.pecas.filter((x) => !x.parentItemId && !x.kitRemessaId && !M.pecas.some((f) => f.parentItemId === x.id)).slice(0, 12)) p.status = REVISAO;
     ligarStorage();
     resetItensDelta();
     const queryFn = getQueryFn({ on401: "throw" }) as any;

@@ -62,7 +62,11 @@ import { cycleWindow } from "@/lib/analises-metrics";
 import { diferencaContraPlano, etapaMaisCara, frasesDeCobertura } from "@/lib/analises-tempo";
 
 const raiz = path.resolve(__dirname, "..", "..");
-const fonteItems = fs.readFileSync(path.join(raiz, "server/routes/items.ts"), "utf8");
+// A entrega por peça foi aposentada (21/09: tudo sai pela embalagem): a frase
+// "Entrega concluída (" passou a ser escrita por routes/tubos.ts. As duas
+// fontes juntas são "as rotas que gravam as frases que a medição lê".
+const fonteItems = fs.readFileSync(path.join(raiz, "server/routes/items.ts"), "utf8")
+  + fs.readFileSync(path.join(raiz, "server/routes/tubos.ts"), "utf8");
 
 const DIA = 86_400_000;
 /** Meio-dia UTC = 9h em São Paulo: o dia do negócio nunca escorrega no teste. */

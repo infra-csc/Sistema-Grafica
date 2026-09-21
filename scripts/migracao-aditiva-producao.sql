@@ -162,3 +162,30 @@ ALTER TABLE tubos ADD COLUMN IF NOT EXISTS conteudo_alterado_em timestamp;
 -- Embalada SOZINHA (21/09): o volume avulso não é "Tubo N" na tela e usa a
 -- numeração negativa do evento. Aditivo: os tubos existentes ficam false.
 ALTER TABLE tubos ADD COLUMN IF NOT EXISTS avulso boolean NOT NULL DEFAULT false;
+
+-- EMBALAGEM COM QUANTIDADE (21/09): a peça pode ir dividida entre volumes.
+--   items.embalada_qty   total já embalado da peça (entregue ou não)
+--   tubo_itens           peça × volume, com a quantidade que está NAQUELE volume
+ALTER TABLE items ADD COLUMN IF NOT EXISTS embalada_qty integer NOT NULL DEFAULT 0;
+CREATE TABLE IF NOT EXISTS tubo_itens (
+  id varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+  tubo_id varchar NOT NULL REFERENCES tubos(id) ON DELETE CASCADE,
+  item_id varchar NOT NULL REFERENCES items(id) ON DELETE CASCADE,
+  quantidade integer NOT NULL CHECK (quantidade > 0),
+  embalado_em timestamp NOT NULL DEFAULT now(),
+  embalado_por text,
+  fotos text[],
+  entregue_em timestamp
+);
+CREATE UNIQUE INDEX IF NOT EXISTS "UQ_tubo_itens_tubo_item" ON tubo_itens (tubo_id, item_id);
+CREATE INDEX IF NOT EXISTS "IDX_tubo_itens_item" ON tubo_itens (item_id);
+-- Peças que já estavam num tubo pelo modelo antigo (inteiras, por items.tubo_id)
+-- ganham a linha com a quantidade conferida. Idempotente: só quem não tem linha.
+INSERT INTO tubo_itens (tubo_id, item_id, quantidade, entregue_em)
+SELECT i.tubo_id, i.id, GREATEST(1, LEAST(i.quantity, COALESCE(NULLIF(i.conferred_qty, 0), i.quantity))), t.entregue_em
+  FROM items i JOIN tubos t ON t.id = i.tubo_id
+ WHERE i.tubo_id IS NOT NULL AND i.deleted_at IS NULL
+   AND NOT EXISTS (SELECT 1 FROM tubo_itens x WHERE x.item_id = i.id);
+UPDATE items i SET embalada_qty = s.total
+  FROM (SELECT item_id, SUM(quantidade)::int AS total FROM tubo_itens GROUP BY item_id) s
+ WHERE s.item_id = i.id AND i.embalada_qty = 0;

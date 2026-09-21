@@ -13,10 +13,11 @@ try {
   const r = await client.query(`SELECT table_name, column_name FROM information_schema.columns
     WHERE (table_name='notifications' AND column_name='target_user_id')
        OR (table_name='users' AND column_name='kit')
-       OR (table_name='items' AND column_name IN ('pedido_de_peca_linha_id','kit_remessa_id','criado_por_id','maquina_prevista','impressao_por_maquina','reserva_por_maquina'))
+       OR (table_name='items' AND column_name IN ('pedido_de_peca_linha_id','kit_remessa_id','criado_por_id','maquina_prevista','impressao_por_maquina','reserva_por_maquina','embalada_qty'))
        OR (table_name='kit_remessas' AND column_name='entrega_material')
        OR (table_name='pedidos_de_peca_linhas' AND column_name='sponsor_ids')
        OR (table_name='tubos' AND column_name IN ('fotos_fechamento','fechado_em','fechado_por','conteudo_alterado_em','avulso'))
+       OR (table_name='tubo_itens' AND column_name IN ('tubo_id','item_id','quantidade','entregue_em'))
     ORDER BY 1, 2`);
   console.log("Migração aditiva concluída. Conferido:", r.rows.map((x) => `${x.table_name}.${x.column_name}`).join(", "));
 } finally {

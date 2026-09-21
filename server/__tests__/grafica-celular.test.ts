@@ -306,7 +306,8 @@ describe.each([360, 390])("Gráfica em %ipx de largura", (largura) => {
       // Peça EM impressão: o campo de quantidade e "Mandar N para acabamento".
       [() => noCartao(/^Impressas$/), '[data-testid="button-confirm-production"]'],
       [() => noCartao(/^Conferir( \d+)?$/), '[data-testid="button-confirm-conference"]'],
-      [() => noCartao(/^Entregar( \d+)?$/), '[data-testid="button-confirm-delivery"]'],
+      // "Entregar" por peça saiu da fila (21/09: tudo sai pela embalagem) — o
+      // Embalar e o Entregar do volume são medidos a 390px em tubos-tres-modais.test.ts.
       [() => $('[data-testid^="button-devolver-revisao-card-"]'), '[data-testid="button-confirmar-devolver-revisao"]'],
     ];
     const relatorio: Record<string, unknown> = {};

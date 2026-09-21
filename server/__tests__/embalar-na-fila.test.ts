@@ -33,8 +33,8 @@ const CARTOES = GRAFICA.slice(iCartoes, iTabela);
 const TABELA = GRAFICA.slice(iTabela, iBarra);
 
 describe("o gate de embalar", () => {
-  it("é a conferida (status conferred) sem tubo — e nada de evento aberto", () => {
-    expect(GRAFICA).toContain("const podeEmbalar = (item: any) =>\n    !EM_REVISAO.has(item.status) && !soVisualizaKit(item) && isConferred(item) && !item.tuboId && !!item.eventId;");
+  it("é quem tem unidade CONFERIDA ainda não embalada (a inteira, a parcial e a dividida) — e nada de evento aberto", () => {
+    expect(GRAFICA).toContain("const podeEmbalar = (item: any) =>\n    !EM_REVISAO.has(item.status) && !soVisualizaKit(item) && !isDelivered(item) && !isPacked(item) && !!item.eventId && aEmbalar(item) > 0;");
     // helpers de saldo, não uma comparação de string solta
     expect(GRAFICA).toContain("isDelivered, isPacked, isConferred, isPosConferencia, isProduced, isInProd,");
   });
@@ -91,16 +91,17 @@ describe("a peça embalada", () => {
   });
 
   it("ENTREGAR É SÓ DO TUBO: a embalada não tem Entregar individual nem entra no lote de entrega", () => {
-    expect(GRAFICA).toContain("const canDeliver = (item: any) => !soVisualizaKit(item) && canDeliverBase(item) && !isPosConferencia(item) && !item.tuboId;");
+    // a entrega por peça está aposentada: nada entrega fora do volume
+    expect(GRAFICA).toContain("const canDeliver = (_item: any) => false && canDeliverBase(_item);");
     // o lote de entrega e a fila do galpão leem o mesmo gate
     expect(GRAFICA).toContain("(filteredItems as any[]).filter(i => canDeliver(i) && !EM_REVISAO.has(i.status))");
     // na tabela, Entregar tubo é a sólida
     expect(TABELA).toContain('title="Entregar o tubo inteiro — a peça embalada só sai com o tubo"');
   });
 
-  it("o selo diz 'Tubo 1 · 4 peças', lista o conteúdo no title (linha da etiqueta) e abre o tubo no toque", () => {
-    expect(GRAFICA).toContain("return `Tubo ${numeroDoTubo.get(item.tuboId)} · ${n} ${n === 1 ? \"peça\" : \"peças\"}`;");
-    expect(GRAFICA).toContain("lista: pecas.map((x) => `${x.displayId ?? \"—\"} · ${linhaDaLista(x)}`).join(\"\\n\")");
+  it("o selo lista os volumes com a quantidade ('Tubo 1 (7) · Tubo 2 (3)'), o title lista o conteúdo do tubo e o toque abre o tubo", () => {
+    expect(GRAFICA).toContain("return falta + seloDosVolumes(volumes);");
+    expect(GRAFICA).toContain("linhaDaLista({ ...x, quantity: l.quantidade })");
     expect(GRAFICA.match(/title=\{tituloDoTubo\(item\)\}/g)?.length).toBe(2);
     expect(GRAFICA.match(/abrirTuboDaPeca\(item\); \}\}/g)?.length).toBe(2);
     // a linha memoizada redesenha quando o conteúdo do tubo muda

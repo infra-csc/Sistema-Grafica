@@ -37,6 +37,7 @@ import { SugestaoRecebedor } from "@/components/sugestao-recebedor";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { convertGCSUrlToLocalPath } from "@/lib/artePdfExport";
 import { linhaDaLista } from "@/lib/etiqueta-lista";
+import { parteDoTotal } from "@shared/embalagem";
 import { useToast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useAuth } from "@/contexts/auth-context";
@@ -52,6 +53,11 @@ type Peca = {
   deliveredQty: number;
   conferida: boolean;
   entregue: boolean;
+  /** EMBALAGEM COM QUANTIDADE (21/09): quanto da peça está NAQUELE volume… */
+  quantidadeNoTubo?: number;
+  /** …o total já embalado dela, e quanto ainda dá para embalar agora. */
+  embaladaQty?: number;
+  aEmbalar?: number;
   /** Peça de remessa do Kit — quem só visualiza não age nela. */
   doKit?: boolean;
   /** Foto da conferência da peça — quem entrega vê que o material está documentado. */
@@ -106,6 +112,8 @@ function mensagemDeErro(e: any): string {
 
 const quandoFoi = (iso: string | null) =>
   iso ? new Date(iso).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "";
+/** Quanto da peça ainda dá para embalar agora (o servidor manda; sem o campo, a peça conferida inteira). */
+const disponivel = (p: Peca) => p.aEmbalar ?? (p.conferida ? Math.max(0, p.quantity - (p.embaladaQty ?? 0)) : 0);
 const plural = (n: number, um: string, varios: string) => `${n} ${n === 1 ? um : varios}`;
 
 // ── O que os três modais compartilham ───────────────────────────────────────
@@ -215,11 +223,15 @@ function Aviso({ children, testId, tom = "ambar" }: { children: React.ReactNode;
 }
 
 /** Código + a linha da etiqueta ("2x1 Ministério - 16") — a língua do galpão. */
-function LinhaDaPeca({ p }: { p: Peca }) {
+function LinhaDaPeca({ p, noVolume = false, semQuantidade = false }: { p: Peca; noVolume?: boolean; semQuantidade?: boolean }) {
+  const q = noVolume ? p.quantidadeNoTubo ?? p.quantity : p.quantity;
+  const parte = noVolume ? parteDoTotal(q, p.quantity) : "";
   return (
     <>
       <span style={{ fontFamily: "ui-monospace, monospace", fontSize: 12.5, fontWeight: 700, color: COR.laranja, flexShrink: 0 }}>{p.displayId ?? "—"}</span>
-      <span style={{ fontSize: 13, color: COR.texto, flex: "1 1 120px", minWidth: 0, overflowWrap: "anywhere", lineHeight: 1.3 }}>{linhaDaLista(p)}</span>
+      <span style={{ fontSize: 13, color: COR.texto, flex: "1 1 120px", minWidth: 0, overflowWrap: "anywhere", lineHeight: 1.3 }}>
+        {linhaDaLista({ ...p, quantity: q }, { mostrarQuantidade: !semQuantidade })}{parte ? <span style={{ color: COR.sec }}> {parte}</span> : null}
+      </span>
     </>
   );
 }
@@ -304,6 +316,7 @@ export function EmbalarDialog({ evento, itens, comCaixas = false, onClose, onEmb
 
   const [fora, setFora] = useState<Set<string>>(new Set());
   const [tubo, setTubo] = useState<string | null>(null);
+  const [quantas, setQuantas] = useState<Record<string, number>>({});
   // "Pôr num tubo que já existe": só então o tubo automático vira escolha.
   const [escolhendo, setEscolhendo] = useState(false);
   const [fotos, setFotos] = useState<string[]>([]);
@@ -313,12 +326,16 @@ export function EmbalarDialog({ evento, itens, comCaixas = false, onClose, onEmb
   // Cada abertura começa limpa (outra peça, outro evento).
   const chave = evento ? `${evento.id}|${itens.join(",")}` : null;
   const [vista, setVista] = useState<string | null>(null);
-  if (chave !== vista) { setVista(chave); setFora(new Set()); setTubo(null); setEscolhendo(false); setFotos([]); }
+  if (chave !== vista) { setVista(chave); setFora(new Set()); setTubo(null); setEscolhendo(false); setFotos([]); setQuantas({}); }
 
   // Só embala quem está conferida e SEM tubo; a que outro aparelho embalou
   // antes (ou que é do Kit, para quem só visualiza) fica de fora, com aviso.
-  const candidatas = (data?.semTubo ?? []).filter((p) => itens.includes(p.id) && p.conferida && !soVisualizaKit(p));
+  const candidatas = (data?.semTubo ?? []).filter((p) => itens.includes(p.id) && disponivel(p) > 0 && !soVisualizaKit(p));
   const pecas = candidatas.filter((p) => !fora.has(p.id));
+  // QUANTAS de cada peça (dono, 21/09: "tem que colocar as quantidades também").
+  // O padrão é tudo o que está conferido e ainda não embalado.
+  const quantasDe = (p: Peca) => Math.max(1, Math.min(disponivel(p), quantas[p.id] ?? disponivel(p)));
+  const unidades = pecas.reduce((t, p) => t + quantasDe(p), 0);
   const jaEmTubo = (data?.tubos ?? []).filter((t) => t.pecas.some((p) => itens.includes(p.id)));
   // Tubos DE VERDADE ainda abertos: o volume avulso (embalada sozinha) não é
   // destino de ninguém e não consome número.
@@ -348,9 +365,10 @@ export function EmbalarDialog({ evento, itens, comCaixas = false, onClose, onEmb
   const embalar = useMutation({
     mutationFn: async () => {
       const ids = pecas.map((p) => p.id);
+      const itensComQuantidade = pecas.map((p) => ({ id: p.id, quantidade: quantasDe(p) }));
       const r = escolhido === "novo"
-        ? await apiRequest("POST", `/api/events/${evento!.id}/tubos`, { itemIds: ids, fotos, ...(sozinha ? { avulso: true } : {}) })
-        : await apiRequest("PATCH", `/api/tubos/${escolhido}/itens`, { adicionar: ids, fotos });
+        ? await apiRequest("POST", `/api/events/${evento!.id}/tubos`, { itens: itensComQuantidade, fotos, ...(sozinha ? { avulso: true } : {}) })
+        : await apiRequest("PATCH", `/api/tubos/${escolhido}/itens`, { itens: itensComQuantidade, fotos });
       const t = await r.json();
       return { numero: t.numero as number, avulso: !!t.avulso, quantas: ids.length, nome: pecas[0]?.displayId ?? "Peça" };
     },
@@ -379,8 +397,9 @@ export function EmbalarDialog({ evento, itens, comCaixas = false, onClose, onEmb
     : pecas.length === 0 ? "Nenhuma peça para embalar"
     : !escolhido ? "Escolha o tubo"
     : fotos.length === 0 ? "Tire a foto"
-    : sozinha && escolhido === "novo" ? `Embalar ${pecas[0]?.displayId ?? "a peça"} · ${plural(fotos.length, "foto", "fotos")}`
-    : `Embalar ${pecas.length > 1 ? `${pecas.length} peças ` : ""}no ${destino} · ${plural(fotos.length, "foto", "fotos")}`;
+    : sozinha && escolhido === "novo" ? `Embalar ${pecas[0]?.displayId ?? "a peça"} · ${unidades} un. · ${plural(fotos.length, "foto", "fotos")}`
+    : pecas.length > 1 ? `Embalar ${unidades} un. de ${pecas.length} peças · ${plural(fotos.length, "foto", "fotos")}`
+    : `Embalar ${unidades} un. no ${destino} · ${plural(fotos.length, "foto", "fotos")}`;
 
   const cartao = (valor: string, principal: string, detalhe: string, testId: string) => {
     const ativo = escolhido === valor;
@@ -421,25 +440,55 @@ export function EmbalarDialog({ evento, itens, comCaixas = false, onClose, onEmb
       {data && candidatas.length > 0 && (
         <>
           <section data-testid="embalar-pecas" aria-label="Peças que serão embaladas" style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            <span style={ROTULO}>{comCaixas ? `Peças conferidas sem tubo · ${pecas.length} de ${candidatas.length} marcadas` : plural(pecas.length, "peça", "peças")}</span>
+            <span style={ROTULO}>{comCaixas ? `Conferidas a embalar · ${pecas.length} de ${candidatas.length} marcadas` : `${plural(pecas.length, "peça", "peças")} · ${unidades} un.`}</span>
             <div style={{ border: `1px solid ${COR.borda}`, borderRadius: 10, overflow: "hidden" }}>
               {(comCaixas ? candidatas : pecas).map((p) => (
                 comCaixas ? (
-                  <label key={p.id} data-testid={`embalar-peca-${p.id}`} style={{ display: "flex", alignItems: "center", gap: 10, minHeight: 44, padding: "6px 12px", borderTop: "1px solid #f5f5f4", cursor: "pointer", background: fora.has(p.id) ? "#fff" : COR.azulBg }}>
+                  <label key={p.id} data-testid={`embalar-peca-${p.id}`} style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", minHeight: 44, padding: "6px 12px", borderTop: "1px solid #f5f5f4", cursor: "pointer", background: fora.has(p.id) ? "#fff" : COR.azulBg }}>
                     <input type="checkbox" checked={!fora.has(p.id)}
                       onChange={() => setFora((s) => { const n = new Set(s); if (n.has(p.id)) n.delete(p.id); else n.add(p.id); return n; })}
                       style={{ width: 18, height: 18, accentColor: COR.azul, flexShrink: 0 }} />
-                    <LinhaDaPeca p={p} />
+                    <LinhaDaPeca p={p} semQuantidade />
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
+                      <input aria-label={`Quantas unidades de ${p.displayId ?? "peça"} embalar`} type="number" inputMode="numeric" pattern="[0-9]*" min={1} max={disponivel(p)} value={quantasDe(p)}
+                        data-testid={`quantas-${p.id}`} disabled={disponivel(p) <= 1}
+                        onChange={(e) => setQuantas((q) => ({ ...q, [p.id]: Math.max(1, Math.min(disponivel(p), parseInt(e.target.value, 10) || 1)) }))}
+                        style={{ width: 64, height: isMobile ? 44 : 36, boxSizing: "border-box", textAlign: "center", borderRadius: 8, border: `1px solid ${COR.borda}`, background: "#fff", color: COR.texto, fontSize: isMobile ? 16 : 14, fontWeight: 700 }} />
+                      {quantasDe(p) < disponivel(p) && (
+                        <button type="button" onClick={() => setQuantas((q) => ({ ...q, [p.id]: disponivel(p) }))} data-testid={`quantas-tudo-${p.id}`}
+                          style={{ minHeight: isMobile ? 44 : 32, padding: "0 10px", borderRadius: 8, border: `1px solid ${COR.borda}`, background: "#fff", color: COR.azul, fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}>
+                          Tudo ({disponivel(p)})
+                        </button>
+                      )}
+                    </span>
+                    <span data-testid={`apoio-${p.id}`} style={{ flexBasis: "100%", fontSize: fsMin(12), color: COR.sec }}>
+                      {p.conferredQty} {p.conferredQty === 1 ? "conferida" : "conferidas"} de {p.quantity} · {p.embaladaQty ?? 0} {(p.embaladaQty ?? 0) === 1 ? "embalada" : "embaladas"}
+                    </span>
                   </label>
                 ) : (
-                  <div key={p.id} data-testid={`embalar-peca-${p.id}`} style={{ display: "flex", alignItems: "center", gap: 10, minHeight: 44, padding: "6px 12px", borderTop: "1px solid #f5f5f4" }}>
-                    <LinhaDaPeca p={p} />
+                  <div key={p.id} data-testid={`embalar-peca-${p.id}`} style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", minHeight: 44, padding: "6px 12px", borderTop: "1px solid #f5f5f4" }}>
+                    <LinhaDaPeca p={p} semQuantidade />
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
+                      <input aria-label={`Quantas unidades de ${p.displayId ?? "peça"} embalar`} type="number" inputMode="numeric" pattern="[0-9]*" min={1} max={disponivel(p)} value={quantasDe(p)}
+                        data-testid={`quantas-${p.id}`} disabled={disponivel(p) <= 1}
+                        onChange={(e) => setQuantas((q) => ({ ...q, [p.id]: Math.max(1, Math.min(disponivel(p), parseInt(e.target.value, 10) || 1)) }))}
+                        style={{ width: 64, height: isMobile ? 44 : 36, boxSizing: "border-box", textAlign: "center", borderRadius: 8, border: `1px solid ${COR.borda}`, background: "#fff", color: COR.texto, fontSize: isMobile ? 16 : 14, fontWeight: 700 }} />
+                      {quantasDe(p) < disponivel(p) && (
+                        <button type="button" onClick={() => setQuantas((q) => ({ ...q, [p.id]: disponivel(p) }))} data-testid={`quantas-tudo-${p.id}`}
+                          style={{ minHeight: isMobile ? 44 : 32, padding: "0 10px", borderRadius: 8, border: `1px solid ${COR.borda}`, background: "#fff", color: COR.azul, fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}>
+                          Tudo ({disponivel(p)})
+                        </button>
+                      )}
+                    </span>
                     {pecas.length > 1 && (
                       <button type="button" onClick={() => setFora((s) => new Set(s).add(p.id))} aria-label={`Tirar ${p.displayId ?? "a peça"} deste embalar`} title="Tirar deste embalar"
                         style={{ width: 44, height: 44, marginRight: -8, border: "none", background: "none", color: COR.sec, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}>
                         <X aria-hidden="true" style={{ width: 15, height: 15 }} />
                       </button>
                     )}
+                    <span data-testid={`apoio-${p.id}`} style={{ flexBasis: "100%", fontSize: fsMin(12), color: COR.sec }}>
+                      {p.conferredQty} {p.conferredQty === 1 ? "conferida" : "conferidas"} de {p.quantity} · {p.embaladaQty ?? 0} {(p.embaladaQty ?? 0) === 1 ? "embalada" : "embaladas"}
+                    </span>
                   </div>
                 )
               ))}
@@ -474,7 +523,7 @@ export function EmbalarDialog({ evento, itens, comCaixas = false, onClose, onEmb
               <div data-testid="embalar-conteudo-do-tubo" style={{ padding: "8px 12px", borderRadius: 10, background: COR.fundo, border: `1px solid ${COR.borda}` }}>
                 <span style={{ fontSize: fsMin(12), fontWeight: 700, color: COR.sec }}>Já está no Tubo {tuboEscolhido.numero}:</span>
                 <ul style={{ margin: "4px 0 0", padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 3 }}>
-                  {tuboEscolhido.pecas.slice(0, 6).map((p) => <li key={p.id} style={{ display: "flex", gap: 8 }}><LinhaDaPeca p={p} /></li>)}
+                  {tuboEscolhido.pecas.slice(0, 6).map((p) => <li key={p.id} style={{ display: "flex", gap: 8 }}><LinhaDaPeca p={p} noVolume /></li>)}
                   {tuboEscolhido.pecas.length > 6 && <li style={{ fontSize: fsMin(12), color: COR.sec }}>e mais {tuboEscolhido.pecas.length - 6}</li>}
                 </ul>
               </div>
@@ -595,7 +644,7 @@ export function EntregarTuboDialog({ evento, tuboId, sugestaoRecebedor = "", onC
             <ul style={{ margin: 0, padding: 0, listStyle: "none", border: `1px solid ${COR.borda}`, borderRadius: 10, overflow: "hidden" }}>
               {t.pecas.map((p) => (
                 <li key={p.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", borderTop: "1px solid #f5f5f4", flexWrap: "wrap" }}>
-                  <LinhaDaPeca p={p} />
+                  <LinhaDaPeca p={p} noVolume />
                   {!p.conferida && <span style={{ fontSize: 12, fontWeight: 700, color: COR.ambar }}>falta conferir</span>}
                   {p.conferencePhotoUrl && (
                     <a href={p.conferencePhotoUrl} target="_blank" rel="noreferrer" data-testid={`foto-conferencia-${p.id}`}
@@ -700,8 +749,7 @@ export function PainelDeTubos({ evento, onClose, onEmbalar, onEntregar }: {
   // Embaladas SOZINHAS ainda por entregar: seção própria, recolhida, sem
   // etiqueta de tubo (a etiqueta delas é a individual do evento).
   const sozinhas = (data?.tubos ?? []).filter((t) => t.avulso && !t.entregueEm && t.pecas.length > 0);
-  const paraEmbalar = (data?.semTubo ?? []).filter((p) => p.conferida && !soVisualizaKit(p));
-  const esperandoConferir = (data?.semTubo ?? []).filter((p) => !p.conferida).length;
+  const paraEmbalar = (data?.semTubo ?? []).filter((p) => disponivel(p) > 0 && !soVisualizaKit(p));
   const tuboDasFotos = abertos.find((t) => t.id === adicionandoFotos) ?? null;
 
   const acao = (cor: string, solido = false): React.CSSProperties => ({
@@ -721,14 +769,14 @@ export function PainelDeTubos({ evento, onClose, onEmbalar, onEntregar }: {
       <article key={t.id} data-testid={`tubo-${t.numero}`} aria-label={`Tubo ${t.numero}`} style={{ border: `1px solid ${COR.borda}`, borderRadius: 12, overflow: "hidden", background: "#fff" }}>
         <header style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "10px 12px", background: COR.fundo, borderBottom: `1px solid ${COR.borda}`, flexWrap: "wrap" }}>
           <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 16, fontWeight: 800, color: COR.texto }}>
-            Tubo {t.numero} <span style={{ fontSize: 12, fontWeight: 600, color: COR.sec }}>· {plural(t.pecas.length, "peça", "peças")} · {t.fotosFechamento.length ? plural(t.fotosFechamento.length, "foto", "fotos") : "sem foto"}</span>
+            Tubo {t.numero} <span style={{ fontSize: 12, fontWeight: 600, color: COR.sec }}>· {plural(t.pecas.length, "peça", "peças")} · {t.pecas.reduce((u, x) => u + (x.quantidadeNoTubo ?? x.quantity), 0)} un. · {t.fotosFechamento.length ? plural(t.fotosFechamento.length, "foto", "fotos") : "sem foto"}</span>
           </span>
           <span style={{ fontSize: fsMin(11), fontWeight: 800, color: status.cor, background: status.bg, border: `1px solid ${status.borda}`, borderRadius: 999, padding: "2px 9px" }}>{status.texto}</span>
         </header>
 
         {t.pecas.map((p) => (
           <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "6px 12px", borderTop: "1px solid #f5f5f4", flexWrap: "wrap" }}>
-            <LinhaDaPeca p={p} />
+            <LinhaDaPeca p={p} noVolume />
             {!entregue && !p.conferida && <span style={{ fontSize: fsMin(11), fontWeight: 700, color: COR.ambar }}>falta conferir</span>}
             {!entregue && !soVisualizaKit(p) && (
               <button type="button" onClick={() => tirar.mutate({ tubo: t, peca: p })} disabled={tirar.isPending}
@@ -825,12 +873,6 @@ export function PainelDeTubos({ evento, onClose, onEmbalar, onEntregar }: {
               <Package aria-hidden="true" style={{ width: 15, height: 15 }} /> Embalar peças conferidas ({paraEmbalar.length})
             </button>
           )}
-          {esperandoConferir > 0 && (
-            <p data-testid="painel-esperando-conferir" style={{ margin: 0, fontSize: 12.5, color: COR.sec }}>
-              {plural(esperandoConferir, "peça saiu", "peças saíram")} da impressão e ainda {esperandoConferir === 1 ? "espera" : "esperam"} a conferência — só a conferida é embalada.
-            </p>
-          )}
-
           <section style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             <span style={ROTULO}>Tubos abertos · {abertos.length}</span>
             {abertos.length === 0 && (
@@ -853,7 +895,7 @@ export function PainelDeTubos({ evento, onClose, onEmbalar, onEntregar }: {
                 const soVe = t.pecas.some(soVisualizaKit);
                 return (
                   <div key={t.id} data-testid={`sozinha-${peca.id}`} style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", padding: "8px 12px", border: `1px solid ${COR.borda}`, borderRadius: 10, background: "#fff" }}>
-                    <LinhaDaPeca p={peca} />
+                    <LinhaDaPeca p={peca} noVolume />
                     {!soVe && (
                       <>
                         <button type="button" onClick={() => onEntregar(t.id)} data-testid={`entregar-sozinha-${peca.id}`} style={acao(COR.verde, t.prontoParaEntregar)}>

@@ -340,7 +340,7 @@ async function montarGrafica() {
   queryClient.clear();
   queryClient.setQueryData(["/api/items/approved"], pecas);
   queryClient.setQueryData(["/api/standard-items"], []);
-  queryClient.setQueryData(["/api/tubos"], [{ id: "t1", numero: 1, eventId: EV.id, entregueEm: null, fechadoEm: null }]);
+  queryClient.setQueryData(["/api/tubos"], [{ id: "t1", numero: 1, eventId: EV.id, entregueEm: null, fechadoEm: null, linhas: [{ itemId: "g1", quantidade: 10, entregue: false }] }]);
   await act(async () => { render(h(QueryClientProvider, { client: queryClient } as any, h(Grafica as any, null))); });
   await tick(250);
   return vv;
@@ -373,7 +373,7 @@ describe("GRÁFICA a 390px", () => {
     expect($('[data-testid="button-entregar-card-g1"]')).toBeNull();
     // O selo diz quantas peças o tubo tem, lista o conteúdo no title e é alvo de 44px.
     const seloTubo = $('[data-testid="chip-tubo-card-g1"]')!;
-    expect(seloTubo.textContent).toContain("TUBO 1 · 1 PEÇA");
+    expect(seloTubo.textContent).toContain("TUBO 1 (10)");
     expect(seloTubo.getAttribute("title")).toContain("#0381");
     expect(px(seloTubo.style.minHeight)).toBe(44);
     // Conferida: Embalar é a principal, a 48px.

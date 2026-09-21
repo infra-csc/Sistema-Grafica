@@ -318,6 +318,10 @@ export const items = pgTable("items", {
   // EM QUAL TUBO a peça vai para a entrega (dono, 14/09). A peça vai INTEIRA
   // para um tubo só — decisão do dono. NULL = ainda sem tubo.
   tuboId: varchar("tubo_id").references((): any => tubos.id, { onDelete: "set null" }),
+  // EMBALAGEM COM QUANTIDADE (21/09): total de unidades já embaladas — ENTREGUES
+  // OU NÃO. O detalhe (quanto em cada volume) mora em `tubo_itens`; `tubo_id`
+  // acima virou atalho (o volume aberto com mais unidades). Ver shared/embalagem.ts.
+  embaladaQty: integer("embalada_qty").notNull().default(0),
   referenceUrl: text("reference_url"), // Anexo/referência de demonstração das peças (upload do Solicitante)
   // MAIS DE UMA referência por peça (pedido do dono, 25/08). A lista completa
   // vive aqui; referenceUrl continua sendo A PRIMEIRA da lista — as sete telas
@@ -504,6 +508,23 @@ export const tubos = pgTable("tubos", {
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
 }, (table) => [
   uniqueIndex("UQ_tubos_evento_numero").on(table.eventId, table.numero),
+]);
+
+// AS LINHAS DO VOLUME (dono, 21/09: "podemos ter quantidade diferente em tubos
+// diferentes"): peça × volume COM quantidade. Uma peça de 10 un. pode ir 7 no
+// Tubo 1 e 3 no Tubo 2. `entregue_em` carimba a linha quando o volume sai.
+export const tuboItens = pgTable("tubo_itens", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tuboId: varchar("tubo_id").notNull().references(() => tubos.id, { onDelete: "cascade" }),
+  itemId: varchar("item_id").notNull().references(() => items.id, { onDelete: "cascade" }),
+  quantidade: integer("quantidade").notNull(),
+  embaladoEm: timestamp("embalado_em").notNull().default(sql`now()`),
+  embaladoPor: text("embalado_por"),
+  fotos: text("fotos").array(),
+  entregueEm: timestamp("entregue_em"),
+}, (table) => [
+  uniqueIndex("UQ_tubo_itens_tubo_item").on(table.tuboId, table.itemId),
+  index("IDX_tubo_itens_item").on(table.itemId),
 ]);
 
 // -----------------------------------------------------------------------------
@@ -1045,6 +1066,8 @@ export const publicInsertItemSchema = insertItemSchema.omit({
   maquinaPrevista: true,
   reservaPorMaquina: true,
   impressaoPorMaquina: true,
+  // O total embalado só muda pelas rotas de tubo (shared/embalagem.ts).
+  embaladaQty: true,
   printMachine: true,
   tuboId: true,
 });

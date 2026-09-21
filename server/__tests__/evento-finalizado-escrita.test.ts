@@ -415,18 +415,16 @@ describe.each(MOTIVOS)("evento $nome — o que arruma a casa continua liberado",
     expect(mundo.itens["it-1"].conferredQty).toBe(2);
   });
 
-  it("ENTREGAR: registrar o que fisicamente já saiu — o teto é o que foi conferido", async () => {
-    // Entrega por peça = só a PARCIAL (em acabamento, parte conferida); a
-    // conferida inteira é embalada e sai pelo volume (21/09).
-    mundo.itens["it-1"] = peca({ status: "produced", quantityProduced: 2, conferredQty: 1 });
+  it("ENTREGAR por peça está aposentado (21/09): 409 que ensina, com evento finalizado ou não — a entrega é do volume", async () => {
+    mundo.itens["it-1"] = peca({ status: "conferred", quantityProduced: 2, conferredQty: 2 });
     motivo.aplica();
 
     const r = await chamar("PATCH /api/items/:id/deliver", {
       params: { id: "it-1" }, userRole: "grafica", body: { receivedBy: "João da portaria", photoUrl: "/objects/uploads/comprovante.jpg" },
     });
 
-    expect(r.status).toBe(200);
-    expect(H.db.transaction).toHaveBeenCalled();
+    expect(r.status).toBe(409);
+    expect(JSON.stringify(r.body ?? r.json ?? r)).toContain("Embale antes de entregar");
   });
 });
 

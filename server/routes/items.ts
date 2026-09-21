@@ -21,7 +21,6 @@ import {
   auditLogs,
   notifications,
   registrosDeImpressao,
-  tubos as tubosTable,
 } from "@shared/schema";
 import {
   requireAuth,
@@ -5282,16 +5281,16 @@ export function registerItemRoutes(app: Express): void {
         conferredAt: isFull ? new Date() : current.conferredAt,
         ...(trimmedNotes ? { conferenceNotes: trimmedNotes } : {}),
         // Status só vira "conferred" quando conferiu tudo; parcial continua "produced".
-        // Peça que JÁ ESTAVA num tubo (foi posta lá em acabamento) fecha a
-        // conferência direto como Embalado (21/09): conferida + no tubo é a
-        // definição da etapa, e ninguém a recoloca no tubo para "avançar".
-        ...(isFull ? { status: (current.tuboId ? "packed" : "conferred") as "packed" | "conferred" } : {}),
+        // EMBALAGEM COM QUANTIDADE (21/09): a parcial pode ter embalado a parte
+        // já conferida. Fechar a conferência só vira Embalado se TUDO já está
+        // embalado (caso raro); senão é Conferido, com o resto a embalar.
+        ...(isFull ? { status: (((current as any).embaladaQty ?? 0) >= current.quantity ? "packed" : "conferred") as "packed" | "conferred" } : {}),
       });
       await createAuditLog(
         req,
         'updated', 'item', req.params.id,
         (isFull ? `Conferência concluída (${newConferred}/${current.quantity})` : `Conferência parcial: ${n} un. (${newConferred}/${current.quantity})`)
-        + (isFull && current.tuboId ? " — já estava no tubo: Embalada" : "")
+        + (isFull && ((current as any).embaladaQty ?? 0) >= current.quantity ? " — já estava toda embalada" : "")
         + (trimmedNotes ? ` — Obs.: ${trimmedNotes}` : ""));
       broadcast({ type: "item_updated", item });
       res.json(item);
@@ -5300,154 +5299,20 @@ export function registerItemRoutes(app: Express): void {
     }
   });
 
-  // Mark item as delivered (Gráfica module)
-  //
-  // SEM a guarda de evento finalizado — é O exemplo de FECHAR A CONTA: registrar
-  // a entrega de algo que fisicamente já saiu. A rota não consegue inventar
-  // trabalho: o teto de entrega é `conferredQty` (unidades já produzidas E já
-  // conferidas), e produzir está barrado. E a entrega quase sempre é lançada
-  // DEPOIS do evento — todo evento vira "realizado" no dia seguinte, então
-  // barrar aqui impediria, para sempre, fechar o registro do que aconteceu de
-  // verdade. É exatamente o oposto do que a regra quer.
+  // ENTREGA POR PEÇA — APOSENTADA (dono, 21/09: "todas são embaladas" e "tem que
+  // colocar as quantidades"). O fluxo é um só: Conferido → Embalado → Entregue,
+  // e quem entrega é o VOLUME (tubo ou embalagem avulsa), com as quantidades que
+  // estão nele: POST /api/tubos/:id/entregar. Inclusive a PARCIAL — ela embala a
+  // parte já conferida e sai pela embalagem. A rota fica (clientes antigos,
+  // abas abertas, o lote de entrega) e responde 409 com a frase que ensina,
+  // para QUALQUER peça; nenhuma escrita acontece aqui.
   app.patch("/api/items/:id/deliver", requireAuth, async (req, res) => {
-    // Entrega é etapa da Gráfica (solicitacao entra pelo fluxo de reuso) — era
-    // a ÚNICA transição do fluxo de produção sem gate de papel.
     if (!["grafica", "solicitacao", "admin"].includes(req.userRole ?? "")) {
       return res.status(403).json({ error: "Sem permissão para registrar entrega" });
     }
-    try {
-      const { receivedBy, photoUrl, notes } = req.body;
-      const trimmedNotes = typeof notes === "string" ? notes.trim() : "";
-
-      /**
-       * A FOTO É O COMPROVANTE; O NOME É O RECADO.
-       *
-       * A regra estava invertida: exigia-se o NOME de quem recebeu e a foto
-       * era opcional. Na prática isso troca a prova pela palavra — nome é
-       * texto digitado por quem entrega, e não comprova entrega nenhuma; a
-       * foto é o registro que sustenta a conversa quando o cliente diz que
-       * não recebeu.
-       *
-       * Invertido a pedido do dono: foto obrigatória, nome opcional. A
-       * validação vive aqui e não só no cliente porque esta rota também
-       * atende a entrega em LOTE e qualquer chamada futura — regra de
-       * negócio validada só no formulário é regra que o próximo caller ignora.
-       */
-      if (!photoUrl) {
-        return res.status(400).json({ error: "photoUrl is required" });
-      }
-      
-      // Pegar status anterior antes de atualizar
-      const currentItem = await storage.getItem(req.params.id);
-      if (!currentItem) {
-        return res.status(404).json({ error: "Item not found" });
-      }
-
-      // ENTREGAR É SÓ DO TUBO (dono, 21/09): peça embalada — ou dentro de um
-      // tubo ainda aberto — não sai sozinha; sai com o tubo inteiro. Vale
-      // também para a entrega em LOTE, que chama esta mesma rota peça a peça.
-      // Peça conferida FORA de tubo (material que não vai em tubo) segue
-      // podendo sair direto, com a foto obrigatória de sempre.
-      if ((currentItem as any).tuboId) {
-        const [tuboDaPeca] = await db.select({ numero: tubosTable.numero, avulso: tubosTable.avulso, entregueEm: tubosTable.entregueEm })
-          .from(tubosTable).where(eq(tubosTable.id, (currentItem as any).tuboId));
-        if (tuboDaPeca && !tuboDaPeca.entregueEm) {
-          return res.status(409).json({ error: tuboDaPeca.avulso
-            ? "Esta peça está embalada — entregue pela embalagem dela (Entregar)"
-            : `Esta peça está no Tubo ${tuboDaPeca.numero} — entregue o tubo (ou tire a peça dele)` });
-        }
-      }
-      // TODAS SÃO EMBALADAS (dono, 21/09): o fluxo é Conferido → Embalado →
-      // Entregue, sem entrega direta da conferida. Quem entrega é o volume
-      // (tubo ou embalagem avulsa), em POST /api/tubos/:id/entregar.
-      // O que CONTINUA por aqui, de propósito: a entrega PARCIAL da peça ainda
-      // em acabamento (produced com parte conferida) e o reuso legado — nenhum
-      // dos dois tem status "conferred", então não batem nesta trava.
-      if (currentItem.status === "conferred" || (currentItem.status as string) === "conferido") {
-        return res.status(409).json({ error: "Embale a peça antes de entregar (Embalar pede a foto; a entrega pede só quem recebeu)" });
-      }
-      if (currentItem.status === "packed") {
-        return res.status(409).json({ error: "Esta peça está embalada — entregue pela embalagem dela (Entregar)" });
-      }
-      
-      // Entrega parcial: acumula deliveredQty; só vira "delivered" quando entrega
-      // tudo. Só se entrega o que já foi conferido — inclusive o reaproveitamento,
-      // que também passa pela conferência.
-      //
-      // Exceção para o legado: peças marcadas como reuso ANTES de reuse_qty
-      // existir têm reuseQty = 0 e nunca passaram por conferência, porque a regra
-      // antiga as mandava direto para a entrega. Exigir conferência delas agora
-      // travaria entregas já em andamento, então seguem pela regra antiga.
-      const legacyReuse = currentItem.isReuse && (currentItem.reuseQty || 0) === 0;
-      const alreadyDelivered = currentItem.deliveredQty || 0;
-      const maxDeliverable = legacyReuse ? currentItem.quantity : (currentItem.conferredQty || 0);
-      const remaining = maxDeliverable - alreadyDelivered;
-      if (remaining <= 0) {
-        return res.status(409).json({ error: `Nada a entregar. Entregue ${alreadyDelivered}/${currentItem.quantity}${legacyReuse ? "" : ` (conferido ${currentItem.conferredQty || 0})`}.` });
-      }
-      const n = Math.min(remaining, Math.max(1, Number(req.body.qty) || remaining));
-      const newDelivered = alreadyDelivered + n;
-      const isFullDelivery = newDelivered >= currentItem.quantity;
-
-      // Atomic: item update + audit log in one transaction.
-      const item = await db.transaction(async (tx) => {
-        const [updated] = await tx
-          .update(itemsTable)
-          .set({
-            deliveredQty: newDelivered,
-            receivedBy,
-            deliveryPhotoUrl: photoUrl || currentItem.deliveryPhotoUrl || null,
-            updatedAt: new Date(),
-            ...(trimmedNotes ? { deliveryNotes: trimmedNotes } : {}),
-            ...(isFullDelivery ? { status: "delivered" as const, deliveredAt: new Date(), statusChangedAt: new Date() } : {}),
-          })
-          .where(eq(itemsTable.id, req.params.id))
-          .returning();
-        if (!updated) throw Object.assign(new Error("Item not found"), { httpStatus: 404 });
-
-        await tx.insert(auditLogs).values({
-          ...resolveActor(req),
-          action: "delivered",
-          entityType: "item",
-          entityId: updated.id,
-          details:
-            // `receivedBy` agora é opcional, então a trilha precisa de uma
-            // frase que funcione sem ele — "recebido por: undefined" seria
-            // pior que não dizer nada.
-            (isFullDelivery
-              ? `Entrega concluída (${newDelivered}/${currentItem.quantity}${receivedBy ? `, recebido por: ${receivedBy}` : ""})`
-              : `Entrega parcial: ${n} un. (${newDelivered}/${currentItem.quantity}${receivedBy ? `, recebido por: ${receivedBy}` : ""})`)
-            + (trimmedNotes ? ` — Obs.: ${trimmedNotes}` : ""),
-        });
-
-        return updated;
-      });
-      if (!item) return res.status(404).json({ error: "Item not found" });
-
-      const event = await storage.getEvent(item.eventId);
-      
-      // Recalculate event status - might become "completed"
-      const previousStatus = event?.status;
-      await updateEventStatus(item.eventId);
-      
-      // Verificar se evento foi concluído agora - notificar Solicitação
-      const updatedEvent = await storage.getEvent(item.eventId);
-      if (previousStatus !== "completed" && updatedEvent?.status === "completed") {
-        const notification = await storage.createNotification({
-          type: "eventCompleted",
-          message: `Evento concluído: ${event?.name} - Todos os itens foram entregues`,
-          eventId: item.eventId,
-          targetRoles: ["solicitacao"],
-        });
-        broadcast({ type: "notification_created", notification });
-      }
-      
-      broadcast({ type: "item_delivered", item });
-      
-      res.json(item);
-    } catch (error: any) {
-      res.status((error as any).httpStatus ?? 500).json({ error: error.message });
-    }
+    const currentItem = await storage.getItem(req.params.id).catch(() => null);
+    if (!currentItem) return res.status(404).json({ error: "Item not found" });
+    return res.status(409).json({ error: "Embale antes de entregar (Embalar pede a foto; a entrega pede só quem recebeu)" });
   });
 
   // Update production (Gráfica module)

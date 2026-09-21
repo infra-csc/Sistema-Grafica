@@ -11,9 +11,9 @@
 // Fotos, observação e quem entregou ficam de fora de propósito: são do painel
 // do galpão e pesariam em toda lista.
 // ─────────────────────────────────────────────────────────────────────────────
-import { inArray } from "drizzle-orm";
+import { and, inArray, isNull, sql } from "drizzle-orm";
 import { db } from "../db";
-import { tubos } from "@shared/schema";
+import { tubos, tuboItens } from "@shared/schema";
 
 export type ResumoDoTubo = {
   tuboNumero: number;
@@ -23,6 +23,11 @@ export type ResumoDoTubo = {
   tuboEntregueEm: Date | null;
   tuboRecebidoPor: string | null;
 };
+
+/** EMBALAGEM COM QUANTIDADE (21/09): um volume ABERTO da peça, com quanto dela está nele. */
+export type VolumeDaPeca = { tuboId: string; numero: number; avulso: boolean; quantidade: number };
+/** O mapa de resumos leva, de carona, os volumes por peça — `comTubo` os anexa. */
+type MapaDeResumos = Map<string, ResumoDoTubo> & { volumesPorItem?: Map<string, VolumeDaPeca[]> };
 
 export async function resumosDeTuboPorIds(ids: Array<string | null | undefined>): Promise<Map<string, ResumoDoTubo>> {
   const unicos = Array.from(new Set(ids.filter((v): v is string => !!v)));
@@ -40,13 +45,32 @@ export async function resumosDeTuboPorIds(ids: Array<string | null | undefined>)
     console.error("[tubosDaPeca] não foi possível ler os tubos; peças seguem sem o número:", erro);
     return new Map();
   }
-  return new Map(linhas.map((t) => [t.id, {
+  const mapa: MapaDeResumos = new Map(linhas.map((t) => [t.id, {
     tuboNumero: t.numero, tuboAvulso: !!t.avulso, tuboFechadoEm: t.fechadoEm, tuboEntregueEm: t.entregueEm, tuboRecebidoPor: t.recebidoPor,
   }]));
+  // A peça pode estar DIVIDIDA entre volumes ("Tubo 1 (7) · Tubo 2 (3)") e o
+  // atalho `tubo_id` só aponta o principal. UM select a mais por request traz
+  // todas as linhas abertas das peças que estão nestes tubos. Também é enfeite:
+  // se falhar (banco sem a tabela nova), a peça segue só com o número.
+  try {
+    const abertas = await db
+      .select({ itemId: tuboItens.itemId, tuboId: tuboItens.tuboId, quantidade: tuboItens.quantidade, numero: tubos.numero, avulso: tubos.avulso })
+      .from(tuboItens)
+      .innerJoin(tubos, sql`${tubos.id} = ${tuboItens.tuboId}`)
+      .where(and(isNull(tuboItens.entregueEm), sql`${tuboItens.itemId} in (select item_id from tubo_itens where ${inArray(tuboItens.tuboId, unicos)})`));
+    const porItem = new Map<string, VolumeDaPeca[]>();
+    for (const l of abertas) porItem.set(l.itemId, [...(porItem.get(l.itemId) ?? []), { tuboId: l.tuboId, numero: l.numero, avulso: !!l.avulso, quantidade: l.quantidade }]);
+    mapa.volumesPorItem = porItem;
+  } catch (erro) {
+    console.error("[tubosDaPeca] não foi possível ler as quantidades por volume:", erro);
+  }
+  return mapa;
 }
 
 /** Acrescenta o resumo à peça — só quando ela TEM tubo e o tubo existe. Puro. */
-export function comTubo<T extends { tuboId?: string | null }>(peca: T, porId: Map<string, ResumoDoTubo>): T {
+export function comTubo<T extends { id?: string; tuboId?: string | null }>(peca: T, porId: Map<string, ResumoDoTubo>): T {
   const resumo = peca.tuboId ? porId.get(peca.tuboId) : undefined;
-  return resumo ? { ...peca, ...resumo } : peca;
+  if (!resumo) return peca;
+  const volumes = peca.id ? (porId as MapaDeResumos).volumesPorItem?.get(peca.id) : undefined;
+  return volumes?.length ? { ...peca, ...resumo, tuboVolumes: volumes } : { ...peca, ...resumo };
 }

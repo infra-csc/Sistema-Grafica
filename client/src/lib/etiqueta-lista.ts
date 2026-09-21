@@ -14,7 +14,13 @@
 // atrás de try/catch) — sem React, para o teste não precisar de tela.
 // ─────────────────────────────────────────────────────────────────────────────
 
-export type PecaDaLista = { id?: string; type?: string | null; description?: string | null; quantity?: number | null };
+export type PecaDaLista = {
+  id?: string; type?: string | null; description?: string | null; quantity?: number | null;
+  /** EMBALAGEM COM QUANTIDADE (21/09): quanto da peça está NAQUELE tubo. Quando
+   *  vem, é ESTA a quantidade da linha — e "(7 de 10)" avisa que a peça está
+   *  dividida (o resto foi, ou vai, em outro tubo). */
+  quantidadeNoTubo?: number | null;
+};
 
 /**
  * Aceita as grafias que chegam das planilhas: "2x1", "2X1", "2×1", "2 x 1",
@@ -36,7 +42,10 @@ export const linhaDaLista = (p: PecaDaLista, opcoes: { mostrarQuantidade?: boole
   const desc = String(p.description ?? "").trim();
   const nome = !desc ? tipo : desc.toLowerCase().startsWith(tipo.toLowerCase()) ? desc : `${tipo} ${desc}`;
   if (opcoes.mostrarQuantidade === false) return nome;
-  return `${nome} - ${p.quantity ?? 1}`;
+  const noTubo = Number(p.quantidadeNoTubo) > 0 ? Number(p.quantidadeNoTubo) : null;
+  if (noTubo === null) return `${nome} - ${p.quantity ?? 1}`;
+  const total = Number(p.quantity) || noTubo;
+  return noTubo < total ? `${nome} - ${noTubo} (${noTubo} de ${total})` : `${nome} - ${noTubo}`;
 };
 
 // ── Tamanhos ────────────────────────────────────────────────────────────────

@@ -21,6 +21,7 @@
 // para Atendimento e Arte.
 // ─────────────────────────────────────────────────────────────────────────────
 import { rotuloDaMaquina } from "@shared/fluxo-peca";
+import { progressoDaEmbalagem, seloDosVolumes } from "@shared/embalagem";
 import { aImprimirDaPeca, estaDividida, partesDaPeca } from "@shared/impressao-dividida";
 import { lerReserva, resumoDaReserva } from "@shared/reserva-de-impressora";
 import { PRODUCTION_STATUSES, getStatusMeta } from "@/lib/status";
@@ -41,6 +42,10 @@ export type PecaComProducao = {
   tuboNumero?: number | string | null;
   /** Embalada sozinha (volume avulso): nunca se diz "Tubo N". */
   tuboAvulso?: boolean | null;
+  /** EMBALAGEM COM QUANTIDADE (21/09): total já embalado e os volumes ABERTOS
+   *  da peça com a quantidade em cada um — viajam na peça, como o número. */
+  embaladaQty?: number | string | null;
+  tuboVolumes?: Array<{ tuboId: string; numero: number; avulso?: boolean | null; quantidade: number }> | null;
   tuboFechadoEm?: string | Date | null;
   tuboEntregueEm?: string | Date | null;
   tuboRecebidoPor?: string | null;
@@ -65,6 +70,13 @@ function horaDe(v: string | Date | null | undefined): string | null {
   const d = v instanceof Date ? v : new Date(v);
   if (isNaN(d.getTime())) return null;
   return d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", timeZone: "America/Sao_Paulo" });
+}
+
+/** "Tubo 1 (7) · Tubo 2 (3)" / "Embalada (10)" — os volumes abertos, com a quantidade de cada um. */
+export function volumesDaPeca(item: PecaComProducao | null | undefined): string | null {
+  const volumes = item?.tuboVolumes ?? [];
+  if (!volumes.length) return null;
+  return seloDosVolumes(volumes.map((v) => ({ tuboId: v.tuboId, numero: v.numero, avulso: v.avulso, quantidade: v.quantidade })));
 }
 
 /** "Tubo 2" — ou só "Em tubo" quando a peça tem tubo mas o número não veio. */
@@ -106,6 +118,11 @@ export function detalheDaProducao(item: PecaComProducao | null | undefined): str
     return [maquina, progresso].filter(Boolean).join(" · ") || null;
   }
 
+  // Parte já embalada (a parcial, ou a que foi dividida no tempo): o progresso
+  // e onde está — "7 de 10 embaladas · Tubo 1 (7)".
+  const parcial = progressoDaEmbalagem(item as any);
+  if (parcial && !ENTREGUE.has(status) && status !== "packed") return [parcial, volumesDaPeca(item)].filter(Boolean).join(" · ");
+
   if (IMPRESSA.has(status)) {
     const total = inteiro(item.quantity);
     const conferidas = inteiro(item.conferredQty);
@@ -116,6 +133,8 @@ export function detalheDaProducao(item: PecaComProducao | null | undefined): str
   if (CONFERIDA.has(status)) return "Aguardando embalagem";
 
   if (status === "packed") {
+    // Dividida entre volumes: "Tubo 1 (7) · Tubo 2 (3)".
+    if ((item.tuboVolumes?.length ?? 0) > 1) return volumesDaPeca(item);
     const tubo = rotuloDoTubo(item);
     if (!tubo) return "Aguardando entrega";
     const hora = horaDe(item.tuboFechadoEm);

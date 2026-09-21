@@ -80,7 +80,7 @@ const ETAPA_CUMPRIDA: Record<string, number> = {
   awaiting_approval: 2, awaiting_sponsor_approval: 2, sponsor_approved: 2, awaiting_finalization: 2,
   awaiting_creator_review: 3, awaiting_final_review: 3, awaiting_review: 3, in_review: 3,
   ready_for_production: 4, pronto_para_producao: 4, approved: 4, liberado: 4,
-  inProduction: 5, em_producao: 5, produced: 5, produzido: 5, conferred: 5,
+  inProduction: 5, em_producao: 5, produced: 5, produzido: 5, conferred: 5, packed: 5,
   delivered: 6, entregue: 6, canceled: 6, deleted: 6,
 };
 const etapaCumprida = (status: string) => ETAPA_CUMPRIDA[status] ?? 0;
@@ -1683,7 +1683,7 @@ export default function EventDetail() {
   // faziam o gate nunca disparar. 'approved' e 'conferred' entram no bloqueio
   // de edição — antes dava para editar peça liberada/conferida mas não
   // excluí-la, um gate incoerente.
-  const BLOCKED_EDIT_STATUSES = ["ready_for_production", "pronto_para_producao", "approved", "inProduction", "produced", "conferred", "delivered"];
+  const BLOCKED_EDIT_STATUSES = ["ready_for_production", "pronto_para_producao", "approved", "inProduction", "produced", "conferred", "packed", "delivered"];
 
   /**
    * POR QUE devolve a FRASE e não um booleano: agora há DUAS razões para o

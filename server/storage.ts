@@ -668,7 +668,7 @@ export class DatabaseStorage implements IStorage {
       .select()
       .from(items)
       .where(and(
-        sql`${items.status} IN ('awaiting_final_review', 'awaiting_review', 'in_review', 'ready_for_production', 'pronto_para_producao', 'approved', 'inProduction', 'produced', 'conferred', 'delivered')`,
+        sql`${items.status} IN ('awaiting_final_review', 'awaiting_review', 'in_review', 'ready_for_production', 'pronto_para_producao', 'approved', 'inProduction', 'produced', 'conferred', 'packed', 'delivered')`,
         sql`${items.deletedAt} IS NULL`
       ))
       .orderBy(desc(items.createdAt));

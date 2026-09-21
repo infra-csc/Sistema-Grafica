@@ -33,6 +33,7 @@ export const STATUS_GROUPS = {
   inProduction:          ["inProduction"],
   produced:              ["produced"],
   conferred:             ["conferred"],
+  packed:                ["packed"],
   delivered:             ["delivered"],
   canceled:              ["canceled"],
 } as const satisfies Record<string, readonly string[]>;

@@ -55,6 +55,10 @@ const n = (v: unknown): number => {
 export const isDelivered = (item: SaldoItem): boolean =>
   item?.status === "delivered" || item?.status === "entregue";
 export const isConferred = (item: SaldoItem): boolean => item?.status === "conferred";
+/** Embalada (21/09): conferida e dentro de um tubo, esperando o caminhão. */
+export const isPacked = (item: SaldoItem): boolean => item?.status === "packed";
+/** Já passou pela conferência e ainda não saiu — conferida OU embalada. */
+export const isPosConferencia = (item: SaldoItem): boolean => isConferred(item) || isPacked(item);
 export const isProduced = (item: SaldoItem): boolean =>
   item?.status === "produced" || item?.status === "produzido";
 export const isInProd = (item: SaldoItem): boolean =>

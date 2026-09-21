@@ -22,7 +22,7 @@
  * `new Set([...])` local — a terceira cópia da mesma lista, pronta a divergir
  * na próxima grafia legada descoberta.
  */
-export const PRODUCED_LIKE = ["produced", "conferred", "produzido"] as const;
+export const PRODUCED_LIKE = ["produced", "conferred", "packed", "produzido"] as const;
 
 // ─── Semáforo por etapa ──────────────────────────────────────────────────────
 

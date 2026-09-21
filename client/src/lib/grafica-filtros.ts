@@ -18,7 +18,7 @@
 // (ctx.groupOf), porque ela depende do catálogo de Modelos carregado por query.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { isDelivered, isComplement, reusedTotalOf, type SaldoItem } from "./saldo";
+import { isDelivered, isComplement, isInProd, reusedTotalOf, type SaldoItem } from "./saldo";
 import { normalizarBusca } from "./utils";
 
 /** Forma mínima de peça que o recorte enxerga (o item cru da API é `any`). */
@@ -31,6 +31,8 @@ export interface ItemGrafica extends SaldoItem {
   finish?: string | null;
   eventId?: string | null;
   event?: { name?: string | null; truckDepartureDate?: string | Date | null } | null;
+  /** Código da impressora ("1".."4") gravado quando a impressão começa. */
+  printMachine?: string | null;
 }
 
 export interface GraficaFiltros {
@@ -43,6 +45,12 @@ export interface GraficaFiltros {
   material: string[];
   acabamento: string[];
   mes: string[];
+  /**
+   * IMPRESSORA da peça (dono, 21/09: "na Gráfica ter filtro de impressoras").
+   * Valores: o código da máquina ("1".."4") ou SEM_IMPRESSORA — peça em
+   * impressão sem máquina informada (legado, de antes do controle de máquinas).
+   */
+  impressora: string[];
   proximos10: boolean;
   complementos: boolean;
   /**
@@ -63,7 +71,7 @@ export interface GraficaFiltros {
 
 export const FILTROS_VAZIOS: GraficaFiltros = {
   busca: "", status: [], evento: [], grupo: [], percurso: [], tipo: [],
-  material: [], acabamento: [], mes: [], proximos10: false,
+  material: [], acabamento: [], mes: [], impressora: [], proximos10: false,
   complementos: false, reaproveitamento: false, entregues: false,
 };
 
@@ -87,6 +95,7 @@ const CAMPOS = [
   { chave: "material",    url: "material",   rotulo: "Material" },
   { chave: "acabamento",  url: "acabamento", rotulo: "Acabamento" },
   { chave: "mes",         url: "mes",        rotulo: "Mês" },
+  { chave: "impressora",  url: "impressora", rotulo: "Impressora" },
   { chave: "proximos10",  url: "proximos10", rotulo: "Próximos 10 dias" },
   { chave: "complementos", url: "complementos", rotulo: "Só complementos" },
   { chave: "reaproveitamento", url: "reuso", rotulo: "Só reaproveitamento" },
@@ -150,6 +159,7 @@ export function filtrosDaURL(search: string): GraficaFiltros {
     material: csv(p.get("material")),
     acabamento: csv(p.get("acabamento")),
     mes: csv(p.get("mes")),
+    impressora: csv(p.get("impressora")),
     proximos10: p.get("proximos10") === "1",
     complementos: p.get("complementos") === "1",
     reaproveitamento: p.get("reuso") === "1",
@@ -259,7 +269,26 @@ export interface CtxFiltros {
  * `itemCasaFiltros`; sem isso ele volta a ser uma segunda fonte de verdade.
  */
 export type FacetaGrafica =
-  | "status" | "evento" | "grupo" | "percurso" | "tipo" | "material" | "acabamento" | "mes";
+  | "status" | "evento" | "grupo" | "percurso" | "tipo" | "material" | "acabamento" | "mes" | "impressora";
+
+// ── IMPRESSORA da peça ──────────────────────────────────────────────────────
+
+/** Valor sintético do filtro: peça em impressão sem máquina informada. */
+export const SEM_IMPRESSORA = "sem";
+
+/**
+ * A impressora que o filtro enxerga na peça. `printMachine` é gravado quando a
+ * impressão começa e NUNCA é apagado — uma peça já produzida continua "da
+ * Impressora 1", e é isso que se quer (quem filtra por máquina pergunta o que
+ * passou por ela). Só a peça EM IMPRESSÃO sem máquina vira "Sem impressora":
+ * é o legado de antes do controle de máquinas, que ainda precisa ser achado
+ * para ganhar uma. Fora da impressão e sem máquina, a peça não tem impressora
+ * nenhuma (null) e o filtro a deixa de fora.
+ */
+export function itemImpressora(item: ItemGrafica): string | null {
+  if (item?.printMachine) return String(item.printMachine);
+  return isInProd(item) ? SEM_IMPRESSORA : null;
+}
 
 export interface OpcoesCasamento {
   /**
@@ -366,6 +395,11 @@ export function itemCasaFiltros(
   if (excluir !== "tipo" && f.tipo.length > 0 && !f.tipo.includes(String(item.type ?? ""))) return false;
   if (excluir !== "material" && f.material.length > 0 && !f.material.includes(String(item.material ?? ""))) return false;
   if (excluir !== "acabamento" && f.acabamento.length > 0 && !f.acabamento.includes(String(item.finish ?? ""))) return false;
+  // Impressora: a mesma régua de `itemImpressora` (peça sem impressora nunca casa).
+  if (excluir !== "impressora" && f.impressora.length > 0) {
+    const maq = itemImpressora(item);
+    if (maq === null || !f.impressora.includes(maq)) return false;
+  }
 
   // ── Data de saída do caminhão (sempre em UTC, o fuso em que a Saída é
   // exibida na lista; com getMonth() local a virada de mês perto da meia-noite

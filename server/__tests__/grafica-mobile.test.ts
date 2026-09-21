@@ -66,10 +66,10 @@ describe("o card não perde ação da tabela", () => {
   // existir no card com o MESMO gate — escrito igual, para não divergir.
   it("produzir, reaproveitar, corrigir reaproveitamento e devolver usam o gate literal da tabela", () => {
     const pares: [string, string][] = [
-      ["const podeProduzirPeca = !emRevisao && canProduce && !isDelivered(item) && !isProduced(item) && !isConferred(item) && !item.isReuse;",
-       "{!bulkOn && !emRevisao && canProduce && !isDelivered(item) && !isProduced(item) && !isConferred(item) && !item.isReuse && ("],
-      ["const podeReaproveitarPeca = !emRevisao && !soVisualizaKit(item) && !isDelivered(item) && !isConferred(item) && (!isProduced(item) ? tetoReaproveitar(item) > 0 : podeMexerQtd && qtyOf(item) > 0);",
-       "{!bulkOn && !emRevisao && !soVisualizaKit(item) && !isDelivered(item) && !isConferred(item) && (!isProduced(item) ? tetoReaproveitar(item) > 0 : podeMexerQtd && qtyOf(item) > 0) && ("],
+      ["const podeProduzirPeca = !emRevisao && canProduce && !isDelivered(item) && !isProduced(item) && !isPosConferencia(item) && !item.isReuse;",
+       "{!bulkOn && !emRevisao && canProduce && !isDelivered(item) && !isProduced(item) && !isPosConferencia(item) && !item.isReuse && ("],
+      ["const podeReaproveitarPeca = !emRevisao && !soVisualizaKit(item) && !isDelivered(item) && !isPosConferencia(item) && (!isProduced(item) ? tetoReaproveitar(item) > 0 : podeMexerQtd && qtyOf(item) > 0);",
+       "{!bulkOn && !emRevisao && !soVisualizaKit(item) && !isDelivered(item) && !isPosConferencia(item) && (!isProduced(item) ? tetoReaproveitar(item) > 0 : podeMexerQtd && qtyOf(item) > 0) && ("],
       ["const podeCorrigirReaprov = !emRevisao && !soVisualizaKit(item) && (isProduced(item) || isAdmin) && reusedTotalOf(item) > 0",
        "{!bulkOn && !emRevisao && !soVisualizaKit(item) && (isProduced(item) || isAdmin) && reusedTotalOf(item) > 0"],
       ["const podeDevolverPeca = canProduce && podeDevolverParaRevisao(item);",

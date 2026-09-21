@@ -143,6 +143,7 @@ export const REGUA_DE_PAPEIS: RegraDeRota[] = [
   { metodo: "PATCH", rota: "/api/standard-items/rename-material", papeis: ["admin", "solicitacao"] },
   { metodo: "DELETE", rota: "/api/tubos/:id", papeis: ["admin", "grafica", "solicitacao"] },
   { metodo: "POST", rota: "/api/tubos/:id/entregar", papeis: ["admin", "grafica", "solicitacao"] },
+  { metodo: "POST", rota: "/api/tubos/:id/fechar", papeis: ["admin", "grafica", "solicitacao"] },
   { metodo: "PATCH", rota: "/api/tubos/:id/itens", papeis: ["admin", "grafica", "solicitacao"] },
   { metodo: "DELETE", rota: "/api/users/:id", papeis: ["admin"] },
   { metodo: "PATCH", rota: "/api/users/:id", papeis: ["admin"] },

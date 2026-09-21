@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useRef, useCallback, useDeferredValue, me
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { FilterSelect } from "@/components/filter-select";
 import {
-  Calendar, Package, FileCheck, Plus, Activity, Search, Truck, Clock,
+  Calendar, Package, PackageCheck, FileCheck, Plus, Activity, Search, Truck, Clock,
   ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Link2, FileText,
   RefreshCw, RotateCcw, Download, X, Copy, Check, Trash2, Undo2, Pencil,
   ShieldAlert, Flag, CalendarClock, CopyPlus, ArrowUpToLine, Lock,
@@ -127,6 +127,8 @@ const TYPE_CONFIG: Record<string, TypeCfg> = {
   production_started:       { label: "Em Impressão",      filterLabel: "Em impressão",              phase: "producao", icon: Package },
   item_produced:            { label: "Impressão concluída", filterLabel: "Impressões concluídas",   phase: "producao", icon: Package },
   item_conferred:           { label: "Conferência",       filterLabel: "Conferências",              phase: "producao", icon: FileCheck },
+  item_packed:              { label: "Embalada",          filterLabel: "Embaladas (em tubo)",       phase: "producao", icon: PackageCheck },
+  item_unpacked:            { label: "Tirada do tubo",    filterLabel: "Tiradas do tubo",           phase: "producao", icon: Undo2 },
   item_reused:              { label: "Reaproveitamento",  filterLabel: "Reaproveitamentos",         phase: "producao", icon: RefreshCw },
   item_reused_partial:      { label: "Reaprov. Parcial",  filterLabel: "Reaprov. parciais",         phase: "producao", icon: RefreshCw },
   item_reuse_corrected:     { label: "Reaprov. Corrigido", filterLabel: "Reaprov. corrigidos",      phase: "producao", icon: RefreshCw },
@@ -601,6 +603,10 @@ function buildDescription(e: TimelineEvent, nav: Nav) {
       return <span>{ID} <B>{e.itemType}</B> — {e.logDetails || "reaproveitamento corrigido"} · evento {EV}<Excluida e={e} /></span>;
     case "item_conferred":
       return <span>{ID} <B>{e.itemType}</B> conferida{e.logDetails?.match(/\((\d+\/\d+)\)/) ? <> — {e.logDetails.match(/\((\d+\/\d+)\)/)![1]} un.</> : null} · evento {EV}<Excluida e={e} /></span>;
+    case "item_packed":
+      return <span>{ID} <B>{e.itemType}</B> {e.logDetails || "embalada no tubo"} · evento {EV}<Excluida e={e} /></span>;
+    case "item_unpacked":
+      return <span>{ID} <B>{e.itemType}</B> {e.logDetails || "retirada do tubo"} — voltou a Conferido · evento {EV}<Excluida e={e} /></span>;
     case "item_canceled":
       return <span>{ID} <B>{e.itemType}</B> cancelada · evento {EV}<Excluida e={e} /></span>;
     case "item_returned":

@@ -11,7 +11,7 @@
 // contraste de texto. As paletas antigas usavam a cor saturada COMO texto, o
 // que reprovava AA.
 // ─────────────────────────────────────────────────────────────────────────────
-import { Clock, CheckCircle, Package, Truck, XCircle, Lock } from "lucide-react";
+import { Clock, CheckCircle, Package, PackageCheck, Truck, XCircle, Lock } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import {
   EVENT_CLOSED_STATUS,
@@ -98,6 +98,10 @@ export const STATUS: Record<string, StatusMeta> = {
   inProduction:          meta("Em Impressão",           "Em Impressão",   P.orange,  Package),
   produced:              meta("Impresso / Acabamento",        "Impresso",   P.pink,    CheckCircle),
   conferred:             meta("Conferido",              "Conferido",      P.cyan,    CheckCircle),
+  // EMBALADO (dono, 21/09): conferida e dentro de um tubo, à espera do
+  // caminhão. Azul de propósito — fica entre o ciano de Conferido e o verde
+  // de Entregue sem se confundir com nenhum dos dois (text 700, AA no bg 50).
+  packed:                meta("Embalado",               "Embalado",       P.blue,    PackageCheck),
   delivered:             meta("Entregue",               "Entregue",       P.emerald, Truck),
   // ── Aliases LEGADOS em português (dados antigos ainda gravados assim) ──
   // Apontam para os mesmos metas dos status canônicos correspondentes
@@ -142,7 +146,8 @@ export const STATUS: Record<string, StatusMeta> = {
 //   awaiting_final_review → PATCH /api/items/:id/creator-review  (a tela /solicitacao, perfil Solicitação)
 //   pronto/liberado     → PATCH /api/items/:id/start-production  (grafica, admin)
 //   produced            → POST /api/items/:id/confer             (grafica, solicitacao, admin)
-//   conferred           → PATCH /api/items/:id/deliver           (grafica, solicitacao, admin)
+//   conferred           → PATCH /api/tubos/:id/itens (embala) ou PATCH /api/items/:id/deliver (grafica, solicitacao, admin)
+//   packed              → POST /api/tubos/:id/entregar          (grafica, solicitacao, admin)
 //   canceled            → PATCH /api/items/:id/uncancel          (admin, pela ficha da peça)
 //   evento closed       → POST /api/events/:id/reopen            (admin)
 // Se uma dessas guardas mudar, a frase daqui muda junto — é texto de ajuda,
@@ -271,10 +276,17 @@ export const STATUS_GUIA: Record<string, StatusGuia> = {
   produced: G_PRODUZIDO,
   produzido: G_PRODUZIDO,
   conferred: {
-    significado: "Conferida; falta registrar a entrega.",
+    significado: "Conferida; falta pôr num tubo ou registrar a entrega.",
     quemAge: "Gráfica ou Solicitação",
     onde: "tela Gráfica",
-    proximoPasso: "Registrar a entrega (com foto).",
+    proximoPasso: "Colocar num tubo (vira Embalado) ou, se a peça não vai em tubo, registrar a entrega (com foto).",
+    vez: "vez da embalagem",
+  },
+  packed: {
+    significado: "Conferida e embalada no tubo, à espera da saída do caminhão.",
+    quemAge: "Gráfica",
+    onde: "tela Gráfica, botão Tubos do evento",
+    proximoPasso: "Entregar o tubo (com o nome de quem recebeu).",
     vez: "vez da entrega",
   },
   delivered: G_ENTREGUE,
@@ -340,7 +352,9 @@ export function descricaoDoStatus(status: string | null | undefined): string | n
 // Existem porque telas comparavam contra nomes que NÃO existem no vocabulário
 // ('entregue', 'em_producao', 'produzido') e os gates nunca disparavam.
 // Sempre importe daqui em vez de escrever arrays literais.
-export const PRODUCTION_STATUSES = ["inProduction", "produced", "conferred", "delivered"] as const;
+// `packed` (Embalado, 21/09) entrou ENTRE conferred e delivered — quem
+// desestrutura esta lista por posição (atendimento.tsx) precisa dos cinco.
+export const PRODUCTION_STATUSES = ["inProduction", "produced", "conferred", "packed", "delivered"] as const;
 export const FINAL_STATUSES = ["delivered", "canceled", "deleted"] as const;
 
 /** Valor gravado em `events.status` pelo encerramento MANUAL (routes/shared.ts). */

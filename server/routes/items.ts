@@ -248,7 +248,7 @@ const updateItemSchema = insertItemSchema
 // ─────────────────────────────────────────────────────────────────────────────
 const COMPLEMENT_ALLOWED_STATUSES: readonly string[] = [
   "inProduction", "em_producao", "produced", "produzido",
-  "conferred", "delivered", "entregue",
+  "conferred", "packed", "delivered", "entregue",
 ];
 
 // m² é grandeza de produção/custo e não pode ser fonte-de-verdade do cliente.
@@ -520,7 +520,7 @@ const agoraDoDelta = () => new Date(Date.now() - SOBREPOSICAO_DO_DELTA_MS).toISO
  */
 const STATUS_DA_FILA_DA_GRAFICA: ReadonlySet<string> = new Set([
   "awaiting_final_review", "awaiting_review", "in_review", "ready_for_production", "pronto_para_producao",
-  "approved", "inProduction", "produced", "conferred", "delivered",
+  "approved", "inProduction", "produced", "conferred", "packed", "delivered",
 ]);
 
 /**
@@ -3616,7 +3616,7 @@ export function registerItemRoutes(app: Express): void {
       // só devolve a peça como sucesso, sem reprocessar.
       const alreadyReleased = [
         "ready_for_production", "approved", "pronto_para_producao", "liberado",
-        "inProduction", "em_producao", "produced", "produzido", "conferred", "delivered", "entregue",
+        "inProduction", "em_producao", "produced", "produzido", "conferred", "packed", "delivered", "entregue",
       ].includes(currentItem.status);
       if (alreadyReleased) {
         return res.json(currentItem);
@@ -4249,6 +4249,7 @@ export function registerItemRoutes(app: Express): void {
           "Em Produção": "inProduction",
           "Produzido": "produced",
           "Conferido": "conferred",
+          "Embalado": "packed",
           "Entregue": "delivered",
         };
         const trilha = await storage.getAuditLogs("item", currentItem.id);
@@ -5151,12 +5152,16 @@ export function registerItemRoutes(app: Express): void {
         conferredAt: isFull ? new Date() : current.conferredAt,
         ...(trimmedNotes ? { conferenceNotes: trimmedNotes } : {}),
         // Status só vira "conferred" quando conferiu tudo; parcial continua "produced".
-        ...(isFull ? { status: "conferred" as const } : {}),
+        // Peça que JÁ ESTAVA num tubo (foi posta lá em acabamento) fecha a
+        // conferência direto como Embalado (21/09): conferida + no tubo é a
+        // definição da etapa, e ninguém a recoloca no tubo para "avançar".
+        ...(isFull ? { status: (current.tuboId ? "packed" : "conferred") as "packed" | "conferred" } : {}),
       });
       await createAuditLog(
         req,
         'updated', 'item', req.params.id,
         (isFull ? `Conferência concluída (${newConferred}/${current.quantity})` : `Conferência parcial: ${n} un. (${newConferred}/${current.quantity})`)
+        + (isFull && current.tuboId ? " — já estava no tubo: Embalada" : "")
         + (trimmedNotes ? ` — Obs.: ${trimmedNotes}` : ""));
       broadcast({ type: "item_updated", item });
       res.json(item);
@@ -5237,7 +5242,7 @@ export function registerItemRoutes(app: Express): void {
             deliveryPhotoUrl: photoUrl || currentItem.deliveryPhotoUrl || null,
             updatedAt: new Date(),
             ...(trimmedNotes ? { deliveryNotes: trimmedNotes } : {}),
-            ...(isFullDelivery ? { status: "delivered" as const, deliveredAt: new Date() } : {}),
+            ...(isFullDelivery ? { status: "delivered" as const, deliveredAt: new Date(), statusChangedAt: new Date() } : {}),
           })
           .where(eq(itemsTable.id, req.params.id))
           .returning();

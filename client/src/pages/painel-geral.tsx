@@ -96,7 +96,7 @@ const STATUS_FILTER_VALUES = [
   "requested", "draft", "awaiting_linking", "awaiting_submission",
   "awaiting_approval", "awaiting_finalization", "awaiting_final_review",
   "ready_for_production", "approved", "inProduction", "produced",
-  "conferred", "delivered", "canceled",
+  "conferred", "packed", "delivered", "canceled",
 ];
 
 // Altura FIXA do header sticky de evento — o thead sticky usa este valor como
@@ -141,7 +141,7 @@ const EVENT_TITLE_STYLE: React.CSSProperties = {
 // estado. Um campo vazio diz "não sei"; um número errado diz "sei" e mente.
 const ZONA_ENTRADA: GroupKey[] = ["requested", "awaiting_linking"];
 const ZONA_APROVACAO: GroupKey[] = ["awaiting_submission", "awaiting_approval", "awaiting_finalization", "awaiting_final_review"];
-const ZONA_PRODUCAO: GroupKey[] = ["ready_for_production", "approved", "inProduction", "produced", "conferred", "delivered"];
+const ZONA_PRODUCAO: GroupKey[] = ["ready_for_production", "approved", "inProduction", "produced", "conferred", "packed", "delivered"];
 
 // ─── Tom NEUTRO por zona, para as barras de distribuição ────────────────────
 // As barras pintavam cada etapa com a cor do seu status: até 13 matizes numa

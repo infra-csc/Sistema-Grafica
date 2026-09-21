@@ -95,6 +95,6 @@ describe("a tela da Gráfica espelha o servidor", () => {
 
   it("conferida ou entregue, o botão some — mesma tranca do servidor", () => {
     const bloco = GRAFICA.slice(GRAFICA.indexOf("(!isProduced(item) ? tetoReaproveitar(item) > 0") - 200);
-    expect(bloco.slice(0, 260)).toContain("!isDelivered(item) && !isConferred(item)");
+    expect(bloco.slice(0, 260)).toContain("!isDelivered(item) && !isPosConferencia(item)");
   });
 });

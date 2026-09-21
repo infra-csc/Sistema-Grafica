@@ -13,7 +13,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync, existsSync } from "fs";
 import path from "path";
-import { PODE_IR_PARA_TUBO, podeIrParaTubo } from "@shared/fluxo-peca";
+import { PODE_IR_PARA_TUBO, podeIrParaTubo, EMBALADO, ehEmbalada, POS_CONFERENCIA, ehPosConferencia, DEPOIS_DA_ARTE } from "@shared/fluxo-peca";
 
 const RAIZ = path.resolve(__dirname, "../..");
 const ler = (rel: string) => readFileSync(path.resolve(RAIZ, rel), "utf8");
@@ -26,7 +26,8 @@ const PAINEL = ler("client/src/components/tubos-dialog.tsx");
 
 describe("quando uma peça pode ir para um tubo", () => {
   it("depois que saiu da impressão: em acabamento / conferência ou já conferida", () => {
-    expect([...PODE_IR_PARA_TUBO]).toEqual(["produced", "produzido", "conferred", "conferido"]);
+    // `packed` está na lista só para a peça poder MUDAR de tubo (21/09).
+    expect([...PODE_IR_PARA_TUBO]).toEqual(["produced", "produzido", "conferred", "conferido", "packed"]);
     for (const status of ["produced", "conferred"]) expect(podeIrParaTubo(status)).toBe(true);
   });
 
@@ -92,17 +93,31 @@ describe("as rotas", () => {
     expect(ROTAS).toContain('error?.code === "23505"');
   });
 
-  it("tubo entregue não se mexe, e só tubo vazio pode ser apagado", () => {
+  it("tubo entregue não se mexe; apagar tubo com peças devolve-as a Conferido (21/09)", () => {
     expect(ROTAS).toContain("já foi entregue — não dá para mexer no que tem dentro");
-    expect(ROTAS).toContain("tire as peças antes de apagar");
+    expect(ROTAS).not.toContain("tire as peças antes de apagar");
+    expect(ROTAS).toContain("await tirarDoTubo(req, tubo, abertas.map((p) => p.id), `Tubo ${tubo.numero} apagado`);");
+    expect(ROTAS).toContain("res.json({ ok: true, devolvidas: abertas.length });");
+    expect(ROTAS).toContain("peça(s) voltaram a Conferido");
   });
 });
 
 describe("a entrega do tubo inteiro", () => {
   const entrega = ROTAS.slice(ROTAS.indexOf('app.post("/api/tubos/:id/entregar"'));
 
-  it("exige a foto — é o comprovante, como na entrega por peça", () => {
-    expect(entrega).toContain("A foto da entrega é obrigatória — ela é o comprovante");
+  it("exige QUEM RECEBEU (21/09) — a foto do comprovante passou a ser opcional", () => {
+    // O material já foi fotografado ao FECHAR o tubo; o que registra a
+    // entrega é o nome e a hora. 400 com frase de gente, não "receivedBy is required".
+    expect(entrega).toContain('if (!recebedor) {');
+    expect(entrega).toContain('return res.status(400).json({ error: "Informe quem recebeu o tubo — é o que registra a entrega" });');
+    expect(entrega).not.toContain("A foto da entrega é obrigatória");
+    expect(entrega).toContain('const foto = typeof photoUrl === "string" && photoUrl.trim() ? urlDeThumbValida(photoUrl) : null;');
+    expect(entrega).toContain('A foto precisa ser enviada pelo app (endereço /objects/…)');
+    // e o recebedor obrigatório é SÓ do tubo: a entrega por peça continua como era
+    const ITEMS = ler("server/routes/items.ts");
+    const porPeca = ITEMS.slice(ITEMS.indexOf('app.patch("/api/items/:id/deliver"'), ITEMS.indexOf('app.patch("/api/items/:id/deliver"') + 4000);
+    expect(porPeca).toContain('return res.status(400).json({ error: "photoUrl is required" });');
+    expect(porPeca).not.toContain("Informe quem recebeu");
   });
 
   it("só entrega quando todas as peças estão conferidas, e diz quais faltam", () => {
@@ -113,17 +128,228 @@ describe("a entrega do tubo inteiro", () => {
     expect(entrega).toContain("await db.transaction(async (tx) => {");
   });
 
-  it("cada peça ganha o comprovante e a trilha diz de qual tubo saiu", () => {
-    expect(entrega).toContain("deliveryPhotoUrl: photoUrl,");
-    expect(entrega).toContain("details: `Entrega concluída (${conferidas}/${p.quantity}");
-    expect(entrega).toContain("— Tubo ${tubo.numero}`");
+  it("cada peça ganha o comprovante (quando há foto) e a trilha diz de qual tubo saiu, a quem e a que horas", () => {
+    expect(entrega).toContain("...(foto ? { deliveryPhotoUrl: foto } : {}),");
+    expect(entrega).toContain("details: `Entrega concluída (${conferidas}/${p.quantity}, recebido por: ${recebedor}) — Tubo ${tubo.numero} entregue a ${recebedor} em ${hora}`");
+    // e o próprio tubo ganha a linha "Tubo 2 entregue a Fulano em 21/09 14:32"
+    expect(entrega).toContain('entityType: "tubo",');
+    expect(entrega).toContain("details: `Tubo ${tubo.numero} entregue a ${recebedor} em ${hora}${foto ? \" (com foto)\" : \"\"}`");
     // autor com nome E id — a mesma forma das rotas de entrega por peça
     expect(entrega).toContain("const quem = resolveActor(req);");
     expect(entrega).toContain("...quem,");
   });
 
-  it("não apaga um recebedor com vazio", () => {
-    expect(entrega).toContain("...(recebedor ? { receivedBy: recebedor } : {}),");
+  it("a hora da trilha é no fuso do galpão (dia/mês hora:minuto)", () => {
+    expect(ROTAS).toContain('timeZone: "America/Sao_Paulo", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit"');
+    const hora = new Date(Date.UTC(2026, 8, 21, 17, 32)).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }).replace(",", "");
+    expect(hora).toBe("21/09 14:32");
+  });
+
+  it("sai de conferred OU de packed — e carimba statusChangedAt ao virar delivered", () => {
+    expect(entrega).toContain('...(conferidas >= p.quantity ? { status: "delivered", deliveredAt: agora, statusChangedAt: agora } : {}),');
+    expect(ROTAS).toContain("(p.conferredQty ?? 0) >= p.quantity || ehPosConferencia(p.status);");
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// EMBALADO (dono, 21/09) — a etapa entre Conferido e Entregue.
+// ─────────────────────────────────────────────────────────────────────────────
+describe("a etapa Embalado no fluxo da peça", () => {
+  it("a chave é packed, e os helpers reconhecem só ela", () => {
+    expect(EMBALADO).toBe("packed");
+    expect(ehEmbalada("packed")).toBe(true);
+    for (const s of ["conferred", "delivered", "produced", "", null, undefined]) expect(ehEmbalada(s as any), String(s)).toBe(false);
+  });
+
+  it("pós-conferência = conferida ou embalada (e nunca entregue)", () => {
+    expect([...POS_CONFERENCIA]).toEqual(["conferred", "conferido", "packed"]);
+    for (const s of ["conferred", "conferido", "packed"]) expect(ehPosConferencia(s)).toBe(true);
+    for (const s of ["delivered", "produced", null]) expect(ehPosConferencia(s as any)).toBe(false);
+  });
+
+  it("a ordem do fim do fluxo é produced → conferred → packed → delivered em TODA lista ordenada", async () => {
+    const { PRODUCTION_STATUSES } = await import("../../client/src/lib/status");
+    expect([...PRODUCTION_STATUSES]).toEqual(["inProduction", "produced", "conferred", "packed", "delivered"]);
+    const { STATUS_GROUPS, GROUP_KEYS } = await import("../../client/src/lib/painel-kpis");
+    const i = GROUP_KEYS.indexOf("packed" as any);
+    expect(GROUP_KEYS[i - 1]).toBe("conferred");
+    expect(GROUP_KEYS[i + 1]).toBe("delivered");
+    expect((STATUS_GROUPS as any).packed).toEqual(["packed"]);
+    expect(ler("shared/schema.ts")).toContain('  "conferred",\n  // Embalado (dono, 21/09): conferida e dentro de um tubo, esperando o caminhão.\n  "packed",\n  "delivered",');
+    expect(DEPOIS_DA_ARTE.has("packed")).toBe(true);
+  });
+
+  it("tem rótulo, cor com contraste AA (azul, entre o ciano e o verde) e guia", async () => {
+    const { STATUS, guiaDoStatus, descricaoDoStatus, P } = await import("../../client/src/lib/status");
+    expect(STATUS.packed.label).toBe("Embalado");
+    expect(STATUS.packed.short).toBe("Embalado");
+    expect(STATUS.packed.text).toBe(P.blue.text);
+    expect(STATUS.packed.text).not.toBe(STATUS.conferred.text);
+    expect(STATUS.packed.text).not.toBe(STATUS.delivered.text);
+    expect(guiaDoStatus("packed")?.significado).toBe("Conferida e embalada no tubo, à espera da saída do caminhão.");
+    expect(guiaDoStatus("packed")?.quemAge).toBe("Gráfica");
+    expect(descricaoDoStatus("packed")).toContain("Próximo passo: Entregar o tubo");
+  });
+
+  it("todo lugar que traduz status conhece 'packed'", () => {
+    expect(ler("server/routes/shared.ts")).toContain('packed: "Embalado",');
+    expect(ler("server/services/tempo-etapas.ts")).toContain('packed: "Embalado",');
+    expect(ler("server/services/xlsxExport.ts")).toContain('packed: "Embalado"');
+    expect(ler("server/routes/items.ts")).toContain('"Embalado": "packed",');
+    expect(ler("client/src/lib/painel-rotas.ts")).toContain("packed:                  TELAS.grafica,");
+    expect(ler("client/src/lib/fases.ts")).toContain('packed:       ["packed"],');
+    expect(ler("shared/prazos-contract.ts")).toContain('export const PRODUCED_LIKE = ["produced", "conferred", "packed", "produzido"] as const;');
+  });
+
+  it("a fila da Gráfica (storage + delta) serve packed", () => {
+    expect(ler("server/storage.ts")).toContain("'produced', 'conferred', 'packed', 'delivered')");
+    expect(ler("server/routes/items.ts")).toContain('"approved", "inProduction", "produced", "conferred", "packed", "delivered",');
+  });
+});
+
+describe("as transições conferred ⇄ packed moram nas rotas de tubos", () => {
+  it("colocar no tubo embala a CONFERIDA (a em acabamento espera a conferência) e carimba statusChangedAt", () => {
+    expect(ROTAS).toContain('.set({ status: EMBALADO, statusChangedAt: agora, updatedAt: agora } as any)');
+    expect(ROTAS).toContain('.where(and(inArray(itemsTable.id, ids), inArray(itemsTable.status, ["conferred", "conferido"])))');
+    expect(ROTAS).toContain("const embaladas = new Set(await embalar(ids, agora));");
+    expect(ROTAS).toContain("? `Embalada no Tubo ${tubo.numero}${veio}`");
+    expect(ROTAS).toContain(": `Peça colocada no Tubo ${tubo.numero}${veio} — ainda falta conferir`");
+  });
+
+  it("a conferência de peça que JÁ está no tubo fecha como packed", () => {
+    const ITEMS = ler("server/routes/items.ts");
+    expect(ITEMS).toContain('...(isFull ? { status: (current.tuboId ? "packed" : "conferred") as "packed" | "conferred" } : {}),');
+    expect(ITEMS).toContain('+ (isFull && current.tuboId ? " — já estava no tubo: Embalada" : "")');
+  });
+
+  it("tirar do tubo devolve a conferred, com trilha 'Retirada do Tubo N'", () => {
+    expect(ROTAS).toContain('.set({ status: "conferred", statusChangedAt: agora, updatedAt: agora } as any)');
+    expect(ROTAS).toContain(".where(and(inArray(itemsTable.id, ids), eq(itemsTable.status, EMBALADO)))");
+    expect(ROTAS).toContain("details: `Retirada do Tubo ${tubo.numero}${motivo ? ` (${motivo})` : \"\"}`");
+    const patch = ROTAS.slice(ROTAS.indexOf('app.patch("/api/tubos/:id/itens"'), ROTAS.indexOf('app.delete("/api/tubos/:id"'));
+    expect(patch).toContain("await tirarDoTubo(req, tubo, dentro.map((d) => d.id));");
+  });
+
+  it("nada de status novo para peça parcialmente conferida — só isFull muda o status", () => {
+    const ITEMS = ler("server/routes/items.ts");
+    const confer = ITEMS.slice(ITEMS.indexOf('app.post("/api/items/:id/confer"'), ITEMS.indexOf('app.post("/api/items/:id/confer"') + 6000);
+    expect(confer).toContain('// Status só vira "conferred" quando conferiu tudo; parcial continua "produced".');
+    expect(confer.match(/status: \(current\.tuboId/g)?.length).toBe(1);
+  });
+});
+
+describe("fechar o tubo (foto do tubo e dos itens) — não é entrega", () => {
+  const fechar = ROTAS.slice(ROTAS.indexOf('app.post("/api/tubos/:id/fechar"'), ROTAS.indexOf('app.post("/api/tubos/:id/entregar"'));
+
+  it("existe, com os papéis da entrega, e está na régua de permissões", () => {
+    expect(fechar).toContain('app.post("/api/tubos/:id/fechar", requireAuth');
+    expect(fechar).toContain("if (!podeMexerEmTubo(req)) return res.status(403)");
+    expect(ler("shared/permissoes.ts")).toContain('rota: "/api/tubos/:id/fechar", papeis: ["admin", "grafica", "solicitacao"]');
+  });
+
+  it("aceita VÁRIAS fotos, só do nosso storage (a régua dos thumbs), no mínimo uma e no máximo 20", () => {
+    expect(ROTAS).toContain('import { urlDeThumbValida } from "./thumb-url";');
+    expect(fechar).toContain("const cruas = Array.isArray(req.body?.fotos) ? req.body.fotos : (req.body?.fotoUrl ? [req.body.fotoUrl] : []);");
+    expect(fechar).toContain('if (cruas.length === 0) return res.status(400).json({ error: "Tire pelo menos uma foto do tubo fechado" });');
+    expect(fechar).toContain('if (cruas.length > 20) return res.status(400).json({ error: "No máximo 20 fotos por tubo" });');
+    expect(fechar).toContain("const fotos = Array.from(new Set(cruas.map(urlDeThumbValida)));");
+    expect(fechar).toContain("As fotos precisam ser enviadas pelo app (endereço /objects/…)");
+  });
+
+  it("grava as fotos, quando e quem — e NÃO mexe na entrega nem leva a delivered", () => {
+    expect(fechar).toContain("fotosFechamento: fotos,");
+    expect(fechar).toContain("fechadoEm: agora,");
+    expect(fechar).toContain("fechadoPor: quem.userName,");
+    expect(fechar).toContain("conteudoAlteradoEm: null,");
+    expect(fechar).not.toContain("delivered");
+    // só LÊ entregueEm (para recusar tubo já entregue); nunca grava
+    expect(fechar).not.toContain("entregueEm: ");
+  });
+
+  it("as peças viram/continuam packed e a trilha diz 'Embalada no Tubo N · 3 fotos'", () => {
+    expect(fechar).toContain("await embalar(dentro.filter((p) => !ehEntregue(p)).map((p) => p.id), agora);");
+    expect(fechar).toContain("details: !ehEntregue(p) && ehConferidaInteira(p)");
+    expect(fechar).toContain("? `Embalada no Tubo ${tubo.numero} · ${n} ${n === 1 ? \"foto\" : \"fotos\"}`");
+    expect(fechar).toContain(": `Fotografada no Tubo ${tubo.numero} · ${n}");
+    expect(fechar).toContain("`Tubo ${tubo.numero} fechado com ${n} ${n === 1 ? \"foto\" : \"fotos\"} em ${quandoBR(agora)}`");
+  });
+
+  it("tubo vazio ou já entregue não fecha", () => {
+    expect(fechar).toContain("está vazio — ponha as peças antes de fechar");
+    expect(fechar).toContain("já foi entregue");
+  });
+
+  it("mexer no conteúdo depois da foto marca o tubo, e a tela avisa", () => {
+    expect(ROTAS).toContain("async function marcarConteudoAlterado(tubo: { id: string; fechadoEm: Date | null }, agora: Date) {");
+    expect(ROTAS).toContain("alteradoDepoisDaFoto: !!t.fechadoEm && !!t.conteudoAlteradoEm && t.conteudoAlteradoEm > t.fechadoEm,");
+    expect(PAINEL).toContain("tubo alterado depois da foto");
+  });
+
+  it("as colunas são ADITIVAS: schema, migração e conferência", () => {
+    for (const col of ['fotosFechamento: text("fotos_fechamento").array(),', 'fechadoEm: timestamp("fechado_em"),', 'fechadoPor: text("fechado_por"),', 'conteudoAlteradoEm: timestamp("conteudo_alterado_em"),']) {
+      expect(SCHEMA).toContain(col);
+    }
+    const SQL = ler("scripts/migracao-aditiva-producao.sql");
+    for (const col of ["fotos_fechamento text[]", "fechado_em timestamp", "fechado_por text", "conteudo_alterado_em timestamp"]) {
+      expect(SQL).toContain(`ALTER TABLE tubos ADD COLUMN IF NOT EXISTS ${col};`);
+    }
+    expect(ler("scripts/migracao-aditiva-producao.mjs")).toContain("(table_name='tubos' AND column_name IN ('fotos_fechamento','fechado_em','fechado_por','conteudo_alterado_em'))");
+    // e NENHUM script mexe no status do que já está no banco (dono: "não muda nada em produção")
+    expect(existsSync(path.resolve(RAIZ, "scripts/backfill-status-em-tubo.mjs"))).toBe(false);
+    expect(SQL).not.toMatch(/update\s+items/i);
+    const trecho = SQL.slice(SQL.lastIndexOf("\n", SQL.indexOf("21/09 · Etapa")) + 1);
+    const comandos = trecho.split("\n").filter((l) => l.trim() && !l.trim().startsWith("--"));
+    for (const c of comandos) expect(c).toMatch(/^ALTER TABLE tubos ADD COLUMN IF NOT EXISTS /);
+  });
+});
+
+describe("Embalado na tela", () => {
+  it("a Gráfica tem o cartão entre Conferidos e Entregues, o filtro e o stat", () => {
+    const iConf = GRAFICA.indexOf('testId: "stat-conferred"');
+    const iPack = GRAFICA.indexOf('testId: "stat-packed"');
+    const iDeliv = GRAFICA.indexOf('testId: "stat-delivered"');
+    expect(iConf).toBeGreaterThan(0);
+    expect(iPack).toBeGreaterThan(iConf);
+    expect(iDeliv).toBeGreaterThan(iPack);
+    expect(GRAFICA).toContain('{ label: "Embalados",    value: stats.embalados,  sub: "Aguardam o caminhão",  testId: "stat-packed",     filterVals: ["packed"] },');
+    expect(GRAFICA).toContain('sub: "Aguardam tubo ou entrega"');
+    expect(GRAFICA).toContain('{ value: "packed",               label: "Embalados" },');
+    expect(GRAFICA).toContain("embalados:  statsPool.filter((i: any) => i.status === 'packed').length,");
+  });
+
+  it("a linha e o cartão da peça embalada oferecem Entregar e 'Tirar do tubo', e dizem se o tubo já fechou", () => {
+    expect(GRAFICA).toContain("data-testid={`button-tirar-do-tubo-${item.id}`}");
+    expect(GRAFICA).toContain("data-testid={`button-tirar-do-tubo-card-${item.id}`}");
+    expect(GRAFICA).toContain("const fechamentoDoTubo = useMemo(() => new Map(");
+    expect(GRAFICA).toContain("return `Tubo ${numeroDoTubo.get(item.tuboId)}${fechado ? ` · fechado ${fechado}` : \"\"}`;");
+    // o gate de produzir/reaproveitar trata embalada como conferida
+    expect(GRAFICA).not.toMatch(/!isConferred\(item\)/);
+    expect(GRAFICA).toContain("isPosConferencia(item)");
+    // e a lista de tubos traz o fechadoEm que o selo lê
+    expect(ROTAS).toContain("entregueEm: tubos.entregueEm, fechadoEm: tubos.fechadoEm }).from(tubos);");
+  });
+
+  it("o modal tem os dois passos, nessa ordem: fechar (fotos) e entregar (quem recebeu)", () => {
+    const iFechar = PAINEL.indexOf("data-testid={`fechar-tubo-${t.numero}`}");
+    const iEntregar = PAINEL.indexOf("data-testid={`entregar-tubo-${t.numero}`}");
+    expect(iFechar).toBeGreaterThan(0);
+    expect(iEntregar).toBeGreaterThan(iFechar);
+    expect(PAINEL).toContain("Fechar tubo (foto do tubo)");
+    expect(PAINEL).toContain("Entregar tubo (quem recebeu)");
+    expect(PAINEL).toContain('await apiRequest("POST", `/api/tubos/${tubo.id}/fechar`, { fotos: fotosFechamento });');
+    expect(PAINEL).toContain("disabled={fechar.isPending || fotosFechamento.length === 0}");
+    // entregar: recebedor obrigatório, foto opcional, e entregar sem fechar é permitido (só sugere)
+    expect(PAINEL).toContain("disabled={entregar.isPending || !recebidoPor.trim()}");
+    expect(PAINEL).not.toContain("fotos.length === 0}");
+    expect(PAINEL).toContain("Este tubo ainda não foi fechado com foto. Dá para entregar assim mesmo");
+    // apagar tubo com peças pede confirmação e diz que elas voltam a Conferido
+    expect(PAINEL).toContain("data-testid={`confirmar-apagar-tubo-${t.numero}`}");
+    expect(PAINEL).toContain("`Apagar e devolver ${t.pecas.length} a Conferido`");
+  });
+
+  it("a etiqueta e a ficha reconhecem a embalada como conferida", () => {
+    expect(ler("client/src/pages/etiquetas-evento.tsx")).toContain('const CONFERIDA = new Set(["conferred", "conferido", "packed", "delivered", "entregue"]);');
+    expect(ler("client/src/components/item-details-dialog.tsx")).toContain('if (rawStatus === "packed") {');
   });
 });
 
@@ -147,10 +373,10 @@ describe("na Gráfica", () => {
     expect(GRAFICA).toContain("data-testid={`chip-tubo-${item.id}`}");
   });
 
-  it("o painel agrupa, entrega com foto e leva à etiqueta", () => {
+  it("o painel agrupa, entrega com quem recebeu e leva à etiqueta", () => {
     expect(PAINEL).toContain('data-testid="button-colocar-no-tubo"');
     expect(PAINEL).toContain("disabled={!t.prontoParaEntregar}");
-    expect(PAINEL).toContain("disabled={entregar.isPending || fotos.length === 0}");
+    expect(PAINEL).toContain("disabled={entregar.isPending || !recebidoPor.trim()}");
     expect(PAINEL).toContain("href={`/grafica/tubos/${t.id}/etiqueta`}");
   });
 });

@@ -93,6 +93,7 @@ export const STATUS_LABEL: Record<string, string> = {
   inProduction: "Em Impressão",
   produced: "Impresso / Acabamento",
   conferred: "Conferido",
+  packed: "Embalado",
   delivered: "Entregue",
   canceled: "Cancelado",
   archived: "Arquivado",

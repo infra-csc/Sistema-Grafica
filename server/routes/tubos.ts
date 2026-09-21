@@ -14,6 +14,18 @@
 // peças dele estão conferidas. Entregar parte de uma peça contradiria "tubo
 // inteiro" — e a recusa diz quais peças faltam, em vez de só "não pode".
 //
+// A ETAPA "EMBALADO" (dono, 21/09). "Hoje eles colocam Entregue, mas a foto é
+// do tubo; a entrega é feita depois." O galpão usava a entrega para guardar a
+// foto do tubo fechado porque não havia outro lugar. Agora o tubo tem DOIS
+// passos, nesta ordem:
+//   1. FECHAR o tubo — fotos do tubo pronto e dos itens dentro (várias). As
+//      peças ficam `packed` (Embalado) e continuam assim: não é entrega.
+//   2. ENTREGAR o tubo — o que importa aqui é QUEM recebeu e QUANDO; a foto do
+//      comprovante é opcional (o material já foi fotografado ao fechar).
+// Este arquivo é quem grava a transição conferred ⇄ packed: entra no tubo
+// conferida → packed; sai do tubo (ou o tubo é apagado) → conferred. Ver
+// EMBALADO em shared/fluxo-peca.ts.
+//
 // Papéis: os mesmos de conferir e entregar (grafica, solicitacao, admin). Os
 // tubos são a embalagem dessas duas etapas, não uma permissão nova.
 // ─────────────────────────────────────────────────────────────────────────────
@@ -22,8 +34,9 @@ import { and, asc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { db } from "../db";
 import { storage } from "../storage";
 import { items as itemsTable, tubos, events, auditLogs } from "@shared/schema";
-import { podeIrParaTubo } from "@shared/fluxo-peca";
+import { podeIrParaTubo, ehPosConferencia, EMBALADO } from "@shared/fluxo-peca";
 import { pecaVisivelPara } from "@shared/kit";
+import { urlDeThumbValida } from "./thumb-url";
 import {
   requireAuth,
   broadcast,
@@ -100,8 +113,46 @@ const linhas = (r: any): any[] => (r?.rows ?? r ?? []) as any[];
 const ehEntregue = (p: PecaCrua): boolean =>
   p.status === "delivered" || p.status === "entregue" || (p.deliveredQty ?? 0) >= p.quantity;
 
+// Embalada (packed) É conferida: a etapa vem depois da conferência.
 const ehConferidaInteira = (p: PecaCrua): boolean =>
-  (p.conferredQty ?? 0) >= p.quantity || p.status === "conferred" || p.status === "conferido";
+  (p.conferredQty ?? 0) >= p.quantity || ehPosConferencia(p.status);
+
+/** "21/09 14:32" no fuso do galpão — para a trilha de fechamento e entrega. */
+const quandoBR = (d: Date): string =>
+  d.toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }).replace(",", "");
+
+/**
+ * A transição conferred → packed de um lote de peças do tubo. Só a peça
+ * CONFERIDA vira Embalado; a que ainda está em acabamento (produced) fica no
+ * tubo como está e vira packed quando a conferência dela fechar (routes/items.ts).
+ * `statusChangedAt` é carimbado à mão porque este arquivo grava direto na
+ * tabela, sem passar por storage.updateItem (que carimba sozinho) — e o delta
+ * `?since=` da Gráfica depende de `updatedAt` para enxergar a mudança.
+ */
+async function embalar(ids: string[], agora: Date) {
+  if (!ids.length) return [] as string[];
+  const mudadas = await db.update(itemsTable)
+    .set({ status: EMBALADO, statusChangedAt: agora, updatedAt: agora } as any)
+    .where(and(inArray(itemsTable.id, ids), inArray(itemsTable.status, ["conferred", "conferido"])))
+    .returning({ id: itemsTable.id });
+  return mudadas.map((m) => m.id);
+}
+
+/** O caminho de volta: packed → conferred (tirou do tubo, ou o tubo foi apagado). */
+async function desembalar(ids: string[], agora: Date) {
+  if (!ids.length) return [] as string[];
+  const mudadas = await db.update(itemsTable)
+    .set({ status: "conferred", statusChangedAt: agora, updatedAt: agora } as any)
+    .where(and(inArray(itemsTable.id, ids), eq(itemsTable.status, EMBALADO)))
+    .returning({ id: itemsTable.id });
+  return mudadas.map((m) => m.id);
+}
+
+/** Tubo já fechado que teve o conteúdo mexido: a foto pode não bater mais. */
+async function marcarConteudoAlterado(tubo: { id: string; fechadoEm: Date | null }, agora: Date) {
+  if (!tubo.fechadoEm) return;
+  await db.update(tubos).set({ conteudoAlteradoEm: agora } as any).where(eq(tubos.id, tubo.id));
+}
 
 const pecaParaTela = (p: PecaCrua) => ({
   id: p.id,
@@ -168,20 +219,42 @@ async function criarTubo(eventId: string, criadoPor: string) {
   throw new Error("Não foi possível numerar o tubo");
 }
 
-async function colocarNoTubo(req: any, tubo: { id: string; numero: number; eventId: string }, pecas: PecaCrua[], ids: string[]) {
+async function colocarNoTubo(req: any, tubo: { id: string; numero: number; eventId: string; fechadoEm: Date | null }, pecas: PecaCrua[], ids: string[]) {
   const outros = Array.from(new Set(pecas.map((p) => p.tuboId).filter((t) => t && t !== tubo.id))) as string[];
-  const numeroDe = new Map(
-    outros.length
-      ? (await db.select({ id: tubos.id, numero: tubos.numero }).from(tubos).where(inArray(tubos.id, outros))).map((t) => [t.id, t.numero])
-      : [],
-  );
-  await db.update(itemsTable).set({ tuboId: tubo.id, updatedAt: new Date() } as any).where(inArray(itemsTable.id, ids));
+  const tubosDeOrigem = outros.length
+    ? await db.select({ id: tubos.id, numero: tubos.numero, fechadoEm: tubos.fechadoEm }).from(tubos).where(inArray(tubos.id, outros))
+    : [];
+  const numeroDe = new Map(tubosDeOrigem.map((t) => [t.id, t.numero]));
+  const agora = new Date();
+  // O tubo de ORIGEM já fechado também perdeu peça: a foto dele não bate mais.
+  for (const origem of tubosDeOrigem) await marcarConteudoAlterado(origem, agora);
+  await db.update(itemsTable).set({ tuboId: tubo.id, updatedAt: agora } as any).where(inArray(itemsTable.id, ids));
+  // Conferida que entrou no tubo → Embalado. Quem veio de outro tubo já era
+  // packed e continua; quem está em acabamento espera a conferência.
+  const embaladas = new Set(await embalar(ids, agora));
+  await marcarConteudoAlterado(tubo, agora);
   const porId = new Map(pecas.map((p) => [p.id, p]));
   await createAuditLogsEmLote(req, ids.map((id) => {
     const antes = porId.get(id)?.tuboId;
     const veio = antes && antes !== tubo.id ? ` (saiu do Tubo ${numeroDe.get(antes) ?? "?"})` : "";
-    return { action: "updated", entityType: "item", entityId: id, details: `Peça colocada no Tubo ${tubo.numero}${veio}` };
+    const details = embaladas.has(id) || porId.get(id)?.status === EMBALADO
+      ? `Embalada no Tubo ${tubo.numero}${veio}`
+      : `Peça colocada no Tubo ${tubo.numero}${veio} — ainda falta conferir`;
+    return { action: "updated", entityType: "item", entityId: id, details };
   }));
+  broadcast({ type: "items_bulk_updated", itemIds: ids, eventId: tubo.eventId });
+}
+
+/** Tira as peças do tubo e devolve as embaladas a Conferido. */
+async function tirarDoTubo(req: any, tubo: { id: string; numero: number; eventId: string; fechadoEm: Date | null }, ids: string[], motivo?: string) {
+  if (!ids.length) return;
+  const agora = new Date();
+  await db.update(itemsTable).set({ tuboId: null, updatedAt: agora } as any).where(inArray(itemsTable.id, ids));
+  await desembalar(ids, agora);
+  await marcarConteudoAlterado(tubo, agora);
+  await createAuditLogsEmLote(req, ids.map((id) => ({
+    action: "updated", entityType: "item", entityId: id, details: `Retirada do Tubo ${tubo.numero}${motivo ? ` (${motivo})` : ""}`,
+  })));
   broadcast({ type: "items_bulk_updated", itemIds: ids, eventId: tubo.eventId });
 }
 
@@ -235,6 +308,12 @@ export function registerTubosRoutes(app: Express): void {
           recebidoPor: t.recebidoPor,
           entreguePor: t.entreguePor,
           fotoEntregaUrl: t.fotoEntregaUrl,
+          // O fechamento (21/09): fotos, quando, quem — e o aviso de que o
+          // conteúdo mudou DEPOIS da foto (pôs ou tirou peça).
+          fotosFechamento: t.fotosFechamento ?? [],
+          fechadoEm: t.fechadoEm,
+          fechadoPor: t.fechadoPor,
+          alteradoDepoisDaFoto: !!t.fechadoEm && !!t.conteudoAlteradoEm && t.conteudoAlteradoEm > t.fechadoEm,
           pecas: dentro.map(pecaParaTela),
           faltamConferir,
           // Peça escondida dentro do tubo (Kit, ou Solicitação sem Kit com
@@ -258,7 +337,8 @@ export function registerTubosRoutes(app: Express): void {
   app.get("/api/tubos", requireAuth, async (req, res) => {
     if (!podeMexerEmTubo(req)) return res.status(403).json({ error: SEM_PAPEL });
     try {
-      const todos = await db.select({ id: tubos.id, numero: tubos.numero, eventId: tubos.eventId, entregueEm: tubos.entregueEm }).from(tubos);
+      // `fechadoEm` vai junto: a fila da Gráfica mostra "fechado 14:32" na peça embalada.
+      const todos = await db.select({ id: tubos.id, numero: tubos.numero, eventId: tubos.eventId, entregueEm: tubos.entregueEm, fechadoEm: tubos.fechadoEm }).from(tubos);
       if (!quemVe(req).kit) return res.json(todos);
       // Kit: só os tubos em que há peça que ele vê.
       const comPeca = visiveis(req, (await db.select(COLUNAS_PECA).from(itemsTable)
@@ -354,14 +434,7 @@ export function registerTubosRoutes(app: Express): void {
       if (remover.length) {
         const dentro = visiveis(req, (await db.select(COLUNAS_PECA).from(itemsTable)
           .where(and(inArray(itemsTable.id, remover), eq(itemsTable.tuboId, tubo.id)))) as PecaCrua[]);
-        const ids = dentro.map((d) => d.id);
-        if (ids.length) {
-          await db.update(itemsTable).set({ tuboId: null, updatedAt: new Date() } as any).where(inArray(itemsTable.id, ids));
-          await createAuditLogsEmLote(req, ids.map((id) => ({
-            action: "updated", entityType: "item", entityId: id, details: `Peça retirada do Tubo ${tubo.numero}`,
-          })));
-          broadcast({ type: "items_bulk_updated", itemIds: ids, eventId: tubo.eventId });
-        }
+        await tirarDoTubo(req, tubo, dentro.map((d) => d.id));
       }
 
       broadcast({ type: "tubos_atualizados", eventId: tubo.eventId });
@@ -372,38 +445,115 @@ export function registerTubosRoutes(app: Express): void {
     }
   });
 
-  // Apaga um tubo vazio e ainda não entregue — o criado por engano.
+  // Apaga um tubo ainda não entregue. Com peças dentro (21/09), elas voltam a
+  // Conferido — a coluna tubo_id já é ON DELETE SET NULL, mas o status e a
+  // trilha são daqui.
   app.delete("/api/tubos/:id", requireAuth, async (req, res) => {
     if (!podeMexerEmTubo(req)) return res.status(403).json({ error: SEM_PAPEL });
     try {
       const [tubo] = await db.select().from(tubos).where(eq(tubos.id, req.params.id));
       if (!tubo) return res.status(404).json({ error: "Tubo não encontrado" });
       if (tubo.entregueEm) return res.status(409).json({ error: `O Tubo ${tubo.numero} já foi entregue e não pode ser apagado` });
-      // Kit: tubo vazio não tem peça dele — não é dele para apagar.
+      // Kit: o tubo pode ter peça de outro usuário — não é dele para apagar.
       if (quemVe(req).kit) return res.status(403).json({ error: "O usuário do Kit não apaga tubos" });
-      const [{ n }] = linhas(await db.execute(sql`select count(*)::int as n from items where tubo_id = ${tubo.id} and deleted_at is null`));
-      if (Number(n) > 0) {
-        return res.status(409).json({ error: `O Tubo ${tubo.numero} ainda tem ${n} peça(s) — tire as peças antes de apagar` });
+      const dentro = (await db.select(COLUNAS_PECA).from(itemsTable)
+        .where(and(eq(itemsTable.tuboId, tubo.id), isNull(itemsTable.deletedAt)))) as PecaCrua[];
+      if (barraPecaDoKit(req, res, dentro)) return;
+      // A já entregue só perde o vínculo (trilha neutra); as outras voltam a Conferido.
+      const entregues = dentro.filter(ehEntregue);
+      const abertas = dentro.filter((p) => !ehEntregue(p));
+      await tirarDoTubo(req, tubo, abertas.map((p) => p.id), `Tubo ${tubo.numero} apagado`);
+      if (entregues.length) {
+        await db.update(itemsTable).set({ tuboId: null } as any).where(inArray(itemsTable.id, entregues.map((p) => p.id)));
+        await createAuditLogsEmLote(req, entregues.map((p) => ({ action: "updated", entityType: "item", entityId: p.id, details: `Tubo ${tubo.numero} apagado` })));
       }
       await db.delete(tubos).where(eq(tubos.id, tubo.id));
-      await createAuditLog(req, "deleted", "tubo", tubo.id, `Tubo ${tubo.numero} apagado (estava vazio)`);
+      await createAuditLog(req, "deleted", "tubo", tubo.id,
+        abertas.length ? `Tubo ${tubo.numero} apagado — ${abertas.length} peça(s) voltaram a Conferido` : `Tubo ${tubo.numero} apagado${entregues.length ? "" : " (estava vazio)"}`);
       broadcast({ type: "tubos_atualizados", eventId: tubo.eventId });
-      res.json({ ok: true });
+      res.json({ ok: true, devolvidas: abertas.length });
     } catch (error: any) {
       console.error("[tubos] falha ao apagar tubo:", error);
       res.status(500).json({ error: "Não foi possível apagar o tubo." });
     }
   });
 
-  // ENTREGA DO TUBO INTEIRO: uma foto e um recebedor para tudo que está dentro.
+  // FECHAR O TUBO (dono, 21/09): as fotos do tubo pronto e dos itens dentro.
+  // NÃO é entrega — as peças ficam Embalado, e a entrega vem depois. Várias
+  // fotos, todas do nosso storage (a mesma régua dos thumbs). Fechar de novo
+  // substitui as fotos (o galpão refez o tubo) e zera o aviso de "alterado".
+  app.post("/api/tubos/:id/fechar", requireAuth, async (req, res) => {
+    if (!podeMexerEmTubo(req)) return res.status(403).json({ error: SEM_PAPEL });
+    const cruas = Array.isArray(req.body?.fotos) ? req.body.fotos : (req.body?.fotoUrl ? [req.body.fotoUrl] : []);
+    if (cruas.length === 0) return res.status(400).json({ error: "Tire pelo menos uma foto do tubo fechado" });
+    if (cruas.length > 20) return res.status(400).json({ error: "No máximo 20 fotos por tubo" });
+    const fotos = Array.from(new Set(cruas.map(urlDeThumbValida)));
+    if (fotos.some((f) => !f)) {
+      return res.status(400).json({ error: "As fotos precisam ser enviadas pelo app (endereço /objects/…)" });
+    }
+    try {
+      const [tubo] = await db.select().from(tubos).where(eq(tubos.id, req.params.id));
+      if (!tubo) return res.status(404).json({ error: "Tubo não encontrado" });
+      if (tubo.entregueEm) return res.status(409).json({ error: `O Tubo ${tubo.numero} já foi entregue` });
+      const dentro = (await db.select(COLUNAS_PECA).from(itemsTable)
+        .where(and(eq(itemsTable.tuboId, tubo.id), isNull(itemsTable.deletedAt)))) as PecaCrua[];
+      if (dentro.length === 0) return res.status(409).json({ error: `O Tubo ${tubo.numero} está vazio — ponha as peças antes de fechar` });
+      if (barraPecaDoKit(req, res, dentro)) return;
+      if (visiveis(req, dentro).length !== dentro.length) {
+        return res.status(403).json({ error: `O Tubo ${tubo.numero} tem peças fora do seu Kit` });
+      }
+
+      const quem = resolveActor(req);
+      const agora = new Date();
+      await db.update(tubos).set({
+        fotosFechamento: fotos,
+        fechadoEm: agora,
+        fechadoPor: quem.userName,
+        conteudoAlteradoEm: null,
+      } as any).where(eq(tubos.id, tubo.id));
+      // Conferida que por algum motivo ainda não estava packed (peça de antes
+      // da etapa existir) vira agora — fechar o tubo é o gesto de embalar.
+      await embalar(dentro.filter((p) => !ehEntregue(p)).map((p) => p.id), agora);
+      const n = fotos.length;
+      await createAuditLogsEmLote(req, dentro.map((p) => ({
+        action: "updated", entityType: "item", entityId: p.id,
+        // Só a peça que de fato embalou ganha "Embalada" — timeline e ficha leem
+        // essa palavra como etapa cumprida. A em acabamento ou já entregue só
+        // foi fotografada.
+        details: !ehEntregue(p) && ehConferidaInteira(p)
+          ? `Embalada no Tubo ${tubo.numero} · ${n} ${n === 1 ? "foto" : "fotos"}`
+          : `Fotografada no Tubo ${tubo.numero} · ${n} ${n === 1 ? "foto" : "fotos"}${ehEntregue(p) ? " — já entregue" : " — ainda falta conferir"}`,
+      })));
+      await createAuditLog(req, "updated", "tubo", tubo.id, `Tubo ${tubo.numero} fechado com ${n} ${n === 1 ? "foto" : "fotos"} em ${quandoBR(agora)}`);
+      broadcast({ type: "items_bulk_updated", itemIds: dentro.map((p) => p.id), eventId: tubo.eventId });
+      broadcast({ type: "tubos_atualizados", eventId: tubo.eventId });
+      res.json({ ok: true, numero: tubo.numero, fotos: n });
+    } catch (error: any) {
+      console.error("[tubos] falha ao fechar o tubo:", error);
+      res.status(500).json({ error: "Não foi possível fechar o tubo." });
+    }
+  });
+
+  // ENTREGA DO TUBO INTEIRO: quem recebeu e quando, para tudo que está dentro.
+  //
+  // O que é obrigatório aqui INVERTEU em 21/09 (dono): o material já foi
+  // fotografado ao FECHAR o tubo, então a foto do comprovante passa a ser
+  // opcional — e o NOME de quem recebeu, que ninguém preenchia quando era
+  // opcional, vira obrigatório. A entrega POR PEÇA (PATCH /api/items/:id/deliver)
+  // continua como está: foto obrigatória, nome opcional — a régua nova é só
+  // do tubo, que é onde o dono pediu.
   app.post("/api/tubos/:id/entregar", requireAuth, async (req, res) => {
     if (!podeMexerEmTubo(req)) return res.status(403).json({ error: "Sem permissão para registrar entrega" });
     const { photoUrl, receivedBy, notes } = req.body ?? {};
-    // A foto é o comprovante — a mesma régua da entrega por peça.
-    if (!photoUrl || typeof photoUrl !== "string") {
-      return res.status(400).json({ error: "A foto da entrega é obrigatória — ela é o comprovante" });
-    }
     const recebedor = typeof receivedBy === "string" ? receivedBy.trim() : "";
+    if (!recebedor) {
+      return res.status(400).json({ error: "Informe quem recebeu o tubo — é o que registra a entrega" });
+    }
+    // Foto opcional — mas, se vier, tem de ser do nosso storage (régua dos thumbs).
+    const foto = typeof photoUrl === "string" && photoUrl.trim() ? urlDeThumbValida(photoUrl) : null;
+    if (typeof photoUrl === "string" && photoUrl.trim() && !foto) {
+      return res.status(400).json({ error: "A foto precisa ser enviada pelo app (endereço /objects/…)" });
+    }
     const obs = typeof notes === "string" ? notes.trim() : "";
     try {
       const [tubo] = await db.select().from(tubos).where(eq(tubos.id, req.params.id));
@@ -431,32 +581,43 @@ export function registerTubosRoutes(app: Express): void {
 
       const quem = resolveActor(req);
       const agora = new Date();
+      const hora = quandoBR(agora);
       await db.transaction(async (tx) => {
         for (const p of aEntregar) {
           const conferidas = p.conferredQty ?? 0;
+          // Sai de conferred OU de packed — a origem não importa: entregar o
+          // tubo entrega tudo que está dentro. `statusChangedAt` vai à mão
+          // porque esta escrita não passa por storage.updateItem.
           await tx.update(itemsTable).set({
             deliveredQty: conferidas,
-            deliveryPhotoUrl: photoUrl,
+            ...(foto ? { deliveryPhotoUrl: foto } : {}),
             updatedAt: agora,
-            ...(recebedor ? { receivedBy: recebedor } : {}),
+            receivedBy: recebedor,
             ...(obs ? { deliveryNotes: obs } : {}),
-            ...(conferidas >= p.quantity ? { status: "delivered", deliveredAt: agora } : {}),
+            ...(conferidas >= p.quantity ? { status: "delivered", deliveredAt: agora, statusChangedAt: agora } : {}),
           } as any).where(eq(itemsTable.id, p.id));
           await tx.insert(auditLogs).values({
             ...quem,
             action: "delivered",
             entityType: "item",
             entityId: p.id,
-            details: `Entrega concluída (${conferidas}/${p.quantity}${recebedor ? `, recebido por: ${recebedor}` : ""}) — Tubo ${tubo.numero}`,
+            details: `Entrega concluída (${conferidas}/${p.quantity}, recebido por: ${recebedor}) — Tubo ${tubo.numero} entregue a ${recebedor} em ${hora}`,
           } as any);
         }
         await tx.update(tubos).set({
           entregueEm: agora,
-          recebidoPor: recebedor || null,
-          fotoEntregaUrl: photoUrl,
+          recebidoPor: recebedor,
+          fotoEntregaUrl: foto,
           entregueObs: obs || null,
           entreguePor: quem.userName,
         } as any).where(eq(tubos.id, tubo.id));
+        await tx.insert(auditLogs).values({
+          ...quem,
+          action: "delivered",
+          entityType: "tubo",
+          entityId: tubo.id,
+          details: `Tubo ${tubo.numero} entregue a ${recebedor} em ${hora}${foto ? " (com foto)" : ""}`,
+        } as any);
       });
 
       // O evento pode ter FECHADO com esta entrega — e o aviso de "evento

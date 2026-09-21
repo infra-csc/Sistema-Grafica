@@ -179,7 +179,8 @@ describe("a impressão é informada AOS POUCOS (dono, 14/09)", () => {
 
   it("servidor: a conferência exige foto e só vira Conferido quando confere tudo", () => {
     expect(ITEMS).toContain("if (!conferencePhotoUrl && !current.conferencePhotoUrl)");
-    expect(ITEMS).toContain('...(isFull ? { status: "conferred" as const } : {}),');
+    // 21/09: peça que já estava no tubo fecha a conferência como Embalado.
+    expect(ITEMS).toContain('...(isFull ? { status: (current.tuboId ? "packed" : "conferred") as "packed" | "conferred" } : {}),');
   });
 });
 

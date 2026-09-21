@@ -156,7 +156,7 @@ function situacaoDaPeca(aprovacoes: { status?: string | null }[] | undefined): S
 // Const de módulo: antes era recriado a cada card renderizado. As etapas de
 // produção/entrega derivam da lista canônica PRODUCTION_STATUSES da lib de
 // status (+ aliases legados que versões antigas gravaram no banco).
-const [ST_IN_PRODUCTION, ST_PRODUCED, ST_CONFERRED, ST_DELIVERED] = PRODUCTION_STATUSES;
+const [ST_IN_PRODUCTION, ST_PRODUCED, ST_CONFERRED, ST_PACKED, ST_DELIVERED] = PRODUCTION_STATUSES;
 const PIPELINE_STAGES: { key: string; label: string; color: string; statuses: string[] }[] = [
   { key: 'solicitado',   label: 'Solicitado',      color: '#f97316', statuses: ['draft', 'requested', 'solicitado'] },
   { key: 'vinculacao',   label: 'Vinculação',      color: '#746e69', statuses: ['awaiting_linking'] },
@@ -167,7 +167,7 @@ const PIPELINE_STAGES: { key: string; label: string; color: string; statuses: st
   { key: 'pronto',       label: 'Pronto p/ Prod.', color: '#10b981', statuses: ['ready_for_production', 'pronto_para_producao', 'approved', 'liberado'] },
   { key: 'producao',     label: 'Em Impressão',    color: '#f59e0b', statuses: [ST_IN_PRODUCTION, 'in_production', 'em_producao'] },
   { key: 'produzido',    label: 'Acabamento',      color: '#ec4899', statuses: [ST_PRODUCED, 'produzido'] },
-  { key: 'entregue',     label: 'Entregue',        color: '#7c3aed', statuses: [ST_CONFERRED, 'conferido', ST_DELIVERED, 'entregue'] },
+  { key: 'entregue',     label: 'Entregue',        color: '#7c3aed', statuses: [ST_CONFERRED, 'conferido', ST_PACKED, ST_DELIVERED, 'entregue'] },
 ];
 
 // ── A JORNADA DA PEÇA, EM UMA LEITURA SÓ ───────────────────────────────────
@@ -251,7 +251,7 @@ const POST_APPROVAL_STATUSES: string[] = [
   'pronto_para_producao',    // alias legado em pt
   'approved',                // liberado
   'liberado',                // alias legado em pt
-  ...PRODUCTION_STATUSES,    // inProduction, produced, conferred, delivered
+  ...PRODUCTION_STATUSES,    // inProduction, produced, conferred, packed, delivered
 ];
 const isPastApproval = (item: any): boolean => POST_APPROVAL_STATUSES.includes(item.status);
 

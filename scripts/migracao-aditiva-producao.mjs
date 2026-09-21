@@ -16,6 +16,7 @@ try {
        OR (table_name='items' AND column_name IN ('pedido_de_peca_linha_id','kit_remessa_id','criado_por_id','maquina_prevista'))
        OR (table_name='kit_remessas' AND column_name='entrega_material')
        OR (table_name='pedidos_de_peca_linhas' AND column_name='sponsor_ids')
+       OR (table_name='tubos' AND column_name IN ('fotos_fechamento','fechado_em','fechado_por','conteudo_alterado_em'))
     ORDER BY 1, 2`);
   console.log("Migração aditiva concluída. Conferido:", r.rows.map((x) => `${x.table_name}.${x.column_name}`).join(", "));
 } finally {

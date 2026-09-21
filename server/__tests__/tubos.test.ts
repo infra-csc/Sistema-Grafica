@@ -296,10 +296,9 @@ describe("fechar o tubo (foto do tubo e dos itens) — não é entrega", () => {
     expect(ler("scripts/migracao-aditiva-producao.mjs")).toContain("(table_name='tubos' AND column_name IN ('fotos_fechamento','fechado_em','fechado_por','conteudo_alterado_em'))");
     // e NENHUM script mexe no status do que já está no banco (dono: "não muda nada em produção")
     expect(existsSync(path.resolve(RAIZ, "scripts/backfill-status-em-tubo.mjs"))).toBe(false);
-    expect(SQL).not.toMatch(/updates+items/i);
-    const trecho = SQL.slice(SQL.indexOf("21/09 · Etapa"));
-    const comandos = trecho.split("
-").filter((l) => l.trim() && !l.trim().startsWith("--"));
+    expect(SQL).not.toMatch(/update\s+items/i);
+    const trecho = SQL.slice(SQL.lastIndexOf("\n", SQL.indexOf("21/09 · Etapa")) + 1);
+    const comandos = trecho.split("\n").filter((l) => l.trim() && !l.trim().startsWith("--"));
     for (const c of comandos) expect(c).toMatch(/^ALTER TABLE tubos ADD COLUMN IF NOT EXISTS /);
   });
 });

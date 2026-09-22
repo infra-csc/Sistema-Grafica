@@ -184,7 +184,9 @@ describe("a visão de semana", () => {
   it("dia vazio diz 'Nada marcado', e não em #a8a29e", () => {
     expect(tela).toContain(">Nada marcado</p>");
     const i = tela.indexOf(">Nada marcado</p>");
-    expect(tela.slice(i - 200, i)).toContain('color: "#78716c"');
+    // T.second é o token; hoje vale #746e69, que é o mesmo cinza AA que o
+    // #78716c antigo tentava ser e que passa TAMBÉM nos fundos acinzentados.
+    expect(tela.slice(i - 200, i)).toContain("color: T.second");
     expect(contraste("#78716c", "#ffffff")).toBeGreaterThanOrEqual(4.5);
     expect(contraste("#a8a29e", "#ffffff")).toBeLessThan(4.5);
   });
@@ -287,8 +289,11 @@ describe("as decisões anteriores continuam de pé", () => {
   });
 
   it("as cores de hoje e das contagens", () => {
-    expect(tela).toContain('"#c2410c"');
-    expect(tela).toContain('"#dc2626"');
+    // Os hexes viraram token: T.accentText É #c2410c e TOM.perigo.text é
+    // #b91c1c — mais escuro que o #dc2626 que estava aqui, que dá 4,0:1 e
+    // reprova AA como cor de texto.
+    expect(tela).toContain("T.accentText");
+    expect(tela).toContain("TOM.perigo.text");
     // Branco sobre o #f97316 saturado dava ~2,8:1.
     expect(contraste("#ffffff", "#f97316")).toBeLessThan(4.5);
     expect(contraste("#c2410c", "#ffffff")).toBeGreaterThanOrEqual(4.5);

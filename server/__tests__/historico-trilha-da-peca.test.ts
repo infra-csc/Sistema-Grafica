@@ -44,7 +44,7 @@ describe("1 · a trilha de uma peça", () => {
 
   it("a faixa da trilha, com o resumo e a saída", () => {
     expect(H).toContain('data-testid="faixa-trilha"');
-    expect(H).toContain('backgroundColor: "#fff7ed", borderBottom: "1px solid #fed7aa"');
+    expect(H).toContain("backgroundColor: TOM.laranja.bg, borderBottom: `1px solid ${TOM.laranja.border}`");
     expect(H).toContain(">Trilha da peça</span>");
     expect(H).toContain('data-testid="button-sair-trilha"');
     expect(H).toContain("da criação à liberação em ${fmtDuracao(");
@@ -85,7 +85,7 @@ describe("2 · o tempo entre passos", () => {
   });
 
   it("o tom: até 24h cinza, acima âmbar, acima de 48h vermelho", () => {
-    expect(H).toContain('return h > 48 ? "#b91c1c" : h > 24 ? "#b45309" : "#746e69";');
+    expect(H).toContain("return h > 48 ? TOM.perigo.text : h > 24 ? TOM.alerta.text : T.second;");
   });
 
   it("o intervalo é o do passo ANTERIOR na ordem de fluxo; o primeiro não tem", () => {
@@ -105,7 +105,7 @@ describe("3 · o separador diz a forma do dia", () => {
   it("conta as exceções do dia e pinta de vermelho", () => {
     expect(H).toContain("const excecao = EXCECAO_TYPES.includes(e.type) ? 1 : 0;");
     expect(H).toContain('· {grupo.excecoes} {grupo.excecoes === 1 ? "exceção" : "exceções"}');
-    expect(H).toContain('color: "#b91c1c" }}');
+    expect(H).toContain("color: TOM.perigo.text }}");
   });
 
   it("mas não no modo trilha", () => {

@@ -74,6 +74,16 @@ export const TOM = {
    * `ceu` só conta.
    */
   ceu: P.sky,
+  /**
+   * As três que faltavam para as telas pararem de redigitar hex: roxo
+   * (aprovação, decisão de patrocinador), esmeralda (encerramento, conclusão)
+   * e turquesa (marco de evento). Continuam vindo da MESMA paleta P — este
+   * objeto é um índice em português, não uma segunda tabela de cor.
+   */
+  roxo: P.purple,
+  esmeralda: P.emerald,
+  turquesa: P.teal,
+  ciano: P.cyan,
 } as const;
 
 export type NomeDeTom = keyof typeof TOM;

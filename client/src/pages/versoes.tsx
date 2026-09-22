@@ -41,7 +41,7 @@ import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/compone
 import { ModalHeader, modalSurface, HIDE_NATIVE_CLOSE, FreezeWhileClosing } from "@/components/modal-shell";
 import { FilterSelect } from "@/components/filter-select";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { T, FS, R, SHADOW } from "@/lib/theme";
+import { T, FS, R, N, FW, FONT, TOM, SHADOW } from "@/lib/theme";
 import { getApprovalMeta } from "@/lib/status";
 import { isWebUrl } from "@/components/file-preview";
 import { apiRequest } from "@/lib/queryClient";
@@ -124,19 +124,19 @@ const GRAVIDADE: Record<string, Gravidade> = {
 
 const GRAVIDADE_VISUAL: Record<Gravidade, { rotulo: string; cor: string; fundo: string; borda: string; consequencia: string }> = {
   aprovacao: {
-    rotulo: "em aprovação", cor: "#b45309", fundo: "#fffbeb", borda: "#fde68a",
+    rotulo: "em aprovação", cor: TOM.alerta.text, fundo: TOM.alerta.bg, borda: TOM.alerta.border,
     consequencia: "A peça ainda está em aprovação — divergência aqui é conserto barato.",
   },
   liberada: {
-    rotulo: "liberada", cor: "#0f766e", fundo: "#f0fdfa", borda: "#99f6e4",
+    rotulo: "liberada", cor: TOM.turquesa.text, fundo: TOM.turquesa.bg, borda: TOM.turquesa.border,
     consequencia: "A peça já foi liberada e está a caminho da gráfica — ainda dá para segurar.",
   },
   producao: {
-    rotulo: "em produção", cor: "#c2410c", fundo: "#fff7ed", borda: "#fed7aa",
+    rotulo: "em produção", cor: T.accentText, fundo: TOM.laranja.bg, borda: TOM.laranja.border,
     consequencia: "A peça já foi para a gráfica — divergência aqui é arte impressa errada.",
   },
   impressa: {
-    rotulo: "produzida", cor: "#047857", fundo: "#ecfdf5", borda: "#a7f3d0",
+    rotulo: "produzida", cor: TOM.esmeralda.text, fundo: TOM.esmeralda.bg, borda: TOM.esmeralda.border,
     consequencia: "A peça já foi produzida — divergência aqui é material impresso errado.",
   },
 };
@@ -260,14 +260,14 @@ export default function Versoes() {
         .vs-sublinha:hover { text-decoration: underline !important; }
       `}</style>
       {/* ══ Cabeçalho ══ */}
-      <div style={{ flexShrink: 0, backgroundColor: "#ffffff", borderBottom: `1px solid ${T.border}`, padding: isMobile ? "14px 16px 0" : "20px 32px 0" }}>
+      <div style={{ flexShrink: 0, backgroundColor: T.surface, borderBottom: `1px solid ${T.border}`, padding: isMobile ? "14px 16px 0" : "20px 32px 0" }}>
         <div style={{ maxWidth: 1600, margin: "0 auto" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <div style={{ width: 40, height: 40, borderRadius: R.lg, backgroundColor: T.accent, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-              <GitBranch style={{ width: 20, height: 20, color: "#ffffff" }} />
+              <GitBranch style={{ width: 20, height: 20, color: T.surface }} />
             </div>
             <div style={{ minWidth: 0 }}>
-              <h1 data-testid="title-versoes" style={{ fontFamily: '"Space Grotesk", sans-serif', fontWeight: 700, fontSize: FS.h1, letterSpacing: "-0.03em", color: T.text, margin: 0 }}>
+              <h1 data-testid="title-versoes" style={{ fontFamily: FONT.display, fontWeight: 700, fontSize: FS.h1, letterSpacing: "-0.03em", color: T.text, margin: 0 }}>
                 Versões aprovadas
               </h1>
               <p style={{ fontSize: FS.small, color: T.second, margin: 0 }}>
@@ -280,7 +280,7 @@ export default function Versoes() {
               <p data-testid="texto-como-usar-versoes" style={{ fontSize: FS.small, color: T.second, margin: "2px 0 0", lineHeight: 1.5 }}>
                 Abre pelo que precisa de conferência. Para baixar o book de um evento, use a aba{" "}
                 <button type="button" onClick={() => setAba("books")} data-testid="link-ir-para-books"
-                  style={{ display: "inline-flex", alignItems: "center", minHeight: isMobile ? 44 : 36, background: "none", border: "none", padding: 0, fontFamily: "inherit", fontSize: FS.small, fontWeight: 700, color: "#c2410c", textDecoration: "underline", textUnderlineOffset: 2, cursor: "pointer" }}>
+                  style={{ display: "inline-flex", alignItems: "center", minHeight: isMobile ? 44 : 36, background: "none", border: "none", padding: 0, fontFamily: "inherit", fontSize: FS.small, fontWeight: 700, color: T.accentText, textDecoration: "underline", textUnderlineOffset: 2, cursor: "pointer" }}>
                   Books
                 </button>{" "}— cada publicação tem o botão Baixar.
               </p>
@@ -335,12 +335,12 @@ export default function Versoes() {
 
           {/* A FRASE DE CONFIANÇA: o que é registro e o que é dedução. */}
           {resumo && resumo.decisoesTomadas > 0 && (
-            <p data-testid="text-confianca-versoes" style={{ fontSize: FS.body, color: "#57534e", margin: "12px 0 0", lineHeight: 1.5 }}>
+            <p data-testid="text-confianca-versoes" style={{ fontSize: FS.body, color: T.apoio, margin: "12px 0 0", lineHeight: 1.5 }}>
               {resumo.decisoesTomadas} {resumo.decisoesTomadas === 1 ? "decisão já tomada" : "decisões já tomadas"} no recorte
               {resumo.decisoesInferidas > 0
-                ? <> · <strong style={{ color: "#9a3412" }}>{resumo.decisoesInferidas}</strong> com a versão <strong style={{ color: "#9a3412" }}>inferida pela data</strong>, porque são anteriores ao registro</>
+                ? <> · <strong style={{ color: T.accentText }}>{resumo.decisoesInferidas}</strong> com a versão <strong style={{ color: T.accentText }}>inferida pela data</strong>, porque são anteriores ao registro</>
                 : <> · todas com a versão registrada</>}
-              {resumo.decisoesAmbiguas > 0 && <> · {resumo.decisoesAmbiguas} <strong style={{ color: "#9a3412" }}>indeterminadas</strong> (a arte mudou no mesmo instante da decisão)</>}
+              {resumo.decisoesAmbiguas > 0 && <> · {resumo.decisoesAmbiguas} <strong style={{ color: T.accentText }}>indeterminadas</strong> (a arte mudou no mesmo instante da decisão)</>}
               {data?.registroDesde && <> · o registro de versões começa em {fmtDia(data.registroDesde)}</>}
             </p>
           )}
@@ -360,8 +360,8 @@ export default function Versoes() {
                   className="vs-hover"
                   style={{
                     height: isMobile ? 44 : 30, padding: "0 12px", borderRadius: R.sm, border: "none",
-                    fontSize: FS.body, fontWeight: 700, color: ativo ? T.text : "#57534e",
-                    backgroundColor: ativo ? "#ffffff" : "transparent", boxShadow: ativo ? SHADOW.sm : "none",
+                    fontSize: FS.body, fontWeight: 700, color: ativo ? T.text : T.apoio,
+                    backgroundColor: ativo ? T.surface : "transparent", boxShadow: ativo ? SHADOW.sm : "none",
                     cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap",
                   }}>
                   {rotulo}
@@ -373,7 +373,7 @@ export default function Versoes() {
       </div>
 
       {/* ══ Filtros ══ */}
-      <div style={{ flexShrink: 0, backgroundColor: "#ffffff", borderBottom: `1px solid ${T.border}`, padding: isMobile ? "10px 16px" : "10px 32px" }}>
+      <div style={{ flexShrink: 0, backgroundColor: T.surface, borderBottom: `1px solid ${T.border}`, padding: isMobile ? "10px 16px" : "10px 32px" }}>
         <div style={{ maxWidth: 1600, margin: "0 auto", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
           <FilterSelect label="Evento" allLabel="Todos os eventos" values={eventoFiltro}
             onValuesChange={v => { setEventoFiltro(v); setPagina(0); }}
@@ -385,12 +385,12 @@ export default function Versoes() {
           <div style={{ position: "relative", width: isMobile ? "100%" : 280 }}>
             <Search style={{ position: "absolute", left: 11, top: "50%", transform: "translateY(-50%)", width: 13, height: 13, color: T.muted, pointerEvents: "none" }} />
             <input value={buscaInput} onChange={e => setBuscaInput(e.target.value)} placeholder="Peça, tipo ou evento…" aria-label="Buscar" data-testid="input-busca-versoes"
-              style={{ width: "100%", height: alturaControle, paddingLeft: 32, paddingRight: 12, border: `1px solid ${T.border}`, borderRadius: R.pill, backgroundColor: "#ffffff", fontSize: FS.body, color: T.text, fontFamily: "inherit" }} />
+              style={{ width: "100%", height: alturaControle, paddingLeft: 32, paddingRight: 12, border: `1px solid ${T.border}`, borderRadius: R.pill, backgroundColor: T.surface, fontSize: FS.body, color: T.text, fontFamily: "inherit" }} />
           </div>
 
           {filtrosAtivos > 0 && (
             <button type="button" onClick={limpar} data-testid="button-limpar-versoes"
-              style={{ height: alturaControle, padding: "0 12px", borderRadius: R.md, border: "1px solid #fecaca", backgroundColor: "#fef2f2", color: "#b91c1c", fontSize: FS.small, fontWeight: 700, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 5, fontFamily: "inherit" }}>
+              style={{ height: alturaControle, padding: "0 12px", borderRadius: R.md, border: `1px solid ${TOM.perigo.border}`, backgroundColor: TOM.perigo.bg, color: TOM.perigo.text, fontSize: FS.small, fontWeight: 700, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 5, fontFamily: "inherit" }}>
               <X style={{ width: 12, height: 12 }} /> Limpar ({filtrosAtivos})
             </button>
           )}
@@ -402,7 +402,7 @@ export default function Versoes() {
           <a href={`/api/versoes/export.csv${parametros.toString() ? `?${parametros}` : ""}`} data-testid="link-exportar-versoes"
             title="Baixar o recorte inteiro em CSV (abre no Excel)"
             className="vs-hover"
-            style={{ marginLeft: isMobile ? 0 : "auto", height: alturaControle, padding: "0 12px", borderRadius: R.md, border: `1px solid ${T.border}`, backgroundColor: "#ffffff", color: T.text, fontSize: FS.small, fontWeight: 700, textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 6 }}>
+            style={{ marginLeft: isMobile ? 0 : "auto", height: alturaControle, padding: "0 12px", borderRadius: R.md, border: `1px solid ${T.border}`, backgroundColor: T.surface, color: T.text, fontSize: FS.small, fontWeight: 700, textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 6 }}>
             <Table2 style={{ width: 13, height: 13 }} /> Exportar
           </a>
         </div>
@@ -419,10 +419,10 @@ export default function Versoes() {
             <Esqueleto isMobile={isMobile} />
           ) : isError ? (
             <div role="alert" style={{ padding: "60px 24px", textAlign: "center" }}>
-              <h3 style={{ color: "#b91c1c", fontSize: FS.strong, fontWeight: 700, margin: "0 0 6px" }}>Não foi possível carregar as versões</h3>
+              <h3 style={{ color: TOM.perigo.text, fontSize: FS.strong, fontWeight: 700, margin: "0 0 6px" }}>Não foi possível carregar as versões</h3>
               <p style={{ color: T.second, fontSize: FS.body, margin: "0 0 14px" }}>A conexão falhou ou a sessão expirou.</p>
               <button onClick={() => refetch()} data-testid="button-retry-versoes"
-                style={{ fontSize: FS.body, fontWeight: 700, color: "#fff", background: T.dark, border: "none", borderRadius: R.md, padding: "9px 20px", minHeight: isMobile ? 44 : undefined, cursor: "pointer" }}>
+                style={{ fontSize: FS.body, fontWeight: 700, color: T.surface, background: T.dark, border: "none", borderRadius: R.md, padding: "9px 20px", minHeight: isMobile ? 44 : undefined, cursor: "pointer" }}>
                 Tentar novamente
               </button>
             </div>
@@ -451,14 +451,14 @@ export default function Versoes() {
                 <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "center", gap: 8 }}>
                   {filtrosAtivos > 0 && (
                     <button onClick={limpar} data-testid="button-limpar-versoes-atencao"
-                      style={{ fontSize: FS.body, fontWeight: 700, color: "#fff", background: T.dark, border: "none", borderRadius: R.md, padding: "9px 20px", minHeight: isMobile ? 44 : undefined, cursor: "pointer" }}>
+                      style={{ fontSize: FS.body, fontWeight: 700, color: T.surface, background: T.dark, border: "none", borderRadius: R.md, padding: "9px 20px", minHeight: isMobile ? 44 : undefined, cursor: "pointer" }}>
                       Limpar filtros
                     </button>
                   )}
                   <button onClick={() => trocarFoco("todas")} data-testid="button-ver-todas"
                     style={filtrosAtivos > 0
-                      ? { fontSize: FS.body, fontWeight: 700, color: T.text, background: "#ffffff", border: `1px solid ${T.border}`, borderRadius: R.md, padding: "9px 20px", minHeight: isMobile ? 44 : undefined, cursor: "pointer" }
-                      : { fontSize: FS.body, fontWeight: 700, color: "#fff", background: T.dark, border: "none", borderRadius: R.md, padding: "9px 20px", minHeight: isMobile ? 44 : undefined, cursor: "pointer" }}>
+                      ? { fontSize: FS.body, fontWeight: 700, color: T.text, background: T.surface, border: `1px solid ${T.border}`, borderRadius: R.md, padding: "9px 20px", minHeight: isMobile ? 44 : undefined, cursor: "pointer" }
+                      : { fontSize: FS.body, fontWeight: 700, color: T.surface, background: T.dark, border: "none", borderRadius: R.md, padding: "9px 20px", minHeight: isMobile ? 44 : undefined, cursor: "pointer" }}>
                     Ver todas as peças
                   </button>
                 </div>
@@ -467,7 +467,7 @@ export default function Versoes() {
                 // cima, no fim da barra — o próximo passo fica onde o olho já
                 // está. É o mesmo `limpar` do botão da barra.
                 <button onClick={limpar} data-testid="button-limpar-versoes-vazio"
-                  style={{ fontSize: FS.body, fontWeight: 700, color: "#fff", background: T.dark, border: "none", borderRadius: R.md, padding: "9px 20px", minHeight: isMobile ? 44 : undefined, cursor: "pointer" }}>
+                  style={{ fontSize: FS.body, fontWeight: 700, color: T.surface, background: T.dark, border: "none", borderRadius: R.md, padding: "9px 20px", minHeight: isMobile ? 44 : undefined, cursor: "pointer" }}>
                   Limpar filtros
                 </button>
               ) : null}
@@ -480,7 +480,7 @@ export default function Versoes() {
                       próprio em maiúsculas perde a forma das palavras e
                       competia com os selos de alerta dos cartões. */}
                   <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
-                    <Link href={`/eventos/${bloco.eventId}`} className="vs-sublinha" style={{ fontFamily: '"Space Grotesk", sans-serif', fontSize: FS.strong, fontWeight: 700, color: T.text, textDecoration: "none", letterSpacing: "-0.01em", minWidth: 0, overflowWrap: "anywhere" }}>
+                    <Link href={`/eventos/${bloco.eventId}`} className="vs-sublinha" style={{ fontFamily: FONT.display, fontSize: FS.strong, fontWeight: 700, color: T.text, textDecoration: "none", letterSpacing: "-0.01em", minWidth: 0, overflowWrap: "anywhere" }}>
                       {bloco.eventName}
                     </Link>
                     <div aria-hidden="true" style={{ flex: 1, minWidth: 12, height: 1, backgroundColor: T.border }} />
@@ -525,7 +525,7 @@ export default function Versoes() {
 
 const botaoPagina = (desativado: boolean, altura: number): React.CSSProperties => ({
   height: altura, padding: "0 14px", borderRadius: R.md, border: `1px solid ${T.border}`,
-  backgroundColor: "#ffffff", color: desativado ? T.muted : T.text, fontSize: FS.small, fontWeight: 700,
+  backgroundColor: T.surface, color: desativado ? T.muted : T.text, fontSize: FS.small, fontWeight: 700,
   cursor: desativado ? "default" : "pointer", opacity: desativado ? 0.5 : 1,
   display: "inline-flex", alignItems: "center", gap: 5, fontFamily: "inherit",
 });
@@ -536,7 +536,7 @@ function BotaoResumo({ valor, rotulo, ajuda, tom, ativo, onClick, testId }: {
   tom: "critico" | "alerta" | "calmo"; ativo: boolean; onClick: () => void; testId: string;
 }) {
   // #b91c1c/#b45309 sobre branco passam de 4.5:1; o calmo usa o cinza do texto.
-  const cor = valor === 0 ? T.second : tom === "critico" ? "#b91c1c" : tom === "alerta" ? "#b45309" : T.text;
+  const cor = valor === 0 ? T.second : tom === "critico" ? TOM.perigo.text : tom === "alerta" ? TOM.alerta.text : T.text;
   return (
     <button type="button" onClick={onClick} data-testid={testId} title={ajuda}
       className="vs-hover"
@@ -545,7 +545,7 @@ function BotaoResumo({ valor, rotulo, ajuda, tom, ativo, onClick, testId }: {
         // A MESMA superfície nos quatro (25/08): card sem borda parecia
         // elemento não renderizado. O que marca a aba corrente é o FUNDO.
         border: `1px solid ${T.border}`,
-        backgroundColor: ativo ? "#fafaf9" : "#ffffff",
+        backgroundColor: ativo ? T.bg : T.surface,
         display: "flex", flexDirection: "column", gap: 1, minWidth: 0,
       }}>
       <span style={{ ...numero, fontSize: 22, fontWeight: 800, color: cor, lineHeight: 1.1 }}>{valor}</span>
@@ -558,7 +558,7 @@ function Esqueleto({ isMobile }: { isMobile: boolean }) {
   return (
     <div data-testid="skeleton-versoes" aria-hidden="true" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
       {[0, 1, 2, 3].map(i => (
-        <div key={i} style={{ backgroundColor: "#ffffff", border: `1px solid ${T.border}`, borderRadius: R.lg, padding: isMobile ? 12 : "14px 18px" }}>
+        <div key={i} style={{ backgroundColor: T.surface, border: `1px solid ${T.border}`, borderRadius: R.lg, padding: isMobile ? 12 : "14px 18px" }}>
           {/* animate-pulse: parado, o esqueleto parecia tela quebrada, não
               carregando. A classe já respeita movimento reduzido (index.css). */}
           <div className="animate-pulse" style={{ height: 13, width: 220, maxWidth: "70%", backgroundColor: T.low, borderRadius: 4, marginBottom: 12 }} />
@@ -583,9 +583,11 @@ function CartaoDaPeca({ p, isMobile, onComparar }: { p: Peca; isMobile: boolean;
   return (
     <article data-testid={`versoes-peca-${p.id}`}
       style={{
-        backgroundColor: "#ffffff",
-        // A borda sobe de tom quando o erro já saiu do papel.
-        border: `1px solid ${impressaErrada ? "#fca5a5" : p.divergente ? "#fecaca" : T.border}`,
+        backgroundColor: T.surface,
+        // A borda sobe de tom quando o erro já saiu do papel: `dot` é o
+        // vermelho saturado da paleta, `border` o tinto claro. Os dois degraus
+        // são a diferença entre "ainda dá para corrigir" e "já imprimiu".
+        border: `1px solid ${impressaErrada ? TOM.perigo.dot : p.divergente ? TOM.perigo.border : T.border}`,
         borderRadius: R.lg, boxShadow: SHADOW.sm, padding: isMobile ? 12 : "14px 18px",
       }}>
 
@@ -596,7 +598,7 @@ function CartaoDaPeca({ p, isMobile, onComparar }: { p: Peca; isMobile: boolean;
         </Link>
         <span style={{ fontSize: FS.body, fontWeight: 700, color: T.text }}>{p.type}</span>
         {p.description && (
-          <span style={{ fontSize: FS.body, color: "#57534e", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.description}</span>
+          <span style={{ fontSize: FS.body, color: T.apoio, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.description}</span>
         )}
         <span style={{ marginLeft: "auto", display: "inline-flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
           {/* ONDE A PEÇA ESTÁ — vem antes dos selos de exceção porque é ele
@@ -611,11 +613,11 @@ function CartaoDaPeca({ p, isMobile, onComparar }: { p: Peca; isMobile: boolean;
           {impressaErrada ? (
             <span data-testid={`selo-divergente-${p.id}`}
               title="A arte que já foi para a gráfica não é a que o patrocinador aprovou"
-              style={{ fontSize: FS.small, fontWeight: 700, color: "#ffffff", backgroundColor: "#b91c1c", border: "1px solid #b91c1c", borderRadius: R.sm, padding: "1px 7px", whiteSpace: "nowrap" }}>
+              style={{ fontSize: FS.small, fontWeight: 700, color: T.surface, backgroundColor: TOM.perigo.text, border: `1px solid ${TOM.perigo.text}`, borderRadius: R.sm, padding: "1px 7px", whiteSpace: "nowrap" }}>
               produzida na versão errada
             </span>
           ) : p.divergente ? (
-            <Selo testId={`selo-divergente-${p.id}`} cor="#b91c1c" fundo="#fef2f2" borda="#fecaca"
+            <Selo testId={`selo-divergente-${p.id}`} cor={TOM.perigo.text} fundo={TOM.perigo.bg} borda={TOM.perigo.border}
               titulo="Alguém aprovou uma arte diferente da que está na peça hoje">aprovou outra versão</Selo>
           ) : null}
 
@@ -633,20 +635,20 @@ function CartaoDaPeca({ p, isMobile, onComparar }: { p: Peca; isMobile: boolean;
                 title={`v${i + 1} · ${ORIGEM_LABEL[v.origem]} · ${fmtData(v.em)}${v.por ? ` · ${v.por}` : ""}${v.inferida ? " · reconstruída, não gravada" : ""} — clique para comparar`}
                 style={{
                   flexShrink: 0, width: 116, padding: 0, textAlign: "left", cursor: "pointer", fontFamily: "inherit",
-                  border: `1px solid ${atual ? "#fed7aa" : T.border}`, borderRadius: R.md, overflow: "hidden",
-                  backgroundColor: atual ? "#fff7ed" : "#fafaf9",
+                  border: `1px solid ${atual ? TOM.laranja.border : T.border}`, borderRadius: R.md, overflow: "hidden",
+                  backgroundColor: atual ? TOM.laranja.bg : T.bg,
                 }}>
-                <span style={{ display: "block", height: 72, backgroundColor: "#ffffff" }}>
+                <span style={{ display: "block", height: 72, backgroundColor: T.surface }}>
                   {isWebUrl(v.thumbUrl)
                     ? <img src={v.thumbUrl} alt="" loading="lazy" decoding="async" style={{ width: "100%", height: "100%", objectFit: "contain", display: "block" }}
                         onError={e => { (e.currentTarget as HTMLImageElement).style.visibility = "hidden"; }} />
                     : <span style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", fontSize: FS.micro, color: T.second }}>sem prévia</span>}
                 </span>
                 <span style={{ display: "block", padding: "5px 8px" }}>
-                  <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: FS.small, fontWeight: 800, color: atual ? "#9a3412" : T.text }}>
+                  <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: FS.small, fontWeight: 800, color: atual ? T.accentText : T.text }}>
                     v{i + 1}
                     {atual && <span style={{ fontSize: FS.small, fontWeight: 600 }}>· atual</span>}
-                    {v.inferida && <AlertTriangle aria-hidden="true" style={{ width: 10, height: 10, color: "#b45309", marginLeft: "auto" }} />}
+                    {v.inferida && <AlertTriangle aria-hidden="true" style={{ width: 10, height: 10, color: TOM.alerta.text, marginLeft: "auto" }} />}
                   </span>
                   <span style={{ display: "block", ...numero, fontSize: FS.micro, color: T.second }}>{fmtData(v.em)}</span>
                 </span>
@@ -654,7 +656,7 @@ function CartaoDaPeca({ p, isMobile, onComparar }: { p: Peca; isMobile: boolean;
             );
           })}
           <button type="button" onClick={onComparar} data-testid={`button-comparar-${p.id}`}
-            style={{ flexShrink: 0, width: 92, borderRadius: R.md, border: `1px dashed ${T.border}`, backgroundColor: "#ffffff", cursor: "pointer", fontFamily: "inherit", color: T.accentText, fontSize: FS.small, fontWeight: 700, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 4 }}>
+            style={{ flexShrink: 0, width: 92, borderRadius: R.md, border: `1px dashed ${T.border}`, backgroundColor: T.surface, cursor: "pointer", fontFamily: "inherit", color: T.accentText, fontSize: FS.small, fontWeight: 700, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 4 }}>
             <Layers style={{ width: 15, height: 15 }} />
             Comparar
           </button>
@@ -664,7 +666,7 @@ function CartaoDaPeca({ p, isMobile, onComparar }: { p: Peca; isMobile: boolean;
         // galeria — a área do cartão volta para a decisão, que é o assunto.
         <div data-testid={`versao-unica-${p.id}`} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
           {isWebUrl(p.versoes[0]?.thumbUrl ?? "") ? (
-            <a href={p.versoes[0].thumbUrl} target="_blank" rel="noopener noreferrer" title="Abrir a arte" aria-label={`Abrir a arte de ${p.displayId}`} style={{ display: "block", width: 40, height: 30, border: `1px solid ${T.border}`, borderRadius: R.sm, overflow: "hidden", flexShrink: 0, backgroundColor: "#fff" }}>
+            <a href={p.versoes[0].thumbUrl} target="_blank" rel="noopener noreferrer" title="Abrir a arte" aria-label={`Abrir a arte de ${p.displayId}`} style={{ display: "block", width: 40, height: 30, border: `1px solid ${T.border}`, borderRadius: R.sm, overflow: "hidden", flexShrink: 0, backgroundColor: T.surface }}>
               <img src={p.versoes[0].thumbUrl} alt="" loading="lazy" decoding="async" style={{ width: "100%", height: "100%", objectFit: "contain", display: "block" }}
                 onError={e => { (e.currentTarget as HTMLImageElement).style.visibility = "hidden"; }} />
             </a>
@@ -720,7 +722,7 @@ function FaixaDeResolucao({ p, isMobile }: { p: Peca; isMobile: boolean }) {
     const vAgora = versaoAtual > 0 ? `v${versaoAtual}` : "a atual";
     if (naGrafica) {
       // #7f1d1d sobre #fef2f2 = 8,9:1
-      tom = { barra: "#dc2626", fundo: "#fef2f2", texto: "#7f1d1d" };
+      tom = { barra: TOM.perigo.text, fundo: TOM.perigo.bg, texto: TOM.perigo.text };
       frase = `A peça está ${entregue ? "produzida" : "em produção"} com uma arte que ${divergente.nome} não aprovou`;
       detalhe = `Aprovou ${vDele}${divergente.decididoEm ? ` em ${fmtData(divergente.decididoEm)}` : ""}; a arte foi trocada depois, para a ${vAgora}. `;
       detalhe += entregue
@@ -728,12 +730,12 @@ function FaixaDeResolucao({ p, isMobile }: { p: Peca; isMobile: boolean }) {
         : "Dá para parar a produção enquanto ainda há tempo.";
     } else {
       // #78350f sobre #fffbeb = 9,4:1
-      tom = { barra: "#f59e0b", fundo: "#fffbeb", texto: "#78350f" };
+      tom = { barra: TOM.alerta.dot, fundo: TOM.alerta.bg, texto: TOM.alerta.text };
       frase = `${divergente.nome} aprovou ${vDele}, e a peça está na ${vAgora}`;
       detalhe = `Aprovou${divergente.decididoEm ? ` em ${fmtData(divergente.decididoEm)}` : ""}, e a arte foi trocada depois. Ainda dá para acertar antes da gráfica.`;
     }
   } else {
-    tom = { barra: "#f59e0b", fundo: "#fffbeb", texto: "#78350f" };
+    tom = { barra: TOM.alerta.dot, fundo: TOM.alerta.bg, texto: TOM.alerta.text };
     frase = `Não dá para afirmar qual versão ${ambigua!.nome} decidiu`;
     detalhe = "A arte foi trocada no mesmo instante da decisão. A trilha da peça mostra a ordem exata dos dois registros.";
   }
@@ -754,7 +756,7 @@ function FaixaDeResolucao({ p, isMobile }: { p: Peca; isMobile: boolean }) {
         data-testid={`link-abrir-peca-${p.id}`}
         title="Abrir a peça no evento, onde a Arte troca a arte e o Atendimento reabre a aprovação"
         className="vs-hover"
-        style={{ flexShrink: 0, display: "inline-flex", alignItems: "center", gap: 5, height: isMobile ? 44 : 30, marginLeft: isMobile ? 25 : 0, padding: "0 12px", borderRadius: R.md, border: `1px solid ${tom.barra}33`, backgroundColor: "#ffffff", color: tom.texto, fontSize: FS.small, fontWeight: 700, textDecoration: "none", whiteSpace: "nowrap" }}>
+        style={{ flexShrink: 0, display: "inline-flex", alignItems: "center", gap: 5, height: isMobile ? 44 : 30, marginLeft: isMobile ? 25 : 0, padding: "0 12px", borderRadius: R.md, border: `1px solid ${tom.barra}33`, backgroundColor: T.surface, color: tom.texto, fontSize: FS.small, fontWeight: 700, textDecoration: "none", whiteSpace: "nowrap" }}>
         <ExternalLink style={{ width: 13, height: 13 }} /> Abrir a peça
       </Link>
     </div>
@@ -798,7 +800,7 @@ function LinhaDaDecisao({ d, pecaId }: { d: Decisao; pecaId: string }) {
       style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", padding: "6px 10px", borderRadius: R.md, backgroundColor: meta?.bg ?? T.low, border: `1px solid ${meta?.border ?? T.border}` }}>
       <span aria-hidden="true" style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: d.cor ?? T.muted, flexShrink: 0 }} />
       <span style={{ fontSize: FS.body, fontWeight: 700, color: T.text }}>{d.nome}</span>
-      <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: FS.small, fontWeight: 700, color: meta?.text ?? "#57534e" }}>
+      <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: FS.small, fontWeight: 700, color: meta?.text ?? T.apoio }}>
         <Icone aria-hidden="true" style={{ width: 11, height: 11 }} /> {frase}
       </span>
       {d.decididoEm && <span style={{ ...numero, fontSize: FS.small, color: T.second }}>{fmtData(d.decididoEm)}</span>}
@@ -806,18 +808,18 @@ function LinhaDaDecisao({ d, pecaId }: { d: Decisao; pecaId: string }) {
 
       {d.ambiguo && (
         /* #92400e sobre #fffbeb = 6,6:1 */
-        <Selo testId={`selo-indeterminada-${pecaId}-${d.sponsorId}`} cor="#92400e" fundo="#fffbeb" borda="#fde68a"
+        <Selo testId={`selo-indeterminada-${pecaId}-${d.sponsorId}`} cor={TOM.alerta.text} fundo={TOM.alerta.bg} borda={TOM.alerta.border}
           titulo="A arte foi trocada no mesmo instante da decisão: não dá para afirmar qual versão foi decidida">
           versão indeterminada
         </Selo>
       )}
       {d.divergente && (
-        <Selo testId={`selo-divergiu-${pecaId}-${d.sponsorId}`} cor="#b91c1c" fundo="#fef2f2" borda="#fecaca"
+        <Selo testId={`selo-divergiu-${pecaId}-${d.sponsorId}`} cor={TOM.perigo.text} fundo={TOM.perigo.bg} borda={TOM.perigo.border}
           titulo="O que este patrocinador aprovou não é a arte que está na peça agora">
           ≠ arte atual
         </Selo>
       )}
-      {motivo && <span style={{ fontSize: FS.small, color: "#57534e", width: "100%" }}>{motivo}</span>}
+      {motivo && <span style={{ fontSize: FS.small, color: T.apoio, width: "100%" }}>{motivo}</span>}
       {d.thumbUrl && isWebUrl(d.thumbUrl) && (
         <a href={d.thumbUrl} target="_blank" rel="noopener noreferrer" title="Abrir a versão decidida"
           aria-label={`Abrir a versão decidida por ${d.nome}`}
@@ -908,7 +910,7 @@ function Comparador({ peca, onClose, isMobile }: { peca: Peca | null; onClose: (
             icon={Layers}
             title={`Versões de ${peca?.displayId ?? ""}`}
             subtitle={peca ? `${peca.type}${peca.description ? ` · ${peca.description}` : ""} · ${total} ${total === 1 ? "versão" : "versões"}` : ""}
-            tint="#ea580c"
+            tint={T.accentText}
             onClose={onClose}
           />
           <div style={{ flex: "1 1 auto", minHeight: 0, overflowY: "auto", padding: isMobile ? 12 : 18, display: "flex", flexDirection: isMobile ? "column" : "row", gap: 16 }}>
@@ -917,13 +919,13 @@ function Comparador({ peca, onClose, isMobile }: { peca: Peca | null; onClose: (
               {/* Como olhar. Some no celular, onde os painéis empilhariam. */}
               {!isMobile && total > 1 && (
                 <div role="tablist" aria-label="Modo de comparação" data-testid="segmented-modo-comparador"
-                  style={{ display: "inline-flex", backgroundColor: "#f3f4f3", borderRadius: R.md, padding: 3, gap: 2, marginBottom: 10 }}>
+                  style={{ display: "inline-flex", backgroundColor: T.low, borderRadius: R.md, padding: 3, gap: 2, marginBottom: 10 }}>
                   {([["uma", "Uma por vez", Square], ["lado", "Lado a lado", Columns2]] as const).map(([valor, rotulo, Icone]) => {
                     const ativo = modo === valor;
                     return (
                       <button key={valor} type="button" role="tab" aria-selected={ativo} data-testid={`button-modo-${valor}`}
                         onClick={() => setModo(valor)}
-                        style={{ display: "inline-flex", alignItems: "center", gap: 6, height: 30, padding: "0 12px", borderRadius: R.sm, border: "none", fontSize: FS.small, fontWeight: 700, fontFamily: "inherit", cursor: "pointer", color: ativo ? T.text : "#57534e", backgroundColor: ativo ? "#ffffff" : "transparent", boxShadow: ativo ? "0 1px 2px rgba(28,25,23,0.06)" : "none" }}>
+                        style={{ display: "inline-flex", alignItems: "center", gap: 6, height: 30, padding: "0 12px", borderRadius: R.sm, border: "none", fontSize: FS.small, fontWeight: 700, fontFamily: "inherit", cursor: "pointer", color: ativo ? T.text : T.apoio, backgroundColor: ativo ? T.surface : "transparent", boxShadow: ativo ? "0 1px 2px rgba(28,25,23,0.06)" : "none" }}>
                         <Icone style={{ width: 13, height: 13 }} /> {rotulo}
                       </button>
                     );
@@ -938,19 +940,19 @@ function Comparador({ peca, onClose, isMobile }: { peca: Peca | null; onClose: (
                     const ehAtual = idx === iAtual;
                     return (
                       <div key={lado} data-testid={`painel-lado-${lado}`}
-                        style={{ border: `1px solid ${ehAtual ? "#fed7aa" : T.border}`, borderRadius: R.lg, overflow: "hidden", backgroundColor: "#fafaf9" }}>
-                        <div style={{ padding: "8px 10px", backgroundColor: ehAtual ? "#fff7ed" : "#ffffff", borderBottom: `1px solid ${ehAtual ? "#fed7aa" : T.low}` }}>
-                          <p style={{ margin: 0, fontSize: FS.body, fontWeight: 800, color: ehAtual ? "#9a3412" : T.text }}>
+                        style={{ border: `1px solid ${ehAtual ? TOM.laranja.border : T.border}`, borderRadius: R.lg, overflow: "hidden", backgroundColor: T.bg }}>
+                        <div style={{ padding: "8px 10px", backgroundColor: ehAtual ? TOM.laranja.bg : T.surface, borderBottom: `1px solid ${ehAtual ? TOM.laranja.border : T.low}` }}>
+                          <p style={{ margin: 0, fontSize: FS.body, fontWeight: 800, color: ehAtual ? T.accentText : T.text }}>
                             v{idx + 1}{ehAtual ? " · atual" : ""}
                           </p>
                           <p style={{ margin: "1px 0 0", ...numero, fontSize: FS.micro, color: T.second }}>{fmtData(versao?.em ?? null)}</p>
                         </div>
-                        <div style={{ height: isMobile ? 220 : 340, display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: "#ffffff" }}>
+                        <div style={{ height: isMobile ? 220 : 340, display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: T.surface }}>
                           {versao && isWebUrl(versao.thumbUrl)
                             ? <img src={versao.thumbUrl} alt={`Versão ${idx + 1}`} style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain", display: "block" }} />
                             : <span style={{ fontSize: FS.small, color: T.second }}>Sem prévia</span>}
                         </div>
-                        <p style={{ margin: 0, padding: "7px 10px", fontSize: FS.small, color: "#57534e", borderTop: `1px solid ${T.low}`, backgroundColor: "#ffffff" }}>
+                        <p style={{ margin: 0, padding: "7px 10px", fontSize: FS.small, color: T.apoio, borderTop: `1px solid ${T.low}`, backgroundColor: T.surface }}>
                           {quemAprovou(idx)}
                         </p>
                       </div>
@@ -958,7 +960,7 @@ function Comparador({ peca, onClose, isMobile }: { peca: Peca | null; onClose: (
                   })}
                 </div>
               ) : (
-                <div style={{ position: "relative", backgroundColor: "#fafaf9", border: `1px solid ${T.border}`, borderRadius: R.lg, height: isMobile ? 260 : 420, display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
+                <div style={{ position: "relative", backgroundColor: T.bg, border: `1px solid ${T.border}`, borderRadius: R.lg, height: isMobile ? 260 : 420, display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
                   {v && isWebUrl(v.thumbUrl)
                     ? <img key={v.thumbUrl} src={v.thumbUrl} alt={`Versão ${indice + 1} de ${peca?.displayId}`} data-testid="img-comparador"
                         style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain", display: "block" }} />
@@ -983,7 +985,7 @@ function Comparador({ peca, onClose, isMobile }: { peca: Peca | null; onClose: (
                     <button key={`${x.thumbUrl}-${i}`} type="button" onClick={() => setIndice(i)} data-testid={`button-comparador-v${i + 1}`}
                       aria-pressed={ativo}
                       style={{ height: isMobile ? 44 : 30, padding: "0 12px", borderRadius: R.md, cursor: "pointer", fontFamily: "inherit", fontSize: FS.small, fontWeight: 700,
-                        border: `1px solid ${ativo ? T.dark : T.border}`, backgroundColor: ativo ? T.dark : "#ffffff", color: ativo ? "#ffffff" : T.text }}>
+                        border: `1px solid ${ativo ? T.dark : T.border}`, backgroundColor: ativo ? T.dark : T.surface, color: ativo ? T.surface : T.text }}>
                       v{i + 1}{x.thumbUrl === peca?.approvalThumbUrl ? " · atual" : ""}
                     </button>
                   );
@@ -1002,7 +1004,7 @@ function Comparador({ peca, onClose, isMobile }: { peca: Peca | null; onClose: (
                   {v ? ORIGEM_LABEL[v.origem] : ""}{v?.por ? ` · ${v.por}` : ""}
                 </p>
                 {v?.inferida && (
-                  <p style={{ margin: "6px 0 0", fontSize: FS.small, color: "#92400e", backgroundColor: "#fffbeb", border: "1px solid #fde68a", borderRadius: R.sm, padding: "5px 8px", lineHeight: 1.4 }}>
+                  <p style={{ margin: "6px 0 0", fontSize: FS.small, color: TOM.alerta.text, backgroundColor: TOM.alerta.bg, border: `1px solid ${TOM.alerta.border}`, borderRadius: R.sm, padding: "5px 8px", lineHeight: 1.4 }}>
                     Reconstruída da trilha — esta versão não foi gravada como versão na época.
                   </p>
                 )}
@@ -1026,7 +1028,7 @@ function Comparador({ peca, onClose, isMobile }: { peca: Peca | null; onClose: (
               {v && isWebUrl(v.thumbUrl) && (
                 <a href={v.thumbUrl} target="_blank" rel="noopener noreferrer" data-testid="link-abrir-versao"
                   className="vs-hover"
-                  style={{ marginTop: "auto", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, height: isMobile ? 44 : 38, borderRadius: R.md, border: `1px solid ${T.border}`, backgroundColor: "#ffffff", color: T.text, textDecoration: "none", fontSize: FS.small, fontWeight: 700 }}>
+                  style={{ marginTop: "auto", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, height: isMobile ? 44 : 38, borderRadius: R.md, border: `1px solid ${T.border}`, backgroundColor: T.surface, color: T.text, textDecoration: "none", fontSize: FS.small, fontWeight: 700 }}>
                   <ExternalLink style={{ width: 13, height: 13 }} /> Abrir em tamanho real
                 </a>
               )}
@@ -1060,9 +1062,9 @@ function AbaBooks({ eventos, isMobile, alturaControle, podeAvisar, podeRepublica
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
       {eventos.map(ev => (
         <section key={ev.eventId} data-testid={`books-evento-${ev.eventId}`}
-          style={{ backgroundColor: "#ffffff", border: `1px solid ${T.border}`, borderRadius: R.lg, boxShadow: SHADOW.sm, overflow: "hidden" }}>
+          style={{ backgroundColor: T.surface, border: `1px solid ${T.border}`, borderRadius: R.lg, boxShadow: SHADOW.sm, overflow: "hidden" }}>
           <div style={{ padding: isMobile ? "12px" : "12px 18px", borderBottom: `1px solid ${T.low}`, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-            <Link href={`/eventos/${ev.eventId}`} className="vs-sublinha" style={{ fontFamily: '"Space Grotesk", sans-serif', fontSize: FS.strong, fontWeight: 700, color: T.text, textDecoration: "none" }}>{ev.eventName}</Link>
+            <Link href={`/eventos/${ev.eventId}`} className="vs-sublinha" style={{ fontFamily: FONT.display, fontSize: FS.strong, fontWeight: 700, color: T.text, textDecoration: "none" }}>{ev.eventName}</Link>
             <span style={{ fontSize: FS.small, color: T.second }}>{ev.books.length} {ev.books.length === 1 ? "publicação" : "publicações"}</span>
           </div>
           <div>
@@ -1102,7 +1104,7 @@ function BotaoReenviarAviso({ eventId, altura }: { eventId: string; altura: numb
       data-testid={`button-reenviar-aviso-${eventId}`}
       title="Reenviar por e-mail o aviso deste book para os responsáveis do evento"
       className="vs-hover"
-      style={{ display: "inline-flex", alignItems: "center", gap: 6, height: altura, padding: "0 12px", borderRadius: R.md, border: `1px solid ${T.border}`, backgroundColor: "#ffffff", color: T.text, fontSize: FS.small, fontWeight: 700, cursor: enviar.isPending ? "default" : "pointer", opacity: enviar.isPending ? 0.6 : 1, fontFamily: "inherit", whiteSpace: "nowrap" }}>
+      style={{ display: "inline-flex", alignItems: "center", gap: 6, height: altura, padding: "0 12px", borderRadius: R.md, border: `1px solid ${T.border}`, backgroundColor: T.surface, color: T.text, fontSize: FS.small, fontWeight: 700, cursor: enviar.isPending ? "default" : "pointer", opacity: enviar.isPending ? 0.6 : 1, fontFamily: "inherit", whiteSpace: "nowrap" }}>
       {enviar.isPending
         ? <Loader2 style={{ width: 13, height: 13 }} className="animate-spin" />
         : <Send style={{ width: 13, height: 13 }} />}
@@ -1138,7 +1140,7 @@ function LinhaDoBook({ b, ev, i, total, isMobile, alturaControle, podeAvisar, po
     <div data-testid={`book-${ev.eventId}-${i}`}
       style={{ borderBottom: i < total - 1 ? `1px solid ${T.low}` : "none" }}>
       <div style={{ display: "flex", alignItems: "center", gap: isMobile ? 10 : 12, padding: isMobile ? "10px 12px" : "10px 18px", flexWrap: "wrap" }}>
-        <span aria-hidden="true" style={{ width: 30, height: 30, borderRadius: R.md, backgroundColor: "#faf5ff", color: "#7e22ce", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+        <span aria-hidden="true" style={{ width: 30, height: 30, borderRadius: R.md, backgroundColor: TOM.roxo.bg, color: TOM.roxo.text, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
           <FileText style={{ width: 15, height: 15 }} />
         </span>
         <div style={{ flex: 1, minWidth: 200 }}>
@@ -1152,12 +1154,12 @@ function LinhaDoBook({ b, ev, i, total, isMobile, alturaControle, podeAvisar, po
                 data-testid={`selo-book-desatualizado-${ev.eventId}-${i}`}
                 aria-expanded={aberto}
                 title="Ver quais peças deste book ganharam arte nova depois da publicação"
-                style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: FS.small, fontWeight: 600, color: "#b45309", backgroundColor: "#fffbeb", border: "1px solid #fde68a", borderRadius: R.sm, padding: "2px 8px", cursor: "pointer", fontFamily: "inherit", textAlign: "left", minHeight: isMobile ? 44 : undefined }}>
+                style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: FS.small, fontWeight: 600, color: TOM.alerta.text, backgroundColor: TOM.alerta.bg, border: `1px solid ${TOM.alerta.border}`, borderRadius: R.sm, padding: "2px 8px", cursor: "pointer", fontFamily: "inherit", textAlign: "left", minHeight: isMobile ? 44 : undefined }}>
                 desatualizado · {b.pecasMudaramDepois} de {b.itemCount} {b.pecasMudaramDepois === 1 ? "peça mudou" : "peças mudaram"}
                 <ChevronRight aria-hidden="true" style={{ width: 11, height: 11, transform: aberto ? "rotate(90deg)" : "none", transition: "transform 0.15s" }} />
               </button>
             ) : b.membrosConhecidos && b.em && i === 0 ? (
-              <Selo testId={`selo-book-em-dia-${ev.eventId}`} cor="#15803d" fundo="#f0fdf4" borda="#bbf7d0"
+              <Selo testId={`selo-book-em-dia-${ev.eventId}`} cor={TOM.sucesso.text} fundo={TOM.sucesso.bg} borda={TOM.sucesso.border}
                 titulo="Nenhuma peça deste book ganhou arte nova depois da publicação">em dia</Selo>
             ) : null}
           </p>
@@ -1171,7 +1173,7 @@ function LinhaDoBook({ b, ev, i, total, isMobile, alturaControle, podeAvisar, po
                 enigmático é pior que o silêncio — o motivo fica aqui, em
                 português, para quem for atrás. */}
             {b.comentario && (
-              <span style={{ display: 'block', marginTop: 2, fontStyle: 'italic', color: '#57534e' }}>“{b.comentario}”</span>
+              <span style={{ display: 'block', marginTop: 2, fontStyle: 'italic', color: T.apoio }}>“{b.comentario}”</span>
             )}
             {!b.membrosConhecidos && (
               <span style={{ color: T.second }}> · esta publicação foi substituída; o sistema guardou quantas peças ela tinha, não quais</span>
@@ -1188,8 +1190,8 @@ function LinhaDoBook({ b, ev, i, total, isMobile, alturaControle, podeAvisar, po
                 : ev.aviso
                   ? "O último aviso na trilha é anterior a esta publicação — deste book, ninguém foi avisado ainda."
                   : "O book foi publicado e nenhum aviso por e-mail consta na trilha."}
-              style={{ margin: "3px 0 0", fontSize: 11, display: "flex", alignItems: "center", gap: 5, color: avisoDoAtual ? "#15803d" : "#b45309", fontWeight: avisoDoAtual ? 500 : 700 }}>
-              <span aria-hidden="true" style={{ width: 6, height: 6, borderRadius: "50%", backgroundColor: avisoDoAtual ? "#15803d" : "#f59e0b", flexShrink: 0 }} />
+              style={{ margin: "3px 0 0", fontSize: 11, display: "flex", alignItems: "center", gap: 5, color: avisoDoAtual ? TOM.sucesso.text : TOM.alerta.text, fontWeight: avisoDoAtual ? 500 : 700 }}>
+              <span aria-hidden="true" style={{ width: 6, height: 6, borderRadius: "50%", backgroundColor: avisoDoAtual ? TOM.sucesso.text : TOM.alerta.dot, flexShrink: 0 }} />
               {avisoDoAtual
                 ? <>aviso enviado <span style={numero}>{fmtData(avisoDoAtual.em)}</span> para {avisoDoAtual.pessoas} {avisoDoAtual.pessoas === 1 ? "pessoa" : "pessoas"}</>
                 : "aviso nunca enviado"}
@@ -1201,7 +1203,7 @@ function LinhaDoBook({ b, ev, i, total, isMobile, alturaControle, podeAvisar, po
         {isWebUrl(b.bookUrl) ? (
           <a href={b.bookUrl} download target="_blank" rel="noopener noreferrer" data-testid={`link-baixar-book-${ev.eventId}-${i}`}
             className="vs-hover"
-            style={{ display: "inline-flex", alignItems: "center", gap: 6, height: alturaControle, padding: "0 14px", borderRadius: R.md, border: `1px solid ${T.border}`, backgroundColor: "#ffffff", color: T.text, fontSize: FS.small, fontWeight: 700, textDecoration: "none", whiteSpace: "nowrap" }}>
+            style={{ display: "inline-flex", alignItems: "center", gap: 6, height: alturaControle, padding: "0 14px", borderRadius: R.md, border: `1px solid ${T.border}`, backgroundColor: T.surface, color: T.text, fontSize: FS.small, fontWeight: 700, textDecoration: "none", whiteSpace: "nowrap" }}>
             <Download style={{ width: 13, height: 13 }} /> Baixar
           </a>
         ) : (
@@ -1222,13 +1224,13 @@ function LinhaDoBook({ b, ev, i, total, isMobile, alturaControle, podeAvisar, po
           // Recuo de 60px alinha a faixa ao texto da linha no desktop; no
           // celular o recuo comia um sexto da largura útil e a lista de fichas
           // virava uma coluna estreita.
-          style={{ margin: isMobile ? "0 12px 12px" : "0 18px 12px 60px", display: "flex", flexWrap: isMobile ? "wrap" : "nowrap", gap: 10, alignItems: "flex-start", backgroundColor: "#fffbeb", border: "1px solid #fde68a", borderLeft: "3px solid #f59e0b", borderRadius: R.md, padding: "10px 12px" }}>
-          <MessageSquareWarning aria-hidden="true" style={{ width: 15, height: 15, color: "#f59e0b", flexShrink: 0, marginTop: 1 }} />
+          style={{ margin: isMobile ? "0 12px 12px" : "0 18px 12px 60px", display: "flex", flexWrap: isMobile ? "wrap" : "nowrap", gap: 10, alignItems: "flex-start", backgroundColor: TOM.alerta.bg, border: `1px solid ${TOM.alerta.border}`, borderLeft: `3px solid ${TOM.alerta.dot}`, borderRadius: R.md, padding: "10px 12px" }}>
+          <MessageSquareWarning aria-hidden="true" style={{ width: 15, height: 15, color: TOM.alerta.dot, flexShrink: 0, marginTop: 1 }} />
           <div style={{ flex: isMobile ? "1 1 calc(100% - 25px)" : 1, minWidth: 0 }}>
-            <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: "#78350f", lineHeight: 1.35 }}>
+            <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: TOM.alerta.text, lineHeight: 1.35 }}>
               O book publicado não tem a arte atual de {b.pecasMudaramDepois} {b.pecasMudaramDepois === 1 ? "peça" : "peças"}
             </p>
-            <p style={{ margin: "3px 0 0", fontSize: 11, color: "#78350f", opacity: 0.85, lineHeight: 1.45 }}>
+            <p style={{ margin: "3px 0 0", fontSize: 11, color: TOM.alerta.text, opacity: 0.85, lineHeight: 1.45 }}>
               A arte {b.pecasMudaramDepois === 1 ? "desta peça" : "destas peças"} mudou depois de {b.em ? fmtDia(b.em) : "a publicação"}. Quem abrir o book vai ver a versão antiga — e é por ele que o patrocinador decide.
             </p>
             <div style={{ display: "flex", gap: 5, flexWrap: "wrap", marginTop: 7 }}>
@@ -1236,12 +1238,12 @@ function LinhaDoBook({ b, ev, i, total, isMobile, alturaControle, podeAvisar, po
                 <Link key={pm.id} href={`/eventos/${pm.eventId}?item=${pm.id}`}
                   data-testid={`ficha-peca-mudou-${pm.id}`}
                   title={`${pm.type}${pm.description ? ` — ${pm.description}` : ""} · arte trocada em ${fmtData(pm.em)}`}
-                  style={{ ...numero, display: "inline-flex", alignItems: "center", minHeight: isMobile ? 44 : 22, padding: "1px 8px", borderRadius: R.sm, border: "1px solid #fde68a", backgroundColor: "#ffffff", color: "#92400e", fontSize: FS.small, fontWeight: 700, textDecoration: "none" }}>
+                  style={{ ...numero, display: "inline-flex", alignItems: "center", minHeight: isMobile ? 44 : 22, padding: "1px 8px", borderRadius: R.sm, border: `1px solid ${TOM.alerta.border}`, backgroundColor: T.surface, color: TOM.alerta.text, fontSize: FS.small, fontWeight: 700, textDecoration: "none" }}>
                   {pm.displayId}
                 </Link>
               ))}
               {escondidas > 0 && (
-                <span style={{ fontSize: 11, color: "#78350f", alignSelf: "center" }}>e mais {escondidas}</span>
+                <span style={{ fontSize: 11, color: TOM.alerta.text, alignSelf: "center" }}>e mais {escondidas}</span>
               )}
             </div>
           </div>
@@ -1249,7 +1251,7 @@ function LinhaDoBook({ b, ev, i, total, isMobile, alturaControle, podeAvisar, po
             <Link href={`/eventos/${ev.eventId}/gerar-book`}
               data-testid={`button-republicar-book-${ev.eventId}`}
               title="Abrir o gerador de book: monta um PDF novo com a arte atual das peças e publica — o aviso aos responsáveis sai na publicação"
-              style={{ flexShrink: 0, display: "inline-flex", alignItems: "center", gap: 6, height: isMobile ? 44 : 32, marginLeft: isMobile ? 25 : 0, padding: "0 14px", borderRadius: R.md, border: "none", backgroundColor: "#c2410c", color: "#ffffff", fontSize: FS.small, fontWeight: 700, textDecoration: "none", whiteSpace: "nowrap" }}>
+              style={{ flexShrink: 0, display: "inline-flex", alignItems: "center", gap: 6, height: isMobile ? 44 : 32, marginLeft: isMobile ? 25 : 0, padding: "0 14px", borderRadius: R.md, border: "none", backgroundColor: T.accentText, color: T.surface, fontSize: FS.small, fontWeight: 700, textDecoration: "none", whiteSpace: "nowrap" }}>
               <FileText style={{ width: 13, height: 13 }} /> Republicar book
             </Link>
           )}
@@ -1271,7 +1273,7 @@ function LinhaDoBook({ b, ev, i, total, isMobile, alturaControle, podeAvisar, po
                 <span style={{ ...numero, fontWeight: 700, color: T.accentText, flexShrink: 0 }}>{pm.displayId}</span>
                 <span style={{ fontWeight: 700, flexShrink: 0 }}>{pm.type}</span>
                 {pm.description && (
-                  <span style={{ color: "#57534e", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 260 }}>{pm.description}</span>
+                  <span style={{ color: T.apoio, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 260 }}>{pm.description}</span>
                 )}
                 {/* ONDE ELA ESTÁ. Arte trocada em peça que já foi para a
                     gráfica é outro problema — e é o que decide a urgência. */}

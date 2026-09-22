@@ -14,21 +14,21 @@ import { ModalHeader, modalSurface, HIDE_NATIVE_CLOSE } from "@/components/modal
 import { MARCOS_DO_EVENTO, OFFSET_PADRAO_DO_MARCO } from "@shared/prazo-dates";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useAuth } from "@/contexts/auth-context";
-import { FS } from "@/lib/theme";
+import { T, FS, R, N, FW, FONT, TOM } from "@/lib/theme";
 
 /* ── Palette ── */
 const P = {
-  bg:       "#f9f9f8",
-  surface:  "#ffffff",
-  border:   "#e7e5e4",
-  text:     "#1c1917",
+  bg:       T.bg,
+  surface:  T.surface,
+  border:   T.border,
+  text:     T.text,
   // #746e69 é o cinza que passa AA em todas as superfícies do app (ver
   // lib/theme.ts) — o antigo #78716c reprovava sobre os fundos acinzentados.
-  secondary:"#746e69",
+  secondary:T.second,
   // Apenas decorativo (ícones, placeholders) — nunca como cor de texto.
-  muted:    "#a8a29e",
-  accent:   "#f97316",
-  low:      "#f5f4f0",
+  muted:    T.muted,
+  accent:   T.accent,
+  low:      N.n3,
 };
 
 /* ── Prioridade → cores canônicas (lib/status) ──
@@ -37,7 +37,7 @@ const P = {
    escuro) no texto, `dot` (saturada) na bolinha/barra, como no resto do app.
    "completed" reaproveita o verde do status de evento concluído; sem
    prioridade cai na família neutra. */
-const NO_PRIO = { label: "Sem prioridade", bg: "#f5f5f4", text: "#44403c", border: "#e7e5e4", dot: "#78716c" };
+const NO_PRIO = { label: "Sem prioridade", bg: T.low, text: T.strong, border: T.border, dot: T.second };
 function prioMeta(ev: any): { label: string; bg: string; text: string; border: string; dot: string } {
   // Encerrado à mão vem ANTES da prioridade: um evento que alguém fechou
   // exibindo o chip vermelho "Urgente" cobra um trabalho que já saiu de pauta.
@@ -402,7 +402,7 @@ export default function Calendario() {
      o aviso mais urgente da tela era o menos legível (AA pede 4,5:1). */
   function urgentBg(ev: any) {
     const hrs = (toUTCDisplayDate(ev.truckDepartureDate).getTime() - now) / 3_600_000;
-    return hrs < 24 ? "#dc2626" : "#c2410c";
+    return hrs < 24 ? TOM.perigo.text : T.accentText;
   }
 
   return (
@@ -417,7 +417,7 @@ export default function Calendario() {
         <h1 data-testid="title-calendario" style={{
           fontSize: FS.h1, fontWeight: 700, color: P.text, margin: 0,
           letterSpacing: "-0.03em",
-          fontFamily: "'Space Grotesk', sans-serif", lineHeight: 1.1,
+          fontFamily: FONT.display, lineHeight: 1.1,
         }}>
           Calendário de Eventos
         </h1>
@@ -442,20 +442,20 @@ export default function Calendario() {
       {urgentEvents.length > 0 && (
         <section aria-label="Saídas do caminhão nas próximas 48 horas" data-testid="faixa-urgentes" style={{
           marginBottom: 20,
-          backgroundColor: "#fef2f2",
-          border: "1px solid #fca5a5",
-          borderLeft: "6px solid #dc2626",
+          backgroundColor: TOM.perigo.bg,
+          border: `1px solid ${TOM.perigo.border}`,
+          borderLeft: `6px solid ${TOM.perigo.text}`,
           borderRadius: 12,
           padding: "14px 20px",
         }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <AlertTriangle style={{ width: 18, height: 18, color: "#dc2626", flexShrink: 0 }} />
-              <span style={{ fontSize: 13, fontWeight: 700, color: "#7f1d1d" }}>
+              <AlertTriangle style={{ width: 18, height: 18, color: TOM.perigo.text, flexShrink: 0 }} />
+              <span style={{ fontSize: 13, fontWeight: 700, color: TOM.perigo.text }}>
                 {urgentEvents.length} evento{urgentEvents.length > 1 ? "s" : ""} com saída do caminhão nas próximas 48h
               </span>
             </div>
-            <span style={{ fontSize: 10, fontWeight: 900, color: "#ffffff", backgroundColor: "#dc2626", borderRadius: 999, padding: "2px 10px", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+            <span style={{ fontSize: 10, fontWeight: 900, color: T.surface, backgroundColor: TOM.perigo.text, borderRadius: 999, padding: "2px 10px", textTransform: "uppercase", letterSpacing: "0.06em" }}>
               Crítico
             </span>
           </div>
@@ -470,11 +470,11 @@ export default function Calendario() {
                   style={{
                     display: "inline-flex", alignItems: "center", gap: 8,
                     minHeight: isMobile ? 44 : 32, padding: "4px 6px 4px 12px",
-                    backgroundColor: "#ffffff", border: "1px solid #fca5a5", borderRadius: 999,
-                    fontSize: 12, fontWeight: 700, color: "#7f1d1d", cursor: "pointer",
+                    backgroundColor: T.surface, border: `1px solid ${TOM.perigo.border}`, borderRadius: 999,
+                    fontSize: 12, fontWeight: 700, color: TOM.perigo.text, cursor: "pointer",
                   }}>
                   <span style={{ maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{ev.name}</span>
-                  <span style={{ fontSize: 10, fontWeight: 900, color: "#ffffff", backgroundColor: urgentBg(ev), borderRadius: 999, padding: "2px 8px", whiteSpace: "nowrap" }}>
+                  <span style={{ fontSize: 10, fontWeight: 900, color: T.surface, backgroundColor: urgentBg(ev), borderRadius: 999, padding: "2px 8px", whiteSpace: "nowrap" }}>
                     {msToHM(remaining)}
                   </span>
                 </button>
@@ -488,9 +488,9 @@ export default function Calendario() {
       <div style={{ backgroundColor: P.surface, borderRadius: 12, overflow: "hidden", boxShadow: "0 8px 32px rgba(0,0,0,0.06)", marginBottom: 28 }}>
 
         {/* Navigation bar */}
-        <div style={{ padding: isMobile ? "14px 16px" : "20px 32px", backgroundColor: "#f9f9f8", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
+        <div style={{ padding: isMobile ? "14px 16px" : "20px 32px", backgroundColor: T.bg, display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-            <h2 style={{ margin: 0, fontSize: isMobile ? 20 : FS.h2, fontWeight: 700, color: P.text, letterSpacing: "-0.02em", fontFamily: "'Space Grotesk', sans-serif" }}>
+            <h2 style={{ margin: 0, fontSize: isMobile ? 20 : FS.h2, fontWeight: 700, color: P.text, letterSpacing: "-0.02em", fontFamily: FONT.display }}>
               {MONTH_NAMES[month]} {year}
             </h2>
             <div style={{ display: "flex", gap: 4 }}>
@@ -521,7 +521,7 @@ export default function Calendario() {
                 ref={searchRef}
                 value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
                 onKeyDown={e => { if (e.key === "Escape" && searchTerm) { e.preventDefault(); setSearchTerm(""); } }}
-                style={{ paddingLeft: 32, paddingRight: searchTerm ? 34 : 12, height: isMobile ? 44 : 36, width: isMobile ? "100%" : 200, boxSizing: "border-box", backgroundColor: "#eeeeed", border: "none", borderRadius: 8, fontSize: isMobile ? 16 : 13, color: P.text }} />
+                style={{ paddingLeft: 32, paddingRight: searchTerm ? 34 : 12, height: isMobile ? 44 : 36, width: isMobile ? "100%" : 200, boxSizing: "border-box", backgroundColor: T.border, border: "none", borderRadius: 8, fontSize: isMobile ? 16 : 13, color: P.text }} />
               {searchTerm && (
                 <button type="button" onClick={() => { setSearchTerm(""); searchRef.current?.focus(); }}
                   aria-label="Limpar filtro de evento" title="Limpar (Esc)" data-testid="button-limpar-busca-calendario"
@@ -533,9 +533,9 @@ export default function Calendario() {
             {/* Alvo de toque: 44px no celular, como os demais controles de navegação. */}
             <button onClick={() => setCurrentDate(new Date())} data-testid="button-today"
               title={escala === "semana" ? "Voltar para a semana corrente" : "Voltar para o mês corrente"}
-              style={{ padding: "0 20px", height: isMobile ? 44 : 36, borderRadius: 8, border: "1px solid #e7e5e4", backgroundColor: "#ffffff", color: P.text, fontSize: 13, fontWeight: 700, cursor: "pointer" }}
+              style={{ padding: "0 20px", height: isMobile ? 44 : 36, borderRadius: 8, border: `1px solid ${T.border}`, backgroundColor: T.surface, color: P.text, fontSize: 13, fontWeight: 700, cursor: "pointer" }}
               onMouseEnter={e => (e.currentTarget.style.backgroundColor = P.bg)}
-              onMouseLeave={e => (e.currentTarget.style.backgroundColor = "#ffffff")}>
+              onMouseLeave={e => (e.currentTarget.style.backgroundColor = T.surface)}>
               Hoje
             </button>
 
@@ -544,7 +544,7 @@ export default function Calendario() {
               role="radiogroup"
               aria-label="Escala do calendário"
               data-testid="segmented-escala"
-              style={{ display: "flex", backgroundColor: "#eeeeed", padding: 2, borderRadius: 8, flexShrink: 0 }}
+              style={{ display: "flex", backgroundColor: T.border, padding: 2, borderRadius: 8, flexShrink: 0 }}
             >
               {(["semana", "mes"] as const).map(v => {
                 const ativo = escala === v;
@@ -563,7 +563,7 @@ export default function Calendario() {
                     }}
                     style={{
                       height: isMobile ? 40 : 32, padding: "0 14px", borderRadius: 6, border: "none",
-                      backgroundColor: ativo ? "#ffffff" : "transparent",
+                      backgroundColor: ativo ? T.surface : "transparent",
                       boxShadow: ativo ? "0 1px 3px rgba(0,0,0,0.10)" : "none",
                       color: ativo ? P.text : P.secondary,
                       font: "inherit", fontSize: 13, fontWeight: ativo ? 700 : 600,
@@ -590,8 +590,8 @@ export default function Calendario() {
               display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap",
               padding: isMobile ? "8px 16px" : "8px 32px",
               borderTop: "1px solid #eeeeed",
-              backgroundColor: resultadoDaBusca === 0 ? "#fffbeb" : "#f9f9f8",
-              fontSize: 13, color: resultadoDaBusca === 0 ? "#92400e" : P.secondary,
+              backgroundColor: resultadoDaBusca === 0 ? TOM.alerta.bg : T.bg,
+              fontSize: 13, color: resultadoDaBusca === 0 ? TOM.alerta.text : P.secondary,
             }}
           >
             <span>
@@ -603,7 +603,7 @@ export default function Calendario() {
               <button
                 type="button"
                 onClick={() => { setSearchTerm(""); searchRef.current?.focus(); }}
-                style={{ background: "none", border: "none", padding: isMobile ? "10px 0" : 0, font: "inherit", fontSize: 13, fontWeight: 700, color: "#92400e", textDecoration: "underline", textUnderlineOffset: 3, cursor: "pointer" }}
+                style={{ background: "none", border: "none", padding: isMobile ? "10px 0" : 0, font: "inherit", fontSize: 13, fontWeight: 700, color: TOM.alerta.text, textDecoration: "underline", textUnderlineOffset: 3, cursor: "pointer" }}
               >
                 Limpar filtro
               </button>
@@ -623,21 +623,21 @@ export default function Calendario() {
               : { display: "grid", gridTemplateColumns: "repeat(7, minmax(0, 1fr))" }}>
             {Array.from({ length: escala === "semana" ? 7 : 35 }).map((_, i) => (
               <div key={i} style={escala === "semana"
-                ? { display: "flex", gap: 14, alignItems: "center", padding: "14px", borderBottom: "1px solid #f5f4f2", minHeight: 56 }
+                ? { display: "flex", gap: 14, alignItems: "center", padding: "14px", borderBottom: `1px solid ${N.n3}`, minHeight: 56 }
                 : { height: isMobile ? 62 : 90, padding: 8, borderRight: i % 7 !== 6 ? "1px solid #eeeeed" : undefined, borderBottom: "1px solid #eeeeed" }}>
                 <div className="animate-pulse" style={{ width: escala === "semana" ? 48 : 18, height: escala === "semana" ? 28 : 12, borderRadius: 4, backgroundColor: P.low }} />
                 {(escala === "semana" || i % 3 === 0) && (
-                  <div className="animate-pulse" style={{ width: escala === "semana" ? "45%" : "80%", height: 10, borderRadius: 4, backgroundColor: "#eeeeed", marginTop: escala === "semana" ? 0 : 8 }} />
+                  <div className="animate-pulse" style={{ width: escala === "semana" ? "45%" : "80%", height: 10, borderRadius: 4, backgroundColor: T.border, marginTop: escala === "semana" ? 0 : 8 }} />
                 )}
               </div>
             ))}
           </div>
         ) : isError ? (
           <div role="alert" style={{ padding: "56px 24px", textAlign: "center" }}>
-            <h3 style={{ color: "#b91c1c", fontSize: 16, fontWeight: 700, marginBottom: 6 }}>Não foi possível carregar o calendário</h3>
-            <p style={{ color: "#746e69", fontSize: 13, marginBottom: 20 }}>Verifique sua conexão e tente novamente.</p>
+            <h3 style={{ color: TOM.perigo.text, fontSize: 16, fontWeight: 700, marginBottom: 6 }}>Não foi possível carregar o calendário</h3>
+            <p style={{ color: T.second, fontSize: 13, marginBottom: 20 }}>Verifique sua conexão e tente novamente.</p>
             <button onClick={() => refetch()} data-testid="button-retry-calendar"
-              style={{ fontSize: 13, fontWeight: 700, color: "#fff", background: "#1c1917", border: "none", borderRadius: 8, padding: "9px 20px", cursor: "pointer" }}>
+              style={{ fontSize: 13, fontWeight: 700, color: T.surface, background: T.text, border: "none", borderRadius: 8, padding: "9px 20px", cursor: "pointer" }}>
               Tentar novamente
             </button>
           </div>
@@ -665,12 +665,12 @@ export default function Calendario() {
                 ? `${d1.getDate()} a ${d7.getDate()} de ${MONTH_NAMES[d1.getMonth()]}`
                 : `${d1.getDate()} de ${MONTH_NAMES[d1.getMonth()]} a ${d7.getDate()} de ${MONTH_NAMES[d7.getMonth()]}`;
               return (
-                <div style={{ padding: "12px 20px", borderBottom: "1px solid #eeeeed", backgroundColor: "#f9f9f8", display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-                  <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 15, fontWeight: 800, color: P.text }}>{faixa}</span>
+                <div style={{ padding: "12px 20px", borderBottom: "1px solid #eeeeed", backgroundColor: T.bg, display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+                  <span style={{ fontFamily: FONT.display, fontSize: 15, fontWeight: 800, color: P.text }}>{faixa}</span>
                   {/* Com busca ativa a contagem diz COM O QUÊ contou — "0
                       marcações" sozinho não separa semana vazia de termo
                       que não casou. */}
-                  <span role={searchTerm ? "status" : undefined} aria-live={searchTerm ? "polite" : undefined} style={{ fontSize: 12, color: searchTerm && total === 0 ? "#92400e" : P.secondary }}>
+                  <span role={searchTerm ? "status" : undefined} aria-live={searchTerm ? "polite" : undefined} style={{ fontSize: 12, color: searchTerm && total === 0 ? TOM.alerta.text : P.secondary }}>
                     {searchTerm && total === 0
                       ? <>Nada com “{searchTerm}” nesta semana</>
                       : <>{total} {total === 1 ? "marcação" : "marcações"}{searchTerm ? <> com “{searchTerm}”</> : null}</>}
@@ -695,15 +695,15 @@ export default function Calendario() {
                 <div
                   key={date.toDateString()}
                   data-testid={`week-day-${date.getDate()}`}
-                  style={{ display: "flex", gap: 0, borderBottom: "1px solid #f5f4f2", backgroundColor: hoje ? "#fffbf7" : "#ffffff" }}
+                  style={{ display: "flex", gap: 0, borderBottom: `1px solid ${N.n3}`, backgroundColor: hoje ? TOM.laranja.bg : T.surface }}
                 >
                   {/* 56px no celular: com 92 sobravam ~50px para o nome depois
                       do tipo e do horário — justo o nome, razão desta visão. */}
-                  <div style={{ width: isMobile ? 56 : 92, flexShrink: 0, padding: isMobile ? "12px 10px" : "12px 14px", borderRight: "1px solid #f5f4f2" }}>
-                    <p style={{ margin: 0, fontSize: 10, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.08em", color: hoje ? "#c2410c" : P.secondary }}>
+                  <div style={{ width: isMobile ? 56 : 92, flexShrink: 0, padding: isMobile ? "12px 10px" : "12px 14px", borderRight: `1px solid ${N.n3}` }}>
+                    <p style={{ margin: 0, fontSize: 10, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.08em", color: hoje ? T.accentText : P.secondary }}>
                       {WEEK_DAYS[date.getDay()]}
                     </p>
-                    <p style={{ margin: "2px 0 0", fontFamily: "'Space Grotesk', sans-serif", fontSize: 20, fontWeight: 800, color: hoje ? "#c2410c" : P.text, lineHeight: 1 }}>
+                    <p style={{ margin: "2px 0 0", fontFamily: FONT.display, fontSize: 20, fontWeight: 800, color: hoje ? T.accentText : P.text, lineHeight: 1 }}>
                       {date.getDate()}
                     </p>
                   </div>
@@ -712,7 +712,7 @@ export default function Calendario() {
                     {itens.length === 0 ? (
                       /* #78716c e nao #a8a29e: a casa proibe o segundo como
                          cor de texto (2,52 sobre branco). */
-                      <p style={{ margin: 0, padding: "14px", fontSize: 13, color: "#78716c" }}>Nada marcado</p>
+                      <p style={{ margin: 0, padding: "14px", fontSize: 13, color: T.second }}>Nada marcado</p>
                     ) : itens.map((item, i) => {
                       const ev = item.kind === "event" ? item.ev : item.event;
                       const meta = prioMeta(ev);
@@ -741,7 +741,7 @@ export default function Calendario() {
                             transition: "background-color 0.12s ease",
                             background: "none", border: "none",
                             borderLeft: item.kind === "deadline" ? `3px dashed ${cor}` : `3px solid ${cor}`,
-                            borderTop: i > 0 ? "1px solid #f9f9f8" : "none",
+                            borderTop: i > 0 ? `1px solid ${T.bg}` : "none",
                             font: "inherit", cursor: "pointer",
                           }}
                           onMouseEnter={e => (e.currentTarget.style.backgroundColor = P.bg)}
@@ -757,7 +757,7 @@ export default function Calendario() {
                             </span>
                           )}
                           {urgente && (
-                            <span style={{ fontSize: 11, fontWeight: 800, color: "#dc2626", whiteSpace: "nowrap", flexShrink: 0 }}>
+                            <span style={{ fontSize: 11, fontWeight: 800, color: TOM.perigo.text, whiteSpace: "nowrap", flexShrink: 0 }}>
                               {msToHM(restante!)}
                             </span>
                           )}
@@ -776,10 +776,10 @@ export default function Calendario() {
             {WEEK_DAYS.map(d => (
               <div key={d} style={{
                 padding: "12px 0", textAlign: "center", minWidth: 0,
-                backgroundColor: "#f9f9f8",
+                backgroundColor: T.bg,
                 borderBottom: "1px solid #eeeeed",
                 borderRight: d !== "SÁB" ? "1px solid #eeeeed" : undefined,
-                fontSize: 10, fontWeight: 900, color: "#746e69",
+                fontSize: 10, fontWeight: 900, color: T.second,
                 textTransform: "uppercase", letterSpacing: "0.18em",
               }}>
                 {d}
@@ -805,7 +805,7 @@ export default function Calendario() {
                     borderRight: col !== 6 ? "1px solid #eeeeed" : undefined,
                     borderBottom: "1px solid #eeeeed",
                   }}>
-                    <span style={{ fontSize: 13, fontWeight: 700, color: "#d1cdc9" }}>{String(outsideDay).padStart(2,"0")}</span>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: T.bdark }}>{String(outsideDay).padStart(2,"0")}</span>
                   </div>
                 );
               }
@@ -873,7 +873,7 @@ export default function Calendario() {
                     transition: "background 0.1s",
                     position: "relative",
                   }}
-                  onMouseEnter={e => { if (hasAny) (e.currentTarget.style.backgroundColor = "#f9f9f8"); }}
+                  onMouseEnter={e => { if (hasAny) (e.currentTarget.style.backgroundColor = T.bg); }}
                   onMouseLeave={e => (e.currentTarget.style.backgroundColor = P.surface)}
                 >
                   {/* Day number — #c2410c: branco sobre o #f97316 saturado
@@ -883,7 +883,7 @@ export default function Calendario() {
                       <span style={{
                         display: "inline-flex", alignItems: "center", justifyContent: "center",
                         width: 22, height: 22, borderRadius: "50%",
-                        backgroundColor: "#c2410c", color: "#ffffff",
+                        backgroundColor: T.accentText, color: T.surface,
                         fontSize: 11, fontWeight: 900,
                       }}>{day}</span>
                     ) : (
@@ -935,7 +935,7 @@ export default function Calendario() {
                               style={{
                                 display: "flex", alignItems: "center", justifyContent: "space-between",
                                 gap: 4, padding: "2px 6px", width: "100%", textAlign: "left",
-                                backgroundColor: isCrit ? "#fef2f2" : "#ffffff",
+                                backgroundColor: isCrit ? TOM.perigo.bg : T.surface,
                                 border: "none",
                                 borderLeft: `3px solid ${meta.dot}`,
                                 borderRadius: 6,
@@ -953,7 +953,7 @@ export default function Calendario() {
                                 </span>
                               </span>
                               {isUrgent && (
-                                <span style={{ fontSize: 10, fontWeight: 900, color: "#ffffff", backgroundColor: isCrit ? "#dc2626" : "#c2410c", borderRadius: 6, padding: "1px 4px", whiteSpace: "nowrap", flexShrink: 0 }}>
+                                <span style={{ fontSize: 10, fontWeight: 900, color: T.surface, backgroundColor: isCrit ? TOM.perigo.text : T.accentText, borderRadius: 6, padding: "1px 4px", whiteSpace: "nowrap", flexShrink: 0 }}>
                                   {msToHM(remaining)}
                                 </span>
                               )}
@@ -999,7 +999,7 @@ export default function Calendario() {
         )}
 
         {/* ── Legend footer ── */}
-        <div style={{ padding: isMobile ? "12px 16px" : "14px 32px", borderTop: "1px solid #eeeeed", backgroundColor: "#f9f9f8", display: "flex", flexWrap: "wrap", alignItems: "center", gap: isMobile ? "8px 14px" : 16 }}>
+        <div style={{ padding: isMobile ? "12px 16px" : "14px 32px", borderTop: "1px solid #eeeeed", backgroundColor: T.bg, display: "flex", flexWrap: "wrap", alignItems: "center", gap: isMobile ? "8px 14px" : 16 }}>
           {/* Priority legend.
               A LEGENDA DIZ DE QUE É A COR. Seis bolinhas soltas ao lado de
               marcações tracejadas não diziam se a cor era prioridade, setor ou
@@ -1014,7 +1014,7 @@ export default function Calendario() {
           ))}
 
           {/* Divider */}
-          <div style={{ width: 1, height: 16, backgroundColor: "#e7e5e4", margin: "0 4px" }} />
+          <div style={{ width: 1, height: 16, backgroundColor: T.border, margin: "0 4px" }} />
 
           {/* Deadline legend — só os marcos que a grade está DESENHANDO. Uma
               legenda com seis entradas sobre uma grade com dois seria mentira. */}
@@ -1037,7 +1037,7 @@ export default function Calendario() {
               title={verTodosOsMarcos
                 ? "Voltar a ver só os marcos da sua função"
                 : "A grade está mostrando só os marcos da sua função — clique para ver os seis"}
-              style={{ display: "inline-flex", alignItems: "center", gap: 5, height: isMobile ? 40 : 28, padding: "0 12px", borderRadius: 999, border: `1px dashed ${verTodosOsMarcos ? "#c2410c" : "#d6d3d1"}`, background: verTodosOsMarcos ? "#fff7ed" : "transparent", color: verTodosOsMarcos ? "#c2410c" : P.secondary, font: "inherit", fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap", transition: "background-color 0.12s ease" }}
+              style={{ display: "inline-flex", alignItems: "center", gap: 5, height: isMobile ? 40 : 28, padding: "0 12px", borderRadius: 999, border: `1px dashed ${verTodosOsMarcos ? T.accentText : T.bdark}`, background: verTodosOsMarcos ? TOM.laranja.bg : "transparent", color: verTodosOsMarcos ? T.accentText : P.secondary, font: "inherit", fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap", transition: "background-color 0.12s ease" }}
             >
               {verTodosOsMarcos ? "Só os da minha função" : `Todos os marcos (${DEADLINE_TYPES.length})`}
             </button>
@@ -1067,13 +1067,13 @@ export default function Calendario() {
       <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr minmax(220px, 300px)", gap: 20, alignItems: "start" }}>
 
         {/* Próximos Eventos */}
-        <div style={{ backgroundColor: "#f0efee", borderRadius: 12, padding: isMobile ? 16 : 24, position: "relative", overflow: "hidden" }}>
+        <div style={{ backgroundColor: N.n3, borderRadius: 12, padding: isMobile ? 16 : 24, position: "relative", overflow: "hidden" }}>
           {/* watermark icon */}
           <div style={{ position: "absolute", right: -20, bottom: -20, opacity: 0.05, pointerEvents: "none" }}>
-            <Truck style={{ width: 160, height: 160, color: "#1c1917" }} />
+            <Truck style={{ width: 160, height: 160, color: T.text }} />
           </div>
           <div style={{ position: "relative" }}>
-            <h3 style={{ margin: "0 0 16px", fontSize: FS.title, fontWeight: 700, color: P.text, letterSpacing: "-0.02em", fontFamily: "'Space Grotesk', sans-serif" }}>
+            <h3 style={{ margin: "0 0 16px", fontSize: FS.title, fontWeight: 700, color: P.text, letterSpacing: "-0.02em", fontFamily: FONT.display }}>
               Próximos eventos
             </h3>
             {upcomingEvents.length === 0 ? (
@@ -1087,9 +1087,9 @@ export default function Calendario() {
                     <div key={ev.id}
                       data-testid={`upcoming-event-${ev.id}`}
                       role="link" tabIndex={0} aria-label={`Abrir evento ${ev.name}`} onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); setLocation(`/eventos/${ev.id}`); } }} onClick={() => setLocation(`/eventos/${ev.id}`)}
-                      style={{ backgroundColor: "#ffffff", borderRadius: 8, padding: "12px 14px", minHeight: 44, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, borderLeft: `4px solid ${meta.dot}`, cursor: "pointer", transition: "background-color 0.12s ease" }}
+                      style={{ backgroundColor: T.surface, borderRadius: 8, padding: "12px 14px", minHeight: 44, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, borderLeft: `4px solid ${meta.dot}`, cursor: "pointer", transition: "background-color 0.12s ease" }}
                       onMouseEnter={e => (e.currentTarget.style.backgroundColor = P.bg)}
-                      onMouseLeave={e => (e.currentTarget.style.backgroundColor = "#ffffff")}>
+                      onMouseLeave={e => (e.currentTarget.style.backgroundColor = T.surface)}>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: P.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{ev.name}</p>
                         <p style={{ margin: "3px 0 0", fontSize: 11, color: P.secondary }}>
@@ -1108,10 +1108,10 @@ export default function Calendario() {
         </div>
 
         {/* Resumo do Mês */}
-        <div style={{ backgroundColor: "#1c1917", borderRadius: 12, padding: isMobile ? 16 : 24, color: "#ffffff" }}>
+        <div style={{ backgroundColor: T.text, borderRadius: 12, padding: isMobile ? 16 : 24, color: T.surface }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
             <div>
-              <h3 style={{ margin: 0, fontSize: FS.strong, fontWeight: 700, color: "#ffffff", letterSpacing: "-0.01em", fontFamily: "'Space Grotesk', sans-serif" }}>
+              <h3 style={{ margin: 0, fontSize: FS.strong, fontWeight: 700, color: T.surface, letterSpacing: "-0.01em", fontFamily: FONT.display }}>
                 Resumo do mês
               </h3>
               {/* A REGRA, ESCRITA. O filtro era pela data de INICIO e a grade
@@ -1134,11 +1134,11 @@ export default function Calendario() {
               escuro dava ~3,6:1, abaixo do AA para 15px. */}
           <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
             {[
-              { label: "Total de eventos", value: monthEvents.length, color: "#fdba74" },
-              { label: "Concluídos",       value: completedCount,     color: "#22c55e" },
-              { label: "Encerrados",       value: closedCount,        color: "#d6d3d1" },
-              { label: "Prioridade urgente", value: urgentCount,      color: "#f87171" },
-              { label: "Em andamento",     value: ongoingCount,       color: "#ffffff" },
+              { label: "Total de eventos", value: monthEvents.length, color: TOM.laranja.border },
+              { label: "Concluídos",       value: completedCount,     color: TOM.sucesso.dot },
+              { label: "Encerrados",       value: closedCount,        color: T.bdark },
+              { label: "Prioridade urgente", value: urgentCount,      color: TOM.perigo.border },
+              { label: "Em andamento",     value: ongoingCount,       color: T.surface },
             ].map(({ label, value, color }, i, arr) => (
               <div key={label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 0", borderBottom: i < arr.length - 1 ? "1px solid rgba(255,255,255,0.08)" : "none" }}>
                 <span style={{ fontSize: 13, color: "rgba(255,255,255,0.55)" }}>{label}</span>
@@ -1148,7 +1148,7 @@ export default function Calendario() {
           </div>
           <button
             onClick={() => setCurrentDate(new Date())}
-            style={{ marginTop: 20, width: "100%", minHeight: 44, padding: "11px 0", backgroundColor: "rgba(255,255,255,0.07)", border: "none", borderRadius: 8, color: "#ffffff", fontSize: 13, fontWeight: 700, cursor: "pointer", transition: "background-color 0.12s ease" }}
+            style={{ marginTop: 20, width: "100%", minHeight: 44, padding: "11px 0", backgroundColor: "rgba(255,255,255,0.07)", border: "none", borderRadius: 8, color: T.surface, fontSize: 13, fontWeight: 700, cursor: "pointer", transition: "background-color 0.12s ease" }}
             onMouseEnter={e => (e.currentTarget.style.backgroundColor = "rgba(255,255,255,0.12)")}
             onMouseLeave={e => (e.currentTarget.style.backgroundColor = "rgba(255,255,255,0.07)")}>
             Ver mês atual
@@ -1176,7 +1176,7 @@ export default function Calendario() {
           <ModalHeader
             variant="confirm"
             icon={Calendar}
-            tint="#c2410c"
+            tint={T.accentText}
             title={selectedDate
               ? (() => {
                   const t = selectedDate.toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long" });
@@ -1308,7 +1308,7 @@ function NavBtn({ onClick, children, testId, big, label }: {
   return (
     <button onClick={onClick} data-testid={testId} aria-label={label}
       onMouseEnter={() => setH(true)} onMouseLeave={() => setH(false)}
-      style={{ width: size, height: size, borderRadius: "50%", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: h ? "#eeeeed" : "transparent", color: "#1c1917", transition: "background 0.12s" }}>
+      style={{ width: size, height: size, borderRadius: "50%", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: h ? T.border : "transparent", color: T.text, transition: "background 0.12s" }}>
       {children}
     </button>
   );

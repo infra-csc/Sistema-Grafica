@@ -14,21 +14,21 @@ import { ptBR } from "date-fns/locale";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { HIDE_NATIVE_CLOSE, modalSurface, ModalHeader, ModalFooter } from "@/components/modal-shell";
 import { buildTimeline, type TimelineEvent } from "@/lib/timeline";
-import { FS } from "@/lib/theme";
+import { T, FS, R, N, FW, FONT, TOM } from "@/lib/theme";
 
 /* ── Palette ── */
 const P = {
-  bg:      "#fafaf9",
-  surface: "#ffffff",
-  border:  "#e7e5e4",
-  text:    "#1c1917",
+  bg:      T.bg,
+  surface: T.surface,
+  border:  T.border,
+  text:    T.text,
   // #746e69: o antigo #78716c reprovava AA sobre os fundos acinzentados da
   // tela (#f3f4f3) — é o mesmo cinza AA de lib/theme.
-  second:  "#746e69",
+  second:  T.second,
   // Apenas decorativo (ícones, bolinhas) — como texto reprova AA; rótulos e
   // cabeçalhos usam #746e69 (o cinza AA de lib/theme).
-  muted:   "#a8a29e",
-  label:   "#746e69",
+  muted:   T.muted,
+  label:   T.second,
 };
 
 /* ── Cor por FASE, não por tipo ────────────────────────────────────────────
@@ -56,13 +56,13 @@ const P = {
 type Phase = "criacao" | "arte" | "aprovacao" | "producao" | "encerramento" | "outros";
 
 const PHASE_STYLE: Record<Phase | "excecao", { bg: string; border: string; color: string }> = {
-  criacao:      { bg: "#eff6ff", border: "#bfdbfe", color: "#1d4ed8" },
-  arte:         { bg: "#fffbeb", border: "#fde68a", color: "#b45309" },
-  aprovacao:    { bg: "#faf5ff", border: "#e9d5ff", color: "#7e22ce" },
-  producao:     { bg: "#fff7ed", border: "#fed7aa", color: "#c2410c" },
-  encerramento: { bg: "#ecfdf5", border: "#a7f3d0", color: "#047857" },
-  outros:       { bg: "#f5f5f4", border: "#e7e5e4", color: "#44403c" },
-  excecao:      { bg: "#fef2f2", border: "#fecaca", color: "#b91c1c" },
+  criacao:      { bg: TOM.info.bg, border: TOM.info.border, color: TOM.info.text },
+  arte:         { bg: TOM.alerta.bg, border: TOM.alerta.border, color: TOM.alerta.text },
+  aprovacao:    { bg: TOM.roxo.bg, border: TOM.roxo.border, color: TOM.roxo.text },
+  producao:     { bg: TOM.laranja.bg, border: TOM.laranja.border, color: T.accentText },
+  encerramento: { bg: TOM.esmeralda.bg, border: TOM.esmeralda.border, color: TOM.esmeralda.text },
+  outros:       { bg: T.low, border: T.border, color: T.strong },
+  excecao:      { bg: TOM.perigo.bg, border: TOM.perigo.border, color: TOM.perigo.text },
 };
 
 const PHASE_LABEL: Record<Phase, string> = {
@@ -199,7 +199,7 @@ function fmtDuracao(ms: number): string {
 function tomDoIntervalo(ms: number): string {
   const h = ms / 3600000;
   // #746e69 sobre branco 4,74:1 e sobre #f9f9f8 4,58:1; #b45309 6,0:1; #b91c1c 6,5:1.
-  return h > 48 ? "#b91c1c" : h > 24 ? "#b45309" : "#746e69";
+  return h > 48 ? TOM.perigo.text : h > 24 ? TOM.alerta.text : T.second;
 }
 
 /* ── Completar a trilha ─────────────────────────────────────────────────────
@@ -317,9 +317,9 @@ const VAZIO: any[] = [];
               #b91c1c / #fef2f2 = 5,91:1          #ffffff / #b91c1c = 6,47:1
    Todos passam AA. */
 const ATALHO_TOM = {
-  azul:     { tint: "#eff6ff", border: "#bfdbfe", text: "#1d4ed8" },
-  roxo:     { tint: "#faf5ff", border: "#e9d5ff", text: "#7e22ce" },
-  vermelho: { tint: "#fef2f2", border: "#fecaca", text: "#b91c1c" },
+  azul:     { tint: TOM.info.bg, border: TOM.info.border, text: TOM.info.text },
+  roxo:     { tint: TOM.roxo.bg, border: TOM.roxo.border, text: TOM.roxo.text },
+  vermelho: { tint: TOM.perigo.bg, border: TOM.perigo.border, text: TOM.perigo.text },
 } as const;
 
 function Atalho({ label, count, tom, ativo, alto, onClick, testId }: {
@@ -342,13 +342,13 @@ function Atalho({ label, count, tom, ativo, alto, onClick, testId }: {
         height: alto ? 44 : 30, padding: "0 12px", borderRadius: 999,
         backgroundColor: ativo ? t.text : t.tint,
         border: `1px solid ${ativo ? t.text : t.border}`,
-        color: ativo ? "#ffffff" : t.text,
+        color: ativo ? T.surface : t.text,
         fontSize: 12, fontWeight: 700,
         cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0,
         transition: "background-color 0.12s, color 0.12s",
       }}
     >
-      <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 12, fontWeight: 700, letterSpacing: 0 }}>
+      <span style={{ fontFamily: FONT.mono, fontSize: 12, fontWeight: 700, letterSpacing: 0 }}>
         {count}
       </span>
       {label}
@@ -390,7 +390,7 @@ function UserAvatar({ name, source }: { name?: string; source?: string }) {
     <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }} title={title}>
       <div style={{
         width: 28, height: 28, borderRadius: "50%",
-        backgroundColor: "#e8e8e7",
+        backgroundColor: T.border,
         display: "flex", alignItems: "center", justifyContent: "center",
         fontSize: system ? 9 : 10, fontWeight: 800, color: apagado ? P.label : P.text,
         flexShrink: 0, letterSpacing: "0.02em",
@@ -455,7 +455,7 @@ function Ev({ e, nav }: { e: TimelineEvent; nav: Nav }) {
 function Id({ e, nav }: { e: TimelineEvent; nav: Nav }) {
   if (!e.itemDisplayId) return null;
   const mono: React.CSSProperties = {
-    fontFamily: "'DM Mono', monospace", fontWeight: 700, color: P.second, fontSize: 13,
+    fontFamily: FONT.mono, fontWeight: 700, color: P.second, fontSize: 13,
   };
   if (!e.eventId || !e.itemId || e.itemMissing) {
     return <code style={mono}>{e.itemDisplayId}</code>;
@@ -1388,7 +1388,7 @@ export default function Historico() {
   const headerBtn: React.CSSProperties = {
     display: "flex", alignItems: "center", gap: 7,
     height: isMobile ? 44 : 38, padding: "0 16px",
-    backgroundColor: P.surface, color: "#44403c",
+    backgroundColor: P.surface, color: T.strong,
     border: `1px solid ${P.border}`, borderRadius: 8,
     fontSize: 13, fontWeight: 600,
     cursor: "pointer",
@@ -1430,10 +1430,10 @@ export default function Historico() {
         style={{
           width: "100%", height: isMobile ? 44 : 36,
           paddingLeft: 34, paddingRight: searchFilter ? 34 : 12,
-          backgroundColor: "#ffffff",
+          backgroundColor: T.surface,
           // O foco tinha de ser visível também aqui, e não era: só a borda
           // cinza padrão, idêntica ao estado normal.
-          border: `1px solid ${buscaFocada ? "#c2410c" : P.border}`,
+          border: `1px solid ${buscaFocada ? T.accentText : P.border}`,
           boxShadow: buscaFocada ? "0 0 0 3px rgba(194,65,12,0.14)" : "none",
           borderRadius: 8, outline: "none",
           fontSize: 13, color: P.text, boxSizing: "border-box",
@@ -1546,9 +1546,9 @@ export default function Historico() {
       style={{
         display: "inline-flex", alignItems: "center", gap: 6,
         height: 44, padding: "0 12px", borderRadius: 8, flexShrink: 0,
-        backgroundColor: recorteCount > 0 ? "#c2410c" : "#ffffff",
-        border: `1px solid ${recorteCount > 0 ? "#c2410c" : P.border}`,
-        color: recorteCount > 0 ? "#ffffff" : P.text,
+        backgroundColor: recorteCount > 0 ? T.accentText : T.surface,
+        border: `1px solid ${recorteCount > 0 ? T.accentText : P.border}`,
+        color: recorteCount > 0 ? T.surface : P.text,
         fontSize: 13, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap",
       }}
     >
@@ -1557,7 +1557,7 @@ export default function Historico() {
       {recorteCount > 0 && (
         <span style={{
           fontSize: 11, fontWeight: 800, padding: "1px 7px", borderRadius: 99,
-          backgroundColor: "#ffffff", color: "#c2410c",
+          backgroundColor: T.surface, color: T.accentText,
         }}>
           {recorteCount}
         </span>
@@ -1593,23 +1593,23 @@ export default function Historico() {
         {trilha ? (
           <>
             {"trilha de "}
-            <strong style={{ color: "#c2410c", fontFamily: "'DM Mono', monospace" }}>{trilha.display}</strong>
+            <strong style={{ color: T.accentText, fontFamily: FONT.mono }}>{trilha.display}</strong>
             {" · "}
-            <strong style={{ color: P.text, fontFamily: "'DM Mono', monospace" }}>{filtered.length}</strong>
+            <strong style={{ color: P.text, fontFamily: FONT.mono }}>{filtered.length}</strong>
             {" de "}
-            <span style={{ fontFamily: "'DM Mono', monospace" }}>{displayed.length}</span>
+            <span style={{ fontFamily: FONT.mono }}>{displayed.length}</span>
           </>
         ) : hasActiveFilters ? (
           <>
             {activeFilterCount} filtro{activeFilterCount === 1 ? "" : "s"} ativo{activeFilterCount === 1 ? "" : "s"}
             {" · "}
-            <strong style={{ color: P.text, fontFamily: "'DM Mono', monospace" }}>{filtered.length}</strong>
+            <strong style={{ color: P.text, fontFamily: FONT.mono }}>{filtered.length}</strong>
             {" de "}
-            <span style={{ fontFamily: "'DM Mono', monospace" }}>{displayed.length}</span>
+            <span style={{ fontFamily: FONT.mono }}>{displayed.length}</span>
           </>
         ) : (
           <>
-            <strong style={{ color: P.text, fontFamily: "'DM Mono', monospace" }}>{filtered.length}</strong>
+            <strong style={{ color: P.text, fontFamily: FONT.mono }}>{filtered.length}</strong>
             {" resultado"}{filtered.length === 1 ? "" : "s"}
           </>
         )}
@@ -1625,9 +1625,9 @@ export default function Historico() {
           display: "inline-flex", alignItems: "center", gap: 5,
           height: isMobile ? 44 : 28, padding: "0 10px", borderRadius: 7,
           marginLeft: isMobile ? "auto" : 0,
-          backgroundColor: hasActiveFilters ? "#fef2f2" : "transparent",
-          border: `1px solid ${hasActiveFilters ? "#fecaca" : P.border}`,
-          color: hasActiveFilters ? "#b91c1c" : "#57534e",
+          backgroundColor: hasActiveFilters ? TOM.perigo.bg : "transparent",
+          border: `1px solid ${hasActiveFilters ? TOM.perigo.border : P.border}`,
+          color: hasActiveFilters ? TOM.perigo.text : T.apoio,
           fontSize: 12, fontWeight: 600,
           cursor: hasActiveFilters ? "pointer" : "default",
           whiteSpace: "nowrap", flexShrink: 0,
@@ -1661,7 +1661,7 @@ export default function Historico() {
           <h1 style={{
             fontSize: FS.h1, fontWeight: 700, color: P.text, margin: "0 0 6px",
             letterSpacing: "-0.03em",
-            fontFamily: "'Space Grotesk', sans-serif", lineHeight: 1.1,
+            fontFamily: FONT.display, lineHeight: 1.1,
           }}>
             Histórico de Atividades
           </h1>
@@ -1674,7 +1674,7 @@ export default function Historico() {
               ícone de rota sem rótulo — descoberta por acaso. */}
           <p data-testid="texto-como-usar-historico" style={{ fontSize: 12, color: P.second, margin: "4px 0 0", lineHeight: 1.5, maxWidth: 720 }}>
             Quem fez o quê e quando. Clique numa linha para ver o detalhe; o ícone
-            {" "}<Route role="img" aria-label="de rota" style={{ width: 12, height: 12, color: "#c2410c", verticalAlign: "-2px" }} />{" "}
+            {" "}<Route role="img" aria-label="de rota" style={{ width: 12, height: 12, color: T.accentText, verticalAlign: "-2px" }} />{" "}
             ao lado de uma peça mostra todo o caminho dela, do pedido à entrega.
           </p>
         </div>
@@ -1712,8 +1712,8 @@ export default function Historico() {
           style={{
             display: "flex", alignItems: "flex-start", gap: 8,
             padding: "10px 14px", marginBottom: 16,
-            backgroundColor: "#fffbeb", border: "1px solid #fde68a", borderRadius: 8,
-            fontSize: 12, color: "#b45309", fontWeight: 600, lineHeight: 1.5,
+            backgroundColor: TOM.alerta.bg, border: `1px solid ${TOM.alerta.border}`, borderRadius: 8,
+            fontSize: 12, color: TOM.alerta.text, fontWeight: 600, lineHeight: 1.5,
           }}
         >
           {completando ? (
@@ -1781,7 +1781,7 @@ export default function Historico() {
           <div style={{
             padding: isMobile ? "12px 14px" : "14px 24px",
             borderBottom: `1px solid ${P.border}`,
-            backgroundColor: "#f3f4f3",
+            backgroundColor: T.low,
             borderRadius: "11px 11px 0 0",
             display: "flex", flexDirection: "column", gap: 10,
           }}>
@@ -1847,15 +1847,15 @@ export default function Historico() {
                 display: "flex", flexDirection: isMobile ? "column" : "row",
                 alignItems: isMobile ? "stretch" : "center", gap: isMobile ? 10 : 14,
                 padding: isMobile ? "10px 14px" : "10px 24px",
-                backgroundColor: "#fff7ed", borderBottom: "1px solid #fed7aa",
+                backgroundColor: TOM.laranja.bg, borderBottom: `1px solid ${TOM.laranja.border}`,
               }}
             >
               <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0, flex: 1 }}>
-                <Route aria-hidden="true" style={{ width: 15, height: 15, color: "#c2410c", flexShrink: 0 }} />
-                <span style={{ fontSize: 10, fontWeight: 700, color: "#9a3412", textTransform: "uppercase", letterSpacing: "0.06em", whiteSpace: "nowrap" }}>Trilha da peça</span>
-                <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 13, fontWeight: 700, color: "#c2410c", whiteSpace: "nowrap" }}>{trilha.display}</span>
+                <Route aria-hidden="true" style={{ width: 15, height: 15, color: T.accentText, flexShrink: 0 }} />
+                <span style={{ fontSize: 10, fontWeight: 700, color: T.accentText, textTransform: "uppercase", letterSpacing: "0.06em", whiteSpace: "nowrap" }}>Trilha da peça</span>
+                <span style={{ fontFamily: FONT.mono, fontSize: 13, fontWeight: 700, color: T.accentText, whiteSpace: "nowrap" }}>{trilha.display}</span>
                 {/* #9a3412 sobre #fff7ed = 6,1:1. */}
-                <span style={{ fontSize: 12, color: "#9a3412", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: isMobile ? "normal" : "nowrap" }}>
+                <span style={{ fontSize: 12, color: T.accentText, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: isMobile ? "normal" : "nowrap" }}>
                   {trilhaItemId ? resumoTrilha : (isLoading ? "carregando…" : `nenhum registro carregado para ${trilha.display}`)}
                 </span>
               </div>
@@ -1865,7 +1865,7 @@ export default function Historico() {
                 data-testid="button-sair-trilha"
                 style={{
                   height: isMobile ? 44 : 30, padding: "0 12px", borderRadius: 7,
-                  border: "1px solid #fed7aa", backgroundColor: "#ffffff", color: "#9a3412",
+                  border: `1px solid ${TOM.laranja.border}`, backgroundColor: T.surface, color: T.accentText,
                   fontSize: 12, fontWeight: 700,
                   cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0,
                 }}
@@ -1881,7 +1881,7 @@ export default function Historico() {
             <div style={{
               display: "grid", gridTemplateColumns: GRID, gap: 12,
               padding: "12px 32px",
-              backgroundColor: "#f3f4f3",
+              backgroundColor: T.low,
               borderBottom: `1px solid ${P.border}`,
             }}>
               {["Tipo", "Ação", "Hora", "Realizado Por", ""].map((h, i) => (
@@ -1917,30 +1917,30 @@ export default function Historico() {
           </div>
         ) : isError ? (
           <div role="alert" style={{ padding: "72px 24px", textAlign: "center" }}>
-            <h3 style={{ color: "#b91c1c", fontSize: 16, fontWeight: 700, marginBottom: 6 }}>Não foi possível carregar o histórico</h3>
+            <h3 style={{ color: TOM.perigo.text, fontSize: 16, fontWeight: 700, marginBottom: 6 }}>Não foi possível carregar o histórico</h3>
             <p style={{ color: P.label, fontSize: 13, marginBottom: 20 }}>Verifique sua conexão e tente novamente.</p>
             <button onClick={atualizar} disabled={isFetching} data-testid="button-retry-historico"
-              style={{ fontSize: 13, fontWeight: 700, color: "#fff", background: "#1c1917", border: "none", borderRadius: 8, padding: "9px 20px", minHeight: isMobile ? 44 : undefined, cursor: isFetching ? "default" : "pointer", opacity: isFetching ? 0.7 : 1 }}>
+              style={{ fontSize: 13, fontWeight: 700, color: T.surface, background: T.text, border: "none", borderRadius: 8, padding: "9px 20px", minHeight: isMobile ? 44 : undefined, cursor: isFetching ? "default" : "pointer", opacity: isFetching ? 0.7 : 1 }}>
               {isFetching ? "Tentando…" : "Tentar novamente"}
             </button>
           </div>
         ) : filtered.length === 0 ? (
           displayed.length === 0 ? (
             <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "80px 24px", textAlign: "center" }}>
-              <div style={{ width: 72, height: 72, borderRadius: "50%", backgroundColor: "#e8e8e7", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 20, opacity: 0.5 }}>
+              <div style={{ width: 72, height: 72, borderRadius: "50%", backgroundColor: T.border, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 20, opacity: 0.5 }}>
                 <Activity aria-hidden="true" style={{ width: 32, height: 32, color: P.muted }} />
               </div>
-              <h3 style={{ fontSize: 18, fontWeight: 700, color: P.text, margin: "0 0 8px", fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.01em" }}>
+              <h3 style={{ fontSize: 18, fontWeight: 700, color: P.text, margin: "0 0 8px", fontFamily: FONT.display, letterSpacing: "-0.01em" }}>
                 Nenhuma atividade ainda
               </h3>
               <p style={{ fontSize: 13, color: P.second, margin: 0 }}>As ações da equipe aparecem aqui conforme acontecem</p>
             </div>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "80px 24px", textAlign: "center" }}>
-              <div style={{ width: 72, height: 72, borderRadius: "50%", backgroundColor: "#e8e8e7", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 20, opacity: 0.5 }}>
+              <div style={{ width: 72, height: 72, borderRadius: "50%", backgroundColor: T.border, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 20, opacity: 0.5 }}>
                 <Search aria-hidden="true" style={{ width: 32, height: 32, color: P.muted }} />
               </div>
-              <h3 style={{ fontSize: 18, fontWeight: 700, color: P.text, margin: "0 0 8px", fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.01em" }}>
+              <h3 style={{ fontSize: 18, fontWeight: 700, color: P.text, margin: "0 0 8px", fontFamily: FONT.display, letterSpacing: "-0.01em" }}>
                 Nenhuma atividade encontrada
               </h3>
               <p style={{ fontSize: 13, color: P.second, margin: "0 0 8px" }}>Nenhum registro corresponde aos filtros ativos</p>
@@ -1954,7 +1954,7 @@ export default function Historico() {
                 ].filter(Boolean).join(" · ")}
               </p>
               <button onClick={clearFilters} data-testid="button-clear-filters"
-                style={{ fontSize: 13, fontWeight: 700, color: "#fff", background: "#1c1917", border: "none", borderRadius: 8, padding: "9px 20px", minHeight: isMobile ? 44 : undefined, cursor: "pointer" }}>
+                style={{ fontSize: 13, fontWeight: 700, color: T.surface, background: T.text, border: "none", borderRadius: 8, padding: "9px 20px", minHeight: isMobile ? 44 : undefined, cursor: "pointer" }}>
                 Limpar filtros
               </button>
             </div>
@@ -1970,11 +1970,11 @@ export default function Historico() {
                 <div style={{
                   position: "sticky", top: faixaFixa ? stickyH : 0, zIndex: 4,
                   padding: isCompact ? "8px 16px" : "8px 32px",
-                  backgroundColor: "#f9f9f8", borderBottom: `1px solid ${P.border}`,
+                  backgroundColor: T.bg, borderBottom: `1px solid ${P.border}`,
                   borderTop: `1px solid ${P.border}`,
                   fontSize: 12, fontWeight: 600, color: P.label,
                 }}>
-                  <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 13, fontWeight: 700, color: P.text }}>{grupo.rotulo}</span>
+                  <span style={{ fontFamily: FONT.display, fontSize: 13, fontWeight: 700, color: P.text }}>{grupo.rotulo}</span>
                   <span style={{ fontWeight: 600, marginLeft: 8 }}>
                     · {grupo.itens.length} registro{grupo.itens.length === 1 ? "" : "s"}
                   </span>
@@ -1983,7 +1983,7 @@ export default function Historico() {
                       custa clique. Some no modo trilha: ali o dia tem um ou dois
                       passos e o número não informa. */}
                   {!trilha && grupo.excecoes > 0 && (
-                    <span data-testid={`text-excecoes-dia-${grupo.chave}`} style={{ fontWeight: 700, marginLeft: 6, color: "#b91c1c" }}>
+                    <span data-testid={`text-excecoes-dia-${grupo.chave}`} style={{ fontWeight: 700, marginLeft: 6, color: TOM.perigo.text }}>
                       · {grupo.excecoes} {grupo.excecoes === 1 ? "exceção" : "exceções"}
                     </span>
                   )}
@@ -2013,7 +2013,7 @@ export default function Historico() {
         {!isError && !isLoading && filtered.length > 0 && (
           <div style={{
             padding: isCompact ? "14px 16px" : "14px 32px",
-            backgroundColor: "#f3f4f3",
+            backgroundColor: T.low,
             borderTop: `1px solid ${P.border}`,
             borderRadius: "0 0 11px 11px",
             display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap",
@@ -2048,7 +2048,7 @@ export default function Historico() {
                   testId="select-page-size"
                   triggerStyle={{
                     height: isMobile ? 44 : 30, borderRadius: 6, border: `1px solid ${P.border}`,
-                    backgroundColor: "#fff", fontSize: 12, fontWeight: 700, color: P.text,
+                    backgroundColor: T.surface, fontSize: 12, fontWeight: 700, color: P.text,
                     padding: "0 6px 0 10px", minWidth: 62,
                   }}
                 />
@@ -2082,11 +2082,11 @@ export default function Historico() {
                         cursor: "pointer",
                         // #c2410c: o branco sobre #f97316 ficava em 2.8:1 — a
                         // página ativa era justamente a menos legível do grupo.
-                        backgroundColor: p === safePage ? "#c2410c" : "transparent",
-                        color: p === safePage ? "#ffffff" : P.second,
+                        backgroundColor: p === safePage ? T.accentText : "transparent",
+                        color: p === safePage ? T.surface : P.second,
                         transition: "all 0.12s",
                       }}
-                      onMouseEnter={e => { if (p !== safePage) (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#e8e8e7"; }}
+                      onMouseEnter={e => { if (p !== safePage) (e.currentTarget as HTMLButtonElement).style.backgroundColor = T.border; }}
                       onMouseLeave={e => { if (p !== safePage) (e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent"; }}
                     >
                       {p}
@@ -2119,7 +2119,7 @@ export default function Historico() {
             position: "fixed", bottom: "calc(24px + env(safe-area-inset-bottom, 0px))", left: "50%", transform: "translateX(-50%)",
             zIndex: 40, display: "flex", alignItems: "center", gap: 8,
             height: isMobile ? 44 : 40, maxWidth: "calc(100vw - 32px)", whiteSpace: "nowrap", padding: "0 18px", borderRadius: 999, border: "none",
-            backgroundColor: "#1c1917", color: "#ffffff",
+            backgroundColor: T.text, color: T.surface,
             fontSize: 13, fontWeight: 700, cursor: "pointer",
             boxShadow: "0 8px 24px rgba(0,0,0,0.24)",
           }}
@@ -2145,7 +2145,7 @@ export default function Historico() {
 function Sk({ w, h, r = 6 }: { w: number | string; h: number; r?: number }) {
   // animate-pulse: parado, o esqueleto parecia tela quebrada, não carregando.
   // A classe já respeita movimento reduzido (index.css).
-  return <div className="animate-pulse" style={{ width: w, maxWidth: "100%", height: h, borderRadius: r, backgroundColor: "#f0efee" }} />;
+  return <div className="animate-pulse" style={{ width: w, maxWidth: "100%", height: h, borderRadius: r, backgroundColor: N.n3 }} />;
 }
 
 /* ── Linha ── */
@@ -2245,7 +2245,7 @@ function LinhaDoHistorico({ entry, idx, isCompact, nav, onOpen, onCopy, copied, 
       data-testid={`button-trilha-${idx}`}
       style={{
         width: isCompact ? 44 : 28, height: isCompact ? 44 : 28, borderRadius: 6, border: "none", background: "none",
-        cursor: "pointer", color: "#c2410c", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+        cursor: "pointer", color: T.accentText, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
       }}
     >
       <Route aria-hidden="true" style={{ width: 14, height: 14 }} />
@@ -2264,7 +2264,7 @@ function LinhaDoHistorico({ entry, idx, isCompact, nav, onOpen, onCopy, copied, 
       style={{
         width: isCompact ? 44 : 26, height: isCompact ? 44 : 26, margin: isCompact ? "-9px -9px -9px -5px" : undefined,
         borderRadius: 6, border: "none", background: "none",
-        cursor: "pointer", color: copied === entry.id ? "#15803d" : P.second,
+        cursor: "pointer", color: copied === entry.id ? TOM.sucesso.text : P.second,
         display: "inline-flex", alignItems: "center", justifyContent: "center", verticalAlign: "middle",
       }}
     >
@@ -2311,7 +2311,7 @@ function LinhaDoHistorico({ entry, idx, isCompact, nav, onOpen, onCopy, copied, 
         borderBottom: `1px solid #f0efee`,
         cursor: "pointer", transition: "background-color 0.12s",
       }}
-      onMouseEnter={e => { e.currentTarget.style.backgroundColor = "#f9f9f8"; }}
+      onMouseEnter={e => { e.currentTarget.style.backgroundColor = T.bg; }}
       onMouseLeave={e => { e.currentTarget.style.backgroundColor = "transparent"; }}
     >
       <div style={{ minWidth: 0, overflow: "hidden" }}>{pill}</div>
@@ -2334,7 +2334,7 @@ function TimeCell({ ts, inline = false, gapMs = null, gapTestId }: { ts: Date; i
   const completo = format(ts, "dd/MM/yyyy HH:mm:ss", { locale: ptBR });
   return (
     <div title={completo} style={inline ? { display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" } : undefined}>
-      <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 12, fontWeight: 600, color: P.text }}>
+      <div style={{ fontFamily: FONT.mono, fontSize: 12, fontWeight: 600, color: P.text }}>
         {format(ts, "HH:mm:ss", { locale: ptBR })}
       </div>
       {/* O INTERVALO desde o passo anterior (só no modo trilha). A unidade é a
@@ -2343,7 +2343,7 @@ function TimeCell({ ts, inline = false, gapMs = null, gapTestId }: { ts: Date; i
         <div
           data-testid={gapTestId}
           title={`A peça esperou ${fmtDuracao(gapMs)} entre o passo anterior e este`}
-          style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, fontWeight: 700, color: tomDoIntervalo(gapMs), marginTop: inline ? 0 : 2 }}
+          style={{ fontFamily: FONT.mono, fontSize: 10, fontWeight: 700, color: tomDoIntervalo(gapMs), marginTop: inline ? 0 : 2 }}
         >
           +{fmtDuracao(gapMs)}
         </div>
@@ -2379,7 +2379,7 @@ function DetailDialog({ entry, onClose, nav, onCopy, copied, isMobile = false }:
   };
   const acaoBtn: React.CSSProperties = {
     flex: 1, height: 44, borderRadius: 8, border: `1px solid ${P.border}`,
-    backgroundColor: "#fff", color: P.text, fontSize: 13, fontWeight: 700, cursor: "pointer",
+    backgroundColor: T.surface, color: P.text, fontSize: 13, fontWeight: 700, cursor: "pointer",
   };
 
   return (
@@ -2423,7 +2423,7 @@ function DetailDialog({ entry, onClose, nav, onCopy, copied, isMobile = false }:
                 <div style={linha}>
                   <span style={rotulo}>Peça</span>
                   <span style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
-                    <code style={{ fontFamily: "'DM Mono', monospace", fontWeight: 700, color: P.text }}>
+                    <code style={{ fontFamily: FONT.mono, fontWeight: 700, color: P.text }}>
                       {entry.itemDisplayId}
                     </code>
                     <button
@@ -2433,7 +2433,7 @@ function DetailDialog({ entry, onClose, nav, onCopy, copied, isMobile = false }:
                       title="Copiar o código da peça"
                       // Alvo de 13px era só o ícone; 32px (44 no celular) com
                       // margem negativa para não empurrar a linha.
-                      style={{ border: "none", background: "none", cursor: "pointer", padding: 0, width: isMobile ? 44 : 32, height: isMobile ? 44 : 32, margin: isMobile ? "-12px 0" : "-8px 0", borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center", color: copied === `dlg-${entry.id}` ? "#15803d" : P.second }}
+                      style={{ border: "none", background: "none", cursor: "pointer", padding: 0, width: isMobile ? 44 : 32, height: isMobile ? 44 : 32, margin: isMobile ? "-12px 0" : "-8px 0", borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center", color: copied === `dlg-${entry.id}` ? TOM.sucesso.text : P.second }}
                     >
                       {copied === `dlg-${entry.id}`
                         ? <Check aria-hidden="true" style={{ width: 13, height: 13 }} />
@@ -2463,9 +2463,9 @@ function DetailDialog({ entry, onClose, nav, onCopy, copied, isMobile = false }:
                 <div style={{ ...linha, flexDirection: "column", gap: 6 }}>
                   <span style={{ ...rotulo, width: "auto", paddingTop: 0 }}>Registro bruto</span>
                   <pre style={{
-                    margin: 0, padding: "10px 12px", backgroundColor: "#f5f5f4",
+                    margin: 0, padding: "10px 12px", backgroundColor: T.low,
                     border: `1px solid ${P.border}`, borderRadius: 8,
-                    fontFamily: "'DM Mono', monospace", fontSize: 12, color: "#44403c",
+                    fontFamily: FONT.mono, fontSize: 12, color: T.strong,
                     whiteSpace: "pre-wrap", wordBreak: "break-word",
                   }}>
                     {entry.logDetails}
@@ -2492,7 +2492,7 @@ function DetailDialog({ entry, onClose, nav, onCopy, copied, isMobile = false }:
                   data-testid="button-abrir-peca"
                   style={{
                     ...acaoBtn,
-                    backgroundColor: "#1c1917", color: "#fff", border: "none",
+                    backgroundColor: T.text, color: T.surface, border: "none",
                     opacity: entry.eventId && entry.itemId && !entry.itemMissing ? 1 : 0.5,
                     cursor: entry.eventId && entry.itemId && !entry.itemMissing ? "pointer" : "not-allowed",
                   }}
@@ -2526,10 +2526,10 @@ function PageBtn({ onClick, disabled, children, testId, label, big }: {
       style={{
         width: big ? 44 : 30, height: big ? 44 : 30,
         borderRadius: 6, border: "none", cursor: disabled ? "default" : "pointer",
-        backgroundColor: h && !disabled ? "#e8e8e7" : "transparent",
+        backgroundColor: h && !disabled ? T.border : "transparent",
         // Desabilitada fica em #a8a29e SEM opacity por cima: opacity 0.35
         // sobre um cinza claro sumia com a seta em vez de só recuá-la.
-        color: disabled ? "#a8a29e" : "#57534e",
+        color: disabled ? T.muted : T.apoio,
         display: "flex", alignItems: "center", justifyContent: "center",
         transition: "background 0.12s",
       }}

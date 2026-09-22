@@ -124,7 +124,9 @@ describe("o agrupamento por dia", () => {
     expect(tela).toContain("position: \"sticky\", top: -24");
     // Gradiente e não fundo chapado com borda: borda dura corta a foto que
     // passa por baixo dela na rolagem.
-    expect(tela).toContain("linear-gradient(#f9f9f8 78%, rgba(249,249,248,0))");
+    // O fundo virou token (T.bg) e o rgba do fim passou a ser o MESMO tom com
+    // alfa 0 — antes era #f9f9f8, sobra do fundo anterior.
+    expect(tela).toContain("linear-gradient(${T.bg} 78%, rgba(250,250,249,0))");
   });
 
   it("a contagem do cabeçalho é a do próprio grupo", () => {
@@ -244,7 +246,7 @@ describe("as correções de contraste continuam de pé", () => {
   });
 
   it("o link do evento usa o laranja que passa", () => {
-    expect(tela).toContain('color: "#c2410c"');
+    expect(tela).toContain("color: T.accentText");
     expect(contraste("#c2410c", "#ffffff")).toBeGreaterThanOrEqual(4.5);
   });
 
@@ -255,7 +257,7 @@ describe("as correções de contraste continuam de pé", () => {
   });
 
   it("a observação continua em #57534e", () => {
-    expect(tela).toContain('color: "#57534e"');
+    expect(tela).toContain("color: T.apoio");
     expect(contraste("#57534e", "#ffffff")).toBeGreaterThanOrEqual(4.5);
   });
 

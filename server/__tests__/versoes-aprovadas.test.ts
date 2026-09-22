@@ -341,7 +341,7 @@ describe("7 · a rodada de 25/08 — books que resolvem e aviso que deixa rastro
 
   it("os quatro cards do resumo têm a MESMA superfície; o fundo marca o ativo; o rótulo concorda com o número", () => {
     expect(PAGE).toContain('border: `1px solid ${T.border}`,');
-    expect(PAGE).toContain('backgroundColor: ativo ? "#fafaf9" : "#ffffff",');
+    expect(PAGE).toContain("backgroundColor: ativo ? T.bg : T.surface,");
     expect(PAGE).toContain('booksDesatualizados === 1 ? "book desatualizado" : "books desatualizados"');
     expect(PAGE).toContain('resumo.divergentes === 1 ? "aprovou outra versão" : "aprovaram outra versão"');
   });

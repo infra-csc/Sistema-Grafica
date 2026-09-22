@@ -48,8 +48,10 @@ describe("1 · a gravidade vem do status da peça", () => {
     expect(PAGE).toContain("const impressaErrada = p.divergente && jaFoiParaGrafica(p.status);");
     expect(PAGE).toContain("produzida na versão errada");
     // vermelho sólido, e a borda do cartão sobe de tom
-    expect(PAGE).toContain('color: "#ffffff", backgroundColor: "#b91c1c"');
-    expect(PAGE).toContain('impressaErrada ? "#fca5a5" : p.divergente ? "#fecaca" : T.border');
+    expect(PAGE).toContain("color: T.surface, backgroundColor: TOM.perigo.text");
+    // Dois degraus do MESMO vermelho da paleta: o saturado (dot) quando o erro
+    // ja saiu do papel, o tinto claro (border) enquanto da para corrigir.
+    expect(PAGE).toContain("impressaErrada ? TOM.perigo.dot : p.divergente ? TOM.perigo.border : T.border");
     // e o nome ameno continua existindo para o caso ainda corrigível
     expect(PAGE).toContain("aprovou outra versão");
   });
@@ -96,9 +98,11 @@ describe("2 · a faixa do achado", () => {
   });
 
   it("contraste do texto miúdo nas faixas", () => {
-    // #7f1d1d sobre #fef2f2 = 8,9:1 · #78350f sobre #fffbeb = 9,4:1
-    expect(PAGE).toContain('texto: "#7f1d1d"');
-    expect(PAGE).toContain('texto: "#78350f"');
+    // #7f1d1d era o red 900, um degrau abaixo do vermelho da paleta. TOM.perigo
+    // .text (#b91c1c) da 5,9:1 sobre o proprio fundo claro e e o MESMO vermelho
+    // da pilula de status — o alerta nao muda de cor conforme a tela.
+    expect(PAGE).toContain("texto: TOM.perigo.text");
+    expect(PAGE).toContain("texto: TOM.alerta.text");
   });
 });
 

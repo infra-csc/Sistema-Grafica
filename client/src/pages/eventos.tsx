@@ -74,7 +74,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/auth-context";
 import { MARCOS_DO_EVENTO, OFFSET_PADRAO_DO_MARCO } from "@shared/prazo-dates";
 import { AJUDA_PRAZO_MOLDE, diaDoPrazoMolde } from "@shared/prazo-molde";
-import { useIsMobile } from "@/hooks/use-mobile";
+import { alvo, useIsMobile, usePonteiroGrosso } from "@/hooks/use-mobile";
 import { Inbox } from "lucide-react";
 import { idadeDoPedido, patrocinadoresDaLinha, quantidadeDoPedido, rotuloDaLinha, type PedidoDePeca } from "@shared/pedidos-de-peca";
 
@@ -670,10 +670,12 @@ function EventCardActions({
   isClosed: boolean;
   isMobile?: boolean;
 }) {
-  // Alvo de toque: 44px no mobile, 32px no desktop.
+  // Alvo de toque pelo PONTEIRO, não pela largura: o tablet do galpão tem
+  // 1024px de janela e é operado com o dedo — ficava nos 32px do mouse.
+  const dedo = usePonteiroGrosso() || !!isMobile;
   const btnBase: React.CSSProperties = {
-    minWidth: isMobile ? 44 : 32,
-    minHeight: isMobile ? 44 : 32,
+    minWidth: alvo(32, dedo),
+    minHeight: alvo(32, dedo),
     padding: '8px',
     alignItems: 'center',
     justifyContent: 'center',
@@ -701,7 +703,7 @@ function EventCardActions({
           title="Definir prioridade"
           aria-label={`Definir prioridade de ${event.name}`}
           data-testid={`button-priority-event-${event.id}`}
-          style={{ ...btnBase, backgroundColor: '#f9f9f8', color: event.priority ? accentHex : '#78716c' }}
+          style={{ ...btnBase, backgroundColor: '#f9f9f8', color: event.priority ? accentHex : T.second }}
         >
           <Flag style={{ width: '13px', height: '13px', fill: event.priority ? accentHex : 'none' }} />
         </button>
@@ -843,7 +845,8 @@ function EventCard({
   // Espaço reservado na primeira linha para as ações sobrepostas.
   const actionCount = (canSetPriority ? 1 : 0) + (canDuplicate ? 1 : 0) + (canEdit || soPatrocinadores ? 1 : 0)
     + (canClose ? 1 : 0) + (canDelete ? 1 : 0);
-  const btnSize = isMobile ? 44 : 32;
+  const dedo = usePonteiroGrosso() || !!isMobile;
+  const btnSize = alvo(32, dedo);
   const actionsWidth = actionCount > 0 ? actionCount * btnSize + (actionCount - 1) * 6 + 10 : 0;
   const cardPad = isMobile ? 14 : 24;
 
@@ -1337,6 +1340,8 @@ export default function Eventos() {
   const { toast } = useToast();
   const [, setLocation] = useLocation();
   const isMobile = useIsMobile();
+  /** Dedo (celular OU tablet do galpão): manda no TAMANHO do alvo, só nele. */
+  const dedo = usePonteiroGrosso() || isMobile;
   const [openStartDate, setOpenStartDate] = useState(false);
   const [openTruckDate, setOpenTruckDate] = useState(false);
   const [openPrazoKey, setOpenPrazoKey] = useState<string | null>(null);
@@ -2488,14 +2493,14 @@ export default function Eventos() {
                 type="button"
                 data-testid="button-filtrar-pedidos"
                 onClick={() => setFoco(foco === 'pedidos' ? '' : 'pedidos')}
-                style={{ height: isMobile ? 44 : 34, padding: '0 14px', borderRadius: R.md, border: '1px solid #fcd34d', backgroundColor: foco === 'pedidos' ? '#78350f' : '#ffffff', color: foco === 'pedidos' ? '#ffffff' : '#78350f', fontSize: FS.body, fontWeight: 800, cursor: 'pointer', whiteSpace: 'nowrap' }}
+                style={{ height: alvo(34, dedo), padding: '0 14px', borderRadius: R.md, border: '1px solid #fcd34d', backgroundColor: foco === 'pedidos' ? '#78350f' : '#ffffff', color: foco === 'pedidos' ? '#ffffff' : '#78350f', fontSize: FS.body, fontWeight: 800, cursor: 'pointer', whiteSpace: 'nowrap' }}
               >
                 {foco === 'pedidos' ? 'Mostrar todos os eventos' : 'Ver só eventos com solicitação'}
               </button>
               <Link
                 href="/pedidos-de-peca"
                 data-testid="link-caixa-pedidos"
-                style={{ display: 'inline-flex', alignItems: 'center', height: isMobile ? 44 : 34, padding: '0 14px', borderRadius: R.md, border: '1px solid #fcd34d', backgroundColor: '#ffffff', color: '#78350f', fontSize: FS.body, fontWeight: 800, textDecoration: 'none', whiteSpace: 'nowrap' }}
+                style={{ display: 'inline-flex', alignItems: 'center', height: alvo(34, dedo), padding: '0 14px', borderRadius: R.md, border: '1px solid #fcd34d', backgroundColor: '#ffffff', color: '#78350f', fontSize: FS.body, fontWeight: 800, textDecoration: 'none', whiteSpace: 'nowrap' }}
               >
                 Abrir as solicitações de peças
               </Link>
@@ -2902,7 +2907,7 @@ export default function Eventos() {
                                       type="button"
                                       data-testid={`input-${field}`}
                                       disabled={noStart}
-                                      style={{ display: 'flex', alignItems: 'center', gap: 5, height: 30, padding: '0 10px', borderRadius: R.sm, border: openPrazoKey === key ? '1px solid #f97316' : '1px solid transparent', backgroundColor: noStart ? '#f0efee' : (openPrazoKey === key ? '#ffffff' : T.border), fontSize: FS.body, fontWeight: '600', color: noStart ? '#78716c' : (dateVal ? T.text : T.second), cursor: noStart ? 'not-allowed' : 'pointer', boxShadow: openPrazoKey === key ? '0 0 0 2px rgba(249,115,22,0.18)' : 'none', transition: 'all 0.15s', fontFamily: "'Plus Jakarta Sans', sans-serif", whiteSpace: 'nowrap' as const }}
+                                      style={{ display: 'flex', alignItems: 'center', gap: 5, height: alvo(30, dedo), padding: '0 10px', borderRadius: R.sm, border: openPrazoKey === key ? '1px solid #f97316' : '1px solid transparent', backgroundColor: noStart ? '#f0efee' : (openPrazoKey === key ? '#ffffff' : T.border), fontSize: FS.body, fontWeight: '600', color: noStart ? T.second : (dateVal ? T.text : T.second), cursor: noStart ? 'not-allowed' : 'pointer', boxShadow: openPrazoKey === key ? '0 0 0 2px rgba(249,115,22,0.18)' : 'none', transition: 'all 0.15s', fontFamily: "'Plus Jakarta Sans', sans-serif", whiteSpace: 'nowrap' as const }}
                                     >
                                       <Calendar style={{ width: 11, height: 11, color: noStart ? '#c4bfbb' : T.muted, flexShrink: 0 }} />
                                       {dateVal ? fmtDateBR(dateVal) : (noStart ? '—' : 'Selecionar')}
@@ -3360,7 +3365,7 @@ export default function Eventos() {
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
             data-testid="input-search-events"
-            style={{ paddingLeft: '32px', paddingRight: '12px', height: isMobile ? 44 : 32, width: isMobile ? '100%' : '230px', border: '1px solid #e7e5e4', borderRadius: R.pill, backgroundColor: '#ffffff', fontSize: FS.body, color: T.dark, fontFamily: 'inherit' }}
+            style={{ paddingLeft: '32px', paddingRight: '12px', height: alvo(32, dedo), width: isMobile ? '100%' : '230px', border: '1px solid #e7e5e4', borderRadius: R.pill, backgroundColor: '#ffffff', fontSize: FS.body, color: T.dark, fontFamily: 'inherit' }}
             onFocus={e => { e.currentTarget.style.borderColor = '#fd761a'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(253,118,26,0.12)'; }}
             onBlur={e => { e.currentTarget.style.borderColor = '#e7e5e4'; e.currentTarget.style.boxShadow = 'none'; }}
           />
@@ -3452,7 +3457,7 @@ export default function Eventos() {
                 title={`${rotulo}: ${significado}. ${ligado ? 'Clique para tirar da lista.' : 'Clique para trazer para a lista.'}`}
                 style={{
                   display: 'inline-flex', alignItems: 'center', gap: 7,
-                  height: isMobile ? 44 : 30, padding: '0 12px', borderRadius: R.pill,
+                  height: alvo(30, dedo), padding: '0 12px', borderRadius: R.pill,
                   border: `1px solid ${ligado ? T.dark : '#e8e8e7'}`,
                   backgroundColor: ligado ? T.dark : '#ffffff',
                   color: ligado ? '#ffffff' : '#44403c',
@@ -3472,7 +3477,7 @@ export default function Eventos() {
         {hasActiveFilters && (
           <button type="button" onClick={clearAllEventFilters} data-testid="button-clear-filters"
             title="Limpar busca, prioridade, patrocinador, mês e atalhos (a situação fica)"
-            style={{ padding: '5px 10px', minHeight: isMobile ? 44 : 30, borderRadius: R.pill, fontSize: FS.small, fontWeight: 600, cursor: 'pointer', border: 'none', backgroundColor: 'transparent', color: T.accentText }}>
+            style={{ padding: '5px 10px', minHeight: alvo(30, dedo), borderRadius: R.pill, fontSize: FS.small, fontWeight: 600, cursor: 'pointer', border: 'none', backgroundColor: 'transparent', color: T.accentText }}>
             Limpar filtros
           </button>
         )}
@@ -3494,7 +3499,7 @@ export default function Eventos() {
                 onClick={incluirSituacoesOcultas}
                 data-testid="button-busca-inclui-ocultos"
                 title={`A busca também encontrou eventos em ${nomesDasSituacoesOcultas}`}
-                style={{ fontSize: FS.small, fontWeight: 700, color: T.accentText, background: 'none', border: 'none', padding: '0 4px', minHeight: isMobile ? 44 : 30, cursor: 'pointer', whiteSpace: 'nowrap' }}
+                style={{ fontSize: FS.small, fontWeight: 700, color: T.accentText, background: 'none', border: 'none', padding: '0 4px', minHeight: alvo(30, dedo), cursor: 'pointer', whiteSpace: 'nowrap' }}
               >
                 +{foraPorSituacao.total} em {nomesDasSituacoesOcultas}
               </button>
@@ -3533,7 +3538,7 @@ export default function Eventos() {
                       data-testid={`toggle-densidade-${valor}`}
                       style={{
                         display: 'inline-flex', alignItems: 'center', gap: 6,
-                        height: 30, padding: '0 12px', borderRadius: 6, border: 'none',
+                        height: alvo(30, dedo), padding: '0 12px', borderRadius: 6, border: 'none',
                         backgroundColor: ativo ? '#ffffff' : 'transparent',
                         boxShadow: ativo ? '0 1px 3px rgba(0,0,0,0.10)' : 'none',
                         color: ativo ? T.text : T.second,
@@ -3599,7 +3604,7 @@ export default function Eventos() {
                   onClick={() => setOrdem(valor)}
                   data-testid={`toggle-ordem-${valor}`}
                   style={{
-                    height: isMobile ? 44 : 30, padding: '0 12px', borderRadius: R.pill,
+                    height: alvo(30, dedo), padding: '0 12px', borderRadius: R.pill,
                     border: `1px solid ${ativo ? '#fdba74' : '#e8e8e7'}`,
                     backgroundColor: ativo ? '#fff7ed' : '#ffffff',
                     color: ativo ? '#9a3412' : '#44403c',

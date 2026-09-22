@@ -18,7 +18,7 @@ import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/compone
 import { HIDE_NATIVE_CLOSE, ModalHeader, modalSurface } from "@/components/modal-shell";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { useIsMobile } from "@/hooks/use-mobile";
+import { alvo, useIsMobile, usePonteiroGrosso } from "@/hooks/use-mobile";
 import { T, FS, R } from "@/lib/theme";
 
 const ROTULO: React.CSSProperties = { display: "block", fontSize: FS.small, fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase", color: "#57534e", marginBottom: 5 };
@@ -58,6 +58,8 @@ export function PainelDoKit({ eventId, pecas, podeCriar, usuarioDoKit, nomeDoUsu
 }) {
   const { toast } = useToast();
   const isMobile = useIsMobile();
+  /** Dedo (celular OU tablet do galpão): manda no TAMANHO do alvo, só nele. */
+  const dedo = usePonteiroGrosso() || isMobile;
   const [aberto, setAberto] = useState(false);
   const { data: remessas = [] } = useQuery<RemessaDoKit[]>({ queryKey: [chaveDasRemessas(eventId)], enabled: !!eventId });
 
@@ -229,7 +231,7 @@ export function PainelDoKit({ eventId, pecas, podeCriar, usuarioDoKit, nomeDoUsu
             title={eventoFinalizado ? "Evento finalizado — não recebe peças" : undefined}
             // Desabilitado em #78716c, não #a8a29e: o rótulo continua sendo
             // TEXTO lido (2,5:1 reprovava), só perde a cor de ação.
-            style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 6, height: isMobile ? 44 : 34, padding: "0 14px", borderRadius: R.md, border: "1px solid #ddd6fe", background: eventoFinalizado ? "#f5f5f4" : "#f5f3ff", color: eventoFinalizado ? "#78716c" : "#5b21b6", fontSize: 12.5, fontWeight: 800, cursor: eventoFinalizado ? "not-allowed" : "pointer" }}>
+            style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 6, height: alvo(34, dedo), padding: "0 14px", borderRadius: R.md, border: "1px solid #ddd6fe", background: eventoFinalizado ? "#f5f5f4" : "#f5f3ff", color: eventoFinalizado ? T.second : "#5b21b6", fontSize: 12.5, fontWeight: 800, cursor: eventoFinalizado ? "not-allowed" : "pointer" }}>
             <Plus size={14} aria-hidden="true" /> Nova remessa do Kit
           </button>
         )}
@@ -277,7 +279,7 @@ export function PainelDoKit({ eventId, pecas, podeCriar, usuarioDoKit, nomeDoUsu
                 <button type="button" data-testid={`button-adicionar-peca-remessa-${r.id}`} disabled={eventoFinalizado}
                   onClick={() => onAdicionarPeca(r.id)}
                   title={eventoFinalizado ? "Evento finalizado — não recebe peças" : `Adicionar uma peça à KIT ${r.versao}`}
-                  style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 5, height: isMobile ? 44 : 32, padding: "0 12px", borderRadius: R.md, border: "none", background: eventoFinalizado ? "#e7e5e4" : "#6d28d9", color: eventoFinalizado ? "#78716c" : "#fff", fontSize: 12.5, fontWeight: 800, cursor: eventoFinalizado ? "not-allowed" : "pointer" }}>
+                  style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 5, height: alvo(32, dedo), padding: "0 12px", borderRadius: R.md, border: "none", background: eventoFinalizado ? "#e7e5e4" : "#6d28d9", color: eventoFinalizado ? T.second : "#fff", fontSize: 12.5, fontWeight: 800, cursor: eventoFinalizado ? "not-allowed" : "pointer" }}>
                   <Plus size={13} aria-hidden="true" /> Adicionar peça ao KIT {r.versao}
                 </button>
               )}
@@ -299,18 +301,18 @@ export function PainelDoKit({ eventId, pecas, podeCriar, usuarioDoKit, nomeDoUsu
                     </span>
                   )}
                   <button type="button" data-testid={`button-confirmar-excluir-remessa-${r.id}`} disabled={excluir.isPending} onClick={() => excluir.mutate(r.id)}
-                    style={{ height: isMobile ? 44 : 32, padding: "0 12px", borderRadius: R.md, border: "none", background: "#b91c1c", color: "#fff", fontSize: 12.5, fontWeight: 800, cursor: excluir.isPending ? "wait" : "pointer" }}>
+                    style={{ height: alvo(32, dedo), padding: "0 12px", borderRadius: R.md, border: "none", background: "#b91c1c", color: "#fff", fontSize: 12.5, fontWeight: 800, cursor: excluir.isPending ? "wait" : "pointer" }}>
                     {excluir.isPending ? "Excluindo…" : "Excluir"}
                   </button>
                   <button type="button" onClick={() => setConfirmandoExclusao(null)} disabled={excluir.isPending}
-                    style={{ height: isMobile ? 44 : 32, padding: "0 8px", border: "none", background: "none", color: "#57534e", fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}>
+                    style={{ height: alvo(32, dedo), padding: "0 8px", border: "none", background: "none", color: "#57534e", fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}>
                     Voltar
                   </button>
                 </span>
               ) : (
                 <button type="button" data-testid={`button-excluir-remessa-${r.id}`} onClick={() => setConfirmandoExclusao(r.id)}
                   title="Excluir a remessa e as peças dela — só enquanto nenhuma peça foi enviada"
-                  style={{ marginLeft: onAdicionarPeca ? 0 : "auto", display: "inline-flex", alignItems: "center", gap: 5, height: isMobile ? 44 : 32, padding: "0 10px", borderRadius: R.md, border: "1px solid #fecaca", background: "#fff", color: "#b91c1c", fontSize: 12.5, fontWeight: 800, cursor: "pointer" }}>
+                  style={{ marginLeft: onAdicionarPeca ? 0 : "auto", display: "inline-flex", alignItems: "center", gap: 5, height: alvo(32, dedo), padding: "0 10px", borderRadius: R.md, border: "1px solid #fecaca", background: "#fff", color: "#b91c1c", fontSize: 12.5, fontWeight: 800, cursor: "pointer" }}>
                   <Trash2 size={13} aria-hidden="true" /> Excluir remessa
                 </button>
               ))}

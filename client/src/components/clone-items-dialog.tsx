@@ -4,8 +4,8 @@ import { Copy, Loader2, Search } from "lucide-react";
 import { FilterSelect } from "@/components/filter-select";
 import { getStatusLabel } from "@/lib/status";
 import { Button } from "@/components/ui/button";
-import {
 import { T } from "@/lib/theme";
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -220,7 +220,12 @@ export function CloneItemsDialog({
                     placeholder="Buscar peça…"
                     aria-label="Buscar entre as peças do evento de origem"
                     data-testid="input-busca-pecas-clone"
+                    // `outline: none` SEM substituto tirava o único sinal de
+                    // "o cursor está aqui" para quem chega de Tab. A borda
+                    // escura + o anel de 3px devolvem o foco à vista.
                     style={{ width: '100%', padding: '7px 10px 7px 30px', borderRadius: 8, border: '1.5px solid #e7e5e4', fontSize: 13, outline: 'none' }}
+                    onFocus={e => { e.currentTarget.style.border = '1.5px solid #1c1917'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(28,25,23,0.16)'; }}
+                    onBlur={e => { e.currentTarget.style.border = '1.5px solid #e7e5e4'; e.currentTarget.style.boxShadow = 'none'; }}
                   />
                 </div>
               )}

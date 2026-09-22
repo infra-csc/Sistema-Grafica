@@ -12,7 +12,7 @@ import { FileSpreadsheet, Package, Warehouse } from "lucide-react";
 import { rotuloDaRemessa, type CabecalhoDoKit, type RemessaDoKit } from "@shared/kit";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { HIDE_NATIVE_CLOSE, ModalFooter, ModalHeader, modalSurface } from "@/components/modal-shell";
-import { useIsMobile } from "@/hooks/use-mobile";
+import { alvo, useIsMobile, usePonteiroGrosso } from "@/hooks/use-mobile";
 import { T, FS, R } from "@/lib/theme";
 
 export type NovaRemessaDoKit = {
@@ -48,6 +48,8 @@ export function DestinoDaImportacaoDialog({ aberto, quantidade, arquivo, remessa
   onFechar: () => void;
 }) {
   const isMobile = useIsMobile();
+  /** Dedo (celular OU tablet do galpão): manda no TAMANHO do alvo, só nele. */
+  const dedo = usePonteiroGrosso() || isMobile;
   const [tipo, setTipo] = useState<"arena" | "kit" | null>(null);
   const [modoKit, setModoKit] = useState<"nova" | "remessa">("nova");
   const [remessaId, setRemessaId] = useState("");
@@ -108,7 +110,7 @@ export function DestinoDaImportacaoDialog({ aberto, quantidade, arquivo, remessa
         data-testid={`destino-importacao-${valor}`} title={bloqueio}
         style={{ flex: "1 1 220px", textAlign: "left", display: "flex", gap: 10, alignItems: "flex-start", padding: "14px 14px", borderRadius: R.lg, cursor: bloqueio ? "not-allowed" : "pointer",
           border: `2px solid ${ativo ? cor : "#e7e5e4"}`, background: bloqueio ? "#f5f5f4" : ativo ? `${cor}0f` : "#fff", opacity: bloqueio ? 0.6 : 1 }}>
-        <Icone size={20} color={bloqueio ? "#78716c" : cor} aria-hidden="true" style={{ flexShrink: 0, marginTop: 1 }} />
+        <Icone size={20} color={bloqueio ? T.second : cor} aria-hidden="true" style={{ flexShrink: 0, marginTop: 1 }} />
         <span>
           <span style={{ display: "block", fontSize: 15, fontWeight: 800, color: T.text }}>{titulo}</span>
           <span style={{ display: "block", fontSize: FS.body, color: "#57534e", marginTop: 2, lineHeight: 1.4 }}>{bloqueio ?? texto}</span>
@@ -143,7 +145,7 @@ export function DestinoDaImportacaoDialog({ aberto, quantidade, arquivo, remessa
                 <div role="radiogroup" aria-label="Remessa do Kit" style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                   {([["nova", "Nova remessa"], ["remessa", "Remessa que já existe"]] as const).map(([valor, rotulo]) => (
                     <button key={valor} type="button" role="radio" aria-checked={modoKit === valor} onClick={() => setModoKit(valor)} data-testid={`modo-kit-${valor}`}
-                      style={{ height: isMobile ? 44 : 34, padding: "0 12px", borderRadius: R.pill, border: `1px solid ${modoKit === valor ? "#6d28d9" : "#ddd6fe"}`, background: modoKit === valor ? "#6d28d9" : "#fff", color: modoKit === valor ? "#fff" : "#5b21b6", fontSize: 12.5, fontWeight: 800, cursor: "pointer" }}>
+                      style={{ height: alvo(34, dedo), padding: "0 12px", borderRadius: R.pill, border: `1px solid ${modoKit === valor ? "#6d28d9" : "#ddd6fe"}`, background: modoKit === valor ? "#6d28d9" : "#fff", color: modoKit === valor ? "#fff" : "#5b21b6", fontSize: 12.5, fontWeight: 800, cursor: "pointer" }}>
                       {rotulo}
                     </button>
                   ))}
@@ -191,7 +193,7 @@ export function DestinoDaImportacaoDialog({ aberto, quantidade, arquivo, remessa
         <ModalFooter>
           <button type="button" data-testid="button-confirmar-destino" disabled={!!falta || pendente} onClick={confirmar} title={falta ?? undefined}
             style={{ height: 46, borderRadius: R.md, border: "none", fontSize: 14, fontWeight: 800, cursor: falta ? "not-allowed" : "pointer",
-              background: falta || pendente ? "#e7e5e4" : tipo === "kit" ? "#6d28d9" : "#1c1917", color: falta || pendente ? "#78716c" : "#fff" }}>
+              background: falta || pendente ? "#e7e5e4" : tipo === "kit" ? "#6d28d9" : "#1c1917", color: falta || pendente ? T.second : "#fff" }}>
             {pendente ? "Importando…" : falta ? falta : `Importar ${quantidade} ${quantidade === 1 ? "peça" : "peças"} ${tipo === "kit" ? "do Kit" : "da Arena"}`}
           </button>
           <button type="button" onClick={onFechar} disabled={pendente}

@@ -135,7 +135,7 @@ function calcularMarcos(event: any, today: Date): { marcos: Marco[]; countdownDa
 
 const plural = (n: number, um: string, muitos: string) => (n === 1 ? um : muitos);
 import { useEventItemFlags } from "@/hooks/use-event-item-flags";
-import { useIsMobile } from "@/hooks/use-mobile";
+import { useDensidadeDoConteudo, usePonteiroGrosso } from "@/hooks/use-mobile";
 import { ModalHeader, ModalFooter, modalSurface, HIDE_NATIVE_CLOSE, FreezeWhileClosing } from "@/components/modal-shell";
 import { reductionFloorOf } from "@/lib/saldo";
 import {
@@ -837,7 +837,12 @@ export default function EventDetail() {
   const [customMaterial, setCustomMaterial] = useState(false);
   const [customFinish, setCustomFinish] = useState(false);
   const [submitConfirmOpen, setSubmitConfirmOpen] = useState(false);
-  const isMobile = useIsMobile();
+  // Régua única (use-mobile.tsx): a lista de peças escolhe tabela ou cartões
+  // pela ÁREA ÚTIL medida, e o alvo de toque segue o PONTEIRO.
+  const { ref: listaRef, cards: emCards, compacto, isMobile } = useDensidadeDoConteudo<HTMLDivElement>();
+  const ponteiroGrosso = usePonteiroGrosso();
+  /** Dedo (celular OU tablet do galpão): manda no TAMANHO do alvo, só nele. */
+  const dedo = ponteiroGrosso || isMobile;
   const { toast } = useToast();
 
   const [formData, setFormData] = useState({ ...EMPTY_ITEM_FORM });
@@ -3277,7 +3282,10 @@ export default function EventDetail() {
           </div>
         )
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '48px' }}>
+        /* `listaRef` mede a ÁREA ÚTIL da lista de peças — é ela, e não a
+           janela, que decide entre a tabela de 9 colunas e os cartões
+           (ver a régua em use-mobile.tsx). */
+        <div ref={listaRef} style={{ display: 'flex', flexDirection: 'column', gap: '48px' }}>
           {/* Busca local de peças — evita rolagem cega em eventos grandes. */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: '-24px' }}>
             <div style={{ position: 'relative', width: isMobile ? '100%' : 280 }}>
@@ -3357,7 +3365,10 @@ export default function EventDetail() {
               <>
                 {/* Tabela do grupo */}
                 <div style={{ backgroundColor: '#ffffff', borderRadius: '12px', overflow: 'hidden' }}>
-                  {isMobile ? (
+                  {/* CARTÕES pela ÁREA ÚTIL, não pela janela: a tabela tem
+                      `minWidth: 960` e a coluna de Ações é a última — no tablet
+                      com a barra lateral aberta ela ficava fora da tela. */}
+                  {emCards ? (
                     <div style={{ padding: '8px' }}>
                       {typeItems.map(item => (
                         /* Card com onClick e sem foco: no celular o toque
@@ -3457,10 +3468,23 @@ export default function EventDetail() {
                       coluna `auto` ao lado de oito em px resolve para ZERO —
                       a Descrição sumia em telas estreitas. Status leva 19%
                       para a pílula caber numa linha. */}
-                  <table style={{ width: '100%', minWidth: 960, borderCollapse: 'collapse', textAlign: 'left', tableLayout: 'fixed' }}>
+                  {/* DENSIDADE COMPACTA (área útil de 820 a 1180px): M² desce
+                      para baixo das dimensões e Patrocinador para baixo da
+                      descrição. Nove colunas em 960px de mínimo não cabem num
+                      tablet com a barra lateral aberta, e a coluna que ficava
+                      de fora era justamente Ações. */}
+                  <table style={{ width: '100%', minWidth: compacto ? 720 : 960, borderCollapse: 'collapse', textAlign: 'left', tableLayout: 'fixed' }}>
                     <thead>
                       <tr>
-                        {([
+                        {(compacto ? ([
+                          ['ID', '10%'],
+                          ['Referência', '9%'],
+                          ['Descrição', '27%'],
+                          ['Qtd', '6%'],
+                          ['Dimensões (V / A)', '17%'],
+                          ['Status', '19%'],
+                          ['Ações', '12%'],
+                        ] as const) : ([
                           ['ID', '7%'],
                           ['Referência', '8%'],
                           ['Descrição', '19%'],
@@ -3470,7 +3494,7 @@ export default function EventDetail() {
                           ['Patrocinador', '11%'],
                           ['Status', '19%'],
                           ['Ações', '11%'],
-                        ] as const).map(([col, width]) => (
+                        ] as const)).map(([col, width]) => (
                           <th
                             key={col}
                             style={{
@@ -3629,6 +3653,14 @@ export default function EventDetail() {
                                 {[item.material, item.finish].filter(Boolean).join(' · ')}
                               </div>
                             )}
+                            {/* No compacto o patrocinador vem para cá: é texto
+                                livre e longo, e era a coluna que mais empurrava
+                                a tabela para fora da tela. */}
+                            {compacto && item.sponsors && item.sponsors.length > 0 && (
+                              <div style={{ fontSize: '11px', color: '#57534e', marginTop: 2, overflowWrap: 'anywhere' }}>
+                                {item.sponsors.map((s: any) => s.name).join(", ")}
+                              </div>
+                            )}
                           </td>
                           {/* Qtd — sem padStart: "05" parecia código, não quantidade. */}
                           <td style={{ padding: '14px 14px', fontSize: '13px', color: '#1a1c1c', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
@@ -3645,19 +3677,30 @@ export default function EventDetail() {
                                 {(item.fileWidth && item.fileHeight) ? ` / ${item.fileWidth} × ${item.fileHeight}m` : ''}
                               </>
                             ) : '—'}
+                            {/* No compacto o m² acompanha a medida, que é de
+                                onde ele sai — não some, muda de lugar. */}
+                            {compacto && (
+                              <span style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#1a1c1c' }}>
+                                {parseFloat(item.calculatedM2 || '0').toFixed(2)} m²
+                              </span>
+                            )}
                           </td>
                           {/* M² */}
-                          <td style={{ padding: '14px 14px', fontSize: '13px', fontWeight: 700, color: '#1a1c1c', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
-                            {parseFloat(item.calculatedM2 || '0').toFixed(2)}
-                          </td>
+                          {!compacto && (
+                            <td style={{ padding: '14px 14px', fontSize: '13px', fontWeight: 700, color: '#1a1c1c', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                              {parseFloat(item.calculatedM2 || '0').toFixed(2)}
+                            </td>
+                          )}
                           {/* Patrocinador */}
                           {/* Antes era "—" hardcoded: o vínculo existia no dado
                               (enrich do /api/items/:eventId) e nunca aparecia. */}
-                          <td style={{ padding: '14px 14px', fontSize: '12px', color: '#57534e', overflowWrap: 'anywhere' }}>
-                            {(item.sponsors && item.sponsors.length > 0)
-                              ? item.sponsors.map((s: any) => s.name).join(", ")
-                              : <span style={{ color: '#746e69' }}>—</span>}
-                          </td>
+                          {!compacto && (
+                            <td style={{ padding: '14px 14px', fontSize: '12px', color: '#57534e', overflowWrap: 'anywhere' }}>
+                              {(item.sponsors && item.sponsors.length > 0)
+                                ? item.sponsors.map((s: any) => s.name).join(", ")
+                                : <span style={{ color: '#746e69' }}>—</span>}
+                            </td>
+                          )}
                           {/* Status — rótulo curto: com tableLayout fixed o
                               rótulo completo ("Aguardando Vinculação") vazava
                               por baixo dos ícones de Ações.

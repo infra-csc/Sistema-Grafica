@@ -28,7 +28,7 @@ import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/auth-context";
 import { useToast } from "@/hooks/use-toast";
-import { useIsMobile } from "@/hooks/use-mobile";
+import { alvo, useIsMobile, usePonteiroGrosso } from "@/hooks/use-mobile";
 import { queryClient } from "@/lib/queryClient";
 import { HIDE_NATIVE_CLOSE } from "@/components/modal-shell";
 import { hrefSeguro } from "@shared/url-segura";
@@ -317,6 +317,8 @@ export function ItemDetailsDialog({
   const { user } = useAuth();
   const { toast } = useToast();
   const isMobile = useIsMobile();
+  /** Dedo (celular OU tablet do galpão): manda no TAMANHO do alvo, só nele. */
+  const dedo = usePonteiroGrosso() || isMobile;
   const [revertingSponsorId, setRevertingSponsorId] = useState<string | null>(null);
   const [descancelando, setDescancelando] = useState(false);
   // TRANSFERIR DE EVENTO (dono, 11/09: "transferir um item de um evento para

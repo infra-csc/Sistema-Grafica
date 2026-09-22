@@ -239,6 +239,17 @@ export function ImportPreviewRow({ row, idx, onChange, onDelete, eventSponsorsLi
     onChange(updated);
   };
 
+  // Nome de cada campo em português: vira o `aria-label` do input que abre no
+  // lugar da célula. Sem ele o leitor de tela anunciava só "edição de texto" —
+  // numa tabela com seis campos editáveis por linha, isso não localiza nada.
+  const ROTULO_DO_CAMPO: Record<string, string> = {
+    description: 'Descrição', quantity: 'Quantidade', material: 'Material',
+    finish: 'Acabamento', observations: 'Observações',
+    fileWidth: 'Largura do arquivo (m)', fileHeight: 'Altura do arquivo (m)',
+    visualWidth: 'Largura visual (m)', visualHeight: 'Altura visual (m)',
+  };
+  const rotuloDoCampo = (field: string) => ROTULO_DO_CAMPO[field] ?? field;
+
   const cell = (field: string, val: any, opts?: { dim?: boolean; mono?: boolean; wide?: boolean; alerta?: string }) => {
     const isEditing = editField === field;
     const display = val !== null && val !== undefined && val !== '' ? String(val) : '—';
@@ -249,7 +260,10 @@ export function ImportPreviewRow({ row, idx, onChange, onDelete, eventSponsorsLi
         tabIndex={isEditing ? -1 : 0}
         role="button"
         onKeyDown={isEditing ? undefined : editableKeyDown(() => setEditField(field))}
-        title="Clique para editar"
+        // aria-label em vez de `title`: a célula é um botão cujo texto é o
+        // VALOR ("—", "2"), e sozinho ele não diz nem o campo nem que dá para
+        // editar. O `title` não chega ao leitor de tela nem ao tablet.
+        aria-label={`${rotuloDoCampo(field)}: ${display}. Editar.`}
         style={{
           padding: '8px 10px',
           borderBottom: '1px solid #f0efed',
@@ -261,6 +275,7 @@ export function ImportPreviewRow({ row, idx, onChange, onDelete, eventSponsorsLi
         {isEditing ? (
           <input
             autoFocus
+            aria-label={`${rotuloDoCampo(field)} da peça ${idx + 1}`}
             defaultValue={val ?? ''}
             onBlur={e => { update(field, e.target.value); setEditField(null); }}
             onKeyDown={e => {
@@ -305,17 +320,17 @@ export function ImportPreviewRow({ row, idx, onChange, onDelete, eventSponsorsLi
       <td style={{ padding: '8px 10px', borderBottom: '1px solid #f0efed', whiteSpace: 'nowrap', backgroundColor: rowBg }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
           {editingW ? (
-            <input autoFocus defaultValue={valW ?? ''} onBlur={e => { update(fieldW, e.target.value); setEditField(null); }} onKeyDown={e => { if (e.key==='Enter'){update(fieldW,(e.target as HTMLInputElement).value);setEditField(null);} if(e.key==='Escape')setEditField(null); }}
+            <input autoFocus aria-label={`${rotuloDoCampo(fieldW)} da peça ${idx + 1}`} defaultValue={valW ?? ''} onBlur={e => { update(fieldW, e.target.value); setEditField(null); }} onKeyDown={e => { if (e.key==='Enter'){update(fieldW,(e.target as HTMLInputElement).value);setEditField(null);} if(e.key==='Escape')setEditField(null); }}
               style={{ width: 44, border: 'none', borderBottom: '2px solid #f97316', fontSize: 11, padding: '0 2px', backgroundColor: 'transparent', fontFamily: 'DM Mono, monospace', color: '#1a1c1c' }} />
           ) : (
-            <span onClick={() => setEditField(fieldW)} tabIndex={0} role="button" onKeyDown={editableKeyDown(() => setEditField(fieldW))} title="Clique para editar" style={{ fontSize: 11, fontFamily: 'DM Mono, monospace', color: alerta ? '#b91c1c' : dimStyle ? '#746e69' : '#1a1c1c', fontWeight: alerta ? 700 : undefined, cursor: 'text', minWidth: 24 }}>{dispW}</span>
+            <span onClick={() => setEditField(fieldW)} tabIndex={0} role="button" onKeyDown={editableKeyDown(() => setEditField(fieldW))} aria-label={`${rotuloDoCampo(fieldW)}: ${dispW}. Editar.`} style={{ fontSize: 11, fontFamily: 'DM Mono, monospace', color: alerta ? '#b91c1c' : dimStyle ? '#746e69' : '#1a1c1c', fontWeight: alerta ? 700 : undefined, cursor: 'text', minWidth: 24 }}>{dispW}</span>
           )}
           <span style={{ color: '#d0cdc9', fontSize: 10, userSelect: 'none' }}>×</span>
           {editingH ? (
-            <input autoFocus defaultValue={valH ?? ''} onBlur={e => { update(fieldH, e.target.value); setEditField(null); }} onKeyDown={e => { if (e.key==='Enter'){update(fieldH,(e.target as HTMLInputElement).value);setEditField(null);} if(e.key==='Escape')setEditField(null); }}
+            <input autoFocus aria-label={`${rotuloDoCampo(fieldH)} da peça ${idx + 1}`} defaultValue={valH ?? ''} onBlur={e => { update(fieldH, e.target.value); setEditField(null); }} onKeyDown={e => { if (e.key==='Enter'){update(fieldH,(e.target as HTMLInputElement).value);setEditField(null);} if(e.key==='Escape')setEditField(null); }}
               style={{ width: 44, border: 'none', borderBottom: '2px solid #f97316', fontSize: 11, padding: '0 2px', backgroundColor: 'transparent', fontFamily: 'DM Mono, monospace', color: '#1a1c1c' }} />
           ) : (
-            <span onClick={() => setEditField(fieldH)} tabIndex={0} role="button" onKeyDown={editableKeyDown(() => setEditField(fieldH))} title="Clique para editar" style={{ fontSize: 11, fontFamily: 'DM Mono, monospace', color: alerta ? '#b91c1c' : dimStyle ? '#746e69' : '#1a1c1c', fontWeight: alerta ? 700 : undefined, cursor: 'text', minWidth: 24 }}>{dispH}</span>
+            <span onClick={() => setEditField(fieldH)} tabIndex={0} role="button" onKeyDown={editableKeyDown(() => setEditField(fieldH))} aria-label={`${rotuloDoCampo(fieldH)}: ${dispH}. Editar.`} style={{ fontSize: 11, fontFamily: 'DM Mono, monospace', color: alerta ? '#b91c1c' : dimStyle ? '#746e69' : '#1a1c1c', fontWeight: alerta ? 700 : undefined, cursor: 'text', minWidth: 24 }}>{dispH}</span>
           )}
         </div>
       </td>
@@ -453,11 +468,11 @@ export function ImportPreviewRow({ row, idx, onChange, onDelete, eventSponsorsLi
         tabIndex={editField === 'observations' ? -1 : 0}
         role="button"
         onKeyDown={editField === 'observations' ? undefined : editableKeyDown(() => setEditField('observations'))}
-        title="Clique para editar"
+        aria-label={`Observações: ${row.observations || 'vazio'}. Editar.`}
         style={{ padding: '8px 10px', borderBottom: '1px solid #f0efed', cursor: 'text', backgroundColor: editField === 'observations' ? '#fffbeb' : rowBg, maxWidth: 160 }}
       >
         {editField === 'observations' ? (
-          <input autoFocus defaultValue={row.observations ?? ''}
+          <input autoFocus aria-label={`Observações da peça ${idx + 1}`} defaultValue={row.observations ?? ''}
             onBlur={e => { update('observations', e.target.value); setEditField(null); }}
             onKeyDown={e => { if (e.key === 'Enter') { update('observations', (e.target as HTMLInputElement).value); setEditField(null); } if (e.key === 'Escape') setEditField(null); }}
             style={{ width: '100%', border: 'none', borderBottom: '2px solid #f97316', padding: '0 2px', fontSize: 13, backgroundColor: 'transparent' }} />

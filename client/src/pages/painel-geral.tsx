@@ -30,7 +30,7 @@ import {
 import { SponsorChips } from "@/components/sponsor-chips";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { useIsMobile, useElementSize, densityFromWidth, type ContentDensity } from "@/hooks/use-mobile";
+import { alvo, useIsMobile, useElementSize, densityFromWidth, usePonteiroGrosso, type ContentDensity } from "@/hooks/use-mobile";
 import { STATUS, getStatusMeta, getStatusLabel, getApprovalMeta, motivoEventoFinalizado, todayBusinessMs } from "@/lib/status";
 // AS DEFINIÇÕES VÊM DA ANÁLISE, não de uma cópia. Os focos "retrabalho" e
 // "fora do prazo" existem para responder ao clique num KPI de lá — se cada
@@ -722,6 +722,10 @@ const LinhaDaPeca = memo(function LinhaDaPeca({
   item, idx, selecionado, selo, isCompact, isAdmin, canDeleteAny, restaurando, restorePending, relogioIdade, acoes,
 }: LinhaProps) {
   const isDeleted = !!item.deletedAt;
+  // Observação aberta: o texto é livre e longo (motivo de reprovação), cabia
+  // só no `title` e o tablet não tem hover. Estado LOCAL da linha — abrir uma
+  // observação não pode re-renderizar a lista inteira.
+  const [obsAberta, setObsAberta] = useState(false);
   return (
     <tr
       className="pg-row"
@@ -763,7 +767,9 @@ const LinhaDaPeca = memo(function LinhaDaPeca({
               com colspan, que não é sticky: com 40
               "Banner" num evento, rolar deixava a
               linha órfã do próprio tipo. */}
-          <span title={item.type} style={{ fontSize: 10, fontWeight: 600, color: "#746e69", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          {/* DUAS LINHAS em vez de reticências + `title`: no tablet não há
+              hover, então o texto cortado não tinha onde aparecer inteiro. */}
+          <span style={{ fontSize: 10, fontWeight: 600, color: "#746e69", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", overflowWrap: "anywhere", lineHeight: 1.3 }}>
             {item.type}
           </span>
           {/* O selo se repete na LINHA, e não só
@@ -845,7 +851,11 @@ const LinhaDaPeca = memo(function LinhaDaPeca({
       <td style={{ padding: "10px 18px", overflow: "hidden" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 6, overflow: "hidden", minWidth: 0 }}>
           {item.description ? (
-            <span title={item.description} style={{ fontSize: 13, color: isDeleted ? "#746e69" : "#44403c", fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flexShrink: 1, minWidth: 0, textDecoration: isDeleted ? "line-through" : "none" }}>
+            /* A DESCRIÇÃO É O QUE IDENTIFICA A PEÇA. Em uma linha com
+               reticências, duas peças do mesmo evento viravam o mesmo texto e
+               o completo só existia no `title` — que no tablet não existe.
+               Duas linhas resolvem sem alargar a coluna. */
+            <span style={{ fontSize: 13, color: isDeleted ? "#746e69" : "#44403c", fontWeight: 500, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", overflowWrap: "anywhere", lineHeight: 1.3, flexShrink: 1, minWidth: 0, textDecoration: isDeleted ? "line-through" : "none" }}>
               {item.description}
             </span>
           ) : (
@@ -858,13 +868,28 @@ const LinhaDaPeca = memo(function LinhaDaPeca({
                texto livre e carrega motivo de
                reprovação — parágrafos. O ↩ cru
                virou ícone com rótulo. */
-            <span
-              title={item.observations}
-              style={{ ...SELO_CALMO, flexShrink: 1, minWidth: 0, maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", gap: 4, fontWeight: 500 }}
+            /* O texto completo é o CONTEÚDO do botão, revelado ao tocar: era
+               `title`, e observação carrega motivo de reprovação — o dado que
+               mais se precisa ler e o único jeito de lê-lo era o mouse. */
+            <button
+              type="button"
+              onClick={e => { e.stopPropagation(); setObsAberta(v => !v); }}
+              aria-expanded={obsAberta}
+              data-testid={`observacao-${item.id}`}
+              style={{
+                ...SELO_CALMO, flexShrink: 1, minWidth: 0,
+                maxWidth: obsAberta ? "100%" : 200,
+                overflow: "hidden", gap: 4, fontWeight: 500, cursor: "pointer",
+                textAlign: "left", font: "inherit", fontSize: 11,
+                ...(obsAberta
+                  ? { whiteSpace: "normal", overflowWrap: "anywhere" }
+                  : { textOverflow: "ellipsis", whiteSpace: "nowrap" }),
+              }}
             >
-              <MessageSquare style={{ width: 11, height: 11, flexShrink: 0 }} aria-label="Observação" />
-              <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{item.observations}</span>
-            </span>
+              <MessageSquare aria-hidden="true" style={{ width: 11, height: 11, flexShrink: 0 }} />
+              <span className="sr-only">Observação: </span>
+              <span style={obsAberta ? undefined : { overflow: "hidden", textOverflow: "ellipsis" }}>{item.observations}</span>
+            </button>
           )}
         </div>
         {isCompact && !isDeleted && (
@@ -1758,6 +1783,9 @@ export default function PainelGeral() {
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
 
   const isMobile = useIsMobile();
+  // Alvo pelo PONTEIRO, não pela largura da janela: o tablet do galpão tem
+  // 1024px e é dedo — os chips e as abas ficavam em 32/36px, abaixo do mínimo.
+  const dedo = usePonteiroGrosso() || isMobile;
   // Densidade pela largura do CONTEÚDO, não da janela: com a sidebar aberta,
   // 1000px de janela deixam ~744px de conteúdo — e era aí que a tabela de 6
   // colunas estourava, dando rolagem horizontal na PÁGINA inteira, em silêncio.
@@ -3414,7 +3442,7 @@ export default function PainelGeral() {
               <div aria-label="Visões salvas" role="group" style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center" }}>
                 {visoes.map(v => {
                   // 44 no toque, 36 no ponteiro — o mesmo piso do resto dos filtros.
-                  const alturaVisao = isMobile ? 44 : 36;
+                  const alturaVisao = alvo(36, dedo);
                   const ativa = visaoEstaAtiva(v, filtrosAtuais);
                   const ehPadrao = visaoPadrao === v.id;
                   return (
@@ -3613,7 +3641,7 @@ export default function PainelGeral() {
           {hasActiveFilters && (
             <button
               onClick={clearAllFilters}
-              style={{ display: "flex", alignItems: "center", gap: 4, background: "#fff7ed", border: "1px solid #fed7aa", borderRadius: 6, padding: "3px 10px", fontSize: 11, fontWeight: 700, color: "#c2410c", cursor: "pointer", transition: "all 0.15s", whiteSpace: "nowrap", height: 32 }}
+              style={{ display: "flex", alignItems: "center", gap: 4, background: "#fff7ed", border: "1px solid #fed7aa", borderRadius: 6, padding: "3px 10px", fontSize: 11, fontWeight: 700, color: "#c2410c", cursor: "pointer", transition: "all 0.15s", whiteSpace: "nowrap", height: alvo(32, dedo) }}
               onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = "#c2410c"; (e.currentTarget as HTMLButtonElement).style.color = "#fff"; }}
               onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = "#fff7ed"; (e.currentTarget as HTMLButtonElement).style.color = "#c2410c"; }}
             >

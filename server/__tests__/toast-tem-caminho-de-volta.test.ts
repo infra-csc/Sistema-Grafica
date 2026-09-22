@@ -32,7 +32,10 @@ function abrirToastComAcao(onClick: () => void) {
   act(() => {
     toast({
       title: "Filtros limpos",
-      action: createElement(ToastAction, { altText: "Desfazer a limpeza", onClick }, "Desfazer"),
+      // `as any`: os tipos do @radix-ui/react-toast desta versão pedem um
+      // ReactElement<ForwardRefExoticComponent<…>>, forma que createElement
+      // não produz. O que roda é exatamente o que a tela monta.
+      action: createElement(ToastAction, { altText: "Desfazer a limpeza", onClick }, "Desfazer") as any,
     });
   });
 }

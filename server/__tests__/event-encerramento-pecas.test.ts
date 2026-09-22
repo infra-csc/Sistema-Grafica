@@ -130,7 +130,7 @@ beforeEach(() => {
     eventos: { "ev-1": evento(), "ev-origem": evento({ id: "ev-origem", name: "COPA SUL 2026" }) },
     itens: {
       "it-origem": {
-        id: "it-origem", displayId: "#0001", eventId: "ev-origem", ...PECA_VALIDA,
+        ...PECA_VALIDA, id: "it-origem", displayId: "#0001", eventId: "ev-origem",
         status: "delivered", quantityProduced: 2, reuseQty: 0, isReuse: false,
         parentItemId: null, deletedAt: null, observations: null,
         fileWidth: "6.10", fileHeight: "3.10",

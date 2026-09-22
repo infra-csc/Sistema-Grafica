@@ -177,7 +177,9 @@ describe("as rotas de evento", () => {
 describe("o dado viaja com o evento", () => {
   it("enrichEvent (GET /api/events, completo e resumo) carrega prazoMolde", () => {
     const ev = { ...banco["ev-1"], prazoMolde: new Date("2099-02-20T12:00:00Z") };
-    expect(enrichEvent(ev, [], [], Date.now()).prazoMolde).toEqual(ev.prazoMolde);
+    // enrichEvent espalha o evento recebido; o tipo declarado não lista as
+    // colunas da tabela, então o acesso aqui é pelo Record.
+    expect((enrichEvent(ev, [], [], Date.now()) as Record<string, any>).prazoMolde).toEqual(ev.prazoMolde);
   });
 
   it("o formato compacto das peças devolve o evento com prazoMolde", () => {

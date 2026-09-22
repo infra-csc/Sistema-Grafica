@@ -363,7 +363,7 @@ describe("contarPecasAtrasadas — o número ao lado de cada opção", () => {
     expect(c.porPrioridade.get("alta")).toBeUndefined();
     // E o número prometido é EXATAMENTE o que o clique entrega.
     expect(filtrarPecasAtrasadas(lista, { eventoId: "ev-a", etapaKey: "listaImagens" }))
-      .toHaveLength(c.porEtapa.get("listaImagens"));
+      .toHaveLength(c.porEtapa.get("listaImagens")!);
   });
 
   it("a busca entra em todas as contagens (é filtro de texto, não dimensão)", () => {

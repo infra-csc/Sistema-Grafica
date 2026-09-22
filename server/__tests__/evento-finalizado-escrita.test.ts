@@ -430,7 +430,7 @@ describe.each(MOTIVOS)("evento $nome — o que arruma a casa continua liberado",
     });
 
     expect(r.status).toBe(409);
-    expect(JSON.stringify(r.body ?? r.json ?? r)).toContain("Embale antes de entregar");
+    expect(JSON.stringify(r.body)).toContain("Embale antes de entregar");
   });
 });
 

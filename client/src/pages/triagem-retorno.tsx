@@ -725,7 +725,7 @@ export default function TriagemRetorno() {
             {/* Subtítulo em texto corrido — a caixa alta com 0.18em era o
                 elemento mais ruidoso do cabeçalho. */}
             <p style={{ margin: 0, fontSize: 13, fontWeight: 500, color: "#746e69", fontFamily: "Plus Jakarta Sans, sans-serif" }}>
-              Peças que voltaram do evento: escolha a condição, o destino e onde guardar
+              Peças que voltaram do evento: escolha a condição e o destino
             </p>
           </div>
         </div>
@@ -1185,7 +1185,7 @@ export default function TriagemRetorno() {
                 background: faltando ? "#fff7f7" : "#f8fafc", color: "#0f172a",
                 width: "100%", boxSizing: "border-box",
               });
-              const localEl = isSaved ? (
+              const notaEl = isSaved ? (
                 entry.notes ? <span style={{ fontSize: 12, color: "#475569" }}>{entry.notes}</span> : null
               ) : (
                 <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
@@ -1242,7 +1242,7 @@ export default function TriagemRetorno() {
                 </button>
               );
 
-              return { entry, isSaved, isFocused, alternarSelecao, checkboxEl, miniaturaEl, materialEl, eventoEl, patrocinadoresEl, togglesEl, localEl, verEl, salvarEl };
+              return { entry, isSaved, isFocused, alternarSelecao, checkboxEl, miniaturaEl, materialEl, eventoEl, patrocinadoresEl, togglesEl, notaEl, verEl, salvarEl };
             };
 
             if (isMobile) {
@@ -1281,7 +1281,7 @@ export default function TriagemRetorno() {
                         {asset.eventName ? p.eventoEl : null}
                         {(asset.sponsors ?? []).length > 0 && <div>{p.patrocinadoresEl}</div>}
                         <div onClick={e => e.stopPropagation()}>{p.togglesEl}</div>
-                        <div onClick={e => e.stopPropagation()}>{p.localEl}</div>
+                        <div onClick={e => e.stopPropagation()}>{p.notaEl}</div>
                         <div onClick={e => e.stopPropagation()}>{p.salvarEl}</div>
                       </li>
                     );
@@ -1364,7 +1364,7 @@ export default function TriagemRetorno() {
                           </td>
 
                           <td style={{ padding: "12px 14px", verticalAlign: "middle", minWidth: 200 }}>
-                            {p.localEl}
+                            {p.notaEl}
                           </td>
 
                           <td style={{ padding: "12px 14px", verticalAlign: "middle", textAlign: "right" }}>

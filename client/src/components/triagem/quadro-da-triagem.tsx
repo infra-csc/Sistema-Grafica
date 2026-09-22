@@ -29,14 +29,14 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { miniatura } from "@/lib/miniatura";
-import { diaEMes, ehRecusaDeJaTriada } from "@shared/estoque";
+import { diaEMes, ehRecusaDeJaTriada, recusaPorReserva } from "@shared/estoque";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { HIDE_NATIVE_CLOSE, ModalFooter, ModalHeader, modalSurface } from "@/components/modal-shell";
 import { useAcompanharAreaVisivel } from "@/components/grafica/area-visivel";
 import {
-  DESTINOS_FINAIS, SEM_DISTRIBUICAO, agruparAtivos, ajustarDistribuicao, distribuido, fraseDoDescarte, moverQuantidade,
+  DESTINOS_FINAIS, SEM_DISTRIBUICAO, agruparAtivos, ajustarDistribuicao, distribuicaoDasFalhas, distribuido, fraseDoDescarte, moverQuantidade,
   planoDeGravacao, restante, resumoDaGravacao, tudoPara,
-  type CondicaoNoGalpao, type DestinoFinal, type Distribuicao, type GrupoDaTriagem, type PassoDeGravacao,
+  type CondicaoNoGalpao, type Distribuicao, type GrupoDaTriagem, type PassoDeGravacao,
 } from "@/components/triagem/grupos-da-triagem";
 import type { EnrichedAsset } from "@/lib/inventory-meta";
 import type { ReservaDaTriagem } from "@/components/triagem/eventos-da-triagem";
@@ -219,9 +219,11 @@ const CartaoDoGrupo = memo(function CartaoDoGrupo({ grupo, coluna, quantidade, r
 });
 
 /** O controle "ajustar pela quantidade": três campos e o resto ao vivo. */
-function DividirGrupo({ grupo, inicial, toque, onAplicar, onFechar }: {
+function DividirGrupo({ grupo, inicial, reservadas, toque, onAplicar, onFechar }: {
   grupo: GrupoDaTriagem;
   inicial: Distribuicao;
+  /** Unidades RESERVADAS do grupo: são as primeiras a ir para o Galpão. */
+  reservadas: number;
   toque: boolean;
   onAplicar: (d: Distribuicao) => void;
   onFechar: () => void;
@@ -268,6 +270,13 @@ function DividirGrupo({ grupo, inicial, toque, onAplicar, onFechar }: {
           <p role="status" aria-live="polite" data-testid="resta-sem-destino" style={{ margin: 0, padding: "10px 12px", borderRadius: 10, fontSize: 13, fontWeight: 600, lineHeight: 1.4, background: resta === 0 ? "#f0fdf4" : "#f8fafc", border: `1px solid ${resta === 0 ? "#bbf7d0" : "#e2e8f0"}`, color: resta === 0 ? "#166534" : "#334155" }}>
             {resta === 0 ? `As ${grupo.unidades} unidades têm destino.` : `${resta === 1 ? "Resta 1" : `Restam ${resta}`} sem destino — ${resta === 1 ? "continua" : "continuam"} aguardando triagem.`}
           </p>
+          {/* Reservada só sai da triagem para o Galpão (o servidor recusa o
+              resto): avisa AQUI, antes de chegar ao Salvar. */}
+          {reservadas > d.galpao + resta && (
+            <p role="alert" data-testid="aviso-reservadas-dividir" style={{ margin: 0, padding: "10px 12px", borderRadius: 10, fontSize: 13, fontWeight: 600, lineHeight: 1.4, background: "#eff6ff", border: "1px solid #bfdbfe", color: "#1e40af" }}>
+              {reservadas === 1 ? "1 unidade está reservada" : `${reservadas} unidades estão reservadas`} para outro evento e só {reservadas === 1 ? "pode" : "podem"} ir para o Galpão. Deixe pelo menos {reservadas - resta} no Galpão, ou libere a reserva.
+            </p>
+          )}
         </div>
         <ModalFooter>
           <div style={{ display: "flex", gap: 8, paddingBottom: "calc(0px + env(safe-area-inset-bottom, 0px))" }}>
@@ -311,7 +320,16 @@ export function QuadroDaTriagem({ evento, ativos, reservaPorAtivo, onVoltar, onT
   const [confirmarSaida, setConfirmarSaida] = useState(false);
   // A arrumação: por GRUPO, quantas unidades em cada destino. O que não tem
   // destino é o que aparece em "A triar".
-  const [dist, setDist] = useState<Record<string, Distribuicao>>({});
+  // `base` = o total do grupo QUANDO a arrumação foi feita. Se o total mudar
+  // (outra pessoa triou parte do grupo), a arrumação daquele grupo não vale
+  // mais: é zerada e o quadro avisa. Antes ela era RECORTADA Galpão→Descartar
+  // em silêncio — o que ia para Descartar virava Galpão sem ninguém ver.
+  const [dist, setDist] = useState<Record<string, { d: Distribuicao; base: number; nome: string }>>({});
+  // Registros que ESTA tela já gravou (ou que voltaram 409): saem do quadro
+  // na hora, sem esperar a lista recarregar — senão um novo Salvar mandaria o
+  // plano de novo para eles (409 falso) e apagaria a arrumação que sobrou.
+  const [jaGravados, setJaGravados] = useState<ReadonlySet<string>>(() => new Set());
+  const [atualizando, setAtualizando] = useState(false);
   const [condicoes, setCondicoes] = useState<Record<string, CondicaoNoGalpao>>({});
   const [selecionadas, setSelecionadas] = useState<Set<string>>(new Set());
   const [arrastando, setArrastando] = useState<string[] | null>(null);
@@ -327,8 +345,10 @@ export function QuadroDaTriagem({ evento, ativos, reservaPorAtivo, onVoltar, onT
   const [anuncio, setAnuncio] = useState("");
 
   // ITENS POR QUANTIDADE JUNTOS (dono, 21/09): uma passada, Map por chave.
-  const grupos = useMemo(() => agruparAtivos(ativos), [ativos]);
+  const ativosVivos = useMemo(() => (jaGravados.size ? ativos.filter((a) => !jaGravados.has(a.id)) : ativos), [ativos, jaGravados]);
+  const grupos = useMemo(() => agruparAtivos(ativosVivos), [ativosVivos]);
   const grupoPorChave = useMemo(() => new Map(grupos.map((g) => [g.chave, g])), [grupos]);
+  // Em UNIDADES (registro ×N reservado conta N), como o resto do quadro.
   const reservaDoGrupo = useMemo(() => {
     const m = new Map<string, { reservadas: number; saida: string | null }>();
     for (const g of grupos) {
@@ -336,7 +356,7 @@ export function QuadroDaTriagem({ evento, ativos, reservaPorAtivo, onVoltar, onT
       for (const a of g.ativos) {
         const r = reservaPorAtivo.get(a.id);
         if (!r) continue;
-        reservadas++;
+        reservadas += a.quantity ?? 1;
         if (r.saida && (!saida || new Date(r.saida) < new Date(saida))) saida = r.saida;
       }
       if (reservadas) m.set(g.chave, { reservadas, saida });
@@ -344,15 +364,29 @@ export function QuadroDaTriagem({ evento, ativos, reservaPorAtivo, onVoltar, onT
     return m;
   }, [grupos, reservaPorAtivo]);
 
-  // A distribuição lida SEMPRE limitada ao total atual do grupo: depois de
-  // salvar, a fila encolhe e um número antigo não pode passar do que existe.
+  // A distribuição só vale para o total em que foi feita. Total diferente =
+  // nada distribuído (o efeito abaixo limpa e avisa).
   const distDe = useCallback((g: GrupoDaTriagem): Distribuicao => {
-    const d = dist[g.chave];
-    if (!d) return SEM_DISTRIBUICAO;
+    const e = dist[g.chave];
+    if (!e || e.base !== g.unidades) return SEM_DISTRIBUICAO;
     let limpo = SEM_DISTRIBUICAO;
-    for (const destino of DESTINOS_FINAIS) limpo = ajustarDistribuicao(g.unidades, limpo, destino, d[destino]);
+    for (const destino of DESTINOS_FINAIS) limpo = ajustarDistribuicao(g.unidades, limpo, destino, e.d[destino]);
     return limpo;
   }, [dist]);
+
+  // O GRUPO MUDOU DE TAMANHO por fora (outra pessoa triou parte dele, ou
+  // voltaram mais unidades): zera a divisão daquele grupo e diz por quê.
+  useEffect(() => {
+    const mudaram = Object.entries(dist).filter(([chave, e]) => (grupoPorChave.get(chave)?.unidades ?? 0) !== e.base);
+    if (mudaram.length === 0) return;
+    setDist((prev) => { const n = { ...prev }; for (const [chave] of mudaram) delete n[chave]; return n; });
+    const encolheu = mudaram.some(([chave, e]) => (grupoPorChave.get(chave)?.unidades ?? 0) < e.base);
+    toast({
+      title: encolheu ? "Outra pessoa triou parte deste grupo — refaça a divisão" : "Chegaram mais unidades deste grupo — refaça a divisão",
+      description: `${mudaram.map(([, e]) => e.nome).join(", ")}: a divisão foi desfeita e nada foi gravado.`,
+      variant: "destructive",
+    });
+  }, [dist, grupoPorChave, toast]);
 
   // As quatro colunas numa passada: cada grupo aparece onde tem unidades.
   const termo = busca.trim().toLowerCase();
@@ -387,9 +421,10 @@ export function QuadroDaTriagem({ evento, ativos, reservaPorAtivo, onVoltar, onT
         const { coluna, chave } = lerFatia(f);
         const g = grupoPorChave.get(chave);
         if (!g) continue;
-        const atual = proximo[chave] ?? SEM_DISTRIBUICAO;
+        const e = proximo[chave];
+        const atual = e && e.base === g.unidades ? e.d : SEM_DISTRIBUICAO;
         unidades += coluna === "triar" ? restante(g.unidades, atual) : atual[coluna];
-        proximo[chave] = moverQuantidade(g.unidades, atual, coluna, destino);
+        proximo[chave] = { d: moverQuantidade(g.unidades, atual, coluna, destino), base: g.unidades, nome: g.nome };
       }
       return proximo;
     });
@@ -428,19 +463,32 @@ export function QuadroDaTriagem({ evento, ativos, reservaPorAtivo, onVoltar, onT
   const planos = () => grupos
     .map((g) => ({ grupo: g, d: distDe(g) }))
     .filter(({ d }) => distribuido(d) > 0)
-    .map(({ grupo, d }) => ({ grupo, d, plano: planoDeGravacao(grupo, d, condicoes[grupo.chave] ?? "PERFEITO") }));
+    .map(({ grupo, d }) => ({ grupo, d, plano: planoDeGravacao(grupo, d, condicoes[grupo.chave] ?? "PERFEITO", (id) => reservaPorAtivo.get(id)) }));
 
   const paraDescartar = porColuna.descartar.map(({ grupo, quantidade }) => ({ nome: grupo.nome, descartar: quantidade, unidades: grupo.unidades }));
 
   // DESCARTAR é o único destino que destrói (a peça sai do inventário e a
   // triagem não volta atrás pelo app): pede confirmação, com a contagem.
   const salvar = () => {
-    if (unidadesMovidas === 0 || salvando) return;
+    if (unidadesMovidas === 0 || salvando || atualizando) return;
+    const todos = planos();
     // Registro ×N repartido só em parte: o servidor não guarda "um pedaço
-    // aguardando", então a divisão desse registro precisa fechar.
-    const incompleto = planos().flatMap((p) => p.plano.incompletos.map((i) => ({ ...i, nome: p.grupo.nome })))[0];
+    // aguardando", então a divisão desse registro precisa fechar. (Só sobra
+    // quando nenhuma escolha de registros fecha a conta.)
+    const incompleto = todos.flatMap((p) => p.plano.incompletos.map((i) => ({ ...i, nome: p.grupo.nome })))[0];
     if (incompleto) {
       toast({ title: `${incompleto.displayId} é um registro de ${incompleto.quantidade} unidades`, description: `Ele precisa ser distribuído inteiro: faltam ${incompleto.faltam} un. de ${incompleto.nome} sem destino.`, variant: "destructive" });
+      return;
+    }
+    // Reservado fora do Galpão: o servidor recusaria (409). Avisa ANTES.
+    const conflitos = todos.flatMap((p) => p.plano.conflitos.map((c) => ({ ...c, nome: p.grupo.nome })));
+    if (conflitos.length > 0) {
+      const [c] = conflitos;
+      toast({
+        title: conflitos.length === 1 ? "Uma peça reservada iria para fora do Galpão" : `${conflitos.length} peças reservadas iriam para fora do Galpão`,
+        description: `${recusaPorReserva(c.displayId, c.reserva)}. Aumente o Galpão de ${c.nome} (ou deixe sem destino) e salve de novo.`,
+        variant: "destructive",
+      });
       return;
     }
     if (paraDescartar.length > 0) { setConfirmarDescarte(true); return; }
@@ -459,34 +507,43 @@ export function QuadroDaTriagem({ evento, ativos, reservaPorAtivo, onVoltar, onT
     // atualização da lista, não é erro de quem está aqui); falhou de verdade.
     let salvas = 0, jaTriadas = 0;
     const falhas: PassoDeGravacao[] = [];
+    const saiuDaFila = new Set(jaGravados);
+    const unidadesQueSairam: Record<string, number> = {};
     let motivo = "";
     resultados.forEach((r, i) => {
-      if (r.status === "fulfilled") salvas++;
-      else if (ehRecusaDeJaTriada(r.reason?.message)) jaTriadas++;
-      else { falhas.push(passos[i]); motivo ||= r.reason?.message ?? ""; }
+      const p = passos[i];
+      if (r.status === "rejected" && !ehRecusaDeJaTriada(r.reason?.message)) { falhas.push(p); motivo ||= r.reason?.message ?? ""; return; }
+      if (r.status === "fulfilled") salvas++; else jaTriadas++;
+      saiuDaFila.add(p.ativoId);
+      unidadesQueSairam[p.chave] = (unidadesQueSairam[p.chave] ?? 0) + p.unidades;
     });
-    // A arrumação que fica é só a do que FALHOU — para tentar de novo.
-    const resto: Record<string, Distribuicao> = {};
-    const destinoDoStatus: Record<string, DestinoFinal> = { NO_GALPAO: "galpao", EM_MANUTENCAO: "manutencao", DESCARTADO: "descartar" };
-    for (const p of falhas) {
-      const d = resto[p.chave] ?? { ...SEM_DISTRIBUICAO };
-      const partes = p.tipo === "divisao" ? p.corpo.splits.map((s) => ({ status: String(s.trackingStatus), qtd: Number(s.qty) })) : [{ status: String(p.corpo.trackingStatus), qtd: 1 }];
-      for (const parte of partes) d[destinoDoStatus[parte.status]] += parte.qtd;
-      resto[p.chave] = d;
+    // A arrumação que fica é só a do que FALHOU — com TODAS as unidades de
+    // cada registro (×N volta como N) e o total do grupo JÁ sem o que saiu.
+    const resto: Record<string, { d: Distribuicao; base: number; nome: string }> = {};
+    for (const [chave, d] of Object.entries(distribuicaoDasFalhas(falhas))) {
+      const g = grupoPorChave.get(chave);
+      if (g) resto[chave] = { d, base: g.unidades - (unidadesQueSairam[chave] ?? 0), nome: g.nome };
     }
+    setJaGravados(saiuDaFila);
     setDist(resto);
-    queryClient.invalidateQueries({ queryKey: ["/api/inventory"] });
-    queryClient.invalidateQueries({ queryKey: ["/api/inventory/awaiting-triage"] });
-    queryClient.invalidateQueries({ queryKey: ["/api/estoque/reservas-ativas"] });
+    // Salvar fica travado até a lista voltar do servidor: antes, um segundo
+    // Salvar nesse meio-tempo mandava o plano para registros já gravados.
+    setAtualizando(true);
     setSalvando(false);
+    const recarga = Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["/api/inventory/awaiting-triage"] }),
+      queryClient.invalidateQueries({ queryKey: ["/api/inventory"] }),
+      queryClient.invalidateQueries({ queryKey: ["/api/estoque/reservas-ativas"] }),
+    ]).finally(() => setAtualizando(false));
     const resumo = resumoDaGravacao(salvas, jaTriadas, falhas.length);
     if (falhas.length > 0) {
       toast({ title: resumo, description: `${motivo ? `${motivo}. ` : ""}As que falharam continuam no destino — tente salvar de novo.`, variant: "destructive" });
-      return;
+    } else {
+      const restam = ativos.filter((a) => !saiuDaFila.has(a.id)).length;
+      toast({ title: resumo, description: jaTriadas > 0 ? "Outra pessoa triou parte desta pilha — lista atualizada." : restam > 0 ? "Ainda há material deste evento para triar." : "Este evento terminou a triagem." });
+      if (restam <= 0) { onConcluido(); return; }
     }
-    const restam = ativos.length - salvas - jaTriadas;
-    toast({ title: resumo, description: jaTriadas > 0 ? "Outra pessoa triou parte desta pilha — lista atualizada." : restam > 0 ? "Ainda há material deste evento para triar." : "Este evento terminou a triagem." });
-    if (restam <= 0) onConcluido();
+    await recarga;
   };
 
   // Confirmação no diálogo da casa, e não no window.confirm nativo.
@@ -496,6 +553,7 @@ export function QuadroDaTriagem({ evento, ativos, reservaPorAtivo, onVoltar, onT
   };
 
   const alvo = toque ? 44 : 38;
+  const travado = unidadesMovidas === 0 || salvando || atualizando;
   const layout: "uma" | "tablet" | "larga" =
     larguraDoQuadro === 0 ? (isMobile ? "uma" : "larga")
       : larguraDoQuadro < 600 ? "uma"
@@ -638,10 +696,10 @@ export function QuadroDaTriagem({ evento, ativos, reservaPorAtivo, onVoltar, onT
             onMouseLeave={(e) => { e.currentTarget.style.background = "#fff"; e.currentTarget.style.borderColor = "#e2e8f0"; }}>
             <Table2 size={15} aria-hidden="true" /> Tabela (registro por registro)
           </button>
-          <button type="button" onClick={salvar} data-testid="button-salvar-triagem" disabled={unidadesMovidas === 0 || salvando}
+          <button type="button" onClick={salvar} data-testid="button-salvar-triagem" disabled={unidadesMovidas === 0 || salvando || atualizando}
             title={unidadesMovidas === 0 ? "Dê destino a pelo menos uma unidade" : `Grava o destino de ${unidadesMovidas} un.`}
-            style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, height: alvo, padding: "0 18px", borderRadius: 10, border: "none", fontSize: 14, fontWeight: 700, cursor: unidadesMovidas === 0 || salvando ? "not-allowed" : "pointer", background: unidadesMovidas === 0 || salvando ? "#e2e8f0" : "#c2410c", color: unidadesMovidas === 0 || salvando ? "#64748b" : "#fff", boxShadow: unidadesMovidas > 0 && !salvando ? "0 4px 14px rgba(194,65,12,0.28)" : "none", flex: isMobile ? "1 1 100%" : undefined, transition: "background-color 0.15s, box-shadow 0.15s" }}>
-            <CheckCircle2 size={16} aria-hidden="true" /> {salvando ? `Salvando ${gravadas} de ${aGravar}…` : unidadesMovidas === 0 ? "Salvar triagem" : `Salvar ${unidadesMovidas} un.`}
+            style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, height: alvo, padding: "0 18px", borderRadius: 10, border: "none", fontSize: 14, fontWeight: 700, cursor: travado ? "not-allowed" : "pointer", background: travado ? "#e2e8f0" : "#c2410c", color: travado ? "#64748b" : "#fff", boxShadow: !travado ? "0 4px 14px rgba(194,65,12,0.28)" : "none", flex: isMobile ? "1 1 100%" : undefined, transition: "background-color 0.15s, box-shadow 0.15s" }}>
+            <CheckCircle2 size={16} aria-hidden="true" /> {salvando ? `Salvando ${gravadas} de ${aGravar}…` : atualizando ? "Atualizando a lista…" : unidadesMovidas === 0 ? "Salvar triagem" : `Salvar ${unidadesMovidas} un.`}
           </button>
         </div>
       </div>
@@ -694,10 +752,11 @@ export function QuadroDaTriagem({ evento, ativos, reservaPorAtivo, onVoltar, onT
           key={grupoDividindo.chave}
           grupo={grupoDividindo}
           inicial={distDe(grupoDividindo)}
+          reservadas={reservaDoGrupo.get(grupoDividindo.chave)?.reservadas ?? 0}
           toque={toque}
           onFechar={() => setDividindo(null)}
           onAplicar={(d) => {
-            setDist((prev) => ({ ...prev, [grupoDividindo.chave]: d }));
+            setDist((prev) => ({ ...prev, [grupoDividindo.chave]: { d, base: grupoDividindo.unidades, nome: grupoDividindo.nome } }));
             setSelecionadas(new Set());
             setDividindo(null);
             setAnuncio(`${grupoDividindo.nome}: ${d.galpao} para o Galpão, ${d.manutencao} para Manutenção, ${d.descartar} para Descartar`);

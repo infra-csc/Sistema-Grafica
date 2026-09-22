@@ -2,12 +2,14 @@
 // Extracted from server/routes.ts (INVENTORY ASSETS section).
 import type { Express } from "express";
 import { z } from "zod";
-import { and, eq, like } from "drizzle-orm";
+import { and, desc, eq, getTableColumns, inArray, like } from "drizzle-orm";
 import { db } from "../db";
 import { storage } from "../storage";
-import { insertInventoryAssetSchema, inventoryAssets, auditLogs } from "@shared/schema";
+import {
+  insertInventoryAssetSchema, inventoryAssets, auditLogs, eventInventoryAllocations, events, items as itemsTable, sponsors, itemSponsors,
+} from "@shared/schema";
 import { requireAuth, requireRole, broadcast, createAuditLog } from "./shared";
-import { recusaDeTriagem } from "@shared/estoque";
+import { recusaDeTriagem, recusaPorReserva, reservaEstaAtiva } from "@shared/estoque";
 
 // TRIAGEM SÓ DE QUEM ESTÁ AGUARDANDO (dono, 21/09). Antes as duas rotas
 // aceitavam qualquer ativo: uma peça EM USO num evento podia ser "triada" de
@@ -17,6 +19,7 @@ import { recusaDeTriagem } from "@shared/estoque";
 // a outra atualiza zero linhas e recebe 409.
 const AGUARDANDO = "AGUARDANDO_TRIAGEM";
 class JaTriada extends Error {}
+class Reservado extends Error {}
 
 // Escritas no acervo: Gráfica e admin (dono, 14/09 — quem recebe o material
 // na volta do caminhão faz a triagem e registra onde guardou). Excluir peça e
@@ -69,12 +72,50 @@ const triageSplitSchema = z.object({
   location: z.string().max(120).nullish(),
 });
 
+/** `inArray` em fatias: a fila da triagem passa de 4 mil peças e o Postgres
+ *  tem teto de parâmetros por consulta. */
+async function emFatias<T>(ids: string[], ler: (fatia: string[]) => Promise<T[]>): Promise<T[]> {
+  const saida: T[] = [];
+  for (let i = 0; i < ids.length; i += 2000) saida.push(...(await ler(ids.slice(i, i + 2000))));
+  return saida;
+}
+const unicos = (xs: (string | null | undefined)[]) => Array.from(new Set(xs.filter((x): x is string => !!x)));
+
+/** RESERVA NÃO SOBREVIVE À TRIAGEM (revisão 22/09): a alocação vigente do
+ *  ativo (evento que ainda não acabou — a mesma régua de reservaEstaAtiva).
+ *  Chamada com a linha do ativo JÁ travada (FOR UPDATE): a rota de reservar
+ *  trava a mesma linha, então as duas não se cruzam. */
+async function reservaVigenteDoAtivo(exec: any, assetId: string, agora = new Date()) {
+  const linhas: { eventName: string; inicio: Date | null; itemDisplayId: string | null }[] = await exec
+    .select({ eventName: events.name, inicio: events.startDate, itemDisplayId: itemsTable.displayId })
+    .from(eventInventoryAllocations)
+    .innerJoin(events, eq(events.id, eventInventoryAllocations.eventId))
+    .leftJoin(itemsTable, eq(itemsTable.id, eventInventoryAllocations.itemId))
+    .where(eq(eventInventoryAllocations.assetId, assetId));
+  return linhas.find((r) => reservaEstaAtiva(r.inicio, agora)) ?? null;
+}
+
+/** Trava a linha do ativo até o fim da transação e diz a situação atual. */
+async function travarAtivo(tx: any, id: string): Promise<string | null> {
+  const [linha] = await tx.select({ situacao: inventoryAssets.trackingStatus }).from(inventoryAssets)
+    .where(eq(inventoryAssets.id, id)).for("update");
+  return linha?.situacao ?? null;
+}
+
 export function registerInventoryRoutes(app: Express): void {
   // ============ INVENTORY ASSETS (ACERVO) ============
 
+  // `origemEventId` (revisão 22/09): o evento da peça de origem vem JUNTO. O
+  // Estoque baixava /api/items inteiro (MBs) só para ligar ativo a evento — e,
+  // enquanto não chegava, a chave dos grupos mudava e as linhas abertas
+  // fechavam sozinhas.
   app.get("/api/inventory", requireAuth, async (req, res) => {
     try {
-      const assets = await storage.getAllInventoryAssets();
+      const assets = await db
+        .select({ ...getTableColumns(inventoryAssets), origemEventId: itemsTable.eventId })
+        .from(inventoryAssets)
+        .leftJoin(itemsTable, eq(itemsTable.id, inventoryAssets.originalItemId))
+        .orderBy(desc(inventoryAssets.createdAt));
       res.json(assets);
     } catch (error) {
       console.error("Error fetching inventory:", error);
@@ -93,20 +134,25 @@ export function registerInventoryRoutes(app: Express): void {
   });
 
   // Must be before /:id to avoid being swallowed by that route
+  // SÓ AS PEÇAS DE ORIGEM (revisão 22/09): lia getAllItems() inteiro — e
+  // cada peça triada, em qualquer aba, disparava esta leitura de novo. Agora
+  // lê só as colunas que o enriquecimento usa, só das peças/eventos/
+  // patrocinadores que a fila cita.
   app.get("/api/inventory/awaiting-triage", requireAuth, async (req, res) => {
     try {
-      const [assets, allItems, allEvents, allSponsors] = await Promise.all([
-        storage.getAssetsAwaitingTriage(),
-        storage.getAllItems(),
-        storage.getAllEvents(),
-        storage.getAllSponsors(),
-      ]);
-      const itemMap = Object.fromEntries(allItems.map(i => [i.id, i]));
-      const eventMap = Object.fromEntries(allEvents.map(e => [e.id, e]));
-      const sponsorMap = Object.fromEntries(allSponsors.map(s => [s.id, s]));
+      const assets = await storage.getAssetsAwaitingTriage();
+      const origens = await emFatias(unicos(assets.map((a) => a.originalItemId)), (ids) =>
+        db.select({ id: itemsTable.id, eventId: itemsTable.eventId }).from(itemsTable).where(inArray(itemsTable.id, ids)));
+      const itemMap = new Map(origens.map((i) => [i.id, i]));
+      const eventos = await emFatias(unicos(origens.map((i) => i.eventId)), (ids) =>
+        db.select({ id: events.id, name: events.name, startDate: events.startDate }).from(events).where(inArray(events.id, ids)));
+      const eventMap = new Map(eventos.map((e) => [e.id, e]));
+      const patrocinadores = await emFatias(unicos(assets.flatMap((a) => a.sponsorIds ?? [])), (ids) =>
+        db.select({ id: sponsors.id, name: sponsors.name }).from(sponsors).where(inArray(sponsors.id, ids)));
+      const sponsorMap = Object.fromEntries(patrocinadores.map((s) => [s.id, s]));
       const enriched = assets.map(asset => {
-        const item = asset.originalItemId ? itemMap[asset.originalItemId] : null;
-        const event = item ? eventMap[item.eventId] : null;
+        const item = asset.originalItemId ? itemMap.get(asset.originalItemId) : null;
+        const event = item ? eventMap.get(item.eventId) : null;
         const sponsors = (asset.sponsorIds ?? [])
           .map(sid => sponsorMap[sid])
           .filter(Boolean)
@@ -132,6 +178,31 @@ export function registerInventoryRoutes(app: Express): void {
     } catch (error) {
       console.error("Error fetching asset allocations:", error);
       res.status(500).json({ error: "Erro ao buscar histórico de eventos" });
+    }
+  });
+
+  // A peça de ORIGEM de um ativo, para o detalhe do Estoque (tipo, material,
+  // medida, patrocinadores). Uma peça só, pedida quando o detalhe abre — no
+  // lugar de /api/items inteiro.
+  app.get("/api/inventory/:id/origem", requireAuth, async (req, res) => {
+    try {
+      const [peca] = await db
+        .select({
+          id: itemsTable.id, displayId: itemsTable.displayId, eventId: itemsTable.eventId, type: itemsTable.type,
+          material: itemsTable.material, finish: itemsTable.finish, measurement: itemsTable.measurement,
+          visualWidth: itemsTable.visualWidth, visualHeight: itemsTable.visualHeight, quantity: itemsTable.quantity,
+        })
+        .from(inventoryAssets)
+        .innerJoin(itemsTable, eq(itemsTable.id, inventoryAssets.originalItemId))
+        .where(eq(inventoryAssets.id, req.params.id));
+      if (!peca) return res.json(null);
+      const patrocinadores = await db.select({ id: sponsors.id, name: sponsors.name })
+        .from(itemSponsors).innerJoin(sponsors, eq(sponsors.id, itemSponsors.sponsorId))
+        .where(eq(itemSponsors.itemId, peca.id));
+      res.json({ ...peca, sponsors: patrocinadores });
+    } catch (error) {
+      console.error("Error fetching asset origin:", error);
+      res.status(500).json({ error: "Erro ao buscar a peça de origem" });
     }
   });
 
@@ -200,16 +271,26 @@ export function registerInventoryRoutes(app: Express): void {
       if (!asset) return res.status(404).json({ error: "Ativo não encontrado" });
       const newStatus = destinoDaTriagem(trackingStatus);
       const local = (location ?? "").trim() || asset.location || null;
-      const [updated] = await db.update(inventoryAssets)
-        .set({
-          condition: condition ?? asset.condition,
-          notes: notes ?? asset.notes,
-          trackingStatus: newStatus,
-          location: local,
-          updatedAt: new Date(),
-        } as any)
-        .where(and(eq(inventoryAssets.id, req.params.id), eq(inventoryAssets.trackingStatus, AGUARDANDO)))
-        .returning();
+      const updated = await db.transaction(async (tx) => {
+        // Descartar/Manutenção de peça RESERVADA: recusa (a reserva ficaria
+        // valendo sobre estoque que não existe). Galpão mantém a reserva
+        // verdadeira, então não consulta nada.
+        if (newStatus !== "NO_GALPAO" && (await travarAtivo(tx, req.params.id)) === AGUARDANDO) {
+          const reserva = await reservaVigenteDoAtivo(tx, req.params.id);
+          if (reserva) throw new Reservado(recusaPorReserva(asset.displayId, reserva));
+        }
+        const [linha] = await tx.update(inventoryAssets)
+          .set({
+            condition: condition ?? asset.condition,
+            notes: notes ?? asset.notes,
+            trackingStatus: newStatus,
+            location: local,
+            updatedAt: new Date(),
+          } as any)
+          .where(and(eq(inventoryAssets.id, req.params.id), eq(inventoryAssets.trackingStatus, AGUARDANDO)))
+          .returning();
+        return linha;
+      });
       if (!updated) {
         const atual = await storage.getInventoryAsset(req.params.id);
         return res.status(409).json({ error: recusaDeTriagem(atual?.trackingStatus ?? asset.trackingStatus) });
@@ -223,6 +304,7 @@ export function registerInventoryRoutes(app: Express): void {
       if (error instanceof z.ZodError) {
         return res.status(400).json({ error: error.errors?.[0]?.message || "Dados inválidos" });
       }
+      if (error instanceof Reservado) return res.status(409).json({ error: error.message });
       res.status(500).json({ error: "Erro ao registrar triagem" });
     }
   });
@@ -250,6 +332,13 @@ export function registerInventoryRoutes(app: Express): void {
       // deixava o original já reduzido e unidades sumiam do acervo. O storage
       // não aceita `tx`, então as operações usam as tabelas do drizzle aqui.
       await db.transaction(async (tx) => {
+        // Peça RESERVADA só sai da triagem INTEIRA para o Galpão: dividir
+        // encolheria a reserva (ela vale a quantidade do registro) e mandar o
+        // 1º lote para outro destino a deixaria valendo sobre o que não existe.
+        if ((splits.length > 1 || firstStatus !== "NO_GALPAO") && (await travarAtivo(tx, req.params.id)) === AGUARDANDO) {
+          const reserva = await reservaVigenteDoAtivo(tx, req.params.id);
+          if (reserva) throw new Reservado(recusaPorReserva(asset.displayId, reserva, true));
+        }
         // Original fica com o primeiro lote — e só se AINDA estiver aguardando:
         // zero linhas = outra pessoa triou primeiro; a transação inteira volta.
         const [travado] = await tx.update(inventoryAssets)
@@ -324,6 +413,7 @@ export function registerInventoryRoutes(app: Express): void {
       if (error instanceof z.ZodError) {
         return res.status(400).json({ error: error.errors?.[0]?.message || "Dados inválidos" });
       }
+      if (error instanceof Reservado) return res.status(409).json({ error: error.message });
       if (error instanceof JaTriada) {
         const atual = await storage.getInventoryAsset(req.params.id).catch(() => undefined);
         return res.status(409).json({ error: recusaDeTriagem(atual?.trackingStatus) });

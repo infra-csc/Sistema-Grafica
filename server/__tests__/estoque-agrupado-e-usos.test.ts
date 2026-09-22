@@ -65,10 +65,11 @@ describe("onde já foi usado", () => {
     expect(eventosDeUso([u1, u2, []]).map((e) => [e.eventName, e.unidades, e.situacao])).toEqual([["teste 3", 1, "separada"], ["Primavera RJ", 2, "origem"]]);
   });
 
-  it("a rota é de LEITURA, autenticada, e lê o acervo inteiro numa consulta só (sem N+1)", () => {
+  it("a rota é de LEITURA, só do admin, recortada (itens=/ativos=) e numa consulta só (sem N+1)", () => {
     const rota = ler("server/routes/estoque-reservas.ts");
     const trecho = rota.slice(rota.indexOf('app.get("/api/estoque/usos"'), rota.indexOf('app.get("/api/estoque/reservas-ativas"'));
-    expect(trecho).toContain('app.get("/api/estoque/usos", requireAuth');
+    expect(trecho).toContain('app.get("/api/estoque/usos", requireRole("admin")');
+    expect(trecho).toContain("return res.status(400)");
     expect(trecho.match(/await db/g)?.length).toBe(1);
     expect(trecho).toContain(".leftJoin(itemsTable");
     expect(trecho).not.toMatch(/\.(insert|update|delete)\(/);

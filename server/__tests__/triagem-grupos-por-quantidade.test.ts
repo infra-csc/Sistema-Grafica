@@ -99,7 +99,7 @@ describe("o plano de gravação", () => {
       { qty: 20, condition: "PERFEITO", trackingStatus: "NO_GALPAO" },
       { qty: 3, condition: "AVARIA_LEVE", trackingStatus: "EM_MANUTENCAO" },
       { qty: 1, condition: "SUCATA", trackingStatus: "DESCARTADO" },
-    ] } }]);
+    ] }, unidades: 24 }]);
   });
 
   it("registro ×N inteiro num destino → triagem simples; repartido SÓ EM PARTE → fica de fora e é apontado", () => {
@@ -110,11 +110,13 @@ describe("o plano de gravação", () => {
     expect(parcial.incompletos).toEqual([{ ativoId: "M-7", displayId: "#EST-M-7", quantidade: 10, faltam: 6 }]);
   });
 
-  it("grupo misto (×3 + unitários): o ×3 incompleto devolve o que consumiu e os unitários seguem", () => {
+  // Revisão 22/09: o ×3 não BLOQUEIA mais o plano — os dois unitários fecham
+  // as 2 do Galpão e o ×3 fica inteiro, aguardando (antes virava "incompleto").
+  it("grupo misto (×3 + unitários): 2 no Galpão = os dois unitários; o ×3 fica intocado, sem incompleto", () => {
     const g = agruparAtivos([ativo("A-1", { quantity: 3 }), ativo("A-2"), ativo("A-3")])[0];
     const { passos, incompletos } = planoDeGravacao(g, { galpao: 2, manutencao: 0, descartar: 0 }, "PERFEITO");
-    expect(incompletos.map((i) => i.ativoId)).toEqual(["A-1"]);
-    expect(passos.map((p) => p.ativoId)).toEqual(["A-2", "A-3"]);
+    expect(incompletos).toEqual([]);
+    expect(passos.map((p) => p.ativoId).sort()).toEqual(["A-2", "A-3"]);
   });
 });
 

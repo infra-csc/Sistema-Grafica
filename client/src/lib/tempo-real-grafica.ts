@@ -129,7 +129,7 @@ export const CHAVES_POR_MENSAGEM: Readonly<Record<TipoMensagemWS, readonly AlvoD
   // UMA mensagem por peça triada: pelo coalescer, a rajada do quadro vira uma
   // recarga de cada chave (não 24 recargas por aba).
   inventory_triaged: ["/api/inventory/awaiting-triage", "/api/inventory"],
-  inventory_changed: ["/api/inventory", "/api/estoque/reservas-ativas", ESTOQUE_DA_PECA, ESTOQUE_DO_EVENTO],
+  inventory_changed: ["/api/inventory", "/api/estoque/reservas-ativas", "/api/inventory/awaiting-triage", { prefixo: "/api/estoque/usos" }, ESTOQUE_DA_PECA, ESTOQUE_DO_EVENTO],
   estoque_reservas: ["/api/estoque/reservas-ativas", "/api/inventory", ESTOQUE_DA_PECA, ESTOQUE_DO_EVENTO],
   // Consulta de estoque da Revisão Final: a caixa da Gráfica, o número do
   // menu, a ficha da peça (["/api/items", id, "consulta-de-estoque"]) e o

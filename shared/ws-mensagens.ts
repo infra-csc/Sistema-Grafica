@@ -89,8 +89,8 @@ export type MensagemWS =
   | { type: "inventory_in_use"; eventId: Id; eventName?: string | null; count: number }
   | { type: "inventory_awaiting_triage"; eventId: Id; eventName?: string | null; count: number; message?: string }
   | { type: "inventory_triaged"; assetId: Id; trackingStatus?: string | null }
-  | { type: "inventory_changed"; eventId?: IdOpcional; itemId?: IdOpcional; itemIds?: Id[]; assetId?: IdOpcional; assetIds?: Id[]; motivo?: string }
-  | { type: "estoque_reservas"; itemId: Id; eventId?: IdOpcional }
+  | { type: "inventory_changed"; eventId?: IdOpcional; itemId?: IdOpcional; itemIds?: Id[]; assetId?: IdOpcional; assetIds?: Id[]; motivo?: string; acao?: string }
+  | { type: "estoque_reservas"; itemId?: IdOpcional; eventId?: IdOpcional }
   | { type: "consultas_de_estoque"; itemId: Id; eventId?: IdOpcional }
   | { type: "pedidos_de_peca"; eventId?: IdOpcional }
 

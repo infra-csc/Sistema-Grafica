@@ -43,6 +43,34 @@ export function useIsMobile() {
 // exatamente o mesmo corte de 768px e o mesmo comportamento.
 // ─────────────────────────────────────────────────────────────────────────────
 
+// ─────────────────────────────────────────────────────────────────────────────
+// A RÉGUA DE LAYOUT DO APP — uma só, e ela mede a ÁREA ÚTIL.
+//
+// Conviviam seis cortes diferentes (768 do useIsMobile, 820/1180 daqui, 980 da
+// Revisão, 768/1024 do Histórico, 900 do Login, 767 do CSS), todos lendo a
+// largura da JANELA. Duas telas lado a lado na mesma janela podiam discordar
+// sobre "isto é tablet?", e nenhuma delas acertava, porque a sidebar aberta
+// come 256px que a janela não sabe que existem.
+//
+// A régua, para toda lista/tabela:
+//
+//   área útil  <  820px ............ "cards"   — cada registro vira um cartão;
+//                                                nada de rolagem lateral.
+//   820 ≤ área <  1180px ........... "compact" — tabela com colunas fundidas
+//                                                (o secundário desce para uma
+//                                                segunda linha dentro da célula).
+//   área útil  ≥ 1180px ............ "full"    — tabela inteira.
+//
+// ÁREA ÚTIL = largura da caixa da tela MENOS o padding horizontal dela; mede-se
+// com `useElementSize` num elemento raiz, nunca com `window.innerWidth`.
+// `useDensidadeDoConteudo` abaixo faz essa conta e o fallback do primeiro
+// quadro (antes de medir, `width` é 0 e não se pode cair no layout errado).
+//
+// `useIsMobile` (768, janela) continua existindo e válido para o que é de fato
+// CELULAR — folhas de filtro em tela cheia, teclado virtual, barra de ações
+// fixa no rodapé. Para escolher ENTRE tabela e cartões, use a régua acima.
+// ─────────────────────────────────────────────────────────────────────────────
+
 /** Abaixo disto o conteúdo não comporta tabela — usa o layout de cards. */
 export const CONTENT_CARDS_MAX = 820
 /** Entre CARDS_MAX e isto, a tabela roda em modo reduzido (colunas fundidas). */
@@ -116,4 +144,78 @@ export function useElementSize<T extends HTMLElement>() {
   }, [])
 
   return { ref, width: size.width, height: size.height }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PONTEIRO GROSSO (dedo), e não "largura de celular".
+//
+// Os alvos de 44px do app estavam presos a `useIsMobile` — ou seja, só abaixo
+// de 768px. O tablet do galpão tem 800–1280px de janela e é usado com o dedo
+// (muitas vezes com luva): ali os botões voltavam para 20–32px de altura, que é
+// metade do alvo mínimo. `(pointer: coarse)` responde à pergunta certa — "o
+// ponteiro principal é grosso?" — e vale em qualquer largura.
+//
+// Retorna `false` em SSR e onde `matchMedia` não existe (jsdom antigo): o
+// layout de mouse é o degrau seguro, porque alvo maior nunca quebra, mas alvo
+// grande onde não cabe, sim.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Alvo mínimo de toque (WCAG 2.5.8 pede 24; a casa usa 44, como iOS/Android). */
+export const ALVO_TOQUE = 44
+
+export function usePonteiroGrosso() {
+  const [grosso, setGrosso] = React.useState(() => {
+    if (typeof window === "undefined" || !window.matchMedia) return false
+    try { return window.matchMedia("(pointer: coarse)").matches } catch { return false }
+  })
+
+  React.useEffect(() => {
+    if (typeof window === "undefined" || !window.matchMedia) return
+    let mql: MediaQueryList
+    try { mql = window.matchMedia("(pointer: coarse)") } catch { return }
+    const aplicar = () => setGrosso(mql.matches)
+    aplicar()
+    mql.addEventListener?.("change", aplicar)
+    return () => mql.removeEventListener?.("change", aplicar)
+  }, [])
+
+  return grosso
+}
+
+/**
+ * Altura/largura de alvo: devolve ao menos 44px quando o ponteiro é grosso e o
+ * tamanho de projeto no mouse. Serve para `minHeight`, `height` e `width`.
+ */
+export function alvo(base: number, ponteiroGrosso: boolean) {
+  return ponteiroGrosso ? Math.max(base, ALVO_TOQUE) : base
+}
+
+/**
+ * A régua de layout, pronta para usar: mede a caixa e devolve a densidade.
+ *
+ * `padding` é o que a tela reserva de cada lado (some os dois); a medida vem em
+ * border-box, então o padding ainda está dentro dela.
+ *
+ * Enquanto `largura` é 0 (antes da primeira medição, ou sem ResizeObserver) o
+ * fallback é `isMobile ? "cards" : "full"` — o mesmo comportamento de antes
+ * desta régua existir, para não trocar de layout no primeiro quadro.
+ */
+export function useDensidadeDoConteudo<T extends HTMLElement>(padding = 0) {
+  const isMobile = useIsMobile()
+  const { ref, width, height } = useElementSize<T>()
+  const util = Math.max(0, width - padding)
+  const densidade: ContentDensity =
+    width === 0 ? (isMobile ? "cards" : "full") : densityFromWidth(util)
+  return {
+    ref,
+    largura: width,
+    larguraUtil: util,
+    altura: height,
+    densidade,
+    /** Cartões: celular OU área útil apertada. */
+    cards: isMobile || densidade === "cards",
+    /** Tabela reduzida: só faz sentido quando NÃO está em cartões. */
+    compacto: !isMobile && densidade === "compact",
+    isMobile,
+  }
 }

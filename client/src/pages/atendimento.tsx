@@ -34,7 +34,10 @@ import {
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { FORMATO_COMPACTO, ehAprovacoesCompactas, expandirAprovacoes } from "@shared/itens-compactos";
 import { useToast } from "@/hooks/use-toast";
-import { usePecaDoLink } from "@/hooks/use-peca-do-link";
+import { usePecaDoLink, buscarCodigoDaPeca } from "@/hooks/use-peca-do-link";
+// Exibição PEQUENA (quadradinhos de 38-52px) pede a miniatura do servidor e
+// não o arquivo original de MBs. Zoom e download seguem na URL crua.
+import { miniatura } from "@/lib/miniatura";
 import {
   Dialog,
   DialogContent,
@@ -83,6 +86,33 @@ const COLLATOR = new Intl.Collator();
 // e para sempre se a busca falhasse. Um vazio só, fora do componente, quebra o
 // laço sem mudar o que a tela mostra.
 const SEM_DADOS: any[] = [];
+
+// ── AS DUAS LISTAS DESTA TELA VÊM RECORTADAS NO SERVIDOR (perf, 2ª rodada) ──
+//
+// O Atendimento lia ["/api/items"] — o acervo inteiro, 5 mil peças e 15 MB em
+// produção — e a aba Pendentes usa UM status: `awaiting_sponsor_approval`. As
+// duas abas passam a pedir GET /api/items?status= (delta, formato compacto,
+// chave dentro do prefixo "/api/items" para as invalidações continuarem
+// alcançando), cada uma com o seu recorte:
+//
+//   · A FILA (sempre): a etapa "aguardando aprovação" — com a grafia canônica
+//     `awaiting_approval` junto, que é o que a régua de shared/fluxo-peca
+//     chama de mesma etapa e o banco também grava.
+//   · O HISTÓRICO (sob demanda): as peças que JÁ passaram da aprovação. Ele
+//     só é baixado quando a aba Histórico é aberta ou quando o book de
+//     exportação é montado — os dois únicos lugares que leem peça pós-aprovação
+//     (`casaHistorico`, `exportPool`). A aba Histórico não mostra contagem
+//     nenhuma no seletor, então nada na tela fica errado enquanto ela não veio.
+//
+// Fora do recorte ficam Rascunho/Solicitada, Vinculação, "Aguardando envio"
+// (a fila da Arte) e o que saiu do funil — nenhum deles é desenhado aqui.
+const ATENDIMENTO_ETAPAS_DA_FILA = ["awaiting_approval"] as const;
+const ATENDIMENTO_ETAPAS_DO_HISTORICO = [
+  "awaiting_finalization", "awaiting_final_review", "ready_for_production", "approved",
+  "inProduction", "produced", "conferred", "packed", "delivered",
+] as const;
+const CHAVE_DA_FILA = ["/api/items", `?status=${statusDasEtapas(...ATENDIMENTO_ETAPAS_DA_FILA).join(",")}`] as const;
+const CHAVE_DO_HISTORICO = ["/api/items", `?status=${statusDasEtapas(...ATENDIMENTO_ETAPAS_DO_HISTORICO).join(",")}`] as const;
 
 /**
  * Tecla de atalho desenhada como tecla — o mesmo desenho da Arte. Atalho
@@ -443,6 +473,14 @@ export default function Atendimento() {
   const [histSponsorFilter, setHistSponsorFilter] = useState<string[]>([]);
   const [histPeriodFilter, setHistPeriodFilter] = useState<string>("all");
   const [histSearchTerm, setHistSearchTerm] = useState<string>("");
+  // A BUSCA DO HISTÓRICO COM ATRASO (perf, 2ª rodada). Ela é a única da tela
+  // que ainda escrevia direto no filtro: cada tecla refazia `casaHistorico`
+  // sobre a lista inteira, RECALCULAVA a jornada de cada peça (12 etapas) e
+  // ORDENAVA o resultado — e as duas facetas do cabeçalho faziam a mesma
+  // varredura de novo. O campo continua respondendo na hora (o `value` é o
+  // estado); quem espera é a lista, como na fila de Pendentes
+  // (`deferredSearchTerm`) e na Arte.
+  const histBuscaDeferida = useDeferredValue(histSearchTerm);
 
   // Modal detalhe de aprovações (Histórico)
   const [histDetailItem, setHistDetailItem] = useState<any>(null);
@@ -585,10 +623,36 @@ export default function Atendimento() {
   // a primeira peça. A busca fica sempre à vista; o recorte ativo continua
   // escrito nos chips logo abaixo.
   const [filtrosAbertosMobile, setFiltrosAbertosMobile] = useState(false);
-  const { data: items = SEM_DADOS, isLoading: itemsLoading, isError: itemsError, refetch: refetchItems,
+  const { data: pecasDaFila = SEM_DADOS, isLoading: itemsLoading, isError: itemsError, refetch: refetchItems,
     dataUpdatedAt, isFetching: isFetchingItems } = useQuery<any[]>({
-    queryKey: ["/api/items"],
+    queryKey: CHAVE_DA_FILA,
   });
+
+  // O histórico só desce quando alguém vai olhar para ele: a aba aberta ou o
+  // book de exportação montado (o book precisa das já aprovadas, senão sai
+  // incompleto — ver `exportPool`). Uma vez baixado, fica no cache do React
+  // Query como qualquer outra lista, e revalida por delta.
+  const precisaDoHistorico = activeTab === "history" || showExportPDFModal;
+  const { data: pecasDoHistorico = SEM_DADOS } = useQuery<any[]>({
+    queryKey: CHAVE_DO_HISTORICO,
+    enabled: precisaDoHistorico,
+  });
+
+  // As duas listas como UMA, que é o que o resto da tela sempre viu.
+  //
+  // DEDUPLICA POR ID mesmo os recortes sendo disjuntos por construção (eles não
+  // compartilham status nenhum). Uma peça em dobro aqui não daria erro: daria
+  // placar dobrado e a mesma peça duas vezes na fila — o tipo de defeito que só
+  // se descobre olhando. O custo é uma passada por Map, e só quando as duas
+  // listas existem; enquanto o histórico não é pedido, é a própria fila.
+  const items = useMemo(() => {
+    if (pecasDoHistorico.length === 0) return pecasDaFila;
+    if (pecasDaFila.length === 0) return pecasDoHistorico;
+    const porId = new Map<string, any>();
+    for (const p of pecasDaFila) porId.set(p.id, p);
+    for (const p of pecasDoHistorico) if (!porId.has(p.id)) porId.set(p.id, p);
+    return Array.from(porId.values());
+  }, [pecasDaFila, pecasDoHistorico]);
 
   const { data: events = SEM_DADOS, isLoading: eventsLoading } = useQuery<any[]>({
     queryKey: ["/api/events"],
@@ -1529,7 +1593,7 @@ export default function Atendimento() {
     }
 
     // Busca sem acento (`normalizarBusca`, lib/utils) — a mesma dos menus.
-    const q = normalizarBusca(histSearchTerm);
+    const q = normalizarBusca(histBuscaDeferida);
     if (q &&
         !normalizarBusca(item.type).includes(q) &&
         !normalizarBusca(item.displayId).includes(q) &&
@@ -1567,7 +1631,7 @@ export default function Atendimento() {
       return latestApproval(b) - latestApproval(a);
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab, ordemHistorico, hoje, eventoPorId, items, itemApprovalsMap, itemSponsorsMap, loadingSponsors, histEventFilter, histSponsorFilter, histPeriodFilter, histSearchTerm]);
+  }, [activeTab, ordemHistorico, hoje, eventoPorId, items, itemApprovalsMap, itemSponsorsMap, loadingSponsors, histEventFilter, histSponsorFilter, histPeriodFilter, histBuscaDeferida]);
 
   // As duas facetas da aba Histórico, do MESMO pool da lista. Só o que tem
   // linha aparece, e a contagem ao lado do nome é o número de linhas que o
@@ -1594,7 +1658,7 @@ export default function Atendimento() {
       return pa !== pb ? pa - pb : a.label.localeCompare(b.label, 'pt-BR');
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab, items, events, itemApprovalsMap, itemSponsorsMap, loadingSponsors, histSponsorFilter, histPeriodFilter, histSearchTerm]);
+  }, [activeTab, items, events, itemApprovalsMap, itemSponsorsMap, loadingSponsors, histSponsorFilter, histPeriodFilter, histBuscaDeferida]);
 
   const histSponsorOptions = useMemo(() => {
     if (loadingSponsors) return [] as { value: string; label: string; count: number }[];
@@ -1609,7 +1673,7 @@ export default function Atendimento() {
     });
     return Array.from(map.values()).sort((a, b) => a.label.localeCompare(b.label, 'pt-BR'));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab, items, itemApprovalsMap, itemSponsorsMap, loadingSponsors, histEventFilter, histPeriodFilter, histSearchTerm]);
+  }, [activeTab, items, itemApprovalsMap, itemSponsorsMap, loadingSponsors, histEventFilter, histPeriodFilter, histBuscaDeferida]);
 
   // Fila de revisão: todas as peças pendentes na MESMA ordem em que aparecem
   // na tela (agrupadas por evento). É o que permite ir para a próxima peça sem
@@ -1712,7 +1776,7 @@ export default function Atendimento() {
     }, 300);
     return () => clearTimeout(timer);
   }, [ordemPendentes, atrasadosFilter]);
-  useEffect(() => { setHistVisible(PAGE_SIZE); }, [activeTab, histEventFilter, histSponsorFilter, histPeriodFilter, histSearchTerm]);
+  useEffect(() => { setHistVisible(PAGE_SIZE); }, [activeTab, histEventFilter, histSponsorFilter, histPeriodFilter, histBuscaDeferida]);
 
   const getEventInfo = (eventId: string) => events.find((e: any) => e.id === eventId);
 
@@ -1738,7 +1802,11 @@ export default function Atendimento() {
       if (activeTab !== "pending") setActiveTab("pending");
       handleViewDetails(peca);
     },
-    codigoDe: (id) => (items as any[]).find((i: any) => i.id === id)?.displayId,
+    // Peça fora das duas listas recortadas (rascunho, vinculação, na mesa da
+    // Arte): busca só ela, para o aviso continuar dizendo o código — antes
+    // isso vinha do acervo inteiro que descia a cada visita.
+    codigoDe: (id) =>
+      (items as any[]).find((i: any) => i.id === id)?.displayId ?? buscarCodigoDaPeca(id),
   });
 
   if (itemsLoading || eventsLoading) {
@@ -2417,8 +2485,10 @@ export default function Atendimento() {
                             {hasThumb ? (
                               <>
                                 <img
-                                  src={item.approvalThumbUrl}
+                                  src={miniatura(item.approvalThumbUrl)}
                                   alt=""
+                                  loading="lazy"
+                                  decoding="async"
                                   style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                                   onError={(e) => {
                                     (e.currentTarget as HTMLImageElement).style.display = 'none';
@@ -3082,7 +3152,7 @@ export default function Atendimento() {
                             {hasThumb ? (
                               <>
                                 <img
-                                  src={item.approvalThumbUrl}
+                                  src={miniatura(item.approvalThumbUrl)}
                                   alt=""
                                   loading="lazy"
                                   decoding="async"
@@ -3599,7 +3669,7 @@ export default function Atendimento() {
                             {(item.approvalThumbUrl || item.finalPreviewUrl)
                               ? <>
                                   <img
-                                    src={item.approvalThumbUrl || item.finalPreviewUrl}
+                                    src={miniatura(item.approvalThumbUrl || item.finalPreviewUrl)}
                                     alt=""
                                     loading="lazy"
                                     decoding="async"
@@ -3859,8 +3929,9 @@ export default function Atendimento() {
                     {(di.approvalThumbUrl || di.finalPreviewUrl)
                       ? <>
                           <img
-                            src={di.approvalThumbUrl || di.finalPreviewUrl}
+                            src={miniatura(di.approvalThumbUrl || di.finalPreviewUrl)}
                             alt=""
+                            decoding="async"
                             style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                             onError={(e) => {
                               (e.currentTarget as HTMLImageElement).style.display = 'none';
@@ -4034,8 +4105,9 @@ export default function Atendimento() {
                       {thumbUrl
                         ? <>
                             <img
-                              src={thumbUrl}
+                              src={miniatura(thumbUrl)}
                               alt=""
+                              decoding="async"
                               style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                               onError={(e) => {
                                 // Mesmo fallback dos demais thumbs da tela: esconde a
@@ -5090,6 +5162,7 @@ export default function Atendimento() {
                 <img
                   src={batchPreviewItem.approvalThumbUrl}
                   alt={batchPreviewItem.type}
+                  decoding="async"
                   style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', display: 'block' }}
                   onError={(e) => {
                     // Mesmo fallback dos demais thumbs: esconde a imagem quebrada

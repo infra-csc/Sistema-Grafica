@@ -96,7 +96,7 @@ describe("o resumo conta o que interessa e ignora o resto", () => {
 
   it("evento SEM data de saída vai para o fim, não para o topo", () => {
     const c2 = cenario();
-    c2.eventos = [{ id: "e1", name: "Primavera SP", truckDepartureDate: null as any }, c2.eventos[1]];
+    c2.eventos = [{ id: "e1", name: "Primavera SP", truckDepartureDate: null as any, startDate: emDias(12) }, c2.eventos[1]];
     const r2 = montarResumoDaGestao(c2.itens, c2.aprovacoes, c2.sponsors, c2.eventos, AGORA);
     // Sem data não é "o mais folgado" — é ausência de informação.
     expect(r2.eventos.map((e) => e.evento)).toEqual(["Meia Maratona", "Primavera SP"]);
@@ -162,7 +162,7 @@ describe("o resumo conta o que interessa e ignora o resto", () => {
     c4.aprovacoes = [];
     c4.eventos = [];
     for (let n = 0; n < MAX_EVENTOS + 3; n++) {
-      c4.eventos.push({ id: `ev${n}`, name: `Evento ${n}`, truckDepartureDate: emDias(n) });
+      c4.eventos.push({ id: `ev${n}`, name: `Evento ${n}`, truckDepartureDate: emDias(n), startDate: emDias(n + 2) });
       c4.itens.push({ id: `it${n}`, eventId: `ev${n}`, status: "awaiting_sponsor_approval", statusChangedAt: diasAtras(1), type: "Lona" } as any);
       c4.aprovacoes.push({ itemId: `it${n}`, sponsorId: "s1", status: "pending", createdAt: diasAtras(1) });
     }

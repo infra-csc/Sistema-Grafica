@@ -1,0 +1,31 @@
+{
+  // O tsconfig do app EXCLUI `**/*.test.ts` — o type-check normal (`npm run
+  // check`) nunca olhou para os 250+ arquivos de teste. Um mock com a forma
+  // errada, um `expect` em campo que não existe mais ou uma rota renomeada só
+  // apareciam quando o teste rodava (ou nem isso, quando o `any` engolia).
+  // Este arquivo é o mesmo compilador, apontado para os testes.
+  //
+  // Regras próprias e o porquê de cada uma:
+  //   · `types` ganha "vitest/globals": a suíte usa `describe/it/expect` sem
+  //     importar (globals: true no vitest.config.ts);
+  //   · `jsx: "react-jsx"` em vez do "preserve" do app: aqui ninguém passa
+  //     pelo Vite, e "preserve" faria todo teste de tela acusar JSX solto;
+  //   · `noUnusedLocals` fica desligado: teste costuma montar apoio que só
+  //     uma parte dos casos usa, e não é isso que queremos policiar aqui.
+  "extends": "./tsconfig.json",
+  "include": ["server/__tests__/**/*.ts", "server/__tests__/**/*.tsx", "shared/**/*", "server/**/*", "client/src/**/*"],
+  "exclude": ["node_modules", "build", "dist", "e2e"],
+  "compilerOptions": {
+    // Incremental próprio: senão o cache brigaria com o do `npm run check`.
+    "tsBuildInfoFile": "./node_modules/typescript/tsbuildinfo-testes",
+    // `target` e `module` explícitos: o tsconfig do app não os declara (quem
+    // gera código é o Vite/esbuild), e o padrão do tsc é ES5 — o que fazia
+    // todo `await` de topo e toda iteração de Set/Map dos testes virar erro.
+    // Aqui vale o que o Vitest realmente executa: Node moderno, ESM.
+    "target": "ES2022",
+    "module": "ESNext",
+    "jsx": "react-jsx",
+    "types": ["node", "vite/client", "vitest/globals"],
+    "noUnusedLocals": false
+  }
+}

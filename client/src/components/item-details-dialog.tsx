@@ -28,10 +28,11 @@ import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/auth-context";
 import { useToast } from "@/hooks/use-toast";
-import { useIsMobile } from "@/hooks/use-mobile";
+import { alvo, useIsMobile, usePonteiroGrosso } from "@/hooks/use-mobile";
 import { queryClient } from "@/lib/queryClient";
 import { HIDE_NATIVE_CLOSE } from "@/components/modal-shell";
 import { hrefSeguro } from "@shared/url-segura";
+import { T } from "@/lib/theme";
 
 interface ItemDetailsDialogProps {
   item: any | null;
@@ -316,6 +317,8 @@ export function ItemDetailsDialog({
   const { user } = useAuth();
   const { toast } = useToast();
   const isMobile = useIsMobile();
+  /** Dedo (celular OU tablet do galpão): manda no TAMANHO do alvo, só nele. */
+  const dedo = usePonteiroGrosso() || isMobile;
   const [revertingSponsorId, setRevertingSponsorId] = useState<string | null>(null);
   const [descancelando, setDescancelando] = useState(false);
   // TRANSFERIR DE EVENTO (dono, 11/09: "transferir um item de um evento para
@@ -1421,7 +1424,7 @@ export function ItemDetailsDialog({
                       <span aria-hidden="true" style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: marcoEvento.dot, marginTop: 6, flexShrink: 0 }} />
                       <div style={{ minWidth: 0, flex: "1 1 auto" }}>
                         <p style={{ fontSize: 13, fontWeight: 700, color: marcoEvento.text, margin: 0, lineHeight: 1.4 }}>{marcoEvento.label}</p>
-                        <p style={{ fontSize: 11, color: "#78716c", margin: "2px 0 0" }}>
+                        <p style={{ fontSize: 11, color: T.second, margin: "2px 0 0" }}>
                           {marcoEvento.dataEventoISO
                             ? format(parseDateLocal(marcoEvento.dataEventoISO), "dd/MM/yy", { locale: ptBR })
                             : "Data e autor no Histórico geral"}
@@ -1442,9 +1445,9 @@ export function ItemDetailsDialog({
                       <span aria-hidden="true" style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: e.cor, marginTop: 6, flexShrink: 0 }} />
                       <div style={{ minWidth: 0, flex: "1 1 auto" }}>
                         <p style={{ fontSize: 13, fontWeight: 600, color: "#1c1917", margin: 0, lineHeight: 1.45 }}>{e.texto}</p>
-                        {e.autor && <p style={{ fontSize: 11, color: "#78716c", margin: "2px 0 0" }}>{e.autor}</p>}
+                        {e.autor && <p style={{ fontSize: 11, color: T.second, margin: "2px 0 0" }}>{e.autor}</p>}
                       </div>
-                      <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, color: "#78716c", flexShrink: 0, marginTop: 2 }}>
+                      <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, color: T.second, flexShrink: 0, marginTop: 2 }}>
                         {fmtShort(new Date(e.ts).toISOString())}
                       </span>
                     </div>
@@ -1718,7 +1721,7 @@ export function ItemDetailsDialog({
                           <div key={label}>
                             <p style={{ fontSize: 10, fontWeight: 700, color: "#7a6154", textTransform: "uppercase", letterSpacing: "0.07em", margin: 0 }}>{label}</p>
                             <p style={{ fontFamily: "'DM Mono', monospace", fontSize: 15, fontWeight: 700, color: cor, margin: "2px 0 0" }}>
-                              {valor}<span style={{ color: "#78716c", fontWeight: 400 }}>/{item.quantity}</span>
+                              {valor}<span style={{ color: T.second, fontWeight: 400 }}>/{item.quantity}</span>
                             </p>
                           </div>
                         ))}
@@ -1797,7 +1800,7 @@ export function ItemDetailsDialog({
           backgroundColor: "#ffffff",
           display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center", gap: 12,
         }}>
-          <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, color: "#78716c" }}>
+          <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, color: T.second }}>
             {item.updatedAt
               ? `Atualizado ${format(new Date(item.updatedAt), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}`
               : item.displayId}

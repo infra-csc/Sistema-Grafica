@@ -31,7 +31,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "fs";
 import { resolve } from "path";
 import {
-  FILTROS_VAZIOS, itemCasaFiltros, itemPercursos, itemMes, normKey, escondeEntregues,
+  FILTROS_VAZIOS, itemCasaFiltros, itemPercursos, itemMes, itemImpressoras, normKey, escondeEntregues,
   type FacetaGrafica, type GraficaFiltros, type ItemGrafica, type CtxFiltros,
 } from "@/lib/grafica-filtros";
 import { normalizarBusca } from "@/lib/utils";
@@ -119,12 +119,16 @@ const f = (over: Partial<GraficaFiltros> = {}): GraficaFiltros => ({ ...FILTROS_
 
 const FACETAS: FacetaGrafica[] = [
   "status", "evento", "grupo", "percurso", "tipo", "material", "acabamento", "mes",
+  // Impressora entrou na fila em 21/09; a lista aqui ficou para trás e só o
+  // type-check dos testes (tsconfig.test.json) acusou a falta.
+  "impressora",
 ];
 
 /** O campo do recorte que cada faceta comanda — o que o clique na opção liga. */
 const CAMPO: Record<FacetaGrafica, keyof GraficaFiltros> = {
   status: "status", evento: "evento", grupo: "grupo", percurso: "percurso",
   tipo: "tipo", material: "material", acabamento: "acabamento", mes: "mes",
+  impressora: "impressora",
 };
 
 /**
@@ -145,6 +149,7 @@ function valoresDaFaceta(faceta: FacetaGrafica, i: ItemGrafica): string[] {
     case "material":   return i.material ? [String(i.material)] : [];
     case "acabamento": return i.finish ? [String(i.finish)] : [];
     case "mes":        { const m = itemMes(i); return m ? [m] : []; }
+    case "impressora": return itemImpressoras(i);
   }
 }
 

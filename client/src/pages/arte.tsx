@@ -10,7 +10,7 @@ import { CheckCircle, AlertCircle, AlertTriangle, Eye, Calendar, Truck, Check, C
 import { Input } from "@/components/ui/input";
 import { apiRequest, queryClient, MENSAGEM_SEM_CONEXAO } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { usePecaDoLink } from "@/hooks/use-peca-do-link";
+import { usePecaDoLink, buscarCodigoDaPeca } from "@/hooks/use-peca-do-link";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { cn, parseDateLocal, toUTCDisplayDate, runInBatches, fileNameFromPath } from "@/lib/utils";
@@ -30,7 +30,7 @@ import {
   P,
   type EventoFinalizadoMotivo,
 } from "@/lib/status";
-import { ehBookCompleto } from "@shared/fluxo-peca";
+import { ehBookCompleto, statusDasEtapas } from "@shared/fluxo-peca";
 // Trocar arquivo final/thumb depois que a peça andou: a MESMA regra que as
 // rotas update-final-file e update-thumb aplicam — a tela não oferece o que o
 // servidor nega.
@@ -110,6 +110,51 @@ const ARTE_PAGE_SIZE = 100;
 // array novo a cada render e invalidava toda a cadeia de memos (allItems,
 // baldes, facetas) em cada render do carregamento.
 const SEM_DADOS: any[] = [];
+
+// ── A LISTA DESTA TELA VEM RECORTADA NO SERVIDOR (perf, 2ª rodada) ──────────
+//
+// A Arte lia ["/api/items"] — o acervo inteiro, 5 mil peças e 15 MB em
+// produção — para mostrar cinco filas. Agora pede GET /api/items?status=, o
+// mesmo caminho que a Revisão Final já usava: delta, formato compacto e a
+// chave DENTRO do prefixo "/api/items", para que toda invalidação por prefixo
+// (WebSocket, mutações desta tela) continue alcançando a lista.
+//
+// QUAIS STATUS. Os das quatro abas de status (TAB_STATUSES), mas escritos
+// pelas ETAPAS canônicas de shared/fluxo-peca em vez de status soltos: a etapa
+// carrega junto as grafias LEGADAS que ainda circulam no banco
+// (`produzido`, `conferido`, `entregue`, `em_producao`, `liberado`…). O
+// conjunto é, por construção, um SUPERCONJUNTO de TAB_STATUSES — nenhuma aba
+// perde linha, e uma peça gravada com grafia legada que hoje cairia fora do
+// balde chega à tela em vez de sumir na rede.
+//
+// SÃO DOIS RECORTES, e não um. Medido: as três filas de TRABALHO desta tela
+// (aguardando envio, aguardando patrocinador, finalizar arte) são ~19% do
+// acervo; a aba FINALIZADOS — da revisão final até a entrega — é todo o resto,
+// e em produção 3.105 das 5.128 peças estão entregues. Pedir as duas coisas na
+// mesma chamada faz a tela de trabalho esperar pelo arquivo morto.
+//
+// As duas descem em PARALELO, e é por isso que nenhuma contagem muda: as cinco
+// abas continuam contando sobre a lista inteira assim que as duas chegam —
+// exatamente como já acontecia enquanto o acervo único descia. O que muda é
+// que as filas de trabalho PINTAM antes, sem esperar pelas entregues, e que o
+// servidor monta duas respostas menores em vez de uma que trava o event loop.
+//
+// O QUE FICA DE FORA DAS DUAS, e é o ganho de rede: Rascunho/Solicitada
+// (`requested`, `draft`) e Vinculação (`awaiting_linking`) — que são as filas
+// da Solicitação e da Vinculação, nunca desenhadas aqui — e tudo que saiu do
+// funil (`canceled`, `archived`). A aba Correção continua vindo da rota
+// própria (/api/items/resubmission-needed), que já é recortada no banco.
+const ARTE_ETAPAS_DE_TRABALHO = [
+  "awaiting_submission",     // aba "Aguardando envio"
+  "awaiting_approval",       // aba "Aguardando patrocinador"
+  "awaiting_finalization",   // aba "Finalizar arte"
+] as const;
+const ARTE_ETAPAS_FINALIZADAS = [
+  "awaiting_final_review", "ready_for_production", "approved",
+  "inProduction", "produced", "conferred", "packed", "delivered",
+] as const;
+const CHAVE_DAS_FILAS_DA_ARTE = ["/api/items", `?status=${statusDasEtapas(...ARTE_ETAPAS_DE_TRABALHO).join(",")}`] as const;
+const CHAVE_DOS_FINALIZADOS = ["/api/items", `?status=${statusDasEtapas(...ARTE_ETAPAS_FINALIZADAS).join(",")}`] as const;
 
 // "Quem está travando": só os piores ficam à vista (mesma cura da régua de
 // eventos logo abaixo). Em produção a faixa chegou a 40+ marcas com o mesmo
@@ -785,9 +830,71 @@ export default function Arte() {
   // enquanto um envio direto corria TODAS as linhas ficavam desabilitadas.
   const [sendingId, setSendingId] = useState<string | null>(null);
 
-  const { data: pecasDoServidor = SEM_DADOS, isLoading, isError, error, refetch } = useQuery<any[]>({
-    queryKey: ["/api/items"],
+  // A lista de eventos vem PRIMEIRO porque é dela que sai o recorte por evento
+  // das duas listas de peças.
+  const { data: events = SEM_DADOS, isLoading: eventsLoading } = useQuery<any[]>({
+    queryKey: ["/api/events"],
   });
+
+  // ── O RECORTE POR EVENTO ─────────────────────────────────────────────────
+  // `allItems`, logo abaixo, já descarta toda peça de evento FINALIZADO — e em
+  // produção a maioria dos 68 eventos já passou, com quase todas as 3.105
+  // peças entregues penduradas neles. Era esse acervo que descia pela rede
+  // para ser jogado fora na primeira linha de um useMemo.
+  //
+  // Os ids vão ORDENADOS: a chave da query é o texto da URL, e uma ordem que
+  // dançasse a cada render viraria uma busca nova por render. O conjunto só
+  // muda quando um evento é encerrado, criado ou vira o dia.
+  const eventosEmJogo = useMemo(() => {
+    const hoje = spDayMs(new Date());
+    return (events as any[])
+      .filter((e: any) => !isEventoFinalizado(e, hoje))
+      .map((e: any) => e.id as string)
+      .sort();
+  }, [events]);
+  const porEvento = eventosEmJogo.length > 0 ? `&eventId=${eventosEmJogo.join(",")}` : "";
+  const chaveDasFilas = useMemo(
+    () => [CHAVE_DAS_FILAS_DA_ARTE[0], `${CHAVE_DAS_FILAS_DA_ARTE[1]}${porEvento}`] as const,
+    [porEvento],
+  );
+  const chaveDosFinalizados = useMemo(
+    () => [CHAVE_DOS_FINALIZADOS[0], `${CHAVE_DOS_FINALIZADOS[1]}${porEvento}`] as const,
+    [porEvento],
+  );
+  // Sem evento em jogo não há fila nenhuma — e `?eventId=` vazio seria um 400
+  // (a validação do servidor exige de 1 a 500 ids).
+  const temFila = eventosEmJogo.length > 0;
+
+  const { data: pecasDasFilas = SEM_DADOS, isLoading: filasLoading, isError, error, refetch } = useQuery<any[]>({
+    queryKey: chaveDasFilas,
+    enabled: temFila,
+  });
+  const {
+    data: pecasFinalizadas = SEM_DADOS,
+    isLoading: finalizadosLoading,
+    isError: finalizadosIsError,
+    refetch: refetchFinalizados,
+  } = useQuery<any[]>({ queryKey: chaveDosFinalizados, enabled: temFila });
+  // A silhueta cobre a espera pelos EVENTOS também: sem eles não há recorte, e
+  // mostrar "nada na fila" enquanto a lista de eventos desce seria afirmar o
+  // contrário do que a tela vai mostrar meio segundo depois.
+  const isLoading = eventsLoading || filasLoading;
+  // As duas listas como UMA, que é o que o resto da tela sempre viu.
+  //
+  // DEDUPLICA POR ID mesmo os recortes sendo disjuntos por construção (eles não
+  // compartilham status nenhum). Uma peça em dobro aqui não daria erro: daria
+  // contagem de aba dobrada, linha repetida na tabela e seleção em lote
+  // contando duas vezes a mesma peça — o tipo de defeito que só se descobre
+  // olhando. O custo é uma passada por Map, e só quando as duas listas
+  // existem; enquanto os Finalizados não chegaram, é a própria lista das filas.
+  const pecasDoServidor = useMemo(() => {
+    if (pecasFinalizadas.length === 0) return pecasDasFilas;
+    if (pecasDasFilas.length === 0) return pecasFinalizadas;
+    const porId = new Map<string, any>();
+    for (const p of pecasDasFilas) porId.set(p.id, p);
+    for (const p of pecasFinalizadas) if (!porId.has(p.id)) porId.set(p.id, p);
+    return Array.from(porId.values());
+  }, [pecasDasFilas, pecasFinalizadas]);
 
   const {
     data: correcaoDoServidor = SEM_DADOS,
@@ -840,10 +947,8 @@ export default function Arte() {
 
   // Uma frase só, montada pela fonte única (lib/status) — as cinco filas
   // contam a mesma história com as mesmas palavras.
-
-  const { data: events = SEM_DADOS } = useQuery<any[]>({
-    queryKey: ["/api/events"],
-  });
+  // (A query de /api/events subiu para o topo do componente: o recorte por
+  // evento das duas listas de peças sai dela.)
 
   /**
    * A peça aberta no modal é DERIVADA da lista viva, não uma cópia congelada
@@ -2230,7 +2335,9 @@ export default function Arte() {
   // de reenvio mora), senão o balde de TAB_STATUSES. Peça sem fase aqui (já
   // na Revisão Final, na Gráfica…) não está nesta fila: o hook avisa.
   usePecaDoLink<{ peca: any; aba: string }>({
-    pronto: !isLoading && !correcaoLoading && !isError && !correcaoIsError,
+    // Espera as DUAS listas: um link para peça já entregue chegaria antes dos
+    // Finalizados e diria "não está nesta fila" sobre uma peça que está.
+    pronto: !isLoading && !finalizadosLoading && !correcaoLoading && !isError && !correcaoIsError,
     localizar: (id) => {
       const emCorrecao = (correcaoItems as any[]).find((i: any) => i.id === id);
       if (emCorrecao) return { peca: emCorrecao, aba: "correcao" };
@@ -2243,7 +2350,13 @@ export default function Arte() {
       if (aba !== activeTab) changeTab(aba);
       handleViewDetails(peca);
     },
-    codigoDe: (id) => (pecasDoServidor as any[]).find((i: any) => i.id === id)?.displayId,
+    // Fora das filas desta tela (rascunho, vinculação, cancelada) a peça não
+    // está mais no cache — a lista vem recortada. Busca só ela para o aviso
+    // continuar dizendo o código, como dizia quando o acervo inteiro descia.
+    codigoDe: (id) =>
+      (pecasDoServidor as any[]).find((i: any) => i.id === id)?.displayId
+      ?? (correcaoItems as any[]).find((i: any) => i.id === id)?.displayId
+      ?? buscarCodigoDaPeca(id),
   });
 
   /**
@@ -5062,13 +5175,15 @@ export default function Arte() {
       {isLoading ? (
         /* Silhueta em vez de spinner (UX 27/08) — mesma razão da Gráfica. */
         <EsqueletoDeFila linhas={8} />
-      ) : isError ? (
+      ) : isError || finalizadosIsError ? (
         // Terceiro ramo ANTES do conteúdo: enquanto houver erro, o empty state
-        // de sucesso nunca é renderizado.
+        // de sucesso nunca é renderizado. As duas listas recortadas entram
+        // aqui: uma aba de status vazia por falha de rede é indistinguível de
+        // uma aba realmente vazia, e é isso que este ramo existe para evitar.
         renderErroDeCarga(
           "Não foi possível carregar a fila da Arte",
           error,
-          () => { void refetch(); },
+          () => { void refetch(); void refetchFinalizados(); },
           "erro-arte",
         )
       ) : (

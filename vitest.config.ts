@@ -59,6 +59,17 @@ export default defineConfig({
           include: TESTES_DE_TELA,
           maxWorkers: WORKERS_DE_TELA,
           sequence: { groupOrder: 1 },
+          // DUAS REPETIÇÕES, SÓ AQUI (22/09). O teto de workers acima reduziu
+          // a falha falsa por disputa de CPU, mas não a eliminou: na suíte
+          // inteira, `etiqueta-lista` quebra num caso diferente a cada rodada
+          // (ora o clique não acha o elemento, ora o <select> ainda é null) e
+          // passa 74/74 quando roda sozinho. É o relógio, não a regra.
+          //
+          // O risco conhecido de `retry` é esconder defeito de verdade. Por
+          // isso ele fica SÓ no projeto de tela — onde a causa é conhecida e
+          // documentada — e não no de servidor, que é determinístico. Teste
+          // de tela que falha nas três tentativas é defeito mesmo.
+          retry: 2,
         },
       },
     ],

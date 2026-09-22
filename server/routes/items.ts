@@ -21,8 +21,8 @@ import { trilhaDaLiberacaoComEstoque, SOLICITACAO_AO_ESTOQUE_ATIVA } from "@shar
 import { resumosDeTuboPorIds, comTubo } from "../services/tubosDaPeca";
 import { excluirPecaTirandoDosVolumes, ehRecusaDeTubo } from "./tubos";
 import { liberarReservasDasPecas } from "./estoque-reservas";
-import { FORMATO_COMPACTO, compactarPecas, compactarAprovacoes } from "@shared/itens-compactos";
-import { DEPOIS_DA_ARTE, EM_REVISAO, POS_APROVACAO, DISPENSAVEIS, DESTINO_DA_DISPENSA, ehBookCompleto, ehMaquinaValida, rotuloDaMaquina } from "@shared/fluxo-peca";
+import { FORMATO_COMPACTO, CAMPOS_DA_TRILHA, compactarPecas, compactarAprovacoes, projetarNaTrilha } from "@shared/itens-compactos";
+import { DEPOIS_DA_ARTE, EM_REVISAO, POS_APROVACAO, DISPENSAVEIS, DESTINO_DA_DISPENSA, ehBookCompleto, ehMaquinaValida, rotuloDaMaquina, STATUS_CONHECIDOS as STATUS_DA_REGUA } from "@shared/fluxo-peca";
 import { ehMolde, destinoDaDevolucao, dispensaArquivoFinal, trocaDeMoldeProibida, ERRO_TROCA_DE_MOLDE, tipoCanonico } from "@shared/molde";
 import { enviarMoldeParaRevisao } from "./molde";
 import { quemOcupaAImpressora, erroImpressoraOcupada } from "../services/ocupacaoDasImpressoras";
@@ -672,6 +672,43 @@ async function enrichItemsWithEventsAndSponsors(
  */
 const querCompacto = (req: any): boolean => req.query?.formato === FORMATO_COMPACTO;
 
+/**
+ * `?campos=trilha` (PERFORMANCE, 2ª rodada — ver shared/itens-compactos.ts):
+ * a peça vai com as onze colunas que o Histórico lê, SEM enriquecimento
+ * nenhum. É a única projeção; qualquer outro valor de `?campos=` é ignorado e
+ * a resposta sai como sempre.
+ */
+const querTrilha = (req: any): boolean => req.query?.campos === CAMPOS_DA_TRILHA;
+
+/**
+ * O TETO DE SEGURANÇA — com aviso, nunca com `slice` (um corte silencioso
+ * aqui já fez peças "sumirem" do Painel quando o banco passou de 1.000).
+ *
+ * Quem pede a lista SEM recorte leva o acervo inteiro, e é esse pedido que
+ * trava o event loop para todas as outras abas enquanto o JSON é montado. As
+ * telas de fila (Arte, Atendimento, Vinculação, Revisão) já pedem recortadas;
+ * o aviso existe para que a próxima tela que voltar a pedir tudo apareça no
+ * log com nome e tamanho, em vez de ser descoberta de novo por medição.
+ *
+ * Uma linha a cada TETO_AVISO_MS por caminho: o aviso não pode virar ele
+ * mesmo um custo por request.
+ */
+const TETO_DO_ACERVO = 2000;
+const TETO_AVISO_MS = 5 * 60 * 1000;
+const ultimoAviso = new Map<string, number>();
+function avisarAcervoInteiro(req: any, quantas: number, trilha: boolean): void {
+  if (quantas <= TETO_DO_ACERVO) return;
+  const caminho = `${req.headers?.referer ?? "?"}|${trilha ? "trilha" : "cheio"}`;
+  const agora = Date.now();
+  if (agora - (ultimoAviso.get(caminho) ?? 0) < TETO_AVISO_MS) return;
+  ultimoAviso.set(caminho, agora);
+  console.warn(
+    `[items] GET /api/items SEM recorte devolveu ${quantas} peças (teto de aviso: ${TETO_DO_ACERVO})`
+    + `${trilha ? " na projeção da trilha" : ""} — origem "${req.headers?.referer ?? "desconhecida"}",`
+    + ` papel "${req.userRole ?? "?"}". Use ?status= / ?eventId= para pedir só a etapa da tela.`,
+  );
+}
+
 /** Âncora do próximo delta: tirada ANTES da leitura, com 60s de sobreposição —
  *  uma transação commitando "agora" não pode cair no vão entre dois deltas.
  *  2s (até 17/09) não bastava: o updated_at é o now() do INÍCIO da transação,
@@ -727,16 +764,27 @@ function lerSince(req: any): Date | null {
  * português que ainda circulam no banco e os da fila da Gráfica. É contra esta
  * lista que `?status=` é validado: um status digitado errado responderia uma
  * lista VAZIA com cara de "não há nada aqui", que é pior que um erro.
+ *
+ * `STATUS_DA_REGUA` (shared/fluxo-peca) entra porque é a régua que as TELAS
+ * usam para montar o recorte: elas pedem "os status da etapa X", com as
+ * grafias legadas em português juntas. Sem ele, a Arte pedindo a aba
+ * Finalizados (que inclui `produzido`, `conferido`, `entregue`) levava 400 —
+ * um erro sobre um status que o banco realmente grava.
  */
 const STATUS_CONHECIDOS: ReadonlySet<string> = new Set<string>([
   ...ITEM_STATUSES,
   ...Array.from(STATUS_DA_FILA_DA_GRAFICA),
   ...COMPLEMENT_ALLOWED_STATUSES,
+  ...STATUS_DA_REGUA,
   "liberado",
 ]);
 
-/** O que `?status=`/`?ids=` pedem, já validado. `null` = sem recorte. */
-type RecorteDePecas = { status: ReadonlySet<string> | null; ids: ReadonlySet<string> | null };
+/** O que `?status=`/`?ids=`/`?eventId=` pedem, já validado. `null` = sem recorte. */
+type RecorteDePecas = {
+  status: ReadonlySet<string> | null;
+  ids: ReadonlySet<string> | null;
+  eventos: ReadonlySet<string> | null;
+};
 
 /**
  * RECORTE OPCIONAL de GET /api/items (PERFORMANCE, 17/09).
@@ -744,8 +792,16 @@ type RecorteDePecas = { status: ReadonlySet<string> | null; ids: ReadonlySet<str
  * A Revisão Final baixava as 5 mil peças (15 MB) para mostrar as ~8 em
  * "Aguardando Revisão Final". Com `?status=a,b` (lista separada por vírgula) a
  * rota devolve só as peças nesses status; com `?ids=x,y`, só essas peças (a
- * Revisão usa para dizer o código de uma peça do link que já saiu da fila).
- * Os dois juntos são E. Sem nenhum dos dois, a rota responde como sempre.
+ * Revisão usa para dizer o código de uma peça do link que já saiu da fila);
+ * com `?eventId=e1,e2`, só as peças desses eventos. Os três juntos são E. Sem
+ * nenhum deles, a rota responde como sempre.
+ *
+ * `?eventId=` (perf, 2ª rodada) existe porque as filas de trabalho — Arte,
+ * Atendimento, Vinculação — já jogam fora, no cliente, toda peça de evento
+ * FINALIZADO (encerrado à mão ou com a data do evento passada). Era o acervo
+ * inteiro descendo pela rede para ser descartado na primeira linha do
+ * `useMemo`. O cliente sabe quais eventos estão em jogo (`/api/events`), então
+ * pede só esses.
  *
  * O recorte é aplicado ANTES do enriquecimento e DEPOIS de pecaVisivelPara —
  * a regra do Kit continua sendo a mesma para a lista recortada.
@@ -758,7 +814,8 @@ function lerRecorte(req: any): { ok: true; recorte: RecorteDePecas | null } | { 
   };
   const status = lista(req.query?.status);
   const ids = lista(req.query?.ids);
-  if (status === null && ids === null) return { ok: true, recorte: null };
+  const eventos = lista(req.query?.eventId);
+  if (status === null && ids === null && eventos === null) return { ok: true, recorte: null };
   if (status !== null) {
     if (status.length === 0) return { ok: false, erro: "Informe ao menos um status em ?status=." };
     const desconhecidos = status.filter((st) => !STATUS_CONHECIDOS.has(st));
@@ -768,15 +825,40 @@ function lerRecorte(req: any): { ok: true; recorte: RecorteDePecas | null } | { 
     if (ids.length === 0 || ids.length > 200) return { ok: false, erro: "Informe de 1 a 200 ids em ?ids=." };
     if (ids.some((id) => !/^[A-Za-z0-9_-]{1,64}$/.test(id))) return { ok: false, erro: "Id de peça inválido em ?ids=." };
   }
-  return { ok: true, recorte: { status: status ? new Set(status) : null, ids: ids ? new Set(ids) : null } };
+  // O teto é o número de eventos que cabem numa fila de trabalho com folga —
+  // e existe para que `?eventId=` não vire um jeito de montar uma query de
+  // milhares de termos no banco.
+  if (eventos !== null) {
+    if (eventos.length === 0 || eventos.length > 500) return { ok: false, erro: "Informe de 1 a 500 ids em ?eventId=." };
+    if (eventos.some((id) => !/^[A-Za-z0-9_-]{1,64}$/.test(id))) return { ok: false, erro: "Id de evento inválido em ?eventId=." };
+  }
+  return {
+    ok: true,
+    recorte: {
+      status: status ? new Set(status) : null,
+      ids: ids ? new Set(ids) : null,
+      eventos: eventos ? new Set(eventos) : null,
+    },
+  };
 }
 
-const casaRecorte = (recorte: RecorteDePecas | null, i: { id: string; status: string }): boolean =>
-  !recorte || ((!recorte.status || recorte.status.has(i.status)) && (!recorte.ids || recorte.ids.has(i.id)));
+const casaRecorte = (recorte: RecorteDePecas | null, i: { id: string; status: string; eventId?: string | null }): boolean =>
+  !recorte || (
+    (!recorte.status || recorte.status.has(i.status))
+    && (!recorte.ids || recorte.ids.has(i.id))
+    && (!recorte.eventos || (!!i.eventId && recorte.eventos.has(i.eventId)))
+  );
 
 /** As peças vivas do recorte, na ordem da lista inteira (created_at DESC). */
 async function pecasDoRecorte(recorte: RecorteDePecas): Promise<Item[]> {
+  // Status E evento no mesmo WHERE: recortar um dos dois no banco e o outro em
+  // JavaScript traria de volta justamente o que o recorte evita.
+  if (recorte.status && recorte.eventos) {
+    return (await storage.getItemsByStatusesAndEvents(Array.from(recorte.status), Array.from(recorte.eventos)))
+      .filter((i) => casaRecorte(recorte, i));
+  }
   if (recorte.status) return (await storage.getItemsByStatuses(Array.from(recorte.status))).filter((i) => casaRecorte(recorte, i));
+  if (recorte.eventos) return (await storage.getItemsByEvents(Array.from(recorte.eventos))).filter((i) => casaRecorte(recorte, i));
   // Só ids: getItemsByIds não filtra excluída nem ordena — as duas coisas que
   // getAllItems faz, feitas aqui (sort estável, como o ORDER BY do banco).
   const porId = await storage.getItemsByIds(Array.from(recorte.ids ?? []));
@@ -1131,6 +1213,7 @@ export function registerItemRoutes(app: Express): void {
       const recorte = leitura.recorte;
       const since = lerSince(req);
       const compacto = querCompacto(req);
+      const trilha = querTrilha(req);
       const agora = agoraDoDelta();
       const usuario = quemVe(req);
       if (since) {
@@ -1138,6 +1221,19 @@ export function registerItemRoutes(app: Express): void {
         // Usuário do Kit: o que ele não enxerga sai do cache dele como removido.
         const cabe = (i: any) => !i.deletedAt && pecaVisivelPara(usuario, i) && casaRecorte(recorte, i);
         const visivel = mudadas.map(cabe);
+        // Projeção da trilha: o delta anda pelo mesmo caminho, só que sem
+        // enriquecimento nenhum — inclusive sem as mães dos complementos, que
+        // existem para re-costurar `complements`/`contractedTotal`, campos que
+        // a projeção não tem.
+        if (trilha) {
+          const itens = mudadas.filter((_i, n) => visivel[n]).map(projetarNaTrilha);
+          const removidas = mudadas.filter((_i, n) => !visivel[n]).map((i) => i.id);
+          // `eventos` continua indo: é por ele que o cliente derruba a peça
+          // cujo evento foi excluído em cascata (ver aplicarDelta).
+          const eventos = await storage.getAllEvents();
+          if (compacto) return res.json({ delta: true, agora, removidas, ...compactarPecas(itens, { eventos, patrocinadores: [] }) });
+          return res.json({ delta: true, agora, itens, removidas, eventos, patrocinadores: [] });
+        }
         const vivas = [
           ...mudadas.filter((_i, n) => visivel[n]),
           ...(await maesDosComplementosMudados(mudadas, cabe)),
@@ -1165,13 +1261,19 @@ export function registerItemRoutes(app: Express): void {
 
       if (recorte) {
         const doRecorte = (await pecasDoRecorte(recorte)).filter((i) => pecaVisivelPara(usuario, i));
+        if (trilha) {
+          const itens = doRecorte.map(projetarNaTrilha);
+          return res.json(compacto ? { agora, ...compactarPecas(itens) } : itens);
+        }
         const itens = await enrichItemsWithEventsAndSponsors(doRecorte, { ordemDoAcervo: true });
         return res.json(compacto ? { agora, ...compactarPecas(itens) } : itens);
       }
 
       const allItems = (await storage.getAllItems()).filter((i) => pecaVisivelPara(quemVe(req), i));
-      if (allItems.length > 5000) {
-        console.warn(`[items] GET /api/items retornando ${allItems.length} itens — priorizar paginação`);
+      avisarAcervoInteiro(req, allItems.length, trilha);
+      if (trilha) {
+        const itens = allItems.map(projetarNaTrilha);
+        return res.json(compacto ? { agora, ...compactarPecas(itens) } : itens);
       }
       const itemsWithEventsAndSponsors = await enrichItemsWithEventsAndSponsors(allItems);
       res.json(compacto ? { agora, ...compactarPecas(itemsWithEventsAndSponsors) } : itemsWithEventsAndSponsors);

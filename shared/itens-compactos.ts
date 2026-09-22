@@ -30,6 +30,45 @@
 /** Valor do parâmetro `?formato=` que liga o formato compacto. */
 export const FORMATO_COMPACTO = "compacto";
 
+// ─────────────────────────────────────────────────────────────────────────────
+// PROJEÇÃO ENXUTA `?campos=trilha` (perf, 2ª rodada).
+//
+// O Histórico é a tela que REALMENTE precisa do acervo inteiro: a trilha
+// sintetiza uma linha "Peça criada" para cada peça que existe, e recortar por
+// status esconderia metade da história. O que ela NÃO precisa é do
+// enriquecimento: ela nunca lê `item.event`, `item.sponsors`, `complements`
+// nem `parent` — lê onze colunas escalares e o nome do evento vem de
+// `/api/events`, que ela já carrega.
+//
+// Com a projeção o servidor não faz as consultas de vínculo, aprovação, kit e
+// complemento, não monta os objetos embutidos e manda ~11 colunas por peça em
+// vez de ~75. Continua valendo o formato compacto (as chaves vão uma vez) e o
+// delta (`?since=`), porque a projeção é só uma lista de peças mais estreita.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Valor do parâmetro `?campos=` que liga a projeção da trilha. */
+export const CAMPOS_DA_TRILHA = "trilha";
+
+/**
+ * As colunas que a trilha lê (client/src/lib/timeline.ts, buildTimeline) mais
+ * `updatedAt`, que é a âncora do delta quando a resposta não vem compacta.
+ * Acrescentar coluna aqui é o único jeito de a trilha passar a mostrá-la — é
+ * de propósito: a projeção é um contrato, não um "quase tudo".
+ */
+export const COLUNAS_DA_TRILHA = [
+  "id", "eventId", "displayId", "type", "quantity", "status",
+  "createdAt", "updatedAt",
+  "approvedAt", "creatorReviewedAt", "quantityProduced", "productionStartedAt",
+  "deliveredAt", "receivedBy",
+] as const;
+
+/** Uma peça reduzida às colunas da trilha, na ordem de COLUNAS_DA_TRILHA. */
+export function projetarNaTrilha(item: Record<string, any>): Record<string, any> {
+  const saida: Record<string, any> = {};
+  for (const coluna of COLUNAS_DA_TRILHA) saida[coluna] = item[coluna] ?? null;
+  return saida;
+}
+
 const MARCA_PECAS = "pecas-compactas";
 const MARCA_APROVACOES = "aprovacoes-compactas";
 

@@ -135,7 +135,7 @@ function calcularMarcos(event: any, today: Date): { marcos: Marco[]; countdownDa
 
 const plural = (n: number, um: string, muitos: string) => (n === 1 ? um : muitos);
 import { useEventItemFlags } from "@/hooks/use-event-item-flags";
-import { useIsMobile } from "@/hooks/use-mobile";
+import { useDensidadeDoConteudo, usePonteiroGrosso } from "@/hooks/use-mobile";
 import { ModalHeader, ModalFooter, modalSurface, HIDE_NATIVE_CLOSE, FreezeWhileClosing } from "@/components/modal-shell";
 import { reductionFloorOf } from "@/lib/saldo";
 import {
@@ -150,6 +150,7 @@ import {
 } from "@/components/aumentar-quantidade-dialog";
 import { compareDisplayId } from "@/lib/displayId";
 import { miniatura } from "@/lib/miniatura";
+import { T } from "@/lib/theme";
 
 // A lista única de tipos (com o Molde, 22/09) mora em shared/molde.ts.
 const itemTypes = [...TIPOS_DE_PECA];
@@ -836,7 +837,12 @@ export default function EventDetail() {
   const [customMaterial, setCustomMaterial] = useState(false);
   const [customFinish, setCustomFinish] = useState(false);
   const [submitConfirmOpen, setSubmitConfirmOpen] = useState(false);
-  const isMobile = useIsMobile();
+  // Régua única (use-mobile.tsx): a lista de peças escolhe tabela ou cartões
+  // pela ÁREA ÚTIL medida, e o alvo de toque segue o PONTEIRO.
+  const { ref: listaRef, cards: emCards, compacto, isMobile } = useDensidadeDoConteudo<HTMLDivElement>();
+  const ponteiroGrosso = usePonteiroGrosso();
+  /** Dedo (celular OU tablet do galpão): manda no TAMANHO do alvo, só nele. */
+  const dedo = ponteiroGrosso || isMobile;
   const { toast } = useToast();
 
   const [formData, setFormData] = useState({ ...EMPTY_ITEM_FORM });
@@ -2197,7 +2203,7 @@ export default function EventDetail() {
               // Botão secundário do cabeçalho — um estilo só, em vez de oito
               // cópias do mesmo objeto inline. 40px no ponteiro, 44 no toque.
               const secundario = (travado = false): React.CSSProperties => ({
-                backgroundColor: '#ffffff', color: travado ? '#78716c' : '#1a1c1c',
+                backgroundColor: '#ffffff', color: travado ? T.second : '#1a1c1c',
                 height: isMobile ? 44 : 40, padding: '0 16px', borderRadius: 8,
                 fontWeight: 700, fontSize: 13, display: 'inline-flex', alignItems: 'center', gap: 7,
                 border: '1px solid #e7e5e4', cursor: travado ? 'not-allowed' : 'pointer',
@@ -2732,7 +2738,7 @@ export default function EventDetail() {
                           // bolinha pequena, não por um cinza ilegível (#B8B2A8
                           // dava 2,1:1).
                           dotBg = '#D8D4CE'; dotBorder = '#D8D4CE'; dotSize = 10;
-                          labelCol = '#78716c'; dateCol = '#78716c'; labelW = 500;
+                          labelCol = T.second; dateCol = T.second; labelW = 500;
                         }
                       } else {
                         dotBg = TI.card; dotBorder = TI.line; dotSize = 12;
@@ -2999,7 +3005,7 @@ export default function EventDetail() {
                                               className="p-1.5 rounded-md"
                                               title={motivoEdicaoBloqueada(item.status) ?? undefined}
                                               aria-label={`Edição bloqueada: ${motivoEdicaoBloqueada(item.status) ?? ""}`}
-                                              style={{ color: "#78716c", cursor: "not-allowed", background: "none", border: "none" }}
+                                              style={{ color: T.second, cursor: "not-allowed", background: "none", border: "none" }}
                                             >
                                               <Lock className="h-3.5 w-3.5" />
                                             </button>
@@ -3228,7 +3234,7 @@ export default function EventDetail() {
       ) : mainItems.length === 0 ? (
         draftItems.length > 0 ? null : (
           <div style={{ textAlign: 'center', padding: '64px 0' }}>
-            <Package aria-hidden="true" className="h-12 w-12 mx-auto mb-4" style={{ color: '#78716c' }} />
+            <Package aria-hidden="true" className="h-12 w-12 mx-auto mb-4" style={{ color: T.second }} />
             <h3 style={{ fontSize: '18px', fontWeight: '600', color: '#1c1917', marginBottom: '8px' }}>Nenhuma peça na lista ainda</h3>
             {/* OS TRÊS CAMINHOS, CLICÁVEIS. O texto antigo mandava procurar
                 "Importar Excel" e "Clonar peças" no topo — e o clonar agora
@@ -3260,7 +3266,7 @@ export default function EventDetail() {
                       cursor: eventoFinalizado ? 'not-allowed' : 'pointer',
                       ...(primaria
                         ? { backgroundColor: eventoFinalizado ? '#e7e5e4' : '#b45309', color: eventoFinalizado ? '#57534e' : '#ffffff', border: 'none' }
-                        : { backgroundColor: '#ffffff', color: eventoFinalizado ? '#78716c' : '#1c1917', border: '1px solid #e7e5e4' }),
+                        : { backgroundColor: '#ffffff', color: eventoFinalizado ? T.second : '#1c1917', border: '1px solid #e7e5e4' }),
                     }}
                   >
                     <Icone className="h-4 w-4" aria-hidden="true" />
@@ -3276,11 +3282,14 @@ export default function EventDetail() {
           </div>
         )
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '48px' }}>
+        /* `listaRef` mede a ÁREA ÚTIL da lista de peças — é ela, e não a
+           janela, que decide entre a tabela de 9 colunas e os cartões
+           (ver a régua em use-mobile.tsx). */
+        <div ref={listaRef} style={{ display: 'flex', flexDirection: 'column', gap: '48px' }}>
           {/* Busca local de peças — evita rolagem cega em eventos grandes. */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: '-24px' }}>
             <div style={{ position: 'relative', width: isMobile ? '100%' : 280 }}>
-              <Search aria-hidden="true" style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', width: 13, height: 13, color: '#78716c', pointerEvents: 'none' }} />
+              <Search aria-hidden="true" style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', width: 13, height: 13, color: T.second, pointerEvents: 'none' }} />
               <input
                 type="text"
                 aria-label="Buscar peça por ID, tipo ou status"
@@ -3356,7 +3365,10 @@ export default function EventDetail() {
               <>
                 {/* Tabela do grupo */}
                 <div style={{ backgroundColor: '#ffffff', borderRadius: '12px', overflow: 'hidden' }}>
-                  {isMobile ? (
+                  {/* CARTÕES pela ÁREA ÚTIL, não pela janela: a tabela tem
+                      `minWidth: 960` e a coluna de Ações é a última — no tablet
+                      com a barra lateral aberta ela ficava fora da tela. */}
+                  {emCards ? (
                     <div style={{ padding: '8px' }}>
                       {typeItems.map(item => (
                         /* Card com onClick e sem foco: no celular o toque
@@ -3416,7 +3428,7 @@ export default function EventDetail() {
                               <button onClick={() => handleEditItem(item)}
                                 disabled={isEditBlocked(item.status)}
                                 title={motivoEdicaoBloqueada(item.status) ?? undefined}
-                                style={{ flex: 1, minHeight: 44, borderRadius: 6, border: '1px solid #e7e5e4', background: '#fafaf9', fontSize: 13, fontWeight: 700, color: isEditBlocked(item.status) ? '#78716c' : '#44403c', cursor: isEditBlocked(item.status) ? 'not-allowed' : 'pointer' }}>
+                                style={{ flex: 1, minHeight: 44, borderRadius: 6, border: '1px solid #e7e5e4', background: '#fafaf9', fontSize: 13, fontWeight: 700, color: isEditBlocked(item.status) ? T.second : '#44403c', cursor: isEditBlocked(item.status) ? 'not-allowed' : 'pointer' }}>
                                 Editar
                               </button>
                               {/* Aumentar quantidade NÃO mora aqui: o gatilho
@@ -3456,10 +3468,23 @@ export default function EventDetail() {
                       coluna `auto` ao lado de oito em px resolve para ZERO —
                       a Descrição sumia em telas estreitas. Status leva 19%
                       para a pílula caber numa linha. */}
-                  <table style={{ width: '100%', minWidth: 960, borderCollapse: 'collapse', textAlign: 'left', tableLayout: 'fixed' }}>
+                  {/* DENSIDADE COMPACTA (área útil de 820 a 1180px): M² desce
+                      para baixo das dimensões e Patrocinador para baixo da
+                      descrição. Nove colunas em 960px de mínimo não cabem num
+                      tablet com a barra lateral aberta, e a coluna que ficava
+                      de fora era justamente Ações. */}
+                  <table style={{ width: '100%', minWidth: compacto ? 720 : 960, borderCollapse: 'collapse', textAlign: 'left', tableLayout: 'fixed' }}>
                     <thead>
                       <tr>
-                        {([
+                        {(compacto ? ([
+                          ['ID', '10%'],
+                          ['Referência', '9%'],
+                          ['Descrição', '27%'],
+                          ['Qtd', '6%'],
+                          ['Dimensões (V / A)', '17%'],
+                          ['Status', '19%'],
+                          ['Ações', '12%'],
+                        ] as const) : ([
                           ['ID', '7%'],
                           ['Referência', '8%'],
                           ['Descrição', '19%'],
@@ -3469,7 +3494,7 @@ export default function EventDetail() {
                           ['Patrocinador', '11%'],
                           ['Status', '19%'],
                           ['Ações', '11%'],
-                        ] as const).map(([col, width]) => (
+                        ] as const)).map(([col, width]) => (
                           <th
                             key={col}
                             style={{
@@ -3628,6 +3653,14 @@ export default function EventDetail() {
                                 {[item.material, item.finish].filter(Boolean).join(' · ')}
                               </div>
                             )}
+                            {/* No compacto o patrocinador vem para cá: é texto
+                                livre e longo, e era a coluna que mais empurrava
+                                a tabela para fora da tela. */}
+                            {compacto && item.sponsors && item.sponsors.length > 0 && (
+                              <div style={{ fontSize: '11px', color: '#57534e', marginTop: 2, overflowWrap: 'anywhere' }}>
+                                {item.sponsors.map((s: any) => s.name).join(", ")}
+                              </div>
+                            )}
                           </td>
                           {/* Qtd — sem padStart: "05" parecia código, não quantidade. */}
                           <td style={{ padding: '14px 14px', fontSize: '13px', color: '#1a1c1c', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
@@ -3644,19 +3677,30 @@ export default function EventDetail() {
                                 {(item.fileWidth && item.fileHeight) ? ` / ${item.fileWidth} × ${item.fileHeight}m` : ''}
                               </>
                             ) : '—'}
+                            {/* No compacto o m² acompanha a medida, que é de
+                                onde ele sai — não some, muda de lugar. */}
+                            {compacto && (
+                              <span style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#1a1c1c' }}>
+                                {parseFloat(item.calculatedM2 || '0').toFixed(2)} m²
+                              </span>
+                            )}
                           </td>
                           {/* M² */}
-                          <td style={{ padding: '14px 14px', fontSize: '13px', fontWeight: 700, color: '#1a1c1c', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
-                            {parseFloat(item.calculatedM2 || '0').toFixed(2)}
-                          </td>
+                          {!compacto && (
+                            <td style={{ padding: '14px 14px', fontSize: '13px', fontWeight: 700, color: '#1a1c1c', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                              {parseFloat(item.calculatedM2 || '0').toFixed(2)}
+                            </td>
+                          )}
                           {/* Patrocinador */}
                           {/* Antes era "—" hardcoded: o vínculo existia no dado
                               (enrich do /api/items/:eventId) e nunca aparecia. */}
-                          <td style={{ padding: '14px 14px', fontSize: '12px', color: '#57534e', overflowWrap: 'anywhere' }}>
-                            {(item.sponsors && item.sponsors.length > 0)
-                              ? item.sponsors.map((s: any) => s.name).join(", ")
-                              : <span style={{ color: '#746e69' }}>—</span>}
-                          </td>
+                          {!compacto && (
+                            <td style={{ padding: '14px 14px', fontSize: '12px', color: '#57534e', overflowWrap: 'anywhere' }}>
+                              {(item.sponsors && item.sponsors.length > 0)
+                                ? item.sponsors.map((s: any) => s.name).join(", ")
+                                : <span style={{ color: '#746e69' }}>—</span>}
+                            </td>
+                          )}
                           {/* Status — rótulo curto: com tableLayout fixed o
                               rótulo completo ("Aguardando Vinculação") vazava
                               por baixo dos ícones de Ações.
@@ -3730,7 +3774,7 @@ export default function EventDetail() {
                                     );
                                   }}
                                   data-testid={`button-reuse-item-${item.id}`}
-                                  style={{ background: item.isReuse ? '#d1fae5' : 'none', border: item.isReuse ? '1px solid #6ee7b7' : 'none', borderRadius: '6px', padding: '6px', cursor: updateItemIsReuseMutation.isPending ? 'wait' : 'pointer', opacity: updateItemIsReuseMutation.isPending ? 0.5 : 1, color: item.isReuse ? '#065f46' : '#78716c', transition: 'all 0.15s', display: 'flex', alignItems: 'center' }}
+                                  style={{ background: item.isReuse ? '#d1fae5' : 'none', border: item.isReuse ? '1px solid #6ee7b7' : 'none', borderRadius: '6px', padding: '6px', cursor: updateItemIsReuseMutation.isPending ? 'wait' : 'pointer', opacity: updateItemIsReuseMutation.isPending ? 0.5 : 1, color: item.isReuse ? '#065f46' : T.second, transition: 'all 0.15s', display: 'flex', alignItems: 'center' }}
                                   onMouseEnter={e => { if (!item.isReuse) { e.currentTarget.style.color = '#065f46'; e.currentTarget.style.backgroundColor = '#d1fae5'; } }}
                                   onMouseLeave={e => { if (!item.isReuse) { e.currentTarget.style.color = '#746e69'; e.currentTarget.style.backgroundColor = 'transparent'; } }}
                                 >
@@ -3744,7 +3788,7 @@ export default function EventDetail() {
                                   aria-disabled="true"
                                   title={motivoEdicaoBloqueada(item.status) ?? undefined}
                                   aria-label={`Edição bloqueada: ${motivoEdicaoBloqueada(item.status) ?? ""}`}
-                                  style={{ color: '#78716c', padding: '6px', cursor: 'not-allowed', background: 'none', border: 'none' }}
+                                  style={{ color: T.second, padding: '6px', cursor: 'not-allowed', background: 'none', border: 'none' }}
                                   data-testid={`button-edit-item-${item.id}`}
                                 >
                                   <Lock className="h-4 w-4" />
@@ -3778,7 +3822,7 @@ export default function EventDetail() {
                                     type="button"
                                     disabled
                                     aria-disabled="true"
-                                    style={{ color: '#78716c', padding: '6px', cursor: 'not-allowed', background: 'none', border: 'none' }}
+                                    style={{ color: T.second, padding: '6px', cursor: 'not-allowed', background: 'none', border: 'none' }}
                                     title="Exclusão bloqueada — peça já está em Arte ou produção"
                                   >
                                     <Trash2 className="h-4 w-4" />

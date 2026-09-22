@@ -19,7 +19,7 @@ import {
   ChevronLeft, ChevronRight, X, Check, ScrollText,
 } from "lucide-react";
 import { T, FS, R } from "@/lib/theme";
-import { useIsMobile } from "@/hooks/use-mobile";
+import { alvo, useDensidadeDoConteudo, usePonteiroGrosso } from "@/hooks/use-mobile";
 import { useFiltrosNaUrl, paginaValida } from "@/hooks/use-filtros-na-url";
 
 /**
@@ -216,7 +216,12 @@ function Paginacao({ pagina, totalPaginas, onIr, toque }: { pagina: number; tota
 const PERFIS_VALIDOS = Object.keys(ROLE_CFG);
 
 export default function Usuarios() {
-  const isMobile = useIsMobile();
+  // Régua única do app (ver use-mobile.tsx): a tabela de 6 colunas some abaixo
+  // de 820px de ÁREA ÚTIL e vira um cartão por usuário. A medida é da CAIXA DA
+  // LISTA (o <section> abaixo), que já está dentro do padding da página — por
+  // isso não há padding a descontar aqui.
+  const { ref: listaRef, cards, compacto, isMobile } = useDensidadeDoConteudo<HTMLElement>();
+  const ponteiroGrosso = usePonteiroGrosso();
   const [, navigate] = useLocation();
   const [modalOpen, setModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
@@ -233,7 +238,9 @@ export default function Usuarios() {
   const page = filtros.pagina;
   const setPage = (p: number) => definir("pagina", p);
   const limparFiltros = () => limpar();
-  const toque = isMobile ? 44 : 32;
+  // Alvo pelo PONTEIRO, não pela largura: o tablet do galpão tem 1024px de
+  // janela e é usado com o dedo — os 32px valiam lá e eram metade do mínimo.
+  const toque = alvo(32, ponteiroGrosso || isMobile);
   const { toast } = useToast();
 
   const { data: users = [], isLoading, isError, refetch } = useQuery<User[]>({ queryKey: ["/api/users"] });
@@ -393,6 +400,56 @@ export default function Usuarios() {
   const safePage = Math.min(page, totalPages);
   const paginated = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
 
+  // As três ações da linha, uma vez só: a tabela e o cartão precisam
+  // exatamente das mesmas, com os mesmos rótulos e as mesmas guardas.
+  const acoesDoUsuario = (user: User) => {
+    const iconeBtn = {
+      width: toque, height: toque, color: T.second, backgroundColor: "transparent",
+      border: "none", borderRadius: R.md, cursor: "pointer", display: "flex",
+      alignItems: "center", justifyContent: "center",
+      transition: "background-color 0.12s ease, color 0.12s ease",
+    } as const;
+    return (
+      <>
+        <button
+          data-testid={`button-edit-${user.id}`}
+          onClick={() => openEdit(user)}
+          aria-label={`Editar usuário ${user.name}`}
+          style={iconeBtn}
+          onMouseEnter={e => { e.currentTarget.style.backgroundColor = T.low; e.currentTarget.style.color = T.text; }}
+          onMouseLeave={e => { e.currentTarget.style.backgroundColor = "transparent"; e.currentTarget.style.color = T.second; }}
+        >
+          <Pencil style={{ width: 15, height: 15 }} />
+        </button>
+        {/* "QUEM FEZ ISSO?" ao contrário: "o que esta pessoa fez?". Era abrir
+            Logs e digitar o nome; o atalho abre a trilha já buscando por ele (a
+            busca dos Logs casa o nome do autor e mora na URL). */}
+        <button
+          data-testid={`button-logs-${user.id}`}
+          onClick={() => navigate(`/logs-sistema?busca=${encodeURIComponent(user.name)}`)}
+          aria-label={`Ver nos logs o que ${user.name} fez`}
+          style={iconeBtn}
+          onMouseEnter={e => { e.currentTarget.style.backgroundColor = T.low; e.currentTarget.style.color = T.text; }}
+          onMouseLeave={e => { e.currentTarget.style.backgroundColor = "transparent"; e.currentTarget.style.color = T.second; }}
+        >
+          <ScrollText style={{ width: 15, height: 15 }} />
+        </button>
+        {me?.id !== user.id && (
+          <button
+            data-testid={`button-delete-${user.id}`}
+            onClick={() => setDeletingUser(user)}
+            aria-label={`Excluir usuário ${user.name}`}
+            style={iconeBtn}
+            onMouseEnter={e => { e.currentTarget.style.backgroundColor = "#fef2f2"; e.currentTarget.style.color = "#b91c1c"; }}
+            onMouseLeave={e => { e.currentTarget.style.backgroundColor = "transparent"; e.currentTarget.style.color = T.second; }}
+          >
+            <Trash2 style={{ width: 15, height: 15 }} />
+          </button>
+        )}
+      </>
+    );
+  };
+
   /* ── Role counts ── */
   const roleCounts = Object.keys(ROLE_CFG).reduce((acc, r) => {
     acc[r] = users.filter(u => u.role === r).length;
@@ -506,7 +563,7 @@ export default function Usuarios() {
       </div>
 
       {/* ── Table ── */}
-      <section style={{ backgroundColor: T.surface, border: `1px solid ${T.border}`, borderRadius: 12, overflow: "hidden", marginBottom: 20 }}>
+      <section ref={listaRef} style={{ backgroundColor: T.surface, border: `1px solid ${T.border}`, borderRadius: 12, overflow: "hidden", marginBottom: 20 }}>
         {isLoading ? (
           // Esqueleto com a silhueta das linhas (avatar + nome + perfil): a
           // tabela "chega" no lugar em que vai ficar, em vez de um texto que
@@ -552,15 +609,97 @@ export default function Usuarios() {
           </div>
         ) : (
           <>
+            {/* CARTÃO POR USUÁRIO abaixo de 820px de área útil. A tabela tem
+                seis colunas e não tinha mínimo: em vez de rolar, ela ESPREMIA —
+                o e-mail (a informação que identifica a pessoa no SSO) virava
+                duas letras por linha e a coluna de Ações ficava com 20px. */}
+            {cards ? (
+            <ul data-testid="lista-usuarios-cards" style={{ listStyle: "none", margin: 0, padding: 0 }}>
+              {paginated.map(user => {
+                const cfg = ROLE_CFG[user.role] || ROLE_CFG.solicitacao;
+                return (
+                  <li key={user.id} data-testid={`row-user-${user.id}`}
+                    style={{ padding: "14px 16px", borderBottom: `1px solid ${T.low}`, display: "flex", flexDirection: "column", gap: 10 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+                      <div style={{
+                        width: 32, height: 32, borderRadius: "50%",
+                        backgroundColor: cfg.avatarBg, color: cfg.avatarColor,
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                        fontSize: 11, fontWeight: 800, flexShrink: 0, letterSpacing: 0,
+                      }}>
+                        {initials(user.name)}
+                      </div>
+                      <div style={{ minWidth: 0, flex: 1 }}>
+                        <div style={{ fontSize: 14, fontWeight: 700, color: T.text, overflowWrap: "anywhere", lineHeight: 1.3 }}>
+                          {user.name}
+                          {me?.id === user.id && (
+                            <span style={{ marginLeft: 6, fontSize: 11, fontWeight: 700, color: T.second, backgroundColor: T.low, borderRadius: 999, padding: "2px 8px" }}>você</span>
+                          )}
+                        </div>
+                        {/* E-MAIL INTEIRO, quebrando onde precisar: é por ele
+                            que a pessoa entra (SSO) e é o que se confere. */}
+                        <div style={{ fontSize: 12.5, color: T.second, overflowWrap: "anywhere", lineHeight: 1.35 }}>{user.email}</div>
+                      </div>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                      <span style={{
+                        padding: "3px 10px", borderRadius: 999,
+                        backgroundColor: cfg.bg, color: cfg.color,
+                        fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em",
+                      }}>
+                        {cfg.label}
+                      </span>
+                      {user.kit && (
+                        <span data-testid={`badge-kit-${user.id}`} style={{
+                          padding: "3px 8px", borderRadius: 999,
+                          backgroundColor: "#f5f3ff", color: "#6d28d9", border: "1px solid #ddd6fe",
+                          fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.06em",
+                        }}>
+                          Kit
+                          <span className="sr-only"> — só vê e cria peças do Kit, e só as dele</span>
+                        </span>
+                      )}
+                      {user.mustChangePassword ? (
+                        <span style={{
+                          padding: "3px 8px", borderRadius: 6,
+                          border: "1px solid #fde68a", color: "#a16207", backgroundColor: "#fefce8",
+                          fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em",
+                        }}>
+                          Trocar Senha
+                        </span>
+                      ) : (
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
+                          <span aria-hidden="true" style={{ width: 7, height: 7, borderRadius: "50%", backgroundColor: "#22c55e" }} />
+                          <span style={{ fontSize: 11, color: T.second, fontWeight: 600 }}>Ativo</span>
+                        </span>
+                      )}
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                      <span style={{ fontSize: 11.5, color: T.second }}>
+                        Criado em {format(new Date(user.createdAt), "dd/MM/yyyy", { locale: ptBR })}
+                      </span>
+                      <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>{acoesDoUsuario(user)}</div>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+            ) : (
             <div style={{ overflowX: "auto" }}>
               <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left" }}>
                 <thead>
                   <tr style={{ backgroundColor: T.low, borderBottom: `1px solid ${T.border}` }}>
-                    {["Nome", "Email", "Perfil", "Status", "Criado em", "Ações"].map((h, i) => (
+                    {/* Entre 820 e 1180px de área útil "Criado em" sai da
+                        tabela e desce para baixo do nome: é a coluna menos
+                        consultada e a que empurrava o e-mail para o corte. */}
+                    {(compacto
+                      ? ["Nome", "Email", "Perfil", "Status", "Ações"]
+                      : ["Nome", "Email", "Perfil", "Status", "Criado em", "Ações"]
+                    ).map((h, i, todas) => (
                       <th key={h} scope="col" style={{
                         padding: "12px 20px", fontSize: 10, fontWeight: 900,
                         color: T.second, textTransform: "uppercase", letterSpacing: "0.16em",
-                        textAlign: i === 5 ? "right" : "left",
+                        textAlign: i === todas.length - 1 ? "right" : "left",
                       }}>{h}</th>
                     ))}
                   </tr>
@@ -595,6 +734,11 @@ export default function Usuarios() {
                               <span style={{ fontSize: 10, fontWeight: 700, color: T.second, backgroundColor: T.low, borderRadius: 999, padding: "2px 8px" }}>você</span>
                             )}
                           </div>
+                          {compacto && (
+                            <div style={{ fontSize: 11, color: T.second, marginTop: 3, paddingLeft: 42 }}>
+                              Criado em {format(new Date(user.createdAt), "dd/MM/yyyy", { locale: ptBR })}
+                            </div>
+                          )}
                         </td>
 
                         {/* Email */}
@@ -610,12 +754,17 @@ export default function Usuarios() {
                             {cfg.label}
                           </span>
                           {user.kit && (
-                            <span data-testid={`badge-kit-${user.id}`} title="Usuário do Kit: só vê e cria peças do Kit, e só as dele" style={{
+                            <span data-testid={`badge-kit-${user.id}`} style={{
                               marginLeft: 6, padding: "3px 8px", borderRadius: 999,
                               backgroundColor: "#f5f3ff", color: "#6d28d9", border: "1px solid #ddd6fe",
                               fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.06em",
                             }}>
                               Kit
+                              {/* O que "Kit" quer dizer ia só no `title`: no
+                                  tablet não há hover e o leitor de tela não o
+                                  lê num <span>. Agora é texto, escondido só
+                                  visualmente. */}
+                              <span className="sr-only"> — só vê e cria peças do Kit, e só as dele</span>
                             </span>
                           )}
                         </td>
@@ -640,50 +789,16 @@ export default function Usuarios() {
                         </td>
 
                         {/* Criado em */}
-                        <td style={{ padding: "14px 20px", fontSize: 13, color: T.second }}>
-                          {format(new Date(user.createdAt), "dd/MM/yyyy", { locale: ptBR })}
-                        </td>
+                        {!compacto && (
+                          <td style={{ padding: "14px 20px", fontSize: 13, color: T.second }}>
+                            {format(new Date(user.createdAt), "dd/MM/yyyy", { locale: ptBR })}
+                          </td>
+                        )}
 
                         {/* Ações */}
                         <td style={{ padding: "14px 20px", textAlign: "right" }}>
                           <div style={{ display: "flex", justifyContent: "flex-end", gap: 4 }}>
-                            <button
-                              data-testid={`button-edit-${user.id}`}
-                              onClick={() => openEdit(user)}
-                              aria-label={`Editar usuário ${user.name}`}
-                              style={{ width: toque, height: toque, color: T.second, backgroundColor: "transparent", border: "none", borderRadius: R.md, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", transition: "background-color 0.12s ease, color 0.12s ease" }}
-                              onMouseEnter={e => { e.currentTarget.style.backgroundColor = T.low; e.currentTarget.style.color = T.text; }}
-                              onMouseLeave={e => { e.currentTarget.style.backgroundColor = "transparent"; e.currentTarget.style.color = T.second; }}
-                            >
-                              <Pencil style={{ width: 15, height: 15 }} />
-                            </button>
-                            {/* "QUEM FEZ ISSO?" ao contrário: "o que esta pessoa
-                                fez?". Era abrir Logs e digitar o nome; o atalho
-                                abre a trilha já buscando por ele (a busca dos
-                                Logs casa o nome do autor e mora na URL). */}
-                            <button
-                              data-testid={`button-logs-${user.id}`}
-                              onClick={() => navigate(`/logs-sistema?busca=${encodeURIComponent(user.name)}`)}
-                              aria-label={`Ver nos logs o que ${user.name} fez`}
-                              title="Ver nos logs o que esta pessoa fez"
-                              style={{ width: toque, height: toque, color: T.second, backgroundColor: "transparent", border: "none", borderRadius: R.md, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", transition: "background-color 0.12s ease, color 0.12s ease" }}
-                              onMouseEnter={e => { e.currentTarget.style.backgroundColor = T.low; e.currentTarget.style.color = T.text; }}
-                              onMouseLeave={e => { e.currentTarget.style.backgroundColor = "transparent"; e.currentTarget.style.color = T.second; }}
-                            >
-                              <ScrollText style={{ width: 15, height: 15 }} />
-                            </button>
-                            {me?.id !== user.id && (
-                              <button
-                                data-testid={`button-delete-${user.id}`}
-                                onClick={() => setDeletingUser(user)}
-                                aria-label={`Excluir usuário ${user.name}`}
-                                style={{ width: toque, height: toque, color: T.second, backgroundColor: "transparent", border: "none", borderRadius: R.md, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", transition: "background-color 0.12s ease, color 0.12s ease" }}
-                                onMouseEnter={e => { e.currentTarget.style.backgroundColor = "#fef2f2"; e.currentTarget.style.color = "#b91c1c"; }}
-                                onMouseLeave={e => { e.currentTarget.style.backgroundColor = "transparent"; e.currentTarget.style.color = T.second; }}
-                              >
-                                <Trash2 style={{ width: 15, height: 15 }} />
-                              </button>
-                            )}
+                            {acoesDoUsuario(user)}
                           </div>
                         </td>
                       </tr>
@@ -692,6 +807,7 @@ export default function Usuarios() {
                 </tbody>
               </table>
             </div>
+            )}
 
             {/* Pagination footer */}
             <div style={{ padding: "10px 20px", borderTop: `1px solid ${T.border}`, display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10, backgroundColor: T.low }}>

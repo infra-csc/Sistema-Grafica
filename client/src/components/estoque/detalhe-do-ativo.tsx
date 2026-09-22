@@ -25,7 +25,7 @@ import { Archive, BookmarkCheck, CalendarDays, CheckCircle2, ChevronRight, Packa
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { HIDE_NATIVE_CLOSE, ModalFooter, ModalHeader, modalSurface } from "@/components/modal-shell";
 import { useAcompanharAreaVisivel } from "@/components/grafica/area-visivel";
-import { useIsMobile } from "@/hooks/use-mobile";
+import { alvo, useIsMobile, usePonteiroGrosso } from "@/hooks/use-mobile";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { miniatura } from "@/lib/miniatura";
@@ -76,6 +76,8 @@ export function DetalheDoAtivo({ grupo, unidade, linkedItem, sponsors, reservaPo
   onAbrirUnidade: (a: InventoryAsset | null) => void;
 }) {
   const isMobile = useIsMobile();
+  /** Dedo (celular OU tablet do galpão): manda no TAMANHO do alvo, só nele. */
+  const dedo = usePonteiroGrosso() || isMobile;
   const { toast } = useToast();
   const superficieRef = useRef<HTMLDivElement>(null);
   useAcompanharAreaVisivel(superficieRef, "centro", isMobile);
@@ -128,7 +130,8 @@ export function DetalheDoAtivo({ grupo, unidade, linkedItem, sponsors, reservaPo
   // Peça reservada não vai para manutenção (o servidor recusa com 409): o
   // botão fica desabilitado e o motivo aparece embaixo, antes do clique.
   const manutencaoBloqueada = !todosEmManutencao && reservas.length > 0;
-  const alvo = isMobile ? 44 : 36;
+  // Alvo pelo PONTEIRO: o tablet do galpão é dedo em 1024px de janela.
+  const alvoBotao = alvo(36, dedo);
   const botao = (primario: boolean): React.CSSProperties => ({
     display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, minHeight: 44, padding: "0 16px", borderRadius: 10, fontSize: 14, fontWeight: 700, cursor: gravando ? "wait" : "pointer",
     border: primario ? "none" : "1px solid #e2e8f0", background: primario ? "#c2410c" : "#fff", color: primario ? "#fff" : "#334155", flex: isMobile ? 1 : undefined,
@@ -150,7 +153,7 @@ export function DetalheDoAtivo({ grupo, unidade, linkedItem, sponsors, reservaPo
         <div style={{ padding: isMobile ? 16 : 24, overflowY: "auto", flex: "1 1 auto", minHeight: 0, display: "flex", flexDirection: "column", gap: 16, background: "#f8fafc" }}>
           {unidade && grupo.ativos.length > 1 && (
             <button type="button" data-testid="detalhe-voltar-ao-grupo" onClick={() => onAbrirUnidade(null)}
-              style={{ alignSelf: "flex-start", minHeight: isMobile ? 44 : 32, background: "none", border: "none", padding: 0, fontSize: 13, fontWeight: 700, color: "#475569", cursor: "pointer" }}>
+              style={{ alignSelf: "flex-start", minHeight: alvo(32, dedo), background: "none", border: "none", padding: 0, fontSize: 13, fontWeight: 700, color: "#475569", cursor: "pointer" }}>
               ← Ver as {grupo.unidades} unidades de {grupo.nome}
             </button>
           )}
@@ -175,7 +178,7 @@ export function DetalheDoAtivo({ grupo, unidade, linkedItem, sponsors, reservaPo
                   return (
                     <button key={c} type="button" role="radio" aria-checked={ativa} disabled={!podeEditar || gravando} data-testid={`detalhe-condicao-${c}`}
                       onClick={() => { if (!ativa) mudar({ condition: c }, `Condição: ${meta.label}`); }}
-                      style={{ display: "inline-flex", alignItems: "center", gap: 5, minHeight: alvo, padding: "0 12px", borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: podeEditar ? "pointer" : "default", border: `1px solid ${ativa ? meta.color : "#e2e8f0"}`, background: ativa ? meta.bg : "#fff", color: ativa ? meta.color : "#475569" }}>
+                      style={{ display: "inline-flex", alignItems: "center", gap: 5, minHeight: alvoBotao, padding: "0 12px", borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: podeEditar ? "pointer" : "default", border: `1px solid ${ativa ? meta.color : "#e2e8f0"}`, background: ativa ? meta.bg : "#fff", color: ativa ? meta.color : "#475569" }}>
                       {ativa && <CheckCircle2 size={13} aria-hidden="true" />}{meta.label}
                     </button>
                   );

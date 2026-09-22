@@ -4,9 +4,35 @@ dist
 server/public
 vite.config.ts.*
 *.tar.gz
+
+# Pré-visualizações geradas por scripts/preview-email-*.ts — abrem no navegador
+# e são refeitas a cada rodada.
 preview-book.html
 preview-gestao.html
+
+# ── O QUE SAIU DO ÍNDICE EM 22/09 (com `git rm --cached`, os arquivos ficaram
+# no disco) ──────────────────────────────────────────────────────────────────
+# Nada disto entra no build nem no deploy, e junto pesava ~92 MB de um repo de
+# ~15 MB de código: todo clone pagava por imagem de conversa antiga.
+#
+# `attached_assets/` — prints e planilhas anexados às conversas do Replit. O
+# alias `@assets` de vite.config.ts ainda aponta para cá, mas NENHUM import o
+# usa (conferido por grep).
+attached_assets/
+# Rascunhos visuais da ferramenta Canvas do Replit.
+.canvas/
+# Um app Vite inteiro (com package-lock próprio) que servia de caixa de areia
+# para mockups. Os previews de e-mail em artifacts/email-preview/ ficam.
+artifacts/mockup-sandbox/
+
+# Relatórios das ferramentas de teste.
+playwright-report/
+test-results/
+coverage/
 
 # Segredos locais — nunca no repositório.
 .env
 .env.*
+# O modelo é o contrário: só nomes e comentários, nenhum valor. Precisa estar
+# versionado, senão ninguém descobre quais variáveis existem.
+!.env.example

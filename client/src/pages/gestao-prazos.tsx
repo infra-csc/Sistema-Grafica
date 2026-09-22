@@ -29,7 +29,7 @@ import { ToastAction } from "@/components/ui/toast";
 import { useToast } from "@/hooks/use-toast";
 import { getPriorityMeta, PRIORITY } from "@/lib/status";
 import { MARCOS_DO_EVENTO } from "@shared/prazo-dates";
-import { useIsMobile } from "@/hooks/use-mobile";
+import { alvo, useDensidadeDoConteudo, usePonteiroGrosso } from "@/hooks/use-mobile";
 import { onPrazosInvalidated } from "@/hooks/use-websocket";
 import type {
   CobrancaEntry, CobrancaMap, PrazoEvent, PrazosPayload, SponsorDelay,
@@ -124,7 +124,13 @@ function parseVisao(raw: string | null): Visao {
 }
 
 export default function GestaoPrazos() {
-  const isMobile = useIsMobile();
+  // Régua única (use-mobile.tsx): a tabela de 10+ colunas (minWidth 900) vira
+  // os MESMOS cartões do celular quando a área útil não a comporta. Antes o
+  // corte era a janela: um notebook de 1280px com a barra lateral aberta deixa
+  // ~1000px e a tabela rolava de lado escondendo "Entregues" e o botão de
+  // expandir — as duas colunas da direita, que são as que se consultam.
+  const { ref: corpoRef, cards: emCards, compacto, isMobile } = useDensidadeDoConteudo<HTMLDivElement>();
+  const ponteiroGrosso = usePonteiroGrosso();
   const { toast } = useToast();
 
   const { data, isLoading, isError, error, refetch, isFetching } = useQuery<PrazosPayload>({
@@ -852,7 +858,26 @@ export default function GestaoPrazos() {
   // texto puro). São justamente as saídas de quem travou: recebem a régua da
   // casa, 36 no ponteiro e 44 no toque. `minHeight` em vez de mais padding, e
   // o desenho do desktop não muda.
-  const alvoEstado = isMobile ? 44 : 36;
+  // `alvo` no PONTEIRO, não na largura: o tablet do galpão fica com 36px nos
+  // botões de saída de erro e é operado com o dedo.
+  const alvoEstado = alvo(36, ponteiroGrosso || isMobile);
+
+  // Os cartões servem a dois casos — o celular e o tablet que pediu a tabela e
+  // não tem largura para ela. Um markup só para os dois.
+  const listaEmCards = (
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      {filtered.map((ev) => (
+        <CardMobilePrazos
+          key={ev.id}
+          ev={ev}
+          expanded={expandedId === ev.id}
+          onToggle={alternarExpandido}
+          cobranca={cobrancaEvento(ev.eventId ?? ev.id)}
+          today={today}
+        />
+      ))}
+    </div>
+  );
 
   if (isLoading) {
     // Skeleton RAMIFICADO por visão: o antigo desenhava uma faixa de 120px
@@ -1086,20 +1111,7 @@ export default function GestaoPrazos() {
     );
   } else if (isMobile) {
     // ── Cards mobile (markup em components/prazos/card-mobile.tsx) ──────────
-    body = (
-      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-        {filtered.map((ev) => (
-          <CardMobilePrazos
-            key={ev.id}
-            ev={ev}
-            expanded={expandedId === ev.id}
-            onToggle={alternarExpandido}
-            cobranca={cobrancaEvento(ev.eventId ?? ev.id)}
-            today={today}
-          />
-        ))}
-      </div>
-    );
+    body = listaEmCards;
   } else if (visao === "quadro") {
     // ── Quadro (visão principal): uma coluna por etapa, o evento é um card
     // na coluna onde o funil dele está travado. Clique abre o drill em modal.
@@ -1129,6 +1141,11 @@ export default function GestaoPrazos() {
         ))}
       </div>
     );
+  } else if (emCards) {
+    // A TABELA FOI PEDIDA, MAS NÃO CABE. `minWidth: 900` num tablet com a barra
+    // lateral aberta (~700px úteis) rolava de lado e escondia "Entregues" e o
+    // botão de expandir — as duas colunas da direita. Cartão mostra tudo.
+    body = listaEmCards;
   } else {
     // ── Tabela desktop (markup em components/prazos/tabela-prazos.tsx) ──────
     body = (
@@ -1140,6 +1157,8 @@ export default function GestaoPrazos() {
         printMode={printMode}
         cobrancaDe={cobrancaEvento}
         today={today}
+        compacto={compacto}
+        alvoBotao={alvo(36, ponteiroGrosso)}
       />
     );
   }
@@ -2047,7 +2066,10 @@ export default function GestaoPrazos() {
           </div>
         )}
 
-        {body}
+        {/* A caixa que MEDE a área útil da lista (ver use-mobile.tsx). Fica
+            aqui, e não na raiz da página, porque é esta largura — já sem o
+            padding da página — que a tabela precisa caber. */}
+        <div ref={corpoRef}>{body}</div>
 
         {/* Detalhe do evento: o drill de cobrança na casca da casa. */}
         <Dialog open={modalAberto} onOpenChange={(open) => { if (!open) setDetailId(null); }}>

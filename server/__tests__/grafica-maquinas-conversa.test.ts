@@ -74,7 +74,7 @@ describe("1 · tempo real: toda mensagem de peça invalida as DUAS telas", () =>
   it("o mapa: cada mensagem das ações invalida a fila da Gráfica E o retrato de Máquinas (e o resumo)", () => {
     const deItem = new Set(ACOES.flatMap((a) => a.mensagens).filter((m) => m !== "tubos_atualizados"));
     for (const m of Array.from(deItem).concat(["production_updated", "event_updated", "event_deleted", "item_sponsor_added", "item_sponsor_removed"])) {
-      const chaves = CHAVES_POR_MENSAGEM[m] ?? [];
+      const chaves = CHAVES_POR_MENSAGEM[m as keyof typeof CHAVES_POR_MENSAGEM] ?? [];
       expect(chaves, m).toContain("/api/items/approved");
       expect(chaves, m).toContain("/api/grafica/maquinas");
       expect(chaves, m).toContain("/api/grafica/maquinas/relatorio");

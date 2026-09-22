@@ -51,7 +51,7 @@ function item(over: Partial<PrazoPendingItem> = {}): PrazoPendingItem {
   seq += 1;
   return {
     id: `it-${seq}`, displayId: `#${1000 + seq}`, status: "draft",
-    stageIndex: 0, type: "2x1", description: null, quantity: 1,
+    stageIndex: 0, marcoIndex: 0, type: "2x1", description: null, quantity: 1,
     waitingDays: 0, ...over,
   };
 }

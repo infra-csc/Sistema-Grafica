@@ -149,6 +149,7 @@ import { createPortal } from "react-dom";
 import { Search, ChevronDown, Check, X, ArrowUpDown } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { normalizarBusca } from "@/lib/utils";
+import { T } from "@/lib/theme";
 
 export interface FilterOption {
   value: string;
@@ -1139,7 +1140,7 @@ export function FilterSelect({
 
             {/* Opções */}
             {filteredSorted.length === 0 ? (
-              <div style={{ padding: "20px 12px", textAlign: "center", fontSize: 12, color: "#78716c" }}>
+              <div style={{ padding: "20px 12px", textAlign: "center", fontSize: 12, color: T.second }}>
                 {emptyText}
               </div>
             ) : hasGroups ? (
@@ -1149,7 +1150,7 @@ export function FilterSelect({
                 // justamente o que o agrupamento visual comunica.
                 <div key={groupName || "__sem__"} role="group" aria-label={groupName || undefined}>
                   {groupName && (
-                    <div style={{ padding: "8px 14px 3px", fontSize: 11, fontWeight: 800, color: "#78716c", textTransform: "uppercase", letterSpacing: "0.08em" }}>
+                    <div style={{ padding: "8px 14px 3px", fontSize: 11, fontWeight: 800, color: T.second, textTransform: "uppercase", letterSpacing: "0.08em" }}>
                       {groupName}
                     </div>
                   )}

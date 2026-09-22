@@ -8,6 +8,7 @@ import { FilterSelect, type FilterOption } from "@/components/filter-select";
 // Mesma normalização da busca dos menus: sem acento, sem caixa, sem espaço
 // sobrando. É ela que reconhece "sanett" e "Sanett" como o mesmo material.
 import { normalizarBusca } from "@/lib/utils";
+import { T } from "@/lib/theme";
 
 const materials = ["Adesivo", "Lona", "Madeira", "Sanett", "Tecido", "Tecido Pet"];
 const finishes = ["Dupla Face", "Ilhós", "Impressão UV", "Impresso", "Recorte", "Refile"];
@@ -1411,7 +1412,7 @@ export function BulkItemEntry({
                         onClick={() => duplicateRow(row.id)}
                         title={`Replicar ${getReplicateCount(row.id)}x`}
                         aria-label={`Replicar a linha ${ri + 1} ${getReplicateCount(row.id)} ${getReplicateCount(row.id) === 1 ? 'vez' : 'vezes'}`}
-                        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '3px', borderRadius: '6px', color: '#78716c', lineHeight: 0 }}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '3px', borderRadius: '6px', color: T.second, lineHeight: 0 }}
                         onMouseEnter={e => (e.currentTarget.style.color = '#1a1c1c')}
                         onMouseLeave={e => (e.currentTarget.style.color = '#78716c')}
                         data-testid={`button-duplicate-${ri}`}
@@ -1457,7 +1458,7 @@ export function BulkItemEntry({
                         // em vez de engolir o clique em silêncio.
                         title={rows.length === 1 ? "A grade precisa de pelo menos uma linha" : "Remover esta linha"}
                         aria-label={`Remover a linha ${ri + 1}`}
-                        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '3px', borderRadius: '6px', color: '#78716c', lineHeight: 0 }}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '3px', borderRadius: '6px', color: T.second, lineHeight: 0 }}
                         onMouseEnter={e => (e.currentTarget.style.color = '#ef4444')}
                         onMouseLeave={e => (e.currentTarget.style.color = '#78716c')}
                         data-testid={`button-remove-${ri}`}

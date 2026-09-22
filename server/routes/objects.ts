@@ -5,7 +5,10 @@ import { storage } from "../storage";
 import { insertDeliveryPhotoSchema } from "@shared/schema";
 import { requireAuth, sendSensitiveError } from "./shared";
 import { avaliarUpload, avaliarPedidoDeUrlAssinada, cabecalhosDoObjeto, MAX_UPLOAD_BYTES } from "../upload-seguro";
-import { miniaturasDisponiveis, tipoMiniaturavel, gerarMiniatura, TETO_ORIGINAL_BYTES } from "../services/miniaturas";
+import {
+  miniaturasDisponiveis, tipoMiniaturavel, gerarMiniatura, TETO_ORIGINAL_BYTES,
+  gravarMiniaturaDoUpload, lerMiniaturaGravada, type ArquivoDoBucket,
+} from "../services/miniaturas";
 
 export async function registerObjectRoutes(app: Express): Promise<void> {
   
@@ -53,6 +56,22 @@ export async function registerObjectRoutes(app: Express): Promise<void> {
         }
         const objectStorageService = new ObjectStorageService();
         const url = await objectStorageService.uploadObjectEntityFromBuffer(buf, avaliacao.tipo);
+        // A MINIATURA NASCE AQUI (perf, 2ª rodada). Os bytes já estão em
+        // memória e o sharp já teria de rodar na primeira listagem que
+        // mostrasse esta imagem — fazer agora troca "um download de 25 MB e um
+        // resize por falta de cache, em cada cópia do processo" por um resize
+        // só, uma vez na vida. Falha não derruba o upload: a geração a pedido
+        // continua de plano B (ver services/miniaturas.ts).
+        if (miniaturasDisponiveis() && tipoMiniaturavel(avaliacao.tipo)) {
+          try {
+            const arquivo = await objectStorageService.getObjectEntityFile(
+              objectStorageService.normalizeObjectEntityPath(url),
+            );
+            await gravarMiniaturaDoUpload(arquivo as unknown as ArquivoDoBucket, buf, avaliacao.tipo);
+          } catch (e) {
+            console.error("[miniaturas] upload gravado, miniatura não — segue a geração a pedido", e);
+          }
+        }
         res.json({ url });
       } catch (error: any) {
         console.error("Error in proxy upload:", error);
@@ -93,11 +112,31 @@ export async function registerObjectRoutes(app: Express): Promise<void> {
       }
 
       // ── MINIATURA (?thumb=1 — auditoria 27/08) ─────────────────────────────
-      // As listas pintam originais de MBs em caixas de 12–80px. Com sharp
-      // instalado, devolve um webp de até 320px (LRU em memória + cache de
-      // browser de 24h). Sem sharp, imagem não-raster, original grande demais
-      // ou falha no resize: cai no fluxo normal e serve o original — o
-      // comportamento de ontem é o pior caso.
+      // As listas pintam originais de MBs em caixas de 12–80px. A resposta é um
+      // webp de até 320px. Ordem das tentativas:
+      //   1. a miniatura GRAVADA no upload, irmã do original no bucket
+      //      (`<caminho>/thumb.webp`) — um download de ~10–30 KB, sem sharp e
+      //      sem tocar no original. É o caminho de tudo que subiu a partir da
+      //      2ª rodada de performance;
+      //   2. a geração a pedido, com o LRU em memória — o plano B de tudo o que
+      //      já estava no bucket (não há backfill, por decisão do dono);
+      //   3. o original, como sempre.
+      // O controle de acesso não muda: a ACL foi conferida acima, contra o
+      // objeto ORIGINAL, antes de qualquer uma destas tentativas.
+      const cabecalhosDaMiniatura = {
+        ...cabecalhosDoObjeto("image/webp"),
+        "Content-Type": "image/webp",
+        // private: mesma razão do downloadObject — rota autenticada, proxy
+        // compartilhado não pode cachear.
+        "Cache-Control": "private, max-age=86400",
+      };
+      if (req.query.thumb === "1") {
+        const gravada = await lerMiniaturaGravada(objectFile as unknown as ArquivoDoBucket);
+        if (gravada) {
+          res.set(cabecalhosDaMiniatura);
+          return res.end(gravada);
+        }
+      }
       if (req.query.thumb === "1" && miniaturasDisponiveis()) {
         try {
           const [metadata] = await objectFile.getMetadata();
@@ -107,13 +146,7 @@ export async function registerObjectRoutes(app: Express): Promise<void> {
             const [original] = await objectFile.download();
             const mini = await gerarMiniatura(req.path, original);
             if (mini) {
-              res.set({
-                ...cabecalhosDoObjeto("image/webp"),
-                "Content-Type": "image/webp",
-                // private: mesma razão do downloadObject — rota autenticada,
-                // proxy compartilhado não pode cachear.
-                "Cache-Control": "private, max-age=86400",
-              });
+              res.set(cabecalhosDaMiniatura);
               return res.end(mini);
             }
           }

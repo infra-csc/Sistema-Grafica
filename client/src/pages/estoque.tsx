@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { useIsMobile } from "@/hooks/use-mobile";
+import { alvo, useDensidadeDoConteudo, useIsMobile, usePonteiroGrosso } from "@/hooks/use-mobile";
 import { useAuth } from "@/contexts/auth-context";
 import { diaEMes, eventoJaAcabou, eventosDeUso, usosDoAtivo, ROTULO_DO_USO, type AlocacaoDoAcervo, type UsoDoAtivo } from "@shared/estoque";
 import { agruparAcervo, fraseDaCondicao, fraseDaSituacao, type GrupoDoAcervo } from "@/lib/agrupar-acervo";
@@ -446,7 +446,13 @@ function AssetModal({ asset, reserva, onClose, onSaved }: {
 export const LOTE_DO_ESTOQUE = 60;
 
 export default function Estoque() {
-  const isMobile = useIsMobile();
+  // Régua única (use-mobile.tsx): a tabela de 6 colunas tem `minWidth: 900` e a
+  // coluna de Ações é a última — num tablet com a barra lateral aberta ela
+  // ficava FORA da área visível e a rolagem lateral não era óbvia. Abaixo de
+  // 820px de área útil entra a mesma lista de cartões do celular, que já
+  // existe e mostra ação, condição e situação sem rolar nada.
+  const { ref: listaRef, cards: emCards, compacto, isMobile } = useDensidadeDoConteudo<HTMLDivElement>();
+  const ponteiroGrosso = usePonteiroGrosso();
   const { toast } = useToast();
   const [, navigate] = useLocation();
   // FILTROS NA URL (regra da casa): F5 não perde o recorte e dá para mandar o
@@ -966,7 +972,9 @@ export default function Estoque() {
       })()}
 
       {/* ── Table ── */}
-      <div style={{ background: "#fff", borderRadius: isMobile ? 12 : 16, border: "1px solid #e2e8f0", overflow: "hidden", boxShadow: "0 1px 3px rgba(15,23,42,0.05)" }}>
+      {/* `listaRef` mede a ÁREA ÚTIL desta caixa (já sem o padding da página):
+          é ela, e não a janela, que decide entre tabela e cartões. */}
+      <div ref={listaRef} style={{ background: "#fff", borderRadius: isMobile ? 12 : 16, border: "1px solid #e2e8f0", overflow: "hidden", boxShadow: "0 1px 3px rgba(15,23,42,0.05)" }}>
         {isLoading ? (
           <div data-testid="skeleton-estoque" aria-busy="true" aria-label="Carregando o estoque" style={{ padding: isMobile ? "4px 14px" : "8px 24px" }}>
             {[0, 1, 2, 3, 4, 5].map(i => (
@@ -1014,14 +1022,17 @@ export default function Estoque() {
               // vistas: tabela no desktop, lista no celular. Antes o celular
               // recebia a tabela de 860px com rolagem lateral — o status e as
               // ações ficavam fora da tela e ninguém sabia que dava para rolar.
-              const alvoAcao = isMobile ? 44 : 32;
+              // Alvo pelo PONTEIRO: o tablet do galpão não é "mobile" pela
+              // largura e ficava com 32px em Ver/Editar/Excluir, metade do
+              // mínimo para o dedo.
+              const alvoAcao = alvo(32, ponteiroGrosso || isMobile);
               const botaoAcao: React.CSSProperties = { width: alvoAcao, height: alvoAcao, borderRadius: 8, border: "none", background: "transparent", cursor: "pointer", color: "#64748b", display: "flex", alignItems: "center", justifyContent: "center", transition: "color 0.15s, background 0.15s" };
               const pecasDe = (asset: InventoryAsset) => {
                 const sm = STATUS_META[asset.trackingStatus ?? "NO_GALPAO"];
                 const cm = conditionMeta(asset.condition);
                 const thumbOk = asset.approvalThumbUrl && (/\.(png|jpg|jpeg|gif|webp)/i.test(asset.approvalThumbUrl) || asset.approvalThumbUrl.startsWith('/objects/'));
                 const assetSponsors = (asset.sponsorIds ?? []).map(id => patrocinadorPorId.get(id)).filter(Boolean);
-                const lado = isMobile ? 48 : 40;
+                const lado = emCards ? 48 : 40;
 
                 const miniaturaEl = (
                   <div style={{ width: lado, height: lado, borderRadius: 8, overflow: "hidden", background: "#f1f5f9", border: "1px solid #e2e8f0", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -1182,21 +1193,21 @@ export default function Estoque() {
                       onClick={e => { e.stopPropagation(); setViewingAsset(asset); }}
                       {...tingir("#c2410c", "rgba(194,65,12,0.08)")}
                       style={botaoAcao}>
-                      <Eye size={isMobile ? 18 : 15} aria-hidden="true" />
+                      <Eye size={ponteiroGrosso || isMobile ? 18 : 15} aria-hidden="true" />
                     </button>
                     {podeEditar && <button data-testid={`button-edit-asset-${asset.id}`}
                       title="Editar" aria-label={`Editar ${asset.name}`}
                       onClick={e => { e.stopPropagation(); setEditing(asset); }}
                       {...tingir("#1d4ed8", "rgba(37,99,235,0.08)")}
                       style={botaoAcao}>
-                      <Pencil size={isMobile ? 18 : 15} aria-hidden="true" />
+                      <Pencil size={ponteiroGrosso || isMobile ? 18 : 15} aria-hidden="true" />
                     </button>}
                     {podeExcluir && <button data-testid={`button-delete-asset-${asset.id}`}
                       title="Excluir" aria-label={`Excluir ${asset.name}`}
                       onClick={e => { e.stopPropagation(); setDeleting(asset); }}
                       {...tingir("#b91c1c", "rgba(239,68,68,0.08)")}
                       style={botaoAcao}>
-                      <Trash2 size={isMobile ? 18 : 15} aria-hidden="true" />
+                      <Trash2 size={ponteiroGrosso || isMobile ? 18 : 15} aria-hidden="true" />
                     </button>}
                   </div>
                 );
@@ -1242,12 +1253,12 @@ export default function Estoque() {
               const verGrupoEl = (g: GrupoDoAcervo<InventoryAsset>) => (
                 <button data-testid={`button-view-group-${g.ativos[0].id}`} title="Ver o material" aria-label={`Ver detalhes de ${g.nome}`}
                   onClick={e => { e.stopPropagation(); setVendo({ chave: g.chave, unidadeId: null }); }} style={botaoAcao}>
-                  <Eye size={isMobile ? 18 : 15} aria-hidden="true" />
+                  <Eye size={ponteiroGrosso || isMobile ? 18 : 15} aria-hidden="true" />
                 </button>
               );
               const LIMITE_DE_UNIDADES = 40;
 
-              if (isMobile) {
+              if (emCards) {
                 return (
                   <ul aria-label="Materiais do acervo" style={{ listStyle: "none", margin: 0, padding: 0 }}>
                     {gruposVisiveis.map((g, i) => {
@@ -1303,15 +1314,19 @@ export default function Estoque() {
 
               return (
                 <div style={{ overflowX: "auto" }}>
-                  <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 900 }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse", minWidth: compacto ? 720 : 900 }}>
                     <thead>
                       <tr style={{ background: "#f8fafc" }}>
+                        {/* Entre 820 e 1180px de área útil "Onde já foi usado"
+                            desce para dentro da célula do material: é a coluna
+                            mais larga e a menos consultada, e era ela que
+                            empurrava Ações para fora da tela. */}
                         {[
                           { label: "Material", align: "left" },
                           { label: "Quantidade", align: "left" },
                           { label: "Situação", align: "left" },
                           { label: "Condição", align: "left" },
-                          { label: "Onde já foi usado", align: "left" },
+                          ...(compacto ? [] : [{ label: "Onde já foi usado", align: "left" }]),
                           { label: "Ações", align: "right" },
                         ].map(({ label, align }) => (
                           <th key={label} scope="col" style={{ ...TH, textAlign: align as any }}>{label}</th>
@@ -1342,6 +1357,7 @@ export default function Estoque() {
                                     {p.eventoEl}
                                     {p.patrocinadoresEl}
                                     {p.franquiasEl}
+                                    {compacto && <div style={{ marginTop: 3 }}>{usadoEmEl(g)}</div>}
                                   </div>
                                 </div>
                               </td>
@@ -1352,7 +1368,7 @@ export default function Estoque() {
                               <td style={TD} onClick={e => { if (unico) e.stopPropagation(); }}>
                                 {unico ? p.condicaoEl : <span data-testid={`condicao-${asset.id}`} style={{ fontSize: 13, color: "#334155" }}>{fraseDaCondicao(g)}</span>}
                               </td>
-                              <td style={TD}>{usadoEmEl(g)}</td>
+                              {!compacto && <td style={TD}>{usadoEmEl(g)}</td>}
                               <td style={{ ...TD, textAlign: "right", paddingRight: 20 }}>
                                 {unico ? p.acoesEl : <div className="row-actions" style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 2 }}>{alternarEl(g, aberto)}{verGrupoEl(g)}</div>}
                               </td>
@@ -1365,14 +1381,14 @@ export default function Estoque() {
                                   <td style={TD}>{pu.quantidadeEl}</td>
                                   <td style={TD}>{pu.statusEl}{pu.reservaEl}</td>
                                   <td style={TD}>{pu.condicaoEl}</td>
-                                  <td style={TD} />
+                                  {!compacto && <td style={TD} />}
                                   <td style={{ ...TD, textAlign: "right", paddingRight: 20 }}>{pu.acoesEl}</td>
                                 </tr>
                               );
                             })}
                             {!unico && aberto && g.ativos.length > LIMITE_DE_UNIDADES && (
                               <tr style={{ background: "#fafaf9" }}>
-                                <td colSpan={6} style={{ ...TD, paddingLeft: 75, fontSize: 12, color: "#475569" }}>
+                                <td colSpan={compacto ? 5 : 6} style={{ ...TD, paddingLeft: 75, fontSize: 12, color: "#475569" }}>
                                   Mostrando {LIMITE_DE_UNIDADES} de {g.ativos.length} unidades —{" "}
                                   <button type="button" onClick={() => setVendo({ chave: g.chave, unidadeId: null })} style={{ background: "none", border: "none", padding: 0, font: "inherit", fontWeight: 700, color: "#0f172a", textDecoration: "underline", cursor: "pointer" }}>ver todas no detalhe</button>
                                 </td>

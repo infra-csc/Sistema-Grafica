@@ -4,6 +4,12 @@ import { compareDisplayId } from "@/lib/displayId";
 import { SeloKit } from "@/components/kit/selo-kit";
 import { grupoDoKit } from "@shared/kit";
 import { ehMolde } from "@shared/molde";
+import { statusDasEtapas } from "@shared/fluxo-peca";
+
+// VAZIO ESTÁVEL para o `data` das queries enquanto carregam: `= []` cria um
+// array novo a cada render e invalida a cadeia de memos (visibleItems, mapas,
+// facetas) durante todo o carregamento.
+const VAZIO: any[] = [];
 
 /** A seção da linha: a remessa do Kit ("KIT V1 · entrega 14/09") ou o tipo (15/09). */
 const secaoDaPeca = (p: any): string => grupoDoKit(p) ?? (p.type || '');
@@ -73,6 +79,31 @@ const VINCULACAO_VISIBLE_STATUSES: string[] = [
   // desta tela ao ser conferida e o selo caía em "Pendente" (21/09).
   ...PRODUCTION_STATUSES,
 ];
+
+// ── A LISTA DESTA TELA VEM RECORTADA NO SERVIDOR (perf, 2ª rodada) ──────────
+//
+// A Vinculação lia ["/api/items"] — o acervo inteiro, 5 mil peças e 15 MB em
+// produção — e a primeira linha de `visibleItems` jogava fora tudo que não
+// estivesse em VINCULACAO_VISIBLE_STATUSES. Agora o recorte acontece no
+// servidor: GET /api/items?status= (delta e formato compacto, com a chave
+// dentro do prefixo "/api/items" para as invalidações continuarem alcançando).
+//
+// As ETAPAS canônicas de shared/fluxo-peca, e não os status escritos à mão
+// acima: a etapa traz junto as grafias legadas que ainda circulam no banco —
+// foi exatamente uma lista escrita à mão, sem `conferred`/`packed`, que fez a
+// peça SUMIR desta tela ao ser conferida (21/09). O conjunto é um
+// superconjunto de VINCULACAO_VISIBLE_STATUSES; o filtro do cliente continua
+// valendo e nenhuma linha muda.
+//
+// Ficam de fora Rascunho/Solicitada (`requested`, `draft` — a fila da
+// Solicitação, que esta tela já escondia), `approved`/`liberado` (que
+// VINCULACAO_VISIBLE_STATUSES nunca listou) e o que saiu do funil.
+const VINCULACAO_ETAPAS = [
+  "awaiting_linking", "awaiting_submission", "awaiting_approval",
+  "awaiting_finalization", "awaiting_final_review", "ready_for_production",
+  "inProduction", "produced", "conferred", "packed", "delivered",
+] as const;
+const CHAVE_DA_VINCULACAO = ["/api/items", `?status=${statusDasEtapas(...VINCULACAO_ETAPAS).join(",")}`] as const;
 
 // Status "a jusante": o item já saiu da vinculação (foi para a Arte, aprovação
 // ou produção). Precisa cobrir TODAS as convenções de status de ITEM realmente
@@ -353,15 +384,42 @@ export default function VincularPatrocinadores() {
   // e o aviso diz em quantas peças e o passo seguinte.
 
 
-  const { data: items = [], isLoading: itemsLoading, isError: itemsError, refetch: refetchItems } = useQuery<any[]>({
-    queryKey: ["/api/items"],
-  });
-
   // isLoading dos eventos também gateia o spinner: visibleItems exige o evento
   // no eventById — se /api/items resolvesse antes de /api/events, a tela
   // piscava o vazio "Nada para vincular agora" até os eventos chegarem.
-  const { data: rawEvents = [], isLoading: eventsLoading, isError: eventsError, refetch: refetchEvents } = useQuery<any[]>({
+  //
+  // E agora ela vem PRIMEIRO por um segundo motivo: é dela que sai o recorte
+  // por evento da lista de peças, logo abaixo.
+  const { data: rawEvents = VAZIO, isLoading: eventsLoading, isError: eventsError, refetch: refetchEvents } = useQuery<any[]>({
     queryKey: ["/api/events"],
+  });
+
+  // ── O RECORTE POR EVENTO (perf, 2ª rodada) ───────────────────────────────
+  // `visibleItems`, logo abaixo, já descarta toda peça de evento FINALIZADO —
+  // e em produção a maioria dos 68 eventos já passou, com quase todas as peças
+  // entregues penduradas neles. Era esse acervo que descia pela rede para ser
+  // jogado fora na segunda linha de um useMemo.
+  //
+  // Os ids vão ORDENADOS: a chave da query é o texto da URL, e uma ordem que
+  // dançasse a cada render viraria uma busca nova por render. O conjunto só
+  // muda quando um evento é encerrado, criado ou vira o dia — e aí uma busca
+  // nova é exatamente o que se quer.
+  const eventosEmJogo = useMemo(() => {
+    const hoje = todayBusinessMs();
+    return (rawEvents as any[])
+      .filter((e: any) => !isEventoFinalizado(e, hoje))
+      .map((e: any) => e.id as string)
+      .sort();
+  }, [rawEvents]);
+  const chaveDaVinculacao = useMemo(
+    () => [CHAVE_DA_VINCULACAO[0], `${CHAVE_DA_VINCULACAO[1]}&eventId=${eventosEmJogo.join(",")}`] as const,
+    [eventosEmJogo],
+  );
+  const { data: items = VAZIO, isLoading: itemsLoading, isError: itemsError, refetch: refetchItems } = useQuery<any[]>({
+    queryKey: chaveDaVinculacao,
+    // Sem evento em jogo não há nada para vincular — e `?eventId=` vazio seria
+    // um 400 do servidor (a validação exige de 1 a 500 ids).
+    enabled: eventosEmJogo.length > 0,
   });
 
   // Histórico DA PEÇA aberta no dialog de detalhes, com escopo no servidor.
@@ -379,7 +437,7 @@ export default function VincularPatrocinadores() {
     placeholderData: [],
   });
 
-  const { data: sponsors = [], isError: sponsorsError, refetch: refetchSponsors } = useQuery<any[]>({
+  const { data: sponsors = VAZIO, isError: sponsorsError, refetch: refetchSponsors } = useQuery<any[]>({
     queryKey: ["/api/sponsors"],
   });
   const { data: standardItems = [] } = useQuery<any[]>({ queryKey: ['/api/standard-items'] });
@@ -2183,6 +2241,10 @@ export default function VincularPatrocinadores() {
                 <img
                   src={previewRefUrl}
                   alt="Referência visual"
+                  // Aqui a exibição é GRANDE (até 480px): a URL fica crua — a
+                  // referência existe para ser olhada. Só a decodificação sai
+                  // da thread principal.
+                  decoding="async"
                   style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', display: 'block' }}
                   onError={() => setRefImgFailed(true)}
                 />

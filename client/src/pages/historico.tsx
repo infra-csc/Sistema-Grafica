@@ -14,6 +14,7 @@ import { ptBR } from "date-fns/locale";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { HIDE_NATIVE_CLOSE, modalSurface, ModalHeader, ModalFooter } from "@/components/modal-shell";
 import { buildTimeline, type TimelineEvent } from "@/lib/timeline";
+import { CAMPOS_DA_TRILHA } from "@shared/itens-compactos";
 import { T, FS, R, N, FW, FONT, TOM } from "@/lib/theme";
 
 /* ── Palette ── */
@@ -722,7 +723,20 @@ export default function Historico() {
   }, []);
 
   const eventsQ = useQuery<any[]>({ queryKey: ["/api/events"] });
-  const itemsQ  = useQuery<any[]>({ queryKey: ["/api/items"] });
+  // A TRILHA NÃO PRECISA DO ACERVO ENRIQUECIDO (perf, 2ª rodada).
+  //
+  // Esta é a única tela que legitimamente lê TODAS as peças: a trilha sintetiza
+  // uma linha "Peça criada" para cada uma, e recortar por status esconderia
+  // metade da história. Mas ela nunca lê `item.event`, `item.sponsors`,
+  // `complements` nem `parent` — o nome do evento vem de `/api/events`, que ela
+  // já carrega. `?campos=trilha` manda as ONZE colunas que `buildTimeline` usa
+  // (shared/itens-compactos.ts): sem as consultas de vínculo, aprovação, kit e
+  // complemento no servidor, e sem ~64 colunas por peça na rede.
+  //
+  // A chave fica DENTRO do prefixo "/api/items" (mesmo padrão da Revisão
+  // Final): as invalidações do WebSocket e das outras telas continuam
+  // alcançando esta lista, e ela tem delta e formato compacto como as demais.
+  const itemsQ  = useQuery<any[]>({ queryKey: ["/api/items", `?campos=${CAMPOS_DA_TRILHA}`] });
   // PRIMEIRA página da trilha — os 500 mais recentes, exatamente como antes. O
   // ?withTotal=1 traz junto o count real da tabela (quantas páginas ainda
   // faltam) e o cursor da próxima; as anteriores são caminhadas depois.

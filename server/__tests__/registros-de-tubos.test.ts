@@ -50,25 +50,55 @@ async function montar(props: Record<string, unknown> = {}, largura = 1280, respo
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 
 describe("uma entrada por tubo, com tudo o que foi junto", () => {
-  it("a frase inteira no cabeçalho; aberta: a lista completa com a quantidade NAQUELE tubo, as fotos e o comprovante", async () => {
+  it("CARTÃO COM FOTO como os da galeria (dono, 22/09); aberto: a lista completa com a quantidade NAQUELE tubo, as fotos e o comprovante", async () => {
     const onAbrirPeca = vi.fn();
     await montar({ onAbrirPeca });
-    expect($$('[data-testid^="registro-tubo-"]').length, "uma entrada por tubo — não uma por peça").toBe(2);
-    const cab = $('[data-testid="abrir-registro-tubo-t2"]')!;
-    expect(cab.textContent).toMatch(/^Tubo 2 · entregue a Fulano em \d{2}\/\d{2},? \d{2}:\d{2} · 4 peças \/ 61 un\.Maratona · 2 fotos$/);
-    expect(cab.getAttribute("aria-expanded")).toBe("false");
+    expect($$('[data-testid^="registro-tubo-"]').length, "um cartão por tubo — não um por peça").toBe(2);
+    const cartao = $('[data-testid="registro-tubo-t2"]')!;
+    // A capa é a 1ª foto da embalagem, num quadrado, com o selo do tipo e o
+    // nome do volume por cima — a mesma leitura dos cartões de conferência.
+    const capa = cartao.querySelector<HTMLImageElement>('[data-testid="ampliar-registro-tubo-t2"] img')!;
+    expect(capa.getAttribute("src")).toBe("/objects/a.jpg");
+    expect(capa.getAttribute("loading")).toBe("lazy");
+    expect(cartao.textContent).toContain("Entrega");
+    expect(cartao.textContent).toContain("Tubo 2");
+    expect(cartao.textContent).toContain("4 peças / 61 un.");
+    expect(cartao.textContent).toContain("Entregue a Fulano em");
+    expect(cartao.textContent, "2 da embalagem + o comprovante").toContain("3 fotos");
+    expect(cartao.querySelector('a[href="/eventos/e1"]')!.textContent).toBe("Maratona");
+    // A frase inteira continua no cartão para leitor de tela e busca do navegador.
+    expect(cartao.textContent).toMatch(/Tubo 2 · entregue a Fulano em \d{2}\/\d{2},? \d{2}:\d{2} · 4 peças \/ 61 un\./);
+
+    const abrir = $('[data-testid="abrir-registro-tubo-t2"]')!;
+    expect(abrir.textContent).toContain("Ver o que foi junto (4)");
+    expect(abrir.getAttribute("aria-expanded")).toBe("false");
     expect($('[data-testid="conteudo-registro-tubo-t2"]')).toBeNull();
-    await act(async () => { fireEvent.click(cab); });
+    await act(async () => { fireEvent.click(abrir); });
     const c = $('[data-testid="conteudo-registro-tubo-t2"]')!;
     expect(c.querySelectorAll("li").length).toBe(4);
     expect(c.textContent).toContain("2x1 — Nubank7 un. (7 de 10)");
     expect(c.textContent).toContain("2x1 — Itaú50 un.");
     expect(c.querySelectorAll("img").length, "2 fotos da embalagem + o comprovante").toBe(3);
-    expect(c.querySelector('a[aria-label="Comprovante da entrega — abrir"]')!.getAttribute("href")).toBe("/objects/comp.jpg");
+    expect(c.querySelector('button[aria-label="Comprovante da entrega — Tubo 2 — ampliar"]')).toBeTruthy();
     expect(c.textContent).toContain("Embalado por Ana em");
-    expect(c.textContent).toContain("entrega registrada por Ana · obs.: portaria");
+    expect(c.textContent).toContain("entrega registrada por Ana");
     await act(async () => { fireEvent.click(c.querySelector('button[aria-label="Abrir a ficha de #0382"]')!); });
     expect(onAbrirPeca).toHaveBeenCalledWith("i2");
+  }, 30_000);
+
+  it("a foto amplia na lupa, com ← → entre as fotos do volume e o comprovante", async () => {
+    await montar();
+    await act(async () => { fireEvent.click($('[data-testid="ampliar-registro-tubo-t2"]')!); });
+    const lupa = $('[data-testid="zoom-registro-tubo"]')!;
+    expect(lupa.querySelector("img")!.getAttribute("src")).toBe("/objects/a.jpg");
+    expect(lupa.textContent).toContain("foto 1 de 3");
+    await act(async () => { fireEvent.click($('[data-testid="zoom-tubo-proxima"]')!); });
+    expect($('[data-testid="zoom-registro-tubo"]')!.querySelector("img")!.getAttribute("src")).toBe("/objects/b.jpg");
+    // Volta do fim para o começo: a 3ª é o comprovante.
+    await act(async () => { fireEvent.click($('[data-testid="zoom-tubo-proxima"]')!); });
+    expect($('[data-testid="zoom-registro-tubo"]')!.querySelector("img")!.getAttribute("src")).toBe("/objects/comp.jpg");
+    await act(async () => { fireEvent.click($('button[aria-label="Fechar"]')!); });
+    expect($('[data-testid="zoom-registro-tubo"]')).toBeNull();
   }, 30_000);
 
   it("a embalada SOZINHA tem o registro dela — sem a palavra 'tubo'", async () => {

@@ -38,12 +38,16 @@ describe("plano de gravação com peças RESERVADAS", () => {
   const reservadas = new Set(["0412-8", "0412-9", "0412-10"]);
   const reservaDe = (id: string) => (reservadas.has(id) ? RESERVA : undefined);
   const destinoDe = (passos: any[], id: string) => passos.find((p) => p.ativoId === id)?.corpo.trackingStatus;
+  // `corpo` é união (gravação simples | divisão): o destino só existe no ramo
+  // simples, e é dele que estes casos falam.
+  const destino = (p: { corpo: Record<string, unknown> | { splits: Record<string, unknown>[] } }) =>
+    (p.corpo as Record<string, unknown>).trackingStatus;
 
   it("as reservadas vão PRIMEIRO para o Galpão, mesmo sendo as últimas no código", () => {
     const { passos, conflitos } = planoDeGravacao(grupo, { galpao: 3, manutencao: 5, descartar: 2 }, "PERFEITO", reservaDe);
     expect(conflitos).toEqual([]);
     for (const id of reservadas) expect(destinoDe(passos, id)).toBe("NO_GALPAO");
-    expect(passos.filter((p) => p.corpo.trackingStatus === "DESCARTADO").map((p) => p.ativoId)).toEqual(["0412-6", "0412-7"]);
+    expect(passos.filter((p) => destino(p) === "DESCARTADO").map((p) => p.ativoId)).toEqual(["0412-6", "0412-7"]);
   });
 
   it("Galpão menor que as reservadas: as que sobram ficam SEM destino (aguardando) se der", () => {
@@ -51,7 +55,7 @@ describe("plano de gravação com peças RESERVADAS", () => {
     const { passos, conflitos } = planoDeGravacao(grupo, { galpao: 1, manutencao: 0, descartar: 2 }, "PERFEITO", reservaDe);
     expect(conflitos).toEqual([]);
     expect(passos.length).toBe(3);
-    expect(passos.filter((p) => reservadas.has(p.ativoId)).map((p) => p.corpo.trackingStatus)).toEqual(["NO_GALPAO"]);
+    expect(passos.filter((p) => reservadas.has(p.ativoId)).map(destino)).toEqual(["NO_GALPAO"]);
   });
 
   it("não cabe de jeito nenhum → conflito com a frase do servidor (a tela avisa antes de salvar)", () => {
@@ -71,7 +75,7 @@ describe("plano de gravação com peças RESERVADAS", () => {
 
   it("sem reservas, a ordem é a de sempre (os primeiros no código vão primeiro)", () => {
     const { passos } = planoDeGravacao(grupo, { galpao: 2, manutencao: 0, descartar: 1 }, "PERFEITO");
-    expect(passos.map((p) => [p.ativoId, p.corpo.trackingStatus])).toEqual([["0412-1", "NO_GALPAO"], ["0412-2", "NO_GALPAO"], ["0412-3", "DESCARTADO"]]);
+    expect(passos.map((p) => [p.ativoId, destino(p)])).toEqual([["0412-1", "NO_GALPAO"], ["0412-2", "NO_GALPAO"], ["0412-3", "DESCARTADO"]]);
   });
 });
 

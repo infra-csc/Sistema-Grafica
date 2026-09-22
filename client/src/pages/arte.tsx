@@ -90,6 +90,7 @@ import { Link } from "wouter";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { SoQuandoMudar } from "@/components/arte/so-quando-mudar";
 import { BuscarArteDialog, imagemDaArte, type ArteEncontrada } from "@/components/buscar-arte-dialog";
+import { hrefSeguro } from "@shared/url-segura";
 
 // Quantas linhas a tabela monta por vez. O resto entra por "Carregar mais".
 const ARTE_PAGE_SIZE = 100;
@@ -2784,13 +2785,13 @@ export default function Arte() {
     return (
       <span style={{ display: 'inline-flex', flexWrap: 'wrap', alignItems: 'center', gap: 10 }}>
         {item.referenceUrl && (
-          <a href={item.referenceUrl} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} title="Ver referência visual do solicitante" style={link} data-testid={`link-reference-arte-${item.id}`}>
+          <a href={hrefSeguro(item.referenceUrl)} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} title="Ver referência visual do solicitante" style={link} data-testid={`link-reference-arte-${item.id}`}>
             <Paperclip aria-hidden="true" style={{ width: 10, height: 10 }} />
             Ref. visual
           </a>
         )}
         {item.bookUrl ? (
-          <a href={item.bookUrl} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} title="Abrir book de aprovação (PDF) para enviar ao patrocinador" style={link} data-testid={`link-book-arte-${item.id}`}>
+          <a href={hrefSeguro(item.bookUrl)} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} title="Abrir book de aprovação (PDF) para enviar ao patrocinador" style={link} data-testid={`link-book-arte-${item.id}`}>
             <FileText aria-hidden="true" style={{ width: 10, height: 10 }} />
             Book
           </a>
@@ -2968,7 +2969,7 @@ export default function Arte() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <ThumbPreview url={item.approvalThumbUrl} label={`thumb de ${item.displayId}`} />
           {item.finalFileUrl ? (
-            <a href={item.finalFileUrl} target="_blank" rel="noopener noreferrer" title="Ver arquivo final" style={{ width: 26, height: 26, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f0fdf4', color: '#16a34a', border: '1px solid #bbf7d0', flexShrink: 0 }}>
+            <a href={hrefSeguro(item.finalFileUrl)} target="_blank" rel="noopener noreferrer" title="Ver arquivo final" style={{ width: 26, height: 26, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f0fdf4', color: '#16a34a', border: '1px solid #bbf7d0', flexShrink: 0 }}>
               <FileText style={{ width: 13, height: 13 }} />
             </a>
           ) : (
@@ -6353,7 +6354,7 @@ export default function Arte() {
                     <p style={{ fontSize: 12, color: '#57534e', margin: '1px 0 0' }}>O PDF que você subir abaixo substitui o atual</p>
                   </div>
                   <a
-                    href={existingBookUrl} target="_blank" rel="noopener noreferrer"
+                    href={hrefSeguro(existingBookUrl)} target="_blank" rel="noopener noreferrer"
                     onClick={e => e.stopPropagation()}
                     style={{ display: 'inline-flex', alignItems: 'center', gap: 4, minHeight: 32, fontSize: 12, fontWeight: 600, color: '#1c1917', textDecoration: 'none', background: '#fff', border: '1px solid #d6d3d1', borderRadius: 8, padding: '0 10px', flexShrink: 0, whiteSpace: 'nowrap' }}
                   >

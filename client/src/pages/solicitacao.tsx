@@ -44,6 +44,7 @@ import {
 } from "@/components/consulta-de-estoque/na-revisao";
 import { SOLICITACAO_AO_ESTOQUE_ATIVA, propostaDaLiberacao, respostaEsperandoConfirmar, resumoDoLoteComEstoque } from "@shared/consultas-de-estoque";
 import { FS } from "@/lib/theme";
+import { hrefSeguro } from "@shared/url-segura";
 
 // Tons de texto desta paleta valem para superfícies CLARAS (bg/surface).
 // Sobre os painéis escuros (#0c0a09/#1c1917) use #a8a29e ou mais claro —
@@ -2065,7 +2066,7 @@ export default function Solicitacao() {
                                     leitura — sendo que o que dizem é binário. */}
                                 {item.referenceUrl && (
                                   <a
-                                    href={item.referenceUrl} target="_blank" rel="noopener noreferrer"
+                                    href={hrefSeguro(item.referenceUrl)} target="_blank" rel="noopener noreferrer"
                                     onClick={e => e.stopPropagation()}
                                     title="Ver a referência visual do solicitante"
                                     aria-label={`Referência visual de ${item.displayId}`}

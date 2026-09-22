@@ -14,6 +14,7 @@ import { useLogout } from "@/hooks/use-logout";
 // seguia — os itens do menu tinham altura de padding, não de controle.
 import { useIsMobile } from "@/hooks/use-mobile";
 import { prefetchRota } from "@/lib/prefetch-de-rota";
+import { T, FS, R, N, FW, FONT, TOM } from "@/lib/theme";
 import { SOLICITACAO_AO_ESTOQUE_ATIVA } from "@shared/consultas-de-estoque";
 import {
   Sidebar,
@@ -169,14 +170,14 @@ const DESCRICAO_DA_TELA: Record<string, string> = {
 
 // ─── Section label ────────────────────────────────────────
 const sectionLabelStyle: React.CSSProperties = {
-  fontFamily: "'Plus Jakarta Sans', sans-serif",
+  fontFamily: FONT.display,
   fontSize: 10,
   // 800 e 0.12em: o rótulo de seção divide a coluna com 18 itens em 500/600.
   // Em 700/0.1em ele era só mais uma linha de texto pequena entre as outras.
   fontWeight: 800,
   textTransform: "uppercase",
   letterSpacing: "0.12em",
-  color: "#746e69",
+  color: T.second,
   // 18 para alinhar com o padding do item (10) + o respiro do <li>.
   padding: "0 18px",
   marginBottom: 4,
@@ -231,19 +232,19 @@ function NavItem({ item, isActive, badge, isMobile }: { item: MenuItem; isActive
             padding: "0 10px",
             borderRadius: 9,
             fontSize: 13,
-            fontFamily: "'Plus Jakarta Sans', sans-serif",
+            fontFamily: FONT.display,
             fontWeight: isActive ? 700 : 500,
             // #f97316 sobre #fff7ed ficava ~2.5:1 — o texto ativo era o menos
             // legível do menu. #9a3412 mantém a família laranja com contraste AA;
             // a barrinha inset devolve a marcação de "ativo" para quem não
             // distingue a cor.
-            color: isActive ? "#9a3412" : highlighted ? "#292524" : "#57534e",
-            backgroundColor: isActive ? "#fff7ed" : highlighted ? "#fafaf9" : "transparent",
+            color: isActive ? T.accentText : highlighted ? T.strong : T.apoio,
+            backgroundColor: isActive ? TOM.laranja.bg : highlighted ? T.bg : "transparent",
             // undefined (não "none"): "none" sobrescrevia o focus-ring que o
             // CSS global aplica via box-shadow.
             // 2px: com o item mais baixo, 3px de trilho ficavam grossos demais
             // para a altura da linha.
-            boxShadow: isActive ? "inset 2px 0 0 #f97316" : undefined,
+            boxShadow: isActive ? `inset 2px 0 0 ${T.accent}` : undefined,
             textDecoration: "none",
             transition: "background-color 0.12s ease, color 0.12s ease",
             boxSizing: "border-box",
@@ -265,7 +266,7 @@ function NavItem({ item, isActive, badge, isMobile }: { item: MenuItem; isActive
               // `#a8a29e` é a exceção que o próprio theme.ts documenta —
               // proibido como texto, permitido em ícone.
               width: 17, height: 17, flexShrink: 0,
-              color: isActive ? "#c2410c" : "#a8a29e",
+              color: isActive ? T.accentText : T.muted,
               filter: isActive ? "drop-shadow(0 0 3px rgba(249,115,22,0.25))" : "none",
               transition: "filter 0.12s ease, color 0.12s ease",
             }}
@@ -289,8 +290,8 @@ function NavItem({ item, isActive, badge, isMobile }: { item: MenuItem; isActive
                 height: 20,
                 padding: "0 6px",
                 borderRadius: 10,
-                backgroundColor: "#c2410c",
-                color: "#ffffff",
+                backgroundColor: T.accentText,
+                color: T.surface,
                 fontSize: 11,
                 fontWeight: 700,
                 lineHeight: "20px",
@@ -338,7 +339,7 @@ function NavGroup({
           coluna que precisa caber inteira sem rolar. Um hairline separa com
           1px o que o vão separava com 20 — e a régua diz "grupo novo" de
           forma mais explícita que a distância. */}
-      {!first && <div aria-hidden="true" style={{ height: 1, backgroundColor: "#f1efec", margin: "14px 18px 0" }} />}
+      {!first && <div aria-hidden="true" style={{ height: 1, backgroundColor: N.n3, margin: "14px 18px 0" }} />}
       {label !== null && <span id={labelId} style={sectionLabelStyle}>{label}</span>}
       <SidebarGroupContent>
         <SidebarMenu style={{ gap: 1 }} aria-labelledby={label !== null ? labelId : undefined}>
@@ -426,37 +427,41 @@ export function AppSidebar() {
     // backgroundColor/borderRight ficavam no style — que o Sheet mobile
     // descarta. Como className, o desktop os aplica e o mobile herda o
     // bg-sidebar padrão do Sheet.
+    //
+    // O hex fica LITERAL aqui: valor arbitrário de Tailwind é lido em tempo de
+    // build, e uma classe montada em runtime a partir do token simplesmente
+    // não existiria na folha gerada. É o mesmo #e7e5e4 de T.border.
     <Sidebar className="bg-white border-r border-[#e7e5e4]">
       {/* ── Header ── */}
       {/* O cabeçalho da marca fecha com hairline em vez de flutuar sobre a
           lista, e devolve ~14px de altura útil para os 18 itens. */}
-      <SidebarHeader style={{ padding: "22px 18px 18px", borderBottom: "1px solid #f1efec" }}>
+      <SidebarHeader style={{ padding: "22px 18px 18px", borderBottom: `1px solid ${N.n3}` }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <Compass
             style={{
-              width: 20, height: 20, color: "#f97316", flexShrink: 0, strokeWidth: 2.2,
+              width: 20, height: 20, color: T.accent, flexShrink: 0, strokeWidth: 2.2,
               filter: "drop-shadow(0 2px 4px rgba(249,115,22,0.15))",
             }}
           />
           <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
             <span style={{
-              fontFamily: "'Outfit', sans-serif",
+              fontFamily: FONT.display,
               fontSize: 16,
               fontWeight: 800,
               letterSpacing: "-0.05em",
               textTransform: "uppercase",
-              color: "#1c1917",
+              color: T.text,
               lineHeight: 0.9,
             }}>
               NORTE
             </span>
             <span style={{
-              fontFamily: "'Plus Jakarta Sans', sans-serif",
+              fontFamily: FONT.display,
               fontSize: 9,
               fontWeight: 700,
               textTransform: "uppercase",
               letterSpacing: "0.25em",
-              color: "#746e69",
+              color: T.second,
               lineHeight: 1,
               marginTop: 3,
             }}>
@@ -500,7 +505,7 @@ export function AppSidebar() {
       <SidebarFooter
         style={{
           padding: "16px 16px",
-          borderTop: "1px solid #f5f5f4",
+          borderTop: `1px solid ${T.low}`,
           marginTop: "auto",
         }}
       >
@@ -508,12 +513,12 @@ export function AppSidebar() {
           {/* Avatar — mesma identidade do avatar da topbar */}
           <div style={{
             width: 34, height: 34, borderRadius: "50%",
-            backgroundColor: "#1c1917",
+            backgroundColor: T.text,
             display: "flex", alignItems: "center", justifyContent: "center",
             flexShrink: 0,
           }}>
             <span style={{
-              fontFamily: "'Space Grotesk', sans-serif",
+              fontFamily: FONT.display,
               color: "#fb923c", fontSize: 12, fontWeight: 700, letterSpacing: "-0.02em",
             }}>
               {userInitials(user?.name)}
@@ -523,16 +528,16 @@ export function AppSidebar() {
           {/* Name + role */}
           <div style={{ flex: 1, minWidth: 0 }}>
             <p style={{
-              fontFamily: "'Plus Jakarta Sans', sans-serif",
+              fontFamily: FONT.display,
               fontSize: 13, fontWeight: 700,
-              color: "#1c1917", margin: 0, lineHeight: 1.3,
+              color: T.text, margin: 0, lineHeight: 1.3,
               overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
             }}>
               {user?.name ?? "Usuário"}
             </p>
             <p style={{
-              fontFamily: "'Plus Jakarta Sans', sans-serif",
-              fontSize: 11, color: "#746e69",
+              fontFamily: FONT.display,
+              fontSize: 11, color: T.second,
               margin: 0, lineHeight: 1.3, textTransform: "capitalize",
             }}>
               {roleLabel(user?.role)}
@@ -550,10 +555,10 @@ export function AppSidebar() {
               // Sair é ação de saída e ganha CONTORNO: era um botão fantasma de
               // 44 sem borda nenhuma ao lado do nome do usuário, indistinguível
               // de um ícone decorativo até o hover.
-              background: "#ffffff", border: "1px solid #e7e5e4",
+              background: T.surface, border: `1px solid ${T.border}`,
               cursor: logoutMutation.isPending ? "default" : "pointer",
               width: isMobileCasca ? 44 : 36, height: isMobileCasca ? 44 : 36,
-              padding: 0, borderRadius: 9, color: "#746e69",
+              padding: 0, borderRadius: 9, color: T.second,
               display: "flex", alignItems: "center", justifyContent: "center",
               transition: "color 0.15s ease, background-color 0.15s ease, opacity 0.15s ease",
               flexShrink: 0,
@@ -561,20 +566,20 @@ export function AppSidebar() {
               opacity: logoutMutation.isPending ? 0.5 : 1,
             }}
             onMouseEnter={(e) => {
-              (e.currentTarget as HTMLButtonElement).style.color = "#b91c1c";
-              (e.currentTarget as HTMLButtonElement).style.borderColor = "#fca5a5";
+              (e.currentTarget as HTMLButtonElement).style.color = TOM.perigo.text;
+              (e.currentTarget as HTMLButtonElement).style.borderColor = TOM.perigo.border;
             }}
             onMouseLeave={(e) => {
-              (e.currentTarget as HTMLButtonElement).style.color = "#746e69";
-              (e.currentTarget as HTMLButtonElement).style.borderColor = "#e7e5e4";
+              (e.currentTarget as HTMLButtonElement).style.color = T.second;
+              (e.currentTarget as HTMLButtonElement).style.borderColor = T.border;
             }}
             onFocus={(e) => {
-              (e.currentTarget as HTMLButtonElement).style.color = "#b91c1c";
-              (e.currentTarget as HTMLButtonElement).style.borderColor = "#fca5a5";
+              (e.currentTarget as HTMLButtonElement).style.color = TOM.perigo.text;
+              (e.currentTarget as HTMLButtonElement).style.borderColor = TOM.perigo.border;
             }}
             onBlur={(e) => {
-              (e.currentTarget as HTMLButtonElement).style.color = "#746e69";
-              (e.currentTarget as HTMLButtonElement).style.borderColor = "#e7e5e4";
+              (e.currentTarget as HTMLButtonElement).style.color = T.second;
+              (e.currentTarget as HTMLButtonElement).style.borderColor = T.border;
             }}
           >
             {logoutMutation.isPending

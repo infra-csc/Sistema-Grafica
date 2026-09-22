@@ -26,6 +26,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { Search, CalendarDays, FileText, CornerDownLeft, Loader2 } from "lucide-react";
 import { getStatusLabel, guiaDoStatus } from "@/lib/status";
+import { T, FS, R, N, FW, FONT, TOM } from "@/lib/theme";
 
 interface PecaEncontrada {
   id: string; displayId: string; type: string; description: string | null;
@@ -49,9 +50,9 @@ export function abrirBuscaGlobal() {
 // Rótulo de seção: #78716c e não #a8a29e — é texto, e #a8a29e é proibido
 // como texto (2,5:1 sobre branco).
 const ROTULO_SECAO: React.CSSProperties = {
-  margin: 0, fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: "#78716c",
+  margin: 0, fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: T.second,
 };
-const MENSAGEM: React.CSSProperties = { margin: 0, padding: "20px 16px", fontSize: 13, color: "#746e69", lineHeight: 1.5 };
+const MENSAGEM: React.CSSProperties = { margin: 0, padding: "20px 16px", fontSize: 13, color: T.second, lineHeight: 1.5 };
 
 export function BuscaGlobal() {
   const [, setLocation] = useLocation();
@@ -164,7 +165,7 @@ export function BuscaGlobal() {
   const estiloOpcao = (i: number): React.CSSProperties => ({
     display: "flex", alignItems: "center", gap: 10, width: "100%",
     minHeight: 44, padding: "8px 10px", border: "none", borderRadius: 8,
-    backgroundColor: ativo === i ? "#fff7ed" : "transparent",
+    backgroundColor: ativo === i ? TOM.laranja.bg : "transparent",
     cursor: "pointer", textAlign: "left", font: "inherit",
   });
 
@@ -187,18 +188,18 @@ export function BuscaGlobal() {
         className="norte-surge"
         style={{
           width: "100%", maxWidth: 560,
-          backgroundColor: "#ffffff", borderRadius: 12,
+          backgroundColor: T.surface, borderRadius: 12,
           boxShadow: "0 20px 50px rgba(28,25,23,0.22)",
           overflow: "hidden", display: "flex", flexDirection: "column",
           maxHeight: "70vh",
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "0 10px 0 16px", borderBottom: "1px solid #e7e5e4" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "0 10px 0 16px", borderBottom: `1px solid ${T.border}` }}>
           {/* Lupa vira giro enquanto a consulta está no ar: sem isto, os 250ms
               de debounce + a ida ao servidor pareciam "não achou nada". */}
           {buscando
-            ? <Loader2 aria-hidden="true" className="animate-spin" style={{ width: 16, height: 16, color: "#746e69", flexShrink: 0 }} />
-            : <Search aria-hidden="true" style={{ width: 16, height: 16, color: "#a8a29e", flexShrink: 0 }} />}
+            ? <Loader2 aria-hidden="true" className="animate-spin" style={{ width: 16, height: 16, color: T.second, flexShrink: 0 }} />
+            : <Search aria-hidden="true" style={{ width: 16, height: 16, color: T.muted, flexShrink: 0 }} />}
           <input
             ref={inputRef}
             value={termo}
@@ -216,7 +217,7 @@ export function BuscaGlobal() {
             data-testid="input-busca-global"
             style={{
               flex: 1, minWidth: 0, height: 52, border: "none", outline: "none",
-              fontSize: 15, fontFamily: "inherit", color: "#1c1917",
+              fontSize: 15, fontFamily: "inherit", color: T.text,
               backgroundColor: "transparent",
             }}
           />
@@ -227,7 +228,7 @@ export function BuscaGlobal() {
             type="button"
             onClick={fechar}
             aria-label="Fechar busca"
-            style={{ flexShrink: 0, minWidth: 36, height: 32, padding: "0 8px", fontSize: 11, fontWeight: 600, color: "#746e69", background: "#ffffff", border: "1px solid #e7e5e4", borderRadius: 6, cursor: "pointer", fontFamily: "inherit" }}
+            style={{ flexShrink: 0, minWidth: 36, height: 32, padding: "0 8px", fontSize: 11, fontWeight: 600, color: T.second, background: T.surface, border: `1px solid ${T.border}`, borderRadius: 6, cursor: "pointer", fontFamily: "inherit" }}
           >
             Esc
           </button>
@@ -241,11 +242,11 @@ export function BuscaGlobal() {
               olha código, tipo e descrição da peça e o nome do evento). */}
           {t.length < 2 && (
             <div style={{ ...MENSAGEM, display: "flex", flexDirection: "column", gap: 6 }}>
-              <p style={{ margin: 0, color: "#44403c", fontWeight: 600 }}>
+              <p style={{ margin: 0, color: T.strong, fontWeight: 600 }}>
                 Busque por código da peça, tipo, descrição ou nome do evento.
               </p>
               <p style={{ margin: 0 }}>
-                Ex.: <strong style={{ color: "#44403c" }}>#2993</strong>, <strong style={{ color: "#44403c" }}>Banner</strong> ou o nome do evento. Digite ao menos 2 caracteres — o código funciona com ou sem o “#”.
+                Ex.: <strong style={{ color: T.strong }}>#2993</strong>, <strong style={{ color: T.strong }}>Banner</strong> ou o nome do evento. Digite ao menos 2 caracteres — o código funciona com ou sem o “#”.
               </p>
               <p style={{ margin: 0 }}>
                 A peça abre na ficha dela, dentro do evento; o evento abre a página dele.
@@ -256,7 +257,7 @@ export function BuscaGlobal() {
             <p role="status" style={MENSAGEM}>Buscando “{t}”…</p>
           )}
           {erro && !buscando && (
-            <p role="alert" data-testid="busca-erro" style={{ ...MENSAGEM, color: "#b91c1c" }}>
+            <p role="alert" data-testid="busca-erro" style={{ ...MENSAGEM, color: TOM.perigo.text }}>
               Não deu para buscar agora. Confira a conexão e digite de novo.
             </p>
           )}
@@ -281,18 +282,18 @@ export function BuscaGlobal() {
               onMouseEnter={() => setAtivo(i)}
               style={estiloOpcao(i)}
             >
-              <FileText aria-hidden="true" style={{ width: 15, height: 15, color: "#c2410c", flexShrink: 0 }} />
+              <FileText aria-hidden="true" style={{ width: 15, height: 15, color: T.accentText, flexShrink: 0 }} />
               <span style={{ minWidth: 0, flex: 1 }}>
-                <span style={{ display: "block", fontSize: 13.5, fontWeight: 600, color: "#1c1917", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                <span style={{ display: "block", fontSize: 13.5, fontWeight: 600, color: T.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                   {p.displayId} · {p.type}{p.description ? ` — ${p.description}` : ""}
                 </span>
-                <span style={{ display: "block", fontSize: 11.5, color: "#746e69", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                <span style={{ display: "block", fontSize: 11.5, color: T.second, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                   {/* "de quem é a vez" junto da etapa: quem busca uma peça citada
                       no WhatsApp quase sempre quer saber com quem ela está. */}
                   {p.eventName ?? "Sem evento"} · {getStatusLabel(p.status)}{guiaDoStatus(p.status) ? ` (${guiaDoStatus(p.status)!.vez})` : ""}
                 </span>
               </span>
-              {ativo === i && <CornerDownLeft aria-hidden="true" style={{ width: 13, height: 13, color: "#a8a29e", flexShrink: 0 }} />}
+              {ativo === i && <CornerDownLeft aria-hidden="true" style={{ width: 13, height: 13, color: T.muted, flexShrink: 0 }} />}
             </button>
           ))}
 
@@ -313,16 +314,16 @@ export function BuscaGlobal() {
                 onMouseEnter={() => setAtivo(i)}
                 style={estiloOpcao(i)}
               >
-                <CalendarDays aria-hidden="true" style={{ width: 15, height: 15, color: "#1d4ed8", flexShrink: 0 }} />
+                <CalendarDays aria-hidden="true" style={{ width: 15, height: 15, color: TOM.info.text, flexShrink: 0 }} />
                 <span style={{ minWidth: 0, flex: 1 }}>
-                  <span style={{ display: "block", fontSize: 13.5, fontWeight: 600, color: "#1c1917", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{ev.name}</span>
+                  <span style={{ display: "block", fontSize: 13.5, fontWeight: 600, color: T.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{ev.name}</span>
                   {ev.truckDepartureDate && (
-                    <span style={{ display: "block", fontSize: 11.5, color: "#746e69" }}>
+                    <span style={{ display: "block", fontSize: 11.5, color: T.second }}>
                       Saída {new Date(ev.truckDepartureDate).toLocaleDateString("pt-BR", { timeZone: "UTC" })}
                     </span>
                   )}
                 </span>
-                {ativo === i && <CornerDownLeft aria-hidden="true" style={{ width: 13, height: 13, color: "#a8a29e", flexShrink: 0 }} />}
+                {ativo === i && <CornerDownLeft aria-hidden="true" style={{ width: 13, height: 13, color: T.muted, flexShrink: 0 }} />}
               </button>
             );
           })}
@@ -332,7 +333,7 @@ export function BuscaGlobal() {
             (escondido abaixo de 768px). Quem nunca usou a paleta aprende as
             setas sem precisar de manual. */}
         {linhas.length > 0 && (
-          <div aria-hidden="true" className="max-md:hidden" style={{ display: "flex", gap: 14, padding: "8px 16px", borderTop: "1px solid #f1efec", fontSize: 11, color: "#746e69" }}>
+          <div aria-hidden="true" className="max-md:hidden" style={{ display: "flex", gap: 14, padding: "8px 16px", borderTop: `1px solid ${N.n3}`, fontSize: 11, color: T.second }}>
             <span>↑ ↓ para escolher</span>
             <span>Enter para abrir</span>
             <span>Esc para fechar</span>

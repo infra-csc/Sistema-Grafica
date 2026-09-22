@@ -7,6 +7,7 @@ import { useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { CheckCircle, Lock, Loader2, AlertTriangle, ChevronDown, ChevronUp, ArrowRight, Eye, EyeOff } from "lucide-react";
+import { T, FS, R, N, FW, FONT, TOM } from "@/lib/theme";
 
 const SSO_ERROR_MESSAGES: Record<string, { title: string; description: string }> = {
   sso_user_not_found: {
@@ -110,13 +111,15 @@ export default function Login() {
       height: "100vh",
       width: "100vw",
       overflow: "hidden",
-      fontFamily: "'Plus Jakarta Sans', sans-serif",
+      // Corpo em Inter: a tela de login é formulário, não título. O display
+      // fica para o nome do sistema, logo abaixo.
+      fontFamily: FONT.corpo,
     }}>
       {/* Responsivo: em telas pequenas empilha, esconde o branding e permite
           rolar — os estilos inline vencem media queries, por isso o !important. */}
       <style>{`
         @keyframes spin { to { transform: rotate(360deg); } }
-        .login-submit-btn:hover:not(:disabled) { background-color: #c2410c !important; }
+        .login-submit-btn:hover:not(:disabled) { background-color: ${T.accentText} !important; }
         @media (max-width: 900px) {
           .login-main { flex-direction: column !important; height: auto !important; min-height: 100vh !important; overflow: auto !important; }
           .login-brand-col { display: none !important; }
@@ -131,7 +134,7 @@ export default function Login() {
       <section className="login-brand-col" style={{
         position: "relative",
         width: "42%",
-        backgroundColor: "#1c1917",
+        backgroundColor: T.text,
         display: "flex",
         flexDirection: "column",
         justifyContent: "space-between",
@@ -147,21 +150,21 @@ export default function Login() {
 
         <div style={{ position: "relative", zIndex: 1, display: "flex", alignItems: "center", gap: 16 }}>
           <div style={{
-            width: 48, height: 48, backgroundColor: "#f97316", borderRadius: 8,
+            width: 48, height: 48, backgroundColor: T.accent, borderRadius: 8,
             display: "flex", alignItems: "center", justifyContent: "center",
           }}>
-            <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 24, color: "white" }}>N</span>
+            <span style={{ fontFamily: FONT.display, fontWeight: 700, fontSize: 24, color: "white" }}>N</span>
           </div>
           <p style={{
-            fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 20,
-            letterSpacing: "-0.02em", color: "#f9f9f8", margin: 0,
+            fontFamily: FONT.display, fontWeight: 700, fontSize: 20,
+            letterSpacing: "-0.02em", color: T.bg, margin: 0,
           }}>NORTE Marketing Esportivo</p>
         </div>
 
         <div style={{ position: "relative", zIndex: 1, maxWidth: 420 }}>
-          <div style={{ width: 48, height: 4, backgroundColor: "#f97316", marginBottom: 8, borderRadius: 2 }} />
+          <div style={{ width: 48, height: 4, backgroundColor: T.accent, marginBottom: 8, borderRadius: 2 }} />
           <h2 style={{
-            fontFamily: "'Space Grotesk', sans-serif",
+            fontFamily: FONT.display,
             fontSize: 46, fontWeight: 700, color: "white",
             lineHeight: 1.1, letterSpacing: "-0.04em", margin: "0 0 32px 0",
           }}>
@@ -183,7 +186,7 @@ export default function Login() {
                   backgroundColor: "rgba(249,115,22,0.20)",
                   display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
                 }}>
-                  <CheckCircle style={{ width: 16, height: 16, color: "#f97316" }} />
+                  <CheckCircle style={{ width: 16, height: 16, color: T.accent }} />
                 </div>
                 <div>
                   <p style={{ color: "white", fontWeight: 500, fontSize: 14, margin: 0 }}>{f.title}</p>
@@ -203,7 +206,7 @@ export default function Login() {
 
       {/* ── RIGHT COLUMN (58%) ── */}
       <section className="login-form-col" style={{
-        width: "58%", backgroundColor: "#fafaf9",
+        width: "58%", backgroundColor: T.bg,
         display: "flex", flexDirection: "column",
         alignItems: "center", justifyContent: "center",
         position: "relative", padding: "0 32px",
@@ -213,17 +216,17 @@ export default function Login() {
 
           {/* Header */}
           <header style={{ marginBottom: 40 }}>
-            <div style={{ width: 32, height: 4, backgroundColor: "#f97316", marginBottom: 16, borderRadius: 2 }} />
+            <div style={{ width: 32, height: 4, backgroundColor: T.accent, marginBottom: 16, borderRadius: 2 }} />
             <h3 style={{
-              fontFamily: "'Space Grotesk', sans-serif",
-              fontSize: 36, fontWeight: 700, color: "#1c1917",
+              fontFamily: FONT.display,
+              fontSize: 36, fontWeight: 700, color: T.text,
               letterSpacing: "-0.04em", margin: "0 0 8px 0",
             }}>
               {/* "Bem-vindo de volta" pressupunha visita anterior — a primeira
                   tela de quem nunca entrou dizia que ele já tinha estado aqui. */}
               Entrar no NORTE
             </h3>
-            <p style={{ color: "#746e69", fontWeight: 500, fontSize: 14, margin: 0 }}>
+            <p style={{ color: T.second, fontWeight: 500, fontSize: 14, margin: 0 }}>
               Acesse o sistema pelo portal NORTE.
             </p>
           </header>
@@ -235,14 +238,14 @@ export default function Login() {
               data-testid="banner-sessao-expirada"
               style={{
                 display: "flex", alignItems: "flex-start", gap: 12,
-                backgroundColor: "#fffbeb", border: "1.5px solid #fde68a",
+                backgroundColor: TOM.alerta.bg, border: `1.5px solid ${TOM.alerta.border}`,
                 borderRadius: 8, padding: "14px 16px", marginBottom: 24,
               }}
             >
-              <AlertTriangle style={{ width: 18, height: 18, color: "#b45309", flexShrink: 0, marginTop: 1 }} />
+              <AlertTriangle style={{ width: 18, height: 18, color: TOM.alerta.text, flexShrink: 0, marginTop: 1 }} />
               <div>
-                <p style={{ margin: 0, fontWeight: 700, fontSize: 13, color: "#78350f" }}>Sua sessão expirou</p>
-                <p style={{ margin: "4px 0 0 0", fontSize: 12, color: "#92400e", lineHeight: 1.5 }}>
+                <p style={{ margin: 0, fontWeight: 700, fontSize: 13, color: TOM.alerta.text }}>Sua sessão expirou</p>
+                <p style={{ margin: "4px 0 0 0", fontSize: 12, color: TOM.alerta.text, lineHeight: 1.5 }}>
                   Entre novamente para continuar de onde parou.
                 </p>
               </div>
@@ -255,22 +258,22 @@ export default function Login() {
               data-testid="banner-sso-error"
               style={{
                 display: "flex", alignItems: "flex-start", gap: 12,
-                backgroundColor: "#fef2f2", border: "1.5px solid #fecaca",
+                backgroundColor: TOM.perigo.bg, border: `1.5px solid ${TOM.perigo.border}`,
                 borderRadius: 8, padding: "14px 16px", marginBottom: 24,
               }}
             >
-              <AlertTriangle style={{ width: 18, height: 18, color: "#dc2626", flexShrink: 0, marginTop: 1 }} />
+              <AlertTriangle style={{ width: 18, height: 18, color: TOM.perigo.text, flexShrink: 0, marginTop: 1 }} />
               <div>
-                <p style={{ margin: 0, fontWeight: 700, fontSize: 13, color: "#991b1b" }}>{ssoError.title}</p>
-                <p style={{ margin: "4px 0 0 0", fontSize: 12, color: "#b91c1c", lineHeight: 1.5 }}>{ssoError.description}</p>
+                <p style={{ margin: 0, fontWeight: 700, fontSize: 13, color: TOM.perigo.text }}>{ssoError.title}</p>
+                <p style={{ margin: "4px 0 0 0", fontSize: 12, color: TOM.perigo.text, lineHeight: 1.5 }}>{ssoError.description}</p>
               </div>
             </div>
           )}
 
           {/* Primary SSO info card */}
           <div style={{
-            backgroundColor: "#fff",
-            border: "1.5px solid #e7e5e4",
+            backgroundColor: T.surface,
+            border: `1.5px solid ${T.border}`,
             borderRadius: 12,
             padding: "28px 24px",
             display: "flex", alignItems: "flex-start", gap: 18,
@@ -286,15 +289,15 @@ export default function Login() {
               </svg>
             </div>
             <div>
-              <p style={{ margin: "0 0 4px 0", fontWeight: 700, fontSize: 15, color: "#1c1917" }}>
+              <p style={{ margin: "0 0 4px 0", fontWeight: 700, fontSize: 15, color: T.text }}>
                 Login via Microsoft
               </p>
-              <p style={{ margin: 0, fontSize: 13, color: "#746e69", lineHeight: 1.5 }}>
+              <p style={{ margin: 0, fontSize: 13, color: T.second, lineHeight: 1.5 }}>
                 O acesso ao sistema é feito pelo portal NORTE. Use sua conta Microsoft corporativa para entrar.
               </p>
               {/* O caso que travava o primeiro uso: o e-mail não cadastrado
                   só descobria isso DEPOIS de ir ao portal e voltar com erro. */}
-              <p style={{ margin: "8px 0 0", fontSize: 12, color: "#57534e", lineHeight: 1.5 }}>
+              <p style={{ margin: "8px 0 0", fontSize: 12, color: T.apoio, lineHeight: 1.5 }}>
                 Ainda sem acesso? Peça ao administrador do sistema para cadastrar o seu e-mail.
               </p>
               {/* O card mandava ir ao portal e não levava até ele. Só aparece
@@ -304,7 +307,7 @@ export default function Login() {
                 <a
                   href={hubUrl}
                   data-testid="link-portal-norte"
-                  style={{ display: "inline-flex", alignItems: "center", gap: 6, marginTop: 12, minHeight: 36, padding: "0 14px", borderRadius: 8, backgroundColor: "#1c1917", color: "#ffffff", fontSize: 13, fontWeight: 700, textDecoration: "none" }}
+                  style={{ display: "inline-flex", alignItems: "center", gap: 6, marginTop: 12, minHeight: 36, padding: "0 14px", borderRadius: 8, backgroundColor: T.text, color: T.surface, fontSize: 13, fontWeight: 700, textDecoration: "none" }}
                 >
                   Ir para o portal NORTE
                   <ArrowRight aria-hidden="true" style={{ width: 14, height: 14 }} />
@@ -326,7 +329,7 @@ export default function Login() {
               display: "flex", alignItems: "center", justifyContent: "space-between",
               padding: "10px 0",
               cursor: "pointer",
-              color: "#746e69",
+              color: T.second,
               fontSize: 12, fontWeight: 600,
               textTransform: "uppercase", letterSpacing: "0.08em",
               fontFamily: "inherit",
@@ -352,9 +355,9 @@ export default function Login() {
                 display: "flex", flexDirection: "column", gap: 20,
                 marginTop: 4,
                 padding: "20px",
-                backgroundColor: "#f5f5f4",
+                backgroundColor: T.low,
                 borderRadius: 10,
-                border: "1px solid #e7e5e4",
+                border: `1px solid ${T.border}`,
               }}
             >
               {/* SEM PROMETER SENHA. A tela Usuários não define senha (o
@@ -363,7 +366,7 @@ export default function Login() {
                   no primeiro acesso" também não vale: o boot do servidor zera
                   must_change_password de todos (server/index.ts). A frase
                   antiga mandava gente esperar uma senha que ninguém entrega. */}
-              <p style={{ margin: 0, fontSize: 12, color: "#57534e", lineHeight: 1.5 }}>
+              <p style={{ margin: 0, fontSize: 12, color: T.apoio, lineHeight: 1.5 }}>
                 Só para contas que já têm senha cadastrada. A equipe entra pelo portal NORTE, com a conta Microsoft — o cadastro de usuários não cria senha.
               </p>
 
@@ -372,7 +375,7 @@ export default function Login() {
                 <label htmlFor="email" style={{
                   fontSize: 10, fontWeight: 700,
                   textTransform: "uppercase", letterSpacing: "0.1em",
-                  color: "#746e69",
+                  color: T.second,
                 }}>Endereço de E-mail</label>
                 <input
                   id="email"
@@ -385,26 +388,26 @@ export default function Login() {
                   data-testid="input-email"
                   style={{
                     width: "100%", height: 48,
-                    backgroundColor: "#fff",
-                    border: "1.5px solid #e7e5e4",
+                    backgroundColor: T.surface,
+                    border: `1.5px solid ${T.border}`,
                     borderRadius: 8, padding: "0 14px",
-                    fontSize: 14, fontWeight: 500, color: "#1c1917",
+                    fontSize: 14, fontWeight: 500, color: T.text,
                     boxSizing: "border-box", fontFamily: "inherit", outline: "none",
                     transition: "border-color 0.2s, box-shadow 0.2s",
                   }}
                   onFocus={(e) => {
-                    e.currentTarget.style.borderColor = "#f97316";
+                    e.currentTarget.style.borderColor = T.accent;
                     e.currentTarget.style.boxShadow = "0 0 0 3px rgba(249,115,22,0.12)";
                   }}
                   onBlur={(e) => {
-                    e.currentTarget.style.borderColor = "#e7e5e4";
+                    e.currentTarget.style.borderColor = T.border;
                     e.currentTarget.style.boxShadow = "none";
                   }}
                 />
                 {/* #b91c1c: #dc2626 sobre o #f5f5f4 do formulário ficava abaixo
                     de 4,5:1 num texto de 12px. */}
                 {form.formState.errors.email && (
-                  <p id="email-erro" style={{ color: "#b91c1c", fontSize: 12, margin: 0 }}>{form.formState.errors.email.message}</p>
+                  <p id="email-erro" style={{ color: TOM.perigo.text, fontSize: 12, margin: 0 }}>{form.formState.errors.email.message}</p>
                 )}
               </div>
 
@@ -413,7 +416,7 @@ export default function Login() {
                 <label htmlFor="password" style={{
                   fontSize: 10, fontWeight: 700,
                   textTransform: "uppercase", letterSpacing: "0.1em",
-                  color: "#746e69",
+                  color: T.second,
                 }}>Senha de Acesso</label>
                 <div style={{ position: "relative" }}>
                   <input
@@ -429,19 +432,19 @@ export default function Login() {
                     data-testid="input-password"
                     style={{
                       width: "100%", height: 48,
-                      backgroundColor: "#fff",
-                      border: "1.5px solid #e7e5e4",
+                      backgroundColor: T.surface,
+                      border: `1.5px solid ${T.border}`,
                       borderRadius: 8, padding: "0 44px 0 14px",
-                      fontSize: 14, fontWeight: 500, color: "#1c1917",
+                      fontSize: 14, fontWeight: 500, color: T.text,
                       boxSizing: "border-box", fontFamily: "inherit", outline: "none",
                       transition: "border-color 0.2s, box-shadow 0.2s",
                     }}
                     onFocus={(e) => {
-                      e.currentTarget.style.borderColor = "#f97316";
+                      e.currentTarget.style.borderColor = T.accent;
                       e.currentTarget.style.boxShadow = "0 0 0 3px rgba(249,115,22,0.12)";
                     }}
                     onBlur={(e) => {
-                      e.currentTarget.style.borderColor = "#e7e5e4";
+                      e.currentTarget.style.borderColor = T.border;
                       e.currentTarget.style.boxShadow = "none";
                     }}
                   />
@@ -451,18 +454,18 @@ export default function Login() {
                     title={showPassword ? "Ocultar senha" : "Mostrar senha"}
                     aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"}
                     // 36x36: o alvo era o ícone de 18px com 6 de folga.
-                    style={{ position: "absolute", right: 6, top: "50%", transform: "translateY(-50%)", width: 36, height: 36, borderRadius: 6, background: "none", border: "none", cursor: "pointer", color: "#746e69", padding: 0, display: "flex", alignItems: "center", justifyContent: "center" }}
+                    style={{ position: "absolute", right: 6, top: "50%", transform: "translateY(-50%)", width: 36, height: 36, borderRadius: 6, background: "none", border: "none", cursor: "pointer", color: T.second, padding: 0, display: "flex", alignItems: "center", justifyContent: "center" }}
                   >
                     {showPassword ? <EyeOff aria-hidden="true" style={{ width: 18, height: 18 }} /> : <Eye aria-hidden="true" style={{ width: 18, height: 18 }} />}
                   </button>
                 </div>
                 {capsLock && (
-                  <p id="senha-caps" role="status" style={{ color: "#92400e", fontSize: 12, margin: 0, fontWeight: 600 }}>
+                  <p id="senha-caps" role="status" style={{ color: TOM.alerta.text, fontSize: 12, margin: 0, fontWeight: 600 }}>
                     Caps Lock está ligado.
                   </p>
                 )}
                 {form.formState.errors.password && (
-                  <p id="senha-erro" style={{ color: "#b91c1c", fontSize: 12, margin: 0 }}>{form.formState.errors.password.message}</p>
+                  <p id="senha-erro" style={{ color: TOM.perigo.text, fontSize: 12, margin: 0 }}>{form.formState.errors.password.message}</p>
                 )}
               </div>
 
@@ -472,12 +475,12 @@ export default function Login() {
                   data-testid="login-error-inline"
                   style={{
                     display: "flex", alignItems: "flex-start", gap: 10,
-                    backgroundColor: "#fef2f2", border: "1.5px solid #fecaca",
+                    backgroundColor: TOM.perigo.bg, border: `1.5px solid ${TOM.perigo.border}`,
                     borderRadius: 8, padding: "12px 14px",
                   }}
                 >
-                  <AlertTriangle style={{ width: 16, height: 16, color: "#dc2626", flexShrink: 0, marginTop: 1 }} />
-                  <p style={{ margin: 0, fontSize: 12, color: "#991b1b", lineHeight: 1.5 }}>{loginError}</p>
+                  <AlertTriangle style={{ width: 16, height: 16, color: TOM.perigo.text, flexShrink: 0, marginTop: 1 }} />
+                  <p style={{ margin: 0, fontSize: 12, color: TOM.perigo.text, lineHeight: 1.5 }}>{loginError}</p>
                 </div>
               )}
 
@@ -488,9 +491,9 @@ export default function Login() {
                 className="login-submit-btn"
                 style={{
                   width: "100%", height: 48,
-                  backgroundColor: "#1c1917",
+                  backgroundColor: T.text,
                   color: "white", border: "none", borderRadius: 8,
-                  fontSize: 14, fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700,
+                  fontSize: 14, fontFamily: FONT.display, fontWeight: 700,
                   cursor: loginMutation.isPending ? "not-allowed" : "pointer",
                   opacity: loginMutation.isPending ? 0.8 : 1,
                   display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
@@ -521,10 +524,10 @@ export default function Login() {
           position: "absolute", bottom: 48, right: 48,
           display: "flex", alignItems: "center", gap: 6,
         }}>
-          <Lock aria-hidden="true" style={{ width: 13, height: 13, color: "#746e69" }} />
+          <Lock aria-hidden="true" style={{ width: 13, height: 13, color: T.second }} />
           <span style={{
             fontSize: 10, fontWeight: 700,
-            textTransform: "uppercase", letterSpacing: "0.1em", color: "#746e69",
+            textTransform: "uppercase", letterSpacing: "0.1em", color: T.second,
           }}>Conexão segura</span>
         </footer>
       </section>

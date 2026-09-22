@@ -66,7 +66,9 @@ describe("2. os 18 itens cabem sem serem esmagados", () => {
   });
 
   it("a separação entre grupos é régua, não vão de 20px", () => {
-    expect(codigo).toContain('backgroundColor: "#f1efec", margin: "14px 18px 0"');
+    // O hex saiu: a régua usa o n3 da escada de neutros (#f0efee). Antes era
+    // #f1efec, um cinza que só existia nesta linha.
+    expect(codigo).toContain('backgroundColor: N.n3, margin: "14px 18px 0"');
     expect(codigo).not.toContain('"20px 0 4px"');
   });
 
@@ -106,8 +108,10 @@ describe("4. o sino", () => {
 
   it("o contador saiu de dentro do ícone", () => {
     expect(codigo).toContain('position: "absolute", top: -5, right: -5');
-    // `#b91c1c` é o vermelho de alarme da casa; `#dc2626` não é.
-    expect(codigo).toContain('backgroundColor: "#b91c1c"');
+    // O vermelho de alarme da casa é TOM.perigo.text (#b91c1c), o mesmo da
+    // pílula de status. O #dc2626 que rondava estas telas dá 4,0:1 como texto
+    // e reprova AA — por isso o token, e não o hex.
+    expect(codigo).toContain("backgroundColor: TOM.perigo.text");
   });
 
   it("e não treme com dois dígitos", () => {

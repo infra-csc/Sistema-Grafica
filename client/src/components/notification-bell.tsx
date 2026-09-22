@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { Bell, Package, CheckCircle, AlertTriangle, Truck, FileText, ClipboardCheck, CalendarClock, PlusCircle, MinusCircle, ChevronRight, Inbox, RotateCcw, Link2, Palette } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { T, FS, R, N, FW, FONT, TOM } from "@/lib/theme";
 
 export interface Notification {
   id: string;
@@ -51,14 +52,14 @@ const TYPE_CONFIG: Record<string, TypeConfig> = {
   // "Estoque" num aviso de aprovação procurava o aviso na tela errada.
   itemAdded: {
     Icon: Package,
-    border: "#3b82f6",
-    bgIcon: "#dbeafe", iconColor: "#2563eb",
+    border: TOM.info.dot,
+    bgIcon: TOM.info.border, iconColor: TOM.info.text,
     label: "Chegou à sua fila",
   },
   arteApproved: {
     Icon: CheckCircle,
-    border: "#22c55e",
-    bgIcon: "#dcfce7", iconColor: "#16a34a",
+    border: TOM.sucesso.dot,
+    bgIcon: TOM.sucesso.bg, iconColor: TOM.sucesso.text,
     label: "Peça avançou",
   },
   // Os cinco tipos abaixo o servidor grava desde sempre e caíam no genérico
@@ -66,14 +67,14 @@ const TYPE_CONFIG: Record<string, TypeConfig> = {
   // ação" (prioridade e devolução), justo os que mais pedem identidade.
   itemPriority: {
     Icon: AlertTriangle,
-    border: "#ef4444",
-    bgIcon: "#fee2e2", iconColor: "#b91c1c",
+    border: TOM.perigo.dot,
+    bgIcon: TOM.perigo.bg, iconColor: TOM.perigo.text,
     label: "Prioridade",
   },
   itemRejected: {
     Icon: RotateCcw,
-    border: "#ef4444",
-    bgIcon: "#fef2f2", iconColor: "#b91c1c",
+    border: TOM.perigo.dot,
+    bgIcon: TOM.perigo.bg, iconColor: TOM.perigo.text,
     // "Voltou para você" e não "Reprovada": o servidor usa este tipo para toda
     // peça que VOLTA a alguém — reprovação para a Arte, nova versão para o
     // Atendimento, devolução da Gráfica para a Revisão Final.
@@ -81,26 +82,26 @@ const TYPE_CONFIG: Record<string, TypeConfig> = {
   },
   itemsSubmitted: {
     Icon: Link2,
-    border: "#3b82f6",
-    bgIcon: "#dbeafe", iconColor: "#1d4ed8",
+    border: TOM.info.dot,
+    bgIcon: TOM.info.border, iconColor: TOM.info.text,
     label: "Vinculação",
   },
   itemsSentToArte: {
     Icon: Palette,
-    border: "#3b82f6",
-    bgIcon: "#dbeafe", iconColor: "#1d4ed8",
+    border: TOM.info.dot,
+    bgIcon: TOM.info.border, iconColor: TOM.info.text,
     label: "Chegou à sua fila",
   },
   itemReturnedToCreation: {
     Icon: RotateCcw,
-    border: "#f59e0b",
-    bgIcon: "#fef3c7", iconColor: "#92400e",
+    border: TOM.alerta.dot,
+    bgIcon: TOM.alerta.bg, iconColor: TOM.alerta.text,
     label: "Voltou para você",
   },
   deadlineAlert: {
     Icon: AlertTriangle,
-    border: "#ef4444",
-    bgIcon: "#fee2e2", iconColor: "#dc2626",
+    border: TOM.perigo.dot,
+    bgIcon: TOM.perigo.bg, iconColor: TOM.perigo.text,
     label: "Urgente",
   },
   itemDelivered: {
@@ -111,8 +112,8 @@ const TYPE_CONFIG: Record<string, TypeConfig> = {
   },
   eventCompleted: {
     Icon: ClipboardCheck,
-    border: "#22c55e",
-    bgIcon: "#dcfce7", iconColor: "#16a34a",
+    border: TOM.sucesso.dot,
+    bgIcon: TOM.sucesso.bg, iconColor: TOM.sucesso.text,
     label: "Evento",
   },
   eventCreated: {
@@ -123,8 +124,8 @@ const TYPE_CONFIG: Record<string, TypeConfig> = {
   },
   prazoAlert: {
     Icon: CalendarClock,
-    border: "#f59e0b",
-    bgIcon: "#fef3c7", iconColor: "#d97706",
+    border: TOM.alerta.dot,
+    bgIcon: TOM.alerta.bg, iconColor: TOM.alerta.text,
     label: "Prazo",
   },
   // COMPLEMENTO — aumento de quantidade depois que a peça entrou em produção.
@@ -134,106 +135,106 @@ const TYPE_CONFIG: Record<string, TypeConfig> = {
   // reprova contraste); #f97316 fica só na borda, que é fundo.
   complementCreated: {
     Icon: PlusCircle,
-    border: "#f97316",
-    bgIcon: "#fff7ed", iconColor: "#c2410c",
+    border: T.accent,
+    bgIcon: TOM.laranja.bg, iconColor: T.accentText,
     label: "Complemento",
   },
   complementCanceled: {
     Icon: MinusCircle,
-    border: "#ef4444",
-    bgIcon: "#fef2f2", iconColor: "#b91c1c",
+    border: TOM.perigo.dot,
+    bgIcon: TOM.perigo.bg, iconColor: TOM.perigo.text,
     label: "Compl. cancelado",
   },
   // Redução de quantidade numa peça já em produção: não cria trabalho, mas a
   // Gráfica precisa saber ANTES de imprimir a mais.
   quantityReduced: {
     Icon: MinusCircle,
-    border: "#f59e0b",
-    bgIcon: "#fef3c7", iconColor: "#92400e",
+    border: TOM.alerta.dot,
+    bgIcon: TOM.alerta.bg, iconColor: TOM.alerta.text,
     label: "Quantidade",
   },
   // PEDIDOS DE PEÇA DO ATENDIMENTO (14/09).
   pedidoDePeca: {
     Icon: Inbox,
-    border: "#f59e0b",
-    bgIcon: "#fffbeb", iconColor: "#92400e",
+    border: TOM.alerta.dot,
+    bgIcon: TOM.alerta.bg, iconColor: TOM.alerta.text,
     label: "Solicitação de peça",
   },
   pedidoAtendido: {
     Icon: CheckCircle,
-    border: "#22c55e",
-    bgIcon: "#dcfce7", iconColor: "#15803d",
+    border: TOM.sucesso.dot,
+    bgIcon: TOM.sucesso.bg, iconColor: TOM.sucesso.text,
     label: "Solicitação atendida",
   },
   pedidoRecusado: {
     Icon: MinusCircle,
-    border: "#ef4444",
-    bgIcon: "#fef2f2", iconColor: "#b91c1c",
+    border: TOM.perigo.dot,
+    bgIcon: TOM.perigo.bg, iconColor: TOM.perigo.text,
     label: "Solicitação recusada",
   },
   pedidoCancelado: {
     Icon: MinusCircle,
-    border: "#a8a29e",
-    bgIcon: "#f5f5f4", iconColor: "#57534e",
+    border: T.muted,
+    bgIcon: T.low, iconColor: T.apoio,
     label: "Solicitação cancelada",
   },
   pedidoEditado: {
     Icon: Inbox,
-    border: "#f59e0b",
-    bgIcon: "#fffbeb", iconColor: "#92400e",
+    border: TOM.alerta.dot,
+    bgIcon: TOM.alerta.bg, iconColor: TOM.alerta.text,
     label: "Solicitação editada",
   },
   pedidoReaberto: {
     Icon: Inbox,
-    border: "#f59e0b",
-    bgIcon: "#fffbeb", iconColor: "#92400e",
+    border: TOM.alerta.dot,
+    bgIcon: TOM.alerta.bg, iconColor: TOM.alerta.text,
     label: "Solicitação reaberta",
   },
   pedidoAjuste: {
     Icon: Inbox,
-    border: "#f59e0b",
-    bgIcon: "#fffbeb", iconColor: "#92400e",
+    border: TOM.alerta.dot,
+    bgIcon: TOM.alerta.bg, iconColor: TOM.alerta.text,
     label: "Ajuste solicitado",
   },
   pedidoAjusteAceito: {
     Icon: CheckCircle,
-    border: "#22c55e",
-    bgIcon: "#dcfce7", iconColor: "#15803d",
+    border: TOM.sucesso.dot,
+    bgIcon: TOM.sucesso.bg, iconColor: TOM.sucesso.text,
     label: "Ajuste aceito",
   },
   // SOLICITAÇÃO AO ESTOQUE da Revisão Final (21/09).
   consultaDeEstoque: {
     Icon: Inbox,
-    border: "#f59e0b",
-    bgIcon: "#fffbeb", iconColor: "#92400e",
+    border: TOM.alerta.dot,
+    bgIcon: TOM.alerta.bg, iconColor: TOM.alerta.text,
     label: "Solicitação ao estoque",
   },
   // Respondida com a peça na Revisão Final: ela confirma e libera.
   consultaDeEstoqueRespondida: {
     Icon: CheckCircle,
-    border: "#22c55e",
-    bgIcon: "#dcfce7", iconColor: "#15803d",
+    border: TOM.sucesso.dot,
+    bgIcon: TOM.sucesso.bg, iconColor: TOM.sucesso.text,
     label: "Estoque respondeu",
   },
   // Respondida com a peça já liberada: o reaproveitamento entrou direto.
   consultaDeEstoqueAplicada: {
     Icon: CheckCircle,
-    border: "#22c55e",
-    bgIcon: "#dcfce7", iconColor: "#15803d",
+    border: TOM.sucesso.dot,
+    bgIcon: TOM.sucesso.bg, iconColor: TOM.sucesso.text,
     label: "Estoque respondeu",
   },
   pedidoAjusteRecusado: {
     Icon: MinusCircle,
-    border: "#ef4444",
-    bgIcon: "#fef2f2", iconColor: "#b91c1c",
+    border: TOM.perigo.dot,
+    bgIcon: TOM.perigo.bg, iconColor: TOM.perigo.text,
     label: "Ajuste recusado",
   },
 };
 
 const DEFAULT_CONFIG: TypeConfig = {
   Icon: Bell,
-  border: "#a8a29e",
-  bgIcon: "#e7e5e4", iconColor: "#746e69",
+  border: T.muted,
+  bgIcon: T.border, iconColor: T.second,
   label: "Sistema",
 };
 
@@ -265,10 +266,10 @@ function SkeletonRows() {
     <div aria-hidden="true" style={{ padding: "16px", display: "flex", flexDirection: "column", gap: 14 }}>
       {[0, 1, 2].map((i) => (
         <div key={i} className="animate-pulse" style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <div style={{ width: 34, height: 34, borderRadius: 8, backgroundColor: "#f5f5f4", flexShrink: 0 }} />
+          <div style={{ width: 34, height: 34, borderRadius: 8, backgroundColor: T.low, flexShrink: 0 }} />
           <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 6 }}>
-            <div style={{ height: 10, borderRadius: 4, backgroundColor: "#f5f5f4", width: "85%" }} />
-            <div style={{ height: 8, borderRadius: 4, backgroundColor: "#f5f5f4", width: "45%" }} />
+            <div style={{ height: 10, borderRadius: 4, backgroundColor: T.low, width: "85%" }} />
+            <div style={{ height: 8, borderRadius: 4, backgroundColor: T.low, width: "45%" }} />
           </div>
         </div>
       ))}
@@ -400,18 +401,18 @@ export function NotificationBell({
           flexShrink: 0,
           padding: 0,
           borderRadius: 9,
-          border: "1px solid #e7e5e4",
-          background: open ? "#f5f5f4" : "#ffffff",
+          border: `1px solid ${T.border}`,
+          background: open ? T.low : T.surface,
           cursor: "pointer",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
           transition: "background 0.15s",
         }}
-        onMouseEnter={(e) => { if (!open) (e.currentTarget as HTMLButtonElement).style.background = "#fafaf9"; }}
-        onMouseLeave={(e) => { if (!open) (e.currentTarget as HTMLButtonElement).style.background = "#ffffff"; }}
+        onMouseEnter={(e) => { if (!open) (e.currentTarget as HTMLButtonElement).style.background = T.bg; }}
+        onMouseLeave={(e) => { if (!open) (e.currentTarget as HTMLButtonElement).style.background = T.surface; }}
       >
-        <Bell aria-hidden="true" style={{ width: 17, height: 17, color: "#57534e" }} />
+        <Bell aria-hidden="true" style={{ width: 17, height: 17, color: T.apoio }} />
         {unreadCount > 0 && (
           <span
             data-testid="badge-notification-count"
@@ -426,11 +427,11 @@ export function NotificationBell({
               // `#b91c1c` e não `#dc2626`: é o vermelho de alarme da casa, o
               // mesmo do prazo vencido e do motivo de reprovação.
               position: "absolute", top: -5, right: -5,
-              backgroundColor: "#b91c1c", color: "#ffffff",
+              backgroundColor: TOM.perigo.text, color: T.surface,
               fontSize: 10, fontWeight: 700,
               fontVariantNumeric: "tabular-nums",
               height: 17, minWidth: 17, padding: "0 4px",
-              borderRadius: 999, border: "2px solid #f9f9f8",
+              borderRadius: 999, border: `2px solid ${T.bg}`,
               display: "flex", alignItems: "center", justifyContent: "center",
               lineHeight: 1,
             }}
@@ -472,18 +473,18 @@ export function NotificationBell({
             ...(isMobile
               ? { position: "fixed" as const, top: 72, left: 12, right: 12, width: "auto" }
               : { position: "absolute" as const, top: "calc(100% + 12px)", right: -8, width: "min(376px, calc(100vw - 96px))" }),
-            backgroundColor: "#ffffff",
+            backgroundColor: T.surface,
             borderRadius: 12,
             boxShadow: "0 32px 64px -16px rgba(28,25,23,0.18)",
-            border: "1px solid #f3f4f3",
+            border: `1px solid ${T.low}`,
             zIndex: 100, overflow: "hidden",
           }}
         >
           {/* Header */}
           <div style={{
             padding: "14px 20px",
-            backgroundColor: "#fafaf9",
-            borderBottom: "1px solid #e7e5e4",
+            backgroundColor: T.bg,
+            borderBottom: `1px solid ${T.border}`,
             display: "flex", alignItems: "center", justifyContent: "space-between",
           }}>
             <h3
@@ -491,9 +492,9 @@ export function NotificationBell({
               // Alvo do foco após "Marcar todas" zerar a lista (o botão some).
               tabIndex={-1}
               style={{
-                fontFamily: "'Space Grotesk', sans-serif",
+                fontFamily: FONT.display,
                 fontSize: 11, fontWeight: 700,
-                color: "#1c1917", textTransform: "uppercase", letterSpacing: "0.1em",
+                color: T.text, textTransform: "uppercase", letterSpacing: "0.1em",
                 margin: 0, outline: "none",
               }}
             >
@@ -502,8 +503,8 @@ export function NotificationBell({
             {unreadCount > 0 && (
               <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
                 <span style={{
-                  fontSize: 10, fontWeight: 700, color: "#c2410c",
-                  backgroundColor: "#fff7ed",
+                  fontSize: 10, fontWeight: 700, color: T.accentText,
+                  backgroundColor: TOM.laranja.bg,
                   padding: "2px 8px", borderRadius: 4,
                   textTransform: "uppercase", letterSpacing: "0.05em",
                 }}>
@@ -522,7 +523,7 @@ export function NotificationBell({
                     // único sublinhado da casca, num controle que não navega.
                     // O alvo continua em 36 por `minHeight`, sem inflar a faixa.
                     minHeight: 36, padding: "0 8px", borderRadius: 6,
-                    fontSize: 12, fontWeight: 600, color: "#746e69",
+                    fontSize: 12, fontWeight: 600, color: T.second,
                     opacity: isMarkingAll ? 0.6 : 1,
                   }}
                 >
@@ -540,7 +541,7 @@ export function NotificationBell({
               <SkeletonRows />
             ) : isError ? (
               <div style={{ padding: "28px 24px", textAlign: "center" }}>
-                <p style={{ margin: "0 0 12px", color: "#57534e", fontSize: 13, fontWeight: 500 }}>
+                <p style={{ margin: "0 0 12px", color: T.apoio, fontSize: 13, fontWeight: 500 }}>
                   Não foi possível carregar as notificações
                 </p>
                 <button
@@ -549,9 +550,9 @@ export function NotificationBell({
                   style={{
                     // #d6d3d1 dava ~1.5:1 com o fundo — a borda do único
                     // controle acionável do estado de erro quase sumia.
-                    background: "#ffffff", border: "1px solid #78716c", borderRadius: 8,
+                    background: T.surface, border: `1px solid ${T.second}`, borderRadius: 8,
                     padding: "8px 16px", cursor: "pointer",
-                    fontSize: 12, fontWeight: 700, color: "#1c1917",
+                    fontSize: 12, fontWeight: 700, color: T.text,
                   }}
                 >
                   Tentar de novo
@@ -559,12 +560,12 @@ export function NotificationBell({
               </div>
             ) : notifications.length === 0 ? (
               <div style={{ padding: "32px 24px", textAlign: "center" }}>
-                <Bell aria-hidden="true" style={{ width: 28, height: 28, color: "#d6d3d1", margin: "0 auto 10px", display: "block" }} />
-                <p style={{ margin: "0 0 4px", color: "#57534e", fontSize: 13, fontWeight: 600 }}>
+                <Bell aria-hidden="true" style={{ width: 28, height: 28, color: T.bdark, margin: "0 auto 10px", display: "block" }} />
+                <p style={{ margin: "0 0 4px", color: T.apoio, fontSize: 13, fontWeight: 600 }}>
                   Nenhuma notificação
                 </p>
                 {/* #a8a29e era ~2.4:1 sobre branco — abaixo do AA. */}
-                <p style={{ margin: 0, color: "#746e69", fontSize: 12 }}>
+                <p style={{ margin: 0, color: T.second, fontSize: 12 }}>
                   Você será avisado quando algo precisar da sua ação
                 </p>
               </div>
@@ -592,12 +593,12 @@ export function NotificationBell({
                 const cabecalho = (texto: string, itens: Notification[], destaque = false) => {
                   const naoLidas = itens.filter((x) => !x.isRead);
                   return (
-                    <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 16px 4px", backgroundColor: destaque ? "#fff7ed" : "#fafaf9", borderBottom: "1px solid #f3f4f3" }}>
-                      <span style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: destaque ? "#c2410c" : "#78716c", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 16px 4px", backgroundColor: destaque ? TOM.laranja.bg : T.bg, borderBottom: `1px solid ${T.low}` }}>
+                      <span style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: destaque ? T.accentText : T.second, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                         {texto}
                       </span>
                       {/* #78716c: #a8a29e é proibido como texto (2,5:1). */}
-                      <span style={{ fontSize: 10, fontWeight: 700, color: "#78716c" }}>{itens.length}</span>
+                      <span style={{ fontSize: 10, fontWeight: 700, color: T.second }}>{itens.length}</span>
                       {naoLidas.length > 0 && (
                         <button
                           type="button"
@@ -606,7 +607,7 @@ export function NotificationBell({
                           // 28 de altura: era um alvo de texto de 10px com 2px
                           // de folga — o toque caía na notificação de baixo e
                           // navegava em vez de marcar.
-                          style={{ border: "none", background: "none", minHeight: 28, padding: "0 8px", margin: "-4px -8px -4px auto", borderRadius: 6, fontSize: 10.5, fontWeight: 700, color: "#c2410c", cursor: "pointer", whiteSpace: "nowrap" }}
+                          style={{ border: "none", background: "none", minHeight: 28, padding: "0 8px", margin: "-4px -8px -4px auto", borderRadius: 6, fontSize: 10.5, fontWeight: 700, color: T.accentText, cursor: "pointer", whiteSpace: "nowrap" }}
                         >
                           marcar lidas
                         </button>
@@ -649,9 +650,9 @@ export function NotificationBell({
                       backgroundColor: "transparent",
                       cursor: "pointer",
                       transition: "background-color 0.15s",
-                      borderBottom: "1px solid #f3f4f3",
+                      borderBottom: `1px solid ${T.low}`,
                     }}
-                    onMouseEnter={(e) => ((e.currentTarget as HTMLDivElement).style.backgroundColor = "#f9f9f8")}
+                    onMouseEnter={(e) => ((e.currentTarget as HTMLDivElement).style.backgroundColor = T.bg)}
                     onMouseLeave={(e) => ((e.currentTarget as HTMLDivElement).style.backgroundColor = "transparent")}
                   >
                     {/* Icon box */}
@@ -673,7 +674,7 @@ export function NotificationBell({
                         // 700 na não lida: com o fundo creme fora, o peso passa
                         // a ser um dos dois canais que dizem "isto é novo".
                         fontSize: 12, fontWeight: !n.isRead ? 700 : 500,
-                        color: isDeadline && !n.isRead ? "#b91c1c" : !n.isRead ? "#1c1917" : "#57534e",
+                        color: isDeadline && !n.isRead ? TOM.perigo.text : !n.isRead ? T.text : T.apoio,
                         margin: "0 0 3px 0", lineHeight: 1.4,
                       }}>
                         {n.message}
@@ -684,12 +685,12 @@ export function NotificationBell({
                         fontVariantNumeric: "tabular-nums",
                         // #f87171 sobre branco era ~2.5:1 — ilegível justamente
                         // na notificação mais urgente.
-                        color: isDeadline && !n.isRead ? "#b91c1c" : "#746e69",
+                        color: isDeadline && !n.isRead ? TOM.perigo.text : T.second,
                         margin: 0,
                       }}>
                         {fmtTime(n.createdAt)} · {cfg.label}
                         {abre && (
-                          <span aria-hidden="true" style={{ display: "inline-flex", alignItems: "center", gap: 2, marginLeft: 8, fontWeight: 700, color: "#c2410c" }}>
+                          <span aria-hidden="true" style={{ display: "inline-flex", alignItems: "center", gap: 2, marginLeft: 8, fontWeight: 700, color: T.accentText }}>
                             Abrir<ChevronRight style={{ width: 12, height: 12 }} />
                           </span>
                         )}
@@ -703,7 +704,7 @@ export function NotificationBell({
                         position: "absolute", right: 14, top: "50%",
                         transform: "translateY(-50%)",
                         width: 7, height: 7, borderRadius: "50%",
-                        backgroundColor: "#f97316", flexShrink: 0,
+                        backgroundColor: T.accent, flexShrink: 0,
                       }} />
                     )}
                   </div>
@@ -731,8 +732,8 @@ export function NotificationBell({
               #1c1917 dá ~3:1 e reprovava justamente o único link do rodapé. */}
           <div style={{
             padding: "4px 8px",
-            backgroundColor: "#fafaf9",
-            borderTop: "1px solid #e7e5e4",
+            backgroundColor: T.bg,
+            borderTop: `1px solid ${T.border}`,
             textAlign: "center",
           }}>
             <button
@@ -749,10 +750,10 @@ export function NotificationBell({
                 // hospedar um link.
                 display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
                 width: "100%", minHeight: 40, padding: "10px 16px",
-                fontSize: 12, fontWeight: 700, color: "#c2410c",
+                fontSize: 12, fontWeight: 700, color: T.accentText,
                 transition: "background-color 0.15s",
               }}
-              onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = "#f5f5f4")}
+              onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = T.low)}
               onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent")}
             >
               {/* Diz o destino: o botão leva ao Histórico (registro de tudo),

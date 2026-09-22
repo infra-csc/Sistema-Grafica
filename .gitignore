@@ -10,3 +10,6 @@ preview-gestao.html
 # Segredos locais — nunca no repositório.
 .env
 .env.*
+# O modelo é o contrário: só nomes e comentários, nenhum valor. Precisa estar
+# versionado, senão ninguém descobre quais variáveis existem.
+!.env.example

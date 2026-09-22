@@ -1,0 +1,79 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# CI — o que precisa estar verde antes de qualquer merge.
+#
+# SEM SEGREDOS, de propósito. Nada aqui toca banco, bucket ou e-mail: são o
+# compilador e a suíte de testes, que rodam com o banco de mentira. Um CI que
+# precisa de credencial é um CI que ninguém consegue rodar num fork — e é um
+# lugar a mais de onde uma senha pode vazar.
+#
+# Os testes de ponta a ponta (e2e/) NÃO rodam aqui: precisam de um app de pé
+# com banco de teste. Ver e2e/README.md.
+# ─────────────────────────────────────────────────────────────────────────────
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+# Push seguido de push na mesma branch: a execução velha é cancelada.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verificar:
+    name: tipos, testes e build
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          # O mesmo Node do Replit (.replit: nodejs-20).
+          node-version: "20"
+          cache: npm
+
+      # `npm ci` e não `npm install`: instala exatamente o que está no
+      # package-lock.json. Instalação que "resolve" versões sozinha faz o CI
+      # testar um conjunto de dependências que ninguém tem na máquina.
+      - name: Instalar dependências
+        run: npm ci
+
+      - name: Tipos do app
+        run: npm run check
+
+      # Os testes ficam fora do tsconfig do app (ele exclui **/*.test.ts).
+      # Este passo é o que impede que eles voltem a envelhecer sem aviso.
+      - name: Tipos dos testes
+        run: npm run check:tests
+
+      # A suíte inteira: o projeto "servidor" e, depois dele, o "telas".
+      # O "telas" monta React no jsdom e é pesado — o vitest.config.ts o limita
+      # a 4 workers (WORKERS_DE_TELA) e o põe em segundo na ordem, justamente
+      # para ele não disputar CPU com os ~230 testes de servidor e estourar o
+      # tempo. Num runner de 2 vCPUs esse teto vale ainda mais.
+      - name: Testes
+        run: npm test
+        env:
+          # Nenhum teste abre conexão, mas server/db.ts LANÇA no import sem
+          # esta variável. URL de mentira, banco que não existe.
+          DATABASE_URL: postgres://ci:ci@localhost:5432/banco_nunca_acessado
+          SESSION_SECRET: ci-sem-segredo-nenhum-so-para-o-import-passar
+
+      - name: Build
+        run: npm run build
+
+      # Quando um teste de tela cai, o relatório em texto raramente basta.
+      - name: Guardar o relatório do build que falhou
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: saida-do-ci
+          path: |
+            dist/
+            coverage/
+          retention-days: 7
+          if-no-files-found: ignore

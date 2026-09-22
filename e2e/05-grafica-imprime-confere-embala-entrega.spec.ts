@@ -128,7 +128,12 @@ test("não se confere mais do que saiu da impressora", async ({ page }) => {
   expect([400, 409]).toContain(demais.status());
 });
 
-test("entregar é do volume: a peça embalada não é entregue por fora", async ({ page }) => {
+test("entregar é SEMPRE do volume — a entrega individual está fechada", async ({ page }) => {
+  // Ver docs/estados-da-peca.md, divergência 1: `PATCH /:id/deliver` responde
+  // 409 em todos os casos ("Embale antes de entregar"), embora o comentário
+  // de shared/fluxo-peca.ts ainda diga que ele aceita conferred e packed.
+  // Este teste pina o comportamento REAL; se o dono reabrir a entrega
+  // individual para a peça grande, é aqui que a decisão aparece.
   await entrar(page, "grafica");
   await page.request.patch(`/api/items/${peca.id}/start-printing`, { data: { printMachine: "1" } });
   await page.request.patch(`/api/items/${peca.id}/start-production`, { data: { quantityProduced: 10 } });
@@ -136,14 +141,12 @@ test("entregar é do volume: a peça embalada não é entregue por fora", async 
   await page.request.post(`/api/items/${peca.id}/confer`, { data: { conferencePhotoUrl: foto, qty: 10 } });
   await esperarStatus(page, peca, ["conferred", "conferido"]);
 
-  // Peça CONFERIDA (que não vai em volume) ainda se entrega individualmente —
-  // é a peça grande que sai solta. O que muda é o que acontece DEPOIS de
-  // embalar, coberto no fluxo inteiro acima.
   const r = await page.request.patch(`/api/items/${peca.id}/deliver`, {
     data: { receivedBy: "João da portaria", photoUrl: foto, qty: 10 },
   });
-  expect(r.ok(), await r.text()).toBe(true);
-  await esperarStatus(page, peca, ["delivered", "entregue"]);
+  expect(r.status()).toBe(409);
+  expect(await r.text()).toContain("Embale antes de entregar");
+  await esperarStatus(page, peca, ["conferred", "conferido"]);
 });
 
 test("Solicitação e Atendimento não iniciam impressão — quem imprime é quem tem a máquina", async ({ page }) => {

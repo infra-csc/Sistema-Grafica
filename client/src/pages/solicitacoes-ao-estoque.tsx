@@ -36,7 +36,12 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { parseApiError } from "@/components/aumentar-quantidade-dialog";
 import { ObjectUploader } from "@/components/ObjectUploader";
 import { conditionMeta } from "@/lib/inventory-meta";
-import { T, FS, R } from "@/lib/theme";
+import { T, FS, R, FW, FONT, TOM } from "@/lib/theme";
+import { Botao } from "@/components/ui/botao";
+import { Selo } from "@/components/ui/selo";
+import { Abas } from "@/components/ui/abas";
+import { EstadoErro, EstadoVazio, Esqueleto } from "@/components/ui/estados";
+import { useConfirmar } from "@/components/ui/usar-confirmar";
 
 type Consulta = {
   id: string; itemId: string; eventId: string; status: StatusDaConsulta;
@@ -63,13 +68,22 @@ const ABAS = [
 ] as const;
 type Aba = (typeof ABAS)[number]["id"];
 
-/** Cores de TEXTO com AA sobre o próprio fundo. */
-const COR_DO_STATUS: Record<StatusDaConsulta, { cor: string; fundo: string; borda: string }> = {
-  aberta: { cor: "#92400e", fundo: "#fef3c7", borda: "#fcd34d" },
-  atendida: { cor: "#166534", fundo: "#dcfce7", borda: "#86efac" },
-  atendida_parcial: { cor: "#166534", fundo: "#f0fdf4", borda: "#86efac" },
-  nao_atendida: { cor: "#44403c", fundo: "#f5f5f4", borda: "#d6d3d1" },
-  cancelada: { cor: "#57534e", fundo: "#f5f5f4", borda: "#e7e5e4" },
+/**
+ * Cores de TEXTO com AA sobre o próprio fundo, vindas da paleta do sistema
+ * (TOM, espelho do P de status.ts) em vez dos sete hexes que estavam escritos
+ * aqui à mão. Eram tons vizinhos dos oficiais — #dcfce7 contra #f0fdf4, #fcd34d
+ * contra #fde68a — ou seja, um verde de "atendida" que não era o verde do app.
+ *
+ * "Não atendida" e "cancelada" ficam NEUTRAS de propósito: nenhuma das duas é
+ * erro. O estoque não ter a peça é uma resposta legítima, e quem cancelou foi
+ * quem pediu. Vermelho aqui assustaria sem motivo.
+ */
+const COR_DO_STATUS: Record<StatusDaConsulta, { bg: string; text: string; border: string }> = {
+  aberta: TOM.alerta,
+  atendida: TOM.sucesso,
+  atendida_parcial: TOM.sucesso,
+  nao_atendida: TOM.neutro,
+  cancelada: TOM.neutro,
 };
 
 const dataEHora = (d: string | null | undefined) =>
@@ -92,41 +106,40 @@ export function ativosParaUnidades(ativos: Sugestao["ativos"], unidades: number)
   return { ids, soma };
 }
 
-function Selo({ status }: { status: StatusDaConsulta }) {
-  const c = COR_DO_STATUS[status];
+function SeloDaConsulta({ status }: { status: StatusDaConsulta }) {
   return (
-    <span data-testid={`selo-consulta-${status}`} style={{ fontSize: FS.small, fontWeight: 800, padding: "3px 10px", borderRadius: 999, color: c.cor, backgroundColor: c.fundo, border: `1px solid ${c.borda}`, whiteSpace: "nowrap" }}>
+    <Selo cores={COR_DO_STATUS[status]} data-testid={`selo-consulta-${status}`}>
       {ROTULO_DA_CONSULTA[status]}
-    </span>
+    </Selo>
   );
 }
 
 function Miniatura({ src, alt, lado }: { src: string | null; alt: string; lado: number }) {
-  const caixa: React.CSSProperties = { width: lado, height: lado, borderRadius: R.md, border: "1px solid #e7e5e4", backgroundColor: "#f5f5f4", flexShrink: 0, objectFit: "cover", display: "flex", alignItems: "center", justifyContent: "center" };
-  if (!src) return <div aria-hidden="true" style={caixa}><PackageSearch style={{ width: lado / 3, height: lado / 3, color: "#a8a29e" }} /></div>;
+  const caixa: React.CSSProperties = { width: lado, height: lado, borderRadius: R.md, border: `1px solid ${T.border}`, backgroundColor: T.low, flexShrink: 0, objectFit: "cover", display: "flex", alignItems: "center", justifyContent: "center" };
+  if (!src) return <div aria-hidden="true" style={caixa}><PackageSearch style={{ width: lado / 3, height: lado / 3, color: T.muted }} /></div>;
   return <img src={src} alt={alt} loading="lazy" style={caixa} />;
 }
 
 function APeca({ c, isMobile }: { c: Consulta; isMobile: boolean }) {
   const saida = c.evento.saidaDoCaminhao;
-  const linha: React.CSSProperties = { margin: 0, fontSize: FS.body, color: "#44403c", lineHeight: 1.5, overflowWrap: "anywhere" };
+  const linha: React.CSSProperties = { margin: 0, fontSize: FS.body, color: T.strong, lineHeight: 1.5, overflowWrap: "anywhere" };
   return (
     <div style={{ display: "flex", gap: 12, minWidth: 0 }}>
       <Miniatura src={c.peca.thumb} alt={`Arte da peça ${c.peca.displayId ?? ""}`} lado={isMobile ? 72 : 96} />
       <div style={{ minWidth: 0, display: "flex", flexDirection: "column", gap: 3 }}>
-        <p style={{ margin: 0, fontSize: FS.strong, fontWeight: 800, color: T.text, overflowWrap: "anywhere" }}>
-          <span style={{ fontFamily: "monospace" }}>{c.peca.displayId ?? "—"}</span> · {c.peca.tipo}
+        <p style={{ margin: 0, fontSize: FS.strong, fontWeight: FW.rotulo, color: T.text, overflowWrap: "anywhere" }}>
+          <span style={{ fontFamily: FONT.mono }}>{c.peca.displayId ?? "—"}</span> · {c.peca.tipo}
         </p>
         {c.peca.descricao && <p style={linha}>{c.peca.descricao}</p>}
-        <p data-testid={`pedem-${c.id}`} style={{ ...linha, fontSize: FS.strong, fontWeight: 800, color: T.text }}>Pedem {c.quantidadePedida} de {c.peca.quantidade} un.</p>
+        <p data-testid={`pedem-${c.id}`} style={{ ...linha, fontSize: FS.strong, fontWeight: FW.rotulo, color: T.text }}>Pedem {c.quantidadePedida} de {c.peca.quantidade} un.</p>
         <p style={linha}>{medida(c.peca.largura, c.peca.altura)}{c.peca.material ? ` · ${c.peca.material}` : ""}</p>
         <p style={linha}>{c.peca.patrocinadores.length ? c.peca.patrocinadores.join(", ") : "Sem patrocinador vinculado"}</p>
         <p style={linha}>
           {c.evento.nome ?? "Evento"}{saida ? <> · caminhão sai <strong>{diaEMes(saida)}</strong></> : " · sem data de saída do caminhão"}
         </p>
-        <p style={{ ...linha, color: "#57534e" }}>Pedida por {c.pedidoPor ?? "—"} em {dataEHora(c.pedidoEm)}</p>
+        <p style={{ ...linha, color: T.apoio }}>Pedida por {c.pedidoPor ?? "—"} em {dataEHora(c.pedidoEm)}</p>
         {c.observacao && (
-          <blockquote style={{ margin: "4px 0 0", padding: "6px 10px", borderLeft: "3px solid #d6d3d1", background: "#fafaf9", borderRadius: R.sm, fontSize: FS.body, color: "#44403c", lineHeight: 1.45, whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>
+          <blockquote style={{ margin: "4px 0 0", padding: "6px 10px", borderLeft: `3px solid ${T.bdark}`, background: T.bg, borderRadius: R.sm, fontSize: FS.body, color: T.strong, lineHeight: 1.45, whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>
             “{c.observacao}”
           </blockquote>
         )}
@@ -138,6 +151,7 @@ function APeca({ c, isMobile }: { c: Consulta; isMobile: boolean }) {
 /** O lado direito da consulta aberta: sugestões, busca manual e a resposta. */
 function Responder({ c, isMobile, onRespondida }: { c: Consulta; isMobile: boolean; onRespondida: () => void }) {
   const { toast } = useToast();
+  const { confirmar, dialogo } = useConfirmar();
   const [busca, setBusca] = useState("");
   const [buscaAplicada, setBuscaAplicada] = useState("");
   // chave do lote → quantas unidades usar dele
@@ -207,15 +221,15 @@ function Responder({ c, isMobile, onRespondida }: { c: Consulta; isMobile: boole
     },
   });
 
-  const campo: React.CSSProperties = { boxSizing: "border-box", borderRadius: R.md, border: "1px solid #d6d3d1", padding: "0 12px", fontSize: 16, fontFamily: "inherit", color: T.text, backgroundColor: "#fff", minHeight: alvo };
+  const campo: React.CSSProperties = { boxSizing: "border-box", borderRadius: R.md, border: `1px solid ${T.bdark}`, padding: "0 12px", fontSize: FS.lead, fontFamily: "inherit", color: T.text, backgroundColor: T.surface, minHeight: alvo };
 
   return (
     <div data-testid={`responder-${c.id}`} style={{ minWidth: 0, display: "flex", flexDirection: "column", gap: 12 }}>
       <div>
-        <h3 style={{ margin: 0, fontSize: FS.small, fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase", color: "#57534e" }}>
+        <h3 style={{ margin: 0, fontSize: FS.small, fontWeight: FW.rotulo, letterSpacing: "0.08em", textTransform: "uppercase", color: T.apoio }}>
           {buscaAplicada ? "Busca no acervo" : "O sistema sugere"}
         </h3>
-        <p style={{ margin: "2px 0 0", fontSize: FS.small, color: "#57534e", lineHeight: 1.45 }}>
+        <p style={{ margin: "2px 0 0", fontSize: FS.small, color: T.apoio, lineHeight: 1.45 }}>
           {buscaAplicada
             ? "Peças livres do acervo que contêm o que você digitou."
             : "Peças livres do acervo com o mesmo tipo e a mesma medida — patrocinador igual primeiro."}
@@ -226,27 +240,32 @@ function Responder({ c, isMobile, onRespondida }: { c: Consulta; isMobile: boole
         <label htmlFor={`busca-${c.id}`} className="sr-only">Buscar no acervo</label>
         <input id={`busca-${c.id}`} data-testid={`input-busca-acervo-${c.id}`} type="search" value={busca} onChange={(e) => setBusca(e.target.value)}
           placeholder="Buscar no acervo: código, tipo, evento…" style={{ ...campo, flex: 1, minWidth: 0 }} />
-        <button type="submit" aria-label="Buscar no acervo" data-testid={`button-busca-acervo-${c.id}`}
-          style={{ minHeight: alvo, minWidth: alvo, borderRadius: R.md, border: "1px solid #d6d3d1", background: "#fff", color: T.text, cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "0 12px", fontSize: FS.body, fontWeight: 700 }}>
-          <Search aria-hidden="true" style={{ width: 15, height: 15 }} />{isMobile ? null : "Buscar"}
-        </button>
+        <Botao type="submit" variante="secundario" tamanho="toque" icone={Search}
+          aria-label="Buscar no acervo" data-testid={`button-busca-acervo-${c.id}`}
+          style={{ minHeight: alvo, minWidth: alvo }}>
+          {isMobile ? null : "Buscar"}
+        </Botao>
         {buscaAplicada && (
-          <button type="button" aria-label="Limpar a busca e voltar às sugestões" onClick={() => { setBusca(""); setBuscaAplicada(""); }}
-            style={{ minHeight: alvo, minWidth: alvo, borderRadius: R.md, border: "1px solid #d6d3d1", background: "#fff", color: "#44403c", cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
-            <X aria-hidden="true" style={{ width: 15, height: 15 }} />
-          </button>
+          <Botao variante="secundario" tamanho="toque" icone={X}
+            aria-label="Limpar a busca e voltar às sugestões"
+            onClick={() => { setBusca(""); setBuscaAplicada(""); }}
+            style={{ minHeight: alvo, minWidth: alvo }} />
         )}
       </form>
 
       {isLoading ? (
-        <p role="status" data-testid="sugestoes-carregando" style={{ margin: 0, fontSize: FS.body, color: "#57534e" }}>Procurando no acervo…</p>
+        <p role="status" data-testid="sugestoes-carregando" style={{ margin: 0, fontSize: FS.body, color: T.apoio }}>Procurando no acervo…</p>
       ) : isError ? (
-        <div role="alert" data-testid="sugestoes-erro" style={{ fontSize: FS.body, color: "#991b1b", background: "#fef2f2", border: "1px solid #fecaca", borderRadius: R.md, padding: "10px 12px", display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-          <span style={{ flex: "1 1 200px" }}>Não deu para procurar no acervo. Você ainda pode responder pelo que achou no galpão.</span>
-          <button type="button" onClick={() => refetch()} style={{ minHeight: alvo, padding: "0 12px", borderRadius: R.md, border: "1px solid #fca5a5", background: "#fff", color: "#991b1b", fontWeight: 700, fontSize: FS.body, cursor: "pointer" }}>Tentar de novo</button>
+        <div data-testid="sugestoes-erro">
+          <EstadoErro
+            titulo="Não deu para procurar no acervo."
+            detalhe="Você ainda pode responder pelo que achou no galpão."
+            aoTentarDeNovo={() => refetch()}
+            compacto
+          />
         </div>
       ) : sugestoes && sugestoes.length === 0 ? (
-        <p data-testid="sugestoes-vazio" style={{ margin: 0, fontSize: FS.body, color: "#44403c", background: "#fafaf9", border: "1px dashed #d6d3d1", borderRadius: R.md, padding: "12px 14px", lineHeight: 1.5 }}>
+        <p data-testid="sugestoes-vazio" style={{ margin: 0, fontSize: FS.body, color: T.strong, background: T.bg, border: `1px dashed ${T.bdark}`, borderRadius: R.md, padding: "12px 14px", lineHeight: 1.5 }}>
           {buscaAplicada
             ? `Nada livre no acervo com “${buscaAplicada}”. Procure no galpão e responda.`
             : data?.semMedida
@@ -260,10 +279,10 @@ function Responder({ c, isMobile, onRespondida }: { c: Consulta; isMobile: boole
             const usar = escolha[s.chave] ?? 0;
             const marcado = usar > 0;
             return (
-              <li key={s.chave} data-testid={`sugestao-${s.chave}`} style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: isMobile ? "wrap" : "nowrap", padding: 10, borderRadius: R.md, border: `1px solid ${marcado ? "#86efac" : "#e7e5e4"}`, backgroundColor: marcado ? "#f0fdf4" : "#fff" }}>
+              <li key={s.chave} data-testid={`sugestao-${s.chave}`} style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: isMobile ? "wrap" : "nowrap", padding: 10, borderRadius: R.md, border: `1px solid ${marcado ? TOM.sucesso.border : T.border}`, backgroundColor: marcado ? TOM.sucesso.bg : T.surface }}>
                 <Miniatura src={s.thumb} alt={`Arte da peça ${s.origem.displayId ?? ""} do acervo`} lado={56} />
-                <div style={{ flex: "1 1 180px", minWidth: 0, fontSize: FS.body, color: "#44403c", lineHeight: 1.45 }}>
-                  <p style={{ margin: 0, fontWeight: 800, color: T.text, overflowWrap: "anywhere" }}>
+                <div style={{ flex: "1 1 180px", minWidth: 0, fontSize: FS.body, color: T.strong, lineHeight: 1.45 }}>
+                  <p style={{ margin: 0, fontWeight: FW.rotulo, color: T.text, overflowWrap: "anywhere" }}>
                     {s.origem.tipo} · {medida(s.origem.largura, s.origem.altura)}
                   </p>
                   <p style={{ margin: 0, overflowWrap: "anywhere" }}>
@@ -271,16 +290,16 @@ function Responder({ c, isMobile, onRespondida }: { c: Consulta; isMobile: boole
                     {s.origem.displayId ? ` · ${s.origem.displayId}` : ""}
                   </p>
                   <p style={{ margin: "2px 0 0", display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
-                    <span style={{ fontSize: FS.small, fontWeight: 700, padding: "1px 8px", borderRadius: 999, color: cond.color, backgroundColor: cond.bg, border: `1px solid ${cond.border}` }}>{cond.label}</span>
-                    <span style={{ fontSize: FS.small, fontWeight: 700, color: "#44403c" }}>{ROTULO_DA_RELACAO[s.relacao]}</span>
-                    <span style={{ fontSize: FS.small, fontWeight: 700, color: "#44403c" }}>· {s.quantidade} un. livres</span>
+                    <span style={{ fontSize: FS.small, fontWeight: FW.forte, padding: "1px 8px", borderRadius: R.pill, color: cond.color, backgroundColor: cond.bg, border: `1px solid ${cond.border}` }}>{cond.label}</span>
+                    <span style={{ fontSize: FS.small, fontWeight: FW.forte, color: T.strong }}>{ROTULO_DA_RELACAO[s.relacao]}</span>
+                    <span style={{ fontSize: FS.small, fontWeight: FW.forte, color: T.strong }}>· {s.quantidade} un. livres</span>
                   </p>
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
-                  <label style={{ display: "inline-flex", alignItems: "center", gap: 8, minHeight: alvo, cursor: "pointer", fontSize: FS.body, fontWeight: 700, color: T.text }}>
+                  <label style={{ display: "inline-flex", alignItems: "center", gap: 8, minHeight: alvo, cursor: "pointer", fontSize: FS.body, fontWeight: FW.forte, color: T.text }}>
                     <input type="checkbox" data-testid={`check-sugestao-${s.chave}`} checked={marcado}
                       onChange={(e) => escolher(s, e.target.checked ? s.quantidade : 0)}
-                      style={{ width: 20, height: 20, accentColor: "#15803d" }} />
+                      style={{ width: 20, height: 20, accentColor: TOM.sucesso.text }} />
                     Usar
                   </label>
                   <label htmlFor={`qtd-${c.id}-${s.chave}`} className="sr-only">Quantas unidades usar deste lote</label>
@@ -295,7 +314,7 @@ function Responder({ c, isMobile, onRespondida }: { c: Consulta; isMobile: boole
       )}
 
       <div>
-        <label htmlFor={`obs-${c.id}`} style={{ display: "block", fontSize: FS.small, fontWeight: 800, color: "#57534e", marginBottom: 4 }}>Observação ou motivo (opcional)</label>
+        <label htmlFor={`obs-${c.id}`} style={{ display: "block", fontSize: FS.small, fontWeight: FW.rotulo, color: T.apoio, marginBottom: 4 }}>Observação ou motivo (opcional)</label>
         <textarea id={`obs-${c.id}`} data-testid={`input-observacao-resposta-${c.id}`} rows={2} maxLength={MAX_OBSERVACAO_DA_CONSULTA} value={observacao}
           onChange={(e) => setObservacao(e.target.value)} placeholder="Ex.: 3 perfeitas; as outras 2 estão com ilhós rasgado."
           style={{ ...campo, width: "100%", padding: "8px 12px", lineHeight: 1.45, resize: "vertical" }} />
@@ -304,14 +323,14 @@ function Responder({ c, isMobile, onRespondida }: { c: Consulta; isMobile: boole
       <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
         {fotoUrl ? (
           <>
-            <img src={fotoUrl} alt="Foto da peça no estoque" style={{ width: 56, height: 56, objectFit: "cover", borderRadius: R.md, border: "1px solid #e7e5e4" }} />
-            <button type="button" onClick={() => setFotoUrl(null)} style={{ minHeight: alvo, padding: "0 12px", borderRadius: R.md, border: "1px solid #d6d3d1", background: "#fff", color: "#44403c", fontSize: FS.body, fontWeight: 700, cursor: "pointer" }}>Tirar a foto</button>
+            <img src={fotoUrl} alt="Foto da peça no estoque" style={{ width: 56, height: 56, objectFit: "cover", borderRadius: R.md, border: `1px solid ${T.border}` }} />
+            <button type="button" onClick={() => setFotoUrl(null)} style={{ minHeight: alvo, padding: "0 12px", borderRadius: R.md, border: `1px solid ${T.bdark}`, background: T.surface, color: T.strong, fontSize: FS.body, fontWeight: FW.forte, cursor: "pointer" }}>Tirar a foto</button>
           </>
         ) : (
           <ObjectUploader maxFileSize={10485760} buttonVariant="outline" buttonClassName={isMobile ? "min-h-[44px]" : ""}
             onComplete={(r) => setFotoUrl(r.url)}
             onError={(e) => toast({ title: "A foto não subiu", description: e.message, variant: "destructive" })}>
-            <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: FS.body, fontWeight: 700 }}>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: FS.body, fontWeight: FW.forte }}>
               <Camera aria-hidden="true" style={{ width: 15, height: 15 }} /> Foto da peça (opcional)
             </span>
           </ObjectUploader>
@@ -320,7 +339,7 @@ function Responder({ c, isMobile, onRespondida }: { c: Consulta; isMobile: boole
 
       {/* SEM VÍNCULO COM O ACERVO: dá para atender o que não está cadastrado
           (achou no galpão), mas nada fica reservado — dito antes do clique. */}
-      <p role="status" data-testid={`aviso-vinculo-${c.id}`} style={{ margin: 0, fontSize: FS.small, lineHeight: 1.45, color: selecionados.ids.length > 0 ? "#166534" : "#92400e", display: "flex", gap: 6, alignItems: "flex-start" }}>
+      <p role="status" data-testid={`aviso-vinculo-${c.id}`} style={{ margin: 0, fontSize: FS.small, lineHeight: 1.45, color: selecionados.ids.length > 0 ? TOM.sucesso.text : TOM.alerta.text, display: "flex", gap: 6, alignItems: "flex-start" }}>
         {selecionados.ids.length > 0
           ? <CheckCircle2 aria-hidden="true" style={{ width: 13, height: 13, flexShrink: 0, marginTop: 2 }} />
           : <AlertTriangle aria-hidden="true" style={{ width: 13, height: 13, flexShrink: 0, marginTop: 2 }} />}
@@ -334,48 +353,73 @@ function Responder({ c, isMobile, onRespondida }: { c: Consulta; isMobile: boole
       {/* Celular: as respostas ficam coladas no pé da tela, acima da barra do
           aparelho — a lista de sugestões pode ser longa. */}
       <div data-testid={`acoes-${c.id}`} style={{
-        display: "flex", gap: 10, flexDirection: isMobile ? "column" : "row", flexWrap: "wrap", alignItems: isMobile ? "stretch" : "center",
-        ...(isMobile ? { position: "sticky", bottom: 0, margin: "0 -14px -14px", padding: "10px 14px calc(10px + env(safe-area-inset-bottom))", background: "#fff", borderTop: "1px solid #e7e5e4", zIndex: 1 } : {}),
+        display: "flex", gap: 10, flexDirection: isMobile ? "column" : "row", flexWrap: "wrap", alignItems: isMobile ? "stretch" : "flex-start",
+        ...(isMobile ? { position: "sticky", bottom: 0, margin: "0 -14px -14px", padding: "10px 14px calc(10px + env(safe-area-inset-bottom))", background: T.surface, borderTop: `1px solid ${T.border}`, zIndex: 1 } : {}),
       }}>
-        <button type="button" data-testid={`button-atender-${c.id}`} disabled={!tudoValido || responder.isPending}
+        {/* Verde, e não o preto do primário: ATENDER é a resposta boa, e é a
+            mesma cor com que a solicitação aparece "atendida" na outra aba. O
+            tom vem de TOM.sucesso.text (#15803d), que é o verde escuro da
+            paleta — o saturado daria 3,4:1 sob texto branco. */}
+        <Botao variante="primario" tamanho="toque" icone={CheckCircle2}
+          data-testid={`button-atender-${c.id}`}
           onClick={() => responder.mutate({ resposta: "atender", quantidade: pedida })}
-          style={{ flex: isMobile ? undefined : "1 1 160px", minHeight: 48, borderRadius: R.md, border: "none", background: !tudoValido || responder.isPending ? "#e7e5e4" : "#15803d", color: !tudoValido || responder.isPending ? "#57534e" : "#fff", fontSize: 14, fontWeight: 800, cursor: !tudoValido || responder.isPending ? "not-allowed" : "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "0 16px" }}>
-          <CheckCircle2 aria-hidden="true" style={{ width: 16, height: 16 }} />
+          disabled={!tudoValido}
+          carregando={responder.isPending}
+          motivo={!tudoValido ? "Ajuste as quantidades escolhidas: alguma passa do que o lote tem livre." : undefined}
+          style={{ flex: isMobile ? undefined : "1 1 160px", minHeight: 48, backgroundColor: TOM.sucesso.text, borderColor: TOM.sucesso.text }}>
           {responder.isPending ? "Respondendo…" : `Atender (${pedida})`}
-        </button>
+        </Botao>
         {pedida > 1 && (
-          <div style={{ display: "flex", gap: 6, alignItems: "center", flex: isMobile ? undefined : "1 1 200px" }}>
+          <div style={{ display: "flex", gap: 6, alignItems: "flex-start", flex: isMobile ? undefined : "1 1 200px" }}>
             <label htmlFor={`parcial-${c.id}`} className="sr-only">Quantas unidades o estoque atende (de 1 a {pedida - 1})</label>
             <input id={`parcial-${c.id}`} data-testid={`input-parcial-${c.id}`} type="number" inputMode="numeric" min={1} max={pedida - 1}
               value={parcialDigitada === "" ? (selecionados.soma > 0 && selecionados.soma < pedida ? selecionados.soma : "") : parcialDigitada} placeholder="0"
               onChange={(e) => setParcialDigitada(e.target.value)} style={{ ...campo, width: 72, minHeight: 48, textAlign: "center", padding: "0 6px" }} />
-            <button type="button" data-testid={`button-atender-parcial-${c.id}`} disabled={!parcialValida || responder.isPending}
+            {/* O motivo saiu do `title` e virou frase na tela: este botão fica
+                apagado quase o tempo todo (o campo começa vazio), e no celular
+                — que é onde a Gráfica responde — `title` não existe. */}
+            <Botao variante="secundario" tamanho="toque" larguraCheia
+              data-testid={`button-atender-parcial-${c.id}`}
               onClick={() => responder.mutate({ resposta: "atender", quantidade: parcial })}
-              title={!parcialValida ? `Diga quantas atende, de 1 a ${pedida - 1} (e não menos do que as escolhidas do acervo)` : undefined}
-              style={{ flex: 1, minHeight: 48, borderRadius: R.md, border: "1px solid #15803d", background: "#fff", color: !parcialValida || responder.isPending ? "#57534e" : "#166534", fontSize: 14, fontWeight: 800, cursor: !parcialValida || responder.isPending ? "not-allowed" : "pointer", padding: "0 14px", whiteSpace: "nowrap" }}>
+              disabled={!parcialValida}
+              carregando={responder.isPending}
+              motivo={!parcialValida ? `Diga quantas atende, de 1 a ${pedida - 1} — e não menos do que as escolhidas do acervo.` : undefined}
+              style={{ flex: 1, minHeight: 48, color: TOM.sucesso.text, borderColor: TOM.sucesso.text }}>
               {parcialValida ? `Atender parcial (${parcial} de ${pedida})` : "Atender parcial"}
-            </button>
+            </Botao>
           </div>
         )}
-        <button type="button" data-testid={`button-nao-consigo-${c.id}`} disabled={responder.isPending}
-          onClick={() => { if (window.confirm(`Responder que NÃO consegue atender a peça ${c.peca.displayId ?? ""}?`)) responder.mutate({ resposta: "nao_atender" }); }}
-          style={{ minHeight: isMobile ? 44 : 48, borderRadius: R.md, border: "1px solid #d6d3d1", background: "#fff", color: T.text, fontSize: 14, fontWeight: 700, cursor: responder.isPending ? "not-allowed" : "pointer", padding: "0 16px", whiteSpace: "nowrap" }}>
+        <Botao variante="secundario" tamanho="toque"
+          data-testid={`button-nao-consigo-${c.id}`}
+          carregando={responder.isPending}
+          style={{ minHeight: isMobile ? 44 : 48 }}
+          onClick={async () => {
+            // Pergunta porque a resposta é definitiva do lado da Gráfica: a
+            // solicitação sai da caixa e a Revisão Final segue sem as peças.
+            if (await confirmar({
+              titulo: `Responder que não consegue atender a peça ${c.peca.displayId ?? ""}?`,
+              descricao: "A solicitação sai da sua caixa e a Revisão Final segue sem reaproveitamento nesta peça.",
+              confirmar: "Não consigo atender",
+              cancelar: "Voltar",
+            })) responder.mutate({ resposta: "nao_atender" });
+          }}>
           Não consigo atender
-        </button>
+        </Botao>
       </div>
+      {dialogo}
     </div>
   );
 }
 
 /** O que aconteceu com a resposta — dito na aba Respondidas. */
 function Desfecho({ c }: { c: Consulta }) {
-  const linha: React.CSSProperties = { margin: 0, fontSize: FS.body, color: "#44403c", lineHeight: 1.5, overflowWrap: "anywhere" };
+  const linha: React.CSSProperties = { margin: 0, fontSize: FS.body, color: T.strong, lineHeight: 1.5, overflowWrap: "anywhere" };
   if (c.status === "cancelada") return <p style={linha}>Cancelada por quem pediu, antes da resposta.</p>;
   const naRevisao = c.peca.status === "awaiting_final_review";
   const atendeu = c.status !== "nao_atendida";
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 4, minWidth: 0 }}>
-      <p style={{ ...linha, fontWeight: 800, color: T.text }}>
+      <p style={{ ...linha, fontWeight: FW.rotulo, color: T.text }}>
         {atendeu ? `Atendeu ${c.quantidadeAtendida ?? 0} de ${c.quantidadePedida} un. pedidas` : `Não conseguiu atender as ${c.quantidadePedida} un. pedidas`}
       </p>
       <p style={linha}>
@@ -384,7 +428,7 @@ function Desfecho({ c }: { c: Consulta }) {
       </p>
       {c.observacaoResposta && <p style={linha}>“{c.observacaoResposta}”</p>}
       {atendeu && (
-        <p style={{ ...linha, color: c.aplicadoEm ? "#166534" : "#92400e" }}>
+        <p style={{ ...linha, color: c.aplicadoEm ? TOM.sucesso.text : TOM.alerta.text }}>
           {c.aplicadoEm
             ? `Já é reaproveitamento na peça (${c.peca.reuseQty ?? 0} de ${c.peca.quantidade} un. reaproveitadas).`
             : naRevisao
@@ -393,8 +437,8 @@ function Desfecho({ c }: { c: Consulta }) {
         </p>
       )}
       {c.fotoUrl && (
-        <a href={c.fotoUrl} target="_blank" rel="noreferrer" style={{ alignSelf: "flex-start", minHeight: 44, display: "inline-flex", alignItems: "center", gap: 8, fontSize: FS.body, fontWeight: 700, color: T.accentText }}>
-          <img src={c.fotoUrl} alt="Foto da peça no estoque" style={{ width: 44, height: 44, objectFit: "cover", borderRadius: R.sm, border: "1px solid #e7e5e4" }} />
+        <a href={c.fotoUrl} target="_blank" rel="noreferrer" style={{ alignSelf: "flex-start", minHeight: 44, display: "inline-flex", alignItems: "center", gap: 8, fontSize: FS.body, fontWeight: FW.forte, color: T.accentText }}>
+          <img src={c.fotoUrl} alt="Foto da peça no estoque" style={{ width: 44, height: 44, objectFit: "cover", borderRadius: R.sm, border: `1px solid ${T.border}` }} />
           Ver a foto
         </a>
       )}
@@ -411,6 +455,7 @@ export default function SolicitacoesAoEstoquePagina() {
   const aba: Aba = new URLSearchParams(search).get("aba") === "respondidas" ? "respondidas" : "abertas";
   const podeResponder = user?.role === "grafica" || user?.role === "admin";
   const [procurandoEm, setProcurandoEm] = useState<string | null>(null);
+  const { confirmar, dialogo } = useConfirmar();
 
   const irPara = (nova: Aba) => navegar(`/grafica/solicitacoes-ao-estoque${nova === "abertas" ? "" : "?aba=respondidas"}`, { replace: true });
 
@@ -432,40 +477,43 @@ export default function SolicitacoesAoEstoquePagina() {
     : "O que você pediu ao estoque pela Revisão Final, e o que a Gráfica respondeu — inclusive das peças que você liberou sem esperar.";
 
   return (
-    <div style={{ padding: isMobile ? 16 : "28px 32px", background: "#fafaf9", minHeight: "100%", boxSizing: "border-box" }}>
+    <div style={{ padding: isMobile ? 16 : "28px 32px", background: T.bg, minHeight: "100%", boxSizing: "border-box" }}>
       <div style={{ maxWidth: 1180, margin: "0 auto", display: "flex", flexDirection: "column", gap: 16 }}>
         <header>
-          <h1 data-testid="title-solicitacoes-ao-estoque" style={{ margin: 0, fontFamily: "'Space Grotesk', sans-serif", fontSize: isMobile ? 22 : FS.h1, fontWeight: 700, color: T.text, letterSpacing: "-0.03em", lineHeight: 1.1 }}>
+          <h1 data-testid="title-solicitacoes-ao-estoque" style={{ margin: 0, fontFamily: FONT.display, fontSize: isMobile ? FS.h2 : FS.h1, fontWeight: FW.rotulo, color: T.text, letterSpacing: "-0.03em", lineHeight: 1.1 }}>
             Solicitações ao estoque
           </h1>
-          <p style={{ margin: "4px 0 0", fontSize: FS.body, color: "#57534e", maxWidth: 720, lineHeight: 1.5 }}>{explicacao}</p>
+          <p style={{ margin: "4px 0 0", fontSize: FS.body, color: T.apoio, maxWidth: 720, lineHeight: 1.5 }}>{explicacao}</p>
         </header>
 
-        <div role="tablist" aria-label="Solicitações ao estoque" style={{ display: "flex", gap: 6, borderBottom: "1px solid #e7e5e4" }}>
-          {ABAS.map((a) => {
-            const ativa = a.id === aba;
-            return (
-              <button key={a.id} type="button" role="tab" aria-selected={ativa} data-testid={`aba-${a.id}`} onClick={() => irPara(a.id)}
-                style={{ minHeight: 44, padding: "0 16px", border: "none", borderBottom: `3px solid ${ativa ? T.accentText : "transparent"}`, background: "transparent", color: ativa ? T.text : "#57534e", fontSize: 14, fontWeight: ativa ? 800 : 600, cursor: "pointer" }}>
-                {a.rotulo}{ativa && lista ? ` (${lista.length})` : ""}
-              </button>
-            );
-          })}
-        </div>
+        {/* A contagem virou o contador da aba, em vez de ficar colada no rótulo
+            entre parênteses: no formato antigo ela só aparecia na aba ABERTA, e
+            é justamente saber que há 7 respondidas que faz alguém ir até lá. */}
+        <Abas
+          rotuloDaLista="Solicitações ao estoque"
+          ativo={aba}
+          aoTrocar={(id) => irPara(id as Aba)}
+          itens={ABAS.map((a) => ({
+            id: a.id,
+            rotulo: a.rotulo,
+            contador: a.id === aba && lista ? lista.length : undefined,
+            tom: a.id === "abertas" ? ("alerta" as const) : undefined,
+          }))}
+        />
 
         {isLoading ? (
-          <p role="status" data-testid="consultas-carregando" style={{ margin: 0, fontSize: FS.body, color: "#57534e" }}>Carregando as solicitações…</p>
+          <div data-testid="consultas-carregando"><Esqueleto variante="lista" linhas={3} rotulo="Carregando as solicitações" /></div>
         ) : isError ? (
-          <div role="alert" data-testid="consultas-erro" style={{ fontSize: FS.body, color: "#991b1b", background: "#fef2f2", border: "1px solid #fecaca", borderRadius: R.lg, padding: "14px 16px", display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
-            <span style={{ flex: "1 1 220px" }}>Não deu para carregar as solicitações ao estoque.</span>
-            <button type="button" onClick={() => refetch()} style={{ minHeight: 44, padding: "0 14px", borderRadius: R.md, border: "1px solid #fca5a5", background: "#fff", color: "#991b1b", fontWeight: 700, fontSize: FS.body, cursor: "pointer" }}>Tentar de novo</button>
+          <div data-testid="consultas-erro">
+            <EstadoErro titulo="Não deu para carregar as solicitações ao estoque." aoTentarDeNovo={() => refetch()} compacto />
           </div>
         ) : lista && lista.length === 0 ? (
-          <div data-testid="consultas-vazio" style={{ background: "#fff", border: "1px dashed #d6d3d1", borderRadius: R.lg, padding: "32px 20px", textAlign: "center" }}>
-            <p style={{ margin: 0, fontSize: FS.strong, fontWeight: 800, color: T.text }}>{aba === "abertas" ? "Nenhuma solicitação aberta" : "Nenhuma solicitação respondida ainda"}</p>
-            <p style={{ margin: "4px 0 0", fontSize: FS.body, color: "#57534e" }}>
-              {aba === "abertas" ? "Quando a Revisão Final pedir peças ao estoque, o pedido aparece aqui." : "As respostas dadas ficam guardadas aqui."}
-            </p>
+          <div data-testid="consultas-vazio">
+            <EstadoVazio
+              icone={PackageSearch}
+              titulo={aba === "abertas" ? "Nenhuma solicitação aberta" : "Nenhuma solicitação respondida ainda"}
+              descricao={aba === "abertas" ? "Quando a Revisão Final pedir peças ao estoque, o pedido aparece aqui." : "As respostas dadas ficam guardadas aqui."}
+            />
           </div>
         ) : (
           <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: 14 }}>
@@ -474,27 +522,38 @@ export default function SolicitacoesAoEstoquePagina() {
               const procurando = aberta && podeResponder && emProcura === c.id;
               const minha = c.pedidoPorId === user?.id;
               return (
-                <li key={c.id} data-testid={`consulta-${c.id}`} style={{ background: "#fff", border: "1px solid #e7e5e4", borderRadius: R.lg, padding: 14, display: "grid", gap: 16, gridTemplateColumns: isMobile || !(procurando || !aberta) ? "1fr" : "minmax(0, 5fr) minmax(0, 7fr)", alignItems: "start" }}>
+                <li key={c.id} data-testid={`consulta-${c.id}`} style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: R.lg, padding: 14, display: "grid", gap: 16, gridTemplateColumns: isMobile || !(procurando || !aberta) ? "1fr" : "minmax(0, 5fr) minmax(0, 7fr)", alignItems: "start" }}>
                   <div style={{ minWidth: 0, display: "flex", flexDirection: "column", gap: 10 }}>
-                    <div><Selo status={c.status} /></div>
+                    <div><SeloDaConsulta status={c.status} /></div>
                     <APeca c={c} isMobile={isMobile} />
                     <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                       {aberta && podeResponder && !procurando && (
-                        <button type="button" data-testid={`button-procurar-${c.id}`} onClick={() => setProcurandoEm(c.id)}
-                          style={{ minHeight: 44, padding: "0 14px", borderRadius: R.md, border: "none", background: T.dark, color: "#fff", fontSize: FS.body, fontWeight: 800, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6 }}>
-                          <PackageSearch aria-hidden="true" style={{ width: 15, height: 15 }} /> Procurar e responder
-                        </button>
+                        <Botao variante="primario" tamanho="toque" icone={PackageSearch}
+                          data-testid={`button-procurar-${c.id}`} onClick={() => setProcurandoEm(c.id)}>
+                          Procurar e responder
+                        </Botao>
                       )}
                       {aberta && (minha || user?.role === "admin") && (
-                        <button type="button" data-testid={`button-cancelar-${c.id}`} disabled={cancelar.isPending}
-                          onClick={() => { if (window.confirm("Cancelar esta solicitação ao estoque?")) cancelar.mutate(c.id); }}
-                          style={{ minHeight: 44, padding: "0 14px", borderRadius: R.md, border: "1px solid #d6d3d1", background: "#fff", color: "#44403c", fontSize: FS.body, fontWeight: 700, cursor: cancelar.isPending ? "not-allowed" : "pointer" }}>
+                        <Botao variante="secundario" tamanho="toque" carregando={cancelar.isPending}
+                          data-testid={`button-cancelar-${c.id}`}
+                          onClick={async () => {
+                            // Cancelar tira o pedido da fila da Gráfica; quem
+                            // está do outro lado pode já ter começado a
+                            // procurar no galpão. Por isso pergunta — mas não
+                            // em vermelho: nada é apagado.
+                            if (await confirmar({
+                              titulo: "Cancelar esta solicitação ao estoque?",
+                              descricao: "Ela sai da caixa da Gráfica. Dá para pedir de novo pela Revisão Final.",
+                              confirmar: "Cancelar solicitação",
+                              cancelar: "Manter",
+                            })) cancelar.mutate(c.id);
+                          }}>
                           Cancelar solicitação
-                        </button>
+                        </Botao>
                       )}
                     </div>
                     {aberta && !podeResponder && (
-                      <p role="status" style={{ margin: 0, fontSize: FS.body, color: "#92400e" }}>Esperando a Gráfica responder. A peça pode ser liberada sem esperar.</p>
+                      <p role="status" style={{ margin: 0, fontSize: FS.body, color: TOM.alerta.text }}>Esperando a Gráfica responder. A peça pode ser liberada sem esperar.</p>
                     )}
                   </div>
                   {procurando ? <Responder c={c} isMobile={isMobile} onRespondida={() => setProcurandoEm(null)} /> : !aberta ? <Desfecho c={c} /> : null}
@@ -504,6 +563,7 @@ export default function SolicitacoesAoEstoquePagina() {
           </ul>
         )}
       </div>
+      {dialogo}
     </div>
   );
 }

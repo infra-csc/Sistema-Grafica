@@ -406,7 +406,14 @@ describe("a caixa da Gráfica — Solicitações ao estoque", () => {
     expect(tid("aviso-vinculo-c1")!.textContent).toContain("sem vínculo com o acervo");
     expect((tid("button-atender-c1") as HTMLButtonElement).disabled).toBe(false);
     await act(async () => { fireEvent.change(tid("input-observacao-resposta-c1")!, { target: { value: "rasgadas" } }); });
+    // A confirmação agora é o diálogo do app (useConfirmar), e não o
+    // window.confirm: o teste passa pelos dois cliques porque a pessoa também
+    // passa. Antes o `confirm` era um stub global que devolvia true sozinho —
+    // o teste nunca chegou a exercitar a pergunta.
     await act(async () => { fireEvent.click(tid("button-nao-consigo-c1")!); });
+    await esperar(() => !!tid("confirmacao-confirmar"), "a pergunta aparece");
+    expect(tid("confirmacao")!.textContent).toContain("Responder que não consegue atender");
+    await act(async () => { fireEvent.click(tid("confirmacao-confirmar")!); });
     await esperar(() => f.escritas().length === 1, "responde");
     expect(f.escritas()[0].body).toEqual({ resposta: "nao_atender", observacao: "rasgadas" });
     expect(avisos.some((a) => a.title === "Respondido: não consigo atender")).toBe(true);
@@ -456,6 +463,8 @@ describe("a caixa da Gráfica — Solicitações ao estoque", () => {
     expect(tid("button-procurar-c1")).toBeNull();
     expect(tid("consulta-c1")!.textContent).toContain("Esperando a Gráfica responder");
     await act(async () => { fireEvent.click(tid("button-cancelar-c1")!); });
+    await esperar(() => !!tid("confirmacao-confirmar"), "a pergunta aparece");
+    await act(async () => { fireEvent.click(tid("confirmacao-confirmar")!); });
     await esperar(() => f.escritas().length === 1, "cancela");
     expect(f.escritas()[0].url).toBe("/api/consultas-de-estoque/c1/cancelar");
   });

@@ -15,6 +15,7 @@ import { respostaDoEstoqueParaLiberar, marcarRespostaAplicada } from "../service
 import { trilhaDaLiberacaoComEstoque, SOLICITACAO_AO_ESTOQUE_ATIVA } from "@shared/consultas-de-estoque";
 import { resumosDeTuboPorIds, comTubo } from "../services/tubosDaPeca";
 import { excluirPecaTirandoDosVolumes, ehRecusaDeTubo } from "./tubos";
+import { liberarReservasDasPecas } from "./estoque-reservas";
 import { FORMATO_COMPACTO, compactarPecas, compactarAprovacoes } from "@shared/itens-compactos";
 import { DEPOIS_DA_ARTE, EM_REVISAO, POS_APROVACAO, DISPENSAVEIS, DESTINO_DA_DISPENSA, ehBookCompleto, ehMaquinaValida, rotuloDaMaquina } from "@shared/fluxo-peca";
 import { ehMolde, destinoDaDevolucao, dispensaArquivoFinal, trocaDeMoldeProibida, ERRO_TROCA_DE_MOLDE, tipoCanonico } from "@shared/molde";
@@ -1041,7 +1042,7 @@ export function registerItemRoutes(app: Express): void {
       const itemsWithEventsAndSponsors = await enrichItemsWithEventsAndSponsors(allItems);
       res.json(compacto ? { agora, ...compactarPecas(itemsWithEventsAndSponsors) } : itemsWithEventsAndSponsors);
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      console.error("[items] erro ao listar as peças:", error); res.status(500).json({ error: "Não foi possível carregar as peças agora. Tente de novo em instantes." });
     }
   });
 
@@ -1055,7 +1056,7 @@ export function registerItemRoutes(app: Express): void {
       const enriched = await enrichItemsWithEventsAndSponsors(deletedItems);
       res.json(querCompacto(req) ? compactarPecas(enriched) : enriched);
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      console.error("[items] erro ao listar as peças excluídas:", error); res.status(500).json({ error: "Não foi possível carregar as peças excluídas agora. Tente de novo em instantes." });
     }
   });
 
@@ -1132,7 +1133,7 @@ export function registerItemRoutes(app: Express): void {
       const itemsWithEventsAndSponsors = await enrichItemsWithEventsAndSponsors(pendingItems);
       res.json(querCompacto(req) ? compactarPecas(itemsWithEventsAndSponsors) : itemsWithEventsAndSponsors);
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      console.error("[items] erro ao listar as peças pendentes:", error); res.status(500).json({ error: "Não foi possível carregar as peças pendentes agora. Tente de novo em instantes." });
     }
   });
 
@@ -2246,6 +2247,7 @@ export function registerItemRoutes(app: Express): void {
         req.params.id,
         `Item "${item.type}" (${item.displayId})${eventoDaPeca ? ` do evento "${eventoDaPeca.name}"` : ""} excluído por ${req.userRole}`
       );
+      await liberarReservasDasPecas(req, [req.params.id], "excluída"); // reserva de peça morta não segura estoque
 
       broadcast({ type: "item_deleted", itemId: req.params.id, eventId: item.eventId });
 
@@ -4365,6 +4367,7 @@ export function registerItemRoutes(app: Express): void {
       );
       // Cancelada em impressão: sai da impressora — "pausa" no diário.
       await registrarSaidaDaImpressora(req, currentItem);
+      await liberarReservasDasPecas(req, [item.id], "cancelada"); // reserva de peça morta não segura estoque
       
       broadcast({ type: "item_updated", item });
       res.json(item);
@@ -4524,6 +4527,7 @@ export function registerItemRoutes(app: Express): void {
           action: 'canceled', entityType: 'item', entityId: r.id,
           details: `Item cancelado (em lote)${detailMsg}`,
         })));
+        await liberarReservasDasPecas(req, results.map((r) => r.id), "cancelada"); // reserva de peça morta não segura estoque
         broadcast({ type: "items_bulk_updated", itemIds: results.map((r) => r.id), eventId: results[0].eventId });
       }
 

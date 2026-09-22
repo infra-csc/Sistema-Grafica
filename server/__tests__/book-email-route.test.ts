@@ -33,6 +33,9 @@ vi.mock("../storage", () => ({
 }));
 vi.mock("../routes/shared", () => ({
   requireAuth: (_req: any, _res: any, next: any) => next(),
+  // items.ts importa as rotas do estoque (soltar reserva ao cancelar), que montam o gate de papel.
+  requireRole: () => (_req: any, _res: any, next: any) => next(),
+  createAuditLogsEmLote: vi.fn(),
   broadcast: (...args: any[]) => H.broadcast(...args),
   translateStatus: (status: string) => status,
   createAuditLog: (...args: any[]) => H.createAuditLog(...args),

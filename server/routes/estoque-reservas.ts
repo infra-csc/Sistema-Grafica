@@ -41,13 +41,33 @@ import {
   type Disponibilidade,
   type RelacaoDePatrocinio,
 } from "@shared/estoque";
+import { etapaDaPeca, ehForaDoFunil, statusDasEtapas } from "@shared/fluxo-peca";
 import { requireAuth, requireRole, broadcast, createAuditLog, createAuditLogsEmLote } from "./shared";
 
 // 15/09: Estoque é só do admin.
 const requireReservaDeEstoque = requireRole("admin");
 
-/** Peça cancelada ou entregue não precisa mais de estoque. */
-export const STATUS_SEM_ESTOQUE = new Set(["cancelled", "canceled", "cancelado", "delivered", "entregue"]);
+/**
+ * Peça que não aceita reserva nova: da impressão em diante (a Gráfica já está
+ * imprimindo a peça nova — segurar uma do estoque só prenderia material) e,
+ * claro, entregue ou fora do funil. Lido da etapa canônica (shared/fluxo-peca).
+ */
+export const STATUS_SEM_ESTOQUE: ReadonlySet<string> = new Set([
+  ...statusDasEtapas("inProduction", "produced", "conferred", "packed", "delivered", "canceled"),
+  "cancelado",
+]);
+
+/** A peça ainda existe no fluxo? (não excluída, não cancelada/arquivada). */
+const pecaEstaViva = (p: { deletedAt?: Date | string | null; status?: string | null } | null | undefined) =>
+  !!p && !p.deletedAt && !ehForaDoFunil(p.status) && p.status !== "cancelado";
+
+/** Motivo pt-BR de a peça não aceitar reserva — o mesmo na rota e na tela. */
+export function motivoSemReserva(status: string | null | undefined): string {
+  const etapa = etapaDaPeca(status);
+  if (etapa === "canceled" || status === "cancelado") return "A peça foi cancelada — não reserva estoque.";
+  if (etapa === "delivered") return "A peça já foi entregue — não precisa mais de estoque.";
+  return "A peça já está na impressão (ou depois dela) — a Gráfica já está fazendo uma nova, então não dá mais para reservar do estoque.";
+}
 
 /** Teto de cada lista do recorte de GET /api/estoque/usos. */
 export const LIMITE_DO_RECORTE_DE_USOS = 500;
@@ -130,12 +150,24 @@ export async function carregarReservasAtivas(
     reservadoPor: eventInventoryAllocations.reservadoPor,
     allocatedAt: eventInventoryAllocations.allocatedAt,
     quantidade: inventoryAssets.quantity,
+    pecaId: itemsTable.id,
+    pecaStatus: itemsTable.status,
+    pecaExcluidaEm: itemsTable.deletedAt,
   })
     .from(eventInventoryAllocations)
     .innerJoin(events, eq(events.id, eventInventoryAllocations.eventId))
-    .innerJoin(inventoryAssets, eq(inventoryAssets.id, eventInventoryAllocations.assetId));
-  const linhas: Reserva[] = condicoes.length ? await consulta.where(and(...condicoes)) : await consulta;
-  return linhas.filter((r) => reservaEstaAtiva(r.inicio, agora));
+    .innerJoin(inventoryAssets, eq(inventoryAssets.id, eventInventoryAllocations.assetId))
+    .leftJoin(itemsTable, eq(itemsTable.id, eventInventoryAllocations.itemId));
+  const linhas: Array<Reserva & { pecaId?: string | null; pecaStatus?: string | null; pecaExcluidaEm?: Date | null }> =
+    condicoes.length ? await consulta.where(and(...condicoes)) : await consulta;
+  // Reserva de peça cancelada/excluída não segura mais nada: sem este filtro
+  // a peça do estoque aparecia "reservada" para uma peça que não existe.
+  // Alocação sem peça de destino (cadastro à mão do evento) continua valendo.
+  return linhas
+    .filter((r) => reservaEstaAtiva(r.inicio, agora))
+    // (Peça apagada de vez some sozinha: a FK zera item_id.)
+    .filter((r) => !r.itemId || (!r.pecaExcluidaEm && !ehForaDoFunil(r.pecaStatus) && r.pecaStatus !== "cancelado"))
+    .map(({ pecaId: _p, pecaStatus: _s, pecaExcluidaEm: _e, ...r }) => r);
 }
 
 export async function carregarPecas(exec: Exec, filtro: { itemId: string } | { eventId: string }): Promise<Peca[]> {
@@ -225,9 +257,13 @@ export async function reservarAtivosParaPeca(
 ): Promise<{ peca: Peca; ativos: Ativo[] }> {
   const pedidos = e.assetIds;
   const { quem, agora } = e;
+  // Trava a PEÇA de destino primeiro: duas reservas simultâneas para a mesma
+  // peça liam o mesmo "já reservado" e as duas cabiam — a soma passava da
+  // quantidade. Com a trava, a segunda espera e recalcula.
+  await tx.select({ id: itemsTable.id }).from(itemsTable).where(eq(itemsTable.id, e.itemId)).for("update");
   const [peca] = await carregarPecas(tx, { itemId: e.itemId });
   if (!peca || peca.deletedAt) throw erro(404, "Peça não encontrada");
-  if (STATUS_SEM_ESTOQUE.has(peca.status)) throw erro(409, "Peça cancelada ou já entregue não reserva estoque.");
+  if (STATUS_SEM_ESTOQUE.has(peca.status)) throw erro(409, motivoSemReserva(peca.status));
   if (caminhaoJaSaiu(peca, agora)) {
     throw erro(409, "O caminhão deste evento já saiu — não dá mais para reservar peça do estoque para ele.");
   }
@@ -272,6 +308,64 @@ export async function reservarAtivosParaPeca(
   return { peca, ativos };
 }
 
+/**
+ * Solta as reservas de uma peça que saiu do fluxo (cancelada ou excluída).
+ * Sem isto a peça do estoque ficava "reservada" para uma peça morta e — pior —
+ * ia no caminhão do evento dela. A reserva que JÁ VIROU USO (o caminhão saiu
+ * com a peça) fica: é o registro de onde o material foi usado.
+ * Devolve o que soltou, para trilha e aviso em tempo real.
+ */
+export async function liberarReservasDaPeca(
+  exec: Exec,
+  itemId: string | string[],
+  agora = new Date(),
+): Promise<Array<{ id: string; itemId: string; assetId: string; eventId: string; displayId: string }>> {
+  const ids = Array.isArray(itemId) ? itemId : [itemId];
+  if (ids.length === 0) return [];
+  const linhas: Array<{ id: string; itemId: string; assetId: string; eventId: string; displayId: string; situacao: string; saida: Date | null }> =
+    await exec.select({
+      id: eventInventoryAllocations.id,
+      itemId: eventInventoryAllocations.itemId,
+      assetId: eventInventoryAllocations.assetId,
+      eventId: eventInventoryAllocations.eventId,
+      displayId: inventoryAssets.displayId,
+      situacao: inventoryAssets.trackingStatus,
+      saida: events.truckDepartureDate,
+    })
+      .from(eventInventoryAllocations)
+      .innerJoin(events, eq(events.id, eventInventoryAllocations.eventId))
+      .innerJoin(inventoryAssets, eq(inventoryAssets.id, eventInventoryAllocations.assetId))
+      .where(inArray(eventInventoryAllocations.itemId, ids));
+  const soltas = linhas.filter((r) => !(r.situacao === "EM_USO" && caminhaoJaSaiu(r, agora)));
+  if (soltas.length === 0) return [];
+  await exec.delete(eventInventoryAllocations).where(inArray(eventInventoryAllocations.id, soltas.map((r) => r.id)));
+  return soltas.map(({ id, itemId: peca, assetId, eventId, displayId }) => ({ id, itemId: peca, assetId, eventId, displayId }));
+}
+
+/**
+ * O mesmo, para as rotas de cancelar/excluir peça: solta, grava a trilha do
+ * ativo e avisa as telas. Nunca derruba a rota que chamou — a peça já foi
+ * cancelada; uma falha aqui só deixa a reserva para ser liberada à mão.
+ */
+export async function liberarReservasDasPecas(req: any, itemIds: string[], motivo: "cancelada" | "excluída"): Promise<void> {
+  try {
+    // Uma consulta para o lote inteiro (o cancelamento em lote chega a 200 peças).
+    const soltas = await liberarReservasDaPeca(db, itemIds);
+    if (soltas.length === 0) return;
+    await createAuditLogsEmLote(req, soltas.map((r) => ({
+      action: "reserva_liberada",
+      entityType: "inventory_asset",
+      entityId: r.assetId,
+      details: JSON.stringify({ itemId: r.itemId, motivo: `peça ${motivo}` }),
+    })));
+    for (const itemId of Array.from(new Set(soltas.map((r) => r.itemId)))) {
+      broadcast({ type: "estoque_reservas", itemId, eventId: soltas.find((r) => r.itemId === itemId)!.eventId });
+    }
+  } catch (error) {
+    console.error(`[estoque] não consegui soltar as reservas de ${itemIds.length} peça(s) ${motivo}(s):`, error);
+  }
+}
+
 export function registerEstoqueReservasRoutes(app: Express): void {
   // Quantas peças parecidas cada peça do evento tem no estoque — o selo da
   // lista do evento. Uma leitura do acervo para o evento inteiro, não uma por
@@ -280,7 +374,7 @@ export function registerEstoqueReservasRoutes(app: Express): void {
     try {
       const agora = new Date();
       const pecas = (await carregarPecas(db, { eventId: req.params.eventId }))
-        .filter((p) => !p.deletedAt && !STATUS_SEM_ESTOQUE.has(p.status));
+        .filter((p) => pecaEstaViva(p) && etapaDaPeca(p.status) !== "delivered");
       if (pecas.length === 0) return res.json({});
       const [ativos, reservas] = await Promise.all([carregarAtivos(db), carregarReservasAtivas(db, agora)]);
       const reservaPorAtivo = new Map(reservas.map((r) => [r.assetId, r]));
@@ -295,7 +389,9 @@ export function registerEstoqueReservasRoutes(app: Express): void {
       for (const p of pecas) {
         const conta = { disponiveis: 0, chegamATempo: 0, faltaTriagem: 0, reservadas: 0 };
         for (const r of reservas) if (r.itemId === p.id) conta.reservadas += r.quantidade;
-        if (temMedida(p)) {
+        // Da impressão em diante só mostra o que já está reservado — não
+        // oferece estoque que a rota de reservar recusaria.
+        if (temMedida(p) && !STATUS_SEM_ESTOQUE.has(p.status)) {
           for (const a of porTipo.get(normalizarTipo(p.type)) ?? []) {
             const s = avaliar(p, a, reservaPorAtivo.get(a.id) ?? null, agora);
             if (!s || s.reservadaAqui) continue;
@@ -395,6 +491,7 @@ export function registerEstoqueReservasRoutes(app: Express): void {
         semMedida: !temMedida(peca),
         caminhaoJaSaiu: saiu,
         podeReservar: !STATUS_SEM_ESTOQUE.has(peca.status) && !saiu,
+        motivoSemReserva: STATUS_SEM_ESTOQUE.has(peca.status) ? motivoSemReserva(peca.status) : null,
         unidadesReservadas: reservadas.reduce((s, r) => s + r.quantidade, 0),
         reservadas,
         lotes: lista,

@@ -55,6 +55,7 @@ import {
 import { db } from "./db";
 import { eq, and, desc, asc, sql, or, lt, gte, ne, inArray, notInArray, like, ilike, isNull } from "drizzle-orm";
 import { reservaEstaAtiva } from "@shared/estoque";
+import { ehForaDoFunil } from "@shared/fluxo-peca";
 import { moldeConcluido } from "@shared/molde";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -2284,10 +2285,20 @@ export class DatabaseStorage implements IStorage {
       gte(inventoryAssets.createdAt as any, departureDate),
     );
 
-    const allocs = await db.select({ assetId: eventInventoryAllocations.assetId })
+    // Reserva de peça cancelada/excluída NÃO vai no caminhão (a alocação sem
+    // peça — cadastro à mão do evento — continua indo).
+    const allocs = await db.select({
+      assetId: eventInventoryAllocations.assetId,
+      itemId: eventInventoryAllocations.itemId,
+      pecaStatus: items.status,
+      pecaExcluidaEm: items.deletedAt,
+    })
       .from(eventInventoryAllocations)
+      .leftJoin(items, eq(items.id, eventInventoryAllocations.itemId))
       .where(eq(eventInventoryAllocations.eventId, eventId));
-    const allocIds = allocs.map(a => a.assetId);
+    const allocIds = allocs
+      .filter(a => !a.itemId || (!a.pecaExcluidaEm && !ehForaDoFunil(a.pecaStatus)))
+      .map(a => a.assetId);
 
     return await db.transaction(async (tx) => {
       let updated = 0;

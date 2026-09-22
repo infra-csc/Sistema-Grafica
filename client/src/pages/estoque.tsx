@@ -78,6 +78,19 @@ const LIMITE_DE_USOS = 500;
 /** Reserva vigente (GET /api/estoque/reservas-ativas). */
 type ReservaAtiva = { reservaId: string; assetId: string; itemDisplayId: string | null; eventName: string; saida: string | null };
 
+/** "reservada para a peça #0062 (Evento X)" — o mesmo texto que o servidor usa no 409. */
+const paraQuemEstaReservada = (r: ReservaAtiva) =>
+  r.itemDisplayId ? `a peça ${r.itemDisplayId} (${r.eventName})` : `o evento ${r.eventName}`;
+
+/** Aviso de peça reservada — antes de excluir ou tirar do galpão. */
+function AvisoDeReserva({ reserva, acao }: { reserva: ReservaAtiva; acao: string }) {
+  return (
+    <p role="status" data-testid="aviso-ativo-reservado" style={{ margin: "0 0 16px", padding: "10px 12px", borderRadius: 10, background: "#eff6ff", border: "1px solid #bfdbfe", color: "#1e40af", fontSize: 13, lineHeight: 1.45, fontFamily: "Plus Jakarta Sans, sans-serif" }}>
+      Esta peça está reservada para <strong>{paraQuemEstaReservada(reserva)}</strong>. Libere a reserva na peça do evento (Gráfica → buscar no estoque) antes de {acao}.
+    </p>
+  );
+}
+
 // ─── Stat card with watermark icon ───────────────────────────────────────────
 function StatCard({ label, value, Icon, color, subtext, subColor, onClick, active, compacto }: {
   label: string; value: number; Icon: React.ElementType;
@@ -135,9 +148,10 @@ function StatCard({ label, value, Icon, color, subtext, subColor, onClick, activ
 }
 
 // ─── Delete Modal (ui/alert-dialog — Escape, foco e backdrop pelo Radix) ─────
-function DeleteModal({ asset, onClose, onConfirm, isPending }: {
-  asset: InventoryAsset; onClose: () => void; onConfirm: () => void; isPending: boolean;
+function DeleteModal({ asset, reserva, onClose, onConfirm, isPending }: {
+  asset: InventoryAsset; reserva?: ReservaAtiva; onClose: () => void; onConfirm: () => void; isPending: boolean;
 }) {
+  const bloqueada = isPending || !!reserva;
   return (
     <AlertDialog open onOpenChange={open => { if (!open && !isPending) onClose(); }}>
       <AlertDialogContent
@@ -165,6 +179,7 @@ function DeleteModal({ asset, onClose, onConfirm, isPending }: {
           <p style={{ fontSize: 12, color: "#64748b", fontFamily: "DM Mono, monospace", margin: "0 0 24px" }}>
             {asset.displayId} — {asset.name}
           </p>
+          {reserva && <AvisoDeReserva reserva={reserva} acao="excluir" />}
           <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
             <button onClick={onClose} disabled={isPending} data-testid="button-cancel-delete" style={{
               minHeight: 44, padding: "0 18px", borderRadius: 10, border: "1px solid #e2e8f0",
@@ -172,10 +187,11 @@ function DeleteModal({ asset, onClose, onConfirm, isPending }: {
               cursor: isPending ? "not-allowed" : "pointer", opacity: isPending ? 0.6 : 1,
               fontFamily: "Space Grotesk, sans-serif", fontWeight: 600,
             }}>Manter</button>
-            <button onClick={onConfirm} disabled={isPending} data-testid="button-confirm-delete" style={{
+            <button onClick={onConfirm} disabled={bloqueada} data-testid="button-confirm-delete"
+              title={reserva ? "Peça reservada — libere a reserva antes de excluir" : undefined} style={{
               minHeight: 44, padding: "0 18px", borderRadius: 10, border: "none",
-              background: isPending ? "#fca5a5" : "#b91c1c", color: "#fff", fontSize: 13,
-              cursor: isPending ? "not-allowed" : "pointer",
+              background: bloqueada ? "#fca5a5" : "#b91c1c", color: "#fff", fontSize: 13,
+              cursor: bloqueada ? "not-allowed" : "pointer",
               fontFamily: "Space Grotesk, sans-serif", fontWeight: 700,
             }}>{isPending ? "Excluindo..." : "Sim, Excluir"}</button>
           </div>
@@ -186,8 +202,8 @@ function DeleteModal({ asset, onClose, onConfirm, isPending }: {
 }
 
 // ─── Asset Modal ──────────────────────────────────────────────────────────────
-function AssetModal({ asset, onClose, onSaved }: {
-  asset: InventoryAsset | null; onClose: () => void; onSaved: () => void;
+function AssetModal({ asset, reserva, onClose, onSaved }: {
+  asset: InventoryAsset | null; reserva?: ReservaAtiva; onClose: () => void; onSaved: () => void;
 }) {
   const { toast } = useToast();
   const isMobile = useIsMobile();
@@ -225,7 +241,11 @@ function AssetModal({ asset, onClose, onSaved }: {
     // Toast com o NOME do ativo e erro com o motivo do servidor — "Erro ao
     // salvar." sem porquê não dizia se era campo, permissão ou conexão.
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/inventory"] }); toast({ title: isEdit ? "Ativo atualizado" : "Ativo cadastrado", description: form.name.trim() }); onSaved(); },
-    onError: (e: Error) => toast({ title: "Não foi possível salvar o ativo", description: e.message, variant: "destructive" }),
+    onError: (e: Error) => {
+      // 409 de peça reservada: recarrega as reservas para o aviso aparecer.
+      queryClient.invalidateQueries({ queryKey: ["/api/estoque/reservas-ativas"] });
+      toast({ title: "Não foi possível salvar o ativo", description: e.message, variant: "destructive" });
+    },
   });
 
   // Borda visível e SEM `outline: none`: o campo era um retângulo #f8fafc
@@ -246,7 +266,10 @@ function AssetModal({ asset, onClose, onSaved }: {
   // mão — quem o define é o ciclo do evento. Só NO_GALPAO/DESCARTADO são
   // escolhas manuais válidas.
   const lockedStatus = isEdit && !MANUAL_STATUSES.includes(form.trackingStatus);
-  const saveDisabled = !form.name.trim() || mutation.isPending;
+  // Manutenção/descarte de peça reservada: o servidor recusa (409); a tela
+  // avisa antes e trava o Salvar com o motivo à vista.
+  const tiraDoGalpaoReservada = isEdit && !!reserva && form.trackingStatus !== "NO_GALPAO" && form.trackingStatus !== asset?.trackingStatus;
+  const saveDisabled = !form.name.trim() || mutation.isPending || tiraDoGalpaoReservada;
 
   return (
     <Dialog open onOpenChange={open => { if (!open) onClose(); }}>
@@ -344,6 +367,11 @@ function AssetModal({ asset, onClose, onSaved }: {
                 <p style={{ margin: "5px 0 0", fontSize: 11, color: "#64748b", fontFamily: "Plus Jakarta Sans, sans-serif", lineHeight: 1.4 }}>
                   {SIGNIFICADO_DO_STATUS[form.trackingStatus]}
                 </p>
+              )}
+              {tiraDoGalpaoReservada && reserva && (
+                <div style={{ marginTop: 8 }}>
+                  <AvisoDeReserva reserva={reserva} acao={form.trackingStatus === "DESCARTADO" ? "descartar" : "mandar para manutenção"} />
+                </div>
               )}
             </div>
           </div>
@@ -474,7 +502,9 @@ export default function Estoque() {
   // Quem mexe no acervo (dono, 14/09): Gráfica e admin editam; excluir segue
   // só do admin; a Solicitação consulta o que tem para reservar.
   const { user } = useAuth();
-  const podeEditar = user?.role === "grafica" || user?.role === "admin";
+  // As rotas de escrita do acervo são só do admin (15/09) — oferecer a edição
+  // à Gráfica era botão que sempre voltava 403.
+  const podeEditar = user?.role === "admin";
   const podeExcluir = user?.role === "admin";
   const { data: reservasAtivas = VAZIO as ReservaAtiva[] } = useQuery<ReservaAtiva[]>({ queryKey: ["/api/estoque/reservas-ativas"] });
   const reservaPorAtivo = useMemo(() => new Map(reservasAtivas.map(r => [r.assetId, r])), [reservasAtivas]);
@@ -501,7 +531,10 @@ export default function Estoque() {
   const deleteMutation = useMutation({
     mutationFn: (id: string) => apiRequest("DELETE", `/api/inventory/${id}`),
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/inventory"] }); toast({ title: "Ativo excluído", description: deleting ? `${deleting.displayId} — ${deleting.name}` : undefined }); setDeleting(null); },
-    onError: (e: Error) => toast({ title: "Não foi possível excluir", description: e.message, variant: "destructive" }),
+    onError: (e: Error) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/estoque/reservas-ativas"] });
+      toast({ title: "Não foi possível excluir", description: e.message, variant: "destructive" });
+    },
   });
 
   // O toast diz QUAL ativo mudou e para QUAL condição — "Item atualizado" era
@@ -1062,7 +1095,7 @@ export default function Estoque() {
                     <PopoverTrigger asChild>
                       <button data-testid={`button-quick-condition-${asset.id}`}
                         disabled={!podeEditar}
-                        title={podeEditar ? "Mudar a condição" : "Mudar a condição é da Gráfica e do admin"}
+                        title={podeEditar ? "Mudar a condição" : "Mudar a condição é só do admin"}
                         aria-label={`Condição: ${cm.label}${podeEditar ? " — mudar" : ""}`}
                         style={{
                           display: "inline-flex", alignItems: "center", gap: 4,
@@ -1411,10 +1444,10 @@ export default function Estoque() {
       `}</style>
 
       {editing !== false && (
-        <AssetModal asset={editing} onClose={() => setEditing(false)} onSaved={() => setEditing(false)} />
+        <AssetModal asset={editing} reserva={editing ? reservaPorAtivo.get(editing.id) : undefined} onClose={() => setEditing(false)} onSaved={() => setEditing(false)} />
       )}
       {deleting && (
-        <DeleteModal asset={deleting} onClose={() => setDeleting(null)} onConfirm={() => deleteMutation.mutate(deleting.id)} isPending={deleteMutation.isPending} />
+        <DeleteModal asset={deleting} reserva={reservaPorAtivo.get(deleting.id)} onClose={() => setDeleting(null)} onConfirm={() => deleteMutation.mutate(deleting.id)} isPending={deleteMutation.isPending} />
       )}
       {vendo && grupoVendo && (
         <DetalheDoAtivo

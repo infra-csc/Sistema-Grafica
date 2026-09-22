@@ -457,7 +457,10 @@ describe("migração pendente — a listagem degrada, o app NÃO cai", () => {
     H.storage.getComplementsByParentIds = vi.fn(async () => { throw erroPg("57014", "canceling statement due to statement timeout"); });
     const r = await chamar(GET_TODOS, { userRole: "grafica" });
     expect(r.status).toBe(500);
-    expect(r.body.error).toContain("statement timeout");
+    // Propaga como falha (não degrada em silêncio), com frase humana — o erro
+    // cru do Postgres vai para o log, não para a tela.
+    expect(r.body.error).toContain("Não foi possível carregar as peças");
+    expect(r.body.error).not.toContain("statement timeout");
   });
 });
 

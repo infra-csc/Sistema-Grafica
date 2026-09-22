@@ -65,6 +65,8 @@ type Resposta = {
   semMedida: boolean;
   caminhaoJaSaiu: boolean;
   podeReservar: boolean;
+  /** Por que a peça não aceita reserva (impressão em diante, entregue, cancelada). */
+  motivoSemReserva?: string | null;
   unidadesReservadas: number;
   reservadas: Reservada[];
   lotes: Lote[];
@@ -232,7 +234,9 @@ export function EstoqueSemelhantesDialog({ item, podeReservar, onClose }: {
   const liberar = useMutation({
     mutationFn: async (reservaId: string) => (await apiRequest("DELETE", `/api/items/${item!.id}/reservas/${reservaId}`)).json(),
     onSuccess: () => { toast({ title: "Reserva liberada", description: "A peça voltou a ficar disponível no estoque." }); atualizar(); },
-    onError: (e: Error) => toast({ title: "Não deu para liberar", description: e.message, variant: "destructive" }),
+    // Recarrega também no erro: o 409 mais comum é "já saiu no caminhão" ou
+    // "reserva não encontrada" (outra aba liberou) — a lista precisa mostrar isso.
+    onError: (e: Error) => { toast({ title: "Não deu para liberar", description: e.message, variant: "destructive" }); atualizar(); },
   });
 
   const peca = data?.peca;
@@ -317,6 +321,11 @@ export function EstoqueSemelhantesDialog({ item, podeReservar, onClose }: {
           {data?.caminhaoJaSaiu && (
             <p style={{ margin: 0, padding: "10px 12px", borderRadius: 10, background: "#f5f5f4", border: "1px solid #e7e5e4", fontSize: 12.5, color: "#44403c" }}>
               O caminhão deste evento já saiu — dá para consultar, mas não para reservar.
+            </p>
+          )}
+          {data?.motivoSemReserva && !data.caminhaoJaSaiu && (
+            <p data-testid="motivo-sem-reserva" style={{ margin: 0, padding: "10px 12px", borderRadius: 10, background: "#f5f5f4", border: "1px solid #e7e5e4", fontSize: 12.5, color: "#44403c" }}>
+              {data.motivoSemReserva}
             </p>
           )}
           {data && !podeReservar && (

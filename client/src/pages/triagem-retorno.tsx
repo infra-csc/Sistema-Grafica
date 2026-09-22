@@ -311,9 +311,12 @@ export default function TriagemRetorno() {
   const { data: awaitingAssets = VAZIO as EnrichedAsset[], isLoading, isError, refetch } = useQuery<EnrichedAsset[]>({
     queryKey: ["/api/inventory/awaiting-triage"],
   });
-  // /api/items é a lista INTEIRA de peças (MBs) e só serve ao modal de
-  // detalhe: só é pedida quando alguém abre um.
-  const { data: allItems = VAZIO as any[] } = useQuery<any[]>({ queryKey: ["/api/items"], enabled: !!selectedAsset });
+  // A peça de ORIGEM do ativo aberto no modal — só ela, pela rota enxuta do
+  // acervo. Antes baixava /api/items inteiro (MBs) para ler uma linha.
+  const { data: pecaDeOrigem = null } = useQuery<any | null>({
+    queryKey: [`/api/inventory/${selectedAsset?.id}/origem`],
+    enabled: !!selectedAsset?.originalItemId,
+  });
   const { data: reservasAtivas = VAZIO as ReservaAtiva[] } = useQuery<ReservaAtiva[]>({ queryKey: ["/api/estoque/reservas-ativas"] });
   const reservaPorAtivo = useMemo(() => new Map(reservasAtivas.map(r => [r.assetId, r])), [reservasAtivas]);
   // Por id: os laços de lote faziam awaitingAssets.find() por peça — 4 mil × 4 mil.
@@ -1467,7 +1470,7 @@ export default function TriagemRetorno() {
 
       <TriagemModal
         asset={selectedAsset}
-        linkedItem={selectedAsset ? (allItems.find((i: any) => i.id === selectedAsset.originalItemId) ?? null) : null}
+        linkedItem={selectedAsset?.originalItemId && pecaDeOrigem?.id === selectedAsset.originalItemId ? pecaDeOrigem : null}
         entry={selectedAsset ? getEntry(selectedAsset.id, selectedAsset.quantity ?? 1) : null}
         open={!!selectedAsset}
         isSaving={!!selectedAsset && savingIds.has(selectedAsset.id)}

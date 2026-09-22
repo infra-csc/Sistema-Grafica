@@ -10,6 +10,7 @@ import {
 } from "@shared/schema";
 import { requireAuth, requireRole, broadcast, createAuditLog } from "./shared";
 import { recusaDeTriagem, recusaPorReserva, reservaEstaAtiva } from "@shared/estoque";
+import { ehForaDoFunil } from "@shared/fluxo-peca";
 
 // TRIAGEM SÓ DE QUEM ESTÁ AGUARDANDO (dono, 21/09). Antes as duas rotas
 // aceitavam qualquer ativo: uma peça EM USO num evento podia ser "triada" de
@@ -19,7 +20,13 @@ import { recusaDeTriagem, recusaPorReserva, reservaEstaAtiva } from "@shared/est
 // a outra atualiza zero linhas e recebe 409.
 const AGUARDANDO = "AGUARDANDO_TRIAGEM";
 class JaTriada extends Error {}
-class Reservado extends Error {}
+class Reservado extends Error {
+  constructor(message: string, readonly reserva?: { eventName: string; inicio: Date | null; itemDisplayId: string | null }) { super(message); }
+}
+
+/** "Esta peça está reservada para #0062 (Evento X)." */
+const recusaPorReservaCurta = (r: { eventName: string; itemDisplayId: string | null }) =>
+  `Esta peça está reservada para ${r.itemDisplayId ? `${r.itemDisplayId} (${r.eventName})` : `o evento ${r.eventName}`}.`;
 
 // Escritas no acervo: Gráfica e admin (dono, 14/09 — quem recebe o material
 // na volta do caminhão faz a triagem e registra onde guardou). Excluir peça e
@@ -85,15 +92,29 @@ const unicos = (xs: (string | null | undefined)[]) => Array.from(new Set(xs.filt
  *  ativo (evento que ainda não acabou — a mesma régua de reservaEstaAtiva).
  *  Chamada com a linha do ativo JÁ travada (FOR UPDATE): a rota de reservar
  *  trava a mesma linha, então as duas não se cruzam. */
-async function reservaVigenteDoAtivo(exec: any, assetId: string, agora = new Date()) {
-  const linhas: { eventName: string; inicio: Date | null; itemDisplayId: string | null }[] = await exec
-    .select({ eventName: events.name, inicio: events.startDate, itemDisplayId: itemsTable.displayId })
+export async function reservaVigenteDoAtivo(exec: any, assetId: string, agora = new Date()) {
+  const linhas: {
+    eventName: string; inicio: Date | null; itemDisplayId: string | null;
+    itemId?: string | null; pecaStatus?: string | null; pecaExcluidaEm?: Date | null;
+  }[] = await exec
+    .select({
+      eventName: events.name, inicio: events.startDate, itemDisplayId: itemsTable.displayId,
+      itemId: eventInventoryAllocations.itemId, pecaStatus: itemsTable.status, pecaExcluidaEm: itemsTable.deletedAt,
+    })
     .from(eventInventoryAllocations)
     .innerJoin(events, eq(events.id, eventInventoryAllocations.eventId))
     .leftJoin(itemsTable, eq(itemsTable.id, eventInventoryAllocations.itemId))
     .where(eq(eventInventoryAllocations.assetId, assetId));
-  return linhas.find((r) => reservaEstaAtiva(r.inicio, agora)) ?? null;
+  // Reserva de peça cancelada/excluída não segura nada (a mesma régua de
+  // carregarReservasAtivas).
+  const r = linhas.find((l) => reservaEstaAtiva(l.inicio, agora)
+    && (!l.itemId || (!l.pecaExcluidaEm && !ehForaDoFunil(l.pecaStatus))));
+  return r ? { eventName: r.eventName, inicio: r.inicio, itemDisplayId: r.itemDisplayId } : null;
 }
+
+/** Aviso em tempo real de mudança no acervo (o cliente invalida as telas do estoque). */
+const avisarAcervo = (assetId: string, acao: "criado" | "atualizado" | "excluido") =>
+  broadcast({ type: "inventory_changed", assetId, acao });
 
 /** Trava a linha do ativo até o fim da transação e diz a situação atual. */
 async function travarAtivo(tx: any, id: string): Promise<string | null> {
@@ -167,7 +188,8 @@ export function registerInventoryRoutes(app: Express): void {
       });
       res.json(enriched);
     } catch (error) {
-      res.status(500).json({ error: "Erro ao buscar ativos" });
+      console.error("[triagem] erro ao listar a fila:", error);
+      res.status(500).json({ error: "Não foi possível carregar a fila da triagem agora. Tente de novo em instantes." });
     }
   });
 
@@ -183,7 +205,7 @@ export function registerInventoryRoutes(app: Express): void {
 
   // A peça de ORIGEM de um ativo, para o detalhe do Estoque (tipo, material,
   // medida, patrocinadores). Uma peça só, pedida quando o detalhe abre — no
-  // lugar de /api/items inteiro.
+  // lugar de /api/items inteiro. A Triagem usa a mesma rota.
   app.get("/api/inventory/:id/origem", requireAuth, async (req, res) => {
     try {
       const [peca] = await db
@@ -191,6 +213,7 @@ export function registerInventoryRoutes(app: Express): void {
           id: itemsTable.id, displayId: itemsTable.displayId, eventId: itemsTable.eventId, type: itemsTable.type,
           material: itemsTable.material, finish: itemsTable.finish, measurement: itemsTable.measurement,
           visualWidth: itemsTable.visualWidth, visualHeight: itemsTable.visualHeight, quantity: itemsTable.quantity,
+          calculatedM2: itemsTable.calculatedM2,
         })
         .from(inventoryAssets)
         .innerJoin(itemsTable, eq(itemsTable.id, inventoryAssets.originalItemId))
@@ -212,7 +235,8 @@ export function registerInventoryRoutes(app: Express): void {
       if (!asset) return res.status(404).json({ error: "Peça não encontrada" });
       res.json(asset);
     } catch (error) {
-      res.status(500).json({ error: "Erro ao buscar peça" });
+      console.error("[estoque] erro ao buscar ativo:", error);
+      res.status(500).json({ error: "Não foi possível carregar a peça do estoque agora." });
     }
   });
 
@@ -225,6 +249,7 @@ export function registerInventoryRoutes(app: Express): void {
         return res.status(400).json({ error: cycleStatusError });
       }
       const asset = await storage.createInventoryAsset(data as any);
+      avisarAcervo(asset.id, "criado");
       res.status(201).json(asset);
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -241,13 +266,31 @@ export function registerInventoryRoutes(app: Express): void {
       if (data.trackingStatus && CYCLE_ONLY_STATUSES.includes(data.trackingStatus)) {
         return res.status(400).json({ error: cycleStatusError });
       }
-      const asset = await storage.updateInventoryAsset(req.params.id, data as any);
+      // Manutenção/descarte de peça RESERVADA: recusa. A reserva ficaria
+      // valendo sobre material indisponível — e a peça iria no caminhão do
+      // evento que a reservou. Libere a reserva antes.
+      const saiDoGalpao = !!data.trackingStatus && data.trackingStatus !== "NO_GALPAO";
+      const asset = await db.transaction(async (tx) => {
+        if (saiDoGalpao) {
+          const atual = await travarAtivo(tx, req.params.id);
+          if (atual === null) return undefined;
+          const reserva = await reservaVigenteDoAtivo(tx, req.params.id);
+          if (reserva) throw new Reservado(`${recusaPorReservaCurta(reserva)} Libere a reserva antes de mandar para manutenção ou descarte.`, reserva);
+        }
+        const [linha] = await tx.update(inventoryAssets)
+          .set({ ...data, updatedAt: new Date() } as any)
+          .where(eq(inventoryAssets.id, req.params.id))
+          .returning();
+        return linha;
+      });
       if (!asset) return res.status(404).json({ error: "Peça não encontrada" });
+      avisarAcervo(asset.id, "atualizado");
       res.json(asset);
     } catch (error) {
       if (error instanceof z.ZodError) {
         return res.status(400).json({ error: error.errors?.[0]?.message || "Dados inválidos" });
       }
+      if (error instanceof Reservado) return res.status(409).json({ error: error.message, code: "ATIVO_RESERVADO", reserva: error.reserva });
       console.error("Error updating inventory asset:", error);
       res.status(500).json({ error: "Erro ao atualizar peça" });
     }
@@ -255,11 +298,22 @@ export function registerInventoryRoutes(app: Express): void {
 
   app.delete("/api/inventory/:id", requireInventoryAdmin, async (req, res) => {
     try {
+      // Excluir peça reservada apagaria a reserva em cascata sem ninguém
+      // saber: a peça de destino ficaria sem o material que contava ter.
+      const reserva = await reservaVigenteDoAtivo(db, req.params.id);
+      if (reserva) {
+        return res.status(409).json({
+          error: `${recusaPorReservaCurta(reserva)} Libere a reserva antes de excluir.`,
+          code: "ATIVO_RESERVADO", reserva,
+        });
+      }
       const success = await storage.deleteInventoryAsset(req.params.id);
       if (!success) return res.status(404).json({ error: "Peça não encontrada" });
+      avisarAcervo(req.params.id, "excluido");
       res.json({ success: true });
     } catch (error) {
-      res.status(500).json({ error: "Erro ao excluir peça" });
+      console.error("[estoque] erro ao excluir ativo:", error);
+      res.status(500).json({ error: "Não foi possível excluir a peça do estoque agora. Tente de novo em instantes." });
     }
   });
 
@@ -305,7 +359,8 @@ export function registerInventoryRoutes(app: Express): void {
         return res.status(400).json({ error: error.errors?.[0]?.message || "Dados inválidos" });
       }
       if (error instanceof Reservado) return res.status(409).json({ error: error.message });
-      res.status(500).json({ error: "Erro ao registrar triagem" });
+      console.error("[triagem] erro ao registrar triagem:", error);
+      res.status(500).json({ error: "Não foi possível registrar a triagem agora. Tente de novo em instantes." });
     }
   });
 
@@ -430,9 +485,11 @@ export function registerInventoryRoutes(app: Express): void {
       if (!event) return res.status(404).json({ error: "Evento não encontrado" });
       const departure = event.truckDepartureDate ? new Date(event.truckDepartureDate) : new Date();
       const count = await storage.markAssetsInUseForEvent(req.params.id, departure);
+      if (count > 0) broadcast({ type: "inventory_in_use", eventId: req.params.id, count });
       res.json({ count });
     } catch (error) {
-      res.status(500).json({ error: "Erro ao processar despacho" });
+      console.error("[estoque] erro no despacho manual:", error);
+      res.status(500).json({ error: "Não foi possível registrar a saída dos materiais agora. Tente de novo em instantes." });
     }
   });
 
@@ -452,7 +509,8 @@ export function registerInventoryRoutes(app: Express): void {
       }
       res.json({ count });
     } catch (error) {
-      res.status(500).json({ error: "Erro ao processar retorno" });
+      console.error("[estoque] erro no retorno manual:", error);
+      res.status(500).json({ error: "Não foi possível registrar o retorno dos materiais agora. Tente de novo em instantes." });
     }
   });
 
@@ -462,7 +520,8 @@ export function registerInventoryRoutes(app: Express): void {
       const allocations = await storage.getEventAllocations(req.params.id);
       res.json(allocations);
     } catch (error) {
-      res.status(500).json({ error: "Erro ao buscar alocações" });
+      console.error("[estoque] erro ao buscar alocações:", error);
+      res.status(500).json({ error: "Não foi possível carregar as alocações do evento agora." });
     }
   });
 
@@ -471,6 +530,7 @@ export function registerInventoryRoutes(app: Express): void {
       const { assetId } = req.body;
       if (!assetId || typeof assetId !== "string") return res.status(400).json({ error: "assetId é obrigatório" });
       const alloc = await storage.allocateAssetToEvent(req.params.id, assetId);
+      broadcast({ type: "estoque_reservas", eventId: req.params.id });
       res.status(201).json(alloc);
     } catch (error) {
       console.error("Error allocating asset:", error);
@@ -482,9 +542,11 @@ export function registerInventoryRoutes(app: Express): void {
     try {
       const success = await storage.deallocateAsset(req.params.id);
       if (!success) return res.status(404).json({ error: "Alocação não encontrada" });
+      broadcast({ type: "estoque_reservas" });
       res.json({ success: true });
     } catch (error) {
-      res.status(500).json({ error: "Erro ao desalocar peça" });
+      console.error("[estoque] erro ao desalocar:", error);
+      res.status(500).json({ error: "Não foi possível desfazer a alocação agora. Tente de novo em instantes." });
     }
   });
 

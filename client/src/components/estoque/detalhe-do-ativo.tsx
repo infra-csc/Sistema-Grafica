@@ -114,6 +114,7 @@ export function DetalheDoAtivo({ grupo, unidade, linkedItem, sponsors, reservaPo
     const r = await emGrupos(alvos, GRAVACOES_POR_VEZ, (a) => apiRequest("PATCH", `/api/inventory/${a.id}`, dados));
     const falhas = r.filter((x) => x.status === "rejected") as PromiseRejectedResult[];
     queryClient.invalidateQueries({ queryKey: ["/api/inventory"] });
+    if (falhas.length > 0) queryClient.invalidateQueries({ queryKey: ["/api/estoque/reservas-ativas"] });
     setGravando(false);
     if (falhas.length > 0) toast({ title: `${alvos.length - falhas.length} de ${alvos.length} atualizadas`, description: falhas[0].reason?.message, variant: "destructive" });
     else toast({ title: feito, description: alvos.length > 1 ? `${alvos.length} registros · ${unidades} un.` : alvos[0].displayId });
@@ -124,6 +125,9 @@ export function DetalheDoAtivo({ grupo, unidade, linkedItem, sponsors, reservaPo
   // parado: EM USO e AGUARDANDO TRIAGEM são do ciclo do evento (o servidor recusa).
   const parados = alvos.every((a) => a.trackingStatus === "NO_GALPAO" || a.trackingStatus === "EM_MANUTENCAO");
   const todosEmManutencao = alvos.every((a) => a.trackingStatus === "EM_MANUTENCAO");
+  // Peça reservada não vai para manutenção (o servidor recusa com 409): o
+  // botão fica desabilitado e o motivo aparece embaixo, antes do clique.
+  const manutencaoBloqueada = !todosEmManutencao && reservas.length > 0;
   const alvo = isMobile ? 44 : 36;
   const botao = (primario: boolean): React.CSSProperties => ({
     display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, minHeight: 44, padding: "0 16px", borderRadius: 10, fontSize: 14, fontWeight: 700, cursor: gravando ? "wait" : "pointer",
@@ -274,12 +278,18 @@ export function DetalheDoAtivo({ grupo, unidade, linkedItem, sponsors, reservaPo
         </div>
 
         <ModalFooter>
+          {podeEditar && parados && manutencaoBloqueada && (
+            <p id="detalhe-manutencao-motivo" data-testid="detalhe-manutencao-motivo" style={{ margin: "0 0 8px", fontSize: 12, color: "#1e40af", textAlign: "right" }}>
+              {reservas.length === 1 && umaSo ? "Esta peça está reservada" : `${reservas.length} ${reservas.length === 1 ? "unidade está reservada" : "unidades estão reservadas"}`} — libere a reserva na peça do evento antes de mandar para manutenção.
+            </p>
+          )}
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end", paddingBottom: "calc(0px + env(safe-area-inset-bottom, 0px))" }}>
             <button type="button" data-testid="detalhe-fechar" onClick={onClose} style={botao(false)}>Fechar</button>
             {podeEditar && parados && (
-              <button type="button" data-testid="detalhe-manutencao" disabled={gravando}
+              <button type="button" data-testid="detalhe-manutencao" disabled={gravando || manutencaoBloqueada}
+                aria-describedby={manutencaoBloqueada ? "detalhe-manutencao-motivo" : undefined}
                 onClick={() => mudar({ trackingStatus: todosEmManutencao ? "NO_GALPAO" : "EM_MANUTENCAO" }, todosEmManutencao ? "De volta ao galpão" : "Mandada para manutenção")}
-                style={botao(false)}>
+                style={{ ...botao(false), ...(manutencaoBloqueada ? { cursor: "not-allowed", opacity: 0.6 } : {}) }}>
                 {todosEmManutencao ? <><Warehouse size={15} aria-hidden="true" /> Voltar ao galpão</> : <><Wrench size={15} aria-hidden="true" /> Mandar para manutenção</>}
               </button>
             )}

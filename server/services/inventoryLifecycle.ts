@@ -109,6 +109,23 @@ export async function backfillInventoryAssets() {
 // de hora em hora não mudaria nada).
 const JANELA_DE_CATCHUP_MS = 45 * 24 * 60 * 60 * 1000;
 
+/**
+ * Meia-noite (em São Paulo) do dia seguinte ao do evento. O dia do evento é a
+ * data-calendário gravada (convenção do app: datas de evento em UTC); a virada
+ * é a do NEGÓCIO. Antes usava o fuso do servidor (UTC no deploy): a triagem
+ * abria às 21h do próprio dia do evento, com o material ainda na rua.
+ */
+export function meiaNoiteDoDiaSeguinteEmSaoPaulo(inicioDoEvento: Date): Date {
+  const palpite = Date.UTC(inicioDoEvento.getUTCFullYear(), inicioDoEvento.getUTCMonth(), inicioDoEvento.getUTCDate() + 1);
+  const p = Object.fromEntries(new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Sao_Paulo", hourCycle: "h23",
+    year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit",
+  }).formatToParts(new Date(palpite)).map((x) => [x.type, x.value]));
+  const comoLocal = Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour, +p.minute, +p.second);
+  // comoLocal - palpite = deslocamento de SP naquele instante (−3h hoje).
+  return new Date(palpite - (comoLocal - palpite));
+}
+
 export async function runInventoryCron() {
     try {
       const now = new Date();
@@ -129,9 +146,7 @@ export async function runInventoryCron() {
         // ── Triage: midnight of the day AFTER the event's startDate → AGUARDANDO_TRIAGEM ─
         // Only assets currently EM_USO transition — assets not in use are never pulled into triage.
         if (event.startDate) {
-          const dayAfterEvent = new Date(event.startDate);
-          dayAfterEvent.setDate(dayAfterEvent.getDate() + 1);
-          dayAfterEvent.setHours(0, 0, 0, 0);
+          const dayAfterEvent = meiaNoiteDoDiaSeguinteEmSaoPaulo(new Date(event.startDate));
 
           if (now >= dayAfterEvent && now.getTime() - dayAfterEvent.getTime() <= JANELA_DE_CATCHUP_MS) {
             const count = await storage.markAssetsAwaitingTriageForEvent(event.id);

@@ -137,7 +137,15 @@ async function montarEstoque(largura: number, acervo: any[], opts: { url?: strin
   return queryClient;
 }
 
-afterEach(() => { cleanup(); vi.unstubAllGlobals(); avisos.length = 0; for (const k of Object.keys(respostasExtras)) delete respostasExtras[k]; });
+// Estado isolado entre testes: DOM, globais, avisos, respostas, cache do
+// React Query, sincronia do delta e endereço — nada vaza de um caso ao outro.
+afterEach(async () => {
+  cleanup(); vi.unstubAllGlobals(); avisos.length = 0;
+  for (const k of Object.keys(respostasExtras)) delete respostasExtras[k];
+  const { queryClient, resetItensDelta } = await import("@/lib/queryClient");
+  queryClient.clear(); resetItensDelta();
+  window.history.replaceState({}, "", "/");
+});
 
 // ─── Triagem: entrada por evento ─────────────────────────────────────────────
 describe("triagem · lista de eventos com 4 mil+ peças", () => {
@@ -655,7 +663,8 @@ describe("estoque · agrupado por quantidade, onde já foi usado e o detalhe", (
     fetchFalso();
     await montarEstoque(1280, acervo(), opts());
     await act(async () => { fireEvent.click(tid("button-view-group-s3000")!); });
-    await tick(20); // a peça de origem é pedida quando o detalhe abre
+    // A peça de origem é pedida quando o detalhe abre.
+    await vi.waitFor(() => expect(tid("detalhe-do-ativo")!.textContent).toContain("Peça de origem #0396"), { timeout: 15_000, interval: 20 });
     const modal = tid("detalhe-do-ativo")!;
     expect(modal.textContent).toContain("34 unidades em 34 registros");
     expect(tid("detalhe-arte")!.getAttribute("alt")).toBe("Arte de 2×1 — 2×1 Nubank");
@@ -685,6 +694,9 @@ describe("estoque · agrupado por quantidade, onde já foi usado e o detalhe", (
     expect(tid("detalhe-trilha")!.querySelectorAll("li").length).toBe(2);
     expect(modal.textContent).toContain("Este registro1 un.");
     expect(tid("detalhe-editar")).not.toBeNull();
+    // Reservada: manutenção travada ANTES do clique, com o motivo à vista.
+    expect((tid("detalhe-manutencao") as HTMLButtonElement).disabled).toBe(true);
+    expect(tid("detalhe-manutencao-motivo")!.textContent).toContain("libere a reserva");
     await act(async () => { fireEvent.click(tid("detalhe-voltar-ao-grupo")!); });
     expect(tid("detalhe-unidades")).not.toBeNull();
   });
@@ -697,7 +709,9 @@ describe("estoque · agrupado por quantidade, onde já foi usado e o detalhe", (
     // Condições mistas: nenhuma marcada.
     expect($$('[data-testid^="detalhe-condicao-"]').every((b) => b.getAttribute("aria-checked") === "false")).toBe(true);
     await act(async () => { fireEvent.click(tid("detalhe-condicao-PERFEITO")!); });
-    await tick(120);
+    // Espera DETERMINÍSTICA: as 34 gravações e o aviso final (com 120 ms fixos
+    // o teste falhava sob carga, com a suíte inteira rodando).
+    await vi.waitFor(() => { expect(escritas().length).toBe(34); expect(textoDosAvisos()).toContain("Condição: Perfeito"); }, { timeout: 15_000, interval: 20 });
     expect(escritas().length).toBe(34);
     expect(escritas().every((e) => e.method === "PATCH" && e.body.condition === "PERFEITO" && !("location" in e.body))).toBe(true);
     expect(estado.pico).toBeLessThanOrEqual(GRAVACOES_POR_VEZ);

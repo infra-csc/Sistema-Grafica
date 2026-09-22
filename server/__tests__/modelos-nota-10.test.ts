@@ -36,10 +36,16 @@ describe("2 · a sangria, derivada", () => {
     expect(M).toContain("if (vw === null || vh === null || aw === null || ah === null) return null;");
   });
 
-  it("os tons do handoff, com contraste conferido", () => {
-    expect(M).toContain('sem:   { bg: "#fffbeb", border: "#fde68a", color: "#92400e" },');
-    expect(M).toContain('menor: { bg: "#fef2f2", border: "#fecaca", color: "#b91c1c" },');
-    expect(M).toContain('ok:    { bg: "#f5f4f0", border: "#e7e5e4", color: "#57534e" },');
+  it("os tons do handoff saem da paleta do sistema, não de hexes locais", () => {
+    // Antes eram nove hexes escritos nesta tela. O "sem sangria" usava o amber
+    // 800 sobre o amber 50 — um degrau mais escuro do que o alerta do app, ou
+    // seja, o MESMO aviso com cor diferente conforme a tela. Agora vem de TOM,
+    // que é o espelho da paleta de lib/status.ts.
+    expect(M).toContain('ok:    { bg: TOM.neutro.bg, border: TOM.neutro.border, color: T.apoio },');
+    expect(M).toContain('sem:   { bg: TOM.alerta.bg, border: TOM.alerta.border, color: TOM.alerta.text },');
+    expect(M).toContain('menor: { bg: TOM.perigo.bg, border: TOM.perigo.border, color: TOM.perigo.text },');
+    // E nenhum hex sobrou solto no arquivo.
+    expect(M.match(/["']#[0-9a-fA-F]{6}["']/g) ?? []).toEqual([]);
   });
 
   it("o selo está na tabela, ao lado da linha ARQ", () => {

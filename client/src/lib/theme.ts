@@ -62,6 +62,18 @@ export const TOM = {
   perigo: P.red,
   info: P.blue,
   neutro: P.neutral,
+  /**
+   * A família do laranja da marca, em papel de tinta clara. O `text` aqui é
+   * #c2410c — o mesmo `T.accentText` — porque o #f97316 da marca não pode
+   * carregar leitura. Serve a "em produção", "destaque", "novo".
+   */
+  laranja: P.orange,
+  /**
+   * Azul-céu: informação FRIA — contagem, referência, "quantas peças saíram
+   * deste modelo". Fica ao lado de `info` (azul) de propósito: `info` avisa,
+   * `ceu` só conta.
+   */
+  ceu: P.sky,
 } as const;
 
 export type NomeDeTom = keyof typeof TOM;

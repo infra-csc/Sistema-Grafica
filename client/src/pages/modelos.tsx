@@ -9,7 +9,9 @@ import { FreezeWhileClosing, HIDE_NATIVE_CLOSE, ModalFooter, ModalHeader, modalS
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
-import { FS, R, T } from "@/lib/theme";
+import { FS, R, T, N, FW, FONT, TOM } from "@/lib/theme";
+import { useConfirmar } from "@/components/ui/usar-confirmar";
+import { EstadoVazio } from "@/components/ui/estados";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useFiltrosNaUrl, paginaValida } from "@/hooks/use-filtros-na-url";
 import { TIPOS_DE_PECA } from "@shared/molde";
@@ -55,15 +57,15 @@ function SearchableSelect({
    arquivo; se mudar aqui, mude nas outras três. */
 const BTN_PRIMARIO: React.CSSProperties = {
   display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8,
-  height: 40, padding: "0 18px", backgroundColor: T.dark, color: "#fff",
+  height: 40, padding: "0 18px", backgroundColor: T.dark, color: T.surface,
   border: "none", borderRadius: R.md, cursor: "pointer",
   fontSize: 12, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em",
   whiteSpace: "nowrap", transition: "background-color 0.15s ease",
 };
 const BTN_LIMPAR: React.CSSProperties = {
   display: "inline-flex", alignItems: "center", gap: 6, height: 36, padding: "0 12px",
-  backgroundColor: "#fef2f2", border: "1px solid #fecaca", borderRadius: R.md, cursor: "pointer",
-  fontSize: 11, fontWeight: 800, color: "#b91c1c", textTransform: "uppercase", letterSpacing: "0.06em", whiteSpace: "nowrap",
+  backgroundColor: TOM.perigo.bg, border: `1px solid ${TOM.perigo.border}`, borderRadius: R.md, cursor: "pointer",
+  fontSize: 11, fontWeight: 800, color: TOM.perigo.text, textTransform: "uppercase", letterSpacing: "0.06em", whiteSpace: "nowrap",
 };
 
 /**
@@ -87,7 +89,7 @@ function Paginacao({ pagina, totalPaginas, onIr, toque }: { pagina: number; tota
       </button>
       {paginas.map(p => (
         <button key={p} type="button" onClick={() => onIr(p)} aria-label={`Página ${p}`} aria-current={p === pagina ? "page" : undefined}
-          style={p === pagina ? { ...base, backgroundColor: T.dark, borderColor: T.dark, color: "#fff" } : base}>
+          style={p === pagina ? { ...base, backgroundColor: T.dark, borderColor: T.dark, color: T.surface } : base}>
           {p}
         </button>
       ))}
@@ -131,11 +133,20 @@ function sangriaDe(visW: unknown, visH: unknown, arqW: unknown, arqH: unknown): 
   const title = dW === dH ? `Sangria de ${dW} cm em cada eixo` : `Sangria de ${dW} cm na largura e ${dH} cm na altura`;
   return { estado: "ok", rotulo, title };
 }
-/** O selo, na tabela e no formulário — uma casca só. Contrastes: #92400e/#fffbeb 6,6:1; #b91c1c/#fef2f2 6,5:1; #57534e/#f5f4f0 6,9:1. */
+/**
+ * O selo, na tabela e no formulário — uma casca só.
+ *
+ * Os três tons vêm de TOM (o espelho da paleta de status) em vez dos nove
+ * hexes que estavam escritos aqui. O "sem sangria" usava o amber 800 sobre o
+ * amber 50 — um degrau mais escuro do que o amber do app: contraste igualmente
+ * bom, e o MESMO alerta com cor diferente a três telas de distância.
+ *
+ * Contrastes conferidos: alerta 5,0:1; perigo 6,5:1; neutro 7,6:1.
+ */
 const SANGRIA_TOM: Record<Sangria["estado"], { bg: string; border: string; color: string }> = {
-  ok:    { bg: "#f5f4f0", border: "#e7e5e4", color: "#57534e" },
-  sem:   { bg: "#fffbeb", border: "#fde68a", color: "#92400e" },
-  menor: { bg: "#fef2f2", border: "#fecaca", color: "#b91c1c" },
+  ok:    { bg: TOM.neutro.bg, border: TOM.neutro.border, color: T.apoio },
+  sem:   { bg: TOM.alerta.bg, border: TOM.alerta.border, color: TOM.alerta.text },
+  menor: { bg: TOM.perigo.bg, border: TOM.perigo.border, color: TOM.perigo.text },
 };
 function ChipSangria({ s, testId }: { s: Sangria; testId: string }) {
   const t = SANGRIA_TOM[s.estado];
@@ -166,9 +177,9 @@ const EMPTY_FORM = {
 function tipoPillStyle(type: string) {
   const orange = ["Palco", "Stand", "Arena"];
   const blue = ["Pórtico", "WindBanner", "Percurso"];
-  if (orange.includes(type)) return { backgroundColor: "#fff7ed", color: "#c2410c" };
-  if (blue.includes(type)) return { backgroundColor: "#eff6ff", color: "#1d4ed8" };
-  return { backgroundColor: "#f5f5f4", color: "#57534e" };
+  if (orange.includes(type)) return { backgroundColor: TOM.laranja.bg, color: T.accentText };
+  if (blue.includes(type)) return { backgroundColor: TOM.info.bg, color: TOM.info.text };
+  return { backgroundColor: T.low, color: T.apoio };
 }
 
 /* ── Linha do modal "Gerenciar Categorias" ──
@@ -187,7 +198,7 @@ function CatRow({ name, count, accentColor, accentBg,
   onStartEdit: () => void; onStartDelete: () => void;
 }) {
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "11px 14px", borderRadius: 12, backgroundColor: isDeleting ? "#fff5f5" : "#fafaf9", border: `1px solid ${isDeleting ? "#fecaca" : "#f0efec"}`, transition: "all 0.15s" }}>
+    <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "11px 14px", borderRadius: 12, backgroundColor: isDeleting ? TOM.perigo.bg : T.bg, border: `1px solid ${isDeleting ? TOM.perigo.border : N.n3}`, transition: "all 0.15s" }}>
       {/* Dot */}
       <div style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: accentColor, flexShrink: 0, opacity: isDeleting ? 0.4 : 1 }} />
 
@@ -196,49 +207,49 @@ function CatRow({ name, count, accentColor, accentBg,
           <input autoFocus value={editValue} onChange={e => onEditChange(e.target.value)}
             aria-label={`Novo nome para "${name}"`}
             onKeyDown={e => { if (e.key === "Enter") onEditConfirm(); if (e.key === "Escape") onEditCancel(); }}
-            style={{ flex: 1, fontSize: 13, fontWeight: 600, borderRadius: 8, padding: "5px 10px", border: `1.5px solid ${accentColor}`, color: "#1c1917", background: accentBg }}
+            style={{ flex: 1, fontSize: 13, fontWeight: 600, borderRadius: 8, padding: "5px 10px", border: `1.5px solid ${accentColor}`, color: T.text, background: accentBg }}
           />
           <button onClick={onEditConfirm} disabled={isPendingRename} aria-label={`Confirmar novo nome de "${name}"`}
-            style={{ width: 30, height: 30, borderRadius: 8, border: "none", cursor: "pointer", backgroundColor: accentColor, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+            style={{ width: 30, height: 30, borderRadius: 8, border: "none", cursor: "pointer", backgroundColor: accentColor, color: T.surface, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
             <Check style={{ width: 13, height: 13 }} />
           </button>
           <button onClick={onEditCancel} aria-label="Cancelar renomeação"
-            style={{ width: 30, height: 30, borderRadius: 8, border: "1px solid #e7e5e4", cursor: "pointer", backgroundColor: "#ffffff", color: "#746e69", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+            style={{ width: 30, height: 30, borderRadius: 8, border: `1px solid ${T.border}`, cursor: "pointer", backgroundColor: T.surface, color: T.second, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
             <X style={{ width: 13, height: 13 }} />
           </button>
         </>
       ) : isDeleting ? (
         <>
           <div style={{ flex: 1 }}>
-            <span style={{ fontSize: 13, fontWeight: 600, color: "#dc2626" }}>Remover </span>
-            <span style={{ fontSize: 13, fontWeight: 800, color: "#dc2626" }}>"{name}"</span>
-            <span style={{ fontSize: 13, color: "#b91c1c" }}> de {count} {count === 1 ? "modelo" : "modelos"}?</span>
+            <span style={{ fontSize: 13, fontWeight: 600, color: TOM.perigo.text }}>Remover </span>
+            <span style={{ fontSize: 13, fontWeight: 800, color: TOM.perigo.text }}>"{name}"</span>
+            <span style={{ fontSize: 13, color: TOM.perigo.text }}> de {count} {count === 1 ? "modelo" : "modelos"}?</span>
           </div>
           <button onClick={onDeleteConfirm} disabled={isPendingDelete}
-            style={{ padding: "5px 14px", borderRadius: 8, border: "none", cursor: isPendingDelete ? "not-allowed" : "pointer", backgroundColor: "#dc2626", color: "#fff", fontSize: 13, fontWeight: 700, flexShrink: 0, opacity: isPendingDelete ? 0.7 : 1 }}>
+            style={{ padding: "5px 14px", borderRadius: 8, border: "none", cursor: isPendingDelete ? "not-allowed" : "pointer", backgroundColor: TOM.perigo.text, color: T.surface, fontSize: 13, fontWeight: 700, flexShrink: 0, opacity: isPendingDelete ? 0.7 : 1 }}>
             {isPendingDelete ? "Removendo..." : "Remover"}
           </button>
           <button onClick={onDeleteCancel}
-            style={{ padding: "5px 14px", borderRadius: 8, border: "1px solid #e7e5e4", cursor: "pointer", backgroundColor: "#fff", color: "#746e69", fontSize: 13, fontWeight: 600, flexShrink: 0 }}>
+            style={{ padding: "5px 14px", borderRadius: 8, border: `1px solid ${T.border}`, cursor: "pointer", backgroundColor: T.surface, color: T.second, fontSize: 13, fontWeight: 600, flexShrink: 0 }}>
             Cancelar
           </button>
         </>
       ) : (
         <>
-          <span style={{ flex: 1, fontSize: 13, fontWeight: 600, color: "#1c1917" }}>{name}</span>
-          <span style={{ fontSize: 11, fontWeight: 600, color: "#746e69", backgroundColor: "#f5f4f0", borderRadius: 6, padding: "2px 8px", marginRight: 2 }}>
+          <span style={{ flex: 1, fontSize: 13, fontWeight: 600, color: T.text }}>{name}</span>
+          <span style={{ fontSize: 11, fontWeight: 600, color: T.second, backgroundColor: N.n3, borderRadius: 6, padding: "2px 8px", marginRight: 2 }}>
             {count} {count === 1 ? "modelo" : "modelos"}
           </span>
           <button onClick={onStartEdit} title={`Renomear "${name}"`} aria-label={`Renomear "${name}"`}
-            style={{ width: 30, height: 30, borderRadius: 8, border: "1px solid transparent", cursor: "pointer", backgroundColor: "transparent", color: "#746e69", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}
+            style={{ width: 30, height: 30, borderRadius: 8, border: "1px solid transparent", cursor: "pointer", backgroundColor: "transparent", color: T.second, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}
             onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = accentBg; (e.currentTarget as HTMLButtonElement).style.color = accentColor; (e.currentTarget as HTMLButtonElement).style.borderColor = accentColor + "40"; }}
-            onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent"; (e.currentTarget as HTMLButtonElement).style.color = "#746e69"; (e.currentTarget as HTMLButtonElement).style.borderColor = "transparent"; }}>
+            onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent"; (e.currentTarget as HTMLButtonElement).style.color = T.second; (e.currentTarget as HTMLButtonElement).style.borderColor = "transparent"; }}>
             <Pencil style={{ width: 12, height: 12 }} />
           </button>
           <button onClick={onStartDelete} title={`Remover "${name}"`} aria-label={`Remover "${name}"`}
-            style={{ width: 30, height: 30, borderRadius: 8, border: "1px solid transparent", cursor: "pointer", backgroundColor: "transparent", color: "#746e69", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}
-            onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#fee2e2"; (e.currentTarget as HTMLButtonElement).style.color = "#dc2626"; (e.currentTarget as HTMLButtonElement).style.borderColor = "#fca5a540"; }}
-            onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent"; (e.currentTarget as HTMLButtonElement).style.color = "#746e69"; (e.currentTarget as HTMLButtonElement).style.borderColor = "transparent"; }}>
+            style={{ width: 30, height: 30, borderRadius: 8, border: "1px solid transparent", cursor: "pointer", backgroundColor: "transparent", color: T.second, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}
+            onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = TOM.perigo.bg; (e.currentTarget as HTMLButtonElement).style.color = TOM.perigo.text; (e.currentTarget as HTMLButtonElement).style.borderColor = TOM.perigo.border; }}
+            onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent"; (e.currentTarget as HTMLButtonElement).style.color = T.second; (e.currentTarget as HTMLButtonElement).style.borderColor = "transparent"; }}>
             <Trash2 style={{ width: 12, height: 12 }} />
           </button>
         </>
@@ -278,6 +289,7 @@ export default function Modelos() {
   const [customFinishInput, setCustomFinishInput] = useState("");
   const [customGroupInput, setCustomGroupInput] = useState("");
   const { toast } = useToast();
+  const { confirmar, dialogo } = useConfirmar();
   const [editingItem, setEditingItem] = useState<any>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<any>(null);
   const [formData, setFormData] = useState({ ...EMPTY_FORM });
@@ -594,9 +606,21 @@ export default function Modelos() {
     // Só na ABERTURA: a foto é o ponto de partida, não o estado corrente.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
-  const requestCloseDialog = () => {
-    if (JSON.stringify(formData) !== formInicialRef.current && !window.confirm("Descartar as alterações deste modelo?")) return;
-    handleCloseDialog();
+  const requestCloseDialog = async () => {
+    if (JSON.stringify(formData) === formInicialRef.current) { handleCloseDialog(); return; }
+    // A pergunta é do app e não do navegador. Aqui a diferença é concreta:
+    // `window.confirm` TRAVA a thread, e com o Dialog do Radix no meio de uma
+    // animação de saída isso deixava o modal congelado atrás da caixa cinza do
+    // sistema operacional — a mesma classe de problema que o
+    // FreezeWhileClosing já tinha vindo resolver.
+    const descartar = await confirmar({
+      titulo: "Descartar as alterações deste modelo?",
+      descricao: "O que você preencheu se perde. O modelo continua como estava.",
+      confirmar: "Descartar",
+      cancelar: "Continuar editando",
+      perigo: true,
+    });
+    if (descartar) handleCloseDialog();
   };
 
   // Uma porta só para "Novo Modelo": o botão do vazio abria o modal SEM zerar
@@ -665,28 +689,29 @@ export default function Modelos() {
 
   /* ── shared field style ── */
   const fieldStyle: React.CSSProperties = {
-    width: "100%", padding: "11px 14px", backgroundColor: "#f0efee",
+    width: "100%", padding: "11px 14px", backgroundColor: N.n3,
     // Raio 8 (R.md), o dos campos de Usuários e Patrocinadores — era 12.
-    border: "none", borderRadius: R.md, fontSize: 13, color: "#1c1917",
-    fontFamily: "'Plus Jakarta Sans', sans-serif",
+    border: "none", borderRadius: R.md, fontSize: 13, color: T.text,
+    fontFamily: FONT.display,
   };
   const labelStyle: React.CSSProperties = {
-    display: "block", fontSize: 10, fontWeight: 700, color: "#746e69",
+    display: "block", fontSize: 10, fontWeight: 700, color: T.second,
     textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6, marginLeft: 2,
   };
 
   return (
     <div className="modelos-page" style={{ backgroundColor: T.bg, height: "100%", overflowY: "auto", padding: isMobile ? "16px 16px 48px" : "28px 32px 64px" }}>
       {/* Placeholder nativo dos inputs: o cinza padrão do navegador reprova
-          contraste sobre #f0efee — #78716c passa em todas as superfícies. */}
+          contraste sobre o cinza do campo (n3). T.second (n7) passa em TODAS as
+          superfícies do app — é o que o token existe para garantir. */}
       <style>{`
-        .modelos-page input::placeholder, .modelos-page textarea::placeholder { color: #78716c; opacity: 1; }
+        .modelos-page input::placeholder, .modelos-page textarea::placeholder { color: ${T.second}; opacity: 1; }
       `}</style>
 
       {/* ── Page Header ── */}
       <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 24, gap: 16, flexWrap: "wrap" }}>
         <div>
-          <h1 style={{ fontSize: FS.h1, fontWeight: 700, color: T.text, margin: "0 0 6px", letterSpacing: "-0.03em", lineHeight: 1.1, fontFamily: "'Space Grotesk', sans-serif" }}>
+          <h1 style={{ fontSize: FS.h1, fontWeight: 700, color: T.text, margin: "0 0 6px", letterSpacing: "-0.03em", lineHeight: 1.1, fontFamily: FONT.display }}>
             Modelos
           </h1>
           {/* ONDE O MODELO É USADO. "Catálogo reutilizável" não dizia onde ele
@@ -722,7 +747,7 @@ export default function Modelos() {
             data-testid="button-new-model"
             onClick={openCreate}
             style={{ ...BTN_PRIMARIO, flex: isMobile ? "1 1 0" : undefined }}
-            onMouseEnter={e => (e.currentTarget.style.backgroundColor = "#292524")}
+            onMouseEnter={e => (e.currentTarget.style.backgroundColor = T.strong)}
             onMouseLeave={e => (e.currentTarget.style.backgroundColor = T.dark)}
           >
             <Plus aria-hidden="true" style={{ width: 15, height: 15 }} />
@@ -745,9 +770,9 @@ export default function Modelos() {
               value={searchTerm}
               onChange={(e) => atualizar({ busca: e.target.value, pagina: 1 })}
               data-testid="input-search-models"
-              style={{ width: "100%", height: 40, padding: "0 12px 0 36px", backgroundColor: "#f0efee", border: "none", borderRadius: R.md, fontSize: 13, color: T.text, transition: "background-color 0.15s ease, box-shadow 0.15s ease" }}
-              onFocus={e => { e.currentTarget.style.backgroundColor = "#fff"; e.currentTarget.style.boxShadow = "0 0 0 2px rgba(249,115,22,0.2)"; }}
-              onBlur={e => { e.currentTarget.style.backgroundColor = "#f0efee"; e.currentTarget.style.boxShadow = "none"; }}
+              style={{ width: "100%", height: 40, padding: "0 12px 0 36px", backgroundColor: N.n3, border: "none", borderRadius: R.md, fontSize: 13, color: T.text, transition: "background-color 0.15s ease, box-shadow 0.15s ease" }}
+              onFocus={e => { e.currentTarget.style.backgroundColor = T.surface; e.currentTarget.style.boxShadow = "0 0 0 2px rgba(249,115,22,0.2)"; }}
+              onBlur={e => { e.currentTarget.style.backgroundColor = N.n3; e.currentTarget.style.boxShadow = "none"; }}
             />
           </div>
 
@@ -781,13 +806,13 @@ export default function Modelos() {
 
       {/* Falha na query auxiliar do catálogo de opções: avisa sem esconder a tabela */}
       {catalogError && (
-        <div role="alert" style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 16px", backgroundColor: "#fffbeb", border: "1px solid #fde68a", borderRadius: 10, marginBottom: 12 }}>
-          <AlertTriangle style={{ width: 14, height: 14, color: "#b45309", flexShrink: 0 }} />
-          <span style={{ fontSize: 12, color: "#92400e", flex: 1 }}>
+        <div role="alert" style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 16px", backgroundColor: TOM.alerta.bg, border: `1px solid ${TOM.alerta.border}`, borderRadius: 10, marginBottom: 12 }}>
+          <AlertTriangle style={{ width: 14, height: 14, color: TOM.alerta.text, flexShrink: 0 }} />
+          <span style={{ fontSize: 12, color: TOM.alerta.text, flex: 1 }}>
             Falha ao carregar as opções de catálogo — grupos, materiais e acabamentos podem aparecer incompletos.
           </span>
           <button onClick={() => refetchCatalog()}
-            style={{ padding: "6px 12px", backgroundColor: "#fff", border: "1px solid #fde68a", borderRadius: 6, cursor: "pointer", fontSize: 10, fontWeight: 800, color: "#92400e", textTransform: "uppercase", letterSpacing: "0.06em", whiteSpace: "nowrap" }}>
+            style={{ padding: "6px 12px", backgroundColor: T.surface, border: `1px solid ${TOM.alerta.border}`, borderRadius: 6, cursor: "pointer", fontSize: 10, fontWeight: 800, color: TOM.alerta.text, textTransform: "uppercase", letterSpacing: "0.06em", whiteSpace: "nowrap" }}>
             Tentar novamente
           </button>
         </div>
@@ -833,18 +858,18 @@ export default function Modelos() {
           {/* Tool strip */}
           <div style={{ padding: isMobile ? "12px 16px" : "14px 24px", display: "flex", alignItems: "center", justifyContent: "space-between", backgroundColor: T.surface, borderBottom: `1px solid ${T.border}` }}>
             <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-              <div aria-hidden="true" style={{ width: 36, height: 36, borderRadius: R.md, backgroundColor: "#fff7ed", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                <Layers style={{ width: 18, height: 18, color: "#f97316" }} />
+              <div aria-hidden="true" style={{ width: 36, height: 36, borderRadius: R.md, backgroundColor: TOM.laranja.bg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                <Layers style={{ width: 18, height: 18, color: T.accent }} />
               </div>
               <div>
-                <span style={{ fontSize: 13, fontWeight: 700, color: "#1c1917", display: "block" }}>
+                <span style={{ fontSize: 13, fontWeight: 700, color: T.text, display: "block" }}>
                   {filteredItems.length} modelo{filteredItems.length !== 1 ? "s" : ""}
                   {/* "filtrado de" valia só para a busca: com um filtro de
                       Grupo ativo, "3 modelos · Total no Catálogo" lia como se
                       o catálogo inteiro tivesse 3. */}
-                  {(searchTerm || activeFilters > 0) && <span style={{ color: "#746e69", fontWeight: 400 }}> — filtrado de {standardItems.length}</span>}
+                  {(searchTerm || activeFilters > 0) && <span style={{ color: T.second, fontWeight: 400 }}> — filtrado de {standardItems.length}</span>}
                 </span>
-                <span style={{ fontSize: 10, fontWeight: 700, color: "#746e69", textTransform: "uppercase", letterSpacing: "0.08em" }}>{searchTerm || activeFilters > 0 ? "Recorte atual" : "Total no Catálogo"}</span>
+                <span style={{ fontSize: 10, fontWeight: 700, color: T.second, textTransform: "uppercase", letterSpacing: "0.08em" }}>{searchTerm || activeFilters > 0 ? "Recorte atual" : "Total no Catálogo"}</span>
               </div>
             </div>
           </div>
@@ -853,7 +878,7 @@ export default function Modelos() {
             <div style={{ padding: "48px 24px", textAlign: "center" }}>
               <Search aria-hidden="true" style={{ width: 32, height: 32, color: T.muted, margin: "0 auto 12px" }} />
               <p style={{ fontSize: 15, fontWeight: 700, color: T.text, margin: "0 0 4px" }}>Nenhum modelo encontrado</p>
-              <p style={{ fontSize: 13, color: "#746e69", margin: "0 0 16px" }}>
+              <p style={{ fontSize: 13, color: T.second, margin: "0 0 16px" }}>
                 {searchTerm && activeFilters > 0
                   ? "Nenhum modelo corresponde à busca e aos filtros atuais"
                   : searchTerm
@@ -897,23 +922,23 @@ export default function Modelos() {
                         data-testid={`row-model-${item.id}`}
                         onMouseEnter={() => setHoveredRow(item.id)}
                         onMouseLeave={() => setHoveredRow(null)}
-                        style={{ borderBottom: "1px solid #f5f4f0", backgroundColor: isHovered ? "rgba(250,250,249,0.8)" : "#ffffff", transition: "background-color 0.1s" }}
+                        style={{ borderBottom: `1px solid ${N.n3}`, backgroundColor: isHovered ? "rgba(250,250,249,0.8)" : T.surface, transition: "background-color 0.1s" }}
                       >
                         {/* Nome */}
                         <td style={{ padding: "18px 24px", minWidth: 200 }}>
-                          <span style={{ fontSize: 13, fontWeight: 700, color: "#1c1917", display: "block" }}>{item.name}</span>
+                          <span style={{ fontSize: 13, fontWeight: 700, color: T.text, display: "block" }}>{item.name}</span>
                           {item.hasVariableMeasurement && (
-                            <span style={{ fontSize: 10, color: "#746e69", marginTop: 2, display: "block" }}>Medida variável</span>
+                            <span style={{ fontSize: 10, color: T.second, marginTop: 2, display: "block" }}>Medida variável</span>
                           )}
                         </td>
 
                         {/* Grupo */}
                         <td style={{ padding: "18px 24px", whiteSpace: "nowrap" }}>
                           {item.group ? (
-                            <span style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", borderRadius: 999, padding: "3px 10px", display: "inline-block", backgroundColor: "#f0f9ff", color: "#0369a1", whiteSpace: "nowrap" }}>
+                            <span style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", borderRadius: 999, padding: "3px 10px", display: "inline-block", backgroundColor: TOM.ceu.bg, color: TOM.ceu.text, whiteSpace: "nowrap" }}>
                               {item.group}
                             </span>
-                          ) : <span style={{ color: "#746e69", fontSize: 13 }}>—</span>}
+                          ) : <span style={{ color: T.second, fontSize: 13 }}>—</span>}
                         </td>
 
                         {/* Tipo */}
@@ -922,29 +947,29 @@ export default function Modelos() {
                             <span style={{ ...pillStyle, fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", borderRadius: 999, padding: "3px 10px", display: "inline-block", whiteSpace: "nowrap" }}>
                               {item.type}
                             </span>
-                          ) : <span style={{ color: "#746e69", fontSize: 13 }}>—</span>}
+                          ) : <span style={{ color: T.second, fontSize: 13 }}>—</span>}
                         </td>
 
                         {/* Medidas */}
                         <td style={{ padding: "18px 24px", whiteSpace: "nowrap" }}>
                           {item.hasVariableMeasurement ? (
-                            <span style={{ display: "inline-flex", alignItems: "center", gap: 4, backgroundColor: "#eff6ff", color: "#1d4ed8", borderRadius: 999, padding: "3px 10px", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                            <span style={{ display: "inline-flex", alignItems: "center", gap: 4, backgroundColor: TOM.info.bg, color: TOM.info.text, borderRadius: 999, padding: "3px 10px", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em" }}>
                               <Ruler style={{ width: 10, height: 10 }} /> Variável
                             </span>
                           ) : (item.area || item.visual || item.fileWidth || item.fileHeight) ? (
                             <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
                               {(item.area || item.visual) && (
                                 <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                                  <span style={{ fontSize: 10, fontWeight: 700, color: "#746e69", backgroundColor: "#f5f4f0", borderRadius: 6, padding: "1px 5px", letterSpacing: "0.06em" }}>VIS</span>
-                                  <span style={{ fontSize: 13, fontWeight: 600, color: "#1c1917", fontFamily: "monospace" }}>
+                                  <span style={{ fontSize: 10, fontWeight: 700, color: T.second, backgroundColor: N.n3, borderRadius: 6, padding: "1px 5px", letterSpacing: "0.06em" }}>VIS</span>
+                                  <span style={{ fontSize: 13, fontWeight: 600, color: T.text, fontFamily: FONT.mono }}>
                                     {item.area ?? "—"} × {item.visual ?? "—"}m
                                   </span>
                                 </div>
                               )}
                               {(item.fileWidth || item.fileHeight) && (
                                 <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                                  <span style={{ fontSize: 10, fontWeight: 700, color: "#b45309", backgroundColor: "#FDF3E7", borderRadius: 6, padding: "1px 5px", letterSpacing: "0.06em" }}>ARQ</span>
-                                  <span style={{ fontSize: 13, fontWeight: 600, color: "#57534e", fontFamily: "monospace" }}>
+                                  <span style={{ fontSize: 10, fontWeight: 700, color: TOM.alerta.text, backgroundColor: TOM.alerta.bg, borderRadius: 6, padding: "1px 5px", letterSpacing: "0.06em" }}>ARQ</span>
+                                  <span style={{ fontSize: 13, fontWeight: 600, color: T.apoio, fontFamily: FONT.mono }}>
                                     {item.fileWidth ?? "—"} × {item.fileHeight ?? "—"}m
                                   </span>
                                   {/* A sangria, calculada — e o arquivo menor, denunciado. */}
@@ -956,7 +981,7 @@ export default function Modelos() {
                               )}
                             </div>
                           ) : (
-                            <span style={{ fontSize: 13, color: "#746e69" }}>—</span>
+                            <span style={{ fontSize: 13, color: T.second }}>—</span>
                           )}
                         </td>
 
@@ -973,21 +998,21 @@ export default function Modelos() {
                             return (
                               <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
                                 {uso.exato > 0 ? (
-                                  <span title={`${uso.exato} ${uso.exato === 1 ? 'peça já foi criada' : 'peças já foram criadas'} a partir deste modelo; excluí-lo não altera nenhuma delas`} style={{ display: "inline-flex", alignSelf: "flex-start", fontSize: 11, fontWeight: 700, backgroundColor: "#f0f9ff", color: "#0369a1", border: "1px solid #bae6fd", borderRadius: 6, padding: "2px 8px", fontFamily: "monospace" }}>
+                                  <span title={`${uso.exato} ${uso.exato === 1 ? 'peça já foi criada' : 'peças já foram criadas'} a partir deste modelo; excluí-lo não altera nenhuma delas`} style={{ display: "inline-flex", alignSelf: "flex-start", fontSize: 11, fontWeight: 700, backgroundColor: TOM.ceu.bg, color: TOM.ceu.text, border: `1px solid ${TOM.ceu.border}`, borderRadius: 6, padding: "2px 8px", fontFamily: FONT.mono }}>
                                     {uso.exato} {uso.exato === 1 ? 'peça' : 'peças'}
                                   </span>
                                 ) : nenhum ? (
-                                  <span title="Nenhuma peça foi criada a partir deste modelo — excluir não afeta nada" style={{ display: "inline-flex", alignSelf: "flex-start", fontSize: 11, fontWeight: 600, backgroundColor: "#f5f4f0", color: "#746e69", border: "1px solid #e7e5e4", borderRadius: 6, padding: "2px 8px" }}>
+                                  <span title="Nenhuma peça foi criada a partir deste modelo — excluir não afeta nada" style={{ display: "inline-flex", alignSelf: "flex-start", fontSize: 11, fontWeight: 600, backgroundColor: N.n3, color: T.second, border: `1px solid ${T.border}`, borderRadius: 6, padding: "2px 8px" }}>
                                     sem uso
                                   </span>
                                 ) : null}
                                 {uso.compativel > 0 && (
-                                  <span title={`${uso.compativel} ${uso.compativel === 1 ? 'peça antiga' : 'peças antigas'} com o mesmo tipo, material e medidas — criadas antes de o vínculo existir. Compatibilidade, não origem.`} style={{ fontSize: 10, color: "#746e69", fontFamily: "monospace" }}>
+                                  <span title={`${uso.compativel} ${uso.compativel === 1 ? 'peça antiga' : 'peças antigas'} com o mesmo tipo, material e medidas — criadas antes de o vínculo existir. Compatibilidade, não origem.`} style={{ fontSize: 10, color: T.second, fontFamily: FONT.mono }}>
                                     ~{uso.compativel} compat.
                                   </span>
                                 )}
                                 {uso.ultimaEm && (
-                                  <span style={{ fontSize: 10, color: "#746e69" }}>última em {new Date(uso.ultimaEm).toLocaleDateString("pt-BR")}</span>
+                                  <span style={{ fontSize: 10, color: T.second }}>última em {new Date(uso.ultimaEm).toLocaleDateString("pt-BR")}</span>
                                 )}
                               </div>
                             );
@@ -996,14 +1021,14 @@ export default function Modelos() {
 
                         {/* Material */}
                         <td style={{ padding: "18px 24px" }}>
-                          <span style={{ fontSize: 13, color: item.material ? "#57534e" : "#746e69" }}>
+                          <span style={{ fontSize: 13, color: item.material ? T.apoio : T.second }}>
                             {item.material || "—"}
                           </span>
                         </td>
 
                         {/* Acabamento */}
                         <td style={{ padding: "18px 24px" }}>
-                          <span style={{ fontSize: 13, color: item.finish ? "#57534e" : "#746e69" }}>
+                          <span style={{ fontSize: 13, color: item.finish ? T.apoio : T.second }}>
                             {item.finish || "—"}
                           </span>
                         </td>
@@ -1014,7 +1039,7 @@ export default function Modelos() {
                           <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 4 }}>
                             <HoverIconBtn
                               icon={<Pencil style={{ width: 16, height: 16 }} />}
-                              hoverBg="#fff7ed" hoverColor="#c2410c"
+                              hoverBg={TOM.laranja.bg} hoverColor={T.accentText}
                               onClick={() => handleEdit(item)}
                               testId={`button-edit-model-${item.id}`}
                               title="Editar modelo"
@@ -1023,7 +1048,7 @@ export default function Modelos() {
                             />
                             <HoverIconBtn
                               icon={<Copy style={{ width: 16, height: 16 }} />}
-                              hoverBg="#f0f9ff" hoverColor="#0369a1"
+                              hoverBg={TOM.ceu.bg} hoverColor={TOM.ceu.text}
                               onClick={() => handleDuplicate(item)}
                               testId={`button-duplicate-model-${item.id}`}
                               title="Duplicar modelo"
@@ -1032,7 +1057,7 @@ export default function Modelos() {
                             />
                             <HoverIconBtn
                               icon={<Trash2 style={{ width: 16, height: 16 }} />}
-                              hoverBg="#fef2f2" hoverColor="#dc2626"
+                              hoverBg={TOM.perigo.bg} hoverColor={TOM.perigo.text}
                               onClick={() => setDeleteConfirm(item)}
                               testId={`button-delete-model-${item.id}`}
                               title="Excluir modelo"
@@ -1098,7 +1123,7 @@ export default function Modelos() {
                   formulário veio do modelo anterior (medida herdada sem aviso
                   vira peça errada). */}
               {!editingItem && criadosNestaSequencia.length > 0 && (
-                <p role="status" data-testid="modelos-criados-na-sequencia" style={{ gridColumn: "1 / -1", margin: 0, padding: "9px 12px", borderRadius: 6, backgroundColor: "#f0fdf4", border: "1px solid #bbf7d0", fontSize: 12, lineHeight: 1.45, color: "#166534" }}>
+                <p role="status" data-testid="modelos-criados-na-sequencia" style={{ gridColumn: "1 / -1", margin: 0, padding: "9px 12px", borderRadius: 6, backgroundColor: TOM.sucesso.bg, border: `1px solid ${TOM.sucesso.border}`, fontSize: 12, lineHeight: 1.45, color: TOM.sucesso.text }}>
                   {criadosNestaSequencia.length === 1 ? "1 modelo criado" : `${criadosNestaSequencia.length} modelos criados`} nesta sequência: {criadosNestaSequencia.join(", ")}. Tipo, grupo, medidas, material e acabamento ficaram como no anterior — confira antes de salvar o próximo.
                 </p>
               )}
@@ -1122,7 +1147,7 @@ export default function Modelos() {
                     do modelo recebe o NOME como tipo, e o Auto-vincular por
                     cota casa o grupo pelo INÍCIO do tipo (matchesGroup em
                     server/storage.ts) — "Backdrop Palco" não cai em "Palco". */}
-                <p style={{ margin: "5px 2px 0", fontSize: 11, lineHeight: 1.4, color: "#57534e" }}>Aparece no campo Tipo ao adicionar peça no evento. Comece pelo Tipo (ex.: “Palco Lateral”) para o Auto-vincular por cota reconhecer a peça.</p>
+                <p style={{ margin: "5px 2px 0", fontSize: 11, lineHeight: 1.4, color: T.apoio }}>Aparece no campo Tipo ao adicionar peça no evento. Comece pelo Tipo (ex.: “Palco Lateral”) para o Auto-vincular por cota reconhecer a peça.</p>
               </div>
 
               {/* Tipo — combobox: catálogo + valores já usados, com criação.
@@ -1130,12 +1155,12 @@ export default function Modelos() {
               <div>
                 <label htmlFor="model-type" style={labelStyle}>
                   Tipo{" "}
-                  <span style={{ fontWeight: 400, color: "#746e69", textTransform: "none", letterSpacing: 0 }}>(opcional)</span>
+                  <span style={{ fontWeight: 400, color: T.second, textTransform: "none", letterSpacing: 0 }}>(opcional)</span>
                 </label>
                 <Popover open={typePopoverOpen} onOpenChange={open => { setTypePopoverOpen(open); if (!open) setCustomTypeInput(""); }}>
                   <PopoverTrigger asChild>
                     <button type="button" id="model-type" data-testid="input-model-type"
-                      style={{ ...fieldStyle, display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer", color: formData.type ? "#1c1917" : "#78716c" }}>
+                      style={{ ...fieldStyle, display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer", color: formData.type ? T.text : T.second }}>
                       {formData.type ? (
                         <span style={{ ...tipoPillStyle(formData.type), display: "inline-flex", alignItems: "center", borderRadius: 6, padding: "2px 10px", fontSize: 13, fontWeight: 600 }}>
                           {formData.type}
@@ -1143,7 +1168,7 @@ export default function Modelos() {
                       ) : (
                         <span>Selecionar ou criar tipo...</span>
                       )}
-                      <ChevronsUpDown style={{ width: 14, height: 14, color: "#a8a29e", flexShrink: 0, marginLeft: 4 }} />
+                      <ChevronsUpDown style={{ width: 14, height: 14, color: T.muted, flexShrink: 0, marginLeft: 4 }} />
                     </button>
                   </PopoverTrigger>
                   <PopoverContent style={{ width: 300, padding: 0 }} align="start">
@@ -1158,13 +1183,13 @@ export default function Modelos() {
                             <div style={{ padding: "8px 12px" }}>
                               <button type="button"
                                 onClick={() => { setFormData({ ...formData, type: customTypeInput }); setCustomTypeInput(""); setTypePopoverOpen(false); }}
-                                style={{ width: "100%", padding: "8px 12px", backgroundColor: "#1c1917", color: "#fff", border: "none", borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: "pointer", textAlign: "left" }}>
+                                style={{ width: "100%", padding: "8px 12px", backgroundColor: T.text, color: T.surface, border: "none", borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: "pointer", textAlign: "left" }}>
                                 <Plus style={{ width: 13, height: 13, display: "inline", marginRight: 6 }} />
                                 Criar "{customTypeInput}"
                               </button>
                             </div>
                           ) : (
-                            <p style={{ padding: "12px 16px", fontSize: 13, color: "#746e69", margin: 0 }}>Nenhum tipo cadastrado</p>
+                            <p style={{ padding: "12px 16px", fontSize: 13, color: T.second, margin: 0 }}>Nenhum tipo cadastrado</p>
                           )}
                         </CommandEmpty>
                         {allTypeOptions.length > 0 && (
@@ -1184,8 +1209,8 @@ export default function Modelos() {
                           <CommandGroup heading="Novo">
                             <CommandItem value={`__new__${customTypeInput}`}
                               onSelect={() => { setFormData({ ...formData, type: customTypeInput }); setCustomTypeInput(""); setTypePopoverOpen(false); }}>
-                              <Plus style={{ width: 14, height: 14, marginRight: 8, color: "#57534e" }} />
-                              <span style={{ fontSize: 13, color: "#57534e", fontWeight: 600 }}>Criar "{customTypeInput}"</span>
+                              <Plus style={{ width: 14, height: 14, marginRight: 8, color: T.apoio }} />
+                              <span style={{ fontSize: 13, color: T.apoio, fontWeight: 600 }}>Criar "{customTypeInput}"</span>
                             </CommandItem>
                           </CommandGroup>
                         )}
@@ -1196,20 +1221,20 @@ export default function Modelos() {
                 </Popover>
                 {formData.type && (
                   <button type="button" onClick={() => setFormData({ ...formData, type: "" })}
-                    style={{ marginTop: 4, fontSize: 11, color: "#746e69", background: "none", border: "none", cursor: "pointer", padding: 0 }}>
+                    style={{ marginTop: 4, fontSize: 11, color: T.second, background: "none", border: "none", cursor: "pointer", padding: 0 }}>
                     Limpar
                   </button>
                 )}
                 {/* /api/quota-rules/groups lista o `type` dos modelos: é daqui
                     que nasce a linha da grade de Configurar Cotas. */}
-                <p style={{ margin: "5px 2px 0", fontSize: 11, lineHeight: 1.4, color: "#57534e" }}>Vira uma linha em Configurar Cotas (ex.: Palco, Pórtico).</p>
+                <p style={{ margin: "5px 2px 0", fontSize: 11, lineHeight: 1.4, color: T.apoio }}>Vira uma linha em Configurar Cotas (ex.: Palco, Pórtico).</p>
               </div>
 
               {/* Grupo Pai */}
               <div>
                 <label htmlFor="model-group" style={labelStyle}>
                   Grupo Pai{" "}
-                  <span style={{ fontWeight: 400, color: "#746e69", textTransform: "none", letterSpacing: 0 }}>(opcional)</span>
+                  <span style={{ fontWeight: 400, color: T.second, textTransform: "none", letterSpacing: 0 }}>(opcional)</span>
                 </label>
                 <Popover open={groupPopoverOpen} onOpenChange={open => { setGroupPopoverOpen(open); if (!open) setCustomGroupInput(""); }}>
                   <PopoverTrigger asChild>
@@ -1221,23 +1246,23 @@ export default function Modelos() {
                         ...fieldStyle,
                         display: "flex", alignItems: "center", justifyContent: "space-between",
                         cursor: "pointer",
-                        color: formData.group ? "#1c1917" : "#78716c",
+                        color: formData.group ? T.text : T.second,
                       }}
                     >
                       {formData.group ? (
                         <span style={{
                           display: "inline-flex", alignItems: "center", gap: 6,
-                          backgroundColor: "#dbeafe", color: "#1d4ed8",
+                          backgroundColor: TOM.info.border, color: TOM.info.text,
                           borderRadius: 6, padding: "2px 10px 2px 8px",
                           fontSize: 13, fontWeight: 700,
                         }}>
-                          <span style={{ width: 6, height: 6, borderRadius: "50%", backgroundColor: "#3b82f6", flexShrink: 0 }} />
+                          <span style={{ width: 6, height: 6, borderRadius: "50%", backgroundColor: TOM.info.dot, flexShrink: 0 }} />
                           {formData.group}
                         </span>
                       ) : (
                         <span>Selecionar ou criar grupo...</span>
                       )}
-                      <ChevronsUpDown style={{ width: 14, height: 14, color: "#a8a29e", flexShrink: 0, marginLeft: 4 }} />
+                      <ChevronsUpDown style={{ width: 14, height: 14, color: T.muted, flexShrink: 0, marginLeft: 4 }} />
                     </button>
                   </PopoverTrigger>
                   <PopoverContent style={{ width: 300, padding: 0 }} align="start">
@@ -1257,13 +1282,13 @@ export default function Modelos() {
                               <button
                                 type="button"
                                 onClick={() => { setFormData({ ...formData, group: customGroupInput }); setCustomGroupInput(""); setGroupPopoverOpen(false); }}
-                                style={{ width: "100%", padding: "8px 12px", backgroundColor: "#1d4ed8", color: "#fff", border: "none", borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: "pointer", textAlign: "left" }}
+                                style={{ width: "100%", padding: "8px 12px", backgroundColor: TOM.info.text, color: T.surface, border: "none", borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: "pointer", textAlign: "left" }}
                               >
                                 + Criar grupo "{customGroupInput}"
                               </button>
                             </div>
                           ) : (
-                            <p style={{ padding: "12px 16px", fontSize: 13, color: "#746e69", margin: 0 }}>Nenhum grupo cadastrado</p>
+                            <p style={{ padding: "12px 16px", fontSize: 13, color: T.second, margin: 0 }}>Nenhum grupo cadastrado</p>
                           )}
                         </CommandEmpty>
                         {allGroups.length > 0 && (
@@ -1276,12 +1301,12 @@ export default function Modelos() {
                               >
                                 <span style={{
                                   display: "inline-flex", alignItems: "center", gap: 6,
-                                  backgroundColor: formData.group === g ? "#dbeafe" : "#f0f9ff",
-                                  color: "#1d4ed8", borderRadius: 6,
+                                  backgroundColor: formData.group === g ? TOM.info.border : TOM.ceu.bg,
+                                  color: TOM.info.text, borderRadius: 6,
                                   padding: "2px 10px 2px 8px", fontSize: 13, fontWeight: 600,
                                   marginRight: 8,
                                 }}>
-                                  <span style={{ width: 5, height: 5, borderRadius: "50%", backgroundColor: "#3b82f6", flexShrink: 0 }} />
+                                  <span style={{ width: 5, height: 5, borderRadius: "50%", backgroundColor: TOM.info.dot, flexShrink: 0 }} />
                                   {g}
                                 </span>
                                 <Check className={cn("ml-auto h-4 w-4", formData.group === g ? "opacity-100" : "opacity-0")} />
@@ -1295,8 +1320,8 @@ export default function Modelos() {
                               value={`__new__${customGroupInput}`}
                               onSelect={() => { setFormData({ ...formData, group: customGroupInput }); setCustomGroupInput(""); setGroupPopoverOpen(false); }}
                             >
-                              <Plus style={{ width: 14, height: 14, marginRight: 8, color: "#1d4ed8" }} />
-                              <span style={{ fontSize: 13, color: "#1d4ed8", fontWeight: 600 }}>Criar "{customGroupInput}"</span>
+                              <Plus style={{ width: 14, height: 14, marginRight: 8, color: TOM.info.text }} />
+                              <span style={{ fontSize: 13, color: TOM.info.text, fontWeight: 600 }}>Criar "{customGroupInput}"</span>
                             </CommandItem>
                           </CommandGroup>
                         )}
@@ -1309,12 +1334,12 @@ export default function Modelos() {
                   <button
                     type="button"
                     onClick={() => setFormData({ ...formData, group: "" })}
-                    style={{ marginTop: 4, fontSize: 11, color: "#746e69", background: "none", border: "none", cursor: "pointer", padding: 0 }}
+                    style={{ marginTop: 4, fontSize: 11, color: T.second, background: "none", border: "none", cursor: "pointer", padding: 0 }}
                   >
                     Limpar
                   </button>
                 )}
-                <p style={{ margin: "5px 2px 0", fontSize: 11, lineHeight: 1.4, color: "#57534e" }}>Agrupa as peças nas listas do evento, da Arte e da Gráfica.</p>
+                <p style={{ margin: "5px 2px 0", fontSize: 11, lineHeight: 1.4, color: T.apoio }}>Agrupa as peças nas listas do evento, da Arte e da Gráfica.</p>
               </div>
 
               {/* Toggle Medida Variável — col-span-2 */}
@@ -1338,11 +1363,11 @@ export default function Modelos() {
                   style={{ display: "flex", alignItems: "center", gap: 12, cursor: "pointer" }}
                 >
                   <div
-                    style={{ position: "relative", width: 40, height: 22, borderRadius: 999, backgroundColor: formData.hasVariableMeasurement ? "#f97316" : "#d6d3d1", transition: "background-color 0.2s", cursor: "pointer", flexShrink: 0 }}
+                    style={{ position: "relative", width: 40, height: 22, borderRadius: 999, backgroundColor: formData.hasVariableMeasurement ? T.accent : T.bdark, transition: "background-color 0.2s", cursor: "pointer", flexShrink: 0 }}
                   >
-                    <div style={{ position: "absolute", top: 3, left: formData.hasVariableMeasurement ? 21 : 3, width: 16, height: 16, borderRadius: "50%", backgroundColor: "#ffffff", transition: "left 0.2s", boxShadow: "0 1px 3px rgba(0,0,0,0.2)" }} />
+                    <div style={{ position: "absolute", top: 3, left: formData.hasVariableMeasurement ? 21 : 3, width: 16, height: 16, borderRadius: "50%", backgroundColor: T.surface, transition: "left 0.2s", boxShadow: "0 1px 3px rgba(0,0,0,0.2)" }} />
                   </div>
-                  <span style={{ fontSize: 11, fontWeight: 700, color: "#57534e", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: T.apoio, textTransform: "uppercase", letterSpacing: "0.06em" }}>
                     Medida Variável
                   </span>
                 </label>
@@ -1352,13 +1377,13 @@ export default function Modelos() {
               <div style={{ gridColumn: "1 / -1" }}>
                 <label style={{ ...labelStyle, marginBottom: 10, display: "flex", alignItems: "center", gap: 8 }}>
                   Medidas Visuais
-                  <span style={{ fontSize: 10, fontWeight: 700, color: "#746e69", backgroundColor: "#f5f4f0", borderRadius: 6, padding: "2px 6px", letterSpacing: "0.06em" }}>VIS.</span>
+                  <span style={{ fontSize: 10, fontWeight: 700, color: T.second, backgroundColor: N.n3, borderRadius: 6, padding: "2px 6px", letterSpacing: "0.06em" }}>VIS.</span>
                   {/* VIS × ARQ era sigla sem legenda para quem chega. */}
-                  <span style={{ fontSize: 10, fontWeight: 500, color: "#746e69", textTransform: "none", letterSpacing: 0 }}>— o que aparece na peça montada</span>
+                  <span style={{ fontSize: 10, fontWeight: 500, color: T.second, textTransform: "none", letterSpacing: 0 }}>— o que aparece na peça montada</span>
                 </label>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                   <div>
-                    <label htmlFor="model-vis-w" style={{ ...labelStyle, color: "#746e69" }}>Largura — VIS. L (m)</label>
+                    <label htmlFor="model-vis-w" style={{ ...labelStyle, color: T.second }}>Largura — VIS. L (m)</label>
                     <input
                       id="model-vis-w"
                       type="number" step="0.01" min="0"
@@ -1376,7 +1401,7 @@ export default function Modelos() {
                     />
                   </div>
                   <div>
-                    <label htmlFor="model-vis-h" style={{ ...labelStyle, color: "#746e69" }}>Altura — VIS. A (m)</label>
+                    <label htmlFor="model-vis-h" style={{ ...labelStyle, color: T.second }}>Altura — VIS. A (m)</label>
                     <input
                       id="model-vis-h"
                       type="number" step="0.01" min="0"
@@ -1399,12 +1424,12 @@ export default function Modelos() {
               <div style={{ gridColumn: "1 / -1" }}>
                 <label style={{ ...labelStyle, marginBottom: 10, display: "flex", alignItems: "center", gap: 8 }}>
                   Medidas do Arquivo
-                  <span style={{ fontSize: 10, fontWeight: 700, color: "#b45309", backgroundColor: "#FDF3E7", borderRadius: 6, padding: "2px 6px", letterSpacing: "0.06em" }}>ARQ.</span>
-                  <span style={{ fontSize: 10, fontWeight: 500, color: "#746e69", textTransform: "none", letterSpacing: 0 }}>— o que vai para impressão, com a sangria; pré-preenchido igual ao visual</span>
+                  <span style={{ fontSize: 10, fontWeight: 700, color: TOM.alerta.text, backgroundColor: TOM.alerta.bg, borderRadius: 6, padding: "2px 6px", letterSpacing: "0.06em" }}>ARQ.</span>
+                  <span style={{ fontSize: 10, fontWeight: 500, color: T.second, textTransform: "none", letterSpacing: 0 }}>— o que vai para impressão, com a sangria; pré-preenchido igual ao visual</span>
                 </label>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                   <div>
-                    <label htmlFor="model-arq-w" style={{ ...labelStyle, color: "#746e69" }}>Largura — ARQ. L (m)</label>
+                    <label htmlFor="model-arq-w" style={{ ...labelStyle, color: T.second }}>Largura — ARQ. L (m)</label>
                     <input
                       id="model-arq-w"
                       type="number" step="0.01" min="0"
@@ -1418,7 +1443,7 @@ export default function Modelos() {
                     />
                   </div>
                   <div>
-                    <label htmlFor="model-arq-h" style={{ ...labelStyle, color: "#746e69" }}>Altura — ARQ. A (m)</label>
+                    <label htmlFor="model-arq-h" style={{ ...labelStyle, color: T.second }}>Altura — ARQ. A (m)</label>
                     <input
                       id="model-arq-h"
                       type="number" step="0.01" min="0"
@@ -1439,16 +1464,16 @@ export default function Modelos() {
                   <div style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                     <ChipSangria s={sangriaDoForm} testId="chip-sangria-form" />
                     {sangriaDoForm.estado === "sem" && (
-                      <span style={{ fontSize: 11, color: "#92400e" }}>Arquivo igual ao visual: sem margem para o refile.</span>
+                      <span style={{ fontSize: 11, color: TOM.alerta.text }}>Arquivo igual ao visual: sem margem para o refile.</span>
                     )}
                   </div>
                 )}
                 {mostrarAvisoDeCorte && (
-                  <div role="alert" data-testid="aviso-arquivo-menor" style={{ marginTop: 8, padding: "10px 12px", borderRadius: 8, backgroundColor: "#fef2f2", border: "1px solid #fecaca", display: "flex", flexDirection: "column", gap: 8 }}>
-                    <p style={{ margin: 0, fontSize: 12, lineHeight: 1.5, color: "#b91c1c" }}>
+                  <div role="alert" data-testid="aviso-arquivo-menor" style={{ marginTop: 8, padding: "10px 12px", borderRadius: 8, backgroundColor: TOM.perigo.bg, border: `1px solid ${TOM.perigo.border}`, display: "flex", flexDirection: "column", gap: 8 }}>
+                    <p style={{ margin: 0, fontSize: 12, lineHeight: 1.5, color: TOM.perigo.text }}>
                       <strong>O arquivo é menor que o visual</strong> — a peça sairia cortada. Confira o cadastro antes de salvar.
                     </p>
-                    <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: "#7f1d1d", cursor: "pointer" }}>
+                    <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: TOM.perigo.text, cursor: "pointer" }}>
                       <input type="checkbox" checked={cienteDoCorte} onChange={e => setCienteDoCorte(e.target.checked)} data-testid="checkbox-ciente-do-corte" />
                       Entendi — o recorte é intencional, salvar assim mesmo
                     </label>
@@ -1462,21 +1487,21 @@ export default function Modelos() {
                     nulos quando vazios, e só dois deles diziam isso. */}
                 <label htmlFor="model-material" style={labelStyle}>
                   Material Base{" "}
-                  <span style={{ fontWeight: 400, color: "#746e69", textTransform: "none", letterSpacing: 0 }}>(opcional)</span>
+                  <span style={{ fontWeight: 400, color: T.second, textTransform: "none", letterSpacing: 0 }}>(opcional)</span>
                 </label>
                 <Popover open={materialPopoverOpen} onOpenChange={open => { setMaterialPopoverOpen(open); if (!open) setCustomMaterialInput(""); }}>
                   <PopoverTrigger asChild>
                     <button type="button" id="model-material" data-testid="input-model-material"
-                      style={{ ...fieldStyle, display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer", color: formData.material ? "#1c1917" : "#78716c" }}>
+                      style={{ ...fieldStyle, display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer", color: formData.material ? T.text : T.second }}>
                       {formData.material ? (
-                        <span style={{ display: "inline-flex", alignItems: "center", gap: 6, backgroundColor: "#fff7ed", color: "#c2410c", borderRadius: 6, padding: "2px 10px 2px 8px", fontSize: 13, fontWeight: 600 }}>
-                          <span style={{ width: 5, height: 5, borderRadius: "50%", backgroundColor: "#f97316", flexShrink: 0 }} />
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: 6, backgroundColor: TOM.laranja.bg, color: T.accentText, borderRadius: 6, padding: "2px 10px 2px 8px", fontSize: 13, fontWeight: 600 }}>
+                          <span style={{ width: 5, height: 5, borderRadius: "50%", backgroundColor: T.accent, flexShrink: 0 }} />
                           {formData.material}
                         </span>
                       ) : (
                         <span>Selecionar ou criar material...</span>
                       )}
-                      <ChevronsUpDown style={{ width: 14, height: 14, color: "#a8a29e", flexShrink: 0, marginLeft: 4 }} />
+                      <ChevronsUpDown style={{ width: 14, height: 14, color: T.muted, flexShrink: 0, marginLeft: 4 }} />
                     </button>
                   </PopoverTrigger>
                   <PopoverContent style={{ width: 300, padding: 0 }} align="start">
@@ -1491,13 +1516,13 @@ export default function Modelos() {
                             <div style={{ padding: "8px 12px" }}>
                               <button type="button"
                                 onClick={() => { setFormData({ ...formData, material: customMaterialInput }); setCustomMaterialInput(""); setMaterialPopoverOpen(false); }}
-                                style={{ width: "100%", padding: "8px 12px", backgroundColor: "#c2410c", color: "#fff", border: "none", borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: "pointer", textAlign: "left" }}>
+                                style={{ width: "100%", padding: "8px 12px", backgroundColor: T.accentText, color: T.surface, border: "none", borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: "pointer", textAlign: "left" }}>
                                 <Plus style={{ width: 13, height: 13, display: "inline", marginRight: 6 }} />
                                 Criar "{customMaterialInput}"
                               </button>
                             </div>
                           ) : (
-                            <p style={{ padding: "12px 16px", fontSize: 13, color: "#746e69", margin: 0 }}>Nenhum material cadastrado</p>
+                            <p style={{ padding: "12px 16px", fontSize: 13, color: T.second, margin: 0 }}>Nenhum material cadastrado</p>
                           )}
                         </CommandEmpty>
                         {allMats.length > 0 && (
@@ -1505,8 +1530,8 @@ export default function Modelos() {
                             {allMats.map(m => (
                               <CommandItem key={m} value={m}
                                 onSelect={() => { setFormData({ ...formData, material: m }); setCustomMaterialInput(""); setMaterialPopoverOpen(false); }}>
-                                <span style={{ display: "inline-flex", alignItems: "center", gap: 6, backgroundColor: formData.material === m ? "#fed7aa" : "#fff7ed", color: "#c2410c", borderRadius: 6, padding: "2px 10px 2px 8px", fontSize: 13, fontWeight: 600, marginRight: 8 }}>
-                                  <span style={{ width: 5, height: 5, borderRadius: "50%", backgroundColor: "#f97316", flexShrink: 0 }} />
+                                <span style={{ display: "inline-flex", alignItems: "center", gap: 6, backgroundColor: formData.material === m ? TOM.laranja.border : TOM.laranja.bg, color: T.accentText, borderRadius: 6, padding: "2px 10px 2px 8px", fontSize: 13, fontWeight: 600, marginRight: 8 }}>
+                                  <span style={{ width: 5, height: 5, borderRadius: "50%", backgroundColor: T.accent, flexShrink: 0 }} />
                                   {m}
                                 </span>
                                 <Check className={cn("ml-auto h-4 w-4", formData.material === m ? "opacity-100" : "opacity-0")} />
@@ -1519,8 +1544,8 @@ export default function Modelos() {
                             <CommandItem value={`__new__${customMaterialInput}`}
                               onSelect={() => { setFormData({ ...formData, material: customMaterialInput }); setCustomMaterialInput(""); setMaterialPopoverOpen(false); }}>
                               {/* #c2410c: o #ea580c anterior dava 3,6:1 no texto. */}
-                              <Plus style={{ width: 14, height: 14, marginRight: 8, color: "#c2410c" }} />
-                              <span style={{ fontSize: 13, color: "#c2410c", fontWeight: 600 }}>Criar "{customMaterialInput}"</span>
+                              <Plus style={{ width: 14, height: 14, marginRight: 8, color: T.accentText }} />
+                              <span style={{ fontSize: 13, color: T.accentText, fontWeight: 600 }}>Criar "{customMaterialInput}"</span>
                             </CommandItem>
                           </CommandGroup>
                         )}
@@ -1531,7 +1556,7 @@ export default function Modelos() {
                 </Popover>
                 {formData.material && (
                   <button type="button" onClick={() => setFormData({ ...formData, material: "" })}
-                    style={{ marginTop: 4, fontSize: 11, color: "#746e69", background: "none", border: "none", cursor: "pointer", padding: 0 }}>
+                    style={{ marginTop: 4, fontSize: 11, color: T.second, background: "none", border: "none", cursor: "pointer", padding: 0 }}>
                     Limpar
                   </button>
                 )}
@@ -1541,21 +1566,21 @@ export default function Modelos() {
               <div>
                 <label htmlFor="model-finish" style={labelStyle}>
                   Acabamento{" "}
-                  <span style={{ fontWeight: 400, color: "#746e69", textTransform: "none", letterSpacing: 0 }}>(opcional)</span>
+                  <span style={{ fontWeight: 400, color: T.second, textTransform: "none", letterSpacing: 0 }}>(opcional)</span>
                 </label>
                 <Popover open={finishPopoverOpen} onOpenChange={open => { setFinishPopoverOpen(open); if (!open) setCustomFinishInput(""); }}>
                   <PopoverTrigger asChild>
                     <button type="button" id="model-finish" data-testid="input-model-finish"
-                      style={{ ...fieldStyle, display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer", color: formData.finish ? "#1c1917" : "#78716c" }}>
+                      style={{ ...fieldStyle, display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer", color: formData.finish ? T.text : T.second }}>
                       {formData.finish ? (
-                        <span style={{ display: "inline-flex", alignItems: "center", gap: 6, backgroundColor: "#f5f4f0", color: "#57534e", borderRadius: 6, padding: "2px 10px 2px 8px", fontSize: 13, fontWeight: 600 }}>
-                          <span style={{ width: 5, height: 5, borderRadius: "50%", backgroundColor: "#a8a29e", flexShrink: 0 }} />
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: 6, backgroundColor: N.n3, color: T.apoio, borderRadius: 6, padding: "2px 10px 2px 8px", fontSize: 13, fontWeight: 600 }}>
+                          <span style={{ width: 5, height: 5, borderRadius: "50%", backgroundColor: T.muted, flexShrink: 0 }} />
                           {formData.finish}
                         </span>
                       ) : (
                         <span>Selecionar ou criar acabamento...</span>
                       )}
-                      <ChevronsUpDown style={{ width: 14, height: 14, color: "#a8a29e", flexShrink: 0, marginLeft: 4 }} />
+                      <ChevronsUpDown style={{ width: 14, height: 14, color: T.muted, flexShrink: 0, marginLeft: 4 }} />
                     </button>
                   </PopoverTrigger>
                   <PopoverContent style={{ width: 300, padding: 0 }} align="start">
@@ -1570,13 +1595,13 @@ export default function Modelos() {
                             <div style={{ padding: "8px 12px" }}>
                               <button type="button"
                                 onClick={() => { setFormData({ ...formData, finish: customFinishInput }); setCustomFinishInput(""); setFinishPopoverOpen(false); }}
-                                style={{ width: "100%", padding: "8px 12px", backgroundColor: "#57534e", color: "#fff", border: "none", borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: "pointer", textAlign: "left" }}>
+                                style={{ width: "100%", padding: "8px 12px", backgroundColor: T.apoio, color: T.surface, border: "none", borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: "pointer", textAlign: "left" }}>
                                 <Plus style={{ width: 13, height: 13, display: "inline", marginRight: 6 }} />
                                 Criar "{customFinishInput}"
                               </button>
                             </div>
                           ) : (
-                            <p style={{ padding: "12px 16px", fontSize: 13, color: "#746e69", margin: 0 }}>Nenhum acabamento cadastrado</p>
+                            <p style={{ padding: "12px 16px", fontSize: 13, color: T.second, margin: 0 }}>Nenhum acabamento cadastrado</p>
                           )}
                         </CommandEmpty>
                         {allFinishes.length > 0 && (
@@ -1584,8 +1609,8 @@ export default function Modelos() {
                             {allFinishes.map(f => (
                               <CommandItem key={f} value={f}
                                 onSelect={() => { setFormData({ ...formData, finish: f }); setCustomFinishInput(""); setFinishPopoverOpen(false); }}>
-                                <span style={{ display: "inline-flex", alignItems: "center", gap: 6, backgroundColor: formData.finish === f ? "#e7e5e4" : "#f5f4f0", color: "#57534e", borderRadius: 6, padding: "2px 10px 2px 8px", fontSize: 13, fontWeight: 600, marginRight: 8 }}>
-                                  <span style={{ width: 5, height: 5, borderRadius: "50%", backgroundColor: "#a8a29e", flexShrink: 0 }} />
+                                <span style={{ display: "inline-flex", alignItems: "center", gap: 6, backgroundColor: formData.finish === f ? T.border : N.n3, color: T.apoio, borderRadius: 6, padding: "2px 10px 2px 8px", fontSize: 13, fontWeight: 600, marginRight: 8 }}>
+                                  <span style={{ width: 5, height: 5, borderRadius: "50%", backgroundColor: T.muted, flexShrink: 0 }} />
                                   {f}
                                 </span>
                                 <Check className={cn("ml-auto h-4 w-4", formData.finish === f ? "opacity-100" : "opacity-0")} />
@@ -1597,8 +1622,8 @@ export default function Modelos() {
                           <CommandGroup heading="Novo">
                             <CommandItem value={`__new__${customFinishInput}`}
                               onSelect={() => { setFormData({ ...formData, finish: customFinishInput }); setCustomFinishInput(""); setFinishPopoverOpen(false); }}>
-                              <Plus style={{ width: 14, height: 14, marginRight: 8, color: "#746e69" }} />
-                              <span style={{ fontSize: 13, color: "#746e69", fontWeight: 600 }}>Criar "{customFinishInput}"</span>
+                              <Plus style={{ width: 14, height: 14, marginRight: 8, color: T.second }} />
+                              <span style={{ fontSize: 13, color: T.second, fontWeight: 600 }}>Criar "{customFinishInput}"</span>
                             </CommandItem>
                           </CommandGroup>
                         )}
@@ -1609,7 +1634,7 @@ export default function Modelos() {
                 </Popover>
                 {formData.finish && (
                   <button type="button" onClick={() => setFormData({ ...formData, finish: "" })}
-                    style={{ marginTop: 4, fontSize: 11, color: "#746e69", background: "none", border: "none", cursor: "pointer", padding: 0 }}>
+                    style={{ marginTop: 4, fontSize: 11, color: T.second, background: "none", border: "none", cursor: "pointer", padding: 0 }}>
                     Limpar
                   </button>
                 )}
@@ -1623,8 +1648,8 @@ export default function Modelos() {
               <button type="submit" disabled={createStandardItemMutation.isPending}
                 aria-busy={createStandardItemMutation.isPending}
                 data-testid="button-submit-model"
-                style={{ height: toque + 4, borderRadius: R.md, border: "none", backgroundColor: T.dark, color: "#fff", fontSize: 14, fontWeight: 800, cursor: createStandardItemMutation.isPending ? "wait" : "pointer", opacity: createStandardItemMutation.isPending ? 0.7 : 1, transition: "background-color 0.15s ease" }}
-                onMouseEnter={e => { if (!createStandardItemMutation.isPending) e.currentTarget.style.backgroundColor = "#292524"; }}
+                style={{ height: toque + 4, borderRadius: R.md, border: "none", backgroundColor: T.dark, color: T.surface, fontSize: 14, fontWeight: 800, cursor: createStandardItemMutation.isPending ? "wait" : "pointer", opacity: createStandardItemMutation.isPending ? 0.7 : 1, transition: "background-color 0.15s ease" }}
+                onMouseEnter={e => { if (!createStandardItemMutation.isPending) e.currentTarget.style.backgroundColor = T.strong; }}
                 onMouseLeave={e => { e.currentTarget.style.backgroundColor = T.dark; }}
                 onClick={() => { continuarRef.current = false; }}
               >
@@ -1646,7 +1671,7 @@ export default function Modelos() {
                 </button>
               )}
               <button type="button" onClick={requestCloseDialog}
-                style={{ height: toque, borderRadius: R.md, border: "none", backgroundColor: "transparent", color: "#57534e", fontSize: FS.body, fontWeight: 700, cursor: "pointer" }}
+                style={{ height: toque, borderRadius: R.md, border: "none", backgroundColor: "transparent", color: T.apoio, fontSize: FS.body, fontWeight: 700, cursor: "pointer" }}
               >
                 {/* Depois de criar na sequência, "Cancelar" sugeria desfazer. */}
                 {criadosNestaSequencia.length > 0 && !editingItem ? "Fechar" : "Cancelar"}
@@ -1686,12 +1711,12 @@ export default function Modelos() {
               {/* Tabs */}
               {(() => {
                 const tabs: { key: "group"|"material"|"finish"; label: string; color: string; bg: string; count: number }[] = [
-                  { key: "group",    label: "Grupos Pai", color: "#0369a1", bg: "#e0f2fe", count: allGroups.length },
-                  { key: "material", label: "Material",   color: "#b45309", bg: "#fef3c7", count: allMats.length },
-                  { key: "finish",   label: "Acabamento", color: "#065f46", bg: "#d1fae5", count: allFinishes.length },
+                  { key: "group",    label: "Grupos Pai", color: TOM.ceu.text, bg: TOM.ceu.border, count: allGroups.length },
+                  { key: "material", label: "Material",   color: TOM.alerta.text, bg: TOM.alerta.bg, count: allMats.length },
+                  { key: "finish",   label: "Acabamento", color: TOM.sucesso.text, bg: TOM.sucesso.bg, count: allFinishes.length },
                 ];
                 return (
-                  <div role="tablist" aria-label="Tipo de categoria" style={{ display: "flex", gap: 4, borderBottom: "1px solid #f0efec" }}>
+                  <div role="tablist" aria-label="Tipo de categoria" style={{ display: "flex", gap: 4, borderBottom: `1px solid ${N.n3}` }}>
                     {/* Aba inativa em #746e69 (não #a8a29e): é texto acionável,
                         precisa do piso 4.5:1 — o cinza decorativo reprovava.
                         newCatValue zera na troca: o rascunho digitado numa aba
@@ -1699,12 +1724,12 @@ export default function Modelos() {
                     {tabs.map(t => (
                       <button key={t.key} role="tab" aria-selected={manageTab === t.key} onClick={() => { setManageTab(t.key); setNewCatValue(""); setMgEditingGroup(null); setMgEditingFinish(null); setMgEditingMaterial(null); setMgDeleteGroupConfirm(null); setMgDeleteFinishConfirm(null); setMgDeleteMaterialConfirm(null); }}
                         style={{ display: "flex", alignItems: "center", gap: 7, padding: "10px 16px", border: "none", borderRadius: "8px 8px 0 0", cursor: "pointer", fontSize: 13, fontWeight: manageTab === t.key ? 700 : 500, transition: "all 0.15s",
-                          backgroundColor: manageTab === t.key ? "#ffffff" : "transparent",
-                          color: manageTab === t.key ? t.color : "#746e69",
+                          backgroundColor: manageTab === t.key ? T.surface : "transparent",
+                          color: manageTab === t.key ? t.color : T.second,
                           borderBottom: manageTab === t.key ? `2px solid ${t.color}` : "2px solid transparent",
                           marginBottom: -1,
                         }}>
-                        <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 20, height: 20, borderRadius: 6, backgroundColor: manageTab === t.key ? t.bg : "#f5f4f0", fontSize: 11, fontWeight: 800, color: manageTab === t.key ? t.color : "#746e69", flexShrink: 0 }}>
+                        <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 20, height: 20, borderRadius: 6, backgroundColor: manageTab === t.key ? t.bg : N.n3, fontSize: 11, fontWeight: 800, color: manageTab === t.key ? t.color : T.second, flexShrink: 0 }}>
                           {t.count}
                         </span>
                         {t.label}
@@ -1719,9 +1744,9 @@ export default function Modelos() {
             <div style={{ overflowY: "auto", padding: isMobile ? "12px 16px 20px" : "16px 28px 24px", flex: "1 1 auto", minHeight: 0 }}>
               {(() => {
                 const tabCfg = {
-                  group:    { items: allGroups,   color: "#0369a1", bg: "#e0f2fe", empty: "Nenhum grupo cadastrado." },
-                  material: { items: allMats,      color: "#b45309", bg: "#fef3c7", empty: "Nenhum material cadastrado." },
-                  finish:   { items: allFinishes,  color: "#065f46", bg: "#d1fae5", empty: "Nenhum acabamento cadastrado." },
+                  group:    { items: allGroups,   color: TOM.ceu.text, bg: TOM.ceu.border, empty: "Nenhum grupo cadastrado." },
+                  material: { items: allMats,      color: TOM.alerta.text, bg: TOM.alerta.bg, empty: "Nenhum material cadastrado." },
+                  finish:   { items: allFinishes,  color: TOM.sucesso.text, bg: TOM.sucesso.bg, empty: "Nenhum acabamento cadastrado." },
                 }[manageTab];
 
                 const addLabel = manageTab === "group" ? "grupo" : manageTab === "material" ? "material" : "acabamento";
@@ -1750,20 +1775,20 @@ export default function Modelos() {
                         placeholder={`Adicionar ${addLabel}...`}
                         data-testid="input-new-catalog-option"
                         aria-label={`Nome do novo ${addLabel}`}
-                        style={{ flex: 1, minWidth: 0, height: 40, padding: "0 12px", borderRadius: 8, border: "1px solid #e7e5e4", backgroundColor: "#faf9f8", fontSize: 13, color: "#1c1917" }}
+                        style={{ flex: 1, minWidth: 0, height: 40, padding: "0 12px", borderRadius: 8, border: `1px solid ${T.border}`, backgroundColor: T.bg, fontSize: 13, color: T.text }}
                       />
                       {/* Desabilitado: texto #746e69 sobre o cinza claro — o
                           branco de antes sumia no fundo, e o #a8a29e que o
                           substituiu é cinza decorativo, proibido como texto. */}
                       <button type="button" onClick={submitNew} disabled={createCatalogOptionMutation.isPending || !newCatValue.trim()}
                         data-testid="button-add-catalog-option"
-                        style={{ display: "inline-flex", alignItems: "center", gap: 5, height: 40, padding: "0 14px", borderRadius: 8, border: "none", cursor: newCatValue.trim() ? "pointer" : "not-allowed", backgroundColor: newCatValue.trim() ? tabCfg.color : "#e7e5e4", color: newCatValue.trim() ? "#fff" : "#746e69", fontSize: 13, fontWeight: 700, whiteSpace: "nowrap", transition: "background-color 0.15s ease" }}>
+                        style={{ display: "inline-flex", alignItems: "center", gap: 5, height: 40, padding: "0 14px", borderRadius: 8, border: "none", cursor: newCatValue.trim() ? "pointer" : "not-allowed", backgroundColor: newCatValue.trim() ? tabCfg.color : T.border, color: newCatValue.trim() ? T.surface : T.second, fontSize: 13, fontWeight: 700, whiteSpace: "nowrap", transition: "background-color 0.15s ease" }}>
                         <Plus style={{ width: 14, height: 14 }} /> Adicionar
                       </button>
                     </div>
 
                     {tabCfg.items.length === 0 && (
-                      <p style={{ fontSize: 13, color: "#746e69", margin: "12px 0", textAlign: "center" }}>{tabCfg.empty}</p>
+                      <p style={{ fontSize: 13, color: T.second, margin: "12px 0", textAlign: "center" }}>{tabCfg.empty}</p>
                     )}
                     {tabCfg.items.map(name => {
                       const count = manageTab === "group"
@@ -1854,7 +1879,7 @@ export default function Modelos() {
               <ModalHeader
                 icon={Trash2}
                 variant="confirm"
-                tint="#b91c1c"
+                tint={TOM.perigo.text}
                 title={`Excluir ${deleteConfirm.name}?`}
                 subtitle="Esta ação não pode ser desfeita."
                 onClose={() => setDeleteConfirm(null)}
@@ -1865,7 +1890,7 @@ export default function Modelos() {
                 {(() => {
                   const exato = deleteConfirm.uso?.exato ?? 0;
                   return (
-                    <p data-testid="delete-model-impacto" style={{ margin: 0, padding: "9px 12px", borderRadius: R.sm, fontSize: 12, lineHeight: 1.5, backgroundColor: "#f5f4f0", border: "1px solid #e7e5e4", color: "#57534e" }}>
+                    <p data-testid="delete-model-impacto" style={{ margin: 0, padding: "9px 12px", borderRadius: R.sm, fontSize: 12, lineHeight: 1.5, backgroundColor: N.n3, border: `1px solid ${T.border}`, color: T.apoio }}>
                       {exato > 0
                         ? `${exato} ${exato === 1 ? "peça foi criada" : "peças foram criadas"} a partir dele — ${exato === 1 ? "ela continua" : "elas continuam"} como estão.`
                         : "Nenhuma peça foi criada a partir dele."}
@@ -1880,9 +1905,9 @@ export default function Modelos() {
                   disabled={deleteStandardItemMutation.isPending}
                   aria-busy={deleteStandardItemMutation.isPending}
                   data-testid="button-confirm-delete-model"
-                  style={{ height: toque + 4, borderRadius: R.md, border: "none", backgroundColor: "#b91c1c", color: "#fff", fontSize: 14, fontWeight: 800, cursor: deleteStandardItemMutation.isPending ? "wait" : "pointer", opacity: deleteStandardItemMutation.isPending ? 0.7 : 1, transition: "background-color 0.15s ease" }}
-                  onMouseEnter={e => (e.currentTarget.style.backgroundColor = "#991b1b")}
-                  onMouseLeave={e => (e.currentTarget.style.backgroundColor = "#b91c1c")}
+                  style={{ height: toque + 4, borderRadius: R.md, border: "none", backgroundColor: TOM.perigo.text, color: T.surface, fontSize: 14, fontWeight: 800, cursor: deleteStandardItemMutation.isPending ? "wait" : "pointer", opacity: deleteStandardItemMutation.isPending ? 0.7 : 1, transition: "background-color 0.15s ease" }}
+                  onMouseEnter={e => (e.currentTarget.style.backgroundColor = TOM.perigo.text)}
+                  onMouseLeave={e => (e.currentTarget.style.backgroundColor = TOM.perigo.text)}
                 >
                   {deleteStandardItemMutation.isPending ? "Excluindo…" : "Sim, excluir"}
                 </button>
@@ -1890,7 +1915,7 @@ export default function Modelos() {
                   type="button"
                   data-testid="button-cancel-delete-model"
                   onClick={() => setDeleteConfirm(null)}
-                  style={{ height: toque, borderRadius: R.md, border: "none", backgroundColor: "transparent", color: "#57534e", fontSize: FS.body, fontWeight: 700, cursor: "pointer" }}
+                  style={{ height: toque, borderRadius: R.md, border: "none", backgroundColor: "transparent", color: T.apoio, fontSize: FS.body, fontWeight: 700, cursor: "pointer" }}
                 >
                   Manter
                 </button>
@@ -1900,6 +1925,7 @@ export default function Modelos() {
           </FreezeWhileClosing>
         </DialogContent>
       </Dialog>
+      {dialogo}
     </div>
   );
 }
@@ -1922,7 +1948,7 @@ function HoverIconBtn({ icon, hoverBg, hoverColor, onClick, testId, title, ariaL
         display: "inline-flex", alignItems: "center", justifyContent: "center",
         width: tamanho, height: tamanho, borderRadius: 8, border: "none", cursor: "pointer",
         backgroundColor: hovered ? hoverBg : "transparent",
-        color: hovered ? hoverColor : "#746e69",
+        color: hovered ? hoverColor : T.second,
         transition: "background-color 0.15s ease, color 0.15s ease",
       }}
     >

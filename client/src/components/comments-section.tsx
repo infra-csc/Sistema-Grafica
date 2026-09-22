@@ -10,6 +10,8 @@ import { apiRequest, queryClient, getCurrentUserName } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import type { Comment } from "@shared/schema";
 import { StatusBadge } from "@/components/status-badge";
+import { useConfirmar } from "@/components/ui/usar-confirmar";
+import { EstadoVazio, Esqueleto } from "@/components/ui/estados";
 
 interface CommentsSectionProps {
   itemId: string;
@@ -19,6 +21,7 @@ interface CommentsSectionProps {
 export function CommentsSection({ itemId, itemType }: CommentsSectionProps) {
   const [newComment, setNewComment] = useState("");
   const { toast } = useToast();
+  const { confirmar, dialogo } = useConfirmar();
 
   // Buscar o usuário logado
   const { data: currentUser } = useQuery<{ name: string } | null>({
@@ -84,10 +87,13 @@ export function CommentsSection({ itemId, itemType }: CommentsSectionProps) {
     
     // Bloquear se usuário não estiver carregado
     if (!currentUser) {
+      // `warning`, não `destructive`: nada falhou — o nome do usuário ainda
+      // está chegando. Em vermelho de erro, a pessoa acha que perdeu o que
+      // escreveu (não perdeu: o texto continua na caixa).
       toast({
-        title: "Aguarde",
-        description: "Carregando informações do usuário...",
-        variant: "destructive",
+        title: "Aguarde um instante",
+        description: "Ainda estamos carregando quem é você. O que você escreveu continua aí.",
+        variant: "warning",
       });
       return;
     }
@@ -141,15 +147,14 @@ export function CommentsSection({ itemId, itemType }: CommentsSectionProps) {
         {/* Comments list */}
         <div className="space-y-3">
           {isLoading ? (
-            <div className="text-center py-4 text-muted-foreground">
-              Carregando comentários...
-            </div>
+            <Esqueleto variante="lista" linhas={2} rotulo="Carregando comentários" />
           ) : comments.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              <MessageSquare className="h-12 w-12 mx-auto mb-2 opacity-50" />
-              <p>Nenhum comentário ainda</p>
-              <p className="text-sm mt-1">Seja o primeiro a comentar sobre este item</p>
-            </div>
+            <EstadoVazio
+              compacto
+              icone={MessageSquare}
+              titulo="Nenhum comentário ainda"
+              descricao="Seja o primeiro a comentar sobre este item."
+            />
           ) : (
             comments.map((comment) => (
               <div
@@ -179,10 +184,21 @@ export function CommentsSection({ itemId, itemType }: CommentsSectionProps) {
                     className="h-9 w-9 shrink-0"
                     aria-label="Excluir comentário"
                     title="Excluir comentário"
-                    onClick={() => {
+                    onClick={async () => {
                       // Exclusão é permanente e a lixeira aceita 1 clique — sem
-                      // esta confirmação era a ação irreversível mais fácil da tela.
-                      if (!window.confirm("Excluir este comentário permanentemente?")) return;
+                      // esta confirmação era a ação irreversível mais fácil da
+                      // tela. A pergunta passou a ser a do app: além de não ser
+                      // a caixa do sistema, ela mostra o COMEÇO do comentário,
+                      // para quem clicou saber qual dos dez está apagando.
+                      const ok = await confirmar({
+                        titulo: "Excluir este comentário?",
+                        descricao: `De ${comment.userName}: “${comment.content.slice(0, 120)}${comment.content.length > 120 ? "…" : ""}”. Não dá para desfazer.`,
+                        confirmar: "Excluir",
+                        cancelar: "Manter",
+                        perigo: true,
+                        icone: Trash2,
+                      });
+                      if (!ok) return;
                       deleteMutation.mutate(comment.id);
                     }}
                     disabled={deleteMutation.isPending}
@@ -202,6 +218,7 @@ export function CommentsSection({ itemId, itemType }: CommentsSectionProps) {
           )}
         </div>
       </CardContent>
+      {dialogo}
     </Card>
   );
 }

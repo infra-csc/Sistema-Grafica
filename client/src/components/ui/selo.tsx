@@ -28,7 +28,7 @@ import * as React from "react";
 import type { LucideIcon } from "lucide-react";
 import { FS, R, FW, TOM, type NomeDeTom } from "@/lib/theme";
 
-export type TomDoSelo = NomeDeTom | "laranja";
+export type TomDoSelo = NomeDeTom;
 
 export interface CoresDoSelo {
   bg: string;
@@ -36,12 +36,6 @@ export interface CoresDoSelo {
   border: string;
   dot?: string;
 }
-
-const LARANJA: CoresDoSelo = {
-  // Da paleta P de status.ts (orange): o texto é o tom escuro, nunca o #f97316
-  // — a régua da casa proíbe o laranja da marca como cor de texto.
-  bg: "#fff7ed", border: "#fed7aa", text: "#c2410c", dot: "#f97316",
-};
 
 export interface SeloProps extends Omit<React.HTMLAttributes<HTMLSpanElement>, "color"> {
   tom?: TomDoSelo;
@@ -53,7 +47,7 @@ export interface SeloProps extends Omit<React.HTMLAttributes<HTMLSpanElement>, "
 }
 
 export function coresDoTom(tom: TomDoSelo): CoresDoSelo {
-  return tom === "laranja" ? LARANJA : TOM[tom];
+  return TOM[tom];
 }
 
 export const Selo = React.forwardRef<HTMLSpanElement, SeloProps>(function Selo(

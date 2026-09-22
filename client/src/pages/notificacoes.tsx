@@ -20,7 +20,10 @@ import { Send, Loader2, X, Plus, CheckCircle2, AlertTriangle, MinusCircle } from
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { FS, R, T } from "@/lib/theme";
+import { FS, R, T, FW, FONT, TOM } from "@/lib/theme";
+import { Botao } from "@/components/ui/botao";
+import { EstadoErro } from "@/components/ui/estados";
+import { useConfirmar } from "@/components/ui/usar-confirmar";
 
 interface Edicao {
   aviso: "gestao" | "revisao";
@@ -82,6 +85,7 @@ const rotuloDia = (dia: string) => `${dia.slice(8, 10)}/${dia.slice(5, 7)}`;
 
 export default function Notificacoes() {
   const { toast } = useToast();
+  const { confirmar, dialogo } = useConfirmar();
   const isMobile = useIsMobile();
   const { data, isLoading, isError, refetch } = useQuery<Retrato>({ queryKey: ["/api/admin/notificacoes"] });
   // SAÚDE DOS DADOS (08/09): as contradições que nenhuma tela vê sozinha —
@@ -137,7 +141,7 @@ export default function Notificacoes() {
     <div style={{ backgroundColor: T.bg, height: "100%", overflowY: "auto", padding: isMobile ? "16px 16px 48px" : "28px 32px 64px" }}>
       <div style={{ maxWidth: 1060 }}>
         <div style={{ marginBottom: 24 }}>
-          <h1 style={{ margin: "0 0 6px", fontFamily: "'Space Grotesk', sans-serif", fontSize: FS.h1, fontWeight: 700, letterSpacing: "-0.03em", lineHeight: 1.1, color: T.text }}>
+          <h1 style={{ margin: "0 0 6px", fontFamily: FONT.display, fontSize: FS.h1, fontWeight: FW.rotulo, letterSpacing: "-0.03em", lineHeight: 1.1, color: T.text }}>
             Notificações
           </h1>
           <p style={{ margin: 0, fontSize: FS.body, color: T.second, lineHeight: 1.5, maxWidth: 640 }}>
@@ -149,6 +153,7 @@ export default function Notificacoes() {
         </div>
         {conteudo}
       </div>
+      {dialogo}
     </div>
   );
 
@@ -157,14 +162,11 @@ export default function Notificacoes() {
   // recebeu o e-mail". Agora o erro se anuncia e oferece a nova tentativa.
   if (isError && !data) {
     return casca(
-      <div role="alert" style={{ padding: "56px 24px", textAlign: "center", borderRadius: 12, background: T.surface, border: `1px solid ${T.border}` }}>
-        <p style={{ margin: "0 0 4px", fontSize: 13, fontWeight: 700, color: T.text }}>Não foi possível carregar o retrato dos avisos</p>
-        <p style={{ margin: "0 0 16px", fontSize: 12, color: T.second }}>Verifique a conexão e tente de novo. Nada foi alterado.</p>
-        <button type="button" onClick={() => refetch()}
-          style={{ display: "inline-flex", alignItems: "center", height: 36, padding: "0 18px", borderRadius: R.md, border: "none", background: T.dark, color: "#fff", fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", cursor: "pointer" }}>
-          Tentar novamente
-        </button>
-      </div>,
+      <EstadoErro
+        titulo="Não foi possível carregar o retrato dos avisos"
+        detalhe="Verifique a conexão e tente de novo. Nada foi alterado."
+        aoTentarDeNovo={() => refetch()}
+      />,
     );
   }
 
@@ -173,13 +175,13 @@ export default function Notificacoes() {
     // Pulso só com motion-safe.
     return casca(
       <div role="status" aria-label="Carregando o retrato dos avisos" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-        <div className="motion-safe:animate-pulse" style={{ height: 54, borderRadius: 10, background: T.surface, border: `1px solid ${T.border}` }} />
+        <div className="motion-safe:animate-pulse" style={{ height: 54, borderRadius: R.lg, background: T.surface, border: `1px solid ${T.border}` }} />
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(300px, 100%), 1fr))", gap: 12 }}>
           {[0, 1, 2].map((i) => (
-            <div key={i} className="motion-safe:animate-pulse" style={{ height: 150, borderRadius: 10, background: T.surface, border: `1px solid ${T.border}` }} />
+            <div key={i} className="motion-safe:animate-pulse" style={{ height: 150, borderRadius: R.lg, background: T.surface, border: `1px solid ${T.border}` }} />
           ))}
         </div>
-        <div className="motion-safe:animate-pulse" style={{ height: 260, borderRadius: 10, background: T.surface, border: `1px solid ${T.border}` }} />
+        <div className="motion-safe:animate-pulse" style={{ height: 260, borderRadius: R.lg, background: T.surface, border: `1px solid ${T.border}` }} />
       </div>,
     );
   }
@@ -196,11 +198,11 @@ export default function Notificacoes() {
     // (GESTAO_DIGEST_ENABLED=false)" passa de 370px e, no celular, empurrava
     // a página inteira para o lado.
     <span style={{
-      display: "inline-flex", alignItems: "center", gap: 6, minHeight: 28, padding: "4px 12px", borderRadius: 999,
-      fontSize: 12, fontWeight: 700, lineHeight: 1.35, overflowWrap: "anywhere", maxWidth: "100%", boxSizing: "border-box",
-      background: ok ? "#f0fdf4" : neutroSeFalse ? "#fafaf9" : "#fef2f2",
-      border: `1px solid ${ok ? "#bbf7d0" : neutroSeFalse ? "#e7e5e4" : "#fecaca"}`,
-      color: ok ? "#15803d" : neutroSeFalse ? "#57534e" : "#b91c1c",
+      display: "inline-flex", alignItems: "center", gap: 6, minHeight: 28, padding: "4px 12px", borderRadius: R.pill,
+      fontSize: 12, fontWeight: FW.forte, lineHeight: 1.35, overflowWrap: "anywhere", maxWidth: "100%", boxSizing: "border-box",
+      background: ok ? TOM.sucesso.bg : neutroSeFalse ? T.bg : TOM.perigo.bg,
+      border: `1px solid ${ok ? TOM.sucesso.border : neutroSeFalse ? T.border : TOM.perigo.border}`,
+      color: ok ? TOM.sucesso.text : neutroSeFalse ? T.apoio : TOM.perigo.text,
     }}>
       {ok ? <CheckCircle2 aria-hidden="true" style={{ width: 13, height: 13, flexShrink: 0 }} /> : <AlertTriangle aria-hidden="true" style={{ width: 13, height: 13, flexShrink: 0 }} />}
       {ok ? rotuloOk : rotuloRuim}
@@ -210,17 +212,18 @@ export default function Notificacoes() {
   const celula = (aviso: "gestao" | "revisao", dia: string, hora: number) => {
     const e = edicaoDe(aviso, dia, hora, false);
     const jaPassou = dia < agora.dia || (dia === agora.dia && hora <= agora.hora);
-    // #78716c, não #a8a29e: o traço é texto e o cinza claro reprovava contraste.
-    let texto = "—", bg = "transparent", cor = "#78716c", title = "Horário ainda não chegou";
+    // T.second (n7) e não T.muted (n6): o traço é TEXTO, e o cinza claro
+    // reprova contraste em qualquer superfície do app.
+    let texto = "—", bg = "transparent", cor: string = T.second, title = "Horário ainda não chegou";
     if (e) {
-      if (e.status === "enviado") { texto = "Enviado"; bg = "#f0fdf4"; cor = "#15803d"; }
-      else if (e.status === "vazio") { texto = "Fila vazia"; bg = "#fafaf9"; cor = "#78716c"; }
-      else if (e.status === "simulado") { texto = "Simulação"; bg = "#eff6ff"; cor = "#1d4ed8"; }
-      else if (e.status === "desligado") { texto = "Desligado"; bg = "#fef2f2"; cor = "#b91c1c"; }
-      else { texto = "Falhou"; bg = "#fef2f2"; cor = "#b91c1c"; }
+      if (e.status === "enviado") { texto = "Enviado"; bg = TOM.sucesso.bg; cor = TOM.sucesso.text; }
+      else if (e.status === "vazio") { texto = "Fila vazia"; bg = T.bg; cor = T.second; }
+      else if (e.status === "simulado") { texto = "Simulação"; bg = TOM.info.bg; cor = TOM.info.text; }
+      else if (e.status === "desligado") { texto = "Desligado"; bg = TOM.perigo.bg; cor = TOM.perigo.text; }
+      else { texto = "Falhou"; bg = TOM.perigo.bg; cor = TOM.perigo.text; }
       title = e.desfecho;
     } else if (jaPassou) {
-      texto = "Não rodou"; bg = "#fffbeb"; cor = "#92400e";
+      texto = "Não rodou"; bg = TOM.alerta.bg; cor = TOM.alerta.text;
       title = "Nenhum registro na trilha para esta edição — relógio parado (deploy dormindo/reiniciando), chave desligada, ou versão anterior a 27/08 (que não registrava fila vazia).";
     }
     // O DESFECHO SÓ MORAVA NO `title`: no celular não existe hover, e no
@@ -230,15 +233,15 @@ export default function Notificacoes() {
     const temDetalhe = texto !== "—";
     const rotulo = `${aviso === "gestao" ? "Acompanhamento" : "Revisão"} · ${rotuloDia(dia)} ${hora}h`;
     const aberta = detalhe?.rotulo === rotulo;
-    const selo = { display: "inline-block", minWidth: 74, padding: "3px 8px", borderRadius: 6, fontSize: 11.5, fontWeight: 700, background: bg, color: cor } as const;
+    const selo = { display: "inline-block", minWidth: 74, padding: "3px 8px", borderRadius: 6, fontSize: FS.small, fontWeight: FW.forte, background: bg, color: cor } as const;
     return (
       <td key={`${aviso}-${hora}`} title={title} data-testid={`celula-${aviso}-${dia}-${hora}`}
-        style={{ padding: "7px 10px", textAlign: "center", borderLeft: "1px solid #f5f4f2" }}>
+        style={{ padding: "7px 10px", textAlign: "center", borderLeft: `1px solid ${T.border}` }}>
         {temDetalhe ? (
           <button type="button" aria-expanded={aberta} aria-controls="detalhe-da-edicao"
             aria-label={`${rotulo}: ${texto}. Ver o desfecho`}
             onClick={() => setDetalhe(aberta ? null : { rotulo, texto, desfecho: title })}
-            style={{ ...selo, border: "none", cursor: "pointer", font: "inherit", fontSize: 11.5, fontWeight: 700, outline: aberta ? `2px solid ${cor}` : undefined, outlineOffset: 1 }}>
+            style={{ ...selo, border: "none", cursor: "pointer", font: "inherit", fontSize: FS.small, fontWeight: FW.forte, outline: aberta ? `2px solid ${cor}` : undefined, outlineOffset: 1 }}>
             {texto}
           </button>
         ) : (
@@ -250,25 +253,26 @@ export default function Notificacoes() {
 
   // Títulos de seção num degrau só (15/800), em vez de dois rótulos 11px em
   // caixa alta e um h2 de 15 para o terceiro bloco.
-  const tituloDeSecao: React.CSSProperties = { margin: 0, fontFamily: "'Space Grotesk', sans-serif", fontSize: 15, fontWeight: 800, color: T.text };
+  const tituloDeSecao: React.CSSProperties = { margin: 0, fontFamily: FONT.display, fontSize: 15, fontWeight: FW.rotulo, color: T.text };
   const toque = isMobile ? 44 : 36;
 
   // "CONFERIR DE NOVO" também com a conferência limpa ou com achados: depois
   // de corrigir uma peça, a única forma de ver a lista diminuir era F5.
   const botaoReconferir = (
-    <button type="button" onClick={() => reconferirSaude()} disabled={saudeReconferindo}
+    <Botao variante="secundario" tamanho="toque" onClick={() => reconferirSaude()}
+      carregando={saudeReconferindo}
       data-testid="saude-reconferir"
-      style={{ height: toque, padding: "0 14px", borderRadius: R.md, border: `1px solid ${T.bdark}`, background: "#fff", color: T.text, fontSize: 12, fontWeight: 700, cursor: saudeReconferindo ? "wait" : "pointer", flex: isMobile ? "1 1 100%" : undefined }}>
+      style={{ minHeight: toque, fontSize: FS.meta, flex: isMobile ? "1 1 100%" : undefined }}>
       {saudeReconferindo ? "Conferindo…" : "Conferir de novo"}
-    </button>
+    </Botao>
   );
 
   return casca(
       <>
         {/* ── 1 · As chaves ── */}
-        <div data-testid="chaves-dos-avisos" style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", padding: "12px 14px", borderRadius: 10, background: "#fff", border: "1px solid #e7e5e4", marginBottom: 16 }}>
+        <div data-testid="chaves-dos-avisos" style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", padding: "12px 14px", borderRadius: R.lg, background: T.surface, border: `1px solid ${T.border}`, marginBottom: 16 }}>
           {data.servidorNoArDesde && (
-            <span title="Se esta data for ANTERIOR ao último git pull + Republicar, a produção está rodando código velho — republique." style={{ display: "inline-flex", alignItems: "center", height: 28, padding: "0 12px", borderRadius: 999, fontSize: 12, fontWeight: 700, whiteSpace: "nowrap", background: "#fafaf9", border: "1px solid #e7e5e4", color: "#57534e" }}>
+            <span title="Se esta data for ANTERIOR ao último git pull + Republicar, a produção está rodando código velho — republique." style={{ display: "inline-flex", alignItems: "center", height: 28, padding: "0 12px", borderRadius: R.pill, fontSize: 12, fontWeight: FW.forte, whiteSpace: "nowrap", background: T.bg, border: `1px solid ${T.border}`, color: T.apoio }}>
               Servidor no ar desde {new Date(data.servidorNoArDesde).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
             </span>
           )}
@@ -288,29 +292,29 @@ export default function Notificacoes() {
           {canais.map((c) => {
             const usandoPadrao = c.personalizados.length === 0;
             return (
-              <div key={c.canal} data-testid={`canal-${c.canal}`} style={{ padding: "14px 14px 12px", borderRadius: 10, background: "#fff", border: "1px solid #e7e5e4", display: "flex", flexDirection: "column", gap: 8 }}>
+              <div key={c.canal} data-testid={`canal-${c.canal}`} style={{ padding: "14px 14px 12px", borderRadius: R.lg, background: T.surface, border: `1px solid ${T.border}`, display: "flex", flexDirection: "column", gap: 8 }}>
                 <div>
-                  <p style={{ margin: 0, fontSize: 13.5, fontWeight: 800, color: "#1c1917" }}>{c.titulo}</p>
-                  <p style={{ margin: "3px 0 0", fontSize: 11.5, color: "#78716c", lineHeight: 1.45 }}>{c.descricao}</p>
+                  <p style={{ margin: 0, fontSize: FS.read, fontWeight: FW.rotulo, color: T.text }}>{c.titulo}</p>
+                  <p style={{ margin: "3px 0 0", fontSize: FS.small, color: T.second, lineHeight: 1.45 }}>{c.descricao}</p>
                 </div>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
                   {usandoPadrao
                     ? c.padrao.map((email) => (
-                        <span key={email} title="Lista padrão do sistema — adicione alguém para a lista virar editável" style={{ display: "inline-flex", alignItems: "center", minHeight: 28, padding: "0 10px", borderRadius: 999, background: "#fafaf9", border: "1px dashed #d6d3d1", color: "#57534e", fontSize: 12, fontWeight: 600, maxWidth: "100%", overflowWrap: "anywhere" }}>
+                        <span key={email} title="Lista padrão do sistema — adicione alguém para a lista virar editável" style={{ display: "inline-flex", alignItems: "center", minHeight: 28, padding: "0 10px", borderRadius: R.pill, background: T.bg, border: `1px dashed ${T.bdark}`, color: T.apoio, fontSize: 12, fontWeight: 600, maxWidth: "100%", overflowWrap: "anywhere" }}>
                           {email}
                         </span>
                       ))
                     : c.personalizados.map((p) => (
-                        <span key={p.id} style={{ display: "inline-flex", alignItems: "center", gap: 4, minHeight: 28, padding: "0 2px 0 10px", borderRadius: 999, background: "#fff7ed", border: "1px solid #fed7aa", color: "#9a3412", fontSize: 12, fontWeight: 600, maxWidth: "100%", overflowWrap: "anywhere" }}>
+                        <span key={p.id} style={{ display: "inline-flex", alignItems: "center", gap: 4, minHeight: 28, padding: "0 2px 0 10px", borderRadius: R.pill, background: TOM.laranja.bg, border: `1px solid ${TOM.laranja.border}`, color: T.accentText, fontSize: 12, fontWeight: 600, maxWidth: "100%", overflowWrap: "anywhere" }}>
                           {p.email}
                           {/* Alvo de 24px (44 no celular; era 17) e realce no
                               hover — o X é a única ação destrutiva da lista. */}
                           <button type="button" onClick={() => remover.mutate(p.id)} disabled={remover.isPending}
                             title={`Remover ${p.email} deste aviso`} aria-label={`Remover ${p.email}`}
                             data-testid={`remover-${p.id}`}
-                            onMouseEnter={(e) => { e.currentTarget.style.background = "#fed7aa"; }}
+                            onMouseEnter={(e) => { e.currentTarget.style.background = TOM.laranja.border; }}
                             onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
-                            style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: isMobile ? 44 : 24, height: isMobile ? 44 : 24, margin: isMobile ? "-8px -8px -8px 0" : 0, flexShrink: 0, borderRadius: 999, border: "none", background: "transparent", color: "#9a3412", cursor: remover.isPending ? "wait" : "pointer", padding: 0, transition: "background-color 0.12s ease" }}>
+                            style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: isMobile ? 44 : 24, height: isMobile ? 44 : 24, margin: isMobile ? "-8px -8px -8px 0" : 0, flexShrink: 0, borderRadius: R.pill, border: "none", background: "transparent", color: T.accentText, cursor: remover.isPending ? "wait" : "pointer", padding: 0, transition: "background-color 0.12s ease" }}>
                             <X aria-hidden="true" style={{ width: 12, height: 12 }} />
                           </button>
                         </span>
@@ -319,7 +323,7 @@ export default function Notificacoes() {
                 {/* "Essa notificação vai para quem?" — o número responde antes
                     de contar chip por chip; `emUso` é a lista que o envio usa
                     de fato (a personalizada, senão a padrão). */}
-                <p style={{ margin: 0, fontSize: 11.5, color: "#57534e" }}>
+                <p style={{ margin: 0, fontSize: FS.small, color: T.apoio }}>
                   {c.canal === "book"
                     ? `Até ${c.emUso.length} em cópia oculta (só quem é usuário cadastrado), além da Arte e dos executivos com cliente no evento.`
                     : `Hoje ${c.emUso.length === 1 ? "1 pessoa recebe" : `${c.emUso.length} pessoas recebem`} este aviso.`}
@@ -328,7 +332,7 @@ export default function Notificacoes() {
                     `emails.length > 0 ? emails : [...padrao]`) — remover o
                     último e-mail NÃO silencia o aviso, e isso precisa estar
                     escrito antes do clique no X. */}
-                <p style={{ margin: 0, fontSize: 10.5, color: "#78716c" }}>
+                <p style={{ margin: 0, fontSize: FS.micro, color: T.second }}>
                   {usandoPadrao
                     ? "Lista padrão do sistema. Ao adicionar o primeiro e-mail, ela é copiada para cá e vira editável."
                     : "Lista editável — é ela que vale, no lugar da padrão. Se remover todos, volta a valer a padrão."}
@@ -348,7 +352,7 @@ export default function Notificacoes() {
                     placeholder="nome.sobrenome@nortemkt.com"
                     aria-label={`E-mail para adicionar em ${c.titulo}`}
                     data-testid={`input-destinatario-${c.canal}`}
-                    style={{ flex: 1, minWidth: 0, height: toque, padding: "0 10px", borderRadius: R.md, border: `1px solid ${T.bdark}`, fontSize: 13, color: T.text, background: "#fff" }}
+                    style={{ flex: 1, minWidth: 0, height: toque, padding: "0 10px", borderRadius: R.md, border: `1px solid ${T.bdark}`, fontSize: 13, color: T.text, background: T.surface }}
                   />
                   {/* Desligado PARECE desligado: antes ficava igual ao ligado e
                       o clique num campo vazio não dava retorno nenhum. */}
@@ -358,7 +362,7 @@ export default function Notificacoes() {
                       <button type="submit" disabled={desligado}
                         aria-busy={adicionar.isPending && adicionar.variables?.canal === c.canal}
                         data-testid={`adicionar-destinatario-${c.canal}`}
-                        style={{ display: "inline-flex", alignItems: "center", gap: 6, height: toque, padding: "0 14px", borderRadius: R.md, border: "none", background: T.dark, color: "#fff", fontSize: 12, fontWeight: 800, cursor: desligado ? "not-allowed" : "pointer", opacity: desligado ? 0.5 : 1, whiteSpace: "nowrap", transition: "opacity 0.15s ease" }}>
+                        style={{ display: "inline-flex", alignItems: "center", gap: 6, height: toque, padding: "0 14px", borderRadius: R.md, border: "none", background: T.dark, color: T.surface, fontSize: 12, fontWeight: FW.rotulo, cursor: desligado ? "not-allowed" : "pointer", opacity: desligado ? 0.5 : 1, whiteSpace: "nowrap", transition: "opacity 0.15s ease" }}>
                         {adicionar.isPending && adicionar.variables?.canal === c.canal
                           ? <Loader2 aria-hidden="true" className="motion-safe:animate-spin" style={{ width: 13, height: 13 }} />
                           : <Plus aria-hidden="true" style={{ width: 13, height: 13 }} />}
@@ -385,54 +389,64 @@ export default function Notificacoes() {
             const nome = aviso === "gestao" ? "o acompanhamento" : "o aviso da revisão";
             const quantos = canais.find((c) => c.canal === aviso)?.emUso.length;
             return (
-              <button key={aviso} type="button"
+              <Botao key={aviso} variante="secundario" tamanho="toque"
                 // CONFIRMAÇÃO: é um e-mail real para a lista inteira, sem
-                // desfazer — e o botão fica a um clique de "Adicionar".
-                onClick={() => {
+                // desfazer — e o botão fica a um clique de "Adicionar". A
+                // pergunta passa a ser do app: o window.confirm mostrava a URL
+                // do servidor acima dela e deixava o navegador oferecer
+                // "impedir que esta página crie mais diálogos". Marcar isso
+                // aqui significaria disparar e-mail para a lista inteira sem
+                // pergunta nenhuma.
+                onClick={async () => {
                   const para = quantos ? ` para ${quantos} ${quantos === 1 ? "destinatário" : "destinatários"}` : "";
-                  if (window.confirm(`Mandar ${nome} agora${para}?\n\nO e-mail sai na hora e não pode ser recolhido.`)) disparar.mutate(aviso);
+                  if (await confirmar({
+                    titulo: `Mandar ${nome} agora${para}?`,
+                    descricao: "O e-mail sai na hora e não pode ser recolhido.",
+                    confirmar: "Mandar agora",
+                    cancelar: "Não mandar",
+                    icone: Send,
+                  })) disparar.mutate(aviso);
                 }}
-                disabled={disparar.isPending}
-                aria-busy={esteSaindo}
+                disabled={disparar.isPending && !esteSaindo}
+                motivo={disparar.isPending && !esteSaindo ? "Espere o outro aviso terminar de sair." : undefined}
+                carregando={esteSaindo}
+                icone={Send}
                 data-testid={`disparar-${aviso}`}
-                onMouseEnter={(e) => { if (!disparar.isPending) e.currentTarget.style.background = T.low; }}
-                onMouseLeave={(e) => { e.currentTarget.style.background = "#fff"; }}
-                style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, height: toque, padding: "0 14px", borderRadius: R.md, border: `1px solid ${T.bdark}`, background: "#fff", color: T.text, fontSize: 12, fontWeight: 700, cursor: disparar.isPending ? "wait" : "pointer", opacity: disparar.isPending && !esteSaindo ? 0.55 : 1, flex: isMobile ? "1 1 100%" : undefined, transition: "background-color 0.15s ease" }}>
-                {esteSaindo ? <Loader2 aria-hidden="true" className="motion-safe:animate-spin" style={{ width: 13, height: 13 }} /> : <Send aria-hidden="true" style={{ width: 13, height: 13 }} />}
+                style={{ minHeight: toque, fontSize: FS.meta, flex: isMobile ? "1 1 100%" : undefined }}>
                 {esteSaindo ? "Enviando…" : aviso === "gestao" ? "Mandar acompanhamento agora" : "Mandar aviso da revisão agora"}
-              </button>
+              </Botao>
             );
           })}
         </div>
-        <div style={{ borderRadius: 10, background: "#fff", border: "1px solid #e7e5e4", overflowX: "auto" }}>
+        <div style={{ borderRadius: R.lg, background: T.surface, border: `1px solid ${T.border}`, overflowX: "auto" }}>
           <table data-testid="grade-de-envios" style={{ width: "100%", borderCollapse: "collapse", minWidth: 760 }}>
             <thead>
-              <tr style={{ borderBottom: "1px solid #e7e5e4" }}>
-                <th rowSpan={2} style={{ padding: "8px 12px", fontSize: 11, fontWeight: 800, color: "#57534e", textAlign: "left", textTransform: "uppercase", letterSpacing: "0.06em" }}>Dia</th>
-                <th colSpan={horarios.length} style={{ padding: "8px 10px", fontSize: 11, fontWeight: 800, color: "#57534e", textTransform: "uppercase", letterSpacing: "0.06em", borderLeft: "1px solid #f5f4f2" }}>Acompanhamento</th>
-                <th colSpan={horarios.length} style={{ padding: "8px 10px", fontSize: 11, fontWeight: 800, color: "#57534e", textTransform: "uppercase", letterSpacing: "0.06em", borderLeft: "1px solid #f5f4f2" }}>Revisão</th>
-                <th rowSpan={2} style={{ padding: "8px 12px", fontSize: 11, fontWeight: 800, color: "#57534e", textTransform: "uppercase", letterSpacing: "0.06em", borderLeft: "1px solid #f5f4f2" }}>Manuais</th>
+              <tr style={{ borderBottom: `1px solid ${T.border}` }}>
+                <th rowSpan={2} style={{ padding: "8px 12px", fontSize: 11, fontWeight: FW.rotulo, color: T.apoio, textAlign: "left", textTransform: "uppercase", letterSpacing: "0.06em" }}>Dia</th>
+                <th colSpan={horarios.length} style={{ padding: "8px 10px", fontSize: 11, fontWeight: FW.rotulo, color: T.apoio, textTransform: "uppercase", letterSpacing: "0.06em", borderLeft: `1px solid ${T.border}` }}>Acompanhamento</th>
+                <th colSpan={horarios.length} style={{ padding: "8px 10px", fontSize: 11, fontWeight: FW.rotulo, color: T.apoio, textTransform: "uppercase", letterSpacing: "0.06em", borderLeft: `1px solid ${T.border}` }}>Revisão</th>
+                <th rowSpan={2} style={{ padding: "8px 12px", fontSize: 11, fontWeight: FW.rotulo, color: T.apoio, textTransform: "uppercase", letterSpacing: "0.06em", borderLeft: `1px solid ${T.border}` }}>Manuais</th>
               </tr>
-              <tr style={{ borderBottom: "1px solid #e7e5e4" }}>
+              <tr style={{ borderBottom: `1px solid ${T.border}` }}>
                 {(["gestao", "revisao"] as const).flatMap((aviso) =>
                   horarios.map((h) => (
-                    <th key={`${aviso}-${h}`} style={{ padding: "5px 10px", fontSize: 11, fontWeight: 700, color: "#78716c", borderLeft: "1px solid #f5f4f2" }}>{h}h</th>
+                    <th key={`${aviso}-${h}`} style={{ padding: "5px 10px", fontSize: 11, fontWeight: FW.forte, color: T.second, borderLeft: `1px solid ${T.border}` }}>{h}h</th>
                   )))}
               </tr>
             </thead>
             <tbody>
               {dias.map((dia) => (
-                <tr key={dia} style={{ borderBottom: "1px solid #f5f4f2" }}>
-                  <td style={{ padding: "7px 12px", fontFamily: "'DM Mono', monospace", fontSize: 12, fontWeight: dia === agora.dia ? 800 : 500, color: dia === agora.dia ? "#1c1917" : "#57534e", whiteSpace: "nowrap" }}>
+                <tr key={dia} style={{ borderBottom: `1px solid ${T.border}` }}>
+                  <td style={{ padding: "7px 12px", fontFamily: FONT.mono, fontSize: 12, fontWeight: dia === agora.dia ? 800 : 500, color: dia === agora.dia ? T.text : T.apoio, whiteSpace: "nowrap" }}>
                     {rotuloDia(dia)}{dia === agora.dia ? " · hoje" : ""}
                   </td>
                   {horarios.map((h) => celula("gestao", dia, h))}
                   {horarios.map((h) => celula("revisao", dia, h))}
-                  <td style={{ padding: "7px 12px", borderLeft: "1px solid #f5f4f2", whiteSpace: "nowrap" }}>
+                  <td style={{ padding: "7px 12px", borderLeft: `1px solid ${T.border}`, whiteSpace: "nowrap" }}>
                     {manuaisDoDia(dia).length === 0
-                      ? <span style={{ color: "#78716c", fontSize: 11.5 }}>—</span>
+                      ? <span style={{ color: T.second, fontSize: FS.small }}>—</span>
                       : manuaisDoDia(dia).map((e, i) => (
-                          <span key={i} title={e.desfecho} style={{ display: "inline-flex", alignItems: "center", gap: 4, marginRight: 4, padding: "2px 7px", borderRadius: 6, fontSize: 10.5, fontWeight: 700, background: e.status === "enviado" ? "#f0fdf4" : "#fef2f2", color: e.status === "enviado" ? "#15803d" : "#b91c1c", border: "1px solid #e7e5e4" }}>
+                          <span key={i} title={e.desfecho} style={{ display: "inline-flex", alignItems: "center", gap: 4, marginRight: 4, padding: "2px 7px", borderRadius: 6, fontSize: FS.micro, fontWeight: FW.forte, background: e.status === "enviado" ? TOM.sucesso.bg : TOM.perigo.bg, color: e.status === "enviado" ? TOM.sucesso.text : TOM.perigo.text, border: `1px solid ${T.border}` }}>
                             {e.aviso === "gestao" ? "Acomp." : "Revisão"} {e.hora}h
                           </span>
                         ))}
@@ -446,12 +460,12 @@ export default function Notificacoes() {
             ouve o texto sem precisar achar o painel. */}
         <div id="detalhe-da-edicao" aria-live="polite">
           {detalhe && (
-            <div data-testid="detalhe-da-edicao" style={{ marginTop: 8, display: "flex", alignItems: "flex-start", gap: 10, padding: "10px 12px", borderRadius: 10, background: T.surface, border: `1px solid ${T.bdark}` }}>
-              <p style={{ margin: 0, flex: 1, fontSize: 12.5, lineHeight: 1.5, color: "#44403c", overflowWrap: "anywhere" }}>
+            <div data-testid="detalhe-da-edicao" style={{ marginTop: 8, display: "flex", alignItems: "flex-start", gap: 10, padding: "10px 12px", borderRadius: R.lg, background: T.surface, border: `1px solid ${T.bdark}` }}>
+              <p style={{ margin: 0, flex: 1, fontSize: FS.meta, lineHeight: 1.5, color: T.strong, overflowWrap: "anywhere" }}>
                 <strong style={{ color: T.text }}>{detalhe.rotulo} — {detalhe.texto}.</strong> {detalhe.desfecho}
               </p>
               <button type="button" onClick={() => setDetalhe(null)} aria-label="Fechar o desfecho"
-                style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: toque, height: toque, flexShrink: 0, border: "none", borderRadius: R.md, background: "transparent", color: "#57534e", cursor: "pointer" }}>
+                style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: toque, height: toque, flexShrink: 0, border: "none", borderRadius: R.md, background: "transparent", color: T.apoio, cursor: "pointer" }}>
                 <X aria-hidden="true" style={{ width: 14, height: 14 }} />
               </button>
             </div>
@@ -459,10 +473,10 @@ export default function Notificacoes() {
         </div>
         {/* LEGENDA: seis palavras de status sem explicação em lugar nenhum.
             "Fila vazia" e "Simulação" em especial liam como falha. */}
-        <p data-testid="legenda-da-grade" style={{ margin: "8px 0 0", fontSize: 11.5, lineHeight: 1.55, color: "#57534e" }}>
+        <p data-testid="legenda-da-grade" style={{ margin: "8px 0 0", fontSize: FS.small, lineHeight: 1.55, color: T.apoio }}>
           <strong>Enviado</strong>: saiu para a lista · <strong>Fila vazia</strong>: não havia o que avisar, nada enviado (normal) · <strong>Simulação</strong>: montado e não enviado · <strong>Desligado</strong>/<strong>Falhou</strong>: não saiu — o desfecho diz o motivo · <strong>Não rodou</strong>: nenhum registro. Clique numa célula para ver o desfecho.
         </p>
-        <p style={{ margin: "8px 0 0", fontSize: 11, color: "#78716c", display: "flex", alignItems: "center", gap: 5 }}>
+        <p style={{ margin: "8px 0 0", fontSize: 11, color: T.second, display: "flex", alignItems: "center", gap: 5 }}>
           <MinusCircle aria-hidden="true" style={{ width: 11, height: 11, flexShrink: 0 }} />
           "Não rodou" antes de 27/08 pode ser só a versão antiga, que não registrava edição de fila vazia — desde 27/08, toda edição deixa rastro.
         </p>
@@ -476,33 +490,34 @@ export default function Notificacoes() {
         <h2 style={{ ...tituloDeSecao, margin: "28px 0 4px" }}>
           Saúde dos dados
         </h2>
-        <p style={{ margin: "0 0 10px", fontSize: 12.5, color: "#57534e" }}>
+        <p style={{ margin: "0 0 10px", fontSize: FS.meta, color: T.apoio }}>
           Contradições que nenhuma tela percebe sozinha, porque cada uma acredita em metade do dado.
         </p>
 
         {saudeCarregando && (
-          <p role="status" style={{ display: "flex", alignItems: "center", gap: 8, margin: 0, padding: "12px 14px", borderRadius: 10, background: T.surface, border: `1px solid ${T.border}`, fontSize: 13, color: "#57534e" }}>
+          <p role="status" style={{ display: "flex", alignItems: "center", gap: 8, margin: 0, padding: "12px 14px", borderRadius: R.lg, background: T.surface, border: `1px solid ${T.border}`, fontSize: 13, color: T.apoio }}>
             <Loader2 aria-hidden="true" className="motion-safe:animate-spin" style={{ width: 14, height: 14 }} />
             Conferindo…
           </p>
         )}
 
         {saudeFalhou && (
-          <div data-testid="saude-falhou" role="alert" style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", padding: "12px 14px", borderRadius: 10, background: "#fef2f2", border: "1px solid #fecaca", fontSize: 13, color: "#b91c1c" }}>
+          <div data-testid="saude-falhou" role="alert" style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", padding: "12px 14px", borderRadius: R.lg, background: TOM.perigo.bg, border: `1px solid ${TOM.perigo.border}`, fontSize: 13, color: TOM.perigo.text }}>
             <span style={{ flex: "1 1 260px" }}>
               Não foi possível conferir agora. Enquanto isso, estas verificações estão sem vigilância.
             </span>
             {/* Nova tentativa aqui mesmo: "recarregue a página (F5)" jogava fora
                 a tela inteira para refazer uma consulta só. */}
-            <button type="button" onClick={() => reconferirSaude()} disabled={saudeReconferindo}
-              style={{ height: toque, padding: "0 14px", borderRadius: R.md, border: "1px solid #fecaca", background: "#fff", color: "#b91c1c", fontSize: 12, fontWeight: 700, cursor: saudeReconferindo ? "wait" : "pointer", flex: isMobile ? "1 1 100%" : undefined }}>
+            <Botao variante="secundario" tamanho="toque" onClick={() => reconferirSaude()}
+              carregando={saudeReconferindo}
+              style={{ minHeight: toque, fontSize: FS.meta, color: TOM.perigo.text, borderColor: TOM.perigo.border, flex: isMobile ? "1 1 100%" : undefined }}>
               {saudeReconferindo ? "Conferindo…" : "Conferir de novo"}
-            </button>
+            </Botao>
           </div>
         )}
 
         {saude && saude.achados.length === 0 && (
-          <div data-testid="saude-limpa" style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", padding: "12px 14px", borderRadius: 10, background: "#f0fdf4", border: "1px solid #bbf7d0", fontSize: 13, color: "#15803d" }}>
+          <div data-testid="saude-limpa" style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", padding: "12px 14px", borderRadius: R.lg, background: TOM.sucesso.bg, border: `1px solid ${TOM.sucesso.border}`, fontSize: 13, color: TOM.sucesso.text }}>
             <CheckCircle2 style={{ width: 15, height: 15, flexShrink: 0 }} />
             <span style={{ flex: "1 1 220px" }}>Nenhuma contradição encontrada — {saude.verificadas} verificações.</span>
             {botaoReconferir}
@@ -514,7 +529,7 @@ export default function Notificacoes() {
             {/* O PRÓXIMO PASSO. A lista dizia o que está errado e parava —
                 o admin ficava com números de peça na mão e nenhum caminho.
                 A busca global (Ctrl+K) acha a peça pelo código. */}
-            <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", fontSize: 12.5, lineHeight: 1.5, color: "#44403c" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", fontSize: FS.meta, lineHeight: 1.5, color: T.strong }}>
               <span style={{ flex: "1 1 260px" }}>
                 Para corrigir: abra cada peça pela busca do topo (Ctrl+K) usando o número listado, ajuste o que está em conflito e confira de novo.
               </span>
@@ -522,24 +537,24 @@ export default function Notificacoes() {
             </div>
             {saude.achados.map((a) => {
               const cor = a.gravidade === "critico"
-                ? { bg: "#fef2f2", borda: "#fecaca", texto: "#b91c1c", rotulo: "Crítico" }
+                ? { bg: TOM.perigo.bg, borda: TOM.perigo.border, texto: TOM.perigo.text, rotulo: "Crítico" }
                 : a.gravidade === "alto"
-                  ? { bg: "#fffbeb", borda: "#fde68a", texto: "#92400e", rotulo: "Alto" }
-                  : { bg: "#fafaf9", borda: "#e7e5e4", texto: "#57534e", rotulo: "Médio" };
+                  ? { bg: TOM.alerta.bg, borda: TOM.alerta.border, texto: TOM.alerta.text, rotulo: "Alto" }
+                  : { bg: T.bg, borda: T.border, texto: T.apoio, rotulo: "Médio" };
               return (
-                <div key={a.chave} data-testid={`saude-${a.chave}`} style={{ padding: "12px 14px", borderRadius: 10, background: cor.bg, border: `1px solid ${cor.borda}` }}>
+                <div key={a.chave} data-testid={`saude-${a.chave}`} style={{ padding: "12px 14px", borderRadius: R.lg, background: cor.bg, border: `1px solid ${cor.borda}` }}>
                   <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
-                    <span style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase", color: cor.texto }}>{cor.rotulo}</span>
-                    <strong style={{ fontSize: 13.5, color: "#1c1917" }}>{a.titulo}</strong>
+                    <span style={{ fontSize: FS.micro, fontWeight: FW.rotulo, letterSpacing: "0.06em", textTransform: "uppercase", color: cor.texto }}>{cor.rotulo}</span>
+                    <strong style={{ fontSize: FS.read, color: T.text }}>{a.titulo}</strong>
                     {a.quantas > 0 && (
-                      <span style={{ fontSize: 12, fontWeight: 700, color: cor.texto }}>
+                      <span style={{ fontSize: 12, fontWeight: FW.forte, color: cor.texto }}>
                         · {a.quantas} {a.quantas === 1 ? "peça" : "peças"}
                       </span>
                     )}
                   </div>
-                  <p style={{ margin: "5px 0 0", fontSize: 12.5, lineHeight: 1.5, color: cor.texto }}>{a.explicacao}</p>
+                  <p style={{ margin: "5px 0 0", fontSize: FS.meta, lineHeight: 1.5, color: cor.texto }}>{a.explicacao}</p>
                   {a.amostra.length > 0 && (
-                    <p style={{ margin: "6px 0 0", fontSize: 12, color: "#57534e", fontFamily: "ui-monospace, monospace" }}>
+                    <p style={{ margin: "6px 0 0", fontSize: 12, color: T.apoio, fontFamily: "ui-monospace, monospace" }}>
                       {a.amostra.join("  ")}{a.quantas > a.amostra.length ? `  …e mais ${a.quantas - a.amostra.length}` : ""}
                     </p>
                   )}

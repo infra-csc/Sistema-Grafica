@@ -300,7 +300,11 @@ export function aplicarDelta(anterior: any[], delta: any, assinaturas?: Assinatu
 
   const resultado = Array.from(porId.values()).map((i) => {
     const veioNoDelta = doDelta.has(i);
-    const trocaEvento = veioNoDelta || (evPorId.has(i.eventId) && eventoMudou(i.eventId));
+    // `"event" in i`: a projeção da trilha (`?campos=trilha`) não traz evento
+    // embutido. Sem esta guarda o merge CRIAVA a chave `event` nas peças
+    // projetadas — engordando de volta o que a projeção existe para enxugar.
+    const trocaEvento = "event" in i
+      && (veioNoDelta || (evPorId.has(i.eventId) && eventoMudou(i.eventId)));
     const trocaPatrocinadores = Array.isArray(i.sponsors)
       && (veioNoDelta || i.sponsors.some((s: any) => spPorId.has(s?.id) && patrocinadorMudou(s.id)));
     if (!trocaEvento && !trocaPatrocinadores) return i;

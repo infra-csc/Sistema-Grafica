@@ -91,11 +91,23 @@ describe("o custo de desenhar tudo foi tratado onde ele mora", () => {
   });
 
   it("as thumbs das listas longas carregam sob demanda", () => {
-    // Duas listas: pendentes e histórico (o grupo "Aprovados" foi removido —
-    // a peça toda aprovada vive na aba Histórico, que é o lugar dela). Os
-    // modais NÃO entram: lá a imagem é o próprio conteúdo.
-    expect(TELA.match(/loading="lazy"/g)?.length).toBe(2);
-    expect(TELA.match(/decoding="async"/g)?.length).toBe(2);
+    // TRÊS listas: pendentes, histórico e o painel de aprovação em lote (o
+    // grupo "Aprovados" foi removido — a peça toda aprovada vive na aba
+    // Histórico, que é o lugar dela). O painel de lote entrou na conta na 2ª
+    // rodada de performance: ele desenha uma linha com thumb de 52px por peça
+    // elegível, e era a única lista da tela que baixava tudo de uma vez.
+    //
+    // `loading="lazy"` NÃO vale para os modais — lá a imagem está à vista no
+    // instante em que o modal abre, e adiar não adia nada. Já
+    // `decoding="async"` vale em TODAS as seis imagens da tela, inclusive na
+    // pré-visualização grande: decodificar um JPEG de MBs na thread principal
+    // trava o clique seguinte, esteja a imagem onde estiver.
+    expect(TELA.match(/loading="lazy"/g)?.length).toBe(3);
+    expect(TELA.match(/decoding="async"/g)?.length).toBe(6);
     expect(TELA).not.toContain("approvedGroup");
+    // E a exibição PEQUENA pede a miniatura do servidor, nunca o original de
+    // MBs numa caixa de 38-52px (lib/miniatura). A pré-visualização grande
+    // segue na URL crua: ali a arte é o conteúdo.
+    expect(TELA.match(/src=\{miniatura\(/g)?.length).toBe(5);
   });
 });

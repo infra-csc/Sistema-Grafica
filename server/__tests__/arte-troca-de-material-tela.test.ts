@@ -229,6 +229,14 @@ describe("Arte montada — thumbs em lote: erro do servidor e \"Tentar de novo\"
       return fetchBase(url, init);
     }));
     await esperar(() => document.querySelectorAll('input[type="file"][multiple]').length > 0, "a entrada do lote existe");
+    // O VÍNCULO ARQUIVO → PEÇA ACONTECE NO INSTANTE EM QUE O ARQUIVO ENTRA:
+    // `matchFileToItem` casa "arte_0001.png" com a peça #0001 do pool da Arte.
+    // Com a fila ainda carregando o pool está vazio e o cartão nasce sem
+    // vínculo — e sem vínculo não há upload nenhum para falhar. O botão do
+    // lote mora no cabeçalho, que desenha antes da lista, então esperar a
+    // primeira linha é o que reproduz o gesto real (abrir a fila, e então
+    // arrastar os arquivos).
+    await esperar(() => !!tid("row-pending-item-p1"), "a fila carregou — o pool do lote existe");
     const entrada = document.querySelector<HTMLInputElement>('input[type="file"][multiple]')!;
     const leve = new File(["x"], "arte_0001.png", { type: "image/png" });
     const pesado = new File(["x"], "pesado.png", { type: "image/png" });

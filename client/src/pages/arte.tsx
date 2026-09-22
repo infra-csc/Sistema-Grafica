@@ -4560,10 +4560,11 @@ export default function Arte() {
 
             // Ordenação — a regra de negócio inteira é ancorada na saída do
             // caminhão e a lista só sabia ordenar por nome de evento. Não é
-            // filtro (não conta no botão nem vira chip), mas mora junto: é
-            // controle de uso raro, e a barra à vista ficou só com o Evento.
-            // No celular a faixa quebra em várias linhas: o divisor vertical
-            // ficaria sozinho no começo de uma delas, separando nada de nada.
+            // filtro (não conta no "Mais filtros (N)" nem vira chip) e fica
+            // SEMPRE À VISTA, na barra da busca e do Evento: o dono respondeu
+            // (22/09) que a Arte usa muito — escondido, custava dois cliques.
+            // No celular o divisor vertical ficaria sozinho numa linha,
+            // separando nada de nada.
             const ordenar = (
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: isMobile ? undefined : 'auto' }}>
               {!isMobile && <span aria-hidden="true" style={{ width: 1, height: 20, background: '#e7e5e4' }} />}
@@ -4621,6 +4622,12 @@ export default function Arte() {
                       </button>
                     )}
                   </div>
+                  {/* Ordenar em linha própria e compacta: ao lado do Evento
+                      (+ o X de limpar) não cabe em 360px — "Ordenar: Prazo da
+                      fase" sozinho já passa de 170px. */}
+                  <div data-testid="linha-ordenar-mobile" style={{ display: 'flex', alignItems: 'center' }}>
+                    {ordenar}
+                  </div>
                 </div>
 
                 {filtrosAbertosMobile && (
@@ -4649,7 +4656,6 @@ export default function Arte() {
                       {gatilhos(true)}
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, borderTop: '1px solid #e7e5e4', paddingTop: 10 }}>
                         {segmentos}
-                        {ordenar}
                       </div>
                     </div>
                     {/* Rodapé fixo com o recorte seguro embaixo (home indicator),
@@ -4690,6 +4696,7 @@ export default function Arte() {
                     Mais filtros{nFiltrosEscondidos > 0 ? ` (${nFiltrosEscondidos})` : ''}
                     <ChevronDown aria-hidden="true" style={{ width: 14, height: 14, transform: maisFiltrosAberto ? 'rotate(180deg)' : undefined, transition: 'transform 0.15s' }} />
                   </button>
+                  {ordenar}
                 </div>
 
                 {/* ── Filter Row 2 ── */}
@@ -4715,7 +4722,6 @@ export default function Arte() {
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', borderTop: '1px solid #f0efee', paddingTop: 8 }}>
                       <span style={{ fontSize: 11, fontWeight: 700, color: '#57534e', textTransform: 'uppercase', letterSpacing: '0.06em', marginRight: 2 }}>Mostrar:</span>
                       {segmentos}
-                      {ordenar}
                     </div>
                     {botaoLimparEscondidos && (
                       <div style={{ display: 'flex', justifyContent: 'flex-end' }}>{botaoLimparEscondidos}</div>

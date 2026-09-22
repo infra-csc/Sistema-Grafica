@@ -5,7 +5,7 @@
 // filtros em um botão").
 //
 // Monta a tela de verdade em 1280px e em 390px e trava o contrato:
-//   · à vista só a busca e o Evento;
+//   · à vista só a busca, o Evento e o Ordenar (o dono: "a Arte usa muito");
 //   · "Mais filtros" abre os outros ali mesmo (faixa no desktop, folha no
 //     celular), com aria-expanded/aria-controls;
 //   · o número do botão conta só o que está escondido;
@@ -96,10 +96,16 @@ async function montar(px: number, busca = "") {
 
 const ESCONDIDOS = ["select-sponsor-filter", "select-type-filter", "select-material-filter", "select-month-filter",
   "select-period-filter", "button-next-10-days-filter", "segment-atrasado", "segment-urgente", "segment-thumb",
-  "segment-final", "select-ordenar"];
+  "segment-final"];
+// Ordenar fica à vista, UMA vez só, e nunca dentro da faixa/folha.
+function ordenarAVistaForaDaFaixa() {
+  const todos = document.querySelectorAll('[data-testid="select-ordenar"]');
+  expect(todos.length).toBe(1);
+  expect(todos[0].closest("#arte-mais-filtros, #arte-folha-filtros")).toBeNull();
+}
 const presente = (id: string) => !!$(`[data-testid^="${id}"]`);
 
-describe("Arte 1280px — só busca e Evento à vista", { timeout: 60_000 }, () => {
+describe("Arte 1280px — só busca, Evento e Ordenar à vista", { timeout: 60_000 }, () => {
   it("fechada: nenhum dos outros filtros aparece; o botão diz o que controla", async () => {
     await montar(1280);
     expect(tid("input-search-filter")).not.toBeNull();
@@ -110,6 +116,9 @@ describe("Arte 1280px — só busca e Evento à vista", { timeout: 60_000 }, () 
     expect(botao.getAttribute("aria-controls")).toBe("arte-mais-filtros");
     expect(botao.textContent).toContain("Mais filtros");
     expect(botao.textContent).not.toMatch(/\(\d+\)/);
+    ordenarAVistaForaDaFaixa();
+    // Ordenar mora na MESMA barra da busca e do Evento.
+    expect(tid("input-search-filter")!.parentElement!.parentElement!.contains(tid("select-ordenar"))).toBe(true);
   });
 
   it("abrir mostra a faixa com todos os outros controles, e lembra na próxima visita", async () => {
@@ -121,6 +130,7 @@ describe("Arte 1280px — só busca e Evento à vista", { timeout: 60_000 }, () 
       expect(presente(id), id).toBe(true);
     }
     expect(localStorage.getItem("arte.maisFiltrosAberto")).toBe("1");
+    ordenarAVistaForaDaFaixa();
     cleanup();
     await montar(1280);
     expect(tid("faixa-mais-filtros")).not.toBeNull();
@@ -160,7 +170,7 @@ describe("Arte 1280px — só busca e Evento à vista", { timeout: 60_000 }, () 
   });
 });
 
-describe("Arte 390px — busca e Evento à vista, o resto na folha", { timeout: 60_000 }, () => {
+describe("Arte 390px — busca, Evento e Ordenar à vista, o resto na folha", { timeout: 60_000 }, () => {
   it("fechada: busca 16px/44px, Evento em linha própria, nada mais", async () => {
     await montar(390);
     const busca = tid("input-search-filter") as HTMLInputElement;
@@ -172,6 +182,9 @@ describe("Arte 390px — busca e Evento à vista, o resto na folha", { timeout: 
     expect(botao.getAttribute("aria-expanded")).toBe("false");
     expect(botao.getAttribute("aria-controls")).toBe("arte-folha-filtros");
     expect(botao.style.minHeight).toBe("44px");
+    ordenarAVistaForaDaFaixa();
+    expect(tid("linha-ordenar-mobile")!.contains(tid("select-ordenar"))).toBe(true);
+    expect((tid("select-ordenar")!.querySelector("button") ?? tid("select-ordenar")!).style.height || "44px").toBe("44px");
   });
 
   it("a folha abre com os outros filtros, rodapé com safe-area, e fecha", async () => {
@@ -188,6 +201,7 @@ describe("Arte 390px — busca e Evento à vista, o resto na folha", { timeout: 
     for (const id of ["segment-atrasado", "segment-urgente", "segment-thumb", "segment-final", "button-next-10-days-filter"]) {
       expect(presente(id), id).toBe(true);
     }
+    ordenarAVistaForaDaFaixa();
     const rodape = tid("button-aplicar-filtros-mobile")!.parentElement!;
     expect(rodape.style.paddingBottom).toContain("safe-area-inset-bottom");
     await act(async () => { fireEvent.click(tid("button-aplicar-filtros-mobile")!); });

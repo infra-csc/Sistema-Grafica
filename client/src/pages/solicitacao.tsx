@@ -715,7 +715,9 @@ export default function Solicitacao() {
     mutationFn: async (itemIds: string[]) => {
       const semLiberar: Record<string, string> = {};
       const falhas = await emLotes(itemIds, async (id) => {
-        await apiRequest("PATCH", `/api/items/${id}`, { isReuse: true });
+        // Reaproveitamento TOTAL: o servidor exige a quantidade junto com a marcação.
+        const qtd = (items as any[]).find((i: any) => i.id === id)?.quantity;
+        await apiRequest("PATCH", `/api/items/${id}`, { isReuse: true, reuseQty: qtd });
         // Marcou mas não liberou é MEIO caminho, não falha igual: a marcação
         // existe, e o "Liberar" da barra resolve o resto — com o motivo.
         try { await apiRequest("PATCH", `/api/items/${id}/creator-review`, {}); }
@@ -824,7 +826,10 @@ export default function Solicitacao() {
 
   const toggleReuseMutation = useMutation({
     mutationFn: async ({ itemId, isReuse }: { itemId: string; isReuse: boolean }) => {
-      await apiRequest("PATCH", `/api/items/${itemId}`, { isReuse });
+      // Marcar é o reaproveitamento TOTAL (a quantidade vai junto, o servidor exige);
+      // desmarcar zera.
+      const qtd = (items as any[]).find((i: any) => i.id === itemId)?.quantity;
+      await apiRequest("PATCH", `/api/items/${itemId}`, isReuse ? { isReuse, reuseQty: qtd } : { isReuse, reuseQty: 0 });
       // Ao marcar reaproveitamento, libera automaticamente para Gráfica (status → produced)
       if (isReuse) {
         try {

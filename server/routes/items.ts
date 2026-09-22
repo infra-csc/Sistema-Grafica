@@ -13,6 +13,8 @@ import { trilhaDaLiberacaoComEstoque } from "@shared/consultas-de-estoque";
 import { resumosDeTuboPorIds, comTubo } from "../services/tubosDaPeca";
 import { FORMATO_COMPACTO, compactarPecas, compactarAprovacoes } from "@shared/itens-compactos";
 import { DEPOIS_DA_ARTE, EM_REVISAO, POS_APROVACAO, DISPENSAVEIS, DESTINO_DA_DISPENSA, ehBookCompleto, ehMaquinaValida, rotuloDaMaquina } from "@shared/fluxo-peca";
+import { ehMolde, destinoDaDevolucao, dispensaArquivoFinal } from "@shared/molde";
+import { enviarMoldeParaRevisao } from "./molde";
 import { quemOcupaAImpressora, erroImpressoraOcupada } from "../services/ocupacaoDasImpressoras";
 import { devolverTudoAFila, chaveDoLockDaImpressora } from "@shared/reserva-de-impressora";
 import { partesAtivas } from "@shared/impressao-dividida";
@@ -2534,6 +2536,10 @@ export function registerItemRoutes(app: Express): void {
         return res.status(400).json({ error: ERRO_THUMB_FORA_DO_STORAGE });
       }
 
+      // MOLDE (22/09): sem aprovação de patrocinador e sem finalização — o
+      // thumb vai direto para a Revisão Final (server/routes/molde.ts).
+      if (ehMolde(currentItem)) return await enviarMoldeParaRevisao(req, res, currentItem, thumbNormalizado);
+
       // Check if item has sponsors linked
       const itemSponsors = await storage.getItemSponsors(req.params.id);
       const hasSponsors = itemSponsors.length > 0;
@@ -2745,6 +2751,11 @@ export function registerItemRoutes(app: Express): void {
       if (await barraEventoFinalizado(currentItem, res)) return;
       if (!DISPENSAVEIS.includes(currentItem.status)) {
         return res.status(409).json({ error: `Item não pode pular a aprovação no status atual: ${currentItem.status}` });
+      }
+      // MOLDE (22/09) não tem aprovação nem finalização: o envio dele já vai
+      // direto para a Revisão Final.
+      if (ehMolde(currentItem)) {
+        return res.status(409).json({ error: "Molde não passa por aprovação nem finalização — use \"Enviar para a Revisão Final\"." });
       }
       const { reason } = req.body;
       // SAIU DA FILA DE QUEM? Só quem estava esperando patrocinador some da
@@ -3688,7 +3699,8 @@ export function registerItemRoutes(app: Express): void {
       // atalho de teclado chegavam aqui sem ele — e uma peça sem arquivo
       // liberada para produção trava a Gráfica. Reaproveitamento TOTAL
       // dispensa (não produz nada); parcial produz o restante e precisa.
-      if (!currentItem.finalFileUrl && !isFullReuse) {
+      // MOLDE (22/09) não tem arquivo final: é liberado só com o thumb.
+      if (!currentItem.finalFileUrl && !isFullReuse && !dispensaArquivoFinal(currentItem)) {
         return res.status(409).json({
           error: "A peça ainda não tem arquivo final — a Arte precisa enviá-lo antes da liberação."
         });
@@ -3807,7 +3819,7 @@ export function registerItemRoutes(app: Express): void {
         // etapa que precisa ser refeita, com a aprovacao preservada.
         // O DESTINO e escolha de quem devolve (ver lerDestinoDevolucao):
         // "arte" refaz do zero, "finalizacao" so troca o arquivo final.
-        ...camposDoDestino(destino, await rodadaDeAprovacaoFechada(currentItem)),
+        ...camposDoDestino(destinoDaDevolucao(destino, currentItem), await rodadaDeAprovacaoFechada(currentItem)),
         creatorReviewedAt: null,
         rejectedByCreator: true, // Flag indicando que foi reprovado pelo criador
         rejectionReason: motivo.motivo,
@@ -3824,7 +3836,7 @@ export function registerItemRoutes(app: Express): void {
         'rejected',
         'item',
         item.id,
-        `Status alterado: ${translateStatus(currentItem.status)} → ${translateStatus(camposDoDestino(destino, await rodadaDeAprovacaoFechada(currentItem)).status)} (reprovado pelo criador — ${textoDoDestino(destino)}). Motivo: ${motivo.motivo}`
+        `Status alterado: ${translateStatus(currentItem.status)} → ${translateStatus(camposDoDestino(destinoDaDevolucao(destino, currentItem), await rodadaDeAprovacaoFechada(currentItem)).status)} (reprovado pelo criador — ${textoDoDestino(destinoDaDevolucao(destino, currentItem))}). Motivo: ${motivo.motivo}`
       );
       
       // Notifica Arte para refazer o trabalho
@@ -3977,7 +3989,7 @@ export function registerItemRoutes(app: Express): void {
         // etapa que precisa ser refeita, com a aprovacao preservada.
         // O DESTINO e escolha de quem devolve (ver lerDestinoDevolucao):
         // "arte" refaz do zero, "finalizacao" so troca o arquivo final.
-        ...camposDoDestino(destino, await rodadaDeAprovacaoFechada(currentItem)),
+        ...camposDoDestino(destinoDaDevolucao(destino, currentItem), await rodadaDeAprovacaoFechada(currentItem)),
         creatorReviewedAt: null,
         rejectedByCreator: true,
         // O motivo da devolução SUBSTITUI a observação: motivo vazio não pode
@@ -4174,7 +4186,7 @@ export function registerItemRoutes(app: Express): void {
           // etapa que precisa ser refeita, com a aprovacao preservada.
           // O DESTINO e escolha de quem devolve (ver lerDestinoDevolucao):
           // "arte" refaz do zero, "finalizacao" so troca o arquivo final.
-          ...camposDoDestino(destino, await rodadaDeAprovacaoFechada(currentItem)),
+          ...camposDoDestino(destinoDaDevolucao(destino, currentItem), await rodadaDeAprovacaoFechada(currentItem)),
           creatorReviewedAt: null,
           rejectedByCreator: true,
           // (e não `|| currentItem.observations`): o return individual
@@ -4570,7 +4582,7 @@ export function registerItemRoutes(app: Express): void {
           // etapa que precisa ser refeita, com a aprovacao preservada.
           // O DESTINO e escolha de quem devolve (ver lerDestinoDevolucao):
           // "arte" refaz do zero, "finalizacao" so troca o arquivo final.
-          ...camposDoDestino(destino, await rodadaDeAprovacaoFechada(currentItem)),
+          ...camposDoDestino(destinoDaDevolucao(destino, currentItem), await rodadaDeAprovacaoFechada(currentItem)),
           creatorReviewedAt: null,
           rejectedByCreator: true,
           rejectionReason: motivo.motivo,
@@ -4583,7 +4595,7 @@ export function registerItemRoutes(app: Express): void {
           // sem refazer camposDoDestino + rodada, que eram MAIS duas queries).
           trilha.push({
             action: 'rejected', entityType: 'item', entityId: item.id,
-            details: `Status alterado: ${translateStatus(currentItem.status)} → ${translateStatus(item.status)} (reprovado pelo criador em lote — ${textoDoDestino(destino)}). Motivo: ${motivo.motivo}`,
+            details: `Status alterado: ${translateStatus(currentItem.status)} → ${translateStatus(item.status)} (reprovado pelo criador em lote — ${textoDoDestino(destinoDaDevolucao(destino, currentItem))}). Motivo: ${motivo.motivo}`,
           });
         }
         } catch (e) {
@@ -4721,6 +4733,8 @@ export function registerItemRoutes(app: Express): void {
       if (EM_REVISAO.has(current.status)) {
         return res.status(409).json({ error: "Esta peça está em revisão — a Gráfica só age depois que a revisão liberar." });
       }
+      // MOLDE (22/09) não passa por impressora: é marcado como produzido direto.
+      if (ehMolde(current)) return res.status(409).json({ error: "Molde não vai para a impressora — use \"Marcar como produzido\"." });
       const PODE_IR_PARA_A_MAQUINA = ["ready_for_production", "pronto_para_producao", "approved", "liberado", "inProduction", "em_producao"];
       if (!PODE_IR_PARA_A_MAQUINA.includes(current.status)) {
         return res.status(409).json({ error: `A peça não pode ir para a máquina no status atual: ${translateStatus(current.status)}` });
@@ -4886,6 +4900,8 @@ export function registerItemRoutes(app: Express): void {
       // gera ativos no Estoque. Imprimir para um evento que já aconteceu é
       // dinheiro queimado que nenhum estorno recupera.
       if (await barraEventoFinalizado(before, res)) return;
+      // MOLDE (22/09): nada de impressas nem parcial — "Marcar como produzido".
+      if (ehMolde(before)) return res.status(409).json({ error: "Molde não vai para a impressora — use \"Marcar como produzido\"." });
       // Informar impressas é gesto de peça EM IMPRESSÃO. Sem este guarda, a peça
       // pausada (liberada, no topo da fila) entrava em "Em Impressão" por aqui,
       // pulando a checagem de impressora ocupada do start-printing.
@@ -5348,6 +5364,8 @@ export function registerItemRoutes(app: Express): void {
       // olha status. Ela agora APARECE na fila da Gráfica (feed inclui a
       // revisão como "chegando"), então o buraco ficou alcançável: uma peça
       // com reaproveitamento marcado e ainda em revisão passaria por aqui.
+      // MOLDE (22/09): o fluxo dele morre no Produzido — não há conferência.
+      if (ehMolde(current)) return res.status(409).json({ error: "Molde não passa por conferência — o fluxo dele termina no Produzido." });
       if (EM_REVISAO.has(current.status)) {
         return res.status(409).json({ error: `Esta peça ainda está na Revisão — a Gráfica confere depois que a Revisão liberar. Status: ${translateStatus(current.status)}` });
       }

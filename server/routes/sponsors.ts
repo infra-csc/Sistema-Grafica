@@ -23,6 +23,7 @@ import { barraEventoFinalizado, motivoEventoDaPeca, contadorDeBloqueio } from ".
 import { motivoEventoFechado } from "./eventoFinalizado";
 import { invalidarCacheDeVersoes } from "./versoes";
 import { DEPOIS_DA_ARTE, POS_APROVACAO } from "@shared/fluxo-peca";
+import { ehMolde } from "@shared/molde";
 
 // Papéis que escrevem em vinculação de patrocinadores — o mesmo conjunto que a
 // rota /vincular-patrocinadores permite no client (App.tsx). Antes essas rotas
@@ -796,6 +797,12 @@ export function registerSponsorRoutes(app: Express): void {
             return;
           }
           const jaPassou = POS_APROVACAO.includes(item.status);
+          // MOLDE (22/09): já na Revisão, não reabre para aprovação — molde não
+          // passa por patrocinador.
+          if (jaPassou && ehMolde(item)) {
+            recusadas.push({ displayId: rotulo, motivo: "é um molde já enviado à Revisão Final — molde não passa por aprovação de patrocinador" });
+            return;
+          }
           if (!ACEITA.includes(item.status) && !jaPassou) {
             recusadas.push({
               displayId: rotulo,
@@ -1001,7 +1008,8 @@ export function registerSponsorRoutes(app: Express): void {
           
           // Check if item has sponsors, skipApproval, or isReuse
           const itemSponsors = await storage.getItemSponsors(itemId);
-          if (itemSponsors.length === 0 && !item.skipApproval && !item.isReuse) {
+          // MOLDE (22/09) não exige patrocinador (shared/molde).
+          if (itemSponsors.length === 0 && !item.skipApproval && !item.isReuse && !ehMolde(item)) {
             errors.push(`Item ${item.displayId} precisa ter patrocinadores vinculados ou "Sem aprovação" marcado`);
             continue;
           }

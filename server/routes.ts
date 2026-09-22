@@ -37,6 +37,7 @@ import { registerPedidosDePecaRoutes } from "./routes/pedidos-de-peca";
 import { registerConsultasDeEstoqueRoutes } from "./routes/consultas-de-estoque";
 import { registerKitRoutes } from "./routes/kit";
 import { registerArtesBuscaRoutes } from "./routes/artes-busca";
+import { registerMoldeRoutes } from "./routes/molde";
 import { db } from "./db";
 import { items as itemsTable } from "@shared/schema";
 import { and, inArray, isNotNull } from "drizzle-orm";
@@ -119,6 +120,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   registerConsultasDeEstoqueRoutes(app);
   registerKitRoutes(app);
   registerArtesBuscaRoutes(app);
+  registerMoldeRoutes(app);
   registerNotificationRoutes(app);
   registerCommentRoutes(app);
   registerPhotoRoutes(app);

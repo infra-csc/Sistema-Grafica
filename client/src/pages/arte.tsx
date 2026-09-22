@@ -33,6 +33,7 @@ import {
   type EventoFinalizadoMotivo,
 } from "@/lib/status";
 import { ehBookCompleto } from "@shared/fluxo-peca";
+import { ehMolde, statusDeExibicao } from "@shared/molde";
 // Raio e paleta vêm de fonte, não do dedo: `R` tem cinco degraus e a Arte
 // chegou a usar dezenove; `P` é a mesma paleta que os selos de status já
 // consomem, e reescrever o hex dela numa tela cria uma cópia que não
@@ -963,6 +964,11 @@ export default function Arte() {
       // tela: a Arte ainda sobe o arquivo final antes da Revisão Final. Dizer
       // "revisão final" prometia pular um passo que não é pulado. O toast, o
       // `title` da linha e o rótulo do botão dizem o mesmo destino.
+      // MOLDE (22/09): sem aprovação e sem finalização — foi direto para a Revisão Final.
+      if (ehMolde(peca)) {
+        toast({ title: id ? `${id} enviado` : "Molde enviado", description: `Molde: foi direto para a Revisão Final (sem aprovação de patrocinador nem arquivo final).${seguindo}` });
+        return;
+      }
       if (peca?.skipApproval) {
         toast({
           title: id ? `${id} enviada` : "Peça enviada",
@@ -2501,7 +2507,8 @@ export default function Arte() {
   const acaoPrimaria = (item: any, tabId: string) => {
     if (!podeEditar) return null;
     if (tabId !== "criar-aprovacoes" && tabId !== "finalizar-layouts") return null;
-    const isSkip = tabId === "criar-aprovacoes" && item.skipApproval;
+    // Molde não é "sem aprovação → finalização": ele envia direto para a Revisão Final.
+    const isSkip = tabId === "criar-aprovacoes" && item.skipApproval && !ehMolde(item);
     return {
       // TINTA, uma cor só.
       //
@@ -2546,7 +2553,7 @@ export default function Arte() {
 
   /** Menu "⋯": ver detalhes, exportar prova e dispensar. */
   const renderMenuAcoes = (item: any) => {
-    const podeDispensar = podeEditar && DISPENSAVEIS_STATUSES.includes(item.status);
+    const podeDispensar = podeEditar && DISPENSAVEIS_STATUSES.includes(item.status) && !ehMolde(item);
     const podeDevolver = podeEditar && !naoDevolvivel(item.status);
     return (
       <Popover>
@@ -2662,7 +2669,7 @@ export default function Arte() {
         title={acao.isSkip
           ? "Sem aprovação de patrocinador — abre a peça para enviar direto à finalização (arquivo final)"
           : acao.canSendDirect
-            ? "Envia AGORA o thumb salvo para a aprovação do patrocinador, sem abrir a peça"
+            ? (ehMolde(item) ? "Molde: envia AGORA o thumb salvo direto para a Revisão Final, sem abrir a peça" : "Envia AGORA o thumb salvo para a aprovação do patrocinador, sem abrir a peça")
             : tabId === "finalizar-layouts"
               ? "Abre a peça para colar o caminho do arquivo final"
               : "Abre a peça para subir o thumb de aprovação"}
@@ -2835,7 +2842,7 @@ export default function Arte() {
             {item.displayId}
           </span>
           <SeloKit peca={item} />
-          {tabId === "finalizados" && <StatusBadge status={item.status} />}
+          {tabId === "finalizados" && <StatusBadge status={statusDeExibicao(item)} />}
           {renderSelosDaFila(item, tabId)}
         </div>
       </td>
@@ -2991,7 +2998,7 @@ export default function Arte() {
         <span style={{ fontFamily: '"DM Mono", monospace', fontWeight: 600, color: '#57534e', fontSize: 12 }}>{item.displayId}</span>
         <SeloKit peca={item} />
         {renderSelosDaFila(item, tabId)}
-        {tabId === "finalizados" && <span style={{ marginLeft: 'auto' }}><StatusBadge status={item.status} /></span>}
+        {tabId === "finalizados" && <span style={{ marginLeft: 'auto' }}><StatusBadge status={statusDeExibicao(item)} /></span>}
       </div>
       <div style={{ fontWeight: 700, fontSize: 13, color: '#1c1917' }}>{item.type}</div>
       {item.description && <div style={{ fontSize: 12, color: '#57534e', marginTop: 2 }}>{item.description}</div>}
@@ -5710,13 +5717,20 @@ export default function Arte() {
                     >
                       {submitForApprovalMutation.isPending
                         ? <><span aria-hidden="true" style={{ width: 13, height: 13, borderRadius: '50%', border: '2px solid #d6d3d1', borderTopColor: '#57534e', animation: 'spin 0.8s linear infinite' }} />Enviando…</>
-                        : <><Send aria-hidden="true" style={{ width: 14, height: 14 }} />{selectedItem.skipApproval ? 'Enviar direto para a finalização (arquivo final)' : 'Enviar para aprovação do patrocinador'}</>}
+                        : <><Send aria-hidden="true" style={{ width: 14, height: 14 }} />{ehMolde(selectedItem) ? 'Enviar para a Revisão Final' : selectedItem.skipApproval ? 'Enviar direto para a finalização (arquivo final)' : 'Enviar para aprovação do patrocinador'}</>}
                     </button>
                     {/* "ENVIOU PARA QUEM?" respondido antes do clique (rodada
                         4). Os nomes já vêm na peça; peça sem aprovação de
                         patrocinador diz isso em vez de listar marcas que não
                         vão decidir nada. */}
                     {(() => {
+                      if (ehMolde(selectedItem)) {
+                        return (
+                          <p data-testid="thumb-vai-para-molde" style={{ margin: '-4px 0 0', fontSize: 12, color: '#57534e', textAlign: 'center', lineHeight: 1.45 }}>
+                            Molde: vai direto para a Revisão Final — sem aprovação de patrocinador nem arquivo final.
+                          </p>
+                        );
+                      }
                       if (selectedItem.skipApproval) {
                         return (
                           <p style={{ margin: '-4px 0 0', fontSize: 12, color: '#57534e', textAlign: 'center', lineHeight: 1.45 }}>

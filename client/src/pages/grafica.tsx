@@ -1,6 +1,9 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { miniatura } from "@/lib/miniatura";
 import { SeloKit } from "@/components/kit/selo-kit";
+import { SeloMolde } from "@/components/kit/selo-kit";
+import { AcoesDoMolde } from "@/components/grafica/acoes-do-molde";
+import { ehMolde, statusDeExibicao, statusParaContagem } from "@shared/molde";
 import { AvisoDoEstoqueNaPeca } from "@/components/consulta-de-estoque/aviso-na-grafica";
 import { EsqueletoDeFila } from "@/components/esqueleto-de-fila";
 import { Link } from "wouter";
@@ -1572,7 +1575,7 @@ export default function Grafica() {
   const statusFilterOptions = useMemo(() => {
     const conta = new Map<string, number>();
     gFacetPool('status').forEach((i: any) => {
-      const s = String(i.status ?? "");
+      const s = statusParaContagem(i); // molde produzido = Entregues (shared/molde)
       const chave = s === "pronto_para_producao" ? "ready_for_production"
         : (s === "awaiting_review" || s === "in_review") ? "awaiting_final_review"
         : s;
@@ -1700,10 +1703,11 @@ export default function Grafica() {
   const stats = useMemo(() => ({
     liberados:  statsPool.filter((i: any) => i.status === 'approved' || i.status === 'ready_for_production' || i.status === 'pronto_para_producao').length,
     emProducao: statsPool.filter((i: any) => i.status === 'inProduction').length,
-    produzidos: statsPool.filter((i: any) => i.status === 'produced').length,
+    // MOLDE (22/09): produzido é o FIM dele — conta em Entregues, não em Impresso.
+    produzidos: statsPool.filter((i: any) => i.status === 'produced' && !ehMolde(i)).length,
     conferidos: statsPool.filter((i: any) => i.status === 'conferred').length,
     embalados:  statsPool.filter((i: any) => i.status === 'packed').length,
-    entregues:  statsPool.filter((i: any) => i.status === 'delivered').length,
+    entregues:  statsPool.filter((i: any) => statusParaContagem(i) === 'delivered').length,
     revisao:    statsPool.filter((i: any) => EM_REVISAO.has(i.status)).length,
     total:      statsPool.length,
   }), [statsPool]);
@@ -2174,7 +2178,7 @@ export default function Grafica() {
   const etiquetaveisPorEvento = useMemo(() => {
     const m = new Map<string, number>();
     for (const i of filteredItems as any[]) {
-      if (!(conferredOf(i) > 0 || isPosConferencia(i) || isDelivered(i))) continue;
+      if (ehMolde(i) || !(conferredOf(i) > 0 || isPosConferencia(i) || isDelivered(i))) continue; // molde não tem etiqueta
       const id = String(i.eventId ?? "");
       if (!id) continue;
       m.set(id, (m.get(id) ?? 0) + 1);
@@ -2187,7 +2191,7 @@ export default function Grafica() {
   const tubaveisPorEvento = useMemo(() => {
     const m = new Map<string, number>();
     for (const i of filteredItems as any[]) {
-      if (!(podeIrParaTubo(i.status) || i.tuboId)) continue;
+      if (ehMolde(i) || !(podeIrParaTubo(i.status) || i.tuboId)) continue; // molde não vai para tubo
       const id = String(i.eventId ?? "");
       if (!id) continue;
       m.set(id, (m.get(id) ?? 0) + 1);
@@ -3824,7 +3828,8 @@ export default function Grafica() {
                         <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 15, fontWeight: 700, color: item.isReuse ? '#047857' : '#c2410c' }}>
                           {(() => { const { base, suffix } = splitDisplayId(item.displayId); return (<>{base}{suffix && <span style={{ color: CO.suffix }}>{suffix}</span>}</>); })()}
                         </span>
-                        <StatusPill status={item.status} size="sm" showDot={false} />
+                        <StatusPill status={statusDeExibicao(item)} size="sm" showDot={false} />
+                        <SeloMolde peca={item} />
                         {(() => {
                           const d = diasNaFase(item, new Date());
                           if (d === null || d < 1) return null;
@@ -3989,7 +3994,13 @@ export default function Grafica() {
                           secundárias (Reaproveitar, Corrigir, Devolver) dividem a
                           linha de baixo; contrato (Aumentar, Cancelar) por último.
                           8px entre botões: com 6 o dedo de luva pegava o vizinho. */}
-                      {!bulkOn && (temGrupoFluxo || temGrupoContrato) && (
+                      {/* MOLDE (22/09): uma ação só — "Marcar como produzido" (ou desfazer). */}
+                      {!bulkOn && ehMolde(item) && (
+                        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'stretch', gap: 8, padding: '0 12px 12px' }}>
+                          <AcoesDoMolde item={item} podeProduzir={canProduce} selo={selo} cartao />
+                        </div>
+                      )}
+                      {!bulkOn && !ehMolde(item) && (temGrupoFluxo || temGrupoContrato) && (
                         <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'stretch', gap: 8, padding: '0 12px 12px' }}>
                           {/* PRODUZIR — o celular só tinha Entregar e Conferir.
                               Num complemento isso é o pior buraco possível: a
@@ -4816,7 +4827,7 @@ export default function Grafica() {
                           coluna reserva a largura dela inteira. "há Nd" já é
                           uma linha própria (div) logo abaixo. */}
                       <td style={{ padding: "13px 16px", whiteSpace: "nowrap" }}>
-                        <StatusPill status={item.status} size="sm" showDot={false} />
+                        <StatusPill status={statusDeExibicao(item)} size="sm" showDot={false} />
                         {(() => {
                           const d = diasNaFase(item, new Date());
                           if (d === null || d < 1) return null;
@@ -4865,6 +4876,10 @@ export default function Grafica() {
                           </button>
                           )}
 
+                          {/* MOLDE (22/09): o trilho inteiro vira UMA ação — "Marcar como
+                              produzido" (ou desfazer). Nada de impressora, conferir,
+                              embalar, tubo ou entregar: o fluxo dele morre no Produzido. */}
+                          {ehMolde(item) ? (!bulkOn && <AcoesDoMolde item={item} podeProduzir={canProduce} selo={selo} />) : (<>
                           {/* ── MENU "⋯" DAS SECUNDÁRIAS (tabela COMPACTA) ──
                               Na faixa compacta (notebook, sidebar aberta) a
                               coluna de Ações é sticky: cada px dela sai das
@@ -5310,6 +5325,7 @@ export default function Grafica() {
                               <Check style={{ width: 13, height: 13 }} /> Entregue
                             </span>
                           )}
+                          </>)}
                         </div>
                       </td>
                     </tr>
@@ -5713,7 +5729,7 @@ export default function Grafica() {
                           </span>
                         )}
                       </span>
-                      <StatusPill status={selectedItem.status} size="sm" showDot={false} />
+                      <StatusPill status={statusDeExibicao(selectedItem)} size="sm" showDot={false} />
                     </div>
                     <div style={{ fontSize: 15, fontWeight: 700, color: TI.text }}>{selectedItem.type}</div>
                     {selectedItem.description && selectedItem.description !== selectedItem.type && (

@@ -19,6 +19,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { isDelivered, isComplement, isInProd, reusedTotalOf, type SaldoItem } from "./saldo";
+import { statusParaContagem } from "@shared/molde";
 import { normalizarBusca } from "./utils";
 
 /** Forma mínima de peça que o recorte enxerga (o item cru da API é `any`). */
@@ -371,7 +372,8 @@ export function itemCasaFiltros(
   }
 
   if (!ignorarStatus && excluir !== "status") {
-    if (f.status.length > 0 && !f.status.some((s) => casaStatus(String(item.status ?? ""), s))) return false;
+    // Molde produzido casa com "Entregues" — o card que o conta (shared/molde).
+    if (f.status.length > 0 && !f.status.some((s) => casaStatus(statusParaContagem(item as { type?: string | null; status?: string | null }), s))) return false;
   }
   // A ocultação das entregues não é um filtro: é o padrão da tela, e ela CEDE
   // aos recortes que pedem pelas entregues (`escondeEntregues`). Por isso a

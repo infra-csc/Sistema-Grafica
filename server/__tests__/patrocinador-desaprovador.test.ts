@@ -82,11 +82,13 @@ describe("2 · uma função, quatro chamadas", () => {
     expect(ITEMS).toContain("if (['awaiting_arte', 'new_version_pending', 'rejected'].includes(approval.status) || estritoAprovado) {");
   });
 
-  it("a troca do thumb só revoga em aprovação/aprovado — e devolve a peça aprovada para a aprovação", () => {
+  it("a troca do thumb só revoga na peça aprovada — e a devolve para a aprovação", () => {
+    // Em aprovação a troca é recusada (shared/troca-de-material.ts), então a
+    // revogação só acontece a partir de "aprovado pelo patrocinador".
     const i = ITEMS.indexOf('origem: "troca"');
-    const trecho = ITEMS.slice(i, i + 2200);
-    expect(trecho).toContain('if (currentItem.status === "awaiting_sponsor_approval" || currentItem.status === "sponsor_approved") {');
-    expect(trecho).toContain('if (revogados.length > 0 && currentItem.status === "sponsor_approved") {');
+    const trecho = ITEMS.slice(i, i + 2600);
+    expect(trecho).toContain('if (currentItem.status === "sponsor_approved") {');
+    expect(trecho).toContain("if (revogados.length > 0) {");
     expect(trecho).toContain('status: "awaiting_sponsor_approval", rejectedBySponsor: false');
     expect(trecho).toContain('targetRoles: ["atendimento"]');
   });

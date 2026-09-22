@@ -19,6 +19,7 @@ import { db } from "../db";
 import { events } from "@shared/schema";
 import { eq } from "drizzle-orm";
 import { storage } from "../storage";
+import { executarComoLider } from "./lideranca";
 import { prioridadePelaSaida } from "@shared/prioridade-do-evento";
 import { motivoEventoFinalizado, todayBusinessMs } from "@shared/prazo-dates";
 
@@ -54,7 +55,8 @@ export async function aplicarPrioridadeAutomatica(): Promise<{ ajustados: number
 export function startPrioridadeAutomatica(): void {
   const tick = async () => {
     try {
-      await aplicarPrioridadeAutomatica();
+      // Uma cópia por hora (services/lideranca.ts).
+      await executarComoLider("prioridade-automatica", aplicarPrioridadeAutomatica, { janelaMs: 60 * 60 * 1000 });
     } catch (e) {
       console.error("[prioridadeAutomatica] falhou (npm run db:push pendente?):", (e as Error).message);
     }

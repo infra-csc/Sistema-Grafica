@@ -9,6 +9,11 @@
 // acontece e invalida o cache, a leitura (com o dado de ANTES da escrita)
 // termina e grava — e esse dado velho era servido pelo TTL inteiro justamente
 // para as abas que o broadcast mandou recarregar.
+//
+// VÁRIAS CÓPIAS: o deploy é autoscale, e cada cópia tem o seu cache. A
+// escrita feita numa cópia invalida o cache DELA; as outras só ficam sabendo
+// pelo canal do tempo real (server/tempo-real.ts), que repassa o sinal e
+// chama invalidarCachesDaMensagem / invalidarCacheLocal do lado de lá.
 
 // ── Events cache ─────────────────────────────────────────────────────────────
 export let eventsCache: { data: unknown; expiresAt: number } | null = null;
@@ -52,8 +57,51 @@ export function invalidateNotificationsCache(): void {
   notifGeneration += 1;
 }
 
-// ── Flush all caches (called by broadcast) ───────────────────────────────────
+// ── Flush all caches ─────────────────────────────────────────────────────────
 export function invalidateAllCaches(): void {
   invalidateEventsCache();
   invalidateNotificationsCache();
+  cachesRegistrados.forEach((limpar) => limpar());
+}
+
+/**
+ * O que cada mensagem do tempo real derruba NESTA cópia. Seletivo: mensagem
+ * de notificação só invalida o cache de notificações; o resto (peça, evento,
+ * produção…) invalida o de eventos, que deriva contadores das peças. Antes
+ * QUALQUER mensagem derrubava o de eventos, e com mutações contínuas o TTL de
+ * 30s era efetivamente zero.
+ */
+export function invalidarCachesDaMensagem(tipo: string): void {
+  if (tipo === "connected" || tipo === "resync") return;
+  if (tipo.startsWith("notification")) invalidateNotificationsCache();
+  else invalidateEventsCache();
+}
+
+// ── Caches de outros módulos, invalidados em todas as cópias ────────────────
+// Um módulo com cache próprio (ex.: routes/versoes.ts) registra aqui o seu
+// "limpar" com um nome; quem escreve chama invalidarCacheNoCluster(nome), que
+// limpa aqui e manda o nome pelo canal para as outras cópias limparem lá.
+const cachesRegistrados = new Map<string, () => void>();
+let publicarInvalidacao: (nome: string) => void = () => {};
+
+export function registrarCache(nome: string, limpar: () => void): void {
+  cachesRegistrados.set(nome, limpar);
+}
+
+/** Só o tempo real chama: é como a invalidação chega às outras cópias. */
+export function definirPublicadorDeInvalidacao(fn: (nome: string) => void): void {
+  publicarInvalidacao = fn;
+}
+
+/** Limpa só nesta cópia (quem chama é o canal, ao receber de outra cópia). */
+export function invalidarCacheLocal(nome: string): void {
+  if (nome === "eventos") invalidateEventsCache();
+  else if (nome === "notificacoes") invalidateNotificationsCache();
+  else cachesRegistrados.get(nome)?.();
+}
+
+/** Limpa aqui e avisa as outras cópias. */
+export function invalidarCacheNoCluster(nome: string): void {
+  invalidarCacheLocal(nome);
+  publicarInvalidacao(nome);
 }

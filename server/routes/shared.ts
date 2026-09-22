@@ -2,11 +2,11 @@
 // route modules (server/routes/*.ts). Extracted from the former monolithic
 // server/routes.ts during the routes.ts → routes/* split — no behavior
 // changes, just centralizing what multiple modules depend on.
-import { WebSocket } from "ws";
 import { z } from "zod";
 import { storage } from "../storage";
 import { statusParaContagem } from "@shared/molde";
-import { invalidateEventsCache, invalidateNotificationsCache } from "../cache";
+import { publicarMensagem } from "../tempo-real";
+import type { MensagemWS } from "@shared/ws-mensagens";
 
 // Extend Express Request type to include userName and userId
 declare global {
@@ -33,30 +33,15 @@ declare module "express-session" {
   }
 }
 
-// WebSocket clients set
-export const wsClients = new Set<WebSocket>();
+// Sockets abertos NESTA cópia do servidor (moram em server/tempo-real.ts).
+export { wsClients } from "../tempo-real";
 
-// Broadcast function for real-time updates.
-// Also flushes server-side caches so the next read reflects the mutation.
-// SELETIVO (auditoria 27/08): antes QUALQUER mensagem — inclusive
-// notification_read — derrubava o cache de /api/events, e com mutações
-// contínuas o TTL de 30s era efetivamente zero. Mensagem de notificação só
-// invalida o cache de notificações; o resto (item_*, event_*, production_*)
-// invalida o de eventos, que deriva contadores das peças.
-export function broadcast(data: any) {
-  const tipo = String((data as any)?.type ?? "");
-  if (tipo.startsWith("notification")) {
-    invalidateNotificationsCache();
-  } else {
-    invalidateEventsCache();
-  }
-
-  const message = JSON.stringify(data);
-  wsClients.forEach((client) => {
-    if (client.readyState === WebSocket.OPEN) {
-      client.send(message);
-    }
-  });
+// Tempo real. A mensagem vira um SINAL (tipo + ids, shared/ws-mensagens.ts):
+// o navegador busca o dado pela API, que aplica o recorte do Kit e do perfil.
+// Invalida os caches desta cópia, entrega aos sockets daqui e publica no canal
+// do Postgres para as outras cópias fazerem o mesmo (server/tempo-real.ts).
+export function broadcast(data: MensagemWS) {
+  publicarMensagem(data);
 }
 
 // Helper to translate status to Portuguese
@@ -312,11 +297,26 @@ export const requireRole = (...roles: string[]) => (req: any, res: any, next: an
   next();
 };
 
+function chaveDoIp(req: any): string {
+  return req.ip || req.socket?.remoteAddress || "unknown";
+}
+
+/**
+ * Chave do limitador de escrita: o USUÁRIO da sessão. O galpão inteiro sai
+ * para a internet por um IP só — por IP, dez pessoas conferindo juntas
+ * dividiam uma cota e a décima levava 429. Sem sessão (login, SSO), o IP.
+ */
+export function chaveDoUsuarioOuIp(req: any): string {
+  const userId = req.session?.userId;
+  return userId ? `u:${userId}` : `ip:${chaveDoIp(req)}`;
+}
+
 // Simple in-memory rate limiter (no new dependency needed) — protects
 // credential-related endpoints from brute-force attempts. Keyed by IP.
 // Not distributed-safe (per-process only), which is an acceptable
 // trade-off for this single-instance deployment.
-export function createRateLimiter(opts: { windowMs: number; max: number; message: string }) {
+// `chave`: de quem é a contagem (padrão: o IP).
+export function createRateLimiter(opts: { windowMs: number; max: number; message: string; chave?: (req: any) => string }) {
   const hits = new Map<string, { count: number; resetAt: number }>();
   setInterval(() => {
     const now = Date.now();
@@ -324,7 +324,7 @@ export function createRateLimiter(opts: { windowMs: number; max: number; message
   }, 60_000);
 
   return (req: any, res: any, next: any) => {
-    const key = req.ip || req.socket?.remoteAddress || "unknown";
+    const key = opts.chave ? opts.chave(req) : chaveDoIp(req);
     const now = Date.now();
     const entry = hits.get(key);
 
@@ -355,9 +355,12 @@ export const changePasswordRateLimiter = createRateLimiter({
 
 // General write rate limiter — applied to all mutation routes (POST/PUT/PATCH/DELETE)
 // to slow down automated scripts without affecting normal human usage.
-// 300 mutations per 5 minutes per IP ≈ 1 req/sec sustained, well above any human.
+// 300 mutações em 5 min POR USUÁRIO (≈ 1/s sustentado, acima de qualquer
+// pessoa). Por cópia do servidor: com várias cópias o teto real é maior — é
+// freio de script, não cota.
 export const writeRateLimiter = createRateLimiter({
   windowMs: 5 * 60 * 1000,
   max: 300,
   message: "Muitas requisições. Aguarde alguns minutos antes de continuar.",
+  chave: chaveDoUsuarioOuIp,
 });

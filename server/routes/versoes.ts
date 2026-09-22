@@ -45,6 +45,7 @@ import { storage } from "../storage";
 import { auditLogs } from "@shared/schema";
 import { requireAuth } from "./shared";
 import { sql } from "drizzle-orm";
+import { invalidarCacheNoCluster, registrarCache } from "../cache";
 
 export type VersaoDaArte = {
   thumbUrl: string;
@@ -172,15 +173,15 @@ let cache: DadosDeVersoes | null = null;
  * — numa tela cujo trabalho é justamente conferir o que está valendo agora.
  */
 export function invalidarCacheDeVersoes(): void {
-  cache = null;
+  // Em todas as cópias do servidor, não só nesta (ver cache.ts).
+  invalidarCacheNoCluster("versoes");
 }
+registrarCache("versoes", () => { cache = null; });
 
 /** Usuário do Kit (14/09): o cache é de todos; o recorte dele sai aqui. */
 async function doUsuario(req: any, dados: DadosDeVersoes): Promise<DadosDeVersoes> {
   if (!req.userKit) return dados;
-  const minhas = new Set((await storage.getAllItems())
-    .filter((i) => !!i.kitRemessaId && i.criadoPorId === req.userId)
-    .map((i) => i.id));
+  const minhas = new Set(await storage.getIdsDasPecasDoKitDoCriador(req.userId ?? null));
   return { ...dados, itens: dados.itens.filter((p: any) => minhas.has(p.id)) };
 }
 

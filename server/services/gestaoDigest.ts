@@ -51,6 +51,7 @@ import { entregarEmail, getBookEmailConfig, separarDestinatarios, type BookEmail
 import { agoraNoFuso, ehProducao } from "./revisaoDigest";
 import { destinatariosDoCanal } from "./destinatarios";
 import { reservarDisparo, anotarDesfecho } from "./reservaDeDisparo";
+import { executarComoLider } from "./lideranca";
 import { eventDayMs, todayBusinessMs, EVENT_CLOSED_STATUS } from "@shared/prazo-dates";
 
 /**
@@ -649,7 +650,8 @@ export function startGestaoDigest(): void {
       // (jaAvisou); como fila vazia também consome a edição, o custo do
       // minuto a minuto dentro da hora é um SELECT de uma linha.
       if (!HORARIOS_DA_GESTAO.includes(hora)) return;
-      await enviarAvisoDaGestao(agora);
+      // Uma cópia por vez (a edição em si é da reserva de disparo).
+      await executarComoLider("aviso-da-gestao", () => enviarAvisoDaGestao(agora));
     } catch (error) {
       console.error("[gestao-digest] erro no tique", error);
     }

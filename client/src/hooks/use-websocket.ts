@@ -2,7 +2,11 @@ import { useEffect, useRef, useCallback } from 'react';
 import type { Query } from '@tanstack/react-query';
 import { queryClient } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
-import { chavesDaMensagem, CHAVE_MAQUINAS, CHAVE_RELATORIO_DE_MAQUINAS } from '@/lib/tempo-real-grafica';
+import {
+  alvosDaMensagem, predicadoDoAlvo, CHAVES_POR_MENSAGEM, CHAVE_MAQUINAS, CHAVE_RELATORIO_DE_MAQUINAS,
+  type AlvoPorMolde,
+} from '@/lib/tempo-real-grafica';
+import type { SinalWS } from '@shared/ws-mensagens';
 
 const RECONNECT_BASE_DELAY_MS = 1000;
 const RECONNECT_MAX_DELAY_MS = 30000;
@@ -51,6 +55,22 @@ export function onConexaoTempoReal(fn: (conectado: boolean) => void): () => void
   conexaoListeners.add(fn);
   fn(conectadoAgora);
   return () => { conexaoListeners.delete(fn); };
+}
+
+/** O tempo real está de pé agora? (Lido na hora — não é reativo.) */
+export function tempoRealConectado(): boolean {
+  return conectadoAgora;
+}
+
+/**
+ * refetchInterval das telas de parede (Máquinas, tubos): com o socket de pé,
+ * a mudança chega pelo WebSocket e o polling é só rede de segurança (5 min);
+ * com ele caído, volta ao ritmo curto da tela. Aba escondida não busca (é o
+ * padrão do TanStack: refetchIntervalInBackground = false).
+ */
+export const POLLING_COM_TEMPO_REAL_MS = 5 * 60_000;
+export function intervaloDePolling(semTempoRealMs: number): () => number {
+  return () => (conectadoAgora ? POLLING_COM_TEMPO_REAL_MS : semTempoRealMs);
 }
 
 function avisarConexao(conectado: boolean) {
@@ -134,8 +154,10 @@ export function useWebSocket() {
   const pesadasPendentesRef = useRef<Set<string>>(new Set());
   const pesadasTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const rajadaDesdeRef = useRef(0);
-  const invalidateCoalesced = useCallback((...keyParts: string[]) => {
-    pesadasPendentesRef.current.add(JSON.stringify(keyParts));
+  // Aceita queryKey (partes) ou um alvo por molde (lib/tempo-real-grafica):
+  // os dois entram na mesma rajada.
+  const agendarNoCoalescer = useCallback((alvo: string[] | AlvoPorMolde) => {
+    pesadasPendentesRef.current.add(JSON.stringify(alvo));
     const agora = Date.now();
     if (pesadasTimerRef.current) {
       // Rajada já no teto: o timer armado dispara no prazo, com esta chave junto.
@@ -147,11 +169,40 @@ export function useWebSocket() {
     const espera = Math.min(COALESCER_JANELA_MS, Math.max(0, rajadaDesdeRef.current + COALESCER_TETO_MS - agora));
     pesadasTimerRef.current = setTimeout(() => {
       pesadasTimerRef.current = null;
-      const chaves = Array.from(pesadasPendentesRef.current, (s) => JSON.parse(s) as string[]);
+      const alvos = Array.from(pesadasPendentesRef.current, (s) => JSON.parse(s) as string[] | AlvoPorMolde);
       pesadasPendentesRef.current.clear();
-      for (const queryKey of chaves) invalidarSemPerderCargaEmVoo(queryKey);
+      for (const alvo of alvos) {
+        if (Array.isArray(alvo)) invalidarSemPerderCargaEmVoo(alvo);
+        else {
+          const casa = predicadoDoAlvo(alvo);
+          queryClient.invalidateQueries({ predicate: (q) => casa(q.queryKey) });
+        }
+      }
     }, espera);
   }, []);
+  const invalidateCoalesced = useCallback((...keyParts: string[]) => agendarNoCoalescer(keyParts), [agendarNoCoalescer]);
+
+  // Houve um buraco (socket caiu, ou o servidor ficou sem o canal entre
+  // cópias — `resync`): toda mutação de outro usuário nesse meio tempo passou
+  // sem invalidar nada. Com staleTime Infinity o cache não expira sozinho.
+  const revalidarDepoisDoBuraco = useCallback(() => {
+    // O painel do diretor servia o agregado de antes da queda — errado com
+    // cara de certo, que é o pior modo de falha de um painel.
+    invalidarSemPerderCargaEmVoo(['/api/prazos']);
+    // Mesma cura para a trilha de auditoria.
+    invalidarSemPerderCargaEmVoo(['/api/audit-logs']);
+    // ...e para as chaves que sustentam as telas de trabalho: Painel Geral
+    // ('/api/items'), Gráfica ('/api/items/approved', prefixo próprio), a aba
+    // Máquinas (senão as duas telas diziam coisas diferentes da mesma
+    // impressora), eventos e o sino. Pelo coalescer: buraco seguido de rajada
+    // re-baixa cada chave UMA vez.
+    invalidateCoalesced('/api/items');
+    invalidateCoalesced('/api/items/approved');
+    invalidateCoalesced(CHAVE_MAQUINAS);
+    invalidateCoalesced(CHAVE_RELATORIO_DE_MAQUINAS);
+    invalidateCoalesced('/api/events');
+    invalidateCoalesced('/api/notifications');
+  }, [invalidateCoalesced]);
 
   const connect = useCallback(() => {
     if (unmountedRef.current) return;
@@ -189,34 +240,16 @@ export function useWebSocket() {
         }
         return;
       }
-      // Reconectar significa que houve um buraco: enquanto o socket esteve
-      // fora, toda mutação de outro usuário passou sem invalidar nada. Sem
-      // esta linha o painel do diretor servia o agregado de antes da queda —
-      // errado com cara de certo, que é o pior modo de falha de um painel.
-      invalidarSemPerderCargaEmVoo(['/api/prazos']);
-      // Mesmo buraco, mesma cura, para a trilha de auditoria: enquanto o socket
-      // esteve fora, toda ação de outro usuário passou sem invalidar nada.
-      invalidarSemPerderCargaEmVoo(['/api/audit-logs']);
-      // ...e para as três chaves que sustentam as telas de trabalho. Só
-      // '/api/prazos' era revalidado, então TODA mutação ocorrida durante a
-      // queda ficava invisível no Painel Geral ('/api/items'), na Gráfica
-      // ('/api/items/approved', prefixo próprio — ver item_updated abaixo) e no
-      // sino ('/api/notifications'). Com staleTime Infinity o cache não expira
-      // sozinho: sem estas linhas só o F5 corrigia.
-      // Pelo coalescer: reconexão seguida de rajada re-baixa cada chave UMA vez.
-      invalidateCoalesced('/api/items');
-      invalidateCoalesced('/api/items/approved');
-      // A aba Máquinas também: a queda passou sem invalidar o retrato dela, e
-      // as duas telas ficavam dizendo coisas diferentes da mesma impressora.
-      invalidateCoalesced(CHAVE_MAQUINAS);
-      invalidateCoalesced(CHAVE_RELATORIO_DE_MAQUINAS);
-      invalidateCoalesced('/api/events');
-      invalidateCoalesced('/api/notifications');
+      // Reconectar significa que houve um buraco (ver revalidarDepoisDoBuraco).
+      revalidarDepoisDoBuraco();
     };
 
     ws.onmessage = (event) => {
       try {
-        const data = JSON.parse(event.data);
+        // O servidor manda só o SINAL (tipo + ids, shared/ws-mensagens.ts):
+        // nada aqui lê peça, evento ou comentário da mensagem — a tela busca
+        // pela API, que aplica o recorte do Kit e do perfil.
+        const data = JSON.parse(event.data) as SinalWS;
 
         // Gestão de Prazos deriva de eventos+itens: qualquer mutação nesses
         // domínios invalida '/api/prazos' — com o staleTime Infinity padrão,
@@ -227,8 +260,8 @@ export function useWebSocket() {
         // `prazo_` no regex: o broadcast da cobrança não casava com a lista
         // antiga, então a cobrança registrada por um diretor nunca aparecia na
         // aba do outro — e dois gestores ligavam para o mesmo responsável no
-        // mesmo dia.
-        if (/^(event_|item|production_|deadline_alert|prazo_)/.test(data.type)) {
+        // mesmo dia. `sponsor_approval`: a pendência do patrocinador conta.
+        if (/^(event_|item|production_|deadline_alert|prazo_|sponsor_approval)/.test(data.type)) {
           if (prazosInvalidateTimer) clearTimeout(prazosInvalidateTimer);
           prazosInvalidateTimer = setTimeout(() => {
             prazosInvalidateTimer = null;
@@ -249,64 +282,46 @@ export function useWebSocket() {
           }, 500);
         }
 
-        // O QUE CADA MENSAGEM INVALIDA mora num mapa testado
+        // O QUE CADA MENSAGEM INVALIDA mora num mapa testado e exaustivo
         // (lib/tempo-real-grafica.ts): cada `case` listava as chaves à mão e
         // foi assim que a peça liberada, a devolvida em lote e a excluída
         // chegavam à fila da Gráfica e não à aba Máquinas (ou vice-versa).
         // Tudo passa pelo coalescer — os prefixos cobrem as chaves por id.
-        for (const chave of chavesDaMensagem(data)) invalidateCoalesced(...chave);
+        if (!(data.type in CHAVES_POR_MENSAGEM)) {
+          console.log('Unknown WebSocket message type:', data.type);
+          return;
+        }
+        for (const alvo of alvosDaMensagem(data)) agendarNoCoalescer(alvo);
 
+        // Só os AVISOS (toast) e o resync moram aqui. Sem toast para o resto:
+        // quem agiu já recebeu o feedback da própria mutation, e o eco do
+        // broadcast viraria aviso dobrado.
         switch (data.type) {
           case 'connected':
             console.log('WebSocket connection confirmed');
             break;
 
-          case 'event_created':
-            toast({
-              title: 'Novo evento criado',
-              description: data.event?.name,
-            });
+          case 'resync':
+            revalidarDepoisDoBuraco();
             break;
 
-          // Encerrar/reabrir muda o que TODA aba vê: o evento sai (ou volta
-          // para) a Gestão de Prazos e as filas — as FILAS DE TRABALHO leem
-          // `item.event.status` do payload de PEÇAS, por isso o mapa invalida
-          // '/api/items' e a fila da Gráfica junto. Sem toast para
-          // closed/reopened: quem clicou já recebeu o feedback da própria
-          // mutation, e o eco do broadcast viraria aviso dobrado.
-          case 'event_updated':
-          case 'event_deleted':
-          case 'event_urgent':
-          case 'event_closed':
-          case 'event_reopened':
+          case 'event_created':
+            toast({ title: 'Novo evento criado', description: data.nome });
             break;
 
           case 'item_created':
-            // Sem o tipo no payload a frase virava "Item undefined adicionado".
             toast({
               title: 'Nova peça adicionada',
-              description: data.item?.type ? `Peça ${data.item.type} entrou na lista.` : undefined,
+              description: data.tipoDaPeca ? `Peça ${data.tipoDaPeca} entrou na lista.` : undefined,
             });
-            break;
-
-          // item_updated é o broadcast de /confer, /mark-reuse, /correct-reuse,
-          // da reserva de impressora e do tirar/trocar em Máquinas; a entrega,
-          // a exclusão e os lotes também mexem em peça que as duas telas
-          // mostram. Sem toast: quem agiu já recebeu o feedback local.
-          case 'item_updated':
-          case 'item_delivered':
-          case 'items_book_updated':
-          case 'item_deleted':
-          case 'items_bulk_updated':
-          case 'tubos_atualizados':
             break;
 
           case 'items_bulk_created':
             toast({
               title: 'Peças adicionadas',
-              description: (data.items?.length || 0) === 1
+              description: (data.count || 0) === 1
                 ? '1 peça adicionada ao evento'
-                : `${data.items?.length || 0} peças adicionadas ao evento`,
+                : `${data.count || 0} peças adicionadas ao evento`,
             });
             break;
 
@@ -322,104 +337,36 @@ export function useWebSocket() {
           case 'item_approved':
             toast({
               title: 'Peça liberada',
-              description: data.item?.type ? `Peça ${data.item.type} aprovada para produção` : 'Aprovada para produção',
+              description: data.tipoDaPeca ? `Peça ${data.tipoDaPeca} aprovada para produção` : 'Aprovada para produção',
             });
             break;
 
-          case 'production_started':
-          case 'production_updated':
-            // SEM toast (revisão adversarial, 22/09): o servidor manda
-            // `production_started` a cada lançamento de impressas — no galpão
-            // era "Impressão iniciada" pipocando na tela de TODO mundo o dia
-            // inteiro, inclusive para quem nem lida com impressão. As chaves
-            // já foram invalidadas acima (chavesDaMensagem); quem fez o gesto
-            // recebe o próprio toast da mutation, com a frase certa.
-            break;
+          // production_started / production_updated: SEM toast (revisão
+          // adversarial, 22/09) — o servidor manda `production_started` a
+          // cada lançamento de impressas; no galpão era "Impressão iniciada"
+          // pipocando na tela de TODO mundo o dia inteiro.
 
           case 'deadline_alert':
             toast({
               // Sem emoji: o toast de erro já traz ícone e cor de alerta, e o
               // emoji renderizava diferente em cada sistema operacional.
               title: 'Prazo perto do fim',
-              description: data.event?.name
-                ? `Faltam ${data.hoursRemaining}h para a saída · ${data.event.name}`
+              description: data.nome
+                ? `Faltam ${data.hoursRemaining}h para a saída · ${data.nome}`
                 : `Faltam ${data.hoursRemaining}h para a saída`,
               variant: 'destructive',
             });
             break;
 
           case 'inventory_awaiting_triage':
-            queryClient.invalidateQueries({ queryKey: ['/api/inventory/awaiting-triage'] });
-            queryClient.invalidateQueries({ queryKey: ['/api/inventory'] });
             toast({
               title: 'Material aguarda triagem',
               description: data.message || `Materiais do evento retornaram e aguardam triagem.`,
             });
             break;
 
-          case 'inventory_in_use':
-            queryClient.invalidateQueries({ queryKey: ['/api/inventory'] });
-            break;
-
-          // UMA mensagem por peça triada: salvar 24 no quadro eram 24 recargas
-          // completas da fila e do acervo em CADA aba aberta. Pelo coalescer,
-          // a rajada inteira vira uma recarga de cada chave (revisão 22/09).
-          case 'inventory_triaged':
-            invalidateCoalesced('/api/inventory/awaiting-triage');
-            invalidateCoalesced('/api/inventory');
-            break;
-
-          case 'standard_item_created':
-            queryClient.invalidateQueries({ queryKey: ['/api/standard-items'] });
-            break;
-
-          // ── Patrocinadores ──
-          // Quem cadastrava um patrocinador numa aba não o encontrava no
-          // seletor da outra; '/api/sponsors/usage' é a contagem ao lado de
-          // cada nome — ficar defasada é o que faz alguém excluir um
-          // patrocinador achando que ele não é usado por ninguém. O vínculo
-          // peça↔patrocinador também muda a linha da Gráfica e o cartão de
-          // Máquinas (o apoio). As chaves estão no mapa.
-          case 'sponsor_created':
-          case 'sponsor_updated':
-          case 'sponsor_deleted':
-          case 'item_sponsor_added':
-          case 'item_sponsor_removed':
-          case 'event_sponsor_updated':
-          case 'event_sponsor_removed':
-            break;
-
-          case 'pedidos_de_peca':
-            // Pedidos de peça do Atendimento (14/09): a aba do Atendimento,
-            // o selo de Eventos e o painel do evento leem chaves com filtro
-            // na URL — invalida todas pelo prefixo.
-            queryClient.invalidateQueries({ predicate: (q) => String(q.queryKey[0] ?? '').startsWith('/api/pedidos-de-peca') });
-            break;
-
-          case 'consultas_de_estoque':
-            // Consulta de estoque da Revisão Final (21/09): a caixa da Gráfica,
-            // o número do menu, a ficha da peça e o aviso na fila leem chaves
-            // diferentes: "/api/consultas-de-estoque…" e, na ficha,
-            // ["/api/items", id, "consulta-de-estoque"].
-            queryClient.invalidateQueries({
-              predicate: (q) =>
-                String(q.queryKey[0] ?? '').startsWith('/api/consultas-de-estoque')
-                || q.queryKey.includes('consulta-de-estoque'),
-            });
-            break;
-
-          case 'notification_created':
-          case 'notification_read':
-            break;
-
-          case 'prazo_cobranca':
-            // A invalidação de '/api/prazos' já aconteceu no bloco acima (com
-            // debounce). O case existe para não cair no `default` e poluir o
-            // console com "Unknown WebSocket message type" a cada cobrança.
-            break;
-
           default:
-            console.log('Unknown WebSocket message type:', data.type);
+            break;
         }
       } catch (error) {
         console.error('Error parsing WebSocket message:', error);
@@ -448,7 +395,7 @@ export function useWebSocket() {
         }
       }, delay);
     };
-  }, [toast, invalidateCoalesced]);
+  }, [toast, agendarNoCoalescer, revalidarDepoisDoBuraco]);
 
   useEffect(() => {
     unmountedRef.current = false;

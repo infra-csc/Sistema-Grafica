@@ -95,13 +95,16 @@ async function montar(px: number, busca = "") {
 }
 
 const ESCONDIDOS = ["select-sponsor-filter", "select-type-filter", "select-material-filter", "select-month-filter",
-  "select-period-filter", "button-next-10-days-filter", "segment-atrasado", "segment-urgente", "segment-thumb",
+  "select-period-filter", "segment-atrasado", "segment-urgente", "segment-thumb",
   "segment-final"];
-// Ordenar fica à vista, UMA vez só, e nunca dentro da faixa/folha.
+// Ordenar e "Saída 10 dias" ficam à vista, UMA vez só, e nunca dentro da
+// faixa/folha (dono, 22/09).
 function ordenarAVistaForaDaFaixa() {
-  const todos = document.querySelectorAll('[data-testid="select-ordenar"]');
-  expect(todos.length).toBe(1);
-  expect(todos[0].closest("#arte-mais-filtros, #arte-folha-filtros")).toBeNull();
+  for (const id of ["select-ordenar", "button-next-10-days-filter"]) {
+    const todos = document.querySelectorAll(`[data-testid="${id}"]`);
+    expect(todos.length, id).toBe(1);
+    expect(todos[0].closest("#arte-mais-filtros, #arte-folha-filtros"), id).toBeNull();
+  }
 }
 const presente = (id: string) => !!$(`[data-testid^="${id}"]`);
 
@@ -126,7 +129,7 @@ describe("Arte 1280px — só busca, Evento e Ordenar à vista", { timeout: 60_0
     await act(async () => { fireEvent.click(tid("button-mais-filtros")!); });
     expect(tid("button-mais-filtros")!.getAttribute("aria-expanded")).toBe("true");
     expect($("#arte-mais-filtros")).not.toBeNull();
-    for (const id of ["segment-atrasado", "segment-urgente", "segment-thumb", "segment-final", "button-next-10-days-filter", "select-period-filter", "select-month-filter"]) {
+    for (const id of ["segment-atrasado", "segment-urgente", "segment-thumb", "segment-final", "select-period-filter", "select-month-filter"]) {
       expect(presente(id), id).toBe(true);
     }
     expect(localStorage.getItem("arte.maisFiltrosAberto")).toBe("1");
@@ -140,6 +143,9 @@ describe("Arte 1280px — só busca, Evento e Ordenar à vista", { timeout: 60_0
     await montar(1280);
     await act(async () => { fireEvent.click(tid("button-mais-filtros")!); });
     await act(async () => { fireEvent.click(tid("button-urgente-sim")!); });
+    await act(async () => { fireEvent.click(tid("button-atrasado-sim")!); });
+    expect(tid("button-mais-filtros")!.textContent).toContain("Mais filtros (2)");
+    // "Saída 10 dias" está à vista: ligar NÃO conta em "Mais filtros (N)".
     await act(async () => { fireEvent.click(tid("button-next-10-days-filter")!); });
     expect(tid("button-mais-filtros")!.textContent).toContain("Mais filtros (2)");
     // Aberta: os controles dizem o próprio estado — sem chip repetido.
@@ -148,7 +154,7 @@ describe("Arte 1280px — só busca, Evento e Ordenar à vista", { timeout: 60_0
     await act(async () => { fireEvent.click(tid("button-mais-filtros")!); });
     expect(tid("faixa-mais-filtros")).toBeNull();
     expect(tid("chip-ativo-urgente")).not.toBeNull();
-    expect(tid("chip-ativo-next10")).not.toBeNull();
+    expect(tid("chip-ativo-atrasado")).not.toBeNull();
     expect(tid("button-clear-filters")).not.toBeNull();
     await act(async () => { fireEvent.click(tid("chip-ativo-urgente")!.querySelector("button")!); });
     expect(tid("button-mais-filtros")!.textContent).toContain("Mais filtros (1)");
@@ -157,6 +163,8 @@ describe("Arte 1280px — só busca, Evento e Ordenar à vista", { timeout: 60_0
     await act(async () => { fireEvent.click(tid("button-limpar-mais-filtros")!); });
     expect(tid("button-mais-filtros")!.textContent).not.toMatch(/\(\d+\)/);
     expect(tid("button-limpar-mais-filtros")).toBeNull();
+    // ...e não mexe no que está à vista: o "Saída 10 dias" continua ligado.
+    expect(tid("chip-ativo-next10")).not.toBeNull();
   });
 
   it("link com filtro escondido abre a faixa sozinho (mesmos parâmetros de URL)", async () => {
@@ -198,7 +206,7 @@ describe("Arte 390px — busca, Evento e Ordenar à vista, o resto na folha", { 
     const folha = tid("folha-filtros-mobile")!;
     expect(folha.getAttribute("role")).toBe("dialog");
     expect(folha.id).toBe("arte-folha-filtros");
-    for (const id of ["segment-atrasado", "segment-urgente", "segment-thumb", "segment-final", "button-next-10-days-filter"]) {
+    for (const id of ["segment-atrasado", "segment-urgente", "segment-thumb", "segment-final"]) {
       expect(presente(id), id).toBe(true);
     }
     ordenarAVistaForaDaFaixa();

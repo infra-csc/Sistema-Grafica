@@ -516,13 +516,13 @@ const ARTE_SORT_OPTIONS = [
   { value: "prazo", label: "Prazo da fase", pinned: true },
 ];
 
-// "Mais filtros" (dono, 22/09): à vista ficam só a busca e o Evento; estes
-// dez recortes moram atrás do botão. Os `kind` são os mesmos de `activeChips`
+// "Mais filtros" (dono, 22/09): à vista ficam a busca, o Evento, o "Saída 10
+// dias" e o Ordenar; estes nove recortes moram atrás do botão. Os `kind` são os mesmos de `activeChips`
 // — é essa lista que decide o número do botão e quais chips aparecem com a
 // faixa fechada. `paradas` e o patrocinador da Correção NÃO entram: os dois
 // têm controle próprio fora da barra, que continua à vista.
 const FILTROS_ESCONDIDOS = new Set([
-  "sponsor", "type", "material", "month", "next10", "period",
+  "sponsor", "type", "material", "month", "period",
   "urgente", "atrasado", "thumb", "final",
 ]);
 const CHAVE_MAIS_FILTROS = "arte.maisFiltrosAberto";
@@ -727,7 +727,8 @@ export default function Arte() {
   const isMobile = useIsMobile();
   // FILTROS ESCONDIDOS ATRÁS DE UM BOTÃO (dono, 22/09: "a Arte está achando
   // os filtros poluídos: deixar apenas EVENTOS aparentes"). À vista ficam só a
-  // busca e o Evento; os outros dez recortes moram em "Mais filtros".
+  // busca, o Evento, o "Saída 10 dias" e o Ordenar; os outros nove recortes
+  // moram em "Mais filtros".
   // No CELULAR eles abrem numa folha de tela cheia (padrão da Gráfica), que
   // nunca abre sozinha — uma folha modal na chegada tomaria a tela inteira, e
   // o recorte ativo já fica escrito nos chips.
@@ -739,7 +740,7 @@ export default function Arte() {
   const [maisFiltrosAberto, setMaisFiltrosAberto] = useState<boolean>(() => {
     const f = urlInicial.filters;
     const escondidoNaURL = f.sponsorIds.length > 0 || f.types.length > 0 || f.materials.length > 0
-      || f.months.length > 0 || f.next10Days || f.period !== "Todos" || f.urgente || f.atrasado
+      || f.months.length > 0 || f.period !== "Todos" || f.urgente || f.atrasado
       || f.thumb !== "todos" || f.final !== "todos";
     if (escondidoNaURL) return true;
     try { return window.localStorage.getItem(CHAVE_MAIS_FILTROS) === "1"; } catch { return false; }
@@ -2443,7 +2444,6 @@ export default function Arte() {
     setTypeFilter([]);
     setMaterialFilter([]);
     setMonthFilter([]);
-    setNext10DaysFilter(false);
     setPeriodFilter("Todos");
     setUrgenteFilter(false);
     setAtrasadoFilter(false);
@@ -4407,17 +4407,24 @@ export default function Arte() {
               panelWidth={190}
               testId="select-period-filter"
             />
-
-            <ShortcutPill
-              label="Saída 10 dias"
-              icon={Truck}
-              count={saida10Count}
-              active={next10DaysFilter}
-              onClick={() => setNext10DaysFilter(!next10DaysFilter)}
-              testId="button-next-10-days-filter"
-              title="Só peças de evento cujo caminhão sai nos próximos 10 dias"
-            />
             </>);
+
+            // "SAÍDA 10 DIAS" SEMPRE À VISTA (dono, 22/09: "não deixe no Mais
+            // filtros, deixe fora, na tela da Arte"). É o recorte do dia a dia
+            // — o caminhão que sai já —, e a pílula diz o próprio estado (✓ e
+            // contagem), por isso não conta em "Mais filtros (N)". Mesmo
+            // estado e mesma URL (?saida10=) de antes.
+            const saida10 = (
+              <ShortcutPill
+                label="Saída 10 dias"
+                icon={Truck}
+                count={saida10Count}
+                active={next10DaysFilter}
+                onClick={() => setNext10DaysFilter(!next10DaysFilter)}
+                testId="button-next-10-days-filter"
+                title="Só peças de evento cujo caminhão sai nos próximos 10 dias"
+              />
+            );
 
             const segmentos = (<>
             {/* SEGMENTADOS, e nao menus: decisao do dono (17/08) depois de ver
@@ -4574,10 +4581,12 @@ export default function Arte() {
                       </button>
                     )}
                   </div>
-                  {/* Ordenar em linha própria e compacta: ao lado do Evento
-                      (+ o X de limpar) não cabe em 360px — "Ordenar: Prazo da
-                      fase" sozinho já passa de 170px. */}
-                  <div data-testid="linha-ordenar-mobile" style={{ display: 'flex', alignItems: 'center' }}>
+                  {/* "Saída 10 dias" e Ordenar numa linha própria e compacta.
+                      Ao lado do Evento (+ o X de limpar) não cabem em 360px, e
+                      ao lado de "Filtros" a busca ficaria com ~80px; aqui os
+                      dois somam ~320 dos 328 úteis (wrap se não couber). */}
+                  <div data-testid="linha-ordenar-mobile" style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                    {saida10}
                     {ordenar}
                   </div>
                 </div>
@@ -4634,6 +4643,7 @@ export default function Arte() {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
                   {campoBusca}
                   <EventFilterDropdown values={eventFilter} onValuesChange={setEventFilter} options={eventFilterOptions} />
+                  {saida10}
                   <button
                     type="button"
                     onClick={alternarMaisFiltros}

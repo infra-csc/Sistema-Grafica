@@ -6,10 +6,16 @@
 //     itens={[{ id: "todos", rotulo: "Todos", contador: 42 },
 //             { id: "atrasados", rotulo: "Atrasados", contador: 3, tom: "perigo" }]}
 //     ativo={aba} aoTrocar={setAba}
-//     rotuloDaLista="Filtro de peças"   // aria-label do container
+//     rotuloDaLista="Filtro de peças"       // aria-label do container
+//     prefixoDeTestId="tab-versoes"         // data-testid: tab-versoes-todos…
 //   />
 //
 //   <Segmentado itens={[…]} ativo={modo} aoTrocar={setModo} tamanho="md" />
+//
+// `prefixoDeTestId` existe para a MIGRAÇÃO: uma tela adota o componente sem
+// trocar os seletores que os testes dela já usam. Sem ele, adotar custaria uma
+// rodada de teste quebrado por tela — e o jeito mais barato de a migração não
+// acontecer é ela sair cara.
 //
 // QUAL DOS DOIS. <Abas> troca o CONTEÚDO da tela (outra lista, outro recorte);
 // o sublinhado é a metáfora de "esta seção está aberta". <Segmentado> troca a
@@ -47,6 +53,13 @@ interface BaseProps {
   ativo: string;
   aoTrocar: (id: string) => void;
   rotuloDaLista?: string;
+  /**
+   * Prefixo do `data-testid` de cada aba (padrão "aba" / "segmento"), para uma
+   * tela migrar sem trocar os seletores que os testes dela já usam. Sem isto,
+   * adotar o componente custaria uma rodada de teste quebrado por tela — e o
+   * jeito mais barato de a migração não acontecer é ela sair cara.
+   */
+  prefixoDeTestId?: string;
 }
 
 /**
@@ -87,7 +100,7 @@ function useSetas(itens: ItemDeAba[], ativo: string, aoTrocar: (id: string) => v
   return { refs, onKeyDown };
 }
 
-export function Abas({ itens, ativo, aoTrocar, rotuloDaLista }: BaseProps) {
+export function Abas({ itens, ativo, aoTrocar, rotuloDaLista, prefixoDeTestId = "aba" }: BaseProps) {
   const { refs, onKeyDown } = useSetas(itens, ativo, aoTrocar);
 
   return (
@@ -115,7 +128,7 @@ export function Abas({ itens, ativo, aoTrocar, rotuloDaLista }: BaseProps) {
             disabled={item.desabilitada}
             tabIndex={sel ? 0 : -1}
             onClick={() => aoTrocar(item.id)}
-            data-testid={`aba-${item.id}`}
+            data-testid={`${prefixoDeTestId}-${item.id}`}
             className="ds-botao ds-botao-fantasma"
             style={{
               display: "inline-flex", alignItems: "center", gap: 7,
@@ -160,7 +173,7 @@ export function Abas({ itens, ativo, aoTrocar, rotuloDaLista }: BaseProps) {
   );
 }
 
-export function Segmentado({ itens, ativo, aoTrocar, rotuloDaLista, tamanho = "md" }: BaseProps & { tamanho?: "sm" | "md" }) {
+export function Segmentado({ itens, ativo, aoTrocar, rotuloDaLista, prefixoDeTestId = "segmento", tamanho = "md" }: BaseProps & { tamanho?: "sm" | "md" }) {
   const { refs, onKeyDown } = useSetas(itens, ativo, aoTrocar);
   const alt = tamanho === "sm" ? H.sm : H.md;
 
@@ -188,7 +201,7 @@ export function Segmentado({ itens, ativo, aoTrocar, rotuloDaLista, tamanho = "m
             disabled={item.desabilitada}
             tabIndex={sel ? 0 : -1}
             onClick={() => aoTrocar(item.id)}
-            data-testid={`segmento-${item.id}`}
+            data-testid={`${prefixoDeTestId}-${item.id}`}
             className="ds-botao"
             style={{
               display: "inline-flex", alignItems: "center", gap: 6,

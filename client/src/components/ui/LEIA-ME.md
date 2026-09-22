@@ -8,9 +8,51 @@ A cor, a medida e o raio vêm sempre de `client/src/lib/theme.ts`
 (`T`, `N`, `TOM`, `FS`, `R`, `H`, `FW`, `FONT`, `SHADOW`, `MOTION`).
 O `index.css` espelha os mesmos valores em CSS vars — use as vars só no que
 estilo inline não alcança: `:hover`, `:focus-visible`, `:disabled`, media query
-e tema escuro. **Mudou um, muda o outro.**
+e tema escuro. **Mudou um, muda o outro** (há teste guardando isso).
 
 Cor de STATUS DE PEÇA não mora no theme: mora em `client/src/lib/status.ts`.
+
+---
+
+## Os tokens, em uma tela
+
+**Neutros** `N.n0 … N.n10`, do papel ao texto. `T` dá nome aos mais usados:
+
+| token | vale | papel |
+|---|---|---|
+| `T.surface` | n0 `#ffffff` | card, modal, linha par |
+| `T.bg` | n1 `#fafaf9` | fundo de página |
+| `T.low` | `#f3f4f3` | bloco rebaixado dentro de card |
+| `N.n2` | `#f5f5f4` | superfície sutil, hover |
+| `N.n3` | `#f0efee` | separador, trilho, fundo de campo |
+| `T.border` | n4 `#e7e5e4` | **a borda de tudo** |
+| `T.bdark` | n5 `#d6d3d1` | borda forte, ícone de vazio |
+| `T.muted` | n6 `#a8a29e` | **só ícone/desabilitado — nunca texto** |
+| `T.second` | n7 `#746e69` | texto secundário |
+| `T.apoio` | n8 `#57534e` | texto de apoio |
+| `T.strong` | n9 `#44403c` | texto forte |
+| `T.text` | n10 `#1c1917` | texto principal |
+
+**A exceção medida:** `T.second` (n7) passa AA sobre n0, n1, n2 e `T.low`, mas
+fica em **4,38:1 sobre `N.n3`**. Onde houver texto de apoio em cima de n3 —
+placeholder de campo cinza, rótulo dentro de trilho — use `T.apoio`.
+
+**Semânticos** `TOM.*`, todos vindos da paleta `P` de `status.ts`, cada um com
+`{ bg, border, text, dot }`. `text` é AA sobre o próprio `bg`; `dot` é o tom
+saturado e **não é cor de texto**.
+
+`sucesso` · `alerta` · `perigo` · `info` · `neutro` · `laranja` · `ceu` ·
+`roxo` · `esmeralda` · `turquesa` · `ciano`
+
+**Laranja da marca:** `T.accent` (`#f97316`) é decoração. Para texto, ou para
+fundo sob texto branco, `T.accentText` (`#c2410c`).
+
+**Resto:** `FS` (10 a 26, piso de 10), `FONT.corpo|display|mono`, `FW`,
+`R.sm|md|lg|xl|pill`, `H.sm|md|toque`, `SHADOW.sm|md|lg`, `MOTION`.
+
+Para saber o que ainda falta migrar num arquivo:
+`node scripts/mapa-de-cores.mjs client/src/pages/arte.tsx` — ele lista cada hex
+com o token sugerido e o porquê, e **não escreve nada**.
 
 ---
 
@@ -51,16 +93,21 @@ pendência"), não uma paráfrase do título.
 
 ```tsx
 <Abas itens={[{ id, rotulo, contador?, tom?, desabilitada? }]}
-      ativo aoTrocar rotuloDaLista />
+      ativo aoTrocar rotuloDaLista prefixoDeTestId />
 <Segmentado ... tamanho="sm|md" />
 ```
 
 `<Abas>` troca o **conteúdo** (sublinhado). `<Segmentado>` troca a **forma de
 ver** o mesmo conteúdo (tabela/cartão, dia/semana).
 O `contador` usa a cor do `tom` da própria aba: um `3` vermelho ao lado de
-"Atrasados" é a notícia antes da palavra.
+"Atrasados" é a notícia antes da palavra — e passe a contagem em `contador`, não
+colada no rótulo entre parênteses.
 Setas/Home/End e o *roving tabindex* estão **aqui**, uma vez só — não
 reimplemente na tela.
+
+**Migrando:** `prefixoDeTestId="tab-versoes"` faz os botões saírem como
+`tab-versoes-todos`, então a tela adota o componente sem quebrar os seletores
+que os testes dela já usam. O padrão é `aba-` / `segmento-`.
 
 ## `<CartaoKpi>` — `ui/cartao-kpi.tsx`
 
@@ -129,6 +176,9 @@ cem vezes por dia ensina o olho a descartar o vermelho.
 
 - `#f97316` e `#a8a29e` **nunca** como cor de texto (nem como fundo sob texto
   branco). Para laranja legível: `T.accentText`. Para cinza legível: `T.second`.
+- Hex com `1px solid` dentro de string vira template: `` `1px solid ${T.border}` ``.
+  Mas **classe do Tailwind com valor arbitrário** (`border-[#e7e5e4]`) fica
+  literal: ela é lida em tempo de build, e montada em runtime some da folha.
 - Alvo de 44px e fonte de 16px em campo no celular.
 - Motivo de botão desabilitado **visível**, não só no `title`.
 - Comentário em pt-BR, curto, dizendo o **porquê** — nunca `{/* */}` logo

@@ -1,6 +1,8 @@
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { miniatura } from "@/lib/miniatura";
 import { FilePreview, isWebUrl } from "@/components/file-preview";
+import { SeloPrazoMolde } from "@/components/prazo-do-molde";
+import { prazoDoMolde } from "@shared/prazo-molde";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { parseDateLocal, toUTCDisplayDate } from "@/lib/utils";
@@ -1096,6 +1098,10 @@ export function ItemDetailsDialog({
           {/* Travada pela Solicitação (21/09): texto discreto, com o motivo e quem travou. */}
           {pecaTravada(item) && (
             <div data-testid="selo-travada-ficha" title={fraseDaTrava(item)} style={{ marginTop: 8, fontSize: 12, fontWeight: 700, color: "#fecaca", overflowWrap: "anywhere" }}>{seloDaTrava(item)}</div>
+          )}
+          {/* PRAZO DO MOLDE (22/09): só no molde de evento que tem o prazo; não entra na Gestão de Prazos. */}
+          {prazoDoMolde(item, item.event, new Date()) && (
+            <div style={{ marginTop: 8 }}><SeloPrazoMolde item={item} caixa /></div>
           )}
           <div style={{ height: isMobile ? 16 : 20 }} />
         </header>

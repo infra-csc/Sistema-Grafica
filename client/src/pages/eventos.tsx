@@ -73,6 +73,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/auth-context";
 import { MARCOS_DO_EVENTO, OFFSET_PADRAO_DO_MARCO } from "@shared/prazo-dates";
+import { AJUDA_PRAZO_MOLDE, diaDoPrazoMolde } from "@shared/prazo-molde";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Inbox } from "lucide-react";
 import { idadeDoPedido, patrocinadoresDaLinha, quantidadeDoPedido, rotuloDaLinha, type PedidoDePeca } from "@shared/pedidos-de-peca";
@@ -1308,6 +1309,8 @@ export default function Eventos() {
     priority: "",
     startDate: "",
     truckDepartureDate: "",
+    // PRAZO DO MOLDE (22/09): "YYYY-MM-DD" ou "" — opcional, só para evento com molde.
+    prazoMolde: "",
     ...DEFAULT_DEADLINES,
   });
   const [prazosExpanded, setPrazosExpanded] = useState(false);
@@ -1424,7 +1427,7 @@ export default function Eventos() {
   const formDirty = currentSig !== baselineSig;
 
   const resetForm = useCallback(() => {
-    const empty = { name: "", priority: "", startDate: "", truckDepartureDate: "", ...DEFAULT_DEADLINES };
+    const empty = { name: "", priority: "", startDate: "", truckDepartureDate: "", prazoMolde: "", ...DEFAULT_DEADLINES };
     setFormData(empty);
     setSelectedSponsorIds([]);
     setSponsorQuotaMap({});
@@ -1474,6 +1477,8 @@ export default function Eventos() {
     deadlineFinalizacao: fd.deadlineFinalizacao,
     deadlineRevisaoLista: fd.deadlineRevisaoLista,
     deadlineProducaoGrafica: fd.deadlineProducaoGrafica,
+    // Vazio vai como null: limpa o prazo do molde (é opcional).
+    prazoMolde: fd.prazoMolde || null,
   });
 
   const createEventMutation = useMutation({
@@ -1866,6 +1871,7 @@ export default function Eventos() {
       // sem o slice, fmtDateBR/parseDateStr quebravam a exibição no modal.
       startDate: (event.startDate || "").slice(0, 10),
       truckDepartureDate: event.truckDepartureDate ? new Date(event.truckDepartureDate).toISOString().slice(0, 16) : "",
+      prazoMolde: diaDoPrazoMolde(event.prazoMolde) ?? "",
       deadlineListaImagens: event.deadlineListaImagens ?? DEFAULT_DEADLINES.deadlineListaImagens,
       deadlineEntregaLayouts: event.deadlineEntregaLayouts ?? DEFAULT_DEADLINES.deadlineEntregaLayouts,
       deadlineAprovacaoLayout: event.deadlineAprovacaoLayout ?? DEFAULT_DEADLINES.deadlineAprovacaoLayout,
@@ -1900,6 +1906,8 @@ export default function Eventos() {
       // são exatamente elas. Os offsets (prazos) viajam junto.
       startDate: "",
       truckDepartureDate: "",
+      // Datas em branco — o prazo do molde também é uma data do evento.
+      prazoMolde: "",
       deadlineListaImagens: event.deadlineListaImagens ?? DEFAULT_DEADLINES.deadlineListaImagens,
       deadlineEntregaLayouts: event.deadlineEntregaLayouts ?? DEFAULT_DEADLINES.deadlineEntregaLayouts,
       deadlineAprovacaoLayout: event.deadlineAprovacaoLayout ?? DEFAULT_DEADLINES.deadlineAprovacaoLayout,
@@ -2760,6 +2768,39 @@ export default function Eventos() {
                       return null;
                     })()}
                   </div>
+                </div>
+
+                {/* PRAZO DO MOLDE (dono, 22/09): opcional, só para evento com
+                    molde. Usado no fluxo do molde (Arte, Revisão Final,
+                    Gráfica) — NÃO entra na Gestão de Prazos. Um dia, sem hora. */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  <label htmlFor="event-prazo-molde" style={{ fontSize: FS.micro, fontWeight: '700', color: '#625d5b', textTransform: 'uppercase', letterSpacing: '0.12em' }}>
+                    Prazo do molde (opcional)
+                  </label>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <input
+                      id="event-prazo-molde"
+                      type="date"
+                      data-testid="input-prazo-molde"
+                      value={formData.prazoMolde}
+                      onChange={(e) => setFormData({ ...formData, prazoMolde: e.target.value })}
+                      aria-describedby="ajuda-prazo-molde"
+                      style={{ height: 40, minWidth: 180, backgroundColor: T.border, border: '1px solid transparent', borderRadius: R.md, padding: '0 12px', fontSize: 16, color: formData.prazoMolde ? T.text : T.second, fontFamily: "'Plus Jakarta Sans', sans-serif" }}
+                    />
+                    {formData.prazoMolde && (
+                      <button
+                        type="button"
+                        data-testid="button-limpar-prazo-molde"
+                        onClick={() => setFormData({ ...formData, prazoMolde: "" })}
+                        style={{ minHeight: 40, padding: '0 12px', borderRadius: R.md, border: '1px solid #e7e5e4', background: '#ffffff', color: '#57534e', fontSize: FS.small, fontWeight: 700, cursor: 'pointer' }}
+                      >
+                        Limpar
+                      </button>
+                    )}
+                  </div>
+                  <p id="ajuda-prazo-molde" style={{ margin: 0, fontSize: FS.small, color: '#746e69', lineHeight: 1.4 }}>
+                    {AJUDA_PRAZO_MOLDE}
+                  </p>
                 </div>
 
                 {/* Prazos colapsável */}

@@ -18,6 +18,7 @@ import { parseApiError } from "@/components/aumentar-quantidade-dialog";
 import { motivoAcaoBloqueada, type EventoFinalizadoMotivo } from "@/lib/status";
 import { gestoDoMolde } from "@shared/molde";
 import { pecaTravada, fraseDaTrava } from "@shared/trava-da-peca";
+import { SeloPrazoMolde } from "@/components/prazo-do-molde";
 
 export function AcoesDoMolde({ item, podeProduzir, selo, cartao }: {
   item: any;
@@ -58,6 +59,7 @@ export function AcoesDoMolde({ item, podeProduzir, selo, cartao }: {
     const travada = pecaTravada(item);
     const bloqueado = !!selo || ocupado || travada;
     return (
+      <>
       <button
         type="button"
         onClick={(e) => { e.stopPropagation(); if (!bloqueado) mutacao.mutate("produzir"); }}
@@ -76,6 +78,9 @@ export function AcoesDoMolde({ item, podeProduzir, selo, cartao }: {
         <Check aria-hidden="true" style={{ width: 13, height: 13 }} />
         {ocupado ? "Marcando…" : "Marcar como produzido"}
       </button>
+      {/* PRAZO DO MOLDE (22/09): ao lado do único gesto que falta a ele. */}
+      <SeloPrazoMolde item={item} />
+      </>
     );
   }
   return (

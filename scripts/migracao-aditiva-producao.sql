@@ -284,3 +284,8 @@ BEGIN
     ALTER TABLE tubo_itens ADD CONSTRAINT tubo_itens_quantidade_check CHECK (quantidade > 0);
   END IF;
 END $$;
+
+-- ── 22/09 · Prazo do molde no evento ─────────────────────────────────────
+-- Opcional (NULL = sem prazo do molde). Um dia, gravado ao meio-dia UTC.
+-- Vale só no fluxo do molde; NÃO entra na Gestão de Prazos.
+ALTER TABLE events ADD COLUMN IF NOT EXISTS prazo_molde timestamp;

@@ -32,6 +32,7 @@ import {
 } from "@/lib/status";
 import { ehBookCompleto } from "@shared/fluxo-peca";
 import { ehMolde, statusDeExibicao, arquivoFinalOk } from "@shared/molde";
+import { prazoDoMolde } from "@shared/prazo-molde";
 // Raio e paleta vêm de fonte, não do dedo: `R` tem cinco degraus e a Arte
 // chegou a usar dezenove; `P` é a mesma paleta que os selos de status já
 // consomem, e reescrever o hex dela numa tela cria uma cópia que não
@@ -1978,6 +1979,16 @@ export default function Arte() {
       // evento): o evento com o marco da fase mais próximo sobe para o topo.
       // É o que transforma "lista organizada por evento" em "fila de trabalho".
       if (sortMode === "prazo") {
+        // O molde com prazo do molde entra na fila pelo PRÓPRIO prazo (22/09);
+        // as demais peças, pelo marco da fase do evento — como sempre.
+        const pa = prazoDoMolde(a, a.event, hoje), pb = prazoDoMolde(b, b.event, hoje);
+        if (pa || pb) {
+          const da = pa ?? phaseDeadline(a.event, activeTab, hoje);
+          const db = pb ?? phaseDeadline(b.event, activeTab, hoje);
+          if (da && db && da.date.getTime() !== db.date.getTime()) return da.date.getTime() - db.date.getTime();
+          if (da && !db) return -1;
+          if (!da && db) return 1;
+        }
         const u = compareEventUrgency(a.event, b.event, activeTab, hoje);
         if (u !== 0) return u;
       }
@@ -2727,7 +2738,9 @@ export default function Arte() {
    * Prazos, com o marco da Finalização (−10) e o ajuste de fim de semana.
    */
   const renderPrazo = (item: any, tabId: string, hoje: Date) => {
-    const p = phaseDeadline(item.event, tabId, hoje);
+    // PRAZO DO MOLDE (22/09): no molde de evento com prazo do molde, é ele
+    // que a coluna mostra; sem ele (ou peça comum), o marco da fase de sempre.
+    const p = prazoDoMolde(item, item.event, hoje) ?? phaseDeadline(item.event, tabId, hoje);
     // A IDADE NA FASE, abaixo da data. O prazo diz o marco (futuro); isto diz
     // há quanto tempo a peça está parada onde está — numa fila que espera
     // terceiros, é a pergunta. Sem `statusChangedAt`, sem idade (ver

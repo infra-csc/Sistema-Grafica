@@ -79,6 +79,10 @@ export const events = pgTable("events", {
   deadlineFinalizacao: integer("deadline_finalizacao").default(-10), // Arte anexa o arquivo final
   deadlineRevisaoLista: integer("deadline_revisao_lista").default(-8), // Revisão de lista pelo criador
   deadlineProducaoGrafica: integer("deadline_producao_grafica").default(-1), // Produção gráfica
+  // PRAZO DO MOLDE (dono, 22/09): opcional, só para evento com molde. Um DIA,
+  // gravado ao meio-dia UTC (a convenção das datas do Kit). Vale SÓ no fluxo
+  // do molde — NÃO entra na Gestão de Prazos (ver shared/prazo-molde.ts).
+  prazoMolde: timestamp("prazo_molde"),
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
   updatedAt: timestamp("updated_at").notNull().default(sql`now()`),
 }, (table) => [
@@ -1069,6 +1073,8 @@ export const insertEventSchema = createInsertSchema(events).omit({
   startDate: z.string().or(z.date()),
   truckDepartureDate: z.string().or(z.date()),
   priority: z.enum(["baixa", "media", "alta", "urgente"]).optional(),
+  // "YYYY-MM-DD" do formulário; vazio/null limpa. A rota converte (prazoMoldeParaGravar).
+  prazoMolde: z.string().or(z.date()).nullable().optional(),
 });
 
 export const insertItemSchema = createInsertSchema(items).omit({

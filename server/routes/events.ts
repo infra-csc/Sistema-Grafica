@@ -21,6 +21,9 @@ import {
 import { eventsCache, setEventsCache, eventsCacheGeneration, EVENTS_CACHE_TTL_MS } from "../cache";
 import { ITENS_RESUMO, resumirItensDosEventos } from "@shared/eventos-resumo";
 import { statusParaContagem, statusAoEnviarALista, ehMolde } from "@shared/molde";
+import { prazoMoldeParaGravar, prazoMoldeBR } from "@shared/prazo-molde";
+
+const ERRO_PRAZO_MOLDE = "Prazo do molde inválido — escolha um dia no calendário (ou deixe em branco)";
 // Mesmo predicado e mesma frase que server/routes/items.ts usa em toda
 // escrita de peça (ver o bloco "EVENTO FINALIZADO × ESCRITA DE PEÇA" em
 // ./eventoFinalizado). Importada de lá — não de "./items" — de propósito:
@@ -88,6 +91,9 @@ function describeEventChanges(before: any, after: any): string[] {
   }
   if (before.priority !== after.priority) {
     parts.push(`Prioridade: ${before.priority || "sem prioridade"} → ${after.priority || "sem prioridade"}`);
+  }
+  if ((prazoMoldeBR(before.prazoMolde) ?? null) !== (prazoMoldeBR(after.prazoMolde) ?? null)) {
+    parts.push(`Prazo do molde: ${prazoMoldeBR(before.prazoMolde) ?? "—"} → ${prazoMoldeBR(after.prazoMolde) ?? "—"}`);
   }
   if (before.approvalBookUrl !== after.approvalBookUrl) {
     parts.push(after.approvalBookUrl ? "Book de aprovação atualizado" : "Book de aprovação removido");
@@ -771,9 +777,14 @@ export function registerEventRoutes(app: Express): void {
       // PRIORIDADE (25/08): quem escolheu no formulário TRAVA (ajuste manual);
       // quem não escolheu já nasce com a automática pela saída do caminhão —
       // sem esperar o próximo tick do job.
+      // PRAZO DO MOLDE (22/09): opcional; o dia vira meio-dia UTC.
+      const prazoMolde = prazoMoldeParaGravar((safeData as any).prazoMolde);
+      if (prazoMolde === false) return res.status(400).json({ error: ERRO_PRAZO_MOLDE });
+
       const prioridadeEscolhida = (safeData as any).priority ?? null;
       const event = await storage.createEvent({
         ...safeData,
+        prazoMolde: prazoMolde ?? null,
         priority: prioridadeEscolhida ?? prioridadePelaSaida(truckAt.getTime(), Date.now()),
         priorityManual: !!prioridadeEscolhida,
         startDate: startAt,
@@ -882,6 +893,13 @@ export function registerEventRoutes(app: Express): void {
           });
         }
         patchData.truckDepartureDate = truckAt;
+      }
+
+      // PRAZO DO MOLDE (22/09): só mexe se veio; vazio limpa.
+      if ("prazoMolde" in patchData) {
+        const prazoMolde = prazoMoldeParaGravar(validatedData.prazoMolde);
+        if (prazoMolde === false) return res.status(400).json({ error: ERRO_PRAZO_MOLDE });
+        if (prazoMolde === undefined) delete patchData.prazoMolde; else patchData.prazoMolde = prazoMolde;
       }
 
       const event = await storage.updateEvent(req.params.id, patchData as any);

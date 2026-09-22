@@ -89,8 +89,9 @@ describe("cada dupla tem quem a mantenha junta", () => {
 describe("as duas derivações que faltavam", () => {
   it("a medida em texto é reescrita quando a dimensão de arquivo muda", () => {
     expect(rotas).toContain("if (medida !== undefined) updatePayload.measurement = medida;");
-    // E na rota-irmã, que aceitava o texto do cliente sem olhar as dimensões.
-    expect(rotas).toContain("medidaDerivada ?? (measurement !== undefined ? measurement : currentItem.measurement)");
+    // A rota-irmã (/edit), que aceitava o texto do cliente sem olhar as
+    // dimensões, saiu: o PATCH genérico é o único caminho.
+    expect(rotas).not.toContain('app.patch("/api/items/:id/edit"');
   });
 
   it("o par velho anda com o par novo da medida visual", () => {

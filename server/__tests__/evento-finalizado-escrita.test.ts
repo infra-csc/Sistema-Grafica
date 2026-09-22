@@ -291,7 +291,6 @@ const BARRADAS: Caso[] = [
 
   // ── Edição do contrato da peça ───────────────────────────────────────────
   { chave: "PATCH /api/items/:id", params: { id: "it-1" }, body: { quantity: 5 } },
-  { chave: "PATCH /api/items/:id/edit", params: { id: "it-1" }, body: { quantity: 5 } },
 
   // ── Fluxo de aprovação ───────────────────────────────────────────────────
   { chave: "PATCH /api/items/:id/submit-for-approval", params: { id: "it-1" }, userRole: "arte", body: { approvalThumbUrl: "https://obj/t.png" }, estado: { status: "awaiting_submission" } },
@@ -596,7 +595,8 @@ function rotasDe(rel: string): RotaFonte[] {
   }));
 }
 
-const TEM_GUARDA = /barraEventoFinalizado|motivoEventoDaPeca|motivoEventoFechado|contadorDeBloqueio/;
+// barraImportacao: a guarda da planilha (preview e confirmar), em items.ts.
+const TEM_GUARDA = /barraEventoFinalizado|motivoEventoDaPeca|motivoEventoFechado|contadorDeBloqueio|barraImportacao/;
 
 describe("rede: nenhuma rota de escrita de peça fica sem decisão sobre evento finalizado", () => {
   for (const rel of FONTES) {

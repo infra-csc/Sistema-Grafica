@@ -57,16 +57,22 @@ export function CloneItemsDialog({
   // que marcar dezenas. A busca recorta a lista; marcar/desmarcar todas age
   // só sobre o recorte visível, senão "desmarcar todas" com uma busca ativa
   // apagaria seleção que o operador nem estava vendo.
-  const { data: pecasDaOrigem = SEM_PECAS, isLoading: pecasCarregando } = useQuery<any[]>({
+  const { data: todasDaOrigem = SEM_PECAS, isLoading: pecasCarregando } = useQuery<any[]>({
     queryKey: ["/api/items", cloneSourceId],
     enabled: open && !!cloneSourceId,
   });
+  // COMPLEMENTO NÃO SE CLONA SOZINHO: é o aumento pós-produção da peça-mãe,
+  // não uma peça (o servidor também os deixa de fora).
+  const pecasDaOrigem = useMemo(() => todasDaOrigem.filter((i: any) => !i.parentItemId), [todasDaOrigem]);
+  const complementosFora = todasDaOrigem.length - pecasDaOrigem.length;
   const [escolhidas, setEscolhidas] = useState<Set<string>>(new Set());
   const [busca, setBusca] = useState("");
 
-  // Trocou a origem (ou os dados chegaram): recomeça com tudo marcado.
+  // Trocou a origem (ou os dados chegaram): recomeça com tudo marcado —
+  // MENOS as canceladas: o evento novo não renasce com o que o anterior
+  // desistiu. Elas seguem na lista, desmarcadas, para quem quiser mesmo.
   useEffect(() => {
-    setEscolhidas(new Set(pecasDaOrigem.map((i: any) => i.id)));
+    setEscolhidas(new Set(pecasDaOrigem.filter((i: any) => i.status !== "canceled").map((i: any) => i.id)));
     setBusca("");
   }, [cloneSourceId, pecasDaOrigem]);
 
@@ -244,6 +250,7 @@ export function CloneItemsDialog({
                       {i.displayId != null && <strong style={{ fontVariantNumeric: 'tabular-nums' }}>{i.displayId}</strong>}{i.displayId != null ? " " : ""}{i.type}
                       {i.description ? <span style={{ color: '#746e69' }}> · {i.description}</span> : null}
                       <span style={{ color: '#746e69', whiteSpace: 'nowrap' }}> · {i.quantity} un.</span>
+                      {i.status === "canceled" && <span style={{ color: '#b91c1c', fontWeight: 700, whiteSpace: 'nowrap' }}> · cancelada</span>}
                     </span>
                   </label>
                 ))}
@@ -263,7 +270,8 @@ export function CloneItemsDialog({
                   {/* "draft", e não "requested": é o status que o servidor grava
                       no clone (POST /api/events/:id/clone-items). O rótulo
                       antigo dizia "Solicitado", que não é onde a peça aparece. */}
-                  Entram como <strong>{getStatusLabel("draft")}</strong> · Patrocinadores e aprovações <strong>não</strong> serão copiados.<br />
+                  Entram como <strong>{getStatusLabel("draft")}</strong> · Patrocinadores, aprovações e reaproveitamento <strong>não</strong> são copiados.<br />
+                  {complementosFora > 0 && <>{complementosFora} {complementosFora === 1 ? 'complemento (aumento pós-produção) fica' : 'complementos (aumentos pós-produção) ficam'} de fora — se precisar do aumento, ajuste a quantidade da peça clonada.<br /></>}
                   Depois, revise e envie para a vinculação no card “Peças em Rascunho”.
                 </p>
               </div>

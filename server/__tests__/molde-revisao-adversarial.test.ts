@@ -3,8 +3,8 @@
 //
 // O que este arquivo pina, com as ROTAS REAIS (borda mockada como em
 // molde.test.ts) sempre que dá:
-//   1. o tipo não vira nem deixa de ser Molde fora do rascunho (PATCH e /edit);
-//   2. peça travada não muda de quantidade (PATCH e /edit);
+//   1. o tipo não vira nem deixa de ser Molde fora do rascunho (PATCH);
+//   2. peça travada não muda de quantidade (PATCH);
 //   3. o PATCH genérico aplica a régua do thumb (/objects/);
 //   4. a criação pública não aceita status/quantidades/carimbos do corpo;
 //   5. transfer-event recusa lixeira, Kit e reserva de estoque;
@@ -138,6 +138,11 @@ beforeEach(() => {
   s.createNotification = vi.fn(async (n: any) => { notificacoes.push(n); return { id: "n1", ...n }; });
   s.createItem = vi.fn(async (dados: any) => { criadas.push(dados); return { id: "novo", displayId: "#0900", ...dados, status: dados.status ?? "draft" }; });
   s.createBulkItems = vi.fn(async (lista: any[]) => { criadas.push(...lista); return lista.map((d, i) => ({ id: `n${i}`, displayId: `#09${i}`, ...d })); });
+  // Transferir confere complementos e patrocinadores do destino.
+  s.getLiveComplements = vi.fn(async () => []);
+  s.getItemSponsors = vi.fn(async () => []);
+  s.getEventSponsors = vi.fn(async () => []);
+  s.getSponsor = vi.fn(async () => undefined);
 });
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -202,18 +207,8 @@ describe("1 · a fronteira do molde fica fechada fora do rascunho", () => {
     }
   });
 
-  it("PATCH /edit: a mesma fronteira", async () => {
-    for (const status of ETAPAS_FORA_DO_RASCUNHO) {
-      mundo.itens.p1 = peca({ status });
-      const r = await chamar("PATCH /api/items/:id/edit", { params: { id: "p1" }, body: { type: "Molde" }, userRole: "solicitacao" });
-      expect(r.status, status).toBe(409);
-      expect(r.body.code).toBe("TROCA_DE_MOLDE");
-    }
-    expect(H.storage.updateItem).not.toHaveBeenCalled();
-    mundo.itens.p1 = peca({ status: "draft" });
-    const ok = await chamar("PATCH /api/items/:id/edit", { params: { id: "p1" }, body: { type: "molde" }, userRole: "solicitacao" });
-    expect(ok.status).toBe(200);
-    expect(mundo.itens.p1.type).toBe("Molde");
+  it("o PATCH /edit (irmã sem validação) não existe mais — só o genérico edita", () => {
+    expect(rotas.has("PATCH /api/items/:id/edit")).toBe(false);
   });
 });
 
@@ -246,12 +241,6 @@ describe("2 · peça travada não muda de quantidade", () => {
     expect(mundo.itens.p1.status).toBe("produced");
   });
 
-  it("PATCH /edit também", async () => {
-    mundo.itens.p1 = peca({ status: "inProduction", quantity: 10, ...TRAVA });
-    const r = await chamar("PATCH /api/items/:id/edit", { params: { id: "p1" }, body: { quantity: 8 }, userRole: "solicitacao" });
-    expect(r.status).toBe(409);
-    expect(r.body.code).toBe("PECA_TRAVADA");
-  });
 });
 
 // ═════════════════════════════════════════════════════════════════════════════

@@ -357,8 +357,10 @@ export async function vincularPecaALinha(req: any, linhaId: string, itemId: stri
  * A peça ligada foi excluída (dono, 14/09): se era a última peça viva daquela
  * peça solicitada, ela volta para ABERTA sozinha — "atendida sem peça" não
  * existe. Nunca derruba a exclusão: erro aqui só vai para o log.
+ * Cancelar a peça e transferi-la de evento têm o mesmo efeito na solicitação
+ * — `oQueHouve` só muda a frase do aviso.
  */
-export async function aoExcluirPeca(req: any, item: { id: string; displayId?: string | null; pedidoDePecaLinhaId?: string | null }) {
+export async function aoExcluirPeca(req: any, item: { id: string; displayId?: string | null; pedidoDePecaLinhaId?: string | null }, oQueHouve: "excluída" | "cancelada" | "transferida de evento" = "excluída") {
   try {
     const linhaId = item.pedidoDePecaLinhaId;
     if (!linhaId) return;
@@ -376,17 +378,17 @@ export async function aoExcluirPeca(req: any, item: { id: string; displayId?: st
     const evento = await storage.getEvent(voltou.eventId);
     const codigo = item.displayId ?? "ligada";
     await createAuditLog(req, "updated", "pedido_de_peca", voltou.pedidoId,
-      `${nomeDaLinha(voltou)}: a peça ${codigo} foi excluída — voltou para aberta`);
+      `${nomeDaLinha(voltou)}: a peça ${codigo} foi ${oQueHouve} — voltou para aberta`);
     await notificar({
       type: "pedidoReaberto",
-      message: `Peça solicitada voltou para aberta (${evento?.name ?? "—"}): ${nomeDaLinha(voltou)} — a peça ${codigo} foi excluída`,
+      message: `Peça solicitada voltou para aberta (${evento?.name ?? "—"}): ${nomeDaLinha(voltou)} — a peça ${codigo} foi ${oQueHouve}`,
       eventId: voltou.eventId,
       targetRoles: ["solicitacao", "admin"],
     });
     if (pedido) {
       await notificar({
         type: "pedidoReaberto",
-        message: `A peça ${codigo} da sua solicitação foi excluída — ${nomeDaLinha(voltou)} voltou para aberta (${evento?.name ?? "—"})`,
+        message: `A peça ${codigo} da sua solicitação foi ${oQueHouve} — ${nomeDaLinha(voltou)} voltou para aberta (${evento?.name ?? "—"})`,
         eventId: voltou.eventId,
         ...paraQuemPediu(pedido),
       });

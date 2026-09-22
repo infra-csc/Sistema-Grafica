@@ -289,3 +289,9 @@ END $$;
 -- Opcional (NULL = sem prazo do molde). Um dia, gravado ao meio-dia UTC.
 -- Vale só no fluxo do molde; NÃO entra na Gestão de Prazos.
 ALTER TABLE events ADD COLUMN IF NOT EXISTS prazo_molde timestamp;
+
+-- ── Motivo do cancelamento da peça ───────────────────────────────────────
+-- O cancelamento gravava o motivo por cima das observações da peça. Agora o
+-- motivo tem coluna própria e as observações ficam intactas. Nullable, sem
+-- default e sem preencher as canceladas antigas (nada muda nos dados).
+ALTER TABLE items ADD COLUMN IF NOT EXISTS motivo_cancelamento text;

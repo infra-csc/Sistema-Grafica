@@ -288,7 +288,7 @@ describe("o modo lista", () => {
     // lib/fases.ts quando o Detalhe do Evento passou a desenhar a MESMA
     // barra — três telas, uma conta. Aqui ela entra por import, e o nome
     // local continua `contarPorFase` para o cartão e a linha lerem igual.
-    expect(tela).toContain('import { PHASES, contarPorFaseDoEvento as contarPorFase } from "@/lib/fases";');
+    expect(tela).toContain('import { PHASES, contarPorFaseDoEvento as contarPorFase, FORA_DO_FUNIL } from "@/lib/fases";');
     expect(tela).not.toContain("function contarPorFase(event: any): number[]");
     const usos = tela.split("contarPorFase(event)").length - 1;
     expect(usos).toBe(2); // o cartão e a linha

@@ -1038,26 +1038,35 @@ export default function Atendimento() {
       const targetItems = awaitingItems.filter(item =>
         item.eventId === eventId && batchSelectedItemIds.has(item.id)
       );
-      const promises = targetItems.flatMap(item => {
+      const elegiveis = targetItems.filter(item => {
         const approvals: SponsorApproval[] = itemApprovalsMap[item.id] || [];
         const approval = approvals.find(a => a.sponsorId === sponsorId);
         const status = approval?.status || "pending";
-        if (!itemSponsorsMap[item.id]?.some((s: any) => s.id === sponsorId)) return [];
-        if (status !== "pending" && status !== "new_version_pending") return [];
-        // Parseia cada resposta: { approval, item?, allApproved? } — permite
-        // remendar os caches sem invalidar/refazer as listas inteiras.
-        if (action === "approve") {
-          return [apiRequest("POST", `/api/items/${item.id}/sponsor-approvals/${sponsorId}/approve`, {}).then(r => r.json())];
-        } else {
-          return [apiRequest("POST", `/api/items/${item.id}/sponsor-approvals/${sponsorId}/reject`, { rejectionReason: reason || null }).then(r => r.json())];
-        }
+        if (!itemSponsorsMap[item.id]?.some((s: any) => s.id === sponsorId)) return false;
+        return status === "pending" || status === "new_version_pending";
       });
-      return await Promise.all(promises);
+      // allSettled, e não all: com Promise.all, UMA recusa (peça que outra
+      // pessoa decidiu no meio, evento que fechou) jogava o lote inteiro no
+      // onError — "Erro na operação em lote" — enquanto as outras decisões
+      // JÁ ESTAVAM gravadas, e o cache não era remendado com nenhuma delas.
+      // Parseia cada resposta: { approval, item?, allApproved? } — permite
+      // remendar os caches sem invalidar/refazer as listas inteiras.
+      const settled = await Promise.allSettled(elegiveis.map(item => (action === "approve"
+        ? apiRequest("POST", `/api/items/${item.id}/sponsor-approvals/${sponsorId}/approve`, {})
+        : apiRequest("POST", `/api/items/${item.id}/sponsor-approvals/${sponsorId}/reject`, { rejectionReason: reason || null })
+      ).then(r => r.json())));
+      const results: any[] = [];
+      const falhas: { displayId: string; erro: string }[] = [];
+      settled.forEach((r, i) => {
+        if (r.status === "fulfilled") results.push(r.value);
+        else falhas.push({ displayId: elegiveis[i].displayId ?? "peça", erro: (r.reason as Error)?.message || "erro desconhecido" });
+      });
+      return { results, falhas, total: elegiveis.length };
     },
-    onSuccess: (results: any[], vars) => {
+    onSuccess: ({ results, falhas, total }: { results: any[]; falhas: { displayId: string; erro: string }[]; total: number }, vars) => {
       // Nenhuma requisição saiu (todas as selecionadas já estavam decididas ou
       // sem o patrocinador): avisa em vez de anunciar um sucesso que não houve.
-      if (results.length === 0) {
+      if (total === 0) {
         toast({
           title: "Nenhuma peça elegível",
           description: "As peças selecionadas já foram decididas para este patrocinador.",
@@ -1082,6 +1091,19 @@ export default function Atendimento() {
       // O número no aviso: "todas as selecionadas" não confirma QUANTAS
       // decisões saíram — e é essa conta que a pessoa confere com o patrocinador.
       const n = results.length;
+      // FALHA PARCIAL: "X de Y registradas" e QUAIS ficaram, com o motivo da
+      // primeira — as que passaram já estão no cache (remendado acima).
+      if (falhas.length > 0) {
+        // O que falhou pode ter mudado no servidor (outra pessoa decidiu):
+        // a lista é recarregada para não mostrar a decisão velha.
+        queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+        toast({
+          title: `${n} de ${total} ${vars.action === "approve" ? "aprovações registradas" : "reprovações registradas"}`,
+          description: `Não ${falhas.length === 1 ? "foi" : "foram"}: ${falhas.slice(0, 5).map(f => f.displayId).join(", ")}${falhas.length > 5 ? ` e mais ${falhas.length - 5}` : ""} — ${falhas[0].erro}`,
+          variant: "destructive",
+        });
+        return;
+      }
       toast({
         title: vars.action === "approve"
           ? `${n} ${n === 1 ? 'peça aprovada' : 'peças aprovadas'} em lote`

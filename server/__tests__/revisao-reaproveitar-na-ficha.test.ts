@@ -85,7 +85,7 @@ describe("Reaproveitar em LOTE na barra de seleção (25/08)", () => {
 
   it("dispara o MESMO par de chamadas do total individual, peça a peça", () => {
     expect(REV).toContain("const bulkReuseMutation = useMutation({");
-    expect(REV).toContain("await apiRequest(\"PATCH\", `/api/items/${id}`, { isReuse: true });");
+    expect(REV).toContain("await apiRequest(\"PATCH\", `/api/items/${id}`, { isReuse: true, reuseQty: qtd });");
     expect(REV).toContain("await apiRequest(\"PATCH\", `/api/items/${id}/creator-review`, {});");
     // marcou-sem-liberar é MEIO caminho, não falha igual: continua selecionada
     // para o "Liberar" da barra fechar — com o motivo do servidor na linha

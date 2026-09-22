@@ -145,7 +145,7 @@ describe("Revisão Final com a chave desligada — o fluxo NORMAL de reaproveita
     await act(async () => { fireEvent.click(botaoComTexto("Reaproveitar tudo (6 un.) — pula produção")!); });
     await esperar(() => f.escritas().length === 2, "as duas escritas de sempre");
     expect(f.escritas()).toEqual([
-      { url: "/api/items/i1", method: "PATCH", body: { isReuse: true } },
+      { url: "/api/items/i1", method: "PATCH", body: { isReuse: true, reuseQty: 6 } },
       { url: "/api/items/i1/creator-review", method: "PATCH", body: {} },
     ]);
     expect(f.doEstoque()).toEqual([]);

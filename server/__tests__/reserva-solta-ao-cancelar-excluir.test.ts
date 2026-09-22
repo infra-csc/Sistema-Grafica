@@ -33,7 +33,7 @@ vi.mock("../routes/estoque-reservas", async () => {
   const real = await vi.importActual<any>("../routes/estoque-reservas");
   return { ...real, liberarReservasDasPecas: async (_req: any, ids: string[], motivo: string) => { H.liberar.push({ ids, motivo }); } };
 });
-vi.mock("../cache", () => ({ eventsCache: null, setEventsCache: vi.fn(), invalidateEventsCache: vi.fn(), invalidateAllCaches: vi.fn() }));
+vi.mock("../cache", () => ({ eventsCache: null, setEventsCache: vi.fn(), invalidateEventsCache: vi.fn(), invalidateAllCaches: vi.fn(), registrarCache: vi.fn(), invalidarCacheNoCluster: vi.fn() }));
 vi.mock("../services/inventoryLifecycle", () => ({ runInventoryCron: vi.fn() }));
 vi.mock("../services/xlsxImport", () => ({ handlePreviewXlsx: vi.fn(), handleConfirmImport: vi.fn() }));
 vi.mock("../services/xlsxExport", () => ({ handleExportItemsXlsx: vi.fn(), handleExportSelectedItemsXlsx: vi.fn() }));

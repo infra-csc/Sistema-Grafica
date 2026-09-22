@@ -35,6 +35,9 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { FORMATO_COMPACTO, ehAprovacoesCompactas, expandirAprovacoes } from "@shared/itens-compactos";
 import { useToast } from "@/hooks/use-toast";
 import { usePecaDoLink, buscarCodigoDaPeca } from "@/hooks/use-peca-do-link";
+// Exibição PEQUENA (quadradinhos de 38-52px) pede a miniatura do servidor e
+// não o arquivo original de MBs. Zoom e download seguem na URL crua.
+import { miniatura } from "@/lib/miniatura";
 import {
   Dialog,
   DialogContent,
@@ -2467,8 +2470,10 @@ export default function Atendimento() {
                             {hasThumb ? (
                               <>
                                 <img
-                                  src={item.approvalThumbUrl}
+                                  src={miniatura(item.approvalThumbUrl)}
                                   alt=""
+                                  loading="lazy"
+                                  decoding="async"
                                   style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                                   onError={(e) => {
                                     (e.currentTarget as HTMLImageElement).style.display = 'none';
@@ -3132,7 +3137,7 @@ export default function Atendimento() {
                             {hasThumb ? (
                               <>
                                 <img
-                                  src={item.approvalThumbUrl}
+                                  src={miniatura(item.approvalThumbUrl)}
                                   alt=""
                                   loading="lazy"
                                   decoding="async"
@@ -3649,7 +3654,7 @@ export default function Atendimento() {
                             {(item.approvalThumbUrl || item.finalPreviewUrl)
                               ? <>
                                   <img
-                                    src={item.approvalThumbUrl || item.finalPreviewUrl}
+                                    src={miniatura(item.approvalThumbUrl || item.finalPreviewUrl)}
                                     alt=""
                                     loading="lazy"
                                     decoding="async"
@@ -3909,8 +3914,10 @@ export default function Atendimento() {
                     {(di.approvalThumbUrl || di.finalPreviewUrl)
                       ? <>
                           <img
-                            src={di.approvalThumbUrl || di.finalPreviewUrl}
+                            src={miniatura(di.approvalThumbUrl || di.finalPreviewUrl)}
                             alt=""
+                            loading="lazy"
+                            decoding="async"
                             style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                             onError={(e) => {
                               (e.currentTarget as HTMLImageElement).style.display = 'none';
@@ -4084,8 +4091,10 @@ export default function Atendimento() {
                       {thumbUrl
                         ? <>
                             <img
-                              src={thumbUrl}
+                              src={miniatura(thumbUrl)}
                               alt=""
+                              loading="lazy"
+                              decoding="async"
                               style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                               onError={(e) => {
                                 // Mesmo fallback dos demais thumbs da tela: esconde a
@@ -5140,6 +5149,7 @@ export default function Atendimento() {
                 <img
                   src={batchPreviewItem.approvalThumbUrl}
                   alt={batchPreviewItem.type}
+                  decoding="async"
                   style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', display: 'block' }}
                   onError={(e) => {
                     // Mesmo fallback dos demais thumbs: esconde a imagem quebrada

@@ -384,15 +384,42 @@ export default function VincularPatrocinadores() {
   // e o aviso diz em quantas peças e o passo seguinte.
 
 
-  const { data: items = VAZIO, isLoading: itemsLoading, isError: itemsError, refetch: refetchItems } = useQuery<any[]>({
-    queryKey: CHAVE_DA_VINCULACAO,
-  });
-
   // isLoading dos eventos também gateia o spinner: visibleItems exige o evento
   // no eventById — se /api/items resolvesse antes de /api/events, a tela
   // piscava o vazio "Nada para vincular agora" até os eventos chegarem.
+  //
+  // E agora ela vem PRIMEIRO por um segundo motivo: é dela que sai o recorte
+  // por evento da lista de peças, logo abaixo.
   const { data: rawEvents = VAZIO, isLoading: eventsLoading, isError: eventsError, refetch: refetchEvents } = useQuery<any[]>({
     queryKey: ["/api/events"],
+  });
+
+  // ── O RECORTE POR EVENTO (perf, 2ª rodada) ───────────────────────────────
+  // `visibleItems`, logo abaixo, já descarta toda peça de evento FINALIZADO —
+  // e em produção a maioria dos 68 eventos já passou, com quase todas as peças
+  // entregues penduradas neles. Era esse acervo que descia pela rede para ser
+  // jogado fora na segunda linha de um useMemo.
+  //
+  // Os ids vão ORDENADOS: a chave da query é o texto da URL, e uma ordem que
+  // dançasse a cada render viraria uma busca nova por render. O conjunto só
+  // muda quando um evento é encerrado, criado ou vira o dia — e aí uma busca
+  // nova é exatamente o que se quer.
+  const eventosEmJogo = useMemo(() => {
+    const hoje = todayBusinessMs();
+    return (rawEvents as any[])
+      .filter((e: any) => !isEventoFinalizado(e, hoje))
+      .map((e: any) => e.id as string)
+      .sort();
+  }, [rawEvents]);
+  const chaveDaVinculacao = useMemo(
+    () => [CHAVE_DA_VINCULACAO[0], `${CHAVE_DA_VINCULACAO[1]}&eventId=${eventosEmJogo.join(",")}`] as const,
+    [eventosEmJogo],
+  );
+  const { data: items = VAZIO, isLoading: itemsLoading, isError: itemsError, refetch: refetchItems } = useQuery<any[]>({
+    queryKey: chaveDaVinculacao,
+    // Sem evento em jogo não há nada para vincular — e `?eventId=` vazio seria
+    // um 400 do servidor (a validação exige de 1 a 500 ids).
+    enabled: eventosEmJogo.length > 0,
   });
 
   // Histórico DA PEÇA aberta no dialog de detalhes, com escopo no servidor.
@@ -2214,6 +2241,10 @@ export default function VincularPatrocinadores() {
                 <img
                   src={previewRefUrl}
                   alt="Referência visual"
+                  // Aqui a exibição é GRANDE (até 480px): a URL fica crua — a
+                  // referência existe para ser olhada. Só a decodificação sai
+                  // da thread principal.
+                  decoding="async"
                   style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', display: 'block' }}
                   onError={() => setRefImgFailed(true)}
                 />

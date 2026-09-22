@@ -259,6 +259,14 @@ export function aplicarDelta(anterior: any[], delta: any, assinaturas?: Assinatu
   const porId = new Map<string, any>(anterior.map((i) => [i.id, i]));
   let mudou = false;
   for (const id of delta.removidas ?? []) if (porId.delete(id)) mudou = true;
+  // Evento EXCLUÍDO apaga as peças em cascata no banco, e linha apagada não
+  // aparece em `?since=` — elas ficavam na tela até o resync cheio (30 min).
+  // O delta traz TODOS os eventos: peça cujo evento sumiu da lista também sai.
+  if (Array.isArray(delta.eventos) && delta.eventos.length > 0) {
+    for (const [id, i] of Array.from(porId)) {
+      if (i?.eventId && !evPorId.has(i.eventId)) { porId.delete(id); mudou = true; }
+    }
+  }
   const doDelta = new Set<any>();
   let entraram = 0;
   for (const item of delta.itens ?? []) {

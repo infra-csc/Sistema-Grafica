@@ -165,12 +165,6 @@ function linhaDeAuditoria() {
 describe("as quatro rotas que enchem a coluna 'Realizado por'", () => {
   const casos: Array<{ nome: string; chave: string; ctx: any; antes?: () => void; acao: string }> = [
     {
-      nome: "liberar para produção (Solicitação)",
-      chave: "PATCH /api/items/:id/approve",
-      ctx: { params: { id: "i-1" }, userRole: "solicitacao" },
-      acao: "approved",
-    },
-    {
       nome: "revisão do criador (liberação)",
       chave: "PATCH /api/items/:id/creator-review",
       ctx: { params: { id: "i-1" }, userRole: "solicitacao" },

@@ -8,10 +8,28 @@ import {
   requireAuth,
   requireAdmin,
   loginRateLimiter,
+  loginPorContaRateLimiter,
   changePasswordRateLimiter,
   createAuditLog,
   sendSensitiveError,
 } from "./shared";
+import { buscarUsuarioPorEmail, conferirSenha, senhaAleatoria } from "../login-seguro";
+import { avisarSessoesEncerradas } from "../sessoes-encerradas";
+
+// Apaga as sessões do usuário (todas, ou todas menos a atual) e avisa o tempo
+// real para derrubar os sockets dele. Falha aqui não desfaz a operação.
+async function encerrarSessoes(userId: string, exceto?: string): Promise<void> {
+  try {
+    if (exceto) {
+      await pool.query(`DELETE FROM session WHERE (sess->>'userId') = $1 AND sid <> $2`, [userId, exceto]);
+    } else {
+      await pool.query(`DELETE FROM session WHERE (sess->>'userId') = $1`, [userId]);
+    }
+  } catch (erro) {
+    console.error("Falha ao encerrar as sessões do usuário:", erro);
+  }
+  avisarSessoesEncerradas(userId);
+}
 
 export function registerAuthRoutes(app: Express): void {
   // ============ AUTHENTICATION ============
@@ -19,17 +37,18 @@ export function registerAuthRoutes(app: Express): void {
   // Register new user (admin only)
   app.post("/api/auth/register", requireAdmin, async (req, res) => {
     try {
-      const { password, ...userData } = insertUserSchema.parse({ ...req.body, password: req.body.password || "sso_placeholder_pw" });
-      
-      // Check if email already exists
-      const existingUser = await storage.getUserByEmail(userData.email);
+      // Sem senha (usuário que entra por SSO): senha aleatória, que ninguém
+      // conhece. Um texto fixo aqui virava a senha real de todo cadastro.
+      const senhaInformada = typeof req.body?.password === "string" && req.body.password !== "" ? req.body.password : senhaAleatoria();
+      const { password, ...userData } = insertUserSchema.parse({ ...req.body, password: senhaInformada });
+
+      // E-mail sem diferenciar maiúsculas — "Ana@" e "ana@" são a mesma conta.
+      const existingUser = await buscarUsuarioPorEmail(userData.email);
       if (existingUser) {
         return res.status(400).json({ error: "Email já cadastrado" });
       }
 
-      // When no password is provided (SSO-only users), generate a random secure hash
-      const rawPassword = password && password.length >= 6 ? password : Math.random().toString(36) + Math.random().toString(36) + Date.now().toString(36);
-      const passwordHash = await bcrypt.hash(rawPassword, 10);
+      const passwordHash = await bcrypt.hash(password, 10);
 
       // Create user (SSO-only: no password change required)
       const user = await storage.createUser({
@@ -58,19 +77,15 @@ export function registerAuthRoutes(app: Express): void {
   });
 
   // Login
-  app.post("/api/auth/login", loginRateLimiter, async (req, res) => {
+  app.post("/api/auth/login", loginRateLimiter, loginPorContaRateLimiter, async (req, res) => {
     try {
       const { email, password } = loginSchema.parse(req.body);
 
-      // Find user
-      const user = await storage.getUserByEmail(email);
-      if (!user) {
-        return res.status(401).json({ error: "Email ou senha inválidos" });
-      }
-
-      // Verify password
-      const isValid = await bcrypt.compare(password, user.passwordHash);
-      if (!isValid) {
+      const user = await buscarUsuarioPorEmail(email);
+      // Mesmo tempo e mesma resposta para "não existe" e "senha errada": a
+      // diferença revelaria quem tem conta.
+      const isValid = await conferirSenha(password, user?.passwordHash);
+      if (!user || !isValid) {
         return res.status(401).json({ error: "Email ou senha inválidos" });
       }
 
@@ -82,6 +97,7 @@ export function registerAuthRoutes(app: Express): void {
       req.session.userName = user.name;
       req.session.userRole = user.role;
       req.session.userKit = user.kit === true;
+      req.session.loginEm = Date.now();
 
       // O carimbo de login. Fora do caminho crítico de propósito: se o UPDATE
       // falhar, a pessoa ENTRA mesmo assim — o registro existe para a gestão
@@ -159,8 +175,9 @@ export function registerAuthRoutes(app: Express): void {
         req.session.userKit = kit;
       }
       await new Promise<void>((ok, falhou) => req.session.save((e) => (e ? falhou(e) : ok())));
+      // Nome puro: a própria troca de perfil não é ação "como" outro perfil.
       await createAuditLog(
-        req.userName!,
+        { userName: req.session.userName || req.userName, userId: req.session.userId },
         'updated',
         'user',
         req.session.userId!,
@@ -211,19 +228,9 @@ export function registerAuthRoutes(app: Express): void {
         mustChangePassword: false,
       });
 
-      // Invalida as DEMAIS sessões ativas do usuário (mesmo padrão da troca de
-      // papel em PATCH /api/users/:id), preservando a sessão atual: quem trocou
-      // a senha continua logado; qualquer outra sessão (outro navegador, uma
-      // sessão comprometida) cai e exige novo login com a senha nova.
-      try {
-        await pool.query(
-          `DELETE FROM session WHERE (sess->>'userId') = $1 AND sid <> $2`,
-          [user.id, req.sessionID]
-        );
-      } catch (sessionErr) {
-        // Non-fatal: log the error but don't fail the password change.
-        console.error("Failed to invalidate other sessions after password change:", sessionErr);
-      }
+      // Invalida as DEMAIS sessões ativas do usuário, preservando a atual:
+      // qualquer outra sessão (outro navegador, uma comprometida) cai.
+      await encerrarSessoes(user.id, req.sessionID);
 
       // Create audit log — ação específica: 'password_changed' tem badge
       // próprio na tela de logs; como 'updated' genérico, a troca de senha
@@ -278,6 +285,13 @@ export function registerAuthRoutes(app: Express): void {
       // Validate against the schema so arbitrary fields (e.g. a client-supplied
       // passwordHash, which the schema omits entirely) can never be mass-assigned.
       const { password, ...validatedData } = insertUserSchema.partial().parse(req.body);
+      // A mesma conta com outra grafia de e-mail não pode nascer por edição.
+      if (validatedData.email) {
+        const dono = await buscarUsuarioPorEmail(validatedData.email);
+        if (dono && dono.id !== req.params.id) {
+          return res.status(400).json({ error: "Email já cadastrado" });
+        }
+      }
       const updateData: any = { ...validatedData };
 
       // If password is being updated, hash it (only path by which passwordHash is set)
@@ -291,20 +305,13 @@ export function registerAuthRoutes(app: Express): void {
         return res.status(404).json({ error: "Usuário não encontrado" });
       }
 
-      // If the role changed, invalidate all active sessions for that user so
-      // they get the new role on their next login. Session data stores userId
-      // as a JSON string field inside the `sess` column.
-      // A marca de usuário do Kit muda o que a pessoa enxerga: mesma regra.
-      if (validatedData.role !== undefined || validatedData.kit !== undefined) {
-        try {
-          await pool.query(
-            `DELETE FROM session WHERE (sess->>'userId') = $1`,
-            [req.params.id]
-          );
-        } catch (sessionErr) {
-          // Non-fatal: log the error but don't fail the update response.
-          console.error("Failed to invalidate user sessions after role change:", sessionErr);
-        }
+      // Perfil, marca do Kit ou senha redefinida pelo admin: todas as sessões
+      // da pessoa caem — ela entra de novo com o perfil novo / a senha nova.
+      const mudouAcesso = validatedData.role !== undefined || validatedData.kit !== undefined;
+      if (mudouAcesso || password) {
+        // Só a senha do próprio admin mudou: a sessão em uso fica.
+        const manter = !mudouAcesso && req.params.id === req.userId ? req.sessionID : undefined;
+        await encerrarSessoes(req.params.id, manter);
       }
 
       // Create audit log
@@ -339,6 +346,8 @@ export function registerAuthRoutes(app: Express): void {
       }
 
       await storage.deleteUser(req.params.id);
+      // Excluído não segue navegando com a sessão que já tinha.
+      await encerrarSessoes(req.params.id);
 
       // Create audit log
       await createAuditLog(

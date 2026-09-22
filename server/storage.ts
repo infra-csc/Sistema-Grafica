@@ -230,7 +230,7 @@ export const AUDIT_LOGS_MAX_LIMIT = 2000;
  * O termo é literal: %_\ são escapados para o usuário que busca "100%" não
  * receber tudo.
  */
-function auditLogsBusca(termo?: string | null) {
+export function auditLogsBusca(termo?: string | null) {
   const t = termo?.trim();
   if (!t) return undefined;
   const escapado = t.replace(/[\\%_]/g, (c) => "\\" + c);
@@ -257,7 +257,7 @@ export function clampAuditLogLimit(limit?: number | null): number {
  * da peça no modal perde as ações em massa. IDs são UUIDs (comprimento fixo,
  * aleatórios), então LIKE '%id%' não gera falso positivo.
  */
-function auditLogsFilter(entityType?: string, entityId?: string) {
+export function auditLogsFilter(entityType?: string, entityId?: string) {
   const entityIdMatch = (id: string) =>
     or(eq(auditLogs.entityId, id), like(auditLogs.entityId, `%${id}%`));
 

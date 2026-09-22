@@ -4743,62 +4743,11 @@ export function registerItemRoutes(app: Express): void {
     }
   });
 
-  // Approve item (Arte module) - DEPRECATED: Use new approval workflow
-  app.patch("/api/items/:id/approve", requireAuth, async (req, res) => {
-    try {
-      if (req.userRole !== "solicitacao" && req.userRole !== "admin") {
-        return res.status(403).json({ error: "Apenas usuários com perfil Solicitação podem liberar itens para produção" });
-      }
-      // Pre-fetch event for notification message (read outside tx — no row lock needed)
-      const preItem = await storage.getItem(req.params.id);
-      if (!preItem) return res.status(404).json({ error: "Item not found" });
-      // ANDA: caminho antigo do "liberar para produção". Depreciado, mas
-      // registrado — e uma rota registrada é uma rota chamável.
-      if (await barraEventoFinalizado(preItem, res)) return;
-      const event = await storage.getEvent(preItem.eventId);
-
-      // Atomic: item status update + audit log + notification in one transaction.
-      // If any step fails the entire operation rolls back — no partial state in the DB.
-      const { item, notification } = await db.transaction(async (tx) => {
-        const [updated] = await tx
-          .update(itemsTable)
-          .set({ status: "approved", approvedAt: new Date(), updatedAt: new Date() })
-          .where(eq(itemsTable.id, req.params.id))
-          .returning();
-        if (!updated) throw Object.assign(new Error("Item not found"), { httpStatus: 404 });
-
-        await tx.insert(auditLogs).values({
-          ...resolveActor(req),
-          action: "approved",
-          entityType: "item",
-          entityId: updated.id,
-          // "liberado para produção" e não "aprovado": é a MESMA frase que
-          // /creator-review grava, e é por ela que o Histórico reconhece que a
-          // liberação já tem registro próprio. Com a redação antiga o cliente
-          // não achava o log e emitia POR CIMA uma linha "Lib. p/ Produção"
-          // sintetizada do carimbo da peça — sem autor, duplicando o evento.
-          details: `Item "${updated.type}" liberado para produção`,
-        });
-
-        const [notif] = await tx.insert(notifications).values({
-          type: "arteApproved",
-          message: `Item liberado para produção: ${updated.type} - Evento: ${event?.name}`,
-          eventId: updated.eventId,
-          itemId: updated.id,
-          targetRoles: ["grafica"],
-        }).returning();
-
-        return { item: updated, notification: notif };
-      });
-
-      // Broadcasts happen after commit — no point notifying if the TX rolled back.
-      broadcast({ type: "item_approved", item });
-      broadcast({ type: "notification_created", notification });
-
-      res.json(item);
-    } catch (error: any) {
-      res.status((error as any).httpStatus ?? 500).json({ error: error.message });
-    }
+  // Caminho antigo do "liberar para produção": gravava "approved" a partir de
+  // QUALQUER estado, pulando aprovação e revisão. Nenhuma tela chama mais;
+  // quem chamar recebe 410 e o caminho certo.
+  app.patch("/api/items/:id/approve", requireAuth, (_req, res) => {
+    res.status(410).json({ error: "Esta forma de liberar a peça foi desativada. Use a Revisão Final para liberar para produção." });
   });
 
   // Start production (Gráfica module)

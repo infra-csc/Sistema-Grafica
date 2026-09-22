@@ -41,9 +41,10 @@ describe("o servidor busca na tabela inteira", () => {
   });
 
   it("a rota repassa ?busca= para a listagem E para a contagem", () => {
-    expect(ROTA).toContain('busca: typeof busca === "string" ? busca : undefined');
+    expect(ROTA).toContain('const termo = typeof busca === "string" ? busca : undefined;');
+    expect(ROTA).toContain("{ limit: tamanho, cursor: cursorParsed, busca: termo }");
     const i = ROTA.indexOf("getAuditLogsCount(");
-    expect(ROTA.slice(i, i + 220)).toContain('typeof busca === "string"');
+    expect(ROTA.slice(i, i + 220)).toContain("termo");
   });
 
   it("há UMA só declaração do helper e do campo — o duplo-patch já mordeu aqui", () => {

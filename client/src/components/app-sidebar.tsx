@@ -14,6 +14,7 @@ import { useLogout } from "@/hooks/use-logout";
 // seguia — os itens do menu tinham altura de padding, não de controle.
 import { useIsMobile } from "@/hooks/use-mobile";
 import { prefetchRota } from "@/lib/prefetch-de-rota";
+import { SOLICITACAO_AO_ESTOQUE_ATIVA } from "@shared/consultas-de-estoque";
 import {
   Sidebar,
   SidebarContent,
@@ -60,6 +61,14 @@ const inicioItems: MenuItem[] = [
   { title: "Calendário",              url: "/calendario",              icon: Calendar },
 ];
 
+// A caixa da Gráfica (dono, 21/09): a Revisão Final pede peças ao estoque
+// pelo modal Reaproveitamento; a Gráfica atende (tudo ou parte) ou diz que
+// não consegue. A Solicitação entra para acompanhar as dela. SEGURADA pelo
+// dono no mesmo dia: só entra no menu com SOLICITACAO_AO_ESTOQUE_ATIVA.
+const ITEM_SOLICITACOES_AO_ESTOQUE: MenuItem = {
+  title: "Solicitações ao estoque", url: "/grafica/solicitacoes-ao-estoque", icon: PackageSearch, roles: ["grafica", "solicitacao", "admin"],
+};
+
 const fluxoItems: MenuItem[] = [
   { title: "Vincular Patrocinadores", url: "/vincular-patrocinadores", icon: Link2,          roles: ["arte", "solicitacao", "atendimento", "admin"] },
   { title: "Arte",                    url: "/arte",                    icon: Palette,        roles: ["arte", "atendimento", "admin"] },
@@ -72,10 +81,9 @@ const fluxoItems: MenuItem[] = [
   // A aba de impressoras (dono, 14/09): o que cada uma imprime agora e o
   // diário do dia. Mesmos papéis da Gráfica (ROLES_GRAFICA no App).
   { title: "Máquinas da Gráfica",     url: "/grafica/maquinas",        icon: Cog,            roles: ["grafica", "solicitacao", "admin"] },
-  // A caixa da Gráfica (dono, 21/09): a Revisão Final pede peças ao estoque
-  // pelo modal Reaproveitamento; a Gráfica atende (tudo ou parte) ou diz que
-  // não consegue. A Solicitação entra para acompanhar as dela.
-  { title: "Solicitações ao estoque", url: "/grafica/solicitacoes-ao-estoque", icon: PackageSearch, roles: ["grafica", "solicitacao", "admin"] },
+  // A caixa da Gráfica (dono, 21/09): só com a chave ligada — ver
+  // ITEM_SOLICITACOES_AO_ESTOQUE abaixo.
+  ...(SOLICITACAO_AO_ESTOQUE_ATIVA ? [ITEM_SOLICITACOES_AO_ESTOQUE] : []),
   // O lugar único dos pedidos de peça (dono, 14/09): o Atendimento pede, a
   // Solicitação resolve — aqui e pelos eventos.
   { title: "Solicitação de peças",    url: "/pedidos-de-peca",         icon: Inbox,          roles: ["atendimento", "solicitacao", "admin"] },
@@ -374,7 +382,8 @@ export function AppSidebar() {
   });
   // Solicitações ao estoque esperando a Gráfica responder (dono, 21/09). Só
   // para quem responde: para a Solicitação uma aberta não é tarefa dela.
-  const respondeConsultas = role === "grafica" || role === "admin";
+  // Chave desligada (dono, 21/09 — segurar): nem a query roda.
+  const respondeConsultas = SOLICITACAO_AO_ESTOQUE_ATIVA && (role === "grafica" || role === "admin");
   const { data: consultasAbertas } = useQuery<{ total: number }>({
     queryKey: ["/api/consultas-de-estoque/abertas"],
     enabled: respondeConsultas,

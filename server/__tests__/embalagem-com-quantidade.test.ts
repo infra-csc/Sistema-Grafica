@@ -127,7 +127,7 @@ describe("2 · o modelo é ADITIVO", () => {
   });
   it("o .mjs confere a coluna e a tabela depois de rodar", () => {
     const MJS = ler("scripts/migracao-aditiva-producao.mjs");
-    expect(MJS).toContain("'reserva_por_maquina','embalada_qty'))");
+    expect(MJS).toContain("'reserva_por_maquina','embalada_qty',");
     expect(MJS).toContain("(table_name='tubo_itens' AND column_name IN ('tubo_id','item_id','quantidade','entregue_em'))");
   });
 });

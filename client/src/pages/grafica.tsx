@@ -1,12 +1,15 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { miniatura } from "@/lib/miniatura";
 import { SeloKit } from "@/components/kit/selo-kit";
+import { SeloMolde } from "@/components/kit/selo-kit";
+import { AcoesDoMolde } from "@/components/grafica/acoes-do-molde";
+import { ehMolde, statusDeExibicao, statusParaContagem } from "@shared/molde";
 import { AvisoDoEstoqueNaPeca } from "@/components/consulta-de-estoque/aviso-na-grafica";
 import { EsqueletoDeFila } from "@/components/esqueleto-de-fila";
 import { Link } from "wouter";
 import { prefetchRota } from "@/lib/prefetch-de-rota";
 import { FilterSelect, ShortcutPill } from "@/components/filter-select";
-import { AlertCircle, AlertTriangle, Package, CheckCircle, Truck, Calendar, Eye, Check, Camera, Search, Play, X, Filter, ChevronDown, Printer, RotateCcw, ImagePlus, FileSpreadsheet, ListChecks, PlusCircle, Trash2, Undo2, Loader2, Recycle, Tag, MoreHorizontal } from "lucide-react";
+import { AlertCircle, AlertTriangle, Package, CheckCircle, Truck, Calendar, Eye, Check, Camera, Search, Play, X, Filter, ChevronDown, Printer, RotateCcw, ImagePlus, FileSpreadsheet, ListChecks, PlusCircle, Trash2, Undo2, Loader2, Recycle, Tag, MoreHorizontal, Lock, Unlock } from "lucide-react";
 import { Fragment, useState, useMemo, useEffect, useLayoutEffect, useRef, startTransition } from "react";
 // Fila de ~4 mil peças: linha memoizada + desenho por lotes (ver o arquivo).
 import { LinhaMemo, SentinelaDaLista } from "@/components/grafica/lista-incremental";
@@ -44,7 +47,15 @@ import { GalpaoFila, type GalpaoDados } from "@/components/galpao-fila";
 import { SugestaoRecebedor } from "@/components/sugestao-recebedor";
 import { EM_REVISAO, rotuloDaMaquina, podeIrParaTubo, MAQUINAS_DE_IMPRESSAO } from "@shared/fluxo-peca";
 import { estaDividida, partesDaPeca, resumoDaDivisao } from "@shared/impressao-dividida";
-import { lerReserva, resumoDaReserva, semImpressora, ocupanteDaImpressora } from "@shared/reserva-de-impressora";
+import { semImpressora } from "@shared/reserva-de-impressora";
+// A peça na impressora em UMA fonte (21/09: "Máquinas e Gráfica têm que se
+// conversar"): os números, o selo da fila, quem ocupa cada impressora e os
+// links de ida e volta são os mesmos do cartão de Máquinas.
+import { numerosDaImpressao, fraseDaFila, ocupacaoDasImpressoras, linkDaImpressoraEmMaquinas, estaEmImpressao } from "@shared/progresso-da-impressao";
+import { invalidarGraficaEMaquinas } from "@/lib/tempo-real-grafica";
+// TRAVA DA SOLICITAÇÃO (21/09): a regra (quem trava, o que bloqueia, as frases)
+// mora em shared/trava-da-peca.ts; aqui só o botão, o modal e o selo.
+import { pecaTravada, fraseDaTrava, seloDaTrava, podeTravar, lerMotivo, SUGESTOES_DE_MOTIVO, MOTIVO_MINIMO } from "@shared/trava-da-peca";
 // Aritmética de saldo: fonte única em lib/saldo.ts. Estes onze cálculos
 // (quanto falta produzir, conferir, entregar, reaproveitar; quanto de m²
 // realmente vai para a impressora) viviam duplicados como consts locais no
@@ -72,7 +83,7 @@ import { compareDisplayId, splitDisplayId } from "@/lib/displayId";
 import {
   FILTROS_VAZIOS, filtrosDaURL, filtrosParaQuery, itemCasaFiltros, itemPercursos,
   contarFiltrosAtivos, temFiltroAtivo, descreverFiltros, nomeDoMes, escondeEntregues,
-  hojeEmUTC, normKey, ordemPercurso, itemMes, itemImpressora, SEM_IMPRESSORA,
+  hojeEmUTC, normKey, ordemPercurso, itemMes, itemImpressoras, SEM_IMPRESSORA,
   type GraficaFiltros, type FacetaGrafica,
 } from "@/lib/grafica-filtros";
 // Lançamento de produção: o único campo do app cujo contrato é ABSOLUTO ao lado
@@ -177,19 +188,28 @@ const tituloAcaoImpressao = (item: any) =>
  * progresso em linhas separadas para a coluna Status não alargar.
  */
 function ProgressoImpressao({ item, fonte, duasLinhas, onIniciarResto }: { item: any; fonte: number; duasLinhas?: boolean; /** "Iniciar o resto": a peça entrou em impressão só com PARTE das unidades (21/09). */ onIniciarResto?: () => void }) {
-  const resto = semImpressora(item);
-  const teto = tetoDeProducao(item);
-  const feitas = producedOf(item);
-  // Peça DIVIDIDA entre impressoras (Máquinas, 21/09): "Impressora 1 · 1 de 3
-  // un. / Impressora 2 · 0 de 2 un." no lugar de uma impressora só.
-  const dividida = estaDividida(item);
-  const maquina = dividida ? resumoDaDivisao(partesDaPeca(item)) : item.printMachine ? rotuloDaMaquina(item.printMachine) : null;
-  const progresso = progressoDaImpressao(feitas, teto);
+  // Os números saem de numerosDaImpressao (shared) — a MESMA conta do cartão
+  // de Máquinas e do modal. Peça DIVIDIDA: "Impressora 1 · 1 de 3 un. /
+  // Impressora 2 · 0 de 2 un." no lugar de uma impressora só.
+  const n = numerosDaImpressao(item);
+  const resto = n.semImpressora;
+  const feitas = n.feitas;
+  const teto = n.teto;
+  const dividida = n.dividida;
+  const maquina = n.onde;
+  // A impressora vira LINK para o cartão dela em Máquinas (aba Agora, em foco,
+  // com esta peça realçada) — a volta é o "Ver na Gráfica" de lá.
+  const alvo = dividida ? null : item.printMachine as string | null;
   return (
     <div data-testid={`progresso-impressao-${item.id}`} style={{ marginTop: 4, maxWidth: duasLinhas ? 190 : undefined, whiteSpace: "normal" }}>
       <div style={{ fontSize: fonte, color: "#9a3412", fontWeight: 700, lineHeight: 1.3, fontVariantNumeric: "tabular-nums" }}>
-        {maquina && <span style={{ display: duasLinhas ? "block" : "inline" }}>{maquina}{!duasLinhas && " · "}</span>}
-        <span style={{ fontWeight: 600 }}>{progresso}</span>
+        {maquina && (
+          <span style={{ display: duasLinhas ? "block" : "inline" }}>
+            <Link href={linkDaImpressoraEmMaquinas(alvo ?? Object.keys(n.partes)[0] ?? "", item.id)} onClick={(e) => e.stopPropagation()} data-testid={`link-ver-na-maquina-${item.id}`} title="Ver esta peça no cartão da impressora, em Máquinas" style={{ color: "inherit", textDecoration: "underline", textUnderlineOffset: 2, display: "inline-flex", alignItems: "center", minHeight: fonte >= 12 ? 44 : 24 }}>{maquina}</Link>
+            {!duasLinhas && " · "}
+          </span>
+        )}
+        <span style={{ fontWeight: 600 }}>{n.frase}</span>
         {resto > 0 && <span data-testid={`resto-sem-impressora-${item.id}`} style={{ display: "block", fontWeight: 700 }}>{resto} sem impressora</span>}
       </div>
       {resto > 0 && onIniciarResto && (
@@ -199,7 +219,7 @@ function ProgressoImpressao({ item, fonte, duasLinhas, onIniciarResto }: { item:
       )}
       {/* Sem barra com 0 impressas (o trilho vazio parecia um corte); dividida = uma barra por impressora. */}
       {dividida
-        ? Object.entries(partesDaPeca(item)).map(([m, x]) => (
+        ? Object.entries(n.partes).map(([m, x]) => (
           <BarraDeImpressao key={m} feitas={x.impressas} teto={x.atrib} rotulo={`${item.displayId ?? "peça"} na ${rotuloDaMaquina(m)}: ${x.impressas} de ${x.atrib} impressas`} />
         ))
         : <BarraDeImpressao feitas={feitas} teto={teto} rotulo={`${item.displayId ?? "peça"}: ${feitas} de ${teto} impressas`} />}
@@ -207,17 +227,60 @@ function ProgressoImpressao({ item, fonte, duasLinhas, onIniciarResto }: { item:
   );
 }
 /**
+ * A TRAVA DA SOLICITAÇÃO na linha e no cartão (21/09): travada, a faixa
+ * vermelho-escura "Travada: <motivo> · por Fulano, há 2h" (+ "Destravar" para
+ * quem pode); livre, o botão "Travar" (cadeado) só para a Solicitação/admin.
+ */
+function TravaDaPeca({ item, podeMexer, fonte, alvo, onTravar, onDestravar, destravando }: {
+  item: any; podeMexer: boolean; fonte: number; alvo: number;
+  onTravar: () => void; onDestravar: () => void; destravando?: boolean;
+}) {
+  const travada = pecaTravada(item);
+  if (!travada && !podeMexer) return null;
+  if (!travada) {
+    if (isDelivered(item)) return null;
+    return (
+      <button type="button" onClick={(e) => { e.stopPropagation(); onTravar(); }} data-testid={`button-travar-${item.id}`} title="Travar a peça: a Gráfica não consegue fazê-la andar até alguém da Solicitação destravar" style={{ display: "inline-flex", alignItems: "center", gap: 5, minHeight: alvo, padding: "0 10px", marginTop: 4, borderRadius: 6, border: "1px solid #d6d3d1", background: "#ffffff", color: "#7f1d1d", fontSize: Math.max(fonte, 11), fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}>
+        <Lock aria-hidden="true" style={{ width: 12, height: 12 }} /> Travar
+      </button>
+    );
+  }
+  return (
+    <div role="status" data-testid={`selo-travada-${item.id}`} title={fraseDaTrava(item)} style={{ marginTop: 4, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", padding: "4px 8px", borderRadius: 6, background: "#7f1d1d", color: "#ffffff", fontSize: fonte, fontWeight: 700, lineHeight: 1.35, whiteSpace: "normal", overflowWrap: "anywhere" }}>
+      <Lock aria-hidden="true" style={{ width: 12, height: 12, flexShrink: 0 }} />
+      <span style={{ flex: "1 1 140px", minWidth: 0 }}>{seloDaTrava(item)}</span>
+      {podeMexer && (
+        <button type="button" onClick={(e) => { e.stopPropagation(); onDestravar(); }} disabled={destravando} data-testid={`button-destravar-${item.id}`} style={{ display: "inline-flex", alignItems: "center", gap: 4, minHeight: alvo, padding: "0 10px", borderRadius: 6, border: "1px solid #fecaca", background: "#ffffff", color: "#7f1d1d", fontSize: Math.max(fonte, 11), fontWeight: 700, cursor: destravando ? "wait" : "pointer", whiteSpace: "nowrap" }}>
+          <Unlock aria-hidden="true" style={{ width: 12, height: 12 }} /> {destravando ? "Destravando…" : "Destravar"}
+        </button>
+      )}
+    </div>
+  );
+}
+
+/** Os atributos que DESABILITAM um botão de ação da peça travada (com o motivo no title). */
+const bloqueioDaTrava = (item: any): Record<string, unknown> =>
+  pecaTravada(item) ? { disabled: true, title: fraseDaTrava(item), "data-travada": "true", "aria-disabled": true } : {};
+/** O botão desabilitado pela trava fica apagado mesmo com o estilo inline da linha. */
+const CSS_DA_TRAVA = "button[data-travada]{opacity:.45!important;cursor:not-allowed!important}";
+
+/**
  * "Fila: Impressora 2" — a peça liberada já tem impressora RESERVADA na aba
  * Máquinas (dono, 21/09: "isso refletir na tela da Gráfica"). Só leitura:
  * a reserva se faz lá; aqui nada muda de status.
  */
-function SeloFilaDaImpressora({ maquina, reserva, fonte }: { maquina: string; reserva?: unknown; fonte: number }) {
-  // Reserva dividida (21/09): "Fila: Impressora 1 (20) · Impressora 2 (14)".
-  const dividida = Object.keys(lerReserva(reserva) ?? {}).length > 1;
+function SeloFilaDaImpressora({ item, fonte }: { item: any; fonte: number }) {
+  // A frase é a de fraseDaFila (shared): "Fila: Impressora 2", "Fila:
+  // Impressora 2 (20) · 14 sem impressora", "Pausada · Fila: …" — a mesma
+  // conta das filas dos cartões de Máquinas.
+  const frase = fraseDaFila(item);
+  if (!frase) return null;
+  const maquina = String(item.maquinaPrevista ?? "");
+  const dividida = frase.length > 26;
   return (
-    <span data-testid="selo-fila-impressora" title={`Reservada na aba Máquinas para a ${rotuloDaMaquina(maquina)} — a etapa não muda até iniciar a impressão`} style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: fonte, fontWeight: 700, color: "#57534e", background: "#f5f5f4", border: "1px solid #e7e5e4", borderRadius: 6, padding: "1px 6px", whiteSpace: dividida ? "normal" : "nowrap" }}>
+    <span data-testid="selo-fila-impressora" title={`Reservada na fila da ${maquina ? rotuloDaMaquina(maquina) : "impressora"} (Máquinas) — a etapa não muda até iniciar a impressão`} style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: fonte, fontWeight: 700, color: "#57534e", background: "#f5f5f4", border: "1px solid #e7e5e4", borderRadius: 6, padding: "1px 6px", whiteSpace: dividida ? "normal" : "nowrap" }}>
       <Printer aria-hidden="true" style={{ width: 11, height: 11, flexShrink: 0 }} />
-      Fila: {dividida ? resumoDaReserva(lerReserva(reserva)) : rotuloDaMaquina(maquina)}
+      {frase}
     </span>
   );
 }
@@ -754,7 +817,11 @@ export default function Grafica() {
   // "Embalar" quando é tudo; "Embalar 3" quando é só o que falta (ou a parte conferida).
   const rotuloEmbalar = (item: any) => (aEmbalar(item) < qtyOf(item) ? `Embalar ${aEmbalar(item)}` : "Embalar");
   // Abre o painel de tubos do evento da peça já com ela marcada para embalar.
-  const abrirEmbalar = (itens: any[]) => {
+  const abrirEmbalar = (itensPedidos: any[]) => {
+    // Travada não embala: sai do lote, com aviso (o servidor também barra).
+    const travadas = itensPedidos.filter((i) => pecaTravada(i));
+    if (travadas.length) toast({ title: travadas.length === 1 ? `${travadas[0].displayId ?? "Peça"} está travada` : `${travadas.length} peças travadas ficaram de fora`, description: fraseDaTrava(travadas[0]), variant: "destructive" });
+    const itens = itensPedidos.filter((i) => !pecaTravada(i));
     const primeira = itens[0];
     if (!primeira) return;
     setTubosDoEvento({ id: String(primeira.eventId), name: primeira.event?.name ?? "Evento", embalar: itens.map((i) => i.id) });
@@ -958,8 +1025,7 @@ export default function Grafica() {
     // Invalidação POR PEÇA, não só na saída: esta é a tela em que duas pessoas
     // trabalham a mesma fila ao mesmo tempo — o computador da bancada precisa
     // ver a peça sumir enquanto o conferente anda com o celular.
-    queryClient.invalidateQueries({ queryKey: ["/api/items"] });
-    queryClient.invalidateQueries({ queryKey: ["/api/items/approved"] });
+    invalidarGraficaEMaquinas();
   };
   const fecharGalpao = (feitas: number) => {
     const modo = galpao;
@@ -1150,8 +1216,7 @@ export default function Grafica() {
     mutationFn: async ({ itemId, data }: { itemId: string; data: any; displayId?: string }) =>
       await apiRequest("PATCH", `/api/items/${itemId}/deliver`, data),
     onSuccess: (_r, vars) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/items/approved"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+      invalidarGraficaEMaquinas();
       setSelectedItem(null); setModalType(null);
       setDeliveryData({ receivedBy: "" });
       setPhotos([]);
@@ -1168,7 +1233,7 @@ export default function Grafica() {
     // tela parar de mostrar um saldo que não existe mais (o efeito
     // "peça mudou enquanto você registrava", abaixo, fecha o modal se for o caso).
     onError: (error: Error) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/items/approved"] });
+      invalidarGraficaEMaquinas();
       // Sem internet a recarga não aconteceu: não prometer o que não houve.
       toast({ title: "Não foi possível registrar a entrega", description: `${apiErrorMessage(error).replace(/[.\s]*$/, ".")}${navigator.onLine ? " A fila foi recarregada com o estado atual." : ""}`, variant: "destructive" });
     },
@@ -1187,8 +1252,7 @@ export default function Grafica() {
     mutationFn: async ({ itemId, notes }: { itemId: string; notes: string }) =>
       await apiRequest("PATCH", `/api/items/${itemId}/return-to-review`, { notes }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/items/approved"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+      invalidarGraficaEMaquinas();
       setDevolverItem(null);
       setDevolverMotivo("");
       toast({ title: "Devolvida para a Revisão Final", description: "A peça saiu da fila da Gráfica e o motivo foi registrado." });
@@ -1196,7 +1260,7 @@ export default function Grafica() {
     // Recusa típica: a peça já entrou em produção por outra pessoa. A fila
     // recarrega para o botão Devolver sumir de onde ele não vale mais.
     onError: (error: Error) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/items/approved"] });
+      invalidarGraficaEMaquinas();
       toast({ title: "Não foi possível devolver", description: apiErrorMessage(error), variant: "destructive" });
     },
   });
@@ -1293,13 +1357,12 @@ export default function Grafica() {
     mutationFn: async ({ itemId, tuboId }: { itemId: string; tuboId: string; displayId?: string }) =>
       await apiRequest("PATCH", `/api/tubos/${tuboId}/itens`, { remover: [itemId] }),
     onSuccess: (_r, vars) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/items/approved"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+      invalidarGraficaEMaquinas();
       queryClient.invalidateQueries({ queryKey: ["/api/tubos"] });
       toast({ title: tubosAvulsos.has(vars.tuboId) ? `Embalagem de ${vars.displayId ?? "peça"} desfeita` : `${vars.displayId ?? "Peça"} saiu do Tubo ${numeroDoTubo.get(vars.tuboId) ?? ""}`, description: "Voltou para Conferido." });
     },
     onError: (error: Error) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/items/approved"] });
+      invalidarGraficaEMaquinas();
       toast({ title: "Não foi possível tirar do tubo", description: apiErrorMessage(error), variant: "destructive" });
     },
   });
@@ -1309,8 +1372,7 @@ export default function Grafica() {
     mutationFn: async ({ itemId, conferencePhotoUrl, qty, notes }: { itemId: string; conferencePhotoUrl: string; qty: number; notes?: string; displayId?: string }) =>
       await apiRequest("POST", `/api/items/${itemId}/confer`, { conferencePhotoUrl, qty, notes }),
     onSuccess: (_r, vars) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/items/approved"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+      invalidarGraficaEMaquinas();
       setSelectedItem(null); setModalType(null);
       setPhotos([]);
       toast({
@@ -1319,7 +1381,7 @@ export default function Grafica() {
       });
     },
     onError: (error: Error) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/items/approved"] });
+      invalidarGraficaEMaquinas();
       toast({ title: "Não foi possível registrar a conferência", description: `${apiErrorMessage(error).replace(/[.\s]*$/, ".")}${navigator.onLine ? " A fila foi recarregada com o estado atual." : ""}`, variant: "destructive" });
     },
   });
@@ -1332,8 +1394,7 @@ export default function Grafica() {
     mutationFn: async ({ itemId, qty, reuseTotal }: { itemId: string; qty?: number; reuseTotal?: number }) =>
       await (await apiRequest("POST", `/api/items/${itemId}/mark-reuse`, reuseTotal != null ? { reuseTotal } : { qty })).json(),
     onSuccess: (updated: any) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/items/approved"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+      invalidarGraficaEMaquinas();
       setReuseConfirmItemId(null);
       setMenuAcoesId(null);
       const falta = (updated?.quantity ?? 0) - (updated?.reuseQty ?? 0);
@@ -1357,8 +1418,7 @@ export default function Grafica() {
     mutationFn: async ({ itemId, correctedReuseQty }: { itemId: string; correctedReuseQty: number }) =>
       await (await apiRequest("POST", `/api/items/${itemId}/correct-reuse`, { correctedReuseQty })).json(),
     onSuccess: (updated: any) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/items/approved"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+      invalidarGraficaEMaquinas();
       setCorrectReuseItemId(null);
       setMenuAcoesId(null);
       const qty = Number(updated?.quantity) || 0;
@@ -1385,8 +1445,7 @@ export default function Grafica() {
     mutationFn: async ({ itemId }: { itemId: string; displayId: string }) =>
       await (await apiRequest("DELETE", `/api/items/${itemId}/complement`)).json(),
     onSuccess: (_data: any, vars) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/items/approved"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+      invalidarGraficaEMaquinas();
       setCancelComplementId(null);
       setMenuAcoesId(null);
       toast({ title: "Complemento cancelado", description: `${vars.displayId} removido da fila.` });
@@ -1398,6 +1457,52 @@ export default function Grafica() {
       toast({ title: "Não foi possível cancelar", description: apiErrorMessage(error), variant: "destructive" });
     },
   });
+
+  // ── TRAVAR / DESTRAVAR (Solicitação e admin, 21/09) ───────────────────────
+  // A Solicitação sem Kit não trava peça do Kit (o mesmo recorte de sempre).
+  const podeMexerNaTrava = (item: any) => podeTravar(user?.role) && !soVisualizaKit(item);
+  const [travandoItem, setTravandoItem] = useState<any>(null);
+  const [motivoDaTrava, setMotivoDaTrava] = useState("");
+  const travarMutation = useMutation({
+    mutationFn: async ({ itemId, motivo }: { itemId: string; motivo: string; displayId?: string }) =>
+      await apiRequest("POST", `/api/items/${itemId}/travar`, { motivo }),
+    onSuccess: (_r, v) => {
+      invalidarGraficaEMaquinas();
+      setTravandoItem(null); setMotivoDaTrava("");
+      toast({ title: `${v.displayId ?? "Peça"} travada`, description: `A Gráfica vê o motivo e não consegue fazê-la andar até alguém destravar: ${v.motivo}` });
+    },
+    onError: (error: Error) => {
+      invalidarGraficaEMaquinas();
+      toast({ title: "Não foi possível travar", description: apiErrorMessage(error), variant: "destructive" });
+    },
+  });
+  const destravarMutation = useMutation({
+    mutationFn: async ({ itemId }: { itemId: string; displayId?: string }) =>
+      await apiRequest("POST", `/api/items/${itemId}/destravar`, {}),
+    onSuccess: (_r, v) => {
+      invalidarGraficaEMaquinas();
+      toast({ title: `${v.displayId ?? "Peça"} destravada`, description: "A Gráfica já pode seguir com ela." });
+    },
+    onError: (error: Error) => {
+      invalidarGraficaEMaquinas();
+      toast({ title: "Não foi possível destravar", description: apiErrorMessage(error), variant: "destructive" });
+    },
+  });
+  /** A porta de toda ação que faz a peça andar: travada, avisa e não abre. */
+  const avisarTravada = (item: any): boolean => {
+    if (!pecaTravada(item)) return false;
+    toast({ title: `${item.displayId ?? "Peça"} está travada`, description: fraseDaTrava(item), variant: "destructive" });
+    return true;
+  };
+  const travaDaLinha = (item: any, fonte: number, alvo: number) => (
+    <TravaDaPeca
+      item={item} fonte={fonte} alvo={alvo} podeMexer={podeMexerNaTrava(item)}
+      onTravar={() => { setMotivoDaTrava(""); setTravandoItem(item); }}
+      onDestravar={() => destravarMutation.mutate({ itemId: item.id, displayId: item.displayId })}
+      destravando={destravarMutation.isPending && destravarMutation.variables?.itemId === item.id}
+    />
+  );
+  const nTravadas = useMemo(() => (pecasDoServidor as any[]).filter((i) => pecaTravada(i) && !isDelivered(i)).length, [pecasDoServidor]);
 
   // ── A PEÇA MUDOU ENQUANTO O MODAL ESTAVA ABERTO ────────────────────────────
   // A Gráfica é a tela em que duas pessoas trabalham a mesma fila. O modal de
@@ -1575,7 +1680,7 @@ export default function Grafica() {
   const statusFilterOptions = useMemo(() => {
     const conta = new Map<string, number>();
     gFacetPool('status').forEach((i: any) => {
-      const s = String(i.status ?? "");
+      const s = statusParaContagem(i); // molde produzido = Entregues (shared/molde)
       const chave = s === "pronto_para_producao" ? "ready_for_production"
         : (s === "awaiting_review" || s === "in_review") ? "awaiting_final_review"
         : s;
@@ -1611,9 +1716,9 @@ export default function Grafica() {
   const impressoraFilterOptions = useMemo(() => {
     const conta = new Map<string, number>();
     gFacetPool('impressora').forEach((i: any) => {
-      const m = itemImpressora(i);
-      if (!m) return;
-      conta.set(m, (conta.get(m) ?? 0) + 1);
+      // Uma peça conta em CADA impressora dela (a dividida é da 1 e da 2) —
+      // a mesma régua do cartão de Máquinas.
+      for (const m of itemImpressoras(i)) conta.set(m, (conta.get(m) ?? 0) + 1);
     });
     const ordem = [...MAQUINAS_DE_IMPRESSAO, SEM_IMPRESSORA];
     return ordem
@@ -1625,7 +1730,7 @@ export default function Grafica() {
         pinned: true,
         title: m === SEM_IMPRESSORA
           ? "Em impressão sem a máquina informada (peças de antes do controle de máquinas)."
-          : "Peças que começaram a imprimir nesta máquina — inclusive as que já saíram dela.",
+          : "Peças desta impressora — imprimindo, reservadas na fila dela ou já impressas nela (o mesmo cartão de Máquinas).",
       }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gFacetPool, filtros.impressora]);
@@ -1703,10 +1808,11 @@ export default function Grafica() {
   const stats = useMemo(() => ({
     liberados:  statsPool.filter((i: any) => i.status === 'approved' || i.status === 'ready_for_production' || i.status === 'pronto_para_producao').length,
     emProducao: statsPool.filter((i: any) => i.status === 'inProduction').length,
-    produzidos: statsPool.filter((i: any) => i.status === 'produced').length,
+    // MOLDE (22/09): produzido é o FIM dele — conta em Entregues, não em Impresso.
+    produzidos: statsPool.filter((i: any) => i.status === 'produced' && !ehMolde(i)).length,
     conferidos: statsPool.filter((i: any) => i.status === 'conferred').length,
     embalados:  statsPool.filter((i: any) => i.status === 'packed').length,
-    entregues:  statsPool.filter((i: any) => i.status === 'delivered').length,
+    entregues:  statsPool.filter((i: any) => statusParaContagem(i) === 'delivered').length,
     revisao:    statsPool.filter((i: any) => EM_REVISAO.has(i.status)).length,
     total:      statsPool.length,
   }), [statsPool]);
@@ -2008,8 +2114,7 @@ export default function Grafica() {
       if (results.some(r => r.status === "rejected")) {
         toast({ title: "Entrega registrada", description: "Parte das fotos não pôde ser anexada.", variant: "destructive" });
       }
-      queryClient.invalidateQueries({ queryKey: ["/api/items/approved"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+      invalidarGraficaEMaquinas();
     }
   };
 
@@ -2042,8 +2147,7 @@ export default function Grafica() {
     }
     // Conferir é só conferir (dono, 21/09): o tubo entra depois, pelo
     // "Embalar" da peça conferida — nada de tubo aqui.
-    queryClient.invalidateQueries({ queryKey: ["/api/items/approved"] });
-    queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+    invalidarGraficaEMaquinas();
   };
 
   const onPhotoError = (error: Error) =>
@@ -2092,6 +2196,7 @@ export default function Grafica() {
   // na etapa 1 (escolher impressora + quantidade) para o que está sem impressora.
   const [iniciandoResto, setIniciandoResto] = useState(false);
   const openProductionModal = (item: any, resto = false) => {
+    if (avisarTravada(item)) return;
     setIniciandoResto(resto);
     setSelectedItem(item);
     setModalType("production");
@@ -2135,6 +2240,7 @@ export default function Grafica() {
   };
 
   const openConferenceModal = (item: any) => {
+    if (avisarTravada(item)) return;
     setSelectedItem(item);
     setModalType("conference");
     setPhotos([]); setModalNotes("");
@@ -2177,7 +2283,7 @@ export default function Grafica() {
   const etiquetaveisPorEvento = useMemo(() => {
     const m = new Map<string, number>();
     for (const i of filteredItems as any[]) {
-      if (!(conferredOf(i) > 0 || isPosConferencia(i) || isDelivered(i))) continue;
+      if (ehMolde(i) || !(conferredOf(i) > 0 || isPosConferencia(i) || isDelivered(i))) continue; // molde não tem etiqueta
       const id = String(i.eventId ?? "");
       if (!id) continue;
       m.set(id, (m.get(id) ?? 0) + 1);
@@ -2190,7 +2296,7 @@ export default function Grafica() {
   const tubaveisPorEvento = useMemo(() => {
     const m = new Map<string, number>();
     for (const i of filteredItems as any[]) {
-      if (!(podeIrParaTubo(i.status) || i.tuboId)) continue;
+      if (ehMolde(i) || !(podeIrParaTubo(i.status) || i.tuboId)) continue; // molde não vai para tubo
       const id = String(i.eventId ?? "");
       if (!id) continue;
       m.set(id, (m.get(id) ?? 0) + 1);
@@ -2356,8 +2462,7 @@ export default function Grafica() {
 
       // Conferir é só conferir (dono, 21/09): nada de tubo aqui. Conferidas,
       // as peças ganham o botão Embalar na fila (ou o "Embalar em lote").
-      queryClient.invalidateQueries({ queryKey: ["/api/items/approved"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+      invalidarGraficaEMaquinas();
 
       if (failed > 0) {
         // O MOTIVO da recusa entra no toast (o primeiro, que costuma ser o de
@@ -2399,8 +2504,7 @@ export default function Grafica() {
     } catch (e: any) {
       // Mesmas chaves do fluxo feliz — invalidar só /approved deixava as
       // outras telas com o cache velho.
-      queryClient.invalidateQueries({ queryKey: ["/api/items/approved"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+      invalidarGraficaEMaquinas();
       toast({ title: "Erro na conferência em lote", description: e.message, variant: "destructive" });
     } finally {
       setIsBulkSubmitting(false);
@@ -2460,8 +2564,7 @@ export default function Grafica() {
 
       // Invalida sempre — mesmo com falha parcial a lista precisa refletir o
       // que de fato foi entregue.
-      queryClient.invalidateQueries({ queryKey: ["/api/items/approved"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+      invalidarGraficaEMaquinas();
 
       if (failed > 0) {
         const motivo = motivoDaPrimeiraFalha(delivery);
@@ -2503,8 +2606,7 @@ export default function Grafica() {
     } catch (e: any) {
       // Mesmas chaves do fluxo feliz — invalidar só /approved deixava as
       // outras telas com o cache velho.
-      queryClient.invalidateQueries({ queryKey: ["/api/items/approved"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+      invalidarGraficaEMaquinas();
       toast({ title: "Erro na entrega em lote", description: e.message, variant: "destructive" });
     } finally {
       setIsBulkSubmitting(false);
@@ -2796,11 +2898,13 @@ export default function Grafica() {
                 mesmo peso dos secundários; no celular vira só o ícone, como
                 o Excel ao lado. O chunk começa a descer no hover/foco/toque
                 (lib/prefetch-de-rota), como no menu lateral. */}
+            {/* Recortada numa impressora só (filtro "Impressora"), a ida leva ao
+                CARTÃO dela em Máquinas, em foco — o mesmo recorte do outro lado. */}
             <Link
-              href="/grafica/maquinas"
+              href={filtros.impressora.length === 1 && filtros.impressora[0] !== SEM_IMPRESSORA ? linkDaImpressoraEmMaquinas(filtros.impressora[0]) : "/grafica/maquinas"}
               data-testid="link-maquinas"
               aria-label={isMobile ? "Máquinas: o que cada impressora imprime agora e o histórico do dia" : undefined}
-              title="O que cada impressora imprime agora e o histórico do dia"
+              title={filtros.impressora.length === 1 && filtros.impressora[0] !== SEM_IMPRESSORA ? `Ver a ${rotuloDaMaquina(filtros.impressora[0])} em Máquinas` : "O que cada impressora imprime agora e o histórico do dia"}
               onMouseEnter={(e) => { prefetchRota("/grafica/maquinas"); e.currentTarget.style.backgroundColor = "#f5f5f4"; }}
               onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = TI.surface; }}
               onFocus={() => prefetchRota("/grafica/maquinas")}
@@ -3032,7 +3136,7 @@ export default function Grafica() {
         // do campo; na barra do desktop o espaço é da fileira de campos.
         const DICA_DO_FILTRO: Record<string, string> = {
           Status: "Etapa da peça na fila; também filtra “♻ com reaproveitamento”.",
-          Impressora: "Máquina em que a peça começou a imprimir; “Sem impressora” é a peça em impressão sem máquina informada.",
+          Impressora: "Máquina em que a peça começou a imprimir; também as que estão imprimindo ou reservadas nela (o cartão de Máquinas); “Sem impressora” é a peça em impressão sem máquina informada.",
           Grupo: "Grupo do catálogo de Modelos (ex.: placas de 5KM × 10KM).",
           Percurso: "Distância escrita na peça (5k, 10k…).",
           "Mês": "Mês da saída do caminhão do evento.",
@@ -3092,6 +3196,17 @@ export default function Grafica() {
             />
           </div>
         );
+        // "Travadas (N)" (21/09): só aparece quando há peça travada (ou o filtro está ligado).
+        const pillTravadas = (nTravadas > 0 || filtros.travadas) ? (
+          <ShortcutPill
+            label={`Travadas (${nTravadas})`}
+            icon={Lock}
+            active={filtros.travadas}
+            onClick={() => patchFiltros({ travadas: !filtros.travadas })}
+            testId="button-travadas-filter"
+            title="Só as peças travadas pela Solicitação — com o motivo e quem travou"
+          />
+        ) : null;
         const pillProximos = (
           <ShortcutPill
             label="Próximos 10 dias"
@@ -3147,6 +3262,7 @@ export default function Grafica() {
             <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
               {campoBusca}
               {pillProximos}
+              {pillTravadas}
               <button
                 type="button"
                 onClick={() => setShowAdvancedFilters(v => !v)}
@@ -3240,6 +3356,7 @@ export default function Grafica() {
                     caminhão que sai já): morava DENTRO da folha, a três toques
                     (abrir, ligar, ver). Aqui fica a um. */}
                 {pillProximos}
+                {pillTravadas}
                 {botaoLimpar}
               </div>
             </div>
@@ -3827,7 +3944,8 @@ export default function Grafica() {
                         <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 15, fontWeight: 700, color: item.isReuse ? '#047857' : '#c2410c' }}>
                           {(() => { const { base, suffix } = splitDisplayId(item.displayId); return (<>{base}{suffix && <span style={{ color: CO.suffix }}>{suffix}</span>}</>); })()}
                         </span>
-                        <StatusPill status={item.status} size="sm" showDot={false} />
+                        <StatusPill status={statusDeExibicao(item)} size="sm" showDot={false} />
+                        <SeloMolde peca={item} />
                         {(() => {
                           const d = diasNaFase(item, new Date());
                           if (d === null || d < 1) return null;
@@ -3837,7 +3955,8 @@ export default function Grafica() {
                         {/* Paridade com a tabela: o progresso da impressão
                             ocupa a linha inteira do cartão (flexBasis 100%). */}
                         {isInProd(item) && <span style={{ flexBasis: '100%' }}><ProgressoImpressao item={item} fonte={12} onIniciarResto={podeProduzirPeca && !selo ? () => openProductionModal(item, true) : undefined} /></span>}
-                        {!isInProd(item) && item.maquinaPrevista && <SeloFilaDaImpressora maquina={item.maquinaPrevista} reserva={item.reservaPorMaquina} fonte={12} />}
+                        {(pecaTravada(item) || podeMexerNaTrava(item)) && <span style={{ flexBasis: '100%' }}>{travaDaLinha(item, 12, 44)}</span>}
+                        {!isInProd(item) && item.maquinaPrevista && <SeloFilaDaImpressora item={item} fonte={12} />}
                         {item.isReuse && <span style={{ fontSize: 12, fontWeight: 800, color: '#047857', background: '#dcfce7', border: '1px solid #86efac', borderRadius: 6, padding: '1px 6px' }}>REAPROV.</span>}
                         {/* Selo do complemento: sólido enquanto o lote está em
                             aberto (trabalho novo), outline depois de entregue —
@@ -3992,7 +4111,13 @@ export default function Grafica() {
                           secundárias (Reaproveitar, Corrigir, Devolver) dividem a
                           linha de baixo; contrato (Aumentar, Cancelar) por último.
                           8px entre botões: com 6 o dedo de luva pegava o vizinho. */}
-                      {!bulkOn && (temGrupoFluxo || temGrupoContrato) && (
+                      {/* MOLDE (22/09): uma ação só — "Marcar como produzido" (ou desfazer). */}
+                      {!bulkOn && ehMolde(item) && (
+                        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'stretch', gap: 8, padding: '0 12px 12px' }}>
+                          <AcoesDoMolde item={item} podeProduzir={canProduce} selo={selo} cartao />
+                        </div>
+                      )}
+                      {!bulkOn && !ehMolde(item) && (temGrupoFluxo || temGrupoContrato) && (
                         <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'stretch', gap: 8, padding: '0 12px 12px' }}>
                           {/* PRODUZIR — o celular só tinha Entregar e Conferir.
                               Num complemento isso é o pior buraco possível: a
@@ -4010,6 +4135,7 @@ export default function Grafica() {
                               /* Desabilitado: #78716c sobre #f5f5f4 → 4,84:1 nos
                                  13px/800 (o cinza claro do padrão do navegador
                                  reprovaria AA). */
+                              {...bloqueioDaTrava(item)}
                               style={{ order: 0, flex: '2 1 150px', minHeight: 48, padding: '0 12px', borderRadius: 8, background: selo ? '#f5f5f4' : CO.solidBg, border: selo ? `1px solid ${TI.border}` : 'none', color: selo ? '#78716c' : '#fff', fontSize: 14, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, cursor: selo ? 'not-allowed' : 'pointer', whiteSpace: 'normal', textAlign: 'center', lineHeight: 1.15 }}
                             >
                               {/* Quebra permitida: com o nome da impressora
@@ -4031,6 +4157,7 @@ export default function Grafica() {
                                 ? motivoAcaoBloqueada(selo.motivo, "produzir")
                                 : isInProd(item) ? tituloAcaoImpressao(item) : "Escolher a máquina e iniciar a impressão"}
                               data-testid={`button-production-card-${item.id}`}
+                              {...bloqueioDaTrava(item)}
                               style={{ order: 0, flex: '2 1 150px', minHeight: 48, padding: '0 12px', borderRadius: 8, background: selo ? '#f5f5f4' : TI.text, border: selo ? `1px solid ${TI.border}` : 'none', color: selo ? '#78716c' : '#fff', fontSize: 14, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, cursor: selo ? 'not-allowed' : 'pointer', whiteSpace: 'normal', textAlign: 'center', lineHeight: 1.15 }}
                             >
                               <Play aria-hidden="true" style={{ width: 13, height: 13, flexShrink: 0 }} />
@@ -4172,6 +4299,7 @@ export default function Grafica() {
                                  lote e do modal. #0891b2 com branco 13px/800 dá
                                  3,68:1 e reprova AA, e a tela tinha DOIS cianos
                                  diferentes para a mesma ação. */
+                              {...bloqueioDaTrava(item)}
                               style={{ order: 0, flex: '2 1 150px', minHeight: 48, padding: '0 12px', borderRadius: 8, background: '#0e7490', border: 'none', color: '#fff', fontSize: 14, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, cursor: 'pointer', whiteSpace: 'nowrap' }}
                             >
                               <CheckCircle aria-hidden="true" style={{ width: 13, height: 13 }} />
@@ -4189,6 +4317,7 @@ export default function Grafica() {
                             <button
                               onClick={e => { e.stopPropagation(); abrirEmbalar([item]); }}
                               data-testid={`button-embalar-card-${item.id}`}
+                              {...bloqueioDaTrava(item)}
                               style={{ order: 0, flex: '2 1 150px', minHeight: 48, padding: '0 12px', borderRadius: 8, background: '#1d4ed8', border: 'none', color: '#fff', fontSize: 14, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, cursor: 'pointer', whiteSpace: 'nowrap' }}
                             >
                               <Package aria-hidden="true" style={{ width: 13, height: 13 }} />
@@ -4201,6 +4330,7 @@ export default function Grafica() {
                               data-testid={`button-entregar-card-${item.id}`}
                               // De contorno quando há uma principal mais certa:
                               // "Embalar" na conferida, "Entregar tubo" na embalada.
+                              {...bloqueioDaTrava(item)}
                               style={podeEmbalarPeca || isPacked(item)
                                 ? { order: 0, flex: '1 1 130px', minHeight: 48, padding: '0 12px', borderRadius: 8, background: '#fff', border: '1px solid #fdba74', color: '#c2410c', fontSize: 14, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, cursor: 'pointer', whiteSpace: 'nowrap' }
                                 : { order: 0, flex: '2 1 150px', minHeight: 48, padding: '0 12px', borderRadius: 8, background: '#c2410c', border: 'none', color: '#fff', fontSize: 14, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, cursor: 'pointer', whiteSpace: 'nowrap' }}
@@ -4217,6 +4347,7 @@ export default function Grafica() {
                             <button
                               onClick={e => { e.stopPropagation(); setTubosDoEvento({ id: String(item.eventId), name: item.event?.name ?? "Evento", entregarTubo: item.tuboId }); }}
                               data-testid={`button-entregar-tubo-card-${item.id}`}
+                              {...bloqueioDaTrava(item)}
                               style={{ order: 0, flex: '2 1 150px', minHeight: 48, padding: '0 12px', borderRadius: 8, background: '#1d4ed8', border: 'none', color: '#fff', fontSize: 14, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, cursor: 'pointer', whiteSpace: 'nowrap' }}
                             >
                               <Truck aria-hidden="true" style={{ width: 13, height: 13 }} /> {ehAvulsa(item) ? "Entregar" : "Entregar tubo"}
@@ -4819,7 +4950,7 @@ export default function Grafica() {
                           coluna reserva a largura dela inteira. "há Nd" já é
                           uma linha própria (div) logo abaixo. */}
                       <td style={{ padding: "13px 16px", whiteSpace: "nowrap" }}>
-                        <StatusPill status={item.status} size="sm" showDot={false} />
+                        <StatusPill status={statusDeExibicao(item)} size="sm" showDot={false} />
                         {(() => {
                           const d = diasNaFase(item, new Date());
                           if (d === null || d < 1) return null;
@@ -4830,7 +4961,8 @@ export default function Grafica() {
                             impressora" + barra (dono, 21/09). Duas linhas para a
                             coluna Status não alargar. */}
                         {isInProd(item) && <ProgressoImpressao item={item} fonte={10.5} duasLinhas onIniciarResto={canProduce && !seloDoItem(item) ? () => openProductionModal(item, true) : undefined} />}
-                        {!isInProd(item) && item.maquinaPrevista && <div style={{ marginTop: 4 }}><SeloFilaDaImpressora maquina={item.maquinaPrevista} reserva={item.reservaPorMaquina} fonte={10.5} /></div>}
+                        {travaDaLinha(item, 10.5, 28)}
+                        {!isInProd(item) && item.maquinaPrevista && <div style={{ marginTop: 4 }}><SeloFilaDaImpressora item={item} fonte={10.5} /></div>}
                       </td>
                       {/* Ações — `sticky right` com sombra à esquerda marcando a
                           borda. `background: inherit` copia a cor da <tr>,
@@ -4868,6 +5000,10 @@ export default function Grafica() {
                           </button>
                           )}
 
+                          {/* MOLDE (22/09): o trilho inteiro vira UMA ação — "Marcar como
+                              produzido" (ou desfazer). Nada de impressora, conferir,
+                              embalar, tubo ou entregar: o fluxo dele morre no Produzido. */}
+                          {ehMolde(item) ? (!bulkOn && <AcoesDoMolde item={item} podeProduzir={canProduce} selo={selo} />) : (<>
                           {/* ── MENU "⋯" DAS SECUNDÁRIAS (tabela COMPACTA) ──
                               Na faixa compacta (notebook, sidebar aberta) a
                               coluna de Ações é sticky: cada px dela sai das
@@ -5179,6 +5315,7 @@ export default function Grafica() {
                               data-testid={`button-production-${item.id}`}
                               /* Desabilitado: #78716c sobre #f5f5f4 → 4,84:1
                                  nos 11px/700. */
+                              {...bloqueioDaTrava(item)}
                               style={{ backgroundColor: selo ? "#f5f5f4" : TI.text, color: selo ? "#78716c" : "#ffffff", border: selo ? `1px solid ${TI.border}` : "none", borderRadius: 8, height: 32, padding: "0 12px", fontSize: 12, fontWeight: 700, cursor: selo ? "not-allowed" : "pointer", display: "flex", alignItems: "center", gap: 5, whiteSpace: "nowrap", transition: "background-color 0.15s" }}
                               /* Hover era TI.accent (#f97316): branco sobre ele dá
                                  2,8:1 — o botão ficava ilegível justo sob o mouse. */
@@ -5200,6 +5337,7 @@ export default function Grafica() {
                               onClick={() => openConferenceModal(item)}
                               title={`Conferir (faltam ${remainingConfer(item)} de ${qtyOf(item)})`}
                               data-testid={`button-confer-${item.id}`}
+                              {...bloqueioDaTrava(item)}
                               style={{
                                 backgroundColor: "#0e7490", color: "#ffffff",
                                 border: "none", borderRadius: 8, height: 32, padding: "0 12px",
@@ -5242,6 +5380,7 @@ export default function Grafica() {
                               onClick={() => abrirEmbalar([item])}
                               title="Pôr no tubo — escolhe o tubo no painel do evento"
                               data-testid={`button-embalar-${item.id}`}
+                              {...bloqueioDaTrava(item)}
                               style={{
                                 backgroundColor: "#1d4ed8", color: "#ffffff",
                                 border: "none", borderRadius: 8, height: 32, padding: "0 12px",
@@ -5265,6 +5404,7 @@ export default function Grafica() {
                               onClick={() => openDeliveryModal(item)}
                               title={`Entregar (${remainingDeliver(item)} conferido(s) pendente(s))`}
                               data-testid={`button-deliver-${item.id}`}
+                              {...bloqueioDaTrava(item)}
                               style={{
                                 // #c2410c: branco sobre #f97316 dava ~2.8:1 (reprova AA)
                                 backgroundColor: "#c2410c", color: "#ffffff",
@@ -5289,6 +5429,7 @@ export default function Grafica() {
                               onClick={() => setTubosDoEvento({ id: String(item.eventId), name: item.event?.name ?? "Evento", entregarTubo: item.tuboId })}
                               data-testid={`button-entregar-tubo-${item.id}`}
                               title="Entregar o tubo inteiro — a peça embalada só sai com o tubo"
+                              {...bloqueioDaTrava(item)}
                               style={{ backgroundColor: "#1d4ed8", color: "#fff", border: "none", borderRadius: 8, height: 32, padding: "0 12px", fontSize: 12, fontWeight: 700, whiteSpace: "nowrap", cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}
                             >
                               <Truck aria-hidden="true" style={{ width: 13, height: 13 }} /> {ehAvulsa(item) ? "Entregar" : "Entregar tubo"}
@@ -5313,6 +5454,7 @@ export default function Grafica() {
                               <Check style={{ width: 13, height: 13 }} /> Entregue
                             </span>
                           )}
+                          </>)}
                         </div>
                       </td>
                     </tr>
@@ -5716,7 +5858,7 @@ export default function Grafica() {
                           </span>
                         )}
                       </span>
-                      <StatusPill status={selectedItem.status} size="sm" showDot={false} />
+                      <StatusPill status={statusDeExibicao(selectedItem)} size="sm" showDot={false} />
                     </div>
                     <div style={{ fontSize: 15, fontWeight: 700, color: TI.text }}>{selectedItem.type}</div>
                     {selectedItem.description && selectedItem.description !== selectedItem.type && (
@@ -5821,10 +5963,12 @@ export default function Grafica() {
                 key={`${selectedItem.id}:${iniciandoResto ? "resto" : ""}`}
                 parteAIniciar={iniciandoResto ? { quantidade: semImpressora(selectedItem), daReserva: false } : null}
                 item={selectedItem}
-                // Uma peça por vez por impressora: as ocupadas por OUTRA peça saem
-                // desabilitadas no seletor (derivado do que a fila já carregou — o
-                // 409 do servidor continua sendo a autoridade).
-                ocupadas={Object.fromEntries(MAQUINAS_DE_IMPRESSAO.map((m) => [m, ocupanteDaImpressora(pecasDoServidor as any[], m, selectedItem.id)] as const).filter(([, o]) => !!o).map(([m, o]) => [m, (o as any).displayId ?? null]))}
+                // Uma peça por vez por impressora: quem ocupa cada impressora sai
+                // de ocupacaoDasImpressoras — a MESMA régua (e o mesmo formato)
+                // que a aba Máquinas passa ao modal; com o ocupante inteiro o
+                // modal oferece "Imprimir esta no lugar". O 409 do servidor
+                // continua sendo a autoridade.
+                ocupadas={ocupacaoDasImpressoras((pecasDoServidor as any[]).filter(estaEmImpressao), selectedItem.id)}
                 onFechar={() => { setSelectedItem(null); setModalType(null); }}
                 padModal={padModal}
                 mutacoes={mutacoesDeImpressao}
@@ -5974,6 +6118,50 @@ export default function Grafica() {
       {/* Devolver para a Revisão — o motivo é obrigatório pela mesma régua das
           outras devoluções: quem recebe a peça de volta precisa saber o que
           refazer, senão é ida e volta garantida. */}
+      {/* TRAVAR A PEÇA (Solicitação e admin, 21/09): motivo obrigatório, com
+          atalhos. A Gráfica lê o motivo no selo e no title dos botões. */}
+      <style>{CSS_DA_TRAVA}</style>
+      <Dialog open={!!travandoItem} onOpenChange={(o) => { if (!o) { setTravandoItem(null); setMotivoDaTrava(""); } }}>
+        <DialogContent className={HIDE_NATIVE_CLOSE} style={modalSurface(440)} data-testid="modal-travar">
+          <DialogTitle className="sr-only">Travar peça</DialogTitle>
+          <DialogDescription className="sr-only">Diga o motivo — a Gráfica não consegue fazer a peça andar até alguém destravar</DialogDescription>
+          <ModalHeader icon={Lock} tint="#7f1d1d" title={`Travar ${travandoItem?.displayId ?? "peça"}`} subtitle="A Gráfica vê o motivo e não consegue fazer a peça andar até alguém da Solicitação destravar" onClose={() => { setTravandoItem(null); setMotivoDaTrava(""); }} />
+          {travandoItem && (() => {
+            const lido = lerMotivo(motivoDaTrava);
+            const pode = lido.ok && !travarMutation.isPending;
+            const enviar = () => { if (lido.ok && !travarMutation.isPending) travarMutation.mutate({ itemId: travandoItem.id, motivo: lido.motivo, displayId: travandoItem.displayId }); };
+            return (
+              <div style={{ padding: isMobile ? 16 : 24, display: "flex", flexDirection: "column", gap: 12, overflowY: "auto" }}>
+                <div role="group" aria-label="Motivos comuns" style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                  {SUGESTOES_DE_MOTIVO.map((s) => (
+                    <button key={s} type="button" onClick={() => setMotivoDaTrava(s)} data-testid={`chip-motivo-${s}`} aria-pressed={motivoDaTrava === s} style={{ minHeight: isMobile ? 44 : 32, padding: "0 12px", borderRadius: 999, border: `1px solid ${motivoDaTrava === s ? "#7f1d1d" : "#d6d3d1"}`, background: motivoDaTrava === s ? "#fef2f2" : "#ffffff", color: "#7f1d1d", fontSize: isMobile ? 13 : 12, fontWeight: 700, cursor: "pointer" }}>{s}</button>
+                  ))}
+                </div>
+                <label htmlFor="input-motivo-trava" style={{ fontSize: 12, fontWeight: 700, color: TI.secondary }}>Motivo (obrigatório)</label>
+                <textarea
+                  id="input-motivo-trava"
+                  value={motivoDaTrava}
+                  onChange={(e) => setMotivoDaTrava(e.target.value)}
+                  rows={3}
+                  maxLength={300}
+                  placeholder="Ex.: a arte vai mudar — segurar a impressão"
+                  data-testid="input-motivo-trava"
+                  style={{ width: "100%", boxSizing: "border-box", padding: "10px 12px", borderRadius: 8, border: "1px solid #d6d3d1", fontSize: isMobile ? 16 : 13, fontFamily: "inherit", resize: "vertical" }}
+                />
+                {!lido.ok && motivoDaTrava.trim().length > 0 && (
+                  <div role="status" data-testid="aviso-motivo-trava" style={{ fontSize: 12, color: "#b45309" }}>Pelo menos {MOTIVO_MINIMO} letras — é o que a Gráfica vai ler.</div>
+                )}
+                <div style={{ display: "flex", gap: 10, flexWrap: "wrap", paddingBottom: "env(safe-area-inset-bottom)" }}>
+                  <button type="button" onClick={() => { setTravandoItem(null); setMotivoDaTrava(""); }} style={{ flex: 1, minHeight: 44, borderRadius: 8, border: "1px solid #e7e5e4", background: "transparent", color: "#57534e", fontWeight: 700, cursor: "pointer" }}>Cancelar</button>
+                  <button type="button" onClick={enviar} disabled={!pode} data-testid="button-confirmar-trava" style={{ flex: 2, minHeight: 44, borderRadius: 8, border: "none", background: "#7f1d1d", color: "#ffffff", fontWeight: 700, cursor: pode ? "pointer" : "not-allowed", opacity: pode ? 1 : 0.55, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+                    <Lock aria-hidden="true" style={{ width: 13, height: 13 }} /> {travarMutation.isPending ? "Travando…" : "Travar peça"}
+                  </button>
+                </div>
+              </div>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
       <TubosDialog evento={tubosDoEvento} onClose={() => setTubosDoEvento(null)}
         itensIniciais={tubosDoEvento?.embalar} tuboInicial={tubosDoEvento?.entregarTubo}
         verTubo={tubosDoEvento?.verTubo}

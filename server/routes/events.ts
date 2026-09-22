@@ -20,6 +20,7 @@ import {
 
 import { eventsCache, setEventsCache, eventsCacheGeneration, EVENTS_CACHE_TTL_MS } from "../cache";
 import { ITENS_RESUMO, resumirItensDosEventos } from "@shared/eventos-resumo";
+import { statusParaContagem, statusAoEnviarALista } from "@shared/molde";
 // Mesmo predicado e mesma frase que server/routes/items.ts usa em toda
 // escrita de peça (ver o bloco "EVENTO FINALIZADO × ESCRITA DE PEÇA" em
 // ./eventoFinalizado). Importada de lá — não de "./items" — de propósito:
@@ -194,7 +195,8 @@ export function countOpenWork(eventItems: { status: string }[]) {
   let inProductionCount = 0;
   for (const it of eventItems) {
     if (OUT_OF_FUNNEL.has(it.status)) { canceledCount += 1; continue; }
-    if (DELIVERED.has(it.status)) deliveredCount += 1;
+    // Molde produzido é o fim do fluxo dele — conta como entregue (shared/molde).
+    if (DELIVERED.has(statusParaContagem(it))) deliveredCount += 1;
     else if (IN_PRODUCTION.has(it.status)) inProductionCount += 1;
   }
   const activeItemCount = eventItems.length - canceledCount;
@@ -328,7 +330,7 @@ function nextMilestoneFor(
 
   const direct = new Array(MARCO_DEFS.length).fill(0);
   for (const it of funnelItems) {
-    const marco = marcoIndexFor(it.status, it.skipApproval);
+    const marco = marcoIndexFor(statusParaContagem(it), it.skipApproval);
     if (marco !== undefined) direct[marco] += 1;
   }
 
@@ -415,7 +417,7 @@ export function enrichEvent(
   let canceledCount = 0;
   for (const it of eventItems) {
     if (OUT_OF_FUNNEL.has(it.status)) canceledCount += 1;
-    else if (DELIVERED.has(it.status)) deliveredCount += 1;
+    else if (DELIVERED.has(statusParaContagem(it))) deliveredCount += 1;
   }
   // Canceladas/arquivadas saem do denominador: não são trabalho pendente nem
   // trabalho entregue — não devem impedir um evento de fechar.
@@ -1196,7 +1198,8 @@ export function registerEventRoutes(app: Express): void {
       // Cast is safe: draftItems was filtered to only draft/requested above.
       type ItemStatus = Parameters<typeof storage.updateItemWithStatusCheck>[1];
       const updatePromises = draftItems.map(item =>
-        storage.updateItemWithStatusCheck(item.id, item.status as ItemStatus, 'awaiting_linking')
+        // MOLDE (22/09) não passa pela Vinculação: cai direto na Arte (shared/molde).
+        storage.updateItemWithStatusCheck(item.id, item.status as ItemStatus, statusAoEnviarALista(item))
       );
       const updatedItems = await Promise.all(updatePromises);
 

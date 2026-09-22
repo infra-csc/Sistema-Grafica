@@ -58,6 +58,7 @@ import { storage } from "../storage";
 import { items as itemsTable, tubos, tuboItens, events, auditLogs } from "@shared/schema";
 import { EMBALADO } from "@shared/fluxo-peca";
 import { aEmbalar, planejarEmbalar, planejarEntrega, planejarRetirada, problemaNoVolume, statusEmbalavel, volumePrincipal } from "@shared/embalagem";
+import { pecaTravada, fraseDaTrava } from "@shared/trava-da-peca";
 import { pecaVisivelPara } from "@shared/kit";
 import { urlDeThumbValida } from "./thumb-url";
 import {
@@ -99,6 +100,10 @@ const COLUNAS_PECA = {
   // Para o recorte do Kit (pecaVisivelPara) — não vão para a tela.
   kitRemessaId: itemsTable.kitRemessaId,
   criadoPorId: itemsTable.criadoPorId,
+  // Trava da Solicitação (shared/trava-da-peca.ts): não embala nem entrega.
+  travadaEm: itemsTable.travadaEm,
+  travadaPor: itemsTable.travadaPor,
+  travadaMotivo: itemsTable.travadaMotivo,
 };
 
 type PecaCrua = {
@@ -120,6 +125,9 @@ type PecaCrua = {
   deletedAt: Date | null;
   kitRemessaId: string | null;
   criadoPorId: string | null;
+  travadaEm?: Date | null;
+  travadaPor?: string | null;
+  travadaMotivo?: string | null;
 };
 /** A linha de `tubo_itens`: quanto da peça está NAQUELE volume. */
 type Linha = { id: string; tuboId: string; itemId: string; quantidade: number; entregueEm: Date | null };
@@ -263,6 +271,7 @@ async function planosParaEmbalar(req: any, eventId: string, pedidos: Pedido[], t
     if (!p || p.deletedAt) { recusas.push(`${nome}: não encontrada`); continue; }
     if (p.eventId !== eventId) { recusas.push(`${nome}: é de outro evento`); continue; }
     if (ehEntregue(p)) { recusas.push(`${nome}: já foi entregue`); continue; }
+    if (pecaTravada(p)) { recusas.push(`${nome}: ${fraseDaTrava(p)}`); continue; }
     const plano = planejarEmbalar(p, pedido.quantidade);
     if (!plano.ok) { recusas.push(`${nome}: ${plano.motivo}`); continue; }
     planos.push({ peca: p, quantidade: plano.quantidade, embaladaQty: plano.embaladaQty, viraEmbalada: plano.viraEmbalada });
@@ -939,6 +948,9 @@ export function registerTubosRoutes(app: Express): void {
         }
         const aEntregar = dentro.filter(({ l }) => !l.entregueEm);
         if (aEntregar.length === 0) throw new Recusa(409, `Tudo que está ${noVolume(tubo)} já foi entregue`);
+        // Uma peça travada pela Solicitação segura o volume inteiro (entregar é tudo que está nele).
+        const travada = aEntregar.find(({ p }) => pecaTravada(p));
+        if (travada) throw new Recusa(409, `${travada.p.displayId ?? "Uma peça"} ${noVolume(tubo)}: ${fraseDaTrava(travada.p)}`);
         const comProblema = aEntregar.filter(({ p }) => problemaNoVolume(p));
         if (comProblema.length) {
           const lista = comProblema.map(({ p }) => `${p.displayId ?? "peça"} ${problemaNoVolume(p)}`).join("; ");

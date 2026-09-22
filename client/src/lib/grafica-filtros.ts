@@ -19,6 +19,9 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { isDelivered, isComplement, isInProd, reusedTotalOf, type SaldoItem } from "./saldo";
+import { impressorasDaPeca, SEM_IMPRESSORA as SEM_IMPRESSORA_COMPARTILHADO } from "@shared/progresso-da-impressao";
+import { pecaTravada } from "@shared/trava-da-peca";
+import { statusParaContagem } from "@shared/molde";
 import { normalizarBusca } from "./utils";
 
 /** Forma mínima de peça que o recorte enxerga (o item cru da API é `any`). */
@@ -61,6 +64,8 @@ export interface GraficaFiltros {
    * planejamento de impressão, não de linha a linha.
    */
   reaproveitamento: boolean;
+  /** SÓ as peças TRAVADAS pela Solicitação (21/09) — ?travadas=1. */
+  travadas: boolean;
   /**
    * MOSTRAR as peças já entregues. O padrão é `false`: a tela abre na fila do
    * que falta fazer, não no arquivo histórico. Não conta como "filtro ativo"
@@ -72,7 +77,7 @@ export interface GraficaFiltros {
 export const FILTROS_VAZIOS: GraficaFiltros = {
   busca: "", status: [], evento: [], grupo: [], percurso: [], tipo: [],
   material: [], acabamento: [], mes: [], impressora: [], proximos10: false,
-  complementos: false, reaproveitamento: false, entregues: false,
+  complementos: false, reaproveitamento: false, travadas: false, entregues: false,
 };
 
 const MESES = [
@@ -99,6 +104,7 @@ const CAMPOS = [
   { chave: "proximos10",  url: "proximos10", rotulo: "Próximos 10 dias" },
   { chave: "complementos", url: "complementos", rotulo: "Só complementos" },
   { chave: "reaproveitamento", url: "reuso", rotulo: "Só reaproveitamento" },
+  { chave: "travadas",    url: "travadas",   rotulo: "Só travadas" },
 ] as const;
 
 const vazio = (v: string | string[] | boolean): boolean =>
@@ -163,6 +169,7 @@ export function filtrosDaURL(search: string): GraficaFiltros {
     proximos10: p.get("proximos10") === "1",
     complementos: p.get("complementos") === "1",
     reaproveitamento: p.get("reuso") === "1",
+    travadas: p.get("travadas") === "1",
     entregues: p.get("entregues") === "1",
   };
 }
@@ -273,8 +280,8 @@ export type FacetaGrafica =
 
 // ── IMPRESSORA da peça ──────────────────────────────────────────────────────
 
-/** Valor sintético do filtro: peça em impressão sem máquina informada. */
-export const SEM_IMPRESSORA = "sem";
+/** Valor sintético do filtro: peça em impressão sem máquina informada (o mesmo de shared). */
+export const SEM_IMPRESSORA = SEM_IMPRESSORA_COMPARTILHADO;
 
 /**
  * A impressora que o filtro enxerga na peça. `printMachine` é gravado quando a
@@ -286,8 +293,23 @@ export const SEM_IMPRESSORA = "sem";
  * nenhuma (null) e o filtro a deixa de fora.
  */
 export function itemImpressora(item: ItemGrafica): string | null {
-  if (item?.printMachine) return String(item.printMachine);
-  return isInProd(item) ? SEM_IMPRESSORA : null;
+  return itemImpressoras(item)[0] ?? null;
+}
+
+/**
+ * TODAS as impressoras da peça — a régua de `impressorasDaPeca`
+ * (shared/progresso-da-impressao.ts), a MESMA do cartão da impressora em
+ * Máquinas (21/09: "as duas telas têm que se conversar"): onde a peça está
+ * imprimindo (a peça DIVIDIDA é da 1 e da 2), para onde está reservada (a
+ * fila do cartão) e, por histórico, a `printMachine`. Antes só a
+ * `printMachine` contava, e o filtro "Impressora 2" não achava a peça que o
+ * cartão da Impressora 2 mostrava.
+ */
+export function itemImpressoras(item: ItemGrafica): string[] {
+  if (!item) return [];
+  const achadas = impressorasDaPeca(item as any);
+  if (achadas.length) return achadas;
+  return isInProd(item) ? [SEM_IMPRESSORA] : [];
 }
 
 export interface OpcoesCasamento {
@@ -371,7 +393,8 @@ export function itemCasaFiltros(
   }
 
   if (!ignorarStatus && excluir !== "status") {
-    if (f.status.length > 0 && !f.status.some((s) => casaStatus(String(item.status ?? ""), s))) return false;
+    // Molde produzido casa com "Entregues" — o card que o conta (shared/molde).
+    if (f.status.length > 0 && !f.status.some((s) => casaStatus(statusParaContagem(item as { type?: string | null; status?: string | null }), s))) return false;
   }
   // A ocultação das entregues não é um filtro: é o padrão da tela, e ela CEDE
   // aos recortes que pedem pelas entregues (`escondeEntregues`). Por isso a
@@ -386,6 +409,8 @@ export function itemCasaFiltros(
   // Reuso total (isReuse) ou parcial (reuseQty>0) — a mesma régua dos chips
   // verdes da linha (reusedTotalOf considera as duas formas).
   if (!ignorarStatus && f.reaproveitamento && !(item.isReuse || reusedTotalOf(item) > 0)) return false;
+  // Travadas pela Solicitação (shared/trava-da-peca.ts).
+  if (f.travadas && !pecaTravada(item as any)) return false;
 
   if (excluir !== "evento" && f.evento.length > 0 && !f.evento.includes(String(item.eventId ?? ""))) return false;
   if (excluir !== "grupo" && f.grupo.length > 0 && !f.grupo.includes(ctx.groupOf(String(item.type ?? "")))) return false;
@@ -395,10 +420,10 @@ export function itemCasaFiltros(
   if (excluir !== "tipo" && f.tipo.length > 0 && !f.tipo.includes(String(item.type ?? ""))) return false;
   if (excluir !== "material" && f.material.length > 0 && !f.material.includes(String(item.material ?? ""))) return false;
   if (excluir !== "acabamento" && f.acabamento.length > 0 && !f.acabamento.includes(String(item.finish ?? ""))) return false;
-  // Impressora: a mesma régua de `itemImpressora` (peça sem impressora nunca casa).
+  // Impressora: a régua de `itemImpressoras` (a do cartão de Máquinas) —
+  // casa com QUALQUER uma das impressoras da peça; sem impressora nunca casa.
   if (excluir !== "impressora" && f.impressora.length > 0) {
-    const maq = itemImpressora(item);
-    if (maq === null || !f.impressora.includes(maq)) return false;
+    if (!itemImpressoras(item).some((m) => f.impressora.includes(m))) return false;
   }
 
   // ── Data de saída do caminhão (sempre em UTC, o fuso em que a Saída é

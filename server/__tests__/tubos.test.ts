@@ -336,7 +336,7 @@ describe("a entrega do tubo fecha o evento como a entrega da peça", () => {
 
 describe("a peça não nasce com impressora nem tubo", () => {
   it("publicInsertItemSchema omite os dois — quem preenche é o gesto da Gráfica", () => {
-    expect(SCHEMA).toContain("  printMachine: true,\n  tuboId: true,\n});");
+    expect(SCHEMA).toContain("  printMachine: true,\n  tuboId: true,\n");
   });
 });
 

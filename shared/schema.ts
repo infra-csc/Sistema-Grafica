@@ -264,6 +264,14 @@ export const items = pgTable("items", {
   // PEÇA DIVIDIDA entre impressoras (dono, 21/09): { "1": { atrib, impressas },
   // "2": {...} }. NULL = tudo na printMachine. Ver shared/impressao-dividida.ts.
   impressaoPorMaquina: jsonb("impressao_por_maquina").$type<Record<string, { atrib: number; impressas: number }> | null>(),
+  // TRAVADA PELA SOLICITAÇÃO (dono, 21/09): uma MARCA, não um status — a peça
+  // fica na etapa em que está e a Gráfica não consegue fazê-la andar até
+  // alguém da Solicitação (ou o admin) destravar. NULL = livre.
+  // Ver shared/trava-da-peca.ts. Só as rotas /travar e /destravar escrevem.
+  travadaEm: timestamp("travada_em"),
+  travadaPor: text("travada_por"),
+  travadaPorId: varchar("travada_por_id"),
+  travadaMotivo: text("travada_motivo"),
   producedAt: timestamp("produced_at"), // Timestamp quando foi produzido
   // DESDE QUANDO a peca esta no status atual.
   //
@@ -1107,6 +1115,11 @@ export const publicInsertItemSchema = insertItemSchema.omit({
   embaladaQty: true,
   printMachine: true,
   tuboId: true,
+  // A trava da Solicitação só nasce por POST /api/items/:id/travar.
+  travadaEm: true,
+  travadaPor: true,
+  travadaPorId: true,
+  travadaMotivo: true,
 });
 
 export const insertStandardItemSchema = createInsertSchema(standardItems).omit({

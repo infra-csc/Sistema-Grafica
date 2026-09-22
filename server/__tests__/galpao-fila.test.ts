@@ -81,7 +81,8 @@ describe("a costura na tela da Gráfica", () => {
   it("invalidação POR PEÇA — o computador da bancada vê a fila andar", () => {
     const i = GRAFICA.indexOf("const registrarNoGalpao");
     const corpo = GRAFICA.slice(i, GRAFICA.indexOf("const fecharGalpao"));
-    expect(corpo).toContain('queryClient.invalidateQueries({ queryKey: ["/api/items"] });');
+    // A fila, o acervo e Máquinas (lib/tempo-real-grafica.ts).
+    expect(corpo).toContain("invalidarGraficaEMaquinas();");
   });
 
   it("um resumo só na saída, não um toast por peça", () => {

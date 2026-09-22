@@ -46,6 +46,7 @@ import { useRoute, Link } from "wouter";
 import { Printer, ArrowLeft, Tags, SlidersHorizontal, Search } from "lucide-react";
 import { compareDisplayId } from "@/lib/displayId";
 import { ehBookCompleto } from "@shared/fluxo-peca";
+import { ehMolde } from "@shared/molde";
 import { logoDaCapaDoBook } from "@/lib/logo-do-book";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -221,7 +222,7 @@ export default function EtiquetasEvento() {
 
   const poolBase = useMemo(() => {
     // BOOK COMPLETO fica de fora: é o trâmite do Atendimento, não uma peça (ver shared/fluxo-peca).
-    const vivas = (itens as any[]).filter((i) => !i.deletedAt && i.status !== "canceled" && i.status !== "archived" && !ehBookCompleto(i));
+    const vivas = (itens as any[]).filter((i) => !i.deletedAt && i.status !== "canceled" && i.status !== "archived" && !ehBookCompleto(i) && !ehMolde(i)); // molde não tem etiqueta (22/09)
     const base = incluirTodas ? vivas : vivas.filter(jaConferida);
     return [...base].sort((a, b) => compareDisplayId(a.displayId, b.displayId));
   }, [itens, incluirTodas]);

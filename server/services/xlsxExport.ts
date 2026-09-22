@@ -7,6 +7,7 @@ import { rotuloDaMaquina } from "@shared/fluxo-peca";
 import { nomeDaPeca } from "@shared/nome-da-peca";
 import { resumosDeTuboPorIds } from "./tubosDaPeca";
 import { seloDosVolumes } from "@shared/embalagem";
+import { STATUS_MOLDE_PRODUZIDO, statusDeExibicao } from "@shared/molde";
 import {
   duracaoCurta, oQueAconteceuNoRegistro, ROTULO_DO_TIPO, nomeDoArquivoDoRelatorio,
   type RegistroDoPeriodo, type ResumoDoDia,
@@ -82,6 +83,8 @@ const STATUS_LABELS: Record<string, string> = {
   ready_for_production: "Pronto p/ Prod.", pronto_para_producao: "Pronto p/ Prod.",
   approved: "Liberado", inProduction: "Em Impressão", em_producao: "Em Impressão",
   produced: "Impresso / Acabamento", conferred: "Conferido", packed: "Embalado", delivered: "Entregue",
+  // MOLDE (22/09): produzido é o fim do fluxo dele — sem "Acabamento".
+  [STATUS_MOLDE_PRODUZIDO]: "Produzido (molde)",
 };
 
 async function withSponsorNames(rawItems: any[]) {
@@ -181,7 +184,7 @@ async function writeWorkbook(
       const row = ws.addRow({
         ...(withProduction ? {
           eventName:    item.event?.name ?? item.eventName ?? "",
-          statusLabel:  STATUS_LABELS[item.status] ?? item.status ?? "",
+          statusLabel:  STATUS_LABELS[statusDeExibicao(item)] ?? item.status ?? "",
           printMachine: item.printMachine ? rotuloDaMaquina(item.printMachine) : "",
           // A peça DIVIDIDA entre tubos diz todos, com a quantidade de cada um:
           // "Tubo 1 (7) · Tubo 2 (3)". Inteira num tubo só, fica o número (como

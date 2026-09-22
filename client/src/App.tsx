@@ -1,4 +1,5 @@
-import { Switch, Route, useLocation } from "wouter";
+import { Switch, Route, Redirect, useLocation } from "wouter";
+import { SOLICITACAO_AO_ESTOQUE_ATIVA } from "@shared/consultas-de-estoque";
 import { queryClient, apiRequest } from "./lib/queryClient";
 import { haVersaoNova, onVersaoNova } from "@/lib/versao-do-app";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -516,8 +517,12 @@ function Router() {
       <Route path="/grafica/tubos/:id/etiqueta">
         {() => <RoleProtectedRoute component={EtiquetaTubo} allowedRoles={ROLES_GRAFICA} />}
       </Route>
+      {/* Solicitação ao estoque: chave desligada (dono, 21/09 — segurar). Um
+          link antigo cai na Gráfica em vez de numa tela sem uso. */}
       <Route path="/grafica/solicitacoes-ao-estoque">
-        {() => <RoleProtectedRoute component={SolicitacoesAoEstoque} allowedRoles={ROLES_GRAFICA} />}
+        {() => SOLICITACAO_AO_ESTOQUE_ATIVA
+          ? <RoleProtectedRoute component={SolicitacoesAoEstoque} allowedRoles={ROLES_GRAFICA} />
+          : <Redirect to="/grafica" replace />}
       </Route>
       <Route path="/grafica/maquinas">
         {() => <RoleProtectedRoute component={GraficaMaquinas} allowedRoles={ROLES_GRAFICA} />}

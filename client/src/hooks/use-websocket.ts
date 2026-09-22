@@ -2,6 +2,7 @@ import { useEffect, useRef, useCallback } from 'react';
 import type { Query } from '@tanstack/react-query';
 import { queryClient } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
+import { chavesDaMensagem, CHAVE_MAQUINAS, CHAVE_RELATORIO_DE_MAQUINAS } from '@/lib/tempo-real-grafica';
 
 const RECONNECT_BASE_DELAY_MS = 1000;
 const RECONNECT_MAX_DELAY_MS = 30000;
@@ -183,7 +184,7 @@ export function useWebSocket() {
         const abertoEm = Date.now();
         const antesDeAbrir = (q: Query) =>
           q.state.dataUpdatedAt > 0 && q.state.dataUpdatedAt < abertoEm;
-        for (const chave of ['/api/prazos', '/api/audit-logs', '/api/items', '/api/items/approved', '/api/events', '/api/notifications']) {
+        for (const chave of ['/api/prazos', '/api/audit-logs', '/api/items', '/api/items/approved', CHAVE_MAQUINAS, CHAVE_RELATORIO_DE_MAQUINAS, '/api/events', '/api/notifications']) {
           invalidarSemPerderCargaEmVoo([chave], antesDeAbrir);
         }
         return;
@@ -205,6 +206,10 @@ export function useWebSocket() {
       // Pelo coalescer: reconexão seguida de rajada re-baixa cada chave UMA vez.
       invalidateCoalesced('/api/items');
       invalidateCoalesced('/api/items/approved');
+      // A aba Máquinas também: a queda passou sem invalidar o retrato dela, e
+      // as duas telas ficavam dizendo coisas diferentes da mesma impressora.
+      invalidateCoalesced(CHAVE_MAQUINAS);
+      invalidateCoalesced(CHAVE_RELATORIO_DE_MAQUINAS);
       invalidateCoalesced('/api/events');
       invalidateCoalesced('/api/notifications');
     };
@@ -244,58 +249,39 @@ export function useWebSocket() {
           }, 500);
         }
 
+        // O QUE CADA MENSAGEM INVALIDA mora num mapa testado
+        // (lib/tempo-real-grafica.ts): cada `case` listava as chaves à mão e
+        // foi assim que a peça liberada, a devolvida em lote e a excluída
+        // chegavam à fila da Gráfica e não à aba Máquinas (ou vice-versa).
+        // Tudo passa pelo coalescer — os prefixos cobrem as chaves por id.
+        for (const chave of chavesDaMensagem(data)) invalidateCoalesced(...chave);
+
         switch (data.type) {
           case 'connected':
             console.log('WebSocket connection confirmed');
             break;
 
           case 'event_created':
+            toast({
+              title: 'Novo evento criado',
+              description: data.event?.name,
+            });
+            break;
+
+          // Encerrar/reabrir muda o que TODA aba vê: o evento sai (ou volta
+          // para) a Gestão de Prazos e as filas — as FILAS DE TRABALHO leem
+          // `item.event.status` do payload de PEÇAS, por isso o mapa invalida
+          // '/api/items' e a fila da Gráfica junto. Sem toast para
+          // closed/reopened: quem clicou já recebeu o feedback da própria
+          // mutation, e o eco do broadcast viraria aviso dobrado.
           case 'event_updated':
           case 'event_deleted':
           case 'event_urgent':
-          // Encerrar/reabrir muda o que TODA aba vê: o evento sai (ou volta
-          // para) a Gestão de Prazos e as filas. Sem estes dois cases a
-          // mensagem caía no `default` e virava um console.log — a outra aba
-          // continuaria oferecendo "encerrar" num evento já encerrado e
-          // tomaria 409. A invalidação de '/api/prazos' já acontece no bloco
-          // de debounce acima (o regex `^event_` alcança os dois).
           case 'event_closed':
           case 'event_reopened':
-            // '/api/events' por PREFIXO já alcança ['/api/events', id] — a
-            // invalidação específica era redundante e dobrava o refetch.
-            invalidateCoalesced('/api/events');
-            if (data.eventId) {
-              invalidateCoalesced('/api/items', data.eventId);
-            }
-            // As FILAS DE TRABALHO (Arte, Atendimento, Gráfica, Revisão Final,
-            // Vinculação) decidem o que mostrar lendo `item.event.status` do
-            // payload de PEÇAS — não de '/api/events'. Sem estas invalidações o
-            // evento encerrado continuaria na fila da outra aba até um F5:
-            // essas chaves rodam com staleTime Infinity, e o casamento do
-            // TanStack é por PREFIXO — ['/api/items', id] logo acima NÃO
-            // alcança ['/api/items'].
-            if (data.type === 'event_closed' || data.type === 'event_reopened') {
-              invalidateCoalesced('/api/items');
-              invalidateCoalesced('/api/items/approved');
-              invalidateCoalesced('/api/items/resubmission-needed');
-            }
-            if (data.type === 'event_created') {
-              toast({
-                title: 'Novo evento criado',
-                description: data.event?.name,
-              });
-            }
-            // Sem toast para closed/reopened, mesma razão de item_delivered:
-            // quem clicou já recebeu o feedback detalhado da própria mutation
-            // (com a contagem de peças), e o eco do próprio broadcast viraria
-            // aviso dobrado.
             break;
 
           case 'item_created':
-            // Sem esta invalidação o Painel Geral (que lê '/api/items' com
-            // staleTime Infinity) só via peças novas no F5. O prefixo
-            // '/api/items' já alcança ['/api/items', eventId].
-            invalidateCoalesced('/api/items');
             // Sem o tipo no payload a frase virava "Item undefined adicionado".
             toast({
               title: 'Nova peça adicionada',
@@ -303,54 +289,19 @@ export function useWebSocket() {
             });
             break;
 
+          // item_updated é o broadcast de /confer, /mark-reuse, /correct-reuse,
+          // da reserva de impressora e do tirar/trocar em Máquinas; a entrega,
+          // a exclusão e os lotes também mexem em peça que as duas telas
+          // mostram. Sem toast: quem agiu já recebeu o feedback local.
           case 'item_updated':
-            // Prefixos cobrem as chaves por id — invalidá-las separadamente
-            // dobrava (e cancelava no meio) os refetches em voo.
-            invalidateCoalesced('/api/items');
-            // A aba Máquinas também: editar quantidade, cancelar ou devolver uma
-            // peça em impressão muda o que ela mostra.
-            invalidateCoalesced('/api/grafica/maquinas');
-            // O casamento de chave do TanStack é por PREFIXO elemento a
-            // elemento: '/api/items' NÃO alcança '/api/items/approved'. Este é
-            // o broadcast de /confer, /mark-reuse e /correct-reuse — as três
-            // mutações que a Gráfica mais gera. Sem esta linha, conferência
-            // feita pelo celular do conferente jamais chegava ao computador do
-            // operador, que continuava vendo a peça como "Produzido" e tomava
-            // 409 ("Nada a conferir") ao tentar de novo.
-            invalidateCoalesced('/api/items/approved');
-            invalidateCoalesced('/api/events');
-            break;
-
           case 'item_delivered':
-            // Não havia case algum: a entrega caía no `default` e virava um
-            // console.log. Mesmas chaves de production_started, incluindo
-            // '/api/events' — a última entrega pode fechar o evento
-            // (updateEventStatus em routes/items.ts, rota /deliver).
-            // Sem toast de propósito: quem entregou já recebeu o feedback local
-            // da mutation, e o eco do próprio broadcast viraria aviso dobrado.
-            invalidateCoalesced('/api/items');
-            invalidateCoalesced('/api/items/approved');
-            invalidateCoalesced('/api/events');
-            break;
-
           case 'items_book_updated':
-            // Vínculo do book de aprovação (POST /api/events/:id/book) mudava
-            // bookUrl em N peças e nenhuma tela revalidava: a Arte continuava
-            // oferecendo "anexar book" numa peça que já tinha book.
-            invalidateCoalesced('/api/items');
-            break;
-
           case 'item_deleted':
-            // Sem estas, quando OUTRO usuário excluía uma peça o Painel Geral
-            // continuava mostrando a linha até o F5. Prefixos cobrem os ids.
-            invalidateCoalesced('/api/items');
-            invalidateCoalesced('/api/items/deleted');
-            invalidateCoalesced('/api/events');
+          case 'items_bulk_updated':
+          case 'tubos_atualizados':
             break;
 
           case 'items_bulk_created':
-            invalidateCoalesced('/api/items');
-            invalidateCoalesced('/api/items/pending');
             toast({
               title: 'Peças adicionadas',
               description: (data.items?.length || 0) === 1
@@ -359,26 +310,7 @@ export function useWebSocket() {
             });
             break;
 
-          case 'items_bulk_updated':
-            // Lote agregado (auditoria 27/08): o servidor emite UMA mensagem
-            // para N peças — o broadcast por peça virava N ciclos de refetch
-            // do acervo inteiro em cada aba.
-            invalidateCoalesced('/api/items');
-            invalidateCoalesced('/api/items/approved');
-            invalidateCoalesced('/api/events');
-            break;
-
-          case 'tubos_atualizados':
-            // TUBOS (14/09): criar, mexer, apagar ou entregar um tubo. A fila lê
-            // o número de /api/tubos (selo "Tubo N") e o painel lê
-            // /api/events/:id/tubos — sem isto, o colega do outro celular via o
-            // tubo antigo até o próximo polling.
-            invalidateCoalesced('/api/tubos');
-            if (data.eventId) invalidateCoalesced(`/api/events/${data.eventId}/tubos`);
-            break;
-
           case 'items_submitted':
-            invalidateCoalesced('/api/items');
             toast({
               title: 'Peças enviadas para vinculação',
               description: (data.count || 0) === 1
@@ -388,10 +320,6 @@ export function useWebSocket() {
             break;
 
           case 'item_approved':
-            invalidateCoalesced('/api/items');
-            invalidateCoalesced('/api/items/pending');
-            invalidateCoalesced('/api/items/approved');
-            invalidateCoalesced('/api/events');
             toast({
               title: 'Peça liberada',
               description: data.item?.type ? `Peça ${data.item.type} aprovada para produção` : 'Aprovada para produção',
@@ -400,13 +328,6 @@ export function useWebSocket() {
 
           case 'production_started':
           case 'production_updated':
-            invalidateCoalesced('/api/items');
-            // A aba Máquinas (o que cada impressora imprime agora e o diário do
-            // dia) lê estes mesmos gestos — sem esta linha ela só via a
-            // mudança no polling de 60s.
-            invalidateCoalesced('/api/grafica/maquinas');
-            invalidateCoalesced('/api/items/approved');
-            invalidateCoalesced('/api/events');
             toast({
               // "Impressão" (14/09): o status inProduction chama-se Em Impressão.
               title: data.type === 'production_started' ? 'Impressão iniciada' : 'Impressão atualizada',
@@ -415,7 +336,6 @@ export function useWebSocket() {
             break;
 
           case 'deadline_alert':
-            invalidateCoalesced('/api/events');
             toast({
               // Sem emoji: o toast de erro já traz ícone e cor de alerta, e o
               // emoji renderizava diferente em cada sistema operacional.
@@ -450,31 +370,19 @@ export function useWebSocket() {
             break;
 
           // ── Patrocinadores ──
-          // O hook tinha 40 invalidações e NENHUMA para patrocinador: quem
-          // cadastrava um patrocinador numa aba não o encontrava no seletor da
-          // outra, e um patrocinador excluído continuava ofertado até o F5.
-          // '/api/sponsors/usage' entra junto porque é a contagem exibida ao
-          // lado de cada nome — ficar defasada é o que faz alguém excluir um
-          // patrocinador achando que ele não é usado por ninguém.
+          // Quem cadastrava um patrocinador numa aba não o encontrava no
+          // seletor da outra; '/api/sponsors/usage' é a contagem ao lado de
+          // cada nome — ficar defasada é o que faz alguém excluir um
+          // patrocinador achando que ele não é usado por ninguém. O vínculo
+          // peça↔patrocinador também muda a linha da Gráfica e o cartão de
+          // Máquinas (o apoio). As chaves estão no mapa.
           case 'sponsor_created':
           case 'sponsor_updated':
           case 'sponsor_deleted':
-            invalidateCoalesced('/api/sponsors');
-            invalidateCoalesced('/api/sponsors/usage');
-            break;
-
-          // Vínculo peça↔patrocinador e cota do evento: mudam a leitura de
-          // '/api/sponsors/usage' e das listas por evento/peça.
           case 'item_sponsor_added':
           case 'item_sponsor_removed':
           case 'event_sponsor_updated':
           case 'event_sponsor_removed':
-            invalidateCoalesced('/api/sponsors');
-            invalidateCoalesced('/api/sponsors/usage');
-            invalidateCoalesced('/api/items');
-            if (data.eventId) {
-              invalidateCoalesced('/api/events', data.eventId, 'sponsors');
-            }
             break;
 
           case 'pedidos_de_peca':
@@ -498,7 +406,6 @@ export function useWebSocket() {
 
           case 'notification_created':
           case 'notification_read':
-            invalidateCoalesced('/api/notifications');
             break;
 
           case 'prazo_cobranca':

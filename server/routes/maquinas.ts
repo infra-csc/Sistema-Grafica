@@ -33,6 +33,9 @@ import { chaveDoLockDaImpressora } from "@shared/reserva-de-impressora";
 import { reservar, moverReserva, devolverReserva, colunasDaReserva, livreParaReservar, reservaDaPeca, semImpressora, lerPausas, pausarParte, iniciarParte, ocupanteDaImpressora } from "@shared/reserva-de-impressora";
 import { normalizarPartes, maquinaPrincipal, aImprimirDaPeca } from "@shared/impressao-dividida";
 import { EM_REVISAO } from "@shared/fluxo-peca";
+import { pecaTravada, fraseDaTrava, CODIGO_PECA_TRAVADA } from "@shared/trava-da-peca";
+import { imprimeNaMaquina } from "@shared/progresso-da-impressao";
+import { ehMolde, ehTipoMolde } from "@shared/molde";
 import { items as itemsTable, registrosDeImpressao } from "@shared/schema";
 import { and, eq, inArray, isNull } from "drizzle-orm";
 import { erroImpressoraOcupada } from "../services/ocupacaoDasImpressoras";
@@ -65,7 +68,11 @@ function filtroDoKit(req: any): (l: any) => boolean {
   return (l: any) => pecaVisivelPara(quemVe, { kitRemessaId: l.kit_remessa_id, criadoPorId: l.criado_por_id });
 }
 
-const aImprimir = (quantidade: unknown, reuso: unknown) => Math.max(0, Number(quantidade) - Number(reuso));
+// A MESMA conta das telas (aImprimirDaPeca): quantidade − reaproveitadas, e
+// zero na peça de reuso legado (is_reuse). Era `quantity − reuse_qty` à mão, e
+// o cartão podia dizer um teto diferente do da fila da Gráfica.
+const aImprimir = (quantidade: unknown, reuso: unknown, isReuse?: unknown) =>
+  aImprimirDaPeca({ quantity: Number(quantidade), reuseQty: Number(reuso), isReuse: isReuse === true });
 
 /**
  * Os registros do diário de um período (de..ate, no fuso da operação), já no
@@ -77,7 +84,7 @@ async function registrosDoPeriodo(req: any, de: string, ate: string): Promise<Re
            to_char((r.created_at at time zone 'UTC') at time zone ${FUSO}, 'YYYY-MM-DD') as dia,
            to_char((r.created_at at time zone 'UTC') at time zone ${FUSO}, 'HH24:MI') as hora,
            (extract(epoch from r.created_at) * 1000)::bigint as em,
-           i.display_id, i.type, i.description, i.quantity, coalesce(i.reuse_qty, 0) as reuso,
+           i.display_id, i.type, i.description, i.quantity, coalesce(i.reuse_qty, 0) as reuso, i.is_reuse,
            i.kit_remessa_id, i.criado_por_id,
            e.name as evento
     from registros_de_impressao r
@@ -99,7 +106,7 @@ async function registrosDoPeriodo(req: any, de: string, ate: string): Promise<Re
     tipo: l.tipo,
     quantidade: Number(l.quantidade),
     totalDepois: l.total_depois == null ? null : Number(l.total_depois),
-    aImprimir: aImprimir(l.quantity, l.reuso),
+    aImprimir: aImprimir(l.quantity, l.reuso, l.is_reuse),
     dia: l.dia,
     hora: l.hora,
     em: Number(l.em),
@@ -134,6 +141,10 @@ function maquinaDoCorpo(corpo: any): { ok: true; maquina: string | null } | { ok
  */
 async function motivoDeNaoReservar(item: any): Promise<string | null> {
   if (!item || item.deletedAt) return "Peça não encontrada";
+  // Travada pela Solicitação: nem reservar (shared/trava-da-peca.ts).
+  if (pecaTravada(item)) return fraseDaTrava(item);
+  // MOLDE (22/09) não passa pelas impressoras: é marcado como produzido na Gráfica.
+  if (ehMolde(item)) return "Molde não entra na fila das impressoras — é marcado como produzido direto na Gráfica";
   const emImpressaoPorPartes = (item.status === "inProduction" || item.status === "em_producao")
     && !!lerPartes(item.impressaoPorMaquina) && livreParaReservar(item) > 0;
   if (!PODE_RESERVAR.includes(item.status) && !emImpressaoPorPartes) {
@@ -295,8 +306,11 @@ export function registerMaquinasRoutes(app: Express): void {
           if (!entra || entra.deletedAt) throw falha(404, "A peça que entra não foi encontrada");
           if (EM_REVISAO.has(entra.status)) throw falha(409, "A peça que entra está em revisão — a Gráfica só age depois que a revisão liberar.");
           const PODE = ["ready_for_production", "pronto_para_producao", "approved", "liberado", "inProduction", "em_producao"];
+          if (ehMolde(entra)) throw falha(409, "Molde não vai para a impressora — é marcado como produzido direto na Gráfica.");
           if (!PODE.includes(entra.status)) throw falha(409, `A peça que entra não pode ir para a máquina no status atual: ${translateStatus(entra.status)}`);
           if (await motivoEventoDaPeca(entra)) throw falha(409, "O evento da peça que entra já foi finalizado");
+          // A que ENTRA não pode estar travada; a que SAI pode (recuar nunca é barrado).
+          if (pecaTravada(entra as any)) throw Object.assign(falha(409, fraseDaTrava(entra as any)), { code: CODIGO_PECA_TRAVADA });
           // Depois da pausa a impressora tem de estar LIVRE (outra peça com parte nela barra a troca).
           const emImpressao = await tx.select().from(itemsTable).where(and(inArray(itemsTable.status, ["inProduction", "em_producao"]), isNull(itemsTable.deletedAt)));
           const ocupante = ocupanteDaImpressora(emImpressao as any[], maquina, entra.id);
@@ -339,7 +353,7 @@ export function registerMaquinasRoutes(app: Express): void {
       if (entrou) { broadcast({ type: "item_updated", item: entrou }); broadcast({ type: "production_started", item: entrou }); }
       res.json({ saiu, entrou });
     } catch (error: any) {
-      if (error?.httpStatus) return res.status(error.httpStatus).json({ error: error.message });
+      if (error?.httpStatus) return res.status(error.httpStatus).json({ error: error.message, ...(error.code ? { code: error.code } : {}) });
       console.error("[maquinas] falha ao tirar/trocar a peça da impressora:", error);
       res.status(500).json({ error: "Não foi possível mexer na impressora." });
     }
@@ -399,9 +413,10 @@ export function registerMaquinasRoutes(app: Express): void {
       const emImpressao = linhas(await db.execute(sql`
         select i.id, i.display_id, i.type, i.description, i.material, i.measurement, i.quantity, i.status,
                coalesce(i.quantity_produced, 0) as produzido,
-               coalesce(i.reuse_qty, 0) as reuso,
+               coalesce(i.reuse_qty, 0) as reuso, i.is_reuse,
                i.print_machine, i.impressao_por_maquina, i.kit_remessa_id, i.criado_por_id,
                i.approval_thumb_url,
+               i.travada_em, i.travada_por, i.travada_motivo,
                to_char(coalesce(i.production_started_at, i.status_changed_at), 'YYYY-MM-DD"T"HH24:MI:SS"Z"') as desde,
                e.id as evento_id, e.name as evento, e.status as evento_status,
                to_char(e.start_date, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') as evento_inicio,
@@ -418,10 +433,11 @@ export function registerMaquinasRoutes(app: Express): void {
       const naFila = linhas(await db.execute(sql`
         select i.id, i.display_id, i.type, i.description, i.material, i.measurement, i.quantity, i.status,
                coalesce(i.quantity_produced, 0) as produzido,
-               coalesce(i.reuse_qty, 0) as reuso,
+               coalesce(i.reuse_qty, 0) as reuso, i.is_reuse,
                i.calculated_m2, i.maquina_prevista, i.reserva_por_maquina, i.print_machine, i.impressao_por_maquina,
                i.kit_remessa_id, i.criado_por_id,
                i.approval_thumb_url,
+               i.travada_em, i.travada_por, i.travada_motivo,
                to_char(coalesce(i.production_started_at, i.status_changed_at), 'YYYY-MM-DD"T"HH24:MI:SS"Z"') as desde,
                e.id as evento_id, e.name as evento, e.status as evento_status,
                e.deadline_producao_grafica,
@@ -436,7 +452,7 @@ export function registerMaquinasRoutes(app: Express): void {
           or (i.status in ('inProduction', 'em_producao') and i.impressao_por_maquina is not null)
         )
         order by e.truck_departure_date asc nulls last, i.display_id asc
-      `)).filter(visivel);
+      `)).filter(visivel).filter((l: any) => !ehTipoMolde(l.type)); // MOLDE (22/09) não passa por impressora
 
       // Patrocinadores de todas as peças da tela (em impressão + fila) numa
       // consulta só — nada de uma busca por peça.
@@ -458,7 +474,7 @@ export function registerMaquinasRoutes(app: Express): void {
         select r.id, r.item_id, r.maquina, r.tipo, r.quantidade, r.total_depois, r.user_name,
                to_char((r.created_at at time zone 'UTC') at time zone ${FUSO}, 'HH24:MI') as hora,
                (extract(epoch from r.created_at) * 1000)::bigint as em,
-               i.display_id, i.type, i.description, i.quantity, coalesce(i.reuse_qty, 0) as reuso,
+               i.display_id, i.type, i.description, i.quantity, coalesce(i.reuse_qty, 0) as reuso, i.is_reuse,
                i.kit_remessa_id, i.criado_por_id,
                e.name as evento
         from registros_de_impressao r
@@ -480,12 +496,16 @@ export function registerMaquinasRoutes(app: Express): void {
         evento: l.evento,
         quantidade: Number(l.quantity),
         reuso: Number(l.reuso),
-        aImprimir: aImprimir(l.quantity, l.reuso),
+        aImprimir: aImprimir(l.quantity, l.reuso, l.is_reuse),
         impressas: Number(l.produzido),
         desde: l.desde,
         maquina: l.print_machine ?? null,
         status: l.status,
         miniatura: l.approval_thumb_url ?? null,
+        // A trava da Solicitação (shared/trava-da-peca.ts): o mesmo selo da Gráfica.
+        travadaEm: l.travada_em ?? null,
+        travadaPor: l.travada_por ?? null,
+        travadaMotivo: l.travada_motivo ?? null,
         // Peça DIVIDIDA entre impressoras (jsonb); null = tudo na `maquina`.
         impressaoPorMaquina: lerPartes(l.impressao_por_maquina),
         // O bastante para a tela saber se o evento já acabou (o servidor
@@ -516,7 +536,7 @@ export function registerMaquinasRoutes(app: Express): void {
             tipo: l.tipo,
             quantidade: Number(l.quantidade),
             totalDepois: l.total_depois == null ? null : Number(l.total_depois),
-            aImprimir: aImprimir(l.quantity, l.reuso),
+            aImprimir: aImprimir(l.quantity, l.reuso, l.is_reuse),
             hora: l.hora,
             quem: l.user_name,
             ordem: ordemPorId.get(l.id) ?? 0,
@@ -540,10 +560,9 @@ export function registerMaquinasRoutes(app: Express): void {
           imprimindo: emImpressao
             // Parte já esgotada (restante 0) não é "imprimindo": fica só como
             // histórico no jsonb — o cartão não ganha uma peça morta.
-            .filter((l) => {
-              const partes = lerPartes(l.impressao_por_maquina);
-              return partes ? !!partesAtivas(partes)[codigo] : l.print_machine === codigo;
-            })
+            // A régua é imprimeNaMaquina (shared/progresso-da-impressao.ts) — a
+            // mesma do filtro "Impressora" da Gráfica.
+            .filter((l) => imprimeNaMaquina({ status: l.status, printMachine: l.print_machine, impressaoPorMaquina: l.impressao_por_maquina }, codigo))
             .map((l) => {
               const p = peca(l);
               const parte = p.impressaoPorMaquina?.[codigo] ?? null;
@@ -564,7 +583,7 @@ export function registerMaquinasRoutes(app: Express): void {
       // `semImpressora` é o que ainda aparece na fila geral.
       const comoPeca = (l: any) => ({
         status: l.status, quantity: l.quantity, reuseQty: l.reuso, quantityProduced: l.produzido,
-        printMachine: l.print_machine, impressaoPorMaquina: l.impressao_por_maquina,
+        isReuse: l.is_reuse === true, printMachine: l.print_machine, impressaoPorMaquina: l.impressao_por_maquina,
         maquinaPrevista: l.maquina_prevista, reservaPorMaquina: l.reserva_por_maquina,
       });
       const pecaDaFila = (l: any) => ({

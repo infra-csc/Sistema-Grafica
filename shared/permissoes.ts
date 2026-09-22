@@ -118,6 +118,10 @@ export const REGUA_DE_PAPEIS: RegraDeRota[] = [
   // troca por prioridade, colocar outra no lugar.
   { metodo: "POST", rota: "/api/grafica/maquinas/:maquina/trocar", papeis: ["admin", "grafica"] },
   { metodo: "POST", rota: "/api/grafica/maquinas/:maquina/pausar", papeis: ["admin", "grafica"] },
+  // Travar/destravar a peça com motivo (dono, 21/09): a Solicitação segura a
+  // Gráfica; a Gráfica vê o motivo mas NÃO destrava.
+  { metodo: "POST", rota: "/api/items/:id/travar", papeis: ["admin", "solicitacao"] },
+  { metodo: "POST", rota: "/api/items/:id/destravar", papeis: ["admin", "solicitacao"] },
   { metodo: "PATCH", rota: "/api/items/:id/start-production", papeis: ["admin", "grafica"] },
   { metodo: "PATCH", rota: "/api/items/:id/submit-final-file", papeis: ["admin", "arte"] },
   { metodo: "PATCH", rota: "/api/items/:id/submit-for-approval", papeis: ["admin", "arte"] },

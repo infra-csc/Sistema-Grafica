@@ -8,12 +8,48 @@
 // detalhe completo (versão, entrega, caminhão) está no title.
 // ─────────────────────────────────────────────────────────────────────────────
 import { detalheDaRemessa, diaMesDoKit, type RemessaDoKit } from "@shared/kit";
+import { ehMolde } from "@shared/molde";
+
+/**
+ * SELO DO MOLDE (dono, 22/09) — o molde tem fluxo curto (Arte → Revisão →
+ * Produzido) e precisa se declarar em toda linha, como o Kit. Mora AQUI porque
+ * o SeloKit já está em todas as linhas e cartões de peça: o molde aparece em
+ * todas elas sem tocar em cada tela.
+ */
+export function SeloMolde({ peca, style }: { peca: { id: string; type?: string | null }; style?: React.CSSProperties }) {
+  if (!ehMolde(peca)) return null;
+  return (
+    <span
+      data-testid={`selo-molde-${peca.id}`}
+      title="Molde — fluxo curto: Arte (thumb) → Revisão Final → Produzido. Sem patrocinador, arquivo final, impressora, conferência ou entrega."
+      aria-label="Molde"
+      style={{
+        display: "inline-flex", alignItems: "center", whiteSpace: "nowrap",
+        fontSize: 10, fontWeight: 800, lineHeight: 1.3, letterSpacing: "0.04em",
+        color: "#44403c", backgroundColor: "#f5f5f4", border: "1px solid #d6d3d1",
+        borderRadius: 999, padding: "1px 7px", verticalAlign: "middle", flexShrink: 0,
+        ...style,
+      }}
+    >
+      MOLDE
+    </span>
+  );
+}
 
 export function SeloKit({ peca, style }: {
+  peca: { id: string; type?: string | null; kitRemessaId?: string | null; kitRemessa?: Partial<RemessaDoKit> | null };
+  style?: React.CSSProperties;
+}) {
+  // O molde se declara junto (ver SeloMolde): peça do Kit que é molde mostra os dois.
+  if (!peca.kitRemessaId) return <SeloMolde peca={peca} style={style} />;
+  if (ehMolde(peca)) return <><SeloKitSo peca={peca} style={style} /><SeloMolde peca={peca} style={style} /></>;
+  return <SeloKitSo peca={peca} style={style} />;
+}
+
+function SeloKitSo({ peca, style }: {
   peca: { id: string; kitRemessaId?: string | null; kitRemessa?: Partial<RemessaDoKit> | null };
   style?: React.CSSProperties;
 }) {
-  if (!peca.kitRemessaId) return null;
   const entrega = diaMesDoKit(peca.kitRemessa?.entregaMaterial);
   return (
     <span

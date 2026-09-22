@@ -122,7 +122,7 @@ describe("5 · a tela", () => {
   });
 
   it("a Gráfica chega nela pelo cabeçalho, e dela volta para a fila — já filtrada", () => {
-    expect(GRAFICA).toContain('href="/grafica/maquinas"');
+    expect(GRAFICA).toContain('"/grafica/maquinas"');
     expect(GRAFICA).toContain('data-testid="link-maquinas"');
     expect(PAGINA).toContain('data-testid="link-voltar-fila"');
     expect(PAGINA).toContain('const GRAFICA_EM_IMPRESSAO = "/grafica?status=inProduction";');
@@ -156,7 +156,7 @@ describe("5 · a tela", () => {
     expect(PAGINA).toContain("refetchOnWindowFocus: true,");
     expect(PAGINA).toContain('data-testid="atualizado-ha"');
     // O WebSocket derruba a chave nos gestos de impressão…
-    expect(ler("client/src/hooks/use-websocket.ts")).toContain("invalidateCoalesced('/api/grafica/maquinas');");
+    expect(ler("client/src/hooks/use-websocket.ts")).toContain("for (const chave of chavesDaMensagem(data)) invalidateCoalesced(...chave);");
     // …e a chave é [rota, "?dia=…"] para o prefixo alcançar qualquer dia aberto.
     expect(PAGINA).toContain('["/api/grafica/maquinas", `?dia=${diaEscolhido}`]');
     expect(ler("client/src/lib/queryClient.ts")).toContain('typeof queryKey[0] === "string" && queryKey[0].startsWith("/api/")');
@@ -181,7 +181,7 @@ describe("5 · a tela", () => {
     expect(PAGINA).not.toContain("button-impressas-linha-");
     expect(PAGINA).toContain("data-testid={`link-escolher-peca-${m.codigo}`}");
     // Evento finalizado: o botão explica antes, com a mesma frase do 409.
-    expect(PAGINA).toContain('motivoAcaoBloqueada(selo.motivo, "informar impressas")');
+    expect(PAGINA).toContain('motivoBloqueio(selo, "informar impressas", p)');
     // A leitura entrega ao modal o que ele precisa.
     expect(ler("server/routes/maquinas.ts")).toContain("i.approval_thumb_url,");
     expect(ler("server/routes/maquinas.ts")).toContain("ordem: ordemPorId.get(l.id) ?? 0,");
@@ -476,11 +476,11 @@ describe("8 · a impressão dividida — a conta pura", async () => {
     expect(ler("client/src/App.tsx")).toContain("<RoleProtectedRoute component={GraficaMaquinas} allowedRoles={ROLES_GRAFICA} />");
     expect(ler("client/src/components/app-sidebar.tsx")).toMatch(/url: "\/grafica\/maquinas",\s+icon: \w+,\s+roles: \["grafica", "solicitacao", "admin"\]/);
     expect(GRAFICA).toContain("function SeloFilaDaImpressora(");
-    expect(GRAFICA).toContain("{!isInProd(item) && item.maquinaPrevista && <SeloFilaDaImpressora maquina={item.maquinaPrevista} reserva={item.reservaPorMaquina} fonte={12} />}");
-    expect(GRAFICA).toContain("{!isInProd(item) && item.maquinaPrevista && <div style={{ marginTop: 4 }}><SeloFilaDaImpressora maquina={item.maquinaPrevista} reserva={item.reservaPorMaquina} fonte={10.5} /></div>}");
-    expect(GRAFICA).toContain("const maquina = dividida ? resumoDaDivisao(partesDaPeca(item)) : item.printMachine ? rotuloDaMaquina(item.printMachine) : null;");
+    expect(GRAFICA).toContain("{!isInProd(item) && item.maquinaPrevista && <SeloFilaDaImpressora item={item} fonte={12} />}");
+    expect(GRAFICA).toContain("{!isInProd(item) && item.maquinaPrevista && <div style={{ marginTop: 4 }}><SeloFilaDaImpressora item={item} fonte={10.5} /></div>}");
+    expect(GRAFICA).toContain("const maquina = n.onde;");
     // O retrato entrega a parte de cada impressora e a peça aparece nos dois cartões.
-    expect(ROTA).toContain("return partes ? !!partesAtivas(partes)[codigo] : l.print_machine === codigo;");
+    expect(ROTA).toContain("imprimeNaMaquina({ status: l.status, printMachine: l.print_machine, impressaoPorMaquina: l.impressao_por_maquina }, codigo)");
     expect(ROTA).toContain("return { ...p, maquina: codigo, parte };");
   });
 });
@@ -518,7 +518,7 @@ describe("9 · peça dividida — os cantos que a revisão achou", async () => {
   });
 
   it("[2] parte esgotada não é 'imprimindo'; lançamento com delta 0 que não conclui → 409", () => {
-    expect(ler("server/routes/maquinas.ts")).toContain("return partes ? !!partesAtivas(partes)[codigo] : l.print_machine === codigo;");
+    expect(ler("server/routes/maquinas.ts")).toContain("imprimeNaMaquina({ status: l.status, printMachine: l.print_machine, impressaoPorMaquina: l.impressao_por_maquina }, codigo)");
     expect(PRODUCAO).toContain("if (quantityProduced === jaConsta && !fecha) {");
     expect(PRODUCAO).toContain("return res.status(409).json({ error: `Nada mudou: já constam ${jaConsta} un. impressas.` });");
     expect(ler("client/src/pages/grafica-maquinas.tsx")).toContain("{podeAgir && !parteEsgotada && (");
@@ -672,7 +672,7 @@ describe("10 · reserva com quantidade — as contas", async () => {
     const rota = ITEMS.slice(ITEMS.indexOf('app.patch("/api/items/:id/start-printing"'), ITEMS.indexOf('app.patch("/api/items/:id/start-production"'));
     expect(rota).toContain("const r = iniciarParteDaPeca(current, printMachine, { daReserva: daReserva === true, quantidade: quantidade == null ? null : Number(quantidade), reservaDe:");
     expect(rota).toContain("const trocouDeMaquina = pedeParte !== true &&");
-    expect(GRAFICA).toContain("Fila: {dividida ? resumoDaReserva(lerReserva(reserva)) : rotuloDaMaquina(maquina)}");
+    expect(GRAFICA).toContain("const frase = fraseDaFila(item);");
   });
 });
 
@@ -715,7 +715,7 @@ describe("11 · iniciar PARTE de uma peça sem reserva — servidor, contas e Gr
   });
 
   it("Gráfica: o progresso diz 'N sem impressora' e oferece 'Iniciar o resto' (modal na etapa 1); a ficha diz 'A imprimir' antes de iniciar", () => {
-    expect(GRAFICA).toContain("const resto = semImpressora(item);");
+    expect(GRAFICA).toContain("const resto = n.semImpressora;");
     expect(GRAFICA).toContain("data-testid={`button-iniciar-resto-${item.id}`}");
     expect(GRAFICA).toContain("const openProductionModal = (item: any, resto = false) => {");
     expect(GRAFICA).toContain("parteAIniciar={iniciandoResto ? { quantidade: semImpressora(selectedItem), daReserva: false } : null}");
@@ -930,7 +930,7 @@ describe("14 · revisão adversarial: impressora nunca trava, corrida, limbo e r
     expect(PAGINA).toContain("ocupado={reserva.isPending || mexerNaImpressora.isPending}");
     expect(PAGINA).toContain("ocupadas={ocupadasParaOModal}");
     expect(ROTA).toContain("De propósito: voltar a \"liberada\" é mudança REAL de etapa");
-    expect(GRAFICA).toContain("ocupanteDaImpressora(pecasDoServidor as any[], m, selectedItem.id)");
+    expect(GRAFICA).toContain("ocupadas={ocupacaoDasImpressoras((pecasDoServidor as any[]).filter(estaEmImpressao), selectedItem.id)}");
   });
 });
 

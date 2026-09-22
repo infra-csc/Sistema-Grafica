@@ -17,6 +17,7 @@
 // (acervo antigo) e onde os status circulam em duas grafias (canônica em
 // inglês e legado em português).
 // ─────────────────────────────────────────────────────────────────────────────
+import { ehMolde, moldeConcluido } from "@shared/molde";
 
 /**
  * Forma mínima de item que a aritmética de saldo enxerga. Todos os campos são
@@ -53,14 +54,17 @@ const n = (v: unknown): number => {
 // oferecendo o botão "Conferir".
 
 export const isDelivered = (item: SaldoItem): boolean =>
-  item?.status === "delivered" || item?.status === "entregue";
+  item?.status === "delivered" || item?.status === "entregue"
+  // MOLDE (22/09): o produzido é o FIM do fluxo dele — para a Gráfica ele está
+  // concluído como a entregue (sem conferir, embalar nem entregar).
+  || moldeConcluido(item as { type?: string | null; status?: string | null });
 export const isConferred = (item: SaldoItem): boolean => item?.status === "conferred";
 /** Embalada (21/09): conferida e dentro de um tubo, esperando o caminhão. */
 export const isPacked = (item: SaldoItem): boolean => item?.status === "packed";
 /** Já passou pela conferência e ainda não saiu — conferida OU embalada. */
 export const isPosConferencia = (item: SaldoItem): boolean => isConferred(item) || isPacked(item);
 export const isProduced = (item: SaldoItem): boolean =>
-  item?.status === "produced" || item?.status === "produzido";
+  (item?.status === "produced" || item?.status === "produzido") && !ehMolde(item as { type?: string | null });
 export const isInProd = (item: SaldoItem): boolean =>
   item?.status === "inProduction" || item?.status === "em_producao";
 
@@ -168,7 +172,8 @@ export const canProduce = (item: SaldoItem): boolean =>
  * estava quebrado.
  */
 export const canConfer = (item: SaldoItem): boolean =>
-  !isDelivered(item) && !isLegacyReuse(item)
+  !ehMolde(item as { type?: string | null }) // MOLDE (22/09): não há conferência
+  && !isDelivered(item) && !isLegacyReuse(item)
   && (isProduced(item) || reusedOf(item) > 0)
   && remainingConfer(item) > 0;
 

@@ -1197,11 +1197,17 @@ describe("impressora nunca trava, sem duplo disparo, modal sabe das ocupadas, ba
     await act(async () => { fireEvent.click($('[data-testid="button-iniciar-fila-f4"]')!); });
     await tick(30);
     const m1 = $('[data-testid="maquina-1"]') as HTMLButtonElement;
-    expect(m1.disabled).toBe(true);
+    // Ocupada, mas escolhível: com o ocupante conhecido o modal oferece a TROCA
+    // por prioridade (o mesmo gesto do cartão), nunca "iniciar junto".
+    expect(m1.disabled).toBe(false);
     expect(m1.textContent).toBe("Impressora 1 (New XT)com #0101");
     expect(m1.getAttribute("data-ocupada")).toBe("#0101");
     expect(($('[data-testid="maquina-2"]') as HTMLButtonElement).disabled).toBe(false);
     expect(($('[data-testid="button-iniciar-impressao"]') as HTMLButtonElement).disabled).toBe(false);
+    await act(async () => { fireEvent.click(m1); });
+    expect(($('[data-testid="button-iniciar-impressao"]') as HTMLButtonElement).disabled).toBe(true);
+    expect($('[data-testid="troca-no-modal"]')!.textContent).toContain("Tirar #0101");
+    expect($('[data-testid="button-imprimir-no-lugar"]')).not.toBeNull();
     cleanup();
     // "Trocar de máquina" da própria #0101: a Impressora 1 é a ATUAL (não "ocupada por outra").
     const r = retrato({ fila: true });

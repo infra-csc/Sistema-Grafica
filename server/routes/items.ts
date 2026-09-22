@@ -2220,7 +2220,12 @@ export function registerItemRoutes(app: Express): void {
         }
       }
       if ('observations' in validatedData && item.observations !== currentItem.observations) {
-        changedParts.push("Observações atualizadas");
+        // O TEXTO vai para a trilha, não só "atualizadas": o recado para a
+        // Gráfica sai da vista quando a peça é liberada (some da Revisão
+        // Final), e uma devolução posterior grava o motivo por cima. Sem
+        // isto, não havia onde reler o que foi escrito.
+        const recado = (item.observations ?? "").trim();
+        changedParts.push(recado ? `Observações: "${recado.length > 300 ? `${recado.slice(0, 300)}...` : recado}"` : "Observações apagadas");
       }
       if ('approvalThumbUrl' in validatedData && item.approvalThumbUrl !== currentItem.approvalThumbUrl) {
         changedParts.push("Thumb de aprovação atualizado");

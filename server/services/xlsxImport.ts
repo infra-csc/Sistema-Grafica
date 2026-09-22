@@ -761,7 +761,7 @@ import { tipoCanonico } from "@shared/molde";
       const created = await tx.insert(itemsTable).values(linhas).returning();
 
       const vinculos = created.flatMap((peca: any, i: number) => (p.vinculosPorLinha[i] ?? []).map((sponsorId) => ({ itemId: peca.id, sponsorId })));
-      if (vinculos.length > 0) await tx.insert(itemSponsors).values(vinculos);
+      if (vinculos.length > 0) await tx.insert(itemSponsors).values(vinculos).onConflictDoNothing();
 
       return { created, remessaCriada };
     });

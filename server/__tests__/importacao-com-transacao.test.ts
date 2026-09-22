@@ -109,6 +109,8 @@ function txFalso() {
         const linhas = (Array.isArray(valores) ? valores : [valores]).map((v: any, i: number) => ({ id: tabela === kitRemessas ? "rem-nova" : `peca-${i}`, ...v }));
         const p: any = Promise.resolve(linhas);
         p.returning = async () => linhas;
+        // Vínculo repetido não quebra a importação: o índice único cuida disso.
+        p.onConflictDoNothing = () => p;
         return p;
       },
     }),

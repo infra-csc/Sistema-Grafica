@@ -140,6 +140,9 @@ export const eventSponsors = pgTable("event_sponsors", {
   // cascade ao excluir evento/patrocinador — sem índice viram seq scan.
   index("IDX_event_sponsors_event_id").on(table.eventId),
   index("IDX_event_sponsors_sponsor_id").on(table.sponsorId),
+  // O mesmo patrocinador duas vezes no mesmo evento era só uma corrida entre
+  // dois cliques: a deduplicação vivia na aplicação (lê, depois insere).
+  uniqueIndex("UQ_event_sponsors_evento_patrocinador").on(table.eventId, table.sponsorId),
 ]);
 
 // Item-Sponsors relationship table (many-to-many)
@@ -151,6 +154,8 @@ export const itemSponsors = pgTable("item_sponsors", {
 }, (table) => [
   index("IDX_item_sponsors_item_id").on(table.itemId),
   index("IDX_item_sponsors_sponsor_id").on(table.sponsorId),
+  // Vínculo duplicado contava patrocinador duas vezes na cota e no book.
+  uniqueIndex("UQ_item_sponsors_peca_patrocinador").on(table.itemId, table.sponsorId),
 ]);
 
 // Item-Sponsor Approvals table (tracks individual sponsor approval status)
@@ -179,6 +184,9 @@ export const itemSponsorApprovals = pgTable("item_sponsor_approvals", {
   // patrocinador (getSponsorUsage) filtram por status — era seq scan a cada
   // carga das duas telas.
   index("IDX_item_sponsor_approvals_status").on(table.status),
+  // Duas linhas de aprovação para o mesmo par faziam "a primeira" decidir: com
+  // uma reprovada e uma aprovada, a peça avançava ou travava por sorteio.
+  uniqueIndex("UQ_item_sponsor_approvals_peca_patrocinador").on(table.itemId, table.sponsorId),
 ]);
 
 // Event Quota Rules — maps sponsor tiers to item types per event

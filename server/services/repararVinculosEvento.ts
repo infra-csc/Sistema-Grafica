@@ -69,10 +69,11 @@ export async function aplicarVinculosEventoPendentes(actor: Actor) {
     let aplicados = 0;
 
     for (const pendencia of pendencias) {
+      // O par evento+patrocinador é único no banco: reparo rodado duas vezes não quebra.
       await tx.insert(eventSponsors).values({
         eventId: pendencia.eventId,
         sponsorId: pendencia.sponsorId,
-      });
+      }).onConflictDoNothing();
       await tx.insert(auditLogs).values({
         userId: actor.userId ?? null,
         userName,

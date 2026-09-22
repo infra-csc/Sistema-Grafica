@@ -8,6 +8,7 @@ import { parseDateLocal, normalizarBusca } from "@/lib/utils";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { FORMATO_COMPACTO, expandirResposta } from "@shared/itens-compactos";
 import { useToast } from "@/hooks/use-toast";
+import { ToastAction } from "@/components/ui/toast";
 import { usePecaDoLink } from "@/hooks/use-peca-do-link";
 import {
   Dialog,
@@ -572,8 +573,12 @@ export default function Solicitacao() {
       // O aviso responde "foi para a Gráfica?" (o destino e o status que ela
       // vai ver lá) e "e agora?" (a ficha já trocou de peça, ou a fila acabou).
       // "A Arte foi notificada" dizia a verdade, mas respondia outra pergunta.
+      // O recado (observação) sai da vista junto com a peça: a Revisão Final só
+      // lista o que ainda está nela. O atalho leva à peça na fila da Gráfica,
+      // onde o recado aparece — e a trilha da ficha guarda o texto.
       toast({
         title: "Liberada para a Gráfica",
+        action: <ToastAction altText="Ver a peça na fila da Gráfica" onClick={() => { window.location.href = `/grafica?item=${itemId}`; }}>Ver na Gráfica</ToastAction>,
         description: `${id} ${doEstoque && doEstoque.reaproveitadas > 0
           ? (doEstoque.pulaProducao
             ? `foi direto para Impresso / Acabamento: as ${doEstoque.reaproveitadas} un. vêm do estoque`

@@ -2096,7 +2096,7 @@ export class DatabaseStorage implements IStorage {
     if (validIds.length > 0) {
       await db.insert(itemSponsors).values(
         validIds.map(sponsorId => ({ itemId, sponsorId }))
-      );
+      ).onConflictDoNothing();
     }
     await this.touchItem(itemId);
   }
@@ -2225,7 +2225,7 @@ export class DatabaseStorage implements IStorage {
           sponsorId,
           status: 'pending',
         }))
-      );
+      ).onConflictDoNothing();
     }
     await this.touchItem(itemId);
   }
@@ -2662,7 +2662,7 @@ export class DatabaseStorage implements IStorage {
     for (const entry of preview) {
       for (const it of entry.items) {
         try {
-          await db.insert(itemSponsors).values({ itemId: it.itemId, sponsorId: entry.sponsorId });
+          await db.insert(itemSponsors).values({ itemId: it.itemId, sponsorId: entry.sponsorId }).onConflictDoNothing();
           linked++;
           touchedItemIds.add(it.itemId);
         } catch (_) {

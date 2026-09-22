@@ -337,3 +337,11 @@ CREATE EXTENSION IF NOT EXISTS pg_trgm;
 CREATE INDEX IF NOT EXISTS "IDX_audit_logs_details_trgm" ON audit_logs USING gin (details gin_trgm_ops);
 CREATE INDEX IF NOT EXISTS "IDX_audit_logs_user_name_trgm" ON audit_logs USING gin (user_name gin_trgm_ops);
 CREATE INDEX IF NOT EXISTS "IDX_audit_logs_entity_id_trgm" ON audit_logs USING gin (entity_id gin_trgm_ops);
+
+-- ── Vínculos sem repetição ──────────────────────────────────────────────
+-- A deduplicação era feita na aplicação (lê, depois insere): dois cliques ao
+-- mesmo tempo criavam o par duas vezes. Conferido em produção com
+-- scripts/contar-vinculos-duplicados.mjs: 0 duplicatas nas três tabelas.
+CREATE UNIQUE INDEX IF NOT EXISTS "UQ_event_sponsors_evento_patrocinador" ON event_sponsors (event_id, sponsor_id);
+CREATE UNIQUE INDEX IF NOT EXISTS "UQ_item_sponsors_peca_patrocinador" ON item_sponsors (item_id, sponsor_id);
+CREATE UNIQUE INDEX IF NOT EXISTS "UQ_item_sponsor_approvals_peca_patrocinador" ON item_sponsor_approvals (item_id, sponsor_id);

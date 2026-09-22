@@ -1280,7 +1280,7 @@ export function ItemDetailsDialog({
                 )}
                 {item.observations && (
                   <div style={{ ...CARTAO, marginTop: 10, padding: "12px 14px" }}>
-                    <p style={{ fontSize: 10, fontWeight: 700, color: "#7a6154", textTransform: "uppercase", letterSpacing: "0.06em", margin: "0 0 4px" }}>Observações</p>
+                    <p style={{ fontSize: 10, fontWeight: 700, color: "#7a6154", textTransform: "uppercase", letterSpacing: "0.06em", margin: "0 0 4px" }}>Recado para a Gráfica</p>
                     <p style={{ fontSize: 13, color: "#57534e", fontStyle: "italic", lineHeight: 1.55, margin: 0 }}>"{item.observations}"</p>
                   </div>
                 )}

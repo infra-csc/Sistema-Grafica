@@ -14,6 +14,7 @@ import { PedidosDoEvento } from "@/components/pedidos-do-evento";
 import { SeloKit } from "@/components/kit/selo-kit";
 import { PainelDoKit, chaveDasRemessas } from "@/components/kit/painel-do-kit";
 import { grupoDoKit, rotuloDaRemessa, type RemessaDoKit } from "@shared/kit";
+import { TIPOS_DE_PECA, statusDeExibicao, statusParaContagem } from "@shared/molde";
 import { invalidarPedidos } from "@/components/pedidos/ui";
 import { patrocinadoresDaLinha, textoDaObservacao, type LinhaDoPedido, type PedidoDePeca } from "@shared/pedidos-de-peca";
 import { Fragment, useState, useEffect, useMemo, useRef } from "react";
@@ -142,7 +143,8 @@ import {
 import { compareDisplayId } from "@/lib/displayId";
 import { miniatura } from "@/lib/miniatura";
 
-const itemTypes = ["2x1", "Arena", "Halter", "Palco", "Painel Rosto", "Percurso", "Pórtico", "Prismas", "Qd Fotos", "Rolo", "Stand", "Testeiras", "WindBanner"];
+// A lista única de tipos (com o Molde, 22/09) mora em shared/molde.ts.
+const itemTypes = [...TIPOS_DE_PECA];
 const materials = ["Adesivo", "Lona", "Madeira", "Sanett", "Tecido", "Tecido Pet"];
 const finishes = ["Dupla Face", "Ilhós", "Impressão UV", "Impresso", "Recorte", "Refile"];
 
@@ -942,12 +944,13 @@ export default function EventDetail() {
     [event, hoje],
   );
   const atrasDoMarco = useMemo(
-    () => MARCOS_DO_EVENTO.map((_, i) => mainItems.filter(it => estaAtrasDoMarco(it.status, i)).length),
+    () => MARCOS_DO_EVENTO.map((_, i) => mainItems.filter(it => estaAtrasDoMarco(statusParaContagem(it), i)).length),
     [mainItems],
   );
   // Fases de produção — a MESMA contagem do cartão de Eventos (lib/fases).
   const fases = useMemo(() => contarPorFase(mainItems), [mainItems]);
-  const entregues = useMemo(() => mainItems.filter(i => i.status === 'delivered' || i.status === 'entregue').length, [mainItems]);
+  // Molde produzido (fim do fluxo dele) conta como entregue — shared/molde.ts.
+  const entregues = useMemo(() => mainItems.filter(i => { const s = statusParaContagem(i); return s === 'delivered' || s === 'entregue'; }).length, [mainItems]);
   // A frase de resolução: onde o evento está, em uma linha derivada dos dados.
   const fraseResolucao = useMemo(() => {
     const t = mainItems.length;
@@ -1235,7 +1238,7 @@ export default function EventDetail() {
     for (const it of items) {
       if (OUT.has(it.status)) continue;
       ativas += 1;
-      if (DONE.has(it.status)) entregues += 1;
+      if (DONE.has(statusParaContagem(it))) entregues += 1;
       else if (PROD.has(it.status)) emProducao += 1;
     }
     return { ativas, entregues, emProducao, abertas: ativas - entregues };
@@ -1819,7 +1822,7 @@ export default function EventDetail() {
     let base = mainItems;
     if (statusFilter.length > 0) base = base.filter(item => statusFilter.includes(item.status));
     // O gargalo clicado na timeline: as peças que AINDA NÃO passaram por ele.
-    if (marcoFiltro !== null) base = base.filter(item => estaAtrasDoMarco(item.status, marcoFiltro));
+    if (marcoFiltro !== null) base = base.filter(item => estaAtrasDoMarco(statusParaContagem(item), marcoFiltro));
     if (itemSearchLower) {
       base = base.filter((item: any) =>
         (item.displayId || "").toLowerCase().includes(itemSearchLower) ||
@@ -3328,7 +3331,7 @@ export default function EventDetail() {
                             >
                               {item.displayId}
                             </button>
-                            <StatusBadge status={item.status} />
+                            <StatusBadge status={statusDeExibicao(item)} />
                           </div>
                           <DetalheProducao item={item} style={{ marginTop: 0, marginBottom: 6, textAlign: 'right' }} />
                           <SeloKit peca={item} style={{ marginBottom: 4, marginRight: 4 }} />
@@ -3633,7 +3636,7 @@ export default function EventDetail() {
                               const fase = faseDaArte(item.status);
 // Fora da Arte = produção em diante: o selo ganha a linha discreta
                               // "Impressora 2 · 3 de 10 impressas" / "Tubo 2" (lib/detalhe-producao).
-                              if (!fase) return <><StatusBadge status={item.status} short /><DetalheProducao item={item} /></>;
+                              if (!fase) return <><StatusBadge status={statusDeExibicao(item)} short /><DetalheProducao item={item} /></>;
                               const alvo = `/arte?fase=${fase}&evento=${item.eventId}&busca=${String(item.displayId ?? "").replace("#", "")}`;
                               return (
                                 <Link

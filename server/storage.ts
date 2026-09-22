@@ -55,6 +55,7 @@ import {
 import { db } from "./db";
 import { eq, and, desc, asc, sql, or, lt, gte, ne, inArray, notInArray, like, ilike, isNull } from "drizzle-orm";
 import { reservaEstaAtiva } from "@shared/estoque";
+import { moldeConcluido } from "@shared/molde";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // VOCABULÁRIO DE displayId — lado SERVIDOR.
@@ -1628,9 +1629,14 @@ export class DatabaseStorage implements IStorage {
         eventId: items.eventId,
         status: items.status,
         skipApproval: items.skipApproval,
+        type: items.type,
       })
       .from(items)
-      .where(isNull(items.deletedAt));
+      .where(isNull(items.deletedAt))
+      // MOLDE (22/09): o produzido é o fim do fluxo dele — a lista de eventos
+      // só CONTA por status, então ele chega como entregue (shared/molde). O
+      // tipo só serve para isso e não vai na resposta.
+      .then((linhas) => linhas.map(({ type, ...l }) => (moldeConcluido({ type, status: l.status }) ? { ...l, status: "delivered" } : l)));
   }
 
   // USUÁRIO DO KIT (perf 17/09): as rotas de eventos e de notificações

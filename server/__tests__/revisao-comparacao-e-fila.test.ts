@@ -203,12 +203,13 @@ describe("os chips de faceta contam o que entregam", () => {
     // pela MESMA porta — dentro do casaRecorte, com a própria dimensão excluída.
     expect(tela).toContain("const casaRecorte = (item: any, excluir?: 'evento' | 'tipo' | 'sem-arquivo' | 'evento-finalizado' | 'estoque')");
     expect(tela).toContain("const pool = pendingItems.filter(i => casaRecorte(i, 'estoque'));");
-    expect(tela).toContain("if (excluir !== 'sem-arquivo' && soSemArquivo && !!item.finalFileUrl) return false;");
+    // arquivoFinalOk (shared/molde, 22/09): tem o arquivo OU é molde, que não tem.
+    expect(tela).toContain("if (excluir !== 'sem-arquivo' && soSemArquivo && arquivoFinalOk(item)) return false;");
     expect(tela).toContain("if (excluir !== 'evento-finalizado' && soEventoFinalizado && !selosPorItem.has(item.id)) return false;");
   });
 
   it("cada contagem exclui a própria dimensão", () => {
-    expect(tela).toContain("casaRecorte(i, 'sem-arquivo') && !i.finalFileUrl");
+    expect(tela).toContain("casaRecorte(i, 'sem-arquivo') && !arquivoFinalOk(i)");
     expect(tela).toContain("casaRecorte(i, 'evento-finalizado') && selosPorItem.has(i.id)");
   });
 
@@ -276,9 +277,9 @@ describe("as guardas de evento finalizado", () => {
     // Sumir com eles deixa a ficha sem explicação para a ausência.
     // `semArquivoParaLiberar` (21/09): sem arquivo final — salvo quando o estoque
     // cobre a peça inteira, que é reaproveitamento total e não imprime nada.
-    // Com a chave desligada (dono, 21/09 — segurar) a exceção some e a regra
-    // é a de antes: sem arquivo final, não libera.
-    expect(tela).toContain("const semArquivoParaLiberar = !selectedItem?.finalFileUrl && !(SOLICITACAO_AO_ESTOQUE_ATIVA && propostaDaFicha?.pulaProducao);");
+    // Chave desligada (dono, 21/09 — segurar): sem arquivo final, não libera;
+    // o MOLDE (22/09) não tem arquivo final e libera só com o thumb.
+    expect(tela).toContain("const semArquivoParaLiberar = !arquivoFinalOk(selectedItem) && !(SOLICITACAO_AO_ESTOQUE_ATIVA && propostaDaFicha?.pulaProducao);");
     expect(tela).toContain("disabled={!!seloSelecionado || creatorReviewMutation.isPending || semArquivoParaLiberar}");
     expect(tela).toContain('motivoAcaoBloqueada(seloSelecionado.motivo, "liberar para produção")');
   });

@@ -38,6 +38,7 @@ import { getStatusMeta, getStatusLabel, getApprovalMeta, motivoEventoFinalizado,
 // divergiriam, e a tela de destino desmentiria a tela de origem.
 import { temRefacao } from "@/lib/analises-desempenho";
 import { ehBookCompleto } from "@shared/fluxo-peca";
+import { statusDeExibicao, statusParaContagem } from "@shared/molde";
 import { isDelivered } from "@/lib/analises-status";
 import { StatusPill } from "@/components/status-pill";
 import { DetalheProducao } from "@/components/detalhe-producao";
@@ -925,7 +926,7 @@ const LinhaDaPeca = memo(function LinhaDaPeca({
           Padding 16 e nao 20: abre a linha extra sem
           crescer a altura da tabela. */}
       <td data-testid={`cell-idade-${item.id}`} style={{ padding: "10px 16px", overflow: "hidden" }}>
-        <StatusPill status={isDeleted ? "deleted" : item.status} />
+        <StatusPill status={isDeleted ? "deleted" : statusDeExibicao(item)} />
         {!isDeleted && <DetalheProducao item={item} style={{ whiteSpace: "normal" }} />}
         {(() => {
           if (isDeleted) return null;
@@ -1059,7 +1060,7 @@ const CartaoDaPeca = memo(function CartaoDaPeca({
         )}
         {/* Row 3: status pill */}
         <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-          <StatusPill status={isDeleted ? "deleted" : item.status} />
+          <StatusPill status={isDeleted ? "deleted" : statusDeExibicao(item)} />
           {/* Mesmo selo da linha do desktop, ao
               lado do status: no card o status é
               a informação que a pessoa lê, e é
@@ -1955,7 +1956,7 @@ export default function PainelGeral() {
       m = { truckDayMs, pendentes: 0, selo: null };
       eventMeta.set(key, m);
     }
-    if (!i.deletedAt && isPendingItemStatus(i.status)) m.pendentes++;
+    if (!i.deletedAt && isPendingItemStatus(statusParaContagem(i))) m.pendentes++;
   }
   // ── Selo de evento fora de jogo, por evento ──────────────────────────────
   // Calculado DEPOIS do laço acima porque o rótulo do "realizado" depende da
@@ -2021,7 +2022,7 @@ export default function PainelGeral() {
   const emEventoAtrasado = (item: any) => {
     const m = eventMeta.get(item.eventId || "no-event");
     return !!m?.truckDayMs && dayDiff(todayMs, m.truckDayMs) < 0
-      && isPendingItemStatus(item.status) && !eventoFinalizado(item);
+      && isPendingItemStatus(statusParaContagem(item)) && !eventoFinalizado(item);
   };
 
   // ── A ocultação ──────────────────────────────────────────────────────────
@@ -2118,7 +2119,7 @@ export default function PainelGeral() {
   const matchesFoco = (item: any) => focoFilter.every(f =>
     f === "reprovadas" ? temReprovacao(item)
     : f === "atrasadas" ? emEventoAtrasado(item)
-    : f === "pendentes" ? isPendingItemStatus(item.status)
+    : f === "pendentes" ? isPendingItemStatus(statusParaContagem(item))
     // Os dois abaixo são a porta de entrada dos KPIs da Análise.
     : f === "retrabalho" ? temRefacao(item as any)
     : f === "fora-do-prazo" ? entregueForaDoPrazo(item)
@@ -2138,7 +2139,8 @@ export default function PainelGeral() {
     // Itens normais nunca aparecem quando só "deleted" está selecionado —
     // com "Excluídos" como único filtro, a lista mostra SÓ os excluídos.
     if (activeFilters.length === 0) return !f.includes("deleted");
-    return matchesStatusFilter(item.status, activeFilters);
+    // Molde produzido cai no card de Entregues, o mesmo que o conta (shared/molde).
+    return matchesStatusFilter(statusParaContagem(item), activeFilters);
   };
 
   // Quando o filtro "Excluídos" está ativo, mescla as peças soft-deleted na lista de exibição.
@@ -2169,7 +2171,7 @@ export default function PainelGeral() {
   for (const i of baseCompleta) {
     if (!seriaOculto(i)) continue;
     const motivo = seloDoItem(i)!.motivo;
-    const aberto = !i.deletedAt && isPendingItemStatus(i.status);
+    const aberto = !i.deletedAt && isPendingItemStatus(statusParaContagem(i));
     if (motivo === "encerrado") { ocultas.encerrado++; if (aberto) ocultas.encerradoAberto++; }
     else { ocultas.realizado++; if (aberto) ocultas.realizadoAberto++; }
   }

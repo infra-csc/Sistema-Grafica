@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils";
 import { FS, R, T } from "@/lib/theme";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useFiltrosNaUrl, paginaValida } from "@/hooks/use-filtros-na-url";
+import { TIPOS_DE_PECA } from "@shared/molde";
 
 // Delega o comportamento ao filtro padrão do app (busca, ordem alfabética,
 // contagem). Aqui o "sem filtro" é "" em vez de "all", então traduzimos nas
@@ -97,7 +98,8 @@ function Paginacao({ pagina, totalPaginas, onIr, toque }: { pagina: number; tota
   );
 }
 
-const itemTypes = ["2x1", "Arena", "Halter", "Palco", "Painel Rosto", "Percurso", "Pórtico", "Prismas", "Qd Fotos", "Rolo", "Stand", "Testeiras", "WindBanner"];
+// A lista única de tipos (com o Molde, 22/09) mora em shared/molde.ts.
+const itemTypes = [...TIPOS_DE_PECA];
 const materials = ["Adesivo", "Lona", "Madeira", "Sanett", "Tecido", "Tecido Pet"];
 const finishes = ["Dupla Face", "Ilhós", "Impressão UV", "Impresso", "Recorte", "Refile"];
 

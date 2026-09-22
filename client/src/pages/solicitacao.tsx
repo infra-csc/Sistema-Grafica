@@ -29,6 +29,7 @@ import { useState, useMemo, useEffect, Fragment, useRef, useCallback } from "rea
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useAuth } from "@/contexts/auth-context";
 import { ehBookCompleto } from "@shared/fluxo-peca";
+import { arquivoFinalOk, ehMolde } from "@shared/molde";
 import {
   STATUS, getStatusMeta,
   seloPecaEventoFinalizado, motivoAcaoBloqueada, todayBusinessMs,
@@ -224,8 +225,9 @@ export default function Solicitacao() {
     : null;
   // Sem arquivo final não libera — salvo quando o estoque cobre a peça inteira
   // (reaproveitamento total não imprime nada; é a mesma régua do servidor).
-  // Chave desligada: a regra de antes — sem arquivo final, não libera.
-  const semArquivoParaLiberar = !selectedItem?.finalFileUrl && !(SOLICITACAO_AO_ESTOQUE_ATIVA && propostaDaFicha?.pulaProducao);
+  // Chave desligada: a regra de antes — sem arquivo final, não libera. MOLDE
+  // (22/09) não tem arquivo final — libera só com o thumb (arquivoFinalOk).
+  const semArquivoParaLiberar = !arquivoFinalOk(selectedItem) && !(SOLICITACAO_AO_ESTOQUE_ATIVA && propostaDaFicha?.pulaProducao);
   // O filtro do estoque mora na URL, como os outros (?estoque=respondeu).
   useEffect(() => {
     if (!SOLICITACAO_AO_ESTOQUE_ATIVA) return;
@@ -879,7 +881,7 @@ export default function Solicitacao() {
         !normalizarBusca(item.event?.name).includes(q)) return false;
     if (excluir !== 'evento' && eventFilter.length > 0 && !eventFilter.includes(item.eventId)) return false;
     if (excluir !== 'tipo' && itemTypeFilter.length > 0 && !itemTypeFilter.includes(item.type)) return false;
-    if (excluir !== 'sem-arquivo' && soSemArquivo && !!item.finalFileUrl) return false;
+    if (excluir !== 'sem-arquivo' && soSemArquivo && arquivoFinalOk(item)) return false;
     if (excluir !== 'evento-finalizado' && soEventoFinalizado && !selosPorItem.has(item.id)) return false;
     if (excluir !== 'estoque' && filtroEstoque === "aguardando" && !aguardandoEstoque(estoquePorPeca.get(item.id))) return false;
     if (excluir !== 'estoque' && filtroEstoque === "respondeu" && !estoqueRespondeu(estoquePorPeca.get(item.id))) return false;
@@ -908,7 +910,7 @@ export default function Solicitacao() {
   // linhas que o clique entrega. Contar sobre `filteredItems` faria o chip
   // ligado mostrar a contagem de si mesmo e o desligado mostrar zero.
   const contagemSemArquivo = useMemo(
-    () => pendingItems.filter(i => casaRecorte(i, 'sem-arquivo') && !i.finalFileUrl).length,
+    () => pendingItems.filter(i => casaRecorte(i, 'sem-arquivo') && !arquivoFinalOk(i)).length,
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [pendingItems, searchTerm, eventFilter, itemTypeFilter, soEventoFinalizado, selosPorItem],
   );
@@ -927,7 +929,7 @@ export default function Solicitacao() {
   const fraseDeResolucao = useMemo(() => {
     const total = pendingItems.length;
     if (total === 0) return "Nenhuma peça aguardando revisão.";
-    const semArquivo = pendingItems.filter(i => !i.finalFileUrl).length;
+    const semArquivo = pendingItems.filter(i => !arquivoFinalOk(i)).length;
     const prontas = total - semArquivo;
     if (semArquivo === 0) {
       return `${total === 1 ? "A única peça tem" : `Todas as ${total} peças têm`} arquivo final — é só decidir.`;
@@ -1079,7 +1081,7 @@ export default function Solicitacao() {
     .filter((it: any) => it && !it.isReuse && estoqueRespondeu(estoquePorPeca.get(it.id)))
     .map((it: any) => propostaDaLiberacao(Number(it.quantity) || 0, estoquePorPeca.get(it.id)!));
   const semArquivoNoLote = itensDoLoteVivo
-    .filter((it: any) => !it?.finalFileUrl && !reaproveitamentoTotal(it)).length;
+    .filter((it: any) => !arquivoFinalOk(it) && !reaproveitamentoTotal(it)).length;
   const reaproveitadasNoLote = itensDoLoteVivo.filter((it: any) => reaproveitamentoTotal(it)).length;
 
   /** A frase do "ficam de fora" — uma só, para os dois diálogos de lote. */
@@ -1233,7 +1235,7 @@ export default function Solicitacao() {
       // Mesma checagem do botão "Liberar para Produção": sem arquivo final —
       // ou com o evento finalizado, que o servidor recusa com 409 — o atalho
       // não pode driblar o botão desabilitado.
-      if (e.key === "Enter" && selectedItem?.finalFileUrl
+      if (e.key === "Enter" && arquivoFinalOk(selectedItem)
         && !seloPecaEventoFinalizado(selectedItem?.event, hojeBusinessMs)) setReleaseConfirmOpen(true);
       if (e.key === "Escape") setModalOpen(false);
       if (e.key === "ArrowLeft" && temAnterior) { e.preventDefault(); irParaFila(filaIdx - 1); }
@@ -1720,7 +1722,11 @@ export default function Solicitacao() {
                             coluna própria (decide se a peça é revisável); no
                             cartão só se descobria abrindo a ficha. */}
                         <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}}>
-                          {item.finalFileUrl ? (
+                          {ehMolde(item) ? (
+                            <span data-testid={`chip-arquivo-mobile-${item.id}`} title="Molde não tem arquivo final — libera só com o thumb" style={{display:"inline-flex",alignItems:"center",gap:4,fontSize:11,fontWeight:700,padding:"2px 8px",borderRadius:999,backgroundColor:"#f5f5f4",border:"1px solid #d6d3d1",color:"#44403c"}}>
+                              Molde · sem arquivo final
+                            </span>
+                          ) : item.finalFileUrl ? (
                             <span data-testid={`chip-arquivo-mobile-${item.id}`} style={{display:"inline-flex",alignItems:"center",gap:4,fontSize:11,fontWeight:700,padding:"2px 8px",borderRadius:999,backgroundColor:"#f0fdf4",border:"1px solid #bbf7d0",color:"#166534"}}>
                               <Check aria-hidden="true" style={{width:10,height:10}} /> Arquivo recebido
                             </span>
@@ -2108,7 +2114,11 @@ export default function Solicitacao() {
                                 de 74. O "de quem depende" (a Arte) vai no title:
                                 a coluna tem 140px e "Aguardando Arte" não cabe. */}
                             <td data-testid={`cell-final-file-${item.id}`} style={{ padding: "12px 16px", whiteSpace: "nowrap" }}>
-                              {item.finalFileUrl ? (
+                              {ehMolde(item) ? (
+                                <span title="Molde não tem arquivo final — libera só com o thumb" style={{ display: "inline-flex", alignItems: "center", gap: 5, height: 24, padding: "0 9px", borderRadius: 999, backgroundColor: "#f5f5f4", border: "1px solid #d6d3d1", color: "#44403c", fontSize: 12, fontWeight: 700 }}>
+                                  Não se aplica
+                                </span>
+                              ) : item.finalFileUrl ? (
                                 <span style={{ display: "inline-flex", alignItems: "center", gap: 5, height: 24, padding: "0 9px", borderRadius: 999, backgroundColor: "#f0fdf4", border: "1px solid #bbf7d0", color: "#166534", fontSize: 12, fontWeight: 700 }}>
                                   <Check aria-hidden="true" style={{ width: 11, height: 11 }} /> Recebido
                                 </span>
@@ -2413,7 +2423,7 @@ export default function Solicitacao() {
             <div style={{ flex: "1 1 auto", minHeight: 200, overflow: "hidden", backgroundColor: "#f5f5f4", padding: isMobile ? 12 : "14px 20px", display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: isMobile ? 10 : 14 }}>
               {[
                 { label: "Aprovado pelo patrocinador", url: selectedItem?.approvalThumbUrl, empty: "Sem thumb aprovado" },
-                { label: "Arquivo final da Arte", url: selectedItem?.finalFileUrl, empty: "A Arte ainda não subiu o arquivo final" },
+                { label: "Arquivo final da Arte", url: selectedItem?.finalFileUrl, empty: ehMolde(selectedItem) ? "Molde não tem arquivo final — revise pelo thumb" : "A Arte ainda não subiu o arquivo final" },
               ].map(({ label, url, empty }) => {
                 // Caminho de rede/disco (\\10.100.1.7\...): o navegador não
                 // abre nem pré-visualiza — sem moldura e sem "ampliar", só o
@@ -2713,7 +2723,7 @@ export default function Solicitacao() {
                 )}
                 {!seloSelecionado && selectedItem && (
                   <p data-testid="destino-da-decisao" style={{ margin: 0, fontSize: 12, lineHeight: 1.5, color: "#57534e" }}>
-                    {selectedItem.finalFileUrl ? (
+                    {arquivoFinalOk(selectedItem) ? (
                       <>
                         <strong style={{ color: "#1c1917" }}>Liberar</strong>: {reaproveitamentoTotal(selectedItem)
                           ? "sai da Revisão Final e vai direto para Impresso / Acabamento (reaproveitamento total, sem impressão)."
@@ -2985,7 +2995,7 @@ export default function Solicitacao() {
           <AlertDialogFooter>
             <AlertDialogCancel data-testid="button-return-cancel" onClick={() => { setReturnObservations(""); }}>Cancelar</AlertDialogCancel>
             <AlertDialogAction
-              onClick={() => selectedItem && returnToArteMutation.mutate({ itemId: selectedItem.id, notes: returnObservations, destino: destinoDevolucao })}
+              onClick={() => selectedItem && returnToArteMutation.mutate({ itemId: selectedItem.id, notes: returnObservations, destino: ehMolde(selectedItem) ? "arte" : destinoDevolucao })}
               disabled={returnToArteMutation.isPending || motivoCurto(returnObservations)}
               title={motivoCurto(returnObservations) ? avisoMotivoCurto : undefined}
               style={{ backgroundColor: TI.text, color: "#fff" }}

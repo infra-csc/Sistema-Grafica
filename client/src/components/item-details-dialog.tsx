@@ -9,6 +9,7 @@ import { refsDaPeca } from "@/lib/refs-da-peca";
 import { POS_APROVACAO } from "@shared/fluxo-peca";
 import { rotuloDaMaquina } from "@shared/fluxo-peca";
 import { estaDividida } from "@shared/impressao-dividida";
+import { ehMolde, etapaDoMolde, ETAPAS_DO_MOLDE, moldePodeSerProduzido, moldeConcluido, statusDeExibicao } from "@shared/molde";
 import { detalheDaProducao, rotuloDoTubo, subTrilhaDaProducao } from "@/lib/detalhe-producao";
 import { RegistrosDeTubos } from "@/components/registros-de-tubos";
 import { getApprovalMeta, getStatusLabel, guiaDoStatus, marcoEventoFinalizado, proximoPassoDaAprovacao, todayBusinessMs } from "@/lib/status";
@@ -474,7 +475,8 @@ export function ItemDetailsDialog({
   const deliveryPhotos   = photosOfKind("delivery", item.deliveryPhotoUrl);
 
   const rawStatus = (item.status || "").trim();
-  const step = STATUS_STEP[rawStatus] ?? STATUS_STEP[rawStatus.toLowerCase()] ?? -1;
+  // MOLDE (22/09): trilha própria de três etapas — Arte → Revisão → Produzido.
+  const step = ehMolde(item) ? etapaDoMolde(rawStatus) : (STATUS_STEP[rawStatus] ?? STATUS_STEP[rawStatus.toLowerCase()] ?? -1);
 
   // FIM DA HISTÓRIA — o evento desta peça saiu de circulação (encerrado por
   // alguém, ou realizado porque a data passou). Pedido do dono (14/08): a
@@ -768,6 +770,9 @@ export function ItemDetailsDialog({
     if (rawStatus === "awaiting_linking") {
       return { tom: "espera", frase: `Sem patrocinador vinculado${desdeQuando}`, detalhe: "A peça só entra em aprovação depois de vincular as marcas que aparecem nela." };
     }
+    if (rawStatus === "awaiting_submission" && ehMolde(item)) {
+      return { tom: "espera", frase: `Molde aguardando a Arte enviar o thumb${desdeQuando}`, detalhe: "O thumb vai direto para a Revisão Final — sem patrocinador nem arquivo final." };
+    }
     if (rawStatus === "awaiting_submission") {
       return { tom: "espera", frase: `Aguardando a Arte enviar para aprovação${desdeQuando}`, detalhe: "A arte precisa subir o layout para os patrocinadores decidirem." };
     }
@@ -780,9 +785,14 @@ export function ItemDetailsDialog({
         detalhe: `A Arte precisa subir o arquivo final${desdeQuando ? ` · sem movimento${desdeQuando}` : ""}`,
       };
     }
+    if (["awaiting_final_review", "awaiting_review"].includes(rawStatus) && ehMolde(item)) {
+      return { tom: "espera", frase: `Molde aguardando a revisão final${desdeQuando}`, detalhe: "Revisa-se o thumb — molde não tem arquivo final. Liberado, a Gráfica só marca como produzido." };
+    }
     if (["awaiting_final_review", "awaiting_review"].includes(rawStatus)) {
       return { tom: "espera", frase: `Aguardando a revisão final${desdeQuando}`, detalhe: "O arquivo final está pronto e espera a conferência da Solicitação antes de ir para a gráfica." };
     }
+    // MOLDE (22/09): liberado espera só o "produzido" da Gráfica.
+    if (moldePodeSerProduzido(item)) return { tom: "ok", frase: "Molde liberado — a Gráfica marca como produzido", detalhe: "Sem impressora, conferência ou entrega: o fluxo do molde termina no Produzido." };
     if (["ready_for_production", "pronto_para_producao", "approved", "liberado"].includes(rawStatus)) {
 // Reserva de impressora (aba Máquinas): "Fila: Impressora 2" entra na faixa.
       return { tom: "ok", frase: "Liberada para produção", detalhe: [`A gráfica pode imprimir${desdeQuando ? ` · liberada${desdeQuando}` : ""}`, detalheDaProducao(item)].filter(Boolean).join(" · ") };
@@ -793,6 +803,8 @@ export function ItemDetailsDialog({
       const dividida = estaDividida(item);
       return { tom: "espera", frase: `Em impressão${!dividida && item.printMachine ? ` na ${rotuloDaMaquina(item.printMachine)}` : dividida ? " em mais de uma impressora" : ""}${desdeQuando}`, detalhe: detalheDaProducao(item) };
     }
+    // MOLDE (22/09): produzido é o fim do fluxo dele.
+    if (moldeConcluido(item)) return { tom: "ok", frase: "Molde produzido — fluxo concluído", detalhe: "O molde termina no Produzido: sem conferência, embalagem ou entrega." };
     if (["produced", "produzido"].includes(rawStatus)) {
       return { tom: "espera", frase: `Em acabamento / conferência${desdeQuando}`, detalhe: item.conferredQty > 0 ? `${item.conferredQty} de ${item.quantity} já conferidas` : null };
     }
@@ -801,7 +813,7 @@ export function ItemDetailsDialog({
     }
     if (rawStatus === "packed") {
 // O número do tubo chega na peça (enrich do servidor) — "Tubo 2 · fechado 14:32".
-      return { tom: "espera", frase: `Embalada${rotuloDoTubo(item) && rotuloDoTubo(item) !== "Em tubo" ? ` no ${rotuloDoTubo(item)}` : " no tubo"} — aguarda o caminhão${desdeQuando}`, detalhe: item.tuboFechadoEm ? detalheDaProducao(item) : item.deliveredQty > 0 ? `${item.deliveredQty} de ${item.quantity} já entregues` : null };
+      return { tom: "espera", frase: `${item.tuboAvulso ? "Embalada sozinha" : `Embalada${rotuloDoTubo(item) && rotuloDoTubo(item) !== "Em tubo" ? ` no ${rotuloDoTubo(item)}` : " no tubo"}`} — aguarda o caminhão${desdeQuando}`, detalhe: item.tuboFechadoEm ? detalheDaProducao(item) : item.deliveredQty > 0 ? `${item.deliveredQty} de ${item.quantity} já entregues` : null };
     }
     if (["delivered", "entregue"].includes(rawStatus)) {
       return { tom: "ok", frase: "Entregue — nada pendente", detalhe: detalheDaProducao(item) };
@@ -819,7 +831,7 @@ export function ItemDetailsDialog({
   // botão, só o endereço de onde a ação mora. Fonte: lib/status (STATUS_GUIA).
   const vezDeQuem: string | null = (() => {
     if (bloqueio.tom === "reprovado") return proximoPassoDaAprovacao("awaiting_arte");
-    const g = guiaDoStatus(rawStatus);
+    const g = guiaDoStatus(statusDeExibicao(item));
     if (!g?.quemAge) return null;
     return `Quem age agora: ${g.quemAge}${g.onde ? ` — ${g.onde}` : ""}.`;
   })();
@@ -1048,7 +1060,7 @@ export function ItemDetailsDialog({
               etapa ocupa a mesma fração da largura e a barra de 3px abaixo dela
               é o que se lê de longe. */}
           <div aria-hidden="true" style={{ display: "flex", gap: 6, margin: isMobile ? "16px 0 0" : "20px 0 0" }}>
-            {TIMELINE_STEPS.map(s => {
+            {(ehMolde(item) ? ETAPAS_DO_MOLDE : TIMELINE_STEPS).map(s => {
               const done    = s.idx < step;
               const current = s.idx === step;
               return (
@@ -1079,7 +1091,7 @@ export function ItemDetailsDialog({
               );
             })}
           </div>
-          <SubTrilhaDaProducao item={item} isMobile={isMobile} />
+          {!ehMolde(item) && <SubTrilhaDaProducao item={item} isMobile={isMobile} />}
           <div style={{ height: isMobile ? 16 : 20 }} />
         </header>
 

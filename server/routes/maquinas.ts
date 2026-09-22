@@ -33,6 +33,7 @@ import { chaveDoLockDaImpressora } from "@shared/reserva-de-impressora";
 import { reservar, moverReserva, devolverReserva, colunasDaReserva, livreParaReservar, reservaDaPeca, semImpressora, lerPausas, pausarParte, iniciarParte, ocupanteDaImpressora } from "@shared/reserva-de-impressora";
 import { normalizarPartes, maquinaPrincipal, aImprimirDaPeca } from "@shared/impressao-dividida";
 import { EM_REVISAO } from "@shared/fluxo-peca";
+import { ehMolde, ehTipoMolde } from "@shared/molde";
 import { items as itemsTable, registrosDeImpressao } from "@shared/schema";
 import { and, eq, inArray, isNull } from "drizzle-orm";
 import { erroImpressoraOcupada } from "../services/ocupacaoDasImpressoras";
@@ -134,6 +135,8 @@ function maquinaDoCorpo(corpo: any): { ok: true; maquina: string | null } | { ok
  */
 async function motivoDeNaoReservar(item: any): Promise<string | null> {
   if (!item || item.deletedAt) return "Peça não encontrada";
+  // MOLDE (22/09) não passa pelas impressoras: é marcado como produzido na Gráfica.
+  if (ehMolde(item)) return "Molde não entra na fila das impressoras — é marcado como produzido direto na Gráfica";
   const emImpressaoPorPartes = (item.status === "inProduction" || item.status === "em_producao")
     && !!lerPartes(item.impressaoPorMaquina) && livreParaReservar(item) > 0;
   if (!PODE_RESERVAR.includes(item.status) && !emImpressaoPorPartes) {
@@ -295,6 +298,7 @@ export function registerMaquinasRoutes(app: Express): void {
           if (!entra || entra.deletedAt) throw falha(404, "A peça que entra não foi encontrada");
           if (EM_REVISAO.has(entra.status)) throw falha(409, "A peça que entra está em revisão — a Gráfica só age depois que a revisão liberar.");
           const PODE = ["ready_for_production", "pronto_para_producao", "approved", "liberado", "inProduction", "em_producao"];
+          if (ehMolde(entra)) throw falha(409, "Molde não vai para a impressora — é marcado como produzido direto na Gráfica.");
           if (!PODE.includes(entra.status)) throw falha(409, `A peça que entra não pode ir para a máquina no status atual: ${translateStatus(entra.status)}`);
           if (await motivoEventoDaPeca(entra)) throw falha(409, "O evento da peça que entra já foi finalizado");
           // Depois da pausa a impressora tem de estar LIVRE (outra peça com parte nela barra a troca).
@@ -436,7 +440,7 @@ export function registerMaquinasRoutes(app: Express): void {
           or (i.status in ('inProduction', 'em_producao') and i.impressao_por_maquina is not null)
         )
         order by e.truck_departure_date asc nulls last, i.display_id asc
-      `)).filter(visivel);
+      `)).filter(visivel).filter((l: any) => !ehTipoMolde(l.type)); // MOLDE (22/09) não passa por impressora
 
       // Patrocinadores de todas as peças da tela (em impressão + fila) numa
       // consulta só — nada de uma busca por peça.

@@ -157,12 +157,17 @@ describe("T4 — nenhum status de peça VIVA fica fora do funil", () => {
   // "closed" = encerramento MANUAL do evento (POST /api/events/:id/close);
   // nenhuma peça usa esse status.
   const STATUS_DE_EVENTO = new Set(["created", "completed", "closed"]);
+  // Status só de EXIBIÇÃO, nunca gravado: "molde_produzido" é o selo do molde
+  // no fim do fluxo dele (shared/molde) — no banco ele é `produced`, e a
+  // contagem o trata como entregue (statusParaContagem).
+  const STATUS_DE_EXIBICAO = new Set(["molde_produzido"]);
 
   it("todo status de client/src/lib/status.ts está no funil, entregue ou fora do funil", async () => {
     const { STATUS } = await import("@/lib/status");
     const orfaos = Object.keys(STATUS).filter(
       (s) =>
         !STATUS_DE_EVENTO.has(s) &&
+        !STATUS_DE_EXIBICAO.has(s) &&
         STATUS_STAGE_RANK[s] === undefined &&
         !DELIVERED.has(s) &&
         !OUT_OF_FUNNEL.has(s),

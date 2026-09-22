@@ -3,6 +3,7 @@ import { parseDateLocal, toUTCDisplayDate, runInBatches } from "@/lib/utils";
 import { compareDisplayId } from "@/lib/displayId";
 import { SeloKit } from "@/components/kit/selo-kit";
 import { grupoDoKit } from "@shared/kit";
+import { ehMolde } from "@shared/molde";
 
 /** A seção da linha: a remessa do Kit ("KIT V1 · entrega 14/09") ou o tipo (15/09). */
 const secaoDaPeca = (p: any): string => grupoDoKit(p) ?? (p.type || '');
@@ -406,6 +407,8 @@ export default function VincularPatrocinadores() {
     return items.filter(item => {
       // Filtro 1: Status permitido (exclui draft)
       if (!VINCULACAO_VISIBLE_STATUSES.includes(item.status)) return false;
+      // MOLDE (22/09) não passa pela Vinculação — não aparece nesta fila.
+      if (ehMolde(item)) return false;
 
       const event = eventById.get(item.eventId);
       if (!event) return false;

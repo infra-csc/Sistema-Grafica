@@ -285,7 +285,7 @@ describe("rótulos, visão, Excel e pedidos", () => {
   });
 
   it("Detalhe do evento e Painel geral mostram a frase junto do selo", () => {
-    expect(ler("client/src/pages/event-detail.tsx")).toContain("<StatusBadge status={item.status} short /><DetalheProducao item={item} />");
+    expect(ler("client/src/pages/event-detail.tsx")).toContain("<StatusBadge status={statusDeExibicao(item)} short /><DetalheProducao item={item} />");
     expect(ler("client/src/pages/painel-geral.tsx").match(/<DetalheProducao item=\{item\}/g)!.length).toBe(2);
   });
 });

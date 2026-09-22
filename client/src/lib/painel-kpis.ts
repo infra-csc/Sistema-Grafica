@@ -14,6 +14,7 @@
 // vocabulário: rótulo, cor e dot continuam saindo de lib/status.ts, a fonte
 // única do app. Os dois se encontram na tela, não aqui.
 // ─────────────────────────────────────────────────────────────────────────────
+import { statusParaContagem } from "@shared/molde";
 
 /**
  * Chave de filtro/card → status reais que ela cobre.
@@ -98,7 +99,7 @@ export interface PainelStats {
  * INVARIANTE, coberta por teste: `soma(byGroup) + outros === total`. É esta
  * igualdade que a versão anterior podia quebrar em silêncio.
  */
-export function computeStats(items: Array<{ status?: string | null }>): PainelStats {
+export function computeStats(items: Array<{ status?: string | null; type?: string | null }>): PainelStats {
   const byGroup = Object.fromEntries(GROUP_KEYS.map((k) => [k, 0])) as Record<GroupKey, number>;
   const outrosSet = new Set<string>();
   let total = 0;
@@ -108,7 +109,8 @@ export function computeStats(items: Array<{ status?: string | null }>): PainelSt
   for (const i of items) {
     total++;
     if (i.status === "draft") drafts++;
-    const g = statusGroupOf(i.status);
+    // Molde produzido conta onde a peça entregue conta (shared/molde).
+    const g = statusGroupOf(statusParaContagem(i));
     if (g) byGroup[g]++;
     else {
       outros++;

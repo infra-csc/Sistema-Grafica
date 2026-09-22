@@ -195,6 +195,27 @@ BEGIN
   END LOOP;
 END $$;
 
+-- ── 14/09 · Tubos (base) — para o banco LIMPO ─────────────────────────────
+-- Os ALTERs abaixo pressupõem a tabela tubos e items.tubo_id (vieram da main
+-- em 14/09). Em banco que já os tem, nada aqui faz coisa alguma (IF NOT EXISTS;
+-- o ADD COLUMN existente é pulado inteiro, inclusive a referência). Coerente com
+-- shared/schema.ts (tubos, items.tubo_id).
+CREATE TABLE IF NOT EXISTS tubos (
+  id varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+  event_id varchar NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  numero integer NOT NULL,
+  criado_por text,
+  entregue_em timestamp,
+  recebido_por text,
+  foto_entrega_url text,
+  entregue_obs text,
+  entregue_por text,
+  created_at timestamp NOT NULL DEFAULT now()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS "UQ_tubos_evento_numero" ON tubos (event_id, numero);
+ALTER TABLE items ADD COLUMN IF NOT EXISTS tubo_id varchar REFERENCES tubos(id) ON DELETE SET NULL;
+CREATE INDEX IF NOT EXISTS "IDX_items_tubo_id" ON items (tubo_id);
+
 -- ── 21/09 · Etapa "Embalado" (packed) ─────────────────────────────────────
 -- O status novo é TEXTO em items.status: não há enum nem constraint, então
 -- nada a migrar na peça. Só o TUBO ganha colunas (todas vazias ao nascer):

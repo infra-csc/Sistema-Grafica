@@ -24,6 +24,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { isPlausibleEventYear } from "@shared/prazo-dates";
 import { FINAL_STATUSES } from "@/lib/status";
+import { statusParaContagem } from "@shared/molde";
 
 export const DIA_MS = 86_400_000;
 
@@ -74,9 +75,9 @@ export function isPendingItemStatus(status: string | null | undefined): boolean 
 }
 
 /** Quantas peças da lista ainda consomem prazo (ignora soft-deleted). */
-export function countPendentes(items: Array<{ status?: string | null; deletedAt?: unknown }>): number {
+export function countPendentes(items: Array<{ status?: string | null; type?: string | null; deletedAt?: unknown }>): number {
   let n = 0;
-  for (const i of items) if (!i.deletedAt && isPendingItemStatus(i.status)) n++;
+  for (const i of items) if (!i.deletedAt && isPendingItemStatus(statusParaContagem(i))) n++;
   return n;
 }
 

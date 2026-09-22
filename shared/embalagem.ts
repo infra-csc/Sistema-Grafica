@@ -33,11 +33,54 @@ export type PecaDaEmbalagem = {
   status?: string | null;
 };
 
+import { EM_REVISAO, podeIrParaTubo } from "./fluxo-peca";
+
 const n = (v: unknown) => { const x = Math.trunc(Number(v)); return Number.isFinite(x) && x > 0 ? x : 0; };
 
 export const quantidadeDe = (p: PecaDaEmbalagem) => n(p.quantity);
 export const embaladaDe = (p: PecaDaEmbalagem) => n(p.embaladaQty);
 export const entregueDe = (p: PecaDaEmbalagem) => n(p.deliveredQty);
+
+/**
+ * O QUE JÁ SAIU DA CONTA DE EMBALAR: o maior entre embaladas e entregues.
+ * A ENTREGA PARCIAL ANTIGA (feita pelo modelo de antes da embalagem — em
+ * produção havia 7 peças `produced` com `delivered_qty > 0` e `embalada_qty = 0`)
+ * nunca passou por volume, mas as unidades JÁ SAÍRAM: contam como embaladas
+ * para não serem oferecidas de novo. Ao embalar, `embalada_qty` parte daqui
+ * (ver planejarEmbalar) e a conta protegida volta a valer.
+ */
+export const jaSaiuDaConta = (p: PecaDaEmbalagem) => Math.max(embaladaDe(p), entregueDe(p));
+
+/**
+ * O STATUS deixa embalar? Só peça que saiu da impressão (produced/conferred/
+ * packed — PODE_IR_PARA_TUBO) e fora de revisão. Cancelada, arquivada, em
+ * aprovação ou em revisão NUNCA é embalada — nem o reaproveitamento antigo
+ * (isReuse com reuseQty 0), que antes valia a quantidade inteira em qualquer
+ * status (em produção: 6 dessas ainda antes da produção).
+ */
+export const statusEmbalavel = (status: string | null | undefined): boolean =>
+  podeIrParaTubo(status) && !EM_REVISAO.has(String(status));
+
+/** Por que o status não deixa embalar — frase de gente, para a recusa. */
+export function motivoDoStatus(status: string | null | undefined): string {
+  if (status === "canceled") return "está cancelada";
+  if (status === "archived") return "está arquivada";
+  if (status && EM_REVISAO.has(status)) return "está em revisão";
+  return "ainda não saiu da impressão";
+}
+
+/**
+ * A peça é um PROBLEMA dentro de um volume ainda aberto — não pode sair na
+ * entrega: excluída, cancelada, arquivada, devolvida à revisão ou a um passo
+ * antes da impressão depois de embalada. Null quando está tudo certo.
+ */
+export function problemaNoVolume(p: { status?: string | null; deletedAt?: unknown }): string | null {
+  if (p.deletedAt) return "foi excluída";
+  if (p.status === "delivered" || p.status === "entregue") return null;
+  if (statusEmbalavel(p.status)) return null;
+  const motivo = motivoDoStatus(p.status);
+  return motivo === "ainda não saiu da impressão" ? "voltou para antes da impressão" : motivo;
+}
 
 /**
  * Unidades que JÁ podem ser embaladas = as conferidas. O reuso LEGADO (marcado
@@ -48,18 +91,20 @@ export const entregueDe = (p: PecaDaEmbalagem) => n(p.deliveredQty);
 export const conferidasParaEmbalar = (p: PecaDaEmbalagem) =>
   p.isReuse && n(p.reuseQty) === 0 ? quantidadeDe(p) : Math.min(n(p.conferredQty), quantidadeDe(p));
 
-/** Quanto ainda dá para embalar AGORA: conferidas − já embaladas. */
-export const aEmbalar = (p: PecaDaEmbalagem) => Math.max(0, conferidasParaEmbalar(p) - embaladaDe(p));
+/** Quanto ainda dá para embalar AGORA: conferidas − max(embaladas, entregues); 0 se o status não deixa. */
+export const aEmbalar = (p: PecaDaEmbalagem) =>
+  statusEmbalavel(p.status) ? Math.max(0, conferidasParaEmbalar(p) - jaSaiuDaConta(p)) : 0;
 
-/** Tudo embalado (é o que faz a peça virar `packed`). */
-export const todaEmbalada = (p: PecaDaEmbalagem) => quantidadeDe(p) > 0 && embaladaDe(p) >= quantidadeDe(p);
+/** Tudo embalado (é o que faz a peça virar `packed`) — a entrega antiga conta como embalada. */
+export const todaEmbalada = (p: PecaDaEmbalagem) => quantidadeDe(p) > 0 && jaSaiuDaConta(p) >= quantidadeDe(p);
 
 /** O que quebra a conta protegida — vazio quando está tudo certo. */
 export function violacoesDaConta(p: PecaDaEmbalagem): string[] {
   const erros: string[] = [];
   const q = quantidadeDe(p), conf = conferidasParaEmbalar(p), emb = embaladaDe(p), ent = entregueDe(p);
   const feitas = p.isReuse && n(p.reuseQty) === 0 ? q : n(p.quantityProduced) + n(p.reuseQty);
-  if (ent > emb) erros.push(`entregues (${ent}) > embaladas (${emb})`);
+  // `emb = 0` com entregues é a entrega parcial ANTIGA (sem volume): não é erro.
+  if (ent > emb && emb > 0) erros.push(`entregues (${ent}) > embaladas (${emb})`);
   if (emb > conf) erros.push(`embaladas (${emb}) > conferidas (${conf})`);
   if (n(p.conferredQty) > feitas) erros.push(`conferidas (${n(p.conferredQty)}) > produzidas + reuso (${feitas})`);
   if (feitas > q) erros.push(`produzidas + reuso (${feitas}) > quantidade (${q})`);
@@ -78,14 +123,23 @@ export type PedidoDeEmbalar = { id: string; quantidade?: number | null };
 export function planejarEmbalar(p: PecaDaEmbalagem, pedida?: number | null):
   | { ok: true; quantidade: number; embaladaQty: number; viraEmbalada: boolean }
   | { ok: false; motivo: string } {
+  if (!statusEmbalavel(p.status)) return { ok: false, motivo: motivoDoStatus(p.status) };
   const disponivel = aEmbalar(p);
   if (disponivel <= 0) {
-    return { ok: false, motivo: embaladaDe(p) > 0 ? `já está toda embalada (${embaladaDe(p)} de ${quantidadeDe(p)})` : "ainda não tem unidade conferida para embalar" };
+    if (todaEmbalada(p)) return { ok: false, motivo: `já está toda embalada (${jaSaiuDaConta(p)} de ${quantidadeDe(p)})` };
+    return {
+      ok: false,
+      motivo: jaSaiuDaConta(p) > 0
+        ? `não há unidade conferida sem embalar (${jaSaiuDaConta(p)} de ${quantidadeDe(p)} já embaladas ou entregues)`
+        : "ainda não tem unidade conferida para embalar",
+    };
   }
   const quer = pedida === undefined || pedida === null ? disponivel : Math.trunc(Number(pedida));
   if (!Number.isFinite(quer) || quer < 1) return { ok: false, motivo: "a quantidade a embalar tem de ser pelo menos 1" };
   if (quer > disponivel) return { ok: false, motivo: `só há ${disponivel} conferida(s) sem embalar (pediu ${quer})` };
-  const total = embaladaDe(p) + quer;
+  // A partir do que JÁ SAIU (embaladas ou entregues antigas): 7 entregues pelo
+  // modelo antigo + 3 embaladas agora = 10 → `packed`, e entregues ≤ embaladas.
+  const total = jaSaiuDaConta(p) + quer;
   return { ok: true, quantidade: quer, embaladaQty: total, viraEmbalada: total >= quantidadeDe(p) };
 }
 
@@ -129,7 +183,7 @@ export function seloDosVolumes(linhas: LinhaDoVolume[]): string {
 
 /** "7 de 10 embaladas" enquanto a peça está dividida no tempo; vazio quando não ajuda. */
 export function progressoDaEmbalagem(p: PecaDaEmbalagem): string {
-  const emb = embaladaDe(p), q = quantidadeDe(p);
+  const emb = jaSaiuDaConta(p), q = quantidadeDe(p);
   return emb > 0 && emb < q ? `${emb} de ${q} embaladas` : "";
 }
 

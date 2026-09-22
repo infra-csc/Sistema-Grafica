@@ -8,6 +8,7 @@ import { broadcast, createAuditLog, updateEventStatus } from "../routes/shared";
 import AdmZip from "adm-zip";
 import { carregarRemessa, criarRemessa, remessaSchema } from "./kitRemessas";
 import { cabecalhoDoKit, remessaUtilizavelPor, type CabecalhoDoKit } from "@shared/kit";
+import { tipoCanonico } from "@shared/molde";
 
   // ── O CABEÇALHO DA PLANILHA DO KIT (14/09) ───────────────────────────────
   // Rótulo na coluna A, valor na B, nas linhas acima da tabela de peças; o
@@ -391,7 +392,8 @@ import { cabecalhoDoKit, remessaUtilizavelPor, type CabecalhoDoKit } from "@shar
         const suggestedSponsorIds = Array.from(new Set(matchSponsors(`${itemVal} ${sponsorsVal}`)));
 
         const peca: PecaLida = {
-          type: groupType,
+          // "MOLDE", "moldes"… viram o tipo canônico "Molde" (shared/molde).
+          type: tipoCanonico(groupType),
           description: itemVal,
           quantity: qty,
           visualWidth: visualW || null,
@@ -518,7 +520,7 @@ import { cabecalhoDoKit, remessaUtilizavelPor, type CabecalhoDoKit } from "@shar
 
       const toCreate = items.map((item: any) => ({
         eventId: event.id,
-        type: item.type,
+        type: typeof item.type === "string" ? tipoCanonico(item.type) : item.type,
         description: item.description,
         quantity: Number(item.quantity),
         area: Number(item.visualWidth) || Number(item.fileWidth) || 0,

@@ -65,7 +65,7 @@ describe("Mudança 1 · a timeline diz quantas peças estão atrás de cada marc
     expect(ED).toContain("const clicavel = atras > 0 && !isHistorical;");
     expect(ED).toContain("cursor: clicavel ? 'pointer' : 'default',");
     // E a lista obedece.
-    expect(ED).toContain("if (marcoFiltro !== null) base = base.filter(item => estaAtrasDoMarco(item.status, marcoFiltro));");
+    expect(ED).toContain("if (marcoFiltro !== null) base = base.filter(item => estaAtrasDoMarco(statusParaContagem(item), marcoFiltro));");
   });
 
   it("o title diz o número por extenso e que dá para clicar", () => {

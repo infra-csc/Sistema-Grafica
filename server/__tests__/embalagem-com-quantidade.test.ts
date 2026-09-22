@@ -141,26 +141,27 @@ describe("3 · as rotas usam as contas", () => {
     expect(ROTAS).toContain("if (!plano.ok) { recusas.push(`${nome}: ${plano.motivo}`); continue; }");
   });
   it("embalar soma na linha (ou cria), soma em embalada_qty, vira packed só com tudo embalado, e acerta o atalho", () => {
-    expect(ROTAS).toContain("await db.update(tuboItens).set({ quantidade: existente.quantidade + pl.quantidade } as any)");
-    expect(ROTAS).toContain("await db.insert(tuboItens).values({ tuboId: tubo.id, itemId: pl.peca.id, quantidade: pl.quantidade, embaladoEm: agora, embaladoPor: quem } as any);");
+    expect(ROTAS).toContain("await tx.update(tuboItens).set({ quantidade: sql`${tuboItens.quantidade} + ${pl.quantidade}` } as any)");
+    expect(ROTAS).toContain("await tx.insert(tuboItens).values({ tuboId: tubo.id, itemId: pl.peca.id, quantidade: pl.quantidade, embaladoEm: agora, embaladoPor: quem } as any);");
     expect(ROTAS).toContain("...(pl.viraEmbalada && pl.peca.status !== EMBALADO ? { status: EMBALADO, statusChangedAt: agora } : {}),");
-    expect(ROTAS).toContain("await acertarAtalho(planos.map((pl) => pl.peca.id), agora);");
+    expect(ROTAS).toContain("await acertarAtalho(planos.map((pl) => pl.peca.id), agora, tx);");
     expect(ROTAS).toContain("const principal = volumePrincipal(todas.filter((l) => l.itemId === id));");
   });
   it("embalar SEMPRE pede foto (só conferida embala) — e, no tubo novo, a recusa vem antes de criar", () => {
     const criar = ROTAS.slice(ROTAS.indexOf('app.post("/api/events/:eventId/tubos"'), ROTAS.indexOf('app.patch("/api/tubos/:id/itens"'));
-    expect(criar).toContain("if (planos.length && lidas.fotos.length === 0) return res.status(400).json({ error: RECADO_FOTO_DO_EMBALAR });");
+    expect(criar).toContain("if (previa.planos.length && lidas.fotos.length === 0) return res.status(400).json({ error: RECADO_FOTO_DO_EMBALAR });");
     expect(criar.indexOf("RECADO_FOTO_DO_EMBALAR")).toBeLessThan(criar.indexOf("await criarTubo("));
     const patch = ROTAS.slice(ROTAS.indexOf('app.patch("/api/tubos/:id/itens"'), ROTAS.indexOf('app.delete("/api/tubos/:id"'));
-    expect(patch).toContain("if (lidas.fotos.length === 0) return res.status(400).json({ error: RECADO_FOTO_DO_EMBALAR });");
+    expect(patch).toContain("if (pedidos.length && lidas.fotos.length === 0) {");
+    expect(patch).toContain("return res.status(400).json({ error: RECADO_FOTO_DO_EMBALAR });");
     expect(patch.slice(patch.indexOf("if (remover.length) {"))).not.toContain("RECADO_FOTO_DO_EMBALAR");
   });
   it("tirar é POR LINHA (as não entregues), com a trilha dizendo quantas unidades; avulso esvaziado some", () => {
-    expect(ROTAS).toContain("const doTubo = (await linhasDosTubos([tubo.id])).filter((l) => ids.includes(l.itemId) && !l.entregueEm);");
+    expect(ROTAS).toContain("const doTubo = (await linhasDosTubos([tubo.id], tx)).filter((l) => ids.includes(l.itemId) && !l.entregueEm);");
     expect(ROTAS).toContain("const plano = planejarRetirada(p, l.quantidade);");
     expect(ROTAS).toContain('...(plano.voltaAConferida ? { status: "conferred", statusChangedAt: agora } : {}),');
     expect(ROTAS).toContain("`Retirada do Tubo ${tubo.numero} — ${l.quantidade} un.${motivo ? ` (${motivo})` : \"\"}`");
-    expect(ROTAS).toContain("if (tubo.avulso && tiradas > 0 && (await linhasDosTubos([tubo.id])).length === 0) {");
+    expect(ROTAS).toContain("if (travado.avulso && tiradas.length > 0 && (await linhasDosTubos([travado.id], tx)).length === 0) {");
   });
   it("entregar o volume: carimba a linha, soma em deliveredQty, `delivered` só com tudo — numa transação; e o tubo guarda o que foi junto", () => {
     const entregar = ROTAS.slice(ROTAS.indexOf('app.post("/api/tubos/:id/entregar"'));
@@ -169,7 +170,7 @@ describe("3 · as rotas usam as contas", () => {
     expect(entregar).toContain('...(plano.viraEntregue ? { status: "delivered", deliveredAt: agora, statusChangedAt: agora } : {}),');
     expect(entregar).toContain('${plano.viraEntregue ? "Entrega concluída (" : "Entrega parcial ("}');
     expect(entregar).toContain('aEntregar.map(({ p, l }) => `${p.displayId ?? "peça"} (${l.quantidade})`).join(", ")');
-    expect(entregar).toContain("await db.transaction(async (tx) => {");
+    expect(entregar).toContain("const feito = await db.transaction(async (tx: Ex) => {");
     // só quem recebeu é obrigatório
     expect(entregar).toContain("if (!recebedor) {");
     expect(entregar).not.toContain("ainda não tem foto");
@@ -200,7 +201,7 @@ describe("4 · os contratos novos para quem lê", () => {
     expect(rota).toContain("linhas: porTubo.get(t.id) ?? []");
   });
   it("'sem tubo' virou 'tem unidade conferida ainda não embalada' — vale para a inteira, a parcial e a dividida", () => {
-    expect(ROTAS).toContain("const semTubo = pecas.filter((p) => !ehEntregue(p) && aEmbalar(p) > 0).sort(porCodigo).map((p) => pecaParaTela(p));");
+    expect(ROTAS).toContain("const semTubo = pecas.filter((p) => !ehEntregue(p) && statusEmbalavel(p.status) && aEmbalar(p) > 0).sort(porCodigo).map((p) => pecaParaTela(p));");
   });
   it("a peça leva `tuboVolumes` (os volumes abertos com quantidade) para o resto do fluxo — um select a mais, com rede de segurança", () => {
     const SERVICO = ler("server/services/tubosDaPeca.ts");

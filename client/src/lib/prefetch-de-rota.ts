@@ -17,6 +17,8 @@
  * Os caminhos espelham os lazyPage do App.tsx. Rota fora do mapa simplesmente
  * não pré-carrega (nada quebra).
  */
+import { SOLICITACAO_AO_ESTOQUE_ATIVA } from "@shared/consultas-de-estoque";
+
 const IMPORTADORES: Record<string, () => Promise<unknown>> = {
   "/": () => import("@/pages/painel-geral"),
   "/eventos": () => import("@/pages/eventos"),
@@ -28,7 +30,10 @@ const IMPORTADORES: Record<string, () => Promise<unknown>> = {
   "/solicitacao": () => import("@/pages/solicitacao"),
   "/grafica": () => import("@/pages/grafica"),
   "/grafica/maquinas": () => import("@/pages/grafica-maquinas"),
-  "/grafica/solicitacoes-ao-estoque": () => import("@/pages/solicitacoes-ao-estoque"),
+  // Solicitação ao estoque: só com a chave ligada (dono, 21/09 — segurar).
+  ...(SOLICITACAO_AO_ESTOQUE_ATIVA
+    ? { "/grafica/solicitacoes-ao-estoque": () => import("@/pages/solicitacoes-ao-estoque") }
+    : {}),
   "/pedidos-de-peca": () => import("@/pages/pedidos-de-peca"),
   "/modelos": () => import("@/pages/modelos"),
   "/historico": () => import("@/pages/historico"),

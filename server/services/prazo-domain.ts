@@ -26,6 +26,7 @@ import {
 } from "@shared/prazo-dates";
 import type { EventoFinalizadoMotivo } from "@shared/prazo-dates";
 import { PRODUCED_LIKE } from "@shared/prazos-contract";
+import { comStatusDeContagem } from "@shared/molde";
 import type {
   PrazoCategoria,
   PrazoEvent,
@@ -323,7 +324,8 @@ export function buildEventPrazo(
 ): PrazoEvent | null {
   const { today } = deps;
 
-  const eventItems = items.filter((it) => !OUT_OF_FUNNEL.has(it.status));
+  // MOLDE (22/09): produzido é o fim do fluxo dele — entra como entregue.
+  const eventItems = items.map(comStatusDeContagem).filter((it) => !OUT_OF_FUNNEL.has(it.status));
 
   // Evento com tudo entregue, encerrado à mão ou já realizado é história —
   // sai da gestão de prazos.

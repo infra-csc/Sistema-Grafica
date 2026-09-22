@@ -30,6 +30,23 @@
 // Tudo aqui é PURO: o servidor decide e a tela escreve com as mesmas funções.
 // ─────────────────────────────────────────────────────────────────────────────
 
+/**
+ * A CHAVE ÚNICA da Solicitação ao estoque (dono, 21/09): "o reaproveitar por
+ * solicitação, segurar: não vamos implementar agora; segue no fluxo NORMAL de
+ * reaproveitar". Desligada (false):
+ *   · Revisão Final: o modal Reaproveitamento aplica direto, como antes; sem
+ *     selos, chips, filtro ?estoque=, ordem nova nem resumo do lote;
+ *   · menu, rota /grafica/solicitacoes-ao-estoque (vai para /grafica),
+ *     pré-carga e número do menu somem; o aviso na fila da Gráfica não aparece
+ *     nem pede nada ao servidor;
+ *   · servidor: a liberação (creator-review) não lê nem grava a tabela; as
+ *     rotas /api/consultas-de-estoque* seguem registradas, mas escrita → 404
+ *     "Recurso desativado" e leitura → vazio.
+ * Para religar: virar para true. A tabela `consultas_de_estoque` já existe em
+ * produção (vazia) — não precisa de migração.
+ */
+export const SOLICITACAO_AO_ESTOQUE_ATIVA: boolean = false;
+
 export const STATUS_DA_CONSULTA = ["aberta", "atendida", "atendida_parcial", "nao_atendida", "cancelada"] as const;
 export type StatusDaConsulta = (typeof STATUS_DA_CONSULTA)[number];
 

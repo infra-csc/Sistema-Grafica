@@ -52,6 +52,13 @@ const H = vi.hoisted(() => ({
   motivoEvento: null as string | null,
 }));
 
+// A feature está SEGURADA (dono, 21/09: SOLICITACAO_AO_ESTOQUE_ATIVA = false).
+// Estes testes rodam com a chave LIGADA para não apodrecerem até religar; o
+// estado desligado tem arquivo próprio (solicitacao-ao-estoque-desligada*).
+vi.mock("@shared/consultas-de-estoque", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@shared/consultas-de-estoque")>()),
+  SOLICITACAO_AO_ESTOQUE_ATIVA: true,
+}));
 vi.mock("../db", () => ({ db: H.db, pool: {} }));
 vi.mock("../storage", async () => {
   const real = await vi.importActual<any>("../storage");

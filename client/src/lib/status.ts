@@ -105,6 +105,10 @@ export const STATUS: Record<string, StatusMeta> = {
   // de Entregue sem se confundir com nenhum dos dois (text 700, AA no bg 50).
   packed:                meta("Embalado",               "Embalado",       P.blue,    PackageCheck),
   delivered:             meta("Entregue",               "Entregue",       P.emerald, Truck),
+  // MOLDE PRODUZIDO (dono, 22/09) — status de EXIBIÇÃO, não gravado: o molde
+  // produzido está no fim do fluxo dele, e "Impresso / Acabamento" mentiria
+  // (não há acabamento nem conferência). Ver statusDeExibicao em shared/molde.
+  molde_produzido:       meta("Produzido (molde)",      "Produzido",      P.emerald, CheckCircle),
   // ── Aliases LEGADOS em português (dados antigos ainda gravados assim) ──
   // Apontam para os mesmos metas dos status canônicos correspondentes
   // (liberado→approved, em_producao→inProduction, produzido→produced,
@@ -293,6 +297,13 @@ export const STATUS_GUIA: Record<string, StatusGuia> = {
   },
   delivered: G_ENTREGUE,
   entregue: G_ENTREGUE,
+  molde_produzido: {
+    significado: "Molde produzido — o fluxo dele termina aqui (sem conferência, embalagem ou entrega).",
+    quemAge: null,
+    onde: null,
+    proximoPasso: null,
+    vez: "concluído",
+  },
   canceled: {
     significado: "A peça saiu do fluxo e não será produzida.",
     quemAge: null,

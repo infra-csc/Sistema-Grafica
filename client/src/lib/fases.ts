@@ -12,6 +12,7 @@
  * conferido aparecia com 0% — visualmente idêntico a um evento travado.
  */
 import { PRODUCTION_STATUSES, getStatusMeta } from "@/lib/status";
+import { statusParaContagem } from "@shared/molde";
 
 const PHASE_ALIASES: Record<string, string[]> = {
   inProduction: ["inProduction", "em_producao"],
@@ -39,10 +40,11 @@ export const PHASES = PRODUCTION_STATUSES.map((key) => ({
 }));
 
 /** Peças por fase, na ordem de PHASES. */
-export function contarPorFase(items: ReadonlyArray<{ status: string }> | null | undefined): number[] {
+export function contarPorFase(items: ReadonlyArray<{ status: string; type?: string | null }> | null | undefined): number[] {
   const counts = new Array(PHASES.length).fill(0) as number[];
   for (const it of items ?? []) {
-    const idx = PHASES.findIndex((p) => p.statuses.includes(it.status));
+    // Molde produzido é o fim do fluxo dele: conta na fase "entregues" (shared/molde).
+    const idx = PHASES.findIndex((p) => p.statuses.includes(statusParaContagem(it)));
     if (idx >= 0) counts[idx] += 1;
   }
   return counts;

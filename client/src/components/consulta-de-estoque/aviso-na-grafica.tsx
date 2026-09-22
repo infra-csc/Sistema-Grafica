@@ -14,6 +14,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { Boxes } from "lucide-react";
+import { SOLICITACAO_AO_ESTOQUE_ATIVA } from "@shared/consultas-de-estoque";
 
 type AbertaPorPeca = { id: string; itemId: string; quantidadePedida: number; pedidoPor: string | null };
 
@@ -24,7 +25,10 @@ export function AvisoDoEstoqueNaPeca({ peca, style }: {
   const { data } = useQuery<AbertaPorPeca[]>({
     queryKey: ["/api/consultas-de-estoque/abertas-por-peca"],
     staleTime: 60_000,
+    // Chave desligada (dono, 21/09 — segurar): nenhuma requisição, nenhum selo.
+    enabled: SOLICITACAO_AO_ESTOQUE_ATIVA,
   });
+  if (!SOLICITACAO_AO_ESTOQUE_ATIVA) return null;
   // Array.isArray: uma resposta fora do formato (proxy, erro em HTML) não pode
   // derrubar a fila inteira por causa de um selo.
   const aberta = (Array.isArray(data) ? data : []).find((r) => r.itemId === peca.id);

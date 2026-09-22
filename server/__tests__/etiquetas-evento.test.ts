@@ -204,11 +204,14 @@ describe("registro de impressão, filtro por tipo e uma por unidade (25/08)", ()
     expect(PAGINA).toContain('data-testid="check-por-unidade"');
     expect(PAGINA).toContain("const [porUnidade, setPorUnidade] = useState(false);");
     expect(PAGINA).toContain("{e.n} de {e.total}");
-    // peça de 1 unidade não ganha numeração — não há o que numerar
-    expect(PAGINA).toContain("if (q === 1) return [{ p, n: 0, total: 0 }];");
+    // 21/09: a regra (por PARTE — peça × tubo) mora em lib/etiqueta-lista.ts;
+    // peça de 1 unidade continua sem numeração
+    const LIB = readFileSync(new URL("../../client/src/lib/etiqueta-lista.ts", import.meta.url), "utf8");
+    expect(LIB).toContain("if (parte.total <= 1) return parte.quantidade > 0 ? [{ parte, n: 0, total: 0 }] : [];");
+    expect(PAGINA).toContain("etiquetasIndividuais(partesIndividuais, porUnidade)");
     // 22/09: a conta de etiquetas e folhas vive no RESUMO ("5 etiquetas
     // individuais em A4 (3 folhas)"), que já multiplica pelas unidades
-    expect(PAGINA).toContain("resumoDaImpressao({ etiquetas: etiquetas.length, folhasIndividuais,");
+    expect(PAGINA).toContain("etiquetas: etiquetas.length, folhasIndividuais,");
   });
 
   it("nada do que é novo vaza para o papel", () => {

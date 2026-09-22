@@ -327,9 +327,11 @@ describe("MÁQUINAS no celular (390px) — controles novos de 21/09", () => {
     expect(iniciar.style.flex).toBe("1 1 100%");
     expect(px(iniciar.style.minHeight)).toBe(48);
     expect(rodape.lastElementChild!.textContent).toBe("Cancelar");
-    // UMA PEÇA POR VEZ (21/09): a Impressora 4 está com a #0101 → desabilitada, dizendo com quem.
+    // UMA PEÇA POR VEZ (21/09): a Impressora 4 está com a #0101 → diz com quem; desde 22/09
+    // dá para escolhê-la e "Imprimir esta no lugar" (troca por prioridade, também na Gráfica).
     const ocupada = $('[data-testid="maquina-4"]') as HTMLButtonElement;
-    expect(ocupada.disabled).toBe(true);
+    expect(ocupada.disabled).toBe(false);
+    expect(ocupada.getAttribute("data-ocupada")).toBe("#0101");
     expect(ocupada.textContent).toBe("Impressora 4 (Targa Elite)com #0101");
     // Um nome comprido também cabe no botão: a Impressora 1, que está livre.
     await act(async () => { fireEvent.click($('[data-testid="maquina-1"]')!); });

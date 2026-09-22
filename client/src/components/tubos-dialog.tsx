@@ -35,6 +35,7 @@ import { useAcompanharAreaVisivel } from "@/components/grafica/area-visivel";
 import { ObjectUploader } from "@/components/ObjectUploader";
 import { SugestaoRecebedor } from "@/components/sugestao-recebedor";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { invalidarGraficaEMaquinas } from "@/lib/tempo-real-grafica";
 import { convertGCSUrlToLocalPath } from "@/lib/artePdfExport";
 import { linhaDaLista } from "@/lib/etiqueta-lista";
 import { parteDoTotal } from "@shared/embalagem";
@@ -133,8 +134,8 @@ function useRetrato(evento: Evento | null) {
 function atualizarTudo(eventoId: string) {
   queryClient.invalidateQueries({ queryKey: chaveDoRetrato(eventoId) });
   queryClient.invalidateQueries({ queryKey: ["/api/tubos"] });
-  queryClient.invalidateQueries({ queryKey: ["/api/items/approved"] });
-  queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+  // A fila da Gráfica, o acervo e Máquinas: as chaves de toda mutação de peça.
+  invalidarGraficaEMaquinas();
 }
 
 /** "Solicitação sem Kit só visualiza peça do Kit" — a mesma trava do servidor:

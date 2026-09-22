@@ -8,12 +8,11 @@
 // já saíram, em que tubo está, quem recebeu. Sempre texto secundário (12px),
 // nunca um segundo selo.
 //
-// DUPLICAÇÃO CONHECIDA: a Gráfica tem a mesma regra dentro de
-// client/src/pages/grafica.tsx (ProgressoImpressao, SeloFilaDaImpressora e o
-// número do tubo) e em components/grafica/modal-impressao.tsx
-// (progressoDaImpressao). Não foi reaproveitada de lá porque aqueles arquivos
-// estavam em edição por outra frente no mesmo dia; quando assentarem, a
-// Gráfica deve passar a ler DESTE módulo e a cópia de lá sai.
+// FONTE ÚNICA (21/09, "Máquinas e Gráfica têm que se conversar"): a conta do
+// progresso (feitas, teto, partes) e o selo da fila vêm de
+// shared/progresso-da-impressao.ts — os mesmos números da linha da Gráfica, do
+// cartão de Máquinas e do modal. Aqui só a FORMA curta da frase (sem o
+// "· 7 na impressora", que é detalhe de quem está no galpão).
 //
 // Puro de propósito: nada de React, nada de fetch. O tubo chega NA PEÇA
 // (`tuboNumero`, `tuboFechadoEm`… — acrescentados por
@@ -22,8 +21,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { rotuloDaMaquina } from "@shared/fluxo-peca";
 import { progressoDaEmbalagem, seloDosVolumes } from "@shared/embalagem";
-import { aImprimirDaPeca, estaDividida, partesDaPeca } from "@shared/impressao-dividida";
-import { lerReserva, resumoDaReserva } from "@shared/reserva-de-impressora";
+import { numerosDaImpressao, fraseDaFila } from "@shared/progresso-da-impressao";
 import { PRODUCTION_STATUSES, getStatusMeta } from "@/lib/status";
 
 /** O mínimo da peça que a frase lê. Tudo opcional: peça antiga não tem metade. */
@@ -97,21 +95,20 @@ export function detalheDaProducao(item: PecaComProducao | null | undefined): str
   const status = item.status;
 
   if (LIBERADA.has(status)) {
-    // Reserva dividida: "Fila: Impressora 1 (20) · Impressora 2 (14)".
-    const reserva = lerReserva(item.reservaPorMaquina);
-    if (reserva && Object.keys(reserva).length > 1) return `Fila: ${resumoDaReserva(reserva)}`;
-    const maquina = item.maquinaPrevista || (reserva ? Object.keys(reserva)[0] : null);
-    return maquina ? `Fila: ${rotuloDaMaquina(maquina)}` : null;
+    // "Fila: Impressora 2", "Fila: Impressora 1 (20) · Impressora 2 (14)",
+    // "Pausada · Fila: …" — o mesmo selo da linha da Gráfica.
+    return fraseDaFila(item as any);
   }
 
   if (EM_IMPRESSAO.has(status)) {
-    if (estaDividida(item)) {
-      return Object.entries(partesDaPeca(item))
+    const n = numerosDaImpressao(item as any);
+    if (n.dividida) {
+      return Object.entries(n.partes)
         .map(([m, parte]) => `${rotuloDaMaquina(m)} · ${parte.impressas} de ${parte.atrib}`)
         .join(" · ");
     }
-    const teto = aImprimirDaPeca(item);
-    const feitas = Math.min(inteiro(item.quantityProduced), teto || Infinity);
+    const teto = n.teto;
+    const feitas = n.feitas;
     const progresso = teto > 0 ? `${feitas} de ${teto} impressa${teto === 1 ? "" : "s"}` : null;
     // Peça antiga entrou em impressão antes de existir a escolha da máquina.
     const maquina = item.printMachine ? rotuloDaMaquina(item.printMachine) : null;

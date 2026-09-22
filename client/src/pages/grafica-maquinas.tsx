@@ -34,7 +34,7 @@ import { useIsMobile, useElementSize, CONTENT_CARDS_MAX, CONTENT_COMPACT_MAX } f
 import { useAuth } from "@/contexts/auth-context";
 import { useToast } from "@/hooks/use-toast";
 import { useMutation } from "@tanstack/react-query";
-import { apiRequest, queryClient } from "@/lib/queryClient";
+import { apiRequest } from "@/lib/queryClient";
 import { MAQUINAS_DE_IMPRESSAO } from "@shared/fluxo-peca";
 import { partesDoNomeDaPeca, nomeDaPeca } from "@shared/nome-da-peca";
 import { ItemDetailsDialog } from "@/components/item-details-dialog";
@@ -48,7 +48,13 @@ import { fmtRelative } from "@/components/prazos/tokens";
 import { rotuloDaMaquina } from "@shared/fluxo-peca";
 import {
   ModalImpressao, BarraDeImpressao, progressoDaImpressao, rotuloCurtoDaAcao, horaDeInicio, mensagemDeErroDaApi, type PecaParaImprimir,
+  useMexerNaImpressora, useReservarImpressora,
 } from "@/components/grafica/modal-impressao";
+import { invalidarGraficaEMaquinas } from "@/lib/tempo-real-grafica";
+import {
+  numerosDaImpressao, ocupacaoDasImpressoras, perguntaDaTroca, linkDaPecaNaGrafica, linkDaImpressoraNaGrafica,
+  type OcupanteDaImpressora,
+} from "@shared/progresso-da-impressao";
 import { useAcompanharAreaVisivel } from "@/components/grafica/area-visivel";
 
 // ─── Tipos (espelho de server/routes/maquinas.ts) ─────────────────────────────
@@ -473,39 +479,9 @@ function Esqueleto({ lento }: { lento: boolean }) {
 }
 
 // ─── Reservar impressora (dono, 21/09) ────────────────────────────────────────
-// Só um controle desta aba: PATCH maquina-prevista não muda status nem diário.
-// Invalida o retrato e a fila da Gráfica (a peça continua lá, é a mesma).
-const CHAVES_DA_RESERVA = ["/api/grafica/maquinas", "/api/items/approved", "/api/items"];
-function useReservarImpressora() {
-  const { toast } = useToast();
-  const invalidar = () => { for (const k of CHAVES_DA_RESERVA) queryClient.invalidateQueries({ queryKey: [k] }); };
-  return useMutation({
-    // Unitário: { maquina, quantidade?, deMaquina? } — reservar parte, mover parte
-    // entre impressoras ou devolver parte. O lote é sempre "tudo".
-    mutationFn: async ({ itemIds, maquina, quantidade, deMaquina }: { itemIds: string[]; maquina: string | null; quantidade?: number | null; deMaquina?: string | null }) => {
-      const res = itemIds.length === 1
-        ? await apiRequest("PATCH", `/api/items/${itemIds[0]}/maquina-prevista`, { maquina, ...(quantidade != null ? { quantidade } : {}), ...(deMaquina ? { deMaquina } : {}) })
-        : await apiRequest("PATCH", "/api/items/bulk-maquina-prevista", { itemIds, maquina });
-      return itemIds.length === 1 ? { atualizadas: 1, erros: [] as { displayId: string | null; erro: string }[] } : await res.json();
-    },
-    onSuccess: (r, vars) => {
-      invalidar();
-      const n = Number(r?.atualizadas ?? 0);
-      const erros: { displayId: string | null; erro: string }[] = r?.erros ?? [];
-      toast({
-        title: vars.quantidade != null
-          ? (vars.maquina ? `${vars.quantidade} un. ${vars.deMaquina ? "movidas" : "reservadas"} para a ${rotuloDaMaquina(vars.maquina)}` : `${vars.quantidade} un. devolvidas à fila geral`)
-          : vars.maquina ? `${plural(n, "peça reservada", "peças reservadas")} para a ${rotuloDaMaquina(vars.maquina)}` : `${plural(n, "peça devolvida", "peças devolvidas")} à fila geral`,
-        description: erros.length ? `${erros.length} não ${erros.length === 1 ? "entrou" : "entraram"}: ${erros.map((e) => e.displayId ?? "peça").join(", ")} — ${erros[0].erro}` : "Nada muda na etapa da peça — é só a fila desta tela.",
-        variant: erros.length && n === 0 ? "destructive" : undefined,
-      });
-    },
-    onError: (error: Error, vars) => {
-      invalidar();
-      toast({ title: vars.maquina ? "Não foi possível reservar" : "Não foi possível devolver à fila", description: mensagemDeErroDaApi(error), variant: "destructive" });
-    },
-  });
-}
+// A mutation mora em components/grafica/modal-impressao.tsx (useReservarImpressora):
+// o modal compartilhado também reserva ("Só reservar"), com o MESMO endpoint,
+// os mesmos toasts e as mesmas chaves invalidadas (lib/tempo-real-grafica.ts).
 
 /** O selo de prazo da fila — sobre fundo claro (na Gráfica é sobre o escuro). */
 function SeloDePrazo({ p, fonte }: { p: { data: string; diff: number } | null; fonte: number }) {
@@ -552,20 +528,12 @@ function SeletorDeReserva({ valor, excluir, disabled, alvo, isMobile, testId, ro
  * com tudo o que ainda está sem impressora; reservar menos deixa o resto na
  * fila geral, para outra impressora.
  */
-/** O que cada impressora tem AGORA: quantas peças e o código da primeira. */
-export type OcupanteDaImpressora = { id: string; displayId: string | null; impressas: number; teto: number; /** tipo + descrição, para a pergunta dizer QUAL peça sai. */ nome?: string | null };
+/** O que cada impressora tem AGORA (a peça e os números da parte dela): shared/progresso-da-impressao.ts. */
+export type { OcupanteDaImpressora };
 export type OcupacaoDasImpressoras = Record<string, { n: number; primeira: string | null; atual?: OcupanteDaImpressora | null }>;
 
-/**
- * A pergunta da TROCA POR PRIORIDADE (dono, 21/09: "tirar um item e colocar o
- * outro, pois às vezes tem ordem de prioridade") — diz o que acontece com a
- * peça que sai: as impressas ficam anotadas e o resto volta para o topo da fila.
- */
-export function perguntaDaTroca(sai: OcupanteDaImpressora, entra: string | null, maquina: string): string {
-  const faltam = Math.max(0, sai.teto - sai.impressas);
-  const s = sai.displayId ?? "a peça atual";
-  return `Tirar ${s}${sai.nome ? ` (${sai.nome})` : ""} da ${rotuloDaMaquina(maquina)} (${sai.impressas} de ${sai.teto} já ${sai.impressas === 1 ? "impressa fica anotada" : "impressas ficam anotadas"}) e imprimir ${entra ?? "esta peça"} no lugar? A ${s} volta para o topo da fila desta impressora com ${faltam === 1 ? "a 1 que falta" : `as ${faltam} que faltam`}.`;
-}
+/** A pergunta da troca por prioridade — a mesma do modal (shared/progresso-da-impressao.ts). */
+export { perguntaDaTroca };
 
 /** "A impressora está com #0384 — tire-a, troque-a de máquina ou espere acabar". */
 export const motivoImpressoraOcupada = (codigo: string | null) => `A impressora está com ${codigo ?? "outra peça"} — tire-a, troque-a de máquina ou espere acabar`;
@@ -968,7 +936,9 @@ function FechoDaLista({ visiveis, total, um, varios, lote, onMais, testId, botao
 }
 
 // ─── A peça dentro do cartão da impressora ────────────────────────────────────
-function PecaNoCartao({ p, agora, podeAgir, hojeMs, isMobile, onAgir, onTirar, mexendo = false }: {
+function PecaNoCartao({ p, agora, podeAgir, hojeMs, isMobile, onAgir, onTirar, mexendo = false, emFoco = false }: {
+  /** Veio da Gráfica por esta peça (?item=): realce. */
+  emFoco?: boolean;
   p: PecaNaMaquina; agora: number; podeAgir: boolean; hojeMs: number; isMobile: boolean; onAgir: (p: PecaNaMaquina, trocar: boolean) => void;
   /** "Tirar da impressora": pausa a peça (as impressas ficam anotadas; o resto volta para o topo da fila dela). */
   onTirar?: (p: PecaNaMaquina) => void;
@@ -978,9 +948,12 @@ function PecaNoCartao({ p, agora, podeAgir, hojeMs, isMobile, onAgir, onTirar, m
   // Dividida: o cartão mostra e age sobre a PARTE desta impressora.
   // (Vale também com UMA parte só: a peça que iniciou apenas a parte reservada
   // a esta impressora tem teto menor que a peça.)
-  const dividida = !!p.parte;
-  const feitas = dividida ? p.parte!.impressas : p.impressas;
-  const teto = dividida ? p.parte!.atrib : p.aImprimir;
+  // Os números saem de numerosDaImpressao (shared) — a MESMA conta da linha
+  // da Gráfica e do modal. Com a peça por partes, os da parte desta impressora.
+  const n = numerosDaImpressao(pecaParaOModal(p) as any, p.parte ? p.maquina : null);
+  const dividida = n.daParte;
+  const feitas = n.feitas;
+  const teto = n.teto;
   const desde = haQuanto(p.desde, agora);
   const hora = horaDeInicio(p.desde);
   const selo = seloPecaEventoFinalizado(p.eventoInfo, hojeMs);
@@ -998,7 +971,7 @@ function PecaNoCartao({ p, agora, podeAgir, hojeMs, isMobile, onAgir, onTirar, m
   const largura = (desktop: string): React.CSSProperties => ({ flex: isMobile ? "1 1 100%" : desktop });
 
   return (
-    <div data-testid={`peca-na-maquina-${p.id}`} style={{ borderTop: `1px solid ${T.border}`, paddingTop: 10, display: "flex", flexDirection: "column", gap: 8 }}>
+    <div data-testid={`peca-na-maquina-${p.id}`} data-em-foco={emFoco || undefined} style={{ borderTop: `1px solid ${T.border}`, paddingTop: 10, display: "flex", flexDirection: "column", gap: 8, ...(emFoco ? { outline: `2px solid ${IMP.text}`, outlineOffset: 4, borderRadius: R.sm } : {}) }}>
       <div style={{ display: "flex", gap: 10, minWidth: 0 }}>
         {/* A arte em miniatura: é o que o galpão reconhece de relance. */}
         <div aria-hidden="true" style={{ width: 48, height: 48, borderRadius: R.md, background: T.low, border: `1px solid ${T.border}`, flexShrink: 0, overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -1025,8 +998,8 @@ function PecaNoCartao({ p, agora, podeAgir, hojeMs, isMobile, onAgir, onTirar, m
       <div>
         <div data-testid={`progresso-${p.id}`} style={{ fontSize: isMobile ? 12 : FS.small, fontWeight: 700, color: IMP.text, fontVariantNumeric: "tabular-nums" }}>
           {dividida
-            ? `${feitas} de ${teto} nesta impressora · peça ${p.impressas} de ${p.aImprimir} no total`
-            : progressoDaImpressao(feitas, teto)}
+            ? `${feitas} de ${teto} nesta impressora · peça ${n.feitasDaPeca} de ${n.tetoDaPeca} no total`
+            : n.frase}
         </div>
         <BarraDeImpressao feitas={feitas} teto={teto} rotulo={`${p.displayId ?? "peça"}: ${feitas} de ${teto} impressas${dividida ? " nesta impressora" : ""}`} />
       </div>
@@ -1083,7 +1056,7 @@ function PecaNoCartao({ p, agora, podeAgir, hojeMs, isMobile, onAgir, onTirar, m
           </button>
         )}
         <Link
-          href={`/grafica?item=${p.id}`}
+          href={linkDaPecaNaGrafica(p.id)}
           className="mq-acao"
           data-testid={`link-peca-grafica-${p.id}`}
           title="Abrir esta peça na fila da Gráfica"
@@ -1342,6 +1315,11 @@ export default function GraficaMaquinas() {
   const params = useMemo(() => new URLSearchParams(search), [search]);
   const diaEscolhido = params.get("dia");          // null = hoje (o servidor decide o fuso)
   const maquinaFiltro = params.get("maquina") ?? ""; // "" = todas
+  // VINDO DA GRÁFICA (21/09): ?foco=N põe o cartão da Impressora N em foco na
+  // aba Agora (rola até ele e realça); ?item= realça a peça dentro dele.
+  const focoDaURL = params.get("foco");
+  const maquinaEmFoco = focoDaURL && MAQUINAS_DE_IMPRESSAO.includes(focoDaURL) ? focoDaURL : null;
+  const itemEmFoco = params.get("item");
   // O recorte do resumo/exportação: ?periodo=dia|semana|mes|intervalo (&de=&ate= no intervalo).
   const periodoDaURL = params.get("periodo");
   const periodo: Periodo = periodoDaURL === "semana" || periodoDaURL === "mes" || periodoDaURL === "intervalo" ? periodoDaURL : "dia";
@@ -1374,6 +1352,12 @@ export default function GraficaMaquinas() {
   useEffect(() => {
     if (aba === "diario" && maquinaFiltro) rolarAte("titulo-dia");
   }, [aba, maquinaFiltro]);
+
+  useEffect(() => {
+    if (aba !== "agora" || !maquinaEmFoco || !data) return;
+    const el = document.querySelector<HTMLElement>(`[data-testid="maquina-agora-${maquinaEmFoco}"]`);
+    el?.scrollIntoView?.({ block: "center" });
+  }, [aba, maquinaEmFoco, !!data]);
 
   const [lento, setLento] = useState(false);
   useEffect(() => {
@@ -1422,17 +1406,25 @@ export default function GraficaMaquinas() {
   // poder colocar direto para impressão, e não só reservar") ────────────────
   // O MESMO start-printing do modal, sem abri-lo: a peça inteira (payload de
   // sempre) quando vai tudo, ou só a parte (`iniciarParte` + `quantidade`).
+  // UMA RÉGUA SÓ (21/09): quem ocupa cada impressora sai de
+  // ocupacaoDasImpressoras (shared) — a mesma do servidor e do modal da
+  // Gráfica. Antes era "tem peça no cartão": a peça com 10 de 10 esperando
+  // "Mandar p/ acabamento" ocupava a impressora aqui e não na Gráfica.
+  const pecasEmImpressao = useMemo(() => {
+    const porId = new Map<string, PecaNaMaquina>();
+    for (const m of data?.maquinas ?? []) for (const x of m.imprimindo) if (!porId.has(x.id)) porId.set(x.id, x);
+    for (const x of data?.semMaquina ?? []) if (!porId.has(x.id)) porId.set(x.id, x);
+    return Array.from(porId.values());
+  }, [data]);
+  const ocupantes = useMemo(() => ocupacaoDasImpressoras(pecasEmImpressao.map(pecaParaOModal) as any), [pecasEmImpressao]);
   const ocupacao = useMemo<OcupacaoDasImpressoras>(() => {
     const o: OcupacaoDasImpressoras = {};
-    for (const m of data?.maquinas ?? []) {
-      const a = m.imprimindo[0];
-      o[m.codigo] = {
-        n: m.imprimindo.length, primeira: a?.displayId ?? null,
-        atual: a ? { id: a.id, displayId: a.displayId, nome: nomeDaPeca(a.tipo, a.descricao), impressas: a.parte ? a.parte.impressas : a.impressas, teto: a.parte ? a.parte.atrib : a.aImprimir } : null,
-      };
+    for (const m of MAQUINAS_DE_IMPRESSAO) {
+      const a = ocupantes[m];
+      o[m] = { n: a ? 1 : 0, primeira: a?.displayId ?? null, atual: a ?? null };
     }
     return o;
-  }, [data]);
+  }, [ocupantes]);
   const imprimirAgora = useMutation({
     mutationFn: async ({ peca, maquina, quantidade }: { peca: PecaNaFila; maquina: string; quantidade: number }) => {
       const livre = (peca.semImpressora ?? peca.aImprimir) + Object.values(peca.reserva ?? {}).reduce((t, x) => t + x, 0);
@@ -1440,31 +1432,17 @@ export default function GraficaMaquinas() {
       return await apiRequest("PATCH", `/api/items/${peca.id}/start-printing`, inteira ? { printMachine: maquina } : { printMachine: maquina, iniciarParte: true, quantidade });
     },
     onSuccess: (_r, v) => {
-      for (const k of CHAVES_DA_RESERVA) queryClient.invalidateQueries({ queryKey: [k] });
+      invalidarGraficaEMaquinas();
       toast({ title: `${v.peca.displayId ?? "Peça"} ${nomeDaPeca(v.peca.tipo, v.peca.descricao)}: ${v.quantidade} un. em impressão na ${rotuloDaMaquina(v.maquina)}`, description: "Conforme as unidades saírem, informe as impressas no cartão da impressora." });
     },
     onError: (error: Error) => {
-      for (const k of CHAVES_DA_RESERVA) queryClient.invalidateQueries({ queryKey: [k] });
+      invalidarGraficaEMaquinas();
       toast({ title: "Não foi possível iniciar a impressão", description: mensagemDeErroDaApi(error), variant: "destructive" });
     },
   });
   // ── TIRAR da impressora / TROCAR por prioridade (uma peça por vez) ────────
-  const mexerNaImpressora = useMutation({
-    mutationFn: async (v: { maquina: string; sai: OcupanteDaImpressora; entra?: PecaNaFila | null; quantidade?: number | null }) =>
-      v.entra
-        ? await apiRequest("POST", `/api/grafica/maquinas/${v.maquina}/trocar`, { tirarItemId: v.sai.id, colocarItemId: v.entra.id, ...(v.quantidade != null ? { quantidade: v.quantidade } : {}) })
-        : await apiRequest("POST", `/api/grafica/maquinas/${v.maquina}/pausar`, { itemId: v.sai.id }),
-    onSuccess: (_r, v) => {
-      for (const k of CHAVES_DA_RESERVA) queryClient.invalidateQueries({ queryKey: [k] });
-      toast(v.entra
-        ? { title: `${v.entra.displayId ?? "Peça"} em impressão na ${rotuloDaMaquina(v.maquina)}`, description: `A ${v.sai.displayId ?? "peça anterior"} voltou para o topo da fila desta impressora — o que já saiu dela ficou anotado.` }
-        : { title: `${v.sai.displayId ?? "Peça"} tirada da ${rotuloDaMaquina(v.maquina)}`, description: "A impressora ficou livre; a peça está no topo da fila dela com o que falta." });
-    },
-    onError: (error: Error) => {
-      for (const k of CHAVES_DA_RESERVA) queryClient.invalidateQueries({ queryKey: [k] });
-      toast({ title: "Não foi possível mexer na impressora", description: mensagemDeErroDaApi(error), variant: "destructive" });
-    },
-  });
+  // A mesma mutation do modal compartilhado (useMexerNaImpressora).
+  const mexerNaImpressora = useMexerNaImpressora();
   // DUPLO DISPARO: a trava por ref vale ANTES do próximo render (duplo clique,
   // Enter segurado); o isPending desabilita os botões enquanto o gesto voa.
   const travaDaImpressoraRef = useRef(false);
@@ -1477,11 +1455,12 @@ export default function GraficaMaquinas() {
   mexerRef.current = mexer;
   const trocarDaLinha = useCallback((entra: PecaNaFila, maquina: string, quantidade: number | null, sai: OcupanteDaImpressora) => mexerRef.current({ maquina, sai, entra, quantidade }), []);
   // [modal] impressoras ocupadas → código da peça que está nelas.
-  const ocupadasParaOModal = useMemo(() => {
-    const o: Record<string, string | null> = {};
-    for (const [m, x] of Object.entries(ocupacao)) if (x.n > 0 && x.atual?.id !== pecaNoModal?.peca.id) o[m] = x.primeira;
-    return o;
-  }, [ocupacao, pecaNoModal]);
+  // O MESMO `ocupadas` que a Gráfica passa ao modal: o ocupante inteiro
+  // (com ele o modal oferece "Imprimir esta no lugar"), menos a própria peça.
+  const ocupadasParaOModal = useMemo(
+    () => ocupacaoDasImpressoras(pecasEmImpressao.map(pecaParaOModal) as any, pecaNoModal?.peca.id ?? null),
+    [pecasEmImpressao, pecaNoModal],
+  );
   const imprimirRef = useRef(imprimirAgora.mutate);
   imprimirRef.current = imprimirAgora.mutate;
   const imprimirDaLinha = useCallback((peca: PecaNaFila, maquina: string, quantidade: number) => imprimirRef.current({ peca, maquina, quantidade }), []);
@@ -1523,7 +1502,19 @@ export default function GraficaMaquinas() {
   const dia = data?.dia ?? diaEscolhido;
   const ehHoje = !!hoje && dia === hoje;
   const maquinas = data?.maquinas ?? [];
-  const totalImprimindo = maquinas.reduce((s, m) => s + m.imprimindo.length, 0) + (data?.semMaquina.length ?? 0);
+  // PEÇAS, não linhas de cartão: a peça dividida aparece no cartão de cada
+  // impressora, mas é UMA peça — o mesmo número do card "Em Impressão" da Gráfica.
+  const totalImprimindo = pecasEmImpressao.length;
+  // "Liberados" da Gráfica = peças liberadas, com ou sem impressora reservada.
+  // Aqui elas se dividem entre a fila geral e as filas dos cartões (a mesma
+  // peça pode estar nas duas, com unidades diferentes) — o número é o de lá.
+  const liberadasNaTela = useMemo(() => {
+    const ids = new Set<string>();
+    const lib = (x: { id: string; status: string }) => { if (x.status !== "inProduction" && x.status !== "em_producao") ids.add(x.id); };
+    for (const x of data?.filaGeral ?? []) lib(x);
+    for (const m of data?.maquinas ?? []) for (const x of m.naFila ?? []) lib(x);
+    return ids.size;
+  }, [data]);
   const totalReservadas = maquinas.reduce((s, m) => s + (m.naFila?.length ?? 0), 0);
   const irParaAba = (nova: Aba) => escreverURL({ aba: nova === "agora" ? null : nova });
   // Contagem de cada aba: peças em impressão, lançamentos do dia, unidades do período.
@@ -1753,7 +1744,7 @@ export default function GraficaMaquinas() {
                     {data.semMaquina.map((p, i) => (
                       <span key={p.id}>
                         {i > 0 && ", "}
-                        <Link href={`/grafica?item=${p.id}`} className="mq-link" style={{ color: "#92400e", fontWeight: 700 }}>{p.displayId ?? "peça"}</Link>
+                        <Link href={linkDaPecaNaGrafica(p.id)} className="mq-link" style={{ color: "#92400e", fontWeight: 700 }}>{p.displayId ?? "peça"}</Link>
                       </span>
                     ))}
                   </span>
@@ -1765,7 +1756,7 @@ export default function GraficaMaquinas() {
                   const ocupada = m.imprimindo.length > 0;
                   const naFila = ordenarFila(m.naFila ?? []);
                   return (
-                    <article key={m.codigo} aria-label={m.rotulo} data-testid={`maquina-agora-${m.codigo}`} style={{ background: T.surface, border: `1px solid ${ocupada ? IMP.border : T.border}`, borderRadius: R.lg, padding: 14, display: "flex", flexDirection: "column", gap: 10 }}>
+                    <article key={m.codigo} aria-label={m.rotulo} data-testid={`maquina-agora-${m.codigo}`} data-em-foco={maquinaEmFoco === m.codigo || undefined} style={{ ...(maquinaEmFoco === m.codigo ? { boxShadow: `0 0 0 3px ${IMP.border}` } : {}), background: T.surface, border: `1px solid ${maquinaEmFoco === m.codigo ? IMP.text : ocupada ? IMP.border : T.border}`, borderRadius: R.lg, padding: 14, display: "flex", flexDirection: "column", gap: 10 }}>
                       {/* O nome inteiro ("Impressora 1 (New XT)") quebra em duas
                           linhas se precisar; a pílula não disputa espaço com
                           ele — vai para a direita ou para a linha de baixo. */}
@@ -1791,7 +1782,7 @@ export default function GraficaMaquinas() {
                       )}
 
                       {m.imprimindo.map((p) => (
-                        <PecaNoCartao key={p.id} p={p.maquina ? p : { ...p, maquina: m.codigo }} agora={agora} podeAgir={podeAgir} hojeMs={hojeMs} isMobile={isMobile} onAgir={abrirModal} mexendo={mexerNaImpressora.isPending} onTirar={(peca) => mexer({ maquina: m.codigo, sai: { id: peca.id, displayId: peca.displayId, nome: nomeDaPeca(peca.tipo, peca.descricao), impressas: peca.parte ? peca.parte.impressas : peca.impressas, teto: peca.parte ? peca.parte.atrib : peca.aImprimir } })} />
+                        <PecaNoCartao key={p.id} emFoco={itemEmFoco === p.id} p={p.maquina ? p : { ...p, maquina: m.codigo }} agora={agora} podeAgir={podeAgir} hojeMs={hojeMs} isMobile={isMobile} onAgir={abrirModal} mexendo={mexerNaImpressora.isPending} onTirar={(peca) => mexer({ maquina: m.codigo, sai: { id: peca.id, displayId: peca.displayId, nome: nomeDaPeca(peca.tipo, peca.descricao), impressas: peca.parte ? peca.parte.impressas : peca.impressas, teto: peca.parte ? peca.parte.atrib : peca.aImprimir } })} />
                       ))}
 
                       {/* A fila DESTA impressora (dono, 21/09): reservadas, na
@@ -1810,6 +1801,13 @@ export default function GraficaMaquinas() {
                           )}
                         </div>
                       )}
+
+                      {/* Ida para a Gráfica recortada NESTA impressora — o filtro
+                          "Impressora" de lá usa a mesma régua deste cartão
+                          (impressorasDaPeca: imprimindo, reservada ou impressa nela). */}
+                      <Link href={linkDaImpressoraNaGrafica(m.codigo)} className="mq-link" data-testid={`link-impressora-na-grafica-${m.codigo}`} title={`Abrir a fila da Gráfica filtrada na ${m.rotulo}`} style={{ display: "inline-flex", alignItems: "center", gap: 5, minHeight: isMobile ? 44 : 28, fontSize: isMobile ? 12 : FS.small, fontWeight: 700, color: T.second, textDecoration: "none", width: "fit-content" }}>
+                        Peças desta impressora na Gráfica <ArrowRight aria-hidden="true" style={{ width: 12, height: 12, color: T.accentText }} />
+                      </Link>
 
                       {/* Rodapé: o que saiu desta máquina no dia aberto — e o atalho para o diário dela. */}
                       <button
@@ -1850,6 +1848,10 @@ export default function GraficaMaquinas() {
                 </div>
                 <p style={{ margin: 0, fontSize: FS.body, color: T.second, maxWidth: 680 }}>
                   Reservar só organiza a fila desta tela: a peça continua liberada na Gráfica até alguém iniciar a impressão.
+                </p>
+                <p data-testid="relacao-liberados" style={{ margin: 0, fontSize: isMobile ? 12 : FS.small, color: T.second, maxWidth: 680 }}>
+                  {`${plural(liberadasNaTela, "peça liberada", "peças liberadas")} ao todo — é o "Liberados" da Gráfica. `}
+                  Uma peça com parte reservada e parte sem impressora aparece aqui e num cartão; a que já imprime só uma parte continua na fila com o resto.
                 </p>
                 <div style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: R.lg, overflow: "hidden" }}>
                   {filaGeral.length === 0 ? (
@@ -2138,7 +2140,7 @@ export default function GraficaMaquinas() {
             )}
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
               {pecasDaGrafica.isError && <button type="button" className="mq-acao" onClick={() => pecasDaGrafica.refetch()} style={botaoNeutro}>Tentar novamente</button>}
-              {fichaId && <Link href={`/grafica?item=${fichaId}`} className="mq-acao" style={botaoNeutro}>Ver na Gráfica <ArrowRight aria-hidden="true" style={{ width: 12, height: 12, color: T.accentText }} /></Link>}
+              {fichaId && <Link href={linkDaPecaNaGrafica(fichaId)} className="mq-acao" style={botaoNeutro}>Ver na Gráfica <ArrowRight aria-hidden="true" style={{ width: 12, height: 12, color: T.accentText }} /></Link>}
             </div>
           </div>
         </DialogContent>
@@ -2149,7 +2151,7 @@ export default function GraficaMaquinas() {
         open={!!itemDaFicha}
         onOpenChange={(open) => { if (!open) setFichaId(null); }}
         topActions={fichaId ? (
-          <Link href={`/grafica?item=${fichaId}`} className="mq-acao" data-testid="ficha-ver-na-grafica" style={botaoNeutro}>
+          <Link href={linkDaPecaNaGrafica(fichaId)} className="mq-acao" data-testid="ficha-ver-na-grafica" style={botaoNeutro}>
             Ver na Gráfica <ArrowRight aria-hidden="true" style={{ width: 12, height: 12, color: T.accentText }} />
           </Link>
         ) : undefined}

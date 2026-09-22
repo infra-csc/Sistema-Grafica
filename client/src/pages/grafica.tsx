@@ -44,7 +44,12 @@ import { GalpaoFila, type GalpaoDados } from "@/components/galpao-fila";
 import { SugestaoRecebedor } from "@/components/sugestao-recebedor";
 import { EM_REVISAO, rotuloDaMaquina, podeIrParaTubo, MAQUINAS_DE_IMPRESSAO } from "@shared/fluxo-peca";
 import { estaDividida, partesDaPeca, resumoDaDivisao } from "@shared/impressao-dividida";
-import { lerReserva, resumoDaReserva, semImpressora, ocupanteDaImpressora } from "@shared/reserva-de-impressora";
+import { semImpressora } from "@shared/reserva-de-impressora";
+// A peça na impressora em UMA fonte (21/09: "Máquinas e Gráfica têm que se
+// conversar"): os números, o selo da fila, quem ocupa cada impressora e os
+// links de ida e volta são os mesmos do cartão de Máquinas.
+import { numerosDaImpressao, fraseDaFila, ocupacaoDasImpressoras, linkDaImpressoraEmMaquinas, estaEmImpressao } from "@shared/progresso-da-impressao";
+import { invalidarGraficaEMaquinas } from "@/lib/tempo-real-grafica";
 // Aritmética de saldo: fonte única em lib/saldo.ts. Estes onze cálculos
 // (quanto falta produzir, conferir, entregar, reaproveitar; quanto de m²
 // realmente vai para a impressora) viviam duplicados como consts locais no
@@ -72,7 +77,7 @@ import { compareDisplayId, splitDisplayId } from "@/lib/displayId";
 import {
   FILTROS_VAZIOS, filtrosDaURL, filtrosParaQuery, itemCasaFiltros, itemPercursos,
   contarFiltrosAtivos, temFiltroAtivo, descreverFiltros, nomeDoMes, escondeEntregues,
-  hojeEmUTC, normKey, ordemPercurso, itemMes, itemImpressora, SEM_IMPRESSORA,
+  hojeEmUTC, normKey, ordemPercurso, itemMes, itemImpressoras, SEM_IMPRESSORA,
   type GraficaFiltros, type FacetaGrafica,
 } from "@/lib/grafica-filtros";
 // Lançamento de produção: o único campo do app cujo contrato é ABSOLUTO ao lado
@@ -177,19 +182,28 @@ const tituloAcaoImpressao = (item: any) =>
  * progresso em linhas separadas para a coluna Status não alargar.
  */
 function ProgressoImpressao({ item, fonte, duasLinhas, onIniciarResto }: { item: any; fonte: number; duasLinhas?: boolean; /** "Iniciar o resto": a peça entrou em impressão só com PARTE das unidades (21/09). */ onIniciarResto?: () => void }) {
-  const resto = semImpressora(item);
-  const teto = tetoDeProducao(item);
-  const feitas = producedOf(item);
-  // Peça DIVIDIDA entre impressoras (Máquinas, 21/09): "Impressora 1 · 1 de 3
-  // un. / Impressora 2 · 0 de 2 un." no lugar de uma impressora só.
-  const dividida = estaDividida(item);
-  const maquina = dividida ? resumoDaDivisao(partesDaPeca(item)) : item.printMachine ? rotuloDaMaquina(item.printMachine) : null;
-  const progresso = progressoDaImpressao(feitas, teto);
+  // Os números saem de numerosDaImpressao (shared) — a MESMA conta do cartão
+  // de Máquinas e do modal. Peça DIVIDIDA: "Impressora 1 · 1 de 3 un. /
+  // Impressora 2 · 0 de 2 un." no lugar de uma impressora só.
+  const n = numerosDaImpressao(item);
+  const resto = n.semImpressora;
+  const feitas = n.feitas;
+  const teto = n.teto;
+  const dividida = n.dividida;
+  const maquina = n.onde;
+  // A impressora vira LINK para o cartão dela em Máquinas (aba Agora, em foco,
+  // com esta peça realçada) — a volta é o "Ver na Gráfica" de lá.
+  const alvo = dividida ? null : item.printMachine as string | null;
   return (
     <div data-testid={`progresso-impressao-${item.id}`} style={{ marginTop: 4, maxWidth: duasLinhas ? 190 : undefined, whiteSpace: "normal" }}>
       <div style={{ fontSize: fonte, color: "#9a3412", fontWeight: 700, lineHeight: 1.3, fontVariantNumeric: "tabular-nums" }}>
-        {maquina && <span style={{ display: duasLinhas ? "block" : "inline" }}>{maquina}{!duasLinhas && " · "}</span>}
-        <span style={{ fontWeight: 600 }}>{progresso}</span>
+        {maquina && (
+          <span style={{ display: duasLinhas ? "block" : "inline" }}>
+            <Link href={linkDaImpressoraEmMaquinas(alvo ?? Object.keys(n.partes)[0] ?? "", item.id)} onClick={(e) => e.stopPropagation()} data-testid={`link-ver-na-maquina-${item.id}`} title="Ver esta peça no cartão da impressora, em Máquinas" style={{ color: "inherit", textDecoration: "underline", textUnderlineOffset: 2, display: "inline-flex", alignItems: "center", minHeight: fonte >= 12 ? 44 : 24 }}>{maquina}</Link>
+            {!duasLinhas && " · "}
+          </span>
+        )}
+        <span style={{ fontWeight: 600 }}>{n.frase}</span>
         {resto > 0 && <span data-testid={`resto-sem-impressora-${item.id}`} style={{ display: "block", fontWeight: 700 }}>{resto} sem impressora</span>}
       </div>
       {resto > 0 && onIniciarResto && (
@@ -199,7 +213,7 @@ function ProgressoImpressao({ item, fonte, duasLinhas, onIniciarResto }: { item:
       )}
       {/* Sem barra com 0 impressas (o trilho vazio parecia um corte); dividida = uma barra por impressora. */}
       {dividida
-        ? Object.entries(partesDaPeca(item)).map(([m, x]) => (
+        ? Object.entries(n.partes).map(([m, x]) => (
           <BarraDeImpressao key={m} feitas={x.impressas} teto={x.atrib} rotulo={`${item.displayId ?? "peça"} na ${rotuloDaMaquina(m)}: ${x.impressas} de ${x.atrib} impressas`} />
         ))
         : <BarraDeImpressao feitas={feitas} teto={teto} rotulo={`${item.displayId ?? "peça"}: ${feitas} de ${teto} impressas`} />}
@@ -211,13 +225,18 @@ function ProgressoImpressao({ item, fonte, duasLinhas, onIniciarResto }: { item:
  * Máquinas (dono, 21/09: "isso refletir na tela da Gráfica"). Só leitura:
  * a reserva se faz lá; aqui nada muda de status.
  */
-function SeloFilaDaImpressora({ maquina, reserva, fonte }: { maquina: string; reserva?: unknown; fonte: number }) {
-  // Reserva dividida (21/09): "Fila: Impressora 1 (20) · Impressora 2 (14)".
-  const dividida = Object.keys(lerReserva(reserva) ?? {}).length > 1;
+function SeloFilaDaImpressora({ item, fonte }: { item: any; fonte: number }) {
+  // A frase é a de fraseDaFila (shared): "Fila: Impressora 2", "Fila:
+  // Impressora 2 (20) · 14 sem impressora", "Pausada · Fila: …" — a mesma
+  // conta das filas dos cartões de Máquinas.
+  const frase = fraseDaFila(item);
+  if (!frase) return null;
+  const maquina = String(item.maquinaPrevista ?? "");
+  const dividida = frase.length > 26;
   return (
-    <span data-testid="selo-fila-impressora" title={`Reservada na aba Máquinas para a ${rotuloDaMaquina(maquina)} — a etapa não muda até iniciar a impressão`} style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: fonte, fontWeight: 700, color: "#57534e", background: "#f5f5f4", border: "1px solid #e7e5e4", borderRadius: 6, padding: "1px 6px", whiteSpace: dividida ? "normal" : "nowrap" }}>
+    <span data-testid="selo-fila-impressora" title={`Reservada na fila da ${maquina ? rotuloDaMaquina(maquina) : "impressora"} (Máquinas) — a etapa não muda até iniciar a impressão`} style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: fonte, fontWeight: 700, color: "#57534e", background: "#f5f5f4", border: "1px solid #e7e5e4", borderRadius: 6, padding: "1px 6px", whiteSpace: dividida ? "normal" : "nowrap" }}>
       <Printer aria-hidden="true" style={{ width: 11, height: 11, flexShrink: 0 }} />
-      Fila: {dividida ? resumoDaReserva(lerReserva(reserva)) : rotuloDaMaquina(maquina)}
+      {frase}
     </span>
   );
 }
@@ -955,8 +974,7 @@ export default function Grafica() {
     // Invalidação POR PEÇA, não só na saída: esta é a tela em que duas pessoas
     // trabalham a mesma fila ao mesmo tempo — o computador da bancada precisa
     // ver a peça sumir enquanto o conferente anda com o celular.
-    queryClient.invalidateQueries({ queryKey: ["/api/items"] });
-    queryClient.invalidateQueries({ queryKey: ["/api/items/approved"] });
+    invalidarGraficaEMaquinas();
   };
   const fecharGalpao = (feitas: number) => {
     const modo = galpao;
@@ -1147,8 +1165,7 @@ export default function Grafica() {
     mutationFn: async ({ itemId, data }: { itemId: string; data: any; displayId?: string }) =>
       await apiRequest("PATCH", `/api/items/${itemId}/deliver`, data),
     onSuccess: (_r, vars) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/items/approved"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+      invalidarGraficaEMaquinas();
       setSelectedItem(null); setModalType(null);
       setDeliveryData({ receivedBy: "" });
       setPhotos([]);
@@ -1165,7 +1182,7 @@ export default function Grafica() {
     // tela parar de mostrar um saldo que não existe mais (o efeito
     // "peça mudou enquanto você registrava", abaixo, fecha o modal se for o caso).
     onError: (error: Error) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/items/approved"] });
+      invalidarGraficaEMaquinas();
       // Sem internet a recarga não aconteceu: não prometer o que não houve.
       toast({ title: "Não foi possível registrar a entrega", description: `${apiErrorMessage(error).replace(/[.\s]*$/, ".")}${navigator.onLine ? " A fila foi recarregada com o estado atual." : ""}`, variant: "destructive" });
     },
@@ -1184,8 +1201,7 @@ export default function Grafica() {
     mutationFn: async ({ itemId, notes }: { itemId: string; notes: string }) =>
       await apiRequest("PATCH", `/api/items/${itemId}/return-to-review`, { notes }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/items/approved"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+      invalidarGraficaEMaquinas();
       setDevolverItem(null);
       setDevolverMotivo("");
       toast({ title: "Devolvida para a Revisão Final", description: "A peça saiu da fila da Gráfica e o motivo foi registrado." });
@@ -1193,7 +1209,7 @@ export default function Grafica() {
     // Recusa típica: a peça já entrou em produção por outra pessoa. A fila
     // recarrega para o botão Devolver sumir de onde ele não vale mais.
     onError: (error: Error) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/items/approved"] });
+      invalidarGraficaEMaquinas();
       toast({ title: "Não foi possível devolver", description: apiErrorMessage(error), variant: "destructive" });
     },
   });
@@ -1290,13 +1306,12 @@ export default function Grafica() {
     mutationFn: async ({ itemId, tuboId }: { itemId: string; tuboId: string; displayId?: string }) =>
       await apiRequest("PATCH", `/api/tubos/${tuboId}/itens`, { remover: [itemId] }),
     onSuccess: (_r, vars) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/items/approved"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+      invalidarGraficaEMaquinas();
       queryClient.invalidateQueries({ queryKey: ["/api/tubos"] });
       toast({ title: tubosAvulsos.has(vars.tuboId) ? `Embalagem de ${vars.displayId ?? "peça"} desfeita` : `${vars.displayId ?? "Peça"} saiu do Tubo ${numeroDoTubo.get(vars.tuboId) ?? ""}`, description: "Voltou para Conferido." });
     },
     onError: (error: Error) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/items/approved"] });
+      invalidarGraficaEMaquinas();
       toast({ title: "Não foi possível tirar do tubo", description: apiErrorMessage(error), variant: "destructive" });
     },
   });
@@ -1306,8 +1321,7 @@ export default function Grafica() {
     mutationFn: async ({ itemId, conferencePhotoUrl, qty, notes }: { itemId: string; conferencePhotoUrl: string; qty: number; notes?: string; displayId?: string }) =>
       await apiRequest("POST", `/api/items/${itemId}/confer`, { conferencePhotoUrl, qty, notes }),
     onSuccess: (_r, vars) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/items/approved"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+      invalidarGraficaEMaquinas();
       setSelectedItem(null); setModalType(null);
       setPhotos([]);
       toast({
@@ -1316,7 +1330,7 @@ export default function Grafica() {
       });
     },
     onError: (error: Error) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/items/approved"] });
+      invalidarGraficaEMaquinas();
       toast({ title: "Não foi possível registrar a conferência", description: `${apiErrorMessage(error).replace(/[.\s]*$/, ".")}${navigator.onLine ? " A fila foi recarregada com o estado atual." : ""}`, variant: "destructive" });
     },
   });
@@ -1329,8 +1343,7 @@ export default function Grafica() {
     mutationFn: async ({ itemId, qty, reuseTotal }: { itemId: string; qty?: number; reuseTotal?: number }) =>
       await (await apiRequest("POST", `/api/items/${itemId}/mark-reuse`, reuseTotal != null ? { reuseTotal } : { qty })).json(),
     onSuccess: (updated: any) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/items/approved"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+      invalidarGraficaEMaquinas();
       setReuseConfirmItemId(null);
       setMenuAcoesId(null);
       const falta = (updated?.quantity ?? 0) - (updated?.reuseQty ?? 0);
@@ -1354,8 +1367,7 @@ export default function Grafica() {
     mutationFn: async ({ itemId, correctedReuseQty }: { itemId: string; correctedReuseQty: number }) =>
       await (await apiRequest("POST", `/api/items/${itemId}/correct-reuse`, { correctedReuseQty })).json(),
     onSuccess: (updated: any) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/items/approved"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+      invalidarGraficaEMaquinas();
       setCorrectReuseItemId(null);
       setMenuAcoesId(null);
       const qty = Number(updated?.quantity) || 0;
@@ -1382,8 +1394,7 @@ export default function Grafica() {
     mutationFn: async ({ itemId }: { itemId: string; displayId: string }) =>
       await (await apiRequest("DELETE", `/api/items/${itemId}/complement`)).json(),
     onSuccess: (_data: any, vars) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/items/approved"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+      invalidarGraficaEMaquinas();
       setCancelComplementId(null);
       setMenuAcoesId(null);
       toast({ title: "Complemento cancelado", description: `${vars.displayId} removido da fila.` });
@@ -1608,9 +1619,9 @@ export default function Grafica() {
   const impressoraFilterOptions = useMemo(() => {
     const conta = new Map<string, number>();
     gFacetPool('impressora').forEach((i: any) => {
-      const m = itemImpressora(i);
-      if (!m) return;
-      conta.set(m, (conta.get(m) ?? 0) + 1);
+      // Uma peça conta em CADA impressora dela (a dividida é da 1 e da 2) —
+      // a mesma régua do cartão de Máquinas.
+      for (const m of itemImpressoras(i)) conta.set(m, (conta.get(m) ?? 0) + 1);
     });
     const ordem = [...MAQUINAS_DE_IMPRESSAO, SEM_IMPRESSORA];
     return ordem
@@ -1622,7 +1633,7 @@ export default function Grafica() {
         pinned: true,
         title: m === SEM_IMPRESSORA
           ? "Em impressão sem a máquina informada (peças de antes do controle de máquinas)."
-          : "Peças que começaram a imprimir nesta máquina — inclusive as que já saíram dela.",
+          : "Peças desta impressora — imprimindo, reservadas na fila dela ou já impressas nela (o mesmo cartão de Máquinas).",
       }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gFacetPool, filtros.impressora]);
@@ -2005,8 +2016,7 @@ export default function Grafica() {
       if (results.some(r => r.status === "rejected")) {
         toast({ title: "Entrega registrada", description: "Parte das fotos não pôde ser anexada.", variant: "destructive" });
       }
-      queryClient.invalidateQueries({ queryKey: ["/api/items/approved"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+      invalidarGraficaEMaquinas();
     }
   };
 
@@ -2039,8 +2049,7 @@ export default function Grafica() {
     }
     // Conferir é só conferir (dono, 21/09): o tubo entra depois, pelo
     // "Embalar" da peça conferida — nada de tubo aqui.
-    queryClient.invalidateQueries({ queryKey: ["/api/items/approved"] });
-    queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+    invalidarGraficaEMaquinas();
   };
 
   const onPhotoError = (error: Error) =>
@@ -2353,8 +2362,7 @@ export default function Grafica() {
 
       // Conferir é só conferir (dono, 21/09): nada de tubo aqui. Conferidas,
       // as peças ganham o botão Embalar na fila (ou o "Embalar em lote").
-      queryClient.invalidateQueries({ queryKey: ["/api/items/approved"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+      invalidarGraficaEMaquinas();
 
       if (failed > 0) {
         // O MOTIVO da recusa entra no toast (o primeiro, que costuma ser o de
@@ -2396,8 +2404,7 @@ export default function Grafica() {
     } catch (e: any) {
       // Mesmas chaves do fluxo feliz — invalidar só /approved deixava as
       // outras telas com o cache velho.
-      queryClient.invalidateQueries({ queryKey: ["/api/items/approved"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+      invalidarGraficaEMaquinas();
       toast({ title: "Erro na conferência em lote", description: e.message, variant: "destructive" });
     } finally {
       setIsBulkSubmitting(false);
@@ -2457,8 +2464,7 @@ export default function Grafica() {
 
       // Invalida sempre — mesmo com falha parcial a lista precisa refletir o
       // que de fato foi entregue.
-      queryClient.invalidateQueries({ queryKey: ["/api/items/approved"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+      invalidarGraficaEMaquinas();
 
       if (failed > 0) {
         const motivo = motivoDaPrimeiraFalha(delivery);
@@ -2500,8 +2506,7 @@ export default function Grafica() {
     } catch (e: any) {
       // Mesmas chaves do fluxo feliz — invalidar só /approved deixava as
       // outras telas com o cache velho.
-      queryClient.invalidateQueries({ queryKey: ["/api/items/approved"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+      invalidarGraficaEMaquinas();
       toast({ title: "Erro na entrega em lote", description: e.message, variant: "destructive" });
     } finally {
       setIsBulkSubmitting(false);
@@ -2793,11 +2798,13 @@ export default function Grafica() {
                 mesmo peso dos secundários; no celular vira só o ícone, como
                 o Excel ao lado. O chunk começa a descer no hover/foco/toque
                 (lib/prefetch-de-rota), como no menu lateral. */}
+            {/* Recortada numa impressora só (filtro "Impressora"), a ida leva ao
+                CARTÃO dela em Máquinas, em foco — o mesmo recorte do outro lado. */}
             <Link
-              href="/grafica/maquinas"
+              href={filtros.impressora.length === 1 && filtros.impressora[0] !== SEM_IMPRESSORA ? linkDaImpressoraEmMaquinas(filtros.impressora[0]) : "/grafica/maquinas"}
               data-testid="link-maquinas"
               aria-label={isMobile ? "Máquinas: o que cada impressora imprime agora e o histórico do dia" : undefined}
-              title="O que cada impressora imprime agora e o histórico do dia"
+              title={filtros.impressora.length === 1 && filtros.impressora[0] !== SEM_IMPRESSORA ? `Ver a ${rotuloDaMaquina(filtros.impressora[0])} em Máquinas` : "O que cada impressora imprime agora e o histórico do dia"}
               onMouseEnter={(e) => { prefetchRota("/grafica/maquinas"); e.currentTarget.style.backgroundColor = "#f5f5f4"; }}
               onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = TI.surface; }}
               onFocus={() => prefetchRota("/grafica/maquinas")}
@@ -3029,7 +3036,7 @@ export default function Grafica() {
         // do campo; na barra do desktop o espaço é da fileira de campos.
         const DICA_DO_FILTRO: Record<string, string> = {
           Status: "Etapa da peça na fila; também filtra “♻ com reaproveitamento”.",
-          Impressora: "Máquina em que a peça começou a imprimir; “Sem impressora” é a peça em impressão sem máquina informada.",
+          Impressora: "Máquina em que a peça começou a imprimir; também as que estão imprimindo ou reservadas nela (o cartão de Máquinas); “Sem impressora” é a peça em impressão sem máquina informada.",
           Grupo: "Grupo do catálogo de Modelos (ex.: placas de 5KM × 10KM).",
           Percurso: "Distância escrita na peça (5k, 10k…).",
           "Mês": "Mês da saída do caminhão do evento.",
@@ -3834,7 +3841,7 @@ export default function Grafica() {
                         {/* Paridade com a tabela: o progresso da impressão
                             ocupa a linha inteira do cartão (flexBasis 100%). */}
                         {isInProd(item) && <span style={{ flexBasis: '100%' }}><ProgressoImpressao item={item} fonte={12} onIniciarResto={podeProduzirPeca && !selo ? () => openProductionModal(item, true) : undefined} /></span>}
-                        {!isInProd(item) && item.maquinaPrevista && <SeloFilaDaImpressora maquina={item.maquinaPrevista} reserva={item.reservaPorMaquina} fonte={12} />}
+                        {!isInProd(item) && item.maquinaPrevista && <SeloFilaDaImpressora item={item} fonte={12} />}
                         {item.isReuse && <span style={{ fontSize: 12, fontWeight: 800, color: '#047857', background: '#dcfce7', border: '1px solid #86efac', borderRadius: 6, padding: '1px 6px' }}>REAPROV.</span>}
                         {/* Selo do complemento: sólido enquanto o lote está em
                             aberto (trabalho novo), outline depois de entregue —
@@ -4827,7 +4834,7 @@ export default function Grafica() {
                             impressora" + barra (dono, 21/09). Duas linhas para a
                             coluna Status não alargar. */}
                         {isInProd(item) && <ProgressoImpressao item={item} fonte={10.5} duasLinhas onIniciarResto={canProduce && !seloDoItem(item) ? () => openProductionModal(item, true) : undefined} />}
-                        {!isInProd(item) && item.maquinaPrevista && <div style={{ marginTop: 4 }}><SeloFilaDaImpressora maquina={item.maquinaPrevista} reserva={item.reservaPorMaquina} fonte={10.5} /></div>}
+                        {!isInProd(item) && item.maquinaPrevista && <div style={{ marginTop: 4 }}><SeloFilaDaImpressora item={item} fonte={10.5} /></div>}
                       </td>
                       {/* Ações — `sticky right` com sombra à esquerda marcando a
                           borda. `background: inherit` copia a cor da <tr>,
@@ -5818,10 +5825,12 @@ export default function Grafica() {
                 key={`${selectedItem.id}:${iniciandoResto ? "resto" : ""}`}
                 parteAIniciar={iniciandoResto ? { quantidade: semImpressora(selectedItem), daReserva: false } : null}
                 item={selectedItem}
-                // Uma peça por vez por impressora: as ocupadas por OUTRA peça saem
-                // desabilitadas no seletor (derivado do que a fila já carregou — o
-                // 409 do servidor continua sendo a autoridade).
-                ocupadas={Object.fromEntries(MAQUINAS_DE_IMPRESSAO.map((m) => [m, ocupanteDaImpressora(pecasDoServidor as any[], m, selectedItem.id)] as const).filter(([, o]) => !!o).map(([m, o]) => [m, (o as any).displayId ?? null]))}
+                // Uma peça por vez por impressora: quem ocupa cada impressora sai
+                // de ocupacaoDasImpressoras — a MESMA régua (e o mesmo formato)
+                // que a aba Máquinas passa ao modal; com o ocupante inteiro o
+                // modal oferece "Imprimir esta no lugar". O 409 do servidor
+                // continua sendo a autoridade.
+                ocupadas={ocupacaoDasImpressoras((pecasDoServidor as any[]).filter(estaEmImpressao), selectedItem.id)}
                 onFechar={() => { setSelectedItem(null); setModalType(null); }}
                 padModal={padModal}
                 mutacoes={mutacoesDeImpressao}

@@ -19,6 +19,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { isDelivered, isComplement, isInProd, reusedTotalOf, type SaldoItem } from "./saldo";
+import { impressorasDaPeca, SEM_IMPRESSORA as SEM_IMPRESSORA_COMPARTILHADO } from "@shared/progresso-da-impressao";
 import { normalizarBusca } from "./utils";
 
 /** Forma mínima de peça que o recorte enxerga (o item cru da API é `any`). */
@@ -273,8 +274,8 @@ export type FacetaGrafica =
 
 // ── IMPRESSORA da peça ──────────────────────────────────────────────────────
 
-/** Valor sintético do filtro: peça em impressão sem máquina informada. */
-export const SEM_IMPRESSORA = "sem";
+/** Valor sintético do filtro: peça em impressão sem máquina informada (o mesmo de shared). */
+export const SEM_IMPRESSORA = SEM_IMPRESSORA_COMPARTILHADO;
 
 /**
  * A impressora que o filtro enxerga na peça. `printMachine` é gravado quando a
@@ -286,8 +287,23 @@ export const SEM_IMPRESSORA = "sem";
  * nenhuma (null) e o filtro a deixa de fora.
  */
 export function itemImpressora(item: ItemGrafica): string | null {
-  if (item?.printMachine) return String(item.printMachine);
-  return isInProd(item) ? SEM_IMPRESSORA : null;
+  return itemImpressoras(item)[0] ?? null;
+}
+
+/**
+ * TODAS as impressoras da peça — a régua de `impressorasDaPeca`
+ * (shared/progresso-da-impressao.ts), a MESMA do cartão da impressora em
+ * Máquinas (21/09: "as duas telas têm que se conversar"): onde a peça está
+ * imprimindo (a peça DIVIDIDA é da 1 e da 2), para onde está reservada (a
+ * fila do cartão) e, por histórico, a `printMachine`. Antes só a
+ * `printMachine` contava, e o filtro "Impressora 2" não achava a peça que o
+ * cartão da Impressora 2 mostrava.
+ */
+export function itemImpressoras(item: ItemGrafica): string[] {
+  if (!item) return [];
+  const achadas = impressorasDaPeca(item as any);
+  if (achadas.length) return achadas;
+  return isInProd(item) ? [SEM_IMPRESSORA] : [];
 }
 
 export interface OpcoesCasamento {
@@ -395,10 +411,10 @@ export function itemCasaFiltros(
   if (excluir !== "tipo" && f.tipo.length > 0 && !f.tipo.includes(String(item.type ?? ""))) return false;
   if (excluir !== "material" && f.material.length > 0 && !f.material.includes(String(item.material ?? ""))) return false;
   if (excluir !== "acabamento" && f.acabamento.length > 0 && !f.acabamento.includes(String(item.finish ?? ""))) return false;
-  // Impressora: a mesma régua de `itemImpressora` (peça sem impressora nunca casa).
+  // Impressora: a régua de `itemImpressoras` (a do cartão de Máquinas) —
+  // casa com QUALQUER uma das impressoras da peça; sem impressora nunca casa.
   if (excluir !== "impressora" && f.impressora.length > 0) {
-    const maq = itemImpressora(item);
-    if (maq === null || !f.impressora.includes(maq)) return false;
+    if (!itemImpressoras(item).some((m) => f.impressora.includes(m))) return false;
   }
 
   // ── Data de saída do caminhão (sempre em UTC, o fuso em que a Saída é

@@ -97,8 +97,10 @@ describe("detalheDaProducao — a frase curta de cada etapa", () => {
     expect(fonte).not.toMatch(/color:\s*"#(f97316|a8a29e)"/i);
   });
 
-  it("a duplicação com a Gráfica está DITA no módulo (unificar depois)", () => {
-    expect(ler("client/src/lib/detalhe-producao.ts")).toContain("DUPLICAÇÃO CONHECIDA");
+  it("sem duplicação: a conta vem da fonte única que a Gráfica e Máquinas leem", () => {
+    const fonte = ler("client/src/lib/detalhe-producao.ts");
+    expect(fonte).toContain('from "@shared/progresso-da-impressao"');
+    expect(fonte).not.toContain("DUPLICAÇÃO CONHECIDA");
   });
 });
 

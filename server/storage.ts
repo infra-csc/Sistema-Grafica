@@ -573,6 +573,8 @@ export class DatabaseStorage implements IStorage {
         ...insertEvent,
         startDate: new Date(insertEvent.startDate),
         truckDepartureDate: new Date(insertEvent.truckDepartureDate),
+        // Prazo do molde (22/09): a rota já converteu o dia em Date (meio-dia UTC).
+        prazoMolde: insertEvent.prazoMolde ? new Date(insertEvent.prazoMolde) : null,
       })
       .returning();
     return event;

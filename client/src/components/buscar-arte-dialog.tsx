@@ -61,6 +61,15 @@ interface Resposta {
   artes: ArteEncontrada[];
 }
 
+/**
+ * A IMAGEM DA ARTE — a única (revisão 22/09). O cartão mostrava o thumb, a
+ * prévia do rodapé mostrava a prévia do final, e "Usar esta arte" gravava o
+ * thumb: quem escolhia pela prévia podia levar outra imagem. Agora cartão,
+ * prévia e aplicação leem desta função. A rota só devolve URL `/objects/`.
+ */
+export const imagemDaArte = (arte: Pick<ArteEncontrada, "thumbUrl" | "previewUrl">): string | null =>
+  arte.thumbUrl ?? arte.previewUrl ?? null;
+
 /** LAÇO INFINITO: `useQuery({ data: x = [] })` cria um array NOVO a cada
  *  render, e um efeito que leia essa lista e chame setState nunca para. A
  *  constante vazia é estável — a mesma referência sempre. */
@@ -87,13 +96,14 @@ function Cartao({ arte, escolhida, onEscolher }: {
   arte: ArteEncontrada; escolhida: boolean; onEscolher: () => void;
 }) {
   const [falhou, setFalhou] = useState(false);
-  const url = arte.thumbUrl ?? arte.previewUrl;
+  const url = imagemDaArte(arte);
   return (
     <button
       type="button"
       onClick={onEscolher}
       aria-pressed={escolhida}
-      data-testid={`card-arte-${arte.id}`}
+      // `card-busca-arte-`: o cartão do celular na Arte já é `card-arte-<id>`.
+      data-testid={`card-busca-arte-${arte.id}`}
       style={{
         // 44px é o piso de alvo no celular; o cartão é bem maior que isso, e
         // o `textAlign: left` é porque button centra o texto por padrão.
@@ -170,7 +180,7 @@ export function BuscarArteDialog({ item, querArquivoFinal, onUsar, onClose }: {
   const artes = useMemo(() => data?.artes ?? SEM_ARTES, [data]);
 
   const escolhida = artes.find((a) => a.id === escolhidaId) ?? null;
-  const previa = escolhida ? (escolhida.previewUrl ?? escolhida.thumbUrl) : null;
+  const previa = escolhida ? imagemDaArte(escolhida) : null;
   const digitando = termo.trim() !== termoBuscado;
 
   return (

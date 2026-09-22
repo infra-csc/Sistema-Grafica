@@ -22,6 +22,7 @@
 // Depois que a Solicitação agiu, só pede um ajuste — e quem monta a lista
 // decide se aceita.
 // ─────────────────────────────────────────────────────────────────────────────
+import { statusParaContagem } from "./molde";
 
 export const STATUS_DO_PEDIDO = ["aberto", "atendido", "recusado", "cancelado"] as const;
 export type StatusDoPedido = (typeof STATUS_DO_PEDIDO)[number];
@@ -84,6 +85,14 @@ export interface PecaDoPedido {
   tuboEntregueEm?: string | null;
   tuboRecebidoPor?: string | null;
   receivedBy?: string | null;
+  // Revisão 22/09: o piso físico da peça e a trava da Solicitação — a ficha
+  // de produção (DetalheProducao) lê os mesmos campos em toda tela.
+  embaladaQty?: number | null;
+  deliveredQty?: number | null;
+  travadaEm?: string | Date | null;
+  travadaPor?: string | null;
+  travadaPorId?: string | null;
+  travadaMotivo?: string | null;
 }
 
 /** Uma peça solicitada, como a API devolve (nomes resolvidos e peças criadas). */
@@ -317,6 +326,14 @@ export function seloDoEventoDoPedido(
 // (Em Impressão, Impresso, Conferido, Embalado) aparece ao lado das bolinhas,
 // no selo de lib/status + a frase de lib/detalhe-producao.
 export const ETAPAS_DA_PECA = ["Criação", "Aprovação", "Produção", "Acabamento / Conferência", "Entregue"] as const;
+
+/**
+ * Em que etapa a PEÇA está — pela peça, e não pelo status cru: o molde
+ * produzido é o fim do fluxo dele e chega a "Entregue" (statusParaContagem,
+ * shared/molde.ts — revisão 22/09).
+ */
+export const etapaDaPecaDoPedido = (p: { type?: string | null; status?: string | null }): number | null =>
+  etapaDaPeca(statusParaContagem(p));
 
 /** Em que etapa a peça está (0..4), ou null se foi cancelada. */
 export function etapaDaPeca(status: string | null | undefined): number | null {

@@ -31,7 +31,8 @@ import {
   type EventoFinalizadoMotivo,
 } from "@/lib/status";
 import { ehBookCompleto } from "@shared/fluxo-peca";
-import { ehMolde, statusDeExibicao } from "@shared/molde";
+import { ehMolde, statusDeExibicao, arquivoFinalOk } from "@shared/molde";
+import { prazoDoMolde } from "@shared/prazo-molde";
 // Raio e paleta vêm de fonte, não do dedo: `R` tem cinco degraus e a Arte
 // chegou a usar dezenove; `P` é a mesma paleta que os selos de status já
 // consomem, e reescrever o hex dela numa tela cria uma cópia que não
@@ -79,7 +80,7 @@ import { Fragment, useState, useMemo, useEffect, useRef, useCallback, useDeferre
 import { FileUploader } from "@/components/FileUploader";
 import { FilterSelect, ShortcutPill } from "@/components/filter-select";
 import { EventFilterDropdown } from "@/components/event-filter-dropdown";
-import { Filter, HelpCircle } from "lucide-react";
+import { Filter, HelpCircle, Info } from "lucide-react";
 import { useAcompanharAreaVisivel } from "@/components/grafica/area-visivel";
 import { ExportPdfDialog } from "@/components/export-pdf-dialog";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -88,7 +89,7 @@ import { PrazoInline } from "@/components/prazo-inline";
 import { Link } from "wouter";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { SoQuandoMudar } from "@/components/arte/so-quando-mudar";
-import { BuscarArteDialog, type ArteEncontrada } from "@/components/buscar-arte-dialog";
+import { BuscarArteDialog, imagemDaArte, type ArteEncontrada } from "@/components/buscar-arte-dialog";
 
 // Quantas linhas a tabela monta por vez. O resto entra por "Carregar mais".
 const ARTE_PAGE_SIZE = 100;
@@ -1013,10 +1014,20 @@ export default function Arte() {
       setShowBulkDialog(false);
       setSelectedItemIds(new Set());
       setSharedPdfUrl("");
+      // MOLDE (revisão 22/09): o molde do lote não vai para o patrocinador —
+      // vai direto para a Revisão Final. O toast diz para onde CADA um foi.
       const n = variables.itemIds.length;
-      toast({
+      const moldes = variables.itemIds.filter((id) => ehMolde(itemPorId.get(id))).length;
+      const comuns = n - moldes;
+      toast(moldes === 0 ? {
         title: `${n} ${n === 1 ? "peça enviada" : "peças enviadas"} para aprovação`,
         description: `Com o mesmo PDF — ${n === 1 ? "ela saiu" : "elas saíram"} desta fila e ${n === 1 ? "está" : "estão"} em Aguardando patrocinador.`,
+      } : comuns === 0 ? {
+        title: `${n} ${n === 1 ? "molde enviado" : "moldes enviados"} para a Revisão Final`,
+        description: `Com o mesmo PDF — molde não passa por aprovação de patrocinador nem arquivo final.`,
+      } : {
+        title: `${n} peças enviadas`,
+        description: `Com o mesmo PDF — ${comuns} para aprovação do patrocinador e ${moldes} ${moldes === 1 ? "molde" : "moldes"} direto para a Revisão Final.`,
       });
     },
     onError: (error: Error) => {
@@ -1610,7 +1621,7 @@ export default function Arte() {
     if (!toProcess.length) return;
     setBulkThumbRunning(true);
     setBulkThumbProgress({ feitos: 0, total: toProcess.length });
-    let enviados = 0, salvos = 0, reenviados = 0, falhas = 0;
+    let enviados = 0, enviadosMolde = 0, salvos = 0, reenviados = 0, falhas = 0;
 
     const processar = async (entry: BulkThumbEntry) => {
       setBulkThumbEntries(prev => prev.map(e => e.id === entry.id ? { ...e, status: 'uploading' } : e));
@@ -1627,7 +1638,8 @@ export default function Arte() {
         const emCorrecao = (correcaoItems as any[]).find((c: any) => c.id === entry.matchedItemId);
         if (podeEnviar) {
           await apiRequest("PATCH", `/api/items/${entry.matchedItemId}/submit-for-approval`, { approvalThumbUrl: localPath });
-          enviados++;
+          // Molde vai direto para a Revisão Final — o toast não pode dizer "aprovação".
+          if (ehMolde(alvo)) enviadosMolde++; else enviados++;
         } else if (emCorrecao) {
           // Sem conjunto — o servidor deriva (ver resubmitMutation). Este
           // caminho mandava SÓ as linhas recusadas (awaitingArteApprovals):
@@ -1663,6 +1675,7 @@ export default function Arte() {
     const p = (n: number, um: string, varios: string) => `${n} ${n === 1 ? um : varios}`;
     const partes = [
       enviados ? p(enviados, "enviado para aprovação", "enviados para aprovação") : "",
+      enviadosMolde ? p(enviadosMolde, "molde enviado para a Revisão Final", "moldes enviados para a Revisão Final") : "",
       reenviados ? p(reenviados, "reenviado da Correção", "reenviados da Correção") : "",
       salvos ? p(salvos, "thumb salvo como rascunho", "thumbs salvos como rascunho") : "",
     ].filter(Boolean).join(" · ");
@@ -1966,6 +1979,16 @@ export default function Arte() {
       // evento): o evento com o marco da fase mais próximo sobe para o topo.
       // É o que transforma "lista organizada por evento" em "fila de trabalho".
       if (sortMode === "prazo") {
+        // O molde com prazo do molde entra na fila pelo PRÓPRIO prazo (22/09);
+        // as demais peças, pelo marco da fase do evento — como sempre.
+        const pa = prazoDoMolde(a, a.event, hoje), pb = prazoDoMolde(b, b.event, hoje);
+        if (pa || pb) {
+          const da = pa ?? phaseDeadline(a.event, activeTab, hoje);
+          const db = pb ?? phaseDeadline(b.event, activeTab, hoje);
+          if (da && db && da.date.getTime() !== db.date.getTime()) return da.date.getTime() - db.date.getTime();
+          if (da && !db) return -1;
+          if (!da && db) return 1;
+        }
         const u = compareEventUrgency(a.event, b.event, activeTab, hoje);
         if (u !== 0) return u;
       }
@@ -2293,7 +2316,8 @@ export default function Arte() {
   const aplicarArteEncontrada = (arte: ArteEncontrada) => {
     if (!buscaDeArte) return;
     const de = `${arte.displayId ?? "peça"}${arte.eventName ? ` (${arte.eventName})` : ""}`;
-    const imagem = arte.thumbUrl ?? arte.previewUrl;
+    // A MESMA imagem que o modal mostrou na prévia (imagemDaArte).
+    const imagem = imagemDaArte(arte);
 
     if (buscaDeArte.destino === "arquivo-final") {
       if (!arte.arquivoFinalUrl) {
@@ -2714,7 +2738,9 @@ export default function Arte() {
    * Prazos, com o marco da Finalização (−10) e o ajuste de fim de semana.
    */
   const renderPrazo = (item: any, tabId: string, hoje: Date) => {
-    const p = phaseDeadline(item.event, tabId, hoje);
+    // PRAZO DO MOLDE (22/09): no molde de evento com prazo do molde, é ele
+    // que a coluna mostra; sem ele (ou peça comum), o marco da fase de sempre.
+    const p = prazoDoMolde(item, item.event, hoje) ?? phaseDeadline(item.event, tabId, hoje);
     // A IDADE NA FASE, abaixo da data. O prazo diz o marco (futuro); isto diz
     // há quanto tempo a peça está parada onde está — numa fila que espera
     // terceiros, é a pergunta. Sem `statusChangedAt`, sem idade (ver
@@ -2768,7 +2794,9 @@ export default function Arte() {
             <FileText aria-hidden="true" style={{ width: 10, height: 10 }} />
             Book
           </a>
-        ) : eventosComBook.has(item.eventId) && (
+        ) : eventosComBook.has(item.eventId) && !ehMolde(item) && (
+          // Molde não vai para o book (não passa por aprovação de patrocinador):
+          // "Fora do book" nele seria um alarme sem ação possível.
           // Salvar o book limpa o bookUrl de TODAS as peças do evento e regrava só
           // as marcadas — é fácil deixar peça de fora sem perceber. #92400e sobre
           // branco = 7,1:1 ✓.
@@ -3137,7 +3165,8 @@ export default function Arte() {
       else { const rec = { id, name, count: 1 }; evSumMap.set(key, rec); }
       const p = evProgresso.get(key) ?? { semThumb: 0, semFinal: 0 };
       if (!item.approvalThumbUrl) p.semThumb++;
-      if (!item.finalFileUrl) p.semFinal++;
+      // Molde dispensa o arquivo final (shared/molde.ts) — não é "sem arquivo final".
+      if (!arquivoFinalOk(item)) p.semFinal++;
       evProgresso.set(key, p);
     });
 
@@ -3558,6 +3587,55 @@ export default function Arte() {
                             style={{ display: 'inline-flex', alignItems: 'center', gap: 5, backgroundColor: s.bg, border: `1px solid ${s.border}`, borderRadius: 999, padding: '3px 9px', fontSize: 11, fontWeight: 700, color: s.text, whiteSpace: 'nowrap' }}>
                             {prazo.label} · {ds}{prazo.diff >= 0 && prazo.diff <= 14 && <span style={{ opacity: 0.8, fontWeight: 500 }}> ({prazo.diff}d)</span>}
                           </span>
+                        );
+                      })()}
+                      {/* AS DATAS DA FAIXA NO TOQUE (revisão 22/09): a saída,
+                          o evento e os outros marcos só existiam no `title` —
+                          que o celular não mostra e o leitor de tela mal lê.
+                          O "i" abre as mesmas datas num popover (44px no
+                          celular), no desktop e no celular. */}
+                      {(() => {
+                        const ev = bloco.eventObj;
+                        if (!ev) return null;
+                        const datas: Array<[string, string]> = [];
+                        if (ev.truckDepartureDate) {
+                          datas.push(ev.datasDoKit
+                            ? ["Entrega do material", new Date(ev.truckDepartureDate).toLocaleDateString('pt-BR', { timeZone: 'UTC' })]
+                            : ["Saída", `${toUTCDisplayDate(ev.truckDepartureDate).toLocaleDateString('pt-BR')} às ${toUTCDisplayDate(ev.truckDepartureDate).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`]);
+                        }
+                        if (ev.startDate) datas.push(["Evento", parseDateLocal(ev.startDate).toLocaleDateString('pt-BR')]);
+                        if (ev.truckDepartureDate) {
+                          for (const fase of ARTE_MARCOS_FAIXA) {
+                            const m = phaseDeadline(ev, fase, hoje);
+                            if (m) datas.push([m.label, m.date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })]);
+                          }
+                        }
+                        if (datas.length === 0) return null;
+                        const lado = isMobile ? 44 : 28;
+                        return (
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <button
+                                type="button"
+                                aria-label={`Datas de ${bloco.eventName}`}
+                                data-testid="button-datas-da-faixa"
+                                style={{ width: lado, height: lado, minWidth: lado, borderRadius: 999, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: '#ffffff', border: '1px solid #e7e5e4', color: '#57534e', cursor: 'pointer', flexShrink: 0 }}
+                              >
+                                <Info aria-hidden="true" style={{ width: 14, height: 14 }} />
+                              </button>
+                            </PopoverTrigger>
+                            <PopoverContent align="end" style={{ width: 240, padding: 12 }} data-testid="popover-datas-da-faixa">
+                              <p style={{ margin: '0 0 8px', fontSize: 11, fontWeight: 800, color: '#746e69', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Datas do evento</p>
+                              <dl style={{ margin: 0, display: 'grid', gridTemplateColumns: 'auto 1fr', columnGap: 12, rowGap: 6, fontSize: 13 }}>
+                                {datas.map(([rotulo, valor]) => (
+                                  <Fragment key={rotulo}>
+                                    <dt style={{ color: '#57534e', fontWeight: 600 }}>{rotulo}</dt>
+                                    <dd style={{ margin: 0, color: '#1c1917', fontWeight: 700, fontVariantNumeric: 'tabular-nums', textAlign: 'right' }}>{valor}</dd>
+                                  </Fragment>
+                                ))}
+                              </dl>
+                            </PopoverContent>
+                          </Popover>
                         );
                       })()}
                       {/* "peças", não "ITENS": a tela inteira fala em peça, e o
@@ -4426,6 +4504,9 @@ export default function Arte() {
               />
             );
 
+            // ALVO DE 44px NO CELULAR (revisão 22/09): os quatro segmentados
+            // tinham a faixa com 44px mas cada botão com 38px (margem de 3px).
+            // No celular a faixa acompanha o botão, que tem 44×44 no mínimo.
             const segmentos = (<>
             {/* SEGMENTADOS, e nao menus: decisao do dono (17/08) depois de ver
                 os quatro como FilterSelect. O resto do vocabulario continua
@@ -4445,7 +4526,7 @@ export default function Arte() {
                 Em Finalizados o marco É a saída, que numa peça pronta já passou
                 por definição: lá o recorte não existe em vez de mentir. */}
             <div role="group" aria-label="Prazo da fase" data-testid="segment-atrasado"
-              style={{ display: 'flex', alignItems: 'center', gap: 2, height: isMobile ? 44 : 36, padding: '0 3px', borderRadius: 9, background: '#f5f5f4', border: '1px solid #e7e5e4', boxSizing: 'border-box', flexShrink: 0 }}>
+              style={{ display: 'flex', alignItems: 'center', gap: 2, height: isMobile ? 'auto' : 36, padding: isMobile ? 0 : '0 3px', borderRadius: 9, background: '#f5f5f4', border: '1px solid #e7e5e4', boxSizing: 'border-box', flexShrink: 0 }}>
               <span style={{ fontSize: 11, fontWeight: 700, color: '#57534e', padding: '0 6px 0 8px' }}>Prazo</span>
               {([
                 { on: false, label: 'todos' },
@@ -4460,7 +4541,7 @@ export default function Arte() {
                     title={bloqueado
                       ? "Em Finalizados o marco é a própria saída do caminhão, que numa peça pronta já passou — não há atraso a apontar"
                       : on ? "Só peças que já passaram do marco desta fase" : undefined}
-                    style={{ display: 'inline-flex', alignItems: 'center', gap: 5, alignSelf: 'stretch', margin: '3px 0', padding: '0 10px', borderRadius: 6, border: 'none', cursor: bloqueado ? 'not-allowed' : 'pointer', opacity: bloqueado ? 0.5 : 1, fontSize: 11, fontWeight: ativo ? 700 : 600, background: ativo ? '#ffffff' : '#fafaf9', color: ativo ? '#1c1917' : '#57534e', boxShadow: ativo ? 'inset 0 -2px 0 #1c1917' : 'none', transition: 'all 0.12s' }}>
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 5, alignSelf: 'stretch', margin: isMobile ? 0 : '3px 0', minHeight: isMobile ? 44 : undefined, minWidth: isMobile ? 44 : undefined, justifyContent: 'center', padding: '0 10px', borderRadius: 6, border: 'none', cursor: bloqueado ? 'not-allowed' : 'pointer', opacity: bloqueado ? 0.5 : 1, fontSize: 11, fontWeight: ativo ? 700 : 600, background: ativo ? '#ffffff' : '#fafaf9', color: ativo ? '#1c1917' : '#57534e', boxShadow: ativo ? 'inset 0 -2px 0 #1c1917' : 'none', transition: 'all 0.12s' }}>
                     {label}
                     {on && !bloqueado && (
                       // A contagem vive no controle: o recorte diz QUANTOS são
@@ -4479,7 +4560,7 @@ export default function Arte() {
             </div>
 
             <div role="group" aria-label="Prioridade" data-testid="segment-urgente"
-              style={{ display: 'flex', alignItems: 'center', gap: 2, height: isMobile ? 44 : 36, padding: '0 3px', borderRadius: 9, background: '#f5f5f4', border: '1px solid #e7e5e4', boxSizing: 'border-box', flexShrink: 0 }}>
+              style={{ display: 'flex', alignItems: 'center', gap: 2, height: isMobile ? 'auto' : 36, padding: isMobile ? 0 : '0 3px', borderRadius: 9, background: '#f5f5f4', border: '1px solid #e7e5e4', boxSizing: 'border-box', flexShrink: 0 }}>
               <span style={{ fontSize: 11, fontWeight: 700, color: '#57534e', padding: '0 6px 0 8px' }}>Prioridade</span>
               {([
                 { on: false, label: 'todas' },
@@ -4487,7 +4568,7 @@ export default function Arte() {
               ] as { on: boolean; label: string }[]).map(({ on, label }) => (
                 <button key={label} onClick={() => setUrgenteFilter(on)} aria-pressed={urgenteFilter === on}
                   data-testid={`button-urgente-${on ? 'sim' : 'nao'}`}
-                  style={{ alignSelf: 'stretch', margin: '3px 0', padding: '0 10px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: urgenteFilter === on ? 700 : 600, background: urgenteFilter === on ? '#ffffff' : '#fafaf9', color: urgenteFilter === on ? '#1c1917' : '#57534e', boxShadow: urgenteFilter === on ? 'inset 0 -2px 0 #1c1917' : 'none', transition: 'all 0.12s' }}>
+                  style={{ alignSelf: 'stretch', margin: isMobile ? 0 : '3px 0', minHeight: isMobile ? 44 : undefined, minWidth: isMobile ? 44 : undefined, justifyContent: 'center', padding: '0 10px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: urgenteFilter === on ? 700 : 600, background: urgenteFilter === on ? '#ffffff' : '#fafaf9', color: urgenteFilter === on ? '#1c1917' : '#57534e', boxShadow: urgenteFilter === on ? 'inset 0 -2px 0 #1c1917' : 'none', transition: 'all 0.12s' }}>
                   {label}
                 </button>
               ))}
@@ -4501,7 +4582,7 @@ export default function Arte() {
               { rotulo: 'Arquivo final', value: finalFilter, set: setFinalFilter, testId: 'segment-final' },
             ] as { rotulo: string; value: TriState; set: (v: TriState) => void; testId: string }[]).map(({ rotulo, value, set, testId }) => (
               <div key={testId} role="group" aria-label={rotulo} data-testid={testId}
-                style={{ display: 'flex', alignItems: 'center', gap: 2, height: isMobile ? 44 : 36, padding: '0 3px', borderRadius: 9, background: '#f5f5f4', border: '1px solid #e7e5e4', boxSizing: 'border-box', flexShrink: 0 }}>
+                style={{ display: 'flex', alignItems: 'center', gap: 2, height: isMobile ? 'auto' : 36, padding: isMobile ? 0 : '0 3px', borderRadius: 9, background: '#f5f5f4', border: '1px solid #e7e5e4', boxSizing: 'border-box', flexShrink: 0 }}>
                 <span style={{ fontSize: 11, fontWeight: 700, color: '#57534e', padding: '0 6px 0 8px' }}>{rotulo}</span>
                 {([
                   { v: 'todos', label: 'todos' },
@@ -4509,7 +4590,7 @@ export default function Arte() {
                   { v: 'sem', label: 'sem' },
                 ] as { v: TriState; label: string }[]).map(({ v, label }) => (
                   <button key={v} onClick={() => set(v)} aria-pressed={value === v}
-                    style={{ alignSelf: 'stretch', margin: '3px 0', padding: '0 10px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: value === v ? 700 : 600, background: value === v ? '#ffffff' : '#fafaf9', color: value === v ? '#1c1917' : '#57534e', boxShadow: value === v ? 'inset 0 -2px 0 #1c1917' : 'none', transition: 'all 0.12s' }}>
+                    style={{ alignSelf: 'stretch', margin: isMobile ? 0 : '3px 0', minHeight: isMobile ? 44 : undefined, minWidth: isMobile ? 44 : undefined, justifyContent: 'center', padding: '0 10px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: value === v ? 700 : 600, background: value === v ? '#ffffff' : '#fafaf9', color: value === v ? '#1c1917' : '#57534e', boxShadow: value === v ? 'inset 0 -2px 0 #1c1917' : 'none', transition: 'all 0.12s' }}>
                     {label}
                   </button>
                 ))}

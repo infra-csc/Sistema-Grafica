@@ -14,7 +14,9 @@ import { PedidosDoEvento } from "@/components/pedidos-do-evento";
 import { SeloKit } from "@/components/kit/selo-kit";
 import { PainelDoKit, chaveDasRemessas } from "@/components/kit/painel-do-kit";
 import { grupoDoKit, rotuloDaRemessa, type RemessaDoKit } from "@shared/kit";
-import { TIPOS_DE_PECA, statusDeExibicao, statusParaContagem } from "@shared/molde";
+import { TIPOS_DE_PECA, statusDeExibicao, statusParaContagem, tiposOferecidos } from "@shared/molde";
+import { eventoTemMoldeSemPrazo, AVISO_MOLDE_SEM_PRAZO } from "@shared/prazo-molde";
+import { SeloPrazoMolde } from "@/components/prazo-do-molde";
 import { invalidarPedidos } from "@/components/pedidos/ui";
 import { patrocinadoresDaLinha, textoDaObservacao, type LinhaDoPedido, type PedidoDePeca } from "@shared/pedidos-de-peca";
 import { Fragment, useState, useEffect, useMemo, useRef } from "react";
@@ -1866,8 +1868,11 @@ export default function EventDetail() {
   const secoesPorStatus = useMemo(() => {
     const map = new Map<string, typeof visibleEventItems>();
     visibleEventItems.forEach(item => {
-      if (!map.has(item.status)) map.set(item.status, []);
-      map.get(item.status)!.push(item);
+      // Molde produzido tem seção própria ("Produzido (molde)"): ele não está
+      // em Impresso/Acabamento — produzido é o FIM do fluxo dele (shared/molde).
+      const chave = statusDeExibicao(item);
+      if (!map.has(chave)) map.set(chave, []);
+      map.get(chave)!.push(item);
     });
     return Array.from(map.entries()).sort(([a], [b]) => (ORDEM_DO_FLUXO.get(a) ?? 999) - (ORDEM_DO_FLUXO.get(b) ?? 999));
   }, [visibleEventItems]);
@@ -2355,6 +2360,14 @@ export default function EventDetail() {
             {canEditLists && eventoFinalizado && (
               <span data-testid="aviso-evento-finalizado" style={{ fontSize: 12, color: '#746e69', alignSelf: 'center', maxWidth: isMobile ? '100%' : 260, lineHeight: 1.4 }}>
                 {avisoEventoFim}
+              </span>
+            )}
+
+            {/* PRAZO DO MOLDE (22/09): aviso discreto, sem bloquear nada — o
+                campo é opcional e mora no formulário do evento (Eventos). */}
+            {eventoTemMoldeSemPrazo(event, rawItems as any[]) && (
+              <span data-testid="aviso-molde-sem-prazo" title="Cadastre em Eventos → editar o evento → Prazo do molde (opcional). Não entra na Gestão de Prazos." style={{ fontSize: 12, color: '#746e69', alignSelf: 'center', lineHeight: 1.4 }}>
+                {AVISO_MOLDE_SEM_PRAZO}
               </span>
             )}
 
@@ -3333,6 +3346,7 @@ export default function EventDetail() {
                             </button>
                             <StatusBadge status={statusDeExibicao(item)} />
                           </div>
+                          <SeloPrazoMolde item={item} evento={event} />
                           <DetalheProducao item={item} style={{ marginTop: 0, marginBottom: 6, textAlign: 'right' }} />
                           <SeloKit peca={item} style={{ marginBottom: 4, marginRight: 4 }} />
                           {item.isPriority && (
@@ -3636,9 +3650,10 @@ export default function EventDetail() {
                               const fase = faseDaArte(item.status);
 // Fora da Arte = produção em diante: o selo ganha a linha discreta
                               // "Impressora 2 · 3 de 10 impressas" / "Tubo 2" (lib/detalhe-producao).
-                              if (!fase) return <><StatusBadge status={statusDeExibicao(item)} short /><DetalheProducao item={item} /></>;
+                              if (!fase) return <><StatusBadge status={statusDeExibicao(item)} short /><DetalheProducao item={item} /><SeloPrazoMolde item={item} evento={event} /></>;
                               const alvo = `/arte?fase=${fase}&evento=${item.eventId}&busca=${String(item.displayId ?? "").replace("#", "")}`;
                               return (
+                                <>
                                 <Link
                                   href={alvo}
                                   title={`Abrir esta peça na Arte, já na aba e no evento dela`}
@@ -3647,6 +3662,8 @@ export default function EventDetail() {
                                 >
                                   <StatusBadge status={item.status} short />
                                 </Link>
+                                <SeloPrazoMolde item={item} evento={event} />
+                                </>
                               );
                             })()}
                           </td>
@@ -3973,7 +3990,9 @@ export default function EventDetail() {
             formData={formData}
             setFormData={setFormData}
             standardItems={standardItems}
-            typeOptions={itemTypes}
+            // Fora do rascunho, a fronteira do molde fica fechada (o servidor
+            // responde 409): a peça comum não vê "Molde" e o molde só é molde.
+            typeOptions={tiposOferecidos(editingItem, itemTypes)}
             materialOptions={materialOptions}
             finishOptions={finishOptions}
             customMaterial={customMaterial}

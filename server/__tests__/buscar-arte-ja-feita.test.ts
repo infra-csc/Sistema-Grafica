@@ -404,7 +404,8 @@ describe("as rotas que gravam thumb só aceitam objeto do storage", () => {
     const ITEMS = ler("server/routes/items.ts");
     expect(ITEMS).toContain('import { urlDeThumbValida, ERRO_THUMB_FORA_DO_STORAGE } from "./thumb-url";');
     expect(ITEMS.split("const thumbNormalizado = urlDeThumbValida(").length - 1).toBe(3);
-    expect(ITEMS.split("return res.status(400).json({ error: ERRO_THUMB_FORA_DO_STORAGE });").length - 1).toBe(3);
+    // 3 rotas de envio + o PATCH genérico (revisão 22/09: a mesma régua lá).
+    expect(ITEMS.split("return res.status(400).json({ error: ERRO_THUMB_FORA_DO_STORAGE });").length - 1).toBe(4);
     expect(ITEMS).toContain("itemUpdates.approvalThumbUrl = thumbNormalizado;");
     expect(ITEMS).toContain("approvalThumbUrl: thumbNormalizado,\n        rejectedBySponsor: false,");
     expect(ITEMS).toContain("approvalThumbUrl: thumbNormalizado,\n        previousApprovalThumbUrl: prevUrl,");

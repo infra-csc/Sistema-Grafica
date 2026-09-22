@@ -24,6 +24,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { storage } from "../storage";
 import { ehBookCompleto } from "@shared/fluxo-peca";
+import { arquivoFinalOk } from "@shared/molde";
 import { db } from "../db";
 import { auditLogs } from "@shared/schema";
 import { sql } from "drizzle-orm";
@@ -118,7 +119,8 @@ export function montarResumo(
   return {
     total: naFila.length,
     novos: naFila.filter((i) => entrouEm(i) >= desde.getTime()).length,
-    semArquivo: naFila.filter((i) => !i.finalFileUrl).length,
+    // Molde dispensa o arquivo final (shared/molde.ts): não é "sem arquivo".
+    semArquivo: naFila.filter((i) => !arquivoFinalOk(i)).length,
     diasDoMaisAntigo: maisAntigo === null ? null : Math.floor((agora.getTime() - maisAntigo) / DIA_MS),
     porEvento: Array.from(porEvento.entries())
       .map(([evento, n]) => ({ evento, n }))

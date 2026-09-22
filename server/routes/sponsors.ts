@@ -25,6 +25,9 @@ import { invalidarCacheDeVersoes } from "./versoes";
 import { DEPOIS_DA_ARTE, POS_APROVACAO } from "@shared/fluxo-peca";
 import { ehMolde } from "@shared/molde";
 
+/** Molde não tem patrocinador (revisão 22/09): não passa por Vincular nem por aprovação. */
+const ERRO_PATROCINADOR_EM_MOLDE = "Molde não recebe patrocinador — ele não passa por Vincular Patrocinadores nem por aprovação";
+
 // Papéis que escrevem em vinculação de patrocinadores — o mesmo conjunto que a
 // rota /vincular-patrocinadores permite no client (App.tsx). Antes essas rotas
 // só tinham requireAuth: qualquer sessão (grafica inclusive) podia reescrever
@@ -652,6 +655,10 @@ export function registerSponsorRoutes(app: Express): void {
 
       // Filtrar IDs nulos ou vazios antes de inserir no banco
       const validSponsorIds = sponsorIds.filter((id: any) => id && typeof id === 'string' && id.trim() !== '');
+      // Molde: sincronizar para VAZIO (limpar) passa; acrescentar, não.
+      if (ehMolde(currentItem) && validSponsorIds.length > 0) {
+        return res.status(409).json({ error: ERRO_PATROCINADOR_EM_MOLDE, code: "MOLDE_SEM_PATROCINADOR" });
+      }
       await storage.bulkSyncItemSponsors(itemId, validSponsorIds);
 
       // Update item with skipApproval only (status NOT changed here - user must click "Enviar para Arte").
@@ -797,10 +804,10 @@ export function registerSponsorRoutes(app: Express): void {
             return;
           }
           const jaPassou = POS_APROVACAO.includes(item.status);
-          // MOLDE (22/09): já na Revisão, não reabre para aprovação — molde não
-          // passa por patrocinador.
-          if (jaPassou && ehMolde(item)) {
-            recusadas.push({ displayId: rotulo, motivo: "é um molde já enviado à Revisão Final — molde não passa por aprovação de patrocinador" });
+          // MOLDE (22/09; revisão 22/09): em NENHUMA etapa — molde não passa
+          // por patrocinador (nem pela Vinculação, nem pela aprovação).
+          if (ehMolde(item)) {
+            recusadas.push({ displayId: rotulo, motivo: "é um molde — molde não recebe patrocinador (não passa por Vincular nem por aprovação)" });
             return;
           }
           if (!ACEITA.includes(item.status) && !jaPassou) {
@@ -1071,6 +1078,7 @@ export function registerSponsorRoutes(app: Express): void {
       const item = await storage.getItem(req.params.id);
       if (!item) return res.status(404).json({ error: "Item não encontrado" });
       if (await barraEventoFinalizado(item, res)) return;
+      if (ehMolde(item)) return res.status(409).json({ error: ERRO_PATROCINADOR_EM_MOLDE, code: "MOLDE_SEM_PATROCINADOR" });
 
       const itemSponsor = await storage.addSponsorToItem(validatedData);
 

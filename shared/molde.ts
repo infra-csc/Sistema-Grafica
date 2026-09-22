@@ -173,3 +173,44 @@ export const TRILHA_ENVIO_DO_MOLDE =
   "Molde: thumb enviado direto para a Revisão Final (sem aprovação de patrocinador nem arquivo final)";
 export const TRILHA_MOLDE_PRODUZIDO = "Molde marcado como produzido";
 export const TRILHA_MOLDE_DESFEITO = "Molde voltou para liberado (produção desfeita)";
+
+// ── Trocar de/para molde (revisão adversarial, 22/09) ───────────────────────
+//
+// O molde tem OUTRO fluxo (pula Vinculação, aprovação, finalização, conferência,
+// embalagem e entrega). Trocar o tipo de/para Molde no meio do caminho deixaria
+// a peça num estado que o outro fluxo não conhece: um molde em "Aguardando
+// aprovação" com rodada de patrocinador aberta, ou uma peça comum "Produzida"
+// sem nunca ter passado pela impressora. Só no rascunho a troca é segura.
+
+/** Onde a peça ainda é rascunho — o único lugar em que o tipo pode virar/deixar de ser molde. */
+export const STATUS_QUE_PERMITEM_TROCAR_MOLDE: readonly string[] = ["draft", "requested", "rascunho"];
+
+export const ERRO_TROCA_DE_MOLDE =
+  "Não dá para transformar em molde (ou deixar de ser molde) depois que a peça saiu do rascunho — crie uma peça nova";
+
+/**
+ * A troca de tipo pedida é proibida? Só quando cruza a fronteira do molde
+ * (comum → molde ou molde → comum) FORA do rascunho. Trocar "Pórtico" por
+ * "Arena" segue livre; tipo ausente/vazio (não mexe) também.
+ */
+export function trocaDeMoldeProibida(
+  atual: { type?: string | null; status?: string | null } | null | undefined,
+  novoTipo: string | null | undefined,
+): boolean {
+  if (!atual || novoTipo == null || String(novoTipo).trim() === "") return false;
+  if (ehMolde(atual) === ehTipoMolde(novoTipo)) return false;
+  return !STATUS_QUE_PERMITEM_TROCAR_MOLDE.includes(String(atual.status ?? ""));
+}
+
+/**
+ * A lista de tipos que o formulário oferece. Criação e rascunho: todos. Fora do
+ * rascunho, a fronteira do molde fica fechada — o molde só pode continuar molde,
+ * e a peça comum não vê "Molde".
+ */
+export function tiposOferecidos(
+  item: { type?: string | null; status?: string | null } | null | undefined,
+  tipos: readonly string[] = TIPOS_DE_PECA,
+): string[] {
+  if (!item || STATUS_QUE_PERMITEM_TROCAR_MOLDE.includes(String(item.status ?? ""))) return [...tipos];
+  return ehMolde(item) ? tipos.filter((t) => ehTipoMolde(t)) : tipos.filter((t) => !ehTipoMolde(t));
+}

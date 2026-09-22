@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, pgSequence, text, varchar, timestamp, integer, decimal, boolean, json, jsonb, index, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgTable, pgSequence, text, varchar, timestamp, integer, decimal, boolean, json, jsonb, index, uniqueIndex, check } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
@@ -79,6 +79,10 @@ export const events = pgTable("events", {
   deadlineFinalizacao: integer("deadline_finalizacao").default(-10), // Arte anexa o arquivo final
   deadlineRevisaoLista: integer("deadline_revisao_lista").default(-8), // Revisão de lista pelo criador
   deadlineProducaoGrafica: integer("deadline_producao_grafica").default(-1), // Produção gráfica
+  // PRAZO DO MOLDE (dono, 22/09): opcional, só para evento com molde. Um DIA,
+  // gravado ao meio-dia UTC (a convenção das datas do Kit). Vale SÓ no fluxo
+  // do molde — NÃO entra na Gestão de Prazos (ver shared/prazo-molde.ts).
+  prazoMolde: timestamp("prazo_molde"),
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
   updatedAt: timestamp("updated_at").notNull().default(sql`now()`),
 }, (table) => [
@@ -533,6 +537,11 @@ export const tuboItens = pgTable("tubo_itens", {
 }, (table) => [
   uniqueIndex("UQ_tubo_itens_tubo_item").on(table.tuboId, table.itemId),
   index("IDX_tubo_itens_item").on(table.itemId),
+  // Linha de volume com 0 un. não existe (22/09). O nome é o que o Postgres dá
+  // ao CHECK inline de scripts/migracao-aditiva-producao.sql, e o valor é o
+  // texto cru (sem "tubo_itens".) — é assim que o drizzle-kit lê de volta do
+  // banco; iguais, o `db:push` não derruba nem recria.
+  check("tubo_itens_quantidade_check", sql`quantidade > 0`),
 ]);
 
 // -----------------------------------------------------------------------------
@@ -1064,6 +1073,8 @@ export const insertEventSchema = createInsertSchema(events).omit({
   startDate: z.string().or(z.date()),
   truckDepartureDate: z.string().or(z.date()),
   priority: z.enum(["baixa", "media", "alta", "urgente"]).optional(),
+  // "YYYY-MM-DD" do formulário; vazio/null limpa. A rota converte (prazoMoldeParaGravar).
+  prazoMolde: z.string().or(z.date()).nullable().optional(),
 });
 
 export const insertItemSchema = createInsertSchema(items).omit({
@@ -1120,6 +1131,53 @@ export const publicInsertItemSchema = insertItemSchema.omit({
   travadaPor: true,
   travadaPorId: true,
   travadaMotivo: true,
+  // ── CAMPOS DE CONTROLE DO FLUXO (revisão 22/09) ────────────────────────────
+  // O corpo da criação dizia o STATUS, as quantidades produzida/conferida/
+  // entregue e os carimbos — dava para nascer um molde já `produced`, ou uma
+  // peça "Entregue" que ninguém imprimiu. A peça nasce SEMPRE em rascunho (o
+  // default da coluna) e cada um destes só muda pela rota dedicada que valida
+  // a transição. Nenhum fluxo legítimo de criação pela API pública os manda:
+  // o formulário e a Entrada Rápida não mandam status (a Entrada Rápida usava
+  // 'draft' só na detecção de duplicadas, no cliente); a importação de
+  // planilha, o clonar e os pedidos de peça gravam pelo insertItemSchema
+  // interno, com o status decidido no servidor.
+  status: true,
+  statusChangedAt: true,
+  statusBeforeCancel: true,
+  quantityProduced: true,
+  reuseQty: true,
+  conferredQty: true,
+  conferredAt: true,
+  conferenceNotes: true,
+  conferencePhotoUrl: true,
+  deliveredQty: true,
+  deliveredAt: true,
+  deliveryNotes: true,
+  deliveryPhotoUrl: true,
+  receivedBy: true,
+  approvalThumbUrl: true,
+  previousApprovalThumbUrl: true,
+  approvalThumbUpdatedAt: true,
+  hasModifiedData: true,
+  finalFileUrl: true,
+  finalFileName: true,
+  finalPreviewUrl: true,
+  finalFileUpdatedAt: true,
+  finalFileAckedAt: true,
+  previousFinalFileUrl: true,
+  previousFinalFileName: true,
+  sponsorApprovedBy: true,
+  sponsorApprovedAt: true,
+  creatorReviewedAt: true,
+  rejectedBySponsor: true,
+  rejectedByCreator: true,
+  rejectionReason: true,
+  approvedAt: true,
+  productionStartedAt: true,
+  producedAt: true,
+  labelPrintedAt: true,
+  bookUrl: true,
+  deletedAt: true,
 });
 
 export const insertStandardItemSchema = createInsertSchema(standardItems).omit({

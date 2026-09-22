@@ -30,6 +30,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { useAuth } from "@/contexts/auth-context";
 import { ehBookCompleto } from "@shared/fluxo-peca";
 import { arquivoFinalOk, ehMolde } from "@shared/molde";
+import { SeloPrazoMolde } from "@/components/prazo-do-molde";
 import {
   STATUS, getStatusMeta,
   seloPecaEventoFinalizado, motivoAcaoBloqueada, todayBusinessMs,
@@ -1723,9 +1724,13 @@ export default function Solicitacao() {
                             cartão só se descobria abrindo a ficha. */}
                         <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}}>
                           {ehMolde(item) ? (
-                            <span data-testid={`chip-arquivo-mobile-${item.id}`} title="Molde não tem arquivo final — libera só com o thumb" style={{display:"inline-flex",alignItems:"center",gap:4,fontSize:11,fontWeight:700,padding:"2px 8px",borderRadius:999,backgroundColor:"#f5f5f4",border:"1px solid #d6d3d1",color:"#44403c"}}>
-                              Molde · sem arquivo final
-                            </span>
+                            <>
+                              <span data-testid={`chip-arquivo-mobile-${item.id}`} title="Molde não tem arquivo final — libera só com o thumb" style={{display:"inline-flex",alignItems:"center",gap:4,fontSize:11,fontWeight:700,padding:"2px 8px",borderRadius:999,backgroundColor:"#f5f5f4",border:"1px solid #d6d3d1",color:"#44403c"}}>
+                                Molde · sem arquivo final
+                              </span>
+                              {/* Prazo do molde (22/09): só o fluxo do molde o lê. */}
+                              <SeloPrazoMolde item={item} />
+                            </>
                           ) : item.finalFileUrl ? (
                             <span data-testid={`chip-arquivo-mobile-${item.id}`} style={{display:"inline-flex",alignItems:"center",gap:4,fontSize:11,fontWeight:700,padding:"2px 8px",borderRadius:999,backgroundColor:"#f0fdf4",border:"1px solid #bbf7d0",color:"#166534"}}>
                               <Check aria-hidden="true" style={{width:10,height:10}} /> Arquivo recebido
@@ -2115,9 +2120,13 @@ export default function Solicitacao() {
                                 a coluna tem 140px e "Aguardando Arte" não cabe. */}
                             <td data-testid={`cell-final-file-${item.id}`} style={{ padding: "12px 16px", whiteSpace: "nowrap" }}>
                               {ehMolde(item) ? (
-                                <span title="Molde não tem arquivo final — libera só com o thumb" style={{ display: "inline-flex", alignItems: "center", gap: 5, height: 24, padding: "0 9px", borderRadius: 999, backgroundColor: "#f5f5f4", border: "1px solid #d6d3d1", color: "#44403c", fontSize: 12, fontWeight: 700 }}>
-                                  Não se aplica
-                                </span>
+                                <div style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "flex-start" }}>
+                                  <span title="Molde não tem arquivo final — libera só com o thumb" style={{ display: "inline-flex", alignItems: "center", gap: 5, height: 24, padding: "0 9px", borderRadius: 999, backgroundColor: "#f5f5f4", border: "1px solid #d6d3d1", color: "#44403c", fontSize: 12, fontWeight: 700 }}>
+                                    Não se aplica
+                                  </span>
+                                  {/* Prazo do molde (22/09): só o fluxo do molde o lê. */}
+                                  <SeloPrazoMolde item={item} />
+                                </div>
                               ) : item.finalFileUrl ? (
                                 <span style={{ display: "inline-flex", alignItems: "center", gap: 5, height: 24, padding: "0 9px", borderRadius: 999, backgroundColor: "#f0fdf4", border: "1px solid #bbf7d0", color: "#166534", fontSize: 12, fontWeight: 700 }}>
                                   <Check aria-hidden="true" style={{ width: 11, height: 11 }} /> Recebido

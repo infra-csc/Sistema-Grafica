@@ -31,7 +31,8 @@ describe("a rota /api/events/:id/relatorio", () => {
     // buildEventPrazo devolve null para evento entregue/encerrado; a rota
     // repassa como está, e os totais continuam calculados fora dele.
     expect(ROTA).toContain("const vivas = itens.filter((i: any) => !OUT_OF_FUNNEL.has(i.status));");
-    expect(ROTA).toContain("DELIVERED.has(i.status)");
+    // Molde produzido conta como entregue (revisão 22/09, shared/molde.ts).
+    expect(ROTA).toContain("DELIVERED.has(statusParaContagem(i))");
   });
 
   it("as aprovações separam com quem está a bola — patrocinador vs Arte", () => {

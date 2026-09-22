@@ -106,7 +106,8 @@ describe("4 · o status no card", () => {
   it("ponto de 6px + rótulo, com o title dizendo o que aquilo significa", () => {
     expect(A).toContain("data-testid={`selo-status-${item.id}`}");
     expect(A).toContain("é daqui que ela sai quando a decisão que falta chegar");
-    expect(A).toContain("const meta = getStatusMeta(item.status);");
+    // statusDeExibicao: molde produzido lê "Produzido (molde)" (revisão 22/09).
+    expect(A).toContain("const meta = getStatusMeta(statusDeExibicao(item));");
     // tons canônicos de lib/status, não hex inventado na tela
     expect(A).toContain("backgroundColor: meta.bg, border: `1px solid ${meta.border}`");
   });

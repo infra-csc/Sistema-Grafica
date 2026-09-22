@@ -20,7 +20,10 @@ import {
 
 import { eventsCache, setEventsCache, eventsCacheGeneration, EVENTS_CACHE_TTL_MS } from "../cache";
 import { ITENS_RESUMO, resumirItensDosEventos } from "@shared/eventos-resumo";
-import { statusParaContagem, statusAoEnviarALista } from "@shared/molde";
+import { statusParaContagem, statusAoEnviarALista, ehMolde } from "@shared/molde";
+import { prazoMoldeParaGravar, prazoMoldeBR } from "@shared/prazo-molde";
+
+const ERRO_PRAZO_MOLDE = "Prazo do molde inválido — escolha um dia no calendário (ou deixe em branco)";
 // Mesmo predicado e mesma frase que server/routes/items.ts usa em toda
 // escrita de peça (ver o bloco "EVENTO FINALIZADO × ESCRITA DE PEÇA" em
 // ./eventoFinalizado). Importada de lá — não de "./items" — de propósito:
@@ -88,6 +91,9 @@ function describeEventChanges(before: any, after: any): string[] {
   }
   if (before.priority !== after.priority) {
     parts.push(`Prioridade: ${before.priority || "sem prioridade"} → ${after.priority || "sem prioridade"}`);
+  }
+  if ((prazoMoldeBR(before.prazoMolde) ?? null) !== (prazoMoldeBR(after.prazoMolde) ?? null)) {
+    parts.push(`Prazo do molde: ${prazoMoldeBR(before.prazoMolde) ?? "—"} → ${prazoMoldeBR(after.prazoMolde) ?? "—"}`);
   }
   if (before.approvalBookUrl !== after.approvalBookUrl) {
     parts.push(after.approvalBookUrl ? "Book de aprovação atualizado" : "Book de aprovação removido");
@@ -771,9 +777,14 @@ export function registerEventRoutes(app: Express): void {
       // PRIORIDADE (25/08): quem escolheu no formulário TRAVA (ajuste manual);
       // quem não escolheu já nasce com a automática pela saída do caminhão —
       // sem esperar o próximo tick do job.
+      // PRAZO DO MOLDE (22/09): opcional; o dia vira meio-dia UTC.
+      const prazoMolde = prazoMoldeParaGravar((safeData as any).prazoMolde);
+      if (prazoMolde === false) return res.status(400).json({ error: ERRO_PRAZO_MOLDE });
+
       const prioridadeEscolhida = (safeData as any).priority ?? null;
       const event = await storage.createEvent({
         ...safeData,
+        prazoMolde: prazoMolde ?? null,
         priority: prioridadeEscolhida ?? prioridadePelaSaida(truckAt.getTime(), Date.now()),
         priorityManual: !!prioridadeEscolhida,
         startDate: startAt,
@@ -882,6 +893,13 @@ export function registerEventRoutes(app: Express): void {
           });
         }
         patchData.truckDepartureDate = truckAt;
+      }
+
+      // PRAZO DO MOLDE (22/09): só mexe se veio; vazio limpa.
+      if ("prazoMolde" in patchData) {
+        const prazoMolde = prazoMoldeParaGravar(validatedData.prazoMolde);
+        if (prazoMolde === false) return res.status(400).json({ error: ERRO_PRAZO_MOLDE });
+        if (prazoMolde === undefined) delete patchData.prazoMolde; else patchData.prazoMolde = prazoMolde;
       }
 
       const event = await storage.updateEvent(req.params.id, patchData as any);
@@ -1216,22 +1234,37 @@ export function registerEventRoutes(app: Express): void {
         });
       }
 
-      // All updates successful - create audit log with actual count
-      await createAuditLog(
-        (req as any).userName,
-        'created',
-        'item',
-        eventId,
-        `${successfulUpdates.length} ${successfulUpdates.length === 1 ? 'item' : 'itens'}: Status alterado de Rascunho → Aguardando Vinculação (${successfulUpdates.length === 1 ? 'enviado' : 'enviados'} para vinculação)`
-      );
+      // All updates successful - create audit log with actual count.
+      // MOLDE (revisão 22/09): o molde NÃO foi para a Vinculação — foi direto
+      // para a Arte (Aguardando envio). A trilha e o aviso dizem o destino de
+      // cada grupo, em vez de chamar tudo de "aguardando vinculação".
+      const moldes = successfulUpdates.filter((i) => ehMolde(i)).length;
+      const comuns = successfulUpdates.length - moldes;
+      const frases: string[] = [];
+      if (comuns > 0) frases.push(`${comuns} ${comuns === 1 ? 'item' : 'itens'}: Status alterado de Rascunho → Aguardando Vinculação (${comuns === 1 ? 'enviado' : 'enviados'} para vinculação)`);
+      if (moldes > 0) frases.push(`${moldes} ${moldes === 1 ? 'molde' : 'moldes'}: Status alterado de Rascunho → Aguardando Envio (molde vai direto para a Arte, sem vinculação)`);
+      if (frases.length > 0) {
+        await createAuditLog(
+          (req as any).userName,
+          'created',
+          'item',
+          eventId,
+          frases.join(' | ')
+        );
+      }
 
       // Notify Arte and Admin profiles with actual count
-      await storage.createNotification({
-        type: 'itemsSubmitted',
-        message: `${successfulUpdates.length} ${successfulUpdates.length === 1 ? 'novo item' : 'novos itens'} aguardando vinculação de patrocinadores no evento "${event.name}"`,
-        targetRoles: ['arte'], // só quem AGE: a Arte cria o thumb; admin não tem ação aqui
-        eventId,
-      });
+      if (successfulUpdates.length > 0) {
+        const partes: string[] = [];
+        if (comuns > 0) partes.push(`${comuns} ${comuns === 1 ? 'novo item' : 'novos itens'} aguardando vinculação de patrocinadores`);
+        if (moldes > 0) partes.push(`${moldes} ${moldes === 1 ? 'molde pronto' : 'moldes prontos'} para a Arte (sem vinculação)`);
+        await storage.createNotification({
+          type: 'itemsSubmitted',
+          message: `${partes.join(' e ')} no evento "${event.name}"`,
+          targetRoles: ['arte'], // só quem AGE: a Arte cria o thumb; admin não tem ação aqui
+          eventId,
+        });
+      }
 
       broadcast({
         type: "items_submitted",

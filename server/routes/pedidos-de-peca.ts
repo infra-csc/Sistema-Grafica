@@ -42,6 +42,7 @@ import {
 import { requireRole, broadcast, createAuditLog, resolveActor } from "./shared";
 import { motivoEventoDaPeca, erroEventoFechado } from "./eventoFinalizado";
 import { resumosDeTuboPorIds, comTubo } from "../services/tubosDaPeca";
+import { ehMolde } from "@shared/molde";
 
 const requireLerPedidos = requireRole("admin", "solicitacao", "atendimento", "arte");
 const requirePedirPeca = requireRole("admin", "atendimento");
@@ -203,6 +204,14 @@ async function listarSolicitacoes(filtro: { eventId?: string; pedidoPorId?: stri
         reservaPorMaquina: itemsTable.reservaPorMaquina,
         tuboId: itemsTable.tuboId,
         receivedBy: itemsTable.receivedBy,
+        // Revisão 22/09: o molde decide a etapa (statusParaContagem), e a
+        // ficha de produção lê o piso físico e a trava como nas outras telas.
+        embaladaQty: itemsTable.embaladaQty,
+        deliveredQty: itemsTable.deliveredQty,
+        travadaEm: itemsTable.travadaEm,
+        travadaPor: itemsTable.travadaPor,
+        travadaPorId: itemsTable.travadaPorId,
+        travadaMotivo: itemsTable.travadaMotivo,
         linhaId: itemsTable.pedidoDePecaLinhaId,
       })
         .from(itemsTable)
@@ -310,7 +319,8 @@ export async function vincularPecaALinha(req: any, linhaId: string, itemId: stri
   }
 
   // O que a solicitação leva para a peça — sem sobrescrever o que ela já tem.
-  if ((linha.sponsorIds ?? []).length > 0 && PECA_SEM_FLUXO.has(peca.status)) {
+  // Molde não recebe patrocinador (revisão 22/09): não passa por Vincular nem por aprovação.
+  if ((linha.sponsorIds ?? []).length > 0 && PECA_SEM_FLUXO.has(peca.status) && !ehMolde(peca)) {
     const jaTem = await storage.getItemSponsors(itemId);
     if (jaTem.length === 0) {
       for (const sponsorId of linha.sponsorIds) {

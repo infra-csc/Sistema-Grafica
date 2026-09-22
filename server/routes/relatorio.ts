@@ -26,6 +26,7 @@ import {
 } from "../services/prazo-domain";
 import { requireAuth } from "./shared";
 import { ehBookCompleto } from "@shared/fluxo-peca";
+import { statusParaContagem } from "@shared/molde";
 
 /** Quantas fotos recentes viajam — o relatório é resumo, não galeria. */
 export const RELATORIO_MAX_FOTOS = 8;
@@ -90,7 +91,8 @@ export function registerRelatorioRoutes(app: Express): void {
 
       // ── Totais que valem mesmo com `prazo: null` ───────────────────────
       const vivas = itens.filter((i: any) => !OUT_OF_FUNNEL.has(i.status));
-      const entregues = vivas.filter((i: any) => DELIVERED.has(i.status)).length;
+      // Molde produzido é o fim do fluxo dele — conta como entregue (shared/molde.ts).
+      const entregues = vivas.filter((i: any) => DELIVERED.has(statusParaContagem(i))).length;
 
       res.json({
         gerado: { em: new Date().toISOString(), por: req.userName ?? "Sistema" },

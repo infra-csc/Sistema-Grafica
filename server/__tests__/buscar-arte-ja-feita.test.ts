@@ -238,6 +238,7 @@ describe("GET /api/artes/busca", () => {
     H.filas = [[linha("alvo")], [], [linha("a")], []];
     const r = await chamar({ item: "alvo" }, ARTE);
     expect(Object.keys(r.corpo.artes[0]).sort()).toEqual([
+      "aprovada", "aprovadaEm", "aprovadaPor",
       "arquivoFinalNome", "arquivoFinalUrl", "descricao", "displayId", "eventId", "eventInicio",
       "eventName", "eventoParecido", "id", "mesmoPatrocinador", "mesmoTipo", "patrocinadores",
       "previewUrl", "temArquivoFinal", "temPrevia", "temThumb", "thumbUrl", "tipo",
@@ -446,7 +447,8 @@ describe("o botão e o modal na Arte", () => {
     // "Enviar para aprovação" (submit-for-approval) segue igual.
     expect(ARTE_TSX).toContain("concluirEnvioDoThumb(imagem);");
     // troca do thumb já aprovado: a mutação de sempre (update-thumb).
-    expect(ARTE_TSX).toContain("updateThumbMutation.mutate({ itemId: buscaDeArte.itemId, approvalThumbUrl: imagem, origem: de });");
+    // (com o motivo quando a troca é depois da aprovação — regraDaTrocaDeThumb)
+    expect(ARTE_TSX).toContain("itemId: buscaDeArte.itemId, approvalThumbUrl: imagem, origem: de, statusAntes: alvo?.status,");
     // correção e arquivo final: os campos que o upload encheria.
     expect(ARTE_TSX).toContain("setCorrecaoThumbUrl(imagem);");
     expect(ARTE_TSX).toContain("setFinalFileUrl(arte.arquivoFinalUrl);");

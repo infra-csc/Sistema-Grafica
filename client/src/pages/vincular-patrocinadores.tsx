@@ -316,6 +316,21 @@ export default function VincularPatrocinadores() {
   // Resultado completo de um lote com muitas recusas — o toast fica para o
   // resumo; a lista nomeada (peça + motivo) abre aqui.
   const [resultadoDoLote, setResultadoDoLote] = useState<{ titulo: string; recusadas: { displayId: string; motivo: string }[] } | null>(null);
+  // POR QUE ESTA PEÇA NÃO SALVOU/NÃO FOI. Num lote com falha parcial o toast
+  // só resume; o motivo fica escrito NA LINHA da peça até ela dar certo.
+  const [falhaPorPeca, setFalhaPorPeca] = useState<Record<string, string>>({});
+  const registrarFalhas = (ok: string[], falhas: { itemId: string; message: string }[]) =>
+    setFalhaPorPeca(prev => {
+      const next = { ...prev };
+      ok.forEach(id => { delete next[id]; });
+      falhas.forEach(f => { next[f.itemId] = f.message; });
+      return next;
+    });
+  // As que falharam CONTINUAM selecionadas: é nelas que a pessoa vai agir.
+  const manterSelecionadas = (ids: string[]) => {
+    if (ids.length === 0) return;
+    setSelectedItemIds(prev => new Set([...Array.from(prev), ...ids]));
+  };
 
 
 
@@ -919,18 +934,30 @@ export default function VincularPatrocinadores() {
       // Audit-logs sim: o sync gera registro e o histórico do dialog de
       // detalhes ficava stale sem isto.
       queryClient.invalidateQueries({ queryKey: ["/api/audit-logs"] });
+      registrarFalhas(savedIds, failed);
+      manterSelecionadas(failed.map(f => f.itemId));
       if (failed.length === 0) {
         // "ESSE VÍNCULO FOI SALVO?" — sim, e o que vem depois. Sem modal de
         // confirmação antes (saiu na rodada 4), este aviso é a prova do salvo.
+        // Só aponta o envio para quem FICOU pronta: peça salva sem
+        // patrocinador e sem a marca volta a Pendente, e mandar "enviar"
+        // nela seria um clique que não a inclui.
+        const prontas = _vars.filter(p => savedIds.includes(p.itemId)
+          && (p.sponsorIds.length > 0 || p.skipApproval || items.find((i: any) => i.id === p.itemId)?.isReuse)).length;
+        const pecas = (n: number) => `${n} ${n === 1 ? 'peça' : 'peças'}`;
         toast({
           title: "Vinculação salva",
-          description: `Vínculo salvo em ${savedIds.length} ${savedIds.length === 1 ? 'peça' : 'peças'}. Próximo passo: Enviar para Arte.`,
+          description: prontas === savedIds.length
+            ? `Vínculo salvo em ${pecas(savedIds.length)}. Falta só o envio à Arte.`
+            : prontas > 0
+              ? `Vínculo salvo em ${pecas(savedIds.length)}. ${pecas(prontas)} ${prontas === 1 ? 'pode' : 'podem'} ir para a Arte; as sem patrocinador continuam pendentes.`
+              : `Salvo em ${pecas(savedIds.length)}, ainda sem patrocinador — ${savedIds.length === 1 ? 'ela continua pendente' : 'elas continuam pendentes'}.`,
         });
       } else {
         console.error("[vincular] falhas ao salvar:", failed);
         toast({
-          title: `${savedIds.length} salvo${savedIds.length !== 1 ? 's' : ''}, ${failed.length} com erro`,
-          description: `${failed[0].message}. As peças com erro continuam como rascunho — tente salvar de novo.`,
+          title: `${savedIds.length} ${savedIds.length === 1 ? 'salva' : 'salvas'}, ${failed.length} com problema`,
+          description: `${failed.length === 1 ? 'A peça com problema continua selecionada' : 'As peças com problema continuam selecionadas'} — o motivo está na linha.`,
           variant: "destructive",
         });
       }
@@ -945,9 +972,13 @@ export default function VincularPatrocinadores() {
         }
       }
       console.error("[vincular] save draft error:", _error);
+      const motivo = _error?.message || "Não foi possível salvar. Tente novamente.";
+      const ids = (_vars ?? []).map(p => p.itemId);
+      registrarFalhas([], ids.map(itemId => ({ itemId, message: motivo })));
+      manterSelecionadas(ids);
       toast({
         title: "Erro ao salvar vinculação",
-        description: _error?.message || "Não foi possível salvar. Tente novamente.",
+        description: ids.length > 1 ? `Nenhuma das ${ids.length} peças foi salva — o motivo está na linha de cada uma.` : motivo,
         variant: "destructive",
       });
     },
@@ -964,7 +995,12 @@ export default function VincularPatrocinadores() {
       setOptimisticSentIds(prev => new Set(Array.from(prev).concat(itemIds)));
     },
     onSuccess: async (data, itemIds) => {
-      setSelectedItemIds(new Set());
+      // O motivo por peça vem em `falhas`; as enviadas limpam o delas.
+      const falhasDoEnvio: { itemId: string; motivo: string }[] = data.falhas ?? [];
+      const idsComFalha = new Set(falhasDoEnvio.map(f => f.itemId));
+      registrarFalhas(itemIds.filter(id => !idsComFalha.has(id)), falhasDoEnvio.map(f => ({ itemId: f.itemId, message: f.motivo })));
+      // Só sai da seleção o que foi; a que falhou continua marcada.
+      setSelectedItemIds(prev => new Set(Array.from(prev).filter(id => idsComFalha.has(id))));
       setSendConfirmModal(null);
       // Audit-logs e notificações recarregam em background.
       queryClient.invalidateQueries({ queryKey: ["/api/audit-logs"] });
@@ -981,9 +1017,12 @@ export default function VincularPatrocinadores() {
           description: "Por outro envio ou por outra pessoa — elas já estão na fila da Arte. A lista foi atualizada.",
         });
       } else if (data.errors && data.errors.length > 0) {
+        const comProblema = falhasDoEnvio.length || data.errors.length;
         toast({
-          title: `${data.sent} ${data.sent === 1 ? 'peça enviada' : 'peças enviadas'} para a Arte`,
-          description: `Alguns itens tiveram erros: ${data.errors.join(', ')}`,
+          title: `${data.sent} ${data.sent === 1 ? 'enviada' : 'enviadas'}, ${comProblema} com problema`,
+          description: falhasDoEnvio.length > 0
+            ? "O motivo está na linha de cada peça que não foi."
+            : data.errors.join(', '),
           variant: "destructive",
         });
       } else {
@@ -1479,8 +1518,9 @@ export default function VincularPatrocinadores() {
     const celula: React.CSSProperties = isMobile ? { display: 'block', width: '100%' } : {};
 
     // Tudo o que a linha lê para desenhar e para agir — ver LinhaMemoizada.
+    const falha = falhaPorPeca[item.id];
     const deps: unknown[] = [
-      item, itemSponsorsMap[item.id], pendingChanges[item.id], originalSponsorsMap[item.id],
+      item, itemSponsorsMap[item.id], pendingChanges[item.id], originalSponsorsMap[item.id], falha,
       estado, selecionada, editavel, semPatrocinador, podeSelecionar, salvandoEsta,
       saveLinkingMutation.isPending, sendToArteMutation.isPending, isMobile,
       chips.length, ...chips, eventSponsors.length, ...eventSponsors,
@@ -1570,6 +1610,12 @@ export default function VincularPatrocinadores() {
               </span>
             )}
           </div>
+          {falha && (
+            <div role="alert" data-testid={`falha-linha-${item.id}`} style={{ display: 'flex', alignItems: 'flex-start', gap: 5, marginTop: 4, fontSize: 12, lineHeight: 1.4, color: '#b91c1c' }}>
+              <AlertTriangle aria-hidden="true" style={{ width: 12, height: 12, flexShrink: 0, marginTop: 2 }} />
+              <span>{falha}</span>
+            </div>
+          )}
         </td>
 
         {/* ── Qtd · m² ──
@@ -1955,10 +2001,16 @@ export default function VincularPatrocinadores() {
         // skipApproval só vai no body quando há rascunho com a flag; caso
         // contrário o servidor preserva o valor atual (mandar `false` fixo
         // apagava a marca "sem aprovação" de itens isentos).
-        await apiRequest("POST", `/api/items/${item.id}/sponsors/sync`, {
-          sponsorIds: merged,
-          ...(draft ? { skipApproval: draft.skipApproval } : {}),
-        });
+        try {
+          await apiRequest("POST", `/api/items/${item.id}/sponsors/sync`, {
+            sponsorIds: merged,
+            ...(draft ? { skipApproval: draft.skipApproval } : {}),
+          });
+        } catch (erro: any) {
+          // O motivo vai para a linha da peça que travou o envio.
+          registrarFalhas([], [{ itemId: item.id, message: erro?.message || "Não foi possível salvar o vínculo." }]);
+          throw erro;
+        }
         setOriginalSponsorsMap(prev => ({ ...prev, [item.id]: merged }));
         setItemSponsorsMap(prev => ({ ...prev, [item.id]: merged }));
         if (draft) setPendingChanges(prev => { const n = { ...prev }; delete n[item.id]; return n; });

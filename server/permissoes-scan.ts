@@ -54,6 +54,20 @@ function predicadosPuros(src: string): Map<string, string[]> {
   return m;
 }
 
+/** Papéis de guardas `if (![...].includes(<papel>)) return 403` num trecho de corpo. */
+export function papeisDeListaNegada(corpo: string): string[] {
+  const saida: string[] = [];
+  const guarda = /if\s*\(\s*!\s*\[([^\]]*)\]\s*\.includes\(\s*((?:[^()]|\([^()]*\))*?)\s*\)\s*\)\s*\{?\s*return\s+res\s*\.\s*(?:status\(\s*403\s*\)|sendStatus\(\s*403\s*\))/g;
+  for (const m of Array.from(corpo.matchAll(guarda))) {
+    const [, lista, arg] = m;
+    const ehPapel = /userRole/.test(arg)
+      || (/^(role|papel)\b/.test(arg) && new RegExp(`const ${arg.match(/^\w+/)![0]}\\s*=\\s*[^;]*userRole`).test(corpo));
+    if (!ehPapel) continue;
+    for (const p of Array.from(lista.matchAll(/["'](\w+)["']/g))) saida.push(p[1]);
+  }
+  return saida;
+}
+
 /**
  * Varre as rotas de ESCRITA (post/patch/put/delete) e devolve as que têm
  * papel declarado. Rota só com `requireAuth` (qualquer logado) fica de fora —
@@ -102,6 +116,12 @@ export function lerReguaDoServidor(dirRoutes?: string): RotaComPapel[] {
 
       const negados = Array.from(corpo.matchAll(/userRole !== ["'](\w+)["']/g)).map((x) => x[1]);
       if (negados.length) for (const p of negados) papeis.add(p);
+
+      // A lista negada: `if (!["admin", "arte"].includes(req.userRole ?? ""))`
+      // (ou de uma `role` tirada de userRole) que responde 403 NA HORA. Se o
+      // bloco faz outra coisa antes (ex.: aceita o criador do evento), não é
+      // recorte por papel e fica de fora — como o canCreateItemsFor.
+      for (const papel of papeisDeListaNegada(corpo)) papeis.add(papel);
 
       // 3 · a forma afirmativa (`const isAdmin = userRole === 'admin'`) e os
       //     PREDICADOS PUROS (`podeMudarQuantidade`), resolvidos do fonte. Um

@@ -471,13 +471,25 @@ describe("Arte troca o arquivo final — a arte nova alcança o complemento", ()
     params: { id: "mae-1" }, body: NOVA, userRole: over.userRole ?? "arte", userName: "João da Arte", userId: "u-arte",
   });
 
+  // A mãe com material produzido não troca mais de arquivo (é caso de
+  // complemento/reimpressão — shared/troca-de-material.ts). A propagação vale
+  // para a mãe em impressão ainda sem nenhuma impressa, que volta à Revisão.
   beforeEach(() => {
-    mundo.itens["mae-1"] = peca();
+    mundo.itens["mae-1"] = peca({ status: "inProduction", quantityProduced: 0, conferredQty: 0, deliveredQty: 0 });
     mundo.itens["filho-1"] = peca({
       id: "filho-1", displayId: "#0062-C1", parentItemId: "mae-1", complementSeq: 1,
       quantity: 4, status: "ready_for_production", quantityProduced: null, reuseQty: 0,
       conferredQty: 0, deliveredQty: 0,
     });
+  });
+
+  it("mãe JÁ ENTREGUE não troca de arquivo: 409 e o complemento fica intacto", async () => {
+    mundo.itens["mae-1"] = peca();
+    const r = await trocar();
+    expect(r.status).toBe(409);
+    expect(r.body.error).toContain("Já há material produzido");
+    expect(atualizacoesDe("filho-1")).toHaveLength(0);
+    expect(atualizacoesDe("mae-1")).toHaveLength(0);
   });
 
   const atualizacoesDe = (id: string) =>
@@ -543,8 +555,8 @@ describe("Arte troca o arquivo final — a arte nova alcança o complemento", ()
     delete mundo.itens["filho-1"];
     await trocar();
     const notifs = (H.storage.createNotification as any).mock.calls.map((c: any[]) => c[0]);
-    expect(notifs).toHaveLength(1);                       // só a da própria peça
-    expect(notifs[0].message).not.toContain("complemento");
+    // Só as da própria peça (voltou para a Revisão: Solicitação e Gráfica).
+    expect(notifs.every((n: any) => !String(n.message).includes("complemento"))).toBe(true);
   });
 
   it("falha na propagação NÃO desfaz a troca da mãe — ela já foi commitada", async () => {

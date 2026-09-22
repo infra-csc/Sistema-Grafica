@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { CheckCircle, AlertCircle, AlertTriangle, Eye, Calendar, Truck, Check, ChevronsUpDown, Search, Upload, FileImage, Clock, Package, Send, FolderOpen, FileText, FileCheck, RotateCcw, X, ArrowRight, Paperclip, Ban, FastForward, Printer, ChevronDown, CheckSquare, Palette, ExternalLink, RefreshCw, MoreHorizontal, Lock, WifiOff, Zap, Hourglass, Sparkles } from "lucide-react";
 import { Input } from "@/components/ui/input";
-import { apiRequest, queryClient } from "@/lib/queryClient";
+import { apiRequest, queryClient, MENSAGEM_SEM_CONEXAO } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { usePecaDoLink } from "@/hooks/use-peca-do-link";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -31,6 +31,10 @@ import {
   type EventoFinalizadoMotivo,
 } from "@/lib/status";
 import { ehBookCompleto } from "@shared/fluxo-peca";
+// Trocar arquivo final/thumb depois que a peça andou: a MESMA regra que as
+// rotas update-final-file e update-thumb aplicam — a tela não oferece o que o
+// servidor nega.
+import { regraDaTrocaDeArquivoFinal, regraDaTrocaDeThumb, MOTIVO_TROCA_MIN } from "@shared/troca-de-material";
 import { ehMolde, statusDeExibicao, arquivoFinalOk } from "@shared/molde";
 import { prazoDoMolde } from "@shared/prazo-molde";
 // Raio e paleta vêm de fonte, não do dedo: `R` tem cinco degraus e a Arte
@@ -65,6 +69,13 @@ import {
   PERIOD_FILTERS,
   PHASE_DEADLINE,
   ARTE_MARCOS_FAIXA,
+  MOTIVO_DISPENSA_MIN,
+  faltamNoMotivo,
+  fraseFaltamCaracteres,
+  erroDeTamanhoDoUpload,
+  mensagemDoUploadFalho,
+  textoDaTrocaDoThumb,
+  avisoDaTrocaDoArquivoFinal,
   type ArteFilters,
   type TriState,
   type PeriodFilter,
@@ -90,6 +101,7 @@ import { Link } from "wouter";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { SoQuandoMudar } from "@/components/arte/so-quando-mudar";
 import { BuscarArteDialog, imagemDaArte, type ArteEncontrada } from "@/components/buscar-arte-dialog";
+import { hrefSeguro } from "@shared/url-segura";
 
 // Quantas linhas a tabela monta por vez. O resto entra por "Carregar mais".
 const ARTE_PAGE_SIZE = 100;
@@ -1050,11 +1062,14 @@ export default function Arte() {
 
   const submitFinalFileMutation = useMutation({
     mutationFn: async ({ itemId, finalFileUrl, finalPreviewUrl, finalFileName, isUpdate }: { itemId: string; finalFileUrl: string; finalPreviewUrl?: string; finalFileName?: string; isUpdate?: boolean }) => {
-      return isUpdate
+      const res = isUpdate
         ? await apiRequest("PATCH", `/api/items/${itemId}/update-final-file`, { finalFileUrl, finalPreviewUrl, finalFileName })
         : await apiRequest("PATCH", `/api/items/${itemId}/submit-final-file`, { finalFileUrl, finalPreviewUrl, finalFileName });
+      // A troca numa peça liberada devolve a peça para a Revisão Final e o
+      // servidor avisa com `voltouParaRevisao` — é o que o toast precisa dizer.
+      return await res.json().catch(() => null) as { voltouParaRevisao?: boolean } | null;
     },
-    onSuccess: (_res, variables) => {
+    onSuccess: (resposta, variables) => {
       const id = itemPorId.get(variables.itemId)?.displayId;
       // Mesma próxima peça automática do envio do thumb, na fila de Finalizar
       // arte. Atualizar um arquivo que já existia (Finalizados) é conferência
@@ -1072,20 +1087,31 @@ export default function Arte() {
       // Atualizar e enviar pela primeira vez são fatos diferentes: só o envio
       // tira a peça de "Finalizar arte". O toast antigo dizia o mesmo nos dois.
       toast(variables.isUpdate
-        ? { title: id ? `Arquivo final de ${id} atualizado` : "Arquivo final atualizado", description: "O caminho anterior ficou guardado no histórico da peça." }
+        ? {
+            title: id ? `Arquivo final de ${id} atualizado` : "Arquivo final atualizado",
+            description: resposta?.voltouParaRevisao
+              ? "A peça voltou para a Revisão Final — quem solicitou confere o arquivo novo antes da Gráfica. O anterior ficou no histórico."
+              : "O caminho anterior ficou guardado no histórico da peça.",
+          }
         : { title: id ? `Arquivo final de ${id} enviado` : "Arquivo final enviado", description: `Segue para a revisão de quem solicitou a peça.${proxima ? ` Abrindo a próxima: ${proxima.displayId}.` : ""}` });
     },
-    onError: (error: Error) => {
+    onError: (error: Error, variables) => {
+      // O 409 da troca traz a frase certa (material produzido, peça travada):
+      // ela vai inteira no toast. A lista recarrega para a tela parar de
+      // oferecer a troca se a peça andou enquanto o modal estava aberto.
+      if (variables.isUpdate) queryClient.invalidateQueries({ queryKey: ["/api/items"] });
       toast({
-        title: "Erro ao enviar arquivo final",
+        title: variables.isUpdate ? "Não foi possível trocar o arquivo final" : "Erro ao enviar arquivo final",
         description: mensagemDeErro(error),
         variant: "destructive",
       });
     },
   });
 
-  // Troca do thumb já aprovado (Finalizar Arte / Finalizados). Não reabre a
-  // aprovação — o thumb anterior fica guardado no item e no histórico.
+  // Troca do thumb (Finalizar Arte / Revisão Final). A regra de quando pode e
+  // quando pede motivo é `regraDaTrocaDeThumb` (shared/troca-de-material); o
+  // thumb anterior fica guardado no item e no histórico.
+  const [motivoTrocaThumb, setMotivoTrocaThumb] = useState("");
   const updateThumbMutation = useMutation({
     // Mesmo defeito do rascunho: apiRequest devolve Response crua, então
     // `updated.id` era sempre undefined e a miniatura, o nome do arquivo e o
@@ -1095,20 +1121,34 @@ export default function Arte() {
     // `origem`: de qual peça a arte veio, quando o thumb foi REAPROVEITADO em
     // vez de subido (Buscar arte já feita). Só muda o texto do toast — a
     // gravação é a mesma para os dois caminhos.
-    mutationFn: async ({ itemId, approvalThumbUrl }: { itemId: string; approvalThumbUrl: string; origem?: string }) => {
-      const res = await apiRequest("PATCH", `/api/items/${itemId}/update-thumb`, { approvalThumbUrl });
+    // `motivo` só viaja quando a regra exige (troca depois da aprovação).
+    mutationFn: async ({ itemId, approvalThumbUrl, motivo }: { itemId: string; approvalThumbUrl: string; origem?: string; motivo?: string; statusAntes?: string }) => {
+      const res = await apiRequest("PATCH", `/api/items/${itemId}/update-thumb`, motivo ? { approvalThumbUrl, motivo } : { approvalThumbUrl });
       return await res.json();
     },
-    onSuccess: (_dados, variables) => {
+    onSuccess: (dados, variables) => {
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
       queryClient.invalidateQueries({ queryKey: ["/api/items/approved"] });
       queryClient.invalidateQueries({ queryKey: ["/api/audit-logs"], refetchType: "none" });
+      setMotivoTrocaThumb("");
+      // O servidor devolve a peça aprovada para a aprovação quando algum
+      // patrocinador aprova toda versão nova — o toast tem de dizer isso.
+      const voltouParaAprovacao = variables.statusAntes === "sponsor_approved" && dados?.status === "awaiting_sponsor_approval";
+      const descricao = voltouParaAprovacao
+        ? "Um patrocinador que aprova toda versão nova perdeu a aprovação — a peça voltou para a aprovação do Atendimento."
+        : variables.motivo
+        ? "Registrado como “trocada após aprovação”, com o seu motivo. O thumb anterior ficou no histórico."
+        : "O thumb anterior ficou guardado no histórico da peça.";
       toast(variables.origem
-        ? { title: `Arte de ${variables.origem} aplicada`, description: "O thumb anterior ficou guardado no histórico da peça." }
-        : { title: "Thumb atualizado", description: "O thumb anterior ficou guardado no histórico da peça." });
+        ? { title: `Arte de ${variables.origem} aplicada`, description: descricao }
+        : { title: "Thumb atualizado", description: descricao });
     },
-    onError: (error: Error) =>
-      toast({ title: "Erro ao atualizar thumb", description: mensagemDeErro(error), variant: "destructive" }),
+    onError: (error: Error) => {
+      // A peça pode ter andado (liberada, foi para o patrocinador): recarrega
+      // para a tela passar a mostrar o motivo em vez da ação.
+      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+      toast({ title: "Não foi possível trocar o thumb", description: mensagemDeErro(error), variant: "destructive" });
+    },
   });
 
   const resubmitMutation = useMutation({
@@ -1192,11 +1232,9 @@ export default function Arte() {
       return await apiRequest("PATCH", `/api/items/${itemId}/dispense`, { reason });
     },
     onSuccess: () => {
-      // A rota de dispensa NÃO emite broadcast nem notificação (ver o relatório
-      // de revisão, A4): a Gráfica só enxerga a peça no próximo carregamento.
-      // Enquanto o servidor não alinhar com as rotas irmãs, invalidamos também
-      // as chaves que a fila de produção lê, para pelo menos esta sessão ficar
-      // consistente.
+      // A rota emite `item_updated` e avisa o Atendimento — as outras telas
+      // se atualizam pelo WebSocket. Aqui invalida para esta sessão não
+      // depender de o socket estar de pé.
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
       queryClient.invalidateQueries({ queryKey: ["/api/items/approved"] });
       setDispenseItem(null);
@@ -1204,7 +1242,7 @@ export default function Arte() {
       toast({ title: "Direto para a finalização", description: "A peça pulou a aprovação do Atendimento — agora é subir o arquivo final." });
     },
     onError: (error: Error) => {
-      toast({ title: "Não foi possível liberar", description: mensagemDeErro(error), variant: "destructive" });
+      toast({ title: "Não foi possível dispensar", description: mensagemDeErro(error), variant: "destructive" });
     },
   });
 
@@ -1238,6 +1276,13 @@ export default function Arte() {
     // desfazê-la quando ele NÃO sobe — ver `desfazerEnvioDoThumb`.
     onFail?: () => void,
   ) => {
+    // Grande demais: diz antes de subir, em vez de esperar o 413 do servidor.
+    const grandeDemais = erroDeTamanhoDoUpload(file);
+    if (grandeDemais) {
+      toast({ title: "Arquivo grande demais", description: grandeDemais, variant: "destructive" });
+      onFail?.();
+      return;
+    }
     setIsPasteUploading(true);
     try {
       // Upload via servidor: o PUT direto no storage.googleapis.com é
@@ -1247,7 +1292,9 @@ export default function Arte() {
         body: file,
         headers: { "Content-Type": file.type || "image/png" },
       });
-      if (!res.ok) throw new Error("Falha no upload");
+      // A frase do servidor ("Tipo de arquivo não permitido"…) no lugar de
+      // "Falha no upload", que não dizia o que fazer.
+      if (!res.ok) throw new Error(mensagemDoUploadFalho(res.status, await res.text().catch(() => "")));
       const { url: objectUrl } = await res.json() as { url: string };
       const localPath = convertGCSUrlToLocalPath(objectUrl);
       onComplete(localPath);
@@ -1256,7 +1303,7 @@ export default function Arte() {
       // um arquivo. O nome do arquivo é o que confirma que subiu o certo.
       toast({ title: "Arquivo carregado", description: file.name && file.name !== "image.png" ? file.name : "Imagem colada da área de transferência." });
     } catch (e: any) {
-      toast({ title: "Não foi possível subir a imagem", description: e.message, variant: "destructive" });
+      toast({ title: "Não foi possível subir a imagem", description: e instanceof TypeError ? MENSAGEM_SEM_CONEXAO : e.message, variant: "destructive" });
       onFail?.();
     } finally {
       setIsPasteUploading(false);
@@ -1534,8 +1581,16 @@ export default function Arte() {
   // Upload sem alterar isPasteUploading (usado no bulk). Via servidor: o PUT
   // direto no storage.googleapis.com é bloqueado em redes corporativas.
   const uploadFileRaw = useCallback(async (file: File): Promise<string> => {
-    const res = await fetch("/api/objects/upload-direct", { method: "PUT", body: file, headers: { "Content-Type": file.type || "image/jpeg" } });
-    if (!res.ok) throw new Error("Falha no upload do arquivo");
+    // Grande demais não sobe: o cartão mostra o limite, sem gastar o envio.
+    const grandeDemais = erroDeTamanhoDoUpload(file);
+    if (grandeDemais) throw new Error(grandeDemais);
+    let res: Response;
+    try {
+      res = await fetch("/api/objects/upload-direct", { method: "PUT", body: file, headers: { "Content-Type": file.type || "image/jpeg" } });
+    } catch {
+      throw new Error(MENSAGEM_SEM_CONEXAO);
+    }
+    if (!res.ok) throw new Error(mensagemDoUploadFalho(res.status, await res.text().catch(() => "")));
     const { url } = await res.json() as { url: string };
     return convertGCSUrlToLocalPath(url);
   }, []);
@@ -1593,13 +1648,17 @@ export default function Arte() {
     const newEntries: BulkThumbEntry[] = arr.map(file => {
       const { item: matched, ambiguous } = matchFileToItem(file.name, bulkPendingPool as any[], taken);
       if (matched) taken.add(matched.id);
+      // Acima do limite do servidor o cartão já nasce com o erro escrito — não
+      // entra no envio para falhar minutos depois.
+      const grandeDemais = erroDeTamanhoDoUpload(file);
       return {
         id: `${file.name}-${Date.now()}-${Math.random()}`,
         file,
         preview: URL.createObjectURL(file),
         matchedItemId: matched?.id ?? null,
         ambiguous: !!matched && ambiguous,
-        status: 'pending' as const,
+        status: grandeDemais ? 'error' as const : 'pending' as const,
+        errorMsg: grandeDemais ?? undefined,
       };
     });
     setBulkThumbEntries(prev => [...prev, ...newEntries]);
@@ -1615,16 +1674,23 @@ export default function Arte() {
   // do arquivo (matchFileToItem) e a sugestão automática casaria peça × arte
   // sem arquivo nenhum — dois vínculos diferentes na mesma tela, cada um com
   // seu jeito de errar. Fazer só com o desenho de conferência em pé.
-  const runBulkThumb = useCallback(async (send: boolean) => {
+  // "Tentar de novo" num cartão com erro refaz SÓ aquele envio, no mesmo modo
+  // (enviar ou rascunho) do lote que falhou — antes era remover e adicionar a
+  // imagem de novo, e o vínculo feito à mão se perdia junto.
+  const bulkUltimoModoRef = useRef(true);
+  const runBulkThumb = useCallback(async (send: boolean, soEstes?: string[]) => {
     if (!podeEditar) return; // gate de papel: nem sobe arquivo para tomar 403 depois
-    const toProcess = bulkThumbEntries.filter(e => e.matchedItemId && e.status === 'pending');
+    const toProcess = bulkThumbEntries.filter(e => e.matchedItemId && (soEstes
+      ? soEstes.includes(e.id) && e.status === 'error'
+      : e.status === 'pending'));
     if (!toProcess.length) return;
+    bulkUltimoModoRef.current = send;
     setBulkThumbRunning(true);
     setBulkThumbProgress({ feitos: 0, total: toProcess.length });
     let enviados = 0, enviadosMolde = 0, salvos = 0, reenviados = 0, falhas = 0;
 
     const processar = async (entry: BulkThumbEntry) => {
-      setBulkThumbEntries(prev => prev.map(e => e.id === entry.id ? { ...e, status: 'uploading' } : e));
+      setBulkThumbEntries(prev => prev.map(e => e.id === entry.id ? { ...e, status: 'uploading', errorMsg: undefined } : e));
       try {
         const localPath = await uploadFileRaw(entry.file);
         // "Enviar para aprovação" só vale para peças aguardando envio. Para as
@@ -1683,11 +1749,12 @@ export default function Arte() {
     // erro lá embaixo da lista, fora da vista — e quem fechava o modal
     // confiando no aviso perdia as imagens que não subiram.
     toast(falhas > 0
-      ? { title: `${p(falhas, "imagem não subiu", "imagens não subiram")}`, description: `${partes ? `${partes}. ` : ""}As que falharam ficam na lista com o motivo; para reenviar, remova e adicione a imagem de novo.`, variant: "destructive" }
+      ? { title: `${p(falhas, "imagem não subiu", "imagens não subiram")}`, description: `${partes ? `${partes}. ` : ""}As que falharam ficam na lista com o motivo — “Tentar de novo” no cartão reenvia só aquela.`, variant: "destructive" }
       : { title: "Envio em lote concluído", description: partes || "Nada a processar" });
   }, [bulkThumbEntries, uploadFileRaw, allItems, correcaoItems, podeEditar, mensagemDeErro, toast]);
 
   const handleBulkThumbUpload = useCallback(() => runBulkThumb(true), [runBulkThumb]);
+  const tentarDeNovoNoLote = useCallback((entryId: string) => runBulkThumb(bulkUltimoModoRef.current, [entryId]), [runBulkThumb]);
   const handleBulkThumbSaveDraft = useCallback(() => runBulkThumb(false), [runBulkThumb]);
 
   // Trabalho que se perde ao fechar: arquivos ainda não processados.
@@ -2259,6 +2326,11 @@ export default function Arte() {
       return;
     }
     const isUpdate = !!selectedItem.finalFileUrl; // já tinha arquivo → é atualização
+    const regra = isUpdate ? regraDaTrocaDeArquivoFinal(selectedItem) : null;
+    if (regra && !regra.pode) {
+      toast({ title: "Não foi possível trocar o arquivo final", description: regra.motivo, variant: "destructive" });
+      return;
+    }
     submitFinalFileMutation.mutate({ itemId: selectedItem.id, finalFileUrl, finalPreviewUrl: "", finalFileName: fileNameFromPath(finalFileUrl) || "", isUpdate });
   };
 
@@ -2287,6 +2359,15 @@ export default function Arte() {
   // menor enquanto a pessoa digita). "Ignorar" vale para a sessão, por peça.
   const naFinalizacao = !!selectedItem && podeEditar
     && ["sponsor_approved", "awaiting_creator_review"].includes(selectedItem.status);
+
+  // Trocar thumb / arquivo final da peça aberta: as regras do servidor. Só a
+  // TROCA do arquivo final passa pela regra — o primeiro envio é outra rota.
+  const regraThumbSel = selectedItem ? regraDaTrocaDeThumb(selectedItem) : null;
+  const regraFinalSel = selectedItem?.finalFileUrl ? regraDaTrocaDeArquivoFinal(selectedItem) : null;
+  const thumbPedeMotivo = !!regraThumbSel && regraThumbSel.pode && regraThumbSel.exigeMotivo;
+  const faltamMotivoThumb = thumbPedeMotivo ? faltamNoMotivo(motivoTrocaThumb, MOTIVO_TROCA_MIN) : 0;
+  // O motivo é da peça: trocar de peça não leva o texto junto.
+  useEffect(() => { setMotivoTrocaThumb(""); }, [selectedItemId]);
   const [sugestoesIgnoradas, setSugestoesIgnoradas] = useState<Set<string>>(() => new Set());
   const chaveDaSugestaoFinal = selectedItem ? `/api/artes/sugestao-final?item=${encodeURIComponent(selectedItem.id)}` : "";
   const { data: sugestaoFinal = null } = useQuery<SugestaoDeArquivoFinal | null>({
@@ -2353,8 +2434,23 @@ export default function Arte() {
       }
       // A troca do thumb já aprovado grava NA HORA, pela mutação de sempre
       // (update-thumb): mesma revogação de aprovação estrita, mesma versão de
-      // arte, mesma trilha.
-      updateThumbMutation.mutate({ itemId: buscaDeArte.itemId, approvalThumbUrl: imagem, origem: de });
+      // arte, mesma trilha — e o mesmo motivo quando a regra o exige.
+      const alvo = itemPorId.get(buscaDeArte.itemId);
+      const regra = regraDaTrocaDeThumb(alvo);
+      if (!regra.pode) {
+        setBuscaDeArte(null);
+        toast({ title: "Não dá para trocar o thumb", description: regra.motivo, variant: "destructive" });
+        return;
+      }
+      if (regra.exigeMotivo && faltamNoMotivo(motivoTrocaThumb, MOTIVO_TROCA_MIN) > 0) {
+        setBuscaDeArte(null);
+        toast({ title: "Falta o motivo da troca", description: `Escreva no campo do thumb, em pelo menos ${MOTIVO_TROCA_MIN} caracteres, por que ele está sendo trocado.`, variant: "destructive" });
+        return;
+      }
+      updateThumbMutation.mutate({
+        itemId: buscaDeArte.itemId, approvalThumbUrl: imagem, origem: de, statusAntes: alvo?.status,
+        motivo: regra.exigeMotivo ? motivoTrocaThumb.trim().replace(/\s+/g, " ") : undefined,
+      });
       setBuscaDeArte(null);
       return;
     }
@@ -2784,13 +2880,13 @@ export default function Arte() {
     return (
       <span style={{ display: 'inline-flex', flexWrap: 'wrap', alignItems: 'center', gap: 10 }}>
         {item.referenceUrl && (
-          <a href={item.referenceUrl} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} title="Ver referência visual do solicitante" style={link} data-testid={`link-reference-arte-${item.id}`}>
+          <a href={hrefSeguro(item.referenceUrl)} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} title="Ver referência visual do solicitante" style={link} data-testid={`link-reference-arte-${item.id}`}>
             <Paperclip aria-hidden="true" style={{ width: 10, height: 10 }} />
             Ref. visual
           </a>
         )}
         {item.bookUrl ? (
-          <a href={item.bookUrl} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} title="Abrir book de aprovação (PDF) para enviar ao patrocinador" style={link} data-testid={`link-book-arte-${item.id}`}>
+          <a href={hrefSeguro(item.bookUrl)} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} title="Abrir book de aprovação (PDF) para enviar ao patrocinador" style={link} data-testid={`link-book-arte-${item.id}`}>
             <FileText aria-hidden="true" style={{ width: 10, height: 10 }} />
             Book
           </a>
@@ -2968,7 +3064,7 @@ export default function Arte() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <ThumbPreview url={item.approvalThumbUrl} label={`thumb de ${item.displayId}`} />
           {item.finalFileUrl ? (
-            <a href={item.finalFileUrl} target="_blank" rel="noopener noreferrer" title="Ver arquivo final" style={{ width: 26, height: 26, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f0fdf4', color: '#16a34a', border: '1px solid #bbf7d0', flexShrink: 0 }}>
+            <a href={hrefSeguro(item.finalFileUrl)} target="_blank" rel="noopener noreferrer" title="Ver arquivo final" style={{ width: 26, height: 26, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f0fdf4', color: '#16a34a', border: '1px solid #bbf7d0', flexShrink: 0 }}>
               <FileText style={{ width: 13, height: 13 }} />
             </a>
           ) : (
@@ -5049,14 +5145,24 @@ export default function Arte() {
               </div>
             )}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 20 }}>
-              <label style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#57534e' }}>Motivo (opcional)</label>
+              {/* Motivo OBRIGATÓRIO: pular a aprovação sem dizer por quê
+                  deixava a Revisão e o Atendimento sem saber se foi combinado. */}
+              <label htmlFor="motivo-dispensa-arte" style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#57534e' }}>
+                Motivo <span style={{ color: P.red.text }}>*</span>
+              </label>
               <textarea
+                id="motivo-dispensa-arte"
                 value={dispenseReason}
                 onChange={e => setDispenseReason(e.target.value)}
                 placeholder="Ex: patrocinador já aprovou por fora; peça sem marca..."
                 data-testid="textarea-dispense-reason"
-                style={{ width: '100%', backgroundColor: '#fafaf9', border: '1px solid #e7e5e4', borderRadius: 8, padding: '10px 12px', fontSize: 12, resize: 'none', height: 72, fontFamily: 'inherit', color: '#1c1917', boxSizing: 'border-box' }}
+                style={{ width: '100%', backgroundColor: '#fafaf9', border: `1px solid ${faltamNoMotivo(dispenseReason, MOTIVO_DISPENSA_MIN) > 0 ? '#e7e5e4' : '#16a34a'}`, borderRadius: 8, padding: '10px 12px', fontSize: 12, resize: 'none', height: 72, fontFamily: 'inherit', color: '#1c1917', boxSizing: 'border-box' }}
               />
+              {faltamNoMotivo(dispenseReason, MOTIVO_DISPENSA_MIN) > 0 && (
+                <p data-testid="dispense-faltam" style={{ margin: 0, fontSize: 11, color: P.amber.text }}>
+                  {fraseFaltamCaracteres(faltamNoMotivo(dispenseReason, MOTIVO_DISPENSA_MIN))} — diga por que a peça pula a aprovação do Atendimento.
+                </p>
+              )}
             </div>
           </div>
           {/* Rodapé da casca: Cancelar à esquerda, primário à direita — a mesma
@@ -5070,8 +5176,8 @@ export default function Arte() {
                 Cancelar
               </button>
               <button
-                onClick={() => dispenseItem && dispenseMutation.mutate({ itemId: dispenseItem.id, reason: dispenseReason })}
-                disabled={dispenseMutation.isPending}
+                onClick={() => dispenseItem && faltamNoMotivo(dispenseReason, MOTIVO_DISPENSA_MIN) === 0 && dispenseMutation.mutate({ itemId: dispenseItem.id, reason: dispenseReason.trim().replace(/\s+/g, " ") })}
+                disabled={dispenseMutation.isPending || faltamNoMotivo(dispenseReason, MOTIVO_DISPENSA_MIN) > 0}
                 data-testid="button-confirm-dispense"
                 // CONTORNO, não vermelho cheio.
                 //
@@ -5080,7 +5186,11 @@ export default function Arte() {
                 // convida ao clique reflexo justamente onde não há volta. O
                 // contorno mantém o vermelho como AVISO e obriga a ler antes.
                 // Mesmo tratamento de "Reprovar" no Atendimento.
-                style={{ height: 40, padding: '0 16px', borderRadius: R.md, backgroundColor: '#ffffff', border: `1.5px solid ${P.amber.text}`, color: P.amber.text, fontSize: 13, fontWeight: 700, cursor: dispenseMutation.isPending ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, opacity: dispenseMutation.isPending ? 0.7 : 1 }}
+                // Sem motivo: o cinza de desabilitado da casa (#57534e sobre
+                // #e7e5e4, legível) — o porquê está escrito embaixo do campo.
+                style={faltamNoMotivo(dispenseReason, MOTIVO_DISPENSA_MIN) > 0
+                  ? { height: 40, padding: '0 16px', borderRadius: R.md, backgroundColor: '#e7e5e4', border: '1.5px solid #e7e5e4', color: '#57534e', fontSize: 13, fontWeight: 700, cursor: 'not-allowed', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }
+                  : { height: 40, padding: '0 16px', borderRadius: R.md, backgroundColor: '#ffffff', border: `1.5px solid ${P.amber.text}`, color: P.amber.text, fontSize: 13, fontWeight: 700, cursor: dispenseMutation.isPending ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, opacity: dispenseMutation.isPending ? 0.7 : 1 }}
               >
                 {dispenseMutation.isPending ? (
                   <>
@@ -5093,7 +5203,7 @@ export default function Arte() {
                         invisível, justamente durante a dispensa, que é quando a
                         pessoa precisa saber que o clique pegou. */}
                     <div style={{ width: 14, height: 14, borderRadius: R.pill, border: `2px solid ${P.amber.border}`, borderTopColor: P.amber.text, animation: 'spin 0.8s linear infinite' }} />
-                    Liberando…
+                    Enviando…
                   </>
                 ) : (
                   <><FastForward style={{ width: 14, height: 14 }} />Mandar para finalização</>
@@ -5622,36 +5732,64 @@ export default function Arte() {
                       <a href={selectedItem.approvalThumbUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: '#44403c', textDecoration: 'underline', textUnderlineOffset: 2 }}>
                         Abrir em nova aba
                       </a>
-                      {/* "Trocar thumb" aqui sobe NA HORA, sem confirmação — e
-                          a dúvida que segurava o clique era "isso reabre a
-                          aprovação?". Não reabre (update-thumb); diz antes. */}
-                      <p style={{ margin: '2px 0 0', fontSize: 11, color: '#57534e', lineHeight: 1.4 }}>
-                        Trocar não reabre a aprovação — o anterior fica no histórico.
-                      </p>
+                      {/* "Trocar thumb" sobe NA HORA, sem confirmação — então o
+                          que a troca faz (ou por que não dá) vem escrito antes. */}
+                      {regraThumbSel && (
+                        <p data-testid="texto-troca-thumb" style={{ margin: '2px 0 0', fontSize: 11, color: '#57534e', lineHeight: 1.4 }}>
+                          {textoDaTrocaDoThumb(selectedItem.status, regraThumbSel)}
+                        </p>
+                      )}
                     </div>
 
-                    {/* Trocar o thumb sem reabrir a aprovação */}
-                    <FileUploader
-                      onGetUploadParameters={getUploadUrl}
-                      onComplete={(result) => updateThumbMutation.mutate({
-                        itemId: selectedItem.id,
-                        approvalThumbUrl: convertGCSUrlToLocalPath(result.url),
-                      })}
-                      accept="image/*,application/pdf"
-                      data-testid="uploader-update-thumb"
-                      buttonVariant="ghost"
-                      buttonClassName="h-9 px-3 text-[12px] font-semibold text-stone-800 bg-white border border-stone-300 rounded-lg hover:bg-stone-50 shrink-0"
-                    >
-                      {updateThumbMutation.isPending ? 'Enviando…' : 'Trocar thumb'}
-                    </FileUploader>
-                    {/* Aqui a troca grava na hora (update-thumb), e
-                        reaproveitar segue a MESMA mutação — ver
-                        aplicarArteEncontrada. */}
-                    <BotaoBuscarArte
-                      variante="discreto"
-                      testId="button-buscar-arte-troca-aprovada"
-                      onClick={() => setBuscaDeArte({ itemId: selectedItem.id, displayId: selectedItem.displayId, destino: "thumb-troca" })}
-                    />
+                    {regraThumbSel?.pode && (
+                      <>
+                        <FileUploader
+                          onGetUploadParameters={getUploadUrl}
+                          onComplete={(result) => updateThumbMutation.mutate({
+                            itemId: selectedItem.id,
+                            approvalThumbUrl: convertGCSUrlToLocalPath(result.url),
+                            statusAntes: selectedItem.status,
+                            motivo: thumbPedeMotivo ? motivoTrocaThumb.trim().replace(/\s+/g, " ") : undefined,
+                          })}
+                          accept="image/*,application/pdf"
+                          data-testid="uploader-update-thumb"
+                          disabled={faltamMotivoThumb > 0 || updateThumbMutation.isPending}
+                          buttonVariant="ghost"
+                          buttonClassName="h-9 px-3 text-[12px] font-semibold text-stone-800 bg-white border border-stone-300 rounded-lg hover:bg-stone-50 shrink-0"
+                        >
+                          {updateThumbMutation.isPending ? 'Enviando…' : 'Trocar thumb'}
+                        </FileUploader>
+                        {/* Reaproveitar segue a MESMA mutação (e o mesmo
+                            motivo) — ver aplicarArteEncontrada. */}
+                        {faltamMotivoThumb === 0 && (
+                          <BotaoBuscarArte
+                            variante="discreto"
+                            testId="button-buscar-arte-troca-aprovada"
+                            onClick={() => setBuscaDeArte({ itemId: selectedItem.id, displayId: selectedItem.displayId, destino: "thumb-troca" })}
+                          />
+                        )}
+                      </>
+                    )}
+                    {thumbPedeMotivo && (
+                      <div style={{ flexBasis: '100%', display: 'flex', flexDirection: 'column', gap: 4 }}>
+                        <label htmlFor="motivo-troca-thumb" style={{ fontSize: 11, fontWeight: 700, color: '#57534e' }}>
+                          Motivo da troca <span style={{ color: P.red.text }}>*</span>
+                        </label>
+                        <textarea
+                          id="motivo-troca-thumb"
+                          value={motivoTrocaThumb}
+                          onChange={(e) => setMotivoTrocaThumb(e.target.value)}
+                          placeholder="Ex: o patrocinador pediu o logo novo por e-mail depois de aprovar."
+                          data-testid="textarea-motivo-troca-thumb"
+                          style={{ width: '100%', backgroundColor: '#ffffff', border: `1px solid ${faltamMotivoThumb > 0 ? '#e7e5e4' : '#16a34a'}`, borderRadius: R.md, padding: '8px 10px', fontSize: 12, resize: 'none', height: 60, fontFamily: 'inherit', color: '#1c1917', boxSizing: 'border-box' }}
+                        />
+                        {faltamMotivoThumb > 0 && (
+                          <p data-testid="troca-thumb-faltam" style={{ margin: 0, fontSize: 11, color: P.amber.text }}>
+                            {fraseFaltamCaracteres(faltamMotivoThumb)} para liberar “Trocar thumb”.
+                          </p>
+                        )}
+                      </div>
+                    )}
                   </div>
                 );
               })()}
@@ -5677,6 +5815,15 @@ export default function Arte() {
                 </div>
               )}
 
+              {regraFinalSel && !regraFinalSel.pode ? (
+                // A troca não cabe mais: o motivo no lugar do campo (a rota
+                // responderia 409 com a mesma frase).
+                <p data-testid="final-troca-bloqueada" style={{ display: 'flex', alignItems: 'flex-start', gap: 8, margin: 0, padding: '10px 12px', borderRadius: 8, background: '#f5f5f4', border: '1px solid #e7e5e4', fontSize: 12, color: '#44403c', lineHeight: 1.5 }}>
+                  <Lock aria-hidden="true" style={{ width: 14, height: 14, color: '#57534e', flexShrink: 0, marginTop: 2 }} />
+                  <span><b style={{ fontWeight: 700 }}>Arquivo final não pode mais ser trocado.</b> {regraFinalSel.motivo}</span>
+                </p>
+              ) : (
+              <>
               {/* Caminho do arquivo final (rede) */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 {/* htmlFor: o rótulo era um <label> solto (sem vínculo com o
@@ -5750,6 +5897,14 @@ export default function Arte() {
                 )}
               </div>
 
+              {/* Troca que devolve a peça para a Revisão Final: dito ANTES do
+                  clique, junto da ação. */}
+              {regraFinalSel && avisoDaTrocaDoArquivoFinal(regraFinalSel) && (
+                <p data-testid="aviso-troca-volta-revisao" style={{ display: 'flex', alignItems: 'flex-start', gap: 6, margin: 0, padding: '7px 10px', borderRadius: 6, background: P.amber.bg, border: `1px solid ${P.amber.border}`, fontSize: 11.5, fontWeight: 600, color: '#92400e', lineHeight: 1.45 }}>
+                  <RotateCcw aria-hidden="true" style={{ width: 13, height: 13, flexShrink: 0, marginTop: 1 }} />
+                  {avisoDaTrocaDoArquivoFinal(regraFinalSel)}
+                </p>
+              )}
               {/* CTA button */}
               <button
                 onClick={handleSubmitFinalFile}
@@ -5793,6 +5948,8 @@ export default function Arte() {
                   Quem pediu a peça confere o arquivo; depois ela vai para a Gráfica.
                 </p>
               ) : null}
+              </>
+              )}
             </div>
           </section>
         ) : null}
@@ -6353,7 +6510,7 @@ export default function Arte() {
                     <p style={{ fontSize: 12, color: '#57534e', margin: '1px 0 0' }}>O PDF que você subir abaixo substitui o atual</p>
                   </div>
                   <a
-                    href={existingBookUrl} target="_blank" rel="noopener noreferrer"
+                    href={hrefSeguro(existingBookUrl)} target="_blank" rel="noopener noreferrer"
                     onClick={e => e.stopPropagation()}
                     style={{ display: 'inline-flex', alignItems: 'center', gap: 4, minHeight: 32, fontSize: 12, fontWeight: 600, color: '#1c1917', textDecoration: 'none', background: '#fff', border: '1px solid #d6d3d1', borderRadius: 8, padding: '0 10px', flexShrink: 0, whiteSpace: 'nowrap' }}
                   >
@@ -6844,9 +7001,27 @@ export default function Arte() {
                                 <span style={{ fontSize: 11, color: '#7c3aed', fontWeight: 600 }}>Enviando...</span>
                               </div>
                             ) : entry.status === 'error' ? (
-                              <div style={{ padding: '5px 8px', borderRadius: 6, backgroundColor: '#fef2f2', border: '1px solid #fecaca' }}>
-                                <p style={{ fontSize: 11, fontWeight: 700, color: '#dc2626', margin: '0 0 1px' }}>Falha no envio</p>
-                                <p style={{ fontSize: 11, color: '#b91c1c', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{entry.errorMsg}</p>
+                              <div style={{ padding: '5px 8px', borderRadius: 6, backgroundColor: '#fef2f2', border: '1px solid #fecaca', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                                {/* A frase do servidor inteira, quebrando linha: cortada
+                                    em reticências ela escondia justamente o que fazer. */}
+                                <div style={{ flex: '1 1 160px', minWidth: 0 }}>
+                                  <p style={{ fontSize: 11, fontWeight: 700, color: '#b91c1c', margin: '0 0 1px' }}>Falha no envio</p>
+                                  <p data-testid={`bulk-thumb-erro-${entry.id}`} style={{ fontSize: 11, color: '#b91c1c', margin: 0, lineHeight: 1.4, overflowWrap: 'anywhere' }}>{entry.errorMsg}</p>
+                                </div>
+                                {/* Sem retentativa para o grande demais: o mesmo arquivo
+                                    falharia de novo. Sem peça vinculada, falta escolher. */}
+                                {!erroDeTamanhoDoUpload(entry.file) && isLinked && (
+                                  <button
+                                    type="button"
+                                    onClick={() => tentarDeNovoNoLote(entry.id)}
+                                    disabled={bulkThumbRunning}
+                                    data-testid={`button-bulk-thumb-tentar-${entry.id}`}
+                                    style={{ minHeight: isMobile ? 44 : 32, padding: '0 12px', borderRadius: 8, border: '1px solid #fecaca', background: '#ffffff', color: '#b91c1c', fontSize: 12, fontWeight: 700, cursor: bulkThumbRunning ? 'not-allowed' : 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6, flexShrink: 0, opacity: bulkThumbRunning ? 0.6 : 1 }}
+                                  >
+                                    <RefreshCw aria-hidden="true" style={{ width: 12, height: 12 }} />
+                                    Tentar de novo
+                                  </button>
+                                )}
                               </div>
                             ) : isLinked && matchedItem ? (
                               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>

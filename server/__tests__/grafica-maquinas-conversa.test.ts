@@ -56,7 +56,7 @@ const ACOES: { acao: string; rota: string; arquivo: string; mensagens: string[] 
   { acao: "conferir", rota: '"/api/items/:id/confer"', arquivo: "server/routes/items.ts", mensagens: ["item_updated"] },
   { acao: "reaproveitar / corrigir reaproveitamento", rota: '"/api/items/:id/mark-reuse"', arquivo: "server/routes/items.ts", mensagens: ["item_updated"] },
   { acao: "embalar / tirar do tubo / entregar tubo", rota: "tubos", arquivo: "server/routes/tubos.ts", mensagens: ["items_bulk_updated", "tubos_atualizados"] },
-  { acao: "liberar peça (Revisão Final)", rota: '"/api/items/:id/approve"', arquivo: "server/routes/items.ts", mensagens: ["item_approved"] },
+  { acao: "liberar peça (Revisão Final)", rota: '"/api/items/:id/creator-review"', arquivo: "server/routes/items.ts", mensagens: ["item_approved"] },
   { acao: "cancelar / devolver em lote", rota: '"/api/items/bulk-cancel"', arquivo: "server/routes/items.ts", mensagens: ["items_bulk_updated"] },
   { acao: "excluir peça", rota: '"/api/items/:id"', arquivo: "server/routes/items.ts", mensagens: ["item_deleted"] },
   { acao: "encerrar / reabrir evento", rota: "event_closed", arquivo: "server/routes/events.ts", mensagens: ["event_closed", "event_reopened"] },

@@ -279,7 +279,12 @@ describe("Revisão Final — libera o molde sem arquivo final", () => {
 
   it("a devolução do molde vai sempre para a Arte (não há finalização)", () => {
     const rotasSrc = ler("server/routes/items.ts");
-    expect(rotasSrc.split("camposDoDestino(destinoDaDevolucao(destino, currentItem), await rodadaDeAprovacaoFechada(currentItem))").length - 1).toBe(5);
+    // As duas portas da Revisão (individual e lote) gravam pelo mesmo helper,
+    // que passa o destino por destinoDaDevolucao e a peça para camposDoDestino
+    // (o molde mantém o thumb — ver molde-devolucao-revisao em
+    // revisao-trava-lote-e-trocas.test.ts, que roda as rotas).
+    expect(rotasSrc.split("camposDaDevolucaoDaRevisao(currentItem, destino, notes)").length - 1).toBe(2);
+    expect(rotasSrc).toContain("const destinoEfetivo = destinoDaDevolucao(destino, peca);");
     expect(rotasSrc).not.toContain("camposDoDestino(destino, await rodadaDeAprovacaoFechada(currentItem))");
   });
 });

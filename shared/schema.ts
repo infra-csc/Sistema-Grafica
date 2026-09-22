@@ -27,6 +27,20 @@ export const session = pgTable(
   (table) => [index("IDX_session_expire").on(table.expire)],
 );
 
+// Tokens de troca do SSO do portal: uso único, vida de 60 s. Em tabela (e não
+// na memória do processo) porque o Autoscale pode atender o redirect numa
+// réplica e a troca em outra. Guarda só o hash do token.
+export const ssoTokensDeTroca = pgTable(
+  "sso_tokens_de_troca",
+  {
+    tokenHash: text("token_hash").primaryKey(),
+    userId: varchar("user_id").notNull(),
+    expiraEm: timestamp("expira_em").notNull(),
+    criadoEm: timestamp("criado_em").notNull().default(sql`now()`),
+  },
+  (table) => [index("IDX_sso_tokens_expira").on(table.expiraEm)],
+);
+
 // Events table
 export const events = pgTable("events", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),

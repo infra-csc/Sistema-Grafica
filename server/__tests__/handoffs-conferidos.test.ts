@@ -100,9 +100,10 @@ describe("Revisão", () => {
     expect(REV).toContain("chip-caminhao-");
   });
 
-  it("9 · os oito FreezeWhileClosing continuam", () => {
-    // 8 desde 25/08: o diálogo de "Reaproveitar em lote" entrou congelado.
-    expect(conta(REV, /<FreezeWhileClosing/g)).toBe(8);
+  it("9 · os dez FreezeWhileClosing continuam", () => {
+    // 8 desde 25/08 (o "Reaproveitar em lote" entrou congelado); +2 com o
+    // "Desfazer o reaproveitamento" e o "Travar peça".
+    expect(conta(REV, /<FreezeWhileClosing/g)).toBe(10);
   });
 
   it("10 · o motivo exige 10 caracteres, contados no texto normalizado", () => {

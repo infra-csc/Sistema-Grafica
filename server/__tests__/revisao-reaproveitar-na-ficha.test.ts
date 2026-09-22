@@ -25,13 +25,13 @@ describe("o botão da ficha", () => {
   it("existe, na faixa de decisão, depois de Liberar e Devolver", () => {
     expect(i).toBeGreaterThan(REV.indexOf('data-testid="button-return-toggle"'));
     expect(bloco).toContain("<Recycle style={{ width: 15, height: 15, flexShrink: 0 }} />");
-    expect(bloco).toContain('{selectedItem?.isReuse ? "Reaproveitada" : "Reaproveitar"}');
+    expect(bloco).toContain('selectedItem?.isReuse ? "Reaproveitada · desfazer" : "Reaproveitar"}');
   });
 
   it("dispara o MESMO fluxo do botão da linha", () => {
-    // Marcada: desfaz. Não marcada: abre o diálogo de total/parcial, com a
-    // quantidade parcial inicializada do mesmo jeito.
-    expect(bloco).toContain("toggleReuseMutation.mutate({ itemId: selectedItem.id, isReuse: false });");
+    // Marcada: pede confirmação para desfazer. Não marcada: abre o diálogo de
+    // total/parcial, com a quantidade parcial inicializada do mesmo jeito.
+    expect(bloco).toContain("setDesfazerReuseId(selectedItem.id);");
     expect(bloco).toContain("setPartialReuseQty(Math.max(1, Number(selectedItem.quantity) - 1 || 1));");
     expect(bloco).toContain("setReuseDialogItemId(selectedItem.id);");
     // E o da linha continua igual — nenhum dos dois virou "o outro jeito".
@@ -88,8 +88,8 @@ describe("Reaproveitar em LOTE na barra de seleção (25/08)", () => {
     expect(REV).toContain("await apiRequest(\"PATCH\", `/api/items/${id}`, { isReuse: true });");
     expect(REV).toContain("await apiRequest(\"PATCH\", `/api/items/${id}/creator-review`, {});");
     // marcou-sem-liberar é MEIO caminho, não falha igual: continua selecionada
-    // para o "Liberar" da barra fechar
-    expect(REV).toContain("__marcada_sem_liberar__");
+    // para o "Liberar" da barra fechar — com o motivo do servidor na linha
+    expect(REV).toContain("semLiberar[id] = `Marcada, mas não liberada: ${parseApiError(e).message}`;");
   });
 
   it("tem confirmação própria, congelada ao fechar, e respeita evento finalizado", () => {

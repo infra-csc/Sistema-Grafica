@@ -91,6 +91,8 @@ describe("a frase diz o que aconteceu", () => {
   });
 
   it("o toast destrutivo continua para erros de verdade", () => {
-    expect(VP).toContain("description: `Alguns itens tiveram erros: ${data.errors.join(', ')}`,");
+    // O toast resume; o motivo de cada peça vai para a linha dela (falhas por id).
+    expect(VP).toContain("title: `${data.sent} ${data.sent === 1 ? 'enviada' : 'enviadas'}, ${comProblema} com problema`,");
+    expect(VP).toContain('variant: "destructive",');
   });
 });

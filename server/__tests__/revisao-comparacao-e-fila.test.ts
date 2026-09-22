@@ -243,9 +243,9 @@ describe("o congelamento continua em todos os pontos", () => {
     // dentro de um literal já custou um erro de parse aqui.
     const aberturas = tela.split("<FreezeWhileClosing").length - 1;
     const fechamentos = tela.split("</FreezeWhileClosing>").length - 1;
-    // 8 desde 25/08: o diálogo de "Reaproveitar em lote" entrou com o mesmo
-    // congelamento dos outros lotes.
-    expect(aberturas).toBe(8);
+    // 8 desde 25/08 (o "Reaproveitar em lote"); +2 com o "Desfazer o
+    // reaproveitamento" e o "Travar peça", que nascem congelados.
+    expect(aberturas).toBe(10);
     expect(fechamentos).toBe(aberturas);
   });
 });
@@ -279,7 +279,9 @@ describe("as guardas de evento finalizado", () => {
     // cobre a peça inteira, que é reaproveitamento total e não imprime nada.
     // Chave desligada (dono, 21/09 — segurar): sem arquivo final, não libera;
     // o MOLDE (22/09) não tem arquivo final e libera só com o thumb.
-    expect(tela).toContain("const semArquivoParaLiberar = !arquivoFinalOk(selectedItem) && !(SOLICITACAO_AO_ESTOQUE_ATIVA && propostaDaFicha?.pulaProducao);");
+    // Reaproveitamento total também libera sem arquivo (prontaParaLiberar).
+    expect(tela).toContain("const semArquivoParaLiberar = !!selectedItem && !prontaParaLiberar(selectedItem) && !(SOLICITACAO_AO_ESTOQUE_ATIVA && propostaDaFicha?.pulaProducao);");
+    expect(tela).toContain("return arquivoFinalOk(item) || reaproveitamentoTotal(item);");
     expect(tela).toContain("disabled={!!seloSelecionado || creatorReviewMutation.isPending || semArquivoParaLiberar}");
     expect(tela).toContain('motivoAcaoBloqueada(seloSelecionado.motivo, "liberar para produção")');
   });

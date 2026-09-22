@@ -24,6 +24,7 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { getStatusLabel, guiaDoStatus } from "@/lib/status";
+import { T, FS, R, FW, FONT } from "@/lib/theme";
 
 const SELETOR_CLICAVEL =
   'a[href],button,[role="button"],[role="link"],[role="option"],[role="menuitem"],[role="tab"],[role="row"],label,summary';
@@ -123,25 +124,27 @@ export function useBalaoDeStatus(status: string) {
           style={{
             position: "fixed", left: pos.left, top: pos.top, bottom: pos.bottom, zIndex: 300,
             width: LARGURA, maxWidth: "calc(100vw - 16px)", boxSizing: "border-box",
-            padding: "12px 14px", borderRadius: 10,
-            backgroundColor: "#ffffff", border: "1px solid #e7e5e4",
+            padding: "12px 14px", borderRadius: R.lg,
+            backgroundColor: T.surface, border: `1px solid ${T.border}`,
             boxShadow: "0 12px 32px -8px rgba(28,25,23,0.22)",
-            fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: 12, lineHeight: 1.5,
-            color: "#57534e", textAlign: "left", whiteSpace: "normal",
+            // Corpo em Inter: o balão é texto corrido explicando o status, não
+            // título. Pedia Plus Jakarta Sans, que o app não carrega mais.
+            fontFamily: FONT.corpo, fontSize: FS.meta, lineHeight: 1.5,
+            color: T.apoio, textAlign: "left", whiteSpace: "normal",
             textTransform: "none", letterSpacing: "normal", fontWeight: 500,
           }}
         >
-          <p style={{ margin: "0 0 4px", fontSize: 13, fontWeight: 700, color: "#1c1917" }}>{getStatusLabel(status)}</p>
+          <p style={{ margin: "0 0 4px", fontSize: FS.body, fontWeight: FW.forte, color: T.text }}>{getStatusLabel(status)}</p>
           <p style={{ margin: 0 }}>{guia.significado}</p>
           {guia.quemAge && (
             <p style={{ margin: "8px 0 0" }}>
-              <strong style={{ color: "#1c1917" }}>Quem age agora:</strong> {guia.quemAge}
+              <strong style={{ color: T.text }}>Quem age agora:</strong> {guia.quemAge}
               {guia.onde ? <> — {guia.onde}</> : null}
             </p>
           )}
           {guia.proximoPasso && (
             <p style={{ margin: guia.quemAge ? "2px 0 0" : "8px 0 0" }}>
-              <strong style={{ color: "#1c1917" }}>Próximo passo:</strong> {guia.proximoPasso}
+              <strong style={{ color: T.text }}>Próximo passo:</strong> {guia.proximoPasso}
             </p>
           )}
         </div>,

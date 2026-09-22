@@ -230,7 +230,10 @@ describe("na Gráfica e no servidor (fonte)", () => {
     expect(ler("client/src/components/grafica/aba-tubos.tsx")).toContain('queryKey: ["/api/tubos", "?detalhe=1"]');
     const ROTAS = ler("server/routes/tubos.ts");
     const rota = ROTAS.slice(ROTAS.indexOf("if (req.query.detalhe) {"), ROTAS.indexOf("// `fechadoEm` vai junto: a fila da Gráfica"));
-    expect(rota.match(/await db\.select/g)?.length).toBe(4);
+    // tubos, eventos, peças — e as linhas por linhasDosTubos (um select só, dos volumes da janela)
+    expect(rota.match(/await db\.select/g)?.length).toBe(3);
+    expect(rota).toContain("const ls = await linhasDosTubos(lista.map((t: any) => t.id));");
+    expect(rota).toContain("const lista = await db.select().from(tubos).where(volumeNaJanela()).orderBy(asc(tubos.numero));");
     expect(rota).not.toMatch(/for \(const t of lista\)[\s\S]*await db/);
     expect(rota).toContain("const visivel = new Map(visiveis(req, cruas).map((p) => [p.id, p]));");
     expect(rota).toContain("podeAgir: !t.entregueEm && dentro.length > 0 && (total.get(t.id) ?? 0) === dentro.length && !soVe,");

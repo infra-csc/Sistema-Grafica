@@ -117,7 +117,8 @@ describe("onde aparece, e de onde vem (fonte)", () => {
 
   it("página Registros: acima da galeria, com o filtro de evento e a busca da página; some quando o tipo é só Conferência", () => {
     const R = ler("client/src/pages/registros.tsx");
-    expect(R).toContain("<RegistrosDeTubos eventIds={eventFilter} busca={deferredSearch} />");
+    // 22/09: o Período da página também vale para os tubos.
+    expect(R).toContain("<RegistrosDeTubos eventIds={eventFilter} busca={deferredSearch} desde={desdeDoPeriodo} />");
     expect(R).toContain('{(!kindFilter.length || kindFilter.includes("delivery")) && (');
   });
 
@@ -131,8 +132,14 @@ describe("onde aparece, e de onde vem (fonte)", () => {
     expect(rota).toContain('app.get("/api/registros/tubos", requireAuth, async (req, res) => {');
     expect(rota).not.toContain("podeMexerEmTubo(req)");
     expect(rota).toContain("const visivel = new Map(visiveis(req, cruas).map((p) => [p.id, p]));");
-    expect(rota).toContain(".filter((t) => !doKit || t.itens.length > 0);");
-    expect(rota.match(/await db\.select/g)?.length).toBe(3); // tubos, eventos, peças (+ as linhas, num select só, em linhasDosTubos)
+    expect(rota).toContain(".filter((t) => !doKit || t.itens.length > 0)");
+    // tubos (a consulta com recorte), eventos, peças (+ as linhas, num select só, em linhasDosTubos)
+    expect(rota).toContain("const consulta = db.select().from(tubos).where(and(...filtros))");
+    expect(rota.match(/await db\.select/g)?.length).toBe(2);
+    // 22/09: recortada e paginada — nunca a história inteira
+    expect(rota).toContain("const lista = (cortaNoBanco ? await consulta.limit(limite) : await consulta) as any[];");
+    expect(rota).toContain(".slice(0, limite);");
+    expect(rota).toContain("Math.min(limiteBruto, 500) : 48;");
     expect(rota).not.toMatch(/db\.(update|insert|delete)/);
   });
 

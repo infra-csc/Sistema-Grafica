@@ -34,6 +34,7 @@ export type PecaDaEmbalagem = {
 };
 
 import { EM_REVISAO, podeIrParaTubo } from "./fluxo-peca";
+import { pecaTravada, fraseDaTrava, type PecaTravavel } from "./trava-da-peca";
 
 const n = (v: unknown) => { const x = Math.trunc(Number(v)); return Number.isFinite(x) && x > 0 ? x : 0; };
 
@@ -71,12 +72,15 @@ export function motivoDoStatus(status: string | null | undefined): string {
 
 /**
  * A peça é um PROBLEMA dentro de um volume ainda aberto — não pode sair na
- * entrega: excluída, cancelada, arquivada, devolvida à revisão ou a um passo
- * antes da impressão depois de embalada. Null quando está tudo certo.
+ * entrega: excluída, TRAVADA pela Solicitação, cancelada, arquivada, devolvida
+ * à revisão ou a um passo antes da impressão depois de embalada. Null quando
+ * está tudo certo. A trava entra aqui (revisão de 22/09) para o modal de
+ * entrega mostrar e desabilitar ANTES do 409 — a frase é a mesma da recusa.
  */
-export function problemaNoVolume(p: { status?: string | null; deletedAt?: unknown }): string | null {
+export function problemaNoVolume(p: { status?: string | null; deletedAt?: unknown } & PecaTravavel): string | null {
   if (p.deletedAt) return "foi excluída";
   if (p.status === "delivered" || p.status === "entregue") return null;
+  if (pecaTravada(p)) return fraseDaTrava(p);
   if (statusEmbalavel(p.status)) return null;
   const motivo = motivoDoStatus(p.status);
   return motivo === "ainda não saiu da impressão" ? "voltou para antes da impressão" : motivo;
@@ -181,10 +185,17 @@ export function seloDosVolumes(linhas: LinhaDoVolume[]): string {
     .join(" · ");
 }
 
-/** "7 de 10 embaladas" enquanto a peça está dividida no tempo; vazio quando não ajuda. */
+/**
+ * "7 de 10 embaladas" enquanto a peça está dividida no tempo; vazio quando não
+ * ajuda. Conta SÓ o que foi embalado de verdade (`embaladaDe`): a entrega
+ * parcial ANTIGA (7 entregues sem volume, 0 embaladas) não é "7 de 10
+ * embaladas" — é "7 de 10 entregues" (revisão de 22/09).
+ */
 export function progressoDaEmbalagem(p: PecaDaEmbalagem): string {
-  const emb = jaSaiuDaConta(p), q = quantidadeDe(p);
-  return emb > 0 && emb < q ? `${emb} de ${q} embaladas` : "";
+  const emb = embaladaDe(p), ent = entregueDe(p), q = quantidadeDe(p);
+  if (emb > 0 && emb < q) return `${emb} de ${q} embaladas`;
+  if (emb === 0 && ent > 0 && ent < q) return `${ent} de ${q} entregues`;
+  return "";
 }
 
 /** "(7 de 10)" ao lado da linha do volume quando a peça NÃO está inteira nele. */

@@ -313,6 +313,8 @@ export function cabeNoAdesivo<T extends PecaDaLista>(linhas: LinhaDaEtiqueta<T>[
 export type VolumeDaPeca = { tuboId?: string | null; numero?: number | null; avulso?: boolean | null; quantidade?: number | null };
 export type PecaComTubo = PecaDaLista & {
   tuboVolumes?: VolumeDaPeca[] | null; tuboId?: string | null; tuboNumero?: number | null; tuboAvulso?: boolean | null; embaladaQty?: number | null;
+  /** Os volumes JÁ ENTREGUES da peça, com a quantidade de cada (server/services/tubosDaPeca.ts). */
+  tuboVolumesEntregues?: VolumeDaPeca[] | null;
 };
 
 export type ParteDaPeca<T> = {
@@ -343,7 +345,12 @@ const inteiroPositivo = (v: unknown) => { const n = Math.floor(Number(v)); retur
  *  embalada sozinha, depois o resto fora de volume. */
 export function partesDaPeca<T extends PecaComTubo>(p: T): ParteDaPeca<T>[] {
   const quantidade = inteiroPositivo(p.quantity) || 1;
-  let volumes = Array.isArray(p.tuboVolumes) ? p.tuboVolumes.filter((v) => v && inteiroPositivo(v.quantidade) > 0) : [];
+  const validos = (lista: VolumeDaPeca[] | null | undefined) => (Array.isArray(lista) ? lista.filter((v) => v && inteiroPositivo(v.quantidade) > 0) : []);
+  // PEÇA JÁ ENTREGUE (revisão de 22/09): os volumes entregues contam como
+  // partes, cada um com a SUA quantidade — a dividida toda entregue não vira
+  // "10 no último tubo", e as 7 que já saíram no Tubo 1 não viram "fora de
+  // volume" enquanto as 3 do Tubo 2 esperam.
+  let volumes = [...validos(p.tuboVolumes), ...validos(p.tuboVolumesEntregues)];
   // Sem a lista de volumes (rota antiga), vale o atalho do tubo principal.
   if (volumes.length === 0 && p.tuboNumero != null && Number.isFinite(Number(p.tuboNumero))) {
     volumes = [{ tuboId: p.tuboId ?? null, numero: Number(p.tuboNumero), avulso: p.tuboAvulso, quantidade: inteiroPositivo(p.embaladaQty) || quantidade }];

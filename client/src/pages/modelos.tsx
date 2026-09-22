@@ -702,10 +702,11 @@ export default function Modelos() {
   return (
     <div className="modelos-page" style={{ backgroundColor: T.bg, height: "100%", overflowY: "auto", padding: isMobile ? "16px 16px 48px" : "28px 32px 64px" }}>
       {/* Placeholder nativo dos inputs: o cinza padrão do navegador reprova
-          contraste sobre o cinza do campo (n3). T.second (n7) passa em TODAS as
-          superfícies do app — é o que o token existe para garantir. */}
+          contraste. T.apoio (n8) e não T.second (n7) porque o fundo destes
+          campos é o n3 — o único degrau claro em que o n7 fica em 4,38:1. É a
+          exceção que o próprio token documenta. */}
       <style>{`
-        .modelos-page input::placeholder, .modelos-page textarea::placeholder { color: ${T.second}; opacity: 1; }
+        .modelos-page input::placeholder, .modelos-page textarea::placeholder { color: ${T.apoio}; opacity: 1; }
       `}</style>
 
       {/* ── Page Header ── */}

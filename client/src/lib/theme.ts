@@ -35,7 +35,12 @@ export const N = {
   n0: "#ffffff", // superfície pura: card, modal, linha par da tabela
   n1: "#fafaf9", // fundo da página, cabeçalho de tabela
   n2: "#f5f5f4", // superfície sutil: faixa de tipo, linha ímpar, hover
-  n3: "#f0efee", // separador claro, trilho, fundo de campo desabilitado
+  // n3 NÃO é superfície de texto secundário. É o único degrau claro em que o
+  // n7 não passa: 4,38:1, contra 4,61 no n2 e 5,03 no n0 — medido, não
+  // estimado. Onde houver texto de apoio sobre n3 (placeholder de campo
+  // cinza, rótulo dentro de trilho), use n8. Para separador, trilho e fundo
+  // de campo — que é o que ele faz — a régua de contraste nem se aplica.
+  n3: "#f0efee", // separador, trilho, fundo de campo
   n4: "#e7e5e4", // BORDA PADRÃO — o hairline de tudo
   n5: "#d6d3d1", // borda forte, ícone de estado vazio, scrollbar
   n6: "#a8a29e", // ícone decorativo e desabilitado — NUNCA como texto
@@ -150,9 +155,15 @@ export const T = {
    * aquele cinza cai para 4.40 e 4.35 e reprova o piso de 4.5:1 — foi
    * exatamente esse erro que passou despercebido na tela da Arte.
    *
-   * #746e69 é o cinza mais claro da mesma família quente que passa em TODAS as
-   * superfícies do app (4.56 no pior caso, #f3f4f3), então não existe mais
-   * "depende do fundo": onde couber texto secundário, este token serve.
+   * #746e69 é o cinza mais claro da mesma família quente que passa nas
+   * SUPERFÍCIES DE TEXTO do app — n0 (5,03), n1 (4,81), n2 (4,61) e o #f3f4f3
+   * de `T.low` (4,56).
+   *
+   * A exceção, medida e não estimada: sobre `N.n3` (#f0efee) ele fica em 4,38
+   * e reprova. n3 é fundo de campo e trilho, não superfície de leitura — mas
+   * onde houver texto de apoio em cima dele (o placeholder de um campo cinza,
+   * por exemplo), o token certo é `T.apoio`.
+   *
    * A diferença de peso para o anterior é imperceptível (L 0.159 vs 0.169).
    */
   second: N.n7,

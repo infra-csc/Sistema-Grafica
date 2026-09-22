@@ -194,7 +194,8 @@ export function registerAnaliseRoutes(app: Express): void {
       guardarNoMemo(chave, agora, payload);
       res.json(payload);
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      console.error("[analises] tempo por etapa falhou:", error);
+      res.status(500).json({ error: "Não foi possível calcular o tempo por etapa agora. Tente de novo em instantes." });
     }
   });
 }

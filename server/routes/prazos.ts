@@ -500,7 +500,7 @@ export function registerPrazoRoutes(app: Express): void {
     } catch (error: any) {
       console.error("POST /api/prazos/cobrancas:", error);
       res.status(500).json({
-        error: "Não foi possível registrar a cobrança — a tabela pode não existir ainda (rode npm run db:push no Replit).",
+        error: "Não foi possível registrar a cobrança agora. Tente de novo em instantes; se continuar, avise o suporte.",
       });
     }
   });

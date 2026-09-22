@@ -1067,7 +1067,9 @@ describe("T19 — as três tabelas ausentes", () => {
     cadastrar(evento({ id: "EV1" }), ["draft"]);
     const r = await chamar(POST, { body: { targetType: "event", targetId: "EV1" } });
     expect(r.status).toBe(500);
-    expect(r.body.error).toMatch(/db:push/);
+    // Frase para quem usa a tela: nada de mandar o admin rodar comando.
+    expect(r.body.error).toMatch(/Não foi possível registrar a cobrança/);
+    expect(r.body.error).not.toMatch(/db:push|npm/);
     expect(broadcasts).toEqual([]);
   });
 });

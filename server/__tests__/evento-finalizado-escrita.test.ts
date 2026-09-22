@@ -36,6 +36,8 @@
 // mockada.
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { items as itemsDaTabela } from "@shared/schema";
+import { txDeMentira } from "./tx-de-mentira";
 import fs from "fs";
 import path from "path";
 
@@ -187,8 +189,12 @@ beforeEach(() => {
   H.db.transaction = vi.fn(async (cb: any) => {
     // Transação de mentira: devolve a peça "atualizada" para os handlers que
     // fazem UPDATE ... RETURNING dentro da tx.
+    // Conferir e excluir (22/09) leem e gravam a peça na transação: o SELECT e
+    // o UPDATE deles vão ao "mundo" pelo tx de mentira.
+    const mentira = txDeMentira(mundo);
     const tx = {
-      update: () => ({ set: () => ({ where: () => ({ returning: async () => [{ ...mundo.itens["it-1"], status: "atualizado" }] }) }) }),
+      select: mentira.select,
+      update: (tabela: any) => ({ set: (vals: any) => (tabela === itemsDaTabela && vals && ("deletedAt" in vals || "conferredQty" in vals) ? mentira.update(tabela).set(vals) : { where: () => ({ returning: async () => [{ ...mundo.itens["it-1"], status: "atualizado" }] }) }) }),
       insert: () => ({ values: () => ({ returning: async () => [{ id: "notif-1" }] }) }),
     };
     return await cb(tx);
@@ -377,7 +383,8 @@ describe.each(MOTIVOS)("evento $nome — o que arruma a casa continua liberado",
     const r = await chamar("DELETE /api/items/:id", { params: { id: "it-1" }, userRole: "solicitacao" });
 
     expect(r.status).toBe(200);
-    expect(H.storage.deleteItem).toHaveBeenCalledWith("it-1");
+    // soft delete (deletedAt) dentro da transação que também tira dos volumes (22/09)
+    expect(mundo.itens["it-1"].deletedAt).toBeInstanceOf(Date);
   });
 
   it("RESTAURAR peça: é o desfazer da exclusão — sem ele, o engano vira permanente", async () => {

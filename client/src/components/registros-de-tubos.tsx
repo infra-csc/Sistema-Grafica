@@ -10,11 +10,13 @@
 // foi dividida), as fotos da embalagem e o comprovante, se houver. A embalada
 // SOZINHA tem o registro dela, sem a palavra "tubo".
 //
-// Respeita o filtro de evento e a busca da própria página (chegam por props) —
-// a busca acha por código, descrição, evento, nº do tubo e quem recebeu.
+// Respeita o filtro de evento, o PERÍODO e a busca da própria página (chegam
+// por props) — a busca acha por código, descrição, evento, nº do tubo e quem
+// recebeu. Os três vão ao servidor, que devolve só a PÁGINA pedida (os mais
+// recentes primeiro); "Mostrar mais" pede a próxima (revisão de 22/09).
 // ─────────────────────────────────────────────────────────────────────────────
 import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { ChevronDown, Package, Truck } from "lucide-react";
 import { nomeDaPeca } from "@shared/nome-da-peca";
 import { parteDoTotal } from "@shared/embalagem";
@@ -50,23 +52,47 @@ export function registroCasa(t: RegistroDeTubo, busca: string): boolean {
   return palavras.every((p) => alvo.includes(p));
 }
 
-export function RegistrosDeTubos({ eventIds = [], busca = "", itemId, onAbrirPeca }: {
+export function RegistrosDeTubos({ eventIds = [], busca = "", desde = null, itemId, onAbrirPeca }: {
   /** O filtro de evento da página (vazio = todos). */
   eventIds?: string[];
   busca?: string;
+  /** O filtro de PERÍODO da página: só volumes embalados/entregues a partir daqui (null = todos). */
+  desde?: Date | null;
   /** Na FICHA da peça: só os volumes em que ESTA peça foi — o tubo como um todo, com o que foi junto. */
   itemId?: string;
   onAbrirPeca?: (itemId: string) => void;
 }) {
   const isMobile = useIsMobile();
   const alvo = isMobile ? 44 : 32;
-  const { data = SEM_REGISTROS, isError } = useQuery<RegistroDeTubo[]>({ queryKey: ["/api/registros/tubos"], staleTime: 60_000 });
-  const [abertos, setAbertos] = useState<Set<string>>(new Set());
+  // A PÁGINA do servidor: começa com 4 lotes; "Mostrar mais", quando a lista
+  // local acaba e o servidor mandou a página cheia, pede mais 4.
+  const [pagina, setPagina] = useState(LOTE * 4);
+  const desdeIso = desde ? desde.toISOString() : "";
+  const filtros = `${eventIds.join(",")}|${busca.trim()}|${desdeIso}|${itemId ?? ""}`;
+  const [filtrosVistos, setFiltrosVistos] = useState(filtros);
   const [mostrando, setMostrando] = useState(LOTE);
+  // Filtro mudou: volta ao começo (a página e o que está à vista).
+  if (filtros !== filtrosVistos) { setFiltrosVistos(filtros); setPagina(LOTE * 4); setMostrando(LOTE); }
+  const parametros = new URLSearchParams();
+  if (itemId) parametros.set("itemId", itemId);
+  if (desdeIso) parametros.set("desde", desdeIso);
+  if (eventIds.length) parametros.set("eventos", eventIds.join(","));
+  if (busca.trim()) parametros.set("busca", busca.trim());
+  parametros.set("limite", String(pagina));
+  const { data = SEM_REGISTROS, isError } = useQuery<RegistroDeTubo[]>({
+    queryKey: ["/api/registros/tubos", `?${parametros.toString()}`], staleTime: 60_000, placeholderData: keepPreviousData,
+  });
+  const [abertos, setAbertos] = useState<Set<string>>(new Set());
+  // O servidor já filtrou; o filtro aqui repete a MESMA regra (inofensivo) e
+  // cobre a resposta antiga que ainda vier sem recorte.
+  const desdeMs = desde ? desde.getTime() : null;
   const lista = useMemo(
-    () => data.filter((t) => (!itemId || t.itens.some((i) => i.id === itemId)) && (eventIds.length === 0 || eventIds.includes(t.eventId)) && registroCasa(t, busca)),
-    [data, eventIds, busca, itemId],
+    () => data.filter((t) => (!itemId || t.itens.some((i) => i.id === itemId)) && (eventIds.length === 0 || eventIds.includes(t.eventId))
+      && (desdeMs === null || new Date(t.entregueEm ?? t.embaladoEm ?? 0).getTime() >= desdeMs) && registroCasa(t, busca)),
+    [data, eventIds, busca, itemId, desdeMs],
   );
+  // Página cheia = pode haver mais no servidor.
+  const temMaisNoServidor = data.length >= pagina;
   // Sem tubo nenhum (ou erro nesta consulta), a galeria de sempre segue sozinha:
   // esta seção é um ACRÉSCIMO, nunca um buraco na página.
   if (isError || lista.length === 0) return null;
@@ -137,10 +163,11 @@ export function RegistrosDeTubos({ eventIds = [], busca = "", itemId, onAbrirPec
           </article>
         );
       })}
-      {lista.length > mostrando && (
-        <button type="button" onClick={() => setMostrando((n) => n + LOTE)} data-testid="registros-de-tubos-mais"
+      {(lista.length > mostrando || temMaisNoServidor) && (
+        <button type="button" data-testid="registros-de-tubos-mais"
+          onClick={() => { if (lista.length <= mostrando + LOTE && temMaisNoServidor) setPagina((n) => n + LOTE * 4); setMostrando((n) => n + LOTE); }}
           style={{ alignSelf: "center", minHeight: isMobile ? 48 : 40, padding: "0 18px", borderRadius: 8, border: `1px solid ${COR.borda}`, background: "#fff", color: COR.texto, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
-          Mostrar mais ({lista.length - mostrando} de {lista.length})
+          {temMaisNoServidor ? "Mostrar mais" : `Mostrar mais (${lista.length - mostrando} de ${lista.length})`}
         </button>
       )}
     </section>

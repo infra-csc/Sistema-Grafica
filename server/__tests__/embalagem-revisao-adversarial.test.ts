@@ -85,7 +85,7 @@ describe("1 · o status manda na embalagem", () => {
     expect(entregar).toContain("const dentro = await conteudoDoTubo(tubo.id, tx);");
     expect(ROTAS).toContain("problema: linha && !linha.entregueEm ? problemaNoVolume(p) : null,");
     expect(ROTAS).toContain("&& !dentro.some(({ p, l }) => !l.entregueEm && problemaNoVolume(p)),");
-    expect(DIALOGO).toContain("{p.problema} — {avulso ? \"desfaça a embalagem\" : \"tire do tubo\"} para entregar");
+    expect(DIALOGO).toContain('`${p.problema} — ${avulso ? "desfaça a embalagem" : "tire do tubo"} para entregar`');
   });
 });
 
@@ -95,7 +95,8 @@ describe("2 · a entrega parcial antiga conta como já saída", () => {
     expect(aEmbalar(antiga)).toBe(0);
     expect(planejarEmbalar(antiga)).toEqual({ ok: false, motivo: "não há unidade conferida sem embalar (7 de 10 já embaladas ou entregues)" });
     expect(violacoesDaConta(antiga)).toEqual([]);
-    expect(progressoDaEmbalagem(antiga)).toBe("7 de 10 embaladas");
+    // 22/09: a entrega antiga NÃO é embalagem — a frase diz o que aconteceu.
+    expect(progressoDaEmbalagem(antiga)).toBe("7 de 10 entregues");
 
     const conferida = { ...antiga, status: "conferred", conferredQty: 10 };
     expect(aEmbalar(conferida)).toBe(3);
@@ -121,7 +122,7 @@ describe("2 · a entrega parcial antiga conta como já saída", () => {
 describe("3 · concorrência: volume e peças TRAVADOS, contas refeitas lá dentro", () => {
   it("há trava do volume e das peças (SELECT … FOR UPDATE)", () => {
     expect(ROTAS).toContain('const [tubo] = await tx.select().from(tubos).where(eq(tubos.id, tuboId)).for("update");');
-    expect(ROTAS).toContain('(await tx.select(COLUNAS_PECA).from(itemsTable).where(inArray(itemsTable.id, ids)).for("update"))');
+    expect(ROTAS).toContain('(await tx.select(COLUNAS_PECA).from(itemsTable).where(inArray(itemsTable.id, Array.from(new Set(ids)))).orderBy(asc(itemsTable.id)).for("update"))');
   });
   it("embalar, tirar, apagar, fotografar e entregar rodam cada um numa transação que trava o volume", () => {
     const criar = trecho(ROTAS, 'app.post("/api/events/:eventId/tubos"', 'app.patch("/api/tubos/:id/itens"');
@@ -168,18 +169,25 @@ describe("5–7 · as outras portas respeitam a embalagem", () => {
     expect(rota).toContain("if (((current as any).embaladaQty || 0) > 0) {");
     expect(ITEMS).toContain("const piso = Math.max(impressas, currentItem.conferredQty ?? 0, (currentItem as any).embaladaQty ?? 0, currentItem.deliveredQty ?? 0);");
   });
-  it("excluir a peça tira ela dos volumes abertos ANTES do soft delete", () => {
+  it("excluir a peça tira ela dos volumes abertos E faz o soft delete NUMA transação só, com a peça travada (22/09)", () => {
     const rota = trecho(ITEMS, 'app.delete("/api/items/:id"', "res.json({ success: true });");
-    expect(rota.indexOf("await tirarPecaDosVolumesAbertos(req, req.params.id).catch(")).toBeGreaterThan(-1);
-    expect(rota.indexOf("await tirarPecaDosVolumesAbertos(")).toBeLessThan(rota.indexOf("await storage.deleteItem("));
-    expect(ROTAS).toContain("export async function tirarPecaDosVolumesAbertos(req: any, itemId: string): Promise<number> {");
+    expect(rota).toContain("excluida = await excluirPecaTirandoDosVolumes(req, req.params.id);");
+    expect(rota).not.toContain("storage.deleteItem(");
+    expect(rota).not.toContain(".catch((e) => console.error(\"[items] falha ao tirar");
+    const funcao = trecho(ROTAS, "export async function excluirPecaTirandoDosVolumes(", "export const ehRecusaDeTubo");
+    expect(funcao).toContain("const feito = await db.transaction(async (tx: Ex) => {");
+    // a ordem das travas do arquivo: volumes (por id), depois a peça
+    expect(funcao.indexOf('.orderBy(asc(tubos.id)).for("update")')).toBeLessThan(funcao.indexOf("const [peca] = await pecasTravadas(tx, [itemId]);"));
+    // o soft delete é DENTRO da transação, depois de tirar dos volumes
+    expect(funcao.indexOf("await tirarDoTubo(tubo, [itemId], tx);")).toBeLessThan(funcao.indexOf("const apagada = await tx.update(itemsTable).set({ deletedAt: agora"));
+    expect(funcao.indexOf("const apagada = await tx.update(itemsTable)")).toBeLessThan(funcao.indexOf("if (!feito) return null;"));
   });
 });
 
 describe("8–9 · a peça sozinha nunca vira 'Tubo -1'; o comprovante é uma foto", () => {
   it("textos do volume avulso", () => {
     expect(DIALOGO).toContain('{jaEmTubo.map((t) => (t.avulso ? "embalada sozinha" : `no Tubo ${t.numero}`)).join(", ")}');
-    expect(DIALOGO).toContain("const jaEmTubo = (data?.tubos ?? []).filter((t) => !t.entregueEm && t.pecas.some((p) => itens.includes(p.id)));");
+    expect(DIALOGO).toContain("const jaEmTubo = (data?.tubos ?? []).filter((t) => !t.entregueEm && t.pecas.some((p) => sumidas.includes(p.id)));");
     expect(DIALOGO).toContain('{avulso ? "A embalagem está vazia" : `O Tubo ${t.numero} está vazio`}');
     expect(DIALOGO).toContain('alt={avulso ? "Foto da embalagem" : `Foto do Tubo ${t.numero}`} />');
     expect(DIALOGO).not.toContain("O Tubo {t.numero} está vazio");

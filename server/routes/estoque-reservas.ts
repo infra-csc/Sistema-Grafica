@@ -20,7 +20,7 @@
 // peças criadas nos últimos 60 dias vieram da Solicitação. Ler é de todos.
 // ─────────────────────────────────────────────────────────────────────────────
 import type { Express } from "express";
-import { and, eq, inArray, ne } from "drizzle-orm";
+import { and, eq, inArray, ne, or } from "drizzle-orm";
 import { db } from "../db";
 import {
   inventoryAssets,
@@ -49,6 +49,15 @@ const requireReservaDeEstoque = requireRole("admin");
 /** Peça cancelada ou entregue não precisa mais de estoque. */
 export const STATUS_SEM_ESTOQUE = new Set(["cancelled", "canceled", "cancelado", "delivered", "entregue"]);
 
+/** Teto de cada lista do recorte de GET /api/estoque/usos. */
+export const LIMITE_DO_RECORTE_DE_USOS = 500;
+
+/** "a,b,c" (ou ?x=a&x=b) → ids únicos, sem vazios. */
+export function unicosDaQuery(v: unknown): string[] {
+  const partes = (Array.isArray(v) ? v : [v]).flatMap((x) => (typeof x === "string" ? x.split(",") : []));
+  return Array.from(new Set(partes.map((x) => x.trim()).filter(Boolean)));
+}
+
 const erro = (httpStatus: number, message: string) => Object.assign(new Error(message), { httpStatus });
 
 type Exec = any;
@@ -58,7 +67,6 @@ const COLUNAS_DO_ATIVO = {
   displayId: inventoryAssets.displayId,
   situacao: inventoryAssets.trackingStatus,
   condicao: inventoryAssets.condition,
-  local: inventoryAssets.location,
   quantidade: inventoryAssets.quantity,
   sponsorIds: inventoryAssets.sponsorIds,
   thumb: inventoryAssets.approvalThumbUrl,
@@ -74,7 +82,7 @@ const COLUNAS_DO_ATIVO = {
 };
 
 export type Ativo = {
-  id: string; displayId: string; situacao: string; condicao: string; local: string | null;
+  id: string; displayId: string; situacao: string; condicao: string;
   quantidade: number; sponsorIds: string[] | null; thumb: string | null;
   origemItemId: string; origemDisplayId: string | null; origemTipo: string; origemDescricao: string | null;
   origemLargura: string | null; origemAltura: string | null;
@@ -196,7 +204,6 @@ type Lote = {
   aviso: string | null;
   relacao: RelacaoDePatrocinio;
   condicao: string;
-  local: string | null;
   situacao: string;
   voltaEm: Date | null;
   thumb: string | null;
@@ -307,7 +314,7 @@ export function registerEstoqueReservasRoutes(app: Express): void {
   });
 
   // O que o estoque tem para UMA peça, agrupado em lotes (mesma peça de
-  // origem, mesma situação, condição e local) — e o que já está reservado.
+  // origem, mesma situação e condição) — e o que já está reservado.
   app.get("/api/items/:id/estoque-semelhantes", requireAuth, async (req, res) => {
     try {
       const agora = new Date();
@@ -331,7 +338,6 @@ export function registerEstoqueReservasRoutes(app: Express): void {
           displayId: a?.displayId ?? "—",
           situacao: a?.situacao ?? null,
           condicao: a?.condicao ?? null,
-          local: a?.local ?? null,
           quantidade: r.quantidade,
           thumb: a?.thumb ?? null,
           origem: a ? { displayId: a.origemDisplayId, eventName: a.origemEventName } : null,
@@ -347,7 +353,10 @@ export function registerEstoqueReservasRoutes(app: Express): void {
         for (const a of ativos) {
           const s = avaliar(peca, a, reservaPorAtivo.get(a.id) ?? null, agora);
           if (!s || s.reservadaAqui) continue;
-          const chave = [a.origemItemId, s.disponibilidade, s.motivo, a.condicao, a.local ?? "", a.situacao, s.relacao].join("|");
+          // Sem o local na chave (dono, 21/09: o sistema não guarda ONDE a peça
+          // fica no galpão) — peças iguais com locais antigos diferentes
+          // ficavam em lotes separados.
+          const chave = [a.origemItemId, s.disponibilidade, s.motivo, a.condicao, a.situacao, s.relacao].join("|");
           let lote = lotes.get(chave);
           if (!lote) {
             lote = {
@@ -357,7 +366,6 @@ export function registerEstoqueReservasRoutes(app: Express): void {
               aviso: s.aviso,
               relacao: s.relacao,
               condicao: a.condicao,
-              local: a.local,
               situacao: a.situacao,
               voltaEm: s.voltaEm,
               thumb: a.thumb,
@@ -465,8 +473,28 @@ export function registerEstoqueReservasRoutes(app: Express): void {
   // /api/inventory/* para não cair na rota /api/inventory/:id. Mesmos papéis
   // das outras leituras do acervo. A peça de ORIGEM não vem daqui: a tela já
   // a conhece (originalItemId) e junta com isto em usosDoAtivo().
-  app.get("/api/estoque/usos", requireAuth, async (_req, res) => {
+  //
+  // RECORTE E PAPEL (revisão 22/09): só o Estoque chama esta rota, e o
+  // Estoque é só do admin — então só o admin lê. E não devolve mais o acervo
+  // inteiro: a tela pede os usos dos MATERIAIS que está mostrando —
+  // `?itens=` (peças de origem; cobre todos os registros de cada material) e
+  // `?ativos=` (registros sem peça de origem, cadastrados à mão). Sem recorte
+  // nenhum = 400; cada lista tem teto.
+  app.get("/api/estoque/usos", requireRole("admin"), async (req, res) => {
     try {
+      const lista = (v: unknown) => unicosDaQuery(v);
+      const itens = lista(req.query.itens);
+      const ativos = lista(req.query.ativos);
+      if (itens.length === 0 && ativos.length === 0) {
+        return res.status(400).json({ error: "Diga de quais materiais (itens=) ou registros (ativos=) quer os usos." });
+      }
+      if (itens.length > LIMITE_DO_RECORTE_DE_USOS || ativos.length > LIMITE_DO_RECORTE_DE_USOS) {
+        return res.status(400).json({ error: `No máximo ${LIMITE_DO_RECORTE_DE_USOS} materiais e ${LIMITE_DO_RECORTE_DE_USOS} registros por consulta.` });
+      }
+      const recorte = [
+        ...(itens.length ? [inArray(inventoryAssets.originalItemId, itens)] : []),
+        ...(ativos.length ? [inArray(eventInventoryAllocations.assetId, ativos)] : []),
+      ];
       const linhas = await db
         .select({
           id: eventInventoryAllocations.id,
@@ -480,7 +508,9 @@ export function registerEstoqueReservasRoutes(app: Express): void {
         })
         .from(eventInventoryAllocations)
         .innerJoin(events, eq(events.id, eventInventoryAllocations.eventId))
-        .leftJoin(itemsTable, eq(itemsTable.id, eventInventoryAllocations.itemId));
+        .innerJoin(inventoryAssets, eq(inventoryAssets.id, eventInventoryAllocations.assetId))
+        .leftJoin(itemsTable, eq(itemsTable.id, eventInventoryAllocations.itemId))
+        .where(recorte.length === 1 ? recorte[0] : or(...recorte));
       res.json(linhas);
     } catch (error) {
       console.error("[estoque] erro ao listar usos:", error);

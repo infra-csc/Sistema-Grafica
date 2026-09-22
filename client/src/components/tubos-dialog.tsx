@@ -60,8 +60,13 @@ type Peca = {
   /** …o total já embalado dela, e quanto ainda dá para embalar agora. */
   embaladaQty?: number;
   aEmbalar?: number;
-  /** Peça cancelada/arquivada/excluída dentro do volume aberto: a entrega recusa até tirá-la. */
+  /** Peça cancelada/arquivada/excluída/travada dentro do volume aberto: a entrega recusa até resolver. */
   problema?: string | null;
+  /** TRAVADA pela Solicitação: resolver é destravar (não tirar do tubo). */
+  travada?: boolean;
+  travadaPor?: string | null;
+  travadaMotivo?: string | null;
+  excluida?: boolean;
   /** Peça de remessa do Kit — quem só visualiza não age nela. */
   doKit?: boolean;
   /** Foto da conferência da peça — quem entrega vê que o material está documentado. */
@@ -303,10 +308,12 @@ function Fotos({ lista, onMudar, alt }: { lista: string[]; onMudar: (f: (atual: 
 // ═════════════════════════════════════════════════════════════════════════════
 // 1 · EMBALAR — o tubo + a foto. Nada de outras peças, nada de gestão.
 // ═════════════════════════════════════════════════════════════════════════════
-export function EmbalarDialog({ evento, itens, comCaixas = false, onClose, onEmbalou }: {
+export function EmbalarDialog({ evento, itens, comCaixas = false, emLote = false, onClose, onEmbalou }: {
   evento: Evento | null;
   /** As peças que estão sendo embaladas (uma, ou o lote). */
   itens: string[];
+  /** Veio do "Embalar em lote" da fila: mesmo com UMA peça é tubo, nunca "sozinha". */
+  emLote?: boolean;
   /** Veio do painel ("Embalar peças conferidas"): aí sim as peças têm caixa de
    *  marcar. Vindo da fila, o lote só deixa TIRAR uma peça (x). */
   comCaixas?: boolean;
@@ -320,7 +327,12 @@ export function EmbalarDialog({ evento, itens, comCaixas = false, onClose, onEmb
 
   const [fora, setFora] = useState<Set<string>>(new Set());
   const [tubo, setTubo] = useState<string | null>(null);
-  const [quantas, setQuantas] = useState<Record<string, number>>({});
+  // O TEXTO digitado (revisão de 22/09): o campo era controlado por
+  // `parseInt(...) || 1` limitado a cada tecla — apagar "20" para digitar "5"
+  // virava "1" e depois "15", que era gravado. Agora guarda-se o que a pessoa
+  // digitou (o padrão `numeroEditado` das etiquetas); o limite vale só na conta
+  // (`quantasDe`) e no envio, e o vazio desabilita o botão ("Informe quantas").
+  const [quantas, setQuantas] = useState<Record<string, string>>({});
   // "Pôr num tubo que já existe": só então o tubo automático vira escolha.
   const [escolhendo, setEscolhendo] = useState(false);
   const [fotos, setFotos] = useState<string[]>([]);
@@ -337,11 +349,29 @@ export function EmbalarDialog({ evento, itens, comCaixas = false, onClose, onEmb
   const candidatas = (data?.semTubo ?? []).filter((p) => itens.includes(p.id) && disponivel(p) > 0 && !soVisualizaKit(p));
   const pecas = candidatas.filter((p) => !fora.has(p.id));
   // QUANTAS de cada peça (dono, 21/09: "tem que colocar as quantidades também").
-  // O padrão é tudo o que está conferido e ainda não embalado.
-  const quantasDe = (p: Peca) => Math.max(1, Math.min(disponivel(p), quantas[p.id] ?? disponivel(p)));
-  const unidades = pecas.reduce((t, p) => t + quantasDe(p), 0);
+  // O padrão é tudo o que está conferido e ainda não embalado. null = o campo
+  // está vazio (ou não é um número ≥ 1): falta dizer quantas.
+  const quantasDe = (p: Peca): number | null => {
+    const bruto = quantas[p.id];
+    if (bruto === undefined) return disponivel(p);
+    const t = bruto.trim();
+    if (!/^\d{1,6}$/.test(t) || Number(t) < 1) return null;
+    return Math.min(disponivel(p), Number(t));
+  };
+  const faltaQuantas = pecas.some((p) => quantasDe(p) === null);
+  const unidades = pecas.reduce((t, p) => t + (quantasDe(p) ?? 0), 0);
+  const campoQuantas = (p: Peca) => ({
+    value: quantas[p.id] ?? String(disponivel(p)),
+    onChange: (e: React.ChangeEvent<HTMLInputElement>) => { const v = e.target.value; setQuantas((q) => ({ ...q, [p.id]: v })); },
+    // Ao sair do campo, mostra o número que vale (50 com 20 disponíveis → 20).
+    onBlur: () => { const v = quantasDe(p); if (v !== null) setQuantas((q) => ({ ...q, [p.id]: String(v) })); },
+  });
+  // O AVISO "outra pessoa embalou antes" (revisão de 22/09): só quando a peça
+  // pedida NÃO está mais entre as que dá para embalar. A peça dividida (7 no
+  // Tubo 1, 3 ainda a embalar) continua candidata — não é aviso, é o normal.
+  const sumidas = itens.filter((id) => !candidatas.some((c) => c.id === id));
   // Só volume ABERTO conta (o entregue já saiu); a embalagem avulsa nunca vira "Tubo -1".
-  const jaEmTubo = (data?.tubos ?? []).filter((t) => !t.entregueEm && t.pecas.some((p) => itens.includes(p.id)));
+  const jaEmTubo = (data?.tubos ?? []).filter((t) => !t.entregueEm && t.pecas.some((p) => sumidas.includes(p.id)));
   // Tubos DE VERDADE ainda abertos: o volume avulso (embalada sozinha) não é
   // destino de ninguém e não consome número.
   const abertos = (data?.tubos ?? []).filter((t) => !t.entregueEm && !t.avulso);
@@ -349,7 +379,8 @@ export function EmbalarDialog({ evento, itens, comCaixas = false, onClose, onEmb
   // A peça INDIVIDUAL vai sozinha ("quando eu clicar nele individual, não
   // precisa ter a opção de tubo, ele vai sozinho") — e sozinha não é tubo:
   // pode ser uma placa, um pórtico, um rolo. O servidor cria um volume AVULSO.
-  const sozinha = itens.length === 1 && !comCaixas;
+  // O "Embalar em lote" com UMA peça marcada continua sendo lote → tubo.
+  const sozinha = itens.length === 1 && !comCaixas && !emLote;
   // O TUBO AUTOMÁTICO (dono, 21/09: "quando for assim, ele gera um tubo
   // automático, não precisa selecionar"). Tubo aberto e VAZIO (sobra de teste,
   // tubo esvaziado) é REUSADO — criar outro deixaria um órfão; senão é o
@@ -370,7 +401,8 @@ export function EmbalarDialog({ evento, itens, comCaixas = false, onClose, onEmb
   const embalar = useMutation({
     mutationFn: async () => {
       const ids = pecas.map((p) => p.id);
-      const itensComQuantidade = pecas.map((p) => ({ id: p.id, quantidade: quantasDe(p) }));
+      // O limite vale aqui também: nunca vai ao servidor mais que o disponível.
+      const itensComQuantidade = pecas.map((p) => ({ id: p.id, quantidade: Math.max(1, Math.min(disponivel(p), quantasDe(p) ?? 1)) }));
       const r = escolhido === "novo"
         ? await apiRequest("POST", `/api/events/${evento!.id}/tubos`, { itens: itensComQuantidade, fotos, ...(sozinha ? { avulso: true } : {}) })
         : await apiRequest("PATCH", `/api/tubos/${escolhido}/itens`, { itens: itensComQuantidade, fotos });
@@ -386,7 +418,7 @@ export function EmbalarDialog({ evento, itens, comCaixas = false, onClose, onEmb
     onError: (e) => toast({ title: "Não foi possível embalar", description: mensagemDeErro(e), variant: "destructive" }),
     onSettled: () => { enviandoRef.current = false; },
   });
-  const pronto = pecas.length > 0 && !!escolhido && fotos.length > 0;
+  const pronto = pecas.length > 0 && !faltaQuantas && !!escolhido && fotos.length > 0;
   const confirmar = () => {
     if (enviandoRef.current || embalar.isPending || !pronto) return;
     enviandoRef.current = true;
@@ -400,6 +432,7 @@ export function EmbalarDialog({ evento, itens, comCaixas = false, onClose, onEmb
   // O motivo de estar desabilitado mora NO botão, na ordem dos passos.
   const rotulo = embalar.isPending ? "Embalando…"
     : pecas.length === 0 ? "Nenhuma peça para embalar"
+    : faltaQuantas ? "Informe quantas"
     : !escolhido ? "Escolha o tubo"
     : fotos.length === 0 ? "Tire a foto"
     : sozinha && escolhido === "novo" ? `Embalar ${pecas[0]?.displayId ?? "a peça"} · ${unidades} un. · ${plural(fotos.length, "foto", "fotos")}`
@@ -435,7 +468,7 @@ export function EmbalarDialog({ evento, itens, comCaixas = false, onClose, onEmb
       {isError && <ErroAoCarregar onTentar={() => refetch()} />}
       {data && jaEmTubo.length > 0 && (
         <Aviso tom="azul" testId="embalar-ja-no-tubo">
-          {candidatas.length === 0 && itens.length === 1 ? "Esta peça já está" : "Parte das peças já está"} {jaEmTubo.map((t) => (t.avulso ? "embalada sozinha" : `no Tubo ${t.numero}`)).join(", ")} — outra pessoa embalou antes.
+          {candidatas.length === 0 && itens.length === 1 ? "Esta peça já está" : sumidas.length === 1 ? `${(data.tubos.flatMap((t) => t.pecas).find((p) => p.id === sumidas[0])?.displayId) ?? "Uma das peças"} já está` : "Parte das peças já está"} {jaEmTubo.map((t) => (t.avulso ? "embalada sozinha" : `no Tubo ${t.numero}`)).join(", ")} — outra pessoa embalou antes.
         </Aviso>
       )}
       {data && candidatas.length === 0 && jaEmTubo.length === 0 && (
@@ -455,12 +488,11 @@ export function EmbalarDialog({ evento, itens, comCaixas = false, onClose, onEmb
                       style={{ width: 18, height: 18, accentColor: COR.azul, flexShrink: 0 }} />
                     <LinhaDaPeca p={p} semQuantidade />
                     <span style={{ display: "inline-flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
-                      <input aria-label={`Quantas unidades de ${p.displayId ?? "peça"} embalar`} type="number" inputMode="numeric" pattern="[0-9]*" min={1} max={disponivel(p)} value={quantasDe(p)}
-                        data-testid={`quantas-${p.id}`} disabled={disponivel(p) <= 1}
-                        onChange={(e) => setQuantas((q) => ({ ...q, [p.id]: Math.max(1, Math.min(disponivel(p), parseInt(e.target.value, 10) || 1)) }))}
+                      <input aria-label={`Quantas unidades de ${p.displayId ?? "peça"} embalar`} type="number" inputMode="numeric" pattern="[0-9]*" min={1} max={disponivel(p)} {...campoQuantas(p)}
+                        data-testid={`quantas-${p.id}`} disabled={disponivel(p) <= 1} aria-invalid={quantasDe(p) === null || undefined}
                         style={{ width: 64, height: isMobile ? 44 : 36, boxSizing: "border-box", textAlign: "center", borderRadius: 8, border: `1px solid ${COR.borda}`, background: "#fff", color: COR.texto, fontSize: isMobile ? 16 : 14, fontWeight: 700 }} />
-                      {quantasDe(p) < disponivel(p) && (
-                        <button type="button" onClick={() => setQuantas((q) => ({ ...q, [p.id]: disponivel(p) }))} data-testid={`quantas-tudo-${p.id}`}
+                      {quantasDe(p) !== disponivel(p) && (
+                        <button type="button" onClick={() => setQuantas((q) => ({ ...q, [p.id]: String(disponivel(p)) }))} data-testid={`quantas-tudo-${p.id}`}
                           style={{ minHeight: isMobile ? 44 : 32, padding: "0 10px", borderRadius: 8, border: `1px solid ${COR.borda}`, background: "#fff", color: COR.azul, fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}>
                           Tudo ({disponivel(p)})
                         </button>
@@ -474,12 +506,11 @@ export function EmbalarDialog({ evento, itens, comCaixas = false, onClose, onEmb
                   <div key={p.id} data-testid={`embalar-peca-${p.id}`} style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", minHeight: 44, padding: "6px 12px", borderTop: "1px solid #f5f5f4" }}>
                     <LinhaDaPeca p={p} semQuantidade />
                     <span style={{ display: "inline-flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
-                      <input aria-label={`Quantas unidades de ${p.displayId ?? "peça"} embalar`} type="number" inputMode="numeric" pattern="[0-9]*" min={1} max={disponivel(p)} value={quantasDe(p)}
-                        data-testid={`quantas-${p.id}`} disabled={disponivel(p) <= 1}
-                        onChange={(e) => setQuantas((q) => ({ ...q, [p.id]: Math.max(1, Math.min(disponivel(p), parseInt(e.target.value, 10) || 1)) }))}
+                      <input aria-label={`Quantas unidades de ${p.displayId ?? "peça"} embalar`} type="number" inputMode="numeric" pattern="[0-9]*" min={1} max={disponivel(p)} {...campoQuantas(p)}
+                        data-testid={`quantas-${p.id}`} disabled={disponivel(p) <= 1} aria-invalid={quantasDe(p) === null || undefined}
                         style={{ width: 64, height: isMobile ? 44 : 36, boxSizing: "border-box", textAlign: "center", borderRadius: 8, border: `1px solid ${COR.borda}`, background: "#fff", color: COR.texto, fontSize: isMobile ? 16 : 14, fontWeight: 700 }} />
-                      {quantasDe(p) < disponivel(p) && (
-                        <button type="button" onClick={() => setQuantas((q) => ({ ...q, [p.id]: disponivel(p) }))} data-testid={`quantas-tudo-${p.id}`}
+                      {quantasDe(p) !== disponivel(p) && (
+                        <button type="button" onClick={() => setQuantas((q) => ({ ...q, [p.id]: String(disponivel(p)) }))} data-testid={`quantas-tudo-${p.id}`}
                           style={{ minHeight: isMobile ? 44 : 32, padding: "0 10px", borderRadius: 8, border: `1px solid ${COR.borda}`, background: "#fff", color: COR.azul, fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}>
                           Tudo ({disponivel(p)})
                         </button>
@@ -577,7 +608,10 @@ export function EntregarTuboDialog({ evento, tuboId, sugestaoRecebedor = "", onC
   const avulso = !!t?.avulso;
   // "Entregar #0386 — Placa de octanorme" × "Entregar Tubo 1 · teste 3".
   const oQue = avulso ? (t?.pecas[0]?.displayId ?? "a peça") : `Tubo ${t?.numero ?? ""}`;
-  const podeFormulario = !!t && !t.entregueEm && t.prontoParaEntregar && !soVe;
+  // Peça excluída, cancelada, fora do fluxo ou TRAVADA dentro do volume: o
+  // servidor recusaria (409) — a tela mostra o porquê e não oferece o botão.
+  const comProblema = (t?.pecas ?? []).filter((p) => !!p.problema);
+  const podeFormulario = !!t && !t.entregueEm && t.prontoParaEntregar && !soVe && comProblema.length === 0;
   // Foco inicial no que falta preencher — só no desktop: no celular abrir o
   // teclado de cara esconderia a lista do que está no tubo.
   useEffect(() => { if (podeFormulario && !isMobile) campoRef.current?.focus(); }, [podeFormulario, isMobile, chave]);
@@ -641,7 +675,14 @@ export function EntregarTuboDialog({ evento, tuboId, sugestaoRecebedor = "", onC
               O tubo só sai inteiro, e ainda falta conferir <strong>{t.faltamConferir.join(", ")}</strong>. Confira {t.faltamConferir.length === 1 ? "essa peça" : "essas peças"} (ou tire do tubo) e volte aqui.
             </Aviso>
           )}
-          {!t.entregueEm && !soVe && t.pecas.length > 0 && t.faltamConferir.length === 0 && !t.prontoParaEntregar && (
+          {!t.entregueEm && !soVe && comProblema.length > 0 && (
+            <Aviso testId="entregar-com-problema">
+              {comProblema.some((p) => p.travada && !p.excluida)
+                ? <>Não dá para entregar agora: <strong>{comProblema.map((p) => p.displayId ?? "peça").join(", ")}</strong> {comProblema.length === 1 ? "tem" : "têm"} pendência (veja abaixo).</>
+                : <>Não dá para entregar {avulso ? "esta embalagem" : `o Tubo ${t.numero}`} com <strong>{comProblema.map((p) => p.displayId ?? "peça").join(", ")}</strong> dentro — {avulso ? "desfaça a embalagem" : "tire do tubo"} e volte aqui.</>}
+            </Aviso>
+          )}
+          {!t.entregueEm && !soVe && t.pecas.length > 0 && t.faltamConferir.length === 0 && !t.prontoParaEntregar && comProblema.length === 0 && (
             <Aviso testId="entregar-fora-do-alcance">{avulso ? "Esta embalagem tem peça que você não vê" : "Este tubo tem peças que você não vê"} — quem entrega é quem enxerga o volume inteiro.</Aviso>
           )}
 
@@ -652,7 +693,12 @@ export function EntregarTuboDialog({ evento, tuboId, sugestaoRecebedor = "", onC
                 <li key={p.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", borderTop: "1px solid #f5f5f4", flexWrap: "wrap" }}>
                   <LinhaDaPeca p={p} noVolume />
                   {!p.conferida && <span style={{ fontSize: 12, fontWeight: 700, color: COR.ambar }}>falta conferir</span>}
-                  {p.problema && <span data-testid={`problema-${p.id}`} style={{ fontSize: 12, fontWeight: 700, color: "#b91c1c" }}>{p.problema} — {avulso ? "desfaça a embalagem" : "tire do tubo"} para entregar</span>}
+                  {p.problema && (
+                    <span data-testid={`problema-${p.id}`} style={{ fontSize: 12, fontWeight: 700, color: "#b91c1c" }}>
+                      {/* Travada: resolver é DESTRAVAR (Solicitação/admin), não tirar do tubo. */}
+                      {p.travada && !p.excluida ? `${p.problema} — a entrega espera a trava sair` : `${p.problema} — ${avulso ? "desfaça a embalagem" : "tire do tubo"} para entregar`}
+                    </span>
+                  )}
                   {p.conferencePhotoUrl && (
                     <a href={p.conferencePhotoUrl} target="_blank" rel="noreferrer" data-testid={`foto-conferencia-${p.id}`}
                       style={{ display: "inline-flex", alignItems: "center", minHeight: isMobile ? 44 : 24, fontSize: 12.5, fontWeight: 700, color: COR.azul }}>
@@ -1105,11 +1151,13 @@ export function TuboDialog({ evento, tuboId, onClose, onEntregar, onAbrirPeca }:
 // ═════════════════════════════════════════════════════════════════════════════
 // O ponto de entrada da Gráfica: UM modal por vez, escolhido pela porta.
 // ═════════════════════════════════════════════════════════════════════════════
-export function TubosDialog({ evento, onClose, itensIniciais, tuboInicial, verTubo, onAbrirPeca, onEmbalou, sugestaoRecebedor, onEntregou }: {
+export function TubosDialog({ evento, onClose, itensIniciais, emLote = false, tuboInicial, verTubo, onAbrirPeca, onEmbalou, sugestaoRecebedor, onEntregou }: {
   evento: Evento | null;
   onClose: () => void;
   /** Chegou pelo "Embalar" da peça (ou do lote): abre direto o modal Embalar. */
   itensIniciais?: string[];
+  /** Chegou pelo "Embalar em lote": mesmo com uma peça só, vai para tubo. */
+  emLote?: boolean;
   /** Chegou pelo "Entregar tubo" da embalada: abre direto o modal Entregar. */
   tuboInicial?: string;
   /** Chegou pelo SELO da peça (ou por um cartão da aba Tubos): abre o modal daquele tubo. */
@@ -1136,7 +1184,7 @@ export function TubosDialog({ evento, onClose, itensIniciais, tuboInicial, verTu
     <>
       <PainelDeTubos evento={evento && !embalando && !entregando && !vendo ? evento : null} onClose={onClose}
         onEmbalar={(ids) => setDoPainel({ embalar: ids })} onEntregar={(id) => setDoPainel({ entregar: id })} />
-      <EmbalarDialog evento={embalando ? evento : null} itens={embalando ?? []} comCaixas={!direto} onClose={voltar} onEmbalou={onEmbalou} />
+      <EmbalarDialog evento={embalando ? evento : null} itens={embalando ?? []} comCaixas={!direto} emLote={direto === "embalar" && emLote} onClose={voltar} onEmbalou={onEmbalou} />
       <EntregarTuboDialog evento={entregando ? evento : null} tuboId={entregando} sugestaoRecebedor={sugestaoRecebedor} onClose={voltar}
         onEntregou={(quem) => { onEntregou?.(quem); if (direto === "ver") onClose(); }} />
       <TuboDialog evento={vendo ? evento : null} tuboId={vendo} onClose={onClose} onEntregar={(id) => setDoPainel({ entregar: id })} onAbrirPeca={onAbrirPeca} />

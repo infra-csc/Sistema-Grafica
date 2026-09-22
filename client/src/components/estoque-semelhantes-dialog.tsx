@@ -3,7 +3,8 @@
 //
 // Mostra as peças do estoque do mesmo tipo e medida, agrupadas em lotes, com
 // o que importa para decidir: a arte lado a lado (o layout se confere no
-// olho), o patrocinador, a condição, ONDE está e SE chega a tempo. Três
+// olho), o patrocinador, a condição, a situação e SE chega a tempo (sem local no
+// galpão: o dono decidiu em 21/09 que o sistema não guarda onde a peça fica). Três
 // grupos reserváveis — livre no galpão, em uso mas volta a tempo, voltou e
 // falta triagem — e, recolhido, o que não dá para usar e por quê.
 //
@@ -13,7 +14,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { AlertTriangle, ChevronDown, MapPin, Minus, Package, Plus, Warehouse } from "lucide-react";
+import { AlertTriangle, ChevronDown, Minus, Package, Plus, Warehouse } from "lucide-react";
 import type { Sponsor } from "@shared/schema";
 import {
   ROTULO_DA_DISPONIBILIDADE,
@@ -36,7 +37,6 @@ type Lote = {
   aviso: string | null;
   relacao: RelacaoDePatrocinio;
   condicao: string;
-  local: string | null;
   situacao: string;
   voltaEm: string | null;
   thumb: string | null;
@@ -52,7 +52,6 @@ type Reservada = {
   displayId: string;
   situacao: string | null;
   condicao: string | null;
-  local: string | null;
   quantidade: number;
   thumb: string | null;
   origem: { displayId: string | null; eventName: string | null } | null;
@@ -155,10 +154,6 @@ function LoteLinha({ lote, indice, nomeDe, maximo, quantidade, onQuantidade, onR
             {ROTULO_DA_RELACAO[lote.relacao]}{patrocinadores ? `: ${patrocinadores}` : ""}
           </Chip>
           <Chip cor={cond.color} fundo={cond.bg}>{cond.label}</Chip>
-          {/* "Sem local" em #78716c: #a8a29e é proibido como cor de texto (2,3:1). */}
-          <Chip cor={lote.local ? "#44403c" : "#78716c"} fundo="#f5f5f4">
-            <MapPin size={10} aria-hidden="true" /> {lote.local ?? "Sem local"}
-          </Chip>
           <Chip cor={tom.cor} fundo={tom.fundo}>{situacao}</Chip>
         </div>
         {lote.aviso && (
@@ -342,7 +337,7 @@ export function EstoqueSemelhantesDialog({ item, podeReservar, onClose }: {
                       <span style={{ fontWeight: 600, color: "#57534e" }}>{r.origem ? ` · ${r.origem.displayId ?? ""} · ${r.origem.eventName ?? ""}` : ""}</span>
                     </div>
                     <div style={{ fontSize: 11.5, color: "#44403c", marginTop: 2 }}>
-                      {SITUACAO[r.situacao ?? ""] ?? "—"} · {r.local ?? "sem local"}{r.reservadoPor ? ` · reservada por ${r.reservadoPor}` : ""}
+                      {SITUACAO[r.situacao ?? ""] ?? "—"}{r.reservadoPor ? ` · reservada por ${r.reservadoPor}` : ""}
                     </div>
                   </div>
                   {r.podeLiberar ? (

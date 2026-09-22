@@ -235,8 +235,11 @@ for (const largura of [1280, 390]) {
       expect($('[data-testid="apoio-s1"]')!.textContent).toBe("7 conferidas de 10 · 0 embaladas");
       await act(async () => { fireEvent.change(campo(), { target: { value: "5" } }); });
       expect(campo().value).toBe("5");
-      // nunca acima do que está conferido e sem embalar
+      // nunca acima do que está conferido e sem embalar: o TEXTO fica enquanto
+      // se digita (22/09), a conta usa 7 e, ao sair do campo, mostra 7.
       await act(async () => { fireEvent.change(campo(), { target: { value: "99" } }); });
+      expect(campo().value).toBe("99");
+      await act(async () => { fireEvent.blur(campo()); });
       expect(campo().value).toBe("7");
       await act(async () => { fireEvent.change(campo(), { target: { value: "5" } }); });
       await act(async () => { fireEvent.click($$('[data-testid="button-upload-photo"]')[0]); });
@@ -246,6 +249,69 @@ for (const largura of [1280, 390]) {
       await clicar('[data-testid="confirmar-embalar"]');
       await tick(30);
       expect(chamadas[0]).toMatchObject({ metodo: "POST", corpo: { itens: [{ id: "s1", quantidade: 5 }], avulso: true } });
+    }, 30_000);
+
+    it("QUANTAS com DIGITAÇÃO REAL (22/09): apagar \"20\" tecla a tecla e digitar \"5\" grava 5 — nunca 15; vazio pede \"Informe quantas\"", async () => {
+      await montar({ itensIniciais: ["s1"] }, largura, retrato((r) => { Object.assign(r.semTubo[0], { quantity: 20, conferredQty: 20, embaladaQty: 0, aEmbalar: 20 }); }));
+      const campo = () => $('[data-testid="quantas-s1"]') as HTMLInputElement;
+      const botao = () => $('[data-testid="confirmar-embalar"]') as HTMLButtonElement;
+      // Cada tecla parte do que ESTÁ no campo (como o navegador faz).
+      const tecla = async (t: "Backspace" | string) => {
+        const atual = campo().value;
+        await act(async () => { fireEvent.change(campo(), { target: { value: t === "Backspace" ? atual.slice(0, -1) : atual + t } }); });
+      };
+      expect(campo().value).toBe("20");
+      await act(async () => { fireEvent.click($$('[data-testid="button-upload-photo"]')[0]); });
+      await tecla("Backspace");
+      expect(campo().value).toBe("2");
+      await tecla("Backspace");
+      expect(campo().value, "o campo fica VAZIO — não vira 1").toBe("");
+      expect(botao().disabled).toBe(true);
+      expect(botao().textContent).toBe("Informe quantas");
+      await tecla("5");
+      expect(campo().value).toBe("5");
+      expect(botao().disabled).toBe(false);
+      expect(botao().textContent).toBe("Embalar #0386 · 5 un. · 1 foto");
+      await clicar('[data-testid="confirmar-embalar"]');
+      await tick(30);
+      expect(chamadas[0]).toMatchObject({ metodo: "POST", corpo: { itens: [{ id: "s1", quantidade: 5 }] } });
+    }, 30_000);
+
+    it("o aviso 'outra pessoa embalou antes' só aparece quando a peça pedida SUMIU das que dá para embalar (22/09)", async () => {
+      // #0386 dividida: 10 já no Tubo 1 e 6 ainda a embalar — é o normal, sem aviso.
+      await montar({ itensIniciais: ["s1"] }, largura, retrato((r) => {
+        r.tubos[0].pecas.push(p("s1", "#0386", true, { quantidadeNoTubo: 10, embaladaQty: 10 }));
+        Object.assign(r.semTubo[0], { embaladaQty: 10, aEmbalar: 6 });
+      }));
+      expect($('[data-testid="embalar-ja-no-tubo"]'), "peça dividida não é 'outra pessoa embalou'").toBeNull();
+      cleanup();
+      // Lote de duas: #0381 foi toda embalada por outra pessoa (sumiu das candidatas).
+      await montar({ itensIniciais: ["s1", "s2"] }, largura, retrato((r) => {
+        r.tubos[0].pecas.push(p("s2", "#0381", true));
+        r.semTubo = r.semTubo.filter((x: any) => x.id !== "s2");
+      }));
+      expect($('[data-testid="embalar-ja-no-tubo"]')!.textContent).toBe("#0381 já está no Tubo 1 — outra pessoa embalou antes.");
+    }, 30_000);
+
+    it("'Embalar em lote' com UMA peça continua sendo tubo — nunca vira avulso (22/09)", async () => {
+      await montar({ itensIniciais: ["s1"], emLote: true }, largura);
+      expect($('[data-testid="embalar-tubo-automatico"]')!.textContent).toContain("Tubo");
+      await act(async () => { fireEvent.click($$('[data-testid="button-upload-photo"]')[0]); });
+      await clicar('[data-testid="confirmar-embalar"]');
+      await tick(30);
+      expect(chamadas[0].corpo.avulso, "lote não pede volume avulso").toBeUndefined();
+    }, 30_000);
+
+    it("peça TRAVADA no volume: a entrega mostra o motivo e não oferece o botão — antes do 409 (22/09)", async () => {
+      await montar({ tuboInicial: "t1" }, largura, retrato((r) => {
+        Object.assign(r.tubos[0].pecas[0], { travada: true, travadaPor: "Bia", travadaMotivo: "Arte vai mudar", problema: "Peça travada pela Solicitação: Arte vai mudar — fale com Bia" });
+        r.tubos[0].prontoParaEntregar = false;
+      }));
+      expect($('[data-testid="problema-a1"]')!.textContent).toBe("Peça travada pela Solicitação: Arte vai mudar — fale com Bia — a entrega espera a trava sair");
+      expect($('[data-testid="entregar-com-problema"]')!.textContent).toContain("#0383");
+      expect($('[data-testid="entregar-fora-do-alcance"]'), "não é 'peça que você não vê'").toBeNull();
+      expect($('[data-testid="confirmar-entrega-tubo-1"]')).toBeNull();
+      expect(chamadas).toEqual([]);
     }, 30_000);
 
     it("lote: dá para TIRAR uma peça (x de 44px), não adicionar; quem não tem unidade a embalar nunca entra", async () => {

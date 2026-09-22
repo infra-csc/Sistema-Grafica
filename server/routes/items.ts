@@ -14,7 +14,7 @@ import { carregarRemessa, remessasPorIds } from "../services/kitRemessas";
 import { respostaDoEstoqueParaLiberar, marcarRespostaAplicada } from "../services/consultaDeEstoqueNaLiberacao";
 import { trilhaDaLiberacaoComEstoque, SOLICITACAO_AO_ESTOQUE_ATIVA } from "@shared/consultas-de-estoque";
 import { resumosDeTuboPorIds, comTubo } from "../services/tubosDaPeca";
-import { tirarPecaDosVolumesAbertos } from "./tubos";
+import { excluirPecaTirandoDosVolumes, ehRecusaDeTubo } from "./tubos";
 import { FORMATO_COMPACTO, compactarPecas, compactarAprovacoes } from "@shared/itens-compactos";
 import { DEPOIS_DA_ARTE, EM_REVISAO, POS_APROVACAO, DISPENSAVEIS, DESTINO_DA_DISPENSA, ehBookCompleto, ehMaquinaValida, rotuloDaMaquina } from "@shared/fluxo-peca";
 import { ehMolde, destinoDaDevolucao, dispensaArquivoFinal, trocaDeMoldeProibida, ERRO_TROCA_DE_MOLDE, tipoCanonico } from "@shared/molde";
@@ -2195,13 +2195,18 @@ export function registerItemRoutes(app: Express): void {
         });
       }
 
-      // Sai dos volumes ABERTOS antes do soft delete: senão a linha ficava num
-      // tubo que depois seria entregue sem a peça. Se falhar, a exclusão segue:
-      // a entrega do volume recusa peça excluída ("foi excluída — tire do tubo").
-      await tirarPecaDosVolumesAbertos(req, req.params.id).catch((e) => console.error("[items] falha ao tirar a peça excluída dos volumes:", e));
-
-      const success = await storage.deleteItem(req.params.id);
-      if (!success) {
+      // Sai dos volumes ABERTOS e vai para a lixeira NUMA TRANSAÇÃO SÓ, com a
+      // peça travada (revisão de 22/09): antes eram dois passos, e um embalar
+      // ou uma entrega entre eles deixava linha "fantasma" num tubo — ou a peça
+      // fora do tubo sem ter sido excluída. Se falhar, nada muda (500).
+      let excluida: { tiradas: number } | null;
+      try {
+        excluida = await excluirPecaTirandoDosVolumes(req, req.params.id);
+      } catch (e) {
+        if (ehRecusaDeTubo(e)) return res.status(e.http).json({ error: e.message });
+        throw e;
+      }
+      if (!excluida) {
         return res.status(404).json({ error: "Item not found" });
       }
       // Peça que atendia uma solicitação: se era a última, a peça solicitada
@@ -5425,12 +5430,21 @@ export function registerItemRoutes(app: Express): void {
         return res.status(403).json({ error: "Sem permissão para conferir" });
       }
       const { conferencePhotoUrl, qty, notes } = req.body ?? {};
-      const current = await storage.getItem(req.params.id);
-      if (!current) return res.status(404).json({ error: "Item not found" });
+      // CONCORRÊNCIA (revisão de 22/09): a conferência lia a peça, somava e
+      // REGRAVAVA o total em valor absoluto. Duas conferências e um embalar ao
+      // mesmo tempo quebravam "embaladas ≤ conferidas" (uma sobrescrevia a
+      // outra para baixo depois de o embalar já ter usado o total maior). Agora
+      // tudo roda numa transação com a peça TRAVADA (`SELECT … FOR UPDATE` — a
+      // mesma trava do embalar em routes/tubos.ts) e a conta é refeita lá dentro.
+      type Resultado = { erro: { http: number; corpo: any } } | { item: any; trilha: string };
+      const resultado: Resultado = await db.transaction(async (tx: any): Promise<Resultado> => {
+      const [current] = await tx.select().from(itemsTable).where(eq(itemsTable.id, req.params.id)).for("update");
+      const recusa = (http: number, corpo: any): Resultado => ({ erro: { http, corpo } });
+      if (!current || current.deletedAt) return recusa(404, { error: "Item not found" });
       // Travada pela Solicitação: não se confere.
-      if (pecaTravada(current as any)) return res.status(409).json({ error: fraseDaTrava(current as any), code: CODIGO_PECA_TRAVADA });
+      if (pecaTravada(current as any)) return recusa(409, { error: fraseDaTrava(current as any), code: CODIGO_PECA_TRAVADA });
       if (!conferencePhotoUrl && !current.conferencePhotoUrl) {
-        return res.status(400).json({ error: "Foto da conferência é obrigatória" });
+        return recusa(400, { error: "Foto da conferência é obrigatória" });
       }
       // Conferência acontece a partir de Produzido (e continua enquanto parcial).
       /**
@@ -5456,13 +5470,13 @@ export function registerItemRoutes(app: Express): void {
       // revisão como "chegando"), então o buraco ficou alcançável: uma peça
       // com reaproveitamento marcado e ainda em revisão passaria por aqui.
       // MOLDE (22/09): o fluxo dele morre no Produzido — não há conferência.
-      if (ehMolde(current)) return res.status(409).json({ error: "Molde não passa por conferência — o fluxo dele termina no Produzido." });
+      if (ehMolde(current)) return recusa(409, { error: "Molde não passa por conferência — o fluxo dele termina no Produzido." });
       if (EM_REVISAO.has(current.status)) {
-        return res.status(409).json({ error: `Esta peça ainda está na Revisão — a Gráfica confere depois que a Revisão liberar. Status: ${translateStatus(current.status)}` });
+        return recusa(409, { error: `Esta peça ainda está na Revisão — a Gráfica confere depois que a Revisão liberar. Status: ${translateStatus(current.status)}` });
       }
       const podeConferir = current.status === "produced" || reusedTotal > 0;
       if (!podeConferir || remaining <= 0) {
-        return res.status(409).json({ error: `Nada a conferir. Status: ${translateStatus(current.status)} (${alreadyConferred}/${current.quantity})` });
+        return recusa(409, { error: `Nada a conferir. Status: ${translateStatus(current.status)} (${alreadyConferred}/${current.quantity})` });
       }
       // Quantidade desta conferência (padrão: o que falta). Limita ao restante.
       const n = Math.min(remaining, Math.max(1, Number(qty) || remaining));
@@ -5470,23 +5484,30 @@ export function registerItemRoutes(app: Express): void {
       const isFull = newConferred >= current.quantity;
       const trimmedNotes = typeof notes === "string" ? notes.trim() : "";
 
-      const item = await storage.updateItem(req.params.id, {
+      const agora = new Date();
+      const novoStatus = isFull ? ((((current as any).embaladaQty ?? 0) >= current.quantity ? "packed" : "conferred") as "packed" | "conferred") : null;
+      const [item] = await tx.update(itemsTable).set({
+        // `newConferred` foi calculado com a linha TRAVADA: ninguém gravou no meio.
         conferredQty: newConferred,
         conferencePhotoUrl: conferencePhotoUrl || current.conferencePhotoUrl || null,
-        conferredAt: isFull ? new Date() : current.conferredAt,
+        conferredAt: isFull ? agora : current.conferredAt,
         ...(trimmedNotes ? { conferenceNotes: trimmedNotes } : {}),
+        updatedAt: agora,
         // Status só vira "conferred" quando conferiu tudo; parcial continua "produced".
         // EMBALAGEM COM QUANTIDADE (21/09): a parcial pode ter embalado a parte
         // já conferida. Fechar a conferência só vira Embalado se TUDO já está
         // embalado (caso raro); senão é Conferido, com o resto a embalar.
-        ...(isFull ? { status: (((current as any).embaladaQty ?? 0) >= current.quantity ? "packed" : "conferred") as "packed" | "conferred" } : {}),
-      });
-      await createAuditLog(
-        req,
-        'updated', 'item', req.params.id,
-        (isFull ? `Conferência concluída (${newConferred}/${current.quantity})` : `Conferência parcial: ${n} un. (${newConferred}/${current.quantity})`)
+        // O carimbo "desde quando" (storage.updateItem faz igual) vai à mão.
+        ...(novoStatus ? { status: novoStatus, ...(novoStatus !== current.status ? { statusChangedAt: agora } : {}) } : {}),
+      } as any).where(eq(itemsTable.id, req.params.id)).returning();
+      const trilha = (isFull ? `Conferência concluída (${newConferred}/${current.quantity})` : `Conferência parcial: ${n} un. (${newConferred}/${current.quantity})`)
         + (isFull && ((current as any).embaladaQty ?? 0) >= current.quantity ? " — já estava toda embalada" : "")
-        + (trimmedNotes ? ` — Obs.: ${trimmedNotes}` : ""));
+        + (trimmedNotes ? ` — Obs.: ${trimmedNotes}` : "");
+      return { item, trilha };
+      });
+      if ("erro" in resultado) return res.status(resultado.erro.http).json(resultado.erro.corpo);
+      const { item, trilha } = resultado;
+      await createAuditLog(req, 'updated', 'item', req.params.id, trilha);
       broadcast({ type: "item_updated", item });
       res.json(item);
     } catch (error: any) {

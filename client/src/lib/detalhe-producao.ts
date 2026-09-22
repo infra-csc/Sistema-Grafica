@@ -20,6 +20,7 @@
 // para Atendimento e Arte.
 // ─────────────────────────────────────────────────────────────────────────────
 import { rotuloDaMaquina } from "@shared/fluxo-peca";
+import { moldeConcluido } from "@shared/molde";
 import { progressoDaEmbalagem, seloDosVolumes } from "@shared/embalagem";
 import { numerosDaImpressao, fraseDaFila } from "@shared/progresso-da-impressao";
 import { PRODUCTION_STATUSES, getStatusMeta } from "@/lib/status";
@@ -27,6 +28,8 @@ import { PRODUCTION_STATUSES, getStatusMeta } from "@/lib/status";
 /** O mínimo da peça que a frase lê. Tudo opcional: peça antiga não tem metade. */
 export type PecaComProducao = {
   status?: string | null;
+  /** O tipo: o MOLDE produzido terminou o fluxo dele (não espera conferência). */
+  type?: string | null;
   quantity?: number | string | null;
   reuseQty?: number | string | null;
   isReuse?: boolean | null;
@@ -43,6 +46,8 @@ export type PecaComProducao = {
   /** EMBALAGEM COM QUANTIDADE (21/09): total já embalado e os volumes ABERTOS
    *  da peça com a quantidade em cada um — viajam na peça, como o número. */
   embaladaQty?: number | string | null;
+  /** A entrega parcial ANTIGA (sem volume) aparece como "7 de 10 entregues". */
+  deliveredQty?: number | string | null;
   tuboVolumes?: Array<{ tuboId: string; numero: number; avulso?: boolean | null; quantidade: number }> | null;
   tuboFechadoEm?: string | Date | null;
   tuboEntregueEm?: string | Date | null;
@@ -92,6 +97,9 @@ export function rotuloDoTubo(item: PecaComProducao | null | undefined): string |
  */
 export function detalheDaProducao(item: PecaComProducao | null | undefined): string | null {
   if (!item || !item.status) return null;
+  // MOLDE PRODUZIDO (revisão de 22/09): o fluxo dele termina no Produzido —
+  // "Aguardando conferência" mentia em 5 telas. O selo já diz "Produzido (molde)".
+  if (moldeConcluido(item)) return null;
   const status = item.status;
 
   if (LIBERADA.has(status)) {
@@ -116,7 +124,8 @@ export function detalheDaProducao(item: PecaComProducao | null | undefined): str
   }
 
   // Parte já embalada (a parcial, ou a que foi dividida no tempo): o progresso
-  // e onde está — "7 de 10 embaladas · Tubo 1 (7)".
+  // e onde está — "7 de 10 embaladas · Tubo 1 (7)". A entrega parcial ANTIGA
+  // (sem volume) diz "7 de 10 entregues" — nunca "embaladas".
   const parcial = progressoDaEmbalagem(item as any);
   if (parcial && !ENTREGUE.has(status) && status !== "packed") return [parcial, volumesDaPeca(item)].filter(Boolean).join(" · ");
 

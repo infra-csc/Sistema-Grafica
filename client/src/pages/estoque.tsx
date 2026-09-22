@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useDeferredValue, Fragment } from "react";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery, useQueries, useMutation } from "@tanstack/react-query";
 import { FilterSelect } from "@/components/filter-select";
 import { EventFilterDropdown } from "@/components/event-filter-dropdown";
 import { useLocation } from "wouter";
@@ -8,7 +8,7 @@ import { useToast } from "@/hooks/use-toast";
 import type { InventoryAsset, Sponsor, Event } from "@shared/schema";
 import {
   Archive, Search, Pencil, Trash2, CheckCircle2,
-  XCircle, MapPin, Tag, X, Package, Warehouse, Truck, ScanSearch, Calendar, CalendarDays,
+  XCircle, Tag, X, Package, Warehouse, Truck, ScanSearch, Calendar, CalendarDays,
   Grid3X3, Eye, Check, Layers, ClipboardCheck, Wrench, BookmarkCheck, ChevronDown,
 } from "lucide-react";
 import { format } from "date-fns";
@@ -66,6 +66,14 @@ const SIGNIFICADO_DA_CONDICAO: Record<Condition, string> = {
   AVARIA_LEVE: "Defeito pequeno — confira antes de reaproveitar.",
   SUCATA: "Não serve mais para evento.",
 };
+
+/** Ativo do acervo como GET /api/inventory devolve: com o evento da peça de
+ *  origem junto (revisão 22/09). */
+type AtivoComOrigem = InventoryAsset & { origemEventId?: string | null };
+
+/** Teto de peças de origem (ou registros avulsos) por leitura de usos — o
+ *  mesmo LIMITE_DO_RECORTE_DE_USOS do servidor. */
+const LIMITE_DE_USOS = 500;
 
 /** Reserva vigente (GET /api/estoque/reservas-ativas). */
 type ReservaAtiva = { reservaId: string; assetId: string; itemDisplayId: string | null; eventName: string; saida: string | null };
@@ -204,9 +212,16 @@ function AssetModal({ asset, onClose, onSaved }: {
         : [...f.sponsorIds, id],
     }));
 
+  // Situação do CICLO (Em uso / Aguardando triagem) não é editável: fica fora
+  // do corpo. Antes o PATCH levava `trackingStatus: "EM_USO"` de volta e o
+  // servidor recusava (400) — editar o nome de uma peça em uso não salvava.
+  const corpoDoFormulario = (data: typeof form) => {
+    const { trackingStatus, ...resto } = data;
+    return MANUAL_STATUSES.includes(trackingStatus) ? data : resto;
+  };
   const mutation = useMutation({
     mutationFn: (data: typeof form) =>
-      isEdit ? apiRequest("PATCH", `/api/inventory/${asset!.id}`, data) : apiRequest("POST", "/api/inventory", data),
+      isEdit ? apiRequest("PATCH", `/api/inventory/${asset!.id}`, corpoDoFormulario(data)) : apiRequest("POST", "/api/inventory", data),
     // Toast com o NOME do ativo e erro com o motivo do servidor — "Erro ao
     // salvar." sem porquê não dizia se era campo, permissão ou conexão.
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/inventory"] }); toast({ title: isEdit ? "Ativo atualizado" : "Ativo cadastrado", description: form.name.trim() }); onSaved(); },
@@ -464,32 +479,24 @@ export default function Estoque() {
   const { data: reservasAtivas = VAZIO as ReservaAtiva[] } = useQuery<ReservaAtiva[]>({ queryKey: ["/api/estoque/reservas-ativas"] });
   const reservaPorAtivo = useMemo(() => new Map(reservasAtivas.map(r => [r.assetId, r])), [reservasAtivas]);
 
-  const { data: assets = VAZIO as InventoryAsset[], isLoading, isError, refetch } = useQuery<InventoryAsset[]>({ queryKey: ["/api/inventory"] });
+  const { data: assets = VAZIO as AtivoComOrigem[], isLoading, isError, refetch } = useQuery<AtivoComOrigem[]>({ queryKey: ["/api/inventory"] });
   const { data: sponsors = VAZIO as Sponsor[] } = useQuery<Sponsor[]>({ queryKey: ["/api/sponsors"] });
-  const { data: allItems = VAZIO as any[] } = useQuery<any[]>({ queryKey: ["/api/items"] });
   const { data: allEvents = VAZIO as Event[] } = useQuery<Event[]>({ queryKey: ["/api/events"] });
   // Por id: cada linha fazia sponsors.find() por patrocinador.
   const patrocinadorPorId = useMemo(() => new Map(sponsors.map(s => [s.id, s])), [sponsors]);
 
-  const getLinkedItem = (asset: InventoryAsset) => {
-    if (!asset.originalItemId) return undefined;
-    return allItems.find((i: any) => i.id === asset.originalItemId);
-  };
-
-  // Map assetId → eventName via originalItemId → item → event
+  // ativo → evento de ORIGEM. O acervo já traz `origemEventId` (revisão
+  // 22/09): a tela baixava /api/items INTEIRO (MBs) só para isto e, até ele
+  // chegar, a chave dos grupos mudava e as linhas abertas fechavam sozinhas.
   const assetEventMap = useMemo(() => {
-    const itemMap = Object.fromEntries(allItems.map(i => [i.id, i]));
-    const eventMap = Object.fromEntries(allEvents.map(e => [e.id, e]));
+    const eventMap = new Map(allEvents.map(e => [e.id, e]));
     const map: Record<string, { id: string; name: string; startDate: Date | string | null }> = {};
     for (const asset of assets) {
-      if (!asset.originalItemId) continue;
-      const item = itemMap[asset.originalItemId];
-      if (!item) continue;
-      const event = eventMap[item.eventId];
+      const event = asset.origemEventId ? eventMap.get(asset.origemEventId) : undefined;
       if (event) map[asset.id] = { id: event.id, name: event.name, startDate: event.startDate ?? null };
     }
     return map;
-  }, [assets, allItems, allEvents]);
+  }, [assets, allEvents]);
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => apiRequest("DELETE", `/api/inventory/${id}`),
@@ -507,20 +514,26 @@ export default function Estoque() {
 
   // Exclude AGUARDANDO_TRIAGEM — those belong to the triage screen only
   // UMA passada conta tudo (eram oito filter() do acervo inteiro por render).
-  const { acervoAssets, contagem } = useMemo(() => {
+  const { acervoAssets, contagem, registros } = useMemo(() => {
+    // Os cartões contam UNIDADES, como as linhas (revisão 22/09): contavam
+    // registros, e um registro ×10 valia 1 no topo e 10 na linha.
     const contagem: Record<string, number> = {};
-    const acervoAssets: InventoryAsset[] = [];
+    const registros: Record<string, number> = {};
+    const acervoAssets: AtivoComOrigem[] = [];
     for (const a of assets) {
-      contagem[a.trackingStatus] = (contagem[a.trackingStatus] ?? 0) + 1;
+      contagem[a.trackingStatus] = (contagem[a.trackingStatus] ?? 0) + (a.quantity ?? 1);
+      registros[a.trackingStatus] = (registros[a.trackingStatus] ?? 0) + 1;
       if (a.trackingStatus !== "AGUARDANDO_TRIAGEM") acervoAssets.push(a);
     }
-    return { acervoAssets, contagem };
+    return { acervoAssets, contagem, registros };
   }, [assets]);
   const byStatus = (s: string) => contagem[s] ?? 0;
   const triageCount = byStatus("AGUARDANDO_TRIAGEM");
-  const total = acervoAssets.length - byStatus("DESCARTADO");
+  const noAcervo = (st: string) => st !== "AGUARDANDO_TRIAGEM" && st !== "DESCARTADO";
+  const total = Object.entries(contagem).reduce((soma, [st, n]) => (noAcervo(st) ? soma + n : soma), 0);
+  const registrosNoTotal = Object.entries(registros).reduce((soma, [st, n]) => (noAcervo(st) ? soma + n : soma), 0);
   // Reservadas que estão no galpão: "No galpão" não quer dizer livre (14/09).
-  const reservadasNoGalpao = useMemo(() => acervoAssets.filter(a => a.trackingStatus === "NO_GALPAO" && reservaPorAtivo.has(a.id)).length, [acervoAssets, reservaPorAtivo]);
+  const reservadasNoGalpao = useMemo(() => acervoAssets.reduce((s, a) => (a.trackingStatus === "NO_GALPAO" && reservaPorAtivo.has(a.id) ? s + (a.quantity ?? 1) : s), 0), [acervoAssets, reservaPorAtivo]);
 
   // A busca filtra com o valor ADIADO: o campo responde na hora e a lista
   // acompanha quando o navegador respira.
@@ -539,8 +552,48 @@ export default function Estoque() {
     const mf = filterFranchise.length === 0 || (a.franchiseTags ?? []).some(t => filterFranchise.includes(t));
     return ms && mst && mc && ma && me && msp && mf;
   }), [acervoAssets, buscaAdiada, filterStatus, filterCondition, filterAutoAdded, filterEvent, filterSponsor, filterFranchise, soReservadas, reservaPorAtivo, assetEventMap]);
-  // ONDE JÁ FOI USADO: uma leitura do acervo inteiro (sem N+1), por ativo.
-  const { data: alocacoes = VAZIO as AlocacaoDoAcervo[] } = useQuery<AlocacaoDoAcervo[]>({ queryKey: ["/api/estoque/usos"] });
+  // AGRUPADO POR QUANTIDADE: os filtros e os cartões contam UNIDADES; a lista
+  // mostra MATERIAIS. Lotes por grupo. A chave usa o evento que vem NO
+  // PRÓPRIO ativo (origemEventId) — não espera outra lista chegar, então não
+  // muda depois da primeira carga e as linhas abertas ficam abertas.
+  const grupos = useMemo(() => {
+    const agora = new Date();
+    return agruparAcervo(filtered, a => a.origemEventId ?? null,
+      a => reservaPorAtivo.has(a.id) || (!!assetEventMap[a.id] && !eventoJaAcabou(assetEventMap[a.id].startDate, agora)));
+  }, [filtered, assetEventMap, reservaPorAtivo]);
+  const gruposVisiveis = useMemo(() => grupos.slice(0, mostrando), [grupos, mostrando]);
+  const grupoVendo = vendo ? grupos.find(g => g.chave === vendo.chave) : undefined;
+
+  // ONDE JÁ FOI USADO (revisão 22/09): só dos materiais NA TELA (e do que
+  // está aberto no detalhe), sem N+1 — uma leitura por fatia de até
+  // LIMITE_DE_USOS peças de origem / registros avulsos. Antes era o acervo inteiro.
+  const recortesDeUsos = useMemo(() => {
+    const itens = new Set<string>(), avulsos = new Set<string>();
+    for (const g of grupoVendo ? [...gruposVisiveis, grupoVendo] : gruposVisiveis) {
+      for (const a of g.ativos) { if (a.originalItemId) itens.add(a.originalItemId); else avulsos.add(a.id); }
+    }
+    const fatias = (xs: string[], param: string) => {
+      const out: string[] = [];
+      for (let i = 0; i < xs.length; i += LIMITE_DE_USOS) out.push(`?${param}=${xs.slice(i, i + LIMITE_DE_USOS).join(",")}`);
+      return out;
+    };
+    return [...fatias(Array.from(itens).sort(), "itens"), ...fatias(Array.from(avulsos).sort(), "ativos")];
+  }, [gruposVisiveis, grupoVendo]);
+  const consultasDeUsos = useQueries({
+    queries: recortesDeUsos.map(qs => ({
+      queryKey: ["/api/estoque/usos", qs],
+      // Mostrar mais / trocar filtro muda a chave: segura o que já tinha.
+      placeholderData: (anterior: AlocacaoDoAcervo[] | undefined) => anterior,
+    })),
+  });
+  const assinaturaDosUsos = consultasDeUsos.map(q => q.dataUpdatedAt).join(",");
+  const alocacoes = useMemo(() => {
+    const vistos = new Set<string>();
+    const out: AlocacaoDoAcervo[] = [];
+    for (const q of consultasDeUsos) for (const a of (q.data as AlocacaoDoAcervo[] | undefined) ?? []) if (!vistos.has(a.id)) { vistos.add(a.id); out.push(a); }
+    return out;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [assinaturaDosUsos, recortesDeUsos]);
   const usosPorAtivo = useMemo(() => {
     const porAtivo = new Map<string, AlocacaoDoAcervo[]>();
     for (const a of alocacoes) { const l = porAtivo.get(a.assetId); if (l) l.push(a); else porAtivo.set(a.assetId, [a]); }
@@ -553,18 +606,12 @@ export default function Estoque() {
     return m;
   }, [alocacoes, assets, assetEventMap]);
 
-  // AGRUPADO POR QUANTIDADE: os filtros e os cartões contam UNIDADES; a lista
-  // mostra MATERIAIS. Lotes por grupo.
-  const grupos = useMemo(() => {
-    const agora = new Date();
-    return agruparAcervo(filtered, a => assetEventMap[a.id]?.id ?? null,
-      a => reservaPorAtivo.has(a.id) || (!!assetEventMap[a.id] && !eventoJaAcabou(assetEventMap[a.id].startDate, agora)));
-  }, [filtered, assetEventMap, reservaPorAtivo]);
-  const gruposVisiveis = useMemo(() => grupos.slice(0, mostrando), [grupos, mostrando]);
   const unidadesNoRecorte = useMemo(() => filtered.reduce((s, a) => s + (a.quantity ?? 1), 0), [filtered]);
   const chaveDoAtivo = useMemo(() => { const m = new Map<string, string>(); for (const g of grupos) for (const a of g.ativos) m.set(a.id, g.chave); return m; }, [grupos]);
   const setViewingAsset = (a: InventoryAsset) => { const chave = chaveDoAtivo.get(a.id); if (chave) setVendo({ chave, unidadeId: a.id }); };
-  const grupoVendo = vendo ? grupos.find(g => g.chave === vendo.chave) : undefined;
+  // A peça de ORIGEM do detalhe: uma só, pedida quando o detalhe abre.
+  const origemDoDetalhe = grupoVendo?.ativos.find(a => a.originalItemId)?.id ?? null;
+  const { data: pecaDeOrigem } = useQuery<any>({ queryKey: [`/api/inventory/${origemDoDetalhe}/origem`], enabled: !!origemDoDetalhe });
 
   const hasFilters = !!(soReservadas || search || filterStatus.length > 0 || filterCondition.length > 0 || filterAutoAdded !== "all" || filterEvent.length > 0 || filterSponsor.length > 0 || filterFranchise.length > 0);
 
@@ -657,7 +704,7 @@ export default function Estoque() {
             {/* Subtítulo em texto corrido: 10px em caixa alta com 0.18em era
                 o elemento mais "alto" do cabeçalho e o menos importante. */}
             <p style={{ margin: 0, fontSize: 13, fontWeight: 500, color: "#746e69", fontFamily: "Plus Jakarta Sans, sans-serif" }}>
-              Peças guardadas para reaproveitar: onde estão, em que condição e se já têm reserva
+              Peças guardadas para reaproveitar: situação, condição e se já têm reserva
             </p>
           </div>
         </div>
@@ -688,7 +735,7 @@ export default function Estoque() {
           label="Total Acervo" value={total} Icon={Package} color="#2563eb"
           // O cartão LIMPA os filtros ao ser tocado — e nada dizia isso: com
           // filtro ativo, o subtexto vira o convite.
-          subtext={hasFilters ? "Toque para ver tudo (limpa filtros)" : "Ativos no acervo"}
+          subtext={hasFilters ? "Toque para ver tudo (limpa filtros)" : registrosNoTotal !== total ? `${registrosNoTotal} registros · ${total} unidades` : "Unidades no acervo"}
           active={!hasFilters}
           onClick={limparFiltros}
         />
@@ -1131,7 +1178,7 @@ export default function Estoque() {
               // comum. O espaço da antiga coluna de localização foi para
               // "Situação" e "Onde já foi usado".
               const usadoEmEl = (g: GrupoDoAcervo<InventoryAsset>) => {
-                const eventos = eventosDeUso(g.ativos.map(a => usosPorAtivo.get(a.id) ?? []));
+                const eventos = eventosDeUso(g.ativos.map(a => usosPorAtivo.get(a.id) ?? []), g.ativos.map(a => a.quantity));
                 if (eventos.length === 0) return <span style={{ fontSize: 12, color: "#64748b" }}>Ainda não saiu</span>;
                 return (
                   <div data-testid={`usado-em-${g.ativos[0].id}`} style={{ display: "flex", flexWrap: "wrap", gap: 4, alignItems: "center" }}>
@@ -1373,7 +1420,7 @@ export default function Estoque() {
         <DetalheDoAtivo
           grupo={grupoVendo}
           unidade={vendo.unidadeId ? grupoVendo.ativos.find(a => a.id === vendo.unidadeId) ?? null : null}
-          linkedItem={getLinkedItem(grupoVendo.ativos[0])}
+          linkedItem={origemDoDetalhe ? pecaDeOrigem ?? undefined : undefined}
           sponsors={sponsors}
           reservaPorAtivo={reservaPorAtivo}
           usosPorAtivo={usosPorAtivo}

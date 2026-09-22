@@ -50,7 +50,6 @@ import {
   createAuditLog,
   createAuditLogsEmLote,
   resolveActor,
-  sendSensitiveError,
   updateEventStatus,
   EVENT_CLOSED_STATUS,
 } from "./shared";

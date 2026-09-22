@@ -30,7 +30,7 @@ import { storage } from "../storage";
 import { MAQUINAS_DE_IMPRESSAO, ehMaquinaValida, rotuloDaMaquina } from "@shared/fluxo-peca";
 import { lerPartes, partesAtivas } from "@shared/impressao-dividida";
 import { chaveDoLockDaImpressora } from "@shared/reserva-de-impressora";
-import { reservar, moverReserva, devolverReserva, colunasDaReserva, livreParaReservar, reservaDaPeca, semImpressora, lerPausas, pausarParte, iniciarParte, ocupanteDaImpressora } from "@shared/reserva-de-impressora";
+import { reservar, moverReserva, devolverReserva, colunasDaReserva, livreParaReservar, reservaDaPeca, semImpressora, lerPausas, pausarParte, iniciarParte, ocupanteDaImpressora, planejarInicioDaImpressao } from "@shared/reserva-de-impressora";
 import { normalizarPartes, maquinaPrincipal, aImprimirDaPeca } from "@shared/impressao-dividida";
 import { EM_REVISAO } from "@shared/fluxo-peca";
 import { pecaTravada, fraseDaTrava, CODIGO_PECA_TRAVADA } from "@shared/trava-da-peca";
@@ -330,6 +330,7 @@ export function registerMaquinasRoutes(app: Express): void {
         let entrou: any = null;
         let entra: any = null;
         let parte: { quantidade: number } | null = null;
+        let veioDe: string | null = null;
         if (comTroca) {
           // Já travada acima, junto com a que sai.
           entra = linhas.find((l) => l.id === colocarId) ?? null;
@@ -348,6 +349,17 @@ export function registerMaquinasRoutes(app: Express): void {
           // "Imprimir esta no lugar" com a reserva de OUTRA impressora (o
           // modal abriu da fila da 2 e o operador escolheu a 1): `reservaDe`
           // diz de qual reserva as unidades saem — a mesma regra do start-printing.
+          // A que entra JÁ ESTÁ em impressão noutra impressora (`deMaquina`, o
+          // modo "mover" do modal): as unidades MUDAM de impressora — a mesma
+          // conta da troca de máquina do start-printing (planejarInicioDaImpressao).
+          const deMaquina = ehMaquinaValida(req.body?.deMaquina) && req.body.deMaquina !== maquina ? req.body.deMaquina as string : null;
+          if (deMaquina && (entra.status === "inProduction" || entra.status === "em_producao")) {
+            const plano = planejarInicioDaImpressao(entra as any, { printMachine: maquina, quantidade, deMaquina, iniciarParte: false, daReserva: false });
+            if (!plano.ok) throw falha(409, plano.erro);
+            parte = { quantidade: plano.movimento?.movidas ?? 0 };
+            veioDe = plano.origem;
+            [entrou] = await tx.update(itemsTable).set({ ...plano.set, updatedAt: new Date() } as any).where(eq(itemsTable.id, entra.id)).returning();
+          } else {
           const reservaDe = ehMaquinaValida(req.body?.reservaDe) && (reservaDaPeca(entra)[req.body.reservaDe] ?? 0) > 0 ? req.body.reservaDe as string : maquina;
           const temReserva = (reservaDaPeca(entra)[reservaDe] ?? 0) > 0;
           const inicio = iniciarParte(entra, maquina, { daReserva: temReserva, quantidade, reservaDe });
@@ -362,23 +374,26 @@ export function registerMaquinasRoutes(app: Express): void {
             ...(!entra.productionStartedAt ? { productionStartedAt: new Date() } : {}),
             updatedAt: new Date(),
           } as any).where(eq(itemsTable.id, entra.id)).returning();
+          }
         }
-        return { sai, saiu, pausa, entra, entrou, parte };
+        return { sai, saiu, pausa, entra, entrou, parte, veioDe };
       });
 
-      const { sai, saiu, pausa, entra, entrou, parte } = resultado;
+      const { sai, saiu, pausa, entra, entrou, parte, veioDe } = resultado;
       const aImprimirSai = aImprimirDaPeca(sai as any);
       const jaImpressas = sai.quantityProduced ?? 0;
       await createAuditLog(req, "production", "item", sai.id, entra
         ? `Tirada da ${rotuloDaMaquina(maquina)} para dar lugar à ${entra.displayId ?? "outra peça"} (${jaImpressas} de ${aImprimirSai} impressas)`
         : `Tirada da ${rotuloDaMaquina(maquina)} (${jaImpressas} de ${aImprimirSai} impressas) — ${pausa.restante} un. voltam para o topo da fila dela`);
-      if (entrou) await createAuditLog(req, "production", "item", entrou.id, `Impressão iniciada na ${rotuloDaMaquina(maquina)}: ${parte!.quantidade} un. — no lugar da ${sai.displayId ?? "peça anterior"}`);
+      if (entrou) await createAuditLog(req, "production", "item", entrou.id, veioDe
+        ? `Movidas ${parte!.quantidade} un. da ${rotuloDaMaquina(veioDe)} para a ${rotuloDaMaquina(maquina)} — no lugar da ${sai.displayId ?? "peça anterior"}`
+        : `Impressão iniciada na ${rotuloDaMaquina(maquina)}: ${parte!.quantidade} un. — no lugar da ${sai.displayId ?? "peça anterior"}`);
       // O diário: "pausa" (quantidade 0 — não é unidade impressa) e o "inicio" da que entrou.
       try {
         const ator = resolveActor(req);
         await db.insert(registrosDeImpressao).values([
           { itemId: sai.id, maquina, tipo: "pausa", quantidade: 0, totalDepois: jaImpressas, userName: ator.userName, userId: ator.userId ?? null },
-          ...(entrou ? [{ itemId: entrou.id, maquina, tipo: "inicio", quantidade: 0, totalDepois: entra.quantityProduced ?? 0, userName: ator.userName, userId: ator.userId ?? null }] : []),
+          ...(entrou ? [{ itemId: entrou.id, maquina, tipo: veioDe ? "troca" : "inicio", quantidade: veioDe ? parte!.quantidade : 0, totalDepois: entra.quantityProduced ?? 0, userName: ator.userName, userId: ator.userId ?? null }] : []),
         ] as any);
       } catch (error) {
         console.error("[maquinas] falha ao gravar o registro de impressão", error);

@@ -185,9 +185,10 @@ describe("a impressão é informada AOS POUCOS (dono, 14/09)", () => {
   });
 
   it("servidor: a conferência exige foto e só vira Conferido quando confere tudo", () => {
-    expect(ITEMS).toContain("if (!conferencePhotoUrl && !current.conferencePhotoUrl)");
-    // 21/09 (embalagem com quantidade): só fecha como Embalado se TUDO já estava embalado.
-    expect(ITEMS).toContain('const novoStatus = isFull ? ((((current as any).embaladaQty ?? 0) >= current.quantity ? "packed" : "conferred") as "packed" | "conferred") : null;');
+    expect(ITEMS).toContain("if (!foto && !current.conferencePhotoUrl)");
+    // 21/09 (embalagem com quantidade): só fecha como Embalado se TUDO já estava embalado
+    // — a conta mora em shared/embalagem (planejarConferencia), exercitada em conferencia-teto-e-impressas.test.ts.
+    expect(ITEMS).toContain("const novoStatus = plano.novoStatus;");
   });
 });
 

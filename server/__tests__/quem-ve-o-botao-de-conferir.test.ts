@@ -80,18 +80,10 @@ describe("o cliente espelha os DOIS gates, e não confunde um com o outro", () =
   });
 });
 
-describe("a entrega não tem gate de papel no cliente", () => {
-  it("quem a limita é o SALDO, não a permissão", () => {
-    // `canDeliver(item)` é conta de saldo. O papel é barrado no servidor, que é
-    // onde ele precisa ser barrado; duplicar aqui só criaria uma segunda regra
-    // para divergir da primeira.
-    // O !emRevisao NÃO é gate de papel: é a peça que a Revisão ainda não
-    // liberou — visível na fila, sem ação (decisão do dono, 24/08).
-        // `!podeEmbalarPeca` (21/09) também não é papel: a conferida tem Embalar
-    // como principal e o Entregar vira secundária, no menu (mesmo canDeliver).
-expect(tela).toContain("{!bulkOn && !emRevisao && canDeliver(item) && !podeEmbalarPeca && (");
-    // …e a conferida não tem Entregar nenhum (21/09: "todas são embaladas").
-    expect(tela).not.toContain("podeEmbalarPeca && canDeliver(item)");
+describe("a entrega por peça saiu da fila", () => {
+  it("nenhum Entregar por peça — quem entrega é o volume (21/09: \"todas são embaladas\")", () => {
+    expect(tela).not.toContain("canDeliver(");
+    expect(tela).toContain("entregarTubo: item.tuboId");
   });
 });
 

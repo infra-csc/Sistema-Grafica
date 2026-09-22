@@ -43,6 +43,7 @@ import { HIDE_NATIVE_CLOSE, ModalHeader, modalSurface } from "@/components/modal
 import { T, FS, R } from "@/lib/theme";
 import { P, seloPecaEventoFinalizado, motivoAcaoBloqueada, todayBusinessMs, type SeloPecaEventoFinalizado } from "@/lib/status";
 import { pecaTravada, fraseDaTrava, seloDaTrava } from "@shared/trava-da-peca";
+import { eventoBarraImpressas } from "@shared/impressao-dividida";
 
 /**
  * O que BLOQUEIA o gesto de fazer a peça andar aqui: o evento finalizado (como
@@ -595,6 +596,14 @@ function ControleDeReserva({ id, codigoDaPeca, semImpressora, disabled, alvo, is
   const imprimir = () => { if (onImprimir && !ocupada) gesto(() => onImprimir(maquina, n)); };
   const trocar = () => { if (onTrocar && atual) gesto(() => onTrocar(maquina, n, atual)); };
   const campo: React.CSSProperties = { minHeight: alvo, height: alvo, boxSizing: "border-box", borderRadius: R.md, border: `1px solid ${T.bdark}`, background: T.surface, color: T.text, fontSize: isMobile ? 16 : 12, fontWeight: 700 };
+  // O motivo dos botões apagados, À VISTA (não só no `title`, que o dedo não lê).
+  // A ocupada já tem a linha própria logo abaixo. Sem impressora escolhida, o
+  // próprio seletor ("Impressora…") já pede a escolha — o aviso só aparece
+  // quando a pessoa começou pela quantidade, para não repetir em cada linha da fila.
+  const motivoApagado = disabled ? null
+    : !valida ? `A quantidade vai de 1 a ${semImpressora}.`
+    : !maquina && qtd !== "" ? "Escolha a impressora para reservar ou imprimir."
+    : null;
   return (
     <div role="group" aria-label="Reservar impressora" data-testid={`controle-reserva-${id}`} style={{ display: isMobile ? "flex" : "inline-flex", alignItems: "center", gap: 6, flexWrap: "wrap", ...(isMobile ? { flex: "1 1 100%", width: "100%" } : {}) }}>
       <select aria-label="Impressora" value={maquina} disabled={disabled} onChange={(e) => { setMaquina(e.target.value); setConfirmando(false); }} data-testid={`reservar-fila-${id}`} style={{ ...campo, padding: "0 8px", cursor: disabled ? "not-allowed" : "pointer", maxWidth: "100%", ...(isMobile ? { flex: "1 1 100%", width: "100%" } : {}) }}>
@@ -650,6 +659,11 @@ function ControleDeReserva({ id, codigoDaPeca, semImpressora, disabled, alvo, is
             </button>
           )}
         </div>
+      )}
+      {motivoApagado && (
+        <span role="status" data-testid={`motivo-reserva-${id}`} style={{ flex: "1 1 100%", fontSize: isMobile ? 12 : FS.small, color: valida ? "#57534e" : AMBAR.text, lineHeight: 1.4 }}>
+          {motivoApagado}
+        </span>
       )}
       {confirmando && ocupada && atual && (
         <div role="alertdialog" aria-label="Trocar a peça da impressora" data-testid={`confirmar-troca-${id}`} style={{ flex: "1 1 100%", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", padding: "8px 10px", borderRadius: R.md, background: AMBAR.bg, border: `1px solid ${AMBAR.border}`, color: "#92400e", fontSize: isMobile ? 13 : 12, lineHeight: 1.45 }}>
@@ -990,6 +1004,10 @@ function PecaNoCartao({ p, agora, podeAgir, hojeMs, isMobile, onAgir, onTirar, m
   const desde = haQuanto(p.desde, agora);
   const hora = horaDeInicio(p.desde);
   const selo = seloDaPecaNaMaquina(p, hojeMs);
+  // INFORMAR IMPRESSAS no evento realizado (IMPRESSAS_EM_EVENTO_REALIZADO): a
+  // peça já está na impressora, então o que sai dela segue sendo informado.
+  // A trava da Solicitação e o encerrado à mão continuam barrando.
+  const seloImpressas = selo && (selo.motivo === "travada" || eventoBarraImpressas(selo.motivo, "inProduction")) ? selo : null;
   const alvo = isMobile ? 44 : 34;
   const thumb = p.miniatura ? miniatura(convertGCSUrlToLocalPath(p.miniatura)) : undefined;
   const rotuloAcao = rotuloCurtoDaAcao(feitas, teto);
@@ -1045,13 +1063,14 @@ function PecaNoCartao({ p, agora, podeAgir, hojeMs, isMobile, onAgir, onTirar, m
           <button
             type="button"
             className="mq-acao mq-primario"
-            onClick={() => { if (!selo) onAgir(p, false); }}
-            disabled={!!selo}
+            onClick={() => { if (!seloImpressas) onAgir(p, false); }}
+            disabled={!!seloImpressas}
+            aria-describedby={seloImpressas ? `motivo-bloqueio-${p.id}` : undefined}
             data-testid={`button-impressas-${p.id}`}
-            title={selo
-              ? motivoBloqueio(selo, "informar impressas", p)
+            title={seloImpressas
+              ? motivoBloqueio(seloImpressas, "informar impressas", p)
               : concluir ? `Todas as ${teto} saíram${dividida ? " desta impressora" : " — mandar a peça para o acabamento"}` : `Informar quantas já saíram da ${rotuloDaMaquina(p.maquina)} (${progressoDaImpressao(feitas, teto)})`}
-            style={{ ...largura("1 1 140px"), minHeight: alvo, padding: "0 12px", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, borderRadius: R.md, border: selo ? `1px solid ${T.border}` : "none", background: selo ? T.low : T.text, color: selo ? "#746e69" : "#fff", fontFamily: GROTESK, fontSize: isMobile ? 13 : 12, fontWeight: 700, cursor: selo ? "not-allowed" : "pointer", whiteSpace: "nowrap" }}
+            style={{ ...largura("1 1 140px"), minHeight: alvo, padding: "0 12px", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, borderRadius: R.md, border: seloImpressas ? `1px solid ${T.border}` : "none", background: seloImpressas ? T.low : T.text, color: seloImpressas ? "#746e69" : "#fff", fontFamily: GROTESK, fontSize: isMobile ? 13 : 12, fontWeight: 700, cursor: seloImpressas ? "not-allowed" : "pointer", whiteSpace: "nowrap" }}
           >
             <Play aria-hidden="true" style={{ width: 12, height: 12, flexShrink: 0 }} />
             {rotuloAcao}
@@ -1063,6 +1082,7 @@ function PecaNoCartao({ p, agora, podeAgir, hojeMs, isMobile, onAgir, onTirar, m
             className="mq-acao"
             onClick={() => { if (!selo) onAgir(p, true); }}
             disabled={!!selo}
+            aria-describedby={selo ? `motivo-bloqueio-${p.id}` : undefined}
             data-testid={`button-trocar-maquina-${p.id}`}
             title={selo ? motivoBloqueio(selo, "trocar de máquina", p) : `Mover esta peça da ${rotuloDaMaquina(p.maquina)} para outra impressora`}
             style={{ ...largura("1 1 120px"), minHeight: alvo, padding: "0 10px", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 5, borderRadius: R.md, border: `1px solid ${T.bdark}`, background: T.surface, color: selo ? "#746e69" : T.text, fontSize: isMobile ? 13 : 12, fontWeight: 700, cursor: selo ? "not-allowed" : "pointer", whiteSpace: "nowrap" }}
@@ -1103,6 +1123,13 @@ function PecaNoCartao({ p, agora, podeAgir, hojeMs, isMobile, onAgir, onTirar, m
         <div data-testid={`selo-evento-${p.id}`} title={selo.hint} style={{ fontSize: isMobile ? 12 : FS.small, color: selo.text, fontWeight: 700 }}>
           {selo.label} — {selo.hint}
         </div>
+      )}
+      {podeAgir && selo && (
+        <p id={`motivo-bloqueio-${p.id}`} data-testid={`motivo-bloqueio-${p.id}`} style={{ margin: 0, fontSize: isMobile ? 12 : FS.small, color: "#57534e", lineHeight: 1.4 }}>
+          {seloImpressas
+            ? motivoBloqueio(seloImpressas, "informar impressas nem trocar de máquina", p)
+            : `Dá para informar as impressas (é o registro do que já saiu). ${motivoBloqueio(selo, "trocar de máquina", p)}`}
+        </p>
       )}
     </div>
   );

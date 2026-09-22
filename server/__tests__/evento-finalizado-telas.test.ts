@@ -119,12 +119,12 @@ describe("o recorte: quem mostra e quem esconde", () => {
 // teste confere essa suposição contra o handler real em items.ts.
 // ─────────────────────────────────────────────────────────────────────────────
 const ACOES_GRAFICA = [
-  { acao: "Produzir",                  rota: `app.patch("/api/items/:id/start-production"`, barrada: true,  marca: "`button-production-${item.id}`",          gate: "disabled={!!selo}" },
+  // Produzir: o gate passa por seloDaImpressao — no evento REALIZADO a peça em impressão ainda informa as impressas (IMPRESSAS_EM_EVENTO_REALIZADO).
+  { acao: "Produzir",                  rota: `app.patch("/api/items/:id/start-production"`, barrada: true,  marca: "`button-production-${item.id}`",          gate: "disabled={!!seloDaImpressao(item, selo)}" },
   { acao: "Reaproveitar",              rota: `app.post("/api/items/:id/mark-reuse"`,        barrada: true,  marca: "`button-reuse-${item.id}`",               gate: "disabled={!!selo}" },
   { acao: "Corrigir reaproveitamento", rota: `app.post("/api/items/:id/correct-reuse"`,     barrada: true,  marca: "`button-correct-reuse-${item.id}`",       gate: "disabled={!!selo}" },
   { acao: "Aumentar quantidade",       rota: `app.post("/api/items/:id/complement"`,        barrada: true,  marca: "`button-aumentar-quantidade-${item.id}`", gate: "disabled={!!selo}" },
   { acao: "Conferir",                  rota: `app.post("/api/items/:id/confer"`,            barrada: false, marca: "`button-confer-${item.id}`",              gate: null },
-  { acao: "Registrar entrega",         rota: `app.patch("/api/items/:id/deliver"`,          barrada: false, marca: "`button-deliver-${item.id}`",             gate: null },
   { acao: "Cancelar complemento",      rota: `app.delete("/api/items/:id/complement"`,      barrada: false, marca: "`button-cancel-complement-${item.id}`",   gate: null },
 ] as const;
 

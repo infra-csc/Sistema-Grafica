@@ -219,10 +219,11 @@ describe("Embalado na tela", () => {
     expect(iConf).toBeGreaterThan(0);
     expect(iPack).toBeGreaterThan(iConf);
     expect(iDeliv).toBeGreaterThan(iPack);
-    expect(GRAFICA).toContain('{ label: "Embalados",    value: stats.embalados,  sub: "Aguardam o caminhão",  testId: "stat-packed",     filterVals: ["packed"] },');
+    expect(GRAFICA).toContain('{ label: "Embalados",    value: stats.embalados,  sub: "Aguardam o caminhão",  testId: "stat-packed",     filterVals: FILTRO_DOS_CARTOES.embalados },');
+    expect(GRAFICA).toContain('embalados: ["packed"],');
     expect(GRAFICA).toContain('sub: "Aguardam embalagem"');
     expect(GRAFICA).toContain('{ value: "packed",               label: "Embalados" },');
-    expect(GRAFICA).toContain("embalados:  statsPool.filter((i: any) => i.status === 'packed').length,");
+    expect(GRAFICA).toContain("embalados:  conta(FILTRO_DOS_CARTOES.embalados),");
   });
 
 
@@ -368,8 +369,8 @@ describe("ENTREGAR É SÓ DO TUBO (dono, 21/09)", () => {
   const deliver = ITEMS.slice(ITEMS.indexOf('app.patch("/api/items/:id/deliver"'), ITEMS.indexOf('app.patch("/api/items/:id/deliver"') + 5000);
 
 
-  it("o lote de entrega da tela passa pela mesma rota, peça a peça", () => {
-    const handler = GRAFICA.slice(GRAFICA.indexOf("const handleBulkDelivery = async"), GRAFICA.indexOf("const handleBulkDelivery = async") + 3000);
-    expect(handler).toContain("apiRequest(\"PATCH\", `/api/items/${item.id}/deliver`");
+  it("a tela não tem mais lote de entrega por peça — nada chama a rota aposentada", () => {
+    expect(GRAFICA).not.toContain("const handleBulkDelivery = async");
+    expect(GRAFICA).not.toContain("/deliver`");
   });
 });

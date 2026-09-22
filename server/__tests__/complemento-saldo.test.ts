@@ -129,8 +129,18 @@ describe("saldo a produzir", () => {
 
 // ─────────────────────────────────────────────────────────────────────────────
 describe("saldo a conferir e a entregar", () => {
-  it("conferência parcial 3/10: faltam 7", () => {
-    expect(remainingConfer(peca({ conferredQty: 3 }))).toBe(7);
+  it("conferência parcial 3/10 de uma peça impressa: faltam 7", () => {
+    expect(remainingConfer(peca({ status: "produced", conferredQty: 3 }))).toBe(7);
+  });
+
+  it("o teto é o que EXISTE: (impressas + reaproveitadas) − conferidas, não quantidade − conferidas", () => {
+    // 6 de 10 saíram da impressora (a peça segue em impressão): só 6 conferem.
+    expect(remainingConfer(peca({ status: "inProduction", quantityProduced: 6 }))).toBe(6);
+    expect(remainingConfer(peca({ status: "inProduction", quantityProduced: 6, conferredQty: 4 }))).toBe(2);
+    // nada impresso nem reaproveitado: nada a conferir
+    expect(remainingConfer(peca({ conferredQty: 0 }))).toBe(0);
+    // 3 reaproveitadas + 2 impressas
+    expect(remainingConfer(peca({ status: "inProduction", reuseQty: 3, quantityProduced: 2 }))).toBe(5);
   });
 
   it("entrega sai do que foi CONFERIDO, não do que foi produzido", () => {
@@ -234,8 +244,10 @@ describe("gates de botão — o convite falso é o pior sintoma", () => {
     expect(canProduce(suja)).toBe(false);
   });
 
-  it("conferir só depois de PRODUZIDO", () => {
-    expect(canConfer(peca({ status: "inProduction", quantityProduced: 6 }))).toBe(false);
+  it("conferir o que JÁ SAIU da impressora (CONFERIR_PARCIAL), nada antes disso", () => {
+    expect(canConfer(peca({ status: "inProduction", quantityProduced: 6 }))).toBe(true);
+    expect(canConfer(peca({ status: "inProduction", quantityProduced: 0 }))).toBe(false);
+    expect(canConfer(peca({ status: "inProduction", quantityProduced: 6, conferredQty: 6 }))).toBe(false);
     expect(canConfer(peca({ status: "produced", quantityProduced: 10 }))).toBe(true);
     expect(canConfer(peca({ status: "produzido", quantityProduced: 10 }))).toBe(true);
   });

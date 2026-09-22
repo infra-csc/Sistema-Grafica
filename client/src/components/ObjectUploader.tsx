@@ -1,6 +1,6 @@
 // Replit Object Storage Uploader Component
 // Reference: blueprint:javascript_object_storage
-import type { ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
 import { useFileUpload } from "@/hooks/use-file-upload";
@@ -27,6 +27,8 @@ interface ObjectUploaderProps {
   children: ReactNode;
   /** Esconde a faixa de progresso/erro sob o botão (mesmo contrato do FileUploader). */
   ocultarProgresso?: boolean;
+  /** Avisa quando um envio começa/termina — quem confirma com a foto espera por ela. */
+  onEnviandoMudou?: (enviando: boolean) => void;
 }
 
 /**
@@ -46,6 +48,7 @@ export function ObjectUploader({
   buttonVariant = "default",
   children,
   ocultarProgresso = false,
+  onEnviandoMudou,
 }: ObjectUploaderProps) {
   const { fileInputRef, isUploading, validateAndGetFile, validateAndGetFiles, uploadFile, uploadFiles, envio, falha, cancelar, tentarDeNovo, dispensarFalha } = useFileUpload({
     maxFileSize,
@@ -54,6 +57,8 @@ export function ObjectUploader({
     onError,
     validateFile: (file) => (!file.type.startsWith("image/") ? "Apenas imagens são permitidas" : null),
   });
+
+  useEffect(() => { onEnviandoMudou?.(isUploading); }, [isUploading]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Preview local imediato, antes do upload terminar.
   const preview = (file: File) => {

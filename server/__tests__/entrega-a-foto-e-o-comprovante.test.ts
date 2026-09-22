@@ -42,59 +42,19 @@ describe("a entrega por peça está aposentada", () => {
   });
 });
 
-describe("a tela exige a foto, nos dois caminhos", () => {
-  it("a entrega individual barra sem foto", () => {
-    expect(grafica).toContain("if (photos.length === 0) {");
+// A TELA DA GRÁFICA não tem mais entrega por peça (nem individual, nem em lote,
+// nem fila do galpão): o código dormente saiu. A entrega é a do volume, na aba
+// e no painel de tubos. A conferência continua pedindo a foto.
+describe("a tela da Gráfica sem a entrega por peça", () => {
+  it("nenhum formulário, lote ou mutação de entrega por peça sobrou", () => {
+    for (const morto of ["handleSubmitDelivery", "handleBulkDelivery", "bulkDeliveryPhotos", "markDeliveredMutation", 'label="Foto da entrega *"', "Responsável pelo Recebimento"]) {
+      expect(grafica, morto).not.toContain(morto);
+    }
   });
 
-  it("a entrega em LOTE barra sem foto", () => {
-    // O lote tem estado próprio de fotos; validar só o individual deixaria a
-    // porta aberta pelo caminho que entrega mais peças de uma vez.
-    expect(grafica).toContain("if (bulkDeliveryPhotos.length === 0) {");
-  });
-
-  it("nenhum dos dois barra mais por falta de nome", () => {
-    expect(grafica).not.toContain("if (!deliveryData.receivedBy?.trim()) {");
-    expect(grafica).not.toContain("if (!bulkReceivedBy.trim()) {");
-  });
-});
-
-describe("a tela DIZ qual campo é obrigatório", () => {
-  it("a foto da entrega leva o asterisco", () => {
-    // Validação que barra sem o rótulo avisar é armadilha: a pessoa preenche
-    // tudo o que parece pedido e leva erro no envio.
-    expect(grafica).toContain('label="Foto da entrega *"');
-    expect(grafica).toContain('"Foto da entrega *"');
-  });
-
-  it("o nome perdeu o asterisco e diz que é opcional", () => {
-    expect(grafica).not.toContain("Responsável pelo Recebimento *");
-    expect(grafica).toContain('placeholder="Nome de quem recebeu (opcional)"');
-  });
-
-  it("a foto da conferência continua obrigatória — não era esta a regra mexida", () => {
-    expect(grafica).toContain('"Foto da conferência *"');
-  });
-});
-
-describe("o BOTÃO do lote também obedece à regra", () => {
-  it("o confirmar do lote é liberado pela FOTO, não pelo nome", () => {
-    // Este é o buraco que a primeira correção deixou. Eu inverti a regra em
-    // `handleBulkDelivery` — foto obrigatória, nome opcional — mas o botão
-    // trava ANTES dela: `canSubmit` exigia `receivedBy.trim().length > 0`, e a
-    // função nem chegava a ser chamada. Consertar a validação e deixar o gate
-    // do botão para trás não conserta nada; quem usa o app encontra o gate.
+  it("a foto da conferência continua obrigatória (individual e lote)", () => {
+    expect(grafica).toContain('label="Foto da conferência *"');
     expect(grafica).toContain("const canSubmit = photos.length > 0;");
-  });
-
-  it("o gate do botão não olha mais o nome de quem recebeu", () => {
-    expect(grafica).not.toContain("receivedBy.trim().length > 0");
-  });
-
-  it("a dica do campo de foto não diz mais 'opcional' na entrega", () => {
-    // O texto contradizia o asterisco do próprio rótulo ao lado — a tela
-    // pedindo e dispensando a mesma coisa em dois lugares vizinhos.
-    expect(grafica).not.toContain('"· opcional · mesmo para todas as peças"');
-    expect(grafica).toContain('"· obrigatória, mesma para todas as peças"');
+    expect(grafica).toContain('"Anexe ao menos uma foto para confirmar a conferência."');
   });
 });

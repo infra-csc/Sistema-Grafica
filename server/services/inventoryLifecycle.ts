@@ -126,43 +126,57 @@ export function meiaNoiteDoDiaSeguinteEmSaoPaulo(inicioDoEvento: Date): Date {
   return new Date(palpite - (comoLocal - palpite));
 }
 
-export async function runInventoryCron() {
+// Um evento só: as duas transições (caminhão saiu → EM_USO; dia seguinte ao
+// evento → AGUARDANDO_TRIAGEM) para os ativos dele.
+async function transicionarAtivosDoEvento(event: Awaited<ReturnType<typeof storage.getAllEvents>>[number], now: Date) {
+  if (!event.truckDepartureDate) return;
+
+  // ── Departure: truck left → mark assets EM_USO ──────────────────────
+  const departure = new Date(event.truckDepartureDate);
+  if (now >= departure && now.getTime() - departure.getTime() <= JANELA_DE_CATCHUP_MS) {
+    const count = await storage.markAssetsInUseForEvent(event.id, departure);
+    if (count > 0) {
+      broadcast({ type: 'inventory_in_use', eventId: event.id, eventName: event.name, count });
+      console.log(`[inventory-cron] ${count} asset(s) → EM_USO for event "${event.name}"`);
+    }
+  }
+
+  // ── Triage: midnight of the day AFTER the event's startDate → AGUARDANDO_TRIAGEM ─
+  // Only assets currently EM_USO transition — assets not in use are never pulled into triage.
+  if (event.startDate) {
+    const dayAfterEvent = meiaNoiteDoDiaSeguinteEmSaoPaulo(new Date(event.startDate));
+
+    if (now >= dayAfterEvent && now.getTime() - dayAfterEvent.getTime() <= JANELA_DE_CATCHUP_MS) {
+      const count = await storage.markAssetsAwaitingTriageForEvent(event.id);
+      if (count > 0) {
+        broadcast({
+          type: 'inventory_awaiting_triage',
+          eventId: event.id,
+          eventName: event.name,
+          count,
+          message: `Os materiais do evento "${event.name}" retornaram e aguardam triagem.`,
+        });
+        console.log(`[inventory-cron] ${count} asset(s) → AGUARDANDO_TRIAGEM for event "${event.name}"`);
+      }
+    }
+  }
+}
+
+/**
+ * Com `eventId`, só aquele evento — o que a peça recém-impressa precisa
+ * (start-production); rodar o ciclo inteiro ali varria todos os eventos a cada
+ * peça fechada. Sem argumento (boot e setInterval), todos.
+ */
+export async function runInventoryCron(eventId?: string | null) {
     try {
       const now = new Date();
-      const allEvents = await storage.getAllEvents();
-      for (const event of allEvents) {
-        if (!event.truckDepartureDate) continue;
-
-        // ── Departure: truck left → mark assets EM_USO ──────────────────────
-        const departure = new Date(event.truckDepartureDate);
-        if (now >= departure && now.getTime() - departure.getTime() <= JANELA_DE_CATCHUP_MS) {
-          const count = await storage.markAssetsInUseForEvent(event.id, departure);
-          if (count > 0) {
-            broadcast({ type: 'inventory_in_use', eventId: event.id, eventName: event.name, count });
-            console.log(`[inventory-cron] ${count} asset(s) → EM_USO for event "${event.name}"`);
-          }
-        }
-
-        // ── Triage: midnight of the day AFTER the event's startDate → AGUARDANDO_TRIAGEM ─
-        // Only assets currently EM_USO transition — assets not in use are never pulled into triage.
-        if (event.startDate) {
-          const dayAfterEvent = meiaNoiteDoDiaSeguinteEmSaoPaulo(new Date(event.startDate));
-
-          if (now >= dayAfterEvent && now.getTime() - dayAfterEvent.getTime() <= JANELA_DE_CATCHUP_MS) {
-            const count = await storage.markAssetsAwaitingTriageForEvent(event.id);
-            if (count > 0) {
-              broadcast({
-                type: 'inventory_awaiting_triage',
-                eventId: event.id,
-                eventName: event.name,
-                count,
-                message: `Os materiais do evento "${event.name}" retornaram e aguardam triagem.`,
-              });
-              console.log(`[inventory-cron] ${count} asset(s) → AGUARDANDO_TRIAGEM for event "${event.name}"`);
-            }
-          }
-        }
+      if (eventId) {
+        const event = await storage.getEvent(eventId);
+        if (event) await transicionarAtivosDoEvento(event as any, now);
+        return;
       }
+      const allEvents = await storage.getAllEvents();
+      for (const event of allEvents) await transicionarAtivosDoEvento(event, now);
     } catch (err) {
       console.error('[inventory-cron] error:', err);
     }
@@ -173,5 +187,5 @@ export function startInventoryLifecycle(): void {
   // then schedule every-10-minute checks. Sequential so backfilled assets are ready for the cron.
   backfillInventoryAssets().then(() => runInventoryCron());
   // Catch-up logic inside runInventoryCron handles missed ticks, so 60 min is sufficient.
-  setInterval(runInventoryCron, 60 * 60 * 1000);
+  setInterval(() => runInventoryCron(), 60 * 60 * 1000);
 }

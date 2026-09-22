@@ -815,10 +815,21 @@ export function PainelDeTubos({ evento, onClose, onEmbalar, onEntregar }: {
     const entregue = !!t.entregueEm;
     const vazio = t.pecas.length === 0;
     const soVe = t.pecas.some(soVisualizaKit);
+    // O que segura a entrega, em palavras: as peças com `problema` (a mesma
+    // frase da recusa do servidor). O servidor manda `faltamConferir` sempre
+    // vazio (só unidade conferida entra em volume) — a dica antiga lia só ele
+    // e saía "Falta conferir: " com a lista vazia.
+    const comProblema = t.pecas.filter((p) => !!p.problema);
+    const motivoSemEntrega = entregue || vazio || t.prontoParaEntregar ? null
+      : t.faltamConferir.length ? `falta conferir ${t.faltamConferir.join(", ")}`
+      : comProblema.length ? comProblema.map((p) => `${p.displayId ?? "peça"} ${p.problema}`).join("; ")
+      : "abra o tubo para ver o que falta.";
     const status = entregue ? { texto: `Entregue ${quandoFoi(t.entregueEm)}`, cor: COR.verde, bg: COR.verdeBg, borda: COR.verdeBorda }
       : vazio ? { texto: "Vazio", cor: COR.sec, bg: COR.fundo, borda: COR.borda }
       : t.faltamConferir.length ? { texto: `Falta conferir ${t.faltamConferir.length}`, cor: COR.ambar, bg: COR.ambarBg, borda: COR.ambarBorda }
-      : { texto: "Pronto para entregar", cor: COR.azul, bg: COR.azulBg, borda: COR.azulBorda };
+      : comProblema.length ? { texto: comProblema.length === 1 ? "1 peça com problema" : `${comProblema.length} peças com problema`, cor: COR.ambar, bg: COR.ambarBg, borda: COR.ambarBorda }
+      : t.prontoParaEntregar ? { texto: "Pronto para entregar", cor: COR.azul, bg: COR.azulBg, borda: COR.azulBorda }
+      : { texto: "Aberto", cor: COR.sec, bg: COR.fundo, borda: COR.borda };
     return (
       <article key={t.id} data-testid={`tubo-${t.numero}`} aria-label={`Tubo ${t.numero}`} style={{ border: `1px solid ${COR.borda}`, borderRadius: 12, overflow: "hidden", background: "#fff" }}>
         <header style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "10px 12px", background: COR.fundo, borderBottom: `1px solid ${COR.borda}`, flexWrap: "wrap" }}>
@@ -861,10 +872,15 @@ export function PainelDeTubos({ evento, onClose, onEmbalar, onEntregar }: {
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", padding: "10px 12px", borderTop: `1px solid ${COR.borda}` }}>
           {!entregue && !vazio && !soVe && (
             <button type="button" onClick={() => onEntregar(t.id)} data-testid={`entregar-tubo-${t.numero}`}
-              title={t.prontoParaEntregar ? "Abre a entrega deste tubo" : `Falta conferir: ${t.faltamConferir.join(", ")}`}
+              aria-describedby={motivoSemEntrega ? `motivo-entrega-tubo-${t.numero}` : undefined}
               style={acao(COR.verde, t.prontoParaEntregar)}>
               <Truck aria-hidden="true" style={{ width: 13, height: 13 }} /> Entregar
             </button>
+          )}
+          {!entregue && !vazio && !soVe && motivoSemEntrega && (
+            <span id={`motivo-entrega-tubo-${t.numero}`} data-testid={`motivo-entrega-tubo-${t.numero}`} style={{ flex: "1 1 100%", order: 9, fontSize: fsMin(12), fontWeight: 600, color: COR.ambar, lineHeight: 1.4 }}>
+              Ainda não sai: {motivoSemEntrega}
+            </span>
           )}
           {!entregue && !vazio && !soVe && (
             <button type="button" onClick={() => { setAdicionandoFotos(t.id); setFotosNovas([]); }} data-testid={`fechar-tubo-${t.numero}`} style={acao(COR.azul)}>

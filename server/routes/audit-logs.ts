@@ -1,7 +1,26 @@
 // Audit-log routes. Extracted from server/routes.ts.
 import type { Express } from "express";
-import { storage, clampAuditLogLimit, type AuditLogCursor } from "../storage";
-import { requireAuth } from "./shared";
+import { and, eq, inArray, ne, or, sql } from "drizzle-orm";
+import { auditLogs } from "@shared/schema";
+import { db } from "../db";
+import { storage, clampAuditLogLimit, auditLogsFilter, auditLogsBusca, type AuditLogCursor } from "../storage";
+import { requireAuth, sendSensitiveError } from "./shared";
+
+/**
+ * Trilha de gestão de usuários (cadastro, perfil, senha, "ver como") é só do
+ * admin. O usuário do Kit, além disso, só vê o que ele fez e o histórico das
+ * peças do Kit dele.
+ */
+export function recortarTrilha<L extends { entityType?: string | null; entityId?: string | null; userId?: string | null }>(
+  logs: L[],
+  quem: { admin: boolean; kit: boolean; userId: string | null; minhas: Set<string> },
+): L[] {
+  return logs.filter((l) => {
+    if (!quem.admin && l.entityType === "user") return false;
+    if (quem.kit) return (!!quem.userId && l.userId === quem.userId) || (l.entityType === "item" && quem.minhas.has(l.entityId ?? ""));
+    return true;
+  });
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // CURSOR — o texto que a rota devolve e volta a receber.
@@ -74,24 +93,25 @@ export function registerAuditLogRoutes(app: Express): void {
       const pedido = Number.parseInt(limit as string, 10);
       const tamanho = clampAuditLogLimit(Number.isFinite(pedido) ? pedido : undefined);
 
-      let logs = await storage.getAuditLogs(
-        entityType as string | undefined,
-        entityId as string | undefined,
-        { limit: tamanho, cursor: cursorParsed, busca: typeof busca === "string" ? busca : undefined },
-      );
+      const admin = req.userRole === "admin";
+      const kit = req.userKit === true;
+      const userId = req.userId ?? null;
+      const tipo = entityType as string | undefined;
+      const termo = typeof busca === "string" ? busca : undefined;
+      // Pedir só a trilha de usuários sem ser admin: nada a mostrar.
+      const bruto = !admin && tipo === "user"
+        ? []
+        : await storage.getAuditLogs(tipo, entityId as string | undefined, { limit: tamanho, cursor: cursorParsed, busca: termo });
       // Usuário do Kit (14/09): só o que ele fez e o histórico das peças dele.
-      if ((req as any).userKit) {
-        const userId = (req as any).userId;
-        const minhas = new Set((await storage.getAllItems())
-          .filter((i) => !!i.kitRemessaId && i.criadoPorId === userId)
-          .map((i) => i.id));
-        logs = logs.filter((l: any) => l.userId === userId || (l.entityType === "item" && minhas.has(l.entityId)));
-      }
+      const minhas = kit
+        ? new Set((await storage.getAllItems()).filter((i) => !!i.kitRemessaId && i.criadoPorId === userId).map((i) => i.id))
+        : new Set<string>();
+      const logs = recortarTrilha(bruto, { admin, kit, userId, minhas });
 
-      // Página cheia = pode haver mais. Página curta = acabou, e o cliente para
-      // de pedir sem precisar de uma requisição extra só para descobrir isso.
-      const ultimo = logs[logs.length - 1];
-      const nextCursor = logs.length === tamanho && ultimo ? encodeAuditCursor(ultimo) : null;
+      // Página cheia = pode haver mais. Conta a página BRUTA: o recorte pode
+      // encurtá-la sem que a trilha tenha acabado.
+      const ultimo = bruto[bruto.length - 1];
+      const nextCursor = bruto.length === tamanho && ultimo ? encodeAuditCursor(ultimo) : null;
 
       const querContagem = withTotal === "1" || withTotal === "true";
       const querObjeto = querContagem || paged === "1" || paged === "true";
@@ -101,11 +121,9 @@ export function registerAuditLogRoutes(app: Express): void {
         // tamanho da página como "total de registros" — e para o Histórico
         // saber quantas páginas ainda faltam antes de começar a pedi-las.
         if (querContagem) {
-          const total = await storage.getAuditLogsCount(
-            entityType as string | undefined,
-            entityId as string | undefined,
-            typeof busca === "string" ? busca : undefined,
-          );
+          const total = admin
+            ? await storage.getAuditLogsCount(tipo, entityId as string | undefined, termo)
+            : await contarRecortado({ tipo, entityId: entityId as string | undefined, busca: termo, kit, userId, minhas });
           return res.json({ logs, total, nextCursor });
         }
         return res.json({ logs, nextCursor });
@@ -113,8 +131,25 @@ export function registerAuditLogRoutes(app: Express): void {
 
       res.json(logs);
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      sendSensitiveError(res, error, "Get audit logs error", 500);
     }
   });
 
+}
+
+/** O `total` com o mesmo recorte da lista (sem trilha de usuários; Kit só o dele). */
+async function contarRecortado(f: {
+  tipo?: string; entityId?: string; busca?: string; kit: boolean; userId: string | null; minhas: Set<string>;
+}): Promise<number> {
+  if (f.tipo === "user") return 0;
+  const doKit = f.kit
+    ? or(
+        f.userId ? eq(auditLogs.userId, f.userId) : sql`false`,
+        f.minhas.size > 0 ? and(eq(auditLogs.entityType, "item"), inArray(auditLogs.entityId, Array.from(f.minhas))) : sql`false`,
+      )
+    : undefined;
+  const condicoes = [auditLogsFilter(f.tipo, f.entityId), auditLogsBusca(f.busca), ne(auditLogs.entityType, "user"), doKit]
+    .filter((c): c is NonNullable<typeof c> => c !== undefined);
+  const [linha] = await db.select({ total: sql<number>`count(*)::int` }).from(auditLogs).where(and(...condicoes));
+  return linha?.total ?? 0;
 }

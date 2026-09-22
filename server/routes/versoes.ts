@@ -43,7 +43,7 @@ import type { Express } from "express";
 import { db } from "../db";
 import { storage } from "../storage";
 import { auditLogs } from "@shared/schema";
-import { requireAuth } from "./shared";
+import { requireAuth, sendSensitiveError } from "./shared";
 import { sql } from "drizzle-orm";
 
 export type VersaoDaArte = {
@@ -462,9 +462,15 @@ async function carregar(): Promise<DadosDeVersoes> {
   return dados;
 }
 
-const csv = (v: string | number | null | undefined) => {
-  const s = String(v ?? "");
-  return /[";\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+/**
+ * Uma célula do CSV. Texto que começa com = + - @ (ou tab/CR) o Excel lê como
+ * FÓRMULA — um motivo "=HYPERLINK(…)" viraria link ou comando ao abrir. O
+ * apóstrofo na frente deixa a célula como texto.
+ */
+export const csv = (v: string | number | null | undefined) => {
+  let s = String(v ?? "");
+  if (typeof v === "string" && /^[=+\-@\t\r]/.test(s)) s = `'${s}`;
+  return /[";\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 };
 
 type Recorte = {
@@ -558,7 +564,7 @@ export function registerVersoesRoutes(app: Express): void {
         books,
       });
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      sendSensitiveError(res, error, "Versões error", 500);
     }
   });
 
@@ -597,7 +603,7 @@ export function registerVersoesRoutes(app: Express): void {
       // BOM: sem ele o Excel em pt-BR abre "Versões" como "VersÃµes".
       res.send("﻿" + linhas.join("\r\n"));
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      sendSensitiveError(res, error, "Versões error", 500);
     }
   });
 }

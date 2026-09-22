@@ -1,4 +1,5 @@
 import { DISPENSAVEIS } from "@shared/fluxo-peca";
+import { MOTIVO_TROCA_MIN, type RegraDoThumb, type RegraDaTroca } from "@shared/troca-de-material";
 // ─────────────────────────────────────────────────────────────────────────────
 // Regras PURAS da tela de Arte.
 //
@@ -588,4 +589,85 @@ export function dentroDaJanelaFinalizados(
   const piso = new Date(today);
   piso.setDate(piso.getDate() - dias);
   return dep >= piso;
+}
+
+// ── Motivo escrito (dispensa, troca de thumb aprovado) ─────────────────────
+/**
+ * Mínimo do motivo da dispensa: a mesma régua da troca do thumb e das
+ * devoluções. Sem motivo, quem abre a peça depois não sabe por que ela pulou
+ * a aprovação do Atendimento.
+ */
+export const MOTIVO_DISPENSA_MIN = MOTIVO_TROCA_MIN;
+
+/** Quantos caracteres faltam no motivo (espaços colapsados, como o servidor conta). */
+export function faltamNoMotivo(texto: string | null | undefined, min: number = MOTIVO_TROCA_MIN): number {
+  const limpo = (texto ?? "").trim().replace(/\s+/g, " ");
+  return Math.max(0, min - limpo.length);
+}
+
+/** A frase do "faltam N" — singular e plural de verdade. */
+export function fraseFaltamCaracteres(faltam: number): string {
+  return faltam === 1 ? "Falta 1 caractere" : `Faltam ${faltam} caracteres`;
+}
+
+// ── Upload (colar, arrastar, lote de thumbs) ────────────────────────────────
+/**
+ * Espelho do MAX_UPLOAD_BYTES de server/routes/objects.ts. Acima disso o
+ * `express.raw` corta o corpo e responde 413 em HTML — a tela mostrava
+ * "Falha no upload" depois de minutos subindo. Checar antes poupa a espera.
+ */
+export const LIMITE_UPLOAD_BYTES = 50 * 1024 * 1024;
+
+/** A frase humana do arquivo grande demais, ou null se cabe. */
+export function erroDeTamanhoDoUpload(arquivo: { size: number; name?: string }): string | null {
+  if (arquivo.size <= LIMITE_UPLOAD_BYTES) return null;
+  const mb = (arquivo.size / (1024 * 1024)).toFixed(0);
+  const nome = arquivo.name && arquivo.name !== "image.png" ? `"${arquivo.name}" tem` : "O arquivo tem";
+  return `${nome} ${mb} MB — o limite é 50 MB. Exporte uma versão mais leve (JPG ou PDF comprimido) e tente de novo.`;
+}
+
+/**
+ * O erro do upload-direct em português. As rotas respondem `{ error }` com a
+ * frase para o usuário; o 413 do limite vem em HTML e vira a frase do limite.
+ */
+export function mensagemDoUploadFalho(status: number, corpo: string): string {
+  if (status === 413) return "Arquivo muito grande — o limite é 50 MB.";
+  const texto = (corpo ?? "").trim();
+  if (texto.startsWith("{")) {
+    try {
+      const j = JSON.parse(texto) as { error?: unknown; message?: unknown };
+      const msg = typeof j.error === "string" ? j.error : typeof j.message === "string" ? j.message : "";
+      if (msg.trim()) return msg;
+    } catch { /* não era JSON — cai na frase genérica */ }
+  }
+  if (status === 401) return "Sua sessão expirou. Entre novamente para continuar.";
+  return `O servidor não aceitou o arquivo (erro ${status}). Tente de novo em instantes.`;
+}
+
+// ── Trocar o material depois que a peça andou ───────────────────────────────
+/**
+ * O texto curto ao lado de "Trocar thumb". Precisa dizer a verdade sobre o que
+ * a troca faz, porque ela grava na hora, sem confirmação:
+ *   · antes da aprovação (ou peça isenta): troca simples;
+ *   · depois da aprovação: pede motivo e fica marcada "trocada após
+ *     aprovação". O patrocinador não é chamado de novo — exceto o que aprova
+ *     toda versão nova, e só enquanto a peça está em "Aprovado pelo
+ *     patrocinador" (é o único status em que o servidor revoga essa aprovação
+ *     e devolve a peça para a aprovação).
+ */
+export function textoDaTrocaDoThumb(status: string | null | undefined, regra: RegraDoThumb): string {
+  if (!regra.pode) return regra.motivo;
+  if (!regra.exigeMotivo) return "Troca simples — o thumb anterior fica no histórico.";
+  const base = "O patrocinador já aprovou este thumb: trocar pede um motivo e fica registrado como “trocada após aprovação”.";
+  return status === "sponsor_approved"
+    ? `${base} Ele não é chamado de novo — só quem aprova toda versão nova perde a aprovação, e a peça volta para ele.`
+    : `${base} Nenhum patrocinador é chamado de novo.`;
+}
+
+/** O aviso ANTES de trocar o arquivo final, ou null quando a troca é simples. */
+export function avisoDaTrocaDoArquivoFinal(regra: RegraDaTroca): string | null {
+  if (!regra.pode) return regra.motivo;
+  return regra.voltaParaRevisao
+    ? "Trocar devolve a peça para a Revisão Final — a liberação valia para o arquivo anterior."
+    : null;
 }

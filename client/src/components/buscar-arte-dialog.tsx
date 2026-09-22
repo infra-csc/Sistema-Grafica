@@ -52,6 +52,10 @@ export interface ArteEncontrada {
   mesmoPatrocinador: boolean;
   mesmoTipo: boolean;
   eventoParecido: boolean;
+  /** Aprovada pelo patrocinador (as reprovadas nem chegam: a rota as tira). */
+  aprovada?: boolean;
+  aprovadaPor?: string | null;
+  aprovadaEm?: string | null;
 }
 
 interface Resposta {
@@ -81,9 +85,18 @@ const dia = (iso: string | null) => {
   return Number.isNaN(d.getTime()) ? null : d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
 };
 
-function Selo({ cor, fundo, children }: { cor: string; fundo: string; children: React.ReactNode }) {
+/** "Aprovada por Fulano, 12/09" — o quanto se souber. */
+export function textoDaAprovacao(arte: Pick<ArteEncontrada, "aprovada" | "aprovadaPor" | "aprovadaEm">): string | null {
+  if (!arte.aprovada) return null;
+  const d = arte.aprovadaEm ? new Date(arte.aprovadaEm) : null;
+  const quando = d && !Number.isNaN(d.getTime()) ? d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }) : null;
+  const detalhe = [arte.aprovadaPor ? `por ${arte.aprovadaPor}` : null, quando].filter(Boolean).join(", ");
+  return detalhe ? `Aprovada ${detalhe}` : "Aprovada";
+}
+
+function Selo({ cor, fundo, titulo, children }: { cor: string; fundo: string; titulo?: string; children: React.ReactNode }) {
   return (
-    <span style={{
+    <span title={titulo} style={{
       display: "inline-flex", alignItems: "center", gap: 4, padding: "2px 8px", borderRadius: 999,
       background: fundo, color: cor, fontSize: 11, fontWeight: 700, lineHeight: 1.5, whiteSpace: "nowrap",
     }}>
@@ -137,6 +150,11 @@ function Cartao({ arte, escolhida, onEscolher }: {
         {arte.mesmoPatrocinador && <Selo cor="#065f46" fundo="#d1fae5">mesmo patrocinador</Selo>}
         {arte.eventoParecido && <Selo cor="#1d4ed8" fundo="#eff6ff">evento parecido</Selo>}
         {arte.mesmoTipo && <Selo cor="#44403c" fundo="#e7e5e4">mesmo tipo</Selo>}
+        {arte.aprovada && (
+          <Selo cor="#065f46" fundo="#ecfdf5" titulo={textoDaAprovacao(arte) ?? undefined}>
+            <span data-testid={`selo-aprovada-${arte.id}`}>Aprovada</span>
+          </Selo>
+        )}
       </div>
     </button>
   );
@@ -296,6 +314,11 @@ export function BuscarArteDialog({ item, querArquivoFinal, onUsar, onClose }: {
                   {escolhida.patrocinadores.length > 0 ? escolhida.patrocinadores.join(", ") : "Sem patrocinador"}
                   {escolhida.temArquivoFinal && <> · <FileText size={11} aria-hidden="true" style={{ display: "inline", verticalAlign: "-1px" }} /> arquivo final</>}
                 </div>
+                {escolhida.aprovada && (
+                  <div data-testid="texto-aprovacao-escolhida" style={{ fontSize: 11.5, color: "#065f46", marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {textoDaAprovacao(escolhida)}
+                  </div>
+                )}
               </div>
             </div>
             <button

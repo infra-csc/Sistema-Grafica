@@ -13,6 +13,7 @@ import {
   translateStatus,
   createAuditLog,
   updateEventStatus,
+  sendSensitiveError,
 } from "./shared";
 // A guarda de evento finalizado mora em ./items porque é lá que o predicado
 // compartilhado (@shared/prazo-dates) já estava embrulhado nas frases de erro
@@ -634,12 +635,12 @@ export function registerSponsorRoutes(app: Express): void {
       const { sponsorIds, skipApproval } = req.body;
 
       if (!Array.isArray(sponsorIds)) {
-        return res.status(400).json({ error: "sponsorIds deve ser um array" });
+        return res.status(400).json({ error: "A lista de patrocinadores não veio no formato esperado." });
       }
 
       const currentItem = await storage.getItem(itemId);
       if (!currentItem) {
-        return res.status(404).json({ error: "Item não encontrado" });
+        return res.status(404).json({ error: "Peça não encontrada." });
       }
       // ANDA: reescrever os patrocinadores (e o "sem aprovação") é a etapa de
       // vinculação do fluxo — o que decide quem terá de aprovar a peça.
@@ -653,8 +654,17 @@ export function registerSponsorRoutes(app: Express): void {
         return res.status(409).json({ error: `Peça não está em fase de vinculação (status atual: ${translateStatus(currentItem.status)})` });
       }
 
-      // Filtrar IDs nulos ou vazios antes de inserir no banco
-      const validSponsorIds = sponsorIds.filter((id: any) => id && typeof id === 'string' && id.trim() !== '');
+      // Filtrar IDs nulos ou vazios e repetidos antes de inserir no banco
+      const validSponsorIds: string[] = Array.from(new Set(
+        sponsorIds.filter((id: any) => id && typeof id === 'string' && id.trim() !== ''),
+      ));
+      // ID que não existe é recusado com o nome do problema: o storage
+      // ignorava em silêncio, e a auditoria contava um vínculo que não houve.
+      const encontrados = await Promise.all(validSponsorIds.map((sid) => storage.getSponsor(sid)));
+      const inexistentes = validSponsorIds.filter((_, i) => !encontrados[i]);
+      if (inexistentes.length > 0) {
+        return res.status(400).json({ error: `Patrocinador não encontrado: ${inexistentes.join(", ")}. Recarregue a tela e tente de novo.` });
+      }
       // Molde: sincronizar para VAZIO (limpar) passa; acrescentar, não.
       if (ehMolde(currentItem) && validSponsorIds.length > 0) {
         return res.status(409).json({ error: ERRO_PATROCINADOR_EM_MOLDE, code: "MOLDE_SEM_PATROCINADOR" });
@@ -674,7 +684,7 @@ export function registerSponsorRoutes(app: Express): void {
         'updated',
         'item',
         itemId,
-        `Patrocinadores atualizados - ${sponsorIds.length} ${sponsorIds.length === 1 ? 'patrocinador vinculado' : 'patrocinadores vinculados'}${skipApproval ? ' (sem aprovação)' : ''}`
+        `Patrocinadores atualizados - ${validSponsorIds.length} ${validSponsorIds.length === 1 ? 'patrocinador vinculado' : 'patrocinadores vinculados'}${skipApproval ? ' (sem aprovação)' : ''}`
       );
       
       broadcast({ type: "item_updated", item });
@@ -687,8 +697,7 @@ export function registerSponsorRoutes(app: Express): void {
         sponsors: itemSponsorsData
       });
     } catch (error: any) {
-      console.error("[sponsors/sync] error:", error);
-      res.status(500).json({ error: error.message });
+      sendSensitiveError(res, error, "[sponsors/sync] erro ao salvar patrocinadores", 500);
     }
   });
 
@@ -928,7 +937,7 @@ export function registerSponsorRoutes(app: Express): void {
     try {
       const { id } = req.params;
       const item = await storage.getItem(id);
-      if (!item) return res.status(404).json({ error: "Item não encontrado" });
+      if (!item) return res.status(404).json({ error: "Peça não encontrada." });
       // ANDA (caso duvidoso, barrado): "devolver para a Criação" soa como
       // desfazer, mas o efeito é jogar a peça de volta na mesa da Solicitação
       // com os vínculos APAGADOS — trabalho novo, e perda de informação, numa
@@ -937,10 +946,14 @@ export function registerSponsorRoutes(app: Express): void {
 
       const allowedStatuses = ['draft', 'requested', 'awaiting_linking', 'awaiting_submission'];
       if (!allowedStatuses.includes(item.status)) {
-        return res.status(409).json({ error: `Item não pode ser devolvido. Status atual: ${item.status}` });
+        return res.status(409).json({ error: `Esta peça já passou da vinculação e não pode voltar para a Criação (está em ${translateStatus(item.status)}).` });
       }
 
       const prevStatus = item.status;
+      // Só status, "sem aprovação" e vínculos mudam: o thumb rascunho
+      // (approvalThumbUrl) FICA na peça. A resposta diz as duas coisas para
+      // que a tela que um dia oferecer a ação confirme com números reais.
+      const vinculosRemovidos = (await storage.getItemSponsors(id)).length;
       await storage.updateItem(id, { status: 'draft', skipApproval: false });
       await storage.bulkSyncItemSponsors(id, []);
 
@@ -963,9 +976,14 @@ export function registerSponsorRoutes(app: Express): void {
       broadcast({ type: "notification_created", notification });
       broadcast({ type: "item_updated", item: updated });
 
-      res.json({ message: "Item devolvido para Criação com sucesso", item: updated });
+      res.json({
+        message: "Peça devolvida para a Criação.",
+        item: updated,
+        vinculosRemovidos,
+        thumbMantido: !!item.approvalThumbUrl,
+      });
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      sendSensitiveError(res, error, "[return-to-creation] erro ao devolver peça", 500);
     }
   });
 
@@ -975,11 +993,18 @@ export function registerSponsorRoutes(app: Express): void {
       const { itemIds } = req.body;
       
       if (!Array.isArray(itemIds) || itemIds.length === 0) {
-        return res.status(400).json({ error: "itemIds deve ser um array com pelo menos um item" });
+        return res.status(400).json({ error: "Escolha ao menos uma peça para enviar." });
       }
       
       const results: any[] = [];
       const errors: string[] = [];
+      // O motivo POR PEÇA, para a tela escrever na linha certa — `errors`
+      // (frases soltas) continua para quem já lê o formato antigo.
+      const falhas: { itemId: string; motivo: string }[] = [];
+      const falhou = (itemId: string, frase: string, motivo: string) => {
+        errors.push(frase);
+        falhas.push({ itemId, motivo });
+      };
       // ANDA: "enviar para a Arte" é literalmente empurrar trabalho para a fila
       // de outra equipe. Em lote, o item barrado entra na lista de erros (para
       // não punir as peças boas do mesmo envio) e o 409 só sai quando o lote
@@ -990,13 +1015,14 @@ export function registerSponsorRoutes(app: Express): void {
         try {
           const item = await storage.getItem(itemId);
           if (!item) {
-            errors.push(`Item ${itemId} não encontrado`);
+            falhou(itemId, `Item ${itemId} não encontrado`, "Peça não encontrada.");
             continue;
           }
 
           const motivoEvento = await motivoEventoDaPeca(item);
           if (motivoEvento) {
-            errors.push(`Item ${item.displayId}: ${bloqueio.registra(motivoEvento)}`);
+            const motivo = bloqueio.registra(motivoEvento);
+            falhou(itemId, `Item ${item.displayId}: ${motivo}`, motivo);
             continue;
           }
 
@@ -1007,9 +1033,11 @@ export function registerSponsorRoutes(app: Express): void {
           // pede voltar à Solicitação. "Status incorreto" não dizia nenhum.
           if (item.status !== 'awaiting_linking') {
             const aindaNaoChegou = ['draft', 'requested'].includes(item.status);
-            errors.push(aindaNaoChegou
+            const onde = translateStatus(item.status);
+            falhou(itemId, aindaNaoChegou
               ? `Item ${item.displayId} ainda não chegou à vinculação (está em "${translateStatus(item.status)}")`
-              : `Item ${item.displayId} já foi enviado (está em "${translateStatus(item.status)}")`);
+              : `Item ${item.displayId} já foi enviado (está em "${translateStatus(item.status)}")`,
+              aindaNaoChegou ? `Ainda não chegou à vinculação (está em "${onde}").` : `Já tinha sido enviada (está em "${onde}").`);
             continue;
           }
           
@@ -1017,7 +1045,8 @@ export function registerSponsorRoutes(app: Express): void {
           const itemSponsors = await storage.getItemSponsors(itemId);
           // MOLDE (22/09) não exige patrocinador (shared/molde).
           if (itemSponsors.length === 0 && !item.skipApproval && !item.isReuse && !ehMolde(item)) {
-            errors.push(`Item ${item.displayId} precisa ter patrocinadores vinculados ou "Sem aprovação" marcado`);
+            falhou(itemId, `Item ${item.displayId} precisa ter patrocinadores vinculados ou "Sem aprovação" marcado`,
+              'Precisa de patrocinador vinculado ou da marca "Sem patrocinador".');
             continue;
           }
           
@@ -1025,7 +1054,9 @@ export function registerSponsorRoutes(app: Express): void {
           const updatedItem = await storage.updateItem(itemId, { status: 'awaiting_submission' });
           results.push(updatedItem);
         } catch (error: any) {
-          errors.push(`Erro ao processar item ${itemId}: ${error.message}`);
+          // O erro técnico fica no log; na tela, uma frase que dá para agir.
+          console.error(`[send-to-arte] erro na peça ${itemId}:`, error);
+          falhou(itemId, `Erro ao processar item ${itemId}`, "Não foi possível enviar esta peça agora. Tente de novo.");
         }
       }
 
@@ -1057,10 +1088,11 @@ export function registerSponsorRoutes(app: Express): void {
         success: true,
         sent: results.length,
         errors: errors.length > 0 ? errors : undefined,
+        falhas: falhas.length > 0 ? falhas : undefined,
         items: results
       });
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      sendSensitiveError(res, error, "[send-to-arte] erro ao enviar para a Arte", 500);
     }
   });
 

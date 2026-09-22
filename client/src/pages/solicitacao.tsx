@@ -1,5 +1,5 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { CheckCircle, AlertCircle, Copy, Eye, Search, X, FileImage, Maximize2, Trash2, Paperclip, Recycle, Check, Clock, ChevronLeft, ChevronRight, ChevronDown, MoreHorizontal, RotateCcw, Truck, Mail } from "lucide-react";
+import { CheckCircle, AlertCircle, Copy, Eye, Search, X, FileImage, Maximize2, Trash2, Paperclip, Recycle, Check, Clock, ChevronLeft, ChevronRight, ChevronDown, MoreHorizontal, RotateCcw, Truck, Mail, Lock, Unlock } from "lucide-react";
 import { FilterSelect } from "@/components/filter-select";
 import { SeloKit } from "@/components/kit/selo-kit";
 import { EventFilterDropdown } from "@/components/event-filter-dropdown";
@@ -30,6 +30,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { useAuth } from "@/contexts/auth-context";
 import { ehBookCompleto } from "@shared/fluxo-peca";
 import { arquivoFinalOk, ehMolde } from "@shared/molde";
+import { pecaTravada, fraseDaTrava, seloDaTrava, podeTravar, lerMotivo, SUGESTOES_DE_MOTIVO, MOTIVO_MINIMO, CODIGO_PECA_TRAVADA } from "@shared/trava-da-peca";
 import { SeloPrazoMolde } from "@/components/prazo-do-molde";
 import {
   STATUS, getStatusMeta,
@@ -44,6 +45,7 @@ import {
 } from "@/components/consulta-de-estoque/na-revisao";
 import { SOLICITACAO_AO_ESTOQUE_ATIVA, propostaDaLiberacao, respostaEsperandoConfirmar, resumoDoLoteComEstoque } from "@shared/consultas-de-estoque";
 import { FS } from "@/lib/theme";
+import { hrefSeguro } from "@shared/url-segura";
 
 // Tons de texto desta paleta valem para superfícies CLARAS (bg/surface).
 // Sobre os painéis escuros (#0c0a09/#1c1917) use #a8a29e ou mais claro —
@@ -173,6 +175,33 @@ function destinoAoLiberar(item: any): string {
     : "entrou na fila da Gráfica como Pronto para Produção";
 }
 
+/**
+ * A peça pode ser liberada agora? A MESMA régua do servidor: tem arquivo final
+ * (ou não precisa — molde), ou é reaproveitamento total, que não imprime nada.
+ */
+function prontaParaLiberar(item: any): boolean {
+  return arquivoFinalOk(item) || reaproveitamentoTotal(item);
+}
+
+/** Quantas chamadas o lote faz ao mesmo tempo: 40 de uma vez afogavam o servidor. */
+const LOTE_CONCORRENTE = 5;
+
+/**
+ * Roda `fazer` em cada id, de LOTE_CONCORRENTE em LOTE_CONCORRENTE, e devolve o
+ * motivo de cada falha por id (a mensagem do servidor, não "erro").
+ */
+async function emLotes(ids: string[], fazer: (id: string) => Promise<unknown>): Promise<Record<string, string>> {
+  const falhas: Record<string, string> = {};
+  for (let i = 0; i < ids.length; i += LOTE_CONCORRENTE) {
+    const fatia = ids.slice(i, i + LOTE_CONCORRENTE);
+    const r = await Promise.allSettled(fatia.map((id) => fazer(id)));
+    r.forEach((x, j) => {
+      if (x.status === "rejected") falhas[fatia[j]] = parseApiError(x.reason).message || "Falha sem mensagem do servidor.";
+    });
+  }
+  return falhas;
+}
+
 export default function Solicitacao() {
   const { toast } = useToast();
   const { user } = useAuth();
@@ -228,7 +257,8 @@ export default function Solicitacao() {
   // (reaproveitamento total não imprime nada; é a mesma régua do servidor).
   // Chave desligada: a regra de antes — sem arquivo final, não libera. MOLDE
   // (22/09) não tem arquivo final — libera só com o thumb (arquivoFinalOk).
-  const semArquivoParaLiberar = !arquivoFinalOk(selectedItem) && !(SOLICITACAO_AO_ESTOQUE_ATIVA && propostaDaFicha?.pulaProducao);
+  // Reaproveitamento total também não precisa (não imprime nada).
+  const semArquivoParaLiberar = !!selectedItem && !prontaParaLiberar(selectedItem) && !(SOLICITACAO_AO_ESTOQUE_ATIVA && propostaDaFicha?.pulaProducao);
   // O filtro do estoque mora na URL, como os outros (?estoque=respondeu).
   useEffect(() => {
     if (!SOLICITACAO_AO_ESTOQUE_ATIVA) return;
@@ -248,6 +278,21 @@ export default function Solicitacao() {
   const [bulkReturnObservations, setBulkReturnObservations] = useState("");
   const [returnConfirmOpen, setReturnConfirmOpen] = useState(false);
   const [deleteConfirmItemId, setDeleteConfirmItemId] = useState<string | null>(null);
+  // POR QUE CADA PEÇA DO LOTE FICOU: o motivo do servidor, escrito na linha.
+  // O toast só resume — "3 com erro" não dizia quais nem por quê.
+  const [falhasPorId, setFalhasPorId] = useState<Record<string, string>>({});
+  const anotarFalhas = (falhas: Record<string, string>, limpar: string[] = []) =>
+    setFalhasPorId(prev => {
+      const prox = { ...prev };
+      for (const id of limpar) delete prox[id];
+      return { ...prox, ...falhas };
+    });
+  // Travar pela ficha (a mesma trava da Gráfica): a peça a travar e o motivo.
+  const [travandoItem, setTravandoItem] = useState<any>(null);
+  const [motivoDaTrava, setMotivoDaTrava] = useState("");
+  // "Reaproveitada · desfazer" pede confirmação: desfazer devolve a peça à
+  // régua do arquivo final e da produção.
+  const [desfazerReuseId, setDesfazerReuseId] = useState<string | null>(null);
 
   // Estado inicial vindo da URL — ver o bloco de comentário acima do componente.
   const urlInicial = useMemo(() => filtrosRevisaoDaURL(window.location.search), []);
@@ -497,9 +542,14 @@ export default function Solicitacao() {
   const creatorReviewMutation = useMutation({
     // `corpo`: vazio = a sugestão do estoque (o servidor aplica o que a Gráfica
     // atendeu); { reuseQty, peloEstoque } = "usar menos do que o estoque atendeu".
-    mutationFn: async ({ itemId, corpo }: { itemId: string; corpo?: { reuseQty: number; peloEstoque: true } }) =>
-      await apiRequest("PATCH", `/api/items/${itemId}/creator-review`, corpo ?? {}),
-    onSuccess: (_res, { itemId, corpo }) => {
+    // `trava`: o que fazer com a trava da Solicitação ao liberar (o servidor
+    // recusa peça travada sem essa escolha).
+    mutationFn: async ({ itemId, corpo, trava }: { itemId: string; corpo?: { reuseQty: number; peloEstoque: true }; trava?: "destravar" | "manter" }) =>
+      await apiRequest("PATCH", `/api/items/${itemId}/creator-review`, {
+        ...(corpo ?? {}),
+        ...(trava === "destravar" ? { destravar: true } : trava === "manter" ? { manterTrava: true } : {}),
+      }),
+    onSuccess: (_res, { itemId, corpo, trava }) => {
       queryClient.invalidateQueries({ queryKey: CHAVE_DO_ESTOQUE_NA_REVISAO });
       queryClient.invalidateQueries({ queryKey: chaveDaConsulta(itemId) });
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
@@ -528,169 +578,183 @@ export default function Solicitacao() {
           ? (doEstoque.pulaProducao
             ? `foi direto para Impresso / Acabamento: as ${doEstoque.reaproveitadas} un. vêm do estoque`
             : `entrou na fila da Gráfica com ${doEstoque.reaproveitadas} un. do estoque e ${doEstoque.aProduzir} a produzir`)
-          : destinoAoLiberar(liberada)}. ${avancou ? "A próxima peça da fila já está aberta." : "Era a última desta fila."}`,
+          : destinoAoLiberar(liberada)}.${trava === "destravar" ? " A trava foi retirada." : trava === "manter" ? " Continua travada: a Gráfica vê, mas não consegue fazê-la andar." : ""} ${avancou ? "A próxima peça da fila já está aberta." : "Era a última desta fila."}`,
       });
     },
-    onError: (error: any) => toast({ title: "Erro ao liberar peça", description: parseApiError(error).message, variant: "destructive" }),
+    onError: (error: any) => {
+      const { message, code } = parseApiError(error);
+      // Travada por outra pessoa enquanto a ficha estava aberta: a lista
+      // atualiza e a confirmação passa a oferecer as duas escolhas.
+      if (code === CODIGO_PECA_TRAVADA) queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+      toast({ title: "Não foi possível liberar", description: message, variant: "destructive" });
+    },
   });
 
   const bulkReleaseMutation = useMutation({
-    // LIBERAÇÃO não tem rota em lote (/bulk-creator-review não existe: a
-    // chamada caía no fallback do SPA — 200 + HTML — e a tela dava "peças
-    // liberadas" sem nada acontecer). Usa a rota individual, idempotente, e
-    // reporta o que de fato passou. Devolução é diferente: essa TEM rota em
-    // lote (bulk-return-to-arte), usada pelo bulkReturnMutation abaixo.
-    mutationFn: async (itemIds: string[]) => {
-      const results = await Promise.allSettled(
-        itemIds.map(id => apiRequest("PATCH", `/api/items/${id}/creator-review`, {}))
-      );
-      const failedIds = itemIds.filter((_, i) => results[i].status === "rejected");
-      return { total: itemIds.length, released: itemIds.length - failedIds.length, failed: failedIds.length, failedIds };
+    // LIBERAÇÃO não tem rota em lote: usa a individual (idempotente), de 5 em
+    // 5, e guarda o MOTIVO de cada recusa por id. Só vão as PRONTAS (ver
+    // `loteDeLiberar`): peça sem arquivo final ou travada fica fora, marcada
+    // na linha com o porquê, em vez de ir e voltar com erro.
+    mutationFn: async ({ prontas, deFora }: { prontas: string[]; deFora: Record<string, string> }) => {
+      const falhas = await emLotes(prontas, (id) => apiRequest("PATCH", `/api/items/${id}/creator-review`, {}));
+      return { total: prontas.length, released: prontas.length - Object.keys(falhas).length, falhas, deFora };
     },
-    onSuccess: ({ total, released, failed, failedIds }, enviados) => {
+    onSuccess: ({ total, released, falhas, deFora }, { prontas }) => {
       queryClient.invalidateQueries({ queryKey: CHAVE_DO_ESTOQUE_NA_REVISAO });
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
       queryClient.invalidateQueries({ queryKey: ["/api/items/approved"] });
       queryClient.invalidateQueries({ queryKey: ["/api/audit-logs"] });
-      // Falha parcial: mantém selecionado só o que falhou, para a pessoa
-      // tentar de novo sem re-marcar tudo. As peças de evento finalizado, que
-      // nem chegaram a ser enviadas (ver `selecaoLote`), CONTINUAM marcadas —
-      // desmarcá-las em silêncio daria a entender que foram processadas.
+      anotarFalhas({ ...deFora, ...falhas }, prontas);
+      // Continua marcado o que ainda pede ação: o que falhou, o que ficou de
+      // fora por não estar pronto e as de evento finalizado (ver `selecaoLote`).
       setSelectedItemIds(prev => {
-        const foi = new Set(enviados);
-        const falhou = new Set(failedIds);
-        return new Set(Array.from(prev).filter(id => falhou.has(id) || !foi.has(id)));
+        const foi = new Set(prontas);
+        return new Set(Array.from(prev).filter(id => !!falhas[id] || !foi.has(id)));
       });
       setBulkReleaseConfirmOpen(false);
+      const failed = Object.keys(falhas).length;
+      const fora = Object.keys(deFora).length;
       if (failed > 0) {
-        // As que falharam continuam marcadas (acima): a frase aponta onde
-        // olhar e o motivo mais comum, em vez de "verifique o status".
         toast({
           title: "Liberação parcial",
-          description: `${released} de ${total} foram para a fila da Gráfica. ${failed} não ${failed === 1 ? "passou e continua marcada" : "passaram e continuam marcadas"} — o motivo mais comum é faltar o arquivo final da Arte.`,
+          description: `${released} de ${total} foram para a fila da Gráfica. ${failed} não ${failed === 1 ? "passou" : "passaram"} — o motivo está escrito na linha${failed === 1 ? "" : " de cada uma"}, que continua marcada.`,
           variant: "destructive",
         });
       } else {
         // Reaproveitamento total vai para Impresso / Acabamento, não para a impressão
         // (mesmo critério do servidor — ver `reaproveitamentoTotal`).
-        const reaproveitadas = enviados.filter(id => reaproveitamentoTotal(pendingItems.find((i: any) => i.id === id))).length;
+        const reaproveitadas = prontas.filter(id => reaproveitamentoTotal(pendingItems.find((i: any) => i.id === id))).length;
         const extra = reaproveitadas > 0
           ? ` ${reaproveitadas === released ? (released === 1 ? "Era" : "Todas eram") : (reaproveitadas === 1 ? "1 era" : `${reaproveitadas} eram`)} de reaproveitamento total e ${reaproveitadas === 1 ? "foi" : "foram"} direto para Impresso / Acabamento.`
           : "";
-        toast({ title: "Liberadas para a Gráfica", description: `${released} ${released === 1 ? "peça saiu" : "peças saíram"} da Revisão Final para a fila da Gráfica.${extra}` });
+        const deForaTxt = fora > 0 ? ` ${fora} ${fora === 1 ? "não estava pronta e continua marcada" : "não estavam prontas e continuam marcadas"}, com o motivo na linha.` : "";
+        toast({ title: "Liberadas para a Gráfica", description: `${released} ${released === 1 ? "peça saiu" : "peças saíram"} da Revisão Final para a fila da Gráfica.${extra}${deForaTxt}` });
       }
     },
-    onError: (error: any) => toast({ title: "Erro ao liberar peças", description: parseApiError(error).message, variant: "destructive" }),
+    onError: (error: any) => toast({ title: "Não foi possível liberar as peças", description: parseApiError(error).message, variant: "destructive" }),
   });
 
   const returnToArteMutation = useMutation({
-    mutationFn: async (payload: { itemId: string; notes: string; destino: string }) =>
+    mutationFn: async (payload: { itemId: string; notes: string; destino: string }) => {
       // PATCH, não POST: a rota é PATCH e o método errado caía no fallback do
       // SPA, que responde 200 com HTML. A tela dava "devolvida com sucesso" e o
       // servidor nunca recebia nada — a peça continuava na fila de revisão.
-      await apiRequest("PATCH", `/api/items/${payload.itemId}/return-to-arte`, { notes: payload.notes, destino: payload.destino }),
-    onSuccess: (_res, payload) => {
+      const res = await apiRequest("PATCH", `/api/items/${payload.itemId}/return-to-arte`, { notes: payload.notes, destino: payload.destino });
+      return await res.json().catch(() => ({}));
+    },
+    onSuccess: (resposta: any, payload) => {
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
       queryClient.invalidateQueries({ queryKey: ["/api/audit-logs"] });
       setReturnConfirmOpen(false); setReturnObservations("");
       if (!marcarAvanco()) { setModalOpen(false); setSelectedItem(null); }
       const avancou = proximaAposDecidir.current !== null;
-      // O aviso diz PARA ONDE ela foi — a escolha que acabou de ser feita, e
-      // a única que muda o que acontece com a aprovação do patrocinador — e
-      // QUEM recebe: a Arte, avisada com o motivo (notificação do servidor).
+      // O aviso diz para onde ela FOI — o destino que o SERVIDOR aplicou (o
+      // molde volta sempre para o começo da Arte, seja qual for o pedido) — e
+      // QUEM recebe: a Arte, avisada com o motivo.
+      const destino = resposta?.destinoDevolvido ?? payload.destino;
+      const molde = ehMolde(resposta) || ehMolde(pendingItems.find((i: any) => i.id === payload.itemId));
       toast({
         title: "Devolvida para a Arte",
-        description: (payload.destino === "arte"
+        description: (molde
+          ? "O molde voltou para o começo da Arte, com o thumb dele."
+          : destino === "arte"
           ? "Voltou para o começo da Arte — o patrocinador terá de aprovar de novo."
           : "Voltou para a Finalização — a aprovação do patrocinador continua valendo.")
           + ` A Arte foi avisada com o seu motivo.${avancou ? " A próxima peça já está aberta." : ""}`,
       });
     },
-    onError: (error: any) => toast({ title: "Erro ao devolver peça", description: parseApiError(error).message, variant: "destructive" }),
+    onError: (error: any) => toast({ title: "Não foi possível devolver", description: parseApiError(error).message, variant: "destructive" }),
   });
 
   const bulkReturnMutation = useMutation({
-    // Uma chamada só: a rota de lote existe (PATCH /api/items/bulk-return-to-arte)
-    // e responde { success, errors, items, failedItemIds }.
+    // Uma chamada só: a rota de lote responde { success, errors: [{itemId,
+    // error}], items, destinos } — o motivo de cada recusa vai para a linha.
     mutationFn: async (payload: { ids: string[]; notes: string; destino: string }) => {
       const res = await apiRequest("PATCH", "/api/items/bulk-return-to-arte", { itemIds: payload.ids, notes: payload.notes, destino: payload.destino });
-      const result: { success: number; errors: number; failedItemIds?: string[] } = await res.json();
-      return { total: payload.ids.length, failed: result.errors, failedIds: result.failedItemIds ?? [] };
+      const result: { success: number; errors?: Array<{ itemId: string; error: string }> | number; failedItemIds?: string[]; destinos?: Record<string, string> } = await res.json();
+      const falhas: Record<string, string> = {};
+      if (Array.isArray(result.errors)) for (const e of result.errors) falhas[e.itemId] = e.error;
+      else for (const id of result.failedItemIds ?? []) falhas[id] = "O servidor recusou esta peça.";
+      return { total: payload.ids.length, falhas, destinos: result.destinos ?? {} };
     },
-    onSuccess: ({ total, failed, failedIds }, { ids: enviados }) => {
+    onSuccess: ({ total, falhas, destinos }, { ids: enviados }) => {
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
       queryClient.invalidateQueries({ queryKey: ["/api/audit-logs"] });
+      anotarFalhas(falhas, enviados);
       // Falha parcial: mantém selecionado só o que falhou, para a pessoa
       // tentar de novo sem re-marcar tudo — e mantém também as de evento
       // finalizado, que nem chegaram a ser enviadas (ver `selecaoLote`).
       setSelectedItemIds(prev => {
         const foi = new Set(enviados);
-        const falhou = new Set(failedIds);
-        return new Set(Array.from(prev).filter(id => falhou.has(id) || !foi.has(id)));
+        return new Set(Array.from(prev).filter(id => !!falhas[id] || !foi.has(id)));
       });
       setBulkReturnConfirmOpen(false); setBulkReturnObservations("");
+      const failed = Object.keys(falhas).length;
       const ok = total - failed;
+      // Para onde foram DE FATO (o servidor diz por peça): molde volta sempre
+      // para o começo da Arte, mesmo com "só o arquivo final" escolhido.
+      const paraArte = Object.values(destinos).filter(d => d === "arte").length;
+      const paraFinalizacao = Object.values(destinos).filter(d => d === "finalizacao").length;
+      const onde = paraArte > 0 && paraFinalizacao > 0
+        ? `${paraFinalizacao} para a Finalização e ${paraArte} para o começo da Arte`
+        : paraArte > 0 ? "o começo da Arte" : "a Finalização";
       if (failed > 0) {
-        toast({ title: "Devolução parcial", description: `${ok} ${ok === 1 ? "voltou" : "voltaram"} para a Arte; ${failed} com erro ${failed === 1 ? "continua marcada" : "continuam marcadas"} para tentar de novo.`, variant: "destructive" });
+        toast({ title: "Devolução parcial", description: `${ok} ${ok === 1 ? "voltou" : "voltaram"} para a Arte; ${failed} não ${failed === 1 ? "passou e continua marcada" : "passaram e continuam marcadas"} — o motivo está na linha.`, variant: "destructive" });
       } else {
-        toast({ title: "Devolvidas para a Arte", description: `${ok} ${ok === 1 ? "peça voltou" : "peças voltaram"} para ${destinoDevolucao === "arte" ? "o começo da Arte" : "a Finalização"}. A Arte foi avisada com o motivo.` });
+        toast({ title: "Devolvidas para a Arte", description: `${ok} ${ok === 1 ? "peça voltou" : "peças voltaram"} ${paraArte > 0 && paraFinalizacao > 0 ? `(${onde})` : `para ${onde}`}. A Arte foi avisada com o motivo.` });
       }
     },
-    onError: (error: any) => toast({ title: "Erro ao devolver peças", description: parseApiError(error).message, variant: "destructive" }),
+    onError: (error: any) => toast({ title: "Não foi possível devolver as peças", description: parseApiError(error).message, variant: "destructive" }),
   });
 
   const bulkReuseMutation = useMutation({
     // REAPROVEITAR em lote (pedido do dono, 25/08): o mesmo par de chamadas do
     // reaproveitamento TOTAL individual (PATCH isReuse + creator-review), peça
-    // a peça — rota de lote não existe. O PARCIAL continua só no ícone da
-    // linha: quantidade reaproveitada é decisão de UMA peça, não de um lote.
+    // a peça, de 5 em 5 — rota de lote não existe. O PARCIAL continua só no
+    // ícone da linha: quantidade reaproveitada é decisão de UMA peça.
     mutationFn: async (itemIds: string[]) => {
-      const results = await Promise.allSettled(itemIds.map(async (id) => {
+      const semLiberar: Record<string, string> = {};
+      const falhas = await emLotes(itemIds, async (id) => {
         await apiRequest("PATCH", `/api/items/${id}`, { isReuse: true });
         // Marcou mas não liberou é MEIO caminho, não falha igual: a marcação
-        // existe, e o "Liberar" da barra resolve o resto.
+        // existe, e o "Liberar" da barra resolve o resto — com o motivo.
         try { await apiRequest("PATCH", `/api/items/${id}/creator-review`, {}); }
-        catch { throw new Error("__marcada_sem_liberar__"); }
-      }));
-      const failedIds: string[] = [], semLiberar: string[] = [];
-      results.forEach((r, i) => {
-        if (r.status !== "rejected") return;
-        if ((r.reason as any)?.message === "__marcada_sem_liberar__") semLiberar.push(itemIds[i]);
-        else failedIds.push(itemIds[i]);
+        catch (e) { semLiberar[id] = `Marcada, mas não liberada: ${parseApiError(e).message}`; }
       });
-      return { total: itemIds.length, failedIds, semLiberar };
+      return { total: itemIds.length, falhas, semLiberar };
     },
-    onSuccess: ({ total, failedIds, semLiberar }, enviados) => {
+    onSuccess: ({ total, falhas, semLiberar }, enviados) => {
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
       queryClient.invalidateQueries({ queryKey: ["/api/items/approved"] });
       queryClient.invalidateQueries({ queryKey: ["/api/audit-logs"] });
+      anotarFalhas({ ...semLiberar, ...falhas }, enviados);
       // Continua selecionado o que ainda pede ação: o que falhou (tentar de
       // novo) e o que marcou sem liberar (o "Liberar N" da barra fecha) — e as
       // de evento finalizado, que nem foram enviadas (ver `selecaoLote`).
       setSelectedItemIds(prev => {
         const foi = new Set(enviados);
-        const pendente = new Set([...failedIds, ...semLiberar]);
-        return new Set(Array.from(prev).filter(id => pendente.has(id) || !foi.has(id)));
+        return new Set(Array.from(prev).filter(id => !!falhas[id] || !!semLiberar[id] || !foi.has(id)));
       });
       setBulkReuseConfirmOpen(false);
-      const ok = total - failedIds.length - semLiberar.length;
-      if (failedIds.length === 0 && semLiberar.length === 0) {
+      const nFalhas = Object.keys(falhas).length, nSem = Object.keys(semLiberar).length;
+      const ok = total - nFalhas - nSem;
+      if (nFalhas === 0 && nSem === 0) {
         toast({ title: "Reaproveitamento confirmado", description: `${ok} peça(s) enviada(s) à Gráfica como produzida(s).` });
-      } else if (failedIds.length === 0) {
+      } else if (nFalhas === 0) {
         toast({
           title: "Marcadas, mas nem todas liberadas",
-          description: `${ok} enviada(s) à Gráfica; ${semLiberar.length} marcada(s) sem liberar — continuam selecionadas: use o "Liberar" da barra.`,
+          description: `${ok} enviada(s) à Gráfica; ${nSem} marcada(s) sem liberar — continuam selecionadas, com o motivo na linha.`,
           variant: "destructive",
         });
       } else {
         toast({
           title: "Reaproveitamento parcial",
-          description: `${ok} de ${total} enviada(s). ${failedIds.length} falhou(aram)${semLiberar.length > 0 ? ` e ${semLiberar.length} marcou sem liberar` : ""} — continuam selecionadas.`,
+          description: `${ok} de ${total} enviada(s). ${nFalhas} falhou(aram)${nSem > 0 ? ` e ${nSem} marcou sem liberar` : ""} — continuam selecionadas, com o motivo na linha.`,
           variant: "destructive",
         });
       }
     },
-    onError: (error: any) => toast({ title: "Erro ao reaproveitar peças", description: parseApiError(error).message, variant: "destructive" }),
+    onError: (error: any) => toast({ title: "Não foi possível reaproveitar", description: parseApiError(error).message, variant: "destructive" }),
   });
 
   const deleteItemMutation = useMutation({
@@ -743,7 +807,8 @@ export default function Solicitacao() {
   // foco de volta na hora e o efeito visível seria só um pisca-pisca.
   const algumDialogoAberto = modalOpen || releaseConfirmOpen || returnConfirmOpen
     || bulkReleaseConfirmOpen || bulkReturnConfirmOpen || bulkReuseConfirmOpen
-    || deleteConfirmItemId !== null || complementItem !== null || reuseDialogItemId !== null;
+    || deleteConfirmItemId !== null || complementItem !== null || reuseDialogItemId !== null
+    || travandoItem !== null || desfazerReuseId !== null;
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "/" || algumDialogoAberto) return;
@@ -764,13 +829,16 @@ export default function Solicitacao() {
       if (isReuse) {
         try {
           await apiRequest("PATCH", `/api/items/${itemId}/creator-review`, {});
-        } catch {
-          return { statusAdvanced: false };
+        } catch (e) {
+          // O MOTIVO do servidor vai para o aviso (e para a linha): "falhou"
+          // sozinho não dizia se era arquivo, trava ou evento finalizado.
+          return { statusAdvanced: false, erro: parseApiError(e).message };
         }
       }
       return { statusAdvanced: true };
     },
-    onSuccess: (result, { isReuse }) => {
+    onSuccess: (result, { itemId, isReuse }) => {
+      setDesfazerReuseId(null);
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
       queryClient.invalidateQueries({ queryKey: ["/api/items/approved"] });
       queryClient.invalidateQueries({ queryKey: ["/api/audit-logs"] });
@@ -778,9 +846,11 @@ export default function Solicitacao() {
       if (isReuse && !advanced) {
         // A marcação gravou mas o creator-review falhou: nada de prometer
         // atualização automática — a liberação precisa ser feita à mão.
+        const erro = (result as any)?.erro as string | undefined;
+        if (erro) anotarFalhas({ [itemId]: `Marcada, mas não liberada: ${erro}` });
         toast({
           title: "Reaproveitamento marcado, mas não liberado",
-          description: "A liberação automática falhou. Abra a peça e clique em \"Liberar para Produção\" manualmente.",
+          description: `${erro ?? "A liberação falhou."} Abra a peça e libere quando o motivo estiver resolvido.`,
           variant: "destructive",
         });
         return;
@@ -789,10 +859,10 @@ export default function Solicitacao() {
         title: isReuse ? "Reaproveitamento confirmado" : "Marcação removida",
         description: isReuse
           ? "Peça enviada diretamente para a Gráfica como produzida."
-          : "A peça voltará ao fluxo normal.",
+          : "A peça volta ao fluxo normal: para liberar, precisa do arquivo final.",
       });
     },
-    onError: (error: any) => toast({ title: "Erro ao salvar", description: parseApiError(error).message, variant: "destructive" }),
+    onError: (error: any) => { setDesfazerReuseId(null); toast({ title: "Não foi possível salvar o reaproveitamento", description: parseApiError(error).message, variant: "destructive" }); },
   });
 
   // Reaproveitamento parcial: define reuseQty e avança via creator-review
@@ -812,8 +882,40 @@ export default function Solicitacao() {
         description: "As unidades reaproveitadas foram registradas. O restante segue para produção.",
       });
     },
-    onError: (error: any) => toast({ title: "Erro ao salvar", description: parseApiError(error).message, variant: "destructive" }),
+    onError: (error: any) => toast({ title: "Não foi possível reaproveitar em parte", description: parseApiError(error).message, variant: "destructive" }),
   });
+
+  // TRAVAR / DESTRAVAR pela ficha — a mesma trava que a Solicitação põe na
+  // Gráfica (rotas /travar e /destravar). A ficha passa a mostrar a peça como
+  // o servidor a devolveu, sem esperar a lista recarregar.
+  const travarMutation = useMutation({
+    mutationFn: async ({ itemId, motivo }: { itemId: string; motivo: string; displayId?: string }) => {
+      const res = await apiRequest("POST", `/api/items/${itemId}/travar`, { motivo });
+      return await res.json();
+    },
+    onSuccess: (item: any, v) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/audit-logs"] });
+      setSelectedItem((prev: any) => (prev?.id === v.itemId ? { ...prev, ...item } : prev));
+      setTravandoItem(null); setMotivoDaTrava("");
+      toast({ title: `${v.displayId ?? "Peça"} travada`, description: `Mesmo liberada, a Gráfica não consegue fazê-la andar até alguém destravar: ${v.motivo}` });
+    },
+    onError: (error: any) => toast({ title: "Não foi possível travar", description: parseApiError(error).message, variant: "destructive" }),
+  });
+  const destravarMutation = useMutation({
+    mutationFn: async ({ itemId }: { itemId: string; displayId?: string }) => {
+      const res = await apiRequest("POST", `/api/items/${itemId}/destravar`, {});
+      return await res.json();
+    },
+    onSuccess: (item: any, v) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/audit-logs"] });
+      setSelectedItem((prev: any) => (prev?.id === v.itemId ? { ...prev, ...item } : prev));
+      toast({ title: `${v.displayId ?? "Peça"} destravada` });
+    },
+    onError: (error: any) => toast({ title: "Não foi possível destravar", description: parseApiError(error).message, variant: "destructive" }),
+  });
+  const motivoDaTravaLido = lerMotivo(motivoDaTrava);
 
   // ── Evento FINALIZADO CONTINUA NESTA FILA ─────────────────────────────────
   // Regra do dono (17/08): "os eventos finalizados devem aparecer ainda na
@@ -857,6 +959,27 @@ export default function Solicitacao() {
   }, [pendingItems, hojeBusinessMs]);
   const seloDoItem = (item: any): SeloPecaEventoFinalizado | null =>
     (item ? selosPorItem.get(item.id) : undefined) ?? null;
+
+  // A TRAVA na linha: sem ela, "Liberar" numa peça travada só mostrava a
+  // escolha dentro da ficha — e o lote a deixava de fora sem dizer por quê.
+  const seloTravaNaLinha = (item: any, onde: "tabela" | "cartao") => pecaTravada(item) ? (
+    <span
+      data-testid={`badge-travada-${onde}-${item.id}`}
+      title={fraseDaTrava(item)}
+      style={{ display: "inline-flex", alignItems: "center", gap: 4, maxWidth: "100%", fontSize: 11, fontWeight: 700, color: "#7f1d1d", backgroundColor: "#fef2f2", border: "1px solid #fecaca", borderRadius: 999, padding: "1px 8px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flexShrink: 1, minWidth: 0 }}
+    >
+      <Lock aria-hidden="true" style={{ width: 11, height: 11, flexShrink: 0 }} />
+      <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{seloDaTrava(item)}</span>
+    </span>
+  ) : null;
+  // O MOTIVO da última recusa num lote, escrito na linha (#b91c1c = 6,5:1).
+  const falhaNaLinha = (item: any) => falhasPorId[item.id] ? (
+    <p role="status" data-testid={`falha-lote-${item.id}`} style={{ flexBasis: "100%", margin: "4px 0 0", fontSize: 12, lineHeight: 1.4, color: "#b91c1c", fontWeight: 600, overflowWrap: "anywhere" }}>
+      {falhasPorId[item.id]}
+    </p>
+  ) : null;
+  // Desfazer o reaproveitamento pede confirmação (ver o diálogo no fim).
+  const desfazendoReuse = (id: string) => toggleReuseMutation.isPending && toggleReuseMutation.variables?.itemId === id && toggleReuseMutation.variables?.isReuse === false;
 
   // ── O RECORTE, UMA FUNÇÃO SÓ ──────────────────────────────────────────────
   // A INVARIANTE, e é ela que alguém quebra sem perceber ao acrescentar um
@@ -1071,19 +1194,34 @@ export default function Solicitacao() {
     return { ids, vivas, encerrado, realizado, finalizadas: encerrado + realizado };
   }, [selectedItemIds, selosPorItem]);
 
-  // Quantas das que VÃO no lote de liberar ainda não têm arquivo final — só
-  // para avisar no diálogo; o lote enviado continua o mesmo. Reaproveitamento
-  // total fica FORA da conta: o servidor não exige arquivo dela (vai direto
-  // para Impresso / Acabamento), e contá-la anunciava uma recusa que não acontece.
+  // As peças vivas da seleção (fora as de evento finalizado).
   const itensDoLoteVivo = selecaoLote.vivas.map(id => pendingItems.find((i: any) => i.id === id));
   // O LOTE leva a sugestão do estoque (dono, 21/09): peça com resposta entra
   // com o que a Gráfica atendeu — o servidor aplica na liberação de cada uma.
   const propostasDoLote = itensDoLoteVivo
     .filter((it: any) => it && !it.isReuse && estoqueRespondeu(estoquePorPeca.get(it.id)))
     .map((it: any) => propostaDaLiberacao(Number(it.quantity) || 0, estoquePorPeca.get(it.id)!));
-  const semArquivoNoLote = itensDoLoteVivo
-    .filter((it: any) => !arquivoFinalOk(it) && !reaproveitamentoTotal(it)).length;
   const reaproveitadasNoLote = itensDoLoteVivo.filter((it: any) => reaproveitamentoTotal(it)).length;
+  // O LOTE DE LIBERAR leva só as PRONTAS. Sem arquivo final o servidor
+  // recusa; travada pede a escolha "destravar ou manter", que é da ficha.
+  // As de fora ficam marcadas com o motivo na linha, sem ir e voltar.
+  const loteDeLiberar = useMemo(() => {
+    const prontas: string[] = [];
+    const deFora: Record<string, string> = {};
+    let nTravadas = 0, nSemArquivo = 0;
+    for (const id of selecaoLote.vivas) {
+      const it: any = pendingItems.find((i: any) => i.id === id);
+      if (!it) continue;
+      if (pecaTravada(it)) { nTravadas++; deFora[id] = "Travada — libere pela ficha, escolhendo destravar ou manter a trava."; }
+      else if (!prontaParaLiberar(it)) { nSemArquivo++; deFora[id] = "Sem arquivo final da Arte — fica para depois."; }
+      else prontas.push(id);
+    }
+    return { prontas, deFora, nFora: nTravadas + nSemArquivo, nTravadas, nSemArquivo };
+  }, [selecaoLote, pendingItems]);
+  // Moldes no lote de devolver: voltam sempre para o começo da Arte (com o
+  // thumb), qualquer que seja o destino escolhido.
+  const moldesNoLote = itensDoLoteVivo.filter((it: any) => ehMolde(it)).length;
+  const loteSoDeMoldes = moldesNoLote > 0 && moldesNoLote === selecaoLote.vivas.length;
 
   /** A frase do "ficam de fora" — uma só, para os dois diálogos de lote. */
   const avisoLoteFinalizadas = (): string | null => {
@@ -1102,6 +1240,18 @@ export default function Solicitacao() {
   const seloSelecionado = selectedItem
     ? (selosPorItem.get(selectedItem.id) ?? seloPecaEventoFinalizado(selectedItem.event, hojeBusinessMs))
     : null;
+
+  // A TRAVA DA PEÇA ABERTA: a versão mais nova entre a da lista (que chega
+  // pelo WebSocket quando alguém trava na Gráfica) e a da ficha (que o
+  // travar/destravar daqui atualiza na hora).
+  const pecaDaFicha: any = (() => {
+    if (!selectedItem) return null;
+    const daLista: any = pendingItems.find((i: any) => i.id === selectedItem.id);
+    if (!daLista) return selectedItem;
+    const t = (x: any) => new Date(x?.updatedAt ?? 0).getTime() || 0;
+    return t(selectedItem) > t(daLista) ? selectedItem : daLista;
+  })();
+  const fichaTravada = pecaTravada(pecaDaFicha);
 
   // Bloco do Kit ("<evento>#kit-<remessa>"): o evento da peça já vem com as
   // datas do Kit (servidor); o nome ganha "· KIT".
@@ -1232,11 +1382,11 @@ export default function Solicitacao() {
       if (t && t.closest("button,a")) return;
       // Com um AlertDialog de confirmação aberto por cima, Enter/Esc são dele
       // (o Radix cuida); agir aqui fechava as duas camadas de uma vez.
-      if (releaseConfirmOpen || returnConfirmOpen) return;
+      if (releaseConfirmOpen || returnConfirmOpen || travandoItem || desfazerReuseId || reuseDialogItemId) return;
       // Mesma checagem do botão "Liberar para Produção": sem arquivo final —
       // ou com o evento finalizado, que o servidor recusa com 409 — o atalho
       // não pode driblar o botão desabilitado.
-      if (e.key === "Enter" && arquivoFinalOk(selectedItem)
+      if (e.key === "Enter" && selectedItem && prontaParaLiberar(selectedItem)
         && !seloPecaEventoFinalizado(selectedItem?.event, hojeBusinessMs)) setReleaseConfirmOpen(true);
       if (e.key === "Escape") setModalOpen(false);
       if (e.key === "ArrowLeft" && temAnterior) { e.preventDefault(); irParaFila(filaIdx - 1); }
@@ -1247,7 +1397,7 @@ export default function Solicitacao() {
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [modalOpen, selectedItem, releaseConfirmOpen, returnConfirmOpen, filaIdx, temAnterior, temProxima, seloSelecionado]);
+  }, [modalOpen, selectedItem, releaseConfirmOpen, returnConfirmOpen, travandoItem, desfazerReuseId, reuseDialogItemId, filaIdx, temAnterior, temProxima, seloSelecionado]);
 
   if (itemsLoading || eventsLoading) {
     // O giro sozinho não dizia O QUE carrega — numa fila que às vezes está
@@ -1541,28 +1691,34 @@ export default function Solicitacao() {
             )}
 
             <div style={{ marginLeft: "auto", display: "flex", gap: 8, flexWrap: "wrap" }}>
-              {/* O CONTADOR DO BOTAO e o das pecas que de fato vao (`vivas`),
-                  nao o da selecao: prometer "Liberar (12)" e mandar 9 e a
-                  mentira que o lote misto cria. Desabilita quando nenhuma
-                  sobra — espelho do 409 de lote inteiro do servidor —, e ai o
-                  `title` diz o motivo. #ffffff sobre #9d4300 = 6,49:1 ✓ */}
+              {/* O CONTADOR DO BOTAO e o das pecas que de fato vao: so as
+                  PRONTAS (`loteDeLiberar`) — sem arquivo final ou travada fica
+                  de fora, com o motivo na linha. "Liberar as 9 prontas" diz o
+                  desconto antes do clique. #ffffff sobre #9d4300 = 6,49:1 ✓ */}
+              {selecaoLote.vivas.length > 0 && loteDeLiberar.prontas.length === 0 && (
+                <span role="status" data-testid="aviso-lote-nenhuma-pronta" style={{ alignSelf: "center", fontSize: 12, color: "#92400e" }}>
+                  Nenhuma pronta para liberar: {loteDeLiberar.nFora === 1 ? "a selecionada está" : "as selecionadas estão"} sem arquivo final ou travada{loteDeLiberar.nFora === 1 ? "" : "s"}.
+                </span>
+              )}
               <button
-                onClick={() => selecaoLote.vivas.length > 0 && setBulkReleaseConfirmOpen(true)}
-                disabled={selecaoLote.vivas.length === 0 || bulkReleaseMutation.isPending}
+                onClick={() => loteDeLiberar.prontas.length > 0 && setBulkReleaseConfirmOpen(true)}
+                disabled={loteDeLiberar.prontas.length === 0 || bulkReleaseMutation.isPending}
                 title={selecaoLote.vivas.length === 0
                   ? "Toda a seleção é de evento finalizado — liberar para produção está bloqueado nessas peças."
                   : undefined}
                 data-testid="button-bulk-release-hero"
                 style={{
                   height: alturaControle, padding: "0 14px", borderRadius: 8, border: "none",
-                  backgroundColor: selecaoLote.vivas.length === 0 ? "#e7e5e4" : "#9d4300",
-                  color: selecaoLote.vivas.length === 0 ? "#78716c" : "#ffffff",
+                  backgroundColor: loteDeLiberar.prontas.length === 0 ? "#e7e5e4" : "#9d4300",
+                  color: loteDeLiberar.prontas.length === 0 ? "#78716c" : "#ffffff",
                   fontSize: 13, fontWeight: 700, whiteSpace: "nowrap",
-                  cursor: selecaoLote.vivas.length === 0 || bulkReleaseMutation.isPending ? "not-allowed" : "pointer",
+                  cursor: loteDeLiberar.prontas.length === 0 || bulkReleaseMutation.isPending ? "not-allowed" : "pointer",
                 }}>
                 {bulkReleaseMutation.isPending
-                  ? "Processando..."
-                  : `Liberar ${selecaoLote.vivas.length}`}
+                  ? "Liberando..."
+                  : loteDeLiberar.nFora > 0
+                  ? `Liberar ${loteDeLiberar.prontas.length === 1 ? "a pronta" : `as ${loteDeLiberar.prontas.length} prontas`}`
+                  : `Liberar ${loteDeLiberar.prontas.length}`}
               </button>
               <button
                 onClick={() => selecaoLote.vivas.length > 0 && setBulkReturnConfirmOpen(true)}
@@ -1711,6 +1867,7 @@ export default function Solicitacao() {
                               </span>
                             );
                           })()}
+                          {seloTravaNaLinha(item, "cartao")}
                         </div>
                         <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8}}>
                           <div style={{flex:1}}>
@@ -1742,6 +1899,7 @@ export default function Solicitacao() {
                           )}
                           {item.sponsors?.map((s:any)=><span key={s.id} style={{fontSize:11,padding:"2px 6px",borderRadius:6,backgroundColor:"#f5f5f4",color:"#57534e",fontWeight:600}}>{s.name}</span>)}
                         </div>
+                        {falhaNaLinha(item)}
                       </div>
                       {/* EXCLUIR PEÇA — a lixeira da tabela, que não existe na
                           ficha. Desde que os cartões valem abaixo de 980px de
@@ -1767,17 +1925,17 @@ export default function Solicitacao() {
                                 type="button"
                                 onClick={() => {
                                   if (selo) return;
-                                  if (item.isReuse) toggleReuseMutation.mutate({ itemId: item.id, isReuse: false });
+                                  if (item.isReuse) setDesfazerReuseId(item.id);
                                   else { setPartialReuseQty(Math.max(1, Number(item.quantity) - 1 || 1)); setReuseDialogItemId(item.id); }
                                 }}
-                                disabled={!!selo}
+                                disabled={!!selo || desfazendoReuse(item.id)}
                                 data-testid={`button-reuse-${item.id}`}
                                 aria-pressed={!!item.isReuse}
                                 title={selo ? motivoAcaoBloqueada(selo.motivo, "marcar reaproveitamento") : undefined}
                                 style={{minHeight:44,padding:"0 12px",background:item.isReuse ? "#dcfce7" : "none",border:item.isReuse ? "1px solid #86efac" : "1px solid transparent",borderRadius:8,cursor:selo ? "not-allowed" : "pointer",color:selo ? "#78716c" : "#15803d",fontSize:12,fontWeight:700,display:"inline-flex",alignItems:"center",gap:6}}
                               >
                                 <Recycle aria-hidden="true" style={{width:14,height:14}} />
-                                {item.isReuse ? "Reaproveitada · desfazer" : "Reaproveitar"}
+                                {desfazendoReuse(item.id) ? "Desfazendo…" : item.isReuse ? "Reaproveitada · desfazer" : "Reaproveitar"}
                               </button>
                             );
                           })()}
@@ -2065,7 +2223,7 @@ export default function Solicitacao() {
                                     leitura — sendo que o que dizem é binário. */}
                                 {item.referenceUrl && (
                                   <a
-                                    href={item.referenceUrl} target="_blank" rel="noopener noreferrer"
+                                    href={hrefSeguro(item.referenceUrl)} target="_blank" rel="noopener noreferrer"
                                     onClick={e => e.stopPropagation()}
                                     title="Ver a referência visual do solicitante"
                                     aria-label={`Referência visual de ${item.displayId}`}
@@ -2094,6 +2252,8 @@ export default function Solicitacao() {
                                     {selo.label}
                                   </span>
                                 )}
+                                {seloTravaNaLinha(item, "tabela")}
+                                {falhaNaLinha(item)}
                               </div>
                             </td>
 
@@ -2168,15 +2328,15 @@ export default function Solicitacao() {
                                   onClick={() => {
                                     if (selo) return;
                                     if (item.isReuse) {
-                                      // Se já está marcado como reaproveitamento total, desfaz
-                                      toggleReuseMutation.mutate({ itemId: item.id, isReuse: false });
+                                      // Já marcada como reaproveitamento total: desfazer pede confirmação
+                                      setDesfazerReuseId(item.id);
                                     } else {
                                       // Abre o diálogo para escolher total ou parcial
                                       setPartialReuseQty(Math.max(1, Number(item.quantity) - 1 || 1));
                                       setReuseDialogItemId(item.id);
                                     }
                                   }}
-                                  disabled={!!selo}
+                                  disabled={!!selo || desfazendoReuse(item.id)}
                                   data-testid={`button-reuse-${item.id}`}
                                   aria-label={`Reaproveitamento de ${item.displayId}`}
                                   title={selo
@@ -2691,7 +2851,7 @@ export default function Solicitacao() {
                     onClick={() => {
                       if (seloSelecionado || !selectedItem) return;
                       if (selectedItem.isReuse) {
-                        toggleReuseMutation.mutate({ itemId: selectedItem.id, isReuse: false });
+                        setDesfazerReuseId(selectedItem.id);
                       } else {
                         setPartialReuseQty(Math.max(1, Number(selectedItem.quantity) - 1 || 1));
                         setReuseDialogItemId(selectedItem.id);
@@ -2717,9 +2877,39 @@ export default function Solicitacao() {
                     }}
                   >
                     <Recycle style={{ width: 15, height: 15, flexShrink: 0 }} />
-                    {selectedItem?.isReuse ? "Reaproveitada" : "Reaproveitar"}
+                    {selectedItem && desfazendoReuse(selectedItem.id) ? "Desfazendo…" : selectedItem?.isReuse ? "Reaproveitada · desfazer" : "Reaproveitar"}
                   </button>
                 </div>
+                {/* A TRAVA DA SOLICITAÇÃO, também aqui: travada, o selo com o
+                    motivo e o Destravar; livre, o Travar (com motivo) — as
+                    mesmas rotas e o mesmo texto da Gráfica. */}
+                {pecaDaFicha && (fichaTravada ? (
+                  <div role="status" data-testid="selo-travada-revisao" title={fraseDaTrava(pecaDaFicha)} style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", padding: "6px 10px", borderRadius: 8, background: "#7f1d1d", color: "#ffffff", fontSize: 12, fontWeight: 700, lineHeight: 1.4 }}>
+                    <Lock aria-hidden="true" style={{ width: 13, height: 13, flexShrink: 0 }} />
+                    <span style={{ flex: "1 1 160px", minWidth: 0, overflowWrap: "anywhere" }}>{seloDaTrava(pecaDaFicha)}</span>
+                    {podeTravar(user?.role) && (
+                      <button
+                        type="button"
+                        onClick={() => destravarMutation.mutate({ itemId: pecaDaFicha.id, displayId: pecaDaFicha.displayId })}
+                        disabled={destravarMutation.isPending}
+                        data-testid="button-destravar-revisao"
+                        style={{ display: "inline-flex", alignItems: "center", gap: 5, minHeight: isMobile ? 44 : 30, padding: "0 10px", borderRadius: 6, border: "1px solid #fecaca", background: "#ffffff", color: "#7f1d1d", fontSize: 12, fontWeight: 700, cursor: destravarMutation.isPending ? "wait" : "pointer", whiteSpace: "nowrap" }}
+                      >
+                        <Unlock aria-hidden="true" style={{ width: 12, height: 12 }} /> {destravarMutation.isPending ? "Destravando…" : "Destravar"}
+                      </button>
+                    )}
+                  </div>
+                ) : podeTravar(user?.role) && !seloSelecionado ? (
+                  <button
+                    type="button"
+                    onClick={() => { setMotivoDaTrava(""); setTravandoItem(pecaDaFicha); }}
+                    data-testid="button-travar-revisao"
+                    title="Travar a peça: mesmo liberada, a Gráfica não consegue fazê-la andar até alguém da Solicitação destravar"
+                    style={{ alignSelf: "flex-start", display: "inline-flex", alignItems: "center", gap: 6, minHeight: isMobile ? 44 : 32, padding: "0 12px", borderRadius: 8, border: "1px solid #d6d3d1", background: "#ffffff", color: "#7f1d1d", fontSize: 12, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}
+                  >
+                    <Lock aria-hidden="true" style={{ width: 12, height: 12 }} /> Travar
+                  </button>
+                ) : null)}
                 {/* PARA ONDE A PEÇA VAI, dito ANTES do clique. "Liberei — foi
                     para a Gráfica?" e "Devolvi — quem recebe?" eram as duas
                     perguntas de quem revisava a primeira vez; o rótulo do botão
@@ -2732,7 +2922,7 @@ export default function Solicitacao() {
                 )}
                 {!seloSelecionado && selectedItem && (
                   <p data-testid="destino-da-decisao" style={{ margin: 0, fontSize: 12, lineHeight: 1.5, color: "#57534e" }}>
-                    {arquivoFinalOk(selectedItem) ? (
+                    {prontaParaLiberar(selectedItem) ? (
                       <>
                         <strong style={{ color: "#1c1917" }}>Liberar</strong>: {reaproveitamentoTotal(selectedItem)
                           ? "sai da Revisão Final e vai direto para Impresso / Acabamento (reaproveitamento total, sem impressão)."
@@ -2942,6 +3132,11 @@ export default function Solicitacao() {
                       {propostaDaFicha.aProduzir > 0 ? <> e a Gráfica produz as outras {propostaDaFicha.aProduzir}.</> : <>: nada a produzir, a peça vai direto para Impresso / Acabamento.</>}
                     </span>
                   )}
+                  {fichaTravada && pecaDaFicha && (
+                    <span data-testid="confirmacao-travada" style={{ display: "block", marginTop: 8, color: "#7f1d1d" }}>
+                      <strong>{seloDaTrava(pecaDaFicha)}.</strong> Liberar mantendo a trava leva a peça à fila da Gráfica, mas ela não anda lá até alguém destravar.
+                    </span>
+                  )}
                   {pedidoEmAberto && (
                     <span data-testid="confirmacao-pedido-em-aberto" style={{ display: "block", marginTop: 8, color: "#78350f" }}>
                       <strong>Liberar sem esperar a resposta do estoque?</strong> O pedido continua aberto: se a Gráfica atender, o reaproveitamento entra direto na peça já liberada e você é avisada.
@@ -2963,13 +3158,30 @@ export default function Solicitacao() {
               onClick={() => selectedItem && creatorReviewMutation.mutate({
                 itemId: selectedItem.id,
                 ...(propostaDaFicha && usarMenos != null ? { corpo: { reuseQty: propostaDaFicha.reaproveitadas, peloEstoque: true as const } } : {}),
+                ...(fichaTravada ? { trava: "manter" as const } : {}),
               })}
               disabled={creatorReviewMutation.isPending}
               style={{ backgroundColor: TI.text, color: "#fff" }}
               data-testid="button-release-confirm"
             >
-              {creatorReviewMutation.isPending ? "Liberando..." : "Liberar"}
+              {creatorReviewMutation.isPending ? "Liberando..." : fichaTravada ? "Liberar mantendo a trava" : "Liberar"}
             </AlertDialogAction>
+            {/* Travada: a segunda saída libera E destrava na mesma gravação. */}
+            {fichaTravada && (
+              <AlertDialogAction
+                onKeyDown={(e) => { if (e.repeat) e.preventDefault(); }}
+                onClick={() => selectedItem && creatorReviewMutation.mutate({
+                  itemId: selectedItem.id,
+                  ...(propostaDaFicha && usarMenos != null ? { corpo: { reuseQty: propostaDaFicha.reaproveitadas, peloEstoque: true as const } } : {}),
+                  trava: "destravar",
+                })}
+                disabled={creatorReviewMutation.isPending}
+                style={{ backgroundColor: "#c2410c", color: "#fff" }}
+                data-testid="button-release-destravar"
+              >
+                Liberar e destravar
+              </AlertDialogAction>
+            )}
           </AlertDialogFooter>
           </FreezeWhileClosing>
         </AlertDialogContent>
@@ -2990,7 +3202,11 @@ export default function Solicitacao() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <div style={{ padding: 0 }}>
-            {seletorDestino}
+            {ehMolde(selectedItem) ? (
+              <p data-testid="aviso-devolucao-molde" style={{ margin: "0 0 12px", fontSize: 12, lineHeight: 1.5, color: "#44403c", backgroundColor: "#f5f5f4", border: "1px solid #e7e5e4", borderRadius: 8, padding: "8px 12px" }}>
+                Molde não tem Finalização: ele volta para o começo da Arte, <strong>com o thumb</strong>, que a Arte corrige e reenvia.
+              </p>
+            ) : seletorDestino}
             <textarea
               placeholder="Descreva as alterações necessárias..."
               aria-label="Motivo da devolução para a Arte"
@@ -3026,30 +3242,34 @@ export default function Solicitacao() {
               virava "Liberar 0 itens" enquanto a caixa saía de cena. */}
           <FreezeWhileClosing open={bulkReleaseConfirmOpen}>
           <AlertDialogHeader>
-            <AlertDialogTitle>Liberar {selecaoLote.vivas.length} {selecaoLote.vivas.length === 1 ? "peça" : "peças"}</AlertDialogTitle>
+            <AlertDialogTitle>Liberar {loteDeLiberar.prontas.length} {loteDeLiberar.prontas.length === 1 ? "peça" : "peças"}</AlertDialogTitle>
             <AlertDialogDescription>
-              {selecaoLote.vivas.length === 1 ? "A peça sai" : `As ${selecaoLote.vivas.length} peças saem`} da Revisão Final
-              {reaproveitadasNoLote > 0 && reaproveitadasNoLote === selecaoLote.vivas.length
+              {loteDeLiberar.prontas.length === 1 ? "A peça sai" : `As ${loteDeLiberar.prontas.length} peças saem`} da Revisão Final
+              {reaproveitadasNoLote > 0 && reaproveitadasNoLote === loteDeLiberar.prontas.length
                 ? <> e {reaproveitadasNoLote === 1 ? "vai" : "vão"} direto para Impresso / Acabamento (conferência da Gráfica): reaproveitamento total, sem impressão e sem precisar de arquivo final.</>
-                : <> e {selecaoLote.vivas.length === 1 ? "entra" : "entram"} na fila da Gráfica como Pronto para Produção.</>}
-              {reaproveitadasNoLote > 0 && reaproveitadasNoLote < selecaoLote.vivas.length && (
+                : <> e {loteDeLiberar.prontas.length === 1 ? "entra" : "entram"} na fila da Gráfica como Pronto para Produção.</>}
+              {reaproveitadasNoLote > 0 && reaproveitadasNoLote < loteDeLiberar.prontas.length && (
                 <span data-testid="aviso-bulk-release-reaproveitadas" style={{ display: "block", marginTop: 8 }}>
                   Exceção: {reaproveitadasNoLote === 1 ? "1 é" : `${reaproveitadasNoLote} são`} de reaproveitamento total e {reaproveitadasNoLote === 1 ? "vai" : "vão"} direto para Impresso / Acabamento (conferência da Gráfica), sem impressão e sem precisar de arquivo final.
                 </span>
               )}
               {propostasDoLote.some(x => x.reaproveitadas > 0) && (
                 <span data-testid="aviso-bulk-release-estoque" style={{ display: "block", marginTop: 8, color: "#14532d" }}>
-                  <strong>{resumoDoLoteComEstoque(selecaoLote.vivas.length, propostasDoLote)}</strong> — entram com o que o estoque atendeu, sem digitar nada.
+                  <strong>{resumoDoLoteComEstoque(loteDeLiberar.prontas.length, propostasDoLote)}</strong> — entram com o que o estoque atendeu, sem digitar nada.
                 </span>
               )}
-              {/* SEM ARQUIVO FINAL, dito antes: o servidor recusa liberar peça
-                  sem arquivo (salvo reaproveitamento total, já fora da conta)
-                  e o lote voltava "parcial" sem aviso prévio. O envio NÃO muda
-                  (a regra é do servidor); só deixa de ser surpresa — e as
-                  recusadas seguem marcadas depois. */}
-              {semArquivoNoLote > 0 && (
+              {/* FICAM DE FORA, dito antes: sem arquivo final o servidor recusa
+                  (reaproveitamento total não conta — não imprime), e travada
+                  pede a escolha da trava, que é da ficha. Nenhuma das duas vai;
+                  as duas seguem marcadas com o motivo na linha. */}
+              {loteDeLiberar.nSemArquivo > 0 && (
                 <span data-testid="aviso-bulk-release-sem-arquivo" style={{ display: "block", marginTop: 8 }}>
-                  {semArquivoNoLote === 1 ? "1 ainda não tem" : `${semArquivoNoLote} ainda não têm`} arquivo final da Arte: o servidor recusa {semArquivoNoLote === 1 ? "essa" : "essas"}, que {semArquivoNoLote === 1 ? "continua marcada" : "continuam marcadas"}.
+                  {loteDeLiberar.nSemArquivo === 1 ? "1 ainda não tem" : `${loteDeLiberar.nSemArquivo} ainda não têm`} arquivo final da Arte e {loteDeLiberar.nSemArquivo === 1 ? "fica de fora — continua marcada" : "ficam de fora — continuam marcadas"}.
+                </span>
+              )}
+              {loteDeLiberar.nTravadas > 0 && (
+                <span data-testid="aviso-bulk-release-travadas" style={{ display: "block", marginTop: 8 }}>
+                  {loteDeLiberar.nTravadas === 1 ? "1 está travada" : `${loteDeLiberar.nTravadas} estão travadas`} pela Solicitação e {loteDeLiberar.nTravadas === 1 ? "fica" : "ficam"} de fora: libere pela ficha, escolhendo destravar ou manter a trava.
                 </span>
               )}
               {selecaoLote.finalizadas > 0 && (
@@ -3062,14 +3282,14 @@ export default function Solicitacao() {
           <AlertDialogFooter>
             <AlertDialogCancel data-testid="button-bulk-release-cancel">Cancelar</AlertDialogCancel>
             <AlertDialogAction
-              onClick={() => bulkReleaseMutation.mutate(selecaoLote.vivas)}
-              disabled={bulkReleaseMutation.isPending || selecaoLote.vivas.length === 0}
+              onClick={() => bulkReleaseMutation.mutate({ prontas: loteDeLiberar.prontas, deFora: loteDeLiberar.deFora })}
+              disabled={bulkReleaseMutation.isPending || loteDeLiberar.prontas.length === 0}
               style={{ backgroundColor: TI.text, color: "#fff" }}
               data-testid="button-bulk-release-confirm"
             >
               {bulkReleaseMutation.isPending
                 ? "Liberando..."
-                : selecaoLote.finalizadas > 0 ? `Liberar as ${selecaoLote.vivas.length}` : "Liberar todas"}
+                : selecaoLote.finalizadas > 0 || loteDeLiberar.nFora > 0 ? `Liberar ${loteDeLiberar.prontas.length === 1 ? "a pronta" : `as ${loteDeLiberar.prontas.length} prontas`}` : "Liberar todas"}
             </AlertDialogAction>
           </AlertDialogFooter>
           </FreezeWhileClosing>
@@ -3096,7 +3316,14 @@ export default function Solicitacao() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <div style={{ padding: 0 }}>
-            {seletorDestino}
+            {!loteSoDeMoldes && seletorDestino}
+            {moldesNoLote > 0 && (
+              <p data-testid="aviso-bulk-return-moldes" style={{ margin: "0 0 12px", fontSize: 12, lineHeight: 1.5, color: "#44403c", backgroundColor: "#f5f5f4", border: "1px solid #e7e5e4", borderRadius: 8, padding: "8px 12px" }}>
+                {loteSoDeMoldes
+                  ? (moldesNoLote === 1 ? "O molde volta" : `Os ${moldesNoLote} moldes voltam`)
+                  : (moldesNoLote === 1 ? "1 molde volta" : `${moldesNoLote} moldes voltam`)} para o começo da Arte, com o thumb — molde não tem Finalização{loteSoDeMoldes ? "." : ", seja qual for a escolha acima."}
+              </p>
+            )}
             <textarea
               placeholder="Descreva o motivo da devolução..."
               aria-label="Motivo da devolução das peças para a Arte"
@@ -3262,15 +3489,23 @@ export default function Solicitacao() {
                   <p style={{ margin: "0 0 10px", fontSize: 11, color: "#746e69" }}>
                     As outras <strong>{qty - partialReuseQty}</strong> un. seguirão para produção normal.
                   </p>
+                  {/* O parcial LIBERA o restante para produção — e produção pede
+                      arquivo final. Dito aqui, antes do 409 do servidor. */}
+                  {!arquivoFinalOk(dialogItem) && (
+                    <p role="status" data-testid="aviso-parcial-sem-arquivo" style={{ margin: "0 0 10px", fontSize: 12, lineHeight: 1.45, color: "#92400e", backgroundColor: "#fffbeb", border: "1px solid #fde68a", borderRadius: 6, padding: "6px 10px" }}>
+                      Sem arquivo final da Arte: o parcial manda o restante para a Gráfica, que precisa do arquivo. Espere a Arte enviar, ou reaproveite tudo.
+                    </p>
+                  )}
                   <button
                     onClick={() => {
+                      if (!arquivoFinalOk(dialogItem)) return;
                       if (modalOpen && selectedItem?.id === dialogItem.id && !marcarAvanco()) { setModalOpen(false); setSelectedItem(null); }
                       partialReuseMutation.mutate({ itemId: dialogItem.id, reuseQty: partialReuseQty });
                     }}
-                    disabled={toggleReuseMutation.isPending || partialReuseMutation.isPending}
+                    disabled={toggleReuseMutation.isPending || partialReuseMutation.isPending || !arquivoFinalOk(dialogItem)}
                     style={{
                       width: "100%", padding: "10px 16px",
-                      backgroundColor: "#0c0a09", color: "#fff",
+                      backgroundColor: arquivoFinalOk(dialogItem) ? "#0c0a09" : "#e7e5e4", color: arquivoFinalOk(dialogItem) ? "#fff" : "#78716c",
                       border: "none", borderRadius: 6, cursor: "pointer",
                       fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em",
                     }}
@@ -3291,6 +3526,109 @@ export default function Solicitacao() {
               </>
             );
           })()}
+          </FreezeWhileClosing>
+        </DialogContent>
+      </Dialog>
+
+      {/* Desfazer o reaproveitamento — confirmação: a peça volta a precisar
+          de arquivo final e de produção. */}
+      <AlertDialog open={!!desfazerReuseId} onOpenChange={open => { if (!open && !toggleReuseMutation.isPending) setDesfazerReuseId(null); }}>
+        <AlertDialogContent className="review-confirm-content">
+          <FreezeWhileClosing open={!!desfazerReuseId}>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Desfazer o reaproveitamento</AlertDialogTitle>
+            <AlertDialogDescription>
+              {(() => {
+                const it: any = pendingItems.find((i: any) => i.id === desfazerReuseId);
+                return (
+                  <span>
+                    {it ? <strong>{it.displayId}</strong> : "A peça"} deixa de ser reaproveitamento total e volta ao fluxo normal: para liberar, vai precisar do arquivo final da Arte, e a Gráfica produz as unidades.
+                  </span>
+                );
+              })()}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="button-desfazer-reuse-cancel" disabled={toggleReuseMutation.isPending}>Manter reaproveitada</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault(); // a mutation fecha (mantém aberto em erro)
+                if (desfazerReuseId) toggleReuseMutation.mutate({ itemId: desfazerReuseId, isReuse: false });
+              }}
+              disabled={toggleReuseMutation.isPending}
+              style={{ backgroundColor: TI.text, color: "#fff" }}
+              data-testid="button-desfazer-reuse-confirm"
+            >
+              {toggleReuseMutation.isPending ? "Desfazendo…" : "Desfazer"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+          </FreezeWhileClosing>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Travar pela ficha: motivo obrigatório, com os mesmos atalhos da Gráfica. */}
+      <Dialog open={!!travandoItem} onOpenChange={o => { if (!o && !travarMutation.isPending) { setTravandoItem(null); setMotivoDaTrava(""); } }}>
+        <DialogContent className={HIDE_NATIVE_CLOSE} style={modalSurface(440)}>
+          <FreezeWhileClosing open={!!travandoItem}>
+          <DialogTitle className="sr-only">Travar peça</DialogTitle>
+          <DialogDescription className="sr-only">Diga o motivo da trava — é o que a Gráfica vai ler</DialogDescription>
+          <ModalHeader
+            variant="confirm"
+            icon={Lock}
+            tint="#7f1d1d"
+            title="Travar peça"
+            subtitle={travandoItem ? `${travandoItem.displayId ?? ""} · ${travandoItem.type ?? ""}` : undefined}
+            onClose={() => { if (!travarMutation.isPending) { setTravandoItem(null); setMotivoDaTrava(""); } }}
+          />
+          <div style={{ padding: "16px 24px 20px", overflowY: "auto", flex: "1 1 auto", minHeight: 0, display: "flex", flexDirection: "column", gap: 10 }}>
+            <p style={{ margin: 0, fontSize: 13, lineHeight: 1.5, color: "#44403c" }}>
+              Travada, a peça pode ser liberada, mas não anda na Gráfica (imprimir, conferir, embalar) até alguém da Solicitação destravar.
+            </p>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+              {SUGESTOES_DE_MOTIVO.map((sug) => (
+                <button
+                  key={sug}
+                  type="button"
+                  onClick={() => setMotivoDaTrava(sug)}
+                  style={{ minHeight: isMobile ? 44 : 30, padding: "0 10px", borderRadius: 999, border: "1px solid #e7e5e4", background: motivoDaTrava === sug ? "#fef2f2" : "#ffffff", color: "#44403c", fontSize: 12, fontWeight: 600, cursor: "pointer" }}
+                >
+                  {sug}
+                </button>
+              ))}
+            </div>
+            <textarea
+              value={motivoDaTrava}
+              onChange={e => setMotivoDaTrava(e.target.value)}
+              aria-label="Motivo da trava"
+              placeholder="Por que a peça fica travada?"
+              data-testid="textarea-motivo-trava-revisao"
+              className="w-full min-h-20 p-2 border rounded-md bg-background text-foreground resize-none text-sm"
+            />
+            {!motivoDaTravaLido.ok && (
+              <p aria-live="polite" style={{ margin: 0, fontSize: 12, color: "#92400e" }}>
+                {`Escreva o motivo (pelo menos ${MOTIVO_MINIMO} letras) — é o que a Gráfica vai ler.`}
+              </p>
+            )}
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 4 }}>
+              <button
+                type="button"
+                onClick={() => { setTravandoItem(null); setMotivoDaTrava(""); }}
+                disabled={travarMutation.isPending}
+                style={{ minHeight: 40, padding: "0 14px", borderRadius: 8, border: "1px solid #e7e5e4", background: "#ffffff", color: "#44403c", fontSize: 13, fontWeight: 600, cursor: "pointer" }}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => { if (travandoItem && motivoDaTravaLido.ok) travarMutation.mutate({ itemId: travandoItem.id, motivo: motivoDaTravaLido.motivo, displayId: travandoItem.displayId }); }}
+                disabled={!motivoDaTravaLido.ok || travarMutation.isPending}
+                data-testid="button-travar-confirm-revisao"
+                style={{ minHeight: 40, padding: "0 14px", borderRadius: 8, border: "none", background: motivoDaTravaLido.ok ? "#7f1d1d" : "#e7e5e4", color: motivoDaTravaLido.ok ? "#ffffff" : "#78716c", fontSize: 13, fontWeight: 700, cursor: motivoDaTravaLido.ok && !travarMutation.isPending ? "pointer" : "not-allowed" }}
+              >
+                {travarMutation.isPending ? "Travando…" : "Travar"}
+              </button>
+            </div>
+          </div>
           </FreezeWhileClosing>
         </DialogContent>
       </Dialog>

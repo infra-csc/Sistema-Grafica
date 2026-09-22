@@ -39,9 +39,14 @@ import { registerConsultasDeEstoqueRoutes } from "./routes/consultas-de-estoque"
 import { registerKitRoutes } from "./routes/kit";
 import { registerArtesBuscaRoutes } from "./routes/artes-busca";
 import { registerMoldeRoutes } from "./routes/molde";
-import { db } from "./db";
-import { items as itemsTable } from "@shared/schema";
-import { and, inArray, isNotNull } from "drizzle-orm";
+import { db, pool } from "./db";
+import { items as itemsTable, events as eventsTable } from "@shared/schema";
+import { and, eq, inArray, isNotNull } from "drizzle-orm";
+import { criarVerificadorDeUsuario, validarSessao } from "./sessao-valida";
+import { sessoesEncerradas } from "./sessoes-encerradas";
+import { travaDoKit } from "./trava-do-kit";
+import { nomeParaATrilha } from "./ver-como";
+import { campoDeUrlInseguro } from "@shared/url-segura";
 import { startRevisaoDigest } from "./services/revisaoDigest";
 import { startDeadlineAlerts } from "./services/deadlineAlerts";
 import { limparReservasAntigas } from "./services/reservaDeDisparo";
@@ -51,11 +56,21 @@ import { startPrioridadeAutomatica } from "./services/prioridadeAutomatica";
 import { startGestaoDigest } from "./services/gestaoDigest";
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Sessão com teto absoluto e de usuário que ainda existe (server/sessao-valida).
+  // Exclusão/troca de senha avisam por sessoesEncerradas e o cache esquece na hora.
+  const verificadorDeUsuario = criarVerificadorDeUsuario(async (userId) => {
+    const { rowCount } = await pool.query("SELECT 1 FROM users WHERE id = $1", [userId]);
+    return (rowCount ?? 0) > 0;
+  });
+  sessoesEncerradas.on("encerradas", (userId: string) => verificadorDeUsuario.esquecer(userId));
+  app.use(validarSessao(verificadorDeUsuario));
+
   // Middleware to extract user info from session
   app.use((req, res, next) => {
     if (req.session?.userId) {
       req.userId = req.session.userId;
-      req.userName = req.session.userName || 'Sistema';
+      // Em "ver como", a trilha registra o perfil emprestado junto do nome.
+      req.userName = nomeParaATrilha(req.session.userName || 'Sistema', req.session);
       // Sem fallback de papel: sessão sem role NÃO ganha privilégios de
       // solicitacao por default — gates comparam com string e falham fechado.
       req.userRole = req.session.userRole;
@@ -103,6 +118,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       next(error);
     }
+  });
+
+  // ── O usuário do Kit só age nas peças do Kit que ele criou ───────────────
+  // (server/trava-do-kit.ts): escrita e leitura de detalhe por id de peça,
+  // clonar itens e editar evento de outra pessoa.
+  app.use(travaDoKit({
+    buscarPecas: (ids) => db
+      .select({ id: itemsTable.id, kitRemessaId: itemsTable.kitRemessaId, criadoPorId: itemsTable.criadoPorId })
+      .from(itemsTable)
+      .where(inArray(itemsTable.id, ids)),
+    buscarCriadorDoEvento: async (eventId) => {
+      const [ev] = await db.select({ createdBy: eventsTable.createdBy }).from(eventsTable).where(eq(eventsTable.id, eventId)).limit(1);
+      return { existe: !!ev, createdBy: ev?.createdBy ?? null };
+    },
+  }));
+
+  // ── Links gravados que viram href: só http(s), /objects/… e caminho de rede.
+  // Um "javascript:" em referência, book ou arquivo final executaria no clique.
+  app.use((req, res, next) => {
+    if (!["POST", "PATCH", "PUT"].includes(req.method) || !req.path.startsWith("/api/")) return next();
+    if (campoDeUrlInseguro(req.body)) {
+      return res.status(400).json({ error: "Link inválido: use um endereço http(s), um arquivo enviado pelo sistema ou um caminho de rede." });
+    }
+    next();
   });
 
   // ── Route registration ──────────────────────────────────────────────────

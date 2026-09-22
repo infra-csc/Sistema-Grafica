@@ -316,15 +316,18 @@ export const requireRole = (...roles: string[]) => (req: any, res: any, next: an
 // credential-related endpoints from brute-force attempts. Keyed by IP.
 // Not distributed-safe (per-process only), which is an acceptable
 // trade-off for this single-instance deployment.
-export function createRateLimiter(opts: { windowMs: number; max: number; message: string }) {
+// `chave` troca o critério (ex.: por conta, no login); devolver null deixa passar.
+export function createRateLimiter(opts: { windowMs: number; max: number; message: string; chave?: (req: any) => string | null }) {
   const hits = new Map<string, { count: number; resetAt: number }>();
-  setInterval(() => {
+  const limpeza = setInterval(() => {
     const now = Date.now();
     hits.forEach((v, k) => { if (v.resetAt < now) hits.delete(k); });
   }, 60_000);
+  limpeza.unref?.();
 
   return (req: any, res: any, next: any) => {
-    const key = req.ip || req.socket?.remoteAddress || "unknown";
+    const key = opts.chave ? opts.chave(req) : (req.ip || req.socket?.remoteAddress || "unknown");
+    if (key === null) return next();
     const now = Date.now();
     const entry = hits.get(key);
 
@@ -345,6 +348,18 @@ export const loginRateLimiter = createRateLimiter({
   windowMs: 15 * 60 * 1000,
   max: 10,
   message: "Muitas tentativas de login. Tente novamente em alguns minutos.",
+});
+
+// Por CONTA, além do por IP: quem troca de IP (botnet, 4G) não ganha tentativas
+// novas contra o mesmo e-mail. Bloqueia 15 min depois de 10 tentativas.
+export const loginPorContaRateLimiter = createRateLimiter({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  message: "Muitas tentativas de login nesta conta. Tente novamente em alguns minutos.",
+  chave: (req) => {
+    const email = typeof req.body?.email === "string" ? req.body.email.trim().toLowerCase() : "";
+    return email ? `conta:${email}` : null;
+  },
 });
 
 export const changePasswordRateLimiter = createRateLimiter({

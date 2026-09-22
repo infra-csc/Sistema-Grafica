@@ -39,11 +39,14 @@
 // peça segue o fluxo normal de aprovação depois.
 // ─────────────────────────────────────────────────────────────────────────────
 import type { Express } from "express";
-import { and, eq, inArray, isNull, isNotNull, ne, or, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull, isNotNull, ne, notInArray, or, sql } from "drizzle-orm";
 import { db } from "../db";
-import { items as itemsTable, events, itemSponsors, sponsors } from "@shared/schema";
+import { items as itemsTable, events, itemSponsors, itemSponsorApprovals, sponsors } from "@shared/schema";
 import { pecaVisivelPara } from "@shared/kit";
-import { normalizarTexto, ordenarArtes, type ArteComparavel } from "@shared/artes-parecidas";
+import {
+  normalizarTexto, ordenarArtes, arteForaDaBusca, aprovacaoDaArte,
+  STATUS_FORA_DA_BUSCA_DE_ARTE, type ArteComparavel, type DecisaoDaArte,
+} from "@shared/artes-parecidas";
 import { requireRole } from "./shared";
 import { urlDeThumbValida } from "./thumb-url";
 
@@ -80,6 +83,11 @@ const COLUNAS = {
   eventId: itemsTable.eventId,
   eventName: events.name,
   eventInicio: events.startDate,
+  status: itemsTable.status,
+  rejectedBySponsor: itemsTable.rejectedBySponsor,
+  rejectedByCreator: itemsTable.rejectedByCreator,
+  sponsorApprovedBy: itemsTable.sponsorApprovedBy,
+  sponsorApprovedAt: itemsTable.sponsorApprovedAt,
 };
 
 type Linha = {
@@ -89,6 +97,8 @@ type Linha = {
   kitRemessaId: string | null; criadoPorId: string | null;
   fileWidth?: string | null; fileHeight?: string | null;
   eventId: string | null; eventName: string | null; eventInicio: Date | null;
+  status?: string | null; rejectedBySponsor?: boolean | null; rejectedByCreator?: boolean | null;
+  sponsorApprovedBy?: string | null; sponsorApprovedAt?: Date | null;
 };
 
 const temTexto = (v: unknown): v is string => typeof v === "string" && v.trim().length > 0;
@@ -188,6 +198,15 @@ export function registerArtesBuscaRoutes(app: Express) {
           : []),
         // O Kit ANTES do LIMIT (ver recorteDoKitSql).
         ...recorteDoKitSql(usuario),
+        // Cancelada, rascunho e reprovada não servem de modelo — cortadas
+        // antes do LIMIT para não ocuparem o teto. A mesma régua roda de novo
+        // em memória (arteForaDaBusca), com as decisões por patrocinador.
+        notInArray(sql`lower(${itemsTable.status})`, [...STATUS_FORA_DA_BUSCA_DE_ARTE]),
+        eq(itemsTable.rejectedBySponsor, false),
+        eq(itemsTable.rejectedByCreator, false),
+        sql`not exists (select 1 from ${itemSponsorApprovals} r
+                        where r.item_id = ${itemsTable.id} and r.status = 'rejected'
+                          and (r.decided_thumb_url is null or r.decided_thumb_url = ${itemsTable.approvalThumbUrl}))`,
       ];
       const ordem = ordemDasCandidatas(alvo.tipo);
 
@@ -229,14 +248,36 @@ export function registerArtesBuscaRoutes(app: Express) {
 
       // Visível para quem pede E com imagem do nosso storage: uma URL de fora
       // não vira cartão (nem thumb gravado depois — a rota de gravação recusa).
-      const visiveis = candidatas.filter((c) => pecaVisivelPara(usuario, c) && !!(imagemValida(c.thumbUrl) || imagemValida(c.previewUrl)));
+      const comImagem = candidatas.filter((c) => pecaVisivelPara(usuario, c) && !!(imagemValida(c.thumbUrl) || imagemValida(c.previewUrl)));
 
-      const vinculos: Array<{ itemId: string; sponsorId: string; nome: string | null }> = visiveis.length === 0
+      const vinculos: Array<{ itemId: string; sponsorId: string; nome: string | null }> = comImagem.length === 0
         ? []
         : await db.select({ itemId: itemSponsors.itemId, sponsorId: itemSponsors.sponsorId, nome: sponsors.name })
             .from(itemSponsors)
             .leftJoin(sponsors, eq(sponsors.id, itemSponsors.sponsorId))
-            .where(inArray(itemSponsors.itemId, [...visiveis.map((c) => c.id), alvo.id]));
+            .where(inArray(itemSponsors.itemId, [...comImagem.map((c) => c.id), alvo.id]));
+
+      // As decisões por patrocinador dizem se a arte está reprovada (sai) ou
+      // aprovada (selo no cartão). Uma consulta só, pelo índice de item_id.
+      const decisoes: Array<DecisaoDaArte & { itemId: string }> = comImagem.length === 0
+        ? []
+        : await db.select({
+            itemId: itemSponsorApprovals.itemId,
+            status: itemSponsorApprovals.status,
+            approvedBy: itemSponsorApprovals.approvedBy,
+            approvedAt: itemSponsorApprovals.approvedAt,
+            decidedThumbUrl: itemSponsorApprovals.decidedThumbUrl,
+          })
+            .from(itemSponsorApprovals)
+            .where(inArray(itemSponsorApprovals.itemId, comImagem.map((c) => c.id)));
+      const decisoesPorPeca = new Map<string, DecisaoDaArte[]>();
+      for (const d of decisoes) {
+        const lista = decisoesPorPeca.get(d.itemId) ?? [];
+        lista.push(d);
+        decisoesPorPeca.set(d.itemId, lista);
+      }
+      const decisoesDe = (id: string) => decisoesPorPeca.get(id) ?? [];
+      const visiveis = comImagem.filter((c) => !arteForaDaBusca(c, decisoesDe(c.id)));
 
       const porPeca = new Map<string, { ids: string[]; nomes: string[] }>();
       for (const v of vinculos) {
@@ -302,6 +343,8 @@ export function registerArtesBuscaRoutes(app: Express) {
           mesmoPatrocinador: a.nota.mesmoPatrocinador,
           mesmoTipo: a.nota.mesmoTipo,
           eventoParecido: a.nota.eventoParecido,
+          // Selo "Aprovada" no cartão: aprovadaPor/aprovadaEm quando houver.
+          ...aprovacaoDaArte(a.linha, decisoesDe(a.linha.id)),
         })),
       });
     } catch (error) {

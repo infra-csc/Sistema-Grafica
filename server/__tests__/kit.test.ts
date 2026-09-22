@@ -63,8 +63,9 @@ describe("servidor do Kit", () => {
 
   it("a marca vem do login (senha e SSO) e mudar a marca derruba as sessões", () => {
     expect(AUTH).toContain("req.session.userKit = user.kit === true;");
-    expect(AUTH).toContain("if (validatedData.role !== undefined || validatedData.kit !== undefined) {");
-    expect(INDEX).toContain("req.session.userKit  = entry.userKit;");
+    expect(AUTH).toContain("const mudouAcesso = validatedData.role !== undefined || validatedData.kit !== undefined;");
+    // O SSO lê a marca do usuário no momento da troca (não a do token emitido antes).
+    expect(INDEX).toContain("req.session.userKit  = fullUser[0].kit === true;");
     expect(ROUTES).toContain("req.userKit = req.session.userKit === true;");
     expect(ROUTES).toContain("registerKitRoutes(app);");
   });
@@ -148,7 +149,8 @@ describe("planilha do Kit e filtros (fase 2)", () => {
     expect(ler("server/routes/prazos.ts")).toContain("(!doKit || (!!i.kitRemessaId && i.criadoPorId === (req as any).userId))");
     expect(ler("server/routes/busca.ts")).toContain("!(req as any).userKit || (!!p.kitRemessaId && p.criadoPorId === (req as any).userId)");
     expect(ler("server/routes/versoes.ts")).toContain("const dados = await doUsuario(req, await carregar());");
-    expect(ler("server/routes/audit-logs.ts")).toContain('logs = logs.filter((l: any) => l.userId === userId || (l.entityType === "item" && minhas.has(l.entityId)));');
+    // O recorte da trilha do Kit tem teste de comportamento (recortarTrilha, em seguranca-sessao-kit-trilha).
+    expect(ler("server/routes/audit-logs.ts")).toContain('const logs = recortarTrilha(bruto, { admin, kit, userId, minhas });');
     expect(ler("server/routes/notifications.ts")).toContain("const minhasDoKit = (req as any).session?.userKit === true");
     expect(ler("server/routes/photos.ts")).toContain("return res.json(fotos.filter((f: any) => minhas.has(f.itemId)));");
     expect(ler("server/services/xlsxExport.ts")).toContain("const doKit = (req as any).userKit === true;");

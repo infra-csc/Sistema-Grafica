@@ -133,7 +133,7 @@ const ACOES_REVISAO = [
   { acao: "Devolver para Arte",    rota: `app.patch("/api/items/:id/return-to-arte"`,  barrada: true,  marca: "button-return-toggle",      gate: "disabled={!!seloSelecionado}" },
   { acao: "Devolver em lote",      rota: `app.patch("/api/items/bulk-return-to-arte"`, barrada: true,  marca: null,                        gate: null },
   { acao: "Salvar observação",     rota: `app.patch("/api/items/:id"`,                 barrada: true,  marca: "button-save-observations",  gate: "disabled={!!seloSelecionado" },
-  { acao: "Marcar reaproveitamento", rota: `app.patch("/api/items/:id"`,               barrada: true,  marca: "`button-reuse-${item.id}`", gate: "disabled={!!selo}" },
+  { acao: "Marcar reaproveitamento", rota: `app.patch("/api/items/:id"`,               barrada: true,  marca: "`button-reuse-${item.id}`", gate: "disabled={!!selo" },
   { acao: "Excluir peça",          rota: `app.delete("/api/items/:id"`,                barrada: false, marca: "`button-delete-${item.id}`", gate: null },
 ] as const;
 
@@ -245,7 +245,9 @@ describe("Revisão Final — lote misto", () => {
     expect(REVISAO).toContain("const selecaoLote");
     // O que vai para as duas mutations é `selecaoLote.vivas`, nunca a seleção
     // crua — senão o "Liberar (12)" mandaria 12 e faria 9.
-    expect(REVISAO).toContain("bulkReleaseMutation.mutate(selecaoLote.vivas)");
+    // Liberar leva só as PRONTAS das vivas (loteDeLiberar sai de selecaoLote.vivas).
+    expect(REVISAO).toContain("for (const id of selecaoLote.vivas)");
+    expect(REVISAO).toContain("bulkReleaseMutation.mutate({ prontas: loteDeLiberar.prontas");
     expect(REVISAO).toContain("ids: selecaoLote.vivas");
     expect(REVISAO).not.toContain("bulkReleaseMutation.mutate(Array.from(selectedItemIds))");
   });
@@ -255,11 +257,12 @@ describe("Revisão Final — lote misto", () => {
     const devolver = botao(REVISAO, "button-bulk-return-hero");
     for (const jsx of [liberar, devolver]) {
       expect(jsx).toContain("selecaoLote.vivas.length");
-      // Espelho do 409 de lote inteiro: nada vivo na seleção → botão apagado,
-      // com o motivo no `title`.
-      expect(jsx).toContain("disabled={selecaoLote.vivas.length === 0");
       expect(jsx).toContain("Toda a seleção é de evento finalizado");
     }
+    // Espelho do 409 de lote inteiro: nada vivo na seleção → botão apagado.
+    // O de liberar vai além: conta só as PRONTAS (sem arquivo/travada ficam).
+    expect(devolver).toContain("disabled={selecaoLote.vivas.length === 0");
+    expect(liberar).toContain("disabled={loteDeLiberar.prontas.length === 0");
   });
 
   it("o que fica de fora é dito ANTES do clique, e com o motivo", () => {

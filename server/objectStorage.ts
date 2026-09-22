@@ -9,6 +9,7 @@ import {
   canAccessObject,
   setObjectAclPolicy,
 } from "./objectAcl";
+import { cabecalhosDoObjeto } from "./upload-seguro";
 
 const REPLIT_SIDECAR_ENDPOINT = "http://127.0.0.1:1106";
 
@@ -122,6 +123,9 @@ export class ObjectStorageService {
         // Tell the browser to display the file inline (critical for PDFs in new tabs).
         // Without this, Chrome downloads the file silently and the tab shows blank.
         ...(isPdf && { "Content-Disposition": "inline; filename=\"document.pdf\"" }),
+        // nosniff sempre; o que não é imagem raster nem PDF vai como download
+        // em sandbox — um HTML/SVG antigo no bucket não roda na origem do app.
+        ...cabecalhosDoObjeto(isPdf ? "application/pdf" : contentType),
       };
 
       // "bytes=INICIO-FIM", com qualquer um dos lados opcional.

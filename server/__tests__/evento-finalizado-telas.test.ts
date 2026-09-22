@@ -98,8 +98,13 @@ describe("o recorte: quem mostra e quem esconde", () => {
     expect(fonte).not.toContain("aviso-eventos-encerrados");
   });
 
+  it("Arte CONTINUA escondendo — mas o aviso saiu a pedido do dono (22/09: poluía a tela)", () => {
+    const fonte = ler("client/src/pages/arte.tsx");
+    expect(fonte).toContain("isEventoFinalizado");
+    expect(fonte).not.toContain("aviso-eventos-encerrados");
+  });
+
   it.each([
-    ["Arte", "client/src/pages/arte.tsx"],
     ["Atendimento", "client/src/pages/atendimento.tsx"],
     ["Vincular Patrocinadores", "client/src/pages/vincular-patrocinadores.tsx"],
   ])("%s CONTINUA escondendo, e continua avisando que escondeu", (_nome, caminho) => {

@@ -26,8 +26,6 @@ import { HIDE_NATIVE_CLOSE, modalSurface, ModalHeader, ModalFooter, FreezeWhileC
 import {
   getStatusLabel,
   isEventoFinalizado,
-  motivoEventoFinalizado,
-  avisoPecasOcultas,
   getApprovalMeta,
   P,
   type EventoFinalizadoMotivo,
@@ -826,35 +824,8 @@ export default function Arte() {
     [correcaoDoServidor, hojeBusinessMs],
   );
 
-  // Quantas peças o recorte acima tirou das abas, POR MOTIVO. Esconder sem
-  // dizer que escondeu faria "Nenhuma peça aguardando envio" ler como "nada a
-  // fazer" quando, na verdade, um admin encerrou o evento ou ele já aconteceu —
-  // e as duas frases são diferentes (só a primeira tem volta). Conta só o que
-  // APARECERIA (as abas têm statuses próprios) e deduplica: a peça em correção
-  // também está em /api/items.
-  const pecasOcultas = useMemo(() => {
-    const statusDasAbas = new Set(Object.values(TAB_STATUSES).flat());
-    const vistos = new Map<string, EventoFinalizadoMotivo>();
-    for (const item of pecasDoServidor as any[]) {
-      const motivo = motivoEventoFinalizado(item.event, hojeBusinessMs);
-      if (!motivo) continue;
-      if (!statusDasAbas.has(item.status)) continue;
-      vistos.set(item.id, motivo);
-    }
-    for (const item of correcaoDoServidor as any[]) {
-      const motivo = motivoEventoFinalizado(item.event, hojeBusinessMs);
-      if (motivo) vistos.set(item.id, motivo);
-    }
-    let encerrado = 0, realizado = 0;
-    vistos.forEach((m) => { if (m === "encerrado") encerrado++; else realizado++; });
-    return { encerrado, realizado };
-  }, [pecasDoServidor, correcaoDoServidor, hojeBusinessMs]);
   // Uma frase só, montada pela fonte única (lib/status) — as cinco filas
   // contam a mesma história com as mesmas palavras.
-  const avisoOcultas = useMemo(
-    () => avisoPecasOcultas(pecasOcultas, "destas abas"),
-    [pecasOcultas],
-  );
 
   const { data: events = SEM_DADOS } = useQuery<any[]>({
     queryKey: ["/api/events"],
@@ -4896,24 +4867,11 @@ export default function Arte() {
         aria-labelledby={isMobile ? undefined : `aba-${activeTab}`}
         style={{ flex: 1, overflowY: 'auto', padding: isMobile ? '12px 12px' : '24px 32px', maxWidth: 1600, margin: '0 auto', width: '100%' }}
       >
-      {/* Peça de evento finalizado — encerrado à mão OU já realizado — não entra
-          nas abas (ver `allItems` acima). Sem este aviso a tela mentiria pelo
-          silêncio: "Nenhuma peça aguardando envio" leria como "nada a fazer"
-          para um designer cujo trabalho saiu de pauta. Fica visível com a lista
-          cheia também — quem procura uma peça específica precisa saber por que
-          sumiu. A frase (e a distinção entre os dois motivos) vem de
-          `avisoPecasOcultas`, a mesma das outras filas. */}
+      {/* O aviso "N peças estão fora destas abas" (evento encerrado/realizado)
+          saiu a pedido do dono (22/09): poluía a tela da Arte. As peças de
+          evento finalizado continuam no Detalhe do Evento e no Painel Geral. */}
       {/* O QUE SE FAZ NESTA FASE (GUIA_DA_FASE) mora no "?" ao lado do título
           desde 22/09 — era uma linha cinza permanente acima da lista. */}
-      {!isLoading && !isError && avisoOcultas && (
-        <div
-          role="status"
-          data-testid="aviso-eventos-encerrados"
-          style={{ background: '#f5f5f4', border: '1px solid #e7e5e4', borderRadius: 10, padding: '10px 14px', marginBottom: 16, fontSize: 13, color: '#44403c', lineHeight: 1.5 }}
-        >
-          <strong>{avisoOcultas.destaque}</strong>{' '}{avisoOcultas.texto}
-        </div>
-      )}
       {isLoading ? (
         /* Silhueta em vez de spinner (UX 27/08) — mesma razão da Gráfica. */
         <EsqueletoDeFila linhas={8} />

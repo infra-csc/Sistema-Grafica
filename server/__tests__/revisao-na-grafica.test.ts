@@ -45,7 +45,8 @@ describe("aparece", () => {
 
   it("com KPI 'Em Revisão · Chegando' clicável, antes de Liberados", () => {
     // UX rodada 4: o "sub" da aba virou frase visível no desktop ("Chegando da Revisão").
-    expect(GRAFICA).toContain('{ label: "Em Revisão",   value: stats.revisao,    sub: "Chegando da Revisão",  testId: "stat-revisao",    filterVals: ["awaiting_final_review"] },');
+    expect(GRAFICA).toContain('{ label: "Em Revisão",   value: stats.revisao,    sub: "Chegando da Revisão",  testId: "stat-revisao",    filterVals: FILTRO_DOS_CARTOES.revisao },');
+    expect(GRAFICA).toContain('revisao: ["awaiting_final_review"],');
     expect(GRAFICA.indexOf('testId: "stat-revisao"')).toBeLessThan(GRAFICA.indexOf('testId: "stat-approved"'));
   });
 
@@ -63,17 +64,15 @@ describe("aparece", () => {
 
 describe("mas não age", () => {
   it("na tela: conferir, entregar, produzir e lote são barrados pelo emRevisao", () => {
-    expect(GRAFICA).toContain("const canDeliverItem = canDeliver(item) && !emRevisao;");
     expect(GRAFICA).toContain("const canConferItem = canConfer(item) && !emRevisao;");
     expect(GRAFICA).toContain("const podeProduzirAqui = !emRevisao && canProduce");
-    expect(GRAFICA).toContain("const bulkEligible = !emRevisao && (bulkDeliveryMode");
+    expect(GRAFICA).toContain("const bulkEligible = !emRevisao && (bulkConferMode");
     expect(GRAFICA).toContain("{!bulkOn && !emRevisao && podeConferir && canConfer(item) && (");
-    expect(GRAFICA).toContain("{!bulkOn && !emRevisao && canDeliver(item) && !podeEmbalarPeca && (");
-    expect(GRAFICA).not.toContain("podeEmbalarPeca && canDeliver(item)");
+    // a entrega por peça saiu da tela: a embalada sai pelo volume
+    expect(GRAFICA).not.toContain("canDeliver(");
   });
 
   it("as filas do galpão e do lote nunca a incluem", () => {
-    expect(GRAFICA).toContain("canDeliver(i) && !EM_REVISAO.has(i.status)");
     expect(GRAFICA).toContain("canConfer(i) && !EM_REVISAO.has(i.status)");
   });
 
@@ -85,7 +84,7 @@ describe("mas não age", () => {
     const corpo = ITEMS.slice(i, i + 5000);
     expect(corpo).toContain("if (EM_REVISAO.has(current.status)) {");
     expect(corpo).toContain("a Gráfica confere depois que a Revisão liberar");
-    expect(corpo.indexOf("EM_REVISAO.has")).toBeLessThan(corpo.indexOf('current.status === "produced"'));
+    expect(corpo.indexOf("EM_REVISAO.has")).toBeLessThan(corpo.indexOf("planejarConferencia("));
   });
 });
 describe("segunda rodada (25/08): os quatro furos que sobraram", () => {

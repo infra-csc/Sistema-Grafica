@@ -37,7 +37,7 @@ describe("o dialog da conferência em lote", () => {
 });
 
 describe("ao confirmar", () => {
-  const handler = GRAFICA.slice(GRAFICA.indexOf("const handleBulkConference = async"), GRAFICA.indexOf("const handleBulkDelivery = async"));
+  const handler = GRAFICA.slice(GRAFICA.indexOf("const handleBulkConference = async"), GRAFICA.indexOf("// ── Dependências das linhas memoizadas"));
 
   it("só confere: nenhuma chamada às rotas de tubo", () => {
     expect(handler).not.toContain("/tubos");

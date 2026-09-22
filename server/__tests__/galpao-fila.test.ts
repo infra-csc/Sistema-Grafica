@@ -61,21 +61,21 @@ describe("a fila não engana", () => {
 
   it("a ordem é a da lista da Gráfica — nenhuma segunda ordenação", () => {
     expect(FILA).not.toContain(".sort(");
-    expect(GRAFICA).toContain('itens={galpao === "confer" ? conferableInFilter : deliverableInFilter}');
+    expect(GRAFICA).toContain('itens={conferableInFilter}');
   });
 });
 
 describe("a costura na tela da Gráfica", () => {
-  it("entra pelos botões de fila, só no celular, com os MESMOS gates do lote", () => {
+  it("entra pelo botão de fila, só no celular, com o MESMO gate do lote — e não há mais fila de ENTREGA por peça", () => {
     expect(GRAFICA).toContain('data-testid="button-fila-conferir"');
-    expect(GRAFICA).toContain('data-testid="button-fila-entregar"');
     expect(GRAFICA).toContain('{isMobile && podeConferir && conferableInFilter.length > 0 && !bulkOn && (');
-    expect(GRAFICA).toContain('{isMobile && deliverableInFilter.length > 0 && !bulkOn && (');
+    expect(GRAFICA).not.toContain('data-testid="button-fila-entregar"');
+    expect(GRAFICA).not.toContain('setGalpao("deliver")');
   });
 
   it("as chamadas usam as rotas reais, com os campos que elas leem", () => {
     expect(GRAFICA).toContain("conferencePhotoUrl: dados.photoUrl, qty: dados.qty, notes: \"\",");
-    expect(GRAFICA).toContain("photoUrl: dados.photoUrl, receivedBy: dados.receivedBy ?? \"\", notes: \"\",");
+    expect(GRAFICA).not.toContain("/deliver`");
   });
 
   it("invalidação POR PEÇA — o computador da bancada vê a fila andar", () => {

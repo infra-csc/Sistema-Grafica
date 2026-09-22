@@ -260,13 +260,13 @@ export function useMutacoesDeImpressao({ onSucesso }: { onSucesso?: () => void }
 // uma peça da impressora nem imprimir outra no lugar sem trocar de tela.
 // Agora o modal das duas telas os oferece, pela MESMA mutation (e o cartão de
 // Máquinas também a usa): mesmo endpoint, mesmos toasts, mesmas chaves.
-export type PedidoDeMexer = { maquina: string; sai: OcupanteDaImpressora; entra?: { id: string; displayId?: string | null } | null; quantidade?: number | null; /** De qual RESERVA saem as unidades da que entra (o modal abriu da fila de outra impressora). */ reservaDe?: string | null };
+export type PedidoDeMexer = { maquina: string; sai: OcupanteDaImpressora; entra?: { id: string; displayId?: string | null } | null; quantidade?: number | null; /** De qual RESERVA saem as unidades da que entra (o modal abriu da fila de outra impressora). */ reservaDe?: string | null; /** A que entra JÁ ESTÁ em impressão nesta outra impressora: as unidades mudam de máquina (modo mover). */ deMaquina?: string | null };
 export function useMexerNaImpressora({ onSucesso }: { onSucesso?: () => void } = {}) {
   const { toast } = useToast();
   return useMutation({
     mutationFn: async (v: PedidoDeMexer) =>
       v.entra
-        ? await apiRequest("POST", `/api/grafica/maquinas/${v.maquina}/trocar`, { tirarItemId: v.sai.id, colocarItemId: v.entra.id, ...(v.quantidade != null ? { quantidade: v.quantidade } : {}), ...(v.reservaDe ? { reservaDe: v.reservaDe } : {}) })
+        ? await apiRequest("POST", `/api/grafica/maquinas/${v.maquina}/trocar`, { tirarItemId: v.sai.id, colocarItemId: v.entra.id, ...(v.quantidade != null ? { quantidade: v.quantidade } : {}), ...(v.reservaDe ? { reservaDe: v.reservaDe } : {}), ...(v.deMaquina ? { deMaquina: v.deMaquina } : {}) })
         : await apiRequest("POST", `/api/grafica/maquinas/${v.maquina}/pausar`, { itemId: v.sai.id }),
     onSuccess: (_r, v) => {
       invalidarTudo();
@@ -580,11 +580,10 @@ export function FormularioDeImpressao({ item, onFechar, padModal, mutacoes, abri
           // Ocupada por OUTRA peça — exceto a impressora onde esta peça já está
           // (somar parte onde ela já imprime é permitido).
           const ocupadaPor = ocupadaPorOutra(m) ? codigoDoOcupante(ocupadas![m]) ?? "outra peça" : null;
-          // TROCA POR PRIORIDADE (21/09): antes de iniciar, a impressora
-          // ocupada pode ser escolhida quando se sabe QUEM está nela — surge
-          // "Imprimir esta no lugar". Na troca de máquina (peça já em
-          // impressão) continua bloqueada.
-          const trocavel = !excluir && !!ocupadaPor && !!ocupanteCompleto(ocupadas![m]);
+          // TROCA POR PRIORIDADE: a impressora ocupada pode ser escolhida
+          // quando se sabe QUEM está nela — surge "Imprimir esta no lugar".
+          // Vale antes de iniciar E no mover (peça já em impressão noutra).
+          const trocavel = !!ocupadaPor && !!ocupanteCompleto(ocupadas![m]);
           return (
             <button
               key={m}
@@ -746,6 +745,12 @@ export function FormularioDeImpressao({ item, onFechar, padModal, mutacoes, abri
   const podeSalvar = frase.pode && !!maquinaAtual && !startProductionMutation.isPending;
   const qtdMoverValida = moverTudo || (qtdMover !== "" && qtdMover > 0 && qtdMover <= restanteAqui);
   const podeTrocar = !!maquinaEscolhida && maquinaEscolhida !== maquinaAtual && !startPrintingMutation.isPending && qtdMoverValida && !ocupadaPorOutra(maquinaEscolhida);
+  // MOVER PARA UMA IMPRESSORA OCUPADA: a que está lá sai (volta ao topo da
+  // fila dela) e esta entra com o que resta aqui — a mesma rota /trocar, com
+  // `deMaquina` (a peça sai desta impressora, não da fila).
+  const quemSaiNaTroca = trocando && !!maquinaAtual && !!maquinaEscolhida && maquinaEscolhida !== maquinaAtual && ocupadaPorOutra(maquinaEscolhida)
+    ? ocupanteCompleto(ocupadas![maquinaEscolhida]) : null;
+  const podeTrocarNoLugarMovendo = !!quemSaiNaTroca && qtdMoverValida && !mexerNaImpressoraMutation.isPending;
   // TIRAR DA IMPRESSORA (o gesto do cartão de Máquinas, agora no modal das
   // duas telas): o que já saiu fica anotado e o resto volta para o TOPO da
   // fila desta impressora. Sem o bloqueio de evento finalizado — recuar nunca
@@ -862,6 +867,21 @@ export function FormularioDeImpressao({ item, onFechar, padModal, mutacoes, abri
                   ? `${movidas} ${movidas === 1 ? "vai" : "vão"} para a ${rotuloDaMaquina(maquinaEscolhida)}; ${restanteAqui - movidas} ${restanteAqui - movidas === 1 ? "fica" : "ficam"} na ${rotuloDaMaquina(maquinaAtual)}.`
                   : `Informe de 1 a ${restanteAqui} — é o que ainda está por imprimir na ${rotuloDaMaquina(maquinaAtual)}.`}
               </p>
+            </div>
+          )}
+          {quemSaiNaTroca && (
+            <div role="alertdialog" aria-label="Imprimir esta no lugar" data-testid="troca-no-mover" style={{ display: "flex", flexDirection: "column", gap: 8, padding: "10px 12px", borderRadius: R.md, background: "#fffbeb", border: "1px solid #fde68a", color: "#92400e", fontSize: fsMin(12), lineHeight: 1.45 }}>
+              <span style={{ fontWeight: 700 }}>{perguntaDaTroca(quemSaiNaTroca, [item.displayId, item.type ? `(${item.type})` : null].filter(Boolean).join(" ") || null, maquinaEscolhida)}</span>
+              <button
+                type="button"
+                disabled={!podeTrocarNoLugarMovendo}
+                onClick={() => { if (podeTrocarNoLugarMovendo) mexerNaImpressoraMutation.mutate({ maquina: maquinaEscolhida, sai: quemSaiNaTroca, entra: { id: item.id, displayId: item.displayId }, quantidade: moverTudo ? null : movidas, deMaquina: maquinaAtual }); }}
+                data-testid="button-imprimir-no-lugar-movendo"
+                style={{ minHeight: alvo, padding: "0 12px", borderRadius: R.md, border: "none", background: T.text, color: "#fff", fontFamily: GROTESK, fontWeight: 700, fontSize: 14, cursor: podeTrocarNoLugarMovendo ? "pointer" : "not-allowed", opacity: podeTrocarNoLugarMovendo ? 1 : 0.55 }}
+              >
+                {mexerNaImpressoraMutation.isPending ? "Trocando…" : `Imprimir esta no lugar (${movidas} un.)`}
+              </button>
+              {!qtdMoverValida && <span data-testid="motivo-troca-no-mover">Informe quantas vão (de 1 a {restanteAqui}) para trocar.</span>}
             </div>
           )}
           <p style={{ margin: 0, fontSize: fsMin(12), color: T.second, lineHeight: 1.45 }}>

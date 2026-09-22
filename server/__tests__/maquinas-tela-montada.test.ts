@@ -1162,11 +1162,15 @@ describe("duas peças 2×1 são distinguíveis em cada lista, e o título abre a
 // está estranho, parece que está cortando algo").
 // ─────────────────────────────────────────────────────────────────────────────
 describe("impressora nunca trava, sem duplo disparo, modal sabe das ocupadas, barra de progresso", () => {
-  it("[GRAVE] peça de evento JÁ REALIZADO: 'Impressas' e 'Trocar de máquina' ficam bloqueados, mas 'Tirar da impressora' não — senão a impressora travava para sempre", async () => {
+  it("[GRAVE] peça de evento JÁ REALIZADO: 'Trocar de máquina' fica bloqueado, 'Impressas' não (IMPRESSAS_EM_EVENTO_REALIZADO) e 'Tirar da impressora' também não — senão a impressora travava para sempre", async () => {
     const r = retrato();
     (r.maquinas[0].imprimindo[0] as any).eventoInfo = { id: "ev9", name: "Corrida de 2020", status: "created", startDate: "2020-01-01T00:00:00Z", reopenedAt: null };
     await montar(1280, r);
-    expect(($('[data-testid="button-impressas-p1"]') as HTMLButtonElement).disabled).toBe(true);
+    // o que já saiu da impressora segue sendo informado; trocar de máquina é trabalho novo
+    expect(($('[data-testid="button-impressas-p1"]') as HTMLButtonElement).disabled).toBe(false);
+    expect(($('[data-testid="button-trocar-maquina-p1"]') as HTMLButtonElement).disabled).toBe(true);
+    // o motivo do bloqueio fica À VISTA, não só no title
+    expect($('[data-testid="motivo-bloqueio-p1"]')!.textContent).toContain("Dá para informar as impressas");
     const tirar = $('[data-testid="button-tirar-da-impressora-p1"]') as HTMLButtonElement;
     expect(tirar.disabled).toBe(false);
     fetchPorUrl();
@@ -1217,9 +1221,20 @@ describe("impressora nunca trava, sem duplo disparo, modal sabe das ocupadas, ba
     await tick(30);
     expect($('[data-testid="maquina-1"]')!.getAttribute("title")).toBe("A peça já está nesta impressora");
     const m3 = $('[data-testid="maquina-3"]') as HTMLButtonElement;
-    expect(m3.disabled).toBe(true);
+    // No MOVER a ocupada também é escolhível: surge "Imprimir esta no lugar"
+    // (a #0303 sai, a #0101 entra com o que resta na 1) — e o "Mover" comum não.
+    expect(m3.disabled).toBe(false);
     expect(m3.textContent).toBe("Impressora 3com #0303");
     expect(($('[data-testid="maquina-2"]') as HTMLButtonElement).disabled).toBe(false);
+    await act(async () => { fireEvent.click(m3); });
+    expect($('[data-testid="troca-no-mover"]')!.textContent).toContain("Tirar #0303");
+    expect(($('[data-testid="button-iniciar-impressao"]') as HTMLButtonElement).disabled).toBe(true);
+    fetchPorUrl();
+    await act(async () => { fireEvent.click($('[data-testid="button-imprimir-no-lugar-movendo"]')!); });
+    await tick(30);
+    const post = (fetchMockDe() as any).mock.calls.find((c: any) => c[1]?.method === "POST");
+    expect(String(post[0])).toBe("/api/grafica/maquinas/3/trocar");
+    expect(JSON.parse(post[1].body)).toMatchObject({ tirarItemId: "p3", colocarItemId: "p1", deMaquina: "1" });
   });
 
   it("BARRA de progresso: com 0 impressas NÃO há barra; com 3 de 10 há, em 30%, parecendo barra (6px, trilho neutro, até 160px, com respiro)", async () => {

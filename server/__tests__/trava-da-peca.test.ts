@@ -214,7 +214,7 @@ describe("as telas leem pecaTravada (fonte)", () => {
   it("Gráfica: botão só para quem pode, selo, ações desabilitadas, filtro na URL", () => {
     const G = ler("client/src/pages/grafica.tsx");
     expect(G).toContain("const podeMexerNaTrava = (item: any) => podeTravar(user?.role) && !soVisualizaKit(item);");
-    expect((G.match(/\{\.\.\.bloqueioDaTrava\(item\)\}/g) ?? []).length).toBe(11);
+    expect((G.match(/\{\.\.\.bloqueioDaTrava\(item\)\}/g) ?? []).length).toBe(9); // os dois "Entregar" por peça saíram (quem entrega é o volume)
     expect(G).toContain('testId="button-travadas-filter"');
     expect(ler("client/src/lib/grafica-filtros.ts")).toContain('{ chave: "travadas",    url: "travadas",   rotulo: "Só travadas" },');
   });

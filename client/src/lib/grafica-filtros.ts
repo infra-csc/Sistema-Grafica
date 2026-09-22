@@ -331,7 +331,7 @@ export interface OpcoesCasamento {
  * inteira (com awaiting_review e in_review) — os três são o mesmo degrau
  * "chegando" na fila da Gráfica, e uma opção por grafia mentiria por baixo.
  */
-const casaStatus = (statusDoItem: string, escolhido: string): boolean =>
+export const casaStatus = (statusDoItem: string, escolhido: string): boolean =>
   escolhido === "ready_for_production"
     ? statusDoItem === "ready_for_production" || statusDoItem === "pronto_para_producao"
     : escolhido === "awaiting_final_review"

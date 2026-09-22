@@ -51,21 +51,18 @@ describe("a peça conferida na fila", () => {
     expect(TABELA).toContain("data-testid={`button-embalar-${item.id}`}");
     expect(TABELA).toContain("{!bulkOn && podeEmbalarPeca && (");
     expect(TABELA).toContain('backgroundColor: "#1d4ed8", color: "#ffffff",');
-    // a principal Entregar só existe quando NÃO há Embalar…
-    expect(TABELA).toContain("{!bulkOn && !emRevisao && canDeliver(item) && !podeEmbalarPeca && (");
-    // …e a secundária SUMIU (21/09: "não pode entregar antes de embalar"): nem ao lado, nem no "⋯"
-    expect(TABELA).not.toContain("podeEmbalarPeca && canDeliver(item)");
-    expect(TABELA.match(/data-testid=\{`button-deliver-\$\{item\.id\}`\}/g)?.length).toBe(1);
+    // a entrega por peça saiu da tela (quem entrega é o volume): nem principal, nem no "⋯"
+    expect(TABELA).not.toContain("canDeliver(item)");
+    expect(TABELA).not.toContain("button-deliver-");
   });
 
   it("cartão: mesma coisa, com 48px de alvo e Entregar de contorno", () => {
     expect(CARTOES).toContain("data-testid={`button-embalar-card-${item.id}`}");
     expect(CARTOES).toContain("onClick={e => { e.stopPropagation(); abrirEmbalar([item]); }}");
     expect(CARTOES).toContain("background: '#1d4ed8', border: 'none', color: '#fff', fontSize: 14, fontWeight: 800");
-    // Entregar continua no cartão; de contorno quando há Embalar
-    expect(CARTOES).toContain("data-testid={`button-entregar-card-${item.id}`}");
-    // (e na embalada também: ali a principal é "Entregar tubo" — passada de celular, 21/09)
-    expect(CARTOES).toContain("style={podeEmbalarPeca || isPacked(item)\n                                ? { order: 0, flex: '1 1 130px', minHeight: 48");
+    // a entrega por peça saiu do cartão também — a embalada sai pelo "Entregar tubo"
+    expect(CARTOES).not.toContain("button-entregar-card-");
+    expect(CARTOES).toContain("data-testid={`button-entregar-tubo-card-${item.id}`}");
   });
 
   it("paridade: o gate da linha e do cartão é o MESMO helper", () => {
@@ -74,7 +71,7 @@ describe("a peça conferida na fila", () => {
   });
 
   it("a linha memoizada redesenha pelo modo de lote e só a peça clicada fica pendente ao tirar do tubo", () => {
-    expect(GRAFICA).toContain("user, bulkOn, bulkDeliveryMode, bulkConferMode, bulkPackMode, compacto,");
+    expect(GRAFICA).toContain("user, bulkOn, bulkConferMode, bulkPackMode, compacto,");
     expect(GRAFICA).toContain("tirarDoTuboMutation.isPending && tirarDoTuboMutation.variables?.itemId === item.id,\n    tubaveisPorEvento");
     expect(GRAFICA).not.toMatch(/\n    tirarDoTuboMutation\.isPending,\n/);
     expect(GRAFICA.match(/disabled=\{tirarDoTuboMutation\.isPending && tirarDoTuboMutation\.variables\?\.itemId === item\.id\}/g)?.length).toBe(2);
@@ -93,10 +90,10 @@ describe("a peça embalada", () => {
   });
 
   it("ENTREGAR É SÓ DO TUBO: a embalada não tem Entregar individual nem entra no lote de entrega", () => {
-    // a entrega por peça está aposentada: nada entrega fora do volume
-    expect(GRAFICA).toContain("const canDeliver = (_item: any) => false && canDeliverBase(_item);");
-    // o lote de entrega e a fila do galpão leem o mesmo gate
-    expect(GRAFICA).toContain("(filteredItems as any[]).filter(i => canDeliver(i) && !EM_REVISAO.has(i.status))");
+    // a entrega por peça está aposentada: nada entrega fora do volume — e o
+    // código dela (gate, lote de entrega, fila de entrega do galpão) saiu
+    expect(GRAFICA).not.toContain("canDeliver");
+    expect(GRAFICA).not.toContain("deliverableInFilter");
     // na tabela, Entregar tubo é a sólida
     expect(TABELA).toContain('title="Entregar o tubo inteiro — a peça embalada só sai com o tubo"');
   });
@@ -124,8 +121,8 @@ describe("a peça embalada", () => {
 describe("Embalar em lote", () => {
   it("é um terceiro modo da barra, com as conferidas sem tubo como elegíveis", () => {
     expect(GRAFICA).toContain("const [bulkPackMode, setBulkPackMode] = useState(false);");
-    expect(GRAFICA).toContain("const bulkOn = bulkDeliveryMode || bulkConferMode || bulkPackMode;");
-    expect(GRAFICA).toContain("const bulkEligibleList = bulkConferMode ? conferableInFilter : bulkPackMode ? packableInFilter : deliverableInFilter;");
+    expect(GRAFICA).toContain("const bulkOn = bulkConferMode || bulkPackMode;");
+    expect(GRAFICA).toContain("const bulkEligibleList = bulkConferMode ? conferableInFilter : bulkPackMode ? packableInFilter : [];");
     expect(GRAFICA).toContain('data-testid="button-bulk-pack"');
     expect(TABELA).toContain("bulkPackMode ? podeEmbalarPeca : false");
     expect(CARTOES).toContain("bulkPackMode ? podeEmbalarPeca : false");
@@ -137,7 +134,7 @@ describe("Embalar em lote", () => {
     expect(GRAFICA).toContain("abrirEmbalar(bulkSelectedItems, true);");
     // embalou: sai do modo; Escape não sai do lote com o painel aberto
     expect(GRAFICA).toContain("onEmbalou={() => { if (bulkPackMode) sairDoLote(); }}");
-    expect(GRAFICA).toContain("if (bulkDeliveryOpen || bulkConferOpen || tubosDoEvento || viewDetailsItem || selectedItem) return;");
+    expect(GRAFICA).toContain("if (bulkConferOpen || tubosDoEvento || viewDetailsItem || selectedItem) return;");
     expect(GRAFICA).toContain("setBulkConferMode(false);\n    setBulkPackMode(false);");
   });
 });

@@ -20,6 +20,7 @@
 
 import { isDelivered, isComplement, isInProd, reusedTotalOf, type SaldoItem } from "./saldo";
 import { impressorasDaPeca, SEM_IMPRESSORA as SEM_IMPRESSORA_COMPARTILHADO } from "@shared/progresso-da-impressao";
+import { pecaTravada } from "@shared/trava-da-peca";
 import { normalizarBusca } from "./utils";
 
 /** Forma mínima de peça que o recorte enxerga (o item cru da API é `any`). */
@@ -62,6 +63,8 @@ export interface GraficaFiltros {
    * planejamento de impressão, não de linha a linha.
    */
   reaproveitamento: boolean;
+  /** SÓ as peças TRAVADAS pela Solicitação (21/09) — ?travadas=1. */
+  travadas: boolean;
   /**
    * MOSTRAR as peças já entregues. O padrão é `false`: a tela abre na fila do
    * que falta fazer, não no arquivo histórico. Não conta como "filtro ativo"
@@ -73,7 +76,7 @@ export interface GraficaFiltros {
 export const FILTROS_VAZIOS: GraficaFiltros = {
   busca: "", status: [], evento: [], grupo: [], percurso: [], tipo: [],
   material: [], acabamento: [], mes: [], impressora: [], proximos10: false,
-  complementos: false, reaproveitamento: false, entregues: false,
+  complementos: false, reaproveitamento: false, travadas: false, entregues: false,
 };
 
 const MESES = [
@@ -100,6 +103,7 @@ const CAMPOS = [
   { chave: "proximos10",  url: "proximos10", rotulo: "Próximos 10 dias" },
   { chave: "complementos", url: "complementos", rotulo: "Só complementos" },
   { chave: "reaproveitamento", url: "reuso", rotulo: "Só reaproveitamento" },
+  { chave: "travadas",    url: "travadas",   rotulo: "Só travadas" },
 ] as const;
 
 const vazio = (v: string | string[] | boolean): boolean =>
@@ -164,6 +168,7 @@ export function filtrosDaURL(search: string): GraficaFiltros {
     proximos10: p.get("proximos10") === "1",
     complementos: p.get("complementos") === "1",
     reaproveitamento: p.get("reuso") === "1",
+    travadas: p.get("travadas") === "1",
     entregues: p.get("entregues") === "1",
   };
 }
@@ -402,6 +407,8 @@ export function itemCasaFiltros(
   // Reuso total (isReuse) ou parcial (reuseQty>0) — a mesma régua dos chips
   // verdes da linha (reusedTotalOf considera as duas formas).
   if (!ignorarStatus && f.reaproveitamento && !(item.isReuse || reusedTotalOf(item) > 0)) return false;
+  // Travadas pela Solicitação (shared/trava-da-peca.ts).
+  if (f.travadas && !pecaTravada(item as any)) return false;
 
   if (excluir !== "evento" && f.evento.length > 0 && !f.evento.includes(String(item.eventId ?? ""))) return false;
   if (excluir !== "grupo" && f.grupo.length > 0 && !f.grupo.includes(ctx.groupOf(String(item.type ?? "")))) return false;

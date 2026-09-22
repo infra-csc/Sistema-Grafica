@@ -10,6 +10,7 @@ import { POS_APROVACAO } from "@shared/fluxo-peca";
 import { rotuloDaMaquina } from "@shared/fluxo-peca";
 import { estaDividida } from "@shared/impressao-dividida";
 import { detalheDaProducao, rotuloDoTubo, subTrilhaDaProducao } from "@/lib/detalhe-producao";
+import { pecaTravada, fraseDaTrava, seloDaTrava } from "@shared/trava-da-peca";
 import { RegistrosDeTubos } from "@/components/registros-de-tubos";
 import { getApprovalMeta, getStatusLabel, guiaDoStatus, marcoEventoFinalizado, proximoPassoDaAprovacao, todayBusinessMs } from "@/lib/status";
 import {
@@ -1080,6 +1081,10 @@ export function ItemDetailsDialog({
             })}
           </div>
           <SubTrilhaDaProducao item={item} isMobile={isMobile} />
+          {/* Travada pela Solicitação (21/09): texto discreto, com o motivo e quem travou. */}
+          {pecaTravada(item) && (
+            <div data-testid="selo-travada-ficha" title={fraseDaTrava(item)} style={{ marginTop: 8, fontSize: 12, fontWeight: 700, color: "#fecaca", overflowWrap: "anywhere" }}>{seloDaTrava(item)}</div>
+          )}
           <div style={{ height: isMobile ? 16 : 20 }} />
         </header>
 

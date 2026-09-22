@@ -41,7 +41,24 @@ import { ItemDetailsDialog } from "@/components/item-details-dialog";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { HIDE_NATIVE_CLOSE, ModalHeader, modalSurface } from "@/components/modal-shell";
 import { T, FS, R } from "@/lib/theme";
-import { P, seloPecaEventoFinalizado, motivoAcaoBloqueada, todayBusinessMs } from "@/lib/status";
+import { P, seloPecaEventoFinalizado, motivoAcaoBloqueada, todayBusinessMs, type SeloPecaEventoFinalizado } from "@/lib/status";
+import { pecaTravada, fraseDaTrava, seloDaTrava } from "@shared/trava-da-peca";
+
+/**
+ * O que BLOQUEIA o gesto de fazer a peça andar aqui: o evento finalizado (como
+ * sempre) ou a TRAVA DA SOLICITAÇÃO (21/09) — a mesma regra da Gráfica
+ * (`pecaTravada`, shared/trava-da-peca.ts). Tirar da impressora não passa por
+ * aqui: recuar nunca é bloqueado.
+ */
+type SeloDeBloqueio = Omit<SeloPecaEventoFinalizado, "motivo"> & { motivo: SeloPecaEventoFinalizado["motivo"] | "travada" };
+function seloDaPecaNaMaquina(p: { eventoInfo: any; travadaEm?: string | null; travadaPor?: string | null; travadaMotivo?: string | null }, hojeMs: number): SeloDeBloqueio | null {
+  if (pecaTravada(p)) {
+    return { motivo: "travada", label: seloDaTrava(p) ?? "Travada", hint: "a Gráfica só segue depois que a Solicitação destravar", bg: "#fef2f2", border: "#fecaca", text: "#7f1d1d", dot: "#7f1d1d" };
+  }
+  return seloPecaEventoFinalizado(p.eventoInfo, hojeMs);
+}
+const motivoBloqueio = (selo: SeloDeBloqueio, acao: string, p?: { travadaMotivo?: string | null; travadaPor?: string | null; travadaEm?: string | null }): string =>
+  selo.motivo === "travada" ? `Não dá para ${acao}: ${p ? fraseDaTrava(p) : selo.label}` : motivoAcaoBloqueada(selo.motivo, acao);
 import { miniatura } from "@/lib/miniatura";
 import { convertGCSUrlToLocalPath } from "@/lib/artePdfExport";
 import { fmtRelative } from "@/components/prazos/tokens";
@@ -83,6 +100,10 @@ type PecaNaMaquina = {
   impressaoPorMaquina?: Record<string, { atrib: number; impressas: number }> | null;
   /** A parte DESTA impressora, quando a peça está dividida. */
   parte?: { atrib: number; impressas: number } | null;
+  /** Travada pela Solicitação (shared/trava-da-peca.ts); servidor antigo não manda. */
+  travadaEm?: string | null;
+  travadaPor?: string | null;
+  travadaMotivo?: string | null;
 };
 
 type Registro = {
@@ -728,7 +749,7 @@ function SeletorDePeca({ maquina, reservadas, filaGeral, atualizando, hojeMs, on
             ) : (
               <div role="list" data-testid="seletor-lista" style={{ display: "flex", flexDirection: "column", border: `1px solid ${T.border}`, borderRadius: R.lg, overflow: "hidden" }}>
                 {mostradas.map((p, i) => {
-                  const selo = seloPecaEventoFinalizado(p.eventoInfo, hojeMs);
+                  const selo = seloDaPecaNaMaquina(p, hojeMs);
                   const prazo = prazoDaPeca(p.saidaCaminhao, p.prazoProducaoGrafica);
                   const thumb = p.miniatura ? miniatura(convertGCSUrlToLocalPath(p.miniatura)) : undefined;
                   const cabecalhoGeral = !p.reservada && (i === 0 || mostradas[i - 1].reservada);
@@ -753,7 +774,7 @@ function SeletorDePeca({ maquina, reservadas, filaGeral, atualizando, hojeMs, on
                         onClick={() => { if (!selo) onEscolher(p, maquina.codigo); }}
                         disabled={!!selo}
                         data-testid={`escolher-peca-${p.id}`}
-                        title={selo ? motivoAcaoBloqueada(selo.motivo, "iniciar impressão") : `Iniciar a impressão de ${p.displayId ?? "esta peça"} na ${maquina.rotulo}`}
+                        title={selo ? motivoBloqueio(selo, "iniciar impressão", p) : `Iniciar a impressão de ${p.displayId ?? "esta peça"} na ${maquina.rotulo}`}
                         style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", textAlign: "left", padding: isMobile ? "8px 12px" : "8px 12px", minHeight: 56, border: "none", borderTop: i || (cabecalhoGeral && reservadas.length) ? `1px solid ${T.low}` : "none", background: p.reservada ? "#fffbeb" : T.surface, cursor: selo ? "not-allowed" : "pointer", opacity: selo ? 0.6 : 1, color: T.text }}
                       >
                         <span aria-hidden="true" style={{ width: 40, height: 40, borderRadius: R.md, background: T.low, border: `1px solid ${T.border}`, flexShrink: 0, overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -810,7 +831,7 @@ function PecaNaFilaDoCartao({ p, podeAgir, hojeMs, isMobile, proxima = false, oc
   const [qtd, setQtd] = useState<number | "">("");
   const qtdValida = qtd === "" || (qtd >= 1 && qtd <= reservadas);
   const jaImprimindo = (p.imprimindoEm ?? []).filter((m) => m !== p.maquinaPrevista);
-  const selo = seloPecaEventoFinalizado(p.eventoInfo, hojeMs);
+  const selo = seloDaPecaNaMaquina(p, hojeMs);
   const alvo = isMobile ? 44 : 34;
   const prazo = prazoDaPeca(p.saidaCaminhao, p.prazoProducaoGrafica);
   // Celular: com várias peças na fila, Iniciar + quantidade + select por peça
@@ -844,7 +865,7 @@ function PecaNaFilaDoCartao({ p, podeAgir, hojeMs, isMobile, proxima = false, oc
             onClick={() => { if (!selo) onIniciar(p); }}
             disabled={!!selo || ocupado}
             data-testid={`button-iniciar-fila-${p.id}`}
-            title={selo ? motivoAcaoBloqueada(selo.motivo, "iniciar impressão") : ocupado ? motivoImpressoraOcupada(ocupante?.displayId ?? null) : `Iniciar a impressão na ${rotuloDaMaquina(p.maquinaPrevista)}`}
+            title={selo ? motivoBloqueio(selo, "iniciar impressão", p) : ocupado ? motivoImpressoraOcupada(ocupante?.displayId ?? null) : `Iniciar a impressão na ${rotuloDaMaquina(p.maquinaPrevista)}`}
             data-proxima={proxima || undefined}
             style={{ flex: isMobile ? "2 1 150px" : "1 1 130px", minHeight: alvo, padding: "0 10px", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 5, borderRadius: R.md, border: `1px solid ${selo || ocupado ? T.border : T.text}`, background: proxima && !selo ? T.text : T.surface, color: selo || ocupado ? "#746e69" : proxima ? "#fff" : T.text, fontFamily: GROTESK, fontSize: isMobile ? 13 : 12, fontWeight: 700, cursor: selo || ocupado ? "not-allowed" : "pointer", whiteSpace: "nowrap" }}
           >
@@ -886,10 +907,14 @@ function PecaNaFilaDoCartao({ p, podeAgir, hojeMs, isMobile, proxima = false, oc
               style={{ width: isMobile ? 84 : 64, ...(isMobile ? { flex: "0 0 84px" } : {}), minHeight: alvo, height: alvo, boxSizing: "border-box", textAlign: "center", borderRadius: R.md, border: `1px solid ${qtdValida ? T.bdark : VERMELHO.border}`, background: T.surface, color: T.text, fontSize: isMobile ? 16 : 12, fontWeight: 700, padding: "0 6px" }}
             />
           )}
-          <SeletorDeReserva valor={p.maquinaPrevista} excluir={p.maquinaPrevista} disabled={!qtdValida} alvo={alvo} isMobile={isMobile} testId={`mover-fila-${p.id}`} rotulo={qtd === "" ? "Mover para…" : `Mover ${qtd} para…`} onEscolher={(m) => onReservar(p, m, qtd === "" ? null : qtd)} />
+          <SeletorDeReserva valor={p.maquinaPrevista} excluir={p.maquinaPrevista} disabled={!qtdValida || selo?.motivo === "travada"} alvo={alvo} isMobile={isMobile} testId={`mover-fila-${p.id}`} rotulo={qtd === "" ? "Mover para…" : `Mover ${qtd} para…`} onEscolher={(m) => onReservar(p, m, qtd === "" ? null : qtd)} />
           </div>
           )}
         </div>
+      )}
+      {/* Travada pela Solicitação: o MESMO selo da Gráfica, à vista (não só no title). */}
+      {selo?.motivo === "travada" && (
+        <div data-testid={`fila-travada-${p.id}`} title={fraseDaTrava(p)} style={{ fontSize: isMobile ? 12 : FS.small, fontWeight: 700, color: selo.text, overflowWrap: "anywhere" }}>{selo.label}</div>
       )}
       {podeAgir && ocupante && !selo && (
         <div data-testid={`fila-ocupada-${p.id}`} style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
@@ -956,7 +981,7 @@ function PecaNoCartao({ p, agora, podeAgir, hojeMs, isMobile, onAgir, onTirar, m
   const teto = n.teto;
   const desde = haQuanto(p.desde, agora);
   const hora = horaDeInicio(p.desde);
-  const selo = seloPecaEventoFinalizado(p.eventoInfo, hojeMs);
+  const selo = seloDaPecaNaMaquina(p, hojeMs);
   const alvo = isMobile ? 44 : 34;
   const thumb = p.miniatura ? miniatura(convertGCSUrlToLocalPath(p.miniatura)) : undefined;
   const rotuloAcao = rotuloCurtoDaAcao(feitas, teto);
@@ -1016,7 +1041,7 @@ function PecaNoCartao({ p, agora, podeAgir, hojeMs, isMobile, onAgir, onTirar, m
             disabled={!!selo}
             data-testid={`button-impressas-${p.id}`}
             title={selo
-              ? motivoAcaoBloqueada(selo.motivo, "informar impressas")
+              ? motivoBloqueio(selo, "informar impressas", p)
               : concluir ? `Todas as ${teto} saíram${dividida ? " desta impressora" : " — mandar a peça para o acabamento"}` : `Informar quantas já saíram da ${rotuloDaMaquina(p.maquina)} (${progressoDaImpressao(feitas, teto)})`}
             style={{ ...largura("1 1 140px"), minHeight: alvo, padding: "0 12px", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, borderRadius: R.md, border: selo ? `1px solid ${T.border}` : "none", background: selo ? T.low : T.text, color: selo ? "#746e69" : "#fff", fontFamily: GROTESK, fontSize: isMobile ? 13 : 12, fontWeight: 700, cursor: selo ? "not-allowed" : "pointer", whiteSpace: "nowrap" }}
           >
@@ -1031,7 +1056,7 @@ function PecaNoCartao({ p, agora, podeAgir, hojeMs, isMobile, onAgir, onTirar, m
             onClick={() => { if (!selo) onAgir(p, true); }}
             disabled={!!selo}
             data-testid={`button-trocar-maquina-${p.id}`}
-            title={selo ? motivoAcaoBloqueada(selo.motivo, "trocar de máquina") : `Mover esta peça da ${rotuloDaMaquina(p.maquina)} para outra impressora`}
+            title={selo ? motivoBloqueio(selo, "trocar de máquina", p) : `Mover esta peça da ${rotuloDaMaquina(p.maquina)} para outra impressora`}
             style={{ ...largura("1 1 120px"), minHeight: alvo, padding: "0 10px", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 5, borderRadius: R.md, border: `1px solid ${T.bdark}`, background: T.surface, color: selo ? "#746e69" : T.text, fontSize: isMobile ? 13 : 12, fontWeight: 700, cursor: selo ? "not-allowed" : "pointer", whiteSpace: "nowrap" }}
           >
             <ArrowLeftRight aria-hidden="true" style={{ width: 12, height: 12, color: T.accentText, flexShrink: 0 }} />
@@ -1264,7 +1289,7 @@ const LinhaDaFilaGeral = memo(function LinhaDaFilaGeral({ p, marcada, podeAgir, 
 }) {
   const alvo = isMobile ? 44 : 34;
   const fonte = isMobile ? 12 : FS.small;
-  const selo = seloPecaEventoFinalizado(p.eventoInfo, hojeMs);
+  const selo = seloDaPecaNaMaquina(p, hojeMs);
   const prazo = prazoDaPeca(p.saidaCaminhao, p.prazoProducaoGrafica);
   const direcionamento = textoDoDirecionamento(p.reserva, p.semImpressora, p.imprimindoEm);
   return (
@@ -1290,7 +1315,7 @@ const LinhaDaFilaGeral = memo(function LinhaDaFilaGeral({ p, marcada, podeAgir, 
         {isMobile && <span style={{ display: "flex", marginTop: 2 }}><SeloDePrazo p={prazo} fonte={fonte} /></span>}
       </div>
       {!isMobile && <SeloDePrazo p={prazo} fonte={fonte} />}
-      {selo && isMobile && (
+      {selo && (isMobile || selo.motivo === "travada") && (
         <span data-testid={`fila-bloqueada-${p.id}`} style={{ flex: "1 1 100%", fontSize: 12, fontWeight: 700, color: selo.text }}>{selo.label} — {selo.hint}</span>
       )}
       {podeAgir && (

@@ -6,7 +6,7 @@ import { EsqueletoDeFila } from "@/components/esqueleto-de-fila";
 import { Link } from "wouter";
 import { prefetchRota } from "@/lib/prefetch-de-rota";
 import { FilterSelect, ShortcutPill } from "@/components/filter-select";
-import { AlertCircle, AlertTriangle, Package, CheckCircle, Truck, Calendar, Eye, Check, Camera, Search, Play, X, Filter, ChevronDown, Printer, RotateCcw, ImagePlus, FileSpreadsheet, ListChecks, PlusCircle, Trash2, Undo2, Loader2, Recycle, Tag, MoreHorizontal } from "lucide-react";
+import { AlertCircle, AlertTriangle, Package, CheckCircle, Truck, Calendar, Eye, Check, Camera, Search, Play, X, Filter, ChevronDown, Printer, RotateCcw, ImagePlus, FileSpreadsheet, ListChecks, PlusCircle, Trash2, Undo2, Loader2, Recycle, Tag, MoreHorizontal, Lock, Unlock } from "lucide-react";
 import { Fragment, useState, useMemo, useEffect, useLayoutEffect, useRef, startTransition } from "react";
 // Fila de ~4 mil peças: linha memoizada + desenho por lotes (ver o arquivo).
 import { LinhaMemo, SentinelaDaLista } from "@/components/grafica/lista-incremental";
@@ -50,6 +50,9 @@ import { semImpressora } from "@shared/reserva-de-impressora";
 // links de ida e volta são os mesmos do cartão de Máquinas.
 import { numerosDaImpressao, fraseDaFila, ocupacaoDasImpressoras, linkDaImpressoraEmMaquinas, estaEmImpressao } from "@shared/progresso-da-impressao";
 import { invalidarGraficaEMaquinas } from "@/lib/tempo-real-grafica";
+// TRAVA DA SOLICITAÇÃO (21/09): a regra (quem trava, o que bloqueia, as frases)
+// mora em shared/trava-da-peca.ts; aqui só o botão, o modal e o selo.
+import { pecaTravada, fraseDaTrava, seloDaTrava, podeTravar, lerMotivo, SUGESTOES_DE_MOTIVO, MOTIVO_MINIMO } from "@shared/trava-da-peca";
 // Aritmética de saldo: fonte única em lib/saldo.ts. Estes onze cálculos
 // (quanto falta produzir, conferir, entregar, reaproveitar; quanto de m²
 // realmente vai para a impressora) viviam duplicados como consts locais no
@@ -220,6 +223,44 @@ function ProgressoImpressao({ item, fonte, duasLinhas, onIniciarResto }: { item:
     </div>
   );
 }
+/**
+ * A TRAVA DA SOLICITAÇÃO na linha e no cartão (21/09): travada, a faixa
+ * vermelho-escura "Travada: <motivo> · por Fulano, há 2h" (+ "Destravar" para
+ * quem pode); livre, o botão "Travar" (cadeado) só para a Solicitação/admin.
+ */
+function TravaDaPeca({ item, podeMexer, fonte, alvo, onTravar, onDestravar, destravando }: {
+  item: any; podeMexer: boolean; fonte: number; alvo: number;
+  onTravar: () => void; onDestravar: () => void; destravando?: boolean;
+}) {
+  const travada = pecaTravada(item);
+  if (!travada && !podeMexer) return null;
+  if (!travada) {
+    if (isDelivered(item)) return null;
+    return (
+      <button type="button" onClick={(e) => { e.stopPropagation(); onTravar(); }} data-testid={`button-travar-${item.id}`} title="Travar a peça: a Gráfica não consegue fazê-la andar até alguém da Solicitação destravar" style={{ display: "inline-flex", alignItems: "center", gap: 5, minHeight: alvo, padding: "0 10px", marginTop: 4, borderRadius: 6, border: "1px solid #d6d3d1", background: "#ffffff", color: "#7f1d1d", fontSize: Math.max(fonte, 11), fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}>
+        <Lock aria-hidden="true" style={{ width: 12, height: 12 }} /> Travar
+      </button>
+    );
+  }
+  return (
+    <div role="status" data-testid={`selo-travada-${item.id}`} title={fraseDaTrava(item)} style={{ marginTop: 4, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", padding: "4px 8px", borderRadius: 6, background: "#7f1d1d", color: "#ffffff", fontSize: fonte, fontWeight: 700, lineHeight: 1.35, whiteSpace: "normal", overflowWrap: "anywhere" }}>
+      <Lock aria-hidden="true" style={{ width: 12, height: 12, flexShrink: 0 }} />
+      <span style={{ flex: "1 1 140px", minWidth: 0 }}>{seloDaTrava(item)}</span>
+      {podeMexer && (
+        <button type="button" onClick={(e) => { e.stopPropagation(); onDestravar(); }} disabled={destravando} data-testid={`button-destravar-${item.id}`} style={{ display: "inline-flex", alignItems: "center", gap: 4, minHeight: alvo, padding: "0 10px", borderRadius: 6, border: "1px solid #fecaca", background: "#ffffff", color: "#7f1d1d", fontSize: Math.max(fonte, 11), fontWeight: 700, cursor: destravando ? "wait" : "pointer", whiteSpace: "nowrap" }}>
+          <Unlock aria-hidden="true" style={{ width: 12, height: 12 }} /> {destravando ? "Destravando…" : "Destravar"}
+        </button>
+      )}
+    </div>
+  );
+}
+
+/** Os atributos que DESABILITAM um botão de ação da peça travada (com o motivo no title). */
+const bloqueioDaTrava = (item: any): Record<string, unknown> =>
+  pecaTravada(item) ? { disabled: true, title: fraseDaTrava(item), "data-travada": "true", "aria-disabled": true } : {};
+/** O botão desabilitado pela trava fica apagado mesmo com o estilo inline da linha. */
+const CSS_DA_TRAVA = "button[data-travada]{opacity:.45!important;cursor:not-allowed!important}";
+
 /**
  * "Fila: Impressora 2" — a peça liberada já tem impressora RESERVADA na aba
  * Máquinas (dono, 21/09: "isso refletir na tela da Gráfica"). Só leitura:
@@ -770,7 +811,11 @@ export default function Grafica() {
   // "Embalar" quando é tudo; "Embalar 3" quando é só o que falta (ou a parte conferida).
   const rotuloEmbalar = (item: any) => (aEmbalar(item) < qtyOf(item) ? `Embalar ${aEmbalar(item)}` : "Embalar");
   // Abre o painel de tubos do evento da peça já com ela marcada para embalar.
-  const abrirEmbalar = (itens: any[]) => {
+  const abrirEmbalar = (itensPedidos: any[]) => {
+    // Travada não embala: sai do lote, com aviso (o servidor também barra).
+    const travadas = itensPedidos.filter((i) => pecaTravada(i));
+    if (travadas.length) toast({ title: travadas.length === 1 ? `${travadas[0].displayId ?? "Peça"} está travada` : `${travadas.length} peças travadas ficaram de fora`, description: fraseDaTrava(travadas[0]), variant: "destructive" });
+    const itens = itensPedidos.filter((i) => !pecaTravada(i));
     const primeira = itens[0];
     if (!primeira) return;
     setTubosDoEvento({ id: String(primeira.eventId), name: primeira.event?.name ?? "Evento", embalar: itens.map((i) => i.id) });
@@ -1406,6 +1451,52 @@ export default function Grafica() {
       toast({ title: "Não foi possível cancelar", description: apiErrorMessage(error), variant: "destructive" });
     },
   });
+
+  // ── TRAVAR / DESTRAVAR (Solicitação e admin, 21/09) ───────────────────────
+  // A Solicitação sem Kit não trava peça do Kit (o mesmo recorte de sempre).
+  const podeMexerNaTrava = (item: any) => podeTravar(user?.role) && !soVisualizaKit(item);
+  const [travandoItem, setTravandoItem] = useState<any>(null);
+  const [motivoDaTrava, setMotivoDaTrava] = useState("");
+  const travarMutation = useMutation({
+    mutationFn: async ({ itemId, motivo }: { itemId: string; motivo: string; displayId?: string }) =>
+      await apiRequest("POST", `/api/items/${itemId}/travar`, { motivo }),
+    onSuccess: (_r, v) => {
+      invalidarGraficaEMaquinas();
+      setTravandoItem(null); setMotivoDaTrava("");
+      toast({ title: `${v.displayId ?? "Peça"} travada`, description: `A Gráfica vê o motivo e não consegue fazê-la andar até alguém destravar: ${v.motivo}` });
+    },
+    onError: (error: Error) => {
+      invalidarGraficaEMaquinas();
+      toast({ title: "Não foi possível travar", description: apiErrorMessage(error), variant: "destructive" });
+    },
+  });
+  const destravarMutation = useMutation({
+    mutationFn: async ({ itemId }: { itemId: string; displayId?: string }) =>
+      await apiRequest("POST", `/api/items/${itemId}/destravar`, {}),
+    onSuccess: (_r, v) => {
+      invalidarGraficaEMaquinas();
+      toast({ title: `${v.displayId ?? "Peça"} destravada`, description: "A Gráfica já pode seguir com ela." });
+    },
+    onError: (error: Error) => {
+      invalidarGraficaEMaquinas();
+      toast({ title: "Não foi possível destravar", description: apiErrorMessage(error), variant: "destructive" });
+    },
+  });
+  /** A porta de toda ação que faz a peça andar: travada, avisa e não abre. */
+  const avisarTravada = (item: any): boolean => {
+    if (!pecaTravada(item)) return false;
+    toast({ title: `${item.displayId ?? "Peça"} está travada`, description: fraseDaTrava(item), variant: "destructive" });
+    return true;
+  };
+  const travaDaLinha = (item: any, fonte: number, alvo: number) => (
+    <TravaDaPeca
+      item={item} fonte={fonte} alvo={alvo} podeMexer={podeMexerNaTrava(item)}
+      onTravar={() => { setMotivoDaTrava(""); setTravandoItem(item); }}
+      onDestravar={() => destravarMutation.mutate({ itemId: item.id, displayId: item.displayId })}
+      destravando={destravarMutation.isPending && destravarMutation.variables?.itemId === item.id}
+    />
+  );
+  const nTravadas = useMemo(() => (pecasDoServidor as any[]).filter((i) => pecaTravada(i) && !isDelivered(i)).length, [pecasDoServidor]);
 
   // ── A PEÇA MUDOU ENQUANTO O MODAL ESTAVA ABERTO ────────────────────────────
   // A Gráfica é a tela em que duas pessoas trabalham a mesma fila. O modal de
@@ -2098,6 +2189,7 @@ export default function Grafica() {
   // na etapa 1 (escolher impressora + quantidade) para o que está sem impressora.
   const [iniciandoResto, setIniciandoResto] = useState(false);
   const openProductionModal = (item: any, resto = false) => {
+    if (avisarTravada(item)) return;
     setIniciandoResto(resto);
     setSelectedItem(item);
     setModalType("production");
@@ -2141,6 +2233,7 @@ export default function Grafica() {
   };
 
   const openConferenceModal = (item: any) => {
+    if (avisarTravada(item)) return;
     setSelectedItem(item);
     setModalType("conference");
     setPhotos([]); setModalNotes("");
@@ -3096,6 +3189,17 @@ export default function Grafica() {
             />
           </div>
         );
+        // "Travadas (N)" (21/09): só aparece quando há peça travada (ou o filtro está ligado).
+        const pillTravadas = (nTravadas > 0 || filtros.travadas) ? (
+          <ShortcutPill
+            label={`Travadas (${nTravadas})`}
+            icon={Lock}
+            active={filtros.travadas}
+            onClick={() => patchFiltros({ travadas: !filtros.travadas })}
+            testId="button-travadas-filter"
+            title="Só as peças travadas pela Solicitação — com o motivo e quem travou"
+          />
+        ) : null;
         const pillProximos = (
           <ShortcutPill
             label="Próximos 10 dias"
@@ -3151,6 +3255,7 @@ export default function Grafica() {
             <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
               {campoBusca}
               {pillProximos}
+              {pillTravadas}
               <button
                 type="button"
                 onClick={() => setShowAdvancedFilters(v => !v)}
@@ -3244,6 +3349,7 @@ export default function Grafica() {
                     caminhão que sai já): morava DENTRO da folha, a três toques
                     (abrir, ligar, ver). Aqui fica a um. */}
                 {pillProximos}
+                {pillTravadas}
                 {botaoLimpar}
               </div>
             </div>
@@ -3841,6 +3947,7 @@ export default function Grafica() {
                         {/* Paridade com a tabela: o progresso da impressão
                             ocupa a linha inteira do cartão (flexBasis 100%). */}
                         {isInProd(item) && <span style={{ flexBasis: '100%' }}><ProgressoImpressao item={item} fonte={12} onIniciarResto={podeProduzirPeca && !selo ? () => openProductionModal(item, true) : undefined} /></span>}
+                        {(pecaTravada(item) || podeMexerNaTrava(item)) && <span style={{ flexBasis: '100%' }}>{travaDaLinha(item, 12, 44)}</span>}
                         {!isInProd(item) && item.maquinaPrevista && <SeloFilaDaImpressora item={item} fonte={12} />}
                         {item.isReuse && <span style={{ fontSize: 12, fontWeight: 800, color: '#047857', background: '#dcfce7', border: '1px solid #86efac', borderRadius: 6, padding: '1px 6px' }}>REAPROV.</span>}
                         {/* Selo do complemento: sólido enquanto o lote está em
@@ -4014,6 +4121,7 @@ export default function Grafica() {
                               /* Desabilitado: #78716c sobre #f5f5f4 → 4,84:1 nos
                                  13px/800 (o cinza claro do padrão do navegador
                                  reprovaria AA). */
+                              {...bloqueioDaTrava(item)}
                               style={{ order: 0, flex: '2 1 150px', minHeight: 48, padding: '0 12px', borderRadius: 8, background: selo ? '#f5f5f4' : CO.solidBg, border: selo ? `1px solid ${TI.border}` : 'none', color: selo ? '#78716c' : '#fff', fontSize: 14, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, cursor: selo ? 'not-allowed' : 'pointer', whiteSpace: 'normal', textAlign: 'center', lineHeight: 1.15 }}
                             >
                               {/* Quebra permitida: com o nome da impressora
@@ -4035,6 +4143,7 @@ export default function Grafica() {
                                 ? motivoAcaoBloqueada(selo.motivo, "produzir")
                                 : isInProd(item) ? tituloAcaoImpressao(item) : "Escolher a máquina e iniciar a impressão"}
                               data-testid={`button-production-card-${item.id}`}
+                              {...bloqueioDaTrava(item)}
                               style={{ order: 0, flex: '2 1 150px', minHeight: 48, padding: '0 12px', borderRadius: 8, background: selo ? '#f5f5f4' : TI.text, border: selo ? `1px solid ${TI.border}` : 'none', color: selo ? '#78716c' : '#fff', fontSize: 14, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, cursor: selo ? 'not-allowed' : 'pointer', whiteSpace: 'normal', textAlign: 'center', lineHeight: 1.15 }}
                             >
                               <Play aria-hidden="true" style={{ width: 13, height: 13, flexShrink: 0 }} />
@@ -4176,6 +4285,7 @@ export default function Grafica() {
                                  lote e do modal. #0891b2 com branco 13px/800 dá
                                  3,68:1 e reprova AA, e a tela tinha DOIS cianos
                                  diferentes para a mesma ação. */
+                              {...bloqueioDaTrava(item)}
                               style={{ order: 0, flex: '2 1 150px', minHeight: 48, padding: '0 12px', borderRadius: 8, background: '#0e7490', border: 'none', color: '#fff', fontSize: 14, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, cursor: 'pointer', whiteSpace: 'nowrap' }}
                             >
                               <CheckCircle aria-hidden="true" style={{ width: 13, height: 13 }} />
@@ -4193,6 +4303,7 @@ export default function Grafica() {
                             <button
                               onClick={e => { e.stopPropagation(); abrirEmbalar([item]); }}
                               data-testid={`button-embalar-card-${item.id}`}
+                              {...bloqueioDaTrava(item)}
                               style={{ order: 0, flex: '2 1 150px', minHeight: 48, padding: '0 12px', borderRadius: 8, background: '#1d4ed8', border: 'none', color: '#fff', fontSize: 14, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, cursor: 'pointer', whiteSpace: 'nowrap' }}
                             >
                               <Package aria-hidden="true" style={{ width: 13, height: 13 }} />
@@ -4205,6 +4316,7 @@ export default function Grafica() {
                               data-testid={`button-entregar-card-${item.id}`}
                               // De contorno quando há uma principal mais certa:
                               // "Embalar" na conferida, "Entregar tubo" na embalada.
+                              {...bloqueioDaTrava(item)}
                               style={podeEmbalarPeca || isPacked(item)
                                 ? { order: 0, flex: '1 1 130px', minHeight: 48, padding: '0 12px', borderRadius: 8, background: '#fff', border: '1px solid #fdba74', color: '#c2410c', fontSize: 14, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, cursor: 'pointer', whiteSpace: 'nowrap' }
                                 : { order: 0, flex: '2 1 150px', minHeight: 48, padding: '0 12px', borderRadius: 8, background: '#c2410c', border: 'none', color: '#fff', fontSize: 14, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, cursor: 'pointer', whiteSpace: 'nowrap' }}
@@ -4221,6 +4333,7 @@ export default function Grafica() {
                             <button
                               onClick={e => { e.stopPropagation(); setTubosDoEvento({ id: String(item.eventId), name: item.event?.name ?? "Evento", entregarTubo: item.tuboId }); }}
                               data-testid={`button-entregar-tubo-card-${item.id}`}
+                              {...bloqueioDaTrava(item)}
                               style={{ order: 0, flex: '2 1 150px', minHeight: 48, padding: '0 12px', borderRadius: 8, background: '#1d4ed8', border: 'none', color: '#fff', fontSize: 14, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, cursor: 'pointer', whiteSpace: 'nowrap' }}
                             >
                               <Truck aria-hidden="true" style={{ width: 13, height: 13 }} /> {ehAvulsa(item) ? "Entregar" : "Entregar tubo"}
@@ -4834,6 +4947,7 @@ export default function Grafica() {
                             impressora" + barra (dono, 21/09). Duas linhas para a
                             coluna Status não alargar. */}
                         {isInProd(item) && <ProgressoImpressao item={item} fonte={10.5} duasLinhas onIniciarResto={canProduce && !seloDoItem(item) ? () => openProductionModal(item, true) : undefined} />}
+                        {travaDaLinha(item, 10.5, 28)}
                         {!isInProd(item) && item.maquinaPrevista && <div style={{ marginTop: 4 }}><SeloFilaDaImpressora item={item} fonte={10.5} /></div>}
                       </td>
                       {/* Ações — `sticky right` com sombra à esquerda marcando a
@@ -5183,6 +5297,7 @@ export default function Grafica() {
                               data-testid={`button-production-${item.id}`}
                               /* Desabilitado: #78716c sobre #f5f5f4 → 4,84:1
                                  nos 11px/700. */
+                              {...bloqueioDaTrava(item)}
                               style={{ backgroundColor: selo ? "#f5f5f4" : TI.text, color: selo ? "#78716c" : "#ffffff", border: selo ? `1px solid ${TI.border}` : "none", borderRadius: 8, height: 32, padding: "0 12px", fontSize: 12, fontWeight: 700, cursor: selo ? "not-allowed" : "pointer", display: "flex", alignItems: "center", gap: 5, whiteSpace: "nowrap", transition: "background-color 0.15s" }}
                               /* Hover era TI.accent (#f97316): branco sobre ele dá
                                  2,8:1 — o botão ficava ilegível justo sob o mouse. */
@@ -5204,6 +5319,7 @@ export default function Grafica() {
                               onClick={() => openConferenceModal(item)}
                               title={`Conferir (faltam ${remainingConfer(item)} de ${qtyOf(item)})`}
                               data-testid={`button-confer-${item.id}`}
+                              {...bloqueioDaTrava(item)}
                               style={{
                                 backgroundColor: "#0e7490", color: "#ffffff",
                                 border: "none", borderRadius: 8, height: 32, padding: "0 12px",
@@ -5246,6 +5362,7 @@ export default function Grafica() {
                               onClick={() => abrirEmbalar([item])}
                               title="Pôr no tubo — escolhe o tubo no painel do evento"
                               data-testid={`button-embalar-${item.id}`}
+                              {...bloqueioDaTrava(item)}
                               style={{
                                 backgroundColor: "#1d4ed8", color: "#ffffff",
                                 border: "none", borderRadius: 8, height: 32, padding: "0 12px",
@@ -5269,6 +5386,7 @@ export default function Grafica() {
                               onClick={() => openDeliveryModal(item)}
                               title={`Entregar (${remainingDeliver(item)} conferido(s) pendente(s))`}
                               data-testid={`button-deliver-${item.id}`}
+                              {...bloqueioDaTrava(item)}
                               style={{
                                 // #c2410c: branco sobre #f97316 dava ~2.8:1 (reprova AA)
                                 backgroundColor: "#c2410c", color: "#ffffff",
@@ -5293,6 +5411,7 @@ export default function Grafica() {
                               onClick={() => setTubosDoEvento({ id: String(item.eventId), name: item.event?.name ?? "Evento", entregarTubo: item.tuboId })}
                               data-testid={`button-entregar-tubo-${item.id}`}
                               title="Entregar o tubo inteiro — a peça embalada só sai com o tubo"
+                              {...bloqueioDaTrava(item)}
                               style={{ backgroundColor: "#1d4ed8", color: "#fff", border: "none", borderRadius: 8, height: 32, padding: "0 12px", fontSize: 12, fontWeight: 700, whiteSpace: "nowrap", cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}
                             >
                               <Truck aria-hidden="true" style={{ width: 13, height: 13 }} /> {ehAvulsa(item) ? "Entregar" : "Entregar tubo"}
@@ -5980,6 +6099,50 @@ export default function Grafica() {
       {/* Devolver para a Revisão — o motivo é obrigatório pela mesma régua das
           outras devoluções: quem recebe a peça de volta precisa saber o que
           refazer, senão é ida e volta garantida. */}
+      {/* TRAVAR A PEÇA (Solicitação e admin, 21/09): motivo obrigatório, com
+          atalhos. A Gráfica lê o motivo no selo e no title dos botões. */}
+      <style>{CSS_DA_TRAVA}</style>
+      <Dialog open={!!travandoItem} onOpenChange={(o) => { if (!o) { setTravandoItem(null); setMotivoDaTrava(""); } }}>
+        <DialogContent className={HIDE_NATIVE_CLOSE} style={modalSurface(440)} data-testid="modal-travar">
+          <DialogTitle className="sr-only">Travar peça</DialogTitle>
+          <DialogDescription className="sr-only">Diga o motivo — a Gráfica não consegue fazer a peça andar até alguém destravar</DialogDescription>
+          <ModalHeader icon={Lock} tint="#7f1d1d" title={`Travar ${travandoItem?.displayId ?? "peça"}`} subtitle="A Gráfica vê o motivo e não consegue fazer a peça andar até alguém da Solicitação destravar" onClose={() => { setTravandoItem(null); setMotivoDaTrava(""); }} />
+          {travandoItem && (() => {
+            const lido = lerMotivo(motivoDaTrava);
+            const pode = lido.ok && !travarMutation.isPending;
+            const enviar = () => { if (lido.ok && !travarMutation.isPending) travarMutation.mutate({ itemId: travandoItem.id, motivo: lido.motivo, displayId: travandoItem.displayId }); };
+            return (
+              <div style={{ padding: isMobile ? 16 : 24, display: "flex", flexDirection: "column", gap: 12, overflowY: "auto" }}>
+                <div role="group" aria-label="Motivos comuns" style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                  {SUGESTOES_DE_MOTIVO.map((s) => (
+                    <button key={s} type="button" onClick={() => setMotivoDaTrava(s)} data-testid={`chip-motivo-${s}`} aria-pressed={motivoDaTrava === s} style={{ minHeight: isMobile ? 44 : 32, padding: "0 12px", borderRadius: 999, border: `1px solid ${motivoDaTrava === s ? "#7f1d1d" : "#d6d3d1"}`, background: motivoDaTrava === s ? "#fef2f2" : "#ffffff", color: "#7f1d1d", fontSize: isMobile ? 13 : 12, fontWeight: 700, cursor: "pointer" }}>{s}</button>
+                  ))}
+                </div>
+                <label htmlFor="input-motivo-trava" style={{ fontSize: 12, fontWeight: 700, color: TI.secondary }}>Motivo (obrigatório)</label>
+                <textarea
+                  id="input-motivo-trava"
+                  value={motivoDaTrava}
+                  onChange={(e) => setMotivoDaTrava(e.target.value)}
+                  rows={3}
+                  maxLength={300}
+                  placeholder="Ex.: a arte vai mudar — segurar a impressão"
+                  data-testid="input-motivo-trava"
+                  style={{ width: "100%", boxSizing: "border-box", padding: "10px 12px", borderRadius: 8, border: "1px solid #d6d3d1", fontSize: isMobile ? 16 : 13, fontFamily: "inherit", resize: "vertical" }}
+                />
+                {!lido.ok && motivoDaTrava.trim().length > 0 && (
+                  <div role="status" data-testid="aviso-motivo-trava" style={{ fontSize: 12, color: "#b45309" }}>Pelo menos {MOTIVO_MINIMO} letras — é o que a Gráfica vai ler.</div>
+                )}
+                <div style={{ display: "flex", gap: 10, flexWrap: "wrap", paddingBottom: "env(safe-area-inset-bottom)" }}>
+                  <button type="button" onClick={() => { setTravandoItem(null); setMotivoDaTrava(""); }} style={{ flex: 1, minHeight: 44, borderRadius: 8, border: "1px solid #e7e5e4", background: "transparent", color: "#57534e", fontWeight: 700, cursor: "pointer" }}>Cancelar</button>
+                  <button type="button" onClick={enviar} disabled={!pode} data-testid="button-confirmar-trava" style={{ flex: 2, minHeight: 44, borderRadius: 8, border: "none", background: "#7f1d1d", color: "#ffffff", fontWeight: 700, cursor: pode ? "pointer" : "not-allowed", opacity: pode ? 1 : 0.55, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+                    <Lock aria-hidden="true" style={{ width: 13, height: 13 }} /> {travarMutation.isPending ? "Travando…" : "Travar peça"}
+                  </button>
+                </div>
+              </div>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
       <TubosDialog evento={tubosDoEvento} onClose={() => setTubosDoEvento(null)}
         itensIniciais={tubosDoEvento?.embalar} tuboInicial={tubosDoEvento?.entregarTubo}
         verTubo={tubosDoEvento?.verTubo}

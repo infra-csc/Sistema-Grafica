@@ -181,7 +181,7 @@ describe("5 · a tela", () => {
     expect(PAGINA).not.toContain("button-impressas-linha-");
     expect(PAGINA).toContain("data-testid={`link-escolher-peca-${m.codigo}`}");
     // Evento finalizado: o botão explica antes, com a mesma frase do 409.
-    expect(PAGINA).toContain('motivoAcaoBloqueada(selo.motivo, "informar impressas")');
+    expect(PAGINA).toContain('motivoBloqueio(selo, "informar impressas", p)');
     // A leitura entrega ao modal o que ele precisa.
     expect(ler("server/routes/maquinas.ts")).toContain("i.approval_thumb_url,");
     expect(ler("server/routes/maquinas.ts")).toContain("ordem: ordemPorId.get(l.id) ?? 0,");

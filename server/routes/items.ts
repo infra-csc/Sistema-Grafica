@@ -7,6 +7,9 @@ import { db } from "../db";
 import { storage, assetPrefix, assetSeqOf, isDisplayIdConflictError } from "../storage";
 import { ITEM_STATUSES, type Item } from "@shared/schema";
 import { eventoComDatasDoKit, pecaVisivelPara, remessaUtilizavelPor } from "@shared/kit";
+// TRAVA DA SOLICITAÇÃO (21/09): o que faz a peça andar na Gráfica é barrado
+// com 409 e a frase humana; ver shared/trava-da-peca.ts.
+import { pecaTravada, fraseDaTrava, CODIGO_PECA_TRAVADA } from "@shared/trava-da-peca";
 import { carregarRemessa, remessasPorIds } from "../services/kitRemessas";
 import { respostaDoEstoqueParaLiberar, marcarRespostaAplicada } from "../services/consultaDeEstoqueNaLiberacao";
 import { trilhaDaLiberacaoComEstoque } from "@shared/consultas-de-estoque";
@@ -4718,6 +4721,8 @@ export function registerItemRoutes(app: Express): void {
       if (!current) return res.status(404).json({ error: "Item not found" });
       // ANDA: a peça vai para a máquina — mesma guarda de quem imprime.
       if (await barraEventoFinalizado(current, res)) return;
+      // Travada pela Solicitação: nem iniciar, nem trocar de máquina.
+      if (pecaTravada(current as any)) return res.status(409).json({ error: fraseDaTrava(current as any), code: CODIGO_PECA_TRAVADA });
       if (EM_REVISAO.has(current.status)) {
         return res.status(409).json({ error: "Esta peça está em revisão — a Gráfica só age depois que a revisão liberar." });
       }
@@ -4846,6 +4851,8 @@ export function registerItemRoutes(app: Express): void {
       // to compute the new status — replicating startProduction logic inside tx).
       const before = await storage.getItem(req.params.id);
       if (!before) return res.status(404).json({ error: "Item not found" });
+      // Travada pela Solicitação: nem informar impressas, nem mandar para o acabamento.
+      if (pecaTravada(before as any)) return res.status(409).json({ error: fraseDaTrava(before as any), code: CODIGO_PECA_TRAVADA });
 
       // PEÇA DIVIDIDA (dono, 21/09): com `maquina` + `impressasNaMaquina`, o
       // operador informa o total impresso NAQUELA impressora; o total da peça
@@ -5322,6 +5329,8 @@ export function registerItemRoutes(app: Express): void {
       const { conferencePhotoUrl, qty, notes } = req.body ?? {};
       const current = await storage.getItem(req.params.id);
       if (!current) return res.status(404).json({ error: "Item not found" });
+      // Travada pela Solicitação: não se confere.
+      if (pecaTravada(current as any)) return res.status(409).json({ error: fraseDaTrava(current as any), code: CODIGO_PECA_TRAVADA });
       if (!conferencePhotoUrl && !current.conferencePhotoUrl) {
         return res.status(400).json({ error: "Foto da conferência é obrigatória" });
       }

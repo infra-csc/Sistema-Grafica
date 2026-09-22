@@ -125,6 +125,11 @@ ALTER TABLE items ADD COLUMN IF NOT EXISTS maquina_prevista text;
 ALTER TABLE items ADD COLUMN IF NOT EXISTS reserva_por_maquina jsonb;
 -- Máquinas: peça dividida entre impressoras ({"1":{"atrib":3,"impressas":1},...})
 ALTER TABLE items ADD COLUMN IF NOT EXISTS impressao_por_maquina jsonb;
+-- Trava da Solicitação (21/09): a Gráfica não faz a peça andar até destravar
+ALTER TABLE items ADD COLUMN IF NOT EXISTS travada_em timestamp;
+ALTER TABLE items ADD COLUMN IF NOT EXISTS travada_por text;
+ALTER TABLE items ADD COLUMN IF NOT EXISTS travada_por_id varchar;
+ALTER TABLE items ADD COLUMN IF NOT EXISTS travada_motivo text;
 
 -- Chaves estrangeiras (nomes do drizzle; só cria se ainda não existir)
 DO $$

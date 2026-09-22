@@ -104,7 +104,8 @@ describe("4 · a leitura", () => {
 
   it("o dia é o de São Paulo, convertido no banco — não no fuso do processo", () => {
     expect(ROTA).toContain('const FUSO = "America/Sao_Paulo";');
-    expect(ROTA).toContain("where ((r.created_at at time zone 'UTC') at time zone ${FUSO})::date = ${dia}::date");
+    // Por INTERVALO de created_at (meia-noite de SP → UTC): usa o índice.
+    expect(ROTA).toContain("where ${entreOsDias(dia, dia)}");
   });
 
   it("dia inválido ou no futuro volta para hoje", () => {
@@ -158,11 +159,12 @@ describe("5 · a tela", () => {
   });
 
   it("atualiza sozinha — é painel de parede do galpão (polling + WebSocket + 'atualizado há')", () => {
-    expect(PAGINA).toContain("refetchInterval: 60_000,");
+    // 1 min só com o tempo real caído; com ele de pé, 5 min (rede de segurança).
+    expect(PAGINA).toContain("refetchInterval: intervaloDePolling(60_000),");
     expect(PAGINA).toContain("refetchOnWindowFocus: true,");
     expect(PAGINA).toContain('data-testid="atualizado-ha"');
     // O WebSocket derruba a chave nos gestos de impressão…
-    expect(ler("client/src/hooks/use-websocket.ts")).toContain("for (const chave of chavesDaMensagem(data)) invalidateCoalesced(...chave);");
+    expect(ler("client/src/hooks/use-websocket.ts")).toContain("for (const alvo of alvosDaMensagem(data)) agendarNoCoalescer(alvo);");
     // …e a chave é [rota, "?dia=…"] para o prefixo alcançar qualquer dia aberto.
     expect(PAGINA).toContain('["/api/grafica/maquinas", `?dia=${diaEscolhido}`]');
     expect(ler("client/src/lib/queryClient.ts")).toContain('typeof queryKey[0] === "string" && queryKey[0].startsWith("/api/")');
@@ -284,7 +286,7 @@ describe("6 · o relatório — a rota e o Excel", () => {
     expect(ROTA).toContain('app.get("/api/grafica/maquinas/relatorio.xlsx", requireAuth');
     expect((ROTA.match(/if \(!podeVer\(req, res\)\) return;/g) ?? []).length).toBe(3);
     expect(ROTA).toContain(".filter(filtroDoKit(req));");
-    expect(ROTA).toContain("between ${de}::date and ${ate}::date");
+    expect(ROTA).toContain("where ${entreOsDias(de, ate)}");
     expect(ROTA).toContain("periodoValido(req.query.de, req.query.ate, hoje)");
     // As únicas escritas do arquivo: as duas da reserva e as duas de tirar/trocar a peça da impressora.
     expect((ROTA.match(/app\.(post|patch|put|delete)\(/g) ?? []).length).toBe(4);

@@ -327,8 +327,12 @@ export async function handleExportSelectedItemsXlsx(req: Request, res: Response)
     // (e outra por patrocinador) estouraria o pool de conexões, então tudo é
     // carregado em bloco e cruzado em memória.
     const wanted = new Set(ids);
-    const raw = (await storage.getAllItems()).filter(i => wanted.has(i.id)
-      && (!(req as any).userKit || (!!i.kitRemessaId && i.criadoPorId === (req as any).userId)));
+    // Só as peças pedidas (por id, no banco) — não o acervo inteiro. Mesmo
+    // recorte de antes: vivas, e o Kit só com as dele. (A ordem final é a do
+    // byDisplayId, abaixo.)
+    const doKit = (req as any).userKit ? new Set(await storage.getIdsDasPecasDoKitDoCriador((req as any).userId ?? null)) : null;
+    const raw = (await storage.getItemsByIds(Array.from(wanted)))
+      .filter(i => !i.deletedAt && (!doKit || doKit.has(i.id)));
     if (!raw.length) return res.status(404).json({ error: "Nenhuma peça encontrada" });
 
     const eventNames = new Map<string, string>();

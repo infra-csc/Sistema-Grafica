@@ -480,6 +480,9 @@ export const registrosDeImpressao = pgTable("registros_de_impressao", {
 }, (table) => [
   index("IDX_registros_impressao_maquina_data").on(table.maquina, table.createdAt),
   index("IDX_registros_impressao_item").on(table.itemId),
+  // O diário do dia/período (aba Máquinas, resumo, Excel) filtra só por data:
+  // o índice (maquina, created_at) não serve sem a máquina na frente.
+  index("IDX_registros_impressao_created_at").on(table.createdAt),
 ]);
 
 // TUBOS — a embalagem da entrega (dono, 14/09: "na hora da conferência muitas
@@ -568,6 +571,20 @@ export const reservasDeDisparo = pgTable("reservas_de_disparo", {
   /** Preenchido no fim: enviado / fila vazia / falhou. Diagnostico, nao regra. */
   desfecho: text("desfecho"),
 });
+
+// COTAS GLOBAIS — a regra "cota → grupos de peça" que vale para todo evento
+// sem regra própria. Morava em global-quota-rules.json, gravado no disco da
+// cópia do servidor que atendeu: com várias cópias (autoscale) cada uma tinha
+// a sua versão, e o republish apagava o que fora salvo. O arquivo do repo
+// virou só a SEMENTE (scripts/migracao-aditiva-producao.sql e o storage, se a
+// tabela estiver vazia). A ordem é a de gravação (updated_at), como no arquivo.
+export const globalQuotaRules = pgTable("global_quota_rules", {
+  quota: text("quota").primaryKey(),
+  itemTypes: text("item_types").array().notNull().default(sql`'{}'::text[]`),
+  updatedAt: timestamp("updated_at").notNull().default(sql`now()`),
+});
+
+export type GlobalQuotaRule = typeof globalQuotaRules.$inferSelect;
 
 export const catalogOptions = pgTable("catalog_options", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),

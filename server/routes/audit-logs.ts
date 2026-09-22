@@ -82,9 +82,7 @@ export function registerAuditLogRoutes(app: Express): void {
       // Usuário do Kit (14/09): só o que ele fez e o histórico das peças dele.
       if ((req as any).userKit) {
         const userId = (req as any).userId;
-        const minhas = new Set((await storage.getAllItems())
-          .filter((i) => !!i.kitRemessaId && i.criadoPorId === userId)
-          .map((i) => i.id));
+        const minhas = new Set(await storage.getIdsDasPecasDoKitDoCriador(userId ?? null));
         logs = logs.filter((l: any) => l.userId === userId || (l.entityType === "item" && minhas.has(l.entityId)));
       }
 

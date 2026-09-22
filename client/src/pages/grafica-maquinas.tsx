@@ -68,6 +68,7 @@ import {
   useMexerNaImpressora, useReservarImpressora,
 } from "@/components/grafica/modal-impressao";
 import { invalidarGraficaEMaquinas } from "@/lib/tempo-real-grafica";
+import { intervaloDePolling } from "@/hooks/use-websocket";
 import {
   numerosDaImpressao, ocupacaoDasImpressoras, perguntaDaTroca, linkDaPecaNaGrafica, linkDaImpressoraNaGrafica,
   type OcupanteDaImpressora,
@@ -1374,7 +1375,9 @@ export default function GraficaMaquinas() {
   // impressão) alcança qualquer dia aberto.
   const { data, isLoading, isError, error, isFetching, refetch, dataUpdatedAt } = useQuery<Retrato>({
     queryKey: diaEscolhido ? ["/api/grafica/maquinas", `?dia=${diaEscolhido}`] : ["/api/grafica/maquinas"],
-    refetchInterval: 60_000,
+    // 1 min só com o tempo real caído; de pé, o WebSocket traz a mudança e o
+    // polling vira rede de segurança (5 min). Aba escondida não busca.
+    refetchInterval: intervaloDePolling(60_000),
     refetchOnWindowFocus: true,
     staleTime: 15_000,
   });
@@ -1601,7 +1604,7 @@ export default function GraficaMaquinas() {
     // Só na aba Resumo: a aba Agora (painel de parede) não paga essa consulta.
     enabled: !!intervalo && aba === "resumo",
     staleTime: 15_000,
-    refetchInterval: 60_000,
+    refetchInterval: intervaloDePolling(60_000),
   });
   const { toast } = useToast();
   const [exportando, setExportando] = useState(false);

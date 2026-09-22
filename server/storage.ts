@@ -20,6 +20,7 @@ import {
   inventoryAssets,
   eventInventoryAllocations,
   eventQuotaRules,
+  globalQuotaRules,
   type Event, 
   type InsertEvent,
   type Item,
@@ -52,6 +53,8 @@ import {
   type ItemStatus,
   itemArtVersions, eventBooks, type ItemArtVersion, type InsertItemArtVersion, type EventBook, type InsertEventBook,
 } from "@shared/schema";
+import fs from "fs";
+import path from "path";
 import { db } from "./db";
 import { eq, and, desc, asc, sql, or, lt, gte, ne, inArray, notInArray, like, ilike, isNull } from "drizzle-orm";
 import { reservaEstaAtiva } from "@shared/estoque";
@@ -322,6 +325,44 @@ const ACOES_COM_DESTINO_FIXO = ["dispensed", "delivered", "canceled", "rejected"
  */
 export const TRANSITION_LOGS_MAX = 120_000;
 
+// ─── FILA DA GRÁFICA: ENTREGUES SÓ DA JANELA ────────────────────────────────
+// A fila levava TODO o histórico de entregues (milhares de peças, anos) a
+// cada carga da Gráfica. Entregue que saiu há mais de N dias é arquivo — a
+// busca global e o Histórico continuam achando. O delta (GET
+// /api/items/approved?since=) usa a MESMA régua: a entregue que cruza a
+// janela vira remoção (getIdsQueSairamDaJanelaDeEntregues).
+export const DIAS_DE_ENTREGUES_NA_FILA = 30;
+
+/** A semente das cotas globais: o arquivo do repo (só leitura). */
+export function lerSementeDasCotasGlobais(): { quota: string; itemTypes: string[] }[] {
+  try {
+    const arquivo = path.join(process.cwd(), "global-quota-rules.json");
+    if (!fs.existsSync(arquivo)) return [];
+    const cru = JSON.parse(fs.readFileSync(arquivo, "utf8"));
+    return Array.isArray(cru)
+      ? cru.filter((r: any) => r && typeof r.quota === "string").map((r: any) => ({ quota: r.quota, itemTypes: Array.isArray(r.itemTypes) ? r.itemTypes : [] }))
+      : [];
+  } catch {
+    return [];
+  }
+}
+const JANELA_DE_ENTREGUES_MS = DIAS_DE_ENTREGUES_NA_FILA * 24 * 60 * 60 * 1000;
+
+/** Quando a peça foi entregue (o carimbo mais específico que houver). */
+function entregueEm(p: { deliveredAt?: Date | string | null; statusChangedAt?: Date | string | null; updatedAt?: Date | string | null }): number {
+  const d = p.deliveredAt ?? p.statusChangedAt ?? p.updatedAt;
+  return d ? new Date(d).getTime() : 0;
+}
+
+/** A peça cabe na fila pela régua da janela? (Só a entregue tem prazo.) */
+export function cabeNaJanelaDeEntregues(
+  p: { status: string; deliveredAt?: Date | string | null; statusChangedAt?: Date | string | null; updatedAt?: Date | string | null },
+  agoraMs: number = Date.now(),
+): boolean {
+  if (p.status !== "delivered") return true;
+  return entregueEm(p) >= agoraMs - JANELA_DE_ENTREGUES_MS;
+}
+
 export interface IStorage {
   // Events
   getEvent(id: string): Promise<Event | undefined>;
@@ -374,9 +415,14 @@ export interface IStorage {
   getItemsParaPrazos(eventIds: string[]): Promise<ItemParaPrazo[]>;
   getAllItemSponsorApprovalStatuses(): Promise<AprovacaoResumida[]>;
   getItemsChangedSince(since: Date): Promise<Item[]>;
+  getIdsQueSairamDaJanelaDeEntregues(since: Date): Promise<string[]>;
   getEventsByIds(ids: string[]): Promise<Event[]>;
   getItemSponsorsByItemIds(itemIds: string[]): Promise<ItemSponsor[]>;
   getItemSponsorApprovalsByItemIds(itemIds: string[]): Promise<ItemSponsorApproval[]>;
+  getItemsParaCorrecao(): Promise<Item[]>;
+  getGlobalQuotaRules(): Promise<{ quota: string; itemTypes: string[] }[]>;
+  setGlobalQuotaRule(quota: string, itemTypes: string[]): Promise<void>;
+  getVinculosEAprovacoesDasPecasVivas(): Promise<{ vinculos: ItemSponsor[]; aprovacoes: ItemSponsorApproval[] }>;
   getEmailDestinatarios(canal?: string): Promise<Array<typeof emailDestinatarios.$inferSelect>>;
   addEmailDestinatario(dado: { canal: string; email: string; addedBy?: string | null }): Promise<typeof emailDestinatarios.$inferSelect>;
   removeEmailDestinatario(id: string): Promise<(typeof emailDestinatarios.$inferSelect) | undefined>;
@@ -667,12 +713,16 @@ export class DatabaseStorage implements IStorage {
     // "chegando" (decisão do dono, 24/08): visíveis, sem ação. Quem esconde
     // as ações é a tela (EM_REVISAO de shared/fluxo-peca) e quem barra de
     // verdade é a rota de conferência.
+    // Entregue só da janela (DIAS_DE_ENTREGUES_NA_FILA): o histórico inteiro
+    // de entregues pesava mais que a fila de trabalho. A conta é a mesma de
+    // cabeNaJanelaDeEntregues, no banco (datas gravadas em UTC).
     return await db
       .select()
       .from(items)
       .where(and(
         sql`${items.status} IN ('awaiting_final_review', 'awaiting_review', 'in_review', 'ready_for_production', 'pronto_para_producao', 'approved', 'inProduction', 'produced', 'conferred', 'packed', 'delivered')`,
-        sql`${items.deletedAt} IS NULL`
+        sql`${items.deletedAt} IS NULL`,
+        sql`(${items.status} <> 'delivered' OR coalesce(${items.deliveredAt}, ${items.statusChangedAt}, ${items.updatedAt}) >= timezone(${"UTC"}, now()) - make_interval(days => ${DIAS_DE_ENTREGUES_NA_FILA}))`,
       ))
       .orderBy(desc(items.createdAt));
   }
@@ -1727,6 +1777,31 @@ export class DatabaseStorage implements IStorage {
     return await db.select().from(items).where(gte(items.updatedAt, since));
   }
 
+  /**
+   * Entregues que SAÍRAM da janela da fila entre `since` e agora — sem mudar
+   * nada na linha (é o relógio que as tira). O delta as manda como remoção;
+   * sem isto ficariam no cache da Gráfica até a próxima carga completa.
+   */
+  async getIdsQueSairamDaJanelaDeEntregues(since: Date): Promise<string[]> {
+    const agora = Date.now();
+    const de = new Date(since.getTime() - JANELA_DE_ENTREGUES_MS);
+    const ate = new Date(agora - JANELA_DE_ENTREGUES_MS);
+    if (de >= ate) return [];
+    const linhas = await db
+      .select({ id: items.id, deliveredAt: items.deliveredAt, statusChangedAt: items.statusChangedAt, updatedAt: items.updatedAt, status: items.status })
+      .from(items)
+      .where(and(
+        eq(items.status, "delivered"),
+        isNull(items.deletedAt),
+        // Folga de um dia no banco (fuso do driver); a régua exata é a do JS.
+        sql`coalesce(${items.deliveredAt}, ${items.statusChangedAt}, ${items.updatedAt}) >= timezone(${"UTC"}, now()) - make_interval(days => ${DIAS_DE_ENTREGUES_NA_FILA + 2})`,
+        sql`coalesce(${items.deliveredAt}, ${items.statusChangedAt}, ${items.updatedAt}) < timezone(${"UTC"}, now()) - make_interval(days => ${DIAS_DE_ENTREGUES_NA_FILA}) + interval '1 day'`,
+      ));
+    return linhas
+      .filter((l) => { const t = entregueEm(l); return t >= de.getTime() && t < ate.getTime(); })
+      .map((l) => l.id);
+  }
+
   // AUDITORIA 27/08: o enriquecimento de peças (routes/items.ts) carregava as
   // QUATRO tabelas inteiras mesmo para servir as 20 peças de um evento. Estes
   // três recortes por id fecham o vão; a lista de patrocinadores (pequena)
@@ -1743,7 +1818,40 @@ export class DatabaseStorage implements IStorage {
 
   async getItemSponsorApprovalsByItemIds(itemIds: string[]): Promise<ItemSponsorApproval[]> {
     if (itemIds.length === 0) return [];
-    return await db.select().from(itemSponsorApprovals).where(inArray(itemSponsorApprovals.itemId, itemIds));
+    // A MESMA ordem de getAllItemSponsorApprovals: quem monta Map com `set`
+    // fica com a última linha vista, e trocar a ordem trocaria o status num
+    // par duplicado.
+    return await db.select().from(itemSponsorApprovals)
+      .where(inArray(itemSponsorApprovals.itemId, itemIds))
+      .orderBy(desc(itemSponsorApprovals.createdAt));
+  }
+
+  // GET /api/items/resubmission-needed: só as candidatas da Correção (em
+  // aprovação, ou devolvidas pelo patrocinador), no banco — a rota lia o
+  // acervo inteiro para filtrar em memória. Mesma ordem de getAllItems.
+  async getItemsParaCorrecao(): Promise<Item[]> {
+    return await db.select().from(items)
+      .where(and(
+        isNull(items.deletedAt),
+        or(
+          eq(items.status, "awaiting_sponsor_approval"),
+          and(eq(items.status, "awaiting_submission"), eq(items.rejectedBySponsor, true)),
+        ),
+      ))
+      .orderBy(desc(items.createdAt));
+  }
+
+  // GET /api/items/batch-approval-data: vínculos e aprovações só das peças
+  // VIVAS (a tela cruza por id com a lista de peças, que não traz excluídas).
+  // Mesma ordem das leituras "getAll" que substituem.
+  async getVinculosEAprovacoesDasPecasVivas(): Promise<{ vinculos: ItemSponsor[]; aprovacoes: ItemSponsorApproval[] }> {
+    const vivas = sql`exists (select 1 from items i where i.id = ${itemSponsors.itemId} and i.deleted_at is null)`;
+    const vivasAprov = sql`exists (select 1 from items i where i.id = ${itemSponsorApprovals.itemId} and i.deleted_at is null)`;
+    const [vinculos, aprovacoes] = await Promise.all([
+      db.select().from(itemSponsors).where(vivas).orderBy(desc(itemSponsors.createdAt)),
+      db.select().from(itemSponsorApprovals).where(vivasAprov).orderBy(desc(itemSponsorApprovals.createdAt)),
+    ]);
+    return { vinculos, aprovacoes };
   }
 
   // AUDITORIA 27/08: as rotas de LOTE gravavam a trilha com um INSERT por peça,
@@ -2428,20 +2536,45 @@ export class DatabaseStorage implements IStorage {
     );
   }
 
+  // ── Cotas globais ──────────────────────────────────────────────────────────
+  // No banco (global_quota_rules), na ordem de gravação. Tabela vazia ou
+  // ainda não criada (migração pendente) → a semente do repo, o arquivo
+  // global-quota-rules.json — que nunca mais é escrito.
+  async getGlobalQuotaRules(): Promise<{ quota: string; itemTypes: string[] }[]> {
+    try {
+      const linhas = await db.select().from(globalQuotaRules).orderBy(asc(globalQuotaRules.updatedAt), asc(globalQuotaRules.quota));
+      if (linhas.length > 0) return linhas.map((l) => ({ quota: l.quota, itemTypes: l.itemTypes ?? [] }));
+    } catch (erro) {
+      console.warn("[cotas-globais] tabela global_quota_rules indisponível (rode a migração aditiva) — usando a semente do repo:", (erro as Error).message);
+    }
+    return lerSementeDasCotasGlobais();
+  }
+
+  /** Grava (ou troca) uma cota global. A regra regravada vai para o fim, como no arquivo. */
+  async setGlobalQuotaRule(quota: string, itemTypes: string[]): Promise<void> {
+    await db.transaction(async (tx) => {
+      // Primeira gravação com a tabela vazia: entra a semente antes, senão as
+      // outras cotas (que até aqui vinham do arquivo) sumiriam.
+      const [{ total }] = await tx.select({ total: sql<number>`count(*)::int` }).from(globalQuotaRules);
+      if (Number(total) === 0) {
+        const semente = lerSementeDasCotasGlobais();
+        const base = Date.now() - semente.length - 1000;
+        for (let n = 0; n < semente.length; n++) {
+          const r = semente[n];
+          await tx.insert(globalQuotaRules).values({ quota: r.quota, itemTypes: r.itemTypes ?? [], updatedAt: new Date(base + n) }).onConflictDoNothing();
+        }
+      }
+      await tx.insert(globalQuotaRules)
+        .values({ quota, itemTypes, updatedAt: new Date() })
+        .onConflictDoUpdate({ target: globalQuotaRules.quota, set: { itemTypes, updatedAt: new Date() } });
+    });
+  }
+
   async previewAutoLink(eventId: string): Promise<Array<{ sponsorId: string; sponsorName: string; quota: string; items: Array<{ itemId: string; displayId: string; type: string; description: string | null }> }>> {
-    // Get quota rules for this event; fall back to global rules (JSON file) if none exist
+    // Regras do evento; sem nenhuma, as GLOBAIS (tabela global_quota_rules).
     let rules = await db.select().from(eventQuotaRules).where(eq(eventQuotaRules.eventId, eventId));
     if (rules.length === 0) {
-      // Read global rules from JSON file as fallback
-      try {
-        const fs = await import("fs");
-        const path = await import("path");
-        const GLOBAL_QUOTA_FILE = path.join(process.cwd(), "global-quota-rules.json");
-        if (fs.existsSync(GLOBAL_QUOTA_FILE)) {
-          const raw = JSON.parse(fs.readFileSync(GLOBAL_QUOTA_FILE, "utf8")) as { quota: string; itemTypes: string[] }[];
-          rules = raw.map(r => ({ eventId, quota: r.quota, itemTypes: r.itemTypes })) as any;
-        }
-      } catch (_) { /* ignore */ }
+      rules = (await this.getGlobalQuotaRules()).map(r => ({ eventId, quota: r.quota, itemTypes: r.itemTypes })) as any;
     }
     if (rules.length === 0) return [];
 

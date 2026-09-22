@@ -1,6 +1,4 @@
 // Sponsor, quota-rule, event-sponsor, and item-sponsor routes. Extracted from server/routes.ts.
-import fs from "fs";
-import path from "path";
 import type { Express } from "express";
 import { storage } from "../storage";
 import { pool } from "../db";
@@ -336,24 +334,15 @@ export function registerSponsorRoutes(app: Express): void {
     }
   });
 
-  // ── Global quota rules (JSON-file backed, no schema change needed) ──
-  const GLOBAL_QUOTA_FILE = path.join(process.cwd(), "global-quota-rules.json");
-
-  function readGlobalQuotaRules(): { quota: string; itemTypes: string[] }[] {
+  // ── Cotas globais (tabela global_quota_rules; o JSON do repo é só semente) ──
+  // Gravar no arquivo valia só para a cópia do servidor que atendeu, e o
+  // republish apagava. Ver storage.getGlobalQuotaRules.
+  app.get("/api/quota-rules/global", requireAuth, async (_req, res) => {
     try {
-      if (fs.existsSync(GLOBAL_QUOTA_FILE)) {
-        return JSON.parse(fs.readFileSync(GLOBAL_QUOTA_FILE, "utf8"));
-      }
-    } catch { /* ignore */ }
-    return [];
-  }
-
-  function writeGlobalQuotaRules(rules: { quota: string; itemTypes: string[] }[]): void {
-    fs.writeFileSync(GLOBAL_QUOTA_FILE, JSON.stringify(rules, null, 2), "utf8");
-  }
-
-  app.get("/api/quota-rules/global", requireAuth, (_req, res) => {
-    res.json(readGlobalQuotaRules());
+      res.json(await storage.getGlobalQuotaRules());
+    } catch (error: any) {
+      res.status(500).json({ error: "Não foi possível ler as cotas globais" });
+    }
   });
 
   app.put("/api/quota-rules/global", requireAuth, async (req, res) => {
@@ -363,12 +352,13 @@ export function registerSponsorRoutes(app: Express): void {
     try {
       const { quota, itemTypes } = req.body as { quota: string; itemTypes: string[] };
       if (!quota) return res.status(400).json({ error: "quota é obrigatório" });
-      const rules = readGlobalQuotaRules().filter(r => r.quota !== quota);
-      rules.push({ quota, itemTypes: itemTypes ?? [] });
-      writeGlobalQuotaRules(rules);
-      // Regra GLOBAL: vale para todos os eventos futuros e mora num arquivo
-      // fora do banco. Sem esta linha, a única escrita do sistema que muda o
-      // comportamento de todos os eventos de uma vez não tinha dono.
+      if (itemTypes !== undefined && (!Array.isArray(itemTypes) || itemTypes.some((t) => typeof t !== "string"))) {
+        return res.status(400).json({ error: "itemTypes deve ser uma lista de textos" });
+      }
+      await storage.setGlobalQuotaRule(quota, itemTypes ?? []);
+      // Regra GLOBAL: vale para todos os eventos futuros. Sem esta linha, a
+      // única escrita do sistema que muda o comportamento de todos os
+      // eventos de uma vez não tinha dono.
       await createAuditLog(
         req,
         'updated',

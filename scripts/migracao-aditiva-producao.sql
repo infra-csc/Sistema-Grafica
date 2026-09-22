@@ -289,3 +289,45 @@ END $$;
 -- Opcional (NULL = sem prazo do molde). Um dia, gravado ao meio-dia UTC.
 -- Vale só no fluxo do molde; NÃO entra na Gestão de Prazos.
 ALTER TABLE events ADD COLUMN IF NOT EXISTS prazo_molde timestamp;
+
+-- ── Cotas globais no banco ──────────────────────────────────────────────
+-- Moravam em global-quota-rules.json, gravado no disco de UMA cópia do
+-- servidor (e perdido no republish). A tabela nasce com o conteúdo do JSON do
+-- repositório; cota que já existe na tabela não é tocada.
+CREATE TABLE IF NOT EXISTS global_quota_rules (
+  quota text PRIMARY KEY,
+  item_types text[] NOT NULL DEFAULT '{}'::text[],
+  updated_at timestamp NOT NULL DEFAULT now()
+);
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM global_quota_rules) THEN
+    INSERT INTO global_quota_rules (quota, item_types, updated_at)
+    SELECT s.quota, s.item_types, now() - interval '1 hour' + (s.ordem * interval '1 second')
+      FROM (VALUES
+        ('MASTER', '{}'::text[], 1),
+        ('GOLD', '{}'::text[], 2),
+        ('SILVER', '{}'::text[], 3),
+        ('APOIO', '{}'::text[], 4),
+        ('MIDIA', '{}'::text[], 5),
+        ('MINISTERIO', '{}'::text[], 6)
+      ) AS s(quota, item_types, ordem)
+    ON CONFLICT (quota) DO NOTHING;
+  END IF;
+END $$;
+
+-- ── Diário das impressoras: filtro por data ─────────────────────────────
+-- A aba Máquinas e o resumo filtram registros_de_impressao por intervalo de
+-- created_at (o dia de São Paulo); o índice (maquina, created_at) não serve
+-- sem a máquina na frente.
+CREATE INDEX IF NOT EXISTS "IDX_registros_impressao_created_at" ON registros_de_impressao (created_at);
+
+-- ── Busca do Histórico (trigram) ────────────────────────────────────────
+-- Os mesmos de scripts/criar-indices-de-busca.ts. Ficam FORA do
+-- shared/schema.ts de propósito: declarados lá, um `db:push` num banco sem a
+-- extensão pg_trgm quebraria. Contrapartida: um `db:push` os DERRUBA — rode
+-- esta migração de novo depois de qualquer push (é idempotente).
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
+CREATE INDEX IF NOT EXISTS "IDX_audit_logs_details_trgm" ON audit_logs USING gin (details gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS "IDX_audit_logs_user_name_trgm" ON audit_logs USING gin (user_name gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS "IDX_audit_logs_entity_id_trgm" ON audit_logs USING gin (entity_id gin_trgm_ops);

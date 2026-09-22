@@ -78,7 +78,13 @@ function bancoFalso(alvo: Record<string, any>) {
     }),
   });
   alvo.insert = () => ({ values: (v: any) => { inseridos.push(v); const r: any = Promise.resolve([{ id: `novo-${inseridos.length}`, ...v }]); r.returning = () => Promise.resolve([{ id: `novo-${inseridos.length}`, ...v }]); return r; } });
-  alvo.select = () => ({ from: () => ({ where: async () => [] }) });
+  // SELECT encadeável (from/join/where/for): nenhuma reserva, nenhum lote
+  // anterior. A trava FOR UPDATE da reserva (22/09) passa por aqui também.
+  alvo.select = () => {
+    const c: any = { from: () => c, innerJoin: () => c, leftJoin: () => c, where: () => c, for: () => c, orderBy: () => c,
+      then: (ok: any, erro: any) => Promise.resolve([]).then(ok, erro) };
+    return c;
+  };
   // A recusa acontece no PRIMEIRO comando da transação (o UPDATE que trava a
   // linha), antes de qualquer escrita — por isso o "rollback" daqui não precisa
   // desfazer nada; os testes conferem que nada foi escrito.

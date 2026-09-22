@@ -48,6 +48,20 @@ export const recusaDeTriagem = (situacaoAtual: string | null | undefined): strin
 export const ehRecusaDeJaTriada = (mensagem: unknown): boolean =>
   typeof mensagem === "string" && mensagem.startsWith(PECA_JA_TRIADA);
 
+/** RESERVA NÃO SOBREVIVE À TRIAGEM (revisão 22/09). A peça que espera triagem
+ *  pode estar reservada para a peça de outro evento (podeReservar aceita
+ *  "falta_triagem"). Descartar ou mandar para a manutenção deixava a reserva
+ *  valendo — e a peça do evento seguia "coberta" por estoque que não existe.
+ *  O servidor recusa (409) com esta frase; o quadro avisa antes de salvar. */
+export function recusaPorReserva(
+  displayId: string,
+  reserva: { itemDisplayId: string | null; eventName: string },
+  divisao = false,
+): string {
+  const para = reserva.itemDisplayId ? `${reserva.itemDisplayId} (${reserva.eventName})` : `o evento ${reserva.eventName}`;
+  return `${displayId} está reservado para ${para} — libere a reserva ou mande ${divisao ? "o registro inteiro " : ""}para o Galpão`;
+}
+
 // ─── Semelhança ──────────────────────────────────────────────────────────────
 
 /** "PLACAS KM", "Placa km" e "placa  km" são o mesmo tipo; "STANDS" e "STAND"
@@ -170,7 +184,9 @@ export function usosDoAtivo(
   alocacoes: readonly AlocacaoDoAcervo[],
   agora: Date,
 ): UsoDoAtivo[] {
-  const usos: UsoDoAtivo[] = alocacoes.map((a) => ({
+  // Alocação manual para o PRÓPRIO evento de origem (despacho à mão) não é um
+  // segundo uso: a linha "Impressa para" já diz o evento.
+  const usos: UsoDoAtivo[] = alocacoes.filter((a) => !origem || a.eventId !== origem.id).map((a) => ({
     chave: `aloc:${a.id}`, eventId: a.eventId, eventName: a.eventName, inicio: a.inicio, itemDisplayId: a.itemDisplayId,
     situacao: eventoJaAcabou(a.inicio, agora) ? "usada" : "separada",
   }));
@@ -179,19 +195,25 @@ export function usosDoAtivo(
   return usos.sort((x, y) => t(y) - t(x));
 }
 
-/** Os eventos de um GRUPO de peças, sem repetir, com quantas unidades em cada. */
-export function eventosDeUso(usosPorAtivo: readonly UsoDoAtivo[][]): { eventId: string; eventName: string; inicio: Date | string | null; unidades: number; situacao: SituacaoDoUso }[] {
+/** Os eventos de um GRUPO de peças, sem repetir, com quantas UNIDADES em
+ *  cada. `unidadesPorAtivo[i]` é a quantidade do registro i — registro ×N conta
+ *  N, porque a tela diz "unidades"; sem ela, cada registro vale 1. */
+export function eventosDeUso(
+  usosPorAtivo: readonly UsoDoAtivo[][],
+  unidadesPorAtivo?: readonly (number | null | undefined)[],
+): { eventId: string; eventName: string; inicio: Date | string | null; unidades: number; situacao: SituacaoDoUso }[] {
   const porEvento = new Map<string, { eventId: string; eventName: string; inicio: Date | string | null; unidades: number; situacao: SituacaoDoUso }>();
-  for (const usos of usosPorAtivo) {
+  usosPorAtivo.forEach((usos, i) => {
+    const un = Math.max(1, unidadesPorAtivo?.[i] ?? 1);
     const vistos = new Set<string>();
     for (const u of usos) {
       if (vistos.has(u.eventId)) continue;
       vistos.add(u.eventId);
       const e = porEvento.get(u.eventId);
-      if (e) { e.unidades += 1; if (u.situacao === "separada") e.situacao = "separada"; }
-      else porEvento.set(u.eventId, { eventId: u.eventId, eventName: u.eventName, inicio: u.inicio, unidades: 1, situacao: u.situacao });
+      if (e) { e.unidades += un; if (u.situacao === "separada") e.situacao = "separada"; }
+      else porEvento.set(u.eventId, { eventId: u.eventId, eventName: u.eventName, inicio: u.inicio, unidades: un, situacao: u.situacao });
     }
-  }
+  });
   const t = (i: Date | string | null) => (i ? new Date(i).getTime() : 0);
   return Array.from(porEvento.values()).sort((x, y) => t(y.inicio) - t(x.inicio));
 }

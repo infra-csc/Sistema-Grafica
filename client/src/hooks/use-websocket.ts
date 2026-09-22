@@ -361,9 +361,12 @@ export function useWebSocket() {
             queryClient.invalidateQueries({ queryKey: ['/api/inventory'] });
             break;
 
+          // UMA mensagem por peça triada: salvar 24 no quadro eram 24 recargas
+          // completas da fila e do acervo em CADA aba aberta. Pelo coalescer,
+          // a rajada inteira vira uma recarga de cada chave (revisão 22/09).
           case 'inventory_triaged':
-            queryClient.invalidateQueries({ queryKey: ['/api/inventory/awaiting-triage'] });
-            queryClient.invalidateQueries({ queryKey: ['/api/inventory'] });
+            invalidateCoalesced('/api/inventory/awaiting-triage');
+            invalidateCoalesced('/api/inventory');
             break;
 
           case 'standard_item_created':

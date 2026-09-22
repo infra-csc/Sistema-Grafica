@@ -8,6 +8,7 @@
 // rodam em transação, são conferidos na fonte.
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { txDeMentira } from "./tx-de-mentira";
 import { readFileSync } from "fs";
 import { resolve } from "path";
 
@@ -91,6 +92,8 @@ beforeEach(() => {
     trav: { id: "trav", displayId: "#0103", status: "inProduction", quantity: 10, quantityProduced: 3, reuseQty: 0, printMachine: "2", eventId: null, kitRemessaId: null, conferencePhotoUrl: "/objects/x.png", ...TRAVA },
   };
   H.storage.getItem = async (id: string) => pecas[id] ? { ...pecas[id] } : undefined;
+  // Conferir (22/09) lê a peça TRAVADA dentro de uma transação.
+  H.db.transaction = async (cb: any) => cb(txDeMentira({ itens: pecas }));
   H.storage.getEvent = async () => undefined;
   H.storage.updateItem = async (id: string, dados: any) => { pecas[id] = { ...pecas[id], ...dados, updatedAt: new Date() }; return { ...pecas[id] }; };
 });

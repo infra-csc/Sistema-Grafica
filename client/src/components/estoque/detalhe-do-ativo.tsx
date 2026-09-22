@@ -99,7 +99,7 @@ export function DetalheDoAtivo({ grupo, unidade, linkedItem, sponsors, reservaPo
   }, [alvos, sponsors, linkedItem]);
 
   const usos = useMemo(() => (umaSo ? usosPorAtivo.get(umaSo.id) ?? [] : []), [umaSo, usosPorAtivo]);
-  const eventos = useMemo(() => eventosDeUso(alvos.map((a) => usosPorAtivo.get(a.id) ?? [])), [alvos, usosPorAtivo]);
+  const eventos = useMemo(() => eventosDeUso(alvos.map((a) => usosPorAtivo.get(a.id) ?? []), alvos.map((a) => a.quantity)), [alvos, usosPorAtivo]);
 
   // A trilha só existe por unidade (é por registro). Chave em string única: o
   // queryFn padrão junta a queryKey com "/".

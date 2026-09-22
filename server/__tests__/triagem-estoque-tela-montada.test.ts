@@ -75,11 +75,15 @@ function prepararJsdom(largura: number) {
   (Element.prototype as any).releasePointerCapture = () => {};
 }
 
+/** Respostas de leitura por trecho de URL (usos, peça de origem…). */
+const respostasExtras: Record<string, unknown> = {};
+
 /** fetch falso: guarda as escritas e mede quantas ficam abertas ao mesmo tempo. */
-function fetchFalso(opts: { falhar?: (url: string) => string | null; demora?: number; fila?: any[] } = {}) {
+function fetchFalso(opts: { falhar?: (url: string) => string | null; demora?: number; fila?: any[]; segurarFila?: () => Promise<void> } = {}) {
   const estado = { abertas: 0, pico: 0 };
   const mock = vi.fn(async (url: any, init?: any) => {
     const u = String(url);
+    if ((!init?.method || init.method === "GET") && u.includes("awaiting-triage")) await opts.segurarFila?.();
     if (init?.method && init.method !== "GET") {
       estado.abertas++; estado.pico = Math.max(estado.pico, estado.abertas);
       await new Promise((r) => setTimeout(r, opts.demora ?? 2));
@@ -88,7 +92,9 @@ function fetchFalso(opts: { falhar?: (url: string) => string | null; demora?: nu
       if (erro) return new Response(JSON.stringify({ error: erro }), { status: 400, headers: { "content-type": "application/json" } });
     }
     // A fila volta igual no refetch: o servidor de mentira não tria de verdade.
-    return new Response(JSON.stringify(u.includes("awaiting-triage") ? opts.fila ?? [] : []), { status: 200, headers: { "content-type": "application/json" } });
+    const extra = Object.entries(respostasExtras).find(([trecho]) => u.includes(trecho));
+    const corpo = extra ? extra[1] : u.includes("awaiting-triage") ? opts.fila ?? [] : [];
+    return new Response(JSON.stringify(corpo), { status: 200, headers: { "content-type": "application/json" } });
   });
   vi.stubGlobal("fetch", mock);
   const escritas = () => mock.mock.calls.filter((c: any) => c[1]?.method && c[1].method !== "GET")
@@ -116,11 +122,14 @@ async function montarEstoque(largura: number, acervo: any[], opts: { url?: strin
   const { queryClient } = await import("@/lib/queryClient");
   const Pagina = (await import("@/pages/estoque")).default;
   queryClient.clear();
-  queryClient.setQueryData(["/api/inventory"], acervo);
+  // Como o servidor manda desde 22/09: o evento da peça de origem vem no ativo;
+  // os usos e a peça de origem são pedidos sob demanda (fetch falso).
+  const eventoDaPeca = new Map((opts.itens ?? []).map((i: any) => [i.id, i.eventId]));
+  queryClient.setQueryData(["/api/inventory"], acervo.map((a) => ({ ...a, origemEventId: a.originalItemId ? eventoDaPeca.get(a.originalItemId) ?? null : null })));
   queryClient.setQueryData(["/api/sponsors"], []);
-  queryClient.setQueryData(["/api/items"], opts.itens ?? []);
   queryClient.setQueryData(["/api/events"], opts.eventos ?? []);
-  queryClient.setQueryData(["/api/estoque/usos"], opts.usos ?? []);
+  respostasExtras["/api/estoque/usos"] = opts.usos ?? [];
+  if (opts.itens?.[0]) respostasExtras["/origem"] = opts.itens[0];
   for (const [id, logs] of Object.entries(opts.trilha ?? {})) queryClient.setQueryData([`/api/audit-logs?entityType=inventory_asset&entityId=${id}`], logs);
   queryClient.setQueryData(["/api/estoque/reservas-ativas"], opts.reservas ?? []);
   await act(async () => { render(h(QueryClientProvider, { client: queryClient } as any, h(Pagina as any, null))); });
@@ -128,7 +137,7 @@ async function montarEstoque(largura: number, acervo: any[], opts: { url?: strin
   return queryClient;
 }
 
-afterEach(() => { cleanup(); vi.unstubAllGlobals(); avisos.length = 0; });
+afterEach(() => { cleanup(); vi.unstubAllGlobals(); avisos.length = 0; for (const k of Object.keys(respostasExtras)) delete respostasExtras[k]; });
 
 // ─── Triagem: entrada por evento ─────────────────────────────────────────────
 describe("triagem · lista de eventos com 4 mil+ peças", () => {
@@ -388,6 +397,94 @@ describe("triagem · quadro agrupado por quantidade", () => {
     await act(async () => { fireEvent.click(tid("tudo-para-galpao")!); });
     expect(campo.value).toBe("24");
   });
+
+  // ── Revisão adversarial de 22/09 ──────────────────────────────────────────
+  it("reservadas vão primeiro ao Galpão; se não couberem, Dividir e Salvar avisam e nada é gravado", async () => {
+    // As três ÚLTIMAS no código estão reservadas para outro evento.
+    const reservas = ["a1021", "a1022", "a1023"].map((id, i) => ({ reservaId: `r${i}`, assetId: id, itemDisplayId: "#0123", eventName: "Meia do Rio", saida: "2026-10-01T08:00:00Z" }));
+    const { escritas } = fetchFalso({ fila: fila() });
+    await abrir(1280, { reservas });
+    await act(async () => { fireEvent.click(tid("dividir-triar-a1000")!); });
+    await digitar("galpao", "1"); await digitar("descartar", "23");
+    expect(tid("aviso-reservadas-dividir")!.textContent).toContain("3 unidades estão reservadas");
+    await act(async () => { fireEvent.click(tid("dividir-aplicar")!); });
+    await act(async () => { fireEvent.click(tid("button-salvar-triagem")!); });
+    await tick(20);
+    expect(escritas().length).toBe(0);
+    expect(tid("titulo-confirmar-descarte")).toBeNull();
+    expect(textoDosAvisos()).toContain("2 peças reservadas iriam para fora do Galpão");
+    expect(textoDosAvisos()).toContain("está reservado para #0123 (Meia do Rio) — libere a reserva ou mande para o Galpão");
+
+    // Refaz: 3 no Galpão e 21 na Manutenção → as três reservadas vão ao Galpão.
+    await act(async () => { fireEvent.click(tid("dividir-galpao-a1000")!); });
+    await digitar("descartar", "0"); await digitar("galpao", "3"); await digitar("manutencao", "21");
+    expect(tid("aviso-reservadas-dividir")).toBeNull();
+    await act(async () => { fireEvent.click(tid("dividir-aplicar")!); });
+    await act(async () => { fireEvent.click(tid("button-salvar-triagem")!); });
+    await tick(150);
+    const e = escritas();
+    expect(e.length).toBe(24);
+    const destino = (id: string) => e.find((x) => x.url.includes(`/${id}/`))!.body.trackingStatus;
+    expect(["a1021", "a1022", "a1023"].map(destino)).toEqual(["NO_GALPAO", "NO_GALPAO", "NO_GALPAO"]);
+    expect(e.filter((x) => x.body.trackingStatus === "EM_MANUTENCAO").length).toBe(21);
+  });
+
+  it("outra pessoa triou parte do grupo: a divisão é zerada e avisada — nada vira Galpão em silêncio", async () => {
+    const { escritas } = fetchFalso({ fila: fila() });
+    const qc = await abrir(1280);
+    await act(async () => { fireEvent.click(tid("dividir-triar-a1000")!); });
+    await digitar("galpao", "20"); await digitar("descartar", "4");
+    await act(async () => { fireEvent.click(tid("dividir-aplicar")!); });
+    expect(tid("quantidade-descartar-a1000")!.textContent).toBe("4un.de 24");
+    // Outra aba triou 2 dos 24: a fila volta com 22.
+    await act(async () => { qc.setQueryData(["/api/inventory/awaiting-triage"], fila().filter((a) => a.id !== "a1000" && a.id !== "a1001")); });
+    await tick(10);
+    expect(textoDosAvisos()).toContain("Outra pessoa triou parte deste grupo — refaça a divisão");
+    expect(tid("cartao-triagem-galpao-a1002")).toBeNull();
+    expect(tid("cartao-triagem-descartar-a1002")).toBeNull();
+    expect(tid("quantidade-triar-a1002")!.textContent).toBe("22un.");
+    expect((tid("button-salvar-triagem") as HTMLButtonElement).disabled).toBe(true);
+    expect(escritas().length).toBe(0);
+  });
+
+  it("nova tentativa: ×10 que falhou volta com as 10; Salvar espera a lista; o 2º Salvar manda só o que falhou", async () => {
+    let falhar = true;
+    let soltarFila: () => void = () => {};
+    let segurar = false;
+    const { escritas } = fetchFalso({
+      fila: fila(),
+      falhar: (u) => (falhar && (u.includes("/a2000/") || u.includes("/a1005/")) ? "Instabilidade no servidor" : null),
+      segurarFila: () => (segurar ? new Promise<void>((ok) => { soltarFila = ok; }) : Promise.resolve()),
+    });
+    await abrir(1280);
+    for (const id of ["a1000", "a2000", "a2001"]) await act(async () => { fireEvent.click(tid(`cartao-triagem-triar-${id}`)!); });
+    await act(async () => { fireEvent.click(tid("mover-para-galpao")!); });
+    segurar = true;
+    await act(async () => { fireEvent.click(tid("button-salvar-triagem")!); });
+    await tick(150);
+    expect(escritas().length).toBe(26);
+    expect(textoDosAvisos()).toContain("24 salvas · 2 com erro");
+    // O registro ×10 volta ao Galpão com as 10 unidades (antes voltava como 1).
+    expect(tid("quantidade-galpao-a2000")!.textContent).toBe("10un.");
+    // Os 23 já gravados saem do quadro na hora; só o que falhou fica.
+    expect(tid("quantidade-galpao-a1005")!.textContent).toBe("1un.");
+    // Enquanto a lista não volta, Salvar fica travado.
+    const botao = tid("button-salvar-triagem") as HTMLButtonElement;
+    expect(botao.disabled).toBe(true);
+    expect(botao.textContent).toContain("Atualizando a lista");
+    await act(async () => { soltarFila(); });
+    await tick(20);
+    expect(botao.disabled).toBe(false);
+    expect(textoDosAvisos()).not.toContain("Outra pessoa triou");
+
+    falhar = false; segurar = false;
+    await act(async () => { fireEvent.click(botao); });
+    await tick(80);
+    const segunda = escritas().slice(26);
+    expect(segunda.map((x) => x.url).sort()).toEqual(["/api/inventory/a1005/triage", "/api/inventory/a2000/triage"]);
+    expect(segunda.every((x) => x.body.trackingStatus === "NO_GALPAO")).toBe(true);
+    expect(textoDosAvisos()).toContain("2 salvas");
+  });
 });
 
 // ─── Triagem: a tabela ───────────────────────────────────────────────────────
@@ -558,6 +655,7 @@ describe("estoque · agrupado por quantidade, onde já foi usado e o detalhe", (
     fetchFalso();
     await montarEstoque(1280, acervo(), opts());
     await act(async () => { fireEvent.click(tid("button-view-group-s3000")!); });
+    await tick(20); // a peça de origem é pedida quando o detalhe abre
     const modal = tid("detalhe-do-ativo")!;
     expect(modal.textContent).toContain("34 unidades em 34 registros");
     expect(tid("detalhe-arte")!.getAttribute("alt")).toBe("Arte de 2×1 — 2×1 Nubank");
@@ -619,6 +717,40 @@ describe("estoque · agrupado por quantidade, onde já foi usado e o detalhe", (
     expect(px(tid("detalhe-fechar")!.style.minHeight)).toBeGreaterThanOrEqual(44);
     expect(px(tid("detalhe-condicao-SUCATA")!.style.minHeight)).toBeGreaterThanOrEqual(44);
     expect(tid("detalhe-fechar")!.parentElement!.style.paddingBottom).toContain("safe-area-inset-bottom");
+  });
+
+  // ── Revisão adversarial de 22/09 ──────────────────────────────────────────
+  it("editar peça EM USO não manda a situação do ciclo (era 400); a tela não baixa /api/items", async () => {
+    const { escritas, mock } = fetchFalso();
+    await montarEstoque(1280, acervo(), opts());
+    await act(async () => { fireEvent.click(tid("expandir-s3000")!); });
+    await act(async () => { fireEvent.click(tid("button-edit-asset-s3033")!); });
+    await act(async () => { fireEvent.change(tid("input-asset-name")!, { target: { value: "2×1 Nubank (lona nova)" } }); });
+    await act(async () => { fireEvent.click(tid("button-save-asset")!); });
+    await tick(20);
+    expect(escritas().map((x) => [x.method, x.url])).toEqual([["PATCH", "/api/inventory/s3033"]]);
+    expect(escritas()[0].body.name).toBe("2×1 Nubank (lona nova)");
+    expect("trackingStatus" in escritas()[0].body).toBe(false);
+    // O evento de origem vem no próprio ativo; a peça de origem, sob demanda.
+    expect(mock.mock.calls.some((c: any) => String(c[0]).startsWith("/api/items"))).toBe(false);
+  });
+
+  it("a linha aberta continua aberta quando os eventos chegam depois (a chave do grupo não muda)", async () => {
+    fetchFalso();
+    const qc = await montarEstoque(1280, acervo(), { ...opts(), eventos: [] });
+    await act(async () => { fireEvent.click(tid("expandir-s3000")!); });
+    expect(tid("expandir-s3000")!.getAttribute("aria-expanded")).toBe("true");
+    await act(async () => { qc.setQueryData(["/api/events"], opts().eventos); });
+    await tick(10);
+    expect(tid("expandir-s3000")!.getAttribute("aria-expanded")).toBe("true");
+    expect($$('[data-testid^="row-asset-s30"]').length).toBe(34);
+  });
+
+  it("os cartões do topo contam UNIDADES como as linhas, e dizem quando registros ≠ unidades", async () => {
+    fetchFalso();
+    await montarEstoque(1280, [ativoDoAcervo(1, { quantity: 10, name: "Grade" }), ativoDoAcervo(2)]);
+    expect(document.body.textContent).toContain("2 registros · 11 unidades");
+    expect(tid("contador-da-lista")!.textContent).toBe("2 materiais · 11 unidades");
   });
 
   it("o formulário de novo ativo não pede localização", async () => {

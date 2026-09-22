@@ -188,7 +188,9 @@ describe("fechar o tubo (foto do tubo e dos itens) — não é entrega", () => {
   });
 
   it("ACUMULA as fotos (21/09) em vez de substituir, sem duplicar; grava quando e quem — e NÃO mexe na entrega", () => {
-    expect(fechar).toContain("return acumularFotos(travado, fotos, quem.userName, agora, tx);");
+    expect(fechar).toContain("const total = await acumularFotos(travado, fotos, quem.userName, agora, tx);");
+    // 22/09: carimba as peças do tubo, para o delta `?since=` trazer a hora da foto
+    expect(fechar).toContain("await tx.update(itemsTable).set({ updatedAt: agora } as any).where(inArray(itemsTable.id, Array.from(new Set(ids))));");
     expect(fechar).not.toContain("fotosFechamento: fotos,");
     expect(ROTAS).toContain("const todas = Array.from(new Set([...(tubo.fotosFechamento ?? []), ...novas]));");
     expect(ROTAS).toContain("await ex.update(tubos).set({ fotosFechamento: todas, fechadoEm: agora, fechadoPor: quem, conteudoAlteradoEm: null } as any)");
@@ -319,7 +321,7 @@ describe("a trava 'Solicitação sem Kit só visualiza' alcança os tubos", () =
   it("a tela esconde a caixa e o 'Entregar tubo' de quem só visualiza", () => {
     expect(PAINEL).toContain('user?.role === "solicitacao" && !user?.kit && !!p.doKit');
     expect(PAINEL).toContain("const soVe = t.pecas.some(soVisualizaKit);");
-    expect(PAINEL).toContain("const podeFormulario = !!t && !t.entregueEm && t.prontoParaEntregar && !soVe;");
+    expect(PAINEL).toContain("const podeFormulario = !!t && !t.entregueEm && t.prontoParaEntregar && !soVe && comProblema.length === 0;");
     expect(ROTAS).toContain("doKit: !!p.kitRemessaId,");
   });
 

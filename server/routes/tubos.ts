@@ -52,7 +52,7 @@
 // As contas moram em shared/embalagem.ts (puras, testadas à parte).
 // ─────────────────────────────────────────────────────────────────────────────
 import type { Express } from "express";
-import { and, asc, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, asc, eq, gte, inArray, isNull, or, sql } from "drizzle-orm";
 import { db } from "../db";
 import { storage } from "../storage";
 import { items as itemsTable, tubos, tuboItens, events, auditLogs } from "@shared/schema";
@@ -188,9 +188,26 @@ async function travarTubo(tx: Ex, tuboId: string, recadoEntregue?: (t: Volume) =
   return tubo;
 }
 
-/** As peças, travadas até o fim da transação. */
+/**
+ * As peças, travadas até o fim da transação — SEMPRE na ordem do id: duas
+ * transações que travam conjuntos que se cruzam pegam as linhas na mesma
+ * ordem e uma espera a outra, em vez de cada uma segurar metade (deadlock).
+ */
 const pecasTravadas = async (tx: Ex, ids: string[]): Promise<PecaCrua[]> =>
-  ids.length ? ((await tx.select(COLUNAS_PECA).from(itemsTable).where(inArray(itemsTable.id, ids)).for("update")) as PecaCrua[]) : [];
+  ids.length ? ((await tx.select(COLUNAS_PECA).from(itemsTable).where(inArray(itemsTable.id, Array.from(new Set(ids)))).orderBy(asc(itemsTable.id)).for("update")) as PecaCrua[]) : [];
+
+/**
+ * O que roda DEPOIS do commit (trilha, aviso em tempo real) não pode virar 500:
+ * o volume já foi gravado, e o 500 faria a pessoa tentar de novo e embalar em
+ * dobro. A falha vai para o log e a resposta segue (revisão de 22/09).
+ */
+async function depoisDoCommit(oQue: string, fazer: () => Promise<unknown>): Promise<void> {
+  try { await fazer(); } catch (error) { console.error(`[tubos] falha em "${oQue}" depois do commit (o volume já está gravado):`, error); }
+}
+
+/** Os volumes que as listas enxergam: todo volume ABERTO e o entregue há até 60 dias. */
+const JANELA_DE_DIAS = 60;
+const volumeNaJanela = () => or(isNull(tubos.entregueEm), gte(tubos.entregueEm, sql`now() - (${JANELA_DE_DIAS} * interval '1 day')`));
 
 /** Tubo já fotografado que teve o conteúdo mexido: a foto pode não bater mais. */
 async function marcarConteudoAlterado(tubo: { id: string; fechadoEm: Date | null }, agora: Date, ex: Ex = db) {
@@ -244,6 +261,13 @@ const pecaParaTela = (p: PecaCrua, linha?: Linha) => ({
   // Peça cancelada/arquivada DENTRO de um volume: fica à vista como problema
   // (a entrega recusa até alguém tirá-la), em vez de sumir da lista.
   problema: linha && !linha.entregueEm ? problemaNoVolume(p) : null,
+  // A TRAVA da Solicitação (revisão de 22/09): o modal de entrega diz o motivo
+  // e quem travou, e desabilita — antes do 409. Resolver é destravar, não tirar.
+  travada: pecaTravada(p),
+  travadaEm: p.travadaEm ?? null,
+  travadaPor: p.travadaPor ?? null,
+  travadaMotivo: p.travadaMotivo ?? null,
+  excluida: !!p.deletedAt,
 });
 
 const porCodigo = (a: PecaCrua, b: PecaCrua) =>
@@ -336,8 +360,11 @@ async function colocarNoTubo(req: any, tubo: TuboCru, planos: Plano[], tx: Ex) {
   await marcarConteudoAlterado(tubo, agora, tx);
 }
 
-/** A trilha e o aviso de "embalada" — depois da transação confirmada. */
+/** A trilha e o aviso de "embalada" — depois da transação confirmada; falha aqui só vai ao log. */
 async function avisarEmbalagem(req: any, tubo: TuboCru, planos: Plano[], nFotos = 0) {
+  await depoisDoCommit("avisar a embalagem", () => avisarEmbalagemCru(req, tubo, planos, nFotos));
+}
+async function avisarEmbalagemCru(req: any, tubo: TuboCru, planos: Plano[], nFotos: number) {
   const comFoto = nFotos > 0 ? ` · ${nFotos} ${nFotos === 1 ? "foto" : "fotos"}` : "";
   await createAuditLogsEmLote(req, planos.map((pl) => {
     const quanto = pl.quantidade < pl.peca.quantity ? ` — ${pl.quantidade} de ${pl.peca.quantity} un.` : "";
@@ -376,9 +403,12 @@ async function tirarDoTubo(tubo: TuboCru, ids: string[], tx: Ex): Promise<Retira
   return doTubo.map((l) => ({ itemId: l.itemId, quantidade: l.quantidade }));
 }
 
-/** A trilha e o aviso de "retirada" — depois da transação confirmada. */
+/** A trilha e o aviso de "retirada" — depois da transação confirmada; falha aqui só vai ao log. */
 async function avisarRetirada(req: any, tubo: TuboCru, tiradas: Retirada[], motivo?: string) {
   if (!tiradas.length) return;
+  await depoisDoCommit("avisar a retirada", () => avisarRetiradaCru(req, tubo, tiradas, motivo));
+}
+async function avisarRetiradaCru(req: any, tubo: TuboCru, tiradas: Retirada[], motivo?: string) {
   await createAuditLogsEmLote(req, tiradas.map((l) => ({
     action: "updated", entityType: "item", entityId: l.itemId,
     details: tubo.avulso ? `Embalagem desfeita — ${l.quantidade} un. voltaram a Conferido${motivo ? ` (${motivo})` : ""}` : `Retirada do Tubo ${tubo.numero} — ${l.quantidade} un.${motivo ? ` (${motivo})` : ""}`,
@@ -387,30 +417,45 @@ async function avisarRetirada(req: any, tubo: TuboCru, tiradas: Retirada[], moti
 }
 
 /**
- * EXCLUIR A PEÇA (DELETE /api/items/:id) tira ela dos volumes ABERTOS antes do
- * soft delete — senão ficava uma linha "fantasma" num tubo que depois seria
- * entregue sem ela. Volume avulso que fica vazio some, como no "desfazer".
+ * EXCLUIR A PEÇA (DELETE /api/items/:id): tira ela dos volumes ABERTOS e faz o
+ * soft delete NUMA TRANSAÇÃO SÓ (revisão de 22/09). Antes eram dois passos, e
+ * um embalar ou uma entrega no meio deixava linha "fantasma" num volume — ou a
+ * peça fora do volume sem ter sido excluída. A ordem das travas é a de todo
+ * o arquivo: os volumes (por id), depois a peça. Volume avulso que fica vazio
+ * some, como no "desfazer". Devolve null quando a peça já não existia (404).
  */
-export async function tirarPecaDosVolumesAbertos(req: any, itemId: string): Promise<number> {
-  const abertos = (await linhasDasPecas([itemId])).filter((l) => !l.entregueEm).map((l) => l.tuboId);
-  let total = 0;
-  for (const tuboId of Array.from(new Set(abertos))) {
-    const r = await db.transaction(async (tx: Ex) => {
-      const [tubo] = await tx.select().from(tubos).where(eq(tubos.id, tuboId)).for("update");
-      if (!tubo || tubo.entregueEm) return null;
+export async function excluirPecaTirandoDosVolumes(req: any, itemId: string): Promise<{ tiradas: number } | null> {
+  const feito = await db.transaction(async (tx: Ex) => {
+    const abertas = (await linhasDasPecas([itemId], tx)).filter((l) => !l.entregueEm).map((l) => l.tuboId);
+    const ids = Array.from(new Set(abertas)).sort();
+    const volumes: any[] = ids.length ? await tx.select().from(tubos).where(inArray(tubos.id, ids)).orderBy(asc(tubos.id)).for("update") : [];
+    const [peca] = await pecasTravadas(tx, [itemId]);
+    if (!peca || peca.deletedAt) return null;
+    const mexidos: Array<{ tubo: any; tiradas: Retirada[] }> = [];
+    for (const tubo of volumes) {
+      if (tubo.entregueEm) continue;
       const tiradas = await tirarDoTubo(tubo, [itemId], tx);
       if (tubo.avulso && tiradas.length && (await linhasDosTubos([tubo.id], tx)).length === 0) {
         await tx.delete(tubos).where(eq(tubos.id, tubo.id));
       }
-      return { tubo, tiradas };
-    });
-    if (!r) continue;
-    total += r.tiradas.length;
-    await avisarRetirada(req, r.tubo, r.tiradas, "peça excluída");
-    broadcast({ type: "tubos_atualizados", eventId: r.tubo.eventId });
+      if (tiradas.length) mexidos.push({ tubo, tiradas });
+    }
+    const agora = new Date();
+    const apagada = await tx.update(itemsTable).set({ deletedAt: agora, updatedAt: agora } as any)
+      .where(and(eq(itemsTable.id, itemId), isNull(itemsTable.deletedAt))).returning({ id: itemsTable.id });
+    if (!apagada.length) throw new Recusa(404, "Item not found");
+    return mexidos;
+  });
+  if (!feito) return null;
+  for (const { tubo, tiradas } of feito) {
+    await avisarRetirada(req, tubo, tiradas, "peça excluída");
+    await depoisDoCommit("avisar os tubos", async () => broadcast({ type: "tubos_atualizados", eventId: tubo.eventId }));
   }
-  return total;
+  return { tiradas: feito.reduce((t, m) => t + m.tiradas.length, 0) };
 }
+
+/** A recusa de dentro da transação da exclusão (404) — para a rota de peças responder. */
+export const ehRecusaDeTubo = (e: unknown): e is { http: number; message: string } => e instanceof Recusa;
 
 function lerIds(valor: unknown): string[] | null {
   if (valor === undefined || valor === null) return [];
@@ -501,9 +546,20 @@ export function registerTubosRoutes(app: Express): void {
       const todasDoEvento = (await db.select(COLUNAS_PECA).from(itemsTable)
         .where(and(eq(itemsTable.eventId, eventId), isNull(itemsTable.deletedAt)))) as PecaCrua[];
       const pecas = visiveis(req, todasDoEvento);
-      const visivel = new Map(pecas.map((p) => [p.id, p]));
-      const existe = new Set(todasDoEvento.map((p) => p.id));
-      const todasAsLinhas = (await linhasDosTubos(lista.map((t: any) => t.id))).filter((l) => existe.has(l.itemId));
+      const linhasCruas = await linhasDosTubos(lista.map((t: any) => t.id));
+      // A PEÇA EXCLUÍDA que ainda está num volume ABERTO (revisão de 22/09):
+      // entra no retrato, com "foi excluída" como problema, para o operador
+      // conseguir tirá-la — sem ela na tela, o volume ficava sem entrega e sem
+      // o botão que resolve. Fora de volume aberto, a excluída continua sumida.
+      const vivas = new Set(todasDoEvento.map((p) => p.id));
+      const excluidasNoVolume = Array.from(new Set(linhasCruas.filter((l) => !l.entregueEm && !vivas.has(l.itemId)).map((l) => l.itemId)));
+      const excluidas = excluidasNoVolume.length
+        ? visiveis(req, (await db.select(COLUNAS_PECA).from(itemsTable).where(inArray(itemsTable.id, excluidasNoVolume))) as PecaCrua[])
+        : [];
+      const idsExcluidas = new Set(excluidas.map((p) => p.id));
+      const visivel = new Map([...pecas, ...excluidas].map((p) => [p.id, p]));
+      const existe = new Set([...Array.from(vivas), ...excluidasNoVolume]);
+      const todasAsLinhas = linhasCruas.filter((l) => existe.has(l.itemId) && (!idsExcluidas.has(l.itemId) || !l.entregueEm));
 
       // Quantas linhas cada tubo tem DE VERDADE (sem o recorte do Kit): o tubo
       // é entregue inteiro, então "pronto para entregar" calculado só com as
@@ -570,24 +626,30 @@ export function registerTubosRoutes(app: Express): void {
       // evento, prazo, conteúdo com quantidade, fotos e entrega. QUATRO selects
       // no total (tubos, eventos, linhas, peças) — nunca um por tubo. A fila
       // continua com o payload enxuto de baixo.
+      // O RECORTE (revisão de 22/09): as duas formas devolviam TODOS os volumes
+      // da história a cada 60 s. Agora: todo volume ABERTO e o entregue há até
+      // 60 dias — é o que a fila e a aba usam. O histórico mora em Registros.
       if (req.query.detalhe) {
-        const lista = await db.select().from(tubos).orderBy(asc(tubos.numero));
+        const lista = await db.select().from(tubos).where(volumeNaJanela()).orderBy(asc(tubos.numero));
         const idsDeEvento = Array.from(new Set(lista.map((t: any) => t.eventId)));
         const eventosDaLista = idsDeEvento.length
           ? await db.select({ id: events.id, name: events.name, truckDepartureDate: events.truckDepartureDate }).from(events).where(inArray(events.id, idsDeEvento))
           : [];
         const eventoPorId = new Map(eventosDaLista.map((e) => [e.id, e]));
-        const ls = (await db.select(COLUNAS_LINHA).from(tuboItens)) as Linha[];
+        const ls = await linhasDosTubos(lista.map((t: any) => t.id));
         const idsDePeca = Array.from(new Set(ls.map((l) => l.itemId)));
-        const cruas = idsDePeca.length
-          ? ((await db.select(COLUNAS_PECA).from(itemsTable).where(and(inArray(itemsTable.id, idsDePeca), isNull(itemsTable.deletedAt)))) as PecaCrua[])
-          : [];
+        // A excluída ainda num volume ABERTO vem junto (com o problema), para ser tirada.
+        const abertasPorPeca = new Set(ls.filter((l) => !l.entregueEm).map((l) => l.itemId));
+        const cruas = (idsDePeca.length
+          ? ((await db.select(COLUNAS_PECA).from(itemsTable).where(inArray(itemsTable.id, idsDePeca))) as PecaCrua[])
+          : []).filter((p) => !p.deletedAt || abertasPorPeca.has(p.id));
+        const excluida = new Set(cruas.filter((p) => p.deletedAt).map((p) => p.id));
         const existe = new Set(cruas.map((p) => p.id));
         const visivel = new Map(visiveis(req, cruas).map((p) => [p.id, p]));
         const total = new Map<string, number>();
         const dentroDe = new Map<string, Array<{ p: PecaCrua; l: Linha }>>();
         for (const l of ls) {
-          if (!existe.has(l.itemId)) continue;
+          if (!existe.has(l.itemId) || (excluida.has(l.itemId) && l.entregueEm)) continue;
           total.set(l.tuboId, (total.get(l.tuboId) ?? 0) + 1);
           const p = visivel.get(l.itemId);
           if (p) dentroDe.set(l.tuboId, [...(dentroDe.get(l.tuboId) ?? []), { p, l }]);
@@ -610,9 +672,9 @@ export function registerTubosRoutes(app: Express): void {
         }));
       }
       // `fechadoEm` vai junto: a fila da Gráfica mostra a hora da foto na peça embalada.
-      const todos = await db.select({ id: tubos.id, numero: tubos.numero, avulso: tubos.avulso, eventId: tubos.eventId, entregueEm: tubos.entregueEm, fechadoEm: tubos.fechadoEm }).from(tubos);
-      // UM select para todas as linhas — nunca um por tubo.
-      const todasAsLinhas = (await db.select(COLUNAS_LINHA).from(tuboItens)) as Linha[];
+      const todos = await db.select({ id: tubos.id, numero: tubos.numero, avulso: tubos.avulso, eventId: tubos.eventId, entregueEm: tubos.entregueEm, fechadoEm: tubos.fechadoEm }).from(tubos).where(volumeNaJanela());
+      // UM select para as linhas desses volumes — nunca um por tubo.
+      const todasAsLinhas = await linhasDosTubos(todos.map((t) => t.id));
       let permitidas = todasAsLinhas;
       if (quemVe(req).kit) {
         // Kit: só as linhas de peça que ele vê — e só os tubos que as têm.
@@ -642,19 +704,46 @@ export function registerTubosRoutes(app: Express): void {
   // O CONTEÚDO É O DA ENTREGA: tubo entregue não aceita pôr nem tirar peça, e
   // a quantidade mora na LINHA (tubo_itens) — editar a peça depois não muda o
   // que o registro diz que foi junto. A trilha do tubo guarda a mesma lista.
+  //
+  // O RECORTE E A PÁGINA (revisão de 22/09): devolvia TODOS os volumes da
+  // história. Agora a própria consulta filtra — `itemId` (a ficha: só os
+  // volumes da peça), `desde` (o Período da página), `eventos` (o filtro de
+  // evento), `busca` — e devolve no máximo `limite` (padrão 48, teto 500), dos
+  // mais recentes para trás. A tela pede mais aumentando o limite.
   app.get("/api/registros/tubos", requireAuth, async (req, res) => {
     try {
-      const lista = (await db.select().from(tubos)).filter((t: any) => (t.fotosFechamento ?? []).length > 0 || t.entregueEm);
+      const q = req.query as Record<string, unknown>;
+      const texto = (v: unknown) => (typeof v === "string" ? v.trim() : "");
+      const itemId = texto(q.itemId);
+      const desdeBruto = texto(q.desde);
+      const desde = desdeBruto ? new Date(desdeBruto) : null;
+      if (desde && Number.isNaN(desde.getTime())) return res.status(400).json({ error: "desde inválido" });
+      const eventos = texto(q.eventos).split(",").map((x) => x.trim()).filter(Boolean).slice(0, 200);
+      const busca = texto(q.busca).slice(0, 120);
+      const limiteBruto = Math.trunc(Number(q.limite));
+      const limite = Number.isFinite(limiteBruto) && limiteBruto > 0 ? Math.min(limiteBruto, 500) : 48;
+      const doKit = quemVe(req).kit;
+
+      const quando = sql`coalesce(${tubos.entregueEm}, ${tubos.fechadoEm}, ${tubos.createdAt})`;
+      const filtros: any[] = [sql`(${tubos.entregueEm} is not null or coalesce(array_length(${tubos.fotosFechamento}, 1), 0) > 0)`];
+      if (desde) filtros.push(sql`coalesce(${tubos.entregueEm}, ${tubos.fechadoEm}) >= ${desde}`);
+      if (eventos.length) filtros.push(inArray(tubos.eventId, eventos));
+      if (itemId) filtros.push(sql`${tubos.id} in (select ${tuboItens.tuboId} from ${tuboItens} where ${tuboItens.itemId} = ${itemId})`);
+      // Sem busca e fora do Kit, o corte é no banco; com eles, depois do filtro em memória.
+      const cortaNoBanco = !busca && !doKit;
+      const consulta = db.select().from(tubos).where(and(...filtros)).orderBy(sql`${quando} desc`, asc(tubos.id));
+      const lista = (cortaNoBanco ? await consulta.limit(limite) : await consulta) as any[];
       if (!lista.length) return res.json([]);
       const idsDeEvento = Array.from(new Set(lista.map((t: any) => t.eventId)));
-      const eventosDaLista = await db.select({ id: events.id, name: events.name }).from(events).where(inArray(events.id, idsDeEvento));
+      const eventosDaLista = await db.select({ id: events.id, name: events.name }).from(events).where(inArray(events.id, idsDeEvento as string[]));
       const eventoPorId = new Map(eventosDaLista.map((e) => [e.id, e.name]));
       const ls = await linhasDosTubos(lista.map((t: any) => t.id));
       const idsDePeca = Array.from(new Set(ls.map((l) => l.itemId)));
       // A peça EXCLUÍDA continua no registro (é histórico) — sem filtro de deleted_at.
       const cruas = idsDePeca.length ? ((await db.select(COLUNAS_PECA).from(itemsTable).where(inArray(itemsTable.id, idsDePeca))) as PecaCrua[]) : [];
       const visivel = new Map(visiveis(req, cruas).map((p) => [p.id, p]));
-      const doKit = quemVe(req).kit;
+      const semAcento = (v: string) => v.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+      const palavras = semAcento(busca).split(/ +/).filter(Boolean);
       const saida = lista.map((t: any) => {
         const dentro = ls.filter((l) => l.tuboId === t.id && visivel.has(l.itemId)).map((l) => ({ p: visivel.get(l.itemId)!, l })).sort((x, y) => porCodigo(x.p, y.p));
         return {
@@ -664,9 +753,15 @@ export function registerTubosRoutes(app: Express): void {
           itens: dentro.map(({ p, l }) => ({ id: p.id, displayId: p.displayId, type: p.type, description: p.description, quantity: p.quantity, quantidadeNoTubo: l.quantidade, excluida: !!p.deletedAt })),
           unidades: dentro.reduce((u, { l }) => u + l.quantidade, 0),
         };
-      }).filter((t) => !doKit || t.itens.length > 0);
-      const quandoFoi = (t: { entregueEm: Date | null; embaladoEm: Date | null }) => new Date(t.entregueEm ?? t.embaladoEm ?? 0).getTime();
-      saida.sort((a, b) => quandoFoi(b) - quandoFoi(a));
+      })
+        .filter((t) => !doKit || t.itens.length > 0)
+        // A MESMA busca da tela (registroCasa): nº do tubo, evento, quem recebeu/embalou, código, tipo e descrição.
+        .filter((t) => {
+          if (!palavras.length) return true;
+          const alvo = semAcento([t.avulso ? "sozinha" : `tubo ${t.numero}`, t.eventName, t.recebidoPor ?? "", t.embaladoPor ?? "", ...t.itens.flatMap((i) => [i.displayId ?? "", i.type, i.description ?? ""])].join(" "));
+          return palavras.every((p) => alvo.includes(p));
+        })
+        .slice(0, limite);
       res.json(saida);
     } catch (error: any) {
       console.error("[tubos] falha ao listar os registros dos volumes:", error);
@@ -727,8 +822,20 @@ export function registerTubosRoutes(app: Express): void {
       // EMBALAR INDIVIDUAL → volume AVULSO (uma peça só; quem pede é a tela).
       // O lote, e o tubo aberto à mão, são tubos de verdade, numerados.
       const avulso = req.body?.avulso === true && previa.planos.length === 1;
-      const tubo = await criarTubo(eventId, resolveActor(req).userName, avulso);
-      criado = tubo;
+      // SEGUNDA EMBALAGEM SOZINHA DA MESMA PEÇA (revisão de 22/09): embalar 7
+      // hoje e 3 amanhã, sozinha, criava OUTRO avulso — "Embalada (7) ·
+      // Embalada (3)" e duas entregas da mesma peça. Se ela já tem uma
+      // embalagem avulsa ABERTA, as unidades novas vão para ela.
+      let existente: any = null;
+      if (avulso) {
+        const [achado] = await db.select({ id: tubos.id }).from(tubos)
+          .innerJoin(tuboItens, eq(tuboItens.tuboId, tubos.id))
+          .where(and(eq(tubos.eventId, eventId), eq(tubos.avulso, true), isNull(tubos.entregueEm), eq(tuboItens.itemId, previa.planos[0].peca.id), isNull(tuboItens.entregueEm)))
+          .limit(1);
+        if (achado) [existente] = await db.select().from(tubos).where(eq(tubos.id, achado.id));
+      }
+      const tubo = existente ?? await criarTubo(eventId, resolveActor(req).userName, avulso);
+      criado = existente ? null : tubo;
       let planos: Plano[] = [];
       if (previa.planos.length) {
         planos = await db.transaction(async (tx: Ex) => {
@@ -741,11 +848,13 @@ export function registerTubosRoutes(app: Express): void {
         });
       }
       criado = null;
-      await createAuditLog(req, "created", "tubo", tubo.id, avulso ? `Embalagem avulsa criada (${evento.name})` : `Tubo ${tubo.numero} criado (${evento.name})`);
+      if (!existente) {
+        await depoisDoCommit("registrar o volume criado", () => createAuditLog(req, "created", "tubo", tubo.id, avulso ? `Embalagem avulsa criada (${evento.name})` : `Tubo ${tubo.numero} criado (${evento.name})`));
+      }
       if (planos.length) await avisarEmbalagem(req, tubo, planos, lidas.fotos.length);
 
-      broadcast({ type: "tubos_atualizados", eventId });
-      res.status(201).json(tubo);
+      await depoisDoCommit("avisar os tubos", async () => broadcast({ type: "tubos_atualizados", eventId }));
+      res.status(existente ? 200 : 201).json(tubo);
     } catch (error: any) {
       // A recusa de dentro da transação não deixa o volume recém-criado vazio para trás.
       if (criado) await db.delete(tubos).where(eq(tubos.id, criado.id)).catch(() => {});
@@ -788,6 +897,12 @@ export function registerTubosRoutes(app: Express): void {
       // esta terminar (ou esta encontra o volume entregue e recusa).
       const feito = await db.transaction(async (tx: Ex) => {
         const travado = await travarTubo(tx, tubo.id, jaEntregue);
+        // DEADLOCK (revisão de 22/09): adicionar + remover travava as peças em
+        // dois momentos (primeiro as de embalar, depois as de tirar). Duas
+        // pessoas com listas cruzadas seguravam metade cada. Agora a UNIÃO é
+        // travada uma vez, em ordem de id, logo depois do volume; as leituras
+        // seguintes na mesma transação não esperam por nada.
+        await pecasTravadas(tx, [...pedidos.map((x) => x.id), ...remover]);
         let planos: Plano[] = [];
         let virouTubo: number | null = null;
         if (pedidos.length) {
@@ -802,6 +917,8 @@ export function registerTubosRoutes(app: Express): void {
               const numero = await proximoNumero(travado.eventId, false, tx);
               await tx.update(tubos).set({ avulso: false, numero } as any).where(eq(tubos.id, travado.id));
               travado.avulso = false; travado.numero = numero; virouTubo = numero;
+              // A peça que já estava lá passa a ser "Tubo N": carimba para o delta `?since=`.
+              await tx.update(itemsTable).set({ updatedAt: new Date() } as any).where(inArray(itemsTable.id, Array.from(dentro)));
             }
           }
           await colocarNoTubo(req, travado, planos, tx);
@@ -821,10 +938,10 @@ export function registerTubosRoutes(app: Express): void {
         return { travado, planos, tiradas, virouTubo, sumiu };
       });
 
-      if (feito.virouTubo !== null) await createAuditLog(req, "updated", "tubo", tubo.id, `Embalagem avulsa virou o Tubo ${feito.virouTubo}`);
+      if (feito.virouTubo !== null) await depoisDoCommit("registrar o avulso que virou tubo", () => createAuditLog(req, "updated", "tubo", tubo.id, `Embalagem avulsa virou o Tubo ${feito.virouTubo}`));
       if (feito.planos.length) await avisarEmbalagem(req, feito.travado, feito.planos, lidas.fotos.length);
       await avisarRetirada(req, feito.travado, feito.tiradas);
-      broadcast({ type: "tubos_atualizados", eventId: tubo.eventId });
+      await depoisDoCommit("avisar os tubos", async () => broadcast({ type: "tubos_atualizados", eventId: tubo.eventId }));
       res.json({ ok: true, numero: feito.travado.numero, avulso: !!feito.travado.avulso });
     } catch (error: any) {
       if (responderRecusa(res, error)) return;
@@ -892,15 +1009,24 @@ export function registerTubosRoutes(app: Express): void {
       // Travado: duas fotos ao mesmo tempo não se apagam (a lista é lida e regravada).
       const totalDeFotos = await db.transaction(async (tx: Ex) => {
         const travado = await travarTubo(tx, tubo.id);
-        return acumularFotos(travado, fotos, quem.userName, agora, tx);
+        const total = await acumularFotos(travado, fotos, quem.userName, agora, tx);
+        // A peça mostra "fechado 14:32" a partir do tubo: carimba `updatedAt`
+        // das que estão nele (abertas), senão o delta `?since=` da Gráfica não
+        // as traz e a fila segue com a hora velha (revisão de 22/09).
+        const ids = (await linhasDosTubos([travado.id], tx)).filter((l) => !l.entregueEm).map((l) => l.itemId);
+        if (ids.length) await tx.update(itemsTable).set({ updatedAt: agora } as any).where(inArray(itemsTable.id, Array.from(new Set(ids))));
+        return total;
       });
       const n = fotos.length;
-      await createAuditLogsEmLote(req, dentro.map(({ p }) => ({
-        action: "updated", entityType: "item", entityId: p.id,
-        details: `Fotografada ${noVolume(tubo)} · ${n} ${n === 1 ? "foto" : "fotos"}`,
-      })));
-      await createAuditLog(req, "updated", "tubo", tubo.id, `${oVolume(tubo)} ganhou ${n} ${n === 1 ? "foto" : "fotos"} em ${quandoBR(agora)}`);
-      broadcast({ type: "tubos_atualizados", eventId: tubo.eventId });
+      await depoisDoCommit("registrar as fotos", async () => {
+        await createAuditLogsEmLote(req, dentro.map(({ p }) => ({
+          action: "updated", entityType: "item", entityId: p.id,
+          details: `Fotografada ${noVolume(tubo)} · ${n} ${n === 1 ? "foto" : "fotos"}`,
+        })));
+        await createAuditLog(req, "updated", "tubo", tubo.id, `${oVolume(tubo)} ganhou ${n} ${n === 1 ? "foto" : "fotos"} em ${quandoBR(agora)}`);
+        broadcast({ type: "items_bulk_updated", itemIds: dentro.map(({ p }) => p.id), eventId: tubo.eventId });
+        broadcast({ type: "tubos_atualizados", eventId: tubo.eventId });
+      });
       res.json({ ok: true, numero: tubo.numero, fotos: n, totalDeFotos });
     } catch (error: any) {
       if (responderRecusa(res, error)) return;

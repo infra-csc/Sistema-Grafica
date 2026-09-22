@@ -17,7 +17,7 @@
 import { useRef } from "react";
 import type { LucideIcon } from "lucide-react";
 import { X } from "lucide-react";
-import { R, SHADOW } from "@/lib/theme";
+import { T, N, R, TOM, SHADOW } from "@/lib/theme";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // FreezeWhileClosing — o miolo do modal para de renderizar assim que ele começa
@@ -164,7 +164,9 @@ export function ModalHeader({
   title,
   subtitle,
   variant = "work",
-  tint = "#6d28d9",
+  // O roxo da paleta (violet 700). É o ladrilho do ícone, e cada modal passa o
+  // seu — este é só o padrão de quem não escolhe.
+  tint = TOM.roxo.text,
   onClose,
   trailing,
 }: ModalHeaderProps) {
@@ -178,10 +180,14 @@ export function ModalHeader({
         // corpo numa janela baixa, em vez de o corpo rolar.
         display: "flex", alignItems: "center", gap: 14, flexShrink: 0,
         padding: dark ? "22px 28px" : "22px 24px 16px",
+        // O gradiente do cabeçalho escuro parte do texto principal (n10). O
+        // segundo ponto é a única cor deste arquivo fora da escada: ele existe
+        // só para o fundo não ser chapado, e virar degrau nomeado criaria um
+        // token que nada mais consome.
         background: dark
-          ? "linear-gradient(135deg, #1c1917 0%, #2d2926 100%)"
-          : "#fff",
-        borderBottom: dark ? "1px solid rgba(255,255,255,0.06)" : "1px solid #ebe8e4",
+          ? `linear-gradient(135deg, ${T.text} 0%, #2d2926 100%)`
+          : T.surface,
+        borderBottom: dark ? "1px solid rgba(255,255,255,0.06)" : `1px solid ${T.border}`,
       }}
     >
       {Icon && (
@@ -205,7 +211,7 @@ export function ModalHeader({
             fontSize: dark ? 20 : 15,
             fontWeight: 800,
             letterSpacing: "-0.03em",
-            color: dark ? "#fff" : "#1c1917",
+            color: dark ? T.surface : T.text,
           }}
         >
           {title}
@@ -216,7 +222,7 @@ export function ModalHeader({
               margin: "3px 0 0", fontSize: 13, lineHeight: 1.5,
               // rgba(255,255,255,0.72) sobre o gradiente escuro passa AA; o
               // 0.6 que estava em uso ficava em 3.9:1.
-              color: dark ? "rgba(255,255,255,0.72)" : "#746e69",
+              color: dark ? "rgba(255,255,255,0.72)" : T.second,
             }}
           >
             {subtitle}
@@ -237,15 +243,15 @@ export function ModalHeader({
           // .modal-fechar (index.css): 44px de alvo em tela de toque; no mouse
           // continua o círculo discreto de 34/40.
           className="modal-fechar"
-          onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = dark ? "rgba(255,255,255,0.16)" : "#e7e5e4"; }}
-          onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = dark ? "rgba(255,255,255,0.08)" : "#f5f5f4"; }}
+          onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = dark ? "rgba(255,255,255,0.16)" : T.border; }}
+          onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = dark ? "rgba(255,255,255,0.08)" : N.n2; }}
           style={{
             transition: "background-color 0.12s ease",
             width: dark ? 40 : 34, height: dark ? 40 : 34, borderRadius: R.pill, flexShrink: 0,
             display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer",
-            backgroundColor: dark ? "rgba(255,255,255,0.08)" : "#f5f5f4",
-            border: dark ? "1px solid rgba(255,255,255,0.12)" : "1px solid #ebe8e4",
-            color: dark ? "rgba(255,255,255,0.7)" : "#57534e",
+            backgroundColor: dark ? "rgba(255,255,255,0.08)" : N.n2,
+            border: dark ? "1px solid rgba(255,255,255,0.12)" : `1px solid ${T.border}`,
+            color: dark ? "rgba(255,255,255,0.7)" : T.apoio,
           }}
         >
           <X aria-hidden="true" style={{ width: 16, height: 16 }} />
@@ -264,7 +270,7 @@ export function ModalFooter({ children }: { children: React.ReactNode }) {
         // ação primária e não pode encolher nem rolar para fora da tela.
         display: "flex", flexDirection: "column", gap: 8, flexShrink: 0,
         padding: "16px 24px",
-        borderTop: "1px solid #ebe8e4",
+        borderTop: `1px solid ${T.border}`,
         backgroundColor: "#fff",
       }}
     >

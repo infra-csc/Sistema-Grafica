@@ -589,7 +589,7 @@ export default function Calendario() {
             style={{
               display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap",
               padding: isMobile ? "8px 16px" : "8px 32px",
-              borderTop: "1px solid #eeeeed",
+              borderTop: `1px solid ${T.border}`,
               backgroundColor: resultadoDaBusca === 0 ? TOM.alerta.bg : T.bg,
               fontSize: 13, color: resultadoDaBusca === 0 ? TOM.alerta.text : P.secondary,
             }}
@@ -624,7 +624,7 @@ export default function Calendario() {
             {Array.from({ length: escala === "semana" ? 7 : 35 }).map((_, i) => (
               <div key={i} style={escala === "semana"
                 ? { display: "flex", gap: 14, alignItems: "center", padding: "14px", borderBottom: `1px solid ${N.n3}`, minHeight: 56 }
-                : { height: isMobile ? 62 : 90, padding: 8, borderRight: i % 7 !== 6 ? "1px solid #eeeeed" : undefined, borderBottom: "1px solid #eeeeed" }}>
+                : { height: isMobile ? 62 : 90, padding: 8, borderRight: i % 7 !== 6 ? `1px solid ${T.border}` : undefined, borderBottom: `1px solid ${T.border}` }}>
                 <div className="animate-pulse" style={{ width: escala === "semana" ? 48 : 18, height: escala === "semana" ? 28 : 12, borderRadius: 4, backgroundColor: P.low }} />
                 {(escala === "semana" || i % 3 === 0) && (
                   <div className="animate-pulse" style={{ width: escala === "semana" ? "45%" : "80%", height: 10, borderRadius: 4, backgroundColor: T.border, marginTop: escala === "semana" ? 0 : 8 }} />
@@ -665,7 +665,7 @@ export default function Calendario() {
                 ? `${d1.getDate()} a ${d7.getDate()} de ${MONTH_NAMES[d1.getMonth()]}`
                 : `${d1.getDate()} de ${MONTH_NAMES[d1.getMonth()]} a ${d7.getDate()} de ${MONTH_NAMES[d7.getMonth()]}`;
               return (
-                <div style={{ padding: "12px 20px", borderBottom: "1px solid #eeeeed", backgroundColor: T.bg, display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+                <div style={{ padding: "12px 20px", borderBottom: `1px solid ${T.border}`, backgroundColor: T.bg, display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
                   <span style={{ fontFamily: FONT.display, fontSize: 15, fontWeight: 800, color: P.text }}>{faixa}</span>
                   {/* Com busca ativa a contagem diz COM O QUÊ contou — "0
                       marcações" sozinho não separa semana vazia de termo
@@ -777,8 +777,8 @@ export default function Calendario() {
               <div key={d} style={{
                 padding: "12px 0", textAlign: "center", minWidth: 0,
                 backgroundColor: T.bg,
-                borderBottom: "1px solid #eeeeed",
-                borderRight: d !== "SÁB" ? "1px solid #eeeeed" : undefined,
+                borderBottom: `1px solid ${T.border}`,
+                borderRight: d !== "SÁB" ? `1px solid ${T.border}` : undefined,
                 fontSize: 10, fontWeight: 900, color: T.second,
                 textTransform: "uppercase", letterSpacing: "0.18em",
               }}>
@@ -802,8 +802,8 @@ export default function Calendario() {
                   <div key={`out-${idx}`} style={{
                     height: cellHeight, backgroundColor: "rgba(250,250,249,0.6)", padding: "8px 8px",
                     minWidth: 0,
-                    borderRight: col !== 6 ? "1px solid #eeeeed" : undefined,
-                    borderBottom: "1px solid #eeeeed",
+                    borderRight: col !== 6 ? `1px solid ${T.border}` : undefined,
+                    borderBottom: `1px solid ${T.border}`,
                   }}>
                     <span style={{ fontSize: 13, fontWeight: 700, color: T.bdark }}>{String(outsideDay).padStart(2,"0")}</span>
                   </div>
@@ -863,8 +863,8 @@ export default function Calendario() {
                     // min-width automatico, e sem zera-lo a pill de nome longo
                     // volta a esticar a coluna.
                     minWidth: 0,
-                    borderRight: col !== 6 ? "1px solid #eeeeed" : undefined,
-                    borderBottom: "1px solid #eeeeed",
+                    borderRight: col !== 6 ? `1px solid ${T.border}` : undefined,
+                    borderBottom: `1px solid ${T.border}`,
                     backgroundColor: P.surface,
                     cursor: hasAny ? "pointer" : "default",
                     display: "flex", flexDirection: "column", gap: 3,
@@ -999,7 +999,7 @@ export default function Calendario() {
         )}
 
         {/* ── Legend footer ── */}
-        <div style={{ padding: isMobile ? "12px 16px" : "14px 32px", borderTop: "1px solid #eeeeed", backgroundColor: T.bg, display: "flex", flexWrap: "wrap", alignItems: "center", gap: isMobile ? "8px 14px" : 16 }}>
+        <div style={{ padding: isMobile ? "12px 16px" : "14px 32px", borderTop: `1px solid ${T.border}`, backgroundColor: T.bg, display: "flex", flexWrap: "wrap", alignItems: "center", gap: isMobile ? "8px 14px" : 16 }}>
           {/* Priority legend.
               A LEGENDA DIZ DE QUE É A COR. Seis bolinhas soltas ao lado de
               marcações tracejadas não diziam se a cor era prioridade, setor ou
@@ -1251,7 +1251,7 @@ export default function Calendario() {
               if (!deadlines.length) return null;
               return (
                 <>
-                  <div style={{ borderTop: "1px solid #eeeeed", paddingTop: 6, paddingBottom: 2 }}>
+                  <div style={{ borderTop: `1px solid ${T.border}`, paddingTop: 6, paddingBottom: 2 }}>
                     {/* "Prazos", não "Prazos de Layout": a seção lista os seis
                         marcos (lista, revisão, produção...), e a legenda da
                         grade já tinha abandonado esse rótulo pelo mesmo motivo.

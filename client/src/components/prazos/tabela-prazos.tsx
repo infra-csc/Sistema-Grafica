@@ -31,10 +31,19 @@ interface TabelaPrazosProps {
   /** Registro de cobrança por evento (a página resolve a chave do mapa). */
   cobrancaDe: (id: string) => CobrancaEntry | undefined;
   today?: string;
+  /**
+   * Área útil entre 820 e 1180px (ver a régua em use-mobile.tsx): "Saída"
+   * funde-se à coluna do evento e a tabela perde ~150px de mínimo, em vez de
+   * rolar de lado escondendo as colunas da direita.
+   */
+  compacto?: boolean;
+  /** Lado do botão de expandir; 44 quando o ponteiro é grosso (tablet). */
+  alvoBotao?: number;
 }
 
 export function TabelaPrazos({
   eventos, stageMeta, expandedId, onToggleExpand, printMode, cobrancaDe, today,
+  compacto = false, alvoBotao = 36,
 }: TabelaPrazosProps) {
   return (
     <div className="gp-scroll" style={{
@@ -50,17 +59,23 @@ export function TabelaPrazos({
           que impede o nono aparecer sem ela. Sem isto as colunas de data
           desalinham porque "1" é mais estreito que "8". */}
       <table style={{
-        width: "100%", borderCollapse: "collapse", minWidth: 900,
+        width: "100%", borderCollapse: "collapse", minWidth: compacto ? 740 : 900,
         fontVariantNumeric: "tabular-nums",
       }}>
         <caption className="sr-only">Eventos ativos, prazos de cada etapa e peças entregues</caption>
         <thead>
           <tr>
-            <th scope="col" style={{ ...TH_STICKY, textAlign: "left", paddingLeft: 18, minWidth: 220 }}>Evento</th>
-            <th scope="col" style={{ ...TH_STICKY, textAlign: "left", minWidth: 150 }}>Saída</th>
+            <th scope="col" style={{ ...TH_STICKY, textAlign: "left", paddingLeft: 18, minWidth: compacto ? 200 : 220 }}>
+              {compacto ? "Evento · Saída" : "Evento"}
+            </th>
+            {!compacto && <th scope="col" style={{ ...TH_STICKY, textAlign: "left", minWidth: 150 }}>Saída</th>}
             {stageMeta.map((m) => (
-              <th key={m.key} scope="col" style={{ ...TH_STICKY, minWidth: 78 }} title={m.label}>
-                {STAGE_SHORT[m.key] ?? m.label}
+              <th key={m.key} scope="col" style={{ ...TH_STICKY, minWidth: 78 }}>
+                {/* O rótulo inteiro ia só no `title`: no tablet não há hover e
+                    "Apro"/"Prod" sozinhos não dizem a etapa. Agora é texto,
+                    escondido apenas visualmente. */}
+                <span aria-hidden="true">{STAGE_SHORT[m.key] ?? m.label}</span>
+                <span className="sr-only">{m.label}</span>
               </th>
             ))}
             <th scope="col" style={{ ...TH_STICKY, minWidth: 110 }}>Entregues</th>
@@ -77,10 +92,12 @@ export function TabelaPrazos({
               // Na impressão TODOS os atrasados abrem: a pauta da reunião é
               // justamente a lista de peças, e ela vivia só no expandido.
               expanded={expandedId === ev.id || (printMode && eventHasOverdue(ev))}
-              colSpan={stageMeta.length + 4}
+              colSpan={stageMeta.length + (compacto ? 3 : 4)}
               cobranca={cobrancaDe(ev.eventId ?? ev.id)}
               today={today}
               onToggleExpand={onToggleExpand}
+              compacto={compacto}
+              alvoBotao={alvoBotao}
             />
           ))}
         </tbody>
@@ -101,7 +118,7 @@ export function TabelaPrazos({
  * `onToggleExpand` é o setter de estado da página.
  */
 const LinhaEvento = memo(function LinhaEvento({
-  ev, expanded, colSpan, cobranca, today, onToggleExpand,
+  ev, expanded, colSpan, cobranca, today, onToggleExpand, compacto, alvoBotao,
 }: {
   ev: PrazoEvent;
   expanded: boolean;
@@ -110,6 +127,8 @@ const LinhaEvento = memo(function LinhaEvento({
   cobranca?: CobrancaEntry;
   today?: string;
   onToggleExpand: (id: string | null) => void;
+  compacto: boolean;
+  alvoBotao: number;
 }) {
   const chip = saidaChip(ev);
   const overdue = eventHasOverdue(ev);
@@ -136,14 +155,18 @@ const LinhaEvento = memo(function LinhaEvento({
             <PrioridadePonto priority={ev.priority} />
             {/* minWidth 0 no flex item: sem ele o ellipsis nunca
                 dispara e um nome gigante alarga a coluna toda. */}
+            {/* DUAS LINHAS, e não uma com reticências. O nome do evento é a
+                chave de leitura da tela inteira e "CAMPEONATO BRASILEIRO D…"
+                não distingue dois eventos do mesmo campeonato. O texto completo
+                estava só no `title`, que no tablet não existe. */}
             <Link
               href={`/eventos/${ev.eventId ?? ev.id}`}
               data-testid={`link-evento-${ev.id}`}
-              title={ev.name}
               style={{
                 fontSize: 13, fontWeight: 800, color: TI.title, textDecoration: "none",
                 fontFamily: "'Space Grotesk', sans-serif", textTransform: "uppercase",
-                overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical",
+                overflow: "hidden", overflowWrap: "anywhere", lineHeight: 1.25,
                 minWidth: 0, flex: "0 1 auto",
               }}
             >
@@ -153,6 +176,22 @@ const LinhaEvento = memo(function LinhaEvento({
           <span style={{ display: "block", fontSize: 11, color: TI.label, marginTop: 2 }}>
             Início: {fmtSaida(ev.startDate)}
           </span>
+          {/* Na densidade compacta a coluna "Saída" desce para cá: mesma
+              informação, ~150px a menos de largura mínima. */}
+          {compacto && (
+            <span style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 5, marginTop: 3 }}>
+              <span style={{ fontSize: 12, fontWeight: 600, color: TI.strong }}>
+                Saída: {fmtSaida(ev.truckDepartureDate)}
+              </span>
+              <span style={{
+                display: "inline-block", padding: "2px 8px", borderRadius: R.pill,
+                backgroundColor: chip.bg, color: chip.color, fontSize: 11, fontWeight: 700,
+              }}>
+                {chip.full}
+              </span>
+              {ev.riskCritical && <SeloRisco style={{ display: "inline-block" }} />}
+            </span>
+          )}
           {/* Selos na TERCEIRA linha, não ao lado do nome: a coluna
               tem minWidth 220 e um chip "URGENTE" de ~64px antes do
               link comeria justamente o texto que a tela existe para
@@ -172,20 +211,25 @@ const LinhaEvento = memo(function LinhaEvento({
             </span>
           )}
         </th>
-        <td style={{ padding: "12px 8px", verticalAlign: "middle" }}>
-          <span style={{ display: "block", fontSize: 12, fontWeight: 600, color: TI.strong }}>
-            {fmtSaida(ev.truckDepartureDate)}
-          </span>
-          <span title={chip.full} style={{
-            display: "inline-block", marginTop: 3, padding: "2px 8px", borderRadius: R.pill,
-            backgroundColor: chip.bg, color: chip.color, fontSize: 11, fontWeight: 700,
-          }}>
-            {chip.text}
-          </span>
-          {ev.riskCritical && (
-            <SeloRisco style={{ display: "inline-block", marginTop: 3, marginLeft: 5 }} />
-          )}
-        </td>
+        {!compacto && (
+          <td style={{ padding: "12px 8px", verticalAlign: "middle" }}>
+            <span style={{ display: "block", fontSize: 12, fontWeight: 600, color: TI.strong }}>
+              {fmtSaida(ev.truckDepartureDate)}
+            </span>
+            {/* A frase inteira ("sai em 12 dias") ficava só no `title`; o chip
+                curto vai visível e a frase acompanha para o leitor de tela. */}
+            <span style={{
+              display: "inline-block", marginTop: 3, padding: "2px 8px", borderRadius: R.pill,
+              backgroundColor: chip.bg, color: chip.color, fontSize: 11, fontWeight: 700,
+            }}>
+              <span aria-hidden="true">{chip.text}</span>
+              <span className="sr-only">{chip.full}</span>
+            </span>
+            {ev.riskCritical && (
+              <SeloRisco style={{ display: "inline-block", marginTop: 3, marginLeft: 5 }} />
+            )}
+          </td>
+        )}
         {ev.stages.map((s) => (
           <td key={s.key} style={{ padding: "10px 4px", verticalAlign: "middle", textAlign: "center" }}>
             <StageCell stage={s} invalidDate={ev.invalidDate} />
@@ -207,8 +251,9 @@ const LinhaEvento = memo(function LinhaEvento({
               display: "inline-flex", alignItems: "center", justifyContent: "center",
               // 36 e não 30: a linha já tem ~50px de conteúdo
               // (nome + início + selos), então o alvo padrão da
-              // casa cabe sem esticar nada.
-              width: 36, height: 36, borderRadius: R.md,
+              // casa cabe sem esticar nada. No dedo (tablet do
+              // galpão) sobe para 44 — `alvoBotao` vem do ponteiro.
+              width: alvoBotao, height: alvoBotao, borderRadius: R.md,
               border: `1px solid ${TI.border}`, backgroundColor: TI.card, cursor: "pointer",
             }}
           >

@@ -5,6 +5,7 @@ import { FilterSelect } from "@/components/filter-select";
 import { getStatusLabel } from "@/lib/status";
 import { Button } from "@/components/ui/button";
 import {
+import { T } from "@/lib/theme";
   Dialog,
   DialogContent,
   DialogDescription,
@@ -212,7 +213,7 @@ export function CloneItemsDialog({
 
               {pecasDaOrigem.length > 8 && (
                 <div style={{ position: 'relative', marginBottom: 8 }}>
-                  <Search aria-hidden="true" style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', width: 13, height: 13, color: '#78716c', pointerEvents: 'none' }} />
+                  <Search aria-hidden="true" style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', width: 13, height: 13, color: T.second, pointerEvents: 'none' }} />
                   <input
                     value={busca}
                     onChange={(e) => setBusca(e.target.value)}

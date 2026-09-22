@@ -10,6 +10,7 @@ import { BookPagePicker } from "@/components/book-page-picker";
 import { exportMixedToPDF, groupKeyOf, MAX_ITEMS_PER_COMBINED_PAGE, convertGCSUrlToLocalPath } from "@/lib/artePdfExport";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { normalizarBusca } from "@/lib/utils";
+import { T } from "@/lib/theme";
 
 /**
  * UMA PÁGINA DO PDF QUE VAI SAIR.
@@ -411,7 +412,7 @@ export function ExportPdfDialog({ open, onOpenChange, items: itensDaTela, title 
                   "que recorte eu quero"; nenhum responde "cadê a peça #3524",
                   que é a pergunta de quem já sabe o que procura. */}
               <div style={{ position: "relative", flex: "1 1 190px", minWidth: 150 }}>
-                <Search aria-hidden="true" style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", width: 13, height: 13, color: "#78716c", pointerEvents: "none" }} />
+                <Search aria-hidden="true" style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", width: 13, height: 13, color: T.second, pointerEvents: "none" }} />
                 <input
                   value={busca}
                   onChange={e => setBusca(e.target.value)}
@@ -674,31 +675,35 @@ export function ExportPdfDialog({ open, onOpenChange, items: itensDaTela, title 
                   return (
                     <div key={idx}>
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4, gap: 8 }}>
-                        <span style={{ fontSize: 10, color: "#78716c", fontFamily: "monospace", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{legenda}</span>
+                        <span style={{ fontSize: 10, color: T.second, fontFamily: "monospace", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{legenda}</span>
                         {/* #78716c: número de página e códigos da miniatura são
                             texto que se confere contra o PDF — o #a8a29e de
                             antes (2,5:1, em 8–10px) não se lia. */}
-                        <span style={{ fontSize: 10, color: "#78716c", fontFamily: "monospace", flexShrink: 0, fontVariantNumeric: "tabular-nums" }}>{idx + 1}</span>
+                        <span style={{ fontSize: 10, color: T.second, fontFamily: "monospace", flexShrink: 0, fontVariantNumeric: "tabular-nums" }}>{idx + 1}</span>
                       </div>
+                      {/* 11px, e não 8: o código da peça na miniatura é o que
+                          se confere contra o PDF gerado, e 8px é letra que não
+                          se lê nem no notebook, quanto mais no tablet do
+                          galpão. A altura subiu junto para o texto caber. */}
                       <div style={{
                         backgroundColor: "#fff", border: "1px solid #e7e5e4", borderRadius: 6, padding: 8,
                         display: "grid", gap: 5,
                         gridTemplateColumns: pg.tipo === "combinada" ? "1fr 1fr" : "1fr",
-                        height: pg.tipo === "capa" ? 76 : 104,
+                        height: pg.tipo === "capa" ? 82 : 110,
                       }}>
                         {pg.tipo === "capa" && (
                           <div style={{ backgroundColor: "#fafaf9", borderRadius: 3, display: "flex", alignItems: "center", justifyContent: "center", padding: 4 }}>
-                            <span style={{ fontSize: 8, fontFamily: "monospace", textTransform: "uppercase", color: "#78716c", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{pg.rotulo}</span>
+                            <span style={{ fontSize: 11, fontFamily: "monospace", textTransform: "uppercase", color: T.second, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{pg.rotulo}</span>
                           </div>
                         )}
                         {pg.tipo === "combinada" && pg.itens.map((it: any) => (
                           <div key={it.id} style={{ backgroundColor: "#f3f4f3", borderRadius: 3, display: "flex", alignItems: "center", justifyContent: "center", padding: 2 }}>
-                            <span style={{ fontSize: 8, fontFamily: "monospace", textTransform: "uppercase", color: "#78716c" }}>{it.displayId}</span>
+                            <span style={{ fontSize: 11, fontFamily: "monospace", textTransform: "uppercase", color: T.second }}>{it.displayId}</span>
                           </div>
                         ))}
                         {pg.tipo === "unica" && (
                           <div style={{ backgroundColor: "#f3f4f3", borderRadius: 3, display: "flex", alignItems: "center", justifyContent: "center", padding: 4 }}>
-                            <span style={{ fontSize: 8, fontFamily: "monospace", textTransform: "uppercase", color: "#78716c" }}>{pg.item.displayId}</span>
+                            <span style={{ fontSize: 11, fontFamily: "monospace", textTransform: "uppercase", color: T.second }}>{pg.item.displayId}</span>
                           </div>
                         )}
                       </div>

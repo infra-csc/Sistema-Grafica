@@ -30,6 +30,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { T } from "@/lib/theme";
 
 // Ativa a edição da célula também pelo teclado (Enter/Espaço) — as células
 // eram clicáveis mas invisíveis para quem navega por Tab.
@@ -441,7 +442,7 @@ export function ImportPreviewRow({ row, idx, onChange, onDelete, eventSponsorsLi
             // #78716c sobre branco = 4,80:1 ✓ (#a8a29e dava 2,32:1). Aqui a
             // frase não é enfeite: é o aviso de que a linha vai entrar SEM
             // patrocinador, e era o texto mais apagado da tabela.
-            <span style={{ fontSize: 11, color: '#78716c', fontStyle: 'italic' }}>sem patrocinador</span>
+            <span style={{ fontSize: 11, color: T.second, fontStyle: 'italic' }}>sem patrocinador</span>
           )}
         </div>
       </td>
@@ -1096,7 +1097,7 @@ export function ImportXlsxDialog({
               </table>
               {importPreviewItems.length === 0 && (
                 <div style={{ padding: 60, textAlign: 'center', color: '#746e69', fontSize: 13 }}>
-                  <List aria-hidden="true" style={{ width: 32, height: 32, color: '#78716c', margin: '0 auto 12px' }} />
+                  <List aria-hidden="true" style={{ width: 32, height: 32, color: T.second, margin: '0 auto 12px' }} />
                   <div>Nenhuma peça para importar.</div>
                 </div>
               )}
@@ -1104,7 +1105,7 @@ export function ImportXlsxDialog({
                   sem dizer o porquê nem oferecer saída. */}
               {importPreviewItems.length > 0 && importPreviewItems.filter(matchesImportFiltros).length === 0 && (
                 <div style={{ padding: 60, textAlign: 'center', color: '#746e69', fontSize: 13 }}>
-                  <Search aria-hidden="true" style={{ width: 32, height: 32, color: '#78716c', margin: '0 auto 12px' }} />
+                  <Search aria-hidden="true" style={{ width: 32, height: 32, color: T.second, margin: '0 auto 12px' }} />
                   <div style={{ fontWeight: 700, color: '#1a1c1c', marginBottom: 4 }}>Nenhuma peça corresponde ao filtro</div>
                   <div style={{ marginBottom: 14 }}>Tente outro termo ou limpe o filtro para ver as {importPreviewItems.length} peças.</div>
                   <button

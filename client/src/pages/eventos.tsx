@@ -709,20 +709,20 @@ function EventCardActions({
       {canDuplicate && (
         <button onClick={(e) => onDuplicate(event, e)} data-testid={`button-duplicate-event-${event.id}`}
           title="Duplicar evento (prazos, patrocinadores e cotas)" aria-label={`Duplicar evento ${event.name}`}
-          style={{ ...btnBase, backgroundColor: '#f9f9f8', color: '#78716c' }}>
+          style={{ ...btnBase, backgroundColor: '#f9f9f8', color: T.second }}>
           <Copy style={{ width: '13px', height: '13px' }} />
         </button>
       )}
       {canEdit ? (
         <button onClick={(e) => onEdit(event, e)} data-testid={`button-edit-event-${event.id}`}
           title="Editar evento" aria-label={`Editar evento ${event.name}`}
-          style={{ ...btnBase, backgroundColor: '#f9f9f8', color: '#78716c' }}>
+          style={{ ...btnBase, backgroundColor: '#f9f9f8', color: T.second }}>
           <Pencil style={{ width: '13px', height: '13px' }} />
         </button>
       ) : soPatrocinadores && (
         <button onClick={(e) => onEdit(event, e)} data-testid={`button-sponsors-event-${event.id}`}
           title="Vincular patrocinadores" aria-label={`Vincular patrocinadores ao evento ${event.name}`}
-          style={{ ...btnBase, backgroundColor: '#f9f9f8', color: '#78716c' }}>
+          style={{ ...btnBase, backgroundColor: '#f9f9f8', color: T.second }}>
           <Building2 style={{ width: '13px', height: '13px' }} />
         </button>
       )}
@@ -2842,7 +2842,7 @@ export default function Eventos() {
                               onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') e.stopPropagation(); }}
                               style={{ display: 'inline-flex', alignItems: 'center', background: 'transparent', border: 'none', padding: 2, cursor: 'help' }}
                             >
-                              <HelpCircle style={{ width: '12px', height: '12px', color: '#78716c' }} />
+                              <HelpCircle style={{ width: '12px', height: '12px', color: T.second }} />
                             </span>
                           </TooltipTrigger>
                           <TooltipContent side="top" style={{ maxWidth: '240px', fontSize: FS.body, lineHeight: '1.5' }}>

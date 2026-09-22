@@ -326,7 +326,8 @@ const GraficoCarga = memo(function GraficoCarga({
   isMobile: boolean;
 }) {
   return (
-    <div style={{ overflowX: isMobile ? "auto" : "visible" }}>
+    {/* Mesma regra da tabela abaixo: a caixa do gráfico rola, a página não. */}
+    <div style={{ overflowX: "auto" }}>
       <div style={{ minWidth: isMobile ? 620 : undefined, height: 300 }}>
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={dadosCarga} margin={{ top: 22, right: 8, left: -12, bottom: 0 }} barGap={2}>
@@ -1470,7 +1471,12 @@ export default function DashboardAnalises() {
             aoLimpar={limparFiltros}
           />
         ) : (
-          <div style={{ overflowX: isMobile ? "auto" : "visible" }}>
+          {/* ROLAGEM SEMPRE NA CAIXA, nunca na página. Era `visible` fora do
+              celular: com a barra lateral aberta num tablet sobram ~700px de
+              conteúdo, a tabela de 780px estourava e quem rolava de lado era a
+              PÁGINA inteira (o SidebarInset computa overflow-x: auto), levando
+              junto cabeçalho e filtros. */}
+          <div style={{ overflowX: "auto" }}>
             <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 780 }}>
               <thead>
                 <tr style={{ backgroundColor: T.low }}>

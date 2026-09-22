@@ -29,6 +29,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { miniatura } from "@/lib/miniatura";
 import { conditionMeta } from "@/lib/inventory-meta";
+import { T } from "@/lib/theme";
 
 type Lote = {
   chave: string;
@@ -167,7 +168,7 @@ function LoteLinha({ lote, indice, nomeDe, maximo, quantidade, onQuantidade, onR
       </div>
       <div style={{ marginLeft: "auto", display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
         <span style={{ fontSize: 20, fontWeight: 900, color: "#1c1917", fontVariantNumeric: "tabular-nums", lineHeight: 1 }}>
-          {lote.quantidade}<span style={{ fontSize: 11, fontWeight: 700, color: "#78716c" }}> un.</span>
+          {lote.quantidade}<span style={{ fontSize: 11, fontWeight: 700, color: T.second }}> un.</span>
         </span>
         {podeAgir && maximo > 0 && (
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
@@ -329,7 +330,7 @@ export function EstoqueSemelhantesDialog({ item, podeReservar, onClose }: {
             </p>
           )}
           {data && !podeReservar && (
-            <p style={{ margin: 0, fontSize: 12, color: "#78716c" }}>Reservar é da Solicitação e do admin — aqui você só consulta.</p>
+            <p style={{ margin: 0, fontSize: 12, color: T.second }}>Reservar é da Solicitação e do admin — aqui você só consulta.</p>
           )}
 
           {data && data.reservadas.length > 0 && (
@@ -433,7 +434,7 @@ export function EstoqueSemelhantesDialog({ item, podeReservar, onClose }: {
           )}
         </div>
 
-        <footer style={{ padding: "10px 20px", borderTop: "1px solid #e7e5e4", background: "#fff", fontSize: 11.5, color: "#78716c", lineHeight: 1.45, flexShrink: 0 }}>
+        <footer style={{ padding: "10px 20px", borderTop: "1px solid #e7e5e4", background: "#fff", fontSize: 11.5, color: T.second, lineHeight: 1.45, flexShrink: 0 }}>
           Reservar só segura a peça física para este evento. Quando for usar, a Gráfica marca o reaproveitamento na fila dela.
         </footer>
       </DialogContent>

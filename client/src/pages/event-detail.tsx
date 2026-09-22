@@ -150,6 +150,7 @@ import {
 } from "@/components/aumentar-quantidade-dialog";
 import { compareDisplayId } from "@/lib/displayId";
 import { miniatura } from "@/lib/miniatura";
+import { T } from "@/lib/theme";
 
 // A lista única de tipos (com o Molde, 22/09) mora em shared/molde.ts.
 const itemTypes = [...TIPOS_DE_PECA];
@@ -2197,7 +2198,7 @@ export default function EventDetail() {
               // Botão secundário do cabeçalho — um estilo só, em vez de oito
               // cópias do mesmo objeto inline. 40px no ponteiro, 44 no toque.
               const secundario = (travado = false): React.CSSProperties => ({
-                backgroundColor: '#ffffff', color: travado ? '#78716c' : '#1a1c1c',
+                backgroundColor: '#ffffff', color: travado ? T.second : '#1a1c1c',
                 height: isMobile ? 44 : 40, padding: '0 16px', borderRadius: 8,
                 fontWeight: 700, fontSize: 13, display: 'inline-flex', alignItems: 'center', gap: 7,
                 border: '1px solid #e7e5e4', cursor: travado ? 'not-allowed' : 'pointer',
@@ -2732,7 +2733,7 @@ export default function EventDetail() {
                           // bolinha pequena, não por um cinza ilegível (#B8B2A8
                           // dava 2,1:1).
                           dotBg = '#D8D4CE'; dotBorder = '#D8D4CE'; dotSize = 10;
-                          labelCol = '#78716c'; dateCol = '#78716c'; labelW = 500;
+                          labelCol = T.second; dateCol = T.second; labelW = 500;
                         }
                       } else {
                         dotBg = TI.card; dotBorder = TI.line; dotSize = 12;
@@ -2999,7 +3000,7 @@ export default function EventDetail() {
                                               className="p-1.5 rounded-md"
                                               title={motivoEdicaoBloqueada(item.status) ?? undefined}
                                               aria-label={`Edição bloqueada: ${motivoEdicaoBloqueada(item.status) ?? ""}`}
-                                              style={{ color: "#78716c", cursor: "not-allowed", background: "none", border: "none" }}
+                                              style={{ color: T.second, cursor: "not-allowed", background: "none", border: "none" }}
                                             >
                                               <Lock className="h-3.5 w-3.5" />
                                             </button>
@@ -3228,7 +3229,7 @@ export default function EventDetail() {
       ) : mainItems.length === 0 ? (
         draftItems.length > 0 ? null : (
           <div style={{ textAlign: 'center', padding: '64px 0' }}>
-            <Package aria-hidden="true" className="h-12 w-12 mx-auto mb-4" style={{ color: '#78716c' }} />
+            <Package aria-hidden="true" className="h-12 w-12 mx-auto mb-4" style={{ color: T.second }} />
             <h3 style={{ fontSize: '18px', fontWeight: '600', color: '#1c1917', marginBottom: '8px' }}>Nenhuma peça na lista ainda</h3>
             {/* OS TRÊS CAMINHOS, CLICÁVEIS. O texto antigo mandava procurar
                 "Importar Excel" e "Clonar peças" no topo — e o clonar agora
@@ -3260,7 +3261,7 @@ export default function EventDetail() {
                       cursor: eventoFinalizado ? 'not-allowed' : 'pointer',
                       ...(primaria
                         ? { backgroundColor: eventoFinalizado ? '#e7e5e4' : '#b45309', color: eventoFinalizado ? '#57534e' : '#ffffff', border: 'none' }
-                        : { backgroundColor: '#ffffff', color: eventoFinalizado ? '#78716c' : '#1c1917', border: '1px solid #e7e5e4' }),
+                        : { backgroundColor: '#ffffff', color: eventoFinalizado ? T.second : '#1c1917', border: '1px solid #e7e5e4' }),
                     }}
                   >
                     <Icone className="h-4 w-4" aria-hidden="true" />
@@ -3280,7 +3281,7 @@ export default function EventDetail() {
           {/* Busca local de peças — evita rolagem cega em eventos grandes. */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: '-24px' }}>
             <div style={{ position: 'relative', width: isMobile ? '100%' : 280 }}>
-              <Search aria-hidden="true" style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', width: 13, height: 13, color: '#78716c', pointerEvents: 'none' }} />
+              <Search aria-hidden="true" style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', width: 13, height: 13, color: T.second, pointerEvents: 'none' }} />
               <input
                 type="text"
                 aria-label="Buscar peça por ID, tipo ou status"
@@ -3416,7 +3417,7 @@ export default function EventDetail() {
                               <button onClick={() => handleEditItem(item)}
                                 disabled={isEditBlocked(item.status)}
                                 title={motivoEdicaoBloqueada(item.status) ?? undefined}
-                                style={{ flex: 1, minHeight: 44, borderRadius: 6, border: '1px solid #e7e5e4', background: '#fafaf9', fontSize: 13, fontWeight: 700, color: isEditBlocked(item.status) ? '#78716c' : '#44403c', cursor: isEditBlocked(item.status) ? 'not-allowed' : 'pointer' }}>
+                                style={{ flex: 1, minHeight: 44, borderRadius: 6, border: '1px solid #e7e5e4', background: '#fafaf9', fontSize: 13, fontWeight: 700, color: isEditBlocked(item.status) ? T.second : '#44403c', cursor: isEditBlocked(item.status) ? 'not-allowed' : 'pointer' }}>
                                 Editar
                               </button>
                               {/* Aumentar quantidade NÃO mora aqui: o gatilho
@@ -3730,7 +3731,7 @@ export default function EventDetail() {
                                     );
                                   }}
                                   data-testid={`button-reuse-item-${item.id}`}
-                                  style={{ background: item.isReuse ? '#d1fae5' : 'none', border: item.isReuse ? '1px solid #6ee7b7' : 'none', borderRadius: '6px', padding: '6px', cursor: updateItemIsReuseMutation.isPending ? 'wait' : 'pointer', opacity: updateItemIsReuseMutation.isPending ? 0.5 : 1, color: item.isReuse ? '#065f46' : '#78716c', transition: 'all 0.15s', display: 'flex', alignItems: 'center' }}
+                                  style={{ background: item.isReuse ? '#d1fae5' : 'none', border: item.isReuse ? '1px solid #6ee7b7' : 'none', borderRadius: '6px', padding: '6px', cursor: updateItemIsReuseMutation.isPending ? 'wait' : 'pointer', opacity: updateItemIsReuseMutation.isPending ? 0.5 : 1, color: item.isReuse ? '#065f46' : T.second, transition: 'all 0.15s', display: 'flex', alignItems: 'center' }}
                                   onMouseEnter={e => { if (!item.isReuse) { e.currentTarget.style.color = '#065f46'; e.currentTarget.style.backgroundColor = '#d1fae5'; } }}
                                   onMouseLeave={e => { if (!item.isReuse) { e.currentTarget.style.color = '#746e69'; e.currentTarget.style.backgroundColor = 'transparent'; } }}
                                 >
@@ -3744,7 +3745,7 @@ export default function EventDetail() {
                                   aria-disabled="true"
                                   title={motivoEdicaoBloqueada(item.status) ?? undefined}
                                   aria-label={`Edição bloqueada: ${motivoEdicaoBloqueada(item.status) ?? ""}`}
-                                  style={{ color: '#78716c', padding: '6px', cursor: 'not-allowed', background: 'none', border: 'none' }}
+                                  style={{ color: T.second, padding: '6px', cursor: 'not-allowed', background: 'none', border: 'none' }}
                                   data-testid={`button-edit-item-${item.id}`}
                                 >
                                   <Lock className="h-4 w-4" />
@@ -3778,7 +3779,7 @@ export default function EventDetail() {
                                     type="button"
                                     disabled
                                     aria-disabled="true"
-                                    style={{ color: '#78716c', padding: '6px', cursor: 'not-allowed', background: 'none', border: 'none' }}
+                                    style={{ color: T.second, padding: '6px', cursor: 'not-allowed', background: 'none', border: 'none' }}
                                     title="Exclusão bloqueada — peça já está em Arte ou produção"
                                   >
                                     <Trash2 className="h-4 w-4" />

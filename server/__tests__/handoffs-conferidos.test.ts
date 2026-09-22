@@ -233,8 +233,11 @@ describe("Calendário", () => {
   });
 
   it("10 · as cores de hoje e das contagens", () => {
-    expect(CAL).toContain('"#c2410c"');
-    expect(CAL).toContain('"#dc2626"');
+    // Os hexes viraram token. T.accentText É #c2410c, e o #dc2626 que estava
+    // aqui virou TOM.perigo.text (#b91c1c): o #dc2626 dá 4,0:1 como cor de
+    // texto e reprova AA — o vermelho da paleta é mais escuro de propósito.
+    expect(CAL).toContain("T.accentText");
+    expect(CAL).toContain("TOM.perigo.text");
   });
 
   it("11 e 12 · o dialog filtra como a grade, e o guard do teclado", () => {

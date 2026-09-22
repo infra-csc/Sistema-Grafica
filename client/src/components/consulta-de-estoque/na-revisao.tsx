@@ -21,6 +21,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { CheckCircle2, Clock3, PackageSearch, XCircle } from "lucide-react";
 import {
   MAX_OBSERVACAO_DA_CONSULTA,
+  SOLICITACAO_AO_ESTOQUE_ATIVA,
   respostaEsperandoConfirmar,
   textoDaResposta,
   textoDoPedido,
@@ -43,10 +44,11 @@ const atualizar = () => queryClient.invalidateQueries({
 export function useConsultaDaPeca(itemId: string | null | undefined, ligado = true) {
   const { data, isLoading, isError } = useQuery<{ consulta: ConsultaDaPeca | null }>({
     queryKey: chaveDaConsulta(itemId ?? ""),
-    enabled: ligado && !!itemId,
+    // Chave desligada (21/09): nenhuma requisição, e a peça "nunca pediu".
+    enabled: SOLICITACAO_AO_ESTOQUE_ATIVA && ligado && !!itemId,
   });
-  const consulta = itemId ? data?.consulta ?? null : null;
-  return { consulta, carregando: isLoading && ligado && !!itemId, erro: isError };
+  const consulta = SOLICITACAO_AO_ESTOQUE_ATIVA && itemId ? data?.consulta ?? null : null;
+  return { consulta, carregando: SOLICITACAO_AO_ESTOQUE_ATIVA && isLoading && ligado && !!itemId, erro: SOLICITACAO_AO_ESTOQUE_ATIVA && isError };
 }
 
 export type EstoqueDaLinha = {
@@ -56,11 +58,12 @@ export type EstoqueDaLinha = {
 
 /** O que vale para cada peça EM REVISÃO — uma leitura para a lista inteira. */
 export function useEstoqueDaRevisao() {
-  const { data } = useQuery<EstoqueDaLinha[]>({ queryKey: CHAVE_DO_ESTOQUE_NA_REVISAO });
+  // Chave desligada (21/09): nenhuma requisição e o mapa vem vazio.
+  const { data } = useQuery<EstoqueDaLinha[]>({ queryKey: CHAVE_DO_ESTOQUE_NA_REVISAO, enabled: SOLICITACAO_AO_ESTOQUE_ATIVA });
   return useMemo(() => {
     const porPeca = new Map<string, EstoqueDaLinha>();
     // Array.isArray: resposta fora do formato não pode derrubar a fila.
-    for (const l of Array.isArray(data) ? data : []) porPeca.set(l.itemId, l);
+    for (const l of SOLICITACAO_AO_ESTOQUE_ATIVA && Array.isArray(data) ? data : []) porPeca.set(l.itemId, l);
     return porPeca;
   }, [data]);
 }
@@ -178,6 +181,28 @@ export function PedirAoEstoque({ item, onPedido }: {
           style={{ width: "100%", boxSizing: "border-box", borderRadius: 8, border: "1px solid #d6d3d1", padding: "8px 12px", fontSize: 16, fontFamily: "inherit", lineHeight: 1.45, resize: "vertical", color: "#1c1917" }} />
       </div>
     </div>
+  );
+}
+
+/**
+ * O caminho de SEMPRE do modal Reaproveitamento (marca e libera na hora).
+ * Chave desligada (dono, 21/09 — segurar): as opções aparecem direto, sem
+ * envelope nenhum — o modal é o de antes da solicitação ao estoque. Ligada:
+ * só o admin, atrás de "Já conferi no estoque — aplicar agora".
+ */
+export function AplicarAgoraNoModal({ admin, children }: { admin: boolean; children: React.ReactNode }) {
+  if (!SOLICITACAO_AO_ESTOQUE_ATIVA) return <>{children}</>;
+  if (!admin) return null;
+  return (
+    <details data-testid="ja-conferi-aplicar-agora" style={{ borderTop: "1px solid #e7e5e4", paddingTop: 8 }}>
+      <summary style={{ minHeight: 44, display: "flex", alignItems: "center", cursor: "pointer", fontSize: 13, fontWeight: 700, color: "#44403c" }}>
+        Já conferi no estoque — aplicar agora
+      </summary>
+      <p style={{ margin: "0 0 10px", fontSize: 12, color: "#57534e", lineHeight: 1.45 }}>
+        Sem passar pela Gráfica: marca o reaproveitamento e libera a peça, como era antes.
+      </p>
+      {children}
+    </details>
   );
 }
 

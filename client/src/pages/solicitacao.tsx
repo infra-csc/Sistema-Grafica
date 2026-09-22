@@ -37,10 +37,10 @@ import type { SeloPecaEventoFinalizado } from "@/lib/status";
 import { ModalHeader, modalSurface, HIDE_NATIVE_CLOSE, FreezeWhileClosing } from "@/components/modal-shell";
 import { AumentarQuantidadeDialog, parseApiError } from "@/components/aumentar-quantidade-dialog";
 import {
-  PedirAoEstoque, RespostaDoEstoqueNaFicha, SeloDoEstoqueNaLinha, CHAVE_DO_ESTOQUE_NA_REVISAO,
+  PedirAoEstoque, RespostaDoEstoqueNaFicha, SeloDoEstoqueNaLinha, AplicarAgoraNoModal, CHAVE_DO_ESTOQUE_NA_REVISAO,
   aguardandoEstoque, chaveDaConsulta, estoqueRespondeu, useConsultaDaPeca, useEstoqueDaRevisao,
 } from "@/components/consulta-de-estoque/na-revisao";
-import { propostaDaLiberacao, respostaEsperandoConfirmar, resumoDoLoteComEstoque } from "@shared/consultas-de-estoque";
+import { SOLICITACAO_AO_ESTOQUE_ATIVA, propostaDaLiberacao, respostaEsperandoConfirmar, resumoDoLoteComEstoque } from "@shared/consultas-de-estoque";
 import { FS } from "@/lib/theme";
 
 // Tons de texto desta paleta valem para superfícies CLARAS (bg/surface).
@@ -203,8 +203,12 @@ export default function Solicitacao() {
   // `propostaDaFicha`: a conta pronta da peça aberta, que escreve o botão
   // "Confirmar e liberar · 3 reaproveitadas + 3 a produzir".
   // `usarMenos`: o ajuste escondido atrás do link — null = a sugestão.
+  // CHAVE DESLIGADA (dono, 21/09 — segurar; SOLICITACAO_AO_ESTOQUE_ATIVA):
+  // os dois hooks não pedem nada (mapa vazio, consulta null), o filtro fica
+  // vazio e a URL não é tocada — a tela é a de antes da solicitação ao estoque.
   const estoquePorPeca = useEstoqueDaRevisao();
   const [filtroEstoque, setFiltroEstoque] = useState<"" | "aguardando" | "respondeu">(() => {
+    if (!SOLICITACAO_AO_ESTOQUE_ATIVA) return "";
     const v = typeof window === "undefined" ? "" : new URLSearchParams(window.location.search).get("estoque");
     return v === "aguardando" || v === "respondeu" ? v : "";
   });
@@ -215,14 +219,16 @@ export default function Solicitacao() {
   const pedidoEmAberto = consultaDaFicha?.status === "aberta";
   // Marcação manual de reaproveitamento total manda — o servidor também a
   // respeita antes da resposta do estoque.
-  const propostaDaFicha = selectedItem && !selectedItem.isReuse && respostaEsperandoConfirmar(consultaDaFicha)
+  const propostaDaFicha = SOLICITACAO_AO_ESTOQUE_ATIVA && selectedItem && !selectedItem.isReuse && respostaEsperandoConfirmar(consultaDaFicha)
     ? propostaDaLiberacao(Number(selectedItem.quantity) || 0, consultaDaFicha!, usarMenos)
     : null;
   // Sem arquivo final não libera — salvo quando o estoque cobre a peça inteira
   // (reaproveitamento total não imprime nada; é a mesma régua do servidor).
-  const semArquivoParaLiberar = !selectedItem?.finalFileUrl && !propostaDaFicha?.pulaProducao;
+  // Chave desligada: a regra de antes — sem arquivo final, não libera.
+  const semArquivoParaLiberar = !selectedItem?.finalFileUrl && !(SOLICITACAO_AO_ESTOQUE_ATIVA && propostaDaFicha?.pulaProducao);
   // O filtro do estoque mora na URL, como os outros (?estoque=respondeu).
   useEffect(() => {
+    if (!SOLICITACAO_AO_ESTOQUE_ATIVA) return;
     const q = new URLSearchParams(window.location.search);
     if (filtroEstoque) q.set("estoque", filtroEstoque); else q.delete("estoque");
     const qs = q.toString();
@@ -995,8 +1001,10 @@ export default function Solicitacao() {
     const sorted = [...filteredItems].sort((a, b) => {
       // ESTOQUE RESPONDEU sobe (dono, 21/09): a resposta existe para a Revisão
       // Final agir — no meio de 74 peças ela passava batido.
-      const ra = estoqueRespondeu(estoquePorPeca.get(a.id)) ? 0 : 1, rb = estoqueRespondeu(estoquePorPeca.get(b.id)) ? 0 : 1;
-      if (ra !== rb) return ra - rb;
+      if (SOLICITACAO_AO_ESTOQUE_ATIVA) {
+        const ra = estoqueRespondeu(estoquePorPeca.get(a.id)) ? 0 : 1, rb = estoqueRespondeu(estoquePorPeca.get(b.id)) ? 0 : 1;
+        if (ra !== rb) return ra - rb;
+      }
       const ga = typeToGroup[a.type] || '', gb = typeToGroup[b.type] || '';
       // type pode vir null do banco — sem o fallback o localeCompare lançava.
       return ga.localeCompare(gb) || (a.type || '').localeCompare(b.type || '');
@@ -1418,8 +1426,11 @@ export default function Solicitacao() {
           {([
             { id: "sem-arquivo", rotulo: "Sem arquivo final", n: contagemSemArquivo, ligado: soSemArquivo, alterna: () => setSoSemArquivo(v => !v), cor: "#9a3412", testid: "chip-sem-arquivo" },
             { id: "evento-finalizado", rotulo: "Evento finalizado", n: contagemEventoFinalizado, ligado: soEventoFinalizado, alterna: () => setSoEventoFinalizado(v => !v), cor: "#78716c", testid: "chip-evento-finalizado-faceta" },
+            // Solicitação ao estoque: só com a chave ligada (dono, 21/09 — segurar).
+            ...(SOLICITACAO_AO_ESTOQUE_ATIVA ? [
             { id: "estoque-respondeu", rotulo: "Estoque respondeu", n: contagemDoEstoque.respondeu, ligado: filtroEstoque === "respondeu", alterna: () => setFiltroEstoque(v => (v === "respondeu" ? "" : "respondeu")), cor: "#15803d", testid: "chip-estoque-respondeu" },
             { id: "aguardando-estoque", rotulo: "Aguardando estoque", n: contagemDoEstoque.aguardando, ligado: filtroEstoque === "aguardando", alterna: () => setFiltroEstoque(v => (v === "aguardando" ? "" : "aguardando")), cor: "#d97706", testid: "chip-aguardando-estoque" },
+            ] : []),
           ]).map(chip => {
             if (chip.n === 0 && !chip.ligado) return null;
             return (
@@ -2697,7 +2708,7 @@ export default function Solicitacao() {
                     arquivo final, o porquê do Liberar travado deixa de morar só
                     no `title`, que não aparece em botão desabilitado nem no
                     toque. Em evento finalizado o aviso cinza abaixo já explica. */}
-                {selectedItem && (
+                {SOLICITACAO_AO_ESTOQUE_ATIVA && selectedItem && (
                   <RespostaDoEstoqueNaFicha item={selectedItem} usar={usarMenos} onUsar={setUsarMenos} />
                 )}
                 {!seloSelecionado && selectedItem && (
@@ -3174,23 +3185,19 @@ export default function Solicitacao() {
                     quantidade é maior que 1, então o corpo é elástico. */}
                 <div style={{ padding: "20px 24px", overflowY: "auto", flex: "1 1 auto", minHeight: 0 }}>
 
-              {/* PEDIR AO ESTOQUE (dono, 21/09): confirmar aqui não aplica mais
-                  o reaproveitamento na hora — vira uma solicitação para a
-                  Gráfica, que atende, atende em parte ou não consegue. A
-                  resposta volta para a ficha desta peça. */}
-              <PedirAoEstoque key={dialogItem.id} item={dialogItem} onPedido={() => setReuseDialogItemId(null)} />
+              {/* PEDIR AO ESTOQUE (dono, 21/09): com a chave LIGADA, confirmar
+                  aqui não aplica o reaproveitamento na hora — vira uma
+                  solicitação para a Gráfica, que atende, atende em parte ou
+                  não consegue. A resposta volta para a ficha desta peça.
+                  Chave DESLIGADA (dono, 21/09 — segurar): nada disto aparece. */}
+              {SOLICITACAO_AO_ESTOQUE_ATIVA && (
+                <PedirAoEstoque key={dialogItem.id} item={dialogItem} onPedido={() => setReuseDialogItemId(null)} />
+              )}
 
-              {/* JÁ CONFERI — APLICAR AGORA: o caminho antigo, só para o admin
-                  (que também responde pelo estoque): não faz sentido ele pedir
-                  a si mesmo. Marca o reaproveitamento e libera, como sempre. */}
-              {user?.role === "admin" && (
-              <details data-testid="ja-conferi-aplicar-agora" style={{ borderTop: "1px solid #e7e5e4", paddingTop: 8 }}>
-              <summary style={{ minHeight: 44, display: "flex", alignItems: "center", cursor: "pointer", fontSize: 13, fontWeight: 700, color: "#44403c" }}>
-                Já conferi no estoque — aplicar agora
-              </summary>
-              <p style={{ margin: "0 0 10px", fontSize: 12, color: "#57534e", lineHeight: 1.45 }}>
-                Sem passar pela Gráfica: marca o reaproveitamento e libera a peça, como era antes.
-              </p>
+              {/* APLICAR AGORA — o fluxo NORMAL de reaproveitar. Chave
+                  desligada: as duas opções de sempre, direto no modal. Ligada:
+                  só o admin, atrás de "Já conferi no estoque — aplicar agora". */}
+              <AplicarAgoraNoModal admin={user?.role === "admin"}>
 
               {/* Opção: reaproveitar tudo */}
               <button
@@ -3253,8 +3260,7 @@ export default function Solicitacao() {
                   </button>
                 </div>
               )}
-              </details>
-              )}
+              </AplicarAgoraNoModal>
 
                   <button
                     onClick={() => setReuseDialogItemId(null)}

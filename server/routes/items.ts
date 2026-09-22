@@ -9,7 +9,7 @@ import { ITEM_STATUSES, type Item } from "@shared/schema";
 import { eventoComDatasDoKit, pecaVisivelPara, remessaUtilizavelPor } from "@shared/kit";
 import { carregarRemessa, remessasPorIds } from "../services/kitRemessas";
 import { respostaDoEstoqueParaLiberar, marcarRespostaAplicada } from "../services/consultaDeEstoqueNaLiberacao";
-import { trilhaDaLiberacaoComEstoque } from "@shared/consultas-de-estoque";
+import { trilhaDaLiberacaoComEstoque, SOLICITACAO_AO_ESTOQUE_ATIVA } from "@shared/consultas-de-estoque";
 import { resumosDeTuboPorIds, comTubo } from "../services/tubosDaPeca";
 import { FORMATO_COMPACTO, compactarPecas, compactarAprovacoes } from "@shared/itens-compactos";
 import { DEPOIS_DA_ARTE, EM_REVISAO, POS_APROVACAO, DISPENSAVEIS, DESTINO_DA_DISPENSA, ehBookCompleto, ehMaquinaValida, rotuloDaMaquina } from "@shared/fluxo-peca";
@@ -3661,11 +3661,14 @@ export function registerItemRoutes(app: Express): void {
       // reaproveitamento. { reuseQty, peloEstoque: true } é o "usar menos do
       // que o estoque atendeu": de 0 até N, nunca mais. Corpo com reuseQty SEM
       // a marca é o caminho antigo ("já conferi — aplicar agora"), que manda.
-      const doEstoque = currentItem.isReuse ? null : await respostaDoEstoqueParaLiberar(currentItem.id);
+      // CHAVE DESLIGADA (dono, 21/09 — segurar): nem lê a tabela; `doEstoque`
+      // fica null e a liberação é exatamente a de antes da solicitação ao
+      // estoque — nada dela roda dentro da transação abaixo.
+      const doEstoque = SOLICITACAO_AO_ESTOQUE_ATIVA && !currentItem.isReuse ? await respostaDoEstoqueParaLiberar(currentItem.id) : null;
       let usadasDoEstoque: number | null = null;
       // A tela mandou "usar N do estoque" mas a resposta não existe mais (já
       // aplicada, cancelada): não vira reaproveitamento sem lastro.
-      if (req.body?.peloEstoque === true && !doEstoque) {
+      if (SOLICITACAO_AO_ESTOQUE_ATIVA && req.body?.peloEstoque === true && !doEstoque) {
         return res.status(409).json({ error: "A resposta do estoque desta peça não está mais disponível — atualize a tela antes de liberar." });
       }
       if (doEstoque && req.body?.peloEstoque === true && pedidoNoCorpo != null) {

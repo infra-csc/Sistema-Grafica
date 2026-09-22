@@ -27,6 +27,14 @@ import path from "path";
 const h = React.createElement;
 vi.setConfig({ testTimeout: 120_000 });
 
+// A feature está SEGURADA (dono, 21/09: SOLICITACAO_AO_ESTOQUE_ATIVA = false).
+// Estes testes rodam com a chave LIGADA para não apodrecerem até religar; o
+// estado desligado tem arquivo próprio (solicitacao-ao-estoque-desligada*).
+vi.mock("@shared/consultas-de-estoque", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@shared/consultas-de-estoque")>()),
+  SOLICITACAO_AO_ESTOQUE_ATIVA: true,
+}));
+
 const U = vi.hoisted(() => ({ user: { id: "u-graf", name: "Gil", email: "g@g", role: "grafica", mustChangePassword: false } as any }));
 vi.mock("@/contexts/auth-context", () => ({
   useAuth: () => ({ user: U.user, isLoading: false, logout: () => {} }),
@@ -498,9 +506,10 @@ describe("as regras da casa nos arquivos novos", () => {
 
   it("menu “Solicitações ao estoque”, rota, pré-carga, o número das abertas (só para quem responde) e o destino de cada aviso", () => {
     const menu = ler("client/src/components/app-sidebar.tsx");
-    expect(menu).toContain('{ title: "Solicitações ao estoque", url: "/grafica/solicitacoes-ao-estoque", icon: PackageSearch, roles: ["grafica", "solicitacao", "admin"] },');
+    expect(menu).toContain('title: "Solicitações ao estoque", url: "/grafica/solicitacoes-ao-estoque", icon: PackageSearch, roles: ["grafica", "solicitacao", "admin"],');
+    expect(menu).toContain("...(SOLICITACAO_AO_ESTOQUE_ATIVA ? [ITEM_SOLICITACOES_AO_ESTOQUE] : []),");
     expect(menu).toContain('queryKey: ["/api/consultas-de-estoque/abertas"],');
-    expect(menu).toContain('const respondeConsultas = role === "grafica" || role === "admin";');
+    expect(menu).toContain('const respondeConsultas = SOLICITACAO_AO_ESTOQUE_ATIVA && (role === "grafica" || role === "admin");');
     expect(menu).toContain('"solicitação ao estoque esperando" : "solicitações ao estoque esperando"} resposta');
     const app = ler("client/src/App.tsx");
     expect(app).toContain('const SolicitacoesAoEstoque = lazyPage(() => import("@/pages/solicitacoes-ao-estoque"));');
@@ -509,7 +518,7 @@ describe("as regras da casa nos arquivos novos", () => {
     expect(app).toContain('if (tipo === "consultaDeEstoque") return "/grafica/solicitacoes-ao-estoque";');
     expect(app).toContain('if (role === "grafica" || tipo === "consultaDeEstoqueAplicada") return "/grafica/solicitacoes-ao-estoque?aba=respondidas";');
     expect(app).toContain("return n.itemId ? `/solicitacao?item=${n.itemId}` : \"/solicitacao\";");
-    expect(ler("client/src/lib/prefetch-de-rota.ts")).toContain('"/grafica/solicitacoes-ao-estoque": () => import("@/pages/solicitacoes-ao-estoque"),');
+    expect(ler("client/src/lib/prefetch-de-rota.ts")).toContain('{ "/grafica/solicitacoes-ao-estoque": () => import("@/pages/solicitacoes-ao-estoque") }');
     const sino = ler("client/src/components/notification-bell.tsx");
     for (const tipo of ["consultaDeEstoque:", "consultaDeEstoqueRespondida:", "consultaDeEstoqueAplicada:"]) expect(sino).toContain(tipo);
   });

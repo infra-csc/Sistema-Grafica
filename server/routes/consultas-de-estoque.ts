@@ -28,6 +28,7 @@ import {
   ehFotoValida,
   validarAtendimento,
   validarPedido,
+  SOLICITACAO_AO_ESTOQUE_ATIVA,
 } from "@shared/consultas-de-estoque";
 import { requireRole, broadcast, createAuditLog, resolveActor } from "./shared";
 import { motivoEventoDaPeca, erroEventoFechado } from "./eventoFinalizado";
@@ -63,10 +64,19 @@ function foraDoAlcance(req: any, peca: { kitRemessaId: string | null; criadoPorI
   return req.userRole === "solicitacao" && req.userKit !== true && !!peca.kitRemessaId;
 }
 
+// A CHAVE (dono, 21/09 — segurar): desligada, as rotas continuam registradas
+// (a régua de papéis compara tabela × código), mas não tocam no banco. Vêm
+// DEPOIS da guarda de papel: quem não podia continua recebendo 403.
+// Escrita → 404 "Recurso desativado"; leitura → vazio, no formato de sempre.
+const desativadaParaEscrita = (_req: any, res: any, next: any) =>
+  SOLICITACAO_AO_ESTOQUE_ATIVA ? next() : res.status(404).json({ error: "Recurso desativado" });
+const vazioSeDesativada = (vazio: unknown) => (_req: any, res: any, next: any) =>
+  SOLICITACAO_AO_ESTOQUE_ATIVA ? next() : res.json(vazio);
+
 export function registerConsultasDeEstoqueRoutes(app: Express): void {
   // A solicitação que vale para a peça (a mais recente não cancelada) — o que
   // a ficha da Revisão Final mostra. null = nunca pediu.
-  app.get("/api/items/:id/consulta-de-estoque", requireLerConsultas, async (req, res) => {
+  app.get("/api/items/:id/consulta-de-estoque", requireLerConsultas, vazioSeDesativada({ consulta: null }), async (req, res) => {
     try {
       const peca = await repo.pecaDaConsulta(req.params.id);
       if (!peca || peca.deletedAt || foraDoAlcance(req, peca)) return res.status(404).json({ error: "Peça não encontrada" });
@@ -79,7 +89,7 @@ export function registerConsultasDeEstoqueRoutes(app: Express): void {
 
   // Pedir N un. ao estoque — o que o modal Reaproveitamento da Revisão Final
   // faz no lugar de aplicar o reaproveitamento na hora.
-  app.post("/api/items/:id/consulta-de-estoque", requireConsultar, async (req, res) => {
+  app.post("/api/items/:id/consulta-de-estoque", requireConsultar, desativadaParaEscrita, async (req, res) => {
     try {
       const observacao = lerTexto(req.body?.observacao);
       if (observacao && observacao.length > MAX_OBSERVACAO_DA_CONSULTA) {
@@ -116,7 +126,7 @@ export function registerConsultasDeEstoqueRoutes(app: Express): void {
     }
   });
 
-  app.get("/api/consultas-de-estoque", requireLerConsultas, async (req, res) => {
+  app.get("/api/consultas-de-estoque", requireLerConsultas, vazioSeDesativada([]), async (req, res) => {
     try {
       const pedidos = typeof req.query.status === "string" && req.query.status
         ? req.query.status.split(",").filter((s) => (STATUS_DA_CONSULTA as readonly string[]).includes(s))
@@ -136,7 +146,7 @@ export function registerConsultasDeEstoqueRoutes(app: Express): void {
   });
 
   // O número do menu: solicitações esperando a Gráfica responder.
-  app.get("/api/consultas-de-estoque/abertas", requireResponder, async (_req, res) => {
+  app.get("/api/consultas-de-estoque/abertas", requireResponder, vazioSeDesativada({ total: 0 }), async (_req, res) => {
     try {
       res.json({ total: await repo.contarAbertas() });
     } catch (error) {
@@ -147,7 +157,7 @@ export function registerConsultasDeEstoqueRoutes(app: Express): void {
 
   // "5 un. aguardando resposta do estoque" na fila da Gráfica: as abertas, por
   // peça. A fila lê uma vez só.
-  app.get("/api/consultas-de-estoque/abertas-por-peca", requireLerConsultas, async (_req, res) => {
+  app.get("/api/consultas-de-estoque/abertas-por-peca", requireLerConsultas, vazioSeDesativada([]), async (_req, res) => {
     try {
       res.json(await repo.abertasPorPeca());
     } catch (error) {
@@ -158,7 +168,7 @@ export function registerConsultasDeEstoqueRoutes(app: Express): void {
 
   // A lista da Revisão Final: o que vale para cada peça em revisão (selo na
   // linha, "Aguardando estoque", "Estoque respondeu", sugestão do lote).
-  app.get("/api/consultas-de-estoque/da-revisao", requireConsultar, async (req, res) => {
+  app.get("/api/consultas-de-estoque/da-revisao", requireConsultar, vazioSeDesativada([]), async (req, res) => {
     try {
       // O mesmo filtro do Kit das peças: ninguém recebe linha de peça que não
       // enxerga na fila.
@@ -172,7 +182,7 @@ export function registerConsultasDeEstoqueRoutes(app: Express): void {
     }
   });
 
-  app.get("/api/consultas-de-estoque/:id/sugestoes", requireLerConsultas, async (req, res) => {
+  app.get("/api/consultas-de-estoque/:id/sugestoes", requireLerConsultas, vazioSeDesativada({ semMedida: false, sugestoes: [] }), async (req, res) => {
     try {
       const consulta = await repo.consultaPorId(req.params.id);
       if (!consulta) return res.status(404).json({ error: "Solicitação não encontrada" });
@@ -190,7 +200,7 @@ export function registerConsultasDeEstoqueRoutes(app: Express): void {
 
   // { resposta: "atender" | "nao_atender", quantidade?, ativosIds?, observacao?, fotoUrl? }
   // "atender" com a quantidade pedida = atendida; com menos = atendida em parte.
-  app.post("/api/consultas-de-estoque/:id/responder", requireResponder, async (req, res) => {
+  app.post("/api/consultas-de-estoque/:id/responder", requireResponder, desativadaParaEscrita, async (req, res) => {
     try {
       const observacao = lerTexto(req.body?.observacao);
       if (observacao && observacao.length > MAX_OBSERVACAO_DA_CONSULTA) {
@@ -249,7 +259,7 @@ export function registerConsultasDeEstoqueRoutes(app: Express): void {
     }
   });
 
-  app.post("/api/consultas-de-estoque/:id/cancelar", requireConsultar, async (req, res) => {
+  app.post("/api/consultas-de-estoque/:id/cancelar", requireConsultar, desativadaParaEscrita, async (req, res) => {
     try {
       const consulta = await repo.consultaPorId(req.params.id);
       if (!consulta) return res.status(404).json({ error: "Solicitação não encontrada" });

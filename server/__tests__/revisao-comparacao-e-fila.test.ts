@@ -276,7 +276,9 @@ describe("as guardas de evento finalizado", () => {
     // Sumir com eles deixa a ficha sem explicação para a ausência.
     // `semArquivoParaLiberar` (21/09): sem arquivo final — salvo quando o estoque
     // cobre a peça inteira, que é reaproveitamento total e não imprime nada.
-    expect(tela).toContain("const semArquivoParaLiberar = !selectedItem?.finalFileUrl && !propostaDaFicha?.pulaProducao;");
+    // Com a chave desligada (dono, 21/09 — segurar) a exceção some e a regra
+    // é a de antes: sem arquivo final, não libera.
+    expect(tela).toContain("const semArquivoParaLiberar = !selectedItem?.finalFileUrl && !(SOLICITACAO_AO_ESTOQUE_ATIVA && propostaDaFicha?.pulaProducao);");
     expect(tela).toContain("disabled={!!seloSelecionado || creatorReviewMutation.isPending || semArquivoParaLiberar}");
     expect(tela).toContain('motivoAcaoBloqueada(seloSelecionado.motivo, "liberar para produção")');
   });

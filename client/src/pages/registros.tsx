@@ -157,6 +157,16 @@ export default function Registros() {
     };
   }, [kindFilter, eventFilter, deferredSearch, period]);
 
+  // O Período também vale para os registros dos tubos (revisão de 22/09) —
+  // a MESMA janela do predicado `passes.period` acima.
+  const desdeDoPeriodo = useMemo(() => {
+    if (period === "Todos") return null;
+    const from = new Date();
+    from.setHours(0, 0, 0, 0);
+    from.setDate(from.getDate() - PERIOD_DAYS[period]);
+    return from;
+  }, [period]);
+
   const filtered = useMemo(
     () => photos.filter(p => passes.kind(p) && passes.event(p) && passes.search(p) && passes.period(p)),
     [photos, passes],
@@ -575,7 +585,7 @@ export default function Registros() {
             some quando o tipo está filtrado só em Conferência. */}
         {(!kindFilter.length || kindFilter.includes("delivery")) && (
           <div style={{ marginBottom: 16 }}>
-            <RegistrosDeTubos eventIds={eventFilter} busca={deferredSearch} />
+            <RegistrosDeTubos eventIds={eventFilter} busca={deferredSearch} desde={desdeDoPeriodo} />
           </div>
         )}
         {isLoading ? (

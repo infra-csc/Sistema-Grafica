@@ -15,6 +15,8 @@
 //   Reduzir é SEMPRE edição, com piso físico.
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { items as itemsDaTabela } from "@shared/schema";
+import { txDeMentira } from "./tx-de-mentira";
 
 // ── Mocks de borda (hoisted: o objeto H é criado antes dos imports) ──────────
 const H = vi.hoisted(() => ({
@@ -170,7 +172,12 @@ function peca(over: Partial<any> = {}) {
 
 /** tx de mentira: registra inserts/updates e devolve linhas plausíveis. */
 function novoTx() {
+  // Conferir e excluir leem/gravam a peça DENTRO da transação (22/09): o SELECT
+  // e o soft delete (UPDATE … deletedAt) vão ao "mundo" pelo tx de mentira.
+  const mentira = txDeMentira(mundo);
   return {
+    select: mentira.select,
+    delete: mentira.delete,
     insert: (table: any) => ({
       values: (vals: any) => {
         txOps.inserts.push({ table, vals });
@@ -181,7 +188,7 @@ function novoTx() {
       },
     }),
     update: (table: any) => ({
-      set: (vals: any) => ({
+      set: (vals: any) => (table === itemsDaTabela && vals && "deletedAt" in vals && txOps.updates.push({ table, vals }) ? mentira.update(table).set(vals) : {
         where: (_w: any) => {
           txOps.updates.push({ table, vals });
           const linha = { id: "linha-atualizada", quantity: 10, ...vals };
@@ -945,7 +952,7 @@ describe("DELETE /api/items/:id — a mãe não some deixando filho órfão", ()
     expect(r.body.code).toBe("HAS_COMPLEMENTS");
     expect(r.body.complements).toEqual([{ id: "filho-1", displayId: "#0062-C1" }]);
     expect(r.body.error).toContain("Cancele o complemento antes de excluir");
-    expect(H.storage.deleteItem).not.toHaveBeenCalled();
+    expect(mundo.itens["mae-1"]?.deletedAt ?? null, "não foi para a lixeira").toBeNull();
   });
 
   it("complemento JÁ CANCELADO não segura mais a exclusão da mãe", async () => {
@@ -953,7 +960,7 @@ describe("DELETE /api/items/:id — a mãe não some deixando filho órfão", ()
     mundo.itens["filho-1"] = peca({ id: "filho-1", displayId: "#0062-C1", parentItemId: "mae-1", deletedAt: new Date() });
     const r = await chamar(DELETE_ITEM, { params: { id: "mae-1" }, userRole: "admin", userId: "user-admin" });
     expect(r.status).toBe(200);
-    expect(H.storage.deleteItem).toHaveBeenCalledWith("mae-1");
+    expect(mundo.itens["mae-1"].deletedAt, "soft delete (deletedAt) dentro da transação").toBeInstanceOf(Date);
   });
 
   it("peça sem complemento nenhum exclui normalmente", async () => {
@@ -977,7 +984,7 @@ describe("DELETE /api/items/:id — alcance da solicitação (decisão do dono)"
     mundo.itens["mae-1"] = peca({ status: "awaiting_submission", quantityProduced: 0, conferredQty: 0, deliveredQty: 0 });
     const r = await excluir("solicitacao");
     expect(r.status).toBe(200);
-    expect(H.storage.deleteItem).toHaveBeenCalledWith("mae-1");
+    expect(mundo.itens["mae-1"].deletedAt, "soft delete (deletedAt) dentro da transação").toBeInstanceOf(Date);
   });
 
   it("solicitação alcança TODOS os status que estavam travados, como o admin", async () => {
@@ -999,7 +1006,7 @@ describe("DELETE /api/items/:id — alcance da solicitação (decisão do dono)"
     await excluir("solicitacao");
     // deleteItem é a exclusão soft do storage (grava deletedAt); nenhum DELETE
     // físico é emitido por esta rota.
-    expect(H.storage.deleteItem).toHaveBeenCalledWith("mae-1");
+    expect(mundo.itens["mae-1"].deletedAt, "soft delete (deletedAt) dentro da transação").toBeInstanceOf(Date);
     expect(H.createAuditLog).toHaveBeenCalled();
     const [autor, acao, entidade, id, detalhe] = (H.createAuditLog as any).mock.calls[0];
     expect(atorDe(autor)).toEqual({ userName: "Maria Silva", userId: "user-solicitacao" });
@@ -1017,7 +1024,7 @@ describe("DELETE /api/items/:id — alcance da solicitação (decisão do dono)"
     const r = await excluir("solicitacao");
     expect(r.status).toBe(409);
     expect(r.body.code).toBe("HAS_COMPLEMENTS");
-    expect(H.storage.deleteItem).not.toHaveBeenCalled();
+    expect(mundo.itens["mae-1"]?.deletedAt ?? null, "não foi para a lixeira").toBeNull();
   });
 
   it("quem não é admin nem solicitação continua tomando 403", async () => {
@@ -1027,7 +1034,7 @@ describe("DELETE /api/items/:id — alcance da solicitação (decisão do dono)"
       expect(r.status, `papel ${papel}`).toBe(403);
       expect(r.body.error).toContain("Sem permissão para excluir");
     }
-    expect(H.storage.deleteItem).not.toHaveBeenCalled();
+    expect(mundo.itens["mae-1"]?.deletedAt ?? null, "não foi para a lixeira").toBeNull();
   });
 });
 

@@ -176,7 +176,7 @@ describe("3 · as rotas usam as contas", () => {
     expect(entregar).not.toContain("ainda não tem foto");
   });
   it("a conferência só fecha como Embalado se TUDO já estava embalado (a parcial embalou a parte dela antes)", () => {
-    expect(ITEMS).toContain('...(isFull ? { status: (((current as any).embaladaQty ?? 0) >= current.quantity ? "packed" : "conferred") as "packed" | "conferred" } : {}),');
+    expect(ITEMS).toContain('const novoStatus = isFull ? ((((current as any).embaladaQty ?? 0) >= current.quantity ? "packed" : "conferred") as "packed" | "conferred") : null;');
   });
   it("PATCH /api/items/:id/deliver → 409 para QUALQUER peça (inclusive a parcial), sem escrever nada — a rota fica", () => {
     const i = ITEMS.indexOf('app.patch("/api/items/:id/deliver"');
@@ -196,7 +196,8 @@ describe("4 · os contratos novos para quem lê", () => {
   });
   it("GET /api/tubos leva as `linhas` de cada volume num select só — e respeita o recorte do Kit", () => {
     const rota = ROTAS.slice(ROTAS.indexOf('app.get("/api/tubos", requireAuth'), ROTAS.indexOf('app.get("/api/tubos/:id"'));
-    expect(rota).toContain("const todasAsLinhas = (await db.select(COLUNAS_LINHA).from(tuboItens)) as Linha[];");
+    expect(rota).toContain("const todasAsLinhas = await linhasDosTubos(todos.map((t) => t.id));");
+    expect(rota).toContain(".from(tubos).where(volumeNaJanela());");
     expect(rota).toContain("permitidas = todasAsLinhas.filter((l) => suas.has(l.itemId));");
     expect(rota).toContain("linhas: porTubo.get(t.id) ?? []");
   });
@@ -206,7 +207,8 @@ describe("4 · os contratos novos para quem lê", () => {
   it("a peça leva `tuboVolumes` (os volumes abertos com quantidade) para o resto do fluxo — um select a mais, com rede de segurança", () => {
     const SERVICO = ler("server/services/tubosDaPeca.ts");
     expect(SERVICO).toContain("export type VolumeDaPeca = { tuboId: string; numero: number; avulso: boolean; quantidade: number };");
-    expect(SERVICO).toContain("return volumes?.length ? { ...peca, ...resumo, tuboVolumes: volumes } : { ...peca, ...resumo };");
+    expect(SERVICO).toContain("...(volumes?.length ? { tuboVolumes: volumes } : {}),");
+    expect(SERVICO).toContain("...(entregues?.length ? { tuboVolumesEntregues: entregues } : {}),");
     expect(SERVICO).toContain('console.error("[tubosDaPeca] não foi possível ler as quantidades por volume:", erro);');
   });
 });

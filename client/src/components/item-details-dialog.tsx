@@ -894,7 +894,13 @@ export function ItemDetailsDialog({
   ] as const).filter(([, v]) => v > 0);
 
   const isDeliveredItem  = ["delivered", "entregue"].includes(rawStatus);
-  const missingDeliveryProof = isDeliveredItem && deliveryPhotos.length === 0;
+  // Entregue POR VOLUME com fotos da embalagem (revisão de 22/09): o comprovante
+  // da entrega é opcional por decisão do dono — as fotos do tubo/da embalagem
+  // documentam o material, então não é "sem comprovante". `tuboFechadoEm` só
+  // existe quando o volume ganhou foto. Peça antiga, sem volume nem foto,
+  // continua acusando como antes.
+  const entregueComFotoDaEmbalagem = !!item.tuboId && !!item.tuboFechadoEm;
+  const missingDeliveryProof = isDeliveredItem && deliveryPhotos.length === 0 && !entregueComFotoDaEmbalagem;
   const temRegistrosGrafica = conferencePhotos.length > 0 || deliveryPhotos.length > 0
     || !!item.conferenceNotes || !!item.deliveryNotes
     || missingDeliveryProof || andamentoGrafica.length > 0 || !!item.receivedBy || !!item.tuboId;

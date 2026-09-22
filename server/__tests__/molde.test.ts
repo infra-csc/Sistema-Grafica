@@ -15,6 +15,7 @@
 // peça comum segue idêntica.
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { txDeMentira } from "./tx-de-mentira";
 import { readFileSync } from "fs";
 import path from "path";
 
@@ -200,6 +201,9 @@ beforeEach(() => {
     execute: async () => ({ rows: [] }),
     select: () => ({ from: () => ({ where: async () => [] }) }),
   }));
+  // Conferir (22/09) lê a peça TRAVADA dentro da transação: só essa rota usa o tx de mentira.
+  const transacaoDeAntes = H.db.transaction;
+  H.db.transaction = vi.fn(async (cb: any) => (String(cb).includes("Molde não passa por conferência") ? cb(txDeMentira(mundo)) : transacaoDeAntes(cb)));
   const s = H.storage;
   for (const k of Object.keys(s)) delete s[k];
   s.getItem = vi.fn(async (id: string) => mundo.itens[id]);

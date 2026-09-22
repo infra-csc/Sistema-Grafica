@@ -36,9 +36,11 @@ describe("mapa de grupos", () => {
     }
   });
 
-  it("vocabulário fantasma do schema não é reclassificado às escondidas", () => {
-    const fantasmas = (ITEM_STATUSES as readonly string[]).filter((s) => statusGroupOf(s) === null);
-    expect(fantasmas).toEqual(expect.arrayContaining(["awaiting_review", "in_review", "archived"]));
+  it("todo status do schema cai numa etapa canônica (shared/fluxo-peca) — nenhum vira \"Outros\"", () => {
+    const semEtapa = (ITEM_STATUSES as readonly string[]).filter((s) => statusGroupOf(s) === null);
+    expect(semEtapa).toEqual([]);
+    expect(statusGroupOf("awaiting_review")).toBe("awaiting_final_review");
+    expect(statusGroupOf("archived")).toBe("canceled");
   });
 
   it("statusFlowIndex segue a ordem do fluxo e joga desconhecido para o fim", () => {
@@ -60,10 +62,14 @@ describe("computeStats", () => {
   });
 
   it("status fora do mapa vira `outros` COM o valor cru, nunca silêncio", () => {
-    const stats = computeStats(itens("liberado", "entregue", "liberado", "requested"));
+    const stats = computeStats(itens("status_novo", "outro_novo", "status_novo", "requested"));
     expect(stats.outros).toBe(3);
-    expect(stats.outrosStatus).toEqual(["entregue", "liberado"]);
+    expect(stats.outrosStatus).toEqual(["outro_novo", "status_novo"]);
     expect(stats.byGroup.requested).toBe(1);
+    // Grafias legadas NÃO são "outros": contam no card da etapa delas.
+    const legados = computeStats(itens("liberado", "entregue", "conferido"));
+    expect(legados.outros).toBe(0);
+    expect([legados.byGroup.approved, legados.byGroup.delivered, legados.byGroup.conferred]).toEqual([1, 1, 1]);
   });
 
   it("aliases do mesmo grupo somam no mesmo card", () => {

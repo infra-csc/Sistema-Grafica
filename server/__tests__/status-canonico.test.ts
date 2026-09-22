@@ -90,9 +90,11 @@ describe("o mapa da migração", () => {
 });
 
 describe("os leitores tolerantes continuam — são o cinto de segurança", () => {
-  it("o funil de prazos ainda aceita as grafias antigas", () => {
-    const SRC = readFileSync(new URL("../services/prazo-domain.ts", import.meta.url), "utf8");
-    expect(SRC).toContain('"pronto_para_producao"');
-    expect(SRC).toContain('"em_producao"');
+  it("o funil de prazos ainda aceita as grafias antigas", async () => {
+    // As grafias moram na etapa canônica (shared/fluxo-peca); o funil lê de lá.
+    const { STATUS_STAGE_RANK } = await import("../services/prazo-domain");
+    for (const s of ["pronto_para_producao", "em_producao", "liberado", "produzido", "conferido"]) {
+      expect(STATUS_STAGE_RANK[s], s).toBe(STATUS_STAGE_RANK.ready_for_production);
+    }
   });
 });

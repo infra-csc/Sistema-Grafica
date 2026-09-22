@@ -13,14 +13,8 @@
  */
 import { PRODUCTION_STATUSES, getStatusMeta } from "@/lib/status";
 import { statusParaContagem } from "@shared/molde";
+import { STATUS_DA_ETAPA, etapaDaPeca } from "@shared/fluxo-peca";
 
-const PHASE_ALIASES: Record<string, string[]> = {
-  inProduction: ["inProduction", "em_producao"],
-  produced:     ["produced", "produzido"],
-  conferred:    ["conferred"],
-  packed:       ["packed"],
-  delivered:    ["delivered", "entregue"],
-};
 const PHASE_NOUN: Record<string, string> = {
   // 21/09: o vocabulário do selo (lib/status) — "Em Impressão" e "Impresso /
   // Acabamento". "em produção"/"produzidas" era o nome ANTIGO das duas etapas
@@ -35,7 +29,8 @@ const PHASE_NOUN: Record<string, string> = {
 export const PHASES = PRODUCTION_STATUSES.map((key) => ({
   key,
   color: getStatusMeta(key).dot,
-  statuses: PHASE_ALIASES[key],
+  // Grafias legadas vêm da etapa canônica (shared/fluxo-peca), não de cópia local.
+  statuses: STATUS_DA_ETAPA[key] as readonly string[],
   noun: PHASE_NOUN[key],
 }));
 
@@ -44,7 +39,8 @@ export function contarPorFase(items: ReadonlyArray<{ status: string; type?: stri
   const counts = new Array(PHASES.length).fill(0) as number[];
   for (const it of items ?? []) {
     // Molde produzido é o fim do fluxo dele: conta na fase "entregues" (shared/molde).
-    const idx = PHASES.findIndex((p) => p.statuses.includes(statusParaContagem(it)));
+    const etapa = etapaDaPeca(statusParaContagem(it));
+    const idx = PHASES.findIndex((p) => p.key === etapa);
     if (idx >= 0) counts[idx] += 1;
   }
   return counts;

@@ -25,7 +25,7 @@ import {
   businessDayStrToMs,
 } from "@shared/prazo-dates";
 import type { EventoFinalizadoMotivo } from "@shared/prazo-dates";
-import { PRODUCED_LIKE } from "@shared/prazos-contract";
+import { FUNIL_DE_PRAZOS, STATUS_ENTREGUES, STATUS_FORA_DO_FUNIL, statusDoFunil } from "@shared/fluxo-peca";
 import { comStatusDeContagem } from "@shared/molde";
 import type {
   PrazoCategoria,
@@ -56,66 +56,32 @@ export interface StageDef {
 // A ordem importa: uma etapa só está concluída quando nenhuma peça está
 // nela NEM em qualquer etapa anterior (peça em rascunho também não foi
 // aprovada). Os status legados entram na etapa equivalente.
-export const STAGE_DEFS: StageDef[] = [
-  {
-    key: "listaImagens", label: "Lista de Imagens",
-    offsetField: "deadlineListaImagens", defaultOffset: -25, allDays: false,
-    pendingStatuses: ["draft", "requested", "awaiting_linking"],
-  },
-  {
-    key: "layouts", label: "Entrega de Layouts",
-    offsetField: "deadlineEntregaLayouts", defaultOffset: -20, allDays: false,
-    pendingStatuses: ["awaiting_submission"],
-  },
-  {
-    key: "aprovacao", label: "Aprovação de Layout",
-    offsetField: "deadlineAprovacaoLayout", defaultOffset: -12, allDays: false,
-    pendingStatuses: ["awaiting_approval", "awaiting_sponsor_approval"],
-  },
-  {
-    // A Arte anexando o arquivo final da peça. Era a metade da frente da
-    // "Revisão de Lista" e não tinha marco próprio: a peça aprovada no dia -12
-    // podia ficar 4 dias sem arquivo final e só acender vermelho no -8, junto
-    // com a revisão do criador, que nem começou. Os três status são o mesmo
-    // trabalho por três caminhos — `sponsor_approved` (aprovação normal),
-    // `awaiting_creator_review` (peça isenta de aprovação, ver items.ts:1335)
-    // e `awaiting_finalization` (grafia legada). O cliente já os rotula todos
-    // como "Aguardando Finalização" (client/src/lib/status.ts) e a Arte já os
-    // atende na mesma aba ("finalizar-layouts", client/src/lib/arte-rules.ts).
-    key: "finalizacao", label: "Finalização",
-    offsetField: "deadlineFinalizacao", defaultOffset: -10, allDays: false,
-    pendingStatuses: [
-      "awaiting_finalization", "sponsor_approved", "awaiting_creator_review",
-    ],
-  },
-  {
-    key: "revisao", label: "Revisão de Lista",
-    offsetField: "deadlineRevisaoLista", defaultOffset: -8, allDays: false,
-    pendingStatuses: [
-      "awaiting_final_review", "awaiting_review", "in_review",
-    ],
-  },
-  {
-    key: "producao", label: "Produção Gráfica",
-    offsetField: "deadlineProducaoGrafica", defaultOffset: -1, allDays: true,
-    // "pronto_para_producao"/"liberado"/"em_producao" são grafias LEGADAS em
-    // pt que circulam no banco (a dispensa da Arte grava pronto_para_producao;
-    // ver items.ts:1599) — sem elas a peça sumia do funil e a etapa virava
-    // verde falso. `PRODUCED_LIKE` (contrato compartilhado) traz o subconjunto
-    // "já produzida/conferida", que o cliente também cita no resumo por setor.
-    pendingStatuses: [
-      "ready_for_production", "approved", "inProduction",
-      "pronto_para_producao", "liberado", "em_producao",
-      ...PRODUCED_LIKE,
-    ],
-  },
-];
+// Os status de cada etapa vêm do funil canônico (shared/fluxo-peca), com as
+// grafias legadas: o cliente (Análises) lê a MESMA lista, sem espelho.
+const DEFS_DE_OFFSET: Record<string, Pick<StageDef, "offsetField" | "defaultOffset" | "allDays">> = {
+  listaImagens: { offsetField: "deadlineListaImagens", defaultOffset: -25, allDays: false },
+  layouts:      { offsetField: "deadlineEntregaLayouts", defaultOffset: -20, allDays: false },
+  aprovacao:    { offsetField: "deadlineAprovacaoLayout", defaultOffset: -12, allDays: false },
+  // Finalização: a Arte anexando o arquivo final (sponsor_approved, isenta de
+  // aprovação ou grafia legada — o mesmo trabalho por três caminhos).
+  finalizacao:  { offsetField: "deadlineFinalizacao", defaultOffset: -10, allDays: false },
+  revisao:      { offsetField: "deadlineRevisaoLista", defaultOffset: -8, allDays: false },
+  // Produção Gráfica roda em qualquer dia.
+  producao:     { offsetField: "deadlineProducaoGrafica", defaultOffset: -1, allDays: true },
+};
+
+export const STAGE_DEFS: StageDef[] = FUNIL_DE_PRAZOS.map((f) => ({
+  key: f.key,
+  label: f.label,
+  ...DEFS_DE_OFFSET[f.key],
+  pendingStatuses: statusDoFunil(f.key),
+}));
 
 /** Ordem/rótulos das etapas para o payload — o front deriva os cabeçalhos daqui. */
 export const STAGE_META = STAGE_DEFS.map((d) => ({ key: d.key, label: d.label }));
 
 // "entregue" é a grafia legada de delivered — conta como pronta, não pendente.
-export const DELIVERED = new Set(["delivered", "entregue"]);
+export const DELIVERED = new Set(STATUS_ENTREGUES);
 
 // status → índice da etapa em que a peça está travada.
 // Fora do mapa = já passou por tudo (delivered) ou está fora do funil.
@@ -158,7 +124,7 @@ export function marcoIndexFor(status: string, skipApproval?: boolean | null): nu
 }
 
 // Cancelada/excluída/arquivada não conta como pendência nem como total.
-export const OUT_OF_FUNNEL = new Set(["canceled", "deleted", "archived"]);
+export const OUT_OF_FUNNEL = new Set(STATUS_FORA_DO_FUNIL);
 
 // Status em que a peça está esperando decisão de patrocinador.
 export const AWAITING_SPONSOR = new Set(["awaiting_approval", "awaiting_sponsor_approval"]);

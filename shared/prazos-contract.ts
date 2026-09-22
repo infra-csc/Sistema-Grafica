@@ -12,6 +12,8 @@
 // Regra: NADA de lógica aqui. Só tipos e as constantes de vocabulário que
 // os dois lados precisam citar pelo mesmo nome.
 
+import { STATUS_PRODUZIDAS } from "./fluxo-peca";
+
 /**
  * Status de peça que significam "já produzida/conferida" dentro da etapa de
  * Produção Gráfica ("produzido" é grafia legada que circula no banco).
@@ -22,7 +24,9 @@
  * `new Set([...])` local — a terceira cópia da mesma lista, pronta a divergir
  * na próxima grafia legada descoberta.
  */
-export const PRODUCED_LIKE = ["produced", "conferred", "packed", "produzido"] as const;
+// Derivada da etapa canônica (shared/fluxo-peca): a cópia literal esqueceu
+// "conferido" e a peça conferida com grafia legada saía do resumo por setor.
+export const PRODUCED_LIKE: readonly string[] = STATUS_PRODUZIDAS;
 
 // ─── Semáforo por etapa ──────────────────────────────────────────────────────
 

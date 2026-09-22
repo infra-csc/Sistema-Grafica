@@ -31,7 +31,7 @@ import { SponsorChips } from "@/components/sponsor-chips";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useIsMobile, useElementSize, densityFromWidth, type ContentDensity } from "@/hooks/use-mobile";
-import { getStatusMeta, getStatusLabel, getApprovalMeta, motivoEventoFinalizado, todayBusinessMs } from "@/lib/status";
+import { STATUS, getStatusMeta, getStatusLabel, getApprovalMeta, motivoEventoFinalizado, todayBusinessMs } from "@/lib/status";
 // AS DEFINIÇÕES VÊM DA ANÁLISE, não de uma cópia. Os focos "retrabalho" e
 // "fora do prazo" existem para responder ao clique num KPI de lá — se cada
 // tela tivesse a sua regra, o número da Análise e a contagem daqui
@@ -89,6 +89,11 @@ const FOCO_LABELS: Record<string, string> = {
   atrasadas: "Em evento com caminhão atrasado",
   pendentes: "Só pendências",
 };
+
+// Title do card "Outros": o rótulo pt-BR quando o status tem um, e só o valor
+// desconhecido entre aspas — é ele que o admin precisa para investigar.
+const tituloDoCardOutros = (crus: string[]) =>
+  `Peças com status fora das etapas do fluxo: ${crus.map((s) => (STATUS[s] ? getStatusLabel(s) : s === "(sem status)" ? "sem status" : `“${s}” (não reconhecido)`)).join(", ")}`;
 
 // Opções do dropdown de status, na ordem do fluxo (rótulos via getStatusLabel).
 // `draft` entrou com opção PRÓPRIA: o card "Solicitado" anuncia "inclui N
@@ -3287,7 +3292,7 @@ export default function PainelGeral() {
                   label="Outros" value={stats.outros} filterKey="outros"
                   isActive={false} onToggle={() => setShowAllKpis(true)}
                   sub="fora do fluxo"
-                  title={`Status fora do mapa do painel: ${stats.outrosStatus.join(", ")}`}
+                  title={tituloDoCardOutros(stats.outrosStatus)}
                 />
               )}
             </div>
@@ -3338,7 +3343,7 @@ export default function PainelGeral() {
                         label="Outros" value={stats.outros} filterKey="outros"
                         isActive={false} onToggle={() => { /* sem filtro: é anomalia de dado, não etapa do fluxo */ }}
                         sub="status fora do fluxo"
-                        title={`Status fora do mapa do painel: ${stats.outrosStatus.join(", ")}`}
+                        title={tituloDoCardOutros(stats.outrosStatus)}
                       />
                     )}
                   </div>

@@ -195,18 +195,17 @@ describe("Atendimento — Conferido e Embalado têm etapa própria", () => {
   const iPipe = AT.indexOf("const PIPELINE_STAGES");
   const PIPE = AT.slice(iPipe, AT.indexOf("];", iPipe));
 
-  it("cinco etapas de produção, cada uma com UM status canônico (conferida não cai em Entregue)", () => {
-    expect(PIPE).toContain("etapaDeProducao('conferido', ST_CONFERRED,     ['conferido'])");
-    expect(PIPE).toContain("etapaDeProducao('embalado',  ST_PACKED,        [])");
-    expect(PIPE).toContain("etapaDeProducao('entregue',  ST_DELIVERED,     ['entregue'])");
-    // a desestruturação por posição acompanha as 5 de PRODUCTION_STATUSES
+  it("cinco etapas de produção, cada uma com a SUA etapa canônica (conferida não cai em Entregue)", () => {
+    expect(PIPE).toContain('etapaDoPipeline("conferido",    ["conferred"])');
+    expect(PIPE).toContain('etapaDoPipeline("embalado",     ["packed"])');
+    expect(PIPE).toContain('etapaDoPipeline("entregue",     ["delivered"])');
     expect([...PRODUCTION_STATUSES]).toEqual(["inProduction", "produced", "conferred", "packed", "delivered"]);
-    expect(AT).toContain("const [ST_IN_PRODUCTION, ST_PRODUCED, ST_CONFERRED, ST_PACKED, ST_DELIVERED] = PRODUCTION_STATUSES;");
   });
 
-  it("rótulo e cor vêm de getStatusMeta — sem 'Acabamento' próprio nem Entregue roxo", () => {
-    expect(AT).toContain("return { key, label: m.short, color: m.dot, statuses: [status, ...legados] };");
+  it("rótulo e cor vêm de getStatusMeta — nenhuma cor própria no pipeline", () => {
+    expect(AT).toContain("return { key, label: label ?? m.short, color: m.dot, statuses: statusDasEtapas(...etapas) };");
     expect(PIPE).not.toContain("'Acabamento'");
+    expect(PIPE).not.toMatch(/#[0-9a-f]{3,6}/i);
     expect(AT).not.toContain("#7c3aed");
   });
 

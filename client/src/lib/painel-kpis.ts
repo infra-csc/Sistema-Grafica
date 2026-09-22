@@ -15,47 +15,26 @@
 // única do app. Os dois se encontram na tela, não aqui.
 // ─────────────────────────────────────────────────────────────────────────────
 import { statusParaContagem } from "@shared/molde";
+import { ETAPAS_DA_PECA, STATUS_DA_ETAPA, etapaDaPeca } from "@shared/fluxo-peca";
+import type { EtapaDaPeca } from "@shared/fluxo-peca";
 
 /**
  * Chave de filtro/card → status reais que ela cobre.
  *
- * A ORDEM das chaves é a ordem do fluxo (entrada → aprovação → produção →
- * encerrados) e é usada como peso na ordenação por Status na tabela.
+ * Os cards SÃO as etapas canônicas da peça (shared/fluxo-peca) — a mesma
+ * régua da barra de fases, do Atendimento, de Prazos e das Análises. O
+ * primeiro status de cada lista é o canônico (dá rótulo e cor ao card). A
+ * ORDEM das chaves é a do fluxo e serve de peso na ordenação por Status.
  */
-export const STATUS_GROUPS = {
-  requested:             ["draft", "requested"],
-  awaiting_linking:      ["awaiting_linking"],
-  awaiting_submission:   ["awaiting_submission"],
-  awaiting_approval:     ["awaiting_approval", "awaiting_sponsor_approval"],
-  awaiting_finalization: ["awaiting_finalization", "sponsor_approved", "awaiting_creator_review"],
-  awaiting_final_review: ["awaiting_final_review"],
-  ready_for_production:  ["ready_for_production", "pronto_para_producao"],
-  approved:              ["approved"],
-  inProduction:          ["inProduction"],
-  produced:              ["produced"],
-  conferred:             ["conferred"],
-  packed:                ["packed"],
-  delivered:             ["delivered"],
-  canceled:              ["canceled"],
-} as const satisfies Record<string, readonly string[]>;
+export const STATUS_GROUPS: Readonly<Record<EtapaDaPeca, readonly string[]>> = STATUS_DA_ETAPA;
 
-export type GroupKey = keyof typeof STATUS_GROUPS;
+export type GroupKey = EtapaDaPeca;
 
-export const GROUP_KEYS = Object.keys(STATUS_GROUPS) as GroupKey[];
+export const GROUP_KEYS: GroupKey[] = [...ETAPAS_DA_PECA];
 
-// Índice reverso status → grupo, montado UMA vez no módulo. Sem ele, cada
-// classificação varreria 13 arrays por peça.
-const GROUP_OF: Record<string, GroupKey> = (() => {
-  const m: Record<string, GroupKey> = {};
-  for (const key of GROUP_KEYS) {
-    for (const st of STATUS_GROUPS[key]) m[st] = key;
-  }
-  return m;
-})();
-
-/** Grupo de um status, ou `null` quando o valor está fora do vocabulário do painel. */
+/** Grupo de um status, ou `null` quando o valor está fora do vocabulário do app. */
 export function statusGroupOf(status: string | null | undefined): GroupKey | null {
-  return (status && GROUP_OF[status]) || null;
+  return etapaDaPeca(status);
 }
 
 /**

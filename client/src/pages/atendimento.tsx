@@ -49,6 +49,7 @@ import { useAuth } from "@/contexts/auth-context";
 import { Undo2, Play, Hourglass } from "lucide-react";
 import { FS } from "@/lib/theme";
 import { ehMolde, etapaDoMolde, statusDeExibicao, ETAPAS_DO_MOLDE } from "@shared/molde";
+import { STATUS_DA_ETAPA, statusDasEtapas, type EtapaDaPeca } from "@shared/fluxo-peca";
 import { EsqueletoDeFila } from "@/components/esqueleto-de-fila";
 import { SoQuandoMudar } from "@/components/arte/so-quando-mudar";
 import { ModalHeader, ModalFooter, modalSurface, HIDE_NATIVE_CLOSE } from "@/components/modal-shell";
@@ -155,33 +156,29 @@ function situacaoDaPeca(aprovacoes: { status?: string | null }[] | undefined): S
 }
 
 // ── Pipeline de fluxo do cartão de histórico (12 etapas) ───────────────────
-// Const de módulo: antes era recriado a cada card renderizado. As etapas de
-// produção/entrega derivam da lista canônica PRODUCTION_STATUSES da lib de
-// status (+ aliases legados que versões antigas gravaram no banco).
-//
-// 21/09 (dono: "mostrar esses novos status para o restante do fluxo"):
-// Conferido e Embalado ganharam etapa PRÓPRIA. Antes caíam em "Entregue" — a
-// peça conferida, ainda no galpão, aparecia como jornada concluída. Rótulo e
-// cor das etapas de produção vêm de getStatusMeta: o mesmo nome e a mesma cor
-// do selo em qualquer tela (o "Acabamento" e o Entregue roxo eram só daqui).
-const [ST_IN_PRODUCTION, ST_PRODUCED, ST_CONFERRED, ST_PACKED, ST_DELIVERED] = PRODUCTION_STATUSES;
-const etapaDeProducao = (key: string, status: string, legados: string[]) => {
-  const m = getStatusMeta(status);
-  return { key, label: m.short, color: m.dot, statuses: [status, ...legados] };
+// Const de módulo (antes era recriado a cada card). Conferido e Embalado têm
+// etapa PRÓPRIA — a peça conferida, ainda no galpão, não é jornada concluída.
+// As etapas agrupam ETAPAS CANÔNICAS da peça (shared/fluxo-peca), e rótulo e
+// cor saem de getStatusMeta: nenhuma grafia legada nem cor própria mora aqui.
+// "Aprovado" é marco de passagem (sponsor_approved é, na régua, Aguardando
+// Finalização), por isso não prende peça nenhuma.
+const etapaDoPipeline = (key: string, etapas: EtapaDaPeca[], label?: string, statusDaCor?: string) => {
+  const m = getStatusMeta(statusDaCor ?? STATUS_DA_ETAPA[etapas[0]]?.[0] ?? "sponsor_approved");
+  return { key, label: label ?? m.short, color: m.dot, statuses: statusDasEtapas(...etapas) };
 };
 const PIPELINE_STAGES: { key: string; label: string; color: string; statuses: string[] }[] = [
-  { key: 'solicitado',   label: 'Solicitado',      color: '#f97316', statuses: ['draft', 'requested', 'solicitado'] },
-  { key: 'vinculacao',   label: 'Vinculação',      color: '#746e69', statuses: ['awaiting_linking'] },
-  { key: 'ag_aprovacao', label: 'Ag. Aprovação',   color: '#f97316', statuses: ['awaiting_submission', 'awaiting_approval', 'awaiting_sponsor_approval'] },
-  { key: 'aprovado',     label: 'Aprovado',        color: '#22c55e', statuses: ['sponsor_approved'] },
-  { key: 'finalizacao',  label: 'Finalização',     color: '#a855f7', statuses: ['awaiting_finalization', 'awaiting_creator_review'] },
-  { key: 'revisao',      label: 'Revisão',         color: '#d946ef', statuses: ['awaiting_final_review'] },
-  { key: 'pronto',       label: 'Pronto p/ Prod.', color: '#10b981', statuses: ['ready_for_production', 'pronto_para_producao', 'approved', 'liberado'] },
-  etapaDeProducao('producao',  ST_IN_PRODUCTION, ['in_production', 'em_producao']),
-  etapaDeProducao('produzido', ST_PRODUCED,      ['produzido']),
-  etapaDeProducao('conferido', ST_CONFERRED,     ['conferido']),
-  etapaDeProducao('embalado',  ST_PACKED,        []),
-  etapaDeProducao('entregue',  ST_DELIVERED,     ['entregue']),
+  etapaDoPipeline("solicitado",   ["requested"], "Solicitado"),
+  etapaDoPipeline("vinculacao",   ["awaiting_linking"], "Vinculação"),
+  etapaDoPipeline("ag_aprovacao", ["awaiting_submission", "awaiting_approval"], "Ag. Aprovação", "awaiting_approval"),
+  etapaDoPipeline("aprovado",     [], "Aprovado", "approved"),
+  etapaDoPipeline("finalizacao",  ["awaiting_finalization"], "Finalização"),
+  etapaDoPipeline("revisao",      ["awaiting_final_review"], "Revisão"),
+  etapaDoPipeline("pronto",       ["ready_for_production", "approved"], "Pronto p/ Prod."),
+  etapaDoPipeline("producao",     ["inProduction"]),
+  etapaDoPipeline("produzido",    ["produced"]),
+  etapaDoPipeline("conferido",    ["conferred"]),
+  etapaDoPipeline("embalado",     ["packed"]),
+  etapaDoPipeline("entregue",     ["delivered"]),
 ];
 
 // ── A JORNADA DA PEÇA, EM UMA LEITURA SÓ ───────────────────────────────────

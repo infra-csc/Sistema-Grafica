@@ -1,5 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { memo, useEffect, useMemo, useRef, useState } from "react";
+import { ehBookCompleto } from "@shared/fluxo-peca";
 import { FilterSelect } from "@/components/filter-select";
 import {
   Bar, BarChart, CartesianGrid, Cell, ReferenceArea, ReferenceLine,
@@ -476,7 +477,9 @@ export default function DashboardAnalises() {
   // identidade de todas as dependências dos memos abaixo enquanto uma das
   // fontes carrega, e cada agregado seria refeito em todo render.
   const events = evQ.data ?? SEM_EVENTOS;
-  const items = itQ.data ?? SEM_ITENS;
+  // BOOK COMPLETO não é peça: é o trâmite de aprovação do Atendimento e some
+  // de toda contagem (shared/fluxo-peca). O servidor já o tira do tempo por etapa.
+  const items = useMemo(() => (itQ.data ? itQ.data.filter((i) => !ehBookCompleto(i)) : SEM_ITENS), [itQ.data]);
   const sponsors = spQ.data ?? SEM_PATROCINADORES;
   const isLoading = evQ.isLoading || itQ.isLoading || spQ.isLoading;
   // Qualquer uma das 3 fontes falhando distorce os números em silêncio (sem

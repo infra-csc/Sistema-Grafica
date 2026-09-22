@@ -21,6 +21,7 @@ import {
   todayBusinessMs,
 } from "@shared/prazo-dates";
 import type { EventoFinalizadoMotivo, EventoFinalizavel } from "@shared/prazo-dates";
+import { STATUS_FINAIS } from "@shared/fluxo-peca";
 
 export interface StatusMeta {
   label: string;      // rótulo completo (desktop)
@@ -117,9 +118,18 @@ export const STATUS: Record<string, StatusMeta> = {
   em_producao:           meta("Em Impressão",           "Em Impressão",   P.orange,  Package),
   produzido:             meta("Impresso / Acabamento",        "Impresso",   P.pink,    CheckCircle),
   entregue:              meta("Entregue",               "Entregue",       P.emerald, Truck),
+  // Outras grafias que a régua canônica (shared/fluxo-peca) reconhece — sem
+  // rótulo aqui a tela mostraria a chave crua.
+  conferido:             meta("Conferido",              "Conferido",      P.cyan,    CheckCircle),
+  embalado:              meta("Embalado",               "Embalado",       P.blue,    PackageCheck),
+  in_production:         meta("Em Impressão",           "Em Impressão",   P.orange,  Package),
+  solicitado:            meta("Solicitado",             "Solicitado",     P.blue,    Clock),
+  rascunho:              meta("Rascunho",               "Rascunho",       P.neutral, Clock),
   // ── Encerrados ──
   canceled:              meta("Cancelado",              "Cancelado",      P.red, XCircle),
   deleted:               meta("Excluído",               "Excluído",       P.red, XCircle),
+  cancelled:             meta("Cancelado",              "Cancelado",      P.red, XCircle),
+  archived:              meta("Arquivado",              "Arquivado",      P.neutral, XCircle),
   // ── Status de EVENTO ──
   created:               meta("Criado",                 "Criado",         P.amber, Clock),
   // "Concluído": termo usado na lista de eventos (chips/badges) — o badge do
@@ -368,7 +378,10 @@ export function descricaoDoStatus(status: string | null | undefined): string | n
 // `packed` (Embalado, 21/09) entrou ENTRE conferred e delivered — quem
 // desestrutura esta lista por posição (atendimento.tsx) precisa dos cinco.
 export const PRODUCTION_STATUSES = ["inProduction", "produced", "conferred", "packed", "delivered"] as const;
-export const FINAL_STATUSES = ["delivered", "canceled", "deleted"] as const;
+// Terminais = entregue ou fora do funil, com as grafias legadas ("entregue",
+// "archived"): a lista literal esquecia as duas e o chip de prazo do Painel
+// contava peça entregue como pendente.
+export const FINAL_STATUSES: readonly string[] = STATUS_FINAIS;
 
 /** Valor gravado em `events.status` pelo encerramento MANUAL (routes/shared.ts). */
 export { EVENT_CLOSED_STATUS };

@@ -135,7 +135,7 @@ describe("a etapa Embalado no fluxo da peça", () => {
     const i = GROUP_KEYS.indexOf("packed" as any);
     expect(GROUP_KEYS[i - 1]).toBe("conferred");
     expect(GROUP_KEYS[i + 1]).toBe("delivered");
-    expect((STATUS_GROUPS as any).packed).toEqual(["packed"]);
+    expect((STATUS_GROUPS as any).packed[0]).toBe("packed");
     expect(ler("shared/schema.ts")).toContain('  "conferred",\n  // Embalado (dono, 21/09): conferida e dentro de um tubo, esperando o caminhão.\n  "packed",\n  "delivered",');
     expect(DEPOIS_DA_ARTE.has("packed")).toBe(true);
   });
@@ -158,8 +158,10 @@ describe("a etapa Embalado no fluxo da peça", () => {
     expect(ler("server/services/xlsxExport.ts")).toContain('packed: "Embalado"');
     expect(ler("server/routes/items.ts")).toContain('"Embalado": "packed",');
     expect(ler("client/src/lib/painel-rotas.ts")).toContain("packed:                  TELAS.grafica,");
-    expect(ler("client/src/lib/fases.ts")).toContain('packed:       ["packed"],');
-    expect(ler("shared/prazos-contract.ts")).toContain('export const PRODUCED_LIKE = ["produced", "conferred", "packed", "produzido"] as const;');
+    // A etapa canônica (shared/fluxo-peca) é a fonte; fases e PRODUCED_LIKE derivam dela.
+    expect(ler("shared/fluxo-peca.ts")).toContain('packed:                ["packed", "embalado"],');
+    expect(ler("client/src/lib/fases.ts")).toContain("statuses: STATUS_DA_ETAPA[key]");
+    expect(ler("shared/prazos-contract.ts")).toContain("export const PRODUCED_LIKE: readonly string[] = STATUS_PRODUZIDAS;");
   });
 
   it("a fila da Gráfica (storage + delta) serve packed", () => {

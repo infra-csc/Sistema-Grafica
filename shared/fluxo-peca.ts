@@ -193,3 +193,94 @@ export const POS_CONFERENCIA: readonly string[] = ["conferred", "conferido", EMB
 
 export const ehPosConferencia = (status: string | null | undefined): boolean =>
   !!status && POS_CONFERENCIA.includes(status);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// A ETAPA CANÔNICA DA PEÇA — uma régua só para toda tela que CONTA peça.
+//
+// Painel, barra de fases, pipeline do Atendimento, Prazos e Análises tinham
+// cada um a sua tabela status → etapa, com grafias legadas diferentes: a mesma
+// peça `entregue` era "Outros" no Painel, entregue nas Análises e pendente no
+// chip de prazo. Aqui todo status (canônico ou legado) cai em UMA etapa, e as
+// telas só agrupam etapas — nunca mais status soltos.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** As etapas, na ordem do fluxo. `canceled` reúne tudo que saiu do funil. */
+export const ETAPAS_DA_PECA = [
+  "requested", "awaiting_linking", "awaiting_submission", "awaiting_approval",
+  "awaiting_finalization", "awaiting_final_review", "ready_for_production", "approved",
+  "inProduction", "produced", "conferred", "packed", "delivered", "canceled",
+] as const;
+
+export type EtapaDaPeca = (typeof ETAPAS_DA_PECA)[number];
+
+/**
+ * Todos os status gravados (ou já vistos no banco) de cada etapa. O PRIMEIRO
+ * de cada lista é o canônico — é dele que as telas tiram rótulo e cor.
+ */
+export const STATUS_DA_ETAPA: Readonly<Record<EtapaDaPeca, readonly string[]>> = {
+  requested:             ["requested", "draft", "solicitado", "rascunho"],
+  awaiting_linking:      ["awaiting_linking"],
+  awaiting_submission:   ["awaiting_submission"],
+  awaiting_approval:     ["awaiting_approval", "awaiting_sponsor_approval"],
+  // sponsor_approved e awaiting_creator_review são o mesmo trabalho (a Arte
+  // subindo o arquivo final) por dois caminhos.
+  awaiting_finalization: ["awaiting_finalization", "sponsor_approved", "awaiting_creator_review"],
+  awaiting_final_review: ["awaiting_final_review", "awaiting_review", "in_review"],
+  ready_for_production:  ["ready_for_production", "pronto_para_producao"],
+  approved:              ["approved", "liberado"],
+  inProduction:          ["inProduction", "em_producao", "in_production"],
+  produced:              ["produced", "produzido"],
+  conferred:             ["conferred", "conferido"],
+  packed:                ["packed", "embalado"],
+  delivered:             ["delivered", "entregue"],
+  canceled:              ["canceled", "cancelled", "deleted", "archived"],
+};
+
+const ETAPA_DO_STATUS: Record<string, EtapaDaPeca> = (() => {
+  const m: Record<string, EtapaDaPeca> = {};
+  for (const e of ETAPAS_DA_PECA) for (const s of STATUS_DA_ETAPA[e]) m[s] = e;
+  return m;
+})();
+
+/** Todo status que a régua conhece (canônicos + legados). */
+export const STATUS_CONHECIDOS: readonly string[] = Object.keys(ETAPA_DO_STATUS);
+
+/** Etapa de um status, ou `null` quando o valor é desconhecido (nunca inventa). */
+export function etapaDaPeca(status: string | null | undefined): EtapaDaPeca | null {
+  return (status && ETAPA_DO_STATUS[status]) || null;
+}
+
+/** Os status (com legados) de um conjunto de etapas — para montar listas de filtro. */
+export const statusDasEtapas = (...etapas: EtapaDaPeca[]): string[] =>
+  etapas.flatMap((e) => STATUS_DA_ETAPA[e]);
+
+/** Entregue — a peça concluiu o fluxo. */
+export const STATUS_ENTREGUES: readonly string[] = statusDasEtapas("delivered");
+/** Fora do funil: cancelada, excluída, arquivada — não é pendência nem total. */
+export const STATUS_FORA_DO_FUNIL: readonly string[] = statusDasEtapas("canceled");
+/** Já saiu da impressora e ainda não foi entregue (produzida, conferida, embalada). */
+export const STATUS_PRODUZIDAS: readonly string[] = statusDasEtapas("produced", "conferred", "packed");
+/** Terminais: entregue ou fora do funil — não consome mais prazo. */
+export const STATUS_FINAIS: readonly string[] = [...STATUS_ENTREGUES, ...STATUS_FORA_DO_FUNIL];
+
+export const ehEntregue = (status: string | null | undefined): boolean => etapaDaPeca(status) === "delivered";
+export const ehForaDoFunil = (status: string | null | undefined): boolean => etapaDaPeca(status) === "canceled";
+
+/**
+ * O FUNIL DE PRAZOS — as seis etapas cobradas pela Gestão de Prazos e pelas
+ * Análises, cada uma como um conjunto de etapas da peça. A Produção Gráfica
+ * vai de liberada até embalada: só a entrega tira a peça da pendência.
+ */
+export const FUNIL_DE_PRAZOS: ReadonlyArray<{ key: string; label: string; etapas: readonly EtapaDaPeca[] }> = [
+  { key: "listaImagens", label: "Lista de Imagens",    etapas: ["requested", "awaiting_linking"] },
+  { key: "layouts",      label: "Entrega de Layouts",  etapas: ["awaiting_submission"] },
+  { key: "aprovacao",    label: "Aprovação de Layout", etapas: ["awaiting_approval"] },
+  { key: "finalizacao",  label: "Finalização",         etapas: ["awaiting_finalization"] },
+  { key: "revisao",      label: "Revisão de Lista",    etapas: ["awaiting_final_review"] },
+  { key: "producao",     label: "Produção Gráfica",
+    etapas: ["ready_for_production", "approved", "inProduction", "produced", "conferred", "packed"] },
+];
+
+/** Os status pendentes de cada etapa do funil (com as grafias legadas). */
+export const statusDoFunil = (key: string): string[] =>
+  statusDasEtapas(...(FUNIL_DE_PRAZOS.find((f) => f.key === key)?.etapas ?? []));

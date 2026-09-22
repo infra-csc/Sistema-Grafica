@@ -1,20 +1,10 @@
-// Taxonomia de status da tela de Análises — ESPELHO do funil canônico do
-// servidor (`STAGE_DEFS`, `DELIVERED` e `OUT_OF_FUNNEL` em
-// `server/services/prazo-domain.ts`).
-//
-// PORQUÊ um espelho e não um import direto: `prazo-domain.ts` é módulo de
-// SERVIDOR (o bundle do cliente não o alcança) e `shared/prazos-contract.ts`
-// só publica o pedaço do vocabulário que os dois lados já citavam
-// (`PRODUCED_LIKE`). Até a reforma, a tela declarava a QUARTA taxonomia do app,
-// sem as grafias legadas em português e sem conceito de "fora do funil" — o
-// resultado era peça `entregue` contando como não entregue e peça cancelada
-// inflando o denominador de toda razão da tela.
-//
-// O espelho só é aceitável porque existe um teste que o compara etapa a
-// etapa, na ordem, com `STAGE_DEFS` (`server/__tests__/analises-status.test.ts`):
-// acrescentar uma grafia legada no domínio e esquecer daqui quebra o gate em
-// vez de voltar a subnotificar a entrega em silêncio.
-import { PRODUCED_LIKE } from "@shared/prazos-contract";
+// Taxonomia de status da tela de Análises — lida do FUNIL CANÔNICO
+// (`FUNIL_DE_PRAZOS` em shared/fluxo-peca), o mesmo de onde o servidor monta
+// `STAGE_DEFS` da Gestão de Prazos. Antes era um espelho à mão, vigiado por um
+// teste de paridade; agora não há cópia para divergir.
+import {
+  FUNIL_DE_PRAZOS, STATUS_ENTREGUES, STATUS_FORA_DO_FUNIL, ehEntregue, ehForaDoFunil, statusDoFunil,
+} from "@shared/fluxo-peca";
 import { statusParaContagem } from "@shared/molde";
 
 export interface AnaliseStage {
@@ -24,56 +14,16 @@ export interface AnaliseStage {
   statuses: string[];
 }
 
-/** Espelho de `STAGE_DEFS` — mesma ordem, mesmos status, mesmas grafias. */
-export const ANALISE_STAGES: AnaliseStage[] = [
-  {
-    key: "listaImagens",
-    label: "Lista de Imagens",
-    statuses: ["draft", "requested", "awaiting_linking"],
-  },
-  {
-    key: "layouts",
-    label: "Entrega de Layouts",
-    statuses: ["awaiting_submission"],
-  },
-  {
-    key: "aprovacao",
-    label: "Aprovação de Layout",
-    statuses: ["awaiting_approval", "awaiting_sponsor_approval"],
-  },
-  {
-    key: "finalizacao",
-    label: "Finalização",
-    statuses: [
-      "awaiting_finalization", "sponsor_approved", "awaiting_creator_review",
-    ],
-  },
-  {
-    key: "revisao",
-    label: "Revisão de Lista",
-    statuses: [
-      "awaiting_final_review", "awaiting_review", "in_review",
-    ],
-  },
-  {
-    key: "producao",
-    label: "Produção Gráfica",
-    statuses: [
-      "ready_for_production", "approved", "inProduction",
-      "pronto_para_producao", "liberado", "em_producao",
-      ...PRODUCED_LIKE,
-    ],
-  },
-];
+/** As etapas do funil, na ordem, com todas as grafias legadas. */
+export const ANALISE_STAGES: AnaliseStage[] = FUNIL_DE_PRAZOS.map((f) => ({
+  key: f.key, label: f.label, statuses: statusDoFunil(f.key),
+}));
 
-/** "entregue" é a grafia legada de `delivered` — conta como pronta. */
-export const DELIVERED_STATUSES = ["delivered", "entregue"];
+/** Entregue, com as grafias legadas ("entregue"). */
+export const DELIVERED_STATUSES: readonly string[] = STATUS_ENTREGUES;
 
 /** Cancelada/excluída/arquivada: não é pendência NEM total (regra do domínio). */
-export const OUT_OF_FUNNEL_STATUSES = ["canceled", "deleted", "archived"];
-
-const DELIVERED_SET = new Set(DELIVERED_STATUSES);
-const OUT_OF_FUNNEL_SET = new Set(OUT_OF_FUNNEL_STATUSES);
+export const OUT_OF_FUNNEL_STATUSES: readonly string[] = STATUS_FORA_DO_FUNIL;
 
 /**
  * Concluída? Aceita o STATUS (como sempre) ou a PEÇA — e com a peça o molde
@@ -82,9 +32,9 @@ const OUT_OF_FUNNEL_SET = new Set(OUT_OF_FUNNEL_STATUSES);
  */
 export function isDelivered(statusOuPeca: string | null | undefined | { type?: string | null; status?: string | null }): boolean {
   const status = statusOuPeca != null && typeof statusOuPeca === "object" ? statusParaContagem(statusOuPeca) : statusOuPeca;
-  return !!status && DELIVERED_SET.has(status);
+  return ehEntregue(status);
 }
 
 export function isOutOfFunnel(status: string | null | undefined): boolean {
-  return !!status && OUT_OF_FUNNEL_SET.has(status);
+  return ehForaDoFunil(status);
 }

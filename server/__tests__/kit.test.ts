@@ -253,7 +253,7 @@ describe("fechamento (15/09): Gráfica sem ações do Kit para a Arena e Revisã
   it("Gráfica esconde aumentar, reaproveitar e cancelar complemento; Revisão agrupa o Kit em cima com a entrega", () => {
     const GRAFICA = ler("client/src/pages/grafica.tsx");
     expect(GRAFICA).toContain("const mostraAumentar = !bulkOn && !emRevisao && !soVisualizaKit(item) && podeAumentarQuantidade(item, podeMexerQtd);");
-    expect(GRAFICA).toContain("{!bulkOn && !emRevisao && !soVisualizaKit(item) && !isDelivered(item)");
+    expect(GRAFICA).toContain("{!bulkOn && !emRevisao && !pecaTravada(item) && !soVisualizaKit(item) && !isDelivered(item)");
     const REVISAO = ler("client/src/pages/solicitacao.tsx");
     expect(REVISAO).toContain("const key = item.kitRemessaId ? `${item.eventId}#kit-${item.kitRemessaId}` : (item.eventId || \"__none__\");");
     expect(REVISAO).toContain("if (kitA !== kitB) return kitA ? -1 : 1;");

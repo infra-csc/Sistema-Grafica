@@ -746,6 +746,9 @@ export default function Grafica() {
   // finalizado.
   // Com QUANTIDADE: embala quem tem unidade conferida ainda não embalada — a
   // conferida inteira, a PARCIAL (7 de 10 conferidas) e a que já foi em parte.
+  // O STATUS manda (revisão adversarial, 21/09): aEmbalar() já devolve 0 para
+  // cancelada, arquivada, em aprovação ou em revisão (statusEmbalavel, em
+  // shared/embalagem.ts) — nem o reaproveitamento antigo embala antes da produção.
   const podeEmbalar = (item: any) =>
     !EM_REVISAO.has(item.status) && !soVisualizaKit(item) && !isDelivered(item) && !isPacked(item) && !!item.eventId && aEmbalar(item) > 0;
   // "Embalar" quando é tudo; "Embalar 3" quando é só o que falta (ou a parte conferida).

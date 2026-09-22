@@ -100,7 +100,7 @@ describe("a entrega do tubo inteiro", () => {
 
 
   it("entrega todas numa transação só — ou todas, ou nenhuma", () => {
-    expect(entrega).toContain("await db.transaction(async (tx) => {");
+    expect(entrega).toContain("const feito = await db.transaction(async (tx: Ex) => {");
   });
 
 
@@ -188,10 +188,10 @@ describe("fechar o tubo (foto do tubo e dos itens) — não é entrega", () => {
   });
 
   it("ACUMULA as fotos (21/09) em vez de substituir, sem duplicar; grava quando e quem — e NÃO mexe na entrega", () => {
-    expect(fechar).toContain("const totalDeFotos = await acumularFotos(tubo as any, fotos, quem.userName, agora);");
+    expect(fechar).toContain("return acumularFotos(travado, fotos, quem.userName, agora, tx);");
     expect(fechar).not.toContain("fotosFechamento: fotos,");
     expect(ROTAS).toContain("const todas = Array.from(new Set([...(tubo.fotosFechamento ?? []), ...novas]));");
-    expect(ROTAS).toContain("await db.update(tubos).set({ fotosFechamento: todas, fechadoEm: agora, fechadoPor: quem, conteudoAlteradoEm: null } as any)");
+    expect(ROTAS).toContain("await ex.update(tubos).set({ fotosFechamento: todas, fechadoEm: agora, fechadoPor: quem, conteudoAlteradoEm: null } as any)");
     expect(fechar).not.toContain("delivered");
     // só LÊ entregueEm (para recusar tubo já entregue); nunca grava
     expect(fechar).not.toContain("entregueEm: ");
@@ -200,7 +200,7 @@ describe("fechar o tubo (foto do tubo e dos itens) — não é entrega", () => {
 
 
   it("mexer no conteúdo depois da foto marca o tubo, e a tela avisa", () => {
-    expect(ROTAS).toContain("async function marcarConteudoAlterado(tubo: { id: string; fechadoEm: Date | null }, agora: Date) {");
+    expect(ROTAS).toContain("async function marcarConteudoAlterado(tubo: { id: string; fechadoEm: Date | null }, agora: Date, ex: Ex = db) {");
     expect(ROTAS).toContain("alteradoDepoisDaFoto: !!t.fechadoEm && !!t.conteudoAlteradoEm && t.conteudoAlteradoEm > t.fechadoEm,");
     expect(PAINEL).toContain("o conteúdo mudou depois da foto");
   });

@@ -22,6 +22,10 @@ import {
   numeroEditado, foiEditado, rodapeDoTubo, lerRecorteDeTubo, parteNoRecorte, SEM_EDICOES,
 } from "../../client/src/lib/etiqueta-lista";
 
+// Telas montadas pesadas: com a suíte inteira rodando, o primeiro import
+// passa de 5 s sem nada errado. Folga só neste arquivo.
+vi.setConfig({ testTimeout: 30_000 });
+
 const h = React.createElement;
 const ler = (p: string) => readFileSync(path.resolve(process.cwd(), p), "utf8");
 const $ = (sel: string) => document.querySelector<HTMLElement>(sel);

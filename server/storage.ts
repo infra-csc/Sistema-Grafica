@@ -376,6 +376,7 @@ export interface IStorage {
   getItem(id: string): Promise<Item | undefined>;
   getAllItems(): Promise<Item[]>;
   getItemsByStatuses(statuses: string[]): Promise<Item[]>;
+  getItemsByStatusesAndEvents(statuses: string[], eventIds: string[]): Promise<Item[]>;
   getDeletedItems(): Promise<Item[]>;
   getItemsByEvent(eventId: string): Promise<Item[]>;
   getItemsByEvents(eventIds: string[]): Promise<Item[]>;
@@ -670,6 +671,19 @@ export class DatabaseStorage implements IStorage {
       .select()
       .from(items)
       .where(and(inArray(items.status, statuses), sql`${items.deletedAt} IS NULL`))
+      .orderBy(desc(items.createdAt));
+  }
+
+  // RECORTE COMBINADO (perf): status E evento no MESMO WHERE. Arte,
+  // Atendimento e Vinculação pedem "as peças destes status, destes eventos" —
+  // buscar por status e recortar o evento em JavaScript traria de volta o
+  // acervo que o recorte existe para não trazer. Mesma ORDEM de getAllItems.
+  async getItemsByStatusesAndEvents(statuses: string[], eventIds: string[]): Promise<Item[]> {
+    if (statuses.length === 0 || eventIds.length === 0) return [];
+    return await db
+      .select()
+      .from(items)
+      .where(and(inArray(items.status, statuses), inArray(items.eventId, eventIds), sql`${items.deletedAt} IS NULL`))
       .orderBy(desc(items.createdAt));
   }
 

@@ -34,7 +34,7 @@ import {
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { FORMATO_COMPACTO, ehAprovacoesCompactas, expandirAprovacoes } from "@shared/itens-compactos";
 import { useToast } from "@/hooks/use-toast";
-import { usePecaDoLink } from "@/hooks/use-peca-do-link";
+import { usePecaDoLink, buscarCodigoDaPeca } from "@/hooks/use-peca-do-link";
 import {
   Dialog,
   DialogContent,
@@ -83,6 +83,33 @@ const COLLATOR = new Intl.Collator();
 // e para sempre se a busca falhasse. Um vazio só, fora do componente, quebra o
 // laço sem mudar o que a tela mostra.
 const SEM_DADOS: any[] = [];
+
+// ── AS DUAS LISTAS DESTA TELA VÊM RECORTADAS NO SERVIDOR (perf, 2ª rodada) ──
+//
+// O Atendimento lia ["/api/items"] — o acervo inteiro, 5 mil peças e 15 MB em
+// produção — e a aba Pendentes usa UM status: `awaiting_sponsor_approval`. As
+// duas abas passam a pedir GET /api/items?status= (delta, formato compacto,
+// chave dentro do prefixo "/api/items" para as invalidações continuarem
+// alcançando), cada uma com o seu recorte:
+//
+//   · A FILA (sempre): a etapa "aguardando aprovação" — com a grafia canônica
+//     `awaiting_approval` junto, que é o que a régua de shared/fluxo-peca
+//     chama de mesma etapa e o banco também grava.
+//   · O HISTÓRICO (sob demanda): as peças que JÁ passaram da aprovação. Ele
+//     só é baixado quando a aba Histórico é aberta ou quando o book de
+//     exportação é montado — os dois únicos lugares que leem peça pós-aprovação
+//     (`casaHistorico`, `exportPool`). A aba Histórico não mostra contagem
+//     nenhuma no seletor, então nada na tela fica errado enquanto ela não veio.
+//
+// Fora do recorte ficam Rascunho/Solicitada, Vinculação, "Aguardando envio"
+// (a fila da Arte) e o que saiu do funil — nenhum deles é desenhado aqui.
+const ATENDIMENTO_ETAPAS_DA_FILA = ["awaiting_approval"] as const;
+const ATENDIMENTO_ETAPAS_DO_HISTORICO = [
+  "awaiting_finalization", "awaiting_final_review", "ready_for_production", "approved",
+  "inProduction", "produced", "conferred", "packed", "delivered",
+] as const;
+const CHAVE_DA_FILA = ["/api/items", `?status=${statusDasEtapas(...ATENDIMENTO_ETAPAS_DA_FILA).join(",")}`] as const;
+const CHAVE_DO_HISTORICO = ["/api/items", `?status=${statusDasEtapas(...ATENDIMENTO_ETAPAS_DO_HISTORICO).join(",")}`] as const;
 
 /**
  * Tecla de atalho desenhada como tecla — o mesmo desenho da Arte. Atalho
@@ -585,10 +612,29 @@ export default function Atendimento() {
   // a primeira peça. A busca fica sempre à vista; o recorte ativo continua
   // escrito nos chips logo abaixo.
   const [filtrosAbertosMobile, setFiltrosAbertosMobile] = useState(false);
-  const { data: items = SEM_DADOS, isLoading: itemsLoading, isError: itemsError, refetch: refetchItems,
+  const { data: pecasDaFila = SEM_DADOS, isLoading: itemsLoading, isError: itemsError, refetch: refetchItems,
     dataUpdatedAt, isFetching: isFetchingItems } = useQuery<any[]>({
-    queryKey: ["/api/items"],
+    queryKey: CHAVE_DA_FILA,
   });
+
+  // O histórico só desce quando alguém vai olhar para ele: a aba aberta ou o
+  // book de exportação montado (o book precisa das já aprovadas, senão sai
+  // incompleto — ver `exportPool`). Uma vez baixado, fica no cache do React
+  // Query como qualquer outra lista, e revalida por delta.
+  const precisaDoHistorico = activeTab === "history" || showExportPDFModal;
+  const { data: pecasDoHistorico = SEM_DADOS } = useQuery<any[]>({
+    queryKey: CHAVE_DO_HISTORICO,
+    enabled: precisaDoHistorico,
+  });
+
+  // As duas listas como UMA, que é o que o resto da tela sempre viu. São
+  // disjuntas por construção (os recortes não compartilham status), então a
+  // concatenação não precisa deduplicar; a identidade só muda quando uma das
+  // duas muda — a fila sozinha nem passa por aqui.
+  const items = useMemo(
+    () => (pecasDoHistorico.length === 0 ? pecasDaFila : pecasDaFila.concat(pecasDoHistorico)),
+    [pecasDaFila, pecasDoHistorico],
+  );
 
   const { data: events = SEM_DADOS, isLoading: eventsLoading } = useQuery<any[]>({
     queryKey: ["/api/events"],
@@ -1738,7 +1784,11 @@ export default function Atendimento() {
       if (activeTab !== "pending") setActiveTab("pending");
       handleViewDetails(peca);
     },
-    codigoDe: (id) => (items as any[]).find((i: any) => i.id === id)?.displayId,
+    // Peça fora das duas listas recortadas (rascunho, vinculação, na mesa da
+    // Arte): busca só ela, para o aviso continuar dizendo o código — antes
+    // isso vinha do acervo inteiro que descia a cada visita.
+    codigoDe: (id) =>
+      (items as any[]).find((i: any) => i.id === id)?.displayId ?? buscarCodigoDaPeca(id),
   });
 
   if (itemsLoading || eventsLoading) {

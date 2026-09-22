@@ -10,7 +10,7 @@ import { CheckCircle, AlertCircle, AlertTriangle, Eye, Calendar, Truck, Check, C
 import { Input } from "@/components/ui/input";
 import { apiRequest, queryClient, MENSAGEM_SEM_CONEXAO } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { usePecaDoLink } from "@/hooks/use-peca-do-link";
+import { usePecaDoLink, buscarCodigoDaPeca } from "@/hooks/use-peca-do-link";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { cn, parseDateLocal, toUTCDisplayDate, runInBatches, fileNameFromPath } from "@/lib/utils";
@@ -30,7 +30,7 @@ import {
   P,
   type EventoFinalizadoMotivo,
 } from "@/lib/status";
-import { ehBookCompleto } from "@shared/fluxo-peca";
+import { ehBookCompleto, statusDasEtapas } from "@shared/fluxo-peca";
 // Trocar arquivo final/thumb depois que a peça andou: a MESMA regra que as
 // rotas update-final-file e update-thumb aplicam — a tela não oferece o que o
 // servidor nega.
@@ -110,6 +110,37 @@ const ARTE_PAGE_SIZE = 100;
 // array novo a cada render e invalidava toda a cadeia de memos (allItems,
 // baldes, facetas) em cada render do carregamento.
 const SEM_DADOS: any[] = [];
+
+// ── A LISTA DESTA TELA VEM RECORTADA NO SERVIDOR (perf, 2ª rodada) ──────────
+//
+// A Arte lia ["/api/items"] — o acervo inteiro, 5 mil peças e 15 MB em
+// produção — para mostrar cinco filas. Agora pede GET /api/items?status=, o
+// mesmo caminho que a Revisão Final já usava: delta, formato compacto e a
+// chave DENTRO do prefixo "/api/items", para que toda invalidação por prefixo
+// (WebSocket, mutações desta tela) continue alcançando a lista.
+//
+// QUAIS STATUS. Os das quatro abas de status (TAB_STATUSES), mas escritos
+// pelas ETAPAS canônicas de shared/fluxo-peca em vez de status soltos: a etapa
+// carrega junto as grafias LEGADAS que ainda circulam no banco
+// (`produzido`, `conferido`, `entregue`, `em_producao`, `liberado`…). O
+// conjunto é, por construção, um SUPERCONJUNTO de TAB_STATUSES — nenhuma aba
+// perde linha, e uma peça gravada com grafia legada que hoje cairia fora do
+// balde chega à tela em vez de sumir na rede.
+//
+// O QUE FICA DE FORA, e é todo o ganho: Rascunho/Solicitada
+// (`requested`, `draft`) e Vinculação (`awaiting_linking`) — que são as filas
+// da Solicitação e da Vinculação, nunca desenhadas aqui — e tudo que saiu do
+// funil (`canceled`, `archived`). A aba Correção continua vindo da rota
+// própria (/api/items/resubmission-needed), que já é recortada no banco.
+const ARTE_ETAPAS = [
+  "awaiting_submission",     // aba "Aguardando envio"
+  "awaiting_approval",       // aba "Aguardando patrocinador"
+  "awaiting_finalization",   // aba "Finalizar arte"
+  // aba "Finalizados", da revisão final até a entrega
+  "awaiting_final_review", "ready_for_production", "approved",
+  "inProduction", "produced", "conferred", "packed", "delivered",
+] as const;
+const CHAVE_DAS_PECAS_DA_ARTE = ["/api/items", `?status=${statusDasEtapas(...ARTE_ETAPAS).join(",")}`] as const;
 
 // "Quem está travando": só os piores ficam à vista (mesma cura da régua de
 // eventos logo abaixo). Em produção a faixa chegou a 40+ marcas com o mesmo
@@ -786,7 +817,7 @@ export default function Arte() {
   const [sendingId, setSendingId] = useState<string | null>(null);
 
   const { data: pecasDoServidor = SEM_DADOS, isLoading, isError, error, refetch } = useQuery<any[]>({
-    queryKey: ["/api/items"],
+    queryKey: CHAVE_DAS_PECAS_DA_ARTE,
   });
 
   const {
@@ -2243,7 +2274,13 @@ export default function Arte() {
       if (aba !== activeTab) changeTab(aba);
       handleViewDetails(peca);
     },
-    codigoDe: (id) => (pecasDoServidor as any[]).find((i: any) => i.id === id)?.displayId,
+    // Fora das filas desta tela (rascunho, vinculação, cancelada) a peça não
+    // está mais no cache — a lista vem recortada. Busca só ela para o aviso
+    // continuar dizendo o código, como dizia quando o acervo inteiro descia.
+    codigoDe: (id) =>
+      (pecasDoServidor as any[]).find((i: any) => i.id === id)?.displayId
+      ?? (correcaoItems as any[]).find((i: any) => i.id === id)?.displayId
+      ?? buscarCodigoDaPeca(id),
   });
 
   /**

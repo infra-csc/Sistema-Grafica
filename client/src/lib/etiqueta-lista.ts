@@ -113,76 +113,55 @@ export const fonteDaCidadeMm = (t: TamanhoEtiqueta, texto: string) => {
   return Math.round(Math.min(m.cidadeMaxMm, cabe) * 10) / 10;
 };
 
-// ── Linhas, grupos e paginação ──────────────────────────────────────────────
+// ── Linhas e paginação ──────────────────────────────────────────────────────
 
-export type LinhaDaEtiqueta<T> = { tipo: "subtitulo"; texto: string } | { tipo: "peca"; peca: T };
+/** Uma linha da etiqueta em lista: uma peça. (Até 21/09 havia também o
+ *  SUBTÍTULO de grupo por tipo — "2X1", "PLACA DE OCTANORME" com traço. O dono
+ *  pediu "tirar grupo, apenas nome do item": a lista é só de peças.) */
+export type LinhaDaEtiqueta<T> = { tipo: "peca"; peca: T };
 
-const chaveDoTipo = (p: any) => String(p?.type ?? "").trim();
-
-/**
- * O subtítulo do grupo: "TESTEIRAS", "ROLOS". Só pluraliza o caso seguro — tipo
- * de UMA palavra terminada em vogal; "Testeira Médica", "Totem" e "2x1" saem
- * como estão (plural errado na etiqueta é pior que singular).
- */
-export const subtituloDoTipo = (tipo: string) => {
-  const t = String(tipo ?? "").trim();
-  if (!t) return "OUTROS";
-  const umaPalavra = !/\s/.test(t);
-  const plural = umaPalavra && /[aeiouáéíóúãõâêô]$/i.test(t) ? `${t}s` : t;
-  return plural.toUpperCase();
-};
+const comparar = (a: string, b: string) => a.localeCompare(b, "pt-BR", { numeric: true, sensitivity: "base" });
 
 /**
- * Agrupa por tipo para a lista: os 2x1 primeiro (é o grosso do tubo), depois
- * os demais em ordem alfabética; dentro do grupo, a ordem que chegou (a do
- * código). O subtítulo só aparece quando há MAIS DE UM grupo — numa lista só
- * de 2x1 a linha já começa por "2x1" e o subtítulo gastaria uma linha à toa.
+ * A ORDEM da lista, sem cabeçalho de grupo: os 2x1 primeiro (é o grosso do
+ * tubo), depois os demais tipos em ordem alfabética; dentro do tipo, pela
+ * descrição ("2x1 BB", "2x1 Lei", "2x1 Nubank"). Empate: a ordem que chegou.
+ * Vale para a lista do evento E para a do tubo.
  */
-export function linhasAgrupadas<T extends PecaDaLista>(pecas: T[]): LinhaDaEtiqueta<T>[] {
-  const grupos = new Map<string, T[]>();
-  for (const p of pecas) {
-    const k = chaveDoTipo(p);
-    if (!grupos.has(k)) grupos.set(k, []);
-    grupos.get(k)!.push(p);
-  }
-  const chaves = Array.from(grupos.keys()).sort((a, b) => {
-    const da = ehDoisPorUm({ type: a }) ? 0 : 1;
-    const db = ehDoisPorUm({ type: b }) ? 0 : 1;
-    return da - db || a.localeCompare(b, "pt-BR");
-  });
-  const comSubtitulo = chaves.length > 1;
-  return chaves.flatMap((k) => [
-    ...(comSubtitulo ? [{ tipo: "subtitulo" as const, texto: subtituloDoTipo(k) }] : []),
-    ...grupos.get(k)!.map((peca) => ({ tipo: "peca" as const, peca })),
-  ]);
+export function linhasOrdenadas<T extends PecaDaLista>(pecas: T[]): LinhaDaEtiqueta<T>[] {
+  return pecas
+    .map((peca, i) => ({ peca, i }))
+    .sort((x, y) => {
+      const tx = String(x.peca.type ?? "").trim();
+      const ty = String(y.peca.type ?? "").trim();
+      return ((ehDoisPorUm({ type: tx }) ? 0 : 1) - (ehDoisPorUm({ type: ty }) ? 0 : 1))
+        || comparar(tx, ty)
+        || comparar(linhaDaLista(x.peca, { mostrarQuantidade: false }), linhaDaLista(y.peca, { mostrarQuantidade: false }))
+        || x.i - y.i;
+    })
+    .map(({ peca }) => ({ tipo: "peca" as const, peca }));
 }
 
 /** Linha longa quebra em duas (ou mais) no papel — pesa isso na paginação. */
 export const pesoDaLinha = (texto: string, letrasPorLinha: number) =>
   Math.max(1, Math.ceil(String(texto ?? "").length / Math.max(1, letrasPorLinha)));
 
-/**
- * Quebra as linhas em ETIQUETAS ("Tubo 2 · 1 de 2"). Subtítulo nunca fica
- * órfão no pé da etiqueta: se só ele coubesse, desce junto com a primeira peça.
- */
+/** Quebra as linhas em ETIQUETAS ("Tubo 2 · 1 de 2"), pesando a linha longa. */
 export function paginarLinhas<T extends PecaDaLista>(
   linhas: LinhaDaEtiqueta<T>[],
   opcoes: { capacidade: number; letrasPorLinha: number; mostrarQuantidade?: boolean },
 ): LinhaDaEtiqueta<T>[][] {
   const capacidade = Math.max(2, Math.floor(opcoes.capacidade) || 2);
-  const peso = (l: LinhaDaEtiqueta<T>) =>
-    l.tipo === "subtitulo" ? 1 : Math.min(capacidade, pesoDaLinha(linhaDaLista(l.peca, opcoes), opcoes.letrasPorLinha));
+  const peso = (l: LinhaDaEtiqueta<T>) => Math.min(capacidade, pesoDaLinha(linhaDaLista(l.peca, opcoes), opcoes.letrasPorLinha));
   const paginas: LinhaDaEtiqueta<T>[][] = [];
   let atual: LinhaDaEtiqueta<T>[] = [];
   let usado = 0;
-  linhas.forEach((l, i) => {
-    let precisa = peso(l);
-    // O subtítulo reserva o lugar da peça seguinte.
-    if (l.tipo === "subtitulo" && linhas[i + 1]) precisa += Math.min(capacidade - 1, peso(linhas[i + 1]));
+  for (const l of linhas) {
+    const precisa = peso(l);
     if (atual.length > 0 && usado + precisa > capacidade) { paginas.push(atual); atual = []; usado = 0; }
     atual.push(l);
-    usado += peso(l);
-  });
+    usado += precisa;
+  }
   if (atual.length > 0) paginas.push(atual);
   return paginas;
 }
@@ -284,30 +263,189 @@ export type ContaDaImpressao = {
   etiquetas: number; folhasIndividuais: number;
   /** Listas (já multiplicadas pelas cópias), peças dentro delas e o papel. */
   listas: number; pecasEmLista: number; tamanho: TamanhoEtiqueta;
+  /** LISTAS POR TUBO (21/09): quantas etiquetas (com as cópias), de quais
+   *  tubos, e quantas linhas de peça levam. */
+  listasDeTubo?: number; tubos?: number[]; pecasEmTubos?: number;
 };
 
+/** [2] → "Tubo 2"; [1, 2, 3] → "Tubos 1, 2 e 3". */
+export const rotuloDosTubos = (tubos: number[]) =>
+  tubos.length === 1 ? `Tubo ${tubos[0]}` : `Tubos ${juntar(tubos.map(String))}`;
+const juntar = (partes: string[]) => partes.length <= 1 ? partes.join("") : `${partes.slice(0, -1).join(", ")} e ${partes[partes.length - 1]}`;
+
 /**
- * "Vai imprimir: 2 listas em Adesivo 10×15 cm (34 peças) e 5 etiquetas
- * individuais em A4 (3 folhas) — 2 impressões separadas". O aviso das duas
- * impressões só aparece quando os papéis são DIFERENTES: lista em A4 sai junto.
+ * "Vai imprimir: 2 listas de tubo em Adesivo 10×15 cm (Tubos 1 e 2 · 12
+ * peças), 1 lista em Adesivo 10×15 cm (34 peças) e 5 etiquetas individuais em
+ * A4 (3 folhas) — 2 impressões separadas". O aviso das duas impressões só
+ * aparece quando os papéis são DIFERENTES: lista em A4 sai junto.
  */
 export function resumoDaImpressao(c: ContaDaImpressao): { texto: string; impressoesSeparadas: boolean } {
   const partes: string[] = [];
+  const listasDeTubo = c.listasDeTubo ?? 0;
+  if (listasDeTubo > 0) {
+    const quais = [c.tubos?.length ? rotuloDosTubos(c.tubos) : null, plural(c.pecasEmTubos ?? 0, "peça", "peças")].filter(Boolean).join(" · ");
+    partes.push(`${plural(listasDeTubo, "lista de tubo", "listas de tubo")} em ${nomeDoPapel(c.tamanho)} (${quais})`);
+  }
   if (c.listas > 0) partes.push(`${plural(c.listas, "lista", "listas")} em ${nomeDoPapel(c.tamanho)} (${plural(c.pecasEmLista, "peça", "peças")})`);
   if (c.etiquetas > 0) partes.push(`${plural(c.etiquetas, "etiqueta individual", "etiquetas individuais")} em A4 (${plural(c.folhasIndividuais, "folha", "folhas")})`);
   if (partes.length === 0) return { texto: "Nada para imprimir ainda.", impressoesSeparadas: false };
-  const impressoesSeparadas = c.listas > 0 && c.etiquetas > 0 && c.tamanho !== "a4";
-  return { texto: `Vai imprimir: ${partes.join(" e ")}${impressoesSeparadas ? " — 2 impressões separadas" : ""}`, impressoesSeparadas };
+  const impressoesSeparadas = (c.listas > 0 || listasDeTubo > 0) && c.etiquetas > 0 && c.tamanho !== "a4";
+  return { texto: `Vai imprimir: ${juntar(partes)}${impressoesSeparadas ? " — 2 impressões separadas" : ""}`, impressoesSeparadas };
 }
 
 /** Lista curta perdida numa folha grande: vale sugerir o adesivo? Só quando
- *  TUDO cabe numa etiqueta de adesivo (senão a troca multiplicaria páginas). */
-export function cabeNoAdesivo<T extends PecaDaLista>(linhas: LinhaDaEtiqueta<T>[], opcoes: { comTubo: boolean; mostrarQuantidade?: boolean }) {
+ *  TUDO cabe numa etiqueta de adesivo (senão a troca multiplicaria páginas).
+ *  `comRodape`: a linha "N peças · M un." da etiqueta do tubo ocupa uma linha. */
+export function cabeNoAdesivo<T extends PecaDaLista>(linhas: LinhaDaEtiqueta<T>[], opcoes: { comTubo: boolean; comRodape?: boolean; mostrarQuantidade?: boolean }) {
   const m = TAMANHOS.adesivo;
   return linhas.length > 0 && paginarLinhas(linhas, {
-    capacidade: opcoes.comTubo ? m.linhasComTubo : m.linhasSemTubo, letrasPorLinha: m.letrasPorLinha, mostrarQuantidade: opcoes.mostrarQuantidade,
+    capacidade: (opcoes.comTubo ? m.linhasComTubo : m.linhasSemTubo) - (opcoes.comRodape ? 1 : 0), letrasPorLinha: m.letrasPorLinha, mostrarQuantidade: opcoes.mostrarQuantidade,
   }).length === 1;
 }
+
+// ── O TUBO NA ETIQUETA (dono, 21/09: "aparecer informação de tubo") ─────────
+//
+// Cada peça chega de /api/items com `tuboVolumes: [{ tuboId, numero, avulso,
+// quantidade }]` (ver server/services/tubosDaPeca.ts). A peça vira PARTES: uma
+// por volume em que está, mais o RESTO que ainda não foi embalado. Peça fora
+// de tubo é uma parte só, sem tubo — e tudo continua como era.
+
+export type VolumeDaPeca = { tuboId?: string | null; numero?: number | null; avulso?: boolean | null; quantidade?: number | null };
+export type PecaComTubo = PecaDaLista & {
+  tuboVolumes?: VolumeDaPeca[] | null; tuboId?: string | null; tuboNumero?: number | null; tuboAvulso?: boolean | null; embaladaQty?: number | null;
+};
+
+export type ParteDaPeca<T> = {
+  peca: T;
+  /** Identidade estável da parte (a edição de números se prende a ela). */
+  chave: string;
+  tuboId: string | null;
+  /** Número REAL do tubo; null = sem tubo (não embalada, ou embalada sozinha). */
+  numero: number | null;
+  /** Embalada SOZINHA (número negativo no banco): "EMBALADA", nunca "TUBO". */
+  avulso: boolean;
+  /** Quanto da peça está nesta parte (depois da edição, se houver). */
+  quantidade: number;
+  /** A mesma quantidade ANTES da edição — o "voltar ao original". */
+  original: number;
+  /** Quanto da peça existe somando todas as partes (depois da edição). */
+  total: number;
+  /** Onde a parte começa na contagem das unidades da peça (0-based) — "uma
+   *  por unidade" numera a peça inteira e cada unidade leva o tubo da faixa. */
+  inicio: number;
+  /** O número do tubo que SAI na etiqueta (editável; não mexe no tubo). */
+  numeroNaEtiqueta: number | null;
+};
+
+const inteiroPositivo = (v: unknown) => { const n = Math.floor(Number(v)); return Number.isFinite(n) && n > 0 ? n : 0; };
+
+/** As partes da peça, ANTES da edição: os tubos em ordem de número, depois a
+ *  embalada sozinha, depois o resto fora de volume. */
+export function partesDaPeca<T extends PecaComTubo>(p: T): ParteDaPeca<T>[] {
+  const quantidade = inteiroPositivo(p.quantity) || 1;
+  let volumes = Array.isArray(p.tuboVolumes) ? p.tuboVolumes.filter((v) => v && inteiroPositivo(v.quantidade) > 0) : [];
+  // Sem a lista de volumes (rota antiga), vale o atalho do tubo principal.
+  if (volumes.length === 0 && p.tuboNumero != null && Number.isFinite(Number(p.tuboNumero))) {
+    volumes = [{ tuboId: p.tuboId ?? null, numero: Number(p.tuboNumero), avulso: p.tuboAvulso, quantidade: inteiroPositivo(p.embaladaQty) || quantidade }];
+  }
+  const partes = volumes
+    .map((v) => {
+      const avulso = v.avulso === true || Number(v.numero) < 0 || v.numero == null;
+      const numero = avulso ? null : Number(v.numero);
+      return { tuboId: v.tuboId ?? null, numero, avulso, quantidade: inteiroPositivo(v.quantidade), chave: `${p.id}|${v.tuboId ?? `n${v.numero}`}` };
+    })
+    .sort((a, b) => Number(a.avulso) - Number(b.avulso) || (a.numero ?? 0) - (b.numero ?? 0));
+  const dentro = partes.reduce((s, v) => s + v.quantidade, 0);
+  if (dentro < quantidade) partes.push({ tuboId: null, numero: null, avulso: false, quantidade: quantidade - dentro, chave: `${p.id}|fora` });
+  const total = partes.reduce((s, v) => s + v.quantidade, 0);
+  let inicio = 0;
+  return partes.map((v) => {
+    const parte = { ...v, peca: p, total, inicio, original: v.quantidade, numeroNaEtiqueta: v.numero };
+    inicio += v.quantidade;
+    return parte;
+  });
+}
+
+// ── EDITAR NÚMEROS NA ETIQUETA (dono, 21/09) ────────────────────────────────
+// "Opção de editar números na etiqueta (não afeta nada de status)": a
+// quantidade de cada parte e o número de cada tubo podem ser trocados SÓ para
+// a impressão. Nada disto vai ao servidor. Guarda-se o TEXTO digitado (o campo
+// pode ficar vazio no meio da digitação); texto que não é número = o original.
+
+export type EdicoesDaEtiqueta = { quantidades: Record<string, string>; tubos: Record<string, string> };
+export const SEM_EDICOES: EdicoesDaEtiqueta = { quantidades: {}, tubos: {} };
+
+/** O número que vale: o digitado, se for um inteiro ≥ 0; senão, o original. */
+export const numeroEditado = (bruto: string | null | undefined, original: number) => {
+  const t = String(bruto ?? "").trim();
+  return /^\d{1,6}$/.test(t) ? Number(t) : original;
+};
+/** A chave do TUBO nas edições: o número editado vale para o tubo inteiro. */
+export const chaveDoTubo = (pt: { tuboId: string | null; numero: number | null }) => pt.tuboId ?? `n${pt.numero}`;
+export const foiEditado =(bruto: string | null | undefined, original: number) =>
+  bruto != null && numeroEditado(bruto, original) !== original;
+
+/** Aplica as edições às partes de UMA peça: quantidade por parte, número por
+ *  tubo, e refaz o total e o início das faixas. */
+export function comEdicoes<T>(partes: ParteDaPeca<T>[], edicoes: EdicoesDaEtiqueta): ParteDaPeca<T>[] {
+  const editadas = partes.map((pt) => ({
+    ...pt,
+    quantidade: numeroEditado(edicoes.quantidades[pt.chave], pt.original),
+    numeroNaEtiqueta: pt.numero != null ? numeroEditado(edicoes.tubos[chaveDoTubo(pt)], pt.numero) : pt.numero,
+  }));
+  const total = editadas.reduce((s, pt) => s + pt.quantidade, 0);
+  let inicio = 0;
+  return editadas.map((pt) => { const r = { ...pt, total, inicio }; inicio += pt.quantidade; return r; });
+}
+
+/** A peça como a LINHA da lista a vê: `quantity` é o total da peça e
+ *  `quantidadeNoTubo` o que está nas partes daquela lista — "(7 de 10)" sai
+ *  sozinho quando é só um pedaço. */
+export function pecaNaLinha<T extends PecaDaLista>(partes: ParteDaPeca<T>[]): T {
+  const p = partes[0].peca;
+  const aqui = partes.reduce((s, pt) => s + pt.quantidade, 0);
+  return { ...p, quantity: partes[0].total, quantidadeNoTubo: aqui } as T;
+}
+
+/** Uma etiqueta INDIVIDUAL: a parte, e — com "uma por unidade" — qual unidade. */
+export type EtiquetaIndividual<T> = { parte: ParteDaPeca<T>; n: number; total: number };
+
+/**
+ * As individuais de um conjunto de partes. Sem "uma por unidade": UMA etiqueta
+ * por parte (peça dividida em dois tubos = duas etiquetas, cada uma com o seu
+ * tubo e a sua quantidade). Com: uma por unidade, numerada na PEÇA inteira
+ * ("8 de 10"), cada uma com o tubo da sua faixa. Peça de 1 unidade não numera.
+ */
+export function etiquetasIndividuais<T>(partes: ParteDaPeca<T>[], porUnidade: boolean): EtiquetaIndividual<T>[] {
+  if (!porUnidade) return partes.map((parte) => ({ parte, n: 0, total: 0 }));
+  return partes.flatMap((parte) => {
+    if (parte.total <= 1) return parte.quantidade > 0 ? [{ parte, n: 0, total: 0 }] : [];
+    return Array.from({ length: parte.quantidade }, (_, k) => ({ parte, n: parte.inicio + k + 1, total: parte.total }));
+  });
+}
+
+/** O que a etiqueta individual diz do volume: "TUBO 2" (+ "7 de 10 un. neste
+ *  tubo" se dividida), "EMBALADA" (sozinha), ou nada (não embalada). */
+export function infoDoVolume(parte: Pick<ParteDaPeca<unknown>, "numero" | "numeroNaEtiqueta" | "avulso" | "quantidade" | "total">) {
+  const dividida = parte.quantidade < parte.total;
+  if (parte.numero != null) return { selo: `TUBO ${parte.numeroNaEtiqueta ?? parte.numero}`, detalhe: dividida ? `${parte.quantidade} de ${parte.total} un. neste tubo` : null };
+  if (parte.avulso) return { selo: "EMBALADA", detalhe: dividida ? `${parte.quantidade} de ${parte.total} un. nesta embalagem` : null };
+  return { selo: null, detalhe: dividida ? `${parte.quantidade} de ${parte.total} un.` : null };
+}
+
+/** O RODAPÉ da etiqueta do tubo: "3 peças · 26 un. · embalado 21/09". */
+export function rodapeDoTubo(pecas: number, unidades: number, embaladoEm?: string | Date | null) {
+  const quando = embaladoEm ? new Date(embaladoEm) : null;
+  const data = quando && !Number.isNaN(quando.getTime()) ? quando.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }) : null;
+  return [plural(pecas, "peça", "peças"), `${unidades} un.`, data ? `embalado ${data}` : null].filter(Boolean).join(" · ");
+}
+
+/** O recorte "Tubo" de O que imprimir: todos · só os tubos · Tubo N · sem tubo. */
+export type RecorteDeTubo = "todos" | "tubos" | "sem" | `${number}`;
+export const lerRecorteDeTubo = (v: string | null | undefined): RecorteDeTubo =>
+  v === "tubos" || v === "sem" || (typeof v === "string" && /^\d+$/.test(v)) ? (v as RecorteDeTubo) : "todos";
+export const parteNoRecorte = (pt: Pick<ParteDaPeca<unknown>, "numero">, r: RecorteDeTubo) =>
+  r === "todos" ? true : r === "tubos" ? pt.numero != null : r === "sem" ? pt.numero == null : pt.numero === Number(r);
 
 /** O papel em texto corrido ("Adesivo 10×15 cm"): o "(em pé)" só ajuda no
  *  seletor; em resumo e legenda é ruído. */

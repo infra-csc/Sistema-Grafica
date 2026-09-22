@@ -204,3 +204,80 @@ export function ordenarArtes<T extends ArteComparavel>(
     || String(b.displayId ?? "").localeCompare(String(a.displayId ?? ""), "pt-BR", { numeric: true }));
   return notas.slice(0, limite);
 }
+
+// ─── O QUE NÃO ENTRA NA BUSCA ────────────────────────────────────────────────
+//
+// Reaproveitar arte é confiar que ela VALEU. Peça cancelada/arquivada e
+// rascunho nunca chegaram a valer; arte reprovada é justamente a que não
+// pode voltar a circular. Decisão do dono: fora da grade, sem opção de ver.
+
+/** Status de peça cuja arte não serve de modelo (decisão do dono). */
+export const STATUS_FORA_DA_BUSCA_DE_ARTE = [
+  "canceled", "cancelled", "deleted", "archived", "draft", "rascunho",
+] as const;
+
+const FORA = new Set<string>(STATUS_FORA_DA_BUSCA_DE_ARTE);
+
+/** Uma linha de item_sponsor_approvals, só com o que a busca usa. */
+export interface DecisaoDaArte {
+  status: string | null;
+  approvedBy?: string | null;
+  approvedAt?: string | Date | null;
+  /** Thumb decidido; null nas decisões antigas (vale para o thumb atual). */
+  decidedThumbUrl?: string | null;
+}
+
+/** A decisão fala do thumb que está na peça agora? Sem registro, presume-se que sim. */
+const falaDoThumbAtual = (d: DecisaoDaArte, thumbAtual: string | null | undefined) =>
+  !d.decidedThumbUrl || !thumbAtual || d.decidedThumbUrl === thumbAtual;
+
+/**
+ * A peça fica FORA da busca? Status morto, reprovação em aberto na peça
+ * (rejectedBySponsor/rejectedByCreator) ou reprovação de patrocinador sobre
+ * o thumb que ela ainda tem.
+ */
+export function arteForaDaBusca(
+  peca: { status?: string | null; rejectedBySponsor?: boolean | null; rejectedByCreator?: boolean | null; thumbUrl?: string | null },
+  decisoes: DecisaoDaArte[] = [],
+): boolean {
+  if (FORA.has(String(peca.status ?? "").trim().toLowerCase())) return true;
+  if (peca.rejectedBySponsor || peca.rejectedByCreator) return true;
+  return decisoes.some((d) => d.status === "rejected" && falaDoThumbAtual(d, peca.thumbUrl));
+}
+
+export interface AprovacaoDaArte {
+  aprovada: boolean;
+  aprovadaPor: string | null;
+  aprovadaEm: string | null;
+}
+
+const iso = (v: string | Date | null | undefined): string | null => {
+  if (!v) return null;
+  const d = new Date(v);
+  return Number.isFinite(d.getTime()) ? d.toISOString() : null;
+};
+
+/**
+ * A arte foi aprovada pelo patrocinador? Quando há linhas por patrocinador,
+ * TODAS têm de estar aprovadas sobre o thumb atual (uma pendente = ainda não);
+ * sem linhas, vale o carimbo da própria peça (sponsorApprovedAt).
+ */
+export function aprovacaoDaArte(
+  peca: { sponsorApprovedBy?: string | null; sponsorApprovedAt?: string | Date | null; thumbUrl?: string | null },
+  decisoes: DecisaoDaArte[] = [],
+): AprovacaoDaArte {
+  if (decisoes.length > 0) {
+    const todas = decisoes.every((d) => d.status === "approved" && falaDoThumbAtual(d, peca.thumbUrl));
+    if (!todas) return { aprovada: false, aprovadaPor: null, aprovadaEm: null };
+    const nomes = Array.from(new Set(decisoes.map((d) => d.approvedBy?.trim()).filter((n): n is string => !!n)));
+    const datas = decisoes.map((d) => iso(d.approvedAt)).filter((d): d is string => !!d).sort();
+    return {
+      aprovada: true,
+      aprovadaPor: nomes.length > 0 ? nomes.join(", ") : (peca.sponsorApprovedBy?.trim() || null),
+      // A última aprovação é a que liberou a arte.
+      aprovadaEm: datas.length > 0 ? datas[datas.length - 1] : iso(peca.sponsorApprovedAt),
+    };
+  }
+  const em = iso(peca.sponsorApprovedAt);
+  return { aprovada: !!em, aprovadaPor: em ? (peca.sponsorApprovedBy?.trim() || null) : null, aprovadaEm: em };
+}

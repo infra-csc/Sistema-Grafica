@@ -2,12 +2,124 @@
 // tipografia, raio e elevação. Antes cada página redefinia um `const T = {...}`
 // local; a tela da Arte chegava a 113 cores hardcoded, 19 raios de borda e 14
 // tamanhos de fonte. Centralizar evita a divergência entre cópias.
+//
+// ─────────────────────────────────────────────────────────────────────────────
+// ESTE ARQUIVO É A FONTE. O index.css espelha os MESMOS valores em CSS vars
+// (--n*, --fs-*, --r-*, --sh-*, --dur-*), para o que é CSS puro: pseudo-classes
+// (:hover, :focus-visible, :disabled), media queries e o tema escuro. Estilo
+// inline não alcança nada disso; por isso os dois existem. Quem muda um muda
+// o outro — os valores têm de bater dígito por dígito.
+//
+// O CSS tinha uma escada PARALELA com valores diferentes (--r-md 10 contra
+// R.md 8, --n3 #e7e5e4 contra T.border #e8e8e7). Nenhum .tsx consumia aquelas
+// vars: eram tokens mortos de uma tentativa anterior. Foram realinhadas aqui,
+// sempre para o valor que a tela REALMENTE usa — contado no código, não
+// escolhido no gosto.
+// ─────────────────────────────────────────────────────────────────────────────
+import { P } from "./status";
+
+/**
+ * A ESCADA DE NEUTROS — onze degraus, do papel ao texto.
+ *
+ * São onze porque a tela usa onze, contados: cada um destes tons aparece em
+ * dezenas a centenas de pontos do código. Reduzir a escada a nove obrigaria a
+ * arredondar dois tons de verdade (#f0efee, 90 usos, e #44403c, 231) para o
+ * vizinho, e é exatamente assim que uma superfície "quase igual" vira uma
+ * emenda visível entre dois blocos.
+ *
+ * O CORTE IMPORTANTE fica entre n6 e n7: n6 (#a8a29e) é o último tom claro o
+ * bastante para ser DECORAÇÃO e escuro demais para ser TEXTO — 2,5:1 sobre
+ * branco, reprova AA em toda superfície do app. n7 é o primeiro que passa.
+ */
+export const N = {
+  n0: "#ffffff", // superfície pura: card, modal, linha par da tabela
+  n1: "#fafaf9", // fundo da página, cabeçalho de tabela
+  n2: "#f5f5f4", // superfície sutil: faixa de tipo, linha ímpar, hover
+  n3: "#f0efee", // separador claro, trilho, fundo de campo desabilitado
+  n4: "#e7e5e4", // BORDA PADRÃO — o hairline de tudo
+  n5: "#d6d3d1", // borda forte, ícone de estado vazio, scrollbar
+  n6: "#a8a29e", // ícone decorativo e desabilitado — NUNCA como texto
+  n7: "#746e69", // texto secundário    (5,03:1 sobre n0, 4,56 no pior fundo)
+  n8: "#57534e", // texto de apoio      (7,63:1 sobre n0)
+  n9: "#44403c", // texto forte         (10,4:1 sobre n0)
+  n10: "#1c1917", // texto principal    (16,1:1 sobre n0)
+} as const;
+
+/**
+ * SEMÂNTICOS — reexportados de `status.ts`, não redefinidos.
+ *
+ * As cores de significado já tinham dono: a paleta `P` de lib/status.ts, que é
+ * a mesma que pinta as pílulas de status. Copiar os hexes para cá criaria a
+ * segunda verdade que este arquivo existe para eliminar — foi assim que um
+ * vermelho reprovado em contraste sobreviveu em cinco telas.
+ *
+ * Cada tom traz `bg` (tinta clara), `border`, `text` (tom escuro, AA sobre o
+ * `bg`) e `dot` (tom saturado, só para bolinha/barra — não é cor de texto).
+ */
+export const TOM = {
+  sucesso: P.green,
+  alerta: P.amber,
+  perigo: P.red,
+  info: P.blue,
+  neutro: P.neutral,
+} as const;
+
+export type NomeDeTom = keyof typeof TOM;
+
+/**
+ * FAMÍLIAS DE FONTE — três, e o papel de cada uma.
+ *
+ * Eram SEIS carregadas no index.html (Inter, Plus Jakarta Sans, Space Grotesk,
+ * DM Mono, Manrope, Outfit): ~180KB de fonte para três papéis. Manrope tinha
+ * dois usos no app inteiro e Outfit, dois. Plus Jakarta e Space Grotesk faziam
+ * o MESMO papel (título) em telas diferentes, o que deixava dois cabeçalhos do
+ * mesmo produto com desenho de letra diferente.
+ */
+export const FONT = {
+  /** Corpo, rótulo, campo — tudo que se lê em linha. */
+  corpo: "Inter, system-ui, sans-serif",
+  /** Título e NÚMERO: o desenho estreito segura dígito grande sem esparramar. */
+  display: "'Space Grotesk', Inter, sans-serif",
+  /** Código, medida, id — o que só se compara alinhado em coluna. */
+  mono: "'DM Mono', Menlo, monospace",
+} as const;
+
+/** Pesos. Três, porque a hierarquia não pode depender só de peso. */
+export const FW = {
+  corpo: 500,
+  medio: 600,
+  forte: 700,
+  /** Rótulo em CAIXA-ALTA — sempre acompanhado de tracking. */
+  rotulo: 800,
+} as const;
+
+/**
+ * MOVIMENTO — duas durações.
+ *
+ * `rapida` é reação a toque (hover, foco, cor de fundo): tem de ser curta o
+ * bastante para parecer instantânea. `media` é mudança de estado que o olho
+ * precisa seguir (abrir, expandir, entrar). Um terceiro degrau só serviria
+ * para discutir. Tudo isto é anulado por `prefers-reduced-motion` no
+ * index.css.
+ */
+export const MOTION = {
+  rapida: "120ms",
+  media: "180ms",
+  saida: "cubic-bezier(0.2, 0.8, 0.2, 1)",
+} as const;
+
 export const T = {
-  bg: "#f9f9f8",
-  surface: "#ffffff",
-  border: "#e8e8e7",
-  bdark: "#d6d3d1",
-  text: "#1a1c1c",
+  bg: N.n1,
+  surface: N.n0,
+  /**
+   * Era #e8e8e7, um cinza que só existia aqui: a tela escreve #e7e5e4 (n4) em
+   * 553 pontos. Dois cinzas separados por um dígito, lado a lado na mesma
+   * tabela, desenham uma emenda que ninguém consegue nomear mas todo mundo vê.
+   */
+  border: N.n4,
+  bdark: N.n5,
+  /** Era #1a1c1c; a tela escreve #1c1917 (n10) em 487 pontos. Mesma história. */
+  text: N.n10,
   /**
    * Texto secundário — metadados, legendas, rótulos de apoio.
    *
@@ -21,14 +133,14 @@ export const T = {
    * "depende do fundo": onde couber texto secundário, este token serve.
    * A diferença de peso para o anterior é imperceptível (L 0.159 vs 0.169).
    */
-  second: "#746e69",
+  second: N.n7,
   /**
    * ATENÇÃO: apenas para elementos decorativos (ícones, separadores,
    * placeholders) — nunca para texto. Fica entre 2.29 e 2.52:1 sobre as
    * superfícies do app e reprova WCAG AA em todas elas. Para texto legível
    * use `T.second`.
    */
-  muted: "#a8a29e",
+  muted: N.n6,
   accent: "#f97316",
   /**
    * Accent em papel de TEXTO. O laranja `accent` (#f97316) rende 2,8:1 sobre
@@ -39,23 +151,38 @@ export const T = {
    * ícones grandes, anéis de foco.
    */
   accentText: "#c2410c",
-  dark: "#1c1917",
+  dark: N.n10,
+  /** Fundo de bloco rebaixado dentro de card branco. */
   low: "#f3f4f3",
+  /** Texto de apoio e texto forte, para não redigitar `N.n8` / `N.n9`. */
+  apoio: N.n8,
+  strong: N.n9,
 };
 
 /**
  * Escala tipográfica. Os degraus existem para forçar hierarquia: quando um
  * texto não cabe em nenhum deles, o problema costuma ser a hierarquia, não a
- * escala. Nada abaixo de 10px — 8px não é legível nem dentro de badge.
+ * escala.
+ *
+ * PISO DE 10px. A tela tinha 6, 7, 8 e 9px vivos — em 15 pontos somados. Não é
+ * "texto pequeno", é texto que não se lê: no galpão, sob luz ruim e com o
+ * aparelho na mão, 8px some. Quem precisava de 8 precisava, na verdade, de
+ * menos texto.
+ *
+ * Os degraus do meio (12, 14, 16) não estavam nomeados e apareciam 840 vezes
+ * como número cru — a escala fingia ter sete degraus enquanto a tela usava dez.
  */
 export const FS = {
   micro: 10,   // rótulo de badge, texto auxiliar em caixa alta
   small: 11,   // metadados, legendas
+  meta: 12,    // segunda linha de um item, contagem
   body: 13,    // texto corrente da interface
+  read: 14,    // texto corrido longo (descrição, comentário)
   strong: 15,  // destaque dentro de um bloco
+  lead: 16,    // campo em tela de toque (abaixo disto o iOS dá zoom), subtítulo
   title: 18,   // título de seção
   h2: 22,      // título de card/modal
-  h1: 26,      // título de página
+  h1: 26,      // título de página, número de KPI
 } as const;
 
 /**
@@ -68,6 +195,16 @@ export const R = {
   lg: 12,    // cards, painéis
   xl: 16,    // modais
   pill: 999, // pílulas e círculos
+} as const;
+
+/**
+ * ALTURA DE CONTROLE. `toque` é o piso de 44px da regra da casa: no celular e
+ * no tablet do galpão o ponteiro é o dedo, e alvo menor que isso erra.
+ */
+export const H = {
+  sm: 32,
+  md: 36,
+  toque: 44,
 } as const;
 
 /** Luminância relativa de um hex de 6 dígitos. */

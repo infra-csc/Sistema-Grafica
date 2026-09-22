@@ -89,12 +89,12 @@
   --titanium-text-secondary: 18 6% 46%;   /* #78716c */
   --titanium-text-muted: 18 6% 64%;       /* #a8a29e */
 
-  /* Status Colors - Workflow */
-  --status-completed: 142 76% 36%;    /* Verde - Finalizado */
-  --status-pending: 45 93% 47%;        /* Amarelo - Aguardando */
-  --status-urgent: 0 84% 60%;          /* Vermelho - Urgente */
-  --status-approved: 142 76% 36%;      /* Verde - Liberado */
-  --status-production: 25 96% 53%;     /* Laranja - Em Produção */
+  /* Os --status-* moravam aqui (completed/pending/urgent/approved/production)
+     com quinze classes utilitárias geradas logo abaixo, e NENHUM .tsx
+     consumia nenhuma delas. Eram a segunda verdade sobre cor de status: a
+     viva é lib/status.ts, com as chaves canônicas do fluxo e o contraste já
+     medido. Apagados — o que este arquivo oferece de semântico agora são os
+     --ok/--alerta/--perigo/--info, espelhados daquela mesma fonte. */
 
   /* 'DM Sans' nunca foi carregada no index.html — o corpo caía em Inter por
      fallback. Aponta explicitamente para Inter (que É carregada), sem mudança
@@ -387,67 +387,6 @@
     inset: -1px;
   }
 
-  /* Status Color Utilities */
-  .bg-status-completed {
-    background-color: hsl(var(--status-completed));
-  }
-  
-  .bg-status-pending {
-    background-color: hsl(var(--status-pending));
-  }
-  
-  .bg-status-urgent {
-    background-color: hsl(var(--status-urgent));
-  }
-  
-  .bg-status-approved {
-    background-color: hsl(var(--status-approved));
-  }
-  
-  .bg-status-production {
-    background-color: hsl(var(--status-production));
-  }
-
-  .text-status-completed {
-    color: hsl(var(--status-completed));
-  }
-  
-  .text-status-pending {
-    color: hsl(var(--status-pending));
-  }
-  
-  .text-status-urgent {
-    color: hsl(var(--status-urgent));
-  }
-  
-  .text-status-approved {
-    color: hsl(var(--status-approved));
-  }
-  
-  .text-status-production {
-    color: hsl(var(--status-production));
-  }
-
-  .border-status-completed {
-    border-color: hsl(var(--status-completed));
-  }
-  
-  .border-status-pending {
-    border-color: hsl(var(--status-pending));
-  }
-  
-  .border-status-urgent {
-    border-color: hsl(var(--status-urgent));
-  }
-  
-  .border-status-approved {
-    border-color: hsl(var(--status-approved));
-  }
-  
-  .border-status-production {
-    border-color: hsl(var(--status-production));
-  }
-
   /* ── Global scrollbar styles — visible on all overflow containers ── */
   * {
     scrollbar-width: thin;
@@ -542,60 +481,84 @@
    --orange-deep  : #ea580c  gradientes, pressed (orange-600)
 ──────────────────────────────────────────────────────────────── */
 /* ═══════════════════════════════════════════════════════════════════════════
-   ESCALA DA INTERFACE — os degraus que faltavam.
+   A ESCALA DA INTERFACE — ESPELHO de client/src/lib/theme.ts.
 
-   O que JÁ existia e continua sendo a fonte da verdade:
-     • tokens do shadcn (--background, --foreground, --primary…) e o bloco .dark
-     • --orange-* : a marca
-     • lib/status.ts : as cores de STATUS DE PEÇA, em JS, com chaves canônicas
+   A FONTE é o TypeScript. Quase tudo neste app é estilo INLINE, e estilo
+   inline lê `T`, `FS`, `R` e `SHADOW` direto do módulo. Estas vars existem
+   para o que o inline NÃO alcança: pseudo-classe (:hover, :focus-visible,
+   :disabled), media query e tema escuro. É a única razão de haver dois lugares
+   — e por isso os valores têm de bater dígito por dígito com o theme.ts.
 
-   O que NÃO existia, e é o que este bloco cria: a escala. Neutros, tipografia,
-   espaçamento, raio, altura de controle e sombra. Sem eles a tela escrevia 300
-   valores literais no JSX — medido — e nenhum deles respondia a troca de tema.
+   ANTES ELES NÃO BATIAM, e era pior do que não existir: --r-md valia 10 contra
+   R.md 8, --n3 valia #e7e5e4 contra T.border #e8e8e7, --fs-5 valia 26 numa
+   escala de cinco degraus enquanto FS tinha sete. Nenhum .tsx consumia esta
+   escada — eram tokens mortos de uma tentativa anterior — então a divergência
+   passou dois anos sem aparecer na tela. Ela apareceria no dia em que alguém
+   usasse os dois no mesmo componente.
 
-   NOTA sobre os --status-* que existem mais acima neste arquivo: eles têm
-   classes geradas mas NENHUM .tsx os consome. São tokens mortos, de uma
-   tentativa anterior. Não construí sobre eles de propósito — a fonte viva é
-   lib/status.ts, e duplicar a verdade em dois lugares é como ela se perde.
+   Os --status-* que viviam acima neste arquivo foram APAGADOS junto com as
+   quinze classes que geravam. Também não tinham consumidor, e duplicavam a
+   fonte viva das cores de status, que é lib/status.ts.
    ═══════════════════════════════════════════════════════════════════════════ */
 :root {
-  /* ── Neutros: 9 degraus, do papel ao texto ──────────────────────────────
-     A escada é a paleta stone que a tela já usava; o que mudou é ela ter
-     nome e ordem. n5 é o último tom legível como TEXTO em fundo claro:
-     #a8a29e dá 2,52:1 e serve para desabilitado e ícone decorativo, nunca
-     para conteúdo. */
-  --n0: #ffffff;   /* superfície pura: card, linha par da tabela          */
-  --n1: #fafaf9;   /* fundo da página e do cabeçalho de tabela            */
-  --n2: #f5f5f4;   /* superfície sutil: faixa de tipo, linha ímpar        */
-  --n3: #e7e5e4;   /* borda padrão, hairline                              */
-  --n4: #d6d3d1;   /* borda forte, ícone de estado vazio                  */
-  --n5: #a8a29e;   /* desabilitado — NÃO usar como texto de conteúdo      */
-  --n6: #746e69;   /* texto secundário            (5,03:1 sobre n0)       */
-  --n7: #57534e;   /* texto de apoio              (7,63:1 sobre n0)       */
-  --n8: #1c1917;   /* texto principal            (16,10:1 sobre n0)       */
+  /* ── Neutros: onze degraus, do papel ao texto ───────────────────────────
+     São onze porque a tela usa onze — contados no código, não escolhidos.
+     O corte fica entre n6 e n7: n6 (#a8a29e) é DECORAÇÃO (2,5:1 sobre
+     branco, reprova AA em toda superfície do app); n7 é o primeiro que passa
+     como texto. Esta é a mesma escada de N em lib/theme.ts. */
+  --n0:  #ffffff;   /* superfície pura: card, modal, linha par da tabela   */
+  --n1:  #fafaf9;   /* fundo da página, cabeçalho de tabela                */
+  --n2:  #f5f5f4;   /* superfície sutil: faixa de tipo, linha ímpar, hover */
+  --n3:  #f0efee;   /* separador claro, trilho, campo desabilitado         */
+  --n4:  #e7e5e4;   /* BORDA PADRÃO — o hairline de tudo                   */
+  --n5:  #d6d3d1;   /* borda forte, ícone de estado vazio, scrollbar       */
+  --n6:  #a8a29e;   /* ícone decorativo e desabilitado — NUNCA texto       */
+  --n7:  #746e69;   /* texto secundário            (5,03:1 sobre n0)       */
+  --n8:  #57534e;   /* texto de apoio              (7,63:1 sobre n0)       */
+  --n9:  #44403c;   /* texto forte                (10,40:1 sobre n0)       */
+  --n10: #1c1917;   /* texto principal            (16,10:1 sobre n0)       */
 
-  /* ── Tipografia: 5 tamanhos ────────────────────────────────────────────
-     Cinco degraus cobrem os oito tamanhos que a tela usava. O salto de
-     fs-4 para fs-5 é grande de propósito: número de KPI não compete com
-     texto, ele domina. */
-  --fs-1: 10px;    /* micro-rótulo em caixa-alta                          */
-  --fs-2: 11px;    /* metadado, contagem                                  */
-  --fs-3: 13px;    /* corpo — o tamanho de leitura da tela                */
-  --fs-4: 15px;    /* título de bloco, texto de destaque                  */
-  --fs-5: 26px;    /* número de KPI                                       */
+  /* ── Semânticos ────────────────────────────────────────────────────────
+     Os MESMOS valores da paleta P de lib/status.ts, que é quem pinta as
+     pílulas. Aqui só o par que o CSS precisa: o fundo claro e o texto
+     escuro que passa AA sobre ele. O tom saturado (a bolinha) não vira
+     texto nunca, então não precisa de var. */
+  --ok-bg:     #f0fdf4;  --ok-text:     #15803d;  --ok-border:     #bbf7d0;
+  --alerta-bg: #fffbeb;  --alerta-text: #b45309;  --alerta-border: #fde68a;
+  --perigo-bg: #fef2f2;  --perigo-text: #b91c1c;  --perigo-border: #fecaca;
+  --info-bg:   #eff6ff;  --info-text:   #1d4ed8;  --info-border:   #bfdbfe;
 
-  /* ── Três estilos de texto, não três pesos soltos ──────────────────────
-     O peso é REFORÇO, nunca o único diferenciador: o rótulo de seção já se
-     separa por caixa-alta, tracking, tamanho e cor. Se um dia estes três
-     valores colapsarem, a hierarquia continua de pé sem eles. */
-  --fw-body: 600;    /* corpo e metadado                                  */
-  --fw-strong: 700;  /* dado que carrega a linha, título                  */
-  --fw-label: 800;   /* rótulo em CAIXA-ALTA, sempre com tracking         */
+  /* ── Tipografia: dez degraus, piso de 10px ─────────────────────────────
+     Espelha FS. O piso existe porque a tela tinha 6, 7, 8 e 9px vivos — no
+     galpão, com o aparelho na mão e luz ruim, 8px some. */
+  --fs-micro:  10px;  /* rótulo de badge, caixa-alta                       */
+  --fs-small:  11px;  /* metadado, legenda                                 */
+  --fs-meta:   12px;  /* segunda linha de um item, contagem                */
+  --fs-body:   13px;  /* corpo — o tamanho de leitura da tela              */
+  --fs-read:   14px;  /* texto corrido longo                               */
+  --fs-strong: 15px;  /* destaque dentro de um bloco                       */
+  --fs-lead:   16px;  /* campo no toque (abaixo disto o iOS dá zoom)       */
+  --fs-title:  18px;  /* título de seção                                   */
+  --fs-h2:     22px;  /* título de card/modal                              */
+  --fs-h1:     26px;  /* título de página, número de KPI                   */
 
-  --lh-tight: 1.2;   /* números e títulos: linha curta, sem ar            */
-  --lh-body: 1.5;    /* texto corrido                                     */
-  --tr-label: 0.08em; /* tracking do micro-rótulo                         */
-  --tr-band: 0.12em;  /* tracking da faixa de seção — lida de longe       */
+  /* ── Famílias: três papéis, três fontes ────────────────────────────────
+     Eram seis carregadas no index.html para três papéis; espelha FONT. */
+  --font-corpo:   Inter, system-ui, sans-serif;
+  --font-display: 'Space Grotesk', Inter, sans-serif;
+  --font-mono-ds: 'DM Mono', Menlo, monospace;
+
+  /* ── Pesos e entrelinha ────────────────────────────────────────────────
+     O peso é REFORÇO: um rótulo de seção já se separa por caixa-alta,
+     tracking, tamanho e cor. Se estes três colapsarem, a hierarquia
+     continua de pé. */
+  --fw-corpo: 500;
+  --fw-medio: 600;
+  --fw-forte: 700;
+  --fw-rotulo: 800;   /* só em CAIXA-ALTA, sempre com tracking             */
+  --lh-tight: 1.2;    /* número e título: linha curta                      */
+  --lh-body: 1.5;     /* texto corrido                                     */
+  --tr-label: 0.08em; /* tracking do micro-rótulo                          */
 
   /* ── Espaçamento: grade de 4 ───────────────────────────────────────────*/
   --sp-1: 4px;
@@ -605,41 +568,57 @@
   --sp-5: 24px;
   --sp-6: 32px;
 
-  /* ── Raio ──────────────────────────────────────────────────────────────*/
-  --r-sm: 6px;      /* chip, botão pequeno                                */
-  --r-md: 10px;     /* card, painel                                       */
-  --r-pill: 999px;  /* pílula de status                                   */
+  /* ── Raio: espelha R ───────────────────────────────────────────────────*/
+  --r-sm: 6px;      /* chip, badge retangular                              */
+  --r-md: 8px;      /* botão, campo, controle                              */
+  --r-lg: 12px;     /* card, painel                                        */
+  --r-xl: 16px;     /* modal                                               */
+  --r-pill: 999px;  /* pílula e círculo                                    */
 
-  /* ── Altura de controle: UMA ───────────────────────────────────────────
-     A tela tinha 32, 36, 38 e 40 convivendo — medido. 36 é o mínimo de
-     ponteiro da casa; 44 entra abaixo de 768px, onde o dedo é o ponteiro. */
+  /* ── Altura de controle: espelha H ─────────────────────────────────────
+     36 é o mínimo de ponteiro da casa; 44 é o piso de DEDO, e entra sozinho
+     em (pointer: coarse) mais abaixo neste arquivo. */
+  --ctl-h-sm: 32px;
   --ctl-h: 36px;
   --ctl-h-touch: 44px;
 
-  /* ── Sombra: UM nível ──────────────────────────────────────────────────
-     Superfície plana com hairline de 1px é o padrão; sombra fica reservada
-     ao que FLUTUA (menu, popover). A tela tinha quatro níveis diferentes. */
-  --sh-1: 0 8px 24px rgba(28,25,23,.12);
+  /* ── Sombra: três degraus, espelha SHADOW ──────────────────────────────
+     sm rente, md destacado, lg flutuante. Superfície plana com hairline de
+     1px continua sendo o padrão — sombra é para o que FLUTUA. */
+  --sh-sm: 0 1px 2px rgba(28,25,23,0.06);
+  --sh-md: 0 4px 12px -2px rgba(28,25,23,0.10);
+  --sh-lg: 0 16px 32px -12px rgba(28,25,23,0.18);
+
+  /* ── Movimento: espelha MOTION ─────────────────────────────────────────
+     rápida = reação a toque (hover, foco); média = mudança de estado que o
+     olho segue. Ambas anuladas por prefers-reduced-motion no fim do arquivo. */
+  --dur-rapida: 120ms;
+  --dur-media: 180ms;
+  --ease-saida: cubic-bezier(0.2, 0.8, 0.2, 1);
 
   /* ── Linha da tabela ───────────────────────────────────────────────────
      Altura ÚNICA. A tela tinha 63 e 82 convivendo, porque a altura era
-     consequência do conteúdo mais alto de cada linha em vez de uma decisão. */
+     consequência do conteúdo mais alto de cada linha em vez de decisão. */
   --row-h: 64px;
 }
 
 /* Os mesmos tokens no tema escuro: a escada inverte, os nomes não mudam.
    É isso que permite a tela ser escrita uma vez só. */
 .dark {
-  --n0: #1c1917;
-  --n1: #16130f;
-  --n2: #292524;
-  --n3: #44403c;
-  --n4: #57534e;
-  --n5: #746e69;
-  --n6: #a8a29e;
-  --n7: #d6d3d1;
-  --n8: #fafaf9;
-  --sh-1: 0 8px 24px rgba(0,0,0,.45);
+  --n0:  #1c1917;
+  --n1:  #16130f;
+  --n2:  #292524;
+  --n3:  #332e2b;
+  --n4:  #44403c;
+  --n5:  #57534e;
+  --n6:  #746e69;
+  --n7:  #a8a29e;
+  --n8:  #d6d3d1;
+  --n9:  #e7e5e4;
+  --n10: #fafaf9;
+  --sh-sm: 0 1px 2px rgba(0,0,0,0.35);
+  --sh-md: 0 4px 12px -2px rgba(0,0,0,0.45);
+  --sh-lg: 0 16px 32px -12px rgba(0,0,0,0.55);
 }
 :root {
   --orange-soft   : #fff7ed;
@@ -718,7 +697,12 @@
 .review-dialog-shell input { transition: background-color .16s ease, border-color .16s ease, color .16s ease, opacity .16s ease, transform .16s ease; }
 .review-dialog-shell button:focus-visible,
 .review-dialog-shell textarea:focus-visible,
-.review-dialog-shell input:focus-visible { outline: 2px solid #f97316; outline-offset: 2px; }
+/* var(--orange-deep), não o laranja da marca: este anel é o MESMO caso já
+   resolvido no :focus-visible global acima — #f97316 rende 2,80:1 sobre o
+   #fafaf9 desta casca e a WCAG 1.4.11 cobra 3:1 de indicador de foco. A regra
+   local sobrescrevia a global e devolvia o problema justamente dentro do
+   modal de revisão, onde se decide aprovar ou reprovar uma arte. */
+.review-dialog-shell input:focus-visible { outline: 2px solid var(--orange-deep); outline-offset: 2px; }
 /* Scrollbar clara: as áreas roláveis do modal agora vivem em faixas claras
    (o escuro ficou só no cabeçalho) — a scrollbar escura de antes desenhava
    uma régua preta no meio de um painel branco. */
@@ -751,14 +735,25 @@
   color: #57534e;
   line-height: 1.5;
 }
-/* Confirm/primary action buttons — all carry a data-testid ending in "-confirm" */
+/* Confirm/primary action buttons — all carry a data-testid ending in "-confirm"
+
+   LARANJA PROFUNDO SOB TEXTO BRANCO, e não o da marca. Este é o botão que
+   fecha a Revisão Final: quem clica está liberando uma peça para produção. Ele
+   vinha com #f97316 e texto branco, ou seja 2,80:1 — abaixo do piso de 4,5:1 e
+   abaixo até do 3:1 de texto grande. É o mesmo motivo pelo qual a régua da
+   casa já proíbe esse laranja como cor de texto: aqui ele era o FUNDO de um
+   texto, o que dá no mesmo.
+
+   #c2410c (o T.accentText) dá 4,93:1 sobre branco, mantém a família de cor e
+   deixa o hover (--orange-deep) mais claro que o repouso — invertido de
+   propósito: com o repouso já escuro, escurecer mais no hover não se enxerga. */
 .review-confirm-content button[data-testid$="-confirm"] {
-  background: #f97316;
+  background: #c2410c;
   color: #fff;
-  border: 1px solid #ea580c;
+  border: 1px solid #9a3412;
   font-weight: 750;
 }
-.review-confirm-content button[data-testid$="-confirm"]:hover { background: #ea580c; }
+.review-confirm-content button[data-testid$="-confirm"]:hover { background: var(--orange-deep); }
 .review-confirm-content button[data-testid$="-confirm"].bg-destructive {
   background: #b91c1c;
   border-color: #991b1b;
@@ -778,7 +773,11 @@
   line-height: 1.45;
   box-shadow: inset 0 1px 2px rgba(28,25,23,.04);
 }
-.review-confirm-content textarea::placeholder { color: #a8a29e; }
+/* Placeholder em n7 (#746e69), não em n6 (#a8a29e). Placeholder É texto: nesta
+   caixa ele diz o que escrever no motivo da reprovação, e a 2,5:1 sobre branco
+   ninguém lê a instrução. n7 passa AA e continua claramente mais leve que o
+   texto digitado, que é o contraste que o placeholder precisa marcar. */
+.review-confirm-content textarea::placeholder { color: var(--n7); }
 @media (max-width: 900px) {
   .review-modal-body {
     grid-template-columns: 1fr;
@@ -882,4 +881,66 @@
 }
 @media (pointer: coarse) {
   .modal-fechar { width: 44px !important; height: 44px !important; }
+
+  /* ── O PISO DE 44px, UMA VEZ SÓ ───────────────────────────────────────────
+     Primeiro passo do tablet do galpão. `pointer: coarse` é o aparelho
+     dizendo que o ponteiro é o DEDO — vale para celular e para o tablet, e
+     não depende da largura da janela (um tablet deitado tem 1024px de largura
+     e continua sendo dedo; foi por isso que a regra de max-width não bastava).
+
+     `min-height` e não `height`: um botão com duas linhas de rótulo continua
+     crescendo. `!important` porque a altura desses controles vem de estilo
+     inline, e inline vence qualquer folha sem ele — é a mesma razão de
+     .modal-fechar existir aqui em cima.
+
+     Só isto: a largura fica por conta do conteúdo e do padding, porque forçar
+     largura mínima em chip de filtro (que costuma ter 3 caracteres) esparrama
+     a barra inteira. */
+  button,
+  [role="button"],
+  [role="tab"],
+  .alvo-de-toque {
+    min-height: 44px !important;
+  }
+  /* Ícone dentro de item de menu/lista não é o alvo — o item inteiro é. Sem
+     esta exceção, cada linha de um dropdown de 12 itens ganhava 8px e o menu
+     passava a não caber na tela. */
+  [role="menuitem"] button,
+  [role="option"] button,
+  [data-alvo-natural] {
+    min-height: 0 !important;
+  }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   BOTÃO — os estados que o estilo inline não alcança.
+
+   O componente <Botao> (components/ui/botao.tsx) pinta cor, altura e raio
+   inline, como o resto do app. O que ele NÃO consegue escrever inline é
+   :hover, :active, :focus-visible e :disabled — pseudo-classe não existe em
+   `style`. Antes cada tela resolvia isso com onMouseEnter/onMouseLeave
+   trocando `style.backgroundColor` na mão: 200+ pares de handlers, cada um com
+   a sua cor, e nenhum deles cobrindo foco por teclado.
+
+   Aqui o realce é UM filtro sobre a cor que o componente já escolheu, então a
+   mesma classe serve às quatro variantes sem precisar saber a cor de nenhuma.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.ds-botao {
+  transition: filter var(--dur-rapida) ease, box-shadow var(--dur-rapida) ease,
+              opacity var(--dur-rapida) ease;
+}
+.ds-botao:hover:not(:disabled) { filter: brightness(0.94); }
+.ds-botao:active:not(:disabled) { filter: brightness(0.88); }
+/* Variante fantasma não tem fundo para escurecer — o brilho não faria nada. */
+.ds-botao-fantasma:hover:not(:disabled) { background-color: var(--n2) !important; filter: none; }
+.ds-botao-fantasma:active:not(:disabled) { background-color: var(--n3) !important; filter: none; }
+/* DESABILITADO CONTINUA RECEBENDO O PONTEIRO: o cursor precisa dizer "não dá",
+   e o motivo visível ao lado precisa poder ser lido. O que não pode é ACENDER
+   — realce é promessa de clique, e o clique não vai acontecer. */
+.ds-botao:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  filter: none;
+}
+.ds-botao:disabled:hover { filter: none; }
+

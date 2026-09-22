@@ -80,7 +80,10 @@ function enriquecer(
   itens: { status: string }[] = [],
   hoje: number = HOJE,
   patrocinadores: any[] = [],
-) {
+): ReturnType<typeof enrichEvent> & Record<string, any> {
+  // O tipo declarado de enrichEvent não lista os campos do próprio evento (ele
+  // os espalha a partir de um Record<string, any>). Os testes de "não comeu
+  // nenhum campo da tabela" precisam enxergar id/name/priority/franchise.
   return enrichEvent(ev, itens, patrocinadores, hoje);
 }
 
@@ -106,12 +109,12 @@ describe("evento SEM nenhuma peça", () => {
     const r = enriquecer(evento(), []);
 
     expect(r.nextMilestone).not.toBeNull();
-    expect(r.nextMilestone.key).toBe("listaImagens");
-    expect(r.nextMilestone.label).toBe("Lista de Imagens");
-    expect(r.nextMilestone.deadline).toBe("2026-02-13"); // saída 10/03 - 25 dias
-    expect(r.nextMilestone.daysRemaining).toBe(8);
-    expect(r.nextMilestone.state).toBe("upcoming");
-    expect(r.nextMilestone.pendingItems).toBe(0);
+    expect(r.nextMilestone!.key).toBe("listaImagens");
+    expect(r.nextMilestone!.label).toBe("Lista de Imagens");
+    expect(r.nextMilestone!.deadline).toBe("2026-02-13"); // saída 10/03 - 25 dias
+    expect(r.nextMilestone!.daysRemaining).toBe(8);
+    expect(r.nextMilestone!.state).toBe("upcoming");
+    expect(r.nextMilestone!.pendingItems).toBe(0);
   });
 
   it("com o dia já passado, fica REALIZADO com pendência (e não concluído)", () => {
@@ -269,8 +272,8 @@ describe("evento FUTURO", () => {
     expect(r.allDelivered).toBe(false);
     expect(r.lifecycle).toBe("active");
     expect(r.status).toBe("created");
-    expect(r.nextMilestone.key).toBe("listaImagens");
-    expect(r.nextMilestone.pendingItems).toBe(4);
+    expect(r.nextMilestone!.key).toBe("listaImagens");
+    expect(r.nextMilestone!.pendingItems).toBe(4);
   });
 
   it("NO DIA do evento ele ainda está em jogo — só passa no dia SEGUINTE", () => {
@@ -319,7 +322,7 @@ describe("evento FUTURO", () => {
   });
 
   it("o próximo marco anda conforme as peças avançam no funil", () => {
-    const marco = (status: string) => enriquecer(evento(), pecas(status, 2)).nextMilestone.key;
+    const marco = (status: string) => enriquecer(evento(), pecas(status, 2)).nextMilestone!.key;
 
     expect(marco("draft")).toBe("listaImagens");
     expect(marco("awaiting_linking")).toBe("listaImagens");
@@ -344,8 +347,8 @@ describe("evento FUTURO", () => {
       peca("draft"),                 // marco 1 — o mais atrasado manda
     ]);
 
-    expect(r.nextMilestone.key).toBe("listaImagens");
-    expect(r.nextMilestone.pendingItems).toBe(1);
+    expect(r.nextMilestone!.key).toBe("listaImagens");
+    expect(r.nextMilestone!.pendingItems).toBe(1);
   });
 
   it("o marco é ancorado na SAÍDA DO CAMINHÃO, não na data do evento", () => {
@@ -353,13 +356,13 @@ describe("evento FUTURO", () => {
     // um único prazo — a âncora do produto inteiro é a saída.
     const r = enriquecer(evento({ startDate: new Date("2026-09-15T00:00:00.000Z") }), []);
 
-    expect(r.nextMilestone.deadline).toBe("2026-02-13");
+    expect(r.nextMilestone!.deadline).toBe("2026-02-13");
   });
 
   it("respeita os offsets configurados no evento em vez dos padrões", () => {
     const r = enriquecer(evento({ deadlineListaImagens: -40 }), pecas("draft", 1));
 
-    expect(r.nextMilestone.deadline).toBe("2026-01-29"); // 10/03 - 40 dias
+    expect(r.nextMilestone!.deadline).toBe("2026-01-29"); // 10/03 - 40 dias
   });
 
   it("empurra marco de fim de semana para dia útil — menos a Produção Gráfica", () => {
@@ -372,18 +375,18 @@ describe("evento FUTURO", () => {
     });
     const hoje = dia("2026-08-13");
 
-    const revisao = enriquecer(ev, pecas("awaiting_final_review", 1), hoje).nextMilestone;
+    const revisao = enriquecer(ev, pecas("awaiting_final_review", 1), hoje).nextMilestone!;
     expect(revisao.key).toBe("revisao");
     expect(revisao.deadline).toBe("2026-08-21");
 
-    const producao = enriquecer(ev, pecas("ready_for_production", 1), hoje).nextMilestone;
+    const producao = enriquecer(ev, pecas("ready_for_production", 1), hoje).nextMilestone!;
     expect(producao.key).toBe("producao");
     expect(producao.deadline).toBe("2026-08-29");
   });
 
   it("classifica o marco em upcoming / warning / overdue", () => {
     const estado = (hoje: string) =>
-      enriquecer(evento(), pecas("draft", 1), dia(hoje)).nextMilestone;
+      enriquecer(evento(), pecas("draft", 1), dia(hoje)).nextMilestone!;
 
     expect(estado("2026-02-05").state).toBe("upcoming"); // faltam 8
     expect(estado("2026-02-10").state).toBe("warning");  // faltam 3
@@ -399,8 +402,8 @@ describe("evento FUTURO", () => {
     // de vermelho.
     const r = enriquecer(evento({ truckDepartureDate: new Date("0206-03-10T00:00:00.000Z") }), []);
 
-    expect(r.nextMilestone.invalidDate).toBe(true);
-    expect(r.nextMilestone.state).toBe("upcoming");
+    expect(r.nextMilestone!.invalidDate).toBe(true);
+    expect(r.nextMilestone!.state).toBe("upcoming");
   });
 });
 
@@ -467,8 +470,8 @@ describe("virada de dia em America/Sao_Paulo (o bug das 21h)", () => {
 
     const r = enrichEvent(ev, pecas("draft", 1), [], vespera21h);
     // Ainda é dia 13: o marco vence HOJE, não ontem.
-    expect(r.nextMilestone.daysRemaining).toBe(0);
-    expect(r.nextMilestone.state).toBe("warning");
+    expect(r.nextMilestone!.daysRemaining).toBe(0);
+    expect(r.nextMilestone!.state).toBe("warning");
   });
 });
 

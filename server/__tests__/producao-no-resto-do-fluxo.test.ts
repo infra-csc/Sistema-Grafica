@@ -150,7 +150,7 @@ describe("subTrilhaDaProducao — a etapa Produção aberta na ficha", () => {
 });
 
 describe("o tubo viaja na peça", () => {
-  const resumo: ResumoDoTubo = { tuboNumero: 2, tuboFechadoEm: new Date("2026-09-21T17:32:00Z"), tuboEntregueEm: null, tuboRecebidoPor: null };
+  const resumo: ResumoDoTubo = { tuboNumero: 2, tuboAvulso: false, tuboFechadoEm: new Date("2026-09-21T17:32:00Z"), tuboEntregueEm: null, tuboRecebidoPor: null };
   const porId = new Map([["t1", resumo]]);
 
   it("comTubo só acrescenta quando há tuboId e o tubo existe — senão devolve A MESMA peça", () => {

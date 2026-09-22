@@ -88,7 +88,7 @@ describe("o parser diz o que ficou de fora e o que se repete", () => {
   it("a chave e a marcação são puras", () => {
     expect(chaveNaPlanilha({ type: "Pórtico", description: "A", fileWidth: 3, fileHeight: "2" }))
       .toBe(chaveNaPlanilha({ type: "portico", description: " a ", fileWidth: "3.00", fileHeight: 2 }));
-    expect(marcarRepetidas([{ linha: 5 }, { linha: 9 }], () => "k")[1].repeteLinha).toBe(5);
+    expect(marcarRepetidas([{ linha: 5 }, { linha: 9 }], () => "k")[1]).toMatchObject({ repeteLinha: 5 });
   });
 });
 

@@ -856,14 +856,15 @@ export default function Grafica() {
   // "Embalar" quando é tudo; "Embalar 3" quando é só o que falta (ou a parte conferida).
   const rotuloEmbalar = (item: any) => (aEmbalar(item) < qtyOf(item) ? `Embalar ${aEmbalar(item)}` : "Embalar");
   // Abre o painel de tubos do evento da peça já com ela marcada para embalar.
-  const abrirEmbalar = (itensPedidos: any[]) => {
+  // `lote`: veio do "Embalar em lote" — o painel não entra no atalho de peça sozinha.
+  const abrirEmbalar = (itensPedidos: any[], lote = false) => {
     // Travada não embala: sai do lote, com aviso (o servidor também barra).
     const travadas = itensPedidos.filter((i) => pecaTravada(i));
     if (travadas.length) toast({ title: travadas.length === 1 ? `${travadas[0].displayId ?? "Peça"} está travada` : `${travadas.length} peças travadas ficaram de fora`, description: fraseDaTrava(travadas[0]), variant: "destructive" });
     const itens = itensPedidos.filter((i) => !pecaTravada(i));
     const primeira = itens[0];
     if (!primeira) return;
-    setTubosDoEvento({ id: String(primeira.eventId), name: primeira.event?.name ?? "Evento", embalar: itens.map((i) => i.id) });
+    setTubosDoEvento({ id: String(primeira.eventId), name: primeira.event?.name ?? "Evento", embalar: itens.map((i) => i.id), ...(lote ? { lote: true } : {}) });
   };
   // MEXER NA QUANTIDADE (criar complemento e cancelar complemento) é outro
   // papel: admin | solicitacao, espelho de `podeMudarQuantidade` no servidor.
@@ -1327,7 +1328,7 @@ export default function Grafica() {
     window.history.replaceState(null, "", u.pathname + u.search);
     setAbaDaTela(aba);
   };
-  const [tubosDoEvento, setTubosDoEvento] = useState<{ id: string; name: string; embalar?: string[]; entregarTubo?: string; verTubo?: string } | null>(null);
+  const [tubosDoEvento, setTubosDoEvento] = useState<{ id: string; name: string; embalar?: string[]; lote?: boolean; entregarTubo?: string; verTubo?: string } | null>(null);
   // Sem `= []` no destructuring: o array novo a cada render mudaria o
   // `numeroDoTubo` (e as deps de TODAS as linhas memoizadas) a cada render.
   const { data: todosOsTubos = SEM_TUBOS } = useQuery<TuboResumo[]>({
@@ -5707,7 +5708,7 @@ export default function Grafica() {
                 toast({ title: "Marque peças de um evento só", description: `Um tubo pertence a um evento. Há peças de ${eventosDoLote.length} eventos marcadas (${eventosDoLote.map((e) => e.nome).join(", ")}).`, variant: "destructive" });
                 return;
               }
-              abrirEmbalar(bulkSelectedItems);
+              abrirEmbalar(bulkSelectedItems, true);
             }}
             aria-disabled={bulkSelectedIds.size === 0}
             data-testid="button-bulk-continuar"
@@ -6244,7 +6245,7 @@ export default function Grafica() {
         </DialogContent>
       </Dialog>
       <TubosDialog evento={tubosDoEvento} onClose={() => setTubosDoEvento(null)}
-        itensIniciais={tubosDoEvento?.embalar} tuboInicial={tubosDoEvento?.entregarTubo}
+        itensIniciais={tubosDoEvento?.embalar} emLote={tubosDoEvento?.lote} tuboInicial={tubosDoEvento?.entregarTubo}
         verTubo={tubosDoEvento?.verTubo}
         onAbrirPeca={(id) => { const peca = itemPorId.get(id); if (peca) { setTubosDoEvento(null); setViewDetailsItem(peca); } }}
         onEmbalou={() => { if (bulkPackMode) sairDoLote(); }}

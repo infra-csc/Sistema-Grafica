@@ -693,11 +693,11 @@ describe("peça dividida, fila sempre visível e servidor antigo", () => {
     expect(($('[data-testid="button-confirm-production"]') as HTMLButtonElement).disabled).toBe(true);
     await act(async () => { fireEvent.change(campo, { target: { value: "2" } }); });
     expect($('[data-testid="button-confirm-production"]')!.textContent).toBe("Mandar todas as 2 e concluir");
-    // O PATCH vai POR impressora: total da peça 5 + 2 = 7, impressasNaMaquina 2 na "2".
+    // O PATCH vai POR impressora: total da peça 5 + 2 = 7, impressasNaMaquina 2 na "2" — e o lock otimista DA PARTE (22/09).
     const { escritas } = fetchPorUrl();
     await act(async () => { fireEvent.click($('[data-testid="button-confirm-production"]')!); });
     await tick(30);
-    expect(escritas()[0]).toEqual({ url: "/api/items/p1/start-production", body: { quantityProduced: 7, expectedProduced: 5, printMachine: "2", maquina: "2", impressasNaMaquina: 2 } });
+    expect(escritas()[0]).toEqual({ url: "/api/items/p1/start-production", body: { quantityProduced: 7, expectedProduced: 5, expectedNaMaquina: 0, printMachine: "2", maquina: "2", impressasNaMaquina: 2 } });
   });
 
   it("FILA GERAL vazia continua na tela, com o que esperar e o link para a Gráfica", async () => {
@@ -832,7 +832,7 @@ describe("reserva com quantidade: 34 un. → 20 para a Impressora 1 e 14 para a 
     const { escritas } = fetchPorUrl();
     await act(async () => { fireEvent.click($('[data-testid="button-confirm-production"]')!); });
     await tick(30);
-    expect(escritas()[0]).toEqual({ url: "/api/items/g1/start-production", body: { quantityProduced: 20, expectedProduced: 5, printMachine: "1", maquina: "1", impressasNaMaquina: 20 } });
+    expect(escritas()[0]).toEqual({ url: "/api/items/g1/start-production", body: { quantityProduced: 20, expectedProduced: 5, expectedNaMaquina: 5, printMachine: "1", maquina: "1", impressasNaMaquina: 20 } });
   });
 
   it("SELETOR DE PEÇA mostra a quantidade reservada a esta impressora e inicia só ela; da fila geral, só o que está sem impressora", async () => {

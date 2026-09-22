@@ -1059,7 +1059,9 @@ describe("PATCH start-production — lock otimista do modal incremental", () => 
     expect(r.status).toBe(409);
     expect(r.body.code).toBe("PRODUCTION_CONFLICT");
     expect(r.body.actualProduced).toBe(6);
-    expect(H.db.transaction).not.toHaveBeenCalled();
+    // Decidido sobre a linha TRAVADA (22/09), dentro da transação — e nada gravado.
+    expect(txOps.updates).toHaveLength(0);
+    expect(txOps.inserts).toHaveLength(0);
   });
 
   it("passa quando o total lido bate com o gravado (modal incremental: 6 + 2 = 8)", async () => {

@@ -40,8 +40,9 @@ describe("o gate de embalar", () => {
   });
 
   it("abre o painel de tubos do evento da peça já com ela marcada", () => {
-    expect(GRAFICA).toContain('setTubosDoEvento({ id: String(primeira.eventId), name: primeira.event?.name ?? "Evento", embalar: itens.map((i) => i.id) });');
-    expect(GRAFICA).toContain("itensIniciais={tubosDoEvento?.embalar} tuboInicial={tubosDoEvento?.entregarTubo}");
+    expect(GRAFICA).toContain('setTubosDoEvento({ id: String(primeira.eventId), name: primeira.event?.name ?? "Evento", embalar: itens.map((i) => i.id), ...(lote ? { lote: true } : {}) });');
+    // O "Embalar em lote" marca a flag, e o painel a recebe (22/09: o lote não entra no atalho de peça sozinha).
+    expect(GRAFICA).toContain("itensIniciais={tubosDoEvento?.embalar} emLote={tubosDoEvento?.lote} tuboInicial={tubosDoEvento?.entregarTubo}");
   });
 });
 
@@ -133,7 +134,7 @@ describe("Embalar em lote", () => {
   it("o Continuar vira 'Escolher o tubo', exige um evento só e abre o painel com as marcadas", () => {
     expect(GRAFICA).toContain('{bulkPackMode ? "Escolher o tubo" : "Continuar para a foto"}');
     expect(GRAFICA).toContain('toast({ title: "Marque peças de um evento só"');
-    expect(GRAFICA).toContain("abrirEmbalar(bulkSelectedItems);");
+    expect(GRAFICA).toContain("abrirEmbalar(bulkSelectedItems, true);");
     // embalou: sai do modo; Escape não sai do lote com o painel aberto
     expect(GRAFICA).toContain("onEmbalou={() => { if (bulkPackMode) sairDoLote(); }}");
     expect(GRAFICA).toContain("if (bulkDeliveryOpen || bulkConferOpen || tubosDoEvento || viewDetailsItem || selectedItem) return;");

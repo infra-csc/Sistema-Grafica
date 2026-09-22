@@ -117,6 +117,8 @@ beforeEach(() => {
   itemEmFoco = peca();
 
   const tx = {
+    // start-production (22/09) lê a peça DENTRO da transação (SELECT … FOR UPDATE).
+    select: () => ({ from: () => ({ where: () => ({ for: async () => [itemEmFoco] }) }) }),
     insert: (table: any) => ({
       values: (vals: any) => {
         inserts.push({ table, vals });

@@ -26,6 +26,7 @@
 // `../storage` e os efeitos de `./shared`. Nenhum teste toca banco.
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { txDeMentira } from "./tx-de-mentira";
 
 const H = vi.hoisted(() => ({
   storage: {} as Record<string, any>,
@@ -210,6 +211,8 @@ let itemEmFoco: any = null;
 
 function novoTx() {
   return {
+    // start-production (22/09) lê a peça DENTRO da transação (SELECT … FOR UPDATE).
+    select: txDeMentira(mundo).select,
     insert: (table: any) => ({
       values: (vals: any) => {
         txOps.inserts.push({ table, vals });

@@ -70,7 +70,7 @@ function handlerDaRota(assinatura: string): string {
  *     à mão, sem reler nada.
  */
 const rotaBarrada = (assinatura: string): boolean =>
-  /barraEventoFinalizado\(|contadorDeBloqueio\(\)|erroEventoFechado\(/.test(handlerDaRota(assinatura));
+  /barraEventoFinalizado\(|contadorDeBloqueio\(\)|erroEventoFechado\(|corpoEventoFechado\(/.test(handlerDaRota(assinatura));
 
 /** O JSX de um <button> identificado por um trecho do seu `data-testid`. */
 function botao(fonte: string, marca: string): string {

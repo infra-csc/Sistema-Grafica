@@ -53,6 +53,7 @@ describe("a tela", () => {
   it("o card diz 'Revisar' (há o que fazer: os outros patrocinadores) e o lote segue restrito", () => {
     const rotulo = TELA.slice(TELA.indexOf('const rotulo = isFullyApproved ? "Ver histórico"'));
     expect(rotulo.slice(0, 220)).not.toContain("hasArteBlock");
-    expect(TELA).toContain('if (status !== "pending" && status !== "new_version_pending") return [];');
+    // O lote só leva as pendentes (a decisão vale para "pendente" e "nova versão").
+    expect(TELA).toContain('return status === "pending" || status === "new_version_pending";');
   });
 });

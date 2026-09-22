@@ -33,6 +33,7 @@ const ERRO_PRAZO_MOLDE = "Prazo do molde inválido — escolha um dia no calend�
 // checagem (ver comentário na rota POST /api/events/:id/items/submit).
 import { motivoEventoFechado, erroEventoFechado } from "./eventoFinalizado";
 import { prioridadePelaSaida } from "@shared/prioridade-do-evento";
+import { responderErro } from "../erros";
 import { aplicarPrioridadeAutomatica } from "../services/prioridadeAutomatica";
 
 // Normaliza startDate/truckDepartureDate (string "YYYY-MM-DD[THH:MM...]" ou Date
@@ -685,7 +686,7 @@ export function registerEventRoutes(app: Express): void {
 
       enviarJsonPronto(res, await listaDeEventosJson());
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      responderErro(res, error, "listar eventos");
     }
   });
 
@@ -704,7 +705,7 @@ export function registerEventRoutes(app: Express): void {
         storage.getEventSponsors(req.params.id),
       ]);
       if (!event) {
-        return res.status(404).json({ error: "Event not found" });
+        return res.status(404).json({ error: "Evento não encontrado" });
       }
       // Usuário do Kit: só as peças do Kit dele entram nas contagens (14/09).
       const userIdKit = (req as any).userId;
@@ -721,7 +722,7 @@ export function registerEventRoutes(app: Express): void {
         ),
       );
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      responderErro(res, error, "abrir evento");
     }
   });
 
@@ -811,7 +812,7 @@ export function registerEventRoutes(app: Express): void {
 
       res.status(201).json(event);
     } catch (error: any) {
-      res.status(400).json({ error: error.message });
+      responderErro(res, error, "criar evento");
     }
   });
 
@@ -851,7 +852,27 @@ export function registerEventRoutes(app: Express): void {
       // saída do caminhão e quando", e a resposta não estava em lugar nenhum.
       const before = await storage.getEvent(req.params.id);
       if (!before) {
-        return res.status(404).json({ error: "Event not found" });
+        return res.status(404).json({ error: "Evento não encontrado" });
+      }
+
+      // DATA DE EVENTO FINALIZADO: empurrar a data de um evento que já
+      // aconteceu (ou foi encerrado) para o futuro o "reabriria" por baixo —
+      // as filas voltariam a mostrá-lo sem ninguém ter decidido reabrir.
+      // Reabrir é do admin (POST /reopen); por isso só ele muda essa data.
+      // O formulário manda a data inteira mesmo sem mexer: só barra se MUDOU.
+      const papel = req.userRole ?? "";
+      if (papel !== "admin" && validatedData.startDate != null) {
+        const motivoFim = motivoEventoFinalizado(before, todayBusinessMs());
+        const mudou = toUtcInstant(validatedData.startDate)?.getTime() !== new Date(before.startDate as any).getTime();
+        if (motivoFim && mudou) {
+          return res.status(409).json({
+            error: motivoFim === "encerrado"
+              ? "Evento encerrado — a data só muda depois de reaberto, e reabrir é do admin."
+              : "Este evento já aconteceu — só o admin muda a data dele (reabrindo o evento).",
+            code: "EVENT_FINALIZED",
+            reason: motivoFim,
+          });
+        }
       }
 
       // Validação: se QUALQUER uma das datas está sendo alterada, verificar a
@@ -904,7 +925,7 @@ export function registerEventRoutes(app: Express): void {
 
       const event = await storage.updateEvent(req.params.id, patchData as any);
       if (!event) {
-        return res.status(404).json({ error: "Event not found" });
+        return res.status(404).json({ error: "Evento não encontrado" });
       }
 
       // Create audit log
@@ -927,7 +948,7 @@ export function registerEventRoutes(app: Express): void {
 
       res.json(event);
     } catch (error: any) {
-      res.status(400).json({ error: error.message });
+      responderErro(res, error, "editar evento");
     }
   });
 
@@ -983,7 +1004,7 @@ export function registerEventRoutes(app: Express): void {
 
       res.json(event);
     } catch (error: any) {
-      res.status(400).json({ error: error.message });
+      responderErro(res, error, "prioridade do evento");
     }
   });
 
@@ -995,7 +1016,7 @@ export function registerEventRoutes(app: Express): void {
       }
       const event = await storage.getEvent(req.params.id);
       if (!event) {
-        return res.status(404).json({ error: "Event not found" });
+        return res.status(404).json({ error: "Evento não encontrado" });
       }
 
       // Dimensão real do estrago, para o audit log e para a resposta — a
@@ -1014,7 +1035,7 @@ export function registerEventRoutes(app: Express): void {
       // Entregues. O cascade do banco faz o trabalho de uma vez só.
       const success = await storage.deleteEvent(req.params.id);
       if (!success) {
-        return res.status(404).json({ error: "Event not found" });
+        return res.status(404).json({ error: "Evento não encontrado" });
       }
 
       // Create audit log
@@ -1030,7 +1051,7 @@ export function registerEventRoutes(app: Express): void {
 
       res.json({ success: true, deletedItems: items.length, deliveredItems: deliveredCount });
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      responderErro(res, error, "excluir evento");
     }
   });
 
@@ -1099,7 +1120,7 @@ export function registerEventRoutes(app: Express): void {
 
       res.json({ success: true, event: updated, ...work });
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      responderErro(res, error, "encerrar evento");
     }
   });
 
@@ -1156,7 +1177,7 @@ export function registerEventRoutes(app: Express): void {
 
       res.json({ success: true, event: updated, ...work });
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      responderErro(res, error, "reabrir evento");
     }
   });
 
@@ -1223,14 +1244,21 @@ export function registerEventRoutes(app: Express): void {
 
       // Filter out failed updates (items that returned null)
       const successfulUpdates = updatedItems.filter((item): item is Item => item !== null);
-      const failedCount = updatedItems.length - successfulUpdates.length;
+      // FALHA PARCIAL: a peça que mudou de status no meio do envio (outra
+      // pessoa mexeu) volta null. As que PASSARAM já estão gravadas — antes a
+      // rota respondia 409 e saía sem trilha nem aviso delas, e a tela dizia
+      // "não deu" sobre peças que tinham ido. Agora elas seguem o caminho
+      // normal abaixo, e a resposta nomeia as que ficaram.
+      const falharam = draftItems.filter((_, i) => updatedItems[i] === null);
+      const failedCount = falharam.length;
 
-      // If any updates failed, return conflict error
-      if (failedCount > 0) {
+      // Nenhuma passou: aí sim é conflito — nada foi feito.
+      if (successfulUpdates.length === 0 && failedCount > 0) {
         return res.status(409).json({
-          error: "Alguns itens mudaram de status durante a operação. Recarregue a página e tente novamente.",
+          error: "As peças mudaram de status durante o envio (outra pessoa mexeu nelas). Recarregue a página e tente de novo.",
           failedCount,
-          successCount: successfulUpdates.length
+          successCount: 0,
+          falharam: falharam.map((i) => i.displayId),
         });
       }
 
@@ -1243,6 +1271,7 @@ export function registerEventRoutes(app: Express): void {
       const frases: string[] = [];
       if (comuns > 0) frases.push(`${comuns} ${comuns === 1 ? 'item' : 'itens'}: Status alterado de Rascunho → Aguardando Vinculação (${comuns === 1 ? 'enviado' : 'enviados'} para vinculação)`);
       if (moldes > 0) frases.push(`${moldes} ${moldes === 1 ? 'molde' : 'moldes'}: Status alterado de Rascunho → Aguardando Envio (molde vai direto para a Arte, sem vinculação)`);
+      if (failedCount > 0) frases.push(`${failedCount} não ${failedCount === 1 ? 'foi' : 'foram'} (mudaram de status durante o envio): ${falharam.map((i) => i.displayId).join(', ')}`);
       if (frases.length > 0) {
         await createAuditLog(
           (req as any).userName,
@@ -1258,12 +1287,17 @@ export function registerEventRoutes(app: Express): void {
         const partes: string[] = [];
         if (comuns > 0) partes.push(`${comuns} ${comuns === 1 ? 'novo item' : 'novos itens'} aguardando vinculação de patrocinadores`);
         if (moldes > 0) partes.push(`${moldes} ${moldes === 1 ? 'molde pronto' : 'moldes prontos'} para a Arte (sem vinculação)`);
-        await storage.createNotification({
-          type: 'itemsSubmitted',
-          message: `${partes.join(' e ')} no evento "${event.name}"`,
-          targetRoles: ['arte'], // só quem AGE: a Arte cria o thumb; admin não tem ação aqui
-          eventId,
-        });
+        // O aviso não desfaz o envio: as peças já andaram.
+        try {
+          await storage.createNotification({
+            type: 'itemsSubmitted',
+            message: `${partes.join(' e ')} no evento "${event.name}"`,
+            targetRoles: ['arte'], // só quem AGE: a Arte cria o thumb; admin não tem ação aqui
+            eventId,
+          });
+        } catch (e) {
+          console.error("[enviar rascunhos] peças enviadas, mas o aviso falhou:", e);
+        }
       }
 
       broadcast({
@@ -1276,10 +1310,13 @@ export function registerEventRoutes(app: Express): void {
       res.json({
         success: true,
         count: successfulUpdates.length,
-        items: successfulUpdates
+        items: successfulUpdates,
+        failedCount,
+        // Códigos das que não foram (mudaram de status no meio do envio).
+        falharam: falharam.map((i) => i.displayId),
       });
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      responderErro(res, error, "enviar rascunhos");
     }
   });
 

@@ -105,7 +105,39 @@ export function colunasDaImportacao(mostrarVisual: boolean) {
 }
 
 export type DefeitoImport =
+  | 'qtd-invalida' | 'repetida-na-planilha'
   | 'sem-patrocinador' | 'sem-medida' | 'm2-nao-fecha' | 'sem-material' | 'ja-existe';
+
+/** Quantidade que o servidor aceita: inteiro a partir de 1. */
+export const quantidadeValida = (v: unknown): boolean => {
+  const n = Number(String(v ?? '').replace(',', '.'));
+  return Number.isInteger(n) && n >= 1;
+};
+
+/**
+ * A IDENTIDADE DE UMA LINHA DENTRO DA PLANILHA: tipo, descrição e medida de
+ * arquivo (espelho de chaveNaPlanilha em server/services/xlsxImport.ts). Dois
+ * "Testeira" de tamanhos diferentes são peças diferentes; iguais em tudo, é
+ * linha copiada duas vezes — e a gráfica imprimiria as duas.
+ */
+export function chaveNaPlanilha(row: any): string {
+  const medida = (v: any) => { const n = parseFloat(String(v ?? '')); return Number.isFinite(n) ? n.toFixed(2) : ''; };
+  return chaveDaPeca(row) + '|' + medida(row.fileWidth) + '|' + medida(row.fileHeight);
+}
+
+/** Para cada linha que repete uma anterior da MESMA planilha, a linha repetida. */
+export function repetidasNaPlanilha(rows: any[]): Map<string, number> {
+  const primeira = new Map<string, number>();
+  const repete = new Map<string, number>();
+  rows.forEach((r, i) => {
+    const k = chaveNaPlanilha(r);
+    const linha = Number.isInteger(r.linha) ? r.linha : i + 1;
+    const antes = primeira.get(k);
+    if (antes === undefined) primeira.set(k, linha);
+    else repete.set(r._id, antes);
+  });
+  return repete;
+}
 
 /**
  * A IDENTIDADE DE UMA PEÇA, para efeito de reimportação.
@@ -122,8 +154,11 @@ export function chaveDaPeca(row: any): string {
   return norm(row.type) + '\u0000' + norm(row.description);
 }
 
-export function defeitosDaLinha(row: any, jaNoEvento?: Set<string>): DefeitoImport[] {
+export function defeitosDaLinha(row: any, jaNoEvento?: Set<string>, repetidas?: Map<string, number>): DefeitoImport[] {
   const out: DefeitoImport[] = [];
+  // Quantidade inválida IMPEDE a importação (o servidor recusa a linha).
+  if (!quantidadeValida(row.quantity)) out.push('qtd-invalida');
+  if (repetidas?.has(row._id)) out.push('repetida-na-planilha');
   // A repetida vem primeiro: é a única que não se conserta editando a
   // célula — se resolve tirando a linha, e por isso precisa ser lida antes.
   if (jaNoEvento?.has(chaveDaPeca(row))) out.push('ja-existe');
@@ -142,9 +177,11 @@ export function defeitosDaLinha(row: any, jaNoEvento?: Set<string>): DefeitoImpo
  * Sem medida ou sem m², a gráfica não tem o que imprimir. Repetida, ela
  * imprime DUAS VEZES e cobra as duas — o mesmo prejuízo por outro caminho.
  */
-const DEFEITO_GRAVE = new Set<DefeitoImport>(['sem-medida', 'm2-nao-fecha', 'ja-existe']);
+const DEFEITO_GRAVE = new Set<DefeitoImport>(['qtd-invalida', 'repetida-na-planilha', 'sem-medida', 'm2-nao-fecha', 'ja-existe']);
 
 export const DEFEITO_LABEL: Record<DefeitoImport, string> = {
+  'qtd-invalida': 'Quantidade inválida',
+  'repetida-na-planilha': 'Repetida na planilha',
   'sem-patrocinador': 'Sem patrocinador',
   'sem-medida': 'Sem medida',
   'm2-nao-fecha': 'M² não fecha',
@@ -154,6 +191,8 @@ export const DEFEITO_LABEL: Record<DefeitoImport, string> = {
 
 /** A frase por extenso de cada defeito — o `title` da linha. */
 const DEFEITO_FRASE: Record<DefeitoImport, string> = {
+  'qtd-invalida': 'quantidade mínima é 1 (número inteiro)',
+  'repetida-na-planilha': 'tipo, descrição e medida iguais a outra linha desta planilha',
   'sem-patrocinador': 'entra sem marca e não vai para aprovação',
   'sem-medida': 'a planilha não trouxe largura ou altura de arquivo',
   'm2-nao-fecha': 'o m² veio zerado ou não pôde ser calculado',
@@ -161,8 +200,10 @@ const DEFEITO_FRASE: Record<DefeitoImport, string> = {
   'ja-existe': 'uma peça com este mesmo tipo e descrição já foi importada para este evento',
 };
 
-export function ImportPreviewRow({ row, idx, onChange, onDelete, eventSponsorsList, jaNoEvento, mostrarVisual = true }: {
+export function ImportPreviewRow({ row, idx, onChange, onDelete, eventSponsorsList, jaNoEvento, repetidas, mostrarVisual = true }: {
   row: any; idx: number;
+  /** Linhas que repetem outra da mesma planilha (_id → linha repetida). */
+  repetidas?: Map<string, number>;
   onChange: (updated: any) => void;
   onDelete: () => void;
   eventSponsorsList: { sponsorId: string; quota: string; name: string }[];
@@ -293,13 +334,15 @@ export function ImportPreviewRow({ row, idx, onChange, onDelete, eventSponsorsLi
   // decidir de cabeça se aquele branco importava — numa planilha de 60 peças
   // isso não acontece: a pessoa importa e descobre depois, com a peça já no
   // evento.
-  const defeitos = defeitosDaLinha(row, jaNoEvento);
+  const defeitos = defeitosDaLinha(row, jaNoEvento, repetidas);
   const grave = defeitos.some(d => DEFEITO_GRAVE.has(d));
   const corDoDefeito = defeitos.length === 0 ? null : grave ? '#dc2626' : '#d97706';
   const fundoDoDefeito = defeitos.length === 0 ? null : grave ? '#fffbfa' : '#fffdf7';
   const tituloDosDefeitos = defeitos.length === 0
     ? undefined
-    : defeitos.map(d => `${DEFEITO_LABEL[d]}: ${DEFEITO_FRASE[d]}`).join(' · ');
+    : defeitos.map(d => d === 'repetida-na-planilha'
+        ? `${DEFEITO_LABEL[d]}: repete a linha ${repetidas?.get(row._id)}`
+        : `${DEFEITO_LABEL[d]}: ${DEFEITO_FRASE[d]}`).join(' · ');
 
   const semMedida = defeitos.includes('sem-medida');
   const semM2 = defeitos.includes('m2-nao-fecha');
@@ -317,7 +360,7 @@ export function ImportPreviewRow({ row, idx, onChange, onDelete, eventSponsorsLi
       {/* O ponto ao lado da descrição: o defeito se anuncia onde o olho já
           está, sem depender de a faixa lateral entrar no campo de visão. */}
       {cell('description', row.description, { wide: true, alerta: corDoDefeito ?? undefined })}
-      {cell('quantity', row.quantity, { mono: true })}
+      {cell('quantity', row.quantity, { mono: true, alerta: defeitos.includes('qtd-invalida') ? '#dc2626' : undefined })}
       {mostrarVisual && dimCell('visualWidth', 'visualHeight', row.visualWidth, row.visualHeight, true)}
       {/* Só a de ARQUIVO acende: a visual pode faltar sem impedir nada. */}
       {dimCell('fileWidth', 'fileHeight', row.fileWidth, row.fileHeight, false, semMedida)}
@@ -477,6 +520,8 @@ interface ImportXlsxDialogProps {
   onConfirmImport: (items: any[], fileName: string, destino: DestinoDaImportacao) => void;
   /** As peças que o evento JÁ tem — é contra elas que a repetição é medida. */
   itensDoEvento?: { type?: string | null; description?: string | null }[];
+  /** Linhas da planilha que o servidor deixou de fora no preview, e por quê. */
+  ignoradas?: { linha: number; motivo: string }[];
   /** KIT (14/09): remessas do evento, cabeçalho lido da planilha do Kit e se só Kit vale. */
   kitRemessas?: RemessaDoKit[];
   kitCabecalho?: CabecalhoDoKit | null;
@@ -504,6 +549,7 @@ export function ImportXlsxDialog({
   confirmImportPending,
   onConfirmImport,
   itensDoEvento = [],
+  ignoradas = [],
   kitRemessas = [],
   kitCabecalho = null,
   somenteKit = false,
@@ -546,6 +592,13 @@ export function ImportXlsxDialog({
     [itensDoEvento],
   );
   const repetidas = (importPreviewItems ?? []).filter(i => chavesDoEvento.has(chaveDaPeca(i)));
+  // Repetidas DENTRO da planilha (linha copiada duas vezes) — recalculadas a
+  // cada edição, porque corrigir a medida desfaz a repetição.
+  const repetidasDaPlanilha = useMemo(() => repetidasNaPlanilha(importPreviewItems ?? []), [importPreviewItems]);
+  // Linhas que o servidor recusaria: enquanto houver, o botão de importar
+  // fica travado e o motivo aparece embaixo dele, com a linha.
+  const comQtdInvalida = (importPreviewItems ?? []).filter(i => !quantidadeValida(i.quantity));
+  const [verIgnoradas, setVerIgnoradas] = useState(false);
 
   // A coluna VISUAL só existe quando alguma linha trouxe medida visual. Numa
   // planilha NORTE sem visual ela era 145 linhas de "— × —" ocupando
@@ -564,7 +617,7 @@ export function ImportXlsxDialog({
   // sai do MESMO predicado que a tabela aplica — com a própria dimensão de
   // fora —, então o número do balde é exatamente o de linhas que o clique
   // entrega.
-  const passaNaTriagem = (i: any) => !triagem || defeitosDaLinha(i, chavesDoEvento).includes(triagem);
+  const passaNaTriagem = (i: any) => !triagem || defeitosDaLinha(i, chavesDoEvento, repetidasDaPlanilha).includes(triagem);
   const matchesImportFiltros = (i: any) => matchesImportSearch(i) && passaNaTriagem(i);
 
   return (
@@ -718,6 +771,8 @@ export function ImportXlsxDialog({
                 {(() => {
                   const naBusca = allItems.filter(matchesImportSearch);
                   const baldes: { chave: DefeitoImport; cor: string }[] = [
+                    { chave: 'qtd-invalida', cor: '#dc2626' },
+                    { chave: 'repetida-na-planilha', cor: '#dc2626' },
                     { chave: 'sem-patrocinador', cor: '#d97706' },
                     { chave: 'sem-medida', cor: '#dc2626' },
                     { chave: 'm2-nao-fecha', cor: '#dc2626' },
@@ -729,7 +784,7 @@ export function ImportXlsxDialog({
                       <div style={{ fontSize: 11, color: '#746e69', fontWeight: 600, marginBottom: 6 }}>Antes de importar</div>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                         {baldes.map(({ chave, cor }) => {
-                          const n = naBusca.filter(i => defeitosDaLinha(i, chavesDoEvento).includes(chave)).length;
+                          const n = naBusca.filter(i => defeitosDaLinha(i, chavesDoEvento, repetidasDaPlanilha).includes(chave)).length;
                           const ligado = triagem === chave;
                           const vazio = n === 0;
                           return (
@@ -796,6 +851,37 @@ export function ImportXlsxDialog({
             </button>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {/* AS LINHAS QUE FICARAM DE FORA. Antes sumiam caladas (linha sem
+                  quantidade, quantidade zero ou negativa): a pessoa contava as
+                  peças da planilha, contava as do preview, e não batia. */}
+              {ignoradas.length > 0 && (
+                <div
+                  data-testid="aviso-linhas-ignoradas"
+                  style={{ padding: '10px 12px', borderRadius: 8, background: '#f5f5f4', border: '1px solid #e7e5e4', fontSize: 11, color: '#44403c', lineHeight: 1.5 }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                    <span style={{ fontWeight: 700, color: '#1c1917' }}>
+                      {ignoradas.length} {ignoradas.length === 1 ? 'linha da planilha ficou' : 'linhas da planilha ficaram'} de fora
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setVerIgnoradas(v => !v)}
+                      aria-expanded={verIgnoradas}
+                      data-testid="button-ver-ignoradas"
+                      style={{ background: 'none', border: 'none', padding: 0, fontSize: 11, fontWeight: 700, color: '#c2410c', cursor: 'pointer', whiteSpace: 'nowrap' }}
+                    >
+                      {verIgnoradas ? 'Esconder' : 'Ver quais'}
+                    </button>
+                  </div>
+                  {verIgnoradas && (
+                    <ul style={{ margin: '6px 0 0', padding: 0, listStyle: 'none', maxHeight: 120, overflowY: 'auto' }}>
+                      {ignoradas.map(ig => (
+                        <li key={ig.linha}>Linha {ig.linha}: {ig.motivo}</li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              )}
               {/* O AVISO DE REIMPORTAÇÃO — agora com nomes e com saída.
 
                   Ele não BLOQUEIA: reimportar de propósito é legítimo (uma
@@ -851,10 +937,10 @@ export function ImportXlsxDialog({
                 Trocar arquivo
               </button>
               <button
-                disabled={!importPreviewItems.length || confirmImportPending}
-                onClick={() => { if (importPreviewItems.length > 0) setEscolhendoDestino(true); }}
+                disabled={!importPreviewItems.length || confirmImportPending || comQtdInvalida.length > 0}
+                onClick={() => { if (importPreviewItems.length > 0 && comQtdInvalida.length === 0) setEscolhendoDestino(true); }}
                 data-testid="button-confirm-import"
-                style={{ width: '100%', padding: '11px 0', backgroundColor: '#1c1917', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 800, fontSize: 13, cursor: 'pointer', fontFamily: "'Space Grotesk', sans-serif", display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
+                style={{ width: '100%', padding: '11px 0', backgroundColor: comQtdInvalida.length > 0 ? '#e7e5e4' : '#1c1917', color: comQtdInvalida.length > 0 ? '#57534e' : '#fff', border: 'none', borderRadius: 8, fontWeight: 800, fontSize: 13, cursor: comQtdInvalida.length > 0 ? 'not-allowed' : 'pointer', fontFamily: "'Space Grotesk', sans-serif", display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
               >
                 {confirmImportPending ? (
                   <><Loader2 style={{ width: 15, height: 15, animation: 'spin 1s linear infinite' }} /> Importando...</>
@@ -862,6 +948,14 @@ export function ImportXlsxDialog({
                   <><Check style={{ width: 15, height: 15 }} /> Importar {importPreviewItems.length} {importPreviewItems.length === 1 ? 'peça' : 'peças'}</>
                 )}
               </button>
+              {/* POR QUE O BOTÃO ESTÁ TRAVADO — à vista, com a linha. */}
+              {comQtdInvalida.length > 0 && (
+                <p data-testid="motivo-importar-travado" role="status" style={{ margin: 0, fontSize: 11, color: '#b91c1c', lineHeight: 1.45, textAlign: 'center', fontWeight: 600 }}>
+                  {comQtdInvalida.slice(0, 3).map((r: any) => `Linha ${r.linha ?? '?'}: quantidade mínima é 1`).join(' · ')}
+                  {comQtdInvalida.length > 3 ? ` · e mais ${comQtdInvalida.length - 3}` : ''}
+                  {' — corrija a quantidade ou tire a linha.'}
+                </p>
+              )}
               {/* O QUE ACONTECE DEPOIS — antes de clicar. Importar não é
                   enviar: as peças caem no card de rascunhos do evento e só
                   seguem para a vinculação quando alguém envia. */}
@@ -990,6 +1084,7 @@ export function ImportXlsxDialog({
                               onDelete={() => setImportPreviewItems(prev => prev ? prev.filter(r => r._id !== row._id) : prev)}
                               eventSponsorsList={eventSponsorsList}
                               jaNoEvento={chavesDoEvento}
+                              repetidas={repetidasDaPlanilha}
                               mostrarVisual={mostrarVisual}
                             />
                           ))}

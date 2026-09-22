@@ -34,8 +34,11 @@ describe("o servidor", () => {
 
   it("o cancelamento grava DE ONDE a peça saiu — individual e lote, sem sobrescrever no re-cancelamento", () => {
     expect(SCHEMA).toContain('statusBeforeCancel: text("status_before_cancel")');
-    const gravacoes = ROTA.match(/statusBeforeCancel: currentItem\.status === "canceled" \? currentItem\.statusBeforeCancel : currentItem\.status/g) ?? [];
-    expect(gravacoes.length).toBe(2); // /cancel e /bulk-cancel
+    // Uma gravação só (gravarCancelamento), usada pelo /cancel, pelo
+    // /bulk-cancel e pelos complementos que caem junto com a mãe.
+    const gravacoes = ROTA.match(/statusBeforeCancel: atual\.status === "canceled" \? atual\.statusBeforeCancel : atual\.status/g) ?? [];
+    expect(gravacoes.length).toBe(1);
+    expect((ROTA.match(/await gravarCancelamento\(req, currentItem, motivo\)/g) ?? []).length).toBe(2);
   });
 
   it("restaura em ordem de confiança: coluna → trilha → requested, e a trilha diz qual valeu", () => {

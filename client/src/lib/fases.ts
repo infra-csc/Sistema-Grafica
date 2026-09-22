@@ -54,3 +54,11 @@ export function contarPorFase(items: ReadonlyArray<{ status: string; type?: stri
 export function contarPorFaseDoEvento(event: { items?: unknown }): number[] {
   return contarPorFase(Array.isArray(event?.items) ? (event.items as { status: string }[]) : []);
 }
+
+/**
+ * FORA DO FUNIL: cancelada/excluída/arquivada não conta como trabalho — nem
+ * pendente nem entregue. Sai do denominador da barra, do "X/Y entregues" e do
+ * m² (espelho de OUT_OF_FUNNEL_STATUSES em server/routes/shared.ts). O cartão
+ * de Eventos e o Detalhe do evento leem daqui para contarem igual.
+ */
+export const FORA_DO_FUNIL: ReadonlySet<string> = new Set(["canceled", "deleted", "archived"]);

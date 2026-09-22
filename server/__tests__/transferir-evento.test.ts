@@ -36,7 +36,9 @@ describe("o servidor", () => {
     const trecho = ROTA.slice(ROTA.indexOf("/api/items/:id/transfer-event"));
     const fimDaRota = trecho.indexOf("\n  });");
     const corpo = trecho.slice(0, fimDaRota);
-    expect(corpo).toContain("storage.updateItem(item.id, { eventId: destinoId })");
+    // O evento muda; a remessa do Kit e o vínculo com a solicitação do
+    // Atendimento (que são do evento de origem) saem junto — status não.
+    expect(corpo).toContain("const atualizado = await storage.updateItem(item.id, {\n        eventId: destinoId,\n        kitRemessaId: null,");
     expect(corpo).not.toMatch(/updateItem\([^)]*status:/);
   });
 
@@ -70,7 +72,7 @@ describe("a ficha da peça", () => {
 
   it("chama a rota certa e avisa que o status foi mantido", () => {
     expect(FICHA).toContain("/transfer-event`");
-    expect(FICHA).toContain('toast({ title: "Peça transferida"');
+    expect(FICHA).toContain('title: "Peça transferida",');
     expect(FICHA).toContain("status mantido");
   });
 });

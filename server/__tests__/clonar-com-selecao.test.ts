@@ -50,8 +50,9 @@ describe("o dialog", () => {
     expect(DIALOG).toContain("enabled: open && !!cloneSourceId");
   });
 
-  it("nasce com TODAS marcadas — desmarcar exceções é mais rápido que marcar dezenas", () => {
-    expect(DIALOG).toContain("setEscolhidas(new Set(pecasDaOrigem.map((i: any) => i.id)))");
+  it("nasce com todas marcadas MENOS as canceladas — e sem complementos na lista", () => {
+    expect(DIALOG).toContain("setEscolhidas(new Set(pecasDaOrigem.filter((i: any) => i.status !== \"canceled\").map((i: any) => i.id)))");
+    expect(DIALOG).toContain("todasDaOrigem.filter((i: any) => !i.parentItemId)");
   });
 
   it("tem marcar/desmarcar todas, busca e checkbox por linha", () => {

@@ -41,7 +41,7 @@ import {
   PRIORITY, getPriorityMeta, getStatusMeta, PRODUCTION_STATUSES,
   motivoEventoFinalizado, todayBusinessMs,
 } from "@/lib/status";
-import { PHASES, contarPorFaseDoEvento as contarPorFase } from "@/lib/fases";
+import { PHASES, contarPorFaseDoEvento as contarPorFase, FORA_DO_FUNIL } from "@/lib/fases";
 import { T, FS, R, SHADOW } from "@/lib/theme";
 import { ModalHeader, ModalFooter, modalSurface, HIDE_NATIVE_CLOSE, FreezeWhileClosing } from "@/components/modal-shell";
 import {
@@ -210,7 +210,7 @@ interface NextMilestonePayload {
 // Grafias que contam como ENTREGUE e como FORA DO FUNIL — espelham
 // server/routes/events.ts. Só são usadas no fallback de `readEventStats`.
 const DELIVERED_STATUSES = new Set(['delivered', 'entregue']);
-const OUT_OF_FUNNEL_STATUSES = new Set(['canceled', 'deleted', 'archived']);
+const OUT_OF_FUNNEL_STATUSES = FORA_DO_FUNIL;
 
 interface EventStats {
   itemCount: number;
@@ -1516,25 +1516,30 @@ export default function Eventos() {
       // Duplicação com peças: reaproveita o endpoint de clonagem que o detalhe
       // do evento já usa. Falhar aqui também não invalida o evento criado.
       let clonedItems = 0;
+      // Canceladas e complementos o servidor não copia (o evento novo não
+      // renasce com o que o anterior desistiu) — o toast diz quantas.
+      let deixadasDeFora = 0;
       let cloneFailed = false;
       if (cloneFrom) {
         try {
           const res = await apiRequest("POST", `/api/events/${event.id}/clone-items`, { sourceEventId: cloneFrom });
           const data = await res.json();
           clonedItems = data?.cloned ?? 0;
+          deixadasDeFora = data?.deixadasDeFora ?? 0;
         } catch {
           cloneFailed = true;
         }
       }
 
-      return { event, failedSponsors, clonedItems, cloneFailed };
+      return { event, failedSponsors, clonedItems, deixadasDeFora, cloneFailed };
     },
-    onSuccess: ({ event, failedSponsors, clonedItems, cloneFailed }) => {
+    onSuccess: ({ event, failedSponsors, clonedItems, deixadasDeFora, cloneFailed }) => {
       queryClient.invalidateQueries({ queryKey: ["/api/events"] });
       handleCloseDialog();
       const parts: string[] = [];
       // "em Rascunho": as cópias só andam depois do envio, feito no evento.
       if (clonedItems > 0) parts.push(`${clonedItems} ${clonedItems === 1 ? 'peça copiada' : 'peças copiadas'} em Rascunho — abra o evento para revisar e enviar`);
+      if (deixadasDeFora > 0) parts.push(`${deixadasDeFora} ${deixadasDeFora === 1 ? 'ficou de fora (cancelada ou complemento)' : 'ficaram de fora (canceladas ou complementos)'}`);
       if (cloneFailed) parts.push("as peças não puderam ser copiadas — use 'Clonar peças' dentro do evento");
       if (failedSponsors.length > 0) parts.push(`não foi possível vincular: ${failedSponsors.join(", ")}`);
       toast({

@@ -33,6 +33,8 @@ export function useEventImport({ eventId, eventSponsorsList, eventQuotaRules }: 
   const [importSearch, setImportSearch] = useState("");
   // Cabeçalho da planilha do Kit (datas, versão), quando a planilha é do Kit.
   const [importKit, setImportKit] = useState<CabecalhoDoKit | null>(null);
+  // Linhas da planilha que ficaram de fora do preview, e por quê.
+  const [importIgnoradas, setImportIgnoradas] = useState<{ linha: number; motivo: string }[]>([]);
 
   // ── Preview Excel mutation (parse → show review modal) ─────────────────
   const previewXlsxMutation = useMutation({
@@ -91,6 +93,7 @@ export function useEventImport({ eventId, eventSponsorsList, eventQuotaRules }: 
         };
       });
       setImportPreviewItems(withIds);
+      setImportIgnoradas(Array.isArray(data.ignoradas) ? data.ignoradas : []);
       setImportKit(data.kit ?? null);
       setImportFileName(data.fileName || "");
       setImportSearch("");
@@ -135,6 +138,7 @@ export function useEventImport({ eventId, eventSponsorsList, eventQuotaRules }: 
       queryClient.invalidateQueries({ predicate: (q) => String(q.queryKey[0] ?? "").startsWith("/api/kit/remessas") });
       setImportDialogOpen(false);
       setImportPreviewItems(null);
+      setImportIgnoradas([]);
       setImportKit(null);
       setImportFile(null);
       setImportFileName("");
@@ -167,6 +171,7 @@ export function useEventImport({ eventId, eventSponsorsList, eventQuotaRules }: 
     previewXlsxMutation,
     confirmImportMutation,
     importKit,
+    importIgnoradas,
   };
 }
 

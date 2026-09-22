@@ -124,12 +124,15 @@ describe("planilha do Kit e filtros (fase 2)", () => {
   it("importar: modal Arena ou Kit antes de importar; remessa nova nasce na importação", () => {
     const DIALOGO = ler("client/src/components/import-xlsx-dialog.tsx");
     const DESTINO = ler("client/src/components/kit/destino-da-importacao.tsx");
-    expect(DIALOGO).toContain("onClick={() => { if (importPreviewItems.length > 0) setEscolhendoDestino(true); }}");
+    expect(DIALOGO).toContain("onClick={() => { if (importPreviewItems.length > 0 && comQtdInvalida.length === 0) setEscolhendoDestino(true); }}");
     expect(DESTINO).toContain('title="Estas peças são da Arena ou do Kit?"');
     // O cartão virou função (não remonta e não perde o foco); a regra — o
     // usuário do Kit não escolhe Arena — é a mesma.
     expect(DESTINO).toContain('bloqueio: somenteKit ? "Usuário do Kit importa só peças do Kit." : undefined');
-    expect(IMPORT).toContain("const criada = await criarRemessa(req, dadosRemessa.data);");
+    // A remessa nova nasce DENTRO da transação das peças (tudo ou nada) —
+    // comportamento pinado em importacao-com-transacao.test.ts.
+    expect(IMPORT).toContain("novaRemessa = dadosRemessa.data;");
+    expect(IMPORT).toContain("[remessaCriada] = await tx.insert(kitRemessas).values({");
     expect(IMPORT).toContain("kit: lerCabecalhoDoKit(file.buffer)");
     // Nova remessa à mão também pode vir preenchida pelo template (14/09).
     const PAINEL_KIT = ler("client/src/components/kit/painel-do-kit.tsx");

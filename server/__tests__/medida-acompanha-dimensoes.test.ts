@@ -72,9 +72,8 @@ describe("os dois caminhos de edição", () => {
     expect(rotas).toContain("if (medida !== undefined) updatePayload.measurement = medida;");
   });
 
-  it("e a rota-irmã ignora o `measurement` do corpo quando a dimensão mudou", () => {
-    expect(rotas).toContain("const effMeasurement =");
-    expect(rotas).toContain("medidaDerivada ?? (measurement !== undefined ? measurement : currentItem.measurement)");
+  it("a rota-irmã (/edit) saiu: o PATCH genérico é o único caminho de edição", () => {
+    expect(rotas).not.toContain('app.patch("/api/items/:id/edit"');
     // A linha que aceitava o texto do cliente sem olhar para as dimensões.
     expect(codigo).not.toContain(
       "measurement: measurement !== undefined ? measurement : currentItem.measurement,",
@@ -87,11 +86,11 @@ describe("os dois caminhos de edição", () => {
     expect(rotas).toContain("Medida: ${currentItem.measurement || '—'} → ${item.measurement || '—'}");
   });
 
-  it("e o diff da rota-irmã compara o que FOI GRAVADO, não o que veio no corpo", () => {
+  it("e o diff compara o que FOI GRAVADO, não o que veio no corpo", () => {
     // `measurement !== currentItem.measurement` media o campo enviado; com o
     // servidor derivando, o que foi gravado pode ser outra coisa — e a trilha
     // registraria uma mudança que não houve, ou omitiria a que houve.
-    expect(rotas).toContain("if (item.measurement !== currentItem.measurement) editDetails.push(");
+    expect(rotas).toContain("if (item.measurement !== currentItem.measurement) {");
   });
 });
 

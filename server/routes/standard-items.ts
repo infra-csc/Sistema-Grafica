@@ -3,6 +3,7 @@ import type { Express } from "express";
 import { storage } from "../storage";
 import { insertStandardItemSchema, insertCatalogOptionSchema } from "@shared/schema";
 import { requireAuth, requireRole, broadcast, createAuditLog } from "./shared";
+import { responderErro } from "../erros";
 
 // Gestão do catálogo de modelos (criar/editar/excluir modelos, renomear/limpar
 // grupos, materiais e acabamentos em massa) vive na tela /modelos, que é
@@ -132,7 +133,7 @@ export function registerStandardItemRoutes(app: Express): void {
 
       res.status(201).json(item);
     } catch (error: any) {
-      res.status(400).json({ error: error.message });
+      responderErro(res, error, "criar modelo");
     }
   });
 
@@ -286,7 +287,7 @@ export function registerStandardItemRoutes(app: Express): void {
       
       res.json(item);
     } catch (error: any) {
-      res.status(400).json({ error: error.message });
+      responderErro(res, error, "editar modelo");
     }
   });
 

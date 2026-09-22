@@ -4,7 +4,7 @@ import { StatusBadge } from "@/components/status-badge";
 import { DetalheProducao } from "@/components/detalhe-producao";
 import { faseDaArte } from "@/components/prazos/tokens";
 import { getStatusLabel, getStatusMeta, FINAL_STATUSES, PRODUCTION_STATUSES, STATUS, motivoEventoFinalizado, todayBusinessMs } from "@/lib/status";
-import { PHASES, contarPorFase } from "@/lib/fases";
+import { PHASES, contarPorFase, FORA_DO_FUNIL } from "@/lib/fases";
 import { MARCOS_DO_EVENTO } from "@shared/prazo-dates";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -93,6 +93,12 @@ const estaAtrasDoMarco = (status: string, i: number) => etapaCumprida(status) < 
 
 /** A ordem do fluxo, para as seções do modo Status: a ordem das chaves de STATUS em lib/status. */
 const ORDEM_DO_FLUXO = new Map(Object.keys(STATUS).map((k, i) => [k, i]));
+
+/**
+ * Por que os botões de montar a lista não aparecem — e QUEM pode. "Seu perfil
+ * não edita" sozinho mandava a pessoa procurar a permissão errada.
+ */
+const MOTIVO_SOMENTE_LEITURA = "Somente leitura — quem monta a lista deste evento é a Solicitação, um admin ou quem criou o evento.";
 
 type Marco = { key: string; label: string; date: Date; adjusted: 'fri' | 'mon' | null; isPast: boolean; isOverdue: boolean };
 
@@ -926,15 +932,25 @@ export default function EventDetail() {
     mainItems.forEach(i => counts.set(i.status, (counts.get(i.status) || 0) + 1));
     return Array.from(counts.entries());
   }, [mainItems]);
+  // AS PEÇAS QUE CONTAM — a mesma régua do cartão de Eventos (lib/fases):
+  // cancelada sai do denominador, do m² e da barra; rascunho mora no card
+  // próprio. Antes o Detalhe somava tudo: um evento com 10 peças e 3
+  // canceladas mostrava "7/10 entregues" para sempre, e o m² contava lona
+  // que ninguém vai imprimir.
+  const pecasNaConta = useMemo(
+    () => mainItems.filter(i => !FORA_DO_FUNIL.has(i.status)),
+    [mainItems],
+  );
+  const canceladasForaDaConta = mainItems.length - pecasNaConta.length;
   const totalM2 = useMemo(
-    () => items.reduce((acc, i) => acc + (parseFloat(String(i.calculatedM2 ?? '0')) || 0), 0),
-    [items],
+    () => pecasNaConta.reduce((acc, i) => acc + (parseFloat(String(i.calculatedM2 ?? '0')) || 0), 0),
+    [pecasNaConta],
   );
   // Quantas das peças listadas são complemento (aumento pós-produção). O m²
   // total não precisa de tratamento: as duas linhas somam sozinhas.
   const complementCount = useMemo(
-    () => items.filter((i: any) => !!i.parentItemId).length,
-    [items],
+    () => pecasNaConta.filter((i: any) => !!i.parentItemId).length,
+    [pecasNaConta],
   );
 
   // ── A TIMELINE DIZ QUANTAS PEÇAS ESTÃO ATRÁS DE CADA MARCO ──
@@ -946,16 +962,16 @@ export default function EventDetail() {
     [event, hoje],
   );
   const atrasDoMarco = useMemo(
-    () => MARCOS_DO_EVENTO.map((_, i) => mainItems.filter(it => estaAtrasDoMarco(statusParaContagem(it), i)).length),
-    [mainItems],
+    () => MARCOS_DO_EVENTO.map((_, i) => pecasNaConta.filter(it => estaAtrasDoMarco(statusParaContagem(it), i)).length),
+    [pecasNaConta],
   );
   // Fases de produção — a MESMA contagem do cartão de Eventos (lib/fases).
-  const fases = useMemo(() => contarPorFase(mainItems), [mainItems]);
+  const fases = useMemo(() => contarPorFase(pecasNaConta), [pecasNaConta]);
   // Molde produzido (fim do fluxo dele) conta como entregue — shared/molde.ts.
-  const entregues = useMemo(() => mainItems.filter(i => { const s = statusParaContagem(i); return s === 'delivered' || s === 'entregue'; }).length, [mainItems]);
+  const entregues = useMemo(() => pecasNaConta.filter(i => { const s = statusParaContagem(i); return s === 'delivered' || s === 'entregue'; }).length, [pecasNaConta]);
   // A frase de resolução: onde o evento está, em uma linha derivada dos dados.
   const fraseResolucao = useMemo(() => {
-    const t = mainItems.length;
+    const t = pecasNaConta.length;
     if (t === 0) return null;
     if (entregues === t) return `Todas as ${t} ${plural(t, 'peça entregue', 'peças entregues')}.`;
     const d = marcosDoEvento?.countdownDays ?? null;
@@ -969,7 +985,7 @@ export default function EventDetail() {
       return `${n} ${plural(n, 'marco já venceu', 'marcos já venceram')} com ${p} ${plural(p, 'peça atrás', 'peças atrás')}.${caminhao}`;
     }
     return `${entregues} de ${t} ${plural(t, 'peça entregue', 'peças entregues')} ·${caminhao ? caminhao.replace(/^ /, ' ').replace(/^ O/, ' o') : ' sem data de saída.'}`;
-  }, [mainItems.length, entregues, marcosDoEvento, atrasDoMarco]);
+  }, [pecasNaConta.length, entregues, marcosDoEvento, atrasDoMarco]);
 
   const { data: standardItems = [] } = useQuery<any[]>({
     queryKey: ["/api/standard-items"],
@@ -1037,6 +1053,7 @@ export default function EventDetail() {
     previewXlsxMutation,
     confirmImportMutation,
     importKit,
+    importIgnoradas,
   } = useEventImport({ eventId, eventSponsorsList, eventQuotaRules });
 
   // Estado e mutation de clonagem de itens entre eventos (extraído para @/hooks/use-event-import)
@@ -1233,7 +1250,7 @@ export default function EventDetail() {
 
   // Peças que ficaram para trás — o número que a confirmação precisa dizer.
   const openWork = useMemo(() => {
-    const OUT = new Set(['canceled', 'deleted', 'archived']);
+    const OUT = FORA_DO_FUNIL;
     const DONE = new Set(['delivered', 'entregue']);
     const PROD = new Set(['inProduction', 'em_producao']);
     let ativas = 0, entregues = 0, emProducao = 0;
@@ -1639,9 +1656,15 @@ export default function EventDetail() {
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
       // O passo seguinte mora em OUTRA tela: a ação leva direto para a
       // Vinculação já filtrada neste evento (?ev= é o filtro que ela lê da URL).
+      // Falha parcial: as que foram, foram — e as que ficaram são nomeadas
+      // (mudaram de status no meio do envio, outra pessoa mexeu).
+      const falharam: string[] = Array.isArray(data?.falharam) ? data.falharam : [];
+      const ficaram = falharam.length > 0
+        ? ` ${falharam.length} não ${falharam.length === 1 ? 'foi' : 'foram'} porque mudaram de status durante o envio: ${falharam.join(', ')} — recarregue e confira.`
+        : '';
       toast({
-        title: "Peças enviadas para a vinculação",
-        description: `${data.count} ${data.count === 1 ? 'peça já está' : 'peças já estão'} na fila de Vincular Patrocinadores. Aqui ${data.count === 1 ? 'ela aparece' : 'elas aparecem'} como Aguardando Vinculação.`,
+        title: falharam.length > 0 ? `${data.count} de ${data.count + falharam.length} peças enviadas` : "Peças enviadas para a vinculação",
+        description: `${data.count} ${data.count === 1 ? 'peça já está' : 'peças já estão'} na fila de Vincular Patrocinadores. Aqui ${data.count === 1 ? 'ela aparece' : 'elas aparecem'} como Aguardando Vinculação.${ficaram}`,
         action: (
           <ToastAction altText="Abrir a Vinculação deste evento" onClick={() => setLocation(`/vincular-patrocinadores?ev=${eventId}`)}>
             Ver na Vinculação
@@ -1678,7 +1701,10 @@ export default function EventDetail() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (editingItem) {
-      updateItemMutation.mutate({ id: editingItem.id, data: formData });
+      // Ligar o reaproveitamento pelo formulário = reaproveita a peça inteira
+      // (o servidor exige a quantidade junto com a flag).
+      const ligouReuso = !!formData.isReuse && !editingItem.isReuse;
+      updateItemMutation.mutate({ id: editingItem.id, data: ligouReuso ? { ...formData, reuseQty: Number(formData.quantity) } : formData });
     } else {
       createItemMutation.mutate(formData);
     }
@@ -2072,14 +2098,14 @@ export default function EventDetail() {
                     aria-label={PHASES.map((p, i) => `${fases[i]} ${p.noun}`).join(', ')}
                     style={{ display: 'flex', width: 120, height: 9, borderRadius: 999, overflow: 'hidden', backgroundColor: '#f0efee', flexShrink: 0 }}
                   >
-                    {mainItems.length > 0 && PHASES.map((fase, i) => (
+                    {pecasNaConta.length > 0 && PHASES.map((fase, i) => (
                       fases[i] > 0
-                        ? <span key={fase.key} title={`${fases[i]} ${fase.noun}`} style={{ width: `${(fases[i] / mainItems.length) * 100}%`, backgroundColor: fase.color }} />
+                        ? <span key={fase.key} title={`${fases[i]} ${fase.noun}`} style={{ width: `${(fases[i] / pecasNaConta.length) * 100}%`, backgroundColor: fase.color }} />
                         : null
                     ))}
                   </span>
                   <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 12, color: '#57534e', whiteSpace: 'nowrap' }}>
-                    {entregues}/{mainItems.length}
+                    {entregues}/{pecasNaConta.length}
                   </span>
                 </span>
               </div>
@@ -2093,10 +2119,15 @@ export default function EventDetail() {
                     são complemento evita a pergunta "por que 43 se a lista tinha
                     42?" — o número está certo, e agora explica a si mesmo. */}
                 <span style={{ fontSize: 12, fontWeight: 700, color: '#6F6A63', backgroundColor: '#ffffff', border: '1px solid #E7E3DC', borderRadius: 999, padding: '4px 12px', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums', display: 'inline-flex', alignItems: 'center', minHeight: isMobile ? 44 : undefined }}>
-                  {items.length} {items.length === 1 ? 'peça' : 'peças'}
+                  {pecasNaConta.length} {pecasNaConta.length === 1 ? 'peça' : 'peças'}
                   {complementCount > 0 && ` (${complementCount} ${complementCount === 1 ? 'complemento' : 'complementos'})`}
                   {' · '}{totalM2.toFixed(2)} m²
                 </span>
+                {canceladasForaDaConta > 0 && (
+                  <span data-testid="text-canceladas-fora-da-conta" style={{ fontSize: 12, color: '#6F6A63', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>
+                    {canceladasForaDaConta} {canceladasForaDaConta === 1 ? 'cancelada' : 'canceladas'} fora da conta
+                  </span>
+                )}
                 {statusChips.map(([status, count]) => {
                   const m = getStatusMeta(status);
                   const active = statusFilter.includes(status);
@@ -2374,7 +2405,7 @@ export default function EventDetail() {
             {/* Perfil sem edição: em vez de esconder tudo em silêncio, diz o porquê. */}
             {!canEditLists && (
               <span style={{ fontSize: 12, color: '#746e69', alignSelf: 'center' }}>
-                Somente leitura — seu perfil não edita a lista deste evento
+                {MOTIVO_SOMENTE_LEITURA}
               </span>
             )}
 
@@ -3239,7 +3270,7 @@ export default function EventDetail() {
               </div>
             ) : (
               <p style={{ fontSize: 12, color: '#746e69', margin: 0 }}>
-                Somente leitura — seu perfil não edita a lista deste evento
+                {MOTIVO_SOMENTE_LEITURA}
               </p>
             )}
           </div>
@@ -3689,7 +3720,7 @@ export default function EventDetail() {
                                   onClick={e => {
                                     e.stopPropagation();
                                     updateItemIsReuseMutation.mutate(
-                                      { itemId: item.id, isReuse: !item.isReuse },
+                                      { itemId: item.id, isReuse: !item.isReuse, reuseQty: item.quantity },
                                       {
                                         onSuccess: () => toast({
                                           title: "Peça atualizada",
@@ -4052,6 +4083,7 @@ export default function EventDetail() {
         // o que medir a repetição, e reimportar a mesma planilha duplicava o
         // evento inteiro em silêncio.
         itensDoEvento={items}
+        ignoradas={importIgnoradas}
       />
       {/* ── Dialog: Clonar Evento ──────────────────────────────────────────── */}
       <CloneItemsDialog

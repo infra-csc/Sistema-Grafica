@@ -313,8 +313,10 @@ describe("5 · rotas vizinhas", () => {
     expect(ajudante).toContain('if (peca.status !== "inProduction" && peca.status !== "em_producao") return;');
     expect(ajudante).toContain("for (const maquina of Object.keys(partesAtivas(partesDaPeca(peca as any)))) {");
     expect(ajudante).toContain('tipo: "pausa", quantidade: 0,');
-    expect(trecho(ITEMS, 'app.patch("/api/items/:id/cancel"', 'app.patch("/api/items/:id/uncancel"')).toContain("await registrarSaidaDaImpressora(req, currentItem);");
-    expect(trecho(ITEMS, 'app.patch("/api/items/bulk-cancel"', "res.json({ canceled: results.length")).toContain("if (item) await registrarSaidaDaImpressora(req, currentItem);");
+    // Uma gravação só para os dois (e para os complementos que caem junto).
+    expect(trecho(ITEMS, "async function gravarCancelamento(", "async function cancelarComplementosDaMae(")).toContain("await registrarSaidaDaImpressora(req, atual);");
+    expect(trecho(ITEMS, 'app.patch("/api/items/:id/cancel"', 'app.patch("/api/items/:id/uncancel"')).toContain("await gravarCancelamento(req, currentItem, motivo);");
+    expect(trecho(ITEMS, 'app.patch("/api/items/bulk-cancel"', "res.json({")).toContain("await gravarCancelamento(req, currentItem, motivo);");
   });
 
   it("o aviso de 'Impressão iniciada' não pipoca mais para todo mundo (só invalida)", () => {

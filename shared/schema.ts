@@ -354,6 +354,11 @@ export const items = pgTable("items", {
   // pela trilha de auditoria ("Status alterado: X → Y") e, sem pista, volta
   // para "requested", dizendo na trilha que foi o palpite.
   statusBeforeCancel: text("status_before_cancel"),
+  // POR QUE a peça foi cancelada. Coluna própria porque o cancelamento
+  // gravava o motivo POR CIMA das observações — e elas são a instrução de
+  // produção que o descancelar precisa devolver intacta. Descancelar limpa.
+  // NULL nas canceladas antigas (o motivo delas ficou na trilha).
+  motivoCancelamento: text("motivo_cancelamento"),
   bookUrl: text("book_url"), // PDF do book de aprovação (layout pronto) que cobre esta peça — enviado pela Arte para os patrocinadores
   deletedAt: timestamp("deleted_at"), // Soft delete — item permanece no histórico (audit log) mas some das listagens
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
@@ -1144,6 +1149,7 @@ export const publicInsertItemSchema = insertItemSchema.omit({
   status: true,
   statusChangedAt: true,
   statusBeforeCancel: true,
+  motivoCancelamento: true,
   quantityProduced: true,
   reuseQty: true,
   conferredQty: true,

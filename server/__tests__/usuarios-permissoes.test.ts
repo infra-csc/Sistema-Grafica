@@ -30,8 +30,11 @@ const SERVIDOR = (() => {
  * Sem recortar, um `userRole !== "arte"` de 300 linhas abaixo passaria por
  * guarda desta rota e o teste aprovaria uma permissão que não existe.
  */
-function corpoDaRota(rota: string): string {
-  const i = SERVIDOR.search(new RegExp(`app\\.(post|patch|put|delete)\\("${rota.replace(/[:/]/g, (c) => "\\" + c)}"`));
+function corpoDaRota(rotaComVerbo: string): string {
+  // "PATCH /api/items/:id" fixa o verbo — o mesmo caminho existe em PATCH e DELETE.
+  const [, verbo, rota] = /^(?:(POST|PATCH|PUT|DELETE) )?(.*)$/.exec(rotaComVerbo)!;
+  const verbos = verbo ? verbo.toLowerCase() : "post|patch|put|delete";
+  const i = SERVIDOR.search(new RegExp(`app\\.(${verbos})\\("${rota.replace(/[:/]/g, (c) => "\\" + c)}"`));
   expect(i, `rota não encontrada no servidor: ${rota}`).toBeGreaterThan(-1);
   const j = SERVIDOR.search(new RegExp(`app\\.(get|post|patch|put|delete)\\("`, "g"));
   const resto = SERVIDOR.slice(i + 20);
@@ -45,6 +48,9 @@ function aceita(rota: string, papel: string): boolean {
   const corpo = corpoDaRota(rota);
   if (new RegExp(`requireRole\\([^)]*["']${papel}["']`).test(corpo)) return true;
   if (/requireAdmin/.test(corpo)) return papel === "admin";
+  // A forma em lista: `if (!["admin", "solicitacao"].includes(role))`.
+  const lista = corpo.match(/if \(!\[([^\]]*)\]\.includes\((?:role|req\.userRole[^)]*)\)\)/);
+  if (lista) return [...lista[1].matchAll(/["'](\w+)["']/g)].map((m) => m[1]).includes(papel);
   const negados = [...corpo.matchAll(/userRole !== ["'](\w+)["']/g)].map((m) => m[1]);
   if (negados.length > 0) return negados.includes(papel);
   const aceitos = [...corpo.matchAll(/userRole === ["'](\w+)["']/g)].map((m) => m[1]);
@@ -57,7 +63,9 @@ describe("cada ✓ da tela existe no servidor", () => {
     ["admin", "/api/users/:id", "gerenciar usuários"],
     ["solicitacao", "/api/events", "criar eventos"],
     ["solicitacao", "/api/items/:id/creator-review", "revisar peças"],
-    ["solicitacao", "/api/items/:id/edit", "editar peças"],
+    // O /edit saiu (era irmã sem validação do PATCH genérico): editar peça é
+    // só o PATCH /api/items/:id, cuja guarda é uma lista de papéis.
+    ["solicitacao", "PATCH /api/items/:id", "editar peças"],
     ["solicitacao", "/api/items/:id/cancel", "cancelar peças"],
     ["arte", "/api/items/:id/submit-for-approval", "enviar para aprovação"],
     ["arte", "/api/items/:id/submit-final-file", "anexar arquivo final"],
@@ -88,7 +96,7 @@ describe("cada × da tela também existe no servidor", () => {
     ["arte", "/api/events", "criar eventos"],
     ["atendimento", "/api/events", "criar eventos"],
     ["grafica", "/api/events", "criar eventos"],
-    ["solicitacao", "/api/events/:id", "excluir eventos"],
+    ["solicitacao", "DELETE /api/events/:id", "excluir eventos"],
     // "Não anexa arte e arquivo final" — dito para solicitação, gráfica e atendimento
     ["solicitacao", "/api/items/:id/submit-final-file", "anexar arquivo final"],
     ["grafica", "/api/items/:id/submit-final-file", "anexar arquivo final"],

@@ -449,7 +449,14 @@ export function ItemDetailsDialog({
       // filas usam a query com o eventId no meio da chave).
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
       const nomeDestino = todosEventos.find((e: any) => e.id === transferDestino)?.name || "o evento escolhido";
-      toast({ title: "Peça transferida", description: `Agora pertence a "${nomeDestino}" — status mantido.` });
+      // Os avisos do servidor (patrocinador fora do destino, solicitação que
+      // voltou a abrir) vão junto: a transferência deu certo, mas há o que conferir.
+      const avisos: string[] = Array.isArray(data?.avisos) ? data.avisos : [];
+      toast({
+        title: "Peça transferida",
+        description: [`Agora pertence a "${nomeDestino}" — status mantido.`, ...avisos].join(" "),
+        ...(avisos.length ? { duration: 12000 } : {}),
+      });
       setTransferOpen(false);
       setTransferDestino("");
       onOpenChange(false);
@@ -1264,6 +1271,12 @@ export function ItemDetailsDialog({
                   )}
                 </div>
 
+                {rawStatus === "canceled" && item.motivoCancelamento && (
+                  <div data-testid="text-motivo-cancelamento" style={{ ...CARTAO, marginTop: 10, padding: "12px 14px", borderColor: "#fecaca", backgroundColor: "#fef2f2" }}>
+                    <p style={{ fontSize: 10, fontWeight: 700, color: "#991b1b", textTransform: "uppercase", letterSpacing: "0.06em", margin: "0 0 4px" }}>Motivo do cancelamento</p>
+                    <p style={{ fontSize: 13, color: "#7f1d1d", lineHeight: 1.55, margin: 0 }}>{item.motivoCancelamento}</p>
+                  </div>
+                )}
                 {item.observations && (
                   <div style={{ ...CARTAO, marginTop: 10, padding: "12px 14px" }}>
                     <p style={{ fontSize: 10, fontWeight: 700, color: "#7a6154", textTransform: "uppercase", letterSpacing: "0.06em", margin: "0 0 4px" }}>Observações</p>

@@ -87,13 +87,13 @@ describe("Mudança 2 · frase de resolução e barra de fases no cabeçalho", ()
   it("a barra usa a MESMA contagem do cartão de Eventos — lib/fases, não um derivado local", () => {
     expect(FASES).toContain("export const PHASES = PRODUCTION_STATUSES.map((key) => ({");
     expect(FASES).toContain("export function contarPorFase(");
-    expect(ED).toContain('import { PHASES, contarPorFase } from "@/lib/fases";');
-    expect(EV).toContain('import { PHASES, contarPorFaseDoEvento as contarPorFase } from "@/lib/fases";');
+    expect(ED).toContain('import { PHASES, contarPorFase, FORA_DO_FUNIL } from "@/lib/fases";');
+    expect(EV).toContain('import { PHASES, contarPorFaseDoEvento as contarPorFase, FORA_DO_FUNIL } from "@/lib/fases";');
     // Nenhuma das duas telas redefine a lista de fases.
     expect(semCom(ED)).not.toContain("PHASE_ALIASES");
     expect(semCom(EV)).not.toContain("const PHASE_ALIASES");
     expect(ED).toContain('data-testid="bar-fases"');
-    expect(ED).toContain("{entregues}/{mainItems.length}");
+    expect(ED).toContain("{entregues}/{pecasNaConta.length}");
   });
 });
 

@@ -31,8 +31,11 @@ export function useEventItemFlags({ eventId }: UseEventItemFlagsParams) {
 
   // Mutation para atualizar isReuse de um item
   const updateItemIsReuseMutation = useMutation({
-    mutationFn: async ({ itemId, isReuse }: { itemId: string, isReuse: boolean }) => {
-      await apiRequest("PATCH", `/api/items/${itemId}`, { isReuse });
+    // Ligar o reaproveitamento diz QUANTAS unidades saem do estoque: o
+    // servidor recusa a flag sem `reuseQty` (ela deixava a peça "reaproveitada"
+    // com zero unidades). O botão da lista é o "reaproveita tudo".
+    mutationFn: async ({ itemId, isReuse, reuseQty }: { itemId: string, isReuse: boolean, reuseQty?: number }) => {
+      await apiRequest("PATCH", `/api/items/${itemId}`, isReuse ? { isReuse, reuseQty } : { isReuse });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/items", eventId] });

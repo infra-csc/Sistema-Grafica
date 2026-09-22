@@ -46,6 +46,7 @@ import {
   EVENT_CLOSED_STATUS,
 } from "./shared";
 import { runInventoryCron } from "../services/inventoryLifecycle";
+import { responderErro, fraseDoZod, erroPublico, corpoEventoFechado, PECA_NAO_ENCONTRADA, EVENTO_NAO_ENCONTRADO } from "../erros";
 import { handlePreviewXlsx, handleConfirmImport } from "../services/xlsxImport";
 import { handleExportItemsXlsx, handleExportSelectedItemsXlsx } from "../services/xlsxExport";
 import { notifyBookSaved, descreverEnvio, getBookEmailConfig, type BookEmailResult } from "../services/bookEmailNotification";
@@ -102,6 +103,74 @@ async function registrarSaidaDaImpressora(req: any, peca: { id: string; status?:
   for (const maquina of Object.keys(partesAtivas(partesDaPeca(peca as any)))) {
     await registrarImpressao(req, { itemId: peca.id, maquina, tipo: "pausa", quantidade: 0, totalDepois: peca.quantityProduced ?? 0 });
   }
+}
+
+// ─── CANCELAR A PEÇA ────────────────────────────────────────────────────────
+//
+// Decisão do dono (padrão): cancelar a mãe cancela junto os complementos que
+// ainda não viraram material; os que já tiveram unidade impressa, conferida,
+// embalada ou entregue ficam como estão — cancelar não desfaz lona impressa —
+// e a resposta avisa quais ficaram.
+export const CANCELAR_MAE_CANCELA_COMPLEMENTOS_NAO_PRODUZIDOS = true;
+
+/** Complemento que ainda não virou material (nada impresso/conferido/embalado/entregue). */
+export function complementoSemMaterial(c: { quantityProduced?: number | null; reuseQty?: number | null; conferredQty?: number | null; embaladaQty?: number | null; deliveredQty?: number | null }): boolean {
+  return !(c.quantityProduced ?? 0) && !(c.reuseQty ?? 0) && !(c.conferredQty ?? 0) && !((c as any).embaladaQty ?? 0) && !(c.deliveredQty ?? 0);
+}
+
+/**
+ * Cancela UMA peça: status, de onde ela saiu (para o descancelar) e o MOTIVO
+ * na coluna própria — as observações da peça ficam intactas (antes o motivo
+ * era gravado por cima delas, e descancelar devolvia a peça sem a instrução
+ * de produção). Não grava trilha nem avisa ninguém: quem chama decide.
+ */
+async function gravarCancelamento(req: any, atual: Item, motivo: string | null): Promise<Item | undefined> {
+  const item = await storage.updateItem(atual.id, {
+    status: "canceled",
+    // De onde a peça saiu — é o que o descancelar do admin restaura
+    // (dono, 01/09). Cancelar de novo uma já cancelada não sobrescreve.
+    statusBeforeCancel: atual.status === "canceled" ? atual.statusBeforeCancel : atual.status,
+    motivoCancelamento: motivo,
+  } as any);
+  if (!item) return undefined;
+  // Cancelada em impressão: sai da impressora — "pausa" no diário.
+  await registrarSaidaDaImpressora(req, atual);
+  // Peça que atendia uma solicitação do Atendimento: se era a última, a peça
+  // solicitada volta a ficar aberta — o mesmo da exclusão.
+  if ((atual as any).pedidoDePecaLinhaId) {
+    const { aoExcluirPeca } = await import("./pedidos-de-peca");
+    await aoExcluirPeca(req, atual as any, "cancelada");
+  }
+  return item;
+}
+
+/**
+ * Os complementos vivos da mãe que está sendo cancelada: cancela os sem
+ * material (se a decisão estiver ligada) e devolve os que ficaram.
+ * `pular` = ids que o próprio lote já cancela (não cancelar duas vezes).
+ */
+async function cancelarComplementosDaMae(req: any, mae: Item, motivo: string | null, pular: Set<string> = new Set()) {
+  const vivos = (await storage.getLiveComplements(mae.id)).filter((c) => c.status !== "canceled" && !pular.has(c.id));
+  const cancelados: Item[] = [];
+  const mantidos: Item[] = [];
+  for (const c of vivos) {
+    if (CANCELAR_MAE_CANCELA_COMPLEMENTOS_NAO_PRODUZIDOS && complementoSemMaterial(c)) {
+      const feito = await gravarCancelamento(req, c, motivo ? `${motivo} (junto com a peça ${mae.displayId})` : `Cancelado junto com a peça ${mae.displayId}`);
+      if (feito) cancelados.push(feito);
+    } else {
+      mantidos.push(c);
+    }
+  }
+  return { cancelados, mantidos };
+}
+
+/** A frase do aviso sobre complementos que ficaram (já têm material). */
+function avisoDosComplementosMantidos(mantidos: { displayId?: string | null }[]): string | null {
+  if (mantidos.length === 0) return null;
+  const codigos = mantidos.map((c) => c.displayId).join(", ");
+  return mantidos.length === 1
+    ? `O complemento ${codigos} já tem material produzido e continua ativo — cancele à parte, se for o caso.`
+    : `Os complementos ${codigos} já têm material produzido e continuam ativos — cancele à parte, se for o caso.`;
 }
 
 // ─── MOTIVO das devoluções ──────────────────────────────────────────────────
@@ -401,6 +470,13 @@ function podeMudarQuantidade(req: { userRole?: string }): boolean {
   return req.userRole === "admin" || req.userRole === "solicitacao";
 }
 
+/**
+ * Quem muda o CAMINHO da peça pelo PATCH genérico — dispensar a aprovação do
+ * patrocinador e marcar reaproveitamento. Decisão do dono: os mesmos que
+ * decidem prioridade (quem gerencia a lista); Arte e Atendimento não.
+ */
+const PAPEIS_DO_CAMINHO_DA_PECA: readonly string[] = ["admin", "solicitacao"];
+
 // KIT (14/09): quem está pedindo, na régua de shared/kit.ts.
 const quemVe = (req: any) => ({ kit: req.userKit === true, userId: req.userId ?? null });
 
@@ -409,6 +485,25 @@ async function canCreateItemsFor(req: { userRole?: string; userId?: string }, ev
   if (!eventId || !req.userId) return false;
   const ev = await storage.getEvent(eventId);
   return !!ev && ev.createdBy === req.userId;
+}
+
+/** As duas travas da planilha (preview e confirmar): quem pode e evento aberto. */
+async function barraImportacao(req: any, res: any): Promise<boolean> {
+  try {
+    if (!(await canCreateItemsFor(req, req.params.id))) {
+      res.status(403).json({ error: "Sem permissão para importar itens neste evento" });
+      return true;
+    }
+    const fechado = motivoEventoFechado(await storage.getEvent(req.params.id));
+    if (fechado) {
+      res.status(409).json(corpoEventoFechado(fechado));
+      return true;
+    }
+    return false;
+  } catch (error) {
+    responderErro(res, error, "importar planilha");
+    return true;
+  }
 }
 
 // A guarda "evento finalizado não recebe trabalho" (constantes de erro,
@@ -1391,7 +1486,7 @@ export function registerItemRoutes(app: Express): void {
       // "completed": ver motivoEventoFechado.
       const fechadoAvulsa = motivoEventoFechado(event);
       if (fechadoAvulsa) {
-        return res.status(409).json({ error: erroEventoFechado(fechadoAvulsa) });
+        return res.status(409).json(corpoEventoFechado(fechadoAvulsa));
       }
 
       // Check if event was completed - if so, reset priority and require re-definition
@@ -1453,7 +1548,7 @@ export function registerItemRoutes(app: Express): void {
       }
       res.status(201).json(item);
     } catch (error: any) {
-      res.status(400).json({ error: error.message });
+      responderErro(res, error, "criar peça");
     }
   });
 
@@ -1461,11 +1556,23 @@ export function registerItemRoutes(app: Express): void {
   app.post("/api/items/bulk", requireAuth, async (req, res) => {
     try {
       const { items: itemsData } = req.body;
-      
+
       if (!Array.isArray(itemsData) || itemsData.length === 0) {
-        return res.status(400).json({ error: "Items array is required and cannot be empty" });
+        return res.status(400).json({ error: "Nenhuma peça enviada — preencha pelo menos uma linha." });
       }
-      if (!(await canCreateItemsFor(req, itemsData[0]?.eventId))) {
+      // UM evento por lote: a permissão e a trava de evento fechado são
+      // conferidas uma vez só, no evento do lote. Com eventos misturados, a
+      // 2ª linha em diante escapava das duas (bastava a 1ª ser de um evento
+      // permitido e aberto).
+      const eventoDoLote = itemsData[0]?.eventId;
+      if (typeof eventoDoLote !== "string" || !eventoDoLote) {
+        return res.status(400).json({ error: "Linha 1: informe o evento da peça." });
+      }
+      const outroEvento = itemsData.findIndex((i: any) => i?.eventId !== eventoDoLote);
+      if (outroEvento >= 0) {
+        return res.status(400).json({ error: `Linha ${outroEvento + 1}: todas as peças do lote precisam ser do mesmo evento.` });
+      }
+      if (!(await canCreateItemsFor(req, eventoDoLote))) {
         return res.status(403).json({ error: "Sem permissão para criar itens neste evento" });
       }
       // Entrada Rápida cria peça da Arena: o usuário do Kit usa o formulário
@@ -1475,17 +1582,22 @@ export function registerItemRoutes(app: Express): void {
       }
       // Mesma trava do POST unitário — sem ela o lote era o caminho aberto para
       // pendurar peça num evento encerrado.
-      const fechadoLote = motivoEventoFechado(await storage.getEvent(itemsData[0]?.eventId));
+      const eventoLote = await storage.getEvent(eventoDoLote);
+      if (!eventoLote) return res.status(404).json({ error: EVENTO_NAO_ENCONTRADO });
+      const fechadoLote = motivoEventoFechado(eventoLote);
       if (fechadoLote) {
-        return res.status(409).json({ error: erroEventoFechado(fechadoLote) });
+        return res.status(409).json(corpoEventoFechado(fechadoLote));
       }
 
       // Validate all items
       const validatedItems = itemsData.map((item, index) => {
         try {
           // publicInsertItemSchema: mesma blindagem do POST unitário — o body
-          // do lote não cria parentesco de complemento (ver acima).
-          const parsed = publicInsertItemSchema.parse(item);
+          // do lote não cria parentesco de complemento (ver acima). Sem a
+          // remessa do Kit: a Entrada Rápida só cria peça da Arena, e a
+          // remessa sem a conferência do POST unitário penduraria a peça numa
+          // remessa de outro evento ou de outra pessoa.
+          const parsed = publicInsertItemSchema.omit({ kitRemessaId: true }).parse(item);
           // Recalcular m² no servidor quando derivável (não confiar no cliente).
           const derivedM2 = deriveCalculatedM2(parsed);
           if (derivedM2 !== undefined) parsed.calculatedM2 = derivedM2;
@@ -1495,7 +1607,8 @@ export function registerItemRoutes(app: Express): void {
           }
           return parsed;
         } catch (error: any) {
-          throw new Error(`Validation error at item ${index + 1}: ${error.message}`);
+          if (error instanceof z.ZodError) throw erroPublico(400, `Linha ${index + 1}: ${fraseDoZod(error)}`);
+          throw error;
         }
       });
       
@@ -1538,10 +1651,12 @@ export function registerItemRoutes(app: Express): void {
       
       // Broadcast update
       broadcast({ type: "items_bulk_created", items: createdItems, eventId: firstItem?.eventId });
-      
+      // Como no POST unitário: peça nova pode tirar o evento de "concluído".
+      await updateEventStatus(eventoDoLote).catch((e) => console.error("[lote] updateEventStatus", e));
+
       res.status(201).json(createdItems);
     } catch (error: any) {
-      res.status(400).json({ error: error.message });
+      responderErro(res, error, "criar peças em lote");
     }
   });
 
@@ -1558,19 +1673,19 @@ export function registerItemRoutes(app: Express): void {
   // patrocinadores.
 
   // ── Preview Excel items (parse without saving) ───────────────────────────
-  app.post("/api/events/:id/preview-xlsx", requireAuth, handlePreviewXlsx);
+  // O preview passa pelas MESMAS duas travas do confirmar: sem elas a pessoa
+  // revisava 200 linhas, vinculava patrocinador a patrocinador e só no último
+  // clique descobria que não podia importar ali.
+  app.post("/api/events/:id/preview-xlsx", requireAuth, async (req, res) => {
+    if (await barraImportacao(req, res)) return;
+    return handlePreviewXlsx(req, res);
+  });
 
   // ── Confirm import (save pre-reviewed items) ─────────────────────────────
   app.post("/api/events/:id/confirm-import", requireAuth, async (req, res) => {
-    if (!(await canCreateItemsFor(req, req.params.id))) {
-      return res.status(403).json({ error: "Sem permissão para importar itens neste evento" });
-    }
     // A planilha é a porta que entra mais peça de uma vez — bloquear aqui, no
     // wrapper que já faz o gate de papel, evita 200 peças invisíveis.
-    const fechadoImport = motivoEventoFechado(await storage.getEvent(req.params.id));
-    if (fechadoImport) {
-      return res.status(409).json({ error: erroEventoFechado(fechadoImport) });
-    }
+    if (await barraImportacao(req, res)) return;
     return handleConfirmImport(req, res);
   });
 
@@ -1580,13 +1695,18 @@ export function registerItemRoutes(app: Express): void {
     if (!(await canCreateItemsFor(req, req.params.id))) {
       return res.status(403).json({ error: "Sem permissão para clonar itens para este evento" });
     }
+    // O usuário do Kit cria peça só numa remessa dele (formulário ou
+    // importação); o clone traria peças da Arena, sem remessa.
+    if (req.userKit) {
+      return res.status(403).json({ error: "Usuário do Kit não clona peças — crie pelo formulário ou pela importação, escolhendo a remessa." });
+    }
     try {
       const targetEvent = await storage.getEvent(req.params.id);
       if (!targetEvent) return res.status(404).json({ error: "Evento destino não encontrado" });
       // Clonar é criar peça — a quarta porta, e a que traz a lista inteira.
       const fechadoClone = motivoEventoFechado(targetEvent);
       if (fechadoClone) {
-        return res.status(409).json({ error: erroEventoFechado(fechadoClone) });
+        return res.status(409).json(corpoEventoFechado(fechadoClone));
       }
 
       const { sourceEventId, itemIds } = req.body as { sourceEventId: string; itemIds?: string[] };
@@ -1622,6 +1742,20 @@ export function registerItemRoutes(app: Express): void {
         sourceItems = todasDaOrigem.filter((i) => escolhidas.has(i.id));
       }
 
+      // O QUE NÃO SE CLONA. Complemento é um AUMENTO pós-produção da peça-mãe
+      // (a diferença de quantidade, com ciclo próprio): clonado, viraria uma
+      // peça avulsa com a quantidade do aumento. Quem precisa do aumento no
+      // evento novo ajusta a quantidade da mãe clonada.
+      // Cancelada fica fora quando ninguém a escolheu (clonar tudo): o evento
+      // novo não deve renascer com o que o anterior desistiu. Escolhida à mão
+      // no diálogo, vai — a pessoa viu que era cancelada.
+      const antesDoFiltro = sourceItems.length;
+      sourceItems = sourceItems.filter((i) => !i.parentItemId && (itemIds !== undefined || i.status !== "canceled"));
+      const deixadasDeFora = antesDoFiltro - sourceItems.length;
+      if (sourceItems.length === 0) {
+        return res.status(400).json({ error: "Nada para clonar: as peças escolhidas são complementos ou canceladas. Complemento vai junto com a peça-mãe." });
+      }
+
       const cloned = sourceItems.map(item => ({
         eventId: targetEvent.id,
         type: item.type,
@@ -1639,14 +1773,19 @@ export function registerItemRoutes(app: Express): void {
         observations: item.observations || "",
         calculatedM2: item.calculatedM2,
         status: "draft" as const,
-        isReuse: item.isReuse || false,
+        // Reaproveitamento é do estoque DAQUELE evento (a lona que sobrou
+        // dele): no evento novo a peça nasce para produzir, e quem reaproveita
+        // marca de novo, com a quantidade de agora.
+        isReuse: false,
+        reuseQty: 0,
       }));
 
       const validated = cloned.map((item, i) => {
         try {
           return insertItemSchema.parse(item);
         } catch (e: any) {
-          throw new Error(`Item ${i + 1} (${item.type}): ${e.message}`);
+          if (e instanceof z.ZodError) throw erroPublico(400, `Peça ${sourceItems[i]?.displayId ?? i + 1} (${item.type}): ${fraseDoZod(e)}`);
+          throw e;
         }
       });
 
@@ -1670,9 +1809,9 @@ export function registerItemRoutes(app: Express): void {
       broadcast({ type: "items_bulk_created", items: created, eventId: targetEvent.id });
       await updateEventStatus(targetEvent.id);
 
-      res.status(201).json({ cloned: created.length, items: created });
+      res.status(201).json({ cloned: created.length, items: created, deixadasDeFora });
     } catch (error: any) {
-      res.status(400).json({ error: error.message });
+      responderErro(res, error, "clonar peças");
     }
   });
 
@@ -1692,7 +1831,7 @@ export function registerItemRoutes(app: Express): void {
       const role = req.userRole ?? "";
       if (!["admin", "solicitacao", "arte", "atendimento"].includes(role)) {
         const existing = await storage.getItem(req.params.id);
-        if (!existing) return res.status(404).json({ error: "Item not found" });
+        if (!existing) return res.status(404).json({ error: "Peça não encontrada" });
         const parentEvent = await storage.getEvent(existing.eventId);
         if (!parentEvent || parentEvent.createdBy !== req.userId) {
           return res.status(403).json({ error: "Sem permissão para editar esta peça" });
@@ -1763,7 +1902,7 @@ export function registerItemRoutes(app: Express): void {
       // Pegar item atual antes de atualizar
       const currentItem = await storage.getItem(req.params.id);
       if (!currentItem) {
-        return res.status(404).json({ error: "Item not found" });
+        return res.status(404).json({ error: "Peça não encontrada" });
       }
       // PRIORIDADE DA PEÇA (dono, 27/08): quem decide o que fura a fila da
       // Arte é quem gerencia a lista — admin e Solicitação. O gate dispara só
@@ -1774,6 +1913,19 @@ export function registerItemRoutes(app: Express): void {
           && !!validatedData.isPriority !== !!currentItem.isPriority
           && !["admin", "solicitacao"].includes(role)) {
         return res.status(403).json({ error: "Marcar peça como prioritária é do admin e da Solicitação." });
+      }
+      // DISPENSAR APROVAÇÃO e REAPROVEITAR mudam o caminho da peça (pula o
+      // patrocinador; pula a impressão) — decisão de quem gerencia a lista,
+      // como a prioridade. Arte e Atendimento editam thumb/referência por
+      // aqui e mandam o form inteiro: o gate só dispara quando o valor MUDA.
+      const mudaDispensa = validatedData.skipApproval !== undefined && !!validatedData.skipApproval !== !!currentItem.skipApproval;
+      const mudaReuso = validatedData.isReuse !== undefined && !!validatedData.isReuse !== !!currentItem.isReuse;
+      if ((mudaDispensa || mudaReuso) && !PAPEIS_DO_CAMINHO_DA_PECA.includes(role)) {
+        return res.status(403).json({
+          error: mudaDispensa
+            ? "Dispensar a aprovação do patrocinador é do admin e da Solicitação."
+            : "Marcar reaproveitamento é do admin e da Solicitação.",
+        });
       }
       // ANDA: este PATCH mexe em quantidade, material, dimensões e m² — o
       // contrato da peça. Num evento que já acabou, mudar o contrato só
@@ -1888,6 +2040,35 @@ export function registerItemRoutes(app: Express): void {
         }
       }
 
+      // REAPROVEITAMENTO pelo PATCH: a flag sozinha deixava a peça "reaproveitada"
+      // com reuseQty 0 — as telas que somam unidades reaproveitadas liam zero,
+      // e a Gráfica recebia para imprimir o que era para sair do estoque. Ligar
+      // exige dizer QUANTAS (reuseQty); a flag `isReuse` continua sendo o
+      // "reaproveita tudo", derivada da quantidade.
+      if (mudaReuso) {
+        const quantidadeFinal = Number(updatePayload.quantity ?? currentItem.quantity);
+        if (validatedData.isReuse) {
+          const pedida = Number(req.body?.reuseQty);
+          const cabe = quantidadeFinal - (currentItem.quantityProduced ?? 0);
+          if (!Number.isInteger(pedida) || pedida < 1) {
+            return res.status(400).json({ error: "Para marcar reaproveitamento, informe quantas unidades saem do estoque (reuseQty)." });
+          }
+          if (pedida > cabe) {
+            return res.status(400).json({ error: `Reaproveitamento de ${pedida} un. não cabe: a peça tem ${cabe} un. ainda não impressas.` });
+          }
+          updatePayload.reuseQty = pedida;
+          updatePayload.isReuse = pedida >= quantidadeFinal;
+        } else {
+          // Desligar depois que a Gráfica pegou a peça é CORRIGIR o que ela
+          // lançou — isso tem rota própria, que confere o que já saiu.
+          if (COMPLEMENT_ALLOWED_STATUSES.includes(currentItem.status)) {
+            return res.status(409).json({ error: "A peça já está na produção — quem corrige o reaproveitamento é a Gráfica (Corrigir reaproveitamento)." });
+          }
+          updatePayload.reuseQty = 0;
+          updatePayload.isReuse = false;
+        }
+      }
+
       // m² é derivado, não recebido: quando a quantidade ou as dimensões do
       // arquivo mudam, o valor enviado pelo cliente é ignorado e recalculado
       // com o estado MESCLADO (o que veio no PATCH + o que já estava na peça).
@@ -1931,7 +2112,7 @@ export function registerItemRoutes(app: Express): void {
 
       const item = await storage.updateItem(req.params.id, updatePayload);
       if (!item) {
-        return res.status(404).json({ error: "Item not found" });
+        return res.status(404).json({ error: "Peça não encontrada" });
       }
 
       // Create audit log - build descriptive diff of changed fields
@@ -1940,8 +2121,10 @@ export function registerItemRoutes(app: Express): void {
       if (item.status !== currentItem.status) {
         changedParts.push(`Status: ${translateStatus(currentItem.status)} → ${translateStatus(item.status)}`);
       }
-      if ('isReuse' in validatedData && item.isReuse !== currentItem.isReuse) {
-        changedParts.push(item.isReuse ? "Marcado para reaproveitamento" : "Reaproveitamento removido");
+      if (mudaReuso) {
+        changedParts.push((item.reuseQty ?? 0) > 0
+          ? `Marcado para reaproveitamento: ${item.reuseQty} de ${item.quantity} un.`
+          : "Reaproveitamento removido");
       }
       if ('quantity' in validatedData && item.quantity !== currentItem.quantity) {
         // Numa peça já em produção, "15 → 10" sozinho não explica nada seis
@@ -2062,7 +2245,7 @@ export function registerItemRoutes(app: Express): void {
 
       res.json(item);
     } catch (error: any) {
-      res.status(400).json({ error: error.message });
+      responderErro(res, error, "editar peça");
     }
   });
 
@@ -2095,6 +2278,19 @@ export function registerItemRoutes(app: Express): void {
       if (destinoId === item.eventId) {
         return res.status(409).json({ error: "A peça já está neste evento." });
       }
+      // COMPLEMENTO e MÃE andam juntos: o complemento é o aumento da mãe (o
+      // saldo, a ordenação e o "#0062-C1" dependem dela no MESMO evento).
+      // Transferir só um dos lados partiria o contrato em dois eventos.
+      if (item.parentItemId) {
+        return res.status(409).json({ error: "Esta peça é complemento de outra e não troca de evento sozinha. Transfira a peça-mãe ou crie a peça no evento de destino.", code: "IS_COMPLEMENT" });
+      }
+      const complementos = await storage.getLiveComplements(item.id);
+      if (complementos.length > 0) {
+        return res.status(409).json({
+          error: `Esta peça tem ${complementos.length === 1 ? "o complemento" : "os complementos"} ${complementos.map((c) => c.displayId).join(", ")} e não troca de evento. Cancele ${complementos.length === 1 ? "o complemento" : "os complementos"} antes ou crie a peça no evento de destino.`,
+          code: "HAS_COMPLEMENTS",
+        });
+      }
 
       const [origem, destino] = await Promise.all([
         storage.getEvent(item.eventId),
@@ -2108,7 +2304,7 @@ export function registerItemRoutes(app: Express): void {
       if (await barraEventoFinalizado(item, res)) return;
       const motivoDestino = motivoEventoFechado(destino);
       if (motivoDestino) {
-        return res.status(409).json({ error: erroEventoFechado(motivoDestino), code: "EVENT_FINALIZED", reason: motivoDestino });
+        return res.status(409).json(corpoEventoFechado(motivoDestino));
       }
 
       // Peça dentro de um volume ABERTO não troca de evento: o tubo é do
@@ -2127,16 +2323,41 @@ export function registerItemRoutes(app: Express): void {
         return res.status(409).json({ error: "Esta peça tem peça do estoque reservada para ela. Libere a reserva antes de transferir.", code: "HAS_STOCK_RESERVATION" });
       }
 
+      // PATROCINADORES que não estão no evento de destino: o vínculo fica (a
+      // aprovação dele é parte do histórico da peça), mas quem transfere
+      // precisa saber — a Vinculação do destino não oferece esse patrocinador.
+      const [vinculos, doDestino] = await Promise.all([
+        storage.getItemSponsors(item.id),
+        storage.getEventSponsors(destinoId),
+      ]);
+      const noDestino = new Set(doDestino.map((es) => es.sponsorId));
+      const foraIds = vinculos.map((v) => v.sponsorId).filter((id) => !noDestino.has(id));
+      const patrocinadoresFora = (await Promise.all(foraIds.map((id) => storage.getSponsor(id))))
+        .map((s, i) => s?.name ?? foraIds[i]);
+
       const eventoOrigemId = item.eventId;
-      const atualizado = await storage.updateItem(item.id, { eventId: destinoId });
-      if (!atualizado) return res.status(404).json({ error: "Peça não encontrada" });
+      // A solicitação do Atendimento é do evento de ORIGEM: a peça sai dela, e
+      // a peça solicitada volta a ficar aberta lá (como na exclusão).
+      const ligadaAoPedido = !!(item as any).pedidoDePecaLinhaId;
+      const atualizado = await storage.updateItem(item.id, {
+        eventId: destinoId,
+        kitRemessaId: null,
+        ...(ligadaAoPedido ? { pedidoDePecaId: null, pedidoDePecaLinhaId: null } : {}),
+      } as any);
+      if (!atualizado) return res.status(404).json({ error: PECA_NAO_ENCONTRADA });
+      if (ligadaAoPedido) {
+        const { aoExcluirPeca } = await import("./pedidos-de-peca");
+        await aoExcluirPeca(req, item as any, "transferida de evento");
+      }
 
       await createAuditLog(
         req,
         "updated",
         "item",
         item.id,
-        `Peça transferida do evento "${origem?.name ?? "—"}" para "${destino.name}" — status mantido (${translateStatus(item.status)}).`,
+        `Peça transferida do evento "${origem?.name ?? "—"}" para "${destino.name}" — status mantido (${translateStatus(item.status)}).`
+        + (ligadaAoPedido ? " Deixou de atender a solicitação do Atendimento do evento de origem." : "")
+        + (patrocinadoresFora.length ? ` Patrocinadores fora do evento de destino: ${patrocinadoresFora.join(", ")}.` : ""),
       );
 
       // Recalcula os dois eventos: a origem pode ter perdido a última peça
@@ -2149,12 +2370,15 @@ export function registerItemRoutes(app: Express): void {
 
       broadcast({ type: "item_updated", item: atualizado });
 
-      res.json(atualizado);
-    } catch (error: any) {
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({ error: error.errors[0]?.message ?? "Dados inválidos" });
+      // `avisos` vai para o toast: a transferência deu certo, mas há o que conferir.
+      const avisos: string[] = [];
+      if (patrocinadoresFora.length) {
+        avisos.push(`${patrocinadoresFora.join(", ")} não ${patrocinadoresFora.length === 1 ? "é patrocinador" : "são patrocinadores"} de "${destino.name}" — vincule ao evento ou tire da peça.`);
       }
-      res.status(500).json({ error: error.message });
+      if (ligadaAoPedido) avisos.push("A peça deixou de atender a solicitação do Atendimento no evento de origem, que voltou a ficar aberta.");
+      res.json({ ...atualizado, avisos, patrocinadoresFora });
+    } catch (error: any) {
+      responderErro(res, error, "transferir peça de evento");
     }
   });
 
@@ -2178,7 +2402,7 @@ export function registerItemRoutes(app: Express): void {
 
       const item = await storage.getItem(req.params.id);
       if (!item) {
-        return res.status(404).json({ error: "Item not found" });
+        return res.status(404).json({ error: "Peça não encontrada" });
       }
 
       // ── Alcance da exclusão: solicitação = admin (decisão do dono) ────────
@@ -2223,7 +2447,7 @@ export function registerItemRoutes(app: Express): void {
         throw e;
       }
       if (!excluida) {
-        return res.status(404).json({ error: "Item not found" });
+        return res.status(404).json({ error: "Peça não encontrada" });
       }
       // Peça que atendia uma solicitação: se era a última, a peça solicitada
       // volta para aberta sozinha (dono, 14/09 — sem "desfazer atendimento").
@@ -2313,7 +2537,7 @@ export function registerItemRoutes(app: Express): void {
       // nasceria invisível — a fila não a mostraria e ninguém a produziria.
       const fechadoComplemento = motivoEventoFechado(event);
       if (fechadoComplemento) {
-        return res.status(409).json({ error: erroEventoFechado(fechadoComplemento) });
+        return res.status(409).json(corpoEventoFechado(fechadoComplemento));
       }
 
       // Dedupe de 60 s (duplo clique / retry de rede): devolve 200 com o
@@ -2599,7 +2823,7 @@ export function registerItemRoutes(app: Express): void {
       // Validate current status
       const currentItem = await storage.getItem(req.params.id);
       if (!currentItem) {
-        return res.status(404).json({ error: "Item not found" });
+        return res.status(404).json({ error: "Peça não encontrada" });
       }
       
       // ANDA: empurra a peça para a fila do Atendimento (ou da Revisão).
@@ -2608,7 +2832,7 @@ export function registerItemRoutes(app: Express): void {
       // Only items that passed through vincular-patrocinadores (awaiting_submission) can be worked on
       if (currentItem.status !== "awaiting_submission") {
         return res.status(409).json({ 
-          error: `Item não pode ser enviado para aprovação. Status atual: ${currentItem.status}. O item precisa passar pelo fluxo de Vincular Patrocinadores antes.`
+          error: `A peça não pode ser enviada para aprovação: está em "${translateStatus(currentItem.status)}". Ela precisa passar pela Vinculação de patrocinadores antes.`
         });
       }
       
@@ -2671,7 +2895,7 @@ export function registerItemRoutes(app: Express): void {
       const item = await storage.updateItem(req.params.id, itemUpdates);
       
       if (!item) {
-        return res.status(404).json({ error: "Item not found" });
+        return res.status(404).json({ error: "Peça não encontrada" });
       }
       // A versão da arte que foi para aprovação — uma linha por envio. É o
       // que deixa a tela de Versões dizer QUAL thumb cada patrocinador viu.
@@ -2750,7 +2974,7 @@ export function registerItemRoutes(app: Express): void {
       // Validate current status
       const currentItem = await storage.getItem(req.params.id);
       if (!currentItem) {
-        return res.status(404).json({ error: "Item not found" });
+        return res.status(404).json({ error: "Peça não encontrada" });
       }
       
       // ANDA — e é LITERALMENTE o caso que o dono viu em produção ("encerrar
@@ -2760,7 +2984,7 @@ export function registerItemRoutes(app: Express): void {
 
       if (currentItem.status !== "awaiting_sponsor_approval") {
         return res.status(409).json({
-          error: `Item não pode ser aprovado pelo patrocinador. Status atual: ${currentItem.status}, esperado: awaiting_sponsor_approval`
+          error: `A peça não pode ser aprovada pelo patrocinador: está em "${translateStatus(currentItem.status)}", e a aprovação é em "Aguardando Aprovação".`
         });
       }
 
@@ -2773,7 +2997,7 @@ export function registerItemRoutes(app: Express): void {
       });
 
       if (!item) {
-        return res.status(404).json({ error: "Item not found" });
+        return res.status(404).json({ error: "Peça não encontrada" });
       }
 
       // O ATALHO APROVA A PEÇA INTEIRA — então as LINHAS acompanham (24/08,
@@ -2831,12 +3055,12 @@ export function registerItemRoutes(app: Express): void {
         return res.status(403).json({ error: "Apenas usuários com perfil Arte podem dispensar itens" });
       }
       const currentItem = await storage.getItem(req.params.id);
-      if (!currentItem) return res.status(404).json({ error: "Item not found" });
+      if (!currentItem) return res.status(404).json({ error: "Peça não encontrada" });
       // ANDA: a peça pula a aprovação do Atendimento e vai para a
       // finalização da Arte.
       if (await barraEventoFinalizado(currentItem, res)) return;
       if (!DISPENSAVEIS.includes(currentItem.status)) {
-        return res.status(409).json({ error: `Item não pode pular a aprovação no status atual: ${currentItem.status}` });
+        return res.status(409).json({ error: `A peça não pode pular a aprovação estando em "${translateStatus(currentItem.status)}".` });
       }
       // MOLDE (22/09) não tem aprovação nem finalização: o envio dele já vai
       // direto para a Revisão Final.
@@ -2877,7 +3101,7 @@ export function registerItemRoutes(app: Express): void {
       // ninguém do chão de fábrica sabia que ela tinha entrado.
       // Espelha o que /submit-for-approval faz logo acima.
       const item = await storage.getItem(req.params.id);
-      if (!item) return res.status(404).json({ error: "Item not found" });
+      if (!item) return res.status(404).json({ error: "Peça não encontrada" });
       const event = await storage.getEvent(item.eventId);
 
       // Avisar a GRÁFICA aqui virou mentira quando o destino mudou: a peça
@@ -2958,7 +3182,7 @@ export function registerItemRoutes(app: Express): void {
 
       if (currentItem.status !== "awaiting_sponsor_approval") {
         return res.status(409).json({
-          error: `Item não está aguardando aprovação do patrocinador. Status atual: ${currentItem.status}`
+          error: `A peça não está aguardando aprovação do patrocinador: está em "${translateStatus(currentItem.status)}".`
         });
       }
 
@@ -3092,7 +3316,7 @@ export function registerItemRoutes(app: Express): void {
 
       if (currentItem.status !== "awaiting_sponsor_approval") {
         return res.status(409).json({
-          error: `Item não está aguardando aprovação do patrocinador. Status atual: ${currentItem.status}`
+          error: `A peça não está aguardando aprovação do patrocinador: está em "${translateStatus(currentItem.status)}".`
         });
       }
 
@@ -3462,7 +3686,7 @@ export function registerItemRoutes(app: Express): void {
       // Validate current status
       const currentItem = await storage.getItem(req.params.id);
       if (!currentItem) {
-        return res.status(404).json({ error: "Item not found" });
+        return res.status(404).json({ error: "Peça não encontrada" });
       }
       
       // ANDA: o arquivo final leva a peça para a Revisão Final e, dali, para a
@@ -3473,7 +3697,7 @@ export function registerItemRoutes(app: Express): void {
       // awaiting_creator_review: skipApproval / no-sponsor flow (sponsor approval skipped)
       if (currentItem.status !== "sponsor_approved" && currentItem.status !== "awaiting_creator_review") {
         return res.status(409).json({ 
-          error: `Item não pode receber arquivo final. Status atual: ${currentItem.status}, esperado: sponsor_approved ou awaiting_creator_review` 
+          error: `A peça não pode receber o arquivo final: está em "${translateStatus(currentItem.status)}", e o arquivo final entra depois da aprovação do patrocinador.` 
         });
       }
       
@@ -3486,7 +3710,7 @@ export function registerItemRoutes(app: Express): void {
       });
       
       if (!item) {
-        return res.status(404).json({ error: "Item not found" });
+        return res.status(404).json({ error: "Peça não encontrada" });
       }
       
       const event = await storage.getEvent(item.eventId);
@@ -3533,7 +3757,7 @@ export function registerItemRoutes(app: Express): void {
 
       const currentItem = await storage.getItem(req.params.id);
       if (!currentItem) {
-        return res.status(404).json({ error: "Item not found" });
+        return res.status(404).json({ error: "Peça não encontrada" });
       }
       // ANDA: trocar o thumb é refazer o material que os patrocinadores olham.
       if (await barraEventoFinalizado(currentItem, res)) return;
@@ -3559,7 +3783,7 @@ export function registerItemRoutes(app: Express): void {
         approvalThumbUpdatedAt: new Date(),
       });
       if (!item) {
-        return res.status(404).json({ error: "Item not found" });
+        return res.status(404).json({ error: "Peça não encontrada" });
       }
       await storage.createItemArtVersion({ itemId: item.id, thumbUrl: thumbNormalizado, origem: "troca", createdBy: req.userName ?? null });
       invalidarCacheDeVersoes();
@@ -3615,7 +3839,7 @@ export function registerItemRoutes(app: Express): void {
 
       const currentItem = await storage.getItem(req.params.id);
       if (!currentItem) {
-        return res.status(404).json({ error: "Item not found" });
+        return res.status(404).json({ error: "Peça não encontrada" });
       }
       // ANDA: substituir o arquivo final notifica a Gráfica para RE-VERIFICAR
       // antes de produzir e ainda propaga a arte nova para os complementos —
@@ -3637,7 +3861,7 @@ export function registerItemRoutes(app: Express): void {
         previousFinalFileName: prevName,
       });
       if (!item) {
-        return res.status(404).json({ error: "Item not found" });
+        return res.status(404).json({ error: "Peça não encontrada" });
       }
 
       const event = await storage.getEvent(item.eventId);
@@ -3723,7 +3947,7 @@ export function registerItemRoutes(app: Express): void {
       // Validate current status
       const currentItem = await storage.getItem(req.params.id);
       if (!currentItem) {
-        return res.status(404).json({ error: "Item not found" });
+        return res.status(404).json({ error: "Peça não encontrada" });
       }
       
       // ANDA: liberar para produção é o gesto que autoriza imprimir. Vem ANTES
@@ -3822,7 +4046,7 @@ export function registerItemRoutes(app: Express): void {
           })
           .where(eq(itemsTable.id, req.params.id))
           .returning();
-        if (!updated) throw Object.assign(new Error("Item not found"), { httpStatus: 404 });
+        if (!updated) throw Object.assign(new Error("Peça não encontrada"), { httpStatus: 404 });
 
         await tx.insert(auditLogs).values({
           ...resolveActor(req),
@@ -3878,7 +4102,7 @@ export function registerItemRoutes(app: Express): void {
       // Validate current status
       const currentItem = await storage.getItem(req.params.id);
       if (!currentItem) {
-        return res.status(404).json({ error: "Item not found" });
+        return res.status(404).json({ error: "Peça não encontrada" });
       }
       
       // ANDA: reprovar APAGA o arquivo final e o thumb e devolve a peça para a
@@ -3887,7 +4111,7 @@ export function registerItemRoutes(app: Express): void {
 
       if (currentItem.status !== "awaiting_final_review") {
         return res.status(409).json({
-          error: `Item não pode ser reprovado pelo criador. Status atual: ${currentItem.status}, esperado: awaiting_final_review`
+          error: `A peça não pode ser reprovada na revisão: está em "${translateStatus(currentItem.status)}", e a revisão é em "Aguardando Revisão Final".`
         });
       }
 
@@ -3915,7 +4139,7 @@ export function registerItemRoutes(app: Express): void {
       });
       
       if (!item) {
-        return res.status(404).json({ error: "Item not found" });
+        return res.status(404).json({ error: "Peça não encontrada" });
       }
       
       const event = await storage.getEvent(item.eventId);
@@ -3966,7 +4190,7 @@ export function registerItemRoutes(app: Express): void {
 
       const currentItem = await storage.getItem(req.params.id);
       if (!currentItem) {
-        return res.status(404).json({ error: "Item not found" });
+        return res.status(404).json({ error: "Peça não encontrada" });
       }
 
       // ANDA: devolver para o começo do fluxo é criar trabalho novo para o
@@ -4012,7 +4236,7 @@ export function registerItemRoutes(app: Express): void {
       });
 
       if (!item) {
-        return res.status(404).json({ error: "Item not found" });
+        return res.status(404).json({ error: "Peça não encontrada" });
       }
 
       const event = await storage.getEvent(item.eventId);
@@ -4055,14 +4279,14 @@ export function registerItemRoutes(app: Express): void {
       const notes = motivo.motivo;
       const currentItem = await storage.getItem(req.params.id);
       if (!currentItem) {
-        return res.status(404).json({ error: "Item not found" });
+        return res.status(404).json({ error: "Peça não encontrada" });
       }
       
       // ANDA: devolver para a Arte com observações é pedir retrabalho.
       if (await barraEventoFinalizado(currentItem, res)) return;
 
       if (currentItem.status !== "awaiting_final_review") {
-        return res.status(409).json({ error: `Item não pode ser devolvido. Status atual: ${currentItem.status}` });
+        return res.status(409).json({ error: `A peça não pode ser devolvida estando em "${translateStatus(currentItem.status)}".` });
       }
       
       const item = await storage.updateItem(req.params.id, {
@@ -4090,7 +4314,7 @@ export function registerItemRoutes(app: Express): void {
       });
       
       if (!item) {
-        return res.status(404).json({ error: "Item not found" });
+        return res.status(404).json({ error: "Peça não encontrada" });
       }
       
       const event = await storage.getEvent(item.eventId);
@@ -4259,7 +4483,7 @@ export function registerItemRoutes(app: Express): void {
         }
 
         if (currentItem.status !== "awaiting_final_review") {
-          errors.push({ itemId, error: `Status inválido: ${currentItem.status}` });
+          errors.push({ itemId, error: `${currentItem.displayId ?? "Peça"} está em "${translateStatus(currentItem.status)}" — fora da etapa desta ação` });
           return;
         }
 
@@ -4329,7 +4553,7 @@ export function registerItemRoutes(app: Express): void {
       const { notes } = req.body;
       const currentItem = await storage.getItem(req.params.id);
       if (!currentItem) {
-        return res.status(404).json({ error: "Item not found" });
+        return res.status(404).json({ error: "Peça não encontrada" });
       }
       
       // CASO DUVIDOSO — barrado, e o porquê da dúvida fica aqui.
@@ -4343,33 +4567,43 @@ export function registerItemRoutes(app: Express): void {
       // nunca existiu já existe a exclusão, que segue liberada e é reversível.
       if (await barraEventoFinalizado(currentItem, res)) return;
 
-      const item = await storage.updateItem(req.params.id, {
-        status: "canceled",
-        // De onde a peça saiu — é o que o descancelar do admin restaura
-        // (dono, 01/09). Cancelar de novo uma já cancelada não sobrescreve.
-        statusBeforeCancel: currentItem.status === "canceled" ? currentItem.statusBeforeCancel : currentItem.status,
-        observations: notes || currentItem.observations,
-      });
-
+      const motivo = typeof notes === "string" && notes.trim() ? notes.trim() : null;
+      const item = await gravarCancelamento(req, currentItem, motivo);
       if (!item) {
-        return res.status(404).json({ error: "Item not found" });
+        return res.status(404).json({ error: PECA_NAO_ENCONTRADA });
       }
+      const { cancelados, mantidos } = await cancelarComplementosDaMae(req, currentItem, motivo);
 
-      const detailMsg = notes ? ` Motivo: ${notes}` : "";
+      const detailMsg = motivo ? ` Motivo: ${motivo}` : "";
       await createAuditLog(
         req,
         'canceled',
         'item',
         item.id,
         `Item cancelado${detailMsg}`
+        + (cancelados.length ? ` — complementos cancelados junto: ${cancelados.map((c) => c.displayId).join(", ")}` : "")
+        + (mantidos.length ? ` — complementos mantidos (já têm material): ${mantidos.map((c) => c.displayId).join(", ")}` : ""),
       );
-      // Cancelada em impressão: sai da impressora — "pausa" no diário.
-      await registrarSaidaDaImpressora(req, currentItem);
-      
+      if (cancelados.length) {
+        await createAuditLogsEmLote(req, cancelados.map((c) => ({
+          action: 'canceled', entityType: 'item', entityId: c.id,
+          details: `Complemento cancelado junto com a peça ${currentItem.displayId}${detailMsg}`,
+        })));
+      }
+
       broadcast({ type: "item_updated", item });
-      res.json(item);
+      for (const c of cancelados) broadcast({ type: "item_updated", item: c });
+      // Cancelada sai da conta do evento: ele pode ter acabado de fechar.
+      await updateEventStatus(item.eventId).catch((e) => console.error("[cancelar] updateEventStatus", e));
+      const aviso = avisoDosComplementosMantidos(mantidos);
+      res.json({
+        ...item,
+        complementosCancelados: cancelados.map((c) => c.displayId),
+        complementosMantidos: mantidos.map((c) => c.displayId),
+        ...(aviso ? { aviso } : {}),
+      });
     } catch (error: any) {
-      res.status(400).json({ error: error.message });
+      responderErro(res, error, "cancelar peça");
     }
   });
 
@@ -4389,7 +4623,7 @@ export function registerItemRoutes(app: Express): void {
         return res.status(403).json({ error: "Apenas administradores podem descancelar itens" });
       }
       const currentItem = await storage.getItem(req.params.id);
-      if (!currentItem) return res.status(404).json({ error: "Item not found" });
+      if (!currentItem) return res.status(404).json({ error: "Peça não encontrada" });
       if (currentItem.status !== "canceled") {
         return res.status(409).json({ error: "A peça não está cancelada — nada a descancelar" });
       }
@@ -4445,9 +4679,11 @@ export function registerItemRoutes(app: Express): void {
       const item = await storage.updateItem(req.params.id, {
         status: alvo,
         statusBeforeCancel: null,
+        // A peça voltou ao fluxo: o motivo do cancelamento fica só na trilha.
+        motivoCancelamento: null,
         ...(devolvida ? { impressaoPorMaquina: null, printMachine: null, ...colunasDaReserva(devolvida.reserva, currentItem.reservaPorMaquina, devolvida.pausas) } : {}),
       } as any);
-      if (!item) return res.status(404).json({ error: "Item not found" });
+      if (!item) return res.status(404).json({ error: "Peça não encontrada" });
 
       await createAuditLog(
         req,
@@ -4461,7 +4697,7 @@ export function registerItemRoutes(app: Express): void {
       await updateEventStatus(item.eventId);
       res.json(item);
     } catch (error: any) {
-      res.status(400).json({ error: error.message });
+      responderErro(res, error, "descancelar peça");
     }
   });
 
@@ -4478,6 +4714,11 @@ export function registerItemRoutes(app: Express): void {
       }
       
       const results: any[] = [];
+      const motivo = typeof notes === "string" && notes.trim() ? notes.trim() : null;
+      const selecionadas = new Set<string>(itemIds);
+      const junto: Item[] = [];
+      const maeDe = new Map<string, string | null>();
+      const mantidosNoLote: Item[] = [];
       // Mesma decisão (e mesma dúvida) do cancelamento individual acima.
       const bloqueio = contadorDeBloqueio();
 
@@ -4502,15 +4743,15 @@ export function registerItemRoutes(app: Express): void {
             return;
           }
 
-          const item = await storage.updateItem(itemId, {
-            status: "canceled",
-            // Mesmo registro do cancelamento individual — o descancelar lê daqui.
-            statusBeforeCancel: currentItem.status === "canceled" ? currentItem.statusBeforeCancel : currentItem.status,
-            observations: notes || currentItem.observations,
-          });
-          if (item) results.push(item);
-          // Cancelada em impressão: sai da impressora — "pausa" no diário.
-          if (item) await registrarSaidaDaImpressora(req, currentItem);
+          // Mesmo registro do cancelamento individual — motivo na coluna
+          // própria, observações intactas; o descancelar lê daqui.
+          const item = await gravarCancelamento(req, currentItem, motivo);
+          if (!item) return;
+          results.push(item);
+          // Complementos da mãe: os que o próprio lote já cancela ficam de fora.
+          const { cancelados, mantidos } = await cancelarComplementosDaMae(req, currentItem, motivo, selecionadas);
+          for (const c of cancelados) { junto.push(c); maeDe.set(c.id, currentItem.displayId); }
+          mantidosNoLote.push(...mantidos);
         } catch (e) {
           console.error("[bulk-cancel] falha na peça", itemId, e);
         }
@@ -4519,108 +4760,41 @@ export function registerItemRoutes(app: Express): void {
       if (bloqueio.respondeLoteInteiro(res, results.length, itemIds.length)) return;
 
       if (results.length > 0) {
-        const detailMsg = notes ? ` Motivo: ${notes}` : "";
-        await createAuditLogsEmLote(req, results.map((r) => ({
-          action: 'canceled', entityType: 'item', entityId: r.id,
-          details: `Item cancelado (em lote)${detailMsg}`,
-        })));
-        broadcast({ type: "items_bulk_updated", itemIds: results.map((r) => r.id), eventId: results[0].eventId });
+        const detailMsg = motivo ? ` Motivo: ${motivo}` : "";
+        await createAuditLogsEmLote(req, [
+          ...results.map((r) => ({
+            action: 'canceled', entityType: 'item', entityId: r.id,
+            details: `Item cancelado (em lote)${detailMsg}`,
+          })),
+          ...junto.map((c) => ({
+            action: 'canceled', entityType: 'item', entityId: c.id,
+            details: `Complemento cancelado junto com a peça ${maeDe.get(c.id) ?? "mãe"} (em lote)${detailMsg}`,
+          })),
+        ]);
+        const todas = [...results, ...junto];
+        broadcast({ type: "items_bulk_updated", itemIds: todas.map((r) => r.id), eventId: results[0].eventId });
+        // Canceladas saem da conta de cada evento tocado.
+        const eventos = Array.from(new Set(todas.map((r) => r.eventId)));
+        await Promise.all(eventos.map((id) => updateEventStatus(id).catch((e) => console.error("[bulk-cancel] updateEventStatus", id, e))));
       }
 
-      res.json({ canceled: results.length, items: results });
+      const aviso = avisoDosComplementosMantidos(mantidosNoLote);
+      res.json({
+        canceled: results.length,
+        items: results,
+        complementosCancelados: junto.map((c) => c.displayId),
+        complementosMantidos: mantidosNoLote.map((c) => c.displayId),
+        ...(aviso ? { aviso } : {}),
+      });
     } catch (error: any) {
-      res.status(400).json({ error: error.message });
+      responderErro(res, error, "cancelar peças em lote");
     }
   });
 
-  // Update item fields (Solicitação module - can edit)
-  app.patch("/api/items/:id/edit", requireAuth, async (req, res) => {
-    try {
-      if (req.userRole !== "solicitacao" && req.userRole !== "arte" && req.userRole !== "admin") {
-        return res.status(403).json({ error: "Apenas usuários com perfil Solicitação podem editar itens" });
-      }
-      
-      const currentItem = await storage.getItem(req.params.id);
-      if (!currentItem) {
-        return res.status(404).json({ error: "Item not found" });
-      }
-      
-      // ANDA: é a irmã do PATCH genérico — muda quantidade, material, medidas e
-      // m². Mesmo motivo, mesma guarda.
-      if (await barraEventoFinalizado(currentItem, res)) return;
-
-      const { quantity, description, fileWidth, fileHeight, material, finish, calculatedM2, measurement } = req.body;
-      // MOLDE (revisão 22/09): mesma fronteira do PATCH genérico — fora do
-      // rascunho, o tipo não vira nem deixa de ser molde.
-      const type = typeof req.body?.type === "string" && req.body.type ? tipoCanonico(req.body.type) : req.body?.type;
-      if (trocaDeMoldeProibida(currentItem, type)) {
-        return res.status(409).json({ error: ERRO_TROCA_DE_MOLDE, code: "TROCA_DE_MOLDE" });
-      }
-      // TRAVA: a irmã do PATCH genérico também não muda quantidade de peça travada.
-      if (quantity !== undefined && Number(quantity) !== currentItem.quantity && pecaTravada(currentItem as any)) {
-        return res.status(409).json({ error: fraseDaTrava(currentItem as any), code: CODIGO_PECA_TRAVADA });
-      }
-
-      // Valores efetivos após o merge (novo valor ou o atual).
-      const effQuantity = quantity !== undefined ? quantity : currentItem.quantity;
-      const effFileWidth = fileWidth !== undefined ? fileWidth : currentItem.fileWidth;
-      const effFileHeight = fileHeight !== undefined ? fileHeight : currentItem.fileHeight;
-      // m² recalculado no servidor quando derivável; senão mantém o recebido/atual.
-      const derivedM2 = deriveCalculatedM2({
-        quantity: effQuantity,
-        fileWidth: effFileWidth,
-        fileHeight: effFileHeight,
-      });
-      const effCalculatedM2 =
-        derivedM2 ?? (calculatedM2 !== undefined ? calculatedM2 : currentItem.calculatedM2);
-
-      // A MEDIDA segue a mesma regra do m²: mudou dimensão, o texto é
-      // re-derivado e o `measurement` do corpo é ignorado — ele é o valor
-      // que o formulário carregou ao abrir, ou seja, o antigo.
-      const medidaDerivada = medidaMudou(currentItem, effFileWidth, effFileHeight)
-        ? deriveMeasurement(effFileWidth, effFileHeight)
-        : undefined;
-      const effMeasurement =
-        medidaDerivada ?? (measurement !== undefined ? measurement : currentItem.measurement);
-
-      const item = await storage.updateItem(req.params.id, {
-        type: type || currentItem.type,
-        quantity: effQuantity,
-        description: description !== undefined ? description : currentItem.description,
-        fileWidth: effFileWidth,
-        fileHeight: effFileHeight,
-        material: material || currentItem.material,
-        finish: finish || currentItem.finish,
-        calculatedM2: effCalculatedM2,
-        measurement: effMeasurement,
-      });
-      
-      if (!item) {
-        return res.status(404).json({ error: "Item not found" });
-      }
-      
-      const editDetails = [];
-      if (type && type !== currentItem.type) editDetails.push(`Tipo: ${currentItem.type} → ${type}`);
-      if (material && material !== currentItem.material) editDetails.push(`Material: ${currentItem.material} → ${material}`);
-      if (finish && finish !== currentItem.finish) editDetails.push(`Acabamento: ${currentItem.finish} → ${finish}`);
-      if (quantity !== undefined && quantity !== currentItem.quantity) editDetails.push(`Quantidade: ${currentItem.quantity} → ${quantity}`);
-      if (effCalculatedM2 !== currentItem.calculatedM2) editDetails.push(`m² Total: ${currentItem.calculatedM2} → ${effCalculatedM2}`);
-      if (item.measurement !== currentItem.measurement) editDetails.push(`Medida: ${currentItem.measurement} → ${item.measurement}`);
-      
-      await createAuditLog(
-        req,
-        'updated',
-        'item',
-        item.id,
-        `Item editado${editDetails.length > 0 ? ': ' + editDetails.join(', ') : ''}`
-      );
-      
-      broadcast({ type: "item_updated", item });
-      res.json(item);
-    } catch (error: any) {
-      res.status(400).json({ error: error.message });
-    }
-  });
+  // PATCH /api/items/:id/edit SAIU: era uma irmã do PATCH genérico sem zod,
+  // sem piso de quantidade e sem a regra do complemento (dava para aumentar
+  // peça em produção por ela). Nenhuma tela a chamava; editar peça é só pelo
+  // PATCH /api/items/:id.
 
   // Bulk creator reject (Solicitação module)
   app.patch("/api/items/bulk-creator-reject", requireAuth, async (req, res) => {
@@ -4669,7 +4843,7 @@ export function registerItemRoutes(app: Express): void {
         }
 
         if (currentItem.status !== "awaiting_final_review") {
-          errors.push({ itemId, error: `Status inválido: ${currentItem.status}` });
+          errors.push({ itemId, error: `${currentItem.displayId ?? "Peça"} está em "${translateStatus(currentItem.status)}" — fora da etapa desta ação` });
           return;
         }
 
@@ -4751,7 +4925,7 @@ export function registerItemRoutes(app: Express): void {
       }
       // Pre-fetch event for notification message (read outside tx — no row lock needed)
       const preItem = await storage.getItem(req.params.id);
-      if (!preItem) return res.status(404).json({ error: "Item not found" });
+      if (!preItem) return res.status(404).json({ error: "Peça não encontrada" });
       // ANDA: caminho antigo do "liberar para produção". Depreciado, mas
       // registrado — e uma rota registrada é uma rota chamável.
       if (await barraEventoFinalizado(preItem, res)) return;
@@ -4765,7 +4939,7 @@ export function registerItemRoutes(app: Express): void {
           .set({ status: "approved", approvedAt: new Date(), updatedAt: new Date() })
           .where(eq(itemsTable.id, req.params.id))
           .returning();
-        if (!updated) throw Object.assign(new Error("Item not found"), { httpStatus: 404 });
+        if (!updated) throw Object.assign(new Error("Peça não encontrada"), { httpStatus: 404 });
 
         await tx.insert(auditLogs).values({
           ...resolveActor(req),
@@ -4831,7 +5005,7 @@ export function registerItemRoutes(app: Express): void {
         return res.status(400).json({ error: "A quantidade a mover precisa ser um número inteiro maior que zero" });
       }
       const antes = await storage.getItem(req.params.id);
-      if (!antes) return res.status(404).json({ error: "Item not found" });
+      if (!antes) return res.status(404).json({ error: "Peça não encontrada" });
       // ANDA: a peça vai para a máquina — mesma guarda de quem imprime. O
       // evento é o mesmo com a linha travada; a leitura de fora basta aqui.
       if (await barraEventoFinalizado(antes, res)) return;
@@ -4867,7 +5041,7 @@ export function registerItemRoutes(app: Express): void {
         const r: Feito | { recomecar: string[] } = await db.transaction(async (tx) => {
           for (const m of travas) await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${chaveDoLockDaImpressora(m)}))`);
           const [current] = await tx.select().from(itemsTable).where(eq(itemsTable.id, req.params.id)).for("update");
-          if (!current || current.deletedAt) throw falha(404, { error: "Item not found" });
+          if (!current || current.deletedAt) throw falha(404, { error: "Peça não encontrada" });
           const precisa = travasDoInicio(current, pedido);
           if (precisa.some((m) => !travas.includes(m))) return { recomecar: precisa };
           // As guardas sobre a linha TRAVADA (a leitura de fora pode estar velha).
@@ -4893,7 +5067,7 @@ export function registerItemRoutes(app: Express): void {
             ...(current.status !== "inProduction" ? { statusChangedAt: agora } : {}),
             ...(!current.productionStartedAt ? { productionStartedAt: agora } : {}),
           } as any).where(eq(itemsTable.id, current.id)).returning();
-          if (!item) throw falha(404, { error: "Item not found" });
+          if (!item) throw falha(404, { error: "Peça não encontrada" });
           return { item, movimento: plano.movimento, parte: plano.parte, origem: plano.origem, current };
         });
         if ("recomecar" in r) { travas = Array.from(new Set([...travas, ...r.recomecar])).sort(); continue; }
@@ -4957,7 +5131,7 @@ export function registerItemRoutes(app: Express): void {
       // impressas, partes, trava, o lock otimista) é refeito sobre a linha
       // TRAVADA, dentro da transação — ver planejarLancamentoDeImpressas.
       const antes = await storage.getItem(req.params.id);
-      if (!antes) return res.status(404).json({ error: "Item not found" });
+      if (!antes) return res.status(404).json({ error: "Peça não encontrada" });
       // Travada pela Solicitação: resposta rápida (a transação repete a guarda).
       if (pecaTravada(antes as any)) return res.status(409).json({ error: fraseDaTrava(antes as any), code: CODIGO_PECA_TRAVADA });
       // ANDA — e é o mais caro de todos: aqui a peça vira LONA IMPRESSA e ainda
@@ -4981,7 +5155,7 @@ export function registerItemRoutes(app: Express): void {
       const falha = (status: number, corpo: Record<string, unknown>) => Object.assign(new Error(String(corpo.error)), { httpStatus: status, corpo });
       const { item, plano } = await db.transaction(async (tx) => {
         const [before] = await tx.select().from(itemsTable).where(eq(itemsTable.id, req.params.id)).for("update");
-        if (!before || before.deletedAt) throw falha(404, { error: "Item not found" });
+        if (!before || before.deletedAt) throw falha(404, { error: "Peça não encontrada" });
         const plano = planejarLancamentoDeImpressas(before as any, req.body ?? {}, new Date());
         if (!plano.ok) {
           throw plano.corpo.error === ERRO_LANCAMENTO_TRAVADA
@@ -4993,7 +5167,7 @@ export function registerItemRoutes(app: Express): void {
           .set(plano.set as any)
           .where(eq(itemsTable.id, before.id))
           .returning();
-        if (!updated) throw falha(404, { error: "Item not found" });
+        if (!updated) throw falha(404, { error: "Peça não encontrada" });
 
         await tx.insert(auditLogs).values({
           ...resolveActor(req),
@@ -5116,7 +5290,7 @@ export function registerItemRoutes(app: Express): void {
         return res.status(403).json({ error: "Apenas a Gráfica ou Solicitação pode marcar reaproveitamento" });
       }
       const current = await storage.getItem(req.params.id);
-      if (!current) return res.status(404).json({ error: "Item not found" });
+      if (!current) return res.status(404).json({ error: "Peça não encontrada" });
       // ANDA: marcar reaproveitamento move a peça no fluxo (pode fechá-la como
       // "Produzido") e, por tabela, cria ativo de inventário. É decisão de
       // produção, não registro do passado.
@@ -5190,7 +5364,7 @@ export function registerItemRoutes(app: Express): void {
           reservaPorMaquina: null,
           maquinaPrevista: null,
         });
-        if (!item) return res.status(404).json({ error: "Item not found" });
+        if (!item) return res.status(404).json({ error: "Peça não encontrada" });
         await createAuditLog(
           req, 'updated', 'item', item.id,
           `Reaproveitamento ajustado após Produzido: ${alreadyReused} → ${alvo} un. reaproveitada(s) (${current.quantity - alvo} produzida(s) de ${current.quantity})`
@@ -5226,7 +5400,7 @@ export function registerItemRoutes(app: Express): void {
           };
         })(),
       });
-      if (!item) return res.status(404).json({ error: "Item not found" });
+      if (!item) return res.status(404).json({ error: "Peça não encontrada" });
 
       await createAuditLog(
         req,
@@ -5258,7 +5432,7 @@ export function registerItemRoutes(app: Express): void {
       }
 
       const current = await storage.getItem(req.params.id);
-      if (!current) return res.status(404).json({ error: "Item not found" });
+      if (!current) return res.status(404).json({ error: "Peça não encontrada" });
       // Em Revisão a Gráfica só OLHA (regra do dono, 25/08) — mesma tranca
       // do mark-reuse logo acima.
       if (EM_REVISAO.has(current.status)) {
@@ -5337,7 +5511,7 @@ export function registerItemRoutes(app: Express): void {
         ...(!reaproveitaTudo && (current.status === "inProduction" || current.status === "em_producao") ? { printMachine: null } : {}),
         ...colunasDaReserva(reaproveitaTudo ? null : encolherReserva(reservaDaPeca({ ...current, status: "ready_for_production", quantityProduced: 0, impressaoPorMaquina: null }), current.quantity - correctedReuseQty), current.reservaPorMaquina),
       });
-      if (!item) return res.status(404).json({ error: "Item not found" });
+      if (!item) return res.status(404).json({ error: "Peça não encontrada" });
 
       await createAuditLog(
         req,
@@ -5397,7 +5571,7 @@ export function registerItemRoutes(app: Express): void {
       const resultado: Resultado = await db.transaction(async (tx: any): Promise<Resultado> => {
       const [current] = await tx.select().from(itemsTable).where(eq(itemsTable.id, req.params.id)).for("update");
       const recusa = (http: number, corpo: any): Resultado => ({ erro: { http, corpo } });
-      if (!current || current.deletedAt) return recusa(404, { error: "Item not found" });
+      if (!current || current.deletedAt) return recusa(404, { error: "Peça não encontrada" });
       // Travada pela Solicitação: não se confere.
       if (pecaTravada(current as any)) return recusa(409, { error: fraseDaTrava(current as any), code: CODIGO_PECA_TRAVADA });
       if (!conferencePhotoUrl && !current.conferencePhotoUrl) {
@@ -5484,7 +5658,7 @@ export function registerItemRoutes(app: Express): void {
       return res.status(403).json({ error: "Sem permissão para registrar entrega" });
     }
     const currentItem = await storage.getItem(req.params.id).catch(() => null);
-    if (!currentItem) return res.status(404).json({ error: "Item not found" });
+    if (!currentItem) return res.status(404).json({ error: "Peça não encontrada" });
     return res.status(409).json({ error: "Embale antes de entregar (Embalar pede a foto; a entrega pede só quem recebeu)" });
   });
 

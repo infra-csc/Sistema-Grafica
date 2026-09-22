@@ -473,6 +473,14 @@ export default function Atendimento() {
   const [histSponsorFilter, setHistSponsorFilter] = useState<string[]>([]);
   const [histPeriodFilter, setHistPeriodFilter] = useState<string>("all");
   const [histSearchTerm, setHistSearchTerm] = useState<string>("");
+  // A BUSCA DO HISTÓRICO COM ATRASO (perf, 2ª rodada). Ela é a única da tela
+  // que ainda escrevia direto no filtro: cada tecla refazia `casaHistorico`
+  // sobre a lista inteira, RECALCULAVA a jornada de cada peça (12 etapas) e
+  // ORDENAVA o resultado — e as duas facetas do cabeçalho faziam a mesma
+  // varredura de novo. O campo continua respondendo na hora (o `value` é o
+  // estado); quem espera é a lista, como na fila de Pendentes
+  // (`deferredSearchTerm`) e na Arte.
+  const histBuscaDeferida = useDeferredValue(histSearchTerm);
 
   // Modal detalhe de aprovações (Histórico)
   const [histDetailItem, setHistDetailItem] = useState<any>(null);
@@ -630,14 +638,21 @@ export default function Atendimento() {
     enabled: precisaDoHistorico,
   });
 
-  // As duas listas como UMA, que é o que o resto da tela sempre viu. São
-  // disjuntas por construção (os recortes não compartilham status), então a
-  // concatenação não precisa deduplicar; a identidade só muda quando uma das
-  // duas muda — a fila sozinha nem passa por aqui.
-  const items = useMemo(
-    () => (pecasDoHistorico.length === 0 ? pecasDaFila : pecasDaFila.concat(pecasDoHistorico)),
-    [pecasDaFila, pecasDoHistorico],
-  );
+  // As duas listas como UMA, que é o que o resto da tela sempre viu.
+  //
+  // DEDUPLICA POR ID mesmo os recortes sendo disjuntos por construção (eles não
+  // compartilham status nenhum). Uma peça em dobro aqui não daria erro: daria
+  // placar dobrado e a mesma peça duas vezes na fila — o tipo de defeito que só
+  // se descobre olhando. O custo é uma passada por Map, e só quando as duas
+  // listas existem; enquanto o histórico não é pedido, é a própria fila.
+  const items = useMemo(() => {
+    if (pecasDoHistorico.length === 0) return pecasDaFila;
+    if (pecasDaFila.length === 0) return pecasDoHistorico;
+    const porId = new Map<string, any>();
+    for (const p of pecasDaFila) porId.set(p.id, p);
+    for (const p of pecasDoHistorico) if (!porId.has(p.id)) porId.set(p.id, p);
+    return Array.from(porId.values());
+  }, [pecasDaFila, pecasDoHistorico]);
 
   const { data: events = SEM_DADOS, isLoading: eventsLoading } = useQuery<any[]>({
     queryKey: ["/api/events"],
@@ -1578,7 +1593,7 @@ export default function Atendimento() {
     }
 
     // Busca sem acento (`normalizarBusca`, lib/utils) — a mesma dos menus.
-    const q = normalizarBusca(histSearchTerm);
+    const q = normalizarBusca(histBuscaDeferida);
     if (q &&
         !normalizarBusca(item.type).includes(q) &&
         !normalizarBusca(item.displayId).includes(q) &&
@@ -1616,7 +1631,7 @@ export default function Atendimento() {
       return latestApproval(b) - latestApproval(a);
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab, ordemHistorico, hoje, eventoPorId, items, itemApprovalsMap, itemSponsorsMap, loadingSponsors, histEventFilter, histSponsorFilter, histPeriodFilter, histSearchTerm]);
+  }, [activeTab, ordemHistorico, hoje, eventoPorId, items, itemApprovalsMap, itemSponsorsMap, loadingSponsors, histEventFilter, histSponsorFilter, histPeriodFilter, histBuscaDeferida]);
 
   // As duas facetas da aba Histórico, do MESMO pool da lista. Só o que tem
   // linha aparece, e a contagem ao lado do nome é o número de linhas que o
@@ -1643,7 +1658,7 @@ export default function Atendimento() {
       return pa !== pb ? pa - pb : a.label.localeCompare(b.label, 'pt-BR');
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab, items, events, itemApprovalsMap, itemSponsorsMap, loadingSponsors, histSponsorFilter, histPeriodFilter, histSearchTerm]);
+  }, [activeTab, items, events, itemApprovalsMap, itemSponsorsMap, loadingSponsors, histSponsorFilter, histPeriodFilter, histBuscaDeferida]);
 
   const histSponsorOptions = useMemo(() => {
     if (loadingSponsors) return [] as { value: string; label: string; count: number }[];
@@ -1658,7 +1673,7 @@ export default function Atendimento() {
     });
     return Array.from(map.values()).sort((a, b) => a.label.localeCompare(b.label, 'pt-BR'));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab, items, itemApprovalsMap, itemSponsorsMap, loadingSponsors, histEventFilter, histPeriodFilter, histSearchTerm]);
+  }, [activeTab, items, itemApprovalsMap, itemSponsorsMap, loadingSponsors, histEventFilter, histPeriodFilter, histBuscaDeferida]);
 
   // Fila de revisão: todas as peças pendentes na MESMA ordem em que aparecem
   // na tela (agrupadas por evento). É o que permite ir para a próxima peça sem
@@ -1761,7 +1776,7 @@ export default function Atendimento() {
     }, 300);
     return () => clearTimeout(timer);
   }, [ordemPendentes, atrasadosFilter]);
-  useEffect(() => { setHistVisible(PAGE_SIZE); }, [activeTab, histEventFilter, histSponsorFilter, histPeriodFilter, histSearchTerm]);
+  useEffect(() => { setHistVisible(PAGE_SIZE); }, [activeTab, histEventFilter, histSponsorFilter, histPeriodFilter, histBuscaDeferida]);
 
   const getEventInfo = (eventId: string) => events.find((e: any) => e.id === eventId);
 
@@ -3916,7 +3931,6 @@ export default function Atendimento() {
                           <img
                             src={miniatura(di.approvalThumbUrl || di.finalPreviewUrl)}
                             alt=""
-                            loading="lazy"
                             decoding="async"
                             style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                             onError={(e) => {
@@ -4093,7 +4107,6 @@ export default function Atendimento() {
                             <img
                               src={miniatura(thumbUrl)}
                               alt=""
-                              loading="lazy"
                               decoding="async"
                               style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                               onError={(e) => {

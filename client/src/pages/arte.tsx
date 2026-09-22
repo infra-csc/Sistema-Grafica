@@ -879,13 +879,22 @@ export default function Arte() {
   // mostrar "nada na fila" enquanto a lista de eventos desce seria afirmar o
   // contrário do que a tela vai mostrar meio segundo depois.
   const isLoading = eventsLoading || filasLoading;
-  // As duas listas como UMA, que é o que o resto da tela sempre viu. São
-  // disjuntas por construção (os recortes não compartilham status), então a
-  // concatenação não deduplica; a identidade só muda quando uma das duas muda.
-  const pecasDoServidor = useMemo(
-    () => (pecasFinalizadas.length === 0 ? pecasDasFilas : pecasDasFilas.concat(pecasFinalizadas)),
-    [pecasDasFilas, pecasFinalizadas],
-  );
+  // As duas listas como UMA, que é o que o resto da tela sempre viu.
+  //
+  // DEDUPLICA POR ID mesmo os recortes sendo disjuntos por construção (eles não
+  // compartilham status nenhum). Uma peça em dobro aqui não daria erro: daria
+  // contagem de aba dobrada, linha repetida na tabela e seleção em lote
+  // contando duas vezes a mesma peça — o tipo de defeito que só se descobre
+  // olhando. O custo é uma passada por Map, e só quando as duas listas
+  // existem; enquanto os Finalizados não chegaram, é a própria lista das filas.
+  const pecasDoServidor = useMemo(() => {
+    if (pecasFinalizadas.length === 0) return pecasDasFilas;
+    if (pecasDasFilas.length === 0) return pecasFinalizadas;
+    const porId = new Map<string, any>();
+    for (const p of pecasDasFilas) porId.set(p.id, p);
+    for (const p of pecasFinalizadas) if (!porId.has(p.id)) porId.set(p.id, p);
+    return Array.from(porId.values());
+  }, [pecasDasFilas, pecasFinalizadas]);
 
   const {
     data: correcaoDoServidor = SEM_DADOS,

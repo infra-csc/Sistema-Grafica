@@ -107,10 +107,10 @@ describe("o recorte: quem mostra e quem esconde", () => {
   it.each([
     ["Atendimento", "client/src/pages/atendimento.tsx"],
     ["Vincular Patrocinadores", "client/src/pages/vincular-patrocinadores.tsx"],
-  ])("%s CONTINUA escondendo, e continua avisando que escondeu", (_nome, caminho) => {
+  ])("%s CONTINUA escondendo — sem o aviso, que saiu de todas as telas (dono, 22/09)", (_nome, caminho) => {
     const fonte = ler(caminho);
     expect(fonte).toContain("isEventoFinalizado");
-    expect(fonte).toContain("avisoPecasOcultas");
+    expect(fonte).not.toContain("aviso-eventos-encerrados");
   });
 });
 

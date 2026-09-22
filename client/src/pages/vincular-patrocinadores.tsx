@@ -31,7 +31,7 @@ import { EsqueletoDeFila } from "@/components/esqueleto-de-fila";
 import { ModalHeader, ModalFooter, modalSurface, HIDE_NATIVE_CLOSE, FreezeWhileClosing } from "@/components/modal-shell";
 import { R, FS, onColor, darkenToContrast } from "@/lib/theme";
 import {
-  isEventoFinalizado, motivoEventoFinalizado, avisoPecasOcultas, todayBusinessMs,
+  isEventoFinalizado, motivoEventoFinalizado, todayBusinessMs,
   PRODUCTION_STATUSES,
 } from "@/lib/status";
 
@@ -431,22 +431,6 @@ export default function VincularPatrocinadores() {
     });
   }, [items, eventById, hojeBusinessMs]);
 
-  // Quantas peças o recorte acima tirou de vista, POR MOTIVO. Sem este número a
-  // tela ficaria vazia sem explicação — o mesmo aviso das outras filas.
-  const pecasOcultas = useMemo(() => {
-    let encerrado = 0, realizado = 0;
-    for (const item of items as any[]) {
-      if (!VINCULACAO_VISIBLE_STATUSES.includes(item.status)) continue;
-      const motivo = motivoEventoFinalizado(eventById.get(item.eventId), hojeBusinessMs);
-      if (motivo === 'encerrado') encerrado++;
-      else if (motivo === 'realizado') realizado++;
-    }
-    return { encerrado, realizado };
-  }, [items, eventById, hojeBusinessMs]);
-  const avisoOcultas = useMemo(
-    () => avisoPecasOcultas(pecasOcultas, 'desta tela'),
-    [pecasOcultas],
-  );
   
   // Toggle "Sem Patrocinador" por item individual
   const toggleItemSkipApproval = (item: any) => {
@@ -2102,14 +2086,6 @@ export default function VincularPatrocinadores() {
             Assim que a Solicitação cadastrar peças em um evento futuro, elas
             aparecem aqui para receber os patrocinadores.
           </p>
-          {/* O aviso das peças retiradas também aqui: era justamente no vazio
-              total que ele fazia falta — a tela dizia "nada para vincular" a
-              quem teve o trabalho retirado por evento finalizado. */}
-          {avisoOcultas && (
-            <p role="status" data-testid="aviso-eventos-encerrados-vazio" style={{ fontSize: 13, color: '#44403c', lineHeight: 1.6, margin: '14px 0 0', padding: '10px 14px', background: '#fafaf9', border: '1px solid #ebe8e4', borderRadius: R.md, textAlign: 'left' }}>
-              <strong>{avisoOcultas.destaque}</strong>{' '}{avisoOcultas.texto}
-            </p>
-          )}
         </div>
       </div>
     );
@@ -2772,28 +2748,6 @@ export default function VincularPatrocinadores() {
         );
       })()}
 
-      {/* Peça de evento finalizado — encerrado à mão OU já realizado — não entra
-          nesta tela (ver `visibleItems`). Esconder em silêncio faria a tela
-          dizer "nada a vincular" a quem, na verdade, teve o trabalho retirado.
-          Fica fora dos dois modos de visão porque vale para os dois. */}
-      {avisoOcultas && (
-        <div
-          role="status"
-          data-testid="aviso-eventos-encerrados"
-          style={{ background: '#fafaf9', border: '1px solid #ebe8e4', borderRadius: R.md, padding: '10px 14px', marginBottom: 16, display: 'flex', alignItems: 'flex-start', gap: 9, fontSize: 13, color: '#44403c', lineHeight: 1.5 }}
-        >
-          <EyeOff aria-hidden="true" style={{ width: 15, height: 15, color: '#78716c', flexShrink: 0, marginTop: 2 }} />
-          <span>
-            <strong>{avisoOcultas.destaque}</strong>{' '}{avisoOcultas.texto}
-          </span>
-          {/* SEM botão "Mostrar". As peças escondidas são de evento
-              FINALIZADO, e o servidor barra a vinculação delas
-              (`barraEventoFinalizado`): revelá-las aqui seria oferecer um
-              trabalho que devolve 409. O aviso existe para que a fila vazia
-              não seja lida como "nada a fazer" por quem teve o trabalho
-              retirado — e isso ele faz sem botão nenhum. */}
-        </div>
-      )}
 
       {/* ══════════════════════════════════════════════════════════════════
           A TABELA — uma só, agrupada por evento ou por patrocinador.

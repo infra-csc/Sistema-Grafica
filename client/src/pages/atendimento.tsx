@@ -29,7 +29,7 @@ import { fmtRelative } from "@/components/prazos/tokens";
 import {
   getStatusMeta, getStatusLabel, getStatusShort, PRODUCTION_STATUSES, descricaoDoStatus,
   isEventoFinalizado, motivoEventoFinalizado, marcoEventoFinalizado,
-  avisoPecasOcultas, todayBusinessMs,
+  todayBusinessMs,
 } from "@/lib/status";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { FORMATO_COMPACTO, ehAprovacoesCompactas, expandirAprovacoes } from "@shared/itens-compactos";
@@ -609,24 +609,6 @@ export default function Atendimento() {
     ), [items, hojeBusinessMs]
   );
 
-  // Quantas peças a regra acima tirou de vista, POR MOTIVO. Sem este número a
-  // tela diria "Nenhum item pendente" — isto é, "nada a fazer" — a quem, na
-  // verdade, teve o trabalho retirado; e sem o motivo não dá para saber se há
-  // volta (reabrir o evento) ou não (ele já aconteceu).
-  const pecasOcultas = useMemo(() => {
-    let encerrado = 0, realizado = 0;
-    for (const item of items) {
-      if (item.status !== 'awaiting_sponsor_approval' || item.skipApproval) continue;
-      const motivo = motivoEventoFinalizado(item.event, hojeBusinessMs);
-      if (motivo === 'encerrado') encerrado++;
-      else if (motivo === 'realizado') realizado++;
-    }
-    return { encerrado, realizado };
-  }, [items, hojeBusinessMs]);
-  const avisoOcultas = useMemo(
-    () => avisoPecasOcultas(pecasOcultas, 'desta fila'),
-    [pecasOcultas],
-  );
 
   // Chave estável do conjunto de peças em aprovação: o efeito abaixo só refaz
   // o batch quando uma peça ENTRA ou SAI do fluxo, quando o total de itens
@@ -1890,24 +1872,6 @@ export default function Atendimento() {
               </span>
             </button>
           ))}
-          {avisoOcultas && (
-            // Peça de evento finalizado — encerrado à mão OU já realizado —
-            // não entra nesta fila (ver `awaitingItems`). Esconder em silêncio
-            // faria a tela dizer "nada a fazer" para quem, na verdade, teve o
-            // trabalho retirado. Fica na mesma superfície do placar: é a
-            // linha do que ficou FORA da conta que as células mostram.
-            <div
-              role="status"
-              data-testid="aviso-eventos-encerrados"
-              style={{
-                gridColumn: '1 / -1', borderTop: '1px solid #f1f0ef',
-                backgroundColor: '#fafaf9', padding: '11px 20px',
-                fontSize: 13, color: '#44403c', lineHeight: 1.5,
-              }}
-            >
-              <strong>{avisoOcultas.destaque}</strong>{' '}{avisoOcultas.texto}
-            </div>
-          )}
         </div>
       )}
 

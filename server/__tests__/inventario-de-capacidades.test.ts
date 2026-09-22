@@ -132,7 +132,6 @@ const CONTRATO: Record<string, string[]> = {
     "button-manage-event-sponsors-",
     "button-save-event-sponsors",
     "button-confirm-bulk-apply",
-    "aviso-eventos-encerrados",
     "button-show-all-",
   ],
   "client/src/pages/eventos.tsx": [

@@ -278,7 +278,9 @@ describe("a etiqueta do tubo", () => {
     expect(ler("client/src/components/etiqueta-lista.tsx")).toContain("TUBO {props.tubo}");
     // 22/09: embalada sozinha (tubo avulso / sem número) não imprime "TUBO N"
     expect(src).toContain("tubo={numero}");
-    expect(src).toContain("const numero = avulso ? null : data?.tubo.numero ?? null;");
+    // 21/09: o número real vem do tubo; o que SAI pode ser editado só para a impressão
+    expect(src).toContain("const numeroReal = avulso ? null : data?.tubo.numero ?? null;");
+    expect(src).toContain("numeroEditado(tuboEditado, numeroReal)");
     expect(src).toContain("window.print()");
     // 21/09 (dono): o formato da etiqueta que o galpão já cola no rolo — logo
     // do book (ou prefixo do nome) e a cidade gigante no topo, uma linha por

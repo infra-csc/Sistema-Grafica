@@ -3,45 +3,21 @@
 import express, { type Express } from "express";
 import { storage } from "../storage";
 import { insertDeliveryPhotoSchema } from "@shared/schema";
-import { requireAuth } from "./shared";
+import { requireAuth, sendSensitiveError } from "./shared";
+import { avaliarUpload, avaliarPedidoDeUrlAssinada, cabecalhosDoObjeto, MAX_UPLOAD_BYTES } from "../upload-seguro";
 import { miniaturasDisponiveis, tipoMiniaturavel, gerarMiniatura, TETO_ORIGINAL_BYTES } from "../services/miniaturas";
 
 export async function registerObjectRoutes(app: Express): Promise<void> {
   
   const { ObjectStorageService, ObjectNotFoundError } = await import("../objectStorage");
   
-  // Allowed content-type prefixes for uploads.
-  const ALLOWED_CONTENT_TYPE_PREFIXES = [
-    "image/",
-    "video/",
-    "application/pdf",
-    "application/zip",
-    "application/vnd.ms-excel",
-    "application/vnd.openxmlformats-officedocument",
-    "text/plain",
-    "application/octet-stream", // fallback for unknown binary (browsers may use this)
-  ];
-  const MAX_UPLOAD_BYTES = 50 * 1024 * 1024; // 50 MB
-
-  // Get upload URL for a new photo
+  // Pedido de URL assinada (caminho legado — as telas sobem por
+  // /upload-direct). O bucket não amarra tipo/tamanho a esta URL: exigimos o
+  // pedido declarado dentro da lista, e a saída por /objects/* é blindada.
   app.post("/api/objects/upload", requireAuth, async (req, res) => {
     try {
-      const { contentType, size } = req.body as { contentType?: string; size?: number };
-
-      // Validate content-type when provided by the client.
-      if (contentType) {
-        const allowed = ALLOWED_CONTENT_TYPE_PREFIXES.some((prefix) =>
-          contentType.startsWith(prefix)
-        );
-        if (!allowed) {
-          return res.status(400).json({ error: "Tipo de arquivo não permitido" });
-        }
-      }
-
-      // Validate file size when provided by the client.
-      if (typeof size === "number" && size > MAX_UPLOAD_BYTES) {
-        return res.status(400).json({ error: "Arquivo muito grande (máximo 50 MB)" });
-      }
+      const recusa = avaliarPedidoDeUrlAssinada(req.body);
+      if (recusa) return res.status(400).json({ error: recusa });
 
       const objectStorageService = new ObjectStorageService();
       const uploadURL = await objectStorageService.getObjectEntityUploadURL();
@@ -63,11 +39,6 @@ export async function registerObjectRoutes(app: Express): Promise<void> {
     express.raw({ type: "*/*", limit: MAX_UPLOAD_BYTES }),
     async (req, res) => {
       try {
-        const contentType = String(req.headers["content-type"] || "application/octet-stream");
-        const allowed = ALLOWED_CONTENT_TYPE_PREFIXES.some((prefix) => contentType.startsWith(prefix));
-        if (!allowed) {
-          return res.status(400).json({ error: "Tipo de arquivo não permitido" });
-        }
         const buf: Buffer = req.body;
         if (!Buffer.isBuffer(buf) || buf.length === 0) {
           return res.status(400).json({ error: "Arquivo vazio ou corpo inválido" });
@@ -75,8 +46,13 @@ export async function registerObjectRoutes(app: Express): Promise<void> {
         if (buf.length > MAX_UPLOAD_BYTES) {
           return res.status(400).json({ error: "Arquivo muito grande (máximo 50 MB)" });
         }
+        // O tipo gravado é o dos bytes, não o que o navegador declarou.
+        const avaliacao = avaliarUpload(buf, req.headers["content-type"]);
+        if (!avaliacao.ok) {
+          return res.status(400).json({ error: avaliacao.erro });
+        }
         const objectStorageService = new ObjectStorageService();
-        const url = await objectStorageService.uploadObjectEntityFromBuffer(buf, contentType);
+        const url = await objectStorageService.uploadObjectEntityFromBuffer(buf, avaliacao.tipo);
         res.json({ url });
       } catch (error: any) {
         console.error("Error in proxy upload:", error);
@@ -132,6 +108,7 @@ export async function registerObjectRoutes(app: Express): Promise<void> {
             const mini = await gerarMiniatura(req.path, original);
             if (mini) {
               res.set({
+                ...cabecalhosDoObjeto("image/webp"),
                 "Content-Type": "image/webp",
                 // private: mesma razão do downloadObject — rota autenticada,
                 // proxy compartilhado não pode cachear.
@@ -185,8 +162,7 @@ export async function registerObjectRoutes(app: Express): Promise<void> {
       
       res.status(201).json(photo);
     } catch (error: any) {
-      console.error("Error saving delivery photo:", error);
-      res.status(500).json({ error: error.message });
+      sendSensitiveError(res, error, "Error saving delivery photo", 500);
     }
   });
 

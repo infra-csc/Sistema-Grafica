@@ -99,6 +99,7 @@ const SEM_AUDITORIA_POR_DESENHO: Record<string, string> = {
   "POST /api/events/:id/preview-xlsx": "faz o parse da planilha sem salvar nada",
   "POST /api/events/:id/confirm-import": "delega a handleConfirmImport, que grava a trilha",
   "POST /api/items/:id/production": "rota aposentada, responde 410 sem tocar em nada",
+  "PATCH /api/items/:id/approve": "rota aposentada (o liberar antigo), responde 410 sem tocar em nada",
   "PATCH /api/items/:id/deliver": "rota aposentada (21/09: toda peça sai pela embalagem), responde 409 sem tocar em nada — quem entrega, e audita, é POST /api/tubos/:id/entregar",
 };
 

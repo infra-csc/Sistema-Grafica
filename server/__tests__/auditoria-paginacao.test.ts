@@ -64,7 +64,9 @@ const appFalso: any = {
 registerAuditLogRoutes(appFalso);
 
 async function chamar(query: Record<string, string> = {}) {
-  const req: any = { query, params: {}, headers: {} };
+  // Admin: a trilha inteira e o count(*) do storage (o recorte dos outros perfis
+  // tem teste próprio em seguranca-sessao-kit-trilha).
+  const req: any = { query, params: {}, headers: {}, userRole: "admin" };
   const res: any = { _status: 200, _body: undefined };
   res.status = (c: number) => { res._status = c; return res; };
   res.json = (b: any) => { res._body = b; return res; };

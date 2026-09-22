@@ -318,7 +318,6 @@ const BARRADAS: Caso[] = [
   { chave: "PATCH /api/items/bulk-cancel", body: { itemIds: ["it-1"], notes: "cliente desistiu" }, userRole: "solicitacao" },
 
   // ── Produção ─────────────────────────────────────────────────────────────
-  { chave: "PATCH /api/items/:id/approve", params: { id: "it-1" }, userRole: "solicitacao" },
   { chave: "PATCH /api/items/:id/start-production", params: { id: "it-1" }, userRole: "grafica", body: { quantityProduced: 2 }, estado: { status: "ready_for_production" } },
   { chave: "POST /api/items/:id/mark-reuse", params: { id: "it-1" }, userRole: "grafica", body: { qty: 1 }, estado: { status: "ready_for_production" } },
   { chave: "POST /api/items/:id/correct-reuse", params: { id: "it-1" }, userRole: "grafica", body: { correctedReuseQty: 1 }, estado: { status: "produced", reuseQty: 2, isReuse: true } },
@@ -554,6 +553,7 @@ const SEM_GUARDA_POR_DESENHO: Record<string, string> = {
   "POST /api/items/export-xlsx": "só lê e devolve arquivo",
   "POST /api/events/:id/preview-xlsx": "faz o parse da planilha sem salvar nada",
   "POST /api/items/:id/production": "rota aposentada, responde 410 sem tocar em nada",
+  "PATCH /api/items/:id/approve": "rota aposentada (o liberar antigo), responde 410 sem tocar em nada",
   // sponsors.ts — cadastro de patrocinador e vínculo de EVENTO, não estado de
   // peça. Ficaram de fora do recorte desta guarda de propósito.
   "POST /api/sponsors": "cadastro global de patrocinador, não é peça",
@@ -621,5 +621,13 @@ describe("rede: nenhuma rota de escrita de peça fica sem decisão sobre evento 
     for (const caso of BARRADAS) {
       expect(rotas.has(caso.chave), `${caso.chave} não está registrada`).toBe(true);
     }
+  });
+});
+
+describe("o liberar antigo (/approve) está desativado", () => {
+  it("responde 410 sem gravar nada, qualquer que seja o estado da peça", async () => {
+    const r = await chamar("PATCH /api/items/:id/approve", { params: { id: "it-1" }, userRole: "solicitacao" });
+    expect(r.status).toBe(410);
+    expect(r.body.error).toMatch(/Revisão Final/);
   });
 });

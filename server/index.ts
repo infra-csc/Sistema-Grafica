@@ -2,52 +2,42 @@ import express, { type Request, Response, NextFunction } from "express";
 import { cabecalhoDeVersao } from "./versaoDoApp";
 import compression from "compression";
 import bcrypt from "bcryptjs";
-import jwt from "jsonwebtoken";
-import { randomBytes } from "crypto";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { pool } from "./db";
 import { writeRateLimiter } from "./routes/shared";
 import { sessionMiddleware, SESSION_SECRET } from "./session";
+import { criarTrocaDeSso, verificarJwtDoPortal } from "./sso-troca";
 
 // SESSION_SECRET é validado (fail-fast) em ./session. Reutilizado aqui como
-// fallback do segredo de SSO quando SSO_SECRET não é definido.
+// fallback do segredo de SSO quando SSO_SECRET não é definido — mantido para
+// não derrubar o login do portal, mas avisado: o segredo da sessão não deveria
+// ser compartilhado com outro sistema.
 const SSO_SECRET = process.env.SSO_SECRET || SESSION_SECRET;
-
-// Ensure no SSO user is stuck with mustChangePassword=true (all access via Microsoft)
-async function fixSsoMustChangePassword() {
-  await pool.query("UPDATE users SET must_change_password = false WHERE must_change_password = true");
+if (!process.env.SSO_SECRET) {
+  console.warn("[SSO] SSO_SECRET não definido — usando SESSION_SECRET para validar o portal. Defina um SSO_SECRET próprio.");
 }
 
-// Itens padrão de Adesivo Pódio foram cadastrados sem material — corrige em prod
-async function fixStandardItemsMissingMaterial() {
-  await pool.query(
-    `UPDATE standard_items SET material = 'Adesivo'
-     WHERE name IN ('Adesivo Pódio', 'Adesivo Pódio nº 1', 'Adesivo Pódio nº 2', 'Adesivo Pódio nº 3', 'Adesivo')
-       AND (material IS NULL OR material = '')`
-  );
-}
-
-// Seed default users only if they don't already exist. Never overwrite an
-// existing user's password_hash on restart — that would silently reset
-// credentials for accounts that may have since changed their password.
+// Cadastro inicial: só num banco NOVO (tabela users vazia) e só com
+// SEED_PASSWORD definido. Antes rodava a cada boot e recriava contas com uma
+// senha conhecida sempre que alguém as excluísse.
 async function seedUsers() {
-  // SEED_PASSWORD must be provided via environment variable — never hardcode
-  // credentials in source code (which is in a public repository).
   const seedPassword = process.env.SEED_PASSWORD;
-  if (!seedPassword) {
-    log("seed-users: SEED_PASSWORD not set — skipping password-based seed (SSO users are unaffected)");
+  if (!seedPassword) return;
+  const { rows: existentes } = await pool.query<{ n: number }>("SELECT count(*)::int AS n FROM users");
+  if ((existentes[0]?.n ?? 0) > 0) {
+    log("seed-users: tabela users já tem contas — nada a fazer");
     return;
   }
 
   const users = [
-    { name: "Administrador NORTE",                email: "admin@norte.com",                   role: "admin",       mustChange: true  },
-    { name: "Pedro Telles",                       email: "pedro@nortemkt.com",                role: "admin",       mustChange: false },
-    { name: "Guilherme Coelho do Nascimento",     email: "guilherme.nascimento@nortemkt.com", role: "admin",       mustChange: false },
-    { name: "Agatha Nadolsky",                    email: "agatha.nadolsky@nortemkt.com",       role: "atendimento", mustChange: false },
-    { name: "Fernanda Sanhudo de Oliveira Penna", email: "fernanda.oliveira@ttkmarketing",     role: "solicitacao", mustChange: false },
-    { name: "Jan Felipe",                         email: "jan.felipe@nortemkt.com",             role: "arte",        mustChange: false },
-    { name: "Enzo Pedote Ascoli",                 email: "enzo.ascoli@nortemkt.com",            role: "atendimento", mustChange: false },
+    { name: "Administrador NORTE",                email: "admin@norte.com",                   role: "admin" },
+    { name: "Pedro Telles",                       email: "pedro@nortemkt.com",                role: "admin" },
+    { name: "Guilherme Coelho do Nascimento",     email: "guilherme.nascimento@nortemkt.com", role: "admin" },
+    { name: "Agatha Nadolsky",                    email: "agatha.nadolsky@nortemkt.com",       role: "atendimento" },
+    { name: "Fernanda Sanhudo de Oliveira Penna", email: "fernanda.oliveira@ttkmarketing",     role: "solicitacao" },
+    { name: "Jan Felipe",                         email: "jan.felipe@nortemkt.com",             role: "arte" },
+    { name: "Enzo Pedote Ascoli",                 email: "enzo.ascoli@nortemkt.com",            role: "atendimento" },
   ];
   const hash = await bcrypt.hash(seedPassword, 10);
   for (const u of users) {
@@ -55,7 +45,8 @@ async function seedUsers() {
       `INSERT INTO users (name, email, password_hash, role, must_change_password)
        VALUES ($1,$2,$3,$4,$5)
        ON CONFLICT (email) DO NOTHING`,
-      [u.name, u.email, hash, u.role, u.mustChange]
+      // Senha de cadastro inicial é compartilhada: todos trocam no 1º acesso.
+      [u.name, u.email, hash, u.role, true]
     );
   }
   log("seed-users: done");
@@ -100,6 +91,8 @@ app.use((_req, res, next) => {
   res.setHeader("X-XSS-Protection", "1; mode=block");
   res.setHeader("Referrer-Policy", "same-origin");
   res.setHeader("X-DNS-Prefetch-Control", "off");
+  // Sistema interno: fora de buscadores (o client/index.html repete em <meta>).
+  res.setHeader("X-Robots-Tag", "noindex, nofollow");
   // CSP — restricts which sources can load scripts/styles/frames.
   // 'unsafe-inline' is required for React (inline event handlers + style props).
   // In dev, frame-ancestors allows *.replit.dev so the Replit preview pane works.
@@ -168,9 +161,8 @@ app.use((req: Request, res: Response, next: NextFunction) => {
 });
 
 // ── Portal SSO ───────────────────────────────────────────────────────────────
-// One-time exchange tokens: { userId, userName, userRole, expires }
-const ssoTokens = new Map<string, { userId: string; userName: string; userRole: string; userKit: boolean; expires: number }>();
-setInterval(() => { const now = Date.now(); ssoTokens.forEach((v, k) => { if (v.expires < now) ssoTokens.delete(k); }); }, 30_000);
+// Tokens de troca de uso único, em tabela (ver ./sso-troca).
+const trocaDeSso = criarTrocaDeSso((texto, params) => pool.query(texto, params as any[]));
 
 // Step 1 — Portal redirects here with ?portal_sso=<JWT>&portal_return=<URL>
 // We validate the JWT, create a one-time token, and redirect to /?sso_exchange=TOKEN
@@ -179,19 +171,20 @@ app.use(async (req: Request, res: Response, next: NextFunction) => {
   if (!token) return next();
 
   try {
-    const payload = jwt.verify(token, SSO_SECRET, { issuer: "norte-portal" }) as { email?: string };
+    // Algoritmo fixo (HS256) e emitido há no máximo 5 min: um link vazado do
+    // portal não vira entrada permanente.
+    const payload = verificarJwtDoPortal(token, SSO_SECRET);
     if (!payload?.email) { log("[SSO] payload sem email"); return res.redirect("/login?error=sso_invalid_payload"); }
 
-    const { rows } = await pool.query<{ id: string; name: string; role: string; kit: boolean | null }>(
-      "SELECT id, name, role, kit FROM users WHERE email = $1 LIMIT 1",
+    // E-mail sem diferenciar maiúsculas; havendo duas grafias, a exata vence.
+    const { rows } = await pool.query<{ id: string }>(
+      "SELECT id FROM users WHERE lower(email) = lower($1) ORDER BY (email = $1) DESC LIMIT 1",
       [payload.email]
     );
     const user = rows[0];
     if (!user) { log(`[SSO] usuário não encontrado: ${payload.email}`); return res.redirect("/login?error=sso_user_not_found"); }
 
-    // Create one-time exchange token (valid 60s)
-    const exchangeToken = randomBytes(32).toString("hex");
-    ssoTokens.set(exchangeToken, { userId: user.id, userName: user.name, userRole: user.role, userKit: user.kit === true, expires: Date.now() + 60_000 });
+    const exchangeToken = await trocaDeSso.emitir(user.id);
 
     log(`[SSO] exchange token gerado para: ${payload.email}`);
     return res.redirect(`/?sso_exchange=${exchangeToken}`);
@@ -207,44 +200,51 @@ app.post("/api/auth/sso-exchange", async (req: Request, res: Response) => {
   const { exchangeToken } = req.body as { exchangeToken?: string };
   if (!exchangeToken) return res.status(400).json({ error: "Token ausente" });
 
-  const entry = ssoTokens.get(exchangeToken);
-  if (!entry || entry.expires < Date.now()) {
-    ssoTokens.delete(exchangeToken);
-    return res.status(401).json({ error: "Token expirado ou inválido" });
+  try {
+    // Uso único: consumir já apaga. O usuário é lido AGORA (perfil e Kit
+    // atuais), não o que valia quando o token foi emitido.
+    const userId = await trocaDeSso.consumir(String(exchangeToken));
+    if (!userId) {
+      return res.status(401).json({ error: "Token expirado ou inválido" });
+    }
+    const entry = { userId };
+
+    // SSO users authenticate via Microsoft — clear any pending password-change requirement
+    await pool.query("UPDATE users SET must_change_password = false WHERE id = $1", [entry.userId]);
+
+    // Fetch full user data so the frontend can hydrate auth state without a second request
+    const { rows: fullUser } = await pool.query<{
+      id: string; name: string; email: string; role: string; kit: boolean | null; must_change_password: boolean;
+    }>("SELECT id, name, email, role, kit, must_change_password FROM users WHERE id = $1 LIMIT 1", [entry.userId]);
+    if (!fullUser[0]) return res.status(404).json({ error: "Usuário não encontrado" });
+
+    // Regenerate session ID before writing auth data — prevents session fixation.
+    await new Promise<void>((resolve, reject) =>
+      req.session.regenerate(err => err ? reject(err) : resolve())
+    );
+    req.session.userId   = entry.userId;
+    req.session.userName = fullUser[0].name;
+    req.session.userRole = fullUser[0].role;
+    req.session.userKit  = fullUser[0].kit === true;
+    req.session.loginEm  = Date.now();
+    // O carimbo de login — mesmo contrato do caminho por senha (routes/auth.ts):
+    // fora do caminho crítico, login não falha por causa do registro.
+    pool.query("UPDATE users SET last_login_at = now() WHERE id = $1", [entry.userId])
+      .catch((e) => log(`[SSO] lastLoginAt não gravado: ${e?.message}`));
+    await new Promise<void>((resolve, reject) => req.session.save(e => e ? reject(e) : resolve()));
+
+    log(`[SSO] sessão criada via exchange para userId: ${entry.userId}`);
+    res.json({
+      id: fullUser[0].id,
+      name: fullUser[0].name,
+      email: fullUser[0].email,
+      role: fullUser[0].role,
+      mustChangePassword: fullUser[0].must_change_password,
+    });
+  } catch (err) {
+    console.error("[SSO] falha na troca:", err);
+    res.status(500).json({ error: "Não foi possível entrar pelo portal. Tente de novo." });
   }
-  ssoTokens.delete(exchangeToken); // single-use
-
-  // SSO users authenticate via Microsoft — clear any pending password-change requirement
-  await pool.query("UPDATE users SET must_change_password = false WHERE id = $1", [entry.userId]);
-
-  // Fetch full user data so the frontend can hydrate auth state without a second request
-  const { rows: fullUser } = await pool.query<{
-    id: string; name: string; email: string; role: string; must_change_password: boolean;
-  }>("SELECT id, name, email, role, must_change_password FROM users WHERE id = $1 LIMIT 1", [entry.userId]);
-  if (!fullUser[0]) return res.status(404).json({ error: "Usuário não encontrado" });
-
-  // Regenerate session ID before writing auth data — prevents session fixation.
-  await new Promise<void>((resolve, reject) =>
-    req.session.regenerate(err => err ? reject(err) : resolve())
-  );
-  req.session.userId   = entry.userId;
-  req.session.userName = entry.userName;
-  req.session.userRole = entry.userRole;
-  req.session.userKit  = entry.userKit;
-  // O carimbo de login — mesmo contrato do caminho por senha (routes/auth.ts):
-  // fora do caminho crítico, login não falha por causa do registro.
-  pool.query("UPDATE users SET last_login_at = now() WHERE id = $1", [entry.userId])
-    .catch((e) => log(`[SSO] lastLoginAt não gravado: ${e?.message}`));
-  await new Promise<void>((resolve, reject) => req.session.save(e => e ? reject(e) : resolve()));
-
-  log(`[SSO] sessão criada via exchange para userId: ${entry.userId}`);
-  res.json({
-    id: fullUser[0].id,
-    name: fullUser[0].name,
-    email: fullUser[0].email,
-    role: fullUser[0].role,
-    mustChangePassword: fullUser[0].must_change_password,
-  });
 });
 // ────────────────────────────────────────────────────────────────────────────
 
@@ -284,9 +284,10 @@ app.use((req, res, next) => {
 
 async function runStartupMaintenance() {
   try {
+    // Só o cadastro inicial de banco vazio. Correções de dados não rodam mais
+    // no boot (antes: UPDATE em todos os usuários a cada deploy) — viraram
+    // scripts em scripts/, rodados uma vez por quem opera.
     await seedUsers();
-    await fixSsoMustChangePassword();
-    await fixStandardItemsMissingMaterial();
   } catch (error) {
     // Essas rotinas são correções idempotentes de dados existentes. Não devem
     // impedir que o servidor responda ao health check caso o banco demore.

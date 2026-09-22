@@ -52,6 +52,7 @@ import { ehMolde, etapaDoMolde, statusDeExibicao, ETAPAS_DO_MOLDE } from "@share
 import { EsqueletoDeFila } from "@/components/esqueleto-de-fila";
 import { SoQuandoMudar } from "@/components/arte/so-quando-mudar";
 import { ModalHeader, ModalFooter, modalSurface, HIDE_NATIVE_CLOSE } from "@/components/modal-shell";
+import { hrefSeguro } from "@shared/url-segura";
 
 interface SponsorApproval {
   id: string;
@@ -3170,7 +3171,7 @@ export default function Atendimento() {
                                   <>
                                     {' · '}
                                     <a
-                                      href={item.referenceUrl}
+                                      href={hrefSeguro(item.referenceUrl)}
                                       target="_blank"
                                       rel="noopener noreferrer"
                                       onClick={e => e.stopPropagation()}

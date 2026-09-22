@@ -31,6 +31,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { queryClient } from "@/lib/queryClient";
 import { HIDE_NATIVE_CLOSE } from "@/components/modal-shell";
+import { hrefSeguro } from "@shared/url-segura";
 
 interface ItemDetailsDialogProps {
   item: any | null;
@@ -1490,7 +1491,7 @@ export function ItemDetailsDialog({
                   {refs.length > 0 && (
                     <div>
                       <a
-                        href={refs[0]} target="_blank" rel="noopener noreferrer"
+                        href={hrefSeguro(refs[0])} target="_blank" rel="noopener noreferrer"
                         title="Abrir a referência do solicitante"
                         data-testid="link-referencia"
                         style={{ display: "block", position: "relative", aspectRatio: "16/9", borderRadius: 10, overflow: "hidden", border: "2px solid #fed7aa", backgroundColor: "#fff7ed" }}
@@ -1504,7 +1505,7 @@ export function ItemDetailsDialog({
                       {refs.length > 1 && (
                         <div style={{ display: "flex", gap: 6, marginTop: 6, flexWrap: "wrap" }}>
                           {refs.slice(1).map((u, k) => (
-                            <a key={`${u}-${k}`} href={u} target="_blank" rel="noopener noreferrer"
+                            <a key={`${u}-${k}`} href={hrefSeguro(u)} target="_blank" rel="noopener noreferrer"
                               title={`Abrir referência ${k + 2} de ${refs.length}`}
                               data-testid={`link-referencia-${k + 2}`}
                               style={{ display: "block", width: 56, height: 42, borderRadius: 6, overflow: "hidden", border: "1px solid #fed7aa", backgroundColor: "#fff7ed" }}>
@@ -1634,7 +1635,7 @@ export function ItemDetailsDialog({
                         {/* "Abrir" só quando o navegador consegue abrir. */}
                         {isWebUrl(item.finalFileUrl) && (
                           <a
-                            href={item.finalFileUrl} target="_blank" rel="noopener noreferrer"
+                            href={hrefSeguro(item.finalFileUrl)} target="_blank" rel="noopener noreferrer"
                             style={{ display: "inline-flex", alignItems: "center", height: ALVO, padding: "0 12px", borderRadius: 8, border: "1px solid #e7e5e4", backgroundColor: "#ffffff", color: "#1c1917", fontSize: 12, fontWeight: 700, textDecoration: "none" }}
                           >
                             Abrir
@@ -1663,7 +1664,7 @@ export function ItemDetailsDialog({
                     </div>
                     {item.bookUrl && (
                       <a
-                        href={item.bookUrl} target="_blank" rel="noopener noreferrer"
+                        href={hrefSeguro(item.bookUrl)} target="_blank" rel="noopener noreferrer"
                         style={{ display: "inline-flex", alignItems: "center", height: ALVO, padding: "0 12px", borderRadius: 8, border: "1px solid #e7e5e4", backgroundColor: "#ffffff", color: "#1c1917", fontSize: 12, fontWeight: 700, textDecoration: "none", flexShrink: 0 }}
                       >
                         Abrir
@@ -1675,7 +1676,7 @@ export function ItemDetailsDialog({
                     <div style={{ padding: "10px 12px", borderTop: "1px solid #f5f4f1", backgroundColor: "#fffbeb" }}>
                       <p style={{ fontSize: 12, color: "#92400e", margin: 0, lineHeight: 1.45 }}>
                         Substituiu <strong>{item.previousFinalFileName || "a versão anterior"}</strong> —{" "}
-                        <a href={item.previousFinalFileUrl} target="_blank" rel="noopener noreferrer" style={{ color: "#92400e", fontWeight: 700 }}>ver anterior</a>
+                        <a href={hrefSeguro(item.previousFinalFileUrl)} target="_blank" rel="noopener noreferrer" style={{ color: "#92400e", fontWeight: 700 }}>ver anterior</a>
                       </p>
                     </div>
                   )}

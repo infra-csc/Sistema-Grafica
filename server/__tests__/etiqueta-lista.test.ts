@@ -18,7 +18,8 @@ import { render, act, cleanup, fireEvent } from "@testing-library/react";
 import { QueryClientProvider } from "@tanstack/react-query";
 import {
   TAMANHOS, cabeNoAdesivo, cabecalhoPadrao, prefixoPara, resumoDaImpressao, comCopias, ehDoisPorUm, fonteDaCidadeMm, lerPreferencias, gravarPreferencias, limitarCopias, linhaDaLista,
-  linhasAgrupadas, paginarLinhas, regraDaPagina, subtituloDoTipo, temReaproveitamento,
+  linhasOrdenadas, paginarLinhas, regraDaPagina, temReaproveitamento, partesDaPeca, comEdicoes, etiquetasIndividuais, infoDoVolume, pecaNaLinha,
+  numeroEditado, foiEditado, rodapeDoTubo, lerRecorteDeTubo, parteNoRecorte, SEM_EDICOES,
 } from "../../client/src/lib/etiqueta-lista";
 
 const h = React.createElement;
@@ -26,6 +27,11 @@ const ler = (p: string) => readFileSync(path.resolve(process.cwd(), p), "utf8");
 const $ = (sel: string) => document.querySelector<HTMLElement>(sel);
 const $$ = (sel: string) => Array.from(document.querySelectorAll<HTMLElement>(sel));
 const tick = (ms = 0) => act(() => new Promise<void>((r) => setTimeout(r, ms)));
+
+// O logo do BOOK: a extração real rasteriza o PDF; aqui ela responde na hora.
+// Uma função só, contada — "imprimir todos os tubos" não pode extrair por tubo.
+const extrairLogo = vi.hoisted(() => vi.fn(async (_url: string) => "data:image/png;base64,TESTE"));
+vi.mock("@/lib/logo-do-book", () => ({ logoDaCapaDoBook: extrairLogo }));
 
 vi.mock("@/contexts/auth-context", () => ({
   useAuth: () => ({ user: { id: "u1", name: "Operador", email: "g@g", role: "admin", mustChangePassword: false }, isLoading: false, logout: () => {} }),
@@ -97,14 +103,6 @@ describe("paginação da lista", () => {
     expect(paginas.map((p) => p.length)).toEqual([2, 1]);
   });
 
-  it("subtítulo nunca fica órfão no pé da etiqueta", () => {
-    const linhas = linhasAgrupadas([...pecas(3, "2x1"), ...pecas(2, "Rolo")]);
-    // capacidade 5: [2x1(sub), 3 peças] = 4; o subtítulo ROLOS caberia sozinho — desce com a 1ª peça.
-    const paginas = paginarLinhas(linhas, { capacidade: 5, letrasPorLinha: 34 });
-    expect(paginas[0].at(-1)!.tipo).toBe("peca");
-    expect(paginas[1][0]).toEqual({ tipo: "subtitulo", texto: "ROLOS" });
-  });
-
   it("peça maior que a etiqueta inteira não trava a paginação", () => {
     const enorme = { id: "e", type: "2x1", description: "y".repeat(500), quantity: 1 };
     const paginas = paginarLinhas(comoLinhas([enorme, ...pecas(2)]), { capacidade: 3, letrasPorLinha: 34 });
@@ -112,23 +110,94 @@ describe("paginação da lista", () => {
   });
 });
 
-describe("tipos em lista: agrupados, com subtítulo", () => {
-  it("2x1 primeiro, o resto em ordem alfabética, subtítulo por grupo", () => {
-    const linhas = linhasAgrupadas([...pecas(1, "Testeira"), ...pecas(2, "2x1"), ...pecas(1, "Rolo")]);
-    expect(linhas.filter((l) => l.tipo === "subtitulo").map((l: any) => l.texto)).toEqual(["2X1", "ROLOS", "TESTEIRAS"]);
-    expect(linhas).toHaveLength(7);
+describe("a lista SEM grupo (dono, 21/09: 'tirar grupo, apenas nome do item')", () => {
+  it("só linhas de peça, na ordem do tipo (2x1 primeiro) e depois da descrição", () => {
+    const linhas = linhasOrdenadas([
+      { id: "p", type: "Placa de octanorme (CHECKI - IN)", description: "Placa de octanorme (CHECKI - IN)", quantity: 10 },
+      { id: "n", type: "2X1", description: "Nubank", quantity: 34 },
+      { id: "l", type: "2X1", description: "Lei", quantity: 8 },
+      { id: "r", type: "Rolo", description: "Santander", quantity: 1 },
+    ]);
+    expect(linhas.every((l) => l.tipo === "peca")).toBe(true);
+    expect(linhas.map((l) => linhaDaLista(l.peca))).toEqual([
+      "2X1 Lei - 8", "2X1 Nubank - 34", "Placa de octanorme (CHECKI - IN) - 10", "Rolo Santander - 1",
+    ]);
   });
 
-  it("um grupo só não gasta linha com subtítulo (a linha já começa por '2x1')", () => {
-    expect(linhasAgrupadas(pecas(3)).every((l) => l.tipo === "peca")).toBe(true);
+  it("a regra do subtítulo saiu da lib e do componente", () => {
+    expect(ler("client/src/lib/etiqueta-lista.ts")).not.toMatch(/subtituloDoTipo|linhasAgrupadas/);
+    expect(ler("client/src/components/etiqueta-lista.tsx")).not.toContain("etl-subtitulo");
+  });
+});
+
+// ═════════════════════════════════════════════════════════════════════════════
+// 2b · O TUBO NA ETIQUETA e a EDIÇÃO DE NÚMEROS (21/09) — regra pura
+// ═════════════════════════════════════════════════════════════════════════════
+const dividida = { id: "d", type: "Lona", description: "Lona Vale", quantity: 10,
+  tuboVolumes: [{ tuboId: "t2", numero: 2, avulso: false, quantidade: 3 }, { tuboId: "t1", numero: 1, avulso: false, quantidade: 7 }] };
+
+describe("as partes da peça", () => {
+  it("dividida em dois tubos: uma parte por tubo, em ordem, com a sua quantidade", () => {
+    const ps = partesDaPeca(dividida);
+    expect(ps.map((p) => [p.numero, p.quantidade, p.total, p.inicio])).toEqual([[1, 7, 10, 0], [2, 3, 10, 7]]);
+    expect(infoDoVolume(ps[0])).toEqual({ selo: "TUBO 1", detalhe: "7 de 10 un. neste tubo" });
   });
 
-  it("só pluraliza o caso seguro", () => {
-    expect(subtituloDoTipo("Testeira")).toBe("TESTEIRAS");
-    expect(subtituloDoTipo("Mandala")).toBe("MANDALAS");
-    expect(subtituloDoTipo("Stand")).toBe("STAND");
-    expect(subtituloDoTipo("Testeira Médica")).toBe("TESTEIRA MÉDICA");
-    expect(subtituloDoTipo("")).toBe("OUTROS");
+  it("uma etiqueta por tubo; com 'uma por unidade', cada unidade leva o tubo da sua faixa", () => {
+    const ps = partesDaPeca(dividida);
+    expect(etiquetasIndividuais(ps, false).map((e) => [e.parte.numero, e.parte.quantidade])).toEqual([[1, 7], [2, 3]]);
+    const un = etiquetasIndividuais(ps, true);
+    expect(un).toHaveLength(10);
+    expect(un.map((e) => `${e.n}:${e.parte.numero}`)).toEqual(["1:1", "2:1", "3:1", "4:1", "5:1", "6:1", "7:1", "8:2", "9:2", "10:2"]);
+  });
+
+  it("embalada sozinha: 'EMBALADA', nunca 'TUBO'; não embalada: nada", () => {
+    const avulsa = partesDaPeca({ id: "a", type: "Backdrop", quantity: 1, tuboVolumes: [{ tuboId: "x", numero: -3, avulso: true, quantidade: 1 }] });
+    expect(avulsa[0].numero).toBeNull();
+    expect(infoDoVolume(avulsa[0]).selo).toBe("EMBALADA");
+    const solta = partesDaPeca({ id: "s", type: "Backdrop", quantity: 4 });
+    expect(solta).toHaveLength(1);
+    expect(infoDoVolume(solta[0])).toEqual({ selo: null, detalhe: null });
+  });
+
+  it("parte embalada e parte não: o resto vira uma parte sem tubo", () => {
+    const ps = partesDaPeca({ id: "p", type: "2x1", description: "BB", quantity: 10, tuboVolumes: [{ tuboId: "t1", numero: 1, quantidade: 7 }] });
+    expect(ps.map((p) => [p.numero, p.quantidade])).toEqual([[1, 7], [null, 3]]);
+    expect(linhaDaLista(pecaNaLinha([ps[0]]))).toBe("2x1 BB - 7 (7 de 10)");
+    expect(linhaDaLista(pecaNaLinha(ps))).toBe("2x1 BB - 10");
+  });
+
+  it("sem a lista de volumes, vale o atalho tuboNumero/embaladaQty", () => {
+    const ps = partesDaPeca({ id: "p", type: "Rolo", quantity: 5, tuboId: "t9", tuboNumero: 9, embaladaQty: 5 });
+    expect(ps.map((p) => [p.numero, p.quantidade])).toEqual([[9, 5]]);
+  });
+
+  it("o recorte 'Tubo' (URL): todos, só os tubos, Tubo N, sem tubo — lixo cai em todos", () => {
+    const [t1, t2] = partesDaPeca(dividida);
+    expect(lerRecorteDeTubo("2")).toBe("2");
+    expect(lerRecorteDeTubo("abc")).toBe("todos");
+    expect(lerRecorteDeTubo(null)).toBe("todos");
+    expect([parteNoRecorte(t1, "2"), parteNoRecorte(t2, "2"), parteNoRecorte(t1, "tubos"), parteNoRecorte(t1, "sem")]).toEqual([false, true, true, false]);
+  });
+
+  it("rodapé do tubo: peças, unidades e a data da embalagem quando há", () => {
+    expect(rodapeDoTubo(3, 26)).toBe("3 peças · 26 un.");
+    expect(rodapeDoTubo(1, 1, "2026-09-21T15:00:00.000Z")).toMatch(/^1 peça · 1 un\. · embalado \d\d\/\d\d$/);
+  });
+});
+
+describe("editar números na etiqueta (só impressão)", () => {
+  it("texto que não é número vale o original; o total e as faixas se refazem", () => {
+    expect(numeroEditado("", 7)).toBe(7);
+    expect(numeroEditado("x", 7)).toBe(7);
+    expect(numeroEditado("5", 7)).toBe(5);
+    expect(foiEditado("7", 7)).toBe(false);
+    expect(foiEditado(undefined, 7)).toBe(false);
+    const ps = comEdicoes(partesDaPeca(dividida), { quantidades: { "d|t1": "6" }, tubos: { t2: "5" } });
+    expect(ps.map((p) => [p.numero, p.numeroNaEtiqueta, p.quantidade, p.total, p.inicio, p.original])).toEqual([[1, 1, 6, 9, 0, 7], [2, 5, 3, 9, 6, 3]]);
+    expect(infoDoVolume(ps[1]).selo).toBe("TUBO 5");
+    // sem edição, nada muda
+    expect(comEdicoes(partesDaPeca(dividida), SEM_EDICOES).map((p) => p.quantidade)).toEqual([7, 3]);
   });
 });
 
@@ -332,7 +401,9 @@ describe("a etiqueta do tubo, na tela", () => {
     expect(resumoNaTela()).toBe("Vai imprimir: 1 etiqueta em Adesivo 10×15 cm (a lista do tubo)");
     expect($('[data-testid="legenda-etiqueta-1"]')!.textContent).toBe("Adesivo 10×15 cm · lista · etiqueta 1 de 1");
     // As opções falam a mesma língua do evento: seções nomeadas.
-    expect($$("fieldset legend").map((l) => l.textContent)).toEqual(["Formato", "Cabeçalho da etiqueta"]);
+    expect($$("fieldset legend").map((l) => l.textContent)).toEqual(["Formato", "Números na etiqueta", "Cabeçalho da etiqueta"]);
+    // rodapé discreto: peças e unidades do tubo
+    expect(naTela('[data-testid="etiqueta-tubo-1-rodape"]')[0].textContent).toBe("2 peças · 17 un.");
   });
 
   it("'Mostrar quantidade' desligado tira o ' - N' e fica lembrado", async () => {
@@ -449,7 +520,7 @@ describe("a etiqueta do tubo, na tela", () => {
 // ═════════════════════════════════════════════════════════════════════════════
 // 5 · ETIQUETAS DO EVENTO — a tela reorganizada (22/09)
 // ═════════════════════════════════════════════════════════════════════════════
-async function montarEvento(itens: any[], opcoes: { largura?: number; nome?: string } = {}) {
+async function montarEvento(itens: any[], opcoes: { largura?: number; nome?: string; url?: string } = {}) {
   prepararTela(opcoes.largura ?? 1280);
   const chamadas: Array<{ url: string; corpo: any }> = [];
   vi.stubGlobal("fetch", vi.fn(async (url: any, init?: any) => {
@@ -457,7 +528,7 @@ async function montarEvento(itens: any[], opcoes: { largura?: number; nome?: str
     return json([]);
   }));
   window.print = vi.fn();
-  window.history.replaceState({}, "", "/eventos/ev1/etiquetas");
+  window.history.replaceState({}, "", opcoes.url ?? "/eventos/ev1/etiquetas");
   const { queryClient } = await import("@/lib/queryClient");
   const Pagina = (await import("@/pages/etiquetas-evento")).default;
   queryClient.clear();
@@ -493,8 +564,8 @@ describe("etiquetas do evento: UMA leitura", () => {
     await montarEvento(ITENS);
     expect($('[data-testid="como-sai-2x1-lista"]')!.getAttribute("aria-pressed")).toBe("true");
     expect($('[data-testid="como-sai-testeira-individual"]')!.getAttribute("aria-pressed")).toBe("true");
-    expect(linhasDeLista().map((e) => e.textContent)).toEqual(["2x1 Ministério - 16", "2x1 BB - 6"]);
-    expect($$('[data-testid="etl-subtitulo"]')).toHaveLength(0);
+    // ordem do tipo e depois da descrição — não mais a do código
+    expect(linhasDeLista().map((e) => e.textContent)).toEqual(["2x1 BB - 6", "2x1 Ministério - 16"]);
     expect(individuais()).toHaveLength(4);
     expect(resumoNaTela()).toBe("Vai imprimir: 1 lista em Adesivo 10×15 cm (2 peças) e 4 etiquetas individuais em A4 (2 folhas) — 2 impressões separadas");
     expect($('[data-testid="aviso-papeis-diferentes"]')).toBeTruthy();
@@ -504,11 +575,15 @@ describe("etiquetas do evento: UMA leitura", () => {
     expect($('[data-testid="legenda-lista-1"]')!.textContent).toBe("Adesivo 10×15 cm · lista 1 de 1");
   });
 
-  it("'Como sai' decide por TIPO: mais tipos em lista agrupam com subtítulo; atalhos e 'Padrão'", async () => {
+  it("'Como sai' decide por TIPO: mais tipos em lista viram só linhas de peça, SEM subtítulo; atalhos e 'Padrão'", async () => {
     await montarEvento(ITENS);
     await clicar("como-sai-testeira-lista");
     await clicar("como-sai-rolo-lista");
-    expect($$('[data-testid="etl-subtitulo"]').map((e) => e.textContent)).toEqual(["2X1", "ROLOS", "TESTEIRAS"]);
+    expect(linhasDeLista().map((e) => e.textContent)).toEqual([
+      "2x1 BB - 6", "2x1 Ministério - 16", "Rolo Santander - 3", "Testeira Largada - 1", "Testeira Médica - 1",
+    ]);
+    // nada além das linhas das peças dentro da lista (sem cabeçalho de grupo)
+    expect($('[data-testid="lista-1"]')!.querySelectorAll("p[data-testid]").length).toBe(5);
     expect(linhasDeLista()).toHaveLength(5);
     expect(individuais()).toHaveLength(1);
     await clicar("como-sai-tudo-lista");
@@ -551,7 +626,7 @@ describe("etiquetas do evento: UMA leitura", () => {
     // a quebra de página é do BLOCO — a folha mora dentro do embrulho do zoom
     expect(css()).toContain(".etq-bloco { break-after: page; page-break-after: always; }");
     await clicar("check-mostrar-quantidade");
-    expect(linhasDeLista().map((e) => e.textContent)).toEqual(["2x1 Ministério", "2x1 BB"]);
+    expect(linhasDeLista().map((e) => e.textContent)).toEqual(["2x1 BB", "2x1 Ministério"]);
     await mudar("select-tamanho-lista", "a4");
     expect(css()).toContain("@page etqlista { size: A4 portrait; margin: 10mm; }");
     expect($('[data-testid="lista-1"]')!.style.width).toBe("190mm");
@@ -718,5 +793,211 @@ describe("etiquetas do evento a 390px", () => {
     expect(furosDoCelular($('[data-testid="painel-de-opcoes"]')!)).toEqual([]);
     expect(furosDoCelular($('[data-testid="barra-das-etiquetas"]')!)).toEqual([]);
     expect(furosDoCelular($('[data-testid="rodape-de-acao"]')!)).toEqual([]);
+  });
+});
+
+// ═════════════════════════════════════════════════════════════════════════════
+// 6 · O TUBO NA ETIQUETA, A LISTA POR TUBO E A EDIÇÃO DE NÚMEROS (dono, 21/09)
+// ═════════════════════════════════════════════════════════════════════════════
+const vol = (tuboId: string, numero: number, quantidade: number, avulso = false) => ({ tuboId, numero, avulso, quantidade });
+const COM_TUBOS = [
+  item("1", "2x1", "Nubank", 34, { status: "packed", tuboVolumes: [vol("t1", 1, 34)] }),
+  item("2", "2x1", "Lei", 8, { status: "packed", tuboVolumes: [vol("t2", 2, 8)] }),
+  item("3", "Lona", "Lona Vale", 10, { status: "packed", tuboVolumes: [vol("t2", 2, 3), vol("t1", 1, 7)] }),
+  item("4", "Backdrop", "Backdrop lona", 1, { status: "packed", tuboVolumes: [vol("a1", -1, 1, true)] }),
+  item("5", "Testeira", "Testeira Médica", 2),
+];
+const linhasDoTubo = (n: number) => $$(`[data-testid^="tubo-linha-${n}-"]`).map((e) => e.textContent);
+const texto = (testid: string) => $(`[data-testid="${testid}"]`)?.textContent ?? "";
+
+describe("etiquetas do evento com tubos", () => {
+  it("padrão: UMA LISTA POR TUBO (TUBO N + rodapé), sem grupo; o resto segue o tipo; o resumo diz", async () => {
+    await montarEvento(COM_TUBOS);
+    expect($('[data-testid="por-tubo-tubo"]')!.getAttribute("aria-pressed")).toBe("true");
+    expect(linhasDoTubo(1)).toEqual(["2x1 Nubank - 34", "Lona Vale - 7 (7 de 10)"]);
+    expect(linhasDoTubo(2)).toEqual(["2x1 Lei - 8", "Lona Vale - 3 (3 de 10)"]);
+    expect(texto("lista-tubo-1-1")).toContain("TUBO 1");
+    expect(texto("lista-tubo-1-1-rodape")).toBe("2 peças · 41 un.");
+    expect(texto("legenda-lista-tubo-2-1")).toBe("Adesivo 10×15 cm · Tubo 2 · lista 1 de 1");
+    // o que não está em tubo segue a regra do tipo: individuais
+    expect(individuais().map((e) => e.getAttribute("data-testid"))).toEqual(["etiqueta-4", "etiqueta-5"]);
+    expect(resumoNaTela()).toBe("Vai imprimir: 2 listas de tubo em Adesivo 10×15 cm (Tubos 1 e 2 · 4 peças) e 2 etiquetas individuais em A4 (1 folha) — 2 impressões separadas");
+  });
+
+  it("individual: 'TUBO N' junto da quantidade; dividida = uma etiqueta por tubo; embalada sozinha = 'EMBALADA'; solta = nada", async () => {
+    await montarEvento(COM_TUBOS);
+    await clicar("por-tubo-tipo");
+    const t1 = $('[data-testid="etiqueta-3-tubo1"]')!, t2 = $('[data-testid="etiqueta-3-tubo2"]')!;
+    expect(t1.querySelector('[data-testid="tubo-na-etiqueta"]')!.textContent).toBe("TUBO 1");
+    expect(t1.querySelector('[data-testid="quantidade-na-etiqueta"]')!.textContent).toBe("7 un.");
+    expect(t1.querySelector('[data-testid="detalhe-do-volume"]')!.textContent).toBe("7 de 10 un. neste tubo");
+    expect(t2.querySelector('[data-testid="tubo-na-etiqueta"]')!.textContent).toBe("TUBO 2");
+    expect(t2.querySelector('[data-testid="quantidade-na-etiqueta"]')!.textContent).toBe("3 un.");
+    const avulsa = $('[data-testid="etiqueta-4"]')!;
+    expect(avulsa.querySelector('[data-testid="tubo-na-etiqueta"]')!.textContent).toBe("EMBALADA");
+    expect(avulsa.textContent).not.toContain("TUBO");
+    expect($('[data-testid="etiqueta-5"]')!.querySelector('[data-testid="tubo-na-etiqueta"]')).toBeNull();
+    // os 2x1 voltam à lista geral, sem grupo
+    expect(linhasDeLista().map((e) => e.textContent)).toEqual(["2x1 Lei - 8", "2x1 Nubank - 34"]);
+    // "uma por unidade": cada unidade com o tubo da sua faixa (7 no Tubo 1, 3 no Tubo 2)
+    await clicar("check-por-unidade");
+    expect($$('[data-testid^="etiqueta-3-"]')).toHaveLength(10);
+    expect($('[data-testid="etiqueta-3-7"]')!.querySelector('[data-testid="tubo-na-etiqueta"]')!.textContent).toBe("TUBO 1");
+    expect($('[data-testid="etiqueta-3-8"]')!.querySelector('[data-testid="tubo-na-etiqueta"]')!.textContent).toBe("TUBO 2");
+    expect($('[data-testid="etiqueta-3-8"]')!.textContent).toContain("8 de 10");
+  });
+
+  it("recorte 'Tubo' na URL: só o Tubo 2 sai (e só ele é registrado)", async () => {
+    const chamadas = await montarEvento(COM_TUBOS);
+    await mudar("select-tubo", "2");
+    expect(window.location.search).toBe("?tubo=2");
+    expect($$('.etl-caixa[data-testid^="lista-tubo-"]').map((e) => e.getAttribute("data-testid"))).toEqual(["lista-tubo-2-1"]);
+    expect(individuais()).toHaveLength(0);
+    expect(resumoNaTela()).toBe("Vai imprimir: 1 lista de tubo em Adesivo 10×15 cm (Tubo 2 · 2 peças)");
+    await clicar("button-imprimir-etiquetas");
+    expect(chamadas.find((c) => c.url.includes("labels-printed"))!.corpo.itemIds.sort()).toEqual(["2", "3"]);
+    cleanup();
+    await montarEvento(COM_TUBOS, { url: "/eventos/ev1/etiquetas?de=grafica&tubo=1" });
+    expect(($('[data-testid="select-tubo"]') as HTMLSelectElement).value).toBe("1");
+    expect(linhasDoTubo(1)).toHaveLength(2);
+    expect(linhasDoTubo(2)).toHaveLength(0);
+    await mudar("select-tubo", "todos");
+    expect(window.location.search).toBe("?de=grafica");
+  });
+
+  it("'Imprimir etiquetas de todos os tubos': recorte nos tubos, lista por tubo, imprime e registra as peças dos tubos", async () => {
+    const chamadas = await montarEvento(COM_TUBOS);
+    await clicar("selecao-nenhuma");
+    await clicar("por-tubo-tipo");
+    await clicar("imprimir-todos-os-tubos");
+    expect(window.print).toHaveBeenCalledTimes(1);
+    expect(($('[data-testid="select-tubo"]') as HTMLSelectElement).value).toBe("tubos");
+    expect($$('.etl-caixa[data-testid^="lista-tubo-"]').map((e) => e.getAttribute("data-testid"))).toEqual(["lista-tubo-1-1", "lista-tubo-2-1"]);
+    expect(chamadas.find((c) => c.url.includes("labels-printed"))!.corpo.itemIds.sort()).toEqual(["1", "2", "3"]);
+  });
+
+  it("o número do tubo é editável só para a impressão: vale para o tubo inteiro", async () => {
+    await montarEvento(COM_TUBOS);
+    await mudar("tubo-na-etiqueta-3-tubo1", "5");
+    expect(texto("lista-tubo-1-1")).toContain("TUBO 5");
+    expect(($('[data-testid="tubo-na-etiqueta-1-tubo1"]') as HTMLInputElement).value).toBe("5");
+    expect($('[data-testid="tubo-na-etiqueta-1-tubo1"]')!.getAttribute("data-editado")).toBe("sim");
+    await clicar("voltar-original-3-tubo1");
+    expect(texto("lista-tubo-1-1")).toContain("TUBO 1");
+  });
+});
+
+describe("editar números na etiqueta (não afeta nada de status)", () => {
+  it("a quantidade editada muda a prévia (lista e individual), fica destacada e volta ao original", async () => {
+    const chamadas = await montarEvento(ITENS);
+    expect(texto("aviso-numeros-so-impressao")).toContain("só muda o que sai impresso — a peça não é alterada");
+    await mudar("qtd-na-etiqueta-5-fora", "7");
+    expect($('[data-testid="etiqueta-5"]')!.querySelector('[data-testid="quantidade-na-etiqueta"]')!.textContent).toBe("7 un.");
+    expect($('[data-testid="qtd-na-etiqueta-5-fora"]')!.getAttribute("data-editado")).toBe("sim");
+    await mudar("qtd-na-etiqueta-2-fora", "9");
+    expect(linhasDeLista().map((e) => e.textContent)).toEqual(["2x1 BB - 9", "2x1 Ministério - 16"]);
+    // campo vazio no meio da digitação não vira "0": vale o original
+    await mudar("qtd-na-etiqueta-2-fora", "");
+    expect(linhasDeLista()[0].textContent).toBe("2x1 BB - 6");
+    await clicar("voltar-original-5-fora");
+    expect($('[data-testid="etiqueta-5"]')!.querySelector('[data-testid="quantidade-na-etiqueta"]')!.textContent).toBe("3 un.");
+    await mudar("qtd-na-etiqueta-5-fora", "4");
+    // nenhuma rota além do registro de impressão — e ele só leva os ids
+    expect(chamadas).toEqual([]);
+    await clicar("button-imprimir-etiquetas");
+    expect(chamadas.filter((c) => c.corpo).map((c) => c.url)).toEqual(["/api/items/labels-printed"]);
+    expect(chamadas.filter((c) => !c.corpo).every((c) => c.url.includes("/api/items"))).toBe(true);
+    expect(Object.keys(chamadas.find((c) => c.corpo)!.corpo)).toEqual(["itemIds"]);
+    // a peça não foi tocada (o fixture segue igual; a página nunca muta a peça)
+    expect(ITENS.find((i) => i.id === "5")!.quantity).toBe(3);
+    await clicar("restaurar-numeros");
+    expect($('[data-testid="restaurar-numeros"]')).toBeNull();
+  });
+
+  it("na etiqueta do tubo: quantidade e número editáveis, sem chamar rota nenhuma", async () => {
+    await montarTubo([
+      { id: "a", displayId: "#1", type: "2x1", description: "Ministério", quantity: 16, quantidadeNoTubo: 16, conferida: true },
+      { id: "l", displayId: "#2", type: "Lona", description: "Lona Vale", quantity: 10, quantidadeNoTubo: 7, conferida: true },
+    ], { tubo: { fechadoEm: "2026-09-21T15:00:00.000Z" } });
+    expect($('[data-testid="linha-tubo-1-l"]')!.textContent).toBe("Lona Vale - 7 (7 de 10)");
+    expect(naTela('[data-testid="etiqueta-tubo-1-rodape"]')[0].textContent).toMatch(/^2 peças · 23 un\. · embalado \d\d\/\d\d$/);
+    await mudar("qtd-na-etiqueta-l", "10");
+    expect($('[data-testid="linha-tubo-1-l"]')!.textContent).toBe("Lona Vale - 10");
+    await mudar("tubo-na-etiqueta", "9");
+    expect(naTela(".etl-caixa")[0].textContent).toContain("TUBO 9");
+    expect($("h1")!.textContent).toContain("Etiqueta do Tubo 2");
+    expect(texto("secao-numeros")).toContain("Só muda o que sai impresso — a peça não é alterada");
+    const f = globalThis.fetch as any;
+    expect(f.mock.calls.filter((c: any[]) => c[1]?.method && c[1].method !== "GET")).toEqual([]);
+    await clicar("restaurar-numeros");
+    expect(naTela(".etl-caixa")[0].textContent).toContain("TUBO 2");
+  });
+});
+
+async function montarTuboComBook() {
+  vi.stubGlobal("fetch", vi.fn(async () => json([])));
+  window.history.replaceState({}, "", "/grafica/tubos/t1/etiqueta");
+  const { queryClient } = await import("@/lib/queryClient");
+  const Pagina = (await import("@/pages/etiqueta-tubo")).default;
+  queryClient.clear();
+  queryClient.setQueryData(["/api/tubos/t1"], {
+    tubo: { id: "t1", numero: 2, entregueEm: null, recebidoPor: null },
+    evento: { id: "ev1", name: "Circuito Vale Itabira", truckDepartureDate: null, bookUrl: "https://x/book.pdf" },
+    pecas: [{ id: "a", displayId: "#1", type: "2x1", description: "BB", quantity: 6, quantidadeNoTubo: 6, conferida: true }],
+  });
+  await act(async () => { render(h(QueryClientProvider, { client: queryClient } as any, h(Pagina as any, null))); });
+  await tick(30);
+}
+
+describe("o logo do BOOK em toda etiqueta nova (lembrete do dono, 21/09)", () => {
+  const comBook = COM_TUBOS.map((i) => ({ ...i, bookUrl: "https://x/book.pdf" }));
+
+  it("evento: individual com TUBO e lista por tubo levam o logo; uma extração só; o interruptor tira", async () => {
+    extrairLogo.mockClear();
+    await montarEvento(comBook);
+    expect($('[data-testid="lista-tubo-1-1"]')!.querySelector('[data-testid="logo-etiqueta"]')).toBeTruthy();
+    expect($('[data-testid="lista-tubo-2-1"]')!.querySelector('[data-testid="logo-etiqueta"]')).toBeTruthy();
+    await clicar("por-tubo-tipo");
+    expect($('[data-testid="etiqueta-3-tubo1"]')!.querySelector('[data-testid="logo-etiqueta"]')).toBeTruthy();
+    await clicar("por-tubo-tubo");
+    await clicar("imprimir-todos-os-tubos");
+    expect(window.print).toHaveBeenCalledTimes(1);
+    expect(extrairLogo).toHaveBeenCalledTimes(1);
+    await clicar("check-usar-logo");
+    expect($$('[data-testid="logo-etiqueta"]')).toHaveLength(0);
+  });
+
+  it("evento: enquanto o logo é extraído, Imprimir e o atalho dos tubos esperam", async () => {
+    extrairLogo.mockImplementationOnce(() => new Promise<string>(() => {}));
+    await montarEvento(comBook);
+    expect(($('[data-testid="button-imprimir-etiquetas"]') as HTMLButtonElement).disabled).toBe(true);
+    expect(($('[data-testid="imprimir-todos-os-tubos"]') as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it("etiqueta do tubo: logo no cabeçalho, com interruptor; o Imprimir espera a extração", async () => {
+    prepararTela(1280);
+    await montarTuboComBook();
+    expect(naTela('[data-testid="logo-etiqueta"]')).toHaveLength(1);
+    await clicar("check-usar-logo");
+    expect(naTela('[data-testid="logo-etiqueta"]')).toHaveLength(0);
+    cleanup();
+    extrairLogo.mockImplementationOnce(() => new Promise<string>(() => {}));
+    await montarTuboComBook();
+    const b = $('[data-testid="imprimir-etiqueta-tubo"]') as HTMLButtonElement;
+    expect(b.disabled).toBe(true);
+    expect(b.textContent).toContain("Buscando o logo");
+  });
+});
+
+describe("etiquetas do evento com tubos a 390px", () => {
+  it("seletor de tubo, atalho, lista por tubo e campos de número: alvos de 44, 16px, nada mais largo que a tela", async () => {
+    await montarEvento(COM_TUBOS, { largura: 390 });
+    await clicar("abrir-opcoes");
+    expect($('[data-testid="select-tubo"]')).toBeTruthy();
+    expect($('[data-testid="qtd-na-etiqueta-3-tubo1"]')!.getAttribute("inputmode")).toBe("numeric");
+    await mudar("qtd-na-etiqueta-3-tubo1", "6");
+    expect(furosDoCelular($('[data-testid="painel-de-opcoes"]')!)).toEqual([]);
+    await clicar("abrir-opcoes");
+    expect(linhasDoTubo(1)).toContain("Lona Vale - 6 (6 de 9)");
   });
 });

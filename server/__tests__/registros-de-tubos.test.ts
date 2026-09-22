@@ -150,7 +150,7 @@ describe("onde aparece, e de onde vem (fonte)", () => {
     expect(ler("client/src/components/item-details-dialog.tsx")).toContain('match: d => d.includes("embalada no tubo") || d.startsWith("embalada (sozinha)") },');
     // …e o servidor escreve exatamente essas frases
     expect(ROTAS).toContain("`Embalada (sozinha)${quanto}${comFoto}`");
-    expect(ROTAS).toContain("`Embalagem desfeita — ${l.quantidade} un. voltaram a Conferido`");
+    expect(ROTAS).toContain("`Embalagem desfeita — ${l.quantidade} un. voltaram a Conferido${motivo ? ` (${motivo})` : \"\"}`");
   });
 });
 

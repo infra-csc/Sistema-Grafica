@@ -81,6 +81,8 @@ import { Fragment, useState, useMemo, useEffect, useRef, useCallback, useDeferre
 import { FileUploader } from "@/components/FileUploader";
 import { FilterSelect, ShortcutPill } from "@/components/filter-select";
 import { EventFilterDropdown } from "@/components/event-filter-dropdown";
+import { Filter } from "lucide-react";
+import { useAcompanharAreaVisivel } from "@/components/grafica/area-visivel";
 import { ExportPdfDialog } from "@/components/export-pdf-dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ItemDetailsDialog } from "@/components/item-details-dialog";
@@ -546,6 +548,17 @@ const ARTE_SORT_OPTIONS = [
   { value: "prazo", label: "Prazo da fase", pinned: true },
 ];
 
+// "Mais filtros" (dono, 22/09): à vista ficam só a busca e o Evento; estes
+// dez recortes moram atrás do botão. Os `kind` são os mesmos de `activeChips`
+// — é essa lista que decide o número do botão e quais chips aparecem com a
+// faixa fechada. `paradas` e o patrocinador da Correção NÃO entram: os dois
+// têm controle próprio fora da barra, que continua à vista.
+const FILTROS_ESCONDIDOS = new Set([
+  "sponsor", "type", "material", "month", "next10", "period",
+  "urgente", "atrasado", "thumb", "final",
+]);
+const CHAVE_MAIS_FILTROS = "arte.maisFiltrosAberto";
+
 /**
  * "Buscar arte já feita" — o gêmeo do botão de subir arquivo, ao lado dele.
  *
@@ -741,12 +754,35 @@ export default function Arte() {
   const hoje = dateBounds.today;
 
   const isMobile = useIsMobile();
-  // FILTROS RECOLHIDOS NO CELULAR. O cabeçalho é fixo (`flexShrink: 0`) e,
-  // aberto por inteiro em 390px, as duas faixas de filtro (sete gatilhos e
-  // quatro segmentados de 44px) somavam mais de uma tela: a lista ficava com
-  // uma fresta de rolagem. A busca e a fase continuam sempre à vista; o resto
-  // abre num toque, e o recorte ativo segue escrito nos chips.
+  // FILTROS ESCONDIDOS ATRÁS DE UM BOTÃO (dono, 22/09: "a Arte está achando
+  // os filtros poluídos: deixar apenas EVENTOS aparentes"). À vista ficam só a
+  // busca e o Evento; os outros dez recortes moram em "Mais filtros".
+  // No CELULAR eles abrem numa folha de tela cheia (padrão da Gráfica), que
+  // nunca abre sozinha — uma folha modal na chegada tomaria a tela inteira, e
+  // o recorte ativo já fica escrito nos chips.
   const [filtrosAbertosMobile, setFiltrosAbertosMobile] = useState(false);
+  // No DESKTOP é uma faixa que se expande abaixo da barra. Lembra o último
+  // estado (localStorage com try/catch: aba anônima e armazenamento bloqueado
+  // lançam) e ABRE sozinha quando o link chega com um filtro escondido ligado
+  // — senão a lista viria recortada por um controle que ninguém está vendo.
+  const [maisFiltrosAberto, setMaisFiltrosAberto] = useState<boolean>(() => {
+    const f = urlInicial.filters;
+    const escondidoNaURL = f.sponsorIds.length > 0 || f.types.length > 0 || f.materials.length > 0
+      || f.months.length > 0 || f.next10Days || f.period !== "Todos" || f.urgente || f.atrasado
+      || f.thumb !== "todos" || f.final !== "todos";
+    if (escondidoNaURL) return true;
+    try { return window.localStorage.getItem(CHAVE_MAIS_FILTROS) === "1"; } catch { return false; }
+  });
+  const alternarMaisFiltros = () => {
+    // Só o gesto do usuário grava: a abertura automática pelo link não vira
+    // preferência de quem só abriu um link uma vez.
+    const novo = !maisFiltrosAberto;
+    setMaisFiltrosAberto(novo);
+    try { window.localStorage.setItem(CHAVE_MAIS_FILTROS, novo ? "1" : "0"); } catch { /* sem armazenamento: só não lembra */ }
+  };
+  const folhaFiltrosRef = useRef<HTMLDivElement>(null);
+  // Teclado virtual aberto numa busca de dentro da folha: o rodapé sobe junto.
+  useAcompanharAreaVisivel(folhaFiltrosRef, "tela-cheia", isMobile && filtrosAbertosMobile);
   const [dispenseItem, setDispenseItem] = useState<any>(null);
   const [dispenseReason, setDispenseReason] = useState<string>("");
   // Devolver ao solicitante: a peça volta para RASCUNHO e quem a criou decide
@@ -2450,6 +2486,25 @@ export default function Arte() {
       case 'search': setSearchFilter(""); break;
       case 'correcaoSponsor': setCorrecaoSponsorFilter("all"); break;
     }
+  };
+
+  // Quantos recortes ligados moram ATRÁS do botão "Mais filtros" — o número
+  // do botão. Conta como os chips contam (um por valor escolhido), para o
+  // "(2)" do botão bater com os dois chips da linha de baixo.
+  const nFiltrosEscondidos = activeChips.filter(c => FILTROS_ESCONDIDOS.has(c.kind)).length;
+  // "Limpar estes filtros": só os escondidos. Evento e busca ficam — quem
+  // limpa a faixa de baixo não pediu para perder o evento que escolheu em cima.
+  const limparFiltrosEscondidos = () => {
+    setSponsorFilter([]);
+    setTypeFilter([]);
+    setMaterialFilter([]);
+    setMonthFilter([]);
+    setNext10DaysFilter(false);
+    setPeriodFilter("Todos");
+    setUrgenteFilter(false);
+    setAtrasadoFilter(false);
+    setThumbFilter("todos");
+    setFinalFilter("todos");
   };
 
   // ─── RENDER ────────────────────────────────────────────────────────────────
@@ -4316,47 +4371,37 @@ export default function Arte() {
             </div>
           )}
 
-          {/* ── Filter Row 1: search + dropdowns + period ── */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
-            <div style={{ position: 'relative', flex: '1 1 180px', minWidth: 160 }}>
-              <Search style={{ width: 14, height: 14, color: '#57534e', position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} />
-              <input
-                type="text"
-                value={searchFilter}
-                onChange={e => setSearchFilter(e.target.value)}
-                placeholder="Buscar por ID, peça, descrição ou evento..."
-                aria-label="Buscar por ID, peça, descrição ou evento"
-                data-testid="input-search-filter"
-                style={{ width: '100%', height: isMobile ? 44 : 36, paddingLeft: 30, paddingRight: 10, borderRadius: 8, border: searchFilter ? '1px solid #f97316' : '1px solid #e7e5e4', backgroundColor: '#ffffff', color: '#1c1917', fontSize: 13, boxSizing: 'border-box' }}
-              />
-            </div>
+          {/* ── Barra de filtros ──
+              Dono, 22/09: "a Arte está achando os filtros poluídos: deixar
+              apenas EVENTOS aparentes e meio que esconder os outros filtros
+              em um botão". À vista: a busca (o gesto mais usado) e o Evento.
+              O resto — os mesmos controles, estado e URL de antes — mora
+              atrás de "Mais filtros": no desktop uma faixa que se expande
+              logo abaixo (não modal: a lista continua viva por baixo), no
+              celular a folha de tela cheia da Gráfica. Só a apresentação
+              mudou; nenhuma regra de filtragem. */}
+          {(() => {
+            const campoBusca = (
+              <div style={{ position: 'relative', flex: '1 1 180px', minWidth: isMobile ? 0 : 160 }}>
+                <Search style={{ width: 14, height: 14, color: '#57534e', position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} />
+                <input
+                  type="text"
+                  value={searchFilter}
+                  onChange={e => setSearchFilter(e.target.value)}
+                  placeholder="Buscar por ID, peça, descrição ou evento..."
+                  aria-label="Buscar por ID, peça, descrição ou evento"
+                  data-testid="input-search-filter"
+                  // 16px no celular: abaixo disso o Safari dá zoom na página ao focar.
+                  style={{ width: '100%', height: isMobile ? 44 : 36, paddingLeft: 30, paddingRight: 10, borderRadius: 8, border: searchFilter ? '1px solid #f97316' : '1px solid #e7e5e4', backgroundColor: '#ffffff', color: '#1c1917', fontSize: isMobile ? 16 : 13, boxSizing: 'border-box' }}
+                />
+              </div>
+            );
 
-            {isMobile && (() => {
-              // Conta o que está ESCONDIDO atrás do botão — a busca fica à vista.
-              const n = activeChips.filter(c => c.kind !== 'search').length;
-              return (
-                <button
-                  type="button"
-                  onClick={() => setFiltrosAbertosMobile(v => !v)}
-                  aria-expanded={filtrosAbertosMobile}
-                  aria-controls="arte-filtros-mobile"
-                  data-testid="button-toggle-filtros-mobile"
-                  style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 44, padding: '0 14px', borderRadius: 8, border: `1px solid ${n > 0 ? '#fdba74' : '#e7e5e4'}`, background: n > 0 ? '#fff7ed' : '#ffffff', color: n > 0 ? '#9a3412' : '#44403c', fontSize: 13, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}
-                >
-                  Filtros{n > 0 ? ` · ${n}` : ''}
-                  <ChevronDown aria-hidden="true" style={{ width: 14, height: 14, transform: filtrosAbertosMobile ? 'rotate(180deg)' : undefined, transition: 'transform 0.15s' }} />
-                </button>
-              );
-            })()}
-
-            {(!isMobile || filtrosAbertosMobile) && (<>
-            <EventFilterDropdown
-              values={eventFilter}
-              onValuesChange={setEventFilter}
-              options={eventFilterOptions}
-            />
-
+            // Os gatilhos escondidos. `cheio` = empilhados na folha do celular,
+            // cada um na largura toda (o mesmo que a Gráfica faz na dela).
+            const gatilhos = (cheio: boolean) => (<>
             <FilterSelect
+              fullWidth={cheio}
               label="Patrocinador" allLabel="Todos os patrocinadores"
               values={sponsorFilter} onValuesChange={setSponsorFilter}
               options={sponsorFilterOptions}
@@ -4365,6 +4410,7 @@ export default function Arte() {
             />
 
             <FilterSelect
+              fullWidth={cheio}
               label="Tipo de Peça" allLabel="Todos os tipos"
               values={typeFilter} onValuesChange={setTypeFilter}
               options={typeFilterOptions}
@@ -4373,6 +4419,7 @@ export default function Arte() {
             />
 
             <FilterSelect
+              fullWidth={cheio}
               label="Material" allLabel="Todos os materiais"
               values={materialFilter} onValuesChange={setMaterialFilter}
               options={materialFilterOptions}
@@ -4387,6 +4434,7 @@ export default function Arte() {
                 entre as duas telas e apagaria em silêncio os links já
                 compartilhados que carregam `?mes=`. */}
             <FilterSelect
+              fullWidth={cheio}
               hideSearch hideWhenEmpty={false}
               label="Mês" allLabel="Todos os meses"
               values={monthFilter} onValuesChange={setMonthFilter}
@@ -4404,6 +4452,7 @@ export default function Arte() {
                 gatilho, cada janela diz quantas peças entrega. Mesmo desenho do
                 Período dos Registros. */}
             <FilterSelect
+              fullWidth={cheio}
               hideSearch hideWhenEmpty={false} showAllLabelWhenEmpty
               label="Período" allLabel="Todos os períodos"
               icon={Calendar}
@@ -4423,28 +4472,9 @@ export default function Arte() {
               testId="button-next-10-days-filter"
               title="Só peças de evento cujo caminhão sai nos próximos 10 dias"
             />
-            </>)}
-          </div>
+            </>);
 
-          {/* ── Filter Row 2 ── */}
-          {/* UM idioma para filtro, OUTRO para ordenação.
-              A faixa falava QUATRO: chip ligado/desligado, segmentado de dois
-              estados, segmentado de três estados e um <select> NATIVO — que
-              abria o menu do Windows, com a fonte e o azul do sistema, no meio
-              de uma faixa inteiramente desenhada pela casa. Quatro formas para
-              duas funções, e a única diferença que importa (filtrar × ordenar)
-              era a que não aparecia.
-              Agora os quatro recortes são o mesmo gatilho do job 1 do
-              vocabulário (components/filter-select.tsx) — o segmentado com
-              rótulo à esquerda gastava a largura de três gatilhos para caber
-              um, não tinha contagem por opção e não escalava quando a terceira
-              opção aparecia. E a ordenação é o job 6: mesma peça, paleta
-              GRAFITE, prefixo "Ordenar:" e sem × — quem bate o olho lê "os
-              laranjas recortam, o cinza reordena" sem ler uma palavra. */}
-          {(!isMobile || filtrosAbertosMobile) && (
-          <div id="arte-filtros-mobile" style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, flexWrap: 'wrap', borderTop: '1px solid #f0efee', paddingTop: 8 }}>
-            <span style={{ fontSize: 11, fontWeight: 700, color: '#57534e', textTransform: 'uppercase', letterSpacing: '0.06em', marginRight: 2 }}>Mostrar:</span>
-
+            const segmentos = (<>
             {/* SEGMENTADOS, e nao menus: decisao do dono (17/08) depois de ver
                 os quatro como FilterSelect. O resto do vocabulario continua
                 valendo na tela — ORDENAR POR, a faixa de periodo e o seletor
@@ -4533,12 +4563,15 @@ export default function Arte() {
                 ))}
               </div>
             ))}
+            </>);
 
-            {/* Ordenação — a regra de negócio inteira é ancorada na saída do
-                caminhão e a lista só sabia ordenar por nome de evento. */}
-            {/* No celular a faixa já quebra em várias linhas: o divisor
-                vertical ficaria sozinho no começo de uma delas, separando
-                nada de nada. */}
+            // Ordenação — a regra de negócio inteira é ancorada na saída do
+            // caminhão e a lista só sabia ordenar por nome de evento. Não é
+            // filtro (não conta no botão nem vira chip), mas mora junto: é
+            // controle de uso raro, e a barra à vista ficou só com o Evento.
+            // No celular a faixa quebra em várias linhas: o divisor vertical
+            // ficaria sozinho no começo de uma delas, separando nada de nada.
+            const ordenar = (
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: isMobile ? undefined : 'auto' }}>
               {!isMobile && <span aria-hidden="true" style={{ width: 1, height: 20, background: '#e7e5e4' }} />}
               <FilterSelect
@@ -4552,36 +4585,190 @@ export default function Arte() {
                 testId="select-ordenar"
               />
             </div>
-          </div>
-          )}
+            );
 
-          {/* ── Active chips ── */}
-          {activeChips.length > 0 && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8, flexWrap: 'wrap' }}>
-              <span style={{ fontSize: 11, fontWeight: 700, color: '#57534e', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Ativos:</span>
-              {activeChips.map(chip => (
-                <span key={`${chip.kind}-${chip.id ?? ''}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 2, padding: '0 2px 0 9px', minHeight: 24, borderRadius: 999, background: '#fff7ed', border: '1px solid #fed7aa', fontSize: 11, fontWeight: 600, color: '#c2410c' }}>
-                  {chip.label}
-                  {/* O × era um ícone de 9px SEM área de toque: o alvo real
-                      tinha 9×9px. 22px de caixa (dentro do chip de 24) passa
-                      o mínimo de 24 do WCAG 2.5.8 somado à borda, sem engordar
-                      a linha de chips. */}
-                  <button onClick={() => removeChipFilter(chip)} aria-label={`Remover filtro ${chip.label}`} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#c2410c', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 22, height: 22, borderRadius: 999, padding: 0 }}>
-                    <X aria-hidden="true" style={{ width: 10, height: 10 }} />
-                  </button>
-                </span>
-              ))}
-              <button onClick={clearAllFilters} data-testid="button-clear-filters" style={{ fontSize: 11, fontWeight: 600, color: '#57534e', background: 'none', border: '1px solid #e7e5e4', borderRadius: 999, cursor: 'pointer', padding: '0 10px', minHeight: 24 }}>
-                Limpar tudo
+            const botaoLimparEscondidos = nFiltrosEscondidos > 0 && (
+              <button type="button" onClick={limparFiltrosEscondidos} data-testid="button-limpar-mais-filtros"
+                // #b91c1c sobre branco = 6,47:1 ✓ — o vermelho de "desfazer" da casa.
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 5, minHeight: isMobile ? 44 : 32, padding: '0 10px', borderRadius: 8, border: '1px solid #fecaca', background: '#ffffff', color: '#b91c1c', fontSize: 12, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                <X aria-hidden="true" style={{ width: 12, height: 12 }} />
+                Limpar estes filtros
               </button>
-              {/* A legenda solta "Contagens de toda a fila da Arte" morreu com
-                  os stat cards. O aviso só importa quando há recorte ativo — e
-                  aí ele mora aqui, na linha que mostra o recorte. */}
-              <span style={{ fontSize: 11, color: '#57534e' }}>
-                as contagens das abas seguem este recorte
-              </span>
-            </div>
-          )}
+            );
+
+            if (isMobile) return (
+              <>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 8 }}>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                    {campoBusca}
+                    <button
+                      type="button"
+                      onClick={() => setFiltrosAbertosMobile(true)}
+                      aria-haspopup="dialog"
+                      aria-expanded={filtrosAbertosMobile}
+                      aria-controls="arte-folha-filtros"
+                      data-testid="button-abrir-filtros-mobile"
+                      style={{ flex: '0 0 auto', display: 'inline-flex', alignItems: 'center', gap: 6, minHeight: 44, padding: '0 12px', borderRadius: 8, border: `1px solid ${nFiltrosEscondidos > 0 ? '#fdba74' : '#e7e5e4'}`, background: nFiltrosEscondidos > 0 ? '#fff7ed' : '#ffffff', color: nFiltrosEscondidos > 0 ? '#9a3412' : '#44403c', fontSize: 14, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}
+                    >
+                      <Filter aria-hidden="true" style={{ width: 15, height: 15 }} />
+                      Filtros{nFiltrosEscondidos > 0 ? ` (${nFiltrosEscondidos})` : ''}
+                    </button>
+                  </div>
+                  {/* O Evento à vista, em linha própria e na largura toda —
+                      mesmo desenho da Gráfica (21/09). O X limpa só o evento. */}
+                  <div data-testid="filtro-evento-mobile" style={{ display: 'flex', gap: 8, alignItems: 'center', width: '100%' }}>
+                    <div style={{ flex: '1 1 0', minWidth: 0 }}>
+                      <EventFilterDropdown values={eventFilter} onValuesChange={setEventFilter} options={eventFilterOptions} />
+                    </div>
+                    {eventFilter.length > 0 && (
+                      <button type="button" onClick={() => setEventFilter([])} data-testid="button-limpar-evento-mobile"
+                        aria-label="Limpar o filtro de evento" title="Limpar o filtro de evento"
+                        style={{ flex: '0 0 44px', width: 44, height: 44, borderRadius: 8, border: '1px solid #d6d3d1', background: '#ffffff', color: '#1c1917', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+                        <X aria-hidden="true" style={{ width: 16, height: 16 }} />
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {filtrosAbertosMobile && (
+                  <div
+                    ref={folhaFiltrosRef}
+                    id="arte-folha-filtros"
+                    role="dialog"
+                    aria-modal="true"
+                    aria-label="Mais filtros da Arte"
+                    data-testid="folha-filtros-mobile"
+                    onKeyDown={e => { if (e.key === 'Escape') setFiltrosAbertosMobile(false); }}
+                    style={{ position: 'fixed', inset: 0, zIndex: 90, height: '100dvh', backgroundColor: '#fafaf9', display: 'flex', flexDirection: 'column', overscrollBehavior: 'contain' }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingTop: 'calc(6px + env(safe-area-inset-top))', paddingBottom: 6, paddingLeft: 14, paddingRight: 6, borderBottom: '1px solid #e7e5e4', backgroundColor: '#ffffff' }}>
+                      <Filter aria-hidden="true" style={{ width: 16, height: 16, color: '#57534e' }} />
+                      <span style={{ fontSize: 15, fontWeight: 800, color: '#1c1917' }}>
+                        Filtros{nFiltrosEscondidos > 0 ? ` · ${nFiltrosEscondidos} ativo${nFiltrosEscondidos !== 1 ? 's' : ''}` : ''}
+                      </span>
+                      <span style={{ flex: 1 }} />
+                      <button type="button" autoFocus onClick={() => setFiltrosAbertosMobile(false)} aria-label="Fechar filtros" data-testid="button-fechar-filtros-mobile"
+                        style={{ width: 44, height: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', background: 'transparent', color: '#57534e', cursor: 'pointer' }}>
+                        <X aria-hidden="true" style={{ width: 20, height: 20 }} />
+                      </button>
+                    </div>
+                    <div style={{ flex: 1, overflowY: 'auto', padding: '14px 14px 20px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                      {gatilhos(true)}
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, borderTop: '1px solid #e7e5e4', paddingTop: 10 }}>
+                        {segmentos}
+                        {ordenar}
+                      </div>
+                    </div>
+                    {/* Rodapé fixo com o recorte seguro embaixo (home indicator),
+                        nos LONGOS — o atalho com env() some no parser do jsdom. */}
+                    <div style={{ display: 'flex', gap: 8, paddingTop: 10, paddingLeft: 14, paddingRight: 14, paddingBottom: 'calc(10px + env(safe-area-inset-bottom))', borderTop: '1px solid #e7e5e4', backgroundColor: '#ffffff' }}>
+                      {nFiltrosEscondidos > 0 && (
+                        <button type="button" onClick={limparFiltrosEscondidos} data-testid="button-limpar-mais-filtros"
+                          style={{ minHeight: 48, padding: '0 14px', borderRadius: 10, background: '#ffffff', color: '#b91c1c', border: '1px solid #fecaca', fontSize: 13, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                          Limpar ({nFiltrosEscondidos})
+                        </button>
+                      )}
+                      <button type="button" onClick={() => setFiltrosAbertosMobile(false)} data-testid="button-aplicar-filtros-mobile"
+                        style={{ flex: 1, minHeight: 48, borderRadius: 10, border: 'none', backgroundColor: '#1c1917', color: '#ffffff', fontSize: 15, fontWeight: 800, cursor: 'pointer' }}>
+                        Ver {faseAtualCount} {faseAtualCount === 1 ? 'peça' : 'peças'}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </>
+            );
+
+            return (
+              <>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
+                  {campoBusca}
+                  <EventFilterDropdown values={eventFilter} onValuesChange={setEventFilter} options={eventFilterOptions} />
+                  <button
+                    type="button"
+                    onClick={alternarMaisFiltros}
+                    aria-expanded={maisFiltrosAberto}
+                    aria-controls="arte-mais-filtros"
+                    data-testid="button-mais-filtros"
+                    // Ativo = laranja claro com texto #9a3412 (7,3:1 sobre #fff7ed ✓);
+                    // aberto sem nada ligado = grafite, para ler "está aberto".
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 36, padding: '0 12px', borderRadius: 8, border: `1px solid ${nFiltrosEscondidos > 0 ? '#fdba74' : maisFiltrosAberto ? '#1c1917' : '#e7e5e4'}`, background: nFiltrosEscondidos > 0 ? '#fff7ed' : '#ffffff', color: nFiltrosEscondidos > 0 ? '#9a3412' : '#44403c', fontSize: 13, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}
+                  >
+                    <Filter aria-hidden="true" style={{ width: 14, height: 14 }} />
+                    Mais filtros{nFiltrosEscondidos > 0 ? ` (${nFiltrosEscondidos})` : ''}
+                    <ChevronDown aria-hidden="true" style={{ width: 14, height: 14, transform: maisFiltrosAberto ? 'rotate(180deg)' : undefined, transition: 'transform 0.15s' }} />
+                  </button>
+                </div>
+
+                {/* ── Filter Row 2 ── */}
+                {/* UM idioma para filtro, OUTRO para ordenação.
+                    A faixa falava QUATRO: chip ligado/desligado, segmentado de dois
+                    estados, segmentado de três estados e um <select> NATIVO — que
+                    abria o menu do Windows, com a fonte e o azul do sistema, no meio
+                    de uma faixa inteiramente desenhada pela casa. Quatro formas para
+                    duas funções, e a única diferença que importa (filtrar × ordenar)
+                    era a que não aparecia.
+                    Agora os quatro recortes são o mesmo gatilho do job 1 do
+                    vocabulário (components/filter-select.tsx) — o segmentado com
+                    rótulo à esquerda gastava a largura de três gatilhos para caber
+                    um, não tinha contagem por opção e não escalava quando a terceira
+                    opção aparecia. E a ordenação é o job 6: mesma peça, paleta
+                    GRAFITE, prefixo "Ordenar:" e sem × — quem bate o olho lê "os
+                    laranjas recortam, o cinza reordena" sem ler uma palavra. */}
+                {maisFiltrosAberto && (
+                  <div id="arte-mais-filtros" data-testid="faixa-mais-filtros" style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 8, padding: 10, borderRadius: 10, background: '#fafaf9', border: '1px solid #e7e5e4' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                      {gatilhos(false)}
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', borderTop: '1px solid #f0efee', paddingTop: 8 }}>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: '#57534e', textTransform: 'uppercase', letterSpacing: '0.06em', marginRight: 2 }}>Mostrar:</span>
+                      {segmentos}
+                      {ordenar}
+                    </div>
+                    {botaoLimparEscondidos && (
+                      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>{botaoLimparEscondidos}</div>
+                    )}
+                  </div>
+                )}
+              </>
+            );
+          })()}
+
+          {/* ── Chips ativos ──
+              Com a faixa ABERTA os controles escondidos estão à vista e dizem
+              o próprio estado: a linha fica só com o que não mora nela (evento,
+              busca, paradas, Correção). FECHADA (ou no celular), os escondidos
+              que estiverem ligados aparecem aqui — ninguém fica com a lista
+              "sumida" sem saber por quê. */}
+          {(() => {
+            const chipsVisiveis = !isMobile && maisFiltrosAberto
+              ? activeChips.filter(c => !FILTROS_ESCONDIDOS.has(c.kind))
+              : activeChips;
+            if (chipsVisiveis.length === 0) return null;
+            return (
+              <div data-testid="linha-chips-ativos" style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8, flexWrap: 'wrap' }}>
+                <span style={{ fontSize: 11, fontWeight: 700, color: '#57534e', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Ativos:</span>
+                {chipsVisiveis.map(chip => (
+                  <span key={`${chip.kind}-${chip.id ?? ''}`} data-testid={`chip-ativo-${chip.kind}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 2, padding: '0 2px 0 9px', minHeight: isMobile ? 44 : 24, borderRadius: 999, background: '#fff7ed', border: '1px solid #fed7aa', fontSize: 11, fontWeight: 600, color: '#c2410c' }}>
+                    {chip.label}
+                    {/* O × tinha 9×9px de alvo. 22px de caixa (dentro do chip de
+                        24) passa o mínimo de 24 do WCAG 2.5.8 somado à borda;
+                        no celular o alvo vai a 44. */}
+                    <button onClick={() => removeChipFilter(chip)} aria-label={`Remover filtro ${chip.label}`} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#c2410c', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: isMobile ? 40 : 22, height: isMobile ? 40 : 22, borderRadius: 999, padding: 0 }}>
+                      <X aria-hidden="true" style={{ width: 10, height: 10 }} />
+                    </button>
+                  </span>
+                ))}
+                <button onClick={clearAllFilters} data-testid="button-clear-filters" style={{ fontSize: 11, fontWeight: 600, color: '#57534e', background: 'none', border: '1px solid #e7e5e4', borderRadius: 999, cursor: 'pointer', padding: '0 10px', minHeight: isMobile ? 44 : 24 }}>
+                  Limpar tudo
+                </button>
+                {/* O aviso só importa quando há recorte ativo — e aí ele mora
+                    aqui, na linha que mostra o recorte. */}
+                <span style={{ fontSize: 11, color: '#57534e' }}>
+                  as contagens das abas seguem este recorte
+                </span>
+              </div>
+            );
+          })()}
 
           {/* ── Fases + seleção ── */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>

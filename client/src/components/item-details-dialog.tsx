@@ -813,7 +813,7 @@ export function ItemDetailsDialog({
     }
     if (rawStatus === "packed") {
 // O número do tubo chega na peça (enrich do servidor) — "Tubo 2 · fechado 14:32".
-      return { tom: "espera", frase: `Embalada${rotuloDoTubo(item) && rotuloDoTubo(item) !== "Em tubo" ? ` no ${rotuloDoTubo(item)}` : " no tubo"} — aguarda o caminhão${desdeQuando}`, detalhe: item.tuboFechadoEm ? detalheDaProducao(item) : item.deliveredQty > 0 ? `${item.deliveredQty} de ${item.quantity} já entregues` : null };
+      return { tom: "espera", frase: `${item.tuboAvulso ? "Embalada sozinha" : `Embalada${rotuloDoTubo(item) && rotuloDoTubo(item) !== "Em tubo" ? ` no ${rotuloDoTubo(item)}` : " no tubo"}`} — aguarda o caminhão${desdeQuando}`, detalhe: item.tuboFechadoEm ? detalheDaProducao(item) : item.deliveredQty > 0 ? `${item.deliveredQty} de ${item.quantity} já entregues` : null };
     }
     if (["delivered", "entregue"].includes(rawStatus)) {
       return { tom: "ok", frase: "Entregue — nada pendente", detalhe: detalheDaProducao(item) };

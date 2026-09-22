@@ -51,11 +51,13 @@ import { logoDaCapaDoBook } from "@/lib/logo-do-book";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useIsMobile } from "@/hooks/use-mobile";
 import {
-  COPIAS_MAX, ORDEM_DOS_TAMANHOS, TAMANHOS, cabeNoAdesivo, cabecalhoPadrao, comCopias, ehDoisPorUm, gravarPreferencias,
-  lerPreferencias, limitarCopias, linhasAgrupadas, paginarLinhas, prefixoPara, regraDaPagina, nomeDoPapel, resumoDaImpressao, semAcento, type TamanhoEtiqueta,
+  COPIAS_MAX, ORDEM_DOS_TAMANHOS, SEM_EDICOES, TAMANHOS, cabeNoAdesivo, cabecalhoPadrao, chaveDoTubo, comCopias, comEdicoes, ehDoisPorUm,
+  etiquetasIndividuais, foiEditado, gravarPreferencias, infoDoVolume, lerPreferencias, lerRecorteDeTubo, limitarCopias, linhasOrdenadas,
+  paginarLinhas, parteNoRecorte, partesDaPeca, pecaNaLinha, prefixoPara, regraDaPagina, nomeDoPapel, resumoDaImpressao, rodapeDoTubo, semAcento,
+  type EdicoesDaEtiqueta, type LinhaDaEtiqueta, type ParteDaPeca, type RecorteDeTubo, type TamanhoEtiqueta,
 } from "@/lib/etiqueta-lista";
 import {
-  CSS_DA_ETIQUETA_EM_LISTA, CSS_DO_ZOOM, EtiquetaEmLista, LegendaDaFolha, SecaoDeOpcoes, Segmento, estiloDoCampo, estiloDoZoom,
+  CSS_DA_ETIQUETA_EM_LISTA, CSS_DO_ZOOM, CampoNaEtiqueta, EtiquetaEmLista, LegendaDaFolha, SecaoDeOpcoes, Segmento, estiloDoCampo, estiloDoZoom,
   mmParaPx, useEscalaParaCaber,
 } from "@/components/etiqueta-lista";
 
@@ -77,6 +79,16 @@ const dataImpressao = (iso: string) =>
   new Date(iso).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
 const dataImpressaoExtenso = (iso: string) =>
   new Date(iso).toLocaleString("pt-BR", { day: "2-digit", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" });
+
+/** O sufixo estável de uma parte (testid): "tubo2", "embalada", "fora". */
+const sufixoDaParte = (pt: ParteDaPeca<unknown>) => (pt.numero != null ? `tubo${pt.numero}` : pt.avulso ? "embalada" : "fora");
+
+/** Uma folha de LISTA da prévia: a lista geral ou a de um tubo. */
+type FolhaDeLista = {
+  linhas: LinhaDaEtiqueta<any>[]; n: number; total: number;
+  /** Tubo: o número REAL (testid) e o que sai na etiqueta (editável). */
+  numeroReal: number | null; tubo: number | null; rodape: string | null;
+};
 
 /** A folha individual na tela, em px: A4 deitado e em pé (mesma proporção). */
 const FOLHA_PAISAGEM_PX = 1050;
@@ -154,6 +166,43 @@ export default function EtiquetasEvento() {
   /** No celular o painel de opções abre e fecha; no desktop está sempre à vista. */
   const [opcoesAbertas, setOpcoesAbertas] = useState(false);
 
+  /**
+   * O TUBO (dono, 21/09: "aparecer informação de tubo na etiqueta").
+   *  · RECORTE "Tubo" em O que imprimir (todos · só as dos tubos · Tubo N · sem
+   *    tubo), na URL (?tubo=2) — dá para mandar o link "etiquetas do tubo 2".
+   *    Ao contrário da busca, ESTE recorte muda o que sai: é uma escolha de
+   *    impressão, escrita no resumo.
+   *  · LISTA POR TUBO em Como sai: null = "não mexi" → ligada quando o evento
+   *    tem tubo (é o padrão para as peças embaladas em tubo).
+   */
+  const [recorteTubo, setRecorteTuboCru] = useState<RecorteDeTubo>(() => lerRecorteDeTubo(new URLSearchParams(window.location.search).get("tubo")));
+  const setRecorteTubo = (r: RecorteDeTubo) => {
+    setRecorteTuboCru(r);
+    try {
+      const u = new URL(window.location.href);
+      if (r === "todos") u.searchParams.delete("tubo"); else u.searchParams.set("tubo", r);
+      window.history.replaceState(window.history.state, "", `${u.pathname}${u.search}${u.hash}`);
+    } catch { /* sem URL: o recorte vale só nesta visita */ }
+  };
+  const [porTuboEscolha, setPorTuboEscolha] = useState<boolean | null>(null);
+
+  /**
+   * NÚMEROS NA ETIQUETA (dono, 21/09: "opção de editar números na etiqueta —
+   * não afeta nada de status"). Quantidade por parte e número por tubo, SÓ
+   * para a impressão: estado local desta tela, nunca enviado ao servidor.
+   */
+  const [edicoes, setEdicoes] = useState<EdicoesDaEtiqueta>(SEM_EDICOES);
+  const editarQuantidade = (chave: string, bruto: string | undefined) => setEdicoes((e) => {
+    const quantidades = { ...e.quantidades };
+    if (bruto === undefined) delete quantidades[chave]; else quantidades[chave] = bruto;
+    return { ...e, quantidades };
+  });
+  const editarTubo = (chave: string, bruto: string | undefined) => setEdicoes((e) => {
+    const tubos = { ...e.tubos };
+    if (bruto === undefined) delete tubos[chave]; else tubos[chave] = bruto;
+    return { ...e, tubos };
+  });
+
   const { data: event, isError: eventoFalhou } = useQuery<any>({ queryKey: ["/api/events", eventId], enabled: !!eventId });
   const { data: itens = [], isLoading, isError: itensFalharam, refetch } = useQuery<any[]>({
     queryKey: ["/api/items", eventId],
@@ -171,12 +220,54 @@ export default function EtiquetasEvento() {
     if (impressas.length > 0) setDesmarcadas(new Set(impressas));
   }, [itens]);
 
-  const pool = useMemo(() => {
+  const poolBase = useMemo(() => {
     // BOOK COMPLETO fica de fora: é o trâmite do Atendimento, não uma peça (ver shared/fluxo-peca).
     const vivas = (itens as any[]).filter((i) => !i.deletedAt && i.status !== "canceled" && i.status !== "archived" && !ehBookCompleto(i) && !ehMolde(i)); // molde não tem etiqueta (22/09)
     const base = incluirTodas ? vivas : vivas.filter(jaConferida);
     return [...base].sort((a, b) => compareDisplayId(a.displayId, b.displayId));
   }, [itens, incluirTodas]);
+
+  // AS PARTES de cada peça (uma por volume + o resto fora de volume), já com
+  // os números editados para a impressão.
+  const partesPorPeca = useMemo(
+    () => new Map<string, ParteDaPeca<any>[]>(poolBase.map((p) => [p.id, comEdicoes(partesDaPeca(p), edicoes)])),
+    [poolBase, edicoes],
+  );
+  const partesDe = (p: any) => partesPorPeca.get(p.id) ?? [];
+  // Os tubos do evento (pelo número REAL) e se há o que esteja fora deles.
+  const tubosNoPool = useMemo(() => {
+    const porNumero = new Map<number, { numero: number; tuboId: string | null; pecas: number }>();
+    for (const partes of Array.from(partesPorPeca.values())) for (const pt of partes) {
+      if (pt.numero == null) continue;
+      const t = porNumero.get(pt.numero) ?? { numero: pt.numero, tuboId: pt.tuboId, pecas: 0 };
+      t.pecas += 1;
+      porNumero.set(pt.numero, t);
+    }
+    return Array.from(porNumero.values()).sort((a, b) => a.numero - b.numero);
+  }, [partesPorPeca]);
+  const haForaDeTubo = useMemo(() => Array.from(partesPorPeca.values()).some((ps) => ps.some((pt) => pt.numero == null)), [partesPorPeca]);
+  // Recorte que aponta para o nada (tubo que não está no pool) cai para "todos".
+  const recorteValido: RecorteDeTubo =
+    recorteTubo === "todos" ? "todos"
+      : recorteTubo === "tubos" ? (tubosNoPool.length > 0 ? "tubos" : "todos")
+        : recorteTubo === "sem" ? (haForaDeTubo && tubosNoPool.length > 0 ? "sem" : "todos")
+          : tubosNoPool.some((t) => t.numero === Number(recorteTubo)) ? recorteTubo : "todos";
+  const noRecorte = (p: any) => partesDe(p).filter((pt) => parteNoRecorte(pt, recorteValido));
+  const pool = useMemo(
+    () => (recorteValido === "todos" ? poolBase : poolBase.filter((p) => (partesPorPeca.get(p.id) ?? []).some((pt) => parteNoRecorte(pt, recorteValido)))),
+    [poolBase, partesPorPeca, recorteValido],
+  );
+  const porTubo = tubosNoPool.length > 0 && (porTuboEscolha ?? true);
+
+  // O "embalado dd/mm" do rodapé da lista de tubo: o retrato dos tubos do
+  // evento (o mesmo cache do painel de tubos). Só com tubo; falha = sem data.
+  const temTubos = tubosNoPool.length > 0;
+  const { data: retratoDosTubos } = useQuery<any>({ queryKey: [`/api/events/${eventId}/tubos`], enabled: !!eventId && temTubos, retry: false });
+  const embaladoPorTubo = useMemo(() => {
+    const m = new Map<string, string | null>();
+    for (const t of Array.isArray(retratoDosTubos?.tubos) ? retratoDosTubos.tubos : []) if (t?.id) m.set(t.id, t.fechadoEm ?? null);
+    return m;
+  }, [retratoDosTubos]);
 
   // Tipos do pool, com contagem — servem à vista (filtro) e ao "Como sai".
   const tiposNoPool = useMemo(() => {
@@ -202,37 +293,73 @@ export default function EtiquetasEvento() {
     () => tiposEmLista ?? new Set(tiposNoPool.map(([t]) => t).filter((t) => ehDoisPorUm({ type: t }))),
     [tiposEmLista, tiposNoPool],
   );
-  const todasAsDaLista = useMemo(() => pecas.filter((p) => tiposEscolhidos.has(tipoDe(p))), [pecas, tiposEscolhidos]);
-  const todasAsIndividuais = useMemo(() => pecas.filter((p) => !tiposEscolhidos.has(tipoDe(p))), [pecas, tiposEscolhidos]);
+  // A unidade do que sai é a PARTE (peça × volume): uma peça dividida em dois
+  // tubos pode ir para duas listas de tubo, ou virar duas etiquetas. Com a
+  // lista por tubo ligada, a parte em tubo vai para a lista DO TUBO (qualquer
+  // que seja o tipo); o resto segue a regra do tipo, como sempre.
+  const partesMarcadas = useMemo(() => pecas.flatMap((p) => noRecorte(p)), [pecas, partesPorPeca, recorteValido]); // eslint-disable-line react-hooks/exhaustive-deps
+  const destinoDa = (pt: ParteDaPeca<any>) => (porTubo && pt.numero != null ? "tubo" : tiposEscolhidos.has(tipoDe(pt.peca)) ? "lista" : "individual");
+  const todasDeTubo = useMemo(() => partesMarcadas.filter((pt) => destinoDa(pt) === "tubo"), [partesMarcadas, porTubo, tiposEscolhidos]); // eslint-disable-line react-hooks/exhaustive-deps
+  const todasAsDaLista = useMemo(() => partesMarcadas.filter((pt) => destinoDa(pt) === "lista"), [partesMarcadas, porTubo, tiposEscolhidos]); // eslint-disable-line react-hooks/exhaustive-deps
+  const todasAsIndividuais = useMemo(() => partesMarcadas.filter((pt) => destinoDa(pt) === "individual"), [partesMarcadas, porTubo, tiposEscolhidos]); // eslint-disable-line react-hooks/exhaustive-deps
+  const temLista = todasDeTubo.length + todasAsDaLista.length > 0;
   // "O que sai" só faz sentido com os DOIS na mesa; sem um deles, vale "tudo"
   // (senão um "só listas" esquecido esconderia as etiquetas da próxima seleção).
-  const haOsDois = todasAsDaLista.length > 0 && todasAsIndividuais.length > 0;
+  const haOsDois = temLista && todasAsIndividuais.length > 0;
   const saiValido = haOsDois ? oQueSai : "tudo";
-  const pecasDaLista = useMemo(() => (saiValido === "etiquetas" ? [] : todasAsDaLista), [saiValido, todasAsDaLista]);
-  const pecasIndividuais = useMemo(() => (saiValido === "listas" ? [] : todasAsIndividuais), [saiValido, todasAsIndividuais]);
-  const linhasDaLista = useMemo(() => linhasAgrupadas(pecasDaLista), [pecasDaLista]);
-  const paginasDaLista = useMemo(() => {
-    const m = TAMANHOS[tamanho];
-    const paginas = paginarLinhas(linhasDaLista, { capacidade: m.linhasSemTubo, letrasPorLinha: m.letrasPorLinha, mostrarQuantidade });
-    // Cópias: o jogo inteiro repetido (1,2,1,2) — colam dos dois lados do volume.
-    return comCopias(paginas.map((linhas, k) => ({ linhas, n: k + 1, total: paginas.length })), copias);
-  }, [linhasDaLista, tamanho, mostrarQuantidade, copias]);
-  const sugerirAdesivo = tamanho !== "adesivo" && cabeNoAdesivo(linhasDaLista, { comTubo: false, mostrarQuantidade });
+  const partesDeTubo = useMemo(() => (saiValido === "etiquetas" ? [] : todasDeTubo), [saiValido, todasDeTubo]);
+  const partesDaLista = useMemo(() => (saiValido === "etiquetas" ? [] : todasAsDaLista), [saiValido, todasAsDaLista]);
+  const partesIndividuais = useMemo(() => (saiValido === "listas" ? [] : todasAsIndividuais), [saiValido, todasAsIndividuais]);
 
-  /** As ETIQUETAS individuais: uma por peça, ou uma por UNIDADE ("3 de 6") com
-   *  o interruptor ligado. Peça de 1 unidade não ganha numeração. */
-  const etiquetas = useMemo(() => {
-    if (!porUnidade) return pecasIndividuais.map((p) => ({ p, n: 0, total: 0 }));
-    return pecasIndividuais.flatMap((p) => {
-      const q = Math.max(1, Math.floor(Number(p.quantity ?? 1)) || 1);
-      if (q === 1) return [{ p, n: 0, total: 0 }];
-      return Array.from({ length: q }, (_, k) => ({ p, n: k + 1, total: q }));
+  /** Junta as partes da mesma peça numa linha só ("2x1 BB - 10", ou "- 7 (7 de 10)"). */
+  const emLinhas = (partes: ParteDaPeca<any>[]) => {
+    const porPeca = new Map<string, ParteDaPeca<any>[]>();
+    for (const pt of partes) porPeca.set(pt.peca.id, [...(porPeca.get(pt.peca.id) ?? []), pt]);
+    return linhasOrdenadas(Array.from(porPeca.values()).map(pecaNaLinha));
+  };
+  const linhasDaLista = useMemo(() => emLinhas(partesDaLista), [partesDaLista]); // eslint-disable-line react-hooks/exhaustive-deps
+  // UMA LISTA POR TUBO: cabeçalho "TUBO N" e rodapé "N peças · M un. ·
+  // embalado dd/mm", como a etiqueta do tubo.
+  const listasDosTubos = useMemo(() => {
+    const porNumero = new Map<number, ParteDaPeca<any>[]>();
+    for (const pt of partesDeTubo) porNumero.set(pt.numero!, [...(porNumero.get(pt.numero!) ?? []), pt]);
+    return Array.from(porNumero.entries()).sort((a, b) => a[0] - b[0]).map(([numeroReal, partes]) => {
+      const linhas = emLinhas(partes);
+      const unidades = partes.reduce((s, pt) => s + pt.quantidade, 0);
+      return {
+        numeroReal, tubo: partes[0].numeroNaEtiqueta ?? numeroReal, linhas,
+        rodape: rodapeDoTubo(linhas.length, unidades, partes[0].tuboId ? embaladoPorTubo.get(partes[0].tuboId) : null),
+      };
     });
-  }, [pecasIndividuais, porUnidade]);
+  }, [partesDeTubo, embaladoPorTubo]); // eslint-disable-line react-hooks/exhaustive-deps
+  const { paginasDaLista, jogoDeListas } = useMemo(() => {
+    const m = TAMANHOS[tamanho];
+    const jogo: FolhaDeLista[] = [];
+    for (const t of listasDosTubos) {
+      const pags = paginarLinhas(t.linhas, { capacidade: m.linhasComTubo - 1, letrasPorLinha: m.letrasPorLinha, mostrarQuantidade });
+      pags.forEach((linhas, k) => jogo.push({ linhas, n: k + 1, total: pags.length, numeroReal: t.numeroReal, tubo: t.tubo, rodape: t.rodape }));
+    }
+    const gerais = paginarLinhas(linhasDaLista, { capacidade: m.linhasSemTubo, letrasPorLinha: m.letrasPorLinha, mostrarQuantidade });
+    gerais.forEach((linhas, k) => jogo.push({ linhas, n: k + 1, total: gerais.length, numeroReal: null, tubo: null, rodape: null }));
+    // Cópias: o jogo inteiro repetido (1,2,1,2) — colam dos dois lados do volume.
+    return { paginasDaLista: comCopias(jogo, copias), jogoDeListas: jogo.length };
+  }, [listasDosTubos, linhasDaLista, tamanho, mostrarQuantidade, copias]);
+  const sugerirAdesivo = tamanho !== "adesivo" && jogoDeListas > 0
+    && (linhasDaLista.length === 0 || cabeNoAdesivo(linhasDaLista, { comTubo: false, mostrarQuantidade }))
+    && listasDosTubos.every((t) => cabeNoAdesivo(t.linhas, { comTubo: true, comRodape: true, mostrarQuantidade }));
+
+  /** As ETIQUETAS individuais: uma por parte (peça dividida em dois tubos =
+   *  duas etiquetas), ou uma por UNIDADE ("3 de 6") com o interruptor ligado —
+   *  cada unidade com o tubo da sua faixa. Peça de 1 unidade não numera. */
+  const etiquetas = useMemo(() => etiquetasIndividuais(partesIndividuais, porUnidade), [partesIndividuais, porUnidade]);
   // Cada lista é uma folha INTEIRA do tamanho escolhido: as duas contas somam.
   const folhasIndividuais = Math.ceil(etiquetas.length / 2);
   const folhas = folhasIndividuais + paginasDaLista.length;
-  const resumo = resumoDaImpressao({ etiquetas: etiquetas.length, folhasIndividuais, listas: paginasDaLista.length, pecasEmLista: pecasDaLista.length, tamanho });
+  const paginasDeTubo = paginasDaLista.filter((pg) => pg.numeroReal != null).length;
+  const resumo = resumoDaImpressao({
+    etiquetas: etiquetas.length, folhasIndividuais, listas: paginasDaLista.length - paginasDeTubo, pecasEmLista: linhasDaLista.length, tamanho,
+    listasDeTubo: paginasDeTubo, tubos: listasDosTubos.map((t) => t.tubo), pecasEmTubos: listasDosTubos.reduce((s, t) => s + t.linhas.length, 0),
+  });
 
   const impressasNoPool = useMemo(() => pool.filter((p) => p.labelPrintedAt).length, [pool]);
   const faltamNoPool = pool.length - impressasNoPool;
@@ -272,9 +399,10 @@ export default function EtiquetasEvento() {
   // falhar a folha sai do mesmo jeito: o registro informa, não bloqueia.
   const imprimir = () => {
     if (motivoParado) return;
-    // Todas as que SAÍRAM — em lista ou individuais; o que "O que sai" deixou
-    // de fora desta vez não ganha o selo de impressa.
-    const ids = Array.from(new Set<string>([...pecasIndividuais, ...pecasDaLista].map((p) => p.id)));
+    // Todas as que SAÍRAM — em lista, lista de tubo ou individuais; o que "O
+    // que sai" deixou de fora desta vez não ganha o selo de impressa. Só os
+    // ids: os números editados para a etiqueta NUNCA vão ao servidor.
+    const ids = Array.from(new Set<string>([...partesIndividuais, ...partesDaLista, ...partesDeTubo].map((pt) => pt.peca.id)));
     if (ids.length > 0) {
       apiRequest("POST", "/api/items/labels-printed", { itemIds: ids })
         .then(() => queryClient.invalidateQueries({ queryKey: ["/api/items", eventId] }))
@@ -282,6 +410,20 @@ export default function EtiquetasEvento() {
     }
     window.print();
   };
+
+  // ATALHO "Imprimir etiquetas de todos os tubos": recorte nos tubos, uma lista
+  // por tubo, todas marcadas — e imprime depois que a tela redesenhar com isso.
+  // O logo é o MESMO do evento (uma extração só), e o atalho espera por ele.
+  const [imprimirAoRedesenhar, setImprimirAoRedesenhar] = useState(false);
+  const imprimirTodosOsTubos = () => {
+    setRecorteTubo("tubos"); setPorTuboEscolha(true); setOQueSai("tudo"); setDesmarcadas(new Set());
+    setImprimirAoRedesenhar(true);
+  };
+  useEffect(() => {
+    if (!imprimirAoRedesenhar) return;
+    setImprimirAoRedesenhar(false);
+    imprimir();
+  }, [imprimirAoRedesenhar]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (isLoading) return <p role="status" style={{ padding: 40, fontSize: 14, color: "#57534e" }}>Montando as etiquetas…</p>;
 
@@ -359,6 +501,25 @@ export default function EtiquetasEvento() {
           <input type="checkbox" checked={incluirTodas} onChange={(e) => setIncluirTodas(e.target.checked)} data-testid="check-incluir-todas" style={caixa} />
           Incluir as não conferidas
         </label>
+        {/* TUBO: recorte de impressão (na URL) + o atalho de todos os tubos. */}
+        {tubosNoPool.length > 0 && (
+          <div data-testid="recorte-de-tubo" style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-end" }}>
+            <label style={{ display: "flex", flexDirection: "column", gap: 3, fontSize: 12.5, fontWeight: 600, color: "#44403c", flex: "1 1 150px", minWidth: 0 }}>
+              Tubo
+              <select value={recorteValido} onChange={(e) => setRecorteTubo(e.target.value as RecorteDeTubo)} data-testid="select-tubo" className="etq-foco" style={campo}>
+                <option value="todos">Todos</option>
+                <option value="tubos">Só as dos tubos</option>
+                {tubosNoPool.map((t) => <option key={t.numero} value={String(t.numero)}>Tubo {t.numero} ({t.pecas} {t.pecas === 1 ? "peça" : "peças"})</option>)}
+                {haForaDeTubo && <option value="sem">Sem tubo</option>}
+              </select>
+            </label>
+            <button type="button" className="etq-foco" data-testid="imprimir-todos-os-tubos" onClick={imprimirTodosOsTubos} disabled={esperandoLogo}
+              title={esperandoLogo ? "Extraindo o logo do book — segundos." : "Marca as peças dos tubos, faz uma lista por tubo e abre a impressão."}
+              style={{ ...botaoLeve, flex: "1 1 180px", border: "1px solid #1c1917", color: "#1c1917", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, cursor: esperandoLogo ? "not-allowed" : "pointer", opacity: esperandoLogo ? 0.6 : 1 }}>
+              <Printer aria-hidden="true" style={{ width: 14, height: 14 }} /> {esperandoLogo ? "Buscando o logo…" : "Imprimir etiquetas de todos os tubos"}
+            </button>
+          </div>
+        )}
         {pool.length > 0 && (
           <>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -407,6 +568,8 @@ export default function EtiquetasEvento() {
               )}
               {visiveis.map((p, i) => {
                 const marcada = !desmarcadas.has(p.id);
+                const partes = noRecorte(p);
+                const volumes = partesDe(p).filter((pt) => pt.numero != null || pt.avulso);
                 return (
                   <li key={p.id} style={{ borderTop: i > 0 ? "1px solid #f0efee" : "none", contentVisibility: "auto", containIntrinsicSize: "auto 48px" } as React.CSSProperties}>
                     <label style={{ display: "flex", alignItems: "center", gap: 10, minHeight: Math.max(alvo, 44), padding: "5px 10px", cursor: "pointer", backgroundColor: marcada ? "#fff7ed" : "#fff" }}
@@ -419,6 +582,11 @@ export default function EtiquetasEvento() {
                         <span style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", fontSize: 12, fontWeight: 700, color: "#57534e" }}>
                           <span>{p.displayId}</span>
                           <span style={{ fontWeight: 600 }}>{p.type} · {tiposEscolhidos.has(tipoDe(p)) ? "lista" : "individual"}</span>
+                          {volumes.length > 0 && (
+                            <span data-testid={`volumes-${p.id}`} style={{ fontWeight: 700, color: "#44403c" }}>
+                              {volumes.map((pt) => (pt.numero != null ? `Tubo ${pt.numero} (${pt.original})` : "embalada")).join(" · ")}
+                            </span>
+                          )}
                           {p.labelPrintedAt && (
                             <span data-testid={`selo-impressa-${p.id}`} style={{ backgroundColor: "#f3f4f3", color: "#44403c", borderRadius: 4, padding: "1px 5px" }}>
                               impressa {dataImpressao(p.labelPrintedAt)}
@@ -427,10 +595,56 @@ export default function EtiquetasEvento() {
                         </span>
                       </span>
                     </label>
+                    {/* NÚMEROS NA ETIQUETA: um campo por parte (peça × volume), com
+                        o número do tubo quando há tubo. Só a impressão muda. */}
+                    {marcada && partes.length > 0 && (
+                      <div data-testid={`numeros-${p.id}`} style={{ display: "flex", flexDirection: "column", gap: 4, padding: "0 10px 8px 38px", backgroundColor: "#fff7ed" }}>
+                        {partes.map((pt) => {
+                          const sufixo = sufixoDaParte(pt);
+                          const brutoQtd = edicoes.quantidades[pt.chave];
+                          const brutoTubo = pt.numero != null ? edicoes.tubos[chaveDoTubo(pt)] : undefined;
+                          const qtdEditada = foiEditado(brutoQtd, pt.original);
+                          const tuboEditado = pt.numero != null && foiEditado(brutoTubo, pt.numero);
+                          return (
+                            <div key={pt.chave} style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", fontSize: 12.5, fontWeight: 600, color: "#57534e" }}>
+                              {pt.numero != null ? (
+                                <>
+                                  <span>Tubo</span>
+                                  <CampoNaEtiqueta rotulo={`Número do tubo na etiqueta (vale para todo o Tubo ${pt.numero})`} original={pt.numero} bruto={brutoTubo}
+                                    aoMudar={(v) => editarTubo(chaveDoTubo(pt), v)} mobile={isMobile} editado={tuboEditado} testid={`tubo-na-etiqueta-${p.id}-${sufixo}`} />
+                                </>
+                              ) : pt.avulso ? <span>Embalada ·</span> : partes.length > 1 || volumes.length > 0 ? <span>Fora de tubo ·</span> : null}
+                              <CampoNaEtiqueta rotulo={`Quantidade na etiqueta de ${p.description || p.type}${pt.numero != null ? ` no Tubo ${pt.numero}` : ""}`} original={pt.original} bruto={brutoQtd}
+                                aoMudar={(v) => editarQuantidade(pt.chave, v)} mobile={isMobile} editado={qtdEditada} testid={`qtd-na-etiqueta-${p.id}-${sufixo}`} />
+                              <span>un. na etiqueta</span>
+                              {(qtdEditada || tuboEditado) && (
+                                <button type="button" className="etq-foco" data-testid={`voltar-original-${p.id}-${sufixo}`}
+                                  onClick={() => { editarQuantidade(pt.chave, undefined); if (pt.numero != null) editarTubo(chaveDoTubo(pt), undefined); }}
+                                  style={{ minHeight: alvo, border: "none", background: "none", padding: "0 4px", font: "inherit", fontSize: 12.5, fontWeight: 700, color: "#9a3412", textDecoration: "underline", cursor: "pointer" }}>
+                                  voltar ao original ({pt.numero != null && tuboEditado ? `Tubo ${pt.numero}, ` : ""}{pt.original})
+                                </button>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
                   </li>
                 );
               })}
             </ul>
+            {pecas.length > 0 && (
+              <p data-testid="aviso-numeros-so-impressao" style={{ ...dica, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                <span>
+                  <strong style={{ color: "#44403c" }}>Números “na etiqueta”:</strong> só muda o que sai impresso — a peça não é alterada (nem status, nem quantidade).
+                </span>
+                {(Object.keys(edicoes.quantidades).length > 0 || Object.keys(edicoes.tubos).length > 0) && (
+                  <button type="button" className="etq-foco" data-testid="restaurar-numeros" onClick={() => setEdicoes(SEM_EDICOES)} style={botaoLeve}>
+                    Voltar todos ao original
+                  </button>
+                )}
+              </p>
+            )}
             {vistaEstreita && marcadasVisiveis !== pecas.length && (
               <p data-testid="aviso-marcadas-fora-da-vista" style={dica}>
                 {pecas.length - marcadasVisiveis} {pecas.length - marcadasVisiveis === 1 ? "peça marcada está" : "peças marcadas estão"} fora da busca — e também {pecas.length - marcadasVisiveis === 1 ? "sai" : "saem"} na impressão.
@@ -443,6 +657,15 @@ export default function EtiquetasEvento() {
       {tiposNoPool.length > 0 && (
         <SecaoDeOpcoes titulo="2 · Como sai" testid="secao-como-sai"
           ajuda="Individual: uma etiqueta grande por peça, com a arte. Lista: várias peças num adesivo, uma linha cada — como o galpão cola no tubo.">
+          {tubosNoPool.length > 0 && (
+            <div data-testid="como-sai-tubos" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, flexWrap: "wrap", paddingBottom: 8, borderBottom: "1px solid #f0efee" }}>
+              <span style={{ fontSize: fonteBase, fontWeight: 700, color: "#1c1917", flex: "1 1 120px", minWidth: 0 }}>
+                Peças em tubo <span style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#57534e" }}>{porTubo ? "Uma lista por tubo, com “TUBO N”. As demais seguem o tipo." : "Seguem o tipo, com o tubo escrito na etiqueta."}</span>
+              </span>
+              <Segmento rotulo="Como saem as peças embaladas em tubo" testid="por-tubo" alvo={alvo} valor={porTubo ? "tubo" : "tipo"}
+                aoMudar={(v) => setPorTuboEscolha(v === "tubo")} opcoes={[["tubo", "Lista por tubo"], ["tipo", "Pelo tipo"]] as const} />
+            </div>
+          )}
           <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: 6 }}>
             {tiposNoPool.map(([t, n]) => (
               <li key={t} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
@@ -467,7 +690,7 @@ export default function EtiquetasEvento() {
       )}
 
       <SecaoDeOpcoes titulo="3 · Formato" testid="secao-formato">
-        {todasAsDaLista.length > 0 && (
+        {temLista && (
           <div data-testid="formato-da-lista" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             <p style={{ margin: 0, fontSize: 12, fontWeight: 800, color: "#44403c" }}>Listas</p>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -657,8 +880,12 @@ export default function EtiquetasEvento() {
               <div className="etq-zoom" style={estiloDoZoom(zoomIndividual)}>
                 <div className={`etq-quebra ${orientacao === "retrato" ? "etq-moldura-retrato" : "etq-moldura-paisagem"}`}>
                   <div className="etq-folha" style={{ display: "flex", flexDirection: "column" }}>
-                    {dupla.map((e, i) => (
-                      <div key={`${e.p.id}-${e.n}`} data-testid={e.n > 0 ? `etiqueta-${e.p.id}-${e.n}` : `etiqueta-${e.p.id}`} className="etq-etiqueta" style={{
+                    {dupla.map((e, i) => {
+                      const p = e.parte.peca;
+                      const volume = infoDoVolume(e.parte);
+                      const testid = e.n > 0 ? `etiqueta-${p.id}-${e.n}` : partesDe(p).length > 1 ? `etiqueta-${p.id}-${sufixoDaParte(e.parte)}` : `etiqueta-${p.id}`;
+                      return (
+                      <div key={`${e.parte.chave}-${e.n}`} data-testid={testid} className="etq-etiqueta" style={{
                         display: "flex", alignItems: "stretch", gap: 18, padding: "22px 26px",
                         borderBottom: i === 0 ? "2px dashed #d6d3d1" : "none",
                       }}>
@@ -696,8 +923,8 @@ export default function EtiquetasEvento() {
 
                         {/* A PEÇA: arte + código + descrição + quantidade */}
                         <div style={{ flex: "1 1 0", minWidth: 0, display: "flex", gap: 16, alignItems: "center" }}>
-                          {(e.p.approvalThumbUrl || e.p.finalPreviewUrl) && (
-                            <img loading="lazy" decoding="async" src={miniatura(e.p.approvalThumbUrl || e.p.finalPreviewUrl)} alt=""
+                          {(p.approvalThumbUrl || p.finalPreviewUrl) && (
+                            <img loading="lazy" decoding="async" src={miniatura(p.approvalThumbUrl || p.finalPreviewUrl)} alt=""
                               style={{ width: 150, height: 150, objectFit: "contain", borderRadius: 10, border: "1px solid #e7e5e4", backgroundColor: "#fafaf9", flexShrink: 0 }} />
                           )}
                           <div style={{ minWidth: 0, flex: 1 }}>
@@ -705,17 +932,31 @@ export default function EtiquetasEvento() {
                                 identifica o material na pilha — "Testeira Vale Local"
                                 diz mais que #2219. */}
                             <p style={{ margin: 0, fontFamily: "'Space Grotesk', sans-serif", fontSize: 30, fontWeight: 900, letterSpacing: "-0.01em", lineHeight: 1.12, color: "#1c1917", overflowWrap: "anywhere" }}>
-                              {e.p.description || e.p.type}
+                              {p.description || p.type}
                             </p>
                             <p style={{ margin: "6px 0 0", fontSize: 16, lineHeight: 1.3 }}>
-                              <span style={{ color: "#44403c", textTransform: "uppercase", fontWeight: 700 }}>{e.p.type}</span>
-                              {" "}<span style={{ color: "#c2410c", fontWeight: 700 }}>{e.p.displayId}</span>
+                              <span style={{ color: "#44403c", textTransform: "uppercase", fontWeight: 700 }}>{p.type}</span>
+                              {" "}<span style={{ color: "#c2410c", fontWeight: 700 }}>{p.displayId}</span>
                             </p>
                           </div>
                           <div style={{ alignSelf: "flex-start", textAlign: "right", flexShrink: 0 }}>
-                            <p style={{ margin: 0, fontFamily: "'Space Grotesk', sans-serif", fontSize: 30, fontWeight: 900, color: "#1c1917", whiteSpace: "nowrap" }}>
-                              {e.p.quantity ?? 1} un.
+                            {/* O VOLUME (21/09): "TUBO 2" em destaque, colado à
+                                quantidade; "EMBALADA" se foi sozinha; nada se não
+                                foi embalada. O número do tubo pode ter sido
+                                editado para a impressão. */}
+                            {volume.selo && (
+                              <p data-testid="tubo-na-etiqueta" style={{ margin: "0 0 6px", display: "inline-block", padding: "3px 10px", borderRadius: 6, backgroundColor: "#1c1917", color: "#fff", fontFamily: "'Space Grotesk', sans-serif", fontSize: volume.selo.startsWith("TUBO") ? 30 : 22, fontWeight: 900, lineHeight: 1.1, whiteSpace: "nowrap" }}>
+                                {volume.selo}
+                              </p>
+                            )}
+                            <p data-testid="quantidade-na-etiqueta" style={{ margin: 0, fontFamily: "'Space Grotesk', sans-serif", fontSize: 30, fontWeight: 900, color: "#1c1917", whiteSpace: "nowrap" }}>
+                              {e.n > 0 ? e.total : e.parte.quantidade} un.
                             </p>
+                            {e.n === 0 && volume.detalhe && (
+                              <p data-testid="detalhe-do-volume" style={{ margin: "2px 0 0", fontSize: 15, fontWeight: 700, color: "#44403c", whiteSpace: "nowrap" }}>
+                                {volume.detalhe}
+                              </p>
+                            )}
                             {/* "Uma por unidade": cada volume sabe qual ele é no lote. */}
                             {e.n > 0 && (
                               <p style={{ margin: "2px 0 0", fontFamily: "'Space Grotesk', sans-serif", fontSize: 18, fontWeight: 900, color: "#c2410c", whiteSpace: "nowrap" }}>
@@ -725,7 +966,8 @@ export default function EtiquetasEvento() {
                           </div>
                         </div>
                       </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               </div>
@@ -735,22 +977,31 @@ export default function EtiquetasEvento() {
           {/* ── LISTAS: a etiqueta em lista do galpão (em pé, no papel escolhido),
               a mesma peça da etiqueta do tubo. Tem página própria na impressão
               (.etq-lista) e não gira com o "Em pé" das individuais. ── */}
-          {paginasDaLista.map((pg, k) => (
-            <div key={`lista-${k}`} className="etq-lista">
-              <LegendaDaFolha testid={`legenda-lista-${k + 1}`}>
-                {nomeDoPapel(tamanho)} · lista {pg.n} de {pg.total}{copias > 1 ? ` · cópia ${Math.floor(k / pg.total) + 1} de ${copias}` : ""}
-              </LegendaDaFolha>
-              <div className="etq-zoom" style={estiloDoZoom(zoomLista)}>
-                <EtiquetaEmLista tamanho={tamanho} testid={`lista-${k + 1}`} testidDaLinha={k < pg.total ? "lista-linha" : undefined}
-                  ultima={k === paginasDaLista.length - 1}
-                  logo={usarLogo ? logo : null} prefixo={prefixo} gigante={gigante}
-                  saida={dataBR(event?.truckDepartureDate)}
-                  // "1 de 2": quem pega a segunda etiqueta sabe que existe outra.
-                  contador={pg.total > 1 ? `Lista · ${pg.n} de ${pg.total}` : null}
-                  linhas={pg.linhas} mostrarQuantidade={mostrarQuantidade} />
+          {paginasDaLista.map((pg, k) => {
+            const copia = Math.floor(k / Math.max(1, jogoDeListas)) + 1;
+            const doTubo = pg.numeroReal != null;
+            const id = doTubo ? `tubo-${pg.numeroReal}-${pg.n}` : String(pg.n);
+            return (
+              <div key={`lista-${k}`} className="etq-lista">
+                <LegendaDaFolha testid={doTubo ? `legenda-lista-tubo-${pg.numeroReal}-${pg.n}${copia > 1 ? `-copia${copia}` : ""}` : `legenda-lista-${k + 1}`}>
+                  {nomeDoPapel(tamanho)}{doTubo ? ` · Tubo ${pg.tubo}` : ""} · lista {pg.n} de {pg.total}{copias > 1 ? ` · cópia ${copia} de ${copias}` : ""}
+                </LegendaDaFolha>
+                <div className="etq-zoom" style={estiloDoZoom(zoomLista)}>
+                  <EtiquetaEmLista tamanho={tamanho} testid={copia === 1 ? `lista-${id}` : `lista-${id}-copia${copia}`}
+                    testidDaLinha={copia === 1 ? (doTubo ? `tubo-linha-${pg.numeroReal}` : "lista-linha") : undefined}
+                    ultima={k === paginasDaLista.length - 1}
+                    // O MESMO logo do book do evento (uma extração só), com o interruptor.
+                    logo={usarLogo ? logo : null} prefixo={prefixo} gigante={gigante}
+                    saida={dataBR(event?.truckDepartureDate)}
+                    tubo={doTubo ? pg.tubo : null}
+                    rodape={pg.rodape}
+                    // "1 de 2": quem pega a segunda etiqueta sabe que existe outra.
+                    contador={pg.total > 1 ? `${doTubo ? `Tubo ${pg.tubo}` : "Lista"} · ${pg.n} de ${pg.total}` : null}
+                    linhas={pg.linhas} mostrarQuantidade={mostrarQuantidade} />
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 

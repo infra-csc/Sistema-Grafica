@@ -11,6 +11,7 @@ import { carregarRemessa, remessasPorIds } from "../services/kitRemessas";
 import { respostaDoEstoqueParaLiberar, marcarRespostaAplicada } from "../services/consultaDeEstoqueNaLiberacao";
 import { trilhaDaLiberacaoComEstoque } from "@shared/consultas-de-estoque";
 import { resumosDeTuboPorIds, comTubo } from "../services/tubosDaPeca";
+import { tirarPecaDosVolumesAbertos } from "./tubos";
 import { FORMATO_COMPACTO, compactarPecas, compactarAprovacoes } from "@shared/itens-compactos";
 import { DEPOIS_DA_ARTE, EM_REVISAO, POS_APROVACAO, DISPENSAVEIS, DESTINO_DA_DISPENSA, ehBookCompleto, ehMaquinaValida, rotuloDaMaquina } from "@shared/fluxo-peca";
 import { ehMolde, destinoDaDevolucao, dispensaArquivoFinal } from "@shared/molde";
@@ -1799,10 +1800,12 @@ export function registerItemRoutes(app: Express): void {
         // o piso é só o que foi IMPRESSO, conferido ou entregue.
         const impressas = currentItem.quantityProduced ?? 0;
         const reusoAtual = currentItem.reuseQty ?? 0;
-        const piso = Math.max(impressas, currentItem.conferredQty ?? 0, currentItem.deliveredQty ?? 0);
+        // EMBALADAS também são material físico (a embalagem com quantidade,
+        // 21/09): o reaproveitamento antigo embala sem conferir.
+        const piso = Math.max(impressas, currentItem.conferredQty ?? 0, (currentItem as any).embaladaQty ?? 0, currentItem.deliveredQty ?? 0);
         if (nova < piso) {
           return res.status(409).json({
-            error: `Não é possível reduzir para ${nova}: já há ${piso} un. impressas/conferidas/entregues. Mínimo: ${piso}.`,
+            error: `Não é possível reduzir para ${nova}: já há ${piso} un. impressas/conferidas/embaladas/entregues. Mínimo: ${piso}.`,
             code: "QUANTITY_FLOOR",
             minimum: piso,
           });
@@ -2051,6 +2054,13 @@ export function registerItemRoutes(app: Express): void {
         return res.status(409).json({ error: erroEventoFechado(motivoDestino), code: "EVENT_FINALIZED", reason: motivoDestino });
       }
 
+      // Peça dentro de um volume ABERTO não troca de evento: o tubo é do
+      // evento de origem, e ela seria entregue junto com ele no evento errado.
+      const [aberta] = ((await db.execute(sql`select 1 as ok from tubo_itens where item_id = ${item.id} and entregue_em is null limit 1`)) as any)?.rows ?? [];
+      if (aberta) {
+        return res.status(409).json({ error: "Esta peça está embalada num tubo ainda não entregue. Tire a peça do tubo antes de transferir.", code: "IN_OPEN_TUBE" });
+      }
+
       const eventoOrigemId = item.eventId;
       const atualizado = await storage.updateItem(item.id, { eventId: destinoId });
       if (!atualizado) return res.status(404).json({ error: "Peça não encontrada" });
@@ -2134,6 +2144,11 @@ export function registerItemRoutes(app: Express): void {
           complements: complementosVivos.map(c => ({ id: c.id, displayId: c.displayId })),
         });
       }
+
+      // Sai dos volumes ABERTOS antes do soft delete: senão a linha ficava num
+      // tubo que depois seria entregue sem a peça. Se falhar, a exclusão segue:
+      // a entrega do volume recusa peça excluída ("foi excluída — tire do tubo").
+      await tirarPecaDosVolumesAbertos(req, req.params.id).catch((e) => console.error("[items] falha ao tirar a peça excluída dos volumes:", e));
 
       const success = await storage.deleteItem(req.params.id);
       if (!success) {
@@ -5255,6 +5270,11 @@ export function registerItemRoutes(app: Express): void {
       // carregando deliveredQty, e a contagem de entrega ficaria inconsistente.
       if ((current.deliveredQty || 0) > 0) {
         return res.status(409).json({ error: `Não é possível corrigir: ${current.deliveredQty} un. já foram entregues` });
+      }
+      // O reaproveitamento antigo EMBALA sem conferir: voltar a peça para a
+      // produção com unidades num tubo deixaria a embalagem sem material.
+      if (((current as any).embaladaQty || 0) > 0) {
+        return res.status(409).json({ error: `Não é possível corrigir: ${(current as any).embaladaQty} un. já estão embaladas. Tire a peça do tubo antes de corrigir.` });
       }
       if ((current.reuseQty || 0) === 0 && !current.isReuse) {
         return res.status(409).json({ error: "Peça não tem reaproveitamento para corrigir" });

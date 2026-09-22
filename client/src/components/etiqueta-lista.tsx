@@ -44,6 +44,8 @@ type Props<T extends PecaDaLista> = {
   testid?: string;
   /** Prefixo do data-testid de cada linha de peça. */
   testidDaLinha?: string;
+  /** Pé da etiqueta do tubo ("3 peças · 26 un. · embalado 21/09"). */
+  rodape?: string | null;
 };
 
 export function EtiquetaEmLista<T extends PecaDaLista>(props: Props<T>) {
@@ -59,7 +61,7 @@ export function EtiquetaEmLista<T extends PecaDaLista>(props: Props<T>) {
           <span data-testid={props.testid ? `${props.testid}-contador` : undefined}>{props.contador ?? " "}</span>
         </div>
         {props.logo && (
-          <img decoding="async" src={props.logo} alt="Logo do evento"
+          <img decoding="async" src={props.logo} alt="Logo do evento" data-testid="logo-etiqueta"
             style={{ maxHeight: `${m.logoMm}mm`, maxWidth: "70%", objectFit: "contain", display: "block", margin: "1mm auto 0.5mm" }} />
         )}
         {!props.logo && props.gigante && props.prefixo && (
@@ -80,21 +82,27 @@ export function EtiquetaEmLista<T extends PecaDaLista>(props: Props<T>) {
         </div>
       )}
 
+      {/* Só as peças, uma por linha — sem subtítulo de grupo (dono, 21/09:
+          "tirar grupo, apenas nome do item"). */}
       {props.linhas.length === 0 ? (
         <p style={{ fontSize: `${m.linhaMm}mm`, color: "#57534e", textAlign: "center" }}>{props.vazio ?? "Sem peças."}</p>
       ) : (
         <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", alignItems: "center", paddingTop: "1.5mm" }}>
-          {props.linhas.map((l, i) => l.tipo === "subtitulo" ? (
-            <p key={`s-${i}`} data-testid="etl-subtitulo" style={{ margin: i === 0 ? 0 : "0.8mm 0 0", alignSelf: "stretch", fontFamily: GROTESK, fontSize: `${m.linhaMm * 0.78}mm`, fontWeight: 900, letterSpacing: "0.1em", lineHeight: 1.2 * (1 / 0.78), textAlign: "center", color: "#1c1917", borderBottom: "0.3mm solid #1c1917" }}>
-              {l.texto}
-            </p>
-          ) : (
+          {props.linhas.map((l, i) => (
             <p key={l.peca.id ?? `p-${i}`} data-testid={props.testidDaLinha && l.peca.id ? `${props.testidDaLinha}-${l.peca.id}` : undefined}
               style={{ margin: 0, maxWidth: "100%", fontFamily: GROTESK, fontSize: `${m.linhaMm}mm`, fontWeight: 800, lineHeight: 1.2, textAlign: "center", overflowWrap: "anywhere" }}>
               {linhaDaLista(l.peca, { mostrarQuantidade: props.mostrarQuantidade })}
             </p>
           ))}
         </div>
+      )}
+
+      {/* RODAPÉ discreto do tubo: "3 peças · 26 un. · embalado 21/09". */}
+      {props.rodape && (
+        <p data-testid={props.testid ? `${props.testid}-rodape` : undefined}
+          style={{ flexShrink: 0, margin: "auto 0 0", paddingTop: "1mm", borderTop: "0.3mm solid #a8a29e", fontSize: miudo, fontWeight: 700, letterSpacing: "0.04em", color: "#57534e", textAlign: "center", lineHeight: 1.3 }}>
+          {props.rodape}
+        </p>
       )}
     </div>
   );
@@ -207,6 +215,28 @@ export function useEscalaParaCaber() {
 export const CSS_DO_ZOOM = "@media screen { .etq-zoom { zoom: var(--etq-zoom, 1); } }";
 export const estiloDoZoom = (escala: number) => ({ ["--etq-zoom" as any]: escala }) as CSSProperties;
 export const mmParaPx = (mm: number) => mm * PX_POR_MM;
+
+/**
+ * NÚMERO NA ETIQUETA (dono, 21/09: "editar números na etiqueta, não afeta nada
+ * de status"): campo numérico compacto que só muda o que sai IMPRESSO. Mostra o
+ * original até ser editado; editado, ganha o destaque laranja. O pai guarda o
+ * texto cru (undefined = original) e decide o "voltar ao original".
+ */
+export function CampoNaEtiqueta(props: {
+  rotulo: string; original: number; bruto: string | undefined; aoMudar: (bruto: string | undefined) => void;
+  mobile: boolean; testid: string; editado: boolean; largura?: number;
+}) {
+  return (
+    <input type="text" inputMode="numeric" pattern="[0-9]*" autoComplete="off" aria-label={props.rotulo} title={props.rotulo}
+      value={props.bruto ?? String(props.original)} data-testid={props.testid} data-editado={props.editado ? "sim" : undefined}
+      className="etq-foco"
+      onChange={(e) => { const v = e.target.value.replace(/[^\d]/g, "").slice(0, 6); props.aoMudar(v === String(props.original) ? undefined : v); }}
+      style={{
+        ...estiloDoCampo(props.mobile), width: props.largura ?? (props.mobile ? 64 : 56), padding: "0 6px", textAlign: "center", fontVariantNumeric: "tabular-nums",
+        ...(props.editado ? { border: "1px solid #c2410c", backgroundColor: "#fff7ed", color: "#9a3412", fontWeight: 800 } : {}),
+      }} />
+  );
+}
 
 /** Estilos comuns dos campos do painel — 16px no celular (o iOS dá zoom em
  *  campo menor que isso) e alvo de 44. */

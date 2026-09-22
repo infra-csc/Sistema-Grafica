@@ -59,6 +59,8 @@ type Peca = {
   /** …o total já embalado dela, e quanto ainda dá para embalar agora. */
   embaladaQty?: number;
   aEmbalar?: number;
+  /** Peça cancelada/arquivada/excluída dentro do volume aberto: a entrega recusa até tirá-la. */
+  problema?: string | null;
   /** Peça de remessa do Kit — quem só visualiza não age nela. */
   doKit?: boolean;
   /** Foto da conferência da peça — quem entrega vê que o material está documentado. */
@@ -337,7 +339,8 @@ export function EmbalarDialog({ evento, itens, comCaixas = false, onClose, onEmb
   // O padrão é tudo o que está conferido e ainda não embalado.
   const quantasDe = (p: Peca) => Math.max(1, Math.min(disponivel(p), quantas[p.id] ?? disponivel(p)));
   const unidades = pecas.reduce((t, p) => t + quantasDe(p), 0);
-  const jaEmTubo = (data?.tubos ?? []).filter((t) => t.pecas.some((p) => itens.includes(p.id)));
+  // Só volume ABERTO conta (o entregue já saiu); a embalagem avulsa nunca vira "Tubo -1".
+  const jaEmTubo = (data?.tubos ?? []).filter((t) => !t.entregueEm && t.pecas.some((p) => itens.includes(p.id)));
   // Tubos DE VERDADE ainda abertos: o volume avulso (embalada sozinha) não é
   // destino de ninguém e não consome número.
   const abertos = (data?.tubos ?? []).filter((t) => !t.entregueEm && !t.avulso);
@@ -431,7 +434,7 @@ export function EmbalarDialog({ evento, itens, comCaixas = false, onClose, onEmb
       {isError && <ErroAoCarregar onTentar={() => refetch()} />}
       {data && jaEmTubo.length > 0 && (
         <Aviso tom="azul" testId="embalar-ja-no-tubo">
-          {candidatas.length === 0 && itens.length === 1 ? "Esta peça já está" : "Parte das peças já está"} no {jaEmTubo.map((t) => `Tubo ${t.numero}`).join(", ")} — outra pessoa embalou antes.
+          {candidatas.length === 0 && itens.length === 1 ? "Esta peça já está" : "Parte das peças já está"} {jaEmTubo.map((t) => (t.avulso ? "embalada sozinha" : `no Tubo ${t.numero}`)).join(", ")} — outra pessoa embalou antes.
         </Aviso>
       )}
       {data && candidatas.length === 0 && jaEmTubo.length === 0 && (
@@ -580,6 +583,7 @@ export function EntregarTuboDialog({ evento, tuboId, sugestaoRecebedor = "", onC
 
   const entregar = useMutation({
     mutationFn: async () => {
+      // UMA foto de comprovante (o servidor guarda uma): o seletor da entrega aceita só uma.
       const r = await apiRequest("POST", `/api/tubos/${t!.id}/entregar`, { photoUrl: fotos[0] ?? null, receivedBy: recebidoPor.trim(), notes: obs });
       return r.json();
     },
@@ -620,7 +624,7 @@ export function EntregarTuboDialog({ evento, tuboId, sugestaoRecebedor = "", onC
       ) : undefined}>
       {isLoading && <Carregando />}
       {isError && <ErroAoCarregar onTentar={() => refetch()} />}
-      {data && !t && <Aviso testId="entregar-tubo-sumiu">Este tubo não existe mais — alguém apagou. Feche e abra os tubos do evento.</Aviso>}
+      {data && !t && <Aviso testId="entregar-tubo-sumiu">Este volume não existe mais — alguém apagou ou desfez a embalagem. Feche e abra os tubos do evento.</Aviso>}
 
       {t && (
         <>
@@ -628,16 +632,16 @@ export function EntregarTuboDialog({ evento, tuboId, sugestaoRecebedor = "", onC
             <Aviso tom="azul" testId="entregar-ja-entregue">{avulso ? "Esta peça" : `O Tubo ${t.numero}`} já foi entregue{t.recebidoPor ? ` a ${t.recebidoPor}` : ""} em {quandoFoi(t.entregueEm)}.</Aviso>
           )}
           {!t.entregueEm && soVe && (
-            <Aviso testId="entregar-so-visualiza">Este tubo tem peça do Kit: a Solicitação da Arena só visualiza. Quem entrega é o usuário do Kit.</Aviso>
+            <Aviso testId="entregar-so-visualiza">{avulso ? "Esta peça é do Kit" : "Este tubo tem peça do Kit"}: a Solicitação da Arena só visualiza. Quem entrega é o usuário do Kit.</Aviso>
           )}
-          {!t.entregueEm && !soVe && t.pecas.length === 0 && <Aviso testId="entregar-vazio">O Tubo {t.numero} está vazio — não há o que entregar.</Aviso>}
+          {!t.entregueEm && !soVe && t.pecas.length === 0 && <Aviso testId="entregar-vazio">{avulso ? "A embalagem está vazia" : `O Tubo ${t.numero} está vazio`} — não há o que entregar.</Aviso>}
           {!t.entregueEm && !soVe && t.faltamConferir.length > 0 && (
             <Aviso testId="entregar-falta-conferir">
               O tubo só sai inteiro, e ainda falta conferir <strong>{t.faltamConferir.join(", ")}</strong>. Confira {t.faltamConferir.length === 1 ? "essa peça" : "essas peças"} (ou tire do tubo) e volte aqui.
             </Aviso>
           )}
           {!t.entregueEm && !soVe && t.pecas.length > 0 && t.faltamConferir.length === 0 && !t.prontoParaEntregar && (
-            <Aviso testId="entregar-fora-do-alcance">Este tubo tem peças que você não vê — quem entrega é quem enxerga o tubo inteiro.</Aviso>
+            <Aviso testId="entregar-fora-do-alcance">{avulso ? "Esta embalagem tem peça que você não vê" : "Este tubo tem peças que você não vê"} — quem entrega é quem enxerga o volume inteiro.</Aviso>
           )}
 
           <section data-testid={`lista-entrega-tubo-${t.numero}`} style={{ display: "flex", flexDirection: "column", gap: 6 }}>
@@ -647,6 +651,7 @@ export function EntregarTuboDialog({ evento, tuboId, sugestaoRecebedor = "", onC
                 <li key={p.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", borderTop: "1px solid #f5f5f4", flexWrap: "wrap" }}>
                   <LinhaDaPeca p={p} noVolume />
                   {!p.conferida && <span style={{ fontSize: 12, fontWeight: 700, color: COR.ambar }}>falta conferir</span>}
+                  {p.problema && <span data-testid={`problema-${p.id}`} style={{ fontSize: 12, fontWeight: 700, color: "#b91c1c" }}>{p.problema} — {avulso ? "desfaça a embalagem" : "tire do tubo"} para entregar</span>}
                   {p.conferencePhotoUrl && (
                     <a href={p.conferencePhotoUrl} target="_blank" rel="noreferrer" data-testid={`foto-conferencia-${p.id}`}
                       style={{ display: "inline-flex", alignItems: "center", minHeight: isMobile ? 44 : 24, fontSize: 12.5, fontWeight: 700, color: COR.azul }}>
@@ -664,7 +669,7 @@ export function EntregarTuboDialog({ evento, tuboId, sugestaoRecebedor = "", onC
           {temFotoDoTubo && (
             <section data-testid={`fotos-entrega-tubo-${t.numero}`} style={{ display: "flex", flexDirection: "column", gap: 6 }}>
               <span style={ROTULO}>{avulso ? "Fotos da embalagem" : "Fotos do tubo"} · {t.fotosFechamento.length}</span>
-              <Miniaturas fotos={t.fotosFechamento} alt={`Foto do Tubo ${t.numero}`} />
+              <Miniaturas fotos={t.fotosFechamento} alt={avulso ? "Foto da embalagem" : `Foto do Tubo ${t.numero}`} />
               {t.alteradoDepoisDaFoto && <span style={{ fontSize: 12, fontWeight: 700, color: COR.ambar }}>O conteúdo mudou depois da última foto.</span>}
             </section>
           )}
@@ -680,7 +685,8 @@ export function EntregarTuboDialog({ evento, tuboId, sugestaoRecebedor = "", onC
               </section>
               <section>
                 <span style={ROTULO}>Foto do comprovante <span style={{ textTransform: "none", letterSpacing: 0, fontWeight: 400 }}>· opcional</span></span>
-                <Fotos lista={fotos} onMudar={setFotos} alt="Foto do comprovante" />
+                {/* UMA foto só: o comprovante é um (a nova substitui a anterior). */}
+                <Fotos lista={fotos} onMudar={(mudar) => setFotos((atual) => mudar(atual).slice(-1))} alt="Foto do comprovante" />
               </section>
               <section>
                 <label htmlFor="campo-obs-entrega" style={ROTULO}>Observação <span style={{ textTransform: "none", letterSpacing: 0, fontWeight: 400 }}>· opcional</span></label>

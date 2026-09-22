@@ -43,11 +43,11 @@ import { ArrowLeft, Printer, Tag } from "lucide-react";
 import { logoDaCapaDoBook } from "@/lib/logo-do-book";
 import { useIsMobile } from "@/hooks/use-mobile";
 import {
-  COPIAS_MAX, ORDEM_DOS_TAMANHOS, TAMANHOS, cabeNoAdesivo, cabecalhoPadrao, comCopias, gravarPreferencias, lerPreferencias, limitarCopias,
-  nomeDoPapel, paginarLinhas, prefixoPara, regraDaPagina, temReaproveitamento, type LinhaDaEtiqueta, type TamanhoEtiqueta,
+  COPIAS_MAX, ORDEM_DOS_TAMANHOS, TAMANHOS, cabeNoAdesivo, cabecalhoPadrao, comCopias, foiEditado, gravarPreferencias, lerPreferencias, limitarCopias,
+  linhasOrdenadas, nomeDoPapel, numeroEditado, paginarLinhas, prefixoPara, regraDaPagina, rodapeDoTubo, temReaproveitamento, type LinhaDaEtiqueta, type TamanhoEtiqueta,
 } from "@/lib/etiqueta-lista";
 import {
-  CSS_DA_ETIQUETA_EM_LISTA, CSS_DO_ZOOM, EtiquetaEmLista, EtiquetaReaproveitar, LegendaDaFolha, SecaoDeOpcoes, estiloDoCampo,
+  CSS_DA_ETIQUETA_EM_LISTA, CSS_DO_ZOOM, CampoNaEtiqueta, EtiquetaEmLista, EtiquetaReaproveitar, LegendaDaFolha, SecaoDeOpcoes, estiloDoCampo,
   estiloDoZoom, mmParaPx, useEscalaParaCaber,
 } from "@/components/etiqueta-lista";
 
@@ -56,7 +56,8 @@ import {
 // mandar; até lá vale o interruptor manual.
 type Peca = { id: string; displayId: string | null; type: string; description: string | null; quantity: number; /** quanto da peça está NESTE tubo (a linha usa esta) */ quantidadeNoTubo?: number; conferida: boolean; isReuse?: boolean | null; reuseQty?: number | null };
 type Resposta = {
-  tubo: { id: string; numero: number | null; avulso?: boolean | null; entregueEm: string | null; recebidoPor: string | null };
+  /** `fechadoEm`/`embaladoEm`: o "embalado dd/mm" do rodapé, quando a rota mandar. */
+  tubo: { id: string; numero: number | null; avulso?: boolean | null; entregueEm: string | null; recebidoPor: string | null; fechadoEm?: string | null; embaladoEm?: string | null };
   evento: { id: string; name: string; truckDepartureDate: string | null; bookUrl?: string | null } | null;
   pecas: Peca[];
 };
@@ -87,6 +88,24 @@ export default function EtiquetaTubo() {
   const bookUrl = data?.evento?.bookUrl ?? null;
   const [logo, setLogo] = useState<string | null>(null);
   const [buscandoLogo, setBuscandoLogo] = useState(false);
+  /** O mesmo interruptor das etiquetas do evento: ligado por padrão. */
+  const [usarLogo, setUsarLogo] = useState(true);
+  const logoNaEtiqueta = usarLogo ? logo : null;
+  // Enquanto o logo é extraído, o Imprimir espera (como no evento): nada sai sem logo por pressa.
+  const esperandoLogo = buscandoLogo && usarLogo;
+
+  /**
+   * NÚMEROS NA ETIQUETA (dono, 21/09): quantidade por peça e número do tubo,
+   * SÓ para a impressão — estado local, nunca enviado ao servidor.
+   */
+  const [qtdEditada, setQtdEditada] = useState<Record<string, string>>({});
+  const [tuboEditado, setTuboEditado] = useState<string | undefined>(undefined);
+  const qtdOriginal = (p: Peca) => (Number(p.quantidadeNoTubo) > 0 ? Number(p.quantidadeNoTubo) : Number(p.quantity) || 1);
+  const editarQtd = (id: string, bruto: string | undefined) => setQtdEditada((e) => {
+    const n = { ...e };
+    if (bruto === undefined) delete n[id]; else n[id] = bruto;
+    return n;
+  });
   useEffect(() => {
     let vivo = true;
     setLogo(null);
@@ -110,23 +129,34 @@ export default function EtiquetaTubo() {
     : null;
 
   // Embalada sozinha: sem tubo não há "TUBO N" para imprimir.
-  const avulso = !!data && (data.tubo.avulso === true || data.tubo.numero == null);
-  const numero = avulso ? null : data?.tubo.numero ?? null;
+  const avulso = !!data && (data.tubo.avulso === true || data.tubo.numero == null || Number(data.tubo.numero) < 0);
+  const numeroReal = avulso ? null : data?.tubo.numero ?? null;
+  // O número que SAI na etiqueta (editável só para a impressão).
+  const numero = numeroReal == null ? null : numeroEditado(tuboEditado, numeroReal);
 
   // AS PÁGINAS: a lista quebrada em etiquetas (+ REAPROVEITAR), o jogo inteiro
-  // repetido pelas cópias. No tubo a lista sai na ordem do código, SEM
-  // subtítulo de tipo: o tubo é pequeno e cada linha já começa pelo tipo.
-  const linhas = useMemo(() => (data?.pecas ?? []).map((peca) => ({ tipo: "peca" as const, peca })), [data]);
+  // repetido pelas cópias. SEM subtítulo de tipo (dono, 21/09: "tirar grupo,
+  // apenas nome do item"): na ordem do tipo e depois da descrição — a mesma
+  // das listas do evento. A quantidade é a DESTE tubo, com a edição.
+  const linhas = useMemo(() => linhasOrdenadas((data?.pecas ?? []).map((p) => {
+    const noTubo = numeroEditado(qtdEditada[p.id], qtdOriginal(p));
+    return { ...p, quantidadeNoTubo: noTubo, quantity: Math.max(Number(p.quantity) || 0, noTubo) };
+  })), [data, qtdEditada]); // eslint-disable-line react-hooks/exhaustive-deps
+  const unidades = linhas.reduce((s, l) => s + (Number(l.peca.quantidadeNoTubo) || 0), 0);
+  // RODAPÉ discreto: "3 peças · 26 un. · embalado 21/09" (a data quando a rota mandar).
+  const rodape = data && linhas.length > 0 ? rodapeDoTubo(linhas.length, unidades, data.tubo.fechadoEm ?? data.tubo.embaladoEm ?? null) : null;
   const jogo = useMemo<Pagina[]>(() => {
     if (!data) return [];
     const medidas = TAMANHOS[tamanho];
-    const partes = paginarLinhas(linhas, { capacidade: numero != null ? medidas.linhasComTubo : medidas.linhasSemTubo, letrasPorLinha: medidas.letrasPorLinha, mostrarQuantidade });
+    const capacidade = (numero != null ? medidas.linhasComTubo : medidas.linhasSemTubo) - (rodape ? 1 : 0);
+    const partes = paginarLinhas(linhas, { capacidade, letrasPorLinha: medidas.letrasPorLinha, mostrarQuantidade });
     // Tubo vazio ainda imprime a etiqueta (evento + TUBO N): dá para colar antes de encher.
     const listas: Pagina[] = (partes.length ? partes : [[]]).map((l, k, todas) => ({ tipo: "lista", linhas: l, n: k + 1, total: todas.length }));
     return reaproveitar ? [...listas, { tipo: "reaproveitar" }] : listas;
-  }, [data, linhas, numero, tamanho, mostrarQuantidade, reaproveitar]);
+  }, [data, linhas, numero, tamanho, mostrarQuantidade, reaproveitar, rodape]);
   const paginas = useMemo(() => comCopias<Pagina>(jogo, copias), [jogo, copias]);
-  const sugerirAdesivo = tamanho !== "adesivo" && cabeNoAdesivo(linhas, { comTubo: numero != null, mostrarQuantidade });
+  const sugerirAdesivo = tamanho !== "adesivo" && cabeNoAdesivo(linhas, { comTubo: numero != null, comRodape: !!rodape, mostrarQuantidade });
+  const algumaEdicao = Object.keys(qtdEditada).length > 0 || tuboEditado !== undefined;
 
   // O RESUMO, em linguagem de gente — o mesmo lugar e o mesmo tom do evento.
   const nListas = jogo.filter((p) => p.tipo === "lista").length;
@@ -149,8 +179,8 @@ export default function EtiquetaTubo() {
     ) : (
       <EtiquetaEmLista tamanho={tamanho} ultima={ultima} testid={tid(`etiqueta-tubo-${i + 1}`)}
         testidDaLinha={destino === "tela" ? `linha-tubo-${i + 1}` : undefined}
-        logo={logo} prefixo={prefixo} gigante={gigante} saida={saida}
-        tubo={numero}
+        logo={logoNaEtiqueta} prefixo={prefixo} gigante={gigante} saida={saida}
+        tubo={numero} rodape={rodape}
         contador={pg.total > 1 ? `${numero != null ? `Tubo ${numero}` : "Lista"} · ${pg.n} de ${pg.total}` : null}
         linhas={pg.linhas} mostrarQuantidade={mostrarQuantidade} vazio="Este tubo está vazio." />
     );
@@ -173,7 +203,8 @@ export default function EtiquetaTubo() {
   const caixa: React.CSSProperties = { width: 18, height: 18, accentColor: "#c2410c", flexShrink: 0, margin: 0 };
   const dica: React.CSSProperties = { margin: 0, fontSize: 12.5, lineHeight: 1.4, color: "#57534e" };
   const botaoLeve: React.CSSProperties = { minHeight: alvo, padding: "0 12px", borderRadius: 8, border: "1px solid #d6d3d1", background: "#fff", fontFamily: "inherit", fontSize: fonteBase - 0.5, fontWeight: 700, color: "#44403c", cursor: "pointer" };
-  const titulo = !data ? "Etiqueta do tubo" : numero != null ? `Etiqueta do Tubo ${numero}` : "Etiqueta da embalagem";
+  const titulo = !data ? "Etiqueta do tubo" : numeroReal != null ? `Etiqueta do Tubo ${numeroReal}` : "Etiqueta da embalagem";
+  const pronto = !!data && !esperandoLogo;
 
   const blocoDeAcao = (
     <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", justifyContent: isMobile ? "stretch" : "flex-end", flex: isMobile ? undefined : "1 1 360px", minWidth: 0 }}>
@@ -182,10 +213,10 @@ export default function EtiquetaTubo() {
           {resumo}
         </p>
       )}
-      <button type="button" onClick={() => window.print()} disabled={!data} data-testid="imprimir-etiqueta-tubo" className="etq-foco"
-        title={data ? 'Abre a impressão (ou "Salvar como PDF").' : "Aguarde o tubo carregar."}
-        style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 7, minHeight: isMobile ? 48 : 40, padding: "0 18px", borderRadius: 8, border: "none", flex: isMobile ? "1 1 100%" : undefined, background: data ? "#1c1917" : "#e7e5e4", color: data ? "#fff" : "#57534e", fontFamily: "inherit", fontWeight: 800, fontSize: isMobile ? 15 : 13.5, cursor: data ? "pointer" : "not-allowed" }}>
-        <Printer aria-hidden="true" style={{ width: 15, height: 15 }} /> Imprimir etiqueta
+      <button type="button" onClick={() => { if (pronto) window.print(); }} disabled={!pronto} data-testid="imprimir-etiqueta-tubo" className="etq-foco"
+        title={!data ? "Aguarde o tubo carregar." : esperandoLogo ? 'Extraindo o logo do book — segundos. Para imprimir sem ele, desligue "Logo do book".' : 'Abre a impressão (ou "Salvar como PDF").'}
+        style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 7, minHeight: isMobile ? 48 : 40, padding: "0 18px", borderRadius: 8, border: "none", flex: isMobile ? "1 1 100%" : undefined, background: pronto ? "#1c1917" : "#e7e5e4", color: pronto ? "#fff" : "#57534e", fontFamily: "inherit", fontWeight: 800, fontSize: isMobile ? 15 : 13.5, cursor: pronto ? "pointer" : "not-allowed" }}>
+        <Printer aria-hidden="true" style={{ width: 15, height: 15 }} /> {esperandoLogo ? "Buscando o logo…" : "Imprimir etiqueta"}
       </button>
     </div>
   );
@@ -272,13 +303,61 @@ export default function EtiquetaTubo() {
                 Imprimir etiqueta REAPROVEITAR
               </label>
               {temReuso && reaproveitarManual === null && <p style={dica}>Ligado sozinho: há peça de reaproveitamento neste tubo.</p>}
+              {(logo || buscandoLogo) && (
+                <label style={linhaDeCaixa}>
+                  <input type="checkbox" checked={usarLogo} onChange={(e) => setUsarLogo(e.target.checked)} data-testid="check-usar-logo" style={caixa} />
+                  Logo do book no cabeçalho
+                  {buscandoLogo && <span role="status" style={{ fontSize: 12, color: "#57534e" }}>· extraindo…</span>}
+                </label>
+              )}
             </SecaoDeOpcoes>
 
+            {/* NÚMEROS NA ETIQUETA (dono, 21/09): editar o que SAI impresso —
+                a quantidade de cada peça e o número do tubo. Nada vai ao servidor. */}
+            {(numeroReal != null || data.pecas.length > 0) && (
+              <SecaoDeOpcoes titulo="Números na etiqueta" testid="secao-numeros"
+                ajuda="Só muda o que sai impresso — a peça não é alterada (nem status, nem quantidade).">
+                {numeroReal != null && (
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", fontSize: 12.5, fontWeight: 600, color: "#44403c" }}>
+                    <span>Número do tubo</span>
+                    <CampoNaEtiqueta rotulo="Número do tubo na etiqueta" original={numeroReal} bruto={tuboEditado} aoMudar={setTuboEditado}
+                      mobile={isMobile} editado={foiEditado(tuboEditado, numeroReal)} testid="tubo-na-etiqueta" />
+                  </div>
+                )}
+                {data.pecas.length > 0 && (
+                  <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: 4, maxHeight: isMobile ? undefined : 260, overflowY: "auto" }}>
+                    {data.pecas.map((p) => {
+                      const original = qtdOriginal(p);
+                      const editado = foiEditado(qtdEditada[p.id], original);
+                      return (
+                        <li key={p.id} style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", fontSize: 12.5, fontWeight: 600, color: "#44403c" }}>
+                          <CampoNaEtiqueta rotulo={`Quantidade na etiqueta de ${p.description || p.type}`} original={original} bruto={qtdEditada[p.id]}
+                            aoMudar={(v) => editarQtd(p.id, v)} mobile={isMobile} editado={editado} testid={`qtd-na-etiqueta-${p.id}`} />
+                          <span style={{ flex: "1 1 120px", minWidth: 0, overflowWrap: "anywhere" }}>{p.description || p.type}</span>
+                          {editado && (
+                            <button type="button" className="etq-foco" data-testid={`voltar-original-${p.id}`} onClick={() => editarQtd(p.id, undefined)}
+                              style={{ minHeight: alvo, border: "none", background: "none", padding: "0 4px", font: "inherit", fontSize: 12.5, fontWeight: 700, color: "#9a3412", textDecoration: "underline", cursor: "pointer" }}>
+                              voltar ao original ({original})
+                            </button>
+                          )}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+                {algumaEdicao && (
+                  <button type="button" className="etq-foco" data-testid="restaurar-numeros" onClick={() => { setQtdEditada({}); setTuboEditado(undefined); }} style={{ ...botaoLeve, alignSelf: "flex-start" }}>
+                    Voltar todos ao original
+                  </button>
+                )}
+              </SecaoDeOpcoes>
+            )}
+
             <SecaoDeOpcoes titulo="Cabeçalho da etiqueta" testid="secao-cabecalho"
-              ajuda={logo ? "O logo do book ocupa o lugar do texto de cima." : buscandoLogo ? "Extraindo o logo do book… dá para imprimir sem ele." : undefined}>
+              ajuda={logoNaEtiqueta ? "O logo do book ocupa o lugar do texto de cima." : esperandoLogo ? "Extraindo o logo do book… o Imprimir espera por ele." : undefined}>
               <label style={rotuloDeCampo}>
                 Texto de cima (pequeno)
-                <input type="text" value={textoDeCima ?? prefixo} onChange={(e) => setTextoDeCima(e.target.value)} disabled={!!logo} data-testid="input-texto-de-cima" className="etq-foco" style={{ ...campo, opacity: logo ? 0.6 : 1 }} />
+                <input type="text" value={textoDeCima ?? prefixo} onChange={(e) => setTextoDeCima(e.target.value)} disabled={!!logoNaEtiqueta} data-testid="input-texto-de-cima" className="etq-foco" style={{ ...campo, opacity: logoNaEtiqueta ? 0.6 : 1 }} />
               </label>
               <label style={rotuloDeCampo}>
                 Palavra gigante (lê-se de longe)

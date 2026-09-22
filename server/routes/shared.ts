@@ -5,6 +5,7 @@
 import { WebSocket } from "ws";
 import { z } from "zod";
 import { storage } from "../storage";
+import { statusParaContagem } from "@shared/molde";
 import { invalidateEventsCache, invalidateNotificationsCache } from "../cache";
 
 // Extend Express Request type to include userName and userId
@@ -235,7 +236,8 @@ export async function calculateEventStatus(eventId: string): Promise<"created" |
   for (const item of items) {
     if (OUT_OF_FUNNEL_STATUSES.has(item.status)) continue;
     active += 1;
-    if (DELIVERED_STATUSES.has(item.status)) delivered += 1;
+    // Molde produzido é o fim do fluxo dele: conta como entregue (shared/molde).
+    if (DELIVERED_STATUSES.has(statusParaContagem(item as any))) delivered += 1;
   }
 
   // Evento sem peça alguma (ou só com peças canceladas) NÃO está concluído:

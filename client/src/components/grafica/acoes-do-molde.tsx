@@ -17,6 +17,7 @@ import { useToast } from "@/hooks/use-toast";
 import { parseApiError } from "@/components/aumentar-quantidade-dialog";
 import { motivoAcaoBloqueada, type EventoFinalizadoMotivo } from "@/lib/status";
 import { gestoDoMolde } from "@shared/molde";
+import { pecaTravada, fraseDaTrava } from "@shared/trava-da-peca";
 
 export function AcoesDoMolde({ item, podeProduzir, selo, cartao }: {
   item: any;
@@ -53,14 +54,16 @@ export function AcoesDoMolde({ item, podeProduzir, selo, cartao }: {
 
   const ocupado = mutacao.isPending;
   if (gesto === "produzir") {
-    const bloqueado = !!selo || ocupado;
+    // Travada pela Solicitação: o botão fica, desabilitado, com o motivo.
+    const travada = pecaTravada(item);
+    const bloqueado = !!selo || ocupado || travada;
     return (
       <button
         type="button"
         onClick={(e) => { e.stopPropagation(); if (!bloqueado) mutacao.mutate("produzir"); }}
         disabled={bloqueado}
         data-testid={`button-molde-produzido-${item.id}`}
-        title={selo ? motivoAcaoBloqueada(selo.motivo, "marcar como produzido") : "Molde: marca a peça inteira como produzida — sem impressora. É o fim do fluxo dele."}
+        title={travada ? fraseDaTrava(item) : selo ? motivoAcaoBloqueada(selo.motivo, "marcar como produzido") : "Molde: marca a peça inteira como produzida — sem impressora. É o fim do fluxo dele."}
         style={{
           ...(cartao ? { flex: "2 1 150px", minHeight: 48, fontSize: 14, fontWeight: 800 } : { height: 32, fontSize: 12, fontWeight: 700 }),
           padding: "0 12px", borderRadius: 8, whiteSpace: "nowrap",

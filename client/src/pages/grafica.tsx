@@ -3762,7 +3762,7 @@ export default function Grafica() {
               // outro — `grafica-mobile.test.ts` confere que as duas batem.
               // O `!bulkOn` já vem do trilho, que só existe fora do lote.
               const podeProduzirPeca = !emRevisao && canProduce && !isDelivered(item) && !isProduced(item) && !isPosConferencia(item) && !item.isReuse;
-              const podeReaproveitarPeca = !emRevisao && !soVisualizaKit(item) && !isDelivered(item) && !isPosConferencia(item) && (!isProduced(item) ? tetoReaproveitar(item) > 0 : podeMexerQtd && qtyOf(item) > 0);
+              const podeReaproveitarPeca = !emRevisao && !pecaTravada(item) && !soVisualizaKit(item) && !isDelivered(item) && !isPosConferencia(item) && (!isProduced(item) ? tetoReaproveitar(item) > 0 : podeMexerQtd && qtyOf(item) > 0);
               const podeCorrigirReaprov = !emRevisao && !soVisualizaKit(item) && (isProduced(item) || isAdmin) && reusedTotalOf(item) > 0
                 && conferredOf(item) === 0 && deliveredOf(item) === 0;
               const podeDevolverPeca = canProduce && podeDevolverParaRevisao(item);
@@ -5020,7 +5020,7 @@ export default function Grafica() {
                           {(() => {
                             const temSecundaria = !bulkOn && (
                               (podeMexerQtd && !soVisualizaKit(item) && ehComplemento && complementUntouched(item))
-                              || (!emRevisao && !soVisualizaKit(item) && !isDelivered(item) && !isPosConferencia(item) && (!isProduced(item) ? tetoReaproveitar(item) > 0 : podeMexerQtd && qtyOf(item) > 0))
+                              || (!emRevisao && !pecaTravada(item) && !soVisualizaKit(item) && !isDelivered(item) && !isPosConferencia(item) && (!isProduced(item) ? tetoReaproveitar(item) > 0 : podeMexerQtd && qtyOf(item) > 0))
                               || (!emRevisao && !soVisualizaKit(item) && (isProduced(item) || isAdmin) && reusedTotalOf(item) > 0 && conferredOf(item) === 0 && deliveredOf(item) === 0)
                               || (canProduce && podeDevolverParaRevisao(item)));
                             if (!compacto || !temSecundaria) return null;
@@ -5118,7 +5118,7 @@ export default function Grafica() {
                               (POST /api/items/:id/mark-reuse é barrado): marcar
                               reaproveitamento é decidir o que entra na fila de
                               produção, ou seja, faz o trabalho andar. */}
-                          {!bulkOn && !emRevisao && !soVisualizaKit(item) && !isDelivered(item) && !isPosConferencia(item) && (!isProduced(item) ? tetoReaproveitar(item) > 0 : podeMexerQtd && qtyOf(item) > 0) && (
+                          {!bulkOn && !emRevisao && !pecaTravada(item) && !soVisualizaKit(item) && !isDelivered(item) && !isPosConferencia(item) && (!isProduced(item) ? tetoReaproveitar(item) > 0 : podeMexerQtd && qtyOf(item) > 0) && (
                             reuseConfirmItemId === item.id ? (
                               <div style={{ display: "flex", alignItems: "center", gap: 4 }} onClick={e => e.stopPropagation()}>
                                 {/* Rótulo, como no "Corrigir": sem ele o campo

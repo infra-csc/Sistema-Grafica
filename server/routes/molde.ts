@@ -15,7 +15,8 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import type { Express } from "express";
 import { storage } from "../storage";
-import { requireAuth, broadcast, createAuditLog, translateStatus } from "./shared";
+import { requireAuth, broadcast, createAuditLog, translateStatus, updateEventStatus } from "./shared";
+import { pecaTravada, fraseDaTrava, CODIGO_PECA_TRAVADA } from "@shared/trava-da-peca";
 import { barraEventoFinalizado } from "./eventoFinalizado";
 import { invalidarCacheDeVersoes } from "./versoes";
 import {
@@ -84,9 +85,8 @@ export function registerMoldeRoutes(app: Express): void {
           error: `O molde só pode ser marcado como produzido depois de liberado pela Revisão Final. Status atual: ${translateStatus(atual.status)}`,
         });
       }
-      // PONTO DE EXTENSÃO — a TRAVA DA SOLICITAÇÃO (quando existir na main):
-      // se a Solicitação travar a peça, recusar aqui com o mesmo predicado que
-      // o start-printing usar, antes de gravar.
+      // TRAVA DA SOLICITAÇÃO: o mesmo predicado do start-printing — travada não anda.
+      if (pecaTravada(atual as any)) return res.status(409).json({ error: fraseDaTrava(atual as any), code: CODIGO_PECA_TRAVADA });
 
       const item = await storage.updateItem(atual.id, {
         status: "produced",
@@ -99,6 +99,8 @@ export function registerMoldeRoutes(app: Express): void {
         req, "produced", "item", item.id,
         `${TRILHA_MOLDE_PRODUZIDO} (${translateStatus(atual.status)} → Produzido) — ${item.quantityProduced ?? 0} un.`,
       );
+      // O molde produzido é o fim do fluxo: o evento pode ter acabado agora.
+      if (item.eventId) await updateEventStatus(item.eventId);
       broadcast({ type: "item_updated", item });
       return res.json(item);
     } catch (error: any) {
@@ -128,6 +130,7 @@ export function registerMoldeRoutes(app: Express): void {
       } as any);
       if (!item) return res.status(404).json({ error: "Item not found" });
       await createAuditLog(req, "updated", "item", item.id, `${TRILHA_MOLDE_DESFEITO} — Produzido → ${translateStatus("ready_for_production")}`);
+      if (item.eventId) await updateEventStatus(item.eventId);
       broadcast({ type: "item_updated", item });
       return res.json(item);
     } catch (error: any) {

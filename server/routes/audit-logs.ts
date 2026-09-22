@@ -104,7 +104,7 @@ export function registerAuditLogRoutes(app: Express): void {
         : await storage.getAuditLogs(tipo, entityId as string | undefined, { limit: tamanho, cursor: cursorParsed, busca: termo });
       // Usuário do Kit (14/09): só o que ele fez e o histórico das peças dele.
       const minhas = kit
-        ? new Set((await storage.getAllItems()).filter((i) => !!i.kitRemessaId && i.criadoPorId === userId).map((i) => i.id))
+        ? new Set(await storage.getIdsDasPecasDoKitDoCriador(userId ?? null))
         : new Set<string>();
       const logs = recortarTrilha(bruto, { admin, kit, userId, minhas });
 

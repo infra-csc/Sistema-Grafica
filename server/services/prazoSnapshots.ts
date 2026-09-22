@@ -16,6 +16,7 @@ import { inArray, sql } from "drizzle-orm";
 import { db } from "../db";
 import { prazoSnapshots, prazoEventSnapshots, kitRemessas } from "@shared/schema";
 import { storage, type ItemParaPrazo } from "../storage";
+import { executarComoLider } from "./lideranca";
 import {
   buildEventPrazo,
   comKit,
@@ -140,7 +141,8 @@ export async function runPrazoSnapshot(): Promise<void> {
 export function startPrazoSnapshots(): void {
   const tick = async () => {
     try {
-      await runPrazoSnapshot();
+      // Uma cópia por hora (services/lideranca.ts): o fecho é o mesmo em todas.
+      await executarComoLider("fecho-de-prazos", runPrazoSnapshot, { janelaMs: UMA_HORA });
     } catch (e) {
       // Tabelas ainda não migradas (npm run db:push pendente) não podem
       // derrubar o processo — o job simplesmente não grava e a tendência não

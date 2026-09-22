@@ -69,6 +69,12 @@ process.on("uncaughtException", (err) => {
 
 const app = express();
 app.set("trust proxy", 1); // Replit sits behind a reverse proxy — needed for secure cookies
+// Sem ETag nas respostas da API (res.json/res.send): o Express hasheava o
+// corpo INTEIRO de cada lista (MBs) só para, quase sempre, não bater — as
+// listas vivem de delta (?since=) e o cliente não manda If-None-Match. Os
+// arquivos estáticos não usam esta regra (express.static tem o próprio ETag
+// e seguem respondendo 304).
+app.set("etag", false);
 // Compressão gzip: as listagens (itens, audit-logs) são JSON grande e repetitivo,
 // que comprime ~10x. Sem isto cada navegação baixava megabytes.
 app.use(compression());

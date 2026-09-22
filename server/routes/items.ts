@@ -4,7 +4,7 @@ import type { Express } from "express";
 import { z } from "zod";
 import { eq, sql } from "drizzle-orm";
 import { db } from "../db";
-import { storage, assetPrefix, assetSeqOf, isDisplayIdConflictError } from "../storage";
+import { storage, assetPrefix, assetSeqOf, isDisplayIdConflictError, cabeNaJanelaDeEntregues } from "../storage";
 import { ITEM_STATUSES, type Item } from "@shared/schema";
 import { eventoComDatasDoKit, pecaVisivelPara, remessaUtilizavelPor } from "@shared/kit";
 // TRAVA DA SOLICITAÇÃO (21/09): o que faz a peça andar na Gráfica é barrado
@@ -1278,15 +1278,15 @@ export function registerItemRoutes(app: Express): void {
         return res.status(403).json({ error: "Acesso não autorizado" });
       }
 
-      // Batch: carrega tudo em paralelo (poucas queries totais) em vez de
-      // fazer N+1 round trips (approvals/sponsors/evento por item), que
-      // deixava a aba de Correção lenta para abrir com muitos itens.
-      const [allItems, allEvents, allSponsors, allItemSponsorApprovals] = await Promise.all([
-        storage.getAllItems(),
+      // Batch: poucas queries totais em vez de N+1 por item. As candidatas
+      // saem filtradas do BANCO (getItemsParaCorrecao) e as aprovações só
+      // delas — antes eram o acervo e a tabela de aprovações inteiros.
+      const [allItems, allEvents, allSponsors] = await Promise.all([
+        storage.getItemsParaCorrecao(),
         storage.getAllEvents(),
         storage.getAllSponsors(),
-        storage.getAllItemSponsorApprovals(),
       ]);
+      const allItemSponsorApprovals = await storage.getItemSponsorApprovalsByItemIds(allItems.map((i) => i.id));
 
       // A fila da Correção responde UMA pergunta: "o que voltou e precisa ser
       // refeito?". Ela tinha DOIS pré-requisitos para responder — a peça em
@@ -1386,9 +1386,16 @@ export function registerItemRoutes(app: Express): void {
       const agora = agoraDoDelta();
       const usuario = quemVe(req);
       if (since) {
-        const mudadas = await storage.getItemsChangedSince(since);
+        const agoraMs = Date.now();
+        const [mudadas, sairamDaJanela] = await Promise.all([
+          storage.getItemsChangedSince(since),
+          storage.getIdsQueSairamDaJanelaDeEntregues(since),
+        ]);
+        // Entregue antiga (fora de DIAS_DE_ENTREGUES_NA_FILA) não é da fila —
+        // a mesma régua de storage.getApprovedItems.
         const cabeNaFila = (i: any) =>
-          !i.deletedAt && STATUS_DA_FILA_DA_GRAFICA.has(i.status) && pecaVisivelPara(usuario, i) && !ehBookCompleto(i);
+          !i.deletedAt && STATUS_DA_FILA_DA_GRAFICA.has(i.status) && cabeNaJanelaDeEntregues(i, agoraMs)
+          && pecaVisivelPara(usuario, i) && !ehBookCompleto(i);
         const naFila = mudadas.map(cabeNaFila);
         const [eventos, patrocinadores, maes] = await Promise.all([
           storage.getAllEvents(),
@@ -1399,7 +1406,9 @@ export function registerItemRoutes(app: Express): void {
           [...mudadas.filter((_i, n) => naFila[n]), ...maes],
           { eventos, patrocinadores },
         );
-        const removidas = mudadas.filter((_i, n) => !naFila[n]).map((i) => i.id);
+        // A entregue que o RELÓGIO tirou da janela não mudou de linha: sem
+        // esta soma ela ficaria no cache da Gráfica até a próxima carga cheia.
+        const removidas = Array.from(new Set([...mudadas.filter((_i, n) => !naFila[n]).map((i) => i.id), ...sairamDaJanela]));
         if (compacto) {
           return res.json({ delta: true, agora, removidas, ...compactarPecas(itens, { eventos, patrocinadores }) });
         }
@@ -1428,10 +1437,11 @@ export function registerItemRoutes(app: Express): void {
       if (!["atendimento", "arte", "admin"].includes(req.userRole ?? "")) {
         return res.status(403).json({ error: "Acesso não autorizado" });
       }
-      const [allSponsors, allItemSponsors, allApprovals] = await Promise.all([
+      // Só das peças vivas, filtrado no banco (a tela cruza por id com a
+      // lista de peças, que não traz excluídas).
+      const [allSponsors, { vinculos: allItemSponsors, aprovacoes: allApprovals }] = await Promise.all([
         storage.getAllSponsors(),
-        storage.getAllItemSponsors(),
-        storage.getAllItemSponsorApprovals(),
+        storage.getVinculosEAprovacoesDasPecasVivas(),
       ]);
 
       const sponsorById = new Map(allSponsors.map(s => [s.id, s]));

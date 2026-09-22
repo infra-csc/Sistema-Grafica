@@ -72,6 +72,9 @@ vi.mock("../cache", () => ({
   setEventsCache: vi.fn(),
   invalidateEventsCache: vi.fn(),
   invalidateAllCaches: vi.fn(),
+  // Caches de outros módulos (routes/versoes.ts) se registram no carregamento.
+  registrarCache: vi.fn(),
+  invalidarCacheNoCluster: vi.fn(),
 }));
 vi.mock("../services/inventoryLifecycle", () => ({ runInventoryCron: vi.fn() }));
 vi.mock("../services/xlsxImport", () => ({

@@ -49,6 +49,18 @@ const PAPEIS_QUE_VEEM = ["grafica", "solicitacao", "admin"];
 const DIA_VALIDO = /^\d{4}-\d{2}-\d{2}$/;
 const FUSO = "America/Sao_Paulo";
 
+/**
+ * Registros de `de` a `ate` (dias de São Paulo, inclusive) como INTERVALO
+ * sobre created_at — [meia-noite de `de` em SP, meia-noite do dia seguinte a
+ * `ate` em SP), convertidos para UTC (é como created_at é gravado). Converter
+ * a COLUNA (created_at → dia de SP) obrigava a ler a tabela inteira; com o
+ * intervalo o índice IDX_registros_impressao_created_at resolve.
+ */
+function entreOsDias(de: string, ate: string) {
+  return sql`r.created_at >= timezone('UTC', (${de}::date)::timestamp at time zone ${FUSO})
+      and r.created_at < timezone('UTC', (${ate}::date + 1)::timestamp at time zone ${FUSO})`;
+}
+
 const linhas = (r: any): any[] => (r?.rows ?? r ?? []) as any[];
 
 /** 403 para quem não é da Gráfica, da Solicitação nem admin — as três rotas usam. */
@@ -90,7 +102,7 @@ async function registrosDoPeriodo(req: any, de: string, ate: string): Promise<Re
     from registros_de_impressao r
     join items i on i.id = r.item_id
     left join events e on e.id = i.event_id
-    where ((r.created_at at time zone 'UTC') at time zone ${FUSO})::date between ${de}::date and ${ate}::date
+    where ${entreOsDias(de, ate)}
     order by r.created_at asc
   `)).filter(filtroDoKit(req));
   const deuLugarA = quemEntrouNoLugar(brutos.map((l) => ({ id: l.id, itemId: l.item_id, maquina: l.maquina, tipo: l.tipo, displayId: l.display_id, em: Number(l.em) })));
@@ -545,7 +557,7 @@ export function registerMaquinasRoutes(app: Express): void {
         from registros_de_impressao r
         join items i on i.id = r.item_id
         left join events e on e.id = i.event_id
-        where ((r.created_at at time zone 'UTC') at time zone ${FUSO})::date = ${dia}::date
+        where ${entreOsDias(dia, dia)}
         order by r.created_at desc
       `)).filter(visivel);
 

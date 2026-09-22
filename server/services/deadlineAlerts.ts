@@ -4,6 +4,7 @@
 import { storage } from "../storage";
 import { broadcast, EVENT_CLOSED_STATUS } from "../routes/shared";
 import { reservarDisparo } from "./reservaDeDisparo";
+import { executarComoLider } from "./lideranca";
 import { db } from "../db";
 import { kitRemessas } from "@shared/schema";
 import { ancoraDoKit } from "@shared/kit";
@@ -26,8 +27,9 @@ async function podeAlertar(chave: string): Promise<boolean> {
 }
 
 export function startDeadlineAlerts(): void {
-  // Background job to check for upcoming deadlines
-  setInterval(async () => {
+  // Background job to check for upcoming deadlines. Uma cópia por meia hora
+  // (services/lideranca.ts); o envio segue protegido pela reserva de disparo.
+  setInterval(() => void executarComoLider("alertas-de-prazo", async () => {
     try {
       const allEvents = await storage.getAllEvents();
       const now = new Date();
@@ -160,5 +162,5 @@ export function startDeadlineAlerts(): void {
     } catch (error) {
       console.error("Error checking deadlines:", error);
     }
-  }, 30 * 60 * 1000); // Check every 30 minutes
+  }, { janelaMs: 30 * 60 * 1000 }).catch((error) => console.error("Error checking deadlines:", error)), 30 * 60 * 1000); // Check every 30 minutes
 }

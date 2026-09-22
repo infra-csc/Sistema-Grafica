@@ -626,11 +626,17 @@ describe("a migração é só aditiva — e sem local", () => {
     expect(colunas.some((c) => /local|location/.test(c))).toBe(false);
   });
 
-  it("as rotas estão registradas e o WebSocket atualiza a caixa, o número, a lista e a ficha", () => {
+  it("as rotas estão registradas e o WebSocket atualiza a caixa, o número, a lista e a ficha", async () => {
     expect(ler("server/routes.ts")).toContain("registerConsultasDeEstoqueRoutes(app);");
-    const ws = ler("client/src/hooks/use-websocket.ts");
-    expect(ws).toContain("case 'consultas_de_estoque':");
-    expect(ws).toContain("q.queryKey.includes('consulta-de-estoque')");
+    // O mapa do tempo real (lib/tempo-real-grafica): as chaves com filtro na
+    // URL e a da ficha (["/api/items", id, "consulta-de-estoque"]).
+    const { alvosDaMensagem, predicadoDoAlvo } = await import("../../client/src/lib/tempo-real-grafica");
+    const casa = (k: unknown[]) => alvosDaMensagem({ type: "consultas_de_estoque" })
+      .some((a) => (Array.isArray(a) ? a[0] === k[0] : predicadoDoAlvo(a)(k)));
+    expect(casa(["/api/consultas-de-estoque", "?status=aberta"])).toBe(true);
+    expect(casa(["/api/consultas-de-estoque/abertas-por-peca"])).toBe(true);
+    expect(casa(["/api/items", "p1", "consulta-de-estoque"])).toBe(true);
+    expect(casa(["/api/items", "p1", "comments"])).toBe(false);
   });
 });
 

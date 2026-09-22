@@ -1,5 +1,19 @@
 import { defineConfig } from "vitest/config";
+import { readdirSync, readFileSync } from "fs";
 import path from "path";
+
+// TESTES DE TELA (jsdom) EM GRUPO PRÓPRIO. Montar React no jsdom é pesado; na
+// suíte inteira eles disputavam CPU com os ~200 testes de servidor e
+// estouravam o tempo (falha falsa, que passava rodando o arquivo sozinho).
+// Agora rodam DEPOIS dos de servidor (sequence.groupOrder) e com poucos
+// workers — sem concorrência, cada um termina no próprio tempo.
+// Quem é de tela: o arquivo que pede `// @vitest-environment jsdom`.
+const PASTA_DOS_TESTES = path.resolve(__dirname, "server/__tests__");
+const TESTES_DE_TELA = readdirSync(PASTA_DOS_TESTES)
+  .filter((f) => f.endsWith(".test.ts"))
+  .filter((f) => /@vitest-environment\s+jsdom/.test(readFileSync(path.join(PASTA_DOS_TESTES, f), "utf8").slice(0, 3000)))
+  .map((f) => `server/__tests__/${f}`);
+const WORKERS_DE_TELA = 4;
 
 export default defineConfig({
   // O tsconfig do app usa `jsx: "preserve"` (é o Vite quem transforma no
@@ -14,10 +28,6 @@ export default defineConfig({
     },
   },
   test: {
-    // Padrão continua node. Testes que precisam de DOM pedem jsdom por arquivo,
-    // com o docblock `// @vitest-environment jsdom`.
-    environment: "node",
-    include: ["server/__tests__/**/*.test.ts"],
     globals: true,
     coverage: {
       provider: "v8",
@@ -25,5 +35,32 @@ export default defineConfig({
       exclude: ["server/__tests__/**", "server/vite.ts"],
       reporter: ["text", "html"],
     },
+    projects: [
+      {
+        extends: true,
+        test: {
+          name: "servidor",
+          // Padrão node. Teste que precisa de DOM pede jsdom no docblock e cai
+          // no projeto de baixo.
+          environment: "node",
+          include: ["server/__tests__/**/*.test.ts"],
+          exclude: ["**/node_modules/**", ...TESTES_DE_TELA],
+          sequence: { groupOrder: 0 },
+        },
+      },
+      {
+        extends: true,
+        test: {
+          name: "telas",
+          // "node" de propósito: o docblock de cada arquivo liga o jsdom (como
+          // antes). Com "jsdom" aqui o Vitest troca o modo de transformação
+          // para o de navegador — 4× mais lento e com telas quebrando.
+          environment: "node",
+          include: TESTES_DE_TELA,
+          maxWorkers: WORKERS_DE_TELA,
+          sequence: { groupOrder: 1 },
+        },
+      },
+    ],
   },
 });

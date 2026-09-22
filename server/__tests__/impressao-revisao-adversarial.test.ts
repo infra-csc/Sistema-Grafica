@@ -328,7 +328,7 @@ describe("5 · rotas vizinhas", () => {
     const ws = ler("client/src/hooks/use-websocket.ts");
     const bloco = ws.slice(ws.indexOf("case 'production_started':"), ws.indexOf("case 'deadline_alert':"));
     expect(bloco).not.toContain("toast(");
-    expect(ws).toContain("for (const chave of chavesDaMensagem(data)) invalidateCoalesced(...chave);");
+    expect(ws).toContain("for (const alvo of alvosDaMensagem(data)) agendarNoCoalescer(alvo);");
   });
 
   it("'Desde' da peça no cartão é o início da PARTE naquela impressora (o registro mais recente), não o production_started_at original", () => {

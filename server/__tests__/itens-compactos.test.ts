@@ -63,6 +63,7 @@ import {
   compactarPecas, expandirPecas, expandirResposta, compactarAprovacoes, expandirAprovacoes,
 } from "@shared/itens-compactos";
 import { registerItemRoutes } from "../routes/items";
+import { cabeNaJanelaDeEntregues } from "../storage";
 import { aplicarDelta, getQueryFn, resetItensDelta } from "../../client/src/lib/queryClient";
 
 // ─── harness das rotas ───────────────────────────────────────────────────────
@@ -196,7 +197,10 @@ function ligarStorage() {
   const vivas = () => M.pecas.filter((p) => !p.deletedAt).sort((a, b) => b.createdAt - a.createdAt);
   s.getAllItems = async () => vivas();
   s.getItemsByStatuses = async (sts: string[]) => vivas().filter((p) => sts.includes(p.status));
-  s.getApprovedItems = async () => vivas().filter((p) => FILA_DA_GRAFICA.has(p.status));
+  // A fila leva os entregues só da janela (storage.getApprovedItems) — a
+  // mesma régua que o delta aplica (cabeNaJanelaDeEntregues).
+  s.getApprovedItems = async () => vivas().filter((p) => FILA_DA_GRAFICA.has(p.status) && cabeNaJanelaDeEntregues(p));
+  s.getIdsQueSairamDaJanelaDeEntregues = async () => [];
   s.getPendingItems = async () => vivas().filter((p) => ["requested", "awaiting_linking"].includes(p.status));
   s.getDeletedItems = async () => M.pecas.filter((p) => p.deletedAt);
   s.getItemsChangedSince = async (since: Date) => M.pecas.filter((p) => p.updatedAt >= since);
@@ -206,6 +210,11 @@ function ligarStorage() {
   s.getAllItemSponsors = async () => M.vinculos;
   s.getItemSponsorsByItemIds = async (ids: string[]) => { const set = new Set(ids); return M.vinculos.filter((v) => set.has(v.itemId)); };
   s.getAllItemSponsorApprovals = async () => M.aprovacoes;
+  s.getVinculosEAprovacoesDasPecasVivas = async () => {
+    const vivasIds = new Set(vivas().map((p) => p.id));
+    return { vinculos: M.vinculos.filter((v) => vivasIds.has(v.itemId)), aprovacoes: M.aprovacoes.filter((a) => vivasIds.has(a.itemId)) };
+  };
+  s.getItemsParaCorrecao = async () => vivas().filter((p) => p.status === "awaiting_sponsor_approval" || (p.status === "awaiting_submission" && p.rejectedBySponsor === true));
   s.getItemSponsorApprovalsByItemIds = async (ids: string[]) => { const set = new Set(ids); return M.aprovacoes.filter((a) => set.has(a.itemId)); };
   s.getComplementsByParentIds = async (ids: string[]) => {
     const set = new Set(ids);

@@ -5,6 +5,7 @@
 // trigger an out-of-band run.
 import { storage, assetPrefix, assetSeqOf } from "../storage";
 import { broadcast } from "../routes/shared";
+import { executarComoLider } from "./lideranca";
 
 export async function backfillInventoryAssets() {
     try {
@@ -182,10 +183,18 @@ export async function runInventoryCron(eventId?: string | null) {
     }
   }
 
+const UMA_HORA = 60 * 60 * 1000;
+
+/**
+ * O ciclo do inventário: na partida e de hora em hora, em UMA cópia por hora
+ * (services/lideranca.ts). O backfill de ativos saiu da partida — lia o
+ * acervo inteiro a cada boot de cada cópia; agora é
+ * `npx tsx scripts/backfill-inventario.ts`, rodado à mão quando preciso.
+ */
 export function startInventoryLifecycle(): void {
-  // On startup: backfill missing assets first, then immediately run lifecycle transitions,
-  // then schedule every-10-minute checks. Sequential so backfilled assets are ready for the cron.
-  backfillInventoryAssets().then(() => runInventoryCron());
+  const tick = () => void executarComoLider("ciclo-do-inventario", runInventoryCron, { janelaMs: UMA_HORA })
+    .catch((err) => console.error("[inventory-cron] error:", err));
+  tick();
   // Catch-up logic inside runInventoryCron handles missed ticks, so 60 min is sufficient.
-  setInterval(() => runInventoryCron(), 60 * 60 * 1000);
+  setInterval(tick, UMA_HORA);
 }

@@ -25,6 +25,7 @@ import { CheckCircle2, Package, Search, Tag, Truck, X } from "lucide-react";
 import { TubosDialog } from "@/components/tubos-dialog";
 import { linhaDaLista, semAcento as tirarAcento } from "@/lib/etiqueta-lista";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { intervaloDePolling } from "@/hooks/use-websocket";
 
 type PecaDoTubo = { id: string; displayId: string | null; type: string; description: string | null; quantity: number; quantidadeNoTubo?: number };
 export type TuboDaAba = {
@@ -89,7 +90,7 @@ export function AbaTubos({ sugestaoRecebedor, onEntregou, onAbrirPeca }: {
 }) {
   const isMobile = useIsMobile();
   const alvo = isMobile ? 44 : 36;
-  const { data = SEM_TUBOS, isLoading, isError, refetch, isFetching } = useQuery<TuboDaAba[]>({ queryKey: ["/api/tubos", "?detalhe=1"], refetchInterval: 60_000 });
+  const { data = SEM_TUBOS, isLoading, isError, refetch, isFetching } = useQuery<TuboDaAba[]>({ queryKey: ["/api/tubos", "?detalhe=1"], refetchInterval: intervaloDePolling(60_000) });
   const [seg, setSeg] = useParametro("seg", "abertos");
   const [eventoId, setEventoId] = useParametro("tuboEvento");
   const [busca, setBusca] = useParametro("tuboBusca");

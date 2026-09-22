@@ -297,12 +297,13 @@ describe("rota · awaiting-triage lê só o que a fila cita", () => {
 });
 
 describe("tempo real · inventory_triaged passa pelo coalescer", () => {
-  it("as duas chaves vão para invalidateCoalesced (uma recarga por rajada, não uma por peça)", () => {
+  it("as duas chaves vão para o coalescer (uma recarga por rajada, não uma por peça)", async () => {
+    // Todo o mapa passa pelo coalescer no hook; as chaves estão no mapa.
+    const { CHAVES_POR_MENSAGEM } = await import("../../client/src/lib/tempo-real-grafica");
+    expect(CHAVES_POR_MENSAGEM.inventory_triaged).toEqual(["/api/inventory/awaiting-triage", "/api/inventory"]);
     const ws = ler("client/src/hooks/use-websocket.ts");
-    const caso = ws.slice(ws.indexOf("case 'inventory_triaged':"), ws.indexOf("case 'standard_item_created':"));
-    expect(caso).toContain("invalidateCoalesced('/api/inventory/awaiting-triage');");
-    expect(caso).toContain("invalidateCoalesced('/api/inventory');");
-    expect(caso).not.toContain("queryClient.invalidateQueries");
+    expect(ws).toContain("for (const alvo of alvosDaMensagem(data)) agendarNoCoalescer(alvo);");
+    expect(ws).not.toContain("case 'inventory_triaged':");
   });
 });
 

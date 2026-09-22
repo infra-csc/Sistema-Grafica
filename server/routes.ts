@@ -8,8 +8,8 @@
 // and server/services/ for the actual route handlers.
 import type { Express } from "express";
 import { createServer, type Server } from "http";
-import { WebSocketServer, WebSocket } from "ws";
-import { wsClients } from "./routes/shared";
+import { WebSocketServer } from "ws";
+import { wsClients, iniciarTempoReal, type SocketDoApp } from "./tempo-real";
 import { sessionMiddleware } from "./session";
 import { registerAuthRoutes } from "./routes/auth";
 import { registerSponsorRoutes } from "./routes/sponsors";
@@ -227,12 +227,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return;
       }
       wss.handleUpgrade(req, socket, head, (ws) => {
+        // Quem é o socket fica NELE: o sinal do Kit sai sem os textos de
+        // aviso, e "sessões encerradas" (exclusão, troca de senha/perfil)
+        // derruba os sockets daquele usuário em todas as cópias.
+        const s = ws as SocketDoApp;
+        s.userId = req.session.userId;
+        s.userKit = req.session.userKit === true;
         wss.emit('connection', ws, req);
       });
     });
   });
 
-  wss.on('connection', (ws: WebSocket & { isAlive?: boolean }) => {
+  // O canal entre as cópias do servidor (LISTEN/NOTIFY): ver server/tempo-real.ts.
+  iniciarTempoReal();
+
+  wss.on('connection', (ws: SocketDoApp) => {
     ws.isAlive = true;
     wsClients.add(ws);
     console.log('WebSocket client connected');
@@ -256,7 +265,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Heartbeat: ping every 30 s and terminate connections that don't pong back.
   // Prevents dead sockets accumulating in wsClients and receiving broadcasts.
   setInterval(() => {
-    (wss.clients as Set<WebSocket & { isAlive?: boolean }>).forEach((ws) => {
+    (wss.clients as Set<SocketDoApp>).forEach((ws) => {
       if (ws.isAlive === false) {
         ws.terminate();
         wsClients.delete(ws);

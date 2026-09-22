@@ -31,6 +31,7 @@ import { sql } from "drizzle-orm";
 import { entregarEmail, getBookEmailConfig, separarDestinatarios, type BookEmailMessage } from "./bookEmailNotification";
 import { destinatariosDoCanal } from "./destinatarios";
 import { reservarDisparo, anotarDesfecho } from "./reservaDeDisparo";
+import { executarComoLider } from "./lideranca";
 
 /** O status que a tela de Revisão lista (client/src/pages/solicitacao.tsx). */
 export const STATUS_EM_REVISAO = "awaiting_final_review";
@@ -363,7 +364,8 @@ export function startRevisaoDigest(): void {
       // repetição é a trilha (jaAvisou); fila vazia também consome a edição,
       // então o custo do minuto a minuto é um SELECT de uma linha.
       if (!HORARIOS.includes(hora)) return;
-      await enviarAvisoDaRevisao(agora);
+      // Uma cópia por vez (a edição em si é da reserva de disparo).
+      await executarComoLider("aviso-da-revisao", () => enviarAvisoDaRevisao(agora));
     } catch (error) {
       console.error("[revisao-digest] erro no tique", error);
     }

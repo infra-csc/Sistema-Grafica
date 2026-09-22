@@ -56,6 +56,19 @@ export async function reservarDisparo(chave: string): Promise<boolean> {
   }
 }
 
+/**
+ * Devolve a reserva (a tarefa falhou antes de fazer o trabalho): a próxima
+ * tentativa pode pegá-la de novo. Só para as janelas de tarefa
+ * (services/lideranca.ts) — aviso ENVIADO nunca é desfeito.
+ */
+export async function desfazerReserva(chave: string): Promise<void> {
+  try {
+    await db.delete(reservasDeDisparo).where(eq(reservasDeDisparo.chave, chave));
+  } catch {
+    // Sem banco, a reserva também não valeu; nada a desfazer.
+  }
+}
+
 /** Anota como a edição terminou. Diagnóstico; nunca decide envio. */
 export async function anotarDesfecho(chave: string, desfecho: string): Promise<void> {
   try {

@@ -9,7 +9,12 @@ import { ITEM_STATUSES, type Item } from "@shared/schema";
 import { eventoComDatasDoKit, pecaVisivelPara, remessaUtilizavelPor } from "@shared/kit";
 // TRAVA DA SOLICITAÇÃO (21/09): o que faz a peça andar na Gráfica é barrado
 // com 409 e a frase humana; ver shared/trava-da-peca.ts.
-import { pecaTravada, fraseDaTrava, CODIGO_PECA_TRAVADA } from "@shared/trava-da-peca";
+import { pecaTravada, fraseDaTrava, CODIGO_PECA_TRAVADA, colunasDoDestravar } from "@shared/trava-da-peca";
+// Trocar arquivo final/thumb depois que a peça andou, e quem decide na Revisão.
+import {
+  regraDaTrocaDeArquivoFinal, regraDaTrocaDeThumb, lerMotivoDaTroca, MARCA_TROCA_APOS_APROVACAO,
+  ARTE_DECIDE_NA_REVISAO,
+} from "@shared/troca-de-material";
 import { carregarRemessa, remessasPorIds } from "../services/kitRemessas";
 import { respostaDoEstoqueParaLiberar, marcarRespostaAplicada } from "../services/consultaDeEstoqueNaLiberacao";
 import { trilhaDaLiberacaoComEstoque, SOLICITACAO_AO_ESTOQUE_ATIVA } from "@shared/consultas-de-estoque";
@@ -39,6 +44,7 @@ import {
   requireAuth,
   broadcast,
   translateStatus,
+  sendSensitiveError,
   createAuditLog,
   createAuditLogsEmLote,
   resolveActor,
@@ -181,7 +187,18 @@ function lerDestinoDevolucao(req: any): DestinoDevolucao {
  *
  * `finalizacao` mantem o thumb JA APROVADO e so limpa o arquivo final.
  */
-function camposDoDestino(destino: DestinoDevolucao, rodadaAprovada: boolean) {
+function camposDoDestino(destino: DestinoDevolucao, rodadaAprovada: boolean, peca?: { type?: string | null }) {
+  // MOLDE: o thumb é o ÚNICO material dele (não há arquivo final nem
+  // aprovação). Apagá-lo na devolução jogava fora o molde inteiro — ele volta
+  // para o começo da Arte com o thumb, que a Arte corrige e reenvia.
+  if (peca && ehMolde(peca)) {
+    return {
+      status: "awaiting_submission",
+      finalFileUrl: null,
+      sponsorApprovedBy: null,
+      sponsorApprovedAt: null,
+    };
+  }
   if (destino === "arte") {
     return {
       status: "awaiting_submission",
@@ -214,6 +231,27 @@ async function rodadaDeAprovacaoFechada(item: { id: string; skipApproval?: boole
   const linhas = await storage.getItemSponsorApprovals(item.id);
   if (linhas.length === 0) return true;
   return linhas.every((l) => l.status === "approved");
+}
+
+/**
+ * O que a devolução da REVISÃO FINAL grava — uma função só para a individual
+ * e o lote, que já tinham divergido (o lote não marcava `hasModifiedData` e
+ * a Arte não via o aviso de dados modificados). O destino pedido passa por
+ * `destinoDaDevolucao`: molde volta sempre para o começo da Arte.
+ */
+async function camposDaDevolucaoDaRevisao(peca: Item, destino: DestinoDevolucao, notes: string) {
+  const destinoEfetivo = destinoDaDevolucao(destino, peca);
+  const campos = {
+    ...camposDoDestino(destinoEfetivo, await rodadaDeAprovacaoFechada(peca), peca),
+    creatorReviewedAt: null,
+    rejectedByCreator: true,
+    // O motivo SUBSTITUI a observação: motivo novo não convive com o
+    // feedback de uma devolução anterior.
+    observations: notes,
+    rejectionReason: notes,
+    hasModifiedData: true, // a Arte precisa revisar os dados da peça
+  };
+  return { destinoEfetivo, campos };
 }
 
 /** A frase da auditoria — o destino escolhido precisa ficar no registro. */
@@ -2599,7 +2637,7 @@ export function registerItemRoutes(app: Express): void {
       // Validate current status
       const currentItem = await storage.getItem(req.params.id);
       if (!currentItem) {
-        return res.status(404).json({ error: "Item not found" });
+        return res.status(404).json({ error: "Peça não encontrada." });
       }
       
       // ANDA: empurra a peça para a fila do Atendimento (ou da Revisão).
@@ -2608,12 +2646,12 @@ export function registerItemRoutes(app: Express): void {
       // Only items that passed through vincular-patrocinadores (awaiting_submission) can be worked on
       if (currentItem.status !== "awaiting_submission") {
         return res.status(409).json({ 
-          error: `Item não pode ser enviado para aprovação. Status atual: ${currentItem.status}. O item precisa passar pelo fluxo de Vincular Patrocinadores antes.`
+          error: `A peça não pode ser enviada para aprovação na etapa atual (${translateStatus(currentItem.status)}). Ela precisa passar pela Vinculação de patrocinadores antes.`
         });
       }
-      
+
       if (!approvalThumbUrl) {
-        return res.status(400).json({ error: "approvalThumbUrl is required" });
+        return res.status(400).json({ error: "Envie o thumb da arte antes de mandar para aprovação." });
       }
       // Só objeto do nosso storage (ver urlDeThumbValida). Depois da guarda de
       // evento finalizado: o 409 daquela decisão vem antes do formato do campo.
@@ -2671,7 +2709,7 @@ export function registerItemRoutes(app: Express): void {
       const item = await storage.updateItem(req.params.id, itemUpdates);
       
       if (!item) {
-        return res.status(404).json({ error: "Item not found" });
+        return res.status(404).json({ error: "Peça não encontrada." });
       }
       // A versão da arte que foi para aprovação — uma linha por envio. É o
       // que deixa a tela de Versões dizer QUAL thumb cada patrocinador viu.
@@ -2735,7 +2773,7 @@ export function registerItemRoutes(app: Express): void {
       
       res.json(item);
     } catch (error: any) {
-      res.status(400).json({ error: error.message });
+      sendSensitiveError(res, error, "Enviar para aprovação", 500);
     }
   });
 
@@ -2831,19 +2869,26 @@ export function registerItemRoutes(app: Express): void {
         return res.status(403).json({ error: "Apenas usuários com perfil Arte podem dispensar itens" });
       }
       const currentItem = await storage.getItem(req.params.id);
-      if (!currentItem) return res.status(404).json({ error: "Item not found" });
+      if (!currentItem) return res.status(404).json({ error: "Peça não encontrada." });
       // ANDA: a peça pula a aprovação do Atendimento e vai para a
       // finalização da Arte.
       if (await barraEventoFinalizado(currentItem, res)) return;
       if (!DISPENSAVEIS.includes(currentItem.status)) {
-        return res.status(409).json({ error: `Item não pode pular a aprovação no status atual: ${currentItem.status}` });
+        return res.status(409).json({ error: `A peça não pode pular a aprovação na etapa atual (${translateStatus(currentItem.status)}).` });
       }
       // MOLDE (22/09) não tem aprovação nem finalização: o envio dele já vai
       // direto para a Revisão Final.
       if (ehMolde(currentItem)) {
         return res.status(409).json({ error: "Molde não passa por aprovação nem finalização — use \"Enviar para a Revisão Final\"." });
       }
-      const { reason } = req.body;
+      // O MOTIVO É OBRIGATÓRIO: pular a aprovação some com a peça da mesa do
+      // Atendimento e ela chega à Revisão sem o "sim" do patrocinador — quem
+      // olhar depois precisa saber por quê. Mesma régua das devoluções.
+      const lidoMotivo = lerMotivoDevolucao({ body: { notes: req.body?.reason ?? req.body?.notes } });
+      if (!lidoMotivo.ok) {
+        return res.status(400).json({ error: `Explique em pelo menos ${MOTIVO_MIN} caracteres por que a peça pula a aprovação — o Atendimento e a Revisão precisam saber.` });
+      }
+      const reason = lidoMotivo.motivo;
       // SAIU DA FILA DE QUEM? Só quem estava esperando patrocinador some da
       // mesa do Atendimento — e é a única situação em que avisá-lo tem
       // conteúdo. Peça em "aguardando envio" nunca chegou lá.
@@ -2877,7 +2922,7 @@ export function registerItemRoutes(app: Express): void {
       // ninguém do chão de fábrica sabia que ela tinha entrado.
       // Espelha o que /submit-for-approval faz logo acima.
       const item = await storage.getItem(req.params.id);
-      if (!item) return res.status(404).json({ error: "Item not found" });
+      if (!item) return res.status(404).json({ error: "Peça não encontrada." });
       const event = await storage.getEvent(item.eventId);
 
       // Avisar a GRÁFICA aqui virou mentira quando o destino mudou: a peça
@@ -2901,7 +2946,7 @@ export function registerItemRoutes(app: Express): void {
       // é o que permite ao cliente ler o novo status sem outro round-trip.
       res.json(item);
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      sendSensitiveError(res, error, "Dispensar aprovação", 500);
     }
   });
 
@@ -3452,7 +3497,7 @@ export function registerItemRoutes(app: Express): void {
       
       // Validate request body with Zod
       const finalFileSchema = z.object({
-        finalFileUrl: z.string().min(1, "finalFileUrl não pode estar vazio"),
+        finalFileUrl: z.string().min(1, "Envie o arquivo final antes de salvar."),
         finalFileName: z.string().optional(),
         finalPreviewUrl: z.string().optional(),
       });
@@ -3462,7 +3507,7 @@ export function registerItemRoutes(app: Express): void {
       // Validate current status
       const currentItem = await storage.getItem(req.params.id);
       if (!currentItem) {
-        return res.status(404).json({ error: "Item not found" });
+        return res.status(404).json({ error: "Peça não encontrada." });
       }
       
       // ANDA: o arquivo final leva a peça para a Revisão Final e, dali, para a
@@ -3473,7 +3518,7 @@ export function registerItemRoutes(app: Express): void {
       // awaiting_creator_review: skipApproval / no-sponsor flow (sponsor approval skipped)
       if (currentItem.status !== "sponsor_approved" && currentItem.status !== "awaiting_creator_review") {
         return res.status(409).json({ 
-          error: `Item não pode receber arquivo final. Status atual: ${currentItem.status}, esperado: sponsor_approved ou awaiting_creator_review` 
+          error: `A peça não pode receber o arquivo final na etapa atual (${translateStatus(currentItem.status)}) — só depois da aprovação do patrocinador, na Finalização.`
         });
       }
       
@@ -3486,7 +3531,7 @@ export function registerItemRoutes(app: Express): void {
       });
       
       if (!item) {
-        return res.status(404).json({ error: "Item not found" });
+        return res.status(404).json({ error: "Peça não encontrada." });
       }
       
       const event = await storage.getEvent(item.eventId);
@@ -3513,14 +3558,16 @@ export function registerItemRoutes(app: Express): void {
       
       res.json(item);
     } catch (error: any) {
-      res.status(400).json({ error: error.message });
+      sendSensitiveError(res, error, "Enviar arquivo final", 500);
     }
   });
 
-  // Arte atualiza o caminho do arquivo final já enviado (sem mudar o status do item)
-  // Troca o thumb de aprovação já existente, preservando o anterior. Serve para
-  // corrigir o material de referência sem reabrir a aprovação dos patrocinadores
-  // (para isso existe a rota de reenvio, que muda o status).
+  // Troca o thumb de aprovação já existente, preservando o anterior. A regra
+  // de QUANDO pode (shared/troca-de-material.ts, a mesma que a tela lê):
+  //   · em aprovação do patrocinador: não — mudaria o que ele está avaliando;
+  //   · aprovada (Finalização/Revisão): com motivo, marcada "trocada após
+  //     aprovação" na trilha e na versão;
+  //   · liberada em diante: não — a peça já é da Gráfica.
   app.patch("/api/items/:id/update-thumb", requireAuth, async (req, res) => {
     try {
       if (req.userRole !== "arte" && req.userRole !== "admin") {
@@ -3528,17 +3575,24 @@ export function registerItemRoutes(app: Express): void {
       }
 
       const { approvalThumbUrl } = z
-        .object({ approvalThumbUrl: z.string().min(1, "approvalThumbUrl não pode estar vazio") })
+        .object({ approvalThumbUrl: z.string().min(1, "Envie o thumb novo antes de salvar.") })
         .parse(req.body);
 
       const currentItem = await storage.getItem(req.params.id);
       if (!currentItem) {
-        return res.status(404).json({ error: "Item not found" });
+        return res.status(404).json({ error: "Peça não encontrada." });
       }
       // ANDA: trocar o thumb é refazer o material que os patrocinadores olham.
       if (await barraEventoFinalizado(currentItem, res)) return;
-      if (!currentItem.approvalThumbUrl) {
-        return res.status(409).json({ error: "Este item ainda não possui um thumb enviado" });
+      const regra = regraDaTrocaDeThumb(currentItem as any);
+      if (!regra.pode) {
+        return res.status(409).json({ error: regra.motivo });
+      }
+      let motivoDaTroca: string | null = null;
+      if (regra.exigeMotivo) {
+        const lido = lerMotivoDaTroca(req.body?.motivo);
+        if (!lido.ok) return res.status(400).json({ error: lido.erro });
+        motivoDaTroca = lido.motivo;
       }
       // Só objeto do nosso storage (ver urlDeThumbValida). A comparação com o
       // atual usa a forma normalizada: a URL crua do bucket e a `/objects/`
@@ -3548,7 +3602,7 @@ export function registerItemRoutes(app: Express): void {
         return res.status(400).json({ error: ERRO_THUMB_FORA_DO_STORAGE });
       }
       if (currentItem.approvalThumbUrl === thumbNormalizado) {
-        return res.status(409).json({ error: "O thumb enviado é igual ao atual" });
+        return res.status(409).json({ error: "O thumb enviado é igual ao atual." });
       }
 
       const prevUrl = currentItem.approvalThumbUrl;
@@ -3559,16 +3613,34 @@ export function registerItemRoutes(app: Express): void {
         approvalThumbUpdatedAt: new Date(),
       });
       if (!item) {
-        return res.status(404).json({ error: "Item not found" });
+        return res.status(404).json({ error: "Peça não encontrada." });
       }
-      await storage.createItemArtVersion({ itemId: item.id, thumbUrl: thumbNormalizado, origem: "troca", createdBy: req.userName ?? null });
+      // A versão leva a marca no "por" — é o que a tela de Versões mostra ao
+      // lado de cada thumb, sem pedir coluna nova.
+      const porDaVersao = motivoDaTroca
+        ? `${req.userName ?? "Arte"} (${MARCA_TROCA_APOS_APROVACAO})`
+        : (req.userName ?? null);
+      await storage.createItemArtVersion({ itemId: item.id, thumbUrl: thumbNormalizado, origem: "troca", createdBy: porDaVersao });
       invalidarCacheDeVersoes();
-      // Versão nova enquanto a peça está em aprovação (ou já aprovada e na
-      // finalização da Arte): o desaprovador perde a aprovação — e se a peça
-      // já tinha sido dada como aprovada por todos, ela volta para a aprovação.
-      if (currentItem.status === "awaiting_sponsor_approval" || currentItem.status === "sponsor_approved") {
+
+      // A frase da troca fica INTACTA (a tela de Versões a lê por regex); a
+      // marca e o motivo vão numa linha própria logo depois.
+      await createAuditLog(
+        req,
+        'updated',
+        'item',
+        item.id,
+        `Thumb de aprovação atualizado por ${req.userName}. Anterior: ${prevUrl} → Novo: ${thumbNormalizado}`
+      );
+      if (motivoDaTroca) {
+        await createAuditLog(req, 'updated', 'item', item.id, `Thumb ${MARCA_TROCA_APOS_APROVACAO} (${translateStatus(currentItem.status)}). Motivo: ${motivoDaTroca}`);
+      }
+
+      // Aprovada e ainda na Finalização: o desaprovador estrito perde a
+      // aprovação — e a peça volta para o Atendimento para ele ver a versão nova.
+      if (currentItem.status === "sponsor_approved") {
         const revogados = await revogarAprovacoesEstritas(req, currentItem, { tipo: "nova_versao" });
-        if (revogados.length > 0 && currentItem.status === "sponsor_approved") {
+        if (revogados.length > 0) {
           const devolvido = await storage.updateItem(item.id, { status: "awaiting_sponsor_approval", rejectedBySponsor: false });
           await createAuditLog(req, 'updated', 'item', item.id, `Status alterado: ${translateStatus("sponsor_approved")} → ${translateStatus("awaiting_sponsor_approval")} — ${revogados.join(", ")} precisa aprovar a nova versão`);
           const event = await storage.getEvent(currentItem.eventId);
@@ -3585,18 +3657,10 @@ export function registerItemRoutes(app: Express): void {
         }
       }
 
-      await createAuditLog(
-        req,
-        'updated',
-        'item',
-        item.id,
-        `Thumb de aprovação atualizado por ${req.userName}. Anterior: ${prevUrl} → Novo: ${thumbNormalizado}`
-      );
-
       broadcast({ type: "item_updated", item });
       res.json(item);
     } catch (error: any) {
-      res.status(400).json({ error: error.message });
+      sendSensitiveError(res, error, "Trocar thumb", 500);
     }
   });
 
@@ -3607,7 +3671,7 @@ export function registerItemRoutes(app: Express): void {
       }
 
       const finalFileSchema = z.object({
-        finalFileUrl: z.string().min(1, "finalFileUrl não pode estar vazio"),
+        finalFileUrl: z.string().min(1, "Envie o arquivo final antes de salvar."),
         finalFileName: z.string().optional(),
         finalPreviewUrl: z.string().optional(),
       });
@@ -3615,15 +3679,24 @@ export function registerItemRoutes(app: Express): void {
 
       const currentItem = await storage.getItem(req.params.id);
       if (!currentItem) {
-        return res.status(404).json({ error: "Item not found" });
+        return res.status(404).json({ error: "Peça não encontrada." });
       }
       // ANDA: substituir o arquivo final notifica a Gráfica para RE-VERIFICAR
       // antes de produzir e ainda propaga a arte nova para os complementos —
       // é um pedido de reimpressão disfarçado de correção de arquivo.
       if (await barraEventoFinalizado(currentItem, res)) return;
-      if (!currentItem.finalFileUrl) {
-        return res.status(409).json({ error: "Este item ainda não possui um arquivo final enviado" });
+      // QUANDO a troca vale (shared/troca-de-material.ts, a mesma regra da
+      // tela): travada não; com material produzido não (o que está no galpão
+      // é do arquivo antigo — é caso de complemento/reimpressão); liberada ou
+      // em impressão sem nenhuma impressa, a troca DEVOLVE a peça para a
+      // Revisão Final, porque a liberação valia para o arquivo anterior.
+      const regra = regraDaTrocaDeArquivoFinal(currentItem as any);
+      if (!regra.pode) {
+        return res.status(409).json(regra.travada
+          ? { error: regra.motivo, code: CODIGO_PECA_TRAVADA }
+          : { error: regra.motivo });
       }
+      const voltaParaRevisao = regra.voltaParaRevisao;
 
       const prevUrl  = currentItem.finalFileUrl;
       const prevName = currentItem.finalFileName || null;
@@ -3635,9 +3708,20 @@ export function registerItemRoutes(app: Express): void {
         finalFileUpdatedAt: new Date(),
         previousFinalFileUrl:  prevUrl,
         previousFinalFileName: prevName,
-      });
+        ...(voltaParaRevisao ? {
+          status: "awaiting_final_review",
+          // A revisão anterior deixa de valer — sem zerar, a peça voltaria
+          // marcada como já revisada.
+          creatorReviewedAt: null,
+          // Sai da fila/impressora da Gráfica sem deixar reserva "Pausada".
+          reservaPorMaquina: null, maquinaPrevista: null,
+          ...(currentItem.status === "inProduction" || currentItem.status === "em_producao"
+            ? { printMachine: null, impressaoPorMaquina: null }
+            : {}),
+        } : {}),
+      } as any);
       if (!item) {
-        return res.status(404).json({ error: "Item not found" });
+        return res.status(404).json({ error: "Peça não encontrada." });
       }
 
       const event = await storage.getEvent(item.eventId);
@@ -3650,17 +3734,46 @@ export function registerItemRoutes(app: Express): void {
         `Arquivo final substituído por ${req.userName}. Anterior: ${prevUrl} → Novo: ${validatedData.finalFileUrl}`
       );
 
-      // Notifica gráfica que o arquivo foi trocado e precisa ser re-verificado
-      const notification = await storage.createNotification({
+      if (voltaParaRevisao) {
+        await createAuditLog(
+          req, 'updated', 'item', item.id,
+          `Status alterado: ${translateStatus(currentItem.status)} → ${translateStatus("awaiting_final_review")} (arquivo final trocado depois da liberação — volta para a Revisão Final)`,
+        );
+        // Estava na impressora sem nenhuma impressa: o diário registra a saída.
+        await registrarSaidaDaImpressora(req, currentItem as any);
+        // Quem AGE agora é a Revisão; a Gráfica é avisada de que a peça saiu
+        // da fila dela.
+        const paraRevisao = await storage.createNotification({
+          type: "arteApproved",
+          message: `Arquivo final trocado depois da liberação: ${item.displayId ?? item.type}${event ? ` — ${event.name}` : ""} voltou para a Revisão Final`,
+          eventId: item.eventId,
+          itemId: item.id,
+          targetRoles: ["solicitacao"],
+        });
+        broadcast({ type: "notification_created", notification: paraRevisao });
+      }
+
+      // A Gráfica só é avisada quando a peça estava na fila dela.
+      const notification = voltaParaRevisao || currentItem.status === "awaiting_final_review" ? null : await storage.createNotification({
         type: "arteApproved",
         message: `⚠ Arquivo final atualizado: ${item.type}${event ? ` — ${event.name}` : ""} (verifique antes de produzir)`,
         eventId: item.eventId,
         itemId: item.id,
         targetRoles: ["grafica"],
       });
+      if (voltaParaRevisao) {
+        const saiuDaFila = await storage.createNotification({
+          type: "itemRejected",
+          message: `${item.displayId ?? item.type} saiu da fila: a Arte trocou o arquivo final e a peça voltou para a Revisão Final`,
+          eventId: item.eventId,
+          itemId: item.id,
+          targetRoles: ["grafica"],
+        });
+        broadcast({ type: "notification_created", notification: saiuDaFila });
+      }
 
       broadcast({ type: "item_updated", item });
-      broadcast({ type: "notification_created", notification });
+      if (notification) broadcast({ type: "notification_created", notification });
 
       // ── Propaga a arte nova para os COMPLEMENTOS vivos ────────────────────
       // O complemento é a MESMA peça, com a mesma arte — só a quantidade é
@@ -3706,24 +3819,26 @@ export function registerItemRoutes(app: Express): void {
         console.error("[COMPLEMENTOS] falha ao propagar arquivo final:", e?.message ?? e);
       }
 
-      res.json(item);
+      // `voltouParaRevisao`: a tela diz no aviso que a peça saiu da Gráfica.
+      res.json({ ...item, voltouParaRevisao: voltaParaRevisao });
     } catch (error: any) {
-      res.status(400).json({ error: error.message });
+      sendSensitiveError(res, error, "Trocar arquivo final", 500);
     }
   });
 
   // Creator reviews and releases item for production (Solicitação module)
   app.patch("/api/items/:id/creator-review", requireAuth, async (req, res) => {
     try {
-      // Validate role
-      if (req.userRole !== "solicitacao" && req.userRole !== "arte" && req.userRole !== "admin") {
-        return res.status(403).json({ error: "Apenas usuários com perfil Solicitação podem revisar como criador do evento" });
+      // Quem decide na Revisão Final é a Solicitação (e o admin) — a Arte não
+      // libera o próprio trabalho (ARTE_DECIDE_NA_REVISAO, decisão do dono).
+      if (req.userRole !== "solicitacao" && req.userRole !== "admin" && !(ARTE_DECIDE_NA_REVISAO && req.userRole === "arte")) {
+        return res.status(403).json({ error: "Só a Solicitação libera peça na Revisão Final." });
       }
       
       // Validate current status
       const currentItem = await storage.getItem(req.params.id);
       if (!currentItem) {
-        return res.status(404).json({ error: "Item not found" });
+        return res.status(404).json({ error: "Peça não encontrada." });
       }
       
       // ANDA: liberar para produção é o gesto que autoriza imprimir. Vem ANTES
@@ -3743,8 +3858,19 @@ export function registerItemRoutes(app: Express): void {
       }
       if (currentItem.status !== "awaiting_final_review") {
         return res.status(409).json({
-          error: `Item não pode ser revisado pelo criador. Status atual: ${translateStatus(currentItem.status)}, esperado: Aguardando Revisão Final`
+          error: `A peça não está na Revisão Final (etapa atual: ${translateStatus(currentItem.status)}) — atualize a tela.`
         });
+      }
+
+      // PEÇA TRAVADA PELA SOLICITAÇÃO: liberar é fazê-la andar, então quem
+      // libera tem de dizer o que faz com a trava — { destravar: true } libera
+      // e destrava na mesma gravação; { manterTrava: true } libera e ela chega
+      // à Gráfica ainda travada (lá ela não anda até alguém destravar). Sem
+      // nenhum dos dois é 409 com o código da trava: a tela pergunta.
+      const travada = pecaTravada(currentItem as any);
+      const destravar = travada && req.body?.destravar === true;
+      if (travada && !destravar && req.body?.manterTrava !== true) {
+        return res.status(409).json({ error: `${fraseDaTrava(currentItem as any)}. Escolha liberar destravando ou liberar mantendo a trava.`, code: CODIGO_PECA_TRAVADA });
       }
 
       // Reaproveitamento parcial: body pode trazer { reuseQty } quando a Solicitação
@@ -3819,10 +3945,21 @@ export function registerItemRoutes(app: Express): void {
             updatedAt: new Date(),
             ...(isPartialReuse ? { reuseQty: rawReuseQty!, isReuse: false } : {}),
             ...(isFullReuse ? { reuseQty: currentItem.quantity, isReuse: true } : {}),
+            ...(destravar ? colunasDoDestravar() : {}),
           })
           .where(eq(itemsTable.id, req.params.id))
           .returning();
-        if (!updated) throw Object.assign(new Error("Item not found"), { httpStatus: 404 });
+        if (!updated) throw Object.assign(new Error("Peça não encontrada."), { httpStatus: 404 });
+
+        if (destravar) {
+          await tx.insert(auditLogs).values({
+            ...resolveActor(req),
+            action: "updated",
+            entityType: "item",
+            entityId: updated.id,
+            details: `Destravada na liberação da Revisão Final (${resolveActor(req).userName})`,
+          });
+        }
 
         await tx.insert(auditLogs).values({
           ...resolveActor(req),
@@ -3863,88 +4000,17 @@ export function registerItemRoutes(app: Express): void {
       
       res.json(item);
     } catch (error: any) {
-      res.status((error as any).httpStatus ?? 400).json({ error: error.message });
+      // Erro nosso (404 de dentro da transação) tem frase pronta; o resto não
+      // vaza texto do banco para a tela.
+      if ((error as any)?.httpStatus) return res.status((error as any).httpStatus).json({ error: error.message });
+      sendSensitiveError(res, error, "Liberar na Revisão Final", 500);
     }
   });
 
-  // Creator rejects item and sends back to Arte (Solicitação module)
-  app.patch("/api/items/:id/creator-reject", requireAuth, async (req, res) => {
-    try {
-      // Validate role
-      if (req.userRole !== "solicitacao" && req.userRole !== "arte" && req.userRole !== "admin") {
-        return res.status(403).json({ error: "Apenas usuários com perfil Solicitação podem reprovar itens" });
-      }
-      
-      // Validate current status
-      const currentItem = await storage.getItem(req.params.id);
-      if (!currentItem) {
-        return res.status(404).json({ error: "Item not found" });
-      }
-      
-      // ANDA: reprovar APAGA o arquivo final e o thumb e devolve a peça para a
-      // Arte refazer — destrói material e cria trabalho de uma vez só.
-      if (await barraEventoFinalizado(currentItem, res)) return;
-
-      if (currentItem.status !== "awaiting_final_review") {
-        return res.status(409).json({
-          error: `Item não pode ser reprovado pelo criador. Status atual: ${currentItem.status}, esperado: awaiting_final_review`
-        });
-      }
-
-      const motivo = lerMotivoDevolucao(req);
-      if (!motivo.ok) return res.status(400).json({ error: motivo.erro });
-      const destino = lerDestinoDevolucao(req);
-
-      const item = await storage.updateItem(req.params.id, {
-        // VOLTA PARA A FINALIZACAO, nao para o comeco (regra do dono, 17/08).
-        // A devolucao da Revisao acontece DEPOIS de o patrocinador ter
-        // aprovado o layout: o que falhou foi o arquivo final, nao a arte.
-        // Mandar para `awaiting_submission` jogava a peca na fila de
-        // "Aguardando envio" — o comeco de tudo, no meio de 1.120 pecas que
-        // nunca sairam — e ainda apagava o thumb JA APROVADO, obrigando a
-        // refazer aprovacao que ninguem pediu para refazer.
-        // `sponsor_approved` e o status que alimenta a aba "Finalizar arte"
-        // (TAB_STATUSES em lib/arte-rules): a peca reaparece exatamente na
-        // etapa que precisa ser refeita, com a aprovacao preservada.
-        // O DESTINO e escolha de quem devolve (ver lerDestinoDevolucao):
-        // "arte" refaz do zero, "finalizacao" so troca o arquivo final.
-        ...camposDoDestino(destinoDaDevolucao(destino, currentItem), await rodadaDeAprovacaoFechada(currentItem)),
-        creatorReviewedAt: null,
-        rejectedByCreator: true, // Flag indicando que foi reprovado pelo criador
-        rejectionReason: motivo.motivo,
-      });
-      
-      if (!item) {
-        return res.status(404).json({ error: "Item not found" });
-      }
-      
-      const event = await storage.getEvent(item.eventId);
-      
-      await createAuditLog(
-        req,
-        'rejected',
-        'item',
-        item.id,
-        `Status alterado: ${translateStatus(currentItem.status)} → ${translateStatus(camposDoDestino(destinoDaDevolucao(destino, currentItem), await rodadaDeAprovacaoFechada(currentItem)).status)} (reprovado pelo criador — ${textoDoDestino(destinoDaDevolucao(destino, currentItem))}). Motivo: ${motivo.motivo}`
-      );
-      
-      // Notifica Arte para refazer o trabalho
-      const notification = await storage.createNotification({
-        type: "itemRejected",
-        message: `Criador do evento reprovou o item. Refaça o thumb de aprovação: ${item.type} - Evento: ${event?.name}`,
-        eventId: item.eventId,
-        itemId: item.id,
-        targetRoles: ["arte"],
-      });
-      
-      broadcast({ type: "item_updated", item });
-      broadcast({ type: "notification_created", notification });
-      
-      res.json(item);
-    } catch (error: any) {
-      res.status(400).json({ error: error.message });
-    }
-  });
+  // As rotas PATCH /api/items/:id/creator-reject e /api/items/bulk-creator-reject
+  // FORAM REMOVIDAS: nenhuma tela as chamava, e eram uma segunda porta para a
+  // mesma devolução da Revisão (return-to-arte / bulk-return-to-arte) com
+  // regras que já tinham divergido. Ficou uma porta só.
 
   // ─── Arte devolve a peça para o COMEÇO do fluxo ──────────────────────────
   //
@@ -4042,69 +4108,50 @@ export function registerItemRoutes(app: Express): void {
     }
   });
 
-  // Creator returns item to Arte with modification notes (Solicitação module)
+  // A Revisão Final devolve a peça para a Arte, com o motivo e o destino.
   app.patch("/api/items/:id/return-to-arte", requireAuth, async (req, res) => {
     try {
-      if (req.userRole !== "solicitacao" && req.userRole !== "arte" && req.userRole !== "admin") {
-        return res.status(403).json({ error: "Apenas usuários com perfil Solicitação podem devolver itens" });
+      // Quem decide na Revisão Final é a Solicitação (e o admin) — ver
+      // ARTE_DECIDE_NA_REVISAO (decisão do dono).
+      if (req.userRole !== "solicitacao" && req.userRole !== "admin" && !(ARTE_DECIDE_NA_REVISAO && req.userRole === "arte")) {
+        return res.status(403).json({ error: "Só a Solicitação devolve peça na Revisão Final." });
       }
-      
+
       const motivo = lerMotivoDevolucao(req);
       if (!motivo.ok) return res.status(400).json({ error: motivo.erro });
       const destino = lerDestinoDevolucao(req);
       const notes = motivo.motivo;
       const currentItem = await storage.getItem(req.params.id);
       if (!currentItem) {
-        return res.status(404).json({ error: "Item not found" });
+        return res.status(404).json({ error: "Peça não encontrada." });
       }
-      
+
       // ANDA: devolver para a Arte com observações é pedir retrabalho.
       if (await barraEventoFinalizado(currentItem, res)) return;
 
       if (currentItem.status !== "awaiting_final_review") {
-        return res.status(409).json({ error: `Item não pode ser devolvido. Status atual: ${currentItem.status}` });
+        return res.status(409).json({ error: `A peça não está mais na Revisão Final (etapa atual: ${translateStatus(currentItem.status)}) — atualize a tela.` });
       }
-      
-      const item = await storage.updateItem(req.params.id, {
-        // VOLTA PARA A FINALIZACAO, nao para o comeco (regra do dono, 17/08).
-        // A devolucao da Revisao acontece DEPOIS de o patrocinador ter
-        // aprovado o layout: o que falhou foi o arquivo final, nao a arte.
-        // Mandar para `awaiting_submission` jogava a peca na fila de
-        // "Aguardando envio" — o comeco de tudo, no meio de 1.120 pecas que
-        // nunca sairam — e ainda apagava o thumb JA APROVADO, obrigando a
-        // refazer aprovacao que ninguem pediu para refazer.
-        // `sponsor_approved` e o status que alimenta a aba "Finalizar arte"
-        // (TAB_STATUSES em lib/arte-rules): a peca reaparece exatamente na
-        // etapa que precisa ser refeita, com a aprovacao preservada.
-        // O DESTINO e escolha de quem devolve (ver lerDestinoDevolucao):
-        // "arte" refaz do zero, "finalizacao" so troca o arquivo final.
-        ...camposDoDestino(destinoDaDevolucao(destino, currentItem), await rodadaDeAprovacaoFechada(currentItem)),
-        creatorReviewedAt: null,
-        rejectedByCreator: true,
-        // O motivo da devolução SUBSTITUI a observação: motivo vazio não pode
-        // herdar a observação antiga como se fosse o feedback desta devolução.
-        // (Hoje "vazio" nem chega aqui — `lerMotivoDevolucao` barra antes.)
-        observations: notes,
-        rejectionReason: notes,
-        hasModifiedData: true, // Flag: Arte precisa revisar dados modificados
-      });
-      
+
+      const { destinoEfetivo, campos } = await camposDaDevolucaoDaRevisao(currentItem, destino, notes);
+      const item = await storage.updateItem(req.params.id, campos);
+
       if (!item) {
-        return res.status(404).json({ error: "Item not found" });
+        return res.status(404).json({ error: "Peça não encontrada." });
       }
-      
+
       const event = await storage.getEvent(item.eventId);
       const detailMsg = notes ? ` Observações: ${notes}` : "";
       const modifiedDataMsg = currentItem.hasModifiedData ? " ⚠️ DADOS MODIFICADOS: Verifique Quantidade, m² Total e Medida!" : "";
-      
+
       await createAuditLog(
         req,
         'rejected',
         'item',
         item.id,
-        `Item devolvido para Arte para modificações.${detailMsg}${modifiedDataMsg}`
+        `Item devolvido para Arte para modificações (${textoDoDestino(destinoEfetivo)}).${detailMsg}${modifiedDataMsg}`
       );
-      
+
       const notification = await storage.createNotification({
         type: "itemRejected",
         message: `Criador devolveu item para modificações: ${item.type} - Evento: ${event?.name}${detailMsg}${modifiedDataMsg}`,
@@ -4112,12 +4159,14 @@ export function registerItemRoutes(app: Express): void {
         itemId: item.id,
         targetRoles: ["arte"],
       });
-      
+
       broadcast({ type: "item_updated", item });
       broadcast({ type: "notification_created", notification });
-      res.json(item);
+      // `destinoDevolvido`: para onde a peça FOI de fato (molde volta sempre
+      // para o começo da Arte, seja qual for o pedido) — é o que o aviso diz.
+      res.json({ ...item, destinoDevolvido: destinoEfetivo });
     } catch (error: any) {
-      res.status(400).json({ error: error.message });
+      sendSensitiveError(res, error, "Devolver para a Arte", 500);
     }
   });
 
@@ -4215,16 +4264,17 @@ export function registerItemRoutes(app: Express): void {
     }
   });
 
-  // Bulk return to Arte with notes
+  // Devolução EM LOTE da Revisão Final — grava exatamente o que a individual
+  // grava (camposDaDevolucaoDaRevisao), peça a peça.
   app.patch("/api/items/bulk-return-to-arte", requireAuth, async (req, res) => {
     try {
-      if (req.userRole !== "solicitacao" && req.userRole !== "arte" && req.userRole !== "admin") {
-        return res.status(403).json({ error: "Apenas usuários com perfil Solicitação podem devolver itens" });
+      if (req.userRole !== "solicitacao" && req.userRole !== "admin" && !(ARTE_DECIDE_NA_REVISAO && req.userRole === "arte")) {
+        return res.status(403).json({ error: "Só a Solicitação devolve peça na Revisão Final." });
       }
-      
+
       const { itemIds } = req.body;
       if (!Array.isArray(itemIds) || itemIds.length === 0) {
-        return res.status(400).json({ error: "itemIds deve ser um array não vazio" });
+        return res.status(400).json({ error: "Selecione ao menos uma peça para devolver." });
       }
 
       const motivoLote = lerMotivoDevolucao(req);
@@ -4233,12 +4283,14 @@ export function registerItemRoutes(app: Express): void {
       const notes = motivoLote.motivo;
 
       const results: any[] = [];
-      const errors: any[] = [];
+      const errors: Array<{ itemId: string; error: string }> = [];
+      const destinos: Record<string, DestinoDevolucao> = {};
+      const trilha: Array<{ action: string; entityType: string; entityId: string; details?: string }> = [];
       // ANDA: mesma devolução do individual, multiplicada.
       const bloqueio = contadorDeBloqueio();
 
-      // AUDITORIA 27/08: mesma cura dos outros lotes — peças em paralelo,
-      // evento lido uma vez por evento, trilha em UM INSERT e UM broadcast.
+      // Peças em paralelo, evento lido uma vez por evento, trilha em UM
+      // INSERT e um broadcast por evento.
       const eventoMemo = new Map<string, Promise<any>>();
       const eventoDe = (eventId: string) => {
         if (!eventoMemo.has(eventId)) eventoMemo.set(eventId, storage.getEvent(eventId));
@@ -4248,7 +4300,7 @@ export function registerItemRoutes(app: Express): void {
         try {
         const currentItem = await storage.getItem(itemId);
         if (!currentItem) {
-          errors.push({ itemId, error: "Item não encontrado" });
+          errors.push({ itemId, error: "Peça não encontrada." });
           return;
         }
 
@@ -4259,37 +4311,26 @@ export function registerItemRoutes(app: Express): void {
         }
 
         if (currentItem.status !== "awaiting_final_review") {
-          errors.push({ itemId, error: `Status inválido: ${currentItem.status}` });
+          errors.push({ itemId, error: `Não está mais na Revisão Final (etapa atual: ${translateStatus(currentItem.status)}).` });
           return;
         }
 
-        const item = await storage.updateItem(itemId, {
-          // VOLTA PARA A FINALIZACAO, nao para o comeco (regra do dono, 17/08).
-          // A devolucao da Revisao acontece DEPOIS de o patrocinador ter
-          // aprovado o layout: o que falhou foi o arquivo final, nao a arte.
-          // Mandar para `awaiting_submission` jogava a peca na fila de
-          // "Aguardando envio" — o comeco de tudo, no meio de 1.120 pecas que
-          // nunca sairam — e ainda apagava o thumb JA APROVADO, obrigando a
-          // refazer aprovacao que ninguem pediu para refazer.
-          // `sponsor_approved` e o status que alimenta a aba "Finalizar arte"
-          // (TAB_STATUSES em lib/arte-rules): a peca reaparece exatamente na
-          // etapa que precisa ser refeita, com a aprovacao preservada.
-          // O DESTINO e escolha de quem devolve (ver lerDestinoDevolucao):
-          // "arte" refaz do zero, "finalizacao" so troca o arquivo final.
-          ...camposDoDestino(destinoDaDevolucao(destino, currentItem), await rodadaDeAprovacaoFechada(currentItem)),
-          creatorReviewedAt: null,
-          rejectedByCreator: true,
-          // (e não `|| currentItem.observations`): o return individual
-          // substitui a observação — o lote herdava a antiga silenciosamente.
-          observations: notes,
-          rejectionReason: notes,
-        });
+        const { destinoEfetivo, campos } = await camposDaDevolucaoDaRevisao(currentItem, destino, notes);
+        const item = await storage.updateItem(itemId, campos);
 
         if (item) {
           results.push(item);
+          destinos[item.id] = destinoEfetivo;
+          const modifiedDataMsg = currentItem.hasModifiedData ? " ⚠️ DADOS MODIFICADOS: Verifique Quantidade, m² Total e Medida!" : "";
+          trilha.push({
+            action: 'rejected', entityType: 'item', entityId: item.id,
+            details: `Item devolvido para Arte para modificações (em lote — ${textoDoDestino(destinoEfetivo)}). Observações: ${notes}${modifiedDataMsg}`,
+          });
+        } else {
+          errors.push({ itemId, error: "Peça não encontrada." });
         }
         } catch (e) {
-          errors.push({ itemId, error: "falha interna ao processar a peça" });
+          errors.push({ itemId, error: "Falha interna ao devolver esta peça — tente de novo." });
           console.error("[bulk-return-to-arte] falha na peça", itemId, e);
         }
       }));
@@ -4297,25 +4338,30 @@ export function registerItemRoutes(app: Express): void {
       if (bloqueio.respondeLoteInteiro(res, results.length, itemIds.length)) return;
 
       if (results.length > 0) {
-        await createAuditLogsEmLote(req, results.map((r) => ({
-          action: 'rejected', entityType: 'item', entityId: r.id,
-          details: `Item devolvido para Arte para modificações (em lote).`,
-        })));
-        broadcast({ type: "items_bulk_updated", itemIds: results.map((r) => r.id), eventId: results[0].eventId });
-        const detailMsg = notes ? ` Observações: ${notes}` : "";
-        const notification = await storage.createNotification({
-          type: "itemRejected",
-          message: `Criador devolveu ${results.length} item(ns) para modificações.${detailMsg}`,
-          eventId: results[0].eventId,
-          itemId: null,
-          targetRoles: ["arte"],
-        });
-        broadcast({ type: "notification_created", notification });
+        await createAuditLogsEmLote(req, trilha);
+        // Uma notificação e um broadcast POR EVENTO: o lote pode misturar
+        // eventos, e o aviso de um não pode apontar para o outro.
+        const porEvento = new Map<string, any[]>();
+        for (const r of results) porEvento.set(r.eventId, [...(porEvento.get(r.eventId) ?? []), r]);
+        for (const [eventId, doEvento] of Array.from(porEvento.entries())) {
+          broadcast({ type: "items_bulk_updated", itemIds: doEvento.map((r) => r.id), eventId });
+          const event = await eventoDe(eventId);
+          const notification = await storage.createNotification({
+            type: "itemRejected",
+            message: `Criador devolveu ${doEvento.length} item(ns) para modificações${event?.name ? ` — Evento: ${event.name}` : ""}. Observações: ${notes}`,
+            eventId,
+            itemId: doEvento.length === 1 ? doEvento[0].id : null,
+            targetRoles: ["arte"],
+          });
+          broadcast({ type: "notification_created", notification });
+        }
       }
-      
-      res.json({ success: results.length, errors: errors.length, items: results, failedItemIds: errors.map(e => e.itemId) });
+
+      // `errors` traz o MOTIVO de cada recusa (a tela o mostra na linha);
+      // `destinos` diz para onde cada peça foi de fato (molde: sempre "arte").
+      res.json({ success: results.length, errors, items: results, failedItemIds: errors.map(e => e.itemId), destinos });
     } catch (error: any) {
-      res.status(400).json({ error: error.message });
+      sendSensitiveError(res, error, "Devolver em lote para a Arte", 500);
     }
   });
 
@@ -4617,127 +4663,6 @@ export function registerItemRoutes(app: Express): void {
       
       broadcast({ type: "item_updated", item });
       res.json(item);
-    } catch (error: any) {
-      res.status(400).json({ error: error.message });
-    }
-  });
-
-  // Bulk creator reject (Solicitação module)
-  app.patch("/api/items/bulk-creator-reject", requireAuth, async (req, res) => {
-    try {
-      // Validate role
-      if (req.userRole !== "solicitacao" && req.userRole !== "arte" && req.userRole !== "admin") {
-        return res.status(403).json({ error: "Apenas usuários com perfil Solicitação podem reprovar itens" });
-      }
-      
-      const { itemIds } = req.body;
-      if (!Array.isArray(itemIds) || itemIds.length === 0) {
-        return res.status(400).json({ error: "itemIds deve ser um array não vazio" });
-      }
-
-      // Um motivo para o LOTE inteiro: quem devolve 20 peças de uma vez está
-      // devolvendo por um motivo só. Se fossem 20 motivos, seriam 20 cliques.
-      const motivo = lerMotivoDevolucao(req);
-      if (!motivo.ok) return res.status(400).json({ error: motivo.erro });
-      const destino = lerDestinoDevolucao(req);
-      
-      const results: any[] = [];
-      const errors: any[] = [];
-      // ANDA: mesma reprovação do individual, multiplicada.
-      const bloqueio = contadorDeBloqueio();
-
-      // AUDITORIA 27/08: mesma cura do bulk-cancel — peças em paralelo, evento
-      // lido uma vez por evento, trilha em UM INSERT e UM broadcast agregado.
-      const trilha: Array<{ action: string; entityType: string; entityId: string; details?: string }> = [];
-      const eventoMemo = new Map<string, Promise<any>>();
-      const eventoDe = (eventId: string) => {
-        if (!eventoMemo.has(eventId)) eventoMemo.set(eventId, storage.getEvent(eventId));
-        return eventoMemo.get(eventId)!;
-      };
-      await Promise.all(itemIds.map(async (itemId: string) => {
-        try {
-        const currentItem = await storage.getItem(itemId);
-        if (!currentItem) {
-          errors.push({ itemId, error: "Item não encontrado" });
-          return;
-        }
-
-        const motivoEvento = motivoEventoFechado(await eventoDe(currentItem.eventId));
-        if (motivoEvento) {
-          errors.push({ itemId, error: bloqueio.registra(motivoEvento) });
-          return;
-        }
-
-        if (currentItem.status !== "awaiting_final_review") {
-          errors.push({ itemId, error: `Status inválido: ${currentItem.status}` });
-          return;
-        }
-
-        const item = await storage.updateItem(itemId, {
-          // VOLTA PARA A FINALIZACAO, nao para o comeco (regra do dono, 17/08).
-          // A devolucao da Revisao acontece DEPOIS de o patrocinador ter
-          // aprovado o layout: o que falhou foi o arquivo final, nao a arte.
-          // Mandar para `awaiting_submission` jogava a peca na fila de
-          // "Aguardando envio" — o comeco de tudo, no meio de 1.120 pecas que
-          // nunca sairam — e ainda apagava o thumb JA APROVADO, obrigando a
-          // refazer aprovacao que ninguem pediu para refazer.
-          // `sponsor_approved` e o status que alimenta a aba "Finalizar arte"
-          // (TAB_STATUSES em lib/arte-rules): a peca reaparece exatamente na
-          // etapa que precisa ser refeita, com a aprovacao preservada.
-          // O DESTINO e escolha de quem devolve (ver lerDestinoDevolucao):
-          // "arte" refaz do zero, "finalizacao" so troca o arquivo final.
-          ...camposDoDestino(destinoDaDevolucao(destino, currentItem), await rodadaDeAprovacaoFechada(currentItem)),
-          creatorReviewedAt: null,
-          rejectedByCreator: true,
-          rejectionReason: motivo.motivo,
-        });
-
-        if (item) {
-          results.push(item);
-          // AUDITORIA 27/08: a linha da trilha sai no INSERT em lote abaixo —
-          // aqui só se registra a frase (o status novo vem do próprio item,
-          // sem refazer camposDoDestino + rodada, que eram MAIS duas queries).
-          trilha.push({
-            action: 'rejected', entityType: 'item', entityId: item.id,
-            details: `Status alterado: ${translateStatus(currentItem.status)} → ${translateStatus(item.status)} (reprovado pelo criador em lote — ${textoDoDestino(destinoDaDevolucao(destino, currentItem))}). Motivo: ${motivo.motivo}`,
-          });
-        }
-        } catch (e) {
-          errors.push({ itemId, error: "falha interna ao processar a peça" });
-          console.error("[bulk-creator-reject] falha na peça", itemId, e);
-        }
-      }));
-
-      if (bloqueio.respondeLoteInteiro(res, results.length, itemIds.length)) return;
-
-      if (results.length > 0) {
-        await createAuditLogsEmLote(req, trilha);
-        broadcast({ type: "items_bulk_updated", itemIds: results.map((r) => r.id), eventId: results[0].eventId });
-      }
-
-      // Notifica Arte uma vez para todos os itens
-      if (results.length > 0) {
-        const notification = await storage.createNotification({
-          type: "itemRejected",
-          message: `Criador reprovou ${results.length} item(ns). Refaça os thumbs de aprovação.`,
-          eventId: results[0].eventId,
-          itemId: null,
-          targetRoles: ["arte"],
-        });
-        
-        broadcast({ type: "notification_created", notification });
-      }
-      
-      // Extrair apenas os IDs dos itens com erro
-      const failedItemIds = errors.map(e => e.itemId);
-      
-      res.json({ 
-        success: results.length, 
-        errors: errors.length,
-        items: results,
-        failedItemIds,
-        errorDetails: errors
-      });
     } catch (error: any) {
       res.status(400).json({ error: error.message });
     }

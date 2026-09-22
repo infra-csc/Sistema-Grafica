@@ -54,12 +54,14 @@ describe("nenhuma rota devolve peça para o começo do fluxo", () => {
     // O que continua proibido é o SISTEMA escolher em silêncio. Por isso a
     // única escrita permitida vive em `camposDoDestino`, alimentada por uma
     // opção que a pessoa marcou na tela. Qualquer outra rota que volte a
-    // gravar esse status direto derruba este teste.
+    // gravar esse status direto derruba este teste. São DUAS escritas, ambas
+    // dentro do helper: a do destino "arte" e a do molde (que volta ao começo
+    // da Arte mantendo o thumb, o único material dele).
     const escritas = CODIGO.match(/status:\s*"awaiting_submission"/g) ?? [];
     expect(
       escritas.length,
       "só `camposDoDestino` pode escrever awaiting_submission — apareceu escrita nova",
-    ).toBe(1);
+    ).toBe(2);
 
     const helper = CODIGO.slice(
       CODIGO.indexOf("function camposDoDestino"),
@@ -80,9 +82,10 @@ describe("nenhuma rota devolve peça para o começo do fluxo", () => {
   });
 
   it("a devolução do criador manda para a finalização, com a aprovação preservada", () => {
-    // Quatro rotas devolvem por decisão do criador: creator-reject,
-    // bulk-creator-reject, return-to-arte e bulk-return-to-arte.
-    for (const rota of ["creator-reject", "bulk-creator-reject", "return-to-arte", "bulk-return-to-arte"]) {
+    // Duas rotas devolvem por decisão do criador: return-to-arte e
+    // bulk-return-to-arte (creator-reject e o lote dele eram portas mortas e
+    // foram removidas).
+    for (const rota of ["return-to-arte", "bulk-return-to-arte"]) {
       expect(CODIGO, `rota ${rota} sumiu`).toContain(rota);
     }
     // O thumb só é apagado no destino "arte" — lá a arte inteira será refeita,
@@ -94,6 +97,10 @@ describe("nenhuma rota devolve peça para o começo do fluxo", () => {
     );
     const antesDoReturnFinal = helper.slice(0, helper.lastIndexOf("return {"));
     expect(antesDoReturnFinal, "o ramo `arte` deve limpar o thumb").toContain("approvalThumbUrl: null");
+    // O ramo do molde (o primeiro) NÃO apaga o thumb: é o único material dele.
+    const ramoDoMolde = helper.slice(helper.indexOf("ehMolde(peca)"), helper.indexOf('if (destino === "arte")'));
+    expect(ramoDoMolde).toContain('status: "awaiting_submission"');
+    expect(ramoDoMolde).not.toContain("approvalThumbUrl");
     expect(
       helper.slice(helper.lastIndexOf("return {")),
       "o ramo `finalizacao` NÃO pode apagar o thumb aprovado",

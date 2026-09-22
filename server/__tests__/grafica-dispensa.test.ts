@@ -124,8 +124,9 @@ const atorDe = (a: any): { userName: string; userId: string | null } =>
     ? { userName: a.trim() || "Sistema", userId: null }
     : { userName: String(a?.userName ?? "").trim() || "Sistema", userId: a?.userId ?? null };
 
+// O motivo é obrigatório (≥ 10 caracteres): o padrão dos testes manda um.
 const dispensar = (over: any = {}) =>
-  chamar(DISPENSE, { params: { id: "i-1" }, userRole: "arte", ...over });
+  chamar(DISPENSE, { params: { id: "i-1" }, userRole: "arte", body: { reason: "cliente aprovou por WhatsApp" }, ...over });
 
 describe("gates que continuam de pé", () => {
   it("só Arte e admin dispensam", async () => {
@@ -145,6 +146,17 @@ describe("gates que continuam de pé", () => {
     itens["i-1"] = peca({ status: "inProduction" });
     const r = await dispensar();
     expect(r.status).toBe(409);
+    expect(H.storage.updateItem).not.toHaveBeenCalled();
+  });
+});
+
+describe("o motivo é obrigatório", () => {
+  it("sem motivo, ou curto demais: 400 com a frase, e nada muda", async () => {
+    for (const body of [{}, { reason: "  ok  " }, { reason: "urgente" }]) {
+      const r = await dispensar({ body });
+      expect(r.status).toBe(400);
+      expect(r.body.error).toContain("10 caracteres");
+    }
     expect(H.storage.updateItem).not.toHaveBeenCalled();
   });
 });

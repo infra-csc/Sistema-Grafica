@@ -1,6 +1,7 @@
 import { cn } from "@/lib/utils";
 import { getStatusMeta, descricaoDoStatus } from "@/lib/status";
 import { useBalaoDeStatus } from "@/components/ui/balao-de-status";
+import { Selo } from "@/components/ui/selo";
 
 interface StatusBadgeProps {
   status: string;
@@ -14,6 +15,13 @@ interface StatusBadgeProps {
 // Badge de status com ícone. Cores/rótulos vêm de lib/status.ts (fonte única) —
 // antes este componente tinha um mapa próprio que divergia do Painel Geral.
 //
+// É O <Selo> COM ÍCONE, não um segundo selo. StatusBadge e StatusPill existiam
+// como duas peças independentes que desenhavam a MESMA coisa com números
+// diferentes: 99px de raio contra 999, peso 600 contra 700, gap 5 contra 6.
+// Ninguém consegue nomear a diferença olhando, mas as duas apareciam lado a
+// lado na ficha da peça. Agora a única diferença entre eles é a real — este
+// mostra ícone e rótulo responsivo, aquele mostra bolinha e rótulo curto.
+//
 // O SIGNIFICADO VEM JUNTO (16/09). "Aguardando Finalização" dizia a etapa, não
 // de quem é a vez nem o que falta. O `title` agora carrega a frase inteira
 // (descricaoDoStatus), o leitor de tela ouve "vez da Arte" depois do rótulo, e
@@ -21,24 +29,12 @@ interface StatusBadgeProps {
 // texto — no celular não há hover para o `title` aparecer.
 export function StatusBadge({ status, className, short }: StatusBadgeProps) {
   const config = getStatusMeta(status);
-  const Icon = config.icon;
   const { guia, handlers, describedBy, balao } = useBalaoDeStatus(status);
 
   return (
-    <div
-      style={{
-        display: "inline-flex",
-        alignItems: "center",
-        gap: "5px",
-        padding: "3px 10px",
-        borderRadius: "99px",
-        fontSize: "11px",
-        fontWeight: "600",
-        whiteSpace: "nowrap",
-        backgroundColor: config.bg,
-        color: config.text,
-        border: `1px solid ${config.border}`,
-      }}
+    <Selo
+      cores={config}
+      icone={config.icon}
       className={cn(className)}
       data-testid={`badge-${status}`}
       // O rótulo curto ("Aguard.") some a informação no celular: o title
@@ -48,7 +44,6 @@ export function StatusBadge({ status, className, short }: StatusBadgeProps) {
       aria-describedby={describedBy}
       {...handlers}
     >
-      <Icon aria-hidden="true" style={{ width: "11px", height: "11px", flexShrink: 0 }} />
       {short ? (
         <span>{config.short}</span>
       ) : (
@@ -64,6 +59,6 @@ export function StatusBadge({ status, className, short }: StatusBadgeProps) {
           inteiro a cada linha afogaria a leitura. */}
       {guia && <span className="sr-only">{` (${guia.vez})`}</span>}
       {balao}
-    </div>
+    </Selo>
   );
 }

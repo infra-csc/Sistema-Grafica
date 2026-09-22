@@ -1,7 +1,7 @@
 import { cloneElement, isValidElement, useEffect, useRef, useState } from "react"
 import { useToast } from "@/hooks/use-toast"
-import { CheckCircle2, AlertCircle, X } from "lucide-react"
-import { R, T } from "@/lib/theme"
+import { CheckCircle2, AlertCircle, AlertTriangle, X } from "lucide-react"
+import { R, T, TOM } from "@/lib/theme"
 
 // A AÇÃO DE VOLTA — 36px, e não os 32 do shadcn.
 //
@@ -10,8 +10,7 @@ import { R, T } from "@/lib/theme"
 // pixel. O botão de fechar ao lado também subiu de 24 pelo mesmo motivo.
 //
 // `T.border` vem de `lib/theme` e não do `TI` da Gestão de Prazos: é a mesma
-// cor (#e8e8e7), mas este componente é global e não pode depender dos tokens
-// de uma tela.
+// cor, mas este componente é global e não pode depender dos tokens de uma tela.
 const ESTILO_ACAO: React.CSSProperties = {
   height: 36, padding: "0 12px", borderRadius: R.md,
   border: `1px solid ${T.border}`, backgroundColor: "#ffffff",
@@ -30,11 +29,33 @@ const DURACAO_OK = 4200
 const DURACAO_ERRO = 8000
 const DURACAO_COM_ACAO = 7000
 
+export type VarianteDeAviso = "default" | "success" | "warning" | "destructive"
+
+// ─── OS QUATRO TONS DO AVISO ────────────────────────────────────────────────
+// `default` e `success` são o mesmo desenho de propósito: `default` era o
+// visual de "deu certo" desde sempre (check verde), e ~250 chamadas contam com
+// isso. `success` é o nome novo para a mesma coisa, para que quem escreve o
+// código diga o que quer dizer em vez de contar com o padrão.
+//
+// `warning` é o degrau que faltava: a ação não aconteceu, mas nada quebrou.
+// Antes ele era escrito como `destructive` — e um "selecione ao menos uma
+// peça" em vermelho-erro, cem vezes por dia, ensina o olho a descartar o
+// vermelho. Quando o erro de verdade chega, ele já não é notícia.
+//
+// Cores da paleta P de status.ts, via TOM: o tom ESCURO no ícone e na barra
+// (é o que carrega significado sobre fundo claro) e o tom claro no ladrilho.
+const TONS: Record<VarianteDeAviso, { accent: string; iconBg: string; Icon: typeof CheckCircle2; testid: string; urgente: boolean }> = {
+  default:     { accent: TOM.sucesso.text, iconBg: TOM.sucesso.bg, Icon: CheckCircle2,  testid: "toast",       urgente: false },
+  success:     { accent: TOM.sucesso.text, iconBg: TOM.sucesso.bg, Icon: CheckCircle2,  testid: "toast",       urgente: false },
+  warning:     { accent: TOM.alerta.text,  iconBg: TOM.alerta.bg,  Icon: AlertTriangle, testid: "toast-aviso", urgente: false },
+  destructive: { accent: TOM.perigo.text,  iconBg: TOM.perigo.bg,  Icon: AlertCircle,   testid: "toast-erro",  urgente: true  },
+}
+
 type ToastItem = {
   id: string
   title?: React.ReactNode
   description?: React.ReactNode
-  variant?: "default" | "destructive"
+  variant?: VarianteDeAviso
   open?: boolean
   /**
    * O botão de recuperação: "Desfazer", "Abrir evento", "Mostrar".
@@ -69,9 +90,13 @@ function NorteToast({ toast, onDismiss, devolverFoco }: { toast: ToastItem; onDi
   const cartao = useRef<HTMLDivElement>(null)
   const [visible, setVisible] = useState(false)
   const [leaving, setLeaving] = useState(false)
+  const tom = TONS[toast.variant ?? "default"] ?? TONS.default
   const isError = toast.variant === "destructive"
   const acao = isValidElement<{ style?: React.CSSProperties }>(toast.action) ? toast.action : null
-  const duracao = isError ? DURACAO_ERRO : acao ? DURACAO_COM_ACAO : DURACAO_OK
+  // Aviso fica tanto quanto erro: ele também traz a INSTRUÇÃO ("escolha ao
+  // menos uma peça"), e é a instrução que a pessoa ainda estava lendo quando o
+  // cartão de 4,2s sumia.
+  const duracao = isError || toast.variant === "warning" ? DURACAO_ERRO : acao ? DURACAO_COM_ACAO : DURACAO_OK
 
   // PAUSA SOB O PONTEIRO/FOCO. O relógio vive em refs (não em estado) de
   // propósito: este Toaster é montado junto dos testes de "modal congelado",
@@ -116,12 +141,10 @@ function NorteToast({ toast, onDismiss, devolverFoco }: { toast: ToastItem; onDi
   // roupa do shadcn (h-8, text-sm, rounded-md), então clonamos aplicando
   // `style`, que vence classe utilitária sem precisar de !important.
 
-  // #b91c1c e #15803d: o acento também pinta o ÍCONE, que é o sinal de
-  // "deu certo/deu errado" — #dc2626/#16a34a ficavam abaixo de 4,5:1 no
-  // fundo claro do ladrilho.
-  const accent = isError ? "#b91c1c" : "#15803d"
-  const iconBg  = isError ? "#fef2f2" : "#f0fdf4"
-  const Icon    = isError ? AlertCircle : CheckCircle2
+  // O acento também pinta o ÍCONE, que é o sinal de "deu certo/deu errado":
+  // por isso ele é o tom ESCURO da paleta (#15803d, #b45309, #b91c1c) e não o
+  // saturado — #16a34a e #dc2626 ficavam abaixo de 4,5:1 no ladrilho claro.
+  const { accent, iconBg, Icon } = tom
 
   return (
     <div
@@ -131,7 +154,7 @@ function NorteToast({ toast, onDismiss, devolverFoco }: { toast: ToastItem; onDi
       // o texto é justamente o caso que os leitores de tela costumam ignorar —
       // a região precisa existir antes do conteúdo mudar. Com a pilha de três,
       // manter o role aqui também faria cada aviso ser lido duas vezes.
-      data-testid={isError ? "toast-erro" : "toast"}
+      data-testid={tom.testid}
       onClick={dismiss}
       onMouseEnter={pausar}
       onMouseLeave={armar}
@@ -254,7 +277,10 @@ export function Toaster() {
     const novo = normalizados[0]
     if (novo && novo.id !== anunciado.current) {
       anunciado.current = novo.id
-      setAnuncio({ id: novo.id, texto: fraseDoAviso(novo), urgente: novo.variant === "destructive" })
+      // Só ERRO interrompe a leitura (aria-live assertive). Aviso e sucesso
+      // esperam a vez: interromper o leitor de tela a cada "selecione uma
+      // peça" é o equivalente sonoro de pintar tudo de vermelho.
+      setAnuncio({ id: novo.id, texto: fraseDoAviso(novo), urgente: (TONS[novo.variant ?? "default"] ?? TONS.default).urgente })
     }
   }, [toasts])
 

@@ -28,8 +28,21 @@ const toastVariants = cva(
   "group pointer-events-auto relative flex w-full items-center justify-between space-x-4 overflow-hidden rounded-md border p-6 pr-8 shadow-lg transition-all data-[swipe=cancel]:translate-x-0 data-[swipe=end]:translate-x-[var(--radix-toast-swipe-end-x)] data-[swipe=move]:translate-x-[var(--radix-toast-swipe-move-x)] data-[swipe=move]:transition-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[swipe=end]:animate-out data-[state=closed]:fade-out-80 data-[state=closed]:slide-out-to-right-full data-[state=open]:slide-in-from-top-full data-[state=open]:sm:slide-in-from-bottom-full",
   {
     variants: {
+      // QUATRO VARIANTES, porque o app tem quatro notícias e tinha duas
+      // palavras para dizê-las. Eram só `default` e `destructive`, e das 219
+      // chamadas destrutivas boa parte não é ERRO: "nenhuma peça selecionada",
+      // "o evento já foi encerrado", "arquivo maior que 10 MB". São AVISOS —
+      // a ação não aconteceu, mas nada quebrou. Pintar tudo de vermelho ensina
+      // a ignorar o vermelho, que é exatamente o que não se pode perder numa
+      // tela onde o erro de verdade significa peça produzida errada.
+      //
+      //   success     — deu certo (é o visual que `default` já tinha)
+      //   warning     — não deu, e é esperado: falta preencher, falta escolher
+      //   destructive — falhou: o servidor recusou, a rede caiu, o dado sumiu
       variant: {
         default: "border bg-background text-foreground",
+        success: "border bg-background text-foreground",
+        warning: "border bg-background text-foreground",
         destructive:
           "destructive group border-destructive bg-destructive text-destructive-foreground",
       },

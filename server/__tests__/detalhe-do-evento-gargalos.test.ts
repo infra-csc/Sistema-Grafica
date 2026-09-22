@@ -117,7 +117,10 @@ describe("Mudança 3 · agrupar por tipo ou por status", () => {
     expect(ED).toContain("const renderTabelaDeItens = (typeItems: typeof visibleEventItems) => (");
     expect(ED).toContain("{renderTabelaDeItens(lista)}");
     expect(ED).toContain("{renderTabelaDeItens(typeItems)}");
-    expect((ED.match(/<table style=\{\{ width: '100%', minWidth: 960/g) ?? []).length).toBe(1);
+    // UMA tabela no arquivo inteiro. O mínimo deixou de ser um número fixo
+    // (era 960) e passou a depender da densidade — 720 quando a área útil
+    // aperta —, então a régua aqui é "existe uma só", não o valor dela.
+    expect((ED.match(/<table style=\{\{ width: '100%', minWidth: compacto \? 720 : 960/g) ?? []).length).toBe(1);
   });
 
   it("'Limpar filtros (N de M)' cobre busca, chips e marco; a escolha vai na URL", () => {

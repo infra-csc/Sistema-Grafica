@@ -22,7 +22,7 @@
 // e o que sobra é o "sem impressora" — o que aparece na fila geral.
 // ─────────────────────────────────────────────────────────────────────────────
 import { MAQUINAS_DE_IMPRESSAO, rotuloDaMaquina } from "./fluxo-peca";
-import { aImprimirDaPeca, lerPartes, partesDaPeca, reescalarPartes, restanteNaMaquina, type PartesPorMaquina, type PecaDividivel } from "./impressao-dividida";
+import { aImprimirDaPeca, lerPartes, partesDaPeca, reescalarPartes, restanteNaMaquina, moverParte, normalizarPartes, maquinaPrincipal, type PartesPorMaquina, type PecaDividivel } from "./impressao-dividida";
 
 export type ReservaPorMaquina = Record<string, number>;
 
@@ -296,6 +296,86 @@ export function devolverTudoAFila(p: PecaReservavel, agoraISO: string): { reserv
 
 /** O nome do lock consultivo de uma impressora (pg_advisory_xact_lock(hashtext(...))). */
 export const chaveDoLockDaImpressora = (maquina: string) => `impressora:${maquina}`;
+
+// ─── INICIAR / TROCAR DE MÁQUINA, PURO (revisão adversarial, 22/09) ───────────
+// O start-printing calculava as partes a partir de uma leitura feita FORA da
+// transação e gravava por outra conexão: dois gestos na MESMA peça em
+// impressoras diferentes (os locks consultivos são por impressora, não se
+// cruzam) partiam da mesma foto e o segundo desfazia o primeiro. A rota agora
+// trava a linha (FOR UPDATE, depois dos locks das impressoras) e chama ESTA
+// função sobre ela.
+
+export type PedidoDeInicio = {
+  printMachine: string;
+  quantidade?: number | null;
+  deMaquina?: string | null;
+  iniciarParte?: boolean;
+  daReserva?: boolean;
+};
+
+/**
+ * As impressoras cujo lock consultivo o gesto precisa: destino, a principal
+ * atual e a origem pedida — em ordem, para dois gestos cruzados nunca se
+ * esperarem para sempre. Calculada sobre a linha: se a linha travada pedir uma
+ * impressora que não foi travada, a rota recomeça (ver start-printing).
+ */
+export function travasDoInicio(p: { printMachine?: string | null }, pedido: Pick<PedidoDeInicio, "printMachine" | "deMaquina">): string[] {
+  return Array.from(new Set([pedido.printMachine, p.printMachine, pedido.deMaquina]
+    .filter((m): m is string => typeof m === "string" && MAQUINAS_DE_IMPRESSAO.includes(m)))).sort();
+}
+
+export function planejarInicioDaImpressao(p: PecaReservavel, pedido: PedidoDeInicio):
+  | { ok: false; erro: string }
+  | {
+    ok: true;
+    /** As colunas da peça (a rota acrescenta updatedAt/statusChangedAt/productionStartedAt). */
+    set: { status: "inProduction"; printMachine: string; impressaoPorMaquina: PartesPorMaquina | null; reservaPorMaquina: Record<string, ValorDaReserva> | null; maquinaPrevista: string | null };
+    movimento: { partes: PartesPorMaquina; movidas: number; ficam: number } | null;
+    parte: { partes: PartesPorMaquina; reserva: ReservaPorMaquina | null; quantidade: number } | null;
+    origem: string | null;
+  } {
+  const { printMachine } = pedido;
+  if (!MAQUINAS_DE_IMPRESSAO.includes(printMachine)) return { ok: false, erro: "Escolha a máquina em que a peça vai ser impressa" };
+  const valida = (m: unknown): m is string => typeof m === "string" && MAQUINAS_DE_IMPRESSAO.includes(m);
+  const trocouDeMaquina = pedido.iniciarParte !== true && EM_IMPRESSAO.includes(p.status ?? "") && !!p.printMachine;
+  const partesAtuais = partesDaPeca(p);
+  const origem = trocouDeMaquina ? (valida(pedido.deMaquina) && partesAtuais[pedido.deMaquina] ? pedido.deMaquina : p.printMachine!) : null;
+  if (trocouDeMaquina && origem === printMachine) return { ok: false, erro: `A peça já está na ${rotuloDaMaquina(printMachine)}` };
+
+  // A troca move o que resta na origem (tudo, ou `quantidade`). Iniciar do
+  // zero apaga qualquer divisão antiga: a peça inteira vai para a máquina.
+  let movimento: { partes: PartesPorMaquina; movidas: number; ficam: number } | null = null;
+  if (trocouDeMaquina) {
+    const r = moverParte(partesAtuais, origem!, printMachine, pedido.quantidade ?? null);
+    if (!r.ok) return r;
+    movimento = r;
+  }
+  // Iniciar UMA PARTE: consome a reserva desta impressora (ou a de `deMaquina`)
+  // ou tira do que está sem impressora; as outras reservas continuam valendo.
+  let parte: { partes: PartesPorMaquina; reserva: ReservaPorMaquina | null; quantidade: number } | null = null;
+  if (pedido.iniciarParte === true) {
+    const r = iniciarParte(p, printMachine, { daReserva: pedido.daReserva === true, quantidade: pedido.quantidade ?? null, reservaDe: valida(pedido.deMaquina) ? pedido.deMaquina : null });
+    if (!r.ok) return r;
+    parte = r;
+  }
+  const partesDepoisDoGesto = movimento?.partes ?? parte?.partes ?? null;
+  const impressaoPorMaquina = partesDepoisDoGesto ? normalizarPartes(partesDepoisDoGesto, aImprimirDaPeca(p)) : null;
+  const principal = partesDepoisDoGesto ? maquinaPrincipal(partesDepoisDoGesto, printMachine) ?? printMachine : printMachine;
+  // A reserva: a troca não mexe nela; iniciar uma parte consome só a desta
+  // impressora; iniciar a peça INTEIRA a limpa toda — ela está numa máquina agora.
+  const reserva = movimento ? colunasDaReserva(reservaDaPeca(p), p.reservaPorMaquina) : colunasDaReserva(parte ? parte.reserva : null, p.reservaPorMaquina);
+  return { ok: true, set: { status: "inProduction", printMachine: principal, impressaoPorMaquina, ...reserva }, movimento, parte, origem };
+}
+
+/**
+ * A CONTA que tudo aqui protege: em impressão (Σ atrib) + reservado (Σ
+ * reserva) ≤ a imprimir. Os testes a conferem depois de cada gesto.
+ */
+export function contaFecha(p: PecaReservavel): boolean {
+  const emImpressao = EM_IMPRESSAO.includes(p.status ?? "") ? Object.values(partesDaPeca(p)).reduce((s, x) => s + x.atrib, 0) : Math.min(aImprimirDaPeca(p), inteiro(p.quantityProduced));
+  const reservado = soma(lerReserva(p.reservaPorMaquina));
+  return emImpressao + reservado <= aImprimirDaPeca(p);
+}
 
 /**
  * UMA PEÇA POR VEZ POR IMPRESSORA (dono, 21/09: "caso a impressora esteja

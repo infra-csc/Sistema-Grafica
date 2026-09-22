@@ -139,8 +139,13 @@ function maquinaDoCorpo(corpo: any): { ok: true; maquina: string | null } | { ok
  * liberadas, entra a peça que JÁ está em impressão POR PARTES (iniciou só a
  * parte reservada a uma impressora) — o resto dela continua na fila.
  */
-async function motivoDeNaoReservar(item: any): Promise<string | null> {
+async function motivoDeNaoReservar(item: any, maquina?: string | null): Promise<string | null> {
   if (!item || item.deletedAt) return "Peça não encontrada";
+  // DEVOLVER À FILA GERAL é recuo (revisão adversarial, 22/09): tira a peça da
+  // fila de uma impressora sem fazer trabalho andar. Nem a trava nem o evento
+  // finalizado seguram — senão a peça de evento já realizado (ou travada)
+  // ficava presa no topo da fila da impressora, sem saída.
+  if (maquina === null) return null;
   // Travada pela Solicitação: nem reservar (shared/trava-da-peca.ts).
   if (pecaTravada(item)) return fraseDaTrava(item);
   // MOLDE (22/09) não passa pelas impressoras: é marcado como produzido na Gráfica.
@@ -191,15 +196,24 @@ export function registerMaquinasRoutes(app: Express): void {
     const pedido = maquinaDoCorpo(req.body);
     if (!pedido.ok) return res.status(400).json({ error: pedido.erro });
     try {
-      const atual = await storage.getItem(req.params.id);
-      const motivo = await motivoDeNaoReservar(atual);
-      if (motivo) return res.status(atual ? 409 : 404).json({ error: motivo });
-      const r = aplicarPedidoDeReserva(atual, req.body, pedido.maquina);
-      if (!r.ok) return res.status(409).json({ error: r.erro });
-      // SÓ a reserva (e o updatedAt que o storage carimba). Nada de status.
-      const item = await storage.updateItem(atual!.id, colunasDaReserva(r.reserva, atual!.reservaPorMaquina) as any);
+      // A reserva lida e gravada sob a linha TRAVADA (FOR UPDATE): sem isto um
+      // start-printing simultâneo iniciava as unidades "sem impressora" e esta
+      // rota as reservava de novo por cima — em impressão + reservado passava
+      // do que há para imprimir.
+      const feito: { http: number; erro: string } | { item: any; frase: string } = await db.transaction(async (tx): Promise<{ http: number; erro: string } | { item: any; frase: string }> => {
+        const [atual] = await tx.select().from(itemsTable).where(eq(itemsTable.id, req.params.id)).for("update");
+        const motivo = await motivoDeNaoReservar(atual, pedido.maquina);
+        if (motivo) return { http: atual ? 409 : 404, erro: motivo };
+        const r = aplicarPedidoDeReserva(atual, req.body, pedido.maquina);
+        if (!r.ok) return { http: 409, erro: r.erro };
+        // SÓ a reserva (e o updatedAt). Nada de status.
+        const [item] = await tx.update(itemsTable).set({ ...colunasDaReserva(r.reserva, atual!.reservaPorMaquina), updatedAt: new Date() } as any).where(eq(itemsTable.id, atual!.id)).returning();
+        return { item, frase: r.frase };
+      });
+      if ("erro" in feito) return res.status(feito.http).json({ error: feito.erro });
+      const { item } = feito;
       if (!item) return res.status(404).json({ error: "Peça não encontrada" });
-      await createAuditLog(req, "production", "item", item.id, r.frase);
+      await createAuditLog(req, "production", "item", item.id, feito.frase);
       broadcast({ type: "item_updated", item });
       res.json(item);
     } catch (error: any) {
@@ -219,21 +233,25 @@ export function registerMaquinasRoutes(app: Express): void {
     const ids: string[] = Array.isArray(req.body?.itemIds) ? req.body.itemIds.filter((x: unknown): x is string => typeof x === "string") : [];
     if (ids.length === 0) return res.status(400).json({ error: "Nenhuma peça selecionada" });
     try {
-      const pecas = await storage.getItemsByIds(ids);
-      const porId = new Map(pecas.map((p) => [p.id, p]));
       const feitas: any[] = [];
       const erros: { itemId: string; displayId: string | null; erro: string }[] = [];
-      for (const id of ids) {
-        const atual = porId.get(id);
-        const motivo = await motivoDeNaoReservar(atual);
-        if (motivo) { erros.push({ itemId: id, displayId: atual?.displayId ?? null, erro: motivo }); continue; }
-        // O lote é sempre "TUDO": tudo o que está livre vai para a impressora
-        // (ou a reserva inteira volta à fila geral). Quantidade é gesto unitário.
-        const livre = livreParaReservar(atual!);
-        const reserva = pedido.maquina && livre > 0 ? { [pedido.maquina]: livre } : null;
-        if (pedido.maquina && livre <= 0) { erros.push({ itemId: id, displayId: atual?.displayId ?? null, erro: "Não há unidades fora de impressora para reservar" }); continue; }
-        const item = await storage.updateItem(id, colunasDaReserva(reserva, atual!.reservaPorMaquina) as any);
-        if (item) feitas.push(item);
+      // Uma transação curta POR PEÇA, com a linha travada (FOR UPDATE) — a
+      // mesma razão da rota unitária; peça que falha não desfaz as outras.
+      for (const id of Array.from(new Set(ids))) {
+        const r = await db.transaction(async (tx): Promise<{ erro: string; displayId: string | null } | { item: any }> => {
+          const [atual] = await tx.select().from(itemsTable).where(eq(itemsTable.id, id)).for("update");
+          const motivo = await motivoDeNaoReservar(atual, pedido.maquina);
+          if (motivo) return { erro: motivo, displayId: atual?.displayId ?? null };
+          // O lote é sempre "TUDO": tudo o que está livre vai para a impressora
+          // (ou a reserva inteira volta à fila geral). Quantidade é gesto unitário.
+          const livre = livreParaReservar(atual as any);
+          const reserva = pedido.maquina && livre > 0 ? { [pedido.maquina]: livre } : null;
+          if (pedido.maquina && livre <= 0) return { erro: "Não há unidades fora de impressora para reservar", displayId: atual.displayId ?? null };
+          const [item] = await tx.update(itemsTable).set({ ...colunasDaReserva(reserva, atual.reservaPorMaquina), updatedAt: new Date() } as any).where(eq(itemsTable.id, id)).returning();
+          return { item };
+        });
+        if ("erro" in r) { erros.push({ itemId: id, displayId: r.displayId, erro: r.erro }); continue; }
+        if (r.item) feitas.push(r.item);
       }
       const fraseDoLote = pedido.maquina ? `Reservada para a ${rotuloDaMaquina(pedido.maquina)}` : "Devolvida à fila geral";
       await createAuditLogsEmLote(req, feitas.map((i) => ({ action: "production", entityType: "item", entityId: i.id, details: fraseDoLote })));
@@ -274,7 +292,18 @@ export function registerMaquinasRoutes(app: Express): void {
         // mesmo que o start-printing pega — ocupação mora em jsonb, não há
         // índice único que segure dois gestos simultâneos na mesma impressora.
         await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${chaveDoLockDaImpressora(maquina)}))`);
-        const [sai] = await tx.select().from(itemsTable).where(eq(itemsTable.id, tirarId));
+        // DEPOIS do lock da impressora, as LINHAS das peças (revisão
+        // adversarial, 22/09): dois gestos na MESMA peça em impressoras
+        // diferentes (tirar da 1 e iniciar/lançar na 2) não se cruzam no lock
+        // consultivo — e o segundo regravava o jsonb lido antes do primeiro.
+        // FOR UPDATE das duas de uma vez, em ordem de id: dois "trocar"
+        // cruzados (A sai/B entra na 1, B sai/A entra na 2) travam na mesma
+        // ordem e não se esperam para sempre. Ordem global: impressora → linhas.
+        const linhas = await tx.select().from(itemsTable)
+          .where(inArray(itemsTable.id, comTroca ? [tirarId, colocarId] : [tirarId]))
+          .orderBy(itemsTable.id)
+          .for("update");
+        const sai = linhas.find((l) => l.id === tirarId);
         if (!sai || sai.deletedAt) throw falha(404, "Peça não encontrada");
         // SEM guarda de evento finalizado para quem SAI: tirar da impressora
         // não faz trabalho andar, só recua — e a peça de evento já realizado
@@ -302,7 +331,8 @@ export function registerMaquinasRoutes(app: Express): void {
         let entra: any = null;
         let parte: { quantidade: number } | null = null;
         if (comTroca) {
-          [entra] = await tx.select().from(itemsTable).where(eq(itemsTable.id, colocarId));
+          // Já travada acima, junto com a que sai.
+          entra = linhas.find((l) => l.id === colocarId) ?? null;
           if (!entra || entra.deletedAt) throw falha(404, "A peça que entra não foi encontrada");
           if (EM_REVISAO.has(entra.status)) throw falha(409, "A peça que entra está em revisão — a Gráfica só age depois que a revisão liberar.");
           const PODE = ["ready_for_production", "pronto_para_producao", "approved", "liberado", "inProduction", "em_producao"];
@@ -315,8 +345,12 @@ export function registerMaquinasRoutes(app: Express): void {
           const emImpressao = await tx.select().from(itemsTable).where(and(inArray(itemsTable.status, ["inProduction", "em_producao"]), isNull(itemsTable.deletedAt)));
           const ocupante = ocupanteDaImpressora(emImpressao as any[], maquina, entra.id);
           if (ocupante) throw falha(409, erroImpressoraOcupada(maquina, ocupante));
-          const temReserva = (reservaDaPeca(entra)[maquina] ?? 0) > 0;
-          const inicio = iniciarParte(entra, maquina, { daReserva: temReserva, quantidade });
+          // "Imprimir esta no lugar" com a reserva de OUTRA impressora (o
+          // modal abriu da fila da 2 e o operador escolheu a 1): `reservaDe`
+          // diz de qual reserva as unidades saem — a mesma regra do start-printing.
+          const reservaDe = ehMaquinaValida(req.body?.reservaDe) && (reservaDaPeca(entra)[req.body.reservaDe] ?? 0) > 0 ? req.body.reservaDe as string : maquina;
+          const temReserva = (reservaDaPeca(entra)[reservaDe] ?? 0) > 0;
+          const inicio = iniciarParte(entra, maquina, { daReserva: temReserva, quantidade, reservaDe });
           if (!inicio.ok) throw falha(409, inicio.erro);
           parte = inicio;
           [entrou] = await tx.update(itemsTable).set({
@@ -426,6 +460,22 @@ export function registerMaquinasRoutes(app: Express): void {
         where i.deleted_at is null and i.status in ('inProduction', 'em_producao')
         order by coalesce(i.production_started_at, i.status_changed_at) asc nulls last
       `)).filter(visivel);
+
+      // "DESDE" DE CADA PARTE (revisão adversarial, 22/09): a peça pausada e
+      // reiniciada mostrava o production_started_at ORIGINAL — "desde ontem"
+      // numa peça que entrou há 10 minutos. O início de verdade da parte é o
+      // registro "inicio"/"troca" mais recente daquela peça NAQUELA impressora;
+      // sem registro (peça anterior ao diário), vale o de sempre.
+      const desdeDaParte = new Map<string, string>();
+      for (const l of linhas(await db.execute(sql`
+        select distinct on (r.item_id, r.maquina) r.item_id, r.maquina,
+               to_char(r.created_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') as em
+        from registros_de_impressao r
+        join items i on i.id = r.item_id
+        where i.deleted_at is null and i.status in ('inProduction', 'em_producao')
+          and r.tipo in ('inicio', 'troca')
+        order by r.item_id, r.maquina, r.created_at desc
+      `))) desdeDaParte.set(`${l.item_id}:${l.maquina}`, l.em);
 
       // A FILA (dono, 21/09): peças liberadas que ainda vão para a máquina,
       // com a impressora reservada (ou nenhuma = fila geral), na ordem da fila
@@ -566,7 +616,7 @@ export function registerMaquinasRoutes(app: Express): void {
             .map((l) => {
               const p = peca(l);
               const parte = p.impressaoPorMaquina?.[codigo] ?? null;
-              return { ...p, maquina: codigo, parte };
+              return { ...p, maquina: codigo, parte, desde: desdeDaParte.get(`${p.id}:${codigo}`) ?? p.desde };
             }),
           registros,
           unidadesNoDia,

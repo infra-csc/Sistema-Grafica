@@ -35,7 +35,7 @@
 //     expectedProduced, printMachine }: o TOTAL já impresso; ao chegar ao teto a
 //     peça vai para Impresso / Acabamento (registro "parcial" ou "conclusao").
 // ─────────────────────────────────────────────────────────────────────────────
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { Loader2, Play, Printer, Calendar, ArrowLeftRight } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
@@ -260,13 +260,13 @@ export function useMutacoesDeImpressao({ onSucesso }: { onSucesso?: () => void }
 // uma peça da impressora nem imprimir outra no lugar sem trocar de tela.
 // Agora o modal das duas telas os oferece, pela MESMA mutation (e o cartão de
 // Máquinas também a usa): mesmo endpoint, mesmos toasts, mesmas chaves.
-export type PedidoDeMexer = { maquina: string; sai: OcupanteDaImpressora; entra?: { id: string; displayId?: string | null } | null; quantidade?: number | null };
+export type PedidoDeMexer = { maquina: string; sai: OcupanteDaImpressora; entra?: { id: string; displayId?: string | null } | null; quantidade?: number | null; /** De qual RESERVA saem as unidades da que entra (o modal abriu da fila de outra impressora). */ reservaDe?: string | null };
 export function useMexerNaImpressora({ onSucesso }: { onSucesso?: () => void } = {}) {
   const { toast } = useToast();
   return useMutation({
     mutationFn: async (v: PedidoDeMexer) =>
       v.entra
-        ? await apiRequest("POST", `/api/grafica/maquinas/${v.maquina}/trocar`, { tirarItemId: v.sai.id, colocarItemId: v.entra.id, ...(v.quantidade != null ? { quantidade: v.quantidade } : {}) })
+        ? await apiRequest("POST", `/api/grafica/maquinas/${v.maquina}/trocar`, { tirarItemId: v.sai.id, colocarItemId: v.entra.id, ...(v.quantidade != null ? { quantidade: v.quantidade } : {}), ...(v.reservaDe ? { reservaDe: v.reservaDe } : {}) })
         : await apiRequest("POST", `/api/grafica/maquinas/${v.maquina}/pausar`, { itemId: v.sai.id }),
     onSuccess: (_r, v) => {
       invalidarTudo();
@@ -496,6 +496,15 @@ export function FormularioDeImpressao({ item, onFechar, padModal, mutacoes, abri
   const jaSairam = dividida && parte ? parte.impressas : producedOf(item);
   const restanteAqui = Math.max(0, teto - jaSairam);
   const alvo = isMobile ? 48 : 44;
+  // A peça do modal é trocada pela da fila nova (depois de um 409, ou do
+  // lançamento de um colega): o TOTAL absoluto do modo "corrigir" nasce de novo
+  // do número novo — senão ele gravaria por cima do que o colega lançou.
+  const jaSairamRef = useRef(jaSairam);
+  useEffect(() => {
+    if (jaSairamRef.current === jaSairam) return;
+    jaSairamRef.current = jaSairam;
+    setQuantidadeTotal(jaSairam);
+  }, [jaSairam]);
 
   const iniciarOuTrocar = () => {
     if (!maquinaEscolhida || startPrintingMutation.isPending) return;
@@ -535,7 +544,10 @@ export function FormularioDeImpressao({ item, onFechar, padModal, mutacoes, abri
         return;
       }
       if (total < jaSairam && !window.confirm(`Reduz o que consta impresso na ${rotuloDaMaquina(maquinaAtual)} de ${jaSairam} para ${total} un. Confirmar?`)) return;
-      payload = { quantityProduced: producedOf(item) - jaSairam + total, expectedProduced: producedOf(item), printMachine: maquinaAtual, maquina: maquinaAtual, impressasNaMaquina: total };
+      // `expectedNaMaquina`: o lock otimista da PARTE — quem lança na outra
+      // impressora da mesma peça não vira conflito (o servidor soma sobre a
+      // linha travada); quem lançou NESTA parte, sim.
+      payload = { quantityProduced: producedOf(item) - jaSairam + total, expectedProduced: producedOf(item), expectedNaMaquina: jaSairam, printMachine: maquinaAtual, maquina: maquinaAtual, impressasNaMaquina: total };
     } else {
       // O servidor grava o TOTAL produzido (contrato ABSOLUTO). `avaliarProducao`
       // valida o teto, monta o lock otimista e diz quando a gravação REDUZ o
@@ -672,7 +684,7 @@ export function FormularioDeImpressao({ item, onFechar, padModal, mutacoes, abri
             <button
               type="button"
               disabled={!podeTrocarNoLugar}
-              onClick={() => { if (podeTrocarNoLugar) mexerNaImpressoraMutation.mutate({ maquina: maquinaEscolhida, sai: quemSai, entra: { id: item.id, displayId: item.displayId }, quantidade: conta.n }); }}
+              onClick={() => { if (podeTrocarNoLugar) mexerNaImpressoraMutation.mutate({ maquina: maquinaEscolhida, sai: quemSai, entra: { id: item.id, displayId: item.displayId }, quantidade: conta.n, ...(conta.reservadas > 0 && conta.origem !== maquinaEscolhida ? { reservaDe: conta.origem } : {}) }); }}
               data-testid="button-imprimir-no-lugar"
               style={{ minHeight: alvo, padding: "0 12px", borderRadius: R.md, border: "none", background: T.text, color: "#fff", fontFamily: GROTESK, fontWeight: 700, fontSize: 14, cursor: podeTrocarNoLugar ? "pointer" : "not-allowed", opacity: podeTrocarNoLugar ? 1 : 0.55 }}
             >

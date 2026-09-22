@@ -33,6 +33,10 @@ const STATUS = ler("client/src/lib/status.ts");
 const GRAFICA = ler("client/src/pages/grafica.tsx");
 const FICHA = ler("client/src/components/item-details-dialog.tsx");
 const MODAL = ler("client/src/components/grafica/modal-impressao.tsx");
+// Desde 22/09 a conta do iniciar e do lançar mora em funções puras (shared),
+// chamadas pela rota sobre a linha TRAVADA.
+const RESERVA_SRC = ler("shared/reserva-de-impressora.ts");
+const DIVIDIDA = ler("shared/impressao-dividida.ts");
 
 describe("as máquinas", () => {
   it("são 1, 2, 3 e 4 — o banco guarda o código, a tela lê o nome do dono (21/09)", () => {
@@ -71,18 +75,19 @@ describe("o primeiro momento: iniciar a impressão", () => {
   });
 
   it("leva a peça para 'Em Impressão' e guarda a máquina", () => {
-    expect(rota).toContain('status: "inProduction",');
-    expect(rota).toContain("printMachine,");
+    expect(RESERVA_SRC).toContain('set: { status: "inProduction", printMachine: principal, impressaoPorMaquina, ...reserva }');
+    expect(rota).toContain("...plano.set,");
+    expect(rota).toContain("const pedido = { printMachine,");
   });
 
   it("respeita as mesmas guardas de quem imprime: evento finalizado e revisão", () => {
-    expect(rota).toContain("barraEventoFinalizado(current, res)");
+    expect(rota).toContain("barraEventoFinalizado(antes, res)");
     expect(rota).toContain("EM_REVISAO.has(current.status)");
   });
 
   it("não aceita peça sem nada a imprimir nem 'trocar' para a mesma máquina", () => {
     expect(rota).toContain("Nada a imprimir");
-    expect(rota).toContain("A peça já está na");
+    expect(RESERVA_SRC).toContain("A peça já está na");
   });
 
   it("deixa rastro na trilha — inclusive quando só troca de máquina", () => {
@@ -93,9 +98,10 @@ describe("o primeiro momento: iniciar a impressão", () => {
 
 describe("o segundo momento: registrar o que saiu", () => {
   it("o servidor aceita a máquina junto e recusa máquina inválida", () => {
-    expect(ITEMS).toContain("const { expectedProduced, printMachine, maquina, impressasNaMaquina } = req.body;");
+    expect(ITEMS).toContain("const { printMachine, maquina } = req.body;");
     expect(ITEMS).toContain("if (printMachine != null && !ehMaquinaValida(printMachine))");
-    expect(ITEMS).toContain(": (printMachine ? { printMachine } : {})),");
+    // A enviada só vale para a peça SEM impressora (22/09): trocar é o start-printing.
+    expect(DIVIDIDA).toContain(": (!maquinaAtual && maquinaNaoDividida ? { printMachine: maquinaNaoDividida } : {})),");
   });
 
   it("a máquina viaja no payload do registro", () => {
@@ -175,7 +181,7 @@ describe("a impressão é informada AOS POUCOS (dono, 14/09)", () => {
   });
 
   it("servidor: parcial fica Em Impressão; todas impressas vão para Impresso / Acabamento", () => {
-    expect(ITEMS).toContain('? "produced"\n          : "inProduction";');
+    expect(DIVIDIDA).toContain('const novoStatus = produzida ? "produced" : voltouParaAFila ? "ready_for_production" : "inProduction";');
   });
 
   it("servidor: a conferência exige foto e só vira Conferido quando confere tudo", () => {

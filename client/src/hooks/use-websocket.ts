@@ -328,11 +328,12 @@ export function useWebSocket() {
 
           case 'production_started':
           case 'production_updated':
-            toast({
-              // "Impressão" (14/09): o status inProduction chama-se Em Impressão.
-              title: data.type === 'production_started' ? 'Impressão iniciada' : 'Impressão atualizada',
-              description: data.item?.type ? `Peça ${data.item.type} atualizada` : undefined,
-            });
+            // SEM toast (revisão adversarial, 22/09): o servidor manda
+            // `production_started` a cada lançamento de impressas — no galpão
+            // era "Impressão iniciada" pipocando na tela de TODO mundo o dia
+            // inteiro, inclusive para quem nem lida com impressão. As chaves
+            // já foram invalidadas acima (chavesDaMensagem); quem fez o gesto
+            // recebe o próprio toast da mutation, com a frase certa.
             break;
 
           case 'deadline_alert':

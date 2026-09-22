@@ -39,8 +39,8 @@ export const estaLiberada = (p: { status?: string | null } | null | undefined): 
  * "3 de 10 impressas · 7 na impressora" — quantas já foram para o acabamento e
  * quantas ainda estão na máquina. Com zero: "nenhuma saiu ainda · 10 na impressora".
  */
-export function progressoDaImpressao(impressas: number, teto: number): string {
-  const naImpressora = Math.max(0, teto - impressas);
+export function progressoDaImpressao(impressas: number, teto: number, /** Quantas estão NA impressora, quando não é teto − impressas (peça por partes: o resto está reservado ou sem impressora). */ naImpressoraDito?: number): string {
+  const naImpressora = naImpressoraDito ?? Math.max(0, teto - impressas);
   const inicio = impressas <= 0 ? "nenhuma saiu ainda" : `${impressas} de ${teto} impressa${impressas === 1 ? "" : "s"}`;
   return `${inicio} · ${naImpressora} na impressora`;
 }
@@ -91,13 +91,21 @@ export function numerosDaImpressao(p: PecaReservavel, maquina?: string | null): 
   const feitas = parte ? parte.impressas : feitasDaPeca;
   const teto = parte ? parte.atrib : tetoDaPeca;
   const dividida = estaDividida(p);
+  // "Na impressora" (revisão adversarial, 22/09): na peça POR PARTES sem
+  // `maquina` (a linha da Gráfica), é a SOMA do que falta nas partes ATIVAS —
+  // não teto − impressas, que contava como "na impressora" o que está
+  // reservado a outra ou sem impressora ("4 de 28 · 24 na impressora" aqui ×
+  // "4 de 10" no cartão de Máquinas). O reservado aparece no selo "Fila:".
+  const naImpressora = porPartes && !parte
+    ? Object.values(partesAtivas(partes)).reduce((s, x) => s + Math.max(0, x.atrib - x.impressas), 0)
+    : Math.max(0, teto - feitas);
   return {
-    feitas, teto, naImpressora: Math.max(0, teto - feitas),
+    feitas, teto, naImpressora,
     feitasDaPeca, tetoDaPeca,
     semImpressora: estaEmImpressao(p) || estaLiberada(p) ? semImpressora(p) : 0,
     dividida, daParte: !!parte, partes,
     onde: dividida ? resumoDaDivisao(partes) : p.printMachine ? rotuloDaMaquina(p.printMachine) : null,
-    frase: progressoDaImpressao(feitas, teto),
+    frase: progressoDaImpressao(feitas, teto, naImpressora),
   };
 }
 
@@ -109,18 +117,18 @@ export function numerosDaImpressao(p: PecaReservavel, maquina?: string | null): 
  * foi TIRADA da impressora para dar lugar a outra diz "Pausada" na frente — é
  * o que o cartão de Máquinas diz ("Pausada — volta primeiro"). null sem reserva.
  */
-export function fraseDaFila(p: PecaReservavel): string | null {
+export function fraseDaFila(p: PecaReservavel, opcoes: { /** Peça JÁ em impressão com parte reservada: sempre com o número, e sem o "sem impressora" (a linha de progresso já diz). */ emImpressao?: boolean } = {}): string | null {
   const reserva = reservaDaPeca(p);
   const maquinas = MAQUINAS_DE_IMPRESSAO.filter((m) => (reserva[m] ?? 0) > 0);
   // Só o atalho antigo (maquina_prevista) sem número para reservar: diz a impressora.
-  if (!maquinas.length) return p.maquinaPrevista && MAQUINAS_DE_IMPRESSAO.includes(p.maquinaPrevista) ? `Fila: ${rotuloDaMaquina(p.maquinaPrevista)}` : null;
+  if (!maquinas.length) return opcoes.emImpressao ? null : p.maquinaPrevista && MAQUINAS_DE_IMPRESSAO.includes(p.maquinaPrevista) ? `Fila: ${rotuloDaMaquina(p.maquinaPrevista)}` : null;
   const sem = semImpressora(p);
   const pausada = maquinas.some((m) => !!lerPausas(p.reservaPorMaquina)[m]);
-  const tudoNumaSo = maquinas.length === 1 && sem === 0;
+  const tudoNumaSo = maquinas.length === 1 && sem === 0 && !opcoes.emImpressao;
   const fila = tudoNumaSo
     ? rotuloDaMaquina(maquinas[0])
     : maquinas.map((m) => `${rotuloDaMaquina(m)} (${reserva[m]})`).join(" · ");
-  return `${pausada ? "Pausada · " : ""}Fila: ${fila}${sem > 0 ? ` · ${sem} sem impressora` : ""}`;
+  return `${pausada ? "Pausada · " : ""}Fila: ${fila}${sem > 0 && !opcoes.emImpressao ? ` · ${sem} sem impressora` : ""}`;
 }
 
 // ─── De qual impressora é a peça ──────────────────────────────────────────────

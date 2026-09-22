@@ -25,7 +25,7 @@
 // para um F5 — ou um link colado — abrir o mesmo recorte.
 // ─────────────────────────────────────────────────────────────────────────────
 import { Fragment, createContext, useContext, memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useIsMutating } from "@tanstack/react-query";
 import { Link, useLocation, useSearch } from "wouter";
 import {
   AlertTriangle, ArrowLeft, ArrowLeftRight, ArrowRight, BarChart3, ChevronDown, ChevronLeft, ChevronRight, Download, ExternalLink, Eye, ListOrdered, Loader2, Play, Printer, RotateCcw, Search,
@@ -907,10 +907,18 @@ function PecaNaFilaDoCartao({ p, podeAgir, hojeMs, isMobile, proxima = false, oc
               style={{ width: isMobile ? 84 : 64, ...(isMobile ? { flex: "0 0 84px" } : {}), minHeight: alvo, height: alvo, boxSizing: "border-box", textAlign: "center", borderRadius: R.md, border: `1px solid ${qtdValida ? T.bdark : VERMELHO.border}`, background: T.surface, color: T.text, fontSize: isMobile ? 16 : 12, fontWeight: 700, padding: "0 6px" }}
             />
           )}
-          <SeletorDeReserva valor={p.maquinaPrevista} excluir={p.maquinaPrevista} disabled={!qtdValida || selo?.motivo === "travada"} alvo={alvo} isMobile={isMobile} testId={`mover-fila-${p.id}`} rotulo={qtd === "" ? "Mover para…" : `Mover ${qtd} para…`} onEscolher={(m) => onReservar(p, m, qtd === "" ? null : qtd)} />
+          <SeletorDeReserva valor={p.maquinaPrevista} excluir={p.maquinaPrevista} disabled={!qtdValida || !!selo} alvo={alvo} isMobile={isMobile} testId={`mover-fila-${p.id}`} rotulo={qtd === "" ? "Mover para…" : `Mover ${qtd} para…`} onEscolher={(m) => onReservar(p, m, qtd === "" ? null : qtd)} />
           </div>
           )}
         </div>
+      )}
+      {/* BLOQUEADA (evento finalizado ou travada): nada de iniciar nem mover —
+          mas DEVOLVER à fila geral é recuo e sempre passa (revisão adversarial,
+          22/09): sem isto a peça ficava presa no topo da fila da impressora. */}
+      {podeAgir && selo && (
+        <button type="button" className="mq-acao" onClick={() => onReservar(p, null, null)} data-testid={`button-devolver-fila-${p.id}`} title="Tirar esta peça da fila desta impressora — ela volta para a fila geral" style={{ alignSelf: isMobile ? "stretch" : "flex-start", minHeight: alvo, padding: "0 12px", borderRadius: R.md, border: `1px solid ${T.bdark}`, background: T.surface, color: T.text, fontSize: isMobile ? 13 : 12, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}>
+          Devolver à fila geral
+        </button>
       )}
       {/* Travada pela Solicitação: o MESMO selo da Gráfica, à vista (não só no title). */}
       {selo?.motivo === "travada" && (
@@ -1410,6 +1418,37 @@ export default function GraficaMaquinas() {
   // Do cartão: inicia SÓ a parte reservada àquela impressora (o servidor
   // consome essa reserva; as outras da peça continuam valendo).
   const iniciarDaFila = (p: PecaNaFila) => setPecaNoModal({ peca: p, trocar: false, maquinaInicial: p.maquinaPrevista, parte: p.reservadas != null ? { quantidade: p.reservadas, daReserva: true } : null });
+  // A PEÇA DO MODAL ACOMPANHA O RETRATO (revisão adversarial, 22/09): o modal
+  // guardava a cópia do momento em que abriu — depois de um 409 (um colega
+  // lançou impressas na mesma parte) o retrato recarregava e o modal seguia com
+  // o `jaSairam`/`expectedProduced` VELHOS, batendo no mesmo 409 a cada
+  // tentativa. Agora a peça é trocada pela do retrato novo, no MESMO lugar
+  // (cartão da mesma impressora, ou a mesma fila). Com qualquer gravação em voo
+  // não mexe: o eco do próprio gesto chega antes da resposta.
+  const gravando = useIsMutating();
+  useEffect(() => {
+    if (!pecaNoModal || !data || gravando > 0) return;
+    const atual = pecaNoModal.peca;
+    const daFila = (atual as PecaNaFila).semImpressora !== undefined;
+    let fresca: PecaNaMaquina | undefined;
+    if (daFila) {
+      const prevista = (atual as PecaNaFila).maquinaPrevista;
+      const fila = prevista ? data.maquinas.find((m) => m.codigo === prevista)?.naFila ?? [] : data.filaGeral ?? [];
+      fresca = fila.find((x) => x.id === atual.id);
+    } else {
+      fresca = data.maquinas.find((m) => m.codigo === atual.maquina)?.imprimindo.find((x) => x.id === atual.id)
+        ?? (data.semMaquina ?? []).find((x) => x.id === atual.id);
+    }
+    if (fresca === atual) return;
+    if (!fresca) {
+      // Saiu daquele lugar (mandada para o acabamento, tirada da impressora…): fecha e diz por quê.
+      setPecaNoModal(null);
+      toast({ title: `${atual.displayId ?? "A peça"} mudou enquanto o modal estava aberto`, description: "Outra pessoa mexeu nela — o cartão está atualizado." });
+      return;
+    }
+    setPecaNoModal({ ...pecaNoModal, peca: fresca });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data, gravando]);
   const hojeMs = todayBusinessMs();
 
   // ── Reservar impressora (fila geral ↔ fila da impressora) ─────────────────
@@ -1780,6 +1819,10 @@ export default function GraficaMaquinas() {
                 {maquinas.map((m) => {
                   const ocupada = m.imprimindo.length > 0;
                   const naFila = ordenarFila(m.naFila ?? []);
+                  // "Próxima" é a primeira que PODE entrar (revisão adversarial,
+                  // 22/09): a peça de evento finalizado ou travada, pausada no
+                  // topo, não fica anunciada como a próxima — ela só oferece "Devolver".
+                  const idDaProxima = naFila.find((x) => !seloDaPecaNaMaquina(x, hojeMs))?.id ?? null;
                   return (
                     <article key={m.codigo} aria-label={m.rotulo} data-testid={`maquina-agora-${m.codigo}`} data-em-foco={maquinaEmFoco === m.codigo || undefined} style={{ ...(maquinaEmFoco === m.codigo ? { boxShadow: `0 0 0 3px ${IMP.border}` } : {}), background: T.surface, border: `1px solid ${maquinaEmFoco === m.codigo ? IMP.text : ocupada ? IMP.border : T.border}`, borderRadius: R.lg, padding: 14, display: "flex", flexDirection: "column", gap: 10 }}>
                       {/* O nome inteiro ("Impressora 1 (New XT)") quebra em duas
@@ -1816,8 +1859,8 @@ export default function GraficaMaquinas() {
                       {naFila.length > 0 && (
                         <div data-testid={`fila-maquina-${m.codigo}`} style={{ display: "flex", flexDirection: "column", gap: 2, marginTop: 2 }}>
                           <div style={{ ...ROTULO_MICRO, fontSize: isMobile ? 12 : FS.micro, paddingTop: 6 }}>Na fila desta impressora · {naFila.length}</div>
-                          {(!filasAbertas.has(m.codigo) ? naFila.slice(0, isMobile ? FILA_DO_CARTAO_NO_CELULAR : FILA_DO_CARTAO_NO_DESKTOP) : naFila).map((p, i) => (
-                            <PecaNaFilaDoCartao key={p.id} p={p} proxima={!ocupada && i === 0} ocupante={ocupada ? ocupacao[m.codigo]?.atual ?? null : null} mexendo={mexerNaImpressora.isPending} onTrocar={(entra, sai) => mexer({ maquina: m.codigo, sai, entra, quantidade: entra.reservadas ?? null })} podeAgir={podeAgir} hojeMs={hojeMs} isMobile={isMobile} onIniciar={iniciarDaFila} onReservar={(peca, maquina, quantidade) => reservar([peca.id], maquina, quantidade ?? (peca.reservadas != null ? peca.reservadas : null), peca.reservadas != null ? m.codigo : null)} />
+                          {(!filasAbertas.has(m.codigo) ? naFila.slice(0, isMobile ? FILA_DO_CARTAO_NO_CELULAR : FILA_DO_CARTAO_NO_DESKTOP) : naFila).map((p) => (
+                            <PecaNaFilaDoCartao key={p.id} p={p} proxima={!ocupada && p.id === idDaProxima} ocupante={ocupada ? ocupacao[m.codigo]?.atual ?? null : null} mexendo={mexerNaImpressora.isPending} onTrocar={(entra, sai) => mexer({ maquina: m.codigo, sai, entra, quantidade: entra.reservadas ?? null })} podeAgir={podeAgir} hojeMs={hojeMs} isMobile={isMobile} onIniciar={iniciarDaFila} onReservar={(peca, maquina, quantidade) => reservar([peca.id], maquina, quantidade ?? (peca.reservadas != null ? peca.reservadas : null), peca.reservadas != null ? m.codigo : null)} />
                           ))}
                           {!filasAbertas.has(m.codigo) && naFila.length > (isMobile ? FILA_DO_CARTAO_NO_CELULAR : FILA_DO_CARTAO_NO_DESKTOP) && (
                             <button type="button" className="mq-acao" onClick={() => setFilasAbertas((s) => new Set(s).add(m.codigo))} data-testid={`fila-maquina-ver-todas-${m.codigo}`} style={{ ...botaoNeutro, width: "100%", fontSize: 13 }}>

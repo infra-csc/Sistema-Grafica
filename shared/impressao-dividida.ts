@@ -190,3 +190,149 @@ export function resumoDaDivisao(partes: PartesPorMaquina): string {
     .map(([m, x]) => `${rotuloDaMaquina(m)} · ${x.impressas} de ${x.atrib} un.`)
     .join(" / ");
 }
+
+// ─── O LANÇAMENTO DE IMPRESSAS, PURO (revisão adversarial, 22/09) ─────────────
+// PATCH /start-production lia a peça FORA da transação e gravava só `where id`:
+// dois lançamentos simultâneos em impressoras diferentes da MESMA peça dividida
+// partiam da mesma leitura, e o segundo apagava as impressas do primeiro (o
+// jsonb inteiro é regravado). Agora a rota trava a linha (SELECT … FOR UPDATE)
+// e chama ESTA função sobre a linha travada: o segundo lançamento enxerga o
+// primeiro e soma a parte dele, em vez de sobrescrevê-la.
+//
+// Pura: a mesma conta para a rota e para o teste de comportamento, que simula
+// duas leituras concorrentes (server/__tests__/impressao-revisao-adversarial).
+
+/** A peça como a linha do banco a entrega (o mínimo que o lançamento lê). */
+export type PecaParaLancar = PecaDividivel & {
+  status?: string | null;
+  quantity: number | string;
+  productionStartedAt?: Date | string | null;
+  producedAt?: Date | string | null;
+  travadaEm?: Date | string | null;
+};
+
+/** O corpo do PATCH /start-production. */
+export type PedidoDeLancamento = {
+  quantityProduced?: unknown;
+  expectedProduced?: unknown;
+  /** Peça por partes: o que o operador leu NA PARTE desta impressora. */
+  expectedNaMaquina?: unknown;
+  printMachine?: unknown;
+  maquina?: unknown;
+  impressasNaMaquina?: unknown;
+};
+
+/** Marca do erro de trava: a rota troca pela frase e pelo código de shared/trava-da-peca. */
+export const ERRO_LANCAMENTO_TRAVADA = "__TRAVADA__";
+
+export type PlanoDeLancamento =
+  | { ok: false; status: number; corpo: { error: string; code?: string; actualProduced?: number } }
+  | {
+    ok: true;
+    /** As colunas a gravar — tudo sai daqui, inclusive updatedAt/statusChangedAt. */
+    set: Record<string, unknown>;
+    quantityProduced: number;
+    jaProduzido: number;
+    novoStatus: "produced" | "inProduction" | "ready_for_production";
+    /** A impressora do registro no diário (null = sem o que anotar). */
+    maquinaDoRegistro: string | null;
+    /** A última parte ativa esgotou sem fechar a peça: ela voltou para a fila. */
+    voltouParaAFila: boolean;
+  };
+
+const EM_IMPRESSAO_LANC = ["inProduction", "em_producao"];
+const numeroExato = (v: unknown): number => (typeof v === "number" ? v : typeof v === "string" && v.trim() !== "" ? Number(v) : NaN);
+
+export function planejarLancamentoDeImpressas(peca: PecaParaLancar, pedido: PedidoDeLancamento, agora: Date): PlanoDeLancamento {
+  const erro = (status: number, error: string, extra: { code?: string; actualProduced?: number } = {}) => ({ ok: false as const, status, corpo: { error, ...extra } });
+  // Travada pela Solicitação: nem informar impressas, nem mandar para o acabamento.
+  if (peca.travadaEm) return erro(409, ERRO_LANCAMENTO_TRAVADA);
+  const maquina = typeof pedido.maquina === "string" ? pedido.maquina : null;
+  const printMachine = typeof pedido.printMachine === "string" ? pedido.printMachine : null;
+
+  let partesDepois: PartesPorMaquina | null = null;
+  let quantityProduced: number;
+  const porPartes = !!lerPartes(peca.impressaoPorMaquina);
+  if (porPartes) {
+    // Por partes, o total da peça é a SOMA das partes: sem dizer a impressora
+    // o lançamento descolaria o total do jsonb.
+    if (maquina == null || pedido.impressasNaMaquina == null) {
+      return erro(409, "Peça dividida entre impressoras: informe a impressora e quantas saíram dela");
+    }
+    const partes = partesDaPeca(peca);
+    const parte = partes[maquina];
+    const n = numeroExato(pedido.impressasNaMaquina);
+    if (!parte) return erro(409, `A peça não tem unidades na ${rotuloDaMaquina(maquina)}`);
+    if (!Number.isInteger(n) || n < 0) return erro(400, "Informe um número inteiro de unidades impressas");
+    if (n > parte.atrib) return erro(400, `Máximo ${parte.atrib} un. na ${rotuloDaMaquina(maquina)} — é o que foi atribuído a ela`);
+    partesDepois = { ...partes, [maquina]: { atrib: parte.atrib, impressas: n } };
+    quantityProduced = totalImpressas(partesDepois);
+  } else {
+    quantityProduced = numeroExato(pedido.quantityProduced);
+    // Fração (0,5) chegava ao banco (coluna inteira) e virava 500: recusa com frase.
+    if (pedido.quantityProduced != null && !Number.isInteger(quantityProduced)) return erro(400, "Informe um número inteiro de unidades impressas");
+  }
+  if (!(quantityProduced > 0)) return erro(400, "quantityProduced is required and must be greater than 0");
+
+  const qtd = parseInt(String(peca.quantity), 10) || 0;
+  const reuso = inteiro(peca.reuseQty);
+  const jaProduzido = inteiro(peca.quantityProduced);
+  // Lançamento que não muda nada e não conclui a peça: nada a gravar nem anotar.
+  const fecha = quantityProduced + reuso >= qtd;
+  if (quantityProduced === jaProduzido && !fecha) return erro(409, `Nada mudou: já constam ${jaProduzido} un. impressas.`);
+  // Informar impressas é gesto de peça EM IMPRESSÃO: a pausada (liberada, no
+  // topo da fila) volta pelo start-printing, que checa a impressora ocupada.
+  if (!EM_IMPRESSAO_LANC.includes(peca.status ?? "")) {
+    return erro(409, "A peça não está em impressão — inicie a impressão antes de informar as impressas");
+  }
+
+  // O lock otimista, agora sobre a linha TRAVADA. Peça por partes com
+  // `expectedNaMaquina`: compara só a parte desta impressora — dois operadores
+  // em impressoras diferentes não se atrapalham (a soma é refeita aqui, sobre
+  // a linha já com o lançamento do outro); dois na MESMA parte recebem o 409.
+  if (porPartes && maquina && pedido.expectedNaMaquina != null) {
+    const naParte = partesDaPeca(peca)[maquina]?.impressas ?? 0;
+    const visto = numeroExato(pedido.expectedNaMaquina);
+    if (visto !== naParte) {
+      return erro(409, `Outra pessoa lançou impressas na ${rotuloDaMaquina(maquina)}: agora constam ${naParte} un. nela (você viu ${visto}). Confira o número e lance de novo.`, { code: "PRODUCTION_CONFLICT", actualProduced: jaProduzido });
+    }
+  } else if (pedido.expectedProduced != null && numeroExato(pedido.expectedProduced) !== jaProduzido) {
+    return erro(409, `Outra pessoa lançou produção nesta peça: agora são ${jaProduzido} un. produzidas (você viu ${numeroExato(pedido.expectedProduced)}). Confira o número e lance de novo.`, { code: "PRODUCTION_CONFLICT", actualProduced: jaProduzido });
+  }
+
+  // Teto: produzido + reaproveitado não passa da quantidade da peça.
+  if (quantityProduced + reuso > qtd) {
+    return erro(400, `Quantidade inválida: ${quantityProduced} produzida(s) + ${reuso} reaproveitada(s) excede as ${qtd} un. da peça`);
+  }
+
+  const produzida = fecha;
+  // LIMBO: a última parte ativa esgotou, mas a peça não fechou (o resto está
+  // reservado a outra impressora ou sem impressora): volta a LIBERADA.
+  const voltouParaAFila = !produzida && !!partesDepois && Object.keys(partesAtivas(partesDepois)).length === 0;
+  const novoStatus = produzida ? "produced" : voltouParaAFila ? "ready_for_production" : "inProduction";
+  // Não dividida: a impressora da peça NÃO muda por aqui (trocar é o
+  // start-printing, com a checagem de ocupada) — uma `printMachine` diferente
+  // da atual é ignorada. Só a peça antiga, sem impressora anotada, aceita a enviada.
+  const maquinaAtual = peca.printMachine ?? null;
+  const maquinaNaoDividida = maquinaAtual ?? (printMachine && MAQUINAS_DE_IMPRESSAO.includes(printMachine) ? printMachine : null);
+  const set: Record<string, unknown> = {
+    status: novoStatus,
+    quantityProduced,
+    updatedAt: agora,
+    // O carimbo de "desde quando" quando a etapa muda (Produzido, ou de volta à fila).
+    ...(novoStatus !== peca.status ? { statusChangedAt: agora } : {}),
+    ...(!peca.productionStartedAt ? { productionStartedAt: agora } : {}),
+    ...(partesDepois
+      ? { impressaoPorMaquina: partesDepois, printMachine: maquinaPrincipal(partesDepois, maquina) ?? maquinaAtual }
+      : (!maquinaAtual && maquinaNaoDividida ? { printMachine: maquinaNaoDividida } : {})),
+    ...(voltouParaAFila ? { impressaoPorMaquina: null, printMachine: null } : {}),
+    // Qualquer caminho que feche a peça apaga a divisão e o que sobrou de reserva.
+    ...(produzida ? { impressaoPorMaquina: null, reservaPorMaquina: null, maquinaPrevista: null } : {}),
+    // produced_at: a trilha temporal da ficha ganha a etapa "Produzido".
+    ...(produzida && !peca.producedAt ? { producedAt: agora } : {}),
+  };
+  return {
+    ok: true, set, quantityProduced, jaProduzido, novoStatus, voltouParaAFila,
+    maquinaDoRegistro: partesDepois ? maquina : maquinaNaoDividida,
+  };
+}

@@ -99,17 +99,33 @@ const imprimiu = (r: RegistroDoPeriodo) => r.tipo === "parcial" || r.tipo === "c
  * cada um com as quatro impressoras — inclusive as que não imprimiram nada,
  * para a tabela ter sempre a mesma forma.
  *
- * "Ainda na máquina": peça que passou pela impressora no dia e cujo ÚLTIMO
- * lançamento no período (em qualquer máquina) ainda a deixa nela — não
- * concluiu nem foi trocada para outra. É a leitura do próprio diário, então
+ * "Ainda na máquina": peça que passou pela impressora no dia e que, no fim do
+ * período, ainda tem parte nela — não concluiu, não foi tirada (pausa) nem
+ * trocada para outra; a peça dividida conta em CADA impressora em que ainda
+ * está. É a leitura do próprio diário, então
  * vale para dias passados; o retrato "Agora" continua sendo o do banco.
  */
 export function agregarRelatorioDeMaquinas(registros: RegistroDoPeriodo[]): ResumoDoDia[] {
   const emOrdem = [...registros].sort((a, b) => a.em - b.em);
 
-  // Onde cada peça terminou o período: a última máquina e o último gesto.
-  const ultimoDaPeca = new Map<string, RegistroDoPeriodo>();
-  for (const r of emOrdem) ultimoDaPeca.set(r.itemId, r);
+  // Em QUAIS impressoras cada peça terminou o período (revisão adversarial,
+  // 22/09). Era "a máquina do último registro": a peça DIVIDIDA (parte na 1 e
+  // na 2) contava só numa delas. Agora cada gesto mexe no conjunto:
+  //   · inicio / parcial na M → está na M;
+  //   · troca para a M → está na M e sai das outras (o registro não diz se a
+  //     origem esvaziou; o próximo lançamento nela a traz de volta);
+  //   · pausa na M → saiu da M (tirar, cancelar, correção, e o LIMBO — a
+  //     última parte esgotou sem fechar, e a peça voltou para a fila);
+  //   · conclusao → saiu de todas.
+  const ondeTerminou = new Map<string, Set<string>>();
+  for (const r of emOrdem) {
+    const onde = ondeTerminou.get(r.itemId) ?? new Set<string>();
+    if (r.tipo === "conclusao") onde.clear();
+    else if (r.tipo === "pausa") onde.delete(r.maquina);
+    else if (r.tipo === "troca") { onde.clear(); onde.add(r.maquina); }
+    else onde.add(r.maquina);
+    ondeTerminou.set(r.itemId, onde);
+  }
 
   const porDia = new Map<string, RegistroDoPeriodo[]>();
   for (const r of emOrdem) {
@@ -124,11 +140,8 @@ export function agregarRelatorioDeMaquinas(registros: RegistroDoPeriodo[]): Resu
       const daMaquina = doDia.filter((r) => r.maquina === codigo);
       const pecas = new Set(daMaquina.map((r) => r.itemId));
       const concluidas = new Set(daMaquina.filter((r) => r.tipo === "conclusao").map((r) => r.itemId));
-      const aindaNaMaquina = Array.from(pecas).filter((id) => {
-        const u = ultimoDaPeca.get(id);
-        // Concluída ou TIRADA da impressora (pausa) não está mais nela.
-        return !!u && u.maquina === codigo && u.tipo !== "conclusao" && u.tipo !== "pausa";
-      });
+      // Concluída, TIRADA da impressora (pausa) ou trocada para outra não está mais nela.
+      const aindaNaMaquina = Array.from(pecas).filter((id) => ondeTerminou.get(id)?.has(codigo) ?? false);
       const primeira = daMaquina[0] ?? null;
       const ultima = daMaquina[daMaquina.length - 1] ?? null;
       const quem = Array.from(new Set(daMaquina.map((r) => r.quem).filter((q): q is string => !!q)));

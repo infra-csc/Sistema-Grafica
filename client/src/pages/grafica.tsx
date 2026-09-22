@@ -47,11 +47,12 @@ import { GalpaoFila, type GalpaoDados } from "@/components/galpao-fila";
 import { SugestaoRecebedor } from "@/components/sugestao-recebedor";
 import { EM_REVISAO, rotuloDaMaquina, podeIrParaTubo, MAQUINAS_DE_IMPRESSAO } from "@shared/fluxo-peca";
 import { estaDividida, partesDaPeca, resumoDaDivisao } from "@shared/impressao-dividida";
+import { partesAtivas } from "@shared/impressao-dividida";
 import { semImpressora } from "@shared/reserva-de-impressora";
 // A peça na impressora em UMA fonte (21/09: "Máquinas e Gráfica têm que se
 // conversar"): os números, o selo da fila, quem ocupa cada impressora e os
 // links de ida e volta são os mesmos do cartão de Máquinas.
-import { numerosDaImpressao, fraseDaFila, ocupacaoDasImpressoras, linkDaImpressoraEmMaquinas, estaEmImpressao } from "@shared/progresso-da-impressao";
+import { numerosDaImpressao, fraseDaFila, ocupacaoDasImpressoras, linkDaImpressoraEmMaquinas, estaEmImpressao, estaLiberada } from "@shared/progresso-da-impressao";
 import { invalidarGraficaEMaquinas } from "@/lib/tempo-real-grafica";
 // TRAVA DA SOLICITAÇÃO (21/09): a regra (quem trava, o que bloqueia, as frases)
 // mora em shared/trava-da-peca.ts; aqui só o botão, o modal e o selo.
@@ -258,6 +259,41 @@ function TravaDaPeca({ item, podeMexer, fonte, alvo, onTravar, onDestravar, dest
   );
 }
 
+/**
+ * TIRAR DA IMPRESSORA quando o modal não abre (revisão adversarial, 22/09): a
+ * peça TRAVADA ou de EVENTO FINALIZADO em impressão tinha o único "Tirar" dentro
+ * do modal — que essas peças não abrem — e prendia a impressora. Recuar nunca
+ * é barrado (o servidor também não barra quem SAI): um botão por impressora
+ * com parte ativa, com confirmação leve ali mesmo.
+ */
+function TirarDaImpressoraBloqueada({ item, fonte, alvo, pendente, onTirar }: { item: any; fonte: number; alvo: number; pendente: boolean; onTirar: (maquina: string) => void }) {
+  const [confirmando, setConfirmando] = useState<string | null>(null);
+  const partes = partesDaPeca(item);
+  const maquinas = Object.keys(partesAtivas(partes));
+  if (!maquinas.length) return null;
+  const estilo: React.CSSProperties = { minHeight: alvo, padding: "0 10px", borderRadius: 8, border: "1px solid #d6d3d1", background: "#ffffff", color: "#1c1917", fontSize: fonte, fontWeight: 700, cursor: pendente ? "wait" : "pointer", whiteSpace: "nowrap", display: "inline-flex", alignItems: "center", gap: 5 };
+  return (
+    <span data-testid={`tirar-bloqueada-${item.id}`} style={{ display: "inline-flex", flexWrap: "wrap", alignItems: "center", gap: 6 }} onClick={(e) => e.stopPropagation()}>
+      {maquinas.map((m) => {
+        const x = partes[m];
+        const falta = Math.max(0, x.atrib - x.impressas);
+        return confirmando === m ? (
+          <span key={m} role="alertdialog" aria-label="Tirar da impressora" data-testid={`confirmar-tirar-bloqueada-${item.id}-${m}`} style={{ display: "inline-flex", flexWrap: "wrap", alignItems: "center", gap: 6, fontSize: fonte, fontWeight: 700, color: "#92400e" }}>
+            <span>Tirar da {rotuloDaMaquina(m)}? {x.impressas} de {x.atrib} ficam anotadas; {falta} {falta === 1 ? "volta" : "voltam"} para a fila dela.</span>
+            <button type="button" disabled={pendente} onClick={() => { setConfirmando(null); onTirar(m); }} data-testid={`button-confirmar-tirar-bloqueada-${item.id}-${m}`} style={{ ...estilo, background: "#1c1917", color: "#ffffff", border: "none" }}>{pendente ? "Tirando…" : "Tirar"}</button>
+            <button type="button" onClick={() => setConfirmando(null)} style={estilo}>Cancelar</button>
+          </span>
+        ) : (
+          <button key={m} type="button" disabled={pendente} onClick={() => setConfirmando(m)} data-testid={`button-tirar-bloqueada-${item.id}-${m}`} title={`Tirar da ${rotuloDaMaquina(m)}: o que já saiu fica anotado e o resto volta para a fila dela — a impressora fica livre`} style={estilo}>
+            <Undo2 aria-hidden="true" style={{ width: 12, height: 12 }} />
+            {maquinas.length > 1 ? `Tirar da ${rotuloDaMaquina(m)}` : "Tirar da impressora"}
+          </button>
+        );
+      })}
+    </span>
+  );
+}
+
 /** Os atributos que DESABILITAM um botão de ação da peça travada (com o motivo no title). */
 const bloqueioDaTrava = (item: any): Record<string, unknown> =>
   pecaTravada(item) ? { disabled: true, title: fraseDaTrava(item), "data-travada": "true", "aria-disabled": true } : {};
@@ -273,7 +309,10 @@ function SeloFilaDaImpressora({ item, fonte }: { item: any; fonte: number }) {
   // A frase é a de fraseDaFila (shared): "Fila: Impressora 2", "Fila:
   // Impressora 2 (20) · 14 sem impressora", "Pausada · Fila: …" — a mesma
   // conta das filas dos cartões de Máquinas.
-  const frase = fraseDaFila(item);
+  // Peça JÁ em impressão com parte reservada a uma impressora (revisão
+  // adversarial, 22/09): o selo mostra a reserva com o número ("Fila:
+  // Impressora 1 (8)") — a linha de progresso só conta o que está NA impressora.
+  const frase = fraseDaFila(item, { emImpressao: isInProd(item) });
   if (!frase) return null;
   const maquina = String(item.maquinaPrevista ?? "");
   const dividida = frase.length > 26;
@@ -1206,6 +1245,13 @@ export default function Grafica() {
   // grafica/modal-impressao.tsx): as duas mutations, os toasts e o formulário
   // moram lá. Aqui só se diz o que fazer ao gravar — fechar o modal.
   const mutacoesDeImpressao = useMutacoesDeImpressao({ onSucesso: () => { setSelectedItem(null); setModalType(null); } });
+  // "Tirar da impressora" da peça que o modal não abre (travada / evento
+  // finalizado): o MESMO gesto (POST /pausar) do modal e do cartão de Máquinas.
+  const tirarBloqueada = (item: any, maquina: string) => {
+    const x = partesDaPeca(item)[maquina];
+    mutacoesDeImpressao.mexerNaImpressoraMutation.mutate({ maquina, sai: { id: item.id, displayId: item.displayId ?? null, impressas: x?.impressas ?? 0, teto: x?.atrib ?? 0 } });
+  };
+  const podeTirarBloqueada = (item: any, selo: unknown) => canProduce && isInProd(item) && (pecaTravada(item) || !!selo);
 
   // FEEDBACK QUE NOMEIA A PEÇA. "O item foi marcado como entregue com sucesso"
   // não diz QUAL item — e o operador em pé no galpão registra dezenas seguidas.
@@ -1536,6 +1582,31 @@ export default function Grafica() {
     else setDeliverQty(q => Math.max(1, Math.min(q, remainingDeliver(fresca))));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [items, conferMutation.isPending, markDeliveredMutation.isPending]);
+
+  // ── O MODAL DE IMPRESSÃO TAMBÉM ACOMPANHA A FILA (revisão adversarial, 22/09) ──
+  // Ficava de fora de propósito (o valor lido era a base do lock otimista),
+  // mas o efeito colateral era pior: depois de um 409 PRODUCTION_CONFLICT a fila
+  // recarregava e o modal seguia com o `jaSairam`/`expectedProduced` VELHOS —
+  // cada nova tentativa batia no mesmo 409. Agora a peça do modal é trocada
+  // pela da fila nova; o campo "saíram AGORA" é incremental, então o total
+  // enviado passa a somar sobre o número certo (e o operador o vê na linha da
+  // conta). Enquanto uma gravação da própria tela está em voo NÃO mexe: o eco do
+  // WebSocket do gesto dele chega antes da resposta e seria lido como alheio.
+  const impressaoEmVoo = mutacoesDeImpressao.startProductionMutation.isPending || mutacoesDeImpressao.startPrintingMutation.isPending
+    || mutacoesDeImpressao.mexerNaImpressoraMutation.isPending || mutacoesDeImpressao.reservarMutation.isPending;
+  useEffect(() => {
+    if (!selectedItem || modalType !== "production" || impressaoEmVoo) return;
+    const fresca = (items as any[]).find((i: any) => i.id === selectedItem.id);
+    if (!fresca || fresca === selectedItem) return;
+    // Saiu do alcance do modal (mandada para o acabamento, cancelada…): fecha e diz por quê.
+    if (!isInProd(fresca) && !estaLiberada(fresca)) {
+      setSelectedItem(null); setModalType(null);
+      toast({ title: `${selectedItem.displayId} mudou enquanto você informava`, description: `Outra pessoa já a levou para ${getStatusLabel(fresca.status)} — a fila está atualizada.` });
+      return;
+    }
+    setSelectedItem(fresca);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [items, impressaoEmVoo]);
 
   // Filtros facetados: cada dropdown lista só o que existe no recorte atual,
   // aplicando os OUTROS filtros ativos (com contagem por opção) — o
@@ -3956,7 +4027,7 @@ export default function Grafica() {
                             ocupa a linha inteira do cartão (flexBasis 100%). */}
                         {isInProd(item) && <span style={{ flexBasis: '100%' }}><ProgressoImpressao item={item} fonte={12} onIniciarResto={podeProduzirPeca && !selo ? () => openProductionModal(item, true) : undefined} /></span>}
                         {(pecaTravada(item) || podeMexerNaTrava(item)) && <span style={{ flexBasis: '100%' }}>{travaDaLinha(item, 12, 44)}</span>}
-                        {!isInProd(item) && item.maquinaPrevista && <SeloFilaDaImpressora item={item} fonte={12} />}
+                        {(isInProd(item) || item.maquinaPrevista) && <SeloFilaDaImpressora item={item} fonte={12} />}
                         {item.isReuse && <span style={{ fontSize: 12, fontWeight: 800, color: '#047857', background: '#dcfce7', border: '1px solid #86efac', borderRadius: 6, padding: '1px 6px' }}>REAPROV.</span>}
                         {/* Selo do complemento: sólido enquanto o lote está em
                             aberto (trabalho novo), outline depois de entregue —
@@ -4163,6 +4234,11 @@ export default function Grafica() {
                               <Play aria-hidden="true" style={{ width: 13, height: 13, flexShrink: 0 }} />
                               {isInProd(item) ? rotuloAcaoImpressao(item) : 'Imprimir'}
                             </button>
+                          )}
+                          {podeTirarBloqueada(item, selo) && (
+                            <span style={{ order: 0, flex: '1 1 100%' }}>
+                              <TirarDaImpressoraBloqueada item={item} fonte={13} alvo={44} pendente={mutacoesDeImpressao.mexerNaImpressoraMutation.isPending} onTirar={(m) => tirarBloqueada(item, m)} />
+                            </span>
                           )}
                           {/* REAPROVEITAR / AJUSTAR — mesma edição em linha da
                               tabela (mesmo estado, mesma mutação), só que com
@@ -4962,7 +5038,7 @@ export default function Grafica() {
                             coluna Status não alargar. */}
                         {isInProd(item) && <ProgressoImpressao item={item} fonte={10.5} duasLinhas onIniciarResto={canProduce && !seloDoItem(item) ? () => openProductionModal(item, true) : undefined} />}
                         {travaDaLinha(item, 10.5, 28)}
-                        {!isInProd(item) && item.maquinaPrevista && <div style={{ marginTop: 4 }}><SeloFilaDaImpressora item={item} fonte={10.5} /></div>}
+                        {(isInProd(item) ? !!fraseDaFila(item, { emImpressao: true }) : !!item.maquinaPrevista) && <div style={{ marginTop: 4 }}><SeloFilaDaImpressora item={item} fonte={10.5} /></div>}
                       </td>
                       {/* Ações — `sticky right` com sombra à esquerda marcando a
                           borda. `background: inherit` copia a cor da <tr>,
@@ -5325,6 +5401,9 @@ export default function Grafica() {
                               <Play aria-hidden="true" style={{ width: 13, height: 13 }} />
                               {isInProd(item) ? rotuloAcaoImpressao(item) : "Imprimir"}
                             </button>
+                          )}
+                          {!bulkOn && podeTirarBloqueada(item, selo) && (
+                            <TirarDaImpressoraBloqueada item={item} fonte={12} alvo={32} pendente={mutacoesDeImpressao.mexerNaImpressoraMutation.isPending} onTirar={(m) => tirarBloqueada(item, m)} />
                           )}
 
                           {emRevisao && (
@@ -5960,7 +6039,9 @@ export default function Grafica() {
                 formulário; trocar a peça remonta limpo, sem efeito de sync. */}
             {selectedItem && modalType === "production" && (
               <FormularioDeImpressao
-                key={`${selectedItem.id}:${iniciandoResto ? "resto" : ""}`}
+                // A etapa entra na chave: a peça que muda de "liberada" para "em impressão"
+                // (ou volta) enquanto o modal está aberto remonta o formulário certo.
+                key={`${selectedItem.id}:${iniciandoResto ? "resto" : ""}:${isInProd(selectedItem) ? "imp" : "lib"}`}
                 parteAIniciar={iniciandoResto ? { quantidade: semImpressora(selectedItem), daReserva: false } : null}
                 item={selectedItem}
                 // Uma peça por vez por impressora: quem ocupa cada impressora sai

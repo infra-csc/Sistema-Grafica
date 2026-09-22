@@ -25,7 +25,8 @@ import { partesAtivas } from "@shared/impressao-dividida";
 import { iniciarParte as iniciarParteDaPeca, colunasDaReserva, reservaDaPeca, lerReserva, encolherReserva, reescalarReservaEPartes, resumoDaReserva } from "@shared/reserva-de-impressora";
 import { partesDaPeca, moverParte, normalizarPartes, maquinaPrincipal, aImprimirDaPeca, estaDividida, totalImpressas, lerPartes, reescalarPartes, type PartesPorMaquina } from "@shared/impressao-dividida";
 // Impressão sob a linha travada (revisão adversarial, 22/09).
-import { planejarLancamentoDeImpressas, ERRO_LANCAMENTO_TRAVADA } from "@shared/impressao-dividida";
+import { planejarLancamentoDeImpressas, ERRO_LANCAMENTO_TRAVADA, eventoBarraImpressas } from "@shared/impressao-dividida";
+import { planejarConferencia } from "@shared/embalagem";
 import { planejarInicioDaImpressao, travasDoInicio } from "@shared/reserva-de-impressora";
 import {
   insertItemSchema,
@@ -42,6 +43,7 @@ import {
   createAuditLog,
   createAuditLogsEmLote,
   resolveActor,
+  sendSensitiveError,
   updateEventStatus,
   EVENT_CLOSED_STATUS,
 } from "./shared";
@@ -4957,13 +4959,21 @@ export function registerItemRoutes(app: Express): void {
       // impressas, partes, trava, o lock otimista) é refeito sobre a linha
       // TRAVADA, dentro da transação — ver planejarLancamentoDeImpressas.
       const antes = await storage.getItem(req.params.id);
-      if (!antes) return res.status(404).json({ error: "Item not found" });
+      if (!antes) return res.status(404).json({ error: "Peça não encontrada." });
       // Travada pela Solicitação: resposta rápida (a transação repete a guarda).
       if (pecaTravada(antes as any)) return res.status(409).json({ error: fraseDaTrava(antes as any), code: CODIGO_PECA_TRAVADA });
       // ANDA — e é o mais caro de todos: aqui a peça vira LONA IMPRESSA e ainda
       // gera ativos no Estoque. Imprimir para um evento que já aconteceu é
       // dinheiro queimado que nenhum estorno recupera.
-      if (await barraEventoFinalizado(antes, res)) return;
+      // Exceção (IMPRESSAS_EM_EVENTO_REALIZADO, shared/impressao-dividida): no
+      // evento que JÁ ACONTECEU, a peça que já estava na impressora pode
+      // informar o que saiu — é registro, não trabalho novo. O teto é o que
+      // estava atribuído à impressora (o plano abaixo); iniciar/trocar de
+      // máquina (start-printing) segue barrado.
+      const motivoFechado = await motivoEventoDaPeca(antes);
+      if (motivoFechado && eventoBarraImpressas(motivoFechado, antes.status)) {
+        return res.status(409).json({ error: erroEventoFechado(motivoFechado), code: "EVENT_FINALIZED", reason: motivoFechado });
+      }
       // MOLDE (22/09): nada de impressas nem parcial — "Marcar como produzido".
       if (ehMolde(antes)) return res.status(409).json({ error: "Molde não vai para a impressora — use \"Marcar como produzido\"." });
 
@@ -4981,7 +4991,12 @@ export function registerItemRoutes(app: Express): void {
       const falha = (status: number, corpo: Record<string, unknown>) => Object.assign(new Error(String(corpo.error)), { httpStatus: status, corpo });
       const { item, plano } = await db.transaction(async (tx) => {
         const [before] = await tx.select().from(itemsTable).where(eq(itemsTable.id, req.params.id)).for("update");
-        if (!before || before.deletedAt) throw falha(404, { error: "Item not found" });
+        if (!before || before.deletedAt) throw falha(404, { error: "Peça não encontrada." });
+        // O evento finalizado, de novo sobre a linha TRAVADA: a exceção do
+        // realizado vale só para a peça que ESTÁ em impressão agora.
+        if (motivoFechado && eventoBarraImpressas(motivoFechado, before.status)) {
+          throw falha(409, { error: erroEventoFechado(motivoFechado), code: "EVENT_FINALIZED", reason: motivoFechado });
+        }
         const plano = planejarLancamentoDeImpressas(before as any, req.body ?? {}, new Date());
         if (!plano.ok) {
           throw plano.corpo.error === ERRO_LANCAMENTO_TRAVADA
@@ -4993,7 +5008,7 @@ export function registerItemRoutes(app: Express): void {
           .set(plano.set as any)
           .where(eq(itemsTable.id, before.id))
           .returning();
-        if (!updated) throw falha(404, { error: "Item not found" });
+        if (!updated) throw falha(404, { error: "Peça não encontrada." });
 
         await tx.insert(auditLogs).values({
           ...resolveActor(req),
@@ -5085,14 +5100,15 @@ export function registerItemRoutes(app: Express): void {
           const faltam = quantityProduced - existingAssets.length;
           const records = Array.from({ length: faltam }, (_, i) => novoAtivo(maiorSeq + i + 1));
           const created = await storage.createInventoryAssets(records);
-          for (const a of created) {
-            await createAuditLog({ userName: producedBy, userId: req.userId }, 'cadastrado', 'inventory_asset', a.id,
-              JSON.stringify({ evento: event?.name ?? '—', itemId: item.id }));
-          }
+          // Trilha em LOTE: um INSERT para o bloco inteiro (eram N idas ao banco, uma por ativo).
+          await createAuditLogsEmLote({ userName: producedBy, userId: req.userId }, created.map((a) => ({
+            action: 'cadastrado', entityType: 'inventory_asset', entityId: a.id,
+            details: JSON.stringify({ evento: event?.name ?? '—', itemId: item.id }),
+          })));
         }
-        // Run lifecycle cron immediately so assets with past event dates
-        // transition straight to EM_USO / AGUARDANDO_TRIAGEM without waiting for the next tick.
-        runInventoryCron();
+        // O ciclo de vida já, e só do evento da peça: ativo de evento com data
+        // passada vai direto a EM_USO / AGUARDANDO_TRIAGEM sem esperar o próximo tick.
+        runInventoryCron(item.eventId);
       }
       
       // Não notificar sobre início de produção
@@ -5102,8 +5118,9 @@ export function registerItemRoutes(app: Express): void {
       res.json(item);
     } catch (error: any) {
       // O corpo inteiro do 409 (code PRODUCTION_CONFLICT / PECA_TRAVADA,
-      // actualProduced) — a tela decide pelo código.
-      res.status((error as any).httpStatus ?? 500).json((error as any).corpo ?? { error: error.message });
+      // actualProduced) — a tela decide pelo código. O 500 não vaza error.message.
+      if ((error as any)?.httpStatus) return res.status((error as any).httpStatus).json((error as any).corpo ?? { error: error.message });
+      sendSensitiveError(res, error, "Informar impressas", 500);
     }
   });
 
@@ -5364,9 +5381,9 @@ export function registerItemRoutes(app: Express): void {
   // Gráfica confere a peça produzida (com foto). Suporta conferência parcial.
   //
   // SEM a guarda de evento finalizado (é FECHAR A CONTA do que já existe).
-  // Conferir não produz nada: a rota exige `status === "produced"`, isto é, a
-  // impressão já aconteceu e a peça está fisicamente no galpão. O que se
-  // registra aqui é a contagem do material — e a contagem costuma acontecer
+  // Conferir não produz nada: só conta unidade que JÁ EXISTE no galpão
+  // (impressa ou reaproveitada — tetoDaConferencia). O que se registra aqui é
+  // a contagem do material — e a contagem costuma acontecer
   // depois do evento, que é justamente quando ele já conta como "realizado".
   // Barrar deixaria a peça eternamente "Produzida" e travaria a entrega, que
   // só aceita unidades conferidas.
@@ -5387,6 +5404,15 @@ export function registerItemRoutes(app: Express): void {
         return res.status(403).json({ error: "Sem permissão para conferir" });
       }
       const { conferencePhotoUrl, qty, notes } = req.body ?? {};
+      // A foto tem de ser do nosso storage (mesma régua de embalar/entregar em tubos.ts).
+      const fotoEnviada = typeof conferencePhotoUrl === "string" && conferencePhotoUrl.trim() !== "";
+      const foto = fotoEnviada ? urlDeThumbValida(conferencePhotoUrl) : null;
+      if (fotoEnviada && !foto) {
+        return res.status(400).json({ error: "A foto precisa ser enviada pelo app (endereço /objects/…)" });
+      }
+      // `qty` ausente = tudo o que existe para conferir; enviada (inclusive
+      // null/0/"abc"), tem de ser inteiro ≥ 1 — antes qualquer lixo virava "tudo".
+      const qtdPedida = Object.prototype.hasOwnProperty.call(req.body ?? {}, "qty") ? qty : undefined;
       // CONCORRÊNCIA (revisão de 22/09): a conferência lia a peça, somava e
       // REGRAVAVA o total em valor absoluto. Duas conferências e um embalar ao
       // mesmo tempo quebravam "embaladas ≤ conferidas" (uma sobrescrevia a
@@ -5397,60 +5423,44 @@ export function registerItemRoutes(app: Express): void {
       const resultado: Resultado = await db.transaction(async (tx: any): Promise<Resultado> => {
       const [current] = await tx.select().from(itemsTable).where(eq(itemsTable.id, req.params.id)).for("update");
       const recusa = (http: number, corpo: any): Resultado => ({ erro: { http, corpo } });
-      if (!current || current.deletedAt) return recusa(404, { error: "Item not found" });
+      if (!current || current.deletedAt) return recusa(404, { error: "Peça não encontrada." });
       // Travada pela Solicitação: não se confere.
       if (pecaTravada(current as any)) return recusa(409, { error: fraseDaTrava(current as any), code: CODIGO_PECA_TRAVADA });
-      if (!conferencePhotoUrl && !current.conferencePhotoUrl) {
+      if (!foto && !current.conferencePhotoUrl) {
         return recusa(400, { error: "Foto da conferência é obrigatória" });
       }
-      // Conferência acontece a partir de Produzido (e continua enquanto parcial).
-      /**
-       * DISPONÍVEL PARA CONFERIR = produzido + reaproveitado.
-       *
-       * O gate era `status !== "produced"` → 409. Peça vinda do acervo nunca
-       * chega a esse status (não há o que imprimir), então nunca podia ser
-       * conferida — e, sem conferência, nunca entregue. 72 peças presas assim
-       * em produção.
-       *
-       * A validação vive aqui e não só na tela porque a mesma rota atende a
-       * conferência em LOTE: regra de negócio validada só no botão é regra que
-       * o próximo caller ignora.
-       */
-      const reusedTotal = current.reuseQty || 0;
-      const alreadyConferred = current.conferredQty || 0;
-      const remaining = current.quantity - alreadyConferred;
-      // `produced` continua liberando o caminho normal; o reuso abre o dele.
-      // Sem este "ou", a peça de acervo levava 409 para sempre — 72 delas em
-      // produção. O saldo (`remaining`) continua sendo quem limita quantas.
-      // Peça NA REVISÃO não confere — nem pelo caminho do reuso, que não
-      // olha status. Ela agora APARECE na fila da Gráfica (feed inclui a
-      // revisão como "chegando"), então o buraco ficou alcançável: uma peça
-      // com reaproveitamento marcado e ainda em revisão passaria por aqui.
       // MOLDE (22/09): o fluxo dele morre no Produzido — não há conferência.
       if (ehMolde(current)) return recusa(409, { error: "Molde não passa por conferência — o fluxo dele termina no Produzido." });
+      // Peça NA REVISÃO não confere — nem pelo reaproveitamento, que não
+      // depende de impressão. Ela APARECE na fila da Gráfica ("chegando").
       if (EM_REVISAO.has(current.status)) {
         return recusa(409, { error: `Esta peça ainda está na Revisão — a Gráfica confere depois que a Revisão liberar. Status: ${translateStatus(current.status)}` });
       }
-      const podeConferir = current.status === "produced" || reusedTotal > 0;
-      if (!podeConferir || remaining <= 0) {
-        return recusa(409, { error: `Nada a conferir. Status: ${translateStatus(current.status)} (${alreadyConferred}/${current.quantity})` });
-      }
-      // Quantidade desta conferência (padrão: o que falta). Limita ao restante.
-      const n = Math.min(remaining, Math.max(1, Number(qty) || remaining));
-      const newConferred = alreadyConferred + n;
-      const isFull = newConferred >= current.quantity;
+      // O TETO é o que existe no galpão: (impressas + reaproveitadas) − conferidas
+      // (shared/embalagem.ts, a MESMA conta das telas). Com CONFERIR_PARCIAL, o
+      // que já saiu confere antes de a peça inteira ser impressa; o status só
+      // vira Conferido quando a quantidade inteira foi conferida. A peça de
+      // acervo (reuso) confere sem nunca passar por "produced".
+      // A validação vive aqui e não só na tela porque a mesma rota atende a
+      // conferência em LOTE: regra validada só no botão o próximo caller ignora.
+      const plano = planejarConferencia(current as any, qtdPedida);
+      if (!plano.ok) return recusa(plano.http, { error: plano.motivo });
+
+      const n = plano.quantidade;
+      const newConferred = plano.conferredQty;
+      const isFull = plano.completa;
       const trimmedNotes = typeof notes === "string" ? notes.trim() : "";
 
       const agora = new Date();
-      const novoStatus = isFull ? ((((current as any).embaladaQty ?? 0) >= current.quantity ? "packed" : "conferred") as "packed" | "conferred") : null;
+      const novoStatus = plano.novoStatus;
       const [item] = await tx.update(itemsTable).set({
         // `newConferred` foi calculado com a linha TRAVADA: ninguém gravou no meio.
         conferredQty: newConferred,
-        conferencePhotoUrl: conferencePhotoUrl || current.conferencePhotoUrl || null,
+        conferencePhotoUrl: foto || current.conferencePhotoUrl || null,
         conferredAt: isFull ? agora : current.conferredAt,
         ...(trimmedNotes ? { conferenceNotes: trimmedNotes } : {}),
         updatedAt: agora,
-        // Status só vira "conferred" quando conferiu tudo; parcial continua "produced".
+        // Status só vira "conferred" quando conferiu tudo; a parcial fica onde está.
         // EMBALAGEM COM QUANTIDADE (21/09): a parcial pode ter embalado a parte
         // já conferida. Fechar a conferência só vira Embalado se TUDO já está
         // embalado (caso raro); senão é Conferido, com o resto a embalar.
@@ -5458,7 +5468,7 @@ export function registerItemRoutes(app: Express): void {
         ...(novoStatus ? { status: novoStatus, ...(novoStatus !== current.status ? { statusChangedAt: agora } : {}) } : {}),
       } as any).where(eq(itemsTable.id, req.params.id)).returning();
       const trilha = (isFull ? `Conferência concluída (${newConferred}/${current.quantity})` : `Conferência parcial: ${n} un. (${newConferred}/${current.quantity})`)
-        + (isFull && ((current as any).embaladaQty ?? 0) >= current.quantity ? " — já estava toda embalada" : "")
+        + (novoStatus === "packed" ? " — já estava toda embalada" : "")
         + (trimmedNotes ? ` — Obs.: ${trimmedNotes}` : "");
       return { item, trilha };
       });
@@ -5468,7 +5478,7 @@ export function registerItemRoutes(app: Express): void {
       broadcast({ type: "item_updated", item });
       res.json(item);
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      sendSensitiveError(res, error, "Conferir peça", 500);
     }
   });
 
@@ -5484,7 +5494,7 @@ export function registerItemRoutes(app: Express): void {
       return res.status(403).json({ error: "Sem permissão para registrar entrega" });
     }
     const currentItem = await storage.getItem(req.params.id).catch(() => null);
-    if (!currentItem) return res.status(404).json({ error: "Item not found" });
+    if (!currentItem) return res.status(404).json({ error: "Peça não encontrada." });
     return res.status(409).json({ error: "Embale antes de entregar (Embalar pede a foto; a entrega pede só quem recebeu)" });
   });
 

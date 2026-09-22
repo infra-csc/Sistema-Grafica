@@ -254,6 +254,8 @@ beforeEach(() => {
   for (const k of Object.keys(s)) delete s[k];
 
   s.getItem = vi.fn(async (id: string) => mundo.itens[id]);
+  // A trilha dos ativos vai em LOTE (createAuditLogsEmLote → storage.createBulkAuditLogs).
+  s.createBulkAuditLogs = vi.fn(async (linhas: any[]) => { for (const l of linhas) logs.push(l); });
   s.getEvent = vi.fn(async (id: string) => mundo.eventos[id]);
   s.getAllEvents = vi.fn(async () => Object.values(mundo.eventos));
   s.getAllSponsors = vi.fn(async () => []);

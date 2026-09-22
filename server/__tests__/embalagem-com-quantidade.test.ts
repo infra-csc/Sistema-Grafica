@@ -17,7 +17,7 @@ import { readFileSync } from "fs";
 import path from "path";
 import {
   aEmbalar, conferidasParaEmbalar, todaEmbalada, violacoesDaConta, planejarEmbalar, planejarRetirada, planejarEntrega,
-  volumePrincipal, seloDosVolumes, progressoDaEmbalagem, parteDoTotal,
+  volumePrincipal, seloDosVolumes, progressoDaEmbalagem, parteDoTotal, planejarConferencia,
 } from "@shared/embalagem";
 import { linhaDaLista } from "../../client/src/lib/etiqueta-lista";
 import { detalheDaProducao } from "../../client/src/lib/detalhe-producao";
@@ -176,7 +176,12 @@ describe("3 · as rotas usam as contas", () => {
     expect(entregar).not.toContain("ainda não tem foto");
   });
   it("a conferência só fecha como Embalado se TUDO já estava embalado (a parcial embalou a parte dela antes)", () => {
-    expect(ITEMS).toContain('const novoStatus = isFull ? ((((current as any).embaladaQty ?? 0) >= current.quantity ? "packed" : "conferred") as "packed" | "conferred") : null;');
+    // a conta mora em shared/embalagem (planejarConferencia), a mesma da rota
+    expect(ITEMS).toContain("const plano = planejarConferencia(current as any, qtdPedida);");
+    const fecha = (embaladaQty: number) => planejarConferencia(peca({ status: "produced", conferredQty: 7, embaladaQty }), 3);
+    expect(fecha(10)).toMatchObject({ ok: true, completa: true, novoStatus: "packed" });
+    expect(fecha(7)).toMatchObject({ ok: true, completa: true, novoStatus: "conferred" });
+    expect(planejarConferencia(peca({ status: "produced", conferredQty: 5, embaladaQty: 5 }), 3)).toMatchObject({ ok: true, completa: false, novoStatus: null });
   });
   it("PATCH /api/items/:id/deliver → 409 para QUALQUER peça (inclusive a parcial), sem escrever nada — a rota fica", () => {
     const i = ITEMS.indexOf('app.patch("/api/items/:id/deliver"');
@@ -238,7 +243,11 @@ describe("5 · a tela", () => {
     expect(GRAFICA).toContain("seloDoTubo(item), aEmbalar(item),");
   });
   it("Gráfica: a entrega por peça está aposentada — nenhum Entregar por peça, lote de entrega ou fila de entrega aparece", () => {
-    expect(GRAFICA).toContain("const canDeliver = (_item: any) => false && canDeliverBase(_item);");
+    // o código morto saiu inteiro: nem gate, nem mutação, nem chamada à rota aposentada
+    expect(GRAFICA).not.toContain("canDeliver");
+    expect(GRAFICA).not.toContain("markDeliveredMutation");
+    expect(GRAFICA).not.toContain("/deliver`");
+    expect(GRAFICA).not.toContain("bulkDeliveryMode");
   });
   it("o selo do tubo fica em LINHA PRÓPRIA, abaixo do código, e quebra sem cortar (dono: 'muito grudado no número')", () => {
     expect(GRAFICA).toContain('style={{ display: "flex", width: "fit-content", maxWidth: "100%", flexWrap: "wrap", alignItems: "center", gap: 3, marginTop: 6,');

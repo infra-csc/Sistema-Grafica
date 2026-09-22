@@ -222,6 +222,25 @@ export type PedidoDeLancamento = {
   impressasNaMaquina?: unknown;
 };
 
+/**
+ * Decisão do dono (trocável): no evento que JÁ ACONTECEU, a peça que estava na
+ * impressora ainda pode informar as impressas (até o que estava atribuído a
+ * ela) — é o registro do que já saiu, e sem ele a conferência e a embalagem do
+ * material não andam. Iniciar e trocar de máquina continuam barrados.
+ */
+export const IMPRESSAS_EM_EVENTO_REALIZADO = true;
+
+/**
+ * O evento finalizado barra INFORMAR IMPRESSAS desta peça? Só o encerrado à
+ * mão (tem volta: reabrir) e o realizado quando a peça não está em impressão
+ * — ou quando a decisão acima for desligada. Servidor e telas leem daqui.
+ */
+export function eventoBarraImpressas(motivo: string | null | undefined, status: string | null | undefined): boolean {
+  if (!motivo) return false;
+  if (motivo === "realizado" && IMPRESSAS_EM_EVENTO_REALIZADO && EM_IMPRESSAO_LANC.includes(status ?? "")) return false;
+  return true;
+}
+
 /** Marca do erro de trava: a rota troca pela frase e pelo código de shared/trava-da-peca. */
 export const ERRO_LANCAMENTO_TRAVADA = "__TRAVADA__";
 
@@ -268,11 +287,13 @@ export function planejarLancamentoDeImpressas(peca: PecaParaLancar, pedido: Pedi
     partesDepois = { ...partes, [maquina]: { atrib: parte.atrib, impressas: n } };
     quantityProduced = totalImpressas(partesDepois);
   } else {
-    quantityProduced = numeroExato(pedido.quantityProduced);
-    // Fração (0,5) chegava ao banco (coluna inteira) e virava 500: recusa com frase.
-    if (pedido.quantityProduced != null && !Number.isInteger(quantityProduced)) return erro(400, "Informe um número inteiro de unidades impressas");
+    // Número INTEIRO de verdade: fração (0,5) virava 500 na coluna inteira, e o
+    // texto "5" passava por conversão — o contrato é número, a tela manda número.
+    if (pedido.quantityProduced == null) return erro(400, "Informe quantas unidades saíram da impressora");
+    if (typeof pedido.quantityProduced !== "number" || !Number.isInteger(pedido.quantityProduced)) return erro(400, "Informe um número inteiro de unidades impressas");
+    quantityProduced = pedido.quantityProduced;
   }
-  if (!(quantityProduced > 0)) return erro(400, "quantityProduced is required and must be greater than 0");
+  if (!(quantityProduced > 0)) return erro(400, "Informe quantas unidades saíram da impressora (pelo menos 1)");
 
   const qtd = parseInt(String(peca.quantity), 10) || 0;
   const reuso = inteiro(peca.reuseQty);

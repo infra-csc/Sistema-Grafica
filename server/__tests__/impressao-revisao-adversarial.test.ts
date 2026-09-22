@@ -130,8 +130,10 @@ describe("1 · [GRAVE] start-production: dois lançamentos na mesma peça dividi
     expect([iTx > 0, iTx < iLe, iLe < iPlano, iPlano < iGrava]).toEqual([true, true, true, true]);
     expect(semComentario(PRODUCTION)).not.toContain("storage.updateItem(");
     // A leitura de fora (`antes`) só guarda existência, evento, molde e a resposta rápida da trava.
-    expect(semComentario(PRODUCTION)).not.toMatch(/antes\.(quantityProduced|impressaoPorMaquina|status|reuseQty)/);
-    expect(ITEMS).toContain("res.status((error as any).httpStatus ?? 500).json((error as any).corpo ?? { error: error.message });");
+    // …e a resposta rápida do evento finalizado (IMPRESSAS_EM_EVENTO_REALIZADO), repetida sobre a linha travada.
+    expect(semComentario(PRODUCTION)).toContain("if (motivoFechado && eventoBarraImpressas(motivoFechado, before.status)) {");
+    expect(semComentario(PRODUCTION).replace("eventoBarraImpressas(motivoFechado, antes.status)", "")).not.toMatch(/antes\.(quantityProduced|impressaoPorMaquina|status|reuseQty)/);
+    expect(ITEMS).toContain("if ((error as any)?.httpStatus) return res.status((error as any).httpStatus).json((error as any).corpo ?? { error: error.message });");
   });
 });
 
@@ -221,7 +223,10 @@ describe("3 · os cantos do lançamento (conta pura)", () => {
 
   it("fração é recusada com frase (virava 500 no banco)", () => {
     expect(planejarLancamentoDeImpressas(INTEIRA as any, { quantityProduced: 4.5 }, AGORA)).toMatchObject({ ok: false, status: 400, corpo: { error: "Informe um número inteiro de unidades impressas" } });
-    expect(planejarLancamentoDeImpressas(INTEIRA as any, { quantityProduced: "4" }, AGORA)).toMatchObject({ ok: true, quantityProduced: 4 });
+    // texto "4" não passa mais por conversão: o contrato é número inteiro
+    expect(planejarLancamentoDeImpressas(INTEIRA as any, { quantityProduced: "4" }, AGORA)).toMatchObject({ ok: false, status: 400, corpo: { error: "Informe um número inteiro de unidades impressas" } });
+    expect(planejarLancamentoDeImpressas(INTEIRA as any, { quantityProduced: 4 }, AGORA)).toMatchObject({ ok: true, quantityProduced: 4 });
+    expect(planejarLancamentoDeImpressas(INTEIRA as any, {}, AGORA)).toMatchObject({ ok: false, status: 400, corpo: { error: "Informe quantas unidades saíram da impressora" } });
   });
 
   it("impressora diferente da atual na peça não dividida é ignorada (trocar é o start-printing); a peça sem impressora aceita a enviada", () => {

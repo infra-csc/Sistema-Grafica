@@ -18,6 +18,7 @@
 // inglês e legado em português).
 // ─────────────────────────────────────────────────────────────────────────────
 import { ehMolde, moldeConcluido } from "@shared/molde";
+import { aConferir, tetoDaConferencia, type PecaDaEmbalagem } from "@shared/embalagem";
 
 /**
  * Forma mínima de item que a aritmética de saldo enxerga. Todos os campos são
@@ -96,35 +97,17 @@ export const remainingProduce = (item: SaldoItem): number =>
   Math.max(0, qtyOf(item) - reusedTotalOf(item) - producedOf(item));
 
 /**
- * A conta é `quantidade − conferido`, e NÃO depende de `quantityProduced`.
+ * O que ainda falta conferir: (impressas + reaproveitadas) − conferidas.
  *
- * Tentei amarrá-la a produzido + reaproveitado e um teste me derrubou na
- * hora: a peça normal do fixture tem 10 unidades, 3 conferidas e
- * `quantityProduced` VAZIO — porque quem garante que a produção aconteceu é
- * o STATUS, não um contador. Com a conta amarrada ao número, "faltam 7"
- * virava "faltam 0" e a tela inteira parava de oferecer conferência.
- *
- * O beco sem saída do reuso é real, mas não estava aqui: estava no PORTÃO
- * (`canConfer`), que exigia o status `produced`. Peça vinda do acervo nunca
- * passa por esse status, porque não há o que imprimir.
- *
- * O sintoma: a peça de acervo não pode ser produzida (correto), logo nunca
- * ficava "produzida", logo nunca podia ser conferida, logo nunca podia ser
- * entregue — porque a entrega sai do conferido. Congelava para sempre.
- *
- * Medido em produção: 72 peças nesse estado. A #1656 é o retrato — qtd 1,
- * reuso 1, produzido 0, conferido 0, entregue 0, parada em
- * `ready_for_production`.
- *
- * Havia uma escapatória (`isLegacyReuse`), mas ela só cobre dado ANTIGO, em
- * que `reuseQty` ficava 0. Peça reaproveitada pelo caminho novo, com
- * `reuseQty` preenchido, caía exatamente no vão entre as duas regras.
- *
- * O comentário logo abaixo já dizia a intenção — "reaproveitado também
- * confere". Quem passou a implementá-la é o portão, não esta conta.
+ * Era `quantidade − conferidas` e deixava "conferir 10" numa peça com só 6
+ * impressas. A conta mora em shared/embalagem.ts (tetoDaConferencia), a MESMA
+ * que a rota POST /confer usa como teto. Peça com a impressão fechada
+ * (produced/conferred/packed) vale a parte impressa inteira mesmo com
+ * `quantityProduced` vazio — no acervo antigo quem garante a produção é o
+ * status, não o contador. A peça de acervo (reuso) confere o reaproveitado.
  */
 export const remainingConfer = (item: SaldoItem): number =>
-  Math.max(0, qtyOf(item) - conferredOf(item));
+  Math.max(0, tetoDaConferencia(item as PecaDaEmbalagem) - conferredOf(item));
 
 /** Reaproveitado também confere, então a entrega sempre sai do que foi conferido. */
 export const remainingDeliver = (item: SaldoItem): number =>
@@ -160,22 +143,19 @@ export const canProduce = (item: SaldoItem): boolean =>
   !isDelivered(item) && !isConferred(item) && remainingProduce(item) > 0;
 
 /**
- * `isProduced` OU reaproveitada — e é o "ou" que conserta o beco sem saída.
- *
- * Exigir só o status `produced` barrava a peça vinda do acervo, que nunca
- * passa por lá: ela não tem o que imprimir. Unidade de acervo é material
- * pronto, esperando conferência como qualquer outra.
+ * Pode conferir quando há unidade que JÁ EXISTE sem conferência: impressa
+ * (inclusive a parte que saiu antes de a peça inteira ser impressa — decisão
+ * CONFERIR_PARCIAL) ou reaproveitada do acervo, que nunca passa por
+ * `produced`. O status só barra revisão e fim do fluxo (aConferir, o mesmo
+ * teto do servidor).
  *
  * `isLegacyReuse` continua de fora de propósito: no dado antigo (`reuseQty`
- * zerado) a entrega já sai da quantidade cheia, sem passar por conferência —
- * há teste travando esse caminho, e mudá-lo aqui seria mexer no que não
- * estava quebrado.
+ * zerado) a entrega já sai da quantidade cheia, sem passar por conferência.
  */
 export const canConfer = (item: SaldoItem): boolean =>
   !ehMolde(item as { type?: string | null }) // MOLDE (22/09): não há conferência
   && !isDelivered(item) && !isLegacyReuse(item)
-  && (isProduced(item) || reusedOf(item) > 0)
-  && remainingConfer(item) > 0;
+  && aConferir(item as PecaDaEmbalagem) > 0;
 
 export const canDeliver = (item: SaldoItem): boolean =>
   !isDelivered(item) && remainingDeliver(item) > 0;

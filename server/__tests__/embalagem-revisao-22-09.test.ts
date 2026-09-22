@@ -70,8 +70,8 @@ describe("6 · conferir trava a peça", () => {
     expect(rota).not.toContain("storage.getItem(");
     expect(rota).not.toContain("storage.updateItem(");
     // a leitura travada vem ANTES da conta, e a gravação depois dela
-    expect(rota.indexOf('.for("update")')).toBeLessThan(rota.indexOf("const alreadyConferred = current.conferredQty || 0;"));
-    expect(rota.indexOf("const newConferred = alreadyConferred + n;")).toBeLessThan(rota.indexOf("await tx.update(itemsTable)"));
+    expect(rota.indexOf('.for("update")')).toBeLessThan(rota.indexOf("const plano = planejarConferencia(current as any, qtdPedida);"));
+    expect(rota.indexOf("const newConferred = plano.conferredQty;")).toBeLessThan(rota.indexOf("await tx.update(itemsTable)"));
     // o carimbo "desde quando" continua (a gravação não passa mais por storage.updateItem)
     expect(rota).toContain("statusChangedAt: agora");
   });

@@ -415,7 +415,7 @@ describe.each(MOTIVOS)("evento $nome — o que arruma a casa continua liberado",
 
     const r = await chamar("POST /api/items/:id/confer", {
       params: { id: "it-1" }, userRole: "grafica",
-      body: { conferencePhotoUrl: "https://obj/conf.jpg" },
+      body: { conferencePhotoUrl: "/objects/uploads/conf.jpg" },
     });
 
     expect(r.status).toBe(200);

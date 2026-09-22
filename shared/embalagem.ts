@@ -202,3 +202,78 @@ export function progressoDaEmbalagem(p: PecaDaEmbalagem): string {
 export function parteDoTotal(quantidadeNoVolume: number, quantidadeDaPeca: number): string {
   return n(quantidadeNoVolume) < n(quantidadeDaPeca) ? `(${n(quantidadeNoVolume)} de ${n(quantidadeDaPeca)})` : "";
 }
+
+// ── Conferir ────────────────────────────────────────────────────────────────
+// O TETO DA CONFERÊNCIA é o que EXISTE no galpão: impressas + reaproveitadas.
+// Antes era `quantidade − conferidas` — dava para "conferir" 10 de uma peça
+// com 6 impressas. Servidor (POST /confer) e telas (client/src/lib/saldo.ts)
+// leem DAQUI, então não há como um oferecer o que o outro recusa.
+
+/**
+ * Decisão do dono (trocável): conferir o que JÁ SAIU da impressora mesmo antes
+ * de a peça inteira ser impressa — 6 de 10 no acabamento → confere 6. Com
+ * `false`, a parte impressa só confere quando a peça fecha a impressão (o
+ * reaproveitado continua conferindo a qualquer momento).
+ */
+export const CONFERIR_PARCIAL = true;
+
+/**
+ * Decisão do dono (trocável): quando a conferência zera o que falta conferir,
+ * o modal oferece (já marcado) "Já embalar (volume avulso) com esta foto".
+ */
+export const CONFERIR_E_EMBALAR = true;
+
+/** Status em que a impressão já acabou: o contador vazio do acervo antigo não esconde a produção. */
+const IMPRESSAO_FECHADA = new Set(["produced", "produzido", "conferred", "conferido", "packed"]);
+/** Onde não se confere nada: fim do fluxo ou fora dele. */
+const FORA_DA_CONFERENCIA = new Set(["delivered", "entregue", "canceled", "archived", "deleted"]);
+
+/** O status deixa conferir? Fora da revisão e fora do fim do fluxo. */
+export const statusConferivel = (status: string | null | undefined): boolean =>
+  !EM_REVISAO.has(String(status)) && !FORA_DA_CONFERENCIA.has(String(status));
+
+/**
+ * Quantas unidades existem para conferir: impressas + reaproveitadas, até a
+ * quantidade. Peça com a impressão fechada vale a parte impressa inteira mesmo
+ * com `quantityProduced` vazio (acervo antigo: quem garante é o status).
+ */
+export function tetoDaConferencia(p: PecaDaEmbalagem, parcial: boolean = CONFERIR_PARCIAL): number {
+  const q = quantidadeDe(p), reuso = n(p.reuseQty);
+  const impressas = IMPRESSAO_FECHADA.has(String(p.status))
+    ? Math.max(n(p.quantityProduced), q - reuso)
+    : parcial ? n(p.quantityProduced) : 0;
+  return Math.min(q, impressas + reuso);
+}
+
+/** Quanto ainda dá para conferir AGORA (0 quando o status não deixa). */
+export const aConferir = (p: PecaDaEmbalagem, parcial: boolean = CONFERIR_PARCIAL): number =>
+  statusConferivel(p.status) ? Math.max(0, tetoDaConferencia(p, parcial) - n(p.conferredQty)) : 0;
+
+/**
+ * Valida UMA conferência. `pedida` ausente = tudo o que existe para conferir;
+ * enviada, tem de ser inteiro ≥ 1 (0, "abc" e null não viram "tudo"). A peça
+ * só vira `conferred` quando TODA a quantidade foi conferida (`packed` se já
+ * estava toda embalada); antes disso fica no status em que está.
+ */
+export function planejarConferencia(p: PecaDaEmbalagem, pedida?: unknown, parcial: boolean = CONFERIR_PARCIAL):
+  | { ok: true; quantidade: number; conferredQty: number; completa: boolean; novoStatus: "conferred" | "packed" | null }
+  | { ok: false; http: number; motivo: string } {
+  const disponivel = aConferir(p, parcial);
+  const q = quantidadeDe(p), ja = n(p.conferredQty);
+  if (disponivel <= 0) {
+    if (!statusConferivel(p.status)) return { ok: false, http: 409, motivo: `Esta peça não pode ser conferida agora (${motivoDoStatus(p.status)}).` };
+    if (ja >= q && q > 0) return { ok: false, http: 409, motivo: `Nada a conferir: a peça já está toda conferida (${ja} de ${q}).` };
+    return { ok: false, http: 409, motivo: `Nada a conferir agora: ${ja} de ${q} conferidas e nenhuma unidade impressa esperando conferência.` };
+  }
+  let quer = disponivel;
+  if (pedida !== undefined) {
+    const x = typeof pedida === "number" ? pedida : typeof pedida === "string" && pedida.trim() !== "" ? Number(pedida) : NaN;
+    if (!Number.isInteger(x) || x < 1) return { ok: false, http: 400, motivo: "Informe quantas unidades conferir (número inteiro, pelo menos 1)." };
+    if (x > disponivel) return { ok: false, http: 409, motivo: `Só há ${disponivel} un. para conferir agora (pediu ${x}) — o resto ainda não saiu da impressora.` };
+    quer = x;
+  }
+  const total = ja + quer;
+  const completa = total >= q;
+  const novoStatus = completa ? (embaladaDe(p) >= q ? "packed" : "conferred") : null;
+  return { ok: true, quantidade: quer, conferredQty: total, completa, novoStatus };
+}

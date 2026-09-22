@@ -22,7 +22,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, BookmarkCheck, CheckCircle2, ChevronDown, Package, Search, Split, Table2, Trash2, Undo2, Warehouse, Wrench, X } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { useElementSize, useIsMobile } from "@/hooks/use-mobile";
+import { useElementSize, useIsMobile, usePonteiroGrosso } from "@/hooks/use-mobile";
 import { FS } from "@/lib/theme";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -303,17 +303,10 @@ export function QuadroDaTriagem({ evento, ativos, reservaPorAtivo, onVoltar, onT
   const { toast } = useToast();
   // MODO GALPÃO: o quadro é usado em tablet no chão do galpão. Um tablet de
   // 768px+ não é "mobile" para o useIsMobile, mas é dedo e não mouse — e
-  // arrastar (HTML5 drag) nem existe em tela de toque.
-  const [toqueGrosso, setToqueGrosso] = useState(false);
-  useEffect(() => {
-    if (typeof window === "undefined" || !window.matchMedia) return;
-    const mql = window.matchMedia("(pointer: coarse)");
-    const aplicar = () => setToqueGrosso(mql.matches);
-    aplicar();
-    mql.addEventListener?.("change", aplicar);
-    return () => mql.removeEventListener?.("change", aplicar);
-  }, []);
-  const toque = isMobile || toqueGrosso;
+  // arrastar (HTML5 drag) nem existe em tela de toque. O efeito que fazia esta
+  // detecção aqui virou `usePonteiroGrosso` (use-mobile.tsx): era a única
+  // cópia dela no app e agora todas as telas usam a mesma.
+  const toque = isMobile || usePonteiroGrosso();
   // Largura REAL do quadro (não da janela): com a barra lateral aberta, um
   // tablet de 1024px deixa ~700px para quatro colunas de ~160px cada.
   const { ref: refDoQuadro, width: larguraDoQuadro } = useElementSize<HTMLDivElement>();

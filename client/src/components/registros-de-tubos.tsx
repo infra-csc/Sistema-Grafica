@@ -4,20 +4,26 @@
 //
 // A galeria de Registros é UMA FOTO POR PEÇA — e a foto do tubo é UMA para
 // várias peças. Em vez de repetir a mesma imagem em cada uma (76 peças, 76
-// vezes a mesma foto), o tubo tem a SUA entrada: "Tubo 2 · entregue a Fulano em
-// 21/09 14:32 · 4 peças / 61 un.", que abre para mostrar TUDO o que foi junto
-// (código, tipo + descrição, a quantidade naquele tubo e "(7 de 10)" se a peça
-// foi dividida), as fotos da embalagem e o comprovante, se houver. A embalada
-// SOZINHA tem o registro dela, sem a palavra "tubo".
+// vezes a mesma foto), o volume tem o SEU cartão.
+//
+// FORMA (dono, 22/09: "as visões do tubo têm que ser semelhantes à conferência
+// e à entrega"): o mesmo CARTÃO COM FOTO da galeria — foto quadrada, selo do
+// tipo em cima à esquerda, código à direita, e a legenda embaixo. A lista do
+// que foi junto (código, tipo + descrição, a quantidade naquele volume e
+// "(7 de 10)" quando a peça foi dividida) abre dentro do próprio cartão, e a
+// foto amplia na mesma lupa da galeria, com ← → entre as fotos do volume e o
+// comprovante da entrega. A embalada SOZINHA tem o cartão dela, sem a palavra
+// "tubo".
 //
 // Respeita o filtro de evento, o PERÍODO e a busca da própria página (chegam
 // por props) — a busca acha por código, descrição, evento, nº do tubo e quem
 // recebeu. Os três vão ao servidor, que devolve só a PÁGINA pedida (os mais
 // recentes primeiro); "Mostrar mais" pede a próxima (revisão de 22/09).
 // ─────────────────────────────────────────────────────────────────────────────
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { ChevronDown, Package, Truck } from "lucide-react";
+import { ChevronDown, Package, Truck, ZoomIn, X, ChevronLeft, ChevronRight } from "lucide-react";
+import { Link } from "wouter";
 import { nomeDaPeca } from "@shared/nome-da-peca";
 import { parteDoTotal } from "@shared/embalagem";
 import { semAcento } from "@/lib/etiqueta-lista";
@@ -33,16 +39,27 @@ export type RegistroDeTubo = {
 const SEM_REGISTROS: RegistroDeTubo[] = [];
 const LOTE = 12;
 const COR = { texto: "#1c1917", sec: "#57534e", borda: "#e7e5e4", fundo: "#fafaf9", laranja: "#c2410c", verde: "#15803d", azul: "#1d4ed8" };
+// Os mesmos dois selos da galeria: a entrega é roxa como a foto de entrega, e
+// a embalagem (que a galeria não tem) fica azul — nunca laranja, que é o
+// destaque da marca.
+const SELO = {
+  embalado: { rotulo: "Embalagem", cor: "#1d4ed8", icone: Package },
+  entregue: { rotulo: "Entrega", cor: "#7e22ce", icone: Truck },
+} as const;
 const quando = (iso: string | null) => (iso ? new Date(iso).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "");
 const plural = (n: number, um: string, varios: string) => `${n} ${n === 1 ? um : varios}`;
 
+/** "Tubo 2" / "#0390 embalada sozinha" — o nome do volume. */
+export function nomeDoVolume(t: RegistroDeTubo): string {
+  return t.avulso ? `${t.itens[0]?.displayId ?? "Peça"} embalada sozinha` : `Tubo ${t.numero}`;
+}
+
 /** "Tubo 2 · entregue a Fulano em 21/09 14:32 · 4 peças / 61 un." — a frase do registro, inteira. */
 export function fraseDoRegistro(t: RegistroDeTubo): string {
-  const quem = t.avulso ? `${t.itens[0]?.displayId ?? "Peça"} embalada sozinha` : `Tubo ${t.numero}`;
   const estado = t.entregueEm
     ? `entregue${t.recebidoPor ? ` a ${t.recebidoPor}` : ""} em ${quando(t.entregueEm)}`
     : `embalado${t.embaladoPor ? ` por ${t.embaladoPor}` : ""}${t.embaladoEm ? ` em ${quando(t.embaladoEm)}` : ""} — aguarda a entrega`;
-  return `${quem} · ${estado} · ${plural(t.itens.length, "peça", "peças")} / ${t.unidades} un.`;
+  return `${nomeDoVolume(t)} · ${estado} · ${plural(t.itens.length, "peça", "peças")} / ${t.unidades} un.`;
 }
 
 export function registroCasa(t: RegistroDeTubo, busca: string): boolean {
@@ -50,6 +67,14 @@ export function registroCasa(t: RegistroDeTubo, busca: string): boolean {
   if (!palavras.length) return true;
   const alvo = semAcento([t.avulso ? "sozinha" : `tubo ${t.numero}`, t.eventName, t.recebidoPor ?? "", t.embaladoPor ?? "", ...t.itens.flatMap((i) => [i.displayId ?? "", i.type, i.description ?? ""])].join(" "));
   return palavras.every((p) => alvo.includes(p));
+}
+
+/** As fotos ampliáveis de um volume: as da embalagem e, por último, o comprovante. */
+function fotosDoVolume(t: RegistroDeTubo): Array<{ url: string; legenda: string }> {
+  return [
+    ...t.fotos.map((url, n) => ({ url, legenda: `Foto ${n + 1} da embalagem — ${nomeDoVolume(t)}` })),
+    ...(t.comprovante ? [{ url: t.comprovante, legenda: `Comprovante da entrega — ${nomeDoVolume(t)}` }] : []),
+  ];
 }
 
 export function RegistrosDeTubos({ eventIds = [], busca = "", desde = null, itemId, onAbrirPeca }: {
@@ -83,6 +108,8 @@ export function RegistrosDeTubos({ eventIds = [], busca = "", desde = null, item
     queryKey: ["/api/registros/tubos", `?${parametros.toString()}`], staleTime: 60_000, placeholderData: keepPreviousData,
   });
   const [abertos, setAbertos] = useState<Set<string>>(new Set());
+  // A lupa: qual volume e qual foto dele estão ampliados.
+  const [zoom, setZoom] = useState<{ tuboId: string; n: number } | null>(null);
   // O servidor já filtrou; o filtro aqui repete a MESMA regra (inofensivo) e
   // cobre a resposta antiga que ainda vier sem recorte.
   const desdeMs = desde ? desde.getTime() : null;
@@ -91,6 +118,20 @@ export function RegistrosDeTubos({ eventIds = [], busca = "", desde = null, item
       && (desdeMs === null || new Date(t.entregueEm ?? t.embaladoEm ?? 0).getTime() >= desdeMs) && registroCasa(t, busca)),
     [data, eventIds, busca, itemId, desdeMs],
   );
+  const volumeEmZoom = zoom ? lista.find((t) => t.id === zoom.tuboId) ?? null : null;
+  const fotosEmZoom = volumeEmZoom ? fotosDoVolume(volumeEmZoom) : [];
+  const fotoEmZoom = zoom && fotosEmZoom.length ? fotosEmZoom[Math.min(zoom.n, fotosEmZoom.length - 1)] : null;
+  // Teclado na lupa, como na galeria: Esc fecha, ← → andam entre as fotos.
+  useEffect(() => {
+    if (!fotoEmZoom) return;
+    const aoTeclar = (e: KeyboardEvent) => {
+      if (e.key === "Escape") { setZoom(null); return; }
+      if (e.key === "ArrowLeft") setZoom((z) => (z ? { ...z, n: (z.n - 1 + fotosEmZoom.length) % fotosEmZoom.length } : z));
+      if (e.key === "ArrowRight") setZoom((z) => (z ? { ...z, n: (z.n + 1) % fotosEmZoom.length } : z));
+    };
+    window.addEventListener("keydown", aoTeclar);
+    return () => window.removeEventListener("keydown", aoTeclar);
+  }, [fotoEmZoom, fotosEmZoom.length]);
   // Página cheia = pode haver mais no servidor.
   const temMaisNoServidor = data.length >= pagina;
   // Sem tubo nenhum (ou erro nesta consulta), a galeria de sempre segue sozinha:
@@ -98,77 +139,163 @@ export function RegistrosDeTubos({ eventIds = [], busca = "", desde = null, item
   if (isError || lista.length === 0) return null;
 
   return (
-    <section data-testid="registros-de-tubos" aria-label="Registros dos tubos e embalagens" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-      <h2 style={{ margin: 0, fontSize: isMobile ? 14 : 13, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: COR.sec }}>
-        {itemId ? "Embalagem — o que foi junto" : `Tubos e embalagens · ${lista.length}`}
-      </h2>
-      {lista.slice(0, mostrando).map((t) => {
-        const aberto = abertos.has(t.id);
-        return (
-          <article key={t.id} data-testid={`registro-tubo-${t.id}`} style={{ border: `1px solid ${COR.borda}`, borderRadius: 12, background: "#fff", overflow: "hidden" }}>
-            <button type="button" aria-expanded={aberto} data-testid={`abrir-registro-tubo-${t.id}`}
-              onClick={() => setAbertos((s) => { const n = new Set(s); if (n.has(t.id)) n.delete(t.id); else n.add(t.id); return n; })}
-              style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", minHeight: isMobile ? 56 : 48, padding: "8px 12px", border: "none", background: aberto ? COR.fundo : "#fff", textAlign: "left", cursor: "pointer" }}>
-              {t.entregueEm ? <Truck aria-hidden="true" style={{ width: 16, height: 16, color: COR.verde, flexShrink: 0 }} /> : <Package aria-hidden="true" style={{ width: 16, height: 16, color: COR.azul, flexShrink: 0 }} />}
-              {t.fotos[0] && <img src={t.fotos[0]} alt="" loading="lazy" style={{ width: 40, height: 40, borderRadius: 6, objectFit: "cover", border: `1px solid ${COR.borda}`, flexShrink: 0 }} />}
-              <span style={{ minWidth: 0, flex: 1, display: "flex", flexDirection: "column" }}>
-                <span style={{ fontSize: isMobile ? 14 : 13, fontWeight: 700, color: COR.texto, overflowWrap: "anywhere" }}>{fraseDoRegistro(t)}</span>
-                <span style={{ fontSize: 12.5, color: COR.sec, overflowWrap: "anywhere" }}>{t.eventName} · {t.fotos.length ? plural(t.fotos.length, "foto", "fotos") : "sem foto da embalagem"}</span>
-              </span>
-              <ChevronDown aria-hidden="true" style={{ width: 16, height: 16, color: COR.sec, flexShrink: 0, transform: aberto ? "rotate(180deg)" : undefined }} />
-            </button>
+    <section data-testid="registros-de-tubos" aria-label="Registros dos tubos e embalagens" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <h2 style={{ margin: 0, fontFamily: "'Space Grotesk', sans-serif", fontSize: isMobile ? 14 : 13, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: COR.sec }}>
+          {itemId ? "Embalagem — o que foi junto" : `Tubos e embalagens · ${lista.length}`}
+        </h2>
+        <span aria-hidden="true" style={{ flex: 1, height: 1, backgroundColor: COR.borda }} />
+      </div>
 
-            {aberto && (
-              <div data-testid={`conteudo-registro-tubo-${t.id}`} style={{ padding: "10px 12px 12px", borderTop: `1px solid ${COR.borda}`, display: "flex", flexDirection: "column", gap: 10 }}>
-                <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 2 }}>
-                  {t.itens.map((i) => {
-                    const parte = parteDoTotal(i.quantidadeNoTubo, i.quantity);
-                    return (
-                      <li key={i.id} style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", fontSize: 13, color: COR.texto }}>
-                        {onAbrirPeca && !i.excluida ? (
-                          <button type="button" onClick={() => onAbrirPeca(i.id)} aria-label={`Abrir a ficha de ${i.displayId ?? "peça"}`}
-                            style={{ minHeight: alvo, padding: 0, border: "none", background: "none", fontFamily: "ui-monospace, monospace", fontSize: 13, fontWeight: 700, color: COR.laranja, textDecoration: "underline", cursor: "pointer" }}>
-                            {i.displayId ?? "—"}
-                          </button>
-                        ) : (
-                          <span style={{ fontFamily: "ui-monospace, monospace", fontWeight: 700, color: COR.laranja }}>{i.displayId ?? "—"}</span>
-                        )}
-                        <span style={{ flex: "1 1 140px", minWidth: 0, overflowWrap: "anywhere" }}>{nomeDaPeca(i.type, i.description)}{i.excluida ? " (peça excluída depois)" : ""}</span>
-                        <strong style={{ whiteSpace: "nowrap" }}>{i.quantidadeNoTubo} un.{parte ? <span style={{ fontWeight: 400, color: COR.sec }}> {parte}</span> : null}</strong>
-                      </li>
-                    );
-                  })}
-                </ul>
-                {(t.fotos.length > 0 || t.comprovante) && (
-                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                    {t.fotos.map((url, n) => (
-                      <a key={url} href={url} target="_blank" rel="noreferrer" aria-label={`Foto ${n + 1} da embalagem — abrir`} style={{ width: 64, height: 64, borderRadius: 8, overflow: "hidden", border: `1px solid ${COR.borda}`, display: "block" }}>
-                        <img src={url} alt="" loading="lazy" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                      </a>
-                    ))}
-                    {t.comprovante && (
-                      <a href={t.comprovante} target="_blank" rel="noreferrer" aria-label="Comprovante da entrega — abrir" title="Comprovante da entrega" style={{ width: 64, height: 64, borderRadius: 8, overflow: "hidden", border: `2px solid ${COR.verde}`, display: "block" }}>
-                        <img src={t.comprovante} alt="" loading="lazy" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                      </a>
-                    )}
+      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(auto-fill, minmax(220px, 1fr))", gap: 20 }}>
+        {lista.slice(0, mostrando).map((t) => {
+          const aberto = abertos.has(t.id);
+          const selo = t.entregueEm ? SELO.entregue : SELO.embalado;
+          const Icone = selo.icone;
+          const fotos = fotosDoVolume(t);
+          const capa = fotos[0];
+          const estado = t.entregueEm
+            ? `Entregue${t.recebidoPor ? ` a ${t.recebidoPor}` : ""} em ${quando(t.entregueEm)}`
+            : `Embalado${t.embaladoPor ? ` por ${t.embaladoPor}` : ""}${t.embaladoEm ? ` em ${quando(t.embaladoEm)}` : ""}`;
+          return (
+            <article key={t.id} data-testid={`registro-tubo-${t.id}`}
+              style={{ backgroundColor: "#fff", border: `1px solid ${COR.borda}`, borderRadius: 12, overflow: "hidden", display: "flex", flexDirection: "column", boxShadow: "0 1px 2px rgba(28,25,23,0.06)" }}>
+              <div style={{ position: "relative" }}>
+                {capa ? (
+                  <button type="button" data-testid={`ampliar-registro-tubo-${t.id}`}
+                    onClick={() => setZoom({ tuboId: t.id, n: 0 })}
+                    aria-label={`Ampliar: ${capa.legenda}`}
+                    /* Quadrado, como os cartões da galeria: a foto do galpão
+                       vem em pé e deitada, e o quadrado corta as duas igual. */
+                    style={{ display: "block", position: "relative", width: "100%", aspectRatio: "1/1", border: "none", padding: 0, backgroundColor: COR.fundo, cursor: "zoom-in" }}>
+                    <img src={capa.url} alt={capa.legenda} loading="lazy" decoding="async" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+                    <span className="opacity-0 group-hover:opacity-100" style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: "rgba(28,25,23,0.18)" }}>
+                      <ZoomIn aria-hidden="true" style={{ width: 22, height: 22, color: "#fff" }} />
+                    </span>
+                  </button>
+                ) : (
+                  <div style={{ width: "100%", aspectRatio: "1/1", backgroundColor: COR.fundo, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12.5, color: COR.sec, textAlign: "center", padding: 12 }}>
+                    Sem foto da embalagem — as fotos da conferência valem
                   </div>
                 )}
-                <span style={{ fontSize: 12.5, color: COR.sec }}>
-                  {t.embaladoPor || t.embaladoEm ? `Embalado${t.embaladoPor ? ` por ${t.embaladoPor}` : ""}${t.embaladoEm ? ` em ${quando(t.embaladoEm)}` : ""}` : "Sem foto da embalagem — as fotos da conferência valem"}
-                  {t.entregueEm ? ` · entrega registrada${t.entreguePor ? ` por ${t.entreguePor}` : ""}` : ""}
-                  {t.observacao ? ` · obs.: ${t.observacao}` : ""}
+                <span style={{ position: "absolute", top: 8, left: 8, display: "inline-flex", alignItems: "center", gap: 4, fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "#fff", backgroundColor: selo.cor, borderRadius: 6, padding: "3px 7px" }}>
+                  <Icone aria-hidden="true" style={{ width: 10, height: 10 }} /> {selo.rotulo}
                 </span>
+                <span style={{ position: "absolute", top: 8, right: 8, fontFamily: "ui-monospace, monospace", fontSize: 12, fontWeight: 700, color: "#fff", backgroundColor: "rgba(28,25,23,0.72)", borderRadius: 6, padding: "2px 7px" }}>
+                  {t.avulso ? t.itens[0]?.displayId ?? "Avulso" : `Tubo ${t.numero}`}
+                </span>
+                {fotos.length > 1 && (
+                  <span style={{ position: "absolute", left: 8, bottom: 8, fontSize: 11, fontWeight: 700, color: "#fff", backgroundColor: "rgba(28,25,23,0.6)", borderRadius: 999, padding: "2px 8px" }}>
+                    {plural(fotos.length, "foto", "fotos")}
+                  </span>
+                )}
               </div>
-            )}
-          </article>
-        );
-      })}
+
+              <div style={{ padding: 12, display: "flex", flexDirection: "column", gap: 6, flex: 1 }}>
+                <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: COR.texto, lineHeight: 1.3 }}>
+                  {t.avulso ? "Embalada sozinha" : `Tubo ${t.numero}`}
+                  <span style={{ fontWeight: 400, color: COR.sec }}> — {plural(t.itens.length, "peça", "peças")} / {t.unidades} un.</span>
+                </p>
+                {t.eventId ? (
+                  <Link href={`/eventos/${t.eventId}`} className="hover:underline" style={{ fontSize: 12.5, color: COR.laranja, fontWeight: 600, textDecoration: "none" }}>{t.eventName}</Link>
+                ) : (
+                  <p style={{ margin: 0, fontSize: 12.5, color: COR.sec }}>Sem evento</p>
+                )}
+                <p style={{ margin: 0, fontSize: 12.5, color: COR.sec, lineHeight: 1.45 }}>
+                  {estado}
+                  {!t.entregueEm ? " — aguarda a entrega" : ""}
+                  {t.observacao ? ` · obs.: ${t.observacao}` : ""}
+                </p>
+
+                <button type="button" aria-expanded={aberto} data-testid={`abrir-registro-tubo-${t.id}`}
+                  onClick={() => setAbertos((s) => { const n = new Set(s); if (n.has(t.id)) n.delete(t.id); else n.add(t.id); return n; })}
+                  style={{ marginTop: "auto", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, width: "100%", minHeight: isMobile ? 56 : 44, padding: "0 10px", borderRadius: 8, border: `1px solid ${COR.borda}`, background: aberto ? COR.fundo : "#fff", color: COR.texto, fontSize: 13, fontWeight: 700, cursor: "pointer", textAlign: "left" }}>
+                  <span style={{ minWidth: 0, overflowWrap: "anywhere" }}>{aberto ? "Ocultar o que foi junto" : `Ver o que foi junto (${t.itens.length})`}</span>
+                  <ChevronDown aria-hidden="true" style={{ width: 16, height: 16, color: COR.sec, flexShrink: 0, transform: aberto ? "rotate(180deg)" : undefined }} />
+                </button>
+                {/* A frase inteira serve ao leitor de tela e à busca da página,
+                    sem repetir na tela o que os pedaços acima já dizem. */}
+                <span className="sr-only">{fraseDoRegistro(t)}</span>
+
+                {aberto && (
+                  <div data-testid={`conteudo-registro-tubo-${t.id}`} style={{ borderTop: `1px solid ${COR.borda}`, paddingTop: 10, display: "flex", flexDirection: "column", gap: 10 }}>
+                    <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 2 }}>
+                      {t.itens.map((i) => {
+                        const parte = parteDoTotal(i.quantidadeNoTubo, i.quantity);
+                        return (
+                          <li key={i.id} style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", fontSize: 13, color: COR.texto }}>
+                            {onAbrirPeca && !i.excluida ? (
+                              <button type="button" onClick={() => onAbrirPeca(i.id)} aria-label={`Abrir a ficha de ${i.displayId ?? "peça"}`}
+                                style={{ minHeight: alvo, padding: 0, border: "none", background: "none", fontFamily: "ui-monospace, monospace", fontSize: 13, fontWeight: 700, color: COR.laranja, textDecoration: "underline", cursor: "pointer" }}>
+                                {i.displayId ?? "—"}
+                              </button>
+                            ) : (
+                              <span style={{ fontFamily: "ui-monospace, monospace", fontWeight: 700, color: COR.laranja }}>{i.displayId ?? "—"}</span>
+                            )}
+                            <span style={{ flex: "1 1 140px", minWidth: 0, overflowWrap: "anywhere" }}>{nomeDaPeca(i.type, i.description)}{i.excluida ? " (peça excluída depois)" : ""}</span>
+                            <strong style={{ whiteSpace: "nowrap" }}>{i.quantidadeNoTubo} un.{parte ? <span style={{ fontWeight: 400, color: COR.sec }}> {parte}</span> : null}</strong>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                    {fotos.length > 0 && (
+                      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                        {fotos.map((f, n) => (
+                          <button key={f.url} type="button" onClick={() => setZoom({ tuboId: t.id, n })} aria-label={`${f.legenda} — ampliar`}
+                            style={{ width: 64, height: 64, borderRadius: 8, overflow: "hidden", border: f.url === t.comprovante ? `2px solid ${COR.verde}` : `1px solid ${COR.borda}`, padding: 0, background: "none", cursor: "zoom-in" }}>
+                            <img src={f.url} alt="" loading="lazy" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    <span style={{ fontSize: 12.5, color: COR.sec }}>
+                      {t.embaladoPor || t.embaladoEm ? `Embalado${t.embaladoPor ? ` por ${t.embaladoPor}` : ""}${t.embaladoEm ? ` em ${quando(t.embaladoEm)}` : ""}` : "Sem foto da embalagem — as fotos da conferência valem"}
+                      {t.entregueEm ? ` · entrega registrada${t.entreguePor ? ` por ${t.entreguePor}` : ""}` : ""}
+                    </span>
+                  </div>
+                )}
+              </div>
+            </article>
+          );
+        })}
+      </div>
+
       {(lista.length > mostrando || temMaisNoServidor) && (
         <button type="button" data-testid="registros-de-tubos-mais"
           onClick={() => { if (lista.length <= mostrando + LOTE && temMaisNoServidor) setPagina((n) => n + LOTE * 4); setMostrando((n) => n + LOTE); }}
           style={{ alignSelf: "center", minHeight: isMobile ? 48 : 40, padding: "0 18px", borderRadius: 8, border: `1px solid ${COR.borda}`, background: "#fff", color: COR.texto, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
           {temMaisNoServidor ? "Mostrar mais" : `Mostrar mais (${lista.length - mostrando} de ${lista.length})`}
         </button>
+      )}
+
+      {fotoEmZoom && volumeEmZoom && (
+        <div role="dialog" aria-modal="true" aria-label={fotoEmZoom.legenda} data-testid="zoom-registro-tubo"
+          onClick={() => setZoom(null)}
+          style={{ position: "fixed", inset: 0, zIndex: 60, backgroundColor: "rgba(28,25,23,0.92)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12, padding: 16 }}>
+          <img src={fotoEmZoom.url} alt={fotoEmZoom.legenda} onClick={(e) => e.stopPropagation()}
+            style={{ maxWidth: "100%", maxHeight: "72vh", objectFit: "contain", borderRadius: 8 }} />
+          <p style={{ margin: 0, color: "#fff", fontSize: 13, textAlign: "center" }}>
+            {fraseDoRegistro(volumeEmZoom)}{fotosEmZoom.length > 1 ? ` · foto ${Math.min(zoom!.n, fotosEmZoom.length - 1) + 1} de ${fotosEmZoom.length}` : ""}
+          </p>
+          <button type="button" aria-label="Fechar" onClick={() => setZoom(null)}
+            style={{ position: "absolute", top: 12, right: 12, width: 44, height: 44, borderRadius: 999, border: "none", background: "rgba(255,255,255,0.14)", color: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <X aria-hidden="true" style={{ width: 20, height: 20 }} />
+          </button>
+          {fotosEmZoom.length > 1 && (
+            <>
+              <button type="button" aria-label="Foto anterior" data-testid="zoom-tubo-anterior"
+                onClick={(e) => { e.stopPropagation(); setZoom((z) => (z ? { ...z, n: (z.n - 1 + fotosEmZoom.length) % fotosEmZoom.length } : z)); }}
+                style={{ position: "absolute", left: 12, top: "50%", width: 44, height: 44, borderRadius: 999, border: "none", background: "rgba(255,255,255,0.14)", color: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <ChevronLeft aria-hidden="true" style={{ width: 22, height: 22 }} />
+              </button>
+              <button type="button" aria-label="Próxima foto" data-testid="zoom-tubo-proxima"
+                onClick={(e) => { e.stopPropagation(); setZoom((z) => (z ? { ...z, n: (z.n + 1) % fotosEmZoom.length } : z)); }}
+                style={{ position: "absolute", right: 12, top: "50%", width: 44, height: 44, borderRadius: 999, border: "none", background: "rgba(255,255,255,0.14)", color: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <ChevronRight aria-hidden="true" style={{ width: 22, height: 22 }} />
+              </button>
+            </>
+          )}
+        </div>
       )}
     </section>
   );

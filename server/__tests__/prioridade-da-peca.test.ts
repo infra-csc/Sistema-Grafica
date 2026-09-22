@@ -90,12 +90,14 @@ describe("a fila da Arte", () => {
     expect(prio).toBeLessThan(prazo);
   });
 
-  it("a peça carrega o selo PRIORITÁRIA nas tags (linha desktop e card mobile)", () => {
-    expect(ARTE).toContain("{item.isPriority && (");
+  it("a peça carrega o selo PRIORITÁRIA (linha desktop e card mobile)", () => {
+    // Desde 22/09 (menos é mais) o selo mora em renderSelosDaPeca, a lista
+    // ordenada por gravidade usada pela linha E pelo card.
+    expect(ARTE).toContain("item.isPriority && {");
     expect(ARTE).toContain("tag-prioritaria-${item.id}");
-    // dentro de renderTagsDaPeca — o render usado pelos dois formatos
-    const tags = ARTE.slice(ARTE.indexOf("const renderTagsDaPeca"), ARTE.indexOf("const renderRow"));
-    expect(tags).toContain("PRIORITÁRIA");
+    const selos = ARTE.slice(ARTE.indexOf("const renderSelosDaPeca"), ARTE.indexOf("const renderRow"));
+    expect(selos).toContain("PRIORITÁRIA");
+    expect((ARTE.match(/renderSelosDaPeca\(item, tabId\)/g) ?? []).length).toBe(2);
   });
 
   it("na lista do evento (quem marcou), o selo também aparece", () => {

@@ -80,7 +80,7 @@ import { Fragment, useState, useMemo, useEffect, useRef, useCallback, useDeferre
 import { FileUploader } from "@/components/FileUploader";
 import { FilterSelect, ShortcutPill } from "@/components/filter-select";
 import { EventFilterDropdown } from "@/components/event-filter-dropdown";
-import { Filter } from "lucide-react";
+import { Filter, HelpCircle } from "lucide-react";
 import { useAcompanharAreaVisivel } from "@/components/grafica/area-visivel";
 import { ExportPdfDialog } from "@/components/export-pdf-dialog";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -99,9 +99,6 @@ const ARTE_PAGE_SIZE = 100;
 // baldes, facetas) em cada render do carregamento.
 const SEM_DADOS: any[] = [];
 
-// Quantos eventos aparecem no resumo antes do "mais N". Oito costuma caber em
-// uma linha em telas de trabalho; o resto entra por expansão.
-const EVENT_CHIPS_VISIBLE = 8;
 // "Quem está travando": só os piores ficam à vista (mesma cura da régua de
 // eventos logo abaixo). Em produção a faixa chegou a 40+ marcas com o mesmo
 // peso visual — "design péssimo" (dono, 26/08); o olho não tinha onde pousar.
@@ -264,23 +261,12 @@ const ARTE_COLS: ArteCol[] = [
   // tabela continua sendo a rede se um dia passar.
   { label: 'Qtd',           w: 56 },
   { label: 'Peça',          w: 'auto' },
-  { label: 'Dimensões',     w: 152 },
-  // M² VOLTOU PARA 72. Eu tinha apertado de 72 para 60 numa passada de
-  // orçamento de colunas, contra a medição que uma rodada ANTERIOR já tinha
-  // feito e registrado logo acima. 60 deixa 36 úteis (descontados os 12+12 de
-  // padding) e o maior valor real da base pede exatamente 36 — "86.40",
-  // "44.46", "40.09", medidos em Space Grotesk 600 13px sobre os 3.187 itens
-  // de produção. Empate não cabe: a elipse dispara e a metragem virava
-  // "11...." em TODAS as abas da Arte, porque Finalizados não sobrescreve
-  // esta coluna. 72 devolve 48 úteis, os mesmos que a rodada anterior tinha
-  // dimensionado para "252.34" (45px).
-  //
-  // Não precisa tirar de ninguém: `arteColsWidth` é DERIVADO da soma das
-  // fixas mais o mínimo de "Peça". O mínimo da tabela foi de 1214 para 1226
-  // nesta rodada, e para 1238 quando a coluna Qtd subiu para 56 (ver acima) —
-  // ainda abaixo dos 1246 disponíveis.
-  { label: 'M²',            w: 72, right: true, sep: true },
-  { label: 'Material',      w: 132 },
+  // DIMENSÕES, M² E MATERIAL SAÍRAM COMO COLUNAS (dono, 22/09: "apenas o que
+  // eles REALMENTE usam"). Os três viraram a linha secundária da coluna
+  // "Peça" (renderMetaDaPeca): continuam à vista, em texto menor, e deixam de
+  // custar 356px de tabela. A medição de largura que protegia "M²" contra a
+  // reticência ("11....") deixa de se aplicar — o valor agora corre em texto,
+  // sem coluna para cortá-lo.
   { label: 'Arte',          w: 76 },
   { label: 'Prazo',         w: 144 },
   { label: 'Patroc.',       w: 150 },
@@ -413,22 +399,6 @@ function semaforoPrazo(diff: number): { bg: string; border: string; text: string
   // do vermelho — agora a faixa diz de relance o que passou e o que não.
   // #166534 sobre #dcfce7 ≈ 6,5:1 (AA).
   return { bg: '#dcfce7', border: '#86efac', text: '#166534' };
-}
-
-/**
- * Cor do chip de evento pelo VOLUME de peças (dono, 17/09: "com base na
- * quantidade"). Quatro degraus relativos ao maior evento da lista: quem tem
- * mais trabalho aparece no laranja mais forte, o evento pequeno fica claro. O
- * número continua escrito — a cor só acelera o ranking. Texto 700–900 sobre
- * fundo 50–100 (AA em todos os degraus); o selo do número inverte no degrau
- * mais alto para o maior evento saltar.
- */
-function corPorVolume(count: number, maior: number): { bg: string; border: string; text: string; seloBg: string; seloText: string } {
-  const r = maior > 0 ? count / maior : 0;
-  if (r >= 0.75) return { bg: '#ffedd5', border: '#fb923c', text: '#9a3412', seloBg: '#c2410c', seloText: '#ffffff' };
-  if (r >= 0.5) return { bg: '#fff7ed', border: '#fdba74', text: '#9a3412', seloBg: '#fed7aa', seloText: '#7c2d12' };
-  if (r >= 0.25) return { bg: '#fffbeb', border: '#fcd34d', text: '#92400e', seloBg: '#fef3c7', seloText: '#78350f' };
-  return { bg: '#ffffff', border: '#e7e5e4', text: '#1c1917', seloBg: '#f5f5f4', seloText: '#44403c' };
 }
 
 /**
@@ -673,8 +643,11 @@ export default function Arte() {
 
   // Paginação da tabela — ver comentário em renderGroupedTable.
   const [visibleCount, setVisibleCount] = useState(ARTE_PAGE_SIZE);
-  const [showAllEvents, setShowAllEvents] = useState(false);
   const [showAllTravando, setShowAllTravando] = useState(false);
+  // "Quem está travando" nasce RECOLHIDO (dono, 22/09: "a tela está bem
+  // poluída"): a Arte não age nesta fila — quem cobra é o Atendimento. O
+  // resumo de uma linha fica à vista; o ranking abre num clique.
+  const [travandoAberto, setTravandoAberto] = useState(false);
   const [selectedItemIds, setSelectedItemIds] = useState<Set<string>>(new Set());
 
   // Trocar de aba troca a lista inteira; manter o scroll onde estava deixava o
@@ -2791,66 +2764,137 @@ export default function Arte() {
     );
   };
 
-  /** Tags de arquivo da coluna "Peça" (referência, book, fora do book). */
-  const renderTagsDaPeca = (item: any) => (
-    <>
-      {/* PRIORITÁRIA (dono, 27/08): a peça que a Solicitação marcou para a
-          Arte atacar primeiro — ela também FURA a ordenação da fila. */}
-      {item.isPriority && (
-        <span title="Peça prioritária — marcada pela Solicitação para sair na frente" style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 11, fontWeight: 800, color: '#be123c', backgroundColor: '#fff1f2', border: '1px solid #fecdd3', borderRadius: 6, padding: '2px 7px', letterSpacing: '0.03em' }} data-testid={`tag-prioritaria-${item.id}`}>
-          <AlertTriangle style={{ width: 9, height: 9 }} />
-          PRIORITÁRIA
-        </span>
-      )}
-      {item.referenceUrl && (
-        <a href={item.referenceUrl} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} title="Ver referência visual do solicitante" style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 11, fontWeight: 600, color: '#2563eb', textDecoration: 'none', backgroundColor: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 6, padding: '2px 7px' }} data-testid={`link-reference-arte-${item.id}`}>
-          <Paperclip style={{ width: 9, height: 9 }} />
-          Ref. visual
-        </a>
-      )}
-      {item.bookUrl ? (
-        <a href={item.bookUrl} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} title="Abrir book de aprovação (PDF) para enviar ao patrocinador" style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 11, fontWeight: 600, color: '#6d28d9', textDecoration: 'none', backgroundColor: '#f5f3ff', border: '1px solid #ddd6fe', borderRadius: 6, padding: '2px 7px' }} data-testid={`link-book-arte-${item.id}`}>
-          <FileText style={{ width: 9, height: 9 }} />
-          Book
-        </a>
-      ) : eventosComBook.has(item.eventId) && (
-        // Salvar o book limpa o bookUrl de TODAS as peças do evento e regrava só
-        // as marcadas — é fácil deixar peça de fora sem perceber, e isso só
-        // aparecia dentro do modal de exportação.
-        <span title="O evento já tem book publicado, mas esta peça ficou de fora dele" style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 11, fontWeight: 600, color: '#92400e', backgroundColor: '#fffbeb', border: '1px solid #fde68a', borderRadius: 6, padding: '2px 7px' }} data-testid={`tag-fora-do-book-${item.id}`}>
-          <AlertTriangle style={{ width: 9, height: 9 }} />
-          Fora do book
-        </span>
-      )}
-    </>
-  );
+  /**
+   * Anexos da peça (referência, book, fora do book) — em TEXTO, não em selo.
+   *
+   * MENOS É MAIS (dono, 22/09: "a tela está bem poluída"). Eram três caixinhas
+   * coloridas (azul, roxo, âmbar) ao lado do nome, somadas aos selos do ID: a
+   * linha chegava a cinco cores ao mesmo tempo e o olho não achava o botão.
+   * Viraram links discretos na linha secundária; só "Fora do book" guarda uma
+   * cor, porque é o único que pede ação.
+   */
+  const renderTagsDaPeca = (item: any) => {
+    const link: React.CSSProperties = { display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 11.5, fontWeight: 600, color: '#44403c', textDecoration: 'underline', textDecorationColor: '#d6d3d1', textUnderlineOffset: 2 };
+    const tem = item.referenceUrl || item.bookUrl || eventosComBook.has(item.eventId);
+    if (!tem) return null;
+    return (
+      <span style={{ display: 'inline-flex', flexWrap: 'wrap', alignItems: 'center', gap: 10 }}>
+        {item.referenceUrl && (
+          <a href={item.referenceUrl} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} title="Ver referência visual do solicitante" style={link} data-testid={`link-reference-arte-${item.id}`}>
+            <Paperclip aria-hidden="true" style={{ width: 10, height: 10 }} />
+            Ref. visual
+          </a>
+        )}
+        {item.bookUrl ? (
+          <a href={item.bookUrl} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} title="Abrir book de aprovação (PDF) para enviar ao patrocinador" style={link} data-testid={`link-book-arte-${item.id}`}>
+            <FileText aria-hidden="true" style={{ width: 10, height: 10 }} />
+            Book
+          </a>
+        ) : eventosComBook.has(item.eventId) && (
+          // Salvar o book limpa o bookUrl de TODAS as peças do evento e regrava só
+          // as marcadas — é fácil deixar peça de fora sem perceber. #92400e sobre
+          // branco = 7,1:1 ✓.
+          <span title="O evento já tem book publicado, mas esta peça ficou de fora dele" style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 11.5, fontWeight: 700, color: '#92400e' }} data-testid={`tag-fora-do-book-${item.id}`}>
+            <AlertTriangle aria-hidden="true" style={{ width: 10, height: 10 }} />
+            Fora do book
+          </span>
+        )}
+      </span>
+    );
+  };
 
   /**
-   * Selos de estado da fila "Aguardando envio": reprovada pelo patrocinador ou
-   * thumb salvo como rascunho. Função única para a LINHA e o CARD do celular —
-   * o card não mostrava nenhum dos dois, e no celular uma peça que voltou
-   * reprovada era idêntica a uma que nunca saiu.
+   * OS SELOS DA PEÇA — um componente só, para a linha e para o card.
    *
-   * Caixa baixa e sem a abreviação em versalete ("REPROV.", "RASCUNHO"): na
-   * coluna de 84px o versalete de 11px pedia mais largura do que havia e era
-   * cortado; e dois selos gritando em maiúsculas competiam com o botão da
-   * linha. O sentido completo fica no `title`.
+   * REGRA (dono, 22/09): no máximo UM selo colorido de estado por linha. Eram
+   * até cinco lado a lado (KIT, status, Reprovada, Rascunho, PRIORITÁRIA) e
+   * nenhum se destacava. Agora os estados entram numa lista em ORDEM DE
+   * GRAVIDADE; o primeiro veste cor, os demais viram texto cinza na mesma
+   * linha — a informação continua, o grito não.
+   *   · Reprovada — voltou do patrocinador, é retrabalho;
+   *   · PRIORITÁRIA — a Solicitação pediu para sair na frente (dono, 27/08);
+   *   · Rascunho — thumb salvo, ainda não enviado.
+   * O selo KIT fica sempre (dono, 14/09: "em todas as etapas tem que ser
+   * sinalizado que a peça é do Kit") e é neutro em peso. Em Finalizados o
+   * selo de status É o estado da linha.
+   *
+   * SELO NOVO entra NA LISTA `estados`, na posição da gravidade dele — não
+   * como mais um <span> solto na célula.
    */
-  const renderSelosDaFila = (item: any, tabId: string) => (
-    <>
-      {tabId === "criar-aprovacoes" && item.rejectedBySponsor && (
-        <span title="Reprovada pelo patrocinador — voltou para a Arte refazer" style={{ fontSize: 11, fontWeight: 700, color: '#b91c1c', backgroundColor: '#fef2f2', border: '1px solid #fecaca', borderRadius: 6, padding: '1px 5px', whiteSpace: 'nowrap' }} data-testid={`badge-rejected-sponsor-${item.id}`}>
-          Reprovada
-        </span>
-      )}
-      {/* Thumb salvo mas ainda NÃO enviado para aprovação (rascunho) */}
-      {tabId === "criar-aprovacoes" && item.approvalThumbUrl && !item.rejectedBySponsor && (
-        <span title="Thumb salvo como rascunho, ainda não enviado para aprovação" style={{ fontSize: 11, fontWeight: 700, color: '#6d28d9', backgroundColor: '#f5f3ff', border: '1px solid #ddd6fe', borderRadius: 6, padding: '1px 5px', whiteSpace: 'nowrap' }} data-testid={`badge-thumb-draft-${item.id}`}>
-          Rascunho
-        </span>
-      )}
-    </>
-  );
+  const renderSelosDaPeca = (item: any, tabId: string) => {
+    type Estado = { chave: string; rotulo: string; titulo: string; testId: string; cor: { bg: string; borda: string; texto: string } };
+    const estados = ([
+      tabId === "criar-aprovacoes" && item.rejectedBySponsor && {
+        chave: 'reprovada', rotulo: 'Reprovada', testId: `badge-rejected-sponsor-${item.id}`,
+        titulo: 'Reprovada pelo patrocinador — voltou para a Arte refazer',
+        cor: { bg: '#fef2f2', borda: '#fecaca', texto: '#b91c1c' },
+      },
+      item.isPriority && {
+        chave: 'prioritaria', rotulo: 'PRIORITÁRIA', testId: `tag-prioritaria-${item.id}`,
+        titulo: 'Peça prioritária — marcada pela Solicitação para sair na frente',
+        cor: { bg: '#fff1f2', borda: '#fecdd3', texto: '#be123c' },
+      },
+      tabId === "criar-aprovacoes" && item.approvalThumbUrl && !item.rejectedBySponsor && {
+        chave: 'rascunho', rotulo: 'Rascunho', testId: `badge-thumb-draft-${item.id}`,
+        titulo: 'Thumb salvo como rascunho, ainda não enviado para aprovação',
+        cor: { bg: '#f5f3ff', borda: '#ddd6fe', texto: '#6d28d9' },
+      },
+    ].filter(Boolean) as Estado[]);
+    return (
+      <>
+        {tabId === "finalizados" && <StatusBadge status={item.status} />}
+        <SeloKit peca={item} />
+        {estados.map((e, i) => (
+          <span key={e.chave} title={e.titulo} data-testid={e.testId}
+            style={i === 0 && tabId !== "finalizados"
+              ? { fontSize: 11, fontWeight: 700, color: e.cor.texto, backgroundColor: e.cor.bg, border: `1px solid ${e.cor.borda}`, borderRadius: 6, padding: '1px 6px', whiteSpace: 'nowrap' }
+              // #57534e sobre branco = 7,0:1 ✓ — texto, não selo.
+              : { fontSize: 11, fontWeight: 600, color: '#57534e', whiteSpace: 'nowrap' }}>
+            {e.rotulo}
+          </span>
+        ))}
+      </>
+    );
+  };
+
+  /**
+   * MEDIDA, ÁREA E MATERIAL numa linha de texto secundário, dentro da coluna
+   * "Peça". Eram três colunas próprias (Dimensões, M², Material — 356px da
+   * tabela) para dados que a Arte consulta, mas não usa para decidir o gesto
+   * da linha (subir thumb, enviar arquivo final, reenviar correção — medido na
+   * trilha de 30 dias, 22/09). Ficam à vista, menores; o detalhe completo mora
+   * na ficha da peça. A ordem de leitura continua a de antes: a medida, o
+   * ARQ. (o que a impressora recebe), a área e o material.
+   */
+  const renderMetaDaPeca = (item: any, comQtd = false) => {
+    const partes: React.ReactNode[] = [];
+    if (comQtd) partes.push(<span key="q">Qtd {formatQuantity(item.quantity)}</span>);
+    if (item.visualWidth && item.visualHeight) {
+      partes.push(<span key="v" title={`${item.visualWidth} × ${item.visualHeight}`} style={{ fontWeight: 700, color: '#44403c', fontVariantNumeric: 'tabular-nums' }}>{item.visualWidth} × {item.visualHeight}</span>);
+    }
+    if (item.fileWidth && item.fileHeight) {
+      partes.push(
+        <span key="a" title={`ARQ. (com sangria): ${item.fileWidth} × ${item.fileHeight} — é o que a impressora recebe`} style={{ fontVariantNumeric: 'tabular-nums' }}>
+          <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>arq.</span>
+          {' '}{item.fileWidth} × {item.fileHeight}
+        </span>,
+      );
+    }
+    if (item.calculatedM2) partes.push(<span key="m" style={{ fontVariantNumeric: 'tabular-nums' }}>{item.calculatedM2} m²</span>);
+    if (item.material) partes.push(<span key="mat" title={item.material} style={{ textTransform: 'uppercase', letterSpacing: '0.03em' }}>{item.material}</span>);
+    if (item.finish) partes.push(<span key="f" title={item.finish}>{item.finish}</span>);
+    if (partes.length === 0) return null;
+    return (
+      <span data-testid={`meta-peca-${item.id}`} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'baseline', columnGap: 6, rowGap: 1, fontSize: 11.5, color: '#57534e', minWidth: 0 }}>
+        {partes.map((p, i) => (
+          <Fragment key={i}>
+            {i > 0 && <span aria-hidden="true" style={{ color: '#78716c' }}>·</span>}
+            {p}
+          </Fragment>
+        ))}
+      </span>
+    );
+  };
 
   const renderRow = (item: any, tabId: string, comSelecao: boolean, hoje: Date) => (
     <tr
@@ -2873,25 +2917,18 @@ export default function Arte() {
           />
         </td>
       )}
-      {/* ID (em Finalizados, "ID / Status" — ver ARTE_COLS_FINALIZADOS).
-          `overflow: hidden` é a GARANTIA ESTRUTURAL, a largura é o ajuste: o
-          selo é `whiteSpace: nowrap` (status-badge.tsx) e numa tabela
-          `tableLayout: fixed` o que não cabe PINTA POR CIMA da célula vizinha —
-          era assim que "Pronto para Produção" (153,6px) aparecia por baixo do
-          número da quantidade. Com a coluna em 208px o recorte nunca chega a
-          agir com a fonte real (184 úteis contra 175,9 do pior selo); ele existe
-          para que um rótulo novo, ou um fallback de fonte mais largo, sejam
-          cortados dentro da própria coluna em vez de invadirem Qtd de novo.
-          alignItems flex-start: num flex column o padrão é stretch, e o selo
-          seria esticado na largura inteira da célula. */}
+      {/* ID + os selos da peça (renderSelosDaPeca). `overflow: hidden` é a
+          GARANTIA ESTRUTURAL: numa tabela `tableLayout: fixed` o selo
+          `nowrap` que não cabe PINTA POR CIMA da célula vizinha — era assim
+          que "Pronto para Produção" aparecia por baixo da quantidade (ver
+          ARTE_COLS_FINALIZADOS). alignItems flex-start: num flex column o
+          padrão é stretch, e o selo seria esticado na largura da célula. */}
       <td style={{ padding: '9px 12px', overflow: 'hidden' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 3, alignItems: 'flex-start' }}>
           <span style={{ fontFamily: '"DM Mono", monospace', fontSize: 12, color: '#57534e', fontWeight: 600 }} data-testid={`text-display-id-${item.id}`}>
             {item.displayId}
           </span>
-          <SeloKit peca={item} />
-          {tabId === "finalizados" && <StatusBadge status={item.status} />}
-          {renderSelosDaFila(item, tabId)}
+          {renderSelosDaPeca(item, tabId)}
         </div>
       </td>
       {/* Qtd — formatQuantity: `String(q || '—').padStart(2,'0')` transformava
@@ -2899,89 +2936,26 @@ export default function Arte() {
       <td style={{ padding: '9px 12px', fontWeight: 700, color: item.quantity ? '#1c1917' : '#57534e', fontSize: 14, fontVariantNumeric: 'tabular-nums' }}>
         {formatQuantity(item.quantity)}
       </td>
-      {/* Peça */}
+      {/* Peça — nome em destaque; descrição, medida/material e anexos em texto
+          secundário, menor e cinza. Um peso forte por célula. */}
       <td style={{ padding: '9px 12px' }}>
-        {/* alignItems flex-start: num flex column o padrão é stretch, e as tags
-            eram esticadas na largura inteira da célula, parecendo campo vazio. */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 3, alignItems: 'flex-start', minWidth: 0 }}>
-          {/* Tipo E descrição. `description || type` escondia o tipo da peça
-              sempre que havia descrição — na coluna chamada "Peça" — e deixava
-              a única coluna elástica com um vazio de ~300px quando a descrição
-              era curta. O tipo é o nome da peça; a descrição é o detalhe. */}
+          {/* Tipo E descrição: o tipo é o nome da peça; a descrição é o detalhe. */}
           <span style={{ fontWeight: 700, color: '#1c1917', fontSize: 13, wordBreak: 'break-word' }}>{item.type || item.description}</span>
           {item.type && item.description && (
             <span style={{ fontSize: 12, color: '#57534e', wordBreak: 'break-word' }}>{item.description}</span>
           )}
+          {renderMetaDaPeca(item)}
+          {/* A observação é instrução de quem pediu a peça para quem faz a
+              arte — fica à vista, na única cor de aviso da célula.
+              #b45309 sobre branco = 5,0:1 ✓. */}
           {item.observations && (
-            <span style={{ fontSize: 11, color: '#b45309', display: 'flex', alignItems: 'center', gap: 3 }}>
-              <AlertCircle style={{ width: 10, height: 10, flexShrink: 0 }} />{item.observations}
+            <span style={{ fontSize: 11.5, color: '#b45309', display: 'flex', alignItems: 'center', gap: 3 }}>
+              <AlertCircle aria-hidden="true" style={{ width: 10, height: 10, flexShrink: 0 }} />{item.observations}
             </span>
           )}
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>{renderTagsDaPeca(item)}</div>
+          {renderTagsDaPeca(item)}
         </div>
-      </td>
-      {/* Dimensões — MEDIDA (a coluna seguinte é ÁREA; ver ARTE_COLS).
-          `overflow: hidden` é o que impede a linha da sangria, que é `nowrap`
-          numa tabela `tableLayout: fixed`, de pintar por cima da célula de M² e
-          fazer "1.90 (sangria)" e "1.71" lerem como um valor só. O `title`
-          devolve o valor inteiro quando as reticências entram. */}
-      <td style={{ padding: '9px 12px', whiteSpace: 'nowrap', overflow: 'hidden' }}>
-        {item.visualWidth && item.visualHeight ? (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 1, minWidth: 0 }}>
-            <span
-              title={`${item.visualWidth} × ${item.visualHeight}`}
-              style={{ fontSize: 12, fontWeight: 700, color: '#1c1917', fontVariantNumeric: 'tabular-nums', overflow: 'hidden', textOverflow: 'ellipsis' }}
-            >
-              {item.visualWidth} × {item.visualHeight}
-            </span>
-            {/* A sangria vinha com quase o mesmo peso da medida principal (11px
-                contra 12px, cor escura), e a palavra "(sangria)" só aparecia no
-                FIM — o olho lia dois números irmãos. Agora o rótulo vem antes,
-                em versalete claro, e o número vai em cinza AA: fica óbvio quem
-                é o principal antes de ler qualquer dígito. */}
-            {item.fileWidth && item.fileHeight && (
-              <span
-                title={`ARQ. (com sangria): ${item.fileWidth} × ${item.fileHeight} — é o que a impressora recebe`}
-                style={{ fontSize: 11, fontWeight: 400, color: '#746e69', fontVariantNumeric: 'tabular-nums', overflow: 'hidden', textOverflow: 'ellipsis' }}
-              >
-                <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>arq.</span>
-                {' '}{item.fileWidth} × {item.fileHeight}
-              </span>
-            )}
-          </div>
-        ) : (
-          <span style={{ color: '#57534e', fontSize: 12 }}>—</span>
-        )}
-      </td>
-      {/* m² — ÁREA. Alinhada à direita com `tabular-nums` (é o que permite
-          comparar a coluna de cima a baixo) e separada da medida por um filete:
-          são grandezas diferentes e precisam ser lidas como duas colunas. */}
-      <td
-        title={item.calculatedM2 ? `${item.calculatedM2} m²` : undefined}
-        style={{ padding: '9px 12px', textAlign: 'right', borderLeft: '1px solid #f0efed', fontFamily: '"Space Grotesk", sans-serif', fontWeight: 600, fontSize: 13, color: '#1c1917', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
-      >
-        {item.calculatedM2 || '—'}
-      </td>
-      {/* Material */}
-      <td style={{ padding: '9px 12px' }}>
-        {item.material ? (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 3, minWidth: 0 }}>
-            {/* Materiais do catálogo são curtos ("SANETT", "LONA"), mas o campo
-                aceita texto livre — "Adesivo transparente" já vazava para a
-                coluna vizinha. Trunca; o nome completo fica no hover. */}
-            <span title={item.material} style={{
-              display: 'block', maxWidth: '100%', padding: '2px 8px',
-              backgroundColor: '#f5f5f4', color: '#57534e', borderRadius: 6,
-              fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em',
-              whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', boxSizing: 'border-box',
-            }}>
-              {item.material}
-            </span>
-            {item.finish && (
-              <span title={item.finish} style={{ fontSize: 11, color: '#57534e', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block' }}>{item.finish}</span>
-            )}
-          </div>
-        ) : <span style={{ color: '#57534e', fontSize: 12 }}>—</span>}
       </td>
       {/* Arte — thumb / arquivo final */}
       <td style={{ padding: '9px 12px' }} onClick={e => e.stopPropagation()}>
@@ -3000,25 +2974,16 @@ export default function Arte() {
       </td>
       {/* Prazo */}
       <td style={{ padding: '9px 12px' }}>{renderPrazo(item, tabId, hoje)}</td>
-      {/* Patrocinadores — a segunda colisão da varredura, mesmo mecanismo do
-          selo: o chip é `whiteSpace: nowrap` (sponsor-chips.tsx) e não cabia na
-          coluna. Medido: "Prefeitura Municipal" pede 131,6px contra 68 úteis e
-          vazava 52 — e isso NÃO é hipótese, é colisão de hoje nas abas que têm
-          botão de ação primária: o chip pintava 21,9px POR CIMA do "Enviar
-          direto". `overflow: hidden` mantém o excesso dentro da coluna; o nome
-          inteiro continua no `title` do contêiner, que já lista todos. As
-          reticências DENTRO do chip dependem de sponsor-chips.tsx, componente
-          compartilhado com outras telas — fica para quem for dono dele. */}
+      {/* Patrocinadores. `overflow: hidden`: o chip é `whiteSpace: nowrap`
+          (sponsor-chips.tsx) e "Prefeitura Municipal" pede 131,6px — sem o
+          recorte ele pintava por cima do botão de ação. O nome inteiro fica no
+          `title`. Na fila que espera patrocinador, o chip diz DE QUEM se espera. */}
       <td style={{ padding: '9px 12px', overflow: 'hidden' }}>
-        {/* Na fila que espera patrocinador, o chip diz DE QUEM se espera. */}
         <SponsorChips sponsors={item.sponsors ?? []} variant="orange" size="sm" destacarPendencia={tabId === "aguardando-patrocinador"} />
       </td>
-      {/* Ações */}
-      {/* flexWrap: 'nowrap' — com 'wrap', a ação primária que não coubesse na
-          largura da coluna ia para a linha DE CIMA do menu "⋯", desalinhada do
-          resto da linha e somando ~40px de altura em cada peça da fila. Agora o
-          botão encolhe (minWidth 0 + reticências) e os dois ficam sempre lado a
-          lado, na altura da linha. */}
+      {/* Ações — UMA ação principal à vista (subir/enviar thumb ou finalizar)
+          e o resto no "⋯". flexWrap 'nowrap': o botão encolhe com reticências
+          e os dois ficam sempre lado a lado, na altura da linha. */}
       <td style={{ padding: '9px 12px', textAlign: 'right' }}>
         <div style={{ display: 'flex', flexWrap: 'nowrap', justifyContent: 'flex-end', alignItems: 'center', gap: 6 }}>
           {renderBotaoPrimario(item, tabId)}
@@ -3028,6 +2993,12 @@ export default function Arte() {
     </tr>
   );
 
+  /**
+   * O card do celular fala a MESMA língua da linha: código + selos, nome da
+   * peça, prazo, uma linha secundária (qtd, medida, material) e UMA ação à
+   * vista mais o "⋯". Patrocinadores só onde a etapa é a aprovação deles —
+   * nas outras fases eles não mudam o gesto e moram na ficha.
+   */
   const renderMobileCard = (item: any, tabId: string, hoje: Date) => (
     <div key={item.id}
       role="button"
@@ -3036,36 +3007,35 @@ export default function Arte() {
       style={{ backgroundColor: '#fff', border: '1px solid #e7e5e4', borderRadius: 8, padding: 12, cursor: 'pointer' }}
       onClick={() => handleViewDetails(item)}
       onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleViewDetails(item); } }}>
-      {/* O cabeçalho do card fala a MESMA língua da linha da tabela: ID em
-          cinza (o laranja no código de toda peça gastava a cor de atenção num
-          dado que não pede atenção), selo de status só em Finalizados — nas
-          outras fases o seletor de fase logo acima já diz onde a peça está, e
-          o selo repetia isso em cada card —, e os selos de reprovada/rascunho
-          que a linha tinha e o card não. */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 6 }}>
         <span style={{ fontFamily: '"DM Mono", monospace', fontWeight: 600, color: '#57534e', fontSize: 12 }}>{item.displayId}</span>
-        <SeloKit peca={item} />
-        {renderSelosDaFila(item, tabId)}
-        {tabId === "finalizados" && <span style={{ marginLeft: 'auto' }}><StatusBadge status={item.status} /></span>}
+        {renderSelosDaPeca(item, tabId)}
       </div>
-      <div style={{ fontWeight: 700, fontSize: 13, color: '#1c1917' }}>{item.type}</div>
-      {item.description && <div style={{ fontSize: 12, color: '#57534e', marginTop: 2 }}>{item.description}</div>}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
-        {renderPrazo(item, tabId, hoje)}
-        <span style={{ fontSize: 11, fontWeight: 600, color: '#57534e' }}>Qtd {formatQuantity(item.quantity)}</span>
-        {renderTagsDaPeca(item)}
+      <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+        <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 3 }}>
+          <div style={{ fontWeight: 700, fontSize: 14, color: '#1c1917' }}>{item.type || item.description}</div>
+          {item.type && item.description && <div style={{ fontSize: 12, color: '#57534e' }}>{item.description}</div>}
+          {renderPrazo(item, tabId, hoje)}
+          {renderMetaDaPeca(item, true)}
+          {item.observations && (
+            <span style={{ fontSize: 11.5, color: '#b45309', display: 'flex', alignItems: 'center', gap: 3 }}>
+              <AlertCircle aria-hidden="true" style={{ width: 10, height: 10, flexShrink: 0 }} />{item.observations}
+            </span>
+          )}
+          {renderTagsDaPeca(item)}
+        </div>
+        {/* Mesmo teste isImage do card de correção: thumb em PDF virava um
+            <img> quebrado aqui. À direita, pequena: é a arte da própria
+            pessoa, e reconhecer a peça pela imagem é mais rápido que ler. */}
+        {item.approvalThumbUrl && (/\.(png|jpg|jpeg|gif|webp)/i.test(item.approvalThumbUrl) || item.approvalThumbUrl.startsWith('/objects/')) && (
+          <img loading="lazy" decoding="async" src={miniatura(item.approvalThumbUrl)} alt="" style={{ width: 56, height: 44, borderRadius: 6, objectFit: 'cover', flexShrink: 0, border: '1px solid #f0efee' }} />
+        )}
       </div>
-      {/* Mesmo teste isImage do card de correção: thumb em PDF virava um <img>
-          quebrado aqui. */}
-      {item.approvalThumbUrl && (/\.(png|jpg|jpeg|gif|webp)/i.test(item.approvalThumbUrl) || item.approvalThumbUrl.startsWith('/objects/')) && (
+      {tabId === "aguardando-patrocinador" && (
         <div style={{ marginTop: 6 }}>
-          <img loading="lazy" decoding="async" src={miniatura(item.approvalThumbUrl)} alt="" style={{ maxWidth: 80, maxHeight: 60, borderRadius: 6, objectFit: 'cover' }} />
+          <SponsorChips sponsors={item.sponsors ?? []} variant="colored" size="sm" max={3} destacarPendencia={tabId === "aguardando-patrocinador"} />
         </div>
       )}
-      <SponsorChips sponsors={item.sponsors ?? []} variant="colored" size="sm" max={3} destacarPendencia={tabId === "aguardando-patrocinador"} />
-      {/* O card não oferecia NENHUMA ação: enviar e finalizar ainda davam pelo
-          modal, mas dispensar e exportar prova simplesmente não existiam no
-          celular. */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10 }} onClick={e => e.stopPropagation()}>
         {renderBotaoPrimario(item, tabId, '100%')}
         {renderMenuAcoes(item)}
@@ -3175,9 +3145,7 @@ export default function Arte() {
       );
     }
 
-    // Resumo por evento: quantos itens desta aba cada evento tem, para saber
-    // rapidamente onde estão sem precisar rolar a lista toda.
-    const eventSummary: { id: string | null; name: string; count: number }[] = [];
+    // Quantas peças desta aba cada evento tem — o total da faixa do evento.
     const evSumMap = new Map<string, { id: string | null; name: string; count: number }>();
     // Contadores de "o que falta" por evento — os dados já estavam aqui, só não
     // eram compostos. Aparecem na faixa do evento, onde o olho já está.
@@ -3188,13 +3156,12 @@ export default function Arte() {
       const key = id || name;
       const cur = evSumMap.get(key);
       if (cur) cur.count++;
-      else { const rec = { id, name, count: 1 }; evSumMap.set(key, rec); eventSummary.push(rec); }
+      else { const rec = { id, name, count: 1 }; evSumMap.set(key, rec); }
       const p = evProgresso.get(key) ?? { semThumb: 0, semFinal: 0 };
       if (!item.approvalThumbUrl) p.semThumb++;
       if (!item.finalFileUrl) p.semFinal++;
       evProgresso.set(key, p);
     });
-    eventSummary.sort((a, b) => b.count - a.count);
 
     // Diagnóstico da fase — o que as abas NÃO dizem.
     //
@@ -3399,6 +3366,9 @@ export default function Arte() {
             return { bg: '#ffffff', borda: '#e7e5e4', texto: '#44403c', barra: '#a8a29e', trilho: '#f0efed', sub: '#78716c' };
           };
           const teto = Math.max(1, ...travando.map(t => t.pecas));
+          // Com uma marca ligada no filtro o ranking fica aberto: é nele que
+          // mora o caminho de volta ("mostrar todas as peças de novo").
+          const rankingAberto = travandoAberto || (sponsorFilter.length === 1 && travando.some(t => t.id === sponsorFilter[0]));
           return (
             <div data-testid="faixa-travando" style={{ borderRadius: 12, background: '#ffffff', border: '1px solid #e7e5e4', overflow: 'hidden' }}>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap', padding: '10px 14px', background: '#fafaf9', borderBottom: '1px solid #f0efed' }}>
@@ -3408,7 +3378,18 @@ export default function Arte() {
                   {travando[0].espera > 0 ? ` — a mais antiga espera há ${travando[0].espera}d` : ''}
                 </span>
                 <span style={{ flex: 1 }} />
-                {(ocultas > 0 || showAllTravando) && (
+                <button
+                  type="button"
+                  onClick={() => setTravandoAberto(v => !v)}
+                  aria-expanded={rankingAberto}
+                  aria-controls="ranking-travando"
+                  data-testid="button-travando-ranking"
+                  style={{ border: 'none', background: 'transparent', padding: '0 4px', minHeight: isMobile ? 44 : 28, color: '#44403c', fontSize: 12, fontWeight: 700, cursor: 'pointer', font: 'inherit', whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: 4 }}
+                >
+                  {rankingAberto ? 'Recolher' : 'Ver quem'}
+                  <ChevronDown aria-hidden="true" style={{ width: 12, height: 12, transform: rankingAberto ? 'rotate(180deg)' : undefined, transition: 'transform 0.15s' }} />
+                </button>
+                {rankingAberto && (ocultas > 0 || showAllTravando) && (
                   <button
                     type="button"
                     onClick={() => setShowAllTravando(v => !v)}
@@ -3419,7 +3400,8 @@ export default function Arte() {
                   </button>
                 )}
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fill, minmax(300px, 1fr))', columnGap: 18, padding: '4px 14px 8px' }}>
+              {rankingAberto && (
+              <div id="ranking-travando" style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fill, minmax(300px, 1fr))', columnGap: 18, padding: '4px 14px 8px' }}>
                 {visiveis.map(t => {
                   const ligado = sponsorFilter.length === 1 && sponsorFilter[0] === t.id;
                   const p = pele(t.espera, ligado);
@@ -3462,6 +3444,7 @@ export default function Arte() {
                   );
                 })}
               </div>
+              )}
             </div>
           );
         })()}
@@ -3487,51 +3470,10 @@ export default function Arte() {
           </div>
         )}
 
-        {/* Resumo por evento — chips clicáveis para filtrar/pular */}
-        {eventFilter.length === 0 && eventSummary.length > 1 && (
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center', padding: '12px 14px', backgroundColor: '#fafaf9', border: '1px solid #e7e5e4', borderRadius: 12 }}>
-            <span style={{ fontSize: 11, fontWeight: 700, color: '#57534e', textTransform: 'uppercase', letterSpacing: '0.06em', marginRight: 2 }}>
-              {eventSummary.length} eventos
-            </span>
-            {/* Só os maiores ficam à vista. Com os 19 eventos abertos, três
-                linhas de chips idênticos disputavam a atenção e o olho não tinha
-                onde pousar — "Rio S21K · 95" pesava o mesmo que um evento de uma
-                peça só. Os pequenos continuam a um clique. */}
-            {(() => {
-              // O maior volume da lista inteira (não só dos chips visíveis):
-              // abrir "mais N eventos" não pode recolorir os que já estavam à vista.
-              const maiorVolume = eventSummary.reduce((mx, e) => Math.max(mx, e.count), 0);
-              return (showAllEvents ? eventSummary : eventSummary.slice(0, EVENT_CHIPS_VISIBLE)).map(ev => {
-                const c = corPorVolume(ev.count, maiorVolume);
-                return (
-                  <button
-                    key={ev.id || ev.name}
-                    onClick={() => { if (ev.id) setEventFilter([ev.id]); }}
-                    title={ev.id ? `Filtrar por ${ev.name} — ${ev.count} ${ev.count === 1 ? 'peça' : 'peças'}` : ev.name}
-                    style={{ display: 'inline-flex', alignItems: 'center', gap: 6, minHeight: isMobile ? 36 : 28, padding: '0 6px 0 11px', borderRadius: 999, border: `1px solid ${c.border}`, backgroundColor: c.bg, color: c.text, fontSize: 12, fontWeight: 600, cursor: ev.id ? 'pointer' : 'default', whiteSpace: 'nowrap' }}
-                  >
-                    {ev.name}
-                    <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minWidth: 20, height: 18, padding: '0 6px', borderRadius: 999, backgroundColor: c.seloBg, color: c.seloText, fontSize: 11, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
-                      {ev.count}
-                    </span>
-                  </button>
-                );
-              });
-            })()}
-            {eventSummary.length > EVENT_CHIPS_VISIBLE && (
-              <button
-                onClick={() => setShowAllEvents(v => !v)}
-                data-testid="button-toggle-events"
-                style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '5px 11px', borderRadius: 999, border: '1px dashed #d6d3d1', background: 'none', color: '#57534e', fontSize: 12, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}
-              >
-                {showAllEvents
-                  ? 'Mostrar menos'
-                  : `mais ${eventSummary.length - EVENT_CHIPS_VISIBLE} evento${eventSummary.length - EVENT_CHIPS_VISIBLE !== 1 ? 's' : ''}`}
-                <ChevronDown style={{ width: 12, height: 12, transform: showAllEvents ? 'rotate(180deg)' : undefined, transition: 'transform 0.15s' }} />
-              </button>
-            )}
-          </div>
-        )}
+        {/* A FAIXA "N EVENTOS" (chips com contagem por evento) SAIU (dono,
+            22/09). Ela repetia o seletor de Evento da barra — que já lista os
+            eventos com a contagem de cada um e filtra no mesmo clique — e
+            ocupava de uma a três linhas acima da lista. */}
 
         {/* UM contêiner de rolagem horizontal para a aba inteira. Antes cada
             bloco tinha o próprio overflowX: rolar o primeiro não movia o
@@ -3604,45 +3546,42 @@ export default function Arte() {
                       )}
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 8 : 14, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-                      {!isMobile && bloco.eventObj?.startDate && (
-                        <span style={{ display: 'flex', alignItems: 'center', gap: 5, color: '#57534e', fontSize: 11, fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
-                          <Calendar style={{ width: 12, height: 12 }} />
-                          {parseDateLocal(bloco.eventObj.startDate).toLocaleDateString('pt-BR')}
-                        </span>
-                      )}
+                      {/* MENOS É MAIS (dono, 22/09). A faixa trazia a data do
+                          evento, a saída e os TRÊS marcos em pílulas coloridas
+                          — quatro cores e cinco datas por evento, para um dado
+                          que a Arte usa um só: o marco DESTA fase. Fica ele, e
+                          a saída (a âncora de todos os marcos) no desktop. A
+                          data do evento e os outros dois marcos continuam a um
+                          passar de mouse, no `title` do marco. */}
                       {!isMobile && bloco.eventObj?.truckDepartureDate && (
                         <span style={{ display: 'flex', alignItems: 'center', gap: 5, color: '#57534e', fontSize: 11, fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
-                          <Truck style={{ width: 12, height: 12 }} />
+                          <Truck aria-hidden="true" style={{ width: 12, height: 12 }} />
                           {/* Bloco do Kit: a data que manda é a entrega do material (15/09). */}
                           {bloco.eventObj.datasDoKit
                             ? <>Entrega do material: {new Date(bloco.eventObj.truckDepartureDate).toLocaleDateString('pt-BR', { timeZone: 'UTC' })}</>
                             : <>Saída: {toUTCDisplayDate(bloco.eventObj.truckDepartureDate).toLocaleDateString('pt-BR')} às {toUTCDisplayDate(bloco.eventObj.truckDepartureDate).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</>}
                         </span>
                       )}
-                      {/* Chips de prazo: fundo sólido claro com texto escuro —
-                          o dado mais urgente é o mais legível, e o atrasado
-                          salta da faixa.
-
-                          Os marcos saem de `phaseDeadline` (ARTE_MARCOS_FAIXA),
-                          não de uma conta local: esta faixa repetia a aritmética
-                          à mão e ficou de fora quando o marco da Finalização
-                          entrou — o chip "Marco desta fase" simplesmente não
-                          acendia em Finalizar arte, e as datas passariam a
-                          divergir da coluna Prazo ao lado no ajuste de fim de
-                          semana. Uma conta só, três chips. */}
-                      {bloco.eventObj?.truckDepartureDate && ARTE_MARCOS_FAIXA.map(fase => {
-                        const m = phaseDeadline(bloco.eventObj, fase, hoje);
-                        if (!m) return null;
-                        const ds = m.date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
-                        const s = semaforoPrazo(m.diff);
-                        const daFase = prazo?.label === m.label;
+                      {/* Os marcos saem de `phaseDeadline` (ARTE_MARCOS_FAIXA),
+                          a mesma conta da coluna Prazo — nunca aritmética
+                          local, que já divergiu no ajuste de fim de semana. */}
+                      {prazo && (() => {
+                        const s = semaforoPrazo(prazo.diff);
+                        const ds = prazo.date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+                        const todos = [
+                          bloco.eventObj?.startDate ? `Evento: ${parseDateLocal(bloco.eventObj.startDate).toLocaleDateString('pt-BR')}` : null,
+                          ...(bloco.eventObj?.truckDepartureDate ? ARTE_MARCOS_FAIXA : []).map(fase => {
+                            const m = phaseDeadline(bloco.eventObj, fase, hoje);
+                            return m ? `${m.label}: ${m.date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}` : null;
+                          }),
+                        ].filter(Boolean).join(' · ');
                         return (
-                          <span key={fase} title={daFase ? 'Marco desta fase' : undefined}
-                            style={{ display: 'inline-flex', alignItems: 'center', gap: 5, backgroundColor: s.bg, border: `1px solid ${daFase ? s.text : s.border}`, borderRadius: 999, padding: '3px 9px', fontSize: 11, fontWeight: 700, color: s.text, letterSpacing: '0.04em', whiteSpace: 'nowrap' }}>
-                            {m.label} · {ds}{m.diff >= 0 && m.diff <= 14 && <span style={{ opacity: 0.72, fontWeight: 500 }}> ({m.diff}d)</span>}
+                          <span data-testid="marco-da-fase" title={`Marco desta fase. ${todos}`}
+                            style={{ display: 'inline-flex', alignItems: 'center', gap: 5, backgroundColor: s.bg, border: `1px solid ${s.border}`, borderRadius: 999, padding: '3px 9px', fontSize: 11, fontWeight: 700, color: s.text, whiteSpace: 'nowrap' }}>
+                            {prazo.label} · {ds}{prazo.diff >= 0 && prazo.diff <= 14 && <span style={{ opacity: 0.8, fontWeight: 500 }}> ({prazo.diff}d)</span>}
                           </span>
                         );
-                      })}
+                      })()}
                       {/* "peças", não "ITENS": a tela inteira fala em peça, e o
                           contador era a única palavra em versalete da faixa. */}
                       <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 600, color: '#57534e', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>
@@ -4237,88 +4176,80 @@ export default function Arte() {
       }}>
         <div style={{ padding: isMobile ? '12px 12px 0' : '20px 32px 0', maxWidth: 1600, margin: '0 auto' }}>
 
-          {/* ── Identity + actions ── */}
-          {/* NO CELULAR a identidade e as ações EMPILHAM. Lado a lado, o bloco
-              de ações tinha `flexShrink: 0` com quatro botões numa linha só —
-              em 390px ele passava da largura, e como a tela é `overflow:
-              hidden` o excesso era CORTADO, não rolável: "Envio de thumbs em
-              lote" e "PDF compartilhado" simplesmente não existiam. */}
-          <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', alignItems: isMobile ? 'stretch' : 'flex-start', justifyContent: 'space-between', gap: isMobile ? 10 : 16, marginBottom: isMobile ? 12 : 18 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 14, minWidth: 0 }}>
-              {/* LADRILHO CHAPADO, 40px.
-
-                  Era um quadrado de 48 com gradiente laranja, anel de 1px e
-                  uma sombra colorida de 24px — o objeto mais saturado da tela
-                  inteira, para dizer o nome do módulo em que a pessoa acabou de
-                  clicar. O laranja nesta tela é a cor de ATENÇÃO (o selo "em
-                  andamento", o prazo, a aba ativa); gastá-lo na decoração do
-                  cabeçalho enfraquece todos os outros usos. */}
+          {/* ── Identidade + ações ──
+              MENOS É MAIS (dono, 22/09: "apenas o que eles REALMENTE usam").
+              Medido na trilha de 30 dias: a Arte vive de três gestos — subir/
+              enviar thumb (2.582), enviar arquivo final (1.555) e reenviar
+              correção (~320). Nenhum deles mora no topo: estão na linha. Por
+              isso o topo ficou com o título, UMA linha de contexto e só a ação
+              de lote que passa pela mesma rota de envio ("Envio de thumbs em
+              lote", na aba de criar aprovações). Exportar PDF, Subir book e
+              PDF compartilhado — que não aparecem na trilha — foram para
+              "Mais ações", com as MESMAS cores (dono, 17/09: "seria bom cor
+              também"). O "como funciona" virou o "?" ao lado do título.
+              NO CELULAR identidade e ações EMPILHAM: lado a lado, a fileira
+              passava da largura e a tela é overflow:hidden — o excesso era
+              CORTADO, não rolável. */}
+          <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', alignItems: isMobile ? 'stretch' : 'center', justifyContent: 'space-between', gap: isMobile ? 10 : 16, marginBottom: isMobile ? 12 : 16 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
+              {/* Ladrilho chapado, 40px: o laranja desta tela é a cor de
+                  ATENÇÃO, e gastá-lo na decoração do cabeçalho enfraquece
+                  todos os outros usos — o ícone é o único toque de cor. */}
               <div style={{ width: 40, height: 40, borderRadius: 11, backgroundColor: '#1c1917', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                 <Palette aria-hidden="true" style={{ width: 19, height: 19, color: '#fb923c' }} />
               </div>
-              <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                   {/* 26/700/-0.03em: a mesma escala da Gestão de Prazos e do
                       Atendimento. Em -0.05em as letras do título se tocavam. */}
                   <h1 style={{ fontSize: FS.h1, fontWeight: 700, color: '#1a1c1c', letterSpacing: '-0.03em', margin: 0, fontFamily: "'Space Grotesk', sans-serif", lineHeight: 1.1 }}>
                     Arte
                   </h1>
-                  {(pendingCount + correcaoCount + needsFinalFileCount) > 0 ? (
-                    // "em andamento" não dizia DE QUEM (rodada 4): a soma é das
-                    // três fases em que a peça espera a Arte — o `title` conta.
-                    <span
-                      title="Soma de Aguardando envio, Correção e Finalizar arte — as fases em que a peça depende da Arte"
-                      style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 10px', borderRadius: 999, backgroundColor: '#fff7ed', border: '1px solid #fed7aa', fontSize: 11, fontWeight: 700, color: '#c2410c' }}
-                    >
-                      <span style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: '#f97316', display: 'inline-block' }} />
-                      {pendingCount + correcaoCount + needsFinalFileCount} esperando a Arte
-                    </span>
-                  ) : (
-                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 10px', borderRadius: 999, backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0', fontSize: 11, fontWeight: 700, color: '#15803d' }}>
-                      Tudo em dia
-                    </span>
-                  )}
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <button
+                        type="button"
+                        aria-label="Como funciona a Arte e o que se faz nesta fase"
+                        data-testid="button-como-funciona"
+                        style={{ width: isMobile ? 44 : 28, height: isMobile ? 44 : 28, borderRadius: 999, border: 'none', background: 'transparent', color: '#57534e', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}
+                      >
+                        <HelpCircle aria-hidden="true" style={{ width: 16, height: 16 }} />
+                      </button>
+                    </PopoverTrigger>
+                    <PopoverContent align="start" style={{ width: 300, padding: 14 }}>
+                      {/* O fluxo em ordem, com verbo (rodada 4), e o guia da fase
+                          aberta — os dois moravam à vista, em duas linhas
+                          cinzas que ninguém relia depois da primeira semana. */}
+                      <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: '#1c1917' }}>
+                        Suba o thumb, envie para aprovação, corrija o que voltar e finalize o arquivo
+                      </p>
+                      {GUIA_DA_FASE[activeTab] && (
+                        <p data-testid="guia-da-fase" style={{ margin: '8px 0 0', fontSize: 12.5, color: '#44403c', lineHeight: 1.5 }}>
+                          {GUIA_DA_FASE[activeTab]}
+                        </p>
+                      )}
+                    </PopoverContent>
+                  </Popover>
                 </div>
-                <p style={{ fontSize: 13, color: '#746e69', margin: 0, marginTop: 4, lineHeight: 1.5 }}>
-                  {/* O fluxo em ordem, com verbo (rodada 4): a lista de
-                      substantivos dizia os assuntos, não o trabalho. */}
-                  Suba o thumb, envie para aprovação, corrija o que voltar e finalize o arquivo
+                {/* UMA linha de contexto. "em andamento" não dizia DE QUEM
+                    (rodada 4): a soma é das três fases em que a peça espera a
+                    Arte — o `title` conta. */}
+                <p
+                  data-testid="contexto-arte"
+                  title="Soma de Aguardando envio, Correção e Finalizar arte — as fases em que a peça depende da Arte"
+                  style={{ fontSize: 13, color: '#57534e', margin: '3px 0 0', lineHeight: 1.4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
+                >
+                  {(pendingCount + correcaoCount + needsFinalFileCount) > 0
+                    ? <><b style={{ fontWeight: 700, color: '#1c1917' }}>{pendingCount + correcaoCount + needsFinalFileCount}</b> {(pendingCount + correcaoCount + needsFinalFileCount) === 1 ? 'peça esperando' : 'peças esperando'} a Arte</>
+                    : 'Tudo em dia — nenhuma peça esperando a Arte'}
                 </p>
               </div>
             </div>
-            {/* flexWrap: no mobile os botões quebram linha em vez de estourar a
-                largura do header. */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: isMobile ? 1 : 0, flexWrap: 'wrap', justifyContent: isMobile ? 'flex-start' : 'flex-end' }}>
-              {/* O divisor vertical que abria esta fileira saiu: ele separava
-                  os botões de NADA — à esquerda dele não havia controle. */}
-              {/* COR NOS BOTÕES DO TOPO (dono, 17/09: "seria bom cor também").
-                  Cada ação ganha um tom próprio — fundo 50, borda 200, texto e
-                  ícone 700 (AA sobre o fundo claro) — para a pessoa achar a
-                  ação pela cor sem ler a fileira inteira.
-                  Exportar é LEITURA — continua disponível em modo consulta. */}
-              <button
-                onClick={handleClickExportButton}
-                data-testid="button-export-pdf"
-                style={{ display: 'flex', alignItems: 'center', gap: 6, height: isMobile ? 44 : 36, padding: '0 14px', borderRadius: 8, border: '1px solid #bfdbfe', background: '#eff6ff', color: '#1d4ed8', fontSize: 13, fontWeight: 600, cursor: 'pointer', transition: 'border-color 0.12s', whiteSpace: 'nowrap' }}
-              >
-                <Printer style={{ width: 12, height: 12, color: '#1d4ed8' }} />
-                {selectedItemIds.size > 0 ? `Exportar ${selectedItemIds.size} selecionadas` : 'Exportar PDF'}
-              </button>
-              {podeEditar && (
-                <button
-                  onClick={openBookModal}
-                  data-testid="button-upload-book"
-                  title="Subir o PDF do book (layout pronto) e escolher as peças"
-                  style={{ display: 'flex', alignItems: 'center', gap: 6, height: isMobile ? 44 : 36, padding: '0 14px', borderRadius: 8, border: '1px solid #e9d5ff', background: '#faf5ff', color: '#6b21a8', fontSize: 13, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap', transition: 'border-color 0.12s' }}
-                >
-                  <FileText aria-hidden="true" style={{ width: 12, height: 12, color: '#6b21a8' }} />
-                  Subir book
-                </button>
-              )}
               {podeEditar && activeTab === "criar-aprovacoes" && (
                 <label
                   data-testid="button-open-bulk-thumb"
-                  style={{ height: isMobile ? 44 : 36, padding: '0 14px', borderRadius: 8, border: '1px solid #a5f3fc', background: '#ecfeff', color: '#0e7490', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap', transition: 'border-color 0.12s' }}
+                  style={{ height: isMobile ? 44 : 36, padding: '0 14px', borderRadius: 8, border: '1px solid #a5f3fc', background: '#ecfeff', color: '#0e7490', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap', transition: 'border-color 0.12s', flex: isMobile ? '1 1 auto' : undefined, justifyContent: 'center' }}
                 >
                   <FileImage aria-hidden="true" style={{ width: 12, height: 12, color: '#0e7490' }} />
                   Envio de thumbs em lote
@@ -4328,24 +4259,67 @@ export default function Arte() {
                   <input type="file" accept="image/*" multiple className="sr-only" onChange={e => { if (e.target.files) handleBulkThumbFilesAdded(e.target.files); e.target.value = ''; }} />
                 </label>
               )}
-              {podeEditar && activeTab === "criar-aprovacoes" && (
-                <button
-                  onClick={() => setShowBulkDialog(true)}
-                  disabled={selectedItemIds.size === 0}
-                  data-testid="button-open-bulk-upload"
-                  // Botão desabilitado sem dizer por quê deixa o usuário achando
-                  // que está quebrado; o título explica a condição que o libera.
-                  title={selectedItemIds.size > 0
-                    ? `Usar UM PDF como thumb das ${selectedItemIds.size === 1 ? 'peça selecionada' : `${selectedItemIds.size} peças selecionadas`} e enviar para aprovação`
-                    : 'Marque as peças na tabela (caixinhas à esquerda) para enviar todas com um mesmo PDF'}
-                  // Laranja só quando há peças marcadas; bloqueado fica neutro,
-                  // para a cor não prometer uma ação que ainda não dá para fazer.
-                  style={{ display: 'flex', alignItems: 'center', gap: 6, height: isMobile ? 44 : 36, padding: '0 14px', borderRadius: 8, border: `1px solid ${selectedItemIds.size > 0 ? '#fed7aa' : '#e7e5e4'}`, background: selectedItemIds.size > 0 ? '#fff7ed' : '#ffffff', color: selectedItemIds.size > 0 ? '#c2410c' : '#78716c', fontSize: 13, fontWeight: 600, cursor: selectedItemIds.size > 0 ? 'pointer' : 'not-allowed', transition: 'border-color 0.12s', opacity: selectedItemIds.size > 0 ? 1 : 0.75, whiteSpace: 'nowrap' }}
-                >
-                  <Upload aria-hidden="true" style={{ width: 12, height: 12, color: selectedItemIds.size > 0 ? '#c2410c' : '#78716c' }} />
-                  {selectedItemIds.size > 0 ? `PDF compartilhado (${selectedItemIds.size})` : 'PDF compartilhado'}
-                </button>
-              )}
+              <Popover>
+                <PopoverTrigger asChild>
+                  <button
+                    type="button"
+                    data-testid="button-mais-acoes"
+                    aria-label="Mais ações da Arte"
+                    style={{ display: 'flex', alignItems: 'center', gap: 6, height: isMobile ? 44 : 36, padding: '0 12px', borderRadius: 8, border: '1px solid #e7e5e4', background: '#ffffff', color: '#44403c', fontSize: 13, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}
+                  >
+                    <MoreHorizontal aria-hidden="true" style={{ width: 15, height: 15 }} />
+                    Mais ações
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent align="end" className="p-1" style={{ width: 260 }} data-testid="menu-mais-acoes">
+                  {/* As cores de 17/09 continuam DENTRO do menu — cada ação com
+                      o seu tom (fundo 50, borda 200, texto 700 = AA) — para a
+                      pessoa achar a ação pela cor sem ler a lista inteira.
+                      Exportar é LEITURA: aparece também em modo consulta. */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    <button
+                      onClick={handleClickExportButton}
+                      data-testid="button-export-pdf"
+                      style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', minHeight: isMobile ? 44 : 36, padding: '0 12px', borderRadius: 7, border: '1px solid #bfdbfe', background: '#eff6ff', color: '#1d4ed8', fontSize: 13, fontWeight: 600, cursor: 'pointer', textAlign: 'left' }}
+                    >
+                      <Printer aria-hidden="true" style={{ width: 13, height: 13, color: '#1d4ed8' }} />
+                      {selectedItemIds.size > 0 ? `Exportar ${selectedItemIds.size} selecionadas` : 'Exportar PDF'}
+                    </button>
+                    {podeEditar && (
+                      <button
+                        onClick={openBookModal}
+                        data-testid="button-upload-book"
+                        title="Subir o PDF do book (layout pronto) e escolher as peças"
+                        style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', minHeight: isMobile ? 44 : 36, padding: '0 12px', borderRadius: 7, border: '1px solid #e9d5ff', background: '#faf5ff', color: '#6b21a8', fontSize: 13, fontWeight: 600, cursor: 'pointer', textAlign: 'left' }}
+                      >
+                        <FileText aria-hidden="true" style={{ width: 13, height: 13, color: '#6b21a8' }} />
+                        Subir book
+                      </button>
+                    )}
+                    {podeEditar && activeTab === "criar-aprovacoes" && (
+                      <button
+                        onClick={() => setShowBulkDialog(true)}
+                        disabled={selectedItemIds.size === 0}
+                        data-testid="button-open-bulk-upload"
+                        // Desabilitado sem dizer por quê parece quebrado: a
+                        // linha de baixo explica o que o libera.
+                        title={selectedItemIds.size > 0
+                          ? `Usar UM PDF como thumb das ${selectedItemIds.size === 1 ? 'peça selecionada' : `${selectedItemIds.size} peças selecionadas`} e enviar para aprovação`
+                          : 'Marque as peças na tabela (caixinhas à esquerda) para enviar todas com um mesmo PDF'}
+                        style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', justifyContent: 'center', gap: 1, width: '100%', minHeight: isMobile ? 44 : 36, padding: '4px 12px', borderRadius: 7, border: `1px solid ${selectedItemIds.size > 0 ? '#fed7aa' : '#e7e5e4'}`, background: selectedItemIds.size > 0 ? '#fff7ed' : '#ffffff', color: selectedItemIds.size > 0 ? '#c2410c' : '#57534e', fontSize: 13, fontWeight: 600, cursor: selectedItemIds.size > 0 ? 'pointer' : 'not-allowed', textAlign: 'left' }}
+                      >
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                          <Upload aria-hidden="true" style={{ width: 13, height: 13 }} />
+                          {selectedItemIds.size > 0 ? `PDF compartilhado (${selectedItemIds.size})` : 'PDF compartilhado'}
+                        </span>
+                        {selectedItemIds.size === 0 && (
+                          <span style={{ fontSize: 11, fontWeight: 500, color: '#57534e' }}>Marque as peças na lista para liberar</span>
+                        )}
+                      </button>
+                    )}
+                  </div>
+                </PopoverContent>
+              </Popover>
             </div>
           </div>
 
@@ -4922,15 +4896,8 @@ export default function Arte() {
           cheia também — quem procura uma peça específica precisa saber por que
           sumiu. A frase (e a distinção entre os dois motivos) vem de
           `avisoPecasOcultas`, a mesma das outras filas. */}
-      {/* O QUE SE FAZ NESTA FASE — ver GUIA_DA_FASE. Uma linha cinza, na
-          área que rola: não rouba altura do cabeçalho fixo (a conta dos stat
-          cards que saíram, acima) e some da vista assim que a pessoa desce
-          para trabalhar. */}
-      {!isLoading && !isError && GUIA_DA_FASE[activeTab] && (
-        <p data-testid="guia-da-fase" style={{ margin: '0 0 14px', fontSize: 12.5, color: '#57534e', lineHeight: 1.5 }}>
-          {GUIA_DA_FASE[activeTab]}
-        </p>
-      )}
+      {/* O QUE SE FAZ NESTA FASE (GUIA_DA_FASE) mora no "?" ao lado do título
+          desde 22/09 — era uma linha cinza permanente acima da lista. */}
       {!isLoading && !isError && avisoOcultas && (
         <div
           role="status"
@@ -4965,8 +4932,8 @@ export default function Arte() {
             eventosComBook, groupMaps, visibleCount, activeFilterCount, atrasadoFilter,
             pendingCount, aguardandoCount, correcaoCount, needsFinalFileCount, finalizadosCount,
             paradasNaAba, atrasadasNaAba, urgentesNaAba, paradasFilter, urgenteFilter,
-            showAllTravando, sponsorFilter, finalizadosForaDaJanela, finalizadosTudo,
-            eventFilter, showAllEvents,
+            showAllTravando, travandoAberto, sponsorFilter, finalizadosForaDaJanela, finalizadosTudo,
+            eventFilter,
             correcaoLoading, correcaoIsError, correcaoError, correcaoItems, correcaoFiltrados,
             correcaoSponsorFilter,
           ]}

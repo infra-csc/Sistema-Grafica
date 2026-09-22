@@ -38,7 +38,7 @@ import { getStatusMeta, getStatusLabel, getApprovalMeta, motivoEventoFinalizado,
 // divergiriam, e a tela de destino desmentiria a tela de origem.
 import { temRefacao } from "@/lib/analises-desempenho";
 import { ehBookCompleto } from "@shared/fluxo-peca";
-import { statusDeExibicao, statusParaContagem } from "@shared/molde";
+import { statusDeExibicao, statusParaContagem, moldeConcluido } from "@shared/molde";
 import { isDelivered } from "@/lib/analises-status";
 import { StatusPill } from "@/components/status-pill";
 import { DetalheProducao } from "@/components/detalhe-producao";
@@ -3957,6 +3957,10 @@ export default function PainelGeral() {
                   </span>
                 );
               }
+              // Molde produzido é o FIM do fluxo dele: não há conferência nem
+              // entrega — "Continuar em Gráfica" levaria a uma fila onde nada
+              // resta a fazer com ele (revisão 22/09).
+              if (moldeConcluido(selectedItem)) return null;
               const tela = proximaTelaDoStatus(selectedItem.status, user?.role);
               if (!tela) return null;
               return (

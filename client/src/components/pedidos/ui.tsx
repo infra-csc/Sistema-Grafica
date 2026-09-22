@@ -9,7 +9,7 @@ import {
   ROTULO_DO_PEDIDO,
   ajustePendente,
   ehChaveDePedidos,
-  etapaDaPeca,
+  etapaDaPecaDoPedido,
   idadeDoPedido,
   pedidoEspera,
   prazoDoPedido,
@@ -21,6 +21,7 @@ import {
 } from "@shared/pedidos-de-peca";
 import { queryClient } from "@/lib/queryClient";
 import { StatusBadge } from "@/components/status-badge";
+import { statusDeExibicao } from "@shared/molde";
 import { DetalheProducao } from "@/components/detalhe-producao";
 import { miniatura } from "@/lib/miniatura";
 import { T, FS, R } from "@/lib/theme";
@@ -210,7 +211,8 @@ export function AndamentoDaLinha({ linha }: { linha: LinhaDoPedido }) {
         )}
       </p>
       {pecas.map((p) => {
-        const etapa = etapaDaPeca(p.status);
+        // Pela PEÇA: o molde produzido é o fim do fluxo dele e chega a "Entregue".
+        const etapa = etapaDaPecaDoPedido(p);
         return (
           <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", minWidth: 0 }}>
             <Link href={`/eventos/${linha.eventId}?item=${p.id}`} data-testid={`link-peca-gerada-${p.id}`}
@@ -234,7 +236,7 @@ export function AndamentoDaLinha({ linha }: { linha: LinhaDoPedido }) {
             )}
             {etapa !== null && etapa >= 2 && (
               <span data-testid={`producao-peca-${p.id}`} style={{ display: "inline-flex", alignItems: "center", gap: 6, flexWrap: "wrap", minWidth: 0 }}>
-                <StatusBadge status={p.status} short />
+                <StatusBadge status={statusDeExibicao(p)} short />
                 <DetalheProducao item={p} style={{ marginTop: 0 }} />
               </span>
             )}

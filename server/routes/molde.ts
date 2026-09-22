@@ -62,7 +62,34 @@ export async function enviarMoldeParaRevisao(req: any, res: any, currentItem: an
   return res.json(item);
 }
 
-const podeProduzir = (req: any) => req.userRole === "grafica" || req.userRole === "admin";
+// Predicado PURO de papel (função de uma linha): é a forma que o leitor da
+// régua (server/permissoes-scan.ts) entende — as duas rotas abaixo aparecem
+// em shared/permissoes.ts e o teste confere que dizem o mesmo.
+function podeProduzir(req: any): boolean {
+  return req.userRole === "grafica" || req.userRole === "admin";
+}
+
+/**
+ * Recalcula o evento e, se ESTE gesto o concluiu, avisa a Solicitação — o
+ * mesmo aviso `eventCompleted` que a entrega do tubo dá (tubos.ts). Para o
+ * molde, "produzido" é o fim: um evento cuja última pendência era um molde
+ * termina aqui, e sem isto terminava calado (revisão 22/09).
+ */
+async function recalcularEventoEAvisar(eventId: string | null | undefined) {
+  if (!eventId) return;
+  const antes = await storage.getEvent(eventId);
+  await updateEventStatus(eventId);
+  const depois = await storage.getEvent(eventId);
+  if (antes?.status !== "completed" && depois?.status === "completed") {
+    const notification = await storage.createNotification({
+      type: "eventCompleted",
+      message: `Evento concluído: ${depois?.name} - Todos os itens foram entregues`,
+      eventId,
+      targetRoles: ["solicitacao"],
+    } as any);
+    broadcast({ type: "notification_created", notification });
+  }
+}
 
 export function registerMoldeRoutes(app: Express): void {
   // A Gráfica marca o molde como PRODUZIDO — liberado → produced, direto.
@@ -100,7 +127,7 @@ export function registerMoldeRoutes(app: Express): void {
         `${TRILHA_MOLDE_PRODUZIDO} (${translateStatus(atual.status)} → Produzido) — ${item.quantityProduced ?? 0} un.`,
       );
       // O molde produzido é o fim do fluxo: o evento pode ter acabado agora.
-      if (item.eventId) await updateEventStatus(item.eventId);
+      await recalcularEventoEAvisar(item.eventId);
       broadcast({ type: "item_updated", item });
       return res.json(item);
     } catch (error: any) {
@@ -120,6 +147,10 @@ export function registerMoldeRoutes(app: Express): void {
       // Já liberado: nada a desfazer (clique repetido).
       if (gestoDoMolde(atual) === "produzir") return res.json(atual);
       if (await barraEventoFinalizado(atual, res)) return;
+      // TRAVA DA SOLICITAÇÃO (revisão 22/09): travada não se mexe — nem para
+      // trás. (Recuar da impressora é liberado porque a peça não pode prender
+      // a máquina; aqui não há máquina a liberar, só o estado a reescrever.)
+      if (pecaTravada(atual as any)) return res.status(409).json({ error: fraseDaTrava(atual as any), code: CODIGO_PECA_TRAVADA });
       if (gestoDoMolde(atual) !== "desfazer") {
         return res.status(409).json({ error: `Não dá para voltar este molde para liberado. Status atual: ${translateStatus(atual.status)}` });
       }

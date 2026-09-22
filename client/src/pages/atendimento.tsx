@@ -48,6 +48,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { useAuth } from "@/contexts/auth-context";
 import { Undo2, Play, Hourglass } from "lucide-react";
 import { FS } from "@/lib/theme";
+import { ehMolde, etapaDoMolde, statusDeExibicao, ETAPAS_DO_MOLDE } from "@shared/molde";
 import { EsqueletoDeFila } from "@/components/esqueleto-de-fila";
 import { SoQuandoMudar } from "@/components/arte/so-quando-mudar";
 import { ModalHeader, ModalFooter, modalSurface, HIDE_NATIVE_CLOSE } from "@/components/modal-shell";
@@ -218,7 +219,47 @@ function tomDoIntervalo(dias: number): string {
   return dias >= 14 ? '#b91c1c' : dias >= 7 ? '#b45309' : '#57534e';
 }
 
+/**
+ * A JORNADA CURTA DO MOLDE (revisão 22/09): Arte → Revisão → Produzido. O
+ * molde não passa por aprovação, finalização, conferência, embalagem nem
+ * entrega — desenhar as dez etapas do fluxo comum mostrava sete buracos e
+ * uma peça "parada" numa etapa que ela nunca visita. Datas: a criação (entra
+ * na Arte), a liberação da Revisão e o produzido.
+ */
+const DATA_DA_ETAPA_DO_MOLDE: Array<(i: any) => string | null | undefined> = [
+  (i) => i.createdAt,
+  (i) => i.creatorReviewedAt ?? i.approvedAt,
+  (i) => i.producedAt,
+];
+function jornadaDoMolde(item: any, agora: number) {
+  const etapa = etapaDoMolde(item.status);
+  const concluida = etapa >= ETAPAS_DO_MOLDE.length;
+  const atual = etapa < 0 ? -1 : Math.min(etapa, ETAPAS_DO_MOLDE.length - 1);
+  let anterior: number | null = null;
+  const etapas = ETAPAS_DO_MOLDE.map((st, i) => {
+    const carimbo = DATA_DA_ETAPA_DO_MOLDE[i]?.(item);
+    const ms = carimbo ? new Date(carimbo).getTime() : null;
+    const desdeAnterior = ms !== null && anterior !== null ? Math.max(0, Math.round((ms - anterior) / DIA_MS)) : null;
+    if (ms !== null && !Number.isNaN(ms)) anterior = ms;
+    return {
+      key: `molde-${st.idx}`, label: st.label, ms, desdeAnterior,
+      statusDaEtapa: i === atual ? statusDeExibicao(item) : '',
+      cumprida: atual >= 0 && (i < atual || concluida),
+      pulada: false,
+      ehAtual: i === atual && !concluida,
+    };
+  });
+  const comData = etapas.filter(e => e.ms !== null && !Number.isNaN(e.ms));
+  const primeira = comData[0]?.ms ?? null;
+  const ultima = comData[comData.length - 1]?.ms ?? null;
+  const duracao = concluida
+    ? (primeira !== null && ultima !== null ? Math.round((ultima - primeira) / DIA_MS) : null)
+    : (ultima !== null ? Math.max(0, Math.round((agora - ultima) / DIA_MS)) : null);
+  return { etapas, atual, concluida, duracao };
+}
+
 function jornadaDaPeca(item: any, agora: number) {
+  if (ehMolde(item)) return jornadaDoMolde(item, agora);
   const atual = PIPELINE_STAGES.findIndex(s => s.statuses.includes(item.status));
   let anterior: number | null = null;
   const etapas = PIPELINE_STAGES.map((stage, i) => {
@@ -3092,7 +3133,7 @@ export default function Atendimento() {
                                     mostrava: é ele que diz se a decisão que falta ainda cabe no
                                     prazo ou se a peça já seguiu sem ela. */}
                                 {(() => {
-                                  const meta = getStatusMeta(item.status);
+                                  const meta = getStatusMeta(statusDeExibicao(item));
                                   if (!meta) return null;
                                   return (
                                     // Caixa normal em 11px (era versalete de 10px
@@ -3427,7 +3468,8 @@ export default function Atendimento() {
                   const approvals: SponsorApproval[] = itemApprovalsMap[item.id] || [];
                   // Badge de status pela lib canônica: mesmo rótulo e cores das
                   // outras telas (status desconhecido cai no fallback neutro).
-                  const statusCfg = getStatusMeta(item.status);
+                  // Molde produzido: "Produzido (molde)", não o "Impresso/Acabamento" da peça comum.
+                  const statusCfg = getStatusMeta(statusDeExibicao(item));
 
                   const sponsorApprovals = itemSps.map(sp => {
                     const appr = approvals.find(a => a.sponsorId === sp.id);

@@ -45,6 +45,7 @@ import { items as itemsTable, events, itemSponsors, sponsors } from "@shared/sch
 import { pecaVisivelPara } from "@shared/kit";
 import { normalizarTexto, ordenarArtes, type ArteComparavel } from "@shared/artes-parecidas";
 import { requireRole } from "./shared";
+import { urlDeThumbValida } from "./thumb-url";
 
 // Mexer na Arte é de `arte` e `admin` (shared/permissoes.ts: update-thumb,
 // update-final-file, submit-final-file, submit-for-approval). Quem não pode
@@ -74,6 +75,8 @@ const COLUNAS = {
   arquivoFinalNome: itemsTable.finalFileName,
   kitRemessaId: itemsTable.kitRemessaId,
   criadoPorId: itemsTable.criadoPorId,
+  fileWidth: itemsTable.fileWidth,
+  fileHeight: itemsTable.fileHeight,
   eventId: itemsTable.eventId,
   eventName: events.name,
   eventInicio: events.startDate,
@@ -84,10 +87,55 @@ type Linha = {
   thumbUrl: string | null; previewUrl: string | null;
   arquivoFinalUrl: string | null; arquivoFinalNome: string | null;
   kitRemessaId: string | null; criadoPorId: string | null;
+  fileWidth?: string | null; fileHeight?: string | null;
   eventId: string | null; eventName: string | null; eventInicio: Date | null;
 };
 
 const temTexto = (v: unknown): v is string => typeof v === "string" && v.trim().length > 0;
+
+/**
+ * A régua do Kit (`pecaVisivelPara`) DENTRO do SQL (revisão 22/09). Antes o
+ * filtro era só em memória, DEPOIS do LIMIT de 600: para o usuário do Kit o
+ * teto enchia de peças que ele não vê e a grade chegava quase vazia. O filtro
+ * em memória continua (a garantia não depende só do WHERE).
+ */
+export function recorteDoKitSql(usuario: { kit?: boolean | null; userId?: string | null }) {
+  if (!usuario.kit) return [];
+  if (!usuario.userId) return [sql`false`];
+  return [
+    isNotNull(itemsTable.kitRemessaId),
+    sql`${itemsTable.kitRemessaId} <> ''`,
+    eq(itemsTable.criadoPorId, usuario.userId),
+  ];
+}
+
+/**
+ * A ORDEM antes do LIMIT (revisão 22/09): sem ORDER BY o banco devolvia 600
+ * linhas quaisquer, e o ranking em memória só enxergava esse sorteio. Primeiro
+ * as do MESMO TIPO da peça alvo, depois as de evento mais recente.
+ */
+export const ordemDasCandidatas = (tipoAlvo: string) => [
+  sql`(lower(${itemsTable.type}) = lower(${tipoAlvo})) desc`,
+  sql`${events.startDate} desc nulls last`,
+];
+
+/** Só imagem do nosso storage vai para a grade (a mesma régua de quem grava o thumb). */
+const imagemValida = (v: string | null | undefined): string | null => (temTexto(v) ? urlDeThumbValida(v) : null);
+
+/** A medida como número (o decimal chega como texto: "2.50" = "2.5"). */
+const numeroDaMedida = (v: unknown): number | null => {
+  if (v == null || v === "") return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+};
+/** Mesmo tipo e mesma medida — a condição para o arquivo final de outra peça servir nesta. */
+export const mesmaPecaFisica = (
+  a: { tipo?: string | null; fileWidth?: unknown; fileHeight?: unknown },
+  b: { tipo?: string | null; fileWidth?: unknown; fileHeight?: unknown },
+): boolean =>
+  normalizarTexto(a.tipo ?? "") === normalizarTexto(b.tipo ?? "")
+  && numeroDaMedida(a.fileWidth) === numeroDaMedida(b.fileWidth)
+  && numeroDaMedida(a.fileHeight) === numeroDaMedida(b.fileHeight);
 
 export function registerArtesBuscaRoutes(app: Express) {
   app.get("/api/artes/busca", requireArte, async (req: any, res) => {
@@ -138,7 +186,10 @@ export function registerArtesBuscaRoutes(app: Express) {
         ...(soComArquivoFinal
           ? [and(isNotNull(itemsTable.finalFileUrl), sql`${itemsTable.finalFileUrl} <> ''`)]
           : []),
+        // O Kit ANTES do LIMIT (ver recorteDoKitSql).
+        ...recorteDoKitSql(usuario),
       ];
+      const ordem = ordemDasCandidatas(alvo.tipo);
 
       const palavras = normalizarTexto(termo).split(" ").filter(Boolean);
       let candidatas: Linha[];
@@ -155,6 +206,7 @@ export function registerArtesBuscaRoutes(app: Express) {
         candidatas = await db.select(COLUNAS).from(itemsTable)
           .leftJoin(events, eq(events.id, itemsTable.eventId))
           .where(and(...base, ...porPalavra))
+          .orderBy(...ordem)
           .limit(TETO_DE_CANDIDATAS);
       } else {
         const [doMesmoPatrocinador, recentes]: Linha[][] = await Promise.all([
@@ -162,11 +214,12 @@ export function registerArtesBuscaRoutes(app: Express) {
             .leftJoin(events, eq(events.id, itemsTable.eventId))
             .where(and(...base, sql`exists (select 1 from ${itemSponsors} a join ${itemSponsors} b on b.sponsor_id = a.sponsor_id
                                             where a.item_id = ${itemsTable.id} and b.item_id = ${alvo.id})`))
+            .orderBy(...ordem)
             .limit(TETO_DE_CANDIDATAS),
           db.select(COLUNAS).from(itemsTable)
             .leftJoin(events, eq(events.id, itemsTable.eventId))
             .where(and(...base))
-            .orderBy(sql`${events.startDate} desc nulls last`)
+            .orderBy(...ordem)
             .limit(TETO_DE_CANDIDATAS),
         ]);
         const porId = new Map<string, Linha>();
@@ -174,7 +227,9 @@ export function registerArtesBuscaRoutes(app: Express) {
         candidatas = Array.from(porId.values());
       }
 
-      const visiveis = candidatas.filter((c) => pecaVisivelPara(usuario, c));
+      // Visível para quem pede E com imagem do nosso storage: uma URL de fora
+      // não vira cartão (nem thumb gravado depois — a rota de gravação recusa).
+      const visiveis = candidatas.filter((c) => pecaVisivelPara(usuario, c) && !!(imagemValida(c.thumbUrl) || imagemValida(c.previewUrl)));
 
       const vinculos: Array<{ itemId: string; sponsorId: string; nome: string | null }> = visiveis.length === 0
         ? []
@@ -237,12 +292,12 @@ export function registerArtesBuscaRoutes(app: Express) {
           eventName: a.linha.eventName,
           eventInicio: a.linha.eventInicio,
           patrocinadores: patrocinioDe(a.linha.id).nomes,
-          thumbUrl: temTexto(a.linha.thumbUrl) ? a.linha.thumbUrl : null,
-          previewUrl: temTexto(a.linha.previewUrl) ? a.linha.previewUrl : null,
+          thumbUrl: imagemValida(a.linha.thumbUrl),
+          previewUrl: imagemValida(a.linha.previewUrl),
           arquivoFinalUrl: temTexto(a.linha.arquivoFinalUrl) ? a.linha.arquivoFinalUrl : null,
           arquivoFinalNome: a.linha.arquivoFinalNome,
-          temThumb: temTexto(a.linha.thumbUrl),
-          temPrevia: temTexto(a.linha.previewUrl),
+          temThumb: !!imagemValida(a.linha.thumbUrl),
+          temPrevia: !!imagemValida(a.linha.previewUrl),
           temArquivoFinal: temTexto(a.linha.arquivoFinalUrl),
           mesmoPatrocinador: a.nota.mesmoPatrocinador,
           mesmoTipo: a.nota.mesmoTipo,
@@ -297,6 +352,14 @@ export function registerArtesBuscaRoutes(app: Express) {
           isNotNull(itemsTable.finalFileUrl),
           sql`${itemsTable.finalFileUrl} <> ''`,
           or(inArray(itemsTable.approvalThumbUrl, urls), inArray(itemsTable.finalPreviewUrl, urls)),
+          // MESMA PEÇA FÍSICA (revisão 22/09): uma arte compartilhada (o mesmo
+          // thumb para o 2x1 e para o Rolo do evento) não pode sugerir o
+          // arquivo final de uma peça de outro tipo ou outra medida — o
+          // arquivo da Gráfica é de uma medida só. Mesmo tipo e mesma medida,
+          // ou nada. De novo em memória abaixo (mesmaPecaFisica).
+          sql`lower(${itemsTable.type}) = lower(${alvo.tipo})`,
+          sql`${itemsTable.fileWidth} is not distinct from ${alvo.fileWidth ?? null}`,
+          sql`${itemsTable.fileHeight} is not distinct from ${alvo.fileHeight ?? null}`,
         ))
         .orderBy(sql`${itemsTable.finalFileUpdatedAt} desc nulls last`)
         .limit(20);
@@ -304,7 +367,7 @@ export function registerArtesBuscaRoutes(app: Express) {
       // O filtro do Kit e o "≠ a própria" de novo em memória: a régua de
       // visibilidade é uma função, não SQL, e o teste chama a rota com um
       // banco de mentira — a garantia não pode depender só do WHERE.
-      const origem = irmas.find((c) => c.id !== alvo.id && temTexto(c.arquivoFinalUrl) && pecaVisivelPara(usuario, c));
+      const origem = irmas.find((c) => c.id !== alvo.id && temTexto(c.arquivoFinalUrl) && pecaVisivelPara(usuario, c) && mesmaPecaFisica(c, alvo));
       if (!origem) return res.json(null);
 
       res.json({

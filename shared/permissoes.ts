@@ -123,6 +123,10 @@ export const REGUA_DE_PAPEIS: RegraDeRota[] = [
   { metodo: "POST", rota: "/api/items/:id/travar", papeis: ["admin", "solicitacao"] },
   { metodo: "POST", rota: "/api/items/:id/destravar", papeis: ["admin", "solicitacao"] },
   { metodo: "PATCH", rota: "/api/items/:id/start-production", papeis: ["admin", "grafica"] },
+  // MOLDE (22/09): o fluxo curto morre no Produzido — a Gráfica marca e,
+  // enquanto ninguém mexeu, desfaz. Os mesmos papéis de quem imprime.
+  { metodo: "PATCH", rota: "/api/items/:id/molde-produzido", papeis: ["admin", "grafica"] },
+  { metodo: "PATCH", rota: "/api/items/:id/molde-voltar-liberado", papeis: ["admin", "grafica"] },
   { metodo: "PATCH", rota: "/api/items/:id/submit-final-file", papeis: ["admin", "arte"] },
   { metodo: "PATCH", rota: "/api/items/:id/submit-for-approval", papeis: ["admin", "arte"] },
   // Transferir de evento (dono, 11/09): move só o vínculo com o evento, sem

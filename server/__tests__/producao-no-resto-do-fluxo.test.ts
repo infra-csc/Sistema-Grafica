@@ -277,7 +277,8 @@ describe("rótulos, visão, Excel e pedidos", () => {
     expect(etapaDaPeca("conferred")).toBe(3);
     expect(etapaDaPeca("delivered")).toBe(4);
     const UI = ler("client/src/components/pedidos/ui.tsx");
-    expect(UI).toContain("<StatusBadge status={p.status} short />");
+    // Pelo status de EXIBIÇÃO: o molde produzido lê "Produzido (molde)" (revisão 22/09).
+    expect(UI).toContain("<StatusBadge status={statusDeExibicao(p)} short />");
     expect(UI).toContain("<DetalheProducao item={p}");
     const ROTA = ler("server/routes/pedidos-de-peca.ts");
     expect(ROTA).toContain("tuboId: itemsTable.tuboId,");

@@ -75,7 +75,11 @@ function fmt(date: string | Date) {
   return format(new Date(date), "dd/MM/yyyy", { locale: ptBR });
 }
 
-const STATUS_LABELS: Record<string, string> = {
+// O MAPA ÚNICO dos rótulos do Excel (revisão 22/09): curtos de propósito (a
+// coluna é estreita), mas TODO status do app tem o seu — `awaiting_review`,
+// `in_review`, `canceled` e os legados saíam crus na planilha. O teste
+// confere que cada ITEM_STATUSES tem rótulo aqui.
+export const STATUS_LABELS: Record<string, string> = {
   draft: "Rascunho", requested: "Solicitado",
   awaiting_linking: "Ag. Vinculação", awaiting_submission: "Ag. Envio",
   awaiting_approval: "Ag. Aprovação", awaiting_finalization: "Ag. Finalização",
@@ -83,6 +87,11 @@ const STATUS_LABELS: Record<string, string> = {
   ready_for_production: "Pronto p/ Prod.", pronto_para_producao: "Pronto p/ Prod.",
   approved: "Liberado", inProduction: "Em Impressão", em_producao: "Em Impressão",
   produced: "Impresso / Acabamento", conferred: "Conferido", packed: "Embalado", delivered: "Entregue",
+  awaiting_review: "Ag. Revisão", in_review: "Em Revisão",
+  canceled: "Cancelado", cancelled: "Cancelado", archived: "Arquivado",
+  // Legados (a mesma leitura de translateStatus, em server/routes/shared.ts).
+  awaiting_sponsor_approval: "Ag. Aprovação", sponsor_approved: "Ag. Finalização",
+  liberado: "Liberado", produzido: "Impresso / Acabamento", conferido: "Conferido", entregue: "Entregue",
   // MOLDE (22/09): produzido é o fim do fluxo dele — sem "Acabamento".
   [STATUS_MOLDE_PRODUZIDO]: "Produzido (molde)",
 };

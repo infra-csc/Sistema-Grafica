@@ -114,7 +114,7 @@ export function computeDesempenho(
     if (temRefacao(i)) r.retrabalhoPecas += q;
     if (ehComplemento(i)) r.complementoPecas += q;
 
-    if (!isDelivered(i.status)) continue;
+    if (!isDelivered(i)) continue; // a peça: molde produzido conta (shared/molde.ts)
 
     const entregaDia = instantDayMs(i.deliveredAt);
     const saidaDia = cycleDayByEvent.get(i.eventId) ?? null;
@@ -262,7 +262,7 @@ export function computeOfensores(
     const q = qtyOf(i);
     const m2 = m2Of(i) ?? 0;
     const refez = temRefacao(i);
-    const entregue = isDelivered(i.status);
+    const entregue = isDelivered(i);
     const entregaDia = entregue ? instantDayMs(i.deliveredAt) : null;
     const saidaDia = ctx.cycleDayByEvent.get(i.eventId) ?? null;
     const criadoDia = instantDayMs(i.createdAt);

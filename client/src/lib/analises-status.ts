@@ -15,6 +15,7 @@
 // acrescentar uma grafia legada no domínio e esquecer daqui quebra o gate em
 // vez de voltar a subnotificar a entrega em silêncio.
 import { PRODUCED_LIKE } from "@shared/prazos-contract";
+import { statusParaContagem } from "@shared/molde";
 
 export interface AnaliseStage {
   key: string;
@@ -74,7 +75,13 @@ export const OUT_OF_FUNNEL_STATUSES = ["canceled", "deleted", "archived"];
 const DELIVERED_SET = new Set(DELIVERED_STATUSES);
 const OUT_OF_FUNNEL_SET = new Set(OUT_OF_FUNNEL_STATUSES);
 
-export function isDelivered(status: string | null | undefined): boolean {
+/**
+ * Concluída? Aceita o STATUS (como sempre) ou a PEÇA — e com a peça o molde
+ * produzido, que é o fim do fluxo dele, conta como entregue (shared/molde.ts,
+ * revisão 22/09). Quem só tem o status continua com a régua de antes.
+ */
+export function isDelivered(statusOuPeca: string | null | undefined | { type?: string | null; status?: string | null }): boolean {
+  const status = statusOuPeca != null && typeof statusOuPeca === "object" ? statusParaContagem(statusOuPeca) : statusOuPeca;
   return !!status && DELIVERED_SET.has(status);
 }
 

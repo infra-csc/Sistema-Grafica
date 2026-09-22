@@ -17,7 +17,7 @@ import { resumosDeTuboPorIds, comTubo } from "../services/tubosDaPeca";
 import { tirarPecaDosVolumesAbertos } from "./tubos";
 import { FORMATO_COMPACTO, compactarPecas, compactarAprovacoes } from "@shared/itens-compactos";
 import { DEPOIS_DA_ARTE, EM_REVISAO, POS_APROVACAO, DISPENSAVEIS, DESTINO_DA_DISPENSA, ehBookCompleto, ehMaquinaValida, rotuloDaMaquina } from "@shared/fluxo-peca";
-import { ehMolde, destinoDaDevolucao, dispensaArquivoFinal } from "@shared/molde";
+import { ehMolde, destinoDaDevolucao, dispensaArquivoFinal, trocaDeMoldeProibida, ERRO_TROCA_DE_MOLDE, tipoCanonico } from "@shared/molde";
 import { enviarMoldeParaRevisao } from "./molde";
 import { quemOcupaAImpressora, erroImpressoraOcupada } from "../services/ocupacaoDasImpressoras";
 import { devolverTudoAFila, chaveDoLockDaImpressora } from "@shared/reserva-de-impressora";
@@ -1764,6 +1764,24 @@ export function registerItemRoutes(app: Express): void {
       // reescreve o que foi fechado.
       if (await barraEventoFinalizado(currentItem, res)) return;
 
+      // MOLDE (revisão 22/09): o tipo não cruza a fronteira do molde fora do
+      // rascunho — o fluxo curto e o comum não se conhecem (shared/molde.ts).
+      if (trocaDeMoldeProibida(currentItem, validatedData.type)) {
+        return res.status(409).json({ error: ERRO_TROCA_DE_MOLDE, code: "TROCA_DE_MOLDE" });
+      }
+      // "MOLDE", "moldes" → "Molde" (o nome que a lista e a importação gravam).
+      if (typeof validatedData.type === "string" && validatedData.type) validatedData.type = tipoCanonico(validatedData.type);
+
+      // THUMB pelo PATCH genérico: a mesma régua das rotas de envio — só
+      // objeto do nosso storage (thumb-url.ts). Vazio/null = limpar, passa; o
+      // MESMO valor que já está gravado também passa (o formulário manda o
+      // form inteiro, e um thumb legado não pode travar a edição de outro campo).
+      if (validatedData.approvalThumbUrl && validatedData.approvalThumbUrl !== currentItem.approvalThumbUrl) {
+        const thumb = urlDeThumbValida(validatedData.approvalThumbUrl);
+        if (!thumb) return res.status(400).json({ error: ERRO_THUMB_FORA_DO_STORAGE });
+        validatedData.approvalThumbUrl = thumb;
+      }
+
       const updatePayload: Record<string, any> = { ...validatedData };
 
       // ── QUANTIDADE: a bifurcação aumentar/reduzir mora aqui ────────────────
@@ -1780,6 +1798,17 @@ export function registerItemRoutes(app: Express): void {
       if (mudouQtd) {
         const nova = Number(novaQtd);
         const emProducao = COMPLEMENT_ALLOWED_STATUSES.includes(currentItem.status);
+
+        // TRAVA DA SOLICITAÇÃO (revisão 22/09): a peça travada não muda de
+        // quantidade. Regra escolhida pela SIMPLICIDADE: qualquer mudança de
+        // quantidade numa peça travada é recusada — e não só a redução que a
+        // promoveria a Produzido. Calcular "faria andar?" repetiria a conta da
+        // promoção abaixo e deixaria de fora os efeitos laterais (reuso que
+        // encolhe, reserva/divisão de impressora reescalada). Quem trava é a
+        // Solicitação, que também gerencia a lista: destrava, ajusta, trava.
+        if (pecaTravada(currentItem as any)) {
+          return res.status(409).json({ error: fraseDaTrava(currentItem as any), code: CODIGO_PECA_TRAVADA });
+        }
 
         if (emProducao && nova > currentItem.quantity) {
           return res.status(409).json({
@@ -2037,6 +2066,15 @@ export function registerItemRoutes(app: Express): void {
 
       const item = await storage.getItem(req.params.id);
       if (!item) return res.status(404).json({ error: "Peça não encontrada" });
+      // Peça na lixeira não se transfere: restaure antes (revisão 22/09).
+      if ((item as any).deletedAt) {
+        return res.status(409).json({ error: "Esta peça está na lixeira. Restaure a peça antes de transferir.", code: "ITEM_DELETED" });
+      }
+      // PEÇA DO KIT: a remessa é do evento de origem (mesmas datas do Kit) —
+      // no destino ela ficaria pendurada numa remessa de outro evento.
+      if ((item as any).kitRemessaId) {
+        return res.status(409).json({ error: "Peça do Kit pertence a uma remessa deste evento e não troca de evento. Crie a peça no evento de destino.", code: "KIT_ITEM" });
+      }
 
       if (destinoId === item.eventId) {
         return res.status(409).json({ error: "A peça já está neste evento." });
@@ -2062,6 +2100,15 @@ export function registerItemRoutes(app: Express): void {
       const [aberta] = ((await db.execute(sql`select 1 as ok from tubo_itens where item_id = ${item.id} and entregue_em is null limit 1`)) as any)?.rows ?? [];
       if (aberta) {
         return res.status(409).json({ error: "Esta peça está embalada num tubo ainda não entregue. Tire a peça do tubo antes de transferir.", code: "IN_OPEN_TUBE" });
+      }
+      // RESERVA DE ESTOQUE: a alocação é do evento de origem (é por ele que o
+      // Estoque e a Triagem dizem "reservada para o evento X, saída dd/mm").
+      // Transferir a peça deixaria a reserva apontando para o evento errado.
+      // Qualquer linha conta: reserva de evento que já passou não chega aqui
+      // (o evento finalizado já foi barrado acima).
+      const [reservada] = ((await db.execute(sql`select 1 as ok from event_inventory_allocations where item_id = ${item.id} limit 1`)) as any)?.rows ?? [];
+      if (reservada) {
+        return res.status(409).json({ error: "Esta peça tem peça do estoque reservada para ela. Libere a reserva antes de transferir.", code: "HAS_STOCK_RESERVATION" });
       }
 
       const eventoOrigemId = item.eventId;
@@ -4476,7 +4523,17 @@ export function registerItemRoutes(app: Express): void {
       // m². Mesmo motivo, mesma guarda.
       if (await barraEventoFinalizado(currentItem, res)) return;
 
-      const { type, quantity, description, fileWidth, fileHeight, material, finish, calculatedM2, measurement } = req.body;
+      const { quantity, description, fileWidth, fileHeight, material, finish, calculatedM2, measurement } = req.body;
+      // MOLDE (revisão 22/09): mesma fronteira do PATCH genérico — fora do
+      // rascunho, o tipo não vira nem deixa de ser molde.
+      const type = typeof req.body?.type === "string" && req.body.type ? tipoCanonico(req.body.type) : req.body?.type;
+      if (trocaDeMoldeProibida(currentItem, type)) {
+        return res.status(409).json({ error: ERRO_TROCA_DE_MOLDE, code: "TROCA_DE_MOLDE" });
+      }
+      // TRAVA: a irmã do PATCH genérico também não muda quantidade de peça travada.
+      if (quantity !== undefined && Number(quantity) !== currentItem.quantity && pecaTravada(currentItem as any)) {
+        return res.status(409).json({ error: fraseDaTrava(currentItem as any), code: CODIGO_PECA_TRAVADA });
+      }
 
       // Valores efetivos após o merge (novo valor ou o atual).
       const effQuantity = quantity !== undefined ? quantity : currentItem.quantity;

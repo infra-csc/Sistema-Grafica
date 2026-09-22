@@ -256,3 +256,31 @@ SELECT i.tubo_id, i.id, GREATEST(1, LEAST(i.quantity, COALESCE(NULLIF(i.conferre
 UPDATE items i SET embalada_qty = s.total
   FROM (SELECT item_id, SUM(quantidade)::int AS total FROM tubo_itens GROUP BY item_id) s
  WHERE s.item_id = i.id AND i.embalada_qty = 0;
+
+-- ── 22/09 · Nomes das FKs e do CHECK alinhados com o drizzle ──────────────
+-- As tabelas acima nascem com REFERENCES/CHECK inline, e o Postgres dá a elas
+-- o nome dele ("tubo_itens_tubo_id_fkey", "tubo_itens_quantidade_check"). O
+-- drizzle (shared/schema.ts) conhece as FKs pelo nome dele
+-- ("<tabela>_<coluna>_<alvo>_id_fk") — com nomes diferentes, cada `db:push`
+-- derrubaria e recriaria as FKs. Aqui só RENOMEIA (nada é apagado, nenhum
+-- dado muda) e só quando o nome do drizzle ainda não existe. O CHECK fica com
+-- o nome do Postgres, que é o que shared/schema.ts declara.
+DO $$
+DECLARE fk record;
+BEGIN
+  FOR fk IN SELECT * FROM (VALUES
+    ('tubos', 'tubos_event_id_fkey', 'tubos_event_id_events_id_fk'),
+    ('items', 'items_tubo_id_fkey', 'items_tubo_id_tubos_id_fk'),
+    ('tubo_itens', 'tubo_itens_tubo_id_fkey', 'tubo_itens_tubo_id_tubos_id_fk'),
+    ('tubo_itens', 'tubo_itens_item_id_fkey', 'tubo_itens_item_id_items_id_fk')
+  ) AS t(tabela, antigo, novo) LOOP
+    IF EXISTS (SELECT 1 FROM pg_constraint WHERE conname = fk.antigo)
+       AND NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = fk.novo) THEN
+      EXECUTE format('ALTER TABLE %I RENAME CONSTRAINT %I TO %I', fk.tabela, fk.antigo, fk.novo);
+    END IF;
+  END LOOP;
+  -- O CHECK de tubo_itens em banco criado pelo db:push (que não o conhecia).
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'tubo_itens_quantidade_check') THEN
+    ALTER TABLE tubo_itens ADD CONSTRAINT tubo_itens_quantidade_check CHECK (quantidade > 0);
+  END IF;
+END $$;

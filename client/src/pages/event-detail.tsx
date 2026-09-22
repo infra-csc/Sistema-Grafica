@@ -14,7 +14,7 @@ import { PedidosDoEvento } from "@/components/pedidos-do-evento";
 import { SeloKit } from "@/components/kit/selo-kit";
 import { PainelDoKit, chaveDasRemessas } from "@/components/kit/painel-do-kit";
 import { grupoDoKit, rotuloDaRemessa, type RemessaDoKit } from "@shared/kit";
-import { TIPOS_DE_PECA, statusDeExibicao, statusParaContagem } from "@shared/molde";
+import { TIPOS_DE_PECA, statusDeExibicao, statusParaContagem, tiposOferecidos } from "@shared/molde";
 import { invalidarPedidos } from "@/components/pedidos/ui";
 import { patrocinadoresDaLinha, textoDaObservacao, type LinhaDoPedido, type PedidoDePeca } from "@shared/pedidos-de-peca";
 import { Fragment, useState, useEffect, useMemo, useRef } from "react";
@@ -1866,8 +1866,11 @@ export default function EventDetail() {
   const secoesPorStatus = useMemo(() => {
     const map = new Map<string, typeof visibleEventItems>();
     visibleEventItems.forEach(item => {
-      if (!map.has(item.status)) map.set(item.status, []);
-      map.get(item.status)!.push(item);
+      // Molde produzido tem seção própria ("Produzido (molde)"): ele não está
+      // em Impresso/Acabamento — produzido é o FIM do fluxo dele (shared/molde).
+      const chave = statusDeExibicao(item);
+      if (!map.has(chave)) map.set(chave, []);
+      map.get(chave)!.push(item);
     });
     return Array.from(map.entries()).sort(([a], [b]) => (ORDEM_DO_FLUXO.get(a) ?? 999) - (ORDEM_DO_FLUXO.get(b) ?? 999));
   }, [visibleEventItems]);
@@ -3973,7 +3976,9 @@ export default function EventDetail() {
             formData={formData}
             setFormData={setFormData}
             standardItems={standardItems}
-            typeOptions={itemTypes}
+            // Fora do rascunho, a fronteira do molde fica fechada (o servidor
+            // responde 409): a peça comum não vê "Molde" e o molde só é molde.
+            typeOptions={tiposOferecidos(editingItem, itemTypes)}
             materialOptions={materialOptions}
             finishOptions={finishOptions}
             customMaterial={customMaterial}

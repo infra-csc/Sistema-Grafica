@@ -30,6 +30,9 @@ describe("evento com molde conclui", () => {
   });
   it("produzir e desfazer o molde recalculam o status do evento", () => {
     const m = ler("server/routes/molde.ts");
-    expect((m.match(/if \(item\.eventId\) await updateEventStatus\(item\.eventId\);/g) ?? []).length).toBe(2);
+    // Produzir recalcula E avisa se concluiu (recalcularEventoEAvisar, revisão 22/09); desfazer recalcula.
+    expect(m).toContain("await recalcularEventoEAvisar(item.eventId);");
+    expect((m.match(/if \(item\.eventId\) await updateEventStatus\(item\.eventId\);/g) ?? []).length).toBe(1);
+    expect(m).toContain("await updateEventStatus(eventId);");
   });
 });

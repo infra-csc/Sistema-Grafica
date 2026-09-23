@@ -67,7 +67,9 @@ describe("1 · a trilha de uma peça", () => {
   });
 
   it("no celular o botão entra na linha da pill com 44px; a faixa empilha", () => {
-    expect(H).toContain("width: isCompact ? 44 : 28, height: isCompact ? 44 : 28");
+    // `toque` = cards (área útil estreita) OU ponteiro grosso — o 44 vale também no tablet.
+    expect(H).toContain("const toque = isCompact || grosso;");
+    expect(H).toContain("width: toque ? 44 : 28, height: toque ? 44 : 28");
     expect(H).toContain('flexDirection: isMobile ? "column" : "row"');
   });
 

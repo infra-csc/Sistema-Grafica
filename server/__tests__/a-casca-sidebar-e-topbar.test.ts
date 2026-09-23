@@ -57,7 +57,10 @@ describe("2. os 18 itens cabem sem serem esmagados", () => {
   const codigo = soCodigo(sidebar);
 
   it("o item tem altura de controle, não de padding", () => {
-    expect(codigo).toContain("height: isMobile ? 44 : 36");
+    // 36 no mouse, 44 com o dedo — pelo ponteiro (vale no tablet também),
+    // não mais só abaixo de 768px de janela.
+    expect(codigo).toContain("height: alvo(H.md, grosso)");
+    expect(codigo).toContain("const grosso = usePonteiroGrosso() || isMobileCasca;");
     expect(codigo).not.toContain('padding: "8px 12px"');
   });
 

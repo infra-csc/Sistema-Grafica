@@ -15,7 +15,11 @@ import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/compone
 import { HIDE_NATIVE_CLOSE, modalSurface, ModalHeader, ModalFooter } from "@/components/modal-shell";
 import { buildTimeline, type TimelineEvent } from "@/lib/timeline";
 import { CAMPOS_DA_TRILHA } from "@shared/itens-compactos";
-import { T, FS, R, N, FW, FONT, TOM } from "@/lib/theme";
+import { T, FS, R, N, H, FW, FONT, TOM, SHADOW } from "@/lib/theme";
+import { useDensidadeDoConteudo, usePonteiroGrosso, alvo } from "@/hooks/use-mobile";
+import { Botao } from "@/components/ui/botao";
+import { EstadoVazio, EstadoErro } from "@/components/ui/estados";
+import { CabecalhoDaPagina } from "@/components/ui/cabecalho-da-pagina";
 
 /* ── Palette ── */
 const P = {
@@ -337,19 +341,19 @@ function Atalho({ label, count, tom, ativo, alto, onClick, testId }: {
       title={ativo ? `Desfazer o atalho "${label}"` : `Filtrar por ${label.toLowerCase()}`}
       style={{
         display: "inline-flex", alignItems: "center", gap: 7,
-        // 44px no celular (alvo de toque). Caixa normal: "EXCLUSÕES E
+        // 44px com o dedo (alvo de toque). Caixa normal: "EXCLUSÕES E
         // REPROVAÇÕES" em maiúsculas espaçadas era a coisa mais barulhenta da
         // faixa, e é um atalho — não um alerta. A cor já faz a distinção.
-        height: alto ? 44 : 30, padding: "0 12px", borderRadius: 999,
+        height: alvo(30, alto), padding: "0 12px", borderRadius: R.pill,
         backgroundColor: ativo ? t.text : t.tint,
         border: `1px solid ${ativo ? t.text : t.border}`,
         color: ativo ? T.surface : t.text,
-        fontSize: 12, fontWeight: 700,
+        fontSize: FS.meta, fontWeight: FW.forte,
         cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0,
         transition: "background-color 0.12s, color 0.12s",
       }}
     >
-      <span style={{ fontFamily: FONT.mono, fontSize: 12, fontWeight: 700, letterSpacing: 0 }}>
+      <span style={{ fontFamily: FONT.mono, fontSize: FS.meta, fontWeight: FW.forte, letterSpacing: 0 }}>
         {count}
       </span>
       {label}
@@ -393,15 +397,20 @@ function UserAvatar({ name, source }: { name?: string; source?: string }) {
         width: 28, height: 28, borderRadius: "50%",
         backgroundColor: T.border,
         display: "flex", alignItems: "center", justifyContent: "center",
-        fontSize: system ? 9 : 10, fontWeight: 800, color: apagado ? P.label : P.text,
+        // 9px no "SIS" continua: são três letras num círculo de 28px, e o
+        // piso de 10 (FS.micro) não cabe nele — é marca, não texto de leitura.
+        fontSize: system ? 9 : FS.micro, fontWeight: FW.rotulo, color: apagado ? P.label : P.text,
         flexShrink: 0, letterSpacing: "0.02em",
       }}>
         {initials}
       </div>
+      {/* Duas linhas, e não reticência: o nome inteiro só existia no `title`,
+          que no toque não aparece — "Maria Aparecida dos S…" não diz quem foi. */}
       <span style={{
-        fontSize: 13, fontWeight: 700, color: apagado ? P.label : P.text,
+        fontSize: FS.body, fontWeight: FW.forte, color: apagado ? P.label : P.text,
         fontStyle: derived ? "italic" : undefined,
-        whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+        lineHeight: 1.3, overflow: "hidden", wordBreak: "break-word",
+        display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical",
       }}>
         {derived ? "reconstruído" : display}
       </span>
@@ -421,7 +430,7 @@ interface Nav {
    navegação ao soltar o botão. */
 const linkStyle: React.CSSProperties = {
   background: "none", border: "none", padding: 0, margin: 0,
-  font: "inherit", color: P.text, fontWeight: 700,
+  font: "inherit", color: P.text, fontWeight: FW.forte,
   cursor: "pointer", textDecoration: "underline",
   textDecorationColor: "rgba(28,25,23,0.25)", textUnderlineOffset: 2,
 };
@@ -456,7 +465,7 @@ function Ev({ e, nav }: { e: TimelineEvent; nav: Nav }) {
 function Id({ e, nav }: { e: TimelineEvent; nav: Nav }) {
   if (!e.itemDisplayId) return null;
   const mono: React.CSSProperties = {
-    fontFamily: FONT.mono, fontWeight: 700, color: P.second, fontSize: 13,
+    fontFamily: FONT.mono, fontWeight: FW.forte, color: P.second, fontSize: FS.body,
   };
   if (!e.eventId || !e.itemId || e.itemMissing) {
     return <code style={mono}>{e.itemDisplayId}</code>;
@@ -636,24 +645,28 @@ function buildDescription(e: TimelineEvent, nav: Nav) {
   }
 }
 
-/* ── Viewport ──
-   O corte de card empilhado sobe de 768 para 1024 nesta tela: entre 768 e
-   ~1100px o grid de 4 colunas vazava — pill e nome do autor com `nowrap`, sem
-   `minWidth: 0` e sem barra de rolagem, então o texto era simplesmente cortado. */
-function useViewport() {
-  const [w, setW] = useState(() => (typeof window === "undefined" ? 1280 : window.innerWidth));
-  useEffect(() => {
-    const onResize = () => setW(window.innerWidth);
-    window.addEventListener("resize", onResize);
-    return () => window.removeEventListener("resize", onResize);
-  }, []);
-  return { isMobile: w < 768, isCompact: w < 1024 };
-}
+/* ── Layout pela ÁREA ÚTIL, não pela janela ──
+   Esta tela tinha régua própria (768/1024 da JANELA): com a sidebar aberta a
+   janela de 1100px deixa ~840 para o card, e o corte não via isso. Agora a
+   pergunta "linhas em grade ou em cards?" é respondida pela largura do CARD
+   (useDensidadeDoConteudo): abaixo de 820px úteis, cards empilhados.
+   `isMobile` (celular de fato) segue só para a gaveta de filtros e o respiro
+   da página; o alvo de 44px vem do ponteiro grosso, que vale também no
+   tablet do galpão. */
 
 const GRID = "minmax(150px,180px) minmax(0,1fr) 110px minmax(0,200px) 40px";
+// Com o dedo, os dois ícones da última coluna têm 44px cada: a coluna de 40
+// os empurraria para fora do card.
+const GRID_TOQUE = "minmax(150px,180px) minmax(0,1fr) 110px minmax(0,200px) 90px";
 
 export default function Historico() {
-  const { isMobile, isCompact } = useViewport();
+  // A régua mede o CARD (sem padding próprio): é nele que a grade vive.
+  const densidade = useDensidadeDoConteudo<HTMLDivElement>();
+  const { isMobile } = densidade;
+  const isCompact = densidade.cards;
+  // `|| isMobile`: no celular o alvo de 44 já valia; o ponteiro grosso o
+  // estende ao tablet sem tirar do celular com ponteiro mal detectado.
+  const grosso = usePonteiroGrosso() || isMobile;
   const [, setLocation] = useLocation();
   const scrollRef = useRef<HTMLDivElement>(null);
   const stickyRef = useRef<HTMLDivElement>(null);
@@ -1397,22 +1410,16 @@ export default function Historico() {
   // ele, cada gatilho ocupa só o seu texto.
   const selectStyle: React.CSSProperties | undefined = isMobile ? undefined : { minWidth: 168 };
 
-  // Caixa normal e texto escuro: em caixa alta cinza (#746e69, 0.08em) os dois
-  // botões pareciam desabilitados ao lado do título. 44px no celular.
-  const headerBtn: React.CSSProperties = {
-    display: "flex", alignItems: "center", gap: 7,
-    height: isMobile ? 44 : 38, padding: "0 16px",
-    backgroundColor: P.surface, color: T.strong,
-    border: `1px solid ${P.border}`, borderRadius: 8,
-    fontSize: 13, fontWeight: 600,
-    cursor: "pointer",
-  };
+  // Botões do cabeçalho: o tamanho de toque vem do ponteiro, não da janela.
+  const tamanhoBotao = grosso ? "toque" : "md";
 
   const faixaFixa = !(isMobile && filtrosAbertos);
 
+  // O subtítulo diz o ESTADO — de quando a trilha é confiável —, e não repete
+  // o título ("ações registradas" é o que "Histórico de Atividades" já diz).
   const subtitulo = oldestLoaded
-    ? `Ações registradas em eventos e peças · trilha a partir de ${format(oldestLoaded, "d 'de' MMMM 'de' yyyy", { locale: ptBR })}`
-    : "Ações registradas em eventos e peças";
+    ? `Trilha a partir de ${format(oldestLoaded, "d 'de' MMMM 'de' yyyy", { locale: ptBR })}`
+    : undefined;
 
   /* ── Peças da faixa de filtros ─────────────────────────────────────────────
      Montadas aqui em vez de dentro do JSX porque desktop e celular as arrumam
@@ -1442,17 +1449,20 @@ export default function Historico() {
         onBlur={() => setBuscaFocada(false)}
         data-testid="input-search-filter"
         style={{
-          width: "100%", height: isMobile ? 44 : 36,
+          width: "100%", height: alvo(H.md, grosso),
           paddingLeft: 34, paddingRight: searchFilter ? 34 : 12,
           backgroundColor: T.surface,
           // O foco tinha de ser visível também aqui, e não era: só a borda
           // cinza padrão, idêntica ao estado normal.
           border: `1px solid ${buscaFocada ? T.accentText : P.border}`,
           boxShadow: buscaFocada ? "0 0 0 3px rgba(194,65,12,0.14)" : "none",
-          borderRadius: 8, outline: "none",
-          fontSize: 13, color: P.text, boxSizing: "border-box",
+          borderRadius: R.md, outline: "none",
+          // 16 no celular: abaixo disso o iOS dá zoom na página ao focar.
+          fontSize: isMobile ? FS.lead : FS.body, color: P.text, boxSizing: "border-box",
         }}
       />
+      {/* Nativo de propósito: é um ícone DENTRO do campo, não um botão da
+          faixa — o desenho do Botao (borda, padding) não cabe ali. */}
       {searchFilter && (
         <button
           type="button"
@@ -1462,7 +1472,7 @@ export default function Historico() {
           data-testid="button-clear-search"
           style={{
             position: "absolute", right: 6, top: "50%", transform: "translateY(-50%)",
-            width: isMobile ? 36 : 24, height: isMobile ? 36 : 24, borderRadius: 6, border: "none", background: "none",
+            width: grosso ? 36 : 24, height: grosso ? 36 : 24, borderRadius: R.sm, border: "none", background: "none",
             cursor: "pointer", color: P.second,
             display: "flex", alignItems: "center", justifyContent: "center",
           }}
@@ -1550,27 +1560,28 @@ export default function Historico() {
   // Gaveta do celular. O contador vai no próprio botão para que o estado
   // "tenho filtro ligado" sobreviva com a gaveta fechada — sem ele, um recorte
   // esquecido explicaria uma lista vazia sem nada na tela dizendo isso.
+  // Só existe no celular: 44px sempre (tamanho "toque"). Com recorte ativo o
+  // botão fica cheio em laranja legível — é o aviso de filtro esquecido.
   const botaoFiltros = (
-    <button
-      type="button"
+    <Botao
+      variante="secundario"
+      tamanho="toque"
+      icone={SlidersHorizontal}
       onClick={() => setFiltrosAbertos(v => !v)}
       aria-expanded={filtrosAbertos}
       aria-label={recorteCount > 0 ? `Filtros — ${recorteCount} ativo${recorteCount === 1 ? "" : "s"}` : "Filtros"}
       data-testid="button-toggle-filtros"
       style={{
-        display: "inline-flex", alignItems: "center", gap: 6,
-        height: 44, padding: "0 12px", borderRadius: 8, flexShrink: 0,
-        backgroundColor: recorteCount > 0 ? T.accentText : T.surface,
-        border: `1px solid ${recorteCount > 0 ? T.accentText : P.border}`,
-        color: recorteCount > 0 ? T.surface : P.text,
-        fontSize: 13, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap",
+        padding: "0 12px", gap: 6, flexShrink: 0, fontSize: FS.body,
+        ...(recorteCount > 0
+          ? { backgroundColor: T.accentText, border: `1px solid ${T.accentText}`, color: T.surface }
+          : { color: P.text }),
       }}
     >
-      <SlidersHorizontal aria-hidden="true" style={{ width: 14, height: 14 }} />
       Filtros
       {recorteCount > 0 && (
         <span style={{
-          fontSize: 11, fontWeight: 800, padding: "1px 7px", borderRadius: 99,
+          fontSize: FS.small, fontWeight: FW.rotulo, padding: "1px 7px", borderRadius: R.pill,
           backgroundColor: T.surface, color: T.accentText,
         }}>
           {recorteCount}
@@ -1580,7 +1591,7 @@ export default function Historico() {
         width: 13, height: 13, transition: "transform 0.2s",
         transform: filtrosAbertos ? "rotate(180deg)" : "rotate(0deg)",
       }} />
-    </button>
+    </Botao>
   );
 
   // O resultado é TEXTO, sem moldura: é a resposta da consulta, não um controle.
@@ -1592,8 +1603,8 @@ export default function Historico() {
   //
   // Contrastes (12px/10px, exigem 4,5:1), sobre a faixa #f3f4f3:
   //   #746e69 / #f3f4f3 = 4,57:1 ✓   #1c1917 / #f3f4f3 = 15,29:1 ✓
-  //   "Limpar tudo" ligado  #b91c1c / #fef2f2 = 5,91:1 ✓
-  //   "Limpar tudo" apagado #57534e / #f3f4f3 = 6,92:1 ✓
+  // "Limpar tudo" é o Botao secundário: limpar filtro não apaga dado nenhum,
+  // então não leva o vermelho de ação destrutiva que tinha antes.
   const linhaDeResumo = (
     <div style={{
       display: "flex", alignItems: "center", gap: 10,
@@ -1602,7 +1613,7 @@ export default function Historico() {
       <span
         aria-live="polite"
         data-testid="text-resumo-filtros"
-        style={{ fontSize: 12, color: P.second, fontWeight: 600, whiteSpace: "nowrap" }}
+        style={{ fontSize: FS.meta, color: P.second, fontWeight: FW.medio, whiteSpace: "nowrap" }}
       >
         {trilha ? (
           <>
@@ -1629,27 +1640,21 @@ export default function Historico() {
         )}
       </span>
 
-      <button
-        type="button"
-        onClick={clearFilters}
-        disabled={!hasActiveFilters}
-        data-testid="button-clear-filters-bar"
-        title={hasActiveFilters ? "Remover todos os filtros e a busca" : "Não há filtro aplicado"}
-        style={{
-          display: "inline-flex", alignItems: "center", gap: 5,
-          height: isMobile ? 44 : 28, padding: "0 10px", borderRadius: 7,
-          marginLeft: isMobile ? "auto" : 0,
-          backgroundColor: hasActiveFilters ? TOM.perigo.bg : "transparent",
-          border: `1px solid ${hasActiveFilters ? TOM.perigo.border : P.border}`,
-          color: hasActiveFilters ? TOM.perigo.text : T.apoio,
-          fontSize: 12, fontWeight: 600,
-          cursor: hasActiveFilters ? "pointer" : "default",
-          whiteSpace: "nowrap", flexShrink: 0,
-        }}
-      >
-        <X aria-hidden="true" style={{ width: 11, height: 11 }} />
-        Limpar tudo
-      </button>
+      <div style={{ marginLeft: isMobile ? "auto" : 0, flexShrink: 0 }}>
+        <Botao
+          variante="secundario"
+          tamanho={grosso ? "toque" : "sm"}
+          icone={X}
+          onClick={clearFilters}
+          disabled={!hasActiveFilters}
+          motivo="Nenhum filtro ativo"
+          alinharMotivo="end"
+          data-testid="button-clear-filters-bar"
+          title={hasActiveFilters ? "Remover todos os filtros e a busca" : undefined}
+        >
+          Limpar tudo
+        </Botao>
+      </div>
     </div>
   );
 
@@ -1659,60 +1664,58 @@ export default function Historico() {
       style={{ backgroundColor: P.bg, height: "100%", overflowY: "auto", padding: isMobile ? "14px 14px 32px" : "28px 28px 48px" }}
     >
       <style>{`
-        /* Hover dos botões brancos do cabeçalho. O fundo vem inline, e
-           estilo inline vence classe — daí o !important. A regra global de
-           movimento reduzido (index.css) zera a transição para quem pediu. */
-        .hist-hover { transition: background-color 0.15s, border-color 0.15s; }
-        .hist-hover:hover:not(:disabled) { background-color: #f5f5f4 !important; border-color: #d6d3d1 !important; }
+        /* Realce da linha ao passar o ponteiro. Era um par onMouseEnter/Leave
+           mexendo no style — que re-renderizava nada, mas não cobria teclado e
+           duplicava o que o CSS faz sozinho. */
+        .hist-linha { transition: background-color 0.12s; }
+        .hist-linha:hover { background-color: ${T.bg}; }
       `}</style>
 
       {/* ── Header ── */}
-      <div style={{
-        display: "flex", alignItems: "flex-end", justifyContent: "space-between",
-        gap: 16, flexWrap: "wrap", marginBottom: 20,
-      }}>
-        <div style={{ minWidth: 0 }}>
-          <h1 style={{
-            fontSize: FS.h1, fontWeight: 700, color: P.text, margin: "0 0 6px",
-            letterSpacing: "-0.03em",
-            fontFamily: FONT.display, lineHeight: 1.1,
-          }}>
-            Histórico de Atividades
-          </h1>
-          <p style={{ fontSize: 13, color: P.second, margin: 0, fontWeight: 500 }}>
-            {subtitulo}
-          </p>
-          {/* O QUE SE FAZ AQUI, numa linha. Os dois gestos que respondem as
-              perguntas de auditoria ("o que aconteceu com esta linha?" e "por
-              onde esta peça passou?") viviam só num clique sem pista e num
-              ícone de rota sem rótulo — descoberta por acaso. */}
-          <p data-testid="texto-como-usar-historico" style={{ fontSize: 12, color: P.second, margin: "4px 0 0", lineHeight: 1.5, maxWidth: 720 }}>
-            Quem fez o quê e quando. Clique numa linha para ver o detalhe; o ícone
-            {" "}<Route role="img" aria-label="de rota" style={{ width: 12, height: 12, color: T.accentText, verticalAlign: "-2px" }} />{" "}
-            ao lado de uma peça mostra todo o caminho dela, do pedido à entrega.
-          </p>
-        </div>
-
-        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-          {logsQ.dataUpdatedAt > 0 && (
-            <span style={{ fontSize: 11, color: P.second, fontWeight: 600 }}>
-              Atualizado {formatDistanceToNow(new Date(logsQ.dataUpdatedAt), { locale: ptBR, addSuffix: true })}
-            </span>
-          )}
-          <button onClick={atualizar} disabled={isFetching} data-testid="button-refresh-historico"
-            aria-label="Atualizar o histórico" className="hist-hover"
-            style={{ ...headerBtn, cursor: isFetching ? "default" : "pointer", opacity: isFetching ? 0.7 : 1 }}>
-            <RotateCcw aria-hidden="true" className={isFetching ? "animate-spin" : undefined} style={{ width: 13, height: 13 }} />
-            {isFetching ? "Atualizando…" : "Atualizar"}
-          </button>
-          <button onClick={exportarCsv} disabled={filtered.length === 0} data-testid="button-export-historico"
-            className="hist-hover"
-            style={{ ...headerBtn, cursor: filtered.length === 0 ? "not-allowed" : "pointer", opacity: filtered.length === 0 ? 0.6 : 1 }}>
-            <Download aria-hidden="true" style={{ width: 13, height: 13 }} />
-            Exportar CSV
-          </button>
-        </div>
-      </div>
+      <CabecalhoDaPagina
+        titulo="Histórico de Atividades"
+        subtitulo={subtitulo}
+        frescor={logsQ.dataUpdatedAt > 0 ? (
+          <span style={{ fontSize: FS.small, color: P.second, fontWeight: FW.medio }}>
+            Atualizado {formatDistanceToNow(new Date(logsQ.dataUpdatedAt), { locale: ptBR, addSuffix: true })}
+          </span>
+        ) : undefined}
+        acoes={(
+          <>
+            <Botao
+              tamanho={tamanhoBotao}
+              icone={RotateCcw}
+              carregando={isFetching}
+              onClick={atualizar}
+              data-testid="button-refresh-historico"
+              aria-label="Atualizar o histórico"
+            >
+              {isFetching ? "Atualizando…" : "Atualizar"}
+            </Botao>
+            <Botao
+              tamanho={tamanhoBotao}
+              icone={Download}
+              onClick={exportarCsv}
+              disabled={filtered.length === 0}
+              motivo="Nada a exportar neste recorte"
+              alinharMotivo="end"
+              data-testid="button-export-historico"
+            >
+              Exportar CSV
+            </Botao>
+          </>
+        )}
+      />
+      {/* O QUE SE FAZ AQUI, numa linha. Os dois gestos que respondem as
+          perguntas de auditoria ("o que aconteceu com esta linha?" e "por
+          onde esta peça passou?") viviam só num clique sem pista e num
+          ícone de rota sem rótulo — descoberta por acaso. Fica fora do
+          cabeçalho porque é instrução, não estado. */}
+      <p data-testid="texto-como-usar-historico" style={{ fontSize: FS.meta, color: P.second, margin: "-12px 0 20px", lineHeight: 1.5, maxWidth: 720 }}>
+        Quem fez o quê e quando. Clique numa linha para ver o detalhe; o ícone
+        {" "}<Route role="img" aria-label="de rota" style={{ width: 12, height: 12, color: T.accentText, verticalAlign: "-2px" }} />{" "}
+        ao lado de uma peça mostra todo o caminho dela, do pedido à entrega.
+      </p>
 
       {/* ── Faixa de confiança da trilha ──
           O teto de 500 do servidor era invisível e o rodapé chamava tudo de
@@ -1726,8 +1729,8 @@ export default function Historico() {
           style={{
             display: "flex", alignItems: "flex-start", gap: 8,
             padding: "10px 14px", marginBottom: 16,
-            backgroundColor: TOM.alerta.bg, border: `1px solid ${TOM.alerta.border}`, borderRadius: 8,
-            fontSize: 12, color: TOM.alerta.text, fontWeight: 600, lineHeight: 1.5,
+            backgroundColor: TOM.alerta.bg, border: `1px solid ${TOM.alerta.border}`, borderRadius: R.md,
+            fontSize: FS.meta, color: TOM.alerta.text, fontWeight: FW.medio, lineHeight: 1.5,
           }}
         >
           {completando ? (
@@ -1765,7 +1768,7 @@ export default function Historico() {
           Sem `overflow: hidden`: ele criava um scrollport próprio e desligava o
           `position: sticky` da faixa de filtros e do cabeçalho de colunas. Os
           cantos arredondados passam a ser dos filhos das pontas. */}
-      <div style={{ backgroundColor: P.surface, border: `1px solid ${P.border}`, borderRadius: 12 }}>
+      <div ref={densidade.ref} style={{ backgroundColor: P.surface, border: `1px solid ${P.border}`, borderRadius: R.lg }}>
 
         {/* Com a gaveta de filtros ABERTA no celular a faixa passa de 400px —
             metade de uma tela de 844 — e, fixa, cobriria a lista durante toda
@@ -1837,7 +1840,7 @@ export default function Historico() {
                   count={a.count}
                   tom={a.tom}
                   ativo={a.ativo}
-                  alto={isMobile}
+                  alto={grosso}
                   onClick={a.onClick}
                 />
               ))}
@@ -1866,26 +1869,27 @@ export default function Historico() {
             >
               <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0, flex: 1 }}>
                 <Route aria-hidden="true" style={{ width: 15, height: 15, color: T.accentText, flexShrink: 0 }} />
-                <span style={{ fontSize: 10, fontWeight: 700, color: T.accentText, textTransform: "uppercase", letterSpacing: "0.06em", whiteSpace: "nowrap" }}>Trilha da peça</span>
-                <span style={{ fontFamily: FONT.mono, fontSize: 13, fontWeight: 700, color: T.accentText, whiteSpace: "nowrap" }}>{trilha.display}</span>
-                {/* #9a3412 sobre #fff7ed = 6,1:1. */}
-                <span style={{ fontSize: 12, color: T.accentText, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: isMobile ? "normal" : "nowrap" }}>
+                <span style={{ fontSize: FS.micro, fontWeight: FW.forte, color: T.accentText, textTransform: "uppercase", letterSpacing: "0.06em", whiteSpace: "nowrap" }}>Trilha da peça</span>
+                <span style={{ fontFamily: FONT.mono, fontSize: FS.body, fontWeight: FW.forte, color: T.accentText, whiteSpace: "nowrap" }}>{trilha.display}</span>
+                {/* T.accentText sobre TOM.laranja.bg passa AA. Até duas linhas
+                    em vez de reticência: o resumo (tempo até a liberação, maior
+                    espera) era cortado sem ter `title` nenhum onde ler o resto. */}
+                <span style={{
+                  fontSize: FS.meta, color: T.accentText, minWidth: 0, lineHeight: 1.4,
+                  overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical",
+                }}>
                   {trilhaItemId ? resumoTrilha : (isLoading ? "carregando…" : `nenhum registro carregado para ${trilha.display}`)}
                 </span>
               </div>
-              <button
-                type="button"
+              <Botao
+                variante="secundario"
+                tamanho={grosso ? "toque" : "sm"}
                 onClick={() => { setTrilha(null); setPage(1); }}
                 data-testid="button-sair-trilha"
-                style={{
-                  height: isMobile ? 44 : 30, padding: "0 12px", borderRadius: 7,
-                  border: `1px solid ${TOM.laranja.border}`, backgroundColor: T.surface, color: T.accentText,
-                  fontSize: 12, fontWeight: 700,
-                  cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0,
-                }}
+                style={{ border: `1px solid ${TOM.laranja.border}`, color: T.accentText, flexShrink: 0 }}
               >
                 Sair da trilha
-              </button>
+              </Botao>
             </div>
           )}
 
@@ -1893,13 +1897,13 @@ export default function Historico() {
               então o cabeçalho de colunas deixa de fazer sentido. */}
           {!isCompact && (
             <div style={{
-              display: "grid", gridTemplateColumns: GRID, gap: 12,
+              display: "grid", gridTemplateColumns: grosso ? GRID_TOQUE : GRID, gap: 12,
               padding: "12px 32px",
               backgroundColor: T.low,
               borderBottom: `1px solid ${P.border}`,
             }}>
               {["Tipo", "Ação", "Hora", "Realizado Por", ""].map((h, i) => (
-                <div key={h || `col-${i}`} style={{ fontSize: 10, fontWeight: 700, color: P.label, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                <div key={h || `col-${i}`} style={{ fontSize: FS.micro, fontWeight: FW.forte, color: P.label, textTransform: "uppercase", letterSpacing: "0.06em" }}>
                   {h}
                 </div>
               ))}
@@ -1917,60 +1921,79 @@ export default function Historico() {
               <div key={i} style={{
                 display: isCompact ? "flex" : "grid",
                 flexDirection: "column", gap: 12,
-                gridTemplateColumns: GRID,
+                gridTemplateColumns: grosso ? GRID_TOQUE : GRID,
                 padding: isCompact ? "14px 16px" : "18px 32px", alignItems: "center",
-                borderBottom: `1px solid #f0efee`,
+                borderBottom: `1px solid ${N.n3}`,
               }}>
-                <Sk w={120} h={20} r={999} />
+                <Sk w={120} h={20} r={R.pill} />
                 <Sk w="80%" h={14} />
                 {!isCompact && <Sk w={58} h={14} />}
-                {!isCompact && <Sk w={140} h={22} r={999} />}
+                {!isCompact && <Sk w={140} h={22} r={R.pill} />}
                 {!isCompact && <span />}
               </div>
             ))}
           </div>
         ) : isError ? (
-          <div role="alert" style={{ padding: "72px 24px", textAlign: "center" }}>
-            <h3 style={{ color: TOM.perigo.text, fontSize: 16, fontWeight: 700, marginBottom: 6 }}>Não foi possível carregar o histórico</h3>
-            <p style={{ color: P.label, fontSize: 13, marginBottom: 20 }}>Verifique sua conexão e tente novamente.</p>
-            <button onClick={atualizar} disabled={isFetching} data-testid="button-retry-historico"
-              style={{ fontSize: 13, fontWeight: 700, color: T.surface, background: T.text, border: "none", borderRadius: 8, padding: "9px 20px", minHeight: isMobile ? 44 : undefined, cursor: isFetching ? "default" : "pointer", opacity: isFetching ? 0.7 : 1 }}>
-              {isFetching ? "Tentando…" : "Tentar novamente"}
-            </button>
+          <div style={{ padding: isCompact ? 16 : 24 }}>
+            {/* O botão de tentar de novo vai no `detalhe`, e não no
+                `aoTentarDeNovo` do EstadoErro: aquele tem testid fixo e não
+                mostra "Tentando…", e o `button-retry-historico` é o que os
+                roteiros desta tela já usam. */}
+            <EstadoErro
+              titulo="Não foi possível carregar o histórico"
+              detalhe={(
+                <>
+                  Verifique sua conexão e tente novamente.
+                  <span style={{ display: "block", marginTop: 12 }}>
+                    <Botao
+                      variante="secundario"
+                      tamanho={tamanhoBotao}
+                      icone={RotateCcw}
+                      carregando={isFetching}
+                      onClick={atualizar}
+                      data-testid="button-retry-historico"
+                    >
+                      {isFetching ? "Tentando…" : "Tentar novamente"}
+                    </Botao>
+                  </span>
+                </>
+              )}
+            />
           </div>
         ) : filtered.length === 0 ? (
           displayed.length === 0 ? (
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "80px 24px", textAlign: "center" }}>
-              <div style={{ width: 72, height: 72, borderRadius: "50%", backgroundColor: T.border, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 20, opacity: 0.5 }}>
-                <Activity aria-hidden="true" style={{ width: 32, height: 32, color: P.muted }} />
-              </div>
-              <h3 style={{ fontSize: 18, fontWeight: 700, color: P.text, margin: "0 0 8px", fontFamily: FONT.display, letterSpacing: "-0.01em" }}>
-                Nenhuma atividade ainda
-              </h3>
-              <p style={{ fontSize: 13, color: P.second, margin: 0 }}>As ações da equipe aparecem aqui conforme acontecem</p>
+            <div style={{ padding: isCompact ? 16 : 24 }}>
+              <EstadoVazio
+                icone={Activity}
+                titulo="Nenhuma atividade ainda"
+                descricao="As ações da equipe aparecem aqui conforme acontecem"
+              />
             </div>
           ) : (
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "80px 24px", textAlign: "center" }}>
-              <div style={{ width: 72, height: 72, borderRadius: "50%", backgroundColor: T.border, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 20, opacity: 0.5 }}>
-                <Search aria-hidden="true" style={{ width: 32, height: 32, color: P.muted }} />
-              </div>
-              <h3 style={{ fontSize: 18, fontWeight: 700, color: P.text, margin: "0 0 8px", fontFamily: FONT.display, letterSpacing: "-0.01em" }}>
-                Nenhuma atividade encontrada
-              </h3>
-              <p style={{ fontSize: 13, color: P.second, margin: "0 0 8px" }}>Nenhum registro corresponde aos filtros ativos</p>
-              <p style={{ fontSize: 12, color: P.label, margin: "0 0 20px" }}>
-                Ativos: {[
-                  searchFilter.trim() && `busca "${searchFilter.trim()}"`,
-                  period !== "all" && PERIODS.find(p => p.value === period)?.label,
-                  actionFilter.length > 0 && `${actionFilter.length} ${actionFilter.length === 1 ? "ação" : "ações"}`,
-                  eventFilter.length > 0 && `${eventFilter.length} ${eventFilter.length === 1 ? "evento" : "eventos"}`,
-                  authorFilter.length > 0 && `${authorFilter.length} ${authorFilter.length === 1 ? "pessoa" : "pessoas"}`,
-                ].filter(Boolean).join(" · ")}
-              </p>
-              <button onClick={clearFilters} data-testid="button-clear-filters"
-                style={{ fontSize: 13, fontWeight: 700, color: T.surface, background: T.text, border: "none", borderRadius: 8, padding: "9px 20px", minHeight: isMobile ? 44 : undefined, cursor: "pointer" }}>
-                Limpar filtros
-              </button>
+            <div style={{ padding: isCompact ? 16 : 24 }}>
+              <EstadoVazio
+                icone={Search}
+                titulo="Nenhuma atividade encontrada"
+                descricao={(
+                  <>
+                    Nenhum registro corresponde aos filtros ativos.
+                    <span style={{ display: "block", marginTop: 6, fontSize: FS.meta }}>
+                      Ativos: {[
+                        searchFilter.trim() && `busca "${searchFilter.trim()}"`,
+                        period !== "all" && PERIODS.find(p => p.value === period)?.label,
+                        actionFilter.length > 0 && `${actionFilter.length} ${actionFilter.length === 1 ? "ação" : "ações"}`,
+                        eventFilter.length > 0 && `${eventFilter.length} ${eventFilter.length === 1 ? "evento" : "eventos"}`,
+                        authorFilter.length > 0 && `${authorFilter.length} ${authorFilter.length === 1 ? "pessoa" : "pessoas"}`,
+                      ].filter(Boolean).join(" · ")}
+                    </span>
+                  </>
+                )}
+                acao={(
+                  <Botao variante="primario" tamanho={tamanhoBotao} icone={X} onClick={clearFilters} data-testid="button-clear-filters">
+                    Limpar filtros
+                  </Botao>
+                )}
+              />
             </div>
           )
         ) : (
@@ -1986,10 +2009,10 @@ export default function Historico() {
                   padding: isCompact ? "8px 16px" : "8px 32px",
                   backgroundColor: T.bg, borderBottom: `1px solid ${P.border}`,
                   borderTop: `1px solid ${P.border}`,
-                  fontSize: 12, fontWeight: 600, color: P.label,
+                  fontSize: FS.meta, fontWeight: FW.medio, color: P.label,
                 }}>
-                  <span style={{ fontFamily: FONT.display, fontSize: 13, fontWeight: 700, color: P.text }}>{grupo.rotulo}</span>
-                  <span style={{ fontWeight: 600, marginLeft: 8 }}>
+                  <span style={{ fontFamily: FONT.display, fontSize: FS.body, fontWeight: FW.forte, color: P.text }}>{grupo.rotulo}</span>
+                  <span style={{ fontWeight: FW.medio, marginLeft: 8 }}>
                     · {grupo.itens.length} registro{grupo.itens.length === 1 ? "" : "s"}
                   </span>
                   {/* A FORMA DO DIA: varrer os separadores procurando o vermelho
@@ -1997,7 +2020,7 @@ export default function Historico() {
                       custa clique. Some no modo trilha: ali o dia tem um ou dois
                       passos e o número não informa. */}
                   {!trilha && grupo.excecoes > 0 && (
-                    <span data-testid={`text-excecoes-dia-${grupo.chave}`} style={{ fontWeight: 700, marginLeft: 6, color: TOM.perigo.text }}>
+                    <span data-testid={`text-excecoes-dia-${grupo.chave}`} style={{ fontWeight: FW.forte, marginLeft: 6, color: TOM.perigo.text }}>
                       · {grupo.excecoes} {grupo.excecoes === 1 ? "exceção" : "exceções"}
                     </span>
                   )}
@@ -2009,6 +2032,7 @@ export default function Historico() {
                     entry={entry}
                     idx={grupo.offset + idx}
                     isCompact={isCompact}
+                    grosso={grosso}
                     nav={nav}
                     onOpen={() => setDetail(entry)}
                     onCopy={copiar}
@@ -2032,7 +2056,7 @@ export default function Historico() {
             borderRadius: "0 0 11px 11px",
             display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap",
           }}>
-            <span style={{ fontSize: 13, color: P.second }}>
+            <span style={{ fontSize: FS.body, color: P.second }}>
               Exibindo <strong style={{ color: P.text }}>{Math.min((safePage - 1) * pageSize + 1, filtered.length)}–{Math.min(safePage * pageSize, filtered.length)}</strong> de <strong style={{ color: P.text }}>{filtered.length}</strong> resultado{filtered.length === 1 ? "" : "s"}
             </span>
 
@@ -2044,7 +2068,7 @@ export default function Historico() {
                   menu do sistema operacional no rodapé de uma tabela inteira
                   desenhada pela casa. `hideSearch` porque são três opções — uma
                   caixa de busca sobre 25/50/100 é ruído puro. */}
-              <div style={{ fontSize: 12, color: P.second, display: "flex", alignItems: "center", gap: 6 }}>
+              <div style={{ fontSize: FS.meta, color: P.second, display: "flex", alignItems: "center", gap: 6 }}>
                 {/* O gatilho já se anuncia como "Por página: 50" (o
                     `aria-label` do FilterSelect junta dimensão e valor), então
                     este rótulo visível não precisa de amarração extra. */}
@@ -2061,8 +2085,8 @@ export default function Historico() {
                   dropdownAlign="right"
                   testId="select-page-size"
                   triggerStyle={{
-                    height: isMobile ? 44 : 30, borderRadius: 6, border: `1px solid ${P.border}`,
-                    backgroundColor: T.surface, fontSize: 12, fontWeight: 700, color: P.text,
+                    height: alvo(30, grosso), borderRadius: R.sm, border: `1px solid ${P.border}`,
+                    backgroundColor: T.surface, fontSize: FS.meta, fontWeight: FW.forte, color: P.text,
                     padding: "0 6px 0 10px", minWidth: 62,
                   }}
                 />
@@ -2072,45 +2096,44 @@ export default function Historico() {
                   não informam nada — some tudo e fica só a contagem. */}
               {totalPages > 1 && (
                 <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                  <PageBtn onClick={() => goToPage(1)} disabled={safePage === 1} testId="button-first-page" label="Primeira página" big={isMobile}>
+                  <PageBtn onClick={() => goToPage(1)} disabled={safePage === 1} testId="button-first-page" label="Primeira página" big={grosso}>
                     <ChevronsLeft aria-hidden="true" style={{ width: 14, height: 14 }} />
                   </PageBtn>
                   {/* Prev/Next sobre safePage (não o functional p): `page` pode
                       estar inflado após um filtro encolher a lista — somar sobre
                       ele pulava páginas em relação ao que a tela exibia. */}
-                  <PageBtn onClick={() => goToPage(Math.max(1, safePage - 1))} disabled={safePage === 1} testId="button-prev-page" label="Página anterior" big={isMobile}>
+                  <PageBtn onClick={() => goToPage(Math.max(1, safePage - 1))} disabled={safePage === 1} testId="button-prev-page" label="Página anterior" big={grosso}>
                     <ChevronLeft aria-hidden="true" style={{ width: 14, height: 14 }} />
                   </PageBtn>
 
                   {pageWindow.map(p => (
-                    <button
+                    <Botao
                       key={p}
+                      variante="fantasma"
+                      tamanho="sm"
                       onClick={() => goToPage(p)}
                       data-testid={`button-page-${p}`}
                       aria-label={`Página ${p}`}
                       aria-current={p === safePage ? "page" : undefined}
                       style={{
-                        minWidth: isMobile ? 44 : 32, height: isMobile ? 44 : 30,
-                        borderRadius: 6, border: "none",
-                        fontSize: 13, fontWeight: p === safePage ? 900 : 700,
-                        cursor: "pointer",
-                        // #c2410c: o branco sobre #f97316 ficava em 2.8:1 — a
-                        // página ativa era justamente a menos legível do grupo.
-                        backgroundColor: p === safePage ? T.accentText : "transparent",
-                        color: p === safePage ? T.surface : P.second,
-                        transition: "all 0.12s",
+                        minWidth: alvo(32, grosso), minHeight: alvo(30, grosso), padding: "0 6px",
+                        borderRadius: R.sm, fontSize: FS.body,
+                        fontWeight: p === safePage ? FW.rotulo : FW.forte,
+                        // T.accentText: o branco sobre #f97316 ficava em 2.8:1 —
+                        // a página ativa era justamente a menos legível do grupo.
+                        ...(p === safePage
+                          ? { backgroundColor: T.accentText, border: `1px solid ${T.accentText}`, color: T.surface }
+                          : { color: P.second }),
                       }}
-                      onMouseEnter={e => { if (p !== safePage) (e.currentTarget as HTMLButtonElement).style.backgroundColor = T.border; }}
-                      onMouseLeave={e => { if (p !== safePage) (e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent"; }}
                     >
                       {p}
-                    </button>
+                    </Botao>
                   ))}
 
-                  <PageBtn onClick={() => goToPage(Math.min(totalPages, safePage + 1))} disabled={safePage === totalPages} testId="button-next-page" label="Próxima página" big={isMobile}>
+                  <PageBtn onClick={() => goToPage(Math.min(totalPages, safePage + 1))} disabled={safePage === totalPages} testId="button-next-page" label="Próxima página" big={grosso}>
                     <ChevronRight aria-hidden="true" style={{ width: 14, height: 14 }} />
                   </PageBtn>
-                  <PageBtn onClick={() => goToPage(totalPages)} disabled={safePage === totalPages} testId="button-last-page" label="Última página" big={isMobile}>
+                  <PageBtn onClick={() => goToPage(totalPages)} disabled={safePage === totalPages} testId="button-last-page" label="Última página" big={grosso}>
                     <ChevronsRight aria-hidden="true" style={{ width: 14, height: 14 }} />
                   </PageBtn>
                 </div>
@@ -2124,27 +2147,27 @@ export default function Historico() {
           Sinal de que o sistema está vivo SEM mover o conteúdo: a lista só se
           reordena quando o usuário mandar. */}
       {pendingCount > 0 && (
-        <button
+        <Botao
+          variante="primario"
+          icone={ArrowUpToLine}
           onClick={adotarNovidades}
           data-testid="button-novas-atividades"
           // safe-area: no iPhone sem botão, 24px de baixo caíam em cima da
           // barra de gesto e o toque ia para o sistema, não para a pílula.
           style={{
             position: "fixed", bottom: "calc(24px + env(safe-area-inset-bottom, 0px))", left: "50%", transform: "translateX(-50%)",
-            zIndex: 40, display: "flex", alignItems: "center", gap: 8,
-            height: isMobile ? 44 : 40, maxWidth: "calc(100vw - 32px)", whiteSpace: "nowrap", padding: "0 18px", borderRadius: 999, border: "none",
-            backgroundColor: T.text, color: T.surface,
-            fontSize: 13, fontWeight: 700, cursor: "pointer",
-            boxShadow: "0 8px 24px rgba(0,0,0,0.24)",
+            zIndex: 40, gap: 8,
+            minHeight: alvo(40, grosso), maxWidth: "calc(100vw - 32px)", padding: "0 18px", borderRadius: R.pill,
+            boxShadow: SHADOW.lg,
           }}
         >
-          <ArrowUpToLine aria-hidden="true" style={{ width: 14, height: 14 }} />
           {pendingCount} nova{pendingCount === 1 ? "" : "s"} atividade{pendingCount === 1 ? "" : "s"} — atualizar
-        </button>
+        </Botao>
       )}
 
       <DetailDialog
         isMobile={isMobile}
+        grosso={grosso}
         entry={detail}
         onClose={() => setDetail(null)}
         nav={nav}
@@ -2165,6 +2188,8 @@ function Sk({ w, h, r = 6 }: { w: number | string; h: number; r?: number }) {
 /* ── Linha ── */
 interface RowProps {
   entry: TimelineEvent; idx: number; isCompact: boolean; nav: Nav;
+  /** Ponteiro grosso (dedo): os ícones da linha crescem para 44px. */
+  grosso?: boolean;
   onOpen: () => void; onCopy: (t: string, k: string) => void; copied: string | null;
   /** Abre a trilha desta peça — só em linha que TEM peça; registro de evento não tem trilha para seguir. */
   onTrilha?: () => void;
@@ -2190,7 +2215,7 @@ interface RowProps {
        "há 23 horas" pela hora pura. */
 const FOLGA_RELATIVA_MS = 24 * 60 * 60 * 1000 + 2 * 60 * 1000;
 function mesmaLinha(a: RowProps, b: RowProps): boolean {
-  if (a.entry !== b.entry || a.idx !== b.idx || a.isCompact !== b.isCompact || a.nav !== b.nav) return false;
+  if (a.entry !== b.entry || a.idx !== b.idx || a.isCompact !== b.isCompact || a.grosso !== b.grosso || a.nav !== b.nav) return false;
   if (a.gapMs !== b.gapMs || !!a.onTrilha !== !!b.onTrilha) return false;
   if ((a.copied === a.entry.id) !== (b.copied === b.entry.id)) return false;
   if (a.tick !== b.tick && b.gapMs == null && Date.now() - b.entry.timestamp.getTime() < FOLGA_RELATIVA_MS) return false;
@@ -2198,15 +2223,27 @@ function mesmaLinha(a: RowProps, b: RowProps): boolean {
 }
 const Row = memo(LinhaDoHistorico, mesmaLinha);
 
-function LinhaDoHistorico({ entry, idx, isCompact, nav, onOpen, onCopy, copied, onTrilha, gapMs }: RowProps) {
+/** Ícone-botão da linha: fantasma, quadrado, sem o padding do rótulo. */
+function iconeDaLinha(lado: number): React.CSSProperties {
+  return { width: lado, height: lado, minHeight: lado, padding: 0, borderRadius: R.sm, flexShrink: 0 };
+}
+
+function LinhaDoHistorico({ entry, idx, isCompact, grosso = false, nav, onOpen, onCopy, copied, onTrilha, gapMs }: RowProps) {
   const cfg = cfgFor(entry.type);
   const Icon = cfg.icon;
   const downRef = useRef<{ x: number; y: number } | null>(null);
+  // Em cards (área útil estreita) ou com o dedo, os ícones da linha têm 44px.
+  const toque = isCompact || grosso;
 
   // A linha inteira abre o painel de detalhe (não navega): antes, qualquer
   // tentativa de SELECIONAR o código da peça para colar num chat disparava a
   // navegação ao soltar o botão — numa tela de auditoria, copiar um
   // identificador é a segunda ação mais frequente depois de ler.
+  //
+  // O clique na linha é ATALHO de ponteiro. O caminho de teclado (e de leitor
+  // de tela) é o botão "Ver detalhes" explícito de cada linha, logo abaixo:
+  // trocar a linha por <button> quebraria os links de evento/peça e o copiar
+  // que moram dentro dela (botão dentro de botão não é HTML válido).
   const onMouseDown = (e: React.MouseEvent) => { downRef.current = { x: e.clientX, y: e.clientY }; };
   const onClick = (e: React.MouseEvent) => {
     const d = downRef.current;
@@ -2219,12 +2256,12 @@ function LinhaDoHistorico({ entry, idx, isCompact, nav, onOpen, onCopy, copied, 
   const pill = (
     <span style={{
       display: "inline-flex", alignItems: "center", gap: 5,
-      maxWidth: "100%", padding: "4px 10px", borderRadius: 999,
+      maxWidth: "100%", padding: "4px 10px", borderRadius: R.pill,
       backgroundColor: cfg.bg, border: `1px solid ${cfg.border}`,
       // 11px em caixa normal (era 10px em caixa alta, peso 800): uma coluna
       // inteira de pílulas maiúsculas fazia o TIPO pesar mais que a AÇÃO ao
       // lado, que é o que se veio ler. Cor e ícone continuam carregando a fase.
-      fontSize: 11, fontWeight: 700, color: cfg.color,
+      fontSize: FS.small, fontWeight: FW.forte, color: cfg.color,
       whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
     }}>
       <Icon aria-hidden="true" style={{ width: 11, height: 11, flexShrink: 0 }} />
@@ -2233,77 +2270,76 @@ function LinhaDoHistorico({ entry, idx, isCompact, nav, onOpen, onCopy, copied, 
   );
 
   const detalhesBtn = (
-    <button
-      type="button"
+    <Botao
+      variante="fantasma"
       onClick={e => { e.stopPropagation(); onOpen(); }}
       aria-label={`Ver detalhes: ${cfg.label} — ${format(entry.timestamp, "dd/MM/yyyy HH:mm:ss", { locale: ptBR })}`}
       data-testid={`button-detail-${idx}`}
       title="Ver detalhes do registro"
-      style={{
-        width: 30, height: 30, borderRadius: 6, border: "none", background: "none",
-        cursor: "pointer", color: P.second, display: "flex", alignItems: "center", justifyContent: "center",
-      }}
+      style={{ ...iconeDaLinha(toque ? 44 : 30), color: P.second }}
     >
       <FileText aria-hidden="true" style={{ width: 14, height: 14 }} />
-    </button>
+    </Botao>
   );
 
-  // O botão da trilha: 28px na coluna de ações (44px no celular, na linha da
-  // pill). #c2410c sobre branco = 5,2:1.
+  // O botão da trilha: 28px na coluna de ações (44px com o dedo ou em cards,
+  // na linha da pill). T.accentText sobre branco = 5,2:1.
   const trilhaBtn = onTrilha ? (
-    <button
-      type="button"
+    <Botao
+      variante="fantasma"
       onClick={e => { e.stopPropagation(); onTrilha(); }}
       aria-label={`Ver a trilha completa de ${entry.itemDisplayId}`}
       title={`Ver a trilha completa de ${entry.itemDisplayId}`}
       data-testid={`button-trilha-${idx}`}
       style={{
-        width: isCompact ? 44 : 28, height: isCompact ? 44 : 28, borderRadius: 6, border: "none", background: "none",
-        cursor: "pointer", color: T.accentText, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+        ...iconeDaLinha(28),
+        width: toque ? 44 : 28, height: toque ? 44 : 28, minHeight: toque ? 44 : 28,
+        color: T.accentText,
       }}
     >
       <Route aria-hidden="true" style={{ width: 14, height: 14 }} />
-    </button>
+    </Botao>
   ) : null;
 
   const copiarBtn = entry.itemDisplayId ? (
-    <button
-      type="button"
+    <Botao
+      variante="fantasma"
       onClick={e => { e.stopPropagation(); onCopy(entry.itemDisplayId!, entry.id); }}
       aria-label={`Copiar o código ${entry.itemDisplayId}`}
       title="Copiar o código da peça"
-      // No celular/tablet o alvo cresce para 44px, e a margem negativa devolve
-      // o excesso à linha de texto — sem ela cada descrição ganhava 18px de
+      // Com o dedo o alvo cresce para 44px, e a margem negativa devolve o
+      // excesso à linha de texto — sem ela cada descrição ganhava 18px de
       // entrelinha só por causa do botão de copiar.
       style={{
-        width: isCompact ? 44 : 26, height: isCompact ? 44 : 26, margin: isCompact ? "-9px -9px -9px -5px" : undefined,
-        borderRadius: 6, border: "none", background: "none",
-        cursor: "pointer", color: copied === entry.id ? TOM.sucesso.text : P.second,
-        display: "inline-flex", alignItems: "center", justifyContent: "center", verticalAlign: "middle",
+        ...iconeDaLinha(toque ? 44 : 26),
+        margin: toque ? "-9px -9px -9px -5px" : undefined,
+        verticalAlign: "middle",
+        color: copied === entry.id ? TOM.sucesso.text : P.second,
       }}
     >
       {copied === entry.id
         ? <Check aria-hidden="true" style={{ width: 12, height: 12 }} />
         : <Copy aria-hidden="true" style={{ width: 12, height: 12 }} />}
-    </button>
+    </Botao>
   ) : null;
 
   if (isCompact) {
     return (
       <div
         data-testid={`timeline-event-${idx}`}
+        className="hist-linha"
         onMouseDown={onMouseDown}
         onClick={onClick}
         style={{
           display: "flex", flexDirection: "column", gap: 8,
-          padding: "14px 16px", borderBottom: `1px solid #f0efee`, cursor: "pointer",
+          padding: "14px 16px", borderBottom: `1px solid ${N.n3}`, cursor: "pointer",
         }}
       >
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
           {pill}
           <span style={{ display: "inline-flex", alignItems: "center", gap: 2, flexShrink: 0 }}>{trilhaBtn}{detalhesBtn}</span>
         </div>
-        <div style={{ fontSize: 13, color: P.second, lineHeight: 1.45 }}>
+        <div style={{ fontSize: FS.body, color: P.second, lineHeight: 1.45 }}>
           {buildDescription(entry, nav)}{copiarBtn}
         </div>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
@@ -2317,19 +2353,18 @@ function LinhaDoHistorico({ entry, idx, isCompact, nav, onOpen, onCopy, copied, 
   return (
     <div
       data-testid={`timeline-event-${idx}`}
+      className="hist-linha"
       onMouseDown={onMouseDown}
       onClick={onClick}
       style={{
-        display: "grid", gridTemplateColumns: GRID, gap: 12,
+        display: "grid", gridTemplateColumns: grosso ? GRID_TOQUE : GRID, gap: 12,
         padding: "16px 32px", alignItems: "center",
-        borderBottom: `1px solid #f0efee`,
-        cursor: "pointer", transition: "background-color 0.12s",
+        borderBottom: `1px solid ${N.n3}`,
+        cursor: "pointer",
       }}
-      onMouseEnter={e => { e.currentTarget.style.backgroundColor = T.bg; }}
-      onMouseLeave={e => { e.currentTarget.style.backgroundColor = "transparent"; }}
     >
       <div style={{ minWidth: 0, overflow: "hidden" }}>{pill}</div>
-      <div style={{ fontSize: 13, color: P.second, lineHeight: 1.45, minWidth: 0 }}>
+      <div style={{ fontSize: FS.body, color: P.second, lineHeight: 1.45, minWidth: 0 }}>
         {buildDescription(entry, nav)}{copiarBtn}
       </div>
       <TimeCell ts={entry.timestamp} gapMs={gapMs} gapTestId={`text-gap-${idx}`} />
@@ -2348,7 +2383,7 @@ function TimeCell({ ts, inline = false, gapMs = null, gapTestId }: { ts: Date; i
   const completo = format(ts, "dd/MM/yyyy HH:mm:ss", { locale: ptBR });
   return (
     <div title={completo} style={inline ? { display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" } : undefined}>
-      <div style={{ fontFamily: FONT.mono, fontSize: 12, fontWeight: 600, color: P.text }}>
+      <div style={{ fontFamily: FONT.mono, fontSize: FS.meta, fontWeight: FW.medio, color: P.text }}>
         {format(ts, "HH:mm:ss", { locale: ptBR })}
       </div>
       {/* O INTERVALO desde o passo anterior (só no modo trilha). A unidade é a
@@ -2363,7 +2398,7 @@ function TimeCell({ ts, inline = false, gapMs = null, gapTestId }: { ts: Date; i
         </div>
       )}
       {recente && gapMs === null && (
-        <div style={{ fontSize: 10, color: P.label, marginTop: inline ? 0 : 2 }}>
+        <div style={{ fontSize: FS.micro, color: P.label, marginTop: inline ? 0 : 2 }}>
           {formatDistanceToNow(ts, { locale: ptBR, addSuffix: true })}
         </div>
       )}
@@ -2375,26 +2410,29 @@ function TimeCell({ ts, inline = false, gapMs = null, gapTestId }: { ts: Date; i
    Clicar na linha NÃO ejeta mais o usuário: filtros, página e rolagem ficam
    onde estavam, o `details` cru fica disponível (é o que a auditoria às vezes
    exige) e a navegação vira decisão explícita, com "Abrir peça" via ?item=. */
-function DetailDialog({ entry, onClose, nav, onCopy, copied, isMobile = false }: {
+function DetailDialog({ entry, onClose, nav, onCopy, copied, isMobile = false, grosso = false }: {
   entry: TimelineEvent | null; onClose: () => void; nav: Nav;
   onCopy: (t: string, k: string) => void; copied: string | null;
+  /** Celular de fato: o modal ocupa a largura da JANELA, então aqui a janela é a régua certa. */
   isMobile?: boolean;
+  grosso?: boolean;
 }) {
   const cfg = entry ? cfgFor(entry.type) : null;
   // No celular o rótulo sobe para cima do valor: com 116px de coluna fixa
   // numa tela de 390, a descrição (a parte que se veio ler) ficava com
   // ~170px e virava uma tira de três palavras por linha.
   const linha: React.CSSProperties = isMobile
-    ? { display: "flex", flexDirection: "column", gap: 2, fontSize: 13, lineHeight: 1.55 }
-    : { display: "flex", gap: 12, fontSize: 13, lineHeight: 1.55 };
+    ? { display: "flex", flexDirection: "column", gap: 2, fontSize: FS.body, lineHeight: 1.55 }
+    : { display: "flex", gap: 12, fontSize: FS.body, lineHeight: 1.55 };
   const rotulo: React.CSSProperties = {
-    width: isMobile ? "auto" : 116, flexShrink: 0, fontSize: 10, fontWeight: 700, color: P.label,
+    width: isMobile ? "auto" : 116, flexShrink: 0, fontSize: FS.micro, fontWeight: FW.forte, color: P.label,
     textTransform: "uppercase", letterSpacing: "0.06em", paddingTop: isMobile ? 0 : 3,
   };
-  const acaoBtn: React.CSSProperties = {
-    flex: 1, height: 44, borderRadius: 8, border: `1px solid ${P.border}`,
-    backgroundColor: T.surface, color: P.text, fontSize: 13, fontWeight: 700, cursor: "pointer",
-  };
+  // Cada ação numa coluna que estica: com `motivo`, o Botao vira uma pilha
+  // (botão + frase), e é a pilha que precisa ocupar a metade do rodapé.
+  const metade: React.CSSProperties = { flex: 1, minWidth: 0, display: "flex", flexDirection: "column" };
+  const semEvento = !entry?.eventId;
+  const semPeca = !entry?.eventId || !entry?.itemId || !!entry?.itemMissing;
 
   return (
     <Dialog open={!!entry} onOpenChange={v => { if (!v) onClose(); }}>
@@ -2437,37 +2475,41 @@ function DetailDialog({ entry, onClose, nav, onCopy, copied, isMobile = false }:
                 <div style={linha}>
                   <span style={rotulo}>Peça</span>
                   <span style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
-                    <code style={{ fontFamily: FONT.mono, fontWeight: 700, color: P.text }}>
+                    <code style={{ fontFamily: FONT.mono, fontWeight: FW.forte, color: P.text }}>
                       {entry.itemDisplayId}
                     </code>
-                    <button
-                      type="button"
+                    <Botao
+                      variante="fantasma"
                       onClick={() => onCopy(entry.itemDisplayId!, `dlg-${entry.id}`)}
                       aria-label={`Copiar o código ${entry.itemDisplayId}`}
                       title="Copiar o código da peça"
-                      // Alvo de 13px era só o ícone; 32px (44 no celular) com
+                      // Alvo de 13px era só o ícone; 32px (44 com o dedo) com
                       // margem negativa para não empurrar a linha.
-                      style={{ border: "none", background: "none", cursor: "pointer", padding: 0, width: isMobile ? 44 : 32, height: isMobile ? 44 : 32, margin: isMobile ? "-12px 0" : "-8px 0", borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center", color: copied === `dlg-${entry.id}` ? TOM.sucesso.text : P.second }}
+                      style={{
+                        width: alvo(32, grosso), height: alvo(32, grosso), minHeight: alvo(32, grosso), padding: 0,
+                        margin: grosso ? "-12px 0" : "-8px 0", borderRadius: R.sm,
+                        color: copied === `dlg-${entry.id}` ? TOM.sucesso.text : P.second,
+                      }}
                     >
                       {copied === `dlg-${entry.id}`
                         ? <Check aria-hidden="true" style={{ width: 13, height: 13 }} />
                         : <Copy aria-hidden="true" style={{ width: 13, height: 13 }} />}
-                    </button>
-                    {entry.itemMissing && <span style={{ fontSize: 12, color: P.label, fontStyle: "italic" }}>(peça excluída)</span>}
+                    </Botao>
+                    {entry.itemMissing && <span style={{ fontSize: FS.meta, color: P.label, fontStyle: "italic" }}>(peça excluída)</span>}
                   </span>
                 </div>
               )}
 
               <div style={linha}>
                 <span style={rotulo}>Evento</span>
-                <span style={{ color: P.text, fontWeight: 700, minWidth: 0 }}>{entry.eventName}</span>
+                <span style={{ color: P.text, fontWeight: FW.forte, minWidth: 0 }}>{entry.eventName}</span>
               </div>
 
               <div style={linha}>
                 <span style={rotulo}>Realizado por</span>
                 <span style={{
                   color: entry.authorSource === "log" ? P.text : P.label,
-                  fontWeight: 700,
+                  fontWeight: FW.forte,
                 }}>
                   {autoriaTexto(entry)}
                 </span>
@@ -2478,8 +2520,8 @@ function DetailDialog({ entry, onClose, nav, onCopy, copied, isMobile = false }:
                   <span style={{ ...rotulo, width: "auto", paddingTop: 0 }}>Registro bruto</span>
                   <pre style={{
                     margin: 0, padding: "10px 12px", backgroundColor: T.low,
-                    border: `1px solid ${P.border}`, borderRadius: 8,
-                    fontFamily: FONT.mono, fontSize: 12, color: T.strong,
+                    border: `1px solid ${P.border}`, borderRadius: R.md,
+                    fontFamily: FONT.mono, fontSize: FS.meta, color: T.strong,
                     whiteSpace: "pre-wrap", wordBreak: "break-word",
                   }}>
                     {entry.logDetails}
@@ -2489,30 +2531,33 @@ function DetailDialog({ entry, onClose, nav, onCopy, copied, isMobile = false }:
             </div>
 
             <ModalFooter>
-              <div style={{ display: "flex", gap: 8 }}>
-                <button
-                  type="button"
-                  disabled={!entry.eventId}
-                  onClick={() => { nav.goEvent(entry.eventId); onClose(); }}
-                  data-testid="button-abrir-evento"
-                  style={{ ...acaoBtn, opacity: entry.eventId ? 1 : 0.5, cursor: entry.eventId ? "pointer" : "not-allowed" }}
-                >
-                  Abrir evento
-                </button>
-                <button
-                  type="button"
-                  disabled={!entry.eventId || !entry.itemId || entry.itemMissing}
-                  onClick={() => { nav.goItem(entry.eventId, entry.itemId!); onClose(); }}
-                  data-testid="button-abrir-peca"
-                  style={{
-                    ...acaoBtn,
-                    backgroundColor: T.text, color: T.surface, border: "none",
-                    opacity: entry.eventId && entry.itemId && !entry.itemMissing ? 1 : 0.5,
-                    cursor: entry.eventId && entry.itemId && !entry.itemMissing ? "pointer" : "not-allowed",
-                  }}
-                >
-                  Abrir peça
-                </button>
+              <div style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
+                <div style={metade}>
+                  <Botao
+                    variante="secundario"
+                    tamanho="toque"
+                    larguraCheia
+                    disabled={semEvento}
+                    motivo="Registro sem evento ligado"
+                    onClick={() => { nav.goEvent(entry.eventId); onClose(); }}
+                    data-testid="button-abrir-evento"
+                  >
+                    Abrir evento
+                  </Botao>
+                </div>
+                <div style={metade}>
+                  <Botao
+                    variante="primario"
+                    tamanho="toque"
+                    larguraCheia
+                    disabled={semPeca}
+                    motivo={entry.itemMissing ? "A peça foi excluída" : "Registro sem peça ligada"}
+                    onClick={() => { nav.goItem(entry.eventId, entry.itemId!); onClose(); }}
+                    data-testid="button-abrir-peca"
+                  >
+                    Abrir peça
+                  </Botao>
+                </div>
               </div>
             </ModalFooter>
           </>
@@ -2527,28 +2572,21 @@ function PageBtn({ onClick, disabled, children, testId, label, big }: {
   onClick: () => void; disabled: boolean; children: React.ReactNode;
   testId: string; label: string; big?: boolean;
 }) {
-  const [h, setH] = useState(false);
+  // Botao fantasma: o realce de hover/foco vem da classe (.ds-botao-fantasma),
+  // e o desabilitado recua por opacidade — sem o estado de hover na mão.
+  // Sem `motivo`: "Primeira página" apagada NA primeira página se explica
+  // pelo número aceso ao lado; uma frase embaixo de cada seta seria ruído.
+  const lado = big ? 44 : 30;
   return (
-    <button
+    <Botao
+      variante="fantasma"
       onClick={onClick}
       disabled={disabled}
-      aria-disabled={disabled}
       aria-label={label}
       data-testid={testId}
-      onMouseEnter={() => setH(true)}
-      onMouseLeave={() => setH(false)}
-      style={{
-        width: big ? 44 : 30, height: big ? 44 : 30,
-        borderRadius: 6, border: "none", cursor: disabled ? "default" : "pointer",
-        backgroundColor: h && !disabled ? T.border : "transparent",
-        // Desabilitada fica em #a8a29e SEM opacity por cima: opacity 0.35
-        // sobre um cinza claro sumia com a seta em vez de só recuá-la.
-        color: disabled ? T.muted : T.apoio,
-        display: "flex", alignItems: "center", justifyContent: "center",
-        transition: "background 0.12s",
-      }}
+      style={{ width: lado, height: lado, minHeight: lado, padding: 0, borderRadius: R.sm, color: T.apoio }}
     >
       {children}
-    </button>
+    </Botao>
   );
 }

@@ -1,8 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { parseDateLocal, toUTCDisplayDate } from "@/lib/utils";
 import { getPriorityMeta, getStatusMeta, isEventoEncerrado } from "@/lib/status";
-import { ChevronLeft, ChevronRight, AlertTriangle, Calendar, Truck, Search, BarChart2, Flag, X } from "lucide-react";
-import { useState, useMemo, useEffect, useRef } from "react";
+import { ChevronLeft, ChevronRight, AlertTriangle, Calendar, Truck, Search, BarChart2, Flag, X, RotateCw } from "lucide-react";
+import { useState, useMemo, useEffect, useLayoutEffect, useRef } from "react";
 import { useLocation } from "wouter";
 import {
   Dialog,
@@ -12,9 +12,13 @@ import {
 } from "@/components/ui/dialog";
 import { ModalHeader, modalSurface, HIDE_NATIVE_CLOSE } from "@/components/modal-shell";
 import { MARCOS_DO_EVENTO, OFFSET_PADRAO_DO_MARCO } from "@shared/prazo-dates";
-import { useIsMobile } from "@/hooks/use-mobile";
+import { useDensidadeDoConteudo, usePonteiroGrosso, alvo } from "@/hooks/use-mobile";
 import { useAuth } from "@/contexts/auth-context";
-import { T, FS, R, N, FW, FONT, TOM } from "@/lib/theme";
+import { T, FS, R, N, H, FW, FONT, TOM, SHADOW } from "@/lib/theme";
+import { Botao } from "@/components/ui/botao";
+import { EstadoErro } from "@/components/ui/estados";
+import { Selo } from "@/components/ui/selo";
+import { CabecalhoDaPagina } from "@/components/ui/cabecalho-da-pagina";
 
 /* ── Palette ── */
 const P = {
@@ -114,7 +118,16 @@ const MONTH_NAMES = [
 ];
 
 export default function Calendario() {
-  const isMobile = useIsMobile();
+  // A RÉGUA É A ÁREA ÚTIL do cartão do calendário, não a janela: com a sidebar
+  // aberta num tablet, a janela diz "desktop" e sobram ~600px para sete
+  // colunas — pílulas de 10px cortadas em quatro letras. `compacto` decide a
+  // forma da grade (barrinhas × pílulas, alturas, colunas); `isMobile` (celular
+  // de fato) fica para o respiro da página, a fonte 16 do campo e o modal; o
+  // alvo de 44px vem do ponteiro grosso, que vale também no tablet.
+  const densidade = useDensidadeDoConteudo<HTMLDivElement>();
+  const { isMobile } = densidade;
+  const compacto = densidade.cards;
+  const grosso = usePonteiroGrosso() || isMobile;
   const { user } = useAuth();
   const [currentDate, setCurrentDate] = useState(new Date());
   // Recorte por função (ver MARCOS_POR_PAPEL). `verTodosOsMarcos` é a saída:
@@ -146,6 +159,16 @@ export default function Calendario() {
     if (v === "semana" || v === "mes") return v;
     return typeof window !== "undefined" && window.innerWidth < 768 ? "semana" : "mes";
   });
+  // A janela acima é só a SEMENTE do primeiro quadro (ainda não há medida).
+  // Na primeira medida da área útil a escala padrão é refeita pela régua —
+  // antes da pintura (layout effect), então não pisca. Uma vez só: depois
+  // disso, e sempre que a escala veio da URL, quem manda é a pessoa.
+  const escalaDecididaRef = useRef(new URLSearchParams(window.location.search).get("escala") !== null);
+  useLayoutEffect(() => {
+    if (escalaDecididaRef.current || densidade.largura === 0) return;
+    escalaDecididaRef.current = true;
+    setEscala(compacto ? "semana" : "mes");
+  }, [densidade.largura, compacto]);
   const [, setLocation] = useLocation();
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -407,27 +430,36 @@ export default function Calendario() {
 
   return (
     <div style={{ backgroundColor: P.bg, height: "100%", overflowY: "auto", padding: isMobile ? "14px 14px 32px" : "28px 28px 48px" }}>
+      <style>{`
+        /* Realce de hover das marcações clicáveis. Eram pares onMouseEnter/
+           Leave escrevendo no style; a cor de cada uma vem na var --realce
+           (a dos prazos é a cor do próprio marco). */
+        .cal-realce { transition: background-color 0.12s ease; }
+        .cal-realce:hover { background-color: var(--realce) !important; }
+      `}</style>
 
       {/* ── Header ──
           As abas Semana/Lista saíram: eram estado morto — trocavam um
           activeView que nada na tela lia, então "Semana" e "Lista" mostravam
           exatamente a mesma grade de mês. Melhor não oferecer visões que não
-          existem; se um dia existirem, voltam com conteúdo próprio. */}
-      <div style={{ marginBottom: 28 }}>
-        <h1 data-testid="title-calendario" style={{
-          fontSize: FS.h1, fontWeight: 700, color: P.text, margin: 0,
-          letterSpacing: "-0.03em",
-          fontFamily: FONT.display, lineHeight: 1.1,
-        }}>
-          Calendário de Eventos
-        </h1>
-        {/* O subtítulo repetia o mês (que o cabeçalho da grade já mostra em
-            26px) atrás de um jargão. Agora ensina a ler a tela: de onde os
-            prazos saem e o que o clique faz. */}
-        <p style={{ fontSize: 13, color: P.secondary, margin: "6px 0 0", fontWeight: 500 }}>
-          Início, saída do caminhão e prazos de cada evento — clique numa marcação para abrir o evento.
-        </p>
+          existem; se um dia existirem, voltam com conteúdo próprio.
+          O testid fica no invólucro: o CabecalhoDaPagina não repassa testid
+          ao <h1>, e o texto do título continua dentro dele. */}
+      <div data-testid="title-calendario">
+        <CabecalhoDaPagina
+          titulo="Calendário de Eventos"
+          subtitulo={isLoading || isError ? undefined : (
+            urgentEvents.length > 0
+              ? `${urgentEvents.length} ${urgentEvents.length === 1 ? "saída" : "saídas"} do caminhão nas próximas 48h`
+              : "Nenhuma saída do caminhão nas próximas 48h"
+          )}
+        />
       </div>
+      {/* Como ler a tela: de onde os prazos saem e o que o clique faz. Fica
+          fora do cabeçalho porque é instrução, não estado. */}
+      <p style={{ fontSize: FS.body, color: P.secondary, margin: "-12px 0 24px", fontWeight: FW.corpo }}>
+        Início, saída do caminhão e prazos de cada evento — clique numa marcação para abrir o evento.
+      </p>
 
       {/* ── Alert strip (urgent < 48h) ──
           role="alert": leitor de tela anuncia a urgência ao chegar na tela.
@@ -445,36 +477,41 @@ export default function Calendario() {
           backgroundColor: TOM.perigo.bg,
           border: `1px solid ${TOM.perigo.border}`,
           borderLeft: `6px solid ${TOM.perigo.text}`,
-          borderRadius: 12,
+          borderRadius: R.lg,
           padding: "14px 20px",
         }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <AlertTriangle style={{ width: 18, height: 18, color: TOM.perigo.text, flexShrink: 0 }} />
-              <span style={{ fontSize: 13, fontWeight: 700, color: TOM.perigo.text }}>
+              <AlertTriangle aria-hidden="true" style={{ width: 18, height: 18, color: TOM.perigo.text, flexShrink: 0 }} />
+              <span style={{ fontSize: FS.body, fontWeight: FW.forte, color: TOM.perigo.text }}>
                 {urgentEvents.length} evento{urgentEvents.length > 1 ? "s" : ""} com saída do caminhão nas próximas 48h
               </span>
             </div>
-            <span style={{ fontSize: 10, fontWeight: 900, color: T.surface, backgroundColor: TOM.perigo.text, borderRadius: 999, padding: "2px 10px", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+            {/* Selo de fundo cheio: branco sobre TOM.perigo.text (6,5:1). */}
+            <Selo cores={{ bg: TOM.perigo.text, text: T.surface, border: TOM.perigo.text }} tamanho="sm">
               Crítico
-            </span>
+            </Selo>
           </div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 10 }}>
             {urgentEvents.map(ev => {
               const remaining = toUTCDisplayDate(ev.truckDepartureDate).getTime() - now;
+              // Chip de navegação com desenho próprio (pílula com o relógio
+              // embutido): fica <button> nativo, com tokens e .ds-botao.
               return (
                 <button key={ev.id}
+                  type="button"
                   onClick={() => setLocation(`/eventos/${ev.id}`)}
                   data-testid={`urgent-event-${ev.id}`}
                   aria-label={`Abrir evento ${ev.name} — saída em ${msToHM(remaining)}`}
+                  className="ds-botao"
                   style={{
                     display: "inline-flex", alignItems: "center", gap: 8,
-                    minHeight: isMobile ? 44 : 32, padding: "4px 6px 4px 12px",
-                    backgroundColor: T.surface, border: `1px solid ${TOM.perigo.border}`, borderRadius: 999,
-                    fontSize: 12, fontWeight: 700, color: TOM.perigo.text, cursor: "pointer",
+                    minHeight: alvo(32, grosso), padding: "4px 6px 4px 12px",
+                    backgroundColor: T.surface, border: `1px solid ${TOM.perigo.border}`, borderRadius: R.pill,
+                    fontSize: FS.meta, fontWeight: FW.forte, color: TOM.perigo.text, cursor: "pointer",
                   }}>
                   <span style={{ maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{ev.name}</span>
-                  <span style={{ fontSize: 10, fontWeight: 900, color: T.surface, backgroundColor: urgentBg(ev), borderRadius: 999, padding: "2px 8px", whiteSpace: "nowrap" }}>
+                  <span style={{ fontSize: FS.micro, fontWeight: FW.rotulo, color: T.surface, backgroundColor: urgentBg(ev), borderRadius: R.pill, padding: "2px 8px", whiteSpace: "nowrap" }}>
                     {msToHM(remaining)}
                   </span>
                 </button>
@@ -485,33 +522,33 @@ export default function Calendario() {
       )}
 
       {/* ── Main Calendar Card ── */}
-      <div style={{ backgroundColor: P.surface, borderRadius: 12, overflow: "hidden", boxShadow: "0 8px 32px rgba(0,0,0,0.06)", marginBottom: 28 }}>
+      <div ref={densidade.ref} style={{ backgroundColor: P.surface, borderRadius: R.lg, overflow: "hidden", boxShadow: "0 8px 32px rgba(0,0,0,0.06)", marginBottom: 28 }}>
 
         {/* Navigation bar */}
-        <div style={{ padding: isMobile ? "14px 16px" : "20px 32px", backgroundColor: T.bg, display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
+        <div style={{ padding: compacto ? "14px 16px" : "20px 32px", backgroundColor: T.bg, display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-            <h2 style={{ margin: 0, fontSize: isMobile ? 20 : FS.h2, fontWeight: 700, color: P.text, letterSpacing: "-0.02em", fontFamily: FONT.display }}>
+            <h2 style={{ margin: 0, fontSize: compacto ? 20 : FS.h2, fontWeight: FW.forte, color: P.text, letterSpacing: "-0.02em", fontFamily: FONT.display }}>
               {MONTH_NAMES[month]} {year}
             </h2>
             <div style={{ display: "flex", gap: 4 }}>
               {/* O PASSO SEGUE A ESCALA. As setas so sabiam `month ± 1`: com a
                   semana na tela, avancar um mes pula quatro semanas e a pessoa
                   perde o lugar. */}
-              <NavBtn onClick={() => andar(-1)} testId="button-prev-month" big={isMobile} label={escala === "semana" ? "Semana anterior" : "Mês anterior"}>
-                <ChevronLeft style={{ width: 18, height: 18 }} />
+              <NavBtn onClick={() => andar(-1)} testId="button-prev-month" big={grosso} label={escala === "semana" ? "Semana anterior" : "Mês anterior"}>
+                <ChevronLeft aria-hidden="true" style={{ width: 18, height: 18 }} />
               </NavBtn>
-              <NavBtn onClick={() => andar(1)} testId="button-next-month" big={isMobile} label={escala === "semana" ? "Próxima semana" : "Próximo mês"}>
-                <ChevronRight style={{ width: 18, height: 18 }} />
+              <NavBtn onClick={() => andar(1)} testId="button-next-month" big={grosso} label={escala === "semana" ? "Próxima semana" : "Próximo mês"}>
+                <ChevronRight aria-hidden="true" style={{ width: 18, height: 18 }} />
               </NavBtn>
             </div>
           </div>
 
-          {/* flexWrap + busca em linha própria no celular: em 390px a busca
-              (160) + Hoje + Semana|Mês somavam ~390px dentro de 330 úteis, e
-              o segmented vazava para fora do cartão. */}
-          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", width: isMobile ? "100%" : undefined }}>
-            <div style={{ position: "relative", flex: isMobile ? "1 1 100%" : undefined }}>
-              <Search style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", width: 14, height: 14, color: P.muted }} />
+          {/* flexWrap + busca em linha própria quando a área aperta: em 390px
+              a busca (160) + Hoje + Semana|Mês somavam ~390px dentro de 330
+              úteis, e o segmented vazava para fora do cartão. */}
+          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", width: compacto ? "100%" : undefined }}>
+            <div style={{ position: "relative", flex: compacto ? "1 1 100%" : undefined }}>
+              <Search aria-hidden="true" style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", width: 14, height: 14, color: P.muted }} />
               {/* Esc limpa e o X aparece com texto: sem nenhum dos dois, apagar
                   a busca era segurar Backspace — e a grade filtrada sem saída
                   visível parece um mês vazio. Fonte 16 no celular: abaixo
@@ -521,30 +558,36 @@ export default function Calendario() {
                 ref={searchRef}
                 value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
                 onKeyDown={e => { if (e.key === "Escape" && searchTerm) { e.preventDefault(); setSearchTerm(""); } }}
-                style={{ paddingLeft: 32, paddingRight: searchTerm ? 34 : 12, height: isMobile ? 44 : 36, width: isMobile ? "100%" : 200, boxSizing: "border-box", backgroundColor: T.border, border: "none", borderRadius: 8, fontSize: isMobile ? 16 : 13, color: P.text }} />
+                style={{ paddingLeft: 32, paddingRight: searchTerm ? 34 : 12, height: alvo(H.md, grosso), width: compacto ? "100%" : 200, boxSizing: "border-box", backgroundColor: T.border, border: "none", borderRadius: R.md, fontSize: isMobile ? FS.lead : FS.body, color: P.text }} />
+              {/* Nativo: é o × DENTRO do campo, não um botão da barra. T.apoio
+                  e não T.second: o fundo do campo é o cinza da borda (n4). */}
               {searchTerm && (
                 <button type="button" onClick={() => { setSearchTerm(""); searchRef.current?.focus(); }}
                   aria-label="Limpar filtro de evento" title="Limpar (Esc)" data-testid="button-limpar-busca-calendario"
-                  style={{ position: "absolute", right: 2, top: "50%", transform: "translateY(-50%)", width: isMobile ? 40 : 30, height: isMobile ? 40 : 30, display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: "none", borderRadius: 6, color: P.secondary, cursor: "pointer" }}>
+                  style={{ position: "absolute", right: 2, top: "50%", transform: "translateY(-50%)", width: grosso ? 40 : 30, height: grosso ? 40 : 30, display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: "none", borderRadius: R.sm, color: T.apoio, cursor: "pointer" }}>
                   <X aria-hidden="true" style={{ width: 14, height: 14 }} />
                 </button>
               )}
             </div>
-            {/* Alvo de toque: 44px no celular, como os demais controles de navegação. */}
-            <button onClick={() => setCurrentDate(new Date())} data-testid="button-today"
+            {/* Alvo de toque: 44px com o dedo, como os demais controles de navegação. */}
+            <Botao
+              tamanho={grosso ? "toque" : "md"}
+              onClick={() => setCurrentDate(new Date())}
+              data-testid="button-today"
               title={escala === "semana" ? "Voltar para a semana corrente" : "Voltar para o mês corrente"}
-              style={{ padding: "0 20px", height: isMobile ? 44 : 36, borderRadius: 8, border: `1px solid ${T.border}`, backgroundColor: T.surface, color: P.text, fontSize: 13, fontWeight: 700, cursor: "pointer" }}
-              onMouseEnter={e => (e.currentTarget.style.backgroundColor = P.bg)}
-              onMouseLeave={e => (e.currentTarget.style.backgroundColor = T.surface)}>
+              style={{ padding: "0 20px", color: P.text }}
+            >
               Hoje
-            </button>
+            </Botao>
 
-            {/* SEMANA | MÊS — mesmo desenho dos outros segmented do app. */}
+            {/* SEMANA | MÊS — radiogroup próprio, e não o <Segmentado> do
+                design system: aquele tem testid fixo no contêiner
+                ("segmentado") e não tem tamanho de toque (44px). */}
             <div
               role="radiogroup"
               aria-label="Escala do calendário"
               data-testid="segmented-escala"
-              style={{ display: "flex", backgroundColor: T.border, padding: 2, borderRadius: 8, flexShrink: 0 }}
+              style={{ display: "flex", backgroundColor: T.border, padding: 2, borderRadius: R.md, flexShrink: 0 }}
             >
               {(["semana", "mes"] as const).map(v => {
                 const ativo = escala === v;
@@ -561,12 +604,14 @@ export default function Calendario() {
                       e.preventDefault();
                       setEscala(v === "semana" ? "mes" : "semana");
                     }}
+                    className="ds-botao"
                     style={{
-                      height: isMobile ? 40 : 32, padding: "0 14px", borderRadius: 6, border: "none",
+                      // 40 + os 2+2 do trilho = 44 de alvo com o dedo.
+                      height: grosso ? 40 : 32, padding: "0 14px", borderRadius: R.sm, border: "none",
                       backgroundColor: ativo ? T.surface : "transparent",
-                      boxShadow: ativo ? "0 1px 3px rgba(0,0,0,0.10)" : "none",
-                      color: ativo ? P.text : P.secondary,
-                      font: "inherit", fontSize: 13, fontWeight: ativo ? 700 : 600,
+                      boxShadow: ativo ? SHADOW.sm : "none",
+                      color: ativo ? P.text : T.apoio,
+                      font: "inherit", fontSize: FS.body, fontWeight: ativo ? FW.forte : FW.medio,
                       cursor: "pointer", whiteSpace: "nowrap",
                     }}
                   >
@@ -588,10 +633,10 @@ export default function Calendario() {
             data-testid="resultado-busca-calendario"
             style={{
               display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap",
-              padding: isMobile ? "8px 16px" : "8px 32px",
+              padding: compacto ? "8px 16px" : "8px 32px",
               borderTop: `1px solid ${T.border}`,
               backgroundColor: resultadoDaBusca === 0 ? TOM.alerta.bg : T.bg,
-              fontSize: 13, color: resultadoDaBusca === 0 ? TOM.alerta.text : P.secondary,
+              fontSize: FS.body, color: resultadoDaBusca === 0 ? TOM.alerta.text : P.secondary,
             }}
           >
             <span>
@@ -599,11 +644,13 @@ export default function Calendario() {
                 ? <>Nada com “<strong style={{ color: P.text }}>{searchTerm}</strong>” em {MONTH_NAMES[month].toLowerCase()}.</>
                 : <>{resultadoDaBusca} {resultadoDaBusca === 1 ? "marcação" : "marcações"} com “<strong style={{ color: P.text }}>{searchTerm}</strong>” em {MONTH_NAMES[month].toLowerCase()}</>}
             </span>
+            {/* Link de texto dentro da frase: fica nativo (o Botao traria
+                caixa e borda para o meio de uma linha corrida). */}
             {resultadoDaBusca === 0 && (
               <button
                 type="button"
                 onClick={() => { setSearchTerm(""); searchRef.current?.focus(); }}
-                style={{ background: "none", border: "none", padding: isMobile ? "10px 0" : 0, font: "inherit", fontSize: 13, fontWeight: 700, color: TOM.alerta.text, textDecoration: "underline", textUnderlineOffset: 3, cursor: "pointer" }}
+                style={{ background: "none", border: "none", padding: grosso ? "10px 0" : 0, font: "inherit", fontSize: FS.body, fontWeight: FW.forte, color: TOM.alerta.text, textDecoration: "underline", textUnderlineOffset: 3, cursor: "pointer" }}
               >
                 Limpar filtro
               </button>
@@ -624,22 +671,38 @@ export default function Calendario() {
             {Array.from({ length: escala === "semana" ? 7 : 35 }).map((_, i) => (
               <div key={i} style={escala === "semana"
                 ? { display: "flex", gap: 14, alignItems: "center", padding: "14px", borderBottom: `1px solid ${N.n3}`, minHeight: 56 }
-                : { height: isMobile ? 62 : 90, padding: 8, borderRight: i % 7 !== 6 ? `1px solid ${T.border}` : undefined, borderBottom: `1px solid ${T.border}` }}>
-                <div className="animate-pulse" style={{ width: escala === "semana" ? 48 : 18, height: escala === "semana" ? 28 : 12, borderRadius: 4, backgroundColor: P.low }} />
+                : { height: compacto ? 62 : 90, padding: 8, borderRight: i % 7 !== 6 ? `1px solid ${T.border}` : undefined, borderBottom: `1px solid ${T.border}` }}>
+                <div className="animate-pulse" style={{ width: escala === "semana" ? 48 : 18, height: escala === "semana" ? 28 : 12, borderRadius: R.sm, backgroundColor: P.low }} />
                 {(escala === "semana" || i % 3 === 0) && (
-                  <div className="animate-pulse" style={{ width: escala === "semana" ? "45%" : "80%", height: 10, borderRadius: 4, backgroundColor: T.border, marginTop: escala === "semana" ? 0 : 8 }} />
+                  <div className="animate-pulse" style={{ width: escala === "semana" ? "45%" : "80%", height: 10, borderRadius: R.sm, backgroundColor: T.border, marginTop: escala === "semana" ? 0 : 8 }} />
                 )}
               </div>
             ))}
           </div>
         ) : isError ? (
-          <div role="alert" style={{ padding: "56px 24px", textAlign: "center" }}>
-            <h3 style={{ color: TOM.perigo.text, fontSize: 16, fontWeight: 700, marginBottom: 6 }}>Não foi possível carregar o calendário</h3>
-            <p style={{ color: T.second, fontSize: 13, marginBottom: 20 }}>Verifique sua conexão e tente novamente.</p>
-            <button onClick={() => refetch()} data-testid="button-retry-calendar"
-              style={{ fontSize: 13, fontWeight: 700, color: T.surface, background: T.text, border: "none", borderRadius: 8, padding: "9px 20px", cursor: "pointer" }}>
-              Tentar novamente
-            </button>
+          <div style={{ padding: compacto ? 16 : 24 }}>
+            {/* O botão vai no `detalhe`, e não no `aoTentarDeNovo`: aquele
+                tem testid fixo, e `button-retry-calendar` está no inventário
+                de capacidades desta tela. */}
+            <EstadoErro
+              titulo="Não foi possível carregar o calendário"
+              detalhe={(
+                <>
+                  Verifique sua conexão e tente novamente.
+                  <span style={{ display: "block", marginTop: 12 }}>
+                    <Botao
+                      variante="secundario"
+                      tamanho={grosso ? "toque" : "md"}
+                      icone={RotateCw}
+                      onClick={() => refetch()}
+                      data-testid="button-retry-calendar"
+                    >
+                      Tentar novamente
+                    </Botao>
+                  </span>
+                </>
+              )}
+            />
           </div>
         ) : escala === "semana" ? (
           /* ══════════════════════════════════════════════════════════════
@@ -666,11 +729,11 @@ export default function Calendario() {
                 : `${d1.getDate()} de ${MONTH_NAMES[d1.getMonth()]} a ${d7.getDate()} de ${MONTH_NAMES[d7.getMonth()]}`;
               return (
                 <div style={{ padding: "12px 20px", borderBottom: `1px solid ${T.border}`, backgroundColor: T.bg, display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-                  <span style={{ fontFamily: FONT.display, fontSize: 15, fontWeight: 800, color: P.text }}>{faixa}</span>
+                  <span style={{ fontFamily: FONT.display, fontSize: FS.strong, fontWeight: FW.rotulo, color: P.text }}>{faixa}</span>
                   {/* Com busca ativa a contagem diz COM O QUÊ contou — "0
                       marcações" sozinho não separa semana vazia de termo
                       que não casou. */}
-                  <span role={searchTerm ? "status" : undefined} aria-live={searchTerm ? "polite" : undefined} style={{ fontSize: 12, color: searchTerm && total === 0 ? TOM.alerta.text : P.secondary }}>
+                  <span role={searchTerm ? "status" : undefined} aria-live={searchTerm ? "polite" : undefined} style={{ fontSize: FS.meta, color: searchTerm && total === 0 ? TOM.alerta.text : P.secondary }}>
                     {searchTerm && total === 0
                       ? <>Nada com “{searchTerm}” nesta semana</>
                       : <>{total} {total === 1 ? "marcação" : "marcações"}{searchTerm ? <> com “{searchTerm}”</> : null}</>}
@@ -697,13 +760,13 @@ export default function Calendario() {
                   data-testid={`week-day-${date.getDate()}`}
                   style={{ display: "flex", gap: 0, borderBottom: `1px solid ${N.n3}`, backgroundColor: hoje ? TOM.laranja.bg : T.surface }}
                 >
-                  {/* 56px no celular: com 92 sobravam ~50px para o nome depois
+                  {/* 56px na área estreita: com 92 sobravam ~50px para o nome depois
                       do tipo e do horário — justo o nome, razão desta visão. */}
-                  <div style={{ width: isMobile ? 56 : 92, flexShrink: 0, padding: isMobile ? "12px 10px" : "12px 14px", borderRight: `1px solid ${N.n3}` }}>
-                    <p style={{ margin: 0, fontSize: 10, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.08em", color: hoje ? T.accentText : P.secondary }}>
+                  <div style={{ width: compacto ? 56 : 92, flexShrink: 0, padding: compacto ? "12px 10px" : "12px 14px", borderRight: `1px solid ${N.n3}` }}>
+                    <p style={{ margin: 0, fontSize: FS.micro, fontWeight: FW.rotulo, textTransform: "uppercase", letterSpacing: "0.08em", color: hoje ? T.accentText : P.secondary }}>
                       {WEEK_DAYS[date.getDay()]}
                     </p>
-                    <p style={{ margin: "2px 0 0", fontFamily: FONT.display, fontSize: 20, fontWeight: 800, color: hoje ? T.accentText : P.text, lineHeight: 1 }}>
+                    <p style={{ margin: "2px 0 0", fontFamily: FONT.display, fontSize: 20, fontWeight: FW.rotulo, color: hoje ? T.accentText : P.text, lineHeight: 1 }}>
                       {date.getDate()}
                     </p>
                   </div>
@@ -712,7 +775,7 @@ export default function Calendario() {
                     {itens.length === 0 ? (
                       /* #78716c e nao #a8a29e: a casa proibe o segundo como
                          cor de texto (2,52 sobre branco). */
-                      <p style={{ margin: 0, padding: "14px", fontSize: 13, color: T.second }}>Nada marcado</p>
+                      <p style={{ margin: 0, padding: "14px", fontSize: FS.body, color: T.second }}>Nada marcado</p>
                     ) : itens.map((item, i) => {
                       const ev = item.kind === "event" ? item.ev : item.event;
                       const meta = prioMeta(ev);
@@ -732,32 +795,31 @@ export default function Calendario() {
                           data-testid={`week-item-${ev.id}`}
                           onClick={() => setLocation(`/eventos/${ev.id}`)}
                           aria-label={`Abrir evento ${ev.name} — ${tipo}`}
+                          className="cal-realce"
                           style={{
+                            ["--realce" as string]: P.bg,
                             display: "flex", alignItems: "center", gap: 10, width: "100%",
-                            minHeight: 44, padding: isMobile ? "8px 12px" : "8px 14px", textAlign: "left",
-                            // No celular o nome ocupa a primeira linha inteira e
-                            // tipo/horário/contagem descem para a segunda.
-                            flexWrap: isMobile ? "wrap" : "nowrap", rowGap: 2,
-                            transition: "background-color 0.12s ease",
+                            minHeight: 44, padding: compacto ? "8px 12px" : "8px 14px", textAlign: "left",
+                            // Na área estreita o nome ocupa a primeira linha
+                            // inteira e tipo/horário/contagem descem para a segunda.
+                            flexWrap: compacto ? "wrap" : "nowrap", rowGap: 2,
                             background: "none", border: "none",
                             borderLeft: item.kind === "deadline" ? `3px dashed ${cor}` : `3px solid ${cor}`,
                             borderTop: i > 0 ? `1px solid ${T.bg}` : "none",
                             font: "inherit", cursor: "pointer",
                           }}
-                          onMouseEnter={e => (e.currentTarget.style.backgroundColor = P.bg)}
-                          onMouseLeave={e => (e.currentTarget.style.backgroundColor = "transparent")}
                         >
                           <Icone aria-hidden="true" style={{ width: 14, height: 14, color: cor, flexShrink: 0 }} />
                           {/* O NOME POR EXTENSO — o motivo desta visao existir. */}
-                          <span style={{ flex: 1, minWidth: 0, flexBasis: isMobile ? "calc(100% - 24px)" : undefined, fontSize: 13, fontWeight: 600, color: P.text }}>{ev.name}</span>
-                          <span style={{ fontSize: 12, color: P.secondary, whiteSpace: "nowrap", flexShrink: 0, marginLeft: isMobile ? 24 : 0 }}>{tipo}</span>
+                          <span style={{ flex: 1, minWidth: 0, flexBasis: compacto ? "calc(100% - 24px)" : undefined, fontSize: FS.body, fontWeight: FW.medio, color: P.text }}>{ev.name}</span>
+                          <span style={{ fontSize: FS.meta, color: P.secondary, whiteSpace: "nowrap", flexShrink: 0, marginLeft: compacto ? 24 : 0 }}>{tipo}</span>
                           {saida && (
                             <span style={{ fontFamily: "monospace", fontSize: 12, color: P.secondary, whiteSpace: "nowrap", flexShrink: 0 }}>
                               {String(saida.getHours()).padStart(2, "0")}:{String(saida.getMinutes()).padStart(2, "0")}
                             </span>
                           )}
                           {urgente && (
-                            <span style={{ fontSize: 11, fontWeight: 800, color: TOM.perigo.text, whiteSpace: "nowrap", flexShrink: 0 }}>
+                            <span style={{ fontSize: FS.small, fontWeight: FW.rotulo, color: TOM.perigo.text, whiteSpace: "nowrap", flexShrink: 0 }}>
                               {msToHM(restante!)}
                             </span>
                           )}
@@ -779,7 +841,7 @@ export default function Calendario() {
                 backgroundColor: T.bg,
                 borderBottom: `1px solid ${T.border}`,
                 borderRight: d !== "SÁB" ? `1px solid ${T.border}` : undefined,
-                fontSize: 10, fontWeight: 900, color: T.second,
+                fontSize: FS.micro, fontWeight: FW.rotulo, color: T.second,
                 textTransform: "uppercase", letterSpacing: "0.18em",
               }}>
                 {d}
@@ -790,7 +852,7 @@ export default function Calendario() {
             {days.map((day, idx) => {
               const col = idx % 7;
               const isOutside = day === null;
-              const cellHeight = isMobile ? 62 : 90;
+              const cellHeight = compacto ? 62 : 90;
 
               /* ── Previous month days to fill the gap ── */
               if (isOutside) {
@@ -805,7 +867,7 @@ export default function Calendario() {
                     borderRight: col !== 6 ? `1px solid ${T.border}` : undefined,
                     borderBottom: `1px solid ${T.border}`,
                   }}>
-                    <span style={{ fontSize: 13, fontWeight: 700, color: T.bdark }}>{String(outsideDay).padStart(2,"0")}</span>
+                    <span style={{ fontSize: FS.body, fontWeight: FW.forte, color: T.bdark }}>{String(outsideDay).padStart(2,"0")}</span>
                   </div>
                 );
               }
@@ -857,8 +919,10 @@ export default function Calendario() {
                     },
                   } : {})}
                   onClick={() => { if (hasAny) { setSelectedDate(date); setDialogOpen(true); } }}
+                  className={hasAny ? "cal-realce" : undefined}
                   style={{
-                    height: cellHeight, padding: isMobile ? "5px 5px" : "7px 7px",
+                    ["--realce" as string]: T.bg,
+                    height: cellHeight, padding: compacto ? "5px 5px" : "7px 7px",
                     // Ver o comentario da trilha: item de grid tambem tem
                     // min-width automatico, e sem zera-lo a pill de nome longo
                     // volta a esticar a coluna.
@@ -870,11 +934,8 @@ export default function Calendario() {
                     display: "flex", flexDirection: "column", gap: 3,
                     outline: isToday ? "2px solid rgba(249,115,22,0.2)" : undefined,
                     outlineOffset: "-2px",
-                    transition: "background 0.1s",
                     position: "relative",
                   }}
-                  onMouseEnter={e => { if (hasAny) (e.currentTarget.style.backgroundColor = T.bg); }}
-                  onMouseLeave={e => (e.currentTarget.style.backgroundColor = P.surface)}
                 >
                   {/* Day number — #c2410c: branco sobre o #f97316 saturado
                       ficava em ~2,8:1, abaixo do AA. */}
@@ -884,17 +945,17 @@ export default function Calendario() {
                         display: "inline-flex", alignItems: "center", justifyContent: "center",
                         width: 22, height: 22, borderRadius: "50%",
                         backgroundColor: T.accentText, color: T.surface,
-                        fontSize: 11, fontWeight: 900,
+                        fontSize: FS.small, fontWeight: FW.rotulo,
                       }}>{day}</span>
                     ) : (
-                      <span style={{ fontSize: 13, fontWeight: 800, color: P.text }}>{String(day).padStart(2,"0")}</span>
+                      <span style={{ fontSize: FS.body, fontWeight: FW.rotulo, color: P.text }}>{String(day).padStart(2,"0")}</span>
                     )}
                   </div>
 
-                  {/* No celular a célula de 62px não comporta pill legível:
-                      cada item vira uma barra na cor da prioridade/prazo e o
-                      detalhe fica no dialog do dia (que já existe). */}
-                  {isMobile ? (
+                  {/* Na área estreita a célula de 62px não comporta pill
+                      legível: cada item vira uma barra na cor da
+                      prioridade/prazo e o detalhe fica no dialog do dia. */}
+                  {compacto ? (
                     hasAny ? (
                       <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
                         {allCellItems.slice(0, 3).map((item, i) => (
@@ -907,7 +968,7 @@ export default function Calendario() {
                           />
                         ))}
                         {allCellItems.length > 3 && (
-                          <span style={{ fontSize: 10, fontWeight: 700, color: P.secondary }}>+{allCellItems.length - 3}</span>
+                          <span style={{ fontSize: FS.micro, fontWeight: FW.forte, color: P.secondary }}>+{allCellItems.length - 3}</span>
                         )}
                       </div>
                     ) : null
@@ -938,22 +999,22 @@ export default function Calendario() {
                                 backgroundColor: isCrit ? TOM.perigo.bg : T.surface,
                                 border: "none",
                                 borderLeft: `3px solid ${meta.dot}`,
-                                borderRadius: 6,
-                                boxShadow: "0 1px 3px rgba(0,0,0,0.07)",
+                                borderRadius: R.sm,
+                                boxShadow: SHADOW.sm,
                                 overflow: "hidden", cursor: "pointer",
                                 font: "inherit",
                               }}
                             >
                               <span style={{ display: "flex", alignItems: "center", gap: 4, overflow: "hidden", flex: 1 }}>
                                 {isStart
-                                  ? <Calendar style={{ width: 9, height: 9, color: P.muted, flexShrink: 0 }} />
-                                  : <Truck    style={{ width: 9, height: 9, color: P.muted, flexShrink: 0 }} />}
-                                <span style={{ fontSize: 10, fontWeight: 700, color: P.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                  ? <Calendar aria-hidden="true" style={{ width: 9, height: 9, color: P.muted, flexShrink: 0 }} />
+                                  : <Truck    aria-hidden="true" style={{ width: 9, height: 9, color: P.muted, flexShrink: 0 }} />}
+                                <span style={{ fontSize: FS.micro, fontWeight: FW.forte, color: P.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                                   {ev.name}
                                 </span>
                               </span>
                               {isUrgent && (
-                                <span style={{ fontSize: 10, fontWeight: 900, color: T.surface, backgroundColor: isCrit ? TOM.perigo.text : T.accentText, borderRadius: 6, padding: "1px 4px", whiteSpace: "nowrap", flexShrink: 0 }}>
+                                <span style={{ fontSize: FS.micro, fontWeight: FW.rotulo, color: T.surface, backgroundColor: isCrit ? TOM.perigo.text : T.accentText, borderRadius: R.sm, padding: "1px 4px", whiteSpace: "nowrap", flexShrink: 0 }}>
                                   {msToHM(remaining)}
                                 </span>
                               )}
@@ -974,13 +1035,13 @@ export default function Calendario() {
                                 backgroundColor: `${dtype.color}12`,
                                 border: "none",
                                 borderLeft: `3px dashed ${dtype.color}`,
-                                borderRadius: 6,
+                                borderRadius: R.sm,
                                 overflow: "hidden", cursor: "pointer",
                                 font: "inherit",
                               }}
                             >
-                              <Flag style={{ width: 9, height: 9, color: dtype.color, flexShrink: 0 }} />
-                              <span style={{ fontSize: 10, fontWeight: 700, color: dtype.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                              <Flag aria-hidden="true" style={{ width: 9, height: 9, color: dtype.color, flexShrink: 0 }} />
+                              <span style={{ fontSize: FS.micro, fontWeight: FW.forte, color: dtype.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                                 {dtype.short}
                               </span>
                             </button>
@@ -988,7 +1049,7 @@ export default function Calendario() {
                         }
                       })}
                       {allCellItems.length > 2 && (
-                        <span style={{ fontSize: 10, color: P.secondary, paddingLeft: 2 }}>+{allCellItems.length - 2} mais</span>
+                        <span style={{ fontSize: FS.micro, color: P.secondary, paddingLeft: 2 }}>+{allCellItems.length - 2} mais</span>
                       )}
                     </>
                   )}
@@ -999,17 +1060,17 @@ export default function Calendario() {
         )}
 
         {/* ── Legend footer ── */}
-        <div style={{ padding: isMobile ? "12px 16px" : "14px 32px", borderTop: `1px solid ${T.border}`, backgroundColor: T.bg, display: "flex", flexWrap: "wrap", alignItems: "center", gap: isMobile ? "8px 14px" : 16 }}>
+        <div style={{ padding: compacto ? "12px 16px" : "14px 32px", borderTop: `1px solid ${T.border}`, backgroundColor: T.bg, display: "flex", flexWrap: "wrap", alignItems: "center", gap: compacto ? "8px 14px" : 16 }}>
           {/* Priority legend.
               A LEGENDA DIZ DE QUE É A COR. Seis bolinhas soltas ao lado de
               marcações tracejadas não diziam se a cor era prioridade, setor ou
               atraso — e "Urgente" em vermelho lia como "prazo estourando". Um
               rótulo curto por grupo fecha a dúvida sem virar manual. */}
-          <span style={{ fontSize: 11, fontWeight: 700, color: P.text }}>Cor do evento:</span>
+          <span style={{ fontSize: FS.small, fontWeight: FW.forte, color: P.text }}>Cor do evento:</span>
           {LEGEND_PRIOS.map(({ label, dot }) => (
             <div key={label} style={{ display: "flex", alignItems: "center", gap: 5 }}>
               <div style={{ width: 9, height: 9, borderRadius: "50%", backgroundColor: dot }} />
-              <span style={{ fontSize: 11, fontWeight: 600, color: P.secondary }}>{label}</span>
+              <span style={{ fontSize: FS.small, fontWeight: FW.medio, color: P.secondary }}>{label}</span>
             </div>
           ))}
 
@@ -1018,14 +1079,14 @@ export default function Calendario() {
 
           {/* Deadline legend — só os marcos que a grade está DESENHANDO. Uma
               legenda com seis entradas sobre uma grade com dois seria mentira. */}
-          <span style={{ fontSize: 11, fontWeight: 700, color: P.text }}>Prazos:</span>
+          <span style={{ fontSize: FS.small, fontWeight: FW.forte, color: P.text }}>Prazos:</span>
           {tiposVisiveis.map(dt => (
             /* O nome curto ("Lista Img", "Aprov. Layout") é código para quem
                chega; o `title` diz o que a etapa é e quando vence, com a mesma
                frase e o mesmo prazo padrão do cadastro do evento. */
             <div key={dt.key} title={DICA_DO_MARCO[dt.key]} style={{ display: "flex", alignItems: "center", gap: 5, cursor: "help" }}>
-              <div style={{ width: 14, height: 9, borderRadius: 6, borderLeft: `3px dashed ${dt.color}`, backgroundColor: `${dt.color}15` }} />
-              <span style={{ fontSize: 11, fontWeight: 600, color: P.secondary }}>{dt.short}</span>
+              <div style={{ width: 14, height: 9, borderRadius: R.sm, borderLeft: `3px dashed ${dt.color}`, backgroundColor: `${dt.color}15` }} />
+              <span style={{ fontSize: FS.small, fontWeight: FW.medio, color: P.secondary }}>{dt.short}</span>
             </div>
           ))}
           {marcosDoPapel && (
@@ -1037,47 +1098,48 @@ export default function Calendario() {
               title={verTodosOsMarcos
                 ? "Voltar a ver só os marcos da sua função"
                 : "A grade está mostrando só os marcos da sua função — clique para ver os seis"}
-              style={{ display: "inline-flex", alignItems: "center", gap: 5, height: isMobile ? 40 : 28, padding: "0 12px", borderRadius: 999, border: `1px dashed ${verTodosOsMarcos ? T.accentText : T.bdark}`, background: verTodosOsMarcos ? TOM.laranja.bg : "transparent", color: verTodosOsMarcos ? T.accentText : P.secondary, font: "inherit", fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap", transition: "background-color 0.12s ease" }}
+              className="ds-botao"
+              style={{ display: "inline-flex", alignItems: "center", gap: 5, height: alvo(28, grosso), padding: "0 12px", borderRadius: R.pill, border: `1px dashed ${verTodosOsMarcos ? T.accentText : T.bdark}`, background: verTodosOsMarcos ? TOM.laranja.bg : "transparent", color: verTodosOsMarcos ? T.accentText : P.secondary, font: "inherit", fontSize: FS.meta, fontWeight: FW.medio, cursor: "pointer", whiteSpace: "nowrap" }}
             >
               {verTodosOsMarcos ? "Só os da minha função" : `Todos os marcos (${DEADLINE_TYPES.length})`}
             </button>
           )}
 
-          <div style={{ marginLeft: isMobile ? 0 : "auto", display: "flex", alignItems: "center", gap: isMobile ? 14 : 18, flexWrap: "wrap" }}>
+          <div style={{ marginLeft: compacto ? 0 : "auto", display: "flex", alignItems: "center", gap: compacto ? 14 : 18, flexWrap: "wrap" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-              <Calendar style={{ width: 12, height: 12, color: P.muted }} />
-              <span style={{ fontSize: 11, color: P.secondary }}>Início</span>
+              <Calendar aria-hidden="true" style={{ width: 12, height: 12, color: P.muted }} />
+              <span style={{ fontSize: FS.small, color: P.secondary }}>Início</span>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-              <Truck style={{ width: 12, height: 12, color: P.muted }} />
+              <Truck aria-hidden="true" style={{ width: 12, height: 12, color: P.muted }} />
               {/* Vocabulário da tela inteira ("saída do caminhão"), e a bandeira
                   é de TODO prazo — "Prazo de Layout" ensinava errado a ler as
                   outras cinco marcações tracejadas. */}
-              <span style={{ fontSize: 11, color: P.secondary }}>Saída do caminhão</span>
+              <span style={{ fontSize: FS.small, color: P.secondary }}>Saída do caminhão</span>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-              <Flag style={{ width: 12, height: 12, color: P.muted }} />
-              <span style={{ fontSize: 11, color: P.secondary }}>Prazo</span>
+              <Flag aria-hidden="true" style={{ width: 12, height: 12, color: P.muted }} />
+              <span style={{ fontSize: FS.small, color: P.secondary }}>Prazo</span>
             </div>
           </div>
         </div>
       </div>
 
       {/* ── Secondary grid: Próximos Eventos + Resumo do Mês ── */}
-      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr minmax(220px, 300px)", gap: 20, alignItems: "start" }}>
+      <div style={{ display: "grid", gridTemplateColumns: compacto ? "1fr" : "1fr minmax(220px, 300px)", gap: 20, alignItems: "start" }}>
 
         {/* Próximos Eventos */}
-        <div style={{ backgroundColor: N.n3, borderRadius: 12, padding: isMobile ? 16 : 24, position: "relative", overflow: "hidden" }}>
+        <div style={{ backgroundColor: N.n3, borderRadius: R.lg, padding: compacto ? 16 : 24, position: "relative", overflow: "hidden" }}>
           {/* watermark icon */}
           <div style={{ position: "absolute", right: -20, bottom: -20, opacity: 0.05, pointerEvents: "none" }}>
-            <Truck style={{ width: 160, height: 160, color: T.text }} />
+            <Truck aria-hidden="true" style={{ width: 160, height: 160, color: T.text }} />
           </div>
           <div style={{ position: "relative" }}>
-            <h3 style={{ margin: "0 0 16px", fontSize: FS.title, fontWeight: 700, color: P.text, letterSpacing: "-0.02em", fontFamily: FONT.display }}>
+            <h3 style={{ margin: "0 0 16px", fontSize: FS.title, fontWeight: FW.forte, color: P.text, letterSpacing: "-0.02em", fontFamily: FONT.display }}>
               Próximos eventos
             </h3>
             {upcomingEvents.length === 0 ? (
-              <p style={{ fontSize: 13, color: P.secondary }}>Nenhum evento futuro no momento.</p>
+              <p style={{ fontSize: FS.body, color: T.apoio /* sobre o N.n3 deste bloco o T.second fica em 4,38:1 */ }}>Nenhum evento futuro no momento.</p>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                 {upcomingEvents.map(ev => {
@@ -1087,18 +1149,19 @@ export default function Calendario() {
                     <div key={ev.id}
                       data-testid={`upcoming-event-${ev.id}`}
                       role="link" tabIndex={0} aria-label={`Abrir evento ${ev.name}`} onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); setLocation(`/eventos/${ev.id}`); } }} onClick={() => setLocation(`/eventos/${ev.id}`)}
-                      style={{ backgroundColor: T.surface, borderRadius: 8, padding: "12px 14px", minHeight: 44, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, borderLeft: `4px solid ${meta.dot}`, cursor: "pointer", transition: "background-color 0.12s ease" }}
-                      onMouseEnter={e => (e.currentTarget.style.backgroundColor = P.bg)}
-                      onMouseLeave={e => (e.currentTarget.style.backgroundColor = T.surface)}>
+                      className="cal-realce"
+                      style={{ ["--realce" as string]: P.bg, backgroundColor: T.surface, borderRadius: R.md, padding: "12px 14px", minHeight: 44, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, borderLeft: `4px solid ${meta.dot}`, cursor: "pointer" }}>
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: P.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{ev.name}</p>
-                        <p style={{ margin: "3px 0 0", fontSize: 11, color: P.secondary }}>
+                        {/* Até duas linhas, e não reticência: o nome inteiro só
+                            existia no aria-label — quem vê lia "Maratona Int…". */}
+                        <p style={{ margin: 0, fontSize: FS.body, fontWeight: FW.forte, color: P.text, lineHeight: 1.35, overflow: "hidden", wordBreak: "break-word", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>{ev.name}</p>
+                        <p style={{ margin: "3px 0 0", fontSize: FS.small, color: P.secondary }}>
                           Saída: {dep.toLocaleDateString("pt-BR")} às {dep.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
                         </p>
                       </div>
-                      <span style={{ fontSize: 11, fontWeight: 600, color: meta.text, backgroundColor: meta.bg, border: `1px solid ${meta.border}`, borderRadius: 999, padding: "3px 10px", whiteSpace: "nowrap", flexShrink: 0 }}>
+                      <Selo cores={{ bg: meta.bg, text: meta.text, border: meta.border }} style={{ flexShrink: 0 }}>
                         {meta.label}
-                      </span>
+                      </Selo>
                     </div>
                   );
                 })}
@@ -1108,10 +1171,10 @@ export default function Calendario() {
         </div>
 
         {/* Resumo do Mês */}
-        <div style={{ backgroundColor: T.text, borderRadius: 12, padding: isMobile ? 16 : 24, color: T.surface }}>
+        <div style={{ backgroundColor: T.text, borderRadius: R.lg, padding: compacto ? 16 : 24, color: T.surface }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
             <div>
-              <h3 style={{ margin: 0, fontSize: FS.strong, fontWeight: 700, color: T.surface, letterSpacing: "-0.01em", fontFamily: FONT.display }}>
+              <h3 style={{ margin: 0, fontSize: FS.strong, fontWeight: FW.forte, color: T.surface, letterSpacing: "-0.01em", fontFamily: FONT.display }}>
                 Resumo do mês
               </h3>
               {/* A REGRA, ESCRITA. O filtro era pela data de INICIO e a grade
@@ -1119,11 +1182,11 @@ export default function Calendario() {
                   com caminhao em 09/09 tem tres prazos em agosto — aparecia na
                   grade de agosto e nao entrava no Resumo de agosto. Agora os
                   dois contam o mesmo conjunto, e a linha diz qual e. */}
-              <p style={{ margin: "2px 0 0", fontSize: 11, color: "rgba(255,255,255,0.5)" }}>
+              <p style={{ margin: "2px 0 0", fontSize: FS.small, color: "rgba(255,255,255,0.5)" }}>
                 Eventos que aparecem na grade
               </p>
             </div>
-            <BarChart2 style={{ width: 18, height: 18, color: P.accent }} />
+            <BarChart2 aria-hidden="true" style={{ width: 18, height: 18, color: P.accent }} />
           </div>
           {/* "Prioridade urgente", e não "Urgentes": o número conta a
               PRIORIDADE cadastrada no evento, não prazo vencendo — a faixa
@@ -1141,18 +1204,23 @@ export default function Calendario() {
               { label: "Em andamento",     value: ongoingCount,       color: T.surface },
             ].map(({ label, value, color }, i, arr) => (
               <div key={label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 0", borderBottom: i < arr.length - 1 ? "1px solid rgba(255,255,255,0.08)" : "none" }}>
-                <span style={{ fontSize: 13, color: "rgba(255,255,255,0.55)" }}>{label}</span>
-                <span style={{ fontSize: 15, fontWeight: 800, color }}>{value}</span>
+                <span style={{ fontSize: FS.body, color: "rgba(255,255,255,0.55)" }}>{label}</span>
+                <span style={{ fontSize: FS.strong, fontWeight: FW.rotulo, color }}>{value}</span>
               </div>
             ))}
           </div>
-          <button
+          {/* Botao sobre a superfície escura: o Botao não tem variante para
+              fundo escuro, então o véu branco translúcido vem por `style` e o
+              clareamento do hover pela --realce da .cal-realce. */}
+          <Botao
+            tamanho="toque"
+            larguraCheia
             onClick={() => setCurrentDate(new Date())}
-            style={{ marginTop: 20, width: "100%", minHeight: 44, padding: "11px 0", backgroundColor: "rgba(255,255,255,0.07)", border: "none", borderRadius: 8, color: T.surface, fontSize: 13, fontWeight: 700, cursor: "pointer", transition: "background-color 0.12s ease" }}
-            onMouseEnter={e => (e.currentTarget.style.backgroundColor = "rgba(255,255,255,0.12)")}
-            onMouseLeave={e => (e.currentTarget.style.backgroundColor = "rgba(255,255,255,0.07)")}>
+            className="cal-realce"
+            style={{ ["--realce" as string]: "rgba(255,255,255,0.12)", marginTop: 20, backgroundColor: "rgba(255,255,255,0.07)", border: "1px solid transparent", color: T.surface, fontSize: FS.body }}
+          >
             Ver mês atual
-          </button>
+          </Botao>
         </div>
       </div>
 
@@ -1217,21 +1285,20 @@ export default function Calendario() {
                 <div key={`${ev.id}-${ev._type}`}
                   data-testid={`dialog-event-${ev.id}-${ev._type}`}
                   role="link" tabIndex={0} aria-label={`Abrir evento ${ev.name}`} onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); setDialogOpen(false); setLocation(`/eventos/${ev.id}`); } }} onClick={() => { setDialogOpen(false); setLocation(`/eventos/${ev.id}`); }}
-                  style={{ display: "flex", alignItems: "flex-start", gap: 12, padding: "12px 14px", backgroundColor: P.surface, border: `1px solid ${P.border}`, borderLeft: `4px solid ${meta.dot}`, borderRadius: 8, cursor: "pointer", transition: "background-color 0.12s ease" }}
-                  onMouseEnter={e => (e.currentTarget.style.backgroundColor = P.bg)}
-                  onMouseLeave={e => (e.currentTarget.style.backgroundColor = P.surface)}
+                  className="cal-realce"
+                  style={{ ["--realce" as string]: P.bg, display: "flex", alignItems: "flex-start", gap: 12, padding: "12px 14px", backgroundColor: P.surface, border: `1px solid ${P.border}`, borderLeft: `4px solid ${meta.dot}`, borderRadius: R.md, cursor: "pointer" }}
                 >
-                  <div style={{ width: 32, height: 32, borderRadius: 8, flexShrink: 0, backgroundColor: P.bg, border: `1px solid ${P.border}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    {isStart ? <Calendar style={{ width: 14, height: 14, color: P.secondary }} /> : <Truck style={{ width: 14, height: 14, color: P.secondary }} />}
+                  <div style={{ width: 32, height: 32, borderRadius: R.md, flexShrink: 0, backgroundColor: P.bg, border: `1px solid ${P.border}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    {isStart ? <Calendar aria-hidden="true" style={{ width: 14, height: 14, color: P.secondary }} /> : <Truck aria-hidden="true" style={{ width: 14, height: 14, color: P.secondary }} />}
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
-                      <p style={{ fontSize: 15, fontWeight: 600, color: P.text, margin: 0 }}>{ev.name}</p>
-                      <span style={{ fontSize: 11, fontWeight: 600, whiteSpace: "nowrap", color: meta.text, backgroundColor: meta.bg, border: `1px solid ${meta.border}`, borderRadius: 6, padding: "2px 6px", flexShrink: 0 }}>
+                      <p style={{ fontSize: FS.strong, fontWeight: FW.medio, color: P.text, margin: 0 }}>{ev.name}</p>
+                      <Selo forma="retangulo" cores={{ bg: meta.bg, text: meta.text, border: meta.border }} style={{ flexShrink: 0 }}>
                         {meta.label}
-                      </span>
+                      </Selo>
                     </div>
-                    <p style={{ fontSize: 13, color: P.secondary, margin: "4px 0 0" }}>
+                    <p style={{ fontSize: FS.body, color: P.secondary, margin: "4px 0 0" }}>
                       {isStart ? "Início: " : "Saída do caminhão: "}
                       <strong style={{ color: P.text }}>
                         {dateTime.toLocaleDateString("pt-BR")}
@@ -1257,7 +1324,7 @@ export default function Calendario() {
                         grade já tinha abandonado esse rótulo pelo mesmo motivo.
                         O selo abaixo usa o tom 700 do marco sobre o tom claro:
                         branco sobre âmbar/verde/laranja saturado reprovava AA. */}
-                    <span style={{ fontSize: 12, fontWeight: 700, color: P.secondary }}>
+                    <span style={{ fontSize: FS.meta, fontWeight: FW.forte, color: P.secondary }}>
                       Prazos
                     </span>
                   </div>
@@ -1269,21 +1336,20 @@ export default function Calendario() {
                       aria-label={`Abrir evento ${event.name}`}
                       onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); setDialogOpen(false); setLocation(`/eventos/${event.id}`); } }}
                       onClick={() => { setDialogOpen(false); setLocation(`/eventos/${event.id}`); }}
-                      style={{ display: "flex", alignItems: "flex-start", gap: 12, padding: "12px 14px", backgroundColor: `${dtype.color}08`, border: `1px solid ${P.border}`, borderLeft: `4px solid ${dtype.color}`, borderRadius: 8, cursor: "pointer", transition: "background-color 0.12s ease" }}
-                      onMouseEnter={e => (e.currentTarget.style.backgroundColor = `${dtype.color}14`)}
-                      onMouseLeave={e => (e.currentTarget.style.backgroundColor = `${dtype.color}08`)}
+                      className="cal-realce"
+                      style={{ ["--realce" as string]: `${dtype.color}14`, display: "flex", alignItems: "flex-start", gap: 12, padding: "12px 14px", backgroundColor: `${dtype.color}08`, border: `1px solid ${P.border}`, borderLeft: `4px solid ${dtype.color}`, borderRadius: R.md, cursor: "pointer" }}
                     >
-                      <div style={{ width: 32, height: 32, borderRadius: 8, flexShrink: 0, backgroundColor: `${dtype.color}15`, border: `1px solid ${dtype.color}30`, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                        <Flag style={{ width: 14, height: 14, color: dtype.color }} />
+                      <div style={{ width: 32, height: 32, borderRadius: R.md, flexShrink: 0, backgroundColor: `${dtype.color}15`, border: `1px solid ${dtype.color}30`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                        <Flag aria-hidden="true" style={{ width: 14, height: 14, color: dtype.color }} />
                       </div>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
-                          <p style={{ fontSize: 15, fontWeight: 600, color: P.text, margin: 0 }}>{event.name}</p>
-                          <span style={{ fontSize: 11, fontWeight: 700, whiteSpace: "nowrap", color: dtype.text, backgroundColor: `${dtype.color}1f`, borderRadius: 6, padding: "2px 8px", flexShrink: 0 }}>
+                          <p style={{ fontSize: FS.strong, fontWeight: FW.medio, color: P.text, margin: 0 }}>{event.name}</p>
+                          <Selo forma="retangulo" cores={{ bg: `${dtype.color}1f`, text: dtype.text, border: "transparent" }} style={{ flexShrink: 0 }}>
                             {dtype.short}
-                          </span>
+                          </Selo>
                         </div>
-                        <p style={{ fontSize: 13, color: P.secondary, margin: "4px 0 0" }}>
+                        <p style={{ fontSize: FS.body, color: P.secondary, margin: "4px 0 0" }}>
                           Prazo: <strong style={{ color: P.text }}>{dtype.label}</strong>
                         </p>
                       </div>
@@ -1303,13 +1369,13 @@ export default function Calendario() {
 function NavBtn({ onClick, children, testId, big, label }: {
   onClick: () => void; children: React.ReactNode; testId: string; big?: boolean; label: string;
 }) {
-  const [h, setH] = useState(false);
+  // Botao fantasma redondo: o realce de hover/foco vem da classe, não de um
+  // estado de hover na mão (que não cobria o teclado).
   const size = big ? 44 : 34;
   return (
-    <button onClick={onClick} data-testid={testId} aria-label={label}
-      onMouseEnter={() => setH(true)} onMouseLeave={() => setH(false)}
-      style={{ width: size, height: size, borderRadius: "50%", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: h ? T.border : "transparent", color: T.text, transition: "background 0.12s" }}>
+    <Botao variante="fantasma" onClick={onClick} data-testid={testId} aria-label={label}
+      style={{ width: size, height: size, minHeight: size, padding: 0, borderRadius: R.pill, color: T.text }}>
       {children}
-    </button>
+    </Botao>
   );
 }

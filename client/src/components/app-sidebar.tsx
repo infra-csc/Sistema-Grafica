@@ -1,7 +1,7 @@
 import {
   Calendar, CalendarRange, Palette, Printer, Layers, LayoutDashboard,
   Activity, BarChart3, Users, Building2, UserCheck, ClipboardCheck,
-  Link2, LogOut, Loader2, ScrollText, Archive, ScanSearch, Compass, Settings2, Camera, Wand2,
+  Link2, LogOut, ScrollText, Archive, ScanSearch, Compass, Settings2, Camera, Wand2,
   Timer, GitBranch, Bell, Inbox, Cog, PackageSearch,
 } from "lucide-react";
 import { useEffect, useId, useState } from "react";
@@ -12,9 +12,12 @@ import { useAuth, type UserRole } from "@/contexts/auth-context";
 import { useLogout } from "@/hooks/use-logout";
 // Alvo de 44 no toque: a mesma régua das outras telas, que a casca não
 // seguia — os itens do menu tinham altura de padding, não de controle.
-import { useIsMobile } from "@/hooks/use-mobile";
+// `useIsMobile` fica para o que é celular de fato (a sidebar vira folha);
+// o alvo de 44 vem do ponteiro grosso, que vale também no tablet do galpão.
+import { useIsMobile, usePonteiroGrosso, alvo } from "@/hooks/use-mobile";
+import { Botao } from "@/components/ui/botao";
 import { prefetchRota } from "@/lib/prefetch-de-rota";
-import { T, FS, R, N, FW, FONT, TOM } from "@/lib/theme";
+import { T, FS, R, N, H, FW, FONT, TOM } from "@/lib/theme";
 import { SOLICITACAO_AO_ESTOQUE_ATIVA } from "@shared/consultas-de-estoque";
 import {
   Sidebar,
@@ -171,10 +174,10 @@ const DESCRICAO_DA_TELA: Record<string, string> = {
 // ─── Section label ────────────────────────────────────────
 const sectionLabelStyle: React.CSSProperties = {
   fontFamily: FONT.display,
-  fontSize: 10,
+  fontSize: FS.micro,
   // 800 e 0.12em: o rótulo de seção divide a coluna com 18 itens em 500/600.
   // Em 700/0.1em ele era só mais uma linha de texto pequena entre as outras.
-  fontWeight: 800,
+  fontWeight: FW.rotulo,
   textTransform: "uppercase",
   letterSpacing: "0.12em",
   color: T.second,
@@ -192,11 +195,11 @@ const rotuloDoNumero = (url: string, n: number): string =>
     ? `${n} ${n === 1 ? "solicitação ao estoque esperando" : "solicitações ao estoque esperando"} resposta`
     : `${n} ${n === 1 ? "solicitação esperando" : "solicitações esperando"} ação`;
 
-function NavItem({ item, isActive, badge, isMobile }: { item: MenuItem; isActive: boolean; badge?: number; isMobile: boolean }) {
+function NavItem({ item, isActive, badge, grosso }: { item: MenuItem; isActive: boolean; badge?: number; grosso: boolean }) {
   const Icon = item.icon;
-  // `isMobile` chega do AppSidebar (perf-7): eram 23 useIsMobile, um por item
+  // `grosso` chega do AppSidebar (perf-7): eram 23 useIsMobile, um por item
   // — 23 listeners de matchMedia e 23 re-renders extras a cada montagem da
-  // casca, para responder a mesma pergunta.
+  // casca, para responder a mesma pergunta. Continua UM hook só, lá em cima.
 
   // Hover e foco de teclado compartilham o mesmo realce: os estilos são
   // inline, então :focus-visible do CSS não alcança estas cores. Estados
@@ -227,13 +230,13 @@ function NavItem({ item, isActive, badge, isMobile }: { item: MenuItem; isActive
             // alvo, abaixo da régua de 36 que o resto do app segue. E
             // `flexShrink: 0` porque são 18 itens: numa janela de 768px de
             // altura o flex os comprimia até o texto encostar na borda.
-            height: isMobile ? 44 : 36,
+            height: alvo(H.md, grosso),
             flexShrink: 0,
             padding: "0 10px",
             borderRadius: 9,
-            fontSize: 13,
+            fontSize: FS.body,
             fontFamily: FONT.display,
-            fontWeight: isActive ? 700 : 500,
+            fontWeight: isActive ? FW.forte : FW.corpo,
             // #f97316 sobre #fff7ed ficava ~2.5:1 — o texto ativo era o menos
             // legível do menu. #9a3412 mantém a família laranja com contraste AA;
             // a barrinha inset devolve a marcação de "ativo" para quem não
@@ -289,11 +292,11 @@ function NavItem({ item, isActive, badge, isMobile }: { item: MenuItem; isActive
                 minWidth: 20,
                 height: 20,
                 padding: "0 6px",
-                borderRadius: 10,
+                borderRadius: R.pill,
                 backgroundColor: T.accentText,
                 color: T.surface,
-                fontSize: 11,
-                fontWeight: 700,
+                fontSize: FS.small,
+                fontWeight: FW.forte,
                 lineHeight: "20px",
                 textAlign: "center",
                 fontVariantNumeric: "tabular-nums",
@@ -316,7 +319,7 @@ function NavGroup({
   isItemActive,
   badges,
   first = false,
-  isMobile,
+  grosso,
 }: {
   // null = grupo único visível para o papel; o rótulo vira ruído e some.
   label: string | null;
@@ -325,7 +328,7 @@ function NavGroup({
   /** Número ao lado do item, por url. */
   badges?: Record<string, number | undefined>;
   first?: boolean;
-  isMobile: boolean;
+  grosso: boolean;
 }) {
   // O rótulo visual da seção não nomeava a lista para leitores de tela —
   // todos os grupos eram anunciados como listas anônimas.
@@ -344,7 +347,7 @@ function NavGroup({
       <SidebarGroupContent>
         <SidebarMenu style={{ gap: 1 }} aria-labelledby={label !== null ? labelId : undefined}>
           {items.map((item) => (
-            <NavItem key={item.title} item={item} isActive={isItemActive(item.url)} badge={badges?.[item.url]} isMobile={isMobile} />
+            <NavItem key={item.title} item={item} isActive={isItemActive(item.url)} badge={badges?.[item.url]} grosso={grosso} />
           ))}
         </SidebarMenu>
       </SidebarGroupContent>
@@ -360,6 +363,9 @@ export function AppSidebar() {
   // Mesmo fluxo do menu do avatar (App.tsx) — hook compartilhado.
   const logoutMutation = useLogout();
   const isMobileCasca = useIsMobile();
+  // UM hook de ponteiro para a casca inteira (ver NavItem). `|| isMobileCasca`:
+  // no celular o 44 já valia, mesmo com ponteiro mal detectado.
+  const grosso = usePonteiroGrosso() || isMobileCasca;
 
   // NO CELULAR O MENU FECHA AO ESCOLHER. A sidebar vira um Sheet por cima da
   // tela; tocar num item trocava a página POR BAIXO dele e o menu continuava
@@ -495,7 +501,7 @@ export function AppSidebar() {
               isItemActive={isItemActive}
               badges={badges}
               first={i === 0}
-              isMobile={isMobileCasca}
+              grosso={grosso}
             />
           ))}
         </nav>
@@ -517,9 +523,13 @@ export function AppSidebar() {
             display: "flex", alignItems: "center", justifyContent: "center",
             flexShrink: 0,
           }}>
+            {/* #fb923c fica cravado: é o laranja CLARO sobre o fundo escuro
+                (7,8:1 sobre T.text), o mesmo do avatar da topbar. Nenhum token
+                cobre esse papel — TOM.laranja.dot é o #f97316, proibido como
+                texto, e T.accentText (#c2410c) some sobre o escuro. */}
             <span style={{
               fontFamily: FONT.display,
-              color: "#fb923c", fontSize: 12, fontWeight: 700, letterSpacing: "-0.02em",
+              color: "#fb923c", fontSize: FS.meta, fontWeight: FW.forte, letterSpacing: "-0.02em",
             }}>
               {userInitials(user?.name)}
             </span>
@@ -527,65 +537,53 @@ export function AppSidebar() {
 
           {/* Name + role */}
           <div style={{ flex: 1, minWidth: 0 }}>
+            {/* Até duas linhas, e não reticência: o nome inteiro não aparecia
+                em lugar nenhum (nem `title`) — "Maria Aparecida dos S…". */}
             <p style={{
               fontFamily: FONT.display,
-              fontSize: 13, fontWeight: 700,
+              fontSize: FS.body, fontWeight: FW.forte,
               color: T.text, margin: 0, lineHeight: 1.3,
-              overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+              overflow: "hidden", wordBreak: "break-word",
+              display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical",
             }}>
               {user?.name ?? "Usuário"}
             </p>
             <p style={{
               fontFamily: FONT.display,
-              fontSize: 11, color: T.second,
+              fontSize: FS.small, color: T.second,
               margin: 0, lineHeight: 1.3, textTransform: "capitalize",
             }}>
               {roleLabel(user?.role)}
             </p>
           </div>
 
-          {/* Logout */}
-          <button
+          {/* Logout. Sair é ação de saída e ganha CONTORNO (secundário): era um
+              botão fantasma de 44 sem borda ao lado do nome, indistinguível de
+              um ícone decorativo até o hover. O tom de perigo no hover/foco
+              vem da classe abaixo — eram quatro handlers escrevendo no style.
+              `carregando` troca o ícone por spinner e trava o segundo clique:
+              antes o clique não dava retorno nenhum até o redirect chegar. */}
+          <style>{`
+            .sair-da-casca:hover:not(:disabled),
+            .sair-da-casca:focus-visible {
+              color: ${TOM.perigo.text} !important;
+              border-color: ${TOM.perigo.border} !important;
+            }
+          `}</style>
+          <Botao
+            variante="secundario"
+            icone={LogOut}
+            carregando={logoutMutation.isPending}
             onClick={() => logoutMutation.mutate()}
-            disabled={logoutMutation.isPending}
             data-testid="button-logout-sidebar"
             title="Sair"
             aria-label="Sair do sistema"
+            className="sair-da-casca"
             style={{
-              // Sair é ação de saída e ganha CONTORNO: era um botão fantasma de
-              // 44 sem borda nenhuma ao lado do nome do usuário, indistinguível
-              // de um ícone decorativo até o hover.
-              background: T.surface, border: `1px solid ${T.border}`,
-              cursor: logoutMutation.isPending ? "default" : "pointer",
-              width: isMobileCasca ? 44 : 36, height: isMobileCasca ? 44 : 36,
-              padding: 0, borderRadius: 9, color: T.second,
-              display: "flex", alignItems: "center", justifyContent: "center",
-              transition: "color 0.15s ease, background-color 0.15s ease, opacity 0.15s ease",
-              flexShrink: 0,
-              // Antes o clique não dava retorno nenhum até o redirect chegar.
-              opacity: logoutMutation.isPending ? 0.5 : 1,
+              width: alvo(H.md, grosso), height: alvo(H.md, grosso), minHeight: alvo(H.md, grosso),
+              padding: 0, borderRadius: 9, color: T.second, flexShrink: 0,
             }}
-            onMouseEnter={(e) => {
-              (e.currentTarget as HTMLButtonElement).style.color = TOM.perigo.text;
-              (e.currentTarget as HTMLButtonElement).style.borderColor = TOM.perigo.border;
-            }}
-            onMouseLeave={(e) => {
-              (e.currentTarget as HTMLButtonElement).style.color = T.second;
-              (e.currentTarget as HTMLButtonElement).style.borderColor = T.border;
-            }}
-            onFocus={(e) => {
-              (e.currentTarget as HTMLButtonElement).style.color = TOM.perigo.text;
-              (e.currentTarget as HTMLButtonElement).style.borderColor = TOM.perigo.border;
-            }}
-            onBlur={(e) => {
-              (e.currentTarget as HTMLButtonElement).style.color = T.second;
-              (e.currentTarget as HTMLButtonElement).style.borderColor = T.border;
-            }}
-          >
-            {logoutMutation.isPending
-              ? <Loader2 className="animate-spin" style={{ width: 15, height: 15 }} />
-              : <LogOut style={{ width: 15, height: 15 }} />}
-          </button>
+          />
         </div>
       </SidebarFooter>
 

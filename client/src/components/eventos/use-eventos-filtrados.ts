@@ -14,7 +14,7 @@ import {
 import type { BaldeDaSituacao, EventoDaLista } from "./tipos";
 import type { FiltrosDeEventos } from "./use-filtros-de-eventos";
 
-const ROTULO_DA_SITUACAO: Record<BaldeDaSituacao, string> = { ativos: 'Ativos', pendencias: 'Pendências', arquivados: 'Arquivados' };
+const ROTULO_DA_SITUACAO: Record<BaldeDaSituacao, string> = { ativos: 'Ativos', pendencias: 'Pendências', arquivados: 'Encerrados' };
 
 export interface ChipDeFiltro { key: string; label: string; clear: () => void }
 

@@ -114,11 +114,12 @@ export function BarraDeFiltros({ filtros, recorte, totalDeEventos, carregado, is
       <div role="group" aria-label="Situação dos eventos" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
         {/* `significado`: o que cada balde É. "Pendências" sozinho não dizia
             que se trata de evento que já aconteceu com peça em aberto, e
-            "Arquivados" escondia que ali mora o encerrado à mão. */}
+            "Encerrados" (era "Arquivados") junta o concluído e o encerrado à mão;
+            "Arquivados" agora é só o que foi excluído (e pode ser restaurado). */}
         {([
           { chave: 'ativos', rotulo: 'Ativos', cor: TOM.sucesso.dot, significado: 'em andamento — o dia do evento ainda não passou' },
           { chave: 'pendencias', rotulo: 'Pendências', cor: TOM.alerta.dot, significado: 'o dia do evento passou e ainda há peça em aberto' },
-          { chave: 'arquivados', rotulo: 'Arquivados', cor: T.second, significado: 'concluídos (tudo entregue) e encerrados manualmente' },
+          { chave: 'arquivados', rotulo: 'Encerrados', cor: T.second, significado: 'concluídos (tudo entregue) e encerrados manualmente' },
         ] as const).map(({ chave, rotulo, cor, significado }) => {
           const ligado = situacoes.has(chave);
           return (

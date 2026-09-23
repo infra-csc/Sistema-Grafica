@@ -110,6 +110,11 @@ jobs:
         run: npm run ferramentas:instalar -- --sem-navegador
       - name: Migrações do zero + drift contra o schema
         run: npm run db:migrate:ci
+      # Os testes de INTEGRAÇÃO (server/__tests__/integracao-*.test.ts): rotas
+      # reais contra este mesmo PGlite, migrações do zero. No job de testes
+      # acima eles PULAM (lá não há PGlite) — é aqui que rodam de verdade.
+      - name: Testes de integração (rotas reais + PGlite)
+        run: npx vitest run --project servidor integracao-
 
   # ───────────────────────────────────────────────────────────────────────────
   # PONTA A PONTA (e2e/) — só quando disparado à mão (aba Actions → CI → Run

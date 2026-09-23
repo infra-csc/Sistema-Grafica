@@ -4,7 +4,7 @@ import { SeloKit } from "@/components/kit/selo-kit";
 import {
   Search, Calendar, Truck, Eye, Paperclip, Trash2, FileText, Printer, RotateCcw, Hourglass,
   Loader2, MessageSquare, ArrowUpRight, ChevronDown, ChevronUp, Copy, FileSpreadsheet,
-  SlidersHorizontal, Link2, Check, Lock, Pin, AlertTriangle, CheckCircle2, XCircle,
+  SlidersHorizontal, Link2, Check, Lock, Pin, AlertTriangle, CheckCircle2, XCircle, X,
 } from "lucide-react";
 import { Link } from "wouter";
 import { EventFilterDropdown } from "@/components/event-filter-dropdown";
@@ -56,7 +56,10 @@ import {
 } from "@/lib/painel-encerrados";
 import { formatFrescor } from "@/lib/painel-frescor";
 import { proximaTelaDoStatus } from "@/lib/painel-rotas";
-import { FS, T, N, TOM, FONT } from "@/lib/theme";
+import { FS, FW, R, H, SHADOW, T, N, TOM, FONT } from "@/lib/theme";
+import { Botao } from "@/components/ui/botao";
+import { CabecalhoDaPagina } from "@/components/ui/cabecalho-da-pagina";
+import { EstadoErro, EstadoVazio } from "@/components/ui/estados";
 import {
   visoesParaPapel, visaoEstaAtiva, chaveVisaoPadrao, type Visao,
 } from "@/lib/painel-visoes";
@@ -292,13 +295,25 @@ function StatusCard({
   const valorTexto = fmtN(value);
   // O Total só tem o que dizer quando há filtro de status para desfazer.
   const badgeTexto = dark ? (isActive ? null : "Ver todas") : (isActive ? "Filtrando" : null);
-  // Os cartões são o filtro por status desta tela. Como div com onClick,
-  // filtrar era exclusivamente com mouse — e só a cor dizia qual estava
-  // ativo, coisa que aria-pressed comunica a quem não a vê.
+  // Os cartões são o filtro por status desta tela, e por isso são um
+  // <button aria-pressed> DE VERDADE — a gramática do <CartaoKpi> do design
+  // system. Não é o próprio CartaoKpi por três motivos medidos: ele só pinta
+  // com os tons de TOM (fúcsia e rosa, de "Revisão final" e "Impresso", não
+  // existem lá — a cor da etapa é pedido do dono), não aceita aria-label (o
+  // "carregando" dito ao leitor de tela) e não tem lugar para a ação
+  // secundária do rodapé, que dentro de um <button> seria botão aninhado.
+  //
+  // A ação do rodapé ("inclui 7 rascunhos") mora FORA do botão do cartão,
+  // posicionada por cima do lugar que o texto ocupa lá dentro: botão dentro
+  // de botão é HTML inválido e o clique cairia nos dois.
+  const subComAcao = Boolean(sub && onSubAction);
+  const estiloDoSub: React.CSSProperties = {
+    fontSize: FS.small, fontWeight: FW.medio, lineHeight: 1.2, color: T.second,
+  };
   return (
-    <div
-      role="button"
-      tabIndex={0}
+    <div style={{ position: "relative", display: "grid" }}>
+    <button
+      type="button"
       aria-pressed={isActive}
       /* Sem isto o leitor de tela anunciava "Filtrar por X, 0 peças" durante
          a carga — o mesmo zero falso, dito em voz alta. */
@@ -307,25 +322,20 @@ function StatusCard({
         : `${dark ? "Mostrar todas as peças" : `Filtrar por ${label}`}, ${value} ${plural}`}
       title={title}
       onClick={onToggle}
-      onKeyDown={e => {
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          onToggle();
-        }
-      }}
       data-testid={dark ? "stat-total" : `stat-card-${filterKey}`}
       className="pg-card"
       data-zero={isZero ? "1" : "0"}
       style={{
         position: "relative", overflow: "hidden",
+        font: "inherit", textAlign: "left", width: "100%",
         // #f5f5f4 no Total: separa "a conta inteira" das parcelas sem cor nova.
         background: isActive && !dark ? TOM.laranja.bg : dark ? N.n2 : T.surface,
         border: `1px solid ${isActive && !dark ? T.accentText : T.border}`,
-        borderRadius: 10,
+        borderRadius: R.lg,
         padding: "11px 12px 10px 13px", minHeight: 84,
         display: "flex", flexDirection: "column", justifyContent: "space-between", gap: 6,
         cursor: "pointer",
-        boxShadow: isActive && !dark ? `0 0 0 1px ${T.accentText}` : "0 1px 2px rgba(28,25,23,.04)",
+        boxShadow: isActive && !dark ? `0 0 0 1px ${T.accentText}` : SHADOW.sm,
       }}
     >
       {/* COR DA ETAPA (dono, 17/09: "aqui tem que ter cor"). Faixa à esquerda
@@ -333,31 +343,33 @@ function StatusCard({
           card reconhece a etapa sem ler o nome. Decorativa — o nome continua
           escrito ao lado. */}
       {cor && <span aria-hidden="true" style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 3, backgroundColor: cor }} />}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 6 }}>
+      <span style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 6 }}>
         {/* Rótulo de CONTEÚDO em caixa normal, 12px. Quebra em duas linhas
             se precisar ("Aguardando Revisão Final" no celular) em vez de
             abreviar para "Ag. Revisão" — abreviação é mais um código a
             decorar. #57534e sobre #ffffff = 7,63:1; sobre #f5f5f4 = 6,99:1. */}
-        <p style={{ margin: 0, fontSize: 12, fontWeight: 600, color: T.apoio, lineHeight: 1.3, minWidth: 0, display: "flex", alignItems: "baseline", gap: 6 }}>
+        <span style={{ margin: 0, fontSize: FS.meta, fontWeight: FW.medio, color: T.apoio, lineHeight: 1.3, minWidth: 0, display: "flex", alignItems: "baseline", gap: 6 }}>
           {cor && <span aria-hidden="true" style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: cor, flexShrink: 0, transform: "translateY(-1px)" }} />}
           {label}
-        </p>
+        </span>
         {badgeTexto && (
           /* #c2410c sobre #fff7ed = 4,88:1 AA nos 11px peso 700. */
-          <span style={{ display: "inline-flex", alignItems: "center", gap: 2, flexShrink: 0, fontSize: 11, fontWeight: 700, color: T.accentText, lineHeight: 1.3, whiteSpace: "nowrap" }}>
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 2, flexShrink: 0, fontSize: FS.small, fontWeight: FW.forte, color: T.accentText, lineHeight: 1.3, whiteSpace: "nowrap" }}>
             {!dark && <Check aria-hidden="true" style={{ width: 11, height: 11 }} />}
             {badgeTexto}
           </span>
         )}
-      </div>
-      <div>
-        <div style={{ display: "flex", alignItems: "baseline", gap: 6, flexWrap: "wrap" }}>
+      </span>
+      {/* Só <span> aqui dentro: o cartão é um <button>, e <p>/<div> não são
+          conteúdo permitido de botão. */}
+      <span style={{ display: "block" }}>
+        <span style={{ display: "flex", alignItems: "baseline", gap: 6, flexWrap: "wrap" }}>
           {/* ZERO É UMA AFIRMAÇÃO, e durante a carga a tela não tem como
               fazê-la. Com 3.187 peças a caminho, os cards exibiam "0" e o
               TOTAL anunciava "0 TOTAL" com selo BASELINE enquanto o skeleton
               rodava logo abaixo — a manchete da tela dizia que não havia nada.
               Um travessão diz a verdade: ainda não sei. */}
-          <p style={{ fontFamily: FONT.display, fontSize: 24, fontWeight: 700, color: T.text, lineHeight: 1, margin: 0, letterSpacing: "-0.03em", fontVariantNumeric: "tabular-nums" }}>{carregando ? "—" : valorTexto}</p>
+          <span style={{ display: "block", fontFamily: FONT.display, fontSize: 24, fontWeight: FW.forte, color: T.text, lineHeight: 1, margin: 0, letterSpacing: "-0.03em", fontVariantNumeric: "tabular-nums" }}>{carregando ? "—" : valorTexto}</span>
           {/* A HIERARQUIA VEM DO PESO, NÃO DO CONTRASTE.
               A primeira tentativa usou um cinza mais claro (#8c8580) para o
               percentual ficar subordinado — e ele dá 3,63:1 em 10px, reprova
@@ -367,37 +379,43 @@ function StatusCard({
               "do total" saiu da frase: repetido em treze cards era a mesma
               ressalva dita treze vezes ao lado de um número que já a implica. */}
           {!carregando && pct !== undefined && value > 0 && (
-            <span style={{ fontSize: 11, fontWeight: 600, color: T.second, lineHeight: 1 }}>
+            <span style={{ fontSize: FS.small, fontWeight: FW.medio, color: T.second, lineHeight: 1 }}>
               {pct < 1 ? "<1" : Math.round(pct)}%
             </span>
           )}
-        </div>
+        </span>
+        {/* Com ação, o texto aqui dentro só reserva o lugar (invisível e fora
+            da árvore de acessibilidade): quem aparece e recebe o clique é o
+            botão irmão, por cima. Assim o cartão não muda de altura. */}
         {sub && (
-          onSubAction ? (
-            /* O subtexto era um beco sem saída: dizia "inclui 7 rascunhos" e
-               não havia como ver os 7. stopPropagation para não alternar o
-               card pai no mesmo clique. */
-            <button
-              type="button"
-              onClick={(e) => { e.stopPropagation(); onSubAction(); }}
-              onKeyDown={(e) => e.stopPropagation()}
-              title={subActionLabel}
-              style={{
-                /* 11px com 3px de padding em cima e embaixo: o alvo passa a
-                   ~20px sem deslocar nada, porque o fundo é transparente. */
-                background: "none", border: "none", padding: "3px 0", marginTop: 2,
-                fontSize: 11, fontWeight: 600, lineHeight: 1.2, cursor: "pointer",
-                color: T.second,
-                textDecoration: "underline", textUnderlineOffset: 2, textAlign: "left",
-              }}
-            >
-              {sub}
-            </button>
+          subComAcao ? (
+            <span aria-hidden="true" style={{ ...estiloDoSub, display: "inline-block", visibility: "hidden", padding: "3px 0", marginTop: 2 }}>{sub}</span>
           ) : (
-            <p style={{ fontSize: 11, fontWeight: 600, color: T.second, margin: "4px 0 0", lineHeight: 1.2 }}>{sub}</p>
+            <span style={{ ...estiloDoSub, display: "block", margin: "4px 0 0" }}>{sub}</span>
           )
         )}
-      </div>
+      </span>
+    </button>
+    {subComAcao && (
+      /* O subtexto era um beco sem saída: dizia "inclui 7 rascunhos" e não
+         havia como ver os 7. Irmão do cartão, não filho: o clique aqui não
+         alterna o filtro do cartão. */
+      <button
+        type="button"
+        onClick={onSubAction}
+        title={subActionLabel}
+        style={{
+          ...estiloDoSub,
+          /* 11px com 3px de padding em cima e embaixo: o alvo passa a ~20px
+             sem deslocar nada, porque o fundo é transparente. */
+          position: "absolute", left: 13, bottom: 10,
+          background: "none", border: "none", padding: "3px 0", cursor: "pointer",
+          textDecoration: "underline", textUnderlineOffset: 2, textAlign: "left",
+        }}
+      >
+        {sub}
+      </button>
+    )}
     </div>
   );
 }
@@ -588,7 +606,7 @@ function CarimboDeFrescor() {
          servidor, e a revalidação de segurança roda a cada 5 min. */
       title={`${frescor.srLabel}. Esta tela se atualiza sozinha: na hora em que alguém muda uma peça, ao voltar para a aba e, por segurança, a cada 5 minutos. Ponto verde = atualizada há menos de 3 minutos.`}
       data-testid="painel-frescor"
-      style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, fontWeight: 700, color: T.second, whiteSpace: "nowrap" }}
+      style={{ display: "flex", alignItems: "center", gap: 6, fontSize: FS.small, fontWeight: FW.forte, color: T.second, whiteSpace: "nowrap" }}
     >
       {isFetching
         ? <Loader2 className="animate-spin" style={{ width: 11, height: 11, color: T.second }} aria-hidden="true" />
@@ -1387,7 +1405,7 @@ const GrupoDoEvento = memo(function GrupoDoEvento({
         <button
           onClick={() => acoes.abrirGrupo(eventKey, Math.min(gd.items.length, ROW_CAP))}
           data-testid={`button-open-group-${eventKey}`}
-          style={{ width: "100%", padding: "13px", background: T.bg, border: "none", color: T.text, fontWeight: 700, fontSize: 13, cursor: "pointer" }}
+          style={{ width: "100%", padding: "13px", background: T.bg, border: "none", color: T.text, fontWeight: FW.forte, fontSize: FS.body, cursor: "pointer" }}
         >
           Mostrar as {gd.items.length} {gd.items.length === 1 ? "peça" : "peças"} deste evento
         </button>
@@ -1442,7 +1460,7 @@ const GrupoDoEvento = memo(function GrupoDoEvento({
             <button
               onClick={() => acoes.expandir(eventKey, hiddenCount)}
               data-testid={`button-show-all-${eventKey}`}
-              style={{ width: "100%", padding: "13px", marginTop: 4, background: T.bg, border: `1px solid ${T.border}`, borderRadius: 8, color: T.text, fontWeight: 700, fontSize: 13, cursor: "pointer" }}
+              style={{ width: "100%", padding: "13px", marginTop: 4, background: T.bg, border: `1px solid ${T.border}`, borderRadius: R.md, color: T.text, fontWeight: FW.forte, fontSize: FS.body, cursor: "pointer" }}
             >
               Mostrar todas as {gd.items.length} peças (+{hiddenCount})
             </button>
@@ -1640,7 +1658,7 @@ const GrupoDoEvento = memo(function GrupoDoEvento({
                   <button
                     onClick={() => acoes.expandir(eventKey, hiddenCount)}
                     data-testid={`button-show-all-${eventKey}`}
-                    style={{ width: "100%", padding: "13px", background: T.bg, border: "none", borderTop: `1px solid ${T.border}`, color: T.text, fontWeight: 700, fontSize: 13, cursor: "pointer" }}
+                    style={{ width: "100%", padding: "13px", background: T.bg, border: "none", borderTop: `1px solid ${T.border}`, color: T.text, fontWeight: FW.forte, fontSize: FS.body, cursor: "pointer" }}
                   >
                     Mostrar todas as {gd.items.length} peças (+{hiddenCount})
                   </button>
@@ -1902,7 +1920,7 @@ export default function PainelGeral() {
       queryClient.invalidateQueries({ queryKey: ["/api/items/deleted"] });
       queryClient.invalidateQueries({ queryKey: ["/api/events"] });
       queryClient.invalidateQueries({ queryKey: ["/api/audit-logs"] });
-      toast({ title: "Peça restaurada", description: "Ela voltou às listagens com o status que tinha." });
+      toast({ title: "Peça restaurada", description: "Ela voltou às listagens com o status que tinha.", variant: "success" });
     },
     onError: (error: any) => toast({ title: "Erro ao restaurar", description: error.message, variant: "destructive" }),
     onSettled: () => setRestoringItemId(null),
@@ -1924,6 +1942,7 @@ export default function PainelGeral() {
       toast({
         title: "Peça excluída",
         description: "Ela saiu das listagens e foi para a lixeira.",
+        variant: "success",
         action: isAdmin ? (
           <ToastAction
             altText="Desfazer exclusão"
@@ -2535,6 +2554,7 @@ export default function PainelGeral() {
     toast({
       title: novo ? "Visão padrão definida" : "Visão padrão removida",
       description: novo ? `"${v.label}" será aplicada ao abrir o Painel sem filtros na URL.` : "O Painel volta a abrir sem recorte.",
+      variant: "success",
     });
   };
   // Aplica a visão padrão UMA vez, e só quando a URL não trouxe filtro nenhum —
@@ -2575,16 +2595,16 @@ export default function PainelGeral() {
       if (motivoEventoFinalizado(alvo.event, todayBusinessMs()) !== null) setMostrarFinalizados(true);
       setSelectedItem(alvo);
     }
-    else toast({ title: "Peça não encontrada", description: "O link aponta para uma peça que não está mais nas listagens." });
+    else toast({ title: "Peça não encontrada", description: "O link aponta para uma peça que não está mais nas listagens.", variant: "warning" });
   }, [items, toast]);
 
   const copiarLinkDaPeca = async (item: any) => {
     const url = `${window.location.origin}${window.location.pathname}?peca=${item.id}`;
     try {
       await navigator.clipboard.writeText(url);
-      toast({ title: "Link copiado", description: `Link direto da peça ${item.displayId}.` });
+      toast({ title: "Link copiado", description: `Link direto da peça ${item.displayId}.`, variant: "success" });
     } catch {
-      toast({ title: "Não foi possível copiar", description: url, variant: "destructive" });
+      toast({ title: "Não foi possível copiar", description: url, variant: "warning" });
     }
   };
 
@@ -2597,9 +2617,9 @@ export default function PainelGeral() {
     const txt = selecionadas.map((i: any) => i.displayId).join("\n");
     try {
       await navigator.clipboard.writeText(txt);
-      toast({ title: "IDs copiados", description: `${selecionadas.length} ${selecionadas.length === 1 ? "ID copiado" : "IDs copiados"}.` });
+      toast({ title: "IDs copiados", description: `${selecionadas.length} ${selecionadas.length === 1 ? "ID copiado" : "IDs copiados"}.`, variant: "success" });
     } catch {
-      toast({ title: "Não foi possível copiar", description: "O navegador bloqueou o acesso à área de transferência.", variant: "destructive" });
+      toast({ title: "Não foi possível copiar", description: "O navegador bloqueou o acesso à área de transferência.", variant: "warning" });
     }
   };
 
@@ -2828,55 +2848,53 @@ export default function PainelGeral() {
       <style>{PG_CSS}</style>
       <div style={{ position: "sticky", top: 0, zIndex: 4, height: 4, margin: useCards ? "0 -12px" : "0 -28px", background: `linear-gradient(90deg, ${T.text} 0%, ${T.text} 72%, ${T.accent} 72%, ${T.accent} 100%)` }} />
 
-      {/* ── Header ── */}
-      <header style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", flexWrap: "wrap", gap: 16, paddingTop: 22, paddingBottom: 2 }}>
-        <div style={{ display: "flex", flexDirection: "column", flex: "1 1 auto", minWidth: 0 }}>
-          <h1
-            data-testid="title-painel-geral"
-            style={{
-              fontFamily: FONT.display,
-              fontSize: useCards ? 20 : FS.h1, fontWeight: 700, letterSpacing: "-0.03em",
-              lineHeight: 1.1, color: T.text, margin: 0,
-            }}
-          >
-            Painel Geral
-          </h1>
-          {/* Subtítulo honesto: a tela mostra peças em TODOS os status (não só
-              "em produção") e o "tempo real" dependia de um socket que cai. O
-              que ela garante mesmo é o escopo e a ordem. */}
-          <p style={{ fontSize: 13, color: T.second, fontWeight: 500, margin: "4px 0 0 0", display: useCards ? "none" : "block" }}>
-            Todas as peças de todos os eventos, ordenadas pela saída do caminhão
-          </p>
-          {/* ── POR ONDE COMEÇAR (rodada 4) ──────────────────────────────────
-              O Painel é a primeira tela de TODOS os perfis e não dizia a
-              nenhum deles o que fazer. A pessoa da Arte abria 3 mil peças e
-              tinha de descobrir sozinha que a fila dela é "Aguardando envio" +
-              "Aguardando finalização", que existe uma visão pronta para isso na
-              barra de filtros e que o trabalho em si acontece em OUTRA tela.
-              A frase junta as três respostas: quantas peças são dela, um
-              clique para vê-las aqui e um clique para a tela onde se age.
-
-              Nada é inventado: a fila é a visão do papel (lib/painel-visoes),
-              o número é a soma dos MESMOS cards de status abaixo e as telas
-              saem do mesmo mapa do "Continuar em …" da ficha
-              (lib/painel-rotas) — que já respeita o acesso do papel. */}
-          {!isLoading && !(isError && itensDoServidor.length === 0) && (() => {
-            const minha = visoes.find(v => v.id === "meu_papel") ?? null;
-            const linkStyle: React.CSSProperties = {
-              display: "inline-flex", alignItems: "center", gap: 4, minHeight: 36,
-              fontSize: 13, fontWeight: 700, color: T.accentText,
-              textDecoration: "underline", textUnderlineOffset: 2, whiteSpace: "nowrap",
-            };
-            if (!minha) {
-              // Admin não tem fila própria: vê o fluxo inteiro. O próximo
-              // passo dele é cobrar, e a tela de cobrança é outra.
-              return (
-                <p data-testid="texto-por-onde-comecar" style={{ display: "flex", alignItems: "center", flexWrap: "wrap", columnGap: 8, margin: "2px 0 0", fontSize: 13, color: T.apoio, lineHeight: 1.4 }}>
-                  <span>Você vê o fluxo inteiro. Atraso por etapa e quem precisa agir ficam em</span>
-                  <Link href="/prazos" style={linkStyle}>Gestão de Prazos <ArrowUpRight aria-hidden="true" style={{ width: 13, height: 13 }} /></Link>
-                </p>
-              );
-            }
+      {/* ── Header ──
+          ANTES: três linhas de texto empilhadas — o título, a frase de escopo
+          ("Todas as peças de todos os eventos, ordenadas pela saída do
+          caminhão") e o "Por onde começar". Duas delas explicavam; só uma
+          dizia o ESTADO. Agora é o <CabecalhoDaPagina>: o subtítulo é a fila
+          de quem lê (o estado), o frescor vem ao lado dele, e a frase de
+          escopo mudou para o "Como ler este painel" da barra do fluxo — é lá
+          que a pergunta "o que estou vendo, em que ordem?" aparece.
+          O data-testid do título mora no invólucro: o cabeçalho do design
+          system não repassa testid ao <h1>. A margem negativa devolve os 20px
+          que ele reserva embaixo, porque o `gap` da raiz já dá o respiro. */}
+      {(() => {
+        // ── POR ONDE COMEÇAR (rodada 4) ──────────────────────────────────
+        // O Painel é a primeira tela de TODOS os perfis e não dizia a nenhum
+        // deles o que fazer. A pessoa da Arte abria 3 mil peças e tinha de
+        // descobrir sozinha que a fila dela é "Aguardando envio" +
+        // "Aguardando finalização", que existe uma visão pronta para isso na
+        // barra de filtros e que o trabalho em si acontece em OUTRA tela. A
+        // frase junta as três respostas: quantas peças são dela, um clique
+        // para vê-las aqui e um clique para a tela onde se age.
+        //
+        // Nada é inventado: a fila é a visão do papel (lib/painel-visoes), o
+        // número é a soma dos MESMOS cards de status abaixo e as telas saem
+        // do mesmo mapa do "Continuar em …" da ficha (lib/painel-rotas) — que
+        // já respeita o acesso do papel.
+        const linkStyle: React.CSSProperties = {
+          display: "inline-flex", alignItems: "center", gap: 4, minHeight: 36,
+          fontSize: FS.body, fontWeight: FW.forte, color: T.accentText,
+          textDecoration: "underline", textUnderlineOffset: 2, whiteSpace: "nowrap",
+        };
+        const fraseStyle: React.CSSProperties = {
+          display: "inline-flex", alignItems: "center", flexWrap: "wrap", columnGap: 10,
+          fontSize: FS.body, color: T.apoio, lineHeight: 1.4,
+        };
+        let porOndeComecar: React.ReactNode = null;
+        if (!isLoading && !(isError && itensDoServidor.length === 0)) {
+          const minha = visoes.find(v => v.id === "meu_papel") ?? null;
+          if (!minha) {
+            // Admin não tem fila própria: vê o fluxo inteiro. O próximo
+            // passo dele é cobrar, e a tela de cobrança é outra.
+            porOndeComecar = (
+              <span data-testid="texto-por-onde-comecar" style={{ ...fraseStyle, columnGap: 8 }}>
+                <span>Você vê o fluxo inteiro. Atraso por etapa e quem precisa agir ficam em</span>
+                <Link href="/prazos" style={linkStyle}>Gestão de Prazos <ArrowUpRight aria-hidden="true" style={{ width: 13, height: 13 }} /></Link>
+              </span>
+            );
+          } else {
             // Soma dos cards de status: `stats` ignora o próprio filtro de
             // status (é o que deixa o card clicável mostrar o número), então o
             // número não muda quando a pessoa aplica a visão da fila.
@@ -2890,10 +2908,10 @@ export default function PainelGeral() {
             // "Peças aguardando envio…" → "aguardando envio…": a frase já começa
             // pelo número de peças.
             const oQue = minha.hint.replace(/^Peças\s+/i, "");
-            return (
-              <p data-testid="texto-por-onde-comecar" style={{ display: "flex", alignItems: "center", flexWrap: "wrap", columnGap: 10, margin: "2px 0 0", fontSize: 13, color: T.apoio, lineHeight: 1.4 }}>
+            porOndeComecar = (
+              <span data-testid="texto-por-onde-comecar" style={fraseStyle}>
                 <span>
-                  Sua fila: <strong style={{ color: T.text, fontWeight: 700 }}>{fmtN(n)} {n === 1 ? "peça" : "peças"}</strong> {oQue}
+                  Sua fila: <strong style={{ color: T.text, fontWeight: FW.forte }}>{fmtN(n)} {n === 1 ? "peça" : "peças"}</strong> {oQue}
                   {recorteAlheio ? " neste recorte" : ""}.
                 </span>
                 <button
@@ -2910,51 +2928,60 @@ export default function PainelGeral() {
                     Trabalhar em {t.label} <ArrowUpRight aria-hidden="true" style={{ width: 13, height: 13 }} />
                   </Link>
                 ))}
-              </p>
+              </span>
             );
-          })()}
-        </div>
-
-        <div style={{ display: "flex", alignItems: "center", gap: 12, flexShrink: 0 }}>
-          {/* Carimbo de frescor: o usuário precisa saber DESDE QUANDO o que ele
-              lê é verdade. Sem botão Atualizar — a tela revalida sozinha. O
-              relógio de 30s mora dentro dele (ver CarimboDeFrescor). */}
-          <CarimboDeFrescor />
-
-          {/* Exportar rebaixado a contorno: o botão preto com sombra laranja era
-              o elemento de maior peso visual da página — a ação mais destacada
-              da tela era imprimir. */}
-          <div ref={exportMenuRef} style={{ position: "relative" }}>
-            <button
-              onClick={() => setExportMenuOpen(o => !o)}
-              data-testid="button-export-painel"
-              aria-haspopup="menu"
-              aria-expanded={exportMenuOpen}
-              title="Exportar o recorte que está na tela"
-              style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, height: useCards ? 44 : 40, minWidth: useCards ? 44 : undefined, padding: useCards ? "0 12px" : "0 14px", borderRadius: 8, backgroundColor: T.surface, border: `1px solid ${T.bdark}`, color: T.text, fontSize: 13, fontWeight: 700, cursor: "pointer" }}
-            >
-              {isExportingXlsx
-                ? <Loader2 className="animate-spin" style={{ width: 14, height: 14 }} />
-                : <Printer style={{ width: 14, height: 14 }} />}
-              {!useCards && "Exportar"}
-              <ChevronDown style={{ width: 13, height: 13, color: T.second }} />
-            </button>
-            {exportMenuOpen && (
-              <div role="menu" style={{ position: "absolute", right: 0, top: "calc(100% + 6px)", zIndex: 20, minWidth: 232, backgroundColor: T.surface, border: `1px solid ${T.border}`, borderRadius: 10, boxShadow: "0 8px 24px rgba(28,25,23,.12)", padding: 6 }}>
-                <p style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: T.second, margin: "6px 8px 6px" }}>
-                  {selecionadas.length > 0 ? `${selecionadas.length} selecionada${selecionadas.length > 1 ? "s" : ""}` : `${itensParaExportar.length} ${itensParaExportar.length === 1 ? "peça na tela" : "peças na tela"}`}
-                </p>
-                <button role="menuitem" onClick={() => { setExportMenuOpen(false); setShowExportPDFModal(true); }} data-testid="button-export-pdf-painel" style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "9px 8px", background: "none", border: "none", borderRadius: 6, cursor: "pointer", fontSize: 13, fontWeight: 600, color: T.text, textAlign: "left" }}>
-                  <Printer style={{ width: 14, height: 14, color: T.second }} /> Exportar PDF
-                </button>
-                <button role="menuitem" onClick={exportarXlsx} disabled={isExportingXlsx || itensParaExportar.length === 0} data-testid="button-export-xlsx-painel" style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "9px 8px", background: "none", border: "none", borderRadius: 6, cursor: itensParaExportar.length === 0 ? "not-allowed" : "pointer", fontSize: 13, fontWeight: 600, color: itensParaExportar.length === 0 ? T.second : T.text, textAlign: "left" }}>
-                  <FileSpreadsheet style={{ width: 14, height: 14, color: T.second }} /> Exportar Excel
-                </button>
-              </div>
-            )}
+          }
+        }
+        return (
+          <div data-testid="title-painel-geral" style={{ paddingTop: 22, marginBottom: -18 }}>
+            <CabecalhoDaPagina
+              titulo="Painel Geral"
+              subtitulo={porOndeComecar}
+              /* Carimbo de frescor: o usuário precisa saber DESDE QUANDO o que
+                 ele lê é verdade. Sem botão Atualizar — a tela revalida
+                 sozinha. O relógio de 30s mora dentro dele (ver
+                 CarimboDeFrescor). */
+              frescor={<CarimboDeFrescor />}
+              acoes={
+                /* Exportar rebaixado a contorno: o botão preto com sombra
+                   laranja era o elemento de maior peso visual da página — a
+                   ação mais destacada da tela era imprimir. */
+                <div ref={exportMenuRef} style={{ position: "relative" }}>
+                  <Botao
+                    variante="secundario"
+                    tamanho={useCards ? "toque" : "md"}
+                    onClick={() => setExportMenuOpen(o => !o)}
+                    data-testid="button-export-painel"
+                    aria-haspopup="menu"
+                    aria-expanded={exportMenuOpen}
+                    aria-label={useCards ? "Exportar" : undefined}
+                    title="Exportar o recorte que está na tela"
+                    icone={isExportingXlsx ? undefined : Printer}
+                    style={useCards ? { minWidth: H.toque, padding: "0 12px" } : undefined}
+                  >
+                    {isExportingXlsx && <Loader2 aria-hidden="true" className="animate-spin" style={{ width: 14, height: 14 }} />}
+                    {!useCards && "Exportar"}
+                    <ChevronDown aria-hidden="true" style={{ width: 13, height: 13, color: T.second }} />
+                  </Botao>
+                  {exportMenuOpen && (
+                    <div role="menu" style={{ position: "absolute", right: 0, top: "calc(100% + 6px)", zIndex: 20, minWidth: 232, backgroundColor: T.surface, border: `1px solid ${T.border}`, borderRadius: R.lg, boxShadow: SHADOW.md, padding: 6 }}>
+                      <p style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: T.second, margin: "6px 8px 6px" }}>
+                        {selecionadas.length > 0 ? `${selecionadas.length} selecionada${selecionadas.length > 1 ? "s" : ""}` : `${itensParaExportar.length} ${itensParaExportar.length === 1 ? "peça na tela" : "peças na tela"}`}
+                      </p>
+                      <button role="menuitem" onClick={() => { setExportMenuOpen(false); setShowExportPDFModal(true); }} data-testid="button-export-pdf-painel" style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "9px 8px", background: "none", border: "none", borderRadius: R.sm, cursor: "pointer", fontSize: FS.body, fontWeight: FW.medio, color: T.text, textAlign: "left" }}>
+                        <Printer style={{ width: 14, height: 14, color: T.second }} /> Exportar PDF
+                      </button>
+                      <button role="menuitem" onClick={exportarXlsx} disabled={isExportingXlsx || itensParaExportar.length === 0} data-testid="button-export-xlsx-painel" style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "9px 8px", background: "none", border: "none", borderRadius: R.sm, cursor: itensParaExportar.length === 0 ? "not-allowed" : "pointer", fontSize: FS.body, fontWeight: FW.medio, color: itensParaExportar.length === 0 ? T.second : T.text, textAlign: "left" }}>
+                        <FileSpreadsheet style={{ width: 14, height: 14, color: T.second }} /> Exportar Excel
+                      </button>
+                    </div>
+                  )}
+                </div>
+              }
+            />
           </div>
-        </div>
-      </header>
+        );
+      })()}
 
       {/* ── Precisa de atenção ────────────────────────────────────────────────
           Os 13 estados têm o mesmo peso visual, mas a operação não é simétrica:
@@ -2971,16 +2998,16 @@ export default function PainelGeral() {
             · sem alerta → uma frase calma com o recorte a que ela se refere;
             · com alerta → os chips, num cartão, antes de qualquer número. */}
       {isLoading ? (
-        <div aria-hidden="true" className="animate-pulse" style={{ width: useCards ? "100%" : 320, height: 38, borderRadius: 999, backgroundColor: N.n3 }} />
+        <div aria-hidden="true" className="animate-pulse" style={{ width: useCards ? "100%" : 320, height: 38, borderRadius: R.pill, backgroundColor: N.n3 }} />
       ) : (!isError || atencao.reprovadas > 0 || atencao.atrasadas > 0 || chipOcultasDados) && (
       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
       {!isError && atencao.reprovadas === 0 && atencao.atrasadas === 0 && (
-        <p data-testid="texto-atencao-em-dia" style={{ display: "flex", alignItems: "flex-start", gap: 8, margin: 0, fontSize: 13, lineHeight: 1.45, color: T.apoio }}>
+        <p data-testid="texto-atencao-em-dia" style={{ display: "flex", alignItems: "flex-start", gap: 8, margin: 0, fontSize: FS.body, lineHeight: 1.45, color: T.apoio }}>
           {/* Verde só aqui, e só no ícone: é o único "está tudo certo" da
               tela. #15803d sobre #fafaf9 = 4,80:1. */}
           <CheckCircle2 aria-hidden="true" style={{ width: 16, height: 16, color: TOM.sucesso.text, flexShrink: 0, marginTop: 1 }} />
           <span>
-            <strong style={{ color: T.text, fontWeight: 700 }}>Nada pede atenção agora.</strong>
+            <strong style={{ color: T.text, fontWeight: FW.forte }}>Nada pede atenção agora.</strong>
             {" "}Nenhuma peça reprovada pelo patrocinador nem em evento com caminhão atrasado
             {/* Os números desta faixa seguem o recorte; com filtro ligado, a
                 frase não pode soar como verdade do sistema inteiro. */}
@@ -3183,8 +3210,8 @@ export default function PainelGeral() {
               {/* O maior segmento dito por extenso: a barra mostra a forma, a
                   frase nomeia o gargalo para quem chega sem contexto — e para
                   quem lê por leitor de tela, que não enxerga proporção. */}
-              <span style={{ fontSize: 12, fontWeight: 500, color: T.apoio, lineHeight: 1.4 }}>
-                Maior fila: <strong style={{ color: T.text, fontWeight: 700 }}>{maior.meta.label}</strong>
+              <span style={{ fontSize: FS.meta, fontWeight: FW.corpo, color: T.apoio, lineHeight: 1.4 }}>
+                Maior fila: <strong style={{ color: T.text, fontWeight: FW.forte }}>{maior.meta.label}</strong>
                 {" "}· {Math.round((maior.n / soma) * 100)}% ({fmtN(maior.n)})
                 {/* A frase dizia o quanto a fila PESA; passa a dizer tambem se
                     ela esta andando. E a diferenca entre vazao normal e
@@ -3281,15 +3308,35 @@ export default function PainelGeral() {
                 })}
               </div>
             )}
-            {/* COMO LER A BARRA, por escrito. Quem chega pela primeira vez via
-                uma faixa cinza sem legenda e não tinha como saber que o tom
-                quer dizer avanço, nem que cada pedaço é um filtro. A cor
-                continua sem significar risco (risco mora na faixa de atenção
-                acima); a frase só ensina a ler a forma e o clique. */}
-            <p data-testid="texto-como-ler-fluxo" style={{ margin: 0, fontSize: 12, color: T.second, lineHeight: 1.45 }}>
-              Cada pedaço é uma etapa, do pedido à entrega, na mesma cor do cartão e do selo da etapa.
-              {" "}Clique numa etapa (aqui ou nos cartões abaixo) para filtrar a lista; clique de novo para desfazer.
-            </p>
+            {/* COMO LER A BARRA, por escrito — mas DOBRADO.
+                Quem chega pela primeira vez via uma faixa colorida sem legenda
+                e não tinha como saber que cada pedaço é uma etapa nem que ele
+                filtra. A primeira resposta foi um parágrafo de duas frases
+                sempre aberto: toda visita, de todo perfil, relia a instrução de
+                quem chegou ontem — era a quinta linha de texto empilhada antes
+                do primeiro número.
+                Agora a linha visível é o essencial em poucas palavras (o
+                clique filtra), e o resto mora num <details> nativo — teclado e
+                leitor de tela abrem sem nada a mais. Nada saiu: as duas frases
+                de antes estão ali dentro, junto da frase de escopo que o
+                cabeçalho deixou de repetir e da escala de idade (cinza até
+                LIMITE_PARADA dias, âmbar depois, vermelho acima de 14), que
+                até aqui só se aprendia passando o mouse. */}
+            <details data-testid="texto-como-ler-fluxo" style={{ fontSize: FS.meta, color: T.second, lineHeight: 1.45 }}>
+              <summary style={{ cursor: "pointer", width: "fit-content", minHeight: alvo(24, dedo), display: "list-item" }}>
+                Clique numa etapa para filtrar a lista · <span style={{ textDecoration: "underline", textUnderlineOffset: 2, fontWeight: FW.medio, color: T.apoio }}>como ler este painel</span>
+              </summary>
+              <ul style={{ margin: "6px 0 0", paddingLeft: 18, display: "flex", flexDirection: "column", gap: 3 }}>
+                <li>Todas as peças de todos os eventos, com a lista ordenada pela saída do caminhão.</li>
+                <li>Cada pedaço é uma etapa, do pedido à entrega, na mesma cor do cartão e do selo da etapa.</li>
+                <li>Clique numa etapa (aqui ou nos cartões abaixo) para filtrar a lista; clique de novo para desfazer.</li>
+                <li>
+                  Tempo parado na etapa: até {LIMITE_PARADA} dias é fluxo normal (cinza);{" "}
+                  <span style={{ color: TOM.alerta.text, fontWeight: FW.forte }}>acima de {LIMITE_PARADA}, âmbar</span>;{" "}
+                  <span style={{ color: TOM.perigo.text, fontWeight: FW.forte }}>acima de 14, vermelho</span>.
+                </li>
+              </ul>
+            </details>
           </section>
         );
       })()}
@@ -3326,7 +3373,7 @@ export default function PainelGeral() {
             </div>
             <button
               onClick={() => setShowAllKpis(v => !v)}
-              style={{ alignSelf: "flex-start", display: "inline-flex", alignItems: "center", minHeight: 36, background: "none", border: "none", padding: "0 2px", fontSize: 11, fontWeight: 700, color: T.accentText, cursor: "pointer", textDecoration: "underline", textUnderlineOffset: 2 }}
+              style={{ alignSelf: "flex-start", display: "inline-flex", alignItems: "center", minHeight: 36, background: "none", border: "none", padding: "0 2px", fontSize: 11, fontWeight: FW.forte, color: T.accentText, cursor: "pointer", textDecoration: "underline", textUnderlineOffset: 2 }}
             >
               {showAllKpis ? "Mostrar só os status com peças" : "Mostrar todos os status"}
             </button>
@@ -3355,7 +3402,7 @@ export default function PainelGeral() {
               if (colunas === 0) return null;
               return (
                 <div key={z.nome} style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                  <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 600, color: T.apoio, paddingLeft: 2 }}>
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: FS.meta, fontWeight: FW.medio, color: T.apoio, paddingLeft: 2 }}>
                     <span aria-hidden="true" style={{ width: 8, height: 8, borderRadius: 2, backgroundColor: z.tom, flexShrink: 0 }} />
                     {z.nome}
                   </span>
@@ -3392,7 +3439,7 @@ export default function PainelGeral() {
                 /* Alinhado com a BASE dos cards, não solto embaixo de tudo:
                    `alignSelf: flex-end` o encosta na linha inferior da faixa,
                    onde ele se lê como a continuação dela. */
-                style={{ alignSelf: "flex-end", display: "inline-flex", alignItems: "center", minHeight: 36, background: "none", border: "none", padding: "0 2px", fontSize: 11, fontWeight: 700, color: T.accentText, cursor: "pointer", textDecoration: "underline", textUnderlineOffset: 2, whiteSpace: "nowrap" }}
+                style={{ alignSelf: "flex-end", display: "inline-flex", alignItems: "center", minHeight: 36, background: "none", border: "none", padding: "0 2px", fontSize: 11, fontWeight: FW.forte, color: T.accentText, cursor: "pointer", textDecoration: "underline", textUnderlineOffset: 2, whiteSpace: "nowrap" }}
               >
                 {showAllKpis
                   ? "Mostrar só os status com peças"
@@ -3501,16 +3548,19 @@ export default function PainelGeral() {
         </div>
 
         {useCards && (
-          <button
+          <Botao
+            variante="secundario"
+            tamanho="toque"
+            larguraCheia
+            icone={SlidersHorizontal}
             onClick={() => setMobileFiltersOpen(o => !o)}
             aria-expanded={mobileFiltersOpen}
             data-testid="button-toggle-filtros-mobile"
-            style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, width: "100%", height: 44, borderRadius: 6, border: `1px solid ${T.border}`, background: T.bg, fontSize: 13, fontWeight: 700, color: T.text, cursor: "pointer" }}
+            style={{ fontSize: FS.body, color: T.text }}
           >
-            <SlidersHorizontal style={{ width: 14, height: 14, color: T.second }} />
             Filtros{activeFilterCount > 0 ? ` (${activeFilterCount})` : ""}
-            {mobileFiltersOpen ? <ChevronUp style={{ width: 14, height: 14 }} /> : <ChevronDown style={{ width: 14, height: 14 }} />}
-          </button>
+            {mobileFiltersOpen ? <ChevronUp aria-hidden="true" style={{ width: 14, height: 14 }} /> : <ChevronDown aria-hidden="true" style={{ width: 14, height: 14 }} />}
+          </Botao>
         )}
 
         {!useCards && <div style={{ width: 1, height: 20, backgroundColor: T.border, flexShrink: 0 }} />}
@@ -3639,14 +3689,18 @@ export default function PainelGeral() {
             {chipOcultasDados && !mostrarFinalizados && ` · ${chipOcultasDados.total} ${chipOcultasDados.total === 1 ? "oculta" : "ocultas"}`}
           </span>
           {hasActiveFilters && (
-            <button
+            /* Botao secundário, não mais a pílula laranja com hover trocado
+               na mão: limpar é ação de apoio da barra, e o laranja aqui
+               competia com o "recorte ligado" das visões logo acima. */
+            <Botao
+              variante="secundario"
+              tamanho="sm"
+              icone={X}
               onClick={clearAllFilters}
-              style={{ display: "flex", alignItems: "center", gap: 4, background: TOM.laranja.bg, border: `1px solid ${TOM.laranja.border}`, borderRadius: 6, padding: "3px 10px", fontSize: 11, fontWeight: 700, color: T.accentText, cursor: "pointer", transition: "all 0.15s", whiteSpace: "nowrap", height: alvo(32, dedo) }}
-              onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = T.accentText; (e.currentTarget as HTMLButtonElement).style.color = T.surface; }}
-              onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = TOM.laranja.bg; (e.currentTarget as HTMLButtonElement).style.color = T.accentText; }}
+              style={{ minHeight: alvo(H.sm, dedo) }}
             >
-              × Limpar
-            </button>
+              Limpar
+            </Botao>
           )}
         </div>
         </div>
@@ -3654,7 +3708,7 @@ export default function PainelGeral() {
 
       {/* ── Chips dos filtros ativos — a seleção inteira num relance, cada
           filtro removível individualmente sem reabrir dropdown por dropdown.
-          O "× Limpar" da toolbar continua sendo o limpa-tudo. ── */}
+          O "Limpar" da toolbar continua sendo o limpa-tudo. ── */}
       {hasActiveFilters && (
         <div style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center", marginTop: -12 }}>
           {searchTerm && (
@@ -3685,31 +3739,34 @@ export default function PainelGeral() {
           exige canDeleteAny): diz o porquê e oferece a saída, em vez de uma
           lista silenciosamente vazia. Acontece via URL compartilhada. */}
       {showDeleted && !canDeleteAny && (
-        <div style={{ backgroundColor: T.surface, border: `1px solid ${TOM.perigo.border}`, borderRadius: 10, padding: "10px 16px", display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-          <span style={{ fontSize: 13, fontWeight: 700, color: TOM.perigo.text }}>Você não tem permissão para ver peças excluídas.</span>
-          <button
+        <div style={{ backgroundColor: T.surface, border: `1px solid ${TOM.perigo.border}`, borderRadius: R.lg, padding: "10px 16px", display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+          <span style={{ fontSize: FS.body, fontWeight: FW.forte, color: TOM.perigo.text }}>Você não tem permissão para ver peças excluídas.</span>
+          <Botao
+            variante="primario"
+            tamanho="sm"
             onClick={() => setStatusFilter(prev => prev.filter(s => s !== "deleted"))}
-            style={{ fontSize: 12, fontWeight: 700, color: T.surface, background: T.text, border: "none", borderRadius: 6, padding: "5px 12px", cursor: "pointer" }}
           >
             Remover filtro
-          </button>
+          </Botao>
         </div>
       )}
 
       {/* Estados da visão Excluídos — sem eles, carregamento parecia lista
-          vazia e uma falha virava "Nenhum item encontrado" (mentira). */}
+          vazia e uma falha virava "Nenhum item encontrado" (mentira).
+          A carga continua uma faixa de uma linha (e não o <Esqueleto>): ela
+          fica ACIMA da lista, que tem o próprio esqueleto; dois esqueletos
+          empilhados leriam como duas listas chegando. */}
       {showDeleted && deletedLoading && (
-        <div style={{ backgroundColor: T.bg, border: `1px solid ${T.border}`, borderRadius: 10, padding: "10px 16px", fontSize: 13, fontWeight: 600, color: T.second }}>
+        <div role="status" style={{ backgroundColor: T.bg, border: `1px solid ${T.border}`, borderRadius: R.lg, padding: "10px 16px", fontSize: FS.body, fontWeight: FW.medio, color: T.second }}>
           Carregando peças excluídas...
         </div>
       )}
       {showDeleted && deletedError && (
-        <div style={{ backgroundColor: T.surface, border: `1px solid ${TOM.perigo.border}`, borderRadius: 10, padding: "10px 16px", display: "flex", alignItems: "center", gap: 12 }}>
-          <span style={{ fontSize: 13, fontWeight: 700, color: TOM.perigo.text }}>Não foi possível carregar as peças excluídas.</span>
-          <button onClick={() => refetchDeleted()} style={{ fontSize: 12, fontWeight: 700, color: T.surface, background: T.text, border: "none", borderRadius: 6, padding: "5px 12px", cursor: "pointer" }}>
-            Tentar novamente
-          </button>
-        </div>
+        <EstadoErro
+          compacto
+          titulo="Não foi possível carregar as peças excluídas."
+          aoTentarDeNovo={() => refetchDeleted()}
+        />
       )}
 
       {/* ── Grouped table ── */}
@@ -3750,52 +3807,43 @@ export default function PainelGeral() {
             ))}
           </div>
         ) : isError ? (
-          /* O ERRO É IRMÃO DO VAZIO, e estava mal-acabado ao lado dele.
-             Os dois ocupam o mesmo lugar da tela e aparecem pelo mesmo
-             motivo — não há lista para mostrar —, mas só um tinha sido
-             desenhado: o vazio vinha com raio 10, ícone, título 700 e botão
-             de 9/20; o erro vinha QUADRADO (sem raio nenhum, único caso na
-             tela), sem ícone, com título 600 e botão de 8/18.
-             Ninguém compara os dois lado a lado, e é justamente por isso que
-             a diferença passa: cada um é visto sozinho, e o erro parecia uma
-             tela mais velha do mesmo produto. Agora os dois têm a mesma
-             composição — só muda a cor da borda e do ícone, que é o que de
-             fato distingue "deu errado" de "não tem nada". */
-          <div style={{ backgroundColor: T.surface, border: `1px solid ${TOM.perigo.border}`, borderRadius: 10, padding: "56px 24px", textAlign: "center" }}>
-            <AlertTriangle style={{ width: 28, height: 28, color: TOM.perigo.border, margin: "0 auto 12px" }} />
-            {/* #b91c1c sobre #ffffff = 6,47:1 ✓ (calculado, nao estimado) */}
-            <p style={{ color: TOM.perigo.text, fontSize: 15, fontWeight: 700, margin: "0 0 4px" }}>Não foi possível carregar as peças</p>
-            <p style={{ color: T.second, fontSize: 13, margin: "0 0 16px" }}>Verifique sua conexão e tente novamente.</p>
-            <button onClick={() => refetch()} style={{ fontSize: 13, fontWeight: 700, color: T.surface, background: T.text, border: "none", borderRadius: 8, padding: "9px 20px", cursor: "pointer" }}>Tentar novamente</button>
-          </div>
+          /* O ERRO É IRMÃO DO VAZIO, e estava mal-acabado ao lado dele: o
+             vazio tinha raio, ícone e título; o erro vinha quadrado, sem ícone
+             e com outro peso — e parecia uma tela mais velha do mesmo produto.
+             Agora os dois são os estados do design system (<EstadoErro> e
+             <EstadoVazio>), a mesma composição em que só muda o que de fato
+             distingue "deu errado" de "não tem nada": a cor e a saída. */
+          <EstadoErro
+            titulo="Não foi possível carregar as peças"
+            detalhe="Verifique sua conexão e tente novamente."
+            aoTentarDeNovo={() => refetch()}
+          />
         ) : filteredItems.length === 0 ? (
           /* Empty state com contexto e ação: diz POR QUE está vazio (filtros
              ativos vs sistema sem peças) e oferece o caminho de volta ali
              mesmo. Suprimido quando um banner da visão Excluídos já explicou o
              motivo — antes os dois apareciam empilhados, e o segundo (maior e
-             com botão) contava uma história falsa. */
+             com botão) contava uma história falsa.
+             Três motivos, três respostas. O terceiro é o que evita a pior
+             leitura desta feature: lista vazia com peças ocultas por trás lida
+             como "não existe" quando o certo é "não está aqui, e está a um
+             clique". */
           !bannerExcluidosVisivel && (
-            <div style={{ backgroundColor: T.surface, border: `1px solid ${T.border}`, borderRadius: 10, padding: "56px 24px", textAlign: "center" }}>
-              <Search style={{ width: 28, height: 28, color: T.bdark, margin: "0 auto 12px" }} />
-              {/* Três motivos, três respostas. O terceiro é novo e é o que
-                  evita a pior leitura desta feature: lista vazia com peças
-                  ocultas por trás lida como "não existe" quando o certo é "não
-                  está aqui, e está a um clique". */}
-              <p style={{ color: T.text, fontSize: 15, fontWeight: 700, margin: "0 0 4px" }}>
-                {hasActiveFilters ? "Nenhuma peça encontrada"
-                  : chipOcultasDados && !mostrarFinalizados ? "Só sobrou o que já acabou"
-                  : "Nenhuma peça cadastrada ainda"}
-              </p>
-              <p style={{ color: T.second, fontSize: 13, margin: "0 0 16px", maxWidth: 520, marginLeft: "auto", marginRight: "auto", lineHeight: 1.5 }}>
-                {/* "FILTREI — POR QUE SUMIU TUDO?" A frase antiga mandava
-                    ajustar sem dizer O QUÊ: os filtros ativos são nomeados
-                    aqui (os mesmos rótulos dos chips acima), a busca diz onde
-                    procura, e as peças ocultas ganham a sua própria saída —
-                    com filtro ligado elas também podem ser a resposta. */}
-                {hasActiveFilters
+            <EstadoVazio
+              icone={Search}
+              titulo={hasActiveFilters ? "Nenhuma peça encontrada"
+                : chipOcultasDados && !mostrarFinalizados ? "Só sobrou o que já acabou"
+                : "Nenhuma peça cadastrada ainda"}
+              descricao={
+                /* "FILTREI — POR QUE SUMIU TUDO?" A frase antiga mandava
+                   ajustar sem dizer O QUÊ: os filtros ativos são nomeados
+                   aqui (os mesmos rótulos dos chips acima), a busca diz onde
+                   procura, e as peças ocultas ganham a sua própria saída —
+                   com filtro ligado elas também podem ser a resposta. */
+                hasActiveFilters
                   ? <>
                       Nenhuma peça corresponde a {activeFilterCount === 1 ? "este filtro" : `estes ${activeFilterCount} filtros`}:{" "}
-                      <strong style={{ color: T.strong, fontWeight: 600 }}>
+                      <strong style={{ color: T.strong, fontWeight: FW.medio }}>
                         {[
                           searchTerm && `busca "${searchTerm}"`,
                           ...eventFilter.map(id => `evento ${nomeDoEvento(id) ?? ""}`.trim()),
@@ -3811,38 +3859,35 @@ export default function PainelGeral() {
                     </>
                   : chipOcultasDados && !mostrarFinalizados
                     ? `${chipOcultasDados.total} ${chipOcultasDados.total === 1 ? "peça está fora" : "peças estão fora"} da lista porque o evento delas foi encerrado ou já foi realizado.`
-                    : "As peças aparecem aqui quando forem adicionadas a um evento."}
-              </p>
-              {hasActiveFilters ? (
+                    : "As peças aparecem aqui quando forem adicionadas a um evento."
+              }
+              acao={hasActiveFilters ? (
                 <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "center", gap: 8 }}>
-                  <button
-                    onClick={clearAllFilters}
-                    style={{ fontSize: 13, fontWeight: 700, color: T.surface, background: T.text, border: "none", borderRadius: 8, padding: "9px 20px", cursor: "pointer" }}
-                  >
+                  <Botao variante="primario" onClick={clearAllFilters}>
                     Limpar filtros
-                  </button>
+                  </Botao>
                   {chipOcultasDados && !mostrarFinalizados && (
-                    /* Contorno: é a saída secundária. Mesmo estado do chip da
+                    /* Secundário: é a saída de apoio. Mesmo estado do chip da
                        faixa de atenção — revela sem mexer nos filtros. */
-                    <button
+                    <Botao
+                      variante="secundario"
                       onClick={() => setMostrarFinalizados(true)}
                       data-testid="button-incluir-ocultas-vazio"
-                      style={{ fontSize: 13, fontWeight: 700, color: T.text, background: T.surface, border: `1px solid ${T.bdark}`, borderRadius: 8, padding: "9px 20px", cursor: "pointer" }}
                     >
                       Procurar também nas {chipOcultasDados.total} ocultas
-                    </button>
+                    </Botao>
                   )}
                 </div>
               ) : chipOcultasDados && !mostrarFinalizados ? (
-                <button
+                <Botao
+                  variante="primario"
                   onClick={() => setMostrarFinalizados(true)}
                   data-testid="button-mostrar-ocultas-vazio"
-                  style={{ fontSize: 13, fontWeight: 700, color: T.surface, background: T.text, border: "none", borderRadius: 8, padding: "9px 20px", cursor: "pointer" }}
                 >
                   Mostrar as {chipOcultasDados.total} {chipOcultasDados.total === 1 ? "peça oculta" : "peças ocultas"}
-                </button>
-              ) : null}
-            </div>
+                </Botao>
+              ) : undefined}
+            />
           )
         ) : (
           <>
@@ -3888,7 +3933,7 @@ export default function PainelGeral() {
           style={{ position: "fixed", left: "50%", bottom: 20, transform: "translateX(-50%)", zIndex: 30, display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", borderRadius: 999, backgroundColor: T.text, boxShadow: "0 8px 24px rgba(28,25,23,.28)", flexWrap: "wrap", maxWidth: "94vw" }}
         >
           <div style={{ display: "flex", flexDirection: "column", gap: 1, minWidth: 0 }}>
-            <span style={{ fontSize: 13, fontWeight: 800, color: T.surface, whiteSpace: "nowrap" }}>
+            <span style={{ fontSize: FS.body, fontWeight: FW.rotulo, color: T.surface, whiteSpace: "nowrap" }}>
               {selecionadas.length} {selecionadas.length === 1 ? "peça selecionada" : "peças selecionadas"}
             </span>
             {/* DO QUE A SELECAO E FEITA. "12 selecionadas" nao diz se sao doze
@@ -3911,22 +3956,22 @@ export default function PainelGeral() {
               const visiveis = partes.slice(0, 3);
               const resto = partes.length - visiveis.length;
               return (
-                <span data-testid="text-selecao-composicao" style={{ fontSize: 11, color: "rgba(255,255,255,0.6)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                <span data-testid="text-selecao-composicao" style={{ fontSize: FS.small, color: "rgba(255,255,255,0.6)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                   {visiveis.join(" · ")}{resto > 0 ? ` · +${resto}` : ""}
                 </span>
               );
             })()}
           </div>
-          <button onClick={() => setShowExportPDFModal(true)} style={{ display: "flex", alignItems: "center", gap: 6, background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.22)", borderRadius: 999, color: T.surface, fontSize: 12, fontWeight: 700, padding: "6px 12px", cursor: "pointer" }}>
+          <button onClick={() => setShowExportPDFModal(true)} style={{ display: "flex", alignItems: "center", gap: 6, background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.22)", borderRadius: R.pill, color: T.surface, fontSize: FS.meta, fontWeight: FW.forte, padding: "6px 12px", minHeight: alvo(H.sm, dedo), cursor: "pointer" }}>
             <Printer style={{ width: 13, height: 13 }} /> PDF
           </button>
-          <button onClick={exportarXlsx} disabled={isExportingXlsx} style={{ display: "flex", alignItems: "center", gap: 6, background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.22)", borderRadius: 999, color: T.surface, fontSize: 12, fontWeight: 700, padding: "6px 12px", cursor: "pointer" }}>
+          <button onClick={exportarXlsx} disabled={isExportingXlsx} style={{ display: "flex", alignItems: "center", gap: 6, background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.22)", borderRadius: R.pill, color: T.surface, fontSize: FS.meta, fontWeight: FW.forte, padding: "6px 12px", minHeight: alvo(H.sm, dedo), cursor: "pointer" }}>
             <FileSpreadsheet style={{ width: 13, height: 13 }} /> Excel
           </button>
-          <button onClick={copiarIds} style={{ display: "flex", alignItems: "center", gap: 6, background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.22)", borderRadius: 999, color: T.surface, fontSize: 12, fontWeight: 700, padding: "6px 12px", cursor: "pointer" }}>
+          <button onClick={copiarIds} style={{ display: "flex", alignItems: "center", gap: 6, background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.22)", borderRadius: R.pill, color: T.surface, fontSize: FS.meta, fontWeight: FW.forte, padding: "6px 12px", minHeight: alvo(H.sm, dedo), cursor: "pointer" }}>
             <Copy style={{ width: 13, height: 13 }} /> Copiar IDs
           </button>
-          <button onClick={() => setSelectedIds(new Set())} style={{ background: "none", border: "none", color: "rgba(255,255,255,0.75)", fontSize: 12, fontWeight: 700, padding: "6px 8px", cursor: "pointer", textDecoration: "underline" }}>
+          <button onClick={() => setSelectedIds(new Set())} style={{ background: "none", border: "none", color: "rgba(255,255,255,0.75)", fontSize: FS.meta, fontWeight: FW.forte, padding: "6px 8px", minHeight: alvo(H.sm, dedo), cursor: "pointer", textDecoration: "underline" }}>
             Limpar seleção
           </button>
         </div>
@@ -3960,7 +4005,7 @@ export default function PainelGeral() {
             {selectedItem.eventId && (
               <Link
                 href={`/eventos/${selectedItem.eventId}`}
-                style={{ display: "inline-flex", alignItems: "center", gap: 6, height: 36, padding: "0 12px", borderRadius: 8, border: `1px solid ${T.border}`, background: T.surface, color: T.text, fontSize: 12, fontWeight: 700, textDecoration: "none" }}
+                style={{ display: "inline-flex", alignItems: "center", gap: 6, minHeight: H.md, padding: "0 12px", borderRadius: R.md, border: `1px solid ${T.border}`, background: T.surface, color: T.text, fontSize: FS.meta, fontWeight: FW.forte, textDecoration: "none" }}
               >
                 <Link2 style={{ width: 13, height: 13, color: T.second }} />
                 Abrir evento
@@ -3981,7 +4026,7 @@ export default function PainelGeral() {
                 return (
                   <span
                     data-testid="aviso-evento-finalizado-ficha"
-                    style={{ display: "inline-flex", alignItems: "center", gap: 6, minHeight: 34, padding: "6px 12px", borderRadius: 8, border: `1px solid ${T.border}`, background: T.bg, color: T.apoio, fontSize: 12, fontWeight: 600, maxWidth: 360, lineHeight: 1.4 }}
+                    style={{ display: "inline-flex", alignItems: "center", gap: 6, minHeight: 34, padding: "6px 12px", borderRadius: R.md, border: `1px solid ${T.border}`, background: T.bg, color: T.apoio, fontSize: FS.meta, fontWeight: FW.medio, maxWidth: 360, lineHeight: 1.4 }}
                   >
                     <Lock style={{ width: 13, height: 13, flexShrink: 0, color: T.second }} />
                     {motivoFim === "encerrado"
@@ -3999,20 +4044,21 @@ export default function PainelGeral() {
               return (
                 <Link
                   href={tela.path}
-                  style={{ display: "inline-flex", alignItems: "center", gap: 6, height: 36, padding: "0 12px", borderRadius: 8, border: `1px solid ${TOM.laranja.border}`, background: TOM.laranja.bg, color: T.accentText, fontSize: 12, fontWeight: 800, textDecoration: "none" }}
+                  style={{ display: "inline-flex", alignItems: "center", gap: 6, minHeight: H.md, padding: "0 12px", borderRadius: R.md, border: `1px solid ${TOM.laranja.border}`, background: TOM.laranja.bg, color: T.accentText, fontSize: FS.meta, fontWeight: FW.rotulo, textDecoration: "none" }}
                 >
                   <ArrowUpRight style={{ width: 13, height: 13 }} />
                   Continuar em {tela.label}
                 </Link>
               );
             })()}
-            <button
+            <Botao
+              variante="secundario"
+              icone={Copy}
               onClick={() => copiarLinkDaPeca(selectedItem)}
-              style={{ display: "inline-flex", alignItems: "center", gap: 6, height: 36, padding: "0 12px", borderRadius: 8, border: `1px solid ${T.border}`, background: T.surface, color: T.text, fontSize: 12, fontWeight: 700, cursor: "pointer" }}
+              style={{ fontSize: FS.meta, color: T.text }}
             >
-              <Copy style={{ width: 13, height: 13, color: T.second }} />
               Copiar link da peça
-            </button>
+            </Botao>
           </div>
         ) : undefined}
         customActions={temBlocoDeComplemento(selectedItem, false, false) ? (

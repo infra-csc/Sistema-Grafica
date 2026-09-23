@@ -32,7 +32,9 @@ import { alvo, useIsMobile, usePonteiroGrosso } from "@/hooks/use-mobile";
 import { queryClient } from "@/lib/queryClient";
 import { HIDE_NATIVE_CLOSE } from "@/components/modal-shell";
 import { hrefSeguro } from "@shared/url-segura";
-import { T, N, TOM, FONT } from "@/lib/theme";
+import { T, N, TOM, FONT, FS, FW, R } from "@/lib/theme";
+import { Botao } from "@/components/ui/botao";
+import { Selo } from "@/components/ui/selo";
 
 interface ItemDetailsDialogProps {
   item: any | null;
@@ -403,7 +405,7 @@ export function ItemDetailsDialog({
       // as listas que dependem de /api/items (Painel Geral, Atendimento etc.)
       // precisam refletir isso sem exigir um refresh manual da página.
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
-      toast({ title: "Aprovação revertida", description: `"${sponsorName}" volta a aguardar aprovação.` });
+      toast({ title: "Aprovação revertida", description: `"${sponsorName}" volta a aguardar aprovação.`, variant: "success" });
     } catch (error: any) {
       toast({ title: "Erro ao reverter", description: error.message, variant: "destructive" });
     } finally {
@@ -427,7 +429,7 @@ export function ItemDetailsDialog({
       if (!res.ok) throw new Error(data?.error || "Não foi possível descancelar a peça");
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
       queryClient.invalidateQueries({ queryKey: ["/api/items", item.eventId] });
-      toast({ title: "Peça descancelada", description: `Voltou para "${getStatusLabel(data?.status) || "o fluxo"}".` });
+      toast({ title: "Peça descancelada", description: `Voltou para "${getStatusLabel(data?.status) || "o fluxo"}".`, variant: "success" });
       onOpenChange(false);
     } catch (error: any) {
       toast({ title: "Erro ao descancelar", description: error.message, variant: "destructive" });
@@ -459,6 +461,7 @@ export function ItemDetailsDialog({
       toast({
         title: "Peça transferida",
         description: [`Agora pertence a "${nomeDestino}" — status mantido.`, ...avisos].join(" "),
+        variant: "success",
         ...(avisos.length ? { duration: 12000 } : {}),
       });
       setTransferOpen(false);
@@ -1159,21 +1162,16 @@ export function ItemDetailsDialog({
           {/* Descancelar — só admin, só cancelada. Volta para onde estava
               (o servidor sabe: coluna do cancelamento ou trilha). */}
           {rawStatus === "canceled" && user?.role === "admin" && (
-            <button
-              type="button"
+            <Botao
+              variante="primario"
+              icone={Undo2}
+              carregando={descancelando}
               onClick={handleUncancel}
-              disabled={descancelando}
               data-testid="button-descancelar"
-              style={{
-                flexShrink: 0, alignSelf: "center", display: "inline-flex", alignItems: "center", gap: 6,
-                padding: "8px 14px", borderRadius: 8, border: `1px solid ${T.bdark}`,
-                backgroundColor: T.text, color: T.surface, fontSize: 12.5, fontWeight: 700,
-                cursor: descancelando ? "default" : "pointer", opacity: descancelando ? 0.6 : 1,
-              }}
+              style={{ flexShrink: 0, alignSelf: "center", fontSize: FS.meta }}
             >
-              <Undo2 style={{ width: 13, height: 13 }} />
               {descancelando ? "Descancelando…" : "Descancelar"}
-            </button>
+            </Botao>
           )}
         </div>
 
@@ -1334,20 +1332,14 @@ export function ItemDetailsDialog({
                           <div style={{ minWidth: 0, flex: "1 1 auto" }}>
                             <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                               <span style={{ fontWeight: 700, fontSize: 15, color: T.text }}>{s.name}</span>
-                              <span
+                              <Selo
+                                cores={meta}
+                                ponto
                                 title={meta.hint}
                                 data-testid={`chip-aprovacao-${s.id}`}
-                                style={{
-                                  display: "inline-flex", alignItems: "center", gap: 6,
-                                  padding: "3px 10px", borderRadius: 999,
-                                  backgroundColor: meta.bg, color: meta.text,
-                                  border: `1px solid ${meta.border}`,
-                                  fontSize: 11, fontWeight: 700, whiteSpace: "nowrap",
-                                }}
                               >
-                                <span aria-hidden="true" style={{ width: 6, height: 6, borderRadius: "50%", backgroundColor: meta.dot, flexShrink: 0 }} />
                                 {meta.short}
-                              </span>
+                              </Selo>
                             </div>
                             {detalhe && (
                               <p style={{ fontSize: 12, color: T.apoio, margin: "4px 0 0", lineHeight: 1.45 }}>{detalhe}</p>
@@ -1633,35 +1625,35 @@ export function ItemDetailsDialog({
                             não abre, e a linha cortada em elipse não deixava
                             nem selecionar o texto. Sem este botão, o caminho
                             estava na tela e fora do alcance. */}
-                        <button
-                          type="button"
+                        <Botao
+                          variante="secundario"
+                          icone={Copy}
                           data-testid="button-copiar-caminho-final"
                           title={`Copiar caminho: ${item.finalFileUrl}`}
                           aria-label="Copiar caminho do arquivo final"
                           onClick={() => {
                             navigator.clipboard.writeText(item.finalFileUrl!)
-                              .then(() => toast({ title: "Caminho copiado", description: isWebUrl(item.finalFileUrl!) ? "Cole no navegador para abrir." : "Cole no Explorer para abrir o arquivo." }))
-                              .catch(() => toast({ title: "Não foi possível copiar", description: "Selecione o caminho e copie manualmente.", variant: "destructive" }));
+                              .then(() => toast({ title: "Caminho copiado", description: isWebUrl(item.finalFileUrl!) ? "Cole no navegador para abrir." : "Cole no Explorer para abrir o arquivo.", variant: "success" }))
+                              .catch(() => toast({ title: "Não foi possível copiar", description: "Selecione o caminho e copie manualmente.", variant: "warning" }));
                           }}
-                          style={{ display: "inline-flex", alignItems: "center", gap: 6, height: ALVO, padding: "0 12px", borderRadius: 8, border: `1px solid ${T.border}`, backgroundColor: T.surface, color: T.text, fontSize: 12, fontWeight: 700, cursor: "pointer" }}
+                          style={{ minHeight: ALVO, padding: "0 12px", color: T.text, fontSize: FS.meta }}
                         >
-                          <Copy aria-hidden="true" style={{ width: 13, height: 13 }} />
                           Copiar
-                        </button>
+                        </Botao>
                         {/* "Abrir" só quando o navegador consegue abrir. */}
                         {isWebUrl(item.finalFileUrl) && (
                           <a
                             href={hrefSeguro(item.finalFileUrl)} target="_blank" rel="noopener noreferrer"
-                            style={{ display: "inline-flex", alignItems: "center", height: ALVO, padding: "0 12px", borderRadius: 8, border: `1px solid ${T.border}`, backgroundColor: T.surface, color: T.text, fontSize: 12, fontWeight: 700, textDecoration: "none" }}
+                            style={{ display: "inline-flex", alignItems: "center", height: ALVO, padding: "0 12px", borderRadius: R.md, border: `1px solid ${T.border}`, backgroundColor: T.surface, color: T.text, fontSize: FS.meta, fontWeight: FW.forte, textDecoration: "none" }}
                           >
                             Abrir
                           </a>
                         )}
                       </div>
                     ) : (
-                      <span style={{ padding: "4px 10px", borderRadius: 999, backgroundColor: N.n2, border: `1px solid ${T.border}`, color: T.strong, fontSize: 11, fontWeight: 700, flexShrink: 0 }}>
+                      <Selo tom="neutro" style={{ flexShrink: 0 }}>
                         Pendente
-                      </span>
+                      </Selo>
                     )}
                   </div>
 
@@ -1807,20 +1799,15 @@ export function ItemDetailsDialog({
           </span>
 
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-            <button
-              type="button"
+            <Botao
+              variante="primario"
+              tamanho="toque"
               onClick={() => onOpenChange(false)}
               data-testid="button-fechar-rodape"
-              style={{
-                height: 44, padding: "0 24px", borderRadius: 8, border: "none",
-                backgroundColor: T.text, color: T.surface, cursor: "pointer",
-                font: "inherit", fontSize: 13, fontWeight: 700,
-              }}
-              onMouseEnter={e => { e.currentTarget.style.backgroundColor = T.strong; }}
-              onMouseLeave={e => { e.currentTarget.style.backgroundColor = T.text; }}
+              style={{ padding: "0 24px", fontSize: FS.body }}
             >
               Fechar
-            </button>
+            </Botao>
           </div>
         </footer>
       </DialogContent>
@@ -1870,33 +1857,30 @@ export function ItemDetailsDialog({
           </div>
 
           <div style={{ padding: "16px 24px", borderTop: `1px solid ${N.n3}`, display: "flex", justifyContent: "flex-end", gap: 8 }}>
-            <button
-              type="button"
+            <Botao
+              variante="fantasma"
               onClick={() => { setTransferOpen(false); setTransferDestino(""); }}
               disabled={transferindo}
               data-testid="button-cancelar-transferencia"
-              style={{
-                height: 40, padding: "0 18px", borderRadius: 8, border: `1px solid ${T.border}`,
-                backgroundColor: T.surface, color: T.strong, cursor: transferindo ? "default" : "pointer",
-                font: "inherit", fontSize: 13, fontWeight: 700,
-              }}
+              style={{ minHeight: 40, padding: "0 18px" }}
             >
               Cancelar
-            </button>
-            <button
-              type="button"
+            </Botao>
+            {/* Primário preto, como o resto do app — o azul de antes era a
+                única ação principal da ficha com cor própria. O motivo do
+                desabilitado fica visível: sem destino não há o que transferir. */}
+            <Botao
+              variante="primario"
               onClick={handleTransferEvent}
-              disabled={!transferDestino || transferindo}
+              disabled={!transferDestino}
+              carregando={transferindo}
+              motivo={!transferDestino ? "Escolha o evento de destino." : undefined}
+              alinharMotivo="end"
               data-testid="button-confirmar-transferencia"
-              style={{
-                height: 40, padding: "0 18px", borderRadius: 8, border: "none",
-                backgroundColor: !transferDestino || transferindo ? TOM.info.border : TOM.info.text,
-                color: T.surface, cursor: !transferDestino || transferindo ? "default" : "pointer",
-                font: "inherit", fontSize: 13, fontWeight: 700,
-              }}
+              style={{ minHeight: 40, padding: "0 18px" }}
             >
               {transferindo ? "Transferindo…" : "Transferir"}
-            </button>
+            </Botao>
           </div>
         </DialogContent>
       </Dialog>

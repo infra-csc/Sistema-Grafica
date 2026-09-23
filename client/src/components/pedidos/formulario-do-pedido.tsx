@@ -31,17 +31,19 @@ import { useFileUpload } from "@/hooks/use-file-upload";
 import { ProgressoDoEnvio, rotuloDoEnvio } from "@/components/FileUploader";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { motivoEventoFinalizado, todayBusinessMs } from "@/lib/status";
-import { T, FS, R, N, TOM } from "@/lib/theme";
+import { T, FS, R, N, TOM, FW } from "@/lib/theme";
+import { Botao } from "@/components/ui/botao";
+import { useConfirmar } from "@/components/ui/usar-confirmar";
 import { ReferenciasDoPedido, diaDoEvento, invalidarPedidos, mensagemDaApi } from "@/components/pedidos/ui";
 
-const ROTULO: React.CSSProperties = { display: "block", fontSize: FS.small, fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase", color: T.apoio, marginBottom: 6 };
-const CAMPO: React.CSSProperties = { width: "100%", boxSizing: "border-box", height: 40, padding: "0 12px", borderRadius: R.md, border: `1px solid ${T.bdark}`, background: T.surface, fontSize: 14, color: T.text, fontFamily: "inherit" };
+const ROTULO: React.CSSProperties = { display: "block", fontSize: FS.small, fontWeight: FW.rotulo, letterSpacing: "0.08em", textTransform: "uppercase", color: T.apoio, marginBottom: 6 };
+const CAMPO: React.CSSProperties = { width: "100%", boxSizing: "border-box", height: 40, padding: "0 12px", borderRadius: R.md, border: `1px solid ${T.bdark}`, background: T.surface, fontSize: FS.read, color: T.text, fontFamily: "inherit" };
 // Sem `outline: "none"` de propósito: o estilo inline vencia o :focus-visible
 // global e os campos do formulário não mostravam onde estava o foco — quem
 // navega por Tab via só o cursor piscando, e nos gatilhos de seleção nem isso.
 /** O gatilho do FilterSelect herda centralizado do botão — aqui é campo. */
 const GATILHO: React.CSSProperties = { ...CAMPO, textAlign: "left", justifyContent: "space-between" };
-const OPCIONAL = <span style={{ fontWeight: 600, textTransform: "none", letterSpacing: 0 }}>(opcional)</span>;
+const OPCIONAL = <span style={{ fontWeight: FW.medio, textTransform: "none", letterSpacing: 0 }}>(opcional)</span>;
 const TAMANHO_MAXIMO = 10 * 1024 * 1024;
 
 const dataDoCampo = (d: string | Date | null | undefined) => (d ? new Date(d).toISOString().slice(0, 10) : "");
@@ -148,17 +150,17 @@ function BlocoDaPeca({ peca, numero, total, eventos, eventosCarregando, opcoesDe
     const imagens = arquivos.filter((a) => a.type.startsWith("image/"));
     if (imagens.length === 0) return;
     const grandes = imagens.filter((a) => a.size > TAMANHO_MAXIMO).length;
-    if (grandes) toast({ title: grandes === 1 ? "1 imagem acima de 10 MB ficou de fora" : `${grandes} imagens acima de 10 MB ficaram de fora`, variant: "destructive" });
+    if (grandes) toast({ title: grandes === 1 ? "1 imagem acima de 10 MB ficou de fora" : `${grandes} imagens acima de 10 MB ficaram de fora`, variant: "warning" });
     const vagas = MAX_REFERENCIAS_DO_PEDIDO - peca.referencias.length;
-    if (vagas <= 0) { toast({ title: `No máximo ${MAX_REFERENCIAS_DO_PEDIDO} referências por peça`, variant: "destructive" }); return; }
+    if (vagas <= 0) { toast({ title: `No máximo ${MAX_REFERENCIAS_DO_PEDIDO} referências por peça`, variant: "warning" }); return; }
     const aceitas = imagens.filter((a) => a.size <= TAMANHO_MAXIMO);
-    if (aceitas.length > vagas) toast({ title: vagas === 1 ? "Só cabe mais 1 referência nesta peça" : `Só cabem mais ${vagas} referências nesta peça`, description: "As demais imagens ficaram de fora." });
+    if (aceitas.length > vagas) toast({ title: vagas === 1 ? "Só cabe mais 1 referência nesta peça" : `Só cabem mais ${vagas} referências nesta peça`, description: "As demais imagens ficaram de fora.", variant: "warning" });
     void envio.uploadFiles(aceitas.slice(0, vagas));
   };
 
   // 36/44: a régua da casa (ponteiro/toque). Eram 32/40 — no celular o
   // "Remover" ficava a 4px do mínimo, ao lado do "Duplicar".
-  const botaoPequeno: React.CSSProperties = { display: "inline-flex", alignItems: "center", gap: 5, height: isMobile ? 44 : 36, padding: "0 10px", borderRadius: R.md, border: `1px solid ${T.border}`, background: T.surface, color: T.strong, fontSize: 12.5, fontWeight: 700, cursor: "pointer" };
+  const tamanhoPequeno = isMobile ? "toque" as const : "md" as const;
 
   return (
     <fieldset
@@ -173,17 +175,19 @@ function BlocoDaPeca({ peca, numero, total, eventos, eventosCarregando, opcoesDe
         <span className="sr-only">Peça {numero}</span>
       </legend>
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
-        <span aria-hidden="true" style={{ fontSize: 13, fontWeight: 800, color: T.text }}>Peça {numero}</span>
+        <span aria-hidden="true" style={{ fontSize: FS.body, fontWeight: FW.rotulo, color: T.text }}>Peça {numero}</span>
         <span style={{ marginLeft: "auto", display: "flex", gap: 6 }}>
           {total < MAX_PECAS_POR_SOLICITACAO && (
-            <button type="button" onClick={onDuplicar} data-testid={`button-duplicar-peca-${numero}`} style={botaoPequeno}>
-              <Copy size={13} aria-hidden="true" /> Duplicar
-            </button>
+            <Botao variante="secundario" tamanho={tamanhoPequeno} icone={Copy} onClick={onDuplicar} data-testid={`button-duplicar-peca-${numero}`} style={{ padding: "0 10px", fontSize: FS.meta }}>
+              Duplicar
+            </Botao>
           )}
           {total > 1 && (
-            <button type="button" onClick={onRemover} data-testid={`button-remover-peca-${numero}`} aria-label={`Remover a peça ${numero}`} style={{ ...botaoPequeno, color: TOM.perigo.text, borderColor: TOM.perigo.border }}>
-              <Trash2 size={13} aria-hidden="true" /> Remover
-            </button>
+            /* Secundário com texto vermelho, não o perigo cheio: tira só um
+               bloco do rascunho, que ainda nem foi enviado. */
+            <Botao variante="secundario" tamanho={tamanhoPequeno} icone={Trash2} onClick={onRemover} data-testid={`button-remover-peca-${numero}`} aria-label={`Remover a peça ${numero}`} style={{ padding: "0 10px", fontSize: FS.meta, color: TOM.perigo.text, borderColor: TOM.perigo.border }}>
+              Remover
+            </Botao>
           )}
         </span>
       </div>
@@ -217,7 +221,7 @@ function BlocoDaPeca({ peca, numero, total, eventos, eventosCarregando, opcoesDe
             {peca.sponsorIds.length > 0 && (
               <div data-testid={`patrocinadores-escolhidos-${numero}`} style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
                 {peca.sponsorIds.map((sid) => (
-                  <span key={sid} style={{ display: "inline-flex", alignItems: "center", gap: 2, height: 32, padding: "0 2px 0 10px", borderRadius: R.pill, background: N.n2, border: `1px solid ${T.border}`, fontSize: 12.5, fontWeight: 700, color: T.strong }}>
+                  <span key={sid} style={{ display: "inline-flex", alignItems: "center", gap: 2, height: 32, padding: "0 2px 0 10px", borderRadius: R.pill, background: N.n2, border: `1px solid ${T.border}`, fontSize: FS.meta, fontWeight: FW.forte, color: T.strong }}>
                     {nomePorId.get(sid) ?? "Patrocinador"}
                     <button type="button" aria-label={`Tirar ${nomePorId.get(sid) ?? "patrocinador"}`}
                       onClick={() => onMudar((p) => ({ sponsorIds: p.sponsorIds.filter((x) => x !== sid) }))}
@@ -292,11 +296,13 @@ function BlocoDaPeca({ peca, numero, total, eventos, eventosCarregando, opcoesDe
                 onChange={(e) => enviarImagens(Array.from(e.target.files ?? []))} />
               <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
                 {peca.referencias.length < MAX_REFERENCIAS_DO_PEDIDO && (
-                  <button type="button" onClick={() => envio.fileInputRef.current?.click()} disabled={envio.isUploading} aria-busy={envio.isUploading || undefined}
-                    style={{ display: "inline-flex", alignItems: "center", gap: 6, height: isMobile ? 44 : 36, padding: "0 12px", borderRadius: R.md, border: `1px solid ${T.bdark}`, background: T.surface, color: T.text, fontSize: FS.body, fontWeight: 700, cursor: envio.isUploading ? "wait" : "pointer", fontVariantNumeric: "tabular-nums" }}>
-                    <ImagePlus size={15} aria-hidden="true" />
+                  /* O progresso fica no RÓTULO ("2 de 5…"), não no `carregando`:
+                     o spinner genérico esconderia quanto falta. */
+                  <Botao variante="secundario" tamanho={tamanhoPequeno} icone={ImagePlus}
+                    onClick={() => envio.fileInputRef.current?.click()} disabled={envio.isUploading} aria-busy={envio.isUploading || undefined}
+                    style={{ padding: "0 12px", color: T.text, borderColor: T.bdark, fontVariantNumeric: "tabular-nums" }}>
                     {envio.isUploading ? rotuloDoEnvio(envio.envio) : peca.referencias.length === 0 ? "Adicionar" : "Adicionar mais"}
-                  </button>
+                  </Botao>
                 )}
                 <span style={{ fontSize: FS.small, color: T.apoio, lineHeight: 1.45 }}>
                   {peca.referencias.length} de {MAX_REFERENCIAS_DO_PEDIDO} · arraste ou cole (Ctrl+V). Não é arte final.
@@ -319,6 +325,7 @@ function BlocoDaPeca({ peca, numero, total, eventos, eventosCarregando, opcoesDe
 
 export function FormularioDoPedido({ aberto, onFechar }: { aberto: boolean; onFechar: () => void }) {
   const { toast } = useToast();
+  const { confirmar, dialogo } = useConfirmar();
   const isMobile = useIsMobile();
   const [pecas, setPecas] = useState<PecaDoFormulario[]>(() => [novaPeca()]);
 
@@ -404,6 +411,7 @@ export function FormularioDoPedido({ aberto, onFechar }: { aberto: boolean; onFe
       toast({
         title: "Solicitação enviada",
         description: `${pecas.length} ${pecas.length === 1 ? "peça" : "peças"} · quem monta a lista foi avisado. Acompanhe cada uma nesta lista.`,
+        variant: "success",
       });
       invalidarPedidos();
       onFechar();
@@ -412,6 +420,7 @@ export function FormularioDoPedido({ aberto, onFechar }: { aberto: boolean; onFe
   });
 
   const travado = !!faltando || salvar.isPending;
+  const tamanhoDoRodape = isMobile ? "toque" as const : "md" as const;
 
   // GUARDA DE DESCARTE — o mesmo contrato de Usuários, Patrocinadores e
   // Modelos: X, Esc, clique fora e Cancelar passam todos por aqui, e só
@@ -424,11 +433,26 @@ export function FormularioDoPedido({ aberto, onFechar }: { aberto: boolean; onFe
   const preenchido = enviandoImagens || pecas.length > 1 || pecas.some((p) =>
     !!p.eventId || p.sponsorIds.length > 0 || p.quantidade !== "1" || !!p.precisaAte
     || !!p.tipoDePeca.trim() || !!p.largura.trim() || !!p.altura.trim() || !!p.observacao.trim() || p.referencias.length > 0);
-  const fechar = () => {
-    if (salvar.isPending) return;
-    if (preenchido && !window.confirm(enviandoImagens
-      ? "Ainda há imagens sendo enviadas. Descartar esta solicitação?"
-      : "Descartar esta solicitação? O que foi preenchido se perde.")) return;
+  // A pergunta é a do app (useConfirmar), não o window.confirm: a caixa do
+  // sistema congelava o modal atrás e dizia "OK" onde o verbo é Descartar.
+  // `perguntando` impede duas perguntas empilhadas (Esc + clique fora).
+  const perguntando = useRef(false);
+  const fechar = async () => {
+    if (salvar.isPending || perguntando.current) return;
+    if (preenchido) {
+      perguntando.current = true;
+      const ok = await confirmar({
+        titulo: "Descartar esta solicitação?",
+        descricao: enviandoImagens
+          ? "Ainda há imagens sendo enviadas. O que foi preenchido se perde."
+          : "O que foi preenchido se perde.",
+        confirmar: "Descartar",
+        cancelar: "Continuar preenchendo",
+        perigo: true,
+      });
+      perguntando.current = false;
+      if (!ok) return;
+    }
     onFechar();
   };
 
@@ -457,10 +481,12 @@ export function FormularioDoPedido({ aberto, onFechar }: { aberto: boolean; onFe
               onMudar={mudadorDe(p.chave)} onRemover={() => remover(p.chave)} onDuplicar={() => duplicar(p.chave)} />
           ))}
           {pecas.length < MAX_PECAS_POR_SOLICITACAO && (
-            <button type="button" onClick={adicionar} data-testid="button-adicionar-peca"
-              style={{ alignSelf: "flex-start", display: "inline-flex", alignItems: "center", gap: 6, height: 42, padding: "0 16px", borderRadius: R.md, border: `1.5px dashed ${TOM.alerta.text}`, background: TOM.alerta.bg, color: TOM.alerta.text, fontSize: 14, fontWeight: 800, cursor: "pointer" }}>
-              <Plus size={16} aria-hidden="true" /> Adicionar outra peça
-            </button>
+            /* Tracejado âmbar de propósito: é a "vaga" da próxima peça, no
+               tom do cabeçalho do formulário. */
+            <Botao variante="secundario" tamanho={tamanhoDoRodape} icone={Plus} onClick={adicionar} data-testid="button-adicionar-peca"
+              style={{ alignSelf: "flex-start", padding: "0 16px", border: `1.5px dashed ${TOM.alerta.text}`, background: TOM.alerta.bg, color: TOM.alerta.text, fontSize: FS.read, fontWeight: FW.rotulo }}>
+              Adicionar outra peça
+            </Botao>
           )}
         </form>
 
@@ -472,16 +498,20 @@ export function FormularioDoPedido({ aberto, onFechar }: { aberto: boolean; onFe
               ? `${faltando}.`
               : `${pecas.length} ${pecas.length === 1 ? "peça" : "peças"}${eventosDistintos > 1 ? ` · ${eventosDistintos} eventos` : ""} · vai para quem monta a lista`}
           </span>
-          <button type="button" onClick={fechar} disabled={salvar.isPending}
-            style={{ height: 44, padding: "0 18px", borderRadius: R.md, border: `1px solid ${T.border}`, background: T.surface, color: T.strong, fontSize: 14, fontWeight: 700, cursor: salvar.isPending ? "not-allowed" : "pointer" }}>
+          {/* O motivo do desabilitado já está VISÍVEL na frase à esquerda
+              ("Peça 2: escolha o evento."), por isso o Botao não repete `motivo`. */}
+          <Botao variante="secundario" tamanho="toque" onClick={fechar} disabled={salvar.isPending}
+            style={{ padding: "0 18px", fontSize: FS.read }}>
             Cancelar
-          </button>
-          <button type="submit" form="form-pedido" data-testid="button-enviar-pedido" disabled={travado}
-            style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8, height: 44, padding: "0 22px", borderRadius: R.md, border: "none", background: travado ? T.border : T.text, color: travado ? T.second : T.surface, fontSize: 14, fontWeight: 800, cursor: travado ? "not-allowed" : "pointer" }}>
-            <Send size={15} aria-hidden="true" /> {salvar.isPending ? "Enviando…" : "Enviar solicitação"}
-          </button>
+          </Botao>
+          <Botao type="submit" form="form-pedido" variante="primario" tamanho="toque" icone={Send}
+            data-testid="button-enviar-pedido" disabled={!!faltando} carregando={salvar.isPending}
+            style={{ padding: "0 22px", fontSize: FS.read }}>
+            {salvar.isPending ? "Enviando…" : "Enviar solicitação"}
+          </Botao>
         </div>
       </DialogContent>
+      {dialogo}
     </Dialog>
   );
 }

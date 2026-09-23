@@ -20,7 +20,9 @@ import {
 } from "@shared/pedidos-de-peca";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { HIDE_NATIVE_CLOSE, ModalFooter, ModalHeader, modalSurface } from "@/components/modal-shell";
-import { T, FS, R } from "@/lib/theme";
+import { T, FS, R, FW, TOM } from "@/lib/theme";
+import { Botao, type VarianteBotao } from "@/components/ui/botao";
+import { useConfirmar } from "@/components/ui/usar-confirmar";
 import { apiRequest } from "@/lib/queryClient";
 import { useIsMobile } from "@/hooks/use-mobile";
 
@@ -29,12 +31,15 @@ export type AcaoComMotivo = "cancelar" | "recusar" | "reabrir" | "ajuste" | "rec
 /** Sobre o que é a ação: uma peça da solicitação, ou (cancelar) a solicitação inteira. */
 export type AlvoDaAcao = { pedido: PedidoDePeca; linha: LinhaDoPedido | null; acao: AcaoComMotivo };
 
-const ACOES: Record<AcaoComMotivo, { titulo: (inteira: boolean) => string; confirmar: (inteira: boolean) => string; cor: string; icone: LucideIcon }> = {
-  cancelar:         { titulo: (i) => (i ? "Cancelar solicitação" : "Cancelar peça"), confirmar: (i) => (i ? "Cancelar solicitação" : "Cancelar peça"), cor: "#b91c1c", icone: XCircle },
-  recusar:          { titulo: () => "Recusar peça",   confirmar: () => "Recusar peça",   cor: "#b91c1c", icone: XCircle },
-  reabrir:          { titulo: () => "Reabrir peça",   confirmar: () => "Reabrir peça",   cor: "#1c1917", icone: RotateCcw },
-  ajuste:           { titulo: () => "Pedir ajuste",   confirmar: () => "Enviar ajuste",  cor: "#b45309", icone: Wrench },
-  "recusar-ajuste": { titulo: () => "Recusar ajuste", confirmar: () => "Recusar ajuste", cor: "#b91c1c", icone: XCircle },
+// `cor` pinta só o ícone do cabeçalho; o BOTÃO segue a função (`variante`):
+// cancelar e recusar encerram a peça, então são perigo; reabrir e pedir
+// ajuste são a ação principal do bloco, preto como no resto do app.
+const ACOES: Record<AcaoComMotivo, { titulo: (inteira: boolean) => string; confirmar: (inteira: boolean) => string; cor: string; variante: VarianteBotao; icone: LucideIcon }> = {
+  cancelar:         { titulo: (i) => (i ? "Cancelar solicitação" : "Cancelar peça"), confirmar: (i) => (i ? "Cancelar solicitação" : "Cancelar peça"), cor: TOM.perigo.text, variante: "perigo", icone: XCircle },
+  recusar:          { titulo: () => "Recusar peça",   confirmar: () => "Recusar peça",   cor: TOM.perigo.text, variante: "perigo", icone: XCircle },
+  reabrir:          { titulo: () => "Reabrir peça",   confirmar: () => "Reabrir peça",   cor: T.text, variante: "primario", icone: RotateCcw },
+  ajuste:           { titulo: () => "Pedir ajuste",   confirmar: () => "Enviar ajuste",  cor: TOM.alerta.text, variante: "primario", icone: Wrench },
+  "recusar-ajuste": { titulo: () => "Recusar ajuste", confirmar: () => "Recusar ajuste", cor: TOM.perigo.text, variante: "perigo", icone: XCircle },
 };
 
 /** O aviso depois de concluir. */
@@ -90,6 +95,7 @@ export function MotivoDoPedidoDialog({ alvo, pendente, onConfirmar, onFechar }: 
   onFechar: () => void;
 }) {
   const isMobile = useIsMobile();
+  const { confirmar, dialogo } = useConfirmar();
   const [motivo, setMotivo] = useState("");
   // Zera o motivo ao trocar de alvo ou de ação.
   const chave = alvo ? `${alvo.pedido.id}:${alvo.linha?.id ?? "toda"}:${alvo.acao}` : null;
@@ -113,9 +119,24 @@ export function MotivoDoPedidoDialog({ alvo, pendente, onConfirmar, onFechar }: 
   // Mesma guarda de descarte do formulário da solicitação (e de Usuários,
   // Patrocinadores, Modelos): Esc, clique fora, X e Voltar só perguntam se já
   // há texto — o motivo é obrigatório e um Esc acidental o apagava calado.
-  const sair = () => {
-    if (pendente) return;
-    if (motivo.trim() && !window.confirm(ehAjuste ? "Descartar o ajuste escrito?" : "Descartar o motivo escrito?")) return;
+  // A pergunta é a do app (useConfirmar), não o window.confirm: a caixa do
+  // sistema travava o modal atrás dela e dizia "OK" onde o verbo é Descartar.
+  // `perguntando` evita duas perguntas empilhadas (Esc e clique fora juntos).
+  const perguntando = useRef(false);
+  const sair = async () => {
+    if (pendente || perguntando.current) return;
+    if (motivo.trim()) {
+      perguntando.current = true;
+      const ok = await confirmar({
+        titulo: ehAjuste ? "Descartar o ajuste escrito?" : "Descartar o motivo escrito?",
+        descricao: "O texto que você escreveu se perde.",
+        confirmar: "Descartar",
+        cancelar: "Continuar escrevendo",
+        perigo: true,
+      });
+      perguntando.current = false;
+      if (!ok) return;
+    }
     onFechar();
   };
   const citacao = a?.linha ? textoDaObservacao(a.linha.observacao) : a ? a.pedido.linhas.map((l) => `${rotuloDaLinha(l)} (${quantidadeDoPedido(l.quantidade)})`).join(" · ") : "";
@@ -129,12 +150,12 @@ export function MotivoDoPedidoDialog({ alvo, pendente, onConfirmar, onFechar }: 
 
         <div style={{ padding: "16px 24px", display: "flex", flexDirection: "column", gap: 12, overflowY: "auto", flex: "1 1 auto", minHeight: 0 }}>
           {citacao && (
-            <blockquote style={{ margin: 0, padding: "8px 12px", borderLeft: "3px solid #d6d3d1", background: "#fafaf9", borderRadius: R.sm, fontSize: FS.body, color: "#44403c", lineHeight: 1.5, whiteSpace: "pre-wrap", overflowWrap: "anywhere", display: "-webkit-box", WebkitLineClamp: 4, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
+            <blockquote style={{ margin: 0, padding: "8px 12px", borderLeft: `3px solid ${T.bdark}`, background: T.bg, borderRadius: R.sm, fontSize: FS.body, color: T.strong, lineHeight: 1.5, whiteSpace: "pre-wrap", overflowWrap: "anywhere", display: "-webkit-box", WebkitLineClamp: 4, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
               {a?.linha ? `“${citacao}”` : citacao}
             </blockquote>
           )}
           <div>
-            <label htmlFor="motivo-do-pedido" style={{ display: "block", fontSize: FS.small, fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase", color: "#57534e", marginBottom: 6 }}>
+            <label htmlFor="motivo-do-pedido" style={{ display: "block", fontSize: FS.small, fontWeight: FW.rotulo, letterSpacing: "0.08em", textTransform: "uppercase", color: T.apoio, marginBottom: 6 }}>
               {ehAjuste ? "O que precisa ajustar" : "Motivo"}
             </label>
             <textarea
@@ -152,36 +173,39 @@ export function MotivoDoPedidoDialog({ alvo, pendente, onConfirmar, onFechar }: 
               }}
               aria-describedby="motivo-do-pedido-contador"
               placeholder={ehAjuste ? "Diga exatamente o que mudar na peça — quem monta a lista decide se aceita." : "Explique em uma frase — quem recebe precisa entender o porquê."}
-              style={{ width: "100%", boxSizing: "border-box", borderRadius: R.md, border: `1px solid ${falta > 0 && motivo ? "#fcd34d" : "#d6d3d1"}`, padding: "10px 12px", fontSize: 14, fontFamily: "inherit", lineHeight: 1.45, resize: "vertical", color: T.text }}
+              style={{ width: "100%", boxSizing: "border-box", borderRadius: R.md, border: `1px solid ${falta > 0 && motivo ? TOM.alerta.border : T.bdark}`, padding: "10px 12px", fontSize: isMobile ? FS.lead : FS.read, fontFamily: "inherit", lineHeight: 1.45, resize: "vertical", color: T.text }}
             />
             {/* O contador visível NÃO é região viva: anunciava "faltam 9",
                 "faltam 8"… a cada tecla. Ele segue ligado ao campo pelo
                 aria-describedby; quem ouve só é avisado quando fica pronto. */}
             <span className="sr-only" aria-live="polite">{falta === 0 ? (ehAjuste ? "Texto pronto para enviar." : "Motivo pronto para confirmar.") : ""}</span>
-            <p id="motivo-do-pedido-contador" style={{ margin: "4px 0 0", fontSize: FS.small, color: falta > 0 ? "#92400e" : "#065f46" }}>
+            <p id="motivo-do-pedido-contador" style={{ margin: "4px 0 0", fontSize: FS.small, color: falta > 0 ? TOM.alerta.text : TOM.esmeralda.text }}>
               {falta > 0 ? `Faltam ${falta} ${falta === 1 ? "caractere" : "caracteres"}` : ehAjuste ? "Texto pronto" : "Motivo pronto"}
-              {falta === 0 && !isMobile && <span style={{ color: "#57534e" }}> · Ctrl+Enter confirma</span>}
+              {falta === 0 && !isMobile && <span style={{ color: T.apoio }}> · Ctrl+Enter confirma</span>}
             </p>
           </div>
-          <p style={{ margin: 0, display: "flex", gap: 8, alignItems: "flex-start", fontSize: FS.body, color: "#44403c", lineHeight: 1.45 }}>
-            <BellRing size={15} aria-hidden="true" style={{ flexShrink: 0, marginTop: 2, color: "#57534e" }} />
+          <p style={{ margin: 0, display: "flex", gap: 8, alignItems: "flex-start", fontSize: FS.body, color: T.strong, lineHeight: 1.45 }}>
+            <BellRing size={15} aria-hidden="true" style={{ flexShrink: 0, marginTop: 2, color: T.apoio }} />
             {a ? avisoDaAcao(a) : ""}
           </p>
         </div>
 
         <ModalFooter>
-          <button type="button" data-testid="button-confirmar-motivo" disabled={travado}
+          <Botao variante={meta.variante} data-testid="button-confirmar-motivo" disabled={falta > 0}
+            carregando={pendente}
             onClick={() => onConfirmar(motivo.trim())}
             title={falta > 0 ? `O texto precisa de pelo menos ${MIN_MOTIVO_DO_PEDIDO} caracteres` : undefined}
-            style={{ height: alvoDoToque + 4, borderRadius: R.md, border: "none", background: travado ? "#e7e5e4" : meta.cor, color: travado ? "#78716c" : "#ffffff", fontSize: 14, fontWeight: 800, cursor: travado ? "not-allowed" : "pointer" }}>
+            motivo={falta > 0 ? `Escreva pelo menos ${MIN_MOTIVO_DO_PEDIDO} caracteres.` : undefined}
+            style={{ minHeight: alvoDoToque + 4, fontSize: FS.read }}>
             {pendente ? "Salvando…" : meta.confirmar(inteira)}
-          </button>
-          <button type="button" onClick={sair} disabled={pendente}
-            style={{ height: alvoDoToque, borderRadius: R.md, border: "none", background: "transparent", color: "#57534e", fontSize: FS.body, fontWeight: 700, cursor: pendente ? "not-allowed" : "pointer" }}>
+          </Botao>
+          <Botao variante="fantasma" onClick={sair} disabled={pendente}
+            style={{ minHeight: alvoDoToque }}>
             Voltar
-          </button>
+          </Botao>
         </ModalFooter>
       </DialogContent>
+      {dialogo}
     </Dialog>
   );
 }

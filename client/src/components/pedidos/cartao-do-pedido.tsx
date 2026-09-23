@@ -17,7 +17,7 @@ import {
   type PedidoDePeca,
   type SeloDoEvento,
 } from "@shared/pedidos-de-peca";
-import { T, FS, R, N, TOM } from "@/lib/theme";
+import { T, FS, R, N, TOM, FW } from "@/lib/theme";
 import { useIsMobile } from "@/hooks/use-mobile";
 import {
   AjusteDaLinha,
@@ -67,15 +67,19 @@ export function BotaoDoCartao({ acao, altura, descritoPor }: { acao: AcaoDoCarta
   const bloqueado = !!acao.bloqueio || !!acao.ocupado;
   const estilo: React.CSSProperties = {
     display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 5, height: altura, padding: "0 12px",
-    borderRadius: R.md, fontSize: 12.5, fontWeight: 800, whiteSpace: "nowrap", textDecoration: "none",
+    borderRadius: R.md, fontSize: FS.meta, fontWeight: FW.rotulo, whiteSpace: "nowrap", textDecoration: "none",
     border: `1px solid ${bloqueado ? T.border : tom.borda}`,
     background: bloqueado ? N.n2 : tom.fundo,
     color: bloqueado ? T.second : tom.cor,
     cursor: acao.ocupado ? "wait" : bloqueado ? "not-allowed" : "pointer",
     transition: "background-color 0.12s, border-color 0.12s",
   };
+  // Hover/pressionado do design system (.ds-botao) só no que responde a
+  // clique: o bloqueado usa aria-disabled, que o :not(:disabled) da classe
+  // não enxerga — acenderia um botão que não vai agir.
+  const classe = bloqueado ? undefined : "ds-botao";
   if (acao.href && !bloqueado) {
-    return <Link href={acao.href} data-testid={acao.testId} style={estilo}>{acao.rotulo}</Link>;
+    return <Link href={acao.href} data-testid={acao.testId} className={classe} style={estilo}>{acao.rotulo}</Link>;
   }
   // BLOQUEADO NÃO É `disabled`: botão desabilitado sai da ordem do Tab e não
   // dispara o `title` no hover — quem usa teclado ou toque nunca descobria o
@@ -85,7 +89,7 @@ export function BotaoDoCartao({ acao, altura, descritoPor }: { acao: AcaoDoCarta
     <button type="button" data-testid={acao.testId} disabled={!!acao.ocupado} title={motivo ?? undefined}
       aria-disabled={bloqueado} aria-busy={acao.ocupado || undefined}
       aria-describedby={motivo && descritoPor ? descritoPor : undefined}
-      onClick={bloqueado ? undefined : acao.onClick} style={estilo}>
+      onClick={bloqueado ? undefined : acao.onClick} className={classe} style={estilo}>
       {motivo && <Lock size={12} aria-hidden="true" />}
       {acao.rotulo}
     </button>
@@ -124,13 +128,13 @@ export function LinhaDoCartao({ linha, agora, selo, acoes = [], mostrarEvento = 
       style={{ listStyle: "none", padding: "10px 12px", borderRadius: R.md, border: `1px solid ${T.border}`, borderLeft: `3px solid ${tom.borda}`, background: T.surface, display: "flex", flexDirection: "column", gap: 6, minWidth: 0 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", minWidth: 0 }}>
         <EstadoDoPedido status={linha.status} />
-        <strong style={{ fontSize: 14, color: T.text }}>{quantidadeDoPedido(linha.quantidade)}</strong>
+        <strong style={{ fontSize: FS.read, color: T.text }}>{quantidadeDoPedido(linha.quantidade)}</strong>
         <span style={{ fontSize: 13.5, fontWeight: 700, color: T.text, minWidth: 0, overflowWrap: "anywhere" }}>
           {rotuloDaLinha(linha)}{medida ? ` · ${medida}` : ""}
         </span>
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", fontSize: FS.body, color: T.apoio }}>
-        <span data-testid={`patrocinadores-linha-${linha.id}`} style={{ fontWeight: 600, color: linha.sponsors?.length ? T.strong : T.second }}>
+        <span data-testid={`patrocinadores-linha-${linha.id}`} style={{ fontWeight: FW.medio, color: linha.sponsors?.length ? T.strong : T.second }}>
           {patrocinadoresDaLinha(linha)}
         </span>
         {mostrarEvento && (
@@ -189,7 +193,7 @@ export function CartaoDoPedido({ pedido, linhas, agora, seloDe, acoesDaLinha, ac
   const titulo = (
     <>
       <EstadoDoPedido status={pedido.status} />
-      <strong style={{ flexShrink: 0, fontSize: 14, color: T.text, textDecoration: onAbrir ? "underline" : "none", textDecorationColor: T.bdark, textUnderlineOffset: 3 }}>
+      <strong style={{ flexShrink: 0, fontSize: FS.read, color: T.text, textDecoration: onAbrir ? "underline" : "none", textDecorationColor: T.bdark, textUnderlineOffset: 3 }}>
         Solicitação · {n} {n === 1 ? "peça" : "peças"}
       </strong>
       {n > 1 && <span style={{ fontSize: FS.body, color: T.apoio, minWidth: 0 }}>{resumoDasLinhas(pedido.linhas)}</span>}

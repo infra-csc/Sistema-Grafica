@@ -13,7 +13,8 @@ import { rotuloDaRemessa, type CabecalhoDoKit, type RemessaDoKit } from "@shared
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { HIDE_NATIVE_CLOSE, ModalFooter, ModalHeader, modalSurface } from "@/components/modal-shell";
 import { alvo, useIsMobile, usePonteiroGrosso } from "@/hooks/use-mobile";
-import { T, FS, R, N, TOM } from "@/lib/theme";
+import { T, FS, R, N, TOM, FW } from "@/lib/theme";
+import { Botao } from "@/components/ui/botao";
 
 export type NovaRemessaDoKit = {
   versao: string;
@@ -32,8 +33,8 @@ export type DestinoDaImportacao =
   | { tipo: "remessa"; kitRemessaId: string }
   | { tipo: "nova"; kitNovaRemessa: NovaRemessaDoKit };
 
-const ROTULO: React.CSSProperties = { display: "block", fontSize: FS.small, fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase", color: T.apoio, marginBottom: 5 };
-const CAMPO: React.CSSProperties = { width: "100%", boxSizing: "border-box", height: 38, padding: "0 10px", borderRadius: R.md, border: `1px solid ${T.bdark}`, background: T.surface, fontSize: 14, color: T.text, fontFamily: "inherit" };
+const ROTULO: React.CSSProperties = { display: "block", fontSize: FS.small, fontWeight: FW.rotulo, letterSpacing: "0.08em", textTransform: "uppercase", color: T.apoio, marginBottom: 5 };
+const CAMPO: React.CSSProperties = { width: "100%", boxSizing: "border-box", height: 38, padding: "0 10px", borderRadius: R.md, border: `1px solid ${T.bdark}`, background: T.surface, fontSize: FS.read, color: T.text, fontFamily: "inherit" };
 
 export function DestinoDaImportacaoDialog({ aberto, quantidade, arquivo, remessas, cabecalho, somenteKit, pendente, onConfirmar, onFechar }: {
   aberto: boolean;
@@ -112,7 +113,7 @@ export function DestinoDaImportacaoDialog({ aberto, quantidade, arquivo, remessa
           border: `2px solid ${ativo ? cor : T.border}`, background: bloqueio ? N.n2 : ativo ? `${cor}0f` : T.surface, opacity: bloqueio ? 0.6 : 1 }}>
         <Icone size={20} color={bloqueio ? T.second : cor} aria-hidden="true" style={{ flexShrink: 0, marginTop: 1 }} />
         <span>
-          <span style={{ display: "block", fontSize: 15, fontWeight: 800, color: T.text }}>{titulo}</span>
+          <span style={{ display: "block", fontSize: FS.strong, fontWeight: FW.rotulo, color: T.text }}>{titulo}</span>
           <span style={{ display: "block", fontSize: FS.body, color: T.apoio, marginTop: 2, lineHeight: 1.4 }}>{bloqueio ?? texto}</span>
         </span>
       </button>
@@ -145,7 +146,7 @@ export function DestinoDaImportacaoDialog({ aberto, quantidade, arquivo, remessa
                 <div role="radiogroup" aria-label="Remessa do Kit" style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                   {([["nova", "Nova remessa"], ["remessa", "Remessa que já existe"]] as const).map(([valor, rotulo]) => (
                     <button key={valor} type="button" role="radio" aria-checked={modoKit === valor} onClick={() => setModoKit(valor)} data-testid={`modo-kit-${valor}`}
-                      style={{ height: alvo(34, dedo), padding: "0 12px", borderRadius: R.pill, border: `1px solid ${modoKit === valor ? TOM.roxo.text : TOM.roxo.border}`, background: modoKit === valor ? TOM.roxo.text : T.surface, color: modoKit === valor ? T.surface : TOM.roxo.text, fontSize: 12.5, fontWeight: 800, cursor: "pointer" }}>
+                      style={{ height: alvo(34, dedo), padding: "0 12px", borderRadius: R.pill, border: `1px solid ${modoKit === valor ? TOM.roxo.text : TOM.roxo.border}`, background: modoKit === valor ? TOM.roxo.text : T.surface, color: modoKit === valor ? T.surface : TOM.roxo.text, fontSize: FS.meta, fontWeight: FW.rotulo, cursor: "pointer" }}>
                       {rotulo}
                     </button>
                   ))}
@@ -191,15 +192,16 @@ export function DestinoDaImportacaoDialog({ aberto, quantidade, arquivo, remessa
         </div>
 
         <ModalFooter>
-          <button type="button" data-testid="button-confirmar-destino" disabled={!!falta || pendente} onClick={confirmar} title={falta ?? undefined}
-            style={{ height: 46, borderRadius: R.md, border: "none", fontSize: 14, fontWeight: 800, cursor: falta ? "not-allowed" : "pointer",
-              background: falta || pendente ? T.border : tipo === "kit" ? TOM.roxo.text : T.text, color: falta || pendente ? T.second : T.surface }}>
+          {/* Primário preto nos dois destinos (o roxo do Kit fica nos cartões
+              de escolha, acima). Travado, o próprio RÓTULO diz o que falta —
+              é o motivo visível, então o Botao não repete `motivo`. */}
+          <Botao variante="primario" data-testid="button-confirmar-destino" disabled={!!falta} carregando={pendente} onClick={confirmar} title={falta ?? undefined}
+            style={{ minHeight: 46, fontSize: FS.read, fontWeight: FW.rotulo }}>
             {pendente ? "Importando…" : falta ? falta : `Importar ${quantidade} ${quantidade === 1 ? "peça" : "peças"} ${tipo === "kit" ? "do Kit" : "da Arena"}`}
-          </button>
-          <button type="button" onClick={onFechar} disabled={pendente}
-            style={{ height: 40, borderRadius: R.md, border: "none", background: "transparent", color: T.apoio, fontSize: FS.body, fontWeight: 700, cursor: "pointer" }}>
+          </Botao>
+          <Botao variante="fantasma" onClick={onFechar} disabled={pendente} style={{ minHeight: 40 }}>
             Voltar à revisão
-          </button>
+          </Botao>
         </ModalFooter>
       </DialogContent>
     </Dialog>

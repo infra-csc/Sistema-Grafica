@@ -19,10 +19,11 @@ import { HIDE_NATIVE_CLOSE, ModalHeader, modalSurface } from "@/components/modal
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { alvo, useIsMobile, usePonteiroGrosso } from "@/hooks/use-mobile";
-import { T, FS, R, N, TOM, FONT } from "@/lib/theme";
+import { T, FS, R, N, TOM, FONT, FW } from "@/lib/theme";
+import { Botao } from "@/components/ui/botao";
 
-const ROTULO: React.CSSProperties = { display: "block", fontSize: FS.small, fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase", color: T.apoio, marginBottom: 5 };
-const CAMPO: React.CSSProperties = { width: "100%", boxSizing: "border-box", height: 38, padding: "0 10px", borderRadius: R.md, border: `1px solid ${T.bdark}`, background: T.surface, fontSize: 14, color: T.text, fontFamily: "inherit" };
+const ROTULO: React.CSSProperties = { display: "block", fontSize: FS.small, fontWeight: FW.rotulo, letterSpacing: "0.08em", textTransform: "uppercase", color: T.apoio, marginBottom: 5 };
+const CAMPO: React.CSSProperties = { width: "100%", boxSizing: "border-box", height: 38, padding: "0 10px", borderRadius: R.md, border: `1px solid ${T.bdark}`, background: T.surface, fontSize: FS.read, color: T.text, fontFamily: "inherit" };
 
 const dataDoCampo = (d: string | Date | null | undefined) => (d ? new Date(d).toISOString().slice(0, 10) : "");
 const proximaVersao = (remessas: RemessaDoKit[]) => {
@@ -80,7 +81,7 @@ export function PainelDoKit({ eventId, pecas, podeCriar, usuarioDoKit, nomeDoUsu
   const excluir = useMutation({
     mutationFn: async (id: string) => (await apiRequest("DELETE", `/api/kit/remessas/${id}`)).json(),
     onSuccess: (r: any) => {
-      toast({ title: "Remessa do Kit excluída", description: r?.excluidas ? `${r.excluidas} ${r.excluidas === 1 ? "peça foi para" : "peças foram para"} Peças Excluídas.` : undefined });
+      toast({ title: "Remessa do Kit excluída", description: r?.excluidas ? `${r.excluidas} ${r.excluidas === 1 ? "peça foi para" : "peças foram para"} Peças Excluídas.` : undefined, variant: "success" });
       setConfirmandoExclusao(null);
       setRemessaAberta(null);
       queryClient.invalidateQueries({ queryKey: [chaveDasRemessas(eventId)] });
@@ -141,8 +142,8 @@ export function PainelDoKit({ eventId, pecas, podeCriar, usuarioDoKit, nomeDoUsu
       }
       setPlanilha({ nome: dados?.fileName ?? arquivo.name, pecas: lidas, departamento: c?.departamento ?? null, dataSolicitacao: c?.dataSolicitacao ?? null });
       toast(c
-        ? { title: `Planilha do Kit lida: ${lidas.length} ${lidas.length === 1 ? "peça" : "peças"}`, description: "Datas e versão preenchidas pelo cabeçalho — confira antes de criar." }
-        : { title: `${lidas.length} ${lidas.length === 1 ? "peça lida" : "peças lidas"}`, description: "A planilha não tem o cabeçalho do Kit: preencha as datas à mão." });
+        ? { title: `Planilha do Kit lida: ${lidas.length} ${lidas.length === 1 ? "peça" : "peças"}`, description: "Datas e versão preenchidas pelo cabeçalho — confira antes de criar.", variant: "success" as const }
+        : { title: `${lidas.length} ${lidas.length === 1 ? "peça lida" : "peças lidas"}`, description: "A planilha não tem o cabeçalho do Kit: preencha as datas à mão.", variant: "warning" as const });
     } catch (e: any) {
       toast({ title: "Não deu para ler a planilha", description: e?.message, variant: "destructive" });
     } finally {
@@ -181,6 +182,7 @@ export function PainelDoKit({ eventId, pecas, podeCriar, usuarioDoKit, nomeDoUsu
         // As peças nascem em RASCUNHO: sem dizer, quem importou achava que a
         // remessa já tinha seguido para a vinculação.
         description: r.pecas > 0 ? "As peças entraram em Rascunho com o selo KIT — envie para a vinculação no card “Peças em Rascunho”." : "Adicione as peças escolhendo esta remessa, ou crie outra com a planilha.",
+        variant: "success",
       });
       queryClient.invalidateQueries({ queryKey: [chaveDasRemessas(eventId)] });
       queryClient.invalidateQueries({ queryKey: ["/api/items", eventId] });
@@ -217,7 +219,7 @@ export function PainelDoKit({ eventId, pecas, podeCriar, usuarioDoKit, nomeDoUsu
       style={{ backgroundColor: T.surface, border: `1px solid ${T.border}`, borderLeft: `3px solid ${TOM.roxo.text}`, borderRadius: R.lg, padding: "14px 20px", marginBottom: 24, display: "flex", flexDirection: "column", gap: 10 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
         <Package style={{ width: 16, height: 16, color: TOM.roxo.text }} aria-hidden="true" />
-        <h2 id="titulo-painel-do-kit" style={{ margin: 0, fontSize: 13, fontWeight: 800, color: T.text, textTransform: "uppercase", letterSpacing: "0.04em" }}>Kit</h2>
+        <h2 id="titulo-painel-do-kit" style={{ margin: 0, fontSize: FS.body, fontWeight: FW.rotulo, color: T.text, textTransform: "uppercase", letterSpacing: "0.04em" }}>Kit</h2>
         {/* Sem remessa, o painel aparece em TODO evento para quem pode criar:
             a frase diz para que ele serve, e que ignorá-lo é normal quando o
             evento não tem Kit. */}
@@ -227,13 +229,16 @@ export function PainelDoKit({ eventId, pecas, podeCriar, usuarioDoKit, nomeDoUsu
             : `${remessas.length} ${remessas.length === 1 ? "remessa" : "remessas"} — datas próprias do Kit`}
         </span>
         {podeCriar && (
-          <button type="button" data-testid="button-nova-remessa-kit" disabled={eventoFinalizado} onClick={() => setAberto(true)}
-            title={eventoFinalizado ? "Evento finalizado — não recebe peças" : undefined}
-            // Desabilitado em #78716c, não #a8a29e: o rótulo continua sendo
-            // TEXTO lido (2,5:1 reprovava), só perde a cor de ação.
-            style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 6, height: alvo(34, dedo), padding: "0 14px", borderRadius: R.md, border: `1px solid ${TOM.roxo.border}`, background: eventoFinalizado ? N.n2 : TOM.roxo.bg, color: eventoFinalizado ? T.second : TOM.roxo.text, fontSize: 12.5, fontWeight: 800, cursor: eventoFinalizado ? "not-allowed" : "pointer" }}>
-            <Plus size={14} aria-hidden="true" /> Nova remessa do Kit
-          </button>
+          /* Secundário no roxo do Kit (a identidade do painel). O motivo do
+             desabilitado deixa o `title` e fica VISÍVEL embaixo do botão. */
+          <span style={{ marginLeft: "auto" }}>
+            <Botao variante="secundario" icone={Plus} data-testid="button-nova-remessa-kit" disabled={eventoFinalizado} onClick={() => setAberto(true)}
+              title={eventoFinalizado ? "Evento finalizado — não recebe peças" : undefined}
+              motivo={eventoFinalizado ? "Evento finalizado — não recebe peças." : undefined} alinharMotivo="end"
+              style={{ minHeight: alvo(34, dedo), padding: "0 14px", borderColor: TOM.roxo.border, background: TOM.roxo.bg, color: TOM.roxo.text, fontSize: FS.meta, fontWeight: FW.rotulo }}>
+              Nova remessa do Kit
+            </Botao>
+          </span>
         )}
       </div>
       {usuarioDoKit && remessas.length === 0 && (
@@ -246,7 +251,7 @@ export function PainelDoKit({ eventId, pecas, podeCriar, usuarioDoKit, nomeDoUsu
               style={{ display: "flex", flexDirection: "column", gap: 2, padding: "8px 12px", borderRadius: R.md, border: `1px solid ${TOM.roxo.border}`, background: TOM.roxo.bg, minWidth: 200 }}>
               <button type="button" aria-expanded={remessaAberta === r.id} data-testid={`button-abrir-remessa-${r.id}`}
                 onClick={() => { setRemessaAberta((a) => (a === r.id ? null : r.id)); setConfirmandoExclusao(null); }}
-                style={{ display: "flex", alignItems: "center", gap: 6, padding: 0, border: "none", background: "none", cursor: "pointer", textAlign: "left", fontSize: 13, fontWeight: 800, color: TOM.roxo.text, minHeight: isMobile ? 44 : undefined }}>
+                style={{ display: "flex", alignItems: "center", gap: 6, padding: 0, border: "none", background: "none", cursor: "pointer", textAlign: "left", fontSize: FS.body, fontWeight: FW.rotulo, color: TOM.roxo.text, minHeight: isMobile ? 44 : undefined }}>
                 KIT {r.versao} · {pecasDe(r.id)} {pecasDe(r.id) === 1 ? "peça" : "peças"}
                 <ChevronDown size={14} aria-hidden="true" style={{ transform: remessaAberta === r.id ? "rotate(180deg)" : "none", transition: "transform 0.15s" }} />
               </button>
@@ -272,23 +277,26 @@ export function PainelDoKit({ eventId, pecas, podeCriar, usuarioDoKit, nomeDoUsu
         return (
           <div data-testid={`pecas-remessa-${r.id}`} style={{ border: `1px solid ${TOM.roxo.border}`, borderRadius: R.lg, overflow: "hidden" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", padding: "8px 12px", background: TOM.roxo.bg, borderBottom: `1px solid ${TOM.roxo.bg}` }}>
-              <span style={{ fontSize: FS.small, fontWeight: 800, color: TOM.roxo.text, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+              <span style={{ fontSize: FS.small, fontWeight: FW.rotulo, color: TOM.roxo.text, textTransform: "uppercase", letterSpacing: "0.06em" }}>
                 Peças do KIT {r.versao} · entrega {diaMesDoKit(r.entregaMaterial) ?? "—"}
               </span>
               {podeCriar && onAdicionarPeca && confirmandoExclusao !== r.id && (
-                <button type="button" data-testid={`button-adicionar-peca-remessa-${r.id}`} disabled={eventoFinalizado}
-                  onClick={() => onAdicionarPeca(r.id)}
-                  title={eventoFinalizado ? "Evento finalizado — não recebe peças" : `Adicionar uma peça à KIT ${r.versao}`}
-                  style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 5, height: alvo(32, dedo), padding: "0 12px", borderRadius: R.md, border: "none", background: eventoFinalizado ? T.border : TOM.roxo.text, color: eventoFinalizado ? T.second : T.surface, fontSize: 12.5, fontWeight: 800, cursor: eventoFinalizado ? "not-allowed" : "pointer" }}>
-                  <Plus size={13} aria-hidden="true" /> Adicionar peça ao KIT {r.versao}
-                </button>
+                <span style={{ marginLeft: "auto" }}>
+                  <Botao variante="primario" tamanho="sm" icone={Plus} data-testid={`button-adicionar-peca-remessa-${r.id}`} disabled={eventoFinalizado}
+                    onClick={() => onAdicionarPeca(r.id)}
+                    title={eventoFinalizado ? "Evento finalizado — não recebe peças" : `Adicionar uma peça à KIT ${r.versao}`}
+                    motivo={eventoFinalizado ? "Evento finalizado — não recebe peças." : undefined} alinharMotivo="end"
+                    style={{ minHeight: alvo(32, dedo), padding: "0 12px" }}>
+                    Adicionar peça ao KIT {r.versao}
+                  </Botao>
+                </span>
               )}
               {podeCriar && (confirmandoExclusao === r.id ? (
                 <span style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                   {/* A frase diz o tamanho real do estrago — "e as 1 peças" e
                       "e as 0 peças" liam como erro de digitação justo na hora
                       de confirmar uma exclusão. */}
-                  <span role="alert" style={{ fontSize: FS.body, color: TOM.perigo.text, fontWeight: 700 }}>
+                  <span role="alert" style={{ fontSize: FS.body, color: TOM.perigo.text, fontWeight: FW.forte }}>
                     {daRemessa.length === 0
                       ? `Excluir a KIT ${r.versao}? Ela não tem peças.`
                       : `Excluir a KIT ${r.versao} e ${daRemessa.length === 1 ? "a peça dela" : `as ${daRemessa.length} peças dela`}?`}
@@ -300,21 +308,23 @@ export function PainelDoKit({ eventId, pecas, podeCriar, usuarioDoKit, nomeDoUsu
                       Vão para Peças Excluídas. Só é possível enquanto nenhuma peça saiu do rascunho.
                     </span>
                   )}
-                  <button type="button" data-testid={`button-confirmar-excluir-remessa-${r.id}`} disabled={excluir.isPending} onClick={() => excluir.mutate(r.id)}
-                    style={{ height: alvo(32, dedo), padding: "0 12px", borderRadius: R.md, border: "none", background: TOM.perigo.text, color: T.surface, fontSize: 12.5, fontWeight: 800, cursor: excluir.isPending ? "wait" : "pointer" }}>
+                  <Botao variante="perigo" tamanho="sm" data-testid={`button-confirmar-excluir-remessa-${r.id}`} carregando={excluir.isPending} onClick={() => excluir.mutate(r.id)}
+                    style={{ minHeight: alvo(32, dedo), padding: "0 12px" }}>
                     {excluir.isPending ? "Excluindo…" : "Excluir"}
-                  </button>
-                  <button type="button" onClick={() => setConfirmandoExclusao(null)} disabled={excluir.isPending}
-                    style={{ height: alvo(32, dedo), padding: "0 8px", border: "none", background: "none", color: T.apoio, fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}>
+                  </Botao>
+                  <Botao variante="fantasma" tamanho="sm" onClick={() => setConfirmandoExclusao(null)} disabled={excluir.isPending}
+                    style={{ minHeight: alvo(32, dedo), padding: "0 8px" }}>
                     Voltar
-                  </button>
+                  </Botao>
                 </span>
               ) : (
-                <button type="button" data-testid={`button-excluir-remessa-${r.id}`} onClick={() => setConfirmandoExclusao(r.id)}
+                /* Secundário com texto vermelho: este clique só ABRE a pergunta;
+                   o perigo cheio fica para o "Excluir" que de fato apaga. */
+                <Botao variante="secundario" tamanho="sm" icone={Trash2} data-testid={`button-excluir-remessa-${r.id}`} onClick={() => setConfirmandoExclusao(r.id)}
                   title="Excluir a remessa e as peças dela — só enquanto nenhuma peça foi enviada"
-                  style={{ marginLeft: onAdicionarPeca ? 0 : "auto", display: "inline-flex", alignItems: "center", gap: 5, height: alvo(32, dedo), padding: "0 10px", borderRadius: R.md, border: `1px solid ${TOM.perigo.border}`, background: T.surface, color: TOM.perigo.text, fontSize: 12.5, fontWeight: 800, cursor: "pointer" }}>
-                  <Trash2 size={13} aria-hidden="true" /> Excluir remessa
-                </button>
+                  style={{ marginLeft: onAdicionarPeca ? 0 : "auto", minHeight: alvo(32, dedo), padding: "0 10px", borderColor: TOM.perigo.border, color: TOM.perigo.text }}>
+                  Excluir remessa
+                </Botao>
               ))}
             </div>
             {daRemessa.length === 0 ? (
@@ -372,7 +382,7 @@ export function PainelDoKit({ eventId, pecas, podeCriar, usuarioDoKit, nomeDoUsu
               <label data-testid="button-planilha-remessa-kit"
                 className="focus-within:ring-2 focus-within:ring-violet-600 focus-within:ring-offset-2"
                 style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, padding: "12px 10px", borderRadius: R.md, border: `1.5px dashed ${planilha ? TOM.sucesso.text : TOM.roxo.dot}`, background: planilha ? TOM.sucesso.bg : TOM.roxo.bg, color: planilha ? TOM.sucesso.text : TOM.roxo.text, cursor: lendoPlanilha ? "wait" : "pointer", textAlign: "center" }}>
-                <span style={{ display: "inline-flex", alignItems: "center", gap: 8, fontSize: 13.5, fontWeight: 800 }}>
+                <span style={{ display: "inline-flex", alignItems: "center", gap: 8, fontSize: FS.read, fontWeight: FW.rotulo }}>
                   <FileSpreadsheet size={16} aria-hidden="true" />
                   {lendoPlanilha ? "Lendo a planilha…" : planilha ? planilha.nome : "Enviar a planilha do Kit (.xlsx)"}
                 </span>
@@ -395,7 +405,7 @@ export function PainelDoKit({ eventId, pecas, podeCriar, usuarioDoKit, nomeDoUsu
 
             {nPecas > 0 && planilha && (
               <div style={{ minWidth: 0, border: `1px solid ${T.border}`, borderRadius: R.lg, overflow: "hidden" }}>
-                <div style={{ padding: "8px 12px", background: T.bg, borderBottom: `1px solid ${T.border}`, fontSize: FS.small, fontWeight: 800, color: T.apoio, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                <div style={{ padding: "8px 12px", background: T.bg, borderBottom: `1px solid ${T.border}`, fontSize: FS.small, fontWeight: FW.rotulo, color: T.apoio, textTransform: "uppercase", letterSpacing: "0.06em" }}>
                   Peças da planilha · {nPecas}
                 </div>
                 <div style={{ overflowX: "auto", maxHeight: isMobile ? 320 : "52vh" }}>
@@ -435,31 +445,30 @@ export function PainelDoKit({ eventId, pecas, podeCriar, usuarioDoKit, nomeDoUsu
             // da exclusão de remessa neste painel. Um segundo modal por cima
             // deste esconderia justamente o que a pessoa está decidindo perder.
             <div data-testid="confirmar-descarte-remessa-kit" style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 12, flexWrap: "wrap", padding: isMobile ? "12px 16px" : "14px 24px", borderTop: `1px solid ${TOM.perigo.border}`, background: TOM.perigo.bg, flexShrink: 0 }}>
-              <span role="alert" style={{ fontSize: FS.body, color: TOM.perigo.text, fontWeight: 700, marginRight: "auto" }}>
+              <span role="alert" style={{ fontSize: FS.body, color: TOM.perigo.text, fontWeight: FW.forte, marginRight: "auto" }}>
                 {planilha
                   ? `Descartar a planilha lida${nPecas > 0 ? ` (${nPecas} ${nPecas === 1 ? "peça" : "peças"})` : ""} e os dados da remessa?`
                   : "Descartar os dados da remessa que você preencheu?"}
               </span>
-              <button type="button" ref={continuarRef} onClick={() => setConfirmandoDescarte(false)}
-                style={{ height: 44, padding: "0 18px", borderRadius: R.md, border: `1px solid ${T.border}`, background: T.surface, color: T.strong, fontSize: 14, fontWeight: 700, cursor: "pointer" }}>
+              <Botao variante="secundario" tamanho="toque" ref={continuarRef} onClick={() => setConfirmandoDescarte(false)}>
                 Continuar editando
-              </button>
-              <button type="button" data-testid="button-descartar-remessa-kit" onClick={() => { setConfirmandoDescarte(false); setAberto(false); }}
-                style={{ height: 44, padding: "0 18px", borderRadius: R.md, border: "none", background: TOM.perigo.text, color: T.surface, fontSize: 14, fontWeight: 800, cursor: "pointer" }}>
+              </Botao>
+              <Botao variante="perigo" tamanho="toque" data-testid="button-descartar-remessa-kit" onClick={() => { setConfirmandoDescarte(false); setAberto(false); }}>
                 Descartar
-              </button>
+              </Botao>
             </div>
           ) : (
           <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 12, flexWrap: "wrap", padding: isMobile ? "12px 16px" : "14px 24px", borderTop: `1px solid ${T.border}`, flexShrink: 0 }}>
             {faltando && <span aria-live="polite" style={{ fontSize: FS.body, color: TOM.alerta.text, marginRight: "auto" }}>{faltando}.</span>}
-            <button type="button" onClick={pedirParaFechar} disabled={criar.isPending}
-              style={{ height: 44, padding: "0 18px", borderRadius: R.md, border: `1px solid ${T.border}`, background: T.surface, color: T.strong, fontSize: 14, fontWeight: 700, cursor: "pointer" }}>
+            {/* O motivo do desabilitado já está VISÍVEL à esquerda (`faltando`),
+                por isso o Botao não repete `motivo`. */}
+            <Botao variante="secundario" tamanho="toque" onClick={pedirParaFechar} disabled={criar.isPending}>
               Cancelar
-            </button>
-            <button type="button" data-testid="button-criar-remessa-kit" disabled={!!faltando || criar.isPending} onClick={() => criar.mutate()}
-              style={{ height: 44, padding: "0 22px", borderRadius: R.md, border: "none", background: faltando || criar.isPending ? T.border : TOM.roxo.text, color: faltando || criar.isPending ? T.second : T.surface, fontSize: 14, fontWeight: 800, cursor: criar.isPending ? "wait" : faltando ? "not-allowed" : "pointer" }}>
+            </Botao>
+            <Botao variante="primario" tamanho="toque" data-testid="button-criar-remessa-kit" disabled={!!faltando} carregando={criar.isPending} onClick={() => criar.mutate()}
+              style={{ padding: "0 22px" }}>
               {criar.isPending ? "Criando…" : nPecas > 0 ? `Criar remessa e importar ${nPecas} ${nPecas === 1 ? "peça" : "peças"}` : "Criar remessa"}
-            </button>
+            </Botao>
           </div>
           )}
         </DialogContent>

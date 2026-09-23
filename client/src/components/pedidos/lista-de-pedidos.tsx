@@ -33,7 +33,9 @@ import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { motivoEventoFinalizado, todayBusinessMs } from "@/lib/status";
-import { T, FS, R, N, TOM } from "@/lib/theme";
+import { T, FS, R, N, TOM, FW, SHADOW } from "@/lib/theme";
+import { Botao } from "@/components/ui/botao";
+import { EstadoErro, EstadoVazio } from "@/components/ui/estados";
 import { MotivoDoPedidoDialog, descricaoDoAviso, enviarAcaoComMotivo, tituloDoAviso, type AlvoDaAcao } from "@/components/motivo-do-pedido-dialog";
 import { CartaoDoPedido, type AcaoDoCartao } from "@/components/pedidos/cartao-do-pedido";
 import { DetalheDoPedido } from "@/components/pedidos/detalhe-do-pedido";
@@ -201,7 +203,7 @@ export function ListaDePedidos({ podePedir, podeResolver }: {
   const acaoComMotivo = useMutation({
     mutationFn: async ({ alvo: a, texto }: { alvo: AlvoDaAcao; texto: string }) => (await enviarAcaoComMotivo(a, texto)).json(),
     onSuccess: (_d, v) => {
-      toast({ title: tituloDoAviso(v.alvo), description: descricaoDoAviso(v.alvo) });
+      toast({ title: tituloDoAviso(v.alvo), description: descricaoDoAviso(v.alvo), variant: "success" });
       setAlvo(null);
       invalidarPedidos();
     },
@@ -211,7 +213,7 @@ export function ListaDePedidos({ podePedir, podeResolver }: {
   const aceitarAjuste = useMutation({
     mutationFn: async (linha: LinhaDoPedido) =>
       (await apiRequest("PATCH", `/api/pedidos-de-peca/linhas/${linha.id}/ajuste/responder`, { aceitar: true })).json(),
-    onSuccess: () => { toast({ title: "Ajuste aceito", description: "Quem pediu foi avisado. Ajuste a peça no evento." }); invalidarPedidos(); },
+    onSuccess: () => { toast({ title: "Ajuste aceito", description: "Quem pediu foi avisado. Ajuste a peça no evento.", variant: "success" }); invalidarPedidos(); },
     onError: (e) => toast({ title: "Não deu para aceitar o ajuste", description: mensagemDaApi(e), variant: "destructive" }),
   });
 
@@ -312,7 +314,7 @@ export function ListaDePedidos({ podePedir, podeResolver }: {
     height: toque, padding: "0 11px", borderRadius: R.pill, cursor: "pointer",
     border: `1px solid ${ativo ? T.text : T.border}`, background: ativo ? T.text : T.surface,
     color: ativo ? T.surface : zerado ? T.second : T.strong,
-    fontSize: 12, fontWeight: 700, display: "inline-flex", alignItems: "center", gap: 5, whiteSpace: "nowrap",
+    fontSize: FS.meta, fontWeight: FW.forte, display: "inline-flex", alignItems: "center", gap: 5, whiteSpace: "nowrap",
     transition: "background-color 0.12s, border-color 0.12s",
   });
 
@@ -324,10 +326,10 @@ export function ListaDePedidos({ podePedir, podeResolver }: {
     : filtro === "ajuste" ? "Nenhum ajuste esperando resposta"
     : `Nenhuma solicitação ${FILTROS.find((f) => f.k === filtro)?.rotulo.toLowerCase() ?? ""}`;
 
-  const BOTAO_LEVE: React.CSSProperties = { height: toque, padding: "0 14px", marginTop: 12, borderRadius: R.md, border: `1px solid ${T.border}`, background: T.surface, color: T.text, fontSize: FS.body, fontWeight: 700, cursor: "pointer" };
+  const tamanhoDoBotao = isMobile ? "toque" as const : "md" as const;
 
   return (
-    <section data-testid="lista-pedidos" style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: R.lg, boxShadow: "0 1px 2px rgba(28,25,23,0.06)", overflow: "hidden", minWidth: 0 }}>
+    <section data-testid="lista-pedidos" style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: R.lg, boxShadow: SHADOW.sm, overflow: "hidden", minWidth: 0 }}>
       <div style={{ padding: "14px 16px", borderBottom: `1px solid ${N.n3}`, display: "flex", flexDirection: "column", gap: 10 }}>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
           <div style={{ position: "relative", flex: isMobile ? "1 1 100%" : "1 1 240px", minWidth: 0 }}>
@@ -357,10 +359,10 @@ export function ListaDePedidos({ podePedir, podeResolver }: {
             panelWidth={200} testId="select-ordem-pedidos"
             triggerStyle={{ height: toque }} />
           {podePedir && (
-            <button type="button" data-testid="button-novo-pedido" onClick={() => setNovaAberta(true)}
-              style={{ display: "inline-flex", alignItems: "center", gap: 6, height: toque, padding: "0 16px", borderRadius: R.md, border: "none", background: T.text, color: T.surface, fontSize: FS.body, fontWeight: 800, cursor: "pointer", marginLeft: isMobile ? 0 : "auto" }}>
-              <Plus size={15} aria-hidden="true" /> Nova solicitação
-            </button>
+            <Botao variante="primario" tamanho={tamanhoDoBotao} icone={Plus} data-testid="button-novo-pedido" onClick={() => setNovaAberta(true)}
+              style={{ minHeight: toque, padding: "0 16px", marginLeft: isMobile ? 0 : "auto" }}>
+              Nova solicitação
+            </Botao>
           )}
         </div>
 
@@ -381,17 +383,17 @@ export function ListaDePedidos({ podePedir, podeResolver }: {
         <div data-testid="faixa-pedidos-parados" role="status" style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", padding: "12px 16px", background: TOM.alerta.bg, borderBottom: `1px solid ${TOM.alerta.border}` }}>
           <AlertTriangle size={18} color={TOM.alerta.text} aria-hidden="true" style={{ flexShrink: 0 }} />
           <div style={{ flex: "1 1 260px", minWidth: 0 }}>
-            <div style={{ fontSize: 13, fontWeight: 700, color: TOM.alerta.text }}>
+            <div style={{ fontSize: FS.body, fontWeight: FW.forte, color: TOM.alerta.text }}>
               {parados.length} {parados.length === 1 ? "solicitação esperando" : "solicitações esperando"} há mais de {IDADE_DE_ATENCAO} dias
             </div>
-            <div style={{ fontSize: 11, color: TOM.alerta.text, marginTop: 2, lineHeight: 1.45 }}>
+            <div style={{ fontSize: FS.small, color: TOM.alerta.text, marginTop: 2, lineHeight: 1.45 }}>
               {parados.slice(0, 3).map((p) => `${p.pedidoPor ?? "—"} · ${p.linhas[0]?.eventName ?? "evento"} · ${idadeDoPedido(p.createdAt, agora).texto}`).join("; ")}
             </div>
           </div>
-          <button type="button" data-testid="button-ver-mais-antigos" onClick={() => { setFiltro("aberto"); setOrdem("antigos"); limparRecorte(); }}
-            style={{ height: toque, padding: "0 12px", borderRadius: R.md, border: `1px solid ${TOM.alerta.border}`, background: T.surface, color: TOM.alerta.text, fontSize: 12.5, fontWeight: 800, cursor: "pointer", whiteSpace: "nowrap" }}>
+          <Botao variante="secundario" tamanho={tamanhoDoBotao} data-testid="button-ver-mais-antigos" onClick={() => { setFiltro("aberto"); setOrdem("antigos"); limparRecorte(); }}
+            style={{ minHeight: toque, padding: "0 12px", borderColor: TOM.alerta.border, color: TOM.alerta.text, fontSize: FS.meta, fontWeight: FW.rotulo }}>
             Ver as {parados.length} mais antigas
-          </button>
+          </Botao>
         </div>
       )}
 
@@ -410,35 +412,40 @@ export function ListaDePedidos({ podePedir, podeResolver }: {
       {isError && pedidos.length > 0 && (
         <p role="alert" data-testid="aviso-pedidos-desatualizados" style={{ margin: 0, padding: "8px 16px", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", fontSize: FS.body, color: TOM.perigo.text, background: TOM.perigo.bg, borderBottom: `1px solid ${TOM.perigo.border}` }}>
           Não foi possível atualizar — a lista abaixo pode estar desatualizada.
-          <button type="button" onClick={() => refetch()} style={{ border: "none", background: "none", padding: "0 4px", fontSize: FS.body, fontWeight: 800, textDecoration: "underline", cursor: "pointer", color: T.text, minHeight: toque }}>Tentar de novo</button>
+          <Botao variante="secundario" tamanho="sm" onClick={() => refetch()} style={{ minHeight: toque }}>Tentar de novo</Botao>
         </p>
       )}
 
       {isLoading ? (
         <ListaCarregando />
       ) : isError && pedidos.length === 0 ? (
-        <p role="alert" style={{ margin: 0, padding: 20, fontSize: FS.body, color: TOM.perigo.text }}>
-          Não foi possível carregar as solicitações. Verifique a conexão.{" "}
-          <button type="button" onClick={() => refetch()} style={{ border: "none", background: "none", fontWeight: 800, textDecoration: "underline", cursor: "pointer", color: T.text, minHeight: toque }}>Tentar de novo</button>
-        </p>
+        <div style={{ padding: 16 }}>
+          <EstadoErro compacto titulo="Não foi possível carregar as solicitações" detalhe="Verifique a conexão." aoTentarDeNovo={() => refetch()} />
+        </div>
       ) : visiveis.length === 0 ? (
-        <div data-testid="pedidos-vazio" style={{ padding: "36px 16px", textAlign: "center", color: T.apoio }}>
-          <Inbox size={26} color={T.second} aria-hidden="true" />
-          <p style={{ margin: "8px 0 2px", fontSize: 14, fontWeight: 700, color: T.text }}>{vazio}</p>
-          {pedidos.length === 0 && podePedir && (
-            <p style={{ margin: 0, fontSize: FS.body }}>Use “Nova solicitação” para pedir peças a quem monta a lista.</p>
-          )}
-          {/* A SAÍDA do vazio: quem recortou demais precisa de um clique de
-              volta, não de caçar qual controle está ligado. */}
-          {termo || eventoFiltro ? (
-            <button type="button" data-testid="button-limpar-recorte-pedidos" onClick={limparRecorte} style={BOTAO_LEVE}>
-              Limpar busca e evento
-            </button>
-          ) : filtro !== "todos" && base.length > 0 ? (
-            <button type="button" data-testid="button-ver-todas-pedidos" onClick={() => setFiltro("todos")} style={BOTAO_LEVE}>
-              Ver todas ({base.length})
-            </button>
-          ) : null}
+        /* O testid antigo fica no invólucro; o vazio em si é o do design
+           system. Sem a moldura tracejada dele: aqui já estamos dentro do
+           cartão da lista, e borda dentro de borda vira grade. */
+        <div data-testid="pedidos-vazio" style={{ padding: 16 }}>
+          <EstadoVazio
+            compacto
+            icone={Inbox}
+            titulo={vazio}
+            descricao={pedidos.length === 0 && podePedir ? "Use “Nova solicitação” para pedir peças a quem monta a lista." : undefined}
+            acao={
+              /* A SAÍDA do vazio: quem recortou demais precisa de um clique
+                 de volta, não de caçar qual controle está ligado. */
+              termo || eventoFiltro ? (
+                <Botao variante="secundario" tamanho={tamanhoDoBotao} data-testid="button-limpar-recorte-pedidos" onClick={limparRecorte}>
+                  Limpar busca e evento
+                </Botao>
+              ) : filtro !== "todos" && base.length > 0 ? (
+                <Botao variante="secundario" tamanho={tamanhoDoBotao} data-testid="button-ver-todas-pedidos" onClick={() => setFiltro("todos")}>
+                  Ver todas ({base.length})
+                </Botao>
+              ) : undefined
+            }
+          />
         </div>
       ) : (
         <ul style={{ margin: 0, padding: 0 }}>
@@ -453,11 +460,11 @@ export function ListaDePedidos({ podePedir, podeResolver }: {
 
       {(pedidos.length >= limite || isPlaceholderData) && (
         <div style={{ padding: 12, borderTop: `1px solid ${N.n3}`, textAlign: "center" }}>
-          <button type="button" data-testid="button-mais-pedidos" onClick={() => setLimite((l) => l + PASSO)}
-            disabled={isPlaceholderData} aria-busy={isPlaceholderData || undefined}
-            style={{ height: toque, padding: "0 16px", borderRadius: R.md, border: `1px solid ${T.border}`, background: T.surface, color: T.text, fontSize: FS.body, fontWeight: 700, cursor: isPlaceholderData ? "wait" : "pointer" }}>
+          <Botao variante="secundario" tamanho={tamanhoDoBotao} data-testid="button-mais-pedidos" onClick={() => setLimite((l) => l + PASSO)}
+            carregando={isPlaceholderData}
+            style={{ minHeight: toque, padding: "0 16px", color: T.text }}>
             {isPlaceholderData ? "Carregando as mais antigas…" : "Carregar solicitações mais antigas"}
-          </button>
+          </Botao>
         </div>
       )}
 

@@ -10,7 +10,16 @@
 import { detalheDaRemessa, diaMesDoKit, type RemessaDoKit } from "@shared/kit";
 import { ehMolde } from "@shared/molde";
 
-import { T, N, TOM } from "@/lib/theme";
+import { T, N, TOM, FS, FW } from "@/lib/theme";
+import { Selo } from "@/components/ui/selo";
+
+// A forma é o <Selo> do design system; a medida continua a do selo de linha
+// (10px, 1px×7px): ele divide a célula do ID com o código da peça, e o Selo
+// padrão (3px×10px) empurraria a linha. Caixa-alta já vem no texto.
+const MEDIDA_DO_SELO: React.CSSProperties = {
+  fontSize: FS.micro, fontWeight: FW.rotulo, lineHeight: 1.3, letterSpacing: "0.04em",
+  padding: "1px 7px", verticalAlign: "middle", flexShrink: 0,
+};
 /**
  * SELO DO MOLDE (dono, 22/09) — o molde tem fluxo curto (Arte → Revisão →
  * Produzido) e precisa se declarar em toda linha, como o Kit. Mora AQUI porque
@@ -20,20 +29,15 @@ import { T, N, TOM } from "@/lib/theme";
 export function SeloMolde({ peca, style }: { peca: { id: string; type?: string | null }; style?: React.CSSProperties }) {
   if (!ehMolde(peca)) return null;
   return (
-    <span
+    <Selo
       data-testid={`selo-molde-${peca.id}`}
       title="Molde — fluxo curto: Arte (thumb) → Revisão Final → Produzido. Sem patrocinador, arquivo final, impressora, conferência ou entrega."
       aria-label="Molde"
-      style={{
-        display: "inline-flex", alignItems: "center", whiteSpace: "nowrap",
-        fontSize: 10, fontWeight: 800, lineHeight: 1.3, letterSpacing: "0.04em",
-        color: T.strong, backgroundColor: N.n2, border: `1px solid ${T.bdark}`,
-        borderRadius: 999, padding: "1px 7px", verticalAlign: "middle", flexShrink: 0,
-        ...style,
-      }}
+      cores={{ text: T.strong, bg: N.n2, border: T.bdark }}
+      style={{ ...MEDIDA_DO_SELO, ...style }}
     >
       MOLDE
-    </span>
+    </Selo>
   );
 }
 
@@ -53,21 +57,15 @@ function SeloKitSo({ peca, style }: {
 }) {
   const entrega = diaMesDoKit(peca.kitRemessa?.entregaMaterial);
   return (
-    <span
+    <Selo
       data-testid={`selo-kit-${peca.id}`}
       className="selo-kit"
       title={detalheDaRemessa(peca.kitRemessa)}
       aria-label={`Peça do Kit${entrega ? `, entrega ${entrega}` : ""}`}
-      style={{
-        display: "inline-flex", alignItems: "center", gap: 4, whiteSpace: "nowrap",
-        fontSize: 10, fontWeight: 800, lineHeight: 1.3, letterSpacing: "0.04em",
-        color: TOM.roxo.text, backgroundColor: TOM.roxo.bg, border: `1px solid ${TOM.roxo.border}`,
-        borderRadius: 999, padding: "1px 7px", verticalAlign: "middle", flexShrink: 0,
-        fontVariantNumeric: "tabular-nums",
-        ...style,
-      }}
+      cores={TOM.roxo}
+      style={{ ...MEDIDA_DO_SELO, gap: 4, fontVariantNumeric: "tabular-nums", ...style }}
     >
-      KIT{entrega ? <span style={{ fontWeight: 700, color: TOM.roxo.text }}>· {entrega}</span> : null}
-    </span>
+      KIT{entrega ? <span style={{ fontWeight: FW.forte, color: TOM.roxo.text }}>· {entrega}</span> : null}
+    </Selo>
   );
 }

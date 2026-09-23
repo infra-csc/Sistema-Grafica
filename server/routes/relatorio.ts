@@ -36,7 +36,8 @@ export function registerRelatorioRoutes(app: Express): void {
   app.get("/api/events/:id/relatorio", requireAuth, async (req, res) => {
     try {
       const event = await storage.getEvent(req.params.id);
-      if (!event) return res.status(404).json({ error: "Evento não encontrado" });
+      // Arquivado responde como inexistente: sumiu de todas as listas.
+      if (!event || event.arquivadoEm) return res.status(404).json({ error: "Evento não encontrado" });
 
       const [itens, allSponsors, openApprovals, allUsers, todasFotos] = await Promise.all([
         // BOOK COMPLETO fica de fora: é o trâmite do Atendimento, não uma peça (ver shared/fluxo-peca).

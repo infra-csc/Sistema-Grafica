@@ -467,10 +467,11 @@ export function registerPrazoRoutes(app: Express): void {
       // verdadeiro.
       if (targetType === "event") {
         const alvo = await storage.getEvent(targetId);
-        if (!alvo) return res.status(404).json({ error: "Este evento não existe mais — atualize a tela." });
+        // Arquivado conta como inexistente: sumiu das telas.
+        if (!alvo || alvo.arquivadoEm) return res.status(404).json({ error: "Este evento não existe mais — atualize a tela." });
       } else {
         const alvo = await storage.getSponsor(targetId);
-        if (!alvo) return res.status(404).json({ error: "Este patrocinador não existe mais — atualize a tela." });
+        if (!alvo || alvo.arquivadoEm) return res.status(404).json({ error: "Este patrocinador não existe mais — atualize a tela." });
       }
 
       const [reg] = await db.insert(prazoCobrancas)

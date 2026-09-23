@@ -345,3 +345,16 @@ CREATE INDEX IF NOT EXISTS "IDX_audit_logs_entity_id_trgm" ON audit_logs USING g
 CREATE UNIQUE INDEX IF NOT EXISTS "UQ_event_sponsors_evento_patrocinador" ON event_sponsors (event_id, sponsor_id);
 CREATE UNIQUE INDEX IF NOT EXISTS "UQ_item_sponsors_peca_patrocinador" ON item_sponsors (item_id, sponsor_id);
 CREATE UNIQUE INDEX IF NOT EXISTS "UQ_item_sponsor_approvals_peca_patrocinador" ON item_sponsor_approvals (item_id, sponsor_id);
+
+-- ── Arquivar no lugar de excluir (eventos e patrocinadores) ─────────────
+-- Excluir apagava a linha e, por ON DELETE CASCADE, levava junto peças,
+-- aprovações, impressões e tubos — sem volta. Agora "excluir" arquiva: a linha
+-- fica, some das listas e restaura com um clique. Nullable, sem default e sem
+-- preencher nada: todo evento e patrocinador existente continua vivo.
+-- As FKs em cascata NÃO mudam aqui (mudar constraint não é aditivo); o código
+-- apenas deixou de apagar a linha.
+ALTER TABLE events ADD COLUMN IF NOT EXISTS arquivado_em timestamp;
+ALTER TABLE events ADD COLUMN IF NOT EXISTS arquivado_por text;
+ALTER TABLE events ADD COLUMN IF NOT EXISTS restaurado_em timestamp;
+ALTER TABLE sponsors ADD COLUMN IF NOT EXISTS arquivado_em timestamp;
+ALTER TABLE sponsors ADD COLUMN IF NOT EXISTS arquivado_por text;

@@ -380,6 +380,8 @@ async function carregar(): Promise<DadosDeVersoes> {
 
   const booksPorEvento = new Map<string, BookDoEvento[]>();
   for (const b of booksGravados) {
+    // Book de evento arquivado sai com o evento (getAllEvents não o traz).
+    if (!eventoPorId.has(b.eventId)) continue;
     const l = booksPorEvento.get(b.eventId) ?? [];
     const em = new Date(b.createdAt).toISOString();
     // "Desatualizado": peça DO BOOK cuja arte mudou depois de o book sair.

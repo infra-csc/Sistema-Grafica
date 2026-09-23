@@ -12,8 +12,7 @@ import { items as itemsTable, auditLogs, type Item, type Event } from "@shared/s
 import { fraseDaTrava, CODIGO_PECA_TRAVADA } from "@shared/trava-da-peca";
 import { planejarLancamentoDeImpressas, ERRO_LANCAMENTO_TRAVADA, eventoBarraImpressas } from "@shared/impressao-dividida";
 import { translateStatus, createAuditLogsEmLote, resolveActor } from "../routes/shared";
-import { erroEventoFechado } from "../routes/eventoFinalizado";
-import type { EventoFinalizadoMotivo } from "@shared/prazo-dates";
+import { erroEventoFechado, type MotivoBloqueioDoEvento } from "../routes/eventoFinalizado";
 import { runInventoryCron } from "./inventoryLifecycle";
 
 /** Quem lança — o mesmo par (nome, id) da trilha. */
@@ -27,7 +26,7 @@ export type AtorDoLancamento = { userName?: string | null; userId?: string | nul
 export async function lancarImpressas(
   itemId: string,
   corpo: Record<string, unknown>,
-  motivoFechado: EventoFinalizadoMotivo | null | undefined,
+  motivoFechado: MotivoBloqueioDoEvento | null | undefined,
   ator: AtorDoLancamento,
 ) {
   // ── CONCORRÊNCIA (revisão adversarial, 22/09) ─────────────────────────

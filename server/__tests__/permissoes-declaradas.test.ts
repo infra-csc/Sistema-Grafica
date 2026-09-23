@@ -42,7 +42,7 @@ describe("tabela ↔ código, sem sobras de nenhum lado", () => {
     expect(fantasmas).toEqual([]);
   });
 
-  it("são as 117 — o número que o diagnóstico mediu; mudou, atualize os dois", () => {
+  it("são as 119 — o número que o diagnóstico mediu; mudou, atualize os dois", () => {
     // 96 = as 78 do diagnóstico + o descancelar do admin (01/09)
     //    + iniciar impressão da Gráfica (14/09)
     //    + reservar e liberar peça do estoque (14/09)
@@ -61,8 +61,9 @@ describe("tabela ↔ código, sem sobras de nenhum lado", () => {
     //    − o PATCH /api/items/:id/edit (irmã sem validação do PATCH genérico).
     //    − DELETE /api/comments/:id: a rota de comentários saiu (nenhuma tela a chamava).
     //    + entregar volumes em lote (23/09).
-    expect(REGUA_DE_PAPEIS.length).toBe(117);
-    expect(doCodigo.length).toBe(117);
+    //    + restaurar evento e restaurar patrocinador ("excluir" virou arquivar).
+    expect(REGUA_DE_PAPEIS.length).toBe(119);
+    expect(doCodigo.length).toBe(119);
   });
 });
 

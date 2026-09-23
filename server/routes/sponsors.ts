@@ -20,6 +20,7 @@ import {
 // items.ts não importa nada daqui.
 import { barraEventoFinalizado, motivoEventoDaPeca, contadorDeBloqueio } from "./items";
 import { motivoEventoFechado } from "./eventoFinalizado";
+import { barraSeArquivado, estaArquivado, PATROCINADOR_ARQUIVADO_ERRO } from "../services/arquivamento";
 import { invalidarCacheDeVersoes } from "./versoes";
 import { DEPOIS_DA_ARTE, POS_APROVACAO } from "@shared/fluxo-peca";
 import { ehMolde } from "@shared/molde";
@@ -174,7 +175,9 @@ export function registerSponsorRoutes(app: Express): void {
   // Get all sponsors
   app.get("/api/sponsors", requireAuth, async (req, res) => {
     try {
-      const sponsors = await storage.getAllSponsors();
+      // Lista de ESCOLHA: sem os arquivados. O nome deles continua nas peças e
+      // aprovações antigas, que resolvem pelo dicionário completo (getAllSponsors).
+      const sponsors = await storage.getSponsorsAtivos();
       res.json(sponsors);
     } catch (error: any) {
       responderFalha(res, error, "GET /api/sponsors");
@@ -238,6 +241,11 @@ export function registerSponsorRoutes(app: Express): void {
         return res.status(403).json({ error: "Sem permissão para editar patrocinadores" });
       }
       const validatedData = insertSponsorSchema.partial().parse(req.body);
+      const atual = await storage.getSponsor(req.params.id);
+      if (!atual) {
+        return res.status(404).json({ error: "Patrocinador não encontrado" });
+      }
+      if (barraSeArquivado(atual, res, PATROCINADOR_ARQUIVADO_ERRO)) return;
       const sponsor = await storage.updateSponsor(req.params.id, validatedData);
       if (!sponsor) {
         return res.status(404).json({ error: "Patrocinador não encontrado" });
@@ -258,28 +266,59 @@ export function registerSponsorRoutes(app: Express): void {
     }
   });
 
-  // Delete sponsor
+  // "Excluir" patrocinador = ARQUIVAR (a tela continua chamando DELETE).
+  // O DELETE da linha apagava em cascata os vínculos e o histórico de
+  // aprovações dele. Arquivado sai das listas de escolha, mas o nome segue nas
+  // peças e aprovações antigas; POST /restaurar o devolve.
   app.delete("/api/sponsors/:id", requireAdmin, async (req, res) => {
     try {
       const sponsor = await storage.getSponsor(req.params.id);
-      if (!sponsor) {
+      if (!sponsor || estaArquivado(sponsor)) {
         return res.status(404).json({ error: "Patrocinador não encontrado" });
       }
 
-      await storage.deleteSponsor(req.params.id);
-      
+      const arquivado = await storage.arquivarPatrocinador(req.params.id, (req as any).userName ?? null);
+      if (!arquivado) {
+        return res.status(404).json({ error: "Patrocinador não encontrado" });
+      }
+
       await createAuditLog(
         req,
         'deleted',
         'sponsor',
         sponsor.id,
-        `Patrocinador "${sponsor.name}" excluído`
+        `Patrocinador "${sponsor.name}" arquivado — vínculos e aprovações ficam no histórico; restaurar o devolve às listas`
       );
-      
+
       broadcast({ type: "sponsor_deleted", sponsorId: req.params.id });
-      res.json({ message: "Patrocinador excluído com sucesso" });
+      res.json({ message: "Patrocinador arquivado — restaure quando precisar dele de novo." });
     } catch (error: any) {
       responderFalha(res, error, "DELETE /api/sponsors/:id");
+    }
+  });
+
+  // Restaurar patrocinador arquivado — mesmo gate de quem arquiva (admin).
+  app.post("/api/sponsors/:id/restaurar", requireAdmin, async (req, res) => {
+    try {
+      const sponsor = await storage.getSponsor(req.params.id);
+      if (!sponsor) {
+        return res.status(404).json({ error: "Patrocinador não encontrado" });
+      }
+      const restaurado = estaArquivado(sponsor) ? await storage.restaurarPatrocinador(req.params.id) : undefined;
+      if (!restaurado) {
+        return res.status(409).json({ error: "Este patrocinador não está arquivado" });
+      }
+      await createAuditLog(
+        req,
+        'updated',
+        'sponsor',
+        sponsor.id,
+        `Patrocinador "${sponsor.name}" restaurado do arquivo`
+      );
+      broadcast({ type: "sponsor_updated", sponsor: restaurado });
+      res.json(restaurado);
+    } catch (error: any) {
+      responderFalha(res, error, "POST /api/sponsors/:id/restaurar");
     }
   });
 
@@ -302,6 +341,7 @@ export function registerSponsorRoutes(app: Express): void {
       // Body: { quota: string, itemTypes: string[] }
       const { quota, itemTypes } = req.body as { quota: string; itemTypes: string[] };
       if (!quota) return res.status(400).json({ error: "quota é obrigatório" });
+      if (barraSeArquivado(await storage.getEvent(req.params.id), res)) return;
       const rule = await storage.upsertEventQuotaRule(req.params.id, quota, itemTypes ?? []);
       // A cota decide quais peças cada patrocinador recebe na vinculação
       // automática. Mudá-la remaneja arte de cliente e não deixava rastro.
@@ -323,6 +363,7 @@ export function registerSponsorRoutes(app: Express): void {
       return res.status(403).json({ error: "Sem permissão para editar cotas" });
     }
     try {
+      if (barraSeArquivado(await storage.getEvent(req.params.id), res)) return;
       await storage.deleteEventQuotaRule(req.params.id, req.params.quota);
       await createAuditLog(
         req,
@@ -449,12 +490,13 @@ export function registerSponsorRoutes(app: Express): void {
     try {
       const { eventId, sponsorId } = req.params;
       const quota = req.body.quota || null;
-      await storage.updateEventSponsorQuota(eventId, sponsorId, quota);
-
       const [event, sponsor] = await Promise.all([
         storage.getEvent(eventId),
         storage.getSponsor(sponsorId),
       ]);
+      if (barraSeArquivado(event, res)) return;
+      if (barraSeArquivado(sponsor, res, PATROCINADOR_ARQUIVADO_ERRO)) return;
+      await storage.updateEventSponsorQuota(eventId, sponsorId, quota);
 
       await createAuditLog(
         req,
@@ -482,10 +524,13 @@ export function registerSponsorRoutes(app: Express): void {
         quota: req.body.quota || null,
       });
 
-      const eventSponsor = await storage.addSponsorToEvent(validatedData);
-      
+      // Lidos ANTES da escrita: evento ou patrocinador arquivado não ganha vínculo.
       const event = await storage.getEvent(req.params.id);
       const sponsor = await storage.getSponsor(validatedData.sponsorId);
+      if (barraSeArquivado(event, res)) return;
+      if (barraSeArquivado(sponsor, res, PATROCINADOR_ARQUIVADO_ERRO)) return;
+
+      const eventSponsor = await storage.addSponsorToEvent(validatedData);
       
       await createAuditLog(
         req,
@@ -657,6 +702,15 @@ export function registerSponsorRoutes(app: Express): void {
       if (inexistentes.length > 0) {
         return res.status(400).json({ error: `Patrocinador não encontrado: ${inexistentes.join(", ")}. Recarregue a tela e tente de novo.` });
       }
+      // Arquivado só fica se JÁ estava na peça (vínculo antigo é histórico);
+      // vínculo novo com ele, não.
+      if (encontrados.some((sp) => estaArquivado(sp))) {
+        const jaNaPeca = new Set((await storage.getItemSponsors(itemId)).map((v) => v.sponsorId));
+        const novoArquivado = encontrados.find((sp) => sp && estaArquivado(sp) && !jaNaPeca.has(sp.id));
+        if (novoArquivado) {
+          return res.status(409).json({ error: `${PATROCINADOR_ARQUIVADO_ERRO} (${novoArquivado.name})`, code: "ARCHIVED" });
+        }
+      }
       // Molde: sincronizar para VAZIO (limpar) passa; acrescentar, não.
       if (ehMolde(currentItem) && validSponsorIds.length > 0) {
         return res.status(409).json({ error: ERRO_PATROCINADOR_EM_MOLDE, code: "MOLDE_SEM_PATROCINADOR" });
@@ -730,6 +784,7 @@ export function registerSponsorRoutes(app: Express): void {
       }
       const sponsor = await storage.getSponsor(sponsorId);
       if (!sponsor) return res.status(404).json({ error: "Patrocinador não encontrado" });
+      if (barraSeArquivado(sponsor, res, PATROCINADOR_ARQUIVADO_ERRO)) return;
 
       /**
        * ATÉ A PEÇA SER APROVADA — a régua do dono (25/08): "pode vincular até a
@@ -1103,6 +1158,7 @@ export function registerSponsorRoutes(app: Express): void {
       if (!item) return res.status(404).json({ error: "Item não encontrado" });
       if (await barraEventoFinalizado(item, res)) return;
       if (ehMolde(item)) return res.status(409).json({ error: ERRO_PATROCINADOR_EM_MOLDE, code: "MOLDE_SEM_PATROCINADOR" });
+      if (barraSeArquivado(await storage.getSponsor(validatedData.sponsorId), res, PATROCINADOR_ARQUIVADO_ERRO)) return;
 
       const itemSponsor = await storage.addSponsorToItem(validatedData);
 

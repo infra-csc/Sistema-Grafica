@@ -35,6 +35,7 @@ import { motivoEventoFechado, erroEventoFechado } from "./eventoFinalizado";
 import { prioridadePelaSaida } from "@shared/prioridade-do-evento";
 import { responderErro } from "../erros";
 import { aplicarPrioridadeAutomatica } from "../services/prioridadeAutomatica";
+import { barraSeArquivado } from "../services/arquivamento";
 
 // Normaliza startDate/truckDepartureDate (string "YYYY-MM-DD[THH:MM...]" ou Date
 // vindo do storage) para a data-calendário "YYYY-MM-DD", sem envolver timezone
@@ -707,6 +708,10 @@ export function registerEventRoutes(app: Express): void {
       if (!event) {
         return res.status(404).json({ error: "Evento não encontrado" });
       }
+      // Arquivado sumiu de todas as listas; aberto por link direto, some também.
+      if (event.arquivadoEm) {
+        return res.status(404).json({ error: "Este evento foi arquivado.", code: "ARCHIVED" });
+      }
       // Usuário do Kit: só as peças do Kit dele entram nas contagens (14/09).
       const userIdKit = (req as any).userId;
       const eventItems = (req as any).userKit
@@ -854,6 +859,7 @@ export function registerEventRoutes(app: Express): void {
       if (!before) {
         return res.status(404).json({ error: "Evento não encontrado" });
       }
+      if (barraSeArquivado(before, res)) return;
 
       // DATA DE EVENTO FINALIZADO: empurrar a data de um evento que já
       // aconteceu (ou foi encerrado) para o futuro o "reabriria" por baixo —
@@ -974,6 +980,7 @@ export function registerEventRoutes(app: Express): void {
       if (!before) {
         return res.status(404).json({ error: "Evento não encontrado" });
       }
+      if (barraSeArquivado(before, res)) return;
       // Ao destravar, a automática entra JÁ — devolver null e esperar o tick
       // deixaria o card "sem prioridade" por até uma hora.
       const automatica = motivoEventoFinalizado(before as any, todayBusinessMs()) !== null
@@ -1008,50 +1015,85 @@ export function registerEventRoutes(app: Express): void {
     }
   });
 
-  // Delete event
+  // "Excluir" evento = ARQUIVAR (o botão das telas continua chamando DELETE).
+  //
+  // Antes era DELETE da linha, e o ON DELETE CASCADE apagava junto peças,
+  // aprovações, registros de impressão, linhas de tubo e consultas de estoque —
+  // sem volta, e com peças-fantasma nas abas abertas. Agora a linha fica com
+  // `arquivado_em`: some de toda lista e contagem, não aceita escrita, e
+  // POST /restaurar devolve tudo como estava. Remoção física é manutenção
+  // (docs/arquitetura.md), nunca um clique.
   app.delete("/api/events/:id", requireAuth, async (req, res) => {
     try {
       if (req.userRole !== "admin") {
         return res.status(403).json({ error: "Apenas administradores podem excluir eventos" });
       }
       const event = await storage.getEvent(req.params.id);
-      if (!event) {
+      if (!event || event.arquivadoEm) {
         return res.status(404).json({ error: "Evento não encontrado" });
       }
 
-      // Dimensão real do estrago, para o audit log e para a resposta — a
-      // confirmação da UI precisa dizer "e 128 peças (96 já entregues)", não
-      // "todas as peças associadas".
+      // Dimensão do que sai de vista — para a trilha e para a resposta (a
+      // confirmação da UI diz "e 128 peças (96 já entregues)"). Lida ANTES de
+      // arquivar: depois, a leitura de peças já não enxerga o evento.
       const items = await storage.getItemsByEvent(req.params.id);
       const deliveredCount = items.filter((it) => DELIVERED.has(it.status)).length;
 
-      // NÃO há loop de deleteItem aqui, de propósito. storage.deleteItem é SOFT
-      // delete (marca deletedAt "para preservar no histórico") e
-      // storage.deleteEvent é HARD delete — com items.event_id em
-      // ON DELETE CASCADE, o DELETE da linha do evento apagava fisicamente, um
-      // comando depois, exatamente as peças que o loop acabara de "preservar".
-      // Além de N round-trips inúteis, o loop criava um estado meio-apagado se
-      // falhasse no meio: peças com deletedAt e evento vivo exibindo 0/0
-      // Entregues. O cascade do banco faz o trabalho de uma vez só.
-      const success = await storage.deleteEvent(req.params.id);
-      if (!success) {
+      const arquivado = await storage.arquivarEvento(req.params.id, (req as any).userName ?? null);
+      if (!arquivado) {
+        // Outro clique arquivou no meio: para quem pediu, o resultado é o mesmo.
         return res.status(404).json({ error: "Evento não encontrado" });
       }
 
-      // Create audit log
       await createAuditLog(
         (req as any).userName,
         'deleted',
         'event',
         req.params.id,
-        `Evento "${event.name}" excluído — ${items.length} ${items.length === 1 ? 'peça removida' : 'peças removidas'} em cascata (${deliveredCount} já ${deliveredCount === 1 ? 'entregue' : 'entregues'}), junto com fotos de entrega, comentários e aprovações de patrocinador`
+        `Evento "${event.name}" arquivado — ${items.length} ${items.length === 1 ? 'peça saiu' : 'peças saíram'} de vista (${deliveredCount} já ${deliveredCount === 1 ? 'entregue' : 'entregues'}). Nada foi apagado: restaurar devolve tudo como estava`
       );
 
+      // event_deleted: as telas tiram o evento. items_bulk_updated: a lista de
+      // peças busca o delta, que já vem sem o evento em `eventos` — e o cliente
+      // derruba as peças dele (aplicarDelta).
       broadcast({ type: "event_deleted", eventId: req.params.id });
+      if (items.length > 0) broadcast({ type: "items_bulk_updated", itemIds: items.map((i) => i.id), eventId: req.params.id });
 
-      res.json({ success: true, deletedItems: items.length, deliveredItems: deliveredCount });
+      // Mesmo contrato de antes (`deletedItems` = peças que saíram de vista).
+      res.json({ success: true, deletedItems: items.length, deliveredItems: deliveredCount, archived: true });
     } catch (error: any) {
       responderErro(res, error, "excluir evento");
+    }
+  });
+
+  // Restaurar evento arquivado — mesmo gate de quem arquiva (admin).
+  app.post("/api/events/:id/restaurar", requireAuth, async (req, res) => {
+    try {
+      if (req.userRole !== "admin") {
+        return res.status(403).json({ error: "Apenas administradores podem restaurar eventos" });
+      }
+      const event = await storage.getEvent(req.params.id);
+      if (!event) {
+        return res.status(404).json({ error: "Evento não encontrado" });
+      }
+      const restaurado = event.arquivadoEm ? await storage.restaurarEvento(req.params.id) : undefined;
+      if (!restaurado) {
+        return res.status(409).json({ error: "Este evento não está arquivado" });
+      }
+      const items = await storage.getItemsByEvent(req.params.id);
+      await createAuditLog(
+        (req as any).userName,
+        'updated',
+        'event',
+        req.params.id,
+        `Evento "${event.name}" restaurado do arquivo — ${items.length} ${items.length === 1 ? 'peça voltou' : 'peças voltaram'} às telas`
+      );
+      // O delta de /api/items reenvia as peças do evento restaurado (restauradoEm).
+      broadcast({ type: "event_updated", event: restaurado });
+      if (items.length > 0) broadcast({ type: "items_bulk_updated", itemIds: items.map((i) => i.id), eventId: req.params.id });
+      res.json({ success: true, event: restaurado, items: items.length });
+    } catch (error: any) {
+      responderErro(res, error, "restaurar evento");
     }
   });
 
@@ -1084,6 +1126,7 @@ export function registerEventRoutes(app: Express): void {
       if (!event) {
         return res.status(404).json({ error: "Evento não encontrado" });
       }
+      if (barraSeArquivado(event, res)) return;
       if (event.status === EVENT_CLOSED_STATUS) {
         return res.status(409).json({ error: "Este evento já está encerrado" });
       }
@@ -1144,6 +1187,7 @@ export function registerEventRoutes(app: Express): void {
        * Agora a pergunta é a mesma que trava a edição: o evento está
        * finalizado por ALGUM motivo? Se não está, não há o que reabrir.
        */
+      if (barraSeArquivado(event, res)) return;
       const motivo = motivoEventoFinalizado(event, todayBusinessMs());
       if (motivo === null) {
         return res.status(409).json({ error: "Este evento não está encerrado nem já aconteceu" });

@@ -41,6 +41,7 @@ import {
 } from "@shared/pedidos-de-peca";
 import { requireRole, broadcast, createAuditLog, resolveActor } from "./shared";
 import { motivoEventoDaPeca, erroEventoFechado } from "./eventoFinalizado";
+import { doEventoNaoArquivado } from "../services/arquivamento";
 import { resumosDeTuboPorIds, comTubo } from "../services/tubosDaPeca";
 import { ehMolde } from "@shared/molde";
 
@@ -175,7 +176,8 @@ async function listarSolicitacoes(filtro: { eventId?: string; pedidoPorId?: stri
   })
     .from(linhasDoPedidoDePeca)
     .leftJoin(events, eq(events.id, linhasDoPedidoDePeca.eventId))
-    .where(inArray(linhasDoPedidoDePeca.pedidoId, cabecalhos.map((c) => c.id)))
+    // Linha de evento arquivado sai da lista, como o evento.
+    .where(and(inArray(linhasDoPedidoDePeca.pedidoId, cabecalhos.map((c) => c.id)), doEventoNaoArquivado(linhasDoPedidoDePeca.eventId)))
     .orderBy(asc(linhasDoPedidoDePeca.ordem), asc(linhasDoPedidoDePeca.createdAt));
 
   const idsDePatrocinador = Array.from(new Set(linhas.flatMap((l) => l.linha.sponsorIds ?? [])));
@@ -215,7 +217,7 @@ async function listarSolicitacoes(filtro: { eventId?: string; pedidoPorId?: stri
         linhaId: itemsTable.pedidoDePecaLinhaId,
       })
         .from(itemsTable)
-        .where(and(inArray(itemsTable.pedidoDePecaLinhaId, idsDeLinha), isNull(itemsTable.deletedAt)))
+        .where(and(inArray(itemsTable.pedidoDePecaLinhaId, idsDeLinha), isNull(itemsTable.deletedAt), doEventoNaoArquivado(itemsTable.eventId)))
     : [];
   const pecasPorLinha = new Map<string, Array<Omit<(typeof pecas)[number], "linhaId">>>();
   const tuboPorId = await resumosDeTuboPorIds(pecas.map((p) => p.tuboId));

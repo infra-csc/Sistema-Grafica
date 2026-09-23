@@ -16,13 +16,15 @@ import { db } from "../db";
 import { kitRemessas } from "@shared/schema";
 import { requireAuth, requireRole } from "./shared";
 import { criarRemessa, excluirRemessa, remessaSchema } from "../services/kitRemessas";
+import { doEventoNaoArquivado } from "../services/arquivamento";
 
 const requireCriarRemessa = requireRole("admin", "solicitacao");
 
 export function registerKitRoutes(app: Express): void {
   app.get("/api/kit/remessas", requireAuth, async (req, res) => {
     try {
-      const condicoes: any[] = [];
+      // Remessa de evento arquivado sai da lista, como o evento.
+      const condicoes: any[] = [doEventoNaoArquivado(kitRemessas.eventId)];
       if (typeof req.query.eventId === "string" && req.query.eventId) condicoes.push(eq(kitRemessas.eventId, req.query.eventId));
       if ((req as any).userKit) condicoes.push(eq(kitRemessas.criadoPorId, (req as any).userId ?? ""));
       const lista = await db.select().from(kitRemessas)

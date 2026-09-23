@@ -10,6 +10,7 @@
 import { and, inArray, isNull } from "drizzle-orm";
 import { db } from "../db";
 import { items } from "@shared/schema";
+import { doEventoNaoArquivado } from "./arquivamento";
 import { rotuloDaMaquina } from "@shared/fluxo-peca";
 import { ocupanteDaImpressora } from "@shared/reserva-de-impressora";
 
@@ -18,7 +19,8 @@ type Executor = Pick<typeof db, "select">;
 /** A peça que ocupa `maquina` agora (parte ativa nela), fora `excetoId`; null = livre. */
 export async function quemOcupaAImpressora(maquina: string, excetoId?: string | null, executor: Executor = db) {
   const emImpressao = await executor.select().from(items)
-    .where(and(inArray(items.status, ["inProduction", "em_producao"]), isNull(items.deletedAt)));
+    // Peça de evento arquivado não ocupa impressora: ninguém a vê para tirá-la.
+    .where(and(inArray(items.status, ["inProduction", "em_producao"]), isNull(items.deletedAt), doEventoNaoArquivado(items.eventId)));
   return ocupanteDaImpressora(emImpressao as any[], maquina, excetoId);
 }
 

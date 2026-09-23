@@ -4,7 +4,7 @@ import { z } from "zod";
 import { storage } from "../../storage";
 import { requireAuth, broadcast, updateEventStatus } from "../shared";
 import { corpoEventoFechado, fraseDoZod, camposDoErro } from "../../erros";
-import { motivoEventoFechado } from "../eventoFinalizado";
+import { motivoEventoFechado, barraEventoArquivado } from "../eventoFinalizado";
 import { COMPLEMENT_ALLOWED_STATUSES } from "./comum";
 import { criarComplemento, desfazerComplemento } from "../../services/complemento-da-peca";
 import { vemDeOrigemValida } from "@shared/maquina-de-estados";
@@ -167,6 +167,7 @@ export function registrarComplemento(app: Express): void {
           code: "NOT_A_COMPLEMENT",
         });
       }
+      if (await barraEventoArquivado(item, res)) return;
 
       // Mesmo gate estrito da criação (decisão do dono): cancelar um
       // complemento é desfazer um aumento de quantidade. A spec original dava

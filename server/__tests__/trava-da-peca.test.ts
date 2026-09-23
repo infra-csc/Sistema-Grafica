@@ -9,8 +9,11 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { txDeMentira } from "./tx-de-mentira";
+import { fonteDaTelaDeMaquinas } from "./fonte-da-tela-de-maquinas";
 import { readFileSync } from "fs";
 import { resolve } from "path";
+import { fonteDaGrafica } from "./fonte-da-grafica";
+import { gatesDaGrafica } from "../../client/src/components/grafica/fila/regras";
 
 const H = vi.hoisted(() => ({
   storage: {} as Record<string, any>,
@@ -212,14 +215,19 @@ describe("a peça travada não ANDA — 409 'Peça travada pela Solicitação: �
 // ─── As telas: a regra é a MESMA função ───────────────────────────────────────
 describe("as telas leem pecaTravada (fonte)", () => {
   it("Gráfica: botão só para quem pode, selo, ações desabilitadas, filtro na URL", () => {
-    const G = ler("client/src/pages/grafica.tsx");
-    expect(G).toContain("const podeMexerNaTrava = (item: any) => podeTravar(user?.role) && !soVisualizaKit(item);");
+    const G = fonteDaGrafica();
+    // O gate é função pura (components/grafica/fila/regras.ts): quem trava é a Solicitação/admin, e a Arena não trava peça do Kit.
+    const peca = { id: "p", status: "ready_for_production" } as never;
+    const pecaDoKit = { id: "p", status: "ready_for_production", kitRemessaId: "k1" } as never;
+    expect(["solicitacao", "admin", "grafica", "arte"].map((role) => gatesDaGrafica({ role, kit: true }).podeMexerNaTrava(peca))).toEqual([true, true, false, false]);
+    expect(gatesDaGrafica({ role: "solicitacao", kit: false }).podeMexerNaTrava(pecaDoKit)).toBe(false);
+    expect(gatesDaGrafica({ role: "solicitacao", kit: true }).podeMexerNaTrava(pecaDoKit)).toBe(true);
     expect((G.match(/\{\.\.\.bloqueioDaTrava\(item\)\}/g) ?? []).length).toBe(9); // os dois "Entregar" por peça saíram (quem entrega é o volume)
     expect(G).toContain('testId="button-travadas-filter"');
     expect(ler("client/src/lib/grafica-filtros.ts")).toContain('{ chave: "travadas",    url: "travadas",   rotulo: "Só travadas" },');
   });
   it("Máquinas: o mesmo selo e sem Iniciar/Imprimir agora/Reservar; ficha e Detalhe do evento mostram", () => {
-    const M = ler("client/src/pages/grafica-maquinas.tsx");
+    const M = fonteDaTelaDeMaquinas();
     expect(M).toContain("if (pecaTravada(p)) {");
     // Só o próprio helper chama o selo de evento finalizado; todas as linhas passam pelo helper.
     expect(M.split("seloPecaEventoFinalizado(p.eventoInfo, hojeMs)").length - 1).toBe(1);

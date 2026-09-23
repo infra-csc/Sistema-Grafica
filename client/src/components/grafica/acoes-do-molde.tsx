@@ -22,9 +22,10 @@ import { pecaTravada, fraseDaTrava } from "@shared/trava-da-peca";
 import { SeloPrazoMolde } from "@/components/prazo-do-molde";
 import { Botao } from "@/components/ui/botao";
 import { TOM, FS, FW } from "@/lib/theme";
+import type { PecaDaFila } from "@/components/grafica/tipos";
 
 export function AcoesDoMolde({ item, podeProduzir, selo, cartao }: {
-  item: any;
+  item: PecaDaFila;
   /** grafica | admin — os mesmos papéis de quem imprime. */
   podeProduzir: boolean;
   /** Evento finalizado: o botão fica, desabilitado, com o motivo. */

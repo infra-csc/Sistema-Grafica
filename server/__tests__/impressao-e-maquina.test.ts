@@ -25,13 +25,14 @@ import { readFileSync } from "fs";
 import path from "path";
 import { MAQUINAS_DE_IMPRESSAO, ehMaquinaValida, rotuloDaMaquina } from "@shared/fluxo-peca";
 import { avaliarProducao } from "../../client/src/lib/grafica-producao";
+import { fonteDaGrafica } from "./fonte-da-grafica";
 
 const ler = (rel: string) => readFileSync(path.resolve(__dirname, "../..", rel), "utf8");
 const ITEMS = fonteDasRotasDeItens();
 const SHARED = ler("server/routes/shared.ts");
 const SCHEMA = ler("shared/schema.ts");
 const STATUS = ler("client/src/lib/status.ts");
-const GRAFICA = ler("client/src/pages/grafica.tsx");
+const GRAFICA = fonteDaGrafica();
 const FICHA = ler("client/src/components/item-details-dialog.tsx");
 const MODAL = ler("client/src/components/grafica/modal-impressao.tsx");
 // Desde 22/09 a conta do iniciar e do lançar mora em funções puras (shared),

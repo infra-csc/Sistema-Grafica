@@ -15,8 +15,9 @@ import {
   type GraficaFiltros, type ItemGrafica,
 } from "../../client/src/lib/grafica-filtros";
 import { NOMES_DAS_MAQUINAS, rotuloDaMaquina } from "../../shared/fluxo-peca";
+import { fonteDaGrafica } from "./fonte-da-grafica";
 
-const TELA = readFileSync(new URL("../../client/src/pages/grafica.tsx", import.meta.url), "utf8");
+const TELA = fonteDaGrafica();
 
 const f = (over: Partial<GraficaFiltros> = {}): GraficaFiltros => ({ ...FILTROS_VAZIOS, ...over });
 const ctx = { groupOf: () => "", hojeUTC: Date.UTC(2026, 8, 21) };
@@ -97,7 +98,7 @@ describe("o dropdown na tela", () => {
   });
 
   it("as opções saem do gFacetPool, em ordem fixa (4 máquinas + Sem impressora), só com contagem > 0 ou já escolhida", () => {
-    expect(TELA).toContain("gFacetPool('impressora').forEach((i: any) => {");
+    expect(TELA).toContain("gFacetPool('impressora').forEach((i) => {");
     expect(TELA).toContain("const ordem = [...MAQUINAS_DE_IMPRESSAO, SEM_IMPRESSORA];");
     expect(TELA).toContain(".filter(m => (conta.get(m) ?? 0) > 0 || filtros.impressora.includes(m))");
     expect(TELA).toContain('label: m === SEM_IMPRESSORA ? "Sem impressora" : rotuloDaMaquina(m),');

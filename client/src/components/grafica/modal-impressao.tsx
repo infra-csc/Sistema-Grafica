@@ -47,7 +47,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useIsMobile, usePonteiroGrosso, alvo as alvoDe } from "@/hooks/use-mobile";
 import { Botao } from "@/components/ui/botao";
 import { useConfirmar } from "@/components/ui/usar-confirmar";
-import { avaliarProducao, tetoDeProducao, ehConflitoDeProducao } from "@/lib/grafica-producao";
+import { avaliarProducao, tetoDeProducao, ehConflitoDeProducao, type PayloadProducao } from "@/lib/grafica-producao";
 import { isInProd, producedOf, qtyOf, reusedTotalOf, remainingProduce, type SaldoItem } from "@/lib/saldo";
 import { MAQUINAS_DE_IMPRESSAO, rotuloDaMaquina } from "@shared/fluxo-peca";
 import { partesDaPeca, estaDividida, lerPartes, resumoDaDivisao } from "@shared/impressao-dividida";
@@ -69,8 +69,8 @@ export type PecaParaImprimir = SaldoItem & {
 };
 
 /** Mensagem legível de um erro da API (apiRequest devolve o corpo cru). */
-export function mensagemDeErroDaApi(error: any): string {
-  const raw = String(error?.message ?? "");
+export function mensagemDeErroDaApi(error: unknown): string {
+  const raw = String((error as { message?: unknown } | null | undefined)?.message ?? "");
   try {
     const parsed = JSON.parse(raw);
     if (parsed?.error) return String(parsed.error);
@@ -139,7 +139,7 @@ export function contaDoInicio(
   item: PecaParaImprimir, maquina: string, digitado: number | "" | null,
   parte: { quantidade: number; daReserva: boolean } | null | undefined, maquinaDaParte: string | null | undefined,
 ): { disponivel: number; reservadas: number; origem: string; padrao: number; n: number; valida: boolean; inteira: boolean; linha: string } {
-  const peca = item as any;
+  const peca = item;
   // De QUAL reserva saem as unidades: a da impressora escolhida — ou, quando o
   // modal abriu para iniciar a parte reservada a uma impressora e o operador
   // trocou de máquina na hora, a reserva daquela (ela vai para a nova).
@@ -186,19 +186,27 @@ export function BarraDeImpressao({ feitas, teto, rotulo, testId }: { feitas: num
 // voltar, sem depender do socket.
 const invalidarTudo = () => invalidarGraficaEMaquinas();
 
+/** O que PATCH /start-production recebe: o payload de `avaliarProducao` ou, na
+ *  peça dividida, o mesmo com a parte da impressora (lock otimista da parte). */
+export type DadosDeImpressas = PayloadProducao & {
+  expectedNaMaquina?: number; maquina?: string; impressasNaMaquina?: number;
+};
+/** Resposta da reserva: quantas entraram e, no lote, as recusadas com o motivo. */
+type RespostaDaReserva = { atualizadas: number; erros: { displayId: string | null; erro: string }[] };
+
 export function useMutacoesDeImpressao({ onSucesso }: { onSucesso?: () => void } = {}) {
   const { toast } = useToast();
 
   const startProductionMutation = useMutation({
-    mutationFn: async ({ itemId, data }: { itemId: string; data: any; displayId?: string | null }) =>
+    mutationFn: async ({ itemId, data }: { itemId: string; data: DadosDeImpressas; displayId?: string | null }) =>
       await apiRequest("PATCH", `/api/items/${itemId}/start-production`, data),
-    onSuccess: async (res: any, vars) => {
+    onSuccess: async (res, vars) => {
       invalidarTudo();
       onSucesso?.();
       // O toast diz PARA ONDE a peça foi: parcial continua na máquina;
       // completa vai para Acabamento / Conferência. O código da peça fica no
       // título (qual peça o toque atingiu).
-      const item = await res?.json?.().catch(() => null);
+      const item = (await res?.json?.().catch(() => null)) as { status?: string | null; quantity?: number | null } | null;
       const qtd = vars?.data?.quantityProduced;
       const cod = vars.displayId ? ` · ${vars.displayId}` : "";
       if (item?.status === "produced") {
@@ -298,9 +306,9 @@ export function useReservarImpressora({ onSucesso }: { onSucesso?: () => void } 
       const res = itemIds.length === 1
         ? await apiRequest("PATCH", `/api/items/${itemIds[0]}/maquina-prevista`, { maquina, ...(quantidade != null ? { quantidade } : {}), ...(deMaquina ? { deMaquina } : {}) })
         : await apiRequest("PATCH", "/api/items/bulk-maquina-prevista", { itemIds, maquina });
-      return itemIds.length === 1 ? { atualizadas: 1, erros: [] as { displayId: string | null; erro: string }[] } : await res.json();
+      return itemIds.length === 1 ? { atualizadas: 1, erros: [] as { displayId: string | null; erro: string }[] } : (await res.json()) as RespostaDaReserva;
     },
-    onSuccess: (r: any, vars) => {
+    onSuccess: (r: RespostaDaReserva, vars) => {
       invalidarTudo();
       onSucesso?.();
       const n = Number(r?.atualizadas ?? 0);
@@ -464,7 +472,7 @@ export function FormularioDeImpressao({ item, onFechar, padModal, mutacoes, abri
   const partes = partesDaPeca(item);
   // "Por partes" = tem jsonb — inclusive UMA parte só, quando apenas a parte
   // reservada a uma impressora foi iniciada (o teto dela é menor que a peça).
-  const dividida = estaDividida(item) || !!lerPartes((item as any).impressaoPorMaquina);
+  const dividida = estaDividida(item) || !!lerPartes(item.impressaoPorMaquina);
   const maquinaAtual = (dividida && maquinaEmQuestao && partes[maquinaEmQuestao] ? maquinaEmQuestao : item.printMachine) ?? "";
   const parte = maquinaAtual ? partes[maquinaAtual] : undefined;
 
@@ -545,7 +553,7 @@ export function FormularioDeImpressao({ item, onFechar, padModal, mutacoes, abri
       return;
     }
     const total = modoTotal ? quantidadeTotal : totalAPartirDoAgora(jaSairam, agora, teto).total;
-    let payload: any;
+    let payload: DadosDeImpressas;
     if (dividida && parte) {
       // Por impressora: o servidor recalcula o total da peça como a soma das partes.
       if (!Number.isInteger(total) || total <= 0 || total > teto) {
@@ -640,7 +648,7 @@ export function FormularioDeImpressao({ item, onFechar, padModal, mutacoes, abri
     const podeTrocarNoLugar = !!quemSai && conta.valida && !mexerNaImpressoraMutation.isPending;
     // SÓ RESERVAR (21/09): o gesto da fila de Máquinas, também daqui. Reserva
     // o que está SEM impressora; a peça continua liberada (nada muda de etapa).
-    const sem = semImpressora(item as any);
+    const sem = semImpressora(item);
     const podeReservar = !!maquinaEscolhida && !parteAIniciar?.daReserva && sem > 0 && conta.valida && conta.n <= sem && !reservarMutation.isPending;
     const codigoDestaPeca = [item.displayId, item.type ? `(${item.type})` : null].filter(Boolean).join(" ") || null;
     return (

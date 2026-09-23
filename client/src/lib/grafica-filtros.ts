@@ -24,7 +24,7 @@ import { pecaTravada } from "@shared/trava-da-peca";
 import { statusParaContagem } from "@shared/molde";
 import { normalizarBusca } from "./utils";
 
-/** Forma mínima de peça que o recorte enxerga (o item cru da API é `any`). */
+/** Forma mínima de peça que o recorte enxerga — estrutural, para aceitar a peça da fila e os dados de teste. */
 export interface ItemGrafica extends SaldoItem {
   id?: string;
   displayId?: string | null;

@@ -231,7 +231,9 @@ export function useEscalaParaCaber() {
 }
 /** A regra do zoom: só na TELA, lida de --etq-zoom no próprio elemento. */
 export const CSS_DO_ZOOM = "@media screen { .etq-zoom { zoom: var(--etq-zoom, 1); } }";
-export const estiloDoZoom = (escala: number) => ({ ["--etq-zoom" as any]: escala }) as CSSProperties;
+// Variável CSS não é chave de CSSProperties: a chave `string` vira índice e a
+// asserção passa sem abrir mão do tipo do valor.
+export const estiloDoZoom = (escala: number) => ({ ["--etq-zoom" as string]: escala }) as CSSProperties;
 export const mmParaPx = (mm: number) => mm * PX_POR_MM;
 
 /**

@@ -37,6 +37,7 @@ import {
 import { normalizarBusca } from "@/lib/utils";
 import { seloPecaEventoFinalizado } from "@/lib/status";
 import { EVENT_CLOSED_STATUS } from "@shared/prazo-dates";
+import { fonteDaGrafica } from "./fonte-da-grafica";
 
 const ler = (p: string) => readFileSync(resolve(process.cwd(), p), "utf8");
 
@@ -458,7 +459,7 @@ describe("a busca dos menus não pode ser cega a acento", () => {
 // as opções, e isso não dá para observar por fora sem montar a árvore React
 // inteira. É a mesma técnica de evento-finalizado-telas.test.ts.
 // ─────────────────────────────────────────────────────────────────────────────
-const GRAFICA = ler("client/src/pages/grafica.tsx");
+const GRAFICA = fonteDaGrafica();
 const REVISAO = ler("client/src/pages/solicitacao.tsx");
 const ARTE = ler("client/src/pages/arte.tsx");
 const ATENDIMENTO = ler("client/src/pages/atendimento.tsx");
@@ -478,10 +479,10 @@ describe("Gráfica — todo dropdown sai do mesmo pool da lista", () => {
     // 17/09 (performance): a busca passa UMA vez sobre `items` (poolDaBusca) e
     // a lista, os cards e as facetas partem desse mesmo pool — o array
     // continua sendo um só para todos.
-    expect(bloco(GRAFICA, "poolDaBusca")).toContain("(items as any[]).filter");
+    expect(bloco(GRAFICA, "poolDaBusca")).toContain("return items.filter(");
     expect(bloco(GRAFICA, "gFacetPool")).toContain("poolDaBusca.filter");
     expect(bloco(GRAFICA, "statsPool")).toContain("poolDaBusca.filter");
-    expect(bloco(GRAFICA, "filteredItems")).toContain("(items as any[])");
+    expect(bloco(GRAFICA, "filteredItems")).toContain("[...items].sort(");
     expect(bloco(GRAFICA, "filteredItems")).toContain("poolDaBusca");
   });
 

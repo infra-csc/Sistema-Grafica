@@ -15,6 +15,7 @@ import { describe, it, expect } from "vitest";
 import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
 import { readFileSync } from "fs";
 import { join } from "path";
+import { fonteDaGrafica } from "./fonte-da-grafica";
 
 const raiz = join(import.meta.dirname, "..", "..");
 const ler = (p: string) => readFileSync(join(raiz, p), "utf8");
@@ -45,7 +46,7 @@ describe("o recado escrito na Revisão Final não se perde", () => {
   });
 
   it("a Gráfica mostra o recado na fila e na ficha da peça", () => {
-    const grafica = ler("client/src/pages/grafica.tsx");
+    const grafica = fonteDaGrafica();
     expect(grafica).toContain("item.observations");
     expect(grafica).toContain("selectedItem.observations");
   });

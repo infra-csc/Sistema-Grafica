@@ -13,6 +13,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
 import { readFileSync } from "fs";
+import { fonteDaGrafica } from "./fonte-da-grafica";
 
 vi.mock("../db", () => ({ db: {} }));
 vi.mock("../storage", () => ({ storage: {} }));
@@ -21,7 +22,7 @@ const { EM_REVISAO } = await import("@shared/fluxo-peca");
 
 const STORAGE = readFileSync(new URL("../storage.ts", import.meta.url), "utf8");
 const ITEMS = fonteDasRotasDeItens();
-const GRAFICA = readFileSync(new URL("../../client/src/pages/grafica.tsx", import.meta.url), "utf8");
+const GRAFICA = fonteDaGrafica();
 const FILTROS = readFileSync(new URL("../../client/src/lib/grafica-filtros.ts", import.meta.url), "utf8");
 
 describe("a lista tem um dono e os três status certos", () => {
@@ -94,7 +95,7 @@ describe("segunda rodada (25/08): os quatro furos que sobraram", () => {
   // entregar, produzir-no-card, lote e galpão — mas a TABELA ainda oferecia
   // Produzir e Reaproveitar, e o + de aumentar quantidade aparecia nos dois
   // layouts. E reaproveitar era ação REAL: o servidor não olhava o status.
-  const G = readFileSync(new URL("../../client/src/pages/grafica.tsx", import.meta.url), "utf8");
+  const G = fonteDaGrafica();
   const ITEMS = fonteDasRotasDeItens();
 
   it("produzir e reaproveitar da tabela exigem !emRevisao", () => {

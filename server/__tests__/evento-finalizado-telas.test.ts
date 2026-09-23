@@ -37,10 +37,11 @@ import { readFileSync } from "fs";
 import { resolve } from "path";
 import { seloPecaEventoFinalizado, motivoAcaoBloqueada } from "@/lib/status";
 import { EVENT_CLOSED_STATUS } from "@shared/prazo-dates";
+import { fonteDaGrafica } from "./fonte-da-grafica";
 
 const ler = (p: string) => readFileSync(resolve(process.cwd(), p), "utf8");
 
-const GRAFICA = ler("client/src/pages/grafica.tsx");
+const GRAFICA = fonteDaGrafica();
 const REVISAO = ler("client/src/pages/solicitacao.tsx");
 const ITEMS = fonteDasRotasDeItens();
 

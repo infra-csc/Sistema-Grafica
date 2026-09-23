@@ -118,8 +118,8 @@ const ROTULO: React.CSSProperties = {
 };
 
 /** A mensagem do servidor vem crua dentro do erro ("409: {\"error\":…}"). */
-function mensagemDeErro(e: any): string {
-  const bruto = String(e?.message ?? "Erro desconhecido");
+function mensagemDeErro(e: unknown): string {
+  const bruto = String((e as { message?: unknown } | null | undefined)?.message ?? "Erro desconhecido");
   const i = bruto.indexOf("{");
   if (i >= 0) {
     try { const j = JSON.parse(bruto.slice(i)); if (j?.error) return j.error; } catch { /* segue */ }
@@ -132,6 +132,11 @@ const quandoFoi = (iso: string | null) =>
 /** Quanto da peça ainda dá para embalar agora (o servidor manda; sem o campo, a peça conferida inteira). */
 const disponivel = (p: Peca) => p.aEmbalar ?? (p.conferida ? Math.max(0, p.quantity - (p.embaladaQty ?? 0)) : 0);
 const plural = (n: number, um: string, varios: string) => `${n} ${n === 1 ? um : varios}`;
+
+// Respostas das rotas de tubo que a tela lê (server/routes/tubos.ts).
+type RespostaDaEntrega = { ok: true; numero: number; avulso: boolean; entregues: number; unidades: number };
+type RespostaDoApagar = { ok: true; devolvidas: number };
+type RespostaDasFotos = { ok: true; numero: number; fotos: number; totalDeFotos?: number };
 
 // ── O que os três modais compartilham ───────────────────────────────────────
 
@@ -418,8 +423,8 @@ export function EmbalarDialog({ evento, itens, comCaixas = false, emLote = false
       const r = escolhido === "novo"
         ? await apiRequest("POST", `/api/events/${evento!.id}/tubos`, { itens: itensComQuantidade, fotos, ...(sozinha ? { avulso: true } : {}) })
         : await apiRequest("PATCH", `/api/tubos/${escolhido}/itens`, { itens: itensComQuantidade, fotos });
-      const t = await r.json();
-      return { numero: t.numero as number, avulso: !!t.avulso, quantas: ids.length, nome: pecas[0]?.displayId ?? "Peça" };
+      const t = (await r.json()) as { numero: number; avulso?: boolean };
+      return { numero: t.numero, avulso: !!t.avulso, quantas: ids.length, nome: pecas[0]?.displayId ?? "Peça" };
     },
     onSuccess: ({ numero, avulso, quantas, nome }) => {
       toast({ title: avulso ? `${nome} embalada` : quantas === 1 ? `${nome} embalada no Tubo ${numero}` : `${quantas} peças embaladas no Tubo ${numero}` });
@@ -632,9 +637,9 @@ export function EntregarTuboDialog({ evento, tuboId, sugestaoRecebedor = "", onC
     mutationFn: async () => {
       // UMA foto de comprovante (o servidor guarda uma): o seletor da entrega aceita só uma.
       const r = await apiRequest("POST", `/api/tubos/${t!.id}/entregar`, { photoUrl: fotos[0] ?? null, receivedBy: recebidoPor.trim(), notes: obs });
-      return r.json();
+      return r.json() as Promise<RespostaDaEntrega>;
     },
-    onSuccess: (r: any) => {
+    onSuccess: (r) => {
       toast({ title: `${r.avulso ? oQue : `Tubo ${r.numero}`} entregue a ${recebidoPor.trim()}`, description: r.avulso ? undefined : plural(r.entregues, "peça entregue", "peças entregues") + "." });
       atualizarTudo(evento!.id);
       onEntregou?.(recebidoPor.trim());
@@ -811,10 +816,10 @@ export function EntregarEmLoteDialog({ volumes, sugestaoRecebedor = "", onClose,
       onTerminou(r, quem);
       onClose();
     },
-    onError: (e: any) => {
+    onError: (e) => {
       // 409 do lote inteiro ainda traz os motivos volume a volume (no corpo
       // que o apiRequest põe na mensagem: "409: {…}").
-      const bruto = String(e?.message ?? "");
+      const bruto = String((e as { message?: unknown } | null | undefined)?.message ?? "");
       const i = bruto.indexOf("{");
       try {
         const corpo = i >= 0 ? JSON.parse(bruto.slice(i)) : null;
@@ -902,15 +907,15 @@ export function PainelDeTubos({ evento, onClose, onEmbalar, onEntregar }: {
   const [vista, setVista] = useState<string | null>(null);
   if ((evento?.id ?? null) !== vista) { setVista(evento?.id ?? null); setAdicionandoFotos(null); setFotosNovas([]); setConfirmandoApagar(null); setVerEntregues(false); }
 
-  const falhou = (titulo: string) => (e: any) => toast({ title: titulo, description: mensagemDeErro(e), variant: "destructive" });
+  const falhou = (titulo: string) => (e: unknown) => toast({ title: titulo, description: mensagemDeErro(e), variant: "destructive" });
   const tirar = useMutation({
     mutationFn: async ({ tubo, peca }: { tubo: Tubo; peca: Peca }) => apiRequest("PATCH", `/api/tubos/${tubo.id}/itens`, { remover: [peca.id] }),
     onSuccess: (_r, { tubo, peca }) => { toast({ title: tubo.avulso ? `Embalagem de ${peca.displayId ?? "peça"} desfeita` : `${peca.displayId ?? "Peça"} saiu do Tubo ${tubo.numero}`, description: "Voltou para Conferido." }); atualizarTudo(evento!.id); },
     onError: falhou("Não foi possível tirar do tubo"),
   });
   const apagar = useMutation({
-    mutationFn: async (tubo: Tubo) => (await apiRequest("DELETE", `/api/tubos/${tubo.id}`)).json(),
-    onSuccess: (r: any, tubo) => {
+    mutationFn: async (tubo: Tubo) => (await apiRequest("DELETE", `/api/tubos/${tubo.id}`)).json() as Promise<RespostaDoApagar>,
+    onSuccess: (r, tubo) => {
       toast({ title: `Tubo ${tubo.numero} apagado`, description: r?.devolvidas > 0 ? `${plural(r.devolvidas, "peça voltou", "peças voltaram")} para Conferido.` : undefined });
       setConfirmandoApagar(null);
       atualizarTudo(evento!.id);
@@ -918,8 +923,8 @@ export function PainelDeTubos({ evento, onClose, onEmbalar, onEntregar }: {
     onError: falhou("Não foi possível apagar o tubo"),
   });
   const guardarFotos = useMutation({
-    mutationFn: async (tubo: Tubo) => (await apiRequest("POST", `/api/tubos/${tubo.id}/fechar`, { fotos: fotosNovas })).json(),
-    onSuccess: (r: any) => {
+    mutationFn: async (tubo: Tubo) => (await apiRequest("POST", `/api/tubos/${tubo.id}/fechar`, { fotos: fotosNovas })).json() as Promise<RespostaDasFotos>,
+    onSuccess: (r) => {
       toast({ title: `Fotos guardadas no Tubo ${r.numero}`, description: `${plural(r.fotos, "foto nova", "fotos novas")} · ${r.totalDeFotos ?? r.fotos} no tubo.` });
       setAdicionandoFotos(null); setFotosNovas([]);
       atualizarTudo(evento!.id);
@@ -1177,8 +1182,8 @@ export function TuboDialog({ evento, tuboId, onClose, onEntregar, onAbrirPeca }:
     onError: (e) => toast({ title: avulso ? "Não foi possível desfazer a embalagem" : "Não foi possível tirar do tubo", description: mensagemDeErro(e), variant: "destructive" }),
   });
   const guardarFotos = useMutation({
-    mutationFn: async () => (await apiRequest("POST", `/api/tubos/${t!.id}/fechar`, { fotos: fotosNovas })).json(),
-    onSuccess: (r: any) => {
+    mutationFn: async () => (await apiRequest("POST", `/api/tubos/${t!.id}/fechar`, { fotos: fotosNovas })).json() as Promise<RespostaDasFotos>,
+    onSuccess: (r) => {
       toast({ title: avulso ? "Fotos guardadas na embalagem" : `Fotos guardadas no Tubo ${r.numero}`, description: `${plural(r.fotos, "foto nova", "fotos novas")} · ${r.totalDeFotos ?? r.fotos} no total.` });
       setAdicionando(false); setFotosNovas([]);
       atualizarTudo(evento!.id);

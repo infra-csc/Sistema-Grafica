@@ -400,7 +400,8 @@ describe("MÁQUINAS no celular (390px) — controles novos de 21/09", () => {
     expect(linhas()).toBe(45);
     expect(mais()).toBeNull();
     const fs = await import("node:fs");
-    const fonte = fs.readFileSync("client/src/pages/grafica-maquinas.tsx", "utf8") + fs.readFileSync("client/src/components/grafica/modal-impressao.tsx", "utf8");
+    const { fonteDaTelaDeMaquinas } = await import("./fonte-da-tela-de-maquinas");
+    const fonte = fonteDaTelaDeMaquinas() + fs.readFileSync("client/src/components/grafica/modal-impressao.tsx", "utf8");
     expect(fonte).toMatch(/const LinhaDaFilaGeral = memo\(/);
     expect(fonte).toMatch(/const LinhaDoDiario = memo\(/);
     // Régua de escrita: nada de comentário JSX logo após `return (` ou a abertura de um ternário.

@@ -5,6 +5,7 @@
 import { describe, it, expect } from "vitest";
 import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
 import { readFileSync } from "fs";
+import { fonteDaGrafica } from "./fonte-da-grafica";
 
 const ler = (p: string) => readFileSync(new URL(`../../${p}`, import.meta.url), "utf8");
 
@@ -21,7 +22,7 @@ describe("a trava da Solicitação segura também o molde e o reaproveitar", () 
     const rota = fonteDasRotasDeItens();
     const i = rota.indexOf('"/api/items/:id/mark-reuse"');
     expect(rota.slice(i, i + 2500)).toContain("if (pecaTravada(current as any)) return res.status(409)");
-    expect(ler("client/src/pages/grafica.tsx")).toContain("const podeReaproveitarPeca = !emRevisao && !pecaTravada(item)");
+    expect(fonteDaGrafica()).toContain("const podeReaproveitarPeca = !emRevisao && !pecaTravada(item)");
   });
 });
 

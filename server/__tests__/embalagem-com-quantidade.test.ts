@@ -22,12 +22,14 @@ import {
 } from "@shared/embalagem";
 import { linhaDaLista } from "../../client/src/lib/etiqueta-lista";
 import { detalheDaProducao } from "../../client/src/lib/detalhe-producao";
+import { fonteDaGrafica } from "./fonte-da-grafica";
+import { gatesDaGrafica } from "../../client/src/components/grafica/fila/regras";
 
 const RAIZ = path.resolve(__dirname, "../..");
 const ler = (rel: string) => readFileSync(path.resolve(RAIZ, rel), "utf8");
 const ROTAS = ler("server/routes/tubos.ts");
 const ITEMS = fonteDasRotasDeItens();
-const GRAFICA = ler("client/src/pages/grafica.tsx");
+const GRAFICA = fonteDaGrafica();
 
 const peca = (extra: Record<string, unknown> = {}) => ({ quantity: 10, quantityProduced: 10, reuseQty: 0, isReuse: false, conferredQty: 10, embaladaQty: 0, deliveredQty: 0, status: "conferred", ...extra });
 
@@ -236,7 +238,12 @@ describe("5 · a tela", () => {
   });
   it("Gráfica: embala quem tem unidade a embalar ('Embalar 3'), o selo lista os volumes, e as ações da embalada valem para quem tem volume aberto", () => {
     expect(GRAFICA).toContain("!EM_REVISAO.has(item.status) && !soVisualizaKit(item) && !isDelivered(item) && !isPacked(item) && !!item.eventId && aEmbalar(item) > 0;");
-    expect(GRAFICA).toContain("const rotuloEmbalar = (item: any) => (aEmbalar(item) < qtyOf(item) ? `Embalar ${aEmbalar(item)}` : \"Embalar\");");
+    // "Embalar" quando é tudo; "Embalar 3" quando é só o que falta (gate puro, fila/regras.ts).
+    const { rotuloEmbalar } = gatesDaGrafica({ role: "grafica" });
+    const peca = { id: "p", status: "conferred", quantity: 10, conferredQty: 10 };
+    expect(rotuloEmbalar({ ...peca, embaladaQty: 0 } as never)).toBe("Embalar");
+    expect(rotuloEmbalar({ ...peca, embaladaQty: 7 } as never)).toBe("Embalar 3");
+    expect(rotuloEmbalar({ ...peca, status: "produced", conferredQty: 7, embaladaQty: 0 } as never)).toBe("Embalar 7");
     expect(GRAFICA.match(/\{rotuloEmbalar\(item\)\}/g)?.length).toBe(2);
     expect(GRAFICA).toContain("return falta + seloDosVolumes(volumes);");
     expect(GRAFICA.match(/temVolumeAberto\(item\) && /g)?.length).toBeGreaterThanOrEqual(4);

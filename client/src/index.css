@@ -501,6 +501,11 @@
    fonte viva das cores de status, que é lib/status.ts.
    ═══════════════════════════════════════════════════════════════════════════ */
 :root {
+  /* O APP É CLARO. Sem isto o navegador que está em modo escuro pinta de
+     escuro as peças NATIVAS (barra de rolagem, <select> aberto, calendário do
+     <input type="date">, autofill) sobre uma tela clara. */
+  color-scheme: light;
+
   /* ── Neutros: onze degraus, do papel ao texto ───────────────────────────
      São onze porque a tela usa onze — contados no código, não escolhidos.
      O corte fica entre n6 e n7: n6 (#a8a29e) é DECORAÇÃO (2,5:1 sobre
@@ -527,6 +532,28 @@
   --alerta-bg: #fffbeb;  --alerta-text: #b45309;  --alerta-border: #fde68a;
   --perigo-bg: #fef2f2;  --perigo-text: #b91c1c;  --perigo-border: #fecaca;
   --info-bg:   #eff6ff;  --info-text:   #1d4ed8;  --info-border:   #bfdbfe;
+
+  /* ── Superfície escura: espelha ESCURO ─────────────────────────────────
+     O cabeçalho escuro de modal, a barra flutuante de lote, o topo do
+     Exportar PDF. O texto claro que passa sobre ela mora junto, medido no
+     theme.ts. O foco muda de cor aqui: o #ea580c do fundo claro cai para
+     4,05:1 sobre #2d2926 e 2,4 sobre o realce; o #fb923c fica acima de 6. */
+  --escuro-fundo:        #1c1917;
+  --escuro-fundo-alto:   #2d2926;
+  --escuro-texto:        #fafaf9;
+  --escuro-apoio:        #d6d3d1;
+  --escuro-borda:        rgba(255,255,255,0.12);
+  --escuro-realce:       rgba(255,255,255,0.08);
+  --escuro-realce-forte: rgba(255,255,255,0.16);
+  --escuro-foco:         #fb923c;
+
+  /* ── Realce de hover: a superfície que um controle sem fundo ganha ─────
+     Nome próprio, e não `var(--n2)` direto na regra: o realce é um PAPEL
+     (cinza sutil sobre papel claro), e o n2 é um DEGRAU da escada — que o
+     tema escuro inverte. Amarrar o papel ao degrau fazia o hover do fantasma
+     seguir a inversão onde ela não devia. Ver a nota do tema escuro abaixo. */
+  --realce:       var(--n2);
+  --realce-ativo: var(--n3);
 
   /* ── Tipografia: dez degraus, piso de 10px ─────────────────────────────
      Espelha FS. O piso existe porque a tela tinha 6, 7, 8 e 9px vivos — no
@@ -602,9 +629,18 @@
   --row-h: 64px;
 }
 
-/* Os mesmos tokens no tema escuro: a escada inverte, os nomes não mudam.
-   É isso que permite a tela ser escrita uma vez só. */
+/* ── O TEMA ESCURO ESTÁ DESLIGADO, E FICA COERENTE ──────────────────────────
+   O app é claro. Nenhum código aplica a classe .dark (não há alternador, nem
+   next-themes, nem leitura de prefers-color-scheme), então nada abaixo vale
+   hoje — e o :root não herda nada daqui: a classe só pega em quem a tiver.
+
+   O bloco continua COMPLETO para o dia em que alguém ligar: a escada inverte
+   com os mesmos nomes, os semânticos e a superfície escura ganham o seu par, e
+   o realce de hover (--realce) segue um degrau acima do fundo, em vez de um
+   cinza claro sobre fundo escuro. Ligar o tema é pôr .dark no <html> — e antes
+   revisar as ~60 cores inline que não passam por var nenhuma. */
 .dark {
+  color-scheme: dark;
   --n0:  #1c1917;
   --n1:  #16130f;
   --n2:  #292524;
@@ -616,6 +652,12 @@
   --n8:  #d6d3d1;
   --n9:  #e7e5e4;
   --n10: #fafaf9;
+  --ok-bg:     #052e16;  --ok-text:     #86efac;  --ok-border:     #166534;
+  --alerta-bg: #451a03;  --alerta-text: #fcd34d;  --alerta-border: #92400e;
+  --perigo-bg: #450a0a;  --perigo-text: #fca5a5;  --perigo-border: #991b1b;
+  --info-bg:   #172554;  --info-text:   #93c5fd;  --info-border:   #1e40af;
+  --escuro-fundo:      #0c0a09;
+  --escuro-fundo-alto: #1c1917;
   --sh-sm: 0 1px 2px rgba(0,0,0,0.35);
   --sh-md: 0 4px 12px -2px rgba(0,0,0,0.45);
   --sh-lg: 0 16px 32px -12px rgba(0,0,0,0.55);
@@ -843,8 +885,8 @@
 .ds-botao:hover:not(:disabled) { filter: brightness(0.94); }
 .ds-botao:active:not(:disabled) { filter: brightness(0.88); }
 /* Variante fantasma não tem fundo para escurecer — o brilho não faria nada. */
-.ds-botao-fantasma:hover:not(:disabled) { background-color: var(--n2) !important; filter: none; }
-.ds-botao-fantasma:active:not(:disabled) { background-color: var(--n3) !important; filter: none; }
+.ds-botao-fantasma:hover:not(:disabled) { background-color: var(--realce) !important; filter: none; }
+.ds-botao-fantasma:active:not(:disabled) { background-color: var(--realce-ativo) !important; filter: none; }
 /* DESABILITADO CONTINUA RECEBENDO O PONTEIRO: o cursor precisa dizer "não dá",
    e o motivo visível ao lado precisa poder ser lido. O que não pode é ACENDER
    — realce é promessa de clique, e o clique não vai acontecer. */
@@ -854,4 +896,69 @@
   filter: none;
 }
 .ds-botao:disabled:hover { filter: none; }
+
+/* SOBRE FUNDO ESCURO o realce é branco translúcido, não cinza: o brightness
+   escureceria o que já é escuro, e o --realce claro apagaria o texto claro. */
+.ds-botao-claro-fantasma:hover:not(:disabled) { background-color: var(--escuro-realce-forte) !important; filter: none; }
+.ds-botao-claro-fantasma:active:not(:disabled) { background-color: rgba(255,255,255,0.22) !important; filter: none; }
+/* Secundário em tom de perigo: o hover acende a tinta vermelha clara, em vez
+   de acinzentar o branco — o realce continua dizendo "isto apaga". */
+.ds-botao-perigo-secundario:hover:not(:disabled) { background-color: var(--perigo-bg) !important; filter: none; }
+.ds-botao-perigo-secundario:active:not(:disabled) { background-color: var(--perigo-border) !important; filter: none; }
+
+/* <BotaoLink>: o MESMO visual num <a>. Link não tem :disabled — o travado é
+   aria-disabled, e ele não pode acender nem parecer clicável. */
+a.ds-botao { text-decoration: none; }
+a.ds-botao[aria-disabled="true"] { opacity: 0.5; cursor: not-allowed; filter: none; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   FOCO VISÍVEL — o que a regra global (:focus-visible, acima) não resolve.
+
+   · ABA: o trilho de <Abas> rola na horizontal (overflow-x: auto), e overflow
+     que rola RECORTA o que passa da caixa — o anel de 2px com 2px de folga
+     saía cortado em cima e embaixo. Na aba o anel entra para DENTRO.
+   · SOBRE O ESCURO: o laranja profundo do anel cai para 4,05:1 sobre #2d2926 e
+     2,4 sobre o realce translúcido. Dentro de .ds-sobre-escuro (e nos
+     controles claros) o anel usa --escuro-foco (#fb923c, 6,4:1 no pior).
+   ═══════════════════════════════════════════════════════════════════════════ */
+.ds-aba:focus-visible { outline-offset: -3px; }
+.ds-kpi-principal:focus-visible { outline-offset: -3px; }
+.ds-sobre-escuro :focus-visible,
+.ds-botao-claro:focus-visible,
+.ds-botao-claro-fantasma:focus-visible,
+.modal-fechar-escuro:focus-visible {
+  outline-color: var(--escuro-foco);
+}
+
+/* ── O X do ModalHeader: hover por CSS ─────────────────────────────────────
+   Era onMouseEnter/onMouseLeave trocando style.backgroundColor — o padrão que o
+   design system veio aposentar (não cobre teclado e briga com o inline). As
+   duas cores chegam do componente como var, e o estado mora aqui. */
+.modal-fechar {
+  background-color: var(--fechar-fundo, var(--n2));
+  transition: background-color var(--dur-rapida) ease;
+}
+.modal-fechar:hover,
+.modal-fechar:focus-visible { background-color: var(--fechar-fundo-hover, var(--n4)); }
+
+/* ── Rótulo do CartaoKpi no celular ────────────────────────────────────────
+   10px em caixa-alta com reticência é ilegível no galpão e cortava "AGUARDANDO
+   CONFERÊNCIA" em "AGUARDANDO CONF…". No celular sobe para 12px e QUEBRA em
+   vez de cortar. !important porque o tamanho vem de estilo inline. */
+@media (max-width: 767px) {
+  .ds-kpi-rotulo {
+    font-size: 12px !important;
+    white-space: normal !important;
+    overflow: visible !important;
+    text-overflow: clip !important;
+    letter-spacing: 0.04em !important;
+  }
+}
+
+/* ── Alvo de 44px também no que é link com cara de botão ───────────────────
+   A regra de (pointer: coarse) acima pega button/[role=button]/[role=tab]. O
+   <BotaoLink> e o CartaoKpi de navegação são <a>, e ficavam de fora. */
+@media (pointer: coarse) {
+  a.ds-botao { min-height: 44px !important; }
+}
 

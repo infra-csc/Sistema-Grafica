@@ -43,7 +43,10 @@ import { fileURLToPath } from "url";
 const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 // ─────────────────────────────────────────────────────────────────────────────
-// A tabela. Espelha N, T e TOM de client/src/lib/theme.ts.
+// A tabela. Espelha N, T, TOM, TOM_FORTE e ESCURO de client/src/lib/theme.ts.
+// Os degraus 100/300/800 de cada família eram "vizinhos" do TOM; desde que o
+// TOM_FORTE existe, eles têm token próprio — trocar #fee2e2 pelo TOM.perigo.bg
+// clarearia de propósito o que a tela quis forte.
 //
 // O "porquê" de cada linha é curto de propósito: ele responde "posso trocar
 // direto?" e não "o que é esta cor".
@@ -149,6 +152,37 @@ const TOKENS = {
   "#cffafe": ["TOM.ciano.bg", "vizinho"],
   "#06b6d4": ["TOM.ciano.dot", "SÓ bolinha/barra"],
   "#0891b2": ["TOM.ciano.text", "vizinho"],
+  "#dcfce7": ["TOM_FORTE.sucesso.bg", "degrau forte (100) — o TOM.bg é o 50"],
+  "#86efac": ["TOM_FORTE.sucesso.border", "degrau forte (300)"],
+  "#166534": ["TOM_FORTE.sucesso.text", "degrau forte (800) — AA sobre o bg forte"],
+  "#fef3c7": ["TOM_FORTE.alerta.bg", "degrau forte (100) — o TOM.bg é o 50"],
+  "#fcd34d": ["TOM_FORTE.alerta.border", "degrau forte (300)"],
+  "#92400e": ["TOM_FORTE.alerta.text", "degrau forte (800) — AA sobre o bg forte"],
+  "#fee2e2": ["TOM_FORTE.perigo.bg", "degrau forte (100) — o TOM.bg é o 50"],
+  "#fca5a5": ["TOM_FORTE.perigo.border", "CUIDADO: onde convive com #fecaca, são dois degraus de propósito — este é o forte"],
+  "#991b1b": ["TOM_FORTE.perigo.text", "degrau forte (800) — AA sobre o bg forte"],
+  "#dbeafe": ["TOM_FORTE.info.bg", "degrau forte (100) — o TOM.bg é o 50"],
+  "#93c5fd": ["TOM_FORTE.info.border", "degrau forte (300)"],
+  "#1e40af": ["TOM_FORTE.info.text", "degrau forte (800) — AA sobre o bg forte"],
+  "#ffedd5": ["TOM_FORTE.laranja.bg", "degrau forte (100) — o TOM.bg é o 50"],
+  "#fdba74": ["TOM_FORTE.laranja.border", "degrau forte (300)"],
+  "#9a3412": ["TOM_FORTE.laranja.text", "degrau forte (800) — AA sobre o bg forte"],
+  "#e0f2fe": ["TOM_FORTE.ceu.bg", "degrau forte (100) — o TOM.bg é o 50"],
+  "#7dd3fc": ["TOM_FORTE.ceu.border", "degrau forte (300)"],
+  "#075985": ["TOM_FORTE.ceu.text", "degrau forte (800) — AA sobre o bg forte"],
+  "#f3e8ff": ["TOM_FORTE.roxo.bg", "degrau forte (100) — o TOM.bg é o 50"],
+  "#d8b4fe": ["TOM_FORTE.roxo.border", "degrau forte (300)"],
+  "#6b21a8": ["TOM_FORTE.roxo.text", "degrau forte (800) — AA sobre o bg forte"],
+  "#d1fae5": ["TOM_FORTE.esmeralda.bg", "degrau forte (100) — o TOM.bg é o 50"],
+  "#6ee7b7": ["TOM_FORTE.esmeralda.border", "degrau forte (300)"],
+  "#065f46": ["TOM_FORTE.esmeralda.text", "degrau forte (800) — AA sobre o bg forte"],
+  "#ccfbf1": ["TOM_FORTE.turquesa.bg", "degrau forte (100) — o TOM.bg é o 50"],
+  "#5eead4": ["TOM_FORTE.turquesa.border", "degrau forte (300)"],
+  "#115e59": ["TOM_FORTE.turquesa.text", "degrau forte (800) — AA sobre o bg forte"],
+  "#cffafe": ["TOM_FORTE.ciano.bg", "degrau forte (100) — o TOM.bg é o 50"],
+  "#67e8f9": ["TOM_FORTE.ciano.border", "degrau forte (300)"],
+  "#155e75": ["TOM_FORTE.ciano.text", "degrau forte (800) — AA sobre o bg forte"],
+  "#2d2926": ["ESCURO.fundoAlto", "superfície escura (2º ponto do gradiente) — ESCURO.gradiente pronto"],
 };
 
 /** Cores que NÃO são nossas — marca de terceiro. Ficam como estão. */

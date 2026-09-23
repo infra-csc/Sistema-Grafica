@@ -325,3 +325,64 @@ export const SHADOW = {
   md: "0 4px 12px -2px rgba(28,25,23,0.10)",
   lg: "0 16px 32px -12px rgba(28,25,23,0.18)",
 } as const;
+
+/**
+ * DEGRAU FORTE de cada família semântica — fundo 100, texto 800, borda 300.
+ *
+ * O `TOM` é a tinta CLARA (fundo 50, texto 700): serve ao selo que convive com
+ * dezenas de outros na mesma tela. Algumas telas precisavam de um degrau a
+ * mais — o chip SELECIONADO de um filtro, a linha marcada, o aviso que não
+ * pode se perder no meio dos selos claros — e cravavam `#fee2e2`/`#991b1b`,
+ * `#dcfce7`/`#166534` à mão. Agora é token.
+ *
+ * Os valores são os mesmos degraus 100/300/800 da família do Tailwind de que a
+ * paleta `P` já vem; o `dot` é o mesmo do `TOM` (a bolinha não muda de peso).
+ * Contraste do `text` sobre o próprio `bg`, medido: o pior é o alerta, 6,37:1;
+ * todos passam AA folgado (teste em design-system.test.ts).
+ */
+export const TOM_FORTE: Record<NomeDeTom, { bg: string; border: string; text: string; dot: string }> = {
+  sucesso:   { bg: "#dcfce7", border: "#86efac", text: "#166534", dot: TOM.sucesso.dot },
+  alerta:    { bg: "#fef3c7", border: "#fcd34d", text: "#92400e", dot: TOM.alerta.dot },
+  perigo:    { bg: "#fee2e2", border: "#fca5a5", text: "#991b1b", dot: TOM.perigo.dot },
+  info:      { bg: "#dbeafe", border: "#93c5fd", text: "#1e40af", dot: TOM.info.dot },
+  neutro:    { bg: "#f5f5f4", border: "#d6d3d1", text: "#292524", dot: TOM.neutro.dot },
+  laranja:   { bg: "#ffedd5", border: "#fdba74", text: "#9a3412", dot: TOM.laranja.dot },
+  ceu:       { bg: "#e0f2fe", border: "#7dd3fc", text: "#075985", dot: TOM.ceu.dot },
+  roxo:      { bg: "#f3e8ff", border: "#d8b4fe", text: "#6b21a8", dot: TOM.roxo.dot },
+  esmeralda: { bg: "#d1fae5", border: "#6ee7b7", text: "#065f46", dot: TOM.esmeralda.dot },
+  turquesa:  { bg: "#ccfbf1", border: "#5eead4", text: "#115e59", dot: TOM.turquesa.dot },
+  ciano:     { bg: "#cffafe", border: "#67e8f9", text: "#155e75", dot: TOM.ciano.dot },
+};
+
+/**
+ * SUPERFÍCIE ESCURA — o cabeçalho escuro de modal, a barra flutuante de ações
+ * em lote, o painel lateral da triagem, o topo do Exportar PDF.
+ *
+ * Cada um desses lugares cravava o próprio par: `#2d2926` no segundo ponto do
+ * gradiente, `rgba(255,255,255,0.72)` num subtítulo, `#fafaf9` noutro, e o
+ * botão "claro" sobrescrito por `style`. É uma superfície só, então vira um
+ * token só, com o texto que passa sobre ela:
+ *
+ *   texto  #fafaf9 — 16,7:1 sobre `fundo`, 13,8:1 sobre `fundoAlto`
+ *   apoio  #d6d3d1 — 11,7:1 e 9,7:1 (o subtítulo; NÃO é o #a8a29e, que a régua
+ *                    da casa proíbe como texto em qualquer fundo)
+ *   foco   #fb923c — o anel de foco sobre o escuro (6,4:1 no pior ponto); o
+ *                    #ea580c do fundo claro cai para 4,05 aqui e para 2,4 sobre
+ *                    o `realceForte`.
+ *
+ * `realce`/`realceForte` são o fundo em repouso e sob o ponteiro de um
+ * controle translúcido sobre o escuro (o X do modal, o botão `claroFantasma`).
+ * O texto `texto` sobre eles continua acima de 8:1.
+ */
+export const ESCURO = {
+  fundo: N.n10,
+  fundoAlto: "#2d2926",
+  gradiente: `linear-gradient(135deg, ${N.n10} 0%, #2d2926 100%)`,
+  texto: N.n1,
+  apoio: N.n5,
+  borda: "rgba(255,255,255,0.12)",
+  divisor: "rgba(255,255,255,0.06)",
+  realce: "rgba(255,255,255,0.08)",
+  realceForte: "rgba(255,255,255,0.16)",
+  foco: "#fb923c",
+} as const;

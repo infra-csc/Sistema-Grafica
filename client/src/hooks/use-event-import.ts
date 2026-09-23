@@ -8,6 +8,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import type { CabecalhoDoKit } from "@shared/kit";
 import type { PecaLidaDaPlanilha, PreviaDaPlanilha, RespostaDaClonagem, RespostaDaImportacao } from "@shared/api";
+import type { LinhaDaImportacao } from "@/components/importar-planilha/tipos";
 import type { DestinoDaImportacao } from "@/components/kit/destino-da-importacao";
 
 interface EventSponsorListEntry {
@@ -22,11 +23,10 @@ interface RegraDeCotaDoPalpite {
   itemTypes?: string[] | null;
 }
 
-/** Linha da revisão da planilha: a peça lida + o id da linha e os palpites. */
-export type LinhaDaPrevia = PecaLidaDaPlanilha & {
-  _id: string;
-  reuse: boolean;
-};
+/** Linha da revisão da planilha: a peça lida + o id da linha e os palpites.
+ *  É a MESMA linha que a tabela editável usa (célula editada vira texto), para
+ *  a tela e o hook não descreverem a mesma coisa de dois jeitos. */
+export type LinhaDaPrevia = LinhaDaImportacao;
 
 /** Mensagem de erro de uma resposta `{ error }` da API (ou nada). */
 const erroDaResposta = (corpo: unknown): string | undefined => {

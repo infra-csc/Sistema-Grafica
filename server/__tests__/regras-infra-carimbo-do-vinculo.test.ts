@@ -15,7 +15,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const B = vi.hoisted(() => ({
-  carimbos: [] as Array<{ updatedAt: unknown }>,
+  carimbos: [] as Array<{ updatedAt?: unknown }>,
   falharCarimbo: false,
   linhasApagadas: 1,
 }));

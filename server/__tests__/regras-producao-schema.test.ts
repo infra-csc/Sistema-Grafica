@@ -22,7 +22,7 @@ const ler = (rel: string) => readFileSync(path.join(RAIZ, rel), "utf8");
 /** Todos os .sql/.mjs de scripts/ — a migração pode mudar de arquivo sem o teste mentir. */
 const scripts = (ext: string) => readdirSync(path.join(RAIZ, "scripts")).filter((f) => f.endsWith(ext)).map((f) => ler(`scripts/${f}`));
 
-const tabelas = Object.values(schema).filter((v: unknown): v is PgTable => is(v, PgTable)).map((t) => getTableConfig(t));
+const tabelas = (Object.values(schema) as unknown[]).filter((v): v is PgTable => is(v, PgTable)).map((t) => getTableConfig(t));
 
 describe("o prazo do molde no evento", () => {
   it("events.prazo_molde: timestamp opcional (nulo = sem prazo)", () => {

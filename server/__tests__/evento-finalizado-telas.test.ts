@@ -239,14 +239,8 @@ describe("a frase do botão bloqueado", () => {
 // uma peça (puniria a seleção grande, que é para o que o lote existe).
 // ─────────────────────────────────────────────────────────────────────────────
 describe("Revisão Final — lote misto", () => {
-  it("o servidor trata lote misto item a item, com 409 só no lote inteiro", () => {
-    const guarda = ler("server/routes/eventoFinalizado.ts");
-    expect(guarda).toContain("respondeLoteInteiro");
-    const lote = handlerDaRota(`app.patch("/api/items/bulk-return-to-arte"`);
-    // Registra o barrado e SEGUE (continue) — não sai no primeiro.
-    expect(lote).toContain("bloqueio.registra(motivoEvento)");
-    expect(lote).toContain("bloqueio.respondeLoteInteiro(res, results.length, itemIds.length)");
-  });
+  // O lado do servidor (lote misto processa a viva; 409 só no lote inteiro)
+  // roda de verdade em evento-finalizado-escrita.test.ts ("rotas de lote").
 
   it("a tela separa a seleção e manda só as vivas", () => {
     expect(REVISAO).toContain("const selecaoLote");

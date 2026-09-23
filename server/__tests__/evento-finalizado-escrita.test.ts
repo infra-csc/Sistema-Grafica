@@ -36,7 +36,6 @@
 // mockada.
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
 import { items as itemsDaTabela } from "@shared/schema";
 import { txDeMentira } from "./tx-de-mentira";
 import fs from "fs";
@@ -585,13 +584,41 @@ const SEM_GUARDA_POR_DESENHO: Record<string, string> = {
 };
 
 const RAIZ = path.resolve(__dirname, "..", "..");
-const FONTES = ["server/routes/items.ts", "server/routes/sponsors.ts", "server/routes/events.ts"];
+
+// Varredura (não dá para executar "toda rota tem guarda"): varre TODO arquivo
+// de server/routes (recursivo). Cada um está NA REDE ou FORA DO RECORTE com o
+// motivo — arquivo de rota novo não entra calado em nenhum dos dois.
+function arquivosDeRota(dir = path.join(RAIZ, "server/routes")): string[] {
+  return fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
+    e.isDirectory() ? arquivosDeRota(path.join(dir, e.name))
+      : e.name.endsWith(".ts") ? [path.relative(RAIZ, path.join(dir, e.name)).split(path.sep).join("/")] : []);
+}
+/** A rede: as rotas da peça (itens/ inteiro), de patrocinador e de evento. */
+const NA_REDE = (rel: string) => rel.startsWith("server/routes/itens/") || ["server/routes/items.ts", "server/routes/sponsors.ts", "server/routes/events.ts"].includes(rel);
+/**
+ * Fora do recorte desta rede — ela nasceu para items/sponsors/events. Alguns
+ * destes arquivos têm a guarda nas rotas que andam (molde, máquinas), outros
+ * não mexem em peça; a decisão de ampliar a rede é de produto.
+ */
+const FORA_DO_RECORTE: Record<string, string> = {
+  "server/routes/analises.ts": "leitura", "server/routes/artes-busca.ts": "leitura", "server/routes/audit-logs.ts": "leitura",
+  "server/routes/auth.ts": "sessão e usuários", "server/routes/busca.ts": "leitura",
+  "server/routes/consultas-de-estoque.ts": "consulta de estoque", "server/routes/estoque-reservas.ts": "reserva de estoque",
+  "server/routes/eventoFinalizado.ts": "a própria guarda", "server/routes/inferir-executivos.ts": "cadastro de patrocinador",
+  "server/routes/inventory.ts": "estoque", "server/routes/kit.ts": "remessas do Kit", "server/routes/maquinas.ts": "impressoras",
+  "server/routes/molde.ts": "molde", "server/routes/notifications.ts": "sino", "server/routes/objects.ts": "upload de arquivo",
+  "server/routes/pedidos-de-peca.ts": "pedidos de peça", "server/routes/photos.ts": "fotos", "server/routes/prazos.ts": "cobrança de prazo",
+  "server/routes/relatorio.ts": "leitura", "server/routes/reparo-motivos.ts": "reparo de admin",
+  "server/routes/reparo-vinculos-evento.ts": "reparo de admin", "server/routes/shared.ts": "apoio",
+  "server/routes/standard-items.ts": "catálogo", "server/routes/thumb-url.ts": "apoio", "server/routes/trava.ts": "trava da Solicitação",
+  "server/routes/tubos.ts": "tubos", "server/routes/versoes.ts": "leitura",
+};
+const FONTES = arquivosDeRota().filter(NA_REDE);
 
 type RotaFonte = { chave: string; corpo: string };
 
 function rotasDe(rel: string): RotaFonte[] {
-  // server/routes/items.ts virou índice: o texto das rotas da peça vem de fonteDasRotasDeItens().
-  const src = rel === "server/routes/items.ts" ? fonteDasRotasDeItens() : fs.readFileSync(path.join(RAIZ, rel), "utf8");
+  const src = fs.readFileSync(path.join(RAIZ, rel), "utf8");
   const re = /app\.(get|post|patch|put|delete)\(\s*["'`]([^"'`]+)/g;
   const achadas: Array<{ verbo: string; caminho: string; i: number }> = [];
   let m: RegExpExecArray | null;
@@ -606,6 +633,21 @@ function rotasDe(rel: string): RotaFonte[] {
 const TEM_GUARDA = /barraEventoFinalizado|motivoEventoDaPeca|motivoEventoFechado|contadorDeBloqueio|barraImportacao/;
 
 describe("rede: nenhuma rota de escrita de peça fica sem decisão sobre evento finalizado", () => {
+  it("todo arquivo de server/routes está na rede ou fora do recorte com motivo", () => {
+    const soltos = arquivosDeRota().filter((rel) => !NA_REDE(rel) && !(rel in FORA_DO_RECORTE));
+    expect(soltos).toEqual([]);
+    expect(FONTES.length).toBeGreaterThan(10);
+  });
+
+  it("a varredura enxerga TODA escrita que o servidor registra de verdade (items, sponsors, events)", () => {
+    // Rota escrita de um jeito que a regex não pega (caminho numa constante,
+    // outro nome de app) escaparia da rede em silêncio.
+    const lidas = new Set(FONTES.flatMap(rotasDe).map((r) => r.chave));
+    const registradas = Array.from(rotas.keys()).filter((k) => !k.startsWith("GET "));
+    expect(registradas.length).toBeGreaterThan(40);
+    expect(registradas.filter((k) => !lidas.has(k))).toEqual([]);
+  });
+
   for (const rel of FONTES) {
     it(`${rel} — toda escrita tem guarda ou está na lista justificada`, () => {
       const semDecisao = rotasDe(rel)

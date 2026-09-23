@@ -170,13 +170,8 @@ describe("4 · o reenvio da correção é derivado, não escolhido", () => {
     expect(ROTAS).toContain("aprovacoes: comPatrocinador(todasPorItem.get(item.id) ?? []),");
   });
 
-  it("e o servidor não aceita subconjunto diferente", () => {
-    expect(ROTAS).toContain('const sponsorIds = aprovacoes.filter((a) => a.status !== "approved").map((a) => a.sponsorId);');
-    expect(ROTAS).toContain('error: "O reenvio vai sempre para quem ainda não aprovou — o servidor não aceita outro conjunto.",');
-    expect(ROTAS).toContain("esperado: sponsorIds,");
-    // O 400 "Selecione pelo menos um patrocinador" morreu com a escolha.
-    expect(semCom(ROTAS)).not.toContain("Selecione pelo menos um patrocinador");
-  });
+  // "e o servidor não aceita subconjunto diferente" roda de verdade em
+  // regras-infra2-reenvio-da-correcao.test.ts.
 });
 
 describe("o que NÃO mexer continua", () => {

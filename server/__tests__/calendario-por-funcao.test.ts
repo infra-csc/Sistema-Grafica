@@ -8,14 +8,12 @@
 // marcos" é a saída — o recorte é padrão, nunca prisão.
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect } from "vitest";
-import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
 import { readFileSync } from "fs";
 import path from "path";
 
 const ler = (rel: string) => readFileSync(path.resolve(__dirname, "../..", rel), "utf8");
 const CAL = ler("client/src/pages/calendario.tsx");
 const GRADE = ler("client/src/components/bulk-item-entry.tsx");
-const ITEMS = fonteDasRotasDeItens();
 const EVENT_DETAIL = ler("client/src/pages/event-detail.tsx");
 
 describe("calendário: cada função vê o que precisa", () => {
@@ -59,11 +57,6 @@ describe("entrada rápida: a prioridade tem onde morar", () => {
     expect(EVENT_DETAIL).toContain("podePriorizar={user?.role === 'admin' || user?.role === 'solicitacao'}");
   });
 
-  it("o LOTE tem o mesmo gate do POST unitário — e a notificação NOMEIA as prioritárias", () => {
-    const lote = ITEMS.slice(ITEMS.indexOf('app.post("/api/items/bulk"'), ITEMS.indexOf('app.patch("/api/items/:id"'));
-    expect(lote).toContain('if (validatedItems.some((i) => i.isPriority) && !["admin", "solicitacao"].includes(req.userRole ?? "")) {');
-    expect(lote).toContain('type: prioritarias.length > 0 ? "itemPriority" : "itemAdded",');
-    expect(lote).toContain("PRIORITÁRIAS (furam a fila)");
-    expect(lote).toContain('+ (item.isPriority ? " — PRIORITÁRIA" : "")');
-  });
+  // "O LOTE tem o mesmo gate do POST unitário — e a notificação NOMEIA as
+  // prioritárias" roda de verdade em regras-infra2-prioridade-no-lote.test.ts.
 });

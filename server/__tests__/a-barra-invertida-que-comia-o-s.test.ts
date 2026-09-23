@@ -41,14 +41,16 @@ import path from "path";
 vi.setConfig({ testTimeout: 60_000 });
 
 const RAIZ = path.resolve(__dirname, "../../");
-const PASTAS = ["server", "client/src", "shared"];
+// Varredura (a regra é sobre o TEXTO do código, não um comportamento): todo
+// .ts/.tsx/.mjs do app e dos scripts de manutenção.
+const PASTAS = ["server", "client/src", "shared", "scripts"];
 
 function arquivos(dir: string, acc: string[] = []): string[] {
   for (const nome of readdirSync(dir)) {
     if (nome === "node_modules" || nome === "__tests__" || nome === "dist") continue;
     const p = path.join(dir, nome);
     if (statSync(p).isDirectory()) arquivos(p, acc);
-    else if (/\.tsx?$/.test(nome)) acc.push(p);
+    else if (/\.(tsx?|mjs)$/.test(nome)) acc.push(p);
   }
   return acc;
 }

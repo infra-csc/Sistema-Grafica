@@ -10,8 +10,8 @@
 //     legível porque as rotas escrevem "Status alterado: A → B" (ou uma das
 //     cinco frases de destino constante). Reescrever uma dessas frases em
 //     items.ts sem mexer aqui faria a etapa PERDER passagens em silêncio — a
-//     mediana continuaria saindo, só que sobre menos peças. Por isso as frases
-//     são testadas VERBATIM contra o código-fonte de items.ts.
+//     mediana continuaria saindo, só que sobre menos peças. Por isso as rotas
+//     RODAM na seção 2 e a frase que gravam passa pela leitura.
 //
 //  2. O DESEMPATE. `translateStatus` não é injetiva, e "Aguardando Revisão
 //     Final" é o único rótulo que serve a DUAS etapas diferentes (Finalização e
@@ -24,19 +24,47 @@
 //     o que separa este bloco do que foi reprovado.
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect, vi } from "vitest";
-import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
-import fs from "fs";
-import path from "path";
 
-// shared.ts (dono de `translateStatus`) arrasta storage → db, que exige
-// DATABASE_URL. Nada aqui toca banco.
-vi.mock("../db", () => ({ db: {}, pool: {} }));
-vi.mock("../storage", () => ({ storage: {} }));
+// Nada aqui toca banco. A seção 2 roda rotas reais: storage de mentira, a
+// trilha anotada e uma transação que só guarda o que seria inserido.
+const H = vi.hoisted(() => ({
+  storage: {} as Record<string, any>,
+  trilha: [] as { acao: string; detalhe: string }[],
+  tx: { inserts: [] as any[] },
+}));
+vi.mock("../db", () => {
+  const tx: any = {
+    update: () => ({ set: (d: any) => ({ where: () => ({ returning: async () => [{ id: "p1", eventId: "ev-1", type: "Pórtico", ...d }] }) }) }),
+    insert: () => ({ values: (v: any) => { H.tx.inserts.push(v); const r: any = Promise.resolve([{ id: "n1", ...v }]); r.returning = async () => [{ id: "n1", ...v }]; return r; } }),
+    execute: async () => ({ rows: [] }),
+  };
+  return { db: { transaction: async (fn: any) => fn(tx), execute: async () => ({ rows: [] }) }, pool: {} };
+});
+vi.mock("../storage", () => ({ storage: H.storage }));
+vi.mock("../routes/shared", async () => {
+  const real = await vi.importActual<any>("../routes/shared");
+  return {
+    ...real,
+    requireAuth: (_req: any, _res: any, next: any) => next(),
+    broadcast: () => {},
+    createAuditLog: async (_req: any, acao: string, _tipo: string, _id: string, detalhe: string) => { H.trilha.push({ acao, detalhe }); },
+    updateEventStatus: async () => {},
+  };
+});
+vi.mock("../services/inventoryLifecycle", () => ({ runInventoryCron: vi.fn() }));
+vi.mock("../services/xlsxImport", () => ({ handlePreviewXlsx: vi.fn(), handleConfirmImport: vi.fn() }));
+vi.mock("../services/xlsxExport", () => ({ handleExportItemsXlsx: vi.fn(), handleExportSelectedItemsXlsx: vi.fn(), responderRelatorioMaquinasXlsx: vi.fn() }));
+vi.mock("../services/consultaDeEstoqueNaLiberacao", () => ({
+  respostaDoEstoqueParaLiberar: vi.fn(async () => null),
+  marcarRespostaAplicada: vi.fn(async () => {}),
+}));
 
+import { registerItemRoutes } from "../routes/items";
+import { descreverEdicao } from "../services/edicao-da-peca";
+import { capturarRotas } from "./rotas-de-mentira";
 import { translateStatus } from "../routes/shared";
 import { STAGE_DEFS } from "../services/prazo-domain";
 import {
-  CATALOGO,
   ETAPA_FINALIZACAO,
   ETAPA_LAYOUTS,
   ETAPA_LISTA,
@@ -61,13 +89,6 @@ import { MINIMO_PECAS_POR_ETAPA, temBaseParaExibir } from "@shared/tempo-etapas-
 import type { TempoPorEtapa } from "@shared/tempo-etapas-contract";
 import { cycleWindow } from "@/lib/analises-metrics";
 import { diferencaContraPlano, etapaMaisCara, frasesDeCobertura } from "@/lib/analises-tempo";
-
-const raiz = path.resolve(__dirname, "..", "..");
-// A entrega por peça foi aposentada (21/09: tudo sai pela embalagem): a frase
-// "Entrega concluída (" passou a ser escrita por routes/tubos.ts. As duas
-// fontes juntas são "as rotas que gravam as frases que a medição lê".
-const fonteItems = fonteDasRotasDeItens()
-  + fs.readFileSync(path.join(raiz, "server/routes/tubos.ts"), "utf8");
 
 const DIA = 86_400_000;
 /** Meio-dia UTC = 9h em São Paulo: o dia do negócio nunca escorrega no teste. */
@@ -104,32 +125,114 @@ describe("espelho de translateStatus", () => {
   });
 });
 
-// ─── 2. As frases que as rotas gravam continuam existindo ────────────────────
+// ─── 2. O que as rotas GRAVAM é o que a medição LÊ ───────────────────────────
+//
+// As rotas reais rodam (storage de mentira) e a linha que elas escrevem na
+// trilha passa por interpretarLog. Se uma redação for reescrita, a transição
+// para de ser lida e a etapa perde passagens SEM erro nenhum — só a mediana
+// muda de valor. "Entrega concluída (" é escrita pela embalagem (tubos.ts) e já
+// roda em regras-estoque-tubos-rotas.test.ts; a leitura dela está em
+// interpretarLog, logo abaixo.
 
-describe("as frases de items.ts que a medição lê", () => {
-  it("a seta de transição continua sendo escrita como 'Status alterado: A → B'", () => {
-    expect(fonteItems).toContain("Status alterado: ${translateStatus(currentItem.status)} → ");
+describe("as frases que as rotas gravam são as que a medição lê", () => {
+  const { chamar } = capturarRotas(registerItemRoutes);
+  const peca = (over: Record<string, unknown> = {}) => ({
+    id: "p1", displayId: "#0500", eventId: "ev-1", type: "Pórtico", quantity: 10, status: "awaiting_sponsor_approval",
+    skipApproval: false, deletedAt: null, approvalThumbUrl: "/objects/t.png", finalFileUrl: "/objects/f.pdf",
+    parentItemId: null, hasModifiedData: false, travadaEm: null, isReuse: false, reuseQty: 0, ...over,
+  });
+  /** Roda a rota e devolve a ÚNICA linha da trilha que ela escreveu com esta ação. */
+  const trilhaDa = async (chave: string, papel: string, body: Record<string, unknown>, acao: string, over: Record<string, unknown> = {}) => {
+    let atual: any = peca(over);
+    H.trilha = [];
+    Object.assign(H.storage, {
+      getItem: vi.fn(async () => atual),
+      updateItem: vi.fn(async (_id: string, d: any) => (atual = { ...atual, ...d })),
+      getEvent: vi.fn(async () => ({ id: "ev-1", name: "COPA", status: "created", startDate: "2099-01-10" })),
+      getItemSponsorApprovals: vi.fn(async () => []),
+      getItemSponsors: vi.fn(async () => [{ sponsorId: "sp1" }]),
+      createNotification: vi.fn(async (n: any) => ({ id: "n1", ...n })),
+      getLiveComplements: vi.fn(async () => []),
+      getComplementsByParentIds: vi.fn(async () => []),
+      createItemArtVersion: vi.fn(async () => ({})),
+      initializeItemSponsorApprovals: vi.fn(async () => {}),
+    });
+    const r = await chamar(chave, { sessao: { userId: "u1", userRole: papel, userName: "Maria" }, params: { id: "p1" }, body });
+    expect(r.status, `${chave}: ${JSON.stringify(r.body)}`).toBe(200);
+    const linhas = H.trilha.filter((l) => l.acao === acao);
+    expect(linhas, chave).toHaveLength(1);
+    return { detalhe: linhas[0].detalhe, peca: atual };
+  };
+
+  it("'Status alterado: A → B' (aprovação pelo patrocinador) vira a passagem para a Finalização", async () => {
+    const { detalhe } = await trilhaDa("PATCH /api/items/:id/sponsor-approve", "atendimento", {}, "approved");
+    expect(detalhe.startsWith("Status alterado: ")).toBe(true);
+    expect(interpretarLog("approved", detalhe)).toMatchObject({ origem: 2, destino: { tipo: "etapa", indice: ETAPA_FINALIZACAO } });
   });
 
-  it("a rota genérica continua escrevendo 'Status: A → B'", () => {
-    expect(fonteItems).toContain("`Status: ${translateStatus(currentItem.status)} → ${translateStatus(item.status)}`");
+  it("'Status: A → B' da edição genérica vira passagem — e a quantidade concatenada não vaza", () => {
+    const antes = peca({ status: "awaiting_submission", quantity: 5 }) as any;
+    const depois = { ...antes, status: "awaiting_sponsor_approval", quantity: 10 };
+    const frase = descreverEdicao(antes, depois, { quantity: 10 } as any, { mudaReuso: false, mudouQtd: true, promoveuParaProduzido: false });
+    expect(frase).toMatch(/^Status: .+ → .+ \| Quantidade: 5 → 10/);
+    expect(interpretarLog("updated", frase)?.destino).toEqual({ tipo: "etapa", indice: 2 });
   });
 
-  it.each(CATALOGO.map((r) => [r.action, r.prefixo.source] as const))(
-    "a frase de destino constante da ação '%s' continua no código",
-    (_acao, _padrao) => {
-      // Se uma destas redações for reescrita, a transição para de ser lida e a
-      // etapa perde passagens SEM erro nenhum: só a mediana muda de valor.
-      const frases = [
-        "Peça dispensada pela Arte. Status anterior:",
-        "Entrega concluída (",
-        "Item cancelado",
-        "Item devolvido para Arte para modificações",
-        "liberado para produção",
-      ];
-      for (const f of frases) expect(fonteItems).toContain(f);
-    },
-  );
+  it("liberar na Revisão Final escreve a frase que entra na Produção Gráfica", async () => {
+    H.tx = { inserts: [] };
+    const { detalhe } = await trilhaDaLiberacao();
+    expect(detalhe).toMatch(/liberado para produção\)$/);
+    expect(interpretarLog("approved", detalhe)?.destino).toEqual({ tipo: "etapa", indice: ETAPA_PRODUCAO });
+  });
+
+  it("cancelar escreve 'Item cancelado' — a passagem aberta vira 'fora'", async () => {
+    const { detalhe } = await trilhaDa("PATCH /api/items/:id/cancel", "solicitacao", { notes: "Patrocinador saiu" }, "canceled");
+    expect(interpretarLog("canceled", detalhe)?.destino).toEqual({ tipo: "fora" });
+  });
+
+  it("devolver para a Arte escreve a frase que volta a peça para a Entrega de Layouts", async () => {
+    const { detalhe } = await trilhaDa("PATCH /api/items/:id/return-to-arte", "solicitacao", { notes: "Logo cortado na lateral" }, "rejected", { status: "awaiting_final_review" });
+    expect(interpretarLog("rejected", detalhe)?.destino).toEqual({ tipo: "etapa", indice: ETAPA_LAYOUTS });
+  });
+
+  it("a dispensa escreve a frase do catálogo, com o status CRU de origem", async () => {
+    const { detalhe } = await trilhaDa("PATCH /api/items/:id/dispense", "arte", { reason: "Urgência do evento, dono autorizou" }, "dispensed");
+    const r = interpretarLog("dispensed", detalhe);
+    expect(r?.origem).toBe(2);
+    // ATENÇÃO (relatado, não corrigido): desde 09/09 a dispensa leva a peça
+    // para DESTINO_DA_DISPENSA (awaiting_creator_review, finalização), mas o
+    // CATALOGO ainda a mede como entrada na Produção. Este teste não fixa o
+    // destino para não congelar a divergência.
+    expect(r?.destino).toBeDefined();
+  });
+
+  it("submit-for-approval é o ÚNICO caminho para awaiting_creator_review — e só parte da Entrega de Layouts", async () => {
+    // É o que deixa resolverRevisaoFinal(null, ETAPA_LAYOUTS) decidir pela
+    // Finalização quando a frase não traz sufixo.
+    const { peca: isenta } = await trilhaDa("PATCH /api/items/:id/submit-for-approval", "arte", { approvalThumbUrl: "/objects/t2.png" }, "updated", { status: "awaiting_submission", skipApproval: true });
+    expect(isenta.status).toBe("awaiting_creator_review");
+    for (const status of ["sponsor_approved", "awaiting_finalization", "draft"]) {
+      Object.assign(H.storage, { getItem: vi.fn(async () => peca({ status })) });
+      const r = await chamar("PATCH /api/items/:id/submit-for-approval", { sessao: { userId: "u1", userRole: "arte" }, params: { id: "p1" }, body: { approvalThumbUrl: "/objects/t2.png" } });
+      expect(r.status, status).toBe(409);
+    }
+  });
+
+  /** A liberação grava a peça e a trilha DENTRO de uma transação. */
+  async function trilhaDaLiberacao() {
+    const atual: any = peca({ status: "awaiting_final_review" });
+    Object.assign(H.storage, {
+      getItem: vi.fn(async () => atual),
+      getEvent: vi.fn(async () => ({ id: "ev-1", name: "COPA", status: "created", startDate: "2099-01-10" })),
+      getLiveComplements: vi.fn(async () => []),
+      getComplementsByParentIds: vi.fn(async () => []),
+    });
+    const r = await chamar("PATCH /api/items/:id/creator-review", { sessao: { userId: "u1", userRole: "solicitacao", userName: "Maria" }, params: { id: "p1" }, body: {} });
+    expect(r.status, JSON.stringify(r.body)).toBe(200);
+    const trilha = H.tx.inserts.map((v: any) => v.details).filter(Boolean);
+    expect(trilha).toHaveLength(1);
+    return { detalhe: trilha[0] as string };
+  }
 });
 
 // ─── 3. Leitura de uma linha da trilha ───────────────────────────────────────
@@ -204,10 +307,9 @@ describe("'Aguardando Revisão Final' — Finalização ou Revisão de Lista", (
     expect(resolverRevisaoFinal("(arquivo final adicionado)", null)).toBe(ETAPA_REVISAO);
   });
 
-  it("sem sufixo, decide pela ORIGEM — e a origem sai do código das rotas", () => {
-    // `awaiting_creator_review` só é escrito em submit-for-approval, que exige
-    // a peça em `awaiting_submission` (Entrega de Layouts).
-    expect(fonteItems).toContain('shouldSkipApproval ? "awaiting_creator_review" : "awaiting_sponsor_approval"');
+  it("sem sufixo, decide pela ORIGEM", () => {
+    // `awaiting_creator_review` só nasce em submit-for-approval, que exige a
+    // peça em `awaiting_submission` (Entrega de Layouts) — rodado na seção 2.
     expect(resolverRevisaoFinal(null, ETAPA_LAYOUTS)).toBe(ETAPA_FINALIZACAO);
     expect(resolverRevisaoFinal(null, ETAPA_FINALIZACAO)).toBe(ETAPA_REVISAO);
   });

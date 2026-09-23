@@ -11,12 +11,29 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { readFileSync } from "fs";
 import path from "path";
 
-const H = vi.hoisted(() => ({ storage: {} as Record<string, any>, select: null as null | (() => any) }));
+const H = vi.hoisted(() => ({
+  storage: {} as Record<string, any>,
+  select: null as null | (() => any),
+  /** SQL cru de cada db.execute (o diário das máquinas). */
+  executados: [] as unknown[],
+  /** Escritas em disco feitas pelo código do app durante o teste. */
+  escritasNoDisco: [] as string[],
+}));
 
 vi.mock("../db", () => ({
-  db: { select: (...a: any[]) => H.select!() },
+  db: { select: (...a: any[]) => H.select!(), execute: async (q: unknown) => { H.executados.push(q); return { rows: [] }; } },
   pool: {},
 }));
+// A rota das cotas globais não pode gravar no disco (várias cópias do servidor
+// = vários discos). O fs real segue funcionando; só a escrita é anotada.
+vi.mock("fs", async () => {
+  const real = await vi.importActual<any>("fs");
+  const anota = (f: (...a: any[]) => any) => (...a: any[]) => { H.escritasNoDisco.push(String(a[0])); return f(...a); };
+  const writeFileSync = anota(real.writeFileSync);
+  const writeFile = anota(real.writeFile);
+  const promises = { ...real.promises, writeFile: anota(real.promises.writeFile) };
+  return { ...real, default: { ...real, writeFileSync, writeFile, promises }, writeFileSync, writeFile, promises };
+});
 vi.mock("../storage", async () => {
   const real = await vi.importActual<any>("../storage");
   return { ...real, storage: H.storage };
@@ -38,11 +55,18 @@ vi.mock("../services/tubosDaPeca", async () => {
 });
 vi.mock("../services/inventoryLifecycle", () => ({ runInventoryCron: vi.fn() }));
 vi.mock("../services/xlsxImport", () => ({ handlePreviewXlsx: vi.fn(), handleConfirmImport: vi.fn() }));
-vi.mock("../services/xlsxExport", () => ({ handleExportItemsXlsx: vi.fn(), handleExportSelectedItemsXlsx: vi.fn() }));
+vi.mock("../services/xlsxExport", () => ({ handleExportItemsXlsx: vi.fn(), handleExportSelectedItemsXlsx: vi.fn(), responderRelatorioMaquinasXlsx: vi.fn() }));
+vi.mock("../cache", () => ({ eventsCache: null, setEventsCache: vi.fn(), invalidateEventsCache: vi.fn(), invalidateAllCaches: vi.fn(), registrarCache: vi.fn(), invalidarCacheNoCluster: vi.fn() }));
 
 const { cabeNaJanelaDeEntregues, DIAS_DE_ENTREGUES_NA_FILA, lerSementeDasCotasGlobais, DatabaseStorage } = await import("../storage") as any;
 const { registerItemRoutes } = await import("../routes/items");
 const { createRateLimiter, chaveDoUsuarioOuIp } = await import("../routes/shared");
+const { registerSponsorRoutes } = await import("../routes/sponsors");
+const { registerMaquinasRoutes } = await import("../routes/maquinas");
+const { capturarRotas } = await import("./rotas-de-mentira");
+const { getTableConfig, PgDialect } = await import("drizzle-orm/pg-core");
+const { registrosDeImpressao } = await import("@shared/schema");
+const dialeto = new PgDialect();
 
 const DIA = 24 * 60 * 60 * 1000;
 const ler = (rel: string) => readFileSync(path.resolve(__dirname, "../..", rel), "utf8");
@@ -83,11 +107,43 @@ describe("fila da Gráfica: entregues só da janela", () => {
     expect(cabeNaJanelaDeEntregues({ status: "delivered", deliveredAt: null, statusChangedAt: new Date(agora - 2 * DIA) }, agora)).toBe(true);
   });
 
-  it("o SQL da fila e o do delta usam a mesma constante", () => {
-    const STORAGE = ler("server/storage.ts");
-    const fila = STORAGE.slice(STORAGE.indexOf("async getApprovedItems"), STORAGE.indexOf("private async generateNextDisplayId"));
-    expect(fila).toContain("make_interval(days => ${DIAS_DE_ENTREGUES_NA_FILA})");
-    expect(fila).toContain("coalesce(${items.deliveredAt}, ${items.statusChangedAt}, ${items.updatedAt})");
+  // Cadeia do drizzle que guarda o WHERE e devolve as linhas dadas.
+  const capturandoWhere = (linhas: any[]) => {
+    const onde: unknown[] = [];
+    H.select = () => {
+      const c: any = { from: () => c, orderBy: () => c, where: (w: unknown) => { onde.push(w); return c; }, then: (ok: any, f: any) => Promise.resolve(linhas).then(ok, f) };
+      return c;
+    };
+    return onde;
+  };
+
+  it("o SQL da fila e o do delta usam a mesma constante e o mesmo carimbo", async () => {
+    const onde = capturandoWhere([]);
+    await new DatabaseStorage().getApprovedItems();
+    await new DatabaseStorage().getIdsQueSairamDaJanelaDeEntregues(new Date(Date.now() - 2 * DIA));
+    const [fila, delta] = onde.map((w) => dialeto.sqlToQuery(w as any));
+    const CARIMBO = 'coalesce("items"."delivered_at", "items"."status_changed_at", "items"."updated_at")';
+    expect(fila.sql).toContain(`${CARIMBO} >= timezone(`);
+    expect(fila.sql).toMatch(/make_interval\(days => \$\d+\)/);
+    expect(fila.params).toContain(DIAS_DE_ENTREGUES_NA_FILA);
+    expect(delta.sql).toContain(CARIMBO);
+    // o delta busca com folga no banco; a régua exata é a do JS (caso abaixo)
+    expect(delta.params).toEqual(expect.arrayContaining([DIAS_DE_ENTREGUES_NA_FILA, DIAS_DE_ENTREGUES_NA_FILA + 2]));
+  });
+
+  it("delta: sai só quem CRUZOU a janela entre o since e agora", async () => {
+    const agoraReal = Date.now();
+    const dias = (n: number) => new Date(agoraReal - n * DIA);
+    capturandoWhere([
+      { id: "cruzou", status: "delivered", deliveredAt: dias(30.5) },
+      { id: "ainda-dentro", status: "delivered", deliveredAt: dias(29.5) },
+      { id: "ja-estava-fora", status: "delivered", deliveredAt: dias(32.5) },
+      { id: "legado", status: "delivered", deliveredAt: null, statusChangedAt: dias(31) },
+    ]);
+    expect((await new DatabaseStorage().getIdsQueSairamDaJanelaDeEntregues(dias(2))).sort()).toEqual(["cruzou", "legado"]);
+    // since mais novo que agora: nada a consultar
+    H.select = () => { throw new Error("não devia consultar"); };
+    expect(await new DatabaseStorage().getIdsQueSairamDaJanelaDeEntregues(new Date(agoraReal + DIA))).toEqual([]);
   });
 
   it("delta: a entregue antiga que mudou sai; a que o relógio tirou da janela também", async () => {
@@ -141,10 +197,27 @@ describe("cotas globais no banco (o JSON do repo é só semente)", () => {
     aviso.mockRestore();
   });
 
-  it("a rota não escreve mais no disco, e a migração semeia com o conteúdo do JSON", () => {
-    const SP = ler("server/routes/sponsors.ts");
-    expect(SP).not.toContain("writeFileSync");
-    expect(SP).toContain("await storage.setGlobalQuotaRule(quota, itemTypes ?? []);");
+  it("a rota grava a cota no BANCO — nada no disco — e a leitura devolve o que o banco tem", async () => {
+    const { chamar } = capturarRotas(registerSponsorRoutes);
+    H.escritasNoDisco = [];
+    H.storage.setGlobalQuotaRule = vi.fn(async () => {});
+    H.storage.getGlobalQuotaRules = vi.fn(async () => [{ quota: "GOLD", itemTypes: ["Palco"] }]);
+    const admin = { userId: "u1", userRole: "admin" };
+    const r = await chamar("PUT /api/quota-rules/global", { sessao: admin, body: { quota: "GOLD", itemTypes: ["Palco"] } });
+    expect(r.status).toBe(200);
+    expect(H.storage.setGlobalQuotaRule).toHaveBeenCalledWith("GOLD", ["Palco"]);
+    expect(H.escritasNoDisco).toEqual([]);
+    expect((await chamar("GET /api/quota-rules/global", { sessao: { userId: "u2", userRole: "grafica" } })).body).toEqual([{ quota: "GOLD", itemTypes: ["Palco"] }]);
+    // sem tipos grava a lista vazia; papel sem permissão não grava
+    await chamar("PUT /api/quota-rules/global", { sessao: { userId: "u3", userRole: "atendimento" }, body: { quota: "MASTER" } });
+    expect(H.storage.setGlobalQuotaRule).toHaveBeenLastCalledWith("MASTER", []);
+    expect((await chamar("PUT /api/quota-rules/global", { sessao: { userId: "u4", userRole: "arte" }, body: { quota: "GOLD" } })).status).toBe(403);
+    expect(H.storage.setGlobalQuotaRule).toHaveBeenCalledTimes(2);
+    expect(H.escritasNoDisco).toEqual([]);
+  });
+
+  it("a migração semeia a tabela com o conteúdo do JSON", () => {
+    // Varredura: o .sql roda à mão em produção; aqui só dá para conferir o texto.
     const SQL = ler("scripts/migracao-aditiva-producao.sql");
     const bloco = SQL.slice(SQL.indexOf("CREATE TABLE IF NOT EXISTS global_quota_rules"));
     for (const r of JSON.parse(ler("global-quota-rules.json"))) expect(bloco).toContain(`('${r.quota}', '{}'::text[]`);
@@ -210,22 +283,45 @@ describe("sem ETag na API, 304 dos estáticos intacto", () => {
 });
 
 describe("máquinas: o dia por intervalo (usa o índice), no fuso de São Paulo", () => {
-  it("as duas leituras do diário filtram created_at por intervalo — nunca a coluna convertida", () => {
-    const MAQ = ler("server/routes/maquinas.ts");
-    expect(MAQ).not.toContain("at time zone ${FUSO})::date");
-    expect((MAQ.match(/where \$\{entreOsDias\(/g) ?? []).length).toBe(2);
-    expect(MAQ).toContain("r.created_at >= timezone('UTC', (${de}::date)::timestamp at time zone ${FUSO})");
-    expect(MAQ).toContain("r.created_at < timezone('UTC', (${ate}::date + 1)::timestamp at time zone ${FUSO})");
-    expect(ler("shared/schema.ts")).toContain('index("IDX_registros_impressao_created_at").on(table.createdAt)');
+  it("as duas leituras do diário filtram created_at por intervalo — nunca a coluna convertida", async () => {
+    const { chamar } = capturarRotas(registerMaquinasRoutes);
+    const sessao = { userId: "u1", userRole: "grafica" };
+    const doDiario = async (chave: string, query: Record<string, string>) => {
+      H.executados = [];
+      const r = await chamar(chave, { sessao, query });
+      expect(r.status, chave).toBe(200);
+      const qs = H.executados.map((q) => dialeto.sqlToQuery(q as any)).filter((q) => q.sql.includes("from registros_de_impressao r") && q.sql.includes("r.total_depois")); // as linhas do diário
+      expect(qs, chave).toHaveLength(1);
+      return qs[0];
+    };
+    const periodo = await doDiario("GET /api/grafica/maquinas/relatorio", { de: "2026-09-01", ate: "2026-09-03" });
+    const dia = await doDiario("GET /api/grafica/maquinas", { dia: "2026-09-02" });
+    for (const [q, de, ate] of [[periodo, "2026-09-01", "2026-09-03"], [dia, "2026-09-02", "2026-09-02"]] as const) {
+      const where = q.sql.slice(q.sql.indexOf("where "));
+      // o índice só serve com a coluna crua do lado esquerdo
+      expect(where).toMatch(/r\.created_at >= timezone\('UTC', \(\$\d+::date\)::timestamp at time zone \$\d+\)/);
+      expect(where).toMatch(/r\.created_at < timezone\('UTC', \(\$\d+::date \+ 1\)::timestamp at time zone \$\d+\)/);
+      expect(where).not.toMatch(/created_at[^,]*\)::date/);
+      expect(q.params).toEqual(expect.arrayContaining([de, ate, "America/Sao_Paulo"]));
+    }
+    const indice = getTableConfig(registrosDeImpressao).indexes.find((i: any) => i.config.name === "IDX_registros_impressao_created_at");
+    expect(indice?.config.columns.map((c: any) => c.name)).toEqual(["created_at"]);
+  });
+
+  it("a migração cria o índice do diário", () => {
+    // Varredura: o .sql roda à mão em produção; aqui só dá para conferir o texto.
     expect(ler("scripts/migracao-aditiva-producao.sql")).toContain('CREATE INDEX IF NOT EXISTS "IDX_registros_impressao_created_at" ON registros_de_impressao (created_at);');
   });
 });
 
 describe("o merge do Replit não mexe mais no banco", () => {
   it("post-merge: npm install + aviso; nada de db:push", () => {
+    // Varredura: é o shell do merge do Replit (roda npm install) — não dá para
+    // executar aqui. Olha só as linhas que RODAM (fora comentário e echo).
     const PM = ler("scripts/post-merge.sh");
-    expect(PM).toContain("npm install");
-    expect(PM).not.toMatch(/^npm run db:push/m);
+    const comandos = PM.split(/\r?\n/).map((l) => l.trim()).filter((l) => l && !l.startsWith("#") && !l.startsWith("echo"));
+    expect(comandos).toContain("npm install");
+    expect(comandos.filter((l) => /db:push|drizzle-kit\s+push|db:migrate/.test(l))).toEqual([]);
     expect(PM).toContain("node scripts/migracao-aditiva-producao.mjs");
   });
 });

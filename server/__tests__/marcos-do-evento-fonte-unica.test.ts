@@ -100,16 +100,6 @@ describe("as três telas leem a mesma lista", () => {
     expect(ed).not.toContain("{ label: 'Lista de Imagens',    days: event.deadlineListaImagens    ?? -25, allDays: false },");
   });
 
-  it("o servidor continua cobrando os seis — é o que torna o resto obrigatório", () => {
-    const srv = ler("server/routes/events.ts");
-    for (const m of MARCOS_DO_EVENTO) {
-      expect(srv, `o servidor não conhece o marco ${m.key}`).toContain(`key: "${m.key}"`);
-      expect(srv, `o servidor não conhece a coluna ${m.campo}`).toContain(m.campo);
-    }
-  });
-
-  it("e a coluna da finalização existe no banco", () => {
-    // Sem ela o offset −10 seria um número sem onde morar.
-    expect(ler("shared/schema.ts")).toContain('deadlineFinalizacao: integer("deadline_finalizacao")');
-  });
+  // "O servidor continua cobrando os seis" e "a coluna da finalização existe
+  // no banco" rodam de verdade em regras-infra2-marcos-do-evento.test.ts.
 });

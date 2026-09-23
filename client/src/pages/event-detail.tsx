@@ -6,7 +6,6 @@ import { faseDaArte } from "@/components/prazos/tokens";
 import { getStatusLabel, getStatusMeta, FINAL_STATUSES, PRODUCTION_STATUSES, STATUS, motivoEventoFinalizado, todayBusinessMs } from "@/lib/status";
 import { PHASES, contarPorFase, FORA_DO_FUNIL } from "@/lib/fases";
 import { MARCOS_DO_EVENTO } from "@shared/prazo-dates";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Plus, ArrowLeft, Calendar, Truck, AlertCircle, List, Package, Package2, Pencil, Trash2, Check, Building2, Loader2, User, History, Lock, Unlock, Paperclip, ExternalLink, X, RotateCcw, Recycle, Upload, Copy, ChevronDown, CheckCircle2, AlertTriangle, FileSpreadsheet, FileText, Tags, BookOpen, Search, Warehouse, MoreHorizontal } from "lucide-react";
 import { EstoqueSemelhantesDialog } from "@/components/estoque-semelhantes-dialog";
@@ -150,7 +149,11 @@ import {
 } from "@/components/aumentar-quantidade-dialog";
 import { compareDisplayId } from "@/lib/displayId";
 import { miniatura } from "@/lib/miniatura";
-import { T, N, TOM, FONT } from "@/lib/theme";
+import { T, N, TOM, FONT, FS, FW, R, SHADOW } from "@/lib/theme";
+import { Botao } from "@/components/ui/botao";
+import { Selo } from "@/components/ui/selo";
+import { EstadoErro, EstadoVazio } from "@/components/ui/estados";
+import { useConfirmar } from "@/components/ui/usar-confirmar";
 
 // A lista única de tipos (com o Molde, 22/09) mora em shared/molde.ts.
 const itemTypes = [...TIPOS_DE_PECA];
@@ -660,16 +663,16 @@ function ItemForm({
                   >
                     <Paperclip className="h-3 w-3 mr-1" /> Trocar imagem
                   </ObjectUploader>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="text-destructive justify-start px-2"
+                  <Botao
+                    variante="fantasma"
+                    tamanho="sm"
+                    icone={X}
                     onClick={() => { setFormData(f => ({ ...f, referenceUrl: "" })); setLocalRefPreview(""); }}
                     data-testid="button-remove-reference"
+                    style={{ alignSelf: "flex-start", color: TOM.perigo.text }}
                   >
-                    <X className="h-3 w-3 mr-1" /> Remover
-                  </Button>
+                    Remover
+                  </Botao>
                 </div>
               </div>
             ) : (
@@ -743,29 +746,30 @@ function ItemForm({
         )}
       </div>
 
-      {/* Rodapé — primário ÚNICO #c2410c nos dois modos */}
+      {/* Rodapé — o primário é o preto da casa nos dois modos (era #c2410c
+          só aqui); carregando trava o duplo clique que criava peça repetida. */}
       <ModalFooter>
-        <button
+        <Botao
           type="submit"
-          disabled={isPending}
+          variante="primario"
+          tamanho="toque"
+          larguraCheia
+          carregando={isPending}
+          icone={isEdit ? Check : Plus}
           data-testid={isEdit ? "button-save-edit" : "button-submit-item"}
-          style={{ width: "100%", height: 44, borderRadius: 8, border: "none", backgroundColor: T.accentText, color: T.surface, fontSize: 13, fontWeight: 800, cursor: isPending ? "wait" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, opacity: isPending ? 0.7 : 1, transition: "background-color 0.15s" }}
-          onMouseEnter={(e) => { if (!isPending) e.currentTarget.style.backgroundColor = T.accentText; }}
-          onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = T.accentText; }}
         >
-          {isEdit ? <Check style={{ width: 15, height: 15 }} /> : <Plus style={{ width: 15, height: 15 }} />}
           {isEdit
             ? (isPending ? "Salvando..." : "Salvar Alterações")
             : (isPending ? "Adicionando..." : "Adicionar Peça")}
-        </button>
-        <button
-          type="button"
+        </Botao>
+        <Botao
+          variante="fantasma"
+          larguraCheia
           onClick={onCancel}
           data-testid={isEdit ? "button-cancel-edit" : "button-cancel-item"}
-          style={{ width: "100%", height: 36, borderRadius: 8, border: "none", background: "none", fontSize: 13, fontWeight: 600, color: T.second, cursor: "pointer" }}
         >
           Cancelar
-        </button>
+        </Botao>
       </ModalFooter>
     </form>
   );
@@ -844,6 +848,8 @@ export default function EventDetail() {
   /** Dedo (celular OU tablet do galpão): manda no TAMANHO do alvo, só nele. */
   const dedo = ponteiroGrosso || isMobile;
   const { toast } = useToast();
+  // Confirmação do app (no lugar do window.confirm): hoje, só o X do modo lote.
+  const { confirmar, dialogo } = useConfirmar();
 
   const [formData, setFormData] = useState({ ...EMPTY_ITEM_FORM });
 
@@ -1298,6 +1304,7 @@ export default function EventDetail() {
         description: abertas > 0
           ? `${abertas} ${abertas === 1 ? 'peça continua' : 'peças continuam'} na lista, sem ser ${abertas === 1 ? 'cobrada' : 'cobradas'} na Gestão de Prazos. Você pode reabrir a qualquer momento.`
           : "Saiu da Gestão de Prazos e das filas de trabalho. Você pode reabrir a qualquer momento.",
+        variant: "success",
       });
     },
     onError: (error: Error) => {
@@ -1323,6 +1330,7 @@ export default function EventDetail() {
       toast({
         title: "Evento reaberto",
         description: "Voltou para a Gestão de Prazos e para as filas de trabalho.",
+        variant: "success",
       });
     },
     onError: (error: Error) => {
@@ -1357,7 +1365,7 @@ export default function EventDetail() {
         const { url: objectUrl } = await put.json() as { url: string };
         setFormData(f => ({ ...f, referenceUrl: objectUrl }));
         setLocalRefPreview("");
-        toast({ title: "Print anexado", description: "Imagem colada como referência em alta qualidade." });
+        toast({ title: "Print anexado", description: "Imagem colada como referência em alta qualidade.", variant: "success" });
       } catch {
         setLocalRefPreview("");
         toast({ title: "Não foi possível colar a imagem", description: "O print não foi anexado — tente de novo ou use “Adicionar referência visual”.", variant: "destructive" });
@@ -1418,13 +1426,15 @@ export default function EventDetail() {
           toast({
             title: "Peça criada e ligada à solicitação",
             description: "Quem solicitou foi avisado. A peça está em Rascunho — envie para a vinculação junto com a lista.",
+            variant: "success",
             action: <ToastAction altText="Ver os rascunhos do evento" onClick={irParaRascunhos}>Ver rascunhos</ToastAction>,
           });
         } else {
           toast({
             title: "Peça criada, mas não ficou ligada à solicitação",
             description: `${vinculo.erro ?? "Erro ao ligar"} — use “Já criei a peça” na solicitação.`,
-            variant: "destructive",
+            // Aviso, não falha: a peça EXISTE; só o vínculo ficou para o botão da solicitação.
+            variant: "warning",
           });
         }
       } else {
@@ -1435,6 +1445,7 @@ export default function EventDetail() {
         toast({
           title: createdItem?.displayId ? `Peça ${createdItem.displayId} adicionada` : "Peça adicionada",
           description: "Está em Rascunho. Quando a lista estiver pronta, envie para a vinculação.",
+          variant: "success",
           action: <ToastAction altText="Ver os rascunhos do evento" onClick={irParaRascunhos}>Ver rascunhos</ToastAction>,
         });
       }
@@ -1487,6 +1498,7 @@ export default function EventDetail() {
         action: sobra === 0
           ? <ToastAction altText="Ver os rascunhos do evento" onClick={irParaRascunhos}>Ver rascunhos</ToastAction>
           : undefined,
+        variant: "success",
       });
 
       // Atualizar com dados reais do servidor (substitui os temporários)
@@ -1591,6 +1603,7 @@ export default function EventDetail() {
         description: criados.length
           ? `Novo ${criados.join(" e ")} cadastrado no catálogo.`
           : "As alterações foram salvas.",
+        variant: "success",
       });
     },
     onError: (error: Error, variables) => {
@@ -1605,6 +1618,7 @@ export default function EventDetail() {
         toast({
           title: "Peça já em produção",
           description: 'A quantidade não sobe por aqui: o aumento vira uma peça complementar, e o pedido é feito na tela da Gráfica.',
+          variant: "warning",
         });
         return;
       }
@@ -1613,7 +1627,8 @@ export default function EventDetail() {
         toast({
           title: "Redução não permitida",
           description: `Já há ${data?.minimum ?? "?"} un. produzidas/conferidas/entregues. Mínimo: ${data?.minimum ?? "?"}.`,
-          variant: "destructive",
+          // O piso barrou o número; nada quebrou — aviso, não falha.
+          variant: "warning",
         });
         return;
       }
@@ -1641,6 +1656,7 @@ export default function EventDetail() {
       toast({
         title: idExcluido ? `Peça ${idExcluido} excluída` : "Peça excluída",
         description: "Foi para Peças Excluídas, de onde pode ser restaurada.",
+        variant: "success",
       });
     },
     onError: (error: Error) => {
@@ -1676,6 +1692,8 @@ export default function EventDetail() {
             Ver na Vinculação
           </ToastAction>
         ),
+        // Envio parcial é aviso: as que ficaram estão nomeadas na descrição.
+        variant: falharam.length > 0 ? "warning" : "success",
       });
     },
     onError: (error: any) => {
@@ -1685,7 +1703,7 @@ export default function EventDetail() {
         toast({
           title: "Nenhuma peça para enviar",
           description: "Não há rascunho que o seu perfil envie neste evento — pode já ter sido enviado por outra pessoa.",
-          variant: "destructive",
+          variant: "warning",
         });
       } else {
         toast({
@@ -1949,35 +1967,30 @@ export default function EventDetail() {
     );
   }
 
+  // Falha de rede e evento inexistente NÃO são a mesma notícia: a primeira
+  // pede "tentar de novo"; a segunda, o caminho de volta para a lista.
   if (!event) {
     return (
-      <div className="p-6">
-        <Card>
-          <CardContent className="pt-6">
-            <div className="text-center py-12">
-              <AlertCircle className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-              {eventError ? (
-                <>
-                  <p className="text-red-700 font-semibold mb-1">Não foi possível carregar o evento</p>
-                  <p className="text-muted-foreground text-sm mb-4">Verifique sua conexão e tente novamente.</p>
-                  <button onClick={() => refetchEvent()} className="rounded-md bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-800">
-                    Tentar novamente
-                  </button>
-                </>
-              ) : (
-                <>
-                  <p className="font-semibold mb-1" style={{ color: T.text }}>Evento não encontrado</p>
-                  {/* Link de volta: o evento pode ter sido excluído, ou o link
-                      estava errado — nos dois casos o próximo passo é a lista. */}
-                  <p className="text-muted-foreground text-sm mb-4">Ele pode ter sido excluído, ou o link está incompleto.</p>
-                  <Link href="/eventos" data-testid="link-evento-nao-encontrado" className="inline-flex items-center gap-1.5 rounded-md bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-800">
-                    <ArrowLeft className="h-3.5 w-3.5" /> Ver todos os eventos
-                  </Link>
-                </>
-              )}
-            </div>
-          </CardContent>
-        </Card>
+      <div style={{ padding: 24 }}>
+        {eventError ? (
+          <EstadoErro
+            titulo="Não foi possível carregar o evento"
+            detalhe="Verifique sua conexão e tente novamente."
+            aoTentarDeNovo={() => refetchEvent()}
+          />
+        ) : (
+          <EstadoVazio
+            icone={AlertCircle}
+            titulo="Evento não encontrado"
+            descricao="Ele pode ter sido excluído, ou o link está incompleto."
+            acao={
+              // Link de volta: excluído ou link errado, o próximo passo é a lista.
+              <Link href="/eventos" data-testid="link-evento-nao-encontrado" className="ds-botao" style={{ display: 'inline-flex', alignItems: 'center', gap: 7, minHeight: 36, padding: '0 14px', borderRadius: R.md, backgroundColor: T.dark, color: T.surface, fontSize: FS.body, fontWeight: FW.forte, textDecoration: 'none' }}>
+                <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" /> Ver todos os eventos
+              </Link>
+            }
+          />
+        )}
       </div>
     );
   }
@@ -2022,15 +2035,17 @@ export default function EventDetail() {
               cabeçalho. Agora a saída fica onde o aviso está — o menu "Mais"
               continua com o mesmo item, para quem já procura lá. */}
           {canCloseEvent && (
-            <button
-              type="button"
+            <Botao
+              variante="secundario"
+              tamanho={isMobile ? 'toque' : 'md'}
+              icone={Unlock}
               data-testid="button-reopen-event-faixa"
               onClick={() => setReopenDialogOpen(true)}
-              style={{ alignSelf: 'center', display: 'inline-flex', alignItems: 'center', gap: 6, height: isMobile ? 44 : 36, padding: '0 14px', borderRadius: 8, border: `1px solid ${TOM.sucesso.border}`, backgroundColor: T.surface, color: TOM.sucesso.text, fontSize: 13, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}
+              // O verde diz "sair do encerramento" — mantido sobre o secundário.
+              style={{ alignSelf: 'center', flexShrink: 0, color: TOM.sucesso.text, borderColor: TOM.sucesso.border }}
             >
-              <Unlock className="h-4 w-4" aria-hidden="true" />
               Reabrir evento
-            </button>
+            </Botao>
           )}
         </div>
       )}
@@ -2072,14 +2087,14 @@ export default function EventDetail() {
               Criado em {new Date(event.createdAt).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })}
             </p>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-              {/* Título no padrão de página (Space Grotesk 26/700, sem caixa
-                  alta). O nome do evento é entidade, mas o cartão da lista já o
-                  mostra como foi digitado — em CAIXA ALTA aqui, o mesmo evento
-                  parecia outro ao abrir. overflowWrap: nome longo sem espaço
-                  não estoura 390px. */}
+              {/* Título com os MESMOS tokens do <CabecalhoDaPagina> (display,
+                  FS.h1, FW.rotulo), mas escrito aqui: o componente não comporta
+                  o selo de status ao lado do nome nem a frase/barra/chips
+                  abaixo. Sem caixa alta: o cartão da lista mostra o nome como
+                  foi digitado. overflowWrap: nome longo não estoura 390px. */}
               <h1
                 data-testid="title-event-name"
-                style={{ fontFamily: FONT.display, fontSize: 26, fontWeight: 700, letterSpacing: '-0.03em', color: T.text, lineHeight: 1.15, margin: 0, overflowWrap: 'anywhere' }}
+                style={{ fontFamily: FONT.display, fontSize: FS.h1, fontWeight: FW.rotulo, letterSpacing: '-0.03em', color: T.text, lineHeight: 1.15, margin: 0, overflowWrap: 'anywhere' }}
               >
                 {event.name}
               </h1>
@@ -2124,11 +2139,15 @@ export default function EventDetail() {
                     pós-produção é uma peça a mais na contagem. Dizer quantas
                     são complemento evita a pergunta "por que 43 se a lista tinha
                     42?" — o número está certo, e agora explica a si mesmo. */}
-                <span style={{ fontSize: 12, fontWeight: 700, color: T.second, backgroundColor: T.surface, border: `1px solid ${T.border}`, borderRadius: 999, padding: '4px 12px', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums', display: 'inline-flex', alignItems: 'center', minHeight: isMobile ? 44 : undefined }}>
+                <Selo
+                  cores={{ bg: T.surface, text: T.second, border: T.border }}
+                  // Mesma altura e corpo dos chips de status ao lado.
+                  style={{ fontSize: FS.meta, padding: '4px 12px', fontVariantNumeric: 'tabular-nums', minHeight: isMobile ? 44 : undefined }}
+                >
                   {pecasNaConta.length} {pecasNaConta.length === 1 ? 'peça' : 'peças'}
                   {complementCount > 0 && ` (${complementCount} ${complementCount === 1 ? 'complemento' : 'complementos'})`}
                   {' · '}{totalM2.toFixed(2)} m²
-                </span>
+                </Selo>
                 {canceladasForaDaConta > 0 && (
                   <span data-testid="text-canceladas-fora-da-conta" style={{ fontSize: 12, color: T.second, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>
                     {canceladasForaDaConta} {canceladasForaDaConta === 1 ? 'cancelada' : 'canceladas'} fora da conta
@@ -2200,20 +2219,9 @@ export default function EventDetail() {
                   finalizado do botão que substituiu. */}
           <div data-testid="acoes-do-evento" style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', width: isMobile ? '100%' : undefined }}>
             {(() => {
-              // Botão secundário do cabeçalho — um estilo só, em vez de oito
-              // cópias do mesmo objeto inline. 40px no ponteiro, 44 no toque.
-              const secundario = (travado = false): React.CSSProperties => ({
-                backgroundColor: T.surface, color: travado ? T.second : T.text,
-                height: isMobile ? 44 : 40, padding: '0 16px', borderRadius: 8,
-                fontWeight: 700, fontSize: 13, display: 'inline-flex', alignItems: 'center', gap: 7,
-                border: `1px solid ${T.border}`, cursor: travado ? 'not-allowed' : 'pointer',
-                transition: 'background-color 0.15s, border-color 0.15s', whiteSpace: 'nowrap', flexShrink: 0,
-                fontFamily: FONT.display,
-              });
-              const hoverSecundario = {
-                onMouseEnter: (e: React.MouseEvent<HTMLButtonElement>) => { if (e.currentTarget.disabled) return; e.currentTarget.style.backgroundColor = N.n2; e.currentTarget.style.borderColor = T.bdark; },
-                onMouseLeave: (e: React.MouseEvent<HTMLButtonElement>) => { e.currentTarget.style.backgroundColor = T.surface; e.currentTarget.style.borderColor = T.border; },
-              };
+              // Botões do cabeçalho: <Botao> (hover/foco/desabilitado no
+              // .ds-botao); 44px no toque, a altura padrão no ponteiro.
+              const tamanhoAcao = isMobile ? 'toque' as const : 'md' as const;
               // Item do menu: 44px no celular, 36 no ponteiro. O foco padrão do
               // menu pinta #f97316 com texto branco (2,8:1, reprova AA) — aqui o
               // realce é pedra clara com texto escuro.
@@ -2229,17 +2237,17 @@ export default function EventDetail() {
               const menuMais = (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <button
-                      type="button"
+                    <Botao
+                      variante="secundario"
+                      tamanho={tamanhoAcao}
+                      icone={MoreHorizontal}
                       data-testid="button-mais-acoes-evento"
                       aria-label="Mais ações do evento"
-                      style={secundario()}
-                      {...hoverSecundario}
+                      style={{ flexShrink: 0 }}
                     >
-                      <MoreHorizontal className="h-4 w-4" aria-hidden="true" style={{ color: T.apoio }} />
                       Mais
                       <ChevronDown className="h-3.5 w-3.5" aria-hidden="true" style={{ color: T.second }} />
-                    </button>
+                    </Botao>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent
                     align="end"
@@ -2307,7 +2315,7 @@ export default function EventDetail() {
                       onSelect={() => {
                         // Feedback imediato: o download demora alguns segundos e nada
                         // sinaliza que algo começou.
-                        toast({ title: "Gerando Excel...", description: "O download começa em instantes." });
+                        toast({ title: "Gerando Excel...", description: "O download começa em instantes.", variant: "success" });
                         // Âncora com download: não abre aba, não passa pelo bloqueador
                         // de popup. (window.open com 'noopener' retorna null POR
                         // ESPECIFICAÇÃO mesmo quando funciona — a guarda antiga
@@ -2353,38 +2361,38 @@ export default function EventDetail() {
 
                   {/* Importar Excel — só quem edita a lista; visível fora do celular. */}
                   {canEditLists && !isMobile && (
-                    <button
-                      type="button"
+                    // Sem `motivo` aqui: o porquê do bloqueio já aparece VISÍVEL,
+                    // uma vez só, no aviso-evento-finalizado ao lado dos botões.
+                    <Botao
+                      variante="secundario"
+                      tamanho={tamanhoAcao}
                       onClick={() => setImportDialogOpen(true)}
                       data-testid="button-import-xlsx"
                       disabled={eventoFinalizado}
                       title={eventoFinalizado ? avisoEventoFim : undefined}
-                      style={secundario(eventoFinalizado)}
-                      {...hoverSecundario}
+                      style={{ flexShrink: 0 }}
                     >
                       <Upload className="h-4 w-4" aria-hidden="true" style={{ color: eventoFinalizado ? T.muted : TOM.sucesso.text }} />
                       Importar Excel
-                    </button>
+                    </Botao>
                   )}
 
                   {canEditLists && (
-                    <button
-                      type="button"
+                    // Primária da tela (o preto da casa, não mais o âmbar). No
+                    // celular ocupa a linha e o "Mais" fica ao lado: um polegar,
+                    // uma ação óbvia.
+                    <Botao
+                      variante="primario"
+                      tamanho={tamanhoAcao}
+                      icone={Plus}
                       onClick={abrirEntradaDePecas}
                       data-testid="button-add-item"
                       disabled={eventoFinalizado}
                       title={eventoFinalizado ? avisoEventoFim : undefined}
-                      // No celular a primária ocupa a linha (flex 1) e o "Mais"
-                      // fica ao lado: um polegar, uma ação óbvia.
-                      style={{ backgroundColor: eventoFinalizado ? T.border : TOM.alerta.text, color: eventoFinalizado ? T.apoio : T.surface, height: isMobile ? 44 : 40, padding: '0 20px', borderRadius: 8, fontWeight: 700, fontSize: 13, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 7, border: 'none', cursor: eventoFinalizado ? 'not-allowed' : 'pointer', transition: 'background-color 0.18s, box-shadow 0.18s, transform 0.1s', letterSpacing: '0.01em', whiteSpace: 'nowrap', flex: isMobile ? '1 1 auto' : '0 0 auto', boxShadow: eventoFinalizado ? 'none' : '0 1px 3px rgba(180,83,9,0.25)', fontFamily: FONT.display }}
-                      onMouseEnter={e => { if (eventoFinalizado) return; e.currentTarget.style.backgroundColor = T.accentText; e.currentTarget.style.boxShadow = '0 4px 12px rgba(180,83,9,0.30)'; }}
-                      onMouseLeave={e => { if (eventoFinalizado) return; e.currentTarget.style.backgroundColor = TOM.alerta.text; e.currentTarget.style.boxShadow = '0 1px 3px rgba(180,83,9,0.25)'; }}
-                      onMouseDown={e => { if (eventoFinalizado) return; e.currentTarget.style.transform = 'scale(0.97)'; }}
-                      onMouseUp={e => { if (eventoFinalizado) return; e.currentTarget.style.transform = 'scale(1)'; }}
+                      style={{ flex: isMobile ? '1 1 auto' : '0 0 auto' }}
                     >
-                      <Plus className="h-4 w-4" aria-hidden="true" />
                       Adicionar peça
-                    </button>
+                    </Botao>
                   )}
 
                   {isMobile && menuMais}
@@ -2449,8 +2457,8 @@ export default function EventDetail() {
                 </DialogDescription>
                 {/* Header no padrão ModalHeader. O X do modo lote é a única
                     saída além de salvar: confirma antes de descartar as linhas
-                    não salvas (window.confirm — exceção aprovada ao padrão de
-                    dialogs para não inflar o arquivo com mais um AlertDialog). */}
+                    não salvas — pelo useConfirmar do app (o window.confirm
+                    travava a thread e congelava a grade atrás da pergunta). */}
                 <ModalHeader
                   icon={bulkMode && !editingItem ? List : Plus}
                   tint={T.accentText}
@@ -2459,17 +2467,31 @@ export default function EventDetail() {
                   // Pergunta SÓ se a grade tem algo digitado: com ela vazia, a
                   // confirmação era um clique a mais para não perder nada.
                   onClose={bulkMode && !editingItem
-                    ? () => { if (!bulkTemConteudoRef.current || window.confirm("Descartar linhas não salvas?")) handleCloseDialog(); }
+                    ? async () => {
+                        if (bulkTemConteudoRef.current) {
+                          const ok = await confirmar({
+                            titulo: "Descartar linhas não salvas?",
+                            descricao: "O que foi digitado na grade e ainda não foi salvo se perde ao fechar.",
+                            confirmar: "Descartar",
+                            cancelar: "Continuar editando",
+                            perigo: true,
+                          });
+                          if (!ok) return;
+                        }
+                        handleCloseDialog();
+                      }
                     : handleCloseDialog}
                   // Atendendo um pedido, a Entrada Rápida some: a peça criada em
                   // lote não seria ligada ao pedido.
                   trailing={!editingItem && !pedidoEmAtendimento && !user?.kit ? (
+                    // <button> + .ds-botao, e não <Botao>: as variantes do Botao
+                    // são para fundo claro, e este mora no cabeçalho escuro.
                     <button
+                      type="button"
+                      className="ds-botao"
                       onClick={() => setBulkMode(!bulkMode)}
                       data-testid="button-toggle-mode"
-                      style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', backgroundColor: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.85)', borderRadius: 8, border: '1px solid rgba(255,255,255,0.12)', cursor: 'pointer', fontSize: 13, fontWeight: 700, whiteSpace: 'nowrap', flexShrink: 0, transition: 'background-color 0.15s' }}
-                      onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.16)')}
-                      onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.08)')}
+                      style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', backgroundColor: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.85)', borderRadius: R.md, border: '1px solid rgba(255,255,255,0.12)', cursor: 'pointer', fontSize: FS.body, fontWeight: FW.forte, whiteSpace: 'nowrap', flexShrink: 0 }}
                     >
                       {bulkMode ? <Plus className="h-3.5 w-3.5" /> : <List className="h-3.5 w-3.5" />}
                       {bulkMode ? "Modo Simples" : "Entrada Rápida"}
@@ -2529,13 +2551,8 @@ export default function EventDetail() {
 
         {/* ── Agenda Operacional ───────────────────────────────── */}
         {(() => {
-          const TI = {
-            card: T.surface, border: T.border,
-            // label era #9D978F — reprovava contraste em textos ≤13px.
-            title: T.text, secondary: T.second, label: T.second,
-            dark: '#2E2A26', accent: T.accent,
-            line: T.bdark, attention: T.accentText,
-          };
+          // A agenda usa os tokens da casa direto: a paleta e a fonte próprias
+          // que ela tinha (e o apelido local de T que sobrou delas) saíram.
 
           const today = new Date(); today.setHours(0, 0, 0, 0);
           const departure = new Date(event.truckDepartureDate);
@@ -2568,10 +2585,10 @@ export default function EventDetail() {
           const countdownColor = depInvalid
             ? TOM.perigo.text
             : isHistorical
-            ? TI.secondary
-            // #b45309 e não TI.attention (#C97B4B, 3,2:1): "Faltam 2 dias" é
-            // texto de 13px, e é o aviso que mais importa ler.
-            : countdownDays < 0 ? TOM.perigo.text : countdownDays <= 3 ? TOM.alerta.text : TI.secondary;
+            ? T.second
+            // TOM.alerta.text e não o laranja claro antigo (3,2:1): "Faltam
+            // 2 dias" é texto de 13px, e é o aviso que mais importa ler.
+            : countdownDays < 0 ? TOM.perigo.text : countdownDays <= 3 ? TOM.alerta.text : T.second;
           const countdownText = depInvalid
             ? 'Data de saída inválida — corrija o evento'
             : countdownDays < 0
@@ -2579,9 +2596,6 @@ export default function EventDetail() {
             : countdownDays === 0 ? 'Hoje'
             : `Faltam ${countdownDays} dia${countdownDays !== 1 ? 's' : ''}`;
 
-          const cardHover = (el: HTMLDivElement, on: boolean) => {
-            el.style.boxShadow = on ? '0 6px 20px rgba(0,0,0,0.08)' : '0 1px 4px rgba(0,0,0,0.05)';
-          };
           // DENSIDADE NO CELULAR: os dois cartões tinham 210px de largura
           // mínima e empilhavam — ~200px de altura antes da timeline, que já
           // repete as datas, e a lista de peças ia parar na terceira tela.
@@ -2589,12 +2603,13 @@ export default function EventDetail() {
           // a data a 18px, a agenda cabe numa faixa só. No desktop, igual.
           const cartaoLogistica: React.CSSProperties = {
             flex: isMobile ? '1 1 0' : '0 0 auto', minWidth: isMobile ? 0 : 210,
-            backgroundColor: TI.card, border: `1px solid ${TI.border}`, borderRadius: '12px',
+            backgroundColor: T.surface, border: `1px solid ${T.border}`, borderRadius: R.lg,
             padding: isMobile ? '12px 14px' : '20px 24px', display: 'flex', alignItems: 'center', gap: isMobile ? 0 : 18,
-            boxShadow: '0 1px 4px rgba(0,0,0,0.05)', transition: 'box-shadow 0.2s',
+            // Sem sombra de hover: o cartão não é clicável, e realce é promessa de clique.
+            boxShadow: SHADOW.sm,
           };
           const ladrilhoLogistica: React.CSSProperties = {
-            width: 50, height: 50, borderRadius: 12, display: isMobile ? 'none' : 'flex',
+            width: 50, height: 50, borderRadius: R.lg, display: isMobile ? 'none' : 'flex',
             alignItems: 'center', justifyContent: 'center', flexShrink: 0,
           };
 
@@ -2603,35 +2618,31 @@ export default function EventDetail() {
 
               {/* Section divider */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginBottom: '18px' }}>
-                <span style={{ fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.16em', color: TI.label, fontFamily: FONT.display, whiteSpace: 'nowrap' }}>
+                <span style={{ fontSize: FS.micro, fontWeight: FW.forte, textTransform: 'uppercase', letterSpacing: '0.16em', color: T.second, fontFamily: FONT.corpo, whiteSpace: 'nowrap' }}>
                   Agenda Operacional
                 </span>
-                <div style={{ flex: 1, height: '1px', backgroundColor: TI.border }} />
+                <div style={{ flex: 1, height: '1px', backgroundColor: T.border }} />
               </div>
 
               {/* ── Cards de logística ── */}
               <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', marginBottom: '16px', alignItems: 'stretch' }}>
 
                 {/* Card: SAÍDA DO CAMINHÃO */}
-                <div
-                  style={cartaoLogistica}
-                  onMouseEnter={e => cardHover(e.currentTarget, true)}
-                  onMouseLeave={e => cardHover(e.currentTarget, false)}
-                >
+                <div style={cartaoLogistica}>
                   <div aria-hidden="true" style={{ ...ladrilhoLogistica, backgroundColor: TOM.laranja.bg }}>
-                    <Truck size={22} color={TI.accent} />
+                    <Truck size={22} color={T.accent} />
                   </div>
                   <div>
-                    <div style={{ fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: isMobile ? '0.06em' : '0.14em', color: TI.label, marginBottom: '7px', fontFamily: FONT.display }}>
+                    <div style={{ fontSize: FS.micro, fontWeight: FW.forte, textTransform: 'uppercase', letterSpacing: isMobile ? '0.06em' : '0.14em', color: T.second, marginBottom: '7px', fontFamily: FONT.corpo }}>
                       Saída do Caminhão
                     </div>
-                    <div style={{ fontSize: isMobile ? 18 : 22, fontWeight: '800', color: TI.title, fontFamily: FONT.display, lineHeight: 1.1, letterSpacing: '-0.03em', fontVariantNumeric: 'tabular-nums' }}>
+                    <div style={{ fontSize: isMobile ? FS.title : FS.h2, fontWeight: FW.rotulo, color: T.text, fontFamily: FONT.display, lineHeight: 1.1, letterSpacing: '-0.03em', fontVariantNumeric: 'tabular-nums' }}>
                       {depLabel}
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '4px 8px', marginTop: '6px', flexWrap: 'wrap' }}>
-                      <span style={{ fontSize: '13px', fontWeight: '500', color: TI.secondary, fontFamily: FONT.corpo, letterSpacing: '0.01em' }}>{depTime}</span>
-                      <span style={{ width: '3px', height: '3px', borderRadius: '50%', backgroundColor: TI.line, display: 'inline-block', flexShrink: 0 }} />
-                      <span style={{ fontSize: '13px', fontWeight: '600', color: countdownColor, letterSpacing: '0.01em' }}>
+                      <span style={{ fontSize: FS.body, fontWeight: FW.corpo, color: T.second, fontFamily: FONT.corpo, letterSpacing: '0.01em' }}>{depTime}</span>
+                      <span style={{ width: '3px', height: '3px', borderRadius: '50%', backgroundColor: T.bdark, display: 'inline-block', flexShrink: 0 }} />
+                      <span style={{ fontSize: FS.body, fontWeight: FW.medio, color: countdownColor, fontFamily: FONT.corpo, letterSpacing: '0.01em' }}>
                         {countdownText}
                       </span>
                     </div>
@@ -2639,30 +2650,26 @@ export default function EventDetail() {
                 </div>
 
                 {/* Card: INÍCIO DA MONTAGEM */}
-                <div
-                  style={cartaoLogistica}
-                  onMouseEnter={e => cardHover(e.currentTarget, true)}
-                  onMouseLeave={e => cardHover(e.currentTarget, false)}
-                >
+                <div style={cartaoLogistica}>
                   <div aria-hidden="true" style={{ ...ladrilhoLogistica, backgroundColor: N.n3 }}>
                     <Calendar size={22} color={T.second} />
                   </div>
                   <div>
-                    <div style={{ fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: isMobile ? '0.06em' : '0.14em', color: TI.label, marginBottom: '7px', fontFamily: FONT.display }}>
+                    <div style={{ fontSize: FS.micro, fontWeight: FW.forte, textTransform: 'uppercase', letterSpacing: isMobile ? '0.06em' : '0.14em', color: T.second, marginBottom: '7px', fontFamily: FONT.corpo }}>
                       Dia do Evento
                     </div>
-                    <div style={{ fontSize: isMobile ? 18 : 22, fontWeight: '800', color: TI.title, fontFamily: FONT.display, lineHeight: 1.1, letterSpacing: '-0.03em', fontVariantNumeric: 'tabular-nums' }}>
+                    <div style={{ fontSize: isMobile ? FS.title : FS.h2, fontWeight: FW.rotulo, color: T.text, fontFamily: FONT.display, lineHeight: 1.1, letterSpacing: '-0.03em', fontVariantNumeric: 'tabular-nums' }}>
                       {startLabel}
                     </div>
                     <div style={{ marginTop: '6px' }}>
-                      <span style={{ fontSize: '13px', fontWeight: '500', color: TI.secondary, fontFamily: FONT.corpo, letterSpacing: '0.01em' }}>Início do evento</span>
+                      <span style={{ fontSize: FS.body, fontWeight: FW.corpo, color: T.second, fontFamily: FONT.corpo, letterSpacing: '0.01em' }}>Início do evento</span>
                     </div>
                   </div>
                 </div>
               </div>
 
               {/* ── Timeline de Prazos ── */}
-              <div style={{ backgroundColor: TI.card, border: `1px solid ${TI.border}`, borderRadius: '12px', padding: isMobile ? '16px 8px 12px' : '22px 28px', boxShadow: '0 1px 4px rgba(0,0,0,0.05)' }}>
+              <div style={{ backgroundColor: T.surface, border: `1px solid ${T.border}`, borderRadius: R.lg, padding: isMobile ? '16px 8px 12px' : '22px 28px', boxShadow: SHADOW.sm }}>
                 {/* No celular os seis marcos passam da largura e rolam de lado
                     aqui dentro: região rolável precisa ser alcançável pelo
                     teclado (setas), senão os marcos da direita ficam fora. */}
@@ -2679,7 +2686,7 @@ export default function EventDetail() {
                       position: 'absolute', top: '18px',
                       left: `calc(100% / ${milestones.length} / 2)`,
                       right: `calc(100% / ${milestones.length} / 2)`,
-                      height: '1.5px', backgroundColor: TI.line, zIndex: 0,
+                      height: '1.5px', backgroundColor: T.bdark, zIndex: 0,
                     }} />
                     {/* Progress fill */}
                     {progressFrac > 0 && (
@@ -2717,32 +2724,32 @@ export default function EventDetail() {
                       let glowColor = '';
 
                       if (isNext) {
-                        dotBg = TI.accent; dotBorder = TI.accent; dotSize = 22;
+                        dotBg = T.accent; dotBorder = T.accent; dotSize = 22;
                         // As CORES DE TEXTO da timeline usam os tons escuros
-                        // (AA em 10–11px); os tons claros de TI ficam na
-                        // bolinha e na borda, que são objeto gráfico.
-                        labelCol = TI.dark; dateCol = T.accentText; labelW = 700;
-                        glowColor = 'rgba(217,122,30,0.18)';
+                        // (AA em 10–11px); o laranja da marca (T.accent) fica
+                        // na bolinha e no brilho, que são objeto gráfico.
+                        labelCol = T.text; dateCol = T.accentText; labelW = FW.forte;
+                        glowColor = 'rgba(249,115,22,0.18)';
                       } else if (isOverdue) {
-                        dotBg = TOM.laranja.bg; dotBorder = TI.attention; dotSize = 14;
-                        labelCol = TOM.alerta.text; dateCol = TOM.alerta.text; labelW = 600;
+                        dotBg = TOM.laranja.bg; dotBorder = TOM.laranja.dot; dotSize = 14;
+                        labelCol = TOM.alerta.text; dateCol = TOM.alerta.text; labelW = FW.medio;
                       } else if (isPast) {
                         // Evento encerrado: prazos passados viram "cumpridos"
                         // (verde suave) em vez de cinza apagado — a agenda de um
                         // evento finalizado conta história, não pendência.
                         if (isHistorical) {
                           dotBg = TOM.esmeralda.bg; dotBorder = TOM.esmeralda.dot; dotSize = 12;
-                          labelCol = T.apoio; dateCol = TOM.turquesa.text; labelW = 500;
+                          labelCol = T.apoio; dateCol = TOM.turquesa.text; labelW = FW.corpo;
                         } else {
                           // Passado sem atraso: rebaixado pelo PESO e pela
                           // bolinha pequena, não por um cinza ilegível (#B8B2A8
                           // dava 2,1:1).
                           dotBg = T.bdark; dotBorder = T.bdark; dotSize = 10;
-                          labelCol = T.second; dateCol = T.second; labelW = 500;
+                          labelCol = T.second; dateCol = T.second; labelW = FW.corpo;
                         }
                       } else {
-                        dotBg = TI.card; dotBorder = TI.line; dotSize = 12;
-                        labelCol = TI.secondary; dateCol = TI.secondary; labelW = 500;
+                        dotBg = T.surface; dotBorder = T.bdark; dotSize = 12;
+                        labelCol = T.second; dateCol = T.second; labelW = FW.corpo;
                       }
 
                       return (
@@ -2757,7 +2764,7 @@ export default function EventDetail() {
                           onKeyDown={clicavel ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setMarcoFiltro(selecionado ? null : i); } } : undefined}
                           style={{
                             flex: 1, minWidth: 96, display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative', zIndex: 2,
-                            padding: '4px 4px 8px', borderRadius: 10,
+                            padding: '4px 4px 8px', borderRadius: R.md,
                             backgroundColor: selecionado ? TOM.laranja.bg : 'transparent',
                             boxShadow: selecionado ? `inset 0 0 0 1px ${TOM.laranja.border}` : 'none',
                             cursor: clicavel ? 'pointer' : 'default',
@@ -2772,17 +2779,17 @@ export default function EventDetail() {
                               width: `${dotSize}px`, height: `${dotSize}px`, borderRadius: '50%',
                               backgroundColor: dotBg,
                               border: dotSize <= 10 ? 'none' : `2px solid ${dotBorder}`,
-                              boxShadow: isNext ? `0 0 0 5px rgba(217,122,30,0.12)` : 'none',
+                              boxShadow: isNext ? `0 0 0 5px rgba(249,115,22,0.12)` : 'none',
                               position: 'relative', zIndex: 1,
                             }} />
                           </div>
 
                           {/* Label */}
                           <span style={{
-                            fontSize: '10px', fontWeight: labelW, textTransform: 'uppercase',
+                            fontSize: FS.micro, fontWeight: labelW, textTransform: 'uppercase',
                             letterSpacing: '0.07em', color: labelCol,
                             textAlign: 'center', lineHeight: 1.45,
-                            fontFamily: FONT.display,
+                            fontFamily: FONT.corpo,
                             maxWidth: '88px', display: 'block',
                           }}>
                             {label}
@@ -2790,7 +2797,7 @@ export default function EventDetail() {
 
                           {/* Date */}
                           <span style={{
-                            fontSize: '11px', fontWeight: isNext ? 700 : 500,
+                            fontSize: FS.small, fontWeight: isNext ? FW.forte : FW.corpo,
                             color: dateCol, fontFamily: FONT.mono,
                             marginTop: '5px', display: 'block', letterSpacing: '0.03em',
                           }}>
@@ -2799,12 +2806,13 @@ export default function EventDetail() {
                           {/* A pílula: quantas peças ainda não passaram por aqui.
                               Sem peça atrás, nenhuma pílula — zero não é notícia. */}
                           {atras > 0 && (
-                            <span
+                            <Selo
                               data-testid={`chip-atras-${marcoKey}`}
-                              style={{ marginTop: 6, fontSize: 11, fontWeight: 800, fontFamily: FONT.mono, color: tomPilula.color, backgroundColor: tomPilula.bg, border: `1px solid ${tomPilula.border}`, borderRadius: 999, padding: '1px 8px', whiteSpace: 'nowrap', lineHeight: 1.5 }}
+                              cores={{ bg: tomPilula.bg, text: tomPilula.color, border: tomPilula.border }}
+                              style={{ marginTop: 6, fontWeight: FW.rotulo, fontFamily: FONT.mono, padding: '1px 8px', lineHeight: 1.5 }}
                             >
                               {atras} {plural(atras, 'peça', 'peças')}
-                            </span>
+                            </Selo>
                           )}
                         </div>
                       );
@@ -2815,7 +2823,7 @@ export default function EventDetail() {
                     que era clicável no `title` — ninguém descobria que um
                     clique mostra exatamente as peças atrasadas daquele marco. */}
                 {!isHistorical && milestones.some((_, i) => (atrasDoMarco[i] ?? 0) > 0) && (
-                  <p style={{ margin: '10px 0 0', fontSize: 12, color: TI.secondary, textAlign: 'center' }}>
+                  <p style={{ margin: '10px 0 0', fontSize: FS.meta, color: T.second, textAlign: 'center' }}>
                     {marcoFiltro !== null
                       ? 'Mostrando só as peças atrás do marco escolhido — clique nele de novo para ver todas.'
                       : 'Clique num marco com peças para ver só as que ainda não passaram por ele.'}
@@ -2875,9 +2883,9 @@ export default function EventDetail() {
               <span style={{ fontSize: 13, fontWeight: 800, color: T.text, fontFamily: FONT.display, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                 Peças em Rascunho
               </span>
-              <span style={{ backgroundColor: TOM.alerta.bg, color: TOM.alerta.text, border: `1px solid ${TOM.alerta.border}`, borderRadius: 999, padding: '2px 10px', fontSize: 11, fontWeight: 800, whiteSpace: 'nowrap' }}>
+              <Selo tom="alerta">
                 {draftItems.length} {draftItems.length === 1 ? 'peça' : 'peças'}
-              </span>
+              </Selo>
             </div>
             {/* O destino certo: o envio leva à VINCULAÇÃO de patrocinadores
                 (o botão e a confirmação logo abaixo dizem isso), não à Arte.
@@ -3036,13 +3044,16 @@ export default function EventDetail() {
             </div>
             {/* Cap de 50 — padrão da casa, igual à listagem principal. */}
             {!showAllDrafts && draftItems.length > 50 && (
-              <button
+              <Botao
+                variante="secundario"
+                tamanho="toque"
+                larguraCheia
                 onClick={() => setShowAllDrafts(true)}
                 data-testid="button-show-all-drafts"
-                style={{ width: '100%', padding: 13, background: T.surface, border: `1px solid ${T.border}`, borderRadius: 10, color: T.text, fontWeight: 700, fontSize: 13, cursor: 'pointer', marginBottom: 16 }}
+                style={{ marginBottom: 16 }}
               >
                 Mostrar todos os {draftItems.length} rascunhos (+{draftItems.length - 50})
-              </button>
+              </Botao>
             )}
             {(() => {
               // POR QUE O BOTÃO ESTÁ TRAVADO — escrito, não só no `title`
@@ -3078,7 +3089,11 @@ export default function EventDetail() {
                   </p>
                 </div>
               </div>
-              <Button
+              <Botao
+                variante="primario"
+                tamanho="toque"
+                icone={Check}
+                carregando={submitDraftsMutation.isPending}
                 onClick={() => setSubmitConfirmOpen(true)}
                 // Gate: enviar rascunhos para a Arte é ação de admin ou do
                 // papel "solicitação" — mesmo critério do texto acima.
@@ -3086,28 +3101,19 @@ export default function EventDetail() {
                 // trabalho para a fila de vinculação, que já não mostra estas
                 // peças. Sem rascunho no recorte de quem envia, o clique só
                 // devolveria "Nenhum item em rascunho" do servidor.
-                disabled={submitDraftsMutation.isPending || !!motivoTravado}
+                disabled={!!motivoTravado}
                 title={motivoTravado ?? undefined}
-                // O motivo já está escrito ao lado; ligar o botão a ele faz o
-                // leitor de tela dizer POR QUE está travado ao focar.
+                // Sem `motivo`: ele já está escrito VISÍVEL ao lado. Ligar o
+                // botão a ele faz o leitor de tela dizer POR QUE está travado.
                 aria-describedby={motivoTravado ? "texto-envio-rascunhos" : undefined}
-                size="lg"
                 data-testid="button-submit-drafts"
               >
-                {submitDraftsMutation.isPending ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Enviando...
-                  </>
-                ) : (
-                  <>
-                    <Check className="h-4 w-4 mr-2" />
-                    {foraDoMeuEnvio > 0 && nEnvio > 0
-                      ? `Enviar ${nEnvio} ${nEnvio === 1 ? 'peça' : 'peças'}`
-                      : 'Enviar todas as peças'}
-                  </>
-                )}
-              </Button>
+                {submitDraftsMutation.isPending
+                  ? 'Enviando...'
+                  : foraDoMeuEnvio > 0 && nEnvio > 0
+                    ? `Enviar ${nEnvio} ${nEnvio === 1 ? 'peça' : 'peças'}`
+                    : 'Enviar todas as peças'}
+              </Botao>
             </div>
               );
             })()}
@@ -3184,23 +3190,22 @@ export default function EventDetail() {
                 </p>
               </div>
               <DialogFooter style={{ gap: 8, flexDirection: 'row', justifyContent: 'flex-end' }}>
-                <Button variant="outline" onClick={() => setSubmitConfirmOpen(false)}>
+                <Botao variante="fantasma" tamanho={dedo ? 'toque' : 'md'} onClick={() => setSubmitConfirmOpen(false)}>
                   Cancelar
-                </Button>
-                <Button
+                </Botao>
+                <Botao
+                  variante="primario"
+                  tamanho={dedo ? 'toque' : 'md'}
+                  icone={Check}
+                  carregando={submitDraftsMutation.isPending}
                   onClick={() => {
                     setSubmitConfirmOpen(false);
                     submitDraftsMutation.mutate();
                   }}
                   data-testid="button-confirm-submit-drafts"
-                  disabled={submitDraftsMutation.isPending}
                 >
-                  {submitDraftsMutation.isPending ? (
-                    <><Loader2 style={{ width: 14, height: 14, marginRight: 6 }} className="animate-spin" /> Enviando...</>
-                  ) : (
-                    <><Check style={{ width: 14, height: 14, marginRight: 6 }} /> Confirmar envio</>
-                  )}
-                </Button>
+                  {submitDraftsMutation.isPending ? 'Enviando...' : 'Confirmar envio'}
+                </Botao>
               </DialogFooter>
             </div>
           </DialogContent>
@@ -3223,63 +3228,50 @@ export default function EventDetail() {
           vazio quando não há NADA. Empty-state neutro (Package, não alerta);
           o CTA respeita canEditLists. */}
       {itemsError ? (
-        <div style={{ textAlign: 'center', padding: '48px 0' }}>
-          <AlertCircle className="h-12 w-12 mx-auto mb-4" style={{ color: TOM.perigo.text }} />
-          <p className="text-red-700 font-semibold mb-1">Não foi possível carregar as peças</p>
-          <p className="text-muted-foreground text-sm mb-4">Verifique sua conexão e tente novamente.</p>
-          <button onClick={() => refetchItems()} className="rounded-md bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-800">
-            Tentar novamente
-          </button>
-        </div>
+        <EstadoErro
+          titulo="Não foi possível carregar as peças"
+          detalhe="Verifique sua conexão e tente novamente."
+          aoTentarDeNovo={() => refetchItems()}
+        />
       ) : mainItems.length === 0 ? (
         draftItems.length > 0 ? null : (
-          <div style={{ textAlign: 'center', padding: '64px 0' }}>
-            <Package aria-hidden="true" className="h-12 w-12 mx-auto mb-4" style={{ color: T.second }} />
-            <h3 style={{ fontSize: '18px', fontWeight: '600', color: T.text, marginBottom: '8px' }}>Nenhuma peça na lista ainda</h3>
-            {/* OS TRÊS CAMINHOS, CLICÁVEIS. O texto antigo mandava procurar
-                "Importar Excel" e "Clonar peças" no topo — e o clonar agora
-                mora no menu "Mais". No estado vazio a pergunta é "como começo",
-                então os três gestos ficam aqui mesmo, com os MESMOS handlers e
-                o MESMO bloqueio de evento finalizado dos botões do cabeçalho. */}
-            <p style={{ color: T.second, marginBottom: '18px', fontSize: '15px', maxWidth: 460, marginLeft: 'auto', marginRight: 'auto', lineHeight: 1.5 }}>
-              {canEditLists
-                ? (eventoFinalizado ? avisoEventoFim : 'Adicione peça por peça ou em lote, importe a planilha, ou copie as peças de outro evento.')
-                : 'Quando a lista for montada, as peças aparecem aqui.'}
-            </p>
-            {canEditLists ? (
+          // OS TRÊS CAMINHOS, CLICÁVEIS. No estado vazio a pergunta é "como
+          // começo": os três gestos ficam aqui, com os MESMOS handlers e o
+          // MESMO bloqueio de evento finalizado dos botões do cabeçalho — e o
+          // porquê do bloqueio é a própria descrição, visível.
+          <EstadoVazio
+            icone={Package}
+            titulo="Nenhuma peça na lista ainda"
+            descricao={canEditLists
+              ? (eventoFinalizado ? avisoEventoFim : 'Adicione peça por peça ou em lote, importe a planilha, ou copie as peças de outro evento.')
+              : 'Quando a lista for montada, as peças aparecem aqui.'}
+            acao={canEditLists ? (
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
                 {([
                   { chave: 'adicionar', rotulo: 'Adicionar peças', Icone: Plus, acao: abrirEntradaDePecas, primaria: true },
                   { chave: 'importar', rotulo: 'Importar Excel', Icone: Upload, acao: () => setImportDialogOpen(true), primaria: false },
                   { chave: 'clonar', rotulo: 'Clonar de outro evento', Icone: Copy, acao: () => setCloneDialogOpen(true), primaria: false },
                 ] as const).map(({ chave, rotulo, Icone, acao, primaria }) => (
-                  <button
+                  <Botao
                     key={chave}
-                    type="button"
+                    variante={primaria ? 'primario' : 'secundario'}
+                    tamanho="toque"
+                    icone={Icone}
                     data-testid={`button-vazio-${chave}`}
                     onClick={acao}
                     disabled={eventoFinalizado}
                     title={eventoFinalizado ? avisoEventoFim : undefined}
-                    style={{
-                      height: 44, padding: '0 18px', borderRadius: 8, fontWeight: 700, fontSize: 14,
-                      display: 'inline-flex', alignItems: 'center', gap: 8,
-                      cursor: eventoFinalizado ? 'not-allowed' : 'pointer',
-                      ...(primaria
-                        ? { backgroundColor: eventoFinalizado ? T.border : TOM.alerta.text, color: eventoFinalizado ? T.apoio : T.surface, border: 'none' }
-                        : { backgroundColor: T.surface, color: eventoFinalizado ? T.second : T.text, border: `1px solid ${T.border}` }),
-                    }}
                   >
-                    <Icone className="h-4 w-4" aria-hidden="true" />
                     {rotulo}
-                  </button>
+                  </Botao>
                 ))}
               </div>
             ) : (
-              <p style={{ fontSize: 12, color: T.second, margin: 0 }}>
+              <p style={{ fontSize: FS.meta, color: T.second, margin: 0 }}>
                 {MOTIVO_SOMENTE_LEITURA}
               </p>
             )}
-          </div>
+          />
         )
       ) : (
         /* `listaRef` mede a ÁREA ÚTIL da lista de peças — é ela, e não a
@@ -3346,14 +3338,12 @@ export default function EventDetail() {
           </div>
 
           {searchedItems.length === 0 && (
-            <div style={{ backgroundColor: T.surface, border: `1px solid ${T.border}`, borderRadius: 12, padding: '40px 24px', textAlign: 'center' }}>
-              <p style={{ color: T.text, fontSize: 14, fontWeight: 700, margin: '0 0 4px' }}>
-                {statusFilter.length > 0 || marcoFiltro !== null ? 'Nenhuma peça corresponde aos filtros' : 'Nenhuma peça corresponde à busca'}
-              </p>
-              <p style={{ color: T.second, fontSize: 13, margin: 0 }}>
-                {statusFilter.length > 0 || marcoFiltro !== null ? 'Tente outro termo, ou limpe a busca, o filtro de status ou o marco.' : 'Tente outro termo ou limpe a busca.'}
-              </p>
-            </div>
+            <EstadoVazio
+              compacto
+              icone={Search}
+              titulo={statusFilter.length > 0 || marcoFiltro !== null ? 'Nenhuma peça corresponde aos filtros' : 'Nenhuma peça corresponde à busca'}
+              descricao={statusFilter.length > 0 || marcoFiltro !== null ? 'Tente outro termo, ou limpe a busca, o filtro de status ou o marco.' : 'Tente outro termo ou limpe a busca.'}
+            />
           )}
 
           {/* A LINHA É A MESMA NOS DOIS MODOS: o bloco da tabela (cabeçalho,
@@ -3393,14 +3383,14 @@ export default function EventDetail() {
                           <DetalheProducao item={item} style={{ marginTop: 0, marginBottom: 6, textAlign: 'right' }} />
                           <SeloKit peca={item} style={{ marginBottom: 4, marginRight: 4 }} />
                           {item.isPriority && (
-                            <div title="Peça prioritária — fura a fila da Arte" data-testid={`tag-prioritaria-card-${item.id}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, backgroundColor: TOM.perigo.bg, border: `1px solid ${TOM.perigo.border}`, color: TOM.perigo.text, borderRadius: 6, padding: '2px 7px', fontSize: 10, fontWeight: 800, letterSpacing: '0.06em', marginBottom: 4, marginRight: 4 }}>
-                              <AlertTriangle style={{ width: 9, height: 9 }} /> PRIORITÁRIA
-                            </div>
+                            <Selo tom="perigo" forma="retangulo" tamanho="sm" icone={AlertTriangle} title="Peça prioritária — fura a fila da Arte" data-testid={`tag-prioritaria-card-${item.id}`} style={{ gap: 4, padding: '2px 7px', marginBottom: 4, marginRight: 4 }}>
+                              PRIORITÁRIA
+                            </Selo>
                           )}
                           {item.parentItemId && (
-                            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, backgroundColor: TOM.laranja.bg, border: `1px solid ${TOM.laranja.border}`, color: T.accentText, borderRadius: 6, padding: '2px 7px', fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 4 }}>
-                              <Plus style={{ width: 9, height: 9 }} /> Compl. de {item.parent?.displayId ?? 'peça original'}
-                            </div>
+                            <Selo tom="laranja" forma="retangulo" tamanho="sm" icone={Plus} style={{ gap: 4, padding: '2px 7px', marginBottom: 4 }}>
+                              Compl. de {item.parent?.displayId ?? 'peça original'}
+                            </Selo>
                           )}
                           <div style={{ fontWeight: 700, fontSize: 13, color: T.text, marginBottom: 2 }}>{item.type}</div>
                           {item.description && <div style={{ fontSize: 13, color: T.second, marginBottom: 4 }}>{item.description}</div>}
@@ -3425,12 +3415,16 @@ export default function EventDetail() {
                                   handleEditItem: no celular um botão que
                                   aceita o toque e não abre nada lê como app
                                   travado. O title carrega o motivo. */}
-                              <button onClick={() => handleEditItem(item)}
+                              <Botao
+                                variante="secundario"
+                                tamanho="toque"
+                                onClick={() => handleEditItem(item)}
                                 disabled={isEditBlocked(item.status)}
                                 title={motivoEdicaoBloqueada(item.status) ?? undefined}
-                                style={{ flex: 1, minHeight: 44, borderRadius: 6, border: `1px solid ${T.border}`, background: T.bg, fontSize: 13, fontWeight: 700, color: isEditBlocked(item.status) ? T.second : T.strong, cursor: isEditBlocked(item.status) ? 'not-allowed' : 'pointer' }}>
+                                style={{ flex: 1 }}
+                              >
                                 Editar
-                              </button>
+                              </Botao>
                               {/* Aumentar quantidade NÃO mora aqui: o gatilho
                                   é exclusivo da tela da Gráfica (decisão do dono). */}
                               {/* Mesmos gates do desktop: sem eles, no celular um
@@ -3547,10 +3541,9 @@ export default function EventDetail() {
                             </button>
                             <SeloKit peca={item} style={{ marginLeft: 6 }} />
                             {item.isPriority && (
-                              <span title="Peça prioritária — fura a fila da Arte" data-testid={`tag-prioritaria-${item.id}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 3, marginLeft: 6, fontSize: 10, fontWeight: 800, color: TOM.perigo.text, backgroundColor: TOM.perigo.bg, border: `1px solid ${TOM.perigo.border}`, borderRadius: 6, padding: '1px 6px', letterSpacing: '0.04em', verticalAlign: 'middle' }}>
-                                <AlertTriangle style={{ width: 9, height: 9 }} />
+                              <Selo tom="perigo" forma="retangulo" tamanho="sm" icone={AlertTriangle} title="Peça prioritária — fura a fila da Arte" data-testid={`tag-prioritaria-${item.id}`} style={{ gap: 3, marginLeft: 6, padding: '1px 6px', verticalAlign: 'middle' }}>
                                 PRIORITÁRIA
-                              </span>
+                              </Selo>
                             )}
                           </td>
                           {/* Ref. — VÁRIAS por peça (25/08): o clipe ADICIONA em
@@ -3620,27 +3613,35 @@ export default function EventDetail() {
                                 title — a linha da tabela não tem espaço para ele
                                 e a ficha mostra por extenso. */}
                             {item.parentItemId && (
-                              <div
+                              <Selo
+                                tom="laranja" forma="retangulo" tamanho="sm" icone={Plus}
                                 title={item.complementReason ? `Motivo: ${item.complementReason}` : undefined}
                                 data-testid={`badge-complemento-${item.id}`}
-                                style={{ display: "inline-flex", alignItems: "center", gap: 4, backgroundColor: TOM.laranja.bg, border: `1px solid ${TOM.laranja.border}`, color: T.accentText, borderRadius: 6, padding: "2px 7px", fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4 }}
+                                style={{ gap: 4, padding: "2px 7px", marginBottom: 4 }}
                               >
-                                <Plus style={{ width: 9, height: 9 }} /> Compl. de {item.parent?.displayId ?? "peça original"}
-                              </div>
+                                Compl. de {item.parent?.displayId ?? "peça original"}
+                              </Selo>
                             )}
                             {!item.parentItemId && item.complements?.length > 0 && (
-                              <div
+                              <Selo
+                                forma="retangulo" tamanho="sm"
+                                cores={{ bg: T.surface, text: T.accentText, border: TOM.laranja.border }}
                                 title={`Complementos: ${item.complements.map((c: any) => `${c.displayId} (+${c.quantity})`).join(", ")}`}
                                 data-testid={`badge-tem-complemento-${item.id}`}
-                                style={{ display: "inline-flex", alignItems: "center", gap: 4, backgroundColor: T.surface, border: `1px solid ${TOM.laranja.border}`, color: T.accentText, borderRadius: 6, padding: "2px 7px", fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4 }}
+                                style={{ padding: "2px 7px", marginBottom: 4 }}
                               >
                                 Tem complemento (+{item.complements.reduce((a: number, c: any) => a + (Number(c.quantity) || 0), 0)})
-                              </div>
+                              </Selo>
                             )}
                             {item.isReuse && !(PRODUCTION_STATUSES as readonly string[]).includes(item.status) && (
-                              <div style={{ display: "inline-flex", alignItems: "center", gap: 4, backgroundColor: TOM.esmeralda.text, color: T.surface, borderRadius: 6, padding: "2px 7px", fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4 }}>
-                                <Recycle style={{ width: 9, height: 9 }} /> Reaproveit.
-                              </div>
+                              <Selo
+                                forma="retangulo" tamanho="sm" icone={Recycle}
+                                // Cheio (branco sobre esmeralda escuro): reaproveitamento pula a produção.
+                                cores={{ bg: TOM.esmeralda.text, text: T.surface, border: TOM.esmeralda.text }}
+                                style={{ gap: 4, padding: "2px 7px", marginBottom: 4 }}
+                              >
+                                Reaproveit.
+                              </Selo>
                             )}
                             {seloDoEstoque(item)}
                             {item.description ? (
@@ -3769,6 +3770,7 @@ export default function EventDetail() {
                                         onSuccess: () => toast({
                                           title: "Peça atualizada",
                                           description: item.isReuse ? "Marca de reaproveitamento removida" : "Peça marcada como reaproveitamento",
+                                          variant: "success",
                                         }),
                                       },
                                     );
@@ -3853,9 +3855,9 @@ export default function EventDetail() {
                         {m.label}
                       </h2>
                       <div style={{ flex: 1, height: '2px', backgroundColor: N.n3 }} />
-                      <span style={{ backgroundColor: T.low, color: T.second, fontSize: '10px', fontWeight: '700', padding: '4px 12px', borderRadius: '999px', textTransform: 'uppercase', letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>
+                      <Selo tamanho="sm" cores={{ bg: T.low, text: T.second, border: T.low }} style={{ padding: '4px 12px' }}>
                         {lista.length} {lista.length === 1 ? 'PEÇA' : 'PEÇAS'}
-                      </span>
+                      </Selo>
                     </div>
                     {renderTabelaDeItens(lista)}
                   </section>
@@ -3891,9 +3893,9 @@ export default function EventDetail() {
                     {type}
                   </h2>
                   <div style={{ flex: 1, height: '2px', backgroundColor: N.n3 }} />
-                  <span style={{ backgroundColor: T.low, color: T.second, fontSize: '10px', fontWeight: '700', padding: '4px 12px', borderRadius: '999px', textTransform: 'uppercase', letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>
+                  <Selo tamanho="sm" cores={{ bg: T.low, text: T.second, border: T.low }} style={{ padding: '4px 12px' }}>
                     {typeItems.length} {typeItems.length === 1 ? 'PEÇA' : 'PEÇAS'}
-                  </span>
+                  </Selo>
                 </div>
 
                 {renderTabelaDeItens(typeItems)}
@@ -3903,13 +3905,15 @@ export default function EventDetail() {
           ));
           })()}
           {hiddenItemCount > 0 && (
-            <button
+            <Botao
+              variante="secundario"
+              tamanho="toque"
+              larguraCheia
               onClick={() => setShowAllItems(true)}
               data-testid="button-show-all-event-items"
-              style={{ width: '100%', padding: 13, background: T.surface, border: `1px solid ${T.border}`, borderRadius: 10, color: T.text, fontWeight: 700, fontSize: 13, cursor: 'pointer' }}
             >
               Mostrar todas as {searchedItems.length} peças (+{hiddenItemCount})
-            </button>
+            </Botao>
           )}
         </div>
       )}
@@ -4014,14 +4018,11 @@ export default function EventDetail() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter style={{ padding: 0, display: "flex", flexDirection: "row", justifyContent: "flex-end", gap: "10px" }}>
-            <AlertDialogCancel
-              style={{ padding: "9px 20px", backgroundColor: "transparent", border: "none", borderRadius: "8px", fontSize: "15px", fontWeight: 600, color: T.second, cursor: "pointer" }}
-              onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = T.low)}
-              onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
-            >
-              Cancelar
+            <AlertDialogCancel asChild>
+              <Botao variante="fantasma" tamanho={dedo ? 'toque' : 'md'}>Cancelar</Botao>
             </AlertDialogCancel>
             <AlertDialogAction
+              asChild
               // preventDefault: o AlertDialogAction fecha o diálogo no clique;
               // sem impedir, o "Excluindo…" nunca chegava a aparecer. O
               // fechamento acontece no onSuccess da mutation.
@@ -4029,13 +4030,16 @@ export default function EventDetail() {
                 e.preventDefault();
                 if (deletingItem && !deleteItemMutation.isPending) deleteItemMutation.mutate(deletingItem.id);
               }}
-              disabled={deleteItemMutation.isPending}
-              data-testid="button-confirm-delete-item"
-              style={{ padding: "9px 20px", backgroundColor: TOM.perigo.text, border: "none", borderRadius: "8px", fontSize: "15px", fontWeight: 700, color: T.surface, cursor: deleteItemMutation.isPending ? "wait" : "pointer", opacity: deleteItemMutation.isPending ? 0.7 : 1, transition: "background-color 0.15s" }}
-              onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = TOM.perigo.text)}
-              onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = TOM.perigo.text)}
             >
-              {deleteItemMutation.isPending ? "Excluindo..." : "Excluir"}
+              <Botao
+                variante="perigo"
+                tamanho={dedo ? 'toque' : 'md'}
+                icone={Trash2}
+                carregando={deleteItemMutation.isPending}
+                data-testid="button-confirm-delete-item"
+              >
+                {deleteItemMutation.isPending ? "Excluindo..." : "Excluir"}
+              </Botao>
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -4149,6 +4153,7 @@ export default function EventDetail() {
         onClose={() => setEstoqueDaPeca(null)}
       />
 
+      {dialogo}
     </div>
   );
 }

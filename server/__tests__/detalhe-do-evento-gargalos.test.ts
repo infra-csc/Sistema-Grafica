@@ -51,15 +51,16 @@ describe("Mudança 1 · a timeline diz quantas peças estão atrás de cada marc
   it("a pílula por marco, só quando há peça atrás, nos três tons", () => {
     expect(ED).toContain("data-testid={`chip-atras-${marcoKey}`}");
     expect(ED).toContain("{atras > 0 && (");
-    expect(ED).toContain("? { color: '#b91c1c', bg: '#fef2f2', border: '#fecaca' }");
-    expect(ED).toContain("? { color: '#9a3412', bg: '#fff7ed', border: '#fed7aa' }");
-    expect(ED).toContain(": { color: '#57534e', bg: '#f5f5f4', border: '#e7e5e4' };");
+    // Os três tons vêm de TOM/T (design system), não de hex redigitado.
+    expect(ED).toContain("? { color: TOM.perigo.text, bg: TOM.perigo.bg, border: TOM.perigo.border }");
+    expect(ED).toContain("? { color: T.accentText, bg: TOM.laranja.bg, border: TOM.laranja.border }");
+    expect(ED).toContain(": { color: T.apoio, bg: N.n2, border: T.border };");
   });
 
   it("clicar no marco filtra a lista por esse gargalo", () => {
     expect(ED).toContain("data-testid={`marco-${marcoKey}`}");
     expect(ED).toContain("aria-pressed={clicavel ? selecionado : undefined}");
-    expect(ED).toContain("backgroundColor: selecionado ? '#fff7ed' : 'transparent',");
+    expect(ED).toContain("backgroundColor: selecionado ? TOM.laranja.bg : 'transparent',");
     expect(ED).toContain("onClick={clicavel ? () => setMarcoFiltro(selecionado ? null : i) : undefined}");
     // Marco sem pendência não é clicável.
     expect(ED).toContain("const clicavel = atras > 0 && !isHistorical;");

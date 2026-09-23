@@ -2,7 +2,7 @@
 // facetados, seleção manual das peças e agrupamento por grupo/evento — tudo
 // gerando o mesmo book via exportMixedToPDF.
 import { useState, useMemo, useEffect, useRef } from "react";
-import { Printer, X, FileText, FileImage, CheckCircle, SlidersHorizontal, BookOpen, Scissors, Search, LayoutGrid, File, AlertTriangle, Loader2 } from "lucide-react";
+import { Printer, X, FileText, FileImage, CheckCircle, SlidersHorizontal, BookOpen, Scissors, Search, LayoutGrid, File, AlertTriangle } from "lucide-react";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { HIDE_NATIVE_CLOSE } from "@/components/modal-shell";
 import { FilterSelect } from "@/components/filter-select";
@@ -10,7 +10,10 @@ import { BookPagePicker } from "@/components/book-page-picker";
 import { exportMixedToPDF, groupKeyOf, MAX_ITEMS_PER_COMBINED_PAGE, convertGCSUrlToLocalPath } from "@/lib/artePdfExport";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { normalizarBusca } from "@/lib/utils";
-import { T, N, TOM, FONT } from "@/lib/theme";
+import { T, N, TOM, FONT, FS, FW, R } from "@/lib/theme";
+import { Botao } from "@/components/ui/botao";
+import { Selo } from "@/components/ui/selo";
+import { EstadoVazio } from "@/components/ui/estados";
 
 /**
  * UMA PÁGINA DO PDF QUE VAI SAIR.
@@ -294,16 +297,19 @@ export function ExportPdfDialog({ open, onOpenChange, items: itensDaTela, title 
         <div style={{
           padding: "22px 32px",
           display: "flex", justifyContent: "space-between", alignItems: "center",
+          // #2d2926 fica em hex: é o segundo tom do gradiente ESCURO e não há
+          // token de superfície escura. O texto claro por cima é rgba/branco,
+          // não token de fundo claro.
           background: `linear-gradient(135deg, ${T.text} 0%, #2d2926 100%)`,
           borderBottom: "1px solid rgba(255,255,255,0.06)",
           flexShrink: 0,
         }}>
           <div style={{ display: "flex", alignItems: "center", gap: 14, minWidth: 0 }}>
             <div style={{ width: 40, height: 40, borderRadius: 10, backgroundColor: useBook ? TOM.roxo.text : T.accentText, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, boxShadow: "0 0 0 1px rgba(255,255,255,0.12) inset", transition: "background-color 0.2s" }}>
-              {useBook ? <BookOpen style={{ width: 18, height: 18, color: T.surface }} /> : <Printer style={{ width: 18, height: 18, color: T.surface }} />}
+              {useBook ? <BookOpen style={{ width: 18, height: 18, color: "#ffffff" }} /> : <Printer style={{ width: 18, height: 18, color: "#ffffff" }} />}
             </div>
             <div style={{ minWidth: 0 }}>
-              <h2 style={{ fontSize: 20, fontWeight: 800, letterSpacing: "-0.03em", color: T.surface, margin: 0, lineHeight: 1.2 }}>
+              <h2 style={{ fontFamily: FONT.display, fontSize: 20, fontWeight: FW.rotulo, letterSpacing: "-0.03em", color: "#ffffff", margin: 0, lineHeight: 1.2 }}>
                 Exportar PDF
               </h2>
               <p style={{ fontSize: 13, color: "rgba(255,255,255,0.72)", margin: "3px 0 0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
@@ -312,6 +318,8 @@ export function ExportPdfDialog({ open, onOpenChange, items: itensDaTela, title 
             </div>
           </div>
           <button
+            type="button"
+            className="ds-botao"
             onClick={() => onOpenChange(false)}
             aria-label="Fechar"
             style={{ width: 40, height: 40, borderRadius: "50%", backgroundColor: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.12)", cursor: "pointer", color: "rgba(255,255,255,0.7)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
@@ -439,19 +447,22 @@ export function ExportPdfDialog({ open, onOpenChange, items: itensDaTela, title 
                   ponta esquerda, os cinco menus não cabiam numa linha só, e
                   quebrar a barra em duas empurrava a lista para baixo da dobra.
                   O selo diz quantos estão ativos para eles não sumirem de vista. */}
-              <button
+              <Botao
+                variante="secundario"
+                tamanho={isMobile ? "toque" : "md"}
+                icone={SlidersHorizontal}
                 onClick={() => setMaisFiltros(v => !v)}
                 aria-expanded={maisFiltros}
                 data-testid="button-export-mais-filtros"
-                style={{ display: "inline-flex", alignItems: "center", gap: 6, height: isMobile ? 44 : 36, padding: "0 12px", borderRadius: 8, background: T.surface, border: `1px solid ${T.border}`, color: T.apoio, cursor: "pointer", fontSize: 12, fontWeight: 600, flexShrink: 0, whiteSpace: "nowrap" }}>
-                <SlidersHorizontal style={{ width: 13, height: 13 }} />
+                style={{ flexShrink: 0 }}
+              >
                 Mais filtros
                 {(typeFilter !== "all" ? 1 : 0) + (statusFilter !== "all" ? 1 : 0) > 0 && (
-                  <span style={{ fontSize: 11, fontWeight: 700, color: TOM.roxo.text, backgroundColor: TOM.roxo.bg, border: `1px solid ${TOM.roxo.border}`, borderRadius: 99, padding: "0 6px" }}>
+                  <Selo tom="roxo" style={{ padding: "0 6px" }}>
                     {(typeFilter !== "all" ? 1 : 0) + (statusFilter !== "all" ? 1 : 0)}
-                  </span>
+                  </Selo>
                 )}
-              </button>
+              </Botao>
 
               {maisFiltros && (
                 <>
@@ -469,13 +480,16 @@ export function ExportPdfDialog({ open, onOpenChange, items: itensDaTela, title 
               )}
 
               {(hasFilters || busca.trim()) && (
-                <button
+                <Botao
+                  variante="fantasma"
+                  tamanho={isMobile ? "toque" : "md"}
+                  icone={X}
                   onClick={() => { clearFilters(); setBusca(""); }}
                   data-testid="button-export-limpar-filtros"
-                  style={{ display: "inline-flex", alignItems: "center", gap: 5, height: isMobile ? 44 : 36, padding: "0 12px", borderRadius: 8, background: "none", border: `1px solid ${T.border}`, color: T.second, cursor: "pointer", fontSize: 11, fontWeight: 600, flexShrink: 0, whiteSpace: "nowrap" }}>
-                  <X style={{ width: 11, height: 11 }} />
+                  style={{ flexShrink: 0 }}
+                >
                   {activeFilterCount > 1 ? `${activeFilterCount} filtros` : "Limpar"}
-                </button>
+                </Botao>
               )}
             </div>
 
@@ -509,21 +523,18 @@ export function ExportPdfDialog({ open, onOpenChange, items: itensDaTela, title 
 
             {/* Lista agrupada */}
             {filtered.length === 0 ? (
-              <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12, padding: 24 }}>
-                <FileText aria-hidden="true" style={{ width: 28, height: 28, color: T.bdark }} />
-                <div style={{ textAlign: "center" }}>
-                  <p style={{ fontSize: 15, fontWeight: 700, color: T.text, margin: "0 0 6px" }}>Nenhuma peça encontrada</p>
-                  <p style={{ fontSize: 13, color: T.second, lineHeight: 1.55, margin: 0 }}>
-                    {busca.trim() ? `Nada bate com “${busca.trim()}” nos filtros atuais` : "Ajuste os filtros acima"}
-                  </p>
-                </div>
-                {(hasFilters || busca.trim()) && (
-                  <button
-                    onClick={() => { clearFilters(); setBusca(""); }}
-                    style={{ height: isMobile ? 44 : 36, padding: "0 16px", borderRadius: 8, border: `1px solid ${T.border}`, background: T.surface, fontSize: 13, fontWeight: 700, color: T.text, cursor: "pointer" }}>
-                    Limpar filtros
-                  </button>
-                )}
+              <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", justifyContent: "center", padding: 24 }}>
+                <EstadoVazio
+                  compacto
+                  icone={FileText}
+                  titulo="Nenhuma peça encontrada"
+                  descricao={busca.trim() ? `Nada bate com “${busca.trim()}” nos filtros atuais` : "Ajuste os filtros acima"}
+                  acao={(hasFilters || busca.trim()) ? (
+                    <Botao variante="secundario" tamanho={isMobile ? "toque" : "md"} onClick={() => { clearFilters(); setBusca(""); }}>
+                      Limpar filtros
+                    </Botao>
+                  ) : undefined}
+                />
               </div>
             ) : (
               <div style={{ flex: 1, minHeight: 0, overflowY: "auto" }}>
@@ -544,7 +555,7 @@ export function ExportPdfDialog({ open, onOpenChange, items: itensDaTela, title 
                         display: "flex", alignItems: "center", gap: 8,
                       }}>
                         <span style={{ fontSize: 11, fontWeight: 800, color: T.apoio, textTransform: "uppercase", letterSpacing: "0.08em", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{grupo}</span>
-                        <span style={{ fontSize: 11, fontWeight: 700, color: T.apoio, backgroundColor: N.n2, borderRadius: 99, padding: "1px 7px", flexShrink: 0, fontVariantNumeric: "tabular-nums" }}>{itensDoGrupo.length}</span>
+                        <Selo cores={{ bg: N.n2, text: T.apoio, border: N.n2 }} style={{ padding: "1px 7px", flexShrink: 0, fontVariantNumeric: "tabular-nums" }}>{itensDoGrupo.length}</Selo>
                         <span style={{ flex: 1 }} />
                         {!useBook && (
                           <button
@@ -598,7 +609,7 @@ export function ExportPdfDialog({ open, onOpenChange, items: itensDaTela, title 
                               </div>
                               <div style={{ width: 44, height: 44, borderRadius: 8, overflow: "hidden", flexShrink: 0, border: "1px solid rgba(0,0,0,0.07)", backgroundColor: T.low, display: "flex", alignItems: "center", justifyContent: "center" }}>
                                 {hasThumb && thumbSrc
-                                  ? <img src={thumbSrc} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} onError={e => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
+                                  ? <img src={thumbSrc} alt="" loading="lazy" decoding="async" style={{ width: "100%", height: "100%", objectFit: "cover" }} onError={e => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
                                   : <FileImage style={{ width: 18, height: 18, color: T.bdark }} />}
                               </div>
                               <div style={{ flex: 1, minWidth: 0 }}>
@@ -610,12 +621,13 @@ export function ExportPdfDialog({ open, onOpenChange, items: itensDaTela, title 
                                       origem book. "Sem book" descrevia o dado e
                                       deixava a pessoa deduzir o efeito. */}
                                   {useBook && picked && !item.bookUrl && (
-                                    <span
+                                    <Selo
+                                      tom="laranja" forma="retangulo" tamanho="sm"
                                       title="Esta peça não está coberta por nenhum book e fica de fora da exportação"
                                       data-testid={`badge-no-book-export-${item.id}`}
-                                      style={{ flexShrink: 0, display: "inline-flex", alignItems: "center", gap: 3, fontSize: 10, fontWeight: 700, color: T.accentText, backgroundColor: TOM.laranja.bg, border: `1px solid ${TOM.laranja.border}`, borderRadius: 4, padding: "2px 6px", textTransform: "uppercase", letterSpacing: "0.03em" }}>
+                                      style={{ flexShrink: 0, padding: "2px 6px" }}>
                                       Fica de fora
-                                    </span>
+                                    </Selo>
                                   )}
                                 </div>
                                 <div style={{ fontSize: 11, color: T.second, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
@@ -753,12 +765,15 @@ export function ExportPdfDialog({ open, onOpenChange, items: itensDaTela, title 
                 <span style={{ fontSize: 11, color: T.accentText, flex: 1, minWidth: 0 }}>
                   {cortadas} {cortadas === 1 ? "peça fica" : "peças ficam"} de fora — {cortadas === 1 ? "não está coberta" : "não estão cobertas"} por nenhum book.
                 </span>
-                <button
+                <Botao
+                  variante="secundario"
+                  tamanho={isMobile ? "toque" : "sm"}
                   onClick={() => setSource("artes")}
                   data-testid="button-trocar-para-artes"
-                  style={{ flexShrink: 0, height: 28, padding: "0 10px", borderRadius: 7, backgroundColor: T.surface, border: `1px solid ${TOM.laranja.border}`, color: T.accentText, fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
+                  style={{ flexShrink: 0, borderColor: TOM.laranja.border, color: T.accentText }}
+                >
                   Gerar das artes
-                </button>
+                </Botao>
               </div>
             ) : (
               <p style={{ fontSize: 12, color: T.apoio, margin: 0, lineHeight: 1.5 }}>
@@ -770,15 +785,16 @@ export function ExportPdfDialog({ open, onOpenChange, items: itensDaTela, title 
           </div>
 
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
-            <button
-              onClick={() => onOpenChange(false)}
-              style={{ height: 40, padding: "0 14px", borderRadius: 8, background: "none", border: "none", color: T.second, cursor: "pointer", fontSize: 12, fontWeight: 600 }}>
+            <Botao variante="fantasma" tamanho={isMobile ? "toque" : "md"} onClick={() => onOpenChange(false)}>
               Cancelar
-            </button>
+            </Botao>
 
             {useBook ? (
               <>
-                <button
+                <Botao
+                  variante="secundario"
+                  tamanho="toque"
+                  icone={BookOpen}
                   onClick={() => {
                     booksInSelection.forEach(b => {
                       // window.open com "noopener" retorna SEMPRE null por
@@ -791,39 +807,37 @@ export function ExportPdfDialog({ open, onOpenChange, items: itensDaTela, title 
                     onOpenChange(false);
                   }}
                   data-testid="button-export-book"
-                  style={{ height: 40, padding: "0 14px", borderRadius: 10, backgroundColor: TOM.roxo.bg, border: `1px solid ${TOM.roxo.border}`, color: TOM.roxo.text, fontSize: 12, fontWeight: 700, display: "flex", alignItems: "center", gap: 7, cursor: "pointer", whiteSpace: "nowrap" }}>
-                  <BookOpen style={{ width: 14, height: 14 }} />
+                >
                   Abrir completo
-                </button>
-                <button
+                </Botao>
+                {/* Primário no preto da casa (era roxo): o roxo continua
+                    dizendo "book" no ladrilho e no cartão de origem. */}
+                <Botao
+                  variante="primario"
+                  tamanho="toque"
+                  icone={Scissors}
                   onClick={() => setPickerOpen(true)}
                   data-testid="button-extract-book"
-                  style={{ height: 46, padding: "0 18px", borderRadius: 10, backgroundColor: TOM.roxo.text, border: "none", color: T.surface, fontSize: 13, fontWeight: 800, display: "flex", alignItems: "center", gap: 8, cursor: "pointer", letterSpacing: "-0.01em", whiteSpace: "nowrap" }}>
-                  <Scissors style={{ width: 15, height: 15 }} />
+                >
                   Escolher páginas
-                </button>
+                </Botao>
               </>
             ) : (
-              <button
+              // MONTAR O PDF NÃO É INSTANTÂNEO com dezenas de imagens: o
+              // `carregando` dá o retorno e trava o segundo clique.
+              <Botao
+                variante="primario"
+                tamanho="toque"
+                icone={Printer}
+                carregando={exportando}
                 onClick={gerarArtes}
                 disabled={primarioTravado}
+                motivo={selected.length === 0 ? "Selecione ao menos uma peça." : undefined}
+                alinharMotivo="end"
                 data-testid="button-export-confirm"
-                style={{
-                  height: 46, padding: "0 18px", borderRadius: 10,
-                  backgroundColor: primarioTravado ? T.border : T.accentText,
-                  border: "none",
-                  color: primarioTravado ? T.apoio : T.surface,
-                  fontSize: 13, fontWeight: 800,
-                  display: "flex", alignItems: "center", gap: 8,
-                  cursor: primarioTravado ? "not-allowed" : "pointer",
-                  letterSpacing: "-0.01em", whiteSpace: "nowrap",
-                }}>
-                {/* MONTAR O PDF NÃO É INSTANTÂNEO com dezenas de imagens, e o
-                    botão ficava mudo: sem retorno, a pessoa clica de novo. */}
-                {exportando
-                  ? <><Loader2 className="animate-spin" style={{ width: 15, height: 15 }} />Gerando…</>
-                  : <><Printer style={{ width: 15, height: 15 }} />{selected.length === 0 ? "Gerar PDF" : `Gerar PDF — ${pageCount} pág.`}</>}
-              </button>
+              >
+                {exportando ? "Gerando…" : selected.length === 0 ? "Gerar PDF" : `Gerar PDF — ${pageCount} pág.`}
+              </Botao>
             )}
           </div>
         </div>

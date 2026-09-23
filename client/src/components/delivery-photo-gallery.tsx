@@ -10,6 +10,7 @@ import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { apiRequest, queryClient, getCurrentUserName } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { EstadoVazio, Esqueleto } from "@/components/ui/estados";
 import type { DeliveryPhoto } from "@shared/schema";
 
 interface DeliveryPhotoGalleryProps {
@@ -44,6 +45,7 @@ export function DeliveryPhotoGallery({ itemId }: DeliveryPhotoGalleryProps) {
       toast({
         title: "Foto adicionada",
         description: "A foto de entrega foi adicionada com sucesso.",
+        variant: "success",
       });
     },
     onError: () => {
@@ -64,6 +66,7 @@ export function DeliveryPhotoGallery({ itemId }: DeliveryPhotoGalleryProps) {
       toast({
         title: "Foto excluída",
         description: "A foto foi removida.",
+        variant: "success",
       });
     },
     onError: () => {
@@ -83,7 +86,8 @@ export function DeliveryPhotoGallery({ itemId }: DeliveryPhotoGalleryProps) {
       toast({
         title: "Arquivo muito grande",
         description: `O arquivo selecionado excede o limite máximo de ${Math.round(MAX_PHOTO_SIZE / 1024 / 1024)}MB.`,
-        variant: "destructive",
+        // Validação antes de enviar: nada quebrou — aviso, não falha.
+        variant: "warning",
       });
       e.target.value = "";
       return;
@@ -145,15 +149,14 @@ export function DeliveryPhotoGallery({ itemId }: DeliveryPhotoGalleryProps) {
 
         {/* Photos grid */}
         {isLoading ? (
-          <div className="text-center py-4 text-muted-foreground">
-            Carregando fotos...
-          </div>
+          <Esqueleto variante="cartoes" linhas={3} rotulo="Carregando fotos" />
         ) : photos.length === 0 ? (
-          <div className="text-center py-8 text-muted-foreground">
-            <Image className="h-12 w-12 mx-auto mb-2 opacity-50" />
-            <p>Nenhuma foto de entrega</p>
-            <p className="text-sm mt-1">Adicione fotos para documentar a entrega</p>
-          </div>
+          <EstadoVazio
+            compacto
+            icone={Image}
+            titulo="Nenhuma foto de entrega"
+            descricao="Adicione fotos para documentar a entrega"
+          />
         ) : (
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
             {photos.map((photo) => (
@@ -165,6 +168,8 @@ export function DeliveryPhotoGallery({ itemId }: DeliveryPhotoGalleryProps) {
                 <img
                   src={photo.photoUrl}
                   alt="Foto de entrega"
+                  loading="lazy"
+                  decoding="async"
                   className="w-full h-full object-cover"
                 />
                 {/* focus-within: as ações só apareciam no hover — quem navega
@@ -190,6 +195,7 @@ export function DeliveryPhotoGallery({ itemId }: DeliveryPhotoGalleryProps) {
                         <img
                           src={photo.photoUrl}
                           alt="Foto de entrega ampliada"
+                          decoding="async"
                           className="w-full rounded-lg"
                         />
                         <div className="text-sm text-muted-foreground">

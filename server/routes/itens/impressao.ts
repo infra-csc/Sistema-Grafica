@@ -35,6 +35,7 @@ import {
 import { runInventoryCron } from "../../services/inventoryLifecycle";
 import { erroEventoFechado, motivoEventoDaPeca, barraEventoFinalizado } from "../eventoFinalizado";
 import { registrarImpressao } from "./comum";
+import { responderFalha } from "../../erros";
 
 /** approve (410), start-printing, start-production. */
 export function registrarRotasDeImpressao(app: Express): void {
@@ -180,7 +181,7 @@ export function registrarRotasDeImpressao(app: Express): void {
       res.json(item);
     } catch (error: any) {
       if (error?.httpStatus) return res.status(error.httpStatus).json(error.corpo ?? { error: error.message });
-      res.status(500).json({ error: error.message });
+      responderFalha(res, error, "PATCH /api/items/:id/start-printing");
     }
   });
 

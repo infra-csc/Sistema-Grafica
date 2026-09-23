@@ -13,6 +13,7 @@ import {
 import { CANAIS_DE_AVISO, type CanalDeAviso } from "../../services/destinatarios";
 import { verificarConsistencia } from "../../services/consistencia";
 import { DESTINATARIOS_NOMEADOS } from "./book";
+import { responderFalha } from "../../erros";
 
 /** digests e a tela de Notificações do admin. */
 export function registrarAvisos(app: Express): void {
@@ -39,7 +40,7 @@ export function registrarAvisos(app: Express): void {
         : `Aviso NÃO enviado: ${r.motivo ?? r.status}`;
       res.json({ ...r, mensagem });
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      responderFalha(res, error, "POST /api/revisao/digest/enviar");
     }
   });
 
@@ -63,7 +64,7 @@ export function registrarAvisos(app: Express): void {
         : `Aviso NÃO enviado: ${r.motivo ?? r.status}`;
       res.json({ ...r, mensagem });
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      responderFalha(res, error, "POST /api/gestao/digest/enviar");
     }
   });
 
@@ -105,7 +106,7 @@ export function registrarAvisos(app: Express): void {
     try {
       res.json(await verificarConsistencia());
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      responderFalha(res, error, "GET /api/admin/consistencia");
     }
   });
   app.get("/api/admin/notificacoes", requireAuth, async (req, res) => {
@@ -143,7 +144,7 @@ export function registrarAvisos(app: Express): void {
         edicoes: await historicoDeEnvios(),
       });
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      responderFalha(res, error, "GET /api/admin/notificacoes");
     }
   });
 
@@ -175,7 +176,7 @@ export function registrarAvisos(app: Express): void {
         `Destinatário "${limpo}" adicionado ao aviso "${CANAL_META[canal as CanalDeAviso].titulo}"`);
       res.status(201).json(criado);
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      responderFalha(res, error, "POST /api/admin/notificacoes/destinatarios");
     }
   });
 
@@ -190,7 +191,7 @@ export function registrarAvisos(app: Express): void {
         `Destinatário "${removido.email}" removido do aviso "${CANAL_META[removido.canal as CanalDeAviso]?.titulo ?? removido.canal}"`);
       res.json({ ok: true, removido });
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      responderFalha(res, error, "DELETE /api/admin/notificacoes/destinatarios/:id");
     }
   });
 }

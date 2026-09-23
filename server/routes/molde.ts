@@ -19,6 +19,7 @@ import { requireAuth, broadcast, createAuditLog, translateStatus, updateEventSta
 import { pecaTravada, fraseDaTrava, CODIGO_PECA_TRAVADA } from "@shared/trava-da-peca";
 import { barraEventoFinalizado } from "./eventoFinalizado";
 import { invalidarCacheDeVersoes } from "./versoes";
+import { responderFalha, PECA_NAO_ENCONTRADA } from "../erros";
 import {
   ehMolde, gestoDoMolde, moldeConcluido, quantidadeProduzidaDoMolde,
   DESTINO_DO_ENVIO_DO_MOLDE, TRILHA_ENVIO_DO_MOLDE, TRILHA_MOLDE_PRODUZIDO, TRILHA_MOLDE_DESFEITO,
@@ -35,7 +36,7 @@ export async function enviarMoldeParaRevisao(req: any, res: any, currentItem: an
     approvalThumbUrl: thumbNormalizado,
     rejectedByCreator: false,
   } as any);
-  if (!item) return res.status(404).json({ error: "Item not found" });
+  if (!item) return res.status(404).json({ error: PECA_NAO_ENCONTRADA });
 
   // A versão da arte — uma linha por envio, como nas outras peças.
   await storage.createItemArtVersion({ itemId: item.id, thumbUrl: thumbNormalizado, origem: "envio", createdBy: req.userName ?? null });
@@ -99,7 +100,7 @@ export function registerMoldeRoutes(app: Express): void {
         return res.status(403).json({ error: "Apenas usuários com perfil Gráfica podem marcar o molde como produzido" });
       }
       const atual = await storage.getItem(req.params.id);
-      if (!atual || (atual as any).deletedAt) return res.status(404).json({ error: "Item not found" });
+      if (!atual || (atual as any).deletedAt) return res.status(404).json({ error: PECA_NAO_ENCONTRADA });
       if (!ehMolde(atual)) {
         return res.status(409).json({ error: "Esta peça não é um molde — a produção dela segue pela impressora (Imprimir)." });
       }
@@ -120,7 +121,7 @@ export function registerMoldeRoutes(app: Express): void {
         quantityProduced: quantidadeProduzidaDoMolde(atual),
         ...(!(atual as any).producedAt ? { producedAt: new Date() } : {}),
       } as any);
-      if (!item) return res.status(404).json({ error: "Item not found" });
+      if (!item) return res.status(404).json({ error: PECA_NAO_ENCONTRADA });
 
       await createAuditLog(
         req, "produced", "item", item.id,
@@ -131,7 +132,7 @@ export function registerMoldeRoutes(app: Express): void {
       broadcast({ type: "item_updated", item });
       return res.json(item);
     } catch (error: any) {
-      return res.status(500).json({ error: error.message });
+      return responderFalha(res, error, "PATCH /api/items/:id/molde-produzido");
     }
   });
 
@@ -142,7 +143,7 @@ export function registerMoldeRoutes(app: Express): void {
         return res.status(403).json({ error: "Apenas a Gráfica ou um administrador pode desfazer o produzido do molde" });
       }
       const atual = await storage.getItem(req.params.id);
-      if (!atual || (atual as any).deletedAt) return res.status(404).json({ error: "Item not found" });
+      if (!atual || (atual as any).deletedAt) return res.status(404).json({ error: PECA_NAO_ENCONTRADA });
       if (!ehMolde(atual)) return res.status(409).json({ error: "Esta peça não é um molde" });
       // Já liberado: nada a desfazer (clique repetido).
       if (gestoDoMolde(atual) === "produzir") return res.json(atual);
@@ -159,13 +160,13 @@ export function registerMoldeRoutes(app: Express): void {
         quantityProduced: 0,
         producedAt: null,
       } as any);
-      if (!item) return res.status(404).json({ error: "Item not found" });
+      if (!item) return res.status(404).json({ error: PECA_NAO_ENCONTRADA });
       await createAuditLog(req, "updated", "item", item.id, `${TRILHA_MOLDE_DESFEITO} — Produzido → ${translateStatus("ready_for_production")}`);
       if (item.eventId) await updateEventStatus(item.eventId);
       broadcast({ type: "item_updated", item });
       return res.json(item);
     } catch (error: any) {
-      return res.status(500).json({ error: error.message });
+      return responderFalha(res, error, "PATCH /api/items/:id/molde-voltar-liberado");
     }
   });
 }

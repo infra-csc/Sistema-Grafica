@@ -4,6 +4,7 @@ import { storage } from "../storage";
 import { requireAuth, broadcast } from "./shared";
 
 import { notifCache, setNotifCache, invalidateNotificationsCache, notifCacheGeneration } from "../cache";
+import { responderFalha } from "../erros";
 
 export function registerNotificationRoutes(app: Express): void {
   // ============ NOTIFICATIONS ============
@@ -60,7 +61,7 @@ export function registerNotificationRoutes(app: Express): void {
       setNotifCache(userRole, filteredNotifications, geracao);
       res.json(doUsuario(filteredNotifications));
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      responderFalha(res, error, "GET /api/notifications");
     }
   });
 
@@ -84,7 +85,7 @@ export function registerNotificationRoutes(app: Express): void {
       broadcast({ type: "notification_read" });
       res.json({ marked });
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      responderFalha(res, error, "PATCH /api/notifications/read-all");
     }
   });
 
@@ -92,14 +93,14 @@ export function registerNotificationRoutes(app: Express): void {
     try {
       const notification = await storage.markNotificationAsRead(req.params.id);
       if (!notification) {
-        return res.status(404).json({ error: "Notification not found" });
+        return res.status(404).json({ error: "Notificação não encontrada" });
       }
       
       broadcast({ type: "notification_read", notification });
       
       res.json(notification);
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      responderFalha(res, error, "PATCH /api/notifications/:id/read");
     }
   });
 

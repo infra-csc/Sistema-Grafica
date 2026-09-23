@@ -4,6 +4,7 @@ import { z } from "zod";
 import { storage } from "../storage";
 import { insertDeliveryPhotoSchema } from "@shared/schema";
 import { requireAuth, requireRole, broadcast } from "./shared";
+import { responderFalha } from "../erros";
 
 export function registerPhotoRoutes(app: Express): void {
   // ============ DELIVERY PHOTOS ============
@@ -21,7 +22,7 @@ export function registerPhotoRoutes(app: Express): void {
       }
       res.json(fotos);
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      responderFalha(res, error, "GET /api/photos");
     }
   });
 
@@ -31,7 +32,7 @@ export function registerPhotoRoutes(app: Express): void {
       const photos = await storage.getDeliveryPhotos(req.params.itemId);
       res.json(photos);
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      responderFalha(res, error, "GET /api/items/:itemId/photos");
     }
   });
 
@@ -55,7 +56,7 @@ export function registerPhotoRoutes(app: Express): void {
       if (error instanceof z.ZodError) {
         return res.status(400).json({ error: error.errors?.[0]?.message || "Dados da foto inválidos" });
       }
-      res.status(500).json({ error: error.message });
+      responderFalha(res, error, "POST /api/items/:itemId/photos");
     }
   });
 
@@ -66,14 +67,14 @@ export function registerPhotoRoutes(app: Express): void {
     try {
       const success = await storage.deleteDeliveryPhoto(req.params.id);
       if (!success) {
-        return res.status(404).json({ error: "Photo not found" });
+        return res.status(404).json({ error: "Foto não encontrada" });
       }
       
       broadcast({ type: "photo_deleted", photoId: req.params.id });
       
       res.json({ success: true });
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      responderFalha(res, error, "DELETE /api/photos/:id");
     }
   });
 

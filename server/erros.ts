@@ -12,6 +12,7 @@
 //     `barraEventoFinalizado` devolve, para o cliente não parsear a frase.
 // ─────────────────────────────────────────────────────────────────────────────
 import { z } from "zod";
+import type { Response } from "express";
 import { erroEventoFechado } from "./routes/eventoFinalizado";
 import type { EventoFinalizadoMotivo } from "@shared/prazo-dates";
 
@@ -109,17 +110,30 @@ export function fraseDoZod(error: z.ZodError): string {
  * `error.message` (vai inteiro para o log, com o contexto).
  * `httpStatus` + `publico` num erro lançado de propósito passam como estão.
  */
-export function responderErro(res: any, error: unknown, contexto: string) {
+export function responderErro(res: Response, error: unknown, contexto: string) {
+  return responderFalha(res, error, contexto, 500);
+}
+
+/**
+ * O mesmo `responderErro`, mantendo o status que a rota já respondia no erro
+ * inesperado (várias rotas antigas respondiam 400 com `error.message` cru —
+ * trocar o texto não pode mudar o código que a tela recebe).
+ */
+export function responderFalha(res: Response, error: unknown, contexto: string, statusPadrao = 500) {
   if (error instanceof z.ZodError) {
     return res.status(400).json({ error: fraseDoZod(error) });
   }
-  const e = error as any;
+  const e = error as { httpStatus?: unknown; publico?: unknown; corpo?: Record<string, unknown> } | null;
   if (e && typeof e.httpStatus === "number" && typeof e.publico === "string") {
     return res.status(e.httpStatus).json({ error: e.publico, ...(e.corpo ?? {}) });
   }
   console.error(`[${contexto}]`, error);
-  return res.status(500).json({ error: ERRO_INTERNO });
+  return res.status(statusPadrao).json({ error: ERRO_INTERNO });
 }
+
+/** A mensagem de um erro qualquer, para o log (nunca para a tela). */
+export const mensagemDoErro = (error: unknown): string =>
+  error instanceof Error ? error.message : String(error);
 
 /** Um erro com frase para o usuário — `responderErro` o devolve como está. */
 export function erroPublico(httpStatus: number, publico: string, corpo?: Record<string, unknown>): Error {

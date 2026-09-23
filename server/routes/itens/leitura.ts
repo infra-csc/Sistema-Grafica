@@ -15,6 +15,7 @@ import {
 import { ehBookCompleto, STATUS_CONHECIDOS as STATUS_DA_REGUA } from "@shared/fluxo-peca";
 import { requireAuth } from "../shared";
 import { COMPLEMENT_ALLOWED_STATUSES, quemVe } from "./comum";
+import { responderFalha } from "../../erros";
 
 // Enriquece uma lista de itens com { event, sponsors } fazendo apenas 4 queries
 // totais (eventos, patrocinadores, vínculos item↔patrocinador e aprovações em
@@ -623,7 +624,7 @@ export function registrarFilasEPorEvento(app: Express): void {
 
       res.json(result);
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      responderFalha(res, error, "GET /api/items/resubmission-needed");
     }
   });
 
@@ -677,7 +678,7 @@ export function registrarFilasEPorEvento(app: Express): void {
       const fila = itemsWithEventsAndSponsors.filter((i: any) => !ehBookCompleto(i));
       res.json(compacto ? { agora, ...compactarPecas(fila) } : fila);
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      responderFalha(res, error, "GET /api/items/approved");
     }
   });
 
@@ -722,7 +723,7 @@ export function registrarFilasEPorEvento(app: Express): void {
         ? compactarAprovacoes({ sponsorsByItem, approvalsByItem })
         : { sponsorsByItem, approvalsByItem });
     } catch (error: any) {
-      res.status(400).json({ error: error.message });
+      responderFalha(res, error, "GET /api/items/batch-approval-data", 400);
     }
   });
 
@@ -732,7 +733,7 @@ export function registrarFilasEPorEvento(app: Express): void {
       const itemsWithSponsors = await enrichItemsWithEventsAndSponsors(items);
       res.json(itemsWithSponsors);
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      responderFalha(res, error, "GET /api/items/:eventId");
     }
   });
 }

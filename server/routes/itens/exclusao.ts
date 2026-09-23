@@ -4,6 +4,7 @@ import { storage } from "../../storage";
 import { excluirPecaTirandoDosVolumes, ehRecusaDeTubo } from "../tubos";
 import { liberarReservasDasPecas } from "../estoque-reservas";
 import { requireAuth, broadcast, createAuditLog, updateEventStatus } from "../shared";
+import { responderFalha } from "../../erros";
 
 /** POST /api/items/:id/restore. */
 export function registrarRestauracao(app: Express): void {
@@ -138,7 +139,7 @@ export function registrarExclusao(app: Express): void {
 
       res.json({ success: true });
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      responderFalha(res, error, "DELETE /api/items/:id");
     }
   });
 }

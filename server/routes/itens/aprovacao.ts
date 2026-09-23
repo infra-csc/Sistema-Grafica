@@ -14,6 +14,7 @@ import { invalidarCacheDeVersoes } from "../versoes";
 import { urlDeThumbValida, ERRO_THUMB_FORA_DO_STORAGE } from "../thumb-url";
 import { barraEventoFinalizado } from "../eventoFinalizado";
 import { MOTIVO_MIN, lerMotivoDevolucao, lerDestinoDevolucao, revogarAprovacoesEstritas } from "./comum";
+import { responderFalha } from "../../erros";
 
 /** envio para aprovação, aprovação, dispensa e aprovações por patrocinador. */
 export function registrarAprovacao(app: Express): void {
@@ -251,7 +252,7 @@ export function registrarAprovacao(app: Express): void {
       
       res.json(item);
     } catch (error: any) {
-      res.status(400).json({ error: error.message });
+      responderFalha(res, error, "PATCH /api/items/:id/sponsor-approve", 400);
     }
   });
 
@@ -370,7 +371,7 @@ export function registrarAprovacao(app: Express): void {
       
       res.json(enrichedApprovals);
     } catch (error: any) {
-      res.status(400).json({ error: error.message });
+      responderFalha(res, error, "GET /api/items/:id/sponsor-approvals", 400);
     }
   });
 
@@ -498,7 +499,7 @@ export function registrarAprovacao(app: Express): void {
         res.json({ approval, allApproved: false });
       }
     } catch (error: any) {
-      res.status(400).json({ error: error.message });
+      responderFalha(res, error, "POST /api/items/:id/sponsor-approvals/:sponsorId/approve", 400);
     }
   });
 
@@ -604,7 +605,7 @@ export function registrarAprovacao(app: Express): void {
         message: `Reprovação registrada. Item aguarda nova arte para o patrocinador.`
       });
     } catch (error: any) {
-      res.status(400).json({ error: error.message });
+      responderFalha(res, error, "POST /api/items/:id/sponsor-approvals/:sponsorId/reject", 400);
     }
   });
 
@@ -725,7 +726,7 @@ export function registrarAprovacao(app: Express): void {
 
       res.json({ approval: updatedApproval, item });
     } catch (error: any) {
-      res.status(400).json({ error: error.message });
+      responderFalha(res, error, "POST /api/items/:id/sponsor-approvals/:sponsorId/revert", 400);
     }
   });
 
@@ -827,7 +828,7 @@ export function registrarAprovacao(app: Express): void {
 
       res.json({ item, message: "Nova versão enviada. Atendimento notificado." });
     } catch (error: any) {
-      res.status(400).json({ error: error.message });
+      responderFalha(res, error, "POST /api/items/:id/sponsor-approvals/resubmit", 400);
     }
   });
 
@@ -874,7 +875,7 @@ export function registrarAprovacao(app: Express): void {
 
       res.json(approvals);
     } catch (error: any) {
-      res.status(400).json({ error: error.message });
+      responderFalha(res, error, "POST /api/items/:id/initialize-sponsor-approvals", 400);
     }
   });
 

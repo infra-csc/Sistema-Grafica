@@ -15,6 +15,7 @@ import { lerPartes } from "@shared/impressao-dividida";
 import { requireAuth, broadcast, translateStatus, createAuditLog } from "../shared";
 import { barraEventoFinalizado } from "../eventoFinalizado";
 import { registrarSaidaDaImpressora } from "./comum";
+import { responderFalha } from "../../erros";
 
 /** mark-reuse, correct-reuse. */
 export function registrarReaproveitamento(app: Express): void {
@@ -152,7 +153,7 @@ export function registrarReaproveitamento(app: Express): void {
       broadcast({ type: "item_updated", item });
       res.json(item);
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      responderFalha(res, error, "POST /api/items/:id/mark-reuse");
     }
   });
 
@@ -268,7 +269,7 @@ export function registrarReaproveitamento(app: Express): void {
       broadcast({ type: "item_updated", item });
       res.json(item);
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      responderFalha(res, error, "POST /api/items/:id/correct-reuse");
     }
   });
 }

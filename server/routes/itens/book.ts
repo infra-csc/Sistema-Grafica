@@ -10,6 +10,7 @@ import { destinatariosDoCanal } from "../../services/destinatarios";
 // é justamente conferir o que está valendo agora.
 import { invalidarCacheDeVersoes } from "../versoes";
 import { motivoEventoFechado, erroEventoFechado } from "../eventoFinalizado";
+import { responderFalha } from "../../erros";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // QUEM RECEBE O AVISO DO BOOK.
@@ -273,7 +274,7 @@ export function registrarBook(app: Express): void {
       broadcast({ type: "items_book_updated", eventId: req.params.eventId, count });
       res.json({ updated: count, aviso });
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      responderFalha(res, error, "POST /api/events/:eventId/book");
     }
   });
 
@@ -319,7 +320,7 @@ export function registrarBook(app: Express): void {
       }
       res.json({ aviso, mensagem: descreverEnvio(aviso) });
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      responderFalha(res, error, "POST /api/events/:eventId/book/notify");
     }
   });
 }

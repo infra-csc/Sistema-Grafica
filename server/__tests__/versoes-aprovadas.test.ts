@@ -222,7 +222,7 @@ describe("3 · o servidor filtra, pagina, resume e exporta", () => {
 
   it("o cache curto é derrubado por TODA escrita que muda o quadro", () => {
     expect(ROTA).toContain("export function invalidarCacheDeVersoes(): void {");
-    expect(ITEMS).toContain('import { invalidarCacheDeVersoes } from "./versoes";');
+    expect(ITEMS).toContain('import { invalidarCacheDeVersoes } from "../versoes";');
     // envio, reenvio, troca, book, revogação automática, aprovar, reprovar,
     // revogar — o ATALHO de aprovação da peça inteira, que passou a marcar
     // as linhas (24/08, caso #4176) — o REENVIO do aviso do book (25/08),

@@ -24,6 +24,7 @@ import {
 } from "../shared";
 import { motivoEventoFechado, barraEventoFinalizado, contadorDeBloqueio } from "../eventoFinalizado";
 import { lerMotivoDevolucao, type DestinoDevolucao, lerDestinoDevolucao } from "./comum";
+import { responderFalha } from "../../erros";
 
 /**
  * Os campos que cada destino grava.
@@ -389,7 +390,7 @@ export function registrarRevisao(app: Express): void {
 
       res.json(item);
     } catch (error: any) {
-      res.status(400).json({ error: error.message });
+      responderFalha(res, error, "PATCH /api/items/:id/arte-reject", 400);
     }
   });
 
@@ -545,7 +546,7 @@ export function registrarRevisao(app: Express): void {
       broadcast({ type: "notification_created", notification });
       res.json(item);
     } catch (error: any) {
-      res.status(400).json({ error: error.message });
+      responderFalha(res, error, "PATCH /api/items/:id/return-to-review", 400);
     }
   });
 

@@ -6,7 +6,7 @@ import { db } from "../../db";
 import { storage, isDisplayIdConflictError } from "../../storage";
 import { type Item, items as itemsTable, auditLogs, notifications } from "@shared/schema";
 import { requireAuth, broadcast, translateStatus, resolveActor, updateEventStatus } from "../shared";
-import { corpoEventoFechado } from "../../erros";
+import { corpoEventoFechado, fraseDoZod } from "../../erros";
 import { motivoEventoFechado } from "../eventoFinalizado";
 import { COMPLEMENT_ALLOWED_STATUSES, deriveCalculatedM2 } from "./comum";
 
@@ -221,10 +221,13 @@ export function registrarComplemento(app: Express): void {
         });
       }
       if (error instanceof z.ZodError) {
-        return res.status(400).json({ error: error.errors?.[0]?.message ?? "Dados inválidos" });
+        return res.status(400).json({ error: fraseDoZod(error) });
       }
       console.error("[COMPLEMENTOS] falha ao criar complemento:", error);
-      res.status(error?.httpStatus ?? 500).json({ error: error?.message ?? "Não foi possível criar o complemento" });
+      // Erro lançado por nós (com httpStatus) já traz a frase; o resto não vaza
+      // o texto do banco para a tela.
+      if (error?.httpStatus) return res.status(error.httpStatus).json({ error: error.message });
+      res.status(500).json({ error: "Não foi possível criar o complemento agora. Tente de novo em instantes." });
     }
   });
 
@@ -352,7 +355,10 @@ export function registrarComplemento(app: Express): void {
         });
       }
       console.error("[COMPLEMENTOS] falha ao cancelar complemento:", error);
-      res.status(error?.httpStatus ?? 500).json({ error: error?.message ?? "Não foi possível cancelar o complemento" });
+      // Erro lançado por nós (com httpStatus) já traz a frase; o resto não vaza
+      // o texto do banco para a tela.
+      if (error?.httpStatus) return res.status(error.httpStatus).json({ error: error.message });
+      res.status(500).json({ error: "Não foi possível cancelar o complemento agora. Tente de novo em instantes." });
     }
   });
 }

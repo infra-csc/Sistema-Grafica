@@ -2,7 +2,7 @@
 import type { Express } from "express";
 import { z } from "zod";
 import { storage } from "../../storage";
-import { insertItemSchema, publicInsertItemSchema } from "@shared/schema";
+import { insertItemSchema, publicInsertItemSchema, type InsertItem } from "@shared/schema";
 import { remessaUtilizavelPor } from "@shared/kit";
 import { carregarRemessa } from "../../services/kitRemessas";
 import { requireAuth, broadcast, createAuditLog, createAuditLogsEmLote, updateEventStatus } from "../shared";
@@ -22,7 +22,8 @@ export function registrarCriacao(app: Express): void {
       // contractedTotal, a ordenação e a fila da Gráfica. Parentesco só nasce
       // em POST /api/items/:id/complement, que valida papel, status e
       // ancestralidade.
-      const validatedData = publicInsertItemSchema.parse(req.body);
+      // Tipada como InsertItem: o servidor completa abaixo a remessa e o autor.
+      const validatedData: InsertItem = publicInsertItemSchema.parse(req.body);
       if (!(await canCreateItemsFor(req, validatedData.eventId))) {
         return res.status(403).json({ error: "Sem permissão para criar itens neste evento" });
       }
@@ -41,7 +42,7 @@ export function registrarCriacao(app: Express): void {
           return res.status(403).json({ error: "Esta remessa do Kit é de outra pessoa." });
         }
       }
-      (validatedData as any).kitRemessaId = kitRemessaId;
+      validatedData.kitRemessaId = kitRemessaId;
       (validatedData as any).criadoPorId = req.userId ?? null;
       // Nascer PRIORITÁRIA é decisão de quem gerencia a lista (dono, 27/08) —
       // mesmo gate do PATCH. Criador de evento sem papel cria a peça normal.
@@ -149,7 +150,7 @@ export function registrarCriacao(app: Express): void {
       if (typeof eventoDoLote !== "string" || !eventoDoLote) {
         return res.status(400).json({ error: "Linha 1: informe o evento da peça." });
       }
-      const outroEvento = itemsData.findIndex((i: any) => i?.eventId !== eventoDoLote);
+      const outroEvento = itemsData.findIndex((i: { eventId?: unknown } | null | undefined) => i?.eventId !== eventoDoLote);
       if (outroEvento >= 0) {
         return res.status(400).json({ error: `Linha ${outroEvento + 1}: todas as peças do lote precisam ser do mesmo evento.` });
       }

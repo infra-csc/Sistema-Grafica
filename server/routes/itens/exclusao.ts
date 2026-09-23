@@ -117,9 +117,9 @@ export function registrarExclusao(app: Express): void {
       }
       // Peça que atendia uma solicitação: se era a última, a peça solicitada
       // volta para aberta sozinha (dono, 14/09 — sem "desfazer atendimento").
-      if ((item as any).pedidoDePecaLinhaId) {
+      if (item.pedidoDePecaLinhaId) {
         const { aoExcluirPeca } = await import("../pedidos-de-peca");
-        await aoExcluirPeca(req, item as any);
+        await aoExcluirPeca(req, item);
       }
       
       // Create audit log

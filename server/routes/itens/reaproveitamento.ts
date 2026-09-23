@@ -35,7 +35,7 @@ export function registrarReaproveitamento(app: Express): void {
       // produção, não registro do passado.
       if (await barraEventoFinalizado(current, res)) return;
       // Reaproveitar ANDA a peça (pode fechá-la como Produzido): a trava segura.
-      if (pecaTravada(current as any)) return res.status(409).json({ error: fraseDaTrava(current as any), code: CODIGO_PECA_TRAVADA });
+      if (pecaTravada(current as any)) return res.status(409).json({ error: fraseDaTrava(current), code: CODIGO_PECA_TRAVADA });
       if (current.status === "delivered" || current.status === "entregue") {
         return res.status(409).json({ error: "Não é possível reaproveitar uma peça já entregue" });
       }
@@ -205,7 +205,7 @@ export function registrarReaproveitamento(app: Express): void {
       // O reaproveitamento antigo EMBALA sem conferir: voltar a peça para a
       // produção com unidades num tubo deixaria a embalagem sem material.
       if (((current as any).embaladaQty || 0) > 0) {
-        return res.status(409).json({ error: `Não é possível corrigir: ${(current as any).embaladaQty} un. já estão embaladas. Tire a peça do tubo antes de corrigir.` });
+        return res.status(409).json({ error: `Não é possível corrigir: ${current.embaladaQty} un. já estão embaladas. Tire a peça do tubo antes de corrigir.` });
       }
       if ((current.reuseQty || 0) === 0 && !current.isReuse) {
         return res.status(409).json({ error: "Peça não tem reaproveitamento para corrigir" });

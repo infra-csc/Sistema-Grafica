@@ -117,7 +117,7 @@ export function registrarRotasDeImpressao(app: Express): void {
           const precisa = travasDoInicio(current, pedido);
           if (precisa.some((m) => !travas.includes(m))) return { recomecar: precisa };
           // As guardas sobre a linha TRAVADA (a leitura de fora pode estar velha).
-          if (pecaTravada(current as any)) throw falha(409, { error: fraseDaTrava(current as any), code: CODIGO_PECA_TRAVADA });
+          if (pecaTravada(current as any)) throw falha(409, { error: fraseDaTrava(current), code: CODIGO_PECA_TRAVADA });
           if (EM_REVISAO.has(current.status)) throw falha(409, { error: "Esta peça está em revisão — a Gráfica só age depois que a revisão liberar." });
           // De onde pode ir para a máquina: shared/maquina-de-estados.ts ("iniciar-impressao").
           if (!vemDeOrigemValida(current.status, "iniciar-impressao")) throw falha(409, { error: `A peça não pode ir para a máquina no status atual: ${translateStatus(current.status)}` });
@@ -139,7 +139,7 @@ export function registrarRotasDeImpressao(app: Express): void {
             // O carimbo do storage ("desde quando"), aqui à mão: a linha está travada.
             ...(current.status !== "inProduction" ? { statusChangedAt: agora } : {}),
             ...(!current.productionStartedAt ? { productionStartedAt: agora } : {}),
-          } as any).where(eq(itemsTable.id, current.id)).returning();
+          }).where(eq(itemsTable.id, current.id)).returning();
           if (!item) throw falha(404, { error: "Peça não encontrada" });
           return { item, movimento: plano.movimento, parte: plano.parte, origem: plano.origem, current };
         });
@@ -207,7 +207,7 @@ export function registrarRotasDeImpressao(app: Express): void {
       const antes = await storage.getItem(req.params.id);
       if (!antes) return res.status(404).json({ error: "Peça não encontrada." });
       // Travada pela Solicitação: resposta rápida (a transação repete a guarda).
-      if (pecaTravada(antes as any)) return res.status(409).json({ error: fraseDaTrava(antes as any), code: CODIGO_PECA_TRAVADA });
+      if (pecaTravada(antes)) return res.status(409).json({ error: fraseDaTrava(antes), code: CODIGO_PECA_TRAVADA });
       // ANDA — e é o mais caro de todos: aqui a peça vira LONA IMPRESSA e ainda
       // gera ativos no Estoque. Imprimir para um evento que já aconteceu é
       // dinheiro queimado que nenhum estorno recupera.

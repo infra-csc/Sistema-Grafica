@@ -56,6 +56,8 @@ import {
 import fs from "fs";
 import path from "path";
 import { db } from "./db";
+import type { PgUpdateSetSource } from "drizzle-orm/pg-core";
+import type { SQL } from "drizzle-orm";
 import { eq, and, desc, asc, sql, or, lt, gte, ne, inArray, notInArray, like, ilike, isNull } from "drizzle-orm";
 import { reservaEstaAtiva } from "@shared/estoque";
 import { doEventoNaoArquivado, daPecaDeEventoNaoArquivado } from "./services/arquivamento";
@@ -112,9 +114,40 @@ export function assetSeqOf(displayId?: string | null): number {
   return m ? parseInt(m[1], 10) : 0;
 }
 
+/**
+ * Linha da galeria de registros (GET /api/photos): foto da tabela ou foto
+ * antiga gravada direto na peça. Peça e evento vêm de LEFT JOIN (podem ser null).
+ */
+export interface RegistroDeFoto {
+  id: string;
+  photoUrl: string;
+  kind: string;
+  uploadedBy: string | null;
+  createdAt: Date | null;
+  itemId: string | null;
+  displayId: string | null;
+  itemType: string | null;
+  itemDescription: string | null;
+  receivedBy: string | null;
+  conferenceNotes: string | null;
+  deliveryNotes: string | null;
+  eventId: string | null;
+  eventName: string | null;
+}
+
 /** Verdadeiro para a violação de unicidade do display_id (item ou ativo). */
-export function isDisplayIdConflictError(error: any): boolean {
-  return error?.code === "23505" && String(error?.constraint ?? error?.message ?? "").includes("display_id");
+export function isDisplayIdConflictError(error: unknown): boolean {
+  const e = camposDoErroDoBanco(error);
+  return e?.code === "23505" && String(e?.constraint ?? e?.message ?? "").includes("display_id");
+}
+
+/** Campos do erro do driver do Postgres que este módulo consulta. */
+type CamposDoErroDoBanco = { code?: unknown; constraint?: unknown; message?: unknown };
+
+// O driver lança objetos com esses campos soltos; primitivo não tem nenhum
+// (o `?.` do código antigo dava undefined do mesmo jeito).
+export function camposDoErroDoBanco(error: unknown): CamposDoErroDoBanco | undefined {
+  return typeof error === "object" && error !== null ? (error as CamposDoErroDoBanco) : undefined;
 }
 
 /**
@@ -340,9 +373,13 @@ export function lerSementeDasCotasGlobais(): { quota: string; itemTypes: string[
   try {
     const arquivo = path.join(process.cwd(), "global-quota-rules.json");
     if (!fs.existsSync(arquivo)) return [];
-    const cru = JSON.parse(fs.readFileSync(arquivo, "utf8"));
+    const cru: unknown = JSON.parse(fs.readFileSync(arquivo, "utf8"));
     return Array.isArray(cru)
-      ? cru.filter((r: any) => r && typeof r.quota === "string").map((r: any) => ({ quota: r.quota, itemTypes: Array.isArray(r.itemTypes) ? r.itemTypes : [] }))
+      ? cru
+          .filter((r: unknown): r is { quota: string; itemTypes?: unknown } =>
+            typeof r === "object" && r !== null && typeof (r as { quota?: unknown }).quota === "string")
+          // Os itens de itemTypes não são conferidos um a um (como antes): o arquivo é do repo.
+          .map((r) => ({ quota: r.quota, itemTypes: Array.isArray(r.itemTypes) ? (r.itemTypes as string[]) : [] }))
       : [];
   } catch {
     return [];
@@ -455,7 +492,7 @@ export interface IStorage {
   
   // Delivery Photos
   getDeliveryPhotos(itemId: string): Promise<DeliveryPhoto[]>;
-  getAllDeliveryPhotos(): Promise<any[]>;
+  getAllDeliveryPhotos(): Promise<RegistroDeFoto[]>;
   addDeliveryPhoto(photo: InsertDeliveryPhoto): Promise<DeliveryPhoto>;
   deleteDeliveryPhoto(id: string): Promise<boolean>;
   
@@ -609,7 +646,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   /** Verdadeiro para a violação de unicidade do display_id. */
-  private isDisplayIdConflict(error: any): boolean {
+  private isDisplayIdConflict(error: unknown): boolean {
     return isDisplayIdConflictError(error);
   }
 
@@ -643,7 +680,10 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateEvent(id: string, data: Partial<InsertEvent>): Promise<Event | undefined> {
-    const updateData: any = { ...data };
+    // InsertEvent aceita string nas datas; só as preenchidas viram Date aqui (o
+    // resto segue cru como sempre seguiu) — por isso o objeto é solto e o
+    // formato do .set() é afirmado uma vez, no fim.
+    const updateData: Record<string, unknown> = { ...data };
     if (data.startDate) {
       updateData.startDate = new Date(data.startDate);
     }
@@ -654,7 +694,7 @@ export class DatabaseStorage implements IStorage {
 
     const [event] = await db
       .update(events)
-      .set(updateData)
+      .set(updateData as PgUpdateSetSource<typeof events>)
       .where(eq(events.id, id))
       .returning();
     return event || undefined;
@@ -806,14 +846,15 @@ export class DatabaseStorage implements IStorage {
    * derrubá-la), mas a autocura fica: zerar a memória e recriar custa um
    * retry; um "does not exist" permanente custa um dia de cadastro parado.
    */
-  private isDisplayIdSequenceMissing(error: any): boolean {
+  private isDisplayIdSequenceMissing(erro: unknown): boolean {
+    const error = camposDoErroDoBanco(erro);
     return error?.code === "42P01" && String(error?.message ?? "").includes("item_display_id_seq");
   }
 
   private async withDisplayIdRetry<T>(run: () => Promise<T>): Promise<T> {
     try {
       return await run();
-    } catch (error: any) {
+    } catch (error: unknown) {
       if (this.isDisplayIdSequenceMissing(error)) {
         this.displayIdSequenceInitialized = null;
         await this.ensureDisplayIdSequence();
@@ -857,7 +898,7 @@ export class DatabaseStorage implements IStorage {
         SELECT nextval('item_display_id_seq') as next_id
         FROM generate_series(1, ${insertItems.length})
       `);
-      const displayIds: string[] = seqResult.rows.map((row: any) =>
+      const displayIds: string[] = seqResult.rows.map((row: Record<string, unknown>) =>
         `#${String(Number(row.next_id)).padStart(4, '0')}`
       );
 
@@ -878,15 +919,17 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateItem(id: string, data: Partial<InsertItem>): Promise<Item | undefined> {
-    const updateData: any = { ...data };
-    if (data.area !== undefined) {
-      updateData.area = String(data.area);
+    // area/visual/m² chegam como string ou número; a coluna guarda texto.
+    const { area, visual, calculatedM2, ...resto } = data;
+    const updateData: PgUpdateSetSource<typeof items> = { ...resto };
+    if (area !== undefined) {
+      updateData.area = String(area);
     }
-    if (data.visual !== undefined) {
-      updateData.visual = String(data.visual);
+    if (visual !== undefined) {
+      updateData.visual = String(visual);
     }
-    if (data.calculatedM2 !== undefined) {
-      updateData.calculatedM2 = String(data.calculatedM2);
+    if (calculatedM2 !== undefined) {
+      updateData.calculatedM2 = String(calculatedM2);
     }
     updateData.updatedAt = new Date();
 
@@ -1005,7 +1048,7 @@ export class DatabaseStorage implements IStorage {
     }
     
     // Set productionStartedAt only on first production update
-    const updateData: any = {
+    const updateData: PgUpdateSetSource<typeof items> = {
       status: newStatus,
       quantityProduced,
       updatedAt: new Date()
@@ -1201,7 +1244,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   /** Projeção comum de ComplementSummary (só complementos vivos). */
-  private async selectComplementSummaries(filtro: any): Promise<ComplementSummary[]> {
+  private async selectComplementSummaries(filtro: SQL): Promise<ComplementSummary[]> {
     return await db
       .select({
         id: items.id,
@@ -1294,13 +1337,13 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createStandardItem(insertItem: InsertStandardItem): Promise<StandardItem> {
-    const values: any = { ...insertItem };
-    if (insertItem.area !== undefined && insertItem.area !== null) {
-      values.area = String(insertItem.area);
-    }
-    if (insertItem.visual !== undefined && insertItem.visual !== null) {
-      values.visual = String(insertItem.visual);
-    }
+    // area/visual chegam como string ou número; a coluna decimal guarda texto.
+    const { area, visual, ...resto } = insertItem;
+    const values: typeof standardItems.$inferInsert = {
+      ...resto,
+      area: area !== undefined && area !== null ? String(area) : area,
+      visual: visual !== undefined && visual !== null ? String(visual) : visual,
+    };
     
     const [item] = await db
       .insert(standardItems)
@@ -1310,12 +1353,13 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateStandardItem(id: string, updates: Partial<InsertStandardItem>): Promise<StandardItem | undefined> {
-    const values: any = { ...updates };
-    if (updates.area !== undefined) {
-      values.area = updates.area !== null ? String(updates.area) : null;
+    const { area, visual, ...resto } = updates;
+    const values: PgUpdateSetSource<typeof standardItems> = { ...resto };
+    if (area !== undefined) {
+      values.area = area !== null ? String(area) : null;
     }
-    if (updates.visual !== undefined) {
-      values.visual = updates.visual !== null ? String(updates.visual) : null;
+    if (visual !== undefined) {
+      values.visual = visual !== null ? String(visual) : null;
     }
     
     const [item] = await db
@@ -1561,7 +1605,7 @@ export class DatabaseStorage implements IStorage {
   // Todas as fotos com o contexto da peça e do evento, para a tela de registros.
   // Sem paginação: o volume é o de peças conferidas/entregues, não o de itens.
   // Inclui as fotos antigas, gravadas direto no item antes da galeria existir.
-  async getAllDeliveryPhotos(): Promise<any[]> {
+  async getAllDeliveryPhotos(): Promise<RegistroDeFoto[]> {
     const fromTable = await this.getGalleryPhotos();
 
     const legacyRows = await db
@@ -1591,7 +1635,7 @@ export class DatabaseStorage implements IStorage {
       ));
 
     const known = new Set(fromTable.map(p => `${p.itemId}|${p.photoUrl}`));
-    const legacy: any[] = [];
+    const legacy: RegistroDeFoto[] = [];
     for (const r of legacyRows) {
       const push = (url: string | null, kind: string, at: Date | null) => {
         if (!url || known.has(`${r.itemId}|${url}`)) return;
@@ -1613,7 +1657,7 @@ export class DatabaseStorage implements IStorage {
     );
   }
 
-  private async getGalleryPhotos(): Promise<any[]> {
+  private async getGalleryPhotos(): Promise<RegistroDeFoto[]> {
     return await db
       .select({
         id: deliveryPhotos.id,
@@ -1969,7 +2013,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateUser(id: string, data: Partial<User>): Promise<User | undefined> {
-    const updateData: any = { ...data, updatedAt: new Date() };
+    const updateData: PgUpdateSetSource<typeof users> = { ...data, updatedAt: new Date() };
     const [user] = await db
       .update(users)
       .set(updateData)
@@ -2009,7 +2053,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateSponsor(id: string, data: Partial<InsertSponsor>): Promise<Sponsor | undefined> {
-    const updateData: any = { ...data, updatedAt: new Date() };
+    const updateData: PgUpdateSetSource<typeof sponsors> = { ...data, updatedAt: new Date() };
     const [sponsor] = await db
       .update(sponsors)
       .set(updateData)
@@ -2378,7 +2422,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createInventoryAsset(asset: Omit<InsertInventoryAsset, 'displayId'> & { displayId?: string }): Promise<InventoryAsset> {
-    const { displayId: providedId, ...rest } = asset as any;
+    const { displayId: providedId, ...rest } = asset;
 
     // Se o displayId veio pronto (ex.: auto-cadastro em lote #EST-XXXX-N), usa direto.
     if (providedId) {
@@ -2402,10 +2446,10 @@ export class DatabaseStorage implements IStorage {
       try {
         const [created] = await db.insert(inventoryAssets).values({ ...rest, displayId: candidate }).returning();
         return created;
-      } catch (e: any) {
+      } catch (e: unknown) {
         // 23505 = unique_violation: outro insert concorrente pegou este número.
         // Recalcula o MAX e tenta de novo; nas demais falhas, propaga.
-        if (e?.code === '23505' && attempt < 4) continue;
+        if (camposDoErroDoBanco(e)?.code === '23505' && attempt < 4) continue;
         throw e;
       }
     }
@@ -2415,8 +2459,8 @@ export class DatabaseStorage implements IStorage {
   async createInventoryAssets(assets: Array<Omit<InsertInventoryAsset, 'displayId'> & { displayId: string }>): Promise<InventoryAsset[]> {
     if (assets.length === 0) return [];
     try {
-      return await db.insert(inventoryAssets).values(assets as any[]).returning();
-    } catch (e: any) {
+      return await db.insert(inventoryAssets).values(assets).returning();
+    } catch (e: unknown) {
       // Insert em lote é tudo-ou-nada: um único displayId já usado derruba as N
       // linhas — e isto acontece DEPOIS de a peça já ter sido marcada como
       // produzida, virando um 500 com o item num estado que ninguém consegue
@@ -2431,12 +2475,12 @@ export class DatabaseStorage implements IStorage {
           // Tenta o displayId pedido; se ELE for o conflitante, deixa o
           // gerador do singular escolher o próximo #EST-NNNN livre.
           created.push(await this.createInventoryAsset(asset));
-        } catch (inner: any) {
+        } catch (inner: unknown) {
           if (!isDisplayIdConflictError(inner)) throw inner;
-          const { displayId: _colidido, ...semId } = asset as any;
+          const { displayId: _colidido, ...semId } = asset;
           try {
             created.push(await this.createInventoryAsset(semId));
-          } catch (last: any) {
+          } catch (last: unknown) {
             if (!isDisplayIdConflictError(last)) throw last;
             console.error(`[inventory] ativo ${asset.displayId} não pôde ser criado (displayId em uso) — seguindo com os demais`);
           }
@@ -2448,7 +2492,7 @@ export class DatabaseStorage implements IStorage {
 
   async updateInventoryAsset(id: string, data: Partial<InsertInventoryAsset>): Promise<InventoryAsset | undefined> {
     const [updated] = await db.update(inventoryAssets)
-      .set({ ...data, updatedAt: new Date() } as any)
+      .set({ ...data, updatedAt: new Date() })
       .where(eq(inventoryAssets.id, id))
       .returning();
     return updated;
@@ -2502,8 +2546,8 @@ export class DatabaseStorage implements IStorage {
     // atômico e sem N+1. Envolto em transação para que peças por item e por
     // alocação manual sejam despachadas juntas ou nenhuma.
     const jaSaiu = or(
-      lt(inventoryAssets.updatedAt as any, departureDate),
-      gte(inventoryAssets.createdAt as any, departureDate),
+      lt(inventoryAssets.updatedAt, departureDate),
+      gte(inventoryAssets.createdAt, departureDate),
     );
 
     // Reserva de peça cancelada/excluída NÃO vai no caminhão (a alocação sem
@@ -2525,7 +2569,7 @@ export class DatabaseStorage implements IStorage {
       let updated = 0;
       const foraDeOutraReserva = await this.foraDeReservaDeOutroEvento(eventId);
       const r1 = await tx.update(inventoryAssets)
-        .set({ trackingStatus: 'EM_USO', updatedAt: new Date() } as any)
+        .set({ trackingStatus: 'EM_USO', updatedAt: new Date() })
         .where(and(
           inArray(inventoryAssets.originalItemId, itemIds),
           eq(inventoryAssets.trackingStatus, 'NO_GALPAO'),
@@ -2536,7 +2580,7 @@ export class DatabaseStorage implements IStorage {
 
       if (allocIds.length > 0) {
         const r2 = await tx.update(inventoryAssets)
-          .set({ trackingStatus: 'EM_USO', updatedAt: new Date() } as any)
+          .set({ trackingStatus: 'EM_USO', updatedAt: new Date() })
           .where(and(
             inArray(inventoryAssets.id, allocIds),
             eq(inventoryAssets.trackingStatus, 'NO_GALPAO'),
@@ -2566,7 +2610,7 @@ export class DatabaseStorage implements IStorage {
       let updated = 0;
       const foraDeOutraReserva = await this.foraDeReservaDeOutroEvento(eventId);
       const r1 = await tx.update(inventoryAssets)
-        .set({ trackingStatus: 'AGUARDANDO_TRIAGEM', updatedAt: new Date() } as any)
+        .set({ trackingStatus: 'AGUARDANDO_TRIAGEM', updatedAt: new Date() })
         .where(and(
           inArray(inventoryAssets.originalItemId, itemIds),
           eq(inventoryAssets.trackingStatus, 'EM_USO'),
@@ -2576,7 +2620,7 @@ export class DatabaseStorage implements IStorage {
 
       if (allocIds.length > 0) {
         const r2 = await tx.update(inventoryAssets)
-          .set({ trackingStatus: 'AGUARDANDO_TRIAGEM', updatedAt: new Date() } as any)
+          .set({ trackingStatus: 'AGUARDANDO_TRIAGEM', updatedAt: new Date() })
           .where(and(
             inArray(inventoryAssets.id, allocIds),
             eq(inventoryAssets.trackingStatus, 'EM_USO')
@@ -2618,7 +2662,7 @@ export class DatabaseStorage implements IStorage {
         .values({ eventId, assetId })
         .returning();
       await tx.update(inventoryAssets)
-        .set({ trackingStatus: 'EM_USO', updatedAt: new Date() } as any)
+        .set({ trackingStatus: 'EM_USO', updatedAt: new Date() })
         .where(eq(inventoryAssets.id, assetId));
       return alloc;
     });
@@ -2630,7 +2674,7 @@ export class DatabaseStorage implements IStorage {
     if (!alloc) return false;
     await db.delete(eventInventoryAllocations).where(eq(eventInventoryAllocations.id, allocationId));
     await db.update(inventoryAssets)
-      .set({ trackingStatus: 'NO_GALPAO', updatedAt: new Date() } as any)
+      .set({ trackingStatus: 'NO_GALPAO', updatedAt: new Date() })
       .where(eq(inventoryAssets.id, alloc.assetId));
     return true;
   }
@@ -2696,9 +2740,10 @@ export class DatabaseStorage implements IStorage {
 
   async previewAutoLink(eventId: string): Promise<Array<{ sponsorId: string; sponsorName: string; quota: string; items: Array<{ itemId: string; displayId: string; type: string; description: string | null }> }>> {
     // Regras do evento; sem nenhuma, as GLOBAIS (tabela global_quota_rules).
-    let rules = await db.select().from(eventQuotaRules).where(eq(eventQuotaRules.eventId, eventId));
+    let rules: Array<Pick<EventQuotaRule, "eventId" | "quota" | "itemTypes">> =
+      await db.select().from(eventQuotaRules).where(eq(eventQuotaRules.eventId, eventId));
     if (rules.length === 0) {
-      rules = (await this.getGlobalQuotaRules()).map(r => ({ eventId, quota: r.quota, itemTypes: r.itemTypes })) as any;
+      rules = (await this.getGlobalQuotaRules()).map(r => ({ eventId, quota: r.quota, itemTypes: r.itemTypes }));
     }
     if (rules.length === 0) return [];
 

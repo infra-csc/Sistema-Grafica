@@ -19,7 +19,7 @@ export function registrarEtiquetasImpressas(app: Express): void {
         !Array.isArray(itemIds) ||
         itemIds.length === 0 ||
         itemIds.length > 500 ||
-        itemIds.some((id: any) => typeof id !== "string")
+        itemIds.some((id: unknown) => typeof id !== "string")
       ) {
         return res.status(400).json({ error: "itemIds deve ser uma lista de até 500 ids de peça" });
       }

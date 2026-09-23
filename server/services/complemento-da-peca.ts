@@ -92,7 +92,7 @@ export async function criarComplemento(
   });
 
   let child: Item;
-  let notification: any;
+  let notification: Notification;
   try {
     ({ child, notification } = await criar());
   } catch (e) {

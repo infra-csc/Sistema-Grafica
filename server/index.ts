@@ -142,7 +142,7 @@ app.use((req: Request, res: Response, next: NextFunction) => {
 
 // ── Portal SSO ───────────────────────────────────────────────────────────────
 // Tokens de troca de uso único, em tabela (ver ./sso-troca).
-const trocaDeSso = criarTrocaDeSso((texto, params) => pool.query(texto, params as any[]));
+const trocaDeSso = criarTrocaDeSso((texto, params) => pool.query(texto, params));
 
 // Step 1 — Portal redirects here with ?portal_sso=<JWT>&portal_return=<URL>
 // We validate the JWT, create a one-time token, and redirect to /?sso_exchange=TOKEN
@@ -168,8 +168,8 @@ app.use(async (req: Request, res: Response, next: NextFunction) => {
 
     log(`[SSO] exchange token gerado para: ${payload.email}`);
     return res.redirect(`/?sso_exchange=${exchangeToken}`);
-  } catch (err: any) {
-    log(`[SSO] token inválido: ${err.message}`);
+  } catch (err: unknown) {
+    log(`[SSO] token inválido: ${err instanceof Error ? err.message : String(err)}`);
     return res.redirect("/login?error=sso_invalid_token");
   }
 });
@@ -278,22 +278,25 @@ async function runStartupMaintenance() {
 (async () => {
   const server = await registerRoutes(app);
 
-  app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
+  app.use((err: unknown, _req: Request, res: Response, next: NextFunction) => {
     // Loga o erro completo no servidor sempre.
     console.error(err);
+    // Convenção dos erros de middleware (http-errors, body-parser): status/statusCode e message.
+    const e: { status?: number; statusCode?: number; message?: string } =
+      typeof err === "object" && err !== null ? err : {};
     // Se a resposta já começou a ser enviada, não dá para reescrever o status/
     // corpo — delega ao handler padrão do Express (senão dá "Cannot set headers
     // after they are sent").
     if (res.headersSent) return next(err);
 
-    const status = err.status || err.statusCode || 500;
+    const status = e.status || e.statusCode || 500;
     // 5xx não expõe detalhe interno (constraint do Postgres, stack) ao cliente;
     // erros de cliente (4xx com mensagem própria) podem devolver a mensagem.
     // Chave `error` — consistente com o resto da API (antes era `message`, e o
     // cliente que lia `.error` recebia undefined).
     const message = status >= 500
       ? "Erro interno do servidor"
-      : (err.message || "Erro na requisição");
+      : (e.message || "Erro na requisição");
     res.status(status).json({ error: message });
   });
 

@@ -133,7 +133,9 @@ export function textoDoEnvelope(env: Envelope): string {
 type ClienteDoCanal = {
   query: (texto: string, valores?: unknown[]) => Promise<unknown>;
   end: () => Promise<void>;
-  on: (evento: string, fn: (...args: any[]) => void) => unknown;
+  on(evento: "notification", fn: (n: { channel: string; payload?: string }) => void): unknown;
+  on(evento: "error", fn: (erro: Error) => void): unknown;
+  on(evento: "end", fn: () => void): unknown;
 };
 
 let cliente: ClienteDoCanal | null = null;

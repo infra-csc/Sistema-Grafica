@@ -164,7 +164,7 @@ export async function avisarBookPorEmail(
       totalDoEvento: doEvento.length,
       bookUrl,
       publicadoPor: req.userName ?? null,
-      saidaDoCaminhao: evento?.truckDepartureDate ? new Date(evento.truckDepartureDate as any).toISOString() : null,
+      saidaDoCaminhao: evento?.truckDepartureDate ? new Date(evento.truckDepartureDate).toISOString() : null,
       publicacao: books.filter((b) => b.eventId === eventId).length || 1,
       comentario: comentario ?? null,
       destinatariosPrincipais: principais,
@@ -306,7 +306,7 @@ export function registrarBook(app: Express): void {
 
       // O reenvio repete o comentário da ÚLTIMA publicação — é dele que o e-mail fala.
       const livros = (await storage.getAllEventBooks()).filter((b) => b.eventId === req.params.eventId)
-        .sort((a, b) => new Date(b.createdAt as any).getTime() - new Date(a.createdAt as any).getTime());
+        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
       const aviso = await avisarBookPorEmail(req, req.params.eventId, bookUrl, comBook.length, livros[0]?.comment ?? null);
       // A tela de Versões mostra o último aviso lido da trilha — sem isto o
       // reenvio apareceria lá só depois do TTL do cache.

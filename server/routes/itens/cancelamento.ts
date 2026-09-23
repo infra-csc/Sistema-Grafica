@@ -1,7 +1,7 @@
 // Cancelar, descancelar e cancelar em lote.
 import type { Express, Request } from "express";
 import { storage } from "../../storage";
-import type { Item } from "@shared/schema";
+import type { Item, Event } from "@shared/schema";
 import { liberarReservasDasPecas } from "../estoque-reservas";
 import { devolverTudoAFila, colunasDaReserva } from "@shared/reserva-de-impressora";
 import {
@@ -27,7 +27,7 @@ export const CANCELAR_MAE_CANCELA_COMPLEMENTOS_NAO_PRODUZIDOS = true;
 
 /** Complemento que ainda não virou material (nada impresso/conferido/embalado/entregue). */
 export function complementoSemMaterial(c: { quantityProduced?: number | null; reuseQty?: number | null; conferredQty?: number | null; embaladaQty?: number | null; deliveredQty?: number | null }): boolean {
-  return !(c.quantityProduced ?? 0) && !(c.reuseQty ?? 0) && !(c.conferredQty ?? 0) && !((c as any).embaladaQty ?? 0) && !(c.deliveredQty ?? 0);
+  return !(c.quantityProduced ?? 0) && !(c.reuseQty ?? 0) && !(c.conferredQty ?? 0) && !(c.embaladaQty ?? 0) && !(c.deliveredQty ?? 0);
 }
 
 /**
@@ -43,15 +43,15 @@ async function gravarCancelamento(req: Request, atual: Item, motivo: string | nu
     // (dono, 01/09). Cancelar de novo uma já cancelada não sobrescreve.
     statusBeforeCancel: atual.status === "canceled" ? atual.statusBeforeCancel : atual.status,
     motivoCancelamento: motivo,
-  } as any);
+  });
   if (!item) return undefined;
   // Cancelada em impressão: sai da impressora — "pausa" no diário.
   await registrarSaidaDaImpressora(req, atual);
   // Peça que atendia uma solicitação do Atendimento: se era a última, a peça
   // solicitada volta a ficar aberta — o mesmo da exclusão.
-  if ((atual as any).pedidoDePecaLinhaId) {
+  if (atual.pedidoDePecaLinhaId) {
     const { aoExcluirPeca } = await import("../pedidos-de-peca");
-    await aoExcluirPeca(req, atual as any, "cancelada");
+    await aoExcluirPeca(req, atual, "cancelada");
   }
   return item;
 }
@@ -231,7 +231,7 @@ export function registrarCancelamento(app: Express): void {
         // A peça voltou ao fluxo: o motivo do cancelamento fica só na trilha.
         motivoCancelamento: null,
         ...(devolvida ? { impressaoPorMaquina: null, printMachine: null, ...colunasDaReserva(devolvida.reserva, currentItem.reservaPorMaquina, devolvida.pausas) } : {}),
-      } as any);
+      });
       if (!item) return res.status(404).json({ error: "Peça não encontrada" });
 
       await createAuditLog(
@@ -262,7 +262,7 @@ export function registrarCancelamento(app: Express): void {
         return res.status(400).json({ error: "itemIds deve ser um array não vazio" });
       }
       
-      const results: any[] = [];
+      const results: Item[] = [];
       const motivo = typeof notes === "string" && notes.trim() ? notes.trim() : null;
       const selecionadas = new Set<string>(itemIds);
       const junto: Item[] = [];
@@ -276,7 +276,7 @@ export function registrarCancelamento(app: Express): void {
       // seriais no Neon e 200 rajadas de refetch nas abas. Agora: peças em
       // paralelo (o pool limita a concorrência), evento lido UMA vez por
       // evento, trilha em UM INSERT e UM broadcast agregado no fim.
-      const eventoMemo = new Map<string, Promise<any>>();
+      const eventoMemo = new Map<string, Promise<Event | undefined>>();
       const eventoDe = (eventId: string) => {
         if (!eventoMemo.has(eventId)) eventoMemo.set(eventId, storage.getEvent(eventId));
         return eventoMemo.get(eventId)!;

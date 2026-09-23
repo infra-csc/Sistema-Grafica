@@ -1,7 +1,7 @@
 // Leituras de peças: a lista (com delta e recorte), a lixeira e as filas das telas.
 import type { Express, Request } from "express";
-import { storage, cabeNaJanelaDeEntregues } from "../../storage";
-import { ITEM_STATUSES, type Item } from "@shared/schema";
+import { storage, cabeNaJanelaDeEntregues, type ComplementSummary } from "../../storage";
+import { ITEM_STATUSES, type Item, type Event, type Sponsor, type ItemSponsorApproval, type kitRemessas } from "@shared/schema";
 import { eventoComDatasDoKit, pecaVisivelPara } from "@shared/kit";
 import { remessasPorIds } from "../../services/kitRemessas";
 import { resumosDeTuboPorIds, comTubo } from "../../services/tubosDaPeca";
@@ -17,13 +17,26 @@ import { requireAuth } from "../shared";
 import { COMPLEMENT_ALLOWED_STATUSES, quemVe } from "./comum";
 import { responderFalha, camposDoErro } from "../../erros";
 
+/** Patrocinador na peça, com o status da aprovação dele NESTA peça. */
+type PatrocinadorNaPeca = Sponsor & { approvalStatus: string | null };
+
+/** A peça como as listas devolvem: evento, patrocinadores, remessa e complementos. */
+type PecaEnriquecida = Item & {
+  kitRemessa: typeof kitRemessas.$inferSelect | null;
+  event: Event | undefined;
+  sponsors: PatrocinadorNaPeca[];
+  complements?: ComplementSummary[];
+  contractedTotal?: number;
+  parent?: { id: string; displayId: string; quantity: number; status: string };
+};
+
 // Enriquece uma lista de itens com { event, sponsors } fazendo apenas 4 queries
 // totais (eventos, patrocinadores, vínculos item↔patrocinador e aprovações em
 // bloco), em vez de 1 getEvent + 1 getItemSponsors + N getSponsor POR item
 // (N+1). Cada sponsor recebe approvalStatus: "approved"|"rejected"|"pending"|null
 // para que SponsorChips possa colorir os chips sem requests adicionais.
 async function enrichItemsWithEventsAndSponsors(
-  list: any[],
+  list: Item[],
   // PERFORMANCE (17/09): quem JÁ carregou eventos e patrocinadores (o delta
   // devolve os dois inteiros) passa aqui — antes o delta buscava
   // getAllSponsors duas vezes por request (aqui e na rota), e os eventos também.
@@ -33,8 +46,8 @@ async function enrichItemsWithEventsAndSponsors(
   // (getItemSponsorsByItemIds) não têm ORDER BY: os chips de patrocinador
   // poderiam trocar de ordem na tela. Com a opção, os vínculos e aprovações vêm
   // das leituras do acervo, na ordem de sempre.
-  carregados?: { eventos?: any[]; patrocinadores?: any[]; ordemDoAcervo?: boolean },
-): Promise<any[]> {
+  carregados?: { eventos?: Event[]; patrocinadores?: Sponsor[]; ordemDoAcervo?: boolean },
+): Promise<PecaEnriquecida[]> {
   if (list.length === 0) return [];
   // AUDITORIA 27/08: para listas pequenas (o detalhe de UM evento, as filas
   // recortadas), buscar por id em vez de carregar as tabelas INTEIRAS — abrir
@@ -50,8 +63,8 @@ async function enrichItemsWithEventsAndSponsors(
     escopado ? storage.getItemSponsorsByItemIds(itemIds) : storage.getAllItemSponsors(),
     escopado ? storage.getItemSponsorApprovalsByItemIds(itemIds) : storage.getAllItemSponsorApprovals(),
   ]);
-  const eventById = new Map<string, any>(allEvents.map((e: any) => [e.id, e]));
-  const sponsorById = new Map<string, any>(allSponsors.map((s: any) => [s.id, s]));
+  const eventById = new Map<string, Event>(allEvents.map((e) => [e.id, e]));
+  const sponsorById = new Map<string, Sponsor>(allSponsors.map((s) => [s.id, s]));
   // itemId → sponsorId → status. PERFORMANCE (17/09): a chave em texto
   // `${itemId}__${sponsorId}` alocava uma string de ~75 caracteres por
   // aprovação DO SISTEMA INTEIRO a cada request, só para servir de índice.
@@ -65,8 +78,8 @@ async function enrichItemsWithEventsAndSponsors(
   // (PERFORMANCE, 17/09): eram dezenas de milhares de cópias idênticas por
   // request para só 159 patrocinadores × poucos status. Ninguém muta a lista
   // antes do res.json, e o formato compacto reconhece a referência repetida.
-  const entradaPorStatus = new Map<any, Map<string | null, any>>();
-  const sponsorsByItem = new Map<string, any[]>();
+  const entradaPorStatus = new Map<Sponsor, Map<string | null, PatrocinadorNaPeca>>();
+  const sponsorsByItem = new Map<string, PatrocinadorNaPeca[]>();
   for (const is of allItemSponsors) {
     const sponsor = sponsorById.get(is.sponsorId);
     if (!sponsor) continue;
@@ -91,10 +104,10 @@ async function enrichItemsWithEventsAndSponsors(
   // lerem "Tubo 2" sem acesso a /api/tubos (403 para eles, e continua assim).
   // Um select em lote, só com os ids presentes — ver services/tubosDaPeca.
   const [remessaPorId, tuboPorId] = await Promise.all([
-    remessasPorIds(list.map((i) => i.kitRemessaId).filter(Boolean)),
+    remessasPorIds(list.map((i) => i.kitRemessaId).filter((id): id is string => !!id)),
     resumosDeTuboPorIds(list.map((i) => i.tuboId)),
   ]);
-  const withEventsAndSponsors = list.map((item) => ({
+  const withEventsAndSponsors = list.map((item): PecaEnriquecida => ({
     ...comTubo(item, tuboPorId),
     kitRemessa: item.kitRemessaId ? remessaPorId.get(item.kitRemessaId) ?? null : null,
     // Peça do Kit: o evento vem com as datas da remessa (dono, 14/09: "tem
@@ -183,10 +196,10 @@ const STATUS_DA_FILA_DA_GRAFICA: ReadonlySet<string> = new Set([
  * dos filhos que mudaram entram no delta, re-enriquecidas, se ainda cabem na
  * lista (`entra`).
  */
-async function maesDosComplementosMudados(mudadas: any[], entra: (mae: any) => boolean): Promise<any[]> {
+async function maesDosComplementosMudados(mudadas: Item[], entra: (mae: Item) => boolean): Promise<Item[]> {
   const noDelta = new Set(mudadas.map((i) => i.id));
   const ids = Array.from(new Set(
-    mudadas.map((i) => i.parentItemId as string | null).filter((pid): pid is string => !!pid && !noDelta.has(pid)),
+    mudadas.map((i) => i.parentItemId).filter((pid): pid is string => !!pid && !noDelta.has(pid)),
   ));
   if (ids.length === 0) return [];
   return (await storage.getItemsByIds(ids)).filter(entra);
@@ -306,7 +319,7 @@ async function pecasDoRecorte(recorte: RecorteDePecas): Promise<Item[]> {
   const porId = await storage.getItemsByIds(Array.from(recorte.ids ?? []));
   return porId
     .filter((i) => !i.deletedAt)
-    .sort((a, b) => new Date(b.createdAt as any).getTime() - new Date(a.createdAt as any).getTime());
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 }
 
 // Aviso de migração pendente: uma linha por processo, não uma por request.
@@ -328,7 +341,7 @@ let avisouMigracaoComplemento = false;
  * lista as colunas explicitamente, então a leitura estoura antes de chegar
  * aqui. O try/catch é a rede para o caso de a query nova falhar sozinha.)
  */
-async function enrichItemsWithComplements(list: any[]): Promise<any[]> {
+async function enrichItemsWithComplements(list: PecaEnriquecida[]): Promise<PecaEnriquecida[]> {
   try {
     const ids = list.map((i) => i.id);
     const complements = await storage.getComplementsByParentIds(ids);
@@ -338,7 +351,7 @@ async function enrichItemsWithComplements(list: any[]): Promise<any[]> {
       return await attachParents(list);
     }
 
-    const byParent = new Map<string, any[]>();
+    const byParent = new Map<string, ComplementSummary[]>();
     for (const c of complements) {
       if (!c.parentItemId) continue;
       const arr = byParent.get(c.parentItemId);
@@ -346,10 +359,10 @@ async function enrichItemsWithComplements(list: any[]): Promise<any[]> {
       else byParent.set(c.parentItemId, [c]);
     }
 
-    const comMaes = list.map((item) => {
+    const comMaes = list.map((item): PecaEnriquecida => {
       const filhos = byParent.get(item.id);
       if (!filhos || filhos.length === 0) return item;
-      const soma = filhos.reduce((acc: number, c: any) => acc + (Number(c.quantity) || 0), 0);
+      const soma = filhos.reduce((acc: number, c) => acc + (Number(c.quantity) || 0), 0);
       return {
         ...item,
         complements: filhos,
@@ -371,21 +384,21 @@ async function enrichItemsWithComplements(list: any[]): Promise<any[]> {
 }
 
 /** Resolve `parent` nos itens que são complementos, com no máximo 1 query extra. */
-async function attachParents(list: any[]): Promise<any[]> {
-  const filhos = list.filter((i) => i.parentItemId);
+async function attachParents(list: PecaEnriquecida[]): Promise<PecaEnriquecida[]> {
+  const filhos = list.filter((i): i is PecaEnriquecida & { parentItemId: string } => !!i.parentItemId);
   if (filhos.length === 0) return list;
 
   // PERFORMANCE (17/09): o índice guarda só as MÃES procuradas. Antes era um
   // Map do acervo inteiro, depois COPIADO para outro Map (milhares de pares
   // [id, peça] alocados por request) só para somar as mães vindas de fora.
   const procuradas = new Set<string>(filhos.map((f) => f.parentItemId));
-  const maePorId = new Map<string, any>();
+  const maePorId = new Map<string, Item>();
   for (const i of list) if (procuradas.has(i.id)) maePorId.set(i.id, i);
   const faltando = Array.from(procuradas).filter((pid) => !maePorId.has(pid));
-  const extras = faltando.length ? await storage.getItemsByIds(faltando as string[]) : [];
+  const extras = faltando.length ? await storage.getItemsByIds(faltando) : [];
   for (const m of extras) maePorId.set(m.id, m);
 
-  return list.map((item) => {
+  return list.map((item): PecaEnriquecida => {
     if (!item.parentItemId) return item;
     const mae = maePorId.get(item.parentItemId);
     if (!mae) return item;
@@ -571,11 +584,11 @@ export function registrarFilasEPorEvento(app: Express): void {
       const eventById = new Map(allEvents.map(e => [e.id, e]));
       const sponsorById = new Map(allSponsors.map(s => [s.id, s]));
 
-      const approvalsByItem = new Map<string, any[]>();
+      const approvalsByItem = new Map<string, ItemSponsorApproval[]>();
       // TODAS as aprovações da peça, por item — o painel de reenvio precisa
       // de quem já aprovou tanto quanto de quem reprovou: é a diferença
       // entre "vai receber" e "mantém aprovação".
-      const todasPorItem = new Map<string, any[]>();
+      const todasPorItem = new Map<string, ItemSponsorApproval[]>();
       for (const a of allItemSponsorApprovals) {
         const t = todasPorItem.get(a.itemId);
         if (t) t.push(a); else todasPorItem.set(a.itemId, [a]);
@@ -584,7 +597,7 @@ export function registrarFilasEPorEvento(app: Express): void {
         if (list) list.push(a);
         else approvalsByItem.set(a.itemId, [a]);
       }
-      const comPatrocinador = (lista: any[]) => lista.map((a: any) => ({ ...a, sponsor: sponsorById.get(a.sponsorId) || null }));
+      const comPatrocinador = (lista: ItemSponsorApproval[]) => lista.map((a) => ({ ...a, sponsor: sponsorById.get(a.sponsorId) || null }));
 
       const result = [];
       for (const item of awaitingItems) {
@@ -649,7 +662,7 @@ export function registrarFilasEPorEvento(app: Express): void {
         ]);
         // Entregue antiga (fora de DIAS_DE_ENTREGUES_NA_FILA) não é da fila —
         // a mesma régua de storage.getApprovedItems.
-        const cabeNaFila = (i: any) =>
+        const cabeNaFila = (i: Item) =>
           !i.deletedAt && STATUS_DA_FILA_DA_GRAFICA.has(i.status) && cabeNaJanelaDeEntregues(i, agoraMs)
           && pecaVisivelPara(usuario, i) && !ehBookCompleto(i);
         const naFila = mudadas.map(cabeNaFila);
@@ -675,7 +688,7 @@ export function registrarFilasEPorEvento(app: Express): void {
       const itemsWithEventsAndSponsors = await enrichItemsWithEventsAndSponsors(approvedItems);
       // BOOK COMPLETO fica de fora da fila da Gráfica: é o trâmite do
       // Atendimento, não uma peça imprimível (ver shared/fluxo-peca).
-      const fila = itemsWithEventsAndSponsors.filter((i: any) => !ehBookCompleto(i));
+      const fila = itemsWithEventsAndSponsors.filter((i) => !ehBookCompleto(i));
       res.json(compacto ? { agora, ...compactarPecas(fila) } : fila);
     } catch (error) {
       responderFalha(res, error, "GET /api/items/approved");
@@ -703,7 +716,7 @@ export function registrarFilasEPorEvento(app: Express): void {
       const sponsorById = new Map(allSponsors.map(s => [s.id, s]));
 
       // agrupa vínculos por item
-      const sponsorsByItem: Record<string, any[]> = {};
+      const sponsorsByItem: Record<string, Sponsor[]> = {};
       for (const is of allItemSponsors) {
         const sponsor = sponsorById.get(is.sponsorId);
         if (!sponsor) continue;
@@ -711,7 +724,7 @@ export function registrarFilasEPorEvento(app: Express): void {
       }
 
       // agrupa approvals por item, enriquecendo com sponsor
-      const approvalsByItem: Record<string, any[]> = {};
+      const approvalsByItem: Record<string, Array<ItemSponsorApproval & { sponsor: Sponsor | null }>> = {};
       for (const a of allApprovals) {
         const enriched = { ...a, sponsor: sponsorById.get(a.sponsorId) || null };
         (approvalsByItem[a.itemId] ??= []).push(enriched);

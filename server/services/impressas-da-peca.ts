@@ -52,7 +52,7 @@ export async function lancarImpressas(
     const plano = planejarLancamentoDeImpressas(before as any, corpo, new Date());
     if (!plano.ok) {
       throw plano.corpo.error === ERRO_LANCAMENTO_TRAVADA
-        ? falha(409, { error: fraseDaTrava(before as any), code: CODIGO_PECA_TRAVADA })
+        ? falha(409, { error: fraseDaTrava(before), code: CODIGO_PECA_TRAVADA })
         : falha(plano.status, plano.corpo);
     }
     const [updated] = await tx

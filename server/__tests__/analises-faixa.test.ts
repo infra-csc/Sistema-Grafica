@@ -41,6 +41,15 @@ class ResizeObserverStub {
   disconnect() {}
 }
 (globalThis as unknown as { ResizeObserver: unknown }).ResizeObserver = ResizeObserverStub;
+// A régua de área útil usa o `useIsMobile` REAL por dentro, que assina
+// `matchMedia` — outra ausência do jsdom. Sem media query nenhuma casando.
+if (typeof window !== "undefined" && !window.matchMedia) {
+  window.matchMedia = ((q: string) => ({
+    matches: false, media: q, onchange: null,
+    addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {},
+    dispatchEvent: () => false,
+  })) as unknown as typeof window.matchMedia;
+}
 
 const DIA = 86_400_000;
 // Ancorado no "hoje" REAL do negócio, não numa data fixa: o recorte da tela é
@@ -71,7 +80,12 @@ const ITEMS = [
 const SPONSORS = [{ id: "sp1", name: "Alfa" }];
 
 const celular = vi.hoisted(() => ({ valor: false }));
-vi.mock("@/hooks/use-mobile", () => ({ useIsMobile: () => celular.valor }));
+// Só o `useIsMobile` é trocado: a régua de área útil (useDensidadeDoConteudo)
+// continua a real, que a tela usa para a grade dos KPIs.
+vi.mock("@/hooks/use-mobile", async (original) => ({
+  ...(await original<typeof import("@/hooks/use-mobile")>()),
+  useIsMobile: () => celular.valor,
+}));
 
 /* O agregado de "Tempo por etapa" NÃO sai de /api/items: ele é medido no
    servidor sobre a trilha de auditoria. Fica num porta-valor para que o teste

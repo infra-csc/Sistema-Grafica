@@ -52,7 +52,8 @@ describe("2 · reenviar o aviso sai da tela de Versões", () => {
 
   it("o toast do reenvio distingue enviado de não enviado", () => {
     expect(VERSOES).toContain('title: d.aviso?.status === "sent" ? "Aviso reenviado" : "Aviso não enviado",');
-    expect(VERSOES).toContain('variant: d.aviso?.status === "sent" ? undefined : "destructive",');
+    // Sucesso é dito explicitamente (variante `success`); não enviado segue vermelho.
+    expect(VERSOES).toContain('variant: d.aviso?.status === "sent" ? "success" : "destructive",');
   });
 
   it("o reenvio usa o book atual e recusa evento sem book", () => {

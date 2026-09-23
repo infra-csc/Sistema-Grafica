@@ -14,10 +14,16 @@ import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useLocation } from "wouter";
 import { fmtRelative } from "@/components/prazos/tokens";
-import { useIsMobile } from "@/hooks/use-mobile";
+import { useIsMobile, useDensidadeDoConteudo } from "@/hooks/use-mobile";
 // Tokens canônicos — a paleta local divergia do resto do app e T.muted era
 // usado como cor de TEXTO, o que reprova AA em todas as superfícies.
-import { T, FS, R, SHADOW } from "@/lib/theme";
+import { T, FS, R, SHADOW, TOM, FONT, FW } from "@/lib/theme";
+import { Botao } from "@/components/ui/botao";
+import { Segmentado } from "@/components/ui/abas";
+import { Selo } from "@/components/ui/selo";
+import { CartaoKpi } from "@/components/ui/cartao-kpi";
+import { EstadoVazio, EstadoErro } from "@/components/ui/estados";
+import { CabecalhoDaPagina } from "@/components/ui/cabecalho-da-pagina";
 import { isOutOfFunnel } from "@/lib/analises-status";
 import type { AnaliseEvent, AnaliseItem, AnaliseSponsor } from "@/lib/analises-metrics";
 import {
@@ -40,12 +46,13 @@ import { diferencaContraPlano, etapaMaisCara, frasesDeCobertura } from "@/lib/an
    fica em ~2,8:1 sobre branco — vale para bordas, nunca para rótulo legível
    nem para barra que carrega significado (1.4.11 pede 3:1). */
 const ACCENT_TEXT = T.accentText;
-/* Verde/vermelho de julgamento. #15803d = 4,54:1 e #b91c1c = 5,93:1 sobre
-   branco: passam AA como TEXTO, que é como aparecem (seta + número). */
-const BOM = "#15803d";
-const RUIM = "#b91c1c";
-/* Cinza de objeto gráfico decorativo — 3,65:1 sobre branco. Nunca em texto. */
-const GRAFICO_NEUTRO = "#78716c";
+/* Verde/vermelho de julgamento: o `text` de TOM.sucesso e TOM.perigo passa AA
+   sobre branco como TEXTO, que é como aparecem (seta + número). */
+const BOM = TOM.sucesso.text;
+const RUIM = TOM.perigo.text;
+/* Cinza de objeto gráfico (a linha da média): o `dot` do neutro, que é tom de
+   desenho e não de texto — e passa os 3:1 que o 1.4.11 pede sobre branco. */
+const GRAFICO_NEUTRO = TOM.neutro.dot;
 
 /* ── Ritmo vertical ──
    Quatro degraus, e é a HIERARQUIA entre eles que agrupa: o que pertence à
@@ -97,8 +104,8 @@ const PADDING_PAGINA = (isMobile: boolean) =>
      texto secundário     #746e69 / #ffffff =  5,03:1 ✓ · / #f9f9f8 = 4,77:1 ✓
      selo de dado velho   #b45309 / #f9f9f8 =  4,77:1 ✓
      variação boa/ruim    #15803d / #ffffff =  5,02:1 ✓ · #b91c1c = 6,47:1 ✓
-   Objeto gráfico (1.4.11 pede 3:1): média concluída #78716c / #ffffff = 4,80:1 ✓ */
-const RESUMO_APAGADO = "#57534e";
+   Objeto gráfico (1.4.11 pede 3:1): média concluída #78716c / #ffffff = 4,80:1 ✓
+   (Os hex acima são o REGISTRO da medição; o código usa os tokens.) */
 
 /* Data por extenso para a frase de cobertura. `format()` do date-fns LANÇA em
    data inválida e esta tela não tem error boundary — a guarda é a mesma que
@@ -160,21 +167,22 @@ function SeloVariacao({ v, sufixo }: { v: Variacao; sufixo: string }) {
   const Icone = v.direcao === "subiu" ? ArrowUp : ArrowDown;
   const cor = v.positiva ? BOM : RUIM;
   return (
-    <span style={{ display: "inline-flex", alignItems: "center", gap: 4, color: cor, fontSize: FS.small, fontWeight: 800 }}>
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 4, color: cor, fontSize: FS.small, fontWeight: FW.rotulo }}>
       <Icone aria-hidden="true" style={{ width: 12, height: 12 }} />
       {Math.abs(v.delta) < 10
         ? Math.abs(v.delta).toFixed(1).replace(".", ",")
         : int(Math.abs(v.delta))}
       {sufixo}
-      <span style={{ fontWeight: 600 }}>{v.positiva ? "melhor" : "pior"}</span>
+      <span style={{ fontWeight: FW.medio }}>{v.positiva ? "melhor" : "pior"}</span>
     </span>
   );
 }
 
 /* ── Card de KPI ──
-   NO MÓDULO, não dentro do render. O valor deixou de ser <h3>: na navegação
-   por cabeçalhos de um leitor de tela, a lista de títulos da página virava uma
-   sequência de números sem contexto. Agora é <dt> rótulo / <dd> valor. */
+   NO MÓDULO, não dentro do render. O valor não é <h3>: na navegação por
+   cabeçalhos de um leitor de tela, a lista de títulos da página virava uma
+   sequência de números sem contexto. A casca agora é o <CartaoKpi> da casa
+   (rótulo em cima, número, e o `sub` com variação, denominador e link). */
 function KpiAnalise({
   rotulo, valor, contexto, v, sufixoVariacao, notaSemComparacao, testId, selo, link, aoNavegar, isMobile,
 }: {
@@ -194,21 +202,13 @@ function KpiAnalise({
   isMobile?: boolean;
 }) {
   return (
-    <div data-testid={testId} style={{
-      backgroundColor: T.surface,
-      borderLeft: `4px solid ${T.dark}`,
-      padding: "18px 20px 16px",
-      boxShadow: SHADOW.sm,
-      minWidth: 0,
-    }}>
-      <dt style={{ fontSize: 10, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.14em", color: T.second, margin: "0 0 10px" }}>
-        {rotulo}
-      </dt>
-      <dd style={{ margin: 0 }}>
-        <span style={{ display: "block", fontSize: FS.h1, fontWeight: 700, color: T.text, fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.03em", lineHeight: 1 }}>
-          {valor}
-        </span>
-        <span style={{ display: "block", marginTop: 9, minHeight: 17 }}>
+    <CartaoKpi
+      data-testid={testId}
+      rotulo={rotulo}
+      valor={valor}
+      sub={
+      <>
+        <span style={{ display: "block", marginTop: 7, minHeight: 17 }}>
           {v
             ? <>
                 <SeloVariacao v={v} sufixo={sufixoVariacao} />
@@ -234,15 +234,16 @@ function KpiAnalise({
             }}
             style={{
               display: "inline-flex", alignItems: "center", gap: 5, marginTop: 8,
-              minHeight: isMobile ? 44 : 32, fontSize: 11, fontWeight: 700,
-              color: "#c2410c", textDecoration: "none",
+              minHeight: isMobile ? 44 : 32, fontSize: FS.small, fontWeight: FW.forte,
+              color: ACCENT_TEXT, textDecoration: "none",
             }}>
             {link.rotulo}
             <ArrowRight aria-hidden="true" style={{ width: 12, height: 12 }} />
           </a>
         )}
-      </dd>
-    </div>
+      </>
+      }
+    />
   );
 }
 
@@ -264,19 +265,18 @@ function SeloRuido({ atual, anterior, testId }: { atual: number; anterior: numbe
   const menor = Math.min(atual, anterior);
   if (menor >= PISO_AMOSTRA) return null;
   const qualJanela = atual <= anterior ? "Esta janela tem" : "A janela anterior tem";
+  // O <Selo> da casa em alerta: TOM.alerta.text sobre o próprio fundo passa AA.
   return (
-    <span
+    <Selo
+      tom="alerta"
+      tamanho="sm"
+      forma="retangulo"
+      icone={AlertTriangle}
       data-testid={testId}
       title={`${qualJanela} só ${int(menor)} ${menor === 1 ? "peça avaliável" : "peças avaliáveis"} — abaixo de ${PISO_AMOSTRA} a variação oscila por acaso e não indica tendência.`}
-      style={{
-        display: "inline-flex", alignItems: "center", gap: 4, marginLeft: 8,
-        fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em",
-        color: "#92400e", backgroundColor: "#fffbeb", border: "1px solid #fde68a",
-        borderRadius: R.sm, padding: "1px 6px", whiteSpace: "nowrap",
-      }}>
-      <AlertTriangle aria-hidden="true" style={{ width: 10, height: 10 }} />
+      style={{ marginLeft: 8, padding: "1px 6px", gap: 4 }}>
       amostra pequena · pode ser ruído
-    </span>
+    </Selo>
   );
 }
 
@@ -288,12 +288,12 @@ const CargaTip = ({ active, payload, label }: any) => {
   const series = payload.filter((p: any) => p?.value != null);
   const futura = payload.some((p: any) => p?.dataKey === "concluido" && p?.value == null);
   return (
-    <div style={{ backgroundColor: T.dark, color: "#fff", borderRadius: R.sm, padding: "9px 12px", fontSize: 11, lineHeight: 1.6 }}>
-      <div style={{ fontWeight: 700, marginBottom: 4 }}>Semana de {label}</div>
+    <div style={{ backgroundColor: T.dark, color: T.surface, borderRadius: R.sm, padding: "9px 12px", fontSize: FS.small, lineHeight: 1.6 }}>
+      <div style={{ fontWeight: FW.forte, marginBottom: 4 }}>Semana de {label}</div>
       {series.map((p: any) => (
         <div key={p.dataKey}>{p.name}: {int(p.value)} m²</div>
       ))}
-      {futura && <div style={{ color: "#d6d3d1" }}>Previsto — ainda não aconteceu</div>}
+      {futura && <div style={{ color: T.bdark }}>Previsto — ainda não aconteceu</div>}
     </div>
   );
 };
@@ -315,7 +315,7 @@ interface SemanaDoGrafico {
    "atualizando". Nenhum desses muda uma barra. Aqui ele só redesenha quando
    os dados da carga mudam — todas as props chegam memoizadas da página. */
 const GraficoCarga = memo(function GraficoCarga({
-  dadosCarga, carga, rotulosQueEstouram, primeiraFutura, ultimaLabel, semanaAtualLabel, isMobile,
+  dadosCarga, carga, rotulosQueEstouram, primeiraFutura, ultimaLabel, semanaAtualLabel, apertado,
 }: {
   dadosCarga: SemanaDoGrafico[];
   carga: Capacidade;
@@ -323,13 +323,14 @@ const GraficoCarga = memo(function GraficoCarga({
   primeiraFutura: string | undefined;
   ultimaLabel: string | undefined;
   semanaAtualLabel: string | undefined;
-  isMobile: boolean;
+  /** Área útil apertada: o gráfico ganha largura mínima e rola na caixa. */
+  apertado: boolean;
 }) {
   // Mesma regra da tabela de ofensores: a caixa do gráfico rola, a página não.
   // Era `visible` fora do celular, e o estouro virava rolagem lateral da PÁGINA.
   return (
     <div style={{ overflowX: "auto" }}>
-      <div style={{ minWidth: isMobile ? 620 : undefined, height: 300 }}>
+      <div style={{ minWidth: apertado ? 620 : undefined, height: 300 }}>
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={dadosCarga} margin={{ top: 22, right: 8, left: -12, bottom: 0 }} barGap={2}>
             <CartesianGrid stroke={T.border} vertical={false} />
@@ -337,16 +338,17 @@ const GraficoCarga = memo(function GraficoCarga({
               <ReferenceArea
                 x1={primeiraFutura} x2={ultimaLabel}
                 fill={T.low} fillOpacity={1}
-                label={{ value: "PREVISTO", position: "insideTopRight", fill: T.second, fontSize: 10, fontWeight: 900, letterSpacing: "0.12em" }}
+                label={{ value: "PREVISTO", position: "insideTopRight", fill: T.second, fontSize: FS.micro, fontWeight: FW.rotulo, letterSpacing: "0.12em" }}
               />
             )}
-            <XAxis dataKey="label" tick={{ fontSize: 9, fontWeight: 700, fill: T.second, fontFamily: "'DM Mono'" }} axisLine={{ stroke: T.bdark }} tickLine={false} interval={1} />
-            <YAxis tick={{ fontSize: 10, fill: T.second }} axisLine={false} tickLine={false} width={54}
-              label={{ value: "m²", position: "top", offset: 12, fill: T.second, fontSize: 10, fontWeight: 900 }} />
+            {/* Piso de 10px da casa: o rótulo de 9 do eixo X subiu um degrau. */}
+            <XAxis dataKey="label" tick={{ fontSize: FS.micro, fontWeight: FW.forte, fill: T.second, fontFamily: FONT.mono }} axisLine={{ stroke: T.bdark }} tickLine={false} interval={1} />
+            <YAxis tick={{ fontSize: FS.micro, fill: T.second }} axisLine={false} tickLine={false} width={54}
+              label={{ value: "m²", position: "top", offset: 12, fill: T.second, fontSize: FS.micro, fontWeight: FW.rotulo }} />
             <Tooltip content={<CargaTip />} cursor={{ fill: "rgba(28,25,23,0.05)" }} />
             {semanaAtualLabel && (
               <ReferenceLine x={semanaAtualLabel} stroke={T.dark} strokeWidth={1.5}
-                label={{ value: "HOJE", position: "top", fill: T.text, fontSize: 10, fontWeight: 900, letterSpacing: "0.1em" }} />
+                label={{ value: "HOJE", position: "top", fill: T.text, fontSize: FS.micro, fontWeight: FW.rotulo, letterSpacing: "0.1em" }} />
             )}
             {carga.mediaConcluidoM2 != null && carga.mediaConcluidoM2 > 0 && (
               <ReferenceLine y={carga.mediaConcluidoM2} stroke={GRAFICO_NEUTRO} strokeDasharray="5 4" strokeWidth={2} />
@@ -357,7 +359,7 @@ const GraficoCarga = memo(function GraficoCarga({
                   uma contra a outra. */}
               {dadosCarga.map((d) => (
                 <Cell key={d.label}
-                  stroke={rotulosQueEstouram.has(d.label) ? "#b45309" : "none"}
+                  stroke={rotulosQueEstouram.has(d.label) ? TOM.alerta.text : "none"}
                   strokeWidth={rotulosQueEstouram.has(d.label) ? 1.5 : 0} />
               ))}
             </Bar>
@@ -369,28 +371,22 @@ const GraficoCarga = memo(function GraficoCarga({
   );
 });
 
-/* ── Bloco vazio: "não há dado" é diferente de "o filtro comeu tudo" ── */
+/* ── Bloco vazio: "não há dado" é diferente de "o filtro comeu tudo" ──
+   O <EstadoVazio> da casa. Quando foi o filtro, a saída é o botão (alvo de
+   44: é a ÚNICA saída de um bloco que o filtro esvaziou); quando não foi, a
+   frase diz que este é o estado real da base. */
 function Vazio({ porFiltro, real, aoLimpar }: { porFiltro: boolean; real: string; aoLimpar: () => void }) {
   return (
-    <div style={{ padding: "40px 20px", textAlign: "center" }}>
-      <p style={{ fontSize: FS.body, fontWeight: 700, color: T.text, margin: "0 0 5px" }}>
-        {porFiltro ? "Nenhuma peça neste recorte" : real}
-      </p>
-      {porFiltro ? (
-        <button
-          onClick={aoLimpar}
-          // Alvo de 44: era texto puro (~18px) e é a ÚNICA saída de um bloco que
-          // o filtro esvaziou. Sem fundo nem borda, a altura extra não desenha nada.
-          style={{ display: "inline-flex", alignItems: "center", minHeight: 44, fontSize: FS.small, color: ACCENT_TEXT, background: "none", border: "none", padding: 0, cursor: "pointer", textDecoration: "underline", fontWeight: 700 }}
-        >
+    <EstadoVazio
+      compacto
+      titulo={porFiltro ? "Nenhuma peça neste recorte" : real}
+      descricao={porFiltro ? undefined : "Nada foi filtrado — este é o estado real da base."}
+      acao={porFiltro ? (
+        <Botao tamanho="toque" icone={X} onClick={aoLimpar}>
           Limpar os filtros e ver tudo
-        </button>
-      ) : (
-        <p style={{ fontSize: FS.small, color: T.second, margin: 0 }}>
-          Nada foi filtrado — este é o estado real da base.
-        </p>
-      )}
-    </div>
+        </Botao>
+      ) : undefined}
+    />
   );
 }
 
@@ -425,6 +421,14 @@ const SEM_PATROCINADORES: AnaliseSponsor[] = [];
 
 export default function DashboardAnalises() {
   const isMobile = useIsMobile();
+  // RÉGUA PELA ÁREA ÚTIL para o que é LAYOUT (grade dos KPIs, rolagem do
+  // gráfico): com a barra lateral aberta num tablet a janela diz "desktop" e
+  // sobram ~700px. `isMobile` segue para o que é de fato celular: a gaveta de
+  // filtros, o gutter e os alvos de 44px.
+  const { ref: raizRef, cards: apertado } = useDensidadeDoConteudo<HTMLDivElement>(isMobile ? 28 : 56);
+  // A MESMA caixa nos três estados (erro, carregando, tela): o React mantém o
+  // nó entre eles, e a medição não se perde quando a carga termina.
+  const naRaiz = (filho: React.ReactNode) => <div ref={raizRef} style={{ height: "100%" }}>{filho}</div>;
   const [, setLocation] = useLocation();
   const queryClient = useQueryClient();
   const inicial = useMemo(lerFiltrosDaUrl, []);
@@ -965,28 +969,28 @@ export default function DashboardAnalises() {
   // Celular: gaveta. O contador vive no próprio botão para que "tenho filtro
   // ligado" sobreviva com a gaveta fechada — sem ele, um recorte esquecido
   // explicaria números baixos sem nada na tela dizendo isso.
+  // Com filtro ligado o botão fica cheio em laranja-texto (accentText, que
+  // aguenta texto branco): o "tenho recorte" é visível de longe.
   const botaoFiltros = (
-    <button
-      type="button"
+    <Botao
+      tamanho="toque"
+      icone={SlidersHorizontal}
       onClick={() => setFiltrosAbertos((v) => !v)}
       aria-expanded={filtrosAbertos}
       aria-label={filtrosAtivos > 0 ? `Filtros — ${filtrosAtivos} ativo${filtrosAtivos === 1 ? "" : "s"}` : "Filtros"}
       data-testid="button-toggle-filtros"
       style={{
-        display: "inline-flex", alignItems: "center", gap: 6,
-        height: 44, padding: "0 12px", borderRadius: R.md, flexShrink: 0,
-        backgroundColor: filtrosAtivos > 0 ? ACCENT_TEXT : T.surface,
-        border: `1px solid ${filtrosAtivos > 0 ? ACCENT_TEXT : T.bdark}`,
-        color: filtrosAtivos > 0 ? "#ffffff" : T.text,
-        fontSize: FS.body, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap",
+        flexShrink: 0, fontSize: FS.body,
+        ...(filtrosAtivos > 0
+          ? { backgroundColor: ACCENT_TEXT, border: `1px solid ${ACCENT_TEXT}`, color: T.surface }
+          : {}),
       }}
     >
-      <SlidersHorizontal aria-hidden="true" style={{ width: 14, height: 14 }} />
       Filtros
       {filtrosAtivos > 0 && (
         <span style={{
-          fontSize: FS.small, fontWeight: 800, padding: "1px 7px", borderRadius: R.pill,
-          backgroundColor: "#ffffff", color: ACCENT_TEXT,
+          fontSize: FS.small, fontWeight: FW.rotulo, padding: "1px 7px", borderRadius: R.pill,
+          backgroundColor: T.surface, color: ACCENT_TEXT,
         }}>
           {filtrosAtivos}
         </span>
@@ -995,7 +999,7 @@ export default function DashboardAnalises() {
         width: 13, height: 13, transition: "transform 0.2s",
         transform: filtrosAbertos ? "rotate(180deg)" : "rotate(0deg)",
       }} />
-    </button>
+    </Botao>
   );
 
   /* O resultado é TEXTO, sem moldura: diz de uma vez quantos filtros estão
@@ -1016,58 +1020,51 @@ export default function DashboardAnalises() {
         // FAIXA (flexWrap), levando o resumo inteiro para a linha de baixo.
         // Sem isto, com um evento de nome longo selecionado em 1366px, o texto
         // se partia no meio e "Limpar tudo" subia para o meio da frase.
-        style={{ fontSize: FS.body, color: T.second, fontWeight: 600, whiteSpace: isMobile ? "normal" : "nowrap" }}
+        style={{ fontSize: FS.body, color: T.second, fontWeight: FW.medio, whiteSpace: isMobile ? "normal" : "nowrap" }}
       >
         {periodoPadraoAplicado && filtrosAtivos === 1
           ? <>Período padrão{" · "}</>
           : filtrosAtivos > 0 && (
             <>{filtrosAtivos} filtro{filtrosAtivos === 1 ? "" : "s"} ativo{filtrosAtivos === 1 ? "" : "s"}{" · "}</>
           )}
-        <strong style={{ color: T.text, fontFamily: "'DM Mono', monospace" }}>{int(atual.pecasTotal)}</strong>
+        <strong style={{ color: T.text, fontFamily: FONT.mono }}>{int(atual.pecasTotal)}</strong>
         {" de "}
-        <span style={{ fontFamily: "'DM Mono', monospace" }}>{int(contagens.totalFunil)}</span>
+        <span style={{ fontFamily: FONT.mono }}>{int(contagens.totalFunil)}</span>
         {" peças"}
       </span>
 
-      <button
-        type="button"
+      {/* Limpar não é destrutivo (só desfaz o recorte): secundário, não perigo.
+          Apagado, o MOTIVO fica escrito ao lado — não só no title, que no
+          celular não existe. 44 no toque: é o desfazer da faixa inteira. */}
+      <Botao
+        tamanho={isMobile ? "toque" : "sm"}
+        icone={X}
         onClick={limparFiltros}
         disabled={filtrosAtivos === 0}
+        motivo={filtrosAtivos === 0 ? "Nenhum filtro aplicado" : undefined}
+        alinharMotivo="end"
         data-testid="btn-clear-filters"
         title={filtrosAtivos > 0 ? "Remover todos os filtros" : "Não há filtro aplicado"}
-        style={{
-          display: "inline-flex", alignItems: "center", gap: 5,
-          // 44 no toque (era 34): é o desfazer da faixa inteira no celular.
-          height: isMobile ? 44 : 28, padding: "0 10px", borderRadius: 7,
-          marginLeft: isMobile ? "auto" : 0,
-          backgroundColor: filtrosAtivos > 0 ? "#fef2f2" : "transparent",
-          border: `1px solid ${filtrosAtivos > 0 ? "#fecaca" : T.bdark}`,
-          color: filtrosAtivos > 0 ? RUIM : RESUMO_APAGADO,
-          fontSize: FS.micro, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.06em",
-          cursor: filtrosAtivos > 0 ? "pointer" : "default",
-          whiteSpace: "nowrap", flexShrink: 0,
-        }}
+        style={{ marginLeft: isMobile ? "auto" : 0, flexShrink: 0 }}
       >
-        <X aria-hidden="true" style={{ width: 11, height: 11 }} />
         Limpar tudo
-      </button>
+      </Botao>
     </div>
   );
 
   if (isError) {
-    return (
+    // O <EstadoErro> da casa: diz o que falhou e oferece tentar de novo.
+    // Enquanto tenta, a frase de apoio diz isso — o botão continua no lugar.
+    return naRaiz(
       <div style={{ backgroundColor: T.bg, height: "100%", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
-        <div role="alert" style={{ backgroundColor: T.surface, border: "1px solid #fecaca", borderRadius: R.lg, padding: "56px 32px", textAlign: "center", maxWidth: 480 }}>
-          <h1 style={{ color: RUIM, fontSize: 16, fontWeight: 700, marginBottom: 6 }}>Não foi possível carregar as análises</h1>
-          <p style={{ color: T.second, fontSize: FS.body, marginBottom: 20, lineHeight: 1.5 }}>
-            Sem uma das três fontes (eventos, peças, patrocinadores) todo número desta tela mudaria de significado —
-            por isso nada é exibido pela metade.
-          </p>
-          <button onClick={retryAll} data-testid="button-retry-analises" disabled={isFetching}
-            style={{ display: "inline-flex", alignItems: "center", gap: 8, fontSize: FS.body, fontWeight: 700, color: "#fff", background: T.dark, border: "none", borderRadius: R.md, padding: "9px 20px", cursor: isFetching ? "default" : "pointer", opacity: isFetching ? 0.7 : 1 }}>
-            {isFetching && <RotateCcw aria-hidden="true" className="animate-spin" style={{ width: 13, height: 13 }} />}
-            {isFetching ? "Tentando…" : "Tentar novamente"}
-          </button>
+        <div style={{ maxWidth: 480, width: "100%" }}>
+          <EstadoErro
+            titulo="Não foi possível carregar as análises"
+            detalhe={isFetching
+              ? "Tentando de novo…"
+              : "Sem uma das três fontes (eventos, peças, patrocinadores) todo número desta tela mudaria de significado — por isso nada é exibido pela metade."}
+            aoTentarDeNovo={retryAll}
+          />
         </div>
       </div>
     );
@@ -1077,24 +1074,25 @@ export default function DashboardAnalises() {
   // inteira e a tabela de ofensores. Um esqueleto que não bate com o layout
   // provoca um salto no primeiro paint.
   if (isLoading) {
-    return (
+    return naRaiz(
       <div style={{ backgroundColor: T.bg, height: "100%", overflowY: "auto", padding: PADDING_PAGINA(isMobile) }} role="status" aria-busy="true">
         {/* Texto de verdade, não `aria-label`: num <div> sem papel o rótulo não
             era lido, e a carga passava em silêncio para o leitor de tela. Mesma
             solução do esqueleto da Gestão de Prazos. */}
         <span className="sr-only">Carregando análises…</span>
-        <div className="animate-pulse" style={{ width: 240, height: 24, borderRadius: 4, backgroundColor: "#e7e5e4", marginBottom: 10 }} />
-        <div className="animate-pulse" style={{ width: 420, maxWidth: "90%", height: 12, borderRadius: 4, backgroundColor: T.low, marginBottom: SP.bloco }} />
+        <div className="animate-pulse" style={{ width: 240, height: 24, borderRadius: R.sm, backgroundColor: T.border, marginBottom: 10 }} />
+        <div className="animate-pulse" style={{ width: 420, maxWidth: "90%", height: 12, borderRadius: R.sm, backgroundColor: T.low, marginBottom: SP.bloco }} />
         {/* A silhueta acompanha a faixa nova: uma linha de gatilhos, não o card
             de duas linhas de antes — um esqueleto com a altura errada devolve o
             salto que ele existe para evitar. */}
         <div className="animate-pulse" style={{ height: 62, borderRadius: R.lg, backgroundColor: T.low, border: `1px solid ${T.border}`, marginBottom: SP.junto }} />
-        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(4, 1fr)", gap: 16, marginBottom: SP.secao }}>
+        <div style={{ display: "grid", gridTemplateColumns: apertado ? "repeat(2, 1fr)" : "repeat(4, 1fr)", gap: 16, marginBottom: SP.secao }}>
           {[0, 1, 2, 3].map((i) => (
-            <div key={i} style={{ backgroundColor: T.surface, borderLeft: `4px solid ${T.border}`, padding: "18px 20px 16px", boxShadow: SHADOW.sm }}>
-              <div className="animate-pulse" style={{ width: "75%", height: 10, borderRadius: 4, backgroundColor: T.low, marginBottom: 12 }} />
-              <div className="animate-pulse" style={{ width: "50%", height: 24, borderRadius: 4, backgroundColor: "#e7e5e4", marginBottom: 12 }} />
-              <div className="animate-pulse" style={{ width: "90%", height: 9, borderRadius: 4, backgroundColor: T.low }} />
+            // A silhueta do <CartaoKpi>: mesma borda, raio e respiro.
+            <div key={i} style={{ backgroundColor: T.surface, border: `1px solid ${T.border}`, borderRadius: R.lg, padding: "14px 16px" }}>
+              <div className="animate-pulse" style={{ width: "75%", height: 10, borderRadius: R.sm, backgroundColor: T.low, marginBottom: 12 }} />
+              <div className="animate-pulse" style={{ width: "50%", height: 24, borderRadius: R.sm, backgroundColor: T.border, marginBottom: 12 }} />
+              <div className="animate-pulse" style={{ width: "90%", height: 9, borderRadius: R.sm, backgroundColor: T.low }} />
             </div>
           ))}
         </div>
@@ -1104,48 +1102,54 @@ export default function DashboardAnalises() {
     );
   }
 
-  return (
+  return naRaiz(
     <div style={{ backgroundColor: T.bg, height: "100%", overflowY: "auto", padding: PADDING_PAGINA(isMobile) }}>
 
-      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: SP.bloco, gap: 16, flexWrap: "wrap" }}>
+      {/* Cabeçalho da casa: o ESTADO do dado (frescor) fica colado ao título e a
+          ação (exportar) à direita. A frase de escopo, com os dois links, desce
+          para a linha de baixo — é explicação, não estado. */}
+      <CabecalhoDaPagina
+        titulo="Análises"
+        frescor={
+          <span
+            data-testid="selo-frescor-analises"
+            title={`Dados de ${new Date(atualizadoEmMs).toLocaleString("pt-BR")}. A tela se atualiza sozinha quando alguém muda uma peça ou evento, ao voltar para a aba e, por segurança, a cada 5 minutos.`}
+            style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: FS.small, color: dadoVelho ? TOM.alerta.text : T.second, fontWeight: dadoVelho ? FW.forte : 400 }}
+          >
+            {isFetching && <RotateCcw aria-hidden="true" className="animate-spin" style={{ width: 11, height: 11 }} />}
+            Atualizado {fmtRelative(new Date(atualizadoEmMs).toISOString(), agora)}
+          </span>
+        }
+        acoes={
+          <Botao
+            icone={Download}
+            tamanho={isMobile ? "toque" : "md"}
+            onClick={exportarCsv}
+            data-testid="button-export-analises"
+            title="Baixar os números desta tela em CSV, com os filtros aplicados"
+          >
+            Exportar CSV
+          </Botao>
+        }
+      />
+      <div style={{ marginTop: -8, marginBottom: SP.bloco }}>
         <div style={{ minWidth: 0 }}>
-          <h1 style={{ fontSize: FS.h1, fontWeight: 700, color: T.text, margin: 0, fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.03em", lineHeight: 1.1 }}>
-            Análises
-          </h1>
-          <p style={{ fontSize: FS.small, color: T.second, margin: `${SP.intra}px 0 0`, maxWidth: 680, lineHeight: 1.5 }}>
-            O passado e o futuro da operação: desempenho dos <strong style={{ fontWeight: 700 }}>ciclos já encerrados</strong> e a
+          <p style={{ fontSize: FS.small, color: T.second, margin: 0, maxWidth: 680, lineHeight: 1.5 }}>
+            O passado e o futuro da operação: desempenho dos <strong style={{ fontWeight: FW.forte }}>ciclos já encerrados</strong> e a
             carga que ainda vai vencer. O que está em andamento hoje fica no{" "}
             {/* Os dois nomes eram texto morto: a frase apontava o destino e
                 obrigava a pessoa a achá-lo no menu. Viram links, com a mesma
                 navegação SPA do resto da tela (setLocation). */}
             <a href="/" onClick={(e) => { e.preventDefault(); setLocation("/"); }} data-testid="link-analises-painel"
-              style={{ color: ACCENT_TEXT, fontWeight: 700, textDecoration: "underline", textUnderlineOffset: 2 }}>Painel Geral</a>
+              style={{ color: ACCENT_TEXT, fontWeight: FW.forte, textDecoration: "underline", textUnderlineOffset: 2 }}>Painel Geral</a>
             {" "}e na{" "}
             <a href="/prazos" onClick={(e) => { e.preventDefault(); setLocation("/prazos"); }} data-testid="link-analises-prazos"
-              style={{ color: ACCENT_TEXT, fontWeight: 700, textDecoration: "underline", textUnderlineOffset: 2 }}>Gestão de Prazos</a>.
+              style={{ color: ACCENT_TEXT, fontWeight: FW.forte, textDecoration: "underline", textUnderlineOffset: 2 }}>Gestão de Prazos</a>.
           </p>
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 12, flexShrink: 0 }}>
-          <span
-            data-testid="selo-frescor-analises"
-            title={`Dados de ${new Date(atualizadoEmMs).toLocaleString("pt-BR")}. A tela se atualiza sozinha quando alguém muda uma peça ou evento, ao voltar para a aba e, por segurança, a cada 5 minutos.`}
-            style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: FS.small, color: dadoVelho ? "#b45309" : T.second, fontWeight: dadoVelho ? 700 : 400 }}
-          >
-            {isFetching && <RotateCcw aria-hidden="true" className="animate-spin" style={{ width: 11, height: 11 }} />}
-            Atualizado {fmtRelative(new Date(atualizadoEmMs).toISOString(), agora)}
-          </span>
-          <button
-            onClick={exportarCsv}
-            data-testid="button-export-analises"
-            title="Baixar os números desta tela em CSV, com os filtros aplicados"
-            style={{ display: "flex", alignItems: "center", gap: 7, height: isMobile ? 44 : 36, padding: "0 14px", background: T.surface, border: `1px solid ${T.bdark}`, borderRadius: R.md, cursor: "pointer", fontSize: 11, fontWeight: 800, color: T.text, textTransform: "uppercase", letterSpacing: "0.08em" }}
-          >
-            <Download aria-hidden="true" style={{ width: 14, height: 14 }} /> Exportar CSV
-          </button>
         </div>
       </div>
 
-      {/* Faixa em #f3f4f3, e não branca: o cinza separa CONTROLE de RESULTADO
+      {/* Faixa em T.low, e não branca: o cinza separa CONTROLE de RESULTADO
           à primeira olhada — daqui para baixo, tudo o que é branco é número.
           Uma linha só, com a altura de um gatilho: o card anterior gastava
           ~110px (rótulo em caixa alta + gatilho + folga larga) mais um
@@ -1178,7 +1182,7 @@ export default function DashboardAnalises() {
 
       <section aria-labelledby="h-desempenho" style={{ marginBottom: SP.secao }}>
         <h2 id="h-desempenho" className="sr-only">Indicadores do período</h2>
-        <dl style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(4, 1fr)", gap: 16, margin: 0 }}>
+        <div style={{ display: "grid", gridTemplateColumns: apertado ? "repeat(2, 1fr)" : "repeat(4, 1fr)", gap: 16, margin: 0 }}>
           {kpis.map((k) => (
             <KpiAnalise
               key={k.testId}
@@ -1195,7 +1199,7 @@ export default function DashboardAnalises() {
               isMobile={isMobile}
             />
           ))}
-        </dl>
+        </div>
         {/* A ressalva pertence aos KPIs: fica a um degrau de distância deles
             (SP.junto) e a um degrau inteiro do próximo assunto (SP.secao).
             Aqui também moram as duas frases de método que saíram da linha de
@@ -1203,12 +1207,12 @@ export default function DashboardAnalises() {
             outros avisos de denominador, não repetidas ao lado de um gatilho
             que já diz o período. */}
         <p style={{ fontSize: FS.micro, color: T.second, margin: `${SP.junto}px 0 0`, lineHeight: 1.5, maxWidth: 900 }}>
-          O período recorta pela <strong style={{ fontWeight: 700 }}>saída do caminhão já ocorrida</strong> (ciclo encerrado),
+          O período recorta pela <strong style={{ fontWeight: FW.forte }}>saída do caminhão já ocorrida</strong> (ciclo encerrado),
           não pela data em que a peça foi criada. Canceladas e excluídas não entram em nenhuma conta desta tela.
           {" "}Comparação contra a janela imediatamente anterior, do mesmo tamanho.
           {atual.prazoSemData > 0 && ` ${int(atual.prazoSemData)} peças entregues sem data registrada ficam fora da taxa de prazo.`}
           {atual.complementoPecas > 0 && ` ${int(atual.complementoPecas)} peças do recorte são complementos (quantidade extra pedida depois da produção).`}
-          {" "}Retrabalho é <strong style={{ fontWeight: 700 }}>piso</strong>: conta refação registrada (arquivo final ou layout substituído) e reprovação ainda em aberto — o histórico completo só existe na trilha de auditoria.
+          {" "}Retrabalho é <strong style={{ fontWeight: FW.forte }}>piso</strong>: conta refação registrada (arquivo final ou layout substituído) e reprovação ainda em aberto — o histórico completo só existe na trilha de auditoria.
         </p>
       </section>
 
@@ -1218,28 +1222,28 @@ export default function DashboardAnalises() {
             colava no parágrafo, que é de outro assunto. */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", columnGap: 16, rowGap: SP.junto, flexWrap: "wrap", marginBottom: SP.bloco }}>
           <div style={{ minWidth: 0 }}>
-            <h2 id="h-carga" style={{ fontSize: FS.title, fontWeight: 700, color: T.text, margin: `0 0 ${SP.intra}px`, fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.02em", fontStyle: "italic" }}>
+            <h2 id="h-carga" style={{ fontSize: FS.title, fontWeight: FW.forte, color: T.text, margin: `0 0 ${SP.intra}px`, fontFamily: FONT.display, letterSpacing: "-0.02em", fontStyle: "italic" }}>
               Capacidade × Demanda
             </h2>
             <p style={{ fontSize: FS.small, color: T.second, margin: 0, lineHeight: 1.45, maxWidth: 640 }}>
-              m² que <strong style={{ fontWeight: 700 }}>vencem</strong> por semana (pela saída do caminhão) contra m² que a gráfica
-              <strong style={{ fontWeight: 700 }}> concluiu</strong>. 12 semanas para trás e 8 para a frente — à direita da linha
+              m² que <strong style={{ fontWeight: FW.forte }}>vencem</strong> por semana (pela saída do caminhão) contra m² que a gráfica
+              <strong style={{ fontWeight: FW.forte }}> concluiu</strong>. 12 semanas para trás e 8 para a frente — à direita da linha
               é previsto, ainda não aconteceu.
             </p>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
             <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
               <span style={{ width: 10, height: 10, backgroundColor: ACCENT_TEXT }} />
-              <span style={{ fontSize: 10, fontWeight: 900, color: T.text, textTransform: "uppercase", letterSpacing: "0.12em" }}>Vence</span>
+              <span style={{ fontSize: FS.micro, fontWeight: FW.rotulo, color: T.text, textTransform: "uppercase", letterSpacing: "0.12em" }}>Vence</span>
             </span>
             <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
               <span style={{ width: 10, height: 10, backgroundColor: T.dark }} />
-              <span style={{ fontSize: 10, fontWeight: 900, color: T.text, textTransform: "uppercase", letterSpacing: "0.12em" }}>Concluído</span>
+              <span style={{ fontSize: FS.micro, fontWeight: FW.rotulo, color: T.text, textTransform: "uppercase", letterSpacing: "0.12em" }}>Concluído</span>
             </span>
             {temMedia && (
               <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
                 <span style={{ width: 14, height: 2, backgroundColor: GRAFICO_NEUTRO }} />
-                <span style={{ fontSize: 10, fontWeight: 900, color: T.text, textTransform: "uppercase", letterSpacing: "0.12em" }}>Média concluída</span>
+                <span style={{ fontSize: FS.micro, fontWeight: FW.rotulo, color: T.text, textTransform: "uppercase", letterSpacing: "0.12em" }}>Média concluída</span>
               </span>
             )}
           </div>
@@ -1261,34 +1265,36 @@ export default function DashboardAnalises() {
                 style={{
                   display: "flex", gap: 10, alignItems: "flex-start", marginBottom: 12,
                   padding: "10px 12px", borderRadius: R.sm,
-                  backgroundColor: semanasQueEstouram.length > 0 ? "#fffbeb" : "#f0fdf4",
-                  border: `1px solid ${semanasQueEstouram.length > 0 ? "#fde68a" : "#bbf7d0"}`,
+                  backgroundColor: semanasQueEstouram.length > 0 ? TOM.alerta.bg : TOM.sucesso.bg,
+                  border: `1px solid ${semanasQueEstouram.length > 0 ? TOM.alerta.border : TOM.sucesso.border}`,
                 }}>
                 {semanasQueEstouram.length > 0
-                  ? <AlertTriangle aria-hidden="true" style={{ width: 15, height: 15, color: "#b45309", flexShrink: 0, marginTop: 1 }} />
-                  : <Check aria-hidden="true" style={{ width: 15, height: 15, color: "#15803d", flexShrink: 0, marginTop: 1 }} />}
+                  ? <AlertTriangle aria-hidden="true" style={{ width: 15, height: 15, color: TOM.alerta.text, flexShrink: 0, marginTop: 1 }} />
+                  : <Check aria-hidden="true" style={{ width: 15, height: 15, color: TOM.sucesso.text, flexShrink: 0, marginTop: 1 }} />}
                 <div style={{ minWidth: 0 }}>
                   {semanasQueEstouram.length > 0 ? (
                     <>
-                      {/* #78350f sobre #fffbeb = 9,4:1 */}
-                      <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: "#78350f", lineHeight: 1.35 }}>
+                      {/* TOM.alerta.text sobre TOM.alerta.bg = 4,8:1 — por isso a
+                          segunda linha NÃO leva mais opacidade: a 85% ela
+                          cairia abaixo de 4,5. A hierarquia fica no peso. */}
+                      <p style={{ margin: 0, fontSize: FS.body, fontWeight: FW.forte, color: TOM.alerta.text, lineHeight: 1.35 }}>
                         {semanasQueEstouram.length === 1
                           ? "1 semana prevista passa da capacidade: "
                           : `${semanasQueEstouram.length} semanas previstas passam da capacidade: `}
                         {semanasQueEstouram.map((d) => d.label).join(", ")}
                       </p>
-                      <p style={{ margin: "3px 0 0", fontSize: 11, color: "#78350f", opacity: 0.85, lineHeight: 1.45 }}>
+                      <p style={{ margin: "3px 0 0", fontSize: FS.small, color: TOM.alerta.text, lineHeight: 1.45 }}>
                         Somam {int(excedenteTotal)} m² acima da média de {int(carga.mediaConcluidoM2 as number)} m² por semana.
                         {" "}Antecipar produção nas semanas vizinhas é mais barato que estourar o prazo.
                       </p>
                     </>
                   ) : (
                     <>
-                      {/* #14532d sobre #f0fdf4 = 10,4:1 */}
-                      <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: "#14532d", lineHeight: 1.35 }}>
+                      {/* TOM.sucesso.text sobre TOM.sucesso.bg = 4,8:1, sem opacidade. */}
+                      <p style={{ margin: 0, fontSize: FS.body, fontWeight: FW.forte, color: TOM.sucesso.text, lineHeight: 1.35 }}>
                         Nenhuma semana prevista passa da capacidade
                       </p>
-                      <p style={{ margin: "3px 0 0", fontSize: 11, color: "#14532d", opacity: 0.85, lineHeight: 1.45 }}>
+                      <p style={{ margin: "3px 0 0", fontSize: FS.small, color: TOM.sucesso.text, lineHeight: 1.45 }}>
                         {semanasFuturas === 1 ? "A semana à frente cabe" : `As ${semanasFuturas} semanas à frente cabem`}
                         {" "}na média de {int(carga.mediaConcluidoM2 as number)} m² por semana.
                       </p>
@@ -1308,7 +1314,7 @@ export default function DashboardAnalises() {
                 primeiraFutura={primeiraFutura}
                 ultimaLabel={ultimaLabel}
                 semanaAtualLabel={semanaAtualLabel}
-                isMobile={isMobile}
+                apertado={apertado}
               />
             </figure>
             <table className="sr-only">
@@ -1336,7 +1342,7 @@ export default function DashboardAnalises() {
         )}
 
         <p style={{ fontSize: FS.micro, color: T.second, margin: `${SP.junto}px 0 0`, lineHeight: 1.5 }}>
-          Janela fixa: <strong style={{ fontWeight: 700 }}>não segue o filtro de período</strong> — um bloco de planejamento que
+          Janela fixa: <strong style={{ fontWeight: FW.forte }}>não segue o filtro de período</strong> — um bloco de planejamento que
           encolhe com o recorte esconderia o pico que ele existe para antecipar. Segue os filtros de evento e patrocinador.
           {temMedia
             ? ` Linha tracejada: ${m2(carga.mediaConcluidoM2)} por semana, média das ${carga.semanasNaMedia} semanas passadas — a régua do que a casa costuma dar conta.`
@@ -1364,12 +1370,12 @@ export default function DashboardAnalises() {
       {tempo && (
         <section aria-labelledby="h-tempo" style={{ backgroundColor: T.surface, border: `1px solid ${T.bdark}`, padding: isMobile ? "20px 16px" : "24px 28px 20px", marginBottom: SP.secao }}>
           <div style={{ marginBottom: SP.bloco }}>
-            <h2 id="h-tempo" style={{ fontSize: FS.title, fontWeight: 700, color: T.text, margin: `0 0 ${SP.intra}px`, fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.02em", fontStyle: "italic" }}>
+            <h2 id="h-tempo" style={{ fontSize: FS.title, fontWeight: FW.forte, color: T.text, margin: `0 0 ${SP.intra}px`, fontFamily: FONT.display, letterSpacing: "-0.02em", fontStyle: "italic" }}>
               Tempo por etapa
             </h2>
             <p style={{ fontSize: FS.small, color: T.second, margin: 0, lineHeight: 1.45, maxWidth: 700 }}>
               Quanto tempo a peça fica parada em cada etapa, pela trilha de auditoria, contra o que os
-              marcos do evento planejavam para ela. <strong style={{ fontWeight: 700 }}>Mediana</strong>, não média —
+              marcos do evento planejavam para ela. <strong style={{ fontWeight: FW.forte }}>Mediana</strong>, não média —
               uma peça esquecida distorce a média da operação inteira.
               {piorEtapa
                 ? ` Onde mais se perde tempo hoje: ${piorEtapa.label}.`
@@ -1384,12 +1390,12 @@ export default function DashboardAnalises() {
               </caption>
               <thead>
                 <tr style={{ backgroundColor: T.low }}>
-                  <th scope="col" style={{ textAlign: "left", padding: "9px 12px", fontSize: 10, fontWeight: 900, color: T.second, textTransform: "uppercase", letterSpacing: "0.12em", borderBottom: `1px solid ${T.bdark}` }}>Etapa</th>
-                  <th scope="col" style={{ textAlign: "right", padding: "9px 12px", fontSize: 10, fontWeight: 900, color: T.second, textTransform: "uppercase", letterSpacing: "0.12em", borderBottom: `1px solid ${T.bdark}` }}>Permanência</th>
-                  <th scope="col" style={{ textAlign: "right", padding: "9px 12px", fontSize: 10, fontWeight: 900, color: T.second, textTransform: "uppercase", letterSpacing: "0.12em", borderBottom: `1px solid ${T.bdark}` }}>Planejado</th>
-                  <th scope="col" style={{ textAlign: "left", padding: "9px 12px", fontSize: 10, fontWeight: 900, color: T.second, textTransform: "uppercase", letterSpacing: "0.12em", borderBottom: `1px solid ${T.bdark}` }}>Diferença</th>
-                  <th scope="col" style={{ textAlign: "right", padding: "9px 12px", fontSize: 10, fontWeight: 900, color: T.second, textTransform: "uppercase", letterSpacing: "0.12em", borderBottom: `1px solid ${T.bdark}` }}>Peças medidas</th>
-                  <th scope="col" style={{ textAlign: "right", padding: "9px 12px", fontSize: 10, fontWeight: 900, color: T.second, textTransform: "uppercase", letterSpacing: "0.12em", borderBottom: `1px solid ${T.bdark}` }}>Paradas hoje</th>
+                  <th scope="col" style={{ textAlign: "left", padding: "9px 12px", fontSize: FS.micro, fontWeight: FW.rotulo, color: T.second, textTransform: "uppercase", letterSpacing: "0.12em", borderBottom: `1px solid ${T.bdark}` }}>Etapa</th>
+                  <th scope="col" style={{ textAlign: "right", padding: "9px 12px", fontSize: FS.micro, fontWeight: FW.rotulo, color: T.second, textTransform: "uppercase", letterSpacing: "0.12em", borderBottom: `1px solid ${T.bdark}` }}>Permanência</th>
+                  <th scope="col" style={{ textAlign: "right", padding: "9px 12px", fontSize: FS.micro, fontWeight: FW.rotulo, color: T.second, textTransform: "uppercase", letterSpacing: "0.12em", borderBottom: `1px solid ${T.bdark}` }}>Planejado</th>
+                  <th scope="col" style={{ textAlign: "left", padding: "9px 12px", fontSize: FS.micro, fontWeight: FW.rotulo, color: T.second, textTransform: "uppercase", letterSpacing: "0.12em", borderBottom: `1px solid ${T.bdark}` }}>Diferença</th>
+                  <th scope="col" style={{ textAlign: "right", padding: "9px 12px", fontSize: FS.micro, fontWeight: FW.rotulo, color: T.second, textTransform: "uppercase", letterSpacing: "0.12em", borderBottom: `1px solid ${T.bdark}` }}>Peças medidas</th>
+                  <th scope="col" style={{ textAlign: "right", padding: "9px 12px", fontSize: FS.micro, fontWeight: FW.rotulo, color: T.second, textTransform: "uppercase", letterSpacing: "0.12em", borderBottom: `1px solid ${T.bdark}` }}>Paradas hoje</th>
                 </tr>
               </thead>
               <tbody>
@@ -1397,22 +1403,22 @@ export default function DashboardAnalises() {
                   const dif = diferencaContraPlano(e);
                   return (
                     <tr key={e.key} data-testid={`tempo-etapa-${e.key}`} style={{ borderBottom: `1px solid ${T.border}` }}>
-                      <th scope="row" style={{ textAlign: "left", padding: "11px 12px", fontSize: FS.body, fontWeight: 700, color: T.text }}>
+                      <th scope="row" style={{ textAlign: "left", padding: "11px 12px", fontSize: FS.body, fontWeight: FW.forte, color: T.text }}>
                         {e.label}
                       </th>
-                      <td style={{ textAlign: "right", padding: "11px 12px", fontSize: FS.body, fontWeight: 700, color: T.text, fontFamily: "'DM Mono', monospace" }}>
+                      <td style={{ textAlign: "right", padding: "11px 12px", fontSize: FS.body, fontWeight: FW.forte, color: T.text, fontFamily: FONT.mono }}>
                         {dias(e.medianaDias)}
                       </td>
-                      <td style={{ textAlign: "right", padding: "11px 12px", fontSize: FS.body, color: T.second, fontFamily: "'DM Mono', monospace" }}>
+                      <td style={{ textAlign: "right", padding: "11px 12px", fontSize: FS.body, color: T.second, fontFamily: FONT.mono }}>
                         {e.planejadoDias == null ? "sem marco anterior" : dias(e.planejadoDias)}
                       </td>
-                      <td style={{ textAlign: "left", padding: "11px 12px", fontSize: FS.small, fontWeight: 700, color: dif ? CORES_TOM[dif.tom] : T.second }}>
+                      <td style={{ textAlign: "left", padding: "11px 12px", fontSize: FS.small, fontWeight: FW.forte, color: dif ? CORES_TOM[dif.tom] : T.second }}>
                         {dif ? dif.texto : "—"}
                       </td>
-                      <td style={{ textAlign: "right", padding: "11px 12px", fontSize: FS.small, color: T.second, fontFamily: "'DM Mono', monospace" }}>
+                      <td style={{ textAlign: "right", padding: "11px 12px", fontSize: FS.small, color: T.second, fontFamily: FONT.mono }}>
                         {int(e.pecas)}
                       </td>
-                      <td style={{ textAlign: "right", padding: "11px 12px", fontSize: FS.small, color: T.second, fontFamily: "'DM Mono', monospace" }}>
+                      <td style={{ textAlign: "right", padding: "11px 12px", fontSize: FS.small, color: T.second, fontFamily: FONT.mono }}>
                         {int(e.emAberto)}
                       </td>
                     </tr>
@@ -1434,7 +1440,7 @@ export default function DashboardAnalises() {
         <div style={{ padding: isMobile ? "20px 16px 16px" : "24px 28px 16px", borderBottom: `1px solid ${T.low}` }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", columnGap: 16, rowGap: SP.junto, flexWrap: "wrap" }}>
             <div style={{ minWidth: 0 }}>
-              <h2 id="h-ofensores" style={{ fontSize: FS.title, fontWeight: 700, color: T.text, margin: `0 0 ${SP.intra}px`, fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.02em", fontStyle: "italic" }}>
+              <h2 id="h-ofensores" style={{ fontSize: FS.title, fontWeight: FW.forte, color: T.text, margin: `0 0 ${SP.intra}px`, fontFamily: FONT.display, letterSpacing: "-0.02em", fontStyle: "italic" }}>
                 Ofensores
               </h2>
               <p style={{ fontSize: FS.small, color: T.second, margin: 0, lineHeight: 1.45 }}>
@@ -1442,25 +1448,17 @@ export default function DashboardAnalises() {
                 {" "}{DIMENSOES.find((d) => d.value === dim)?.destino}.
               </p>
             </div>
-            <div role="group" aria-label="Dimensão da tabela" style={{ display: "flex", border: `1px solid ${T.bdark}`, borderRadius: R.sm, overflow: "hidden", flexShrink: 0 }}>
-              {DIMENSOES.map((d) => (
-                <button
-                  key={d.value}
-                  onClick={() => setDim(d.value)}
-                  aria-pressed={dim === d.value}
-                  data-testid={`dim-${d.value}`}
-                  style={{
-                    // ~28px de altura: no toque sobe para 44 (a régua da casa); no desktop
-                    // o segmentado fica como estava.
-                    padding: "7px 13px", border: "none", cursor: "pointer", minHeight: isMobile ? 44 : undefined,
-                    backgroundColor: dim === d.value ? T.dark : T.surface,
-                    color: dim === d.value ? "#fff" : T.second,
-                    fontSize: 10, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.1em",
-                  }}
-                >
-                  {d.label}
-                </button>
-              ))}
+            {/* Segmentado da casa: troca a FORMA de agrupar a mesma tabela.
+                O prefixo mantém os testids `dim-<valor>`. */}
+            <div style={{ flexShrink: 0 }}>
+              <Segmentado
+                rotuloDaLista="Dimensão da tabela"
+                prefixoDeTestId="dim"
+                tamanho={isMobile ? "md" : "sm"}
+                ativo={dim}
+                aoTrocar={(v) => setDim(v as OfensorDim)}
+                itens={DIMENSOES.map((d) => ({ id: d.value, rotulo: d.label }))}
+              />
             </div>
           </div>
         </div>
@@ -1481,7 +1479,7 @@ export default function DashboardAnalises() {
             <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 780 }}>
               <thead>
                 <tr style={{ backgroundColor: T.low }}>
-                  <th scope="col" style={{ position: "sticky" as const, top: -PADDING_TOPO(isMobile), zIndex: 2, backgroundColor: T.low, padding: "11px 20px", fontSize: 10, fontWeight: 900, color: T.second, textTransform: "uppercase", letterSpacing: "0.14em", textAlign: "left" }}>
+                  <th scope="col" style={{ position: "sticky" as const, top: -PADDING_TOPO(isMobile), zIndex: 2, backgroundColor: T.low, padding: "11px 20px", fontSize: FS.micro, fontWeight: FW.rotulo, color: T.second, textTransform: "uppercase", letterSpacing: "0.14em", textAlign: "left" }}>
                     {DIMENSOES.find((d) => d.value === dim)?.label}
                   </th>
                   {ORDENS.map((o) => (
@@ -1497,7 +1495,7 @@ export default function DashboardAnalises() {
                         title={`Ordenar por ${o.label.toLowerCase()}`}
                         style={{
                           width: "100%", padding: "11px 20px", background: "none", border: "none", cursor: "pointer",
-                          fontSize: 10, fontWeight: 900, letterSpacing: "0.14em", textTransform: "uppercase",
+                          fontSize: FS.micro, fontWeight: FW.rotulo, letterSpacing: "0.14em", textTransform: "uppercase",
                           textAlign: "right", color: ordem === o.value ? ACCENT_TEXT : T.second,
                         }}
                       >
@@ -1505,7 +1503,7 @@ export default function DashboardAnalises() {
                       </button>
                     </th>
                   ))}
-                  <th scope="col" style={{ position: "sticky" as const, top: -PADDING_TOPO(isMobile), zIndex: 2, backgroundColor: T.low, padding: "11px 20px", fontSize: 10, fontWeight: 900, color: T.second, textTransform: "uppercase", letterSpacing: "0.14em", textAlign: "right" }}>
+                  <th scope="col" style={{ position: "sticky" as const, top: -PADDING_TOPO(isMobile), zIndex: 2, backgroundColor: T.low, padding: "11px 20px", fontSize: FS.micro, fontWeight: FW.rotulo, color: T.second, textTransform: "uppercase", letterSpacing: "0.14em", textAlign: "right" }}>
                     Em aberto
                   </th>
                   <th scope="col" style={{ position: "sticky" as const, top: -PADDING_TOPO(isMobile), zIndex: 2, backgroundColor: T.low, width: 34 }}><span className="sr-only">Abrir</span></th>
@@ -1536,38 +1534,38 @@ export default function DashboardAnalises() {
                               e.stopPropagation();
                               setLocation(rota);
                             }}
-                            style={{ fontSize: FS.body, fontWeight: 700, color: T.text, textDecoration: "none" }}
+                            style={{ fontSize: FS.body, fontWeight: FW.forte, color: T.text, textDecoration: "none" }}
                           >
                             {o.label}
                           </a>
                         ) : (
-                          <span style={{ fontSize: FS.body, fontWeight: 700, color: T.second }}>{o.label}</span>
+                          <span style={{ fontSize: FS.body, fontWeight: FW.forte, color: T.second }}>{o.label}</span>
                         )}
-                        <span style={{ display: "block", fontSize: 10, color: T.second, marginTop: 3 }}>
+                        <span style={{ display: "block", fontSize: FS.micro, color: T.second, marginTop: 3 }}>
                           {int(o.pecas)} peças · {m2(o.m2)}
                         </span>
                       </td>
                       <td style={{ padding: "13px 20px", textAlign: "right" }}>
-                        <span style={{ fontFamily: "'DM Mono', monospace", fontSize: FS.small, fontWeight: 700, color: o.foraPrazo > 0 ? RUIM : T.text }}>
+                        <span style={{ fontFamily: FONT.mono, fontSize: FS.small, fontWeight: FW.forte, color: o.foraPrazo > 0 ? RUIM : T.text }}>
                           {o.prazoAvaliadas > 0 ? `${int(o.foraPrazo)} de ${int(o.prazoAvaliadas)}` : "—"}
                         </span>
-                        <span style={{ display: "block", fontSize: 10, color: T.second, marginTop: 3 }}>
+                        <span style={{ display: "block", fontSize: FS.micro, color: T.second, marginTop: 3 }}>
                           {o.prazoAvaliadas > 0 ? `${pct(o.prazoRate, 0)} no prazo` : "sem entrega avaliável"}
                         </span>
                       </td>
                       <td style={{ padding: "13px 20px", textAlign: "right" }}>
-                        <span style={{ fontFamily: "'DM Mono', monospace", fontSize: FS.small, fontWeight: 700, color: o.retrabalhoPecas > 0 ? ACCENT_TEXT : T.text }}>
+                        <span style={{ fontFamily: FONT.mono, fontSize: FS.small, fontWeight: FW.forte, color: o.retrabalhoPecas > 0 ? ACCENT_TEXT : T.text }}>
                           {int(o.retrabalhoPecas)} de {int(o.pecas)}
                         </span>
-                        <span style={{ display: "block", fontSize: 10, color: T.second, marginTop: 3 }}>{pct(o.retrabalhoRate, 0)}</span>
+                        <span style={{ display: "block", fontSize: FS.micro, color: T.second, marginTop: 3 }}>{pct(o.retrabalhoRate, 0)}</span>
                       </td>
-                      <td style={{ padding: "13px 20px", textAlign: "right", fontFamily: "'DM Mono', monospace", fontSize: FS.small, fontWeight: 700, color: T.text }}>
+                      <td style={{ padding: "13px 20px", textAlign: "right", fontFamily: FONT.mono, fontSize: FS.small, fontWeight: FW.forte, color: T.text }}>
                         {dias(o.cicloMedianaDias)}
                       </td>
-                      <td style={{ padding: "13px 20px", textAlign: "right", fontFamily: "'DM Mono', monospace", fontSize: FS.small, fontWeight: 700, color: T.text }}>
+                      <td style={{ padding: "13px 20px", textAlign: "right", fontFamily: FONT.mono, fontSize: FS.small, fontWeight: FW.forte, color: T.text }}>
                         {m2(o.m2)}
                       </td>
-                      <td style={{ padding: "13px 20px", textAlign: "right", fontFamily: "'DM Mono', monospace", fontSize: FS.small, fontWeight: 700, color: T.text }}>
+                      <td style={{ padding: "13px 20px", textAlign: "right", fontFamily: FONT.mono, fontSize: FS.small, fontWeight: FW.forte, color: T.text }}>
                         {int(o.emAberto)}
                       </td>
                       <td style={{ padding: "13px 12px 13px 0" }}>
@@ -1582,7 +1580,7 @@ export default function DashboardAnalises() {
         )}
 
         {ofensores.length > 0 && (
-          <p style={{ padding: isMobile ? "12px 16px 18px" : "14px 28px 20px", fontSize: 10, color: T.second, margin: 0, lineHeight: 1.5 }}>
+          <p style={{ padding: isMobile ? "12px 16px 18px" : "14px 28px 20px", fontSize: FS.micro, color: T.second, margin: 0, lineHeight: 1.5 }}>
             {ofensores.length > 12 && `Mostrando as 12 primeiras de ${int(ofensores.length)} linhas — o CSV leva todas. `}
             "Fora do prazo" só considera peças entregues com data registrada, comparadas com a saída do caminhão do evento delas.
             {dim === "patrocinador" && " Uma peça com vários patrocinadores conta em cada linha, então a soma da coluna é maior que o total da tela."}

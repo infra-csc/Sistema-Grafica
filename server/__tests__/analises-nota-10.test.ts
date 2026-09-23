@@ -52,8 +52,15 @@ describe("1 · a variação diz quando é ruído", () => {
     expect(A).toContain("amostraAnterior: anterior?.prazoAvaliadas,");
   });
 
-  it("contraste do selo: #92400e sobre #fffbeb = 6,6:1", () => {
-    expect(A).toContain('color: "#92400e", backgroundColor: "#fffbeb", border: "1px solid #fde68a"');
+  it("contraste do selo: o <Selo> em alerta (TOM.alerta.text sobre o próprio bg, AA)", () => {
+    // Era o amber 800 cravado; virou o Selo da casa no tom de alerta, cujo
+    // `text` é AA sobre o `bg` por construção (lib/status.ts).
+    const i = A.indexOf("function SeloRuido(");
+    expect(i).toBeGreaterThan(-1);
+    const corpo = A.slice(i, i + 1200);
+    expect(corpo).toContain('tom="alerta"');
+    expect(corpo).toContain("amostra pequena · pode ser ruído");
+    expect(corpo).not.toMatch(/#[0-9a-fA-F]{6}/);
   });
 });
 
@@ -127,13 +134,22 @@ describe("3 · o gráfico aponta onde vai estourar", () => {
 
   it("o gráfico marca as MESMAS semanas que a faixa nomeia", () => {
     expect(A).toContain("const rotulosQueEstouram = new Set(semanasQueEstouram.map((d) => d.label));");
-    expect(A).toContain('stroke={rotulosQueEstouram.has(d.label) ? "#b45309" : "none"}');
+    // O anel é o `text` do alerta (#b45309): tom escuro o bastante para os 3:1
+    // de objeto gráfico — o `dot` âmbar não passaria.
+    expect(A).toContain('stroke={rotulosQueEstouram.has(d.label) ? TOM.alerta.text : "none"}');
     expect(A).toContain("strokeWidth={rotulosQueEstouram.has(d.label) ? 1.5 : 0}");
   });
 
-  it("contraste do texto miúdo: #78350f e #14532d", () => {
-    expect(A).toContain('color: "#78350f"');
-    expect(A).toContain('color: "#14532d"');
+  it("contraste do texto miúdo: tokens AA sobre o próprio fundo, sem opacidade por cima", () => {
+    // Os dois tons escuros cravados (#78350f, #14532d) viraram TOM.alerta.text
+    // e TOM.sucesso.text (≈4,8:1 sobre o próprio bg). A 85% de opacidade eles
+    // cairiam abaixo de 4,5 — por isso a faixa não pode voltar a ter opacity.
+    const i = A.indexOf('data-testid="faixa-estouro-capacidade"');
+    expect(i).toBeGreaterThan(-1);
+    const faixa = A.slice(i, i + 3500);
+    expect(faixa).toContain("color: TOM.alerta.text");
+    expect(faixa).toContain("color: TOM.sucesso.text");
+    expect(faixa).not.toContain("opacity: 0.85");
   });
 });
 

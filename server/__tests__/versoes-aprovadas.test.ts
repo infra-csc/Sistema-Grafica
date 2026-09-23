@@ -247,7 +247,9 @@ describe("4 · a tela", () => {
   it("abre pela exceção, e o acervo fica a um clique", () => {
     expect(PAGE).toContain('const f = inicial.get("foco");');
     expect(PAGE).toContain('return f === "todas" || f === "sem-patrocinador" ? f : "atencao";');
-    expect(PAGE).toContain("data-testid={`tab-versoes-${valor}`}");
+    // As abas são o <Abas> do design system; o prefixo mantém os testids
+    // `tab-versoes-<valor>` que os seletores já usavam.
+    expect(PAGE).toContain('prefixoDeTestId="tab-versoes"');
     for (const t of ['["atencao"', '["todas"', '["sem-patrocinador"', '["books"']) {
       expect(PAGE).toContain(t);
     }
@@ -301,7 +303,9 @@ describe("4 · a tela", () => {
   it("estados: esqueleto, erro com tentativa, vazio, e aviso para leitor de tela", () => {
     expect(PAGE).toContain('data-testid="skeleton-versoes"');
     expect(PAGE).toContain("function Esqueleto(");
-    expect(PAGE).toContain('data-testid="button-retry-versoes"');
+    // Erro com tentativa: o <EstadoErro> da casa traz o "Tentar de novo".
+    expect(PAGE).toContain("<EstadoErro");
+    expect(PAGE).toContain("aoTentarDeNovo={() => refetch()}");
     expect(PAGE).toContain('aria-live="polite"');
   });
 

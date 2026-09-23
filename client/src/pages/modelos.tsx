@@ -11,8 +11,12 @@ import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { FS, R, T, N, FW, FONT, TOM } from "@/lib/theme";
 import { useConfirmar } from "@/components/ui/usar-confirmar";
-import { EstadoVazio } from "@/components/ui/estados";
-import { useIsMobile } from "@/hooks/use-mobile";
+import { EstadoVazio, EstadoErro, Esqueleto } from "@/components/ui/estados";
+import { Botao } from "@/components/ui/botao";
+import { Abas } from "@/components/ui/abas";
+import { Selo } from "@/components/ui/selo";
+import { CabecalhoDaPagina } from "@/components/ui/cabecalho-da-pagina";
+import { useIsMobile, useDensidadeDoConteudo, usePonteiroGrosso, alvo } from "@/hooks/use-mobile";
 import { useFiltrosNaUrl, paginaValida } from "@/hooks/use-filtros-na-url";
 import { TIPOS_DE_PECA } from "@shared/molde";
 
@@ -42,60 +46,39 @@ function SearchableSelect({
       panelWidth={220}
       testId={testId}
       triggerStyle={{
-        height: 40, padding: "0 12px", fontSize: 12, fontWeight: 700, color: T.second,
+        height: 40, padding: "0 12px", fontSize: FS.meta, fontWeight: FW.forte, color: T.second,
         backgroundColor: T.surface, border: `1px solid ${T.border}`, borderRadius: R.md,
       }}
     />
   );
 }
 
-/* ── Desenho comum das telas de cadastro ──
-   Usuários, Patrocinadores, Modelos e Logs repetem estes controles com as
-   MESMAS medidas (40px de alvo, raio 8, rótulo 12/800 em caixa alta). Esta
-   tela era a que mais destoava: raio 12, botão de salvar LARANJA e busca no
-   cabeçalho. Copiado (e não importado) porque cada tela é dona do próprio
-   arquivo; se mudar aqui, mude nas outras três. */
-const BTN_PRIMARIO: React.CSSProperties = {
-  display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8,
-  height: 40, padding: "0 18px", backgroundColor: T.dark, color: T.surface,
-  border: "none", borderRadius: R.md, cursor: "pointer",
-  fontSize: 12, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em",
-  whiteSpace: "nowrap", transition: "background-color 0.15s ease",
-};
-const BTN_LIMPAR: React.CSSProperties = {
-  display: "inline-flex", alignItems: "center", gap: 6, height: 36, padding: "0 12px",
-  backgroundColor: TOM.perigo.bg, border: `1px solid ${TOM.perigo.border}`, borderRadius: R.md, cursor: "pointer",
-  fontSize: 11, fontWeight: 800, color: TOM.perigo.text, textTransform: "uppercase", letterSpacing: "0.06em", whiteSpace: "nowrap",
-};
+/* Os botões desta tela são o <Botao> do design system: os estilos BTN_* que
+   eram copiados entre Usuários, Patrocinadores, Modelos e Logs saíram daqui —
+   hover, foco e desabilitado passam a vir da classe .ds-botao. */
 
 /**
  * PAGINAÇÃO — janela de até 5 páginas em volta da atual, alvos de 32px (44 no
- * celular) e a página atual cheia em escuro. Some com uma página só.
+ * celular e no tablet de dedo) e a página atual cheia em escuro. Some com uma
+ * página só.
  */
 function Paginacao({ pagina, totalPaginas, onIr, toque }: { pagina: number; totalPaginas: number; onIr: (p: number) => void; toque: number }) {
   if (totalPaginas <= 1) return null;
   const inicio = Math.max(1, Math.min(pagina - 2, totalPaginas - 4));
   const paginas = Array.from({ length: Math.min(5, totalPaginas) }, (_, i) => inicio + i);
-  const base: React.CSSProperties = {
-    minWidth: toque, height: toque, padding: "0 6px", display: "inline-flex", alignItems: "center", justifyContent: "center",
-    borderRadius: R.md, border: `1px solid ${T.border}`, backgroundColor: T.surface, color: T.second,
-    fontSize: 12, fontWeight: 700, cursor: "pointer", transition: "background-color 0.12s ease, border-color 0.12s ease",
-  };
-  const seta = (desligada: boolean): React.CSSProperties => ({ ...base, opacity: desligada ? 0.4 : 1, cursor: desligada ? "not-allowed" : "pointer" });
+  const tamanho = toque >= 44 ? "toque" : "sm";
+  // Quadrado: a largura mínima acompanha a altura do alvo.
+  const quadrado: React.CSSProperties = { minWidth: toque, padding: "0 6px" };
   return (
     <nav aria-label="Paginação" style={{ display: "flex", alignItems: "center", gap: 4 }}>
-      <button type="button" onClick={() => onIr(pagina - 1)} disabled={pagina === 1} aria-label="Página anterior" style={seta(pagina === 1)}>
-        <ChevronLeft aria-hidden="true" style={{ width: 14, height: 14 }} />
-      </button>
+      <Botao tamanho={tamanho} icone={ChevronLeft} onClick={() => onIr(pagina - 1)} disabled={pagina === 1} aria-label="Página anterior" style={quadrado} />
       {paginas.map(p => (
-        <button key={p} type="button" onClick={() => onIr(p)} aria-label={`Página ${p}`} aria-current={p === pagina ? "page" : undefined}
-          style={p === pagina ? { ...base, backgroundColor: T.dark, borderColor: T.dark, color: T.surface } : base}>
+        <Botao key={p} variante={p === pagina ? "primario" : "secundario"} tamanho={tamanho} onClick={() => onIr(p)}
+          aria-label={`Página ${p}`} aria-current={p === pagina ? "page" : undefined} style={quadrado}>
           {p}
-        </button>
+        </Botao>
       ))}
-      <button type="button" onClick={() => onIr(pagina + 1)} disabled={pagina === totalPaginas} aria-label="Próxima página" style={seta(pagina === totalPaginas)}>
-        <ChevronRight aria-hidden="true" style={{ width: 14, height: 14 }} />
-      </button>
+      <Botao tamanho={tamanho} icone={ChevronRight} onClick={() => onIr(pagina + 1)} disabled={pagina === totalPaginas} aria-label="Próxima página" style={quadrado} />
     </nav>
   );
 }
@@ -151,7 +134,7 @@ const SANGRIA_TOM: Record<Sangria["estado"], { bg: string; border: string; color
 function ChipSangria({ s, testId }: { s: Sangria; testId: string }) {
   const t = SANGRIA_TOM[s.estado];
   return (
-    <span data-testid={testId} title={s.title} style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 10, fontWeight: 700, letterSpacing: "0.04em", borderRadius: 6, padding: "1px 6px", backgroundColor: t.bg, border: `1px solid ${t.border}`, color: t.color, whiteSpace: "nowrap", fontFamily: s.estado === "ok" ? "monospace" : "inherit" }}>
+    <span data-testid={testId} title={s.title} style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: FS.micro, fontWeight: FW.forte, letterSpacing: "0.04em", borderRadius: R.sm, padding: "1px 6px", backgroundColor: t.bg, border: `1px solid ${t.border}`, color: t.color, whiteSpace: "nowrap", fontFamily: s.estado === "ok" ? FONT.mono : "inherit" }}>
       {s.estado === "menor" && <AlertTriangle aria-hidden="true" style={{ width: 10, height: 10, flexShrink: 0 }} />}
       {s.rotulo}
     </span>
@@ -189,16 +172,21 @@ function tipoPillStyle(type: string) {
 function CatRow({ name, count, accentColor, accentBg,
   isEditing, editValue, onEditChange, onEditConfirm, onEditCancel, isPendingRename,
   isDeleting, onDeleteConfirm, onDeleteCancel, isPendingDelete,
-  onStartEdit, onStartDelete,
+  onStartEdit, onStartDelete, toque = 32,
 }: {
   name: string; count: number; accentColor: string; accentBg: string;
   isEditing: boolean; editValue: string; onEditChange: (v: string) => void;
   onEditConfirm: () => void; onEditCancel: () => void; isPendingRename: boolean;
   isDeleting: boolean; onDeleteConfirm: () => void; onDeleteCancel: () => void; isPendingDelete: boolean;
   onStartEdit: () => void; onStartDelete: () => void;
+  /** Alvo dos botões da linha: 32 no mouse, 44 no dedo. */
+  toque?: number;
 }) {
+  const tamanho = toque >= 44 ? "toque" : "sm";
+  // Botão só de ícone: quadrado, com o alvo inteiro clicável.
+  const soIcone: React.CSSProperties = { width: toque, padding: 0, flexShrink: 0 };
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "11px 14px", borderRadius: 12, backgroundColor: isDeleting ? TOM.perigo.bg : T.bg, border: `1px solid ${isDeleting ? TOM.perigo.border : N.n3}`, transition: "all 0.15s" }}>
+    <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "11px 14px", borderRadius: R.lg, backgroundColor: isDeleting ? TOM.perigo.bg : T.bg, border: `1px solid ${isDeleting ? TOM.perigo.border : N.n3}`, transition: "all 0.15s" }}>
       {/* Dot */}
       <div style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: accentColor, flexShrink: 0, opacity: isDeleting ? 0.4 : 1 }} />
 
@@ -207,51 +195,39 @@ function CatRow({ name, count, accentColor, accentBg,
           <input autoFocus value={editValue} onChange={e => onEditChange(e.target.value)}
             aria-label={`Novo nome para "${name}"`}
             onKeyDown={e => { if (e.key === "Enter") onEditConfirm(); if (e.key === "Escape") onEditCancel(); }}
-            style={{ flex: 1, fontSize: 13, fontWeight: 600, borderRadius: 8, padding: "5px 10px", border: `1.5px solid ${accentColor}`, color: T.text, background: accentBg }}
+            style={{ flex: 1, minWidth: 0, fontSize: toque >= 44 ? FS.lead : FS.body, fontWeight: FW.medio, borderRadius: R.md, padding: "5px 10px", border: `1.5px solid ${accentColor}`, color: T.text, background: accentBg }}
           />
-          <button onClick={onEditConfirm} disabled={isPendingRename} aria-label={`Confirmar novo nome de "${name}"`}
-            style={{ width: 30, height: 30, borderRadius: 8, border: "none", cursor: "pointer", backgroundColor: accentColor, color: T.surface, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-            <Check style={{ width: 13, height: 13 }} />
-          </button>
-          <button onClick={onEditCancel} aria-label="Cancelar renomeação"
-            style={{ width: 30, height: 30, borderRadius: 8, border: `1px solid ${T.border}`, cursor: "pointer", backgroundColor: T.surface, color: T.second, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-            <X style={{ width: 13, height: 13 }} />
-          </button>
+          {/* O confirmar mantém a cor da aba: é o que amarra a linha à categoria. */}
+          <Botao variante="primario" tamanho={tamanho} icone={Check} onClick={onEditConfirm} carregando={isPendingRename}
+            aria-label={`Confirmar novo nome de "${name}"`}
+            style={{ ...soIcone, backgroundColor: accentColor, border: `1px solid ${accentColor}` }} />
+          <Botao tamanho={tamanho} icone={X} onClick={onEditCancel} aria-label="Cancelar renomeação" style={soIcone} />
         </>
       ) : isDeleting ? (
         <>
           <div style={{ flex: 1 }}>
-            <span style={{ fontSize: 13, fontWeight: 600, color: TOM.perigo.text }}>Remover </span>
-            <span style={{ fontSize: 13, fontWeight: 800, color: TOM.perigo.text }}>"{name}"</span>
-            <span style={{ fontSize: 13, color: TOM.perigo.text }}> de {count} {count === 1 ? "modelo" : "modelos"}?</span>
+            <span style={{ fontSize: FS.body, fontWeight: FW.medio, color: TOM.perigo.text }}>Remover </span>
+            <span style={{ fontSize: FS.body, fontWeight: FW.rotulo, color: TOM.perigo.text }}>"{name}"</span>
+            <span style={{ fontSize: FS.body, color: TOM.perigo.text }}> de {count} {count === 1 ? "modelo" : "modelos"}?</span>
           </div>
-          <button onClick={onDeleteConfirm} disabled={isPendingDelete}
-            style={{ padding: "5px 14px", borderRadius: 8, border: "none", cursor: isPendingDelete ? "not-allowed" : "pointer", backgroundColor: TOM.perigo.text, color: T.surface, fontSize: 13, fontWeight: 700, flexShrink: 0, opacity: isPendingDelete ? 0.7 : 1 }}>
+          <Botao variante="perigo" tamanho={tamanho} onClick={onDeleteConfirm} carregando={isPendingDelete} style={{ flexShrink: 0 }}>
             {isPendingDelete ? "Removendo..." : "Remover"}
-          </button>
-          <button onClick={onDeleteCancel}
-            style={{ padding: "5px 14px", borderRadius: 8, border: `1px solid ${T.border}`, cursor: "pointer", backgroundColor: T.surface, color: T.second, fontSize: 13, fontWeight: 600, flexShrink: 0 }}>
+          </Botao>
+          <Botao tamanho={tamanho} onClick={onDeleteCancel} style={{ flexShrink: 0 }}>
             Cancelar
-          </button>
+          </Botao>
         </>
       ) : (
         <>
-          <span style={{ flex: 1, fontSize: 13, fontWeight: 600, color: T.text }}>{name}</span>
-          <span style={{ fontSize: 11, fontWeight: 600, color: T.second, backgroundColor: N.n3, borderRadius: 6, padding: "2px 8px", marginRight: 2 }}>
+          <span style={{ flex: 1, fontSize: FS.body, fontWeight: FW.medio, color: T.text }}>{name}</span>
+          {/* T.apoio, e não T.second: sobre o n3 o n7 fica em 4,38:1. */}
+          <span style={{ fontSize: FS.small, fontWeight: FW.medio, color: T.apoio, backgroundColor: N.n3, borderRadius: R.sm, padding: "2px 8px", marginRight: 2 }}>
             {count} {count === 1 ? "modelo" : "modelos"}
           </span>
-          <button onClick={onStartEdit} title={`Renomear "${name}"`} aria-label={`Renomear "${name}"`}
-            style={{ width: 30, height: 30, borderRadius: 8, border: "1px solid transparent", cursor: "pointer", backgroundColor: "transparent", color: T.second, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}
-            onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = accentBg; (e.currentTarget as HTMLButtonElement).style.color = accentColor; (e.currentTarget as HTMLButtonElement).style.borderColor = accentColor + "40"; }}
-            onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent"; (e.currentTarget as HTMLButtonElement).style.color = T.second; (e.currentTarget as HTMLButtonElement).style.borderColor = "transparent"; }}>
-            <Pencil style={{ width: 12, height: 12 }} />
-          </button>
-          <button onClick={onStartDelete} title={`Remover "${name}"`} aria-label={`Remover "${name}"`}
-            style={{ width: 30, height: 30, borderRadius: 8, border: "1px solid transparent", cursor: "pointer", backgroundColor: "transparent", color: T.second, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}
-            onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = TOM.perigo.bg; (e.currentTarget as HTMLButtonElement).style.color = TOM.perigo.text; (e.currentTarget as HTMLButtonElement).style.borderColor = TOM.perigo.border; }}
-            onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent"; (e.currentTarget as HTMLButtonElement).style.color = T.second; (e.currentTarget as HTMLButtonElement).style.borderColor = "transparent"; }}>
-            <Trash2 style={{ width: 12, height: 12 }} />
-          </button>
+          <Botao variante="fantasma" tamanho={tamanho} icone={Pencil} onClick={onStartEdit}
+            title={`Renomear "${name}"`} aria-label={`Renomear "${name}"`} style={soIcone} />
+          <Botao variante="fantasma" tamanho={tamanho} icone={Trash2} onClick={onStartDelete}
+            title={`Remover "${name}"`} aria-label={`Remover "${name}"`} style={soIcone} />
         </>
       )}
     </div>
@@ -260,6 +236,11 @@ function CatRow({ name, count, accentColor, accentBg,
 
 export default function Modelos() {
   const isMobile = useIsMobile();
+  // RÉGUA PELA ÁREA ÚTIL: com a barra lateral aberta num tablet a janela diz
+  // "desktop" e sobram ~700px — a busca e as ações do topo precisam saber
+  // disso. `isMobile` segue para o que é de fato celular (gutter, modais).
+  const { ref: raizRef, cards: apertado } = useDensidadeDoConteudo<HTMLDivElement>(isMobile ? 32 : 64);
+  const ponteiroGrosso = usePonteiroGrosso();
   const [open, setOpen] = useState(false);
   // RECORTE NA URL (regra da casa): busca, os quatro filtros e a página
   // sobrevivem ao F5 e ao link mandado a quem vai cadastrar a peça. Filtro
@@ -279,7 +260,9 @@ export default function Modelos() {
   const setFilterGroup = (v: string) => definir("grupo", v);
   const setFilterMaterial = (v: string) => definir("material", v);
   const setFilterFinish = (v: string) => definir("acabamento", v);
-  const toque = isMobile ? 44 : 32;
+  // 44 também no tablet do galpão, onde o ponteiro é o dedo em qualquer largura.
+  const toque = alvo(32, isMobile || ponteiroGrosso);
+  const tamBotao = toque >= 44 ? "toque" : "md";
   const [typePopoverOpen, setTypePopoverOpen] = useState(false);
   const [materialPopoverOpen, setMaterialPopoverOpen] = useState(false);
   const [finishPopoverOpen, setFinishPopoverOpen] = useState(false);
@@ -308,7 +291,6 @@ export default function Modelos() {
   // legítimo), mas o botão só libera depois que a pessoa marca que entendeu.
   const [arqTocado, setArqTocado] = useState(false);
   const [cienteDoCorte, setCienteDoCorte] = useState(false);
-  const [hoveredRow, setHoveredRow] = useState<string | null>(null);
   // Manage modal
   const [manageOpen, setManageOpen] = useState(false);
   const [manageTab, setManageTab] = useState<"group"|"material"|"finish">("group");
@@ -337,7 +319,7 @@ export default function Modelos() {
     // categorias com três abas, não dizia nem em qual delas.
     onSuccess: (_r, vars) => {
       queryClient.invalidateQueries({ queryKey: ["/api/catalog-options"] });
-      toast({ title: "Opção adicionada", description: `"${vars.value}" já aparece nos formulários de modelo.` });
+      toast({ title: "Opção adicionada", description: `"${vars.value}" já aparece nos formulários de modelo.`, variant: "success" });
     },
     onError: (error: Error) => toast({ title: "Não foi possível adicionar a opção", description: error.message, variant: "destructive" }),
   });
@@ -359,7 +341,7 @@ export default function Modelos() {
       if (filterGroup === vars.oldName) setFilterGroup(vars.newName);
       setMgEditingGroup(null);
       setMgEditGroupValue("");
-      toast({ title: "Grupo renomeado", description: `"${vars.oldName}" → "${vars.newName}"` });
+      toast({ title: "Grupo renomeado", description: `"${vars.oldName}" → "${vars.newName}"`, variant: "success" });
     },
     onError: (error: Error) => {
       toast({ title: "Não foi possível renomear o grupo", description: error.message, variant: "destructive" });
@@ -391,7 +373,7 @@ export default function Modelos() {
       if (filterFinish === vars.oldName) setFilterFinish(vars.newName);
       setMgEditingFinish(null);
       setMgEditFinishValue("");
-      toast({ title: "Acabamento renomeado", description: `"${vars.oldName}" → "${vars.newName}"` });
+      toast({ title: "Acabamento renomeado", description: `"${vars.oldName}" → "${vars.newName}"`, variant: "success" });
     },
     onError: (error: Error) => {
       toast({ title: "Não foi possível renomear o acabamento", description: error.message, variant: "destructive" });
@@ -420,7 +402,7 @@ export default function Modelos() {
       if (filterMaterial === vars.oldName) setFilterMaterial(vars.newName);
       setMgEditingMaterial(null);
       setMgEditMaterialValue("");
-      toast({ title: "Material renomeado", description: `"${vars.oldName}" → "${vars.newName}"` });
+      toast({ title: "Material renomeado", description: `"${vars.oldName}" → "${vars.newName}"`, variant: "success" });
     },
     onError: (error: Error) => {
       toast({ title: "Não foi possível renomear o material", description: error.message, variant: "destructive" });
@@ -468,7 +450,7 @@ export default function Modelos() {
         // agora sem mexer em nada não pode perguntar "descartar?".
         formInicialRef.current = JSON.stringify(proximo);
         setDuplicando(false); setArqTocado(false); setCienteDoCorte(false);
-        toast({ title: "Modelo criado", description: `"${formData.name}" já está no catálogo. Preencha o próximo.` });
+        toast({ title: "Modelo criado", description: `"${formData.name}" já está no catálogo. Preencha o próximo.`, variant: "success" });
         window.setTimeout(() => nomeRef.current?.focus(), 0);
         return;
       }
@@ -480,6 +462,7 @@ export default function Modelos() {
       toast({
         title: editingItem ? "Modelo atualizado" : "Modelo criado",
         description: `"${formData.name}" ${editingItem ? "foi atualizado" : "já está no catálogo"}.`,
+        variant: "success",
       });
     },
     onError: (error: Error) => {
@@ -496,7 +479,7 @@ export default function Modelos() {
       queryClient.invalidateQueries({ queryKey: ["/api/standard-items"] });
       const nome = deleteConfirm?.name;
       setDeleteConfirm(null);
-      toast({ title: "Modelo excluído", description: nome ? `"${nome}" saiu do catálogo.` : undefined });
+      toast({ title: "Modelo excluído", description: nome ? `"${nome}" saiu do catálogo.` : undefined, variant: "success" });
     },
     onError: (error: Error) => {
       toast({ title: "Erro ao excluir modelo", description: error.message, variant: "destructive" });
@@ -687,82 +670,70 @@ export default function Modelos() {
   // (fim do palco/Palco/PALCO — quem digita escolhe um valor existente).
   const allTypeOptions = Array.from(new Set([...itemTypes, ...allTypes])).sort((a, b) => a.localeCompare(b, "pt-BR"));
 
+  // "Limpar" do campo: fantasma, colado embaixo do seletor.
+  const LIMPAR_CAMPO: React.CSSProperties = { marginTop: 4, padding: "0 6px" };
   /* ── shared field style ── */
   const fieldStyle: React.CSSProperties = {
     width: "100%", padding: "11px 14px", backgroundColor: N.n3,
     // Raio 8 (R.md), o dos campos de Usuários e Patrocinadores — era 12.
-    border: "none", borderRadius: R.md, fontSize: 13, color: T.text,
+    // 16px no celular: abaixo disso o iOS dá zoom ao focar o campo.
+    border: "none", borderRadius: R.md, fontSize: isMobile ? FS.lead : FS.body, color: T.text,
     fontFamily: FONT.display,
   };
   const labelStyle: React.CSSProperties = {
-    display: "block", fontSize: 10, fontWeight: 700, color: T.second,
+    display: "block", fontSize: FS.micro, fontWeight: FW.forte, color: T.second,
     textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6, marginLeft: 2,
   };
 
   return (
-    <div className="modelos-page" style={{ backgroundColor: T.bg, height: "100%", overflowY: "auto", padding: isMobile ? "16px 16px 48px" : "28px 32px 64px" }}>
+    <div ref={raizRef} className="modelos-page" style={{ backgroundColor: T.bg, height: "100%", overflowY: "auto", padding: isMobile ? "16px 16px 48px" : "28px 32px 64px" }}>
       {/* Placeholder nativo dos inputs: o cinza padrão do navegador reprova
           contraste. T.apoio (n8) e não T.second (n7) porque o fundo destes
           campos é o n3 — o único degrau claro em que o n7 fica em 4,38:1. É a
           exceção que o próprio token documenta. */}
       <style>{`
         .modelos-page input::placeholder, .modelos-page textarea::placeholder { color: ${T.apoio}; opacity: 1; }
+        .modelos-page tr.linha-modelo:hover { background-color: ${T.bg}; }
       `}</style>
 
-      {/* ── Page Header ── */}
-      <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 24, gap: 16, flexWrap: "wrap" }}>
-        <div>
-          <h1 style={{ fontSize: FS.h1, fontWeight: 700, color: T.text, margin: "0 0 6px", letterSpacing: "-0.03em", lineHeight: 1.1, fontFamily: FONT.display }}>
-            Modelos
-          </h1>
-          {/* ONDE O MODELO É USADO. "Catálogo reutilizável" não dizia onde ele
-              reaparece. Conferido no código: o formulário de peça do evento
-              lista os modelos no campo Tipo e, escolhido um, preenche medidas,
-              material e acabamento (event-detail.tsx, "Selecionar um Modelo
-              pré-preenche"); o Grupo Pai agrupa as peças no evento, na Arte e
-              na Gráfica (`groupOf`). */}
-          <p style={{ fontSize: FS.body, color: T.second, margin: 0, lineHeight: 1.5, maxWidth: 680 }}>
-            Peças padrão com medidas prontas. Ao adicionar uma peça no evento, escolher o modelo no campo Tipo já preenche medidas, material e acabamento.
-          </p>
-        </div>
-
-        {/* flexWrap: no celular os dois botões dividem a linha em vez de
-            empurrar um deles para fora da tela. */}
-        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", width: isMobile ? "100%" : undefined }}>
-          {/* Manage Categories Button — secundário (contorno) */}
-          <button
-            data-testid="button-manage-categories"
-            onClick={() => setManageOpen(true)}
-            style={{ ...BTN_PRIMARIO, flex: isMobile ? "1 1 0" : undefined, backgroundColor: T.surface, color: T.text, border: `1px solid ${T.bdark}` }}
-            onMouseEnter={e => { e.currentTarget.style.backgroundColor = T.low; }}
-            onMouseLeave={e => { e.currentTarget.style.backgroundColor = T.surface; }}
-          >
-            <Settings aria-hidden="true" style={{ width: 15, height: 15 }} />
+      {/* ── Cabeçalho da casa ── o subtítulo diz o ESTADO do catálogo; a
+          explicação de uso fica na linha logo abaixo. */}
+      <CabecalhoDaPagina
+        titulo="Modelos"
+        icone={Layers}
+        subtitulo={isLoading ? "Carregando o catálogo…"
+          : isError ? "Catálogo indisponível no momento"
+          : `${standardItems.length} ${standardItems.length === 1 ? "modelo" : "modelos"} no catálogo`}
+        acoes={
+          <>
             {/* "Gerenciar" o quê? O modal que abre é de grupos, materiais e
                 acabamentos — o rótulo passa a dizer. */}
-            {isMobile ? "Categorias" : "Gerenciar categorias"}
-          </button>
-
-          {/* New Model Button */}
-          <button
-            data-testid="button-new-model"
-            onClick={openCreate}
-            style={{ ...BTN_PRIMARIO, flex: isMobile ? "1 1 0" : undefined }}
-            onMouseEnter={e => (e.currentTarget.style.backgroundColor = T.strong)}
-            onMouseLeave={e => (e.currentTarget.style.backgroundColor = T.dark)}
-          >
-            <Plus aria-hidden="true" style={{ width: 15, height: 15 }} />
-            Novo Modelo
-          </button>
-        </div>
-      </div>
+            <Botao data-testid="button-manage-categories" variante="secundario" tamanho={tamBotao} icone={Settings}
+              onClick={() => setManageOpen(true)}>
+              {apertado ? "Categorias" : "Gerenciar categorias"}
+            </Botao>
+            <Botao data-testid="button-new-model" variante="primario" tamanho={tamBotao} icone={Plus} onClick={openCreate}>
+              Novo Modelo
+            </Botao>
+          </>
+        }
+      />
+      {/* ONDE O MODELO É USADO. "Catálogo reutilizável" não dizia onde ele
+          reaparece. Conferido no código: o formulário de peça do evento
+          lista os modelos no campo Tipo e, escolhido um, preenche medidas,
+          material e acabamento (event-detail.tsx, "Selecionar um Modelo
+          pré-preenche"); o Grupo Pai agrupa as peças no evento, na Arte e
+          na Gráfica (`groupOf`). */}
+      <p style={{ fontSize: FS.body, color: T.second, margin: "-8px 0 24px", lineHeight: 1.5, maxWidth: 680 }}>
+        Peças padrão com medidas prontas. Ao adicionar uma peça no evento, escolher o modelo no campo Tipo já preenche medidas, material e acabamento.
+      </p>
 
       {/* ── Filter Bar ── */}
       {/* A busca desceu do cabeçalho para cá: em Usuários, Patrocinadores e
           Logs ela abre a barra de filtros, e é onde o olho a procura. */}
       {!isLoading && standardItems.length > 0 && (
         <div style={{ marginBottom: 16, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-          <div style={{ position: "relative", flex: isMobile ? "1 1 100%" : "0 1 320px" }}>
+          <div style={{ position: "relative", flex: apertado ? "1 1 100%" : "0 1 320px" }}>
             <Search aria-hidden="true" style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", width: 14, height: 14, color: T.muted }} />
             <input
               type="search"
@@ -771,7 +742,7 @@ export default function Modelos() {
               value={searchTerm}
               onChange={(e) => atualizar({ busca: e.target.value, pagina: 1 })}
               data-testid="input-search-models"
-              style={{ width: "100%", height: 40, padding: "0 12px 0 36px", backgroundColor: N.n3, border: "none", borderRadius: R.md, fontSize: 13, color: T.text, transition: "background-color 0.15s ease, box-shadow 0.15s ease" }}
+              style={{ width: "100%", height: toque >= 44 ? 44 : 40, padding: "0 12px 0 36px", backgroundColor: N.n3, border: "none", borderRadius: R.md, fontSize: isMobile ? FS.lead : FS.body, color: T.text, transition: "background-color 0.15s ease, box-shadow 0.15s ease" }}
               onFocus={e => { e.currentTarget.style.backgroundColor = T.surface; e.currentTarget.style.boxShadow = "0 0 0 2px rgba(249,115,22,0.2)"; }}
               onBlur={e => { e.currentTarget.style.backgroundColor = N.n3; e.currentTarget.style.boxShadow = "none"; }}
             />
@@ -793,108 +764,92 @@ export default function Modelos() {
           {/* Limpar — o mesmo "Limpar (N)" das outras telas, e agora conta e
               desfaz a busca também (antes a busca ficava para trás). */}
           {(activeFilters > 0 || searchTerm) && (
-            <button
-              type="button"
-              onClick={() => limpar()}
-              style={BTN_LIMPAR}
-            >
-              <X aria-hidden="true" style={{ width: 11, height: 11 }} />
+            <Botao tamanho={tamBotao} icone={X} onClick={() => limpar()}>
               Limpar ({activeFilters + (searchTerm ? 1 : 0)})
-            </button>
+            </Botao>
           )}
         </div>
       )}
 
       {/* Falha na query auxiliar do catálogo de opções: avisa sem esconder a tabela */}
       {catalogError && (
-        <div role="alert" style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 16px", backgroundColor: TOM.alerta.bg, border: `1px solid ${TOM.alerta.border}`, borderRadius: 10, marginBottom: 12 }}>
-          <AlertTriangle style={{ width: 14, height: 14, color: TOM.alerta.text, flexShrink: 0 }} />
-          <span style={{ fontSize: 12, color: TOM.alerta.text, flex: 1 }}>
+        <div role="alert" style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", padding: "10px 16px", backgroundColor: TOM.alerta.bg, border: `1px solid ${TOM.alerta.border}`, borderRadius: R.md, marginBottom: 12 }}>
+          <AlertTriangle aria-hidden="true" style={{ width: 14, height: 14, color: TOM.alerta.text, flexShrink: 0 }} />
+          <span style={{ fontSize: FS.meta, color: TOM.alerta.text, flex: 1, minWidth: 200 }}>
             Falha ao carregar as opções de catálogo — grupos, materiais e acabamentos podem aparecer incompletos.
           </span>
-          <button onClick={() => refetchCatalog()}
-            style={{ padding: "6px 12px", backgroundColor: T.surface, border: `1px solid ${TOM.alerta.border}`, borderRadius: 6, cursor: "pointer", fontSize: 10, fontWeight: 800, color: TOM.alerta.text, textTransform: "uppercase", letterSpacing: "0.06em", whiteSpace: "nowrap" }}>
+          <Botao tamanho={toque >= 44 ? "toque" : "sm"} onClick={() => refetchCatalog()}>
             Tentar novamente
-          </button>
+          </Botao>
         </div>
       )}
 
       {/* ── Table Card ── */}
       {isLoading ? (
-        // Esqueleto na silhueta da linha (nome · selos · medidas), como em
-        // Usuários, Patrocinadores e Logs — o anel girando era o único
-        // carregamento diferente entre as telas de cadastro.
-        <div role="status" aria-label="Carregando modelos" style={{ backgroundColor: T.surface, border: `1px solid ${T.border}`, borderRadius: 12, overflow: "hidden", padding: "8px 0" }}>
-          {Array.from({ length: 6 }, (_, i) => (
-            <div key={i} className="motion-safe:animate-pulse" style={{ display: "flex", alignItems: "center", gap: 24, padding: "20px 24px", borderBottom: `1px solid ${T.low}` }}>
-              <div style={{ width: 180, height: 12, borderRadius: 4, backgroundColor: T.low }} />
-              <div style={{ width: 70, height: 18, borderRadius: 999, backgroundColor: T.low }} />
-              <div style={{ width: 70, height: 18, borderRadius: 999, backgroundColor: T.low }} />
-              <div style={{ width: 110, height: 12, borderRadius: 4, backgroundColor: T.low }} />
-            </div>
-          ))}
-        </div>
+        // Esqueleto na silhueta da tabela, o mesmo das outras telas de
+        // cadastro — o anel girando era o único carregamento diferente.
+        <Esqueleto variante="tabela" rotulo="Carregando modelos" />
       ) : isError ? (
-        <div style={{ backgroundColor: T.surface, border: `1px solid ${T.border}`, borderRadius: 12, padding: "56px 24px", textAlign: "center" }}>
-          <p style={{ fontSize: 13, fontWeight: 700, color: T.text, margin: "0 0 4px" }}>Não foi possível carregar os modelos</p>
-          <p style={{ fontSize: 12, color: T.second, margin: "0 0 16px" }}>Verifique sua conexão e tente novamente.</p>
-          <button type="button" onClick={() => refetch()}
-            style={{ ...BTN_PRIMARIO, height: 36, fontSize: 11 }}>
-            Tentar novamente
-          </button>
-        </div>
+        // Erro NÃO é vazio: quem vê "Nenhum modelo" depois de a rede cair
+        // conclui que o catálogo sumiu.
+        <EstadoErro
+          titulo="Não foi possível carregar os modelos"
+          detalhe="Verifique sua conexão e tente novamente."
+          aoTentarDeNovo={() => refetch()}
+        />
       ) : standardItems.length === 0 ? (
-        <div style={{ backgroundColor: T.surface, border: `1px solid ${T.border}`, borderRadius: 12, padding: "56px 24px", textAlign: "center" }}>
-          <Layers aria-hidden="true" style={{ width: 40, height: 40, color: T.muted, margin: "0 auto 12px" }} />
-          <p style={{ fontSize: 15, fontWeight: 700, color: T.text, margin: "0 0 6px" }}>Nenhum modelo criado</p>
-          <p style={{ fontSize: 13, color: T.second, margin: "0 0 16px" }}>Crie modelos para reutilizar configurações de itens</p>
-          <button type="button" onClick={openCreate}
-            style={{ ...BTN_PRIMARIO, height: 36, fontSize: 11 }}>
-            <Plus aria-hidden="true" style={{ width: 13, height: 13 }} /> Criar Primeiro Modelo
-          </button>
-        </div>
+        <EstadoVazio
+          icone={Layers}
+          titulo="Nenhum modelo criado"
+          descricao="Crie modelos para reutilizar configurações de itens"
+          acao={
+            <Botao variante="primario" icone={Plus} onClick={openCreate}>
+              Criar Primeiro Modelo
+            </Botao>
+          }
+        />
       ) : (
-        <div style={{ backgroundColor: T.surface, border: `1px solid ${T.border}`, borderRadius: 12, overflow: "hidden" }}>
+        <div style={{ backgroundColor: T.surface, border: `1px solid ${T.border}`, borderRadius: R.lg, overflow: "hidden" }}>
 
           {/* Tool strip */}
-          <div style={{ padding: isMobile ? "12px 16px" : "14px 24px", display: "flex", alignItems: "center", justifyContent: "space-between", backgroundColor: T.surface, borderBottom: `1px solid ${T.border}` }}>
+          <div style={{ padding: apertado ? "12px 16px" : "14px 24px", display: "flex", alignItems: "center", justifyContent: "space-between", backgroundColor: T.surface, borderBottom: `1px solid ${T.border}` }}>
             <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
               <div aria-hidden="true" style={{ width: 36, height: 36, borderRadius: R.md, backgroundColor: TOM.laranja.bg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                 <Layers style={{ width: 18, height: 18, color: T.accent }} />
               </div>
               <div>
-                <span style={{ fontSize: 13, fontWeight: 700, color: T.text, display: "block" }}>
+                <span style={{ fontSize: FS.body, fontWeight: FW.forte, color: T.text, display: "block" }}>
                   {filteredItems.length} modelo{filteredItems.length !== 1 ? "s" : ""}
                   {/* "filtrado de" valia só para a busca: com um filtro de
                       Grupo ativo, "3 modelos · Total no Catálogo" lia como se
                       o catálogo inteiro tivesse 3. */}
                   {(searchTerm || activeFilters > 0) && <span style={{ color: T.second, fontWeight: 400 }}> — filtrado de {standardItems.length}</span>}
                 </span>
-                <span style={{ fontSize: 10, fontWeight: 700, color: T.second, textTransform: "uppercase", letterSpacing: "0.08em" }}>{searchTerm || activeFilters > 0 ? "Recorte atual" : "Total no Catálogo"}</span>
+                <span style={{ fontSize: FS.micro, fontWeight: FW.forte, color: T.second, textTransform: "uppercase", letterSpacing: "0.08em" }}>{searchTerm || activeFilters > 0 ? "Recorte atual" : "Total no Catálogo"}</span>
               </div>
             </div>
           </div>
 
           {filteredItems.length === 0 ? (
-            <div style={{ padding: "48px 24px", textAlign: "center" }}>
-              <Search aria-hidden="true" style={{ width: 32, height: 32, color: T.muted, margin: "0 auto 12px" }} />
-              <p style={{ fontSize: 15, fontWeight: 700, color: T.text, margin: "0 0 4px" }}>Nenhum modelo encontrado</p>
-              <p style={{ fontSize: 13, color: T.second, margin: "0 0 16px" }}>
-                {searchTerm && activeFilters > 0
+            // Uma saída só: antes havia "Limpar busca" lá no topo do card e
+            // "Limpar filtros" aqui, cada um desfazendo metade do recorte — e
+            // nenhum voltava a paginação para a página 1.
+            <div style={{ padding: 16 }}>
+              <EstadoVazio
+                compacto
+                icone={Search}
+                titulo="Nenhum modelo encontrado"
+                descricao={searchTerm && activeFilters > 0
                   ? "Nenhum modelo corresponde à busca e aos filtros atuais"
                   : searchTerm
                   ? "Tente buscar com outro termo"
                   : "Nenhum modelo encontrado com os filtros atuais"}
-              </p>
-              {/* Uma saída só: antes havia "Limpar busca" lá no topo do card e
-                  "Limpar filtros" aqui, cada um desfazendo metade do recorte —
-                  e nenhum voltava a paginação para a página 1. */}
-              <button
-                type="button"
-                onClick={() => limpar()}
-                style={{ ...BTN_PRIMARIO, height: 36, backgroundColor: T.surface, color: T.text, border: `1px solid ${T.bdark}`, fontSize: 11 }}>
-                <X aria-hidden="true" style={{ width: 11, height: 11 }} /> {searchTerm && activeFilters > 0 ? "Limpar busca e filtros" : searchTerm ? "Limpar busca" : "Limpar filtros"}
-              </button>
+                acao={
+                  <Botao icone={X} onClick={() => limpar()}>
+                    {searchTerm && activeFilters > 0 ? "Limpar busca e filtros" : searchTerm ? "Limpar busca" : "Limpar filtros"}
+                  </Botao>
+                }
+              />
             </div>
           ) : (
             <div className="scrollbar-visible" style={{ overflowX: "auto" }}>
@@ -905,7 +860,7 @@ export default function Modelos() {
                       <th key={col} scope="col" style={{
                         padding: "12px 24px",
                         textAlign: col === "Ações" ? "right" : "left",
-                        fontSize: 10, fontWeight: 900, color: T.second,
+                        fontSize: FS.micro, fontWeight: FW.rotulo, color: T.second,
                         textTransform: "uppercase", letterSpacing: "0.16em", whiteSpace: "nowrap",
                       }}>
                         {col}
@@ -915,62 +870,60 @@ export default function Modelos() {
                 </thead>
                 <tbody style={{ borderTop: "none" }}>
                   {paginatedItems.map((item) => {
-                    const isHovered = hoveredRow === item.id;
                     const pillStyle = tipoPillStyle(item.type || "");
+                    // O realce de hover vem da classe (linha-modelo, no <style>
+                    // da página): o par onMouseEnter/Leave que trocava a cor
+                    // re-renderizava a tabela a cada linha.
                     return (
                       <tr
                         key={item.id}
                         data-testid={`row-model-${item.id}`}
-                        onMouseEnter={() => setHoveredRow(item.id)}
-                        onMouseLeave={() => setHoveredRow(null)}
-                        style={{ borderBottom: `1px solid ${N.n3}`, backgroundColor: isHovered ? "rgba(250,250,249,0.8)" : T.surface, transition: "background-color 0.1s" }}
+                        className="linha-modelo"
+                        style={{ borderBottom: `1px solid ${N.n3}`, transition: "background-color 0.1s" }}
                       >
                         {/* Nome */}
                         <td style={{ padding: "18px 24px", minWidth: 200 }}>
-                          <span style={{ fontSize: 13, fontWeight: 700, color: T.text, display: "block" }}>{item.name}</span>
+                          <span style={{ fontSize: FS.body, fontWeight: FW.forte, color: T.text, display: "block" }}>{item.name}</span>
                           {item.hasVariableMeasurement && (
-                            <span style={{ fontSize: 10, color: T.second, marginTop: 2, display: "block" }}>Medida variável</span>
+                            <span style={{ fontSize: FS.micro, color: T.second, marginTop: 2, display: "block" }}>Medida variável</span>
                           )}
                         </td>
 
                         {/* Grupo */}
                         <td style={{ padding: "18px 24px", whiteSpace: "nowrap" }}>
                           {item.group ? (
-                            <span style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", borderRadius: 999, padding: "3px 10px", display: "inline-block", backgroundColor: TOM.ceu.bg, color: TOM.ceu.text, whiteSpace: "nowrap" }}>
-                              {item.group}
-                            </span>
-                          ) : <span style={{ color: T.second, fontSize: 13 }}>—</span>}
+                            <Selo tom="ceu" tamanho="sm">{item.group}</Selo>
+                          ) : <span style={{ color: T.second, fontSize: FS.body }}>—</span>}
                         </td>
 
                         {/* Tipo */}
                         <td style={{ padding: "18px 24px" }}>
                           {item.type ? (
-                            <span style={{ ...pillStyle, fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", borderRadius: 999, padding: "3px 10px", display: "inline-block", whiteSpace: "nowrap" }}>
+                            <Selo tamanho="sm" cores={{ bg: pillStyle.backgroundColor, text: pillStyle.color, border: pillStyle.backgroundColor }}>
                               {item.type}
-                            </span>
-                          ) : <span style={{ color: T.second, fontSize: 13 }}>—</span>}
+                            </Selo>
+                          ) : <span style={{ color: T.second, fontSize: FS.body }}>—</span>}
                         </td>
 
                         {/* Medidas */}
                         <td style={{ padding: "18px 24px", whiteSpace: "nowrap" }}>
                           {item.hasVariableMeasurement ? (
-                            <span style={{ display: "inline-flex", alignItems: "center", gap: 4, backgroundColor: TOM.info.bg, color: TOM.info.text, borderRadius: 999, padding: "3px 10px", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em" }}>
-                              <Ruler style={{ width: 10, height: 10 }} /> Variável
-                            </span>
+                            <Selo tom="info" tamanho="sm" icone={Ruler}>Variável</Selo>
                           ) : (item.area || item.visual || item.fileWidth || item.fileHeight) ? (
                             <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
                               {(item.area || item.visual) && (
                                 <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                                  <span style={{ fontSize: 10, fontWeight: 700, color: T.second, backgroundColor: N.n3, borderRadius: 6, padding: "1px 5px", letterSpacing: "0.06em" }}>VIS</span>
-                                  <span style={{ fontSize: 13, fontWeight: 600, color: T.text, fontFamily: FONT.mono }}>
+                                  {/* T.apoio sobre o n3: o n7 ficaria em 4,38:1. */}
+                                  <span style={{ fontSize: FS.micro, fontWeight: FW.forte, color: T.apoio, backgroundColor: N.n3, borderRadius: R.sm, padding: "1px 5px", letterSpacing: "0.06em" }}>VIS</span>
+                                  <span style={{ fontSize: FS.body, fontWeight: FW.medio, color: T.text, fontFamily: FONT.mono }}>
                                     {item.area ?? "—"} × {item.visual ?? "—"}m
                                   </span>
                                 </div>
                               )}
                               {(item.fileWidth || item.fileHeight) && (
                                 <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                                  <span style={{ fontSize: 10, fontWeight: 700, color: TOM.alerta.text, backgroundColor: TOM.alerta.bg, borderRadius: 6, padding: "1px 5px", letterSpacing: "0.06em" }}>ARQ</span>
-                                  <span style={{ fontSize: 13, fontWeight: 600, color: T.apoio, fontFamily: FONT.mono }}>
+                                  <span style={{ fontSize: FS.micro, fontWeight: FW.forte, color: TOM.alerta.text, backgroundColor: TOM.alerta.bg, borderRadius: R.sm, padding: "1px 5px", letterSpacing: "0.06em" }}>ARQ</span>
+                                  <span style={{ fontSize: FS.body, fontWeight: FW.medio, color: T.apoio, fontFamily: FONT.mono }}>
                                     {item.fileWidth ?? "—"} × {item.fileHeight ?? "—"}m
                                   </span>
                                   {/* A sangria, calculada — e o arquivo menor, denunciado. */}
@@ -982,7 +935,7 @@ export default function Modelos() {
                               )}
                             </div>
                           ) : (
-                            <span style={{ fontSize: 13, color: T.second }}>—</span>
+                            <span style={{ fontSize: FS.body, color: T.second }}>—</span>
                           )}
                         </td>
 
@@ -991,7 +944,8 @@ export default function Modelos() {
                             é vínculo gravado (criadas a partir); "~N compatíveis"
                             é peça antiga sem vínculo que bate tipo, material e
                             medidas — compatibilidade, não origem. A tela não
-                            promete o que não sabe. #0369a1/#f0f9ff 5,9:1. */}
+                            promete o que não sabe. TOM.ceu: texto sobre o
+                            próprio fundo em 5,9:1. */}
                         <td style={{ padding: "18px 24px", whiteSpace: "nowrap" }} data-testid={`cell-uso-${item.id}`}>
                           {(() => {
                             const uso = item.uso ?? { exato: 0, compativel: 0, ultimaEm: null };
@@ -999,21 +953,24 @@ export default function Modelos() {
                             return (
                               <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
                                 {uso.exato > 0 ? (
-                                  <span title={`${uso.exato} ${uso.exato === 1 ? 'peça já foi criada' : 'peças já foram criadas'} a partir deste modelo; excluí-lo não altera nenhuma delas`} style={{ display: "inline-flex", alignSelf: "flex-start", fontSize: 11, fontWeight: 700, backgroundColor: TOM.ceu.bg, color: TOM.ceu.text, border: `1px solid ${TOM.ceu.border}`, borderRadius: 6, padding: "2px 8px", fontFamily: FONT.mono }}>
+                                  <Selo tom="ceu" forma="retangulo" title={`${uso.exato} ${uso.exato === 1 ? 'peça já foi criada' : 'peças já foram criadas'} a partir deste modelo; excluí-lo não altera nenhuma delas`}
+                                    style={{ alignSelf: "flex-start", fontFamily: FONT.mono }}>
                                     {uso.exato} {uso.exato === 1 ? 'peça' : 'peças'}
-                                  </span>
+                                  </Selo>
                                 ) : nenhum ? (
-                                  <span title="Nenhuma peça foi criada a partir deste modelo — excluir não afeta nada" style={{ display: "inline-flex", alignSelf: "flex-start", fontSize: 11, fontWeight: 600, backgroundColor: N.n3, color: T.second, border: `1px solid ${T.border}`, borderRadius: 6, padding: "2px 8px" }}>
+                                  // TOM.neutro, e não T.second sobre o n3: aquele par ficava em 4,38:1.
+                                  <Selo tom="neutro" forma="retangulo" title="Nenhuma peça foi criada a partir deste modelo — excluir não afeta nada"
+                                    style={{ alignSelf: "flex-start", fontWeight: FW.medio }}>
                                     sem uso
-                                  </span>
+                                  </Selo>
                                 ) : null}
                                 {uso.compativel > 0 && (
-                                  <span title={`${uso.compativel} ${uso.compativel === 1 ? 'peça antiga' : 'peças antigas'} com o mesmo tipo, material e medidas — criadas antes de o vínculo existir. Compatibilidade, não origem.`} style={{ fontSize: 10, color: T.second, fontFamily: FONT.mono }}>
+                                  <span title={`${uso.compativel} ${uso.compativel === 1 ? 'peça antiga' : 'peças antigas'} com o mesmo tipo, material e medidas — criadas antes de o vínculo existir. Compatibilidade, não origem.`} style={{ fontSize: FS.micro, color: T.second, fontFamily: FONT.mono }}>
                                     ~{uso.compativel} compat.
                                   </span>
                                 )}
                                 {uso.ultimaEm && (
-                                  <span style={{ fontSize: 10, color: T.second }}>última em {new Date(uso.ultimaEm).toLocaleDateString("pt-BR")}</span>
+                                  <span style={{ fontSize: FS.micro, color: T.second }}>última em {new Date(uso.ultimaEm).toLocaleDateString("pt-BR")}</span>
                                 )}
                               </div>
                             );
@@ -1022,14 +979,14 @@ export default function Modelos() {
 
                         {/* Material */}
                         <td style={{ padding: "18px 24px" }}>
-                          <span style={{ fontSize: 13, color: item.material ? T.apoio : T.second }}>
+                          <span style={{ fontSize: FS.body, color: item.material ? T.apoio : T.second }}>
                             {item.material || "—"}
                           </span>
                         </td>
 
                         {/* Acabamento */}
                         <td style={{ padding: "18px 24px" }}>
-                          <span style={{ fontSize: 13, color: item.finish ? T.apoio : T.second }}>
+                          <span style={{ fontSize: FS.body, color: item.finish ? T.apoio : T.second }}>
                             {item.finish || "—"}
                           </span>
                         </td>
@@ -1040,7 +997,6 @@ export default function Modelos() {
                           <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 4 }}>
                             <HoverIconBtn
                               icon={<Pencil style={{ width: 16, height: 16 }} />}
-                              hoverBg={TOM.laranja.bg} hoverColor={T.accentText}
                               onClick={() => handleEdit(item)}
                               testId={`button-edit-model-${item.id}`}
                               title="Editar modelo"
@@ -1049,7 +1005,6 @@ export default function Modelos() {
                             />
                             <HoverIconBtn
                               icon={<Copy style={{ width: 16, height: 16 }} />}
-                              hoverBg={TOM.ceu.bg} hoverColor={TOM.ceu.text}
                               onClick={() => handleDuplicate(item)}
                               testId={`button-duplicate-model-${item.id}`}
                               title="Duplicar modelo"
@@ -1058,7 +1013,6 @@ export default function Modelos() {
                             />
                             <HoverIconBtn
                               icon={<Trash2 style={{ width: 16, height: 16 }} />}
-                              hoverBg={TOM.perigo.bg} hoverColor={TOM.perigo.text}
                               onClick={() => setDeleteConfirm(item)}
                               testId={`button-delete-model-${item.id}`}
                               title="Excluir modelo"
@@ -1078,7 +1032,7 @@ export default function Modelos() {
           {/* Paginação */}
           {filteredItems.length > PAGE_SIZE && (
             <div style={{ padding: "10px 24px", borderTop: `1px solid ${T.border}`, backgroundColor: T.low, display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
-              <span style={{ fontSize: 11, color: T.second, fontWeight: 600 }}>
+              <span style={{ fontSize: FS.small, color: T.second, fontWeight: FW.medio }}>
                 Exibindo {(safePage - 1) * PAGE_SIZE + 1}–{Math.min(safePage * PAGE_SIZE, filteredItems.length)} de {filteredItems.length} modelos
               </span>
               <Paginacao pagina={safePage} totalPaginas={totalPages} onIr={setPage} toque={toque} />
@@ -1143,7 +1097,7 @@ export default function Modelos() {
                   style={fieldStyle}
                 />
                 {/* Cada campo diz ONDE reaparece — é o que decide como
-                    preenchê-lo. #57534e sobre o branco do modal = 7,6:1.
+                    preenchê-lo. T.apoio sobre o branco do modal = 7,6:1.
                     A dica do começo do nome é regra, não estilo: a peça criada
                     do modelo recebe o NOME como tipo, e o Auto-vincular por
                     cota casa o grupo pelo INÍCIO do tipo (matchesGroup em
@@ -1163,7 +1117,7 @@ export default function Modelos() {
                     <button type="button" id="model-type" data-testid="input-model-type"
                       style={{ ...fieldStyle, display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer", color: formData.type ? T.text : T.second }}>
                       {formData.type ? (
-                        <span style={{ ...tipoPillStyle(formData.type), display: "inline-flex", alignItems: "center", borderRadius: 6, padding: "2px 10px", fontSize: 13, fontWeight: 600 }}>
+                        <span style={{ ...tipoPillStyle(formData.type), display: "inline-flex", alignItems: "center", borderRadius: 6, padding: "2px 10px", fontSize: 13, fontWeight: FW.medio }}>
                           {formData.type}
                         </span>
                       ) : (
@@ -1182,12 +1136,10 @@ export default function Modelos() {
                         <CommandEmpty>
                           {customTypeInput ? (
                             <div style={{ padding: "8px 12px" }}>
-                              <button type="button"
-                                onClick={() => { setFormData({ ...formData, type: customTypeInput }); setCustomTypeInput(""); setTypePopoverOpen(false); }}
-                                style={{ width: "100%", padding: "8px 12px", backgroundColor: T.text, color: T.surface, border: "none", borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: "pointer", textAlign: "left" }}>
-                                <Plus style={{ width: 13, height: 13, display: "inline", marginRight: 6 }} />
+                              <Botao variante="primario" tamanho="sm" larguraCheia icone={Plus} style={{ justifyContent: "flex-start" }}
+                                onClick={() => { setFormData({ ...formData, type: customTypeInput }); setCustomTypeInput(""); setTypePopoverOpen(false); }}>
                                 Criar "{customTypeInput}"
-                              </button>
+                              </Botao>
                             </div>
                           ) : (
                             <p style={{ padding: "12px 16px", fontSize: 13, color: T.second, margin: 0 }}>Nenhum tipo cadastrado</p>
@@ -1198,7 +1150,7 @@ export default function Modelos() {
                             {allTypeOptions.map(t => (
                               <CommandItem key={t} value={t}
                                 onSelect={() => { setFormData({ ...formData, type: t }); setCustomTypeInput(""); setTypePopoverOpen(false); }}>
-                                <span style={{ ...tipoPillStyle(t), display: "inline-flex", alignItems: "center", borderRadius: 6, padding: "2px 10px", fontSize: 13, fontWeight: 600, marginRight: 8 }}>
+                                <span style={{ ...tipoPillStyle(t), display: "inline-flex", alignItems: "center", borderRadius: 6, padding: "2px 10px", fontSize: 13, fontWeight: FW.medio, marginRight: 8 }}>
                                   {t}
                                 </span>
                                 <Check className={cn("ml-auto h-4 w-4", formData.type === t ? "opacity-100" : "opacity-0")} />
@@ -1211,7 +1163,7 @@ export default function Modelos() {
                             <CommandItem value={`__new__${customTypeInput}`}
                               onSelect={() => { setFormData({ ...formData, type: customTypeInput }); setCustomTypeInput(""); setTypePopoverOpen(false); }}>
                               <Plus style={{ width: 14, height: 14, marginRight: 8, color: T.apoio }} />
-                              <span style={{ fontSize: 13, color: T.apoio, fontWeight: 600 }}>Criar "{customTypeInput}"</span>
+                              <span style={{ fontSize: 13, color: T.apoio, fontWeight: FW.medio }}>Criar "{customTypeInput}"</span>
                             </CommandItem>
                           </CommandGroup>
                         )}
@@ -1221,10 +1173,9 @@ export default function Modelos() {
                   </PopoverContent>
                 </Popover>
                 {formData.type && (
-                  <button type="button" onClick={() => setFormData({ ...formData, type: "" })}
-                    style={{ marginTop: 4, fontSize: 11, color: T.second, background: "none", border: "none", cursor: "pointer", padding: 0 }}>
+                  <Botao variante="fantasma" tamanho="sm" onClick={() => setFormData({ ...formData, type: "" })} style={LIMPAR_CAMPO}>
                     Limpar
-                  </button>
+                  </Botao>
                 )}
                 {/* /api/quota-rules/groups lista o `type` dos modelos: é daqui
                     que nasce a linha da grade de Configurar Cotas. */}
@@ -1255,7 +1206,7 @@ export default function Modelos() {
                           display: "inline-flex", alignItems: "center", gap: 6,
                           backgroundColor: TOM.info.border, color: TOM.info.text,
                           borderRadius: 6, padding: "2px 10px 2px 8px",
-                          fontSize: 13, fontWeight: 700,
+                          fontSize: 13, fontWeight: FW.forte,
                         }}>
                           <span style={{ width: 6, height: 6, borderRadius: "50%", backgroundColor: TOM.info.dot, flexShrink: 0 }} />
                           {formData.group}
@@ -1280,13 +1231,10 @@ export default function Modelos() {
                         <CommandEmpty>
                           {customGroupInput ? (
                             <div style={{ padding: "8px 12px" }}>
-                              <button
-                                type="button"
-                                onClick={() => { setFormData({ ...formData, group: customGroupInput }); setCustomGroupInput(""); setGroupPopoverOpen(false); }}
-                                style={{ width: "100%", padding: "8px 12px", backgroundColor: TOM.info.text, color: T.surface, border: "none", borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: "pointer", textAlign: "left" }}
-                              >
-                                + Criar grupo "{customGroupInput}"
-                              </button>
+                              <Botao variante="primario" tamanho="sm" larguraCheia icone={Plus} style={{ justifyContent: "flex-start" }}
+                                onClick={() => { setFormData({ ...formData, group: customGroupInput }); setCustomGroupInput(""); setGroupPopoverOpen(false); }}>
+                                Criar grupo "{customGroupInput}"
+                              </Botao>
                             </div>
                           ) : (
                             <p style={{ padding: "12px 16px", fontSize: 13, color: T.second, margin: 0 }}>Nenhum grupo cadastrado</p>
@@ -1304,7 +1252,7 @@ export default function Modelos() {
                                   display: "inline-flex", alignItems: "center", gap: 6,
                                   backgroundColor: formData.group === g ? TOM.info.border : TOM.ceu.bg,
                                   color: TOM.info.text, borderRadius: 6,
-                                  padding: "2px 10px 2px 8px", fontSize: 13, fontWeight: 600,
+                                  padding: "2px 10px 2px 8px", fontSize: 13, fontWeight: FW.medio,
                                   marginRight: 8,
                                 }}>
                                   <span style={{ width: 5, height: 5, borderRadius: "50%", backgroundColor: TOM.info.dot, flexShrink: 0 }} />
@@ -1322,7 +1270,7 @@ export default function Modelos() {
                               onSelect={() => { setFormData({ ...formData, group: customGroupInput }); setCustomGroupInput(""); setGroupPopoverOpen(false); }}
                             >
                               <Plus style={{ width: 14, height: 14, marginRight: 8, color: TOM.info.text }} />
-                              <span style={{ fontSize: 13, color: TOM.info.text, fontWeight: 600 }}>Criar "{customGroupInput}"</span>
+                              <span style={{ fontSize: 13, color: TOM.info.text, fontWeight: FW.medio }}>Criar "{customGroupInput}"</span>
                             </CommandItem>
                           </CommandGroup>
                         )}
@@ -1332,13 +1280,9 @@ export default function Modelos() {
                   </PopoverContent>
                 </Popover>
                 {formData.group && (
-                  <button
-                    type="button"
-                    onClick={() => setFormData({ ...formData, group: "" })}
-                    style={{ marginTop: 4, fontSize: 11, color: T.second, background: "none", border: "none", cursor: "pointer", padding: 0 }}
-                  >
+                  <Botao variante="fantasma" tamanho="sm" onClick={() => setFormData({ ...formData, group: "" })} style={LIMPAR_CAMPO}>
                     Limpar
-                  </button>
+                  </Botao>
                 )}
                 <p style={{ margin: "5px 2px 0", fontSize: 11, lineHeight: 1.4, color: T.apoio }}>Agrupa as peças nas listas do evento, da Arte e da Gráfica.</p>
               </div>
@@ -1368,7 +1312,7 @@ export default function Modelos() {
                   >
                     <div style={{ position: "absolute", top: 3, left: formData.hasVariableMeasurement ? 21 : 3, width: 16, height: 16, borderRadius: "50%", backgroundColor: T.surface, transition: "left 0.2s", boxShadow: "0 1px 3px rgba(0,0,0,0.2)" }} />
                   </div>
-                  <span style={{ fontSize: 11, fontWeight: 700, color: T.apoio, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                  <span style={{ fontSize: FS.small, fontWeight: FW.forte, color: T.apoio, textTransform: "uppercase", letterSpacing: "0.06em" }}>
                     Medida Variável
                   </span>
                 </label>
@@ -1378,9 +1322,9 @@ export default function Modelos() {
               <div style={{ gridColumn: "1 / -1" }}>
                 <label style={{ ...labelStyle, marginBottom: 10, display: "flex", alignItems: "center", gap: 8 }}>
                   Medidas Visuais
-                  <span style={{ fontSize: 10, fontWeight: 700, color: T.second, backgroundColor: N.n3, borderRadius: 6, padding: "2px 6px", letterSpacing: "0.06em" }}>VIS.</span>
+                  <span style={{ fontSize: FS.micro, fontWeight: FW.forte, color: T.apoio, backgroundColor: N.n3, borderRadius: R.sm, padding: "2px 6px", letterSpacing: "0.06em" }}>VIS.</span>
                   {/* VIS × ARQ era sigla sem legenda para quem chega. */}
-                  <span style={{ fontSize: 10, fontWeight: 500, color: T.second, textTransform: "none", letterSpacing: 0 }}>— o que aparece na peça montada</span>
+                  <span style={{ fontSize: FS.micro, fontWeight: FW.corpo, color: T.second, textTransform: "none", letterSpacing: 0 }}>— o que aparece na peça montada</span>
                 </label>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                   <div>
@@ -1425,8 +1369,8 @@ export default function Modelos() {
               <div style={{ gridColumn: "1 / -1" }}>
                 <label style={{ ...labelStyle, marginBottom: 10, display: "flex", alignItems: "center", gap: 8 }}>
                   Medidas do Arquivo
-                  <span style={{ fontSize: 10, fontWeight: 700, color: TOM.alerta.text, backgroundColor: TOM.alerta.bg, borderRadius: 6, padding: "2px 6px", letterSpacing: "0.06em" }}>ARQ.</span>
-                  <span style={{ fontSize: 10, fontWeight: 500, color: T.second, textTransform: "none", letterSpacing: 0 }}>— o que vai para impressão, com a sangria; pré-preenchido igual ao visual</span>
+                  <span style={{ fontSize: FS.micro, fontWeight: FW.forte, color: TOM.alerta.text, backgroundColor: TOM.alerta.bg, borderRadius: R.sm, padding: "2px 6px", letterSpacing: "0.06em" }}>ARQ.</span>
+                  <span style={{ fontSize: FS.micro, fontWeight: FW.corpo, color: T.second, textTransform: "none", letterSpacing: 0 }}>— o que vai para impressão, com a sangria; pré-preenchido igual ao visual</span>
                 </label>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                   <div>
@@ -1495,7 +1439,7 @@ export default function Modelos() {
                     <button type="button" id="model-material" data-testid="input-model-material"
                       style={{ ...fieldStyle, display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer", color: formData.material ? T.text : T.second }}>
                       {formData.material ? (
-                        <span style={{ display: "inline-flex", alignItems: "center", gap: 6, backgroundColor: TOM.laranja.bg, color: T.accentText, borderRadius: 6, padding: "2px 10px 2px 8px", fontSize: 13, fontWeight: 600 }}>
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: 6, backgroundColor: TOM.laranja.bg, color: T.accentText, borderRadius: 6, padding: "2px 10px 2px 8px", fontSize: 13, fontWeight: FW.medio }}>
                           <span style={{ width: 5, height: 5, borderRadius: "50%", backgroundColor: T.accent, flexShrink: 0 }} />
                           {formData.material}
                         </span>
@@ -1515,12 +1459,10 @@ export default function Modelos() {
                         <CommandEmpty>
                           {customMaterialInput ? (
                             <div style={{ padding: "8px 12px" }}>
-                              <button type="button"
-                                onClick={() => { setFormData({ ...formData, material: customMaterialInput }); setCustomMaterialInput(""); setMaterialPopoverOpen(false); }}
-                                style={{ width: "100%", padding: "8px 12px", backgroundColor: T.accentText, color: T.surface, border: "none", borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: "pointer", textAlign: "left" }}>
-                                <Plus style={{ width: 13, height: 13, display: "inline", marginRight: 6 }} />
+                              <Botao variante="primario" tamanho="sm" larguraCheia icone={Plus} style={{ justifyContent: "flex-start" }}
+                                onClick={() => { setFormData({ ...formData, material: customMaterialInput }); setCustomMaterialInput(""); setMaterialPopoverOpen(false); }}>
                                 Criar "{customMaterialInput}"
-                              </button>
+                              </Botao>
                             </div>
                           ) : (
                             <p style={{ padding: "12px 16px", fontSize: 13, color: T.second, margin: 0 }}>Nenhum material cadastrado</p>
@@ -1531,7 +1473,7 @@ export default function Modelos() {
                             {allMats.map(m => (
                               <CommandItem key={m} value={m}
                                 onSelect={() => { setFormData({ ...formData, material: m }); setCustomMaterialInput(""); setMaterialPopoverOpen(false); }}>
-                                <span style={{ display: "inline-flex", alignItems: "center", gap: 6, backgroundColor: formData.material === m ? TOM.laranja.border : TOM.laranja.bg, color: T.accentText, borderRadius: 6, padding: "2px 10px 2px 8px", fontSize: 13, fontWeight: 600, marginRight: 8 }}>
+                                <span style={{ display: "inline-flex", alignItems: "center", gap: 6, backgroundColor: formData.material === m ? TOM.laranja.border : TOM.laranja.bg, color: T.accentText, borderRadius: 6, padding: "2px 10px 2px 8px", fontSize: 13, fontWeight: FW.medio, marginRight: 8 }}>
                                   <span style={{ width: 5, height: 5, borderRadius: "50%", backgroundColor: T.accent, flexShrink: 0 }} />
                                   {m}
                                 </span>
@@ -1544,9 +1486,9 @@ export default function Modelos() {
                           <CommandGroup heading="Novo">
                             <CommandItem value={`__new__${customMaterialInput}`}
                               onSelect={() => { setFormData({ ...formData, material: customMaterialInput }); setCustomMaterialInput(""); setMaterialPopoverOpen(false); }}>
-                              {/* #c2410c: o #ea580c anterior dava 3,6:1 no texto. */}
+                              {/* T.accentText: o laranja anterior dava 3,6:1 no texto. */}
                               <Plus style={{ width: 14, height: 14, marginRight: 8, color: T.accentText }} />
-                              <span style={{ fontSize: 13, color: T.accentText, fontWeight: 600 }}>Criar "{customMaterialInput}"</span>
+                              <span style={{ fontSize: 13, color: T.accentText, fontWeight: FW.medio }}>Criar "{customMaterialInput}"</span>
                             </CommandItem>
                           </CommandGroup>
                         )}
@@ -1556,10 +1498,9 @@ export default function Modelos() {
                   </PopoverContent>
                 </Popover>
                 {formData.material && (
-                  <button type="button" onClick={() => setFormData({ ...formData, material: "" })}
-                    style={{ marginTop: 4, fontSize: 11, color: T.second, background: "none", border: "none", cursor: "pointer", padding: 0 }}>
+                  <Botao variante="fantasma" tamanho="sm" onClick={() => setFormData({ ...formData, material: "" })} style={LIMPAR_CAMPO}>
                     Limpar
-                  </button>
+                  </Botao>
                 )}
               </div>
 
@@ -1574,7 +1515,7 @@ export default function Modelos() {
                     <button type="button" id="model-finish" data-testid="input-model-finish"
                       style={{ ...fieldStyle, display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer", color: formData.finish ? T.text : T.second }}>
                       {formData.finish ? (
-                        <span style={{ display: "inline-flex", alignItems: "center", gap: 6, backgroundColor: N.n3, color: T.apoio, borderRadius: 6, padding: "2px 10px 2px 8px", fontSize: 13, fontWeight: 600 }}>
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: 6, backgroundColor: N.n3, color: T.apoio, borderRadius: 6, padding: "2px 10px 2px 8px", fontSize: 13, fontWeight: FW.medio }}>
                           <span style={{ width: 5, height: 5, borderRadius: "50%", backgroundColor: T.muted, flexShrink: 0 }} />
                           {formData.finish}
                         </span>
@@ -1594,12 +1535,10 @@ export default function Modelos() {
                         <CommandEmpty>
                           {customFinishInput ? (
                             <div style={{ padding: "8px 12px" }}>
-                              <button type="button"
-                                onClick={() => { setFormData({ ...formData, finish: customFinishInput }); setCustomFinishInput(""); setFinishPopoverOpen(false); }}
-                                style={{ width: "100%", padding: "8px 12px", backgroundColor: T.apoio, color: T.surface, border: "none", borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: "pointer", textAlign: "left" }}>
-                                <Plus style={{ width: 13, height: 13, display: "inline", marginRight: 6 }} />
+                              <Botao variante="primario" tamanho="sm" larguraCheia icone={Plus} style={{ justifyContent: "flex-start" }}
+                                onClick={() => { setFormData({ ...formData, finish: customFinishInput }); setCustomFinishInput(""); setFinishPopoverOpen(false); }}>
                                 Criar "{customFinishInput}"
-                              </button>
+                              </Botao>
                             </div>
                           ) : (
                             <p style={{ padding: "12px 16px", fontSize: 13, color: T.second, margin: 0 }}>Nenhum acabamento cadastrado</p>
@@ -1610,7 +1549,7 @@ export default function Modelos() {
                             {allFinishes.map(f => (
                               <CommandItem key={f} value={f}
                                 onSelect={() => { setFormData({ ...formData, finish: f }); setCustomFinishInput(""); setFinishPopoverOpen(false); }}>
-                                <span style={{ display: "inline-flex", alignItems: "center", gap: 6, backgroundColor: formData.finish === f ? T.border : N.n3, color: T.apoio, borderRadius: 6, padding: "2px 10px 2px 8px", fontSize: 13, fontWeight: 600, marginRight: 8 }}>
+                                <span style={{ display: "inline-flex", alignItems: "center", gap: 6, backgroundColor: formData.finish === f ? T.border : N.n3, color: T.apoio, borderRadius: 6, padding: "2px 10px 2px 8px", fontSize: 13, fontWeight: FW.medio, marginRight: 8 }}>
                                   <span style={{ width: 5, height: 5, borderRadius: "50%", backgroundColor: T.muted, flexShrink: 0 }} />
                                   {f}
                                 </span>
@@ -1624,7 +1563,7 @@ export default function Modelos() {
                             <CommandItem value={`__new__${customFinishInput}`}
                               onSelect={() => { setFormData({ ...formData, finish: customFinishInput }); setCustomFinishInput(""); setFinishPopoverOpen(false); }}>
                               <Plus style={{ width: 14, height: 14, marginRight: 8, color: T.second }} />
-                              <span style={{ fontSize: 13, color: T.second, fontWeight: 600 }}>Criar "{customFinishInput}"</span>
+                              <span style={{ fontSize: 13, color: T.second, fontWeight: FW.medio }}>Criar "{customFinishInput}"</span>
                             </CommandItem>
                           </CommandGroup>
                         )}
@@ -1634,10 +1573,9 @@ export default function Modelos() {
                   </PopoverContent>
                 </Popover>
                 {formData.finish && (
-                  <button type="button" onClick={() => setFormData({ ...formData, finish: "" })}
-                    style={{ marginTop: 4, fontSize: 11, color: T.second, background: "none", border: "none", cursor: "pointer", padding: 0 }}>
+                  <Botao variante="fantasma" tamanho="sm" onClick={() => setFormData({ ...formData, finish: "" })} style={LIMPAR_CAMPO}>
                     Limpar
-                  </button>
+                  </Botao>
                 )}
               </div>
 
@@ -1646,37 +1584,30 @@ export default function Modelos() {
             {/* Footer — primário ESCURO, como o de todo cadastro. O laranja
                 cheio daqui era o único botão de salvar laranja do app. */}
             <ModalFooter>
-              <button type="submit" disabled={createStandardItemMutation.isPending}
-                aria-busy={createStandardItemMutation.isPending}
+              <Botao type="submit" variante="primario" tamanho="toque"
+                carregando={createStandardItemMutation.isPending}
                 data-testid="button-submit-model"
-                style={{ height: toque + 4, borderRadius: R.md, border: "none", backgroundColor: T.dark, color: T.surface, fontSize: 14, fontWeight: 800, cursor: createStandardItemMutation.isPending ? "wait" : "pointer", opacity: createStandardItemMutation.isPending ? 0.7 : 1, transition: "background-color 0.15s ease" }}
-                onMouseEnter={e => { if (!createStandardItemMutation.isPending) e.currentTarget.style.backgroundColor = T.strong; }}
-                onMouseLeave={e => { e.currentTarget.style.backgroundColor = T.dark; }}
                 onClick={() => { continuarRef.current = false; }}
               >
                 {createStandardItemMutation.isPending
                   ? (editingItem ? "Atualizando…" : "Criando…")
                   : (editingItem ? "Salvar alterações" : "Salvar modelo")}
-              </button>
+              </Botao>
               {/* Só na criação (e na duplicação, que também cria): mesmo
                   submit, sem fechar o modal. */}
               {!editingItem && (
-                <button type="submit" disabled={createStandardItemMutation.isPending}
+                <Botao type="submit" variante="secundario" tamanho="toque"
+                  disabled={createStandardItemMutation.isPending}
                   data-testid="button-submit-model-e-outro"
                   onClick={() => { continuarRef.current = true; }}
-                  style={{ height: toque + 4, borderRadius: R.md, border: `1px solid ${T.bdark}`, backgroundColor: T.surface, color: T.text, fontSize: 13, fontWeight: 800, cursor: createStandardItemMutation.isPending ? "wait" : "pointer", opacity: createStandardItemMutation.isPending ? 0.7 : 1, transition: "background-color 0.15s ease" }}
-                  onMouseEnter={e => { e.currentTarget.style.backgroundColor = T.low; }}
-                  onMouseLeave={e => { e.currentTarget.style.backgroundColor = T.surface; }}
                 >
                   Salvar e cadastrar outro
-                </button>
+                </Botao>
               )}
-              <button type="button" onClick={requestCloseDialog}
-                style={{ height: toque, borderRadius: R.md, border: "none", backgroundColor: "transparent", color: T.apoio, fontSize: FS.body, fontWeight: 700, cursor: "pointer" }}
-              >
+              <Botao variante="fantasma" tamanho="toque" onClick={requestCloseDialog}>
                 {/* Depois de criar na sequência, "Cancelar" sugeria desfazer. */}
                 {criadosNestaSequencia.length > 0 && !editingItem ? "Fechar" : "Cancelar"}
-              </button>
+              </Botao>
             </ModalFooter>
           </form>
           </FreezeWhileClosing>
@@ -1709,36 +1640,20 @@ export default function Modelos() {
             />
             <div style={{ padding: isMobile ? "12px 16px 0" : "16px 28px 0", flexShrink: 0, overflowX: "auto" }}>
 
-              {/* Tabs */}
-              {(() => {
-                const tabs: { key: "group"|"material"|"finish"; label: string; color: string; bg: string; count: number }[] = [
-                  { key: "group",    label: "Grupos Pai", color: TOM.ceu.text, bg: TOM.ceu.border, count: allGroups.length },
-                  { key: "material", label: "Material",   color: TOM.alerta.text, bg: TOM.alerta.bg, count: allMats.length },
-                  { key: "finish",   label: "Acabamento", color: TOM.sucesso.text, bg: TOM.sucesso.bg, count: allFinishes.length },
-                ];
-                return (
-                  <div role="tablist" aria-label="Tipo de categoria" style={{ display: "flex", gap: 4, borderBottom: `1px solid ${N.n3}` }}>
-                    {/* Aba inativa em #746e69 (não #a8a29e): é texto acionável,
-                        precisa do piso 4.5:1 — o cinza decorativo reprovava.
-                        newCatValue zera na troca: o rascunho digitado numa aba
-                        não pode virar cadastro acidental em outra. */}
-                    {tabs.map(t => (
-                      <button key={t.key} role="tab" aria-selected={manageTab === t.key} onClick={() => { setManageTab(t.key); setNewCatValue(""); setMgEditingGroup(null); setMgEditingFinish(null); setMgEditingMaterial(null); setMgDeleteGroupConfirm(null); setMgDeleteFinishConfirm(null); setMgDeleteMaterialConfirm(null); }}
-                        style={{ display: "flex", alignItems: "center", gap: 7, padding: "10px 16px", border: "none", borderRadius: "8px 8px 0 0", cursor: "pointer", fontSize: 13, fontWeight: manageTab === t.key ? 700 : 500, transition: "all 0.15s",
-                          backgroundColor: manageTab === t.key ? T.surface : "transparent",
-                          color: manageTab === t.key ? t.color : T.second,
-                          borderBottom: manageTab === t.key ? `2px solid ${t.color}` : "2px solid transparent",
-                          marginBottom: -1,
-                        }}>
-                        <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 20, height: 20, borderRadius: 6, backgroundColor: manageTab === t.key ? t.bg : N.n3, fontSize: 11, fontWeight: 800, color: manageTab === t.key ? t.color : T.second, flexShrink: 0 }}>
-                          {t.count}
-                        </span>
-                        {t.label}
-                      </button>
-                    ))}
-                  </div>
-                );
-              })()}
+              {/* Abas da casa: setas/Home/End e roving tabindex vêm do
+                  componente. newCatValue zera na troca: o rascunho digitado
+                  numa aba não pode virar cadastro acidental em outra. */}
+              <Abas
+                rotuloDaLista="Tipo de categoria"
+                prefixoDeTestId="tab-categoria"
+                ativo={manageTab}
+                aoTrocar={id => { setManageTab(id as "group" | "material" | "finish"); setNewCatValue(""); setMgEditingGroup(null); setMgEditingFinish(null); setMgEditingMaterial(null); setMgDeleteGroupConfirm(null); setMgDeleteFinishConfirm(null); setMgDeleteMaterialConfirm(null); }}
+                itens={[
+                  { id: "group",    rotulo: "Grupos Pai", contador: allGroups.length },
+                  { id: "material", rotulo: "Material",   contador: allMats.length },
+                  { id: "finish",   rotulo: "Acabamento", contador: allFinishes.length },
+                ]}
+              />
             </div>
 
             {/* Body — scrollable list */}
@@ -1758,7 +1673,7 @@ export default function Modelos() {
                   // parecia "adicionou" (ou "quebrou") — e mantém o digitado
                   // para a pessoa corrigir.
                   if (tabCfg.items.some(i => i.toLowerCase() === v.toLowerCase())) {
-                    toast({ title: "Opção já cadastrada", description: `"${v}" já existe em ${addLabel === "grupo" ? "grupos" : addLabel === "material" ? "materiais" : "acabamentos"}.` });
+                    toast({ title: "Opção já cadastrada", description: `"${v}" já existe em ${addLabel === "grupo" ? "grupos" : addLabel === "material" ? "materiais" : "acabamentos"}.`, variant: "warning" });
                     return;
                   }
                   createCatalogOptionMutation.mutate({ kind: manageTab, value: v });
@@ -1776,20 +1691,23 @@ export default function Modelos() {
                         placeholder={`Adicionar ${addLabel}...`}
                         data-testid="input-new-catalog-option"
                         aria-label={`Nome do novo ${addLabel}`}
-                        style={{ flex: 1, minWidth: 0, height: 40, padding: "0 12px", borderRadius: 8, border: `1px solid ${T.border}`, backgroundColor: T.bg, fontSize: 13, color: T.text }}
+                        style={{ flex: 1, minWidth: 0, height: toque >= 44 ? 44 : 40, padding: "0 12px", borderRadius: R.md, border: `1px solid ${T.border}`, backgroundColor: T.bg, fontSize: isMobile ? FS.lead : FS.body, color: T.text }}
                       />
-                      {/* Desabilitado: texto #746e69 sobre o cinza claro — o
-                          branco de antes sumia no fundo, e o #a8a29e que o
-                          substituiu é cinza decorativo, proibido como texto. */}
-                      <button type="button" onClick={submitNew} disabled={createCatalogOptionMutation.isPending || !newCatValue.trim()}
+                      {/* O motivo do desabilitado fica VISÍVEL embaixo do
+                          botão: apagado sem frase lê-se como app travado. */}
+                      <Botao variante="primario" tamanho={toque >= 44 ? "toque" : "md"} icone={Plus} onClick={submitNew}
+                        carregando={createCatalogOptionMutation.isPending}
+                        disabled={!newCatValue.trim()}
+                        motivo={!newCatValue.trim() ? "Digite um nome" : undefined}
+                        alinharMotivo="end"
                         data-testid="button-add-catalog-option"
-                        style={{ display: "inline-flex", alignItems: "center", gap: 5, height: 40, padding: "0 14px", borderRadius: 8, border: "none", cursor: newCatValue.trim() ? "pointer" : "not-allowed", backgroundColor: newCatValue.trim() ? tabCfg.color : T.border, color: newCatValue.trim() ? T.surface : T.second, fontSize: 13, fontWeight: 700, whiteSpace: "nowrap", transition: "background-color 0.15s ease" }}>
-                        <Plus style={{ width: 14, height: 14 }} /> Adicionar
-                      </button>
+                        style={{ minHeight: toque >= 44 ? 44 : 40 }}>
+                        Adicionar
+                      </Botao>
                     </div>
 
                     {tabCfg.items.length === 0 && (
-                      <p style={{ fontSize: 13, color: T.second, margin: "12px 0", textAlign: "center" }}>{tabCfg.empty}</p>
+                      <p style={{ fontSize: FS.body, color: T.second, margin: "12px 0", textAlign: "center" }}>{tabCfg.empty}</p>
                     )}
                     {tabCfg.items.map(name => {
                       const count = manageTab === "group"
@@ -1799,14 +1717,14 @@ export default function Modelos() {
                         : (standardItems as any[]).filter(s => s.finish === name).length;
 
                       if (manageTab === "group") return (
-                        <CatRow key={name} name={name} count={count} accentColor={tabCfg.color} accentBg={tabCfg.bg}
+                        <CatRow key={name} name={name} count={count} accentColor={tabCfg.color} accentBg={tabCfg.bg} toque={toque}
                           isEditing={mgEditingGroup === name} editValue={mgEditGroupValue} onEditChange={setMgEditGroupValue}
                           onEditConfirm={() => { const t = mgEditGroupValue.trim(); if (t && t !== name) renameGroupMutation.mutate({ oldName: name, newName: t }); else setMgEditingGroup(null); }}
                           onEditCancel={() => setMgEditingGroup(null)} isPendingRename={renameGroupMutation.isPending}
                           isDeleting={mgDeleteGroupConfirm === name}
                           onDeleteConfirm={() => deleteGroupMutation.mutate(name, {
                             onSuccess: () => deleteCatalogOptionMutation.mutate({ kind: "group", value: name }, {
-                              onSuccess: () => toast({ title: "Grupo removido", description: `"${name}" foi removido de todos os modelos` }),
+                              onSuccess: () => toast({ title: "Grupo removido", description: `"${name}" foi removido de todos os modelos`, variant: "success" }),
                             }),
                           })} onDeleteCancel={() => setMgDeleteGroupConfirm(null)} isPendingDelete={deleteGroupMutation.isPending}
                           onStartEdit={() => { setMgEditingGroup(name); setMgEditGroupValue(name); setMgDeleteGroupConfirm(null); }}
@@ -1814,14 +1732,14 @@ export default function Modelos() {
                         />
                       );
                       if (manageTab === "material") return (
-                        <CatRow key={name} name={name} count={count} accentColor={tabCfg.color} accentBg={tabCfg.bg}
+                        <CatRow key={name} name={name} count={count} accentColor={tabCfg.color} accentBg={tabCfg.bg} toque={toque}
                           isEditing={mgEditingMaterial === name} editValue={mgEditMaterialValue} onEditChange={setMgEditMaterialValue}
                           onEditConfirm={() => { const t = mgEditMaterialValue.trim(); if (t && t !== name) renameMaterialMutation.mutate({ oldName: name, newName: t }); else setMgEditingMaterial(null); }}
                           onEditCancel={() => setMgEditingMaterial(null)} isPendingRename={renameMaterialMutation.isPending}
                           isDeleting={mgDeleteMaterialConfirm === name}
                           onDeleteConfirm={() => deleteMaterialMutation.mutate(name, {
                             onSuccess: () => deleteCatalogOptionMutation.mutate({ kind: "material", value: name }, {
-                              onSuccess: () => toast({ title: "Material removido", description: `"${name}" foi removido de todos os modelos` }),
+                              onSuccess: () => toast({ title: "Material removido", description: `"${name}" foi removido de todos os modelos`, variant: "success" }),
                             }),
                           })} onDeleteCancel={() => setMgDeleteMaterialConfirm(null)} isPendingDelete={deleteMaterialMutation.isPending}
                           onStartEdit={() => { setMgEditingMaterial(name); setMgEditMaterialValue(name); setMgDeleteMaterialConfirm(null); }}
@@ -1829,14 +1747,14 @@ export default function Modelos() {
                         />
                       );
                       return (
-                        <CatRow key={name} name={name} count={count} accentColor={tabCfg.color} accentBg={tabCfg.bg}
+                        <CatRow key={name} name={name} count={count} accentColor={tabCfg.color} accentBg={tabCfg.bg} toque={toque}
                           isEditing={mgEditingFinish === name} editValue={mgEditFinishValue} onEditChange={setMgEditFinishValue}
                           onEditConfirm={() => { const t = mgEditFinishValue.trim(); if (t && t !== name) renameFinishMutation.mutate({ oldName: name, newName: t }); else setMgEditingFinish(null); }}
                           onEditCancel={() => setMgEditingFinish(null)} isPendingRename={renameFinishMutation.isPending}
                           isDeleting={mgDeleteFinishConfirm === name}
                           onDeleteConfirm={() => deleteFinishMutation.mutate(name, {
                             onSuccess: () => deleteCatalogOptionMutation.mutate({ kind: "finish", value: name }, {
-                              onSuccess: () => toast({ title: "Acabamento removido", description: `"${name}" foi removido de todos os modelos` }),
+                              onSuccess: () => toast({ title: "Acabamento removido", description: `"${name}" foi removido de todos os modelos`, variant: "success" }),
                             }),
                           })} onDeleteCancel={() => setMgDeleteFinishConfirm(null)} isPendingDelete={deleteFinishMutation.isPending}
                           onStartEdit={() => { setMgEditingFinish(name); setMgEditFinishValue(name); setMgDeleteFinishConfirm(null); }}
@@ -1856,7 +1774,7 @@ export default function Modelos() {
       {/* ── Delete Confirm ── */}
       {/* Confirmação da casa (variante `confirm`): a MESMA casca das exclusões
           de Usuários e Patrocinadores. Era o AlertDialog genérico do shadcn,
-          com o vermelho #dc2626 e o "Cancelar" à esquerda — um terceiro
+          com um vermelho que reprovava AA e o "Cancelar" à esquerda — um terceiro
           desenho de "tem certeza?" entre três telas vizinhas. Uma diferença de
           comportamento também saiu: o AlertDialogAction fechava o diálogo NO
           CLIQUE, antes de a exclusão responder; agora ele fica aberto com
@@ -1900,26 +1818,23 @@ export default function Modelos() {
                 })()}
               </div>
               <ModalFooter>
-                <button
-                  type="button"
+                <Botao
+                  variante="perigo"
+                  tamanho="toque"
                   onClick={() => deleteStandardItemMutation.mutate(deleteConfirm.id)}
-                  disabled={deleteStandardItemMutation.isPending}
-                  aria-busy={deleteStandardItemMutation.isPending}
+                  carregando={deleteStandardItemMutation.isPending}
                   data-testid="button-confirm-delete-model"
-                  style={{ height: toque + 4, borderRadius: R.md, border: "none", backgroundColor: TOM.perigo.text, color: T.surface, fontSize: 14, fontWeight: 800, cursor: deleteStandardItemMutation.isPending ? "wait" : "pointer", opacity: deleteStandardItemMutation.isPending ? 0.7 : 1, transition: "background-color 0.15s ease" }}
-                  onMouseEnter={e => (e.currentTarget.style.backgroundColor = TOM.perigo.text)}
-                  onMouseLeave={e => (e.currentTarget.style.backgroundColor = TOM.perigo.text)}
                 >
                   {deleteStandardItemMutation.isPending ? "Excluindo…" : "Sim, excluir"}
-                </button>
-                <button
-                  type="button"
+                </Botao>
+                <Botao
+                  variante="fantasma"
+                  tamanho="toque"
                   data-testid="button-cancel-delete-model"
                   onClick={() => setDeleteConfirm(null)}
-                  style={{ height: toque, borderRadius: R.md, border: "none", backgroundColor: "transparent", color: T.apoio, fontSize: FS.body, fontWeight: 700, cursor: "pointer" }}
                 >
                   Manter
-                </button>
+                </Botao>
               </ModalFooter>
             </>
           )}
@@ -1931,29 +1846,21 @@ export default function Modelos() {
   );
 }
 
-/* ── Icon button with hover color ── */
-function HoverIconBtn({ icon, hoverBg, hoverColor, onClick, testId, title, ariaLabel, tamanho = 32 }: {
-  icon: React.ReactNode; hoverBg: string; hoverColor: string;
+/* ── Ação de linha, só com ícone ──
+   É o <Botao> fantasma: o realce de hover E de foco de teclado vem da classe
+   .ds-botao-fantasma. Antes um estado `hovered`, ligado por mouse e foco,
+   pintava cada ação de uma cor — e re-renderizava a linha a cada passada. */
+function HoverIconBtn({ icon, onClick, testId, title, ariaLabel, tamanho = 32 }: {
+  icon: React.ReactNode;
   onClick: () => void; testId: string; title: string; ariaLabel?: string;
-  /** 32 no desktop, 44 no celular — o alvo de toque das outras tabelas. */
+  /** 32 no mouse, 44 no dedo — o alvo de toque das outras tabelas. */
   tamanho?: number;
 }) {
-  const [hovered, setHovered] = useState(false);
   return (
-    <button type="button" onClick={onClick} data-testid={testId} title={title} aria-label={ariaLabel ?? title}
-      // Foco de teclado acende o mesmo realce do hover: antes só o mouse
-      // mostrava qual ação estava sob o cursor.
-      onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}
-      onFocus={() => setHovered(true)} onBlur={() => setHovered(false)}
-      style={{
-        display: "inline-flex", alignItems: "center", justifyContent: "center",
-        width: tamanho, height: tamanho, borderRadius: 8, border: "none", cursor: "pointer",
-        backgroundColor: hovered ? hoverBg : "transparent",
-        color: hovered ? hoverColor : T.second,
-        transition: "background-color 0.15s ease, color 0.15s ease",
-      }}
-    >
+    <Botao variante="fantasma" tamanho={tamanho >= 44 ? "toque" : "sm"} onClick={onClick}
+      data-testid={testId} title={title} aria-label={ariaLabel ?? title}
+      style={{ width: tamanho, minHeight: tamanho, padding: 0 }}>
       {icon}
-    </button>
+    </Botao>
   );
 }

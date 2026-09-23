@@ -58,7 +58,7 @@ export function doEventoNaoArquivadoCru(colunaEventId: string): SQL {
  */
 export function barraSeArquivado(
   linha: { arquivadoEm?: Date | string | null } | null | undefined,
-  res: { status: (c: number) => any },
+  res: { status: (c: number) => { json: (corpo: unknown) => unknown } },
   frase: string = EVENTO_ARQUIVADO_ERRO,
 ): boolean {
   if (!estaArquivado(linha)) return false;

@@ -57,7 +57,7 @@ async function main() {
     //     patrocinador nenhum, e a finalização é o lugar certo mesmo assim.
     const passou =
       peca.sponsorApprovedAt != null ||
-      (peca as any).skipApproval === true ||
+      peca.skipApproval === true ||
       (aprovacoes.length > 0 && aprovacoes.every((a) => a.status === "approved"));
 
     (passou ? paraCorrigir : semAprovacao).push(peca);

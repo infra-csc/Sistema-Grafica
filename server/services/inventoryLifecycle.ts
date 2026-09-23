@@ -173,7 +173,7 @@ export async function runInventoryCron(eventId?: string | null) {
       const now = new Date();
       if (eventId) {
         const event = await storage.getEvent(eventId);
-        if (event) await transicionarAtivosDoEvento(event as any, now);
+        if (event) await transicionarAtivosDoEvento(event, now);
         return;
       }
       const allEvents = await storage.getAllEvents();

@@ -1,6 +1,7 @@
 // Notification routes. Extracted from server/routes.ts.
 import type { Express } from "express";
 import { storage } from "../storage";
+import type { Notification } from "@shared/schema";
 import { requireAuth, broadcast } from "./shared";
 
 import { notifCache, setNotifCache, invalidateNotificationsCache, notifCacheGeneration } from "../cache";
@@ -11,11 +12,11 @@ export function registerNotificationRoutes(app: Express): void {
 
   app.get("/api/notifications", requireAuth, async (req, res) => {
     try {
-      const userRole = (req as any).session?.userRole;
+      const userRole = req.session?.userRole;
       if (!userRole) {
         return res.status(403).json({ error: "Perfil de usuário não encontrado" });
       }
-      const userId = (req as any).session?.userId ?? null;
+      const userId = req.session?.userId ?? null;
       // Destinatário individual (14/09): o cache é por PERFIL; a notificação
       // de outra pessoa sai aqui, depois do cache, sem virar cache por usuário.
       // Usuário do Kit (14/09): além disso, só o que é dele — aviso individual
@@ -27,13 +28,14 @@ export function registerNotificationRoutes(app: Express): void {
       const minhasDoKit = (req as any).session?.userKit === true
         ? new Set(await storage.getIdsDasPecasDoKitDoCriador(userId))
         : null;
-      const doUsuario = (lista: any[]) =>
+      const doUsuario = (lista: Notification[]) =>
         lista.filter((n) => (!n.targetUserId || n.targetUserId === userId)
           && (!minhasDoKit || n.targetUserId === userId || (!!n.itemId && minhasDoKit.has(n.itemId))));
 
       const cached = notifCache.get(userRole);
       if (cached && cached.expiresAt > Date.now()) {
-        return res.json(doUsuario(cached.data as any[]));
+        // O cache de notificações só guarda o que setNotifCache recebe abaixo.
+        return res.json(doUsuario(cached.data as Notification[]));
       }
 
       // Geração anotada ANTES da leitura: se uma notificação nova (ou um
@@ -60,7 +62,7 @@ export function registerNotificationRoutes(app: Express): void {
 
       setNotifCache(userRole, filteredNotifications, geracao);
       res.json(doUsuario(filteredNotifications));
-    } catch (error: any) {
+    } catch (error: unknown) {
       responderFalha(res, error, "GET /api/notifications");
     }
   });
@@ -71,7 +73,7 @@ export function registerNotificationRoutes(app: Express): void {
   // Precisa vir ANTES de /:id/read — senão o Express casa "read-all" como :id.
   app.patch("/api/notifications/read-all", requireAuth, async (req, res) => {
     try {
-      const userRole = (req as any).session?.userRole;
+      const userRole = req.session?.userRole;
       if (!userRole) {
         return res.status(403).json({ error: "Perfil de usuário não encontrado" });
       }
@@ -79,12 +81,12 @@ export function registerNotificationRoutes(app: Express): void {
       // N updates disparados em Promise.all, um por notificação não lida.
       const marked = await storage.markAllNotificationsAsReadForRole(
         userRole === "admin" ? null : userRole,
-        (req as any).session?.userId ?? null,
+        req.session?.userId ?? null,
       );
       invalidateNotificationsCache();
       broadcast({ type: "notification_read" });
       res.json({ marked });
-    } catch (error: any) {
+    } catch (error: unknown) {
       responderFalha(res, error, "PATCH /api/notifications/read-all");
     }
   });
@@ -99,7 +101,7 @@ export function registerNotificationRoutes(app: Express): void {
       broadcast({ type: "notification_read", notification });
       
       res.json(notification);
-    } catch (error: any) {
+    } catch (error: unknown) {
       responderFalha(res, error, "PATCH /api/notifications/:id/read");
     }
   });

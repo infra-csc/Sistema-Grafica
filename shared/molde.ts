@@ -134,7 +134,7 @@ export function gestoDoMolde(item: {
   // Desfazer só o que foi marcado pela Gráfica (há quantidade produzida) — o
   // reaproveitamento total vira "produzido" na Revisão, e não se desfaz aqui.
   if (moldeConcluido(item) && !item?.isReuse && (item?.quantityProduced ?? 0) > 0
-    && !(item?.conferredQty ?? 0) && !((item as any)?.embaladaQty ?? 0) && !(item?.deliveredQty ?? 0)) {
+    && !(item?.conferredQty ?? 0) && !(item?.embaladaQty ?? 0) && !(item?.deliveredQty ?? 0)) {
     return "desfazer";
   }
   return null;

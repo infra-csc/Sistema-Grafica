@@ -16,7 +16,7 @@
 //  · Leitura para qualquer logado, como o Detalhe do Evento que o alimenta.
 // ─────────────────────────────────────────────────────────────────────────────
 import type { Express } from "express";
-import { storage } from "../storage";
+import { storage, type RegistroDeFoto } from "../storage";
 import {
   buildEventPrazo,
   todayBusinessMs,
@@ -43,7 +43,7 @@ export function registerRelatorioRoutes(app: Express): void {
         // BOOK COMPLETO fica de fora: é o trâmite do Atendimento, não uma peça (ver shared/fluxo-peca).
         // Usuário do Kit (14/09): só as peças do Kit que ele criou.
         storage.getItemsByEvents([event.id]).then((l) => l.filter((i) => !ehBookCompleto(i)
-          && (!(req as any).userKit || (!!i.kitRemessaId && i.criadoPorId === (req as any).userId)))),
+          && (!req.userKit || (!!i.kitRemessaId && i.criadoPorId === req.userId)))),
         storage.getAllSponsors(),
         storage.getOpenItemSponsorApprovals(),
         storage.getAllUsers(),
@@ -65,7 +65,7 @@ export function registerRelatorioRoutes(app: Express): void {
       const prazo = buildEventPrazo(event as any, itens as any[], {
         today: todayBusinessMs(),
         sponsorNameById,
-        openApprovalsByItem: openApprovalsByItem as any,
+        openApprovalsByItem,
         userNameById,
       });
 
@@ -84,24 +84,26 @@ export function registerRelatorioRoutes(app: Express): void {
         .sort((a, b) => (b.comPatrocinador + b.comArte) - (a.comPatrocinador + a.comArte));
 
       // ── Fotos do evento ────────────────────────────────────────────────
-      const fotosDoEvento = todasFotos.filter((f: any) => f.eventId === event.id && (f.photoUrl || f.url));
-      const conferencia = fotosDoEvento.filter((f: any) => String(f.kind).startsWith("confer")).length;
+      // `url`: o registro de hoje só traz photoUrl; o fallback fica como estava.
+      const fotos: Array<RegistroDeFoto & { url?: string | null }> = todasFotos;
+      const fotosDoEvento = fotos.filter((f) => f.eventId === event.id && (f.photoUrl || f.url));
+      const conferencia = fotosDoEvento.filter((f) => String(f.kind).startsWith("confer")).length;
       const ultimas = fotosDoEvento
-        .sort((a: any, b: any) => new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime())
+        .sort((a, b) => new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime())
         .slice(0, RELATORIO_MAX_FOTOS)
-        .map((f: any) => ({ url: f.photoUrl ?? f.url, kind: f.kind, displayId: f.displayId ?? null }));
+        .map((f) => ({ url: f.photoUrl ?? f.url, kind: f.kind, displayId: f.displayId ?? null }));
 
       // ── Totais que valem mesmo com `prazo: null` ───────────────────────
       const vivas = itens.filter((i: any) => !OUT_OF_FUNNEL.has(i.status));
       // Molde produzido é o fim do fluxo dele — conta como entregue (shared/molde.ts).
-      const entregues = vivas.filter((i: any) => DELIVERED.has(statusParaContagem(i))).length;
+      const entregues = vivas.filter((i) => DELIVERED.has(statusParaContagem(i))).length;
 
       res.json({
         gerado: { em: new Date().toISOString(), por: req.userName ?? "Sistema" },
         evento: {
           id: event.id, name: event.name,
           truckDepartureDate: event.truckDepartureDate, startDate: event.startDate,
-          priority: (event as any).priority ?? null, status: event.status,
+          priority: event.priority ?? null, status: event.status,
         },
         totais: {
           pecas: vivas.length,
@@ -112,7 +114,7 @@ export function registerRelatorioRoutes(app: Express): void {
         aprovacoes,
         fotos: { total: fotosDoEvento.length, conferencia, entrega: fotosDoEvento.length - conferencia, ultimas },
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       responderFalha(res, error, "GET /api/events/:id/relatorio");
     }
   });

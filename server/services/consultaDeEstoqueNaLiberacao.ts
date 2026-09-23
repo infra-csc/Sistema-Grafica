@@ -47,7 +47,10 @@ export async function respostaDoEstoqueParaLiberar(itemId: string): Promise<Resp
 }
 
 /** Dentro da transação da liberação: a resposta virou reaproveitamento. */
-export async function marcarRespostaAplicada(tx: any, consultaId: string): Promise<void> {
+/** A transação que db.transaction entrega ao callback. */
+type Transacao = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+export async function marcarRespostaAplicada(tx: Transacao, consultaId: string): Promise<void> {
   await tx.update(consultasDeEstoque)
     .set({ aplicadoEm: new Date() })
     .where(and(eq(consultasDeEstoque.id, consultaId), isNull(consultasDeEstoque.aplicadoEm)));

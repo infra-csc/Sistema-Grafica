@@ -5,7 +5,9 @@ import type { Request, Response } from "express";
 import { storage, compareDisplayId } from "../storage";
 import { rotuloDaMaquina } from "@shared/fluxo-peca";
 import { nomeDaPeca } from "@shared/nome-da-peca";
-import { resumosDeTuboPorIds } from "./tubosDaPeca";
+import { resumosDeTuboPorIds, type MapaDeResumos, type VolumeDaPeca } from "./tubosDaPeca";
+import type { Item } from "@shared/schema";
+import { camposDoErro } from "../erros";
 import { seloDosVolumes } from "@shared/embalagem";
 import { STATUS_MOLDE_PRODUZIDO, statusDeExibicao } from "@shared/molde";
 import {
@@ -96,7 +98,20 @@ export const STATUS_LABELS: Record<string, string> = {
   [STATUS_MOLDE_PRODUZIDO]: "Produzido (molde)",
 };
 
-async function withSponsorNames(rawItems: any[]) {
+/**
+ * A peça como a planilha lê: a linha do banco com os nomes já cruzados. Os
+ * campos opcionais só existem em peça que chegou enriquecida.
+ */
+type PecaDaPlanilha = Item & {
+  sponsorNames?: string[];
+  eventName?: string;
+  event?: { name?: string | null } | null;
+  parent?: { displayId?: string | null } | null;
+  tuboNumero?: number | string | null;
+  tuboVolumes?: VolumeDaPeca[];
+};
+
+async function withSponsorNames(rawItems: Item[]) {
   // AUDITORIA 27/08: era N×M queries SIMULTÂNEAS (uma por vínculo, dentro de
   // uma por peça) — exportar 2.000 peças disparava milhares de conexões e
   // derrubava as OUTRAS requisições. Duas queries no total, mapa em memória.
@@ -116,12 +131,12 @@ async function withSponsorNames(rawItems: any[]) {
 }
 
 // Reuso total antigo não preencheu reuse_qty, mas cobre a peça inteira.
-function reusedTotal(item: any): number {
+function reusedTotal(item: Pick<Item, "isReuse" | "quantity" | "reuseQty">): number {
   return item.isReuse ? (item.quantity ?? 0) : (item.reuseQty ?? 0);
 }
 
 /** Metragem que vai de fato para a impressora — o reaproveitado não é impresso. */
-function m2ToProduce(item: any): number {
+function m2ToProduce(item: Pick<Item, "calculatedM2" | "isReuse" | "quantity" | "reuseQty">): number {
   const total = item.calculatedM2 != null ? parseFloat(item.calculatedM2) : 0;
   const qty = item.quantity ?? 0;
   if (!total || !qty) return total;
@@ -133,7 +148,7 @@ function m2ToProduce(item: any): number {
 // antes, "#0062-C1" virava 621 e a peça complementar caía entre #0620 e #0622
 // — na planilha que vai para o cliente, longe da peça de que ela nasceu.
 // compareDisplayId (server/storage.ts) põe #0062 → #0062-C1 → #0062-C2 → #0063.
-function byDisplayId(a: any, b: any) {
+function byDisplayId(a: { displayId?: string | null } | null | undefined, b: { displayId?: string | null } | null | undefined) {
   return compareDisplayId(a?.displayId, b?.displayId);
 }
 
@@ -143,13 +158,13 @@ function byDisplayId(a: any, b: any) {
  */
 async function writeWorkbook(
   res: Response,
-  opts: { items: any[]; title: string; subtitle: string; filename: string; withProduction?: boolean },
+  opts: { items: PecaDaPlanilha[]; title: string; subtitle: string; filename: string; withProduction?: boolean },
 ) {
   const { items: sorted, title, subtitle, filename, withProduction } = opts;
   const COLS = withProduction ? [...PRODUCTION_COLS, ...BASE_COLS] : BASE_COLS;
   // As peças chegam CRUAS do storage (sem o enrich das listas): o número do
   // tubo é buscado aqui, num select só. Peça já enriquecida usa o que trouxe.
-  const tuboPorId = withProduction ? await resumosDeTuboPorIds(sorted.map((i) => i.tuboId)) : new Map();
+  const tuboPorId: MapaDeResumos = withProduction ? await resumosDeTuboPorIds(sorted.map((i) => i.tuboId)) : new Map();
 
     const wb = new ExcelJS.Workbook();
     wb.creator = "NORTE";
@@ -199,7 +214,7 @@ async function writeWorkbook(
           // "Tubo 1 (7) · Tubo 2 (3)". Inteira num tubo só, fica o número (como
           // sempre foi). Embalada sozinha (número negativo): coluna vazia.
           tuboNumero:   (() => {
-            const volumes = ((tuboPorId as any).volumesPorItem?.get(item.id) ?? (item as any).tuboVolumes ?? []).filter((v: any) => !v.avulso);
+            const volumes = (tuboPorId.volumesPorItem?.get(item.id) ?? item.tuboVolumes ?? []).filter((v) => !v.avulso);
             if (volumes.length > 1 || (volumes.length === 1 && Number(volumes[0].quantidade) < Number(item.quantity))) return seloDosVolumes(volumes);
             const n = item.tuboNumero ?? (item.tuboId ? tuboPorId.get(item.tuboId)?.tuboNumero : undefined);
             return Number(n) > 0 ? n : "";
@@ -230,7 +245,7 @@ async function writeWorkbook(
         calculatedM2: item.calculatedM2 != null ? parseFloat(item.calculatedM2) : 0,
         // Reuso parcial precisa aparecer como quantidade, não como Sim/Não.
         isReuse:      item.isReuse ? "Sim" : (item.reuseQty > 0 ? `${item.reuseQty} un.` : "Não"),
-        sponsors:     (item as any).sponsorNames?.join(", ") ?? "",
+        sponsors:     item.sponsorNames?.join(", ") ?? "",
         observations: item.observations ?? "",
       });
 
@@ -294,7 +309,7 @@ export async function handleExportItemsXlsx(req: Request, res: Response) {
     // Usuário do Kit (14/09): exporta só as peças do Kit que ele criou.
     const doKit = (req as any).userKit === true;
     const doEvento = (await storage.getItemsByEvent(req.params.id))
-      .filter((i) => !doKit || (!!i.kitRemessaId && i.criadoPorId === (req as any).userId));
+      .filter((i) => !doKit || (!!i.kitRemessaId && i.criadoPorId === req.userId));
     const items = (await withSponsorNames(doEvento)).sort(byDisplayId);
 
     const parts = [
@@ -308,9 +323,9 @@ export async function handleExportItemsXlsx(req: Request, res: Response) {
       items, title: event.name, subtitle: parts.join("   |   "),
       filename: `${safeName}.xlsx`,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("[export-items]", error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: camposDoErro(error).message });
   }
 }
 
@@ -331,7 +346,7 @@ export async function handleExportSelectedItemsXlsx(req: Request, res: Response)
     // Só as peças pedidas (por id, no banco) — não o acervo inteiro. Mesmo
     // recorte de antes: vivas, e o Kit só com as dele. (A ordem final é a do
     // byDisplayId, abaixo.)
-    const doKit = (req as any).userKit ? new Set(await storage.getIdsDasPecasDoKitDoCriador((req as any).userId ?? null)) : null;
+    const doKit = req.userKit ? new Set(await storage.getIdsDasPecasDoKitDoCriador(req.userId ?? null)) : null;
     const raw = (await storage.getItemsByIds(Array.from(wanted)))
       .filter(i => !i.deletedAt && (!doKit || doKit.has(i.id)));
     if (!raw.length) return res.status(404).json({ error: "Nenhuma peça encontrada" });
@@ -373,9 +388,9 @@ export async function handleExportSelectedItemsXlsx(req: Request, res: Response)
       filename: `${title.replace(/[^a-zA-Z0-9À-ÿ _-]/g, "").trim() || "producao"}.xlsx`,
       withProduction: true,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("[export-selected-items]", error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: camposDoErro(error).message });
   }
 }
 

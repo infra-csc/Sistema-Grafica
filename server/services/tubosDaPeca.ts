@@ -27,9 +27,9 @@ export type ResumoDoTubo = {
 /** EMBALAGEM COM QUANTIDADE (21/09): um volume ABERTO da peça, com quanto dela está nele. */
 export type VolumeDaPeca = { tuboId: string; numero: number; avulso: boolean; quantidade: number };
 /** O mapa de resumos leva, de carona, os volumes por peça — `comTubo` os anexa. */
-type MapaDeResumos = Map<string, ResumoDoTubo> & { volumesPorItem?: Map<string, VolumeDaPeca[]>; entreguesPorItem?: Map<string, VolumeDaPeca[]> };
+export type MapaDeResumos = Map<string, ResumoDoTubo> & { volumesPorItem?: Map<string, VolumeDaPeca[]>; entreguesPorItem?: Map<string, VolumeDaPeca[]> };
 
-export async function resumosDeTuboPorIds(ids: Array<string | null | undefined>): Promise<Map<string, ResumoDoTubo>> {
+export async function resumosDeTuboPorIds(ids: Array<string | null | undefined>): Promise<MapaDeResumos> {
   const unicos = Array.from(new Set(ids.filter((v): v is string => !!v)));
   if (unicos.length === 0) return new Map();
   // O tubo é ENFEITE da lista: se este select falhar (banco de dev sem a

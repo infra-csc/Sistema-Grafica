@@ -39,7 +39,7 @@
 //  · o book ganha estado: "em dia" ou "desatualizado, N peças mudaram depois".
 // ─────────────────────────────────────────────────────────────────────────────
 import { ehBookCompleto } from "@shared/fluxo-peca";
-import type { Express } from "express";
+import type { Express, Request } from "express";
 import { db } from "../db";
 import { storage } from "../storage";
 import { auditLogs } from "@shared/schema";
@@ -179,10 +179,10 @@ export function invalidarCacheDeVersoes(): void {
 registrarCache("versoes", () => { cache = null; });
 
 /** Usuário do Kit (14/09): o cache é de todos; o recorte dele sai aqui. */
-async function doUsuario(req: any, dados: DadosDeVersoes): Promise<DadosDeVersoes> {
+async function doUsuario(req: Pick<Request, "userKit" | "userId">, dados: DadosDeVersoes): Promise<DadosDeVersoes> {
   if (!req.userKit) return dados;
   const minhas = new Set(await storage.getIdsDasPecasDoKitDoCriador(req.userId ?? null));
-  return { ...dados, itens: dados.itens.filter((p: any) => minhas.has(p.id)) };
+  return { ...dados, itens: dados.itens.filter((p) => minhas.has(p.id)) };
 }
 
 async function carregar(): Promise<DadosDeVersoes> {
@@ -253,7 +253,7 @@ async function carregar(): Promise<DadosDeVersoes> {
     // tabelas, ou enviada por um caminho que não grava).
     if (item.approvalThumbUrl && !versoes.some((v) => v.thumbUrl === item.approvalThumbUrl)) {
       const em = item.approvalThumbUpdatedAt ?? item.updatedAt ?? item.createdAt;
-      versoes = [...versoes, { thumbUrl: item.approvalThumbUrl, em: new Date(em as any).toISOString(), origem: "atual", por: null, inferida: true }];
+      versoes = [...versoes, { thumbUrl: item.approvalThumbUrl, em: new Date(em).toISOString(), origem: "atual", por: null, inferida: true }];
     }
     // A data acima pode ser `updatedAt`, que muda por QUALQUER edição da peça
     // (descrição, quantidade, medida). Isso serve para ordenar a régua, mas não
@@ -286,8 +286,8 @@ async function carregar(): Promise<DadosDeVersoes> {
     const decisoesSaida: DecisaoDoPatrocinador[] = decisoes.map((a) => {
       const sp = sponsorPorId.get(a.sponsorId);
       const quando = a.approvedAt ?? a.rejectedAt;
-      const decididoEm = quando ? new Date(quando as any).toISOString() : null;
-      const gravado = (a as any).decidedThumbUrl as string | null | undefined;
+      const decididoEm = quando ? new Date(quando).toISOString() : null;
+      const gravado: string | null | undefined = a.decidedThumbUrl;
       const thumbUrl = gravado ?? (decididoEm ? vigenteEm(decididoEm) : null);
       const inferido = !gravado && thumbUrl !== null;
       // EMPATE: decisão e troca de arte no mesmo instante. A ordem real é
@@ -322,7 +322,7 @@ async function carregar(): Promise<DadosDeVersoes> {
       status: item.status,
       eventId: item.eventId,
       eventName: ev?.name ?? "Evento desconhecido",
-      truckDepartureDate: ev?.truckDepartureDate ? new Date(ev.truckDepartureDate as any).toISOString() : null,
+      truckDepartureDate: ev?.truckDepartureDate ? new Date(ev.truckDepartureDate).toISOString() : null,
       approvalThumbUrl: item.approvalThumbUrl ?? null,
       bookUrl: item.bookUrl ?? null,
       versoes,
@@ -372,7 +372,7 @@ async function carregar(): Promise<DadosDeVersoes> {
   const porId = new Map(saida.map((p) => [p.id, p]));
   const pecasDoBook = new Map<string, { id: string; peca: PecaDeVersoes | undefined }[]>();
   for (const item of itens) {
-    if (!item.bookUrl || (item as any).deletedAt) continue;
+    if (!item.bookUrl || item.deletedAt) continue;
     const l = pecasDoBook.get(item.bookUrl) ?? [];
     l.push({ id: item.id, peca: porId.get(item.id) });
     pecasDoBook.set(item.bookUrl, l);
@@ -425,7 +425,7 @@ async function carregar(): Promise<DadosDeVersoes> {
   // O book atual sem registro (legado) entra sem data — e sem fingir uma.
   const atualPorEvento = new Map<string, { bookUrl: string; n: number }>();
   for (const item of itens) {
-    if (!item.bookUrl || (item as any).deletedAt) continue;
+    if (!item.bookUrl || item.deletedAt) continue;
     const cur = atualPorEvento.get(item.eventId);
     if (cur && cur.bookUrl === item.bookUrl) cur.n += 1;
     else if (!cur) atualPorEvento.set(item.eventId, { bookUrl: item.bookUrl, n: 1 });
@@ -453,7 +453,7 @@ async function carregar(): Promise<DadosDeVersoes> {
   const books = Array.from(booksPorEvento.entries()).map(([eventId, lista]) => ({
     eventId,
     eventName: eventoPorId.get(eventId)?.name ?? "Evento desconhecido",
-    truckDepartureDate: (() => { const d = eventoPorId.get(eventId)?.truckDepartureDate; return d ? new Date(d as any).toISOString() : null; })(),
+    truckDepartureDate: (() => { const d = eventoPorId.get(eventId)?.truckDepartureDate; return d ? new Date(d).toISOString() : null; })(),
     // Sem data (legado) vai para o fim: não dá para afirmar que é o mais novo.
     books: lista.sort((a, b) => (b.em ?? "").localeCompare(a.em ?? "")),
     aviso: ultimoAvisoPorEvento.get(eventId) ?? null,
@@ -484,7 +484,7 @@ type Recorte = {
 };
 
 function lerRecorte(q: any): Recorte {
-  const lista = (v: any) => String(v ?? "").split(",").map((s) => s.trim()).filter(Boolean);
+  const lista = (v: unknown) => String(v ?? "").split(",").map((s) => s.trim()).filter(Boolean);
   const foco = String(q.foco ?? "atencao");
   return {
     eventos: lista(q.evento),
@@ -566,7 +566,7 @@ export function registerVersoesRoutes(app: Express): void {
         itens: recortadas.slice(pagina * tamanho, pagina * tamanho + tamanho),
         books,
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       sendSensitiveError(res, error, "Versões error", 500);
     }
   });
@@ -605,7 +605,7 @@ export function registerVersoesRoutes(app: Express): void {
       res.setHeader("Content-Disposition", `attachment; filename="versoes-aprovadas.csv"`);
       // BOM: sem ele o Excel em pt-BR abre "Versões" como "VersÃµes".
       res.send("﻿" + linhas.join("\r\n"));
-    } catch (error: any) {
+    } catch (error: unknown) {
       sendSensitiveError(res, error, "Versões error", 500);
     }
   });

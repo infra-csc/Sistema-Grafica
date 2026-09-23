@@ -155,11 +155,27 @@ export type ResumoDaGestao = {
  * O resumo, como função PURA — recebe as tabelas já lidas e devolve os
  * números. É assim que o conteúdo do e-mail fica testável sem banco.
  */
+/** Data como vem do banco (Date) ou já serializada (texto) — os testes usam texto. */
+type Instante = Date | string | null | undefined;
+/** Só os campos que o resumo lê: linhas do banco e fixtures de teste servem. */
+type PecaDoResumo = {
+  id: string; eventId: string; status: string; type?: string | null;
+  deletedAt?: Instante; statusChangedAt?: Instante; updatedAt?: Instante; createdAt?: Instante;
+};
+type AprovacaoDoResumo = {
+  itemId: string; sponsorId: string; status: string;
+  createdAt?: Instante; updatedAt?: Instante; rejectedAt?: Instante;
+};
+type EventoDoResumo = {
+  id: string; name?: string | null; startDate?: Instante; truckDepartureDate?: Instante;
+  manuallyClosed?: boolean | null; status?: string | null;
+};
+
 export function montarResumoDaGestao(
-  itens: any[],
-  aprovacoes: any[],
+  itens: PecaDoResumo[],
+  aprovacoes: AprovacaoDoResumo[],
   sponsors: { id: string; name: string }[],
-  eventos: any[],
+  eventos: EventoDoResumo[],
   agora: Date,
 ): ResumoDaGestao {
   const eventoPorId = new Map(eventos.map((e) => [e.id, e]));
@@ -231,7 +247,8 @@ export function montarResumoDaGestao(
   const nomeDe = (sponsorId: string) => nomeDoSponsor.get(sponsorId) ?? "Patrocinador removido do cadastro";
 
   for (const a of pendentes) {
-    const item = emAprovacao.get(a.itemId);
+    // `pendentes` só tem aprovação de peça que está em emAprovacao.
+    const item = emAprovacao.get(a.itemId)!;
     const eventId = item.eventId ?? "";
     pecasTotais.add(a.itemId);
     const novaVersao = a.status === "new_version_pending";
@@ -242,8 +259,9 @@ export function montarResumoDaGestao(
     // vale também o updatedAt da linha: é quando a Arte devolveu a correção,
     // e a espera do patrocinador recomeça dali (31/08).
     const desde = Math.max(
-      new Date(item.statusChangedAt ?? item.updatedAt ?? item.createdAt).getTime(),
-      new Date(a.createdAt ?? item.createdAt).getTime(),
+      // Linha real sempre tem createdAt; sem data nenhuma dá Invalid Date, como antes.
+      new Date((item.statusChangedAt ?? item.updatedAt ?? item.createdAt) as Date | string).getTime(),
+      new Date((a.createdAt ?? item.createdAt) as Date | string).getTime(),
       novaVersao && a.updatedAt ? new Date(a.updatedAt).getTime() : 0,
     );
     const dias = Math.floor((agora.getTime() - desde) / DIA_MS);
@@ -270,11 +288,11 @@ export function montarResumoDaGestao(
   // cobrar o patrocinador aqui seria injusto (ele já decidiu; a bola é da
   // Criação). O relógio conta desde a reprovação.
   for (const a of refazendo) {
-    const item = emAprovacao.get(a.itemId);
+    const item = emAprovacao.get(a.itemId)!;
     const eventId = item.eventId ?? "";
     naCriacaoTotais++;
 
-    const desde = new Date(a.rejectedAt ?? a.updatedAt ?? a.createdAt ?? item.createdAt).getTime();
+    const desde = new Date((a.rejectedAt ?? a.updatedAt ?? a.createdAt ?? item.createdAt) as Date | string).getTime();
     const dias = Number.isFinite(desde) ? Math.floor((agora.getTime() - desde) / DIA_MS) : 0;
 
     const acc = porEvento.get(eventId) ?? novoAcc();
@@ -291,7 +309,7 @@ export function montarResumoDaGestao(
 
   const blocos: BlocoDeEvento[] = Array.from(porEvento.entries()).map(([eventId, acc]) => {
     const ev = eventoPorId.get(eventId);
-    const saida = ev?.truckDepartureDate ? new Date(ev.truckDepartureDate as any) : null;
+    const saida = ev?.truckDepartureDate ? new Date(ev.truckDepartureDate) : null;
     const diasParaSaida = saida && Number.isFinite(saida.getTime())
       ? Math.ceil((saida.getTime() - agora.getTime()) / DIA_MS)
       : null;
@@ -512,7 +530,7 @@ export async function enviarAvisoDaGestao(
       entityType: "gestao",
       entityId: dia,
       details: `${DETALHE_TRILHA} (${dia} ${hora}h)${marcaManual}: ${desfecho}`,
-    } as any);
+    });
     if (!opcoes.manual) await anotarDesfecho(chaveDaEdicao, desfecho);
   };
 
@@ -627,7 +645,7 @@ export async function historicoDeEnvios(limite = 400): Promise<EdicaoDeEnvio[]> 
       manual: !!m[3],
       status: classificaDesfecho(m[4]),
       desfecho: m[4],
-      em: (l.createdAt instanceof Date ? l.createdAt : new Date(l.createdAt as any)).toISOString(),
+      em: (l.createdAt instanceof Date ? l.createdAt : new Date(l.createdAt)).toISOString(),
     });
   }
   return edicoes;

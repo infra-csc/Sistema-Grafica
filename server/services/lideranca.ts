@@ -22,7 +22,7 @@
 // roda mesmo assim (FALHA ABERTA, como a reserva de disparo): trabalho em
 // dobro é detectável; tarefa que para em silêncio não é.
 // ─────────────────────────────────────────────────────────────────────────────
-import { sql } from "drizzle-orm";
+import { sql, type SQL } from "drizzle-orm";
 
 export type Resultado = "rodou" | "outra-copia-rodando" | "janela-ja-feita";
 
@@ -52,7 +52,7 @@ export async function executarComoLider(
 
 /** O miolo, com o banco e a reserva injetáveis (os testes passam falsos). */
 export async function rodarComTrava(
-  db: { transaction: (cb: (tx: { execute: (q: any) => Promise<any> }) => Promise<void>) => Promise<void> },
+  db: { transaction: (cb: (tx: { execute: (q: SQL) => Promise<unknown> }) => Promise<void>) => Promise<void> },
   tarefa: string,
   fn: () => Promise<unknown>,
   opcoes: { janelaMs?: number } = {},
@@ -62,7 +62,11 @@ export async function rodarComTrava(
   let rodouDentro = false as boolean;
   try {
     await db.transaction(async (tx) => {
-      const r: any = await tx.execute(sql`select pg_try_advisory_xact_lock(hashtext(${chaveDaTrava(tarefa)})) as ok`);
+      // node-postgres devolve { rows }; alguns drivers devolvem a lista direto.
+      const r = (await tx.execute(sql`select pg_try_advisory_xact_lock(hashtext(${chaveDaTrava(tarefa)})) as ok`)) as {
+        rows?: Array<{ ok?: unknown }>;
+        [linha: number]: { ok?: unknown } | undefined;
+      };
       const ok = (r.rows ?? r)[0]?.ok === true;
       if (!ok) { resultado = "outra-copia-rodando"; return; }
 

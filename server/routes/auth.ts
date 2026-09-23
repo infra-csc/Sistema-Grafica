@@ -3,7 +3,7 @@ import type { Express } from "express";
 import bcrypt from "bcryptjs";
 import { storage } from "../storage";
 import { pool } from "../db";
-import { insertUserSchema, loginSchema, changePasswordSchema } from "@shared/schema";
+import { insertUserSchema, loginSchema, changePasswordSchema, type User } from "@shared/schema";
 import {
   requireAuth,
   requireAdmin,
@@ -71,7 +71,7 @@ export function registerAuthRoutes(app: Express): void {
       // Don't send password hash to client
       const { passwordHash: _, ...userWithoutPassword } = user;
       res.json(userWithoutPassword);
-    } catch (error: any) {
+    } catch (error: unknown) {
       sendSensitiveError(res, error, "Register error");
     }
   });
@@ -110,7 +110,7 @@ export function registerAuthRoutes(app: Express): void {
       // Don't send password hash to client
       const { passwordHash: _, ...userWithoutPassword } = user;
       res.json(userWithoutPassword);
-    } catch (error: any) {
+    } catch (error: unknown) {
       sendSensitiveError(res, error, "Login error");
     }
   });
@@ -145,7 +145,7 @@ export function registerAuthRoutes(app: Express): void {
         ? { role: req.session.userRole, kit: req.session.userKit === true, papelReal: req.session.papelReal }
         : { papelReal: null };
       res.json({ ...userWithoutPassword, ...verComo });
-    } catch (error: any) {
+    } catch (error: unknown) {
       sendSensitiveError(res, error, "Get current user error", 500);
     }
   });
@@ -184,7 +184,7 @@ export function registerAuthRoutes(app: Express): void {
         perfil === "admin" ? "Voltou a ver o sistema como administrador" : `Passou a ver o sistema como ${perfil}${kit ? " (Kit)" : ""}`,
       );
       res.json({ role: perfil, kit, papelReal: perfil === "admin" ? null : "admin" });
-    } catch (error: any) {
+    } catch (error: unknown) {
       sendSensitiveError(res, error, "Ver como error", 500);
     }
   });
@@ -244,7 +244,7 @@ export function registerAuthRoutes(app: Express): void {
       );
 
       res.json({ message: "Senha alterada com sucesso" });
-    } catch (error: any) {
+    } catch (error: unknown) {
       sendSensitiveError(res, error, "Change password error");
     }
   });
@@ -260,7 +260,7 @@ export function registerAuthRoutes(app: Express): void {
           .map(u => ({ id: u.id, name: u.name, role: u.role }))
           .sort((a, b) => a.name.localeCompare(b.name, "pt-BR")),
       );
-    } catch (error: any) {
+    } catch (error: unknown) {
       sendSensitiveError(res, error, "Get basic users error", 500);
     }
   });
@@ -274,7 +274,7 @@ export function registerAuthRoutes(app: Express): void {
       // Don't send password hashes to client
       const usersWithoutPasswords = users.map(({ passwordHash: _, ...user }) => user);
       res.json(usersWithoutPasswords);
-    } catch (error: any) {
+    } catch (error: unknown) {
       sendSensitiveError(res, error, "Get all users error", 500);
     }
   });
@@ -292,7 +292,7 @@ export function registerAuthRoutes(app: Express): void {
           return res.status(400).json({ error: "Email já cadastrado" });
         }
       }
-      const updateData: any = { ...validatedData };
+      const updateData: Partial<User> = { ...validatedData };
 
       // If password is being updated, hash it (only path by which passwordHash is set)
       if (password) {
@@ -327,7 +327,7 @@ export function registerAuthRoutes(app: Express): void {
       // Don't send password hash to client
       const { passwordHash: _, ...userWithoutPassword } = user;
       res.json(userWithoutPassword);
-    } catch (error: any) {
+    } catch (error: unknown) {
       sendSensitiveError(res, error, "Update user error");
     }
   });
@@ -359,7 +359,7 @@ export function registerAuthRoutes(app: Express): void {
       );
 
       res.json({ message: "Usuário excluído com sucesso" });
-    } catch (error: any) {
+    } catch (error: unknown) {
       sendSensitiveError(res, error, "Delete user error", 500);
     }
   });

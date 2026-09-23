@@ -51,10 +51,11 @@ export function aImprimirDaPeca(p: PecaDividivel): number {
 export function lerPartes(bruto: unknown): PartesPorMaquina | null {
   if (!bruto || typeof bruto !== "object" || Array.isArray(bruto)) return null;
   const partes: PartesPorMaquina = {};
-  for (const [m, v] of Object.entries(bruto as Record<string, any>)) {
+  for (const [m, v] of Object.entries(bruto as Record<string, unknown>)) {
     if (!MAQUINAS_DE_IMPRESSAO.includes(m) || !v || typeof v !== "object") continue;
-    const atrib = inteiro(v.atrib);
-    const impressas = Math.min(atrib, inteiro(v.impressas));
+    const parte = v as { atrib?: unknown; impressas?: unknown };
+    const atrib = inteiro(parte.atrib);
+    const impressas = Math.min(atrib, inteiro(parte.impressas));
     if (atrib > 0 || impressas > 0) partes[m] = { atrib, impressas };
   }
   return Object.keys(partes).length ? partes : null;

@@ -307,7 +307,7 @@ export async function handleExportItemsXlsx(req: Request, res: Response) {
     if (!event || event.arquivadoEm) return res.status(404).json({ error: "Evento não encontrado" });
 
     // Usuário do Kit (14/09): exporta só as peças do Kit que ele criou.
-    const doKit = (req as any).userKit === true;
+    const doKit = req.userKit === true;
     const doEvento = (await storage.getItemsByEvent(req.params.id))
       .filter((i) => !doKit || (!!i.kitRemessaId && i.criadoPorId === req.userId));
     const items = (await withSponsorNames(doEvento)).sort(byDisplayId);

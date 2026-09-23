@@ -25,7 +25,7 @@ export function registerNotificationRoutes(app: Express): void {
       // banco e volta só com os ids — antes o acervo inteiro (66 colunas ×
       // todas as peças) era carregado a cada abertura do sino. Mesmo conjunto
       // de ids que o filtro em JS produzia (ver getIdsDasPecasDoKitDoCriador).
-      const minhasDoKit = (req as any).session?.userKit === true
+      const minhasDoKit = req.session?.userKit === true
         ? new Set(await storage.getIdsDasPecasDoKitDoCriador(userId))
         : null;
       const doUsuario = (lista: Notification[]) =>

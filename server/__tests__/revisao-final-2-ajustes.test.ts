@@ -3,10 +3,9 @@
 //  · reaproveitar anda a peça — a trava da Solicitação segura;
 //  · evento só com moldes produzidos (e entregues) vira Concluído sozinho.
 // A rota do molde e a conta do evento rodam de verdade em
-// regras-fluxo-reaproveitar-e-molde.test.ts; aqui ficam as telas (e o
-// mark-reuse, que se confere junto com a tela da Gráfica).
+// regras-fluxo-reaproveitar-e-molde.test.ts (inclusive o mark-reuse da peça
+// travada); aqui ficam as telas.
 import { describe, it, expect } from "vitest";
-import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
 import { readFileSync } from "fs";
 
 const ler = (p: string) => readFileSync(new URL(`../../${p}`, import.meta.url), "utf8");
@@ -17,10 +16,9 @@ describe("a trava da Solicitação segura também o molde e o reaproveitar", () 
     expect(b).toContain("const bloqueado = !!selo || ocupado || travada;");
     expect(b).toContain("title={travada ? fraseDaTrava(item)");
   });
-  it("mark-reuse recusa peça travada e a Gráfica não oferece Reaproveitar", () => {
-    const rota = fonteDasRotasDeItens();
-    const i = rota.indexOf('"/api/items/:id/mark-reuse"');
-    expect(rota.slice(i, i + 2500)).toContain("if (pecaTravada(current as any)) return res.status(409)");
+  it("a Gráfica não oferece Reaproveitar na peça travada", () => {
+    // A recusa do mark-reuse (409 com a frase da trava) RODA em
+    // regras-fluxo-reaproveitar-e-molde.test.ts.
     expect(ler("client/src/pages/grafica.tsx")).toContain("const podeReaproveitarPeca = !emRevisao && !pecaTravada(item)");
   });
 });

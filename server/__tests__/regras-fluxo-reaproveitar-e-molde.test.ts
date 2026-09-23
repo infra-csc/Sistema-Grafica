@@ -157,6 +157,16 @@ describe("o molde", () => {
     expect(mundo.itens.p1.status).toBe("produced");
   });
 
+  it("reaproveitar peça travada pela Solicitação: 409 com a frase da trava e nada gravado (veio de revisao-final-2-ajustes)", async () => {
+    const trava = { travadaEm: new Date("2026-09-22T12:00:00Z"), travadaPor: "Bia", travadaMotivo: "patrocinador trocou o logo" };
+    mundo.itens.p1 = peca({ status: "ready_for_production", quantity: 10, reuseQty: 0, ...trava });
+    const r = await reaproveitar("grafica", { reuseQty: 3 });
+    expect(r.status).toBe(409);
+    expect(r.body).toEqual({ error: fraseDaTrava(mundo.itens.p1), code: CODIGO_PECA_TRAVADA });
+    expect(mundo.itens.p1.reuseQty).toBe(0);
+    expect(mundo.itens.p1.status).toBe("ready_for_production");
+  });
+
   it("molde produzido conta como entregue: evento só com ele conclui", async () => {
     mundo.itens.m1 = molde({ id: "m1", status: "produced", quantityProduced: 2 });
     mundo.itens.c1 = peca({ id: "c1", status: "canceled" });

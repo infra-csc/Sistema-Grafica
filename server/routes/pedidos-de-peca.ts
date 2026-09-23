@@ -413,7 +413,7 @@ export function registerPedidosDePecaRoutes(app: Express): void {
       const limite = Math.max(1, Math.min(1000, parseInt(String(req.query.limite ?? "300"), 10) || 300));
       let lista = await listarSolicitacoes({
         eventId: typeof req.query.eventId === "string" && req.query.eventId ? req.query.eventId : undefined,
-        pedidoPorId: doAtendimento ? ((req as any).userId ?? "") : undefined,
+        pedidoPorId: doAtendimento ? (req.userId ?? "") : undefined,
         limite,
       });
       if (typeof req.query.status === "string" && req.query.status) {

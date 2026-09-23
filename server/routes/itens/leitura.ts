@@ -449,7 +449,7 @@ export function registrarListaEExcluidas(app: Express): void {
       if (since) {
         const mudadas = await storage.getItemsChangedSince(since);
         // Usuário do Kit: o que ele não enxerga sai do cache dele como removido.
-        const cabe = (i: any) => !i.deletedAt && pecaVisivelPara(usuario, i) && casaRecorte(recorte, i);
+        const cabe = (i: Item) => !i.deletedAt && pecaVisivelPara(usuario, i) && casaRecorte(recorte, i);
         const visivel = mudadas.map(cabe);
         // Projeção da trilha: o delta anda pelo mesmo caminho, só que sem
         // enriquecimento nenhum — inclusive sem as mães dos complementos, que

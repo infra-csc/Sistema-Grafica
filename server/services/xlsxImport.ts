@@ -615,7 +615,7 @@ import { tipoCanonico } from "@shared/molde";
         observations: item.observations || "",
         status: "requested",
         kitRemessaId: kitRemessaExistente,
-        criadoPorId: (req as any).userId ?? null,
+        criadoPorId: req.userId ?? null,
       }));
 
       // A mesma régua do preview, agora no servidor: a primeira linha com

@@ -43,7 +43,7 @@ export function registrarCriacao(app: Express): void {
         }
       }
       validatedData.kitRemessaId = kitRemessaId;
-      (validatedData as any).criadoPorId = req.userId ?? null;
+      validatedData.criadoPorId = req.userId ?? null;
       // Nascer PRIORITÁRIA é decisão de quem gerencia a lista (dono, 27/08) —
       // mesmo gate do PATCH. Criador de evento sem papel cria a peça normal.
       if (validatedData.isPriority && !["admin", "solicitacao"].includes(req.userRole ?? "")) {

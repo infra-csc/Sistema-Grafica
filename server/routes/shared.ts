@@ -225,7 +225,7 @@ export async function calculateEventStatus(eventId: string): Promise<"created" |
     if (OUT_OF_FUNNEL_STATUSES.has(item.status)) continue;
     active += 1;
     // Molde produzido é o fim do fluxo dele: conta como entregue (shared/molde).
-    if (DELIVERED_STATUSES.has(statusParaContagem(item as any))) delivered += 1;
+    if (DELIVERED_STATUSES.has(statusParaContagem(item))) delivered += 1;
   }
 
   // Evento sem peça alguma (ou só com peças canceladas) NÃO está concluído:

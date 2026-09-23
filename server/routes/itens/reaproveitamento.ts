@@ -35,7 +35,7 @@ export function registrarReaproveitamento(app: Express): void {
       // produção, não registro do passado.
       if (await barraEventoFinalizado(current, res)) return;
       // Reaproveitar ANDA a peça (pode fechá-la como Produzido): a trava segura.
-      if (pecaTravada(current as any)) return res.status(409).json({ error: fraseDaTrava(current), code: CODIGO_PECA_TRAVADA });
+      if (pecaTravada(current)) return res.status(409).json({ error: fraseDaTrava(current), code: CODIGO_PECA_TRAVADA });
       if (current.status === "delivered" || current.status === "entregue") {
         return res.status(409).json({ error: "Não é possível reaproveitar uma peça já entregue" });
       }

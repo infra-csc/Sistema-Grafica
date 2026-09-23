@@ -281,16 +281,18 @@ function SeloRuido({ atual, anterior, testId }: { atual: number; anterior: numbe
 }
 
 /* ── Tooltip do gráfico de carga ── */
-const CargaTip = ({ active, payload, label }: any) => {
+/** O que o Tooltip do recharts injeta no `content` — só o que esta dica lê. */
+type SerieDaDica = { value?: number | null; dataKey?: string | number; name?: string };
+const CargaTip = ({ active, payload, label }: { active?: boolean; payload?: SerieDaDica[]; label?: string | number }) => {
   if (!active || !payload?.length) return null;
   // Série nula (semana futura) é FILTRADA, não impressa como 0: "Concluído:
   // 0 m²" numa semana que ainda não chegou seria uma afirmação falsa.
-  const series = payload.filter((p: any) => p?.value != null);
-  const futura = payload.some((p: any) => p?.dataKey === "concluido" && p?.value == null);
+  const series = payload.filter((p): p is SerieDaDica & { value: number } => p?.value != null);
+  const futura = payload.some((p) => p?.dataKey === "concluido" && p?.value == null);
   return (
     <div style={{ backgroundColor: T.dark, color: T.surface, borderRadius: R.sm, padding: "9px 12px", fontSize: FS.small, lineHeight: 1.6 }}>
       <div style={{ fontWeight: FW.forte, marginBottom: 4 }}>Semana de {label}</div>
-      {series.map((p: any) => (
+      {series.map((p) => (
         <div key={p.dataKey}>{p.name}: {int(p.value)} m²</div>
       ))}
       {futura && <div style={{ color: T.bdark }}>Previsto — ainda não aconteceu</div>}

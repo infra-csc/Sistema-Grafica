@@ -1,20 +1,18 @@
 import { createContext, useContext, useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
+import type { PerfilDoUsuario, UsuarioDaSessao } from "@shared/api";
 
-export type UserRole = "admin" | "solicitacao" | "arte" | "grafica" | "atendimento";
+export type UserRole = PerfilDoUsuario;
 
-interface User {
-  id: string;
-  name: string;
-  email: string;
-  role: UserRole;
-  mustChangePassword: boolean;
-  /** Usuário do Kit (14/09): só vê e cria peças do Kit, e só as dele. */
-  kit?: boolean;
-  /** VER COMO (15/09): "admin" enquanto o admin navega como outro perfil. */
-  papelReal?: string | null;
-}
+/**
+ * O usuário da sessão — o contrato de GET /api/auth/me (@shared/api), com o
+ * perfil estreitado aos cinco que existem. `kit` (14/09): só vê e cria peças
+ * do Kit. `papelReal` (VER COMO, 15/09): "admin" enquanto o admin navega como
+ * outro perfil.
+ */
+export type UsuarioLogado = Omit<UsuarioDaSessao, "role"> & { role: UserRole };
+type User = UsuarioLogado;
 
 interface AuthContextType {
   user: User | null;

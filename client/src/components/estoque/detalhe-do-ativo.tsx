@@ -33,7 +33,7 @@ import { CONDITION_META, conditionMeta, type Condition } from "@/lib/inventory-m
 import { emGrupos, GRAVACOES_POR_VEZ } from "@/components/triagem/quadro-da-triagem";
 import { fraseDaCondicao, fraseDaSituacao, type GrupoDoAcervo } from "@/lib/agrupar-acervo";
 import { ROTULO_DO_USO, diaEMes, eventosDeUso, type UsoDoAtivo } from "@shared/estoque";
-import type { InventoryAsset, Sponsor } from "@shared/schema";
+import type { AtivoJson as InventoryAsset, OrigemDoAtivo, PatrocinadorJson as Sponsor, RegistroDeAuditoriaJson } from "@shared/api";
 import { T, N, TOM, FS, R, FW, FONT } from "@/lib/theme";
 import { Botao } from "@/components/ui/botao";
 import { Selo } from "@/components/ui/selo";
@@ -73,7 +73,7 @@ export function DetalheDoAtivo({ grupo, unidade, linkedItem, sponsors, reservaPo
   grupo: GrupoDoAcervo<InventoryAsset>;
   /** Quando definido, o modal mostra ESTA unidade; senão, o grupo inteiro. */
   unidade: InventoryAsset | null;
-  linkedItem?: any;
+  linkedItem?: OrigemDoAtivo | null;
   sponsors: Sponsor[];
   reservaPorAtivo: Map<string, Reserva>;
   usosPorAtivo: Map<string, UsoDoAtivo[]>;
@@ -104,7 +104,7 @@ export function DetalheDoAtivo({ grupo, unidade, linkedItem, sponsors, reservaPo
     const ids = new Set<string>(alvos.flatMap((a) => a.sponsorIds ?? []));
     const doAtivo = sponsors.filter((s) => ids.has(s.id)).map((s) => s.name);
     if (doAtivo.length > 0) return doAtivo;
-    return ((linkedItem?.sponsors ?? []) as any[]).map((s) => s?.name).filter(Boolean) as string[];
+    return (linkedItem?.sponsors ?? []).map((s) => s?.name).filter(Boolean) as string[];
   }, [alvos, sponsors, linkedItem]);
 
   const usos = useMemo(() => (umaSo ? usosPorAtivo.get(umaSo.id) ?? [] : []), [umaSo, usosPorAtivo]);
@@ -112,7 +112,7 @@ export function DetalheDoAtivo({ grupo, unidade, linkedItem, sponsors, reservaPo
 
   // A trilha só existe por unidade (é por registro). Chave em string única: o
   // queryFn padrão junta a queryKey com "/".
-  const { data: trilha, isLoading: carregandoTrilha } = useQuery<any[]>({
+  const { data: trilha, isLoading: carregandoTrilha } = useQuery<RegistroDeAuditoriaJson[]>({
     queryKey: [`/api/audit-logs?entityType=inventory_asset&entityId=${umaSo?.id}`],
     enabled: !!umaSo,
   });
@@ -252,7 +252,7 @@ export function DetalheDoAtivo({ grupo, unidade, linkedItem, sponsors, reservaPo
                 <p style={{ margin: 0, fontSize: FS.body, color: T.second }}>Sem registros de quem mexeu neste ativo.</p>
               ) : (
                 <ol data-testid="detalhe-trilha" style={{ listStyle: "none", margin: 0, padding: "0 0 0 14px", borderLeft: `2px solid ${T.border}`, display: "flex", flexDirection: "column", gap: 12 }}>
-                  {(trilha ?? []).slice(0, 12).map((l: any) => (
+                  {(trilha ?? []).slice(0, 12).map((l) => (
                     <li key={l.id} style={{ position: "relative", fontSize: FS.body, color: T.text }}>
                       <span aria-hidden="true" style={{ position: "absolute", left: -20, top: 5, width: 10, height: 10, borderRadius: "50%", background: T.surface, border: `2px solid ${T.accent}` }} />
                       <strong style={{ textTransform: "capitalize" }}>{l.action}</strong>

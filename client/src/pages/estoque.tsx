@@ -5,7 +5,7 @@ import { EventFilterDropdown } from "@/components/event-filter-dropdown";
 import { useLocation } from "wouter";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import type { InventoryAsset, Sponsor, Event } from "@shared/schema";
+import type { AtivoJson as InventoryAsset, AtivoDoAcervo, EventoDaLista as Event, OrigemDoAtivo, PatrocinadorJson as Sponsor } from "@shared/api";
 import {
   Archive, Search, Pencil, Trash2, CheckCircle2,
   XCircle, Tag, X, Package, Warehouse, Truck, ScanSearch, Calendar, CalendarDays,
@@ -76,7 +76,7 @@ const SIGNIFICADO_DA_CONDICAO: Record<Condition, string> = {
 
 /** Ativo do acervo como GET /api/inventory devolve: com o evento da peça de
  *  origem junto (revisão 22/09). */
-type AtivoComOrigem = InventoryAsset & { origemEventId?: string | null };
+type AtivoComOrigem = AtivoDoAcervo;
 
 /** Teto de peças de origem (ou registros avulsos) por leitura de usos — o
  *  mesmo LIMITE_DO_RECORTE_DE_USOS do servidor. */
@@ -597,7 +597,7 @@ export default function Estoque() {
   const setViewingAsset = (a: InventoryAsset) => { const chave = chaveDoAtivo.get(a.id); if (chave) setVendo({ chave, unidadeId: a.id }); };
   // A peça de ORIGEM do detalhe: uma só, pedida quando o detalhe abre.
   const origemDoDetalhe = grupoVendo?.ativos.find(a => a.originalItemId)?.id ?? null;
-  const { data: pecaDeOrigem } = useQuery<any>({ queryKey: [`/api/inventory/${origemDoDetalhe}/origem`], enabled: !!origemDoDetalhe });
+  const { data: pecaDeOrigem } = useQuery<OrigemDoAtivo | null>({ queryKey: [`/api/inventory/${origemDoDetalhe}/origem`], enabled: !!origemDoDetalhe });
 
   const hasFilters = !!(soReservadas || search || filterStatus.length > 0 || filterCondition.length > 0 || filterAutoAdded !== "all" || filterEvent.length > 0 || filterSponsor.length > 0 || filterFranchise.length > 0);
 
@@ -1239,7 +1239,7 @@ export default function Estoque() {
                           ...(compacto ? [] : [{ label: "Onde já foi usado", align: "left" }]),
                           { label: "Ações", align: "right" },
                         ].map(({ label, align }) => (
-                          <th key={label} scope="col" style={{ ...TH, textAlign: align as any }}>{label}</th>
+                          <th key={label} scope="col" style={{ ...TH, textAlign: align as React.CSSProperties["textAlign"] }}>{label}</th>
                         ))}
                       </tr>
                     </thead>

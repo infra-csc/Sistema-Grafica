@@ -43,7 +43,7 @@ export function parseDateLocal(dateStr: string): Date {
  * To make date-fns format() show the UTC value instead of the local value,
  * shift the Date by the browser's UTC offset so local rendering == UTC value.
  */
-export function toUTCDisplayDate(dateStr: string): Date {
+export function toUTCDisplayDate(dateStr: string | Date): Date {
   const d = new Date(dateStr);
   return new Date(d.getTime() + d.getTimezoneOffset() * 60000);
 }

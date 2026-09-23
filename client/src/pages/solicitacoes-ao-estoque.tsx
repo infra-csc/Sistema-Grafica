@@ -217,7 +217,7 @@ function Responder({ c, isMobile, onRespondida }: { c: Consulta; isMobile: boole
       });
       onRespondida();
     },
-    onError: (e: any) => {
+    onError: (e) => {
       atualizarConsultas();
       toast({ title: "Não deu para responder", description: parseApiError(e).message, variant: "destructive" });
     },
@@ -471,7 +471,7 @@ export default function SolicitacoesAoEstoquePagina() {
   const cancelar = useMutation({
     mutationFn: async (id: string) => await apiRequest("POST", `/api/consultas-de-estoque/${id}/cancelar`, {}),
     onSuccess: () => { atualizarConsultas(); toast({ title: "Solicitação cancelada", variant: "success" }); },
-    onError: (e: any) => { atualizarConsultas(); toast({ title: "Não deu para cancelar", description: parseApiError(e).message, variant: "destructive" }); },
+    onError: (e) => { atualizarConsultas(); toast({ title: "Não deu para cancelar", description: parseApiError(e).message, variant: "destructive" }); },
   });
 
   const explicacao = podeResponder

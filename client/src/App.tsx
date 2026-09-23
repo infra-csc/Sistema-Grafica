@@ -35,7 +35,8 @@ import { T, N, R } from "@/lib/theme";
  */
 const CHAVE_RELOAD_DE_CHUNK = "chunk-reload-once";
 
-function lazyPage<T extends ComponentType<any>>(fabrica: () => Promise<{ default: T }>) {
+// As páginas não recebem props (a rota lê os parâmetros por hook): `ComponentType` sem props basta.
+function lazyPage<T extends ComponentType>(fabrica: () => Promise<{ default: T }>) {
   return lazy(() =>
     fabrica()
       .then((modulo) => {
@@ -407,7 +408,7 @@ function RoleProtectedRoute({
 }) {
   const { isAuthenticated, isLoading, user: usuario } = useAuth();
   // Usuário do Kit numa tela que não é dele conta como perfil sem acesso.
-  const user = usuario && semKit && usuario.kit ? { ...usuario, role: "__kit__" as any } : usuario;
+  const user = usuario && semKit && usuario.kit ? { ...usuario, role: "__kit__" as string } : usuario;
   const [location, setLocation] = useLocation();
 
   // replace: mesmo racional do ProtectedRoute — redirect de guard não empilha

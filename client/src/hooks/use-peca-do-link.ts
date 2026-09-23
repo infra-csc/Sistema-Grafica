@@ -44,7 +44,9 @@ export async function buscarCodigoDaPeca(id: string): Promise<string | null> {
     if (!res.ok) return null;
     const lista = expandirResposta(await res.json());
     if (!Array.isArray(lista)) return null;
-    return (lista.find((i: any) => i?.id === id)?.displayId as string | undefined) ?? null;
+    // Peças decodificadas (formato compacto): só `id` e `displayId` interessam.
+    const peca = (lista as Array<{ id?: unknown; displayId?: unknown } | null>).find((i) => i?.id === id);
+    return (peca?.displayId as string | undefined) ?? null;
   } catch {
     return null;
   }
@@ -111,7 +113,7 @@ export function usePecaDoLink<T>({ pronto, localizar, abrir, codigoDe }: PecaDoL
     const codigo = fns.current.codigoDe?.(id);
     // Caminho síncrono intacto: quem devolve texto avisa no mesmo tique, sem
     // passar por microtarefa nenhuma.
-    if (!codigo || typeof (codigo as any)?.then !== "function") return avisar(codigo as string | null | undefined);
+    if (!codigo || typeof codigo === "string") return avisar(codigo);
     let vivo = true;
     const noTempo = new Promise<null>((r) => setTimeout(() => r(null), ESPERA_PELO_CODIGO_MS));
     void Promise.race([Promise.resolve(codigo).catch(() => null), noTempo])

@@ -50,12 +50,13 @@ export interface TimelineEvent {
   eventName: string;
   /** Vazio quando o evento não existe mais (exclusão) — a linha não navega. */
   eventId: string;
-  itemType?: string;
+  // `null` passa como veio da peça (a coluna existe e está vazia).
+  itemType?: string | null;
   itemId?: string;
-  itemDisplayId?: string;
-  quantity?: number;
-  quantityProduced?: number;
-  receivedBy?: string;
+  itemDisplayId?: string | null;
+  quantity?: number | null;
+  quantityProduced?: number | null;
+  receivedBy?: string | null;
   userName?: string;
   /**
    * Identidade que RESISTE. Nome muda e repete; o id não. Vem de audit_logs
@@ -79,10 +80,62 @@ export interface TimelineEvent {
   searchBlob: string;
 }
 
-type AnyLog = Record<string, any>;
+// ── O que a trilha LÊ (estrutural, sem import — ver o topo do arquivo) ──────
+// As três fontes como chegam da API (@shared/api: EventoDaLista, PecaDaTrilha,
+// RegistroDeAuditoriaJson) — só os campos lidos aqui. O índice `[campo]` aceita
+// o resto da linha sem exigir a forma inteira.
+
+/** Data como vem do cabo (texto ISO) ou já convertida. */
+type Carimbo = string | Date;
+
+/** O evento como a trilha o lê. */
+export interface EventoDaTrilha {
+  id: string;
+  name: string;
+  createdAt: Carimbo;
+  [campo: string]: unknown;
+}
+
+/** A peça como a trilha a lê — as colunas de COLUNAS_DA_TRILHA (shared/itens-compactos.ts). */
+export interface PecaParaTrilha {
+  id: string;
+  eventId: string;
+  displayId?: string | null;
+  type?: string | null;
+  quantity?: number | null;
+  status: string;
+  createdAt: Carimbo;
+  approvedAt?: Carimbo | null;
+  creatorReviewedAt?: Carimbo | null;
+  quantityProduced?: number | null;
+  productionStartedAt?: Carimbo | null;
+  deliveredAt?: Carimbo | null;
+  receivedBy?: string | null;
+  [campo: string]: unknown;
+}
+
+/** Um registro de auditoria — camelCase (a API) ou snake_case (o payload já veio dos dois jeitos). */
+export interface LogDaTrilha {
+  id?: string | null;
+  action?: string | null;
+  details?: string | null;
+  entityType?: string | null;
+  entity_type?: string | null;
+  entityId?: string | null;
+  entity_id?: string | null;
+  userName?: string | null;
+  user_name?: string | null;
+  userId?: string | null;
+  user_id?: string | null;
+  createdAt?: Carimbo | null;
+  created_at?: Carimbo | null;
+  [campo: string]: unknown;
+}
+
+type CampoDoLog = "id" | "action" | "details" | "entityType" | "entity_type" | "entityId" | "entity_id" | "userName" | "user_name" | "userId" | "user_id" | "createdAt" | "created_at";
 
 /** Lê campo aceitando camelCase e snake_case (o payload já veio dos dois jeitos). */
-function pick(log: AnyLog, camel: string, snake: string): any {
+function pick<C extends CampoDoLog, S extends CampoDoLog>(log: LogDaTrilha, camel: C, snake: S): LogDaTrilha[C] | LogDaTrilha[S] {
   return log[camel] ?? log[snake];
 }
 
@@ -105,7 +158,7 @@ const SYSTEM_ACTOR = "Sistema";
  * incompleto, "Sistema" é máquina, o resto é gente. Antes cada `push` copiava
  * `userName` na mão e três deles simplesmente não copiavam nada.
  */
-function autoria(log: AnyLog | undefined | null): {
+function autoria(log: LogDaTrilha | undefined | null): {
   userName?: string;
   userId?: string;
   authorSource: AuthorSource;
@@ -119,9 +172,9 @@ function autoria(log: AnyLog | undefined | null): {
 }
 
 export function buildTimeline(
-  events: any[],
-  items: any[],
-  auditLogs: any[],
+  events: readonly EventoDaTrilha[],
+  items: readonly PecaParaTrilha[],
+  auditLogs: readonly LogDaTrilha[],
 ): TimelineEvent[] {
   /* ── Mapas de lookup ── */
 
@@ -132,18 +185,18 @@ export function buildTimeline(
   // Os logs chegam em createdAt DESC (storage.getAuditLogs), então sobrescrever
   // a cada passagem deixa no mapa o MAIS ANTIGO — que é o que "primeiro log
   // desta entidade" sempre quis dizer.
-  const auditLogMap = new Map<string, AnyLog>();
+  const auditLogMap = new Map<string, LogDaTrilha>();
   auditLogs.forEach((log) => {
     const entityType = String(pick(log, "entityType", "entity_type") ?? "").toLowerCase();
     const entityId = pick(log, "entityId", "entity_id");
     auditLogMap.set(`${entityType}:${entityId}:${(log.action || "").toLowerCase()}`, log);
   });
 
-  const itemMap = new Map<string, any>();
+  const itemMap = new Map<string, PecaParaTrilha>();
   items.forEach((item) => itemMap.set(item.id, item));
 
   // events.find(...) por item era O(n×m); o Map torna cada lookup O(1).
-  const eventMap = new Map<string, any>();
+  const eventMap = new Map<string, EventoDaTrilha>();
   // Nome → id: a linha de exclusão de peça só tem o NOME do evento no texto do
   // log (a peça já saiu de /api/items), e sem o id ela não navega para lugar
   // nenhum. Nomes repetidos são resolvidos pelo primeiro — é melhor que nada.
@@ -161,7 +214,7 @@ export function buildTimeline(
   // manda é o log (tem autor e timestamp reais).
   const itemsWithRelease = new Set<string>();
   const itemsWithProduction = new Set<string>();
-  auditLogs.forEach((log: AnyLog) => {
+  auditLogs.forEach((log) => {
     const action = (log.action || "").toLowerCase();
     const details = log.details || "";
     const detailsLower = details.toLowerCase();
@@ -295,13 +348,16 @@ export function buildTimeline(
   });
 
   /* ── Audit logs ── */
-  auditLogs.forEach((log: AnyLog) => {
+  auditLogs.forEach((log) => {
     const action = (log.action || "").toLowerCase();
     const details = log.details || "";
     const detailsLower = details.toLowerCase();
-    const entityId = pick(log, "entityId", "entity_id");
+    // entity_id é NOT NULL na tabela: todo registro o traz (o `as` só o declara).
+    const entityId = pick(log, "entityId", "entity_id") as string;
     const entityType = String(pick(log, "entityType", "entity_type") ?? "").toLowerCase();
-    const ts = pick(log, "createdAt", "created_at");
+    // Log sem data (não acontece: a coluna é NOT NULL) vira Date inválida,
+    // como sempre virou — o `as` só declara o que o `new Date` já aceitava.
+    const ts = pick(log, "createdAt", "created_at") as Carimbo;
     const autor = autoria(log);
     const uid = log.id ?? `${entityId}${ts}`;
 

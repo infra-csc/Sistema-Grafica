@@ -7,13 +7,15 @@ import {
   RefreshCw, RotateCcw, Download, X, Copy, Check, Trash2, Undo2, Pencil,
   ShieldAlert, Flag, CalendarClock, CopyPlus, ArrowUpToLine, Lock,
   Users, SlidersHorizontal, ChevronDown, Route,
+  type LucideIcon,
 } from "lucide-react";
 import { useLocation } from "wouter";
 import { format, formatDistanceToNow, subDays, startOfDay, isToday, isYesterday } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { HIDE_NATIVE_CLOSE, modalSurface, ModalHeader, ModalFooter } from "@/components/modal-shell";
-import { buildTimeline, type TimelineEvent } from "@/lib/timeline";
+import { buildTimeline, type TimelineEvent, type LogDaTrilha } from "@/lib/timeline";
+import type { EventoDaLista, PaginaDeAuditoria, PaginaDeAuditoriaComTotal, PecaDaTrilha, RegistroDeAuditoriaJson } from "@shared/api";
 import { CAMPOS_DA_TRILHA } from "@shared/itens-compactos";
 import { T, FS, R, N, H, FW, FONT, TOM, SHADOW } from "@/lib/theme";
 import { useDensidadeDoConteudo, usePonteiroGrosso, alvo } from "@/hooks/use-mobile";
@@ -88,7 +90,7 @@ interface TypeCfg {
   phase: Phase;
   /** Excepcional: reprovação, devolução, cancelamento, exclusão. */
   excecao?: boolean;
-  icon: any;
+  icon: LucideIcon;
 }
 
 const TYPE_CONFIG: Record<string, TypeCfg> = {
@@ -255,7 +257,7 @@ const INTERVALO_INCORPORACAO_MS = 2000;
 const CACHE_TRILHA = ["historico", "paginas-anteriores"] as const;
 
 interface TrilhaCaminhada {
-  logs: any[];
+  logs: RegistroDeAuditoriaJson[];
   /** De onde continuar. `null` = a trilha acabou. */
   cursor: string | null;
   esgotado: boolean;
@@ -301,7 +303,11 @@ function autoriaTexto(e: { userName?: string; authorSource?: string }): string {
   }
   return e.userName || "Registro gravado sem autor";
 }
-const VAZIO: any[] = [];
+// Vazios de MÓDULO, um por tipo (identidade estável — ver o uso em Historico).
+const SEM_EVENTOS: EventoDaLista[] = [];
+const SEM_PECAS: PecaDaTrilha[] = [];
+const SEM_LOGS: RegistroDeAuditoriaJson[] = [];
+const SEM_LINHAS: TimelineEvent[] = [];
 
 /* ── Atalho de filtro ───────────────────────────────────────────────────────
    Antes três atalhos e um totalizador usavam o MESMO ladrilho grande: mesma
@@ -735,7 +741,7 @@ export default function Historico() {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  const eventsQ = useQuery<any[]>({ queryKey: ["/api/events"] });
+  const eventsQ = useQuery<EventoDaLista[]>({ queryKey: ["/api/events"] });
   // A TRILHA NÃO PRECISA DO ACERVO ENRIQUECIDO (perf, 2ª rodada).
   //
   // Esta é a única tela que legitimamente lê TODAS as peças: a trilha sintetiza
@@ -749,7 +755,7 @@ export default function Historico() {
   // A chave fica DENTRO do prefixo "/api/items" (mesmo padrão da Revisão
   // Final): as invalidações do WebSocket e das outras telas continuam
   // alcançando esta lista, e ela tem delta e formato compacto como as demais.
-  const itemsQ  = useQuery<any[]>({ queryKey: ["/api/items", `?campos=${CAMPOS_DA_TRILHA}`] });
+  const itemsQ  = useQuery<PecaDaTrilha[]>({ queryKey: ["/api/items", `?campos=${CAMPOS_DA_TRILHA}`] });
   // PRIMEIRA página da trilha — os 500 mais recentes, exatamente como antes. O
   // ?withTotal=1 traz junto o count real da tabela (quantas páginas ainda
   // faltam) e o cursor da próxima; as anteriores são caminhadas depois.
@@ -758,16 +764,16 @@ export default function Historico() {
   // `invalidateQueries(["/api/audit-logs"])` casa por ELEMENTO do array — com
   // ela colada na primeira posição, nenhuma das invalidações do app (nem a do
   // WebSocket) alcançaria este cache.
-  const logsQ = useQuery<{ logs: any[]; total: number; nextCursor: string | null }>({
+  const logsQ = useQuery<PaginaDeAuditoriaComTotal>({
     queryKey: ["/api/audit-logs", "?withTotal=1"],
   });
 
-  // VAZIO (constante de módulo) e não `?? []`: um literal novo a cada render
+  // SEM_* (constantes de módulo) e não `?? []`: um literal novo a cada render
   // trocaria a identidade das dependências do useMemo, `sorted` seria
   // recalculado sempre e o ajuste de estado feito no render abaixo entraria em
   // laço infinito ("Too many re-renders").
-  const events = eventsQ.data ?? VAZIO;
-  const items = itemsQ.data ?? VAZIO;
+  const events = eventsQ.data ?? SEM_EVENTOS;
+  const items = itemsQ.data ?? SEM_PECAS;
 
   // As páginas anteriores NÃO entram na chave ["/api/audit-logs", "?withTotal=1"]:
   // ela é compartilhada com a tela de Logs do Sistema, e escrever a trilha
@@ -777,11 +783,11 @@ export default function Historico() {
   // caminhamento do zero e rebaixaria dezenas de milhares de registros.
   const queryClient = useQueryClient();
   const caminhado = queryClient.getQueryData<TrilhaCaminhada>(CACHE_TRILHA);
-  const [paginasSeguintes, setPaginasSeguintes] = useState<any[]>(() => caminhado?.logs ?? []);
+  const [paginasSeguintes, setPaginasSeguintes] = useState<RegistroDeAuditoriaJson[]>(() => caminhado?.logs ?? []);
   const [completando, setCompletando] = useState(false);
   const [tetoAtingido, setTetoAtingido] = useState(false);
 
-  const primeiraPagina = logsQ.data?.logs ?? VAZIO;
+  const primeiraPagina = logsQ.data?.logs ?? SEM_LOGS;
   // Concatenar preserva a ordem decrescente (as páginas seguintes são sempre
   // ANTERIORES à primeira) — de que o motor da timeline depende para decidir
   // qual é o primeiro log de cada entidade. A deduplicação por id existe porque
@@ -801,11 +807,11 @@ export default function Historico() {
    * ?entityId=, sem teto de data) — e mescla o resultado aqui. A lista
    * cronológica sem filtro continua exatamente como era: janela + teto.
    */
-  const [alemDaJanela, setAlemDaJanela] = useState<any[]>([]);
+  const [alemDaJanela, setAlemDaJanela] = useState<RegistroDeAuditoriaJson[]>([]);
 
   const auditLogs = useMemo(() => {
-    const vistos = new Set(primeiraPagina.map((l: any) => l.id));
-    const extras: any[] = [];
+    const vistos = new Set(primeiraPagina.map((l) => l.id));
+    const extras: RegistroDeAuditoriaJson[] = [];
     for (const l of paginasSeguintes.concat(alemDaJanela)) {
       if (vistos.has(l.id)) continue;
       vistos.add(l.id);
@@ -835,7 +841,7 @@ export default function Historico() {
   // do primeiro pixel útil. A adoção logo abaixo trata a chegada da versão
   // completa como primeira carga, então nada muda para quem lê.
   const sorted = useMemo<TimelineEvent[]>(
-    () => (isLoading ? VAZIO : buildTimeline(events, items, auditLogs)),
+    () => (isLoading ? SEM_LINHAS : buildTimeline(events, items, auditLogs)),
     [events, items, auditLogs, isLoading],
   );
 
@@ -912,7 +918,7 @@ export default function Historico() {
   // dentro do atualizador de estado obrigaria a gravar o depósito lá dentro —
   // e atualizador de estado com efeito colateral roda duas vezes em modo
   // estrito e gravaria a página em dobro.
-  const acumuladoRef = useRef<any[]>(caminhado?.logs ?? []);
+  const acumuladoRef = useRef<RegistroDeAuditoriaJson[]>(caminhado?.logs ?? []);
   const cursorRef = useRef<string | null>(caminhado?.cursor ?? null);
   const esgotadoRef = useRef(caminhado?.esgotado ?? false);
   const andandoRef = useRef(false);
@@ -964,7 +970,7 @@ export default function Historico() {
             { credentials: "include", signal: ctrl.signal },
           );
           if (!res.ok) break;
-          const corpo: { logs: any[]; nextCursor: string | null } = await res.json();
+          const corpo: PaginaDeAuditoria = await res.json();
           if (!vivo) break;
           cursor = corpo.nextCursor;
           cursorRef.current = cursor;
@@ -1046,13 +1052,13 @@ export default function Historico() {
         if (querTrilha && trilhaItemId) consultas.push(`/api/audit-logs?paged=1&limit=2000&entityType=item&entityId=${encodeURIComponent(trilhaItemId)}`);
         if (consultas.length === 0) return;
         const respostas = await Promise.all(consultas.map((u) => fetch(u, { credentials: "include", signal: ctrl.signal })));
-        const corpos = await Promise.all(respostas.filter((r) => r.ok).map((r) => r.json()));
-        const logs = corpos.flatMap((c: any) => c.logs ?? []);
+        const corpos: Partial<PaginaDeAuditoria>[] = await Promise.all(respostas.filter((r) => r.ok).map((r) => r.json()));
+        const logs = corpos.flatMap((c) => c.logs ?? []);
         if (logs.length === 0) return;
         adoptNextRef.current = true;
         setAlemDaJanela((prev) => {
-          const vistos = new Set(prev.map((l: any) => l.id));
-          const novos = logs.filter((l: any) => !vistos.has(l.id));
+          const vistos = new Set(prev.map((l) => l.id));
+          const novos = logs.filter((l) => !vistos.has(l.id));
           return novos.length ? prev.concat(novos) : prev;
         });
       } catch {
@@ -1200,7 +1206,7 @@ export default function Historico() {
 
   const eventOptions = useMemo(() => {
     const counts = contagens.porEvento;
-    return events.map((ev: any) => ({ value: ev.id, label: ev.name, count: counts.get(ev.id) ?? 0 }));
+    return events.map((ev) => ({ value: ev.id, label: ev.name, count: counts.get(ev.id) ?? 0 }));
   }, [events, contagens]);
 
   const authorOptions = useMemo(() => {
@@ -1244,8 +1250,10 @@ export default function Historico() {
   /** Registro mais antigo carregado — é até onde o usuário pode confiar. */
   const oldestLoaded = useMemo(() => {
     let min: number | null = null;
-    auditLogs.forEach((l: any) => {
-      const t = new Date(l.createdAt ?? l.created_at).getTime();
+    auditLogs.forEach((l) => {
+      // `created_at`: o payload antigo vinha em snake_case (ver LogDaTrilha).
+      const bruto = l.createdAt ?? (l as LogDaTrilha).created_at;
+      const t = bruto ? new Date(bruto).getTime() : NaN;
       if (Number.isFinite(t) && (min === null || t < min)) min = t;
     });
     return min === null ? null : new Date(min);

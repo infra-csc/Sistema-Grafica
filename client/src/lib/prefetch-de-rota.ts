@@ -62,9 +62,11 @@ export function prefetchRota(url: string): void {
   if (!importar || jaPedidas.has(url)) return;
   // Economia de dados ligada (ou 2G): quem pediu para gastar menos rede não
   // paga por uma tela que talvez nem abra.
-  const conexao = (typeof navigator !== "undefined" ? (navigator as any).connection : null) as
-    | { saveData?: boolean; effectiveType?: string }
-    | null;
+  // `navigator.connection` (Network Information API) não está no lib do DOM
+  // do TypeScript: só Chromium o tem — daí o tipo declarado aqui.
+  const conexao = typeof navigator !== "undefined"
+    ? (navigator as Navigator & { connection?: { saveData?: boolean; effectiveType?: string } }).connection ?? null
+    : null;
   if (conexao?.saveData || /(^|-)2g$/.test(conexao?.effectiveType ?? "")) return;
   jaPedidas.add(url);
   importar().catch(() => {

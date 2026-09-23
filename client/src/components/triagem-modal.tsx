@@ -10,6 +10,7 @@ import { ptBR } from "date-fns/locale";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { HIDE_NATIVE_CLOSE, modalSurface } from "@/components/modal-shell";
 import { CONDITIONS, CONDITION_META, type Condition, type EnrichedAsset } from "@/lib/inventory-meta";
+import type { OrigemDoAtivo } from "@shared/api";
 import { T, N, TOM, FONT } from "@/lib/theme";
 import { Botao } from "@/components/ui/botao";
 
@@ -21,12 +22,14 @@ interface TriagemEntry { splits: SplitLine[]; notes: string; selected: boolean; 
 
 interface TriagemModalProps {
   asset: EnrichedAsset | null;
-  linkedItem?: any | null;
+  /** A peça de origem (GET /api/inventory/:id/origem). */
+  linkedItem?: OrigemDoAtivo | null;
   entry: TriagemEntry | null;
   open: boolean;
   isSaving: boolean;
   isSaved: boolean;
-  user: any;
+  /** Quem está triando (o rodapé mostra o nome). */
+  user: { name?: string | null; username?: string | null } | null;
   onOpenChange: (open: boolean) => void;
   onUpdateCondition: (c: Condition) => void;
   onUpdateResult: (r: TriagemResult) => void;

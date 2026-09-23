@@ -19,6 +19,7 @@ import { CabecalhoDaPagina } from "@/components/ui/cabecalho-da-pagina";
 import { useIsMobile, useDensidadeDoConteudo, usePonteiroGrosso, alvo } from "@/hooks/use-mobile";
 import { useFiltrosNaUrl, paginaValida } from "@/hooks/use-filtros-na-url";
 import { TIPOS_DE_PECA } from "@shared/molde";
+import type { ModeloComUso } from "@shared/api";
 
 // Delega o comportamento ao filtro padrão do app (busca, ordem alfabética,
 // contagem). Aqui o "sem filtro" é "" em vez de "all", então traduzimos nas
@@ -140,6 +141,19 @@ function ChipSangria({ s, testId }: { s: Sangria; testId: string }) {
     </span>
   );
 }
+
+/** O corpo de POST/PATCH /api/standard-items: o formulário com os opcionais vazios como null. */
+type CorpoDoModelo = Omit<typeof EMPTY_FORM, "group" | "material" | "finish" | "area" | "visual" | "visualWidth" | "visualHeight" | "fileWidth" | "fileHeight"> & {
+  group: string | null;
+  material: string | null;
+  finish: string | null;
+  area: string | null;
+  visual: string | null;
+  visualWidth: string | null;
+  visualHeight: string | null;
+  fileWidth: string | null;
+  fileHeight: string | null;
+};
 
 const EMPTY_FORM = {
   name: "",
@@ -273,8 +287,8 @@ export default function Modelos() {
   const [customGroupInput, setCustomGroupInput] = useState("");
   const { toast } = useToast();
   const { confirmar, dialogo } = useConfirmar();
-  const [editingItem, setEditingItem] = useState<any>(null);
-  const [deleteConfirm, setDeleteConfirm] = useState<any>(null);
+  const [editingItem, setEditingItem] = useState<ModeloComUso | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<ModeloComUso | null>(null);
   const [formData, setFormData] = useState({ ...EMPTY_FORM });
   // DUPLICAR abre o formulário COMO CRIAÇÃO, pré-preenchido, com o foco no
   // nome e o texto selecionado — para trocar direto. Nada é salvo antes de
@@ -304,7 +318,7 @@ export default function Modelos() {
   const [mgDeleteFinishConfirm, setMgDeleteFinishConfirm] = useState<string | null>(null);
   const [mgDeleteMaterialConfirm, setMgDeleteMaterialConfirm] = useState<string | null>(null);
 
-  const { data: standardItems = [], isLoading, isError, refetch } = useQuery<any[]>({
+  const { data: standardItems = [], isLoading, isError, refetch } = useQuery<ModeloComUso[]>({
     queryKey: ["/api/standard-items"],
   });
 
@@ -433,7 +447,7 @@ export default function Modelos() {
   const [criadosNestaSequencia, setCriadosNestaSequencia] = useState<string[]>([]);
 
   const createStandardItemMutation = useMutation({
-    mutationFn: async (data: typeof formData) => {
+    mutationFn: async (data: typeof formData | CorpoDoModelo) => {
       if (editingItem) {
         return await apiRequest("PATCH", `/api/standard-items/${editingItem.id}`, data);
       }
@@ -507,7 +521,7 @@ export default function Modelos() {
     // toggle: assim desligar o interruptor devolve os valores que a pessoa
     // tinha digitado, em vez de apagá-los sem aviso.
     const variable = formData.hasVariableMeasurement;
-    const dataToSubmit: any = {
+    const dataToSubmit: CorpoDoModelo = {
       ...formData,
       group: formData.group || null,
       material: formData.material || null,
@@ -522,7 +536,7 @@ export default function Modelos() {
     createStandardItemMutation.mutate(dataToSubmit);
   };
 
-  const handleEdit = (item: any) => {
+  const handleEdit = (item: ModeloComUso) => {
     setDuplicando(false); setArqTocado(false); setCienteDoCorte(false);
     setEditingItem(item);
     setFormData({
@@ -548,7 +562,7 @@ export default function Modelos() {
    * nulo → o submit faz POST), com todos os valores do original e o nome
    * sufixado; o foco vai para o nome com o texto selecionado.
    */
-  const handleDuplicate = (item: any) => {
+  const handleDuplicate = (item: ModeloComUso) => {
     setEditingItem(null);
     setFormData({
       name: `${item.name} (cópia)`,
@@ -620,10 +634,10 @@ export default function Modelos() {
   const catGroups = catalogOptions.filter(o => o.kind === "group").map(o => o.value);
 
   // Unique values for filter chips
-  const allGroups = Array.from(new Set([...catGroups, ...standardItems.map((s: any) => s.group).filter(Boolean)])).sort() as string[];
-  const allTypes  = Array.from(new Set(standardItems.map((s: any) => s.type).filter(Boolean))).sort() as string[];
-  const allMats     = Array.from(new Set([...materials,  ...catMats,     ...standardItems.map((s: any) => s.material).filter(Boolean)])).sort() as string[];
-  const allFinishes = Array.from(new Set([...finishes,   ...catFinishes, ...standardItems.map((s: any) => s.finish).filter(Boolean)])).sort() as string[];
+  const allGroups = Array.from(new Set([...catGroups, ...standardItems.map((s) => s.group).filter(Boolean)])).sort() as string[];
+  const allTypes  = Array.from(new Set(standardItems.map((s) => s.type).filter(Boolean))).sort() as string[];
+  const allMats     = Array.from(new Set([...materials,  ...catMats,     ...standardItems.map((s) => s.material).filter(Boolean)])).sort() as string[];
+  const allFinishes = Array.from(new Set([...finishes,   ...catFinishes, ...standardItems.map((s) => s.finish).filter(Boolean)])).sort() as string[];
 
   const filteredItems = standardItems.filter((item) => {
     const q = searchTerm.toLowerCase();
@@ -644,7 +658,7 @@ export default function Modelos() {
   // Contagens facetadas: cada filtro conta aplicando os OUTROS filtros ativos.
   const mFacetCounts = (field: 'group' | 'type' | 'material' | 'finish') => {
     const out: Record<string, number> = {};
-    standardItems.forEach((item: any) => {
+    standardItems.forEach((item) => {
       if (field !== 'group' && filterGroup && item.group !== filterGroup) return;
       if (field !== 'type' && filterType && item.type !== filterType) return;
       if (field !== 'material' && filterMaterial && item.material !== filterMaterial) return;
@@ -1711,10 +1725,10 @@ export default function Modelos() {
                     )}
                     {tabCfg.items.map(name => {
                       const count = manageTab === "group"
-                        ? (standardItems as any[]).filter(s => s.group === name).length
+                        ? standardItems.filter(s => s.group === name).length
                         : manageTab === "material"
-                        ? (standardItems as any[]).filter(s => s.material === name).length
-                        : (standardItems as any[]).filter(s => s.finish === name).length;
+                        ? standardItems.filter(s => s.material === name).length
+                        : standardItems.filter(s => s.finish === name).length;
 
                       if (manageTab === "group") return (
                         <CatRow key={name} name={name} count={count} accentColor={tabCfg.color} accentBg={tabCfg.bg} toque={toque}

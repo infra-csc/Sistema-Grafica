@@ -69,7 +69,7 @@ describe("as células seguem a regra do exemplar", () => {
 
 describe("a paginação", () => {
   it("1 grupo = 1 página; 7+ artes continuam com o MESMO rótulo, sem '(2/2)'", () => {
-    const paginas = paginarGrupos([
+    const paginas = paginarGrupos<{ id: number | string }>([
       { rotulo: "Gradil", itens: Array.from({ length: 8 }, (_, i) => ({ id: i })) },
       { rotulo: "Faixa", itens: [{ id: "x" }] },
     ]);

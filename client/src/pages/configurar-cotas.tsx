@@ -243,7 +243,7 @@ export default function ConfigurarCotas() {
       { quota, itemTypes: Array.from(matrix[quota] ?? []) },
       {
         onSuccess: () => toast({ variant: "success", title: `Cota ${rotuloDaCota(quota)} salva`, description: `${n} grupo${n !== 1 ? "s" : ""} de peça. Vale no próximo Auto-vincular — vínculos já feitos não mudam.` }),
-        onError: (e: any) => toast({ variant: "destructive", title: `Não foi possível salvar a cota ${rotuloDaCota(quota)}`, description: e.message }),
+        onError: (e) => toast({ variant: "destructive", title: `Não foi possível salvar a cota ${rotuloDaCota(quota)}`, description: e.message }),
       },
     );
   };

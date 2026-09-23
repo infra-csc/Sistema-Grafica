@@ -41,7 +41,7 @@ export function agruparAcervo<T extends AtivoDoAcervo>(
 ): GrupoDoAcervo<T>[] {
   const porChave = new Map<string, GrupoDoAcervo<T>>();
   for (const a of ativos) {
-    const chave = chaveDoGrupo({ eventId: eventoDeOrigem(a), originalItemId: a.originalItemId ?? null, name: a.name, sponsorIds: a.sponsorIds ?? [] } as any);
+    const chave = chaveDoGrupo({ eventId: eventoDeOrigem(a), originalItemId: a.originalItemId ?? null, name: a.name, sponsorIds: a.sponsorIds ?? [] });
     let g = porChave.get(chave);
     if (!g) { g = { chave, nome: a.name, ativos: [], unidades: 0, porSituacao: {}, porCondicao: {}, separadas: 0, miniatura: null }; porChave.set(chave, g); }
     const un = a.quantity ?? 1;

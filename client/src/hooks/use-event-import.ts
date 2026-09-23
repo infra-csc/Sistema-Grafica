@@ -7,6 +7,7 @@ import { useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import type { CabecalhoDoKit } from "@shared/kit";
+import type { PecaLidaDaPlanilha, PreviaDaPlanilha, RespostaDaClonagem, RespostaDaImportacao } from "@shared/api";
 import type { DestinoDaImportacao } from "@/components/kit/destino-da-importacao";
 
 interface EventSponsorListEntry {
@@ -15,10 +16,31 @@ interface EventSponsorListEntry {
   name: string;
 }
 
+/** A regra de cota como o palpite de patrocinador a lê (linha de event_quota_rules). */
+interface RegraDeCotaDoPalpite {
+  quota: string;
+  itemTypes?: string[] | null;
+}
+
+/** Linha da revisão da planilha: a peça lida + o id da linha e os palpites. */
+export type LinhaDaPrevia = PecaLidaDaPlanilha & {
+  _id: string;
+  reuse: boolean;
+};
+
+/** Mensagem de erro de uma resposta `{ error }` da API (ou nada). */
+const erroDaResposta = (corpo: unknown): string | undefined => {
+  const e = corpo && typeof corpo === "object" ? (corpo as { error?: unknown }).error : undefined;
+  return typeof e === "string" ? e : undefined;
+};
+
+/** Texto do erro lançado pela mutation (toast). */
+const mensagemDoErro = (erro: unknown): string | undefined => (erro instanceof Error ? erro.message : undefined);
+
 interface UseEventImportParams {
   eventId: string | undefined;
   eventSponsorsList: EventSponsorListEntry[];
-  eventQuotaRules: any[];
+  eventQuotaRules: readonly RegraDeCotaDoPalpite[];
 }
 
 export function useEventImport({ eventId, eventSponsorsList, eventQuotaRules }: UseEventImportParams) {
@@ -27,7 +49,7 @@ export function useEventImport({ eventId, eventSponsorsList, eventQuotaRules }: 
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importPreview, setImportPreview] = useState<{ total: number; groups: string[] } | null>(null);
-  const [importPreviewItems, setImportPreviewItems] = useState<any[] | null>(null);
+  const [importPreviewItems, setImportPreviewItems] = useState<LinhaDaPrevia[] | null>(null);
   const [importPreviewOpen, setImportPreviewOpen] = useState(false);
   const [importFileName, setImportFileName] = useState<string>("");
   const [importSearch, setImportSearch] = useState("");
@@ -38,7 +60,7 @@ export function useEventImport({ eventId, eventSponsorsList, eventQuotaRules }: 
 
   // ── Preview Excel mutation (parse → show review modal) ─────────────────
   const previewXlsxMutation = useMutation({
-    mutationFn: async ({ file }: { file: File }) => {
+    mutationFn: async ({ file }: { file: File }): Promise<PreviaDaPlanilha> => {
       const formData = new FormData();
       formData.append("file", file);
       const response = await fetch(`/api/events/${eventId}/preview-xlsx`, {
@@ -47,17 +69,17 @@ export function useEventImport({ eventId, eventSponsorsList, eventQuotaRules }: 
         credentials: "include",
       });
       if (!response.ok) {
-        const err = await response.json();
-        throw new Error(err.error || "Erro ao processar arquivo");
+        const err: unknown = await response.json();
+        throw new Error(erroDaResposta(err) || "Erro ao processar arquivo");
       }
       return response.json();
     },
-    onSuccess: (data: any) => {
+    onSuccess: (data) => {
       // Normalize text for matching (strip accents, lowercase)
       const norm = (s: string) =>
         (s ?? '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9 ]/g, ' ').trim();
 
-      const suggestSponsor = (item: any): string | null => {
+      const suggestSponsor = (item: PecaLidaDaPlanilha): string | null => {
         const descNorm = norm(item.description ?? '');
         // 1. Try to find sponsor name in description
         for (const es of eventSponsorsList) {
@@ -67,8 +89,8 @@ export function useEventImport({ eventId, eventSponsorsList, eventQuotaRules }: 
         // 2. Fallback: quota rules → find quotas that include this item type → first matching event sponsor
         const itemTypeNorm = norm(item.type ?? '');
         const matchingQuotas = eventQuotaRules
-          .filter((r: any) => (r.itemTypes ?? []).some((t: string) => norm(t) === itemTypeNorm))
-          .map((r: any) => r.quota);
+          .filter((r) => (r.itemTypes ?? []).some((t: string) => norm(t) === itemTypeNorm))
+          .map((r) => r.quota);
         for (const quota of matchingQuotas) {
           const match = eventSponsorsList.find(es => es.quota === quota);
           if (match) return match.sponsorId;
@@ -76,7 +98,7 @@ export function useEventImport({ eventId, eventSponsorsList, eventQuotaRules }: 
         return null;
       };
 
-      const withIds = (data.items as any[]).map((item: any, i: number) => {
+      const withIds = data.items.map((item, i): LinhaDaPrevia => {
         const suggested = suggestSponsor(item);
         const autoReuse = /reaproveitar/i.test(item.observations ?? '');
         // O parser já sugere os patrocinadores da peça (descrição + coluna
@@ -98,8 +120,8 @@ export function useEventImport({ eventId, eventSponsorsList, eventQuotaRules }: 
       setImportFileName(data.fileName || "");
       setImportSearch("");
     },
-    onError: (error: any) => {
-      toast({ title: "Não foi possível ler a planilha", description: error.message, variant: "destructive" });
+    onError: (error) => {
+      toast({ title: "Não foi possível ler a planilha", description: mensagemDoErro(error), variant: "destructive" });
     },
   });
 
@@ -118,8 +140,8 @@ export function useEventImport({ eventId, eventSponsorsList, eventQuotaRules }: 
   // as peças que o evento já tem, e dizendo QUAIS se repetem. Ver
   // `chaveDaPeca` em components/import-xlsx-dialog.tsx.
   const confirmImportMutation = useMutation({
-    mutationFn: async ({ items, fileName, destino }: { items: any[]; fileName: string; destino?: DestinoDaImportacao }) => {
-      const response = await apiRequest("POST", `/api/events/${eventId}/confirm-import`, {
+    mutationFn: async ({ items, fileName, destino }: { items: readonly object[]; fileName: string; destino?: DestinoDaImportacao }): Promise<RespostaDaImportacao> => {
+      const response = await apiRequest<RespostaDaImportacao>("POST", `/api/events/${eventId}/confirm-import`, {
         items,
         fileName,
         // Kit (14/09): remessa existente ou nova (o servidor cria e liga).
@@ -127,12 +149,12 @@ export function useEventImport({ eventId, eventSponsorsList, eventQuotaRules }: 
         ...(destino?.tipo === "nova" ? { kitNovaRemessa: destino.kitNovaRemessa } : {}),
       });
       if (!response.ok) {
-        const err = await response.json();
-        throw new Error(err.error || "Erro ao importar");
+        const err: unknown = await response.json();
+        throw new Error(erroDaResposta(err) || "Erro ao importar");
       }
       return response.json();
     },
-    onSuccess: (data: any) => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/items", eventId] });
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
       queryClient.invalidateQueries({ predicate: (q) => String(q.queryKey[0] ?? "").startsWith("/api/kit/remessas") });
@@ -148,8 +170,8 @@ export function useEventImport({ eventId, eventSponsorsList, eventQuotaRules }: 
         description: "Entraram em Rascunho — envie para a vinculação quando a lista estiver pronta.",
       });
     },
-    onError: (error: any) => {
-      toast({ title: "Não foi possível importar as peças", description: error.message, variant: "destructive" });
+    onError: (error) => {
+      toast({ title: "Não foi possível importar as peças", description: mensagemDoErro(error), variant: "destructive" });
     },
   });
 
@@ -189,15 +211,15 @@ export function useEventClone({ eventId }: UseEventCloneParams) {
   const cloneItemsMutation = useMutation({
     // `itemIds` é a seleção do dialog (01/09); sem ela o servidor clona tudo,
     // que é o que o fluxo de criar-evento-clonando continua fazendo.
-    mutationFn: async ({ sourceEventId, itemIds }: { sourceEventId: string; itemIds?: string[] }) => {
-      const response = await apiRequest("POST", `/api/events/${eventId}/clone-items`, { sourceEventId, itemIds });
+    mutationFn: async ({ sourceEventId, itemIds }: { sourceEventId: string; itemIds?: string[] }): Promise<RespostaDaClonagem> => {
+      const response = await apiRequest<RespostaDaClonagem>("POST", `/api/events/${eventId}/clone-items`, { sourceEventId, itemIds });
       if (!response.ok) {
-        const err = await response.json();
-        throw new Error(err.error || "Erro ao clonar");
+        const err: unknown = await response.json();
+        throw new Error(erroDaResposta(err) || "Erro ao clonar");
       }
       return response.json();
     },
-    onSuccess: (data: any) => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/items", eventId] });
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
       setCloneDialogOpen(false);
@@ -207,8 +229,8 @@ export function useEventClone({ eventId }: UseEventCloneParams) {
         description: "Entraram em Rascunho — envie para a vinculação quando a lista estiver pronta.",
       });
     },
-    onError: (error: any) => {
-      toast({ title: "Não foi possível clonar as peças", description: error.message, variant: "destructive" });
+    onError: (error) => {
+      toast({ title: "Não foi possível clonar as peças", description: mensagemDoErro(error), variant: "destructive" });
     },
   });
 

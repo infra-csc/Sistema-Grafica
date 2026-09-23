@@ -105,6 +105,11 @@ export default function Notificacoes() {
 
   const invalidar = () => queryClient.invalidateQueries({ queryKey: ["/api/admin/notificacoes"] });
 
+  /** DELETE do destinatário → a linha removida (o toast mostra o e-mail). */
+  type RespostaRemover = { ok: true; removido?: { email?: string | null } | null };
+  /** Disparo manual do aviso → o status do envio e a frase pronta do servidor. */
+  type RespostaDisparo = { status: string; mensagem: string };
+
   const adicionar = useMutation({
     mutationFn: async ({ canal, email }: { canal: string; email: string }) =>
       (await apiRequest("POST", "/api/admin/notificacoes/destinatarios", { canal, email })).json(),
@@ -113,22 +118,22 @@ export default function Notificacoes() {
       setNovoEmail((p) => ({ ...p, [v.canal]: "" }));
       toast({ title: "Destinatário adicionado", description: v.email, variant: "success" });
     },
-    onError: (e: any) => toast({ title: "Não foi possível adicionar o destinatário", description: e.message, variant: "destructive" }),
+    onError: (e) => toast({ title: "Não foi possível adicionar o destinatário", description: e.message, variant: "destructive" }),
   });
 
   const remover = useMutation({
-    mutationFn: async (id: string) => (await apiRequest("DELETE", `/api/admin/notificacoes/destinatarios/${id}`)).json(),
-    onSuccess: (r: any) => {
+    mutationFn: async (id: string) => (await apiRequest<RespostaRemover>("DELETE", `/api/admin/notificacoes/destinatarios/${id}`)).json(),
+    onSuccess: (r) => {
       invalidar();
       toast({ title: "Destinatário removido", description: r?.removido?.email, variant: "success" });
     },
-    onError: (e: any) => toast({ title: "Não foi possível remover o destinatário", description: e.message, variant: "destructive" }),
+    onError: (e) => toast({ title: "Não foi possível remover o destinatário", description: e.message, variant: "destructive" }),
   });
 
   const disparar = useMutation({
     mutationFn: async (aviso: "gestao" | "revisao") =>
-      (await apiRequest("POST", `/api/${aviso}/digest/enviar`, {})).json(),
-    onSuccess: (r: any) => {
+      (await apiRequest<RespostaDisparo>("POST", `/api/${aviso}/digest/enviar`, {})).json(),
+    onSuccess: (r) => {
       invalidar();
       toast({
         title: r.status === "enviado" ? "Aviso enviado" : "Aviso não enviado",
@@ -136,7 +141,7 @@ export default function Notificacoes() {
         variant: r.status === "enviado" || r.status === "sem-fila" ? "success" : "destructive",
       });
     },
-    onError: (e: any) => toast({ title: "Falha no disparo", description: e.message, variant: "destructive" }),
+    onError: (e) => toast({ title: "Falha no disparo", description: e.message, variant: "destructive" }),
   });
 
   // CASCA DA PÁGINA — a mesma das outras telas de administração (fundo,

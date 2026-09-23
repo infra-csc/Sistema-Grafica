@@ -104,15 +104,18 @@ export function encaixeContain(cel: CelulaBook, artW: number, artH: number): Cel
   return { x: cel.x + (cel.w - w) / 2, y: cel.y + (cel.h - h) / 2, w, h };
 }
 
-export interface PaginaDoBook { rotulo: string; itens: any[] }
+/** A peça como o book a desenha: o código (para a lista de falhas) e a arte. */
+export interface PecaDoBook { displayId: string; approvalThumbUrl?: string | null }
+
+export interface PaginaDoBook<I = PecaDoBook> { rotulo: string; itens: I[] }
 
 /**
  * Pagina os grupos na regra do exemplar: 1 grupo = 1 página, corte em 6 —
  * o grupo maior continua na página seguinte com o MESMO rótulo (o manual
  * não numera as partes, e a fidelidade manda).
  */
-export function paginarGrupos(grupos: Array<{ rotulo: string; itens: any[] }>): PaginaDoBook[] {
-  const paginas: PaginaDoBook[] = [];
+export function paginarGrupos<I>(grupos: Array<{ rotulo: string; itens: I[] }>): PaginaDoBook<I>[] {
+  const paginas: PaginaDoBook<I>[] = [];
   for (const gpo of grupos) {
     for (let i = 0; i < gpo.itens.length; i += BOOK.MAX_POR_PAGINA) {
       paginas.push({ rotulo: gpo.rotulo, itens: gpo.itens.slice(i, i + BOOK.MAX_POR_PAGINA) });

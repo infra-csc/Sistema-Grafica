@@ -237,7 +237,13 @@ describe("o Resumo conta o mês da grade", () => {
     expect(bloco).toContain("if (noMes(saida)) return true;");
     expect(bloco).toContain("return tiposVisiveis.some(dt => {");
     // A âncora e os offsets são os MESMOS que a grade usa.
-    expect(bloco).toContain("DEADLINE_DEFAULTS[dt.key]");
+    // (23/09: a leitura do offset foi para `offsetDoMarco`, a MESMA na grade e
+    // aqui — e ela cai no DEADLINE_DEFAULTS quando o evento não tem prazo próprio.)
+    expect(bloco).toContain("const offset = offsetDoMarco(ev, dt.key);");
+    const byDay = tela.slice(tela.indexOf("const byDay = useMemo("), tela.indexOf("const byDay = useMemo(") + 1500);
+    expect(byDay).toContain("const offset = offsetDoMarco(ev, dt.key);");
+    const fn = tela.slice(tela.indexOf("function offsetDoMarco("), tela.indexOf("function offsetDoMarco(") + 300);
+    expect(fn).toContain("return proprio ?? DEADLINE_DEFAULTS[campo];");
     expect(bloco).toContain("toUTCDisplayDate(ev.truckDepartureDate)");
   });
 

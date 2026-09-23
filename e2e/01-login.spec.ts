@@ -25,18 +25,10 @@ test("entra com e-mail e senha e chega no app", async ({ page }, info) => {
   expect(eu.passwordHash).toBeUndefined();
 });
 
-// DEFEITO CONHECIDO (achado por este fluxo em 23/09, no primeiro run contra o
-// app de pé): o login recusado responde 401, e client/src/lib/queryClient.ts
-// trata TODO 401 fora de /api/auth/me como sessão vencida — a tela de login diz
-// "Sua sessão expirou. Entre novamente para continuar." para quem só errou a
-// senha. `test.fail` mantém a suíte verde E a régua certa: quando o defeito for
-// corrigido, estes dois testes "passam inesperadamente", o Playwright acusa, e
-// é só tirar a marca.
-const DEFEITO_401_DO_LOGIN =
-  "login recusado mostra 'sessão expirou' (queryClient.ts trata o 401 do /api/auth/login como sessão vencida)";
-
+// O login recusado responde 401; a tela tem de dizer "credencial inválida", não
+// "sessão expirou" (defeito achado por este fluxo em 23/09 e corrigido em
+// client/src/lib/queryClient.ts: 401 de rota de credencial não é sessão vencida).
 test("senha errada não entra, e a tela diz por quê sem revelar se a conta existe", async ({ page }, info) => {
-  test.fail(true, DEFEITO_401_DO_LOGIN);
   await abrirLogin(page);
   await page.getByTestId("input-email").fill(emailDoPerfil(perfilDaLargura(info.project.name)));
   await page.getByTestId("input-password").fill("senha-que-nao-e-a-certa");
@@ -51,7 +43,6 @@ test("senha errada não entra, e a tela diz por quê sem revelar se a conta exis
 });
 
 test("e-mail de conta inexistente responde igual a senha errada", async ({ page }) => {
-  test.fail(true, DEFEITO_401_DO_LOGIN);
   // O teste de unidade já garante o tempo constante; aqui o que se afirma é
   // que a TELA também não denuncia quem tem conta.
   await abrirLogin(page);

@@ -118,15 +118,14 @@ Arte mudar de layout, quem tem de ficar vermelho é o fluxo 3 — não o da Grá
 
 ---
 
-## Defeitos conhecidos (marcados com `test.fail`)
+## Defeitos achados pelos E2E
 
-`test.fail` mantém a suíte verde **e** a régua certa: quando o defeito for
-corrigido, o teste "passa inesperadamente", o Playwright acusa, e é só tirar a
-marca.
+| Teste | Defeito | Situação |
+| --- | --- | --- |
+| 01 · senha errada / e-mail inexistente | A tela de login dizia **"Sua sessão expirou"** para quem errou a senha (o 401 do login era tratado como sessão vencida). A troca de senha com a senha atual errada chegava a derrubar a sessão. | Corrigido em `client/src/lib/queryClient.ts` (`ehRespostaDeCredencial`). |
 
-| Teste | Defeito |
-| --- | --- |
-| 01 · senha errada / e-mail inexistente | A tela de login diz **"Sua sessão expirou. Entre novamente para continuar."** para quem errou a senha. O `/api/auth/login` responde 401, e `client/src/lib/queryClient.ts` trata todo 401 fora de `/api/auth/me` como sessão vencida. Cura provável: não tratar o 401 do próprio login como sessão expirada. |
+Um defeito novo achado aqui entra com `test.fail(true, "…")` — a suíte fica verde
+e o Playwright acusa quando o conserto chegar.
 
 ## O que estes testes NÃO cobrem
 

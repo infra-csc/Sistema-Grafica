@@ -23,13 +23,22 @@ function handleUnauthorized() {
   window.location.replace("/login?sessao=expirada");
 }
 
+/** Rotas cujo 401 quer dizer "credencial errada", não "sessão vencida". */
+const ROTAS_DE_CREDENCIAL = ["/api/auth/me", "/api/auth/login", "/api/auth/change-password", "/api/auth/sso-exchange"];
+export function ehRespostaDeCredencial(url?: string): boolean {
+  if (!url) return false;
+  const caminho = url.split("?")[0];
+  return ROTAS_DE_CREDENCIAL.includes(caminho);
+}
+
 async function throwIfResNotOk(res: Response, url?: string) {
   if (res.ok) return;
 
-  // A própria checagem de sessão responde 401 para quem nunca logou; ali o
-  // roteamento normal já manda para o login, e redirecionar aqui trocaria
-  // "faça login" por "sua sessão expirou" logo na primeira visita.
-  if (res.status === 401 && url !== "/api/auth/me") {
+  // Nem todo 401 é sessão vencida. A checagem de sessão responde 401 para quem
+  // nunca logou, e login, troca de senha e SSO respondem 401 para credencial
+  // errada: tratar esses como "sessão expirou" dizia isso a quem só errou a
+  // senha — e, na troca de senha, derrubava a sessão de quem estava logado.
+  if (res.status === 401 && !ehRespostaDeCredencial(url)) {
     handleUnauthorized();
     throw new Error("Sua sessão expirou. Entre novamente para continuar.");
   }

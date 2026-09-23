@@ -88,9 +88,12 @@ function temErro(bytes) {
 
 /**
  * Sobe o banco. `pasta` = diretório de dados (persistente entre execuções);
- * sem ela, o banco vive só na memória e some ao parar.
+ * sem ela, o banco vive só na memória e some ao parar. `caronaMs` = quanto a
+ * dona de uma transação pode ficar parada antes de dar carona; `Infinity`
+ * desliga a carona (os testes de integração: transações em SÉRIE, sem uma
+ * gravar dentro da outra).
  */
-export async function subirBancoLocal({ pasta, portaTcp = 0, portaWs = 0, host = "127.0.0.1", log = () => {} } = {}) {
+export async function subirBancoLocal({ pasta, portaTcp = 0, portaWs = 0, host = "127.0.0.1", log = () => {}, caronaMs = CARONA_MS } = {}) {
   const { PGlite } = await importarFerramenta("@electric-sql/pglite");
   const { pg_trgm } = await importarFerramenta("@electric-sql/pglite/contrib/pg_trgm");
   const { WebSocketServer } = await import("ws");
@@ -144,8 +147,9 @@ export async function subirBancoLocal({ pasta, portaTcp = 0, portaWs = 0, host =
             // A dona está parada no meio da transação. Espera um pouco; se ela
             // não voltar, a primeira conexão da fila vai de carona.
             const parada = Date.now() - donoParadoDesde;
-            if (parada < CARONA_MS) {
-              if (!reagendado) reagendado = setTimeout(() => { reagendado = null; void bombear(); }, CARONA_MS - parada + 1);
+            if (parada < caronaMs) {
+              // Carona desligada (caronaMs = Infinity): espera a dona SEMPRE.
+              if (!reagendado && Number.isFinite(caronaMs)) reagendado = setTimeout(() => { reagendado = null; void bombear(); }, caronaMs - parada + 1);
               break;
             }
             i = 0;

@@ -14,7 +14,10 @@
 import { Fragment, memo, useState } from "react";
 import { Link } from "wouter";
 import { ChevronDown, CheckCircle2 } from "lucide-react";
-import { useIsMobile } from "@/hooks/use-mobile";
+import { useDensidadeDoConteudo } from "@/hooks/use-mobile";
+import { Botao } from "@/components/ui/botao";
+import { Selo } from "@/components/ui/selo";
+import { FONT, FS, FW } from "@/lib/theme";
 import type { CobrancaEntry, CobrancaMap, SponsorDelay } from "@shared/prazos-contract";
 import { CobradoControl, CobrancaLinha } from "./cobrado-control";
 import { dayColor, diasTexto, fmtDayMonth, pecasTexto, DRILL_TH, R, TI, urlPecaNoEvento } from "./tokens";
@@ -54,7 +57,11 @@ export const AnaliseBand = memo(function AnaliseBand({
   totalEventos, setores, sponsorDelays, eventosPorEtapa, proximosDias,
   cobrancas, today, etapaFoco, onEtapaFoco, diaFoco, onDiaFoco,
 }: AnaliseBandProps) {
-  const isMobile = useIsMobile();
+  // Régua pela ÁREA ÚTIL (use-mobile.tsx), não pela janela: com a barra
+  // lateral aberta um notebook de 1280 deixa ~1000px, e as duas colunas
+  // (setores 3fr + patrocinadores 2fr) espremiam o ranking. `isMobile` segue
+  // valendo só para o que é do dedo (alvo 44) e para a coluna de ação.
+  const { ref: faixaRef, cards: empilhada, isMobile } = useDensidadeDoConteudo<HTMLElement>();
   const [aberta, setAberta] = useState(false);
   const [sponsorExpandido, setSponsorExpandido] = useState<string | null>(null);
   const [verTodosSponsors, setVerTodosSponsors] = useState(false);
@@ -88,14 +95,16 @@ export const AnaliseBand = memo(function AnaliseBand({
   const cobrancaSponsor = (id: string): CobrancaEntry | undefined => cobrancas[`sponsor:${id}`];
 
   return (
-    <section aria-label="Análise por setor e patrocinador" style={{ marginTop: 22 }}>
+    <section ref={faixaRef} aria-label="Análise por setor e patrocinador" style={{ marginTop: 22 }}>
       <button
         type="button"
         onClick={() => setAberta((v) => !v)}
         aria-expanded={aberta}
         aria-controls={aberta ? "gp-diag" : undefined}
         data-testid="toggle-diagnostico"
-        className="gp-no-print"
+        // Nativo: é a barra-disclosure do bloco (largura cheia, resumo que
+        // quebra linha). Hover e foco vêm da classe.
+        className="gp-no-print ds-botao"
         style={{
           display: "flex", alignItems: "center", gap: 8, width: "100%",
           padding: "12px 16px", borderRadius: R.lg,
@@ -126,13 +135,13 @@ export const AnaliseBand = memo(function AnaliseBand({
       {aberta && (
         <div id="gp-diag" style={{
           display: "grid",
-          gridTemplateColumns: isMobile ? "1fr" : "3fr 2fr",
+          gridTemplateColumns: empilhada ? "1fr" : "3fr 2fr",
           gap: 14, marginTop: 12, alignItems: "start",
         }}>
           <section aria-label="Gargalo por setor">
             <h2 style={{
               margin: "0 0 8px", fontSize: 11, fontWeight: 700, textTransform: "uppercase",
-              letterSpacing: "0.1em", color: TI.label, fontFamily: "'Plus Jakarta Sans', sans-serif",
+              letterSpacing: "0.1em", color: TI.label, fontFamily: FONT.corpo,
             }}>
               Onde as peças estão paradas agora
             </h2>
@@ -153,7 +162,7 @@ export const AnaliseBand = memo(function AnaliseBand({
                       border: s.isWorst ? `1.5px solid ${TI.redEdge}` : `1px solid ${TI.border}`,
                     }}
                   >
-                    <span style={{ display: "block", fontSize: 12, fontWeight: 800, color: TI.title, fontFamily: "'Space Grotesk', sans-serif" }}>
+                    <span style={{ display: "block", fontSize: 12, fontWeight: 800, color: TI.title, fontFamily: FONT.display }}>
                       {s.sector}
                     </span>
                     <span style={{ display: "block", fontSize: 10, color: TI.label, marginBottom: 8 }}>
@@ -161,7 +170,7 @@ export const AnaliseBand = memo(function AnaliseBand({
                     </span>
                     <span style={{
                       fontSize: 24, fontWeight: 800, lineHeight: 1,
-                      fontFamily: "'Space Grotesk', sans-serif",
+                      fontFamily: FONT.display,
                       color: s.count === 0 ? TI.label : s.isWorst ? TI.red : TI.title,
                     }}>
                       {s.count}
@@ -192,13 +201,9 @@ export const AnaliseBand = memo(function AnaliseBand({
                       </span>
                     )}
                     {s.isWorst && (
-                      <span style={{
-                        display: "inline-block", marginTop: 6, padding: "1px 8px", borderRadius: R.pill,
-                        backgroundColor: TI.redBg, color: TI.red, fontSize: 10, fontWeight: 700,
-                        textTransform: "uppercase", letterSpacing: "0.06em",
-                      }}>
+                      <Selo tom="perigo" tamanho="sm" style={{ marginTop: 6, padding: "1px 8px" }}>
                         maior gargalo
-                      </span>
+                      </Selo>
                     )}
                     {s.producedCount > 0 && (
                       <span style={{ display: "block", fontSize: 11, color: TI.secondary, marginTop: 4 }}>
@@ -212,22 +217,26 @@ export const AnaliseBand = memo(function AnaliseBand({
                         são a mesma — misturar seria criar outro número que se
                         contradiz. */}
                     {eventosAqui > 0 && (
-                      <button
-                        type="button"
+                      <Botao
+                        variante="secundario"
+                        tamanho={isMobile ? "toque" : "md"}
+                        larguraCheia
                         onClick={() => onEtapaFoco(s.key)}
                         aria-pressed={etapaFoco === s.key}
                         data-testid={`filtrar-etapa-${s.key}`}
                         className="gp-no-print"
+                        // Alinhado à esquerda e quebrando linha: o rótulo é
+                        // uma frase, e o card tem 180px. Ligado, a borda vira
+                        // o laranja de texto — o `aria-pressed` diz o mesmo
+                        // para quem não vê a cor.
                         style={{
-                          display: "block", marginTop: 8, padding: "8px 10px", borderRadius: R.md,
-                          minHeight: isMobile ? 44 : 36,
-                          border: etapaFoco === s.key ? `1.5px solid ${TI.accentText}` : `1px solid ${TI.border}`,
-                          backgroundColor: TI.card, color: TI.title,
-                          fontSize: 11, fontWeight: 700, cursor: "pointer", width: "100%", textAlign: "left",
+                          marginTop: 8, padding: "8px 10px", justifyContent: "flex-start",
+                          textAlign: "left", whiteSpace: "normal", fontSize: FS.small,
+                          ...(etapaFoco === s.key ? { border: `1.5px solid ${TI.accentText}` } : null),
                         }}
                       >
                         Ver os {eventosAqui} evento{eventosAqui !== 1 ? "s" : ""} parados nesta etapa
-                      </button>
+                      </Botao>
                     )}
                     {s.count > 0 && (
                       <Link
@@ -252,7 +261,7 @@ export const AnaliseBand = memo(function AnaliseBand({
           <section aria-label="Aprovações travadas por patrocinador">
             <h2 style={{
               margin: "0 0 8px", fontSize: 11, fontWeight: 700, textTransform: "uppercase",
-              letterSpacing: "0.1em", color: TI.label, fontFamily: "'Plus Jakarta Sans', sans-serif",
+              letterSpacing: "0.1em", color: TI.label, fontFamily: FONT.corpo,
             }}>
               Aprovações travadas por patrocinador
             </h2>
@@ -377,7 +386,7 @@ export const AnaliseBand = memo(function AnaliseBand({
                             </th>
                             <td style={{
                               padding: "8px 6px", textAlign: "center", fontSize: 13, fontWeight: 800,
-                              fontFamily: "'Space Grotesk', sans-serif",
+                              fontFamily: FONT.display,
                               color: sp.maxDays >= 7 ? TI.red : TI.title,
                             }}>
                               {sp.pendingCount}
@@ -460,18 +469,19 @@ export const AnaliseBand = memo(function AnaliseBand({
                   </tbody>
                 </table>
                 {sponsorDelays.length > 5 && (
-                  <button
-                    type="button"
-                    onClick={() => setVerTodosSponsors((v) => !v)}
-                    className="gp-no-print"
-                    style={{
-                      display: "block", width: "100%", padding: "10px 0", minHeight: alturaToggle,
-                      background: "none", border: "none", borderTop: `1px solid ${TI.rule}`,
-                      fontSize: 12, fontWeight: 600, color: TI.secondary, cursor: "pointer",
-                    }}
-                  >
-                    {verTodosSponsors ? "Mostrar só os 5 piores" : `Ver todos (${sponsorDelays.length})`}
-                  </button>
+                  // O filete fica no invólucro: o <Botao> fantasma não tem
+                  // borda própria, e é esta linha que fecha a tabela acima.
+                  <div className="gp-no-print" style={{ borderTop: `1px solid ${TI.rule}` }}>
+                    <Botao
+                      variante="fantasma"
+                      tamanho={isMobile ? "toque" : "md"}
+                      larguraCheia
+                      onClick={() => setVerTodosSponsors((v) => !v)}
+                      style={{ borderRadius: 0, fontSize: FS.meta, fontWeight: FW.medio, color: TI.secondary }}
+                    >
+                      {verTodosSponsors ? "Mostrar só os 5 piores" : `Ver todos (${sponsorDelays.length})`}
+                    </Botao>
+                  </div>
                 )}
               </div>
             )}
@@ -485,7 +495,7 @@ export const AnaliseBand = memo(function AnaliseBand({
             <section aria-label="Prazos que vencem nos próximos dias úteis" style={{ gridColumn: "1 / -1" }}>
               <h2 style={{
                 margin: "0 0 8px", fontSize: 11, fontWeight: 700, textTransform: "uppercase",
-                letterSpacing: "0.1em", color: TI.label, fontFamily: "'Plus Jakarta Sans', sans-serif",
+                letterSpacing: "0.1em", color: TI.label, fontFamily: FONT.corpo,
               }}>
                 Próximos dias úteis — prazos que vencem
               </h2>

@@ -22,6 +22,7 @@
 // Cores: `lib/status.ts` (fonte única). O `text` de lá já é o tom escuro que
 // passa AA sobre o `bg` claro do mesmo par — o chip não inventa contraste.
 import { getPriorityMeta } from "@/lib/status";
+import { Selo } from "@/components/ui/selo";
 import { R } from "./tokens";
 
 /** Prioridades que viram chip de texto. Contexto fica como ponto. */
@@ -60,19 +61,18 @@ export function PrioridadePonto({ priority, style }: {
 export function PrioridadeChip({ priority }: { priority?: string | null }) {
   const prio = getPriorityMeta(priority);
   if (!prio || !DESTAQUE.has(priority ?? "")) return null;
+  // A forma é o <Selo> da casa (retângulo, 10px caixa-alta); a cor continua
+  // vindo de `lib/status.ts` via `cores`.
   return (
-    <span
+    <Selo
       data-testid={`selo-prioridade-${priority}`}
-      style={{
-        display: "inline-block", padding: "2px 8px", borderRadius: R.sm,
-        backgroundColor: prio.bg, border: `1px solid ${prio.border}`, color: prio.text,
-        fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.05em",
-        whiteSpace: "nowrap",
-      }}
+      cores={prio}
+      forma="retangulo"
+      tamanho="sm"
     >
       {/* "URGENTE" sozinho não diz de QUE atributo se fala quando lido em
           sequência com "risco" na mesma linha de selos. */}
       <span className="sr-only">Prioridade: </span>{prio.label}
-    </span>
+    </Selo>
   );
 }

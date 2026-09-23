@@ -1,7 +1,15 @@
 // Card do placar. Informativo vira <div> (button disabled sai da ordem de tab
 // e leitores anunciam "indisponível" para algo que não é ação nenhuma).
-import { useState } from "react";
+//
+// POR QUE NÃO É O <CartaoKpi> DA CASA. O CartaoKpi é um cartão com moldura
+// própria (borda, raio, faixa de tom) e sem lugar para tendência nem para os
+// divisores; o placar desta tela é UMA superfície com quatro CÉLULAS separadas
+// por hairline (ver refino-da-gestao-de-prazos.test.ts, bloco 4). Adotá-lo
+// devolveria os "quatro cards soltos" que o refino tirou. A célula segue a
+// mesma gramática dele — <button aria-pressed> quando filtra, <div> quando só
+// informa, ativo que muda mais que a cor — e os mesmos tokens.
 import { Filter } from "lucide-react";
+import { FONT, FS, FW, MOTION } from "@/lib/theme";
 import { TI } from "./tokens";
 
 // Tendência vs o último registro.
@@ -27,12 +35,12 @@ export function TrendArrow({ delta, goodWhenUp }: { delta: number | undefined; g
       title={`${up ? "+" : ""}${delta} em relação ao último registro`}
       style={{
         display: "block", marginTop: 5,
-        fontSize: 11, fontWeight: 700,
+        fontSize: FS.small, fontWeight: FW.forte,
         fontVariantNumeric: "tabular-nums",
         color: good ? TI.green : TI.red,
       }}
     >
-      {up ? "+" : "\u2212"}{Math.abs(delta)} vs. último registro
+      {up ? "+" : "−"}{Math.abs(delta)} vs. último registro
     </span>
   );
 }
@@ -70,7 +78,6 @@ export function KpiCard({
   divisorDireita?: boolean;
   divisorBaixo?: boolean;
 }) {
-  const [hover, setHover] = useState(false);
   const colors = {
     // `tint` é o mesmo vocabulário da pílula "Só com atraso": filtro ligado
     // pinta o FUNDO. O anel de 1,5px que existia antes sumia no meio de
@@ -91,9 +98,10 @@ export function KpiCard({
     textAlign: "left", cursor: clickable ? "pointer" : "default",
     // Os três tints medem ≥4,59:1 contra `TI.label` (o tom do rótulo e do
     // hint), então ligar o filtro não reprova AA em nenhum texto do card.
-    // O hover usa `TI.sunken`, a mesma superfície afundada do thead: sem
-    // borda e sem sombra, era o único canal de affordance que restou.
-    backgroundColor: active ? colors.tint : (clickable && hover ? TI.sunken : TI.card),
+    // O realce de hover e foco vem da classe .ds-botao (index.css): o par
+    // onMouseEnter/Leave que trocava o fundo refazia a célula a cada passada
+    // do mouse e não cobria teclado.
+    backgroundColor: active ? colors.tint : TI.card,
     // Explicito, e ANTES das duas arestas: a celula clicavel e um <button>, que
     // traz borda propria do navegador. Hoje quem zera isso e o preflight do
     // Tailwind, mas depender dele deixaria a celula com moldura de volta no dia
@@ -107,15 +115,15 @@ export function KpiCard({
     // sem sombra para levantar, `inset` é o único jeito de marcar a célula
     // sem quebrar o plano da superfície.
     boxShadow: active ? `inset 0 -2px 0 ${colors.ring}` : "none",
-    transition: "box-shadow 0.12s ease, background-color 0.12s ease",
+    transition: `box-shadow ${MOTION.rapida} ease, background-color ${MOTION.rapida} ease, filter ${MOTION.rapida} ease`,
   };
 
   const content = (
     <>
       <span style={{
-        display: "flex", alignItems: "center", gap: 5, fontSize: 10, fontWeight: 700,
+        display: "flex", alignItems: "center", gap: 5, fontSize: FS.micro, fontWeight: FW.forte,
         textTransform: "uppercase", letterSpacing: "0.1em", color: TI.label, marginBottom: 6,
-        fontFamily: "'Plus Jakarta Sans', sans-serif",
+        fontFamily: FONT.corpo,
       }}>
         {/* O funil marca em repouso quais KPIs FILTRAM — antes o único sinal
             era o anel de 1,5px que só aparece depois do clique. */}
@@ -125,11 +133,12 @@ export function KpiCard({
       <span style={{
         display: "block",
         // 34: o placar perdeu as bordas que o separavam do resto, então quem
-        // segura a hierarquia agora é o tamanho do número.
-        fontSize: 34, fontWeight: 800, lineHeight: 1,
-        fontFamily: "'Space Grotesk', sans-serif",
+        // segura a hierarquia agora é o tamanho do número. Acima do FS.h1 de
+        // propósito — é o numeral de placar, não título.
+        fontSize: 34, fontWeight: FW.rotulo, lineHeight: 1,
+        fontFamily: FONT.display,
         // Sem isto os quatro numerais mudam de largura entre um refetch e
-        // outro, porque "1" é mais estreito que "8" na Space Grotesk.
+        // outro, porque "1" é mais estreito que "8" na fonte de display.
         fontVariantNumeric: "tabular-nums",
         // Zero é sempre neutro — inclusive no verde: "Eventos em dia 0"
         // pintado de verde afirmaria o contrário do que o número diz.
@@ -138,7 +147,7 @@ export function KpiCard({
         {value}
       </span>
       {/* Fora do <span> do numeral: a frase é `display: block` e não pode
-          herdar 34px nem a Space Grotesk do número. */}
+          herdar 34px nem a fonte de display do número. */}
       <TrendArrow delta={trend} goodWhenUp={goodWhenUp} />
       {/* 12px, e não 11: isto é FRASE, não rótulo.
           "com pelo menos uma etapa já vencida", "o caminhão sai de hoje até
@@ -148,7 +157,7 @@ export function KpiCard({
           leitura. O lineHeight sobe junto: 1.35 aperta linha que quebra em
           duas. */}
       {hint && (
-        <span style={{ display: "block", marginTop: 6, fontSize: 12, lineHeight: 1.45, color: TI.label }}>
+        <span style={{ display: "block", marginTop: 6, fontSize: FS.meta, lineHeight: 1.45, color: TI.label }}>
           {hint}
         </span>
       )}
@@ -162,9 +171,8 @@ export function KpiCard({
     <button
       type="button"
       onClick={onClick}
-      onMouseEnter={() => setHover(true)}
-      onMouseLeave={() => setHover(false)}
       aria-pressed={!!active}
+      className="ds-botao"
       title={title}
       data-testid={testId}
       style={cardStyle}

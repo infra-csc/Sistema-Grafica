@@ -11,6 +11,9 @@ import { Fragment, memo } from "react";
 import { ChevronDown } from "lucide-react";
 import { Link } from "wouter";
 import type { CobrancaEntry, PrazoEvent } from "@shared/prazos-contract";
+import { Botao } from "@/components/ui/botao";
+import { Selo } from "@/components/ui/selo";
+import { FONT } from "@/lib/theme";
 import { EventDrilldown } from "./event-drilldown";
 import { PrioridadeChip, PrioridadePonto, temChipDePrioridade } from "./prioridade";
 import { ProgressoPecas } from "./progresso-pecas";
@@ -164,7 +167,7 @@ const LinhaEvento = memo(function LinhaEvento({
               data-testid={`link-evento-${ev.id}`}
               style={{
                 fontSize: 13, fontWeight: 800, color: TI.title, textDecoration: "none",
-                fontFamily: "'Space Grotesk', sans-serif", textTransform: "uppercase",
+                fontFamily: FONT.display, textTransform: "uppercase",
                 display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical",
                 overflow: "hidden", overflowWrap: "anywhere", lineHeight: 1.25,
                 minWidth: 0, flex: "0 1 auto",
@@ -183,12 +186,9 @@ const LinhaEvento = memo(function LinhaEvento({
               <span style={{ fontSize: 12, fontWeight: 600, color: TI.strong }}>
                 Saída: {fmtSaida(ev.truckDepartureDate)}
               </span>
-              <span style={{
-                display: "inline-block", padding: "2px 8px", borderRadius: R.pill,
-                backgroundColor: chip.bg, color: chip.color, fontSize: 11, fontWeight: 700,
-              }}>
+              <Selo cores={{ bg: chip.bg, text: chip.color, border: chip.bg }} style={{ padding: "2px 8px" }}>
                 {chip.full}
-              </span>
+              </Selo>
               {ev.riskCritical && <SeloRisco style={{ display: "inline-block" }} />}
             </span>
           )}
@@ -199,14 +199,16 @@ const LinhaEvento = memo(function LinhaEvento({
           {(semPecas || temChipDePrioridade(ev.priority)) && (
             <span style={{ display: "flex", flexWrap: "wrap", gap: 5, marginTop: 4 }}>
               <PrioridadeChip priority={ev.priority} />
+              {/* SÓLIDO: dano consumado (o contorno é do RISCO, que é projeção). */}
               {semPecas && (
-                <span style={{
-                  display: "inline-block", padding: "1px 8px", borderRadius: R.sm,
-                  backgroundColor: TI.red, color: "#ffffff", fontSize: 10, fontWeight: 800,
-                  textTransform: "uppercase", letterSpacing: "0.05em",
-                }}>
+                <Selo
+                  forma="retangulo"
+                  tamanho="sm"
+                  cores={{ bg: TI.red, text: "#ffffff", border: TI.red }}
+                  style={{ padding: "1px 8px" }}
+                >
                   sem peças
-                </span>
+                </Selo>
               )}
             </span>
           )}
@@ -218,13 +220,10 @@ const LinhaEvento = memo(function LinhaEvento({
             </span>
             {/* A frase inteira ("sai em 12 dias") ficava só no `title`; o chip
                 curto vai visível e a frase acompanha para o leitor de tela. */}
-            <span style={{
-              display: "inline-block", marginTop: 3, padding: "2px 8px", borderRadius: R.pill,
-              backgroundColor: chip.bg, color: chip.color, fontSize: 11, fontWeight: 700,
-            }}>
+            <Selo cores={{ bg: chip.bg, text: chip.color, border: chip.bg }} style={{ marginTop: 3, padding: "2px 8px" }}>
               <span aria-hidden="true">{chip.text}</span>
               <span className="sr-only">{chip.full}</span>
-            </span>
+            </Selo>
             {ev.riskCritical && (
               <SeloRisco style={{ display: "inline-block", marginTop: 3, marginLeft: 5 }} />
             )}
@@ -239,30 +238,26 @@ const LinhaEvento = memo(function LinhaEvento({
           <ProgressoPecas delivered={ev.deliveredItems} total={ev.totalItems} variant="coluna" />
         </td>
         <td style={{ padding: "12px 12px 12px 4px", verticalAlign: "middle", textAlign: "center" }}>
-          <button
-            type="button"
+          <Botao
+            variante="secundario"
             onClick={() => onToggleExpand(expanded ? null : ev.id)}
             aria-expanded={expanded}
             aria-controls={expanded ? `drill-${ev.id}` : undefined}
             aria-label={expanded ? `Esconder pendências de ${ev.name}` : `Ver pendências de ${ev.name}`}
             data-testid={`button-expandir-${ev.id}`}
             className="gp-no-print"
-            style={{
-              display: "inline-flex", alignItems: "center", justifyContent: "center",
-              // 36 e não 30: a linha já tem ~50px de conteúdo
-              // (nome + início + selos), então o alvo padrão da
-              // casa cabe sem esticar nada. No dedo (tablet do
-              // galpão) sobe para 44 — `alvoBotao` vem do ponteiro.
-              width: alvoBotao, height: alvoBotao, borderRadius: R.md,
-              border: `1px solid ${TI.border}`, backgroundColor: TI.card, cursor: "pointer",
-            }}
+            // Botão só de ícone: quadrado, sem o padding lateral do <Botao>.
+            // 36 e não 30: a linha já tem ~50px de conteúdo (nome + início +
+            // selos), então o alvo padrão da casa cabe sem esticar nada. No
+            // dedo (tablet do galpão) sobe para 44 — `alvoBotao` vem do ponteiro.
+            style={{ width: alvoBotao, height: alvoBotao, minHeight: alvoBotao, padding: 0 }}
           >
             <ChevronDown aria-hidden="true" style={{
               width: 15, height: 15, color: TI.strong,
               transform: expanded ? "rotate(180deg)" : "none",
               transition: "transform 0.15s ease",
             }} />
-          </button>
+          </Botao>
         </td>
       </tr>
       {expanded && (

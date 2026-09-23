@@ -7,25 +7,28 @@
 // entrada. Contorno, não preenchimento: RISCO é projeção; o sólido fica para
 // o dano já consumado.
 //
+// A FORMA é o <Selo> da casa (tamanho sm = 10px caixa-alta, que é o desenho
+// que este selo já tinha); a cor é a do semáforo: fundo branco e contorno no
+// vermelho de texto, para ler como projeção e não como dano.
+//
 // No card do quadro o selo vive dentro de um botão com `aria-label` (que
 // substitui o conteúdo para o leitor); lá o critério entra no próprio
 // aria-label e o sr-only daqui é simplesmente ignorado — inofensivo.
-import { R, RISCO_TITLE, TI } from "./tokens";
+import { Selo } from "@/components/ui/selo";
+import { RISCO_TITLE, TI } from "./tokens";
+
+const CORES_RISCO = { bg: TI.card, text: TI.red, border: TI.red };
 
 export function SeloRisco({ style }: { style?: React.CSSProperties }) {
   return (
-    <span
+    <Selo
+      tamanho="sm"
+      cores={CORES_RISCO}
       title={RISCO_TITLE}
-      style={{
-        padding: "2px 8px", borderRadius: R.pill, backgroundColor: TI.card,
-        border: `1px solid ${TI.red}`, color: TI.red,
-        fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.05em",
-        whiteSpace: "nowrap",
-        ...style,
-      }}
+      style={style}
     >
       risco
       <span className="sr-only"> — {RISCO_TITLE}</span>
-    </span>
+    </Selo>
   );
 }

@@ -29,6 +29,9 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { PrazoEvent } from "@shared/prazos-contract";
 import { MARCOS_DO_EVENTO } from "@shared/prazo-dates";
+import { Botao } from "@/components/ui/botao";
+import { Selo } from "@/components/ui/selo";
+import { FONT, FS } from "@/lib/theme";
 import { pecasTexto, R, rolagem, SCROLLPORT_MAX_H, STAGE_SECTOR, STAGE_SHORT, TI } from "./tokens";
 
 interface QuadroColunaProps {
@@ -143,7 +146,7 @@ export const QuadroColuna = memo(function QuadroColuna({ stageKey, label, stageI
           <h2 id={headingId} title={tituloDaEtapa} style={{
             margin: 0, flex: 1, minWidth: 0,
             fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em",
-            color: TI.title, fontFamily: "'Plus Jakarta Sans', sans-serif",
+            color: TI.title, fontFamily: FONT.corpo,
             overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
           }}>
             {STAGE_SHORT[stageKey] ?? label}
@@ -152,16 +155,14 @@ export const QuadroColuna = memo(function QuadroColuna({ stageKey, label, stageI
             // "vencido" fala do PRAZO desta etapa (o vocabulário da tela:
             // prazo vence, evento atrasa). O `title` desfaz a ambiguidade que
             // um numeral solto num selo de 10px carrega.
-            <span
+            <Selo
+              tom="perigo"
+              tamanho="sm"
               title={`${vencidos} evento${vencidos !== 1 ? "s" : ""} com o prazo desta etapa já vencido`}
-              style={{
-                flexShrink: 0,
-                fontSize: 10, fontWeight: 800, color: TI.red, backgroundColor: TI.redBg,
-                padding: "1px 7px", borderRadius: R.pill, whiteSpace: "nowrap",
-              }}
+              style={{ flexShrink: 0, padding: "1px 7px" }}
             >
               {vencidos} vencido{vencidos !== 1 ? "s" : ""}
-            </span>
+            </Selo>
           )}
         </div>
         {/* A ALTURA RESERVADA CONTINUA — e ela não sobrou por acaso.
@@ -208,20 +209,18 @@ export const QuadroColuna = memo(function QuadroColuna({ stageKey, label, stageI
 
       {abaixo > 0 && (
         <div className="gp-no-print" style={{ position: "sticky", bottom: 0, paddingTop: 6 }}>
-          <button
-            type="button"
+          <Botao
+            variante="secundario"
+            tamanho="sm"
+            larguraCheia
             onClick={() => {
               const el = scrollRef.current;
               if (el) el.scrollBy({ top: el.clientHeight - 60, behavior: rolagem() });
             }}
-            style={{
-              width: "100%", padding: "6px 0", borderRadius: R.md,
-              border: `1px solid ${TI.border}`, backgroundColor: TI.card,
-              fontSize: 11, fontWeight: 700, color: TI.secondary, cursor: "pointer",
-            }}
+            style={{ fontSize: FS.small, color: TI.secondary }}
           >
             +{abaixo} evento{abaixo !== 1 ? "s" : ""} abaixo ↓
-          </button>
+          </Botao>
         </div>
       )}
     </section>

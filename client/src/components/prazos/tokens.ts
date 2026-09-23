@@ -11,7 +11,7 @@
 // página compartilham e que não depende de React: mapa de setores, régua de
 // cores, formatação de data e o tradutor de erro de API.
 import { TAB_STATUSES } from "@/lib/arte-rules";
-import { T, R, SHADOW } from "@/lib/theme";
+import { FONT, FS, FW, N, R, SHADOW, T, TOM } from "@/lib/theme";
 import { toUTCDisplayDate } from "@/lib/utils";
 import type { PrazoEvent, PrazoPendingSponsor, StageState } from "@shared/prazos-contract";
 
@@ -38,32 +38,40 @@ export const TI = {
   /**
    * Texto de apoio com PESO — um degrau acima de `secondary`, para o que é
    * conteúdo (data da saída, descrição da peça, rótulo de botão neutro) e não
-   * metadado. Era o `#57534e` solto em oito lugares da tela; fica local porque
-   * o theme não tem esse degrau, exatamente como os semânticos abaixo.
-   * 7,5:1 sobre branco e 7,1:1 sobre `chipBg`.
+   * metadado. É o n8 da escada (`T.apoio`): 7,5:1 sobre branco e 7,1:1 sobre
+   * `chipBg`.
    */
-  strong: "#57534e",
-  /** Superfície neutra de chip — o "cinza claro" da casa. */
-  chipBg: "#f5f5f4",
+  strong: T.apoio,
+  /** Superfície neutra de chip — o "cinza claro" da casa (n2). */
+  chipBg: N.n2,
   /** Divisor interno de tabela (mais forte que o `track`, invisível sobre branco). */
-  rule: "#e7e5e4",
+  rule: N.n4,
   /**
    * Trilho/vazio: fundo de barra de progresso, bloco de skeleton, coluna zero
-   * do gráfico de dias e divisor mais fino do drill. Estava escrito à mão em
-   * quatro arquivos — e é justamente o tipo de tom que alguém "ajusta" num só
-   * lugar e faz a barra do card divergir da barra da tabela.
+   * do gráfico de dias e divisor mais fino do drill (n3). Um nome só para os
+   * quatro arquivos, para a barra do card não divergir da barra da tabela.
    */
-  track: "#f0efee",
-  /** Superfície do que está ABERTO dentro de uma tabela (linha de drill). */
-  sunken: "#fcfcfb",
-  // Semânticos: único bloco que o theme não cobre e que continua local.
-  red: "#b91c1c", redBg: "#fef2f2", redEdge: "#fca5a5",
-  /** Tinta de LINHA (não de chip): quase branca, para não competir com o chip. */
+  track: N.n3,
+  /**
+   * Superfície do que está ABERTO dentro de uma tabela (linha de drill,
+   * cabeçalho sticky). Era um cinza que só existia aqui (fcfcfb); virou o n1
+   * — meio degrau abaixo do branco da linha, que é o papel da tabela.
+   */
+  sunken: N.n1,
+  // Semânticos: apelidos de TOM (paleta P de status.ts), não cópias.
+  red: TOM.perigo.text, redBg: TOM.perigo.bg,
+  /**
+   * Borda de ALARME (setor gargalo, card mobile atrasado). Fica o red-300 de
+   * propósito: `TOM.perigo.border` é um degrau mais claro e sumia como
+   * contorno de 1,5px; `TOM.perigo.dot` gritaria. O theme não tem o meio.
+   */
+  redEdge: "#fca5a5",
+  /** Tinta de LINHA (não de chip): quase branca, para não competir com o chip. Sem degrau no theme. */
   redRow: "#fffafa",
-  amber: "#b45309", amberBg: "#fffbeb", amberEdge: "#fde68a",
-  /** Realce de ~1,2s no card que acabou de mudar de coluna. */
+  amber: TOM.alerta.text, amberBg: TOM.alerta.bg, amberEdge: TOM.alerta.border,
+  /** Realce de ~1,2s no card que acabou de mudar de coluna. Sem degrau no theme. */
   amberRow: "#fffdf5",
-  green: "#15803d", greenBg: "#f0fdf4",
+  green: TOM.sucesso.text, greenBg: TOM.sucesso.bg,
 };
 
 // Aparência de cada estado do semáforo. O texto acompanha a cor, mas o
@@ -559,17 +567,17 @@ export const DRILL_TABELA_MIN = 700;
  */
 export const DRILL_TH: React.CSSProperties = {
   padding: "6px 10px",
-  fontSize: 10, fontWeight: 700, textTransform: "uppercase",
+  fontSize: FS.micro, fontWeight: FW.forte, textTransform: "uppercase",
   letterSpacing: "0.08em", color: TI.label, textAlign: "center",
-  fontFamily: "'Plus Jakarta Sans', sans-serif", whiteSpace: "normal",
+  fontFamily: FONT.corpo, whiteSpace: "normal",
   lineHeight: 1.3,
 };
 
 export const TH_STYLE: React.CSSProperties = {
   padding: "10px 8px",
-  fontSize: 10, fontWeight: 700, textTransform: "uppercase",
+  fontSize: FS.micro, fontWeight: FW.forte, textTransform: "uppercase",
   letterSpacing: "0.08em", color: TI.label, textAlign: "center",
-  fontFamily: "'Plus Jakarta Sans', sans-serif", whiteSpace: "nowrap",
+  fontFamily: FONT.corpo, whiteSpace: "nowrap",
 };
 
 // Variante sticky para a tabela-mãe (o container dela é o scrollport).

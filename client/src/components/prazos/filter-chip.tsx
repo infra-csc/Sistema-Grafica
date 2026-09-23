@@ -5,8 +5,14 @@
 // O diretor clicava no placar, era interrompido, voltava dez minutos depois e
 // via uma lista curta: a pergunta é "cadê o resto?" e a resposta não estava
 // escrita em lugar nenhum. Estado invisível vira desconfiança do número.
+//
+// Desenho PRÓPRIO de propósito (não é <Botao> nem <Selo>): é um rótulo de
+// estado com um × embutido. Sem `aria-pressed` porque não é alternador — o
+// chip só existe enquanto o filtro está ligado, e a única ação é removê-lo
+// (o nome acessível do × diz qual).
 import { useIsMobile } from "@/hooks/use-mobile";
-import { R, TI } from "./tokens";
+import { FS, FW } from "@/lib/theme";
+import { R, T, TI } from "./tokens";
 
 export function FilterChip({ label, onRemove }: { label: string; onRemove: () => void }) {
   const isMobile = useIsMobile();
@@ -17,7 +23,7 @@ export function FilterChip({ label, onRemove }: { label: string; onRemove: () =>
     <span style={{
       display: "inline-flex", alignItems: "center", gap: 4,
       backgroundColor: TI.chipBg, border: `1px solid ${TI.border}`, borderRadius: R.pill,
-      padding: "3px 6px 3px 10px", fontSize: 11, fontWeight: 600, color: "#44403c",
+      padding: "3px 6px 3px 10px", fontSize: FS.small, fontWeight: FW.medio, color: T.strong,
       whiteSpace: "nowrap", maxWidth: 280, overflow: "hidden",
     }}>
       <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{label}</span>
@@ -25,9 +31,10 @@ export function FilterChip({ label, onRemove }: { label: string; onRemove: () =>
         type="button"
         onClick={onRemove}
         aria-label={`Remover filtro ${label}`}
+        className="ds-botao ds-botao-fantasma"
         style={{
-          background: "none", border: "none", cursor: "pointer", color: TI.secondary,
-          fontSize: 13, fontWeight: 800, padding: 0, lineHeight: 1,
+          background: "none", border: "none", borderRadius: R.pill, cursor: "pointer", color: TI.secondary,
+          fontSize: FS.body, fontWeight: FW.rotulo, padding: 0, lineHeight: 1,
           display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
           minWidth: hit, minHeight: hit,
           margin: `${-(hit - 18) / 2}px ${-(hit - 18) / 2}px ${-(hit - 18) / 2}px -2px`,

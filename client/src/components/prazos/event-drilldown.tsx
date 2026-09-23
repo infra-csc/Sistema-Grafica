@@ -23,6 +23,8 @@ import { Link } from "wouter";
 import { ChevronDown } from "lucide-react";
 import { useElementSize, useIsMobile } from "@/hooks/use-mobile";
 import { getStatusLabel, getStatusShort } from "@/lib/status";
+import { Botao } from "@/components/ui/botao";
+import { FS } from "@/lib/theme";
 import type { CobrancaEntry, PrazoEvent, PrazoPendingItem } from "@shared/prazos-contract";
 import { CobradoControl } from "./cobrado-control";
 import {
@@ -503,20 +505,17 @@ export const EventDrilldown = memo(function EventDrilldown({ ev, cobranca, today
             {acimaDoCorte > 0 && (
               <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 6, flexWrap: "wrap" }}>
                 {/* AÇÃO PRIMÁRIA: abrir aqui. Botão, não link — não navega. */}
-                <button
+                {/* 30 era o único controle do drill abaixo da régua; o
+                    tamanho do <Botao> dá 36 no ponteiro e 44 no toque. */}
+                <Botao
                   type="button"
+                  variante="secundario"
+                  tamanho={isMobile ? "toque" : "md"}
                   onClick={() => alternarTodas(stage.key)}
                   aria-expanded={tudoAberto}
                   aria-controls={`drill-tabela-${ev.id}-${stage.key}`}
                   data-testid={`ver-todas-${ev.id}-${stage.key}`}
-                  style={{
-                    display: "inline-flex", alignItems: "center", gap: 5,
-                    // 30 era o único controle do drill abaixo da régua (36/44).
-                    minHeight: isMobile ? 44 : 36, padding: "0 10px", borderRadius: R.sm,
-                    border: `1px solid ${TI.border}`, backgroundColor: TI.card,
-                    font: "inherit", fontSize: 11, fontWeight: 700, color: TI.strong,
-                    cursor: "pointer",
-                  }}
+                  style={{ fontSize: FS.small }}
                 >
                   <ChevronDown
                     aria-hidden="true"
@@ -529,7 +528,7 @@ export const EventDrilldown = memo(function EventDrilldown({ ev, cobranca, today
                   {tudoAberto
                     ? `Mostrar só as primeiras ${ROW_CAP}`
                     : `Ver as ${acimaDoCorte} restantes aqui`}
-                </button>
+                </Botao>
                 {/* A saída para o evento continua, agora como o que ela é: o
                     caminho para EDITAR as peças, não para vê-las. */}
                 <Link

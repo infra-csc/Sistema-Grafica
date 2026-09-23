@@ -10,6 +10,7 @@
 // o caminhão, aparecia como "0/40 prontas": o diretor lia catástrofe onde
 // estava tudo certo e cobrava a Gráfica por trabalho já feito. `lib/status.ts`
 // já registra "Entregue" como rótulo canônico.
+import { FONT } from "@/lib/theme";
 import { R, TI } from "./tokens";
 
 interface ProgressoPecasProps {
@@ -60,7 +61,7 @@ export function ProgressoPecas({ delivered, total, variant = "linha" }: Progress
         <span
           style={{
             fontSize: 13, fontWeight: 800, color: TI.title,
-            fontFamily: "'Space Grotesk', sans-serif",
+            fontFamily: FONT.display,
             // A mesma fração aparece em três superfícies; largura de dígito
             // fixa nas três, senão a coluna da tabela treme a cada linha.
             fontVariantNumeric: "tabular-nums",

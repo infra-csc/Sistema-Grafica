@@ -55,7 +55,10 @@ import {
   computePecasAtrasadas, contarPecasAtrasadas, filtrarPecasAtrasadas,
 } from "@/components/prazos/atrasadas";
 import { computeEventosPorEtapa, computeSectorSummary, eventoNaEtapa } from "@/components/prazos/gargalos";
-import { FS } from "@/lib/theme";
+import { Botao } from "@/components/ui/botao";
+import { CabecalhoDaPagina } from "@/components/ui/cabecalho-da-pagina";
+import { EstadoErro, EstadoVazio } from "@/components/ui/estados";
+import { FONT, FS, FW, MOTION } from "@/lib/theme";
 
 /**
  * As três visões do MESMO conjunto filtrado.
@@ -83,6 +86,17 @@ const VISAO_TECLA: Record<Visao, string> = { quadro: "Q", tabela: "T", atrasadas
 // das 15 telas que o usam, nao desta. Const de modulo para a identidade ser
 // estavel entre renders.
 const RAIO_FILTRO: React.CSSProperties = { borderRadius: R.md };
+
+// Link de NAVEGAÇÃO com a cara do <Botao variante="primario">. O <Botao>
+// renderiza <button>, e trocar estes <a> por botão perderia o que só link tem
+// (abrir em outra aba, copiar endereço). Mesmos tokens do componente; o
+// realce de hover/foco vem da classe .ds-botao.
+const linkComoBotao: React.CSSProperties = {
+  display: "inline-flex", alignItems: "center", justifyContent: "center",
+  padding: "0 18px", borderRadius: R.md,
+  backgroundColor: TI.ink, color: "#ffffff", border: `1px solid ${TI.ink}`,
+  fontFamily: FONT.corpo, fontSize: FS.body, fontWeight: FW.forte, textDecoration: "none",
+};
 
 // ── Identidades ESTÁVEIS (PERF-4) ─────────────────────────────────────────
 // Os fallbacks de "payload sem o campo" eram literais no corpo do componente
@@ -585,6 +599,7 @@ export default function GestaoPrazos() {
     };
     clearFilters();
     toast({
+      variant: "success",
       title: "Filtros limpos",
       action: (
         <ToastAction
@@ -749,7 +764,10 @@ export default function GestaoPrazos() {
     // abrir sem modal nenhum e concluía que o link estava quebrado.
     if (data && detailId && !modalEv) {
       setDetailId(null);
+      // `warning`: o modal não abriu, mas nada quebrou — é o aviso de que o
+      // link aponta para um evento que já saiu desta tela.
       toast({
+        variant: "warning",
         title: "Este evento não está mais na gestão de prazos",
         description: "Ele foi concluído, teve tudo entregue ou já começou.",
       });
@@ -944,84 +962,42 @@ export default function GestaoPrazos() {
     // a detecção é pela frase (com o status ausente do Error, é o que há).
     const msgErro = apiErrorMessage(error);
     const semPermissao = /acesso negado|não autenticado/i.test(msgErro);
+    // Sem permissão NÃO é erro: é um vazio com próximo passo (EstadoVazio),
+    // e o `role="alert"` do invólucro mantém o anúncio que ele já tinha. A
+    // falha de verdade usa <EstadoErro>, que diz o que falhou e oferece o
+    // "Tentar de novo".
     body = semPermissao ? (
-      <div role="alert" style={{
-        backgroundColor: TI.card, border: `1px solid ${TI.border}`, borderRadius: R.lg,
-        padding: "36px 24px", textAlign: "center",
-      }}>
-        <AlertTriangle aria-hidden="true" style={{ width: 28, height: 28, color: TI.amber, margin: "0 auto 10px" }} />
-        <p style={{ margin: "0 0 4px", fontSize: 15, fontWeight: 700, color: TI.title }}>
-          Esta tela é do diretor
-        </p>
-        <p style={{ margin: "0 0 16px", fontSize: 13, color: TI.secondary }}>
-          Seu usuário não tem acesso à Gestão de Prazos.
-        </p>
-        <Link
-          href="/"
-          data-testid="link-voltar-painel"
-          style={{
-            display: "inline-flex", alignItems: "center", minHeight: alvoEstado,
-            padding: "0 18px", borderRadius: R.md,
-            backgroundColor: TI.ink, color: "#ffffff",
-            fontSize: 13, fontWeight: 700, textDecoration: "none",
-          }}
-        >
-          Ir para o Painel
-        </Link>
+      <div role="alert">
+        <EstadoVazio
+          icone={AlertTriangle}
+          titulo="Esta tela é do diretor"
+          descricao="Seu usuário não tem acesso à Gestão de Prazos."
+          acao={
+            <Link href="/" data-testid="link-voltar-painel" className="ds-botao" style={{ ...linkComoBotao, minHeight: alvoEstado }}>
+              Ir para o Painel
+            </Link>
+          }
+        />
       </div>
     ) : (
-      <div role="alert" style={{
-        backgroundColor: TI.card, border: `1px solid ${TI.border}`, borderRadius: R.lg,
-        padding: "36px 24px", textAlign: "center",
-      }}>
-        <AlertTriangle aria-hidden="true" style={{ width: 28, height: 28, color: TI.amber, margin: "0 auto 10px" }} />
-        <p style={{ margin: "0 0 4px", fontSize: 15, fontWeight: 700, color: TI.title }}>
-          Não foi possível carregar os prazos
-        </p>
-        <p style={{ margin: "0 0 16px", fontSize: 13, color: TI.secondary }}>
-          {msgErro}
-        </p>
-        <button
-          type="button"
-          onClick={() => refetch()}
-          data-testid="button-retry-prazos"
-          style={{
-            display: "inline-flex", alignItems: "center", gap: 8, minHeight: alvoEstado,
-            padding: "0 18px", borderRadius: R.md, border: "none",
-            backgroundColor: TI.ink, color: "#ffffff",
-            fontSize: 13, fontWeight: 700, cursor: "pointer",
-          }}
-        >
-          <RotateCcw aria-hidden="true" style={{ width: 15, height: 15 }} />
-          Tentar novamente
-        </button>
-      </div>
+      <EstadoErro
+        titulo="Não foi possível carregar os prazos"
+        detalhe={msgErro}
+        aoTentarDeNovo={() => refetch()}
+      />
     );
   } else if (events.length === 0) {
     body = (
-      <div style={{
-        backgroundColor: TI.card, border: `1px solid ${TI.border}`, borderRadius: R.lg,
-        padding: "40px 24px", textAlign: "center",
-      }}>
-        <CalendarRange aria-hidden="true" style={{ width: 28, height: 28, color: TI.label, margin: "0 auto 10px" }} />
-        <p style={{ margin: "0 0 4px", fontSize: 15, fontWeight: 700, color: TI.title }}>
-          Nenhum evento ativo para acompanhar
-        </p>
-        <p style={{ margin: "0 0 16px", fontSize: 13, color: TI.secondary }}>
-          Eventos concluídos ou já iniciados não entram na gestão de prazos.
-        </p>
-        <Link
-          href="/eventos"
-          style={{
-            display: "inline-flex", alignItems: "center", minHeight: alvoEstado,
-            padding: "0 18px", borderRadius: R.md,
-            backgroundColor: TI.ink, color: "#ffffff",
-            fontSize: 13, fontWeight: 700, textDecoration: "none",
-          }}
-        >
-          Ver eventos
-        </Link>
-      </div>
+      <EstadoVazio
+        icone={CalendarRange}
+        titulo="Nenhum evento ativo para acompanhar"
+        descricao="Eventos concluídos ou já iniciados não entram na gestão de prazos."
+        acao={
+          <Link href="/eventos" className="ds-botao" style={{ ...linkComoBotao, minHeight: alvoEstado }}>
+            Ver eventos
+          </Link>
+        }
+      />
     );
   } else if (visao === "atrasadas") {
     // Antes do "nenhum evento com esses filtros": aqui quem responde vazio é a
@@ -1041,36 +1017,26 @@ export default function GestaoPrazos() {
       />
     );
   } else if (filtered.length === 0) {
+    const semAtrasoNenhum = soAtrasados && kpis.atrasados === 0;
+    const totalAtivos = `${events.length} evento${events.length !== 1 ? "s" : ""} ativo${events.length !== 1 ? "s" : ""}`;
+    // Busca, chips e o botão vão na `acao` do <EstadoVazio>: a `descricao` é
+    // um <p>, e um chip (que tem botão dentro) não pode morar num parágrafo.
     body = (
-      <div style={{
-        backgroundColor: TI.card, border: `1px solid ${TI.border}`, borderRadius: R.lg,
-        padding: "40px 24px", textAlign: "center",
-      }}>
-        {soAtrasados && kpis.atrasados === 0 ? (
-          <>
-            <CheckCircle2 aria-hidden="true" style={{ width: 28, height: 28, color: TI.green, margin: "0 auto 10px" }} />
-            <p style={{ margin: "0 0 4px", fontSize: 15, fontWeight: 700, color: TI.title }}>
-              Nenhum atraso — tudo em dia
-            </p>
-            <p style={{ margin: "0 0 16px", fontSize: 13, color: TI.secondary }}>
-              Nenhuma etapa vencida nos {events.length} evento{events.length !== 1 ? "s" : ""} ativo{events.length !== 1 ? "s" : ""}.
-            </p>
-          </>
-        ) : (
-          <>
-            <Search aria-hidden="true" style={{ width: 28, height: 28, color: TI.label, margin: "0 auto 10px" }} />
-            <p style={{ margin: "0 0 4px", fontSize: 15, fontWeight: 700, color: TI.title }}>
-              Nenhum evento com esses filtros
-            </p>
-            <p style={{ margin: "0 0 10px", fontSize: 13, color: TI.secondary }}>
-              {events.length} evento{events.length !== 1 ? "s" : ""} ativo{events.length !== 1 ? "s" : ""} no total.
-            </p>
+      <EstadoVazio
+        icone={semAtrasoNenhum ? CheckCircle2 : Search}
+        titulo={semAtrasoNenhum ? "Nenhum atraso — tudo em dia" : "Nenhum evento com esses filtros"}
+        descricao={semAtrasoNenhum
+          ? `Nenhuma etapa vencida nos ${totalAtivos}.`
+          : `${totalAtivos} no total.`}
+        acao={
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
             {/* A BUSCA DO QUADRO E DA TABELA SÓ OLHA O NOME DO EVENTO. Quem
                 digita o código de uma peça ("#3089") caía aqui e concluía que
                 ela não existe. A lista de peças atrasadas já procura por
-                código e descrição — o botão leva a MESMA busca para lá. */}
-            {busca.trim() !== "" && (
-              <p style={{ margin: "0 0 12px", fontSize: 13, color: TI.strong }}>
+                código e descrição — o botão leva a MESMA busca para lá.
+                Nativo e sublinhado de propósito: é um link dentro da frase. */}
+            {!semAtrasoNenhum && busca.trim() !== "" && (
+              <p style={{ margin: 0, fontSize: FS.body, color: TI.strong }}>
                 Aqui a busca procura só no nome do evento.{" "}
                 <button
                   type="button"
@@ -1079,7 +1045,7 @@ export default function GestaoPrazos() {
                   style={{
                     display: "inline-flex", alignItems: "center", minHeight: alvoEstado,
                     background: "none", border: "none", padding: 0, cursor: "pointer",
-                    fontSize: 13, fontWeight: 700, color: TI.accentText, textDecoration: "underline",
+                    fontSize: FS.body, fontWeight: FW.forte, color: TI.accentText, textDecoration: "underline",
                   }}
                 >
                   Procurar “{busca.trim()}” nas peças atrasadas
@@ -1088,26 +1054,22 @@ export default function GestaoPrazos() {
             )}
             {/* Dizer QUAIS filtros: "Nenhum evento com esses filtros" sem a
                 lista obrigava o diretor a caçar o estado ativo na toolbar. */}
-            {chipsAtivos.length > 0 && (
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 6, justifyContent: "center", marginBottom: 14 }}>
+            {!semAtrasoNenhum && chipsAtivos.length > 0 && (
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6, justifyContent: "center" }}>
                 {chipsAtivos.map((c) => <FilterChip key={c.key} label={c.label} onRemove={c.onRemove} />)}
               </div>
             )}
-          </>
-        )}
-        <button
-          type="button"
-          onClick={clearFilters}
-          data-testid="button-limpar-filtros"
-          style={{
-            minHeight: alvoEstado, padding: "0 18px", borderRadius: R.md, border: `1px solid ${TI.border}`,
-            backgroundColor: TI.card, color: TI.title,
-            fontSize: 13, fontWeight: 700, cursor: "pointer",
-          }}
-        >
-          Limpar filtros
-        </button>
-      </div>
+            <Botao
+              variante="secundario"
+              tamanho={alvoEstado >= 44 ? "toque" : "md"}
+              onClick={clearFilters}
+              data-testid="button-limpar-filtros"
+            >
+              Limpar filtros
+            </Botao>
+          </div>
+        }
+      />
     );
   } else if (isMobile) {
     // ── Cards mobile (markup em components/prazos/card-mobile.tsx) ──────────
@@ -1174,7 +1136,9 @@ export default function GestaoPrazos() {
       onClick={onClick}
       aria-pressed={ativo}
       data-testid={testId}
-      className="gp-no-print"
+      // Chip de filtro com desenho próprio (pílula que acende em vermelho):
+      // fica nativo, com o realce de hover/foco da classe da casa.
+      className="gp-no-print ds-botao"
       style={{
         padding: "5px 12px", borderRadius: R.pill,
         border: ativo ? `1.5px solid ${TI.red}` : `1px solid ${TI.border}`,
@@ -1182,7 +1146,7 @@ export default function GestaoPrazos() {
         color: ativo ? TI.red : TI.strong,
         // 36/44 como todo controle da tela: 30px no desktop era o único alvo
         // fora da régua da casa, e estes dois botões são filtros de verdade.
-        fontSize: 12, fontWeight: 700, cursor: "pointer", minHeight: isMobile ? 44 : 36,
+        fontSize: FS.meta, fontWeight: FW.forte, cursor: "pointer", minHeight: isMobile ? 44 : 36,
       }}
     >
       {texto}
@@ -1227,9 +1191,11 @@ export default function GestaoPrazos() {
   ) : null;
 
   // Quais hairlines cada célula do placar desenha. O número de colunas muda
-  // no celular (2x2), então "última da linha" não é o mesmo índice sempre —
-  // com 4 colunas ninguém tem divisor de baixo; com 2, as duas de cima têm.
-  const colunasPlacar = isMobile ? 2 : 4;
+  // quando a ÁREA ÚTIL aperta (2x2 — a mesma régua que troca a tabela por
+  // cartões, e não a janela: tablet com a barra lateral aberta também
+  // espreme), então "última da linha" não é o mesmo índice sempre — com 4
+  // colunas ninguém tem divisor de baixo; com 2, as duas de cima têm.
+  const colunasPlacar = emCards ? 2 : 4;
   const divisorPlacar = (i: number) => ({
     divisorDireita: (i + 1) % colunasPlacar !== 0,
     divisorBaixo: i < 4 - colunasPlacar,
@@ -1253,8 +1219,8 @@ export default function GestaoPrazos() {
       borderRadius: R.lg, padding: "12px 14px", boxShadow: SHADOW.sm,
     }}>
       <h2 id="gp-comece" style={{
-        margin: "0 0 8px", fontSize: 11, fontWeight: 700, textTransform: "uppercase",
-        letterSpacing: "0.1em", color: TI.label, fontFamily: "'Plus Jakarta Sans', sans-serif",
+        margin: "0 0 8px", fontSize: FS.small, fontWeight: FW.forte, textTransform: "uppercase",
+        letterSpacing: "0.1em", color: TI.label, fontFamily: FONT.corpo,
       }}>
         Comece por aqui
       </h2>
@@ -1298,8 +1264,8 @@ export default function GestaoPrazos() {
                     // 15px: este é o bloco mais forte abaixo do placar e o
                     // nome estava no mesmo corpo do card do quadro, que é
                     // uma superfície secundária.
-                    fontSize: 15, fontWeight: 700, color: TI.title, textAlign: "left",
-                    fontFamily: "'Space Grotesk', sans-serif", textTransform: "uppercase",
+                    fontSize: FS.strong, fontWeight: FW.forte, color: TI.title, textAlign: "left",
+                    fontFamily: FONT.display, textTransform: "uppercase",
                     // Alvo de 36: é um botão que abre modal e tinha ~17px de
                     // altura. `inline-flex` cresce a área sem desenhar caixa.
                     display: "inline-flex", alignItems: "center", minHeight: 36,
@@ -1373,6 +1339,9 @@ export default function GestaoPrazos() {
         aria-expanded={showDesdeOntem}
         aria-controls={showDesdeOntem ? "gp-desde-ontem" : undefined}
         data-testid="toggle-desde-ontem"
+        // Nativo: barra-disclosure de largura cheia com resumo que corta em
+        // reticência. Hover e foco vêm da classe.
+        className="ds-botao"
         style={{
           display: "flex", alignItems: "center", gap: 8, width: "100%",
           padding: "10px 14px", borderRadius: R.lg,
@@ -1490,8 +1459,9 @@ export default function GestaoPrazos() {
       {/* Relatório de cobrança vai para reunião: a impressão esconde os
           controles (filtros, botões), solta os scrollports (senão o Chromium
           recorta tudo o que passa da primeira dobra) e evita quebrar linha de
-          tabela ao meio. O hover de linha da tabela vive aqui pelo mesmo
-          motivo do resto da casa: :hover não existe em style inline. */}
+          tabela ao meio. O hover de linha da tabela e a elevação do card do
+          quadro (hover e foco) vivem aqui pelo mesmo motivo do resto da casa:
+          :hover não existe em style inline. */}
       <style>{`
         @media print {
           .gp-no-print { display: none !important; }
@@ -1499,6 +1469,7 @@ export default function GestaoPrazos() {
           tr { break-inside: avoid; }
         }
         .gp-row:hover > td, .gp-row:hover > th { background-color: rgba(28,25,23,0.04); }
+        .gp-card:hover, .gp-card:focus-visible { box-shadow: var(--sh-md) !important; }
       `}</style>
       <div style={{
         // O 1280 servia à tabela e estrangulava o quadro: num monitor de 1920
@@ -1512,113 +1483,93 @@ export default function GestaoPrazos() {
             região viva que some junto nunca chega a anunciar. */}
         <p role="status" className="sr-only">{anuncioCarga}</p>
 
-        {/* Header */}
-        <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 12, flexWrap: "wrap", marginBottom: 18 }}>
-          <div>
-            <h1 style={{
-              // 26 no desktop: o título dividia o corpo com o numeral do
-              // placar (agora 34) e ficava menor que ele — a página parecia
-              // começar no primeiro KPI.
-              margin: 0, fontSize: isMobile ? 20 : FS.h1, fontWeight: 700, color: TI.title,
-              fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.03em", lineHeight: 1.1,
-            }}>
-              Gestão de Prazos
-            </h1>
-            {/* `maxWidth` porque num monitor de 1600 a linha de apoio ia de
-                ponta a ponta: 130 caracteres por linha, quase o dobro do que
-                se lê sem perder a próxima. */}
-            <p style={{ margin: "4px 0 0", fontSize: 13, color: TI.secondary, maxWidth: 660 }}>
-              Etapas de cada evento contra a saída do caminhão — o que venceu, o que vence e quem destrava.
-            </p>
-            {/* ── COMO LER ESTA TELA (rodada 4) ─────────────────────────────
-                A tela abre para TODOS os perfis e falava a língua de quem a
-                desenhou: "marco", "etapa vencida", "destravar", "Marcar como
-                cobrado". Nada disso se deduz olhando. O guia é um disclosure
-                — aberto na primeira visita, lembrado fechado depois (o
-                diretor que já sabe não paga rolagem todo dia).
-
-                Tudo que ele afirma vem de fonte única: nome, descrição e prazo
-                padrão das etapas de @shared/prazo-dates (os mesmos do
-                cadastro do evento), o setor de STAGE_SECTOR (o mesmo do
-                "Resolver em …") e os tons TI.red/amber/green do semáforo. */}
-            <button
-              type="button"
-              onClick={() => alternarGuia()}
-              aria-expanded={guiaAberto}
-              aria-controls={guiaAberto ? "gp-guia" : undefined}
-              data-testid="toggle-como-ler-prazos"
-              className="gp-no-print"
-              style={{
-                display: "inline-flex", alignItems: "center", gap: 5, minHeight: 36, marginTop: 2,
-                background: "none", border: "none", padding: 0, cursor: "pointer",
-                fontSize: 12, fontWeight: 700, color: TI.accentText,
-              }}
+        {/* Cabeçalho da casa: ONDE ESTOU (título) · COMO ESTÁ (subtítulo +
+            frescor) · O QUE POSSO FAZER (ações). O subtítulo passou a ser o
+            ESTADO; a frase que parafraseava o título ("etapas contra a saída
+            do caminhão…") é o que o guia "Como ler esta tela" já explica. */}
+        <CabecalhoDaPagina
+          titulo="Gestão de Prazos"
+          subtitulo={data
+            ? `${events.length} evento${events.length !== 1 ? "s" : ""} ativo${events.length !== 1 ? "s" : ""} · ${kpis.atrasados} com atraso`
+            : undefined}
+          frescor={data ? (
+            <span
+              style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: FS.small, color: dadoVelho ? TI.amber : TI.label, fontWeight: dadoVelho ? FW.forte : 400 }}
+              /* "Esse número está atualizado?" O title só dava a data crua;
+                 agora diz também COMO a tela se mantém fresca e quando o
+                 selo fica âmbar — sem isso o âmbar parecia alarme.
+                 Sem botão "Atualizar" (pedido do dono): a tela se atualiza
+                 sozinha — WebSocket + polling + refetch no foco. O spinner é
+                 o único sinal de recarga em curso; os "Tentar de novo" dos
+                 estados de ERRO ficam, porque lá o clique é recuperação. */
+              title={`Dados de ${new Date(data.generatedAt).toLocaleString("pt-BR")}. A tela se atualiza sozinha quando alguém muda um evento ou peça, ao voltar para a aba e, por segurança, a cada 5 minutos. Fica âmbar se os dados tiverem 10 minutos ou mais.`}
             >
-              <ChevronDown aria-hidden="true" style={{
-                width: 14, height: 14,
-                transform: guiaAberto ? "rotate(180deg)" : "none",
-                transition: "transform 0.15s ease",
-              }} />
-              {guiaAberto ? "Fechar o guia" : "Como ler esta tela"}
-            </button>
-          </div>
-          {data && (
-            <div className="gp-no-print" style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-              {novidades > 0 && (
-                <button
-                  type="button"
+              {isFetching && <RotateCcw aria-hidden="true" className="animate-spin" style={{ width: 11, height: 11 }} />}
+              Atualizado {fmtRelative(data.generatedAt, agora)}
+            </span>
+          ) : undefined}
+          acoes={
+            <div className="gp-no-print" style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+              {/* ── COMO LER ESTA TELA (rodada 4) ─────────────────────────────
+                  A tela abre para TODOS os perfis e falava a língua de quem a
+                  desenhou: "marco", "etapa vencida", "destravar", "Marcar como
+                  cobrado". Nada disso se deduz olhando. O guia é um disclosure
+                  que nasce fechado (dono, 17/09).
+
+                  Tudo que ele afirma vem de fonte única: nome, descrição e prazo
+                  padrão das etapas de @shared/prazo-dates (os mesmos do
+                  cadastro do evento), o setor de STAGE_SECTOR (o mesmo do
+                  "Resolver em …") e os tons TI.red/amber/green do semáforo.
+                  Laranja de texto para ser achado sem competir com as ações. */}
+              <Botao
+                variante="fantasma"
+                tamanho={isMobile ? "toque" : "md"}
+                onClick={() => alternarGuia()}
+                aria-expanded={guiaAberto}
+                aria-controls={guiaAberto ? "gp-guia" : undefined}
+                data-testid="toggle-como-ler-prazos"
+                style={{ color: TI.accentText }}
+              >
+                <ChevronDown aria-hidden="true" style={{
+                  width: 14, height: 14,
+                  transform: guiaAberto ? "rotate(180deg)" : "none",
+                  transition: `transform ${MOTION.media} ease`,
+                }} />
+                {guiaAberto ? "Fechar o guia" : "Como ler esta tela"}
+              </Botao>
+              {data && novidades > 0 && (
+                // Pílula âmbar: é AVISO ("o chão se moveu"), não ação da tela.
+                // A cor sobrepõe a do secundário; hover/foco seguem da classe.
+                <Botao
+                  variante="secundario"
+                  tamanho={isMobile ? "toque" : "md"}
+                  icone={Sparkles}
                   onClick={() => setNovidades(0)}
                   data-testid="button-novidades"
                   title="A tela já recarregou sozinha — este contador diz que o chão se moveu enquanto você lia. Clique para zerar."
                   style={{
-                    display: "inline-flex", alignItems: "center", gap: 6,
-                    padding: "0 12px", height: isMobile ? 44 : 36, borderRadius: R.pill,
-                    border: `1px solid ${TI.amber}`, backgroundColor: TI.amberBg,
-                    color: TI.amber, fontSize: 11, fontWeight: 700, cursor: "pointer",
+                    borderRadius: R.pill, border: `1px solid ${TI.amber}`,
+                    backgroundColor: TI.amberBg, color: TI.amber, fontSize: FS.small,
                   }}
                 >
-                  <Sparkles aria-hidden="true" style={{ width: 12, height: 12 }} />
                   {novidades} mudança{novidades !== 1 ? "s" : ""} desde que você abriu
-                </button>
+                </Botao>
               )}
-              {/* Sem botão "Atualizar" (pedido do dono): a tela se atualiza
-                  sozinha — WebSocket + polling de 60s + refetch no foco. O selo
-                  continua sendo a promessa de veracidade, e o spinner ao lado é
-                  o único sinal de que uma recarga está em curso. Os botões de
-                  "Tentar de novo" dos estados de ERRO ficam: lá a recarga
-                  automática falhou e o clique é recuperação, não rotina. */}
-              <span
-                style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 11, color: dadoVelho ? TI.amber : TI.label, fontWeight: dadoVelho ? 700 : 400 }}
-                /* "Esse número está atualizado?" O title só dava a data crua;
-                   agora diz também COMO a tela se mantém fresca e quando o
-                   selo fica âmbar — sem isso o âmbar parecia alarme. */
-                title={`Dados de ${new Date(data.generatedAt).toLocaleString("pt-BR")}. A tela se atualiza sozinha quando alguém muda um evento ou peça, ao voltar para a aba e, por segurança, a cada 5 minutos. Fica âmbar se os dados tiverem 10 minutos ou mais.`}
-              >
-                {isFetching && <RotateCcw aria-hidden="true" className="animate-spin" style={{ width: 11, height: 11 }} />}
-                Atualizado {fmtRelative(data.generatedAt, agora)}
-              </span>
-              {!isMobile && (
-                <button
-                  type="button"
+              {data && !isMobile && (
+                <Botao
+                  variante="secundario"
+                  icone={Printer}
+                  carregando={printMode}
                   onClick={imprimirPauta}
-                  disabled={printMode}
                   data-testid="button-imprimir-pauta"
                   title="Troca para a tabela, abre as pendências dos eventos atrasados e manda para a impressora."
-                  style={{
-                    display: "inline-flex", alignItems: "center", gap: 7,
-                    padding: "0 14px", height: 36, borderRadius: R.md,
-                    border: `1px solid ${TI.border}`,
-                    backgroundColor: TI.card, color: printMode ? TI.label : TI.strong,
-                    fontSize: 12, fontWeight: 700, cursor: printMode ? "default" : "pointer",
-                  }}
                 >
-                  <Printer aria-hidden="true" style={{ width: 14, height: 14 }} />
                   {printMode ? "Preparando..." : "Imprimir pauta"}
-                </button>
+                </Botao>
               )}
             </div>
-          )}
-        </div>
+          }
+        />
 
         {guiaAberto && (
           <section
@@ -1630,8 +1581,8 @@ export default function GestaoPrazos() {
               marginBottom: 16, padding: isMobile ? "12px 14px" : "14px 18px",
               backgroundColor: TI.card, border: `1px solid ${TI.border}`, borderRadius: R.lg,
               boxShadow: SHADOW.sm, fontSize: 13, color: TI.strong, lineHeight: 1.5,
-              display: "grid", gap: isMobile ? 14 : 24,
-              gridTemplateColumns: isMobile ? "1fr" : "minmax(0, 1.25fr) minmax(0, 1fr)",
+              display: "grid", gap: emCards ? 14 : 24,
+              gridTemplateColumns: emCards ? "1fr" : "minmax(0, 1.25fr) minmax(0, 1fr)",
             }}
           >
             <div style={{ minWidth: 0 }}>
@@ -1698,13 +1649,15 @@ export default function GestaoPrazos() {
             <span style={{ fontSize: 13, color: TI.amber, fontWeight: 600 }}>
               Não foi possível atualizar — mostrando dados de {fmtRelative(data.generatedAt, agora)}. {apiErrorMessage(error)}
             </span>
-            <button
-              type="button"
+            <Botao
+              variante="secundario"
+              tamanho={alvoEstado >= 44 ? "toque" : "sm"}
+              icone={RotateCcw}
               onClick={() => refetch()}
-              style={{ display: "inline-flex", alignItems: "center", minHeight: alvoEstado, background: "none", border: "none", padding: 0, fontSize: 13, fontWeight: 700, color: TI.accentText, cursor: "pointer", textDecoration: "underline" }}
+              style={{ marginLeft: "auto" }}
             >
               Tentar de novo
-            </button>
+            </Botao>
           </div>
         )}
 
@@ -1723,7 +1676,7 @@ export default function GestaoPrazos() {
                 de triagem respeitarem o raio da quina. */}
             <div style={{
               display: "grid",
-              gridTemplateColumns: isMobile ? "repeat(2, minmax(0,1fr))" : "repeat(4, minmax(0,1fr))",
+              gridTemplateColumns: emCards ? "repeat(2, minmax(0,1fr))" : "repeat(4, minmax(0,1fr))",
               backgroundColor: TI.card,
               border: `1px solid ${TI.border}`,
               borderRadius: R.lg,
@@ -1837,10 +1790,11 @@ export default function GestaoPrazos() {
                     aria-pressed={ativo}
                     data-testid={`visao-${v}`}
                     title={`Atalho: ${VISAO_TECLA[v]}`}
+                    className="ds-botao"
                     style={{
                       padding: "0 14px", border: "none", cursor: "pointer",
                       borderRadius: R.sm,
-                      fontSize: 12, fontWeight: 700,
+                      fontSize: FS.meta, fontWeight: FW.forte,
                       backgroundColor: ativo ? TI.card : "transparent",
                       color: ativo ? TI.title : TI.strong,
                       // `SHADOW.sm` é o token que corresponde à sombra pedida
@@ -1877,7 +1831,8 @@ export default function GestaoPrazos() {
                   width: "100%", boxSizing: "border-box",
                   height: isMobile ? 44 : 36, padding: "0 12px 0 32px", borderRadius: R.md,
                   border: `1px solid ${TI.border}`, backgroundColor: TI.card,
-                  fontSize: 13, color: TI.title, outlineOffset: 2,
+                  // 16px no celular: abaixo disso o iOS dá zoom ao focar.
+                  fontSize: isMobile ? FS.lead : FS.body, color: TI.title, outlineOffset: 2,
                 }}
               />
             </div>
@@ -1891,6 +1846,9 @@ export default function GestaoPrazos() {
                 onClick={() => setSoAtrasados((v) => !v)}
                 aria-pressed={soAtrasados}
                 data-testid="toggle-so-atrasados"
+                // Alternador de filtro com desenho próprio (acende em vermelho
+                // quando ligado): nativo, com hover/foco da classe da casa.
+                className="ds-botao"
                 style={{
                   // `R.md` e não pílula: esta é a BARRA de controles, e ali
                   // todo mundo é retângulo (busca, seletor, filtros). As
@@ -1900,7 +1858,7 @@ export default function GestaoPrazos() {
                   border: soAtrasados ? `1.5px solid ${TI.red}` : `1px solid ${TI.border}`,
                   backgroundColor: soAtrasados ? TI.redBg : TI.card,
                   color: soAtrasados ? TI.red : TI.strong,
-                  fontSize: 12, fontWeight: 700, cursor: "pointer",
+                  fontSize: FS.meta, fontWeight: FW.forte, cursor: "pointer",
                 }}
               >
                 Só com atraso
@@ -1997,18 +1955,16 @@ export default function GestaoPrazos() {
             />
             )}
             {hasActiveFilters && (
-              <button
-                type="button"
+              <Botao
+                variante="fantasma"
+                tamanho={isMobile ? "toque" : "md"}
                 onClick={clearFilters}
                 data-testid="button-limpar-filtros-topo"
                 title="Atalho: Esc"
-                style={{
-                  padding: "0 12px", height: isMobile ? 44 : 36, borderRadius: R.md, border: "none",
-                  background: "none", color: TI.accentText, fontSize: 12, fontWeight: 700, cursor: "pointer",
-                }}
+                style={{ color: TI.accentText }}
               >
                 Limpar
-              </button>
+              </Botao>
             )}
             {/* O contador fala da UNIDADE que a visão desenha. Dizer "12 de 40
                 eventos" sobre uma lista de peças é o mesmo tipo de número

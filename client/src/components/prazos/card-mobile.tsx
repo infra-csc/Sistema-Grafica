@@ -4,6 +4,8 @@
 import { memo } from "react";
 import { ChevronDown, Truck } from "lucide-react";
 import type { CobrancaEntry, PrazoEvent } from "@shared/prazos-contract";
+import { Selo } from "@/components/ui/selo";
+import { FONT, FS, FW } from "@/lib/theme";
 import { EventDrilldown } from "./event-drilldown";
 import { PrioridadeChip, PrioridadePonto } from "./prioridade";
 import { ProgressoPecas } from "./progresso-pecas";
@@ -33,7 +35,7 @@ export const CardMobilePrazos = memo(function CardMobilePrazos({ ev, expanded, o
         <div style={{ minWidth: 0 }}>
           <p style={{
             margin: 0, fontSize: 14, fontWeight: 800, color: TI.title,
-            fontFamily: "'Space Grotesk', sans-serif", textTransform: "uppercase",
+            fontFamily: FONT.display, textTransform: "uppercase",
             overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
           }} title={ev.name}>
             <PrioridadePonto priority={ev.priority} style={{ marginRight: 6 }} />
@@ -49,20 +51,21 @@ export const CardMobilePrazos = memo(function CardMobilePrazos({ ev, expanded, o
               com o chip de saída, e um ponto de 8px colado à esquerda dele
               era a única marca de prioridade da tela. */}
           <PrioridadeChip priority={ev.priority} />
-          <span title={chip.full} style={{
-            padding: "3px 9px", borderRadius: R.pill,
-            backgroundColor: chip.bg, color: chip.color,
-            fontSize: 11, fontWeight: 700, whiteSpace: "nowrap",
-          }}>
+          {/* Borda na cor do fundo: o chip de saída é tinta, sem contorno. */}
+          <Selo title={chip.full} cores={{ bg: chip.bg, text: chip.color, border: chip.bg }}>
             {chip.text}
-          </span>
+          </Selo>
           {ev.riskCritical && <SeloRisco />}
         </span>
       </div>
 
       {(ev.categoria === "semPecas" || ev.totalItems === 0) && (
-        <p style={{ margin: "10px 0 0", fontSize: 12, fontWeight: 700, color: "#ffffff", backgroundColor: TI.red, borderRadius: R.sm, padding: "3px 9px", display: "inline-block" }}>
-          Nenhuma peça cadastrada
+        // SÓLIDO de propósito: é dano consumado (o contorno fica para o RISCO,
+        // que é projeção). Branco sobre o vermelho de texto dá 6,5:1.
+        <p style={{ margin: "10px 0 0" }}>
+          <Selo forma="retangulo" cores={{ bg: TI.red, text: "#ffffff", border: TI.red }} style={{ fontSize: FS.meta }}>
+            Nenhuma peça cadastrada
+          </Selo>
         </p>
       )}
 
@@ -89,12 +92,14 @@ export const CardMobilePrazos = memo(function CardMobilePrazos({ ev, expanded, o
         // renderizado condicionalmente) — referência pendurada é erro de AT.
         aria-controls={expanded ? `drill-${ev.id}` : undefined}
         data-testid={`button-expandir-${ev.id}`}
-        className="gp-no-print"
+        // Nativo, e não <Botao>: é o rodapé-disclosure do cartão (largura
+        // cheia, filete em cima). O realce de hover/foco vem da classe.
+        className="gp-no-print ds-botao ds-botao-fantasma"
         style={{
           display: "flex", alignItems: "center", gap: 6, marginTop: 12,
           padding: "10px 0", width: "100%", justifyContent: "center", minHeight: 44,
           background: "none", border: "none", borderTop: `1px solid ${TI.border}`,
-          fontSize: 12, fontWeight: 700, color: TI.strong, cursor: "pointer",
+          fontSize: FS.meta, fontWeight: FW.forte, color: TI.strong, cursor: "pointer",
         }}
       >
         <ChevronDown aria-hidden="true" style={{

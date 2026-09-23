@@ -21,6 +21,8 @@ import { useToast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useAuth } from "@/contexts/auth-context";
 import type { CobrancaEntry } from "@shared/prazos-contract";
+import { Botao } from "@/components/ui/botao";
+import { FONT, FS, FW } from "@/lib/theme";
 import { addDaysStr, apiErrorMessage, diasTexto, fmtDiaSemana, R, TI } from "./tokens";
 
 /** Horizonte máximo de uma promessa — espelha o servidor (PROMESSA_MAX_DIAS). */
@@ -166,6 +168,7 @@ export const CobradoControl = memo(function CobradoControl({
       setOtimistaDesde(cobranca?.createdAt ?? "primeira");
       queryClient.invalidateQueries({ queryKey: ["/api/prazos"] });
       toast({
+        variant: "success",
         title: "Cobrança registrada",
         description: promessa
           ? `Ficou marcado quem cobrou, quando e o prazo prometido (${fmtDiaSemana(promessa)}).`
@@ -187,44 +190,39 @@ export const CobradoControl = memo(function CobradoControl({
 
   const alturaAcao = isMobile ? 44 : 36;
   const primario = variant === "primary";
-  const desabilitado = mutation.isPending || promessaForaDaJanela;
 
+  // <Botao>: `carregando` troca o megafone por spinner e trava o segundo
+  // clique (dois POSTs seguidos gravariam duas cobranças). O motivo do
+  // bloqueio por data NÃO vai em `motivo`: ele já aparece como alerta logo
+  // abaixo do campo de data, e repetir a frase ao lado do botão seria eco.
   const botao = (
-    <button
-      type="button"
+    <Botao
+      variante={primario ? "primario" : "secundario"}
+      tamanho={isMobile ? "toque" : "md"}
+      icone={Megaphone}
+      carregando={mutation.isPending}
       onClick={() => mutation.mutate()}
-      disabled={desabilitado}
+      disabled={promessaForaDaJanela}
       data-testid={`button-cobrar-${targetType}-${targetId}`}
       // "O QUE ACONTECE SE EU CLICAR?" O verbo não dizia. A resposta é o que o
       // POST faz de fato: grava quem, quando, promessa e nota (e o log). Não
       // muda peça nenhuma e não manda mensagem — o broadcast só atualiza telas.
       title={`Anota que ${targetType === "event" ? "este evento" : "este patrocinador"} foi cobrado: fica registrado quem cobrou, quando e o prazo combinado (se preenchido). Não muda nenhuma peça e não envia mensagem a ninguém.`}
-      style={{
-        display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 7,
-        padding: "0 16px", height: alturaAcao, borderRadius: R.md,
-        border: primario ? "none" : `1px solid ${TI.border}`,
-        backgroundColor: primario ? TI.ink : TI.card,
-        color: primario ? "#ffffff" : TI.title,
-        fontSize: 13, fontWeight: 700,
-        cursor: desabilitado ? "default" : "pointer",
-        opacity: desabilitado ? 0.6 : 1,
-        whiteSpace: "nowrap",
-      }}
     >
-      <Megaphone aria-hidden="true" style={{ width: 15, height: 15 }} />
       {mutation.isPending ? "Registrando..." : cobranca ? "Cobrar de novo" : "Marcar como cobrado"}
-    </button>
+    </Botao>
   );
 
   const rotuloCampo: React.CSSProperties = {
-    display: "block", fontSize: 11, fontWeight: 700, color: TI.label,
+    display: "block", fontSize: FS.small, fontWeight: FW.forte, color: TI.label,
     textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4,
-    fontFamily: "'Plus Jakarta Sans', sans-serif",
+    fontFamily: FONT.corpo,
   };
   const campo: React.CSSProperties = {
     width: "100%", padding: "8px 10px", borderRadius: R.md,
     border: `1px solid ${TI.border}`, backgroundColor: TI.card,
-    fontSize: 13, color: TI.title, outlineOffset: 2,
+    // 16px no celular: abaixo disso o iOS dá zoom ao focar o campo.
+    fontSize: isMobile ? FS.lead : FS.body, color: TI.title, outlineOffset: 2,
   };
 
   return (
@@ -256,16 +254,15 @@ export const CobradoControl = memo(function CobradoControl({
           )}
           {showHistorico && cobranca.total > 1 && (
             <>
-              <button
-                type="button"
+              <Botao
+                variante="fantasma"
+                tamanho={isMobile ? "toque" : "sm"}
                 onClick={() => setHistAberto((v) => !v)}
                 aria-expanded={histAberto}
                 aria-controls={histAberto ? `hist-${targetType}-${targetId}` : undefined}
-                style={{
-                  display: "inline-flex", alignItems: "center", gap: 5, marginTop: 4,
-                  background: "none", border: "none", padding: "4px 0",
-                  fontSize: 12, fontWeight: 600, color: TI.secondary, cursor: "pointer",
-                }}
+                // Encosta o rótulo na margem do texto acima: o padding lateral
+                // do fantasma o descolaria da linha de cobrança que ele abre.
+                style={{ marginTop: 4, paddingLeft: 0, fontWeight: FW.medio, color: TI.secondary }}
               >
                 <ChevronDown aria-hidden="true" style={{
                   width: 13, height: 13,
@@ -273,7 +270,7 @@ export const CobradoControl = memo(function CobradoControl({
                   transition: "transform 0.15s ease",
                 }} />
                 {histAberto ? "Esconder o histórico" : `Ver as ${Math.min(cobranca.total, 5)} últimas cobranças`}
-              </button>
+              </Botao>
               {histAberto && (
                 // Teto de 5 vindo do servidor: a régua da pressão ("3 cobranças
                 // em 12 dias"), não o log completo — que o audit log já é.
@@ -294,8 +291,9 @@ export const CobradoControl = memo(function CobradoControl({
 
       {showForm && podeCobrar && (
         <div>
-          <button
-            type="button"
+          <Botao
+            variante="fantasma"
+            tamanho={isMobile ? "toque" : "md"}
             onClick={() => {
               // Recolher DESCARTA o rascunho. O rótulo do estado aberto é
               // "Registrar sem combinar prazo": manter a data/nota digitadas
@@ -307,15 +305,10 @@ export const CobradoControl = memo(function CobradoControl({
             }}
             aria-expanded={formAberto}
             aria-controls={formAberto ? `combinado-${targetType}-${targetId}` : undefined}
-            /* ALVO DE 36px: com padding 4px o botao dava 26 de altura, abaixo
-               do minimo de ponteiro da casa. minHeight em vez de mais padding
-               para o traco nao mudar de lugar — o fundo e transparente, entao
-               o que cresce e so a area de clique. */
-            style={{
-              display: "inline-flex", alignItems: "center", gap: 5, minHeight: 36,
-              background: "none", border: "none", padding: "0",
-              fontSize: 12, fontWeight: 600, color: TI.secondary, cursor: "pointer",
-            }}
+            /* ALVO DE 36/44 pelo tamanho do <Botao>. `paddingLeft: 0` para o
+               traço não mudar de lugar: o rótulo segue alinhado aos campos
+               que ele abre logo abaixo. */
+            style={{ paddingLeft: 0, fontSize: FS.meta, fontWeight: FW.medio, color: TI.secondary }}
           >
             <ChevronDown aria-hidden="true" style={{
               width: 13, height: 13,
@@ -323,7 +316,7 @@ export const CobradoControl = memo(function CobradoControl({
               transition: "transform 0.15s ease",
             }} />
             {formAberto ? "Registrar sem combinar prazo" : "Combinar um prazo (opcional)"}
-          </button>
+          </Botao>
           {formAberto && (
             <div id={`combinado-${targetType}-${targetId}`} style={{ display: "grid", gap: 10, marginTop: 8 }}>
               <div>

@@ -26,6 +26,9 @@ import { Link } from "wouter";
 import { CheckCircle2, Search } from "lucide-react";
 import { CONTENT_CARDS_MAX, useElementSize, useIsMobile } from "@/hooks/use-mobile";
 import { getStatusLabel, getStatusShort } from "@/lib/status";
+import { Botao } from "@/components/ui/botao";
+import { EstadoVazio } from "@/components/ui/estados";
+import { FONT } from "@/lib/theme";
 import { FilterChip } from "./filter-chip";
 import { PrioridadeChip, PrioridadePonto, temChipDePrioridade } from "./prioridade";
 import type { PecaAtrasada } from "./atrasadas";
@@ -263,7 +266,7 @@ const CartaoPeca = memo(function CartaoPeca({ p, onAbrirEvento }: {
           display: "flex", alignItems: "center", gap: 6, background: "none", border: "none",
           padding: 0, cursor: "pointer", maxWidth: "100%", minHeight: isMobile ? 44 : 36,
           fontSize: 12, fontWeight: 800, color: TI.title, textAlign: "left",
-          fontFamily: "'Space Grotesk', sans-serif", textTransform: "uppercase",
+          fontFamily: FONT.display, textTransform: "uppercase",
         }}
         title={`${p.eventName} — abrir detalhes do evento`}
       >
@@ -358,7 +361,7 @@ const LinhaPeca = memo(function LinhaPeca({ p, comEtapa, onAbrirEvento }: {
               background: "none", border: "none", padding: 0, cursor: "pointer",
               minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
               fontSize: 12, fontWeight: 800, color: TI.title, textAlign: "left",
-              fontFamily: "'Space Grotesk', sans-serif", textTransform: "uppercase",
+              fontFamily: FONT.display, textTransform: "uppercase",
             }}
           >
             {p.eventName}
@@ -462,9 +465,9 @@ export function PecasAtrasadas({
   const comEtapa = width === 0 || width >= ETAPA_MIN;
 
   // "Limpar filtros" e "Mostrar mais" eram `padding: 9px` — 36px também no
-  // dedo. Mesma régua dos estados da página: 36 no ponteiro, 44 no toque.
+  // dedo. Mesma régua dos estados da página: 36 no ponteiro, 44 no toque
+  // (tamanho "md"/"toque" do <Botao>).
   const isMobile = useIsMobile();
-  const alvoAcao = isMobile ? 44 : 36;
 
   const [mostrar, setMostrar] = useState(PAGINA);
   useEffect(() => { setMostrar(PAGINA); }, [filtroKey]);
@@ -475,53 +478,41 @@ export function PecasAtrasadas({
   // ── Vazio REAL: não há peça atrasada no app inteiro ──────────────────────
   if (totalNoApp === 0) {
     return (
-      <div style={{
-        backgroundColor: TI.card, border: `1px solid ${TI.border}`, borderRadius: R.lg,
-        padding: "40px 24px", textAlign: "center",
-      }}>
-        <CheckCircle2 aria-hidden="true" style={{ width: 28, height: 28, color: TI.green, margin: "0 auto 10px" }} />
-        <p style={{ margin: "0 0 4px", fontSize: 15, fontWeight: 700, color: TI.title }}>
-          Nenhuma peça atrasada
-        </p>
-        <p style={{ margin: 0, fontSize: 13, color: TI.secondary }}>
-          Toda peça pendente ainda está dentro do prazo da etapa em que está.
-        </p>
-      </div>
+      <EstadoVazio
+        icone={CheckCircle2}
+        titulo="Nenhuma peça atrasada"
+        descricao="Toda peça pendente ainda está dentro do prazo da etapa em que está."
+      />
     );
   }
 
   // ── Vazio POR FILTRO: existem peças atrasadas, os filtros é que escondem ──
   if (pecas.length === 0) {
+    // Os chips vão na `acao`, junto do botão: a `descricao` é um <p>, e chip
+    // (com botão dentro) não pode morar num parágrafo.
     return (
-      <div style={{
-        backgroundColor: TI.card, border: `1px solid ${TI.border}`, borderRadius: R.lg,
-        padding: "40px 24px", textAlign: "center",
-      }}>
-        <Search aria-hidden="true" style={{ width: 28, height: 28, color: TI.label, margin: "0 auto 10px" }} />
-        <p style={{ margin: "0 0 4px", fontSize: 15, fontWeight: 700, color: TI.title }}>
-          Nenhuma peça atrasada com esses filtros
-        </p>
-        <p style={{ margin: "0 0 10px", fontSize: 13, color: TI.secondary }}>
-          {pecasTexto(totalNoApp)} atrasada{totalNoApp !== 1 ? "s" : ""} no total.
-        </p>
-        {chips.length > 0 && (
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, justifyContent: "center", marginBottom: 14 }}>
-            {chips.map((c) => <FilterChip key={c.key} label={c.label} onRemove={c.onRemove} />)}
+      <EstadoVazio
+        icone={Search}
+        titulo="Nenhuma peça atrasada com esses filtros"
+        descricao={`${pecasTexto(totalNoApp)} atrasada${totalNoApp !== 1 ? "s" : ""} no total.`}
+        acao={
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
+            {chips.length > 0 && (
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6, justifyContent: "center" }}>
+                {chips.map((c) => <FilterChip key={c.key} label={c.label} onRemove={c.onRemove} />)}
+              </div>
+            )}
+            <Botao
+              variante="secundario"
+              tamanho={isMobile ? "toque" : "md"}
+              onClick={onLimparFiltros}
+              data-testid="button-limpar-filtros-pecas"
+            >
+              Limpar filtros
+            </Botao>
           </div>
-        )}
-        <button
-          type="button"
-          onClick={onLimparFiltros}
-          data-testid="button-limpar-filtros-pecas"
-          style={{
-            minHeight: alvoAcao, padding: "0 18px", borderRadius: R.md, border: `1px solid ${TI.border}`,
-            backgroundColor: TI.card, color: TI.title,
-            fontSize: 13, fontWeight: 700, cursor: "pointer",
-          }}
-        >
-          Limpar filtros
-        </button>
-      </div>
+        }
+      />
     );
   }
 
@@ -630,18 +621,14 @@ export function PecasAtrasadas({
 
       {restantes > 0 && (
         <div className="gp-no-print" style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-          <button
-            type="button"
+          <Botao
+            variante="secundario"
+            tamanho={isMobile ? "toque" : "md"}
             onClick={() => setMostrar((n) => n + PAGINA)}
             data-testid="button-mais-pecas-atrasadas"
-            style={{
-              minHeight: alvoAcao, padding: "0 18px", borderRadius: R.md, border: `1px solid ${TI.border}`,
-              backgroundColor: TI.card, color: TI.title,
-              fontSize: 13, fontWeight: 700, cursor: "pointer",
-            }}
           >
             Mostrar mais {Math.min(PAGINA, restantes)}
-          </button>
+          </Botao>
           <span style={{ fontSize: 12, color: TI.secondary }}>
             {/* O que ficou de fora é dito, sempre: uma lista que corta em
                 silêncio ensina o diretor a achar que o problema é do tamanho

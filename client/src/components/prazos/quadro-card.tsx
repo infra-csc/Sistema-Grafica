@@ -11,8 +11,10 @@
 // consumado (prazo vencido, evento sem peças, data quebrada); o selo RISCO,
 // que é risco PROJETADO, virou contorno. O mais sólido tem que ser o mais
 // urgente.
-import { memo, useState } from "react";
+import { memo } from "react";
 import { getPriorityMeta } from "@/lib/status";
+import { Selo } from "@/components/ui/selo";
+import { FONT, MOTION } from "@/lib/theme";
 import type { CobrancaEntry, PrazoEvent, PrazoStage } from "@shared/prazos-contract";
 import { CobrancaLinha, cobrancaResumo } from "./cobrado-control";
 import { PrioridadeChip, PrioridadePonto } from "./prioridade";
@@ -45,11 +47,10 @@ interface QuadroCardProps {
 // `stage` e `cobranca` preservam a identidade pelo structural sharing do
 // React Query, e os dois handlers vêm de `useCallback` na página.
 export const QuadroCard = memo(function QuadroCard({ ev, stage, cobranca, onOpen, onFocusCard, realce }: QuadroCardProps) {
-  // Hover em estado React (não `currentTarget.style`): mutar o nó direto
-  // perde o teclado — quem chega no card por Tab não recebia elevação
-  // nenhuma. O KpiCard desta mesma tela já fazia assim.
-  const [elevado, setElevado] = useState(false);
-
+  // A elevação de hover E de foco vem da classe `gp-card` (regra no <style>
+  // da página, :hover e :focus-visible). Era um par onMouseEnter/Leave com
+  // estado React: re-renderizava o card a cada passada do mouse e o foco só
+  // era coberto por um onFocus/onBlur à parte.
   const chip = saidaChip(ev);
   const prio = getPriorityMeta(ev.priority);
   const semPecas = ev.categoria === "semPecas" || ev.totalItems === 0;
@@ -135,10 +136,8 @@ export const QuadroCard = memo(function QuadroCard({ ev, stage, cobranca, onOpen
     <button
       type="button"
       onClick={() => onOpen(ev.id)}
-      onFocus={() => { setElevado(true); onFocusCard(ev.id); }}
-      onBlur={() => setElevado(false)}
-      onMouseEnter={() => setElevado(true)}
-      onMouseLeave={() => setElevado(false)}
+      onFocus={() => onFocusCard(ev.id)}
+      className="gp-card"
       data-card-id={ev.id}
       data-testid={`card-quadro-${ev.id}`}
       aria-haspopup="dialog"
@@ -157,8 +156,8 @@ export const QuadroCard = memo(function QuadroCard({ ev, stage, cobranca, onOpen
         borderLeft: stage && stage.state !== "upcoming"
           ? `3px solid ${STAGE_STYLE[stage.state].dot}`
           : undefined,
-        boxShadow: elevado ? SHADOW.md : SHADOW.sm,
-        transition: "box-shadow 0.12s ease, background-color 0.6s ease, border-color 0.6s ease",
+        boxShadow: SHADOW.sm,
+        transition: `box-shadow ${MOTION.rapida} ease, background-color 0.6s ease, border-color 0.6s ease`,
       }}
     >
       <span style={{ display: "flex", alignItems: "flex-start", gap: 6, minWidth: 0 }}>
@@ -172,7 +171,7 @@ export const QuadroCard = memo(function QuadroCard({ ev, stage, cobranca, onOpen
             // empurrá-lo para fora do card nas colunas de 190px.
             flex: 1,
             fontSize: 13, fontWeight: 800, color: TI.title,
-            fontFamily: "'Space Grotesk', sans-serif", textTransform: "uppercase",
+            fontFamily: FONT.display, textTransform: "uppercase",
             // Duas linhas: "COPA BRASIL — ETAPA 1" e "— ETAPA 2" truncavam
             // IDÊNTICOS numa tela cuja função é cobrar o responsável pelo
             // evento X, e sem `title` não havia plano B.
@@ -186,7 +185,7 @@ export const QuadroCard = memo(function QuadroCard({ ev, stage, cobranca, onOpen
           <span style={{
             flexShrink: 0,
             fontSize: 13, fontWeight: 700, color: contador.cor,
-            fontFamily: "'Space Grotesk', sans-serif",
+            fontFamily: FONT.display,
             fontVariantNumeric: "tabular-nums",
             lineHeight: 1.25,
           }}>
@@ -202,18 +201,12 @@ export const QuadroCard = memo(function QuadroCard({ ev, stage, cobranca, onOpen
             {fmtDiaCurto(ev.truckDepartureDate)} ·
           </span>
         )}
-        <span
-          title={chip.full}
-          style={{
-            padding: "2px 8px", borderRadius: R.pill, backgroundColor: chip.bg,
-            color: chip.color, fontSize: 11, fontWeight: 700,
-            // Sem isto "Saída atrasada 12 dias" quebrava dentro de uma pílula
-            // de raio 999 nas colunas estreitas (o card mobile já tinha).
-            whiteSpace: "nowrap",
-          }}
-        >
+        {/* <Selo> já é `nowrap`: "Saída atrasada 12 dias" quebrava dentro
+            de uma pílula de raio 999 nas colunas estreitas. Borda na cor do
+            fundo — o chip de saída é tinta, sem contorno. */}
+        <Selo title={chip.full} cores={{ bg: chip.bg, text: chip.color, border: chip.bg }} style={{ padding: "2px 8px" }}>
           {chip.text}
-        </span>
+        </Selo>
         {/* Sem chip "não iniciado" aqui: o gate sólido "Nenhuma peça
             cadastrada" logo abaixo já conta essa história — dois selos para o
             mesmo fato disputavam atenção sem acrescentar nada. */}

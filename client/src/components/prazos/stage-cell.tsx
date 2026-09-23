@@ -9,6 +9,7 @@
 // leitores, o `title` como descrição. Três vezes por célula, uma célula por
 // etapa em cada linha de tabela. Agora o `sr-only` é a ÚNICA fonte falada e o
 // `title` volta a ser o que sempre foi: tooltip de mouse.
+import { FONT } from "@/lib/theme";
 import { diasTexto, fmtDayMonth, pecasTexto, R, STAGE_STYLE, TI } from "./tokens";
 import type { PrazoStage } from "@shared/prazos-contract";
 
@@ -43,7 +44,7 @@ export function StageCell({ stage, invalidDate }: { stage: PrazoStage; invalidDa
             backgroundColor: stage.state === "upcoming" ? TI.chipBg : st.bg,
             border: `1.5px solid ${st.dot}`,
             fontSize: 11, fontWeight: 800, color: st.text,
-            fontFamily: "'Space Grotesk', sans-serif", lineHeight: 1,
+            fontFamily: FONT.display, lineHeight: 1,
           }}
         >
           {stage.state === "done" ? "✓"

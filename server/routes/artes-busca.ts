@@ -44,7 +44,7 @@ import { db } from "../db";
 import { items as itemsTable, events, itemSponsors, itemSponsorApprovals, sponsors } from "@shared/schema";
 import { pecaVisivelPara } from "@shared/kit";
 import {
-  normalizarTexto, ordenarArtes, arteForaDaBusca, aprovacaoDaArte,
+  normalizarTexto, palavrasDaBusca, ordenarArtes, arteForaDaBusca, aprovacaoDaArte,
   STATUS_FORA_DA_BUSCA_DE_ARTE, type ArteComparavel, type DecisaoDaArte,
 } from "@shared/artes-parecidas";
 import { requireRole } from "./shared";
@@ -213,7 +213,10 @@ export function registerArtesBuscaRoutes(app: Express) {
       ];
       const ordem = ordemDasCandidatas(alvo.tipo);
 
-      const palavras = normalizarTexto(termo).split(" ").filter(Boolean);
+      // palavrasDaBusca (e não normalizarTexto): %, _ e a barra invertida
+      // chegam até aqui e o escape abaixo vale — "50%" procura "50%", e "%"
+      // sozinho não vira busca vazia (que devolvia tudo).
+      const palavras = palavrasDaBusca(termo);
       let candidatas: Linha[];
       if (palavras.length > 0) {
         const texto = semAcentoSql(sql`concat_ws(' ', ${itemsTable.displayId}, ${itemsTable.description}, ${itemsTable.type}, ${events.name})`);

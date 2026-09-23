@@ -37,6 +37,12 @@ export interface LinhaDaPecaProps {
   desfazendo: boolean;
   dedo: boolean;
   admin: boolean;
+  /**
+   * O relógio da página, ao minuto (useRelogioDoMinuto). Os selos que dependem
+   * da HORA (a idade da trava, o dia do prazo do molde) leem daqui — lendo
+   * Date.now() dentro da linha memoizada, congelavam no último desenho.
+   */
+  agora: number;
   aoAbrir: (item: PecaDaRevisao) => void;
   aoMarcar: (id: string) => void;
   aoReaproveitar: (item: PecaDaRevisao) => void;
@@ -45,7 +51,7 @@ export interface LinhaDaPecaProps {
 
 export const LinhaDaPeca = memo(function LinhaDaPeca({
   item, selecionada: isSelected, selo, ultima: isLast, mostraTipo, grupo, compacto, colunasDeDados,
-  estoque, falha, desfazendo, dedo, admin, aoAbrir, aoMarcar, aoReaproveitar, aoExcluir,
+  estoque, falha, desfazendo, dedo, admin, agora, aoAbrir, aoMarcar, aoReaproveitar, aoExcluir,
 }: LinhaDaPecaProps) {
   return (
     <Fragment>
@@ -147,7 +153,7 @@ export const LinhaDaPeca = memo(function LinhaDaPeca({
               {selo.label}
             </Selo>
           )}
-          <SeloTravaNaLinha item={item} onde="tabela" />
+          <SeloTravaNaLinha item={item} onde="tabela" agora={agora} />
           {/* COMPACTO: a medida desce para uma segunda linha aqui dentro, em
               vez de ocupar coluna própria. */}
           {compacto && (
@@ -181,7 +187,7 @@ export const LinhaDaPeca = memo(function LinhaDaPeca({
               Não se aplica
             </Selo>
             {/* Prazo do molde: só o fluxo do molde o lê. */}
-            <SeloPrazoMolde item={item} />
+            <SeloPrazoMolde item={item} hoje={new Date(agora)} />
           </div>
         ) : item.finalFileUrl ? (
           <Selo tom="sucesso" icone={Check}>Recebido</Selo>

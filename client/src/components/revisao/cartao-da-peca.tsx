@@ -27,6 +27,8 @@ export interface CartaoDaPecaProps {
   desfazendo: boolean;
   dedo: boolean;
   admin: boolean;
+  /** O relógio da página, ao minuto — ver LinhaDaPecaProps.agora. */
+  agora: number;
   aoAbrir: (item: PecaDaRevisao) => void;
   aoMarcar: (id: string) => void;
   aoReaproveitar: (item: PecaDaRevisao) => void;
@@ -34,7 +36,7 @@ export interface CartaoDaPecaProps {
 }
 
 export const CartaoDaPeca = memo(function CartaoDaPeca({
-  item, selecionada, selo, estoque, falha, desfazendo, dedo, admin, aoAbrir, aoMarcar, aoReaproveitar, aoExcluir,
+  item, selecionada, selo, estoque, falha, desfazendo, dedo, admin, agora, aoAbrir, aoMarcar, aoReaproveitar, aoExcluir,
 }: CartaoDaPecaProps) {
   // O checkbox fica FORA do alvo role="button" (checkbox aninhado em botão é
   // estrutura inválida para leitor de tela); o corpo do cartão segue abrindo
@@ -83,7 +85,7 @@ export const CartaoDaPeca = memo(function CartaoDaPeca({
               {selo.label}
             </Selo>
           )}
-          <SeloTravaNaLinha item={item} onde="cartao" />
+          <SeloTravaNaLinha item={item} onde="cartao" agora={agora} />
         </div>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8}}>
           <div style={{flex:1}}>
@@ -102,7 +104,7 @@ export const CartaoDaPeca = memo(function CartaoDaPeca({
                 Molde · sem arquivo final
               </Selo>
               {/* Prazo do molde: só o fluxo do molde o lê. */}
-              <SeloPrazoMolde item={item} />
+              <SeloPrazoMolde item={item} hoje={new Date(agora)} />
             </>
           ) : item.finalFileUrl ? (
             <Selo data-testid={`chip-arquivo-mobile-${item.id}`} tom="sucesso" icone={Check}>

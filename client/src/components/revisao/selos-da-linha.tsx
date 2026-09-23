@@ -12,7 +12,12 @@ import type { PecaDaRevisao } from "./tipos";
  * QUEBRA LINHA em vez de virar reticências: cortado, o porquê só existia no
  * `title`, que o toque não mostra.
  */
-export function SeloTravaNaLinha({ item, onde }: { item: PecaDaRevisao; onde: "tabela" | "cartao" }) {
+export function SeloTravaNaLinha({ item, onde, agora }: {
+  item: PecaDaRevisao;
+  onde: "tabela" | "cartao";
+  /** O relógio da página (useRelogioDoMinuto): o "há N min" anda com ele. */
+  agora: number;
+}) {
   return pecaTravada(item) ? (
     <Selo
       data-testid={`badge-travada-${onde}-${item.id}`}
@@ -22,7 +27,7 @@ export function SeloTravaNaLinha({ item, onde }: { item: PecaDaRevisao; onde: "t
       icone={Lock}
       style={{ whiteSpace: "normal", overflowWrap: "anywhere", maxWidth: "100%", minWidth: 0, flexShrink: 1, lineHeight: 1.35 }}
     >
-      {seloDaTrava(item)}
+      {seloDaTrava(item, agora)}
     </Selo>
   ) : null;
 }

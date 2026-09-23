@@ -7,7 +7,7 @@ import type { EventoDaPeca, PecaDaRevisao } from "./tipos";
 
 export function ListaEmCartoes({
   itemsByEvent, getEventInfo, selectedItemIds, seloDoItem, estoquePorPeca, falhasPorId, desfazendoReuse,
-  dedo, admin, aoAbrir, aoMarcar, aoReaproveitar, aoExcluir,
+  dedo, admin, agora, aoAbrir, aoMarcar, aoReaproveitar, aoExcluir,
 }: {
   itemsByEvent: Map<string, PecaDaRevisao[]>;
   getEventInfo: (eventId: string) => EventoDaPeca | undefined;
@@ -18,6 +18,8 @@ export function ListaEmCartoes({
   desfazendoReuse: (id: string) => boolean;
   dedo: boolean;
   admin: boolean;
+  /** O relógio da página, ao minuto (useRelogioDoMinuto). */
+  agora: number;
   aoAbrir: (item: PecaDaRevisao) => void;
   aoMarcar: (id: string) => void;
   aoReaproveitar: (item: PecaDaRevisao) => void;
@@ -44,6 +46,7 @@ export function ListaEmCartoes({
                 desfazendo={desfazendoReuse(item.id)}
                 dedo={dedo}
                 admin={admin}
+                agora={agora}
                 aoAbrir={aoAbrir}
                 aoMarcar={aoMarcar}
                 aoReaproveitar={aoReaproveitar}

@@ -34,6 +34,7 @@ import { BarraDeFiltros } from "@/components/revisao/barra-de-filtros";
 import { BarraDoLote } from "@/components/revisao/barra-do-lote";
 import { ListaEmCartoes } from "@/components/revisao/lista-em-cartoes";
 import { TabelaDaRevisao } from "@/components/revisao/tabela-da-revisao";
+import { useRelogioDoMinuto } from "@/components/revisao/use-relogio-do-minuto";
 import { ModalDeDecisao } from "@/components/revisao/modal-de-decisao";
 import { ConfirmarLiberacao } from "@/components/revisao/confirmar-liberacao";
 import { ConfirmarDevolucao } from "@/components/revisao/confirmar-devolucao";
@@ -225,6 +226,9 @@ export default function Solicitacao() {
   /** Tabela reduzida: "Qtd · Dim · m²" funde na célula da Peça. */
   const compacto = !listaEmCartoes && densidade === "compact";
   const colunasDeDados = compacto ? 3 : 4;
+  // O relógio da fila, ao minuto: a idade da trava e o dia do prazo do molde
+  // nas linhas memoizadas andam com ele (ver use-relogio-do-minuto.ts).
+  const agora = useRelogioDoMinuto();
 
   const {
     itensDoServidor, items, itemsLoading, itemsError, refetchItems,
@@ -623,6 +627,7 @@ export default function Solicitacao() {
             desfazendoReuse={desfazendoReuse}
             dedo={dedo}
             admin={admin}
+            agora={agora}
             aoAbrir={openModal}
             aoMarcar={toggleItem}
             aoReaproveitar={abrirReaproveitamento}
@@ -646,6 +651,7 @@ export default function Solicitacao() {
             colunasDeDados={colunasDeDados}
             dedo={dedo}
             admin={admin}
+            agora={agora}
             aoAbrir={openModal}
             aoMarcar={toggleItem}
             aoReaproveitar={abrirReaproveitamento}

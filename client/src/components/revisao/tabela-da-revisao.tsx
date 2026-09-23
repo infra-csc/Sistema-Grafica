@@ -15,7 +15,7 @@ import type { EventoDaPeca, PecaDaRevisao } from "./tipos";
 export function TabelaDaRevisao({
   itemsByEvent, getEventInfo, selectedItemIds, setSelectedItemIds, toggleAll, totalFiltradas, totalNaFila,
   typeToGroup, seloDoItem, estoquePorPeca, falhasPorId, desfazendoReuse, compacto, colunasDeDados,
-  dedo, admin, aoAbrir, aoMarcar, aoReaproveitar, aoExcluir,
+  dedo, admin, agora, aoAbrir, aoMarcar, aoReaproveitar, aoExcluir,
 }: {
   itemsByEvent: Map<string, PecaDaRevisao[]>;
   getEventInfo: (eventId: string) => EventoDaPeca | undefined;
@@ -33,6 +33,8 @@ export function TabelaDaRevisao({
   colunasDeDados: number;
   dedo: boolean;
   admin: boolean;
+  /** O relógio da página, ao minuto (useRelogioDoMinuto). */
+  agora: number;
   aoAbrir: (item: PecaDaRevisao) => void;
   aoMarcar: (id: string) => void;
   aoReaproveitar: (item: PecaDaRevisao) => void;
@@ -132,6 +134,7 @@ export function TabelaDaRevisao({
                       desfazendo={desfazendoReuse(item.id)}
                       dedo={dedo}
                       admin={admin}
+                      agora={agora}
                       aoAbrir={aoAbrir}
                       aoMarcar={aoMarcar}
                       aoReaproveitar={aoReaproveitar}

@@ -81,7 +81,9 @@ describe("as telas (fonte)", () => {
   });
 
   it("Revisão Final, ficha e Detalhe do evento usam o mesmo selo; o evento avisa molde sem prazo", () => {
-    expect(ler("client/src/pages/solicitacao.tsx").split("<SeloPrazoMolde item={item} />").length - 1).toBe(2);
+    // Linha e cartão memoizados: o dia vem do relógio da página (prop `agora`),
+    // senão o prazo não vira à meia-noite — ver revisao-relogio-da-linha.test.ts.
+    expect(ler("client/src/pages/solicitacao.tsx").split("<SeloPrazoMolde item={item} hoje={new Date(agora)} />").length - 1).toBe(2);
     expect(fonteDoComponente("client/src/components/item-details-dialog.tsx")).toContain("<SeloPrazoMolde item={item} caixa />");
     const d = fonteDaTela("detalhe-do-evento");
     expect(d.split("<SeloPrazoMolde item={item} evento={event} />").length - 1).toBe(3);

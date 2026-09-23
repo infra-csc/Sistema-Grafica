@@ -15,63 +15,14 @@
 //     peça avançada) e REABRE a peça — é o que destrava as que já nasceram
 //     assim, com o mesmo botão que o admin já usa.
 // ─────────────────────────────────────────────────────────────────────────────
+//
+// As garantias do SERVIDOR (§1 atalho, §2 revogação, §4 reparo em massa e o
+// vínculo que cria a linha pendente em §5) rodam de verdade em
+// regras-patrocinio-aprovacao, regras-patrocinio-reparos e
+// regras-patrocinio-vinculos. Aqui ficam as da TELA.
 import { describe, it, expect } from "vitest";
-import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
 import { readFileSync } from "fs";
 
-const ITEMS = fonteDasRotasDeItens();
-
-const rota = (assinatura: string, tamanho = 6000) => {
-  const i = ITEMS.indexOf(assinatura);
-  expect(i, assinatura).toBeGreaterThan(-1);
-  return ITEMS.slice(i, i + tamanho);
-};
-
-describe("1 · o atalho aprova a peça INTEIRA — linhas incluídas", () => {
-  const APROVAR = rota('app.patch("/api/items/:id/sponsor-approve"');
-
-  it("toda linha não-aprovada vira approved, com autor e hora", () => {
-    expect(APROVAR).toContain('if (linha.status === "approved") continue;');
-    expect(APROVAR).toContain('status: "approved",');
-    expect(APROVAR).toContain('approvedBy: req.userName ?? "Atendimento",');
-    // e limpa o rastro de reprovação da linha, como o caminho normal faz
-    expect(APROVAR).toContain("rejectionReason: null,");
-  });
-
-  it("o cache das Versões é invalidado — aprovação muda o que a tela mostra", () => {
-    expect(APROVAR).toContain("invalidarCacheDeVersoes();");
-  });
-});
-
-describe("2 · a revogação reabre o estado incoerente em vez de dar 409", () => {
-  const REVOGAR = rota('sponsor-approvals/:sponsorId/revert"', 7000);
-
-  it("linha pendente + peça avançada = reabrir, não recusar", () => {
-    // alargado no mesmo dia: a peça incoerente ANDA (arquivo final → revisão →
-    // devolvida) sem fechar a rodada — o #4176 estava em Finalização de novo.
-    expect(REVOGAR).toContain('const reabrirIncoerente = approval.status === "pending" && POS_APROVACAO.includes(currentItem.status);');
-    expect(REVOGAR).toContain('if (approval.status === "pending" && !reabrirIncoerente) {');
-  });
-
-  it("no caminho incoerente a linha NÃO é reescrita — ela já está pendente", () => {
-    expect(REVOGAR).toContain("const updatedApproval = reabrirIncoerente ? approval :");
-  });
-
-  it("pendente com a peça ainda em aprovação continua 409 — aí não há o que fazer", () => {
-    expect(REVOGAR).toContain('"Esta aprovação já está pendente"');
-  });
-
-  it("a trilha explica o estado herdado com todas as letras", () => {
-    expect(REVOGAR).toContain("estado herdado do atalho de aprovação");
-    expect(REVOGAR).toContain("Item reaberto:");
-  });
-
-  it("a reabertura usa o MESMO caminho de sempre (status volta, Arte avisada)", () => {
-    expect(REVOGAR).toContain('if (POS_APROVACAO.includes(currentItem.status)) {');
-    expect(REVOGAR).toContain('status: "awaiting_sponsor_approval",');
-    expect(REVOGAR).toContain("segure a finalização");
-  });
-});
 describe("3 · e a TELA oferece o clique no estado incoerente", () => {
   // O conserto do servidor existia e não havia onde clicar: o botão de
   // revogar só aparecia com a linha não-pendente. No estado herdado
@@ -102,45 +53,10 @@ describe("3 · e a TELA oferece o clique no estado incoerente", () => {
     expect(DIALOGO.slice(i, i + 160)).not.toContain("awaiting_sponsor_approval");
   });
 });
-describe("4 · o reparo em massa drena o estoque de peças presas", () => {
-  // O dono não deveria caçar peça por peça para clicar em reabrir: o script
-  // devolve TODAS as incoerentes à fila do Atendimento de uma vez.
-  const SCRIPT = readFileSync(new URL("../../scripts/reparar-aprovacao-incoerente.ts", import.meta.url), "utf8");
-
-  it("o critério é o invariante do dono, com as exceções certas", () => {
-    expect(SCRIPT).toContain('return ls.some((s) => s !== "approved");');
-    expect(SCRIPT).toContain("if (c.skipApproval) return false;");
-    expect(SCRIPT).toContain("if (!temVinculo.has(c.id)) return false;");
-    expect(SCRIPT).toContain("if (ls.length === 0) return false;");
-  });
-
-  it("devolve à fila sem apagar trabalho, e não atropela decisão nova", () => {
-    expect(SCRIPT).toContain("SET status = 'awaiting_sponsor_approval',");
-    expect(SCRIPT).toContain("WHERE id = ${p.id} AND status = ${p.status}");
-    expect(SCRIPT).not.toContain("final_file_url");
-    expect(SCRIPT).not.toContain("approval_thumb_url");
-  });
-
-  it("deixa rastro na trilha e é ensaio por padrão", () => {
-    expect(SCRIPT).toContain('peça pendente no Atendimento');
-    expect(SCRIPT).toContain('process.argv.includes("--aplicar")');
-  });
-});
-
-
-
 describe("5 · o admin adiciona o patrocinador que faltava, do próprio modal", () => {
   // Caso #2801 (25/08): a arte carregava a Crystal e não havia linha para
   // aprovar — a marca não estava vinculada à peça. Só admin.
-  const SPONSORS = readFileSync(new URL("../routes/sponsors.ts", import.meta.url), "utf8");
   const ATEND = readFileSync(new URL("../../client/src/pages/atendimento.tsx", import.meta.url), "utf8");
-
-  it("vincular numa peça em aprovação cria a linha pendente JUNTO", () => {
-    // Sem a linha, o reenvio da Arte (que deriva das LINHAS) não incluiria o
-    // recém-chegado, e a rodada poderia fechar sem ele.
-    expect(SPONSORS).toContain('if (item.status === "awaiting_sponsor_approval" || item.status === "awaiting_approval") {');
-    expect(SPONSORS).toContain('status: "pending",');
-  });
 
   it("o bloco é só de admin, oferece os do evento E busca no catálogo inteiro", () => {
     // Revisto no mesmo dia: só-do-evento fazia o bloco SUMIR quando o evento

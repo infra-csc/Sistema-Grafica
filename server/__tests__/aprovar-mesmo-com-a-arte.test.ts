@@ -8,23 +8,14 @@
 // e por quê. O "aprovar por cima da correção" foi descartado no mesmo dia em
 // que nasceu — este arquivo impede que ele volte por engano.
 // ─────────────────────────────────────────────────────────────────────────────
+// A rota (quem reprovou segue travado com 409; os demais aprovam) roda de
+// verdade em regras-patrocinio-aprovacao. Aqui fica a tela.
 import { describe, it, expect } from "vitest";
-import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
 import { readFileSync } from "fs";
 import path from "path";
 
 const ler = (rel: string) => readFileSync(path.resolve(__dirname, "../..", rel), "utf8");
-const ITEMS = fonteDasRotasDeItens();
 const TELA = ler("client/src/pages/atendimento.tsx");
-
-describe("a rota", () => {
-  it("quem reprovou segue TRAVADO até a nova arte — o 409 é a regra, não um bug", () => {
-    expect(ITEMS).toContain("Aguardando nova versão da Arte para este patrocinador. Não é possível aprovar agora.");
-    // e o atalho descartado não voltou
-    expect(ITEMS).not.toContain("aprovouVersaoAntiga");
-    expect(ITEMS).not.toContain("VERSÃO ANTIGA");
-  });
-});
 
 describe("a tela", () => {
   it("o AVISO em largura total diz que a Arte refaz, por quem e por quê — e que os demais seguem", () => {

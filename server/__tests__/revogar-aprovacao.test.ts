@@ -18,82 +18,15 @@
 //      reverter" saem — seriam mentira.
 // ─────────────────────────────────────────────────────────────────────────────
 
+// Os itens 1–3 (servidor) rodam de verdade em regras-patrocinio-aprovacao
+// (e em maquina-de-estados-da-peca). Aqui fica o item 4, o da tela.
 import { describe, it, expect } from "vitest";
-import { podeTransicionar } from "@shared/maquina-de-estados";
-import { STATUS_CONHECIDOS } from "@shared/fluxo-peca";
-import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
 import { readFileSync } from "fs";
 import path from "path";
 
 const ler = (rel: string) => readFileSync(path.resolve(__dirname, "../../", rel), "utf8");
-const ITEMS = fonteDasRotasDeItens();
 const ATEND = ler("client/src/pages/atendimento.tsx");
 const DIALOG = ler("client/src/components/item-details-dialog.tsx");
-
-const rota = () => {
-  const i = ITEMS.indexOf('app.post("/api/items/:id/sponsor-approvals/:sponsorId/revert"');
-  // 8000: a rota cresceu em 24/08 (reabertura do estado incoerente + regra
-  // do dono comentada) e a janela antiga cortava o bloco de notificação.
-  return ITEMS.slice(i, i + 8000);
-};
-
-describe("1 · quem pode, e quando", () => {
-  it("Atendimento e admin passam pelo papel; os outros não", () => {
-    expect(rota()).toContain('if (req.userRole !== "admin" && req.userRole !== "atendimento") {');
-    expect(rota()).toContain("Apenas Atendimento e administradores podem revogar uma aprovação");
-  });
-
-  it("Atendimento só em aprovação ou finalização da Arte; admin sem limite", () => {
-    // A janela mora em shared/maquina-de-estados.ts; a rota a consulta com o papel.
-    expect(rota()).toContain('if (!podeTransicionar(currentItem.status, "revogar-aprovacao", req.userRole)) {');
-    for (const s of STATUS_CONHECIDOS) {
-      expect(podeTransicionar(s, "revogar-aprovacao", "atendimento"), s).toBe(["awaiting_sponsor_approval", "sponsor_approved"].includes(s));
-      expect(podeTransicionar(s, "revogar-aprovacao", "admin"), s).toBe(true);
-    }
-    expect(rota()).toContain("Só dá para revogar enquanto a peça está em aprovação ou na finalização da Arte. Status atual:");
-  });
-
-  it("o limite de status vem DEPOIS do evento finalizado e ANTES de mexer na aprovação", () => {
-    const r = rota();
-    const evento = r.indexOf("if (await barraEventoFinalizado(currentItem, res)) return;");
-    const limite = r.indexOf('!podeTransicionar(currentItem.status, "revogar-aprovacao", req.userRole)');
-    const mexe = r.indexOf("await storage.updateItemSponsorApproval(approval.id, {");
-    expect(evento).toBeGreaterThan(-1);
-    expect(limite).toBeGreaterThan(evento);
-    expect(mexe).toBeGreaterThan(limite);
-  });
-});
-
-describe("2 · a trilha diz quem, o quê e por quê", () => {
-  it("motivo opcional, aparado e limitado", () => {
-    expect(rota()).toContain('const motivo = typeof req.body?.motivo === "string" ? req.body.motivo.trim().slice(0, 500) : "";');
-  });
-
-  it("o papel e o motivo entram no log; 'aprovação' vs 'decisão' conforme o que estava", () => {
-    expect(rota()).toContain('${req.userRole === "admin" ? "Administrador" : "Atendimento"} revogou a ${previousStatus === "approved" ? "aprovação" : "decisão"} de');
-    expect(rota()).toContain("${motivo ? `. Motivo: ${motivo}` : ''}");
-  });
-});
-
-describe("3 · a peça aprovada por todos volta, e a Arte fica sabendo", () => {
-  it("reabre de sponsor_approved para awaiting_sponsor_approval (capacidade antiga, preservada)", () => {
-    const r = rota();
-    // 24/08: reabre de QUALQUER status pós-aprovação — regra do dono: linha
-    // "Aguardando" ⇒ a peça volta pendente no Atendimento.
-    expect(r).toContain('if (POS_APROVACAO.includes(currentItem.status)) {');
-    expect(r).toContain('status: "awaiting_sponsor_approval",');
-    expect(r).toContain("sponsorApprovedBy: null,");
-  });
-
-  it("e só nesse caso notifica a Arte para segurar a finalização", () => {
-    const r = rota();
-    const i = r.indexOf("if (item.status !== currentItem.status) {");
-    const bloco = r.slice(i, i + 1800);
-    expect(bloco).toContain('targetRoles: ["arte"]');
-    expect(bloco).toContain("revogada — segure a finalização");
-    expect(bloco).toContain('broadcast({ type: "notification_created", notification });');
-  });
-});
 
 describe("4 · o cliente mostra o botão pela mesma regra", () => {
   it("Atendimento: admin sempre, quem decide enquanto dá para revogar", () => {

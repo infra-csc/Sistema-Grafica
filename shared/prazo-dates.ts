@@ -33,6 +33,42 @@ export function isPlausibleEventDate(dateOnly: string): boolean {
   return isPlausibleEventYear(Number(String(dateOnly).slice(0, 4)));
 }
 
+// ─── DATA VAZIA OU QUE NÃO EXISTE (integração, 23/09) ───────────────────────
+// Vazia chegava ao banco e voltava como erro de driver (500); "30/02" o
+// `new Date` rolava em silêncio para 02/03 e gravava outro dia. As duas
+// barram antes — na rota (frase para quem digitou) e no storage (a última
+// porta antes do banco, para quem chamar sem passar pela rota).
+
+/** Nome da data do evento na frase de erro. */
+export const ROTULO_DA_DATA_DO_EVENTO = {
+  startDate: "o início do evento",
+  truckDepartureDate: "a saída do caminhão",
+} as const;
+
+/** `null` = data utilizável; senão, o que há de errado com ela. */
+export function problemaNaDataDoEvento(valor: unknown): "vazia" | "invalida" | null {
+  if (valor instanceof Date) return Number.isNaN(valor.getTime()) ? "invalida" : null;
+  const bruto = String(valor ?? "").trim();
+  if (!bruto) return "vazia";
+  const dia = /^(\d{4})-(\d{2})-(\d{2})/.exec(bruto);
+  if (dia) {
+    // O dia precisa EXISTIR: 2026-02-30 não pode virar 2026-03-02.
+    const [a, m, d] = [Number(dia[1]), Number(dia[2]), Number(dia[3])];
+    const t = new Date(0);
+    t.setUTCFullYear(a, m - 1, d);
+    return t.getUTCFullYear() === a && t.getUTCMonth() === m - 1 && t.getUTCDate() === d ? null : "invalida";
+  }
+  return Number.isNaN(new Date(bruto).getTime()) ? "invalida" : null;
+}
+
+/** A frase para quem digitou — a mesma na rota e no storage. */
+export function fraseDaDataInvalida(campo: keyof typeof ROTULO_DA_DATA_DO_EVENTO, problema: "vazia" | "invalida"): string {
+  const rotulo = ROTULO_DA_DATA_DO_EVENTO[campo];
+  return problema === "vazia"
+    ? `Data inválida — preencha ${rotulo}.`
+    : `Data inválida — confira ${rotulo}: o dia precisa existir no calendário (dia, mês e ano).`;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // ÂNCORA DE DIA DO NEGÓCIO — America/São_Paulo.
 //

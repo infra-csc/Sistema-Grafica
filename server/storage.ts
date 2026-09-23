@@ -58,6 +58,7 @@ import path from "path";
 import { db } from "./db";
 import { eq, and, desc, asc, sql, or, lt, gte, ne, inArray, notInArray, like, ilike, isNull, isNotNull } from "drizzle-orm";
 import { reservaEstaAtiva } from "@shared/estoque";
+import { problemaNaDataDoEvento, fraseDaDataInvalida } from "@shared/prazo-dates";
 import { doEventoNaoArquivado, daPecaDeEventoNaoArquivado } from "./services/arquivamento";
 import { ehForaDoFunil } from "@shared/fluxo-peca";
 import { moldeConcluido } from "@shared/molde";
@@ -656,11 +657,19 @@ export class DatabaseStorage implements IStorage {
 
   async updateEvent(id: string, data: Partial<InsertEvent>): Promise<Event | undefined> {
     const updateData: any = { ...data };
-    if (data.startDate) {
-      updateData.startDate = new Date(data.startDate);
-    }
-    if (data.truckDepartureDate) {
-      updateData.truckDepartureDate = new Date(data.truckDepartureDate);
+    // Data VAZIA passava pelo `if (data.startDate)` e ia crua para a coluna
+    // timestamp — o erro do driver virava 500. Campo presente tem de ser uma
+    // data que exista; o erro sai no formato de erroPublico (server/erros.ts,
+    // não importado aqui para não fechar ciclo com storage), que o catch das
+    // rotas devolve como 400 com a frase.
+    for (const campo of ["startDate", "truckDepartureDate"] as const) {
+      if (!(campo in data) || data[campo] === undefined) continue;
+      const problema = problemaNaDataDoEvento(data[campo]);
+      if (problema) {
+        const frase = fraseDaDataInvalida(campo, problema);
+        throw Object.assign(new Error(frase), { httpStatus: 400, publico: frase });
+      }
+      updateData[campo] = new Date(data[campo] as any);
     }
     updateData.updatedAt = new Date();
 

@@ -9,6 +9,8 @@ import {
   todayBusinessMs,
   eventDayMs,
   motivoEventoFinalizado,
+  problemaNaDataDoEvento,
+  fraseDaDataInvalida,
 } from "@shared/prazo-dates";
 import {
   requireAuth,
@@ -127,6 +129,20 @@ function describeEventChanges(before: any, after: any): string[] {
 // o que o campo de horário do modal produz quando se digita só ":"). Antes
 // isso virava `Invalid Date`, o insert do Drizzle estourava com
 // "RangeError: Invalid time value" e o usuário via essa frase num toast.
+/**
+ * A frase da primeira data do evento enviada que está vazia ou não existe no
+ * calendário; `null` quando as enviadas servem. Campo ausente (PATCH
+ * parcial) não é conferido.
+ */
+function primeiraDataInvalida(dados: { startDate?: unknown; truckDepartureDate?: unknown }): string | null {
+  for (const campo of ["startDate", "truckDepartureDate"] as const) {
+    if (dados[campo] === undefined) continue;
+    const problema = problemaNaDataDoEvento(dados[campo]);
+    if (problema) return fraseDaDataInvalida(campo, problema);
+  }
+  return null;
+}
+
 function toUtcInstant(value: unknown): Date | null {
   if (value instanceof Date) {
     return Number.isNaN(value.getTime()) ? null : value;
@@ -769,6 +785,10 @@ export function registerEventRoutes(app: Express): void {
       // Comparação por STRING (YYYY-MM-DD), igual ao cliente — new Date() misturava
       // UTC (date-only) com horário local (datetime) e, em America/Sao_Paulo,
       // rejeitava com 400 o caso-limite que a UI permite.
+      // Vazia ou dia que não existe: frase própria ANTES da do ano — "confira
+      // o ano" para um campo em branco mandava a pessoa procurar o erro errado.
+      const erroDeData = primeiraDataInvalida(validatedData);
+      if (erroDeData) return res.status(400).json({ error: erroDeData });
       const s = toDateOnlyStr(validatedData.startDate);
       const t = toDateOnlyStr(validatedData.truckDepartureDate);
       if (!isPlausibleEventDate(s) || !isPlausibleEventDate(t)) {
@@ -856,6 +876,10 @@ export function registerEventRoutes(app: Express): void {
       // Sanidade de ano SÓ nos campos enviados — validar o lado composto do
       // evento atual bloquearia justamente o PATCH que corrige uma data já
       // ruim no banco (ex.: o 0206 que motivou esta guarda).
+      // Vazia ou dia que não existe ("2099-02-30" era gravado como 02/03):
+      // 400 com frase, antes da régua do ano e do Drizzle.
+      const erroDeData = primeiraDataInvalida(validatedData);
+      if (erroDeData) return res.status(400).json({ error: erroDeData });
       const sentDates = [validatedData.startDate, validatedData.truckDepartureDate]
         .filter((d): d is NonNullable<typeof d> => d != null);
       if (sentDates.some((d) => !isPlausibleEventDate(toDateOnlyStr(d)))) {

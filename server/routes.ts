@@ -188,11 +188,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   limparReservasAntigas();
   startDeadlineAlerts();
   // Aviso da fila de revisão às 10h, 15h e 18h (services/revisaoDigest.ts).
-  // Sobe junto com os outros trabalhos de fundo; sem REVISAO_DIGEST_ENABLED=true
-  // ele bate o relógio e não faz nada.
+  // O relógio só sobe em PRODUÇÃO (ehProducao — o workspace de dev não envia).
+  // Lá ele é LIGADO por padrão (dono, 28/08): desligar exige
+  // REVISAO_DIGEST_ENABLED=false.
   startRevisaoDigest();
   // Aviso da gestão (25/08): aprovações pendentes por evento e patrocinador,
-  // 8h, para as três do acompanhamento. Desligado até GESTAO_DIGEST_ENABLED.
+  // às 10h, 15h e 18h (HORARIOS_DA_GESTAO), para a lista nomeada
+  // DESTINATARIOS_DA_GESTAO — acompanhamento e direção. Mesma regra do aviso
+  // da revisão: só em produção, ligado por padrão, desliga com
+  // GESTAO_DIGEST_ENABLED=false.
   startGestaoDigest();
   startInventoryLifecycle();
   // Fecho diário da Gestão de Prazos. Se este registro sumir, nenhum snapshot

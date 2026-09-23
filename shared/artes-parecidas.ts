@@ -40,6 +40,25 @@ export function normalizarTexto(v: string | null | undefined): string {
     .trim();
 }
 
+/**
+ * A régua da BUSCA POR TEXTO: a mesma de `normalizarTexto`, mas `%`, `_` e
+ * `\` ficam. Quem digita "50%" procura "50%" — sem isto a palavra virava "50"
+ * e casava "#0500"; e uma busca só com "%" ficava vazia e devolvia tudo. O
+ * SQL escapa os três no LIKE (routes/artes-busca.ts); aqui eles só não somem.
+ */
+export function normalizarBusca(v: string | null | undefined): string {
+  return String(v ?? "")
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9%_\\]+/g, " ")
+    .trim();
+}
+
+/** As palavras de um termo de busca (todas precisam aparecer). */
+export const palavrasDaBusca = (termo: string | null | undefined): string[] =>
+  normalizarBusca(termo).split(" ").filter(Boolean);
+
 /** Palavras de até 3 letras não distinguem nada ("das", "de", "São", "SP"). */
 const CURTA = 3;
 
@@ -170,9 +189,10 @@ export function pontuarArte(alvo: ArteComparavel, candidata: ArteComparavel): No
  * circuito, e não tudo que tem "estacoes".
  */
 export function casaComTermo(peca: ArteComparavel, termo: string): boolean {
-  const palavras = normalizarTexto(termo).split(" ").filter(Boolean);
+  // A régua da busca (com % _ \), a mesma do LIKE da rota.
+  const palavras = palavrasDaBusca(termo);
   if (palavras.length === 0) return true;
-  const alvo = normalizarTexto(
+  const alvo = normalizarBusca(
     [peca.descricao, peca.tipo, peca.eventName, peca.displayId, ...(peca.sponsorNames ?? [])]
       .filter(Boolean)
       .join(" "),

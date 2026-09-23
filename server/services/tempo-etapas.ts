@@ -59,6 +59,7 @@ import {
   type TempoPorEtapa,
 } from "@shared/tempo-etapas-contract";
 import { STAGE_DEFS, STATUS_STAGE_RANK, stageDeadline, truckDayUTC } from "./prazo-domain";
+import { DESTINO_DA_DISPENSA } from "@shared/fluxo-peca";
 
 const DIA_MS = 86_400_000;
 
@@ -70,6 +71,12 @@ export const ETAPA_LAYOUTS = idxDe("layouts");
 export const ETAPA_FINALIZACAO = idxDe("finalizacao");
 export const ETAPA_REVISAO = idxDe("revisao");
 export const ETAPA_PRODUCAO = idxDe("producao");
+/**
+ * Para onde a dispensa de aprovação leva a peça HOJE: lido do próprio
+ * DESTINO_DA_DISPENSA (a Finalização da Arte desde 09/09), e não fixado aqui —
+ * se o destino mudar de novo, a medição acompanha.
+ */
+export const ETAPA_DA_DISPENSA = STATUS_STAGE_RANK[DESTINO_DA_DISPENSA] ?? ETAPA_FINALIZACAO;
 
 // ─── Vocabulário: rótulo em português → status ───────────────────────────────
 //
@@ -215,7 +222,18 @@ interface RegraCatalogo {
 
 export const CATALOGO: RegraCatalogo[] = [
   {
-    // items.ts /dispense — pula a aprovação e joga na fila da Gráfica.
+    // itens/aprovacao.ts /dispense, desde 09/09: pula SÓ a aprovação e a peça
+    // para na Finalização da Arte. A frase nova diz isso ("Foi direto para a
+    // finalização") — é ela que separa esta regra da de baixo.
+    action: "dispensed",
+    prefixo: /^Peça dispensada pela Arte\..*Foi direto para a finaliza/,
+    destino: { tipo: "etapa", indice: ETAPA_DA_DISPENSA },
+    origemCrua: /Status anterior:\s*([A-Za-z_]+)/,
+  },
+  {
+    // A dispensa ANTIGA (antes de 09/09) jogava a peça direto na fila da
+    // Gráfica, e a trilha dessa época diz só "Status anterior: X". Continua
+    // lida como entrada na Produção: foi o que aconteceu com aquelas peças.
     action: "dispensed",
     prefixo: /^Peça dispensada pela Arte\./,
     destino: { tipo: "etapa", indice: ETAPA_PRODUCAO },

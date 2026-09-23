@@ -134,8 +134,8 @@ export function registrarCancelamento(app: Express): void {
           details: `Complemento cancelado junto com a peça ${currentItem.displayId}${detailMsg}`,
         })));
       }
-      // Cancelada em impressão: sai da impressora — "pausa" no diário.
-      await registrarSaidaDaImpressora(req, currentItem);
+      // A "pausa" no diário das máquinas já foi gravada em gravarCancelamento
+      // (a mesma do lote) — gravar de novo aqui dobrava a saída da impressora.
       // Reserva de peça morta não segura estoque — nem a dos complementos que caíram junto.
       await liberarReservasDasPecas(req, [item.id, ...cancelados.map((c) => c.id)], "cancelada");
 

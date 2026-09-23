@@ -9,8 +9,9 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "fs";
+import { fonteDaGrafica } from "./fonte-da-grafica";
 
-const G = readFileSync(new URL("../../client/src/pages/grafica.tsx", import.meta.url), "utf8");
+const G = fonteDaGrafica();
 const SHELL = readFileSync(new URL("../../client/src/components/modal-shell.tsx", import.meta.url), "utf8");
 
 describe("uma fonte, duas apresentações", () => {

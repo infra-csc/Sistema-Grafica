@@ -23,6 +23,7 @@ import { render, act, cleanup, fireEvent } from "@testing-library/react";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { readFileSync } from "fs";
 import path from "path";
+import { fonteDaGrafica } from "./fonte-da-grafica";
 
 const h = React.createElement;
 vi.setConfig({ testTimeout: 120_000 });
@@ -538,6 +539,6 @@ describe("as regras da casa nos arquivos novos", () => {
     expect(aviso).toContain("{aberta.quantidadePedida} un. aguardando resposta do estoque");
     expect(aviso).toContain('href="/grafica/solicitacoes-ao-estoque"');
     expect(aviso).toContain("responda a solicitação antes de imprimir tudo");
-    expect((ler("client/src/pages/grafica.tsx").match(/<AvisoDoEstoqueNaPeca /g) ?? []).length).toBe(3);
+    expect((fonteDaGrafica().match(/<AvisoDoEstoqueNaPeca /g) ?? []).length).toBe(3);
   });
 });

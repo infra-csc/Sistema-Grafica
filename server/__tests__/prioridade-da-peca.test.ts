@@ -20,6 +20,7 @@ import { describe, it, expect } from "vitest";
 import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
 import { readFileSync } from "fs";
 import path from "path";
+import { fonteDaGrafica } from "./fonte-da-grafica";
 
 const ler = (rel: string) => readFileSync(path.resolve(__dirname, "../..", rel), "utf8");
 const SCHEMA = ler("shared/schema.ts");
@@ -108,7 +109,7 @@ describe("a fila da Arte", () => {
 });
 
 describe("e na Gráfica também (dono, 27/08)", () => {
-  const GRAFICA = ler("client/src/pages/grafica.tsx");
+  const GRAFICA = fonteDaGrafica();
 
   it("selo PRIORITÁRIA na tabela e no card mobile", () => {
     expect(GRAFICA).toContain("selo-prioritaria-${item.id}");

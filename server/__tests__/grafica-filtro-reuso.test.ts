@@ -8,9 +8,10 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "fs";
 import { FILTROS_VAZIOS } from "../../client/src/lib/grafica-filtros";
+import { fonteDaGrafica } from "./fonte-da-grafica";
 
 const LIB = readFileSync(new URL("../../client/src/lib/grafica-filtros.ts", import.meta.url), "utf8");
-const TELA = readFileSync(new URL("../../client/src/pages/grafica.tsx", import.meta.url), "utf8");
+const TELA = fonteDaGrafica();
 
 describe("o recorte de reaproveitamento", () => {
   it("nasce desligado e entra na fonte única de filtros (URL, ativos, empty state)", () => {
@@ -30,6 +31,6 @@ describe("o recorte de reaproveitamento", () => {
     expect(TELA).toContain('{ value: "reuso", label: "♻ Com reaproveitamento", count: comReusoNaLista, pinned: true }');
     expect(TELA).not.toContain('data-testid="chip-reaproveitamento"');
     // a contagem continua do pool sem a própria dimensão
-    expect(TELA).toContain("(statsPool as any[]).filter((i: any) => i.isReuse || reusedTotalOf(i) > 0).length");
+    expect(TELA).toContain("statsPool.filter((i) => i.isReuse || reusedTotalOf(i) > 0).length");
   });
 });

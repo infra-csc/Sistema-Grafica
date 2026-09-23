@@ -19,10 +19,11 @@ import { origemDaAcao, podeTransicionar } from "@shared/maquina-de-estados";
 import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
 import { readFileSync } from "fs";
 import path from "path";
+import { fonteDaGrafica } from "./fonte-da-grafica";
 
 const ler = (rel: string) => readFileSync(path.resolve(__dirname, "../..", rel), "utf8");
 const ITEMS = fonteDasRotasDeItens();
-const GRAFICA = ler("client/src/pages/grafica.tsx");
+const GRAFICA = fonteDaGrafica();
 
 /** O corpo da rota mark-reuse, isolado. */
 const rota = (() => {

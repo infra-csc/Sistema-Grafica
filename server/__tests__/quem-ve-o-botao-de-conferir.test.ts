@@ -28,10 +28,11 @@ import { describe, it, expect } from "vitest";
 import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
 import { readFileSync } from "fs";
 import path from "path";
+import { fonteDaGrafica } from "./fonte-da-grafica";
 
 const ler = (rel: string) => readFileSync(path.resolve(__dirname, "../../", rel), "utf8");
 const rotas = fonteDasRotasDeItens();
-const tela = ler("client/src/pages/grafica.tsx");
+const tela = fonteDaGrafica();
 
 describe("o servidor: conferir e entregar têm os MESMOS donos", () => {
   it("conferir aceita gráfica, solicitação e admin", () => {

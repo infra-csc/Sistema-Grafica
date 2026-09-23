@@ -22,6 +22,7 @@ import { readFileSync } from "fs";
 import path from "path";
 import { render, act, cleanup, fireEvent } from "@testing-library/react";
 import { QueryClientProvider } from "@tanstack/react-query";
+import { fonteDaGrafica } from "./fonte-da-grafica";
 
 const h = React.createElement;
 vi.mock("@/contexts/auth-context", () => ({
@@ -208,7 +209,7 @@ describe("a busca e o prazo (puros)", () => {
 describe("na Gráfica e no servidor (fonte)", () => {
   const RAIZ = path.resolve(__dirname, "../..");
   const ler = (rel: string) => readFileSync(path.resolve(RAIZ, rel), "utf8");
-  const GRAFICA = ler("client/src/pages/grafica.tsx");
+  const GRAFICA = fonteDaGrafica();
 
   it("Fila | Tubos em tablist, com `?aba=tubos`; cada aba monta SÓ o próprio painel", () => {
     // O <Abas> do design system: tablist, setas, roving tabindex e alvo de 44px
@@ -245,7 +246,7 @@ describe("na Gráfica e no servidor (fonte)", () => {
 
   it("o toque no selo abre o MODAL DO TUBO — o painel do evento continua no botão Tubos do cabeçalho", () => {
     expect(GRAFICA).toContain("verTubo: item.tuboId });");
-    expect(GRAFICA).toContain("verTubo={tubosDoEvento?.verTubo}");
+    expect(GRAFICA).toContain("verTubo={tubosDoEvento?.verTubo ?? undefined}");
     expect(GRAFICA).toContain("data-testid={`button-tubos-${item.eventId}`}");
   });
 

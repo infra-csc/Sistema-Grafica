@@ -28,11 +28,12 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "fs";
 import path from "path";
+import { fonteDaGrafica } from "./fonte-da-grafica";
 
 const ler = (rel: string) => readFileSync(path.resolve(__dirname, "../../", rel), "utf8");
 
 describe("a Gráfica lê o par que imprime", () => {
-  const gr = ler("client/src/pages/grafica.tsx");
+  const gr = fonteDaGrafica();
 
   it("ARQ primeiro e escuro; VIS depois e apagado", () => {
     const i = gr.indexOf("MEDIDAS: o ARQ vem primeiro e escuro");

@@ -36,6 +36,7 @@ import {
 import { itemCasaFiltros, FILTROS_VAZIOS } from "@/lib/grafica-filtros";
 import { rotuloDaMaquina } from "@shared/fluxo-peca";
 import { semImpressora, reservaDaPeca } from "@shared/reserva-de-impressora";
+import { fonteDaGrafica } from "./fonte-da-grafica";
 
 vi.setConfig({ testTimeout: 40_000 });
 const h = React.createElement;
@@ -126,7 +127,7 @@ describe("1 · tempo real: toda mensagem de peça invalida as DUAS telas", () =>
 
   it("as mutações das duas telas usam a MESMA invalidação (fila + acervo + Máquinas + resumo)", () => {
     expect(CHAVES_DA_MUTACAO).toEqual(["/api/items/approved", "/api/items", "/api/grafica/maquinas", "/api/grafica/maquinas/relatorio"]);
-    const GRAFICA = ler("client/src/pages/grafica.tsx");
+    const GRAFICA = fonteDaGrafica();
     const MAQUINAS = fonteDaTelaDeMaquinas();
     const MODAL = ler("client/src/components/grafica/modal-impressao.tsx");
     const TUBOS = ler("client/src/components/tubos-dialog.tsx");

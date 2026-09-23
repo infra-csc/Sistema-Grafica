@@ -54,7 +54,7 @@ describe("a Gráfica montada", () => {
     const { queryClient } = await import("@/lib/queryClient");
     const { AcoesDoMolde } = await import("@/components/grafica/acoes-do-molde");
     const molde = { id: "m1", displayId: "#0500", type: "Molde", status: "ready_for_production", quantity: 1, event: { ...EVENTO, prazoMolde: "2099-01-01T12:00:00.000Z" } };
-    const { getByTestId } = render(h(QueryClientProvider, { client: queryClient }, h(AcoesDoMolde, { item: molde, podeProduzir: true })));
+    const { getByTestId } = render(h(QueryClientProvider, { client: queryClient }, h(AcoesDoMolde, { item: molde as never, podeProduzir: true }) /* fixture parcial da peça */));
     expect(getByTestId("button-molde-produzido-m1")).toBeTruthy();
     expect(getByTestId("prazo-molde-m1").textContent).toContain("Prazo do molde");
   });

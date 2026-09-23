@@ -19,6 +19,7 @@ import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
 import { arquivosDaTelaDeMaquinas, fonteDaTelaDeMaquinas } from "./fonte-da-tela-de-maquinas";
 import { readFileSync, existsSync } from "fs";
 import path from "path";
+import { fonteDaGrafica } from "./fonte-da-grafica";
 
 const RAIZ = path.resolve(__dirname, "../..");
 const ler = (rel: string) => readFileSync(path.resolve(RAIZ, rel), "utf8");
@@ -26,7 +27,7 @@ const SCHEMA = ler("shared/schema.ts");
 const ITEMS = fonteDasRotasDeItens();
 const ROTAS = ler("server/routes.ts");
 const APP = ler("client/src/App.tsx");
-const GRAFICA = ler("client/src/pages/grafica.tsx");
+const GRAFICA = fonteDaGrafica();
 // Desde a revisão adversarial de 22/09 a conta do start-printing e do
 // start-production mora em funções PURAS (a rota trava a linha e as chama).
 const DIVIDIDA = ler("shared/impressao-dividida.ts");
@@ -743,7 +744,7 @@ describe("11 · iniciar PARTE de uma peça sem reserva — servidor, contas e Gr
   it("Gráfica: o progresso diz 'N sem impressora' e oferece 'Iniciar o resto' (modal na etapa 1); a ficha diz 'A imprimir' antes de iniciar", () => {
     expect(GRAFICA).toContain("const resto = n.semImpressora;");
     expect(GRAFICA).toContain("data-testid={`button-iniciar-resto-${item.id}`}");
-    expect(GRAFICA).toContain("const openProductionModal = (item: any, resto = false) => {");
+    expect(GRAFICA).toContain("const openProductionModal = (item: PecaDaFila, resto = false) => {");
     expect(GRAFICA).toContain("parteAIniciar={iniciandoResto ? { quantidade: semImpressora(selectedItem), daReserva: false } : null}");
     expect(GRAFICA).toContain('(isInProd(selectedItem) && !iniciandoResto ? "Na impressora" : "A imprimir")');
   });
@@ -967,7 +968,7 @@ describe("14 · revisão adversarial: impressora nunca trava, corrida, limbo e r
     expect(PAGINA).toContain("ocupado={reserva.isPending || mexerNaImpressora.isPending}");
     expect(PAGINA).toContain("ocupadas={ocupadasParaOModal}");
     expect(ROTA).toContain("De propósito: voltar a \"liberada\" é mudança REAL de etapa");
-    expect(GRAFICA).toContain("ocupadas={ocupacaoDasImpressoras((pecasDoServidor as any[]).filter(estaEmImpressao), selectedItem.id)}");
+    expect(GRAFICA).toContain("ocupadas={ocupacaoDasImpressoras(pecasDoServidor.filter(estaEmImpressao), selectedItem.id)}");
   });
 });
 

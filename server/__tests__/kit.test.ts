@@ -6,6 +6,8 @@ import { describe, it, expect } from "vitest";
 import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
 import { readFileSync } from "fs";
 import path from "path";
+import { fonteDaGrafica } from "./fonte-da-grafica";
+import { gatesDaGrafica } from "../../client/src/components/grafica/fila/regras";
 import {
   pecaVisivelPara,
   remessaUtilizavelPor,
@@ -168,7 +170,8 @@ describe("selo KIT nas etapas (fase 3)", () => {
       "client/src/pages/atendimento.tsx",
       "client/src/pages/solicitacao.tsx",
       "client/src/pages/painel-geral.tsx",
-      "client/src/pages/grafica.tsx",
+      // A Gráfica desenha o selo na linha da tabela (components/grafica/fila).
+      "client/src/components/grafica/fila/linha-da-tabela.tsx",
       "client/src/pages/vincular-patrocinadores.tsx",
     ]) {
       const fonte = ler(arquivo);
@@ -247,9 +250,17 @@ describe("Solicitação da Arena e o Kit (15/09)", () => {
     const REVISAO = ler("client/src/pages/solicitacao.tsx");
     expect(REVISAO).toContain('&& !(user?.role === "solicitacao" && !user?.kit && item.kitRemessaId)),');
     expect(REVISAO).toContain('<table style={{ width: "100%", tableLayout: "fixed", textAlign: "left", borderCollapse: "collapse" }}>');
-    const GRAFICA = ler("client/src/pages/grafica.tsx");
-    expect(GRAFICA).toContain('const soVisualizaKit = (item: any) => user?.role === "solicitacao" && !user?.kit && !!item?.kitRemessaId;');
-    expect(GRAFICA).toContain("const canConfer = (item: any) => !soVisualizaKit(item) && canConferBase(item);");
+    // Gráfica: os gates são função pura (components/grafica/fila/regras.ts).
+    const pecaDoKit = { id: "p", kitRemessaId: "k1", status: "produced", quantity: 2, quantityProduced: 2, conferredQty: 0 } as never;
+    const semKit = { id: "p", kitRemessaId: null, status: "produced", quantity: 2, quantityProduced: 2, conferredQty: 0 } as never;
+    const arena = gatesDaGrafica({ role: "solicitacao", kit: false });
+    expect(arena.soVisualizaKit(pecaDoKit)).toBe(true);
+    expect(arena.soVisualizaKit(semKit)).toBe(false);
+    expect(gatesDaGrafica({ role: "solicitacao", kit: true }).soVisualizaKit(pecaDoKit)).toBe(false);
+    expect(gatesDaGrafica({ role: "grafica" }).soVisualizaKit(pecaDoKit)).toBe(false);
+    // conferir a peça do Kit não é da Arena; a mesma peça sem Kit, é
+    expect(arena.canConfer(pecaDoKit)).toBe(false);
+    expect(arena.canConfer(semKit)).toBe(true);
     expect(ROUTES).toContain('if (req.userRole !== "solicitacao" || req.userKit || !["POST", "PATCH", "PUT", "DELETE"].includes(req.method)) return next();');
     expect(ROUTES).toContain("Peça do Kit: a Solicitação da Arena só visualiza.");
   });
@@ -257,7 +268,7 @@ describe("Solicitação da Arena e o Kit (15/09)", () => {
 
 describe("fechamento (15/09): Gráfica sem ações do Kit para a Arena e Revisão com bloco do Kit", () => {
   it("Gráfica esconde aumentar, reaproveitar e cancelar complemento; Revisão agrupa o Kit em cima com a entrega", () => {
-    const GRAFICA = ler("client/src/pages/grafica.tsx");
+    const GRAFICA = fonteDaGrafica();
     expect(GRAFICA).toContain("const mostraAumentar = !bulkOn && !emRevisao && !soVisualizaKit(item) && podeAumentarQuantidade(item, podeMexerQtd);");
     expect(GRAFICA).toContain("{!bulkOn && !emRevisao && !pecaTravada(item) && !soVisualizaKit(item) && !isDelivered(item)");
     const REVISAO = ler("client/src/pages/solicitacao.tsx");

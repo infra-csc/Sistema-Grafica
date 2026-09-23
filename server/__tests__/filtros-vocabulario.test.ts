@@ -15,6 +15,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "fs";
 import { resolve } from "path";
+import { fonteDaGrafica } from "./fonte-da-grafica";
 import {
   EMPTY_ARTE_FILTERS,
   serializeArteFilters,
@@ -31,7 +32,7 @@ const ler = (p: string) =>
   readFileSync(resolve(process.cwd(), p), "utf8").replace(/\r\n/g, "\n");
 
 const ARTE = ler("client/src/pages/arte.tsx");
-const GRAFICA = ler("client/src/pages/grafica.tsx");
+const GRAFICA = fonteDaGrafica();
 const REVISAO = ler("client/src/pages/solicitacao.tsx");
 const COMPONENTE = ler("client/src/components/filter-select.tsx");
 

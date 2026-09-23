@@ -19,6 +19,7 @@ import { describe, it, expect } from "vitest";
 import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
 import { readFileSync } from "fs";
 import path from "path";
+import { fonteDaGrafica } from "./fonte-da-grafica";
 import {
   aEmbalar, planejarEmbalar, planejarEntrega, planejarRetirada, todaEmbalada, violacoesDaConta,
   progressoDaEmbalagem, statusEmbalavel, problemaNoVolume, jaSaiuDaConta,
@@ -71,7 +72,7 @@ describe("1 · o status manda na embalagem", () => {
     expect(ROTAS).toContain("const semTubo = pecas.filter((p) => !ehEntregue(p) && statusEmbalavel(p.status) && aEmbalar(p) > 0)");
     expect(ROTAS).toContain("const plano = planejarEmbalar(p, pedido.quantidade);");
     // a fila: aEmbalar() já devolve 0 pelo status, e a revisão continua barrada
-    expect(ler("client/src/pages/grafica.tsx")).toContain("!EM_REVISAO.has(item.status) && !soVisualizaKit(item) && !isDelivered(item) && !isPacked(item) && !!item.eventId && aEmbalar(item) > 0;");
+    expect(fonteDaGrafica()).toContain("!EM_REVISAO.has(item.status) && !soVisualizaKit(item) && !isDelivered(item) && !isPacked(item) && !!item.eventId && aEmbalar(item) > 0;");
   });
 
   it("/entregar RECUSA (409) volume com peça-problema, dizendo qual e como resolver; a tela mostra o problema", () => {

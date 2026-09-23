@@ -12,10 +12,9 @@
 //   · o toast final aponta o próximo passo: embalar.
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "fs";
-import path from "path";
+import { fonteDaGrafica, fonteDe } from "./fonte-da-grafica";
 
-const GRAFICA = readFileSync(path.resolve(__dirname, "../../client/src/pages/grafica.tsx"), "utf8");
+const GRAFICA = fonteDaGrafica();
 
 describe("a barra do lote", () => {
   it("diz 'Selecionar todas (N)' e explica o que tocar", () => {
@@ -26,7 +25,8 @@ describe("a barra do lote", () => {
 });
 
 describe("o dialog da conferência em lote", () => {
-  const dialog = GRAFICA.slice(GRAFICA.indexOf("function BulkActionDialog("), GRAFICA.indexOf("export default function"));
+  // O dialog mora num arquivo só dele (components/grafica/modais).
+  const dialog = fonteDe("client/src/components/grafica/modais/conferencia-em-lote.tsx");
 
   it("não escolhe tubo nem avisa de entrega por tubo", () => {
     expect(dialog).not.toContain('data-testid="seletor-tubo-lote"');
@@ -37,7 +37,9 @@ describe("o dialog da conferência em lote", () => {
 });
 
 describe("ao confirmar", () => {
-  const handler = GRAFICA.slice(GRAFICA.indexOf("const handleBulkConference = async"), GRAFICA.indexOf("// ── Dependências das linhas memoizadas"));
+  // O handler mora no hook da seleção em lote: do handler até o `return` do hook.
+  const LOTE = fonteDe("client/src/components/grafica/hooks/use-selecao-em-lote.ts");
+  const handler = LOTE.slice(LOTE.indexOf("const handleBulkConference = async"), LOTE.indexOf("\n  return {"));
 
   it("só confere: nenhuma chamada às rotas de tubo", () => {
     expect(handler).not.toContain("/tubos");

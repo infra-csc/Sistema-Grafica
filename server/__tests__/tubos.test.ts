@@ -18,6 +18,7 @@ import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
 import { readFileSync, existsSync } from "fs";
 import path from "path";
 import { PODE_IR_PARA_TUBO, podeIrParaTubo, EMBALADO, ehEmbalada, POS_CONFERENCIA, ehPosConferencia, DEPOIS_DA_ARTE } from "@shared/fluxo-peca";
+import { fonteDaGrafica } from "./fonte-da-grafica";
 
 const RAIZ = path.resolve(__dirname, "../..");
 const ler = (rel: string) => readFileSync(path.resolve(RAIZ, rel), "utf8");
@@ -25,7 +26,7 @@ const SCHEMA = ler("shared/schema.ts");
 const ROTAS = ler("server/routes/tubos.ts");
 const SERVIDOR = ler("server/routes.ts");
 const APP = ler("client/src/App.tsx");
-const GRAFICA = ler("client/src/pages/grafica.tsx");
+const GRAFICA = fonteDaGrafica();
 const PAINEL = ler("client/src/components/tubos-dialog.tsx");
 
 describe("quando uma peça pode ir para um tubo", () => {

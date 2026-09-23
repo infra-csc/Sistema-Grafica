@@ -10,6 +10,7 @@
 import { describe, it, expect } from "vitest";
 import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
 import { readFileSync } from "fs";
+import { fonteDaGrafica } from "./fonte-da-grafica";
 
 // A página + a etiqueta individual, que saiu dela para um componente próprio
 // (as regras da meia folha valem onde quer que o trecho more).
@@ -73,7 +74,7 @@ describe("a página /eventos/:id/etiquetas", () => {
 describe("a etiqueta no caminho de quem confere (25/08)", () => {
   // Depois de conferir, a etiqueta se imprime — e a porta ficava só no
   // Detalhe do Evento, fora do fluxo da Gráfica.
-  const G = readFileSync(new URL("../../client/src/pages/grafica.tsx", import.meta.url), "utf8");
+  const G = fonteDaGrafica();
 
   it("o cabeçalho de cada evento na Gráfica ganha o atalho, nos dois layouts", () => {
     expect(G).toContain("link-etiquetas-mobile-");
@@ -104,7 +105,7 @@ describe("seleção e origem (25/08)", () => {
   it("quem veio da Gráfica volta para a Gráfica", () => {
     expect(PAGINA).toContain('get("de") === "grafica"');
     expect(PAGINA).toContain("const voltarHref = veioDaGrafica");
-    const G = readFileSync(new URL("../../client/src/pages/grafica.tsx", import.meta.url), "utf8");
+    const G = fonteDaGrafica();
     expect(G.split("/etiquetas?de=grafica").length - 1).toBe(2);
   });
 });

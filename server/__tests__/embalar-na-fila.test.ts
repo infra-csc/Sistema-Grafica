@@ -19,30 +19,49 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "fs";
 import path from "path";
+import { fonteDaGrafica, fonteDe } from "./fonte-da-grafica";
+import { gatesDaGrafica } from "../../client/src/components/grafica/fila/regras";
 
 const RAIZ = path.resolve(__dirname, "../..");
 const ler = (rel: string) => readFileSync(path.resolve(RAIZ, rel), "utf8");
-const GRAFICA = ler("client/src/pages/grafica.tsx");
+const GRAFICA = fonteDaGrafica();
 const PAINEL = ler("client/src/components/tubos-dialog.tsx");
 
-// Os dois layouts da fila: a tabela (desktop) e os cartões (celular/tablet).
-const iCartoes = GRAFICA.indexOf("/* ── Cards: celular E tablet");
-const iTabela = GRAFICA.indexOf('<table style={{ width: "100%", borderCollapse: "collapse" }}>', iCartoes);
-const iBarra = GRAFICA.indexOf("{/* ── Barra flutuante dos modos em lote");
-const CARTOES = GRAFICA.slice(iCartoes, iTabela);
-const TABELA = GRAFICA.slice(iTabela, iBarra);
+// Os dois layouts da fila: a tabela (desktop) e os cartões (celular/tablet),
+// cada um com o arquivo das suas ações.
+const FILA = "client/src/components/grafica/fila";
+const CARTOES = fonteDe(`${FILA}/cartao-da-peca.tsx`) + fonteDe(`${FILA}/acoes-do-cartao.tsx`);
+const TABELA = fonteDe(`${FILA}/linha-da-tabela.tsx`) + fonteDe(`${FILA}/acoes-da-linha.tsx`);
+
+// Peça conferida de um evento, pronta para embalar (o resto por cima).
+const conferida = (extra: Record<string, unknown> = {}) => ({
+  id: "p1", eventId: "ev1", type: "Banner", status: "conferred", quantity: 10, conferredQty: 10, embaladaQty: 0, deliveredQty: 0, ...extra,
+}) as never;
 
 describe("o gate de embalar", () => {
   it("é quem tem unidade CONFERIDA ainda não embalada (a inteira, a parcial e a dividida) — e nada de evento aberto", () => {
-    expect(GRAFICA).toContain("const podeEmbalar = (item: any) =>\n    !EM_REVISAO.has(item.status) && !soVisualizaKit(item) && !isDelivered(item) && !isPacked(item) && !!item.eventId && aEmbalar(item) > 0;");
+    // O gate é função pura (fila/regras.ts): prova-se pelo comportamento.
+    const { podeEmbalar } = gatesDaGrafica({ role: "grafica" });
+    expect(podeEmbalar(conferida())).toBe(true);                                        // a inteira
+    expect(podeEmbalar(conferida({ status: "produced", conferredQty: 7 }))).toBe(true); // a parcial (7 de 10)
+    expect(podeEmbalar(conferida({ embaladaQty: 3 }))).toBe(true);                      // a que já foi em parte
+    expect(podeEmbalar(conferida({ embaladaQty: 10 }))).toBe(false);                    // nada a embalar
+    expect(podeEmbalar(conferida({ status: "packed" }))).toBe(false);
+    expect(podeEmbalar(conferida({ status: "delivered", deliveredQty: 10 }))).toBe(false);
+    expect(podeEmbalar(conferida({ status: "awaiting_final_review" }))).toBe(false);    // em revisão só se vê
+    expect(podeEmbalar(conferida({ eventId: null }))).toBe(false);                      // o tubo é de um evento
+    // Evento finalizado NÃO barra: conferir, embalar e entregar passam no finalizado.
+    expect(podeEmbalar(conferida({ event: { status: "closed", startDate: "2020-01-01" } }))).toBe(true);
+    // A Solicitação da Arena só VÊ a peça do Kit.
+    expect(gatesDaGrafica({ role: "solicitacao", kit: false }).podeEmbalar(conferida({ kitRemessaId: "k1" }))).toBe(false);
     // helpers de saldo, não uma comparação de string solta
-    expect(GRAFICA).toContain("isDelivered, isPacked, isConferred, isPosConferencia, isProduced, isInProd,");
+    expect(fonteDe(`${FILA}/regras.ts`)).toMatch(/import \{[^}]*\bisPacked\b[^}]*\} from "@\/lib\/saldo"/);
   });
 
   it("abre o painel de tubos do evento da peça já com ela marcada", () => {
     expect(GRAFICA).toContain('setTubosDoEvento({ id: String(primeira.eventId), name: primeira.event?.name ?? "Evento", embalar: itens.map((i) => i.id), ...(lote ? { lote: true } : {}) });');
     // O "Embalar em lote" marca a flag, e o painel a recebe (22/09: o lote não entra no atalho de peça sozinha).
-    expect(GRAFICA).toContain("itensIniciais={tubosDoEvento?.embalar} emLote={tubosDoEvento?.lote} tuboInicial={tubosDoEvento?.entregarTubo}");
+    expect(GRAFICA).toContain("itensIniciais={tubosDoEvento?.embalar} emLote={tubosDoEvento?.lote} tuboInicial={tubosDoEvento?.entregarTubo ?? undefined}");
   });
 });
 

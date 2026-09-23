@@ -8,9 +8,10 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "fs";
+import { fonteDaGrafica } from "./fonte-da-grafica";
 
 const FILA = readFileSync(new URL("../../client/src/components/galpao-fila.tsx", import.meta.url), "utf8");
-const GRAFICA = readFileSync(new URL("../../client/src/pages/grafica.tsx", import.meta.url), "utf8");
+const GRAFICA = fonteDaGrafica();
 const UPLOADER = readFileSync(new URL("../../client/src/components/ObjectUploader.tsx", import.meta.url), "utf8");
 
 describe("os dois toques", () => {

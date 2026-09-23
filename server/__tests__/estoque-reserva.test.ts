@@ -14,6 +14,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "fs";
 import path from "path";
+import { fonteDaTela } from "./fonte-da-tela";
 import {
   normalizarTipo,
   mesmaMedida,
@@ -228,7 +229,8 @@ describe("a triagem é da Gráfica e exige o local", () => {
 describe("as telas", () => {
   const APP = ler("client/src/App.tsx");
   const MENU = ler("client/src/components/app-sidebar.tsx");
-  const EVENTO = ler("client/src/pages/event-detail.tsx");
+  // A página + os pedaços em components/detalhe-do-evento/.
+  const EVENTO = fonteDaTela("detalhe-do-evento");
   const ESTOQUE = ler("client/src/pages/estoque.tsx");
   const DIALOGO = ler("client/src/components/estoque-semelhantes-dialog.tsx");
 
@@ -243,7 +245,8 @@ describe("as telas", () => {
 
   it("a peça do evento mostra o selo do estoque e abre a busca, no desktop e no celular", () => {
     expect(EVENTO).toContain("data-testid={`badge-estoque-${item.id}`}");
-    expect(EVENTO.split("seloDoEstoque(item)").length - 1).toBe(2);
+    // O selo virou componente: nas DUAS montagens (cartão do celular e linha da tabela).
+    expect(EVENTO.split("<SeloDoEstoque item={item} est={estoqueResumo[item.id]} onAbrir={setEstoqueDaPeca} />").length - 1).toBe(2);
     expect(EVENTO).toContain("<EstoqueSemelhantesDialog");
   });
 

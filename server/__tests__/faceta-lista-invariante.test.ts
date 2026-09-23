@@ -28,6 +28,7 @@
 // entrega — não a de um pool vizinho.
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect } from "vitest";
+import { fonteDaTela } from "./fonte-da-tela";
 import { readFileSync } from "fs";
 import { resolve } from "path";
 import {
@@ -462,7 +463,7 @@ describe("a busca dos menus não pode ser cega a acento", () => {
 const GRAFICA = fonteDaGrafica();
 const REVISAO = ler("client/src/pages/solicitacao.tsx");
 const ARTE = ler("client/src/pages/arte.tsx");
-const ATENDIMENTO = ler("client/src/pages/atendimento.tsx");
+const ATENDIMENTO = fonteDaTela("atendimento");
 const VINCULAR = ler("client/src/pages/vincular-patrocinadores.tsx");
 
 /** O corpo de um `const <nome> = ...` até a próxima declaração de topo. */

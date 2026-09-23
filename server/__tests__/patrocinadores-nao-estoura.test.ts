@@ -58,6 +58,8 @@ beforeAll(() => {
     if (u === "/api/sponsors" && method === "GET") return json(SPONSORS);
     if (u === "/api/sponsors" && method === "POST") return json({ ...SPONSORS[0], id: "novo" });
     if (u.startsWith("/api/sponsors/usage")) return json(USAGE);
+    // A lista dos arquivados (só admin) é lista, como no servidor.
+    if (u === "/api/sponsors/arquivados") return json([]);
     if (u.startsWith("/api/users/basic")) return json(USERS);
     if (u.startsWith("/api/sponsors/")) return json({ ok: true });
     return json([]);

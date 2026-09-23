@@ -8,15 +8,17 @@
 // marcos" é a saída — o recorte é padrão, nunca prisão.
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect } from "vitest";
+import { fonteDaTela } from "./fonte-da-tela";
+import { fonteDoComponente } from "./fonte-dos-componentes";
 import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
 import { readFileSync } from "fs";
 import path from "path";
 
 const ler = (rel: string) => readFileSync(path.resolve(__dirname, "../..", rel), "utf8");
 const CAL = ler("client/src/pages/calendario.tsx");
-const GRADE = ler("client/src/components/bulk-item-entry.tsx");
+const GRADE = fonteDoComponente("client/src/components/bulk-item-entry.tsx");
 const ITEMS = fonteDasRotasDeItens();
-const EVENT_DETAIL = ler("client/src/pages/event-detail.tsx");
+const EVENT_DETAIL = fonteDaTela("detalhe-do-evento");
 
 describe("calendário: cada função vê o que precisa", () => {
   it("o mapa segue a régua de QUEM AGE — e cobre os quatro papéis operacionais", () => {

@@ -25,11 +25,12 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync } from "fs";
 import path from "path";
+import { fonteDaTela } from "./fonte-da-tela";
 
 const ler = (rel: string) => readFileSync(path.resolve(__dirname, "../../", rel), "utf8");
 
 const REV = ler("client/src/pages/solicitacao.tsx");
-const PG = ler("client/src/pages/painel-geral.tsx");
+const PG = fonteDaTela("painel");
 const CAL = ler("client/src/pages/calendario.tsx");
 // Registros: a página + os pedaços que saíram dela (components/grafica/registros/).
 const REG = [

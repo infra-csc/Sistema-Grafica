@@ -18,13 +18,11 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { describe, it, expect } from "vitest";
+import { fonteDoComponente } from "./fonte-dos-componentes";
 import { readFileSync } from "fs";
 import path from "path";
 
-const ficha = readFileSync(
-  path.resolve(__dirname, "../../client/src/components/item-details-dialog.tsx"),
-  "utf8",
-);
+const ficha = fonteDoComponente("client/src/components/item-details-dialog.tsx");
 const semCom = ficha.replace(/\r\n/g, "\n").replace(/\/\*[\s\S]*?\*\//g, "")
   .split("\n").map(l => l.replace(/^\s*\/\/.*$/, "")).join("\n");
 

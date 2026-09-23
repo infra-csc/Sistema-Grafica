@@ -9,13 +9,14 @@
 // que nasceu — este arquivo impede que ele volte por engano.
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect } from "vitest";
+import { fonteDaTela } from "./fonte-da-tela";
 import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
 import { readFileSync } from "fs";
 import path from "path";
 
 const ler = (rel: string) => readFileSync(path.resolve(__dirname, "../..", rel), "utf8");
 const ITEMS = fonteDasRotasDeItens();
-const TELA = ler("client/src/pages/atendimento.tsx");
+const TELA = fonteDaTela("atendimento");
 
 describe("a rota", () => {
   it("quem reprovou segue TRAVADO até a nova arte — o 409 é a regra, não um bug", () => {

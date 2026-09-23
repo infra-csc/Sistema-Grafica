@@ -13,6 +13,7 @@
 // marcar dezenas.
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect } from "vitest";
+import { fonteDaTela } from "./fonte-da-tela";
 import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
 import { readFileSync } from "fs";
 import path from "path";
@@ -21,8 +22,8 @@ const ler = (rel: string) => readFileSync(path.resolve(__dirname, "../..", rel),
 const ROTA = fonteDasRotasDeItens();
 const DIALOG = ler("client/src/components/clone-items-dialog.tsx");
 const HOOK = ler("client/src/hooks/use-event-import.ts");
-const DETALHE = ler("client/src/pages/event-detail.tsx");
-const EVENTOS = ler("client/src/pages/eventos.tsx");
+const DETALHE = fonteDaTela("detalhe-do-evento");
+const EVENTOS = fonteDaTela("eventos");
 
 describe("a rota", () => {
   it("itemIds é opcional — ausente clona tudo, como sempre (compatível com o fluxo antigo)", () => {
@@ -52,8 +53,8 @@ describe("o dialog", () => {
   });
 
   it("nasce com todas marcadas MENOS as canceladas — e sem complementos na lista", () => {
-    expect(DIALOG).toContain("setEscolhidas(new Set(pecasDaOrigem.filter((i: any) => i.status !== \"canceled\").map((i: any) => i.id)))");
-    expect(DIALOG).toContain("todasDaOrigem.filter((i: any) => !i.parentItemId)");
+    expect(DIALOG).toContain("setEscolhidas(new Set(pecasDaOrigem.filter((i) => i.status !== \"canceled\").map((i) => i.id)))");
+    expect(DIALOG).toContain("todasDaOrigem.filter((i) => !i.parentItemId)");
   });
 
   it("tem marcar/desmarcar todas, busca e checkbox por linha", () => {

@@ -42,11 +42,26 @@ type PecaDaPlanilha = {
   _chave: string;
 };
 
-export function PainelDoKit({ eventId, pecas, podeCriar, usuarioDoKit, nomeDoUsuario, dataDoEvento, saidaDoEvento, eventoFinalizado, onAbrirPeca, onAdicionarPeca }: {
+/** A peça do evento, no que o painel lê para listar a remessa aberta. */
+export interface PecaDoKit {
+  id: string;
+  kitRemessaId?: string | null;
+  deletedAt?: string | Date | null;
+  displayId?: string | null;
+  type?: string | null;
+  description?: string | null;
+  quantity?: number | null;
+  material?: string | null;
+  finish?: string | null;
+  status: string;
+}
+
+// Genérico na peça: o `onAbrirPeca` devolve a peça no tipo da tela que a passou.
+export function PainelDoKit<TPeca extends PecaDoKit>({ eventId, pecas, podeCriar, usuarioDoKit, nomeDoUsuario, dataDoEvento, saidaDoEvento, eventoFinalizado, onAbrirPeca, onAdicionarPeca }: {
   eventId: string;
-  pecas: any[];
+  pecas: readonly TPeca[];
   /** Abre o detalhe da peça (o mesmo da lista da Arena). */
-  onAbrirPeca?: (peca: any) => void;
+  onAbrirPeca?: (peca: TPeca) => void;
   /** Inclusão individual (15/09): abre "Adicionar Peça" já na remessa. */
   onAdicionarPeca?: (remessaId: string) => void;
   /** admin | solicitacao (inclui o usuário do Kit) — a régua do servidor. */
@@ -79,8 +94,8 @@ export function PainelDoKit({ eventId, pecas, podeCriar, usuarioDoKit, nomeDoUsu
   const continuarRef = useRef<HTMLButtonElement | null>(null);
 
   const excluir = useMutation({
-    mutationFn: async (id: string) => (await apiRequest("DELETE", `/api/kit/remessas/${id}`)).json(),
-    onSuccess: (r: any) => {
+    mutationFn: async (id: string): Promise<{ excluidas?: number }> => (await apiRequest("DELETE", `/api/kit/remessas/${id}`)).json(),
+    onSuccess: (r) => {
       toast({ title: "Remessa do Kit excluída", description: r?.excluidas ? `${r.excluidas} ${r.excluidas === 1 ? "peça foi para" : "peças foram para"} Peças Excluídas.` : undefined, variant: "success" });
       setConfirmandoExclusao(null);
       setRemessaAberta(null);
@@ -88,7 +103,7 @@ export function PainelDoKit({ eventId, pecas, podeCriar, usuarioDoKit, nomeDoUsu
       queryClient.invalidateQueries({ queryKey: ["/api/items", eventId] });
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
     },
-    onError: (e: any) => toast({ title: "Não deu para excluir a remessa", description: String(e?.message ?? "").replace(/^\d{3}:\s*/, "").replace(/^\{"error":"(.*)"\}$/, "$1"), variant: "destructive" }),
+    onError: (e) => toast({ title: "Não deu para excluir a remessa", description: String(e?.message ?? "").replace(/^\d{3}:\s*/, "").replace(/^\{"error":"(.*)"\}$/, "$1"), variant: "destructive" }),
   });
 
   // Cada abertura: a versão seguinte e os dados da ÚLTIMA remessa (quando há).
@@ -144,8 +159,8 @@ export function PainelDoKit({ eventId, pecas, podeCriar, usuarioDoKit, nomeDoUsu
       toast(c
         ? { title: `Planilha do Kit lida: ${lidas.length} ${lidas.length === 1 ? "peça" : "peças"}`, description: "Datas e versão preenchidas pelo cabeçalho — confira antes de criar.", variant: "success" as const }
         : { title: `${lidas.length} ${lidas.length === 1 ? "peça lida" : "peças lidas"}`, description: "A planilha não tem o cabeçalho do Kit: preencha as datas à mão.", variant: "warning" as const });
-    } catch (e: any) {
-      toast({ title: "Não deu para ler a planilha", description: e?.message, variant: "destructive" });
+    } catch (e) {
+      toast({ title: "Não deu para ler a planilha", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
     } finally {
       setLendoPlanilha(false);
     }
@@ -189,7 +204,7 @@ export function PainelDoKit({ eventId, pecas, podeCriar, usuarioDoKit, nomeDoUsu
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
       setAberto(false);
     },
-    onError: (e: any) => toast({ title: "Não deu para criar a remessa", description: String(e?.message ?? "").replace(/^\d{3}:\s*/, ""), variant: "destructive" }),
+    onError: (e) => toast({ title: "Não deu para criar a remessa", description: String(e?.message ?? "").replace(/^\d{3}:\s*/, ""), variant: "destructive" }),
   });
 
   if (remessas.length === 0 && !podeCriar) return null;

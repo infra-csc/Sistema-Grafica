@@ -16,6 +16,7 @@
 //   10. a migração aditiva roda em banco limpo.
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect } from "vitest";
+import { fonteDoComponente } from "./fonte-dos-componentes";
 import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
 import { readFileSync } from "fs";
 import path from "path";
@@ -30,7 +31,7 @@ const ler = (rel: string) => readFileSync(path.resolve(RAIZ, rel), "utf8");
 const ROTAS = ler("server/routes/tubos.ts");
 const ITEMS = fonteDasRotasDeItens();
 const DIALOGO = ler("client/src/components/tubos-dialog.tsx");
-const FICHA = ler("client/src/components/item-details-dialog.tsx");
+const FICHA = fonteDoComponente("client/src/components/item-details-dialog.tsx");
 const SQL = ler("scripts/migracao-aditiva-producao.sql");
 const trecho = (fonte: string, de: string, ate: string) => fonte.slice(fonte.indexOf(de), fonte.indexOf(ate, fonte.indexOf(de) + 1));
 

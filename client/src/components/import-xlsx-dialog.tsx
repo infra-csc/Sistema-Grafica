@@ -1,514 +1,30 @@
-import { Fragment, useEffect, useMemo, useState } from "react";
+// ─────────────────────────────────────────────────────────────────────────────
+// IMPORTAR PEÇAS — o diálogo de planilha (upload + preview editável).
+//
+// Este arquivo é a COMPOSIÇÃO: o estado da triagem, as contas que a barra
+// lateral e a tabela compartilham e o esqueleto do modal. A barra lateral, a
+// tabela, a linha editável, as regras puras e os tipos moram em
+// components/importar-planilha/. Os exports antigos continuam saindo daqui.
+// ─────────────────────────────────────────────────────────────────────────────
+import { useEffect, useMemo, useState } from "react";
 import type { CabecalhoDoKit, RemessaDoKit } from "@shared/kit";
 import { DestinoDaImportacaoDialog, type DestinoDaImportacao } from "@/components/kit/destino-da-importacao";
-import {
-  Upload,
-  List,
-  Check,
-  CheckCircle2,
-  AlertTriangle,
-  FileSpreadsheet,
-  Search,
-  X,
-} from "lucide-react";
-import { FilterSelect } from "@/components/filter-select";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { useToast } from "@/hooks/use-toast";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { T, N, TOM, FONT } from "@/lib/theme";
-import { Botao } from "@/components/ui/botao";
-import { EstadoVazio } from "@/components/ui/estados";
 import { useConfirmar } from "@/components/ui/usar-confirmar";
+import { BarraLateralDaImportacao } from "@/components/importar-planilha/barra-lateral";
+import { TabelaDaPrevia } from "@/components/importar-planilha/tabela-da-previa";
+import {
+  chaveDaPeca, colunasDaImportacao, defeitosDaLinha, quantidadeValida, repetidasNaPlanilha, type DefeitoImport,
+} from "@/components/importar-planilha/regras";
+import type { LinhaDaImportacao, PatrocinadorDoEvento } from "@/components/importar-planilha/tipos";
 
-// Ativa a edição da célula também pelo teclado (Enter/Espaço) — as células
-// eram clicáveis mas invisíveis para quem navega por Tab.
-const editableKeyDown = (activate: () => void) => (e: React.KeyboardEvent) => {
-  if (e.key === "Enter" || e.key === " ") {
-    e.preventDefault();
-    activate();
-  }
-};
-
-// ── Editable row for import preview table ────────────────────────────────
-// Cota → cor. MESMOS pares de eventos.tsx (QUOTA_OPTIONS), derivados da paleta
-// `P` de lib/status.ts: tint 50 no fundo, tom 700/800 no TEXTO. Duas coisas
-// estavam erradas aqui: (1) a divergência — MASTER era #dc2626 nesta tela e
-// #ef4444 na de Eventos, para o mesmo dado; (2) o contraste — o chip é 10px, e
-// MIDIA (#0891b2 sobre #ecfeff, 3,3:1) e MINISTERIO (#059669 sobre #ecfdf5,
-// 3,2:1) reprovavam AA. DÍVIDA: quando QUOTAS virar módulo em `shared`, este
-// mapa e o de eventos.tsx viram um só.
-const IMPORT_QUOTA_COLORS: Record<string, { bg: string; color: string; border: string }> = {
-  MASTER:     { bg: TOM.perigo.bg, color: TOM.perigo.text, border: TOM.perigo.border },
-  GOLD:       { bg: TOM.info.bg, color: TOM.info.text, border: TOM.info.border },
-  SILVER:     { bg: TOM.roxo.bg, color: TOM.roxo.text, border: TOM.roxo.border },
-  APOIO:      { bg: N.n2, color: T.strong, border: T.border },
-  MIDIA:      { bg: TOM.ciano.bg, color: TOM.ciano.text, border: TOM.ciano.border },
-  MINISTERIO: { bg: TOM.esmeralda.bg, color: TOM.esmeralda.text, border: TOM.esmeralda.border },
-};
-
-/**
- * O QUE FALTA NUMA LINHA, em uma função só.
- *
- * A triagem conta com ela e a linha se pinta com ela: dois cálculos do mesmo
- * defeito divergiriam no primeiro ajuste, e o balde passaria a prometer um
- * número que a tabela não entrega.
- *
- * A gravidade separa o que impede de produzir do que só muda o caminho da
- * peça: sem medida ou sem m² a gráfica não tem o que imprimir; sem
- * patrocinador a peça entra e segue, só não passa por aprovação.
- */
-/**
- * A CHAVE DE GRUPO, num lugar só.
- *
- * A barra lateral conta grupos e a tabela desenha seções: se cada uma
- * derivar a chave do seu jeito, o número e as seções divergem no primeiro
- * ajuste. Quando a reimportação mostrou "145 grupos", os dois concordavam
- * (145 = 145) — o erro estava no parser, que mandava o ID como tipo. Mas o
- * acordo era coincidência de implementação; agora é contrato.
- */
-export const tipoDoGrupo = (row: any): string => String(row?.type || '').trim() || '—';
-
-/**
- * AS COLUNAS DA TABELA, com largura. `table-layout: fixed` + <colgroup>:
- * a soma das larguras É a largura da tabela, então o painel ROLA quando
- * não cabe em vez de a última coluna sair pela borda. Patrocinador é a
- * coluna mais larga (contador, chips, "+ Adicionar", "Todos") e vem
- * ANTES de Obs — no fim, sem largura garantida, era a que o corte comia.
- */
-export function colunasDaImportacao(mostrarVisual: boolean) {
-  const cols: { label: string; tip: string; w: number }[] = [
-    { label: 'Descrição', tip: 'Nome da peça', w: 200 },
-    { label: 'Qtd', tip: 'Quantidade', w: 56 },
-  ];
-  if (mostrarVisual) cols.push({ label: 'Visual', tip: 'VIS. — o que se vê na peça montada (m)', w: 112 });
-  cols.push(
-    { label: 'Arquivo', tip: 'ARQ. — o que a impressora recebe (m); o m² sai daqui', w: 120 },
-    { label: 'M²', tip: 'Metros quadrados calculados', w: 72 },
-    { label: 'Material', tip: '', w: 104 },
-    { label: 'Acabamento', tip: '', w: 104 },
-    { label: 'Patrocinador', tip: 'Sugestão automática — clique para alterar', w: 250 },
-    { label: 'Obs', tip: 'Observações', w: 150 },
-    { label: '', tip: '', w: 36 },
-  );
-  return cols;
-}
-
-export type DefeitoImport =
-  | 'qtd-invalida' | 'repetida-na-planilha'
-  | 'sem-patrocinador' | 'sem-medida' | 'm2-nao-fecha' | 'sem-material' | 'ja-existe';
-
-/** Quantidade que o servidor aceita: inteiro a partir de 1. */
-export const quantidadeValida = (v: unknown): boolean => {
-  const n = Number(String(v ?? '').replace(',', '.'));
-  return Number.isInteger(n) && n >= 1;
-};
-
-/**
- * A IDENTIDADE DE UMA LINHA DENTRO DA PLANILHA: tipo, descrição e medida de
- * arquivo (espelho de chaveNaPlanilha em server/services/xlsxImport.ts). Dois
- * "Testeira" de tamanhos diferentes são peças diferentes; iguais em tudo, é
- * linha copiada duas vezes — e a gráfica imprimiria as duas.
- */
-export function chaveNaPlanilha(row: any): string {
-  const medida = (v: any) => { const n = parseFloat(String(v ?? '')); return Number.isFinite(n) ? n.toFixed(2) : ''; };
-  return chaveDaPeca(row) + '|' + medida(row.fileWidth) + '|' + medida(row.fileHeight);
-}
-
-/** Para cada linha que repete uma anterior da MESMA planilha, a linha repetida. */
-export function repetidasNaPlanilha(rows: any[]): Map<string, number> {
-  const primeira = new Map<string, number>();
-  const repete = new Map<string, number>();
-  rows.forEach((r, i) => {
-    const k = chaveNaPlanilha(r);
-    const linha = Number.isInteger(r.linha) ? r.linha : i + 1;
-    const antes = primeira.get(k);
-    if (antes === undefined) primeira.set(k, linha);
-    else repete.set(r._id, antes);
-  });
-  return repete;
-}
-
-/**
- * A IDENTIDADE DE UMA PEÇA, para efeito de reimportação.
- *
- * Tipo + descrição, sem acento, sem caixa, sem espaço duplo. Não entra a
- * quantidade: reimportar a mesma lista com a quantidade corrigida continua
- * sendo a MESMA peça — é justamente o caso mais comum de reimportação, e
- * incluir a quantidade faria a repetida passar despercebida.
- */
-export function chaveDaPeca(row: any): string {
-  const norm = (v: any) => String(v ?? '')
-    .toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-    .replace(/\s+/g, ' ').trim();
-  return norm(row.type) + '\u0000' + norm(row.description);
-}
-
-export function defeitosDaLinha(row: any, jaNoEvento?: Set<string>, repetidas?: Map<string, number>): DefeitoImport[] {
-  const out: DefeitoImport[] = [];
-  // Quantidade inválida IMPEDE a importação (o servidor recusa a linha).
-  if (!quantidadeValida(row.quantity)) out.push('qtd-invalida');
-  if (repetidas?.has(row._id)) out.push('repetida-na-planilha');
-  // A repetida vem primeiro: é a única que não se conserta editando a
-  // célula — se resolve tirando a linha, e por isso precisa ser lida antes.
-  if (jaNoEvento?.has(chaveDaPeca(row))) out.push('ja-existe');
-  if ((row.suggestedSponsorIds ?? []).length === 0) out.push('sem-patrocinador');
-  // Medida de ARQUIVO — a visual não serve para produzir.
-  const temMedida = !!(parseFloat(row.fileWidth) && parseFloat(row.fileHeight));
-  if (!temMedida) out.push('sem-medida');
-  if (!(parseFloat(row.calculatedM2) > 0)) out.push('m2-nao-fecha');
-  if (!String(row.material ?? '').trim() || !String(row.finish ?? '').trim()) out.push('sem-material');
-  return out;
-}
-
-/**
- * Vermelho custa dinheiro; âmbar muda o caminho da peça.
- *
- * Sem medida ou sem m², a gráfica não tem o que imprimir. Repetida, ela
- * imprime DUAS VEZES e cobra as duas — o mesmo prejuízo por outro caminho.
- */
-const DEFEITO_GRAVE = new Set<DefeitoImport>(['qtd-invalida', 'repetida-na-planilha', 'sem-medida', 'm2-nao-fecha', 'ja-existe']);
-
-export const DEFEITO_LABEL: Record<DefeitoImport, string> = {
-  'qtd-invalida': 'Quantidade inválida',
-  'repetida-na-planilha': 'Repetida na planilha',
-  'sem-patrocinador': 'Sem patrocinador',
-  'sem-medida': 'Sem medida',
-  'm2-nao-fecha': 'M² não fecha',
-  'sem-material': 'Sem material/acab.',
-  'ja-existe': 'Já está no evento',
-};
-
-/** A frase por extenso de cada defeito — o `title` da linha. */
-const DEFEITO_FRASE: Record<DefeitoImport, string> = {
-  'qtd-invalida': 'quantidade mínima é 1 (número inteiro)',
-  'repetida-na-planilha': 'tipo, descrição e medida iguais a outra linha desta planilha',
-  'sem-patrocinador': 'entra sem marca e não vai para aprovação',
-  'sem-medida': 'a planilha não trouxe largura ou altura de arquivo',
-  'm2-nao-fecha': 'o m² veio zerado ou não pôde ser calculado',
-  'sem-material': 'a gráfica não consegue produzir sem material e acabamento',
-  'ja-existe': 'uma peça com este mesmo tipo e descrição já foi importada para este evento',
-};
-
-export function ImportPreviewRow({ row, idx, onChange, onDelete, eventSponsorsList, jaNoEvento, repetidas, mostrarVisual = true }: {
-  row: any; idx: number;
-  /** Linhas que repetem outra da mesma planilha (_id → linha repetida). */
-  repetidas?: Map<string, number>;
-  onChange: (updated: any) => void;
-  onDelete: () => void;
-  eventSponsorsList: { sponsorId: string; quota: string; name: string }[];
-  jaNoEvento?: Set<string>;
-  /** Falso quando NENHUMA linha da planilha trouxe medida visual: a coluna some em vez de ocupar espaço com traços. */
-  mostrarVisual?: boolean;
-}) {
-  const [editField, setEditField] = useState<string | null>(null);
-  const [hovered, setHovered] = useState(false);
-
-  const update = (field: string, value: string) => {
-    const updated = { ...row, [field]: value };
-    if (['quantity', 'fileWidth', 'fileHeight', 'visualWidth', 'visualHeight'].includes(field)) {
-      const qty = parseFloat(field === 'quantity' ? value : row.quantity) || 0;
-      // O M² SAI DAS MEDIDAS DE ARQUIVO, e SÓ delas.
-      //
-      // Havia um `?? row.visualWidth` aqui: sem medida de arquivo, o cálculo
-      // caía para a visual e produzia um m² que não é o que vai ser impresso.
-      // Visual e arquivo são pares DISTINTOS — o visual é o que se vê na peça
-      // montada, o arquivo é o que a impressora recebe (com sangria, com
-      // sobra de acabamento), e é dele que sai o metro quadrado que a gráfica
-      // cobra. O fallback fazia a planilha sem medida de arquivo importar um
-      // orçamento errado sem avisar ninguém.
-      //
-      // Sem medida de arquivo o m² fica ZERO, e a triagem ao lado passa a
-      // dizer isso em voz alta.
-      const fw  = parseFloat(field === 'fileWidth'  ? value : (row.fileWidth  ?? 0)) || 0;
-      const fh  = parseFloat(field === 'fileHeight' ? value : (row.fileHeight ?? 0)) || 0;
-      updated.calculatedM2 = fw && fh ? (qty * fw * fh).toFixed(2) : '0';
-      if (fw && fh) updated.measurement = `${fw.toFixed(2)} × ${fh.toFixed(2)}`;
-    }
-    onChange(updated);
-  };
-
-  // Nome de cada campo em português: vira o `aria-label` do input que abre no
-  // lugar da célula. Sem ele o leitor de tela anunciava só "edição de texto" —
-  // numa tabela com seis campos editáveis por linha, isso não localiza nada.
-  const ROTULO_DO_CAMPO: Record<string, string> = {
-    description: 'Descrição', quantity: 'Quantidade', material: 'Material',
-    finish: 'Acabamento', observations: 'Observações',
-    fileWidth: 'Largura do arquivo (m)', fileHeight: 'Altura do arquivo (m)',
-    visualWidth: 'Largura visual (m)', visualHeight: 'Altura visual (m)',
-  };
-  const rotuloDoCampo = (field: string) => ROTULO_DO_CAMPO[field] ?? field;
-
-  const cell = (field: string, val: any, opts?: { dim?: boolean; mono?: boolean; wide?: boolean; alerta?: string }) => {
-    const isEditing = editField === field;
-    const display = val !== null && val !== undefined && val !== '' ? String(val) : '—';
-    const rowBg = hovered ? N.n2 : (idx % 2 === 0 ? T.surface : T.bg);
-    return (
-      <td
-        onClick={() => setEditField(field)}
-        tabIndex={isEditing ? -1 : 0}
-        role="button"
-        onKeyDown={isEditing ? undefined : editableKeyDown(() => setEditField(field))}
-        // aria-label em vez de `title`: a célula é um botão cujo texto é o
-        // VALOR ("—", "2"), e sozinho ele não diz nem o campo nem que dá para
-        // editar. O `title` não chega ao leitor de tela nem ao tablet.
-        aria-label={`${rotuloDoCampo(field)}: ${display}. Editar.`}
-        style={{
-          padding: '8px 10px',
-          borderBottom: `1px solid ${N.n3}`,
-          cursor: 'text',
-          backgroundColor: isEditing ? TOM.alerta.bg : rowBg,
-          maxWidth: opts?.wide ? 220 : 160,
-        }}
-      >
-        {isEditing ? (
-          <input
-            autoFocus
-            aria-label={`${rotuloDoCampo(field)} da peça ${idx + 1}`}
-            defaultValue={val ?? ''}
-            onBlur={e => { update(field, e.target.value); setEditField(null); }}
-            onKeyDown={e => {
-              if (e.key === 'Enter') { update(field, (e.target as HTMLInputElement).value); setEditField(null); }
-              if (e.key === 'Escape') setEditField(null);
-            }}
-            style={{ width: '100%', border: 'none', borderBottom: `2px solid ${T.accent}`, padding: '0 2px', fontSize: 13, backgroundColor: 'transparent', fontFamily: opts?.mono ? FONT.mono : 'inherit' }}
-          />
-        ) : (
-          <span style={{
-            // O traço é INFORMAÇÃO ("a planilha não trouxe"): #78716c, não o
-            // #a8a29e de antes, que some sobre o zebrado da tabela.
-            color: display === '—' ? T.second : (opts?.dim ? T.second : T.text),
-            fontSize: 13,
-            fontFamily: opts?.mono ? FONT.mono : 'inherit',
-            display: 'block',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
-          }}>{display}</span>
-        )}
-        {/* O PONTO DO DEFEITO. Fica na descrição porque é onde o olho já está
-            quando varre a lista — a faixa lateral de 3px só entra no campo de
-            visão de quem já está olhando para a esquerda da tabela. */}
-        {opts?.alerta && !isEditing && (
-          <span
-            aria-hidden="true"
-            style={{ display: 'inline-block', width: 7, height: 7, borderRadius: '50%', backgroundColor: opts.alerta, marginTop: 4 }}
-          />
-        )}
-      </td>
-    );
-  };
-
-  const dimCell = (fieldW: string, fieldH: string, valW: any, valH: any, dimStyle?: boolean, alerta?: boolean) => {
-    const rowBg = hovered ? N.n2 : (idx % 2 === 0 ? T.surface : T.bg);
-    const editingW = editField === fieldW;
-    const editingH = editField === fieldH;
-    const dispW = valW !== null && valW !== undefined && valW !== '' ? String(valW) : '—';
-    const dispH = valH !== null && valH !== undefined && valH !== '' ? String(valH) : '—';
-    return (
-      <td style={{ padding: '8px 10px', borderBottom: `1px solid ${N.n3}`, whiteSpace: 'nowrap', backgroundColor: rowBg }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
-          {editingW ? (
-            <input autoFocus aria-label={`${rotuloDoCampo(fieldW)} da peça ${idx + 1}`} defaultValue={valW ?? ''} onBlur={e => { update(fieldW, e.target.value); setEditField(null); }} onKeyDown={e => { if (e.key==='Enter'){update(fieldW,(e.target as HTMLInputElement).value);setEditField(null);} if(e.key==='Escape')setEditField(null); }}
-              style={{ width: 44, border: 'none', borderBottom: `2px solid ${T.accent}`, fontSize: 11, padding: '0 2px', backgroundColor: 'transparent', fontFamily: FONT.mono, color: T.text }} />
-          ) : (
-            <span onClick={() => setEditField(fieldW)} tabIndex={0} role="button" onKeyDown={editableKeyDown(() => setEditField(fieldW))} aria-label={`${rotuloDoCampo(fieldW)}: ${dispW}. Editar.`} style={{ fontSize: 11, fontFamily: FONT.mono, color: alerta ? TOM.perigo.text : dimStyle ? T.second : T.text, fontWeight: alerta ? 700 : undefined, cursor: 'text', minWidth: 24 }}>{dispW}</span>
-          )}
-          <span style={{ color: T.bdark, fontSize: 10, userSelect: 'none' }}>×</span>
-          {editingH ? (
-            <input autoFocus aria-label={`${rotuloDoCampo(fieldH)} da peça ${idx + 1}`} defaultValue={valH ?? ''} onBlur={e => { update(fieldH, e.target.value); setEditField(null); }} onKeyDown={e => { if (e.key==='Enter'){update(fieldH,(e.target as HTMLInputElement).value);setEditField(null);} if(e.key==='Escape')setEditField(null); }}
-              style={{ width: 44, border: 'none', borderBottom: `2px solid ${T.accent}`, fontSize: 11, padding: '0 2px', backgroundColor: 'transparent', fontFamily: FONT.mono, color: T.text }} />
-          ) : (
-            <span onClick={() => setEditField(fieldH)} tabIndex={0} role="button" onKeyDown={editableKeyDown(() => setEditField(fieldH))} aria-label={`${rotuloDoCampo(fieldH)}: ${dispH}. Editar.`} style={{ fontSize: 11, fontFamily: FONT.mono, color: alerta ? TOM.perigo.text : dimStyle ? T.second : T.text, fontWeight: alerta ? 700 : undefined, cursor: 'text', minWidth: 24 }}>{dispH}</span>
-          )}
-        </div>
-      </td>
-    );
-  };
-
-  const m2 = parseFloat(row.calculatedM2) || 0;
-  // Mesma escala (alto · médio · baixo), nos tons que passam AA em 13px:
-  // #ea580c (3,6:1) e #16a34a (3,3:1) viraram #c2410c e #15803d.
-  const m2Color = m2 > 30 ? TOM.perigo.text : m2 > 10 ? T.accentText : m2 > 0 ? TOM.sucesso.text : T.second;
-
-  const hasSponsors = (row.suggestedSponsorIds ?? []).length > 0;
-
-  // ── A LINHA SE ANUNCIA ──
-  //
-  // São 10 colunas. Achar o que falta exigia ler as dez, linha por linha, e
-  // decidir de cabeça se aquele branco importava — numa planilha de 60 peças
-  // isso não acontece: a pessoa importa e descobre depois, com a peça já no
-  // evento.
-  const defeitos = defeitosDaLinha(row, jaNoEvento, repetidas);
-  const grave = defeitos.some(d => DEFEITO_GRAVE.has(d));
-  const corDoDefeito = defeitos.length === 0 ? null : grave ? TOM.perigo.text : TOM.alerta.text;
-  const fundoDoDefeito = defeitos.length === 0 ? null : grave ? T.bg : TOM.alerta.bg;
-  const tituloDosDefeitos = defeitos.length === 0
-    ? undefined
-    : defeitos.map(d => d === 'repetida-na-planilha'
-        ? `${DEFEITO_LABEL[d]}: repete a linha ${repetidas?.get(row._id)}`
-        : `${DEFEITO_LABEL[d]}: ${DEFEITO_FRASE[d]}`).join(' · ');
-
-  const semMedida = defeitos.includes('sem-medida');
-  const semM2 = defeitos.includes('m2-nao-fecha');
-
-  const rowBg = hovered ? N.n2 : (fundoDoDefeito ?? (idx % 2 === 0 ? T.surface : T.bg));
-
-  return (
-    <tr
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      title={tituloDosDefeitos}
-      data-testid={`import-row-${idx}`}
-      style={{ transition: 'background 0.12s', boxShadow: corDoDefeito ? `inset 3px 0 0 ${corDoDefeito}` : undefined }}
-    >
-      {/* O ponto ao lado da descrição: o defeito se anuncia onde o olho já
-          está, sem depender de a faixa lateral entrar no campo de visão. */}
-      {cell('description', row.description, { wide: true, alerta: corDoDefeito ?? undefined })}
-      {cell('quantity', row.quantity, { mono: true, alerta: defeitos.includes('qtd-invalida') ? TOM.perigo.text : undefined })}
-      {mostrarVisual && dimCell('visualWidth', 'visualHeight', row.visualWidth, row.visualHeight, true)}
-      {/* Só a de ARQUIVO acende: a visual pode faltar sem impedir nada. */}
-      {dimCell('fileWidth', 'fileHeight', row.fileWidth, row.fileHeight, false, semMedida)}
-
-      {/* M² */}
-      <td style={{ padding: '8px 10px', borderBottom: `1px solid ${N.n3}`, whiteSpace: 'nowrap', backgroundColor: rowBg }}>
-        {/* Zerado, o m² fica VERMELHO e não no cinza da escala: um traço
-            cinza se lê como "não se aplica", e aqui se aplica — é orçamento
-            que não fecha. A escala de cor do valor positivo continua a mesma. */}
-        <span style={{ fontSize: 13, fontWeight: 700, color: semM2 ? TOM.perigo.text : m2Color, fontFamily: FONT.mono, letterSpacing: '-0.02em' }}>
-          {m2 > 0 ? m2.toFixed(2) : '—'}
-        </span>
-      </td>
-
-      {cell('material', row.material)}
-      {cell('finish', row.finish)}
-      {/* Sponsor multi-select cell */}
-      <td style={{ padding: '6px 8px', borderBottom: `1px solid ${N.n3}`, backgroundColor: rowBg, verticalAlign: 'top' }}>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, alignItems: 'center' }}>
-          {/* Chips for each selected sponsor */}
-          {(row.suggestedSponsorIds ?? []).map((sid: string) => {
-            const sp = eventSponsorsList.find(s => s.sponsorId === sid);
-            if (!sp) return null;
-            const qc = IMPORT_QUOTA_COLORS[sp.quota] ?? { bg: TOM.ceu.bg, color: TOM.ceu.text, border: TOM.ceu.border };
-            return (
-              <span key={sid} style={{ display: 'inline-flex', alignItems: 'center', gap: 3, padding: '2px 6px 2px 7px', borderRadius: 6, border: `1.5px solid ${qc.border}`, backgroundColor: qc.bg, color: qc.color, fontSize: 10, fontWeight: 700, whiteSpace: 'nowrap' }}>
-                {sp.name}
-                <button
-                  type="button"
-                  aria-label={`Tirar ${sp.name} desta peça`}
-                  title={`Tirar ${sp.name}`}
-                  onClick={e => { e.stopPropagation(); onChange({ ...row, suggestedSponsorIds: (row.suggestedSponsorIds ?? []).filter((id: string) => id !== sid) }); }}
-                  style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'inherit', padding: '0 0 0 1px', opacity: 0.65, fontSize: 13, lineHeight: 1 }}
-                >×</button>
-              </span>
-            );
-          })}
-          {/* Add sponsor dropdown — kind="field". Não é filtro: cada escolha
-              ACRESCENTA um patrocinador à linha (por isso o gatilho volta a
-              "+ Adicionar" e o valor fica sempre vazio). Era `<select>` NATIVO
-              dentro de uma célula editável, e o menu do sistema operacional
-              abrindo por cima da grade era o único elemento da tela que não
-              tinha o desenho da casa. #746e69 sobre o fundo branco da célula =
-              5,29:1 ✓ em 10px (a régua pede 4,5:1). */}
-          {(row.suggestedSponsorIds ?? []).length < eventSponsorsList.length && (
-            <div onClick={e => e.stopPropagation()} style={{ display: 'inline-flex' }}>
-              <FilterSelect
-                kind="field" hideWhenEmpty={false}
-                label="Adicionar patrocinador"
-                placeholder="+ Adicionar"
-                value=""
-                onChange={v => {
-                  if (v && !(row.suggestedSponsorIds ?? []).includes(v))
-                    onChange({ ...row, suggestedSponsorIds: [...(row.suggestedSponsorIds ?? []), v] });
-                }}
-                options={eventSponsorsList
-                  .filter(s => !(row.suggestedSponsorIds ?? []).includes(s.sponsorId))
-                  .map(s => ({ value: s.sponsorId, label: s.name }))}
-                searchPlaceholder="Buscar patrocinador..."
-                emptyText="Nenhum patrocinador"
-                panelWidth={220}
-                triggerStyle={{ fontSize: 10, height: 'auto', borderRadius: 6, border: `1px dashed ${T.bdark}`, backgroundColor: 'transparent', color: T.second, padding: '2px 4px 2px 5px', maxWidth: 110 }}
-              />
-            </div>
-          )}
-          {/* Select all event sponsors */}
-          {eventSponsorsList.length > 0 && (row.suggestedSponsorIds ?? []).length < eventSponsorsList.length && (
-            <button
-              type="button"
-              title="Vincular todos os patrocinadores do evento"
-              onClick={e => { e.stopPropagation(); onChange({ ...row, suggestedSponsorIds: eventSponsorsList.map(s => s.sponsorId) }); }}
-              style={{ fontSize: 10, fontWeight: 700, borderRadius: 6, border: `1px solid ${TOM.sucesso.border}`, backgroundColor: TOM.sucesso.bg, color: TOM.sucesso.text, cursor: 'pointer', padding: '2px 7px', whiteSpace: 'nowrap' }}
-            >
-              Todos
-            </button>
-          )}
-          {(row.suggestedSponsorIds ?? []).length === 0 && (
-            // #78716c sobre branco = 4,80:1 ✓ (#a8a29e dava 2,32:1). Aqui a
-            // frase não é enfeite: é o aviso de que a linha vai entrar SEM
-            // patrocinador, e era o texto mais apagado da tabela.
-            <span style={{ fontSize: 11, color: T.second, fontStyle: 'italic' }}>sem patrocinador</span>
-          )}
-        </div>
-      </td>
-
-      {/* Obs cell with reuse toggle */}
-      <td
-        onClick={() => setEditField('observations')}
-        tabIndex={editField === 'observations' ? -1 : 0}
-        role="button"
-        onKeyDown={editField === 'observations' ? undefined : editableKeyDown(() => setEditField('observations'))}
-        aria-label={`Observações: ${row.observations || 'vazio'}. Editar.`}
-        style={{ padding: '8px 10px', borderBottom: `1px solid ${N.n3}`, cursor: 'text', backgroundColor: editField === 'observations' ? TOM.alerta.bg : rowBg, maxWidth: 160 }}
-      >
-        {editField === 'observations' ? (
-          <input autoFocus aria-label={`Observações da peça ${idx + 1}`} defaultValue={row.observations ?? ''}
-            onBlur={e => { update('observations', e.target.value); setEditField(null); }}
-            onKeyDown={e => { if (e.key === 'Enter') { update('observations', (e.target as HTMLInputElement).value); setEditField(null); } if (e.key === 'Escape') setEditField(null); }}
-            style={{ width: '100%', border: 'none', borderBottom: `2px solid ${T.accent}`, padding: '0 2px', fontSize: 13, backgroundColor: 'transparent' }} />
-        ) : (
-          <span style={{ color: row.observations ? T.second : T.second, fontSize: 13, display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {row.observations || '—'}
-          </span>
-        )}
-        {/* Reuse toggle */}
-        <button
-          type="button"
-          aria-pressed={!!row.reuse}
-          onClick={e => { e.stopPropagation(); onChange({ ...row, reuse: !row.reuse }); }}
-          style={{
-            marginTop: 3, display: 'block',
-            fontSize: 10, fontWeight: 700, padding: '1px 7px', borderRadius: 999, cursor: 'pointer',
-            border: `1px solid ${row.reuse ? TOM.sucesso.dot : T.border}`,
-            backgroundColor: row.reuse ? TOM.sucesso.bg : 'transparent',
-            color: row.reuse ? TOM.sucesso.text : T.apoio,
-            letterSpacing: '0.04em', textTransform: 'uppercase', transition: 'all 0.15s',
-          }}
-        >
-          Reaproveitar
-        </button>
-      </td>
-
-      {/* Delete */}
-      <td style={{ padding: '6px 6px', borderBottom: `1px solid ${N.n3}`, backgroundColor: rowBg }}>
-        {/* O X em repouso era #d0cdc9 (1,6:1): só aparecia no hover, então
-            no toque e no teclado a linha parecia não ter como sair. */}
-        <button
-          type="button"
-          onClick={onDelete}
-          title="Tirar esta peça da importação"
-          aria-label={`Tirar ${row.description || row.type || 'esta peça'} da importação`}
-          style={{ width: 26, height: 26, borderRadius: 6, border: 'none', backgroundColor: hovered ? TOM.perigo.bg : 'transparent', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: hovered ? TOM.perigo.text : T.second, transition: 'all 0.15s' }}
-        >
-          <X style={{ width: 13, height: 13 }} />
-        </button>
-      </td>
-    </tr>
-  );
-}
+export {
+  tipoDoGrupo, colunasDaImportacao, quantidadeValida, chaveNaPlanilha, repetidasNaPlanilha,
+  chaveDaPeca, defeitosDaLinha, DEFEITO_LABEL, type DefeitoImport,
+} from "@/components/importar-planilha/regras";
+export { ImportPreviewRow } from "@/components/importar-planilha/linha-da-previa";
+export type { LinhaDaImportacao, PatrocinadorDoEvento } from "@/components/importar-planilha/tipos";
 
 interface ImportXlsxDialogProps {
   open: boolean;
@@ -516,17 +32,17 @@ interface ImportXlsxDialogProps {
   importFile: File | null;
   setImportFile: (f: File | null) => void;
   setImportPreview: (p: { total: number; groups: string[] } | null) => void;
-  importPreviewItems: any[] | null;
-  setImportPreviewItems: React.Dispatch<React.SetStateAction<any[] | null>>;
+  importPreviewItems: LinhaDaImportacao[] | null;
+  setImportPreviewItems: React.Dispatch<React.SetStateAction<LinhaDaImportacao[] | null>>;
   importFileName: string;
   importSearch: string;
   setImportSearch: (s: string) => void;
-  eventSponsorsList: { sponsorId: string; quota: string; name: string }[];
+  eventSponsorsList: PatrocinadorDoEvento[];
   previewXlsxPending: boolean;
   onPreview: (file: File) => void;
   confirmImportPending: boolean;
   /** O destino (Arena ou Kit) é escolhido no modal que abre antes de importar. */
-  onConfirmImport: (items: any[], fileName: string, destino: DestinoDaImportacao) => void;
+  onConfirmImport: (items: LinhaDaImportacao[], fileName: string, destino: DestinoDaImportacao) => void;
   /** As peças que o evento JÁ tem — é contra elas que a repetição é medida. */
   itensDoEvento?: { type?: string | null; description?: string | null }[];
   /** Linhas da planilha que o servidor deixou de fora no preview, e por quê. */
@@ -563,7 +79,6 @@ export function ImportXlsxDialog({
   kitCabecalho = null,
   somenteKit = false,
 }: ImportXlsxDialogProps) {
-  const { toast } = useToast();
   const isMobile = useIsMobile();
 
   // ARENA OU KIT (14/09): "Importar N peças" abre o modal de destino; a
@@ -620,15 +135,15 @@ export function ImportXlsxDialog({
   // Predicado único da busca do preview — usado na contagem, no "+ Todos" e
   // no empty-state de filtro sem resultado.
   const importQ = importSearch.toLowerCase();
-  const matchesImportSearch = (i: any) =>
+  const matchesImportSearch = (i: LinhaDaImportacao) =>
     !importSearch || i.description?.toLowerCase().includes(importQ) || i.type?.toLowerCase().includes(importQ);
 
   // O RECORTE, uma função só: a busca E a triagem. A contagem de cada balde
   // sai do MESMO predicado que a tabela aplica — com a própria dimensão de
   // fora —, então o número do balde é exatamente o de linhas que o clique
   // entrega.
-  const passaNaTriagem = (i: any) => !triagem || defeitosDaLinha(i, chavesDoEvento, repetidasDaPlanilha).includes(triagem);
-  const matchesImportFiltros = (i: any) => matchesImportSearch(i) && passaNaTriagem(i);
+  const passaNaTriagem = (i: LinhaDaImportacao) => !triagem || defeitosDaLinha(i, chavesDoEvento, repetidasDaPlanilha).includes(triagem);
+  const matchesImportFiltros = (i: LinhaDaImportacao) => matchesImportSearch(i) && passaNaTriagem(i);
 
   return (
     <Dialog open={open} onOpenChange={(v) => {
@@ -662,494 +177,48 @@ export function ImportXlsxDialog({
             lado a lado, os 260px fixos esmagavam o preview no celular. */}
         <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', flex: 1, minHeight: 0, overflow: 'hidden', borderRadius: 12 }}>
         {/* ── Left sidebar ── */}
-        <div style={{ width: isMobile ? '100%' : 260, minWidth: isMobile ? 0 : 260, maxHeight: isMobile && importPreviewItems ? '42vh' : undefined, backgroundColor: T.surface, borderRight: isMobile ? 'none' : `1px solid ${T.border}`, borderBottom: isMobile ? `1px solid ${T.border}` : 'none', display: 'flex', flexDirection: 'column', overflow: 'hidden', flexShrink: 0 }}>
-          {/* TOPO FIXO: título e o cartão do arquivo — o começo da tarefa. */}
-          <div style={{ flexShrink: 0, padding: '22px 18px 0', display: 'flex', flexDirection: 'column', gap: 16 }}>
-          {/* Title */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <div style={{ width: 30, height: 30, borderRadius: 8, backgroundColor: TOM.sucesso.bg, border: `1px solid ${TOM.sucesso.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-              <FileSpreadsheet style={{ width: 15, height: 15, color: TOM.sucesso.text }} />
-            </div>
-            <div>
-              <DialogTitle style={{ fontFamily: FONT.display, fontSize: 15, fontWeight: 800, letterSpacing: '-0.02em', color: T.text, margin: 0, lineHeight: 1.2 }}>
-                Importar Peças
-              </DialogTitle>
-              <DialogDescription style={{ fontSize: 10, color: T.second, margin: 0, marginTop: 1 }}>
-                {importFileName || 'Formato padrão NORTE'}
-              </DialogDescription>
-            </div>
-          </div>
-
-          {/* sr-only, e não display:none: escondido de vez, o campo saía da
-              ordem de Tab e sem mouse não havia como escolher a planilha. Vem
-              ANTES do rótulo para o `peer` pintar o anel de foco nele. */}
-          <input id="xlsx-upload" type="file" accept=".xlsx,.xls" className="sr-only peer" aria-label="Escolher a planilha .xlsx" onChange={e => {
-            const f = e.target.files?.[0];
-            if (f) { setImportFile(f); setImportPreview(null); setImportPreviewItems(null); }
-            e.target.value = "";
-          }} />
-          {/* Drop zone */}
-          <label
-            htmlFor="xlsx-upload"
-            data-testid="dropzone-xlsx"
-            className="peer-focus-visible:ring-2 peer-focus-visible:ring-green-700 peer-focus-visible:ring-offset-2"
-            style={{
-              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8,
-              border: '2px dashed', borderColor: importFile ? TOM.sucesso.text : T.bdark,
-              borderRadius: 12, padding: '18px 12px', cursor: 'pointer',
-              backgroundColor: importFile ? TOM.sucesso.bg : T.bg, transition: 'all 0.2s',
-            }}
-            onDragOver={e => { e.preventDefault(); e.currentTarget.style.borderColor = TOM.sucesso.text; e.currentTarget.style.backgroundColor = TOM.sucesso.bg; }}
-            onDragLeave={e => { e.currentTarget.style.borderColor = importFile ? TOM.sucesso.text : T.bdark; e.currentTarget.style.backgroundColor = importFile ? TOM.sucesso.bg : T.bg; }}
-            onDrop={e => {
-              e.preventDefault();
-              const f = e.dataTransfer.files[0];
-              if (f && (f.name.endsWith('.xlsx') || f.name.endsWith('.xls'))) {
-                setImportFile(f); setImportPreview(null); setImportPreviewItems(null);
-              } else {
-                toast({ title: "Arquivo inválido", description: "Selecione um arquivo .xlsx", variant: "warning" });
-              }
-            }}
-          >
-            {importFile ? (
-              <>
-                <CheckCircle2 style={{ width: 24, height: 24, color: TOM.sucesso.text }} />
-                <div style={{ textAlign: 'center' }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: TOM.sucesso.text, fontFamily: FONT.display }}>{importFile.name}</div>
-                  <div style={{ fontSize: 11, color: T.second, marginTop: 2 }}>{(importFile.size / 1024).toFixed(1)} KB</div>
-                </div>
-                <button
-                  type="button"
-                  onClick={e => { e.preventDefault(); setImportFile(null); setImportPreview(null); setImportPreviewItems(null); }}
-                  style={{ fontSize: 11, fontWeight: 600, color: TOM.perigo.text, background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 3, minHeight: 28, padding: '0 6px' }}
-                >
-                  <X style={{ width: 10, height: 10 }} /> Remover
-                </button>
-              </>
-            ) : (
-              <>
-                <Upload style={{ width: 20, height: 20, color: T.second }} />
-                <div style={{ textAlign: 'center' }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: T.strong }}>Arraste o .xlsx aqui</div>
-                  <div style={{ fontSize: 11, color: T.second, marginTop: 2 }}>ou clique para selecionar</div>
-                </div>
-              </>
-            )}
-          </label>
-          </div>
-
-          {/* MEIO ROLÁVEL: resumo, triagem e a dica de formato. */}
-          <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 16 }}>
-
-          {/* Stats (when preview is loaded) */}
-          {importPreviewItems && (() => {
-            const allItems = importPreviewItems;
-            const totalM2 = allItems.reduce((s: number, i: any) => s + (parseFloat(i.calculatedM2) || 0), 0);
-            const linked = allItems.filter((i: any) => (i.suggestedSponsorIds ?? []).length > 0).length;
-            const groups = new Set(allItems.map(tipoDoGrupo)).size;
-            const linkPct = allItems.length > 0 ? Math.round((linked / allItems.length) * 100) : 0;
-            return (
-              <>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                  {[
-                    { l: 'Peças',      v: allItems.length,         color: T.text, mono: false },
-                    { l: 'Grupos',     v: groups,                  color: T.text, mono: false },
-                    { l: 'M² total',   v: `${totalM2.toFixed(0)}`, color: TOM.alerta.text, mono: true  },
-                    { l: 'Vinculados', v: `${linkPct}%`,           color: linkPct === 100 ? TOM.sucesso.text : TOM.alerta.text, mono: false },
-                  ].map(s => (
-                    <div key={s.l} style={{ backgroundColor: N.n3, border: `1px solid ${T.border}`, borderRadius: 8, padding: '10px 12px' }}>
-                      <div style={{ fontSize: 18, fontWeight: 900, color: s.color, fontFamily: s.mono ? FONT.mono : FONT.display, lineHeight: 1 }}>{s.v}</div>
-                      <div style={{ fontSize: 10, color: T.second, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', marginTop: 4 }}>{s.l}</div>
-                    </div>
-                  ))}
-                </div>
-                <div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5 }}>
-                    <span style={{ fontSize: 11, color: T.second, fontWeight: 600 }}>Vinculação</span>
-                    <span style={{ fontSize: 11, fontWeight: 700, color: linkPct === 100 ? TOM.sucesso.text : TOM.alerta.text }}>{linked}/{allItems.length}</span>
-                  </div>
-                  <div style={{ height: 5, backgroundColor: T.border, borderRadius: 999, overflow: 'hidden' }}>
-                    <div style={{ height: '100%', width: `${linkPct}%`, backgroundColor: linkPct === 100 ? TOM.sucesso.text : TOM.alerta.text, borderRadius: 999, transition: 'width 0.4s' }} />
-                  </div>
-                </div>
-
-                {/* ── ANTES DE IMPORTAR ──
-
-                    Quatro baldes clicáveis. A contagem sai do mesmo predicado
-                    da tabela (`defeitosDaLinha`), com a busca aplicada e a
-                    própria triagem de fora — o número é o de linhas que o
-                    clique entrega, não o de um pool vizinho.
-
-                    Balde zerado fica esmaecido e sem clique: um balde que
-                    devolve lista vazia é indistinguível de um filtro quebrado.
-                    E ele CONTINUA na lista em vez de sumir — "0 sem medida" é
-                    a boa notícia que a pessoa veio buscar. */}
-                {(() => {
-                  const naBusca = allItems.filter(matchesImportSearch);
-                  const baldes: { chave: DefeitoImport; cor: string }[] = [
-                    { chave: 'qtd-invalida', cor: TOM.perigo.text },
-                    { chave: 'repetida-na-planilha', cor: TOM.perigo.text },
-                    { chave: 'sem-patrocinador', cor: TOM.alerta.text },
-                    { chave: 'sem-medida', cor: TOM.perigo.text },
-                    { chave: 'm2-nao-fecha', cor: TOM.perigo.text },
-                    { chave: 'sem-material', cor: TOM.alerta.text },
-                    { chave: 'ja-existe', cor: TOM.perigo.text },
-                  ];
-                  return (
-                    <div>
-                      <div style={{ fontSize: 11, color: T.second, fontWeight: 600, marginBottom: 6 }}>Antes de importar</div>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                        {baldes.map(({ chave, cor }) => {
-                          const n = naBusca.filter(i => defeitosDaLinha(i, chavesDoEvento, repetidasDaPlanilha).includes(chave)).length;
-                          const ligado = triagem === chave;
-                          const vazio = n === 0;
-                          return (
-                            <button
-                              key={chave}
-                              type="button"
-                              onClick={vazio ? undefined : () => setTriagem(ligado ? null : chave)}
-                              aria-pressed={ligado}
-                              disabled={vazio}
-                              data-testid={`triagem-${chave}`}
-                              title={vazio
-                                ? `Nenhuma peça com este problema`
-                                : ligado ? 'Mostrar todas as peças de novo' : `Ver as ${n} com este problema`}
-                              style={{
-                                display: 'flex', alignItems: 'center', gap: 7, width: '100%',
-                                padding: '6px 9px', borderRadius: 7, textAlign: 'left',
-                                border: `1px solid ${ligado ? T.text : T.border}`,
-                                backgroundColor: ligado ? T.text : T.surface,
-                                color: ligado ? T.surface : T.strong,
-                                opacity: vazio ? 0.45 : 1,
-                                cursor: vazio ? 'default' : 'pointer',
-                                font: 'inherit', fontSize: 11, fontWeight: 600,
-                              }}
-                            >
-                              <span aria-hidden="true" style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: ligado ? T.surface : cor, flexShrink: 0 }} />
-                              <span style={{ flex: 1, minWidth: 0 }}>{DEFEITO_LABEL[chave]}</span>
-                              <span style={{ fontFamily: FONT.mono, fontWeight: 700 }}>{n}</span>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  );
-                })()}
-              </>
-            );
-          })()}
-
-          {/* Format tip */}
-          <div style={{ padding: '10px 12px', backgroundColor: TOM.alerta.bg, border: `1px solid ${TOM.alerta.border}`, borderRadius: 8, display: 'flex', gap: 8 }}>
-            <AlertTriangle style={{ width: 13, height: 13, color: TOM.alerta.text, flexShrink: 0, marginTop: 1 }} />
-            <div style={{ fontSize: 10, color: TOM.alerta.text, lineHeight: 1.6 }}>
-              <strong style={{ color: TOM.alerta.text }}>Formato NORTE:</strong><br />
-              item · qtde · material · acabamento
-            </div>
-          </div>
-
-          </div>
-
-          {/* PÉ FIXO: o botão de importar — o fim da tarefa — nunca sai de vista. */}
-          <div style={{ flexShrink: 0, padding: '12px 18px 18px', borderTop: `1px solid ${N.n3}`, backgroundColor: T.surface }}>
-          {!importPreviewItems ? (
-            <Botao
-              variante="primario"
-              tamanho="toque"
-              larguraCheia
-              icone={List}
-              disabled={!importFile}
-              carregando={previewXlsxPending}
-              motivo={!importFile ? 'Escolha a planilha acima.' : undefined}
-              alinharMotivo="center"
-              onClick={() => { if (importFile) onPreview(importFile); }}
-              data-testid="button-preview-import"
-            >
-              {previewXlsxPending ? 'Processando...' : 'Pré-visualizar Peças'}
-            </Botao>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {/* AS LINHAS QUE FICARAM DE FORA. Antes sumiam caladas (linha sem
-                  quantidade, quantidade zero ou negativa): a pessoa contava as
-                  peças da planilha, contava as do preview, e não batia. */}
-              {ignoradas.length > 0 && (
-                <div
-                  data-testid="aviso-linhas-ignoradas"
-                  style={{ padding: '10px 12px', borderRadius: 8, background: N.n2, border: `1px solid ${T.border}`, fontSize: 11, color: T.strong, lineHeight: 1.5 }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-                    <span style={{ fontWeight: 700, color: T.text }}>
-                      {ignoradas.length} {ignoradas.length === 1 ? 'linha da planilha ficou' : 'linhas da planilha ficaram'} de fora
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => setVerIgnoradas(v => !v)}
-                      aria-expanded={verIgnoradas}
-                      data-testid="button-ver-ignoradas"
-                      style={{ background: 'none', border: 'none', padding: 0, fontSize: 11, fontWeight: 700, color: T.accentText, cursor: 'pointer', whiteSpace: 'nowrap' }}
-                    >
-                      {verIgnoradas ? 'Esconder' : 'Ver quais'}
-                    </button>
-                  </div>
-                  {verIgnoradas && (
-                    <ul style={{ margin: '6px 0 0', padding: 0, listStyle: 'none', maxHeight: 120, overflowY: 'auto' }}>
-                      {ignoradas.map(ig => (
-                        <li key={ig.linha}>Linha {ig.linha}: {ig.motivo}</li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
-              )}
-              {/* O AVISO DE REIMPORTAÇÃO — agora com nomes e com saída.
-
-                  Ele não BLOQUEIA: reimportar de propósito é legítimo (uma
-                  planilha corrigida, um lote que ficou de fora). O que ele
-                  faz é impedir que aconteça sem ninguém saber, e oferecer o
-                  atalho de quem já sabe — tirar as repetidas e importar o
-                  resto, que é o desfecho em quase todos os casos. */}
-              {repetidas.length > 0 && (
-                <div
-                  data-testid="aviso-reimportacao"
-                  style={{ padding: '10px 12px', borderRadius: 8, background: TOM.laranja.bg, border: `1px solid ${TOM.laranja.border}`, fontSize: 11, color: T.accentText, lineHeight: 1.5 }}
-                >
-                  <div style={{ fontWeight: 700, marginBottom: 2, color: T.accentText }}>
-                    {repetidas.length} de {importPreviewItems.length} já {repetidas.length === 1 ? 'está' : 'estão'} neste evento
-                  </div>
-                  <div>
-                    {repetidas.slice(0, 3).map((r: any) => r.description || r.type || 'sem descrição').join(' · ')}
-                    {repetidas.length > 3 ? ` · e mais ${repetidas.length - 3}` : ''}
-                  </div>
-                  <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
-                    <Botao
-                      variante="secundario"
-                      tamanho="sm"
-                      onClick={() => setTriagem(triagem === 'ja-existe' ? null : 'ja-existe')}
-                      aria-pressed={triagem === 'ja-existe'}
-                      data-testid="button-ver-repetidas"
-                      style={{ flex: 1 }}
-                    >
-                      {triagem === 'ja-existe' ? 'Ver todas de novo' : `Ver as ${repetidas.length}`}
-                    </Botao>
-                    <Botao
-                      variante="primario"
-                      tamanho="sm"
-                      onClick={() => {
-                        const fora = new Set(repetidas.map((r: any) => r._id));
-                        setImportPreviewItems(prev => prev ? prev.filter(r => !fora.has(r._id)) : prev);
-                        // A triagem ligada em 'ja-existe' deixaria a tabela
-                        // vazia logo depois da remoção — a lista some junto
-                        // com o motivo de ela estar recortada.
-                        if (triagem === 'ja-existe') setTriagem(null);
-                        toast({ title: `${fora.size} ${fora.size === 1 ? 'peça repetida removida' : 'peças repetidas removidas'}`, description: 'Elas continuam no evento; só saíram desta importação.', variant: 'success' });
-                      }}
-                      data-testid="button-remover-repetidas"
-                      style={{ flex: 1 }}
-                    >
-                      Remover {repetidas.length === 1 ? 'a repetida' : `as ${repetidas.length}`}
-                    </Botao>
-                  </div>
-                </div>
-              )}
-              <Botao
-                variante="secundario"
-                larguraCheia
-                onClick={() => { setImportPreviewItems(null); setImportSearch(""); setTriagem(null); }}
-              >
-                Trocar arquivo
-              </Botao>
-              {/* O motivo do travamento já aparece logo abaixo, com a linha
-                  (motivo-importar-travado) — por isso sem `motivo` aqui. */}
-              <Botao
-                variante="primario"
-                tamanho="toque"
-                larguraCheia
-                icone={Check}
-                disabled={!importPreviewItems.length || comQtdInvalida.length > 0}
-                carregando={confirmImportPending}
-                onClick={() => { if (importPreviewItems.length > 0 && comQtdInvalida.length === 0) setEscolhendoDestino(true); }}
-                data-testid="button-confirm-import"
-              >
-                {confirmImportPending
-                  ? 'Importando...'
-                  : <>Importar {importPreviewItems.length} {importPreviewItems.length === 1 ? 'peça' : 'peças'}</>}
-              </Botao>
-              {/* POR QUE O BOTÃO ESTÁ TRAVADO — à vista, com a linha. */}
-              {comQtdInvalida.length > 0 && (
-                <p data-testid="motivo-importar-travado" role="status" style={{ margin: 0, fontSize: 11, color: TOM.perigo.text, lineHeight: 1.45, textAlign: 'center', fontWeight: 600 }}>
-                  {comQtdInvalida.slice(0, 3).map((r: any) => `Linha ${r.linha ?? '?'}: quantidade mínima é 1`).join(' · ')}
-                  {comQtdInvalida.length > 3 ? ` · e mais ${comQtdInvalida.length - 3}` : ''}
-                  {' — corrija a quantidade ou tire a linha.'}
-                </p>
-              )}
-              {/* O QUE ACONTECE DEPOIS — antes de clicar. Importar não é
-                  enviar: as peças caem no card de rascunhos do evento e só
-                  seguem para a vinculação quando alguém envia. */}
-              <p data-testid="texto-depois-de-importar" style={{ margin: 0, fontSize: 11, color: T.apoio, lineHeight: 1.45, textAlign: 'center' }}>
-                As peças entram em Rascunho no evento. Depois, envie para a vinculação.
-              </p>
-            </div>
-          )}
-          </div>
-        </div>
+        <BarraLateralDaImportacao
+          isMobile={isMobile}
+          importFile={importFile}
+          setImportFile={setImportFile}
+          setImportPreview={setImportPreview}
+          importPreviewItems={importPreviewItems}
+          setImportPreviewItems={setImportPreviewItems}
+          importFileName={importFileName}
+          setImportSearch={setImportSearch}
+          previewXlsxPending={previewXlsxPending}
+          onPreview={onPreview}
+          confirmImportPending={confirmImportPending}
+          ignoradas={ignoradas}
+          verIgnoradas={verIgnoradas}
+          setVerIgnoradas={setVerIgnoradas}
+          repetidas={repetidas}
+          comQtdInvalida={comQtdInvalida}
+          chavesDoEvento={chavesDoEvento}
+          repetidasDaPlanilha={repetidasDaPlanilha}
+          triagem={triagem}
+          setTriagem={setTriagem}
+          matchesImportSearch={matchesImportSearch}
+          setEscolhendoDestino={setEscolhendoDestino}
+        />
 
         {/* ── Right panel: table ── */}
         {importPreviewItems && (
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, minHeight: 0, overflow: 'hidden' }}>
-            {/* Search bar. paddingRight extra: o X nativo do dialog vive em
-                right-4/top-4 e ficava POR CIMA do botão "+ Todos
-                patrocinadores" — colisão flagrada em produção. */}
-            <div style={{ padding: '10px 44px 10px 16px', borderBottom: `1px solid ${T.border}`, backgroundColor: T.surface, display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
-              <div style={{ position: 'relative', flex: 1 }}>
-                <Search style={{ position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', width: 13, height: 13, color: T.second, pointerEvents: 'none' }} />
-                <input
-                  value={importSearch}
-                  onChange={e => setImportSearch(e.target.value)}
-                  placeholder="Filtrar peças ou grupos..."
-                  aria-label="Filtrar as peças da planilha por descrição ou grupo"
-                  style={{ width: '100%', padding: '7px 12px 7px 28px', backgroundColor: N.n3, border: `1px solid ${T.border}`, borderRadius: 8, color: T.text, fontSize: 13, boxSizing: 'border-box' }}
-                />
-              </div>
-              <span style={{ fontSize: 11, color: T.second, whiteSpace: 'nowrap', fontWeight: 600 }}>
-                {importSearch || triagem
-                  ? `${importPreviewItems.filter(matchesImportFiltros).length} de ${importPreviewItems.length} peças`
-                  : `${importPreviewItems.length} peças`
-                }
-              </span>
-              {/* O "Limpar" da triagem: um balde ligado na barra lateral fica
-                  longe da tabela que ele recortou, e sem saída à mão a pessoa
-                  lê a lista curta como "a planilha tem 4 peças". */}
-              {triagem && (
-                <button
-                  type="button"
-                  onClick={() => setTriagem(null)}
-                  data-testid="button-limpar-triagem"
-                  style={{ fontSize: 11, fontWeight: 700, color: T.accentText, background: 'none', border: 'none', cursor: 'pointer', whiteSpace: 'nowrap', padding: 0 }}
-                >
-                  Limpar
-                </button>
-              )}
-              {eventSponsorsList.length > 0 && (
-                <Botao
-                  variante="secundario"
-                  tamanho="sm"
-                  title="Vincular todos os patrocinadores do evento a todas as peças listadas"
-                  onClick={() => {
-                    const allIds = eventSponsorsList.map(s => s.sponsorId);
-                    const q = importSearch.toLowerCase();
-                    setImportPreviewItems(prev => prev ? prev.map(r =>
-                      (!q || r.description?.toLowerCase().includes(q) || r.type?.toLowerCase().includes(q))
-                        ? { ...r, suggestedSponsorIds: allIds }
-                        : r
-                    ) : prev);
-                  }}
-                  style={{ flexShrink: 0 }}
-                >
-                  + Todos patrocinadores
-                </Botao>
-              )}
-            </div>
-
-            {/* A TABELA ROLA DENTRO DO PAINEL. Com layout automático, as
-                colunas eram espremidas até a última sair pela borda —
-                "0/1 vincu" — sem barra de rolagem, porque a tabela cabia
-                "tecnicamente". Com `table-layout: fixed` e um <colgroup>, a
-                soma das larguras É a largura da tabela: abaixo dela o
-                painel rola; nada é espremido, nada é cortado. */}
-            <div style={{ flex: 1, minHeight: 0, minWidth: 0, overflow: 'auto' }}>
-              <table style={{ tableLayout: 'fixed', width: '100%', minWidth: larguraDaTabela, borderCollapse: 'collapse', fontSize: 13 }}>
-                <colgroup>
-                  {colunas.map((c, i) => <col key={i} style={{ width: c.w }} />)}
-                </colgroup>
-                <thead>
-                  <tr style={{ backgroundColor: N.n3, position: 'sticky', top: 0, zIndex: 2, boxShadow: `0 1px 0 ${T.border}` }}>
-                    {colunas.map((h, i) => (
-                      <th key={i} title={h.tip} style={{ padding: '9px 10px', textAlign: 'left', fontWeight: 700, fontSize: 10, color: T.second, textTransform: 'uppercase', letterSpacing: '0.07em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{h.label}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {(() => {
-                    const items = importPreviewItems.filter(matchesImportFiltros);
-                    const groupMap = new Map<string, any[]>();
-                    for (const item of items) {
-                      const t = tipoDoGrupo(item);
-                      if (!groupMap.has(t)) groupMap.set(t, []);
-                      groupMap.get(t)!.push(item);
-                    }
-                    const groups = Array.from(groupMap.entries());
-                    return groups.map(([type, groupItems], gIdx) => {
-                      const groupM2 = groupItems.reduce((s: number, i: any) => s + (parseFloat(i.calculatedM2) || 0), 0);
-                      const groupLinked = groupItems.filter((i: any) => (i.suggestedSponsorIds ?? []).length > 0).length;
-                      return (
-                        <Fragment key={type}>
-                          <tr>
-                            <td colSpan={colunas.length} style={{ padding: '9px 14px 8px', background: `linear-gradient(90deg, ${N.n3} 0%, ${N.n3} 100%)`, borderTop: gIdx > 0 ? `2px solid ${T.border}` : undefined, borderBottom: `1px solid ${T.border}` }}>
-                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                  <div style={{ width: 3, height: 14, backgroundColor: T.accent, borderRadius: 6 }} />
-                                  <span style={{ fontWeight: 800, fontSize: 13, color: T.text, fontFamily: FONT.display, textTransform: 'uppercase', letterSpacing: '0.04em' }}>{type}</span>
-                                  <span style={{ fontSize: 10, fontWeight: 600, color: T.apoio, backgroundColor: T.border, borderRadius: 999, padding: '1px 8px' }}>{groupItems.length}</span>
-                                </div>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-                                  {groupM2 > 0 && (
-                                    <span style={{ fontSize: 11, fontFamily: FONT.mono, fontWeight: 700, color: TOM.alerta.text }}>{groupM2.toFixed(2)} m²</span>
-                                  )}
-                                  <span style={{ fontSize: 11, color: groupLinked === groupItems.length ? TOM.sucesso.text : TOM.alerta.text, fontWeight: 600 }}>
-                                    {groupLinked}/{groupItems.length} vinculados
-                                  </span>
-                                </div>
-                              </div>
-                            </td>
-                          </tr>
-                          {groupItems.map((row: any, rowIdx: number) => (
-                            <ImportPreviewRow
-                              key={row._id}
-                              row={row}
-                              idx={rowIdx}
-                              onChange={(updated: any) => setImportPreviewItems(prev => prev ? prev.map(r => r._id === row._id ? updated : r) : prev)}
-                              onDelete={() => setImportPreviewItems(prev => prev ? prev.filter(r => r._id !== row._id) : prev)}
-                              eventSponsorsList={eventSponsorsList}
-                              jaNoEvento={chavesDoEvento}
-                              repetidas={repetidasDaPlanilha}
-                              mostrarVisual={mostrarVisual}
-                            />
-                          ))}
-                        </Fragment>
-                      );
-                    });
-                  })()}
-                </tbody>
-              </table>
-              {importPreviewItems.length === 0 && (
-                <div style={{ padding: 24 }}>
-                  <EstadoVazio icone={List} titulo="Nenhuma peça para importar." />
-                </div>
-              )}
-              {/* Filtro sem resultado: antes a tabela simplesmente sumia,
-                  sem dizer o porquê nem oferecer saída. */}
-              {importPreviewItems.length > 0 && importPreviewItems.filter(matchesImportFiltros).length === 0 && (
-                <div style={{ padding: 24 }}>
-                  <EstadoVazio
-                    icone={Search}
-                    titulo="Nenhuma peça corresponde ao filtro"
-                    descricao={<>Tente outro termo ou limpe o filtro para ver as {importPreviewItems.length} peças.</>}
-                    acao={
-                      <Botao
-                        variante="secundario"
-                        // Limpa os DOIS recortes: com a triagem ligada, um
-                        // "Limpar filtro" que so apaga a busca deixa a tela
-                        // vazia depois de a pessoa ter pedido para limpar.
-                        onClick={() => { setImportSearch(""); setTriagem(null); }}
-                        data-testid="button-clear-import-search"
-                      >
-                        Limpar filtro
-                      </Botao>
-                    }
-                  />
-                </div>
-              )}
-            </div>
-          </div>
+          <TabelaDaPrevia
+            importPreviewItems={importPreviewItems}
+            setImportPreviewItems={setImportPreviewItems}
+            importSearch={importSearch}
+            setImportSearch={setImportSearch}
+            triagem={triagem}
+            setTriagem={setTriagem}
+            eventSponsorsList={eventSponsorsList}
+            matchesImportFiltros={matchesImportFiltros}
+            colunas={colunas}
+            larguraDaTabela={larguraDaTabela}
+            chavesDoEvento={chavesDoEvento}
+            repetidasDaPlanilha={repetidasDaPlanilha}
+            mostrarVisual={mostrarVisual}
+          />
         )}
         </div>{/* wrapper flex row */}
       </DialogContent>

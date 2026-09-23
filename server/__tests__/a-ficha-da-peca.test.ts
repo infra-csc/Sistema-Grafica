@@ -40,11 +40,12 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { describe, it, expect } from "vitest";
+import { fonteDoComponente } from "./fonte-dos-componentes";
 import { readFileSync } from "fs";
 import path from "path";
 import { T } from "@/lib/theme";
 
-const modal = readFileSync(path.resolve(__dirname, "../../client/src/components/item-details-dialog.tsx"), "utf8");
+const modal = fonteDoComponente("client/src/components/item-details-dialog.tsx");
 
 /**
  * O arquivo SEM os comentários.

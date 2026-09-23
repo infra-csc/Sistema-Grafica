@@ -3,6 +3,8 @@
 // peça do Kit com quem criou, e o filtro "o usuário do Kit só vê as dele".
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect } from "vitest";
+import { fonteDaTela } from "./fonte-da-tela";
+import { fonteDoComponente } from "./fonte-dos-componentes";
 import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
 import { readFileSync } from "fs";
 import path from "path";
@@ -28,7 +30,7 @@ const INDEX = ler("server/index.ts");
 const ROUTES = ler("server/routes.ts");
 const IMPORT = ler("server/services/xlsxImport.ts");
 const USUARIOS = ler("client/src/pages/usuarios.tsx");
-const EVENTO = ler("client/src/pages/event-detail.tsx");
+const EVENTO = fonteDaTela("detalhe-do-evento");
 
 describe("regras puras do Kit", () => {
   it("usuário do Kit só vê as peças do Kit que ele criou; o resto vê tudo", () => {
@@ -126,7 +128,7 @@ describe("planilha do Kit e filtros (fase 2)", () => {
   });
 
   it("importar: modal Arena ou Kit antes de importar; remessa nova nasce na importação", () => {
-    const DIALOGO = ler("client/src/components/import-xlsx-dialog.tsx");
+    const DIALOGO = fonteDoComponente("client/src/components/import-xlsx-dialog.tsx");
     const DESTINO = ler("client/src/components/kit/destino-da-importacao.tsx");
     expect(DIALOGO).toContain("onClick={() => { if (importPreviewItems.length > 0 && comQtdInvalida.length === 0) setEscolhendoDestino(true); }}");
     expect(DESTINO).toContain('title="Estas peças são da Arena ou do Kit?"');
@@ -167,9 +169,15 @@ describe("selo KIT nas etapas (fase 3)", () => {
   it("Arte, Atendimento, Revisão, Painel Geral, Gráfica e Vincular mostram o selo", () => {
     for (const arquivo of [
       "client/src/pages/arte.tsx",
-      "client/src/pages/atendimento.tsx",
+      // Atendimento: o card da fila, a linha do lote, a linha do histórico e o cabeçalho da revisão.
+      "client/src/components/atendimento/cartao-da-peca.tsx",
+      "client/src/components/atendimento/linha-do-lote.tsx",
+      "client/src/components/atendimento/linha-do-historico.tsx",
+      "client/src/components/atendimento/cabecalho-da-revisao.tsx",
       "client/src/pages/solicitacao.tsx",
-      "client/src/pages/painel-geral.tsx",
+      // Painel Geral: a linha (tabela) e o cartão (celular) da peça.
+      "client/src/components/painel/linha-da-peca.tsx",
+      "client/src/components/painel/cartao-da-peca.tsx",
       // A Gráfica desenha o selo na linha da tabela (components/grafica/fila).
       "client/src/components/grafica/fila/linha-da-tabela.tsx",
       "client/src/pages/vincular-patrocinadores.tsx",
@@ -220,7 +228,7 @@ describe("prazos pelas datas do Kit (fase 4)", () => {
     expect(SNAP).toContain(".flatMap((ev) => eventosDoPrazo(ev, itemsByEvent.get(ev.id) ?? [], remessaPorId))");
     expect(SNAP).toContain("const eventId = idDoEventoReal(ev.id);");
     expect(ler("client/src/pages/arte.tsx")).toContain("const chave = item.kitRemessaId ? `${eventKey}#kit-${item.kitRemessaId}` : eventKey;");
-    expect(ler("client/src/pages/atendimento.tsx")).toContain("isEventoAtrasadoNaAprovacao(item.kitRemessaId && item.event ? item.event : eventoPorId.get(item.eventId), hoje)");
+    expect(fonteDaTela("atendimento")).toContain("isEventoAtrasadoNaAprovacao(item.kitRemessaId && item.event ? item.event : eventoPorId.get(item.eventId), hoje)");
     expect(ler("server/services/deadlineAlerts.ts")).toContain("const ancoraMs = new Date(ancoraDoKit(remessa)).getTime();");
     expect(ler("client/src/components/prazos/event-drilldown.tsx")).toContain("targetId={ev.eventId ?? ev.id}");
   });

@@ -27,9 +27,10 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "fs";
 import path from "path";
+import { fonteDaTela } from "./fonte-da-tela";
 
 const hook = readFileSync(path.resolve(__dirname, "../../client/src/hooks/use-mobile.tsx"), "utf8");
-const painel = readFileSync(path.resolve(__dirname, "../../client/src/pages/painel-geral.tsx"), "utf8");
+const painel = fonteDaTela("painel");
 
 /** Corpo do callback do ResizeObserver, sem as linhas de comentário. */
 function corpoDoObserver(): string {

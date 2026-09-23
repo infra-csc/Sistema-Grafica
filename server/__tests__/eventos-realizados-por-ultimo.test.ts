@@ -18,10 +18,11 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "fs";
-import path from "path";
+import { fonteDaTela } from "./fonte-da-tela";
+import { REGRA_DA_ORDEM, ordenarEventos, sortRank } from "@/components/eventos/regras";
+import type { EventoDaLista } from "@/components/eventos/tipos";
 
-const EV = readFileSync(path.resolve(__dirname, "../../client/src/pages/eventos.tsx"), "utf8");
+const EV = fonteDaTela("eventos");
 
 describe("a visão padrão esconde os realizados", () => {
   it("só Ativos vem ligado quando a URL não diz nada", () => {
@@ -37,27 +38,46 @@ describe("a visão padrão esconde os realizados", () => {
   });
 });
 
-describe("urgente MAS aberto vem primeiro", () => {
-  const i = EV.indexOf("const sortRank = (event: any): number => {");
-  const corpo = EV.slice(i, i + 500);
+// A regra da ordem virou função pura (components/eventos/regras.ts): antes o
+// teste conferia o TEXTO de `sortRank`; agora roda a função e a ordenação.
+const evento = (over: Partial<EventoDaLista>): EventoDaLista => ({
+  id: "e", name: "E", priority: null, truckDepartureDate: "2099-03-01T11:00:00.000Z",
+  lifecycle: "active", eventHasPassed: false, manuallyClosed: false, nextMilestone: null,
+  ...over,
+} as EventoDaLista);
+const atrasado = { key: "listaImagens", label: "Lista", deadline: "2099-01-01", daysRemaining: -3, state: "overdue" as const, pendingItems: 1, invalidDate: false };
 
+describe("urgente MAS aberto vem primeiro", () => {
   it("realizado desce para o balde 2 — antes só do arquivo", () => {
-    expect(corpo).toContain("if (ARCHIVED_LIFECYCLES.has(lifecycle)) return 3;");
-    expect(corpo).toContain("if (lifecycle === 'realizado') return 2;");
+    expect(sortRank(evento({ lifecycle: "completed" }))).toBe(3);
+    expect(sortRank(evento({ manuallyClosed: true }))).toBe(3);
+    expect(sortRank(evento({ lifecycle: "realizado" }))).toBe(2);
+    expect(sortRank(evento({}))).toBe(1);
   });
 
   it("marco atrasado e prioridade urgente continuam no balde 0", () => {
-    expect(corpo).toContain("if (event.nextMilestone?.state === 'overdue') return 0;");
-    expect(corpo).toContain("if (event.priority === 'urgente') return 0;");
+    expect(sortRank(evento({ nextMilestone: atrasado }))).toBe(0);
+    expect(sortRank(evento({ priority: "urgente" }))).toBe(0);
   });
 
   it("e a ordem dos testes dentro da função garante que realizado não é promovido", () => {
     // Um realizado com marco atrasado (todos têm: o caminhão saiu) cairia no
     // balde 0 se o teste de `overdue` viesse antes do de `realizado`.
-    expect(corpo.indexOf("lifecycle === 'realizado'")).toBeLessThan(corpo.indexOf("state === 'overdue'"));
+    expect(sortRank(evento({ lifecycle: "realizado", nextMilestone: atrasado, priority: "urgente" }))).toBe(2);
+  });
+
+  it("na lista ordenada: urgente aberto, em jogo, realizado, arquivo", () => {
+    const lista = [
+      evento({ id: "arq", name: "D", priority: "alta", lifecycle: "completed" }),
+      evento({ id: "real", name: "C", priority: "alta", lifecycle: "realizado", nextMilestone: atrasado }),
+      evento({ id: "jogo", name: "B", priority: "alta" }),
+      evento({ id: "urg", name: "A", priority: "urgente", truckDepartureDate: "2099-06-01T11:00:00.000Z" }),
+    ];
+    expect(ordenarEventos(lista, "saida").map((e) => e.id)).toEqual(["urg", "jogo", "real", "arq"]);
   });
 
   it("a regra escrita diz isso", () => {
-    expect(EV).toContain("'marco atrasado primeiro, depois quem embarca antes; realizados por último'");
+    expect(REGRA_DA_ORDEM.saida).toBe("marco atrasado primeiro, depois quem embarca antes; realizados por último");
+    expect(EV).toContain("{REGRA_DA_ORDEM[ordem]}");
   });
 });

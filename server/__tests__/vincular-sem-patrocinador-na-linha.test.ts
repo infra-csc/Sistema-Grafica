@@ -24,6 +24,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "fs";
 import path from "path";
+import { fonteDaTela } from "./fonte-da-tela";
 
 const ler = (rel: string) => readFileSync(path.resolve(__dirname, "../../", rel), "utf8");
 const VP = ler("client/src/pages/vincular-patrocinadores.tsx");
@@ -70,6 +71,10 @@ describe("o menu '…' saiu inteiro", () => {
     for (const tela of ["event-detail", "solicitacao", "painel-geral", "arte", "atendimento"]) {
       expect(ler(`client/src/pages/${tela}.tsx`)).not.toContain("return-to-creation");
     }
+    // O Detalhe do Evento virou página + pedaços: a varredura cobre os pedaços também.
+    expect(fonteDaTela("detalhe-do-evento")).not.toContain("return-to-creation");
+    // O Painel Geral também: página + components/painel/.
+    expect(fonteDaTela("painel")).not.toContain("return-to-creation");
     // O servidor não perdeu a capacidade — só a tela.
     expect(ler("server/routes/sponsors.ts")).toContain('"/api/items/:id/return-to-creation"');
   });
@@ -77,7 +82,7 @@ describe("o menu '…' saiu inteiro", () => {
   it("'Marcar reaproveitamento' saiu daqui — e continua onde é decisão de verdade", () => {
     expect(semCom(VP)).not.toContain("btn-reuse-");
     expect(semCom(VP)).not.toContain("Marcar reaproveitamento");
-    expect(ler("client/src/pages/event-detail.tsx")).toContain("button-reuse-item-");
+    expect(fonteDaTela("detalhe-do-evento")).toContain("button-reuse-item-");
     expect(ler("client/src/pages/solicitacao.tsx")).toContain("button-reuse-");
   });
 

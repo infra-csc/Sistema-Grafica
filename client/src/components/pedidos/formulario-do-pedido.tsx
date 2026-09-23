@@ -34,7 +34,7 @@ import { motivoEventoFinalizado, todayBusinessMs } from "@/lib/status";
 import { T, FS, R, N, TOM, FW } from "@/lib/theme";
 import { Botao } from "@/components/ui/botao";
 import { useConfirmar } from "@/components/ui/usar-confirmar";
-import { ReferenciasDoPedido, diaDoEvento, invalidarPedidos, mensagemDaApi } from "@/components/pedidos/ui";
+import { ReferenciasDoPedido, diaDoEvento, invalidarPedidos, mensagemDaApi, type EventoDoPedido } from "@/components/pedidos/ui";
 
 const ROTULO: React.CSSProperties = { display: "block", fontSize: FS.small, fontWeight: FW.rotulo, letterSpacing: "0.08em", textTransform: "uppercase", color: T.apoio, marginBottom: 6 };
 const CAMPO: React.CSSProperties = { width: "100%", boxSizing: "border-box", height: 40, padding: "0 12px", borderRadius: R.md, border: `1px solid ${T.bdark}`, background: T.surface, fontSize: FS.read, color: T.text, fontFamily: "inherit" };
@@ -51,6 +51,9 @@ const numeroDoCampo = (v: string) => {
   const n = parseFloat(v.replace(",", "."));
   return Number.isFinite(n) && n > 0 ? n : null;
 };
+
+/** Modelo de /api/standard-items, no que o campo de tipo lê. */
+type ModeloDePeca = { name: string; visualWidth?: string | number | null; visualHeight?: string | number | null };
 
 export type PecaDoFormulario = {
   chave: string;
@@ -91,10 +94,10 @@ function BlocoDaPeca({ peca, numero, total, eventos, eventosCarregando, opcoesDe
   eventosCarregando: boolean;
   numero: number;
   total: number;
-  eventos: any[];
+  eventos: EventoDoPedido[];
   opcoesDeEvento: Array<{ value: string; label: string }>;
   patrocinadores: Sponsor[];
-  modelos: any[];
+  modelos: ModeloDePeca[];
   nomesDeModelos: string[];
   onMudar: (mudanca: Partial<PecaDoFormulario> | ((p: PecaDoFormulario) => Partial<PecaDoFormulario>)) => void;
   onRemover: () => void;
@@ -127,7 +130,7 @@ function BlocoDaPeca({ peca, numero, total, eventos, eventosCarregando, opcoesDe
     onMudar({ eventId, sponsorIds: [], precisaAte: dataDoCampo(ev?.truckDepartureDate) });
   };
   const escolherTipo = (valor: string) => {
-    const modelo = modelos.find((m: any) => m.name === valor);
+    const modelo = modelos.find((m) => m.name === valor);
     onMudar((p) => ({
       tipoDePeca: valor,
       ...(modelo && !p.largura && !p.altura && modelo.visualWidth && modelo.visualHeight
@@ -332,9 +335,9 @@ export function FormularioDoPedido({ aberto, onFechar }: { aberto: boolean; onFe
   // Cada abertura começa do zero.
   useEffect(() => { if (aberto) setPecas([novaPeca()]); }, [aberto]);
 
-  const { data: eventos = [], isLoading: eventosCarregando } = useQuery<any[]>({ queryKey: ["/api/events"], enabled: aberto });
+  const { data: eventos = [], isLoading: eventosCarregando } = useQuery<EventoDoPedido[]>({ queryKey: ["/api/events"], enabled: aberto });
   const { data: patrocinadores = [] } = useQuery<Sponsor[]>({ queryKey: ["/api/sponsors"], enabled: aberto });
-  const { data: modelos = [] } = useQuery<any[]>({ queryKey: ["/api/standard-items"], enabled: aberto });
+  const { data: modelos = [] } = useQuery<ModeloDePeca[]>({ queryKey: ["/api/standard-items"], enabled: aberto });
 
   const hoje = todayBusinessMs();
   const opcoesDeEvento = useMemo(
@@ -344,7 +347,7 @@ export function FormularioDoPedido({ aberto, onFechar }: { aberto: boolean; onFe
       .map((e) => ({ value: e.id, label: `${e.name}${e.startDate ? ` · ${diaDoEvento(e.startDate)}` : ""}` })),
     [eventos, hoje],
   );
-  const nomesDeModelos = useMemo(() => Array.from(new Set(modelos.map((m: any) => m.name))).sort(), [modelos]);
+  const nomesDeModelos = useMemo(() => Array.from(new Set(modelos.map((m) => m.name))).sort(), [modelos]);
 
   const mudar = (chave: string) => (mudanca: Partial<PecaDoFormulario> | ((p: PecaDoFormulario) => Partial<PecaDoFormulario>)) =>
     setPecas((lista) => lista.map((p) => (p.chave === chave ? { ...p, ...(typeof mudanca === "function" ? mudanca(p) : mudanca) } : p)));

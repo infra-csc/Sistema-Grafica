@@ -13,6 +13,7 @@
 //   · o DETALHE DO EVENTO — registro bruto, é por lá que se edita/exclui.
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect } from "vitest";
+import { fonteDaTela } from "./fonte-da-tela";
 import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
 import { readFileSync } from "fs";
 import { ehBookCompleto } from "../../shared/fluxo-peca";
@@ -40,7 +41,8 @@ describe("as portas fechadas", () => {
     ["busca global", "../routes/busca.ts"],
     ["digest da revisão", "../services/revisaoDigest.ts"],
     ["Arte (fila principal)", "../../client/src/pages/arte.tsx"],
-    ["Painel Geral", "../../client/src/pages/painel-geral.tsx"],
+    // A query de peças do Painel mora no hook de dados da tela.
+    ["Painel Geral", "../../client/src/components/painel/use-painel-dados.ts"],
     ["Revisão", "../../client/src/pages/solicitacao.tsx"],
     ["Etiquetas", "../../client/src/pages/etiquetas-evento.tsx"],
   ];
@@ -53,7 +55,7 @@ describe("as portas fechadas", () => {
 
 describe("as exceções deliberadas", () => {
   it("o Atendimento NÃO filtra — é o lugar dela", () => {
-    expect(ler("../../client/src/pages/atendimento.tsx")).not.toContain("ehBookCompleto");
+    expect(fonteDaTela("atendimento")).not.toContain("ehBookCompleto");
   });
 
   it("a Correção da Arte NÃO filtra — reprovada, a v2 precisa da porta", () => {

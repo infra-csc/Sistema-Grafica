@@ -14,6 +14,7 @@
 //     parcial estão em embalagem-com-quantidade.test.ts.
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect } from "vitest";
+import { fonteDoComponente } from "./fonte-dos-componentes";
 import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
 import { readFileSync, existsSync } from "fs";
 import path from "path";
@@ -243,7 +244,7 @@ describe("Embalado na tela", () => {
 
   it("a etiqueta e a ficha reconhecem a embalada como conferida", () => {
     expect(ler("client/src/pages/etiquetas-evento.tsx")).toContain('const CONFERIDA = new Set(["conferred", "conferido", "packed", "delivered", "entregue"]);');
-    expect(ler("client/src/components/item-details-dialog.tsx")).toContain('if (rawStatus === "packed") {');
+    expect(fonteDoComponente("client/src/components/item-details-dialog.tsx")).toContain('if (rawStatus === "packed") {');
   });
 });
 

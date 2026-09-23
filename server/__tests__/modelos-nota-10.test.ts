@@ -19,6 +19,8 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { describe, it, expect } from "vitest";
+import { fonteDaTela } from "./fonte-da-tela";
+import { fonteDoComponente } from "./fonte-dos-componentes";
 import { readFileSync } from "fs";
 import path from "path";
 
@@ -123,7 +125,7 @@ describe("o que NÃO mexer continua", () => {
     expect(rota).toContain("uso: { exato: e?.n ?? 0, compativel: compativel.get(k) ?? 0, ultimaEm: e?.ultima ?? null }");
     expect(rota).toContain("if ((p as any).deletedAt) continue;");
     // Quem cria a partir de modelo grava o vínculo — nos dois fluxos.
-    expect(readFileSync(path.resolve(__dirname, "../../client/src/pages/event-detail.tsx"), "utf8")).toContain("standardItemId: model.id,");
-    expect(readFileSync(path.resolve(__dirname, "../../client/src/components/bulk-item-entry.tsx"), "utf8")).toContain('u.standardItemId = s ? s.id : "";');
+    expect(fonteDaTela("detalhe-do-evento")).toContain("standardItemId: model.id,");
+    expect(fonteDoComponente("client/src/components/bulk-item-entry.tsx")).toContain('u.standardItemId = s ? s.id : "";');
   });
 });

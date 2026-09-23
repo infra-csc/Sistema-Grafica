@@ -29,6 +29,7 @@ import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
 import { readFileSync } from "fs";
 import { diasNaFase } from "../../client/src/lib/idade-na-fase";
 import path from "path";
+import { fonteDaTela } from "./fonte-da-tela";
 
 const ler = (rel: string) => readFileSync(path.resolve(__dirname, "../../", rel), "utf8");
 const ARTE = ler("client/src/pages/arte.tsx");
@@ -138,6 +139,8 @@ describe("2 · quem está travando", () => {
       const f = tela === "triagem-modal" ? "client/src/components/triagem-modal.tsx" : `client/src/pages/${tela}.tsx`;
       try { expect(ler(f)).not.toContain("destacarPendencia"); } catch (e) { if ((e as any).code !== "ENOENT") throw e; }
     }
+    // O Painel Geral virou página + components/painel/: a regra vale para os pedaços.
+    expect(fonteDaTela("painel")).not.toContain("destacarPendencia");
   });
 
   it("a faixa 'Quem está travando' existe só nessa aba, e clicar filtra pelo sponsorFilter", () => {

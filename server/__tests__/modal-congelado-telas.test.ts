@@ -167,6 +167,8 @@ beforeAll(() => {
     // A lista de eventos é pedida com `?itens=resumo` (perf 17/09): o caminho decide.
     if (u.split("?")[0] === "/api/events" && method === "GET") return json([EVENTO_SOL]);
     if (u.startsWith("/api/audit-logs")) return json([]);
+    // A lista dos arquivados (só admin) é lista, como no servidor.
+    if (u === "/api/sponsors/arquivados") return json([]);
     if (u.startsWith("/api/standard-items/") || u.startsWith("/api/sponsors/")
       || u.startsWith("/api/users/") || u.startsWith("/api/items/")) return json({ ok: true });
     return json([]);

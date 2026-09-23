@@ -15,6 +15,7 @@
 // A busca de arte (6) mora em busca-arte-revisao.test.ts (outro mock de db).
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { fonteDaTela } from "./fonte-da-tela";
 import { readFileSync } from "fs";
 import path from "path";
 
@@ -178,7 +179,7 @@ describe("1 · a fronteira do molde fica fechada fora do rascunho", () => {
     expect(tiposOferecidos({ type: "Pórtico", status: "awaiting_submission" })).not.toContain("Molde");
     expect(tiposOferecidos({ type: "Pórtico", status: "awaiting_submission" })).toContain("Arena");
     expect(tiposOferecidos({ type: "Molde", status: "ready_for_production" })).toEqual(["Molde"]);
-    const tela = ler("client/src/pages/event-detail.tsx");
+    const tela = fonteDaTela("detalhe-do-evento");
     expect(tela).toContain("typeOptions={tiposOferecidos(editingItem, itemTypes)}");
   });
 
@@ -416,12 +417,12 @@ describe("8 · molde: trava, aviso de evento concluído e contagens", () => {
     const patrocinio = ler("server/routes/sponsors.ts");
     expect(patrocinio).toContain('if (ehMolde(item)) return res.status(409).json({ error: ERRO_PATROCINADOR_EM_MOLDE, code: "MOLDE_SEM_PATROCINADOR" });');
     expect(patrocinio).toContain("if (ehMolde(currentItem) && validSponsorIds.length > 0) {");
-    const atendimento = ler("client/src/pages/atendimento.tsx");
+    const atendimento = fonteDaTela("atendimento");
     expect(atendimento).toContain("if (ehMolde(item)) return jornadaDoMolde(item, agora);");
     expect(atendimento).toContain("const statusCfg = getStatusMeta(statusDeExibicao(item));");
-    const detalhe = ler("client/src/pages/event-detail.tsx");
+    const detalhe = fonteDaTela("detalhe-do-evento");
     expect(detalhe).toContain("const chave = statusDeExibicao(item);");
-    const painel = ler("client/src/pages/painel-geral.tsx");
+    const painel = fonteDaTela("painel");
     expect(painel).toContain("if (moldeConcluido(selectedItem)) return null;");
   });
 });

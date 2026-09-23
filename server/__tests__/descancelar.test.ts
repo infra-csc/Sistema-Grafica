@@ -16,6 +16,7 @@
 //     não atalho de fluxo).
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect } from "vitest";
+import { fonteDoComponente } from "./fonte-dos-componentes";
 import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
 import { readFileSync } from "fs";
 import path from "path";
@@ -23,7 +24,7 @@ import path from "path";
 const ler = (rel: string) => readFileSync(path.resolve(__dirname, "../..", rel), "utf8");
 const ROTA = fonteDasRotasDeItens();
 const SCHEMA = ler("shared/schema.ts");
-const FICHA = ler("client/src/components/item-details-dialog.tsx");
+const FICHA = fonteDoComponente("client/src/components/item-details-dialog.tsx");
 const REGUA = ler("shared/permissoes.ts");
 
 describe("o servidor", () => {

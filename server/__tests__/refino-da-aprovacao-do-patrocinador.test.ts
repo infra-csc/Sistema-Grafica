@@ -24,11 +24,12 @@
 //      tremer entre um refetch e outro.
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect } from "vitest";
+import { fonteDaTela } from "./fonte-da-tela";
 import { readFileSync } from "fs";
 import path from "path";
 
 const ler = (rel: string) => readFileSync(path.resolve(__dirname, "../../", rel), "utf8");
-const tela = ler("client/src/pages/atendimento.tsx");
+const tela = fonteDaTela("atendimento");
 const css = ler("client/src/index.css");
 
 /** Tira comentários antes de afirmar sobre o CÓDIGO — já reprovei três testes

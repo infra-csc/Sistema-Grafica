@@ -12,6 +12,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { describe, it, expect } from "vitest";
+import { fonteDaTela } from "./fonte-da-tela";
 import { readFileSync } from "fs";
 import path from "path";
 import { fatiarLinks } from "../../client/src/components/texto-com-links";
@@ -19,7 +20,7 @@ import { fatiarLinks } from "../../client/src/components/texto-com-links";
 const ler = (rel: string) => readFileSync(path.resolve(__dirname, "../../", rel), "utf8");
 const COMP = ler("client/src/components/texto-com-links.tsx");
 const ARTE = ler("client/src/pages/arte.tsx");
-const ATEND = ler("client/src/pages/atendimento.tsx");
+const ATEND = fonteDaTela("atendimento");
 
 describe("1 · o fatiador", () => {
   it("http(s) e www viram link; www ganha https://", () => {

@@ -9,13 +9,14 @@
 // para alguém que já não estava nela.
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect } from "vitest";
+import { fonteDaTela } from "./fonte-da-tela";
 import { readFileSync } from "fs";
 import path from "path";
 
 const ler = (rel: string) => readFileSync(path.resolve(__dirname, "../..", rel), "utf8");
 const ROTA = ler("server/routes/sponsors.ts");
 const STORAGE = ler("server/storage.ts");
-const TELA = ler("client/src/pages/atendimento.tsx");
+const TELA = fonteDaTela("atendimento");
 const REPARO = ler("scripts/reparar-vinculos-de-evento.ts");
 
 describe("o DELETE /api/items/:itemId/sponsors/:sponsorId", () => {
@@ -60,7 +61,7 @@ describe("o botão no modal de decisão do Atendimento", () => {
 
   it("o sucesso remenda os estados locais e conta o desfecho", () => {
     expect(TELA).toContain("const desvincularSponsorMutation = useMutation({");
-    expect(TELA).toContain(".filter((s: any) => s.id !== variables.sponsorId)");
+    expect(TELA).toContain(".filter((s) => s.id !== variables.sponsorId)");
     expect(TELA).toContain("setSponsorApprovals(prev => prev.filter(a => a.sponsorId !== variables.sponsorId));");
     expect(TELA).toContain("Desvinculado — a peça seguiu");
   });

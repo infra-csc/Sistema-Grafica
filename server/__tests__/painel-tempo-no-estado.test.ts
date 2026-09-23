@@ -29,9 +29,10 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "fs";
 import path from "path";
+import { fonteDaTela } from "./fonte-da-tela";
 
 const raiz = (p: string) => readFileSync(path.resolve(__dirname, "../../", p), "utf8");
-const tela = raiz("client/src/pages/painel-geral.tsx");
+const tela = fonteDaTela("painel");
 const schema = raiz("shared/schema.ts");
 const storage = raiz("server/storage.ts");
 

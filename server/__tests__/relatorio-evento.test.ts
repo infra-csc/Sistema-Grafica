@@ -7,6 +7,7 @@
 // encerrado não finge funil vivo, e a página imprime sem os botões.
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect, vi } from "vitest";
+import { fonteDaTela } from "./fonte-da-tela";
 import { readFileSync } from "fs";
 
 vi.mock("../db", () => ({ db: {} }));
@@ -17,7 +18,7 @@ const { RELATORIO_MAX_FOTOS } = await import("../routes/relatorio");
 const ROTA = readFileSync(new URL("../routes/relatorio.ts", import.meta.url), "utf8");
 const PAGINA = readFileSync(new URL("../../client/src/pages/relatorio-evento.tsx", import.meta.url), "utf8");
 const APP = readFileSync(new URL("../../client/src/App.tsx", import.meta.url), "utf8");
-const DETALHE = readFileSync(new URL("../../client/src/pages/event-detail.tsx", import.meta.url), "utf8");
+const DETALHE = fonteDaTela("detalhe-do-evento");
 
 describe("a rota /api/events/:id/relatorio", () => {
   it("o funil sai de buildEventPrazo — a MESMA fonte da Gestão de Prazos", () => {

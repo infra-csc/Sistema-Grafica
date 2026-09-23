@@ -32,6 +32,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { describe, it, expect, vi } from "vitest";
+import { fonteDaTela } from "./fonte-da-tela";
 import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
 import { readFileSync, readdirSync, statSync } from "fs";
 import path from "path";
@@ -81,7 +82,7 @@ describe("nenhuma classe de regex perdeu a barra invertida", () => {
     // `String.raw` para a barra sobreviver a esta própria asserção.
     const CERTO = String.raw`replace(/\s+/g, " ")`;
     expect(fonteDasRotasDeItens()).toContain(CERTO);
-    expect(ler("client/src/pages/atendimento.tsx")).toContain(CERTO);
+    expect(fonteDaTela("atendimento")).toContain(CERTO);
     expect(ler("client/src/pages/solicitacao.tsx")).toContain(CERTO);
   });
 });

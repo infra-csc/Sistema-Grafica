@@ -25,6 +25,7 @@ import { render, act } from "@testing-library/react";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { readFileSync } from "fs";
 import path from "path";
+import { fonteDaTela } from "./fonte-da-tela";
 
 const h = React.createElement;
 
@@ -229,7 +230,7 @@ describe("criar evento e adicionar patrocinadores", () => {
 // congelada a lista inteira volta a se mexer a cada clique.
 // ─────────────────────────────────────────────────────────────────────────────
 describe("as duas metades da cura estão no código", () => {
-  const EVENTOS = readFileSync(path.resolve(__dirname, "../../client/src/pages/eventos.tsx"), "utf8");
+  const EVENTOS = fonteDaTela("eventos");
 
   it("a caixa da linha é nativa, não primitiva do Radix", () => {
     const i = EVENTOS.indexOf("data-testid={`checkbox-sponsor-");

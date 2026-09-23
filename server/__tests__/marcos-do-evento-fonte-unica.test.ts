@@ -25,6 +25,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "fs";
 import path from "path";
 import { MARCOS_DO_EVENTO, OFFSET_PADRAO_DO_MARCO } from "@shared/prazo-dates";
+import { fonteDaTela } from "./fonte-da-tela";
 
 const ler = (rel: string) => readFileSync(path.resolve(process.cwd(), rel), "utf8");
 
@@ -83,7 +84,7 @@ describe("as três telas leem a mesma lista", () => {
   });
 
   it("e o formulário de evento também não", () => {
-    const ev = ler("client/src/pages/eventos.tsx");
+    const ev = fonteDaTela("eventos");
     expect(ev).toContain("}[] = MARCOS_DO_EVENTO.map((m) => ({");
     expect(ev).toContain("const DEFAULT_DEADLINES = OFFSET_PADRAO_DO_MARCO");
     expect(ev).not.toContain("{ field: 'deadlineListaImagens',   key: 'listaImagens'");
@@ -94,9 +95,10 @@ describe("as três telas leem a mesma lista", () => {
     // "não mexer" falava em seis marcos, e a timeline tinha cinco escritos à
     // mão — a Finalização (−10) faltava aqui também. Três cópias corrigidas e
     // a quarta esquecida é exatamente o que este arquivo existe para impedir.
-    const ed = ler("client/src/pages/event-detail.tsx");
+    // A página + os pedaços (a conta dos marcos mora em detalhe-do-evento/regras.ts).
+    const ed = fonteDaTela("detalhe-do-evento");
     expect(ed).toContain("const marcos = MARCOS_DO_EVENTO.map((m) => {");
-    expect(ed).toContain("const days: number = (event as any)[m.campo] ?? m.offset;");
+    expect(ed).toContain("const days: number = event[m.campo] ?? m.offset;");
     expect(ed).not.toContain("{ label: 'Lista de Imagens',    days: event.deadlineListaImagens    ?? -25, allDays: false },");
   });
 

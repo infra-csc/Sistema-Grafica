@@ -125,6 +125,10 @@ beforeEach(() => {
     if (!eventos[id]?.arquivadoEm) return undefined;
     return (eventos[id] = { ...eventos[id], arquivadoEm: null, arquivadoPor: null, restauradoEm: new Date() });
   });
+  s.getEventosArquivados = vi.fn(async () => Object.values(eventos)
+    .filter((e: any) => e.arquivadoEm)
+    .map((e: any) => ({ id: e.id, name: e.name, startDate: e.startDate, arquivadoEm: e.arquivadoEm, arquivadoPor: e.arquivadoPor ?? null, totalPecas: pecas.filter((p) => p.eventId === e.id).length })));
+  s.getPatrocinadoresArquivados = vi.fn(async () => Object.values(patrocinadores).filter((p: any) => p.arquivadoEm));
   s.getSponsor = vi.fn(async (id: string) => patrocinadores[id]);
   s.getSponsorsAtivos = vi.fn(async () => Object.values(patrocinadores).filter((p: any) => !p.arquivadoEm));
   s.getAllSponsors = vi.fn(async () => Object.values(patrocinadores));
@@ -285,5 +289,49 @@ describe("patrocinador: arquivar em vez de apagar", () => {
     H.storage.getItemSponsors = vi.fn(async () => [{ sponsorId: "sp-1" }, { sponsorId: "sp-arq" }]);
     const mantido = await chamar("POST /api/items/:id/sponsors/sync", { params: { id: "p9" }, body: { sponsorIds: ["sp-1", "sp-arq"] } });
     expect(mantido.body?.error ?? "").not.toContain(PATROCINADOR_ARQUIVADO_ERRO);
+  });
+});
+
+describe("listas dos arquivados — de onde o admin restaura", () => {
+  it("GET /api/events/arquivados vem ANTES de /api/events/:id (senão 'arquivados' vira id)", () => {
+    const ordem = [...rotas.keys()];
+    expect(ordem.indexOf("GET /api/events/arquivados")).toBeGreaterThan(-1);
+    expect(ordem.indexOf("GET /api/events/arquivados")).toBeLessThan(ordem.indexOf("GET /api/events/:id"));
+    expect(ordem.indexOf("GET /api/sponsors/arquivados")).toBeGreaterThan(-1);
+    expect(ordem.indexOf("GET /api/sponsors/arquivados")).toBeLessThan(ordem.indexOf("GET /api/sponsors/:id"));
+  });
+
+  it("eventos: admin recebe só os arquivados, com quem, quando e as peças", async () => {
+    pecas.push({ id: "p9", displayId: "#0009", eventId: "ev-arq", status: "draft" });
+    const r = await chamar("GET /api/events/arquivados");
+    expect(r.status).toBe(200);
+    expect(r.body).toEqual([
+      { id: "ev-arq", name: "COPA ANTIGA", startDate: eventos["ev-arq"].startDate, arquivadoEm: ARQUIVADO_EM, arquivadoPor: "Ana", totalPecas: 1 },
+    ]);
+  });
+
+  it("eventos: outro papel → 403, sem ler nada", async () => {
+    const r = await chamar("GET /api/events/arquivados", { userRole: "solicitacao" });
+    expect(r.status).toBe(403);
+    expect(H.storage.getEventosArquivados).not.toHaveBeenCalled();
+  });
+
+  it("depois de arquivar, o evento aparece na lista; depois de restaurar, sai", async () => {
+    await chamar("DELETE /api/events/:id", { params: { id: "ev-1" } });
+    let lista = (await chamar("GET /api/events/arquivados")).body.map((e: any) => e.id);
+    expect(lista.sort()).toEqual(["ev-1", "ev-arq"]);
+    await chamar("POST /api/events/:id/restaurar", { params: { id: "ev-1" } });
+    lista = (await chamar("GET /api/events/arquivados")).body.map((e: any) => e.id);
+    expect(lista).toEqual(["ev-arq"]);
+  });
+
+  it("patrocinadores: admin recebe os arquivados (com quem e quando); outro papel → 403", async () => {
+    const r = await chamar("GET /api/sponsors/arquivados");
+    expect(r.status).toBe(200);
+    expect(r.body.map((p: any) => p.id)).toEqual(["sp-arq"]);
+    expect(r.body[0].arquivadoEm).toBe(ARQUIVADO_EM);
+    const negado = await chamar("GET /api/sponsors/arquivados", { userRole: "atendimento" });
+    expect(negado.status).toBe(403);
+    expect(H.storage.getPatrocinadoresArquivados).toHaveBeenCalledTimes(1);
   });
 });

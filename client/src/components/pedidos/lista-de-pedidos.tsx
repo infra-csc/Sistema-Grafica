@@ -40,7 +40,7 @@ import { MotivoDoPedidoDialog, descricaoDoAviso, enviarAcaoComMotivo, tituloDoAv
 import { CartaoDoPedido, type AcaoDoCartao } from "@/components/pedidos/cartao-do-pedido";
 import { DetalheDoPedido } from "@/components/pedidos/detalhe-do-pedido";
 import { FormularioDoPedido } from "@/components/pedidos/formulario-do-pedido";
-import { ListaCarregando, invalidarPedidos, mensagemDaApi } from "@/components/pedidos/ui";
+import { ListaCarregando, invalidarPedidos, mensagemDaApi, type EventoDoPedido } from "@/components/pedidos/ui";
 
 type Ordem = "recentes" | "antigos" | "prazo";
 type Filtro = "aberto" | "atendido" | "recusado" | "cancelado" | "ajuste" | "todos";
@@ -174,13 +174,13 @@ export function ListaDePedidos({ podePedir, podeResolver }: {
   // Servidor antigo (sem reiniciar depois do Pull) manda solicitação sem as
   // peças: fica de fora em vez de derrubar a tela.
   const pedidos = useMemo(() => pedidosCrus.filter((p) => Array.isArray(p?.linhas)), [pedidosCrus]);
-  const { data: eventos = [] } = useQuery<any[]>({ queryKey: ["/api/events"] });
+  const { data: eventos = [] } = useQuery<EventoDoPedido[]>({ queryKey: ["/api/events"] });
 
   const hoje = todayBusinessMs();
   // Idade e prazo nos cartões leem `agora`: o cartão memoizado desenha de novo
   // quando o minuto vira, e não a cada render.
   const minutoAgora = Math.floor(agora.getTime() / 60000);
-  const eventoPorId = useMemo(() => new Map<string, any>(eventos.map((e) => [e.id, e])), [eventos]);
+  const eventoPorId = useMemo(() => new Map<string, EventoDoPedido>(eventos.map((e) => [e.id, e])), [eventos]);
   const seloDe = (l: LinhaDoPedido): SeloDoEvento | null => {
     if (l.status !== "aberto" && l.status !== "atendido") return null;
     const ev = eventoPorId.get(l.eventId);

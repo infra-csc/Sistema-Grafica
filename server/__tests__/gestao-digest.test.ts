@@ -8,6 +8,7 @@
 // terá voltado a ser outra coisa.
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect, vi } from "vitest";
+import { fonteDaTela } from "./fonte-da-tela";
 import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
 import { readFileSync } from "fs";
 import path from "path";
@@ -325,7 +326,7 @@ describe("reprovada e nova versão TAMBÉM são pendência (dono, 31/08)", () =>
 
 describe("o disparo à mão", () => {
   const ITEMS = fonteDasRotasDeItens();
-  const TELA = ler("client/src/pages/atendimento.tsx");
+  const TELA = fonteDaTela("atendimento");
 
   it("tem porta própria, só para admin — um clique manda e-mail de verdade", () => {
     expect(ITEMS).toContain('app.post("/api/gestao/digest/enviar", requireAuth');

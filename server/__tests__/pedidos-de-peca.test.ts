@@ -13,6 +13,7 @@
 //   · aviso para QUEM PEDIU; prazo, andamento, pedida × criada.
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect } from "vitest";
+import { fonteDaTela } from "./fonte-da-tela";
 import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
 import { readFileSync } from "fs";
 import path from "path";
@@ -48,9 +49,9 @@ const NOTIF = ler("server/routes/notifications.ts");
 const STORAGE = ler("server/storage.ts");
 const APP = ler("client/src/App.tsx");
 const MENU = ler("client/src/components/app-sidebar.tsx");
-const ATENDIMENTO = ler("client/src/pages/atendimento.tsx");
-const EVENTO = ler("client/src/pages/event-detail.tsx");
-const EVENTOS = ler("client/src/pages/eventos.tsx");
+const ATENDIMENTO = fonteDaTela("atendimento");
+const EVENTO = fonteDaTela("detalhe-do-evento");
+const EVENTOS = fonteDaTela("eventos");
 const LISTA = ler("client/src/components/pedidos/lista-de-pedidos.tsx");
 const FORM = ler("client/src/components/pedidos/formulario-do-pedido.tsx");
 const CARTAO = ler("client/src/components/pedidos/cartao-do-pedido.tsx");

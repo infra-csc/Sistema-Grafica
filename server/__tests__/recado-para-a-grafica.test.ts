@@ -12,6 +12,7 @@
  *   3. ao liberar, o aviso oferece abrir a peça na fila da Gráfica.
  */
 import { describe, it, expect } from "vitest";
+import { fonteDoComponente } from "./fonte-dos-componentes";
 import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
 import { readFileSync } from "fs";
 import { join } from "path";
@@ -33,7 +34,7 @@ describe("o recado escrito na Revisão Final não se perde", () => {
   });
 
   it("a ficha da peça chama o campo pelo nome", () => {
-    const ficha = ler("client/src/components/item-details-dialog.tsx");
+    const ficha = fonteDoComponente("client/src/components/item-details-dialog.tsx");
     expect(ficha).toContain(">Recado para a Gráfica</p>");
     expect(ficha).toContain("{item.observations}");
   });

@@ -691,6 +691,19 @@ export function registerEventRoutes(app: Express): void {
     }
   });
 
+  // Lista dos ARQUIVADOS, de onde o admin restaura. Registrada antes de
+  // `/api/events/:id`, que casaria "arquivados" como id. Admin: é quem arquiva.
+  app.get("/api/events/arquivados", requireAuth, async (req, res) => {
+    try {
+      if (req.userRole !== "admin") {
+        return res.status(403).json({ error: "Apenas administradores veem os eventos arquivados" });
+      }
+      res.json(await storage.getEventosArquivados());
+    } catch (error: unknown) {
+      responderErro(res, error, "listar eventos arquivados");
+    }
+  });
+
   // Get single event.
   // Mesmo enriquecimento da lista — sem isto o card dizia "Concluído" e esta
   // rota dizia "Criado" para o mesmo evento, a um clique de distância.

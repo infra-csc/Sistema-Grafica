@@ -22,8 +22,9 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "fs";
 import path from "path";
+import { fonteDaTela } from "./fonte-da-tela";
 
-const painel = readFileSync(path.resolve(__dirname, "../../client/src/pages/painel-geral.tsx"), "utf8");
+const painel = fonteDaTela("painel");
 
 describe("a barra do fluxo", () => {
   it("existe e cobre as três zonas", () => {
@@ -53,7 +54,9 @@ describe("a barra do fluxo", () => {
     // `stats.total` inclui canceladas e anomalias fora do fluxo. Portanto ele
     // pode ser positivo com `segmentos` vazio; tentar ler `maior.k` nesse
     // cenário derrubava o Painel Geral inteiro em produção.
-    expect(painel).toContain("{!isLoading && stats.total > 0 && (() => {");
+    // A guarda de carga/total mora na página, em volta do <BarraDoFluxo>; a de
+    // `segmentos` vazio, dentro dele (components/painel/barra-do-fluxo.tsx).
+    expect(painel).toMatch(/\{!isLoading && stats\.total > 0 && \(\s*<BarraDoFluxo\b/);
     expect(painel).toContain("if (segmentos.length === 0) return null;");
   });
 

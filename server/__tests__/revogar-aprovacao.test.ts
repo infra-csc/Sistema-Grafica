@@ -19,6 +19,8 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { describe, it, expect } from "vitest";
+import { fonteDaTela } from "./fonte-da-tela";
+import { fonteDoComponente } from "./fonte-dos-componentes";
 import { podeTransicionar } from "@shared/maquina-de-estados";
 import { STATUS_CONHECIDOS } from "@shared/fluxo-peca";
 import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
@@ -27,8 +29,8 @@ import path from "path";
 
 const ler = (rel: string) => readFileSync(path.resolve(__dirname, "../../", rel), "utf8");
 const ITEMS = fonteDasRotasDeItens();
-const ATEND = ler("client/src/pages/atendimento.tsx");
-const DIALOG = ler("client/src/components/item-details-dialog.tsx");
+const ATEND = fonteDaTela("atendimento");
+const DIALOG = fonteDoComponente("client/src/components/item-details-dialog.tsx");
 
 const rota = () => {
   const i = ITEMS.indexOf('app.post("/api/items/:id/sponsor-approvals/:sponsorId/revert"');

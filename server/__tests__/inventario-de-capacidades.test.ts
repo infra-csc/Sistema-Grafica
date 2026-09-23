@@ -38,6 +38,8 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { describe, it, expect } from "vitest";
+import { fonteDoComponente } from "./fonte-dos-componentes";
+import { fonteDaTela, type Tela } from "./fonte-da-tela";
 import { readFileSync } from "fs";
 import path from "path";
 
@@ -274,10 +276,19 @@ const CONTRATO: Record<string, string[]> = {
   ],
 };
 
+// Página que virou composição: o contrato vale para a TELA inteira (a página
+// e os pedaços dela em components/<área>/ — ver fonte-da-tela.ts).
+const TELA_DA_PAGINA: Record<string, Tela> = {
+  "client/src/pages/painel-geral.tsx": "painel",
+  "client/src/pages/eventos.tsx": "eventos",
+};
+const fonteDoContrato = (arquivo: string) =>
+  TELA_DA_PAGINA[arquivo] ? fonteDaTela(TELA_DA_PAGINA[arquivo]) : fonteDoComponente(arquivo);
+
 describe("nenhuma revisão de design leva uma capacidade junto", () => {
   for (const [arquivo, esperados] of Object.entries(CONTRATO)) {
     describe(path.basename(arquivo), () => {
-      const tem = capacidadesDe(ler(arquivo));
+      const tem = capacidadesDe(fonteDoContrato(arquivo));
       it.each(esperados)("continua oferecendo `%s`", (testid) => {
         expect(
           tem.has(testid),
@@ -325,7 +336,7 @@ describe("o que saiu de propósito, e o que ficou no lugar", () => {
       'o ícone "enviar todos" dos cartões era duplicata do botão "Enviar N para Arte" do topo',
     ],
   ])("%s: `%s` → `%s` (%s)", (arquivo, saiu, entrou) => {
-    const tem = capacidadesDe(ler(arquivo));
+    const tem = capacidadesDe(fonteDoContrato(arquivo));
     expect(tem.has(saiu), `\`${saiu}\` voltou — confira se é mesmo necessário`).toBe(false);
     expect(tem.has(entrou), `o substituto \`${entrou}\` não está mais lá`).toBe(true);
   });

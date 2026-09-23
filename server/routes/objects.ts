@@ -4,6 +4,8 @@ import express, { type Express } from "express";
 import { storage } from "../storage";
 import { insertDeliveryPhotoSchema } from "@shared/schema";
 import { requireAuth, sendSensitiveError } from "./shared";
+import { pool } from "../db";
+import { criarAclDoKit, MSG_ARQUIVO_FORA_DO_KIT } from "../objectAcl";
 import { avaliarUpload, avaliarPedidoDeUrlAssinada, cabecalhosDoObjeto, MAX_UPLOAD_BYTES } from "../upload-seguro";
 import {
   miniaturasDisponiveis, tipoMiniaturavel, gerarMiniatura, TETO_ORIGINAL_BYTES,
@@ -13,6 +15,8 @@ import {
 export async function registerObjectRoutes(app: Express): Promise<void> {
   
   const { ObjectStorageService, ObjectNotFoundError } = await import("../objectStorage");
+  // Arquivo de peça só para quem enxerga a peça — na prática, recorta o usuário do Kit (ver objectAcl).
+  const aclDoKit = criarAclDoKit((texto, params) => pool.query(texto, params as any[]));
   
   // Pedido de URL assinada (caminho legado — as telas sobem por
   // /upload-direct). O bucket não amarra tipo/tamanho a esta URL: exigimos o
@@ -95,6 +99,10 @@ export async function registerObjectRoutes(app: Express): Promise<void> {
   // recorded ACL policy for any object that has one.
   app.get("/objects/:objectPath(*)", requireAuth, async (req, res) => {
     try {
+      // Antes de tocar no bucket: o caminho de uma peça alheia não abre para o Kit.
+      if (req.userKit && req.userId && !(await aclDoKit.podeLer(req.userId, req.path))) {
+        return res.status(403).json({ error: MSG_ARQUIVO_FORA_DO_KIT });
+      }
       const { ObjectPermission, getObjectAclPolicy } = await import("../objectAcl");
       const objectStorageService = new ObjectStorageService();
       const objectFile = await objectStorageService.getObjectEntityFile(req.path);

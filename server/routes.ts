@@ -39,7 +39,7 @@ import { registerKitRoutes } from "./routes/kit";
 import { registerArtesBuscaRoutes } from "./routes/artes-busca";
 import { registerMoldeRoutes } from "./routes/molde";
 import { db, pool } from "./db";
-import { items as itemsTable, events as eventsTable } from "@shared/schema";
+import { items as itemsTable, events as eventsTable, tubos as tubosTable, tuboItens as tuboItensTable } from "@shared/schema";
 import { and, eq, inArray, isNotNull } from "drizzle-orm";
 import { criarVerificadorDeUsuario, validarSessao } from "./sessao-valida";
 import { sessoesEncerradas } from "./sessoes-encerradas";
@@ -121,7 +121,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // ── O usuário do Kit só age nas peças do Kit que ele criou ───────────────
   // (server/trava-do-kit.ts): escrita e leitura de detalhe por id de peça,
-  // clonar itens e editar evento de outra pessoa.
+  // clonar itens, escrever em evento de outra pessoa e mexer em volume com
+  // peça alheia.
   app.use(travaDoKit({
     buscarPecas: (ids) => db
       .select({ id: itemsTable.id, kitRemessaId: itemsTable.kitRemessaId, criadoPorId: itemsTable.criadoPorId })
@@ -130,6 +131,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
     buscarCriadorDoEvento: async (eventId) => {
       const [ev] = await db.select({ createdBy: eventsTable.createdBy }).from(eventsTable).where(eq(eventsTable.id, eventId)).limit(1);
       return { existe: !!ev, createdBy: ev?.createdBy ?? null };
+    },
+    buscarPecasDoVolume: async (tuboId) => {
+      const [volume] = await db.select({ id: tubosTable.id }).from(tubosTable).where(eq(tubosTable.id, tuboId)).limit(1);
+      if (!volume) return null;
+      return db
+        .select({ id: itemsTable.id, kitRemessaId: itemsTable.kitRemessaId, criadoPorId: itemsTable.criadoPorId })
+        .from(tuboItensTable)
+        .innerJoin(itemsTable, eq(itemsTable.id, tuboItensTable.itemId))
+        .where(eq(tuboItensTable.tuboId, tuboId));
     },
   }));
 

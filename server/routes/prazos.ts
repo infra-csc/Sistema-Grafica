@@ -145,7 +145,7 @@ export function registerPrazoRoutes(app: Express): void {
       // (mesmas linhas e ordem de getItemsByEvents).
       const doKit = req.userKit === true;
       const candidateItems = (await storage.getItemsParaPrazos(candidates.map((ev) => ev.id)))
-        .filter((i) => !ehBookCompleto(i) && (!doKit || (!!i.kitRemessaId && i.criadoPorId === (req as any).userId)));
+        .filter((i) => !ehBookCompleto(i) && (!doKit || (!!i.kitRemessaId && i.criadoPorId === req.userId)));
 
       // KIT (14/09): as remessas das peças do Kit — cada uma vira linha própria,
       // com o funil pelas datas dela.

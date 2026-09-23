@@ -26,7 +26,7 @@ export function registerKitRoutes(app: Express): void {
       // Remessa de evento arquivado sai da lista, como o evento.
       const condicoes: SQL[] = [doEventoNaoArquivado(kitRemessas.eventId)];
       if (typeof req.query.eventId === "string" && req.query.eventId) condicoes.push(eq(kitRemessas.eventId, req.query.eventId));
-      if ((req as any).userKit) condicoes.push(eq(kitRemessas.criadoPorId, (req as any).userId ?? ""));
+      if (req.userKit) condicoes.push(eq(kitRemessas.criadoPorId, req.userId ?? ""));
       const lista = await db.select().from(kitRemessas)
         .where(condicoes.length ? and(...condicoes) : undefined)
         .orderBy(desc(kitRemessas.createdAt));

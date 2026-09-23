@@ -94,6 +94,8 @@ export function bancoDeMentira(mundo: MundoDoBanco, ganchos: {
   aoExecutar?: (sql: string, q: any) => any;
   /** Pode lançar (ex.: 23505) ou devolver as linhas a inserir. */
   aoInserir?: (tabela: string, valores: any[]) => void;
+  /** SELECT sem trava cujo WHERE o banco de mentira não sabe avaliar (ex.: por status): devolva as linhas, ou undefined para o padrão. */
+  aoSelecionar?: (tabela: string, textos: string[]) => any[] | undefined;
 } = {}) {
   const ops: OpDoBanco[] = [];
   let profundidade = 0;
@@ -110,7 +112,8 @@ export function bancoDeMentira(mundo: MundoDoBanco, ganchos: {
     const resultado = () => {
       const col = colecao(tabela);
       const textos = new Set(textosDoWhere(where));
-      const linhas = col ? Object.values(col).filter((l) => casa(l, textos)).map((l) => ({ ...l })) : [];
+      const doGancho = trava ? undefined : ganchos.aoSelecionar?.(tabela, Array.from(textos));
+      const linhas = doGancho ?? (col ? Object.values(col).filter((l) => casa(l, textos)).map((l) => ({ ...l })) : []);
       // A PROJEÇÃO vale: coluna que a consulta não pediu não chega (como no banco).
       const projetadas = colunas ? linhas.map((l) => Object.fromEntries(Object.keys(colunas).map((k) => [k, l[k]]))) : linhas;
       ops.push({ tipo: trava ? "trava" : "select", tabela, ids: linhas.map((l) => l.id), ordem, emTx: profundidade > 0 });

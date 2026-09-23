@@ -11,39 +11,19 @@
 // No dialog, a seleção nasce com TUDO marcado: o caso comum segue sendo
 // "quero o evento inteiro", e desmarcar as exceções é mais rápido do que
 // marcar dezenas.
+//
+// A ROTA roda de verdade em regras-fluxo-transferir-descancelar-clonar.test.ts;
+// aqui fica só a tela.
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect } from "vitest";
-import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
 import { readFileSync } from "fs";
 import path from "path";
 
 const ler = (rel: string) => readFileSync(path.resolve(__dirname, "../..", rel), "utf8");
-const ROTA = fonteDasRotasDeItens();
 const DIALOG = ler("client/src/components/clone-items-dialog.tsx");
 const HOOK = ler("client/src/hooks/use-event-import.ts");
 const DETALHE = ler("client/src/pages/event-detail.tsx");
 const EVENTOS = ler("client/src/pages/eventos.tsx");
-
-describe("a rota", () => {
-  it("itemIds é opcional — ausente clona tudo, como sempre (compatível com o fluxo antigo)", () => {
-    expect(ROTA).toContain("const { sourceEventId, itemIds } = req.body");
-    expect(ROTA).toContain("if (itemIds !== undefined) {");
-  });
-
-  it("cada id da seleção precisa SER do evento de origem — id alheio é recusado com contagem", () => {
-    expect(ROTA).toContain("não pertencem ao evento de origem");
-    expect(ROTA).toContain("const estranhos = itemIds.filter((id) => !daOrigem.has(id));");
-  });
-
-  it("seleção vazia e lista malformada não passam", () => {
-    expect(ROTA).toContain("Nenhuma peça selecionada para clonar");
-    expect(ROTA).toContain("itemIds deve ser uma lista de ids de peças");
-  });
-
-  it("a trilha diz quando foi seleção parcial — '3 de 12' e não só '3'", () => {
-    expect(ROTA).toContain("seleção: ${created.length} de ${todasDaOrigem.length}");
-  });
-});
 
 describe("o dialog", () => {
   it("busca as peças do evento de origem quando ele é escolhido", () => {

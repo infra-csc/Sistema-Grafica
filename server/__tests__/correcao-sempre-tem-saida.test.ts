@@ -26,27 +26,16 @@
 //
 // A regra que fica: uma fila de trabalho não pode aceitar uma peça sem
 // oferecer a porta de saída dela. Se entra na Correção, sai da Correção.
+//
+// A consulta da Correção roda de verdade em regras-fluxo-correcao-e-envio.test.ts;
+// aqui fica a tela.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { describe, it, expect } from "vitest";
-import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
 import { readFileSync } from "fs";
 import path from "path";
 
-const rotas = fonteDasRotasDeItens();
 const arte = readFileSync(path.resolve(__dirname, "../../client/src/pages/arte.tsx"), "utf8");
-
-describe("Correção: a peça devolvida leva as aprovações que tem", () => {
-  it("a consulta não empurra mais um array vazio fixo", () => {
-    expect(rotas).not.toContain("awaitingArteApprovals: [],");
-  });
-
-  it("as devolvidas são enriquecidas a partir do mesmo mapa das demais", () => {
-    // `approvalsByItem` já contém só o que está em `awaiting_arte`; reusá-lo é
-    // o que garante que os dois ramos da consulta contem a mesma história.
-    expect(rotas).toMatch(/for \(const item of devolvidasSemDono\) \{[\s\S]{0,220}approvalsByItem\.get\(item\.id\)/);
-  });
-});
 
 describe("Correção: o botão de re-envio tem sempre um destino válido", () => {
   it("a peça devolvida inteira é reconhecida pelo status", () => {

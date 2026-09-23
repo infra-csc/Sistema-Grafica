@@ -11,6 +11,11 @@
 //     solicitada para aberta sozinha;
 //   · a peça sai ligada à peça solicitada na MESMA requisição;
 //   · aviso para QUEM PEDIU; prazo, andamento, pedida × criada.
+//
+// As ROTAS (papéis, validação, recorte do Atendimento, cancelar/ajuste
+// condicionais, vínculo único, formato antigo, avisos e prazo) rodam de
+// verdade em regras-fluxo-pedidos-de-peca.test.ts; aqui ficam as regras puras
+// e as telas.
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect } from "vitest";
 import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
@@ -44,8 +49,6 @@ const ler = (rel: string) => readFileSync(path.resolve(RAIZ, rel), "utf8");
 const SCHEMA = ler("shared/schema.ts");
 const ROTAS = ler("server/routes/pedidos-de-peca.ts");
 const ITEMS = fonteDasRotasDeItens();
-const NOTIF = ler("server/routes/notifications.ts");
-const STORAGE = ler("server/storage.ts");
 const APP = ler("client/src/App.tsx");
 const MENU = ler("client/src/components/app-sidebar.tsx");
 const ATENDIMENTO = ler("client/src/pages/atendimento.tsx");
@@ -145,57 +148,6 @@ describe("regras puras", () => {
 });
 
 describe("o servidor", () => {
-  it("papéis e rotas: solicitação inteira e ações por peça; ninguém edita", () => {
-    expect(ROTAS).toContain('const requireLerPedidos = requireRole("admin", "solicitacao", "atendimento", "arte");');
-    expect(ROTAS).toContain('const requirePedirPeca = requireRole("admin", "atendimento");');
-    expect(ROTAS).toContain('const requireResolverPedido = requireRole("admin", "solicitacao");');
-    expect(ROTAS).toContain('const requireReabrirPedido = requireRole("admin", "atendimento", "solicitacao");');
-    for (const rota of [
-      'app.get("/api/pedidos-de-peca", requireLerPedidos',
-      'app.post("/api/pedidos-de-peca", requirePedirPeca',
-      'app.patch("/api/pedidos-de-peca/:id/cancelar", requirePedirPeca',
-      'app.patch("/api/pedidos-de-peca/linhas/:linhaId/atender", requireResolverPedido',
-      'app.patch("/api/pedidos-de-peca/linhas/:linhaId/recusar", requireResolverPedido',
-      'app.patch("/api/pedidos-de-peca/linhas/:linhaId/cancelar", requirePedirPeca',
-      'app.patch("/api/pedidos-de-peca/linhas/:linhaId/reabrir", requireReabrirPedido',
-      'app.patch("/api/pedidos-de-peca/linhas/:linhaId/ajuste", requirePedirPeca',
-      'app.patch("/api/pedidos-de-peca/linhas/:linhaId/ajuste/responder", requireResolverPedido',
-    ]) expect(ROTAS).toContain(rota);
-    expect(ROTAS).not.toContain('app.patch("/api/pedidos-de-peca/:id", ');
-  });
-
-  it("várias peças: tabela própria, evento e patrocinadores por peça, validados no servidor", () => {
-    expect(SCHEMA).toContain('export const linhasDoPedidoDePeca = pgTable("pedidos_de_peca_linhas", {');
-    expect(SCHEMA).toContain('sponsorIds: text("sponsor_ids").array().notNull().default(sql`ARRAY[]::text[]`),');
-    expect(ROTAS).toContain(".max(MAX_PECAS_POR_SOLICITACAO,");
-    expect(ROTAS).toContain("sponsorIds: z.array(z.string().min(1)).max(50).default([]),");
-    expect(ROTAS).toContain("há patrocinador que não é de ${evento.name}.");
-    expect(ROTAS).toContain("z.string().refine(ehReferenciaValida,");
-  });
-
-  it("Atendimento vê só as suas e só mexe nas suas", () => {
-    expect(ROTAS).toContain('req.userRole === "atendimento" && pedido.pedidoPorId !== req.userId;');
-    expect(ROTAS).toContain('pedidoPorId: doAtendimento ? ((req as any).userId ?? "") : undefined,');
-    expect(ROTAS.split("ehDeOutraPessoa(req, carregada.pedido)) return res.status(404)").length - 1).toBe(3);
-  });
-
-  it("cancelar só enquanto aberta; ajuste condicional e respondido uma vez", () => {
-    expect(ROTAS).toContain('if (statusDaSolicitacao(linhas) !== "aberto") {');
-    const cancelarPeca = ROTAS.slice(ROTAS.indexOf('app.patch("/api/pedidos-de-peca/linhas/:linhaId/cancelar"'), ROTAS.indexOf('app.patch("/api/pedidos-de-peca/linhas/:linhaId/reabrir"'));
-    expect(cancelarPeca).toContain('eq(linhasDoPedidoDePeca.status, "aberto")');
-    expect(ROTAS).toContain('or(isNull(linhasDoPedidoDePeca.ajusteStatus), ne(linhasDoPedidoDePeca.ajusteStatus, "pendente"))');
-    expect(ROTAS).toContain('.where(and(eq(linhasDoPedidoDePeca.id, linha.id), eq(linhasDoPedidoDePeca.ajusteStatus, "pendente")))');
-    expect(ROTAS).toContain('type: aceitar ? "pedidoAjusteAceito" : "pedidoAjusteRecusado",');
-  });
-
-  it("uma peça criada atende no máximo uma peça solicitada, com vínculo condicional", () => {
-    expect(SCHEMA).toContain('pedidoDePecaLinhaId: varchar("pedido_de_peca_linha_id").references((): any => linhasDoPedidoDePeca.id, { onDelete: "set null" }),');
-    expect(ROTAS).toContain("já atende outra solicitação.");
-    expect(ROTAS).toContain(".where(and(eq(itemsTable.id, itemId), isNull(itemsTable.pedidoDePecaLinhaId), isNull(itemsTable.pedidoDePecaId)))");
-    const vincular = ROTAS.slice(ROTAS.indexOf("export async function vincularPecaALinha"), ROTAS.indexOf("export async function aoExcluirPeca"));
-    expect(vincular).toContain("const motivoFim = await motivoEventoDaPeca({ eventId: linha.eventId });");
-  });
-
   it("a peça criada sai ligada na mesma requisição, e o cliente não forja o vínculo", () => {
     expect(ITEMS).toContain('const { vincularPecaALinha } = await import("../pedidos-de-peca");');
     expect(SCHEMA).toContain("  pedidoDePecaLinhaId: true,\n");
@@ -207,21 +159,6 @@ describe("o servidor", () => {
     expect(ROTAS).toContain("Peça atendida não se reabre na mão");
   });
 
-  it("solicitações do formato antigo (uma peça) ganham a sua linha sozinhas", () => {
-    expect(ROTAS).toContain("AND NOT EXISTS (SELECT 1 FROM pedidos_de_peca_linhas l WHERE l.pedido_id = p.id)");
-    expect(SCHEMA).toContain('eventId: varchar("event_id").references(() => events.id, { onDelete: "cascade" }),');
-  });
-
-  it("avisos para QUEM PEDIU, e o sino e o 'marcar todas' respeitam o destinatário", () => {
-    expect(SCHEMA).toContain('targetUserId: varchar("target_user_id"),');
-    expect(ROTAS).toContain("targetUserId: pedido.pedidoPorId");
-    expect(NOTIF).toContain("lista.filter((n) => (!n.targetUserId || n.targetUserId === userId)");
-    expect(STORAGE).toContain("const doUsuario = sql`(${notifications.targetUserId} IS NULL OR ${notifications.targetUserId} = ${userId})`;");
-  });
-
-  it("prazo nasce da saída do caminhão de cada peça", () => {
-    expect(ROTAS).toContain("precisaAte: l.precisaAte ? paraData(l.precisaAte) : (eventosPorId.get(l.eventId)?.truckDepartureDate ?? null),");
-  });
 });
 
 describe("as telas", () => {

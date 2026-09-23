@@ -14,53 +14,16 @@
 //   · O botão vive na FICHA da peça, só para admin e só em cancelada — a
 //     mesma exceção da reversão de aprovação (corrigir lançamento é dado,
 //     não atalho de fluxo).
+//
+// As regras do SERVIDOR rodam a rota de verdade em
+// regras-fluxo-transferir-descancelar-clonar.test.ts; aqui fica só a tela.
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect } from "vitest";
-import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
 import { readFileSync } from "fs";
 import path from "path";
 
 const ler = (rel: string) => readFileSync(path.resolve(__dirname, "../..", rel), "utf8");
-const ROTA = fonteDasRotasDeItens();
-const SCHEMA = ler("shared/schema.ts");
 const FICHA = ler("client/src/components/item-details-dialog.tsx");
-const REGUA = ler("shared/permissoes.ts");
-
-describe("o servidor", () => {
-  it("a rota existe, é só de admin, e está declarada na régua", () => {
-    expect(ROTA).toContain('app.patch("/api/items/:id/uncancel", requireAuth');
-    expect(ROTA).toContain("Apenas administradores podem descancelar itens");
-    expect(REGUA).toContain('rota: "/api/items/:id/uncancel", papeis: ["admin"]');
-  });
-
-  it("o cancelamento grava DE ONDE a peça saiu — individual e lote, sem sobrescrever no re-cancelamento", () => {
-    expect(SCHEMA).toContain('statusBeforeCancel: text("status_before_cancel")');
-    // Uma gravação só (gravarCancelamento), usada pelo /cancel, pelo
-    // /bulk-cancel e pelos complementos que caem junto com a mãe.
-    const gravacoes = ROTA.match(/statusBeforeCancel: atual\.status === "canceled" \? atual\.statusBeforeCancel : atual\.status/g) ?? [];
-    expect(gravacoes.length).toBe(1);
-    expect((ROTA.match(/await gravarCancelamento\(req, currentItem, motivo\)/g) ?? []).length).toBe(2);
-  });
-
-  it("restaura em ordem de confiança: coluna → trilha → requested, e a trilha diz qual valeu", () => {
-    expect(ROTA).toContain('let origem = "registrado no cancelamento";');
-    expect(ROTA).toContain('origem = "inferido pela trilha de auditoria";');
-    expect(ROTA).toContain('origem = "sem registro do status anterior — voltou ao início do fluxo";');
-    expect(ROTA).toContain("Item descancelado — voltou para ${translateStatus(alvo)} (${origem})");
-    // e limpa a coluna ao restaurar
-    expect(ROTA).toContain("statusBeforeCancel: null,");
-  });
-
-  it("só peça CANCELADA descancela, e evento finalizado barra", () => {
-    expect(ROTA).toContain("A peça não está cancelada — nada a descancelar");
-    const trecho = ROTA.slice(ROTA.indexOf("/api/items/:id/uncancel"), ROTA.indexOf("/api/items/bulk-cancel"));
-    expect(trecho).toContain("barraEventoFinalizado(currentItem, res)");
-  });
-
-  it("a inferência pela trilha nunca devolve 'canceled' — seria descancelar para o próprio cancelamento", () => {
-    expect(ROTA).toContain('if (chave && chave !== "canceled")');
-  });
-});
 
 describe("a ficha da peça", () => {
   it("o botão aparece só para admin e só em cancelada", () => {

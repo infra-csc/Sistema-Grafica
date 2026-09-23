@@ -15,55 +15,16 @@
 //     mantido, e recalcula o status dos dois eventos.
 //   · O botão vive na FICHA da peça (mesma família da reversão de aprovação e
 //     do descancelar), só para admin.
+//
+// As regras do SERVIDOR rodam a rota de verdade em
+// regras-fluxo-transferir-descancelar-clonar.test.ts; aqui fica só a tela.
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect } from "vitest";
-import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
 import { readFileSync } from "fs";
 import path from "path";
 
 const ler = (rel: string) => readFileSync(path.resolve(__dirname, "../..", rel), "utf8");
-const ROTA = fonteDasRotasDeItens();
 const FICHA = ler("client/src/components/item-details-dialog.tsx");
-const REGUA = ler("shared/permissoes.ts");
-
-describe("o servidor", () => {
-  it("a rota existe, é só de admin, e está declarada na régua", () => {
-    expect(ROTA).toContain('app.post("/api/items/:id/transfer-event", requireAuth');
-    expect(ROTA).toContain("Apenas administradores podem transferir peças de evento.");
-    expect(REGUA).toContain('rota: "/api/items/:id/transfer-event", papeis: ["admin"]');
-  });
-
-  it("muda só o eventId — nunca escreve status, sponsors ou approvals no updateItem da transferência", () => {
-    const trecho = ROTA.slice(ROTA.indexOf("/api/items/:id/transfer-event"));
-    const fimDaRota = trecho.indexOf("\n  });");
-    const corpo = trecho.slice(0, fimDaRota);
-    // O evento muda; a remessa do Kit e o vínculo com a solicitação do
-    // Atendimento (que são do evento de origem) saem junto — status não.
-    expect(corpo).toContain("const atualizado = await storage.updateItem(item.id, {\n        eventId: destinoId,\n        kitRemessaId: null,");
-    expect(corpo).not.toMatch(/updateItem\([^)]*status:/);
-  });
-
-  it("barra transferir de OU para um evento finalizado", () => {
-    const trecho = ROTA.slice(ROTA.indexOf("/api/items/:id/transfer-event"));
-    const fimDaRota = trecho.indexOf("\n  });");
-    const corpo = trecho.slice(0, fimDaRota);
-    expect(corpo).toContain("barraEventoFinalizado(item, res)");
-    expect(corpo).toContain("motivoEventoFechado(destino)");
-  });
-
-  it("recusa transferir para o mesmo evento em que já está", () => {
-    expect(ROTA).toContain("A peça já está neste evento.");
-  });
-
-  it("recalcula o status dos dois eventos e invalida o cache de versões", () => {
-    const trecho = ROTA.slice(ROTA.indexOf("/api/items/:id/transfer-event"));
-    const fimDaRota = trecho.indexOf("\n  });");
-    const corpo = trecho.slice(0, fimDaRota);
-    expect(corpo).toContain("updateEventStatus(eventoOrigemId)");
-    expect(corpo).toContain("updateEventStatus(destinoId)");
-    expect(corpo).toContain("invalidarCacheDeVersoes()");
-  });
-});
 
 describe("a ficha da peça", () => {
   it("o botão de transferir aparece só para admin", () => {

@@ -115,7 +115,7 @@ export function registerMoldeRoutes(app: Express): void {
         });
       }
       // TRAVA DA SOLICITAÇÃO: o mesmo predicado do start-printing — travada não anda.
-      if (pecaTravada(atual as any)) return res.status(409).json({ error: fraseDaTrava(atual as any), code: CODIGO_PECA_TRAVADA });
+      if (pecaTravada(atual)) return res.status(409).json({ error: fraseDaTrava(atual), code: CODIGO_PECA_TRAVADA });
 
       const item = await storage.updateItem(atual.id, {
         status: "produced",

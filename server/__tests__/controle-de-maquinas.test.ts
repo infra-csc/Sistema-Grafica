@@ -350,12 +350,10 @@ describe("7 · a reserva de impressora — só um controle, nunca uma etapa", ()
   });
 
   it("vira realidade só no start-printing, que limpa a reserva", () => {
-    const rota = ITEMS.slice(ITEMS.indexOf('app.patch("/api/items/:id/start-printing"'), ITEMS.indexOf('app.patch("/api/items/:id/start-production"'));
+    // A rota (limpa/consome a reserva ao iniciar) roda em regras-producao-itens.test.ts.
     // Iniciar a peça inteira limpa a reserva toda; iniciar uma parte consome só a desta impressora; a troca não mexe nela.
     expect(RESERVA_SRC).toContain("const reserva = movimento ? colunasDaReserva(reservaDaPeca(p), p.reservaPorMaquina) : colunasDaReserva(parte ? parte.reserva : null, p.reservaPorMaquina);");
     expect(RESERVA_SRC).toContain('return { ok: true, set: { status: "inProduction", printMachine: principal, impressaoPorMaquina, ...reserva }, movimento, parte, origem };');
-    expect(rota).toContain("const plano = planejarInicioDaImpressao(current as any, pedido);");
-    expect(rota).toContain("...plano.set,");
   });
 
   it("o retrato traz a fila: reservadas por impressora e a fila geral, na ordem do caminhão", () => {
@@ -436,10 +434,9 @@ describe("8 · a impressão dividida — a conta pura", async () => {
   });
 
   it("start-production: por impressora quando dividida, nunca mais que o atribuído; o total é a soma; concluir limpa o jsonb", () => {
-    const rota = ITEMS.slice(ITEMS.indexOf("export async function lancarImpressas("), ITEMS.indexOf("export async function cadastrarAtivosDaPecaProduzida("));
+    // O lançamento por impressora roda em regras-producao-itens.test.ts.
     // A regra saiu da rota para services/impressas-da-peca.ts; a rota só a chama.
     expect(ITEMS).toContain("const { item, plano } = await lancarImpressas(req.params.id, req.body ?? {}, motivoFechado, req);");
-    expect(rota).toContain("const plano = planejarLancamentoDeImpressas(before as any, corpo, new Date());");
     expect(DIVIDIDA).toContain("const porPartes = !!lerPartes(peca.impressaoPorMaquina);");
     expect(DIVIDIDA).toContain("if (n > parte.atrib) return erro(400, `Máximo ${parte.atrib} un. na ${rotuloDaMaquina(maquina)} — é o que foi atribuído a ela`);");
     expect(DIVIDIDA).toContain("quantityProduced = totalImpressas(partesDepois);");
@@ -751,17 +748,6 @@ describe("12 · uma peça por impressora, pausar e trocar por prioridade", async
     expect(r.ocupanteDaImpressora([a, b, liberada], "2")).toBeNull();      // a parte da 2 já esgotou
     expect(r.ocupanteDaImpressora([a, b, liberada], "3")?.id).toBe("b");
     expect(r.ocupanteDaImpressora([a, b, liberada], "4")).toBeNull();
-  });
-
-  it("servidor: start-printing recusa a impressora ocupada (409) — inteira, parte e troca de máquina passam pelo mesmo guarda", () => {
-    const rota = ITEMS.slice(ITEMS.indexOf('app.patch("/api/items/:id/start-printing"'), ITEMS.indexOf('app.patch("/api/items/:id/start-production"'));
-    expect(rota).toContain("const ocupante = await quemOcupaAImpressora(printMachine, current.id, tx);");
-    expect(rota).toContain('throw falha(409, { error: erroImpressoraOcupada(printMachine, ocupante), code: "PRINTER_BUSY"');
-    // O guarda vem ANTES de decidir se é troca, parte ou peça inteira.
-    expect(rota.indexOf("quemOcupaAImpressora(printMachine, current.id, tx)")).toBeLessThan(rota.indexOf("planejarInicioDaImpressao(current as any, pedido)"));
-    const svc = ler("server/services/ocupacaoDasImpressoras.ts");
-    expect(svc).toContain("já está imprimindo ${ocupante.displayId ?? \"outra peça\"} — tire ela da impressora ou escolha outra");
-    expect(svc).toContain("return ocupanteDaImpressora(emImpressao as any[], maquina, excetoId);");
   });
 
   it("diário, resumo e Excel: 'Pausou — deu lugar à #0398', sem unidade e sem 'ainda na máquina'", async () => {

@@ -123,14 +123,14 @@ export function registrarRotasDeImpressao(app: Express): void {
           if (!vemDeOrigemValida(current.status, "iniciar-impressao")) throw falha(409, { error: `A peça não pode ir para a máquina no status atual: ${translateStatus(current.status)}` });
           // aImprimirDaPeca: quantidade − reaproveitadas, e ZERO na peça de reuso
           // legado (isReuse) — a mesma conta das telas.
-          if (aImprimirDaPeca(current as any) - (current.quantityProduced || 0) <= 0) {
+          if (aImprimirDaPeca(current) - (current.quantityProduced || 0) <= 0) {
             throw falha(409, { error: "Nada a imprimir: a peça já está coberta por produção e reaproveitamento" });
           }
           const ocupante = await quemOcupaAImpressora(printMachine, current.id, tx);
           if (ocupante) {
             throw falha(409, { error: erroImpressoraOcupada(printMachine, ocupante), code: "PRINTER_BUSY", ocupante: { id: ocupante.id, displayId: ocupante.displayId } });
           }
-          const plano = planejarInicioDaImpressao(current as any, pedido);
+          const plano = planejarInicioDaImpressao(current, pedido);
           if (!plano.ok) throw falha(409, { error: plano.erro });
           const agora = new Date();
           const [item] = await tx.update(itemsTable).set({

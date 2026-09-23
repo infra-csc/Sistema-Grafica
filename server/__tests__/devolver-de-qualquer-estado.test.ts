@@ -19,65 +19,16 @@
 //
 // Se algum dia a trava voltar, que volte por decisão — não por alguém achar
 // que o limite de cinco status tinha sumido por engano.
+//
+// As regras da ROTA rodam de verdade em regras-fluxo-devolucoes.test.ts; aqui
+// fica a tela (e o dono único da lista, que também lê a tela).
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect } from "vitest";
-import { vemDeOrigemValida } from "@shared/maquina-de-estados";
 import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
 import { readFileSync } from "fs";
 
 const ITEMS = fonteDasRotasDeItens();
 const ARTE = readFileSync(new URL("../../client/src/pages/arte.tsx", import.meta.url), "utf8");
-
-/** O corpo da rota, para as asserções não pegarem outra rota por engano. */
-const ROTA = (() => {
-  const i = ITEMS.indexOf('app.patch("/api/items/:id/arte-reject"');
-  expect(i).toBeGreaterThan(-1);
-  const j = ITEMS.indexOf('  app.patch("/api/items/', i + 10);
-  return ITEMS.slice(i, j > 0 ? j : i + 4000);
-})();
-
-describe("o servidor aceita a devolução de qualquer estado", () => {
-  it("a lista de cinco status pré-produção não está mais no caminho", () => {
-    expect(ROTA).not.toContain("ANTES_DA_PRODUCAO");
-    expect(ROTA).not.toContain("devolver para rascunho só vale antes da produção");
-  });
-
-  it("o rascunho continua recusado — não há para onde devolver", () => {
-    expect(ROTA).toContain('if (!vemDeOrigemValida(currentItem.status, "devolver-ao-solicitante")) {');
-    expect(vemDeOrigemValida("draft", "devolver-ao-solicitante")).toBe(false);
-    for (const s of ["requested", "awaiting_submission", "ready_for_production", "inProduction", "produced", "delivered", "canceled", "status_que_nao_existe"]) {
-      expect(vemDeOrigemValida(s, "devolver-ao-solicitante"), s).toBe(true);
-    }
-    expect(ROTA).toContain("Esta peça já está na criação (Rascunho) — não há para onde devolver.");
-    expect(ROTA).toContain("res.status(409)");
-  });
-
-  it("o papel não mudou: continua Arte e admin", () => {
-    expect(ROTA).toContain('req.userRole !== "arte" && req.userRole !== "admin"');
-  });
-
-  it("evento finalizado continua barrando — é outra regra, e ela fica", () => {
-    expect(ROTA).toContain("if (await barraEventoFinalizado(currentItem, res)) return;");
-  });
-
-  it("nada de produção é apagado: o reset zera só aprovação e revisão", () => {
-    // Se um dia alguém acrescentar producedAt/deliveredAt a esta lista, a peça
-    // devolvida passaria a mentir sobre trabalho que existiu de verdade.
-    const i = ROTA.indexOf('status: "draft",');
-    const reset = ROTA.slice(i, ROTA.indexOf("});", i));
-    for (const campo of ["sponsorApprovedBy", "sponsorApprovedAt", "creatorReviewedAt", "rejectedBySponsor", "rejectedByCreator"]) {
-      expect(reset).toContain(campo);
-    }
-    for (const proibido of ["producedAt", "deliveredAt", "productionStartedAt", "conferredAt"]) {
-      expect(reset).not.toContain(proibido);
-    }
-  });
-
-  it("a trilha marca quando a peça veio de DEPOIS da Arte", () => {
-    // A lista mora em shared/fluxo-peca.ts (ver o teste do dono único).
-    expect(ROTA).toContain('DEPOIS_DA_ARTE.has(currentItem.status) ? ", JÁ FORA DA ARTE" : ""');
-  });
-});
 
 describe("a tela da Arte oferece o mesmo que a rota aceita", () => {
   it("o botão aparece em tudo menos no rascunho", () => {

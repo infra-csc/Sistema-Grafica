@@ -266,6 +266,39 @@ describe("iniciar a impressão (start-printing)", () => {
     expect(escritasNaPeca()).toEqual([]);
   });
 
+  it("peça de reuso LEGADO (isReuse sem reuseQty) não tem nada a imprimir — a conta é aImprimirDaPeca", async () => {
+    // Veio de impressao-revisao-adversarial, que lia o fonte.
+    mundo.itens.p = peca("p", { quantity: 10, reuseQty: 0, isReuse: true });
+    expect(await iniciar({ printMachine: "1" })).toEqual({ status: 409, body: { error: "Nada a imprimir: a peça já está coberta por produção e reaproveitamento" } });
+  });
+
+  it("a reserva vira realidade só aqui: iniciar a peça inteira limpa a reserva; iniciar uma PARTE consome só a desta impressora", async () => {
+    // Veio de controle-de-maquinas ("vira realidade só no start-printing"), que lia o fonte.
+    mundo.itens.p = peca("p", { reservaPorMaquina: { "1": 10 }, maquinaPrevista: "1" });
+    await iniciar({ printMachine: "1" });
+    expect(mundo.itens.p).toMatchObject({ status: "inProduction", printMachine: "1", reservaPorMaquina: null, maquinaPrevista: null });
+    mundo.itens.q = peca("q", { reservaPorMaquina: { "1": 4, "2": 6 }, maquinaPrevista: "2" });
+    await iniciar({ printMachine: "1", iniciarParte: true, daReserva: true }, "q");
+    expect(mundo.itens.q).toMatchObject({ status: "inProduction", printMachine: "1", reservaPorMaquina: { "2": 6 }, impressaoPorMaquina: { "1": { atrib: 4, impressas: 0 } } });
+  });
+
+  it("uma peça por vez: impressora ocupada por OUTRA peça → 409 PRINTER_BUSY — inteira, parte ou troca, antes de qualquer conta", async () => {
+    // Veio de controle-de-maquinas ("start-printing recusa a impressora ocupada"), que lia o fonte.
+    mundo.itens.o = peca("o", { status: "inProduction", printMachine: "2" });
+    // A busca do ocupante filtra por status (WHERE que o banco de mentira não avalia): devolve as em impressão.
+    ligarBanco({ aoSelecionar: (tabela, textos) => (tabela === "items" && textos.includes("inProduction") ? Object.values(mundo.itens).filter((p) => p.status === "inProduction") : undefined) });
+    const ocupada = { status: 409, body: { error: `A ${M("2")} já está imprimindo #o — tire ela da impressora ou escolha outra`, code: "PRINTER_BUSY", ocupante: { id: "o", displayId: "#o" } } };
+    mundo.itens.p = peca("p");
+    expect(await iniciar({ printMachine: "2" })).toEqual(ocupada);
+    mundo.itens.p = peca("p", { reservaPorMaquina: { "2": 10 }, maquinaPrevista: "2" });
+    expect(await iniciar({ printMachine: "2", iniciarParte: true, daReserva: true })).toEqual(ocupada);
+    mundo.itens.p = peca("p", { status: "inProduction", printMachine: "1" });
+    expect(await iniciar({ printMachine: "2" })).toEqual(ocupada);
+    expect(ops.some((o) => o.tipo === "update")).toBe(false);
+    // A própria peça não se ocupa: somar parte onde ela já está passa.
+    expect((await iniciar({ printMachine: "3" }, "o")).status).toBe(200);
+  });
+
   it("ORDEM: lock da impressora → linha FOR UPDATE → gravação, tudo na mesma transação; nada de storage.updateItem", async () => {
     mundo.itens.p = peca("p");
     await iniciar({ printMachine: "2" });
@@ -310,6 +343,18 @@ describe("informar impressas (start-production) e o diário das máquinas", () =
     expect((await lancar({ quantityProduced: 10, expectedProduced: 4, printMachine: "1" })).status).toBe(200);
     expect(mundo.itens.p.status).toBe("produced");
     expect(registros().map((r) => [r.maquina, r.tipo, r.quantidade, r.totalDepois])).toEqual([["1", "parcial", 4, 4], ["1", "conclusao", 6, 10]]);
+  });
+
+  it("peça DIVIDIDA: lança por impressora, nunca mais que o atribuído a ela; o total é a soma; concluir apaga a divisão", async () => {
+    // Veio de controle-de-maquinas ("start-production: por impressora quando dividida"), que lia o fonte.
+    mundo.itens.p = peca("p", { status: "inProduction", printMachine: "1", impressaoPorMaquina: { "1": { atrib: 6, impressas: 0 }, "2": { atrib: 4, impressas: 0 } } });
+    expect(await lancar({ maquina: "2", impressasNaMaquina: 5 })).toEqual({ status: 400, body: { error: `Máximo 4 un. na ${M("2")} — é o que foi atribuído a ela` } });
+    expect((await lancar({ maquina: "2", impressasNaMaquina: 3 })).status).toBe(200);
+    expect((await lancar({ maquina: "1", impressasNaMaquina: 2 })).status).toBe(200);
+    expect(mundo.itens.p).toMatchObject({ status: "inProduction", quantityProduced: 5, impressaoPorMaquina: { "1": { atrib: 6, impressas: 2 }, "2": { atrib: 4, impressas: 3 } } });
+    await lancar({ maquina: "1", impressasNaMaquina: 6 });
+    await lancar({ maquina: "2", impressasNaMaquina: 4 });
+    expect(mundo.itens.p).toMatchObject({ status: "produced", quantityProduced: 10, impressaoPorMaquina: null });
   });
 
   it("ORDEM: linha FOR UPDATE → conta → gravação + trilha, na mesma transação; nada de storage.updateItem", async () => {

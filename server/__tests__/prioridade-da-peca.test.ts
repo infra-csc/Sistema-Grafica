@@ -15,39 +15,19 @@
 //     alarma, editar outra coisa de peça já prioritária não repete;
 //   · na fila da Arte a peça prioritária vem ANTES de qualquer régua,
 //     inclusive da ordenação por prazo.
+//
+// A coluna, os gates, o aviso e a trilha rodam de verdade em
+// regras-fluxo-prioridade.test.ts; aqui ficam as telas.
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect } from "vitest";
-import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
 import { readFileSync } from "fs";
 import path from "path";
 
 const ler = (rel: string) => readFileSync(path.resolve(__dirname, "../..", rel), "utf8");
-const SCHEMA = ler("shared/schema.ts");
-const ITEMS = fonteDasRotasDeItens();
 const ARTE = ler("client/src/pages/arte.tsx");
 const EVENT_DETAIL = ler("client/src/pages/event-detail.tsx");
 
-describe("a coluna e o contrato", () => {
-  it("isPriority vive na peça, com default false — e no allow-list do PATCH", () => {
-    expect(SCHEMA).toContain('isPriority: boolean("is_priority").notNull().default(false),');
-    const pick = ITEMS.slice(ITEMS.indexOf("const updateItemSchema"), ITEMS.indexOf(".partial()"));
-    expect(pick).toContain("isPriority: true,");
-  });
-});
-
 describe("quem marca", () => {
-  it("no PATCH, o gate é admin|solicitacao e dispara só na MUDANÇA de valor", () => {
-    expect(ITEMS).toContain("!!validatedData.isPriority !== !!currentItem.isPriority");
-    const i = ITEMS.indexOf("!!validatedData.isPriority !== !!currentItem.isPriority");
-    expect(ITEMS.slice(i, i + 300)).toContain('["admin", "solicitacao"].includes(role)');
-    expect(ITEMS).toContain("Marcar peça como prioritária é do admin e da Solicitação.");
-  });
-
-  it("na criação, o mesmo gate — criador de evento sem papel cria a peça normal", () => {
-    const criacao = ITEMS.slice(ITEMS.indexOf('app.post("/api/items"'), ITEMS.indexOf('app.post("/api/items/bulk"'));
-    expect(criacao).toContain('if (validatedData.isPriority && !["admin", "solicitacao"].includes(req.userRole ?? "")) {');
-  });
-
   it("no formulário, o checkbox existe nos DOIS modos e só para quem pode", () => {
     expect(EVENT_DETAIL).toContain("isPriority: false,");
     expect(EVENT_DETAIL).toContain("{podePriorizar && (");
@@ -58,27 +38,6 @@ describe("quem marca", () => {
     expect(passagens).toBe(3);
     // e a edição hidrata o valor atual — sem isso, salvar desmarcava sozinho
     expect(EVENT_DETAIL).toContain("isPriority: item.isPriority || false,");
-  });
-});
-
-describe("o aviso à Arte", () => {
-  it("sai na transição para true — e só nela", () => {
-    expect(ITEMS).toContain("if ('isPriority' in validatedData && item.isPriority && !currentItem.isPriority) {");
-    const i = ITEMS.indexOf("if ('isPriority' in validatedData && item.isPriority && !currentItem.isPriority) {");
-    const bloco = ITEMS.slice(i, i + 700);
-    expect(bloco).toContain('type: "itemPriority",');
-    expect(bloco).toContain('targetRoles: ["arte"],');
-    expect(bloco).toContain("fura a fila da Arte");
-  });
-
-  it("peça que já NASCE prioritária avisa na criação — a notificação de itemAdded vira itemPriority", () => {
-    const criacao = ITEMS.slice(ITEMS.indexOf('app.post("/api/items"'), ITEMS.indexOf('app.post("/api/items/bulk"'));
-    expect(criacao).toContain('type: item.isPriority ? "itemPriority" : "itemAdded",');
-    expect(criacao).toContain("PEÇA PRIORITÁRIA:");
-  });
-
-  it("a trilha registra marcar E desmarcar", () => {
-    expect(ITEMS).toContain('changedParts.push(item.isPriority ? "Peça marcada como PRIORITÁRIA — fura a fila da Arte" : "Prioridade da peça removida");');
   });
 });
 

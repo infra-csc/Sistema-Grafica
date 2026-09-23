@@ -21,7 +21,7 @@ export async function quemOcupaAImpressora(maquina: string, excetoId?: string | 
   const emImpressao = await executor.select().from(items)
     // Peça de evento arquivado não ocupa impressora: ninguém a vê para tirá-la.
     .where(and(inArray(items.status, ["inProduction", "em_producao"]), isNull(items.deletedAt), doEventoNaoArquivado(items.eventId)));
-  return ocupanteDaImpressora(emImpressao as any[], maquina, excetoId);
+  return ocupanteDaImpressora(emImpressao, maquina, excetoId);
 }
 
 /** O 409 da regra — a mesma frase na rota de iniciar, na de trocar e na tela. */

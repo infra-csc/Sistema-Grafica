@@ -88,7 +88,7 @@ export function registerBuscaRoutes(app: Express): void {
       // BOOK COMPLETO fica de fora: é o trâmite do Atendimento, não uma peça (ver shared/fluxo-peca).
       // Usuário do Kit (14/09): só as peças do Kit que ele criou.
       const visivel = (p: { kitRemessaId: string | null; criadoPorId: string | null }) =>
-        !(req as any).userKit || (!!p.kitRemessaId && p.criadoPorId === (req as any).userId);
+        !req.userKit || (!!p.kitRemessaId && p.criadoPorId === req.userId);
       res.json({ pecas: pecas.filter((p) => !ehBookCompleto(p) && visivel(p)), eventos });
     } catch (error) {
       responderFalha(res, error, "GET /api/busca");

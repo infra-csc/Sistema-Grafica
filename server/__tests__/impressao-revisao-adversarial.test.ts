@@ -32,7 +32,6 @@ const ler = (rel: string) => readFileSync(path.resolve(__dirname, "../..", rel),
 const ITEMS = fonteDasRotasDeItens();
 const MAQ = ler("server/routes/maquinas.ts");
 const trecho = (fonte: string, de: string, ate: string) => fonte.slice(fonte.indexOf(de), fonte.indexOf(ate, fonte.indexOf(de) + 1));
-const PRINTING = trecho(ITEMS, 'app.patch("/api/items/:id/start-printing"', 'app.patch("/api/items/:id/start-production"');
 // A rota (leitura de fora, guardas) + a regra que ela chama sob a linha travada
 // (services/impressas-da-peca.ts) — o mesmo trecho de antes da extração.
 const PRODUCTION = trecho(ITEMS, 'app.patch("/api/items/:id/start-production"', 'app.post("/api/items/:id/mark-reuse"')
@@ -219,7 +218,7 @@ describe("3 · os cantos do lançamento (conta pura)", () => {
   });
 
   it("o start-printing usa aImprimirDaPeca (a peça de reuso legado não tem nada a imprimir)", () => {
-    expect(PRINTING).toContain("if (aImprimirDaPeca(current as any) - (current.quantityProduced || 0) <= 0) {");
+    // A rota recusando a peça de reuso legado roda em regras-producao-itens.test.ts.
     expect(aImprimirDaPeca({ quantity: 10, reuseQty: 0, isReuse: true })).toBe(0);
   });
 });

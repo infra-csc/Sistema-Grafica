@@ -125,7 +125,8 @@ describe("5 e 6 · a jornada, uma vez só e com o tempo calculado", () => {
 
   it("o intervalo entre etapas é calculado, e o tom sobe com a demora", () => {
     expect(A).toContain("function tomDoIntervalo(dias: number): string {");
-    expect(A).toContain("return dias >= 14 ? '#b91c1c' : dias >= 7 ? '#b45309' : '#57534e';");
+    // A mesma escada de três degraus, pelos tokens (perigo · alerta · apoio).
+    expect(A).toContain("return dias >= 14 ? TOM.perigo.text : dias >= 7 ? TOM.alerta.text : T.apoio;");
     expect(A).toContain("+{e.desdeAnterior}d");
   });
 
@@ -142,7 +143,7 @@ describe("5 e 6 · a jornada, uma vez só e com o tempo calculado", () => {
     expect(A).not.toContain("{/* ── Pipeline de fluxo");
     // a etapa atual tem o anel; a cumprida, a tinta
     expect(A).toContain("boxShadow: e.ehAtual ? '0 0 0 3px rgba(251,146,60,0.25)' : 'none'");
-    expect(A).toContain("background: e.cumprida || e.ehAtual ? '#c2410c' : '#e7e5e4'");
+    expect(A).toContain("background: e.cumprida || e.ehAtual ? T.accentText : T.border");
   });
 });
 

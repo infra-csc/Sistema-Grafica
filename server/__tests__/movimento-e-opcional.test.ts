@@ -21,6 +21,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "fs";
 import path from "path";
+import { T } from "@/lib/theme";
 
 const css = readFileSync(path.resolve(__dirname, "../../client/src/index.css"), "utf8");
 const painel = readFileSync(path.resolve(__dirname, "../../client/src/pages/painel-geral.tsx"), "utf8");
@@ -59,9 +60,12 @@ describe("o hover de ordenação é legível sobre o cabeçalho claro", () => {
   const FUNDO_THEAD = "#fafaf9";
 
   it("a cor do hover passa AA sobre o fundo do cabeçalho", () => {
-    const cor = painel.match(/\.pg-sortable:hover \{ color: (#[0-9a-f]{6}); \}/i)?.[1];
-    expect(cor).toBeTruthy();
-    expect(contraste(cor!, FUNDO_THEAD)).toBeGreaterThanOrEqual(4.5);
+    // A regra CSS agora interpola o token; o valor medido é o do theme.
+    const token = painel.match(/\.pg-sortable:hover \{ color: \$\{T\.(\w+)\}; \}/)?.[1];
+    expect(token).toBeTruthy();
+    const cor = (T as Record<string, string>)[token!];
+    expect(cor).toMatch(/^#[0-9a-f]{6}$/i);
+    expect(contraste(cor, FUNDO_THEAD)).toBeGreaterThanOrEqual(4.5);
   });
 
   it("a cor antiga, feita para cabeçalho escuro, não voltou", () => {

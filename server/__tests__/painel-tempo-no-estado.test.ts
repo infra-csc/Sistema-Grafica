@@ -112,9 +112,11 @@ describe("a escala de tom", () => {
     expect(tela).toContain("const LIMITE_PARADA = 7;");
     const i = tela.indexOf("function tomDaIdade");
     const bloco = tela.slice(i, i + 300);
-    expect(bloco).toContain('if (dias > 14) return { cor: "#b91c1c", peso: 700 };');
-    expect(bloco).toContain('if (dias > LIMITE_PARADA) return { cor: "#b45309", peso: 700 };');
-    expect(bloco).toContain('return { cor: "#746e69", peso: 500 };');
+    // Os tons vêm do theme: TOM.perigo.text (#b91c1c), TOM.alerta.text
+    // (#b45309) e T.second (#746e69) — os mesmos medidos na tabela abaixo.
+    expect(bloco).toContain("if (dias > 14) return { cor: TOM.perigo.text, peso: 700 };");
+    expect(bloco).toContain("if (dias > LIMITE_PARADA) return { cor: TOM.alerta.text, peso: 700 };");
+    expect(bloco).toContain("return { cor: T.second, peso: 500 };");
   });
 
   it("o peso sobe junto com a cor — cor sozinha não é sinal", () => {
@@ -171,13 +173,13 @@ describe("os três lugares onde o tempo aparece", () => {
 
 describe("as zonas da barra do fluxo", () => {
   it("o vão não mexe nas larguras — a soma continua 100%", () => {
-    expect(tela).toContain('borderRight: fechaZona ? "2px solid #fafaf9" : "none"');
+    expect(tela).toContain('borderRight: fechaZona ? `2px solid ${T.bg}` : "none"');
     expect(tela).toContain("const fechaZona = i < segmentos.length - 1 && segmentos[i + 1].zona !== seg.zona;");
   });
 
   it("cada marca tem a largura da soma da sua zona, com elipse", () => {
     expect(tela).toContain("data-testid={`zona-tick-${z.nome}`}");
-    expect(tela).toContain('borderLeft: "1px solid #ddd8d1", paddingLeft: 7, overflow: "hidden"');
+    expect(tela).toContain('borderLeft: `1px solid ${T.border}`, paddingLeft: 7, overflow: "hidden"');
     // Zona estreita não pode empurrar as outras.
     expect(tela).toContain('textOverflow: "ellipsis"');
   });

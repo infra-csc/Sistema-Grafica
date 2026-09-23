@@ -44,21 +44,42 @@ describe("nenhum alvo interativo abaixo do mínimo", () => {
     expect(painel).not.toContain('padding: "2px 2px"');
   });
 
-  it("toda altura interativa declarada respeita o piso", () => {
-    // Varre as alturas em elementos com cursor:pointer. Ícones (28px) ficam de
-    // fora porque não são alvo — o que importa é o que responde a clique.
-    const linhas = painel.split(/\r?\n/)
+  // Depois da migração para o design system, a altura de um alvo chega por
+  // TRÊS caminhos, e o piso vale para os três:
+  //   1. número cru num elemento com cursor:pointer (o que sobrou à mão);
+  //   2. `alvo(base, dedo)` — a base é a altura no mouse;
+  //   3. `<Botao tamanho>` — "sm" é H.sm (32), abaixo do piso de ponteiro.
+  // Antes só o caminho 1 era medido: `alvo(32, dedo)` passava calado.
+  const H_DO_TOKEN: Record<string, number> = { "H.sm": 32, "H.md": 36, "H.toque": 44 };
+
+  it("toda altura interativa declarada à mão respeita o piso", () => {
+    // Ícones (28px) ficam de fora porque não são alvo. As caixas de seleção
+    // são a EXCEÇÃO CONHECIDA registrada abaixo (o alvo é o label em volta).
+    const alturas = painel.split(/\r?\n/)
       .filter(l => l.includes("cursor: \"pointer\""))
-      // As caixas de seleção são a EXCEÇÃO CONHECIDA registrada abaixo. Sem
-      // excluí-las aqui este teste ficaria vermelho para sempre e deixaria de
-      // proteger todo o resto.
-      .filter(l => !l.includes("accentColor"));
-    const alturas = linhas
-      .map(l => l.match(/height: (\d+),/)?.[1])
-      .filter((h): h is string => Boolean(h))
-      .map(Number);
-    expect(alturas.length).toBeGreaterThan(0);
+      .filter(l => !l.includes("accentColor"))
+      .flatMap(l => [...l.matchAll(/(?:^|[^A-Za-z])(?:minHeight|height): (\d+),/g)].map(m => Number(m[1])));
     for (const h of alturas) expect(h).toBeGreaterThanOrEqual(MIN_PONTEIRO);
+  });
+
+  it("toda base de alvo(base, dedo) respeita o piso no mouse", () => {
+    const bases = [...painel.matchAll(/alvo\(([^,]+),\s*dedo\)/g)].map(m => {
+      const b = m[1].trim();
+      return /^\d+$/.test(b) ? Number(b) : H_DO_TOKEN[b];
+    });
+    // O painel mede alvos por este caminho; sem nenhum, o teste não mede nada.
+    expect(bases.length).toBeGreaterThan(0);
+    for (const b of bases) {
+      expect(b, "base de alvo() fora da escada H ou sem número").toBeDefined();
+      expect(b).toBeGreaterThanOrEqual(MIN_PONTEIRO);
+    }
+  });
+
+  it("nenhum Botao do painel usa o tamanho abaixo do piso", () => {
+    // Recorta cada Botao até o fechamento (o `=>` das props quebraria um [^>]*).
+    const botoes = painel.split("<Botao").slice(1).map(b => b.slice(0, b.search(/<\/Botao>|\/>/)));
+    expect(botoes.length).toBeGreaterThan(0);
+    for (const b of botoes) expect(b).not.toContain('tamanho="sm"');
   });
 
   it("as caixas de seleção têm alvo de 36px", () => {

@@ -60,7 +60,7 @@ describe("a barra do fluxo", () => {
   it("o segmento ativo se distingue sem depender de cor", () => {
     // A cor do segmento já está ocupada dizendo QUAL status ele é; o estado
     // ativo precisa de outro canal.
-    expect(painel).toContain('boxShadow: ativo ? "inset 0 0 0 2px #1c1917" : "none"');
+    expect(painel).toContain('boxShadow: ativo ? `inset 0 0 0 2px ${T.text}` : "none"');
   });
 
   it("o gargalo é dito por extenso, não só desenhado", () => {
@@ -88,8 +88,10 @@ describe("o percentual nos cards", () => {
     // troca um problema de design por um de acesso.
     const i = painel.indexOf("{pct < 1 ? \"<1\" : Math.round(pct)}%");
     const bloco = painel.slice(i - 300, i);
-    expect(bloco).toContain('"#746e69"');
-    expect(bloco).toContain("fontWeight: 600");
+    // T.second (#746e69, AA) e o peso médio: a hierarquia vem do peso.
+    expect(bloco).toContain("color: T.second");
+    expect(bloco).toContain("fontWeight: FW.medio");
+    expect(bloco).not.toContain("T.muted");
     // Olha o CODIGO, nao o arquivo: o comentario acima do bloco cita
     // #8c8580 de proposito, para registrar POR QUE ele foi descartado.
     const estilo = painel.slice(i - 300, i);

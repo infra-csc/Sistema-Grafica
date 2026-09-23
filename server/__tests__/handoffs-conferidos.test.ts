@@ -145,8 +145,8 @@ describe("Painel Geral", () => {
   });
 
   it("3 · a escala de idade tem peso, não só cor", () => {
-    expect(PG).toContain('return { cor: "#b91c1c", peso: 700 }');
-    expect(PG).toContain('if (dias > LIMITE_PARADA) return { cor: "#b45309", peso: 700 }');
+    expect(PG).toContain("return { cor: TOM.perigo.text, peso: 700 }");
+    expect(PG).toContain("if (dias > LIMITE_PARADA) return { cor: TOM.alerta.text, peso: 700 }");
     expect(PG).toContain("fontWeight: tom.peso");
   });
 
@@ -180,11 +180,13 @@ describe("Painel Geral", () => {
     // botão desabilitado e um separador "/" com aria-hidden — que é o uso
     // permitido. Procurar a string crua acusaria as três; o que importa é se há
     // texto que alguém precisa LER naquela cor.
+    // Depois do design system o cinza de ícone se chama T.muted; a regra é a
+    // mesma, com o nome novo e o hex antigo juntos.
     const informativas = PG.split(/\r?\n/)
-      .filter(l => l.includes('color: "#a8a29e"'))
+      .filter(l => l.includes('color: "#a8a29e"') || /color: T\.muted\b/.test(l))
       .filter(l => !l.includes("aria-hidden") && !l.includes("not-allowed"));
     expect(informativas).toEqual([]);
-    expect(PG).toContain("#746e69");
+    expect(PG).toContain("T.second");
   });
 });
 

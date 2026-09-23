@@ -42,6 +42,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "fs";
 import path from "path";
+import { T } from "@/lib/theme";
 
 const modal = readFileSync(path.resolve(__dirname, "../../client/src/components/item-details-dialog.tsx"), "utf8");
 
@@ -92,8 +93,9 @@ describe("o modal não tem paleta própria", () => {
   });
 
   it("o laranja que ficou passa AA sobre branco", () => {
-    expect(modal).toContain('#c2410c');
-    expect(contraste("#c2410c", "#ffffff")).toBeGreaterThanOrEqual(4.5);
+    // O laranja de texto é o token accentText — e ele segue passando AA.
+    expect(modal).toContain('T.accentText');
+    expect(contraste(T.accentText, "#ffffff")).toBeGreaterThanOrEqual(4.5);
   });
 
   it("nenhum laranja de baixo contraste voltou como cor de texto", () => {
@@ -273,7 +275,8 @@ describe("a grade de especificações não tem linha dupla", () => {
     expect(i).toBeGreaterThan(-1);
     const bloco = modal.slice(i, i + 160);
     expect(bloco).toContain("gap: 1");
-    expect(bloco).toContain('backgroundColor: "#ebe8e4"');
+    // O fundo que vira fresta é a borda da escada (T.border).
+    expect(bloco).toContain('backgroundColor: T.border');
     expect(bloco).not.toContain("borderRight");
   });
 

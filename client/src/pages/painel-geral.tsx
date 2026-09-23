@@ -3323,7 +3323,7 @@ export default function PainelGeral() {
                 LIMITE_PARADA dias, âmbar depois, vermelho acima de 14), que
                 até aqui só se aprendia passando o mouse. */}
             <details data-testid="texto-como-ler-fluxo" style={{ fontSize: FS.meta, color: T.second, lineHeight: 1.45 }}>
-              <summary style={{ cursor: "pointer", width: "fit-content", minHeight: alvo(24, dedo), display: "list-item" }}>
+              <summary style={{ cursor: "pointer", width: "fit-content", minHeight: alvo(H.md, dedo), display: "list-item" }}>
                 Clique numa etapa para filtrar a lista · <span style={{ textDecoration: "underline", textUnderlineOffset: 2, fontWeight: FW.medio, color: T.apoio }}>como ler este painel</span>
               </summary>
               <ul style={{ margin: "6px 0 0", paddingLeft: 18, display: "flex", flexDirection: "column", gap: 3 }}>
@@ -3694,10 +3694,10 @@ export default function PainelGeral() {
                competia com o "recorte ligado" das visões logo acima. */
             <Botao
               variante="secundario"
-              tamanho="sm"
+              tamanho="md"
               icone={X}
               onClick={clearAllFilters}
-              style={{ minHeight: alvo(H.sm, dedo) }}
+              style={{ minHeight: alvo(H.md, dedo) }}
             >
               Limpar
             </Botao>
@@ -3743,7 +3743,7 @@ export default function PainelGeral() {
           <span style={{ fontSize: FS.body, fontWeight: FW.forte, color: TOM.perigo.text }}>Você não tem permissão para ver peças excluídas.</span>
           <Botao
             variante="primario"
-            tamanho="sm"
+            tamanho="md"
             onClick={() => setStatusFilter(prev => prev.filter(s => s !== "deleted"))}
           >
             Remover filtro
@@ -3962,16 +3962,16 @@ export default function PainelGeral() {
               );
             })()}
           </div>
-          <button onClick={() => setShowExportPDFModal(true)} style={{ display: "flex", alignItems: "center", gap: 6, background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.22)", borderRadius: R.pill, color: T.surface, fontSize: FS.meta, fontWeight: FW.forte, padding: "6px 12px", minHeight: alvo(H.sm, dedo), cursor: "pointer" }}>
+          <button onClick={() => setShowExportPDFModal(true)} style={{ display: "flex", alignItems: "center", gap: 6, background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.22)", borderRadius: R.pill, color: T.surface, fontSize: FS.meta, fontWeight: FW.forte, padding: "6px 12px", minHeight: alvo(H.md, dedo), cursor: "pointer" }}>
             <Printer style={{ width: 13, height: 13 }} /> PDF
           </button>
-          <button onClick={exportarXlsx} disabled={isExportingXlsx} style={{ display: "flex", alignItems: "center", gap: 6, background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.22)", borderRadius: R.pill, color: T.surface, fontSize: FS.meta, fontWeight: FW.forte, padding: "6px 12px", minHeight: alvo(H.sm, dedo), cursor: "pointer" }}>
+          <button onClick={exportarXlsx} disabled={isExportingXlsx} style={{ display: "flex", alignItems: "center", gap: 6, background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.22)", borderRadius: R.pill, color: T.surface, fontSize: FS.meta, fontWeight: FW.forte, padding: "6px 12px", minHeight: alvo(H.md, dedo), cursor: "pointer" }}>
             <FileSpreadsheet style={{ width: 13, height: 13 }} /> Excel
           </button>
-          <button onClick={copiarIds} style={{ display: "flex", alignItems: "center", gap: 6, background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.22)", borderRadius: R.pill, color: T.surface, fontSize: FS.meta, fontWeight: FW.forte, padding: "6px 12px", minHeight: alvo(H.sm, dedo), cursor: "pointer" }}>
+          <button onClick={copiarIds} style={{ display: "flex", alignItems: "center", gap: 6, background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.22)", borderRadius: R.pill, color: T.surface, fontSize: FS.meta, fontWeight: FW.forte, padding: "6px 12px", minHeight: alvo(H.md, dedo), cursor: "pointer" }}>
             <Copy style={{ width: 13, height: 13 }} /> Copiar IDs
           </button>
-          <button onClick={() => setSelectedIds(new Set())} style={{ background: "none", border: "none", color: "rgba(255,255,255,0.75)", fontSize: FS.meta, fontWeight: FW.forte, padding: "6px 8px", minHeight: alvo(H.sm, dedo), cursor: "pointer", textDecoration: "underline" }}>
+          <button onClick={() => setSelectedIds(new Set())} style={{ background: "none", border: "none", color: "rgba(255,255,255,0.75)", fontSize: FS.meta, fontWeight: FW.forte, padding: "6px 8px", minHeight: alvo(H.md, dedo), cursor: "pointer", textDecoration: "underline" }}>
             Limpar seleção
           </button>
         </div>

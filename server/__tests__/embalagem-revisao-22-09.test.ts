@@ -6,6 +6,7 @@
 // peça, peça travada na entrega) estão em tubos-tres-modais.test.ts.
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect } from "vitest";
+import { fonteDoComponente } from "./fonte-dos-componentes";
 import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
 import { readFileSync } from "fs";
 import path from "path";
@@ -99,7 +100,7 @@ describe("9 · segunda embalagem sozinha da mesma peça reusa o avulso aberto", 
 
 describe("10 · entregue por volume com foto da embalagem não é 'sem comprovante'", () => {
   it("a ficha só acusa quando não há foto de entrega NEM foto do volume", () => {
-    const F = ler("client/src/components/item-details-dialog.tsx");
+    const F = fonteDoComponente("client/src/components/item-details-dialog.tsx");
     expect(F).toContain("const entregueComFotoDaEmbalagem = !!item.tuboId && !!item.tuboFechadoEm;");
     expect(F).toContain("const missingDeliveryProof = isDeliveredItem && deliveryPhotos.length === 0 && !entregueComFotoDaEmbalagem;");
   });

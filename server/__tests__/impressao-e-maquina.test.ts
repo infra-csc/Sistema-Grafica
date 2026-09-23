@@ -20,6 +20,7 @@
 //      Produção" e "Produzido", segue reconhecida por quem a interpreta.
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect } from "vitest";
+import { fonteDoComponente } from "./fonte-dos-componentes";
 import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
 import { readFileSync } from "fs";
 import path from "path";
@@ -32,7 +33,7 @@ const SHARED = ler("server/routes/shared.ts");
 const SCHEMA = ler("shared/schema.ts");
 const STATUS = ler("client/src/lib/status.ts");
 const GRAFICA = ler("client/src/pages/grafica.tsx");
-const FICHA = ler("client/src/components/item-details-dialog.tsx");
+const FICHA = fonteDoComponente("client/src/components/item-details-dialog.tsx");
 const MODAL = ler("client/src/components/grafica/modal-impressao.tsx");
 // Desde 22/09 a conta do iniciar e do lançar mora em funções puras (shared),
 // chamadas pela rota sobre a linha TRAVADA.

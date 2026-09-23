@@ -13,12 +13,32 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 
+/** Evento de /api/events, no que o seletor de origem lê. */
+export interface EventoParaClonar {
+  id: string;
+  name: string;
+  createdAt: string | Date;
+  startDate?: string | Date | null;
+}
+
+/** Peça de /api/items?eventId, no que a lista de seleção lê. */
+interface PecaParaClonar {
+  id: string;
+  displayId?: string | null;
+  type?: string | null;
+  description?: string | null;
+  quantity?: number | null;
+  status?: string | null;
+  /** Preenchido só no complemento (aumento pós-produção). */
+  parentItemId?: string | null;
+}
+
 interface CloneItemsDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   eventId: string | undefined;
   eventName: string | undefined;
-  allEvents: any[];
+  allEvents: EventoParaClonar[];
   /** A lista de eventos só é buscada quando o dialog abre — sem esta flag o
    *  select parecia vazio ("— Escolha um evento —") enquanto carregava. */
   eventsLoading?: boolean;
@@ -36,7 +56,7 @@ interface CloneItemsDialogProps {
 // `[]`... um laço de render que nunca parava enquanto a página estivesse aberta
 // (26 mil commits medidos em 10 s no benchmark). Esta constante quebra o laço
 // sem mudar o que o efeito faz quando os dados chegam de verdade.
-const SEM_PECAS: any[] = [];
+const SEM_PECAS: PecaParaClonar[] = [];
 
 // Extracted from event-detail.tsx: "Clonar Peças de Outro Evento" dialog.
 // Pure presentational split — no business logic changed, only relocated.
@@ -59,13 +79,13 @@ export function CloneItemsDialog({
   // que marcar dezenas. A busca recorta a lista; marcar/desmarcar todas age
   // só sobre o recorte visível, senão "desmarcar todas" com uma busca ativa
   // apagaria seleção que o operador nem estava vendo.
-  const { data: todasDaOrigem = SEM_PECAS, isLoading: pecasCarregando } = useQuery<any[]>({
+  const { data: todasDaOrigem = SEM_PECAS, isLoading: pecasCarregando } = useQuery<PecaParaClonar[]>({
     queryKey: ["/api/items", cloneSourceId],
     enabled: open && !!cloneSourceId,
   });
   // COMPLEMENTO NÃO SE CLONA SOZINHO: é o aumento pós-produção da peça-mãe,
   // não uma peça (o servidor também os deixa de fora).
-  const pecasDaOrigem = useMemo(() => todasDaOrigem.filter((i: any) => !i.parentItemId), [todasDaOrigem]);
+  const pecasDaOrigem = useMemo(() => todasDaOrigem.filter((i) => !i.parentItemId), [todasDaOrigem]);
   const complementosFora = todasDaOrigem.length - pecasDaOrigem.length;
   const [escolhidas, setEscolhidas] = useState<Set<string>>(new Set());
   const [busca, setBusca] = useState("");
@@ -74,24 +94,24 @@ export function CloneItemsDialog({
   // MENOS as canceladas: o evento novo não renasce com o que o anterior
   // desistiu. Elas seguem na lista, desmarcadas, para quem quiser mesmo.
   useEffect(() => {
-    setEscolhidas(new Set(pecasDaOrigem.filter((i: any) => i.status !== "canceled").map((i: any) => i.id)));
+    setEscolhidas(new Set(pecasDaOrigem.filter((i) => i.status !== "canceled").map((i) => i.id)));
     setBusca("");
   }, [cloneSourceId, pecasDaOrigem]);
 
   const visiveis = useMemo(() => {
     const q = busca.trim().toLowerCase();
     if (!q) return pecasDaOrigem;
-    return pecasDaOrigem.filter((i: any) =>
+    return pecasDaOrigem.filter((i) =>
       `${i.displayId ?? ""} ${i.type ?? ""} ${i.description ?? ""}`.toLowerCase().includes(q),
     );
   }, [pecasDaOrigem, busca]);
 
-  const visiveisMarcadas = visiveis.filter((i: any) => escolhidas.has(i.id)).length;
+  const visiveisMarcadas = visiveis.filter((i) => escolhidas.has(i.id)).length;
   const alternarTodas = () => {
     setEscolhidas((atual) => {
       const prox = new Set(atual);
-      if (visiveisMarcadas === visiveis.length) visiveis.forEach((i: any) => prox.delete(i.id));
-      else visiveis.forEach((i: any) => prox.add(i.id));
+      if (visiveisMarcadas === visiveis.length) visiveis.forEach((i) => prox.delete(i.id));
+      else visiveis.forEach((i) => prox.add(i.id));
       return prox;
     });
   };
@@ -107,10 +127,10 @@ export function CloneItemsDialog({
   // antigo, que é a ordem em que alguém procura o que clonar. `pinned` em
   // todas porque o FilterSelect reordena alfabeticamente quem não está fixado.
   const cloneSourceOptions = allEvents
-    .filter((e: any) => e.id !== eventId)
+    .filter((e) => e.id !== eventId)
     .slice()
-    .sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-    .map((e: any) => ({
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    .map((e) => ({
       value: e.id,
       label: `${e.name}${e.startDate ? ` (${new Date(e.startDate).toLocaleDateString('pt-BR')})` : ''}`,
       pinned: true,
@@ -235,7 +255,7 @@ export function CloneItemsDialog({
                 {visiveis.length === 0 && (
                   <div style={{ padding: '14px 12px', fontSize: FS.meta, color: T.second }}>Nenhuma peça bate com a busca.</div>
                 )}
-                {visiveis.map((i: any) => (
+                {visiveis.map((i) => (
                   <label
                     key={i.id}
                     data-testid={`linha-peca-clone-${i.id}`}

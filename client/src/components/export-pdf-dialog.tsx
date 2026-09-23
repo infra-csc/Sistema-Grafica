@@ -16,6 +16,27 @@ import { Selo } from "@/components/ui/selo";
 import { EstadoVazio } from "@/components/ui/estados";
 
 /**
+ * A peça no que esta exportação lê — a forma de /api/items com o enrich
+ * (evento e patrocinadores pendurados). Arte, Atendimento e Painel mandam cada
+ * um a sua lista; o resto dos campos segue junto para o gerador do PDF.
+ */
+export interface PecaParaExportar {
+  id: string;
+  displayId?: string | null;
+  description?: string | null;
+  type?: string | null;
+  status?: string | null;
+  eventId?: string | null;
+  event?: { name?: string | null } | null;
+  sponsors?: { id: string; name?: string | null }[] | null;
+  bookUrl?: string | null;
+  approvalThumbUrl?: string | null;
+}
+
+/** Uma opção de faceta com a contagem do recorte. */
+type OpcaoDeFaceta = { value: string; label: string; count: number; pinned?: boolean };
+
+/**
  * UMA PÁGINA DO PDF QUE VAI SAIR.
  *
  * `capa` só existe com mais de um evento e a opção ligada; `combinada` junta
@@ -24,8 +45,8 @@ import { EstadoVazio } from "@/components/ui/estados";
  */
 type PaginaExport =
   | { tipo: "capa"; rotulo: string }
-  | { tipo: "combinada"; grupo: string; itens: any[] }
-  | { tipo: "unica"; grupo: string; item: any };
+  | { tipo: "combinada"; grupo: string; itens: PecaParaExportar[] }
+  | { tipo: "unica"; grupo: string; item: PecaParaExportar };
 
 /**
  * A MONTAGEM DAS PÁGINAS, PURA — e é por ser pura que ela conserta a
@@ -43,11 +64,11 @@ type PaginaExport =
  * pode divergir da primeira.
  */
 function montarPaginas(
-  selecionadas: any[],
+  selecionadas: PecaParaExportar[],
   combinadas: Set<string>,
   capaPorEvento: boolean,
 ): PaginaExport[] {
-  const porEvento = new Map<string, { nome: string; grupos: Map<string, any[]> }>();
+  const porEvento = new Map<string, { nome: string; grupos: Map<string, PecaParaExportar[]> }>();
   selecionadas.forEach(i => {
     const ev = i.eventId || "__";
     if (!porEvento.has(ev)) porEvento.set(ev, { nome: i.event?.name || "Sem evento", grupos: new Map() });
@@ -76,12 +97,12 @@ function montarPaginas(
 interface ExportPdfDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  items: any[];
+  items: readonly PecaParaExportar[];
   title?: string;
 }
 
 /** Pool vazio estável: o modal que nunca abriu não tem o que contar. */
-const SEM_PECAS: any[] = [];
+const SEM_PECAS: readonly PecaParaExportar[] = [];
 
 export function ExportPdfDialog({ open, onOpenChange, items: itensDaTela, title = "Peças" }: ExportPdfDialogProps) {
   // FECHADO NÃO CALCULA (perf, 17/09). Arte, Atendimento e Detalhe deixam este
@@ -93,7 +114,7 @@ export function ExportPdfDialog({ open, onOpenChange, items: itensDaTela, title 
   // mudam e nenhum useMemo roda. Não é vazio de propósito — durante a animação
   // de fechar o conteúdo ainda aparece e não pode piscar "0 peças". Aberto, o
   // pool é a lista da tela, exatamente como antes.
-  const ultimoPoolAberto = useRef<any[]>(SEM_PECAS);
+  const ultimoPoolAberto = useRef<readonly PecaParaExportar[]>(SEM_PECAS);
   if (open) ultimoPoolAberto.current = itensDaTela;
   const items = open ? itensDaTela : ultimoPoolAberto.current;
   const [eventFilter, setEventFilter]   = useState("all");
@@ -143,21 +164,21 @@ export function ExportPdfDialog({ open, onOpenChange, items: itensDaTela, title 
     "ready_for_production","approved","pronto_para_producao","liberado",
     "inProduction","em_producao","produced","produzido","conferred","packed","delivered","entregue",
   ];
-  const statusOf = (i: any): "pendente" | "aprovado" | "outro" =>
+  const statusOf = (i: PecaParaExportar): "pendente" | "aprovado" | "outro" =>
     i.status === "awaiting_sponsor_approval" ? "pendente"
-      : APPROVED_STATUSES.includes(i.status) ? "aprovado" : "outro";
+      : APPROVED_STATUSES.includes(i.status ?? "") ? "aprovado" : "outro";
 
-  const matches = (i: any, skip?: "event"|"sponsor"|"group"|"type"|"status") => {
+  const matches = (i: PecaParaExportar, skip?: "event"|"sponsor"|"group"|"type"|"status") => {
     // A busca entra em TODOS os recortes, inclusive nas facetas: um menu que
     // oferece 'Evento X · 12' e devolve 2 é pior que não ter o menu.
     if (busca.trim()) {
       const alvo = normalizarBusca(
-        [i.displayId, i.description, i.type, (i.sponsors ?? []).map((s: any) => s.name).join(" ")].filter(Boolean).join(" "),
+        [i.displayId, i.description, i.type, (i.sponsors ?? []).map((s) => s.name).join(" ")].filter(Boolean).join(" "),
       );
       if (!alvo.includes(normalizarBusca(busca))) return false;
     }
     if (skip !== "event"   && eventFilter   !== "all" && i.eventId !== eventFilter) return false;
-    if (skip !== "sponsor" && sponsorFilter !== "all" && !(i.sponsors ?? []).some((s: any) => s.id === sponsorFilter)) return false;
+    if (skip !== "sponsor" && sponsorFilter !== "all" && !(i.sponsors ?? []).some((s) => s.id === sponsorFilter)) return false;
     if (skip !== "group"   && groupFilter   !== "all" && groupKeyOf(i) !== groupFilter) return false;
     if (skip !== "type"    && typeFilter    !== "all" && i.type !== typeFilter) return false;
     if (skip !== "status"  && statusFilter  !== "all" && statusOf(i) !== statusFilter) return false;
@@ -169,7 +190,7 @@ export function ExportPdfDialog({ open, onOpenChange, items: itensDaTela, title 
   const selected = useMemo(() => filtered.filter(i => !excludedIds.has(i.id)), [filtered, excludedIds]);
   const facetDeps = [items, eventFilter, sponsorFilter, groupFilter, typeFilter, statusFilter, busca];
 
-  const countOpts = (skip: "event"|"sponsor"|"group"|"type", keyOf: (i: any) => {value:string;label:string}|null) => {
+  const countOpts = (skip: "event"|"sponsor"|"group"|"type", keyOf: (i: PecaParaExportar) => {value:string;label:string}|null) => {
     const map = new Map<string,{value:string;label:string;count:number}>();
     items.forEach(i => {
       if (!matches(i, skip)) return;
@@ -185,9 +206,10 @@ export function ExportPdfDialog({ open, onOpenChange, items: itensDaTela, title 
     const map = new Map<string,{value:string;label:string;count:number}>();
     items.forEach(i => {
       if (!matches(i, "sponsor")) return;
-      (i.sponsors ?? []).forEach((s: any) => {
+      (i.sponsors ?? []).forEach((s) => {
         const cur = map.get(s.id);
-        if (cur) cur.count++; else map.set(s.id, { value: s.id, label: s.name, count: 1 });
+        // Patrocinador sem nome não existe no cadastro; o ?? só tipa a ausência.
+        if (cur) cur.count++; else map.set(s.id, { value: s.id, label: s.name ?? "", count: 1 });
       });
     });
     return Array.from(map.values());
@@ -197,7 +219,7 @@ export function ExportPdfDialog({ open, onOpenChange, items: itensDaTela, title 
   const statusOptions = useMemo(() => {
     let pend = 0, apr = 0;
     items.forEach(i => { if (!matches(i, "status")) return; const s = statusOf(i); if (s === "pendente") pend++; else if (s === "aprovado") apr++; });
-    const opts: any[] = [];
+    const opts: OpcaoDeFaceta[] = [];
     if (pend) opts.push({ value: "pendente", label: "Aguardando aprovação", count: pend, pinned: true });
     if (apr)  opts.push({ value: "aprovado", label: "Aprovados", count: apr, pinned: true });
     return opts;
@@ -247,7 +269,7 @@ export function ExportPdfDialog({ open, onOpenChange, items: itensDaTela, title 
   // a paginação. Agrupar por outra coisa faria a lista contar uma história e o
   // arquivo, outra.
   const gruposDaLista = useMemo(() => {
-    const map = new Map<string, any[]>();
+    const map = new Map<string, PecaParaExportar[]>();
     filtered.forEach(i => {
       const k = groupKeyOf(i);
       map.set(k, (map.get(k) ?? []).concat([i]));
@@ -580,9 +602,9 @@ export function ExportPdfDialog({ open, onOpenChange, items: itensDaTela, title 
                       </div>
 
                       <div style={{ padding: "6px 8px", display: "flex", flexDirection: "column", gap: 4 }}>
-                        {itensDoGrupo.map((item: any) => {
+                        {itensDoGrupo.map((item) => {
                           const hasThumb = !!item.approvalThumbUrl;
-                          const thumbSrc = hasThumb ? convertGCSUrlToLocalPath(item.approvalThumbUrl) : null;
+                          const thumbSrc = item.approvalThumbUrl ? convertGCSUrlToLocalPath(item.approvalThumbUrl) : null;
                           const picked   = !excludedIds.has(item.id);
                           const toggleItem = () => setExcludedIds(prev => { const n = new Set(prev); if (n.has(item.id)) n.delete(item.id); else n.add(item.id); return n; });
                           return (
@@ -708,7 +730,7 @@ export function ExportPdfDialog({ open, onOpenChange, items: itensDaTela, title 
                             <span style={{ fontSize: 11, fontFamily: FONT.mono, textTransform: "uppercase", color: T.second, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{pg.rotulo}</span>
                           </div>
                         )}
-                        {pg.tipo === "combinada" && pg.itens.map((it: any) => (
+                        {pg.tipo === "combinada" && pg.itens.map((it) => (
                           <div key={it.id} style={{ backgroundColor: T.low, borderRadius: 3, display: "flex", alignItems: "center", justifyContent: "center", padding: 2 }}>
                             <span style={{ fontSize: 11, fontFamily: FONT.mono, textTransform: "uppercase", color: T.second }}>{it.displayId}</span>
                           </div>

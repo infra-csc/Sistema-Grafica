@@ -25,6 +25,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { describe, it, expect, beforeAll } from "vitest";
+import { fonteDoComponente } from "./fonte-dos-componentes";
 import { readFileSync } from "fs";
 import path from "path";
 import AdmZip from "adm-zip";
@@ -214,7 +215,7 @@ describe("as planilhas antigas continuam funcionando", () => {
 });
 
 describe("o diálogo: nada cortado, e a barra lateral conta o que a tabela agrupa", () => {
-  const dg = readFileSync(path.resolve(__dirname, "../../client/src/components/import-xlsx-dialog.tsx"), "utf8");
+  const dg = fonteDoComponente("client/src/components/import-xlsx-dialog.tsx");
 
   it("uma chave de grupo só, usada pela contagem e pela tabela", () => {
     expect(dg).toContain("export const tipoDoGrupo = ");
@@ -237,7 +238,9 @@ describe("o diálogo: nada cortado, e a barra lateral conta o que a tabela agrup
     expect(cols.indexOf("label: 'Patrocinador'")).toBeLessThan(cols.indexOf("label: 'Obs'"));
     expect(cols).toContain("label: 'Patrocinador', tip: 'Sugestão automática — clique para alterar', w: 250");
     // E a ordem das células da linha acompanha a do cabeçalho.
-    const linha = dg.slice(dg.indexOf("export function ImportPreviewRow"), dg.indexOf("interface ImportXlsxDialogProps"));
+    // A linha mora no próprio arquivo desde a divisão do diálogo.
+    const fonteDaLinha = readFileSync(path.resolve(__dirname, "../../client/src/components/importar-planilha/linha-da-previa.tsx"), "utf8");
+    const linha = fonteDaLinha.slice(fonteDaLinha.indexOf("export function ImportPreviewRow"));
     expect(linha.indexOf("{/* Sponsor multi-select cell */}")).toBeLessThan(linha.indexOf("{/* Obs cell with reuse toggle */}"));
   });
 

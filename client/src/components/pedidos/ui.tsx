@@ -20,6 +20,7 @@ import {
   type StatusDaSolicitacao,
 } from "@shared/pedidos-de-peca";
 import { queryClient } from "@/lib/queryClient";
+import type { EventoFinalizavel } from "@/lib/status";
 import { StatusBadge } from "@/components/status-badge";
 import { statusDeExibicao } from "@shared/molde";
 import { DetalheProducao } from "@/components/detalhe-producao";
@@ -38,6 +39,14 @@ export const TOM_DO_PEDIDO: Record<StatusDaSolicitacao, { cor: string; fundo: st
 export const invalidarPedidos = () =>
   queryClient.invalidateQueries({ predicate: (q) => ehChaveDePedidos(q.queryKey[0]) });
 
+/** Evento de /api/events, no que os pedidos leem: menu, prazo, selo e reabertura. */
+export interface EventoDoPedido extends EventoFinalizavel {
+  id: string;
+  name: string;
+  startDate: string;
+  truckDepartureDate?: string | null;
+}
+
 export const quandoFoi = (d: string | null | undefined) =>
   d ? new Date(d).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "—";
 
@@ -52,7 +61,8 @@ export const medidaDaLinha = (l: { largura: string | null; altura: string | null
 
 /** Mensagem de erro da API ("409: {"error":"…"}") em frase legível. */
 export function mensagemDaApi(e: unknown): string {
-  const bruto = String((e as any)?.message ?? "Erro desconhecido");
+  const mensagem = typeof e === "object" && e !== null && "message" in e ? e.message : undefined;
+  const bruto = String(mensagem ?? "Erro desconhecido");
   const i = bruto.indexOf("{");
   if (i >= 0) {
     try { const j = JSON.parse(bruto.slice(i)); if (j?.error) return j.error; } catch { /* segue */ }

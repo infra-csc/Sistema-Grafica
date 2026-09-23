@@ -8,6 +8,7 @@
 // rodam em transação, são conferidos na fonte.
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { fonteDoComponente } from "./fonte-dos-componentes";
 import { txDeMentira } from "./tx-de-mentira";
 import { readFileSync } from "fs";
 import { resolve } from "path";
@@ -224,7 +225,7 @@ describe("as telas leem pecaTravada (fonte)", () => {
     // Só o próprio helper chama o selo de evento finalizado; todas as linhas passam pelo helper.
     expect(M.split("seloPecaEventoFinalizado(p.eventoInfo, hojeMs)").length - 1).toBe(1);
     expect(M.split("seloDaPecaNaMaquina(p, hojeMs)").length - 1).toBeGreaterThanOrEqual(4);
-    expect(ler("client/src/components/item-details-dialog.tsx")).toContain('data-testid="selo-travada-ficha"');
+    expect(fonteDoComponente("client/src/components/item-details-dialog.tsx")).toContain('data-testid="selo-travada-ficha"');
     expect(ler("client/src/components/detalhe-producao.tsx")).toContain('data-testid="detalhe-travada"');
   });
 });

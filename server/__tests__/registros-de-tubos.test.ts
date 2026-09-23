@@ -17,6 +17,7 @@
 //   · Histórico e ficha reconhecem a embalada sozinha e a embalagem desfeita.
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect, afterEach, vi } from "vitest";
+import { fonteDoComponente } from "./fonte-dos-componentes";
 import * as React from "react";
 import { readFileSync } from "fs";
 import path from "path";
@@ -153,7 +154,7 @@ describe("onde aparece, e de onde vem (fonte)", () => {
   });
 
   it("ficha da peça: a peça que foi em tubo mostra o registro do tubo (o que foi junto)", () => {
-    const F = ler("client/src/components/item-details-dialog.tsx");
+    const F = fonteDoComponente("client/src/components/item-details-dialog.tsx");
     expect(F).toContain("{item.tuboId && <RegistrosDeTubos itemId={item.id} />}");
     expect(F).toContain("|| !!item.receivedBy || !!item.tuboId;");
   });
@@ -184,7 +185,7 @@ describe("onde aparece, e de onde vem (fonte)", () => {
     const T = ler("client/src/lib/timeline.ts");
     expect(T).toContain('if (detailsLower.includes("embalada no tubo") || detailsLower.startsWith("embalada (sozinha)")) {');
     expect(T).toContain('if (detailsLower.startsWith("retirada do tubo") || detailsLower.startsWith("embalagem desfeita")) {');
-    expect(ler("client/src/components/item-details-dialog.tsx")).toContain('match: d => d.includes("embalada no tubo") || d.startsWith("embalada (sozinha)") },');
+    expect(fonteDoComponente("client/src/components/item-details-dialog.tsx")).toContain('match: d => d.includes("embalada no tubo") || d.startsWith("embalada (sozinha)") },');
     // …e o servidor escreve exatamente essas frases
     expect(ROTAS).toContain("`Embalada (sozinha)${quanto}${comFoto}`");
     expect(ROTAS).toContain("`Embalagem desfeita — ${l.quantidade} un. voltaram a Conferido${motivo ? ` (${motivo})` : \"\"}`");

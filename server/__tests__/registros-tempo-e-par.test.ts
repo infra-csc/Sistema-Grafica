@@ -20,13 +20,17 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "fs";
+import { readFileSync, readdirSync } from "fs";
 import path from "path";
 
-const tela = readFileSync(
+// A tela é a página MAIS os pedaços que saíram dela para
+// components/grafica/registros/ (cartão, zoom, sheet de filtros, tipos):
+// as regras abaixo valem para o conjunto, onde quer que o trecho more.
+const PASTA_REG = path.resolve(__dirname, "../../client/src/components/grafica/registros");
+const tela = [
   path.resolve(__dirname, "../../client/src/pages/registros.tsx"),
-  "utf8",
-);
+  ...readdirSync(PASTA_REG).sort().map(n => path.join(PASTA_REG, n)),
+].map(f => readFileSync(f, "utf8")).join("\n");
 
 /** Sem comentários — para asserções de ausência. Ver a nota em vincular. */
 const codigo = tela
@@ -320,8 +324,7 @@ describe("o resto do que estava certo", () => {
 });
 describe("desempenho com 3.800 fotos originais (25/08)", () => {
   // As fotos sobem ORIGINAIS da câmera (megabytes). A tela travava por três
-  // razões, e cada uma tem a sua trava aqui.
-  const tela = readFileSync(path.resolve(__dirname, "../../client/src/pages/registros.tsx"), "utf8");
+  // razões, e cada uma tem a sua trava aqui. (`tela` é a do topo: página + pedaços.)
 
   it("cartão fora da janela não pinta, não decodifica e (lazy) nem baixa", () => {
     expect(tela).toContain(".reg-cartao { content-visibility: auto; contain-intrinsic-size: auto 430px; }");

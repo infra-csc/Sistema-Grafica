@@ -23,7 +23,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "fs";
+import { readFileSync, readdirSync } from "fs";
 import path from "path";
 
 const ler = (rel: string) => readFileSync(path.resolve(__dirname, "../../", rel), "utf8");
@@ -31,7 +31,12 @@ const ler = (rel: string) => readFileSync(path.resolve(__dirname, "../../", rel)
 const REV = ler("client/src/pages/solicitacao.tsx");
 const PG = ler("client/src/pages/painel-geral.tsx");
 const CAL = ler("client/src/pages/calendario.tsx");
-const REG = ler("client/src/pages/registros.tsx");
+// Registros: a página + os pedaços que saíram dela (components/grafica/registros/).
+const REG = [
+  "client/src/pages/registros.tsx",
+  ...readdirSync(path.resolve(__dirname, "../../client/src/components/grafica/registros"))
+    .sort().map(n => `client/src/components/grafica/registros/${n}`),
+].map(ler).join("\n");
 
 /** Sem comentários — para as afirmações de AUSÊNCIA. */
 const semCom = (s: string) =>

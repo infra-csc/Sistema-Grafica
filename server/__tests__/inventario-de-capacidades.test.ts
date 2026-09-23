@@ -212,15 +212,22 @@ const CONTRATO: Record<string, string[]> = {
     "filter-event",
     "select-period-filter",
     "button-clear-filters",
+    "button-load-more",
+    "button-retry-registros",
+    "input-search-registros",
+  ],
+  // O cartão e o zoom de Registros saíram da página para componentes próprios.
+  "client/src/components/grafica/registros/cartao-de-foto.tsx": [
     "card-photo-",
     "link-event-",
+    "button-card-download-",
+    "button-pair-",
+  ],
+  "client/src/components/grafica/registros/zoom-do-registro.tsx": [
     "img-zoom",
     "button-zoom-prev",
     "button-zoom-next",
     "button-zoom-download",
-    "button-load-more",
-    "button-retry-registros",
-    "input-search-registros",
   ],
   "client/src/pages/calendario.tsx": [
     "title-calendario",

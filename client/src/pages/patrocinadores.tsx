@@ -9,7 +9,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Form, FormControl, FormField, FormItem, FormMessage } from "@/components/ui/form";
-import { Pencil, Trash2, Search, X, AlertTriangle, Plus, Building2, ChevronLeft, ChevronRight } from "lucide-react";
+import { Pencil, Trash2, Search, X, AlertTriangle, Plus, Building2, ChevronLeft, ChevronRight, Archive, RotateCcw } from "lucide-react";
 import type { Sponsor } from "@shared/schema";
 import { T, N, TOM, FS, FW, R, FONT } from "@/lib/theme";
 import { useIsMobile, usePonteiroGrosso, alvo } from "@/hooks/use-mobile";
@@ -20,6 +20,7 @@ import { EstadoErro, EstadoVazio, Esqueleto } from "@/components/ui/estados";
 import { useConfirmar } from "@/components/ui/usar-confirmar";
 import { FilterSelect, type FilterOption } from "@/components/filter-select";
 import { useFiltrosNaUrl, paginaValida } from "@/hooks/use-filtros-na-url";
+import { ModalDeArquivados, type LinhaArquivada } from "@/components/modal-de-arquivados";
 
 const tiInput: React.CSSProperties = {
   width: "100%", padding: "14px 16px",
@@ -80,6 +81,76 @@ function Paginacao({ pagina, totalPaginas, onIr, toque }: { pagina: number; tota
       ))}
       <Botao tamanho="sm" icone={ChevronRight} onClick={() => onIr(pagina + 1)} disabled={pagina === totalPaginas} aria-label="Próxima página" style={medida} />
     </nav>
+  );
+}
+
+const CHAVE_PATROCINADORES_ARQUIVADOS = ["/api/sponsors/arquivados"] as const;
+
+/**
+ * O acesso aos PATROCINADORES ARQUIVADOS (só admin, que é quem arquiva).
+ * Discreto: só aparece quando há algo arquivado, e abre a lista de onde se
+ * restaura. Restaurar devolve o patrocinador às listas de escolha; vínculos e
+ * aprovações nunca saíram do histórico.
+ */
+function PatrocinadoresArquivados({ tamanho }: { tamanho: "md" | "toque" }) {
+  const { toast } = useToast();
+  const { confirmar, dialogo } = useConfirmar();
+  const [aberto, setAberto] = useState(false);
+  const { data: arquivados = [], isLoading, isError, refetch } = useQuery<Sponsor[]>({
+    queryKey: CHAVE_PATROCINADORES_ARQUIVADOS,
+  });
+
+  const restaurar = useMutation({
+    mutationFn: async (sponsor: Sponsor) => {
+      const res = await apiRequest("POST", `/api/sponsors/${sponsor.id}/restaurar`);
+      return (await res.json()) as Sponsor;
+    },
+    onSuccess: (_r, sponsor) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/sponsors"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/sponsors/usage"] });
+      queryClient.invalidateQueries({ queryKey: CHAVE_PATROCINADORES_ARQUIVADOS });
+      toast({ variant: "success", title: "Patrocinador restaurado", description: `${sponsor.name} voltou às listas de escolha.` });
+    },
+    onError: (e: Error) => toast({ variant: "destructive", title: "Não foi possível restaurar o patrocinador", description: e.message }),
+  });
+
+  const pedirRestauracao = async (linha: LinhaArquivada) => {
+    const sponsor = arquivados.find((s) => s.id === linha.id);
+    if (!sponsor) return;
+    const ok = await confirmar({
+      titulo: `Restaurar ${sponsor.name}?`,
+      descricao: "Ele volta ao cadastro e às listas de escolha (vincular, importar). Vínculos e aprovações antigos continuam como estavam.",
+      confirmar: "Restaurar",
+      cancelar: "Manter arquivado",
+      icone: RotateCcw,
+    });
+    if (ok) restaurar.mutate(sponsor);
+  };
+
+  if (!aberto && arquivados.length === 0) return dialogo;
+
+  return (
+    <>
+      {arquivados.length > 0 && (
+        <Botao variante="fantasma" tamanho={tamanho} icone={Archive} onClick={() => setAberto(true)} data-testid="button-patrocinadores-arquivados">
+          Arquivados ({arquivados.length})
+        </Botao>
+      )}
+      <ModalDeArquivados
+        aberto={aberto}
+        aoFechar={() => setAberto(false)}
+        titulo="Patrocinadores arquivados"
+        explicacao="Patrocinadores excluídos saem das listas de escolha, mas nada foi apagado: o nome continua nas peças e aprovações antigas. Restaurar devolve o patrocinador às listas."
+        linhas={arquivados.map((s) => ({ id: s.id, nome: s.name, detalhe: s.company ?? undefined, arquivadoEm: s.arquivadoEm, arquivadoPor: s.arquivadoPor }))}
+        carregando={isLoading}
+        erro={isError}
+        aoTentarDeNovo={() => { void refetch(); }}
+        aoRestaurar={(l) => { void pedirRestauracao(l); }}
+        restaurandoId={restaurar.isPending ? restaurar.variables?.id ?? null : null}
+        prefixo="patrocinadores-arquivados"
+      />
+      {dialogo}
+    </>
   );
 }
 
@@ -217,11 +288,12 @@ export default function Patrocinadores() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/sponsors"] });
+      queryClient.invalidateQueries({ queryKey: CHAVE_PATROCINADORES_ARQUIVADOS });
       const nome = deletingSponsor?.name;
       setDeletingSponsor(null);
-      toast({ variant: "success", title: "Patrocinador excluído", description: nome ? `${nome} saiu do cadastro.` : undefined });
+      toast({ variant: "success", title: "Patrocinador arquivado", description: `${nome ?? "O patrocinador"} saiu das listas. Nada foi apagado: dá para restaurar em Arquivados.` });
     },
-    onError: (e: Error) => toast({ variant: "destructive", title: "Não foi possível excluir o patrocinador", description: e.message }),
+    onError: (e: Error) => toast({ variant: "destructive", title: "Não foi possível arquivar o patrocinador", description: e.message }),
   });
 
   const openCreate = () => {
@@ -397,6 +469,7 @@ export default function Patrocinadores() {
               </button>
             );
           })()}
+          {isAdmin && <PatrocinadoresArquivados tamanho={ponteiroGrosso || isMobile ? "toque" : "md"} />}
           <Botao
             variante="primario"
             tamanho={ponteiroGrosso || isMobile ? "toque" : "md"}
@@ -1053,52 +1126,49 @@ export default function Patrocinadores() {
           {/* POR QUE congelar aqui: quem fecha este diálogo é
               `setDeletingSponsor(null)` dentro do onSuccess — e é o MESMO
               estado que abre o corpo (`{deletingSponsor && ...}`). Sem
-              congelar, o texto "Excluir Patrocinador X?" some no primeiro
+              congelar, o texto "Arquivar X?" some no primeiro
               frame do fade e o usuário vê uma caixa vazia sumindo. */}
           <FreezeWhileClosing open={!!deletingSponsor}>
-          <DialogTitle className="sr-only">Excluir patrocinador</DialogTitle>
-          <DialogDescription className="sr-only">Confirme a exclusão do patrocinador</DialogDescription>
+          <DialogTitle className="sr-only">Arquivar patrocinador</DialogTitle>
+          <DialogDescription className="sr-only">Confirme o arquivamento do patrocinador</DialogDescription>
           {deletingSponsor && (
           <div data-testid="dialog-confirm-delete" style={{ display: "flex", flexDirection: "column", flex: "1 1 auto", minHeight: 0 }}>
             {/* Confirmação da casa (variante `confirm`): a MESMA casca das
-                exclusões de Usuários e Modelos. A faixa vermelha "Ação
-                Irreversível" virou o subtítulo — o aviso continua, sem um
-                terceiro desenho de confirmação no app. */}
+                exclusões de Usuários e Modelos. Excluir ARQUIVA — o subtítulo
+                diz que tem volta, senão ninguém sabe que dá para restaurar. */}
             <ModalHeader
-              icon={Trash2}
+              icon={Archive}
               variant="confirm"
               tint={TOM.perigo.text}
-              title={`Excluir ${deletingSponsor.name}?`}
-              subtitle="Ação irreversível."
+              title={`Arquivar ${deletingSponsor.name}?`}
+              subtitle="Dá para restaurar em Arquivados."
               onClose={() => setDeletingSponsor(null)}
             />
             {/* Só o texto rola. Cabeçalho e botões são itens flex que não
                 rolam, então continuam à vista mesmo se o nome do patrocinador
                 esticar o parágrafo. */}
             <div style={{ padding: "16px 24px", overflowY: "auto", flex: "1 1 auto", minHeight: 0 }}>
-              {/* "EXCLUIR APAGA O QUÊ?" — por inteiro. O texto antigo falava só
-                  de "vínculos com eventos ativos", mas as FKs com ON DELETE
-                  CASCADE (shared/schema.ts: event_sponsors, item_sponsors,
-                  item_sponsor_approvals) levam também os vínculos com peças e
-                  as decisões registradas em nome dele, de QUALQUER evento. */}
+              {/* "ARQUIVAR MEXE NO QUÊ?" — por inteiro: o que sai de vista e o
+                  que fica. Nada é apagado (server/services/arquivamento.ts). */}
               <p style={{ fontSize: FS.body, color: T.strong, margin: 0, lineHeight: 1.6 }}>
-                <strong style={{ color: T.text }}>{deletingSponsor.name}</strong> sai do cadastro e leva junto, em todos os eventos:
+                <strong style={{ color: T.text }}>{deletingSponsor.name}</strong> sai do cadastro e das listas de escolha (vincular, importar). Nada é apagado:
               </p>
               <ul data-testid="delete-sponsor-o-que-some" style={{ margin: "8px 0 0", paddingLeft: 18, fontSize: FS.meta, lineHeight: 1.55, color: T.strong }}>
-                <li>os vínculos com eventos, com a cota de cada um;</li>
-                <li>os vínculos com peças;</li>
-                <li>as aprovações e reprovações registradas em nome dele.</li>
+                <li>sai do elenco dos eventos, mas o vínculo fica guardado;</li>
+                <li>o nome continua nas peças e nas aprovações antigas;</li>
+                <li>restaurar o devolve às listas e aos eventos, como estava.</li>
               </ul>
               <p style={{ margin: "8px 0 0", fontSize: FS.meta, lineHeight: 1.5, color: T.apoio }}>
-                Eventos e peças continuam. Se ele só saiu de um evento, desvincule-o no evento em vez de excluir.
+                Se ele só saiu de um evento, desvincule-o no evento em vez de arquivar.
               </p>
-              {/* O QUE SE PERDE, em número: a tabela já sabia (uso por evento),
-                  e a confirmação pedia a decisão sem mostrar o tamanho dela. */}
+              {/* O QUE SAI DE VISTA, em número: a tabela já sabia (uso por
+                  evento), e a confirmação pedia a decisão sem o tamanho dela.
+                  Âmbar, não vermelho: nada se perde. */}
               {(() => {
                 const u = usage[deletingSponsor.id];
                 const semUso = !u || u.events === 0;
                 return (
-                  <p data-testid="delete-sponsor-impacto" style={{ margin: "12px 0 0", padding: "9px 12px", borderRadius: R.sm, fontSize: FS.meta, fontWeight: FW.medio, lineHeight: 1.5, backgroundColor: semUso ? T.low : TOM.perigo.bg, color: semUso ? T.apoio : TOM.perigo.text, border: `1px solid ${semUso ? T.border : TOM.perigo.border}` }}>
+                  <p data-testid="delete-sponsor-impacto" style={{ margin: "12px 0 0", padding: "9px 12px", borderRadius: R.sm, fontSize: FS.meta, fontWeight: FW.medio, lineHeight: 1.5, backgroundColor: semUso ? T.low : TOM.alerta.bg, color: semUso ? T.apoio : TOM.alerta.text, border: `1px solid ${semUso ? T.border : TOM.alerta.border}` }}>
                     {semUso
                       ? "Nunca foi vinculado a um evento."
                       : `Vinculado a ${u.events} ${u.events === 1 ? "evento" : "eventos"}${u.items > 0 ? ` e ${u.items} ${u.items === 1 ? "peça" : "peças"}` : ""}.`}
@@ -1111,7 +1181,7 @@ export default function Patrocinadores() {
                 onClick={() => deleteMutation.mutate(deletingSponsor.id)}
                 carregando={deleteMutation.isPending}
                 style={{ minHeight: toque + 4, fontSize: FS.read }}>
-                {deleteMutation.isPending ? "Excluindo…" : "Sim, excluir"}
+                {deleteMutation.isPending ? "Arquivando…" : "Sim, arquivar"}
               </Botao>
               <Botao variante="fantasma" larguraCheia data-testid="button-cancel-delete" onClick={() => setDeletingSponsor(null)}
                 style={{ minHeight: toque }}>

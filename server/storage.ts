@@ -56,7 +56,7 @@ import {
 import fs from "fs";
 import path from "path";
 import { db } from "./db";
-import { eq, and, desc, asc, sql, or, lt, gte, ne, inArray, notInArray, like, ilike, isNull } from "drizzle-orm";
+import { eq, and, desc, asc, sql, or, lt, gte, ne, inArray, notInArray, like, ilike, isNull, isNotNull } from "drizzle-orm";
 import { reservaEstaAtiva } from "@shared/estoque";
 import { doEventoNaoArquivado, daPecaDeEventoNaoArquivado } from "./services/arquivamento";
 import { ehForaDoFunil } from "@shared/fluxo-peca";
@@ -365,6 +365,14 @@ export function cabeNaJanelaDeEntregues(
   return entregueEm(p) >= agoraMs - JANELA_DE_ENTREGUES_MS;
 }
 
+/**
+ * Linha da lista de eventos arquivados: o que o admin precisa para decidir se
+ * restaura — qual evento, quem arquivou, quando, e quantas peças voltam junto.
+ */
+export type EventoArquivado = Pick<Event, "id" | "name" | "startDate" | "arquivadoEm" | "arquivadoPor"> & {
+  totalPecas: number;
+};
+
 export interface IStorage {
   // Events
   /** Inclusive arquivado — quem precisa barrar escrita ou restaurar lê por aqui. */
@@ -376,6 +384,8 @@ export interface IStorage {
   // Não existe deleteEvent: excluir ARQUIVA (ver services/arquivamento.ts).
   arquivarEvento(id: string, por: string | null): Promise<Event | undefined>;
   restaurarEvento(id: string): Promise<Event | undefined>;
+  /** Só os arquivados, do mais recente ao mais antigo: a lista de onde se restaura. */
+  getEventosArquivados(): Promise<EventoArquivado[]>;
 
   // Items
   getItem(id: string): Promise<Item | undefined>;
@@ -486,6 +496,8 @@ export interface IStorage {
   // Não existe deleteSponsor: excluir ARQUIVA (ver services/arquivamento.ts).
   arquivarPatrocinador(id: string, por: string | null): Promise<Sponsor | undefined>;
   restaurarPatrocinador(id: string): Promise<Sponsor | undefined>;
+  /** Só os arquivados, do mais recente ao mais antigo: a lista de onde se restaura. */
+  getPatrocinadoresArquivados(): Promise<Sponsor[]>;
   
   // Event Sponsors (many-to-many relationship)
   getEventSponsors(eventId: string): Promise<EventSponsor[]>;
@@ -683,6 +695,22 @@ export class DatabaseStorage implements IStorage {
       .where(and(eq(events.id, id), sql`${events.arquivadoEm} IS NOT NULL`))
       .returning();
     return event || undefined;
+  }
+
+  async getEventosArquivados(): Promise<EventoArquivado[]> {
+    // A contagem ignora a lixeira de peças: são as que voltam às telas ao restaurar.
+    return await db
+      .select({
+        id: events.id,
+        name: events.name,
+        startDate: events.startDate,
+        arquivadoEm: events.arquivadoEm,
+        arquivadoPor: events.arquivadoPor,
+        totalPecas: sql<number>`(select count(*)::int from items i_cont where i_cont.event_id = ${events.id} and i_cont.deleted_at is null)`,
+      })
+      .from(events)
+      .where(isNotNull(events.arquivadoEm))
+      .orderBy(desc(events.arquivadoEm));
   }
 
   // Items
@@ -2037,6 +2065,10 @@ export class DatabaseStorage implements IStorage {
       .where(and(eq(sponsors.id, id), sql`${sponsors.arquivadoEm} IS NOT NULL`))
       .returning();
     return sponsor || undefined;
+  }
+
+  async getPatrocinadoresArquivados(): Promise<Sponsor[]> {
+    return await db.select().from(sponsors).where(isNotNull(sponsors.arquivadoEm)).orderBy(desc(sponsors.arquivadoEm));
   }
 
   // Event Sponsors

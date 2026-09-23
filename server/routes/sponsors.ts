@@ -195,6 +195,16 @@ export function registerSponsorRoutes(app: Express): void {
     }
   });
 
+  // Lista dos ARQUIVADOS, de onde o admin restaura (quem arquivou e quando vêm
+  // na própria linha). Antes de /api/sponsors/:id pelo mesmo motivo do "usage".
+  app.get("/api/sponsors/arquivados", requireAdmin, async (_req, res) => {
+    try {
+      res.json(await storage.getPatrocinadoresArquivados());
+    } catch (error: unknown) {
+      responderFalha(res, error, "GET /api/sponsors/arquivados");
+    }
+  });
+
   app.get("/api/sponsors/:id", requireAuth, async (req, res) => {
     try {
       const sponsor = await storage.getSponsor(req.params.id);

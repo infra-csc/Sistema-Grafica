@@ -15,14 +15,15 @@ import { PgDialect } from "drizzle-orm/pg-core";
 
 process.env.DATABASE_URL = "postgres://test:test@localhost:5432/banco_nunca_acessado";
 
-const H = vi.hoisted(() => ({ consultas: [] as Array<{ tipo: string; where: unknown; set?: any }> }));
+const H = vi.hoisted(() => ({ consultas: [] as Array<{ tipo: string; where: unknown; set?: any; campos?: any; ordem?: unknown[] }> }));
 
 vi.mock("../db", () => {
-  const select = () => {
-    const registro: { tipo: string; where: unknown } = { tipo: "select", where: null };
+  const select = (campos?: any) => {
+    const registro: { tipo: string; where: unknown; campos?: any; ordem?: unknown[] } = { tipo: "select", where: null, campos };
     H.consultas.push(registro);
     const q: any = {
-      from: () => q, leftJoin: () => q, innerJoin: () => q, orderBy: () => q, limit: () => q, groupBy: () => q,
+      from: () => q, leftJoin: () => q, innerJoin: () => q, limit: () => q, groupBy: () => q,
+      orderBy: (...o: unknown[]) => { registro.ordem = o; return q; },
       where: (w: unknown) => { registro.where = w; return q; },
       then: (ok: any, falha: any) => Promise.resolve([]).then(ok, falha),
     };
@@ -69,6 +70,18 @@ describe("eventos", () => {
     expect(ultima().set).toMatchObject({ arquivadoEm: null, arquivadoPor: null });
     expect(ultima().set.restauradoEm).toBeInstanceOf(Date);
     expect(sqlDe(ultima().where)).toContain('"arquivado_em" is not null');
+  });
+
+  it("a lista dos arquivados: só eles, do mais recente, com quem/quando e as peças vivas", async () => {
+    await storage.getEventosArquivados();
+    const c = ultima();
+    expect(sqlDe(c.where)).toContain('"arquivado_em" is not null');
+    expect(sqlDe(c.ordem?.[0])).toContain('"arquivado_em" desc');
+    expect(Object.keys(c.campos)).toEqual(["id", "name", "startDate", "arquivadoEm", "arquivadoPor", "totalPecas"]);
+    // A contagem é das peças que voltam ao restaurar: as da lixeira não entram.
+    const conta = sqlDe(c.campos.totalPecas);
+    expect(conta).toContain("count(*)");
+    expect(conta).toContain("i_cont.deleted_at is null");
   });
 
   it("não existe mais caminho de DELETE de evento nem de patrocinador", () => {
@@ -121,6 +134,12 @@ describe("patrocinadores", () => {
     expect(sqlDe(ultima().where)).toContain("sp_arq.arquivado_em is not null");
     await storage.getAllEventSponsors();
     expect(sqlDe(ultima().where)).toContain("sp_arq.arquivado_em is not null");
+  });
+
+  it("a lista dos arquivados traz só eles, do mais recente ao mais antigo", async () => {
+    await storage.getPatrocinadoresArquivados();
+    expect(sqlDe(ultima().where)).toContain('"arquivado_em" is not null');
+    expect(sqlDe(ultima().ordem?.[0])).toContain('"arquivado_em" desc');
   });
 
   it("arquivar/restaurar patrocinador é UPDATE, com quem arquivou", async () => {

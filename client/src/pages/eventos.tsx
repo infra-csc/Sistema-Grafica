@@ -44,6 +44,7 @@ import { PHASES, contarPorFaseDoEvento as contarPorFase, FORA_DO_FUNIL } from "@
 import { T, FS, R, SHADOW, N, TOM, FONT, FW } from "@/lib/theme";
 import { Botao } from "@/components/ui/botao";
 import { CabecalhoDaPagina } from "@/components/ui/cabecalho-da-pagina";
+import { EventosArquivados, CHAVE_EVENTOS_ARQUIVADOS } from "@/components/eventos/eventos-arquivados";
 import { EstadoVazio, EstadoErro, Esqueleto } from "@/components/ui/estados";
 import { ModalHeader, ModalFooter, modalSurface, HIDE_NATIVE_CLOSE, FreezeWhileClosing } from "@/components/modal-shell";
 import {
@@ -75,7 +76,7 @@ import { useAuth } from "@/contexts/auth-context";
 import { MARCOS_DO_EVENTO, OFFSET_PADRAO_DO_MARCO } from "@shared/prazo-dates";
 import { AJUDA_PRAZO_MOLDE, diaDoPrazoMolde } from "@shared/prazo-molde";
 import { alvo, useIsMobile, usePonteiroGrosso } from "@/hooks/use-mobile";
-import { Inbox } from "lucide-react";
+import { Inbox, Archive } from "lucide-react";
 import { idadeDoPedido, patrocinadoresDaLinha, quantidadeDoPedido, rotuloDaLinha, type PedidoDePeca } from "@shared/pedidos-de-peca";
 
 /** Selo de pedidos do Atendimento em aberto (dono, 14/09) — cartão e linha. */
@@ -1644,27 +1645,27 @@ export default function Eventos() {
 
   const deleteEventMutation = useMutation({
     mutationFn: async (id: string) => {
+      // O DELETE ARQUIVA (nada é apagado); o corpo diz quantas peças saíram
+      // de vista junto com o evento.
       const res = await apiRequest("DELETE", `/api/events/${id}`);
-      // apiRequest devolve Response crua; o corpo traz a dimensão real do que
-      // o cascade removeu.
       return await res.json() as { deletedItems?: number; deliveredItems?: number };
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/events"] });
+      queryClient.invalidateQueries({ queryKey: CHAVE_EVENTOS_ARQUIVADOS });
       setDeletingEventId(null);
       setDeleteConfirmText("");
-      const removed = data?.deletedItems ?? 0;
-      const delivered = data?.deliveredItems ?? 0;
+      const saiu = data?.deletedItems ?? 0;
       toast({
-        title: "Evento excluído",
-        description: removed > 0
-          ? `${removed} ${removed === 1 ? 'peça removida' : 'peças removidas'} em cascata${delivered > 0 ? ` (${delivered} já ${delivered === 1 ? 'entregue' : 'entregues'})` : ''}.`
-          : "Não havia peças ligadas a ele.",
+        title: "Evento arquivado",
+        description: saiu > 0
+          ? `${saiu} ${saiu === 1 ? 'peça saiu' : 'peças saíram'} das telas junto com ele. Nada foi apagado: dá para restaurar em Arquivados.`
+          : "Nada foi apagado: dá para restaurar em Arquivados.",
         variant: "success",
       });
     },
     onError: (error: Error) => {
-      toast({ title: "Não foi possível excluir o evento", description: error.message, variant: "destructive" });
+      toast({ title: "Não foi possível arquivar o evento", description: error.message, variant: "destructive" });
     },
   });
 
@@ -2432,7 +2433,10 @@ export default function Eventos() {
               ))}
             </span>
             }
-            acoes={canCreate ? (
+            acoes={canCreate || canDelete ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            {canDelete && <EventosArquivados />}
+            {canCreate && (
             <Botao
               variante="primario"
               icone={Plus}
@@ -2452,6 +2456,8 @@ export default function Eventos() {
             >
               Novo Evento
             </Botao>
+            )}
+            </div>
             ) : undefined}
           />
         </div>
@@ -3843,7 +3849,7 @@ export default function Eventos() {
               cheia): 32 de padding + título 24 + tarja de até 110 + o campo de
               confirmação por digitação (rótulo 20 + campo 40) + rodapé 86 =
               ~430px. Numa janela de 445 sobram 397, então CORTAVA ~16px em cima
-              e 16 embaixo ao mesmo tempo — sumiam o título e o botão Excluir
+              e 16 embaixo ao mesmo tempo — sumiam o título e o botão Arquivar
               juntos.
               O teto é `100vh − 48`: a viewport menos 24px de respiro em cima e
               24 embaixo, simétrico porque o Radix centra o Content com
@@ -3855,42 +3861,41 @@ export default function Eventos() {
           <AlertDialogContent style={{ maxWidth: "460px", backgroundColor: T.surface, borderRadius: R.xl, padding: "0", border: "none", boxShadow: SHADOW.lg, overflow: "hidden", maxHeight: "calc(100vh - 48px)", display: "flex", flexDirection: "column" }}>
           <div style={{ padding: "32px 32px 8px 32px", overflowY: "auto", flex: "1 1 auto", minHeight: 0 }}>
             <AlertDialogTitle style={{ fontFamily: FONT.display, fontSize: FS.title, fontWeight: "700", letterSpacing: "-0.02em", color: T.dark, margin: 0 }}>
-              Excluir evento
+              Arquivar evento
             </AlertDialogTitle>
 
-            {/* Confirmação PROPORCIONAL ao dano. "Todas as peças associadas"
-                não fazia ninguém parar; "e 128 peças, 96 já entregues" faz. O
-                cascade do banco leva junto fotos de entrega, comentários,
-                aprovações de patrocinador e os vínculos do acervo. */}
+            {/* Confirmação PROPORCIONAL ao que sai de vista: "e 128 peças, 96
+                já entregues" faz parar. Excluir ARQUIVA — nada é apagado, e a
+                frase diz isso, senão ninguém sabe que dá para voltar. */}
             <div style={{ marginTop: "20px", padding: "16px", backgroundColor: TOM.laranja.bg, borderLeft: `4px solid ${T.accent}`, borderRadius: `0 ${R.md}px ${R.md}px 0`, display: "flex", alignItems: "flex-start", gap: "12px" }}>
               <AlertTriangle style={{ width: "18px", height: "18px", color: T.accent, flexShrink: 0, marginTop: "1px" }} />
               <p style={{ fontSize: FS.body, fontWeight: "600", color: T.accentText, margin: 0, lineHeight: 1.6 }}>
                 {deletingStats && deletingStats.itemCount > 0 ? (
                   <>
-                    Isto remove permanentemente{" "}
+                    O evento some de todas as telas junto com{" "}
                     <strong>{deletingStats.itemCount} {deletingStats.itemCount === 1 ? 'peça' : 'peças'}</strong>
                     {deletingStats.deliveredCount > 0 ? ` (${deletingStats.deliveredCount} já ${deletingStats.deliveredCount === 1 ? 'entregue' : 'entregues'})` : ''}
                     {deletingStats.inProductionCount > 0 ? `, ${deletingStats.inProductionCount} em produção` : ''}
-                    , além das fotos de entrega, comentários e aprovações de patrocinador. Peças do acervo geradas aqui ficam sem origem.
+                    . Nada é apagado: fotos, comentários e aprovações ficam guardados.
                   </>
                 ) : (
-                  <>Este evento não tem peças. Vínculos de patrocinador, regras de cota e notificações também serão removidos.</>
+                  <>O evento some de todas as telas. Nada é apagado: patrocinadores e cotas ficam guardados.</>
                 )}
               </p>
             </div>
 
             <AlertDialogDescription style={{ fontSize: FS.strong, color: T.second, lineHeight: 1.6, marginTop: "16px" }}>
-              Tem certeza que deseja excluir o evento{" "}
+              Arquivar{" "}
               <strong style={{ color: T.text, fontWeight: "600" }}>
                 "{deletingEvent?.name || "este evento"}"
               </strong>
-              ? Esta ação não pode ser desfeita.
+              ? Um administrador pode restaurá-lo em Arquivados, com tudo como estava.
             </AlertDialogDescription>
 
             {deleteNeedsTyping && (
               <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 6 }}>
                 <label htmlFor="delete-confirm" style={{ fontSize: FS.small, fontWeight: 700, color: T.apoio }}>
-                  Há trabalho entregue ou em produção. Digite <strong style={{ color: T.text }}>{deletingEvent?.name}</strong> para liberar a exclusão:
+                  Há trabalho entregue ou em produção. Digite <strong style={{ color: T.text }}>{deletingEvent?.name}</strong> para liberar o arquivamento:
                 </label>
                 <input
                   id="delete-confirm"
@@ -3918,7 +3923,7 @@ export default function Eventos() {
             </Botao>
             <Botao
               variante="perigo"
-              icone={Trash2}
+              icone={Archive}
               tamanho={isMobile ? 'toque' : 'md'}
               carregando={deleteEventMutation.isPending}
               disabled={!deleteConfirmed}
@@ -3930,7 +3935,7 @@ export default function Eventos() {
               }}
               data-testid="button-confirm-delete-event"
             >
-              {deleteEventMutation.isPending ? "Excluindo..." : "Excluir"}
+              {deleteEventMutation.isPending ? "Arquivando..." : "Arquivar"}
             </Botao>
           </AlertDialogFooter>
         </AlertDialogContent>

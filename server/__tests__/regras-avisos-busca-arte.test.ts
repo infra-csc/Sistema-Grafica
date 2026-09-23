@@ -162,9 +162,10 @@ describe("GET /api/artes/busca — o recorte é do banco", () => {
     expect(sql).toContain("translate(lower(coalesce(");
     expect(sql).toMatch(/\) like \$\d+/);
     expect(params).toContain("%portico%");
-    // O termo passa pela régua de normalizarTexto: pontuação vira separador,
-    // então o % digitado nunca chega ao LIKE como curinga.
-    expect(params).toContain("%100%");
+    // O % digitado é LITERAL: chega ao LIKE escapado (\%), nunca como curinga
+    // — "100%" acha "100%", não "100" nem tudo (defeito corrigido em 23/09).
+    expect(params).toContain("%100\\%%");
+    expect(params).not.toContain("%100%");
     expect(H.consultas.filter((c) => c.limite === 600)).toHaveLength(1);
     // O refino em memória segue a mesma régua (todas as palavras).
     expect(r.body.artes).toEqual([]);

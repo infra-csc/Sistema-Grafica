@@ -142,7 +142,8 @@ export function ListaDaFila({ fila, ctx, depsDaLinha, usaCards, colunas, tabelaR
                    rolar para a direita e voltar a cada peça triplica o custo e
                    ainda perde a linha no caminho. */
                 <th key={col || "acoes"} scope="col" style={{
-                  padding: "10px 16px", textAlign: col === "" || direita ? "right" : "left",
+                  // Compacta: o mesmo respiro de 10px das células.
+                  padding: ctx.compacto ? "10px 10px" : "10px 16px", textAlign: col === "" || direita ? "right" : "left",
                   fontSize: FS.small, fontWeight: FW.forte, color: T.apoio,
                   whiteSpace: "nowrap",
                   ...(col === "" ? { position: "sticky" as const, right: 0, zIndex: 2, backgroundColor: T.bg } : {}),

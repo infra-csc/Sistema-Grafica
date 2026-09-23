@@ -358,7 +358,8 @@ export default function Grafica() {
 
       {abaDaTela === "fila" && (
       <div id="painel-fila" role="tabpanel" aria-label="Fila" style={{ display: "contents" }}>
-        <CartoesDeEtapa stats={fila.stats} filtros={filtros} patchFiltros={fila.patchFiltros} isMobile={isMobile} isLoading={isLoading} />
+        <CartoesDeEtapa stats={fila.stats} filtros={filtros} patchFiltros={fila.patchFiltros} isMobile={isMobile} isLoading={isLoading}
+          larguraConteudo={larguraRaiz === 0 ? 0 : larguraConteudo} />
 
         <BarraDeFiltros fila={fila} isMobile={isMobile} usaCards={usaCards} ponteiroGrosso={ponteiroGrosso}
           showAdvancedFilters={showAdvancedFilters} setShowAdvancedFilters={setShowAdvancedFilters}

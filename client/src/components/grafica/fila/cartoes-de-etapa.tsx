@@ -64,6 +64,10 @@ export function CartaoDeEtapaCelular({ rotulo, valor, carregando, ativo, onClick
   );
 }
 
+/** Oito cartões numa linha só a partir desta largura por cartão (a do CartaoKpi legível). */
+const LARGURA_MINIMA_DO_CARTAO = 150;
+const COLUNAS_NUMA_LINHA = 8;
+
 /** Os números de cada etapa no recorte atual (ver `stats` em useFilaDaGrafica). */
 export type ContagemPorEtapa = {
   revisao: number; liberados: number; emProducao: number; produzidos: number;
@@ -79,15 +83,22 @@ export type ContagemPorEtapa = {
  * CartaoKpi é 10px em caixa-alta, e o galpão não lê nada abaixo de 12px.
  * Os números seguem a lista (regra do dono) — ver `stats`.
  */
-export function CartoesDeEtapa({ stats, filtros, patchFiltros, isMobile, isLoading }: {
+export function CartoesDeEtapa({ stats, filtros, patchFiltros, isMobile, isLoading, larguraConteudo }: {
   stats: ContagemPorEtapa;
   filtros: GraficaFiltros;
   patchFiltros: (p: Partial<GraficaFiltros>) => void;
   isMobile: boolean;
   isLoading: boolean;
+  /** Largura útil da tela (0 enquanto não mediu) — decide 8 ou 4 colunas. */
+  larguraConteudo: number;
 }) {
+  // SEM ÓRFÃOS: são 8 cartões (7 etapas + Total). O `auto-fit` de 150px dava
+  // 6 colunas no notebook e deixava "Entregues" e "Total" sozinhos numa
+  // segunda linha. Agora é 8 numa linha quando cabem, ou 4 × 2 — as duas
+  // contas fecham. No celular são 3 colunas com o Total ocupando 2.
+  const colunas = larguraConteudo >= COLUNAS_NUMA_LINHA * LARGURA_MINIMA_DO_CARTAO + (COLUNAS_NUMA_LINHA - 1) * 12 ? COLUNAS_NUMA_LINHA : 4;
   return (
-    <div role="group" aria-label="Filtrar a fila por etapa" style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(3, 1fr)" : "repeat(auto-fit, minmax(150px, 1fr))", gap: isMobile ? 8 : 12 }}>
+    <div role="group" aria-label="Filtrar a fila por etapa" data-testid="grade-etapas" style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(3, 1fr)" : `repeat(${colunas}, minmax(0, 1fr))`, gap: isMobile ? 8 : 12 }}>
       {[
         // O KPI Liberados agrega dois status; ele seleciona os DOIS valores
         // no filtro (o filtro em si é estrito — ver matchesFilters).

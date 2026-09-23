@@ -50,7 +50,8 @@ export function AcoesDaLinha({ ctx, item, selo, emRevisao, isSelected, bulkEligi
   return (
     <td
       style={{
-        padding: "13px 16px", textAlign: "right",
+        // Compacta: 10px de respiro (ver padCelula na linha).
+        padding: compacto ? "13px 10px" : "13px 16px", textAlign: "right",
         // zIndex 3 com o menu aberto: a célula sticky da linha
         // de baixo (z 1, depois no DOM) pintaria por cima dele.
         position: "sticky", right: 0, zIndex: idMenuAberto === item.id ? 3 : 1,
@@ -477,7 +478,10 @@ export function AcoesDaLinha({ ctx, item, selo, emRevisao, isSelected, bulkEligi
             {ehAvulsa(item) ? "Entregar" : "Entregar tubo"}
           </Botao>
         )}
-        {/* Embalado: tirar do tubo devolve a Conferido (21/09) — secundária. */}
+        {/* Embalado: tirar do tubo devolve a Conferido — secundária. Na
+            COMPACTA vira só o ícone (o rótulo vai no aria-label e no title):
+            ao lado de "Entregar tubo" os dois rótulos passavam de 250px e
+            empurravam a tabela para os cartões no notebook. */}
         {!bulkOn && podeConferir && !soVisualizaKit(item) && temVolumeAberto(item) && (
           <Botao
             tamanho={tamLinha}
@@ -485,9 +489,11 @@ export function AcoesDaLinha({ ctx, item, selo, emRevisao, isSelected, bulkEligi
             onClick={() => tirarDoTuboMutation.mutate({ itemId: item.id, tuboId: item.tuboId, displayId: item.displayId })}
             carregando={tirarDoTuboMutation.isPending && tirarDoTuboMutation.variables?.itemId === item.id}
             data-testid={`button-tirar-do-tubo-${item.id}`}
+            aria-label={compacto ? `${ehAvulsa(item) ? "Desfazer embalagem" : "Tirar do tubo"}: ${item.displayId}` : undefined}
             title="Tira a peça do tubo — ela volta a Conferido"
+            style={compacto ? { width: alvoDeToque(32, ponteiroGrosso), padding: 0, flexShrink: 0 } : undefined}
           >
-            {ehAvulsa(item) ? "Desfazer embalagem" : "Tirar do tubo"}
+            {!compacto && (ehAvulsa(item) ? "Desfazer embalagem" : "Tirar do tubo")}
           </Botao>
         )}
 

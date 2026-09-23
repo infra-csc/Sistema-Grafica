@@ -74,6 +74,10 @@ export function LinhaDaTabela({ ctx, item, prev, showEvHeader, showTypeHeader, c
   // Evento finalizado: selo na linha e botões barrados
   // desabilitados (ver `seloDoItem` em useFilaDaGrafica).
   const selo = seloDoItem(item);
+  // NOTEBOOK COM A BARRA LATERAL (1.366 − 16rem ≈ 1.010px de conteúdo): na
+  // compacta cada célula respira 10px, não 16 — seis colunas × 12px é a folga
+  // que faltava para a tabela caber em vez de descer para os cartões.
+  const padCelula = compacto ? "13px 10px" : "13px 16px";
 
   return (
     <Fragment>
@@ -186,7 +190,7 @@ export function LinhaDaTabela({ ctx, item, prev, showEvHeader, showTypeHeader, c
             forma confiável. Ela some quando o lote é entregue; o
             conector em L (o traço que amarra o filho à mãe logo
             acima) fica para sempre. */}
-        <td style={{ padding: "13px 16px", boxShadow: isNovo ? `inset 4px 0 0 ${CO.stripe}` : coAberto ? `inset 3px 0 0 ${CO.stripe}` : undefined }}>
+        <td style={{ padding: padCelula, boxShadow: isNovo ? `inset 4px 0 0 ${CO.stripe}` : coAberto ? `inset 3px 0 0 ${CO.stripe}` : undefined }}>
           {ehComplemento && (
             <span aria-hidden="true" style={{ display: "inline-block", width: 10, height: 8, marginRight: 6, marginBottom: 2, borderLeft: `1px solid ${CO.connector}`, borderBottom: `1px solid ${CO.connector}`, borderBottomLeftRadius: 3, verticalAlign: "middle" }} />
           )}
@@ -226,7 +230,7 @@ export function LinhaDaTabela({ ctx, item, prev, showEvHeader, showTypeHeader, c
             era esta coluna que empurrava a tabela para fora da
             caixa com a barra lateral aberta. Numa div o teto vale
             e limita também a largura mínima que ela pede. */}
-        <td style={{ padding: "13px 16px" }}>
+        <td style={{ padding: padCelula }}>
           <div data-testid={`celula-peca-${item.id}`} style={{ display: "flex", alignItems: "flex-start", gap: 10, maxWidth: compacto ? 260 : 320, minWidth: 160 }}>
             {item.approvalThumbUrl && (
               <a
@@ -380,7 +384,7 @@ export function LinhaDaTabela({ ctx, item, prev, showEvHeader, showTypeHeader, c
             botão é persistente em 100% das linhas elegíveis.
             Padding 12px em vez de 16 para o botão caber; número à
             DIREITA com algarismos tabulares (coluna numérica). */}
-        <td style={{ padding: "13px 12px", textAlign: "right", whiteSpace: "nowrap", fontSize: 14, fontWeight: 700, color: T.text, fontVariantNumeric: "tabular-nums" }}>
+        <td style={{ padding: compacto ? "13px 8px" : "13px 12px", textAlign: "right", whiteSpace: "nowrap", fontSize: 14, fontWeight: 700, color: T.text, fontVariantNumeric: "tabular-nums" }}>
           <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end" }}>
             <div>{item.quantity}</div>
             {/* PRODUZIDAS e REAPROVEITADAS — eram duas colunas
@@ -438,7 +442,7 @@ export function LinhaDaTabela({ ctx, item, prev, showEvHeader, showTypeHeader, c
             existisse — peça só com medida de arquivo mostrava
             "—" na tela de produção. Cada par agora se mostra
             por si. */}
-        <td style={{ padding: "13px 16px" }}>
+        <td style={{ padding: padCelula }}>
           {(item.fileWidth && item.fileHeight) || (item.visualWidth && item.visualHeight) ? (
             <div>
               {item.fileWidth && item.fileHeight && (
@@ -484,8 +488,10 @@ export function LinhaDaTabela({ ctx, item, prev, showEvHeader, showTypeHeader, c
             saber há quanto tempo ela estava parada ali. */}
         {/* nowrap na célula: a pílula nunca quebra ao meio e a
             coluna reserva a largura dela inteira. "há Nd" já é
-            uma linha própria (div) logo abaixo. */}
-        <td style={{ padding: "13px 16px", whiteSpace: "nowrap" }}>
+            uma linha própria (div) logo abaixo. Na COMPACTA a célula
+            quebra linha (o selo da fila, o Travar e o progresso descem
+            um embaixo do outro) — é a coluna que mais pedia largura. */}
+        <td data-testid={`celula-status-${item.id}`} style={{ padding: padCelula, whiteSpace: compacto ? "normal" : "nowrap" }}>
           <StatusPill status={statusDeExibicao(item)} size="sm" showDot={false} />
           {(() => {
             const d = diasNaFase(item, new Date());

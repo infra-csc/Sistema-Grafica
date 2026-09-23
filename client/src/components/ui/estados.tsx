@@ -2,9 +2,13 @@
 // <EstadoVazio>, <EstadoErro>, <Esqueleto> — as três telas que não são a tela.
 //
 // API
-//   <EstadoVazio icone={Inbox} titulo="Nenhum modelo" descricao="…" acao={<Botao…/>} />
+//   <EstadoVazio icone={Inbox} titulo="Nenhum modelo" descricao="…" acao={<Botao…/>}
+//                tom="sucesso"            // "tudo em dia": o ícone fala verde
+//                testId="empty-modelos" />
 //   <EstadoErro titulo="Não deu para carregar os modelos" detalhe={String(erro)}
-//               aoTentarDeNovo={() => refetch()} />
+//               aoTentarDeNovo={() => refetch()} carregando={isFetching}
+//               tamanhoDoBotao="toque" rotuloDoBotao="Tentar de novo"
+//               testId="modelos-erro" testIdDoBotao="button-retry-modelos" />
 //   <Esqueleto variante="lista" | "cartoes" | "tabela" linhas={6} />
 //
 // VAZIO E ERRO SÃO COISAS DIFERENTES e o app os tratava igual: uma caixa cinza
@@ -24,8 +28,8 @@
 import * as React from "react";
 import { AlertTriangle, Inbox, RotateCw } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import { T, FS, R, FW, FONT, TOM } from "@/lib/theme";
-import { Botao } from "@/components/ui/botao";
+import { T, FS, R, FW, FONT, TOM, type NomeDeTom } from "@/lib/theme";
+import { Botao, type TamanhoBotao } from "@/components/ui/botao";
 
 export interface EstadoVazioProps {
   icone?: LucideIcon;
@@ -34,12 +38,20 @@ export interface EstadoVazioProps {
   /** O próximo passo — um <Botao>, quando existe um. */
   acao?: React.ReactNode;
   compacto?: boolean;
+  /**
+   * Tom do ÍCONE. Vazio nem sempre é neutro: "nada pendente" é notícia boa, e
+   * as telas pintavam o CheckCircle de verde à mão. Usa o `text` do tom
+   * (≥ 4,5:1 sobre branco — ícone grande só precisaria de 3:1).
+   */
+  tom?: NomeDeTom;
+  /** `data-testid` da caixa (pd. "estado-vazio"). */
+  testId?: string;
 }
 
-export function EstadoVazio({ icone: Icone = Inbox, titulo, descricao, acao, compacto = false }: EstadoVazioProps) {
+export function EstadoVazio({ icone: Icone = Inbox, titulo, descricao, acao, compacto = false, tom, testId = "estado-vazio" }: EstadoVazioProps) {
   return (
     <div
-      data-testid="estado-vazio"
+      data-testid={testId}
       style={{
         display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
         gap: 8, textAlign: "center",
@@ -51,7 +63,7 @@ export function EstadoVazio({ icone: Icone = Inbox, titulo, descricao, acao, com
     >
       {/* bdark (#d6d3d1) e não muted: o ícone é decoração de 40px, e neste
           tamanho o tom mais claro sumia no fundo branco. */}
-      <Icone aria-hidden="true" style={{ width: compacto ? 26 : 34, height: compacto ? 26 : 34, color: T.bdark }} />
+      <Icone aria-hidden="true" style={{ width: compacto ? 26 : 34, height: compacto ? 26 : 34, color: tom ? TOM[tom].text : T.bdark }} />
       <p style={{ margin: 0, fontFamily: FONT.display, fontSize: FS.strong, fontWeight: FW.forte, color: T.text }}>
         {titulo}
       </p>
@@ -72,6 +84,19 @@ export interface EstadoErroProps {
   detalhe?: React.ReactNode;
   aoTentarDeNovo?: () => void;
   compacto?: boolean;
+  /**
+   * A nova tentativa em curso. O botão vira spinner e trava: sem isto, a
+   * pessoa clicava de novo porque nada acontecia, e as telas escondiam o
+   * botão durante o refetch — o que parecia que ele tinha sumido.
+   */
+  carregando?: boolean;
+  /** Tamanho do botão (pd. md). "toque" no celular/galpão. */
+  tamanhoDoBotao?: TamanhoBotao;
+  rotuloDoBotao?: string;
+  /** `data-testid` da caixa (pd. "estado-erro"). */
+  testId?: string;
+  /** `data-testid` do botão (pd. "botao-tentar-de-novo"). */
+  testIdDoBotao?: string;
 }
 
 export function EstadoErro({
@@ -79,13 +104,18 @@ export function EstadoErro({
   detalhe,
   aoTentarDeNovo,
   compacto = false,
+  carregando = false,
+  tamanhoDoBotao = "md",
+  rotuloDoBotao = "Tentar de novo",
+  testId = "estado-erro",
+  testIdDoBotao = "botao-tentar-de-novo",
 }: EstadoErroProps) {
   return (
     <div
       // role="alert": a falha chega depois do render, e sem isto o leitor de
       // tela não anuncia que a lista virou erro.
       role="alert"
-      data-testid="estado-erro"
+      data-testid={testId}
       style={{
         display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
         gap: 8, textAlign: "center",
@@ -106,8 +136,15 @@ export function EstadoErro({
       )}
       {aoTentarDeNovo && (
         <div style={{ marginTop: 6 }}>
-          <Botao variante="secundario" icone={RotateCw} onClick={aoTentarDeNovo} data-testid="botao-tentar-de-novo">
-            Tentar de novo
+          <Botao
+            variante="secundario"
+            tamanho={tamanhoDoBotao}
+            icone={RotateCw}
+            carregando={carregando}
+            onClick={aoTentarDeNovo}
+            data-testid={testIdDoBotao}
+          >
+            {rotuloDoBotao}
           </Botao>
         </div>
       )}

@@ -17,7 +17,7 @@
 import { useRef } from "react";
 import type { LucideIcon } from "lucide-react";
 import { X } from "lucide-react";
-import { T, N, R, TOM, SHADOW } from "@/lib/theme";
+import { T, N, R, TOM, SHADOW, ESCURO } from "@/lib/theme";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // FreezeWhileClosing — o miolo do modal para de renderizar assim que ele começa
@@ -141,7 +141,7 @@ export function modalSurface(maxWidth: number): React.CSSProperties {
     padding: 0,
     borderRadius: MODAL_RADIUS,
     border: "none",
-    backgroundColor: "#fff",
+    backgroundColor: T.surface,
     boxShadow: MODAL_SHADOW,
     overflow: "hidden",
   };
@@ -157,6 +157,13 @@ interface ModalHeaderProps {
   onClose?: () => void;
   /** Conteúdo extra à direita (contadores, ações). */
   trailing?: React.ReactNode;
+  /**
+   * Selo ao lado do título ("Rascunho", "3 de 12"). No cabeçalho escuro, use
+   * <Selo cores={CORES_SOBRE_ESCURO}> — o selo claro comum grita ali.
+   */
+  selo?: React.ReactNode;
+  /** `data-testid` do X (pd. nenhum). Antes a tela refazia o X no trailing. */
+  testIdDoFechar?: string;
 }
 
 export function ModalHeader({
@@ -169,25 +176,39 @@ export function ModalHeader({
   tint = TOM.roxo.text,
   onClose,
   trailing,
+  selo,
+  testIdDoFechar,
 }: ModalHeaderProps) {
   const dark = variant === "work";
+  const titulo = (
+    <h2
+      style={{
+        margin: 0, lineHeight: 1.25,
+        fontSize: dark ? 20 : 15,
+        fontWeight: 800,
+        letterSpacing: "-0.03em",
+        color: dark ? T.surface : T.text,
+      }}
+    >
+      {title}
+    </h2>
+  );
 
   return (
     <div
+      // ds-sobre-escuro: o anel de foco dos controles aqui dentro troca para o
+      // laranja claro — o profundo cai para 4:1 sobre o gradiente.
+      className={dark ? "ds-sobre-escuro" : undefined}
       style={{
         // `flexShrink: 0`: com o teto de altura no `modalSurface`, o Content é
         // uma coluna flex — e sem isto o cabeçalho seria espremido junto com o
         // corpo numa janela baixa, em vez de o corpo rolar.
         display: "flex", alignItems: "center", gap: 14, flexShrink: 0,
         padding: dark ? "22px 28px" : "22px 24px 16px",
-        // O gradiente do cabeçalho escuro parte do texto principal (n10). O
-        // segundo ponto é a única cor deste arquivo fora da escada: ele existe
-        // só para o fundo não ser chapado, e virar degrau nomeado criaria um
-        // token que nada mais consome.
-        background: dark
-          ? `linear-gradient(135deg, ${T.text} 0%, #2d2926 100%)`
-          : T.surface,
-        borderBottom: dark ? "1px solid rgba(255,255,255,0.06)" : `1px solid ${T.border}`,
+        // O gradiente do cabeçalho escuro é o token ESCURO (n10 → #2d2926): o
+        // mesmo fundo da barra de lote e do Exportar PDF, que cravavam o hex.
+        background: dark ? ESCURO.gradiente : T.surface,
+        borderBottom: dark ? `1px solid ${ESCURO.divisor}` : `1px solid ${T.border}`,
       }}
     >
       {Icon && (
@@ -197,7 +218,7 @@ export function ModalHeader({
             borderRadius: R.md, flexShrink: 0,
             backgroundColor: dark ? tint : `${tint}14`,
             display: "flex", alignItems: "center", justifyContent: "center",
-            boxShadow: dark ? "0 0 0 1px rgba(255,255,255,0.12) inset" : "none",
+            boxShadow: dark ? `0 0 0 1px ${ESCURO.borda} inset` : "none",
           }}
         >
           <Icon aria-hidden="true" style={{ width: dark ? 18 : 16, height: dark ? 18 : 16, color: dark ? "#fff" : tint }} />
@@ -205,17 +226,14 @@ export function ModalHeader({
       )}
 
       <div style={{ flex: 1, minWidth: 0 }}>
-        <h2
-          style={{
-            margin: 0, lineHeight: 1.25,
-            fontSize: dark ? 20 : 15,
-            fontWeight: 800,
-            letterSpacing: "-0.03em",
-            color: dark ? T.surface : T.text,
-          }}
-        >
-          {title}
-        </h2>
+        {selo ? (
+          // Com selo, título e selo dividem a linha (e quebram juntos no
+          // celular). Sem selo, o <h2> fica como sempre foi.
+          <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: "4px 10px" }}>
+            {titulo}
+            {selo}
+          </div>
+        ) : titulo}
         {subtitle && (
           <p
             style={{
@@ -240,19 +258,20 @@ export function ModalHeader({
           onClick={onClose}
           aria-label="Fechar"
           title="Fechar (Esc)"
+          data-testid={testIdDoFechar}
           // .modal-fechar (index.css): 44px de alvo em tela de toque; no mouse
-          // continua o círculo discreto de 34/40.
-          className="modal-fechar"
-          onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = dark ? "rgba(255,255,255,0.16)" : T.border; }}
-          onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = dark ? "rgba(255,255,255,0.08)" : N.n2; }}
+          // continua o círculo discreto de 34/40. O HOVER também mora lá: as
+          // duas cores chegam por var, e o estado é CSS — era onMouseEnter
+          // trocando style.backgroundColor, que não cobre o foco por teclado.
+          className={dark ? "modal-fechar modal-fechar-escuro" : "modal-fechar"}
           style={{
-            transition: "background-color 0.12s ease",
+            ["--fechar-fundo" as string]: dark ? ESCURO.realce : N.n2,
+            ["--fechar-fundo-hover" as string]: dark ? ESCURO.realceForte : T.border,
             width: dark ? 40 : 34, height: dark ? 40 : 34, borderRadius: R.pill, flexShrink: 0,
             display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer",
-            backgroundColor: dark ? "rgba(255,255,255,0.08)" : N.n2,
-            border: dark ? "1px solid rgba(255,255,255,0.12)" : `1px solid ${T.border}`,
+            border: dark ? `1px solid ${ESCURO.borda}` : `1px solid ${T.border}`,
             color: dark ? "rgba(255,255,255,0.7)" : T.apoio,
-          }}
+          } as React.CSSProperties}
         >
           <X aria-hidden="true" style={{ width: 16, height: 16 }} />
         </button>
@@ -262,16 +281,30 @@ export function ModalHeader({
 }
 
 /** Rodapé de modal: ação primária cheia, secundária discreta abaixo. */
-export function ModalFooter({ children }: { children: React.ReactNode }) {
+export function ModalFooter({
+  children, fundo = T.surface, style, "data-testid": testId,
+}: {
+  children: React.ReactNode;
+  /**
+   * Fundo do rodapé (pd. T.surface). Os modais longos usam T.bg/T.low para o
+   * rodapé se destacar do corpo que rola — antes refaziam o rodapé inteiro.
+   */
+  fundo?: string;
+  /** Por cima do padrão: direção (linha), alinhamento, padding. */
+  style?: React.CSSProperties;
+  "data-testid"?: string;
+}) {
   return (
     <div
+      data-testid={testId}
       style={{
         // `flexShrink: 0` pelo mesmo motivo do cabeçalho: o rodapé carrega a
         // ação primária e não pode encolher nem rolar para fora da tela.
         display: "flex", flexDirection: "column", gap: 8, flexShrink: 0,
         padding: "16px 24px",
         borderTop: `1px solid ${T.border}`,
-        backgroundColor: "#fff",
+        backgroundColor: fundo,
+        ...style,
       }}
     >
       {children}

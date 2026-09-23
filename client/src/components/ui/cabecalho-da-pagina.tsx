@@ -7,7 +7,9 @@
 //     subtitulo="12 modelos, 3 com peças pendentes"   // o ESTADO, não a repetição do título
 //     frescor={<CarimboDeFrescor />}                   // opcional, ReactNode
 //     acoes={<Botao variante="primario">Novo</Botao>}  // opcional
-//     icone={Layers}                                   // opcional
+//     icone={Layers} corDoIcone={T.accentText}         // opcional
+//     testId="title-modelos"                           // data-testid do <h1>
+//     semMargem | margemInferior={8}                   // pd. 20px abaixo
 //   />
 //
 // POR QUE ELE EXISTE. Cada tela montava o próprio topo: título em 20, 22, 24 e
@@ -36,16 +38,29 @@ export interface CabecalhoDaPaginaProps {
   icone?: LucideIcon;
   /** id do <h1>, para o `aria-labelledby` de quem envolve a tela. */
   id?: string;
+  /**
+   * `data-testid` do <h1>. As telas tinham testes presos a
+   * `title-<tela>` e envolviam o cabeçalho numa <div> só para carregá-lo.
+   */
+  testId?: string;
+  /** Tira a margem de baixo — quando o que vem embaixo já dá o respiro. */
+  semMargem?: boolean;
+  /** Margem de baixo em px (pd. 20). `semMargem` vence. */
+  margemInferior?: number;
+  /** Cor do ícone (pd. T.apoio). Decorativo: não precisa de 4,5:1. */
+  corDoIcone?: string;
 }
 
-export function CabecalhoDaPagina({ titulo, subtitulo, frescor, acoes, icone: Icone, id }: CabecalhoDaPaginaProps) {
+export function CabecalhoDaPagina({
+  titulo, subtitulo, frescor, acoes, icone: Icone, id, testId, semMargem = false, margemInferior = 20, corDoIcone,
+}: CabecalhoDaPaginaProps) {
   return (
     <header
       data-testid="cabecalho-da-pagina"
       style={{
         display: "flex", flexWrap: "wrap", alignItems: "flex-start",
         justifyContent: "space-between", gap: 12,
-        marginBottom: 20,
+        marginBottom: semMargem ? 0 : margemInferior,
       }}
     >
       <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0, flex: "1 1 260px" }}>
@@ -55,7 +70,7 @@ export function CabecalhoDaPagina({ titulo, subtitulo, frescor, acoes, icone: Ic
             style={{
               width: 38, height: 38, borderRadius: R.lg, flexShrink: 0,
               display: "flex", alignItems: "center", justifyContent: "center",
-              backgroundColor: T.low, border: `1px solid ${T.border}`, color: T.apoio,
+              backgroundColor: T.low, border: `1px solid ${T.border}`, color: corDoIcone ?? T.apoio,
             }}
           >
             <Icone style={{ width: 18, height: 18 }} />
@@ -64,6 +79,7 @@ export function CabecalhoDaPagina({ titulo, subtitulo, frescor, acoes, icone: Ic
         <div style={{ minWidth: 0 }}>
           <h1
             id={id}
+            data-testid={testId}
             style={{
               margin: 0, fontFamily: FONT.display, fontSize: FS.h1, fontWeight: FW.rotulo,
               letterSpacing: "-0.03em", lineHeight: 1.15, color: T.text,

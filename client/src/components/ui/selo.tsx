@@ -26,7 +26,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import * as React from "react";
 import type { LucideIcon } from "lucide-react";
-import { FS, R, FW, TOM, type NomeDeTom } from "@/lib/theme";
+import { FS, R, FW, TOM, ESCURO, type NomeDeTom } from "@/lib/theme";
 
 export type TomDoSelo = NomeDeTom;
 
@@ -49,6 +49,18 @@ export interface SeloProps extends Omit<React.HTMLAttributes<HTMLSpanElement>, "
 export function coresDoTom(tom: TomDoSelo): CoresDoSelo {
   return TOM[tom];
 }
+
+/**
+ * Selo sobre SUPERFÍCIE ESCURA (cabeçalho de modal `work`, barra de lote).
+ * Translúcido com o texto claro do token: #fafaf9 sobre o realce fica acima
+ * de 10:1. O selo claro comum ali vira um farol que rouba o título.
+ */
+export const CORES_SOBRE_ESCURO: CoresDoSelo = {
+  bg: ESCURO.realceForte,
+  text: ESCURO.texto,
+  border: ESCURO.borda,
+  dot: ESCURO.foco,
+};
 
 export const Selo = React.forwardRef<HTMLSpanElement, SeloProps>(function Selo(
   { tom = "neutro", cores, forma = "pilula", tamanho = "md", ponto = false, icone: Icone, children, className, style, ...resto },

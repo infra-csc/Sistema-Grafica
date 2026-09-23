@@ -40,7 +40,6 @@
 //    abre com as já impressas desmarcadas. O registro informa, não bloqueia.
 // ─────────────────────────────────────────────────────────────────────────────
 import { useEffect, useMemo, useRef, useState } from "react";
-import { miniatura } from "@/lib/miniatura";
 import { useQuery } from "@tanstack/react-query";
 import { useRoute, Link } from "wouter";
 import { Printer, ArrowLeft, Tags, SlidersHorizontal, Search, RotateCw, SearchX } from "lucide-react";
@@ -57,7 +56,7 @@ import { EstadoErro, EstadoVazio, Esqueleto } from "@/components/ui/estados";
 import { Selo } from "@/components/ui/selo";
 import {
   COPIAS_MAX, ORDEM_DOS_TAMANHOS, SEM_EDICOES, TAMANHOS, cabeNoAdesivo, cabecalhoPadrao, chaveDoTubo, comCopias, comEdicoes, ehDoisPorUm,
-  etiquetasIndividuais, foiEditado, gravarPreferencias, infoDoVolume, lerPreferencias, lerRecorteDeTubo, limitarCopias, linhasOrdenadas,
+  etiquetasIndividuais, foiEditado, gravarPreferencias, lerPreferencias, lerRecorteDeTubo, limitarCopias, linhasOrdenadas,
   paginarLinhas, parteNoRecorte, partesDaPeca, pecaNaLinha, prefixoPara, regraDaPagina, nomeDoPapel, resumoDaImpressao, rodapeDoTubo, semAcento,
   type EdicoesDaEtiqueta, type LinhaDaEtiqueta, type ParteDaPeca, type RecorteDeTubo, type TamanhoEtiqueta,
 } from "@/lib/etiqueta-lista";
@@ -65,17 +64,19 @@ import {
   CSS_DA_ETIQUETA_EM_LISTA, CSS_DO_ZOOM, CampoNaEtiqueta, EtiquetaEmLista, LegendaDaFolha, SecaoDeOpcoes, Segmento, estiloDoCampo, estiloDoZoom,
   mmParaPx, useEscalaParaCaber,
 } from "@/components/etiqueta-lista";
+import type { EventoDaPeca } from "@/components/grafica/tipos";
+import { EtiquetaDaPeca, dataBR, type PecaDoEvento } from "@/components/etiqueta-da-peca";
+
+/** O retrato dos tubos do evento: aqui só a data de fechamento de cada um. */
+type RetratoDosTubos = { tubos?: Array<{ id?: string; fechadoEm?: string | null } | null> };
 
 /** Conferida = já passou pela conferência (inclui as entregues e as grafias legadas). */
 // `packed` (Embalado, 21/09): embalada é conferida — a etiqueta vale igual.
 const CONFERIDA = new Set(["conferred", "conferido", "packed", "delivered", "entregue"]);
-const jaConferida = (i: any) => CONFERIDA.has(i.status) || (i.conferredQty ?? 0) > 0;
+const jaConferida = (i: PecaDoEvento) => CONFERIDA.has(i.status) || (i.conferredQty ?? 0) > 0;
 
-const tipoDe = (p: any) => String(p?.type ?? "").trim();
+const tipoDe = (p: { type?: string | null } | null | undefined) => String(p?.type ?? "").trim();
 const slug = (t: string) => t.toLowerCase().replace(/\s+/g, "-");
-
-const dataBR = (iso?: string | null) =>
-  iso ? new Date(iso).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", timeZone: "UTC" }) : null;
 
 // labelPrintedAt é um INSTANTE (quando o botão foi clicado), não uma data de
 // calendário como truckDepartureDate — por isso sem timeZone: "UTC": quem
@@ -90,7 +91,7 @@ const sufixoDaParte = (pt: ParteDaPeca<unknown>) => (pt.numero != null ? `tubo${
 
 /** Uma folha de LISTA da prévia: a lista geral ou a de um tubo. */
 type FolhaDeLista = {
-  linhas: LinhaDaEtiqueta<any>[]; n: number; total: number;
+  linhas: LinhaDaEtiqueta<PecaDoEvento>[]; n: number; total: number;
   /** Tubo: o número REAL (testid) e o que sai na etiqueta (editável). */
   numeroReal: number | null; tubo: number | null; rodape: string | null;
 };
@@ -211,8 +212,8 @@ export default function EtiquetasEvento() {
     return { ...e, tubos };
   });
 
-  const { data: event, isError: eventoFalhou } = useQuery<any>({ queryKey: ["/api/events", eventId], enabled: !!eventId });
-  const { data: itens = [], isLoading, isError: itensFalharam, refetch } = useQuery<any[]>({
+  const { data: event, isError: eventoFalhou } = useQuery<EventoDaPeca>({ queryKey: ["/api/events", eventId], enabled: !!eventId });
+  const { data: itens = [], isLoading, isError: itensFalharam, refetch } = useQuery<PecaDoEvento[]>({
     queryKey: ["/api/items", eventId],
     enabled: !!eventId,
   });
@@ -222,15 +223,15 @@ export default function EtiquetasEvento() {
   // refetch pós-impressão desmarque o que a pessoa acabou de escolher.
   const selecaoSemeada = useRef(false);
   useEffect(() => {
-    if (selecaoSemeada.current || (itens as any[]).length === 0) return;
+    if (selecaoSemeada.current || itens.length === 0) return;
     selecaoSemeada.current = true;
-    const impressas = (itens as any[]).filter((i) => i.labelPrintedAt).map((i) => i.id);
+    const impressas = itens.filter((i) => i.labelPrintedAt).map((i) => i.id);
     if (impressas.length > 0) setDesmarcadas(new Set(impressas));
   }, [itens]);
 
   const poolBase = useMemo(() => {
     // BOOK COMPLETO fica de fora: é o trâmite do Atendimento, não uma peça (ver shared/fluxo-peca).
-    const vivas = (itens as any[]).filter((i) => !i.deletedAt && i.status !== "canceled" && i.status !== "archived" && !ehBookCompleto(i) && !ehMolde(i)); // molde não tem etiqueta (22/09)
+    const vivas = itens.filter((i) => !i.deletedAt && i.status !== "canceled" && i.status !== "archived" && !ehBookCompleto(i) && !ehMolde(i)); // molde não tem etiqueta (22/09)
     const base = incluirTodas ? vivas : vivas.filter(jaConferida);
     return [...base].sort((a, b) => compareDisplayId(a.displayId, b.displayId));
   }, [itens, incluirTodas]);
@@ -238,10 +239,10 @@ export default function EtiquetasEvento() {
   // AS PARTES de cada peça (uma por volume + o resto fora de volume), já com
   // os números editados para a impressão.
   const partesPorPeca = useMemo(
-    () => new Map<string, ParteDaPeca<any>[]>(poolBase.map((p) => [p.id, comEdicoes(partesDaPeca(p), edicoes)])),
+    () => new Map<string, ParteDaPeca<PecaDoEvento>[]>(poolBase.map((p) => [p.id, comEdicoes(partesDaPeca(p), edicoes)])),
     [poolBase, edicoes],
   );
-  const partesDe = (p: any) => partesPorPeca.get(p.id) ?? [];
+  const partesDe = (p: PecaDoEvento) => partesPorPeca.get(p.id) ?? [];
   // Os tubos do evento (pelo número REAL) e se há o que esteja fora deles.
   const tubosNoPool = useMemo(() => {
     const porNumero = new Map<number, { numero: number; tuboId: string | null; pecas: number }>();
@@ -260,7 +261,7 @@ export default function EtiquetasEvento() {
       : recorteTubo === "tubos" ? (tubosNoPool.length > 0 ? "tubos" : "todos")
         : recorteTubo === "sem" ? (haForaDeTubo && tubosNoPool.length > 0 ? "sem" : "todos")
           : tubosNoPool.some((t) => t.numero === Number(recorteTubo)) ? recorteTubo : "todos";
-  const noRecorte = (p: any) => partesDe(p).filter((pt) => parteNoRecorte(pt, recorteValido));
+  const noRecorte = (p: PecaDoEvento) => partesDe(p).filter((pt) => parteNoRecorte(pt, recorteValido));
   const pool = useMemo(
     () => (recorteValido === "todos" ? poolBase : poolBase.filter((p) => (partesPorPeca.get(p.id) ?? []).some((pt) => parteNoRecorte(pt, recorteValido)))),
     [poolBase, partesPorPeca, recorteValido],
@@ -270,7 +271,7 @@ export default function EtiquetasEvento() {
   // O "embalado dd/mm" do rodapé da lista de tubo: o retrato dos tubos do
   // evento (o mesmo cache do painel de tubos). Só com tubo; falha = sem data.
   const temTubos = tubosNoPool.length > 0;
-  const { data: retratoDosTubos } = useQuery<any>({ queryKey: [`/api/events/${eventId}/tubos`], enabled: !!eventId && temTubos, retry: false });
+  const { data: retratoDosTubos } = useQuery<RetratoDosTubos>({ queryKey: [`/api/events/${eventId}/tubos`], enabled: !!eventId && temTubos, retry: false });
   const embaladoPorTubo = useMemo(() => {
     const m = new Map<string, string | null>();
     for (const t of Array.isArray(retratoDosTubos?.tubos) ? retratoDosTubos.tubos : []) if (t?.id) m.set(t.id, t.fechadoEm ?? null);
@@ -306,7 +307,7 @@ export default function EtiquetasEvento() {
   // lista por tubo ligada, a parte em tubo vai para a lista DO TUBO (qualquer
   // que seja o tipo); o resto segue a regra do tipo, como sempre.
   const partesMarcadas = useMemo(() => pecas.flatMap((p) => noRecorte(p)), [pecas, partesPorPeca, recorteValido]); // eslint-disable-line react-hooks/exhaustive-deps
-  const destinoDa = (pt: ParteDaPeca<any>) => (porTubo && pt.numero != null ? "tubo" : tiposEscolhidos.has(tipoDe(pt.peca)) ? "lista" : "individual");
+  const destinoDa = (pt: ParteDaPeca<PecaDoEvento>) => (porTubo && pt.numero != null ? "tubo" : tiposEscolhidos.has(tipoDe(pt.peca)) ? "lista" : "individual");
   const todasDeTubo = useMemo(() => partesMarcadas.filter((pt) => destinoDa(pt) === "tubo"), [partesMarcadas, porTubo, tiposEscolhidos]); // eslint-disable-line react-hooks/exhaustive-deps
   const todasAsDaLista = useMemo(() => partesMarcadas.filter((pt) => destinoDa(pt) === "lista"), [partesMarcadas, porTubo, tiposEscolhidos]); // eslint-disable-line react-hooks/exhaustive-deps
   const todasAsIndividuais = useMemo(() => partesMarcadas.filter((pt) => destinoDa(pt) === "individual"), [partesMarcadas, porTubo, tiposEscolhidos]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -320,8 +321,8 @@ export default function EtiquetasEvento() {
   const partesIndividuais = useMemo(() => (saiValido === "listas" ? [] : todasAsIndividuais), [saiValido, todasAsIndividuais]);
 
   /** Junta as partes da mesma peça numa linha só ("2x1 BB - 10", ou "- 7 (7 de 10)"). */
-  const emLinhas = (partes: ParteDaPeca<any>[]) => {
-    const porPeca = new Map<string, ParteDaPeca<any>[]>();
+  const emLinhas = (partes: ParteDaPeca<PecaDoEvento>[]) => {
+    const porPeca = new Map<string, ParteDaPeca<PecaDoEvento>[]>();
     for (const pt of partes) porPeca.set(pt.peca.id, [...(porPeca.get(pt.peca.id) ?? []), pt]);
     return linhasOrdenadas(Array.from(porPeca.values()).map(pecaNaLinha));
   };
@@ -329,7 +330,7 @@ export default function EtiquetasEvento() {
   // UMA LISTA POR TUBO: cabeçalho "TUBO N" e rodapé "N peças · M un. ·
   // embalado dd/mm", como a etiqueta do tubo.
   const listasDosTubos = useMemo(() => {
-    const porNumero = new Map<number, ParteDaPeca<any>[]>();
+    const porNumero = new Map<number, ParteDaPeca<PecaDoEvento>[]>();
     for (const pt of partesDeTubo) porNumero.set(pt.numero!, [...(porNumero.get(pt.numero!) ?? []), pt]);
     return Array.from(porNumero.entries()).sort((a, b) => a[0] - b[0]).map(([numeroReal, partes]) => {
       const linhas = emLinhas(partes);
@@ -372,7 +373,7 @@ export default function EtiquetasEvento() {
   const impressasNoPool = useMemo(() => pool.filter((p) => p.labelPrintedAt).length, [pool]);
   const faltamNoPool = pool.length - impressasNoPool;
 
-  const bookUrl = useMemo(() => (itens as any[]).find((i) => i.bookUrl && !i.deletedAt)?.bookUrl ?? null, [itens]);
+  const bookUrl = useMemo(() => itens.find((i) => i.bookUrl && !i.deletedAt)?.bookUrl ?? null, [itens]);
   useEffect(() => {
     let vivo = true;
     setLogo(null);
@@ -382,7 +383,7 @@ export default function EtiquetasEvento() {
     return () => { vivo = false; };
   }, [bookUrl]);
 
-  const conferidas = useMemo(() => (itens as any[]).filter((i) => !i.deletedAt && jaConferida(i)).length, [itens]);
+  const conferidas = useMemo(() => itens.filter((i) => !i.deletedAt && jaConferida(i)).length, [itens]);
 
   const nome: string = event?.name ?? "";
   const padrao = useMemo(() => cabecalhoPadrao(nome), [nome]);
@@ -912,97 +913,10 @@ export default function EtiquetasEvento() {
                   <div className="etq-folha" style={{ display: "flex", flexDirection: "column" }}>
                     {dupla.map((e, i) => {
                       const p = e.parte.peca;
-                      const volume = infoDoVolume(e.parte);
                       const testid = e.n > 0 ? `etiqueta-${p.id}-${e.n}` : partesDe(p).length > 1 ? `etiqueta-${p.id}-${sufixoDaParte(e.parte)}` : `etiqueta-${p.id}`;
                       return (
-                      <div key={`${e.parte.chave}-${e.n}`} data-testid={testid} className="etq-etiqueta" style={{
-                        display: "flex", alignItems: "stretch", gap: 18, padding: "22px 26px",
-                        // PAPEL: a linha de corte e o cinza do "Saída" ficam em hex
-                        // literal — não há token com o mesmo valor, e trocar mudaria
-                        // o que sai na impressora.
-                        borderBottom: i === 0 ? "2px dashed #d6d3d1" : "none",
-                      }}>
-                        {/* O NOME DO EVENTO — o que se lê de longe na pilha */}
-                        <div style={{ flex: "1.2 1 0", minWidth: 0, display: "flex", flexDirection: "column", justifyContent: "center" }}>
-                          <p style={{ margin: 0, fontSize: 13, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "#78716c" }}>
-                            {event?.truckDepartureDate ? `Saída ${dataBR(event.truckDepartureDate)}` : " "}
-                          </p>
-                          {/* Dois níveis, como no modelo: a marca (o LOGO do book,
-                              quando existe; senão o texto de cima) e a palavra
-                              GIGANTE — é ela que se lê de longe. */}
-                          {/* SEM loading="lazy" nas duas imagens da etiqueta: o
-                              window.print() sai no mesmo clique, e imagem preguiçosa
-                              numa folha fora da vista (16 folhas no "uma por
-                              unidade") pode ir em BRANCO para o papel. */}
-                          {logo && usarLogo && (
-                            <img decoding="async" src={logo} alt="Logo do evento" data-testid="logo-etiqueta"
-                              style={{ maxHeight: 92, maxWidth: "60%", objectFit: "contain", alignSelf: "flex-start", margin: "4px 0 6px" }} />
-                          )}
-                          {/* Sem palavra gigante (campo apagado), o nome sai UMA vez,
-                              no tamanho médio — nunca duplicado. */}
-                          {!(logo && usarLogo) && gigante && prefixo && (
-                            <p style={{ margin: "4px 0 0", fontFamily: FONT.display, fontWeight: 800, fontSize: "clamp(16px, 2vw, 24px)", textTransform: "uppercase", letterSpacing: "0.01em", color: T.text, lineHeight: 1.1 }}>
-                              {prefixo}
-                            </p>
-                          )}
-                          <p style={{
-                            margin: "2px 0 0", fontFamily: FONT.display,
-                            fontWeight: 900, textTransform: "uppercase", letterSpacing: "-0.02em",
-                            color: T.text, lineHeight: 0.95,
-                            // Gigante de várias palavras (nome inteiro, cidade composta) desce
-                            // um degrau: 104px em três palavras estourava a meia folha.
-                            fontSize: gigante && gigante.length <= 12 ? "clamp(56px, 8vw, 104px)" : "clamp(34px, 5.2vw, 64px)",
-                            overflowWrap: "anywhere",
-                          }}>
-                            {gigante || prefixo || nome}
-                          </p>
-                        </div>
-
-                        {/* A PEÇA: arte + código + descrição + quantidade */}
-                        <div style={{ flex: "1 1 0", minWidth: 0, display: "flex", gap: 16, alignItems: "center" }}>
-                          {(p.approvalThumbUrl || p.finalPreviewUrl) && (
-                            <img decoding="async" src={miniatura(p.approvalThumbUrl || p.finalPreviewUrl)} alt=""
-                              style={{ width: 150, height: 150, objectFit: "contain", borderRadius: 10, border: `1px solid ${T.border}`, backgroundColor: T.bg, flexShrink: 0 }} />
-                          )}
-                          <div style={{ minWidth: 0, flex: 1 }}>
-                            {/* A DESCRIÇÃO manda (pedido do dono, 25/08): é ela que
-                                identifica o material na pilha — "Testeira Vale Local"
-                                diz mais que #2219. */}
-                            <p style={{ margin: 0, fontFamily: FONT.display, fontSize: 30, fontWeight: 900, letterSpacing: "-0.01em", lineHeight: 1.12, color: T.text, overflowWrap: "anywhere" }}>
-                              {p.description || p.type}
-                            </p>
-                            <p style={{ margin: "6px 0 0", fontSize: 16, lineHeight: 1.3 }}>
-                              <span style={{ color: T.strong, textTransform: "uppercase", fontWeight: 700 }}>{p.type}</span>
-                              {" "}<span style={{ color: T.accentText, fontWeight: 700 }}>{p.displayId}</span>
-                            </p>
-                          </div>
-                          <div style={{ alignSelf: "flex-start", textAlign: "right", flexShrink: 0 }}>
-                            {/* O VOLUME (21/09): "TUBO 2" em destaque, colado à
-                                quantidade; "EMBALADA" se foi sozinha; nada se não
-                                foi embalada. O número do tubo pode ter sido
-                                editado para a impressão. */}
-                            {volume.selo && (
-                              <p data-testid="tubo-na-etiqueta" style={{ margin: "0 0 6px", display: "inline-block", padding: "3px 10px", borderRadius: 6, backgroundColor: T.text, color: "#ffffff", fontFamily: FONT.display, fontSize: volume.selo.startsWith("TUBO") ? 30 : 22, fontWeight: 900, lineHeight: 1.1, whiteSpace: "nowrap" }}>
-                                {volume.selo}
-                              </p>
-                            )}
-                            <p data-testid="quantidade-na-etiqueta" style={{ margin: 0, fontFamily: FONT.display, fontSize: 30, fontWeight: 900, color: T.text, whiteSpace: "nowrap" }}>
-                              {e.n > 0 ? e.total : e.parte.quantidade} un.
-                            </p>
-                            {e.n === 0 && volume.detalhe && (
-                              <p data-testid="detalhe-do-volume" style={{ margin: "2px 0 0", fontSize: 15, fontWeight: 700, color: T.strong, whiteSpace: "nowrap" }}>
-                                {volume.detalhe}
-                              </p>
-                            )}
-                            {/* "Uma por unidade": cada volume sabe qual ele é no lote. */}
-                            {e.n > 0 && (
-                              <p style={{ margin: "2px 0 0", fontFamily: FONT.display, fontSize: 18, fontWeight: 900, color: T.accentText, whiteSpace: "nowrap" }}>
-                                {e.n} de {e.total}
-                              </p>
-                            )}
-                          </div>
-                        </div>
-                      </div>
+                        <EtiquetaDaPeca key={`${e.parte.chave}-${e.n}`} e={e} i={i} testid={testid} event={event}
+                          logo={logo} usarLogo={usarLogo} gigante={gigante} prefixo={prefixo} nome={nome} />
                       );
                     })}
                   </div>

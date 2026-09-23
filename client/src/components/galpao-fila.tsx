@@ -33,6 +33,7 @@ import { remainingConfer } from "@/lib/saldo";
 import { useAcompanharAreaVisivel } from "@/components/grafica/area-visivel";
 import { T, N, TOM, FS, FW, FONT, R } from "@/lib/theme";
 import { Botao } from "@/components/ui/botao";
+import type { PecaDaFila } from "@/components/grafica/tipos";
 // Só LEITURA do saldo, para dizer quantas unidades a entrega leva: a rota
 // entrega o que resta conferido quando não recebe `qty` — o número mostrado é
 // essa mesma conta, da mesma fonte da lista.
@@ -42,11 +43,11 @@ export interface GalpaoDados { photoUrl: string; qty?: number; receivedBy?: stri
 
 interface Props {
   mode: "confer" | "deliver";
-  itens: any[];
+  itens: PecaDaFila[];
   /** Recebe quantas peças foram registradas — o resumo de saída é de quem monta. */
   onClose: (feitas: number) => void;
   /** Confirma UMA peça no servidor; lança em erro (a mensagem aparece aqui). */
-  onConfirmar: (item: any, dados: GalpaoDados) => Promise<void>;
+  onConfirmar: (item: PecaDaFila, dados: GalpaoDados) => Promise<void>;
   /** Último "quem recebeu" desta sessão — oferecido como atalho, NUNCA pré-preenchido. */
   sugestaoRecebedor?: string;
 }
@@ -113,7 +114,7 @@ export function GalpaoFila({ mode, itens, onClose, onConfirmar, sugestaoRecebedo
   }, [registrouAgora]);
   // A fila é a foto do momento de abertura: confirmar muda o status da peça e
   // uma lista viva a REMOVERIA sob o dedo, pulando a seguinte sem aviso.
-  const filaRef = useRef<any[]>(itens);
+  const filaRef = useRef<PecaDaFila[]>(itens);
   const fila = filaRef.current;
   const item = fila[idx];
 
@@ -170,10 +171,11 @@ export function GalpaoFila({ mode, itens, onClose, onConfirmar, sugestaoRecebedo
       setFeitas(totalFeitas);
       setRegistrouAgora(isConfer ? `${item.displayId} conferida · ${qty} un.` : `${item.displayId} entregue`);
       avancar(totalFeitas);
-    } catch (e: any) {
+    } catch (e) {
       // O erro fica NA tela, colado no botão — toast por cima de quem está
       // com o material na mão passa despercebido.
-      setErro(e?.message ?? "Não foi possível registrar. Tente de novo.");
+      // Quem confirma pode lançar qualquer coisa: lê só a mensagem, se houver.
+      setErro((e as { message?: string } | null | undefined)?.message ?? "Não foi possível registrar. Tente de novo.");
     } finally {
       setEnviando(false);
     }

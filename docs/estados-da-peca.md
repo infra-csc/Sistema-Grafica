@@ -265,7 +265,7 @@ patrocinador, o reaproveitamento) e a peça não muda de status.
 | --- | --- | --- | --- | --- |
 | tirar-do-tubo | `packed` | `conferred` | admin, grafica, solicitacao | a peça sai do volume (ou o volume é apagado) |
 
-### POST /api/tubos/:id/entregar
+### POST /api/tubos/:id/entregar · POST /api/tubos/entregar-em-lote
 
 | Ação | De | Para | Quem | Condições |
 | --- | --- | --- | --- | --- |

@@ -165,13 +165,13 @@ describe("3 · as rotas usam as contas", () => {
     expect(ROTAS).toContain("if (travado.avulso && tiradas.length > 0 && (await linhasDosTubos([travado.id], tx)).length === 0) {");
   });
   it("entregar o volume: carimba a linha, soma em deliveredQty, `delivered` só com tudo — numa transação; e o tubo guarda o que foi junto", () => {
-    const entregar = ROTAS.slice(ROTAS.indexOf('app.post("/api/tubos/:id/entregar"'));
+    const entregar = ROTAS.slice(ROTAS.indexOf("const entregarVolume ="));
     expect(entregar).toContain("const plano = planejarEntrega(p, l.quantidade);");
     expect(entregar).toContain("await tx.update(tuboItens).set({ entregueEm: agora } as any).where(eq(tuboItens.id, l.id));");
     expect(entregar).toContain('...(plano.viraEntregue ? { status: "delivered", deliveredAt: agora, statusChangedAt: agora } : {}),');
     expect(entregar).toContain('${plano.viraEntregue ? "Entrega concluída (" : "Entrega parcial ("}');
     expect(entregar).toContain('aEntregar.map(({ p, l }) => `${p.displayId ?? "peça"} (${l.quantidade})`).join(", ")');
-    expect(entregar).toContain("const feito = await db.transaction(async (tx: Ex) => {");
+    expect(entregar).toContain("db.transaction(async (tx: Ex) => {");
     // só quem recebeu é obrigatório
     expect(entregar).toContain("if (!recebedor) {");
     expect(entregar).not.toContain("ainda não tem foto");

@@ -22,6 +22,9 @@
 //      recorte INTEIRO — só o que vai para o DOM é que chega aos poucos.
 // ─────────────────────────────────────────────────────────────────────────────
 import { memo, useEffect, useRef, useState, type ReactNode } from "react";
+import { Botao } from "@/components/ui/botao";
+import { usePonteiroGrosso } from "@/hooks/use-mobile";
+import { T, N, FS } from "@/lib/theme";
 
 /**
  * Renderiza `render()` só quando algum item de `deps` muda (Object.is).
@@ -77,6 +80,8 @@ export function SentinelaDaLista({ mostradas, total, lote, onMais, compacto }: {
   const onMaisRef = useRef(onMais);
   onMaisRef.current = onMais;
   const faltam = total - mostradas;
+  // Tablet do galpão (dedo) em qualquer largura também pede o alvo de 44px.
+  const grosso = usePonteiroGrosso();
 
   // FOCO NO ÚLTIMO LOTE. O botão some quando o último lote entra, e o foco de
   // quem clicou (teclado, leitor de tela) caía no <body> — a próxima tecla Tab
@@ -115,7 +120,7 @@ export function SentinelaDaLista({ mostradas, total, lote, onMais, compacto }: {
       <p
         ref={fimRef}
         tabIndex={-1}
-        style={{ margin: 0, textAlign: "center", padding: compacto ? "10px 8px 14px" : "12px 16px 16px", borderTop: "1px solid #f4f3f0", fontSize: 12, color: "#57534e", fontVariantNumeric: "tabular-nums", outlineOffset: -2 }}
+        style={{ margin: 0, textAlign: "center", padding: compacto ? "10px 8px 14px" : "12px 16px 16px", borderTop: `1px solid ${N.n3}`, fontSize: FS.meta, color: T.apoio, fontVariantNumeric: "tabular-nums", outlineOffset: -2 }}
       >
         Mostrando todas as {total} peças
       </p>
@@ -126,14 +131,15 @@ export function SentinelaDaLista({ mostradas, total, lote, onMais, compacto }: {
     <div
       ref={ref}
       data-testid="sentinela-lista-grafica"
-      style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, padding: compacto ? "10px 8px 14px" : "12px 16px 16px", borderTop: "1px solid #f4f3f0" }}
+      style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, padding: compacto ? "10px 8px 14px" : "12px 16px 16px", borderTop: `1px solid ${N.n3}` }}
     >
-      {/* #57534e sobre branco (7,6:1) — nunca #a8a29e como texto. */}
-      <span style={{ fontSize: 12, color: "#57534e", fontVariantNumeric: "tabular-nums" }}>
+      {/* T.apoio sobre branco (7,6:1) — nunca T.muted como texto. */}
+      <span style={{ fontSize: FS.meta, color: T.apoio, fontVariantNumeric: "tabular-nums" }}>
         Mostrando {mostradas} de {total} peças
       </span>
-      <button
-        type="button"
+      <Botao
+        variante="secundario"
+        tamanho={compacto || grosso ? "toque" : "md"}
         onClick={() => {
           // Último lote: prepara o destino do foco ANTES de o botão sumir.
           if (faltam <= lote) {
@@ -143,10 +149,11 @@ export function SentinelaDaLista({ mostradas, total, lote, onMais, compacto }: {
           onMaisRef.current();
         }}
         data-testid="button-mostrar-mais-pecas"
-        style={{ minHeight: compacto ? 44 : 36, padding: "0 16px", borderRadius: 8, background: "#ffffff", border: "1px dashed #d6d3d1", color: "#1c1917", fontSize: 13, fontWeight: 700, cursor: "pointer" }}
+        // Tracejado: "tem mais lista aqui", não uma ação de negócio.
+        style={{ border: `1px dashed ${T.bdark}`, color: T.text }}
       >
         Mostrar mais {proximo}
-      </button>
+      </Botao>
     </div>
   );
 }

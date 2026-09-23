@@ -146,6 +146,7 @@ const ROTA = {
   embalar: "PATCH /api/tubos/:id/itens",
   apagarTubo: "DELETE /api/tubos/:id",
   entregarTubo: "POST /api/tubos/:id/entregar",
+  entregarEmLote: "POST /api/tubos/entregar-em-lote",
   complemento: "POST /api/items/:id/complement",
 } as const;
 
@@ -264,7 +265,7 @@ export const TRANSICOES: readonly Transicao[] = [
   { acao: "tirar-do-tubo", de: ["packed"], para: "conferred", papeis: ["admin", "grafica", "solicitacao"],
     condicoes: ["a peça sai do volume (ou o volume é apagado)"], rotas: [ROTA.embalar, ROTA.apagarTubo] },
   { acao: "entregar-volume", de: PODE_IR_PARA_TUBO, para: "delivered", papeis: ["admin", "grafica", "solicitacao"],
-    condicoes: ["o volume entregue completa a quantidade da peça"], rotas: [ROTA.entregarTubo] },
+    condicoes: ["o volume entregue completa a quantidade da peça"], rotas: [ROTA.entregarTubo, ROTA.entregarEmLote] },
 
   // ── Molde (fluxo curto) ──────────────────────────────────────────────────
   { acao: "marcar-molde-produzido", de: MOLDE_LIBERADO, para: "produced", papeis: ["grafica", "admin"],

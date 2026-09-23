@@ -77,8 +77,10 @@ const rotaBarrada = (assinatura: string): boolean =>
 function botao(fonte: string, marca: string): string {
   const i = fonte.indexOf(marca);
   if (i < 0) throw new Error(`botão não encontrado: ${marca}`);
-  const ini = fonte.lastIndexOf("<button", i);
-  const fim = fonte.indexOf("</button>", i);
+  // <button> cru ou o <Botao> do design system (com filhos ou autofechado).
+  const ini = Math.max(fonte.lastIndexOf("<button", i), fonte.lastIndexOf("<Botao", i));
+  const fins = ["</button>", "</Botao>", "/>"].map((t) => fonte.indexOf(t, i)).filter((n) => n >= 0);
+  const fim = fins.length ? Math.min(...fins) : -1;
   if (ini < 0 || fim < 0) throw new Error(`<button> mal delimitado: ${marca}`);
   return fonte.slice(ini, fim);
 }

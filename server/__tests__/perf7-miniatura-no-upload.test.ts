@@ -60,9 +60,7 @@ function bucketFalso(inicial: Record<string, Buffer> = {}) {
 
 /** Um PNG de verdade (o sharp precisa de bytes que ele saiba ler). */
 async function pngDeVerdade(lado = 900): Promise<Buffer> {
-  // `import("module")` tipado sem o createRequire nesta versão de @types/node:
-  // a leitura pelo `default` é a mesma função e compila.
-  const { createRequire } = (await import("module")).default;
+  const { createRequire } = (await import("node:module")) as unknown as { createRequire: (url: string) => NodeRequire };
   const require = createRequire(import.meta.url);
   const sharp = require("sharp");
   return await sharp({

@@ -37,21 +37,23 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { useEffect, useRef, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
-import { Loader2, Play, Printer, Calendar, ArrowLeftRight } from "lucide-react";
+import { Play, Printer, Calendar, ArrowLeftRight } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { HIDE_NATIVE_CLOSE, ModalHeader, modalSurface } from "@/components/modal-shell";
 import { useAcompanharAreaVisivel } from "@/components/grafica/area-visivel";
 import { apiRequest } from "@/lib/queryClient";
 import { invalidarGraficaEMaquinas } from "@/lib/tempo-real-grafica";
 import { useToast } from "@/hooks/use-toast";
-import { useIsMobile } from "@/hooks/use-mobile";
+import { useIsMobile, usePonteiroGrosso, alvo as alvoDe } from "@/hooks/use-mobile";
+import { Botao } from "@/components/ui/botao";
+import { useConfirmar } from "@/components/ui/usar-confirmar";
 import { avaliarProducao, tetoDeProducao, ehConflitoDeProducao } from "@/lib/grafica-producao";
 import { isInProd, producedOf, qtyOf, reusedTotalOf, remainingProduce, type SaldoItem } from "@/lib/saldo";
 import { MAQUINAS_DE_IMPRESSAO, rotuloDaMaquina } from "@shared/fluxo-peca";
 import { partesDaPeca, estaDividida, lerPartes, resumoDaDivisao } from "@shared/impressao-dividida";
 import { disponivelParaAMaquina, livreParaReservar, reservaDaPeca, semImpressora } from "@shared/reserva-de-impressora";
 import { progressoDaImpressao, perguntaDaTroca, type OcupanteDaImpressora } from "@shared/progresso-da-impressao";
-import { T, FS, R } from "@/lib/theme";
+import { T, N, TOM, FS, FW, FONT, R } from "@/lib/theme";
 
 /** O mínimo que o formulário precisa saber da peça. A fila passa o item inteiro. */
 export type PecaParaImprimir = SaldoItem & {
@@ -171,8 +173,8 @@ export function BarraDeImpressao({ feitas, teto, rotulo, testId }: { feitas: num
   if (!(feitas > 0) || !(teto > 0)) return null;
   const pct = Math.min(100, Math.round((feitas / teto) * 100));
   return (
-    <div role="progressbar" aria-valuemin={0} aria-valuemax={teto} aria-valuenow={Math.min(feitas, teto)} aria-label={rotulo} data-testid={testId} style={{ height: 6, maxWidth: 160, borderRadius: 999, background: "#e7e5e4", marginTop: 6, marginBottom: 4, overflow: "hidden" }}>
-      <div style={{ width: `${pct}%`, height: "100%", background: "#c2410c", borderRadius: 999, transition: "width 0.2s" }} />
+    <div role="progressbar" aria-valuemin={0} aria-valuemax={teto} aria-valuenow={Math.min(feitas, teto)} aria-label={rotulo} data-testid={testId} style={{ height: 6, maxWidth: 160, borderRadius: R.pill, background: T.border, marginTop: 6, marginBottom: 4, overflow: "hidden" }}>
+      <div style={{ width: `${pct}%`, height: "100%", background: T.accentText, borderRadius: R.pill, transition: "width 0.2s" }} />
     </div>
   );
 }
@@ -211,10 +213,11 @@ export function useMutacoesDeImpressao({ onSucesso }: { onSucesso?: () => void }
       // ver o número novo antes de tentar de novo.
       const conflito = ehConflitoDeProducao(String(error?.message ?? ""));
       if (conflito) invalidarTudo();
+      // Conflito = alguém lançou antes (aviso, a lista já recarregou); o resto é falha de verdade.
       toast({
         title: conflito ? "Alguém informou impressas antes de você" : "Não foi possível salvar as impressas",
         description: mensagemDeErroDaApi(error),
-        variant: "destructive",
+        variant: conflito ? "warning" : "destructive",
       });
     },
   });
@@ -307,7 +310,8 @@ export function useReservarImpressora({ onSucesso }: { onSucesso?: () => void } 
           ? (vars.maquina ? `${vars.quantidade} un. ${vars.deMaquina ? "movidas" : "reservadas"} para a ${rotuloDaMaquina(vars.maquina)}` : `${vars.quantidade} un. devolvidas à fila geral`)
           : vars.maquina ? `${plural(n, "peça reservada", "peças reservadas")} para a ${rotuloDaMaquina(vars.maquina)}` : `${plural(n, "peça devolvida", "peças devolvidas")} à fila geral`,
         description: erros.length ? `${erros.length} não ${erros.length === 1 ? "entrou" : "entraram"}: ${erros.map((e) => e.displayId ?? "peça").join(", ")} — ${erros[0].erro}` : "Nada muda na etapa da peça — ela aparece na fila da impressora em Máquinas e com o selo \"Fila\" na Gráfica.",
-        variant: erros.length && n === 0 ? "destructive" : undefined,
+        // Nenhuma entrou pela REGRA (o servidor recusou cada uma): nada quebrou — é aviso.
+        variant: erros.length && n === 0 ? "warning" : undefined,
       });
     },
     onError: (error: Error, vars) => {
@@ -341,22 +345,22 @@ export function cabecalhoDoModalDeImpressao(item: PecaParaImprimir | null | unde
 }
 
 // ─── Estilos ──────────────────────────────────────────────────────────────────
-/** Rótulo em caixa alta de campo/seletor; no celular sobe para 12px (letra ≥ 12 no galpão). */
+/** Rótulo de campo/seletor, em caixa normal (a caixa-alta de 10px gritava em todo campo). */
 const rotulo = (fsMin: (n: number) => number): React.CSSProperties => ({
-  display: "block", fontSize: fsMin(FS.micro), fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: T.second, marginBottom: 8,
+  display: "block", fontSize: fsMin(FS.meta), fontWeight: FW.forte, color: T.apoio, marginBottom: 8,
 });
-const GROTESK = "'Space Grotesk', sans-serif";
+const GROTESK = FONT.display;
 
 /** O rodapé grudado do modal: o mesmo da fila (era `modalActionsStyle` lá). */
 export function rodapeDoModal(padModal: number): React.CSSProperties {
   return {
     display: "flex", flexWrap: "wrap", gap: 10,
     position: "sticky", bottom: -padModal,
-    backgroundColor: "#ffffff",
+    backgroundColor: T.surface,
     marginTop: -4, marginLeft: -padModal, marginRight: -padModal, marginBottom: -padModal,
     paddingTop: 12, paddingLeft: padModal, paddingRight: padModal,
     paddingBottom: "calc(12px + env(safe-area-inset-bottom))",
-    borderTop: "1px solid #f1f0ef",
+    borderTop: `1px solid ${N.n3}`,
     boxShadow: "0 -8px 12px -8px rgba(28,25,23,0.18)",
   };
 }
@@ -438,7 +442,12 @@ export function totalAPartirDoAgora(jaSairam: number, agora: number | "", teto: 
  */
 export function FormularioDeImpressao({ item, onFechar, padModal, mutacoes, abrirNaTroca = false, maquinaInicial = null, maquinaEmQuestao = null, parteAIniciar = null, ocupadas }: FormularioProps) {
   const isMobile = useIsMobile();
+  // Tablet do galpão é dedo em qualquer largura: os alvos pequenos sobem a 44.
+  const toque = usePonteiroGrosso() || isMobile;
   const { toast } = useToast();
+  // A pergunta de "reduzir o impresso" é o diálogo do app (window.confirm travava
+  // o modal atrás e mostrava a URL do servidor).
+  const { confirmar, dialogo } = useConfirmar();
   const fsMin = (n: number) => (isMobile ? Math.max(12, n) : n);
   const { startProductionMutation, startPrintingMutation, mexerNaImpressoraMutation, reservarMutation } = mutacoes;
   // Uma impressora está "ocupada por OUTRA peça" — exceto a impressora onde
@@ -528,11 +537,11 @@ export function FormularioDeImpressao({ item, onFechar, padModal, mutacoes, abri
     });
   };
 
-  const salvarImpressas = (e: React.FormEvent) => {
+  const salvarImpressas = async (e: React.FormEvent) => {
     e.preventDefault();
     if (envioRef.current || startProductionMutation.isPending) return;
     if (!maquinaAtual) {
-      toast({ title: "Escolha a máquina", description: "Diga em qual máquina a peça foi impressa antes de informar as impressas.", variant: "destructive" });
+      toast({ title: "Escolha a máquina", description: "Diga em qual máquina a peça foi impressa antes de informar as impressas.", variant: "warning" });
       return;
     }
     const total = modoTotal ? quantidadeTotal : totalAPartirDoAgora(jaSairam, agora, teto).total;
@@ -540,10 +549,15 @@ export function FormularioDeImpressao({ item, onFechar, padModal, mutacoes, abri
     if (dividida && parte) {
       // Por impressora: o servidor recalcula o total da peça como a soma das partes.
       if (!Number.isInteger(total) || total <= 0 || total > teto) {
-        toast({ title: "Quantidade inválida", description: `Informe entre 1 e ${teto} un. para a ${rotuloDaMaquina(maquinaAtual)}.`, variant: "destructive" });
+        toast({ title: "Quantidade inválida", description: `Informe entre 1 e ${teto} un. para a ${rotuloDaMaquina(maquinaAtual)}.`, variant: "warning" });
         return;
       }
-      if (total < jaSairam && !window.confirm(`Reduz o que consta impresso na ${rotuloDaMaquina(maquinaAtual)} de ${jaSairam} para ${total} un. Confirmar?`)) return;
+      if (total < jaSairam && !(await confirmar({
+        titulo: "Reduzir o que consta impresso?",
+        descricao: `Reduz o que consta impresso na ${rotuloDaMaquina(maquinaAtual)} de ${jaSairam} para ${total} un.`,
+        confirmar: `Reduzir para ${total}`,
+        cancelar: "Manter",
+      }))) return;
       // `expectedNaMaquina`: o lock otimista da PARTE — quem lança na outra
       // impressora da mesma peça não vira conflito (o servidor soma sobre a
       // linha travada); quem lançou NESTA parte, sim.
@@ -554,12 +568,13 @@ export function FormularioDeImpressao({ item, onFechar, padModal, mutacoes, abri
       // registro — caso em que a pergunta cita os dois números.
       const av = avaliarProducao(item, total, maquinaAtual);
       if (!av.ok || !av.payload) {
-        toast({ title: "Quantidade inválida", description: av.erro, variant: "destructive" });
+        toast({ title: "Quantidade inválida", description: av.erro, variant: "warning" });
         return;
       }
-      if (av.precisaConfirmar && !window.confirm(av.confirmacao)) return;
+      if (av.precisaConfirmar && !(await confirmar({ titulo: "Reduzir o que consta impresso?", descricao: av.confirmacao, confirmar: `Reduzir para ${total}`, cancelar: "Manter" }))) return;
       payload = av.payload;
     }
+    if (envioRef.current) return;
     envioRef.current = true;
     startProductionMutation.mutate(
       { itemId: item.id, data: payload, displayId: item.displayId },
@@ -588,6 +603,7 @@ export function FormularioDeImpressao({ item, onFechar, padModal, mutacoes, abri
             <button
               key={m}
               type="button"
+              className="ds-botao"
               role="radio"
               aria-checked={ativa}
               disabled={ehAtual || (!!ocupadaPor && !trocavel)}
@@ -595,30 +611,24 @@ export function FormularioDeImpressao({ item, onFechar, padModal, mutacoes, abri
               title={ehAtual ? "A peça já está nesta impressora" : ocupadaPor ? (trocavel ? `Ocupada: está com ${ocupadaPor} — escolha para imprimir esta no lugar` : `Ocupada: está com ${ocupadaPor} — uma peça por vez por impressora`) : undefined}
               onClick={() => setMaquinaEscolhida(m)}
               data-testid={`maquina-${m}`}
-              style={{ minHeight: 48, padding: "6px 8px", borderRadius: R.md, cursor: ehAtual || (ocupadaPor && !trocavel) ? "not-allowed" : "pointer", fontFamily: GROTESK, fontSize: 13, fontWeight: 800, lineHeight: 1.2, backgroundColor: ativa ? T.text : "#f4f3f0", color: ativa ? "#ffffff" : T.text, border: ativa ? `2px solid ${T.text}` : "2px solid transparent", opacity: ehAtual || (ocupadaPor && !trocavel) ? 0.45 : ocupadaPor && !ativa ? 0.75 : 1, transition: "background-color 0.12s" }}
+              style={{ minHeight: 48, padding: "6px 8px", borderRadius: R.md, cursor: ehAtual || (ocupadaPor && !trocavel) ? "not-allowed" : "pointer", fontFamily: GROTESK, fontSize: FS.body, fontWeight: FW.rotulo, lineHeight: 1.2, backgroundColor: ativa ? T.text : N.n3, color: ativa ? T.surface : T.text, border: ativa ? `2px solid ${T.text}` : "2px solid transparent", opacity: ehAtual || (ocupadaPor && !trocavel) ? 0.45 : ocupadaPor && !ativa ? 0.75 : 1 }}
             >
               {rotuloDaMaquina(m)}
-              {ocupadaPor && <span style={{ display: "block", fontSize: 12, fontWeight: 700 }}>com {ocupadaPor}</span>}
+              {ocupadaPor && <span style={{ display: "block", fontSize: FS.meta, fontWeight: FW.forte }}>com {ocupadaPor}</span>}
             </button>
           );
         })}
       </div>
       {!maquinaEscolhida && (
-        <div role="status" style={{ fontSize: fsMin(12), color: "#b45309", marginTop: 6 }}>Escolha a impressora para continuar.</div>
+        <div role="status" style={{ fontSize: fsMin(12), color: TOM.alerta.text, marginTop: 6 }}>Escolha a impressora para continuar.</div>
       )}
     </div>
   );
 
   const botaoCancelar = (
-    <button
-      type="button"
-      onClick={onFechar}
-      style={{ flex: 1, minHeight: alvo, padding: "0 12px", backgroundColor: "transparent", border: `1px solid ${T.border}`, color: "#57534e", fontWeight: 700, fontSize: 14, cursor: "pointer", borderRadius: R.md, transition: "background-color 0.15s" }}
-      onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "#f4f3f0")}
-      onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
-    >
+    <Botao variante="secundario" onClick={onFechar} style={{ flex: 1, minHeight: alvo, fontSize: FS.read }}>
       Cancelar
-    </button>
+    </Botao>
   );
 
   // ── PEÇA AINDA NÃO EM IMPRESSÃO: só a máquina e UM botão. ──────────────────
@@ -653,19 +663,19 @@ export function FormularioDeImpressao({ item, onFechar, padModal, mutacoes, abri
                 aria-describedby="linha-quantas-vao"
                 aria-invalid={!conta.valida || undefined}
                 data-testid="input-quantidade-iniciar"
-                style={{ flex: 1, minWidth: 0, minHeight: alvo, boxSizing: "border-box", textAlign: "center", fontFamily: GROTESK, fontSize: isMobile ? 18 : 20, fontWeight: 700, color: T.text, backgroundColor: "#f4f3f0", border: "none", borderRadius: R.md, padding: "0 12px" }}
+                style={{ flex: 1, minWidth: 0, minHeight: alvo, boxSizing: "border-box", textAlign: "center", fontFamily: GROTESK, fontSize: isMobile ? FS.title : 20, fontWeight: FW.forte, color: T.text, backgroundColor: N.n3, border: "none", borderRadius: R.md, padding: "0 12px" }}
               />
-              <button
-                type="button"
+              <Botao
+                variante="secundario"
                 onClick={() => setQtdIniciar(conta.disponivel)}
                 data-testid="button-iniciar-tudo"
                 title={`Todas as ${conta.disponivel} que podem ir para esta impressora`}
-                style={{ backgroundColor: "#e7e5e4", border: "none", borderRadius: R.md, padding: "0 20px", minHeight: alvo, fontWeight: 700, fontSize: 14, color: "#44403c", cursor: "pointer", whiteSpace: "nowrap" }}
+                style={{ padding: "0 20px", minHeight: alvo, fontSize: FS.read }}
               >
                 Tudo
-              </button>
+              </Botao>
             </div>
-            <div id="linha-quantas-vao" role="status" data-testid="linha-quantas-vao" style={{ fontSize: fsMin(12), fontWeight: 700, color: conta.valida ? T.text : "#b45309", marginTop: 8, fontVariantNumeric: "tabular-nums", lineHeight: 1.4 }}>
+            <div id="linha-quantas-vao" role="status" data-testid="linha-quantas-vao" style={{ fontSize: fsMin(12), fontWeight: FW.forte, color: conta.valida ? T.text : TOM.alerta.text, marginTop: 8, fontVariantNumeric: "tabular-nums", lineHeight: 1.4 }}>
               {conta.linha}
             </div>
           </div>
@@ -678,54 +688,52 @@ export function FormularioDeImpressao({ item, onFechar, padModal, mutacoes, abri
               : `Ao iniciar, a peça fica "Em Impressão". Faltam ${remainingProduce(item)} un. — você informa quantas saíram conforme a máquina terminar.`}
         </p>
         {quemSai && (
-          <div role="alertdialog" aria-label="Imprimir esta no lugar" data-testid="troca-no-modal" style={{ display: "flex", flexDirection: "column", gap: 8, padding: "10px 12px", borderRadius: R.md, background: "#fffbeb", border: "1px solid #fde68a", color: "#92400e", fontSize: fsMin(12), lineHeight: 1.45 }}>
+          <div role="alertdialog" aria-label="Imprimir esta no lugar" data-testid="troca-no-modal" style={{ display: "flex", flexDirection: "column", gap: 8, padding: "10px 12px", borderRadius: R.md, background: TOM.alerta.bg, border: `1px solid ${TOM.alerta.border}`, color: TOM.alerta.text, fontSize: fsMin(12), lineHeight: 1.45 }}>
             <span style={{ fontWeight: 700 }}>{perguntaDaTroca(quemSai, codigoDestaPeca, maquinaEscolhida)}</span>
-            <button
-              type="button"
+            <Botao
+              variante="primario"
               disabled={!podeTrocarNoLugar}
               onClick={() => { if (podeTrocarNoLugar) mexerNaImpressoraMutation.mutate({ maquina: maquinaEscolhida, sai: quemSai, entra: { id: item.id, displayId: item.displayId }, quantidade: conta.n, ...(conta.reservadas > 0 && conta.origem !== maquinaEscolhida ? { reservaDe: conta.origem } : {}) }); }}
               data-testid="button-imprimir-no-lugar"
-              style={{ minHeight: alvo, padding: "0 12px", borderRadius: R.md, border: "none", background: T.text, color: "#fff", fontFamily: GROTESK, fontWeight: 700, fontSize: 14, cursor: podeTrocarNoLugar ? "pointer" : "not-allowed", opacity: podeTrocarNoLugar ? 1 : 0.55 }}
+              style={{ minHeight: alvo, fontSize: FS.read, whiteSpace: "normal" }}
             >
               {mexerNaImpressoraMutation.isPending ? "Trocando…" : `Imprimir esta no lugar (${conta.n} un.)`}
-            </button>
+            </Botao>
           </div>
         )}
         {!!maquinaEscolhida && sem > 0 && !parteAIniciar?.daReserva && (
-          <button
-            type="button"
+          <Botao
+            variante="secundario"
             disabled={!podeReservar}
             onClick={() => { if (podeReservar) reservarMutation.mutate({ itemIds: [item.id], maquina: maquinaEscolhida, quantidade: conta.n }); }}
             data-testid="button-so-reservar"
             title={conta.n > sem ? `Só ${sem} un. estão sem impressora — dá para reservar até ${sem}` : `Deixa ${conta.n} un. na fila da ${rotuloDaMaquina(maquinaEscolhida)}, sem iniciar — a peça continua liberada`}
-            style={{ alignSelf: "flex-start", minHeight: isMobile ? 44 : 34, padding: "0 12px", borderRadius: R.md, border: `1px solid ${T.border}`, background: "#ffffff", color: T.text, fontSize: fsMin(12), fontWeight: 700, cursor: podeReservar ? "pointer" : "not-allowed", opacity: podeReservar ? 1 : 0.55 }}
+            style={{ alignSelf: "flex-start", minHeight: alvoDe(34, toque), padding: "0 12px", color: T.text, fontSize: fsMin(12), whiteSpace: "normal" }}
           >
             {reservarMutation.isPending ? "Reservando…" : conta.n <= sem ? `Só reservar ${conta.n} un. para a ${rotuloDaMaquina(maquinaEscolhida)}` : `Só reservar (até ${sem} un. sem impressora)`}
-          </button>
+          </Botao>
         )}
         <div data-testid="rodape-iniciar" style={rodapeDoModal(padModal)}>
           {!isMobile && botaoCancelar}
-          <button
-            type="button"
+          <Botao
+            variante="primario"
             onClick={iniciarOuTrocar}
             disabled={!pode}
+            carregando={startPrintingMutation.isPending}
             data-testid="button-iniciar-impressao"
-            aria-busy={startPrintingMutation.isPending || undefined}
             // Celular: "Iniciar 20 un. na Impressora 4 (Targa Elite)" não cabe
             // em 2/3 de 358px sem quebrar em três linhas — o primário ocupa a
             // linha inteira, EM CIMA (no DOM também), e o Cancelar vai embaixo.
             // Esta etapa não abre teclado, então os dois andares não apertam.
-            style={{ flex: isMobile ? "1 1 100%" : 2, minHeight: alvo, padding: "0 12px", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, backgroundColor: T.text, border: "none", color: "#ffffff", fontFamily: GROTESK, fontWeight: 700, fontSize: 14, borderRadius: R.md, cursor: pode ? "pointer" : "not-allowed", opacity: pode ? 1 : 0.55, transition: "background-color 0.15s" }}
-            onMouseEnter={(e) => { if (pode) e.currentTarget.style.backgroundColor = "#000000"; }}
-            onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = T.text; }}
+            // O rótulo quebra linha em vez de estourar ("… (Targa Elite)").
+            style={{ flex: isMobile ? "1 1 100%" : 2, minHeight: alvo, padding: "0 12px", fontSize: FS.read, whiteSpace: "normal" }}
           >
-            {startPrintingMutation.isPending && <Loader2 aria-hidden="true" className="animate-spin" style={{ width: 14, height: 14 }} />}
             {startPrintingMutation.isPending ? "Iniciando…"
               : !maquinaEscolhida ? "Iniciar impressão"
               : !conta.valida ? `De 1 a ${conta.disponivel}`
               : conta.inteira ? `Iniciar tudo (${conta.n}) na ${rotuloDaMaquina(maquinaEscolhida)}`
               : `Iniciar ${conta.n} un. na ${rotuloDaMaquina(maquinaEscolhida)}`}
-          </button>
+          </Botao>
           {isMobile && botaoCancelar}
         </div>
       </div>
@@ -763,33 +771,34 @@ export function FormularioDeImpressao({ item, onFechar, padModal, mutacoes, abri
   // (Targa Elite)" não cabe em 326px: no celular o Mover ocupa a linha de cima
   // e o Manter a de baixo (ordem do DOM = ordem na tela).
   const botaoManter = maquinaAtual ? (
-    <button
-      type="button"
+    <Botao
+      variante="secundario"
       onClick={() => { setTrocando(false); setMaquinaEscolhida(maquinaAtual); }}
       data-testid="button-manter-maquina"
-      style={{ flex: isMobile ? "1 1 100%" : 1, minHeight: alvo, padding: "0 12px", backgroundColor: "transparent", border: `1px solid ${T.border}`, color: "#57534e", fontWeight: 700, fontSize: 13, cursor: "pointer", borderRadius: R.md }}
+      style={{ flex: isMobile ? "1 1 100%" : 1, minHeight: alvo, padding: "0 12px", whiteSpace: "normal" }}
     >
       Manter na {rotuloDaMaquina(maquinaAtual)}
-    </button>
+    </Botao>
   ) : null;
 
   return (
+    <>
     <form onSubmit={salvarImpressas} data-testid="form-impressao" data-etapa="impressas" style={{ display: "flex", flexDirection: "column", gap: 20 }}>
       {/* Onde a peça está, com hora — e o link discreto para trocar. */}
-      <div data-testid="onde-esta" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap", padding: "10px 12px", borderRadius: R.md, background: "#fff7ed", border: "1px solid #fed7aa" }}>
-        <span style={{ display: "inline-flex", alignItems: "center", gap: 8, minWidth: 0, flex: "1 1 200px", fontSize: fsMin(13), color: "#9a3412", fontWeight: 700 }}>
+      <div data-testid="onde-esta" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap", padding: "10px 12px", borderRadius: R.md, background: TOM.laranja.bg, border: `1px solid ${TOM.laranja.border}` }}>
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 8, minWidth: 0, flex: "1 1 200px", fontSize: fsMin(13), color: TOM.laranja.text, fontWeight: FW.forte }}>
           <Printer aria-hidden="true" style={{ width: 14, height: 14, flexShrink: 0 }} />
           {/* Quebra linha, nunca corta: "Em impressão na Impressora 4 (Targa
               Elite) · desde 10:12" não cabe em 390px numa linha só. */}
           <span style={{ minWidth: 0, overflowWrap: "anywhere" }}>
             {maquinaAtual ? `Em impressão na ${rotuloDaMaquina(maquinaAtual)}` : "Em impressão — impressora não anotada"}{hora ? ` · desde ${hora}` : ""}
-            <span data-testid="progresso-no-modal" style={{ display: "block", fontSize: fsMin(11), fontWeight: 600, color: "#9a3412", opacity: 0.9, marginTop: 2, fontVariantNumeric: "tabular-nums" }}>
+            <span data-testid="progresso-no-modal" style={{ display: "block", fontSize: fsMin(11), fontWeight: FW.medio, color: TOM.laranja.text, marginTop: 2, fontVariantNumeric: "tabular-nums" }}>
               {dividida
                 ? `${jaSairam} de ${teto} nesta impressora · peça ${producedOf(item)} de ${tetoDeProducao(item)} no total`
                 : progressoDaImpressao(jaSairam, teto)}
             </span>
             {dividida && (
-              <span data-testid="divisao-no-modal" style={{ display: "block", fontSize: fsMin(11), fontWeight: 600, color: "#9a3412", opacity: 0.8, marginTop: 2 }}>
+              <span data-testid="divisao-no-modal" style={{ display: "block", fontSize: fsMin(11), fontWeight: FW.medio, color: TOM.laranja.text, marginTop: 2 }}>
                 Dividida: {resumoDaDivisao(partes)}
               </span>
             )}
@@ -798,37 +807,38 @@ export function FormularioDeImpressao({ item, onFechar, padModal, mutacoes, abri
         {/* Botão contornado, não link sublinhado: o dono não o achava no
             meio da faixa laranja (21/09). Some só enquanto o painel está aberto. */}
         {!trocando && !confirmandoTirar && !!maquinaAtual && restanteAqui > 0 && (
-          <button
-            type="button"
+          <Botao
+            variante="secundario"
             onClick={() => setConfirmandoTirar(true)}
             disabled={!podeTirar}
             data-testid="button-tirar-da-impressora"
             title={`Tirar da ${rotuloDaMaquina(maquinaAtual)}: o que já saiu fica anotado e o resto volta para o topo da fila dela — a impressora fica livre`}
-            style={{ minHeight: isMobile ? 44 : 34, padding: "0 12px", display: "inline-flex", alignItems: "center", justifyContent: "center", border: "1px solid #d6d3d1", background: "#ffffff", color: T.text, fontSize: fsMin(12), fontWeight: 700, cursor: podeTirar ? "pointer" : "not-allowed", borderRadius: R.md, whiteSpace: "nowrap", flexShrink: 0, ...(isMobile ? { flex: "1 1 100%" } : {}) }}
+            style={{ minHeight: alvoDe(34, toque), padding: "0 12px", border: `1px solid ${T.bdark}`, color: T.text, fontSize: fsMin(12), flexShrink: 0, ...(isMobile ? { flex: "1 1 100%" } : {}) }}
           >
             Tirar da impressora
-          </button>
+          </Botao>
         )}
         {confirmandoTirar && !!maquinaAtual && (
-          <div role="alertdialog" aria-label="Tirar da impressora" data-testid="confirmar-tirar" style={{ flex: "1 1 100%", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", fontSize: fsMin(12), color: "#92400e", fontWeight: 700 }}>
+          <div role="alertdialog" aria-label="Tirar da impressora" data-testid="confirmar-tirar" style={{ flex: "1 1 100%", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", fontSize: fsMin(12), color: TOM.alerta.text, fontWeight: FW.forte }}>
             <span style={{ flex: "1 1 220px" }}>Tirar {item.displayId ?? "a peça"} da {rotuloDaMaquina(maquinaAtual)}? {jaSairam} de {teto} ficam anotadas; {restanteAqui} {restanteAqui === 1 ? "volta" : "voltam"} para o topo da fila dela.</span>
-            <button type="button" onClick={tirar} disabled={!podeTirar} data-testid="button-confirmar-tirar" style={{ minHeight: isMobile ? 44 : 32, padding: "0 12px", borderRadius: R.md, border: "none", background: T.text, color: "#fff", fontWeight: 700, cursor: "pointer" }}>{mexerNaImpressoraMutation.isPending ? "Tirando…" : "Tirar"}</button>
-            <button type="button" onClick={() => setConfirmandoTirar(false)} style={{ minHeight: isMobile ? 44 : 32, padding: "0 10px", borderRadius: R.md, border: `1px solid ${T.border}`, background: "#fff", color: "#57534e", fontWeight: 700, cursor: "pointer" }}>Cancelar</button>
+            <Botao variante="primario" tamanho="sm" onClick={tirar} disabled={!podeTirar} data-testid="button-confirmar-tirar" style={{ minHeight: alvoDe(32, toque) }}>{mexerNaImpressoraMutation.isPending ? "Tirando…" : "Tirar"}</Botao>
+            <Botao variante="secundario" tamanho="sm" onClick={() => setConfirmandoTirar(false)} style={{ minHeight: alvoDe(32, toque) }}>Cancelar</Botao>
           </div>
         )}
         {!trocando && !!maquinaAtual && (
-          <button
-            type="button"
+          <Botao
+            variante="secundario"
+            icone={ArrowLeftRight}
             onClick={() => { setTrocando(true); setMaquinaEscolhida(""); }}
             data-testid="button-trocar-maquina"
             title="Mover esta peça para outra impressora"
             // Celular: largura total, na linha de baixo da faixa — um alvo
-            // inteiro para o dedo, sem disputar a linha com o texto.
-            style={{ minHeight: isMobile ? 44 : 34, padding: "0 12px", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, border: "1.5px solid #9a3412", background: "#ffffff", color: "#9a3412", fontFamily: GROTESK, fontSize: fsMin(12), fontWeight: 700, cursor: "pointer", borderRadius: R.md, whiteSpace: "nowrap", flexShrink: 0, ...(isMobile ? { flex: "1 1 100%" } : {}) }}
+            // inteiro para o dedo, sem disputar a linha com o texto. Contorno
+            // no tom da faixa: o dono não o achava no meio do laranja (21/09).
+            style={{ minHeight: alvoDe(34, toque), padding: "0 12px", border: `1.5px solid ${TOM.laranja.text}`, color: TOM.laranja.text, fontSize: fsMin(12), flexShrink: 0, ...(isMobile ? { flex: "1 1 100%" } : {}) }}
           >
-            <ArrowLeftRight aria-hidden="true" style={{ width: 13, height: 13 }} />
             Trocar de máquina
-          </button>
+          </Botao>
         )}
       </div>
 
@@ -840,10 +850,10 @@ export function FormularioDeImpressao({ item, onFechar, padModal, mutacoes, abri
             <div role="radiogroup" aria-label="Quanto mover" data-testid="quanto-mover" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               <span style={rotulo(fsMin)}>Quanto vai para a {rotuloDaMaquina(maquinaEscolhida)}</span>
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-                <button type="button" role="radio" aria-checked={moverTudo} onClick={() => setMoverTudo(true)} data-testid="mover-tudo" style={{ minHeight: alvo, padding: "0 14px", borderRadius: R.md, fontFamily: GROTESK, fontSize: 13, fontWeight: 800, backgroundColor: moverTudo ? T.text : "#f4f3f0", color: moverTudo ? "#fff" : T.text, border: `2px solid ${moverTudo ? T.text : "transparent"}`, cursor: "pointer" }}>
+                <button type="button" role="radio" className="ds-botao" aria-checked={moverTudo} onClick={() => setMoverTudo(true)} data-testid="mover-tudo" style={{ minHeight: alvo, padding: "0 14px", borderRadius: R.md, fontFamily: GROTESK, fontSize: FS.body, fontWeight: FW.rotulo, backgroundColor: moverTudo ? T.text : N.n3, color: moverTudo ? T.surface : T.text, border: `2px solid ${moverTudo ? T.text : "transparent"}`, cursor: "pointer" }}>
                   Tudo ({restanteAqui})
                 </button>
-                <button type="button" role="radio" aria-checked={!moverTudo} onClick={() => setMoverTudo(false)} data-testid="mover-quantidade" style={{ minHeight: alvo, padding: "0 14px", borderRadius: R.md, fontFamily: GROTESK, fontSize: 13, fontWeight: 800, backgroundColor: !moverTudo ? T.text : "#f4f3f0", color: !moverTudo ? "#fff" : T.text, border: `2px solid ${!moverTudo ? T.text : "transparent"}`, cursor: "pointer" }}>
+                <button type="button" role="radio" className="ds-botao" aria-checked={!moverTudo} onClick={() => setMoverTudo(false)} data-testid="mover-quantidade" style={{ minHeight: alvo, padding: "0 14px", borderRadius: R.md, fontFamily: GROTESK, fontSize: FS.body, fontWeight: FW.rotulo, backgroundColor: !moverTudo ? T.text : N.n3, color: !moverTudo ? T.surface : T.text, border: `2px solid ${!moverTudo ? T.text : "transparent"}`, cursor: "pointer" }}>
                   Quantidade
                 </button>
                 {!moverTudo && (
@@ -858,11 +868,11 @@ export function FormularioDeImpressao({ item, onFechar, padModal, mutacoes, abri
                     aria-label={`Quantas unidades vão para a ${rotuloDaMaquina(maquinaEscolhida)}`}
                     placeholder="0"
                     data-testid="input-quantidade-mover"
-                    style={{ width: 96, minHeight: alvo, boxSizing: "border-box", textAlign: "center", fontFamily: GROTESK, fontSize: isMobile ? 16 : 18, fontWeight: 700, color: T.text, backgroundColor: "#f4f3f0", border: "none", borderRadius: R.md, padding: "0 10px" }}
+                    style={{ width: 96, minHeight: alvo, boxSizing: "border-box", textAlign: "center", fontFamily: GROTESK, fontSize: isMobile ? FS.lead : FS.title, fontWeight: FW.forte, color: T.text, backgroundColor: N.n3, border: "none", borderRadius: R.md, padding: "0 10px" }}
                   />
                 )}
               </div>
-              <p role="status" data-testid="texto-mover" style={{ margin: 0, fontSize: fsMin(12), color: qtdMoverValida ? T.second : "#b45309", lineHeight: 1.45 }}>
+              <p role="status" data-testid="texto-mover" style={{ margin: 0, fontSize: fsMin(12), color: qtdMoverValida ? T.second : TOM.alerta.text, lineHeight: 1.45 }}>
                 {qtdMoverValida
                   ? `${movidas} ${movidas === 1 ? "vai" : "vão"} para a ${rotuloDaMaquina(maquinaEscolhida)}; ${restanteAqui - movidas} ${restanteAqui - movidas === 1 ? "fica" : "ficam"} na ${rotuloDaMaquina(maquinaAtual)}.`
                   : `Informe de 1 a ${restanteAqui} — é o que ainda está por imprimir na ${rotuloDaMaquina(maquinaAtual)}.`}
@@ -870,17 +880,17 @@ export function FormularioDeImpressao({ item, onFechar, padModal, mutacoes, abri
             </div>
           )}
           {quemSaiNaTroca && (
-            <div role="alertdialog" aria-label="Imprimir esta no lugar" data-testid="troca-no-mover" style={{ display: "flex", flexDirection: "column", gap: 8, padding: "10px 12px", borderRadius: R.md, background: "#fffbeb", border: "1px solid #fde68a", color: "#92400e", fontSize: fsMin(12), lineHeight: 1.45 }}>
+            <div role="alertdialog" aria-label="Imprimir esta no lugar" data-testid="troca-no-mover" style={{ display: "flex", flexDirection: "column", gap: 8, padding: "10px 12px", borderRadius: R.md, background: TOM.alerta.bg, border: `1px solid ${TOM.alerta.border}`, color: TOM.alerta.text, fontSize: fsMin(12), lineHeight: 1.45 }}>
               <span style={{ fontWeight: 700 }}>{perguntaDaTroca(quemSaiNaTroca, [item.displayId, item.type ? `(${item.type})` : null].filter(Boolean).join(" ") || null, maquinaEscolhida)}</span>
-              <button
-                type="button"
+              <Botao
+                variante="primario"
                 disabled={!podeTrocarNoLugarMovendo}
                 onClick={() => { if (podeTrocarNoLugarMovendo) mexerNaImpressoraMutation.mutate({ maquina: maquinaEscolhida, sai: quemSaiNaTroca, entra: { id: item.id, displayId: item.displayId }, quantidade: moverTudo ? null : movidas, deMaquina: maquinaAtual }); }}
                 data-testid="button-imprimir-no-lugar-movendo"
-                style={{ minHeight: alvo, padding: "0 12px", borderRadius: R.md, border: "none", background: T.text, color: "#fff", fontFamily: GROTESK, fontWeight: 700, fontSize: 14, cursor: podeTrocarNoLugarMovendo ? "pointer" : "not-allowed", opacity: podeTrocarNoLugarMovendo ? 1 : 0.55 }}
+                style={{ minHeight: alvo, fontSize: FS.read, whiteSpace: "normal" }}
               >
                 {mexerNaImpressoraMutation.isPending ? "Trocando…" : `Imprimir esta no lugar (${movidas} un.)`}
-              </button>
+              </Botao>
               {!qtdMoverValida && <span data-testid="motivo-troca-no-mover">Informe quantas vão (de 1 a {restanteAqui}) para trocar.</span>}
             </div>
           )}
@@ -891,20 +901,21 @@ export function FormularioDeImpressao({ item, onFechar, padModal, mutacoes, abri
           </p>
           <div data-testid="acoes-da-troca" style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
             {!isMobile && botaoManter}
-            <button
-              type="button"
+            <Botao
+              variante="secundario"
               onClick={iniciarOuTrocar}
               disabled={!podeTrocar}
+              carregando={startPrintingMutation.isPending}
               data-testid="button-iniciar-impressao"
-              aria-busy={startPrintingMutation.isPending || undefined}
-              style={{ flex: isMobile ? "1 1 100%" : 2, minHeight: alvo, padding: "0 12px", backgroundColor: "#ffffff", border: `1.5px solid ${T.text}`, color: T.text, fontFamily: GROTESK, fontWeight: 700, fontSize: 13, borderRadius: R.md, cursor: podeTrocar ? "pointer" : "not-allowed", opacity: podeTrocar ? 1 : 0.55 }}
+              // Contorno escuro: é a ação do painel, mas não a da tela (essa é salvar as impressas).
+              style={{ flex: isMobile ? "1 1 100%" : 2, minHeight: alvo, padding: "0 12px", border: `1.5px solid ${T.text}`, color: T.text, whiteSpace: "normal" }}
             >
               {startPrintingMutation.isPending ? (maquinaAtual ? "Movendo…" : "Confirmando…")
                 : !maquinaAtual ? (maquinaEscolhida ? `Confirmar ${rotuloDaMaquina(maquinaEscolhida)}` : "Confirmar impressora")
                 : !maquinaEscolhida ? "Mover"
                 : moverTudo || restanteAqui <= 1 ? `Mover tudo para a ${rotuloDaMaquina(maquinaEscolhida)}`
                 : `Mover ${movidas || "…"} para a ${rotuloDaMaquina(maquinaEscolhida)}`}
-            </button>
+            </Botao>
             {isMobile && botaoManter}
           </div>
         </div>
@@ -940,34 +951,32 @@ export function FormularioDeImpressao({ item, onFechar, padModal, mutacoes, abri
             }}
             aria-describedby="dica-quantidade-produzida"
             data-testid="input-quantity-produced"
-            style={{ flex: 1, minWidth: 0, minHeight: 56, boxSizing: "border-box", textAlign: "center", fontFamily: GROTESK, fontSize: 26, fontWeight: 700, color: T.text, backgroundColor: "#f4f3f0", border: "none", borderRadius: R.md, padding: "16px 12px" }}
+            style={{ flex: 1, minWidth: 0, minHeight: 56, boxSizing: "border-box", textAlign: "center", fontFamily: GROTESK, fontSize: FS.h1, fontWeight: FW.forte, color: T.text, backgroundColor: N.n3, border: "none", borderRadius: R.md, padding: "16px 12px" }}
           />
-          <button
-            type="button"
+          <Botao
+            variante="secundario"
             onClick={() => { if (modoTotal) setQuantidadeTotal(teto); else setAgora(naImpressora); }}
             title={modoTotal ? `Total ${teto}` : `Todas as ${naImpressora} que estão na impressora`}
             data-testid="button-set-total"
-            style={{ backgroundColor: "#e7e5e4", border: "none", borderRadius: R.md, padding: "0 20px", minHeight: 44, fontWeight: 700, fontSize: 14, color: "#44403c", cursor: "pointer", whiteSpace: "nowrap", transition: "background-color 0.15s" }}
-            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "#d6d3d1")}
-            onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "#e7e5e4")}
+            style={{ padding: "0 20px", minHeight: 44, fontSize: FS.read }}
           >
             Tudo
-          </button>
+          </Botao>
         </div>
         {/* A linha viva faz a conta na frente do operador. */}
         {!modoTotal && !!maquinaAtual && (
-          <div role="status" data-testid="linha-da-conta" style={{ fontSize: fsMin(12), fontWeight: 700, color: T.text, marginTop: 8, fontVariantNumeric: "tabular-nums" }}>
+          <div role="status" data-testid="linha-da-conta" style={{ fontSize: fsMin(12), fontWeight: FW.forte, color: T.text, marginTop: 8, fontVariantNumeric: "tabular-nums" }}>
             {doAgora.linha}
           </div>
         )}
         {/* A explicação do botão desabilitado mora aqui, ao lado do campo —
             e não só na opacidade do botão. */}
         {!maquinaAtual ? (
-          <div role="status" data-testid="aviso-quantidade" style={{ fontSize: fsMin(11), color: "#b45309", marginTop: 6 }}>
+          <div role="status" data-testid="aviso-quantidade" style={{ fontSize: fsMin(11), color: TOM.alerta.text, marginTop: 6 }}>
             Escolha a impressora antes de informar as impressas.
           </div>
         ) : frase.aviso && (
-          <div role="status" data-testid="aviso-quantidade" style={{ fontSize: fsMin(11), color: frase.pode ? T.second : "#b45309", marginTop: 6 }}>
+          <div role="status" data-testid="aviso-quantidade" style={{ fontSize: fsMin(11), color: frase.pode ? T.second : TOM.alerta.text, marginTop: 6 }}>
             {frase.aviso}
           </div>
         )}
@@ -976,7 +985,8 @@ export function FormularioDeImpressao({ item, onFechar, padModal, mutacoes, abri
             type="button"
             onClick={() => { setModoTotal((m) => !m); setQuantidadeTotal(jaSairam); setAgora(""); }}
             data-testid="button-corrigir-total"
-            style={{ marginTop: 8, minHeight: isMobile ? 44 : 32, padding: "0 4px", border: "none", background: "transparent", color: T.accentText, fontSize: fsMin(12), fontWeight: 700, cursor: "pointer", textDecoration: "underline", textUnderlineOffset: 3, borderRadius: R.sm }}
+            className="ds-botao"
+            style={{ marginTop: 8, minHeight: alvoDe(32, toque), padding: "0 4px", border: "none", background: "transparent", color: T.accentText, fontSize: fsMin(12), fontWeight: FW.forte, cursor: "pointer", textDecoration: "underline", textUnderlineOffset: 3, borderRadius: R.sm }}
           >
             {modoTotal ? "Voltar a informar o que saiu agora" : "Corrigir o total já informado"}
           </button>
@@ -985,20 +995,20 @@ export function FormularioDeImpressao({ item, onFechar, padModal, mutacoes, abri
 
       <div style={rodapeDoModal(padModal)}>
         {botaoCancelar}
-        <button
+        <Botao
+          variante="primario"
           type="submit"
           disabled={!podeSalvar}
+          carregando={startProductionMutation.isPending}
           data-testid="button-confirm-production"
-          aria-busy={startProductionMutation.isPending || undefined}
-          style={{ flex: 2, minHeight: alvo, padding: "0 12px", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, backgroundColor: T.text, border: "none", color: "#ffffff", fontFamily: GROTESK, fontWeight: 700, fontSize: 14, cursor: podeSalvar ? "pointer" : "not-allowed", borderRadius: R.md, opacity: podeSalvar ? 1 : 0.6, transition: "background-color 0.15s" }}
-          onMouseEnter={(e) => { if (podeSalvar) e.currentTarget.style.backgroundColor = "#000000"; }}
-          onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = T.text; }}
+          style={{ flex: 2, minHeight: alvo, padding: "0 12px", fontSize: FS.read, whiteSpace: "normal" }}
         >
-          {startProductionMutation.isPending && <Loader2 aria-hidden="true" className="animate-spin" style={{ width: 14, height: 14 }} />}
           {startProductionMutation.isPending ? "Salvando…" : frase.rotulo}
-        </button>
+        </Botao>
       </div>
     </form>
+    {dialogo}
+    </>
   );
 }
 
@@ -1044,23 +1054,24 @@ export function ModalImpressao({ item, onFechar, abrirNaTroca = false, maquinaIn
         {item && (
           <div style={{ padding: padModal, display: "flex", flexDirection: "column", gap: isMobile ? 16 : 20, overflowY: "auto", flex: "1 1 auto", minHeight: 0 }}>
             {/* Ficha resumida: qual peça o toque atingiu. */}
-            <div style={{ backgroundColor: "#f4f3f0", borderRadius: R.lg, padding: 14, display: "flex", gap: 12, alignItems: "flex-start" }}>
+            <div style={{ backgroundColor: T.low, borderRadius: R.lg, padding: 14, display: "flex", gap: 12, alignItems: "flex-start" }}>
               {item.approvalThumbUrl ? (
                 <img
                   src={item.approvalThumbUrl}
                   alt=""
+                  loading="lazy"
                   decoding="async"
-                  style={{ width: 56, height: 56, objectFit: "cover", borderRadius: R.md, background: "#fff", border: `1px solid ${T.border}`, flexShrink: 0 }}
+                  style={{ width: 56, height: 56, objectFit: "cover", borderRadius: R.md, background: T.surface, border: `1px solid ${T.border}`, flexShrink: 0 }}
                   onError={(e) => { e.currentTarget.style.display = "none"; }}
                 />
               ) : (
-                <div aria-hidden="true" style={{ width: 40, height: 40, borderRadius: R.md, background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                <div aria-hidden="true" style={{ width: 40, height: 40, borderRadius: R.md, background: T.surface, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                   <Printer style={{ width: 18, height: 18, color: T.accentText }} />
                 </div>
               )}
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontFamily: GROTESK, fontWeight: 700, fontSize: isMobile ? 16 : 13, color: T.accentText }}>{item.displayId ?? "—"}</div>
-                <div style={{ fontSize: FS.strong, fontWeight: 700, color: T.text }}>{item.type}</div>
+                <div style={{ fontFamily: GROTESK, fontWeight: FW.forte, fontSize: isMobile ? FS.lead : FS.body, color: T.accentText }}>{item.displayId ?? "—"}</div>
+                <div style={{ fontSize: FS.strong, fontWeight: FW.forte, color: T.text }}>{item.type}</div>
                 {item.description && item.description !== item.type && (
                   <div title={item.description} style={{ fontSize: FS.body, color: T.second, marginTop: 1, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflowWrap: "anywhere" }}>{item.description}</div>
                 )}
@@ -1071,7 +1082,7 @@ export function ModalImpressao({ item, onFechar, abrirNaTroca = false, maquinaIn
                     <span style={{ minWidth: 0, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflowWrap: "anywhere" }}>{item.event.name}</span>
                   </div>
                 )}
-                <div style={{ fontSize: fsMin(11), color: "#57534e", marginTop: 6, fontVariantNumeric: "tabular-nums" }}>
+                <div style={{ fontSize: fsMin(11), color: T.apoio, marginTop: 6, fontVariantNumeric: "tabular-nums" }}>
                   {producedOf(item)} já impressa{producedOf(item) !== 1 ? "s" : ""} de {qtyOf(item)}
                   {reusedTotalOf(item) > 0 && ` · ${reusedTotalOf(item)} reaproveitada${reusedTotalOf(item) !== 1 ? "s" : ""}`}
                 </div>

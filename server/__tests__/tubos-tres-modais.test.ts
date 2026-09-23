@@ -442,7 +442,7 @@ for (const largura of [1280, 390]) {
       await clicar('[data-testid="painel-ver-sozinhas"]');
       const sozinha = $('[data-testid="sozinha-z1"]')!;
       expect(sozinha.textContent).toContain("#0390");
-      expect($('[data-testid="entregar-sozinha-z1"]')!.textContent).toBe(" Entregar");
+      expect($('[data-testid="entregar-sozinha-z1"]')!.textContent).toBe("Entregar"); // <Botao icone>: o ícone não deixa mais o espaço antes do rótulo
       expect($('[data-testid="desfazer-embalagem-z1"]')!.textContent).toBe("Desfazer embalagem");
       expect(sozinha.querySelector("a[href*='etiqueta']")).toBeNull();
       expect($('[data-testid="tubo-3"]'), "entregue fica recolhido").toBeNull();
@@ -581,7 +581,7 @@ for (const largura of [1280, 390]) {
       expect(m.textContent).toContain("Embalagem de #0390");
       expect(m.textContent).not.toMatch(/tubo/i);
       expect($('[data-testid="tubo-etiqueta"]')).toBeNull();
-      expect($('[data-testid="tubo-entregar"]')!.textContent).toBe(" Entregar");
+      expect($('[data-testid="tubo-entregar"]')!.textContent).toBe("Entregar");
       expect($('[data-testid="tubo-tirar-z1"]')!.textContent).toBe("Desfazer embalagem");
     }, 30_000);
 
@@ -633,7 +633,7 @@ describe("estados de carregamento e erro", () => {
       // Sob carga a resposta demora: espera o erro aparecer em vez de um tempo fixo.
       for (let i = 0; i < 100 && !$('[role="alert"]'); i++) await tick(30);
       expect($('[role="alert"]')!.textContent).toContain("Não foi possível carregar os tubos.");
-      expect($('[role="alert"] button')!.textContent).toBe("Tentar novamente");
+      expect($('[role="alert"] button')!.textContent).toBe("Tentar de novo"); // o botão do <EstadoErro> do design system
       cleanup();
     }
   }, 30_000);

@@ -41,8 +41,12 @@ import { linhaDaLista } from "@/lib/etiqueta-lista";
 import { parteDoTotal } from "@shared/embalagem";
 import { nomeDaPeca } from "@shared/nome-da-peca";
 import { useToast } from "@/hooks/use-toast";
-import { useIsMobile } from "@/hooks/use-mobile";
+import { useIsMobile, usePonteiroGrosso, alvo as alvoDoPonteiro } from "@/hooks/use-mobile";
 import { useAuth } from "@/contexts/auth-context";
+import { T, N, TOM, FS, FW, FONT, R } from "@/lib/theme";
+import { Botao } from "@/components/ui/botao";
+import { Selo } from "@/components/ui/selo";
+import { EstadoErro, Esqueleto } from "@/components/ui/estados";
 
 type Peca = {
   id: string;
@@ -96,17 +100,21 @@ type Tubo = {
 type Retrato = { evento: { id: string; name: string }; tubos: Tubo[]; semTubo: Peca[] };
 type Evento = { id: string; name: string };
 
+// Tudo vem do design system (lib/theme): os tons de alerta/sucesso/info são os
+// mesmos das pílulas de status, e o texto de cada TOM já é AA sobre o `bg`.
 const COR = {
-  texto: "#1c1917", sec: "#57534e", fraco: "#78716c", borda: "#e7e5e4", fundo: "#fafaf9",
-  laranja: "#c2410c", verde: "#15803d", verdeBg: "#f0fdf4", verdeBorda: "#bbf7d0",
-  ambar: "#92400e", ambarBg: "#fffbeb", ambarBorda: "#fde68a",
-  vermelho: "#b91c1c",
+  texto: T.text, sec: T.apoio, fraco: T.second, borda: T.border, fundo: T.bg,
+  laranja: T.accentText, verde: TOM.sucesso.text, verdeBg: TOM.sucesso.bg, verdeBorda: TOM.sucesso.border,
+  ambar: TOM.alerta.text, ambarBg: TOM.alerta.bg, ambarBorda: TOM.alerta.border,
+  vermelho: TOM.perigo.text,
   // Azul do Embalado (P.blue de lib/status): embalar usa a cor da etapa.
-  azul: "#1d4ed8", azulBg: "#eff6ff", azulBorda: "#bfdbfe",
+  azul: TOM.info.text, azulBg: TOM.info.bg, azulBorda: TOM.info.border,
 };
 
+// Rótulo de seção em caixa normal: a caixa-alta em cada bloco competia com o
+// conteúdo (as peças) pelo olho.
 const ROTULO: React.CSSProperties = {
-  fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: COR.fraco,
+  fontSize: FS.meta, fontWeight: FW.forte, color: COR.fraco,
 };
 
 /** A mensagem do servidor vem crua dentro do erro ("409: {\"error\":…}"). */
@@ -128,10 +136,12 @@ const plural = (n: number, um: string, varios: string) => `${n} ${n === 1 ? um :
 // ── O que os três modais compartilham ───────────────────────────────────────
 
 /** Padrão da Gráfica no celular: alvo de 44px, campo a 16px (abaixo disso o
- *  iOS dá zoom ao focar) e letra de no mínimo 12px. */
+ *  iOS dá zoom ao focar) e letra de no mínimo 12px. `grosso` é o dedo no
+ *  tablet do galpão: alvo de toque também fora da largura de celular. */
 function useMedidas() {
   const isMobile = useIsMobile();
-  return { isMobile, alvo: isMobile ? 44 : 36, pad: isMobile ? 16 : 20, fsMin: (n: number) => (isMobile ? Math.max(12, n) : n) };
+  const grosso = usePonteiroGrosso() || isMobile;
+  return { isMobile, grosso, alvo: alvoDoPonteiro(36, grosso), pad: isMobile ? 16 : 20, fsMin: (n: number) => (isMobile ? Math.max(12, n) : n) };
 }
 
 const chaveDoRetrato = (eventoId: string | undefined) => [`/api/events/${eventoId}/tubos`];
@@ -185,46 +195,49 @@ function Rodape({ testId, children }: { testId: string; children: React.ReactNod
   const { pad } = useMedidas();
   return (
     <div data-testid={testId}
-      style={{ flexShrink: 0, display: "flex", gap: 10, paddingTop: 10, paddingLeft: pad, paddingRight: pad, paddingBottom: "calc(10px + env(safe-area-inset-bottom))", borderTop: `1px solid ${COR.borda}`, background: "#fff", boxShadow: "0 -8px 12px -8px rgba(28,25,23,0.18)" }}>
+      style={{ flexShrink: 0, display: "flex", gap: 10, paddingTop: 10, paddingLeft: pad, paddingRight: pad, paddingBottom: "calc(10px + env(safe-area-inset-bottom))", borderTop: `1px solid ${COR.borda}`, background: T.surface, boxShadow: "0 -8px 12px -8px rgba(28,25,23,0.18)" }}>
       {children}
     </div>
   );
 }
 function BotaoCancelar({ onClick, texto = "Cancelar" }: { onClick: () => void; texto?: string }) {
-  const { isMobile } = useMedidas();
+  const { grosso } = useMedidas();
   return (
-    <button type="button" onClick={onClick}
-      style={{ flex: 1, minHeight: isMobile ? 48 : 40, borderRadius: 8, border: `1px solid ${COR.borda}`, background: "#fff", color: COR.sec, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
+    <Botao variante="secundario" tamanho={grosso ? "toque" : "md"} onClick={onClick}
+      style={{ flex: 1, minHeight: grosso ? 48 : 40, color: COR.sec }}>
       {texto}
-    </button>
+    </Botao>
   );
 }
+/** A ação do modal, na cor da ETAPA (azul embalar, verde entregar) — a mesma
+ *  do cabeçalho. Enquanto não dá, fica cinza e LEGÍVEL (sem a opacidade de
+ *  desabilitado do Botao): o rótulo é o motivo ("Tire a foto", "Informe quem
+ *  recebeu") e precisa ser lido. */
 function BotaoPrimario({ onClick, disabled, cor, children, testId }: { onClick: () => void; disabled: boolean; cor: string; children: React.ReactNode; testId: string }) {
-  const { isMobile } = useMedidas();
+  const { grosso } = useMedidas();
   return (
-    <button type="button" onClick={onClick} disabled={disabled} data-testid={testId}
-      style={{ flex: 2, minHeight: isMobile ? 48 : 40, borderRadius: 8, border: "none", background: disabled ? "#e7e5e4" : cor, color: disabled ? COR.sec : "#fff", fontWeight: 800, fontSize: 13, cursor: disabled ? "not-allowed" : "pointer" }}>
+    <Botao variante="primario" tamanho={grosso ? "toque" : "md"} onClick={onClick} disabled={disabled} data-testid={testId}
+      style={{
+        flex: 2, minHeight: grosso ? 48 : 40, whiteSpace: "normal",
+        backgroundColor: disabled ? COR.borda : cor, border: `1px solid ${disabled ? COR.borda : cor}`,
+        color: disabled ? COR.sec : T.surface, fontWeight: FW.rotulo, opacity: 1,
+      }}>
       {children}
-    </button>
+    </Botao>
   );
 }
 
 function Carregando() {
-  return <p role="status" style={{ margin: 0, fontSize: 13, color: COR.fraco }}>Carregando os tubos…</p>;
+  // Esqueleto de lista: a altura do que vem, sem a tela pular quando chega.
+  return <Esqueleto variante="lista" linhas={3} rotulo="Carregando os tubos" />;
 }
 function ErroAoCarregar({ onTentar }: { onTentar: () => void }) {
-  const { alvo } = useMedidas();
-  return (
-    <div role="alert" style={{ padding: "12px 14px", borderRadius: 10, background: "#fef2f2", border: "1px solid #fecaca", color: COR.vermelho, fontSize: 13, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
-      Não foi possível carregar os tubos.
-      <button type="button" onClick={onTentar} style={{ minHeight: alvo, border: "none", borderRadius: 8, background: COR.vermelho, color: "#fff", fontWeight: 700, fontSize: 12, padding: "0 12px", cursor: "pointer" }}>Tentar novamente</button>
-    </div>
-  );
+  return <EstadoErro compacto titulo="Não foi possível carregar os tubos." aoTentarDeNovo={onTentar} />;
 }
 function Aviso({ children, testId, tom = "ambar" }: { children: React.ReactNode; testId?: string; tom?: "ambar" | "azul" }) {
   const c = tom === "ambar" ? { cor: COR.ambar, bg: COR.ambarBg, borda: COR.ambarBorda } : { cor: COR.azul, bg: COR.azulBg, borda: COR.azulBorda };
   return (
-    <div data-testid={testId} style={{ display: "flex", gap: 8, padding: "10px 12px", borderRadius: 10, background: c.bg, border: `1px solid ${c.borda}`, color: c.cor, fontSize: 13, lineHeight: 1.4 }}>
+    <div data-testid={testId} style={{ display: "flex", gap: 8, padding: "10px 12px", borderRadius: R.md, background: c.bg, border: `1px solid ${c.borda}`, color: c.cor, fontSize: FS.body, lineHeight: 1.4 }}>
       <AlertTriangle aria-hidden="true" style={{ width: 15, height: 15, flexShrink: 0, marginTop: 2 }} />
       <span style={{ minWidth: 0 }}>{children}</span>
     </div>
@@ -237,8 +250,8 @@ function LinhaDaPeca({ p, noVolume = false, semQuantidade = false }: { p: Peca; 
   const parte = noVolume ? parteDoTotal(q, p.quantity) : "";
   return (
     <>
-      <span style={{ fontFamily: "ui-monospace, monospace", fontSize: 12.5, fontWeight: 700, color: COR.laranja, flexShrink: 0 }}>{p.displayId ?? "—"}</span>
-      <span style={{ fontSize: 13, color: COR.texto, flex: "1 1 120px", minWidth: 0, overflowWrap: "anywhere", lineHeight: 1.3 }}>
+      <span style={{ fontFamily: FONT.mono, fontSize: FS.meta, fontWeight: FW.forte, color: COR.laranja, flexShrink: 0 }}>{p.displayId ?? "—"}</span>
+      <span style={{ fontSize: FS.body, color: COR.texto, flex: "1 1 120px", minWidth: 0, overflowWrap: "anywhere", lineHeight: 1.3 }}>
         {linhaDaLista({ ...p, quantity: q }, { mostrarQuantidade: !semQuantidade })}{parte ? <span style={{ color: COR.sec }}> {parte}</span> : null}
       </span>
     </>
@@ -250,8 +263,8 @@ function Miniaturas({ fotos, alt, tamanho = 56 }: { fotos: string[]; alt: string
     <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
       {fotos.map((url, i) => (
         <a key={url} href={url} target="_blank" rel="noreferrer" aria-label={`${alt} ${i + 1} — abrir`}
-          style={{ width: tamanho, height: tamanho, borderRadius: 6, overflow: "hidden", border: `1px solid ${COR.borda}`, display: "block" }}>
-          <img src={url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+          style={{ width: tamanho, height: tamanho, borderRadius: R.sm, overflow: "hidden", border: `1px solid ${COR.borda}`, display: "block" }}>
+          <img src={url} alt="" loading="lazy" decoding="async" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
         </a>
       ))}
     </div>
@@ -261,7 +274,6 @@ function Miniaturas({ fotos, alt, tamanho = 56 }: { fotos: string[]; alt: string
 /** Câmera (direta no celular) + Galeria, com miniaturas e remover de 44px. */
 function Fotos({ lista, onMudar, alt }: { lista: string[]; onMudar: (f: (atual: string[]) => string[]) => void; alt: string }) {
   const { toast } = useToast();
-  const { fsMin } = useMedidas();
   return (
     <>
       <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
@@ -277,9 +289,9 @@ function Fotos({ lista, onMudar, alt }: { lista: string[]; onMudar: (f: (atual: 
               onComplete={(r) => onMudar((f) => (f.length >= 20 ? f : [...f, convertGCSUrlToLocalPath(r.url)]))}
               onError={(e) => toast({ title: "Erro no upload", description: e.message, variant: "destructive" })}
             >
-              <div style={{ width: "100%", padding: "11px 0", background: "#fff", borderRadius: 8, border: "2px dashed #d6d3d1", display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
-                <Icone aria-hidden="true" style={{ width: 18, height: 18, color: COR.fraco }} />
-                <span style={{ fontSize: fsMin(10), fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: COR.fraco }}>{texto}</span>
+              <div style={{ width: "100%", padding: "11px 0", background: T.surface, borderRadius: R.md, border: `2px dashed ${T.bdark}`, display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
+                <Icone aria-hidden="true" style={{ width: 18, height: 18, color: COR.sec }} />
+                <span style={{ fontSize: FS.meta, fontWeight: FW.forte, color: COR.sec }}>{texto}</span>
               </div>
             </ObjectUploader>
           </div>
@@ -288,12 +300,12 @@ function Fotos({ lista, onMudar, alt }: { lista: string[]; onMudar: (f: (atual: 
       {lista.length > 0 && (
         <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
           {lista.map((url, i) => (
-            <div key={url} style={{ position: "relative", width: 72, height: 72, borderRadius: 8, overflow: "hidden", border: `1px solid ${COR.borda}` }}>
-              <img src={url} alt={`${alt} ${i + 1}`} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+            <div key={url} style={{ position: "relative", width: 72, height: 72, borderRadius: R.md, overflow: "hidden", border: `1px solid ${COR.borda}` }}>
+              <img src={url} alt={`${alt} ${i + 1}`} loading="lazy" decoding="async" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
               {/* Alvo de 44px; o X visível é o disco de 24 no canto. */}
               <button type="button" onClick={() => onMudar((f) => f.filter((x) => x !== url))} aria-label={`Remover a foto ${i + 1}`}
                 style={{ position: "absolute", top: 0, right: 0, width: 44, height: 44, padding: 4, border: "none", background: "none", display: "flex", alignItems: "flex-start", justifyContent: "flex-end", cursor: "pointer" }}>
-                <span style={{ width: 24, height: 24, borderRadius: "50%", background: "rgba(28,25,23,0.78)", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <span style={{ width: 24, height: 24, borderRadius: "50%", background: "rgba(28,25,23,0.78)", color: T.surface, display: "flex", alignItems: "center", justifyContent: "center" }}>
                   <X aria-hidden="true" style={{ width: 12, height: 12 }} />
                 </span>
               </button>
@@ -321,7 +333,7 @@ export function EmbalarDialog({ evento, itens, comCaixas = false, emLote = false
   onEmbalou?: () => void;
 }) {
   const { toast } = useToast();
-  const { isMobile, fsMin } = useMedidas();
+  const { isMobile, grosso, fsMin } = useMedidas();
   const soVisualizaKit = useSoVisualizaKit();
   const { data, isLoading, isError, refetch } = useRetrato(evento);
 
@@ -443,12 +455,12 @@ export function EmbalarDialog({ evento, itens, comCaixas = false, emLote = false
     const ativo = escolhido === valor;
     return (
       <button key={valor} type="button" role="radio" aria-checked={ativo} onClick={() => setTubo(valor)} data-testid={testId}
-        style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", minHeight: isMobile ? 52 : 44, padding: "8px 12px", borderRadius: 10, textAlign: "left", cursor: "pointer", border: `2px solid ${ativo ? COR.azul : COR.borda}`, background: ativo ? COR.azulBg : "#fff" }}>
-        <span aria-hidden="true" style={{ width: 18, height: 18, borderRadius: "50%", flexShrink: 0, border: `2px solid ${ativo ? COR.azul : "#a8a29e"}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+        style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", minHeight: grosso ? 52 : 44, padding: "8px 12px", borderRadius: R.md, textAlign: "left", cursor: "pointer", border: `2px solid ${ativo ? COR.azul : COR.borda}`, background: ativo ? COR.azulBg : T.surface }}>
+        <span aria-hidden="true" style={{ width: 18, height: 18, borderRadius: "50%", flexShrink: 0, border: `2px solid ${ativo ? COR.azul : T.muted}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
           {ativo && <span style={{ width: 8, height: 8, borderRadius: "50%", background: COR.azul }} />}
         </span>
         <span style={{ minWidth: 0, display: "flex", flexDirection: "column" }}>
-          <span style={{ fontSize: 14, fontWeight: 800, color: COR.texto }}>{principal}</span>
+          <span style={{ fontSize: FS.read, fontWeight: FW.rotulo, color: COR.texto }}>{principal}</span>
           <span style={{ fontSize: fsMin(12), color: COR.sec }}>{detalhe}</span>
         </span>
       </button>
@@ -479,10 +491,10 @@ export function EmbalarDialog({ evento, itens, comCaixas = false, emLote = false
         <>
           <section data-testid="embalar-pecas" aria-label="Peças que serão embaladas" style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             <span style={ROTULO}>{comCaixas ? `Conferidas a embalar · ${pecas.length} de ${candidatas.length} marcadas` : `${plural(pecas.length, "peça", "peças")} · ${unidades} un.`}</span>
-            <div style={{ border: `1px solid ${COR.borda}`, borderRadius: 10, overflow: "hidden" }}>
+            <div style={{ border: `1px solid ${COR.borda}`, borderRadius: R.md, overflow: "hidden" }}>
               {(comCaixas ? candidatas : pecas).map((p) => (
                 comCaixas ? (
-                  <label key={p.id} data-testid={`embalar-peca-${p.id}`} style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", minHeight: 44, padding: "6px 12px", borderTop: "1px solid #f5f5f4", cursor: "pointer", background: fora.has(p.id) ? "#fff" : COR.azulBg }}>
+                  <label key={p.id} data-testid={`embalar-peca-${p.id}`} style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", minHeight: 44, padding: "6px 12px", borderTop: `1px solid ${N.n2}`, cursor: "pointer", background: fora.has(p.id) ? T.surface : COR.azulBg }}>
                     <input type="checkbox" checked={!fora.has(p.id)}
                       onChange={() => setFora((s) => { const n = new Set(s); if (n.has(p.id)) n.delete(p.id); else n.add(p.id); return n; })}
                       style={{ width: 18, height: 18, accentColor: COR.azul, flexShrink: 0 }} />
@@ -490,12 +502,12 @@ export function EmbalarDialog({ evento, itens, comCaixas = false, emLote = false
                     <span style={{ display: "inline-flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
                       <input aria-label={`Quantas unidades de ${p.displayId ?? "peça"} embalar`} type="number" inputMode="numeric" pattern="[0-9]*" min={1} max={disponivel(p)} {...campoQuantas(p)}
                         data-testid={`quantas-${p.id}`} disabled={disponivel(p) <= 1} aria-invalid={quantasDe(p) === null || undefined}
-                        style={{ width: 64, height: isMobile ? 44 : 36, boxSizing: "border-box", textAlign: "center", borderRadius: 8, border: `1px solid ${COR.borda}`, background: "#fff", color: COR.texto, fontSize: isMobile ? 16 : 14, fontWeight: 700 }} />
+                        style={{ width: 64, height: grosso ? 44 : 36, boxSizing: "border-box", textAlign: "center", borderRadius: R.md, border: `1px solid ${COR.borda}`, background: T.surface, color: COR.texto, fontSize: isMobile ? FS.lead : FS.read, fontWeight: FW.forte }} />
                       {quantasDe(p) !== disponivel(p) && (
-                        <button type="button" onClick={() => setQuantas((q) => ({ ...q, [p.id]: String(disponivel(p)) }))} data-testid={`quantas-tudo-${p.id}`}
-                          style={{ minHeight: isMobile ? 44 : 32, padding: "0 10px", borderRadius: 8, border: `1px solid ${COR.borda}`, background: "#fff", color: COR.azul, fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}>
+                        <Botao variante="secundario" tamanho={grosso ? "toque" : "sm"} onClick={() => setQuantas((q) => ({ ...q, [p.id]: String(disponivel(p)) }))} data-testid={`quantas-tudo-${p.id}`}
+                          style={{ color: COR.azul }}>
                           Tudo ({disponivel(p)})
-                        </button>
+                        </Botao>
                       )}
                     </span>
                     <span data-testid={`apoio-${p.id}`} style={{ flexBasis: "100%", fontSize: fsMin(12), color: COR.sec }}>
@@ -503,17 +515,17 @@ export function EmbalarDialog({ evento, itens, comCaixas = false, emLote = false
                     </span>
                   </label>
                 ) : (
-                  <div key={p.id} data-testid={`embalar-peca-${p.id}`} style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", minHeight: 44, padding: "6px 12px", borderTop: "1px solid #f5f5f4" }}>
+                  <div key={p.id} data-testid={`embalar-peca-${p.id}`} style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", minHeight: 44, padding: "6px 12px", borderTop: `1px solid ${N.n2}` }}>
                     <LinhaDaPeca p={p} semQuantidade />
                     <span style={{ display: "inline-flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
                       <input aria-label={`Quantas unidades de ${p.displayId ?? "peça"} embalar`} type="number" inputMode="numeric" pattern="[0-9]*" min={1} max={disponivel(p)} {...campoQuantas(p)}
                         data-testid={`quantas-${p.id}`} disabled={disponivel(p) <= 1} aria-invalid={quantasDe(p) === null || undefined}
-                        style={{ width: 64, height: isMobile ? 44 : 36, boxSizing: "border-box", textAlign: "center", borderRadius: 8, border: `1px solid ${COR.borda}`, background: "#fff", color: COR.texto, fontSize: isMobile ? 16 : 14, fontWeight: 700 }} />
+                        style={{ width: 64, height: grosso ? 44 : 36, boxSizing: "border-box", textAlign: "center", borderRadius: R.md, border: `1px solid ${COR.borda}`, background: T.surface, color: COR.texto, fontSize: isMobile ? FS.lead : FS.read, fontWeight: FW.forte }} />
                       {quantasDe(p) !== disponivel(p) && (
-                        <button type="button" onClick={() => setQuantas((q) => ({ ...q, [p.id]: String(disponivel(p)) }))} data-testid={`quantas-tudo-${p.id}`}
-                          style={{ minHeight: isMobile ? 44 : 32, padding: "0 10px", borderRadius: 8, border: `1px solid ${COR.borda}`, background: "#fff", color: COR.azul, fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}>
+                        <Botao variante="secundario" tamanho={grosso ? "toque" : "sm"} onClick={() => setQuantas((q) => ({ ...q, [p.id]: String(disponivel(p)) }))} data-testid={`quantas-tudo-${p.id}`}
+                          style={{ color: COR.azul }}>
                           Tudo ({disponivel(p)})
-                        </button>
+                        </Botao>
                       )}
                     </span>
                     {pecas.length > 1 && (
@@ -542,22 +554,22 @@ export function EmbalarDialog({ evento, itens, comCaixas = false, emLote = false
               </>
             ) : (
               <>
-                <p data-testid="embalar-tubo-automatico" style={{ margin: 0, fontSize: 13, color: COR.sec }}>
+                <p data-testid="embalar-tubo-automatico" style={{ margin: 0, fontSize: FS.body, color: COR.sec }}>
                   {sozinha
                     ? <>Vai <strong style={{ color: COR.texto }}>sozinha</strong> — embalagem própria, sem número de tubo.</>
                     : <>Vai para o <strong style={{ color: COR.texto }}>Tubo {numeroAutomatico}</strong> ({vazio ? "vazio, já aberto" : "novo"}).</>}
                 </p>
                 {comPecas.length > 0 && (
                   <button type="button" onClick={() => setEscolhendo(true)} data-testid="embalar-escolher-tubo"
-                    style={{ alignSelf: "flex-start", minHeight: isMobile ? 44 : 32, padding: 0, border: "none", background: "none", color: COR.azul, fontSize: 13, fontWeight: 700, textDecoration: "underline", cursor: "pointer" }}>
+                    style={{ alignSelf: "flex-start", minHeight: grosso ? 44 : 32, padding: 0, border: "none", background: "none", color: COR.azul, fontSize: FS.body, fontWeight: FW.forte, textDecoration: "underline", cursor: "pointer" }}>
                     Pôr num tubo que já existe
                   </button>
                 )}
               </>
             )}
             {tuboEscolhido && tuboEscolhido.pecas.length > 0 && (
-              <div data-testid="embalar-conteudo-do-tubo" style={{ padding: "8px 12px", borderRadius: 10, background: COR.fundo, border: `1px solid ${COR.borda}` }}>
-                <span style={{ fontSize: fsMin(12), fontWeight: 700, color: COR.sec }}>Já está no Tubo {tuboEscolhido.numero}:</span>
+              <div data-testid="embalar-conteudo-do-tubo" style={{ padding: "8px 12px", borderRadius: R.md, background: COR.fundo, border: `1px solid ${COR.borda}` }}>
+                <span style={{ fontSize: fsMin(12), fontWeight: FW.forte, color: COR.sec }}>Já está no Tubo {tuboEscolhido.numero}:</span>
                 <ul style={{ margin: "4px 0 0", padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 3 }}>
                   {tuboEscolhido.pecas.slice(0, 6).map((p) => <li key={p.id} style={{ display: "flex", gap: 8 }}><LinhaDaPeca p={p} noVolume /></li>)}
                   {tuboEscolhido.pecas.length > 6 && <li style={{ fontSize: fsMin(12), color: COR.sec }}>e mais {tuboEscolhido.pecas.length - 6}</li>}
@@ -567,7 +579,7 @@ export function EmbalarDialog({ evento, itens, comCaixas = false, emLote = false
           </section>
 
           <section>
-            <span style={ROTULO}>{mostrarEscolha ? "2 · " : ""}{sozinha && escolhido === "novo" ? "Foto da peça embalada" : "Foto do tubo com os itens"} <span style={{ textTransform: "none", letterSpacing: 0, fontWeight: 400 }}>· obrigatória</span></span>
+            <span style={ROTULO}>{mostrarEscolha ? "2 · " : ""}{sozinha && escolhido === "novo" ? "Foto da peça embalada" : "Foto do tubo com os itens"} <span style={{ fontWeight: FW.corpo }}>· obrigatória</span></span>
             <Fotos lista={fotos} onMudar={setFotos} alt="Foto do tubo com os itens" />
           </section>
         </>
@@ -588,7 +600,7 @@ export function EntregarTuboDialog({ evento, tuboId, sugestaoRecebedor = "", onC
   onEntregou?: (recebedor: string) => void;
 }) {
   const { toast } = useToast();
-  const { isMobile } = useMedidas();
+  const { isMobile, grosso } = useMedidas();
   const soVisualizaKit = useSoVisualizaKit();
   const aberto = !!evento && !!tuboId;
   const { data, isLoading, isError, refetch } = useRetrato(aberto ? evento : null);
@@ -643,7 +655,7 @@ export function EntregarTuboDialog({ evento, tuboId, sugestaoRecebedor = "", onC
   const rotulo = entregar.isPending ? "Entregando…"
     : !recebidoPor.trim() ? "Informe quem recebeu"
     : `Entregar ${oQue} a ${recebidoPor.trim()}`;
-  const campo: React.CSSProperties = { width: "100%", boxSizing: "border-box", height: isMobile ? 44 : 40, borderRadius: 8, border: `1px solid ${COR.borda}`, padding: "0 12px", fontSize: isMobile ? 16 : 14, background: "#fff", color: COR.texto };
+  const campo: React.CSSProperties = { width: "100%", boxSizing: "border-box", height: grosso ? 44 : 40, borderRadius: R.md, border: `1px solid ${COR.borda}`, padding: "0 12px", fontSize: isMobile ? FS.lead : FS.read, background: T.surface, color: COR.texto };
 
   return (
     <Casca aberto={aberto} onClose={onClose} icone={Truck} tint={COR.verde} largura={520} testId="modal-entregar-tubo" focoInicial={campoRef}
@@ -688,20 +700,20 @@ export function EntregarTuboDialog({ evento, tuboId, sugestaoRecebedor = "", onC
 
           <section data-testid={`lista-entrega-tubo-${t.numero}`} style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             <span style={ROTULO}>{avulso ? "A peça" : `No tubo · ${plural(t.pecas.length, "peça", "peças")}`}</span>
-            <ul style={{ margin: 0, padding: 0, listStyle: "none", border: `1px solid ${COR.borda}`, borderRadius: 10, overflow: "hidden" }}>
+            <ul style={{ margin: 0, padding: 0, listStyle: "none", border: `1px solid ${COR.borda}`, borderRadius: R.md, overflow: "hidden" }}>
               {t.pecas.map((p) => (
-                <li key={p.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", borderTop: "1px solid #f5f5f4", flexWrap: "wrap" }}>
+                <li key={p.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", borderTop: `1px solid ${N.n2}`, flexWrap: "wrap" }}>
                   <LinhaDaPeca p={p} noVolume />
-                  {!p.conferida && <span style={{ fontSize: 12, fontWeight: 700, color: COR.ambar }}>falta conferir</span>}
+                  {!p.conferida && <span style={{ fontSize: FS.meta, fontWeight: FW.forte, color: COR.ambar }}>falta conferir</span>}
                   {p.problema && (
-                    <span data-testid={`problema-${p.id}`} style={{ fontSize: 12, fontWeight: 700, color: "#b91c1c" }}>
+                    <span data-testid={`problema-${p.id}`} style={{ fontSize: FS.meta, fontWeight: FW.forte, color: COR.vermelho }}>
                       {/* Travada: resolver é DESTRAVAR (Solicitação/admin), não tirar do tubo. */}
                       {p.travada && !p.excluida ? `${p.problema} — a entrega espera a trava sair` : `${p.problema} — ${avulso ? "desfaça a embalagem" : "tire do tubo"} para entregar`}
                     </span>
                   )}
                   {p.conferencePhotoUrl && (
                     <a href={p.conferencePhotoUrl} target="_blank" rel="noreferrer" data-testid={`foto-conferencia-${p.id}`}
-                      style={{ display: "inline-flex", alignItems: "center", minHeight: isMobile ? 44 : 24, fontSize: 12.5, fontWeight: 700, color: COR.azul }}>
+                      style={{ display: "inline-flex", alignItems: "center", minHeight: grosso ? 44 : 24, fontSize: FS.meta, fontWeight: FW.forte, color: COR.azul }}>
                       ver foto da conferência
                     </a>
                   )}
@@ -711,38 +723,155 @@ export function EntregarTuboDialog({ evento, tuboId, sugestaoRecebedor = "", onC
           </section>
 
           {!temFotoDoTubo && (
-            <p data-testid="entregar-sem-foto-da-embalagem" style={{ margin: 0, fontSize: 12.5, color: COR.sec }}>Sem foto da embalagem — as fotos da conferência valem.</p>
+            <p data-testid="entregar-sem-foto-da-embalagem" style={{ margin: 0, fontSize: FS.meta, color: COR.sec }}>Sem foto da embalagem — as fotos da conferência valem.</p>
           )}
           {temFotoDoTubo && (
             <section data-testid={`fotos-entrega-tubo-${t.numero}`} style={{ display: "flex", flexDirection: "column", gap: 6 }}>
               <span style={ROTULO}>{avulso ? "Fotos da embalagem" : "Fotos do tubo"} · {t.fotosFechamento.length}</span>
               <Miniaturas fotos={t.fotosFechamento} alt={avulso ? "Foto da embalagem" : `Foto do Tubo ${t.numero}`} />
-              {t.alteradoDepoisDaFoto && <span style={{ fontSize: 12, fontWeight: 700, color: COR.ambar }}>O conteúdo mudou depois da última foto.</span>}
+              {t.alteradoDepoisDaFoto && <span style={{ fontSize: FS.meta, fontWeight: FW.forte, color: COR.ambar }}>O conteúdo mudou depois da última foto.</span>}
             </section>
           )}
 
           {podeFormulario && (
             <>
               <section>
-                <label htmlFor="campo-quem-recebeu" style={ROTULO}>Quem recebeu <span style={{ textTransform: "none", letterSpacing: 0, fontWeight: 400 }}>· obrigatório</span></label>
+                <label htmlFor="campo-quem-recebeu" style={ROTULO}>Quem recebeu <span style={{ fontWeight: FW.corpo }}>· obrigatório</span></label>
                 <input id="campo-quem-recebeu" ref={campoRef} value={recebidoPor} onChange={(e) => setRecebidoPor(e.target.value)} placeholder="Nome de quem recebeu" autoComplete="off"
                   onKeyDown={(e) => { if (e.key === "Enter" && !e.repeat) confirmar(); }}
                   data-testid={`recebedor-tubo-${t.numero}`} style={{ ...campo, marginTop: 6 }} />
                 <SugestaoRecebedor nome={sugestaoRecebedor} atual={recebidoPor} onUsar={setRecebidoPor} />
               </section>
               <section>
-                <span style={ROTULO}>Foto do comprovante <span style={{ textTransform: "none", letterSpacing: 0, fontWeight: 400 }}>· opcional</span></span>
+                <span style={ROTULO}>Foto do comprovante <span style={{ fontWeight: FW.corpo }}>· opcional</span></span>
                 {/* UMA foto só: o comprovante é um (a nova substitui a anterior). */}
                 <Fotos lista={fotos} onMudar={(mudar) => setFotos((atual) => mudar(atual).slice(-1))} alt="Foto do comprovante" />
               </section>
               <section>
-                <label htmlFor="campo-obs-entrega" style={ROTULO}>Observação <span style={{ textTransform: "none", letterSpacing: 0, fontWeight: 400 }}>· opcional</span></label>
+                <label htmlFor="campo-obs-entrega" style={ROTULO}>Observação <span style={{ fontWeight: FW.corpo }}>· opcional</span></label>
                 <input id="campo-obs-entrega" value={obs} onChange={(e) => setObs(e.target.value)} placeholder="Ex.: entregue na portaria" style={{ ...campo, marginTop: 6 }} />
               </section>
             </>
           )}
         </>
       )}
+    </Casca>
+  );
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// 2b · ENTREGAR EM LOTE (dono, 23/09) — vários volumes para UMA pessoa. O
+//      servidor aplica a regra da entrega individual a cada volume; o que ele
+//      recusar volta com o motivo e fica marcado na aba, sem segurar os outros.
+// ═════════════════════════════════════════════════════════════════════════════
+export type VolumeDoLote = { id: string; nome: string; evento: { id: string; name: string }; pecas: number; unidades: number };
+export type ResultadoDoLote = { entregues: Array<{ tuboId: string }>; recusados: Array<{ tuboId: string; motivo: string }>; unidades: number };
+
+export function EntregarEmLoteDialog({ volumes, sugestaoRecebedor = "", onClose, onTerminou }: {
+  /** Os volumes marcados na aba (null/vazio = fechado). */
+  volumes: VolumeDoLote[] | null;
+  sugestaoRecebedor?: string;
+  onClose: () => void;
+  /** Resultado volume a volume — a aba desmarca os entregues e mostra o motivo dos recusados. */
+  onTerminou: (r: ResultadoDoLote, recebedor: string) => void;
+}) {
+  const { toast } = useToast();
+  const { isMobile } = useMedidas();
+  const aberto = !!volumes && volumes.length > 0;
+  const [recebidoPor, setRecebidoPor] = useState("");
+  const [obs, setObs] = useState("");
+  const [fotos, setFotos] = useState<string[]>([]);
+  const enviandoRef = useRef(false);
+  const campoRef = useRef<HTMLInputElement>(null);
+  const chave = aberto ? volumes!.map((v) => v.id).join(",") : null;
+  const [vista, setVista] = useState<string | null>(null);
+  if (chave !== vista) { setVista(chave); setRecebidoPor(""); setObs(""); setFotos([]); }
+
+  const lista = volumes ?? [];
+  const unidades = lista.reduce((s, v) => s + v.unidades, 0);
+  const eventos = Array.from(new Set(lista.map((v) => v.evento.name)));
+  const entregar = useMutation({
+    mutationFn: async (): Promise<ResultadoDoLote> => {
+      const r = await apiRequest("POST", "/api/tubos/entregar-em-lote", {
+        tuboIds: lista.map((v) => v.id), receivedBy: recebidoPor.trim(), photoUrl: fotos[0] ?? null, notes: obs,
+      });
+      return r.json();
+    },
+    onSuccess: (r) => {
+      const quem = recebidoPor.trim();
+      const entregues = r.entregues.length;
+      toast({
+        variant: r.recusados.length ? "warning" : "success",
+        title: `${plural(entregues, "volume entregue", "volumes entregues")} a ${quem}`,
+        description: r.recusados.length
+          ? `${plural(r.recusados.length, "volume ficou", "volumes ficaram")} de fora — o motivo está no cartão.`
+          : `${r.unidades} un. no total.`,
+      });
+      for (const id of Array.from(new Set(lista.map((v) => v.evento.id)))) atualizarTudo(id);
+      onTerminou(r, quem);
+      onClose();
+    },
+    onError: (e: any) => {
+      // 409 do lote inteiro ainda traz os motivos volume a volume (no corpo
+      // que o apiRequest põe na mensagem: "409: {…}").
+      const bruto = String(e?.message ?? "");
+      const i = bruto.indexOf("{");
+      try {
+        const corpo = i >= 0 ? JSON.parse(bruto.slice(i)) : null;
+        if (Array.isArray(corpo?.recusados)) onTerminou({ entregues: [], recusados: corpo.recusados, unidades: 0 }, recebidoPor.trim());
+      } catch { /* sem corpo legível: só o aviso */ }
+      toast({ title: "Não foi possível entregar o lote", description: mensagemDeErro(e), variant: "destructive" });
+    },
+    onSettled: () => { enviandoRef.current = false; },
+  });
+  const pronto = aberto && !!recebidoPor.trim();
+  const confirmar = () => {
+    if (enviandoRef.current || entregar.isPending || !pronto) return;
+    enviandoRef.current = true;
+    entregar.mutate();
+  };
+  const campo: React.CSSProperties = { width: "100%", boxSizing: "border-box", height: isMobile ? 44 : 40, borderRadius: 8, border: `1px solid ${COR.borda}`, padding: "0 12px", fontSize: isMobile ? 16 : 14, background: "#fff", color: COR.texto };
+  const rotulo = entregar.isPending ? "Entregando…"
+    : !recebidoPor.trim() ? "Informe quem recebeu"
+    : `Entregar ${plural(lista.length, "volume", "volumes")} a ${recebidoPor.trim()}`;
+
+  return (
+    <Casca aberto={aberto} onClose={onClose} icone={Truck} tint={COR.verde} largura={560} testId="modal-entregar-em-lote" focoInicial={campoRef}
+      titulo={`Entregar em lote · ${plural(lista.length, "volume", "volumes")}`}
+      subtitulo={`${unidades} un.${eventos.length === 1 ? ` · ${eventos[0]}` : ` · ${eventos.length} eventos`} — confira e registre quem recebeu`}
+      rodape={(
+        <Rodape testId="rodape-entregar-em-lote">
+          <BotaoCancelar onClick={onClose} />
+          <BotaoPrimario onClick={confirmar} disabled={entregar.isPending || !pronto} cor={COR.verde} testId="confirmar-entrega-em-lote">{rotulo}</BotaoPrimario>
+        </Rodape>
+      )}>
+      <section data-testid="lista-entrega-em-lote" style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        <span style={ROTULO}>Vão sair · {plural(lista.length, "volume", "volumes")}</span>
+        <ul style={{ margin: 0, padding: 0, listStyle: "none", border: `1px solid ${COR.borda}`, borderRadius: 10, overflow: "hidden", maxHeight: 240, overflowY: "auto" }}>
+          {lista.map((v) => (
+            <li key={v.id} style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 10, padding: "8px 12px", borderTop: "1px solid #f5f5f4", flexWrap: "wrap", fontSize: 13, color: COR.texto }}>
+              <strong>{v.nome}</strong>
+              <span style={{ color: COR.sec }}>{v.evento.name} · {plural(v.pecas, "peça", "peças")} / {v.unidades} un.</span>
+            </li>
+          ))}
+        </ul>
+        <span style={{ fontSize: 12.5, color: COR.sec }}>Cada volume passa pelas mesmas conferências da entrega individual. Se algum não puder sair, ele fica marcado com o motivo e os outros seguem.</span>
+      </section>
+      <section>
+        <label htmlFor="campo-quem-recebeu-lote" style={ROTULO}>Quem recebeu <span style={{ textTransform: "none", letterSpacing: 0, fontWeight: 400 }}>· obrigatório, vale para todos</span></label>
+        <input id="campo-quem-recebeu-lote" ref={campoRef} value={recebidoPor} onChange={(e) => setRecebidoPor(e.target.value)} placeholder="Nome de quem recebeu" autoComplete="off"
+          onKeyDown={(e) => { if (e.key === "Enter" && !e.repeat) confirmar(); }}
+          data-testid="recebedor-em-lote" style={{ ...campo, marginTop: 6 }} />
+        <SugestaoRecebedor nome={sugestaoRecebedor} atual={recebidoPor} onUsar={setRecebidoPor} />
+      </section>
+      <section>
+        <span style={ROTULO}>Foto do comprovante <span style={{ textTransform: "none", letterSpacing: 0, fontWeight: 400 }}>· opcional</span></span>
+        <Fotos lista={fotos} onMudar={(mudar) => setFotos((atual) => mudar(atual).slice(-1))} alt="Foto do comprovante" />
+      </section>
+      <section>
+        <label htmlFor="campo-obs-entrega-lote" style={ROTULO}>Observação <span style={{ textTransform: "none", letterSpacing: 0, fontWeight: 400 }}>· opcional</span></label>
+        <input id="campo-obs-entrega-lote" value={obs} onChange={(e) => setObs(e.target.value)} placeholder="Ex.: entregue na portaria" style={{ ...campo, marginTop: 6 }} />
+      </section>
     </Casca>
   );
 }
@@ -760,7 +889,7 @@ export function PainelDeTubos({ evento, onClose, onEmbalar, onEntregar }: {
   onEntregar: (tuboId: string) => void;
 }) {
   const { toast } = useToast();
-  const { isMobile, alvo, fsMin } = useMedidas();
+  const { grosso, alvo, fsMin } = useMedidas();
   const soVisualizaKit = useSoVisualizaKit();
   const { data, isLoading, isError, refetch } = useRetrato(evento);
 
@@ -806,10 +935,13 @@ export function PainelDeTubos({ evento, onClose, onEmbalar, onEntregar }: {
   const paraEmbalar = (data?.semTubo ?? []).filter((p) => disponivel(p) > 0 && !soVisualizaKit(p));
   const tuboDasFotos = abertos.find((t) => t.id === adicionandoFotos) ?? null;
 
-  const acao = (cor: string, solido = false): React.CSSProperties => ({
-    display: "inline-flex", alignItems: "center", gap: 6, minHeight: alvo, padding: "0 12px", borderRadius: 8, fontSize: fsMin(12.5), fontWeight: 700, cursor: "pointer", textDecoration: "none",
-    border: solido ? "none" : `1px solid ${COR.borda}`, background: solido ? cor : "#fff", color: solido ? "#fff" : cor,
-  });
+  // As ações de cada tubo são <Botao>; o link da Etiqueta (é navegação, não
+  // botão) imita o secundário com a mesma altura.
+  const tamanhoDaAcao = grosso ? "toque" : "md";
+  const estiloDoLink: React.CSSProperties = {
+    display: "inline-flex", alignItems: "center", gap: 6, minHeight: alvo, padding: "0 14px", borderRadius: R.md, fontSize: grosso ? FS.strong : FS.body, fontWeight: FW.forte, textDecoration: "none",
+    border: `1px solid ${COR.borda}`, background: T.surface, color: T.strong,
+  };
 
   const cartaoDoTubo = (t: Tubo) => {
     const entregue = !!t.entregueEm;
@@ -831,31 +963,31 @@ export function PainelDeTubos({ evento, onClose, onEmbalar, onEntregar }: {
       : t.prontoParaEntregar ? { texto: "Pronto para entregar", cor: COR.azul, bg: COR.azulBg, borda: COR.azulBorda }
       : { texto: "Aberto", cor: COR.sec, bg: COR.fundo, borda: COR.borda };
     return (
-      <article key={t.id} data-testid={`tubo-${t.numero}`} aria-label={`Tubo ${t.numero}`} style={{ border: `1px solid ${COR.borda}`, borderRadius: 12, overflow: "hidden", background: "#fff" }}>
+      <article key={t.id} data-testid={`tubo-${t.numero}`} aria-label={`Tubo ${t.numero}`} style={{ border: `1px solid ${COR.borda}`, borderRadius: R.lg, overflow: "hidden", background: T.surface }}>
         <header style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "10px 12px", background: COR.fundo, borderBottom: `1px solid ${COR.borda}`, flexWrap: "wrap" }}>
-          <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 16, fontWeight: 800, color: COR.texto }}>
-            Tubo {t.numero} <span style={{ fontSize: 12, fontWeight: 600, color: COR.sec }}>· {plural(t.pecas.length, "peça", "peças")} · {t.pecas.reduce((u, x) => u + (x.quantidadeNoTubo ?? x.quantity), 0)} un. · {t.fotosFechamento.length ? plural(t.fotosFechamento.length, "foto", "fotos") : "sem foto"}</span>
+          <span style={{ fontFamily: FONT.display, fontSize: FS.lead, fontWeight: FW.rotulo, color: COR.texto }}>
+            Tubo {t.numero} <span style={{ fontSize: FS.meta, fontWeight: FW.medio, color: COR.sec }}>· {plural(t.pecas.length, "peça", "peças")} · {t.pecas.reduce((u, x) => u + (x.quantidadeNoTubo ?? x.quantity), 0)} un. · {t.fotosFechamento.length ? plural(t.fotosFechamento.length, "foto", "fotos") : "sem foto"}</span>
           </span>
-          <span style={{ fontSize: fsMin(11), fontWeight: 800, color: status.cor, background: status.bg, border: `1px solid ${status.borda}`, borderRadius: 999, padding: "2px 9px" }}>{status.texto}</span>
+          {/* fsMin: no celular nenhuma letra fica abaixo de 12px. */}
+          <Selo cores={{ bg: status.bg, text: status.cor, border: status.borda }} style={{ fontSize: fsMin(FS.small) }}>{status.texto}</Selo>
         </header>
 
         {t.pecas.map((p) => (
-          <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "6px 12px", borderTop: "1px solid #f5f5f4", flexWrap: "wrap" }}>
+          <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "6px 12px", borderTop: `1px solid ${N.n2}`, flexWrap: "wrap" }}>
             <LinhaDaPeca p={p} noVolume />
-            {!entregue && !p.conferida && <span style={{ fontSize: fsMin(11), fontWeight: 700, color: COR.ambar }}>falta conferir</span>}
+            {!entregue && !p.conferida && <span style={{ fontSize: fsMin(11), fontWeight: FW.forte, color: COR.ambar }}>falta conferir</span>}
             {!entregue && !soVisualizaKit(p) && (
-              <button type="button" onClick={() => tirar.mutate({ tubo: t, peca: p })} disabled={tirar.isPending}
-                data-testid={`tirar-peca-${p.id}`} aria-label={`Tirar ${p.displayId ?? "a peça"} do Tubo ${t.numero}`}
-                style={{ ...acao(COR.sec), padding: "0 10px" }}>
+              <Botao variante="fantasma" tamanho={tamanhoDaAcao} onClick={() => tirar.mutate({ tubo: t, peca: p })} disabled={tirar.isPending}
+                data-testid={`tirar-peca-${p.id}`} aria-label={`Tirar ${p.displayId ?? "a peça"} do Tubo ${t.numero}`}>
                 Tirar
-              </button>
+              </Botao>
             )}
           </div>
         ))}
 
         {t.fotosFechamento.length > 0 && (
-          <div data-testid={`fotos-tubo-${t.numero}`} style={{ padding: "8px 12px", borderTop: "1px solid #f5f5f4", display: "flex", flexDirection: "column", gap: 6 }}>
-            <span style={{ fontSize: 12, color: COR.sec }}>
+          <div data-testid={`fotos-tubo-${t.numero}`} style={{ padding: "8px 12px", borderTop: `1px solid ${N.n2}`, display: "flex", flexDirection: "column", gap: 6 }}>
+            <span style={{ fontSize: FS.meta, color: COR.sec }}>
               Última foto {quandoFoi(t.fechadoEm)}{t.fechadoPor ? ` por ${t.fechadoPor}` : ""}
               {t.alteradoDepoisDaFoto && !entregue && <strong data-testid={`aviso-alterado-tubo-${t.numero}`} style={{ color: COR.ambar }}> · o conteúdo mudou depois da foto</strong>}
             </span>
@@ -863,7 +995,7 @@ export function PainelDeTubos({ evento, onClose, onEmbalar, onEntregar }: {
           </div>
         )}
         {entregue && (
-          <div style={{ padding: "8px 12px", borderTop: "1px solid #f5f5f4", fontSize: 12, color: COR.sec, display: "flex", alignItems: "center", gap: 6 }}>
+          <div style={{ padding: "8px 12px", borderTop: `1px solid ${N.n2}`, fontSize: FS.meta, color: COR.sec, display: "flex", alignItems: "center", gap: 6 }}>
             <CheckCircle2 aria-hidden="true" style={{ width: 13, height: 13, color: COR.verde }} />
             {t.recebidoPor ? `Recebido por ${t.recebidoPor}` : "Recebedor não informado"}{t.entreguePor ? ` · registrado por ${t.entreguePor}` : ""}
           </div>
@@ -871,40 +1003,43 @@ export function PainelDeTubos({ evento, onClose, onEmbalar, onEntregar }: {
 
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", padding: "10px 12px", borderTop: `1px solid ${COR.borda}` }}>
           {!entregue && !vazio && !soVe && (
-            <button type="button" onClick={() => onEntregar(t.id)} data-testid={`entregar-tubo-${t.numero}`}
-              aria-describedby={motivoSemEntrega ? `motivo-entrega-tubo-${t.numero}` : undefined}
-              style={acao(COR.verde, t.prontoParaEntregar)}>
-              <Truck aria-hidden="true" style={{ width: 13, height: 13 }} /> Entregar
-            </button>
+            <Botao variante={t.prontoParaEntregar ? "primario" : "secundario"} tamanho={tamanhoDaAcao} icone={Truck}
+              onClick={() => onEntregar(t.id)} data-testid={`entregar-tubo-${t.numero}`}
+              aria-describedby={motivoSemEntrega ? `motivo-entrega-tubo-${t.numero}` : undefined}>
+              Entregar
+            </Botao>
           )}
           {!entregue && !vazio && !soVe && motivoSemEntrega && (
-            <span id={`motivo-entrega-tubo-${t.numero}`} data-testid={`motivo-entrega-tubo-${t.numero}`} style={{ flex: "1 1 100%", order: 9, fontSize: fsMin(12), fontWeight: 600, color: COR.ambar, lineHeight: 1.4 }}>
+            <span id={`motivo-entrega-tubo-${t.numero}`} data-testid={`motivo-entrega-tubo-${t.numero}`} style={{ flex: "1 1 100%", order: 9, fontSize: fsMin(12), fontWeight: FW.medio, color: COR.ambar, lineHeight: 1.4 }}>
               Ainda não sai: {motivoSemEntrega}
             </span>
           )}
           {!entregue && !vazio && !soVe && (
-            <button type="button" onClick={() => { setAdicionandoFotos(t.id); setFotosNovas([]); }} data-testid={`fechar-tubo-${t.numero}`} style={acao(COR.azul)}>
-              <Camera aria-hidden="true" style={{ width: 13, height: 13 }} /> Adicionar fotos
-            </button>
+            <Botao variante="secundario" tamanho={tamanhoDaAcao} icone={Camera}
+              onClick={() => { setAdicionandoFotos(t.id); setFotosNovas([]); }} data-testid={`fechar-tubo-${t.numero}`}>
+              Adicionar fotos
+            </Botao>
           )}
           {!vazio && (
-            <Link href={`/grafica/tubos/${t.id}/etiqueta`} data-testid={`etiqueta-tubo-${t.numero}`} style={acao(COR.texto)}>
-              <Tag aria-hidden="true" style={{ width: 13, height: 13 }} /> Etiqueta
+            <Link href={`/grafica/tubos/${t.id}/etiqueta`} data-testid={`etiqueta-tubo-${t.numero}`} className="ds-botao" style={estiloDoLink}>
+              <Tag aria-hidden="true" style={{ width: 14, height: 14 }} /> Etiqueta
             </Link>
           )}
           {!entregue && !soVe && (
             confirmandoApagar === t.id ? (
               <>
-                <button type="button" onClick={() => apagar.mutate(t)} disabled={apagar.isPending} data-testid={`confirmar-apagar-tubo-${t.numero}`} style={acao(COR.vermelho, true)}>
-                  <Trash2 aria-hidden="true" style={{ width: 13, height: 13 }} /> {vazio ? "Apagar mesmo" : `Apagar e devolver ${t.pecas.length} a Conferido`}
-                </button>
-                <button type="button" onClick={() => setConfirmandoApagar(null)} style={acao(COR.sec)}>Não</button>
+                <Botao variante="perigo" tamanho={tamanhoDaAcao} icone={Trash2} carregando={apagar.isPending}
+                  onClick={() => apagar.mutate(t)} data-testid={`confirmar-apagar-tubo-${t.numero}`}>
+                  {vazio ? "Apagar mesmo" : `Apagar e devolver ${t.pecas.length} a Conferido`}
+                </Botao>
+                <Botao variante="secundario" tamanho={tamanhoDaAcao} onClick={() => setConfirmandoApagar(null)}>Não</Botao>
               </>
             ) : (
-              <button type="button" onClick={() => setConfirmandoApagar(t.id)} data-testid={`apagar-tubo-${t.numero}`}
-                title={vazio ? "Apaga o tubo vazio" : "Apaga o tubo; as peças voltam a Conferido"} style={acao(COR.vermelho)}>
-                <Trash2 aria-hidden="true" style={{ width: 13, height: 13 }} /> Apagar tubo
-              </button>
+              <Botao variante="secundario" tamanho={tamanhoDaAcao} icone={Trash2}
+                onClick={() => setConfirmandoApagar(t.id)} data-testid={`apagar-tubo-${t.numero}`}
+                title={vazio ? "Apaga o tubo vazio" : "Apaga o tubo; as peças voltam a Conferido"} style={{ color: COR.vermelho }}>
+                Apagar tubo
+              </Botao>
             )
           )}
           {soVe && !entregue && <span style={{ fontSize: fsMin(12), color: COR.ambar }}>Tem peça do Kit: aqui você só visualiza.</span>}
@@ -912,7 +1047,7 @@ export function PainelDeTubos({ evento, onClose, onEmbalar, onEntregar }: {
 
         {adicionandoFotos === t.id && (
           <div data-testid={`form-fechar-tubo-${t.numero}`} style={{ padding: 12, borderTop: `1px solid ${COR.borda}`, background: COR.azulBg }}>
-            <span style={{ fontSize: 13, color: COR.texto }}>Mais fotos do <strong>Tubo {t.numero}</strong> com os itens — somam às que ele já tem.</span>
+            <span style={{ fontSize: FS.body, color: COR.texto }}>Mais fotos do <strong>Tubo {t.numero}</strong> com os itens — somam às que ele já tem.</span>
             <Fotos lista={fotosNovas} onMudar={setFotosNovas} alt={`Foto do Tubo ${t.numero}`} />
           </div>
         )}
@@ -938,15 +1073,16 @@ export function PainelDeTubos({ evento, onClose, onEmbalar, onEntregar }: {
         <>
           {/* A porta para o modal Embalar — só aparece quando há o que embalar. */}
           {paraEmbalar.length > 0 && (
-            <button type="button" onClick={() => onEmbalar(paraEmbalar.map((p) => p.id))} data-testid="painel-embalar-conferidas"
-              style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, minHeight: isMobile ? 48 : 44, borderRadius: 10, border: "none", background: COR.azul, color: "#fff", fontSize: 14, fontWeight: 800, cursor: "pointer" }}>
-              <Package aria-hidden="true" style={{ width: 15, height: 15 }} /> Embalar peças conferidas ({paraEmbalar.length})
-            </button>
+            <Botao variante="primario" tamanho="toque" larguraCheia icone={Package}
+              onClick={() => onEmbalar(paraEmbalar.map((p) => p.id))} data-testid="painel-embalar-conferidas"
+              style={{ minHeight: grosso ? 48 : 44 }}>
+              Embalar peças conferidas ({paraEmbalar.length})
+            </Botao>
           )}
           <section style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             <span style={ROTULO}>Tubos abertos · {abertos.length}</span>
             {abertos.length === 0 && (
-              <p data-testid="painel-sem-tubos" style={{ margin: 0, fontSize: 13, color: COR.sec }}>
+              <p data-testid="painel-sem-tubos" style={{ margin: 0, fontSize: FS.body, color: COR.sec }}>
                 {paraEmbalar.length > 0 ? "Nenhum tubo aberto. Embale as peças conferidas para abrir o primeiro." : "Nenhum tubo aberto neste evento."}
               </p>
             )}
@@ -956,7 +1092,7 @@ export function PainelDeTubos({ evento, onClose, onEmbalar, onEntregar }: {
           {sozinhas.length > 0 && (
             <section style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               <button type="button" onClick={() => setVerSozinhas((v) => !v)} aria-expanded={verSozinhas} data-testid="painel-ver-sozinhas"
-                style={{ display: "flex", alignItems: "center", justifyContent: "space-between", minHeight: alvo, padding: "0 12px", borderRadius: 8, border: `1px solid ${COR.borda}`, background: COR.fundo, color: COR.texto, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+                style={{ display: "flex", alignItems: "center", justifyContent: "space-between", minHeight: alvo, padding: "0 12px", borderRadius: R.md, border: `1px solid ${COR.borda}`, background: COR.fundo, color: COR.texto, fontSize: FS.body, fontWeight: FW.forte, cursor: "pointer" }}>
                 Embaladas sozinhas ({sozinhas.length})
                 <ChevronDown aria-hidden="true" style={{ width: 15, height: 15, transform: verSozinhas ? "rotate(180deg)" : undefined }} />
               </button>
@@ -964,16 +1100,17 @@ export function PainelDeTubos({ evento, onClose, onEmbalar, onEntregar }: {
                 const peca = t.pecas[0];
                 const soVe = t.pecas.some(soVisualizaKit);
                 return (
-                  <div key={t.id} data-testid={`sozinha-${peca.id}`} style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", padding: "8px 12px", border: `1px solid ${COR.borda}`, borderRadius: 10, background: "#fff" }}>
+                  <div key={t.id} data-testid={`sozinha-${peca.id}`} style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", padding: "8px 12px", border: `1px solid ${COR.borda}`, borderRadius: R.md, background: T.surface }}>
                     <LinhaDaPeca p={peca} noVolume />
                     {!soVe && (
                       <>
-                        <button type="button" onClick={() => onEntregar(t.id)} data-testid={`entregar-sozinha-${peca.id}`} style={acao(COR.verde, t.prontoParaEntregar)}>
-                          <Truck aria-hidden="true" style={{ width: 13, height: 13 }} /> Entregar
-                        </button>
-                        <button type="button" onClick={() => tirar.mutate({ tubo: t, peca })} disabled={tirar.isPending} data-testid={`desfazer-embalagem-${peca.id}`} style={acao(COR.sec)}>
+                        <Botao variante={t.prontoParaEntregar ? "primario" : "secundario"} tamanho={tamanhoDaAcao} icone={Truck}
+                          onClick={() => onEntregar(t.id)} data-testid={`entregar-sozinha-${peca.id}`}>
+                          Entregar
+                        </Botao>
+                        <Botao variante="fantasma" tamanho={tamanhoDaAcao} onClick={() => tirar.mutate({ tubo: t, peca })} disabled={tirar.isPending} data-testid={`desfazer-embalagem-${peca.id}`}>
                           Desfazer embalagem
-                        </button>
+                        </Botao>
                       </>
                     )}
                   </div>
@@ -985,7 +1122,7 @@ export function PainelDeTubos({ evento, onClose, onEmbalar, onEntregar }: {
           {entregues.length > 0 && (
             <section style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               <button type="button" onClick={() => setVerEntregues((v) => !v)} aria-expanded={verEntregues} data-testid="painel-ver-entregues"
-                style={{ display: "flex", alignItems: "center", justifyContent: "space-between", minHeight: alvo, padding: "0 12px", borderRadius: 8, border: `1px solid ${COR.borda}`, background: COR.fundo, color: COR.texto, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+                style={{ display: "flex", alignItems: "center", justifyContent: "space-between", minHeight: alvo, padding: "0 12px", borderRadius: R.md, border: `1px solid ${COR.borda}`, background: COR.fundo, color: COR.texto, fontSize: FS.body, fontWeight: FW.forte, cursor: "pointer" }}>
                 Tubos entregues · {entregues.length}
                 <ChevronDown aria-hidden="true" style={{ width: 15, height: 15, transform: verEntregues ? "rotate(180deg)" : undefined }} />
               </button>
@@ -1013,7 +1150,7 @@ export function TuboDialog({ evento, tuboId, onClose, onEntregar, onAbrirPeca }:
   onAbrirPeca?: (itemId: string) => void;
 }) {
   const { toast } = useToast();
-  const { isMobile, alvo, fsMin } = useMedidas();
+  const { isMobile, grosso, alvo } = useMedidas();
   const soVisualizaKit = useSoVisualizaKit();
   const aberto = !!evento && !!tuboId;
   const { data, isLoading, isError, refetch } = useRetrato(aberto ? evento : null);
@@ -1053,10 +1190,13 @@ export function TuboDialog({ evento, tuboId, onClose, onEntregar, onAbrirPeca }:
   const estado = !t ? "" : entregue
     ? `Entregue${t.recebidoPor ? ` a ${t.recebidoPor}` : ""} em ${quandoFoi(t.entregueEm)}`
     : "Aberto — aguardando a entrega";
-  const acao = (cor: string, solido = false): React.CSSProperties => ({
-    display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, flex: isMobile ? "1 1 140px" : undefined, minHeight: isMobile ? 48 : 40, padding: "0 14px", borderRadius: 8, fontSize: 13, fontWeight: 800, cursor: "pointer", textDecoration: "none",
-    border: solido ? "none" : `1px solid ${COR.borda}`, background: solido ? cor : "#fff", color: solido ? "#fff" : cor,
-  });
+  // Rodapé: Botao em todas as ações; a Etiqueta é link e imita o secundário.
+  const tamanhoDoRodape = grosso ? "toque" : "md";
+  const noRodape: React.CSSProperties = { flex: isMobile ? "1 1 140px" : undefined, minHeight: grosso ? 48 : 40 };
+  const estiloDoLink: React.CSSProperties = {
+    ...noRodape, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "0 14px", borderRadius: R.md, fontSize: grosso ? FS.strong : FS.body, fontWeight: FW.forte, textDecoration: "none",
+    border: `1px solid ${COR.borda}`, background: T.surface, color: T.strong,
+  };
 
   return (
     <Casca aberto={aberto} onClose={onClose} icone={Package} tint={avulso ? COR.azul : COR.laranja} largura={560} testId="modal-do-tubo"
@@ -1069,23 +1209,23 @@ export function TuboDialog({ evento, tuboId, onClose, onEntregar, onAbrirPeca }:
           </BotaoPrimario>
         </Rodape>
       ) : (
-        <div data-testid="rodape-do-tubo" style={{ flexShrink: 0, display: "flex", flexWrap: "wrap", gap: 8, paddingTop: 10, paddingLeft: isMobile ? 16 : 20, paddingRight: isMobile ? 16 : 20, paddingBottom: "calc(10px + env(safe-area-inset-bottom))", borderTop: `1px solid ${COR.borda}`, background: "#fff" }}>
+        <div data-testid="rodape-do-tubo" style={{ flexShrink: 0, display: "flex", flexWrap: "wrap", gap: 8, paddingTop: 10, paddingLeft: isMobile ? 16 : 20, paddingRight: isMobile ? 16 : 20, paddingBottom: "calc(10px + env(safe-area-inset-bottom))", borderTop: `1px solid ${COR.borda}`, background: T.surface }}>
           {!entregue && !soVe && t.pecas.length > 0 && (
-            <button type="button" onClick={() => onEntregar(t.id)} data-testid="tubo-entregar" style={acao(COR.verde, true)}>
-              <Truck aria-hidden="true" style={{ width: 14, height: 14 }} /> {avulso ? "Entregar" : "Entregar tubo"}
-            </button>
+            <Botao variante="primario" tamanho={tamanhoDoRodape} icone={Truck} onClick={() => onEntregar(t.id)} data-testid="tubo-entregar" style={noRodape}>
+              {avulso ? "Entregar" : "Entregar tubo"}
+            </Botao>
           )}
           {!entregue && !soVe && t.pecas.length > 0 && (
-            <button type="button" onClick={() => setAdicionando(true)} data-testid="tubo-adicionar-fotos" style={acao(COR.azul)}>
-              <Camera aria-hidden="true" style={{ width: 14, height: 14 }} /> Adicionar fotos
-            </button>
+            <Botao variante="secundario" tamanho={tamanhoDoRodape} icone={Camera} onClick={() => setAdicionando(true)} data-testid="tubo-adicionar-fotos" style={noRodape}>
+              Adicionar fotos
+            </Botao>
           )}
           {!avulso && t.pecas.length > 0 && (
-            <Link href={`/grafica/tubos/${t.id}/etiqueta`} data-testid="tubo-etiqueta" style={acao(COR.texto)}>
+            <Link href={`/grafica/tubos/${t.id}/etiqueta`} data-testid="tubo-etiqueta" className="ds-botao" style={estiloDoLink}>
               <Tag aria-hidden="true" style={{ width: 14, height: 14 }} /> Etiqueta
             </Link>
           )}
-          <button type="button" onClick={onClose} style={acao(COR.sec)}>Fechar</button>
+          <Botao variante="secundario" tamanho={tamanhoDoRodape} onClick={onClose} style={noRodape}>Fechar</Botao>
         </div>
       )}>
       {isLoading && <Carregando />}
@@ -1094,7 +1234,7 @@ export function TuboDialog({ evento, tuboId, onClose, onEntregar, onAbrirPeca }:
 
       {t && (
         <>
-          <p data-testid="tubo-estado" style={{ margin: 0, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", fontSize: 13, fontWeight: 700, color: entregue ? COR.verde : COR.azul }}>
+          <p data-testid="tubo-estado" style={{ margin: 0, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", fontSize: FS.body, fontWeight: FW.forte, color: entregue ? COR.verde : COR.azul }}>
             {entregue ? <CheckCircle2 aria-hidden="true" style={{ width: 15, height: 15 }} /> : <Package aria-hidden="true" style={{ width: 15, height: 15 }} />}
             {estado}
             {t.entreguePor && entregue ? <span style={{ fontWeight: 400, color: COR.sec }}>· registrado por {t.entreguePor}</span> : null}
@@ -1103,30 +1243,29 @@ export function TuboDialog({ evento, tuboId, onClose, onEntregar, onAbrirPeca }:
 
           <section data-testid="tubo-conteudo" style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             <span style={ROTULO}>{avulso ? "A peça" : `O que vai junto · ${plural(t.pecas.length, "peça", "peças")} · ${unidades} un.`}</span>
-            {t.pecas.length === 0 && <p style={{ margin: 0, fontSize: 13, color: COR.sec }}>Este tubo está vazio.</p>}
-            <ul style={{ margin: 0, padding: 0, listStyle: "none", border: t.pecas.length ? `1px solid ${COR.borda}` : "none", borderRadius: 10, overflow: "hidden" }}>
+            {t.pecas.length === 0 && <p style={{ margin: 0, fontSize: FS.body, color: COR.sec }}>Este tubo está vazio.</p>}
+            <ul style={{ margin: 0, padding: 0, listStyle: "none", border: t.pecas.length ? `1px solid ${COR.borda}` : "none", borderRadius: R.md, overflow: "hidden" }}>
               {t.pecas.map((p) => {
                 const q = p.quantidadeNoTubo ?? p.quantity;
                 const parte = parteDoTotal(q, p.quantity);
                 return (
-                  <li key={p.id} data-testid={`tubo-peca-${p.id}`} style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", padding: "6px 12px", borderTop: "1px solid #f5f5f4" }}>
+                  <li key={p.id} data-testid={`tubo-peca-${p.id}`} style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", padding: "6px 12px", borderTop: `1px solid ${N.n2}` }}>
                     {onAbrirPeca ? (
                       <button type="button" onClick={() => onAbrirPeca(p.id)} aria-label={`Abrir a ficha de ${p.displayId ?? "peça"}`}
-                        style={{ minHeight: alvo, padding: 0, border: "none", background: "none", fontFamily: "ui-monospace, monospace", fontSize: 13, fontWeight: 700, color: COR.laranja, textDecoration: "underline", cursor: "pointer", flexShrink: 0 }}>
+                        style={{ minHeight: alvo, padding: 0, border: "none", background: "none", fontFamily: FONT.mono, fontSize: FS.body, fontWeight: FW.forte, color: COR.laranja, textDecoration: "underline", cursor: "pointer", flexShrink: 0 }}>
                         {p.displayId ?? "—"}
                       </button>
                     ) : (
-                      <span style={{ fontFamily: "ui-monospace, monospace", fontSize: 13, fontWeight: 700, color: COR.laranja, flexShrink: 0 }}>{p.displayId ?? "—"}</span>
+                      <span style={{ fontFamily: FONT.mono, fontSize: FS.body, fontWeight: FW.forte, color: COR.laranja, flexShrink: 0 }}>{p.displayId ?? "—"}</span>
                     )}
-                    <span style={{ fontSize: 13, color: COR.texto, flex: "1 1 140px", minWidth: 0, overflowWrap: "anywhere", lineHeight: 1.3 }}>{nomeDaPeca(p.type, p.description)}</span>
-                    <span style={{ fontSize: 13, fontWeight: 800, color: COR.texto, whiteSpace: "nowrap" }}>
-                      {q} un.{parte ? <span style={{ fontWeight: 400, color: COR.sec }}> {parte}</span> : null}
+                    <span style={{ fontSize: FS.body, color: COR.texto, flex: "1 1 140px", minWidth: 0, overflowWrap: "anywhere", lineHeight: 1.3 }}>{nomeDaPeca(p.type, p.description)}</span>
+                    <span style={{ fontSize: FS.body, fontWeight: FW.rotulo, color: COR.texto, whiteSpace: "nowrap" }}>
+                      {q} un.{parte ? <span style={{ fontWeight: FW.corpo, color: COR.sec }}> {parte}</span> : null}
                     </span>
                     {!entregue && !soVisualizaKit(p) && (
-                      <button type="button" onClick={() => tirar.mutate(p)} disabled={tirar.isPending} data-testid={`tubo-tirar-${p.id}`}
-                        style={{ minHeight: alvo, padding: "0 10px", borderRadius: 8, border: `1px solid ${COR.borda}`, background: "#fff", color: COR.sec, fontSize: fsMin(12.5), fontWeight: 700, cursor: "pointer" }}>
+                      <Botao variante="fantasma" tamanho={grosso ? "toque" : "md"} onClick={() => tirar.mutate(p)} disabled={tirar.isPending} data-testid={`tubo-tirar-${p.id}`}>
                         {avulso ? "Desfazer embalagem" : "Tirar do tubo"}
-                      </button>
+                      </Botao>
                     )}
                   </li>
                 );
@@ -1139,22 +1278,22 @@ export function TuboDialog({ evento, tuboId, onClose, onEntregar, onAbrirPeca }:
             {t.fotosFechamento.length > 0 ? (
               <>
                 <Miniaturas fotos={t.fotosFechamento} alt={avulso ? "Foto da embalagem" : `Foto do Tubo ${t.numero}`} tamanho={72} />
-                <span style={{ fontSize: 12.5, color: COR.sec }}>
+                <span style={{ fontSize: FS.meta, color: COR.sec }}>
                   {t.fechadoPor ? `Embalado por ${t.fechadoPor}` : "Embalado"}{t.fechadoEm ? ` em ${quandoFoi(t.fechadoEm)}` : ""}
                   {t.alteradoDepoisDaFoto && !entregue ? <strong style={{ color: COR.ambar }}> · o conteúdo mudou depois da última foto</strong> : null}
                 </span>
               </>
             ) : (
-              <span style={{ fontSize: 12.5, color: COR.sec }}>Sem foto da embalagem — as fotos da conferência valem.</span>
+              <span style={{ fontSize: FS.meta, color: COR.sec }}>Sem foto da embalagem — as fotos da conferência valem.</span>
             )}
             {t.fotoEntregaUrl && (
-              <a href={t.fotoEntregaUrl} target="_blank" rel="noreferrer" style={{ display: "inline-flex", alignItems: "center", minHeight: alvo, fontSize: 13, fontWeight: 700, color: COR.azul }}>ver o comprovante da entrega</a>
+              <a href={t.fotoEntregaUrl} target="_blank" rel="noreferrer" style={{ display: "inline-flex", alignItems: "center", minHeight: alvo, fontSize: FS.body, fontWeight: FW.forte, color: COR.azul }}>ver o comprovante da entrega</a>
             )}
           </section>
 
           {adicionando && (
-            <section data-testid="tubo-form-fotos" style={{ padding: 12, borderRadius: 10, background: COR.azulBg, border: `1px solid ${COR.azulBorda}` }}>
-              <span style={{ fontSize: 13, color: COR.texto }}>Mais fotos — somam às que já existem.</span>
+            <section data-testid="tubo-form-fotos" style={{ padding: 12, borderRadius: R.md, background: COR.azulBg, border: `1px solid ${COR.azulBorda}` }}>
+              <span style={{ fontSize: FS.body, color: COR.texto }}>Mais fotos — somam às que já existem.</span>
               <Fotos lista={fotosNovas} onMudar={setFotosNovas} alt="Foto da embalagem" />
             </section>
           )}

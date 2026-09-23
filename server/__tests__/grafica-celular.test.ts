@@ -141,6 +141,10 @@ function vizinhosColados(raiz: ParentNode = document.body) {
   for (const el of todos) {
     const disp = el.style.display;
     if (disp !== "flex" && disp !== "inline-flex" && disp !== "grid") continue;
+    // O <Abas> do design system (ui/abas.tsx) é a exceção medida: cada aba já
+    // tem 44px de altura e 14px de respiro INTERNO de cada lado — o toque cai
+    // na aba certa sem vão entre as caixas. O gap dele mora no componente.
+    if (el.getAttribute("role") === "tablist" && el.dataset.testid === "abas") continue;
     const filhos = Array.from(el.children).filter((c) => visivel(c) && conta(c));
     if (filhos.length < 2) continue;
     const gap = Math.min(...String(el.style.gap || "0").split(/\s+/).map((g) => px(g) || 0));

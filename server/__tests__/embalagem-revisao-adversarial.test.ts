@@ -75,7 +75,7 @@ describe("1 · o status manda na embalagem", () => {
   });
 
   it("/entregar RECUSA (409) volume com peça-problema, dizendo qual e como resolver; a tela mostra o problema", () => {
-    const entregar = ROTAS.slice(ROTAS.indexOf('app.post("/api/tubos/:id/entregar"'));
+    const entregar = ROTAS.slice(ROTAS.indexOf("const entregarVolume ="));
     expect(entregar).toContain("const comProblema = aEntregar.filter(({ p }) => problemaNoVolume(p));");
     expect(entregar).toContain("throw new Recusa(409, `Não dá para entregar");
     expect(entregar).toContain("tire ${codigos} do Tubo ${tubo.numero}");
@@ -129,8 +129,8 @@ describe("3 · concorrência: volume e peças TRAVADOS, contas refeitas lá dent
     const criar = trecho(ROTAS, 'app.post("/api/events/:eventId/tubos"', 'app.patch("/api/tubos/:id/itens"');
     const patch = trecho(ROTAS, 'app.patch("/api/tubos/:id/itens"', 'app.delete("/api/tubos/:id"');
     const apagar = trecho(ROTAS, 'app.delete("/api/tubos/:id"', 'app.post("/api/tubos/:id/fechar"');
-    const fechar = trecho(ROTAS, 'app.post("/api/tubos/:id/fechar"', 'app.post("/api/tubos/:id/entregar"');
-    const entregar = ROTAS.slice(ROTAS.indexOf('app.post("/api/tubos/:id/entregar"'));
+    const fechar = trecho(ROTAS, 'app.post("/api/tubos/:id/fechar"', "const entregarVolume =");
+    const entregar = ROTAS.slice(ROTAS.indexOf("const entregarVolume ="));
     for (const r of [criar, patch, apagar, fechar, entregar]) {
       expect(r).toContain("db.transaction(async (tx: Ex) => {");
       expect(r).toContain("await travarTubo(tx, ");
@@ -154,7 +154,7 @@ describe("3 · concorrência: volume e peças TRAVADOS, contas refeitas lá dent
 
 describe("4 · o atalho `items.tubo_id` depois da entrega", () => {
   it("a entrega acerta o atalho das peças entregues (a dividida passa a apontar para o volume ainda aberto)", () => {
-    const entregar = ROTAS.slice(ROTAS.indexOf('app.post("/api/tubos/:id/entregar"'));
+    const entregar = ROTAS.slice(ROTAS.indexOf("const entregarVolume ="));
     expect(entregar).toContain("await acertarAtalho(aEntregar.map(({ p }) => p.id), agora, tx);");
   });
 });

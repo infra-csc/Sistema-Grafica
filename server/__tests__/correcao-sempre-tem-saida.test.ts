@@ -30,11 +30,13 @@
 
 import { describe, it, expect } from "vitest";
 import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
-import { readFileSync } from "fs";
-import path from "path";
+import { fonteDaArte, lerDaRaiz } from "./fonte-das-telas-da-arte";
 
 const rotas = fonteDasRotasDeItens();
-const arte = readFileSync(path.resolve(__dirname, "../../client/src/pages/arte.tsx"), "utf8");
+// A tela da Arte foi dividida: o modal da Correção mora em
+// components/arte/dialogo-correcao.tsx e as mutações em use-acoes-da-arte.ts.
+const arte = fonteDaArte();
+const dialogoDaCorrecao = lerDaRaiz("client/src/components/arte/dialogo-correcao.tsx");
 
 describe("Correção: a peça devolvida leva as aprovações que tem", () => {
   it("a consulta não empurra mais um array vazio fixo", () => {
@@ -101,15 +103,17 @@ describe("Correção: o rodapé não derruba a tela quando não há peça", () =
     // mesmo com o modal fechado, ler `.status` de null derrubava a Arte
     // INTEIRA no boundary de render — e `correcaoItem` nulo é o estado normal
     // ao abrir a tela, então quebrava já no carregamento.
-    const i = arte.indexOf("if (!correcaoItem) return null;");
-    const j = arte.indexOf('const devolvidaInteira = correcaoItem.status');
+    const i = dialogoDaCorrecao.indexOf("if (!correcaoItem) return null;");
+    const j = dialogoDaCorrecao.indexOf('const devolvidaInteira = correcaoItem.status');
     expect(i).toBeGreaterThan(-1);
     expect(j).toBeGreaterThan(-1);
     expect(i).toBeLessThan(j);
   });
 
   it("nenhum acesso cru a correcaoItem.status fora da guarda", () => {
-    const trecho = arte.slice(arte.indexOf("{(() => {"), arte.indexOf("})()}") + 5);
+    // O rodapé é o primeiro (e único) bloco `{(() => { … })()}` do modal.
+    const trecho = dialogoDaCorrecao.slice(dialogoDaCorrecao.indexOf("{(() => {"), dialogoDaCorrecao.indexOf("})()}") + 5);
+    expect(trecho).toContain("if (!correcaoItem) return null;");
     const antes = trecho.slice(0, trecho.indexOf("if (!correcaoItem) return null;"));
     expect(antes).not.toMatch(/correcaoItem\.\w/);
   });

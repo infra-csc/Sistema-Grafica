@@ -15,10 +15,13 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "fs";
 import path from "path";
 import { fatiarLinks } from "../../client/src/components/texto-com-links";
+import { fonteDaArte } from "./fonte-das-telas-da-arte";
 
 const ler = (rel: string) => readFileSync(path.resolve(__dirname, "../../", rel), "utf8");
 const COMP = ler("client/src/components/texto-com-links.tsx");
-const ARTE = ler("client/src/pages/arte.tsx");
+// A Arte foi dividida: a fila da Correção e o modal do motivo moram em
+// components/arte/ (cartao-da-correcao.tsx e dialogo-correcao.tsx).
+const ARTE = fonteDaArte();
 const ATEND = ler("client/src/pages/atendimento.tsx");
 
 describe("1 · o fatiador", () => {

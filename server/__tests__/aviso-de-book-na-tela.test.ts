@@ -14,17 +14,21 @@
 
 import { describe, it, expect } from "vitest";
 import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
+import { fonteDaArte } from "./fonte-das-telas-da-arte";
 import { readFileSync } from "fs";
 import path from "path";
 
 const ler = (rel: string) => readFileSync(path.resolve(__dirname, "../../", rel), "utf8");
-const ARTE = ler("client/src/pages/arte.tsx");
+// A Arte foi dividida: a gravação do book mora em components/arte/use-book-da-arte.ts
+// e o tipo da resposta em tipos.ts. Os trechos valem para a tela inteira.
+const ARTE = fonteDaArte();
 const VERSOES = ler("client/src/pages/versoes.tsx");
 const ITEMS = fonteDasRotasDeItens();
 
 describe("1 · a Arte vê o que aconteceu com o aviso", () => {
   it("a mutação lê a resposta em vez de descartá-la", () => {
-    expect(ARTE).toContain("return await res.json() as { updated: number; aviso: { status: string; para?: string[]; reason?: string } | null };");
+    expect(ARTE).toContain("return await res.json() as RespostaDoBook;");
+    expect(ARTE).toContain("aviso: { status: string; para?: string[]; reason?: string } | null;");
   });
 
   it("os três desfechos têm frase própria — e o ruim é destrutivo", () => {

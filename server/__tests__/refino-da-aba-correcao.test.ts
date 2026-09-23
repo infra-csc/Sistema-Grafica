@@ -25,10 +25,11 @@
 //      cima, a lista de patrocinadores embaixo).
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "fs";
-import path from "path";
+import { fonteDaArte, lerDaRaiz } from "./fonte-das-telas-da-arte";
 
-const arte = readFileSync(path.resolve(__dirname, "../../client/src/pages/arte.tsx"), "utf8");
+// A tela da Arte foi dividida (página + components/arte/): a aba mora em
+// aba-correcao.tsx e cartao-da-correcao.tsx, o modal em dialogo-correcao.tsx.
+const arte = fonteDaArte();
 
 /** Tira comentários antes de afirmar sobre o CÓDIGO. */
 const codigo = arte
@@ -129,7 +130,8 @@ describe("7. o que a segunda passada fechou", () => {
     // Sem contorno, "não consegui buscar" lia como "não há nada" — e a
     // diferença entre as duas é a diferença entre seguir o dia e recarregar.
     // Agora é a <EstadoErro> do design system (caixa com contorno, role=alert).
-    const erro = arte.slice(arte.indexOf("const renderErroDeCarga"), arte.indexOf("const renderCorrecaoTab"));
+    const erro = lerDaRaiz("client/src/components/arte/erro-de-carga.tsx");
+    expect(erro).toContain("export function ErroDeCarga(");
     expect(erro).toContain("<div data-testid={testId}");
     expect(erro).toContain("<EstadoErro");
     expect(erro).toContain("aoTentarDeNovo={tentarDeNovo}");
@@ -152,7 +154,8 @@ describe("8. quem encolhe primeiro no cabeçalho do card", () => {
   // truncar numa linha só — quebram em até DUAS linhas (o texto inteiro no
   // `title` não existe para quem toca). O grupo, rótulo curto, fica numa
   // linha própria acima e é o único que ainda pode ganhar reticência.
-  const cab = arte.slice(arte.indexOf('<span title={item.type}'), arte.indexOf('<SeloKit peca={item} style={{ flexShrink: 0 }} />'));
+  const cartao = lerDaRaiz("client/src/components/arte/cartao-da-correcao.tsx");
+  const cab = cartao.slice(cartao.indexOf('<span title={item.type}'), cartao.indexOf('<SeloKit peca={item} style={{ flexShrink: 0 }} />'));
   const duasLinhas = "display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical'";
 
   it("o tipo da peça não vira reticência numa linha só", () => {

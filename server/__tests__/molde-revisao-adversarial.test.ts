@@ -15,6 +15,7 @@
 // A busca de arte (6) mora em busca-arte-revisao.test.ts (outro mock de db).
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { fonteDaArte } from "./fonte-das-telas-da-arte";
 import { readFileSync } from "fs";
 import path from "path";
 
@@ -405,9 +406,12 @@ describe("8 · molde: trava, aviso de evento concluído e contagens", () => {
   it("os pontos das telas e rotas que tratavam o molde como peça comum", () => {
     const relatorio = ler("server/routes/relatorio.ts");
     expect(relatorio).toContain("DELIVERED.has(statusParaContagem(i))");
-    const arte = ler("client/src/pages/arte.tsx");
+    // A Arte foi dividida (página + components/arte/): o texto da tela inteira.
+    // O "fora do book" recebe da fila se o evento tem book (eventoTemBook).
+    const arte = fonteDaArte();
     expect(arte).toContain("if (!arquivoFinalOk(item)) p.semFinal++;");
-    expect(arte).toContain("eventosComBook.has(item.eventId) && !ehMolde(item) && (");
+    expect(arte).toContain("eventoTemBook={eventosComBook.has(item.eventId)}");
+    expect(arte).toContain("eventoTemBook && !ehMolde(item) && (");
     expect(arte).toContain("moldes enviados para a Revisão Final");
     expect(arte).toContain('"molde enviado" : "moldes enviados"} para a Revisão Final');
     expect(arte).toContain("if (ehMolde(alvo)) enviadosMolde++; else enviados++;");

@@ -8,10 +8,11 @@
 // e um resumo que dá o tamanho do problema sem contar chip por chip.
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "fs";
-import path from "path";
+import { fonteDaArte } from "./fonte-das-telas-da-arte";
 
-const ARTE = readFileSync(path.resolve(__dirname, "../../client/src/pages/arte.tsx"), "utf8");
+// A tela da Arte foi dividida: a faixa mora em components/arte/faixa-travando.tsx
+// e o teto em constantes.ts. Os trechos valem para a tela inteira.
+const ARTE = fonteDaArte();
 
 describe("só os piores à vista", () => {
   it("o teto existe e a lista corta nele (a ordenação já é espera ↓, peças ↓)", () => {

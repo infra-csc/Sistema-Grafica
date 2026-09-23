@@ -29,15 +29,17 @@
 // produzem aquele pixel.
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "fs";
-import { resolve } from "path";
+import { fonteDaArte } from "./fonte-das-telas-da-arte";
 
-const src = readFileSync(resolve(process.cwd(), "client/src/pages/arte.tsx"), "utf8");
+// A tela da Arte foi dividida (página + components/arte/): as larguras moram em
+// colunas.ts, a célula na linha e o colgroup/cabeçalho na fila. O texto da
+// tela inteira serve às três buscas.
+const src = fonteDaArte();
 
 /** Larguras fixas do conjunto base (a coluna 'auto' de "Peça" fica de fora). */
 function colunasBase(): Map<string, number> {
   const bloco = src.match(/const ARTE_COLS: ArteCol\[\] = \[([\s\S]*?)\n\];/);
-  expect(bloco, "ARTE_COLS não foi encontrado em arte.tsx").toBeTruthy();
+  expect(bloco, "ARTE_COLS não foi encontrado na tela da Arte").toBeTruthy();
   const m = new Map<string, number>();
   for (const c of bloco![1].matchAll(/\{\s*label:\s*'([^']+)',\s*w:\s*(\d+)/g)) {
     m.set(c[1], Number(c[2]));
@@ -48,7 +50,7 @@ function colunasBase(): Map<string, number> {
 /** Overrides que a aba Finalizados aplica sobre o conjunto base. */
 function overridesFinalizados(): Map<string, number> {
   const bloco = src.match(/const ARTE_COLS_FINALIZADOS: ArteCol\[\] =([\s\S]*?)\n\s*:\s*c\);/);
-  expect(bloco, "ARTE_COLS_FINALIZADOS não foi encontrado em arte.tsx").toBeTruthy();
+  expect(bloco, "ARTE_COLS_FINALIZADOS não foi encontrado na tela da Arte").toBeTruthy();
   const m = new Map<string, number>();
   for (const c of bloco![1].matchAll(/c\.label === '([^']+)'\s*\?\s*\{[^}]*?w:\s*(\d+)/g)) {
     m.set(c[1], Number(c[2]));
@@ -59,7 +61,7 @@ function overridesFinalizados(): Map<string, number> {
 /** O `style` da <td> que contém o marcador — para checar o recorte da célula. */
 function estiloDaCelulaQueContem(marcador: string): string {
   const i = src.indexOf(marcador);
-  expect(i, `marcador não encontrado em arte.tsx: ${marcador}`).toBeGreaterThan(-1);
+  expect(i, `marcador não encontrado na tela da Arte: ${marcador}`).toBeGreaterThan(-1);
   const abertura = src.lastIndexOf("<td style={{", i);
   expect(abertura).toBeGreaterThan(-1);
   return src.slice(abertura, src.indexOf("}}>", abertura));

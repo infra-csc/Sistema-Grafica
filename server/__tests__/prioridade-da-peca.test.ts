@@ -18,13 +18,16 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect } from "vitest";
 import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
+import { fonteDaArte } from "./fonte-das-telas-da-arte";
 import { readFileSync } from "fs";
 import path from "path";
 
 const ler = (rel: string) => readFileSync(path.resolve(__dirname, "../..", rel), "utf8");
 const SCHEMA = ler("shared/schema.ts");
 const ITEMS = fonteDasRotasDeItens();
-const ARTE = ler("client/src/pages/arte.tsx");
+// A tela da Arte foi dividida: a ordenação mora em components/arte/use-fila-da-arte.ts
+// e os selos em celulas-da-peca.tsx. Os trechos valem para a tela inteira.
+const ARTE = fonteDaArte();
 const EVENT_DETAIL = ler("client/src/pages/event-detail.tsx");
 
 describe("a coluna e o contrato", () => {
@@ -92,13 +95,13 @@ describe("a fila da Arte", () => {
   });
 
   it("a peça carrega o selo PRIORITÁRIA (linha desktop e card mobile)", () => {
-    // Desde 22/09 (menos é mais) o selo mora em renderSelosDaPeca, a lista
+    // Desde 22/09 (menos é mais) o selo mora em SelosDaPeca, a lista
     // ordenada por gravidade usada pela linha E pelo card.
     expect(ARTE).toContain("item.isPriority && {");
     expect(ARTE).toContain("tag-prioritaria-${item.id}");
-    const selos = ARTE.slice(ARTE.indexOf("const renderSelosDaPeca"), ARTE.indexOf("const renderRow"));
+    const selos = ARTE.slice(ARTE.indexOf("export function SelosDaPeca("), ARTE.indexOf("export function MetaDaPeca("));
     expect(selos).toContain("PRIORITÁRIA");
-    expect((ARTE.match(/renderSelosDaPeca\(item, tabId\)/g) ?? []).length).toBe(2);
+    expect((ARTE.match(/<SelosDaPeca item=\{item\} tabId=\{tabId\} \/>/g) ?? []).length).toBe(2);
   });
 
   it("na lista do evento (quem marcou), o selo também aparece", () => {

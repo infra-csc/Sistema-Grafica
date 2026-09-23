@@ -14,6 +14,7 @@
 // Os testes da feature (consulta-de-estoque*.test.ts) rodam com a chave ligada.
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
 import { readFileSync } from "fs";
 import path from "path";
 import { SOLICITACAO_AO_ESTOQUE_ATIVA } from "@shared/consultas-de-estoque";
@@ -204,7 +205,7 @@ describe("PATCH /api/items/:id/creator-review — a liberação de ANTES", () =>
   });
 
   it("na fonte: a leitura da tabela só acontece com a chave ligada, e nada da feature entra na transação sem ela", () => {
-    const fonte = ler("server/routes/items.ts");
+    const fonte = fonteDasRotasDeItens();
     expect(fonte).toContain("const doEstoque = SOLICITACAO_AO_ESTOQUE_ATIVA && !currentItem.isReuse ? await respostaDoEstoqueParaLiberar(currentItem.id) : null;");
     expect(fonte).toContain("if (SOLICITACAO_AO_ESTOQUE_ATIVA && req.body?.peloEstoque === true && !doEstoque) {");
     // o único ponto dentro da transação depende de `doEstoque`, que é null

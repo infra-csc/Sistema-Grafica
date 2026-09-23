@@ -75,10 +75,17 @@ export function papeisDeListaNegada(corpo: string): string[] {
  */
 export function lerReguaDoServidor(dirRoutes?: string): RotaComPapel[] {
   const dir = dirRoutes ?? path.resolve(__dirname, "routes");
+  // Recursivo: as rotas da peça moram em routes/itens/ (o items.ts é só o
+  // índice). A chave é o caminho relativo ("itens/edicao.ts").
   const fontes = new Map<string, string>();
-  for (const f of readdirSync(dir).filter((x) => x.endsWith(".ts"))) {
-    fontes.set(f, readFileSync(path.join(dir, f), "utf8"));
-  }
+  const varrer = (sub: string) => {
+    for (const e of readdirSync(path.join(dir, sub), { withFileTypes: true })) {
+      const rel = sub ? `${sub}/${e.name}` : e.name;
+      if (e.isDirectory()) varrer(rel);
+      else if (e.name.endsWith(".ts")) fontes.set(rel, readFileSync(path.join(dir, rel), "utf8"));
+    }
+  };
+  varrer("");
   const aliases = coletarAliases(fontes);
   const saida: RotaComPapel[] = [];
 

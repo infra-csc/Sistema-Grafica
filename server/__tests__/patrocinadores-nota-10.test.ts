@@ -25,10 +25,12 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { describe, it, expect } from "vitest";
+import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
 import { readFileSync } from "fs";
 import path from "path";
 
-const ler = (rel: string) => readFileSync(path.resolve(__dirname, "../../", rel), "utf8");
+// server/routes/items.ts virou índice: o texto das rotas da peça vem de fonteDasRotasDeItens().
+const ler = (rel: string) => rel === "server/routes/items.ts" ? fonteDasRotasDeItens() : readFileSync(path.resolve(__dirname, "../../", rel), "utf8");
 const P = ler("client/src/pages/patrocinadores.tsx");
 const STORAGE = ler("server/storage.ts");
 const semCom = (s: string) => s.replace(/\r\n/g, "\n").replace(/\/\*[\s\S]*?\*\//g, "")

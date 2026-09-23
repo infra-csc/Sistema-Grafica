@@ -27,6 +27,7 @@ import {
 import { requireAuth } from "./shared";
 import { ehBookCompleto } from "@shared/fluxo-peca";
 import { statusParaContagem } from "@shared/molde";
+import { responderFalha } from "../erros";
 
 /** Quantas fotos recentes viajam — o relatório é resumo, não galeria. */
 export const RELATORIO_MAX_FOTOS = 8;
@@ -111,7 +112,7 @@ export function registerRelatorioRoutes(app: Express): void {
         fotos: { total: fotosDoEvento.length, conferencia, entrega: fotosDoEvento.length - conferencia, ultimas },
       });
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      responderFalha(res, error, "GET /api/events/:id/relatorio");
     }
   });
 }

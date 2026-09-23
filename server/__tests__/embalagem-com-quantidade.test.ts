@@ -13,6 +13,7 @@
 // O modal com o campo "Quantas" é MONTADO em tubos-tres-modais.test.ts.
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect } from "vitest";
+import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
 import { readFileSync } from "fs";
 import path from "path";
 import {
@@ -25,7 +26,7 @@ import { detalheDaProducao } from "../../client/src/lib/detalhe-producao";
 const RAIZ = path.resolve(__dirname, "../..");
 const ler = (rel: string) => readFileSync(path.resolve(RAIZ, rel), "utf8");
 const ROTAS = ler("server/routes/tubos.ts");
-const ITEMS = ler("server/routes/items.ts");
+const ITEMS = fonteDasRotasDeItens();
 const GRAFICA = ler("client/src/pages/grafica.tsx");
 
 const peca = (extra: Record<string, unknown> = {}) => ({ quantity: 10, quantityProduced: 10, reuseQty: 0, isReuse: false, conferredQty: 10, embaladaQty: 0, deliveredQty: 0, status: "conferred", ...extra });
@@ -164,13 +165,13 @@ describe("3 · as rotas usam as contas", () => {
     expect(ROTAS).toContain("if (travado.avulso && tiradas.length > 0 && (await linhasDosTubos([travado.id], tx)).length === 0) {");
   });
   it("entregar o volume: carimba a linha, soma em deliveredQty, `delivered` só com tudo — numa transação; e o tubo guarda o que foi junto", () => {
-    const entregar = ROTAS.slice(ROTAS.indexOf('app.post("/api/tubos/:id/entregar"'));
+    const entregar = ROTAS.slice(ROTAS.indexOf("const entregarVolume ="));
     expect(entregar).toContain("const plano = planejarEntrega(p, l.quantidade);");
     expect(entregar).toContain("await tx.update(tuboItens).set({ entregueEm: agora } as any).where(eq(tuboItens.id, l.id));");
     expect(entregar).toContain('...(plano.viraEntregue ? { status: "delivered", deliveredAt: agora, statusChangedAt: agora } : {}),');
     expect(entregar).toContain('${plano.viraEntregue ? "Entrega concluída (" : "Entrega parcial ("}');
     expect(entregar).toContain('aEntregar.map(({ p, l }) => `${p.displayId ?? "peça"} (${l.quantidade})`).join(", ")');
-    expect(entregar).toContain("const feito = await db.transaction(async (tx: Ex) => {");
+    expect(entregar).toContain("db.transaction(async (tx: Ex) => {");
     // só quem recebeu é obrigatório
     expect(entregar).toContain("if (!recebedor) {");
     expect(entregar).not.toContain("ainda não tem foto");

@@ -3,7 +3,7 @@ import type { Express } from "express";
 import { storage } from "../storage";
 import { insertStandardItemSchema, insertCatalogOptionSchema } from "@shared/schema";
 import { requireAuth, requireRole, broadcast, createAuditLog } from "./shared";
-import { responderErro } from "../erros";
+import { responderErro, responderFalha } from "../erros";
 
 // Gestão do catálogo de modelos (criar/editar/excluir modelos, renomear/limpar
 // grupos, materiais e acabamentos em massa) vive na tela /modelos, que é
@@ -56,7 +56,7 @@ export function registerStandardItemRoutes(app: Express): void {
         return { ...m, uso: { exato: e?.n ?? 0, compativel: compativel.get(k) ?? 0, ultimaEm: e?.ultima ?? null } };
       }));
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      responderFalha(res, error, "GET /api/standard-items");
     }
   });
 
@@ -67,7 +67,7 @@ export function registerStandardItemRoutes(app: Express): void {
       const kind = typeof req.query.kind === "string" ? req.query.kind : undefined;
       res.json(await storage.getCatalogOptions(kind));
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      responderFalha(res, error, "GET /api/catalog-options");
     }
   });
 
@@ -89,7 +89,7 @@ export function registerStandardItemRoutes(app: Express): void {
       broadcast({ type: "catalog_option_created", option });
       res.status(201).json(option);
     } catch (error: any) {
-      res.status(400).json({ error: error.message });
+      responderFalha(res, error, "POST /api/catalog-options", 400);
     }
   });
 
@@ -112,7 +112,7 @@ export function registerStandardItemRoutes(app: Express): void {
       broadcast({ type: "catalog_option_deleted", kind, value });
       res.json({ deleted: ok });
     } catch (error: any) {
-      res.status(400).json({ error: error.message });
+      responderFalha(res, error, "DELETE /api/catalog-options", 400);
     }
   });
 
@@ -156,7 +156,7 @@ export function registerStandardItemRoutes(app: Express): void {
       broadcast({ type: "standard_item_group_renamed", oldName, newName: newName.trim() });
       res.json({ count });
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      responderFalha(res, error, "PATCH /api/standard-items/rename-group");
     }
   });
 
@@ -176,7 +176,7 @@ export function registerStandardItemRoutes(app: Express): void {
       broadcast({ type: "standard_item_group_deleted", name });
       res.json({ count });
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      responderFalha(res, error, "DELETE /api/standard-items/clear-group");
     }
   });
 
@@ -198,7 +198,7 @@ export function registerStandardItemRoutes(app: Express): void {
       broadcast({ type: "standard_item_finish_renamed", oldName, newName: newName.trim() });
       res.json({ count });
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      responderFalha(res, error, "PATCH /api/standard-items/rename-finish");
     }
   });
 
@@ -218,7 +218,7 @@ export function registerStandardItemRoutes(app: Express): void {
       broadcast({ type: "standard_item_finish_deleted", name });
       res.json({ count });
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      responderFalha(res, error, "DELETE /api/standard-items/clear-finish");
     }
   });
 
@@ -240,7 +240,7 @@ export function registerStandardItemRoutes(app: Express): void {
       broadcast({ type: "standard_item_material_renamed", oldName, newName: newName.trim() });
       res.json({ count });
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      responderFalha(res, error, "PATCH /api/standard-items/rename-material");
     }
   });
 
@@ -260,7 +260,7 @@ export function registerStandardItemRoutes(app: Express): void {
       broadcast({ type: "standard_item_material_deleted", name });
       res.json({ count });
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      responderFalha(res, error, "DELETE /api/standard-items/clear-material");
     }
   });
 
@@ -314,7 +314,7 @@ export function registerStandardItemRoutes(app: Express): void {
       
       res.json({ success: true });
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      responderFalha(res, error, "DELETE /api/standard-items/:id");
     }
   });
 

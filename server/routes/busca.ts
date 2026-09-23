@@ -21,6 +21,7 @@ import { items, events } from "@shared/schema";
 import { and, desc, ilike, isNull, or, sql } from "drizzle-orm";
 import { requireAuth } from "./shared";
 import { ehBookCompleto } from "@shared/fluxo-peca";
+import { responderFalha } from "../erros";
 
 /** Escapa %, _ e \ — "2x1" e "100%" são texto, não curinga. */
 export function termoLiteral(t: string): string {
@@ -88,7 +89,7 @@ export function registerBuscaRoutes(app: Express): void {
         !(req as any).userKit || (!!p.kitRemessaId && p.criadoPorId === (req as any).userId);
       res.json({ pecas: pecas.filter((p) => !ehBookCompleto(p) && visivel(p)), eventos });
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      responderFalha(res, error, "GET /api/busca");
     }
   });
 }

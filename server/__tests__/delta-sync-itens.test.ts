@@ -16,12 +16,13 @@
 //  · para os consumidores NADA muda: o queryFn devolve o mesmo array cheio.
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect } from "vitest";
+import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
 import { readFileSync } from "fs";
 import path from "path";
 
 const ler = (rel: string) => readFileSync(path.resolve(__dirname, "../..", rel), "utf8");
 const STORAGE = ler("server/storage.ts");
-const ITEMS = ler("server/routes/items.ts");
+const ITEMS = fonteDasRotasDeItens();
 const QC = ler("client/src/lib/queryClient.ts");
 
 describe("o carimbo que sustenta o delta", () => {

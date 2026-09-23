@@ -14,6 +14,7 @@
 //     parcial estão em embalagem-com-quantidade.test.ts.
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect } from "vitest";
+import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
 import { readFileSync, existsSync } from "fs";
 import path from "path";
 import { PODE_IR_PARA_TUBO, podeIrParaTubo, EMBALADO, ehEmbalada, POS_CONFERENCIA, ehPosConferencia, DEPOIS_DA_ARTE } from "@shared/fluxo-peca";
@@ -95,12 +96,14 @@ describe("as rotas", () => {
 });
 
 describe("a entrega do tubo inteiro", () => {
-  const entrega = ROTAS.slice(ROTAS.indexOf('app.post("/api/tubos/:id/entregar"'));
+  const entrega = ROTAS.slice(ROTAS.indexOf("const entregarVolume ="));
 
 
 
   it("entrega todas numa transação só — ou todas, ou nenhuma", () => {
-    expect(entrega).toContain("const feito = await db.transaction(async (tx: Ex) => {");
+    // A regra mora em `entregarVolume` (a entrega individual e a em lote chamam a mesma).
+    expect(entrega).toContain("db.transaction(async (tx: Ex) => {");
+    expect(entrega).toContain("const feito = await entregarVolume(req, req.params.id, { quem, agora, hora, recebedor, foto, obs });");
   });
 
 
@@ -156,7 +159,7 @@ describe("a etapa Embalado no fluxo da peça", () => {
     expect(ler("server/routes/shared.ts")).toContain('packed: "Embalado",');
     expect(ler("server/services/tempo-etapas.ts")).toContain('packed: "Embalado",');
     expect(ler("server/services/xlsxExport.ts")).toContain('packed: "Embalado"');
-    expect(ler("server/routes/items.ts")).toContain('"Embalado": "packed",');
+    expect(fonteDasRotasDeItens()).toContain('"Embalado": "packed",');
     expect(ler("client/src/lib/painel-rotas.ts")).toContain("packed:                  TELAS.grafica,");
     // A etapa canônica (shared/fluxo-peca) é a fonte; fases e PRODUCED_LIKE derivam dela.
     expect(ler("shared/fluxo-peca.ts")).toContain('packed:                ["packed", "embalado"],');
@@ -166,12 +169,12 @@ describe("a etapa Embalado no fluxo da peça", () => {
 
   it("a fila da Gráfica (storage + delta) serve packed", () => {
     expect(ler("server/storage.ts")).toContain("'produced', 'conferred', 'packed', 'delivered')");
-    expect(ler("server/routes/items.ts")).toContain('"approved", "inProduction", "produced", "conferred", "packed", "delivered",');
+    expect(fonteDasRotasDeItens()).toContain('"approved", "inProduction", "produced", "conferred", "packed", "delivered",');
   });
 });
 
 describe("fechar o tubo (foto do tubo e dos itens) — não é entrega", () => {
-  const fechar = ROTAS.slice(ROTAS.indexOf('app.post("/api/tubos/:id/fechar"'), ROTAS.indexOf('app.post("/api/tubos/:id/entregar"'));
+  const fechar = ROTAS.slice(ROTAS.indexOf('app.post("/api/tubos/:id/fechar"'), ROTAS.indexOf("const entregarVolume ="));
 
   it("existe, com os papéis da entrega, e está na régua de permissões", () => {
     expect(fechar).toContain('app.post("/api/tubos/:id/fechar", requireAuth');
@@ -332,7 +335,7 @@ describe("a trava 'Solicitação sem Kit só visualiza' alcança os tubos", () =
 
 describe("a entrega do tubo fecha o evento como a entrega da peça", () => {
   it("avisa a Solicitação quando o evento conclui", () => {
-    const rota = ROTAS.slice(ROTAS.indexOf('app.post("/api/tubos/:id/entregar"'));
+    const rota = ROTAS.slice(ROTAS.indexOf("const entregarVolume ="));
     expect(rota).toContain('type: "eventCompleted"');
     expect(rota).toContain('broadcast({ type: "notification_created", notification })');
     expect(rota).toContain('antes?.status !== "completed" && depois?.status === "completed"');
@@ -347,7 +350,7 @@ describe("a peça não nasce com impressora nem tubo", () => {
 
 describe("a entrega da embalada só exige quem recebeu; a direta continua exigindo foto (21/09)", () => {
   it("o comprovante é SEMPRE opcional no volume — a foto vem de antes (conferência e embalar)", () => {
-    const entregar = ROTAS.slice(ROTAS.indexOf('app.post("/api/tubos/:id/entregar"'));
+    const entregar = ROTAS.slice(ROTAS.indexOf("const entregarVolume ="));
     expect(entregar).not.toContain("fotosFechamento ?? []).length === 0");
     expect(entregar).not.toContain("ainda não tem foto");
     expect(entregar).toContain("if (!recebedor) {");
@@ -365,7 +368,7 @@ describe("EMBALADA SOZINHA — volume avulso (dono, 21/09: 'nem sempre vai ser e
 });
 
 describe("ENTREGAR É SÓ DO TUBO (dono, 21/09)", () => {
-  const ITEMS = ler("server/routes/items.ts");
+  const ITEMS = fonteDasRotasDeItens();
   const deliver = ITEMS.slice(ITEMS.indexOf('app.patch("/api/items/:id/deliver"'), ITEMS.indexOf('app.patch("/api/items/:id/deliver"') + 5000);
 
 

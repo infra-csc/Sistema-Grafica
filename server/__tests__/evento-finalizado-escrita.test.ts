@@ -36,6 +36,7 @@
 // mockada.
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
 import { items as itemsDaTabela } from "@shared/schema";
 import { txDeMentira } from "./tx-de-mentira";
 import fs from "fs";
@@ -587,7 +588,8 @@ const FONTES = ["server/routes/items.ts", "server/routes/sponsors.ts", "server/r
 type RotaFonte = { chave: string; corpo: string };
 
 function rotasDe(rel: string): RotaFonte[] {
-  const src = fs.readFileSync(path.join(RAIZ, rel), "utf8");
+  // server/routes/items.ts virou índice: o texto das rotas da peça vem de fonteDasRotasDeItens().
+  const src = rel === "server/routes/items.ts" ? fonteDasRotasDeItens() : fs.readFileSync(path.join(RAIZ, rel), "utf8");
   const re = /app\.(get|post|patch|put|delete)\(\s*["'`]([^"'`]+)/g;
   const achadas: Array<{ verbo: string; caminho: string; i: number }> = [];
   let m: RegExpExecArray | null;

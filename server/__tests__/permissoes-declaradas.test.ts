@@ -59,6 +59,8 @@ describe("tabela ↔ código, sem sobras de nenhum lado", () => {
     //    − o "liberar" antigo (/approve), desativado com 410 (22/09).
     //    − creator-reject e bulk-creator-reject, rotas mortas removidas.
     //    − o PATCH /api/items/:id/edit (irmã sem validação do PATCH genérico).
+    //    − DELETE /api/comments/:id: a rota de comentários saiu (nenhuma tela a chamava).
+    //    + entregar volumes em lote (23/09).
     expect(REGUA_DE_PAPEIS.length).toBe(117);
     expect(doCodigo.length).toBe(117);
   });

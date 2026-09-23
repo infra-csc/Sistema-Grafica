@@ -13,6 +13,7 @@
 //   · o DETALHE DO EVENTO — registro bruto, é por lá que se edita/exclui.
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect } from "vitest";
+import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
 import { readFileSync } from "fs";
 import { ehBookCompleto } from "../../shared/fluxo-peca";
 
@@ -31,7 +32,7 @@ describe("o predicado", () => {
 
 describe("as portas fechadas", () => {
   const PORTAS: Array<[string, string]> = [
-    ["fila da Gráfica (rota approved)", "../routes/items.ts"],
+    ["fila da Gráfica (rota approved)", "../routes/itens/leitura.ts"],
     ["Versões", "../routes/versoes.ts"],
     ["Análises", "../routes/analises.ts"],
     ["Prazos", "../routes/prazos.ts"],
@@ -59,7 +60,7 @@ describe("as exceções deliberadas", () => {
     // resubmission-needed monta a fila da Correção; o filtro da Arte vale só
     // para allItems (a fila principal), e este teste quebra se alguém aplicar
     // o predicado dentro da rota.
-    const items = ler("../routes/items.ts");
+    const items = fonteDasRotasDeItens();
     const i = items.indexOf('"/api/items/resubmission-needed"');
     const rota = items.slice(i, items.indexOf("app.get(", i + 10));
     expect(rota).not.toContain("ehBookCompleto");

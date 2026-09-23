@@ -25,13 +25,11 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { describe, it, expect } from "vitest";
+import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
 import { readFileSync } from "fs";
 import path from "path";
 
-const rotas = readFileSync(
-  path.resolve(__dirname, "../../server/routes/items.ts"),
-  "utf8",
-);
+const rotas = fonteDasRotasDeItens();
 
 /** Sem comentários — para as afirmações de ausência. */
 const codigo = rotas

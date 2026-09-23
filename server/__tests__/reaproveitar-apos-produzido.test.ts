@@ -15,11 +15,13 @@
 // leem a diferença.
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect } from "vitest";
+import { origemDaAcao, podeTransicionar } from "@shared/maquina-de-estados";
+import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
 import { readFileSync } from "fs";
 import path from "path";
 
 const ler = (rel: string) => readFileSync(path.resolve(__dirname, "../..", rel), "utf8");
-const ITEMS = ler("server/routes/items.ts");
+const ITEMS = fonteDasRotasDeItens();
 const GRAFICA = ler("client/src/pages/grafica.tsx");
 
 /** O corpo da rota mark-reuse, isolado. */
@@ -32,7 +34,10 @@ const rota = (() => {
 describe("quem pode, e quando", () => {
   it("após Produzido, só Solicitação e admin — a Gráfica ouve o porquê", () => {
     expect(rota).toContain('const ehProduzida = current.status === "produced" || current.status === "produzido";');
-    expect(rota).toContain('&& ((req as any).userRole === "admin" || (req as any).userRole === "solicitacao");');
+    expect(rota).toContain('&& podeTransicionar(current.status, "ajustar-reaproveitamento-da-produzida", req.userRole);');
+    // quem: Solicitação e admin (a tabela em shared/maquina-de-estados.ts)
+    for (const papel of ["solicitacao", "admin"]) expect(podeTransicionar("produced", "ajustar-reaproveitamento-da-produzida", papel)).toBe(true);
+    expect(podeTransicionar("produced", "ajustar-reaproveitamento-da-produzida", "grafica")).toBe(false);
     // a Gráfica (que passa no gate de papel da rota) recebe recusa COM motivo,
     // não o erro genérico de status
     expect(rota).toContain("mudar o reaproveitamento agora é da Solicitação e do admin");
@@ -44,7 +49,10 @@ describe("quem pode, e quando", () => {
   });
 
   it("o fluxo normal não mudou: fora de Produzido a régua é a mesma de antes", () => {
-    expect(rota).toContain('if (!allowedStatuses.includes(current.status) && !viaProduzida) {');
+    expect(rota).toContain('if (!vemDeOrigemValida(current.status, "reaproveitar-parte") && !viaProduzida) {');
+    // a régua de antes, agora na tabela (shared/maquina-de-estados.ts)
+    expect(origemDaAcao("reaproveitar-parte")).toEqual(["ready_for_production", "pronto_para_producao", "approved", "inProduction", "em_producao"]);
+    expect(origemDaAcao("ajustar-reaproveitamento-da-produzida")).toEqual(["produced", "produzido"]);
     // a via produzida SAI cedo (return) — o fluxo normal continua só somando,
     // sem invadir o produzido
     expect(rota).toContain("if (viaProduzida) {");

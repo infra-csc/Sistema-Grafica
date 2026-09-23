@@ -21,9 +21,11 @@
 // que o limite de cinco status tinha sumido por engano.
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect } from "vitest";
+import { vemDeOrigemValida } from "@shared/maquina-de-estados";
+import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
 import { readFileSync } from "fs";
 
-const ITEMS = readFileSync(new URL("../routes/items.ts", import.meta.url), "utf8");
+const ITEMS = fonteDasRotasDeItens();
 const ARTE = readFileSync(new URL("../../client/src/pages/arte.tsx", import.meta.url), "utf8");
 
 /** O corpo da rota, para as asserções não pegarem outra rota por engano. */
@@ -41,7 +43,11 @@ describe("o servidor aceita a devolução de qualquer estado", () => {
   });
 
   it("o rascunho continua recusado — não há para onde devolver", () => {
-    expect(ROTA).toContain('if (currentItem.status === "draft") {');
+    expect(ROTA).toContain('if (!vemDeOrigemValida(currentItem.status, "devolver-ao-solicitante")) {');
+    expect(vemDeOrigemValida("draft", "devolver-ao-solicitante")).toBe(false);
+    for (const s of ["requested", "awaiting_submission", "ready_for_production", "inProduction", "produced", "delivered", "canceled", "status_que_nao_existe"]) {
+      expect(vemDeOrigemValida(s, "devolver-ao-solicitante"), s).toBe(true);
+    }
     expect(ROTA).toContain("Esta peça já está na criação (Rascunho) — não há para onde devolver.");
     expect(ROTA).toContain("res.status(409)");
   });

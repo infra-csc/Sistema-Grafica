@@ -24,10 +24,11 @@
 // reintroduzisse a rota antiga com outro nome.
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect } from "vitest";
+import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
 import { readFileSync } from "fs";
 import { join } from "path";
 
-const ITEMS = readFileSync(join(process.cwd(), "server/routes/items.ts"), "utf8");
+const ITEMS = fonteDasRotasDeItens();
 
 /** Tira comentários de linha e de bloco — só o código executável importa. */
 function semComentarios(src: string): string {

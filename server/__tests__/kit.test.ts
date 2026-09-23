@@ -3,6 +3,7 @@
 // peça do Kit com quem criou, e o filtro "o usuário do Kit só vê as dele".
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect } from "vitest";
+import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
 import { readFileSync } from "fs";
 import path from "path";
 import {
@@ -17,7 +18,7 @@ import {
 const RAIZ = path.resolve(__dirname, "../..");
 const ler = (rel: string) => readFileSync(path.resolve(RAIZ, rel), "utf8");
 const SCHEMA = ler("shared/schema.ts");
-const ITEMS = ler("server/routes/items.ts");
+const ITEMS = fonteDasRotasDeItens();
 const EVENTS = ler("server/routes/events.ts");
 const KIT = ler("server/routes/kit.ts");
 const AUTH = ler("server/routes/auth.ts");

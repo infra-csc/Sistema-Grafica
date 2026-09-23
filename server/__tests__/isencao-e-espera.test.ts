@@ -21,13 +21,14 @@
 //      outras coisas, se esse par proibido existe, e a rota só-admin mostra.
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect } from "vitest";
+import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
 import { readFileSync } from "fs";
 import path from "path";
 
 const ler = (rel: string) => readFileSync(path.resolve(__dirname, "../..", rel), "utf8");
 const STORAGE = ler("server/storage.ts");
 const SPONSORS = ler("server/routes/sponsors.ts");
-const ITEMS = ler("server/routes/items.ts");
+const ITEMS = fonteDasRotasDeItens();
 const CONSISTENCIA = ler("server/services/consistencia.ts");
 const ATENDIMENTO = ler("client/src/pages/atendimento.tsx");
 const NOTIFICACOES = ler("client/src/pages/notificacoes.tsx");

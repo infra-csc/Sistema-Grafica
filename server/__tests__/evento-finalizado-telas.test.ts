@@ -32,6 +32,7 @@
 //      sistema quebrou. O selo é PARTE da feature, não enfeite.
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect } from "vitest";
+import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
 import { readFileSync } from "fs";
 import { resolve } from "path";
 import { seloPecaEventoFinalizado, motivoAcaoBloqueada } from "@/lib/status";
@@ -41,7 +42,7 @@ const ler = (p: string) => readFileSync(resolve(process.cwd(), p), "utf8");
 
 const GRAFICA = ler("client/src/pages/grafica.tsx");
 const REVISAO = ler("client/src/pages/solicitacao.tsx");
-const ITEMS = ler("server/routes/items.ts");
+const ITEMS = fonteDasRotasDeItens();
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Ferramentas de leitura. Elas existem para que a tabela de rotas seja uma
@@ -76,8 +77,10 @@ const rotaBarrada = (assinatura: string): boolean =>
 function botao(fonte: string, marca: string): string {
   const i = fonte.indexOf(marca);
   if (i < 0) throw new Error(`botão não encontrado: ${marca}`);
-  const ini = fonte.lastIndexOf("<button", i);
-  const fim = fonte.indexOf("</button>", i);
+  // <button> cru ou o <Botao> do design system (com filhos ou autofechado).
+  const ini = Math.max(fonte.lastIndexOf("<button", i), fonte.lastIndexOf("<Botao", i));
+  const fins = ["</button>", "</Botao>", "/>"].map((t) => fonte.indexOf(t, i)).filter((n) => n >= 0);
+  const fim = fins.length ? Math.min(...fins) : -1;
   if (ini < 0 || fim < 0) throw new Error(`<button> mal delimitado: ${marca}`);
   return fonte.slice(ini, fim);
 }

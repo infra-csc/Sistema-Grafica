@@ -8,6 +8,7 @@
 // nasce da CONFERÊNCIA, não da lista inteira.
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect } from "vitest";
+import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
 import { readFileSync } from "fs";
 
 const PAGINA = readFileSync(new URL("../../client/src/pages/etiquetas-evento.tsx", import.meta.url), "utf8");
@@ -156,7 +157,7 @@ describe("o logo da prova, tirado do book (25/08)", () => {
 });
 describe("registro de impressão, filtro por tipo e uma por unidade (25/08)", () => {
   const SCHEMA = readFileSync(new URL("../../shared/schema.ts", import.meta.url), "utf8");
-  const ROTAS = readFileSync(new URL("../routes/items.ts", import.meta.url), "utf8");
+  const ROTAS = fonteDasRotasDeItens();
   const STORAGE = readFileSync(new URL("../storage.ts", import.meta.url), "utf8");
 
   it("a impressão fica gravada: campo na peça + linha na trilha; id órfão não loga", () => {

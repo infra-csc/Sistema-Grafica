@@ -39,9 +39,13 @@ import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useRoute } from "wouter";
-import { ArrowLeft, Printer, Tag } from "lucide-react";
+import { ArrowLeft, Printer, RotateCw, Tag } from "lucide-react";
 import { logoDaCapaDoBook } from "@/lib/logo-do-book";
-import { useIsMobile } from "@/hooks/use-mobile";
+import { alvo as alvoPeloPonteiro, useIsMobile, usePonteiroGrosso } from "@/hooks/use-mobile";
+import { FS, FW, R, T, TOM } from "@/lib/theme";
+import { Botao } from "@/components/ui/botao";
+import { CabecalhoDaPagina } from "@/components/ui/cabecalho-da-pagina";
+import { EstadoErro, Esqueleto } from "@/components/ui/estados";
 import {
   COPIAS_MAX, ORDEM_DOS_TAMANHOS, TAMANHOS, cabeNoAdesivo, cabecalhoPadrao, comCopias, foiEditado, gravarPreferencias, lerPreferencias, limitarCopias,
   linhasOrdenadas, nomeDoPapel, numeroEditado, paginarLinhas, prefixoPara, regraDaPagina, rodapeDoTubo, temReaproveitamento, type LinhaDaEtiqueta, type TamanhoEtiqueta,
@@ -68,6 +72,9 @@ export default function EtiquetaTubo() {
   const [, params] = useRoute("/grafica/tubos/:id/etiqueta");
   const id = params?.id;
   const isMobile = useIsMobile();
+  // Tablet do galpão (dedo, às vezes de luva) em qualquer largura: alvo de 44.
+  const grosso = usePonteiroGrosso();
+  const toque = isMobile || grosso;
   const { data, isLoading, isError, refetch } = useQuery<Resposta>({ queryKey: [`/api/tubos/${id}`], enabled: !!id });
 
   // PREFERÊNCIAS lembradas por navegador (o computador do galpão imprime
@@ -195,39 +202,48 @@ export default function EtiquetaTubo() {
     );
   });
 
-  const alvo = isMobile ? 44 : 34;
-  const campo = estiloDoCampo(isMobile);
-  const fonteBase = isMobile ? 14 : 13;
-  const rotuloDeCampo: React.CSSProperties = { display: "flex", flexDirection: "column", gap: 3, fontSize: 12.5, fontWeight: 600, color: "#44403c", minWidth: 0 };
-  const linhaDeCaixa: React.CSSProperties = { display: "flex", alignItems: "center", gap: 9, minHeight: alvo, fontSize: fonteBase, color: "#1c1917", cursor: "pointer" };
-  const caixa: React.CSSProperties = { width: 18, height: 18, accentColor: "#c2410c", flexShrink: 0, margin: 0 };
-  const dica: React.CSSProperties = { margin: 0, fontSize: 12.5, lineHeight: 1.4, color: "#57534e" };
-  const botaoLeve: React.CSSProperties = { minHeight: alvo, padding: "0 12px", borderRadius: 8, border: "1px solid #d6d3d1", background: "#fff", fontFamily: "inherit", fontSize: fonteBase - 0.5, fontWeight: 700, color: "#44403c", cursor: "pointer" };
+  const alvo = alvoPeloPonteiro(34, toque);
+  const campo = estiloDoCampo(toque);
+  const fonteBase = isMobile ? FS.read : FS.body;
+  const tamanhoDoBotao = toque ? "toque" : "sm";
+  const rotuloDeCampo: React.CSSProperties = { display: "flex", flexDirection: "column", gap: 3, fontSize: FS.meta, fontWeight: FW.medio, color: T.strong, minWidth: 0 };
+  const linhaDeCaixa: React.CSSProperties = { display: "flex", alignItems: "center", gap: 9, minHeight: alvo, fontSize: fonteBase, color: T.text, cursor: "pointer" };
+  const caixa: React.CSSProperties = { width: 18, height: 18, accentColor: T.accentText, flexShrink: 0, margin: 0 };
+  const dica: React.CSSProperties = { margin: 0, fontSize: FS.meta, lineHeight: 1.45, color: T.apoio };
   const titulo = !data ? "Etiqueta do tubo" : numeroReal != null ? `Etiqueta do Tubo ${numeroReal}` : "Etiqueta da embalagem";
   const pronto = !!data && !esperandoLogo;
+  // Por que o Imprimir está parado, ESCRITO embaixo dele (no toque não há title).
+  const motivoDoImprimir = !data ? "Aguarde o tubo carregar." : esperandoLogo ? 'Extraindo o logo do book — segundos. Para imprimir sem ele, desligue "Logo do book".' : undefined;
 
   const blocoDeAcao = (
     <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", justifyContent: isMobile ? "stretch" : "flex-end", flex: isMobile ? undefined : "1 1 360px", minWidth: 0 }}>
       {data && (
-        <p data-testid="resumo-da-impressao" aria-live="polite" style={{ margin: 0, flex: "1 1 220px", minWidth: 0, textAlign: isMobile ? "left" : "right", fontSize: fonteBase, fontWeight: 700, lineHeight: 1.35, color: "#1c1917" }}>
+        <p data-testid="resumo-da-impressao" aria-live="polite" style={{ margin: 0, flex: "1 1 220px", minWidth: 0, textAlign: isMobile ? "left" : "right", fontSize: fonteBase, fontWeight: FW.forte, lineHeight: 1.35, color: T.text }}>
           {resumo}
         </p>
       )}
-      <button type="button" onClick={() => { if (pronto) window.print(); }} disabled={!pronto} data-testid="imprimir-etiqueta-tubo" className="etq-foco"
-        title={!data ? "Aguarde o tubo carregar." : esperandoLogo ? 'Extraindo o logo do book — segundos. Para imprimir sem ele, desligue "Logo do book".' : 'Abre a impressão (ou "Salvar como PDF").'}
-        style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 7, minHeight: isMobile ? 48 : 40, padding: "0 18px", borderRadius: 8, border: "none", flex: isMobile ? "1 1 100%" : undefined, background: pronto ? "#1c1917" : "#e7e5e4", color: pronto ? "#fff" : "#57534e", fontFamily: "inherit", fontWeight: 800, fontSize: isMobile ? 15 : 13.5, cursor: pronto ? "pointer" : "not-allowed" }}>
-        <Printer aria-hidden="true" style={{ width: 15, height: 15 }} /> {esperandoLogo ? "Buscando o logo…" : "Imprimir etiqueta"}
-      </button>
+      {/* O embrulho segura a largura cheia no celular também quando o Botao
+          vira coluna (botão + motivo). */}
+      <div style={{ display: "flex", flexDirection: "column", flex: isMobile ? "1 1 100%" : undefined, minWidth: 0 }}>
+        <Botao variante="primario" tamanho={toque ? "toque" : "md"} icone={Printer} larguraCheia={isMobile}
+          onClick={() => { if (pronto) window.print(); }} disabled={!pronto} data-testid="imprimir-etiqueta-tubo" className="etq-foco"
+          motivo={motivoDoImprimir} alinharMotivo={isMobile ? "start" : "end"}
+          title={motivoDoImprimir ?? 'Abre a impressão (ou "Salvar como PDF").'}
+          style={isMobile ? { minHeight: 48 } : undefined}>
+          {esperandoLogo ? "Buscando o logo…" : "Imprimir etiqueta"}
+        </Botao>
+      </div>
     </div>
   );
 
   return (
-    <div style={{ background: "#fafaf9", minHeight: "100%" }}>
+    <div style={{ background: T.bg, minHeight: "100%" }}>
+      {/* O `#fff` do @media print fica literal: é o papel, não a tela. */}
       <style>{`
         ${CSS_DA_ETIQUETA_EM_LISTA}
         ${CSS_DO_ZOOM}
         .etq-impressao { display: none; }
-        .etq-foco:focus-visible, .etq-painel input:focus-visible, .etq-painel select:focus-visible { outline: 2px solid #c2410c; outline-offset: 2px; }
+        .etq-foco:focus-visible, .etq-painel input:focus-visible, .etq-painel select:focus-visible { outline: 2px solid ${T.accentText}; outline-offset: 2px; }
         @media print {
           .etq-acao { display: none !important; }
           /* Só o portal sai: a casca inteira (e a prévia da tela) some. */
@@ -238,28 +254,32 @@ export default function EtiquetaTubo() {
         }
       `}</style>
 
-      <div className="etq-acao" data-testid="barra-da-etiqueta-do-tubo" style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", padding: isMobile ? "10px 12px" : "12px 18px", borderBottom: "1px solid #e7e5e4", backgroundColor: "#fafaf9", position: "sticky", top: 0, zIndex: 5 }}>
-        <Link href="/grafica" className="etq-foco" style={{ display: "inline-flex", alignItems: "center", gap: 6, minHeight: alvo, padding: "0 12px", borderRadius: 8, border: "1px solid #e7e5e4", backgroundColor: "#fff", fontSize: 13, fontWeight: 600, color: "#44403c", textDecoration: "none" }}>
+      <div className="etq-acao" data-testid="barra-da-etiqueta-do-tubo" style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", padding: isMobile ? "10px 12px" : "12px 18px", borderBottom: `1px solid ${T.border}`, backgroundColor: T.bg, position: "sticky", top: 0, zIndex: 5 }}>
+        <Link href="/grafica" className="etq-foco" style={{ display: "inline-flex", alignItems: "center", gap: 6, minHeight: alvo, padding: "0 12px", borderRadius: R.md, border: `1px solid ${T.border}`, backgroundColor: T.surface, fontSize: FS.body, fontWeight: FW.medio, color: T.strong, textDecoration: "none" }}>
           <ArrowLeft aria-hidden="true" style={{ width: 14, height: 14 }} /> Fila da Gráfica
         </Link>
-        <div style={{ minWidth: 0, flex: "1 1 200px" }}>
-          <h1 style={{ margin: 0, display: "flex", alignItems: "center", gap: 6, fontSize: isMobile ? 15 : 16, fontWeight: 800, color: "#1c1917", lineHeight: 1.2 }}>
-            <Tag aria-hidden="true" style={{ width: 16, height: 16, color: "#c2410c", flexShrink: 0 }} /> {titulo}
-          </h1>
-          {data && (
-            <p style={{ margin: "1px 0 0", fontSize: 13, color: "#57534e", overflowWrap: "anywhere" }}>
-              {nome || "Evento"} · {data.pecas.length} {data.pecas.length === 1 ? "peça" : "peças"}{saida ? ` · saída ${saida}` : ""}
-            </p>
-          )}
+        {/* O CabecalhoDaPagina traz margem de baixo de página (20px); dentro da
+            barra grudada ela só engordaria a barra — o -20 a devolve. */}
+        <div style={{ minWidth: 0, flex: "1 1 200px", marginBottom: -20 }}>
+          <CabecalhoDaPagina titulo={titulo} icone={Tag}
+            subtitulo={data ? <span style={{ overflowWrap: "anywhere" }}>{nome || "Evento"} · {data.pecas.length} {data.pecas.length === 1 ? "peça" : "peças"}{saida ? ` · saída ${saida}` : ""}</span> : undefined} />
         </div>
         {!isMobile && blocoDeAcao}
       </div>
 
-      {isLoading && <p role="status" style={{ textAlign: "center", color: "#57534e", fontSize: 14, padding: 32 }}>Carregando o tubo…</p>}
+      {isLoading && (
+        <div style={{ padding: isMobile ? 12 : 18 }}>
+          <Esqueleto variante="lista" linhas={3} rotulo="Carregando o tubo" />
+        </div>
+      )}
       {isError && (
-        <div style={{ textAlign: "center", padding: 32 }}>
-          <p role="alert" style={{ margin: "0 0 12px", color: "#b91c1c", fontSize: 14, fontWeight: 600 }}>Não foi possível carregar o tubo.</p>
-          <button type="button" className="etq-foco" onClick={() => refetch()} style={{ ...botaoLeve, minHeight: 44 }}>Tentar de novo</button>
+        <div style={{ padding: isMobile ? 12 : 18, maxWidth: 560, margin: "0 auto" }}>
+          {/* O "Tentar de novo" é daqui, e não o do EstadoErro: o dele é de
+              36px fixos, e no tablet do galpão o alvo é 44. */}
+          <EstadoErro titulo="Não foi possível carregar o tubo." compacto />
+          <div style={{ display: "flex", justifyContent: "center", marginTop: 12 }}>
+            <Botao tamanho={toque ? "toque" : "md"} icone={RotateCw} className="etq-foco" onClick={() => refetch()}>Tentar de novo</Botao>
+          </div>
         </div>
       )}
 
@@ -268,9 +288,9 @@ export default function EtiquetaTubo() {
           <aside className="etq-acao etq-painel" aria-label="Opções da etiqueta" data-testid="painel-de-opcoes"
             style={{ display: "flex", flexDirection: "column", gap: 12, minWidth: 0, padding: isMobile ? "12px" : "14px 6px 24px 18px" }}>
             {avulso && (
-              <p data-testid="aviso-embalada-sozinha" style={{ ...dica, padding: "10px 12px", border: "1px solid #fdba74", borderRadius: 10, backgroundColor: "#fff7ed", color: "#7c2d12" }}>
+              <p data-testid="aviso-embalada-sozinha" style={{ ...dica, padding: "10px 12px", border: `1px solid ${TOM.laranja.border}`, borderRadius: R.lg, backgroundColor: TOM.laranja.bg, color: TOM.laranja.text }}>
                 Esta peça foi embalada sozinha, sem tubo: a etiqueta dela é a individual.{" "}
-                {data.evento && <Link href={`/eventos/${data.evento.id}/etiquetas?de=grafica`} className="etq-foco" style={{ fontWeight: 700, color: "#7c2d12" }}>Abrir as etiquetas do evento</Link>}
+                {data.evento && <Link href={`/eventos/${data.evento.id}/etiquetas?de=grafica`} className="etq-foco" style={{ fontWeight: FW.forte, color: TOM.laranja.text }}>Abrir as etiquetas do evento</Link>}
               </p>
             )}
             <SecaoDeOpcoes titulo="Formato" testid="secao-formato">
@@ -291,7 +311,7 @@ export default function EtiquetaTubo() {
               {sugerirAdesivo && (
                 <p data-testid="sugestao-adesivo" style={{ ...dica, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                   A lista é curta e cabe inteira num adesivo 10×15.
-                  <button type="button" className="etq-foco" data-testid="usar-adesivo" onClick={() => setPrefs((p) => ({ ...p, tamanho: "adesivo" }))} style={botaoLeve}>Usar adesivo</button>
+                  <Botao tamanho={tamanhoDoBotao} className="etq-foco" data-testid="usar-adesivo" onClick={() => setPrefs((p) => ({ ...p, tamanho: "adesivo" }))}>Usar adesivo</Botao>
                 </p>
               )}
               <label style={linhaDeCaixa} title='Ligado: "2x1 Ministério - 16". Desligado: só "2x1 Ministério".'>
@@ -307,7 +327,7 @@ export default function EtiquetaTubo() {
                 <label style={linhaDeCaixa}>
                   <input type="checkbox" checked={usarLogo} onChange={(e) => setUsarLogo(e.target.checked)} data-testid="check-usar-logo" style={caixa} />
                   Logo do book no cabeçalho
-                  {buscandoLogo && <span role="status" style={{ fontSize: 12, color: "#57534e" }}>· extraindo…</span>}
+                  {buscandoLogo && <span role="status" style={{ fontSize: FS.meta, color: T.apoio }}>· extraindo…</span>}
                 </label>
               )}
             </SecaoDeOpcoes>
@@ -318,10 +338,10 @@ export default function EtiquetaTubo() {
               <SecaoDeOpcoes titulo="Números na etiqueta" testid="secao-numeros"
                 ajuda="Só muda o que sai impresso — a peça não é alterada (nem status, nem quantidade).">
                 {numeroReal != null && (
-                  <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", fontSize: 12.5, fontWeight: 600, color: "#44403c" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", fontSize: FS.meta, fontWeight: FW.medio, color: T.strong }}>
                     <span>Número do tubo</span>
                     <CampoNaEtiqueta rotulo="Número do tubo na etiqueta" original={numeroReal} bruto={tuboEditado} aoMudar={setTuboEditado}
-                      mobile={isMobile} editado={foiEditado(tuboEditado, numeroReal)} testid="tubo-na-etiqueta" />
+                      mobile={toque} editado={foiEditado(tuboEditado, numeroReal)} testid="tubo-na-etiqueta" />
                   </div>
                 )}
                 {data.pecas.length > 0 && (
@@ -330,15 +350,17 @@ export default function EtiquetaTubo() {
                       const original = qtdOriginal(p);
                       const editado = foiEditado(qtdEditada[p.id], original);
                       return (
-                        <li key={p.id} style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", fontSize: 12.5, fontWeight: 600, color: "#44403c" }}>
+                        <li key={p.id} style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", fontSize: FS.meta, fontWeight: FW.medio, color: T.strong }}>
                           <CampoNaEtiqueta rotulo={`Quantidade na etiqueta de ${p.description || p.type}`} original={original} bruto={qtdEditada[p.id]}
-                            aoMudar={(v) => editarQtd(p.id, v)} mobile={isMobile} editado={editado} testid={`qtd-na-etiqueta-${p.id}`} />
+                            aoMudar={(v) => editarQtd(p.id, v)} mobile={toque} editado={editado} testid={`qtd-na-etiqueta-${p.id}`} />
                           <span style={{ flex: "1 1 120px", minWidth: 0, overflowWrap: "anywhere" }}>{p.description || p.type}</span>
+                          {/* Fantasma e sublinhado: ação de apoio numa lista densa,
+                              no laranja do campo editado a que ela se refere. */}
                           {editado && (
-                            <button type="button" className="etq-foco" data-testid={`voltar-original-${p.id}`} onClick={() => editarQtd(p.id, undefined)}
-                              style={{ minHeight: alvo, border: "none", background: "none", padding: "0 4px", font: "inherit", fontSize: 12.5, fontWeight: 700, color: "#9a3412", textDecoration: "underline", cursor: "pointer" }}>
+                            <Botao variante="fantasma" tamanho={tamanhoDoBotao} className="etq-foco" data-testid={`voltar-original-${p.id}`} onClick={() => editarQtd(p.id, undefined)}
+                              style={{ padding: "0 4px", color: T.accentText, textDecoration: "underline" }}>
                               voltar ao original ({original})
-                            </button>
+                            </Botao>
                           )}
                         </li>
                       );
@@ -346,9 +368,9 @@ export default function EtiquetaTubo() {
                   </ul>
                 )}
                 {algumaEdicao && (
-                  <button type="button" className="etq-foco" data-testid="restaurar-numeros" onClick={() => { setQtdEditada({}); setTuboEditado(undefined); }} style={{ ...botaoLeve, alignSelf: "flex-start" }}>
+                  <Botao tamanho={tamanhoDoBotao} className="etq-foco" data-testid="restaurar-numeros" onClick={() => { setQtdEditada({}); setTuboEditado(undefined); }} style={{ alignSelf: "flex-start" }}>
                     Voltar todos ao original
-                  </button>
+                  </Botao>
                 )}
               </SecaoDeOpcoes>
             )}
@@ -364,9 +386,9 @@ export default function EtiquetaTubo() {
                 <input type="text" value={destaque ?? padrao.gigante} onChange={(e) => setDestaque(e.target.value)} data-testid="input-destaque-tubo" className="etq-foco" style={campo} />
               </label>
               {(destaque !== null || textoDeCima !== null) && (
-                <button type="button" className="etq-foco" data-testid="restaurar-cabecalho" onClick={() => { setDestaque(null); setTextoDeCima(null); }} style={{ ...botaoLeve, alignSelf: "flex-start" }}>
+                <Botao tamanho={tamanhoDoBotao} className="etq-foco" data-testid="restaurar-cabecalho" onClick={() => { setDestaque(null); setTextoDeCima(null); }} style={{ alignSelf: "flex-start" }}>
                   Voltar ao nome do evento
-                </button>
+                </Botao>
               )}
             </SecaoDeOpcoes>
           </aside>
@@ -381,7 +403,7 @@ export default function EtiquetaTubo() {
       {data && typeof document !== "undefined" && createPortal(<div className="etq-impressao" aria-hidden="true">{folha("papel")}</div>, document.body)}
 
       {isMobile && data && (
-        <div className="etq-acao" data-testid="rodape-de-acao" style={{ position: "fixed", left: 0, right: 0, bottom: 0, zIndex: 6, backgroundColor: "#fafaf9", borderTop: "1px solid #e7e5e4", padding: "10px 12px", paddingBottom: "calc(10px + env(safe-area-inset-bottom, 0px))" }}>
+        <div className="etq-acao" data-testid="rodape-de-acao" style={{ position: "fixed", left: 0, right: 0, bottom: 0, zIndex: 6, backgroundColor: T.bg, borderTop: `1px solid ${T.border}`, padding: "10px 12px", paddingBottom: "calc(10px + env(safe-area-inset-bottom, 0px))" }}>
           {blocoDeAcao}
         </div>
       )}

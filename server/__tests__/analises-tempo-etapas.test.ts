@@ -24,6 +24,7 @@
 //     o que separa este bloco do que foi reprovado.
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect, vi } from "vitest";
+import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
 import fs from "fs";
 import path from "path";
 
@@ -65,7 +66,7 @@ const raiz = path.resolve(__dirname, "..", "..");
 // A entrega por peça foi aposentada (21/09: tudo sai pela embalagem): a frase
 // "Entrega concluída (" passou a ser escrita por routes/tubos.ts. As duas
 // fontes juntas são "as rotas que gravam as frases que a medição lê".
-const fonteItems = fs.readFileSync(path.join(raiz, "server/routes/items.ts"), "utf8")
+const fonteItems = fonteDasRotasDeItens()
   + fs.readFileSync(path.join(raiz, "server/routes/tubos.ts"), "utf8");
 
 const DIA = 86_400_000;

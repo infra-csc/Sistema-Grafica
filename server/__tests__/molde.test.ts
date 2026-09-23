@@ -15,6 +15,7 @@
 // peça comum segue idêntica.
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
 import { txDeMentira } from "./tx-de-mentira";
 import { readFileSync } from "fs";
 import path from "path";
@@ -278,7 +279,7 @@ describe("Revisão Final — libera o molde sem arquivo final", () => {
   });
 
   it("a devolução do molde vai sempre para a Arte (não há finalização)", () => {
-    const rotasSrc = ler("server/routes/items.ts");
+    const rotasSrc = fonteDasRotasDeItens();
     // As duas portas da Revisão (individual e lote) gravam pelo mesmo helper,
     // que passa o destino por destinoDaDevolucao e a peça para camposDoDestino
     // (o molde mantém o thumb — ver molde-devolucao-revisao em

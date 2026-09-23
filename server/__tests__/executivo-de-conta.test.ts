@@ -13,6 +13,7 @@
 // aparece meses depois, quando o aviso não chega para ninguém.
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect } from "vitest";
+import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
 import { readFileSync } from "fs";
 import path from "path";
 
@@ -22,7 +23,7 @@ const SERVICE = ler("server/services/inferirExecutivos.ts");
 const ROUTE = ler("server/routes/inferir-executivos.ts");
 const TELA = ler("client/src/pages/inferir-executivos.tsx");
 const SCHEMA = ler("shared/schema.ts");
-const ITEMS = ler("server/routes/items.ts");
+const ITEMS = fonteDasRotasDeItens();
 
 describe("o sinal existe no banco", () => {
   it("o patrocinador tem executivo de conta, e a aprovação guarda quem decidiu", () => {

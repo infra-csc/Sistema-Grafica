@@ -50,7 +50,8 @@ describe("a peça conferida na fila", () => {
   it("tabela: Embalar é a ÚNICA ação da conferida (azul do Embalado) — sem Entregar, nem no ⋯", () => {
     expect(TABELA).toContain("data-testid={`button-embalar-${item.id}`}");
     expect(TABELA).toContain("{!bulkOn && podeEmbalarPeca && (");
-    expect(TABELA).toContain('backgroundColor: "#1d4ed8", color: "#ffffff",');
+    // Azul do Embalado (TOM.info.text = #1d4ed8, 6,3:1 com branco) pela tinta da ação.
+    expect(TABELA).toMatch(/data-testid=\{`button-embalar-\$\{item\.id\}`\}[\s\S]{0,120}style=\{corDaAcao\(TOM\.info\.text\)\}/);
     // a entrega por peça saiu da tela (quem entrega é o volume): nem principal, nem no "⋯"
     expect(TABELA).not.toContain("canDeliver(item)");
     expect(TABELA).not.toContain("button-deliver-");
@@ -59,7 +60,7 @@ describe("a peça conferida na fila", () => {
   it("cartão: mesma coisa, com 48px de alvo e Entregar de contorno", () => {
     expect(CARTOES).toContain("data-testid={`button-embalar-card-${item.id}`}");
     expect(CARTOES).toContain("onClick={e => { e.stopPropagation(); abrirEmbalar([item]); }}");
-    expect(CARTOES).toContain("background: '#1d4ed8', border: 'none', color: '#fff', fontSize: 14, fontWeight: 800");
+    expect(CARTOES).toContain("style={{ ...corDaAcao(TOM.info.text), order: 0, flex: '2 1 150px', minHeight: 48, padding: '0 12px' }}");
     // a entrega por peça saiu do cartão também — a embalada sai pelo "Entregar tubo"
     expect(CARTOES).not.toContain("button-entregar-card-");
     expect(CARTOES).toContain("data-testid={`button-entregar-tubo-card-${item.id}`}");
@@ -74,7 +75,8 @@ describe("a peça conferida na fila", () => {
     expect(GRAFICA).toContain("user, bulkOn, bulkConferMode, bulkPackMode, compacto,");
     expect(GRAFICA).toContain("tirarDoTuboMutation.isPending && tirarDoTuboMutation.variables?.itemId === item.id,\n    tubaveisPorEvento");
     expect(GRAFICA).not.toMatch(/\n    tirarDoTuboMutation\.isPending,\n/);
-    expect(GRAFICA.match(/disabled=\{tirarDoTuboMutation\.isPending && tirarDoTuboMutation\.variables\?\.itemId === item\.id\}/g)?.length).toBe(2);
+    // Tabela e cartão: SÓ o botão da peça clicada fica ocupado (o Botao desabilita e mostra o spinner).
+    expect(GRAFICA.match(/carregando=\{tirarDoTuboMutation\.isPending && tirarDoTuboMutation\.variables\?\.itemId === item\.id\}/g)?.length).toBe(2);
   });
 });
 

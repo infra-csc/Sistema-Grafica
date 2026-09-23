@@ -25,16 +25,17 @@
 // imprimir. Se um dia alguém restringir só uma das duas, este arquivo cai.
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect } from "vitest";
+import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
 import { readFileSync } from "fs";
 import path from "path";
 
 const ler = (rel: string) => readFileSync(path.resolve(__dirname, "../../", rel), "utf8");
-const rotas = ler("server/routes/items.ts");
+const rotas = fonteDasRotasDeItens();
 const tela = ler("client/src/pages/grafica.tsx");
 
 describe("o servidor: conferir e entregar têm os MESMOS donos", () => {
   it("conferir aceita gráfica, solicitação e admin", () => {
-    expect(rotas).toContain('if (!["grafica", "solicitacao", "admin"].includes((req as any).userRole ?? "")) {');
+    expect(rotas).toContain('if (!["grafica", "solicitacao", "admin"].includes(req.userRole ?? "")) {');
   });
 
   it("entregar aceita os mesmos três", () => {

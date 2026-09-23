@@ -17,6 +17,7 @@
 //     o servidor às 10h05 não pode remandar o aviso das 10h.
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect, vi } from "vitest";
+import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
 import { readFileSync } from "fs";
 
 vi.mock("../db", () => ({ db: {} }));
@@ -250,7 +251,7 @@ describe("as regras do disparo, escritas no código", () => {
   });
 
   it("só admin pode disparar à mão — um clique manda e-mail de verdade", () => {
-    const ITEMS = readFileSync(new URL("../routes/items.ts", import.meta.url), "utf8");
+    const ITEMS = fonteDasRotasDeItens();
     const i = ITEMS.indexOf('app.post("/api/revisao/digest/enviar"');
     expect(i).toBeGreaterThan(-1);
     expect(ITEMS.slice(i, i + 400)).toContain('req.userRole !== "admin"');

@@ -17,6 +17,7 @@
 //      caminho, o resumo "ainda na máquina" com a peça dividida e o limbo.
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect } from "vitest";
+import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
 import { readFileSync } from "fs";
 import path from "path";
 import { planejarLancamentoDeImpressas, normalizarPartes, aImprimirDaPeca, partesDaPeca } from "@shared/impressao-dividida";
@@ -26,11 +27,14 @@ import { agregarRelatorioDeMaquinas } from "../services/relatorioDeMaquinas";
 import { rotuloDaMaquina } from "@shared/fluxo-peca";
 
 const ler = (rel: string) => readFileSync(path.resolve(__dirname, "../..", rel), "utf8");
-const ITEMS = ler("server/routes/items.ts");
+const ITEMS = fonteDasRotasDeItens();
 const MAQ = ler("server/routes/maquinas.ts");
 const trecho = (fonte: string, de: string, ate: string) => fonte.slice(fonte.indexOf(de), fonte.indexOf(ate, fonte.indexOf(de) + 1));
 const PRINTING = trecho(ITEMS, 'app.patch("/api/items/:id/start-printing"', 'app.patch("/api/items/:id/start-production"');
-const PRODUCTION = trecho(ITEMS, 'app.patch("/api/items/:id/start-production"', "Auto-add to inventory when fully produced");
+// A rota (leitura de fora, guardas) + a regra que ela chama sob a linha travada
+// (services/impressas-da-peca.ts) — o mesmo trecho de antes da extração.
+const PRODUCTION = trecho(ITEMS, 'app.patch("/api/items/:id/start-production"', 'app.post("/api/items/:id/mark-reuse"')
+  + trecho(ITEMS, "export async function lancarImpressas(", "export async function cadastrarAtivosDaPecaProduzida(");
 const TIRAR = trecho(MAQ, "const tirarEColocar = async", 'app.post("/api/grafica/maquinas/:maquina/trocar"');
 const RESERVA_ROTA = trecho(MAQ, 'app.patch("/api/items/:id/maquina-prevista"', "// ── TIRAR da impressora");
 const semComentario = (s: string) => s.replace(/\/\/.*$/gm, "");
@@ -124,8 +128,8 @@ describe("1 · [GRAVE] start-production: dois lançamentos na mesma peça dividi
 
   it("FONTE: .for('update') → conta pura → tx.update, na MESMA transação; nada de storage.updateItem nem de conta sobre a leitura de fora", () => {
     const iTx = PRODUCTION.indexOf("await db.transaction(async (tx) => {");
-    const iLe = PRODUCTION.indexOf('await tx.select().from(itemsTable).where(eq(itemsTable.id, req.params.id)).for("update");');
-    const iPlano = PRODUCTION.indexOf("planejarLancamentoDeImpressas(before as any, req.body ?? {}, new Date())");
+    const iLe = PRODUCTION.indexOf('await tx.select().from(itemsTable).where(eq(itemsTable.id, itemId)).for("update");');
+    const iPlano = PRODUCTION.indexOf("planejarLancamentoDeImpressas(before as any, corpo, new Date())");
     const iGrava = PRODUCTION.indexOf(".set(plano.set as any)");
     expect([iTx > 0, iTx < iLe, iLe < iPlano, iPlano < iGrava]).toEqual([true, true, true, true]);
     expect(semComentario(PRODUCTION)).not.toContain("storage.updateItem(");
@@ -133,7 +137,7 @@ describe("1 · [GRAVE] start-production: dois lançamentos na mesma peça dividi
     // …e a resposta rápida do evento finalizado (IMPRESSAS_EM_EVENTO_REALIZADO), repetida sobre a linha travada.
     expect(semComentario(PRODUCTION)).toContain("if (motivoFechado && eventoBarraImpressas(motivoFechado, before.status)) {");
     expect(semComentario(PRODUCTION).replace("eventoBarraImpressas(motivoFechado, antes.status)", "")).not.toMatch(/antes\.(quantityProduced|impressaoPorMaquina|status|reuseQty)/);
-    expect(ITEMS).toContain("if ((error as any)?.httpStatus) return res.status((error as any).httpStatus).json((error as any).corpo ?? { error: error.message });");
+    expect(ITEMS).toContain("if (erro.httpStatus) return res.status(erro.httpStatus).json(erro.corpo ?? { error: erro.message });");
   });
 });
 

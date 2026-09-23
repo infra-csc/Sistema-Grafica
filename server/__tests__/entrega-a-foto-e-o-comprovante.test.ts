@@ -21,10 +21,11 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { describe, it, expect } from "vitest";
+import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
 import { readFileSync } from "fs";
 import path from "path";
 
-const rotas = readFileSync(path.resolve(__dirname, "../routes/items.ts"), "utf8");
+const rotas = fonteDasRotasDeItens();
 const grafica = readFileSync(path.resolve(__dirname, "../../client/src/pages/grafica.tsx"), "utf8");
 
 // A ENTREGA POR PEÇA FOI APOSENTADA (dono, 21/09: "todas são embaladas" + "tem que

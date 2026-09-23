@@ -23,6 +23,8 @@ import { motivoEventoFechado } from "./eventoFinalizado";
 import { invalidarCacheDeVersoes } from "./versoes";
 import { DEPOIS_DA_ARTE, POS_APROVACAO } from "@shared/fluxo-peca";
 import { ehMolde } from "@shared/molde";
+import { responderFalha } from "../erros";
+import { vemDeOrigemValida } from "@shared/maquina-de-estados";
 
 /** Molde não tem patrocinador (revisão 22/09): não passa por Vincular nem por aprovação. */
 const ERRO_PATROCINADOR_EM_MOLDE = "Molde não recebe patrocinador — ele não passa por Vincular Patrocinadores nem por aprovação";
@@ -175,7 +177,7 @@ export function registerSponsorRoutes(app: Express): void {
       const sponsors = await storage.getAllSponsors();
       res.json(sponsors);
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      responderFalha(res, error, "GET /api/sponsors");
     }
   });
 
@@ -186,7 +188,7 @@ export function registerSponsorRoutes(app: Express): void {
     try {
       res.json(await storage.getSponsorUsage());
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      responderFalha(res, error, "GET /api/sponsors/usage");
     }
   });
 
@@ -198,7 +200,7 @@ export function registerSponsorRoutes(app: Express): void {
       }
       res.json(sponsor);
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      responderFalha(res, error, "GET /api/sponsors/:id");
     }
   });
 
@@ -223,7 +225,7 @@ export function registerSponsorRoutes(app: Express): void {
       broadcast({ type: "sponsor_created", sponsor });
       res.status(201).json(sponsor);
     } catch (error: any) {
-      res.status(400).json({ error: error.message });
+      responderFalha(res, error, "POST /api/sponsors", 400);
     }
   });
 
@@ -252,7 +254,7 @@ export function registerSponsorRoutes(app: Express): void {
       broadcast({ type: "sponsor_updated", sponsor });
       res.json(sponsor);
     } catch (error: any) {
-      res.status(400).json({ error: error.message });
+      responderFalha(res, error, "PATCH /api/sponsors/:id", 400);
     }
   });
 
@@ -277,7 +279,7 @@ export function registerSponsorRoutes(app: Express): void {
       broadcast({ type: "sponsor_deleted", sponsorId: req.params.id });
       res.json({ message: "Patrocinador excluído com sucesso" });
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      responderFalha(res, error, "DELETE /api/sponsors/:id");
     }
   });
 
@@ -288,7 +290,7 @@ export function registerSponsorRoutes(app: Express): void {
       const rules = await storage.getEventQuotaRules(req.params.id);
       res.json(rules);
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      responderFalha(res, error, "GET /api/events/:id/quota-rules");
     }
   });
 
@@ -312,7 +314,7 @@ export function registerSponsorRoutes(app: Express): void {
       );
       res.json(rule);
     } catch (error: any) {
-      res.status(400).json({ error: error.message });
+      responderFalha(res, error, "PUT /api/events/:id/quota-rules", 400);
     }
   });
 
@@ -331,7 +333,7 @@ export function registerSponsorRoutes(app: Express): void {
       );
       res.json({ ok: true });
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      responderFalha(res, error, "DELETE /api/events/:id/quota-rules/:quota");
     }
   });
 
@@ -369,7 +371,7 @@ export function registerSponsorRoutes(app: Express): void {
       );
       res.json({ quota, itemTypes: itemTypes ?? [] });
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      responderFalha(res, error, "PUT /api/quota-rules/global");
     }
   });
 
@@ -388,7 +390,7 @@ export function registerSponsorRoutes(app: Express): void {
       const groups = result.rows.map((r: any) => r.type as string);
       res.json(groups);
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      responderFalha(res, error, "GET /api/quota-rules/groups");
     }
   });
 
@@ -397,7 +399,7 @@ export function registerSponsorRoutes(app: Express): void {
       const preview = await storage.previewAutoLink(req.params.id);
       res.json(preview);
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      responderFalha(res, error, "GET /api/events/:id/auto-link-preview");
     }
   });
 
@@ -421,7 +423,7 @@ export function registerSponsorRoutes(app: Express): void {
       broadcast({ type: "item_updated", eventId: req.params.id });
       res.json({ linked });
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      responderFalha(res, error, "POST /api/events/:id/auto-link-sponsors");
     }
   });
 
@@ -433,7 +435,7 @@ export function registerSponsorRoutes(app: Express): void {
       const eventSponsors = await storage.getEventSponsors(req.params.id);
       res.json(eventSponsors);
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      responderFalha(res, error, "GET /api/events/:id/sponsors");
     }
   });
 
@@ -467,7 +469,7 @@ export function registerSponsorRoutes(app: Express): void {
       broadcast({ type: "event_sponsor_updated", eventId, sponsorId, quota });
       res.json({ success: true });
     } catch (error: any) {
-      res.status(400).json({ error: error.message });
+      responderFalha(res, error, "PATCH /api/events/:eventId/sponsors/:sponsorId", 400);
     }
   });
 
@@ -504,7 +506,7 @@ export function registerSponsorRoutes(app: Express): void {
       });
       res.status(201).json(eventSponsor);
     } catch (error: any) {
-      res.status(400).json({ error: error.message });
+      responderFalha(res, error, "POST /api/events/:id/sponsors", 400);
     }
   });
 
@@ -584,7 +586,7 @@ export function registerSponsorRoutes(app: Express): void {
         pecasInativadas: inativadas,
       });
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      responderFalha(res, error, "DELETE /api/events/:eventId/sponsors/:sponsorId");
     }
   });
 
@@ -614,7 +616,7 @@ export function registerSponsorRoutes(app: Express): void {
 
       res.json(sponsorsWithDetails.filter(Boolean));
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      responderFalha(res, error, "GET /api/items/:id/sponsors");
     }
   });
 
@@ -639,8 +641,8 @@ export function registerSponsorRoutes(app: Express): void {
       // Vínculo só faz sentido enquanto a peça está na fase de vinculação —
       // sem isto dava para reescrever patrocinadores de peça já em produção
       // ou entregue (a tela esconde, mas era gate só de UI).
-      const linkableStatuses = ['requested', 'awaiting_linking'];
-      if (!linkableStatuses.includes(currentItem.status)) {
+      // (a fase de vinculação: shared/maquina-de-estados.ts, "vincular-patrocinadores")
+      if (!vemDeOrigemValida(currentItem.status, "vincular-patrocinadores")) {
         return res.status(409).json({ error: `Peça não está em fase de vinculação (status atual: ${translateStatus(currentItem.status)})` });
       }
 
@@ -919,7 +921,7 @@ export function registerSponsorRoutes(app: Express): void {
         recusadas,
       });
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      responderFalha(res, error, "POST /api/items/bulk-add-sponsor");
     }
   });
 
@@ -934,8 +936,8 @@ export function registerSponsorRoutes(app: Express): void {
       // fila que já não mostra esta peça.
       if (await barraEventoFinalizado(item, res)) return;
 
-      const allowedStatuses = ['draft', 'requested', 'awaiting_linking', 'awaiting_submission'];
-      if (!allowedStatuses.includes(item.status)) {
+      // (de onde volta: shared/maquina-de-estados.ts, "voltar-para-a-criacao")
+      if (!vemDeOrigemValida(item.status, "voltar-para-a-criacao")) {
         return res.status(409).json({ error: `Esta peça já passou da vinculação e não pode voltar para a Criação (está em ${translateStatus(item.status)}).` });
       }
 
@@ -1021,7 +1023,7 @@ export function registerSponsorRoutes(app: Express): void {
           // "já foi enviada" (por outro envio ou outra pessoa — é o caso
           // do clique repetido) não tem o que fazer; "ainda não chegou"
           // pede voltar à Solicitação. "Status incorreto" não dizia nenhum.
-          if (item.status !== 'awaiting_linking') {
+          if (!vemDeOrigemValida(item.status, "enviar-para-a-arte")) {
             const aindaNaoChegou = ['draft', 'requested'].includes(item.status);
             const onde = translateStatus(item.status);
             falhou(itemId, aindaNaoChegou
@@ -1133,7 +1135,7 @@ export function registerSponsorRoutes(app: Express): void {
       broadcast({ type: "item_sponsor_added", itemSponsor });
       res.status(201).json(itemSponsor);
     } catch (error: any) {
-      res.status(400).json({ error: error.message });
+      responderFalha(res, error, "POST /api/items/:id/sponsors", 400);
     }
   });
 
@@ -1186,7 +1188,7 @@ export function registerSponsorRoutes(app: Express): void {
         item: itemAtualizado ?? undefined,
       });
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      responderFalha(res, error, "DELETE /api/items/:itemId/sponsors/:sponsorId");
     }
   });
 

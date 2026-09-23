@@ -28,11 +28,13 @@
 //      refazer.
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect } from "vitest";
+import { origemDaAcao } from "@shared/maquina-de-estados";
+import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
 import { readFileSync } from "fs";
 import path from "path";
 
 const ler = (rel: string) => readFileSync(path.resolve(__dirname, "../../", rel), "utf8");
-const rotas = ler("server/routes/items.ts");
+const rotas = fonteDasRotasDeItens();
 const tela = ler("client/src/pages/grafica.tsx");
 
 /** A lista de status declarada em cada lado, na ordem em que foi escrita. */
@@ -43,7 +45,13 @@ function listaDeStatus(fonte: string): string[] {
 }
 
 describe("a janela da devolução", () => {
-  const noServidor = listaDeStatus(rotas);
+  // A lista do servidor é a origem de "devolver-para-a-revisao" na máquina de
+  // estados (shared/maquina-de-estados.ts), que a rota consulta.
+  const noServidor = [...(origemDaAcao("devolver-para-a-revisao") ?? [])];
+
+  it("a rota consulta a tabela", () => {
+    expect(rotas).toContain('if (!vemDeOrigemValida(currentItem.status, "devolver-para-a-revisao")) {');
+  });
 
   it("só cobre os status de ANTES de produzir", () => {
     expect(noServidor).toEqual([
@@ -60,7 +68,7 @@ describe("a janela da devolução", () => {
 
 describe("cliente e servidor concordam sobre quando devolver", () => {
   it("as duas listas são idênticas", () => {
-    expect(listaDeStatus(tela)).toEqual(listaDeStatus(rotas));
+    expect(listaDeStatus(tela)).toEqual([...(origemDaAcao("devolver-para-a-revisao") ?? [])]);
   });
 
   it("e o botão da linha usa a regra, não o status cru", () => {

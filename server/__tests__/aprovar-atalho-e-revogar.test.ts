@@ -16,9 +16,10 @@
 //     assim, com o mesmo botão que o admin já usa.
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect } from "vitest";
+import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
 import { readFileSync } from "fs";
 
-const ITEMS = readFileSync(new URL("../routes/items.ts", import.meta.url), "utf8");
+const ITEMS = fonteDasRotasDeItens();
 
 const rota = (assinatura: string, tamanho = 6000) => {
   const i = ITEMS.indexOf(assinatura);

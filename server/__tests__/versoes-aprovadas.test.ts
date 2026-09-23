@@ -22,13 +22,14 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { describe, it, expect } from "vitest";
+import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
 import { readFileSync } from "fs";
 import path from "path";
 
 const ler = (rel: string) => readFileSync(path.resolve(__dirname, "../../", rel), "utf8");
 const SCHEMA = ler("shared/schema.ts");
 const STORAGE = ler("server/storage.ts");
-const ITEMS = ler("server/routes/items.ts");
+const ITEMS = fonteDasRotasDeItens();
 const ROTA = ler("server/routes/versoes.ts");
 const ROUTES = ler("server/routes.ts");
 const PAGE = ler("client/src/pages/versoes.tsx");
@@ -221,7 +222,7 @@ describe("3 · o servidor filtra, pagina, resume e exporta", () => {
 
   it("o cache curto é derrubado por TODA escrita que muda o quadro", () => {
     expect(ROTA).toContain("export function invalidarCacheDeVersoes(): void {");
-    expect(ITEMS).toContain('import { invalidarCacheDeVersoes } from "./versoes";');
+    expect(ITEMS).toContain('import { invalidarCacheDeVersoes } from "../versoes";');
     // envio, reenvio, troca, book, revogação automática, aprovar, reprovar,
     // revogar — o ATALHO de aprovação da peça inteira, que passou a marcar
     // as linhas (24/08, caso #4176) — o REENVIO do aviso do book (25/08),

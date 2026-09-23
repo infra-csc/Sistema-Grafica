@@ -12,6 +12,7 @@
 //     vira "Não rodou", o caso que não aparecia em lugar nenhum.
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect } from "vitest";
+import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
 import { readFileSync } from "fs";
 import path from "path";
 
@@ -20,7 +21,7 @@ const SCHEMA = ler("shared/schema.ts");
 const SERVICO = ler("server/services/destinatarios.ts");
 const GESTAO = ler("server/services/gestaoDigest.ts");
 const REVISAO = ler("server/services/revisaoDigest.ts");
-const ITEMS = ler("server/routes/items.ts");
+const ITEMS = fonteDasRotasDeItens();
 const TELA = ler("client/src/pages/notificacoes.tsx");
 
 describe("destinatários administráveis — a mecânica do fallback", () => {

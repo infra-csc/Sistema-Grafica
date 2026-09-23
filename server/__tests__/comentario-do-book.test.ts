@@ -12,6 +12,7 @@
 // deixaria o evento sem book nenhum.
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect } from "vitest";
+import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
 import { readFileSync } from "fs";
 import path from "path";
 
@@ -19,7 +20,7 @@ const ler = (rel: string) => readFileSync(path.resolve(__dirname, "../..", rel),
 const CAIXA = ler("client/src/components/comentario-do-book.tsx");
 const GERADOR = ler("client/src/pages/book-gerador.tsx");
 const ARTE = ler("client/src/pages/arte.tsx");
-const ITEMS = ler("server/routes/items.ts");
+const ITEMS = fonteDasRotasDeItens();
 
 describe("a régua é uma só", () => {
   it("cliente e servidor cobram o MESMO mínimo (5)", () => {

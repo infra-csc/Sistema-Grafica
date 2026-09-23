@@ -15,13 +15,14 @@
 //   5. A TELA existe, está no app e a Gráfica chega nela pelo cabeçalho.
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect, vi } from "vitest";
+import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
 import { readFileSync, existsSync } from "fs";
 import path from "path";
 
 const RAIZ = path.resolve(__dirname, "../..");
 const ler = (rel: string) => readFileSync(path.resolve(RAIZ, rel), "utf8");
 const SCHEMA = ler("shared/schema.ts");
-const ITEMS = ler("server/routes/items.ts");
+const ITEMS = fonteDasRotasDeItens();
 const ROTAS = ler("server/routes.ts");
 const APP = ler("client/src/App.tsx");
 const GRAFICA = ler("client/src/pages/grafica.tsx");
@@ -209,7 +210,9 @@ describe("5 · a tela", () => {
     expect(PAGINA).toContain("aria-pressed={ativo}");
     expect(PAGINA).toContain('aria-label="Escolher o dia"');
     expect(PAGINA).toContain("const LinhaDoDiario = memo(function LinhaDoDiario(");
-    expect(PAGINA).toContain('import { T, FS, R } from "@/lib/theme";');
+    expect(PAGINA).toContain('import { T, TOM, FS, FW, FONT, R } from "@/lib/theme";');
+    // Migração ao design system: só o vinho da trava (sem token) sobra como hex de cor.
+    expect((PAGINA.replace(/\/\/.*$|\/\*[\s\S]*?\*\//gm, "").match(/"#[0-9a-fA-F]{3,6}"/g) ?? [])).toEqual(['"#7f1d1d"']);
     // Cores proibidas como texto (régua da casa) e o cinza aposentado.
     expect(PAGINA).not.toContain("#78716c");
     expect(PAGINA).not.toMatch(/color: "#f97316"|color: "#a8a29e"/);
@@ -474,8 +477,10 @@ describe("8 · a impressão dividida — a conta pura", async () => {
   });
 
   it("start-production: por impressora quando dividida, nunca mais que o atribuído; o total é a soma; concluir limpa o jsonb", () => {
-    const rota = ITEMS.slice(ITEMS.indexOf('app.patch("/api/items/:id/start-production"'), ITEMS.indexOf("Auto-add to inventory when fully produced"));
-    expect(rota).toContain("const plano = planejarLancamentoDeImpressas(before as any, req.body ?? {}, new Date());");
+    const rota = ITEMS.slice(ITEMS.indexOf("export async function lancarImpressas("), ITEMS.indexOf("export async function cadastrarAtivosDaPecaProduzida("));
+    // A regra saiu da rota para services/impressas-da-peca.ts; a rota só a chama.
+    expect(ITEMS).toContain("const { item, plano } = await lancarImpressas(req.params.id, req.body ?? {}, motivoFechado, req);");
+    expect(rota).toContain("const plano = planejarLancamentoDeImpressas(before as any, corpo, new Date());");
     expect(DIVIDIDA).toContain("const porPartes = !!lerPartes(peca.impressaoPorMaquina);");
     expect(DIVIDIDA).toContain("if (n > parte.atrib) return erro(400, `Máximo ${parte.atrib} un. na ${rotuloDaMaquina(maquina)} — é o que foi atribuído a ela`);");
     expect(DIVIDIDA).toContain("quantityProduced = totalImpressas(partesDepois);");
@@ -505,7 +510,7 @@ describe("8 · a impressão dividida — a conta pura", async () => {
 // ─────────────────────────────────────────────────────────────────────────────
 describe("9 · peça dividida — os cantos que a revisão achou", async () => {
   const d = await import("@shared/impressao-dividida");
-  const PRODUCAO = ITEMS.slice(ITEMS.indexOf('app.patch("/api/items/:id/start-production"'), ITEMS.indexOf("Auto-add to inventory when fully produced"));
+  const PRODUCAO = ITEMS.slice(ITEMS.indexOf("export async function lancarImpressas("), ITEMS.indexOf("export async function cadastrarAtivosDaPecaProduzida("));
 
   it("reescalarPartes: encolhe a principal até a soma bater; NÃO estica quando o teto cresce; some quando sobra uma chave", () => {
     const partes = { "1": { atrib: 8, impressas: 5 }, "2": { atrib: 2, impressas: 0 } };
@@ -538,7 +543,7 @@ describe("9 · peça dividida — os cantos que a revisão achou", async () => {
   });
 
   it("[3] editar quantidade, reaproveitar e corrigir reaproveitamento reescalam (ou apagam) a divisão", () => {
-    const patch = ITEMS.slice(ITEMS.indexOf('app.patch("/api/items/:id", requireAuth'), ITEMS.indexOf("storage.updateItem(req.params.id, updatePayload)"));
+    const patch = ITEMS.slice(ITEMS.indexOf("export function planejarEdicao("), ITEMS.indexOf("export function descreverEdicao("));
     expect(patch).toContain("const r = reescalarReservaEPartes(currentItem, nova - reusoNovo);");
     expect(patch).toContain("if (lerPartes(currentItem.impressaoPorMaquina)) updatePayload.impressaoPorMaquina = promoveuParaProduzido ? null : r.partes;");
     expect(patch).toContain("Object.assign(updatePayload, colunasDaReserva(promoveuParaProduzido ? null : r.reserva, currentItem.reservaPorMaquina));");
@@ -862,7 +867,9 @@ describe("14 · revisão adversarial: impressora nunca trava, corrida, limbo e r
   const ROTA = ler("server/routes/maquinas.ts");
   const semComentario = (s: string) => s.replace(/\/\/.*$/gm, "");
   const PRINTING = ITEMS.slice(ITEMS.indexOf('app.patch("/api/items/:id/start-printing"'), ITEMS.indexOf('app.patch("/api/items/:id/start-production"'));
-  const PRODUCTION = ITEMS.slice(ITEMS.indexOf('app.patch("/api/items/:id/start-production"'), ITEMS.indexOf("Auto-add to inventory when fully produced"));
+  // A rota (até a próxima) + a regra que ela chama (services/impressas-da-peca.ts).
+  const PRODUCTION = ITEMS.slice(ITEMS.indexOf('app.patch("/api/items/:id/start-production"'), ITEMS.indexOf('app.post("/api/items/:id/mark-reuse"'))
+    + ITEMS.slice(ITEMS.indexOf("export async function lancarImpressas("), ITEMS.indexOf("export async function cadastrarAtivosDaPecaProduzida("));
 
   it("[GRAVE] peça de evento finalizado NÃO trava a impressora: quem SAI não tem guarda de evento; quem ENTRA tem", () => {
     const bloco = semComentario(ROTA.slice(ROTA.indexOf("const tirarEColocar = async"), ROTA.indexOf('app.post("/api/grafica/maquinas/:maquina/trocar"')));

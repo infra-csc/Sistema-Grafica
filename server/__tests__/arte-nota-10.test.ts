@@ -25,6 +25,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { describe, it, expect } from "vitest";
+import { fonteDasRotasDeItens } from "./fonte-das-rotas-de-itens";
 import { readFileSync } from "fs";
 import path from "path";
 
@@ -35,7 +36,7 @@ const ARTE = ler("client/src/pages/arte.tsx");
 // a importam.
 const IDADE = ler("client/src/lib/idade-na-fase.ts");
 const CHIPS = ler("client/src/components/sponsor-chips.tsx");
-const ROTAS = ler("server/routes/items.ts");
+const ROTAS = fonteDasRotasDeItens();
 const semCom = (s: string) => s.replace(/\r\n/g, "\n").replace(/\/\*[\s\S]*?\*\//g, "")
   .split("\n").map(l => l.replace(/^\s*\/\/.*$/, "")).join("\n");
 

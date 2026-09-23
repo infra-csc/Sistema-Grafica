@@ -47,10 +47,14 @@ import {
 import { useCallback, useState, useMemo, Fragment, useEffect, useRef, useDeferredValue } from "react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { useIsMobile } from "@/hooks/use-mobile";
+import { useIsMobile, useDensidadeDoConteudo, usePonteiroGrosso, alvo } from "@/hooks/use-mobile";
 import { useAuth } from "@/contexts/auth-context";
 import { Undo2, Play, Hourglass } from "lucide-react";
-import { FS, T, N, TOM, FONT } from "@/lib/theme";
+import { FS, FW, R, T, N, TOM, FONT } from "@/lib/theme";
+import { Botao } from "@/components/ui/botao";
+import { Segmentado } from "@/components/ui/abas";
+import { CabecalhoDaPagina } from "@/components/ui/cabecalho-da-pagina";
+import { EstadoErro, EstadoVazio } from "@/components/ui/estados";
 import { ehMolde, etapaDoMolde, statusDeExibicao, ETAPAS_DO_MOLDE } from "@shared/molde";
 import { STATUS_DA_ETAPA, statusDasEtapas, type EtapaDaPeca } from "@shared/fluxo-peca";
 import { EsqueletoDeFila } from "@/components/esqueleto-de-fila";
@@ -603,7 +607,7 @@ export default function Atendimento() {
       }));
       setSponsorApprovals(prev => [...prev, { itemId: selectedItem.id, sponsorId: sp.id, status: "pending" } as any]);
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
-      toast({ title: "Patrocinador adicionado", description: `"${sp.name}" entrou na rodada como Aguardando decisão.` });
+      toast({ title: "Patrocinador adicionado", description: `"${sp.name}" entrou na rodada como Aguardando decisão.`, variant: "success" });
     } catch (e: any) {
       toast({ title: "Não foi possível adicionar", description: e?.message ?? String(e), variant: "destructive" });
     } finally {
@@ -618,6 +622,16 @@ export default function Atendimento() {
   const [confirmApproveBatch, setConfirmApproveBatch] = useState(false);
 
   const isMobile = useIsMobile();
+  // Régua de ÁREA ÚTIL para o layout da lista (placar, cards, histórico): com
+  // a sidebar aberta, uma janela de 1000px deixa ~700px de conteúdo, e o corte
+  // pela janela mantinha o layout largo espremido ali. `isMobile` continua
+  // valendo para o que é de celular: filtros recolhidos, padding da página,
+  // modais. O padding descontado é o da raiz (12 ou 32 de cada lado).
+  const { ref: refConteudo, cards } = useDensidadeDoConteudo<HTMLDivElement>(isMobile ? 24 : 64);
+  // Alvo de 44px pelo PONTEIRO (dedo), não pela largura: o tablet do galpão
+  // tem janela larga e é usado com o dedo.
+  const dedo = usePonteiroGrosso();
+  const tamBotao = dedo ? "toque" as const : "md" as const;
   // Filtros recolhidos no celular (mesma cura da Arte): quatro menus e o
   // "Atrasados" em 44px cada somavam três linhas de controles entre o placar e
   // a primeira peça. A busca fica sempre à vista; o recorte ativo continua
@@ -905,11 +919,11 @@ export default function Atendimento() {
         const next = idx >= 0 ? reviewQueue[idx + 1] : undefined;
         if (next) {
           seguirParaPeca(next);
-          toast({ title: "Peça aprovada", description: `Seguindo para ${next.displayId} · ${next.type}` });
+          toast({ title: "Peça aprovada", description: `Seguindo para ${next.displayId} · ${next.type}`, variant: "success" });
         } else {
           setDialogOpen(false);
           setSelectedItem(null);
-          toast({ title: "Todos patrocinadores aprovaram", description: "Você revisou a última peça da fila." });
+          toast({ title: "Todos patrocinadores aprovaram", description: "Você revisou a última peça da fila.", variant: "success" });
         }
       } else {
         // Decisão parcial: o item não mudou de status; só o log ficou defasado.
@@ -934,6 +948,7 @@ export default function Atendimento() {
             : next
               ? `Nada mais a decidir nesta peça — seguindo para ${next.displayId} · ${next.type}`
               : "A decisão foi registrada. Nada mais a decidir nesta peça.",
+          variant: "success",
         });
       }
     },
@@ -972,16 +987,16 @@ export default function Atendimento() {
         const next = idx >= 0 ? reviewQueue[idx + 1] : undefined;
         if (next) {
           seguirParaPeca(next);
-          toast({ title: quemReprovou ? `Reprovação de ${quemReprovou} registrada` : "Peça devolvida para a Arte", description: `A Arte recebe o motivo. Nada mais a decidir nesta peça — seguindo para ${next.displayId} · ${next.type}` });
+          toast({ title: quemReprovou ? `Reprovação de ${quemReprovou} registrada` : "Peça devolvida para a Arte", description: `A Arte recebe o motivo. Nada mais a decidir nesta peça — seguindo para ${next.displayId} · ${next.type}`, variant: "success" });
         } else {
           setDialogOpen(false);
           setSelectedItem(null);
-          toast({ title: quemReprovou ? `Reprovação de ${quemReprovou} registrada` : "Todos patrocinadores decidiram", description: "A Arte recebe o motivo e refaz a arte. Era a última peça da fila." });
+          toast({ title: quemReprovou ? `Reprovação de ${quemReprovou} registrada` : "Todos patrocinadores decidiram", description: "A Arte recebe o motivo e refaz a arte. Era a última peça da fila.", variant: "success" });
         }
       } else {
         // Diz QUEM reprovou e o que acontece com os demais — a pergunta
         // seguinte de quem acabou de reprovar é "e os outros patrocinadores?".
-        toast({ title: quemReprovou ? `Reprovação de ${quemReprovou} registrada` : "Reprovação registrada", description: `A Arte recebe o motivo e prepara a nova versão. ${aindaFaltam === 0 ? "Nada mais a decidir nesta peça." : `${aindaFaltam === 1 ? "Falta 1 patrocinador" : `Faltam ${aindaFaltam} patrocinadores`} decidir nesta peça.`}` });
+        toast({ title: quemReprovou ? `Reprovação de ${quemReprovou} registrada` : "Reprovação registrada", description: `A Arte recebe o motivo e prepara a nova versão. ${aindaFaltam === 0 ? "Nada mais a decidir nesta peça." : `${aindaFaltam === 1 ? "Falta 1 patrocinador" : `Faltam ${aindaFaltam} patrocinadores`} decidir nesta peça.`}`, variant: "success" });
       }
     },
     onError: (error: any) => {
@@ -1000,7 +1015,7 @@ export default function Atendimento() {
       // A resposta traz { approval, item }: remenda os caches localmente.
       applyApprovalToCache(variables.itemId, data.approval);
       applyItemDecisionToCache(data.item);
-      toast({ title: "Aprovação revertida", description: "O patrocinador volta a aguardar decisão." });
+      toast({ title: "Aprovação revertida", description: "O patrocinador volta a aguardar decisão.", variant: "success" });
     },
     onError: (error: any) => {
       toast({ title: "Erro ao reverter", description: error.message || "Não foi possível reverter a aprovação", variant: "destructive" });
@@ -1030,7 +1045,9 @@ export default function Atendimento() {
       toast({
         title: r?.status === "enviado" ? "Aviso enviado" : "Aviso não enviado",
         description: r?.mensagem ?? "Sem resposta do servidor.",
-        variant: r?.status === "enviado" ? undefined : "destructive",
+        // Só "falhou" é falha de verdade; fila vazia ou ambiente desligado é
+        // aviso — nada quebrou, só não havia o que mandar.
+        variant: r?.status === "enviado" ? "success" : r?.status === "falhou" ? "destructive" : "warning",
       });
     },
     onError: (error: any) => toast({ title: "Erro ao disparar o aviso", description: error.message, variant: "destructive" }),
@@ -1082,11 +1099,11 @@ export default function Atendimento() {
       const next = idx >= 0 ? reviewQueue[idx + 1] : undefined;
       if (next) {
         seguirParaPeca(next);
-        toast({ title: "Peça aprovada para todos os patrocinadores", description: `Seguindo para ${next.displayId} · ${next.type}` });
+        toast({ title: "Peça aprovada para todos os patrocinadores", description: `Seguindo para ${next.displayId} · ${next.type}`, variant: "success" });
       } else {
         setDialogOpen(false);
         setSelectedItem(null);
-        toast({ title: "Peça aprovada para todos os patrocinadores", description: "Era a última peça da fila." });
+        toast({ title: "Peça aprovada para todos os patrocinadores", description: "Era a última peça da fila.", variant: "success" });
       }
     },
     onError: (error: any) => {
@@ -1134,6 +1151,7 @@ export default function Atendimento() {
         toast({
           title: "Nenhuma peça elegível",
           description: "As peças selecionadas já foram decididas para este patrocinador.",
+          variant: "warning",
         });
         return;
       }
@@ -1175,6 +1193,7 @@ export default function Atendimento() {
         description: `${vars.action === "approve"
           ? `Aprovação de ${nomePorPatrocinador.get(vars.sponsorId) ?? "o patrocinador"} registrada.`
           : "As peças voltaram para a Arte com o motivo informado."}`,
+        variant: "success",
       });
     },
     onError: (error: any) => {
@@ -1814,10 +1833,8 @@ export default function Atendimento() {
     // carregando da Arte e da Gráfica, e já desenha o lugar do conteúdo —
     // a tela "aparece" antes dos dados, em vez de piscar de vazio para cheio.
     return (
-      <div className="bg-stone-50" style={{ height: "100%", overflowY: "auto", padding: isMobile ? "12px 12px" : "32px" }}>
-        <h1 style={{ fontFamily: FONT.display, fontSize: FS.h1, fontWeight: 700, letterSpacing: '-0.03em', color: T.text, lineHeight: 1.1, margin: '0 0 20px' }}>
-          Atendimento
-        </h1>
+      <div ref={refConteudo} className="bg-stone-50" style={{ height: "100%", overflowY: "auto", padding: isMobile ? "12px 12px" : "32px" }}>
+        <CabecalhoDaPagina titulo="Atendimento" />
         <EsqueletoDeFila linhas={6} />
       </div>
     );
@@ -1825,90 +1842,68 @@ export default function Atendimento() {
 
   if (itemsError) {
     return (
-      // role="alert": a troca da tela inteira por esta mensagem precisa ser
-      // anunciada — e o título diz QUE fila falhou, não "os itens".
-      // A MESMA caixa de erro da Arte (ícone de conexão âmbar, título 15/700,
-      // botão em tinta): texto vermelho solto no meio da página lia como um
-      // vazio, e as duas filas irmãs falhavam com dois desenhos diferentes.
-      <div className="bg-stone-50" style={{ height: '100%', overflowY: 'auto', padding: isMobile ? '12px' : '32px' }}>
-        <div role="alert" style={{ textAlign: 'center', padding: '32px 24px', margin: '24px auto', maxWidth: 460, background: T.surface, border: `1px solid ${T.border}`, borderRadius: 12 }}>
-          <div style={{ width: 40, height: 40, borderRadius: 12, background: TOM.alerta.bg, border: `1px solid ${TOM.alerta.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px' }}>
-            <AlertCircle aria-hidden="true" style={{ width: 18, height: 18, color: TOM.alerta.text }} />
-          </div>
-          <p style={{ fontSize: 15, fontWeight: 700, color: T.text, margin: '0 0 6px', fontFamily: FONT.display }}>Não foi possível carregar a fila de aprovação</p>
-          <p style={{ fontSize: 13, color: T.second, lineHeight: 1.55, margin: '0 0 16px' }}>Nenhuma decisão foi perdida. Verifique sua conexão e tente novamente.</p>
-          <button onClick={() => refetchItems()} style={{ height: 40, padding: '0 16px', borderRadius: 9, background: T.text, color: T.surface, border: 'none', fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 7 }}>
-            <RotateCcw aria-hidden="true" style={{ width: 14, height: 14 }} /> Tentar novamente
-          </button>
+      // O estado de erro da casa (role="alert" já vem nele): a troca da tela
+      // inteira por esta mensagem é anunciada, e o título diz QUE fila falhou,
+      // não "os itens". Erro não é vazio — por isso a caixa de falha, e não
+      // um texto solto que leria como "nada a fazer".
+      <div ref={refConteudo} className="bg-stone-50" style={{ height: '100%', overflowY: 'auto', padding: isMobile ? '12px' : '32px' }}>
+        <CabecalhoDaPagina titulo="Atendimento" />
+        <div style={{ maxWidth: 520, margin: '24px auto' }}>
+          <EstadoErro
+            titulo="Não foi possível carregar a fila de aprovação"
+            detalhe="Nenhuma decisão foi perdida. Verifique sua conexão e tente novamente."
+            aoTentarDeNovo={() => refetchItems()}
+          />
         </div>
       </div>
     );
   }
 
   return (
-    <div className="bg-stone-50" style={{ height: "100%", overflowY: "auto", padding: isMobile ? "12px 12px" : "32px" }}>
+    <div ref={refConteudo} className="bg-stone-50" style={{ height: "100%", overflowY: "auto", padding: isMobile ? "12px 12px" : "32px" }}>
 
       {/* ─── CABEÇALHO ───────────────────────────────────────────── */}
-      <header className="mb-5 flex flex-col md:flex-row md:items-end justify-between gap-3 md:gap-6">
-        <div className="max-w-2xl">
-          {/* O TÍTULO É O NOME DO MENU, como nas outras telas desde a 2ª
-              rodada ("Arte", "Painel Geral"): quem clicou em "Atendimento" na
-              barra lateral caía numa página chamada "Aprovação do
-              Patrocinador", com um sobretítulo laranja em versalete fazendo a
-              ponte — dois nomes para o mesmo lugar. O que a tela FAZ desce para
-              a linha de apoio, em 13px como nas demais. */}
-          <h1 style={{
-            fontFamily: FONT.display,
-            // 26/700, a mesma escala da Gestão de Prazos. O `clamp` com peso
-            // 900 fazia o título mudar de tamanho conforme a largura da
-            // janela e o deixava mais pesado que qualquer número da tela.
-            fontSize: FS.h1, fontWeight: 700,
-            letterSpacing: '-0.03em', color: T.text,
-            lineHeight: 1.1, margin: '0 0 6px',
-          }}>
-            Atendimento
-          </h1>
-          <p style={{ color: T.second, fontSize: 13, fontWeight: 500, lineHeight: 1.5, maxWidth: 660, margin: 0 }}>
-            Aprovação do patrocinador — decida cada arte com a marca e veja quem ainda falta responder.
-          </p>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
-          {/* O badge "Aguardam Aprovação" saiu daqui: era UM número para uma
-              tela que responde a quatro perguntas, e virou o placar abaixo.
+      {/* O TÍTULO É O NOME DO MENU, como nas outras telas desde a 2ª rodada
+          ("Arte", "Painel Geral"): quem clicou em "Atendimento" na barra
+          lateral caía numa página chamada "Aprovação do Patrocinador" — dois
+          nomes para o mesmo lugar. O que a tela FAZ desce para o subtítulo.
 
-              No lugar dele, a idade do dado. Sem isto, uma aba aberta o dia
-              inteiro nunca dizia de quando são os números que mostra. */}
-          {!itemsLoading && !itemsError && (
-            <span
-              data-testid="selo-atualizado"
-              title={new Date(dataUpdatedAt).toLocaleString("pt-BR")}
-              style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11, color: T.second, whiteSpace: 'nowrap' }}
-            >
-              {isFetchingItems && <RotateCcw aria-hidden="true" className="animate-spin" style={{ width: 11, height: 11 }} />}
-              Atualizado {fmtRelative(new Date(dataUpdatedAt).toISOString(), agora)}
-            </span>
-          )}
-          {/* Exportar PDF — desabilita enquanto os dados de aprovação carregam:
-              o pool de exportação depende deles e sairia vazio/incompleto. */}
-          <button
+          O badge "Aguardam Aprovação" saiu daqui: era UM número para uma tela
+          que responde a quatro perguntas, e virou o placar abaixo. No lugar
+          dele, a idade do dado (frescor) — sem isto, uma aba aberta o dia
+          inteiro nunca dizia de quando são os números que mostra. */}
+      <CabecalhoDaPagina
+        titulo="Atendimento"
+        subtitulo="Aprovação do patrocinador — decida cada arte com a marca e veja quem ainda falta responder."
+        frescor={!itemsLoading && !itemsError ? (
+          <span
+            data-testid="selo-atualizado"
+            title={new Date(dataUpdatedAt).toLocaleString("pt-BR")}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: FS.small, color: T.second, whiteSpace: 'nowrap' }}
+          >
+            {isFetchingItems && <RotateCcw aria-hidden="true" className="animate-spin" style={{ width: 11, height: 11 }} />}
+            Atualizado {fmtRelative(new Date(dataUpdatedAt).toISOString(), agora)}
+          </span>
+        ) : undefined}
+        acoes={
+          // Exportar PDF — desabilita enquanto os dados de aprovação carregam:
+          // o pool de exportação depende deles e sairia vazio/incompleto. O
+          // porquê fica À VISTA (motivo), não só no hover.
+          <Botao
+            variante="secundario"
+            tamanho={tamBotao}
+            icone={FileText}
             onClick={() => setShowExportPDFModal(true)}
             disabled={loadingSponsors}
+            motivo={loadingSponsors ? "Carregando os dados de aprovação" : undefined}
+            alinharMotivo="end"
             data-testid="button-export-pdf"
             title={loadingSponsors ? "Aguarde: carregando os dados de aprovação das peças" : "Exportar peças em PDF"}
-            style={{
-              height: isMobile ? 44 : 36, padding: '0 14px', borderRadius: 9,
-              backgroundColor: T.surface, border: `1px solid ${T.border}`,
-              color: T.apoio, cursor: loadingSponsors ? 'not-allowed' : 'pointer',
-              opacity: loadingSponsors ? 0.5 : 1,
-              display: 'flex', alignItems: 'center', gap: 6,
-              fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap',
-            }}
           >
-            <FileText aria-hidden="true" style={{ width: 15, height: 15 }} />
             Exportar PDF
-          </button>
-        </div>
-      </header>
+          </Botao>
+        }
+      />
 
       {/* ─── PLACAR POR SITUAÇÃO ─────────────────────────────────── */}
       {/* A tela mostrava UM número no cabeçalho ("Aguardam Aprovação") e a
@@ -1926,8 +1921,8 @@ export default function Atendimento() {
       {activeTab === 'pending' && (
         <div style={{
           display: 'grid', marginBottom: 14,
-          gridTemplateColumns: isMobile ? 'repeat(2, minmax(0,1fr))' : 'repeat(4, minmax(0,1fr))',
-          backgroundColor: T.surface, border: `1px solid ${T.border}`, borderRadius: 12,
+          gridTemplateColumns: cards ? 'repeat(2, minmax(0,1fr))' : 'repeat(4, minmax(0,1fr))',
+          backgroundColor: T.surface, border: `1px solid ${T.border}`, borderRadius: R.lg,
           overflow: 'hidden', boxShadow: '0 1px 2px rgba(28,25,23,0.06)',
         }}>
           {[
@@ -1959,28 +1954,28 @@ export default function Atendimento() {
               onClick={c.onClick}
               aria-pressed={c.ativo}
               data-testid={c.testId}
-              title={isMobile ? c.hint : undefined}
+              title={cards ? c.hint : undefined}
               style={{
                 textAlign: 'left', cursor: 'pointer', minWidth: 0,
-                padding: isMobile ? '12px 14px' : '14px 16px', border: 'none',
+                padding: cards ? '12px 14px' : '14px 16px', border: 'none',
                 // A quarta célula é de OUTRA dimensão. A régua mais forte
                 // antes dela é o que impede o olho de somar as quatro.
-                borderLeft: c.cruzada && !isMobile ? `1px solid ${T.border}` : undefined,
-                borderRight: (i + 1) % (isMobile ? 2 : 4) !== 0 ? `1px solid ${N.n3}` : undefined,
-                borderBottom: isMobile && i < 2 ? `1px solid ${N.n3}` : undefined,
+                borderLeft: c.cruzada && !cards ? `1px solid ${T.border}` : undefined,
+                borderRight: (i + 1) % (cards ? 2 : 4) !== 0 ? `1px solid ${N.n3}` : undefined,
+                borderBottom: cards && i < 2 ? `1px solid ${N.n3}` : undefined,
                 backgroundColor: c.ativo ? T.bg : T.surface,
                 boxShadow: c.ativo ? `inset 0 -2px 0 ${c.anel}` : 'none',
               }}
             >
               <span style={{
-                display: 'block', fontSize: 10, fontWeight: 800, letterSpacing: '0.12em',
+                display: 'block', fontSize: FS.micro, fontWeight: FW.rotulo, letterSpacing: '0.12em',
                 textTransform: 'uppercase', color: T.second, marginBottom: 6,
               }}>
                 {c.titulo}
               </span>
               <span style={{
                 display: 'block', fontFamily: FONT.display,
-                fontSize: isMobile ? 28 : 34, fontWeight: 700, lineHeight: 1,
+                fontSize: cards ? 28 : 34, fontWeight: FW.forte, lineHeight: 1,
                 fontVariantNumeric: 'tabular-nums',
                 // Zero é neutro: um "0" pintado de vermelho afirmaria o
                 // contrário do que o número diz.
@@ -1996,7 +1991,7 @@ export default function Atendimento() {
                   linhas, o placar passava de 400px de altura e empurrava a
                   primeira peça para a segunda tela. O título da célula já diz
                   o essencial ("Sua decisão", "Arte refazendo"). */}
-              <span className={isMobile ? 'sr-only' : undefined} style={isMobile ? undefined : { display: 'block', marginTop: 6, fontSize: 12, lineHeight: 1.45, color: T.second }}>
+              <span className={cards ? 'sr-only' : undefined} style={cards ? undefined : { display: 'block', marginTop: 6, fontSize: FS.meta, lineHeight: 1.45, color: T.second }}>
                 {c.hint}
               </span>
             </button>
@@ -2011,58 +2006,35 @@ export default function Atendimento() {
           baixo da dobra numa tela de notebook. Os controles moram agora na
           mesma linha das abas, que é onde já se olha para trocar de recorte. */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
-        {/* Segmentado sobre trilho. O ativo era sublinhado laranja de 2px num
-            rodapé de 1px — o mesmo traço que a borda da faixa, e por isso
-            fácil de perder. Padding só na horizontal: com 3px em cima e
-            embaixo os botões cairiam para 30px, abaixo da régua de 36. */}
-        {/* Setas ←/→ com roving tabindex: o contrato ARIA de tablist, o mesmo
-            que a barra de fases da Arte já cumpre. Sem ele o Tab parava nas
-            duas abas, uma a uma, antes de chegar à busca. */}
-        <div role="tablist" aria-label="Abas de aprovação"
-          onKeyDown={e => {
-            if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
-            e.preventDefault();
-            const prox = activeTab === 'pending' ? 'history' : 'pending';
-            setActiveTab(prox);
-            (e.currentTarget.querySelector(`#tab-${prox}`) as HTMLElement | null)?.focus();
+        {/* O segmentado da casa: setas/Home/End e roving tabindex moram no
+            componente (o contrato ARIA de tablist, uma vez só). Os botões
+            saem como `tab-pending` / `tab-history` — o mesmo nome que o `id`
+            deles tinha. A contagem de Pendentes é a mesma de antes
+            (actionableCount): a aba diz quantas peças pedem ação, o placar
+            diz de que TIPO é cada uma. */}
+        <div
+          style={{ flexShrink: 0 }}
+          // O Segmentado não aceita `id`/`aria-controls` por item: sem eles o
+          // painel perde o `aria-labelledby` e a ligação aba→painel do
+          // contrato ARIA. Recoloca aqui os mesmos nomes de antes.
+          ref={el => {
+            if (!el) return;
+            for (const aba of ['pending', 'history']) {
+              const b = el.querySelector(`[data-testid="tab-${aba}"]`);
+              if (b) { b.id = `tab-${aba}`; b.setAttribute('aria-controls', `tabpanel-${aba}`); }
+            }
           }}
-          style={{
-          display: 'inline-flex', gap: 2, borderRadius: 10,
-          backgroundColor: N.n3, padding: '0 3px', boxSizing: 'border-box',
-          height: isMobile ? 44 : 36, flexShrink: 0,
-        }}>
-          {([
-            // Mesma conta de antes (actionableCount): a aba e o placar contam
-            // conjuntos diferentes de propósito — a aba diz quantas peças
-            // pedem ação, o placar diz de que TIPO é cada uma.
-            { key: 'pending', label: 'Pendentes', count: actionableCount },
-            { key: 'history', label: 'Histórico', count: null },
-          ] as const).map(tab => (
-            <button
-              key={tab.key}
-              role="tab"
-              id={`tab-${tab.key}`}
-              aria-selected={activeTab === tab.key}
-              aria-controls={`tabpanel-${tab.key}`}
-              tabIndex={activeTab === tab.key ? 0 : -1}
-              onClick={() => setActiveTab(tab.key)}
-              style={{
-                padding: '0 14px', border: 'none', cursor: 'pointer', borderRadius: 8,
-                backgroundColor: activeTab === tab.key ? T.surface : 'transparent',
-                color: activeTab === tab.key ? T.text : T.second,
-                boxShadow: activeTab === tab.key ? '0 1px 2px rgba(28,25,23,0.08)' : 'none',
-                fontSize: 13, fontWeight: 700,
-                display: 'flex', alignItems: 'center', gap: 7, whiteSpace: 'nowrap',
-              }}
-            >
-              {tab.label}
-              {tab.count != null && (
-                <span style={{ fontSize: 11, fontWeight: 700, color: T.second, fontVariantNumeric: 'tabular-nums' }}>
-                  {tab.count}
-                </span>
-              )}
-            </button>
-          ))}
+        >
+          <Segmentado
+            rotuloDaLista="Abas de aprovação"
+            prefixoDeTestId="tab"
+            ativo={activeTab}
+            aoTrocar={(id) => setActiveTab(id as typeof activeTab)}
+            itens={[
+              { id: 'pending', rotulo: 'Pendentes', contador: actionableCount ?? undefined },
+              { id: 'history', rotulo: 'Histórico' },
+            ]}
+          />
         </div>
 
         {activeTab === 'pending' && (
@@ -2082,16 +2054,17 @@ export default function Atendimento() {
                   // A busca não tinha borda: ela era um retângulo branco sobre
                   // o cinza da <section>. Sem a <section>, branco sobre branco
                   // deixaria de parecer campo.
-                  height: isMobile ? 44 : 36, padding: '0 30px 0 32px', borderRadius: 9,
+                  height: alvo(36, dedo), padding: '0 30px 0 32px', borderRadius: R.md,
                   border: `1px solid ${T.border}`, backgroundColor: T.surface,
-                  fontSize: 13, color: T.text, outlineOffset: 2,
+                  // 16px no celular: abaixo disso o iOS dá zoom no campo ao focar.
+                  fontSize: isMobile ? FS.lead : FS.body, color: T.text, outlineOffset: 2,
                 }}
               />
               {searchTerm && (
                 <button
                   onClick={() => setSearchTerm("")}
                   aria-label="Limpar busca"
-                  style={{ position: 'absolute', right: 2, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: T.second, width: isMobile ? 40 : 28, height: isMobile ? 40 : 28, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                  style={{ position: 'absolute', right: 2, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: T.second, width: dedo ? 40 : 28, height: dedo ? 40 : 28, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                 >
                   <X aria-hidden="true" style={{ width: 14, height: 14 }} />
                 </button>
@@ -2162,7 +2135,7 @@ export default function Atendimento() {
               title="Só peças cujo evento já passou do prazo de Aprovação de Layout"
               style={{
                 display: 'flex', alignItems: 'center', gap: 7,
-                height: isMobile ? 44 : 36, padding: '0 12px', borderRadius: 9,
+                height: alvo(36, dedo), padding: '0 12px', borderRadius: R.md,
                 backgroundColor: atrasadosFilter ? TOM.perigo.text : T.surface,
                 border: atrasadosFilter ? `1.5px solid ${TOM.perigo.text}` : `1px solid ${T.border}`,
                 color: atrasadosFilter ? T.surface : T.text,
@@ -2196,7 +2169,7 @@ export default function Atendimento() {
                 onClick={limparFiltros}
                 data-testid="button-clear-filters"
                 style={{
-                  height: isMobile ? 44 : 36, padding: '0 8px',
+                  height: alvo(36, dedo), padding: '0 8px',
                   background: 'none', border: 'none', cursor: 'pointer',
                   color: T.accentText, fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap',
                 }}
@@ -2297,7 +2270,7 @@ export default function Atendimento() {
                um ladrilho laranja com sombra colorida e três bolinhas — a coisa
                mais pesada da página, para um painel auxiliar que fica ACIMA da
                lista de peças que a tela existe para mostrar. */
-            style={{ backgroundColor: T.bg, borderBottom: `1px solid ${T.border}`, padding: isMobile ? '14px 16px' : '16px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, borderRadius: '12px 12px 0 0', flexWrap: isMobile ? 'wrap' : 'nowrap', cursor: 'pointer' }}
+            style={{ backgroundColor: T.bg, borderBottom: `1px solid ${T.border}`, padding: cards ? '14px 16px' : '16px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, borderRadius: '12px 12px 0 0', flexWrap: cards ? 'wrap' : 'nowrap', cursor: 'pointer' }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
               <div style={{ width: 26, height: 26, borderRadius: 8, backgroundColor: T.text, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
@@ -2344,7 +2317,7 @@ export default function Atendimento() {
             </div>
           </div>
 
-          <div style={{ padding: isMobile ? '16px 14px' : '20px 28px', background: T.bg }}>
+          <div style={{ padding: cards ? '16px 14px' : '20px 28px', background: T.bg }}>
             {/* ── Seletores: Patrocinador + Evento — usando FilterSelect idêntico aos filtros do topo ── */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 24, flexWrap: 'wrap' }}>
               <FilterSelect
@@ -2396,15 +2369,12 @@ export default function Atendimento() {
             {/* ── Área de itens ── */}
             {batchSponsorId && batchEventId ? (
               batchItemCount === 0 ? (
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '36px 0', gap: 10, backgroundColor: T.bg, borderRadius: 12, border: `1px dashed ${T.border}` }}>
-                  <div style={{ width: 44, height: 44, borderRadius: 12, background: TOM.sucesso.bg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <CheckCircle style={{ width: 22, height: 22, color: TOM.sucesso.text }} />
-                  </div>
-                  <div style={{ textAlign: 'center' }}>
-                    <p style={{ fontSize: 15, fontWeight: 700, color: T.text, margin: '0 0 4px' }}>Tudo aprovado</p>
-                    <p style={{ fontSize: 13, color: T.second, margin: 0 }}>Nenhuma peça pendente para esta combinação</p>
-                  </div>
-                </div>
+                <EstadoVazio
+                  compacto
+                  icone={CheckCircle}
+                  titulo="Tudo aprovado"
+                  descricao="Nenhuma peça pendente para esta combinação"
+                />
               ) : (
                 <>
                   {/* Barra de seleção + contadores */}
@@ -2552,71 +2522,51 @@ export default function Atendimento() {
 
                   {/* ── Ações ── */}
                   {!batchShowRejectForm ? (
-                    <div style={{ display: 'flex', alignItems: isMobile ? 'stretch' : 'center', flexDirection: isMobile ? 'column' : 'row', justifyContent: 'space-between', padding: '14px 16px', background: T.bg, borderRadius: 12, border: `1px solid ${N.n3}`, gap: isMobile ? 10 : 0 }}>
+                    <div style={{ display: 'flex', alignItems: cards ? 'stretch' : 'center', flexDirection: cards ? 'column' : 'row', justifyContent: 'space-between', padding: '14px 16px', background: T.bg, borderRadius: 12, border: `1px solid ${N.n3}`, gap: cards ? 10 : 0 }}>
                       <p style={{ fontSize: 13, color: T.second, margin: 0 }}>
                         {batchSelectedItemIds.size > 0
                           ? <><strong style={{ color: T.text }}>{batchSelectedItemIds.size} {batchSelectedItemIds.size === 1 ? 'peça' : 'peças'}</strong> prontas para decisão</>
                           : 'Selecione peças para aprovar ou reprovar'}
                       </p>
-                      <div style={{ display: 'flex', gap: 10, flexDirection: isMobile ? 'column' : 'row' }}>
-                        <button
+                      <div style={{ display: 'flex', gap: 10, flexDirection: cards ? 'column' : 'row' }}>
+                        {/* "Reprovar", não "Recusar": é a palavra do modal de
+                            decisão, do placar e do toast desta mesma ação — o
+                            lote era o único lugar da tela que dizia "recusa".
+                            Secundário, não perigo: ele só ABRE o campo do
+                            motivo; quem reprova é o botão de lá. */}
+                        <Botao
+                          variante="secundario"
+                          tamanho={tamBotao}
+                          larguraCheia={cards}
+                          icone={XCircle}
                           onClick={() => setBatchShowRejectForm(true)}
                           disabled={batchSponsorMutation.isPending || batchSelectedItemIds.size === 0 || !canDecide}
                           title={!canDecide ? "Somente Atendimento e administradores decidem aprovações" : undefined}
                           data-testid="button-batch-reject"
-                          // "Reprovar", não "Recusar": é a palavra do modal de
-                          // decisão, do placar e do toast desta mesma ação — o
-                          // lote era o único lugar da tela que dizia "recusa".
-                          // Mesma altura do "Aprovar" ao lado (40 × 36 antes),
-                          // e #b91c1c no rótulo (#dc2626 fica abaixo de AA).
-                          style={{
-                            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
-                            backgroundColor: T.surface, color: TOM.perigo.text,
-                            border: `1px solid ${TOM.perigo.border}`, borderRadius: 9,
-                            height: isMobile ? 44 : 36, padding: '0 16px', fontSize: 13, fontWeight: 700,
-                            cursor: batchSelectedItemIds.size === 0 ? 'not-allowed' : 'pointer',
-                            opacity: batchSelectedItemIds.size === 0 ? 0.5 : 1,
-                            transition: 'filter 0.15s',
-                          }}
-                          onMouseEnter={e => { if (batchSelectedItemIds.size > 0) e.currentTarget.style.filter = 'brightness(0.96)'; }}
-                          onMouseLeave={e => { e.currentTarget.style.filter = 'none'; }}
+                          style={{ color: TOM.perigo.text, border: `1px solid ${TOM.perigo.border}` }}
                         >
-                          <XCircle style={{ width: 15, height: 15 }} />
                           Reprovar
-                        </button>
-                        <button
+                        </Botao>
+                        {/* TINTA, não verde: nesta tela verde é o ESTADO
+                            'aprovado', o que a peça vira depois. Pintar de verde
+                            o botão que ainda vai decidir usa a cor do resultado
+                            para o pedido. O motivo de estar travado fica à
+                            vista (sem papel de decisão / nada selecionado). */}
+                        <Botao
+                          variante="primario"
+                          tamanho={tamBotao}
+                          larguraCheia={cards}
+                          icone={CheckCircle}
+                          carregando={batchSponsorMutation.isPending}
                           onClick={() => setConfirmApproveBatch(true)}
-                          disabled={batchSponsorMutation.isPending || batchSelectedItemIds.size === 0 || !canDecide}
+                          disabled={batchSelectedItemIds.size === 0 || !canDecide}
+                          motivo={!canDecide ? "Somente Atendimento e administradores decidem aprovações" : undefined}
+                          alinharMotivo="end"
                           title={!canDecide ? "Somente Atendimento e administradores decidem aprovações" : undefined}
                           data-testid="button-batch-approve"
-                          style={{
-                            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
-                            // TINTA, não verde.
-                            //
-                            // O botão era um gradiente verde com sombra verde —
-                            // e nesta tela verde é o ESTADO 'aprovado', o que a
-                            // peça vira depois. Pintar de verde o botão que
-                            // ainda vai decidir usa a cor do resultado para o
-                            // pedido, e deixa a ação mais chamativa que o
-                            // próprio dado da lista.
-                            background: batchSelectedItemIds.size === 0 ? N.n2 : T.text,
-                            // O branco era fixo: sobre o fundo do estado
-                            // desabilitado o rótulo simplesmente sumia.
-                            color: batchSelectedItemIds.size === 0 ? T.apoio : T.surface,
-                            border: 'none', borderRadius: 9,
-                            height: isMobile ? 44 : 36, padding: '0 18px', fontSize: 13, fontWeight: 700,
-                            cursor: batchSelectedItemIds.size === 0 ? 'not-allowed' : 'pointer',
-                            letterSpacing: '-0.01em', fontFamily: FONT.display,
-                            transition: 'filter 0.15s',
-                          }}
-                          onMouseEnter={e => { if (batchSelectedItemIds.size > 0) e.currentTarget.style.filter = 'brightness(0.9)'; }}
-                          onMouseLeave={e => { e.currentTarget.style.filter = 'none'; }}
                         >
-                          {batchSponsorMutation.isPending
-                            ? <Loader2 style={{ width: 14, height: 14 }} className="animate-spin" />
-                            : <CheckCircle style={{ width: 14, height: 14 }} />}
                           Aprovar {batchSelectedItemIds.size > 0 ? `${batchSelectedItemIds.size} ${batchSelectedItemIds.size === 1 ? 'peça' : 'peças'}` : ''}
-                        </button>
+                        </Botao>
                       </div>
                     </div>
                   ) : (
@@ -2657,7 +2607,7 @@ export default function Atendimento() {
                           width: '100%', backgroundColor: T.surface,
                           border: `1.5px solid ${motivoCurto(batchRejectReason) ? T.border : TOM.perigo.text}`,
                           color: T.text, borderRadius: 8, padding: '10px 12px',
-                          fontSize: 13, resize: 'vertical',
+                          fontSize: isMobile ? FS.lead : FS.body, resize: 'vertical',
                           boxSizing: 'border-box', lineHeight: 1.5,
                         }}
                       />
@@ -2672,37 +2622,29 @@ export default function Atendimento() {
                           : <>Pronto. <kbd style={KBD}>Ctrl</kbd>+<kbd style={KBD}>Enter</kbd> confirma.</>}
                       </p>
                       <div style={{ display: 'flex', gap: 8, marginTop: 12, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
-                        <button
+                        <Botao
+                          variante="fantasma"
+                          tamanho={tamBotao}
                           onClick={() => { setBatchShowRejectForm(false); setBatchRejectReason(""); }}
-                          style={{ backgroundColor: T.surface, color: T.apoio, border: `1px solid ${T.border}`, borderRadius: 9, height: isMobile ? 44 : 36, padding: '0 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
                         >
                           Cancelar
-                        </button>
-                        <button
+                        </Botao>
+                        {/* Perigo: devolve as peças à Arte. Travado pela MESMA
+                            régua do Ctrl+Enter (motivoCurto); o quanto falta já
+                            está escrito logo acima, à vista. */}
+                        <Botao
+                          variante="perigo"
+                          tamanho={tamBotao}
+                          icone={XCircle}
+                          carregando={batchSponsorMutation.isPending}
                           onClick={() => batchSponsorMutation.mutate({ sponsorId: batchSponsorId, eventId: batchEventId, action: "reject", reason: batchRejectReason })}
-                          disabled={batchSponsorMutation.isPending || motivoCurto(batchRejectReason) || !canDecide}
+                          disabled={motivoCurto(batchRejectReason) || !canDecide}
                           title={!canDecide ? "Somente Atendimento e administradores decidem aprovações"
                             : motivoCurto(batchRejectReason) ? `Explique em pelo menos ${MOTIVO_MIN} caracteres — a Arte precisa saber o que refazer.` : undefined}
                           data-testid="button-batch-confirm-reject"
-                          // A aparência segue a MESMA régua do `disabled`
-                          // (motivoCurto) — o mesmo conserto que o motivo
-                          // individual recebeu na 1ª rodada. Olhava só "vazio":
-                          // com 1 a 9 caracteres o botão ficava vermelho, parecia
-                          // pronto e não respondia; e desabilitado tinha letra
-                          // BRANCA sobre #e7e5e4 (1,2:1).
-                          style={{
-                            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                            backgroundColor: motivoCurto(batchRejectReason) ? T.border : TOM.perigo.text,
-                            color: motivoCurto(batchRejectReason) ? T.apoio : T.surface, border: 'none', borderRadius: 9,
-                            height: isMobile ? 44 : 36, padding: '0 18px', fontSize: 13, fontWeight: 700,
-                            cursor: motivoCurto(batchRejectReason) ? 'not-allowed' : 'pointer',
-                          }}
                         >
-                          {batchSponsorMutation.isPending
-                            ? <Loader2 style={{ width: 13, height: 13 }} className="animate-spin" />
-                            : <XCircle style={{ width: 13, height: 13 }} />}
                           Reprovar e devolver à Arte
-                        </button>
+                        </Botao>
                       </div>
                     </div>
                   )}
@@ -2732,52 +2674,37 @@ export default function Atendimento() {
 
       {/* ─── GRID DE CARDS (bento-style) ─────────────────────────── */}
       {filteredItems.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '64px 0' }} data-testid="empty-atendimento">
-          {/* Regua dos vazios da casa: icone 28, titulo 15/700, frase 13. Era
-              48/18/15 — um vazio desenhado com mais peso visual que qualquer
-              card de peca da lista cheia. */}
-          {/* Ícone por MOTIVO do vazio: o check verde dizia "tudo certo"
-              também quando eram os filtros escondendo a fila inteira. */}
-          {pendingItems.length > 0 && !atrasadosFilter
-            ? <Search aria-hidden="true" style={{ width: 28, height: 28, color: T.second, margin: '0 auto 12px' }} />
-            : <CheckCircle aria-hidden="true" style={{ width: 28, height: 28, color: TOM.sucesso.text, margin: '0 auto 12px' }} />}
-          <h3 style={{ fontSize: 15, fontWeight: 700, color: T.text, margin: '0 0 6px' }}>
-            {atrasadosFilter
+        // O vazio da casa, com o ícone pelo MOTIVO: o check dizia "tudo certo"
+        // também quando eram os filtros escondendo a fila inteira. O vazio pelo
+        // recorte de atrasados tem texto próprio — com o filtro ligado,
+        // "Nenhuma peça pendente" leria como "nada a fazer" enquanto a fila
+        // continua ali, dentro do prazo — e o vazio por filtro diz QUANTAS
+        // peças ficaram de fora. A saída mora ao lado do problema.
+        <div data-testid="empty-atendimento">
+          <EstadoVazio
+            icone={pendingItems.length > 0 && !atrasadosFilter ? Search : CheckCircle}
+            titulo={atrasadosFilter
               ? "Nada atrasado neste recorte"
               : pendingItems.length === 0 ? "Nenhuma peça pendente" : "Nenhuma peça neste recorte"}
-          </h3>
-          {/* Vazio por causa do recorte de atrasados tem texto próprio: com o
-              filtro ligado, "Nenhuma peça pendente" leria como "nada a fazer"
-              enquanto a fila inteira continua ali, dentro do prazo. E o vazio
-              por filtro diz QUANTAS peças ficaram de fora, em vez do genérico
-              "tente ajustar os filtros". */}
-          <p style={{ color: T.second, fontSize: 13, lineHeight: 1.5, maxWidth: 520, margin: '0 auto' }} data-testid="empty-atendimento-motivo">
-            {atrasadosFilter
-              ? `A lista está vazia pelo FILTRO "Atrasados" — ${filteredItemsBase.length === 0 ? 'os demais filtros já não devolvem nenhuma peça' : `as ${filteredItemsBase.length} peças deste recorte estão todas dentro do prazo de Aprovação de Layout`}.`
-              : pendingItems.length === 0
-              ? "Nenhuma peça aguarda aprovação do patrocinador agora."
-              : `${pendingItems.length} ${pendingItems.length === 1 ? 'peça pendente ficou' : 'peças pendentes ficaram'} fora ${chipsAtivos.length === 1 ? 'do filtro ativo' : `dos ${chipsAtivos.length} filtros ativos`}.`}
-          </p>
-          {/* O texto apontava para os filtros, mas o "Limpar" morava lá em
-              cima, na faixa das abas — a saída fica ao lado do problema. */}
-          {!atrasadosFilter && pendingItems.length > 0 && chipsAtivos.length > 0 && (
-            <button
-              onClick={limparFiltros}
-              data-testid="button-clear-filters-empty"
-              style={{ marginTop: 16, height: 40, padding: '0 18px', borderRadius: 8, border: `1px solid ${T.border}`, background: T.surface, color: T.text, fontSize: 14, fontWeight: 700, cursor: 'pointer' }}
-            >
-              Limpar {chipsAtivos.length === 1 ? 'o filtro' : `os ${chipsAtivos.length} filtros`}
-            </button>
-          )}
-          {atrasadosFilter && (
-            <button
-              onClick={() => setAtrasadosFilter(false)}
-              data-testid="button-clear-atrasados-empty"
-              style={{ marginTop: 16, height: 40, padding: '0 18px', borderRadius: 8, border: 'none', background: T.text, color: T.surface, fontSize: 14, fontWeight: 700, cursor: 'pointer' }}
-            >
-              Mostrar todas as peças
-            </button>
-          )}
+            descricao={
+              <span data-testid="empty-atendimento-motivo">
+                {atrasadosFilter
+                  ? `A lista está vazia pelo FILTRO "Atrasados" — ${filteredItemsBase.length === 0 ? 'os demais filtros já não devolvem nenhuma peça' : `as ${filteredItemsBase.length} peças deste recorte estão todas dentro do prazo de Aprovação de Layout`}.`
+                  : pendingItems.length === 0
+                  ? "Nenhuma peça aguarda aprovação do patrocinador agora."
+                  : `${pendingItems.length} ${pendingItems.length === 1 ? 'peça pendente ficou' : 'peças pendentes ficaram'} fora ${chipsAtivos.length === 1 ? 'do filtro ativo' : `dos ${chipsAtivos.length} filtros ativos`}.`}
+              </span>
+            }
+            acao={atrasadosFilter ? (
+              <Botao variante="primario" tamanho={tamBotao} onClick={() => setAtrasadosFilter(false)} data-testid="button-clear-atrasados-empty">
+                Mostrar todas as peças
+              </Botao>
+            ) : pendingItems.length > 0 && chipsAtivos.length > 0 ? (
+              <Botao variante="secundario" tamanho={tamBotao} onClick={limparFiltros} data-testid="button-clear-filters-empty">
+                Limpar {chipsAtivos.length === 1 ? 'o filtro' : `os ${chipsAtivos.length} filtros`}
+              </Botao>
+            ) : undefined}
+          />
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 32 }}>
@@ -2805,7 +2732,7 @@ export default function Atendimento() {
                       data-testid={`toggle-ordem-${valor}`}
                       onClick={() => setOrdemPendentes(valor)}
                       style={{
-                        height: isMobile ? 44 : 30, padding: '0 12px', borderRadius: 8, cursor: 'pointer',
+                        height: alvo(30, dedo), padding: '0 12px', borderRadius: R.md, cursor: 'pointer',
                         fontFamily: 'inherit', fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap', flexShrink: 0,
                         border: `1px solid ${ativo ? TOM.laranja.border : T.border}`,
                         backgroundColor: ativo ? TOM.laranja.bg : T.surface,
@@ -2823,30 +2750,24 @@ export default function Atendimento() {
                   cada um: com os dois na tela (admin) o espaço livre se dividia
                   entre eles e "Decidir em fila" — a ação do dia — boiava no
                   meio da linha, longe da borda onde o olho a procura. */}
-              <div style={{ marginLeft: isMobile ? 0 : 'auto', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', width: isMobile ? '100%' : undefined }}>
+              <div style={{ marginLeft: cards ? 0 : 'auto', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', width: cards ? '100%' : undefined }}>
               {/* O DISPARO À MÃO DO AVISO DA GESTÃO. Discreto de propósito e
                   encostado à direita: é ferramenta de manutenção, não parte do
                   trabalho de decidir — quem entra aqui para aprovar não deve
                   tropeçar nele. */}
               {user?.role === "admin" && (
-                <button
-                  type="button"
+                <Botao
+                  variante="secundario"
+                  tamanho={tamBotao}
+                  icone={Send}
+                  carregando={avisarGestaoMutation.isPending}
                   data-testid="button-avisar-gestao"
                   onClick={() => avisarGestaoMutation.mutate()}
-                  disabled={avisarGestaoMutation.isPending}
                   title="Manda agora o resumo das aprovações pendentes para quem recebe o aviso das 10h, 15h e 18h. Se não houver pendência, nada é enviado."
-                  style={{
-                    height: isMobile ? 44 : 36, padding: '0 12px', borderRadius: 8,
-                    border: `1px solid ${T.border}`, backgroundColor: T.surface, color: T.apoio,
-                    cursor: avisarGestaoMutation.isPending ? 'wait' : 'pointer',
-                    fontFamily: 'inherit', fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap',
-                    display: 'inline-flex', alignItems: 'center', gap: 6, flexShrink: 0,
-                    opacity: avisarGestaoMutation.isPending ? 0.6 : 1,
-                  }}
+                  style={{ flexShrink: 0 }}
                 >
-                  <Send style={{ width: 13, height: 13 }} />
                   {avisarGestaoMutation.isPending ? 'Enviando…' : 'Avisar a gestão'}
-                </button>
+                </Botao>
               )}
 
               {/* ── A FILA, ALCANÇÁVEL ────────────────────────────────────────
@@ -2856,24 +2777,19 @@ export default function Atendimento() {
                   Some quando não há nada esperando por você — botão que não faz
                   nada é ruído. */}
               {filaDaSuaMesa.length > 0 && (
-                <button
-                  type="button"
+                // A régua dos primários da casa e largura cheia quando a área
+                // aperta: é a porta da fila.
+                <Botao
+                  variante="primario"
+                  tamanho={tamBotao}
+                  icone={Play}
                   data-testid="button-fila-decisao"
                   onClick={() => { setSelectedItem(filaDaSuaMesa[0]); setDialogOpen(true); }}
                   title="Abre a primeira peça que espera decisão sua; do modal dá para seguir para a próxima"
-                  // 36px, a régua dos primários da casa (era 32), e largura
-                  // inteira no celular: é a porta da fila.
-                  style={{
-                    height: isMobile ? 44 : 36, padding: '0 16px', borderRadius: 9,
-                    border: 'none', backgroundColor: T.text, color: T.surface, cursor: 'pointer',
-                    fontFamily: 'inherit', fontSize: 13, fontWeight: 700, whiteSpace: 'nowrap',
-                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, flexShrink: 0,
-                    flex: isMobile ? '1 1 auto' : undefined,
-                  }}
+                  style={{ flexShrink: 0, flex: cards ? '1 1 auto' : undefined }}
                 >
-                  <Play aria-hidden="true" style={{ width: 13, height: 13 }} />
                   Decidir {filaDaSuaMesa.length === 1 ? 'a peça' : `as ${filaDaSuaMesa.length}`} em fila
-                </button>
+                </Botao>
               )}
               {/* A FILA INTEIRA (rodada 4). A porta acima só existe para "nova
                   versão"; as peças que aguardam patrocinador — a maior parte do
@@ -2882,24 +2798,17 @@ export default function Atendimento() {
                   da tela, e o modal segue com "Próxima peça". Quando há peça na
                   sua mesa ela é secundária (contorno); sem, é a ação do dia. */}
               {reviewQueue.length > filaDaSuaMesa.length && (
-                <button
-                  type="button"
+                <Botao
+                  variante={filaDaSuaMesa.length > 0 ? "secundario" : "primario"}
+                  tamanho={tamBotao}
+                  icone={Play}
                   data-testid="button-fila-inteira"
                   onClick={() => { setSelectedItem(reviewQueue[0]); setDialogOpen(true); }}
                   title="Abre a primeira peça da lista, na ordem escolhida; do modal dá para seguir peça a peça sem voltar"
-                  style={{
-                    height: isMobile ? 44 : 36, padding: '0 16px', borderRadius: 9,
-                    border: filaDaSuaMesa.length > 0 ? `1px solid ${T.border}` : 'none',
-                    backgroundColor: filaDaSuaMesa.length > 0 ? T.surface : T.text,
-                    color: filaDaSuaMesa.length > 0 ? T.text : T.surface, cursor: 'pointer',
-                    fontFamily: 'inherit', fontSize: 13, fontWeight: 700, whiteSpace: 'nowrap',
-                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, flexShrink: 0,
-                    flex: isMobile ? '1 1 auto' : undefined,
-                  }}
+                  style={{ flexShrink: 0, flex: cards ? '1 1 auto' : undefined }}
                 >
-                  <Play aria-hidden="true" style={{ width: 13, height: 13 }} />
                   {filaDaSuaMesa.length > 0 ? `Toda a fila (${reviewQueue.length})` : reviewQueue.length === 1 ? 'Revisar a peça' : `Revisar as ${reviewQueue.length} em fila`}
-                </button>
+                </Botao>
               )}
               </div>
             </div>
@@ -2910,7 +2819,7 @@ export default function Atendimento() {
               neste componente — sem ela cada tecla no modal refazia todos os
               grupos e cards da fila. `deps` = tudo o que os grupos leem. */}
           <SoQuandoMudar
-            deps={[pendingGroup, itemsByEvent, events, expandedEvents, isMobile, hoje, agora, itemApprovalsMap, itemSponsorsMap, typeToGroup, loadingSponsors]}
+            deps={[pendingGroup, itemsByEvent, events, expandedEvents, isMobile, cards, dedo, hoje, agora, itemApprovalsMap, itemSponsorsMap, typeToGroup, loadingSponsors]}
             render={() => (<>
           {pendingGroup.length > 0 && Array.from(itemsByEvent.entries()).map(([eventId, eventItems]) => {
             const ev = getEventInfo(eventId);
@@ -2960,9 +2869,9 @@ export default function Atendimento() {
                   // encolhia a zero e o resto vazava para a direita, com rolagem
                   // lateral na página inteira.
                   style={{
-                    display: 'flex', alignItems: 'center', gap: isMobile ? 8 : 16,
-                    flexWrap: isMobile ? 'wrap' : 'nowrap',
-                    paddingBottom: isMobile ? 12 : 16, marginBottom: isMobile ? 12 : 16,
+                    display: 'flex', alignItems: 'center', gap: cards ? 8 : 16,
+                    flexWrap: cards ? 'wrap' : 'nowrap',
+                    paddingBottom: cards ? 12 : 16, marginBottom: cards ? 12 : 16,
                     minHeight: 44,
                     borderBottom: `1px solid ${T.border}`,
                     cursor: 'pointer', userSelect: 'none',
@@ -2989,7 +2898,7 @@ export default function Atendimento() {
                     // tamanho — e ele se repete a cada grupo da lista.
                     fontSize: 16, fontWeight: 700, letterSpacing: '-0.02em',
                     color: T.text, margin: 0, minWidth: 0,
-                    flex: isMobile ? '1 1 calc(100% - 32px)' : '0 1 auto',
+                    flex: cards ? '1 1 calc(100% - 32px)' : '0 1 auto',
                     overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                   }}>
                     {ev?.name || 'Sem Evento'}
@@ -3044,7 +2953,7 @@ export default function Atendimento() {
                       indistinguível de outra pilha de 14 quando o que importa
                       é quantas dependem de VOCÊ agora. É a mesma conta da
                       primeira célula do placar, no grão do evento. */}
-                  <span style={{ marginLeft: isMobile ? 0 : 'auto', display: 'flex', alignItems: 'baseline', gap: 6, flexShrink: 0, whiteSpace: 'nowrap' }}>
+                  <span style={{ marginLeft: cards ? 0 : 'auto', display: 'flex', alignItems: 'baseline', gap: 6, flexShrink: 0, whiteSpace: 'nowrap' }}>
                     <span style={{ fontSize: 12, color: T.second, fontVariantNumeric: 'tabular-nums' }}>
                       {eventItems.length} {eventItems.length === 1 ? 'peça' : 'peças'}
                     </span>
@@ -3131,7 +3040,7 @@ export default function Atendimento() {
                           overflow: 'hidden',
                         }}
                       >
-                        <div style={{ display: 'flex', alignItems: isMobile ? 'flex-start' : 'center', padding: isMobile ? 14 : 18, gap: isMobile ? 12 : 20, flexWrap: isMobile ? 'wrap' : 'nowrap' }}>
+                        <div style={{ display: 'flex', alignItems: cards ? 'flex-start' : 'center', padding: cards ? 14 : 18, gap: cards ? 12 : 20, flexWrap: cards ? 'wrap' : 'nowrap' }}>
 
                           {/* Thumb 72 e não 80: o card ganhou uma terceira
                               linha de texto e a miniatura passou a ser o
@@ -3145,7 +3054,7 @@ export default function Atendimento() {
                             aria-hidden="true"
                             onClick={() => handleViewDetails(item)}
                             style={{
-                            width: isMobile ? 52 : 72, height: isMobile ? 52 : 72, flexShrink: 0, borderRadius: 10,
+                            width: cards ? 52 : 72, height: cards ? 52 : 72, flexShrink: 0, borderRadius: 10,
                             overflow: 'hidden', backgroundColor: N.n2, position: 'relative',
                             border: `1px solid ${T.border}`, cursor: 'pointer',
                           }}>
@@ -3194,7 +3103,7 @@ export default function Atendimento() {
                             )}
                           </div>
 
-                          <div style={{ flex: 1, display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'minmax(0,2fr) minmax(0,1.4fr) auto', gap: isMobile ? 10 : 18, alignItems: isMobile ? 'stretch' : 'center', minWidth: 0 }}>
+                          <div style={{ flex: 1, display: 'grid', gridTemplateColumns: cards ? '1fr' : 'minmax(0,2fr) minmax(0,1.4fr) auto', gap: cards ? 10 : 18, alignItems: cards ? 'stretch' : 'center', minWidth: 0 }}>
 
                             {/* IDENTIDADE em três linhas: o que é, o que diz o
                                 pedido, e quem tem de aprovar. Antes o código e
@@ -3344,7 +3253,7 @@ export default function Atendimento() {
                                 espera você e a peça que não depende de você
                                 convidavam com a mesma força, e a força era a de
                                 uma ação primária. */}
-                            <div style={{ display: 'flex', justifyContent: isMobile ? 'stretch' : 'flex-end' }}>
+                            <div style={{ display: 'flex', justifyContent: cards ? 'stretch' : 'flex-end' }}>
                               {(() => {
                                 const primaria = temNovaVersao && !isFullyApproved;
                                 // Com a Arte também é 'Revisar' (31/08): lá dentro
@@ -3352,24 +3261,16 @@ export default function Atendimento() {
                                 const rotulo = isFullyApproved ? "Ver histórico"
                                   : primaria ? "Revisar agora" : "Revisar";
                                 return (
-                                  <button
+                                  <Botao
+                                    variante={primaria ? "primario" : "secundario"}
+                                    tamanho={tamBotao}
+                                    icone={Eye}
+                                    larguraCheia={cards}
                                     onClick={() => handleViewDetails(item)}
                                     data-testid={isFullyApproved ? `button-history-${item.id}` : `button-view-${item.id}`}
-                                    style={{
-                                      height: isMobile ? 44 : 36, padding: "0 16px", borderRadius: 9,
-                                      backgroundColor: primaria ? T.text : T.surface,
-                                      border: primaria ? `1px solid ${T.text}` : `1px solid ${T.border}`,
-                                      color: primaria ? T.surface : T.text,
-                                      fontSize: 12, fontWeight: 700, cursor: "pointer",
-                                      display: "flex", alignItems: "center", gap: 6,
-                                      width: isMobile ? "100%" : undefined,
-                                      justifyContent: isMobile ? "center" : undefined,
-                                      whiteSpace: "nowrap",
-                                    }}
                                   >
                                     {rotulo}
-                                    <Eye aria-hidden="true" style={{ width: 13, height: 13 }} />
-                                  </button>
+                                  </Botao>
                                 );
                               })()}
                             </div>
@@ -3434,7 +3335,7 @@ export default function Atendimento() {
                     <button key={valor} type="button" aria-pressed={ativo} data-testid={`toggle-ordem-hist-${valor}`}
                       onClick={() => setOrdemHistorico(valor)}
                       style={{
-                        height: isMobile ? 44 : 30, padding: '0 12px', borderRadius: 8, cursor: 'pointer',
+                        height: alvo(30, dedo), padding: '0 12px', borderRadius: R.md, cursor: 'pointer',
                         fontFamily: 'inherit', fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap', flexShrink: 0,
                         border: `1px solid ${ativo ? TOM.laranja.border : T.border}`,
                         backgroundColor: ativo ? TOM.laranja.bg : T.surface,
@@ -3466,7 +3367,7 @@ export default function Atendimento() {
                   style={{
                     width: '100%', paddingLeft: 36, paddingRight: histSearchTerm ? 32 : 12, paddingTop: 9, paddingBottom: 9,
                     backgroundColor: T.surface, borderRadius: 8, border: `1px solid ${T.border}`,
-                    fontSize: 13, fontWeight: 500, color: T.text,
+                    fontSize: isMobile ? FS.lead : FS.body, fontWeight: FW.corpo, color: T.text,
                     boxSizing: 'border-box',
                   }}
                 />
@@ -3485,20 +3386,17 @@ export default function Atendimento() {
                 value={histPeriodFilter} onChange={setHistPeriodFilter}
                 options={periodOptions} />
               {(hasHistFilters || histSearchTerm) && (
-                <button
+                // Contorno, não bloco preto: é a mesma regra do "Limpar" da aba
+                // Pendentes — desfazer filtro não é ação primária, e o bloco
+                // cheio era o objeto mais escuro da aba de auditoria.
+                <Botao
+                  variante="secundario"
+                  tamanho={tamBotao}
+                  icone={X}
                   onClick={() => { setHistEventFilter([]); setHistSponsorFilter([]); setHistPeriodFilter("all"); setHistSearchTerm(""); }}
-                  // Contorno, não bloco preto: é a mesma regra do "Limpar" da aba
-                  // Pendentes — desfazer filtro não é ação primária, e o bloco
-                  // cheio era o objeto mais escuro da aba de auditoria.
-                  style={{
-                    display: 'inline-flex', alignItems: 'center', gap: 5,
-                    height: isMobile ? 44 : 36, padding: '0 12px',
-                    backgroundColor: T.surface, color: T.text,
-                    border: `1px solid ${T.border}`, borderRadius: 8, cursor: 'pointer', fontSize: 13, fontWeight: 600,
-                  }}
                 >
-                  <X aria-hidden="true" style={{ width: 13, height: 13 }} /> Limpar filtros
-                </button>
+                  Limpar filtros
+                </Botao>
               )}
               <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6 }}>
                 {loadingSponsors
@@ -3515,31 +3413,26 @@ export default function Atendimento() {
               // 32px não dizia o que carregava nem onde o conteúdo ia aparecer.
               <EsqueletoDeFila linhas={6} comCabecalho={false} />
             ) : historyItems.length === 0 ? (
-              // A régua dos vazios da casa (ícone 28, título 15, frase 13) e o
+              // O vazio da casa (EstadoVazio) e o
               // ícone pelo MOTIVO: o check verde afirmava "tudo certo" também
               // quando eram os filtros escondendo o histórico. A saída mora ao
               // lado do problema, não só na barra de cima.
-              <div style={{ textAlign: 'center', padding: '56px 0' }}>
-                {(hasHistFilters || histSearchTerm)
-                  ? <Search aria-hidden="true" style={{ width: 28, height: 28, color: T.second, margin: '0 auto 12px' }} />
-                  : <Clock aria-hidden="true" style={{ width: 28, height: 28, color: T.second, margin: '0 auto 12px' }} />}
-                <h3 style={{ fontSize: 15, fontWeight: 700, color: T.text, margin: '0 0 6px' }}>
-                  {(hasHistFilters || histSearchTerm) ? 'Nenhuma peça neste recorte' : 'Ainda não há histórico'}
-                </h3>
-                <p style={{ color: T.second, fontSize: 13, lineHeight: 1.5, margin: '0 auto', maxWidth: 460 }}>
-                  {(hasHistFilters || histSearchTerm)
-                    ? 'Nenhuma peça aprovada combina com a busca e os filtros atuais.'
-                    : 'As peças aparecem aqui assim que algum patrocinador aprovar.'}
-                </p>
-                {(hasHistFilters || histSearchTerm) && (
-                  <button
+              <EstadoVazio
+                icone={(hasHistFilters || histSearchTerm) ? Search : Clock}
+                titulo={(hasHistFilters || histSearchTerm) ? 'Nenhuma peça neste recorte' : 'Ainda não há histórico'}
+                descricao={(hasHistFilters || histSearchTerm)
+                  ? 'Nenhuma peça aprovada combina com a busca e os filtros atuais.'
+                  : 'As peças aparecem aqui assim que algum patrocinador aprovar.'}
+                acao={(hasHistFilters || histSearchTerm) ? (
+                  <Botao
+                    variante="secundario"
+                    tamanho={tamBotao}
                     onClick={() => { setHistEventFilter([]); setHistSponsorFilter([]); setHistPeriodFilter("all"); setHistSearchTerm(""); }}
-                    style={{ marginTop: 16, height: 40, padding: '0 18px', borderRadius: 8, border: `1px solid ${T.border}`, background: T.surface, color: T.text, fontSize: 14, fontWeight: 700, cursor: 'pointer' }}
                   >
                     Limpar filtros
-                  </button>
-                )}
-              </div>
+                  </Botao>
+                ) : undefined}
+              />
             ) : (
               // UMA superfície com linhas, no lugar de N cards soltos.
               //
@@ -3658,7 +3551,7 @@ export default function Atendimento() {
 
                       <div style={{ flex: 1, minWidth: 0 }}>
                         {/* ── Cabeçalho — empilha no mobile para não estourar a largura ── */}
-                        <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', alignItems: isMobile ? 'stretch' : 'center', gap: 12, padding: '14px 16px 12px' }}>
+                        <div style={{ display: 'flex', flexDirection: cards ? 'column' : 'row', alignItems: cards ? 'stretch' : 'center', gap: 12, padding: '14px 16px 12px' }}>
                           {/* Thumb */}
                           <div style={{
                             width: 44, height: 44, borderRadius: 8, overflow: 'hidden',
@@ -3705,7 +3598,7 @@ export default function Atendimento() {
                                 fontSize: 11, fontWeight: 700,
                                 backgroundColor: statusCfg.bg, color: statusCfg.text, border: `1px solid ${statusCfg.border}`,
                                 padding: '2px 8px', borderRadius: 6, whiteSpace: 'nowrap', lineHeight: 1.5,
-                              }}>{isMobile ? getStatusShort(item.status) : getStatusLabel(item.status)}</span>
+                              }}>{cards ? getStatusShort(item.status) : getStatusLabel(item.status)}</span>
                               <DetalheProducao item={item} style={{ marginTop: 0 }} />
                               {/* ARQUIVO CORRIGIDO. O estado "nova versão" é o único
                                   em que a bola está com o ATENDIMENTO: a Arte já
@@ -3736,7 +3629,7 @@ export default function Atendimento() {
                           </div>
 
                           {/* Resumo + detalhes — empilha no mobile */}
-                          <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', alignItems: isMobile ? 'flex-start' : 'center', gap: 10, flexShrink: 0 }}>
+                          <div style={{ display: 'flex', flexDirection: cards ? 'column' : 'row', alignItems: cards ? 'flex-start' : 'center', gap: 10, flexShrink: 0 }}>
                             {/* Afordância REAL (decisão do item 24 do backlog): parecia
                                 botão mas era um <div> decorativo — agora é um <button>
                                 com a mesma ação do card, utilizável também por teclado
@@ -3747,7 +3640,7 @@ export default function Atendimento() {
                               // 32px de alvo (44 no celular): com padding de 4px o
                               // botão tinha ~22 — o menor controle da aba, e é a
                               // única porta do cartão que não depende do card todo.
-                              style={{ display: 'flex', alignItems: 'center', gap: 5, minHeight: isMobile ? 44 : 32, padding: '0 12px', borderRadius: 8, background: T.surface, border: `1px solid ${T.border}`, cursor: 'pointer' }}
+                              style={{ display: 'flex', alignItems: 'center', gap: 5, minHeight: alvo(32, dedo), padding: '0 12px', borderRadius: 8, background: T.surface, border: `1px solid ${T.border}`, cursor: 'pointer' }}
                             >
                               <Eye aria-hidden="true" style={{ width: 12, height: 12, color: T.apoio }} />
                               <span style={{ fontSize: 12, fontWeight: 600, color: T.strong, whiteSpace: 'nowrap' }}>Ver detalhes</span>
@@ -3782,7 +3675,7 @@ export default function Atendimento() {
                           return (
                             <div data-testid={`faixa-jornada-${item.id}`} style={{ borderTop: `1px solid ${N.n2}`, padding: '10px 16px 12px', display: 'flex', alignItems: 'flex-start', gap: 12 }}>
                               <div className="pipeline-scroll" style={{ flex: 1, minWidth: 0 }}>
-                                <div style={{ display: 'flex', alignItems: 'flex-start', minWidth: isMobile ? 620 : 0 }}>
+                                <div style={{ display: 'flex', alignItems: 'flex-start', minWidth: cards ? 620 : 0 }}>
                                   {j.etapas.map((e, i) => (
                                     <Fragment key={e.key}>
                                       {i > 0 && (
@@ -3882,13 +3775,16 @@ export default function Atendimento() {
                   );
                 })}
                 {historyItems.length > histVisible && (
-                  <button
+                  <Botao
+                    variante="fantasma"
+                    tamanho={tamBotao}
+                    larguraCheia
                     onClick={() => setHistVisible(v => v + PAGE_SIZE)}
                     data-testid="button-load-more-history"
-                    style={{ marginTop: 8, padding: '12px 0', width: '100%', borderRadius: 12, border: `1px solid ${T.border}`, background: T.surface, color: T.accentText, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
+                    style={{ borderRadius: 0, boxShadow: `inset 0 1px 0 ${N.n3}` }}
                   >
                     Carregar mais ({historyItems.length - histVisible} restantes)
-                  </button>
+                  </Botao>
                 )}
               </div>
             )}
@@ -4198,7 +4094,7 @@ export default function Atendimento() {
                     // 40 sem borda ao lado de dois quadrados de 40 com borda —
                     // três controles vizinhos, três desenhos.
                     const navBtn = (enabled: boolean): React.CSSProperties => ({
-                      width: isMobile ? 44 : 36, height: isMobile ? 44 : 36, borderRadius: 9,
+                      width: alvo(36, dedo), height: alvo(36, dedo), borderRadius: R.md,
                       border: `1px solid ${T.border}`,
                       backgroundColor: T.surface,
                       cursor: enabled ? 'pointer' : 'not-allowed',
@@ -4574,7 +4470,7 @@ export default function Atendimento() {
                                               color: TOM.perigo.text, fontSize: 13, fontWeight: 700,
                                               cursor: canDecide ? 'pointer' : 'not-allowed', transition: 'all 0.15s',
                                               opacity: canDecide && !pecaRecemAberta ? 1 : 0.5,
-                                              minHeight: isMobile ? 44 : 36,
+                                              minHeight: alvo(36, dedo),
                                               width: isMobile ? '100%' : undefined,
                                             }}
                                             aria-label={`Reprovar para ${sponsor.name}`}
@@ -4593,7 +4489,7 @@ export default function Atendimento() {
                                               cursor: canDecide ? 'pointer' : 'not-allowed', transition: 'all 0.15s',
                                               opacity: canDecide && !pecaRecemAberta ? 1 : 0.5,
                                               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
-                                              minHeight: isMobile ? 44 : 36,
+                                              minHeight: alvo(36, dedo),
                                               width: isMobile ? '100%' : undefined,
                                             }}
                                             aria-label={`Aprovar para ${sponsor.name}`}
@@ -4607,22 +4503,17 @@ export default function Atendimento() {
                                               peça — sai, e a pendência dele deixa de contar.
                                               Se era o único que faltava, a peça segue. */}
                                           {user?.role === "admin" && (
-                                            <button
+                                            <Botao
+                                              variante="secundario"
+                                              tamanho={tamBotao}
+                                              larguraCheia={isMobile}
                                               onClick={() => setDesvincularAlvo({ itemId: selectedItem.id, sponsorId: sponsor.id, sponsorName: sponsor.name || "Patrocinador" })}
                                               disabled={desvincularSponsorMutation.isPending}
                                               title="Desvincular este patrocinador da peça — a aprovação pendente dele deixa de contar (admin)"
                                               data-testid={`button-desvincular-sponsor-${sponsor.id}`}
-                                              style={{
-                                                padding: '8px 12px', borderRadius: 8,
-                                                backgroundColor: T.surface, border: `1px solid ${T.border}`,
-                                                color: T.apoio, fontSize: 13, fontWeight: 700,
-                                                cursor: 'pointer', transition: 'all 0.15s',
-                                                minHeight: 36,
-                                                width: isMobile ? '100%' : undefined,
-                                              }}
                                             >
                                               Desvincular
-                                            </button>
+                                            </Botao>
                                           )}
                                         </div>
                                       )}
@@ -4631,26 +4522,17 @@ export default function Atendimento() {
                                           aguardar decisão. Se a peça já estava "aprovada por
                                           todos", ela volta para a aprovação e a Arte é avisada. */}
                                       {!isPending && !isRejectingThis && podeRevogar && (
-                                        <button
+                                        <Botao
+                                          variante="secundario"
+                                          tamanho={tamBotao}
+                                          icone={Undo2}
+                                          carregando={revertApprovalMutation.isPending}
                                           onClick={() => revertApprovalMutation.mutate({ itemId: selectedItem.id, sponsorId: sponsor.id })}
-                                          disabled={revertApprovalMutation.isPending}
                                           title={`${isApproved ? 'Revogar a aprovação' : 'Reverter a reprovação'} — volta a aguardar decisão${selectedItem.status === 'sponsor_approved' ? '; a peça volta para a aprovação e a Arte é avisada' : ''}`}
                                           data-testid={`button-revert-approval-${sponsor.id}`}
-                                          style={{
-                                            display: 'flex', alignItems: 'center', gap: 6,
-                                            padding: '8px 14px', borderRadius: 8,
-                                            backgroundColor: T.surface, border: `1px solid ${T.border}`,
-                                            color: T.second, fontSize: 13, fontWeight: 700,
-                                            cursor: revertApprovalMutation.isPending ? 'default' : 'pointer',
-                                            opacity: revertApprovalMutation.isPending ? 0.5 : 1,
-                                            minHeight: 36, transition: 'all 0.15s',
-                                          }}
                                         >
-                                          {revertApprovalMutation.isPending
-                                            ? <Loader2 style={{ width: 12, height: 12 }} className="animate-spin" />
-                                            : <Undo2 style={{ width: 12, height: 12 }} />}
                                           {isApproved ? 'Revogar' : 'Reverter'}
-                                        </button>
+                                        </Botao>
                                       )}
                                     </div>
 
@@ -4712,7 +4594,7 @@ export default function Atendimento() {
                                           data-testid={`textarea-reject-reason-${sponsor.id}`}
                                           style={{
                                             width: '100%', boxSizing: 'border-box',
-                                            padding: '10px 12px', fontSize: 13,
+                                            padding: '10px 12px', fontSize: isMobile ? FS.lead : FS.body,
                                             fontFamily: 'inherit', color: T.text,
                                             backgroundColor: T.surface,
                                             border: `1.5px solid ${rejectionReason.trim() ? TOM.perigo.text : T.border}`,
@@ -4742,46 +4624,30 @@ export default function Atendimento() {
 
                                         {/* Botões */}
                                         <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-                                          <button
+                                          <Botao
+                                            variante="secundario"
+                                            tamanho={tamBotao}
                                             onClick={() => { setRejectingSponsorId(null); setRejectionReason(""); }}
-                                            style={{
-                                              flex: 1, height: isMobile ? 44 : 36, borderRadius: 8,
-                                              background: T.surface, border: `1px solid ${T.border}`,
-                                              color: T.apoio, fontSize: 13, fontWeight: 700, cursor: 'pointer',
-                                              transition: 'background 0.12s',
-                                            }}
-                                            onMouseEnter={e => { e.currentTarget.style.background = N.n2; }}
-                                            onMouseLeave={e => { e.currentTarget.style.background = T.surface; }}
+                                            style={{ flex: 1 }}
                                           >
                                             Cancelar
-                                          </button>
-                                          <button
+                                          </Botao>
+                                          {/* Travado pela MESMA régua do Ctrl+Enter
+                                              (motivoCurto); o quanto falta está escrito
+                                              logo acima do botão. */}
+                                          <Botao
+                                            variante="perigo"
+                                            tamanho={tamBotao}
+                                            icone={XCircle}
+                                            carregando={individualRejectMutation.isPending}
                                             onClick={() => individualRejectMutation.mutate({ itemId: selectedItem.id, sponsorId: sponsor.id, reason: rejectionReason })}
-                                            disabled={individualRejectMutation.isPending || motivoCurto(rejectionReason)}
+                                            disabled={motivoCurto(rejectionReason)}
                                             title={motivoCurto(rejectionReason) ? `Explique em pelo menos ${MOTIVO_MIN} caracteres — a Arte precisa saber o que refazer.` : undefined}
                                             data-testid={`button-confirm-reject-${sponsor.id}`}
-                                            style={{
-                                              flex: 2, height: isMobile ? 44 : 36, borderRadius: 8, border: 'none',
-                                              // A aparência segue a MESMA régua do `disabled`
-                                              // (motivoCurto). Olhava só para "vazio": com 1 a 9
-                                              // caracteres o botão ficava vermelho, parecia pronto
-                                              // e não respondia ao clique.
-                                              backgroundColor: motivoCurto(rejectionReason) ? T.border : TOM.perigo.text,
-                                              color: motivoCurto(rejectionReason) ? T.apoio : T.surface,
-                                              fontSize: 13, fontWeight: 800,
-                                              cursor: motivoCurto(rejectionReason) ? 'not-allowed' : 'pointer',
-                                              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                                              transition: 'background-color 0.15s, box-shadow 0.15s',
-                                              boxShadow: motivoCurto(rejectionReason) ? 'none' : '0 2px 8px rgba(220,38,38,0.25)',
-                                            }}
-                                            onMouseEnter={e => { if (!motivoCurto(rejectionReason)) e.currentTarget.style.backgroundColor = TOM.perigo.text; }}
-                                            onMouseLeave={e => { if (!motivoCurto(rejectionReason)) e.currentTarget.style.backgroundColor = TOM.perigo.text; }}
+                                            style={{ flex: 2 }}
                                           >
-                                            {individualRejectMutation.isPending
-                                              ? <><Loader2 style={{ width: 13, height: 13 }} className="animate-spin" />Registrando…</>
-                                              : <><XCircle style={{ width: 13, height: 13 }} />Reprovar e devolver à Arte</>
-                                            }
-                                          </button>
+                                            {individualRejectMutation.isPending ? 'Registrando…' : 'Reprovar e devolver à Arte'}
+                                          </Botao>
                                         </div>
                                       </div>
                                     )}
@@ -4838,7 +4704,7 @@ export default function Atendimento() {
                                       placeholder="Buscar no catálogo (ex.: Crystal)…"
                                       aria-label="Buscar patrocinador no catálogo"
                                       data-testid="input-busca-patrocinador"
-                                      style={{ height: 34, borderRadius: 8, border: `1px solid ${T.bdark}`, padding: "0 10px", fontSize: 13, fontFamily: "inherit", color: T.text, backgroundColor: T.surface }}
+                                      style={{ height: alvo(34, dedo), borderRadius: R.md, border: `1px solid ${T.bdark}`, padding: "0 10px", fontSize: isMobile ? FS.lead : FS.body, fontFamily: "inherit", color: T.text, backgroundColor: T.surface }}
                                     />
                                     {termo.length >= 2 && doCatalogo.length === 0 && (
                                       <p style={{ margin: 0, fontSize: 11.5, color: T.second }}>Nada no catálogo com "{buscaPatrocinador.trim()}" fora desta rodada.</p>
@@ -4890,17 +4756,14 @@ export default function Atendimento() {
                       backgroundColor: T.surface, flexShrink: 0,
                       display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap',
                     }}>
-                      <button
+                      <Botao
+                        variante="fantasma"
+                        tamanho={tamBotao}
                         onClick={() => setDialogOpen(false)}
-                        style={{
-                          height: 36, padding: '0 14px', borderRadius: 9,
-                          border: `1px solid ${T.border}`, backgroundColor: T.surface,
-                          color: T.apoio, fontSize: 13, fontWeight: 600,
-                          cursor: 'pointer', marginRight: 'auto', whiteSpace: 'nowrap',
-                        }}
+                        style={{ marginRight: 'auto' }}
                       >
                         Fechar
-                      </button>
+                      </Botao>
 
                       {/* Atalho de peça inteira: só enquanto há decisões em
                           aberto. Antes aparecia justamente quando allApproved — e
@@ -4917,25 +4780,18 @@ export default function Atendimento() {
                           entre RETRABALHO e trabalho novo — foi assim que a #1527
                           se escondeu. */}
                       {dialogSponsors.length > 0 && !allApproved && !allDecided && (
-                        <button
+                        <Botao
+                          variante="secundario"
+                          tamanho={tamBotao}
+                          icone={CheckCircle}
+                          carregando={sponsorApproveMutation.isPending}
                           onClick={() => { if (!decisaoTravada()) sponsorApproveMutation.mutate(selectedItem.id); }}
-                          disabled={sponsorApproveMutation.isPending || !canDecide || pecaRecemAberta}
+                          disabled={!canDecide || pecaRecemAberta}
                           title={!canDecide ? "Somente Atendimento e administradores decidem aprovações" : `Aprova ${selectedItem.displayId} para TODOS os patrocinadores de uma vez`}
                           data-testid="button-approve-item"
-                          style={{
-                            height: 36, padding: '0 14px', borderRadius: 9,
-                            border: `1px solid ${T.border}`, backgroundColor: T.surface,
-                            color: T.text, fontSize: 13, fontWeight: 700,
-                            cursor: canDecide ? 'pointer' : 'not-allowed',
-                            display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap',
-                            opacity: sponsorApproveMutation.isPending || !canDecide || pecaRecemAberta ? 0.5 : 1,
-                          }}
                         >
-                          {sponsorApproveMutation.isPending
-                            ? <Loader2 style={{ width: 14, height: 14 }} className="animate-spin" />
-                            : <CheckCircle style={{ width: 14, height: 14 }} />}
                           Aprovar para todos
-                        </button>
+                        </Botao>
                       )}
 
                       {(() => {
@@ -4943,21 +4799,16 @@ export default function Atendimento() {
                         const hasNext = qIdx >= 0 && qIdx < reviewQueue.length - 1;
                         if (!hasNext) return null;
                         return (
-                          <button
+                          <Botao
+                            variante="primario"
+                            tamanho={tamBotao}
                             onClick={() => goToAdjacentItem(1)}
                             data-testid="button-next-item-footer"
                             title="Abrir a próxima peça da fila sem voltar para a lista"
-                            style={{
-                              height: 36, padding: '0 16px', borderRadius: 9,
-                              border: `1px solid ${T.text}`, backgroundColor: T.text,
-                              color: T.surface, fontSize: 13, fontWeight: 700,
-                              cursor: 'pointer',
-                              display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap',
-                            }}
                           >
                             Próxima peça
                             <ChevronRight aria-hidden="true" style={{ width: 14, height: 14 }} />
-                          </button>
+                          </Botao>
                         );
                       })()}
                     </div>
@@ -4992,15 +4843,18 @@ export default function Atendimento() {
             </DialogDescription>
           </div>
           <ModalFooter>
-            <button
+            {/* Perigo: tira o patrocinador da peça e a pendência dele deixa
+                de contar. */}
+            <Botao
+              variante="perigo"
+              tamanho="toque"
+              larguraCheia
+              carregando={desvincularSponsorMutation.isPending}
               onClick={() => { if (desvincularAlvo) desvincularSponsorMutation.mutate({ itemId: desvincularAlvo.itemId, sponsorId: desvincularAlvo.sponsorId }); }}
-              disabled={desvincularSponsorMutation.isPending}
               data-testid="button-confirm-desvincular"
-              style={{ width: '100%', height: 44, borderRadius: 9, backgroundColor: T.text, border: 'none', color: T.surface, fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
             >
-              {desvincularSponsorMutation.isPending && <Loader2 style={{ width: 14, height: 14 }} className="animate-spin" />}
               Desvincular
-            </button>
+            </Botao>
           </ModalFooter>
         </DialogContent>
       </Dialog>
@@ -5039,30 +4893,28 @@ export default function Atendimento() {
             </DialogDescription>
           </div>
           <ModalFooter>
-            <button
+            {/* TINTA, não verde: verde é o ESTADO 'aprovado' nesta tela — o
+                que a peça vira DEPOIS da decisão. O CTA diz o resultado e
+                para quem (rodada 4). */}
+            <Botao
+              variante="primario"
+              tamanho="toque"
+              larguraCheia
+              icone={CheckCircle}
+              carregando={individualApproveMutation.isPending}
               onClick={() => {
                 if (confirmApproveIndividual) {
                   individualApproveMutation.mutate({ itemId: confirmApproveIndividual.itemId, sponsorId: confirmApproveIndividual.sponsorId });
                   setConfirmApproveIndividual(null);
                 }
               }}
-              disabled={individualApproveMutation.isPending}
               data-testid="button-confirm-approve-individual"
-              // TINTA. Verde e o ESTADO 'aprovado' nesta tela — o que a peca
-              // vira DEPOIS da decisao. Pintar de verde o botao que ainda vai
-              // decidir usa a cor do resultado para fazer o pedido.
-              style={{ width: '100%', height: 44, borderRadius: 9, backgroundColor: T.text, border: 'none', color: T.surface, fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
             >
-              <CheckCircle style={{ width: 15, height: 15 }} />
-              {/* O CTA diz o resultado e para quem (rodada 4). */}
               {`Aprovar para ${confirmApproveIndividual?.sponsorName ?? 'o patrocinador'}`}
-            </button>
-            <button
-              onClick={() => setConfirmApproveIndividual(null)}
-              style={{ width: '100%', height: 36, borderRadius: 8, background: 'none', border: 'none', color: T.second, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
-            >
+            </Botao>
+            <Botao variante="fantasma" larguraCheia onClick={() => setConfirmApproveIndividual(null)}>
               Cancelar
-            </button>
+            </Botao>
           </ModalFooter>
         </DialogContent>
       </Dialog>
@@ -5096,27 +4948,25 @@ export default function Atendimento() {
             </DialogDescription>
           </div>
           <ModalFooter>
-            <button
+            {/* TINTA, não verde: verde é o ESTADO 'aprovado' nesta tela — o
+                que a peça vira DEPOIS da decisão. */}
+            <Botao
+              variante="primario"
+              tamanho="toque"
+              larguraCheia
+              icone={CheckCircle}
+              carregando={batchSponsorMutation.isPending}
               onClick={() => {
                 batchSponsorMutation.mutate({ sponsorId: batchSponsorId, eventId: batchEventId, action: "approve" });
                 setConfirmApproveBatch(false);
               }}
-              disabled={batchSponsorMutation.isPending}
               data-testid="button-confirm-batch-approve"
-              // TINTA. Verde e o ESTADO 'aprovado' nesta tela — o que a peca
-              // vira DEPOIS da decisao. Pintar de verde o botao que ainda vai
-              // decidir usa a cor do resultado para fazer o pedido.
-              style={{ width: '100%', height: 44, borderRadius: 9, backgroundColor: T.text, border: 'none', color: T.surface, fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
             >
-              <CheckCircle style={{ width: 15, height: 15 }} />
               {`Aprovar ${batchSelectedItemIds.size} ${batchSelectedItemIds.size === 1 ? 'peça' : 'peças'} para ${batchSponsorNome}`}
-            </button>
-            <button
-              onClick={() => setConfirmApproveBatch(false)}
-              style={{ width: '100%', height: 36, borderRadius: 8, background: 'none', border: 'none', color: T.second, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
-            >
+            </Botao>
+            <Botao variante="fantasma" larguraCheia onClick={() => setConfirmApproveBatch(false)}>
               Cancelar
-            </button>
+            </Botao>
           </ModalFooter>
         </DialogContent>
       </Dialog>
@@ -5141,7 +4991,7 @@ export default function Atendimento() {
           // A CONTA certa é `100vh − 48` no Content (24px de respiro em cima e
           // 24 embaixo, simétrico porque o Radix centra), com coluna flex: o
           // cabeçalho não encolhe e a área da imagem fica com o que sobrar.
-          style={{ maxWidth: 900, width: '95vw', borderRadius: 12, overflow: 'hidden', maxHeight: 'calc(100vh - 48px)', display: 'flex', flexDirection: 'column' }}
+          style={{ width: 'min(900px, calc(100vw - 32px))', maxWidth: 'none', borderRadius: 12, overflow: 'hidden', maxHeight: 'calc(100vh - 48px)', display: 'flex', flexDirection: 'column' }}
         >
           <DialogTitle className="sr-only">Arte da peça</DialogTitle>
           <DialogDescription className="sr-only">Visualização ampliada da arte enviada</DialogDescription>

@@ -1,5 +1,5 @@
 // Leituras de peças: a lista (com delta e recorte), a lixeira e as filas das telas.
-import type { Express } from "express";
+import type { Express, Request } from "express";
 import { storage, cabeNaJanelaDeEntregues } from "../../storage";
 import { ITEM_STATUSES, type Item } from "@shared/schema";
 import { eventoComDatasDoKit, pecaVisivelPara } from "@shared/kit";
@@ -15,7 +15,7 @@ import {
 import { ehBookCompleto, STATUS_CONHECIDOS as STATUS_DA_REGUA } from "@shared/fluxo-peca";
 import { requireAuth } from "../shared";
 import { COMPLEMENT_ALLOWED_STATUSES, quemVe } from "./comum";
-import { responderFalha } from "../../erros";
+import { responderFalha, camposDoErro } from "../../erros";
 
 // Enriquece uma lista de itens com { event, sponsors } fazendo apenas 4 queries
 // totais (eventos, patrocinadores, vínculos item↔patrocinador e aprovações em
@@ -112,7 +112,7 @@ async function enrichItemsWithEventsAndSponsors(
  * vez por forma; o cliente reconstrói as peças idênticas. Sem o parâmetro a
  * resposta é a de sempre, byte a byte — consumidor antigo segue funcionando.
  */
-const querCompacto = (req: any): boolean => req.query?.formato === FORMATO_COMPACTO;
+const querCompacto = (req: Request): boolean => req.query?.formato === FORMATO_COMPACTO;
 
 /**
  * `?campos=trilha` (PERFORMANCE, 2ª rodada — ver shared/itens-compactos.ts):
@@ -120,7 +120,7 @@ const querCompacto = (req: any): boolean => req.query?.formato === FORMATO_COMPA
  * nenhum. É a única projeção; qualquer outro valor de `?campos=` é ignorado e
  * a resposta sai como sempre.
  */
-const querTrilha = (req: any): boolean => req.query?.campos === CAMPOS_DA_TRILHA;
+const querTrilha = (req: Request): boolean => req.query?.campos === CAMPOS_DA_TRILHA;
 
 /**
  * O TETO DE SEGURANÇA — com aviso, nunca com `slice` (um corte silencioso
@@ -138,7 +138,7 @@ const querTrilha = (req: any): boolean => req.query?.campos === CAMPOS_DA_TRILHA
 const TETO_DO_ACERVO = 2000;
 const TETO_AVISO_MS = 5 * 60 * 1000;
 const ultimoAviso = new Map<string, number>();
-function avisarAcervoInteiro(req: any, quantas: number, trilha: boolean): void {
+function avisarAcervoInteiro(req: Request, quantas: number, trilha: boolean): void {
   if (quantas <= TETO_DO_ACERVO) return;
   const caminho = `${req.headers?.referer ?? "?"}|${trilha ? "trilha" : "cheio"}`;
   const agora = Date.now();
@@ -194,7 +194,7 @@ async function maesDosComplementosMudados(mudadas: any[], entra: (mae: any) => b
 
 /** `since` válido e recente (<24h), ou null → full fetch. Velho demais, o
  *  delta seria a lista inteira com overhead a mais. */
-function lerSince(req: any): Date | null {
+function lerSince(req: Request): Date | null {
   const sinceCru = typeof req.query?.since === "string" ? new Date(req.query.since) : null;
   return sinceCru && !isNaN(sinceCru.getTime()) && Date.now() - sinceCru.getTime() < 24 * 60 * 60 * 1000
     ? sinceCru
@@ -248,7 +248,7 @@ type RecorteDePecas = {
  * O recorte é aplicado ANTES do enriquecimento e DEPOIS de pecaVisivelPara —
  * a regra do Kit continua sendo a mesma para a lista recortada.
  */
-function lerRecorte(req: any): { ok: true; recorte: RecorteDePecas | null } | { ok: false; erro: string } {
+function lerRecorte(req: Request): { ok: true; recorte: RecorteDePecas | null } | { ok: false; erro: string } {
   const lista = (v: unknown): string[] | null => {
     if (v === undefined) return null;
     const bruto = Array.isArray(v) ? v.join(",") : String(v);
@@ -358,8 +358,8 @@ async function enrichItemsWithComplements(list: any[]): Promise<any[]> {
     });
 
     return await attachParents(comMaes);
-  } catch (error: any) {
-    if (error?.code === "42703") {
+  } catch (error) {
+    if (camposDoErro(error).code === "42703") {
       if (!avisouMigracaoComplemento) {
         avisouMigracaoComplemento = true;
         console.error("[COMPLEMENTOS] Migração pendente — rode npm run db:push. Listagens seguem sem o bloco de complemento.");
@@ -494,7 +494,7 @@ export function registrarListaEExcluidas(app: Express): void {
       }
       const itemsWithEventsAndSponsors = await enrichItemsWithEventsAndSponsors(allItems);
       res.json(compacto ? { agora, ...compactarPecas(itemsWithEventsAndSponsors) } : itemsWithEventsAndSponsors);
-    } catch (error: any) {
+    } catch (error) {
       console.error("[items] erro ao listar as peças:", error); res.status(500).json({ error: "Não foi possível carregar as peças agora. Tente de novo em instantes." });
     }
   });
@@ -508,7 +508,7 @@ export function registrarListaEExcluidas(app: Express): void {
       const deletedItems = (await storage.getDeletedItems()).filter((i) => pecaVisivelPara(quemVe(req), i));
       const enriched = await enrichItemsWithEventsAndSponsors(deletedItems);
       res.json(querCompacto(req) ? compactarPecas(enriched) : enriched);
-    } catch (error: any) {
+    } catch (error) {
       console.error("[items] erro ao listar as peças excluídas:", error); res.status(500).json({ error: "Não foi possível carregar as peças excluídas agora. Tente de novo em instantes." });
     }
   });
@@ -522,7 +522,7 @@ export function registrarFilasEPorEvento(app: Express): void {
       const pendingItems = (await storage.getPendingItems()).filter((i) => pecaVisivelPara(quemVe(req), i));
       const itemsWithEventsAndSponsors = await enrichItemsWithEventsAndSponsors(pendingItems);
       res.json(querCompacto(req) ? compactarPecas(itemsWithEventsAndSponsors) : itemsWithEventsAndSponsors);
-    } catch (error: any) {
+    } catch (error) {
       console.error("[items] erro ao listar as peças pendentes:", error); res.status(500).json({ error: "Não foi possível carregar as peças pendentes agora. Tente de novo em instantes." });
     }
   });
@@ -623,7 +623,7 @@ export function registrarFilasEPorEvento(app: Express): void {
       }
 
       res.json(result);
-    } catch (error: any) {
+    } catch (error) {
       responderFalha(res, error, "GET /api/items/resubmission-needed");
     }
   });
@@ -677,7 +677,7 @@ export function registrarFilasEPorEvento(app: Express): void {
       // Atendimento, não uma peça imprimível (ver shared/fluxo-peca).
       const fila = itemsWithEventsAndSponsors.filter((i: any) => !ehBookCompleto(i));
       res.json(compacto ? { agora, ...compactarPecas(fila) } : fila);
-    } catch (error: any) {
+    } catch (error) {
       responderFalha(res, error, "GET /api/items/approved");
     }
   });
@@ -722,7 +722,7 @@ export function registrarFilasEPorEvento(app: Express): void {
       res.json(querCompacto(req)
         ? compactarAprovacoes({ sponsorsByItem, approvalsByItem })
         : { sponsorsByItem, approvalsByItem });
-    } catch (error: any) {
+    } catch (error) {
       responderFalha(res, error, "GET /api/items/batch-approval-data", 400);
     }
   });
@@ -732,7 +732,7 @@ export function registrarFilasEPorEvento(app: Express): void {
       const items = (await storage.getItemsByEvent(req.params.eventId)).filter((i) => pecaVisivelPara(quemVe(req), i));
       const itemsWithSponsors = await enrichItemsWithEventsAndSponsors(items);
       res.json(itemsWithSponsors);
-    } catch (error: any) {
+    } catch (error) {
       responderFalha(res, error, "GET /api/items/:eventId");
     }
   });

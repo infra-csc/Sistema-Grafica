@@ -2,6 +2,7 @@
 import type { Express } from "express";
 import { storage } from "../../storage";
 import { requireAuth, broadcast, createAuditLog } from "../shared";
+import type { QuemAge } from "./comum";
 import { notifyBookSaved, descreverEnvio, type BookEmailResult } from "../../services/bookEmailNotification";
 import { destinatariosDoCanal } from "../../services/destinatarios";
 // A tela de Versões guarda o quadro calculado por 30 s. Toda escrita que mude
@@ -130,7 +131,7 @@ export const destinatariosNomeados = async () => {
  * também não some: quem chama grava na trilha e conta para a tela.
  */
 export async function avisarBookPorEmail(
-  req: any,
+  req: QuemAge,
   eventId: string,
   bookUrl: string,
   count: number,
@@ -273,7 +274,7 @@ export function registrarBook(app: Express): void {
       }
       broadcast({ type: "items_book_updated", eventId: req.params.eventId, count });
       res.json({ updated: count, aviso });
-    } catch (error: any) {
+    } catch (error) {
       responderFalha(res, error, "POST /api/events/:eventId/book");
     }
   });
@@ -319,7 +320,7 @@ export function registrarBook(app: Express): void {
         });
       }
       res.json({ aviso, mensagem: descreverEnvio(aviso) });
-    } catch (error: any) {
+    } catch (error) {
       responderFalha(res, error, "POST /api/events/:eventId/book/notify");
     }
   });

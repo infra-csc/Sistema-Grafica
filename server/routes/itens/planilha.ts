@@ -1,5 +1,5 @@
 // Exportar e importar peças por planilha (.xlsx).
-import type { Express } from "express";
+import type { Express, Request, Response } from "express";
 import { storage } from "../../storage";
 import { requireAuth } from "../shared";
 import { responderErro, corpoEventoFechado } from "../../erros";
@@ -9,7 +9,7 @@ import { motivoEventoFechado } from "../eventoFinalizado";
 import { canCreateItemsFor } from "./comum";
 
 /** As duas travas da planilha (preview e confirmar): quem pode e evento aberto. */
-async function barraImportacao(req: any, res: any): Promise<boolean> {
+async function barraImportacao(req: Request, res: Response): Promise<boolean> {
   try {
     if (!(await canCreateItemsFor(req, req.params.id))) {
       res.status(403).json({ error: "Sem permissão para importar itens neste evento" });

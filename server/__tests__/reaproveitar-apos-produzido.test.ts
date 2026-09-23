@@ -34,7 +34,7 @@ const rota = (() => {
 describe("quem pode, e quando", () => {
   it("após Produzido, só Solicitação e admin — a Gráfica ouve o porquê", () => {
     expect(rota).toContain('const ehProduzida = current.status === "produced" || current.status === "produzido";');
-    expect(rota).toContain('&& podeTransicionar(current.status, "ajustar-reaproveitamento-da-produzida", (req as any).userRole);');
+    expect(rota).toContain('&& podeTransicionar(current.status, "ajustar-reaproveitamento-da-produzida", req.userRole);');
     // quem: Solicitação e admin (a tabela em shared/maquina-de-estados.ts)
     for (const papel of ["solicitacao", "admin"]) expect(podeTransicionar("produced", "ajustar-reaproveitamento-da-produzida", papel)).toBe(true);
     expect(podeTransicionar("produced", "ajustar-reaproveitamento-da-produzida", "grafica")).toBe(false);

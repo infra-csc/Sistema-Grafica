@@ -24,7 +24,7 @@ import {
 } from "../shared";
 import { motivoEventoFechado, barraEventoFinalizado, contadorDeBloqueio } from "../eventoFinalizado";
 import { lerMotivoDevolucao, type DestinoDevolucao, lerDestinoDevolucao } from "./comum";
-import { responderFalha } from "../../erros";
+import { responderFalha, camposDoErro } from "../../erros";
 import { vemDeOrigemValida } from "@shared/maquina-de-estados";
 
 /**
@@ -283,10 +283,11 @@ export function registrarRevisao(app: Express): void {
       broadcast({ type: "notification_created", notification });
       
       res.json(item);
-    } catch (error: any) {
+    } catch (error) {
       // Erro nosso (404 de dentro da transação) tem frase pronta; o resto não
       // vaza texto do banco para a tela.
-      if ((error as any)?.httpStatus) return res.status((error as any).httpStatus).json({ error: error.message });
+      const erro = camposDoErro(error);
+      if (erro.httpStatus) return res.status(erro.httpStatus).json({ error: erro.message });
       sendSensitiveError(res, error, "Liberar na Revisão Final", 500);
     }
   });
@@ -388,7 +389,7 @@ export function registrarRevisao(app: Express): void {
       broadcast({ type: "notification_created", notification });
 
       res.json(item);
-    } catch (error: any) {
+    } catch (error) {
       responderFalha(res, error, "PATCH /api/items/:id/arte-reject", 400);
     }
   });
@@ -451,7 +452,7 @@ export function registrarRevisao(app: Express): void {
       // `destinoDevolvido`: para onde a peça FOI de fato (molde volta sempre
       // para o começo da Arte, seja qual for o pedido) — é o que o aviso diz.
       res.json({ ...item, destinoDevolvido: destinoEfetivo });
-    } catch (error: any) {
+    } catch (error) {
       sendSensitiveError(res, error, "Devolver para a Arte", 500);
     }
   });
@@ -545,7 +546,7 @@ export function registrarRevisao(app: Express): void {
       broadcast({ type: "item_updated", item });
       broadcast({ type: "notification_created", notification });
       res.json(item);
-    } catch (error: any) {
+    } catch (error) {
       responderFalha(res, error, "PATCH /api/items/:id/return-to-review", 400);
     }
   });
@@ -646,7 +647,7 @@ export function registrarRevisao(app: Express): void {
       // `errors` traz o MOTIVO de cada recusa (a tela o mostra na linha);
       // `destinos` diz para onde cada peça foi de fato (molde: sempre "arte").
       res.json({ success: results.length, errors, items: results, failedItemIds: errors.map(e => e.itemId), destinos });
-    } catch (error: any) {
+    } catch (error) {
       sendSensitiveError(res, error, "Devolver em lote para a Arte", 500);
     }
   });

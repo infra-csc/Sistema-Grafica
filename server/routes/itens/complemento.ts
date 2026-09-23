@@ -3,7 +3,7 @@ import type { Express } from "express";
 import { z } from "zod";
 import { storage } from "../../storage";
 import { requireAuth, broadcast, updateEventStatus } from "../shared";
-import { corpoEventoFechado, fraseDoZod } from "../../erros";
+import { corpoEventoFechado, fraseDoZod, camposDoErro } from "../../erros";
 import { motivoEventoFechado } from "../eventoFinalizado";
 import { COMPLEMENT_ALLOWED_STATUSES } from "./comum";
 import { criarComplemento, desfazerComplemento } from "../../services/complemento-da-peca";
@@ -121,8 +121,9 @@ export function registrarComplemento(app: Express): void {
       broadcast({ type: "notification_created", notification });
 
       res.status(201).json(child);
-    } catch (error: any) {
-      if (error?.code === "42703") {
+    } catch (error) {
+      const erro = camposDoErro(error);
+      if (erro.code === "42703") {
         return res.status(503).json({
           error: "Migração pendente: peça ao administrador rodar npm run db:push.",
           code: "MIGRATION_PENDING",
@@ -134,7 +135,7 @@ export function registrarComplemento(app: Express): void {
       console.error("[COMPLEMENTOS] falha ao criar complemento:", error);
       // Erro lançado por nós (com httpStatus) já traz a frase; o resto não vaza
       // o texto do banco para a tela.
-      if (error?.httpStatus) return res.status(error.httpStatus).json({ error: error.message });
+      if (erro.httpStatus) return res.status(erro.httpStatus).json({ error: erro.message });
       res.status(500).json({ error: "Não foi possível criar o complemento agora. Tente de novo em instantes." });
     }
   });
@@ -220,8 +221,9 @@ export function registrarComplemento(app: Express): void {
       broadcast({ type: "notification_created", notification });
 
       res.json({ success: true, itemId: item.id, displayId: item.displayId, parentDisplayId: parentLabel });
-    } catch (error: any) {
-      if (error?.code === "42703") {
+    } catch (error) {
+      const erro = camposDoErro(error);
+      if (erro.code === "42703") {
         return res.status(503).json({
           error: "Migração pendente: peça ao administrador rodar npm run db:push.",
           code: "MIGRATION_PENDING",
@@ -230,7 +232,7 @@ export function registrarComplemento(app: Express): void {
       console.error("[COMPLEMENTOS] falha ao cancelar complemento:", error);
       // Erro lançado por nós (com httpStatus) já traz a frase; o resto não vaza
       // o texto do banco para a tela.
-      if (error?.httpStatus) return res.status(error.httpStatus).json({ error: error.message });
+      if (erro.httpStatus) return res.status(erro.httpStatus).json({ error: erro.message });
       res.status(500).json({ error: "Não foi possível cancelar o complemento agora. Tente de novo em instantes." });
     }
   });

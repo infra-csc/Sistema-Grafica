@@ -141,7 +141,7 @@ export function registrarEdicao(app: Express): void {
       await avisarDepoisDaEdicao(currentItem, item, validatedData, mudouQtd);
 
       res.json(item);
-    } catch (error: any) {
+    } catch (error) {
       responderErro(res, error, "editar peça");
     }
   });

@@ -143,7 +143,7 @@ export function registrarTransferencia(app: Express): void {
       }
       if (ligadaAoPedido) avisos.push("A peça deixou de atender a solicitação do Atendimento no evento de origem, que voltou a ficar aberta.");
       res.json({ ...atualizado, avisos, patrocinadoresFora });
-    } catch (error: any) {
+    } catch (error) {
       responderErro(res, error, "transferir peça de evento");
     }
   });

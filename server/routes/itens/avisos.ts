@@ -39,7 +39,7 @@ export function registrarAvisos(app: Express): void {
         : r.status === "simulado" ? "Modo de simulação ligado: o e-mail foi montado e não enviado."
         : `Aviso NÃO enviado: ${r.motivo ?? r.status}`;
       res.json({ ...r, mensagem });
-    } catch (error: any) {
+    } catch (error) {
       responderFalha(res, error, "POST /api/revisao/digest/enviar");
     }
   });
@@ -63,7 +63,7 @@ export function registrarAvisos(app: Express): void {
         : r.status === "simulado" ? "Modo de simulação ligado: o e-mail foi montado e não enviado."
         : `Aviso NÃO enviado: ${r.motivo ?? r.status}`;
       res.json({ ...r, mensagem });
-    } catch (error: any) {
+    } catch (error) {
       responderFalha(res, error, "POST /api/gestao/digest/enviar");
     }
   });
@@ -105,7 +105,7 @@ export function registrarAvisos(app: Express): void {
     }
     try {
       res.json(await verificarConsistencia());
-    } catch (error: any) {
+    } catch (error) {
       responderFalha(res, error, "GET /api/admin/consistencia");
     }
   });
@@ -143,7 +143,7 @@ export function registrarAvisos(app: Express): void {
         canais,
         edicoes: await historicoDeEnvios(),
       });
-    } catch (error: any) {
+    } catch (error) {
       responderFalha(res, error, "GET /api/admin/notificacoes");
     }
   });
@@ -175,7 +175,7 @@ export function registrarAvisos(app: Express): void {
       await createAuditLog(req, "added", "gestao" as any, canal,
         `Destinatário "${limpo}" adicionado ao aviso "${CANAL_META[canal as CanalDeAviso].titulo}"`);
       res.status(201).json(criado);
-    } catch (error: any) {
+    } catch (error) {
       responderFalha(res, error, "POST /api/admin/notificacoes/destinatarios");
     }
   });
@@ -190,7 +190,7 @@ export function registrarAvisos(app: Express): void {
       await createAuditLog(req, "deleted", "gestao" as any, removido.canal,
         `Destinatário "${removido.email}" removido do aviso "${CANAL_META[removido.canal as CanalDeAviso]?.titulo ?? removido.canal}"`);
       res.json({ ok: true, removido });
-    } catch (error: any) {
+    } catch (error) {
       responderFalha(res, error, "DELETE /api/admin/notificacoes/destinatarios/:id");
     }
   });

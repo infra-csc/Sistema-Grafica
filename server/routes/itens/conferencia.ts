@@ -38,7 +38,7 @@ export function registrarConferencia(app: Express): void {
       // A lista é a MESMA da entrega logo abaixo, de propósito: as duas etapas
       // finais do fluxo passaram a ter o mesmo conjunto de donos. Produzir
       // continua só com grafica|admin — quem produz é quem tem a impressora.
-      if (!["grafica", "solicitacao", "admin"].includes((req as any).userRole ?? "")) {
+      if (!["grafica", "solicitacao", "admin"].includes(req.userRole ?? "")) {
         return res.status(403).json({ error: "Sem permissão para conferir" });
       }
       const { conferencePhotoUrl, qty, notes } = req.body ?? {};
@@ -115,7 +115,7 @@ export function registrarConferencia(app: Express): void {
       await createAuditLog(req, 'updated', 'item', req.params.id, trilha);
       broadcast({ type: "item_updated", item });
       res.json(item);
-    } catch (error: any) {
+    } catch (error) {
       sendSensitiveError(res, error, "Conferir peça", 500);
     }
   });

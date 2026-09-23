@@ -128,7 +128,7 @@ export function registrarCriacao(app: Express): void {
         return res.status(201).json({ ...item, vinculoDoPedido: vinculo.erro ? { ok: false, erro: vinculo.erro } : { ok: true } });
       }
       res.status(201).json(item);
-    } catch (error: any) {
+    } catch (error) {
       responderErro(res, error, "criar peça");
     }
   });
@@ -187,7 +187,7 @@ export function registrarCriacao(app: Express): void {
             if (medida !== undefined) parsed.measurement = medida;
           }
           return parsed;
-        } catch (error: any) {
+        } catch (error) {
           if (error instanceof z.ZodError) throw erroPublico(400, `Linha ${index + 1}: ${fraseDoZod(error)}`);
           throw error;
         }
@@ -236,7 +236,7 @@ export function registrarCriacao(app: Express): void {
       await updateEventStatus(eventoDoLote).catch((e) => console.error("[lote] updateEventStatus", e));
 
       res.status(201).json(createdItems);
-    } catch (error: any) {
+    } catch (error) {
       responderErro(res, error, "criar peças em lote");
     }
   });
@@ -337,7 +337,7 @@ export function registrarClonagem(app: Express): void {
       const validated = cloned.map((item, i) => {
         try {
           return insertItemSchema.parse(item);
-        } catch (e: any) {
+        } catch (e) {
           if (e instanceof z.ZodError) throw erroPublico(400, `Peça ${sourceItems[i]?.displayId ?? i + 1} (${item.type}): ${fraseDoZod(e)}`);
           throw e;
         }
@@ -364,7 +364,7 @@ export function registrarClonagem(app: Express): void {
       await updateEventStatus(targetEvent.id);
 
       res.status(201).json({ cloned: created.length, items: created, deixadasDeFora });
-    } catch (error: any) {
+    } catch (error) {
       responderErro(res, error, "clonar peças");
     }
   });

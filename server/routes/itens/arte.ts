@@ -23,6 +23,7 @@ import { urlDeThumbValida, ERRO_THUMB_FORA_DO_STORAGE } from "../thumb-url";
 import { barraEventoFinalizado } from "../eventoFinalizado";
 import { registrarSaidaDaImpressora, revogarAprovacoesEstritas } from "./comum";
 import { vemDeOrigemValida } from "@shared/maquina-de-estados";
+import { mensagemDoErro } from "../../erros";
 
 /** arquivo final e troca de thumb. */
 export function registrarArte(app: Express): void {
@@ -97,7 +98,7 @@ export function registrarArte(app: Express): void {
       broadcast({ type: "notification_created", notification });
       
       res.json(item);
-    } catch (error: any) {
+    } catch (error) {
       sendSensitiveError(res, error, "Enviar arquivo final", 500);
     }
   });
@@ -199,7 +200,7 @@ export function registrarArte(app: Express): void {
 
       broadcast({ type: "item_updated", item });
       res.json(item);
-    } catch (error: any) {
+    } catch (error) {
       sendSensitiveError(res, error, "Trocar thumb", 500);
     }
   });
@@ -353,15 +354,15 @@ export function registrarArte(app: Express): void {
           broadcast({ type: "production_updated", item: aindaNaoImpressos[0] });
           broadcast({ type: "notification_created", notification: notifCompl });
         }
-      } catch (e: any) {
+      } catch (e) {
         // Migração pendente (42703) ou falha na propagação não pode derrubar a
         // troca de arquivo da peça principal, que já foi commitada.
-        console.error("[COMPLEMENTOS] falha ao propagar arquivo final:", e?.message ?? e);
+        console.error("[COMPLEMENTOS] falha ao propagar arquivo final:", mensagemDoErro(e));
       }
 
       // `voltouParaRevisao`: a tela diz no aviso que a peça saiu da Gráfica.
       res.json({ ...item, voltouParaRevisao: voltaParaRevisao });
-    } catch (error: any) {
+    } catch (error) {
       sendSensitiveError(res, error, "Trocar arquivo final", 500);
     }
   });

@@ -32,7 +32,7 @@ export function registrarEtiquetasImpressas(app: Express): void {
         )
       );
       res.json({ success: true, count: impressas.length });
-    } catch (error: any) {
+    } catch (error) {
       res.status(500).json({ error: "Não foi possível registrar a impressão das etiquetas" });
     }
   });

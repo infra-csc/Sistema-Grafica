@@ -137,7 +137,7 @@ describe("1 · [GRAVE] start-production: dois lançamentos na mesma peça dividi
     // …e a resposta rápida do evento finalizado (IMPRESSAS_EM_EVENTO_REALIZADO), repetida sobre a linha travada.
     expect(semComentario(PRODUCTION)).toContain("if (motivoFechado && eventoBarraImpressas(motivoFechado, before.status)) {");
     expect(semComentario(PRODUCTION).replace("eventoBarraImpressas(motivoFechado, antes.status)", "")).not.toMatch(/antes\.(quantityProduced|impressaoPorMaquina|status|reuseQty)/);
-    expect(ITEMS).toContain("if ((error as any)?.httpStatus) return res.status((error as any).httpStatus).json((error as any).corpo ?? { error: error.message });");
+    expect(ITEMS).toContain("if (erro.httpStatus) return res.status(erro.httpStatus).json(erro.corpo ?? { error: erro.message });");
   });
 });
 

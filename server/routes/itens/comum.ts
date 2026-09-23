@@ -2,6 +2,7 @@
 // APOIO DAS ROTAS DE PEÇA — o que mais de um arquivo de server/routes/itens/
 // usa. O que só uma rota usa mora junto dela, não aqui.
 // ─────────────────────────────────────────────────────────────────────────────
+import type { Request } from "express";
 import { db } from "../../db";
 import { storage } from "../../storage";
 import { partesAtivas, partesDaPeca } from "@shared/impressao-dividida";
@@ -14,6 +15,9 @@ import { createAuditLog, resolveActor } from "../shared";
 import { invalidarCacheDeVersoes } from "../versoes";
 import { COMPLEMENTAVEL } from "@shared/maquina-de-estados";
 
+/** Quem faz o gesto: o par (nome, id) que vai para a trilha e o diário. */
+export type QuemAge = Pick<Request, "userName" | "userId">;
+
 // ─── REGISTRO DE IMPRESSÃO POR MÁQUINA (dono, 14/09) ─────────────────────────
 //
 // Cada gesto da Gráfica na máquina vira uma linha em registros_de_impressao — é
@@ -23,7 +27,7 @@ import { COMPLEMENTAVEL } from "@shared/maquina-de-estados";
 // operador não pode ver um erro por causa disso — fica no log do servidor.
 // Sem máquina (chamador antigo de start-production) não há o que anotar.
 export async function registrarImpressao(
-  req: any,
+  req: QuemAge,
   dado: { itemId: string; maquina: string | null | undefined; tipo: "inicio" | "troca" | "parcial" | "conclusao" | "pausa"; quantidade: number; totalDepois: number | null },
 ): Promise<void> {
   if (!dado.maquina) return;
@@ -52,7 +56,7 @@ export async function registrarImpressao(
  * com parte ativa — quantidade 0, as impressas no total. Sem ela o diário e o
  * resumo "ainda na máquina" continuavam contando a peça na impressora.
  */
-export async function registrarSaidaDaImpressora(req: any, peca: { id: string; status?: string | null; printMachine?: string | null; impressaoPorMaquina?: unknown; quantity?: number | null; reuseQty?: number | null; isReuse?: boolean | null; quantityProduced?: number | null }): Promise<void> {
+export async function registrarSaidaDaImpressora(req: QuemAge, peca: { id: string; status?: string | null; printMachine?: string | null; impressaoPorMaquina?: unknown; quantity?: number | null; reuseQty?: number | null; isReuse?: boolean | null; quantityProduced?: number | null }): Promise<void> {
   if (peca.status !== "inProduction" && peca.status !== "em_producao") return;
   for (const maquina of Object.keys(partesAtivas(partesDaPeca(peca as any)))) {
     await registrarImpressao(req, { itemId: peca.id, maquina, tipo: "pausa", quantidade: 0, totalDepois: peca.quantityProduced ?? 0 });
@@ -79,7 +83,7 @@ export const MOTIVO_MIN = 10;
  * mas quebrar as quatro telas antigas de uma vez seria pior que aceitar os
  * nomes que elas já mandam.
  */
-export function lerMotivoDevolucao(req: any): { ok: true; motivo: string } | { ok: false; erro: string } {
+export function lerMotivoDevolucao(req: { body?: Record<string, unknown> }): { ok: true; motivo: string } | { ok: false; erro: string } {
   const bruto =
     typeof req.body?.rejectionReason === "string" ? req.body.rejectionReason
     : typeof req.body?.notes === "string" ? req.body.notes
@@ -122,7 +126,7 @@ export function lerMotivoDevolucao(req: any): { ok: true; motivo: string } | { o
 // jogar fora uma aprovacao que valia obriga a pedir tudo de novo.
 export type DestinoDevolucao = "arte" | "finalizacao";
 
-export function lerDestinoDevolucao(req: any): DestinoDevolucao {
+export function lerDestinoDevolucao(req: { body?: Record<string, unknown> }): DestinoDevolucao {
   return req.body?.destino === "arte" ? "arte" : "finalizacao";
 }
 
@@ -246,7 +250,7 @@ export function derivarAreaVisual(
 }
 
 // KIT (14/09): quem está pedindo, na régua de shared/kit.ts.
-export const quemVe = (req: any) => ({ kit: req.userKit === true, userId: req.userId ?? null });
+export const quemVe = (req: Pick<Request, "userKit" | "userId">) => ({ kit: req.userKit === true, userId: req.userId ?? null });
 
 // Criação de itens: Solicitação/admin, ou o CRIADOR do evento (qualquer papel)
 // — espelha o gate canEditLists do client. Sem isto, Gráfica/Arte/Atendimento
@@ -283,7 +287,7 @@ export type GatilhoDeRevogacao =
   | { tipo: "reprovacao"; sponsorId: string; nome: string };
 
 export async function revogarAprovacoesEstritas(
-  req: any,
+  req: QuemAge,
   item: { id: string },
   gatilho: GatilhoDeRevogacao,
 ): Promise<string[]> {

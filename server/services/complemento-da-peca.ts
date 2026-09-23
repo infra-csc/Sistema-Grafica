@@ -12,6 +12,7 @@ import { storage, isDisplayIdConflictError } from "../storage";
 import { type Item, type Event, type Notification, items as itemsTable, auditLogs, notifications } from "@shared/schema";
 import { translateStatus, resolveActor, type AuditActor } from "../routes/shared";
 import { deriveCalculatedM2 } from "../routes/itens/comum";
+import { mensagemDoErro } from "../erros";
 
 /** Cria o complemento (a peça-filha com a diferença) — a mãe não recebe UPDATE nenhum. */
 export async function criarComplemento(
@@ -94,7 +95,7 @@ export async function criarComplemento(
   let notification: any;
   try {
     ({ child, notification } = await criar());
-  } catch (e: any) {
+  } catch (e) {
     if (!isDisplayIdConflictError(e)) throw e;
     ({ child, notification } = await criar());
   }
@@ -112,8 +113,8 @@ export async function criarComplemento(
     // viram cobrança falsa na Gestão de Prazos, numa peça que já está
     // aprovada e liberada.
     await storage.copyItemSponsorApprovals(parent.id, child.id);
-  } catch (e: any) {
-    console.error("[COMPLEMENTOS] falha ao copiar patrocinadores/aprovações:", e?.message ?? e);
+  } catch (e) {
+    console.error("[COMPLEMENTOS] falha ao copiar patrocinadores/aprovações:", mensagemDoErro(e));
   }
 
   return { child, notification };

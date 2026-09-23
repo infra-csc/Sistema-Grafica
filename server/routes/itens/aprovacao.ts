@@ -168,7 +168,7 @@ export function registrarAprovacao(app: Express): void {
       }
       
       res.json(item);
-    } catch (error: any) {
+    } catch (error) {
       sendSensitiveError(res, error, "Enviar para aprovação", 500);
     }
   });
@@ -254,7 +254,7 @@ export function registrarAprovacao(app: Express): void {
       broadcast({ type: "notification_created", notification });
       
       res.json(item);
-    } catch (error: any) {
+    } catch (error) {
       responderFalha(res, error, "PATCH /api/items/:id/sponsor-approve", 400);
     }
   });
@@ -343,7 +343,7 @@ export function registrarAprovacao(app: Express): void {
       // Devolve O ITEM (não `{success:true}`): é o contrato das rotas irmãs, e
       // é o que permite ao cliente ler o novo status sem outro round-trip.
       res.json(item);
-    } catch (error: any) {
+    } catch (error) {
       sendSensitiveError(res, error, "Dispensar aprovação", 500);
     }
   });
@@ -374,7 +374,7 @@ export function registrarAprovacao(app: Express): void {
       }));
       
       res.json(enrichedApprovals);
-    } catch (error: any) {
+    } catch (error) {
       responderFalha(res, error, "GET /api/items/:id/sponsor-approvals", 400);
     }
   });
@@ -503,7 +503,7 @@ export function registrarAprovacao(app: Express): void {
         broadcast({ type: "sponsor_approval_updated", itemId, approval });
         res.json({ approval, allApproved: false });
       }
-    } catch (error: any) {
+    } catch (error) {
       responderFalha(res, error, "POST /api/items/:id/sponsor-approvals/:sponsorId/approve", 400);
     }
   });
@@ -610,7 +610,7 @@ export function registrarAprovacao(app: Express): void {
         item, 
         message: `Reprovação registrada. Item aguarda nova arte para o patrocinador.`
       });
-    } catch (error: any) {
+    } catch (error) {
       responderFalha(res, error, "POST /api/items/:id/sponsor-approvals/:sponsorId/reject", 400);
     }
   });
@@ -732,7 +732,7 @@ export function registrarAprovacao(app: Express): void {
       }
 
       res.json({ approval: updatedApproval, item });
-    } catch (error: any) {
+    } catch (error) {
       responderFalha(res, error, "POST /api/items/:id/sponsor-approvals/:sponsorId/revert", 400);
     }
   });
@@ -835,7 +835,7 @@ export function registrarAprovacao(app: Express): void {
       broadcast({ type: "notification_created", notification });
 
       res.json({ item, message: "Nova versão enviada. Atendimento notificado." });
-    } catch (error: any) {
+    } catch (error) {
       responderFalha(res, error, "POST /api/items/:id/sponsor-approvals/resubmit", 400);
     }
   });
@@ -882,7 +882,7 @@ export function registrarAprovacao(app: Express): void {
       );
 
       res.json(approvals);
-    } catch (error: any) {
+    } catch (error) {
       responderFalha(res, error, "POST /api/items/:id/initialize-sponsor-approvals", 400);
     }
   });

@@ -35,7 +35,7 @@ const tela = ler("client/src/pages/grafica.tsx");
 
 describe("o servidor: conferir e entregar têm os MESMOS donos", () => {
   it("conferir aceita gráfica, solicitação e admin", () => {
-    expect(rotas).toContain('if (!["grafica", "solicitacao", "admin"].includes((req as any).userRole ?? "")) {');
+    expect(rotas).toContain('if (!["grafica", "solicitacao", "admin"].includes(req.userRole ?? "")) {');
   });
 
   it("entregar aceita os mesmos três", () => {

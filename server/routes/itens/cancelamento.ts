@@ -1,5 +1,5 @@
 // Cancelar, descancelar e cancelar em lote.
-import type { Express } from "express";
+import type { Express, Request } from "express";
 import { storage } from "../../storage";
 import type { Item } from "@shared/schema";
 import { liberarReservasDasPecas } from "../estoque-reservas";
@@ -36,7 +36,7 @@ export function complementoSemMaterial(c: { quantityProduced?: number | null; re
  * era gravado por cima delas, e descancelar devolvia a peça sem a instrução
  * de produção). Não grava trilha nem avisa ninguém: quem chama decide.
  */
-async function gravarCancelamento(req: any, atual: Item, motivo: string | null): Promise<Item | undefined> {
+async function gravarCancelamento(req: Request, atual: Item, motivo: string | null): Promise<Item | undefined> {
   const item = await storage.updateItem(atual.id, {
     status: "canceled",
     // De onde a peça saiu — é o que o descancelar do admin restaura
@@ -61,7 +61,7 @@ async function gravarCancelamento(req: any, atual: Item, motivo: string | null):
  * material (se a decisão estiver ligada) e devolve os que ficaram.
  * `pular` = ids que o próprio lote já cancela (não cancelar duas vezes).
  */
-async function cancelarComplementosDaMae(req: any, mae: Item, motivo: string | null, pular: Set<string> = new Set()) {
+async function cancelarComplementosDaMae(req: Request, mae: Item, motivo: string | null, pular: Set<string> = new Set()) {
   const vivos = (await storage.getLiveComplements(mae.id)).filter((c) => c.status !== "canceled" && !pular.has(c.id));
   const cancelados: Item[] = [];
   const mantidos: Item[] = [];
@@ -150,7 +150,7 @@ export function registrarCancelamento(app: Express): void {
         complementosMantidos: mantidos.map((c) => c.displayId),
         ...(aviso ? { aviso } : {}),
       });
-    } catch (error: any) {
+    } catch (error) {
       responderErro(res, error, "cancelar peça");
     }
   });
@@ -245,7 +245,7 @@ export function registrarCancelamento(app: Express): void {
       broadcast({ type: "item_updated", item });
       await updateEventStatus(item.eventId);
       res.json(item);
-    } catch (error: any) {
+    } catch (error) {
       responderErro(res, error, "descancelar peça");
     }
   });
@@ -336,7 +336,7 @@ export function registrarCancelamento(app: Express): void {
         complementosMantidos: mantidosNoLote.map((c) => c.displayId),
         ...(aviso ? { aviso } : {}),
       });
-    } catch (error: any) {
+    } catch (error) {
       responderErro(res, error, "cancelar peças em lote");
     }
   });

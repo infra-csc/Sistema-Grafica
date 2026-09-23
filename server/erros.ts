@@ -144,3 +144,11 @@ export function erroPublico(httpStatus: number, publico: string, corpo?: Record<
 export function corpoEventoFechado(motivo: EventoFinalizadoMotivo) {
   return { error: erroEventoFechado(motivo), code: "EVENT_FINALIZED", reason: motivo };
 }
+
+/**
+ * Os campos que um erro pode trazer — o nosso (httpStatus, corpo) e o do
+ * Postgres (code). Para ler no `catch (error)` sem `any`.
+ */
+export type CamposDoErro = { message?: string; code?: string; httpStatus?: number; corpo?: Record<string, unknown> };
+export const camposDoErro = (error: unknown): CamposDoErro =>
+  error && typeof error === "object" ? (error as CamposDoErro) : {};

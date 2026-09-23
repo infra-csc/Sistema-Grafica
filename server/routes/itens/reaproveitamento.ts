@@ -25,7 +25,7 @@ export function registrarReaproveitamento(app: Express): void {
   // junto com as produzidas.
   app.post("/api/items/:id/mark-reuse", requireAuth, async (req, res) => {
     try {
-      if ((req as any).userRole !== "grafica" && (req as any).userRole !== "admin" && (req as any).userRole !== "solicitacao") {
+      if (req.userRole !== "grafica" && req.userRole !== "admin" && req.userRole !== "solicitacao") {
         return res.status(403).json({ error: "Apenas a Gráfica ou Solicitação pode marcar reaproveitamento" });
       }
       const current = await storage.getItem(req.params.id);
@@ -55,7 +55,7 @@ export function registrarReaproveitamento(app: Express): void {
       // fica de fora: ela produz o que pedem, não reescreve o pedido.
       const ehProduzida = current.status === "produced" || current.status === "produzido";
       const viaProduzida = ehProduzida
-        && podeTransicionar(current.status, "ajustar-reaproveitamento-da-produzida", (req as any).userRole);
+        && podeTransicionar(current.status, "ajustar-reaproveitamento-da-produzida", req.userRole);
       if (!vemDeOrigemValida(current.status, "reaproveitar-parte") && !viaProduzida) {
         return res.status(409).json({
           error: ehProduzida
@@ -150,7 +150,7 @@ export function registrarReaproveitamento(app: Express): void {
 
       broadcast({ type: "item_updated", item });
       res.json(item);
-    } catch (error: any) {
+    } catch (error) {
       responderFalha(res, error, "POST /api/items/:id/mark-reuse");
     }
   });
@@ -160,9 +160,9 @@ export function registrarReaproveitamento(app: Express): void {
   app.post("/api/items/:id/correct-reuse", requireAuth, async (req, res) => {
     try {
       if (
-        (req as any).userRole !== "grafica" &&
-        (req as any).userRole !== "admin" &&
-        (req as any).userRole !== "solicitacao"
+        req.userRole !== "grafica" &&
+        req.userRole !== "admin" &&
+        req.userRole !== "solicitacao"
       ) {
         return res.status(403).json({ error: "Apenas a Gráfica, Solicitação ou Admin pode corrigir reaproveitamento" });
       }
@@ -188,9 +188,9 @@ export function registrarReaproveitamento(app: Express): void {
       // "Pronto p/ Produção". O admin passa a corrigir em qualquer etapa
       // anterior à conferência; Gráfica e Solicitação seguem restritas a
       // "Produzido", que é o momento em que elas encostam na peça.
-      const isAdmin = (req as any).userRole === "admin";
+      const isAdmin = req.userRole === "admin";
       // (a janela de cada papel: shared/maquina-de-estados.ts, "corrigir-reaproveitamento-para-a-fila")
-      if (!podeTransicionar(current.status, "corrigir-reaproveitamento-para-a-fila", (req as any).userRole)) {
+      if (!podeTransicionar(current.status, "corrigir-reaproveitamento-para-a-fila", req.userRole)) {
         return res.status(409).json({ error: "Correção disponível apenas para peças com status Produzido" });
       }
       if ((current.conferredQty || 0) > 0) {
@@ -267,7 +267,7 @@ export function registrarReaproveitamento(app: Express): void {
 
       broadcast({ type: "item_updated", item });
       res.json(item);
-    } catch (error: any) {
+    } catch (error) {
       responderFalha(res, error, "POST /api/items/:id/correct-reuse");
     }
   });

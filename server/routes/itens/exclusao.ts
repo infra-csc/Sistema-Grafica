@@ -37,7 +37,7 @@ export function registrarRestauracao(app: Express): void {
       if (item) await updateEventStatus(item.eventId);
       broadcast({ type: "item_updated", item });
       res.json({ success: true, item });
-    } catch (error: any) {
+    } catch (error) {
       res.status(500).json({ error: "Não foi possível restaurar a peça" });
     }
   });
@@ -138,7 +138,7 @@ export function registrarExclusao(app: Express): void {
       broadcast({ type: "item_deleted", itemId: req.params.id, eventId: item.eventId });
 
       res.json({ success: true });
-    } catch (error: any) {
+    } catch (error) {
       responderFalha(res, error, "DELETE /api/items/:id");
     }
   });

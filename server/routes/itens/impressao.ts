@@ -31,7 +31,7 @@ import {
 import { lancarImpressas, cadastrarAtivosDaPecaProduzida } from "../../services/impressas-da-peca";
 import { erroEventoFechado, motivoEventoDaPeca, barraEventoFinalizado } from "../eventoFinalizado";
 import { registrarImpressao } from "./comum";
-import { responderFalha } from "../../erros";
+import { responderFalha, camposDoErro } from "../../erros";
 import { vemDeOrigemValida } from "@shared/maquina-de-estados";
 
 /** approve (410), start-printing, start-production. */
@@ -176,8 +176,9 @@ export function registrarRotasDeImpressao(app: Express): void {
       broadcast({ type: "item_updated", item });
       broadcast({ type: "production_started", item });
       res.json(item);
-    } catch (error: any) {
-      if (error?.httpStatus) return res.status(error.httpStatus).json(error.corpo ?? { error: error.message });
+    } catch (error) {
+      const erro = camposDoErro(error);
+      if (erro.httpStatus) return res.status(erro.httpStatus).json(erro.corpo ?? { error: erro.message });
       responderFalha(res, error, "PATCH /api/items/:id/start-printing");
     }
   });
@@ -254,10 +255,11 @@ export function registrarRotasDeImpressao(app: Express): void {
       broadcast({ type: "production_started", item });
 
       res.json(item);
-    } catch (error: any) {
+    } catch (error) {
       // O corpo inteiro do 409 (code PRODUCTION_CONFLICT / PECA_TRAVADA,
       // actualProduced) — a tela decide pelo código. O 500 não vaza error.message.
-      if ((error as any)?.httpStatus) return res.status((error as any).httpStatus).json((error as any).corpo ?? { error: error.message });
+      const erro = camposDoErro(error);
+      if (erro.httpStatus) return res.status(erro.httpStatus).json(erro.corpo ?? { error: erro.message });
       sendSensitiveError(res, error, "Informar impressas", 500);
     }
   });

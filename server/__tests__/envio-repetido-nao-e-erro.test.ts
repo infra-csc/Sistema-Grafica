@@ -29,17 +29,22 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "fs";
 import path from "path";
+import { fonteDaVinculacao, lerDaRaiz } from "./fonte-das-telas-da-arte";
 
 const ler = (rel: string) => readFileSync(path.resolve(__dirname, "../../", rel), "utf8");
-const VP = ler("client/src/pages/vincular-patrocinadores.tsx");
+// A tela inteira (página + components/vinculacao/); os recortes da mutação de
+// envio leem o arquivo onde ela mora — o hook do envio à Arte.
+const VP = fonteDaVinculacao();
+const ACOES = lerDaRaiz("client/src/components/vinculacao/use-envio-para-arte.ts");
 const SV = ler("server/routes/sponsors.ts");
 const semCom = (s: string) => s.replace(/\r\n/g, "\n").replace(/\/\*[\s\S]*?\*\//g, "")
   .split("\n").map(l => l.replace(/^\s*\/\/.*$/, "")).join("\n");
 
 describe("a janela de corrida está fechada", () => {
   it("a marca otimista só cai DEPOIS da lista nova chegar", () => {
-    const i = VP.indexOf("const sendToArteMutation = useMutation({");
-    const bloco = VP.slice(i, i + 5000);
+    const i = ACOES.indexOf("const sendToArteMutation = useMutation({");
+    expect(i).toBeGreaterThan(-1);
+    const bloco = ACOES.slice(i, i + 5000);
     const esperaRecarga = bloco.indexOf('await queryClient.invalidateQueries({ queryKey: ["/api/items"] });');
     const limpaOtimista = bloco.indexOf("itemIds.forEach(id => next.delete(id));");
     expect(esperaRecarga).toBeGreaterThan(-1);
@@ -49,9 +54,10 @@ describe("a janela de corrida está fechada", () => {
   });
 
   it("o refetch em background que abria a janela não voltou no onSuccess", () => {
-    const i = VP.indexOf("const sendToArteMutation = useMutation({");
-    const j = VP.indexOf("onError: (error: Error, itemIds: string[]) => {", i);
-    const onSuccess = semCom(VP.slice(i, j));
+    const i = ACOES.indexOf("const sendToArteMutation = useMutation({");
+    const j = ACOES.indexOf("onError: (error: Error, itemIds: string[]) => {", i);
+    expect(j).toBeGreaterThan(i);
+    const onSuccess = semCom(ACOES.slice(i, j));
     // Só a versão com await existe dentro do onSuccess.
     expect((onSuccess.match(/invalidateQueries\(\{ queryKey: \["\/api\/items"\] \}\)/g) ?? []).length).toBe(1);
     expect(onSuccess).toContain('await queryClient.invalidateQueries({ queryKey: ["/api/items"] });');
@@ -61,7 +67,7 @@ describe("a janela de corrida está fechada", () => {
 describe("o Confirmar descarta o que já foi enviado", () => {
   it("compara a foto do modal com o status ATUAL da lista", () => {
     expect(VP).toContain("const { items: doModal, pendingByItem } = sendConfirmModal;");
-    expect(VP).toContain("const statusAtual = new Map(items.map((i: any) => [i.id, i.status]));");
+    expect(VP).toContain("const statusAtual = new Map(items.map((i) => [i.id, i.status]));");
     expect(VP).toContain("const jaEnviadas = doModal.filter(i => DOWNSTREAM_STATUSES.includes(statusAtual.get(i.id) ?? i.status));");
   });
 

@@ -26,13 +26,14 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "fs";
-import path from "path";
+import { fonteDaVinculacao, lerDaRaiz } from "./fonte-das-telas-da-arte";
 
-const tela = readFileSync(
-  path.resolve(__dirname, "../../client/src/pages/vincular-patrocinadores.tsx"),
-  "utf8",
-);
+/**
+ * A tela inteira: a página e as peças dela em components/vinculacao/ (fila,
+ * linha, barras, modais e hooks), nessa ordem. As asserções dizem "a tela", e
+ * não "o arquivo" — o trecho vale onde quer que more.
+ */
+const tela = fonteDaVinculacao();
 
 /**
  * A tela sem os comentários. Toda asserção de AUSÊNCIA se faz aqui: já
@@ -98,8 +99,14 @@ describe("as duas árvores viraram uma", () => {
     // CRITÉRIO 1: trocar Evento ↔ Patrocinador não muda o que dá para fazer
     // por linha. A prova estrutural é esta: existe UMA função que desenha a
     // linha, e os dois agrupamentos chamam ela.
-    expect(tela).toContain("const renderLinhaDaPeca = (item: any, chips: any[], eventSponsors: any[])");
+    expect(tela).toContain("const renderLinhaDaPeca = (item: PecaDaVinculacao, chips: PatrocinadorDaVinculacao[], eventSponsors: PatrocinadorDaVinculacao[])");
     expect(tela).toContain("renderLinhaDaPeca(item, chipsDoEscopo, eventSponsors)");
+    // E a função devolve o ÚNICO componente de linha da tela — memoizado,
+    // num arquivo só. Uma segunda chamada a <LinhaDaPeca seria a segunda
+    // árvore voltando por outro caminho.
+    expect((codigo.match(/<LinhaDaPeca\b/g) ?? []).length).toBe(1);
+    expect(lerDaRaiz("client/src/components/vinculacao/linha-da-peca.tsx"))
+      .toContain("export const LinhaDaPeca = memo(LinhaDaPecaSemMemo, mesmaLinha);");
     // O agrupamento muda só o ESCOPO DOS CHIPS.
     expect(tela).toContain("const chipsDoEscopo = sponsor ? [sponsor] : eventSponsors;");
   });
